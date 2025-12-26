@@ -178,8 +178,9 @@ future host controllers and class drivers can share a single set of structs.
 The xHCI host controller driver in `kernel/source/drivers/XHCI.c` is registered
 by the PCI subsystem. It maps the controller MMIO region, performs the mandatory
 halt/reset/run sequence, allocates DCBAA/command/event rings, programs
-interrupter 0, runs minimal EP0 control transfers, and reports port status or
-attached device IDs via `usbctl ports` and `usbctl probe`.
+interrupter 0, runs minimal EP0 control transfers, builds a basic device tree
+(configs/interfaces/endpoints), and reports status via `usbctl ports`, `usbctl probe`,
+and `usbctl devices`.
 
 The VESA graphics driver always requests VBE modes in linear frame buffer
 mode (bit 14 set in INT 10h 4F02h), checks that the selected mode advertises

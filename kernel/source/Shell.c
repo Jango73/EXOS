@@ -175,7 +175,7 @@ static struct {
     {"whoami", "who", "", CMD_whoami},
     {"passwd", "setpassword", "", CMD_passwd},
     {"prof", "profiling", "", CMD_prof},
-    {"usbctl", "usb", "ports|probe", CMD_usbctl},
+    {"usbctl", "usb", "ports|probe|devices", CMD_usbctl},
     {"", "", "", NULL},
 };
 
@@ -1644,8 +1644,9 @@ static U32 CMD_usbctl(LPSHELLCONTEXT Context) {
 
     if (StringLength(Context->Command) == 0 ||
         (StringCompareNC(Context->Command, TEXT("ports")) != 0 &&
-         StringCompareNC(Context->Command, TEXT("probe")) != 0)) {
-        ConsolePrint(TEXT("Usage: usbctl ports|probe\n"));
+         StringCompareNC(Context->Command, TEXT("probe")) != 0 &&
+         StringCompareNC(Context->Command, TEXT("devices")) != 0)) {
+        ConsolePrint(TEXT("Usage: usbctl ports|probe|devices\n"));
         return DF_RET_SUCCESS;
     }
 
@@ -1653,9 +1654,13 @@ static U32 CMD_usbctl(LPSHELLCONTEXT Context) {
     MemorySet(&Query, 0, sizeof(Query));
     Query.Header.Size = sizeof(Query);
     Query.Header.Version = EXOS_ABI_VERSION;
-    Query.Domain = (StringCompareNC(Context->Command, TEXT("probe")) == 0)
-                       ? ENUM_DOMAIN_USB_DEVICE
-                       : ENUM_DOMAIN_XHCI_PORT;
+    if (StringCompareNC(Context->Command, TEXT("probe")) == 0) {
+        Query.Domain = ENUM_DOMAIN_USB_DEVICE;
+    } else if (StringCompareNC(Context->Command, TEXT("devices")) == 0) {
+        Query.Domain = ENUM_DOMAIN_USB_NODE;
+    } else {
+        Query.Domain = ENUM_DOMAIN_XHCI_PORT;
+    }
     Query.Flags = 0;
 
     UINT ProviderIndex = 0;
@@ -1691,6 +1696,8 @@ static U32 CMD_usbctl(LPSHELLCONTEXT Context) {
 
     if (!Printed && Query.Domain == ENUM_DOMAIN_USB_DEVICE) {
         ConsolePrint(TEXT("No USB device detected\n"));
+    } else if (!Printed && Query.Domain == ENUM_DOMAIN_USB_NODE) {
+        ConsolePrint(TEXT("No USB device tree detected\n"));
     }
     return DF_RET_SUCCESS;
 }

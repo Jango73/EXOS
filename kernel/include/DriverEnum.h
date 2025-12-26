@@ -44,6 +44,12 @@
 #define ENUM_DOMAIN_ATA_DEVICE 0x00000003
 #define ENUM_DOMAIN_XHCI_PORT 0x00000004
 #define ENUM_DOMAIN_USB_DEVICE 0x00000005
+#define ENUM_DOMAIN_USB_NODE 0x00000006
+
+#define USB_NODE_DEVICE 0x01
+#define USB_NODE_CONFIG 0x02
+#define USB_NODE_INTERFACE 0x03
+#define USB_NODE_ENDPOINT 0x04
 
 /***************************************************************************/
 // Typedefs
@@ -128,6 +134,33 @@ typedef struct tag_DRIVER_ENUM_USB_DEVICE {
     U16 VendorID;
     U16 ProductID;
 } DRIVER_ENUM_USB_DEVICE, *LPDRIVER_ENUM_USB_DEVICE;
+
+typedef struct tag_DRIVER_ENUM_USB_NODE {
+    U8 NodeType;
+    U8 Bus;
+    U8 Dev;
+    U8 Func;
+    U8 PortNumber;
+    U8 Address;
+    U8 SpeedId;
+    U8 DeviceClass;
+    U8 DeviceSubClass;
+    U8 DeviceProtocol;
+    U8 ConfigValue;
+    U8 ConfigAttributes;
+    U8 ConfigMaxPower;
+    U8 InterfaceNumber;
+    U8 AlternateSetting;
+    U8 InterfaceClass;
+    U8 InterfaceSubClass;
+    U8 InterfaceProtocol;
+    U8 EndpointAddress;
+    U8 EndpointAttributes;
+    U16 EndpointMaxPacketSize;
+    U8 EndpointInterval;
+    U16 VendorID;
+    U16 ProductID;
+} DRIVER_ENUM_USB_NODE, *LPDRIVER_ENUM_USB_NODE;
 
 /***************************************************************************/
 // External symbols

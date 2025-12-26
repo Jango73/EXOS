@@ -168,6 +168,36 @@ typedef struct tag_XHCI_CONTEXT_32 {
     U32 Dword7;
 } XHCI_CONTEXT_32, *LPXHCI_CONTEXT_32;
 
+typedef struct tag_XHCI_USB_ENDPOINT {
+    U8 Address;
+    U8 Attributes;
+    U16 MaxPacketSize;
+    U8 Interval;
+} XHCI_USB_ENDPOINT, *LPXHCI_USB_ENDPOINT;
+
+typedef struct tag_XHCI_USB_INTERFACE {
+    U8 Number;
+    U8 AlternateSetting;
+    U8 NumEndpoints;
+    U8 InterfaceClass;
+    U8 InterfaceSubClass;
+    U8 InterfaceProtocol;
+    U8 InterfaceIndex;
+    UINT EndpointCount;
+    LPXHCI_USB_ENDPOINT Endpoints;
+} XHCI_USB_INTERFACE, *LPXHCI_USB_INTERFACE;
+
+typedef struct tag_XHCI_USB_CONFIGURATION {
+    U8 ConfigurationValue;
+    U8 ConfigurationIndex;
+    U8 Attributes;
+    U8 MaxPower;
+    U8 NumInterfaces;
+    U16 TotalLength;
+    UINT InterfaceCount;
+    LPXHCI_USB_INTERFACE Interfaces;
+} XHCI_USB_CONFIGURATION, *LPXHCI_USB_CONFIGURATION;
+
 typedef struct tag_XHCI_ERST_ENTRY {
     U64 SegmentBase;
     U16 SegmentSize;
@@ -183,6 +213,12 @@ typedef struct tag_XHCI_USB_DEVICE {
     U8 SpeedId;
     U16 MaxPacketSize0;
     USB_DEVICE_DESCRIPTOR DeviceDescriptor;
+    U8 SelectedConfigValue;
+    U8 StringManufacturer;
+    U8 StringProduct;
+    U8 StringSerial;
+    UINT ConfigCount;
+    LPXHCI_USB_CONFIGURATION Configs;
     PHYSICAL InputContextPhysical;
     LINEAR InputContextLinear;
     PHYSICAL DeviceContextPhysical;
@@ -193,7 +229,7 @@ typedef struct tag_XHCI_USB_DEVICE {
     U32 TransferRingEnqueueIndex;
 } XHCI_USB_DEVICE, *LPXHCI_USB_DEVICE;
 
-struct PACKED tag_XHCI_DEVICE {
+struct tag_XHCI_DEVICE {
     PCI_DEVICE_FIELDS
 
     LINEAR MmioBase;
@@ -507,6 +543,40 @@ static BOOL XHCI_AllocPage(LPCSTR Tag, PHYSICAL *PhysicalOut, LINEAR *LinearOut)
 /************************************************************************/
 
 /**
+ * @brief Free USB configuration tree.
+ * @param UsbDevice USB device state.
+ */
+static void XHCI_FreeUsbTree(LPXHCI_USB_DEVICE UsbDevice) {
+    if (UsbDevice == NULL) {
+        return;
+    }
+
+    if (UsbDevice->Configs != NULL) {
+        for (UINT ConfigIndex = 0; ConfigIndex < UsbDevice->ConfigCount; ConfigIndex++) {
+            LPXHCI_USB_CONFIGURATION Config = &UsbDevice->Configs[ConfigIndex];
+            if (Config->Interfaces != NULL) {
+                for (UINT InterfaceIndex = 0; InterfaceIndex < Config->InterfaceCount; InterfaceIndex++) {
+                    LPXHCI_USB_INTERFACE Interface = &Config->Interfaces[InterfaceIndex];
+                    if (Interface->Endpoints != NULL) {
+                        KernelHeapFree(Interface->Endpoints);
+                        Interface->Endpoints = NULL;
+                    }
+                }
+                KernelHeapFree(Config->Interfaces);
+                Config->Interfaces = NULL;
+            }
+        }
+        KernelHeapFree(UsbDevice->Configs);
+        UsbDevice->Configs = NULL;
+    }
+
+    UsbDevice->ConfigCount = 0;
+    UsbDevice->SelectedConfigValue = 0;
+}
+
+/************************************************************************/
+
+/**
  * @brief Free xHCI allocations and MMIO mapping.
  * @param Device xHCI device.
  */
@@ -515,6 +585,7 @@ static void XHCI_FreeResources(LPXHCI_DEVICE Device) {
         if (Device->UsbDevices != NULL) {
             for (U32 PortIndex = 0; PortIndex < Device->MaxPorts; PortIndex++) {
                 LPXHCI_USB_DEVICE UsbDevice = &Device->UsbDevices[PortIndex];
+                XHCI_FreeUsbTree(UsbDevice);
                 if (UsbDevice->TransferRingLinear) {
                     FreeRegion(UsbDevice->TransferRingLinear, PAGE_SIZE);
                     UsbDevice->TransferRingLinear = 0;
@@ -610,6 +681,364 @@ static LPCSTR XHCI_SpeedToString(U32 SpeedId) {
 /************************************************************************/
 
 /**
+ * @brief Convert endpoint attributes to a readable type string.
+ * @param Attributes Endpoint attributes byte.
+ * @return Type string.
+ */
+static LPCSTR XHCI_EndpointTypeToString(U8 Attributes) {
+    switch (Attributes & 0x03) {
+        case USB_ENDPOINT_TYPE_CONTROL:
+            return TEXT("Control");
+        case USB_ENDPOINT_TYPE_ISOCHRONOUS:
+            return TEXT("Iso");
+        case USB_ENDPOINT_TYPE_BULK:
+            return TEXT("Bulk");
+        case USB_ENDPOINT_TYPE_INTERRUPT:
+            return TEXT("Intr");
+        default:
+            return TEXT("Unknown");
+    }
+}
+
+/************************************************************************/
+
+typedef BOOL (*XHCI_DESC_CALLBACK)(const U8* Descriptor, U8 Length, void* Context);
+
+/**
+ * @brief Walk all descriptors in a configuration buffer.
+ * @param Buffer Descriptor buffer.
+ * @param Length Buffer length.
+ * @param Callback Callback invoked per descriptor.
+ * @param Context Callback context.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_ForEachDescriptor(const U8* Buffer, U16 Length, XHCI_DESC_CALLBACK Callback, void* Context) {
+    U16 Offset = 0;
+
+    if (Buffer == NULL || Callback == NULL) {
+        return FALSE;
+    }
+
+    while ((Offset + 2) <= Length) {
+        U8 DescLength = Buffer[Offset];
+        U8 DescType = Buffer[Offset + 1];
+        const U8* Desc = &Buffer[Offset];
+
+        if (DescLength < 2 || (Offset + DescLength) > Length) {
+            DEBUG(TEXT("[XHCI_ForEachDescriptor] Invalid descriptor length=%u type=%u"), DescLength, DescType);
+            return FALSE;
+        }
+
+        if (!Callback(Desc, DescLength, Context)) {
+            return FALSE;
+        }
+
+        Offset = (U16)(Offset + DescLength);
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+typedef struct tag_XHCI_DESC_COUNT_CONFIG {
+    UINT ConfigCount;
+} XHCI_DESC_COUNT_CONFIG, *LPXHCI_DESC_COUNT_CONFIG;
+
+static BOOL XHCI_CountConfigCallback(const U8* Descriptor, U8 Length, void* Context) {
+    LPXHCI_DESC_COUNT_CONFIG Ctx = (LPXHCI_DESC_COUNT_CONFIG)Context;
+    UNUSED(Length);
+
+    if (Descriptor[1] == USB_DESCRIPTOR_TYPE_CONFIGURATION) {
+        Ctx->ConfigCount++;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+typedef struct tag_XHCI_DESC_COUNT_INTERFACE {
+    UINT ConfigIndex;
+    UINT ConfigCount;
+    UINT InterfaceCount;
+    UINT* ConfigInterfaceCounts;
+} XHCI_DESC_COUNT_INTERFACE, *LPXHCI_DESC_COUNT_INTERFACE;
+
+static BOOL XHCI_CountInterfaceCallback(const U8* Descriptor, U8 Length, void* Context) {
+    LPXHCI_DESC_COUNT_INTERFACE Ctx = (LPXHCI_DESC_COUNT_INTERFACE)Context;
+    UNUSED(Length);
+
+    if (Descriptor[1] == USB_DESCRIPTOR_TYPE_CONFIGURATION) {
+        if (Ctx->ConfigIndex < Ctx->ConfigCount) {
+            Ctx->ConfigIndex++;
+        }
+        return TRUE;
+    }
+
+    if (Descriptor[1] == USB_DESCRIPTOR_TYPE_INTERFACE) {
+        if (Ctx->ConfigIndex == 0 || Ctx->ConfigIndex > Ctx->ConfigCount) {
+            return TRUE;
+        }
+        Ctx->ConfigInterfaceCounts[Ctx->ConfigIndex - 1]++;
+        Ctx->InterfaceCount++;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+typedef struct tag_XHCI_DESC_COUNT_ENDPOINT {
+    UINT InterfaceIndex;
+    UINT InterfaceCount;
+    UINT* InterfaceEndpointCounts;
+} XHCI_DESC_COUNT_ENDPOINT, *LPXHCI_DESC_COUNT_ENDPOINT;
+
+static BOOL XHCI_CountEndpointCallback(const U8* Descriptor, U8 Length, void* Context) {
+    LPXHCI_DESC_COUNT_ENDPOINT Ctx = (LPXHCI_DESC_COUNT_ENDPOINT)Context;
+    UNUSED(Length);
+
+    if (Descriptor[1] == USB_DESCRIPTOR_TYPE_INTERFACE) {
+        if (Ctx->InterfaceIndex < Ctx->InterfaceCount) {
+            Ctx->InterfaceIndex++;
+        }
+        return TRUE;
+    }
+
+    if (Descriptor[1] == USB_DESCRIPTOR_TYPE_ENDPOINT) {
+        if (Ctx->InterfaceIndex == 0 || Ctx->InterfaceIndex > Ctx->InterfaceCount) {
+            return TRUE;
+        }
+        Ctx->InterfaceEndpointCounts[Ctx->InterfaceIndex - 1]++;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+typedef struct tag_XHCI_DESC_FILL_CONTEXT {
+    LPXHCI_USB_DEVICE UsbDevice;
+    LPXHCI_USB_CONFIGURATION Configs;
+    UINT ConfigCount;
+    UINT ConfigIndex;
+    UINT InterfaceGlobalIndex;
+    UINT InterfaceIndexInConfig;
+    UINT EndpointIndexInInterface;
+    UINT* ConfigInterfaceCounts;
+    UINT* InterfaceEndpointCounts;
+} XHCI_DESC_FILL_CONTEXT, *LPXHCI_DESC_FILL_CONTEXT;
+
+static BOOL XHCI_FillDescriptorCallback(const U8* Descriptor, U8 Length, void* Context) {
+    LPXHCI_DESC_FILL_CONTEXT Ctx = (LPXHCI_DESC_FILL_CONTEXT)Context;
+
+    if (Descriptor[1] == USB_DESCRIPTOR_TYPE_CONFIGURATION) {
+        if (Length < sizeof(USB_CONFIGURATION_DESCRIPTOR) || Ctx->ConfigIndex >= Ctx->ConfigCount) {
+            return TRUE;
+        }
+
+        const USB_CONFIGURATION_DESCRIPTOR* ConfigDesc = (const USB_CONFIGURATION_DESCRIPTOR*)Descriptor;
+        LPXHCI_USB_CONFIGURATION Config = &Ctx->Configs[Ctx->ConfigIndex];
+
+        Config->ConfigurationValue = ConfigDesc->ConfigurationValue;
+        Config->ConfigurationIndex = ConfigDesc->ConfigurationIndex;
+        Config->Attributes = ConfigDesc->Attributes;
+        Config->MaxPower = ConfigDesc->MaxPower;
+        Config->NumInterfaces = ConfigDesc->NumInterfaces;
+        Config->TotalLength = ConfigDesc->TotalLength;
+        Config->InterfaceCount = Ctx->ConfigInterfaceCounts[Ctx->ConfigIndex];
+
+        if (Config->InterfaceCount > 0) {
+            Config->Interfaces = (LPXHCI_USB_INTERFACE)KernelHeapAlloc(sizeof(XHCI_USB_INTERFACE) * Config->InterfaceCount);
+            if (Config->Interfaces == NULL) {
+                ERROR(TEXT("[XHCI_FillDescriptorCallback] Interface allocation failed"));
+                return FALSE;
+            }
+            MemorySet(Config->Interfaces, 0, sizeof(XHCI_USB_INTERFACE) * Config->InterfaceCount);
+        }
+
+        Ctx->InterfaceIndexInConfig = 0;
+        Ctx->ConfigIndex++;
+        return TRUE;
+    }
+
+    if (Descriptor[1] == USB_DESCRIPTOR_TYPE_INTERFACE) {
+        if (Length < sizeof(USB_INTERFACE_DESCRIPTOR) || Ctx->ConfigIndex == 0) {
+            return TRUE;
+        }
+
+        LPXHCI_USB_CONFIGURATION Config = &Ctx->Configs[Ctx->ConfigIndex - 1];
+        if (Ctx->InterfaceIndexInConfig >= Config->InterfaceCount) {
+            return TRUE;
+        }
+
+        const USB_INTERFACE_DESCRIPTOR* IfDesc = (const USB_INTERFACE_DESCRIPTOR*)Descriptor;
+        LPXHCI_USB_INTERFACE Interface = &Config->Interfaces[Ctx->InterfaceIndexInConfig];
+
+        Interface->Number = IfDesc->InterfaceNumber;
+        Interface->AlternateSetting = IfDesc->AlternateSetting;
+        Interface->NumEndpoints = IfDesc->NumEndpoints;
+        Interface->InterfaceClass = IfDesc->InterfaceClass;
+        Interface->InterfaceSubClass = IfDesc->InterfaceSubClass;
+        Interface->InterfaceProtocol = IfDesc->InterfaceProtocol;
+        Interface->InterfaceIndex = IfDesc->InterfaceIndex;
+        Interface->EndpointCount = Ctx->InterfaceEndpointCounts[Ctx->InterfaceGlobalIndex];
+
+        if (Interface->EndpointCount > 0) {
+            Interface->Endpoints =
+                (LPXHCI_USB_ENDPOINT)KernelHeapAlloc(sizeof(XHCI_USB_ENDPOINT) * Interface->EndpointCount);
+            if (Interface->Endpoints == NULL) {
+                ERROR(TEXT("[XHCI_FillDescriptorCallback] Endpoint allocation failed"));
+                return FALSE;
+            }
+            MemorySet(Interface->Endpoints, 0, sizeof(XHCI_USB_ENDPOINT) * Interface->EndpointCount);
+        }
+
+        Ctx->EndpointIndexInInterface = 0;
+        Ctx->InterfaceIndexInConfig++;
+        Ctx->InterfaceGlobalIndex++;
+        return TRUE;
+    }
+
+    if (Descriptor[1] == USB_DESCRIPTOR_TYPE_ENDPOINT) {
+        if (Length < sizeof(USB_ENDPOINT_DESCRIPTOR) || Ctx->ConfigIndex == 0) {
+            return TRUE;
+        }
+
+        LPXHCI_USB_CONFIGURATION Config = &Ctx->Configs[Ctx->ConfigIndex - 1];
+        if (Ctx->InterfaceIndexInConfig == 0) {
+            return TRUE;
+        }
+
+        LPXHCI_USB_INTERFACE Interface = &Config->Interfaces[Ctx->InterfaceIndexInConfig - 1];
+        if (Ctx->EndpointIndexInInterface >= Interface->EndpointCount) {
+            return TRUE;
+        }
+
+        const USB_ENDPOINT_DESCRIPTOR* EpDesc = (const USB_ENDPOINT_DESCRIPTOR*)Descriptor;
+        LPXHCI_USB_ENDPOINT Endpoint = &Interface->Endpoints[Ctx->EndpointIndexInInterface];
+
+        Endpoint->Address = EpDesc->EndpointAddress;
+        Endpoint->Attributes = EpDesc->Attributes;
+        Endpoint->MaxPacketSize = EpDesc->MaxPacketSize;
+        Endpoint->Interval = EpDesc->Interval;
+
+        Ctx->EndpointIndexInInterface++;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Parse configuration descriptor and build the USB tree.
+ * @param UsbDevice USB device state.
+ * @param Buffer Descriptor buffer.
+ * @param Length Buffer length.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_ParseConfigDescriptor(LPXHCI_USB_DEVICE UsbDevice, const U8* Buffer, U16 Length) {
+    XHCI_DESC_COUNT_CONFIG ConfigCountContext;
+    XHCI_DESC_COUNT_INTERFACE InterfaceCountContext;
+    XHCI_DESC_COUNT_ENDPOINT EndpointCountContext;
+    XHCI_DESC_FILL_CONTEXT FillContext;
+    UINT* ConfigInterfaceCounts = NULL;
+    UINT* InterfaceEndpointCounts = NULL;
+
+    if (UsbDevice == NULL || Buffer == NULL || Length == 0) {
+        return FALSE;
+    }
+
+    XHCI_FreeUsbTree(UsbDevice);
+
+    MemorySet(&ConfigCountContext, 0, sizeof(ConfigCountContext));
+    if (!XHCI_ForEachDescriptor(Buffer, Length, XHCI_CountConfigCallback, &ConfigCountContext)) {
+        return FALSE;
+    }
+
+    if (ConfigCountContext.ConfigCount == 0) {
+        return FALSE;
+    }
+
+    ConfigInterfaceCounts =
+        (UINT*)KernelHeapAlloc(sizeof(UINT) * ConfigCountContext.ConfigCount);
+    if (ConfigInterfaceCounts == NULL) {
+        return FALSE;
+    }
+    MemorySet(ConfigInterfaceCounts, 0, sizeof(UINT) * ConfigCountContext.ConfigCount);
+
+    MemorySet(&InterfaceCountContext, 0, sizeof(InterfaceCountContext));
+    InterfaceCountContext.ConfigCount = ConfigCountContext.ConfigCount;
+    InterfaceCountContext.ConfigInterfaceCounts = ConfigInterfaceCounts;
+
+    if (!XHCI_ForEachDescriptor(Buffer, Length, XHCI_CountInterfaceCallback, &InterfaceCountContext)) {
+        KernelHeapFree(ConfigInterfaceCounts);
+        return FALSE;
+    }
+
+    if (InterfaceCountContext.InterfaceCount > 0) {
+        InterfaceEndpointCounts =
+            (UINT*)KernelHeapAlloc(sizeof(UINT) * InterfaceCountContext.InterfaceCount);
+        if (InterfaceEndpointCounts == NULL) {
+            KernelHeapFree(ConfigInterfaceCounts);
+            return FALSE;
+        }
+        MemorySet(InterfaceEndpointCounts, 0, sizeof(UINT) * InterfaceCountContext.InterfaceCount);
+
+        MemorySet(&EndpointCountContext, 0, sizeof(EndpointCountContext));
+        EndpointCountContext.InterfaceCount = InterfaceCountContext.InterfaceCount;
+        EndpointCountContext.InterfaceEndpointCounts = InterfaceEndpointCounts;
+
+        if (!XHCI_ForEachDescriptor(Buffer, Length, XHCI_CountEndpointCallback, &EndpointCountContext)) {
+            KernelHeapFree(InterfaceEndpointCounts);
+            KernelHeapFree(ConfigInterfaceCounts);
+            return FALSE;
+        }
+    }
+
+    UsbDevice->Configs =
+        (LPXHCI_USB_CONFIGURATION)KernelHeapAlloc(sizeof(XHCI_USB_CONFIGURATION) * ConfigCountContext.ConfigCount);
+    if (UsbDevice->Configs == NULL) {
+        if (InterfaceEndpointCounts) KernelHeapFree(InterfaceEndpointCounts);
+        KernelHeapFree(ConfigInterfaceCounts);
+        return FALSE;
+    }
+    MemorySet(UsbDevice->Configs, 0, sizeof(XHCI_USB_CONFIGURATION) * ConfigCountContext.ConfigCount);
+    UsbDevice->ConfigCount = ConfigCountContext.ConfigCount;
+
+    MemorySet(&FillContext, 0, sizeof(FillContext));
+    FillContext.UsbDevice = UsbDevice;
+    FillContext.Configs = UsbDevice->Configs;
+    FillContext.ConfigCount = UsbDevice->ConfigCount;
+    FillContext.ConfigInterfaceCounts = ConfigInterfaceCounts;
+    FillContext.InterfaceEndpointCounts = InterfaceEndpointCounts;
+
+    if (!XHCI_ForEachDescriptor(Buffer, Length, XHCI_FillDescriptorCallback, &FillContext)) {
+        XHCI_FreeUsbTree(UsbDevice);
+        if (InterfaceEndpointCounts) KernelHeapFree(InterfaceEndpointCounts);
+        KernelHeapFree(ConfigInterfaceCounts);
+        return FALSE;
+    }
+
+    if (InterfaceEndpointCounts) KernelHeapFree(InterfaceEndpointCounts);
+    KernelHeapFree(ConfigInterfaceCounts);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read the full configuration descriptor.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device state.
+ * @param PhysicalOut Receives physical address.
+ * @param LinearOut Receives linear address.
+ * @param LengthOut Receives total length.
+ * @return TRUE on success.
+ */
+/**
  * @brief Read a port status register.
  * @param Device xHCI device.
  * @param PortIndex Port index (0-based).
@@ -660,6 +1089,49 @@ static void XHCI_LogPorts(LPXHCI_DEVICE Device) {
               XHCI_SpeedToString(SpeedId),
               PortStatus);
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Initialize USB node data with common fields.
+ * @param Data Output data.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device state.
+ */
+static void XHCI_InitUsbNodeData(DRIVER_ENUM_USB_NODE* Data, LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
+    MemorySet(Data, 0, sizeof(*Data));
+    Data->Bus = Device->Info.Bus;
+    Data->Dev = Device->Info.Dev;
+    Data->Func = Device->Info.Func;
+    Data->PortNumber = UsbDevice->PortNumber;
+    Data->Address = UsbDevice->Address;
+    Data->SpeedId = UsbDevice->SpeedId;
+    Data->VendorID = UsbDevice->DeviceDescriptor.VendorID;
+    Data->ProductID = UsbDevice->DeviceDescriptor.ProductID;
+    Data->DeviceClass = UsbDevice->DeviceDescriptor.DeviceClass;
+    Data->DeviceSubClass = UsbDevice->DeviceDescriptor.DeviceSubClass;
+    Data->DeviceProtocol = UsbDevice->DeviceDescriptor.DeviceProtocol;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Fill an enumeration item with provided data.
+ * @param Item Enumeration item.
+ * @param Domain Domain identifier.
+ * @param Index Item index.
+ * @param Data Data buffer.
+ * @param DataSize Data size.
+ */
+static void XHCI_FillEnumItem(LPDRIVER_ENUM_ITEM Item, UINT Domain, UINT Index, const void* Data, UINT DataSize) {
+    MemorySet(Item, 0, sizeof(DRIVER_ENUM_ITEM));
+    Item->Header.Size = sizeof(DRIVER_ENUM_ITEM);
+    Item->Header.Version = EXOS_ABI_VERSION;
+    Item->Domain = Domain;
+    Item->Index = Index;
+    Item->DataSize = DataSize;
+    MemoryCopy(Item->Data, Data, DataSize);
 }
 
 /************************************************************************/
@@ -848,6 +1320,7 @@ static BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical
  */
 static BOOL XHCI_InitUsbDeviceState(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
     UNUSED(Device);
+    XHCI_FreeUsbTree(UsbDevice);
     if (UsbDevice->InputContextLinear) {
         FreeRegion(UsbDevice->InputContextLinear, PAGE_SIZE);
         UsbDevice->InputContextLinear = 0;
@@ -902,6 +1375,10 @@ static BOOL XHCI_InitUsbDeviceState(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbD
     UsbDevice->Present = FALSE;
     UsbDevice->SlotId = 0;
     UsbDevice->Address = 0;
+    UsbDevice->SelectedConfigValue = 0;
+    UsbDevice->StringManufacturer = 0;
+    UsbDevice->StringProduct = 0;
+    UsbDevice->StringSerial = 0;
 
     return TRUE;
 }
@@ -1161,6 +1638,76 @@ static BOOL XHCI_ControlTransfer(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevi
 /************************************************************************/
 
 /**
+ * @brief Read the full configuration descriptor.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device state.
+ * @param PhysicalOut Receives physical address.
+ * @param LinearOut Receives linear address.
+ * @param LengthOut Receives total length.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_ReadConfigDescriptor(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice,
+                                      PHYSICAL* PhysicalOut, LINEAR* LinearOut, U16* LengthOut) {
+    USB_SETUP_PACKET Setup;
+    PHYSICAL Physical = 0;
+    LINEAR Linear = 0;
+    USB_CONFIGURATION_DESCRIPTOR Config;
+    U16 TotalLength = 0;
+
+    if (PhysicalOut == NULL || LinearOut == NULL || LengthOut == NULL) {
+        return FALSE;
+    }
+
+    if (!XHCI_AllocPage(TEXT("XHCI_CfgDesc"), &Physical, &Linear)) {
+        return FALSE;
+    }
+
+    MemorySet((LPVOID)Linear, 0, USB_DESCRIPTOR_LENGTH_CONFIGURATION);
+
+    MemorySet(&Setup, 0, sizeof(Setup));
+    Setup.RequestType = USB_REQUEST_DIRECTION_IN | USB_REQUEST_TYPE_STANDARD | USB_REQUEST_RECIPIENT_DEVICE;
+    Setup.Request = USB_REQUEST_GET_DESCRIPTOR;
+    Setup.Value = (USB_DESCRIPTOR_TYPE_CONFIGURATION << 8);
+    Setup.Index = 0;
+    Setup.Length = USB_DESCRIPTOR_LENGTH_CONFIGURATION;
+
+    if (!XHCI_ControlTransfer(Device, UsbDevice, &Setup, Physical, (LPVOID)Linear,
+                              USB_DESCRIPTOR_LENGTH_CONFIGURATION, TRUE)) {
+        FreeRegion(Linear, PAGE_SIZE);
+        FreePhysicalPage(Physical);
+        return FALSE;
+    }
+
+    MemoryCopy(&Config, (LPVOID)Linear, sizeof(Config));
+    TotalLength = Config.TotalLength;
+    if (TotalLength == 0) {
+        FreeRegion(Linear, PAGE_SIZE);
+        FreePhysicalPage(Physical);
+        return FALSE;
+    }
+
+    if (TotalLength > PAGE_SIZE) {
+        DEBUG(TEXT("[XHCI_ReadConfigDescriptor] Truncated config descriptor %u -> %u"), TotalLength, PAGE_SIZE);
+        TotalLength = PAGE_SIZE;
+    }
+
+    MemorySet((LPVOID)Linear, 0, TotalLength);
+    Setup.Length = TotalLength;
+    if (!XHCI_ControlTransfer(Device, UsbDevice, &Setup, Physical, (LPVOID)Linear, TotalLength, TRUE)) {
+        FreeRegion(Linear, PAGE_SIZE);
+        FreePhysicalPage(Physical);
+        return FALSE;
+    }
+
+    *PhysicalOut = Physical;
+    *LinearOut = Linear;
+    *LengthOut = TotalLength;
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Get the USB device descriptor.
  * @param Device xHCI device.
  * @param UsbDevice USB device state.
@@ -1203,74 +1750,6 @@ static BOOL XHCI_GetDeviceDescriptor(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Usb
 /************************************************************************/
 
 /**
- * @brief Get the USB configuration descriptor header.
- * @param Device xHCI device.
- * @param UsbDevice USB device state.
- * @param TotalLengthOut Receives total length.
- * @return TRUE on success.
- */
-static BOOL XHCI_GetConfigDescriptor(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U16* TotalLengthOut) {
-    USB_SETUP_PACKET Setup;
-    LPVOID Buffer = NULL;
-    PHYSICAL Physical = 0;
-    LINEAR Linear = 0;
-    USB_CONFIGURATION_DESCRIPTOR Config;
-    U16 TotalLength = 0;
-
-    if (!XHCI_AllocPage(TEXT("XHCI_CfgDesc"), &Physical, &Linear)) {
-        return FALSE;
-    }
-
-    Buffer = (LPVOID)Linear;
-    MemorySet(Buffer, 0, USB_DESCRIPTOR_LENGTH_CONFIGURATION);
-
-    MemorySet(&Setup, 0, sizeof(Setup));
-    Setup.RequestType = USB_REQUEST_DIRECTION_IN | USB_REQUEST_TYPE_STANDARD | USB_REQUEST_RECIPIENT_DEVICE;
-    Setup.Request = USB_REQUEST_GET_DESCRIPTOR;
-    Setup.Value = (USB_DESCRIPTOR_TYPE_CONFIGURATION << 8);
-    Setup.Index = 0;
-    Setup.Length = USB_DESCRIPTOR_LENGTH_CONFIGURATION;
-
-    if (!XHCI_ControlTransfer(Device, UsbDevice, &Setup, Physical, Buffer, USB_DESCRIPTOR_LENGTH_CONFIGURATION, TRUE)) {
-        FreeRegion(Linear, PAGE_SIZE);
-        FreePhysicalPage(Physical);
-        return FALSE;
-    }
-
-    MemoryCopy(&Config, Buffer, sizeof(Config));
-    TotalLength = Config.TotalLength;
-    if (TotalLengthOut != NULL) {
-        *TotalLengthOut = Config.TotalLength;
-    }
-
-    if (TotalLength > USB_DESCRIPTOR_LENGTH_CONFIGURATION) {
-        U16 ReadLength = TotalLength;
-        if (ReadLength > PAGE_SIZE) {
-            ReadLength = PAGE_SIZE;
-        }
-
-        MemorySet(Buffer, 0, ReadLength);
-        Setup.Length = ReadLength;
-        if (!XHCI_ControlTransfer(Device, UsbDevice, &Setup, Physical, Buffer, ReadLength, TRUE)) {
-            FreeRegion(Linear, PAGE_SIZE);
-            FreePhysicalPage(Physical);
-            return FALSE;
-        }
-
-        if (TotalLength > PAGE_SIZE) {
-            DEBUG(TEXT("[XHCI_GetConfigDescriptor] Truncated config descriptor %u -> %u"), TotalLength, ReadLength);
-        }
-    }
-
-    FreeRegion(Linear, PAGE_SIZE);
-    FreePhysicalPage(Physical);
-
-    return TRUE;
-}
-
-/************************************************************************/
-
-/**
  * @brief Probe a port and fetch descriptors.
  * @param Device xHCI device.
  * @param UsbDevice USB device state.
@@ -1280,7 +1759,9 @@ static BOOL XHCI_GetConfigDescriptor(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Usb
 static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U32 PortIndex) {
     U32 PortStatus = XHCI_ReadPortStatus(Device, PortIndex);
     U32 SpeedId = (PortStatus & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
-    U16 TotalLength = 0;
+    PHYSICAL ConfigPhysical = 0;
+    LINEAR ConfigLinear = 0;
+    U16 ConfigLength = 0;
 
     if ((PortStatus & XHCI_PORTSC_CCS) == 0) {
         return FALSE;
@@ -1324,6 +1805,10 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
         return FALSE;
     }
 
+    UsbDevice->StringManufacturer = UsbDevice->DeviceDescriptor.ManufacturerIndex;
+    UsbDevice->StringProduct = UsbDevice->DeviceDescriptor.ProductIndex;
+    UsbDevice->StringSerial = UsbDevice->DeviceDescriptor.SerialNumberIndex;
+
     UsbDevice->MaxPacketSize0 = XHCI_ComputeMaxPacketSize0(
         UsbDevice->SpeedId,
         UsbDevice->DeviceDescriptor.MaxPacketSize0);
@@ -1331,9 +1816,38 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
     XHCI_BuildInputContextForEp0(Device, UsbDevice);
     (void)XHCI_EvaluateContext(Device, UsbDevice);
 
-    if (!XHCI_GetConfigDescriptor(Device, UsbDevice, &TotalLength)) {
+    if (!XHCI_ReadConfigDescriptor(Device, UsbDevice, &ConfigPhysical, &ConfigLinear, &ConfigLength)) {
         ERROR(TEXT("[XHCI_ProbePort] Port %u get config descriptor failed"), PortIndex + 1);
         return FALSE;
+    }
+
+    if (!XHCI_ParseConfigDescriptor(UsbDevice, (const U8*)ConfigLinear, ConfigLength)) {
+        ERROR(TEXT("[XHCI_ProbePort] Port %u parse config descriptor failed"), PortIndex + 1);
+        FreeRegion(ConfigLinear, PAGE_SIZE);
+        FreePhysicalPage(ConfigPhysical);
+        return FALSE;
+    }
+
+    FreeRegion(ConfigLinear, PAGE_SIZE);
+    FreePhysicalPage(ConfigPhysical);
+
+    if (UsbDevice->ConfigCount > 0) {
+        UsbDevice->SelectedConfigValue = UsbDevice->Configs[0].ConfigurationValue;
+    }
+
+    if (UsbDevice->SelectedConfigValue != 0) {
+        USB_SETUP_PACKET Setup;
+        MemorySet(&Setup, 0, sizeof(Setup));
+        Setup.RequestType = USB_REQUEST_DIRECTION_OUT | USB_REQUEST_TYPE_STANDARD | USB_REQUEST_RECIPIENT_DEVICE;
+        Setup.Request = USB_REQUEST_SET_CONFIGURATION;
+        Setup.Value = UsbDevice->SelectedConfigValue;
+        Setup.Index = 0;
+        Setup.Length = 0;
+
+        if (!XHCI_ControlTransfer(Device, UsbDevice, &Setup, 0, NULL, 0, FALSE)) {
+            ERROR(TEXT("[XHCI_ProbePort] Port %u set configuration failed"), PortIndex + 1);
+            return FALSE;
+        }
     }
 
     UsbDevice->Present = TRUE;
@@ -1343,9 +1857,10 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
           UsbDevice->DeviceDescriptor.VendorID,
           UsbDevice->DeviceDescriptor.ProductID);
 
-    DEBUG(TEXT("[XHCI_ProbePort] Port %u ConfigTotalLength=%u"),
+    DEBUG(TEXT("[XHCI_ProbePort] Port %u Configs=%u SelectedConfig=%u"),
           PortIndex + 1,
-          TotalLength);
+          UsbDevice->ConfigCount,
+          UsbDevice->SelectedConfigValue);
 
     return TRUE;
 }
@@ -1623,7 +2138,8 @@ static U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
     }
 
     if (Next->Query->Domain != ENUM_DOMAIN_XHCI_PORT &&
-        Next->Query->Domain != ENUM_DOMAIN_USB_DEVICE) {
+        Next->Query->Domain != ENUM_DOMAIN_USB_DEVICE &&
+        Next->Query->Domain != ENUM_DOMAIN_USB_NODE) {
         return DF_RET_NOTIMPL;
     }
 
@@ -1649,28 +2165,22 @@ static U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                         UINT Connected = (PortStatus & XHCI_PORTSC_CCS) ? 1U : 0U;
                         UINT Enabled = (PortStatus & XHCI_PORTSC_PED) ? 1U : 0U;
 
-                        DRIVER_ENUM_XHCI_PORT Data;
-                        MemorySet(&Data, 0, sizeof(Data));
-                        Data.Bus = Device->Info.Bus;
-                        Data.Dev = Device->Info.Dev;
-                        Data.Func = Device->Info.Func;
-                        Data.PortNumber = (U8)(PortIndex + 1);
-                        Data.PortStatus = PortStatus;
-                        Data.SpeedId = SpeedId;
-                        Data.Connected = Connected;
-                        Data.Enabled = Enabled;
+                    DRIVER_ENUM_XHCI_PORT Data;
+                    MemorySet(&Data, 0, sizeof(Data));
+                    Data.Bus = Device->Info.Bus;
+                    Data.Dev = Device->Info.Dev;
+                    Data.Func = Device->Info.Func;
+                    Data.PortNumber = (U8)(PortIndex + 1);
+                    Data.PortStatus = PortStatus;
+                    Data.SpeedId = SpeedId;
+                    Data.Connected = Connected;
+                    Data.Enabled = Enabled;
 
-                        MemorySet(Next->Item, 0, sizeof(DRIVER_ENUM_ITEM));
-                        Next->Item->Header.Size = sizeof(DRIVER_ENUM_ITEM);
-                        Next->Item->Header.Version = EXOS_ABI_VERSION;
-                        Next->Item->Domain = ENUM_DOMAIN_XHCI_PORT;
-                        Next->Item->Index = Next->Query->Index;
-                        Next->Item->DataSize = sizeof(Data);
-                        MemoryCopy(Next->Item->Data, &Data, sizeof(Data));
+                    XHCI_FillEnumItem(Next->Item, ENUM_DOMAIN_XHCI_PORT, Next->Query->Index, &Data, sizeof(Data));
 
-                        Next->Query->Index++;
-                        return DF_RET_SUCCESS;
-                    }
+                    Next->Query->Index++;
+                    return DF_RET_SUCCESS;
+                }
 
                     MatchIndex++;
                 }
@@ -1695,19 +2205,98 @@ static U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                         Data.VendorID = UsbDevice->DeviceDescriptor.VendorID;
                         Data.ProductID = UsbDevice->DeviceDescriptor.ProductID;
 
-                        MemorySet(Next->Item, 0, sizeof(DRIVER_ENUM_ITEM));
-                        Next->Item->Header.Size = sizeof(DRIVER_ENUM_ITEM);
-                        Next->Item->Header.Version = EXOS_ABI_VERSION;
-                        Next->Item->Domain = ENUM_DOMAIN_USB_DEVICE;
-                        Next->Item->Index = Next->Query->Index;
-                        Next->Item->DataSize = sizeof(Data);
-                        MemoryCopy(Next->Item->Data, &Data, sizeof(Data));
+                        XHCI_FillEnumItem(Next->Item, ENUM_DOMAIN_USB_DEVICE, Next->Query->Index, &Data, sizeof(Data));
 
                         Next->Query->Index++;
                         return DF_RET_SUCCESS;
                     }
 
                     MatchIndex++;
+                }
+            } else if (Next->Query->Domain == ENUM_DOMAIN_USB_NODE) {
+                XHCI_EnsureUsbDevices(Device);
+
+                for (UINT PortIndex = 0; PortIndex < Device->MaxPorts; PortIndex++) {
+                    LPXHCI_USB_DEVICE UsbDevice = &Device->UsbDevices[PortIndex];
+                    if (!UsbDevice->Present) {
+                        continue;
+                    }
+
+                    if (MatchIndex == Next->Query->Index) {
+                        DRIVER_ENUM_USB_NODE Data;
+                        XHCI_InitUsbNodeData(&Data, Device, UsbDevice);
+                        Data.NodeType = USB_NODE_DEVICE;
+
+                        XHCI_FillEnumItem(Next->Item, ENUM_DOMAIN_USB_NODE, Next->Query->Index, &Data, sizeof(Data));
+
+                        Next->Query->Index++;
+                        return DF_RET_SUCCESS;
+                    }
+                    MatchIndex++;
+
+                    for (UINT ConfigIndex = 0; ConfigIndex < UsbDevice->ConfigCount; ConfigIndex++) {
+                        LPXHCI_USB_CONFIGURATION Config = &UsbDevice->Configs[ConfigIndex];
+
+                        if (MatchIndex == Next->Query->Index) {
+                            DRIVER_ENUM_USB_NODE Data;
+                            XHCI_InitUsbNodeData(&Data, Device, UsbDevice);
+                            Data.NodeType = USB_NODE_CONFIG;
+                            Data.ConfigValue = Config->ConfigurationValue;
+                            Data.ConfigAttributes = Config->Attributes;
+                            Data.ConfigMaxPower = Config->MaxPower;
+
+                            XHCI_FillEnumItem(Next->Item, ENUM_DOMAIN_USB_NODE, Next->Query->Index, &Data, sizeof(Data));
+
+                            Next->Query->Index++;
+                            return DF_RET_SUCCESS;
+                        }
+                        MatchIndex++;
+
+                        for (UINT IfIndex = 0; IfIndex < Config->InterfaceCount; IfIndex++) {
+                            LPXHCI_USB_INTERFACE Interface = &Config->Interfaces[IfIndex];
+
+                            if (MatchIndex == Next->Query->Index) {
+                                DRIVER_ENUM_USB_NODE Data;
+                                XHCI_InitUsbNodeData(&Data, Device, UsbDevice);
+                                Data.NodeType = USB_NODE_INTERFACE;
+                                Data.ConfigValue = Config->ConfigurationValue;
+                                Data.InterfaceNumber = Interface->Number;
+                                Data.AlternateSetting = Interface->AlternateSetting;
+                                Data.InterfaceClass = Interface->InterfaceClass;
+                                Data.InterfaceSubClass = Interface->InterfaceSubClass;
+                                Data.InterfaceProtocol = Interface->InterfaceProtocol;
+
+                                XHCI_FillEnumItem(Next->Item, ENUM_DOMAIN_USB_NODE, Next->Query->Index, &Data, sizeof(Data));
+
+                                Next->Query->Index++;
+                                return DF_RET_SUCCESS;
+                            }
+                            MatchIndex++;
+
+                            for (UINT EpIndex = 0; EpIndex < Interface->EndpointCount; EpIndex++) {
+                                LPXHCI_USB_ENDPOINT Endpoint = &Interface->Endpoints[EpIndex];
+
+                                if (MatchIndex == Next->Query->Index) {
+                                    DRIVER_ENUM_USB_NODE Data;
+                                    XHCI_InitUsbNodeData(&Data, Device, UsbDevice);
+                                    Data.NodeType = USB_NODE_ENDPOINT;
+                                    Data.ConfigValue = Config->ConfigurationValue;
+                                    Data.InterfaceNumber = Interface->Number;
+                                    Data.AlternateSetting = Interface->AlternateSetting;
+                                    Data.EndpointAddress = Endpoint->Address;
+                                    Data.EndpointAttributes = Endpoint->Attributes;
+                                    Data.EndpointMaxPacketSize = Endpoint->MaxPacketSize;
+                                    Data.EndpointInterval = Endpoint->Interval;
+
+                                    XHCI_FillEnumItem(Next->Item, ENUM_DOMAIN_USB_NODE, Next->Query->Index, &Data, sizeof(Data));
+
+                                    Next->Query->Index++;
+                                    return DF_RET_SUCCESS;
+                                }
+                                MatchIndex++;
+                            }
+                        }
+                    }
                 }
             } else {
                 return DF_RET_NOTIMPL;
@@ -1764,6 +2353,54 @@ static U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
                           (U32)Data->ProductID,
                           XHCI_SpeedToString(Data->SpeedId));
         return DF_RET_SUCCESS;
+    }
+
+    if (Pretty->Item->Domain == ENUM_DOMAIN_USB_NODE) {
+        if (Pretty->Item->DataSize < sizeof(DRIVER_ENUM_USB_NODE)) {
+            return DF_RET_BADPARAM;
+        }
+
+        const DRIVER_ENUM_USB_NODE* Data = (const DRIVER_ENUM_USB_NODE*)Pretty->Item->Data;
+
+        switch (Data->NodeType) {
+            case USB_NODE_DEVICE:
+                StringPrintFormat(Pretty->Buffer,
+                                  TEXT("Device Port %u Addr %u VID=%x PID=%x Class=%x/%x/%x Speed=%s"),
+                                  (U32)Data->PortNumber,
+                                  (U32)Data->Address,
+                                  (U32)Data->VendorID,
+                                  (U32)Data->ProductID,
+                                  (U32)Data->DeviceClass,
+                                  (U32)Data->DeviceSubClass,
+                                  (U32)Data->DeviceProtocol,
+                                  XHCI_SpeedToString(Data->SpeedId));
+                return DF_RET_SUCCESS;
+            case USB_NODE_CONFIG:
+                StringPrintFormat(Pretty->Buffer,
+                                  TEXT("  Config %u Attr=%x MaxPower=%u"),
+                                  (U32)Data->ConfigValue,
+                                  (U32)Data->ConfigAttributes,
+                                  (U32)Data->ConfigMaxPower);
+                return DF_RET_SUCCESS;
+            case USB_NODE_INTERFACE:
+                StringPrintFormat(Pretty->Buffer,
+                                  TEXT("    Interface %u Alt=%u Class=%x/%x/%x"),
+                                  (U32)Data->InterfaceNumber,
+                                  (U32)Data->AlternateSetting,
+                                  (U32)Data->InterfaceClass,
+                                  (U32)Data->InterfaceSubClass,
+                                  (U32)Data->InterfaceProtocol);
+                return DF_RET_SUCCESS;
+            case USB_NODE_ENDPOINT:
+                StringPrintFormat(Pretty->Buffer,
+                                  TEXT("      Endpoint %x %s %s MaxPacket=%u Interval=%u"),
+                                  (U32)Data->EndpointAddress,
+                                  (Data->EndpointAddress & 0x80) ? TEXT("IN") : TEXT("OUT"),
+                                  XHCI_EndpointTypeToString(Data->EndpointAttributes),
+                                  (U32)Data->EndpointMaxPacketSize,
+                                  (U32)Data->EndpointInterval);
+                return DF_RET_SUCCESS;
+        }
     }
 
     return DF_RET_BADPARAM;
@@ -1900,8 +2537,8 @@ PCI_DRIVER DATA_SECTION XHCIDriver = {
     .Manufacturer = "USB-IF",
     .Product = "xHCI",
     .Command = XHCI_Commands,
-    .EnumDomainCount = 2,
-    .EnumDomains = {ENUM_DOMAIN_XHCI_PORT, ENUM_DOMAIN_USB_DEVICE},
+    .EnumDomainCount = 3,
+    .EnumDomains = {ENUM_DOMAIN_XHCI_PORT, ENUM_DOMAIN_USB_DEVICE, ENUM_DOMAIN_USB_NODE},
     .Matches = XHCI_MatchTable,
     .MatchCount = sizeof(XHCI_MatchTable) / sizeof(XHCI_MatchTable[0]),
     .Attach = XHCI_Attach

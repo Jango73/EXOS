@@ -44,11 +44,11 @@ attached device.\
 **Goal**: build UsbDevice object (chosen config, interfaces,
 endpoints).\
 
-- [ ] Parse **Configuration/Interface/Endpoint**, save strings
-(UTF-16LE→UTF-8).\
-- [ ] Apply **SET_CONFIGURATION(1)** by default.\
+- [X] Parse **Configuration/Interface/Endpoint**, save string indexes
+(no UTF conversion yet).\
+- [X] Apply **SET_CONFIGURATION(1)** by default.\
 
-**Success**: homemade `lsusb` displays tree (addr, class, ifaces,
+**Success**: `usbctl devices` displays tree (addr, class, ifaces,
 endpoints).\
 **Independent**: no class driver needed.
 
