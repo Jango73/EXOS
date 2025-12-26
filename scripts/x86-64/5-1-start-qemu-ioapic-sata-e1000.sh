@@ -24,6 +24,7 @@ qemu-system-x86_64 \
 -machine q35,acpi=on,kernel-irqchip=split \
 -smp cpus=1,cores=1,threads=1 \
 -device qemu-xhci,id=xhci \
+-device usb-mouse,bus=xhci.0 \
 -device ahci,id=ahci \
 -drive format=raw,file="$IMG_1_PATH",if=none,id=drive0 \
 -device ide-hd,drive=drive0,bus=ahci.0 \
