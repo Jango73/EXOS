@@ -16,11 +16,11 @@
 
 **Goal**: initialize the controller and read port status.\
 
-- [ ] Find **xHCI** (PCI class 0x0C03, progIF 0x30), power-on, HCRST, R/S
+- [X] Find **xHCI** (PCI class 0x0C03, progIF 0x30), power-on, HCRST, R/S
 off.\
-- [ ] Allocate **DCBAA**, **Command Ring**, **Event Ring**, **Interrupter
+- [X] Allocate **DCBAA**, **Command Ring**, **Event Ring**, **Interrupter
 0**.\
-- [ ] RUN controller, read **PORTSCx** (presence, speed).\
+- [X] RUN controller, read **PORTSCx** (presence, speed).\
 
 **Success**: `usbctl ports` lists ports and their speed/state.\
 **QEMU quick test**: `-device qemu-xhci` (even without device).

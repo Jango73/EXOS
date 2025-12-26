@@ -29,6 +29,7 @@
 #include "Log.h"
 #include "CoreString.h"
 #include "drivers/E1000.h"
+#include "drivers/XHCI.h"
 #include "User.h"
 
 /***************************************************************************/
@@ -624,6 +625,7 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
 
             PCI_RegisterDriver(&E1000Driver);
             PCI_RegisterDriver(&AHCIPCIDriver);
+            PCI_RegisterDriver(&XHCIDriver);
             PCI_ScanBus();
 
             PCIDriver.Flags |= DRIVER_FLAG_READY;

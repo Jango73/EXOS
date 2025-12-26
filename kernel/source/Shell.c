@@ -26,6 +26,7 @@
 #include "Clock.h"
 #include "Console.h"
 #include "drivers/Keyboard.h"
+#include "drivers/XHCI.h"
 #include "Endianness.h"
 #include "Exposed.h"
 #include "File.h"
@@ -113,6 +114,7 @@ static U32 CMD_logout(LPSHELLCONTEXT);
 static U32 CMD_whoami(LPSHELLCONTEXT);
 static U32 CMD_passwd(LPSHELLCONTEXT);
 static U32 CMD_prof(LPSHELLCONTEXT);
+static U32 CMD_usbctl(LPSHELLCONTEXT);
 
 static void ShellScriptOutput(LPCSTR Message, LPVOID UserData);
 static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
@@ -173,6 +175,7 @@ static struct {
     {"whoami", "who", "", CMD_whoami},
     {"passwd", "setpassword", "", CMD_passwd},
     {"prof", "profiling", "", CMD_prof},
+    {"usbctl", "usb", "ports", CMD_usbctl},
     {"", "", "", NULL},
 };
 
@@ -1627,6 +1630,26 @@ static U32 CMD_prof(LPSHELLCONTEXT Context) {
     DEBUG(TEXT("[CMD_prof] dumping profiling data"));
     ProfileDump();
     return 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief USB control command (xHCI port report).
+ * @param Context Shell context.
+ * @return DF_RET_SUCCESS on completion.
+ */
+static U32 CMD_usbctl(LPSHELLCONTEXT Context) {
+    ParseNextCommandLineComponent(Context);
+
+    if (StringLength(Context->Command) == 0 ||
+        StringCompareNC(Context->Command, TEXT("ports")) != 0) {
+        ConsolePrint(TEXT("Usage: usbctl ports\n"));
+        return DF_RET_SUCCESS;
+    }
+
+    XHCI_DumpPorts();
+    return DF_RET_SUCCESS;
 }
 
 /***************************************************************************/
