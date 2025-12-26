@@ -25,6 +25,7 @@
 
 #include "Base.h"
 #include "CoreString.h"
+#include "DriverEnum.h"
 #include "Kernel.h"
 #include "KernelData.h"
 #include "Log.h"
@@ -626,6 +627,103 @@ static U32 XHCI_OnGetLastFunc(void) { return DF_PROBE; }
 
 /************************************************************************/
 
+static U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
+    if (Next == NULL || Next->Query == NULL || Next->Item == NULL) {
+        return DF_RET_BADPARAM;
+    }
+    if (Next->Query->Header.Size < sizeof(DRIVER_ENUM_QUERY) ||
+        Next->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
+        return DF_RET_BADPARAM;
+    }
+
+    if (Next->Query->Domain != ENUM_DOMAIN_XHCI_PORT) {
+        return DF_RET_NOTIMPL;
+    }
+
+    LPLIST PciList = GetPCIDeviceList();
+    if (PciList == NULL) {
+        return DF_RET_NO_MORE;
+    }
+
+    UINT MatchIndex = 0;
+    for (LPLISTNODE Node = PciList->First; Node; Node = Node->Next) {
+        LPPCI_DEVICE PciDevice = (LPPCI_DEVICE)Node;
+        if (PciDevice->Driver != (LPDRIVER)&XHCIDriver) {
+            continue;
+        }
+
+        LPXHCI_DEVICE Device = (LPXHCI_DEVICE)PciDevice;
+        SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+            for (UINT PortIndex = 0; PortIndex < Device->MaxPorts; PortIndex++) {
+                if (MatchIndex == Next->Query->Index) {
+                    U32 PortStatus = XHCI_ReadPortStatus(Device, PortIndex);
+                    U32 SpeedId = (PortStatus & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
+                    UINT Connected = (PortStatus & XHCI_PORTSC_CCS) ? 1U : 0U;
+                    UINT Enabled = (PortStatus & XHCI_PORTSC_PED) ? 1U : 0U;
+
+                    DRIVER_ENUM_XHCI_PORT Data;
+                    MemorySet(&Data, 0, sizeof(Data));
+                    Data.Bus = Device->Info.Bus;
+                    Data.Dev = Device->Info.Dev;
+                    Data.Func = Device->Info.Func;
+                    Data.PortNumber = (U8)(PortIndex + 1);
+                    Data.PortStatus = PortStatus;
+                    Data.SpeedId = SpeedId;
+                    Data.Connected = Connected;
+                    Data.Enabled = Enabled;
+
+                    MemorySet(Next->Item, 0, sizeof(DRIVER_ENUM_ITEM));
+                    Next->Item->Header.Size = sizeof(DRIVER_ENUM_ITEM);
+                    Next->Item->Header.Version = EXOS_ABI_VERSION;
+                    Next->Item->Domain = ENUM_DOMAIN_XHCI_PORT;
+                    Next->Item->Index = Next->Query->Index;
+                    Next->Item->DataSize = sizeof(Data);
+                    MemoryCopy(Next->Item->Data, &Data, sizeof(Data));
+
+                    Next->Query->Index++;
+                    return DF_RET_SUCCESS;
+                }
+
+                MatchIndex++;
+            }
+        }
+    }
+
+    return DF_RET_NO_MORE;
+}
+
+/************************************************************************/
+
+static U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
+    if (Pretty == NULL || Pretty->Item == NULL || Pretty->Buffer == NULL || Pretty->BufferSize == 0) {
+        return DF_RET_BADPARAM;
+    }
+    if (Pretty->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
+        return DF_RET_BADPARAM;
+    }
+
+    if (Pretty->Item->Domain != ENUM_DOMAIN_XHCI_PORT ||
+        Pretty->Item->DataSize < sizeof(DRIVER_ENUM_XHCI_PORT)) {
+        return DF_RET_BADPARAM;
+    }
+
+    const DRIVER_ENUM_XHCI_PORT* Data = (const DRIVER_ENUM_XHCI_PORT*)Pretty->Item->Data;
+    StringPrintFormat(Pretty->Buffer,
+                      TEXT("xHCI %x:%x.%u Port %u CCS=%u PED=%u Speed=%s Raw=%x"),
+                      (U32)Data->Bus,
+                      (U32)Data->Dev,
+                      (U32)Data->Func,
+                      (U32)Data->PortNumber,
+                      Data->Connected,
+                      Data->Enabled,
+                      XHCI_SpeedToString(Data->SpeedId),
+                      Data->PortStatus);
+
+    return DF_RET_SUCCESS;
+}
+
+/************************************************************************/
+
 /**
  * @brief Driver command handler.
  * @param Function Function identifier.
@@ -646,6 +744,10 @@ static UINT XHCI_Commands(UINT Function, UINT Param) {
             return XHCI_OnGetLastFunc();
         case DF_PROBE:
             return XHCI_OnProbe((const PCI_INFO *)(LPVOID)Param);
+        case DF_ENUM_NEXT:
+            return XHCI_EnumNext((LPDRIVER_ENUM_NEXT)(LPVOID)Param);
+        case DF_ENUM_PRETTY:
+            return XHCI_EnumPretty((LPDRIVER_ENUM_PRETTY)(LPVOID)Param);
     }
 
     return DF_RET_NOTIMPL;
@@ -739,85 +841,9 @@ PCI_DRIVER DATA_SECTION XHCIDriver = {
     .Manufacturer = "USB-IF",
     .Product = "xHCI",
     .Command = XHCI_Commands,
+    .EnumDomainCount = 1,
+    .EnumDomains = {ENUM_DOMAIN_XHCI_PORT},
     .Matches = XHCI_MatchTable,
     .MatchCount = sizeof(XHCI_MatchTable) / sizeof(XHCI_MatchTable[0]),
     .Attach = XHCI_Attach
 };
-
-/************************************************************************/
-
-/**
- * @brief Enumerate xHCI controllers and ports.
- * @param ControllerCallback Controller enumeration callback.
- * @param PortCallback Port enumeration callback.
- * @param Context Callback context pointer.
- * @return Number of xHCI controllers found.
- */
-UINT XHCI_EnumerateControllers(XHCI_CONTROLLER_ENUM_CALLBACK ControllerCallback,
-                               XHCI_PORT_ENUM_CALLBACK PortCallback,
-                               LPVOID Context) {
-    LPLIST PciList = GetPCIDeviceList();
-    UINT Found = 0;
-
-    if (PciList == NULL) {
-        DEBUG(TEXT("[XHCI_EnumerateControllers] No PCI device list available"));
-        return 0;
-    }
-
-    for (LPLISTNODE Node = PciList->First; Node; Node = Node->Next) {
-        LPPCI_DEVICE PciDevice = (LPPCI_DEVICE)Node;
-        if (PciDevice->Driver != (LPDRIVER)&XHCIDriver) {
-            continue;
-        }
-
-        LPXHCI_DEVICE Device = (LPXHCI_DEVICE)PciDevice;
-        SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
-            Found++;
-            DEBUG(TEXT("[XHCI_EnumerateControllers] xHCI %x:%x.%u Ports=%u"),
-                  (U32)Device->Info.Bus,
-                  (U32)Device->Info.Dev,
-                  (U32)Device->Info.Func,
-                  Device->MaxPorts);
-
-            if (ControllerCallback != NULL) {
-                ControllerCallback(Context,
-                                   (U32)Device->Info.Bus,
-                                   (U32)Device->Info.Dev,
-                                   (U32)Device->Info.Func,
-                                   Device->MaxPorts);
-            }
-
-            for (U32 PortIndex = 0; PortIndex < Device->MaxPorts; PortIndex++) {
-                U32 PortStatus = XHCI_ReadPortStatus(Device, PortIndex);
-                U32 SpeedId = (PortStatus & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
-                BOOL Connected = (PortStatus & XHCI_PORTSC_CCS) != 0;
-                BOOL Enabled = (PortStatus & XHCI_PORTSC_PED) != 0;
-
-                DEBUG(TEXT("[XHCI_EnumerateControllers] Port %u CCS=%u PED=%u Speed=%s Raw=%x"),
-                      PortIndex + 1,
-                      Connected ? 1U : 0U,
-                      Enabled ? 1U : 0U,
-                      XHCI_SpeedToString(SpeedId),
-                      PortStatus);
-
-                if (PortCallback != NULL) {
-                    PortCallback(Context,
-                                 (U32)Device->Info.Bus,
-                                 (U32)Device->Info.Dev,
-                                 (U32)Device->Info.Func,
-                                 PortIndex + 1,
-                                 PortStatus,
-                                 SpeedId,
-                                 Connected,
-                                 Enabled);
-                }
-            }
-        }
-    }
-
-    if (Found == 0) {
-        DEBUG(TEXT("[XHCI_EnumerateControllers] No xHCI controller detected"));
-    }
-
-    return Found;
-}

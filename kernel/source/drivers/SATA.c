@@ -29,6 +29,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
+#include "DriverEnum.h"
 #include "drivers/PCI.h"
 #include "User.h"
 #include "utils/Cache.h"
@@ -63,7 +64,9 @@ DRIVER DATA_SECTION SATADiskDriver = {
     .Manufacturer = "AHCI Controllers",
     .Product = "AHCI SATA Controller",
     .Flags = 0,
-    .Command = SATADiskCommands};
+    .Command = SATADiskCommands,
+    .EnumDomainCount = 1,
+    .EnumDomains = {ENUM_DOMAIN_AHCI_PORT}};
 
 /***************************************************************************/
 
@@ -129,6 +132,8 @@ static BOOL AHCIRegisterInterrupts(void);
 static BOOL AHCIInterruptTopHalf(LPDEVICE Device, LPVOID Context);
 static void AHCIInterruptBottomHalf(LPDEVICE Device, LPVOID Context);
 static void AHCIInterruptPoll(LPDEVICE Device, LPVOID Context);
+static U32 SATA_EnumNext(LPDRIVER_ENUM_NEXT Next);
+static U32 SATA_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty);
 
 static const DRIVER_MATCH AHCIMatches[] = {
     // Match any AHCI controller (Class 01h, Subclass 06h, Programming Interface 01h)
@@ -1180,7 +1185,106 @@ UINT SATADiskCommands(UINT Function, UINT Parameter) {
             return GetInfo((LPDISKINFO)Parameter);
         case DF_DISK_SETACCESS:
             return SetAccess((LPDISKACCESS)Parameter);
+        case DF_ENUM_NEXT:
+            return SATA_EnumNext((LPDRIVER_ENUM_NEXT)(LPVOID)Parameter);
+        case DF_ENUM_PRETTY:
+            return SATA_EnumPretty((LPDRIVER_ENUM_PRETTY)(LPVOID)Parameter);
     }
 
     return DF_RET_NOTIMPL;
+}
+
+/************************************************************************/
+
+static LPCSTR SataDetToString(UINT Det) {
+    switch (Det) {
+        case AHCI_PORT_SSTS_DET_NONE:
+            return TEXT("None");
+        case AHCI_PORT_SSTS_DET_PRESENT:
+            return TEXT("Present");
+        case AHCI_PORT_SSTS_DET_ESTABLISHED:
+            return TEXT("Established");
+        default:
+            return TEXT("Unknown");
+    }
+}
+
+/************************************************************************/
+
+static U32 SATA_EnumNext(LPDRIVER_ENUM_NEXT Next) {
+    if (Next == NULL || Next->Query == NULL || Next->Item == NULL) {
+        return DF_RET_BADPARAM;
+    }
+    if (Next->Query->Header.Size < sizeof(DRIVER_ENUM_QUERY) ||
+        Next->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
+        return DF_RET_BADPARAM;
+    }
+
+    if (Next->Query->Domain != ENUM_DOMAIN_AHCI_PORT) {
+        return DF_RET_NOTIMPL;
+    }
+
+    UINT MatchIndex = 0;
+    for (UINT PortIndex = 0; PortIndex < AHCI_MAX_PORTS; PortIndex++) {
+        if ((AHCIState.PortsImplemented & (1U << PortIndex)) == 0U) {
+            continue;
+        }
+
+        if (MatchIndex == Next->Query->Index) {
+            DRIVER_ENUM_AHCI_PORT Data;
+            MemorySet(&Data, 0, sizeof(Data));
+
+            Data.PortNumber = PortIndex;
+            Data.PortImplemented = 1;
+
+            if (AHCIState.Base != NULL) {
+                LPAHCI_HBA_PORT Port = &AHCIState.Base->ports[PortIndex];
+                Data.Ssts = Port->ssts;
+                Data.Sig = Port->sig;
+            }
+
+            MemorySet(Next->Item, 0, sizeof(DRIVER_ENUM_ITEM));
+            Next->Item->Header.Size = sizeof(DRIVER_ENUM_ITEM);
+            Next->Item->Header.Version = EXOS_ABI_VERSION;
+            Next->Item->Domain = ENUM_DOMAIN_AHCI_PORT;
+            Next->Item->Index = Next->Query->Index;
+            Next->Item->DataSize = sizeof(Data);
+            MemoryCopy(Next->Item->Data, &Data, sizeof(Data));
+
+            Next->Query->Index++;
+            return DF_RET_SUCCESS;
+        }
+
+        MatchIndex++;
+    }
+
+    return DF_RET_NO_MORE;
+}
+
+/************************************************************************/
+
+static U32 SATA_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
+    if (Pretty == NULL || Pretty->Item == NULL || Pretty->Buffer == NULL || Pretty->BufferSize == 0) {
+        return DF_RET_BADPARAM;
+    }
+    if (Pretty->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
+        return DF_RET_BADPARAM;
+    }
+
+    if (Pretty->Item->Domain != ENUM_DOMAIN_AHCI_PORT ||
+        Pretty->Item->DataSize < sizeof(DRIVER_ENUM_AHCI_PORT)) {
+        return DF_RET_BADPARAM;
+    }
+
+    const DRIVER_ENUM_AHCI_PORT* Data = (const DRIVER_ENUM_AHCI_PORT*)Pretty->Item->Data;
+    UINT Det = Data->Ssts & AHCI_PORT_SSTS_DET_MASK;
+
+    StringPrintFormat(Pretty->Buffer,
+                      TEXT("AHCI Port %u: DET=%s SSTS=%x SIG=%x"),
+                      Data->PortNumber,
+                      SataDetToString(Det),
+                      Data->Ssts,
+                      Data->Sig);
+
+    return DF_RET_SUCCESS;
 }

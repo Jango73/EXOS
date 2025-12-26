@@ -29,6 +29,7 @@
 #include "Log.h"
 #include "InterruptController.h"
 #include "System.h"
+#include "DriverEnum.h"
 #include "utils/Cache.h"
 
 /***************************************************************************/
@@ -54,7 +55,9 @@ DRIVER DATA_SECTION ATADiskDriver = {
     .Manufacturer = "IBM PC and compatibles",
     .Product = "ATA Disk Controller",
     .Flags = 0,
-    .Command = ATADiskCommands};
+    .Command = ATADiskCommands,
+    .EnumDomainCount = 1,
+    .EnumDomains = {ENUM_DOMAIN_ATA_DEVICE}};
 
 /***************************************************************************/
 
@@ -553,6 +556,95 @@ void HardDriveHandler(void) {
 
 /***************************************************************************/
 
+static U32 ATA_EnumNext(LPDRIVER_ENUM_NEXT Next) {
+    if (Next == NULL || Next->Query == NULL || Next->Item == NULL) {
+        return DF_RET_BADPARAM;
+    }
+    if (Next->Query->Header.Size < sizeof(DRIVER_ENUM_QUERY) ||
+        Next->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
+        return DF_RET_BADPARAM;
+    }
+
+    if (Next->Query->Domain != ENUM_DOMAIN_ATA_DEVICE) {
+        return DF_RET_NOTIMPL;
+    }
+
+    LPLIST DiskList = GetDiskList();
+    if (DiskList == NULL) {
+        return DF_RET_NO_MORE;
+    }
+
+    UINT MatchIndex = 0;
+    for (LPLISTNODE Node = DiskList->First; Node; Node = Node->Next) {
+        LPATADISK Disk = (LPATADISK)Node;
+        SAFE_USE_VALID(Disk) {
+            if (Disk->Header.TypeID != KOID_DISK) {
+                continue;
+            }
+            if (Disk->Header.Driver != &ATADiskDriver) {
+                continue;
+            }
+
+            if (MatchIndex == Next->Query->Index) {
+                DRIVER_ENUM_ATA_DEVICE Data;
+                MemorySet(&Data, 0, sizeof(Data));
+
+                Data.IOPort = Disk->IOPort;
+                Data.Drive = Disk->Drive;
+                Data.IRQ = Disk->IRQ;
+                Data.Cylinders = Disk->Geometry.Cylinders;
+                Data.Heads = Disk->Geometry.Heads;
+                Data.SectorsPerTrack = Disk->Geometry.SectorsPerTrack;
+
+                MemorySet(Next->Item, 0, sizeof(DRIVER_ENUM_ITEM));
+                Next->Item->Header.Size = sizeof(DRIVER_ENUM_ITEM);
+                Next->Item->Header.Version = EXOS_ABI_VERSION;
+                Next->Item->Domain = ENUM_DOMAIN_ATA_DEVICE;
+                Next->Item->Index = Next->Query->Index;
+                Next->Item->DataSize = sizeof(Data);
+                MemoryCopy(Next->Item->Data, &Data, sizeof(Data));
+
+                Next->Query->Index++;
+                return DF_RET_SUCCESS;
+            }
+
+            MatchIndex++;
+        }
+    }
+
+    return DF_RET_NO_MORE;
+}
+
+/***************************************************************************/
+
+static U32 ATA_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
+    if (Pretty == NULL || Pretty->Item == NULL || Pretty->Buffer == NULL || Pretty->BufferSize == 0) {
+        return DF_RET_BADPARAM;
+    }
+    if (Pretty->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
+        return DF_RET_BADPARAM;
+    }
+
+    if (Pretty->Item->Domain != ENUM_DOMAIN_ATA_DEVICE ||
+        Pretty->Item->DataSize < sizeof(DRIVER_ENUM_ATA_DEVICE)) {
+        return DF_RET_BADPARAM;
+    }
+
+    const DRIVER_ENUM_ATA_DEVICE* Data = (const DRIVER_ENUM_ATA_DEVICE*)Pretty->Item->Data;
+    StringPrintFormat(Pretty->Buffer,
+                      TEXT("ATA Port %x Drive=%u IRQ=%u CHS=%u/%u/%u"),
+                      Data->IOPort,
+                      Data->Drive,
+                      Data->IRQ,
+                      Data->Cylinders,
+                      Data->Heads,
+                      Data->SectorsPerTrack);
+
+    return DF_RET_SUCCESS;
+}
+
+/***************************************************************************/
+
 UINT ATADiskCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
@@ -585,6 +677,10 @@ UINT ATADiskCommands(UINT Function, UINT Parameter) {
             return GetInfo((LPDISKINFO)Parameter);
         case DF_DISK_SETACCESS:
             return SetAccess((LPDISKACCESS)Parameter);
+        case DF_ENUM_NEXT:
+            return ATA_EnumNext((LPDRIVER_ENUM_NEXT)(LPVOID)Parameter);
+        case DF_ENUM_PRETTY:
+            return ATA_EnumPretty((LPDRIVER_ENUM_PRETTY)(LPVOID)Parameter);
     }
 
     return DF_RET_NOTIMPL;

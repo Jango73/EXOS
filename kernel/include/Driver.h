@@ -30,6 +30,7 @@
 #include "Base.h"
 #include "ID.h"
 #include "List.h"
+#include "DriverEnum.h"
 
 /***************************************************************************/
 
@@ -74,15 +75,17 @@ typedef UINT (*DRVFUNC)(UINT Function, UINT Parameter);
 
 /***************************************************************************/
 
-#define DRIVER_FIELDS           \
-    U32 Type;                   \
-    U32 VersionMajor;           \
-    U32 VersionMinor;           \
-    STR Designer[MAX_NAME];     \
-    STR Manufacturer[MAX_NAME]; \
-    STR Product[MAX_NAME];      \
-    U32 Flags;                  \
-    DRVFUNC Command;
+#define DRIVER_FIELDS                   \
+    U32 Type;                           \
+    U32 VersionMajor;                   \
+    U32 VersionMinor;                   \
+    STR Designer[MAX_NAME];             \
+    STR Manufacturer[MAX_NAME];         \
+    STR Product[MAX_NAME];              \
+    U32 Flags;                          \
+    DRVFUNC Command;                    \
+    UINT EnumDomainCount;               \
+    UINT EnumDomains[DRIVER_ENUM_MAX_DOMAINS];
 
 typedef struct tag_DRIVER {
     LISTNODE_FIELDS

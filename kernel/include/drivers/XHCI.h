@@ -41,19 +41,9 @@
 typedef struct tag_XHCI_DEVICE XHCI_DEVICE, *LPXHCI_DEVICE;
 
 /***************************************************************************/
-// Typedefs
-
-typedef BOOL (*XHCI_CONTROLLER_ENUM_CALLBACK)(LPVOID Context, U32 Bus, U32 Dev, U32 Func, U32 PortCount);
-typedef BOOL (*XHCI_PORT_ENUM_CALLBACK)(LPVOID Context, U32 Bus, U32 Dev, U32 Func, U32 PortIndex, U32 PortStatus,
-                                        U32 SpeedId, BOOL Connected, BOOL Enabled);
-
-/***************************************************************************/
 // External symbols
 
 extern PCI_DRIVER XHCIDriver;
-UINT XHCI_EnumerateControllers(XHCI_CONTROLLER_ENUM_CALLBACK ControllerCallback,
-                               XHCI_PORT_ENUM_CALLBACK PortCallback,
-                               LPVOID Context);
 
 /***************************************************************************/
 
