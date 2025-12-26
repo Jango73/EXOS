@@ -170,6 +170,11 @@ of the codebase by storing the initialization order in a `LIST` declared in
 `KernelData.c`; `InitializeDriverList()` appends each static driver descriptor
 before `LoadAllDrivers()` walks the list.
 
+USB foundations live under `kernel/include/drivers/USB.h`. The header defines
+core USB types (speeds, endpoint kinds, addresses) and the standard descriptor
+layouts for device, configuration, interface, endpoint, and string metadata so
+future host controllers and class drivers can share a single set of structs.
+
 The VESA graphics driver always requests VBE modes in linear frame buffer
 mode (bit 14 set in INT 10h 4F02h), checks that the selected mode advertises
 the LFB capability, and maps the `PhysBasePtr` through `MapIOMemory`. Drawing

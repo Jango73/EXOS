@@ -7,7 +7,7 @@
 - [X] **MMIO & DMA**: map BAR, physically contiguous pages, 4K aligned,
     "coherent" buffers.\
 - [X] **Timers**: reliable delays in ms.\
-- [ ] **USB core (types)**: UsbSpeed{LS,FS,HS,SS},
+- [X] **USB core (types)**: UsbSpeed{LS,FS,HS,SS},
     EndpointType{Control,Bulk,Intr,Iso}, UsbAddress(0..127), descriptors
     (Device/Config/Interface/Endpoint/String).\
 - [X] **Logs**: compact trace per event (setup, TRB, port change, stall).
