@@ -25,6 +25,7 @@
 
 #include "Base.h"
 #include "CoreString.h"
+#include "DeferredWork.h"
 #include "DriverEnum.h"
 #include "Kernel.h"
 #include "KernelData.h"
@@ -125,6 +126,7 @@
 #define XHCI_TRB_IDT 0x00000040
 #define XHCI_TRB_DIR_IN 0x00010000
 
+#define XHCI_TRB_TYPE_NORMAL 1
 #define XHCI_TRB_TYPE_SETUP_STAGE 2
 #define XHCI_TRB_TYPE_DATA_STAGE 3
 #define XHCI_TRB_TYPE_STATUS_STAGE 4
@@ -152,6 +154,31 @@
 #define XHCI_PORT_RESET_TIMEOUT 1000000
 #define XHCI_EVENT_TIMEOUT_MS 1000
 
+#define XHCI_COMPLETION_QUEUE_MAX 64
+
+#define XHCI_SLOT_CTX_ROUTE_STRING_MASK 0x000FFFFF
+#define XHCI_SLOT_CTX_SPEED_SHIFT 20
+#define XHCI_SLOT_CTX_MTT 0x02000000
+#define XHCI_SLOT_CTX_HUB 0x04000000
+#define XHCI_SLOT_CTX_CONTEXT_ENTRIES_SHIFT 27
+
+#define XHCI_SLOT_CTX_ROOT_PORT_SHIFT 16
+#define XHCI_SLOT_CTX_PORT_COUNT_SHIFT 24
+
+#define XHCI_SLOT_CTX_TT_HUB_SLOT_SHIFT 0
+#define XHCI_SLOT_CTX_TT_PORT_SHIFT 8
+
+#define USB_HUB_PORT_STATUS_CONNECTION 0x0001
+#define USB_HUB_PORT_STATUS_ENABLE 0x0002
+#define USB_HUB_PORT_STATUS_RESET 0x0010
+#define USB_HUB_PORT_STATUS_POWER 0x0100
+#define USB_HUB_PORT_STATUS_LOW_SPEED 0x0200
+#define USB_HUB_PORT_STATUS_HIGH_SPEED 0x0400
+
+#define USB_HUB_PORT_CHANGE_CONNECTION 0x0001
+#define USB_HUB_PORT_CHANGE_ENABLE 0x0002
+#define USB_HUB_PORT_CHANGE_RESET 0x0010
+
 /************************************************************************/
 
 typedef struct tag_XHCI_TRB {
@@ -177,6 +204,11 @@ typedef struct tag_XHCI_USB_ENDPOINT {
     U8 Attributes;
     U16 MaxPacketSize;
     U8 Interval;
+    U8 Dci;
+    PHYSICAL TransferRingPhysical;
+    LINEAR TransferRingLinear;
+    U32 TransferRingCycleState;
+    U32 TransferRingEnqueueIndex;
 } XHCI_USB_ENDPOINT, *LPXHCI_USB_ENDPOINT;
 
 typedef struct tag_XHCI_USB_INTERFACE {
@@ -212,6 +244,8 @@ typedef struct tag_XHCI_ERST_ENTRY {
 typedef struct tag_XHCI_USB_DEVICE {
     BOOL Present;
     U8 PortNumber;
+    U8 RootPortNumber;
+    U8 Depth;
     U8 SlotId;
     USB_ADDRESS Address;
     U8 SpeedId;
@@ -231,7 +265,30 @@ typedef struct tag_XHCI_USB_DEVICE {
     LINEAR TransferRingLinear;
     U32 TransferRingCycleState;
     U32 TransferRingEnqueueIndex;
+
+    BOOL IsHub;
+    U8 HubPortCount;
+    struct tag_XHCI_USB_DEVICE** HubChildren;
+    U16* HubPortStatus;
+    LPXHCI_USB_ENDPOINT HubInterruptEndpoint;
+    U16 HubInterruptLength;
+    PHYSICAL HubStatusPhysical;
+    LINEAR HubStatusLinear;
+    U64 HubStatusTrbPhysical;
+    BOOL HubStatusPending;
+    U32 RouteString;
+    U8 ParentPort;
+    struct tag_XHCI_USB_DEVICE* Parent;
+    struct tag_XHCI_USB_DEVICE* NextDevice;
+    BOOL IsRootPort;
 } XHCI_USB_DEVICE, *LPXHCI_USB_DEVICE;
+
+typedef struct tag_XHCI_COMPLETION {
+    U64 TrbPhysical;
+    U32 Completion;
+    U8 Type;
+    U8 SlotId;
+} XHCI_COMPLETION, *LPXHCI_COMPLETION;
 
 struct tag_XHCI_DEVICE {
     PCI_DEVICE_FIELDS
@@ -268,6 +325,12 @@ struct tag_XHCI_DEVICE {
     U32 EventRingCycleState;
 
     LPXHCI_USB_DEVICE UsbDevices;
+
+    LPXHCI_USB_DEVICE DeviceList;
+    U32 DeviceCount;
+    XHCI_COMPLETION CompletionQueue[XHCI_COMPLETION_QUEUE_MAX];
+    U32 CompletionCount;
+    U32 HubPollHandle;
 
     U8 InterruptSlot;
     BOOL InterruptRegistered;
@@ -547,6 +610,134 @@ static void XHCI_UnregisterInterrupts(LPXHCI_DEVICE Device) {
 /************************************************************************/
 
 /**
+ * @brief Record an xHCI completion event in the device queue.
+ * @param Device xHCI device.
+ * @param Event Event TRB.
+ */
+static void XHCI_PushCompletion(LPXHCI_DEVICE Device, const XHCI_TRB* Event) {
+    if (Device == NULL || Event == NULL) {
+        return;
+    }
+
+    U8 Type = (U8)XHCI_GetTrbType(Event->Dword3);
+    if (Type != XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT &&
+        Type != XHCI_TRB_TYPE_TRANSFER_EVENT) {
+        return;
+    }
+
+    U64 Pointer = U64_Make(Event->Dword1, Event->Dword0);
+    U32 Completion = XHCI_GetCompletionCode(Event->Dword2);
+    U8 SlotId = (U8)((Event->Dword3 >> 24) & 0xFF);
+
+    if (Device->CompletionCount >= XHCI_COMPLETION_QUEUE_MAX) {
+        for (U32 Index = 1; Index < Device->CompletionCount; Index++) {
+            Device->CompletionQueue[Index - 1] = Device->CompletionQueue[Index];
+        }
+        Device->CompletionCount = XHCI_COMPLETION_QUEUE_MAX - 1;
+    }
+
+    XHCI_COMPLETION* Entry = &Device->CompletionQueue[Device->CompletionCount++];
+    Entry->TrbPhysical = Pointer;
+    Entry->Completion = Completion;
+    Entry->Type = Type;
+    Entry->SlotId = SlotId;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Try to pop a completion entry for a TRB.
+ * @param Device xHCI device.
+ * @param Type Expected completion type.
+ * @param TrbPhysical TRB physical address.
+ * @param SlotIdOut Receives slot ID when provided.
+ * @param CompletionOut Receives completion code when provided.
+ * @return TRUE if a matching completion was found.
+ */
+static BOOL XHCI_PopCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* SlotIdOut, U32* CompletionOut) {
+    if (Device == NULL) {
+        return FALSE;
+    }
+
+    for (U32 Index = 0; Index < Device->CompletionCount; Index++) {
+        XHCI_COMPLETION* Entry = &Device->CompletionQueue[Index];
+        if (Entry->Type != Type) {
+            continue;
+        }
+        if (!U64_EQUAL(Entry->TrbPhysical, TrbPhysical)) {
+            continue;
+        }
+
+        if (SlotIdOut != NULL) {
+            *SlotIdOut = Entry->SlotId;
+        }
+        if (CompletionOut != NULL) {
+            *CompletionOut = Entry->Completion;
+        }
+
+        for (U32 Shift = Index + 1; Shift < Device->CompletionCount; Shift++) {
+            Device->CompletionQueue[Shift - 1] = Device->CompletionQueue[Shift];
+        }
+        Device->CompletionCount--;
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Enqueue a TRB in a ring using xHCI link semantics.
+ * @param RingLinear Ring base (linear).
+ * @param RingPhysical Ring base (physical).
+ * @param EnqueueIndex Ring enqueue index (in/out).
+ * @param CycleState Ring cycle state (in/out).
+ * @param RingTrbs Number of TRBs in ring (including link TRB).
+ * @param Trb TRB to enqueue.
+ * @param PhysicalOut Receives physical address of the enqueued TRB.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_RingEnqueue(LINEAR RingLinear, PHYSICAL RingPhysical, U32* EnqueueIndex, U32* CycleState,
+                             U32 RingTrbs, const XHCI_TRB* Trb, U64* PhysicalOut) {
+    if (RingLinear == 0 || RingPhysical == 0 || EnqueueIndex == NULL || CycleState == NULL || Trb == NULL) {
+        return FALSE;
+    }
+
+    LPXHCI_TRB Ring = (LPXHCI_TRB)RingLinear;
+    U32 Index = *EnqueueIndex;
+    U32 LinkIndex = RingTrbs - 1;
+
+    if (Index >= LinkIndex) {
+        Index = 0;
+        *EnqueueIndex = 0;
+    }
+
+    XHCI_TRB Local = *Trb;
+    Local.Dword3 |= (*CycleState ? XHCI_TRB_CYCLE : 0);
+
+    Ring[Index] = Local;
+
+    if (PhysicalOut != NULL) {
+        *PhysicalOut = U64_FromUINT(RingPhysical + (Index * sizeof(XHCI_TRB)));
+    }
+
+    Index++;
+    if (Index == LinkIndex) {
+        Ring[LinkIndex].Dword3 = (XHCI_TRB_TYPE_LINK << XHCI_TRB_TYPE_SHIFT) |
+                                 (*CycleState ? XHCI_TRB_CYCLE : 0) |
+                                 XHCI_TRB_TOGGLE_CYCLE;
+        *CycleState ^= 1;
+        Index = 0;
+    }
+
+    *EnqueueIndex = Index;
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Enqueue a TRB on the command ring.
  * @param Device xHCI device.
  * @param Trb TRB to enqueue.
@@ -557,36 +748,9 @@ static BOOL XHCI_CommandRingEnqueue(LPXHCI_DEVICE Device, const XHCI_TRB* Trb, U
     if (Device == NULL || Trb == NULL) {
         return FALSE;
     }
-
-    LPXHCI_TRB Ring = (LPXHCI_TRB)Device->CommandRingLinear;
-    U32 Index = Device->CommandRingEnqueueIndex;
-    U32 LinkIndex = XHCI_COMMAND_RING_TRBS - 1;
-
-    if (Index >= LinkIndex) {
-        Index = 0;
-        Device->CommandRingEnqueueIndex = 0;
-    }
-
-    XHCI_TRB Local = *Trb;
-    Local.Dword3 |= (Device->CommandRingCycleState ? XHCI_TRB_CYCLE : 0);
-
-    Ring[Index] = Local;
-
-    if (PhysicalOut != NULL) {
-        *PhysicalOut = U64_FromUINT(Device->CommandRingPhysical + (Index * sizeof(XHCI_TRB)));
-    }
-
-    Index++;
-    if (Index == LinkIndex) {
-        Ring[LinkIndex].Dword3 = (XHCI_TRB_TYPE_LINK << XHCI_TRB_TYPE_SHIFT) |
-                                 (Device->CommandRingCycleState ? XHCI_TRB_CYCLE : 0) |
-                                 XHCI_TRB_TOGGLE_CYCLE;
-        Device->CommandRingCycleState ^= 1;
-        Index = 0;
-    }
-
-    Device->CommandRingEnqueueIndex = Index;
-    return TRUE;
+    return XHCI_RingEnqueue(Device->CommandRingLinear, Device->CommandRingPhysical,
+                            &Device->CommandRingEnqueueIndex, &Device->CommandRingCycleState,
+                            XHCI_COMMAND_RING_TRBS, Trb, PhysicalOut);
 }
 
 /************************************************************************/
@@ -602,36 +766,9 @@ static BOOL XHCI_TransferRingEnqueue(LPXHCI_USB_DEVICE UsbDevice, const XHCI_TRB
     if (UsbDevice == NULL || Trb == NULL) {
         return FALSE;
     }
-
-    LPXHCI_TRB Ring = (LPXHCI_TRB)UsbDevice->TransferRingLinear;
-    U32 Index = UsbDevice->TransferRingEnqueueIndex;
-    U32 LinkIndex = XHCI_TRANSFER_RING_TRBS - 1;
-
-    if (Index >= LinkIndex) {
-        Index = 0;
-        UsbDevice->TransferRingEnqueueIndex = 0;
-    }
-
-    XHCI_TRB Local = *Trb;
-    Local.Dword3 |= (UsbDevice->TransferRingCycleState ? XHCI_TRB_CYCLE : 0);
-
-    Ring[Index] = Local;
-
-    if (PhysicalOut != NULL) {
-        *PhysicalOut = U64_FromUINT(UsbDevice->TransferRingPhysical + (Index * sizeof(XHCI_TRB)));
-    }
-
-    Index++;
-    if (Index == LinkIndex) {
-        Ring[LinkIndex].Dword3 = (XHCI_TRB_TYPE_LINK << XHCI_TRB_TYPE_SHIFT) |
-                                 (UsbDevice->TransferRingCycleState ? XHCI_TRB_CYCLE : 0) |
-                                 XHCI_TRB_TOGGLE_CYCLE;
-        UsbDevice->TransferRingCycleState ^= 1;
-        Index = 0;
-    }
-
-    UsbDevice->TransferRingEnqueueIndex = Index;
-    return TRUE;
+    return XHCI_RingEnqueue(UsbDevice->TransferRingLinear, UsbDevice->TransferRingPhysical,
+                            &UsbDevice->TransferRingEnqueueIndex, &UsbDevice->TransferRingCycleState,
+                            XHCI_TRANSFER_RING_TRBS, Trb, PhysicalOut);
 }
 
 /************************************************************************/
@@ -672,6 +809,19 @@ static BOOL XHCI_DequeueEvent(LPXHCI_DEVICE Device, XHCI_TRB* EventOut) {
     }
 
     return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Drain the event ring and cache completion events.
+ * @param Device xHCI device.
+ */
+static void XHCI_PollCompletions(LPXHCI_DEVICE Device) {
+    XHCI_TRB Event;
+    while (XHCI_DequeueEvent(Device, &Event)) {
+        XHCI_PushCompletion(Device, &Event);
+    }
 }
 
 /************************************************************************/
@@ -746,6 +896,17 @@ static void XHCI_FreeUsbTree(LPXHCI_USB_DEVICE UsbDevice) {
                 for (UINT InterfaceIndex = 0; InterfaceIndex < Config->InterfaceCount; InterfaceIndex++) {
                     LPXHCI_USB_INTERFACE Interface = &Config->Interfaces[InterfaceIndex];
                     if (Interface->Endpoints != NULL) {
+                        for (UINT EndpointIndex = 0; EndpointIndex < Interface->EndpointCount; EndpointIndex++) {
+                            LPXHCI_USB_ENDPOINT Endpoint = &Interface->Endpoints[EndpointIndex];
+                            if (Endpoint->TransferRingLinear) {
+                                FreeRegion(Endpoint->TransferRingLinear, PAGE_SIZE);
+                                Endpoint->TransferRingLinear = 0;
+                            }
+                            if (Endpoint->TransferRingPhysical) {
+                                FreePhysicalPage(Endpoint->TransferRingPhysical);
+                                Endpoint->TransferRingPhysical = 0;
+                            }
+                        }
                         KernelHeapFree(Interface->Endpoints);
                         Interface->Endpoints = NULL;
                     }
@@ -765,44 +926,181 @@ static void XHCI_FreeUsbTree(LPXHCI_USB_DEVICE UsbDevice) {
 /************************************************************************/
 
 /**
+ * @brief Free per-device allocations excluding child nodes.
+ * @param UsbDevice USB device state.
+ */
+static void XHCI_FreeUsbDeviceResources(LPXHCI_USB_DEVICE UsbDevice) {
+    if (UsbDevice == NULL) {
+        return;
+    }
+
+    XHCI_FreeUsbTree(UsbDevice);
+
+    if (UsbDevice->TransferRingLinear) {
+        FreeRegion(UsbDevice->TransferRingLinear, PAGE_SIZE);
+        UsbDevice->TransferRingLinear = 0;
+    }
+    if (UsbDevice->TransferRingPhysical) {
+        FreePhysicalPage(UsbDevice->TransferRingPhysical);
+        UsbDevice->TransferRingPhysical = 0;
+    }
+    if (UsbDevice->InputContextLinear) {
+        FreeRegion(UsbDevice->InputContextLinear, PAGE_SIZE);
+        UsbDevice->InputContextLinear = 0;
+    }
+    if (UsbDevice->InputContextPhysical) {
+        FreePhysicalPage(UsbDevice->InputContextPhysical);
+        UsbDevice->InputContextPhysical = 0;
+    }
+    if (UsbDevice->DeviceContextLinear) {
+        FreeRegion(UsbDevice->DeviceContextLinear, PAGE_SIZE);
+        UsbDevice->DeviceContextLinear = 0;
+    }
+    if (UsbDevice->DeviceContextPhysical) {
+        FreePhysicalPage(UsbDevice->DeviceContextPhysical);
+        UsbDevice->DeviceContextPhysical = 0;
+    }
+    if (UsbDevice->HubStatusLinear) {
+        FreeRegion(UsbDevice->HubStatusLinear, PAGE_SIZE);
+        UsbDevice->HubStatusLinear = 0;
+    }
+    if (UsbDevice->HubStatusPhysical) {
+        FreePhysicalPage(UsbDevice->HubStatusPhysical);
+        UsbDevice->HubStatusPhysical = 0;
+    }
+    if (UsbDevice->HubChildren != NULL) {
+        KernelHeapFree(UsbDevice->HubChildren);
+        UsbDevice->HubChildren = NULL;
+    }
+    if (UsbDevice->HubPortStatus != NULL) {
+        KernelHeapFree(UsbDevice->HubPortStatus);
+        UsbDevice->HubPortStatus = NULL;
+    }
+
+    UsbDevice->Present = FALSE;
+    UsbDevice->SlotId = 0;
+    UsbDevice->Address = 0;
+    UsbDevice->IsHub = FALSE;
+    UsbDevice->HubPortCount = 0;
+    UsbDevice->HubInterruptEndpoint = NULL;
+    UsbDevice->HubInterruptLength = 0;
+    UsbDevice->HubStatusTrbPhysical = U64_FromUINT(0);
+    UsbDevice->HubStatusPending = FALSE;
+    UsbDevice->Parent = NULL;
+    UsbDevice->ParentPort = 0;
+    UsbDevice->Depth = 0;
+    UsbDevice->RouteString = 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Remove a device from the controller list.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device state.
+ */
+static void XHCI_RemoveDeviceFromList(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
+    if (Device == NULL || UsbDevice == NULL) {
+        return;
+    }
+
+    LPXHCI_USB_DEVICE Prev = NULL;
+    LPXHCI_USB_DEVICE Curr = Device->DeviceList;
+    while (Curr != NULL) {
+        if (Curr == UsbDevice) {
+            if (Prev != NULL) {
+                Prev->NextDevice = Curr->NextDevice;
+            } else {
+                Device->DeviceList = Curr->NextDevice;
+            }
+            if (Device->DeviceCount > 0) {
+                Device->DeviceCount--;
+            }
+            Curr->NextDevice = NULL;
+            return;
+        }
+        Prev = Curr;
+        Curr = Curr->NextDevice;
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Add a device to the controller list.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device state.
+ */
+static void XHCI_AddDeviceToList(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
+    if (Device == NULL || UsbDevice == NULL) {
+        return;
+    }
+
+    for (LPXHCI_USB_DEVICE Curr = Device->DeviceList; Curr != NULL; Curr = Curr->NextDevice) {
+        if (Curr == UsbDevice) {
+            return;
+        }
+    }
+
+    UsbDevice->NextDevice = Device->DeviceList;
+    Device->DeviceList = UsbDevice;
+    Device->DeviceCount++;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Destroy a USB device and its children.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device state.
+ * @param FreeSelf TRUE when the UsbDevice structure is heap allocated.
+ */
+static void XHCI_DestroyUsbDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, BOOL FreeSelf) {
+    if (UsbDevice == NULL) {
+        return;
+    }
+
+    if (UsbDevice->IsHub && UsbDevice->HubChildren != NULL) {
+        for (U32 PortIndex = 0; PortIndex < UsbDevice->HubPortCount; PortIndex++) {
+            LPXHCI_USB_DEVICE Child = UsbDevice->HubChildren[PortIndex];
+            if (Child != NULL) {
+                UsbDevice->HubChildren[PortIndex] = NULL;
+                XHCI_DestroyUsbDevice(Device, Child, TRUE);
+            }
+        }
+    }
+
+    XHCI_RemoveDeviceFromList(Device, UsbDevice);
+    XHCI_FreeUsbDeviceResources(UsbDevice);
+
+    if (FreeSelf) {
+        KernelHeapFree(UsbDevice);
+    }
+}
+
+/************************************************************************/
+
+/**
  * @brief Free xHCI allocations and MMIO mapping.
  * @param Device xHCI device.
  */
 static void XHCI_FreeResources(LPXHCI_DEVICE Device) {
     SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
         XHCI_UnregisterInterrupts(Device);
+        if (Device->HubPollHandle != DEFERRED_WORK_INVALID_HANDLE) {
+            DeferredWorkUnregister(Device->HubPollHandle);
+            Device->HubPollHandle = DEFERRED_WORK_INVALID_HANDLE;
+        }
 
         if (Device->UsbDevices != NULL) {
             for (U32 PortIndex = 0; PortIndex < Device->MaxPorts; PortIndex++) {
                 LPXHCI_USB_DEVICE UsbDevice = &Device->UsbDevices[PortIndex];
-                XHCI_FreeUsbTree(UsbDevice);
-                if (UsbDevice->TransferRingLinear) {
-                    FreeRegion(UsbDevice->TransferRingLinear, PAGE_SIZE);
-                    UsbDevice->TransferRingLinear = 0;
-                }
-                if (UsbDevice->TransferRingPhysical) {
-                    FreePhysicalPage(UsbDevice->TransferRingPhysical);
-                    UsbDevice->TransferRingPhysical = 0;
-                }
-                if (UsbDevice->InputContextLinear) {
-                    FreeRegion(UsbDevice->InputContextLinear, PAGE_SIZE);
-                    UsbDevice->InputContextLinear = 0;
-                }
-                if (UsbDevice->InputContextPhysical) {
-                    FreePhysicalPage(UsbDevice->InputContextPhysical);
-                    UsbDevice->InputContextPhysical = 0;
-                }
-                if (UsbDevice->DeviceContextLinear) {
-                    FreeRegion(UsbDevice->DeviceContextLinear, PAGE_SIZE);
-                    UsbDevice->DeviceContextLinear = 0;
-                }
-                if (UsbDevice->DeviceContextPhysical) {
-                    FreePhysicalPage(UsbDevice->DeviceContextPhysical);
-                    UsbDevice->DeviceContextPhysical = 0;
-                }
+                XHCI_DestroyUsbDevice(Device, UsbDevice, FALSE);
             }
             KernelHeapFree(Device->UsbDevices);
             Device->UsbDevices = NULL;
+            Device->DeviceList = NULL;
+            Device->DeviceCount = 0;
         }
         if (Device->EventRingTableLinear) {
             FreeRegion(Device->EventRingTableLinear, PAGE_SIZE);
@@ -888,6 +1186,166 @@ static LPCSTR XHCI_EndpointTypeToString(U8 Attributes) {
         default:
             return TEXT("Unknown");
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Convert endpoint address to xHCI DCI.
+ * @param EndpointAddress USB endpoint address.
+ * @return DCI index.
+ */
+static U8 XHCI_GetEndpointDci(U8 EndpointAddress) {
+    U8 EndpointNumber = EndpointAddress & 0x0F;
+    U8 DirectionIn = (EndpointAddress & 0x80) != 0 ? 1U : 0U;
+    return (U8)((EndpointNumber * 2U) + DirectionIn);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Get the selected configuration for a device.
+ * @param UsbDevice USB device state.
+ * @return Pointer to configuration or NULL.
+ */
+static LPXHCI_USB_CONFIGURATION XHCI_GetSelectedConfig(LPXHCI_USB_DEVICE UsbDevice) {
+    if (UsbDevice == NULL || UsbDevice->Configs == NULL || UsbDevice->ConfigCount == 0) {
+        return NULL;
+    }
+
+    if (UsbDevice->SelectedConfigValue == 0) {
+        return &UsbDevice->Configs[0];
+    }
+
+    for (UINT Index = 0; Index < UsbDevice->ConfigCount; Index++) {
+        if (UsbDevice->Configs[Index].ConfigurationValue == UsbDevice->SelectedConfigValue) {
+            return &UsbDevice->Configs[Index];
+        }
+    }
+
+    return &UsbDevice->Configs[0];
+}
+
+/************************************************************************/
+
+/**
+ * @brief Detect whether a USB device is a hub.
+ * @param UsbDevice USB device state.
+ * @return TRUE when the device exposes the hub class.
+ */
+static BOOL XHCI_IsHubDevice(LPXHCI_USB_DEVICE UsbDevice) {
+    if (UsbDevice == NULL) {
+        return FALSE;
+    }
+
+    if (UsbDevice->DeviceDescriptor.DeviceClass == USB_CLASS_HUB) {
+        return TRUE;
+    }
+
+    LPXHCI_USB_CONFIGURATION Config = XHCI_GetSelectedConfig(UsbDevice);
+    if (Config == NULL) {
+        return FALSE;
+    }
+
+    for (UINT InterfaceIndex = 0; InterfaceIndex < Config->InterfaceCount; InterfaceIndex++) {
+        LPXHCI_USB_INTERFACE Interface = &Config->Interfaces[InterfaceIndex];
+        if (Interface->InterfaceClass == USB_CLASS_HUB) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Locate the interrupt IN endpoint for a hub device.
+ * @param UsbDevice USB device state.
+ * @return Endpoint pointer or NULL.
+ */
+static LPXHCI_USB_ENDPOINT XHCI_FindHubInterruptEndpoint(LPXHCI_USB_DEVICE UsbDevice) {
+    LPXHCI_USB_CONFIGURATION Config = XHCI_GetSelectedConfig(UsbDevice);
+    if (Config == NULL) {
+        return NULL;
+    }
+
+    for (UINT InterfaceIndex = 0; InterfaceIndex < Config->InterfaceCount; InterfaceIndex++) {
+        LPXHCI_USB_INTERFACE Interface = &Config->Interfaces[InterfaceIndex];
+        if (Interface->InterfaceClass != USB_CLASS_HUB) {
+            continue;
+        }
+
+        for (UINT EndpointIndex = 0; EndpointIndex < Interface->EndpointCount; EndpointIndex++) {
+            LPXHCI_USB_ENDPOINT Endpoint = &Interface->Endpoints[EndpointIndex];
+            if ((Endpoint->Attributes & 0x03) != USB_ENDPOINT_TYPE_INTERRUPT) {
+                continue;
+            }
+            if ((Endpoint->Address & 0x80) == 0) {
+                continue;
+            }
+
+            return Endpoint;
+        }
+    }
+
+    return NULL;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Initialize a transfer ring.
+ * @param Tag Allocation tag.
+ * @param PhysicalOut Receives physical base.
+ * @param LinearOut Receives linear base.
+ * @param CycleStateOut Receives cycle state.
+ * @param EnqueueIndexOut Receives enqueue index.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_InitTransferRingCore(LPCSTR Tag, PHYSICAL* PhysicalOut, LINEAR* LinearOut,
+                                      U32* CycleStateOut, U32* EnqueueIndexOut) {
+    if (PhysicalOut == NULL || LinearOut == NULL || CycleStateOut == NULL || EnqueueIndexOut == NULL) {
+        return FALSE;
+    }
+
+    if (!XHCI_AllocPage(Tag, PhysicalOut, LinearOut)) {
+        return FALSE;
+    }
+
+    LPXHCI_TRB Ring = (LPXHCI_TRB)(*LinearOut);
+    MemorySet(Ring, 0, PAGE_SIZE);
+
+    U32 LinkIndex = XHCI_TRANSFER_RING_TRBS - 1;
+    U64 RingAddress = U64_FromUINT(*PhysicalOut);
+    Ring[LinkIndex].Dword0 = U64_Low32(RingAddress);
+    Ring[LinkIndex].Dword1 = U64_High32(RingAddress);
+    Ring[LinkIndex].Dword2 = 0;
+    Ring[LinkIndex].Dword3 = (XHCI_TRB_TYPE_LINK << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_CYCLE | XHCI_TRB_TOGGLE_CYCLE;
+
+    *CycleStateOut = 1;
+    *EnqueueIndexOut = 0;
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Initialize an endpoint transfer ring.
+ * @param Endpoint Endpoint descriptor.
+ * @param Tag Allocation tag.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_InitEndpointRing(LPXHCI_USB_ENDPOINT Endpoint, LPCSTR Tag) {
+    if (Endpoint == NULL) {
+        return FALSE;
+    }
+
+    return XHCI_InitTransferRingCore(Tag,
+                                     &Endpoint->TransferRingPhysical,
+                                     &Endpoint->TransferRingLinear,
+                                     &Endpoint->TransferRingCycleState,
+                                     &Endpoint->TransferRingEnqueueIndex);
 }
 
 /************************************************************************/
@@ -1394,29 +1852,12 @@ static BOOL XHCI_ResetPort(LPXHCI_DEVICE Device, U32 PortIndex) {
 
 /************************************************************************/
 
-/**
- * @brief Initialize a transfer ring for a USB device.
- * @param UsbDevice USB device state.
- * @return TRUE on success.
- */
 static BOOL XHCI_InitTransferRing(LPXHCI_USB_DEVICE UsbDevice) {
-    if (!XHCI_AllocPage(TEXT("XHCI_TransferRing"), &UsbDevice->TransferRingPhysical, &UsbDevice->TransferRingLinear)) {
-        return FALSE;
-    }
-
-    LPXHCI_TRB Ring = (LPXHCI_TRB)UsbDevice->TransferRingLinear;
-    MemorySet(Ring, 0, PAGE_SIZE);
-
-    U32 LinkIndex = XHCI_TRANSFER_RING_TRBS - 1;
-    U64 RingAddress = U64_FromUINT(UsbDevice->TransferRingPhysical);
-    Ring[LinkIndex].Dword0 = U64_Low32(RingAddress);
-    Ring[LinkIndex].Dword1 = U64_High32(RingAddress);
-    Ring[LinkIndex].Dword2 = 0;
-    Ring[LinkIndex].Dword3 = (XHCI_TRB_TYPE_LINK << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_CYCLE | XHCI_TRB_TOGGLE_CYCLE;
-
-    UsbDevice->TransferRingCycleState = 1;
-    UsbDevice->TransferRingEnqueueIndex = 0;
-    return TRUE;
+    return XHCI_InitTransferRingCore(TEXT("XHCI_TransferRing"),
+                                     &UsbDevice->TransferRingPhysical,
+                                     &UsbDevice->TransferRingLinear,
+                                     &UsbDevice->TransferRingCycleState,
+                                     &UsbDevice->TransferRingEnqueueIndex);
 }
 
 /************************************************************************/
@@ -1430,28 +1871,18 @@ static BOOL XHCI_InitTransferRing(LPXHCI_USB_DEVICE UsbDevice) {
  * @return TRUE on success.
  */
 static BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U8* SlotIdOut, U32* CompletionOut) {
-    XHCI_TRB Event;
     U32 Timeout = XHCI_EVENT_TIMEOUT_MS;
 
+    LockMutex(&(Device->Mutex), INFINITY);
+    if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT, TrbPhysical, SlotIdOut, CompletionOut)) {
+        UnlockMutex(&(Device->Mutex));
+        return TRUE;
+    }
+
     while (Timeout > 0) {
-        while (XHCI_DequeueEvent(Device, &Event)) {
-            if (XHCI_GetTrbType(Event.Dword3) != XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT) {
-                continue;
-            }
-
-            U64 Pointer = U64_Make(Event.Dword1, Event.Dword0);
-            if (!U64_EQUAL(Pointer, TrbPhysical)) {
-                continue;
-            }
-
-            if (CompletionOut != NULL) {
-                *CompletionOut = XHCI_GetCompletionCode(Event.Dword2);
-            }
-
-            if (SlotIdOut != NULL) {
-                *SlotIdOut = (U8)((Event.Dword3 >> 24) & 0xFF);
-            }
-
+        XHCI_PollCompletions(Device);
+        if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT, TrbPhysical, SlotIdOut, CompletionOut)) {
+            UnlockMutex(&(Device->Mutex));
             return TRUE;
         }
 
@@ -1459,6 +1890,7 @@ static BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical,
         Timeout--;
     }
 
+    UnlockMutex(&(Device->Mutex));
     return FALSE;
 }
 
@@ -1472,24 +1904,18 @@ static BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical,
  * @return TRUE on success.
  */
 static BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* CompletionOut) {
-    XHCI_TRB Event;
     U32 Timeout = XHCI_EVENT_TIMEOUT_MS;
 
+    LockMutex(&(Device->Mutex), INFINITY);
+    if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut)) {
+        UnlockMutex(&(Device->Mutex));
+        return TRUE;
+    }
+
     while (Timeout > 0) {
-        while (XHCI_DequeueEvent(Device, &Event)) {
-            if (XHCI_GetTrbType(Event.Dword3) != XHCI_TRB_TYPE_TRANSFER_EVENT) {
-                continue;
-            }
-
-            U64 Pointer = U64_Make(Event.Dword1, Event.Dword0);
-            if (!U64_EQUAL(Pointer, TrbPhysical)) {
-                continue;
-            }
-
-            if (CompletionOut != NULL) {
-                *CompletionOut = XHCI_GetCompletionCode(Event.Dword2);
-            }
-
+        XHCI_PollCompletions(Device);
+        if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut)) {
+            UnlockMutex(&(Device->Mutex));
             return TRUE;
         }
 
@@ -1497,6 +1923,7 @@ static BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical
         Timeout--;
     }
 
+    UnlockMutex(&(Device->Mutex));
     return FALSE;
 }
 
@@ -1535,6 +1962,22 @@ static BOOL XHCI_InitUsbDeviceState(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbD
         FreePhysicalPage(UsbDevice->TransferRingPhysical);
         UsbDevice->TransferRingPhysical = 0;
     }
+    if (UsbDevice->HubStatusLinear) {
+        FreeRegion(UsbDevice->HubStatusLinear, PAGE_SIZE);
+        UsbDevice->HubStatusLinear = 0;
+    }
+    if (UsbDevice->HubStatusPhysical) {
+        FreePhysicalPage(UsbDevice->HubStatusPhysical);
+        UsbDevice->HubStatusPhysical = 0;
+    }
+    if (UsbDevice->HubChildren != NULL) {
+        KernelHeapFree(UsbDevice->HubChildren);
+        UsbDevice->HubChildren = NULL;
+    }
+    if (UsbDevice->HubPortStatus != NULL) {
+        KernelHeapFree(UsbDevice->HubPortStatus);
+        UsbDevice->HubPortStatus = NULL;
+    }
 
     if (!XHCI_AllocPage(TEXT("XHCI_InputContext"), &UsbDevice->InputContextPhysical, &UsbDevice->InputContextLinear)) {
         return FALSE;
@@ -1569,6 +2012,12 @@ static BOOL XHCI_InitUsbDeviceState(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbD
     UsbDevice->StringManufacturer = 0;
     UsbDevice->StringProduct = 0;
     UsbDevice->StringSerial = 0;
+    UsbDevice->IsHub = FALSE;
+    UsbDevice->HubPortCount = 0;
+    UsbDevice->HubInterruptEndpoint = NULL;
+    UsbDevice->HubInterruptLength = 0;
+    UsbDevice->HubStatusTrbPhysical = U64_FromUINT(0);
+    UsbDevice->HubStatusPending = FALSE;
 
     return TRUE;
 }
@@ -1587,8 +2036,25 @@ static void XHCI_BuildInputContextForAddress(LPXHCI_DEVICE Device, LPXHCI_USB_DE
     Control->Dword1 = (1U << 0) | (1U << 1);
 
     LPXHCI_CONTEXT_32 Slot = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, 1);
-    Slot->Dword0 = ((U32)UsbDevice->SpeedId << 20) | (1U << 27);
-    Slot->Dword1 = ((U32)UsbDevice->PortNumber << 16);
+    Slot->Dword0 = (UsbDevice->RouteString & XHCI_SLOT_CTX_ROUTE_STRING_MASK) |
+                   ((U32)UsbDevice->SpeedId << XHCI_SLOT_CTX_SPEED_SHIFT) |
+                   (1U << XHCI_SLOT_CTX_CONTEXT_ENTRIES_SHIFT);
+    if (UsbDevice->IsHub) {
+        Slot->Dword0 |= XHCI_SLOT_CTX_HUB;
+    }
+
+    Slot->Dword1 = ((U32)UsbDevice->RootPortNumber << XHCI_SLOT_CTX_ROOT_PORT_SHIFT);
+    if (UsbDevice->IsHub && UsbDevice->HubPortCount != 0) {
+        Slot->Dword1 |= ((U32)UsbDevice->HubPortCount << XHCI_SLOT_CTX_PORT_COUNT_SHIFT);
+    }
+
+    if (UsbDevice->Parent != NULL) {
+        if ((UsbDevice->Parent->SpeedId == USB_SPEED_HS) &&
+            (UsbDevice->SpeedId == USB_SPEED_LS || UsbDevice->SpeedId == USB_SPEED_FS)) {
+            Slot->Dword2 = ((U32)UsbDevice->Parent->SlotId << XHCI_SLOT_CTX_TT_HUB_SLOT_SHIFT) |
+                           ((U32)UsbDevice->ParentPort << XHCI_SLOT_CTX_TT_PORT_SHIFT);
+        }
+    }
 
     LPXHCI_CONTEXT_32 Ep0 = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, 2);
     Ep0->Dword1 = (4U << 3) | ((U32)UsbDevice->MaxPacketSize0 << 16);
@@ -1736,6 +2202,79 @@ static BOOL XHCI_EvaluateContext(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevi
     }
 
     return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Add an interrupt IN endpoint to the device context.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device state.
+ * @param Endpoint Endpoint descriptor.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_AddInterruptEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, LPXHCI_USB_ENDPOINT Endpoint) {
+    if (Device == NULL || UsbDevice == NULL || Endpoint == NULL) {
+        return FALSE;
+    }
+
+    if (Endpoint->TransferRingLinear == 0 || Endpoint->TransferRingPhysical == 0) {
+        if (!XHCI_InitEndpointRing(Endpoint, TEXT("XHCI_EpRing"))) {
+            return FALSE;
+        }
+    }
+
+    Endpoint->Dci = XHCI_GetEndpointDci(Endpoint->Address);
+
+    MemorySet((LPVOID)UsbDevice->InputContextLinear, 0, PAGE_SIZE);
+    LPXHCI_CONTEXT_32 Control = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, 0);
+    Control->Dword1 = (1U << Endpoint->Dci);
+
+    LPXHCI_CONTEXT_32 EpCtx = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, (U32)Endpoint->Dci + 1U);
+    U32 EpType = 0;
+    if ((Endpoint->Attributes & 0x03) == USB_ENDPOINT_TYPE_INTERRUPT) {
+        EpType = ((Endpoint->Address & 0x80) != 0) ? 7U : 3U;
+    }
+    EpCtx->Dword0 = ((U32)Endpoint->Interval << 16);
+    EpCtx->Dword1 = ((EpType << 3) | ((U32)Endpoint->MaxPacketSize << 16));
+
+    {
+        U64 Dequeue = U64_FromUINT(Endpoint->TransferRingPhysical);
+        EpCtx->Dword2 = (U32)(U64_Low32(Dequeue) & ~0xFU);
+        EpCtx->Dword2 |= (Endpoint->TransferRingCycleState ? 1U : 0U);
+        EpCtx->Dword3 = U64_High32(Dequeue);
+        EpCtx->Dword4 = Endpoint->MaxPacketSize;
+    }
+
+    return XHCI_EvaluateContext(Device, UsbDevice);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Update slot context for hub information.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device state.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_UpdateHubSlotContext(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
+    if (Device == NULL || UsbDevice == NULL) {
+        return FALSE;
+    }
+
+    MemorySet((LPVOID)UsbDevice->InputContextLinear, 0, PAGE_SIZE);
+    LPXHCI_CONTEXT_32 Control = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, 0);
+    Control->Dword1 = (1U << 0);
+
+    LPXHCI_CONTEXT_32 Slot = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, 1);
+    Slot->Dword0 = (UsbDevice->RouteString & XHCI_SLOT_CTX_ROUTE_STRING_MASK) |
+                   ((U32)UsbDevice->SpeedId << XHCI_SLOT_CTX_SPEED_SHIFT) |
+                   XHCI_SLOT_CTX_HUB |
+                   (1U << XHCI_SLOT_CTX_CONTEXT_ENTRIES_SHIFT);
+    Slot->Dword1 = ((U32)UsbDevice->RootPortNumber << XHCI_SLOT_CTX_ROOT_PORT_SHIFT) |
+                   ((U32)UsbDevice->HubPortCount << XHCI_SLOT_CTX_PORT_COUNT_SHIFT);
+
+    return XHCI_EvaluateContext(Device, UsbDevice);
 }
 
 /************************************************************************/
@@ -1940,6 +2479,655 @@ static BOOL XHCI_GetDeviceDescriptor(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Usb
 /************************************************************************/
 
 /**
+ * @brief Read hub descriptor and return port count.
+ * @param Device xHCI device.
+ * @param Hub Hub device.
+ * @param PortCountOut Receives port count.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_ReadHubDescriptor(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub, U8* PortCountOut) {
+    USB_SETUP_PACKET Setup;
+    PHYSICAL Physical = 0;
+    LINEAR Linear = 0;
+    U8 DescriptorType = (Hub->SpeedId == USB_SPEED_SS) ? USB_DESCRIPTOR_TYPE_SUPERSPEED_HUB : USB_DESCRIPTOR_TYPE_HUB;
+    U8 PortCount = 0;
+
+    if (PortCountOut == NULL) {
+        return FALSE;
+    }
+
+    if (!XHCI_AllocPage(TEXT("XHCI_HubDesc"), &Physical, &Linear)) {
+        return FALSE;
+    }
+
+    MemorySet(&Setup, 0, sizeof(Setup));
+    Setup.RequestType = USB_REQUEST_DIRECTION_IN | USB_REQUEST_TYPE_CLASS | USB_REQUEST_RECIPIENT_DEVICE;
+    Setup.Request = USB_REQUEST_GET_DESCRIPTOR;
+    Setup.Value = (U16)(DescriptorType << 8);
+    Setup.Index = 0;
+    Setup.Length = 8;
+
+    if (!XHCI_ControlTransfer(Device, Hub, &Setup, Physical, (LPVOID)Linear, Setup.Length, TRUE)) {
+        FreeRegion(Linear, PAGE_SIZE);
+        FreePhysicalPage(Physical);
+        return FALSE;
+    }
+
+    PortCount = ((U8*)Linear)[2];
+    *PortCountOut = PortCount;
+
+    FreeRegion(Linear, PAGE_SIZE);
+    FreePhysicalPage(Physical);
+    return (PortCount != 0);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Send a hub class request to set a port feature.
+ * @param Device xHCI device.
+ * @param Hub Hub device.
+ * @param Port Port number (1-based).
+ * @param Feature Feature selector.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_HubSetPortFeature(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub, U8 Port, U16 Feature) {
+    USB_SETUP_PACKET Setup;
+    MemorySet(&Setup, 0, sizeof(Setup));
+    Setup.RequestType = USB_REQUEST_DIRECTION_OUT | USB_REQUEST_TYPE_CLASS | USB_REQUEST_RECIPIENT_OTHER;
+    Setup.Request = USB_REQUEST_SET_FEATURE;
+    Setup.Value = Feature;
+    Setup.Index = Port;
+    Setup.Length = 0;
+    return XHCI_ControlTransfer(Device, Hub, &Setup, 0, NULL, 0, FALSE);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Send a hub class request to clear a port feature.
+ * @param Device xHCI device.
+ * @param Hub Hub device.
+ * @param Port Port number (1-based).
+ * @param Feature Feature selector.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_HubClearPortFeature(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub, U8 Port, U16 Feature) {
+    USB_SETUP_PACKET Setup;
+    MemorySet(&Setup, 0, sizeof(Setup));
+    Setup.RequestType = USB_REQUEST_DIRECTION_OUT | USB_REQUEST_TYPE_CLASS | USB_REQUEST_RECIPIENT_OTHER;
+    Setup.Request = USB_REQUEST_CLEAR_FEATURE;
+    Setup.Value = Feature;
+    Setup.Index = Port;
+    Setup.Length = 0;
+    return XHCI_ControlTransfer(Device, Hub, &Setup, 0, NULL, 0, FALSE);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Get hub port status.
+ * @param Device xHCI device.
+ * @param Hub Hub device.
+ * @param Port Port number (1-based).
+ * @param StatusOut Receives port status.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_HubGetPortStatus(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub, U8 Port, USB_PORT_STATUS* StatusOut) {
+    USB_SETUP_PACKET Setup;
+    PHYSICAL Physical = 0;
+    LINEAR Linear = 0;
+
+    if (StatusOut == NULL) {
+        return FALSE;
+    }
+
+    if (!XHCI_AllocPage(TEXT("XHCI_HubPortStatus"), &Physical, &Linear)) {
+        return FALSE;
+    }
+
+    MemorySet(&Setup, 0, sizeof(Setup));
+    Setup.RequestType = USB_REQUEST_DIRECTION_IN | USB_REQUEST_TYPE_CLASS | USB_REQUEST_RECIPIENT_OTHER;
+    Setup.Request = USB_REQUEST_GET_STATUS;
+    Setup.Value = 0;
+    Setup.Index = Port;
+    Setup.Length = sizeof(USB_PORT_STATUS);
+
+    if (!XHCI_ControlTransfer(Device, Hub, &Setup, Physical, (LPVOID)Linear, Setup.Length, TRUE)) {
+        FreeRegion(Linear, PAGE_SIZE);
+        FreePhysicalPage(Physical);
+        return FALSE;
+    }
+
+    MemoryCopy(StatusOut, (LPVOID)Linear, sizeof(USB_PORT_STATUS));
+    FreeRegion(Linear, PAGE_SIZE);
+    FreePhysicalPage(Physical);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Reset a hub port and wait for completion.
+ * @param Device xHCI device.
+ * @param Hub Hub device.
+ * @param Port Port number (1-based).
+ * @return TRUE on success.
+ */
+static BOOL XHCI_ResetHubPort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub, U8 Port) {
+    if (!XHCI_HubSetPortFeature(Device, Hub, Port, USB_HUB_FEATURE_PORT_RESET)) {
+        return FALSE;
+    }
+
+    U32 Timeout = XHCI_PORT_RESET_TIMEOUT;
+    USB_PORT_STATUS Status;
+    MemorySet(&Status, 0, sizeof(Status));
+
+    while (Timeout > 0) {
+        if (XHCI_HubGetPortStatus(Device, Hub, Port, &Status)) {
+            if ((Status.Change & USB_HUB_PORT_CHANGE_RESET) != 0) {
+                (void)XHCI_HubClearPortFeature(Device, Hub, Port, USB_HUB_FEATURE_C_PORT_RESET);
+                break;
+            }
+        }
+        Sleep(1);
+        Timeout--;
+    }
+
+    return (Timeout != 0);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve device speed from hub port status.
+ * @param Hub Hub device.
+ * @param Status Port status.
+ * @return USB speed code.
+ */
+static U8 XHCI_GetHubPortSpeed(LPXHCI_USB_DEVICE Hub, const USB_PORT_STATUS* Status) {
+    if (Status == NULL) {
+        return USB_SPEED_FS;
+    }
+
+    if ((Status->Status & USB_HUB_PORT_STATUS_LOW_SPEED) != 0) {
+        return USB_SPEED_LS;
+    }
+    if ((Status->Status & USB_HUB_PORT_STATUS_HIGH_SPEED) != 0) {
+        return USB_SPEED_HS;
+    }
+
+    return (Hub != NULL) ? Hub->SpeedId : USB_SPEED_FS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Submit a hub interrupt IN transfer.
+ * @param Device xHCI device.
+ * @param Hub Hub device.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_SubmitHubStatusTransfer(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub) {
+    if (Device == NULL || Hub == NULL || Hub->HubInterruptEndpoint == NULL) {
+        return FALSE;
+    }
+    if (Hub->HubInterruptLength == 0 || Hub->HubStatusPhysical == 0 || Hub->HubStatusLinear == 0) {
+        return FALSE;
+    }
+
+    XHCI_TRB Trb;
+    MemorySet(&Trb, 0, sizeof(Trb));
+    Trb.Dword0 = U64_Low32(U64_FromUINT(Hub->HubStatusPhysical));
+    Trb.Dword1 = U64_High32(U64_FromUINT(Hub->HubStatusPhysical));
+    Trb.Dword2 = Hub->HubInterruptLength;
+    Trb.Dword3 = (XHCI_TRB_TYPE_NORMAL << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_IOC | XHCI_TRB_DIR_IN;
+
+    MemorySet((LPVOID)Hub->HubStatusLinear, 0, Hub->HubInterruptLength);
+    Hub->HubStatusPending = FALSE;
+
+    if (!XHCI_RingEnqueue(Hub->HubInterruptEndpoint->TransferRingLinear,
+                          Hub->HubInterruptEndpoint->TransferRingPhysical,
+                          &Hub->HubInterruptEndpoint->TransferRingEnqueueIndex,
+                          &Hub->HubInterruptEndpoint->TransferRingCycleState,
+                          XHCI_TRANSFER_RING_TRBS,
+                          &Trb,
+                          &Hub->HubStatusTrbPhysical)) {
+        return FALSE;
+    }
+
+    XHCI_RingDoorbell(Device, Hub->SlotId, Hub->HubInterruptEndpoint->Dci);
+    Hub->HubStatusPending = TRUE;
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Check for completion of a transfer without blocking.
+ * @param Device xHCI device.
+ * @param TrbPhysical TRB physical address.
+ * @param CompletionOut Receives completion code.
+ * @return TRUE when completion was found.
+ */
+static BOOL XHCI_CheckTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* CompletionOut) {
+    if (Device == NULL) {
+        return FALSE;
+    }
+
+    BOOL Found = FALSE;
+    LockMutex(&(Device->Mutex), INFINITY);
+    XHCI_PollCompletions(Device);
+    Found = XHCI_PopCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut);
+    UnlockMutex(&(Device->Mutex));
+    return Found;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Allocate and initialize a child USB device.
+ * @param Device xHCI device.
+ * @param Parent Parent hub.
+ * @param Port Port number (1-based).
+ * @return Allocated device or NULL.
+ */
+static LPXHCI_USB_DEVICE XHCI_AllocateChildDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Parent, U8 Port) {
+    if (Device == NULL || Parent == NULL) {
+        return NULL;
+    }
+
+    LPXHCI_USB_DEVICE Child = (LPXHCI_USB_DEVICE)KernelHeapAlloc(sizeof(XHCI_USB_DEVICE));
+    if (Child == NULL) {
+        return NULL;
+    }
+
+    MemorySet(Child, 0, sizeof(XHCI_USB_DEVICE));
+    Child->Parent = Parent;
+    Child->ParentPort = Port;
+    Child->RootPortNumber = Parent->RootPortNumber;
+    Child->Depth = (U8)(Parent->Depth + 1U);
+    Child->RouteString = Parent->RouteString | ((U32)Port << (Parent->Depth * 4U));
+    Child->PortNumber = Port;
+    Child->IsRootPort = FALSE;
+
+    return Child;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Enumerate a USB device already reset on a given port.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device state.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
+    PHYSICAL ConfigPhysical = 0;
+    LINEAR ConfigLinear = 0;
+    U16 ConfigLength = 0;
+
+    UsbDevice->MaxPacketSize0 = XHCI_GetDefaultMaxPacketSize0(UsbDevice->SpeedId);
+
+    if (!XHCI_InitUsbDeviceState(Device, UsbDevice)) {
+        return FALSE;
+    }
+
+    if (!XHCI_EnableSlot(Device, &UsbDevice->SlotId)) {
+        return FALSE;
+    }
+
+    ((U64 *)Device->DcbaaLinear)[UsbDevice->SlotId] = U64_FromUINT(UsbDevice->DeviceContextPhysical);
+
+    XHCI_BuildInputContextForAddress(Device, UsbDevice);
+    if (!XHCI_AddressDevice(Device, UsbDevice)) {
+        return FALSE;
+    }
+
+    UsbDevice->Address = UsbDevice->SlotId;
+
+    if (!XHCI_GetDeviceDescriptor(Device, UsbDevice)) {
+        return FALSE;
+    }
+
+    UsbDevice->StringManufacturer = UsbDevice->DeviceDescriptor.ManufacturerIndex;
+    UsbDevice->StringProduct = UsbDevice->DeviceDescriptor.ProductIndex;
+    UsbDevice->StringSerial = UsbDevice->DeviceDescriptor.SerialNumberIndex;
+
+    UsbDevice->MaxPacketSize0 = XHCI_ComputeMaxPacketSize0(
+        UsbDevice->SpeedId, UsbDevice->DeviceDescriptor.MaxPacketSize0);
+
+    XHCI_BuildInputContextForEp0(Device, UsbDevice);
+    (void)XHCI_EvaluateContext(Device, UsbDevice);
+
+    if (!XHCI_ReadConfigDescriptor(Device, UsbDevice, &ConfigPhysical, &ConfigLinear, &ConfigLength)) {
+        return FALSE;
+    }
+
+    if (!XHCI_ParseConfigDescriptor(UsbDevice, (const U8*)ConfigLinear, ConfigLength)) {
+        FreeRegion(ConfigLinear, PAGE_SIZE);
+        FreePhysicalPage(ConfigPhysical);
+        return FALSE;
+    }
+
+    if (ConfigLinear) {
+        FreeRegion(ConfigLinear, PAGE_SIZE);
+        FreePhysicalPage(ConfigPhysical);
+    }
+
+    if (UsbDevice->ConfigCount > 0) {
+        USB_SETUP_PACKET Setup;
+        MemorySet(&Setup, 0, sizeof(Setup));
+        Setup.RequestType = USB_REQUEST_DIRECTION_OUT | USB_REQUEST_TYPE_STANDARD | USB_REQUEST_RECIPIENT_DEVICE;
+        Setup.Request = USB_REQUEST_SET_CONFIGURATION;
+        Setup.Value = UsbDevice->Configs[0].ConfigurationValue;
+        Setup.Index = 0;
+        Setup.Length = 0;
+
+        if (!XHCI_ControlTransfer(Device, UsbDevice, &Setup, 0, NULL, 0, FALSE)) {
+            return FALSE;
+        }
+
+        UsbDevice->SelectedConfigValue = UsbDevice->Configs[0].ConfigurationValue;
+    }
+
+    UsbDevice->IsHub = XHCI_IsHubDevice(UsbDevice);
+    UsbDevice->Present = TRUE;
+    XHCI_AddDeviceToList(Device, UsbDevice);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Probe a hub port and enumerate a child device.
+ * @param Device xHCI device.
+ * @param Hub Hub device.
+ * @param Port Port number (1-based).
+ * @return TRUE on success.
+ */
+static BOOL XHCI_ProbeHubPort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub, U8 Port) {
+    USB_PORT_STATUS Status;
+    MemorySet(&Status, 0, sizeof(Status));
+
+    if (Hub == NULL || Hub->HubChildren == NULL || Port == 0 || Port > Hub->HubPortCount) {
+        return FALSE;
+    }
+
+    if (Hub->HubChildren != NULL && Hub->HubChildren[Port - 1] != NULL) {
+        return TRUE;
+    }
+
+    if (!XHCI_HubGetPortStatus(Device, Hub, Port, &Status)) {
+        return FALSE;
+    }
+
+    if ((Status.Status & USB_HUB_PORT_STATUS_CONNECTION) == 0) {
+        return FALSE;
+    }
+
+    if (!XHCI_ResetHubPort(Device, Hub, Port)) {
+        return FALSE;
+    }
+
+    if (!XHCI_HubGetPortStatus(Device, Hub, Port, &Status)) {
+        return FALSE;
+    }
+
+    U8 Speed = XHCI_GetHubPortSpeed(Hub, &Status);
+    LPXHCI_USB_DEVICE Child = XHCI_AllocateChildDevice(Device, Hub, Port);
+    if (Child == NULL) {
+        return FALSE;
+    }
+
+    Child->SpeedId = Speed;
+
+    if (!XHCI_EnumerateDevice(Device, Child)) {
+        XHCI_DestroyUsbDevice(Device, Child, TRUE);
+        return FALSE;
+    }
+
+    Hub->HubChildren[Port - 1] = Child;
+    Hub->HubPortStatus[Port - 1] = Status.Status;
+    DEBUG(TEXT("[XHCI_ProbeHubPort] Hub port %u child addr=%x speed=%s"),
+          Port,
+          Child->Address,
+          XHCI_SpeedToString(Child->SpeedId));
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Initialize hub-specific data and ports.
+ * @param Device xHCI device.
+ * @param Hub Hub device.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_InitHub(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub) {
+    if (Device == NULL || Hub == NULL) {
+        return FALSE;
+    }
+
+    if (Hub->HubPortCount != 0 && Hub->HubChildren != NULL) {
+        return TRUE;
+    }
+
+    U8 PortCount = 0;
+    if (!XHCI_ReadHubDescriptor(Device, Hub, &PortCount)) {
+        ERROR(TEXT("[XHCI_InitHub] Hub descriptor read failed"));
+        return FALSE;
+    }
+
+    Hub->HubPortCount = PortCount;
+    Hub->HubChildren = (LPXHCI_USB_DEVICE*)KernelHeapAlloc(sizeof(LPXHCI_USB_DEVICE) * PortCount);
+    Hub->HubPortStatus = (U16*)KernelHeapAlloc(sizeof(U16) * PortCount);
+
+    if (Hub->HubChildren == NULL || Hub->HubPortStatus == NULL) {
+        ERROR(TEXT("[XHCI_InitHub] Hub port allocation failed"));
+        if (Hub->HubChildren != NULL) {
+            KernelHeapFree(Hub->HubChildren);
+            Hub->HubChildren = NULL;
+        }
+        if (Hub->HubPortStatus != NULL) {
+            KernelHeapFree(Hub->HubPortStatus);
+            Hub->HubPortStatus = NULL;
+        }
+        return FALSE;
+    }
+
+    MemorySet(Hub->HubChildren, 0, sizeof(LPXHCI_USB_DEVICE) * PortCount);
+    MemorySet(Hub->HubPortStatus, 0, sizeof(U16) * PortCount);
+
+    Hub->HubInterruptEndpoint = XHCI_FindHubInterruptEndpoint(Hub);
+    if (Hub->HubInterruptEndpoint == NULL) {
+        ERROR(TEXT("[XHCI_InitHub] Hub interrupt endpoint not found"));
+        KernelHeapFree(Hub->HubChildren);
+        Hub->HubChildren = NULL;
+        KernelHeapFree(Hub->HubPortStatus);
+        Hub->HubPortStatus = NULL;
+        return FALSE;
+    }
+
+    if (!XHCI_AddInterruptEndpoint(Device, Hub, Hub->HubInterruptEndpoint)) {
+        ERROR(TEXT("[XHCI_InitHub] Hub interrupt endpoint init failed"));
+        KernelHeapFree(Hub->HubChildren);
+        Hub->HubChildren = NULL;
+        KernelHeapFree(Hub->HubPortStatus);
+        Hub->HubPortStatus = NULL;
+        return FALSE;
+    }
+
+    Hub->HubInterruptLength = (U16)((PortCount + 1U + 7U) / 8U);
+    if (!XHCI_AllocPage(TEXT("XHCI_HubStatus"), &Hub->HubStatusPhysical, &Hub->HubStatusLinear)) {
+        ERROR(TEXT("[XHCI_InitHub] Hub status buffer alloc failed"));
+        KernelHeapFree(Hub->HubChildren);
+        Hub->HubChildren = NULL;
+        KernelHeapFree(Hub->HubPortStatus);
+        Hub->HubPortStatus = NULL;
+        return FALSE;
+    }
+
+    MemorySet((LPVOID)Hub->HubStatusLinear, 0, Hub->HubInterruptLength);
+    Hub->HubStatusPending = FALSE;
+
+    if (!XHCI_UpdateHubSlotContext(Device, Hub)) {
+        ERROR(TEXT("[XHCI_InitHub] Hub slot context update failed"));
+        FreeRegion(Hub->HubStatusLinear, PAGE_SIZE);
+        FreePhysicalPage(Hub->HubStatusPhysical);
+        Hub->HubStatusLinear = 0;
+        Hub->HubStatusPhysical = 0;
+        KernelHeapFree(Hub->HubChildren);
+        Hub->HubChildren = NULL;
+        KernelHeapFree(Hub->HubPortStatus);
+        Hub->HubPortStatus = NULL;
+        return FALSE;
+    }
+
+    for (U8 Port = 1; Port <= PortCount; Port++) {
+        (void)XHCI_HubSetPortFeature(Device, Hub, Port, USB_HUB_FEATURE_PORT_POWER);
+    }
+
+    for (U8 Port = 1; Port <= PortCount; Port++) {
+        USB_PORT_STATUS Status;
+        MemorySet(&Status, 0, sizeof(Status));
+        if (XHCI_HubGetPortStatus(Device, Hub, Port, &Status)) {
+            if ((Status.Status & USB_HUB_PORT_STATUS_CONNECTION) != 0) {
+                if (XHCI_ProbeHubPort(Device, Hub, Port)) {
+                    LPXHCI_USB_DEVICE Child = Hub->HubChildren[Port - 1];
+                    if (Child != NULL && Child->IsHub) {
+                        if (!XHCI_InitHub(Device, Child)) {
+                            WARNING(TEXT("[XHCI_InitHub] Hub init failed on port %u"), Port);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    DEBUG(TEXT("[XHCI_InitHub] Hub ports=%u"), PortCount);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Process hub port change bitmap.
+ * @param Device xHCI device.
+ * @param Hub Hub device.
+ */
+static void XHCI_HandleHubStatus(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub) {
+    if (Device == NULL || Hub == NULL || Hub->HubStatusLinear == 0 || Hub->HubChildren == NULL) {
+        return;
+    }
+
+    const U8* Bitmap = (const U8*)Hub->HubStatusLinear;
+    for (U8 Port = 1; Port <= Hub->HubPortCount; Port++) {
+        U8 ByteIndex = (U8)(Port / 8U);
+        U8 BitMask = (U8)(1U << (Port % 8U));
+
+        if ((Bitmap[ByteIndex] & BitMask) == 0) {
+            continue;
+        }
+
+        USB_PORT_STATUS Status;
+        MemorySet(&Status, 0, sizeof(Status));
+        if (!XHCI_HubGetPortStatus(Device, Hub, Port, &Status)) {
+            continue;
+        }
+
+        if ((Status.Change & USB_HUB_PORT_CHANGE_CONNECTION) != 0) {
+            if ((Status.Status & USB_HUB_PORT_STATUS_CONNECTION) != 0) {
+                if (Hub->HubChildren[Port - 1] == NULL) {
+                    if (XHCI_ProbeHubPort(Device, Hub, Port)) {
+                        LPXHCI_USB_DEVICE Child = Hub->HubChildren[Port - 1];
+                        if (Child != NULL && Child->IsHub) {
+                            if (!XHCI_InitHub(Device, Child)) {
+                                WARNING(TEXT("[XHCI_HandleHubStatus] Hub init failed on port %u"), Port);
+                            }
+                        }
+                    }
+                }
+            } else {
+                if (Hub->HubChildren[Port - 1] != NULL) {
+                    XHCI_DestroyUsbDevice(Device, Hub->HubChildren[Port - 1], TRUE);
+                    Hub->HubChildren[Port - 1] = NULL;
+                }
+            }
+
+            (void)XHCI_HubClearPortFeature(Device, Hub, Port, USB_HUB_FEATURE_C_PORT_CONNECTION);
+        }
+
+        if ((Status.Change & USB_HUB_PORT_CHANGE_ENABLE) != 0) {
+            (void)XHCI_HubClearPortFeature(Device, Hub, Port, USB_HUB_FEATURE_C_PORT_ENABLE);
+        }
+        if ((Status.Change & USB_HUB_PORT_CHANGE_RESET) != 0) {
+            (void)XHCI_HubClearPortFeature(Device, Hub, Port, USB_HUB_FEATURE_C_PORT_RESET);
+        }
+
+        Hub->HubPortStatus[Port - 1] = Status.Status;
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Poll hub interrupt endpoints and process changes.
+ * @param Context xHCI device.
+ */
+static void XHCI_PollHubs(LPVOID Context) {
+    LPXHCI_DEVICE Device = (LPXHCI_DEVICE)Context;
+    if (Device == NULL) {
+        return;
+    }
+
+    for (LPXHCI_USB_DEVICE Hub = Device->DeviceList; Hub != NULL; Hub = Hub->NextDevice) {
+        if (!Hub->Present || !Hub->IsHub || Hub->HubInterruptEndpoint == NULL || Hub->HubStatusLinear == 0) {
+            continue;
+        }
+
+        if (!Hub->HubStatusPending) {
+            (void)XHCI_SubmitHubStatusTransfer(Device, Hub);
+            continue;
+        }
+
+        U32 Completion = 0;
+        if (!XHCI_CheckTransferCompletion(Device, Hub->HubStatusTrbPhysical, &Completion)) {
+            continue;
+        }
+
+        Hub->HubStatusPending = FALSE;
+        if (Completion == XHCI_COMPLETION_SUCCESS || Completion == XHCI_COMPLETION_SHORT_PACKET) {
+            XHCI_HandleHubStatus(Device, Hub);
+        } else {
+            WARNING(TEXT("[XHCI_PollHubs] Hub interrupt completion %x"), Completion);
+        }
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Register the hub polling callback.
+ * @param Device xHCI device.
+ */
+static void XHCI_RegisterHubPoll(LPXHCI_DEVICE Device) {
+    if (Device == NULL) {
+        return;
+    }
+
+    if (Device->HubPollHandle != DEFERRED_WORK_INVALID_HANDLE) {
+        return;
+    }
+
+    Device->HubPollHandle = DeferredWorkRegisterPollOnly(XHCI_PollHubs, (LPVOID)Device, TEXT("XHCIHub"));
+    if (Device->HubPollHandle == DEFERRED_WORK_INVALID_HANDLE) {
+        WARNING(TEXT("[XHCI_RegisterHubPoll] Failed to register hub poll"));
+    }
+}
+
+/************************************************************************/
+/**
  * @brief Probe a port and fetch descriptors.
  * @param Device xHCI device.
  * @param UsbDevice USB device state.
@@ -1949,17 +3137,20 @@ static BOOL XHCI_GetDeviceDescriptor(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Usb
 static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U32 PortIndex) {
     U32 PortStatus = XHCI_ReadPortStatus(Device, PortIndex);
     U32 SpeedId = (PortStatus & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
-    PHYSICAL ConfigPhysical = 0;
-    LINEAR ConfigLinear = 0;
-    U16 ConfigLength = 0;
 
     if ((PortStatus & XHCI_PORTSC_CCS) == 0) {
+        UsbDevice->Present = FALSE;
         return FALSE;
     }
 
     UsbDevice->PortNumber = (U8)(PortIndex + 1);
+    UsbDevice->RootPortNumber = UsbDevice->PortNumber;
+    UsbDevice->Depth = 0;
+    UsbDevice->RouteString = 0;
+    UsbDevice->Parent = NULL;
+    UsbDevice->ParentPort = 0;
+    UsbDevice->IsRootPort = TRUE;
     UsbDevice->SpeedId = (U8)SpeedId;
-    UsbDevice->MaxPacketSize0 = XHCI_GetDefaultMaxPacketSize0(UsbDevice->SpeedId);
 
     if (UsbDevice->Present) {
         return TRUE;
@@ -1969,78 +3160,10 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
         return FALSE;
     }
 
-    if (!XHCI_InitUsbDeviceState(Device, UsbDevice)) {
-        ERROR(TEXT("[XHCI_ProbePort] Port %u state init failed"), PortIndex + 1);
+    if (!XHCI_EnumerateDevice(Device, UsbDevice)) {
+        ERROR(TEXT("[XHCI_ProbePort] Port %u enumerate failed"), PortIndex + 1);
         return FALSE;
     }
-
-    if (!XHCI_EnableSlot(Device, &UsbDevice->SlotId)) {
-        ERROR(TEXT("[XHCI_ProbePort] Port %u enable slot failed"), PortIndex + 1);
-        return FALSE;
-    }
-
-    ((U64 *)Device->DcbaaLinear)[UsbDevice->SlotId] = U64_FromUINT(UsbDevice->DeviceContextPhysical);
-
-    XHCI_BuildInputContextForAddress(Device, UsbDevice);
-
-    if (!XHCI_AddressDevice(Device, UsbDevice)) {
-        ERROR(TEXT("[XHCI_ProbePort] Port %u address device failed"), PortIndex + 1);
-        return FALSE;
-    }
-
-    UsbDevice->Address = UsbDevice->SlotId;
-
-    if (!XHCI_GetDeviceDescriptor(Device, UsbDevice)) {
-        ERROR(TEXT("[XHCI_ProbePort] Port %u get device descriptor failed"), PortIndex + 1);
-        return FALSE;
-    }
-
-    UsbDevice->StringManufacturer = UsbDevice->DeviceDescriptor.ManufacturerIndex;
-    UsbDevice->StringProduct = UsbDevice->DeviceDescriptor.ProductIndex;
-    UsbDevice->StringSerial = UsbDevice->DeviceDescriptor.SerialNumberIndex;
-
-    UsbDevice->MaxPacketSize0 = XHCI_ComputeMaxPacketSize0(
-        UsbDevice->SpeedId,
-        UsbDevice->DeviceDescriptor.MaxPacketSize0);
-
-    XHCI_BuildInputContextForEp0(Device, UsbDevice);
-    (void)XHCI_EvaluateContext(Device, UsbDevice);
-
-    if (!XHCI_ReadConfigDescriptor(Device, UsbDevice, &ConfigPhysical, &ConfigLinear, &ConfigLength)) {
-        ERROR(TEXT("[XHCI_ProbePort] Port %u get config descriptor failed"), PortIndex + 1);
-        return FALSE;
-    }
-
-    if (!XHCI_ParseConfigDescriptor(UsbDevice, (const U8*)ConfigLinear, ConfigLength)) {
-        ERROR(TEXT("[XHCI_ProbePort] Port %u parse config descriptor failed"), PortIndex + 1);
-        FreeRegion(ConfigLinear, PAGE_SIZE);
-        FreePhysicalPage(ConfigPhysical);
-        return FALSE;
-    }
-
-    FreeRegion(ConfigLinear, PAGE_SIZE);
-    FreePhysicalPage(ConfigPhysical);
-
-    if (UsbDevice->ConfigCount > 0) {
-        UsbDevice->SelectedConfigValue = UsbDevice->Configs[0].ConfigurationValue;
-    }
-
-    if (UsbDevice->SelectedConfigValue != 0) {
-        USB_SETUP_PACKET Setup;
-        MemorySet(&Setup, 0, sizeof(Setup));
-        Setup.RequestType = USB_REQUEST_DIRECTION_OUT | USB_REQUEST_TYPE_STANDARD | USB_REQUEST_RECIPIENT_DEVICE;
-        Setup.Request = USB_REQUEST_SET_CONFIGURATION;
-        Setup.Value = UsbDevice->SelectedConfigValue;
-        Setup.Index = 0;
-        Setup.Length = 0;
-
-        if (!XHCI_ControlTransfer(Device, UsbDevice, &Setup, 0, NULL, 0, FALSE)) {
-            ERROR(TEXT("[XHCI_ProbePort] Port %u set configuration failed"), PortIndex + 1);
-            return FALSE;
-        }
-    }
-
-    UsbDevice->Present = TRUE;
 
     DEBUG(TEXT("[XHCI_ProbePort] Port %u VID=%x PID=%x"),
           PortIndex + 1,
@@ -2051,6 +3174,12 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
           PortIndex + 1,
           UsbDevice->ConfigCount,
           UsbDevice->SelectedConfigValue);
+
+    if (UsbDevice->IsHub) {
+        if (!XHCI_InitHub(Device, UsbDevice)) {
+            ERROR(TEXT("[XHCI_ProbePort] Port %u hub init failed"), PortIndex + 1);
+        }
+    }
 
     return TRUE;
 }
@@ -2068,6 +3197,15 @@ static void XHCI_EnsureUsbDevices(LPXHCI_DEVICE Device) {
 
     for (U32 PortIndex = 0; PortIndex < Device->MaxPorts; PortIndex++) {
         LPXHCI_USB_DEVICE UsbDevice = &Device->UsbDevices[PortIndex];
+        U32 PortStatus = XHCI_ReadPortStatus(Device, PortIndex);
+        BOOL Connected = (PortStatus & XHCI_PORTSC_CCS) != 0;
+        if (!Connected) {
+            if (UsbDevice->Present) {
+                XHCI_DestroyUsbDevice(Device, UsbDevice, FALSE);
+            }
+            continue;
+        }
+
         if (!UsbDevice->Present) {
             (void)XHCI_ProbePort(Device, UsbDevice, PortIndex);
         }
@@ -2376,9 +3514,7 @@ static U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                 }
             } else if (Next->Query->Domain == ENUM_DOMAIN_USB_DEVICE) {
                 XHCI_EnsureUsbDevices(Device);
-
-                for (UINT PortIndex = 0; PortIndex < Device->MaxPorts; PortIndex++) {
-                    LPXHCI_USB_DEVICE UsbDevice = &Device->UsbDevices[PortIndex];
+                for (LPXHCI_USB_DEVICE UsbDevice = Device->DeviceList; UsbDevice != NULL; UsbDevice = UsbDevice->NextDevice) {
                     if (!UsbDevice->Present) {
                         continue;
                     }
@@ -2405,9 +3541,7 @@ static U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                 }
             } else if (Next->Query->Domain == ENUM_DOMAIN_USB_NODE) {
                 XHCI_EnsureUsbDevices(Device);
-
-                for (UINT PortIndex = 0; PortIndex < Device->MaxPorts; PortIndex++) {
-                    LPXHCI_USB_DEVICE UsbDevice = &Device->UsbDevices[PortIndex];
+                for (LPXHCI_USB_DEVICE UsbDevice = Device->DeviceList; UsbDevice != NULL; UsbDevice = UsbDevice->NextDevice) {
                     if (!UsbDevice->Present) {
                         continue;
                     }
@@ -2653,6 +3787,7 @@ static LPPCI_DEVICE XHCI_Attach(LPPCI_DEVICE PciDevice) {
     MemoryCopy(Device, PciDevice, sizeof(PCI_DEVICE));
     InitMutex(&(Device->Mutex));
     Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+    Device->HubPollHandle = DEFERRED_WORK_INVALID_HANDLE;
 
     U32 Bar0Raw = Device->Info.BAR[0];
     U32 Bar1Raw = Device->Info.BAR[1];
@@ -2700,9 +3835,18 @@ static LPPCI_DEVICE XHCI_Attach(LPPCI_DEVICE PciDevice) {
             return NULL;
         }
         MemorySet(Device->UsbDevices, 0, sizeof(XHCI_USB_DEVICE) * PortCount);
+        for (U32 PortIndex = 0; PortIndex < PortCount; PortIndex++) {
+            LPXHCI_USB_DEVICE UsbDevice = &Device->UsbDevices[PortIndex];
+            UsbDevice->IsRootPort = TRUE;
+            UsbDevice->PortNumber = (U8)(PortIndex + 1);
+            UsbDevice->RootPortNumber = UsbDevice->PortNumber;
+            UsbDevice->Depth = 0;
+            UsbDevice->RouteString = 0;
+        }
     }
 
     (void)XHCI_RegisterInterrupts(Device);
+    XHCI_RegisterHubPoll(Device);
 
     DEBUG(TEXT("[XHCI_Attach] Attached MMIO=%p Size=%u MaxPorts=%u"),
           Device->MmioBase,

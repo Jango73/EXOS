@@ -114,7 +114,7 @@ static U32 CMD_logout(LPSHELLCONTEXT);
 static U32 CMD_whoami(LPSHELLCONTEXT);
 static U32 CMD_passwd(LPSHELLCONTEXT);
 static U32 CMD_prof(LPSHELLCONTEXT);
-static U32 CMD_usbctl(LPSHELLCONTEXT);
+static U32 CMD_usb(LPSHELLCONTEXT);
 
 static void ShellScriptOutput(LPCSTR Message, LPVOID UserData);
 static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
@@ -175,7 +175,7 @@ static struct {
     {"whoami", "who", "", CMD_whoami},
     {"passwd", "setpassword", "", CMD_passwd},
     {"prof", "profiling", "", CMD_prof},
-    {"usbctl", "usb", "ports|probe|devices", CMD_usbctl},
+    {"usb", "usb", "ports|probe|devices", CMD_usb},
     {"", "", "", NULL},
 };
 
@@ -1639,14 +1639,14 @@ static U32 CMD_prof(LPSHELLCONTEXT Context) {
  * @param Context Shell context.
  * @return DF_RET_SUCCESS on completion.
  */
-static U32 CMD_usbctl(LPSHELLCONTEXT Context) {
+static U32 CMD_usb(LPSHELLCONTEXT Context) {
     ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command) == 0 ||
         (StringCompareNC(Context->Command, TEXT("ports")) != 0 &&
          StringCompareNC(Context->Command, TEXT("probe")) != 0 &&
          StringCompareNC(Context->Command, TEXT("devices")) != 0)) {
-        ConsolePrint(TEXT("Usage: usbctl ports|probe|devices\n"));
+        ConsolePrint(TEXT("Usage: usb ports|probe|devices\n"));
         return DF_RET_SUCCESS;
     }
 

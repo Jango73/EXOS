@@ -44,13 +44,30 @@
 
 **Goal**: support real hotplug through hubs.
 
-- [ ] Hub class: **Interrupt IN** status change → reset port, **GetPortStatus**, **SetPortFeature**.
-- [ ] xHCI: handle **TT** for FS/LS behind HS.
-- [ ] Reuse Step 3 enumeration for each new port.
+- [X] Hub class: **Interrupt IN** status change → reset port, **GetPortStatus**, **SetPortFeature**.
+- [X] xHCI: handle **TT** for FS/LS behind HS.
+- [X] Reuse Step 3 enumeration for each new port.
 **Success**: plugging on a hub → new device appears / disappears
 cleanly.
 
-## Step 5 --- HID Keyboard (Boot protocol, minimal)
+## Step 5 --- User Notification (mount/hotplug)
+
+**Goal**: notify userland when USB devices are attached/removed.
+
+- [ ] Emit a kernel-level notification on USB device attach/detach (no task messaging).
+- [ ] Provide a minimal userland hook to display the notification.
+
+**Success**: plug/unplug triggers a visible notice without polling commands.
+
+## Step 6 --- HID Mouse (optional but easy)
+
+**Goal**: pointer/click.
+
+- [ ] Interrupt IN, parse X/Y, buttons, wheel.
+
+**Success**: `mouse` tool shows deltas/buttons. Implement in system along other system apps.
+
+## Step 7 --- HID Keyboard (Boot protocol, minimal)
 
 **Goal**: functional USB keyboard.
 
@@ -62,15 +79,7 @@ cleanly.
 **Success**: keystrokes visible in EXOS TTY (6KRO OK).
 **Independent**: nothing else required.
 
-## Step 6 --- HID Mouse (optional but easy)
-
-**Goal**: pointer/click.
-
-- [ ] Interrupt IN, parse X/Y, buttons, wheel.
-
-**Success**: `mouse` tool shows deltas/buttons. Implement in system along other system apps.
-
-## Step 7 --- Generic Bulk + Mass Storage (BOT) read-only
+## Step 8 --- Generic Bulk + Mass Storage (BOT) read-only
 
 **Goal**: read a USB stick.
 
@@ -80,7 +89,7 @@ cleanly.
 
 **Success**: homemade `fdisk/lsblk` sees capacity, `mount` (RO) works.
 
-## Step 8 --- Mass Storage read/write + cache/flush
+## Step 9 --- Mass Storage read/write + cache/flush
 
 **Goal**: stable RW.
 
@@ -89,7 +98,7 @@ cleanly.
 
 **Success**: create a file on a FS (FAT32/EXFS) on `usbms0`.
 
-## Step 9 --- Robust hotplug & teardown
+## Step 10 --- Robust hotplug & teardown
 
 **Goal**: unplug/insert without breaking system.
 
@@ -98,7 +107,7 @@ cleanly.
 
 **Success**: unplug during I/O → no panic, resources freed.
 
-## Step 10 --- CDC-ACM (USB-Serial)
+## Step 11 --- CDC-ACM (USB-Serial)
 
 **Goal**: USB serial console (external debug).
 
@@ -106,7 +115,7 @@ cleanly.
 
 **Success**: homemade `/dev/ttyACM0`, echo works.
 
-## Step 11 --- Isochronous (UAC1 minimal audio) --- optional
+## Step 12 --- Isochronous (UAC1 minimal audio) --- optional
 
 **Goal**: validate Iso pipe.
 
@@ -114,24 +123,15 @@ cleanly.
 
 **Success**: capture or playback mono 16-bit 48 kHz for a few seconds.
 
-## Step 12 --- Perf & comfort
+## Step 13 --- Perf & comfort
 
 - [ ] **MSI-X**, interrupt coalescing, dynamic ring sizes.
 - [ ] **Scatter/Gather (SG)** if IOMMU later.
 - [ ] **U1/U2 & Link PM** if useful, throttle HID polling.
 - [ ] Stats, simple `usbmon` (dump TRB/TD/EP events).
 
-## Step 13 --- Controller compatibility (if really needed)
+## Step 14 --- Controller compatibility (if really needed)
 
 - [ ] **EHCI** (USB2 HS): QEMU/older hw; reuse layers 3+ (core, hubs, classes).
 - [ ] **UHCI/OHCI**: only if you target very old hw (otherwise skip).
 - [ ] HCD API must be common: `hcd_submit_control/bulk/intr/iso`, `hcd_port_ops`, etc.
-
-## Step Decoupling (ensuring "runs without the next")
-
-- 1 runs alone (port diagnostics).
-- 2 runs with direct device (descriptors), no hub/class driver.
-- 3 adds device view, not mandatory for 4/5.
-- 4 adds hotplug/hubs; 5 works even without 7/8.
-- 7 (MSC RO) only needs bulk + std requests; 8 adds write.
-- 10, 11, 12, 13 are fully orthogonal.

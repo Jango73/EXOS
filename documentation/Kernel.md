@@ -182,6 +182,10 @@ interrupter 0, runs minimal EP0 control transfers, builds a basic device tree
 (configs/interfaces/endpoints), and reports status via `usbctl ports`, `usbctl probe`,
 and `usbctl devices`.
 
+Hub-class devices are supported: the driver reads hub descriptors, powers ports,
+tracks downstream devices, and polls hub interrupt endpoints for change bits to
+trigger per-port reset and re-enumeration.
+
 The VESA graphics driver always requests VBE modes in linear frame buffer
 mode (bit 14 set in INT 10h 4F02h), checks that the selected mode advertises
 the LFB capability, and maps the `PhysBasePtr` through `MapIOMemory`. Drawing
