@@ -55,7 +55,6 @@
 
 ## Drivers
 
-- USB
 - PCIe
 - NVMe
 

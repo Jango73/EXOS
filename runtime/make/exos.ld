@@ -2,14 +2,14 @@ ENTRY(__start__)
 
 SECTIONS
 {
-    /* Kernel — high memory, physically after stub (0x1000 offset) */
+    /* Kernel - high memory, physically after stub (0x1000 offset) */
     . = 0x00400000;
     .text : {
         *(.text)
         *(.rodata)
     }
 
-    /* Data  */
+    /* Data */
     . = ALIGN(0x10);
     .data : {
         *(.data)
