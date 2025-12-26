@@ -59,55 +59,53 @@
 - AI decision logic runs per difficulty level inside `ProcessAITeams` (see AI section).
 
 ### 4. AI Profiles
-- Each AI team is randomly assigned an attitude at game start:
-  - **Aggressive**: Prioritizes unit production and attacking.
-  - **Defensive**: Prioritizes base buildup, defenses, and resource security.
-- Each AI tracks a dynamic **mindset**:
-  - **Urgency**: Triggered when nearby enemy presence outweighs local defenders within `n` tiles of any AI building.
-  - **Idle**: Default state when no nearby threats match the urgency rule.
-  - **Panic**: Triggered when available resources are insufficient to produce any mobile unit type.
-- Mindset goals:
-  - **Idle**: Pursue the primary trait (aggressive → build forces/attack; defensive → fortify/economy).
-  - **Urgency**: Focus on neutralizing the immediate threat (defend/respond to detected enemies).
-  - **Panic**: Prioritize restoring the economy/energy to regain unit production capability.
-- Mindset transitions (evaluated each AI tick):
-  - Idle → Urgency: enemy > friendly mobiles within threat radius.
-  - Idle → Panic: cannot afford the cheapest mobile unit (plasma/energy).
-  - Urgency → Idle: threat cleared (enemy no longer exceeds friendly mobiles in radius).
-  - Urgency → Panic: threat persists AND still cannot afford the cheapest mobile unit.
-  - Panic → Idle: resources sufficient to build the cheapest mobile unit and no active threat in radius.
-  - Panic → Urgency: resources recovered enough for the cheapest mobile unit but threat condition still true.
+- Each AI team is assigned an attitude at game start:
+  - **Aggressive**: higher offensive pressure and faster expansion.
+  - **Defensive**: higher defensive focus and safer pacing.
+- Each AI tracks a dynamic **mindset** that modifies budget weights:
+  - **Idle**: normal long-term plan.
+  - **Pressure**: enemy forces threaten buildings or drillers.
+  - **Panic**: economy cannot support any mobile unit or power deficit blocks production.
+- Mindset changes are evaluated each AI tick using local threat data and affordability checks.
 
-### 4.1 AI (Standard Mode) Objectives & Loop
-- **Update cadence:** Evaluate AI teams every ~500 ms of game time to avoid per-frame cost.
-- **Evaluation inputs (per team):** resource stock (plasma/energy), energy balance, cheapest buildable mobile unit affordability, threats near buildings (enemy vs friendly count in radius), owned production buildings (yard/barracks/factory/tech center), size of mobile force.
-- **Objective selection:**
-  - If the team has no Construction Yard: team is defeated (cannot rebuild yards).
-  - If no power margin: prioritize Power Plant.
-  - If no barracks: prioritize Barracks (unlocked at tech 1).
-  - If tech < 2 and prerequisites unmet: prioritize Tech Center to unlock tech 2 options.
-  - If production idle and resources allow: produce mobile units appropriate to tech (trooper/soldier → early; tech 2 vehicles unlocked via factory).
-  - If under threat (Urgency/Panic): favor defensive builds/production; otherwise, build up and prepare attacks.
-  - If the team has a Tech Center: maintain a **Fortress** plan in parallel with other objectives (see below).
-- **Fortress plan (post-Tech Center):**
-  - Build a wall ring around the team buildings, keeping a **3-tile clearance** between buildings and the wall.
-  - Leave **four gates** (one per cardinal direction) wide enough for the largest mobile unit.
-  - Place turrets along the wall perimeter.
-  - **Budget weighting by attitude:**
-    - **Defensive:** invest heavily in the fortress relative to other objectives.
-    - **Aggressive:** invest lightly; fortress is secondary to unit production/attack.
-- **Build actions:**
-  - Use Construction Yard to queue the highest-priority structure (respect tech level/resource availability and placement queue cap).
-  - Auto-place ready structures near the owning yard using a spiral search; skip placement if no free tile is found (retry on next tick).
-- **Unit production actions:**
-  - Barracks produce infantry (trooper/soldier/engineer) when affordable and not in deficit.
-  - Factory (tech 2) produces vehicles when unlocked and affordable.
-  - Production choices favor cheaper units in Panic, balanced mix in Urgency, and stronger units in Idle/Aggressive.
-- **Unit orders:**
-  - Rally point near the team’s yard for newly produced units.
-  - Defensive reaction: send available mobiles toward the nearest detected threat when in Urgency/Panic.
-  - Offensive push: when force size exceeds a threshold and mindset allows, move/attack toward the closest known enemy structure or last seen yard position.
-  - Drillers always move to the nearest plasma field; defensive AI keeps the strongest unit escorting a driller permanently, otherwise it assigns an escort only while the driller is under attack.
+### 4.1 AI Architecture (Budget-Driven)
+- **Update cadence:** Base tick is ~500 ms. Process half the AI teams per tick and alternate halves each tick, so each team is refreshed every ~1000 ms.
+- **Single action rule:** One action per AI tick. If a condition is met but the action is not possible (resources, power, placement), the AI skips to the next condition.
+- **Power gate:** A building that consumes energy cannot be queued if the team has no available energy. Power Plant decisions are evaluated before any other building decision.
+- **Budget pools:** The AI converts income and stockpile into four pools:
+  - **Economy budget**: drillers, plasma access, escort for drillers.
+  - **Infrastructure budget**: required production buildings, tech buildings, expansion.
+  - **Defense budget**: turrets, walls, base guard regiments.
+  - **Offense budget**: attack units and regiments.
+- **Budget weights:** Weights are derived from attitude and mindset.
+  - Aggressive: higher offense, lower defense.
+  - Defensive: higher defense and infrastructure.
+  - Pressure: shift budget into defense and immediate unit production.
+  - Panic: shift budget into economy and power first.
+- **Budget consumption:** Requests consume their budget pool. Pools refill from plasma income and a controlled share of stored plasma to avoid full stockpile starvation.
+- **Priority queues:** Buildings and units have explicit priority values. Priorities are compared within each budget pool.
+- **Enemy strength estimation:** Known enemy strength is computed from visible enemy units and buildings only. Observations decay over time and are never based on hidden data. This value influences defensive and offensive budgets.
+- **Regiments:** The AI groups units into internal regiments for coordinated attacks and defense.
+  - Regiment types: base guard, driller escort, attack group.
+  - Scouts are managed independently and always run exploration orders.
+  - Regiments have size targets, composition targets, rally points, and mission state.
+- **Decision loop overview:**
+  1. Update visibility, known enemy strength, and mindset.
+  2. Refresh budgets using attitude, mindset, and economy status.
+  3. Evaluate the condition list in strict priority order:
+     - Power coverage (power plants).
+     - Economic survival (drillers, escort, plasma access).
+     - Required infrastructure (barracks, factory, tech center).
+     - Defensive needs (turrets, walls, base guard).
+     - Offensive production (regiments).
+  4. Execute the first valid action and return.
+- **Robustness rules:**
+  - Use hysteresis for budget and mindset changes to avoid oscillation.
+  - Add cooldowns on repeated actions to prevent command spam.
+  - Reserve plasma for mandatory near-term requirements (power and critical buildings).
+  - Throttle production if queues are full or placement repeatedly fails.
+  - Track action failures and temporarily reduce their priority after repeated failures.
+  - Avoid re-issuing orders to units that already have a valid order.
 
 ### 5. Building System
 
