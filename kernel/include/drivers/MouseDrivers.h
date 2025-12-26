@@ -1,4 +1,3 @@
-
 /************************************************************************\
 
     EXOS Kernel
@@ -18,33 +17,23 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Mouse
+    Mouse drivers
 
 \************************************************************************/
 
-#ifndef MOUSE_H_INCLUDED
-#define MOUSE_H_INCLUDED
+#ifndef MOUSEDRIVERS_H_INCLUDED
+#define MOUSEDRIVERS_H_INCLUDED
 
 /************************************************************************/
 
 #include "Driver.h"
 
 /************************************************************************/
+// External symbols
 
-#pragma pack(push, 1)
-
-/************************************************************************/
-
-// Functions supplied by a mouse driver
-
-#define DF_MOUSE_RESET (DF_FIRSTFUNC + 0)
-#define DF_MOUSE_GETDELTAX (DF_FIRSTFUNC + 1)
-#define DF_MOUSE_GETDELTAY (DF_FIRSTFUNC + 2)
-#define DF_MOUSE_GETBUTTONS (DF_FIRSTFUNC + 3)
-#define DF_MOUSE_HAS_DEVICE (DF_FIRSTFUNC + 4)
+LPDRIVER SerialMouseGetDriver(void);
+LPDRIVER USBMouseGetDriver(void);
 
 /************************************************************************/
 
-#pragma pack(pop)
-
-#endif
+#endif  // MOUSEDRIVERS_H_INCLUDED

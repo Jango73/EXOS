@@ -1,6 +1,8 @@
 
 #include "Kernel.h"
+#include "Mouse.h"
 #include "Socket.h"
+#include "drivers/MouseDrivers.h"
 #include "utils/Helpers.h"
 #include "process/Process.h"
 #include "drivers/Keyboard.h"
@@ -27,7 +29,6 @@ extern DRIVER LocalAPICDriver;
 extern DRIVER IOAPICDriver;
 extern DRIVER InterruptControllerDriver;
 extern DRIVER StdKeyboardDriver;
-extern DRIVER SerialMouseDriver;
 extern DRIVER ClockDriver;
 extern DRIVER PCIDriver;
 extern DRIVER ATADiskDriver;
@@ -265,9 +266,10 @@ void InitializeDriverList(void) {
     ListAddTail(Kernel.Drivers, &DeviceInterruptDriver);
     ListAddTail(Kernel.Drivers, &DeferredWorkDriver);
     ListAddTail(Kernel.Drivers, &StdKeyboardDriver);
-    ListAddTail(Kernel.Drivers, &SerialMouseDriver);
+    ListAddTail(Kernel.Drivers, SerialMouseGetDriver());
     ListAddTail(Kernel.Drivers, &ClockDriver);
     ListAddTail(Kernel.Drivers, &PCIDriver);
+    ListAddTail(Kernel.Drivers, USBMouseGetDriver());
     ListAddTail(Kernel.Drivers, &ATADiskDriver);
     ListAddTail(Kernel.Drivers, &SATADiskDriver);
     ListAddTail(Kernel.Drivers, &RAMDiskDriver);
@@ -830,7 +832,12 @@ BOOL GetCPUInformation(LPCPUINFORMATION Info) {
  * @return Pointer to the mouse driver.
  */
 LPDRIVER GetMouseDriver(void) {
-    return &SerialMouseDriver;
+    LPDRIVER UsbDriver = USBMouseGetDriver();
+    if (UsbDriver != NULL && UsbDriver->Command(DF_MOUSE_HAS_DEVICE, 0) == 1U) {
+        return UsbDriver;
+    }
+
+    return SerialMouseGetDriver();
 }
 
 /************************************************************************/

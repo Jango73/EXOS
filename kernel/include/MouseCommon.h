@@ -1,4 +1,3 @@
-
 /************************************************************************\
 
     EXOS Kernel
@@ -18,33 +17,48 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Mouse
+    Mouse common
 
 \************************************************************************/
 
-#ifndef MOUSE_H_INCLUDED
-#define MOUSE_H_INCLUDED
+#ifndef MOUSECOMMON_H_INCLUDED
+#define MOUSECOMMON_H_INCLUDED
 
 /************************************************************************/
 
-#include "Driver.h"
+#include "Base.h"
+#include "Mutex.h"
+#include "Mouse.h"
+
+/************************************************************************/
+// Typedefs
+
+typedef struct tag_MOUSE_PACKET_BUFFER {
+    I32 DeltaX;
+    I32 DeltaY;
+    U32 Buttons;
+    BOOL Pending;
+} MOUSE_PACKET_BUFFER, *LPMOUSE_PACKET_BUFFER;
+
+typedef struct tag_MOUSE_COMMON_CONTEXT {
+    BOOL Initialized;
+    MUTEX Mutex;
+    I32 DeltaX;
+    I32 DeltaY;
+    U32 Buttons;
+    MOUSE_PACKET_BUFFER Packet;
+    U32 DeferredHandle;
+} MOUSE_COMMON_CONTEXT, *LPMOUSE_COMMON_CONTEXT;
+
+/************************************************************************/
+// External symbols
+
+BOOL MouseCommonInitialize(LPMOUSE_COMMON_CONTEXT Context);
+void MouseCommonQueuePacket(LPMOUSE_COMMON_CONTEXT Context, I32 DeltaX, I32 DeltaY, U32 Buttons);
+U32 MouseCommonGetDeltaX(LPMOUSE_COMMON_CONTEXT Context);
+U32 MouseCommonGetDeltaY(LPMOUSE_COMMON_CONTEXT Context);
+U32 MouseCommonGetButtons(LPMOUSE_COMMON_CONTEXT Context);
 
 /************************************************************************/
 
-#pragma pack(push, 1)
-
-/************************************************************************/
-
-// Functions supplied by a mouse driver
-
-#define DF_MOUSE_RESET (DF_FIRSTFUNC + 0)
-#define DF_MOUSE_GETDELTAX (DF_FIRSTFUNC + 1)
-#define DF_MOUSE_GETDELTAY (DF_FIRSTFUNC + 2)
-#define DF_MOUSE_GETBUTTONS (DF_FIRSTFUNC + 3)
-#define DF_MOUSE_HAS_DEVICE (DF_FIRSTFUNC + 4)
-
-/************************************************************************/
-
-#pragma pack(pop)
-
-#endif
+#endif  // MOUSECOMMON_H_INCLUDED

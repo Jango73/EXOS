@@ -25,11 +25,11 @@
 #include "Base.h"
 #include "Arch.h"
 #include "GFX.h"
-#include "DeferredWork.h"
 #include "InterruptController.h"
 #include "Log.h"
 #include "Mouse.h"
-#include "MouseDispatcher.h"
+#include "MouseCommon.h"
+#include "DeferredWork.h"
 #include "process/Process.h"
 #include "CoreString.h"
 #include "User.h"
@@ -39,50 +39,40 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
+typedef struct tag_SERIAL_MOUSE_DRIVER {
+    DRIVER Driver;
+    MOUSE_COMMON_CONTEXT Common;
+} SERIAL_MOUSE_DRIVER, *LPSERIAL_MOUSE_DRIVER;
+
 UINT SerialMouseCommands(UINT, UINT);
 
-DRIVER DATA_SECTION SerialMouseDriver = {
-    .TypeID = KOID_DRIVER,
-    .References = 1,
-    .Next = NULL,
-    .Prev = NULL,
-    .Type = DRIVER_TYPE_MOUSE,
-    .VersionMajor = VER_MAJOR,
-    .VersionMinor = VER_MINOR,
-    .Designer = "Jango73",
-    .Manufacturer = "Not applicable",
-    .Product = "Standard Serial Mouse",
-    .Flags = 0,
-    .Command = SerialMouseCommands};
+static SERIAL_MOUSE_DRIVER DATA_SECTION SerialMouseDriverState = {
+    .Driver = {
+        .TypeID = KOID_DRIVER,
+        .References = 1,
+        .Next = NULL,
+        .Prev = NULL,
+        .Type = DRIVER_TYPE_MOUSE,
+        .VersionMajor = VER_MAJOR,
+        .VersionMinor = VER_MINOR,
+        .Designer = "Jango73",
+        .Manufacturer = "Not applicable",
+        .Product = "Standard Serial Mouse",
+        .Flags = 0,
+        .Command = SerialMouseCommands
+    },
+    .Common = {
+        .Initialized = FALSE,
+        .Mutex = EMPTY_MUTEX,
+        .DeltaX = 0,
+        .DeltaY = 0,
+        .Buttons = 0,
+        .Packet = {.DeltaX = 0, .DeltaY = 0, .Buttons = 0, .Pending = FALSE},
+        .DeferredHandle = DEFERRED_WORK_INVALID_HANDLE
+    }
+};
 
 /***************************************************************************/
-
-typedef struct tag_MOUSEDATA {
-    MUTEX Mutex;
-    U32 Busy;
-    I32 DeltaX;
-    I32 DeltaY;
-    U32 Buttons;
-    I32 PosX;
-    I32 PosY;
-} MOUSEDATA, *LPMOUSEDATA;
-
-static MOUSEDATA Mouse = {
-    .Mutex = EMPTY_MUTEX, .Busy = 0, .DeltaX = 0, .DeltaY = 0, .Buttons = 0, .PosX = 1, .PosY = 1};
-
-typedef struct tag_MOUSE_PACKET_BUFFER {
-    I32 DeltaX;
-    I32 DeltaY;
-    U32 Buttons;
-    BOOL Pending;
-} MOUSE_PACKET_BUFFER, *LPMOUSE_PACKET_BUFFER;
-
-static MOUSE_PACKET_BUFFER MousePacket = {.DeltaX = 0, .DeltaY = 0, .Buttons = 0, .Pending = FALSE};
-static U32 MouseDeferredHandle = DEFERRED_WORK_INVALID_HANDLE;
-
-/***************************************************************************/
-
-static void MouseDeferredWork(LPVOID Context);
 
 /***************************************************************************/
 
@@ -196,6 +186,16 @@ static void SendBreak(void) {
 /***************************************************************************/
 
 /**
+ * @brief Retrieve the serial mouse driver descriptor.
+ * @return Pointer to the serial mouse driver.
+ */
+LPDRIVER SerialMouseGetDriver(void) {
+    return &SerialMouseDriverState.Driver;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Busy-wait delay used between serial operations.
  */
 static void Delay(void) {
@@ -251,8 +251,6 @@ static BOOL InitializeMouse(void) {
     UNUSED(Sig2);
 
     OutPortByte(LOGIMOUSE_CONFIG, 0);
-
-    InitMutex(&(Mouse.Mutex));
 
     for (Index = 0; Index < 8; Index++) {
         OutPortByte(MOUSE_PORT + Index, 0);
@@ -353,29 +351,7 @@ static BOOL InitializeMouse(void) {
 
     EnableInterrupt(IRQ_MOUSE);
 
-    if (InitializeMouseDispatcher() == FALSE) {
-        return FALSE;
-    }
-
-    MousePacket.DeltaX = 0;
-    MousePacket.DeltaY = 0;
-    MousePacket.Buttons = 0;
-    MousePacket.Pending = FALSE;
-
-    if (MouseDeferredHandle == DEFERRED_WORK_INVALID_HANDLE) {
-        DEFERRED_WORK_REGISTRATION Registration;
-        Registration.WorkCallback = MouseDeferredWork;
-        Registration.PollCallback = NULL;
-        Registration.Context = NULL;
-        Registration.Name = TEXT("MouseDispatch");
-
-        MouseDeferredHandle = DeferredWorkRegister(&Registration);
-        if (MouseDeferredHandle == DEFERRED_WORK_INVALID_HANDLE) {
-            return FALSE;
-        }
-    }
-
-    return TRUE;
+    return MouseCommonInitialize(&SerialMouseDriverState.Common);
 }
 
 /***************************************************************************/
@@ -385,46 +361,6 @@ static BOOL InitializeMouse(void) {
  *
  * @return Delta X (unsigned representation).
  */
-static U32 GetDeltaX(void) {
-    U32 Result = 0;
-    LockMutex(&(Mouse.Mutex), INFINITY);
-    Result = UNSIGNED(Mouse.DeltaX);
-    UnlockMutex(&(Mouse.Mutex));
-    return Result;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Get and clear accumulated Y displacement.
- *
- * @return Delta Y (unsigned representation).
- */
-static U32 GetDeltaY(void) {
-    U32 Result = 0;
-    LockMutex(&(Mouse.Mutex), INFINITY);
-    Result = UNSIGNED(Mouse.DeltaY);
-    UnlockMutex(&(Mouse.Mutex));
-    return Result;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Get current mouse button state.
- *
- * @return Bitmask of pressed buttons.
- */
-static U32 GetButtons(void) {
-    U32 Result;
-    LockMutex(&(Mouse.Mutex), INFINITY);
-    Result = UNSIGNED(Mouse.Buttons);
-    UnlockMutex(&(Mouse.Mutex));
-    return Result;
-}
-
-/***************************************************************************/
-
 /*
 static void DrawMouseCursor(I32 X, I32 Y) {
     LINEINFO LineInfo;
@@ -584,45 +520,6 @@ static BOOL ReadMicrosoftPacket(I32* DeltaX, I32* DeltaY, U32* Buttons) {
 
 /***************************************************************************/
 
-static void MouseDeferredWork(LPVOID Context) {
-    UNUSED(Context);
-
-    I32 DeltaX = 0;
-    I32 DeltaY = 0;
-    U32 Buttons = 0;
-    BOOL Pending = FALSE;
-
-    UINT Flags;
-    SaveFlags(&Flags);
-    DisableInterrupts();
-
-    if (MousePacket.Pending) {
-        DeltaX = MousePacket.DeltaX;
-        DeltaY = MousePacket.DeltaY;
-        Buttons = MousePacket.Buttons;
-        MousePacket.DeltaX = 0;
-        MousePacket.DeltaY = 0;
-        MousePacket.Pending = FALSE;
-        Pending = TRUE;
-    }
-
-    RestoreFlags(&Flags);
-
-    if (Pending == FALSE) {
-        return;
-    }
-
-    LockMutex(&(Mouse.Mutex), INFINITY);
-    Mouse.DeltaX = DeltaX;
-    Mouse.DeltaY = DeltaY;
-    Mouse.Buttons = Buttons;
-    UnlockMutex(&(Mouse.Mutex));
-
-    MouseDispatcherOnInput(DeltaX, DeltaY, Buttons);
-}
-
-/***************************************************************************/
-
 /**
  * @brief Mouse interrupt handler entry point (placeholder).
  */
@@ -635,18 +532,7 @@ void MouseHandler(void) {
         return;
     }
 
-    UINT Flags;
-    SaveFlags(&Flags);
-    DisableInterrupts();
-    MousePacket.DeltaX += DeltaX;
-    MousePacket.DeltaY += DeltaY;
-    MousePacket.Buttons = Buttons;
-    MousePacket.Pending = TRUE;
-    RestoreFlags(&Flags);
-
-    if (MouseDeferredHandle != DEFERRED_WORK_INVALID_HANDLE) {
-        DeferredWorkSignal(MouseDeferredHandle);
-    }
+    MouseCommonQueuePacket(&SerialMouseDriverState.Common, DeltaX, DeltaY, Buttons);
 }
 
 /***************************************************************************/
@@ -665,38 +551,35 @@ UINT SerialMouseCommands(UINT Function, UINT Parameter) {
 
     switch (Function) {
         case DF_LOAD:
-            if ((SerialMouseDriver.Flags & DRIVER_FLAG_READY) != 0) {
+            if ((SerialMouseDriverState.Driver.Flags & DRIVER_FLAG_READY) != 0) {
                 return DF_RET_SUCCESS;
             }
 
             if (InitializeMouse()) {
-                SerialMouseDriver.Flags |= DRIVER_FLAG_READY;
+                SerialMouseDriverState.Driver.Flags |= DRIVER_FLAG_READY;
                 return DF_RET_SUCCESS;
             }
 
             return DF_RET_UNEXPECT;
         case DF_UNLOAD:
-            if ((SerialMouseDriver.Flags & DRIVER_FLAG_READY) == 0) {
+            if ((SerialMouseDriverState.Driver.Flags & DRIVER_FLAG_READY) == 0) {
                 return DF_RET_SUCCESS;
             }
 
-            if (MouseDeferredHandle != DEFERRED_WORK_INVALID_HANDLE) {
-                DeferredWorkUnregister(MouseDeferredHandle);
-                MouseDeferredHandle = DEFERRED_WORK_INVALID_HANDLE;
-            }
-
-            SerialMouseDriver.Flags &= ~DRIVER_FLAG_READY;
+            SerialMouseDriverState.Driver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RET_SUCCESS;
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_MOUSE_RESET:
             return 0;
         case DF_MOUSE_GETDELTAX:
-            return (UINT)GetDeltaX();
+            return (UINT)MouseCommonGetDeltaX(&SerialMouseDriverState.Common);
         case DF_MOUSE_GETDELTAY:
-            return (UINT)GetDeltaY();
+            return (UINT)MouseCommonGetDeltaY(&SerialMouseDriverState.Common);
         case DF_MOUSE_GETBUTTONS:
-            return (UINT)GetButtons();
+            return (UINT)MouseCommonGetButtons(&SerialMouseDriverState.Common);
+        case DF_MOUSE_HAS_DEVICE:
+            return ((SerialMouseDriverState.Driver.Flags & DRIVER_FLAG_READY) != 0) ? 1U : 0U;
     }
 
     return (UINT)MAX_U32;

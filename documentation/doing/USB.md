@@ -63,7 +63,7 @@ cleanly.
 
 **Goal**: pointer/click.
 
-- [ ] Interrupt IN, parse X/Y, buttons, wheel.
+- [X] Interrupt IN, parse X/Y, buttons, wheel.
 
 **Success**: `mouse` tool shows deltas/buttons. Implement in system along other system apps.
 

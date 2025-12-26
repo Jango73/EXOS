@@ -257,7 +257,7 @@ static BOOL XHCI_SubmitHubStatusTransfer(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE
  * @param CompletionOut Receives completion code.
  * @return TRUE when completion was found.
  */
-static BOOL XHCI_CheckTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* CompletionOut) {
+BOOL XHCI_CheckTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* CompletionOut) {
     if (Device == NULL) {
         return FALSE;
     }

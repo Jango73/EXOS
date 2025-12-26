@@ -170,6 +170,11 @@ of the codebase by storing the initialization order in a `LIST` declared in
 `KernelData.c`; `InitializeDriverList()` appends each static driver descriptor
 before `LoadAllDrivers()` walks the list.
 
+Mouse input is shared through `kernel/source/MouseCommon.c`, which buffers
+deltas/buttons, dispatches events, and selects the active mouse driver. USB HID
+mouse support lives in `kernel/source/drivers/USBMouse.c` and takes priority
+over the serial mouse when a USB device is present.
+
 USB foundations live under `kernel/include/drivers/USB.h`. The header defines
 core USB types (speeds, endpoint kinds, addresses) and the standard descriptor
 layouts for device, configuration, interface, endpoint, and string metadata so
@@ -181,6 +186,7 @@ halt/reset/run sequence, allocates DCBAA/command/event rings, programs
 interrupter 0, runs minimal EP0 control transfers, builds a basic device tree
 (configs/interfaces/endpoints), and reports status via `usbctl ports`, `usbctl probe`,
 and `usbctl devices`.
+Endpoint configuration after `SET_CONFIGURATION` relies on the xHCI Configure Endpoint command before enabling interrupt polling for HID devices.
 
 Hub-class devices are supported: the driver reads hub descriptors, powers ports,
 tracks downstream devices, and polls hub interrupt endpoints for change bits to
