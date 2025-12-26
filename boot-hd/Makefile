@@ -91,6 +91,7 @@ NETGET_ELF      = $(BUILD_DIR)/system/netget/netget
 HELLO_ELF       = $(BUILD_DIR)/system/hello/hello
 TICTACTOE_ELF	= $(BUILD_DIR)/system/tictactoe/tictactoe
 TERMTACTICS_ELF	= $(BUILD_DIR)/system/terminal-tactics/terminal-tactics
+MOUSEINFO_ELF   = $(BUILD_DIR)/system/mouse-info/mouse-info
 MASTER_ELF      = $(BUILD_DIR)/system/test/master/master
 SLAVE_ELF       = $(BUILD_DIR)/system/test/slave/slave
 EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/ext2-root
@@ -241,7 +242,7 @@ $(BUILD_DIR)/boot-hd/payload.sym: $(PAYLOAD_ELF)
 	$(NM) $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
 # Create image only if it does not exist
-$(FINAL_IMG): check_tools $(KERNEL_BIN) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(MASTER_ELF) $(SLAVE_ELF)
+$(FINAL_IMG): check_tools $(KERNEL_BIN) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(MOUSEINFO_ELF) $(MASTER_ELF) $(SLAVE_ELF)
 	@mkdir -p $(dir $@)
 	$(call $(CREATE_IMAGE_MACRO),$@)
 
@@ -267,6 +268,7 @@ update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32)
 		$(call MCOPY_IF_NEEDED,$(HELLO_ELF),z:/EXOS/APPS/HELLO)\
 		$(call MCOPY_IF_NEEDED,$(TICTACTOE_ELF),z:/EXOS/APPS/tictactoe)\
 		$(call MCOPY_IF_NEEDED,$(TERMTACTICS_ELF),z:/EXOS/APPS/terminal-tactics)\
+		$(call MCOPY_IF_NEEDED,$(MOUSEINFO_ELF),z:/EXOS/APPS/mouse-info)\
 		$(call MCOPY_IF_NEEDED,$(MASTER_ELF),z:/EXOS/APPS/TEST/MASTER)\
 		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE),\
 		All files injected into image.)
@@ -285,6 +287,7 @@ update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2)
 	@cp $(HELLO_ELF) $(EXT2_STAGING_DIR)/exos/apps/hello
 	@cp $(TICTACTOE_ELF) $(EXT2_STAGING_DIR)/exos/apps/tictactoe
 	@cp $(TERMTACTICS_ELF) $(EXT2_STAGING_DIR)/exos/apps/terminal-tactics
+	@cp $(MOUSEINFO_ELF) $(EXT2_STAGING_DIR)/exos/apps/mouse-info
 	@cp $(MASTER_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/master
 	@cp $(SLAVE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/slave
 	$(call POPULATE_EXT2_IMAGE,$(FINAL_IMG),$(EXT2_STAGING_DIR))

@@ -20,9 +20,9 @@ SUBMAKE = $(MAKE) ARCH=$(ARCH)
 
 ################################################################################
 
-.PHONY: all clean hello portal tictactoe netget master slave
+.PHONY: all clean hello portal tictactoe terminal_tactics netget mouse-info master slave
 
-all: hello portal tictactoe terminal_tactics netget master slave
+all: hello portal tictactoe terminal_tactics netget mouse-info master slave
 
 ################################################################################
 # Hello program
@@ -75,6 +75,16 @@ netget_clean:
 	+$(SUBMAKE) -C netget clean
 
 ################################################################################
+# Mouse info program
+
+mouse-info:
+	@echo "[ Building mouse-info ]"
+	+$(SUBMAKE) -C mouse-info all
+
+mouse-info_clean:
+	+$(SUBMAKE) -C mouse-info clean
+
+################################################################################
 # Master test program
 
 master:
@@ -96,5 +106,5 @@ slave_clean:
 
 ################################################################################
 
-clean: hello_clean portal_clean tictactoe_clean terminal_tactics_clean netget_clean master_clean slave_clean
+clean: hello_clean portal_clean tictactoe_clean terminal_tactics_clean netget_clean mouse-info_clean master_clean slave_clean
 	@echo "[ Cleaning system programs ]"
