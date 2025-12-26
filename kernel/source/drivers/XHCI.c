@@ -31,6 +31,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "User.h"
+#include "drivers/DeviceInterrupt.h"
 #include "drivers/USB.h"
 
 /************************************************************************/
@@ -103,6 +104,9 @@
 #define XHCI_ERSTSZ 0x08
 #define XHCI_ERSTBA 0x10
 #define XHCI_ERDP 0x18
+
+#define XHCI_IMAN_IP 0x00000001
+#define XHCI_IMAN_IE 0x00000002
 
 /************************************************************************/
 // xHCI doorbell registers
@@ -264,6 +268,11 @@ struct tag_XHCI_DEVICE {
     U32 EventRingCycleState;
 
     LPXHCI_USB_DEVICE UsbDevices;
+
+    U8 InterruptSlot;
+    BOOL InterruptRegistered;
+    BOOL InterruptEnabled;
+    U32 InterruptCount;
 };
 
 /************************************************************************/
@@ -354,6 +363,185 @@ static U32 XHCI_GetCompletionCode(U32 Dword2) {
 static void XHCI_RingDoorbell(LPXHCI_DEVICE Device, U32 DoorbellIndex, U32 Target) {
     U32 Value = Target & XHCI_DOORBELL_TARGET_MASK;
     XHCI_Write32(Device->DoorbellBase, DoorbellIndex * sizeof(U32), Value);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Get base address for interrupter register set 0.
+ * @param Device xHCI device.
+ * @return Interrupter base address.
+ */
+static LINEAR XHCI_GetInterrupterBase(LPXHCI_DEVICE Device) {
+    return Device->RuntimeBase + XHCI_RT_INTERRUPTER_BASE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Clear pending interrupt status.
+ * @param Device xHCI device.
+ */
+static void XHCI_ClearInterruptPending(LPXHCI_DEVICE Device) {
+    LINEAR InterrupterBase = XHCI_GetInterrupterBase(Device);
+    U32 Iman = XHCI_Read32(InterrupterBase, XHCI_IMAN);
+    Iman |= XHCI_IMAN_IP;
+    XHCI_Write32(InterrupterBase, XHCI_IMAN, Iman);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Enable or disable interrupter delivery.
+ * @param Device xHCI device.
+ * @param Enabled TRUE to enable interrupts, FALSE to disable.
+ */
+static void XHCI_SetInterruptEnabled(LPXHCI_DEVICE Device, BOOL Enabled) {
+    LINEAR InterrupterBase = XHCI_GetInterrupterBase(Device);
+    U32 Iman = XHCI_Read32(InterrupterBase, XHCI_IMAN);
+    Iman &= ~XHCI_IMAN_IE;
+    if (Enabled) {
+        Iman |= XHCI_IMAN_IE;
+    }
+    Iman |= XHCI_IMAN_IP;
+    XHCI_Write32(InterrupterBase, XHCI_IMAN, Iman);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Top-half xHCI interrupt handler.
+ * @param DevicePointer Device pointer from interrupt context.
+ * @param Context Driver context (xHCI device).
+ * @return TRUE if interrupt was handled.
+ */
+static BOOL XHCI_InterruptTopHalf(LPDEVICE DevicePointer, LPVOID Context) {
+    UNUSED(DevicePointer);
+
+    LPXHCI_DEVICE Device = (LPXHCI_DEVICE)Context;
+    SAFE_USE_VALID_ID((LPLISTNODE)Device, KOID_PCIDEVICE) {
+        if (Device->RuntimeBase == 0) {
+            return FALSE;
+        }
+
+        LINEAR InterrupterBase = XHCI_GetInterrupterBase(Device);
+        U32 Iman = XHCI_Read32(InterrupterBase, XHCI_IMAN);
+        if ((Iman & XHCI_IMAN_IP) == 0U) {
+            return FALSE;
+        }
+
+        XHCI_ClearInterruptPending(Device);
+        Device->InterruptCount++;
+        if (Device->InterruptCount <= 4U) {
+            DEBUG(TEXT("[XHCI_InterruptTopHalf] Pending interrupt acknowledged (count=%u)"),
+                  Device->InterruptCount);
+        }
+
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Bottom-half xHCI interrupt handler.
+ * @param DevicePointer Device pointer from interrupt context.
+ * @param Context Driver context (xHCI device).
+ */
+static void XHCI_InterruptBottomHalf(LPDEVICE DevicePointer, LPVOID Context) {
+    UNUSED(DevicePointer);
+    UNUSED(Context);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Poll-mode interrupt handler.
+ * @param DevicePointer Device pointer from polling context.
+ * @param Context Driver context (xHCI device).
+ */
+static void XHCI_InterruptPoll(LPDEVICE DevicePointer, LPVOID Context) {
+    if (XHCI_InterruptTopHalf(DevicePointer, Context)) {
+        XHCI_InterruptBottomHalf(DevicePointer, Context);
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Register xHCI interrupts via DeviceInterrupt infrastructure.
+ * @param Device xHCI device.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_RegisterInterrupts(LPXHCI_DEVICE Device) {
+    if (Device == NULL) {
+        return FALSE;
+    }
+
+    if (Device->InterruptRegistered) {
+        return TRUE;
+    }
+
+    if (Device->Info.IRQLine == 0xFFU) {
+        WARNING(TEXT("[XHCI_RegisterInterrupts] Controller reports no legacy IRQ line"));
+    }
+
+    DEVICE_INTERRUPT_REGISTRATION Registration = {
+        .Device = (LPDEVICE)Device,
+        .LegacyIRQ = Device->Info.IRQLine,
+        .TargetCPU = 0,
+        .InterruptHandler = XHCI_InterruptTopHalf,
+        .DeferredCallback = XHCI_InterruptBottomHalf,
+        .PollCallback = XHCI_InterruptPoll,
+        .Context = (LPVOID)Device,
+        .Name = (Device->Driver != NULL) ? Device->Driver->Product : TEXT("xHCI"),
+    };
+
+    if (!DeviceInterruptRegister(&Registration, &Device->InterruptSlot)) {
+        WARNING(TEXT("[XHCI_RegisterInterrupts] Failed to register interrupt slot for IRQ %u"),
+                Device->Info.IRQLine);
+        Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+        return FALSE;
+    }
+
+    Device->InterruptRegistered = TRUE;
+    Device->InterruptEnabled = DeviceInterruptSlotIsEnabled(Device->InterruptSlot);
+    XHCI_SetInterruptEnabled(Device, Device->InterruptEnabled);
+
+    DEBUG(TEXT("[XHCI_RegisterInterrupts] Slot %u registered for IRQ %u (mode=%s)"),
+          Device->InterruptSlot,
+          Device->Info.IRQLine,
+          Device->InterruptEnabled ? TEXT("INTERRUPT") : TEXT("POLLING"));
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Unregister xHCI interrupts.
+ * @param Device xHCI device.
+ */
+static void XHCI_UnregisterInterrupts(LPXHCI_DEVICE Device) {
+    if (Device == NULL) {
+        return;
+    }
+
+    if (!Device->InterruptRegistered) {
+        return;
+    }
+
+    XHCI_SetInterruptEnabled(Device, FALSE);
+
+    if (Device->InterruptSlot != DEVICE_INTERRUPT_INVALID_SLOT) {
+        DeviceInterruptUnregister(Device->InterruptSlot);
+    }
+
+    Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+    Device->InterruptRegistered = FALSE;
+    Device->InterruptEnabled = FALSE;
 }
 
 /************************************************************************/
@@ -582,6 +770,8 @@ static void XHCI_FreeUsbTree(LPXHCI_USB_DEVICE UsbDevice) {
  */
 static void XHCI_FreeResources(LPXHCI_DEVICE Device) {
     SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+        XHCI_UnregisterInterrupts(Device);
+
         if (Device->UsbDevices != NULL) {
             for (U32 PortIndex = 0; PortIndex < Device->MaxPorts; PortIndex++) {
                 LPXHCI_USB_DEVICE UsbDevice = &Device->UsbDevices[PortIndex];
@@ -2462,6 +2652,7 @@ static LPPCI_DEVICE XHCI_Attach(LPPCI_DEVICE PciDevice) {
     MemorySet(Device, 0, sizeof(XHCI_DEVICE));
     MemoryCopy(Device, PciDevice, sizeof(PCI_DEVICE));
     InitMutex(&(Device->Mutex));
+    Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
 
     U32 Bar0Raw = Device->Info.BAR[0];
     U32 Bar1Raw = Device->Info.BAR[1];
@@ -2510,6 +2701,8 @@ static LPPCI_DEVICE XHCI_Attach(LPPCI_DEVICE PciDevice) {
         }
         MemorySet(Device->UsbDevices, 0, sizeof(XHCI_USB_DEVICE) * PortCount);
     }
+
+    (void)XHCI_RegisterInterrupts(Device);
 
     DEBUG(TEXT("[XHCI_Attach] Attached MMIO=%p Size=%u MaxPorts=%u"),
           Device->MmioBase,
