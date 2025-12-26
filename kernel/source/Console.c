@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "Console.h"
-
+#include "GFX.h"
 #include "Kernel.h"
 #include "drivers/Keyboard.h"
 #include "Log.h"
@@ -46,7 +46,7 @@ DRIVER DATA_SECTION ConsoleDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_CONSOLE,
+    .Type = DRIVER_TYPE_GRAPHICS,
     .VersionMajor = CONSOLE_VER_MAJOR,
     .VersionMinor = CONSOLE_VER_MINOR,
     .Designer = "Jango73",
@@ -502,6 +502,38 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
 
         case DF_GETVERSION:
             return MAKE_VERSION(CONSOLE_VER_MAJOR, CONSOLE_VER_MINOR);
+
+        case DF_GFX_GETMODEINFO: {
+            LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Parameter;
+            SAFE_USE(Info) {
+                Info->Width = Console.Width;
+                Info->Height = Console.Height;
+                Info->BitsPerPixel = 0;
+                return DF_RET_SUCCESS;
+            }
+            return DF_RET_GENERIC;
+        }
+
+        case DF_GFX_SETMODE: {
+            LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Parameter;
+            SAFE_USE(Info) {
+                if (Info->Width != Console.Width || Info->Height != Console.Height) {
+                    return DF_GFX_ERROR_MODEUNAVAIL;
+                }
+                return DF_RET_SUCCESS;
+            }
+            return DF_RET_GENERIC;
+        }
+
+        case DF_GFX_CREATECONTEXT:
+        case DF_GFX_CREATEBRUSH:
+        case DF_GFX_CREATEPEN:
+        case DF_GFX_SETPIXEL:
+        case DF_GFX_GETPIXEL:
+        case DF_GFX_LINE:
+        case DF_GFX_RECTANGLE:
+        case DF_GFX_ELLIPSE:
+            return DF_RET_NOTIMPL;
     }
 
     return DF_RET_NOTIMPL;

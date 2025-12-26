@@ -22,6 +22,7 @@
 
 \************************************************************************/
 
+#include "Console.h"
 #include "GFX.h"
 #include "Kernel.h"
 #include "Log.h"
@@ -33,6 +34,7 @@
 
 extern DRIVER VESADriver;
 extern GRAPHICSCONTEXT VESAContext;
+extern DRIVER ConsoleDriver;
 
 /***************************************************************************/
 
@@ -58,8 +60,8 @@ WINDOW MainDesktopWindow = {
     .Parent = NULL,
     .Children = &MainDesktopChildren,
     .Properties = NULL,
-    .Rect = {0, 0, 639, 479},
-    .ScreenRect = {0, 0, 639, 479},
+    .Rect = {0, 0, 79, 24},
+    .ScreenRect = {0, 0, 79, 24},
     .InvalidRect = {0, 0, 0, 0},
     .WindowID = 0,
     .Style = 0,
@@ -78,13 +80,43 @@ DESKTOP MainDesktop = {
     .Prev = NULL,
     .Mutex = EMPTY_MUTEX,
     .Task = NULL,
-    .Graphics = &VESADriver,
+    .Graphics = &ConsoleDriver,
     .Window = &MainDesktopWindow,
     .Capture = NULL,
     .Focus = NULL,
     .FocusedProcess = &KernelProcess,
+    .Mode = DESKTOP_MODE_CONSOLE,
     .Order = 0
 };
+
+/***************************************************************************/
+
+/**
+ * @brief Update the desktop root window rectangle from a size.
+ * @param Desktop Desktop to update.
+ * @param Width New width in pixels/cells.
+ * @param Height New height in pixels/cells.
+ */
+static void UpdateDesktopWindowRect(LPDESKTOP Desktop, I32 Width, I32 Height) {
+    RECT Rect;
+
+    if (Width <= 0 || Height <= 0) return;
+
+    Rect.X1 = 0;
+    Rect.Y1 = 0;
+    Rect.X2 = Width - 1;
+    Rect.Y2 = Height - 1;
+
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        SAFE_USE_VALID_ID(Desktop->Window, KOID_WINDOW) {
+            LockMutex(&(Desktop->Window->Mutex), INFINITY);
+            Desktop->Window->Rect = Rect;
+            Desktop->Window->ScreenRect = Rect;
+            Desktop->Window->InvalidRect = Rect;
+            UnlockMutex(&(Desktop->Window->Mutex));
+        }
+    }
+}
 
 /***************************************************************************/
 
@@ -212,8 +244,9 @@ LPDESKTOP CreateDesktop(void) {
         KernelHeapFree(This);
         return NULL;
     }
-    This->Graphics = GetGraphicsDriver();
+    This->Graphics = &ConsoleDriver;
     This->FocusedProcess = GetCurrentProcess();
+    This->Mode = DESKTOP_MODE_CONSOLE;
 
     WindowInfo.Header.Size = sizeof(WINDOWINFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
@@ -224,8 +257,8 @@ LPDESKTOP CreateDesktop(void) {
     WindowInfo.ID = 0;
     WindowInfo.WindowPosition.X = 0;
     WindowInfo.WindowPosition.Y = 0;
-    WindowInfo.WindowSize.X = 800;
-    WindowInfo.WindowSize.Y = 600;
+    WindowInfo.WindowSize.X = (I32)Console.Width;
+    WindowInfo.WindowSize.Y = (I32)Console.Height;
 
     PreviousDesktop = GetCurrentProcess()->Desktop;
     GetCurrentProcess()->Desktop = This;
@@ -237,6 +270,7 @@ LPDESKTOP CreateDesktop(void) {
         KernelHeapFree(This);
         return NULL;
     }
+    UpdateDesktopWindowRect(This, (I32)Console.Width, (I32)Console.Height);
 
     //-------------------------------------
     // Add the desktop to the kernel's list
@@ -321,7 +355,11 @@ BOOL ShowDesktop(LPDESKTOP This) {
 
     DEBUG(TEXT("[ShowDesktop] Setting gfx mode %ux%u"), ModeInfo.Width, ModeInfo.Height);
 
+    This->Graphics = GetGraphicsDriver();
+    This->Mode = DESKTOP_MODE_GRAPHICS;
+
     This->Graphics->Command(DF_GFX_SETMODE, (UINT)&ModeInfo);
+    UpdateDesktopWindowRect(This, (I32)ModeInfo.Width, (I32)ModeInfo.Height);
 
     // PostMessage((HANDLE) This->Window, EWM_DRAW, 0, 0);
 
@@ -337,6 +375,47 @@ BOOL ShowDesktop(LPDESKTOP This) {
     SAFE_USE_VALID_ID(This->Window, KOID_WINDOW) { InvalidateWindowRect((HANDLE)This->Window, NULL); }
 
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Retrieve the desktop screen rectangle for the current mode.
+ * @param Desktop Desktop to query.
+ * @param Rect Output rectangle.
+ * @return TRUE if the rectangle is returned, FALSE otherwise.
+ */
+BOOL GetDesktopScreenRect(LPDESKTOP Desktop, LPRECT Rect) {
+    if (Rect == NULL) return FALSE;
+
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        LockMutex(&(Desktop->Mutex), INFINITY);
+
+        if (Desktop->Mode == DESKTOP_MODE_CONSOLE) {
+            if (Console.Width == 0 || Console.Height == 0) {
+                UnlockMutex(&(Desktop->Mutex));
+                return FALSE;
+            }
+            Rect->X1 = 0;
+            Rect->Y1 = 0;
+            Rect->X2 = (I32)Console.Width - 1;
+            Rect->Y2 = (I32)Console.Height - 1;
+            UnlockMutex(&(Desktop->Mutex));
+            return TRUE;
+        }
+
+        SAFE_USE_VALID_ID(Desktop->Window, KOID_WINDOW) {
+            LockMutex(&(Desktop->Window->Mutex), INFINITY);
+            *Rect = Desktop->Window->ScreenRect;
+            UnlockMutex(&(Desktop->Window->Mutex));
+            UnlockMutex(&(Desktop->Mutex));
+            return TRUE;
+        }
+
+        UnlockMutex(&(Desktop->Mutex));
+    }
+
+    return FALSE;
 }
 
 /***************************************************************************/

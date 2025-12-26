@@ -1568,6 +1568,16 @@ UINT VESACommands(UINT Function, UINT Param) {
             return DF_RET_SUCCESS;
         case DF_GETVERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
+        case DF_GFX_GETMODEINFO: {
+            LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Param;
+            SAFE_USE(Info) {
+                Info->Width = VESAContext.Header.Width;
+                Info->Height = VESAContext.Header.Height;
+                Info->BitsPerPixel = VESAContext.Header.BitsPerPixel;
+                return DF_RET_SUCCESS;
+            }
+            return DF_RET_GENERIC;
+        }
         case DF_GFX_SETMODE:
             return SetVideoMode((LPGRAPHICSMODEINFO)Param);
         case DF_GFX_CREATEBRUSH:

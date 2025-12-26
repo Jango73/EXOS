@@ -152,6 +152,12 @@ UINT TaskGetMinimumSystemStackSize(void);
 #define PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH 0x00000001
 
 /************************************************************************/
+// Desktop modes
+
+#define DESKTOP_MODE_CONSOLE 0x00000000
+#define DESKTOP_MODE_GRAPHICS 0x00000001
+
+/************************************************************************/
 // The window structure
 
 struct tag_WINDOW {
@@ -198,6 +204,7 @@ struct tag_DESKTOP {
     LPWINDOW Capture;   // Window that captured mouse
     LPWINDOW Focus;     // Window that has focus
     LPPROCESS FocusedProcess; // Process with input focus on this desktop
+    U32 Mode;
     I32 Order;
 };
 
@@ -237,6 +244,7 @@ BOOL GetWindowRect(HANDLE, LPRECT);
 BOOL MoveWindow(HANDLE, LPPOINT);
 BOOL SizeWindow(HANDLE, LPPOINT);
 HANDLE GetWindowParent(HANDLE);
+BOOL GetDesktopScreenRect(LPDESKTOP, LPRECT);
 U32 SetWindowProp(HANDLE, LPCSTR, U32);
 U32 GetWindowProp(HANDLE, LPCSTR);
 HANDLE GetWindowGC(HANDLE);
