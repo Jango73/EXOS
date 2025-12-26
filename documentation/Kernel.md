@@ -175,7 +175,7 @@ core USB types (speeds, endpoint kinds, addresses) and the standard descriptor
 layouts for device, configuration, interface, endpoint, and string metadata so
 future host controllers and class drivers can share a single set of structs.
 
-The xHCI host controller driver in `kernel/source/drivers/XHCI.c` is registered
+The xHCI host controller driver in `kernel/source/drivers/XHCI-Core.c` (split across `kernel/source/drivers/XHCI-Device.c`, `kernel/source/drivers/XHCI-Hub.c`, and `kernel/source/drivers/XHCI-Enum.c`) is registered
 by the PCI subsystem. It maps the controller MMIO region, performs the mandatory
 halt/reset/run sequence, allocates DCBAA/command/event rings, programs
 interrupter 0, runs minimal EP0 control transfers, builds a basic device tree
