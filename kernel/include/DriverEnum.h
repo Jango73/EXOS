@@ -43,6 +43,7 @@
 #define ENUM_DOMAIN_AHCI_PORT 0x00000002
 #define ENUM_DOMAIN_ATA_DEVICE 0x00000003
 #define ENUM_DOMAIN_XHCI_PORT 0x00000004
+#define ENUM_DOMAIN_USB_DEVICE 0x00000005
 
 /***************************************************************************/
 // Typedefs
@@ -116,6 +117,17 @@ typedef struct tag_DRIVER_ENUM_XHCI_PORT {
     UINT Connected;
     UINT Enabled;
 } DRIVER_ENUM_XHCI_PORT, *LPDRIVER_ENUM_XHCI_PORT;
+
+typedef struct tag_DRIVER_ENUM_USB_DEVICE {
+    U8 Bus;
+    U8 Dev;
+    U8 Func;
+    U8 PortNumber;
+    U8 Address;
+    UINT SpeedId;
+    U16 VendorID;
+    U16 ProductID;
+} DRIVER_ENUM_USB_DEVICE, *LPDRIVER_ENUM_USB_DEVICE;
 
 /***************************************************************************/
 // External symbols

@@ -59,6 +59,18 @@
 #define USB_DESCRIPTOR_LENGTH_INTERFACE 9
 #define USB_DESCRIPTOR_LENGTH_ENDPOINT 7
 
+#define USB_REQUEST_DIRECTION_IN 0x80
+#define USB_REQUEST_DIRECTION_OUT 0x00
+#define USB_REQUEST_TYPE_STANDARD 0x00
+#define USB_REQUEST_RECIPIENT_DEVICE 0x00
+#define USB_REQUEST_RECIPIENT_ENDPOINT 0x02
+
+#define USB_REQUEST_CLEAR_FEATURE 0x01
+#define USB_REQUEST_SET_ADDRESS 0x05
+#define USB_REQUEST_GET_DESCRIPTOR 0x06
+
+#define USB_FEATURE_ENDPOINT_HALT 0x00
+
 /***************************************************************************/
 // Typedefs
 
@@ -120,6 +132,14 @@ typedef struct tag_USB_STRING_DESCRIPTOR {
     U8 DescriptorType;
     U16 String[1];
 } USB_STRING_DESCRIPTOR, *LPUSB_STRING_DESCRIPTOR;
+
+typedef struct tag_USB_SETUP_PACKET {
+    U8 RequestType;
+    U8 Request;
+    U16 Value;
+    U16 Index;
+    U16 Length;
+} USB_SETUP_PACKET, *LPUSB_SETUP_PACKET;
 
 /***************************************************************************/
 

@@ -175,7 +175,7 @@ static struct {
     {"whoami", "who", "", CMD_whoami},
     {"passwd", "setpassword", "", CMD_passwd},
     {"prof", "profiling", "", CMD_prof},
-    {"usbctl", "usb", "ports", CMD_usbctl},
+    {"usbctl", "usb", "ports|probe", CMD_usbctl},
     {"", "", "", NULL},
 };
 
@@ -1643,8 +1643,9 @@ static U32 CMD_usbctl(LPSHELLCONTEXT Context) {
     ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command) == 0 ||
-        StringCompareNC(Context->Command, TEXT("ports")) != 0) {
-        ConsolePrint(TEXT("Usage: usbctl ports\n"));
+        (StringCompareNC(Context->Command, TEXT("ports")) != 0 &&
+         StringCompareNC(Context->Command, TEXT("probe")) != 0)) {
+        ConsolePrint(TEXT("Usage: usbctl ports|probe\n"));
         return DF_RET_SUCCESS;
     }
 
@@ -1652,11 +1653,14 @@ static U32 CMD_usbctl(LPSHELLCONTEXT Context) {
     MemorySet(&Query, 0, sizeof(Query));
     Query.Header.Size = sizeof(Query);
     Query.Header.Version = EXOS_ABI_VERSION;
-    Query.Domain = ENUM_DOMAIN_XHCI_PORT;
+    Query.Domain = (StringCompareNC(Context->Command, TEXT("probe")) == 0)
+                       ? ENUM_DOMAIN_USB_DEVICE
+                       : ENUM_DOMAIN_XHCI_PORT;
     Query.Flags = 0;
 
     UINT ProviderIndex = 0;
     BOOL Found = FALSE;
+    BOOL Printed = FALSE;
     DRIVER_ENUM_PROVIDER Provider = NULL;
 
     while (KernelEnumGetProvider(&Query, ProviderIndex, &Provider) == DF_RET_SUCCESS) {
@@ -1673,6 +1677,7 @@ static U32 CMD_usbctl(LPSHELLCONTEXT Context) {
         while (KernelEnumNext(Provider, &Query, &Item) == DF_RET_SUCCESS) {
             if (KernelEnumPretty(Provider, &Query, &Item, Buffer, sizeof(Buffer)) == DF_RET_SUCCESS) {
                 ConsolePrint(TEXT("%s\n"), Buffer);
+                Printed = TRUE;
             }
         }
 
@@ -1681,6 +1686,11 @@ static U32 CMD_usbctl(LPSHELLCONTEXT Context) {
 
     if (!Found) {
         ConsolePrint(TEXT("No xHCI controller detected\n"));
+        return DF_RET_SUCCESS;
+    }
+
+    if (!Printed && Query.Domain == ENUM_DOMAIN_USB_DEVICE) {
+        ConsolePrint(TEXT("No USB device detected\n"));
     }
     return DF_RET_SUCCESS;
 }

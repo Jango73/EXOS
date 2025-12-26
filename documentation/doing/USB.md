@@ -29,11 +29,11 @@ off.\
 
 **Goal**: do Control transfers and retrieve descriptors.\
 
-- [ ] Implement **Control Transfer** (SETUP + DATA + STATUS) + timeouts +
+- [X] Implement **Control Transfer** (SETUP + DATA + STATUS) + timeouts +
 STALL → CLEAR_FEATURE.\
-- [ ] Standard sequence: **GET_DESCRIPTOR(Device)**, **SET_ADDRESS**,
+- [X] Standard sequence: **GET_DESCRIPTOR(Device)**, **SET_ADDRESS**,
 **GET_DESCRIPTOR(Config)**.\
-- [ ] No **SET_CONFIGURATION** yet (read-only).\
+- [X] No **SET_CONFIGURATION** yet (read-only).\
 
 **Success**: `usbctl probe` shows VendorID/ProductID of directly
 attached device.\
