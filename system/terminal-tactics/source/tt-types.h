@@ -30,13 +30,18 @@
 #include "../../../kernel/include/User.h"
 #include "../../../kernel/include/VKey.h"
 
-#define SCREEN_WIDTH                 80
-#define SCREEN_HEIGHT                25
-#define MAP_VIEW_HEIGHT              18
+#define MAX_SCREEN_WIDTH             160
+#define MAX_SCREEN_HEIGHT            60
 #define TOP_BAR_HEIGHT               1
 #define BOTTOM_BAR_HEIGHT            5
-#define VIEWPORT_WIDTH               (SCREEN_WIDTH)
-#define VIEWPORT_HEIGHT              (MAP_VIEW_HEIGHT)
+#define MAX_MAP_VIEW_HEIGHT          (MAX_SCREEN_HEIGHT - TOP_BAR_HEIGHT - BOTTOM_BAR_HEIGHT)
+#define MAX_VIEWPORT_WIDTH           (MAX_SCREEN_WIDTH)
+#define MAX_VIEWPORT_HEIGHT          (MAX_MAP_VIEW_HEIGHT)
+#define SCREEN_WIDTH                 (App.Render.ScreenWidth)
+#define SCREEN_HEIGHT                (App.Render.ScreenHeight)
+#define MAP_VIEW_HEIGHT              (App.Render.MapViewHeight)
+#define VIEWPORT_WIDTH               (App.Render.ViewportWidth)
+#define VIEWPORT_HEIGHT              (App.Render.ViewportHeight)
 #define NEW_GAME_SELECT_WIDTH        0
 #define NEW_GAME_SELECT_HEIGHT       1
 #define NEW_GAME_SELECT_TEAMS        2
@@ -462,16 +467,21 @@ typedef struct {
 } MENU_STATE;
 
 typedef struct {
-    char ViewBuffer[VIEWPORT_HEIGHT][VIEWPORT_WIDTH + 1];
-    U8 ViewColors[VIEWPORT_HEIGHT][VIEWPORT_WIDTH];
+    U32 ScreenWidth;
+    U32 ScreenHeight;
+    U32 MapViewHeight;
+    U32 ViewportWidth;
+    U32 ViewportHeight;
+    char ViewBuffer[MAX_VIEWPORT_HEIGHT][MAX_VIEWPORT_WIDTH + 1];
+    U8 ViewColors[MAX_VIEWPORT_HEIGHT][MAX_VIEWPORT_WIDTH];
     CONSOLEBLITBUFFER ViewBlitInfo;
-    char PrevViewBuffer[VIEWPORT_HEIGHT][VIEWPORT_WIDTH + 1];
-    U8 PrevViewColors[VIEWPORT_HEIGHT][VIEWPORT_WIDTH];
-    char PrevTopLine0[SCREEN_WIDTH + 1];
-    char PrevTopLine1[SCREEN_WIDTH + 1];
-    char PrevBottom[BOTTOM_BAR_HEIGHT][SCREEN_WIDTH + 1];
-    char StatusLine[SCREEN_WIDTH + 1];
-    char PrevStatusLine[SCREEN_WIDTH + 1];
+    char PrevViewBuffer[MAX_VIEWPORT_HEIGHT][MAX_VIEWPORT_WIDTH + 1];
+    U8 PrevViewColors[MAX_VIEWPORT_HEIGHT][MAX_VIEWPORT_WIDTH];
+    char PrevTopLine0[MAX_SCREEN_WIDTH + 1];
+    char PrevTopLine1[MAX_SCREEN_WIDTH + 1];
+    char PrevBottom[BOTTOM_BAR_HEIGHT][MAX_SCREEN_WIDTH + 1];
+    char StatusLine[MAX_SCREEN_WIDTH + 1];
+    char PrevStatusLine[MAX_SCREEN_WIDTH + 1];
     U32 StatusStartTime;
     BOOL BorderDrawn;
     BOOL MainMenuDrawn;
@@ -484,9 +494,9 @@ typedef struct {
     I32 CachedLoadCount;
     char CachedSaveName[NAME_MAX_LENGTH];
     BOOL DebugDrawn;
-    char ScreenBuffer[SCREEN_HEIGHT][SCREEN_WIDTH + 1];
-    char PrevScreenBuffer[SCREEN_HEIGHT][SCREEN_WIDTH + 1];
-    U8 ScreenAttr[SCREEN_HEIGHT][SCREEN_WIDTH];
+    char ScreenBuffer[MAX_SCREEN_HEIGHT][MAX_SCREEN_WIDTH + 1];
+    char PrevScreenBuffer[MAX_SCREEN_HEIGHT][MAX_SCREEN_WIDTH + 1];
+    U8 ScreenAttr[MAX_SCREEN_HEIGHT][MAX_SCREEN_WIDTH];
 } RENDER_STATE;
 
 typedef struct {

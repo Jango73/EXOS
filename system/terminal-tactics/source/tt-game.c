@@ -1707,7 +1707,7 @@ static void RemovePlacementAt(BUILDING* producer, I32 index) {
 BOOL CancelSelectedBuildingProduction(void) {
     BUILDING* building;
     TEAM_RESOURCES* res;
-    char msg[SCREEN_WIDTH + 1];
+    char msg[MAX_SCREEN_WIDTH + 1];
 
     if (App.GameState == NULL) return FALSE;
     building = App.GameState->SelectedBuilding;
@@ -1792,7 +1792,7 @@ BOOL EnqueuePlacement(I32 typeId) {
         return FALSE;
     }
     if (res->Plasma < type->CostPlasma) {
-        char msg[SCREEN_WIDTH + 1];
+        char msg[MAX_SCREEN_WIDTH + 1];
         snprintf(msg, sizeof(msg), "Not enough plasma for %s (need %d)", type->Name, type->CostPlasma);
         SetStatus(msg);
         return FALSE;
@@ -1815,17 +1815,25 @@ static void AdjustViewportForPlacement(const BUILDING_TYPE* type) {
     I32 mapH;
     I32 sx;
     I32 sy;
+    I32 viewW;
+    I32 viewH;
+    I32 typeW;
+    I32 typeH;
     if (App.GameState == NULL || type == NULL) return;
     mapW = App.GameState->MapWidth;
     mapH = App.GameState->MapHeight;
     if (mapW <= 0 || mapH <= 0) return;
+    viewW = (I32)VIEWPORT_WIDTH;
+    viewH = (I32)VIEWPORT_HEIGHT;
+    typeW = (I32)type->Width;
+    typeH = (I32)type->Height;
 
     sx = App.GameState->PlacementX - App.GameState->ViewportPos.X;
     if (sx < 0) sx += mapW;
     else if (sx >= mapW) sx -= mapW;
 
-    if (sx + type->Width > VIEWPORT_WIDTH) {
-        I32 delta = sx + type->Width - VIEWPORT_WIDTH;
+    if (sx + typeW > viewW) {
+        I32 delta = sx + typeW - viewW;
         App.GameState->ViewportPos.X = WrapCoord(App.GameState->ViewportPos.X, delta, mapW);
     }
 
@@ -1833,8 +1841,8 @@ static void AdjustViewportForPlacement(const BUILDING_TYPE* type) {
     if (sy < 0) sy += mapH;
     else if (sy >= mapH) sy -= mapH;
 
-    if (sy + type->Height > VIEWPORT_HEIGHT) {
-        I32 delta = sy + type->Height - VIEWPORT_HEIGHT;
+    if (sy + typeH > viewH) {
+        I32 delta = sy + typeH - viewH;
         App.GameState->ViewportPos.Y = WrapCoord(App.GameState->ViewportPos.Y, delta, mapH);
     }
 }
@@ -1881,7 +1889,7 @@ BOOL StartPlacementFromQueue(void) {
     AdjustViewportForPlacement(type);
 
     {
-        char msg[SCREEN_WIDTH + 1];
+        char msg[MAX_SCREEN_WIDTH + 1];
         snprintf(msg, sizeof(msg), "Placing %s from queue", type->Name);
         SetStatus(msg);
     }
@@ -1931,7 +1939,7 @@ BOOL ConfirmBuildingPlacement(void) {
 
     if (!App.GameState->PlacingFromQueue) {
         if (res->Plasma < type->CostPlasma) {
-            char msg[SCREEN_WIDTH + 1];
+            char msg[MAX_SCREEN_WIDTH + 1];
             snprintf(msg, sizeof(msg), "Not enough plasma for %s (need %d)", type->Name, type->CostPlasma);
             SetStatus(msg);
             return FALSE;
@@ -1967,7 +1975,7 @@ BOOL ConfirmBuildingPlacement(void) {
 
     CancelBuildingPlacement();
     {
-        char msg[SCREEN_WIDTH + 1];
+        char msg[MAX_SCREEN_WIDTH + 1];
         snprintf(msg, sizeof(msg), "%s placed", type->Name);
         SetStatus(msg);
     }
@@ -2037,7 +2045,7 @@ void ProcessUnitQueueForProducer(BUILDING* producer, U32 timeStep, BOOL notify) 
                       GAME_LOGF(producer->Team, "UnitQueueRemove Producer=%x Type=%s Count=%u",
                                 (U32)producer->Id, ut->Name, (U32)producer->UnitQueueCount);
                       if (notify && producer->Team == HUMAN_TEAM_INDEX) {
-                          char msg[SCREEN_WIDTH + 1];
+                          char msg[MAX_SCREEN_WIDTH + 1];
                           snprintf(msg, sizeof(msg), "%s deployed", ut->Name);
                           SetStatus(msg);
                       }
@@ -2046,7 +2054,7 @@ void ProcessUnitQueueForProducer(BUILDING* producer, U32 timeStep, BOOL notify) 
                   U32 now = App.GameState->GameTime;
                   if (LastDeployWarningTime == 0 || now - LastDeployWarningTime >= UNIT_DEPLOY_WARN_INTERVAL_MS) {
                       const BUILDING_TYPE* bt = GetBuildingTypeById(producer->TypeId);
-                      char msg[SCREEN_WIDTH + 1];
+                      char msg[MAX_SCREEN_WIDTH + 1];
                       const char* name = (bt != NULL) ? bt->Name : "Building";
                       snprintf(msg, sizeof(msg), "No space to deploy unit from %s", name);
                       SetStatus(msg);
@@ -2132,7 +2140,7 @@ static void UpdateBuildQueueForProducer(BUILDING* producer, U32 timeStep, BOOL n
                               (U32)producer->Id, type->Name, (U32)i);
                 }
                 if (type != NULL && notify && producer->Team == HUMAN_TEAM_INDEX) {
-                    char msg[SCREEN_WIDTH + 1];
+                    char msg[MAX_SCREEN_WIDTH + 1];
                     snprintf(msg, sizeof(msg), "%s ready to place", type->Name);
                     SetStatus(msg);
                 }

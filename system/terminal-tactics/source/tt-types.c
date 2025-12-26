@@ -42,7 +42,12 @@ APP_STATE App = {
         .SelectedSaveIndex = 0
     },
     .Render = {
-        .ViewBlitInfo = {0, TOP_BAR_HEIGHT, VIEWPORT_WIDTH, VIEWPORT_HEIGHT, NULL, CONSOLE_WHITE, CONSOLE_BLACK, VIEWPORT_WIDTH + 1, NULL, VIEWPORT_WIDTH},
+        .ScreenWidth = 80,
+        .ScreenHeight = 25,
+        .MapViewHeight = 18,
+        .ViewportWidth = 80,
+        .ViewportHeight = 18,
+        .ViewBlitInfo = {0, TOP_BAR_HEIGHT, 80, 18, NULL, CONSOLE_WHITE, CONSOLE_BLACK, 81, NULL, 80},
         .BorderDrawn = FALSE,
         .MainMenuDrawn = FALSE,
         .CachedNGWidth = -1,

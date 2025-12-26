@@ -40,7 +40,10 @@ INT exosmain(INT argc, char** argv) {
     App.Menu.ExitRequested = FALSE;
     LoadSaveList();
 
+    EnsureScreenMetrics();
+
     while ((App.GameState == NULL || App.GameState->IsRunning) && !App.Menu.ExitRequested) {
+        EnsureScreenMetrics();
         ProcessInput();
         UpdateGame();
         RenderScreen();

@@ -85,6 +85,8 @@ STR toupper(STR c) {
 BOOL GetScreenPosition(I32 objX, I32 objY, I32 width, I32 height, I32* screenX, I32* screenY) {
     I32 sx;
     I32 sy;
+    I32 viewW;
+    I32 viewH;
 
     if (App.GameState == NULL) return FALSE;
     if (App.GameState->MapWidth <= 0 || App.GameState->MapHeight <= 0) return FALSE;
@@ -98,7 +100,9 @@ BOOL GetScreenPosition(I32 objX, I32 objY, I32 width, I32 height, I32* screenX, 
     if (sy < 0) sy += App.GameState->MapHeight;
     else if (sy >= App.GameState->MapHeight) sy -= App.GameState->MapHeight;
 
-    if (sx >= VIEWPORT_WIDTH || sy >= VIEWPORT_HEIGHT) return FALSE;
+    viewW = (I32)VIEWPORT_WIDTH;
+    viewH = (I32)VIEWPORT_HEIGHT;
+    if (sx >= viewW || sy >= viewH) return FALSE;
     if (sx + width <= 0 || sy + height <= 0) return FALSE;
 
     if (screenX != NULL) *screenX = sx;
@@ -220,7 +224,7 @@ static void SetUnitProductionStatus(I32 result, const UNIT_TYPE* ut) {
             }
             return;
         case PRODUCTION_RESULT_RESOURCES: {
-            char msg[SCREEN_WIDTH + 1];
+            char msg[MAX_SCREEN_WIDTH + 1];
             snprintf(msg, sizeof(msg), "Not enough plasma for %s (need %d)", ut->Name, ut->CostPlasma);
             SetStatus(msg);
             return;
@@ -252,7 +256,7 @@ static BOOL HandleProductionMenuKey(BUILDING* producer, I32 key) {
             I32 result = PRODUCTION_RESULT_OK;
             const UNIT_TYPE* ut = GetUnitTypeById(options[i].TypeId);
             if (EnqueueUnitProduction(producer, options[i].TypeId, producer->Team, &result)) {
-                char msg[SCREEN_WIDTH + 1];
+                char msg[MAX_SCREEN_WIDTH + 1];
                 snprintf(msg, sizeof(msg), "Queued %s", ut != NULL ? ut->Name : "unit");
                 SetStatus(msg);
                 return TRUE;
@@ -641,7 +645,7 @@ void HandleInGameInput(I32 key) {
                     name = (ut != NULL) ? ut->Name : "unit";
                 }
                 if (name != NULL) {
-                    char msg[SCREEN_WIDTH + 1];
+                    char msg[MAX_SCREEN_WIDTH + 1];
                     snprintf(msg, sizeof(msg), "No visible %s on screen", name);
                     SetStatus(msg);
                 }
@@ -719,7 +723,7 @@ void HandleInGameInput(I32 key) {
 
     if (key == VK_PLUS || key == VK_MINUS) {
         if (App.GameState != NULL) {
-            char msg[SCREEN_WIDTH + 1];
+            char msg[MAX_SCREEN_WIDTH + 1];
             if (key == VK_PLUS) {
                 App.GameState->GameSpeed++;
             } else if (App.GameState->GameSpeed > 1) {
@@ -789,7 +793,7 @@ void HandleInGameInput(I32 key) {
             TEAM_RESOURCES* res = GetTeamResources(HUMAN_TEAM_INDEX);
             if (res != NULL) {
                 {
-                    char msg[SCREEN_WIDTH + 1];
+                    char msg[MAX_SCREEN_WIDTH + 1];
                     res->Plasma += CHEAT_PLASMA_AMOUNT;
                     snprintf(msg, sizeof(msg), "Plasma boosted by %d", CHEAT_PLASMA_AMOUNT);
                     SetStatus(msg);
