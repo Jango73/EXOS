@@ -1390,6 +1390,51 @@ UINT SysCall_ConsoleClear(UINT Parameter) {
 /************************************************************************/
 
 /**
+ * @brief Set the console text mode.
+ *
+ * @param Parameter Linear address of GRAPHICSMODEINFO (Width/Height in chars).
+ * @return UINT DF_RET_SUCCESS on success, error code otherwise.
+ */
+UINT SysCall_ConsoleSetMode(UINT Parameter) {
+    LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, GRAPHICSMODEINFO) { return ConsoleSetMode(Info); }
+
+    return DF_RET_GENERIC;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the number of console modes.
+ *
+ * @param Parameter Reserved.
+ * @return UINT Number of modes.
+ */
+UINT SysCall_ConsoleGetModeCount(UINT Parameter) {
+    UNUSED(Parameter);
+    return ConsoleGetModeCount();
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve console mode info by index.
+ *
+ * @param Parameter Linear address of CONSOLEMODEINFO.
+ * @return UINT DF_RET_SUCCESS on success, error code otherwise.
+ */
+UINT SysCall_ConsoleGetModeInfo(UINT Parameter) {
+    LPCONSOLEMODEINFO Info = (LPCONSOLEMODEINFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, CONSOLEMODEINFO) { return ConsoleGetModeInfo(Info); }
+
+    return DF_RET_GENERIC;
+}
+
+/************************************************************************/
+
+/**
  * @brief Create a new desktop for the current process.
  *
  * @param Parameter Reserved.

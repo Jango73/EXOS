@@ -58,6 +58,16 @@ void VGAIODelay(void) {
 /***************************************************************************/
 
 /**
+ * @brief Reset the attribute controller flip-flop.
+ */
+static void VGAResetAttributeFlipFlop(void) {
+    InPortByte(VGA_STAT);
+    VGAIODelay();
+}
+
+/***************************************************************************/
+
+/**
  * @brief Program VGA registers for a display mode.
  *
  * @param Regs Pointer to register array describing the mode.
@@ -67,8 +77,6 @@ static U32 SendModeRegs(U8* Regs) {
     U32 Index;
 
     OutPortByte(VGA_MISC, Regs[REGOFS_MISC]);
-
-    OutPortByte(VGA_STAT, 0);
 
     //-------------------------------------
     // Send SEQ regs
@@ -110,13 +118,15 @@ static U32 SendModeRegs(U8* Regs) {
     // Send ATTR regs
 
     for (Index = 0; Index < 20; Index++) {
-        InPortWord(VGA_ATTR);
-        VGAIODelay();
+        VGAResetAttributeFlipFlop();
         OutPortByte(VGA_ATTR, Index);
         VGAIODelay();
         OutPortByte(VGA_ATTR, Regs[REGOFS_ATTR + Index]);
         VGAIODelay();
     }
+
+    VGAResetAttributeFlipFlop();
+    OutPortByte(VGA_ATTR, 0x20);
 
     return 0;
 }
@@ -124,6 +134,91 @@ static U32 SendModeRegs(U8* Regs) {
 /***************************************************************************/
 
 /**
- * @brief Test routine that loads the first VGA mode entry.
+ * @brief Compute text mode metadata from VGA registers.
+ * @param Regs Pointer to register array describing the mode.
+ * @param Info Output metadata structure.
+ * @return TRUE on success, FALSE on invalid parameters.
  */
-void TestVGA(void) { SendModeRegs(VGAModeRegs[0].Regs); }
+static BOOL ComputeTextModeInfo(U8* Regs, LPVGAMODEINFO Info) {
+    U32 Overflow;
+    U32 VerticalDisplayEnd;
+    U32 CharHeight;
+
+    if (Regs == NULL || Info == NULL) return FALSE;
+
+    Info->Columns = (U32)Regs[REGOFS_CRTC + 1] + 1;
+
+    Overflow = (U32)Regs[REGOFS_CRTC + 7];
+    VerticalDisplayEnd = (U32)Regs[REGOFS_CRTC + 0x12];
+    VerticalDisplayEnd |= (Overflow & 0x02) << 7;
+    VerticalDisplayEnd |= (Overflow & 0x40) << 3;
+
+    CharHeight = (U32)(Regs[REGOFS_CRTC + 0x09] & 0x1F) + 1;
+    if (CharHeight == 0) return FALSE;
+
+    Info->CharHeight = CharHeight;
+    Info->Rows = (VerticalDisplayEnd + 1) / CharHeight;
+
+    return Info->Columns > 0 && Info->Rows > 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Return the number of VGA modes in the table.
+ * @return Count of VGA modes.
+ */
+U32 VGAGetModeCount(void) { return VGAModeRegsCount; }
+
+/***************************************************************************/
+
+/**
+ * @brief Retrieve text mode information for a VGA mode index.
+ * @param ModeIndex Index in the VGA mode table.
+ * @param Info Output mode information.
+ * @return TRUE on success, FALSE on invalid parameters.
+ */
+BOOL VGAGetModeInfo(U32 ModeIndex, LPVGAMODEINFO Info) {
+    if (ModeIndex >= VGAModeRegsCount) return FALSE;
+    return ComputeTextModeInfo(VGAModeRegs[ModeIndex].Regs, Info);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Find a VGA text mode by columns and rows.
+ * @param Columns Desired text columns.
+ * @param Rows Desired text rows.
+ * @param ModeIndex Output index on success.
+ * @return TRUE if a matching mode was found.
+ */
+BOOL VGAFindTextMode(U32 Columns, U32 Rows, U32* ModeIndex) {
+    U32 Index;
+    VGAMODEINFO Info;
+
+    if (ModeIndex == NULL) return FALSE;
+
+    for (Index = 0; Index < VGAModeRegsCount; Index++) {
+        if (VGAGetModeInfo(Index, &Info) == FALSE) continue;
+        if (Info.Columns == Columns && Info.Rows == Rows) {
+            *ModeIndex = Index;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Program VGA registers for a mode index.
+ * @param ModeIndex Index in the VGA mode table.
+ * @return TRUE on success, FALSE on invalid parameters.
+ */
+BOOL VGASetMode(U32 ModeIndex) {
+    if (ModeIndex >= VGAModeRegsCount) return FALSE;
+    return SendModeRegs(VGAModeRegs[ModeIndex].Regs) == 0;
+}
+
+/***************************************************************************/

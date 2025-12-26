@@ -5,6 +5,10 @@
 - Opening a file in a userland program without an absulte path should do the same as using getcwd().
 - Add a getpd() that returns the folder in which the current executable's image lives.
 
+## Console
+
+- Add a generic pause system to see long output
+
 ## Logs
 
 - Use __func__ to automatically include function name

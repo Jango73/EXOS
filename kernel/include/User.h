@@ -157,6 +157,9 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_ConsoleGetString 0x00000031
 #define SYSCALL_ConsoleGotoXY 0x00000032
 #define SYSCALL_ConsoleClear 0x00000034
+#define SYSCALL_ConsoleSetMode 0x00000079
+#define SYSCALL_ConsoleGetModeCount 0x0000007A
+#define SYSCALL_ConsoleGetModeInfo 0x0000007B
 #define SYSCALL_ConsoleBlitBuffer 0x00000077
 #define SYSCALL_ConsoleGetKeyModifiers 0x00000078
 
@@ -272,7 +275,7 @@ typedef struct PACKED tag_ABI_HEADER {
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x00000079
+#define SYSCALL_Last 0x0000007C
 
 /************************************************************************/
 // Structure limits
@@ -340,6 +343,14 @@ typedef struct PACKED tag_CONSOLEBLITBUFFER {
     const U8* Attr;      /* Fore | (Back << 4) per cell, optional */
     UINT AttrPitch;      /* Bytes per row in Attr when provided */
 } CONSOLEBLITBUFFER, *LPCONSOLEBLITBUFFER;
+
+typedef struct PACKED tag_CONSOLEMODEINFO {
+    ABI_HEADER Header;
+    U32 Index;
+    U32 Columns;
+    U32 Rows;
+    U32 CharHeight;
+} CONSOLEMODEINFO, *LPCONSOLEMODEINFO;
 
 typedef struct PACKED tag_TASKINFO {
     ABI_HEADER Header;

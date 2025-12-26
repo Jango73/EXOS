@@ -25,6 +25,8 @@
 #include "Console.h"
 #include "GFX.h"
 #include "Kernel.h"
+#include "drivers/VGA.h"
+#include "process/Process.h"
 #include "drivers/Keyboard.h"
 #include "Log.h"
 #include "Mutex.h"
@@ -40,6 +42,7 @@
 #define CONSOLE_VER_MINOR 0
 
 static UINT ConsoleDriverCommands(UINT Function, UINT Parameter);
+static void UpdateConsoleDesktopState(U32 Columns, U32 Rows);
 
 DRIVER DATA_SECTION ConsoleDriver = {
     .TypeID = KOID_DRIVER,
@@ -74,6 +77,40 @@ CONSOLE_STRUCT Console = {
     .Blink = 0,
     .Port = 0x03D4,
     .Memory = (LPVOID)0xB8000};
+
+/***************************************************************************/
+
+/**
+ * @brief Sync the desktop screen rectangle to the current console size.
+ * @param Columns Number of console columns.
+ * @param Rows Number of console rows.
+ */
+static void UpdateConsoleDesktopState(U32 Columns, U32 Rows) {
+    RECT Rect;
+
+    if (Columns == 0 || Rows == 0) return;
+
+    Rect.X1 = 0;
+    Rect.Y1 = 0;
+    Rect.X2 = (I32)Columns - 1;
+    Rect.Y2 = (I32)Rows - 1;
+
+    SAFE_USE_VALID_ID(&MainDesktop, KOID_DESKTOP) {
+        LockMutex(&(MainDesktop.Mutex), INFINITY);
+        MainDesktop.Graphics = &ConsoleDriver;
+        MainDesktop.Mode = DESKTOP_MODE_CONSOLE;
+
+        SAFE_USE_VALID_ID(MainDesktop.Window, KOID_WINDOW) {
+            LockMutex(&(MainDesktop.Window->Mutex), INFINITY);
+            MainDesktop.Window->Rect = Rect;
+            MainDesktop.Window->ScreenRect = Rect;
+            MainDesktop.Window->InvalidRect = Rect;
+            UnlockMutex(&(MainDesktop.Window->Mutex));
+        }
+
+        UnlockMutex(&(MainDesktop.Mutex));
+    }
+}
 
 /***************************************************************************/
 
@@ -474,6 +511,46 @@ void InitializeConsole(void) {
 /***************************************************************************/
 
 /**
+ * @brief Set console text mode using a graphics mode descriptor.
+ * @param Info Mode description with Width/Height in characters.
+ * @return DF_RET_SUCCESS on success, error code otherwise.
+ */
+UINT ConsoleSetMode(LPGRAPHICSMODEINFO Info) { return ConsoleDriverCommands(DF_GFX_SETMODE, (UINT)Info); }
+
+/***************************************************************************/
+
+/**
+ * @brief Return the number of available VGA console modes.
+ * @return Number of console modes.
+ */
+UINT ConsoleGetModeCount(void) { return VGAGetModeCount(); }
+
+/***************************************************************************/
+
+/**
+ * @brief Query a console mode by index.
+ * @param Info Mode request (Index) and output (Columns/Rows/CharHeight).
+ * @return DF_RET_SUCCESS on success, error code otherwise.
+ */
+UINT ConsoleGetModeInfo(LPCONSOLEMODEINFO Info) {
+    VGAMODEINFO VgaInfo;
+
+    if (Info == NULL) return DF_RET_GENERIC;
+
+    if (VGAGetModeInfo(Info->Index, &VgaInfo) == FALSE) {
+        return DF_RET_GENERIC;
+    }
+
+    Info->Columns = VgaInfo.Columns;
+    Info->Rows = VgaInfo.Rows;
+    Info->CharHeight = VgaInfo.CharHeight;
+
+    return DF_RET_SUCCESS;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Driver command handler for the console subsystem.
  *
  * DF_LOAD initializes the console once; DF_UNLOAD clears the ready flag
@@ -517,9 +594,23 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
         case DF_GFX_SETMODE: {
             LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Parameter;
             SAFE_USE(Info) {
-                if (Info->Width != Console.Width || Info->Height != Console.Height) {
+                U32 ModeIndex;
+
+                if (VGAFindTextMode(Info->Width, Info->Height, &ModeIndex) == FALSE) {
                     return DF_GFX_ERROR_MODEUNAVAIL;
                 }
+
+                if (VGASetMode(ModeIndex) == FALSE) {
+                    return DF_RET_GENERIC;
+                }
+
+                Console.Width = Info->Width;
+                Console.Height = Info->Height;
+                Console.CursorX = 0;
+                Console.CursorY = 0;
+                ClearConsole();
+                UpdateConsoleDesktopState(Console.Width, Console.Height);
+
                 return DF_RET_SUCCESS;
             }
             return DF_RET_GENERIC;

@@ -543,6 +543,21 @@ void ConsoleClear(void) {
 
 /***************************************************************************/
 
+U32 ConsoleSetMode(U32 Columns, U32 Rows) {
+    GRAPHICSMODEINFO Info;
+
+    Info.Header.Size = sizeof Info;
+    Info.Header.Version = EXOS_ABI_VERSION;
+    Info.Header.Flags = 0;
+    Info.Width = Columns;
+    Info.Height = Rows;
+    Info.BitsPerPixel = 0;
+
+    return (U32)exoscall(SYSCALL_ConsoleSetMode, EXOS_PARAM(&Info));
+}
+
+/***************************************************************************/
+
 BOOL DeleteObject(HANDLE Object) {
     return (BOOL)exoscall(SYSCALL_DeleteObject, EXOS_PARAM(Object));
 }

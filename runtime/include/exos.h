@@ -102,6 +102,7 @@ U32 ConsoleGetKey(LPKEYCODE);
 U32 ConsoleBlitBuffer(LPCONSOLEBLITBUFFER);
 void ConsoleGotoXY(LPPOINT);
 void ConsoleClear(void);
+U32 ConsoleSetMode(U32 Columns, U32 Rows);
 BOOL DeleteObject(HANDLE);
 void srand(U32);
 U32 rand(void);

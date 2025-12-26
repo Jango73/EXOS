@@ -66,6 +66,9 @@ int SetConsoleForeColor(U32 Color);
 BOOL ConsoleGetString(LPSTR, U32);
 void ConsolePanic(LPCSTR Format, ...);
 void InitializeConsole(void);
+UINT ConsoleSetMode(LPGRAPHICSMODEINFO Info);
+UINT ConsoleGetModeCount(void);
+UINT ConsoleGetModeInfo(LPCONSOLEMODEINFO Info);
 
 // Functions in Shell.c
 

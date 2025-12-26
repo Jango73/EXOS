@@ -84,6 +84,7 @@ typedef U32 (*SHELLCOMMAND)(LPSHELLCONTEXT);
 
 static U32 CMD_commands(LPSHELLCONTEXT);
 static U32 CMD_cls(LPSHELLCONTEXT);
+static U32 CMD_conmode(LPSHELLCONTEXT);
 static U32 CMD_dir(LPSHELLCONTEXT);
 static U32 CMD_cd(LPSHELLCONTEXT);
 static U32 CMD_md(LPSHELLCONTEXT);
@@ -145,6 +146,7 @@ static struct {
 } COMMANDS[] = {
     {"commands", "help", "", CMD_commands},
     {"clear", "cls", "", CMD_cls},
+    {"conmode", "mode", "Columns Rows|list", CMD_conmode},
     {"ls", "dir", "[Name] [-p] [-r]", CMD_dir},
     {"cd", "cd", "Name", CMD_cd},
     {"mkdir", "md", "Name", CMD_md},
@@ -611,7 +613,7 @@ static void MakeFolder(LPSHELLCONTEXT Context) {
 
 static void ListFile(LPFILE File, U32 Indent) {
     STR Name[MAX_FILE_NAME];
-    U32 MaxWidth = 80;
+    U32 MaxWidth = Console.Width;
     U32 Length;
     U32 Index;
 
@@ -754,6 +756,74 @@ static U32 CMD_cls(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
     ClearConsole();
+
+    return DF_RET_SUCCESS;
+}
+
+/***************************************************************************/
+
+static U32 CMD_conmode(LPSHELLCONTEXT Context) {
+    GRAPHICSMODEINFO Info;
+    U32 Columns;
+    U32 Rows;
+    U32 Result;
+    U32 ModeCount;
+
+    ParseNextCommandLineComponent(Context);
+    if (StringLength(Context->Command) == 0) {
+        ConsolePrint(TEXT("Usage: conmode Columns Rows | conmode list\n"));
+        return DF_RET_SUCCESS;
+    }
+
+    if (StringCompareNC(Context->Command, TEXT("list")) == 0) {
+        CONSOLEMODEINFO ModeInfo;
+        ModeCount = DoSystemCall(SYSCALL_ConsoleGetModeCount, SYSCALL_PARAM(0));
+        ConsolePrint(TEXT("VGA text modes:\n"));
+        for (U32 Index = 0; Index < ModeCount; Index++) {
+            ModeInfo.Header.Size = sizeof ModeInfo;
+            ModeInfo.Header.Version = EXOS_ABI_VERSION;
+            ModeInfo.Header.Flags = 0;
+            ModeInfo.Index = Index;
+            if (DoSystemCall(SYSCALL_ConsoleGetModeInfo, SYSCALL_PARAM(&ModeInfo)) != DF_RET_SUCCESS) {
+                continue;
+            }
+            ConsolePrint(TEXT("  %u: %ux%u (char height %u)\n"),
+                Index,
+                ModeInfo.Columns,
+                ModeInfo.Rows,
+                ModeInfo.CharHeight);
+        }
+        return DF_RET_SUCCESS;
+    }
+
+    Columns = StringToU32(Context->Command);
+
+    ParseNextCommandLineComponent(Context);
+    if (StringLength(Context->Command) == 0) {
+        ConsolePrint(TEXT("Usage: conmode Columns Rows | conmode list\n"));
+        return DF_RET_SUCCESS;
+    }
+    Rows = StringToU32(Context->Command);
+
+    if (Columns == 0 || Rows == 0) {
+        ConsolePrint(TEXT("Invalid console size\n"));
+        return DF_RET_SUCCESS;
+    }
+
+    Info.Header.Size = sizeof Info;
+    Info.Header.Version = EXOS_ABI_VERSION;
+    Info.Header.Flags = 0;
+    Info.Width = Columns;
+    Info.Height = Rows;
+    Info.BitsPerPixel = 0;
+
+    Result = DoSystemCall(SYSCALL_ConsoleSetMode, SYSCALL_PARAM(&Info));
+
+    if (Result != DF_RET_SUCCESS) {
+        ConsolePrint(TEXT("Console mode %ux%u unavailable (err=%u)\n"), Columns, Rows, Result);
+    } else {
+        ConsolePrint(TEXT("Console mode set to %ux%u\n"), Columns, Rows);
+    }
 
     return DF_RET_SUCCESS;
 }
