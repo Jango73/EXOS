@@ -1634,6 +1634,92 @@ static U32 CMD_prof(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
+typedef struct tag_USBCTL_ENUM_CONTEXT {
+    BOOL Found;
+} USBCTL_ENUM_CONTEXT, *LPUSBCTL_ENUM_CONTEXT;
+
+/***************************************************************************/
+
+/**
+ * @brief Convert xHCI speed ID to a display name.
+ * @param SpeedId xHCI speed value from PORTSC.
+ * @return Speed name string.
+ */
+static LPCSTR UsbctlSpeedToString(U32 SpeedId) {
+    switch (SpeedId) {
+        case 1:
+            return TEXT("FS");
+        case 2:
+            return TEXT("LS");
+        case 3:
+            return TEXT("HS");
+        case 4:
+            return TEXT("SS");
+        case 5:
+            return TEXT("SS+");
+        default:
+            return TEXT("Unknown");
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Controller enumeration callback for usbctl.
+ * @param Context Callback context.
+ * @param Bus PCI bus number.
+ * @param Dev PCI device number.
+ * @param Func PCI function number.
+ * @param PortCount Number of ports.
+ * @return TRUE to continue enumeration.
+ */
+static BOOL UsbctlControllerCallback(LPVOID Context, U32 Bus, U32 Dev, U32 Func, U32 PortCount) {
+    LPUSBCTL_ENUM_CONTEXT EnumContext = (LPUSBCTL_ENUM_CONTEXT)Context;
+    SAFE_USE(EnumContext) { EnumContext->Found = TRUE; }
+    ConsolePrint(TEXT("xHCI %x:%x.%u Ports=%u\n"), Bus, Dev, Func, PortCount);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Port enumeration callback for usbctl.
+ * @param Context Callback context.
+ * @param Bus PCI bus number.
+ * @param Dev PCI device number.
+ * @param Func PCI function number.
+ * @param PortIndex 1-based port index.
+ * @param PortStatus Raw PORTSC value.
+ * @param SpeedId Speed ID from PORTSC.
+ * @param Connected TRUE if connected.
+ * @param Enabled TRUE if enabled.
+ * @return TRUE to continue enumeration.
+ */
+static BOOL UsbctlPortCallback(LPVOID Context,
+                               U32 Bus,
+                               U32 Dev,
+                               U32 Func,
+                               U32 PortIndex,
+                               U32 PortStatus,
+                               U32 SpeedId,
+                               BOOL Connected,
+                               BOOL Enabled) {
+    UNUSED(Context);
+    UNUSED(Bus);
+    UNUSED(Dev);
+    UNUSED(Func);
+
+    ConsolePrint(TEXT("  Port %u: CCS=%u PED=%u Speed=%s Raw=%x\n"),
+                 PortIndex,
+                 Connected ? 1U : 0U,
+                 Enabled ? 1U : 0U,
+                 UsbctlSpeedToString(SpeedId),
+                 PortStatus);
+    return TRUE;
+}
+
+/***************************************************************************/
+
 /**
  * @brief USB control command (xHCI port report).
  * @param Context Shell context.
@@ -1648,7 +1734,12 @@ static U32 CMD_usbctl(LPSHELLCONTEXT Context) {
         return DF_RET_SUCCESS;
     }
 
-    XHCI_DumpPorts();
+    USBCTL_ENUM_CONTEXT EnumContext;
+    EnumContext.Found = FALSE;
+
+    if (XHCI_EnumerateControllers(UsbctlControllerCallback, UsbctlPortCallback, &EnumContext) == 0) {
+        ConsolePrint(TEXT("No xHCI controller detected\n"));
+    }
     return DF_RET_SUCCESS;
 }
 

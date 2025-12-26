@@ -18,6 +18,7 @@ echo "ACPI support enabled for IOAPIC testing with kernel-irqchip=split"
 qemu-system-i386 \
 -machine q35,acpi=on,kernel-irqchip=split \
 -smp cpus=1,cores=1,threads=1 \
+-device qemu-xhci,id=xhci \
 -device ahci,id=ahci \
 -drive format=raw,file="$IMG_1_PATH",if=none,id=drive0 \
 -device ide-hd,drive=drive0,bus=ahci.0 \
@@ -28,6 +29,6 @@ qemu-system-i386 \
 -serial file:"log/debug-com1.log" \
 -serial file:"log/kernel.log" \
 -vga std \
--no-reboot \
--d int \
-2>&1 | $CYCLE_PATH -o log/qemu.log -s 40000
+-no-reboot
+# -d int \
+# 2>&1 | $CYCLE_PATH -o log/qemu.log -s 40000
