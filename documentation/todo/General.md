@@ -9,10 +9,6 @@
 
 - Enable build in VM
 
-## Console
-
-- Add a generic pause system to see long output
-
 ## Logs
 
 - Use __func__ to automatically include function name
@@ -68,6 +64,7 @@
 
 ## Localization
 
+- UTF
 - Unicode
 - I18n
 
