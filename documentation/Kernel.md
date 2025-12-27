@@ -108,12 +108,12 @@ fallback logic.
 ### Command line editing
 
 Interactive editing of shell command lines is implemented in
-`kernel/source/utils/CommandLineEditor.c`. The module processes keyboard input,
-maintains an in-memory history, refreshes the console display, and relies on
-callbacks to retrieve completion suggestions. The shell owns an input state
-structure that embeds the editor instance and provides the shell-specific
-completion callback so the component remains agnostic of higher level shell
-logic.
+`kernel/source/utils/CommandLineEditor.c`. The module processes keyboard input
+via the classic buffered path (`PeekChar`/`GetKeyCode`), maintains an in-memory
+history, refreshes the console display, and relies on callbacks to retrieve
+completion suggestions. The shell owns an input state structure that embeds the
+editor instance and provides the shell-specific completion callback so the
+component remains agnostic of higher level shell logic.
 
 All reusable helpers —such as the command line editor, adaptive delay, string
 containers, CRC utilities, notifications, path helpers, TOML parsing, UUID
@@ -132,7 +132,11 @@ kernel process starts with a queue; user processes and their tasks get a queue
 `WaitForMessage()` (which marks the task queue as initialized). No queue is
 created when posting; if a task/process never asked for one, posted messages
 are dropped and keyboard input continues down the classic buffered path for
-`getkey()`. Each queue is capped to 100 pending messages and guarded by a
+`getkey()` (used by the shell). When a process message queue exists, the keyboard
+helpers (`PeekChar`, `GetChar`, `GetKeyCode`) consume key events from that queue
+by discarding `EWM_KEYUP` messages and returning the first `EWM_KEYDOWN`, then
+fall back to the classic buffer when no queue exists. Each queue is capped to
+100 pending messages and guarded by a
 per-queue mutex plus a waiting flag. `WaitForMessage` marks the queue as
 waiting and sleeps the task; `AddTaskMessage` wakes the task when a new message
 arrives and clears the waiting flag.

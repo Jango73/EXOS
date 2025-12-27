@@ -75,8 +75,76 @@ CONSOLE_STRUCT Console = {
     .BackColor = 0,
     .ForeColor = 0,
     .Blink = 0,
+    .PagingEnabled = TRUE,
+    .PagingActive = FALSE,
+    .PagingRemaining = 0,
     .Port = 0x03D4,
     .Memory = (LPVOID)0xB8000};
+
+/***************************************************************************/
+
+/**
+ * @brief Show the console paging prompt and wait for user input.
+ */
+static void ConsolePagerWaitLocked(void) {
+    KEYCODE KeyCode;
+    U32 Width = Console.Width;
+    U32 Height = Console.Height;
+    U32 Row;
+    U32 Col;
+    U32 Offset;
+    U16 Attribute;
+    STR Prompt[] = "-- Press a key --";
+    U32 PromptLen;
+    U32 Start;
+
+    if (Console.PagingEnabled == FALSE || Console.PagingActive == FALSE) return;
+    if (Width == 0 || Height < 2) return;
+
+    DEBUG(TEXT("[ConsolePagerWaitLocked] Enter Enabled=%u Active=%u Width=%u Height=%u"),
+          Console.PagingEnabled, Console.PagingActive, Width, Height);
+
+    Row = Height - 1;
+    Attribute = (U16)(CHARATTR << 0x08);
+
+    for (Col = 0; Col < Width; Col++) {
+        Console.Memory[(Row * Width) + Col] = (U16)STR_SPACE | Attribute;
+    }
+
+    PromptLen = StringLength(Prompt);
+    if (PromptLen > Width) PromptLen = Width;
+    Start = (Width > PromptLen) ? (Width - PromptLen) / 2 : 0;
+    Offset = (Row * Width) + Start;
+    for (Col = 0; Col < PromptLen; Col++) {
+        Console.Memory[Offset + Col] = (U16)Prompt[Col] | Attribute;
+    }
+
+    SetConsoleCursorPosition(0, Row);
+
+    while (TRUE) {
+        if (PeekChar()) {
+            GetKeyCode(&KeyCode);
+            DEBUG(TEXT("[ConsolePagerWaitLocked] Key VK=%x ASCII=%x"),
+                  (U32)KeyCode.VirtualKey, (U32)KeyCode.ASCIICode);
+            if (KeyCode.VirtualKey == VK_SPACE || KeyCode.VirtualKey == VK_ENTER) {
+                Console.PagingRemaining = Height - 1;
+                break;
+            }
+            if (KeyCode.VirtualKey == VK_ESCAPE) {
+                Console.PagingRemaining = Height - 1;
+                break;
+            }
+        }
+
+        Sleep(10);
+    }
+
+    for (Col = 0; Col < Width; Col++) {
+        Console.Memory[(Row * Width) + Col] = (U16)STR_SPACE | Attribute;
+    }
+
+    DEBUG(TEXT("[ConsolePagerWaitLocked] Exit"));
+}
 
 /***************************************************************************/
 
@@ -207,6 +275,17 @@ void ScrollConsole(void) {
     while (Keyboard.ScrollLock) {
     }
 
+    DEBUG(TEXT("[ScrollConsole] Cursor=%ux%u Size=%ux%u Paging=%u/%u Remaining=%u"),
+          Console.CursorX, Console.CursorY, Console.Width, Console.Height,
+          Console.PagingEnabled, Console.PagingActive, Console.PagingRemaining);
+
+    if (Console.PagingRemaining == 0) {
+        ConsolePagerWaitLocked();
+    }
+    if (Console.PagingRemaining > 0) {
+        Console.PagingRemaining--;
+    }
+
     Width = Console.Width;
     Height = Console.Height;
 
@@ -232,6 +311,9 @@ void ScrollConsole(void) {
     }
 
     UnlockMutex(MUTEX_CONSOLE);
+
+    DEBUG(TEXT("[ScrollConsole] Done Cursor=%ux%u Remaining=%u"),
+          Console.CursorX, Console.CursorY, Console.PagingRemaining);
 
     ProfileStop(&Scope);
 }
@@ -277,6 +359,7 @@ void ConsolePrintChar(STR Char) {
         Console.CursorX = 0;
         Console.CursorY++;
         if (Console.CursorY >= Console.Height) {
+            DEBUG(TEXT("[ConsolePrintChar] Newline triggers scroll CursorY=%u Height=%u"), Console.CursorY, Console.Height);
             ScrollConsole();
             Console.CursorY = Console.Height - 1;
         }
@@ -287,6 +370,7 @@ void ConsolePrintChar(STR Char) {
             Console.CursorX = 0;
             Console.CursorY++;
             if (Console.CursorY >= Console.Height) {
+                DEBUG(TEXT("[ConsolePrintChar] Tab triggers scroll CursorY=%u Height=%u"), Console.CursorY, Console.Height);
                 ScrollConsole();
                 Console.CursorY = Console.Height - 1;
             }
@@ -298,6 +382,7 @@ void ConsolePrintChar(STR Char) {
             Console.CursorX = 0;
             Console.CursorY++;
             if (Console.CursorY >= Console.Height) {
+                DEBUG(TEXT("[ConsolePrintChar] Wrap triggers scroll CursorY=%u Height=%u"), Console.CursorY, Console.Height);
                 ScrollConsole();
                 Console.CursorY = Console.Height - 1;
             }
@@ -503,9 +588,68 @@ void InitializeConsole(void) {
     Console.Height = 25;
     Console.BackColor = 0;
     Console.ForeColor = 7;
+    Console.PagingEnabled = TRUE;
+    Console.PagingActive = FALSE;
+    Console.PagingRemaining = 0;
 
     GetConsoleCursorPosition(&Console.CursorX, &Console.CursorY);
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Enable or disable console paging.
+ * @param Enabled TRUE to enable paging, FALSE to disable.
+ */
+void ConsoleSetPagingEnabled(BOOL Enabled) {
+    Console.PagingEnabled = Enabled ? TRUE : FALSE;
+    if (Console.PagingEnabled == FALSE) {
+        Console.PagingRemaining = 0;
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Query whether console paging is enabled.
+ * @return TRUE if paging is enabled, FALSE otherwise.
+ */
+BOOL ConsoleGetPagingEnabled(void) {
+    return Console.PagingEnabled ? TRUE : FALSE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Activate or deactivate console paging.
+ * @param Active TRUE to allow paging prompts, FALSE to disable them.
+ */
+void ConsoleSetPagingActive(BOOL Active) {
+    Console.PagingActive = Active ? TRUE : FALSE;
+    if (Console.PagingActive == FALSE) {
+        Console.PagingRemaining = 0;
+    } else {
+        ConsoleResetPaging();
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Reset console paging state for the next command.
+ */
+void ConsoleResetPaging(void) {
+    if (Console.PagingEnabled == FALSE || Console.PagingActive == FALSE) {
+        Console.PagingRemaining = 0;
+        return;
+    }
+
+    if (Console.Height > 0) {
+        Console.PagingRemaining = Console.Height - 1;
+    } else {
+        Console.PagingRemaining = 0;
+    }
 }
 
 /***************************************************************************/

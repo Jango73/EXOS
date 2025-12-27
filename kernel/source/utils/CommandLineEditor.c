@@ -121,7 +121,6 @@ BOOL CommandLineEditorReadLine(
     U32 BufferSize,
     BOOL MaskCharacters) {
     KEYCODE KeyCode;
-    MESSAGEINFO Message;
     U32 CursorPos = 0;
     U32 Length = 0;
     U32 DisplayedLength = 0;
@@ -137,22 +136,12 @@ BOOL CommandLineEditorReadLine(
     GetConsoleCursorPosition(&StartX, &StartY);
 
     FOREVER {
-        MemorySet(&Message, 0, sizeof(Message));
-        Message.Header.Size = sizeof(Message);
-        Message.Header.Version = EXOS_ABI_VERSION;
-        Message.Header.Flags = 0;
-        Message.Target = NULL;
-
-        if (GetMessage(&Message) == FALSE) {
+        if (PeekChar() == FALSE) {
+            Sleep(10);
             continue;
         }
 
-        if (Message.Message != EWM_KEYDOWN) {
-            continue;
-        }
-
-        KeyCode.VirtualKey = Message.Param1;
-        KeyCode.ASCIICode = (STR)Message.Param2;
+        GetKeyCode(&KeyCode);
 
         if (KeyCode.VirtualKey == VK_ESCAPE) {
             Length = 0;

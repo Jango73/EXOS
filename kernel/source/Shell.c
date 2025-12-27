@@ -85,6 +85,7 @@ typedef U32 (*SHELLCOMMAND)(LPSHELLCONTEXT);
 static U32 CMD_commands(LPSHELLCONTEXT);
 static U32 CMD_cls(LPSHELLCONTEXT);
 static U32 CMD_conmode(LPSHELLCONTEXT);
+static U32 CMD_pause(LPSHELLCONTEXT);
 static U32 CMD_dir(LPSHELLCONTEXT);
 static U32 CMD_cd(LPSHELLCONTEXT);
 static U32 CMD_md(LPSHELLCONTEXT);
@@ -147,6 +148,7 @@ static struct {
     {"commands", "help", "", CMD_commands},
     {"clear", "cls", "", CMD_cls},
     {"conmode", "mode", "Columns Rows|list", CMD_conmode},
+    {"pause", "pause", "on|off", CMD_pause},
     {"ls", "dir", "[Name] [-p] [-r]", CMD_dir},
     {"cd", "cd", "Name", CMD_cd},
     {"mkdir", "md", "Name", CMD_md},
@@ -825,6 +827,32 @@ static U32 CMD_conmode(LPSHELLCONTEXT Context) {
         ConsolePrint(TEXT("Console mode set to %ux%u\n"), Columns, Rows);
     }
 
+    return DF_RET_SUCCESS;
+}
+
+/***************************************************************************/
+
+static U32 CMD_pause(LPSHELLCONTEXT Context) {
+    ParseNextCommandLineComponent(Context);
+
+    if (StringLength(Context->Command) == 0) {
+        ConsolePrint(TEXT("Pause is %s\n"), ConsoleGetPagingEnabled() ? TEXT("on") : TEXT("off"));
+        return DF_RET_SUCCESS;
+    }
+
+    if (StringCompareNC(Context->Command, TEXT("on")) == 0) {
+        ConsoleSetPagingEnabled(TRUE);
+        ConsolePrint(TEXT("Pause on\n"));
+        return DF_RET_SUCCESS;
+    }
+
+    if (StringCompareNC(Context->Command, TEXT("off")) == 0) {
+        ConsoleSetPagingEnabled(FALSE);
+        ConsolePrint(TEXT("Pause off\n"));
+        return DF_RET_SUCCESS;
+    }
+
+    ConsolePrint(TEXT("Usage: pause on|off\n"));
     return DF_RET_SUCCESS;
 }
 
@@ -1904,6 +1932,7 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
 
     if (Context->Input.CommandLine[0] != STR_NULL) {
         CommandLineEditorRemember(&Context->Input.Editor, Context->Input.CommandLine);
+        ConsoleResetPaging();
         ExecuteCommandLine(Context, Context->Input.CommandLine);
     }
 
@@ -1936,6 +1965,7 @@ static void ShellScriptOutput(LPCSTR Message, LPVOID UserData) {
 static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData) {
     LPSHELLCONTEXT Context = (LPSHELLCONTEXT)UserData;
     U32 Index;
+    U32 Result = DF_RET_GENERIC;
 
     if (Context == NULL || Command == NULL) {
         return DF_RET_BADPARAM;
@@ -1953,7 +1983,8 @@ static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData) {
     ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command) == 0) {
-        return DF_RET_SUCCESS;
+        Result = DF_RET_SUCCESS;
+        return Result;
     }
 
     {
@@ -1963,13 +1994,14 @@ static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData) {
         for (Index = 0; COMMANDS[Index].Command != NULL; Index++) {
             if (StringCompareNC(CommandName, COMMANDS[Index].Name) == 0 ||
                 StringCompareNC(CommandName, COMMANDS[Index].AltName) == 0) {
-                COMMANDS[Index].Command(Context);
-                return DF_RET_SUCCESS;
+                Result = COMMANDS[Index].Command(Context);
+                return Result;
             }
         }
 
         if (SpawnExecutable(Context, Context->Input.CommandLine, FALSE) == TRUE) {
-            return DF_RET_SUCCESS;
+            Result = DF_RET_SUCCESS;
+            return Result;
         }
 
         if (Context->ScriptContext) {
@@ -1981,7 +2013,7 @@ static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData) {
         }
     }
 
-    return DF_RET_GENERIC;
+    return Result;
 }
 
 /************************************************************************/

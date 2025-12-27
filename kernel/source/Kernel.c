@@ -424,7 +424,6 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
     LPLISTNODE Object;
     U8 Identifier[UUID_BINARY_SIZE];
     U64 ObjectID = U64_0;
-    U32 Index;
 
     DEBUG(TEXT("[CreateKernelObject] Creating object of size %u with ID %x"), Size, ObjectTypeID);
 
@@ -728,8 +727,6 @@ U32 GetPhysicalMemoryUsed(void) {
  */
 
 void LoadDriver(LPDRIVER Driver) {
-    BOOL Success = FALSE;
-
     SAFE_USE(Driver) {
         DEBUG(TEXT("[LoadDriver] : Loading %s driver at %X"), TEXT(Driver->Product), Driver);
 
@@ -744,7 +741,6 @@ void LoadDriver(LPDRIVER Driver) {
         UINT Result = Driver->Command(DF_LOAD, 0);
         if (Result == DF_RET_SUCCESS && (Driver->Flags & DRIVER_FLAG_READY) != 0) {
             DEBUG(TEXT("[LoadDriver] : %s driver loaded successfully"), TEXT(Driver->Product));
-            Success = TRUE;
         } else {
             if ((Driver->Flags & DRIVER_FLAG_CRITICAL)) {
                 ConsolePanic(TEXT("Critical driver %s failed to load"), TEXT(Driver->Product));
@@ -854,7 +850,7 @@ static U32 KernelMonitor(LPVOID Parameter) {
 
         LogCounter++;
         if (LogCounter >= 60) {  // 60 * 500ms = 30 seconds
-            DEBUG("[KernelMonitor] Monitor task running normally");
+            DEBUG(TEXT("[KernelMonitor] Monitor task running normally"));
             LogCounter = 0;
         }
 
@@ -867,6 +863,8 @@ static U32 KernelMonitor(LPVOID Parameter) {
 /************************************************************************/
 
 void KernelIdle(void) {
+    ConsoleSetPagingActive(TRUE);
+
     FOREVER {
         Sleep(4000);
     }
