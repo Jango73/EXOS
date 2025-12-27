@@ -43,7 +43,10 @@ KEYBOARDSTRUCT Keyboard = {
     .ScrollLock = 0,
     .Pause = 0,
     .Buffer = {{0}},
-    .Status = {0}};
+    .LayoutHid = NULL,
+    .PendingDeadKey = 0,
+    .PendingComposeKey = 0,
+    .UsageStatus = {0}};
 
 /***************************************************************************/
 
@@ -269,6 +272,9 @@ void ClearKeyboardBuffer(void) {
         Keyboard.Buffer[Index].VirtualKey = 0;
         Keyboard.Buffer[Index].ASCIICode = 0;
     }
+
+    Keyboard.PendingDeadKey = 0;
+    Keyboard.PendingComposeKey = 0;
 
     UnlockMutex(&(Keyboard.Mutex));
 }

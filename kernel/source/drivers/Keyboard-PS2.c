@@ -124,18 +124,6 @@ DRIVER DATA_SECTION StdKeyboardDriver = {
 
 /***************************************************************************/
 
-static LPKEYTRANS ScanCodeMap = NULL;
-
-/***************************************************************************/
-
-void UseKeyboardLayout(LPCSTR Code) {
-    ScanCodeMap = GetScanCodeToKeyCodeTable(Code);
-    if (ScanCodeMap == NULL) {
-        ScanCodeMap = GetScanCodeToKeyCodeTable(TEXT(KEY_LAYOUT_FALLBACK_CODE));
-    }
-}
-
-/***************************************************************************/
 
 static void KeyboardWait(void) {
     U32 Index;
@@ -203,201 +191,74 @@ U16 DetectKeyboard(void) {
 
 /***************************************************************************/
 
-static void ScanCodeToKeyCode(U32 ScanCode, LPKEYCODE KeyCode) {
-    KeyCode->VirtualKey = 0;
-    KeyCode->ASCIICode = 0;
+static const KEY_USAGE ScanCodeToUsageTable[128] = {
+    0x00, 0x29, 0x1E, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x2D, 0x2E, 0x2A, 0x2B,
+    0x14, 0x1A, 0x08, 0x15, 0x17, 0x1C, 0x18, 0x0C, 0x12, 0x13, 0x2F, 0x30, 0x28, KEY_USAGE_LEFT_CTRL, 0x04, 0x16,
+    0x07, 0x09, 0x0A, 0x0B, 0x0D, 0x0E, 0x0F, 0x33, 0x34, 0x35, KEY_USAGE_LEFT_SHIFT, 0x31, 0x1D, 0x1B, 0x06, 0x19,
+    0x05, 0x11, 0x10, 0x36, 0x37, 0x38, KEY_USAGE_RIGHT_SHIFT, 0x55, KEY_USAGE_LEFT_ALT, 0x2C, KEY_USAGE_CAPS_LOCK, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E,
+    0x3F, 0x40, 0x41, 0x42, 0x43, KEY_USAGE_NUM_LOCK, KEY_USAGE_SCROLL_LOCK, KEY_USAGE_KEYPAD_7,
+    KEY_USAGE_KEYPAD_8, KEY_USAGE_KEYPAD_9, 0x56, KEY_USAGE_KEYPAD_4, KEY_USAGE_KEYPAD_5, KEY_USAGE_KEYPAD_6, 0x57, KEY_USAGE_KEYPAD_1,
+    KEY_USAGE_KEYPAD_2, KEY_USAGE_KEYPAD_3, KEY_USAGE_KEYPAD_0, KEY_USAGE_KEYPAD_DOT, 0x00, 0x00, 0x64, 0x44,
+    0x45, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-    if (ScanCode >= SCAN_PAD_7 && ScanCode <= SCAN_PAD_DOT) {
-        if (Keyboard.NumLock) {
-            switch (ScanCode) {
-                case SCAN_PAD_7:
-                    KeyCode->VirtualKey = VK_7;
-                    KeyCode->ASCIICode = '7';
-                    break;
-                case SCAN_PAD_8:
-                    KeyCode->VirtualKey = VK_8;
-                    KeyCode->ASCIICode = '8';
-                    break;
-                case SCAN_PAD_9:
-                    KeyCode->VirtualKey = VK_9;
-                    KeyCode->ASCIICode = '9';
-                    break;
-                case SCAN_PAD_4:
-                    KeyCode->VirtualKey = VK_4;
-                    KeyCode->ASCIICode = '4';
-                    break;
-                case SCAN_PAD_5:
-                    KeyCode->VirtualKey = VK_5;
-                    KeyCode->ASCIICode = '5';
-                    break;
-                case SCAN_PAD_6:
-                    KeyCode->VirtualKey = VK_6;
-                    KeyCode->ASCIICode = '6';
-                    break;
-                case SCAN_PAD_1:
-                    KeyCode->VirtualKey = VK_1;
-                    KeyCode->ASCIICode = '1';
-                    break;
-                case SCAN_PAD_2:
-                    KeyCode->VirtualKey = VK_2;
-                    KeyCode->ASCIICode = '2';
-                    break;
-                case SCAN_PAD_3:
-                    KeyCode->VirtualKey = VK_3;
-                    KeyCode->ASCIICode = '3';
-                    break;
-                case SCAN_PAD_0:
-                    KeyCode->VirtualKey = VK_0;
-                    KeyCode->ASCIICode = '0';
-                    break;
-                case SCAN_PAD_DOT:
-                    KeyCode->VirtualKey = VK_DOT;
-                    KeyCode->ASCIICode = '.';
-                    break;
-            }
-        } else {
-            switch (ScanCode) {
-                case SCAN_PAD_7:
-                    KeyCode->VirtualKey = 0;
-                    break;
-                case SCAN_PAD_8:
-                    KeyCode->VirtualKey = VK_UP;
-                    break;
-                case SCAN_PAD_9:
-                    KeyCode->VirtualKey = VK_PAGEUP;
-                    break;
-                case SCAN_PAD_4:
-                    KeyCode->VirtualKey = VK_LEFT;
-                    break;
-                case SCAN_PAD_5:
-                    KeyCode->VirtualKey = 0;
-                    break;
-                case SCAN_PAD_6:
-                    KeyCode->VirtualKey = VK_RIGHT;
-                    break;
-                case SCAN_PAD_1:
-                    KeyCode->VirtualKey = VK_END;
-                    break;
-                case SCAN_PAD_2:
-                    KeyCode->VirtualKey = VK_DOWN;
-                    break;
-                case SCAN_PAD_3:
-                    KeyCode->VirtualKey = VK_PAGEDOWN;
-                    break;
-                case SCAN_PAD_0:
-                    KeyCode->VirtualKey = VK_INSERT;
-                    break;
-                case SCAN_PAD_DOT:
-                    KeyCode->VirtualKey = VK_DELETE;
-                    break;
-            }
-        }
-    } else if (Keyboard.Status[SCAN_LEFT_SHIFT] || Keyboard.Status[SCAN_RIGHT_SHIFT] || Keyboard.CapsLock) {
-        if (ScanCodeMap) {
-            *KeyCode = ScanCodeMap[ScanCode].Shift;
-        }
-    } else if (Keyboard.Status[SCAN_ALT] || Keyboard.Status[SCAN_RIGHT_ALT]) {
-        if (ScanCodeMap) {
-            *KeyCode = ScanCodeMap[ScanCode].Alt;
-            if (KeyCode->VirtualKey == VK_NONE && KeyCode->ASCIICode == 0 && KeyCode->Unicode == 0) {
-                *KeyCode = ScanCodeMap[ScanCode].Normal;
-            }
-        }
-    } else {
-        if (ScanCodeMap) {
-            *KeyCode = ScanCodeMap[ScanCode].Normal;
-        }
+/***************************************************************************/
+
+static KEY_USAGE ScanCodeToUsage(U32 ScanCode) {
+    if (ScanCode >= (sizeof(ScanCodeToUsageTable) / sizeof(ScanCodeToUsageTable[0]))) {
+        return 0;
     }
 
-    // Echo character
-    // *((LPSTR) 0xB8000) = KeyCode->ASCIICode;
+    return ScanCodeToUsageTable[ScanCode];
 }
 
 /***************************************************************************/
 
-static void ScanCodeToKeyCode_E0(U32 ScanCode, LPKEYCODE KeyCode) {
-    KeyCode->VirtualKey = 0;
-    KeyCode->ASCIICode = 0;
-
+static KEY_USAGE ScanCodeToUsage_E0(U32 ScanCode) {
     switch (ScanCode) {
         case SCAN_RIGHT_CONTROL:
-            KeyCode->VirtualKey = VK_RCTRL;
-            break;
+            return KEY_USAGE_RIGHT_CTRL;
         case SCAN_RIGHT_ALT:
-            KeyCode->VirtualKey = VK_RALT;
-            break;
+            return KEY_USAGE_RIGHT_ALT;
         case SCAN_HOME:
-            KeyCode->VirtualKey = VK_HOME;
-            break;
+            return 0x4A;
         case SCAN_UP:
-            KeyCode->VirtualKey = VK_UP;
-            break;
+            return 0x52;
         case SCAN_PAGEUP:
-            KeyCode->VirtualKey = VK_PAGEUP;
-            break;
+            return 0x4B;
         case SCAN_LEFT:
-            KeyCode->VirtualKey = VK_LEFT;
-            break;
+            return 0x50;
         case SCAN_RIGHT:
-            KeyCode->VirtualKey = VK_RIGHT;
-            break;
+            return 0x4F;
         case SCAN_END:
-            KeyCode->VirtualKey = VK_END;
-            break;
+            return 0x4D;
         case SCAN_DOWN:
-            KeyCode->VirtualKey = VK_DOWN;
-            break;
+            return 0x51;
         case SCAN_PAGEDOWN:
-            KeyCode->VirtualKey = VK_PAGEDOWN;
-            break;
+            return 0x4E;
         case SCAN_INSERT:
-            KeyCode->VirtualKey = VK_INSERT;
-            break;
+            return 0x49;
         case SCAN_DELETE:
-            KeyCode->VirtualKey = VK_DELETE;
-            break;
-        case SCAN_PAD_ENTER: {
-            KeyCode->VirtualKey = VK_ENTER;
-            KeyCode->ASCIICode = STR_NEWLINE;
-        } break;
-        case SCAN_PAD_SLASH: {
-            KeyCode->VirtualKey = VK_SLASH;
-            KeyCode->ASCIICode = STR_SLASH;
-        } break;
+            return 0x4C;
+        case SCAN_PAD_ENTER:
+            return KEY_USAGE_KEYPAD_ENTER;
+        case SCAN_PAD_SLASH:
+            return 0x54;
+        case SCAN_PAD_STAR:
+            return 0x46;
     }
 
-    // Check reboot sequence
-
-        if (KeyCode->VirtualKey == VK_DELETE) {
-            if (Keyboard.Status[SCAN_CONTROL] && Keyboard.Status[SCAN_ALT]) {
-                INTEL_X86_REGISTERS Regs;
-                UNUSED(Regs);
-                // RealModeCall(0xF000FFF0, &Regs);
-            }
-        }
+    return 0;
 }
 
 /***************************************************************************/
 
-static void ScanCodeToKeyCode_E1(U32 ScanCode, LPKEYCODE KeyCode) {
-    KeyCode->VirtualKey = 0;
-    KeyCode->ASCIICode = 0;
-
-    switch (ScanCode) {
-        case SCAN_PAUSE: {
-            KeyCode->VirtualKey = VK_PAUSE;
-            KeyCode->ASCIICode = 0;
-            /*
-              TASKINFO TaskInfo;
-              TaskInfo.Func      = Shell;
-              TaskInfo.Parameter = NULL;
-              TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
-              TaskInfo.Priority  = TASK_PRIORITY_MEDIUM;
-              TaskInfo.Flags     = 0;
-              CreateTask(&KernelProcess, &TaskInfo);
-            */
-        } break;
+static KEY_USAGE ScanCodeToUsage_E1(U32 ScanCode) {
+    if (ScanCode == SCAN_PAUSE) {
+        return 0x48;
     }
+
+    return 0;
 }
 
 /***************************************************************************/
@@ -444,7 +305,8 @@ static U32 SetKeyboardLEDs(U32 LED) {
 
 static void HandleScanCode(U32 ScanCode) {
     static U32 PreviousCode = 0;
-    static KEYCODE KeyCode;
+    KEY_USAGE Usage = 0;
+    BOOL Pressed = FALSE;
 
     FINE_DEBUG(TEXT("[HandleScanCode] Enter"));
 
@@ -465,17 +327,10 @@ static void HandleScanCode(U32 ScanCode) {
     if (PreviousCode == 0xE0) {
         PreviousCode = 0;
 
-        if (ScanCode & 0x80) {
-            U32 baseCode = ScanCode & 0x7F;
-            if (baseCode == SCAN_RIGHT_CONTROL || baseCode == SCAN_RIGHT_ALT) {
-                Keyboard.Status[baseCode] = 0;
-            }
-        } else {
-            if (ScanCode == SCAN_RIGHT_CONTROL || ScanCode == SCAN_RIGHT_ALT) {
-                Keyboard.Status[ScanCode] = 1;
-            }
-            ScanCodeToKeyCode_E0(ScanCode, &KeyCode);
-            RouteKeyCode(&KeyCode);
+        Pressed = (ScanCode & 0x80) == 0;
+        Usage = ScanCodeToUsage_E0(ScanCode & 0x7F);
+        if (Usage != 0) {
+            HandleKeyboardUsage(Usage, Pressed);
         }
     } else if (PreviousCode == 0xE1) {
         PreviousCode = 0;
@@ -484,63 +339,65 @@ static void HandleScanCode(U32 ScanCode) {
     } else if (PreviousCode == 0x1D) {
         PreviousCode = 0;
 
-        if (ScanCode & 0x80) {
-        } else {
-            ScanCodeToKeyCode_E1(ScanCode, &KeyCode);
-            RouteKeyCode(&KeyCode);
+        if ((ScanCode & 0x80) == 0) {
+            Usage = ScanCodeToUsage_E1(ScanCode);
+            if (Usage != 0) {
+                HandleKeyboardUsage(Usage, TRUE);
+            }
         }
     } else {
         PreviousCode = 0;
 
-        if (ScanCode & 0x80) {
-            //-------------------------------------
-            // Turn off the key for async calls
-
-            Keyboard.Status[ScanCode & 0x7F] = 0;
-        } else {
-            //-------------------------------------
-            // Turn on the key for async calls
-
-            Keyboard.Status[ScanCode] = 1;
-
-            switch (ScanCode) {
-                case SCAN_NUM_LOCK: {
-                    Keyboard.NumLock = 1 - Keyboard.NumLock;
-                    UpdateKeyboardLEDs();
-                } break;
-
-                case SCAN_CAPS_LOCK: {
-                    Keyboard.CapsLock = 1 - Keyboard.CapsLock;
-                    UpdateKeyboardLEDs();
-                } break;
-
-                case SCAN_SCROLL_LOCK: {
-                    Keyboard.ScrollLock = 1 - Keyboard.ScrollLock;
-                    UpdateKeyboardLEDs();
-                } break;
-
-                default: {
-                    ScanCodeToKeyCode(ScanCode, &KeyCode);
-                    RouteKeyCode(&KeyCode);
-
-                    if (KeyCode.VirtualKey == VK_F9) {
-                        if (Keyboard.Status[SCAN_CONTROL]) {
-                            GetGraphicsDriver()->Command(DF_UNLOAD, 0);
-                        } else {
-                            TASKINFO TaskInfo;
-                            TaskInfo.Header.Size = sizeof(TASKINFO);
-                            TaskInfo.Header.Version = EXOS_ABI_VERSION;
-                            TaskInfo.Header.Flags = 0;
-                            TaskInfo.Func = Shell;
-                            TaskInfo.Parameter = NULL;
-                            TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
-                            TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
-                            TaskInfo.Flags = 0;
-                            CreateTask(&KernelProcess, &TaskInfo);
-                        }
-                    }
-                } break;
+        Pressed = (ScanCode & 0x80) == 0;
+        if (Pressed == FALSE) {
+            Usage = ScanCodeToUsage(ScanCode & 0x7F);
+            if (Usage != 0) {
+                HandleKeyboardUsage(Usage, FALSE);
             }
+
+            FINE_DEBUG(TEXT("[HandleScanCode] Exit"));
+            return;
+        }
+
+        switch (ScanCode) {
+            case SCAN_NUM_LOCK: {
+                Keyboard.NumLock = 1 - Keyboard.NumLock;
+                UpdateKeyboardLEDs();
+            } break;
+
+            case SCAN_CAPS_LOCK: {
+                Keyboard.CapsLock = 1 - Keyboard.CapsLock;
+                UpdateKeyboardLEDs();
+            } break;
+
+            case SCAN_SCROLL_LOCK: {
+                Keyboard.ScrollLock = 1 - Keyboard.ScrollLock;
+                UpdateKeyboardLEDs();
+            } break;
+
+            default: {
+                Usage = ScanCodeToUsage(ScanCode);
+                if (Usage != 0) {
+                    HandleKeyboardUsage(Usage, TRUE);
+                }
+
+                if (Usage == 0x42) {
+                    if (Keyboard.UsageStatus[KEY_USAGE_LEFT_CTRL] || Keyboard.UsageStatus[KEY_USAGE_RIGHT_CTRL]) {
+                        GetGraphicsDriver()->Command(DF_UNLOAD, 0);
+                    } else {
+                        TASKINFO TaskInfo;
+                        TaskInfo.Header.Size = sizeof(TASKINFO);
+                        TaskInfo.Header.Version = EXOS_ABI_VERSION;
+                        TaskInfo.Header.Flags = 0;
+                        TaskInfo.Func = Shell;
+                        TaskInfo.Parameter = NULL;
+                        TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
+                        TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
+                        TaskInfo.Flags = 0;
+                        CreateTask(&KernelProcess, &TaskInfo);
+                    }
+                }
+            } break;
         }
     }
 
@@ -549,63 +406,6 @@ static void HandleScanCode(U32 ScanCode) {
 
 /***************************************************************************/
 
-BOOL GetKeyCodeDown(KEYCODE KeyCode) {
-    U32 Index;
-
-    switch (KeyCode.VirtualKey) {
-        case VK_LSHIFT:
-            return Keyboard.Status[SCAN_LEFT_SHIFT] != 0;
-        case VK_RSHIFT:
-            return Keyboard.Status[SCAN_RIGHT_SHIFT] != 0;
-        case VK_LCTRL:
-            return Keyboard.Status[SCAN_CONTROL] != 0;
-        case VK_RCTRL:
-            return Keyboard.Status[SCAN_RIGHT_CONTROL] != 0;
-        case VK_CONTROL:
-            return Keyboard.Status[SCAN_CONTROL] != 0 || Keyboard.Status[SCAN_RIGHT_CONTROL] != 0;
-        case VK_SHIFT:
-            return Keyboard.Status[SCAN_LEFT_SHIFT] != 0 || Keyboard.Status[SCAN_RIGHT_SHIFT] != 0;
-        case VK_ALT:
-            return Keyboard.Status[SCAN_ALT] != 0 || Keyboard.Status[SCAN_RIGHT_ALT] != 0;
-        case VK_LALT:
-            return Keyboard.Status[SCAN_ALT] != 0;
-        case VK_RALT:
-            return Keyboard.Status[SCAN_RIGHT_ALT] != 0;
-        default:
-            if (ScanCodeMap) {
-                for (Index = 0; Index < KEYTABSIZE; Index++) {
-                    if (ScanCodeMap[Index].Normal.VirtualKey == KeyCode.VirtualKey ||
-                        ScanCodeMap[Index].Shift.VirtualKey == KeyCode.VirtualKey ||
-                        ScanCodeMap[Index].Alt.VirtualKey == KeyCode.VirtualKey) {
-                        return Keyboard.Status[Index] != 0;
-                    }
-                }
-            }
-            break;
-    }
-
-    return FALSE;
-}
-
-/***************************************************************************/
-
-U32 GetKeyModifiers(void) {
-    U32 modifiers = 0;
-
-    if (Keyboard.Status[SCAN_LEFT_SHIFT] || Keyboard.Status[SCAN_RIGHT_SHIFT]) {
-        modifiers |= KEYMOD_SHIFT;
-    }
-    if (Keyboard.Status[SCAN_CONTROL] || Keyboard.Status[SCAN_RIGHT_CONTROL]) {
-        modifiers |= KEYMOD_CONTROL;
-    }
-    if (Keyboard.Status[SCAN_ALT] || Keyboard.Status[SCAN_RIGHT_ALT]) {
-        modifiers |= KEYMOD_ALT;
-    }
-
-    return modifiers;
-}
-
-/***************************************************************************/
 
 void KeyboardHandler(void) {
     static U32 Busy = 0;

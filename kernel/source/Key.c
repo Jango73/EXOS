@@ -48,16 +48,16 @@ KEYTRANS ScanCodeToKeyCode_frFR[128] = {
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 0
     {{VK_ESCAPE, 0, 0}, {VK_ESCAPE, 0, 0}, {VK_ESCAPE, 0, 0}},           // 1
     {{VK_NONE, '&', 0}, {VK_1, '1', 0}, {VK_NONE, 0, 0}},                // 2
-    {{VK_NONE, 'é', 0}, {VK_2, '2', 0}, {VK_NONE, '~', 0}},              // 3
+    {{VK_NONE, 0, 0x00E9}, {VK_2, '2', 0}, {VK_NONE, '~', 0}},            // 3
     {{VK_NONE, '"', 0}, {VK_3, '3', 0}, {VK_NONE, '#', 0}},              // 4
     {{VK_NONE, '\'', 0}, {VK_4, '4', 0}, {VK_NONE, '{', 0}},             // 5
     {{VK_NONE, '(', 0}, {VK_5, '5', 0}, {VK_NONE, '[', 0}},              // 6
     {{VK_MINUS, '-', 0}, {VK_6, '6', 0}, {VK_NONE, '|', 0}},             // 7
-    {{VK_NONE, 'è', 0}, {VK_7, '7', 0}, {VK_NONE, '`', 0}},              // 8
+    {{VK_NONE, 0, 0x00E8}, {VK_7, '7', 0}, {VK_NONE, 0x60, 0}},            // 8
     {{VK_UNDERSCORE, '_', 0}, {VK_8, '8', 0}, {VK_BACKSLASH, '\\', 0}},  // 9
     {{VK_NONE, '_', 0}, {VK_9, '9', 0}, {VK_NONE, '^', 0}},              // 10
-    {{VK_NONE, 'ç', 0}, {VK_0, '0', 0}, {VK_AT, '@', 0}},                // 11
-    {{VK_NONE, ')', 0}, {VK_NONE, 'ø', 0}, {VK_NONE, ']', 0}},           // 12
+    {{VK_NONE, 0, 0x00E7}, {VK_0, '0', 0}, {VK_AT, '@', 0}},              // 11
+    {{VK_NONE, ')', 0}, {VK_NONE, 0, 0x00F8}, {VK_NONE, ']', 0}},         // 12
     {{VK_EQUAL, '=', 0}, {VK_PLUS, '+', 0}, {VK_NONE, '}', 0}},          // 13
     {{VK_BACKSPACE, 0, 0}, {VK_BACKSPACE, 0, 0}, {VK_BACKSPACE, 0, 0}},  // 14
     {{VK_TAB, 0, 0}, {VK_TAB, 0, 0}, {VK_TAB, 0, 0}},                    // 15
@@ -72,7 +72,7 @@ KEYTRANS ScanCodeToKeyCode_frFR[128] = {
     {{VK_O, 'o', 0}, {VK_O, 'O', 0}, {VK_O, 'o', 0}},                    // 24
     {{VK_P, 'p', 0}, {VK_P, 'P', 0}, {VK_P, 'p', 0}},                    // 25
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 26
-    {{VK_DOLLAR, '$', 0}, {VK_NONE, 'œ', 0}, {VK_NONE, 'Ï', 0}},         // 27
+    {{VK_DOLLAR, '$', 0}, {VK_NONE, 0, 0x0153}, {VK_NONE, 0, 0x00CF}},    // 27
     {{VK_ENTER, 10, 0}, {VK_ENTER, 10, 0}, {VK_ENTER, 10, 0}},           // 28
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 29
     {{VK_Q, 'q', 0}, {VK_Q, 'Q', 0}, {VK_Q, 'q', 0}},                    // 30
@@ -85,7 +85,7 @@ KEYTRANS ScanCodeToKeyCode_frFR[128] = {
     {{VK_K, 'k', 0}, {VK_K, 'K', 0}, {VK_K, 'k', 0}},                    // 37
     {{VK_L, 'l', 0}, {VK_L, 'L', 0}, {VK_L, 'l', 0}},                    // 38
     {{VK_M, 'm', 0}, {VK_M, 'M', 0}, {VK_M, 'm', 0}},                    // 39
-    {{VK_NONE, 'ù', 0}, {VK_PERCENT, '%', 0}, {VK_NONE, 0, 0}},          // 40
+    {{VK_NONE, 0, 0x00F9}, {VK_PERCENT, '%', 0}, {VK_NONE, 0, 0}},        // 40
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 41
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 42
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 43
@@ -98,7 +98,7 @@ KEYTRANS ScanCodeToKeyCode_frFR[128] = {
     {{VK_COMMA, ',', 0}, {VK_QUESTION, '?', 0}, {VK_NONE, 0, 0}},        // 50
     {{VK_NONE, ';', 0}, {VK_DOT, '.', 0}, {VK_NONE, 0, 0}},              // 51
     {{VK_COLON, ':', 0}, {VK_SLASH, '/', 0}, {VK_NONE, 0, 0}},           // 52
-    {{VK_EXCL, '!', 0}, {VK_NONE, 'õ', 0}, {VK_NONE, 0, 0}},             // 53
+    {{VK_EXCL, '!', 0}, {VK_NONE, 0, 0x00F5}, {VK_NONE, 0, 0}},           // 53
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 54
     {{VK_STAR, '*', 0}, {VK_STAR, '*', 0}, {VK_STAR, '*', 0}},           // 55
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                 // 56
@@ -315,7 +315,7 @@ KEYTRANS ScanCodeToKeyCode_deDE[128] = {
     {{VK_ESCAPE, 0, 0}, {VK_ESCAPE, 0, 0}, {VK_ESCAPE, 0, 0}},            // 1
     {{VK_1, '1', 0}, {VK_EXCL, '!', 0}, {VK_NONE, 0, 0}},                 // 2
     {{VK_2, '2', 0}, {VK_NONE, '"', 0}, {VK_NONE, 0, 0}},                 // 3
-    {{VK_3, '3', 0}, {VK_NONE, '§', 0}, {VK_NONE, 0, 0}},                 // 4
+    {{VK_3, '3', 0}, {VK_NONE, 0, 0x00A7}, {VK_NONE, 0, 0}},               // 4
     {{VK_4, '4', 0}, {VK_DOLLAR, '$', 0}, {VK_NONE, 0, 0}},               // 5
     {{VK_5, '5', 0}, {VK_PERCENT, '%', 0}, {VK_NONE, 0, 0}},              // 6
     {{VK_6, '6', 0}, {VK_NONE, '&', 0}, {VK_NONE, 0, 0}},                 // 7
@@ -323,8 +323,8 @@ KEYTRANS ScanCodeToKeyCode_deDE[128] = {
     {{VK_8, '8', 0}, {VK_NONE, '(', 0}, {VK_NONE, '[', 0}},               // 9
     {{VK_9, '9', 0}, {VK_NONE, ')', 0}, {VK_NONE, ']', 0}},               // 10
     {{VK_0, '0', 0}, {VK_EQUAL, '=', 0}, {VK_NONE, '}', 0}},              // 11
-    {{VK_NONE, 'ß', 0}, {VK_QUESTION, '?', 0}, {VK_BACKSLASH, '\\', 0}},  // 12
-    {{VK_NONE, '´', 0}, {VK_NONE, '`', 0}, {VK_NONE, 0, 0}},              // 13
+    {{VK_NONE, 0, 0x00DF}, {VK_QUESTION, '?', 0}, {VK_BACKSLASH, '\\', 0}},  // 12
+    {{VK_NONE, 0, 0x00B4}, {VK_NONE, 0x60, 0}, {VK_NONE, 0, 0}},             // 13
     {{VK_BACKSPACE, 0, 0}, {VK_BACKSPACE, 0, 0}, {VK_BACKSPACE, 0, 0}},   // 14
     {{VK_TAB, 0, 0}, {VK_TAB, 0, 0}, {VK_TAB, 0, 0}},                     // 15
     {{VK_Q, 'q', 0}, {VK_Q, 'Q', 0}, {VK_AT, '@', 0}},                    // 16
@@ -337,7 +337,7 @@ KEYTRANS ScanCodeToKeyCode_deDE[128] = {
     {{VK_I, 'i', 0}, {VK_I, 'I', 0}, {VK_NONE, 0, 0}},                    // 23
     {{VK_O, 'o', 0}, {VK_O, 'O', 0}, {VK_NONE, 0, 0}},                    // 24
     {{VK_P, 'p', 0}, {VK_P, 'P', 0}, {VK_NONE, 0, 0}},                    // 25
-    {{VK_NONE, 'ü', 0}, {VK_NONE, 'Ü', 0}, {VK_NONE, 0, 0}},              // 26
+    {{VK_NONE, 0, 0x00FC}, {VK_NONE, 0, 0x00DC}, {VK_NONE, 0, 0}},          // 26
     {{VK_PLUS, '+', 0}, {VK_STAR, '*', 0}, {VK_NONE, '~', 0}},            // 27
     {{VK_ENTER, 10, 0}, {VK_ENTER, 10, 0}, {VK_ENTER, 10, 0}},            // 28
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                  // 29
@@ -350,9 +350,9 @@ KEYTRANS ScanCodeToKeyCode_deDE[128] = {
     {{VK_J, 'j', 0}, {VK_J, 'J', 0}, {VK_NONE, 0, 0}},                    // 36
     {{VK_K, 'k', 0}, {VK_K, 'K', 0}, {VK_NONE, 0, 0}},                    // 37
     {{VK_L, 'l', 0}, {VK_L, 'L', 0}, {VK_NONE, 0, 0}},                    // 38
-    {{VK_NONE, 'ö', 0}, {VK_NONE, 'Ö', 0}, {VK_NONE, 0, 0}},              // 39
-    {{VK_NONE, 'ä', 0}, {VK_NONE, 'Ä', 0}, {VK_NONE, 0, 0}},              // 40
-    {{VK_NONE, '^', 0}, {VK_NONE, '°', 0}, {VK_NONE, 0, 0}},              // 41
+    {{VK_NONE, 0, 0x00F6}, {VK_NONE, 0, 0x00D6}, {VK_NONE, 0, 0}},          // 39
+    {{VK_NONE, 0, 0x00E4}, {VK_NONE, 0, 0x00C4}, {VK_NONE, 0, 0}},          // 40
+    {{VK_NONE, '^', 0}, {VK_NONE, 0, 0x00B0}, {VK_NONE, 0, 0}},             // 41
     {{VK_NONE, 0, 0}, {VK_NONE, 0, 0}, {VK_NONE, 0, 0}},                  // 42
     {{VK_NONE, '#', 0}, {VK_NONE, '\'', 0}, {VK_NONE, '|', 0}},           // 43
     {{VK_Y, 'y', 0}, {VK_Y, 'Y', 0}, {VK_NONE, 0, 0}},                    // 44
@@ -361,7 +361,7 @@ KEYTRANS ScanCodeToKeyCode_deDE[128] = {
     {{VK_V, 'v', 0}, {VK_V, 'V', 0}, {VK_NONE, 0, 0}},                    // 47
     {{VK_B, 'b', 0}, {VK_B, 'B', 0}, {VK_NONE, 0, 0}},                    // 48
     {{VK_N, 'n', 0}, {VK_N, 'N', 0}, {VK_NONE, 0, 0}},                    // 49
-    {{VK_M, 'm', 0}, {VK_M, 'M', 0}, {VK_NONE, 'µ', 0}},                  // 50
+    {{VK_M, 'm', 0}, {VK_M, 'M', 0}, {VK_NONE, 0, 0x00B5}},                // 50
     {{VK_COMMA, ',', 0}, {VK_COMMA, ';', 0}, {VK_NONE, 0, 0}},            // 51
     {{VK_DOT, '.', 0}, {VK_DOT, ':', 0}, {VK_NONE, 0, 0}},                // 52
     {{VK_MINUS, '-', 0}, {VK_UNDERSCORE, '_', 0}, {VK_NONE, 0, 0}},       // 53
@@ -510,3 +510,575 @@ LPCSTR GetKeyName(U8 VirtualKey) {
 
     return TEXT("");
 }
+
+/***************************************************************************/
+
+static BOOL IsUsageModifier(KEY_USAGE Usage) {
+    return Usage >= KEY_USAGE_LEFT_CTRL && Usage <= KEY_USAGE_RIGHT_GUI;
+}
+
+/***************************************************************************/
+
+static BOOL IsUsageKeypadDigit(KEY_USAGE Usage) {
+    return Usage >= KEY_USAGE_KEYPAD_1 && Usage <= KEY_USAGE_KEYPAD_DOT;
+}
+
+/***************************************************************************/
+
+static void ClearKeyCode(LPKEYCODE KeyCode) {
+    KeyCode->VirtualKey = 0;
+    KeyCode->ASCIICode = 0;
+    KeyCode->Unicode = 0;
+}
+
+/***************************************************************************/
+
+static BOOL IsKeyCodeEmpty(const KEYCODE *KeyCode) {
+    return KeyCode->VirtualKey == 0 && KeyCode->ASCIICode == 0 && KeyCode->Unicode == 0;
+}
+
+/***************************************************************************/
+
+static U32 GetKeyCodePoint(const KEYCODE *KeyCode) {
+    if (KeyCode->Unicode != 0) return (U32)KeyCode->Unicode;
+    if (KeyCode->ASCIICode != 0) return (U32)KeyCode->ASCIICode;
+    return 0;
+}
+
+/***************************************************************************/
+
+static void SetKeyCodeFromCodePoint(U32 CodePoint, LPKEYCODE KeyCode) {
+    ClearKeyCode(KeyCode);
+    if (CodePoint == 0) return;
+
+    if (CodePoint <= 0x7F) {
+        KeyCode->ASCIICode = (STR)CodePoint;
+    } else {
+        KeyCode->Unicode = (USTR)CodePoint;
+    }
+}
+
+/***************************************************************************/
+
+static BOOL FindDeadKeyResult(const KEY_LAYOUT_HID *Layout, U32 DeadKey, U32 BaseKey, U32 *Result) {
+    UINT Index;
+
+    if (Layout == NULL || Layout->DeadKeys == NULL || Result == NULL) return FALSE;
+
+    for (Index = 0; Index < Layout->DeadKeyCount; Index++) {
+        if (Layout->DeadKeys[Index].DeadKey == DeadKey && Layout->DeadKeys[Index].BaseKey == BaseKey) {
+            *Result = Layout->DeadKeys[Index].Result;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+static BOOL IsDeadKey(const KEY_LAYOUT_HID *Layout, U32 CodePoint) {
+    UINT Index;
+
+    if (Layout == NULL || Layout->DeadKeys == NULL) return FALSE;
+
+    for (Index = 0; Index < Layout->DeadKeyCount; Index++) {
+        if (Layout->DeadKeys[Index].DeadKey == CodePoint) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+static BOOL FindComposeResult(const KEY_LAYOUT_HID *Layout, U32 FirstKey, U32 SecondKey, U32 *Result) {
+    UINT Index;
+
+    if (Layout == NULL || Layout->ComposeEntries == NULL || Result == NULL) return FALSE;
+
+    for (Index = 0; Index < Layout->ComposeCount; Index++) {
+        if (Layout->ComposeEntries[Index].FirstKey == FirstKey &&
+            Layout->ComposeEntries[Index].SecondKey == SecondKey) {
+            *Result = Layout->ComposeEntries[Index].Result;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+static BOOL IsComposeStart(const KEY_LAYOUT_HID *Layout, U32 CodePoint) {
+    UINT Index;
+
+    if (Layout == NULL || Layout->ComposeEntries == NULL) return FALSE;
+
+    for (Index = 0; Index < Layout->ComposeCount; Index++) {
+        if (Layout->ComposeEntries[Index].FirstKey == CodePoint) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+static UINT GetLayoutLevel(void) {
+    BOOL Shift = Keyboard.UsageStatus[KEY_USAGE_LEFT_SHIFT] || Keyboard.UsageStatus[KEY_USAGE_RIGHT_SHIFT];
+    BOOL Control = Keyboard.UsageStatus[KEY_USAGE_LEFT_CTRL] || Keyboard.UsageStatus[KEY_USAGE_RIGHT_CTRL];
+    BOOL Alt = Keyboard.UsageStatus[KEY_USAGE_LEFT_ALT] || Keyboard.UsageStatus[KEY_USAGE_RIGHT_ALT];
+
+    if (Control) return KEY_LAYOUT_HID_LEVEL_CONTROL;
+    if (Alt) return KEY_LAYOUT_HID_LEVEL_ALTGR;
+    if (Shift || Keyboard.CapsLock) return KEY_LAYOUT_HID_LEVEL_SHIFT;
+    return KEY_LAYOUT_HID_LEVEL_BASE;
+}
+
+/***************************************************************************/
+
+static BOOL GetLayoutKeyCode(const KEY_LAYOUT_HID *Layout, KEY_USAGE Usage, UINT Level, LPKEYCODE KeyCode) {
+    if (Layout == NULL || Layout->Entries == NULL) return FALSE;
+    if (Usage >= Layout->EntryCount) return FALSE;
+    if (Level >= Layout->LevelCount) return FALSE;
+
+    *KeyCode = Layout->Entries[Usage].Levels[Level];
+    return !IsKeyCodeEmpty(KeyCode);
+}
+
+/***************************************************************************/
+
+static BOOL GetFallbackKeyCodeBase(KEY_USAGE Usage, LPKEYCODE KeyCode) {
+    switch (Usage) {
+        case 0x04: *KeyCode = (KEYCODE){VK_A, 'a', 0}; return TRUE;
+        case 0x05: *KeyCode = (KEYCODE){VK_B, 'b', 0}; return TRUE;
+        case 0x06: *KeyCode = (KEYCODE){VK_C, 'c', 0}; return TRUE;
+        case 0x07: *KeyCode = (KEYCODE){VK_D, 'd', 0}; return TRUE;
+        case 0x08: *KeyCode = (KEYCODE){VK_E, 'e', 0}; return TRUE;
+        case 0x09: *KeyCode = (KEYCODE){VK_F, 'f', 0}; return TRUE;
+        case 0x0A: *KeyCode = (KEYCODE){VK_G, 'g', 0}; return TRUE;
+        case 0x0B: *KeyCode = (KEYCODE){VK_H, 'h', 0}; return TRUE;
+        case 0x0C: *KeyCode = (KEYCODE){VK_I, 'i', 0}; return TRUE;
+        case 0x0D: *KeyCode = (KEYCODE){VK_J, 'j', 0}; return TRUE;
+        case 0x0E: *KeyCode = (KEYCODE){VK_K, 'k', 0}; return TRUE;
+        case 0x0F: *KeyCode = (KEYCODE){VK_L, 'l', 0}; return TRUE;
+        case 0x10: *KeyCode = (KEYCODE){VK_M, 'm', 0}; return TRUE;
+        case 0x11: *KeyCode = (KEYCODE){VK_N, 'n', 0}; return TRUE;
+        case 0x12: *KeyCode = (KEYCODE){VK_O, 'o', 0}; return TRUE;
+        case 0x13: *KeyCode = (KEYCODE){VK_P, 'p', 0}; return TRUE;
+        case 0x14: *KeyCode = (KEYCODE){VK_Q, 'q', 0}; return TRUE;
+        case 0x15: *KeyCode = (KEYCODE){VK_R, 'r', 0}; return TRUE;
+        case 0x16: *KeyCode = (KEYCODE){VK_S, 's', 0}; return TRUE;
+        case 0x17: *KeyCode = (KEYCODE){VK_T, 't', 0}; return TRUE;
+        case 0x18: *KeyCode = (KEYCODE){VK_U, 'u', 0}; return TRUE;
+        case 0x19: *KeyCode = (KEYCODE){VK_V, 'v', 0}; return TRUE;
+        case 0x1A: *KeyCode = (KEYCODE){VK_W, 'w', 0}; return TRUE;
+        case 0x1B: *KeyCode = (KEYCODE){VK_X, 'x', 0}; return TRUE;
+        case 0x1C: *KeyCode = (KEYCODE){VK_Y, 'y', 0}; return TRUE;
+        case 0x1D: *KeyCode = (KEYCODE){VK_Z, 'z', 0}; return TRUE;
+        case 0x1E: *KeyCode = (KEYCODE){VK_1, '1', 0}; return TRUE;
+        case 0x1F: *KeyCode = (KEYCODE){VK_2, '2', 0}; return TRUE;
+        case 0x20: *KeyCode = (KEYCODE){VK_3, '3', 0}; return TRUE;
+        case 0x21: *KeyCode = (KEYCODE){VK_4, '4', 0}; return TRUE;
+        case 0x22: *KeyCode = (KEYCODE){VK_5, '5', 0}; return TRUE;
+        case 0x23: *KeyCode = (KEYCODE){VK_6, '6', 0}; return TRUE;
+        case 0x24: *KeyCode = (KEYCODE){VK_7, '7', 0}; return TRUE;
+        case 0x25: *KeyCode = (KEYCODE){VK_8, '8', 0}; return TRUE;
+        case 0x26: *KeyCode = (KEYCODE){VK_9, '9', 0}; return TRUE;
+        case 0x27: *KeyCode = (KEYCODE){VK_0, '0', 0}; return TRUE;
+        case 0x28: *KeyCode = (KEYCODE){VK_ENTER, STR_NEWLINE, 0}; return TRUE;
+        case 0x29: *KeyCode = (KEYCODE){VK_ESCAPE, 0, 0}; return TRUE;
+        case 0x2A: *KeyCode = (KEYCODE){VK_BACKSPACE, 0, 0}; return TRUE;
+        case 0x2B: *KeyCode = (KEYCODE){VK_TAB, STR_TAB, 0}; return TRUE;
+        case 0x2C: *KeyCode = (KEYCODE){VK_SPACE, STR_SPACE, 0}; return TRUE;
+        case 0x2D: *KeyCode = (KEYCODE){VK_MINUS, '-', 0}; return TRUE;
+        case 0x2E: *KeyCode = (KEYCODE){VK_EQUAL, '=', 0}; return TRUE;
+        case 0x2F: *KeyCode = (KEYCODE){VK_NONE, '[', 0}; return TRUE;
+        case 0x30: *KeyCode = (KEYCODE){VK_NONE, ']', 0}; return TRUE;
+        case 0x31: *KeyCode = (KEYCODE){VK_BACKSLASH, '\\', 0}; return TRUE;
+        case 0x33: *KeyCode = (KEYCODE){VK_COLON, ';', 0}; return TRUE;
+        case 0x34: *KeyCode = (KEYCODE){VK_NONE, '\'', 0}; return TRUE;
+        case 0x35: *KeyCode = (KEYCODE){VK_NONE, '`', 0}; return TRUE;
+        case 0x36: *KeyCode = (KEYCODE){VK_COMMA, ',', 0}; return TRUE;
+        case 0x37: *KeyCode = (KEYCODE){VK_DOT, '.', 0}; return TRUE;
+        case 0x38: *KeyCode = (KEYCODE){VK_SLASH, '/', 0}; return TRUE;
+        case 0x54: *KeyCode = (KEYCODE){VK_SLASH, '/', 0}; return TRUE;
+        case 0x55: *KeyCode = (KEYCODE){VK_STAR, '*', 0}; return TRUE;
+        case 0x56: *KeyCode = (KEYCODE){VK_MINUS, '-', 0}; return TRUE;
+        case 0x57: *KeyCode = (KEYCODE){VK_PLUS, '+', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_ENTER: *KeyCode = (KEYCODE){VK_ENTER, STR_NEWLINE, 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_1: *KeyCode = (KEYCODE){VK_1, '1', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_2: *KeyCode = (KEYCODE){VK_2, '2', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_3: *KeyCode = (KEYCODE){VK_3, '3', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_4: *KeyCode = (KEYCODE){VK_4, '4', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_5: *KeyCode = (KEYCODE){VK_5, '5', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_6: *KeyCode = (KEYCODE){VK_6, '6', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_7: *KeyCode = (KEYCODE){VK_7, '7', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_8: *KeyCode = (KEYCODE){VK_8, '8', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_9: *KeyCode = (KEYCODE){VK_9, '9', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_0: *KeyCode = (KEYCODE){VK_0, '0', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_DOT: *KeyCode = (KEYCODE){VK_DOT, '.', 0}; return TRUE;
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+static BOOL GetFallbackKeyCodeShift(KEY_USAGE Usage, LPKEYCODE KeyCode) {
+    switch (Usage) {
+        case 0x04: *KeyCode = (KEYCODE){VK_A, 'A', 0}; return TRUE;
+        case 0x05: *KeyCode = (KEYCODE){VK_B, 'B', 0}; return TRUE;
+        case 0x06: *KeyCode = (KEYCODE){VK_C, 'C', 0}; return TRUE;
+        case 0x07: *KeyCode = (KEYCODE){VK_D, 'D', 0}; return TRUE;
+        case 0x08: *KeyCode = (KEYCODE){VK_E, 'E', 0}; return TRUE;
+        case 0x09: *KeyCode = (KEYCODE){VK_F, 'F', 0}; return TRUE;
+        case 0x0A: *KeyCode = (KEYCODE){VK_G, 'G', 0}; return TRUE;
+        case 0x0B: *KeyCode = (KEYCODE){VK_H, 'H', 0}; return TRUE;
+        case 0x0C: *KeyCode = (KEYCODE){VK_I, 'I', 0}; return TRUE;
+        case 0x0D: *KeyCode = (KEYCODE){VK_J, 'J', 0}; return TRUE;
+        case 0x0E: *KeyCode = (KEYCODE){VK_K, 'K', 0}; return TRUE;
+        case 0x0F: *KeyCode = (KEYCODE){VK_L, 'L', 0}; return TRUE;
+        case 0x10: *KeyCode = (KEYCODE){VK_M, 'M', 0}; return TRUE;
+        case 0x11: *KeyCode = (KEYCODE){VK_N, 'N', 0}; return TRUE;
+        case 0x12: *KeyCode = (KEYCODE){VK_O, 'O', 0}; return TRUE;
+        case 0x13: *KeyCode = (KEYCODE){VK_P, 'P', 0}; return TRUE;
+        case 0x14: *KeyCode = (KEYCODE){VK_Q, 'Q', 0}; return TRUE;
+        case 0x15: *KeyCode = (KEYCODE){VK_R, 'R', 0}; return TRUE;
+        case 0x16: *KeyCode = (KEYCODE){VK_S, 'S', 0}; return TRUE;
+        case 0x17: *KeyCode = (KEYCODE){VK_T, 'T', 0}; return TRUE;
+        case 0x18: *KeyCode = (KEYCODE){VK_U, 'U', 0}; return TRUE;
+        case 0x19: *KeyCode = (KEYCODE){VK_V, 'V', 0}; return TRUE;
+        case 0x1A: *KeyCode = (KEYCODE){VK_W, 'W', 0}; return TRUE;
+        case 0x1B: *KeyCode = (KEYCODE){VK_X, 'X', 0}; return TRUE;
+        case 0x1C: *KeyCode = (KEYCODE){VK_Y, 'Y', 0}; return TRUE;
+        case 0x1D: *KeyCode = (KEYCODE){VK_Z, 'Z', 0}; return TRUE;
+        case 0x1E: *KeyCode = (KEYCODE){VK_EXCL, '!', 0}; return TRUE;
+        case 0x1F: *KeyCode = (KEYCODE){VK_AT, '@', 0}; return TRUE;
+        case 0x20: *KeyCode = (KEYCODE){VK_NONE, '#', 0}; return TRUE;
+        case 0x21: *KeyCode = (KEYCODE){VK_DOLLAR, '$', 0}; return TRUE;
+        case 0x22: *KeyCode = (KEYCODE){VK_PERCENT, '%', 0}; return TRUE;
+        case 0x23: *KeyCode = (KEYCODE){VK_NONE, '^', 0}; return TRUE;
+        case 0x24: *KeyCode = (KEYCODE){VK_NONE, '&', 0}; return TRUE;
+        case 0x25: *KeyCode = (KEYCODE){VK_STAR, '*', 0}; return TRUE;
+        case 0x26: *KeyCode = (KEYCODE){VK_NONE, '(', 0}; return TRUE;
+        case 0x27: *KeyCode = (KEYCODE){VK_NONE, ')', 0}; return TRUE;
+        case 0x2D: *KeyCode = (KEYCODE){VK_UNDERSCORE, '_', 0}; return TRUE;
+        case 0x2E: *KeyCode = (KEYCODE){VK_PLUS, '+', 0}; return TRUE;
+        case 0x2F: *KeyCode = (KEYCODE){VK_NONE, '{', 0}; return TRUE;
+        case 0x30: *KeyCode = (KEYCODE){VK_NONE, '}', 0}; return TRUE;
+        case 0x31: *KeyCode = (KEYCODE){VK_NONE, '|', 0}; return TRUE;
+        case 0x33: *KeyCode = (KEYCODE){VK_COLON, ':', 0}; return TRUE;
+        case 0x34: *KeyCode = (KEYCODE){VK_NONE, '"', 0}; return TRUE;
+        case 0x35: *KeyCode = (KEYCODE){VK_NONE, '~', 0}; return TRUE;
+        case 0x36: *KeyCode = (KEYCODE){VK_COMMA, '<', 0}; return TRUE;
+        case 0x37: *KeyCode = (KEYCODE){VK_DOT, '>', 0}; return TRUE;
+        case 0x38: *KeyCode = (KEYCODE){VK_QUESTION, '?', 0}; return TRUE;
+        case 0x54: *KeyCode = (KEYCODE){VK_SLASH, '/', 0}; return TRUE;
+        case 0x55: *KeyCode = (KEYCODE){VK_STAR, '*', 0}; return TRUE;
+        case 0x56: *KeyCode = (KEYCODE){VK_MINUS, '-', 0}; return TRUE;
+        case 0x57: *KeyCode = (KEYCODE){VK_PLUS, '+', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_ENTER: *KeyCode = (KEYCODE){VK_ENTER, STR_NEWLINE, 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_1: *KeyCode = (KEYCODE){VK_1, '1', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_2: *KeyCode = (KEYCODE){VK_2, '2', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_3: *KeyCode = (KEYCODE){VK_3, '3', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_4: *KeyCode = (KEYCODE){VK_4, '4', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_5: *KeyCode = (KEYCODE){VK_5, '5', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_6: *KeyCode = (KEYCODE){VK_6, '6', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_7: *KeyCode = (KEYCODE){VK_7, '7', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_8: *KeyCode = (KEYCODE){VK_8, '8', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_9: *KeyCode = (KEYCODE){VK_9, '9', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_0: *KeyCode = (KEYCODE){VK_0, '0', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_DOT: *KeyCode = (KEYCODE){VK_DOT, '.', 0}; return TRUE;
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+static BOOL GetFallbackKeyCode(KEY_USAGE Usage, UINT Level, LPKEYCODE KeyCode) {
+    if (Level == KEY_LAYOUT_HID_LEVEL_SHIFT) {
+        return GetFallbackKeyCodeShift(Usage, KeyCode);
+    }
+
+    return GetFallbackKeyCodeBase(Usage, KeyCode);
+}
+
+/***************************************************************************/
+
+static BOOL GetDefaultUsageKeyCode(KEY_USAGE Usage, LPKEYCODE KeyCode) {
+    switch (Usage) {
+        case 0x28: *KeyCode = (KEYCODE){VK_ENTER, STR_NEWLINE, 0}; return TRUE;
+        case 0x29: *KeyCode = (KEYCODE){VK_ESCAPE, 0, 0}; return TRUE;
+        case 0x2A: *KeyCode = (KEYCODE){VK_BACKSPACE, 0, 0}; return TRUE;
+        case 0x2B: *KeyCode = (KEYCODE){VK_TAB, STR_TAB, 0}; return TRUE;
+        case 0x2C: *KeyCode = (KEYCODE){VK_SPACE, STR_SPACE, 0}; return TRUE;
+        case 0x39: *KeyCode = (KEYCODE){VK_CAPS, 0, 0}; return TRUE;
+        case 0x3A: *KeyCode = (KEYCODE){VK_F1, 0, 0}; return TRUE;
+        case 0x3B: *KeyCode = (KEYCODE){VK_F2, 0, 0}; return TRUE;
+        case 0x3C: *KeyCode = (KEYCODE){VK_F3, 0, 0}; return TRUE;
+        case 0x3D: *KeyCode = (KEYCODE){VK_F4, 0, 0}; return TRUE;
+        case 0x3E: *KeyCode = (KEYCODE){VK_F5, 0, 0}; return TRUE;
+        case 0x3F: *KeyCode = (KEYCODE){VK_F6, 0, 0}; return TRUE;
+        case 0x40: *KeyCode = (KEYCODE){VK_F7, 0, 0}; return TRUE;
+        case 0x41: *KeyCode = (KEYCODE){VK_F8, 0, 0}; return TRUE;
+        case 0x42: *KeyCode = (KEYCODE){VK_F9, 0, 0}; return TRUE;
+        case 0x43: *KeyCode = (KEYCODE){VK_F10, 0, 0}; return TRUE;
+        case 0x44: *KeyCode = (KEYCODE){VK_F11, 0, 0}; return TRUE;
+        case 0x45: *KeyCode = (KEYCODE){VK_F12, 0, 0}; return TRUE;
+        case 0x47: *KeyCode = (KEYCODE){VK_SCROLL, 0, 0}; return TRUE;
+        case 0x48: *KeyCode = (KEYCODE){VK_PAUSE, 0, 0}; return TRUE;
+        case 0x49: *KeyCode = (KEYCODE){VK_INSERT, 0, 0}; return TRUE;
+        case 0x4A: *KeyCode = (KEYCODE){VK_HOME, 0, 0}; return TRUE;
+        case 0x4B: *KeyCode = (KEYCODE){VK_PAGEUP, 0, 0}; return TRUE;
+        case 0x4C: *KeyCode = (KEYCODE){VK_DELETE, 0, 0}; return TRUE;
+        case 0x4D: *KeyCode = (KEYCODE){VK_END, 0, 0}; return TRUE;
+        case 0x4E: *KeyCode = (KEYCODE){VK_PAGEDOWN, 0, 0}; return TRUE;
+        case 0x4F: *KeyCode = (KEYCODE){VK_RIGHT, 0, 0}; return TRUE;
+        case 0x50: *KeyCode = (KEYCODE){VK_LEFT, 0, 0}; return TRUE;
+        case 0x51: *KeyCode = (KEYCODE){VK_DOWN, 0, 0}; return TRUE;
+        case 0x52: *KeyCode = (KEYCODE){VK_UP, 0, 0}; return TRUE;
+        case 0x53: *KeyCode = (KEYCODE){VK_NUM, 0, 0}; return TRUE;
+        case 0x54: *KeyCode = (KEYCODE){VK_SLASH, '/', 0}; return TRUE;
+        case 0x55: *KeyCode = (KEYCODE){VK_STAR, '*', 0}; return TRUE;
+        case 0x56: *KeyCode = (KEYCODE){VK_MINUS, '-', 0}; return TRUE;
+        case 0x57: *KeyCode = (KEYCODE){VK_PLUS, '+', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_ENTER: *KeyCode = (KEYCODE){VK_ENTER, STR_NEWLINE, 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_1: *KeyCode = (KEYCODE){VK_1, '1', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_2: *KeyCode = (KEYCODE){VK_2, '2', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_3: *KeyCode = (KEYCODE){VK_3, '3', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_4: *KeyCode = (KEYCODE){VK_4, '4', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_5: *KeyCode = (KEYCODE){VK_5, '5', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_6: *KeyCode = (KEYCODE){VK_6, '6', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_7: *KeyCode = (KEYCODE){VK_7, '7', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_8: *KeyCode = (KEYCODE){VK_8, '8', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_9: *KeyCode = (KEYCODE){VK_9, '9', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_0: *KeyCode = (KEYCODE){VK_0, '0', 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_DOT: *KeyCode = (KEYCODE){VK_DOT, '.', 0}; return TRUE;
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+static BOOL GetKeypadNavigationKeyCode(KEY_USAGE Usage, LPKEYCODE KeyCode) {
+    switch (Usage) {
+        case KEY_USAGE_KEYPAD_7: *KeyCode = (KEYCODE){VK_HOME, 0, 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_8: *KeyCode = (KEYCODE){VK_UP, 0, 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_9: *KeyCode = (KEYCODE){VK_PAGEUP, 0, 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_4: *KeyCode = (KEYCODE){VK_LEFT, 0, 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_5: return FALSE;
+        case KEY_USAGE_KEYPAD_6: *KeyCode = (KEYCODE){VK_RIGHT, 0, 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_1: *KeyCode = (KEYCODE){VK_END, 0, 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_2: *KeyCode = (KEYCODE){VK_DOWN, 0, 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_3: *KeyCode = (KEYCODE){VK_PAGEDOWN, 0, 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_0: *KeyCode = (KEYCODE){VK_INSERT, 0, 0}; return TRUE;
+        case KEY_USAGE_KEYPAD_DOT: *KeyCode = (KEYCODE){VK_DELETE, 0, 0}; return TRUE;
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+static BOOL GetKeyCodeForUsage(KEY_USAGE Usage, UINT Level, LPKEYCODE KeyCode) {
+    const KEY_LAYOUT_HID *Layout = Keyboard.LayoutHid;
+
+    ClearKeyCode(KeyCode);
+
+    if (Keyboard.NumLock == 0 && IsUsageKeypadDigit(Usage)) {
+        return GetKeypadNavigationKeyCode(Usage, KeyCode);
+    }
+
+    if (Layout != NULL) {
+        UINT EffectiveLevel = Level;
+        if (EffectiveLevel >= Layout->LevelCount) EffectiveLevel = KEY_LAYOUT_HID_LEVEL_BASE;
+
+        if (GetLayoutKeyCode(Layout, Usage, EffectiveLevel, KeyCode)) return TRUE;
+        if (EffectiveLevel != KEY_LAYOUT_HID_LEVEL_BASE && GetLayoutKeyCode(Layout, Usage, KEY_LAYOUT_HID_LEVEL_BASE, KeyCode)) return TRUE;
+    }
+
+    if (GetFallbackKeyCode(Usage, Level, KeyCode)) return TRUE;
+    return GetDefaultUsageKeyCode(Usage, KeyCode);
+}
+
+/***************************************************************************/
+
+static void EmitCodePoint(U32 CodePoint) {
+    KEYCODE KeyCode;
+
+    SetKeyCodeFromCodePoint(CodePoint, &KeyCode);
+    if (IsKeyCodeEmpty(&KeyCode)) return;
+    RouteKeyCode(&KeyCode);
+}
+
+/***************************************************************************/
+
+void UseKeyboardLayout(LPCSTR Code) {
+    STR Path[MAX_PATH_NAME];
+    const KEY_LAYOUT_HID *Layout = NULL;
+
+    if (Code == NULL) {
+        Keyboard.LayoutHid = NULL;
+        return;
+    }
+
+    StringCopy(Path, TEXT("/system/keyboard/"));
+    StringConcat(Path, Code);
+    StringConcat(Path, TEXT(".ekm1"));
+
+    DEBUG(TEXT("[UseKeyboardLayout] Loading %s"), Path);
+
+    Layout = LoadKeyboardLayout(Path);
+    if (Layout == NULL) {
+        WARNING(TEXT("[UseKeyboardLayout] Using embedded en-US layout"));
+        Keyboard.LayoutHid = NULL;
+    } else {
+        Keyboard.LayoutHid = Layout;
+    }
+
+    Keyboard.PendingDeadKey = 0;
+    Keyboard.PendingComposeKey = 0;
+}
+
+/***************************************************************************/
+
+void HandleKeyboardUsage(KEY_USAGE Usage, BOOL Pressed) {
+    KEYCODE KeyCode;
+    U32 CodePoint;
+    U32 Result;
+    UINT Level;
+
+    if (Usage == 0 || Usage > KEY_USAGE_MAX) return;
+
+    if (Pressed == FALSE) {
+        Keyboard.UsageStatus[Usage] = 0;
+        return;
+    }
+
+    Keyboard.UsageStatus[Usage] = 1;
+
+    if (IsUsageModifier(Usage)) {
+        return;
+    }
+
+    Level = GetLayoutLevel();
+    if (GetKeyCodeForUsage(Usage, Level, &KeyCode) == FALSE) return;
+    if (IsKeyCodeEmpty(&KeyCode)) return;
+
+    CodePoint = GetKeyCodePoint(&KeyCode);
+    if (CodePoint == 0) {
+        RouteKeyCode(&KeyCode);
+        return;
+    }
+
+    if (Keyboard.PendingComposeKey != 0) {
+        if (FindComposeResult(Keyboard.LayoutHid, Keyboard.PendingComposeKey, CodePoint, &Result)) {
+            Keyboard.PendingComposeKey = 0;
+            EmitCodePoint(Result);
+            return;
+        }
+
+        EmitCodePoint(Keyboard.PendingComposeKey);
+        Keyboard.PendingComposeKey = 0;
+    }
+
+    if (Keyboard.PendingDeadKey != 0) {
+        if (FindDeadKeyResult(Keyboard.LayoutHid, Keyboard.PendingDeadKey, CodePoint, &Result)) {
+            Keyboard.PendingDeadKey = 0;
+            EmitCodePoint(Result);
+            return;
+        }
+
+        EmitCodePoint(Keyboard.PendingDeadKey);
+        Keyboard.PendingDeadKey = 0;
+    }
+
+    if (IsDeadKey(Keyboard.LayoutHid, CodePoint)) {
+        Keyboard.PendingDeadKey = CodePoint;
+        Keyboard.PendingComposeKey = 0;
+        return;
+    }
+
+    if (IsComposeStart(Keyboard.LayoutHid, CodePoint)) {
+        Keyboard.PendingComposeKey = CodePoint;
+        Keyboard.PendingDeadKey = 0;
+        return;
+    }
+
+    RouteKeyCode(&KeyCode);
+}
+
+/***************************************************************************/
+
+U32 GetKeyModifiers(void) {
+    U32 Modifiers = 0;
+
+    if (Keyboard.UsageStatus[KEY_USAGE_LEFT_SHIFT] || Keyboard.UsageStatus[KEY_USAGE_RIGHT_SHIFT]) {
+        Modifiers |= KEYMOD_SHIFT;
+    }
+    if (Keyboard.UsageStatus[KEY_USAGE_LEFT_CTRL] || Keyboard.UsageStatus[KEY_USAGE_RIGHT_CTRL]) {
+        Modifiers |= KEYMOD_CONTROL;
+    }
+    if (Keyboard.UsageStatus[KEY_USAGE_LEFT_ALT] || Keyboard.UsageStatus[KEY_USAGE_RIGHT_ALT]) {
+        Modifiers |= KEYMOD_ALT;
+    }
+
+    return Modifiers;
+}
+
+/***************************************************************************/
+
+BOOL GetKeyCodeDown(KEYCODE KeyCode) {
+    UINT Usage;
+    UINT Level;
+    KEYCODE Temp;
+    const KEY_LAYOUT_HID *Layout = Keyboard.LayoutHid;
+
+    switch (KeyCode.VirtualKey) {
+        case VK_LSHIFT:
+            return Keyboard.UsageStatus[KEY_USAGE_LEFT_SHIFT] != 0;
+        case VK_RSHIFT:
+            return Keyboard.UsageStatus[KEY_USAGE_RIGHT_SHIFT] != 0;
+        case VK_LCTRL:
+            return Keyboard.UsageStatus[KEY_USAGE_LEFT_CTRL] != 0;
+        case VK_RCTRL:
+            return Keyboard.UsageStatus[KEY_USAGE_RIGHT_CTRL] != 0;
+        case VK_CONTROL:
+            return Keyboard.UsageStatus[KEY_USAGE_LEFT_CTRL] != 0 || Keyboard.UsageStatus[KEY_USAGE_RIGHT_CTRL] != 0;
+        case VK_SHIFT:
+            return Keyboard.UsageStatus[KEY_USAGE_LEFT_SHIFT] != 0 || Keyboard.UsageStatus[KEY_USAGE_RIGHT_SHIFT] != 0;
+        case VK_ALT:
+            return Keyboard.UsageStatus[KEY_USAGE_LEFT_ALT] != 0 || Keyboard.UsageStatus[KEY_USAGE_RIGHT_ALT] != 0;
+        case VK_LALT:
+            return Keyboard.UsageStatus[KEY_USAGE_LEFT_ALT] != 0;
+        case VK_RALT:
+            return Keyboard.UsageStatus[KEY_USAGE_RIGHT_ALT] != 0;
+        default:
+            break;
+    }
+
+    for (Usage = 0; Usage <= KEY_USAGE_MAX; Usage++) {
+        if (Keyboard.UsageStatus[Usage] == 0) continue;
+
+        if (Layout != NULL && Layout->Entries != NULL) {
+            for (Level = 0; Level < Layout->LevelCount; Level++) {
+                if (Layout->Entries[Usage].Levels[Level].VirtualKey == KeyCode.VirtualKey) {
+                    return TRUE;
+                }
+            }
+        }
+
+        if (GetFallbackKeyCode(Usage, KEY_LAYOUT_HID_LEVEL_BASE, &Temp) && Temp.VirtualKey == KeyCode.VirtualKey) return TRUE;
+        if (GetFallbackKeyCode(Usage, KEY_LAYOUT_HID_LEVEL_SHIFT, &Temp) && Temp.VirtualKey == KeyCode.VirtualKey) return TRUE;
+        if (GetDefaultUsageKeyCode(Usage, &Temp) && Temp.VirtualKey == KeyCode.VirtualKey) return TRUE;
+    }
+
+    return FALSE;
+}
+

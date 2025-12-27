@@ -48,12 +48,38 @@
 
 /***************************************************************************/
 
-#define KEYTABSIZE 128
-#define MAXKEYBUFFER 128
-
 #define KEY_USAGE_PAGE_KEYBOARD 0x07
 #define KEY_USAGE_MIN 0x04
 #define KEY_USAGE_MAX 0xE7
+
+#define KEYTABSIZE (KEY_USAGE_MAX + 1)
+#define MAXKEYBUFFER 128
+
+#define KEY_USAGE_LEFT_CTRL 0xE0
+#define KEY_USAGE_LEFT_SHIFT 0xE1
+#define KEY_USAGE_LEFT_ALT 0xE2
+#define KEY_USAGE_LEFT_GUI 0xE3
+#define KEY_USAGE_RIGHT_CTRL 0xE4
+#define KEY_USAGE_RIGHT_SHIFT 0xE5
+#define KEY_USAGE_RIGHT_ALT 0xE6
+#define KEY_USAGE_RIGHT_GUI 0xE7
+
+#define KEY_USAGE_CAPS_LOCK 0x39
+#define KEY_USAGE_SCROLL_LOCK 0x47
+#define KEY_USAGE_NUM_LOCK 0x53
+
+#define KEY_USAGE_KEYPAD_ENTER 0x58
+#define KEY_USAGE_KEYPAD_1 0x59
+#define KEY_USAGE_KEYPAD_2 0x5A
+#define KEY_USAGE_KEYPAD_3 0x5B
+#define KEY_USAGE_KEYPAD_4 0x5C
+#define KEY_USAGE_KEYPAD_5 0x5D
+#define KEY_USAGE_KEYPAD_6 0x5E
+#define KEY_USAGE_KEYPAD_7 0x5F
+#define KEY_USAGE_KEYPAD_8 0x60
+#define KEY_USAGE_KEYPAD_9 0x61
+#define KEY_USAGE_KEYPAD_0 0x62
+#define KEY_USAGE_KEYPAD_DOT 0x63
 
 #define KEY_LAYOUT_HID_MAX_LEVELS 4
 #define KEY_LAYOUT_HID_MAX_DEAD_KEYS 128
@@ -128,7 +154,10 @@ typedef struct tag_KEYBOARDSTRUCT {
 
     KEYCODE Buffer[MAXKEYBUFFER];
 
-    U8 Status[KEYTABSIZE];
+    const KEY_LAYOUT_HID *LayoutHid;
+    U32 PendingDeadKey;
+    U32 PendingComposeKey;
+    U8 UsageStatus[KEYTABSIZE];
 } KEYBOARDSTRUCT, *LPKEYBOARDSTRUCT;
 
 /***************************************************************************/
@@ -138,6 +167,7 @@ extern KEYBOARDSTRUCT Keyboard;
 /***************************************************************************/
 
 void RouteKeyCode(LPKEYCODE KeyCode);
+void HandleKeyboardUsage(KEY_USAGE Usage, BOOL Pressed);
 BOOL PeekChar(void);
 STR GetChar(void);
 BOOL GetKeyCode(LPKEYCODE);

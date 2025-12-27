@@ -24,7 +24,7 @@
 - Validate entries (usage range, level count), log errors, reject malformed directives.
 - Expose `LoadKeyboardLayout(path) -> const KEY_LAYOUT_HID*`.
 
-## [ ] Step 3 — Input Pipeline Refactor
+## [x] Step 3 — Input Pipeline Refactor
 
 - `Key.c` consumes HID usages + modifier state instead of raw PS/2 scancodes.
 - PS/2 driver emits HID usages into a normalized path.

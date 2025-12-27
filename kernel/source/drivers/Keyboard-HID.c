@@ -49,12 +49,6 @@ typedef struct tag_UTF8_CURSOR {
 
 /***************************************************************************/
 
-static BOOL IsAsciiWhitespace(U32 CodePoint) {
-    return (CodePoint == (U32)' ') || (CodePoint == (U32)'\t') || (CodePoint == (U32)'\r') || (CodePoint == (U32)'\n');
-}
-
-/***************************************************************************/
-
 /**
  * @brief Decode a single UTF-8 codepoint in tolerant mode.
  * @param Bytes Input byte buffer.
@@ -102,35 +96,13 @@ static BOOL DecodeUtf8Tolerant(const U8 *Bytes, UINT Size, UINT *Offset, U32 *Co
 
 /***************************************************************************/
 
-static BOOL NextCodePoint(LPUTF8_CURSOR Cursor, U32 *CodePoint, BOOL *UsedReplacement) {
-    BOOL Result = DecodeUtf8Tolerant(Cursor->Bytes, Cursor->Size, &Cursor->Offset, CodePoint, UsedReplacement);
-
-    if (Result == FALSE) return FALSE;
-
-    if (*CodePoint == (U32)'\n') {
-        Cursor->Line++;
-        Cursor->Column = 0;
-    } else {
-        Cursor->Column++;
-    }
-
-    if (*UsedReplacement) {
-        Cursor->DecodeErrors++;
-    }
-
-    return TRUE;
-}
-
-/***************************************************************************/
-
-static BOOL ReadLineTokens(LPUTF8_CURSOR Cursor, STR Tokens[][EKM1_TOKEN_MAX], UINT *TokenCount, UINT *LineNumber, BOOL *EndOfFile) {
+static BOOL ReadLineTokens(LPUTF8_CURSOR Cursor, STR Tokens[][EKM1_TOKEN_MAX], UINT *TokenCount, UINT *LineNumber,
+                           UINT *LineOffset, BOOL *EndOfFile) {
     UINT Count = 0;
     UINT Length = 0;
     BOOL InToken = FALSE;
-    BOOL UsedReplacement = FALSE;
-    U32 CodePoint = 0;
 
-    if (TokenCount == NULL || LineNumber == NULL || EndOfFile == NULL) return FALSE;
+    if (TokenCount == NULL || LineNumber == NULL || LineOffset == NULL || EndOfFile == NULL) return FALSE;
 
     *TokenCount = 0;
     *EndOfFile = FALSE;
@@ -141,33 +113,49 @@ static BOOL ReadLineTokens(LPUTF8_CURSOR Cursor, STR Tokens[][EKM1_TOKEN_MAX], U
     }
 
     *LineNumber = Cursor->Line;
+    *LineOffset = Cursor->Offset;
+    while (Cursor->Offset < Cursor->Size) {
+        U8 Byte = Cursor->Bytes[Cursor->Offset];
+        Cursor->Offset++;
 
-    while (NextCodePoint(Cursor, &CodePoint, &UsedReplacement) == TRUE) {
-        if (CodePoint == (U32)'\n') {
-            if (InToken) {
-                Tokens[Count][Length] = STR_NULL;
-                Count++;
-            }
-            break;
-        }
-
-        if (CodePoint == (U32)'#') {
+        if (Byte == '\n') {
+            Cursor->Line++;
+            Cursor->Column = 0;
             if (InToken) {
                 Tokens[Count][Length] = STR_NULL;
                 Count++;
                 InToken = FALSE;
             }
-
-            while (NextCodePoint(Cursor, &CodePoint, &UsedReplacement) == TRUE) {
-                if (CodePoint == (U32)'\n') {
-                    break;
-                }
-            }
-
             break;
         }
 
-        if (UsedReplacement || IsAsciiWhitespace(CodePoint)) {
+        if (Byte == '\r') {
+            continue;
+        }
+
+        Cursor->Column++;
+
+        if (Byte == '#') {
+            if (InToken) {
+                Tokens[Count][Length] = STR_NULL;
+                Count++;
+                InToken = FALSE;
+                Length = 0;
+            }
+
+            while (Cursor->Offset < Cursor->Size) {
+                Byte = Cursor->Bytes[Cursor->Offset];
+                Cursor->Offset++;
+                if (Byte == '\n') {
+                    Cursor->Line++;
+                    Cursor->Column = 0;
+                    break;
+                }
+            }
+            break;
+        }
+
+        if (Byte == ' ' || Byte == '\t') {
             if (InToken) {
                 Tokens[Count][Length] = STR_NULL;
                 Count++;
@@ -177,8 +165,8 @@ static BOOL ReadLineTokens(LPUTF8_CURSOR Cursor, STR Tokens[][EKM1_TOKEN_MAX], U
             continue;
         }
 
-        if (CodePoint > 0x7F) {
-            WARNING(TEXT("[ReadLineTokens] Non-ASCII character ignored at line %u"), Cursor->Line);
+        if (Byte >= 0x80) {
+            Cursor->DecodeErrors++;
             if (InToken) {
                 Tokens[Count][Length] = STR_NULL;
                 Count++;
@@ -202,7 +190,7 @@ static BOOL ReadLineTokens(LPUTF8_CURSOR Cursor, STR Tokens[][EKM1_TOKEN_MAX], U
             return FALSE;
         }
 
-        Tokens[Count][Length] = (STR)CodePoint;
+        Tokens[Count][Length] = (STR)Byte;
         Length++;
     }
 
@@ -217,6 +205,27 @@ static BOOL ReadLineTokens(LPUTF8_CURSOR Cursor, STR Tokens[][EKM1_TOKEN_MAX], U
 
     *TokenCount = Count;
     return TRUE;
+}
+
+/***************************************************************************/
+
+static void DebugDumpLineBytes(const U8 *Buffer, UINT Size, UINT Offset, UINT LineNumber) {
+    UINT Index = 0;
+    UINT Count = 0;
+
+    if (Buffer == NULL) return;
+    if (Offset >= Size) return;
+
+    Index = Offset;
+    while (Index < Size && Buffer[Index] != '\n' && Count < 80) {
+        if ((Count % 8) == 0) {
+            DEBUG(TEXT("[LoadKeyboardLayout] Line %u bytes %u:"), LineNumber, Count);
+        }
+
+        DEBUG(TEXT("[LoadKeyboardLayout] Byte %u = %x"), Count, (U32)Buffer[Index]);
+        Index++;
+        Count++;
+    }
 }
 
 /***************************************************************************/
@@ -308,6 +317,7 @@ const KEY_LAYOUT_HID *LoadKeyboardLayout(LPCSTR Path) {
     STR Tokens[EKM1_MAX_TOKENS][EKM1_TOKEN_MAX];
     UINT TokenCount = 0;
     UINT LineNumber = 0;
+    UINT LineOffset = 0;
     BOOL EndOfFile = FALSE;
     BOOL LayoutHasCode = FALSE;
     BOOL LayoutHasLevels = FALSE;
@@ -369,10 +379,34 @@ const KEY_LAYOUT_HID *LoadKeyboardLayout(LPCSTR Path) {
     Cursor.Column = 0;
     Cursor.DecodeErrors = 0;
 
-    while (ReadLineTokens(&Cursor, Tokens, &TokenCount, &LineNumber, &EndOfFile) == TRUE) {
+    for (UINT Index = 0; Index < 32 && Index < Size; Index += 8) {
+        U32 b0 = Buffer[Index + 0];
+        U32 b1 = (Index + 1 < Size) ? Buffer[Index + 1] : 0;
+        U32 b2 = (Index + 2 < Size) ? Buffer[Index + 2] : 0;
+        U32 b3 = (Index + 3 < Size) ? Buffer[Index + 3] : 0;
+        U32 b4 = (Index + 4 < Size) ? Buffer[Index + 4] : 0;
+        U32 b5 = (Index + 5 < Size) ? Buffer[Index + 5] : 0;
+        U32 b6 = (Index + 6 < Size) ? Buffer[Index + 6] : 0;
+        U32 b7 = (Index + 7 < Size) ? Buffer[Index + 7] : 0;
+
+        DEBUG(TEXT("[LoadKeyboardLayout] Bytes %u: %x %x %x %x %x %x %x %x"),
+              Index, b0, b1, b2, b3, b4, b5, b6, b7);
+    }
+
+    while (ReadLineTokens(&Cursor, Tokens, &TokenCount, &LineNumber, &LineOffset, &EndOfFile) == TRUE) {
         if (TokenCount == 0) {
             if (EndOfFile) break;
             continue;
+        }
+
+        if (LineNumber <= 6) {
+            DebugDumpLineBytes(Buffer, Size, LineOffset, LineNumber);
+            LPCSTR Token0 = (TokenCount > 0) ? Tokens[0] : TEXT("");
+            LPCSTR Token1 = (TokenCount > 1) ? Tokens[1] : TEXT("");
+            LPCSTR Token2 = (TokenCount > 2) ? Tokens[2] : TEXT("");
+            LPCSTR Token3 = (TokenCount > 3) ? Tokens[3] : TEXT("");
+            DEBUG(TEXT("[LoadKeyboardLayout] Line %u tokens=%u '%s' '%s' '%s' '%s'"),
+                  LineNumber, TokenCount, Token0, Token1, Token2, Token3);
         }
 
         if (StringCompare(Tokens[0], TEXT("code")) == 0) {

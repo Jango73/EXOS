@@ -38,6 +38,7 @@ VBR_CODE_OFFSET = 0x5A          # Offset of code in VBR sector
 KERNEL_CFG_FAT32= ../kernel/configuration/exos.fat32.toml
 KERNEL_CFG_EXT2 = ../kernel/configuration/exos.ext2.toml
 KERNEL_CFG_REF  = ../kernel/configuration/exos.ref.toml
+KEYBOARD_LAYOUTS= ../kernel/configuration/keyboard/*.ekm1
 MTOOLS_CONF     = .mtoolsrc.tmp
 MBR_SOURCE      = source/mbr.asm
 
@@ -259,10 +260,17 @@ update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32)
 		$(call MCOPY_IF_NEEDED,$(KERNEL_BIN),z:/EXOS.BIN) \
 		$(call MCOPY_IF_NEEDED,$(KERNEL_CFG_FAT32),z:/exos.toml) \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS || true; \
+		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/KEYBOARD || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/USERS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS/TEST || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/TEMP || true; \
+		for f in $(KEYBOARD_LAYOUTS); do \
+			if [ -f "$$f" ]; then \
+				echo "Copying $$f -> z:/EXOS/KEYBOARD/$$(basename $$f)"; \
+				MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$$f" "z:/EXOS/KEYBOARD/$$(basename $$f)"; \
+			fi; \
+		done; \
 		$(call MCOPY_IF_NEEDED,$(PORTAL_ELF),z:/EXOS/APPS/PORTAL) \
 		$(call MCOPY_IF_NEEDED,$(NETGET_ELF),z:/EXOS/APPS/NETGET) \
 		$(call MCOPY_IF_NEEDED,$(HELLO_ELF),z:/EXOS/APPS/HELLO)\
@@ -279,9 +287,16 @@ update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2)
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/data
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/users
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/apps/test
+	@mkdir -p $(EXT2_STAGING_DIR)/exos/keyboard
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/temp
 	@cp $(KERNEL_BIN) $(EXT2_STAGING_DIR)/exos.bin
 	@cp $(KERNEL_CFG_EXT2) $(EXT2_STAGING_DIR)/exos.toml
+	@for f in $(KEYBOARD_LAYOUTS); do \
+		if [ -f "$$f" ]; then \
+			echo "Copying $$f -> $(EXT2_STAGING_DIR)/exos/keyboard/$$(basename $$f)"; \
+			cp "$$f" "$(EXT2_STAGING_DIR)/exos/keyboard/$$(basename $$f)"; \
+		fi; \
+	done
 	@cp $(PORTAL_ELF) $(EXT2_STAGING_DIR)/exos/apps/portal
 	@cp $(NETGET_ELF) $(EXT2_STAGING_DIR)/exos/apps/netget
 	@cp $(HELLO_ELF) $(EXT2_STAGING_DIR)/exos/apps/hello
