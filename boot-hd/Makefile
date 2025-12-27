@@ -38,7 +38,7 @@ VBR_CODE_OFFSET = 0x5A          # Offset of code in VBR sector
 KERNEL_CFG_FAT32= ../kernel/configuration/exos.fat32.toml
 KERNEL_CFG_EXT2 = ../kernel/configuration/exos.ext2.toml
 KERNEL_CFG_REF  = ../kernel/configuration/exos.ref.toml
-KEYBOARD_LAYOUTS= ../kernel/configuration/keyboard/*.ekm1
+KEYBOARD_LAYOUTS= ../deploy/keyboard/*.ekm1
 MTOOLS_CONF     = .mtoolsrc.tmp
 MBR_SOURCE      = source/mbr.asm
 

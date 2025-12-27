@@ -38,9 +38,7 @@
 
 ## [ ] Step 5 — Tooling & Baseline Layouts
 
-- Offline converter `.kmap` (Linux console) → internal HID-indexed format.
 - Baseline layout files: us, fr, de, es (+ minimal embedded fallback).
-- Boot/config switch to select layout (e.g., `keyboard.layout=fr`).
 
 ## [ ] Step 6 — Documentation & Tests
 
