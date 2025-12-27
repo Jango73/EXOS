@@ -10,7 +10,7 @@
 
 - Keep legacy PS/2 scan code path (KEYTRANS tables) untouched for compatibility.
 - Add a distinct HID layout path (usage page 0x07) that can be used by USB/HID.
-- Layout format: UTF-8 text, "KBD1" header, HID usage page 0x07 indexed.
+- Layout format: UTF-8 text, "EKM1" header, HID usage page 0x07 indexed.
 - Directives: code, levels, map, dead, compose, and comments using #.
 - map format: map <usage_hex> <level> <vk_hex> <ascii_hex> <unicode_hex>.
 - dead format: dead <dead_unicode_hex> <base_unicode_hex> <result_unicode_hex>.
@@ -18,10 +18,10 @@
 - Limits: levels <= 4, dead keys <= 128, compose entries <= 256.
 - Fallback: embedded en-US layout when file load fails.
 
-## [ ] Step 2 — Loader/Parser (Kernel)
+## [x] Step 2 - Loader/Parser (Kernel)
 
 - Freestanding parser (no stdlib), UTF-8 aware, with bounds checks.
-- Validate entries (usage range, level count), log errors, reject malformed files.
+- Validate entries (usage range, level count), log errors, reject malformed directives.
 - Expose `LoadKeyboardLayout(path) -> const KEY_LAYOUT_HID*`.
 
 ## [ ] Step 3 — Input Pipeline Refactor

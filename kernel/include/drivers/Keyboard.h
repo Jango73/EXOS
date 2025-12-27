@@ -148,6 +148,7 @@ void KeyboardHandler(void);
 LPCSTR GetKeyName(U8);
 LPKEYTRANS GetScanCodeToKeyCodeTable(LPCSTR Code);
 void UseKeyboardLayout(LPCSTR Code);
+const KEY_LAYOUT_HID *LoadKeyboardLayout(LPCSTR Path);
 U16 DetectKeyboard(void);
 void ClearKeyboardBuffer(void);
 

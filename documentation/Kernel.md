@@ -118,9 +118,11 @@ component remains agnostic of higher level shell logic.
 Keyboard input keeps two distinct paths for compatibility. The legacy PS/2
 pipeline continues to use scan code -> KEYTRANS tables, while a separate HID
 path uses usage page 0x07 indexed KEY_LAYOUT_HID layouts. The HID layout file
-format is UTF-8 text with a "KBD1" header and directives: code, levels, map,
+format is UTF-8 text with an "EKM1" header and directives: code, levels, map,
 dead, and compose. The kernel keeps an embedded en-US fallback
 (KEY_LAYOUT_FALLBACK_CODE) used when HID layout loading fails.
+The HID layout loader parses KBD1 files with a tolerant UTF-8 decoder, logs
+replacement counts, and rejects malformed directives or out-of-range entries.
 
 All reusable helpers -such as the command line editor, adaptive delay, string
 containers, CRC utilities, notifications, path helpers, TOML parsing, UUID
