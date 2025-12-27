@@ -53,6 +53,9 @@ Used for password hashing. Sources in third/bcrypt (under Apache 2.0, see third/
 Compiled files in kernel: bcrypt.c, blowfish.c.
 bcrypt is copyright (c) 2002 Johnny Shelley <jshelley@cahaus.com>
 
+### utf8-hoehrmann
+Used for UTF-8 decoding in layout parsing. Sources in third/utf8-hoehrmann (MIT license, see headers).
+
 ## Historical background
 
 In 1999, I started EXOS as a simple experiment: I wanted to write a minimal OS bootloader for fun.  
