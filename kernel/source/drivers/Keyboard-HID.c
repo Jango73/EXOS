@@ -49,53 +49,6 @@ typedef struct tag_UTF8_CURSOR {
 
 /***************************************************************************/
 
-/**
- * @brief Decode a single UTF-8 codepoint in tolerant mode.
- * @param Bytes Input byte buffer.
- * @param Size Buffer size in bytes.
- * @param Offset Current offset, advanced on success.
- * @param CodePoint Output decoded codepoint.
- * @param UsedReplacement TRUE when a replacement was emitted.
- * @return TRUE when a codepoint was produced, FALSE on end of buffer.
- */
-static BOOL DecodeUtf8Tolerant(const U8 *Bytes, UINT Size, UINT *Offset, U32 *CodePoint, BOOL *UsedReplacement) {
-    U32 State = UTF8_ACCEPT;
-    U32 Value = 0;
-
-    if (Bytes == NULL || Offset == NULL || CodePoint == NULL || UsedReplacement == NULL) return FALSE;
-    if (*Offset >= Size) return FALSE;
-
-    *UsedReplacement = FALSE;
-
-    while (*Offset < Size) {
-        U8 Byte = Bytes[*Offset];
-        *Offset = *Offset + 1;
-
-        State = Utf8HoehrmannDecode(&State, &Value, Byte);
-
-        if (State == UTF8_ACCEPT) {
-            *CodePoint = Value;
-            return TRUE;
-        }
-
-        if (State == UTF8_REJECT) {
-            *CodePoint = 0xFFFD;
-            *UsedReplacement = TRUE;
-            return TRUE;
-        }
-    }
-
-    if (State != UTF8_ACCEPT) {
-        *CodePoint = 0xFFFD;
-        *UsedReplacement = TRUE;
-        return TRUE;
-    }
-
-    return FALSE;
-}
-
-/***************************************************************************/
-
 static BOOL ReadLineTokens(LPUTF8_CURSOR Cursor, STR Tokens[][EKM1_TOKEN_MAX], UINT *TokenCount, UINT *LineNumber,
                            UINT *LineOffset, BOOL *EndOfFile) {
     UINT Count = 0;

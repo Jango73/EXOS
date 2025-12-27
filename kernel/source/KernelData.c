@@ -2,6 +2,7 @@
 #include "Kernel.h"
 #include "Mouse.h"
 #include "Socket.h"
+#include "drivers/KeyboardDrivers.h"
 #include "drivers/MouseDrivers.h"
 #include "utils/Helpers.h"
 #include "process/Process.h"
@@ -266,6 +267,7 @@ void InitializeDriverList(void) {
     ListAddTail(Kernel.Drivers, &DeviceInterruptDriver);
     ListAddTail(Kernel.Drivers, &DeferredWorkDriver);
     ListAddTail(Kernel.Drivers, &StdKeyboardDriver);
+    ListAddTail(Kernel.Drivers, USBKeyboardGetDriver());
     ListAddTail(Kernel.Drivers, SerialMouseGetDriver());
     ListAddTail(Kernel.Drivers, &ClockDriver);
     ListAddTail(Kernel.Drivers, &PCIDriver);

@@ -120,7 +120,7 @@
 
 typedef struct tag_E1000DEVICE E1000DEVICE, *LPE1000DEVICE;
 
-struct PACKED tag_E1000DEVICE {
+struct tag_E1000DEVICE {
     PCI_DEVICE_FIELDS
 
     // MMIO mapping
@@ -1116,6 +1116,7 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
                     U32 RDH = E1000_ReadReg32(Device->MmioBase, E1000_REG_RDH);
                     U32 RDT = E1000_ReadReg32(Device->MmioBase, E1000_REG_RDT);
                     U32 RCTL = E1000_ReadReg32(Device->MmioBase, E1000_REG_RCTL);
+                    DEBUG(TEXT("[E1000_ReceivePoll] RDH=%x RDT=%x RCTL=%x"), RDH, RDT, RCTL);
                 }
                 break;
             }

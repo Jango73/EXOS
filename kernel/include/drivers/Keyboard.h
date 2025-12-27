@@ -142,6 +142,7 @@ typedef struct tag_KEY_LAYOUT_HID {
 
 typedef struct tag_KEYBOARDSTRUCT {
     MUTEX Mutex;
+    BOOL Initialized;
 
     U32 Shift;
     U32 Control;
@@ -158,6 +159,11 @@ typedef struct tag_KEYBOARDSTRUCT {
     U32 PendingDeadKey;
     U32 PendingComposeKey;
     U8 UsageStatus[KEYTABSIZE];
+    BOOL SoftwareRepeat;
+    KEY_USAGE RepeatUsage;
+    UINT RepeatStartTick;
+    UINT RepeatLastTick;
+    U32 RepeatHandle;
 } KEYBOARDSTRUCT, *LPKEYBOARDSTRUCT;
 
 /***************************************************************************/
@@ -168,6 +174,7 @@ extern KEYBOARDSTRUCT Keyboard;
 
 void RouteKeyCode(LPKEYCODE KeyCode);
 void HandleKeyboardUsage(KEY_USAGE Usage, BOOL Pressed);
+void KeyboardCommonInitialize(void);
 BOOL PeekChar(void);
 STR GetChar(void);
 BOOL GetKeyCode(LPKEYCODE);

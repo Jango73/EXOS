@@ -21,6 +21,7 @@
 
 \\************************************************************************/
 
+#include "drivers/USBKeyboard.h"
 #include "drivers/XHCI-Internal.h"
 
 /************************************************************************/
@@ -196,7 +197,12 @@ static BOOL XHCI_InterruptTopHalf(LPDEVICE DevicePointer, LPVOID Context) {
  */
 static void XHCI_InterruptBottomHalf(LPDEVICE DevicePointer, LPVOID Context) {
     UNUSED(DevicePointer);
-    UNUSED(Context);
+
+    LPXHCI_DEVICE Device = (LPXHCI_DEVICE)Context;
+    SAFE_USE_VALID_ID((LPLISTNODE)Device, KOID_PCIDEVICE) {
+        XHCI_PollCompletions(Device);
+        USBKeyboardOnXhciInterrupt(Device);
+    }
 }
 
 /************************************************************************/
@@ -207,9 +213,8 @@ static void XHCI_InterruptBottomHalf(LPDEVICE DevicePointer, LPVOID Context) {
  * @param Context Driver context (xHCI device).
  */
 static void XHCI_InterruptPoll(LPDEVICE DevicePointer, LPVOID Context) {
-    if (XHCI_InterruptTopHalf(DevicePointer, Context)) {
-        XHCI_InterruptBottomHalf(DevicePointer, Context);
-    }
+    (void)XHCI_InterruptTopHalf(DevicePointer, Context);
+    XHCI_InterruptBottomHalf(DevicePointer, Context);
 }
 
 /************************************************************************/

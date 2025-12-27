@@ -67,7 +67,6 @@ static UINT DeferredWorkDriverCommands(UINT Function, UINT Parameter);
 static void ProcessPendingWork(void);
 static void ProcessPollCallbacks(void);
 static U32 DeferredWorkDispatcherTask(LPVOID Param);
-static BOOL DeferredWorkDispatch(LPVOID Param);
 
 /************************************************************************/
 

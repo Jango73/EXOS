@@ -125,7 +125,7 @@ static AHCI_STATE AHCIState = {
 /***************************************************************************/
 // AHCI PCI Driver
 
-static U32 AHCIProbe(UINT Function, UINT Parameter);
+static UINT AHCIProbe(UINT Function, UINT Parameter);
 static LPPCI_DEVICE AHCIAttach(LPPCI_DEVICE PciDevice);
 static U32 InitializeAHCIController(void);
 static BOOL AHCIRegisterInterrupts(void);
@@ -459,7 +459,7 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
  * @param Parameter Function-specific parameter.
  * @return DF_RET_SUCCESS on handled, DF_RET_NOTIMPL otherwise.
  */
-static U32 AHCIProbe(UINT Function, UINT Parameter) {
+static UINT AHCIProbe(UINT Function, UINT Parameter) {
     LPPCI_INFO PciInfo = (LPPCI_INFO)Parameter;
 
     if (Function != DF_PROBE) {

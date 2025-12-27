@@ -30,7 +30,7 @@
 - PS/2 driver emits HID usages into a normalized path.
 - Layout mapping applies (dead/compose, repeat handling).
 
-## [ ] Step 4 — USB Keyboard Ready Hook
+## [x] Step 4 — USB Keyboard Ready Hook
 
 - Entry point for USB HID driver to push HID usages into the same pipeline.
 - Document HID report parsing (boot protocol first).

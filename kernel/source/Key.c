@@ -24,8 +24,10 @@
 
 #include "Base.h"
 #include "drivers/Keyboard.h"
-#include "Log.h"
+
+#include "Clock.h"
 #include "CoreString.h"
+#include "Log.h"
 #include "VKey.h"
 
 /************************************************************************/
@@ -519,6 +521,24 @@ static BOOL IsUsageModifier(KEY_USAGE Usage) {
 
 /***************************************************************************/
 
+static BOOL IsUsageRepeatable(KEY_USAGE Usage) {
+    if (Usage < KEY_USAGE_MIN || Usage > KEY_USAGE_MAX) {
+        return FALSE;
+    }
+
+    if (IsUsageModifier(Usage)) {
+        return FALSE;
+    }
+
+    if (Usage == KEY_USAGE_CAPS_LOCK || Usage == KEY_USAGE_NUM_LOCK || Usage == KEY_USAGE_SCROLL_LOCK) {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
 static BOOL IsUsageKeypadDigit(KEY_USAGE Usage) {
     return Usage >= KEY_USAGE_KEYPAD_1 && Usage <= KEY_USAGE_KEYPAD_DOT;
 }
@@ -953,18 +973,31 @@ void HandleKeyboardUsage(KEY_USAGE Usage, BOOL Pressed) {
     U32 CodePoint;
     U32 Result;
     UINT Level;
+    BOOL WasDown;
 
     if (Usage == 0 || Usage > KEY_USAGE_MAX) return;
 
     if (Pressed == FALSE) {
         Keyboard.UsageStatus[Usage] = 0;
+        if (Keyboard.SoftwareRepeat && Keyboard.RepeatUsage == Usage) {
+            Keyboard.RepeatUsage = 0;
+            Keyboard.RepeatStartTick = 0;
+            Keyboard.RepeatLastTick = 0;
+        }
         return;
     }
 
+    WasDown = (Keyboard.UsageStatus[Usage] != 0);
     Keyboard.UsageStatus[Usage] = 1;
 
     if (IsUsageModifier(Usage)) {
         return;
+    }
+
+    if (Keyboard.SoftwareRepeat && WasDown == FALSE && IsUsageRepeatable(Usage)) {
+        Keyboard.RepeatUsage = Usage;
+        Keyboard.RepeatStartTick = GetSystemTime();
+        Keyboard.RepeatLastTick = Keyboard.RepeatStartTick;
     }
 
     Level = GetLayoutLevel();

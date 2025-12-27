@@ -458,6 +458,7 @@ static BOOL LoadNextDirectoryEntry(LPEXT2FILE File) {
             LPEXT2DIRECTORYENTRY Entry;
             U16 EntryLength;
             U8 NameLength;
+            U32 NameLength32;
             STR EntryName[MAX_FILE_NAME];
             EXT2INODE EntryInode;
 
@@ -465,6 +466,7 @@ static BOOL LoadNextDirectoryEntry(LPEXT2FILE File) {
             Entry = (LPEXT2DIRECTORYENTRY)(File->DirectoryBlock + Offset);
             EntryLength = Entry->RecordLength;
             NameLength = Entry->NameLength;
+            NameLength32 = (U32)NameLength;
 
             if (EntryLength < EXT2_DIR_ENTRY_HEADER_SIZE) {
                 File->DirectoryBlockOffset = FileSystem->BlockSize;
@@ -478,11 +480,12 @@ static BOOL LoadNextDirectoryEntry(LPEXT2FILE File) {
 
             File->DirectoryBlockOffset += EntryLength;
 
-            if (Entry->Inode == 0 || NameLength == 0) continue;
+            if (Entry->Inode == 0 || NameLength32 == 0) continue;
 
-            if (NameLength >= MAX_FILE_NAME) {
-                NameLength = MAX_FILE_NAME - 1;
+            if (NameLength32 >= MAX_FILE_NAME) {
+                NameLength32 = MAX_FILE_NAME - 1;
             }
+            NameLength = (U8)NameLength32;
 
             MemorySet(EntryName, 0, sizeof(EntryName));
             MemoryCopy(EntryName, Entry->Name, NameLength);
@@ -2161,11 +2164,17 @@ static BOOL FindInodeInDirectory(
             if (EntryLength == 0) break;
             if (Offset + EntryLength > FileSystem->BlockSize) break;
 
-            if (Entry->Inode != 0 && Entry->NameLength == NameLength && Entry->NameLength < MAX_FILE_NAME) {
+            U32 EntryNameLength = (U32)Entry->NameLength;
+            if (Entry->Inode != 0 && EntryNameLength == NameLength) {
                 STR EntryName[MAX_FILE_NAME];
+                U32 CopyLength = EntryNameLength;
+
+                if (CopyLength >= MAX_FILE_NAME) {
+                    CopyLength = MAX_FILE_NAME - 1;
+                }
 
                 MemorySet(EntryName, 0, sizeof(EntryName));
-                MemoryCopy(EntryName, Entry->Name, Entry->NameLength);
+                MemoryCopy(EntryName, Entry->Name, (UINT)CopyLength);
 
                 if (StringCompare(EntryName, Name) == 0) {
                     *InodeIndex = Entry->Inode;

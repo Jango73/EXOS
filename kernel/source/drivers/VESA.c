@@ -1517,6 +1517,8 @@ static U32 VESA_Rectangle(LPRECTINFO Info) {
     if (VESARectangleLogCount < 16) {
         LPBRUSH Brush = Context->Header.Brush;
         LPPEN Pen = Context->Header.Pen;
+        UNUSED(Brush);
+        UNUSED(Pen);
         VESARectangleLogCount++;
     }
 #endif

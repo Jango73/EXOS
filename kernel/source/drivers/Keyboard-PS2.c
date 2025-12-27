@@ -449,7 +449,7 @@ static U32 InitializeKeyboard(void) {
     //-------------------------------------
     // Initialize the keyboard structure
 
-    InitMutex(&(Keyboard.Mutex));
+    KeyboardCommonInitialize();
 
     Keyboard.NumLock = 1;
 

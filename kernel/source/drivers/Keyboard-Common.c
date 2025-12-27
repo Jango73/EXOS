@@ -24,7 +24,9 @@
 
 #include "drivers/Keyboard.h"
 
+#include "Clock.h"
 #include "Console.h"
+#include "DeferredWork.h"
 #include "Log.h"
 #include "Memory.h"
 #include "process/Process.h"
@@ -35,6 +37,7 @@
 
 KEYBOARDSTRUCT Keyboard = {
     .Mutex = EMPTY_MUTEX,
+    .Initialized = FALSE,
     .Shift = 1,
     .Control = 0,
     .Alt = 0,
@@ -46,7 +49,67 @@ KEYBOARDSTRUCT Keyboard = {
     .LayoutHid = NULL,
     .PendingDeadKey = 0,
     .PendingComposeKey = 0,
-    .UsageStatus = {0}};
+    .UsageStatus = {0},
+    .SoftwareRepeat = FALSE,
+    .RepeatUsage = 0,
+    .RepeatStartTick = 0,
+    .RepeatLastTick = 0,
+    .RepeatHandle = DEFERRED_WORK_INVALID_HANDLE};
+
+/***************************************************************************/
+
+static void KeyboardRepeatPoll(LPVOID Context) {
+    UINT Now;
+
+    UNUSED(Context);
+
+    if (Keyboard.SoftwareRepeat == FALSE) {
+        return;
+    }
+
+    if (Keyboard.RepeatUsage == 0) {
+        return;
+    }
+
+    if (Keyboard.RepeatUsage > KEY_USAGE_MAX || Keyboard.UsageStatus[Keyboard.RepeatUsage] == 0) {
+        Keyboard.RepeatUsage = 0;
+        Keyboard.RepeatStartTick = 0;
+        Keyboard.RepeatLastTick = 0;
+        return;
+    }
+
+    Now = GetSystemTime();
+    if (Now - Keyboard.RepeatStartTick < 400U) {
+        return;
+    }
+
+    if (Now - Keyboard.RepeatLastTick < 50U) {
+        return;
+    }
+
+    Keyboard.RepeatLastTick = Now;
+    HandleKeyboardUsage(Keyboard.RepeatUsage, TRUE);
+}
+
+/***************************************************************************/
+
+void KeyboardCommonInitialize(void) {
+    if (Keyboard.Initialized) {
+        return;
+    }
+
+    InitMutex(&(Keyboard.Mutex));
+
+    if (Keyboard.RepeatHandle == DEFERRED_WORK_INVALID_HANDLE) {
+        Keyboard.RepeatHandle = DeferredWorkRegisterPollOnly(KeyboardRepeatPoll, NULL, TEXT("KeyboardRepeat"));
+    }
+
+    if (Keyboard.RepeatHandle == DEFERRED_WORK_INVALID_HANDLE) {
+        ERROR(TEXT("[KeyboardCommonInitialize] Repeat poll registration failed"));
+    }
+
+    Keyboard.Initialized = TRUE;
+}
 
 /***************************************************************************/
 

@@ -139,7 +139,6 @@ static BOOL InitializeATA(void) {
     U8 Buffer[SECTOR_SIZE];
     U32 Port;
     U32 Drive;
-    U32 Index;
     U32 DisksFound = 0;
 
     DEBUG(TEXT("[InitializeATA] Enter"));
