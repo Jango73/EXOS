@@ -60,6 +60,13 @@ All helper scripts are organized per architecture:
 
 Replicate the same commands under `./scripts/x86-64/` when targeting the x86-64 architecture.
 
+**Remote build on Windows (SSH to a Linux build host):**
+```bat
+scripts\remote\i386\4-5-build-debug-ext2-ssh.bat
+scripts\remote\x86-64\4-5-build-debug-ext2-ssh.bat
+```
+Configure SSH and the remote repo root once in `scripts/remote/ssh-config.bat`. The remote build runs in the same repository (same path, same branch/commit) as the Windows workspace (shared folder).
+
 **Don't wait more than 15 seconds when testing, the system boots in less than 2 seconds and auto-run executable should finish under 15 seconds**
 
 ## Debug output
