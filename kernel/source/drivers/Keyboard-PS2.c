@@ -25,13 +25,11 @@
 #include "drivers/Keyboard.h"
 
 #include "Base.h"
-#include "Console.h"
 #include "Arch.h"
+#include "Console.h"
 #include "InterruptController.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "process/Process.h"
-#include "process/Task.h"
 #include "VKey.h"
 #include "User.h"
 
@@ -126,18 +124,6 @@ DRIVER DATA_SECTION StdKeyboardDriver = {
 
 /***************************************************************************/
 
-KEYBOARDSTRUCT Keyboard = {
-    .Mutex = EMPTY_MUTEX,
-    .Shift = 1,
-    .Control = 0,
-    .Alt = 0,
-    .CapsLock = 0,
-    .NumLock = 0,
-    .ScrollLock = 0,
-    .Pause = 0,
-    .Buffer = {{0}},
-    .Status = {0}};
-
 static LPKEYTRANS ScanCodeMap = NULL;
 
 /***************************************************************************/
@@ -145,7 +131,7 @@ static LPKEYTRANS ScanCodeMap = NULL;
 void UseKeyboardLayout(LPCSTR Code) {
     ScanCodeMap = GetScanCodeToKeyCodeTable(Code);
     if (ScanCodeMap == NULL) {
-        ScanCodeMap = GetScanCodeToKeyCodeTable(TEXT("en-US"));
+        ScanCodeMap = GetScanCodeToKeyCodeTable(TEXT(KEY_LAYOUT_FALLBACK_CODE));
     }
 }
 
@@ -416,124 +402,6 @@ static void ScanCodeToKeyCode_E1(U32 ScanCode, LPKEYCODE KeyCode) {
 
 /***************************************************************************/
 
-static void SendKeyCodeToBuffer(LPKEYCODE KeyCode) {
-    U32 Index;
-
-    FINE_DEBUG(TEXT("[SendKeyCodeToBuffer] Enter"));
-
-    if (KeyCode->VirtualKey != 0 || KeyCode->ASCIICode != 0) {
-        //-------------------------------------
-        // Put the key in the buffer
-
-        for (Index = 0; Index < MAXKEYBUFFER; Index++) {
-            if (Keyboard.Buffer[Index].VirtualKey == 0 && Keyboard.Buffer[Index].ASCIICode == 0) {
-                Keyboard.Buffer[Index] = *KeyCode;
-                break;
-            }
-        }
-    }
-
-    FINE_DEBUG(TEXT("[SendKeyCodeToBuffer] Exit"));
-}
-
-/***************************************************************************/
-
-static BOOL DispatchKeyMessage(LPKEYCODE KeyCode) {
-    if (KeyCode == NULL) return FALSE;
-    if (KeyCode->VirtualKey == 0 && KeyCode->ASCIICode == 0) return FALSE;
-
-    return EnqueueInputMessage(EWM_KEYDOWN, KeyCode->VirtualKey, KeyCode->ASCIICode);
-}
-
-/***************************************************************************/
-
-static BOOL FetchKeyFromMessageQueue(BOOL RemoveKeyDown, BOOL PurgeKeyUp, LPKEYCODE KeyCode) {
-    LPTASK Task = GetCurrentTask();
-    LPPROCESS Process = NULL;
-    LPLIST MessageList = NULL;
-    BOOL Found = FALSE;
-
-    if (KeyCode == NULL) return FALSE;
-
-    SAFE_USE_VALID_ID(Task, KOID_TASK) { Process = Task->Process; }
-    SAFE_USE_VALID_ID(Process, KOID_PROCESS) { MessageList = Process->MessageQueue.Messages; }
-
-    if (MessageList == NULL) return FALSE;
-
-    LockMutex(&(Process->Mutex), INFINITY);
-    LockMutex(&(Process->MessageQueue.Mutex), INFINITY);
-
-    LPLISTNODE Node = MessageList->First;
-    while (Node != NULL) {
-        LPLISTNODE Next = Node->Next;
-        LPMESSAGE Message = (LPMESSAGE)Node;
-
-        if (Message->Message == EWM_KEYUP) {
-            if (PurgeKeyUp) {
-                ListEraseItem(MessageList, Message);
-            }
-        } else if (Message->Message == EWM_KEYDOWN && Found == FALSE) {
-            KeyCode->VirtualKey = Message->Param1;
-            KeyCode->ASCIICode = (STR)Message->Param2;
-            Found = TRUE;
-            if (RemoveKeyDown) {
-                ListEraseItem(MessageList, Message);
-            }
-        }
-
-        Node = Next;
-    }
-
-    UnlockMutex(&(Process->MessageQueue.Mutex));
-    UnlockMutex(&(Process->Mutex));
-
-    return Found;
-}
-
-/***************************************************************************/
-
-static BOOL PeekKeyInMessageQueue(LPKEYCODE KeyCode) {
-    LPTASK Task = GetCurrentTask();
-    LPPROCESS Process = NULL;
-    LPLIST MessageList = NULL;
-    BOOL Found = FALSE;
-
-    if (KeyCode == NULL) return FALSE;
-
-    SAFE_USE_VALID_ID(Task, KOID_TASK) { Process = Task->Process; }
-    SAFE_USE_VALID_ID(Process, KOID_PROCESS) { MessageList = Process->MessageQueue.Messages; }
-
-    if (MessageList == NULL) return FALSE;
-
-    LockMutex(&(Process->Mutex), INFINITY);
-    LockMutex(&(Process->MessageQueue.Mutex), INFINITY);
-
-    for (LPLISTNODE Node = MessageList->First; Node != NULL; Node = Node->Next) {
-        LPMESSAGE Message = (LPMESSAGE)Node;
-        if (Message->Message == EWM_KEYDOWN) {
-            KeyCode->VirtualKey = Message->Param1;
-            KeyCode->ASCIICode = (STR)Message->Param2;
-            Found = TRUE;
-            break;
-        }
-    }
-
-    UnlockMutex(&(Process->MessageQueue.Mutex));
-    UnlockMutex(&(Process->Mutex));
-
-    return Found;
-}
-
-/***************************************************************************/
-
-static void RouteKeyCode(LPKEYCODE KeyCode) {
-    if (DispatchKeyMessage(KeyCode) == FALSE) {
-        SendKeyCodeToBuffer(KeyCode);
-    }
-}
-
-/***************************************************************************/
-
 static void UpdateKeyboardLEDs(void) {
     U32 LED = 0;
 
@@ -681,89 +549,6 @@ static void HandleScanCode(U32 ScanCode) {
 
 /***************************************************************************/
 
-BOOL PeekChar(void) {
-    U32 Result = FALSE;
-    KEYCODE KeyCode = {0};
-
-    FINE_DEBUG(TEXT("[PeekChar] Enter"));
-
-    if (PeekKeyInMessageQueue(&KeyCode) == TRUE) {
-        return TRUE;
-    }
-
-    LockMutex(&(Keyboard.Mutex), INFINITY);
-
-    if (Keyboard.Buffer[0].VirtualKey) Result = TRUE;
-    if (Keyboard.Buffer[0].ASCIICode) Result = TRUE;
-
-    UnlockMutex(&(Keyboard.Mutex));
-
-    FINE_DEBUG(TEXT("[PeekChar] Exit"));
-
-    return Result;
-}
-
-/***************************************************************************/
-
-STR GetChar(void) {
-    U32 Index;
-    STR Char;
-    KEYCODE KeyCode = {0};
-
-    if (FetchKeyFromMessageQueue(TRUE, TRUE, &KeyCode) == TRUE) {
-        return KeyCode.ASCIICode;
-    }
-
-    LockMutex(&(Keyboard.Mutex), INFINITY);
-
-    Char = Keyboard.Buffer[0].ASCIICode;
-
-    //-------------------------------------
-    // Roll the keyboard buffer
-
-    for (Index = 1; Index < MAXKEYBUFFER; Index++) {
-        Keyboard.Buffer[Index - 1] = Keyboard.Buffer[Index];
-    }
-
-    Keyboard.Buffer[MAXKEYBUFFER - 1].VirtualKey = 0;
-    Keyboard.Buffer[MAXKEYBUFFER - 1].ASCIICode = 0;
-
-    UnlockMutex(&(Keyboard.Mutex));
-
-    return Char;
-}
-
-/***************************************************************************/
-
-BOOL GetKeyCode(LPKEYCODE KeyCode) {
-    U32 Index;
-
-    if (FetchKeyFromMessageQueue(TRUE, TRUE, KeyCode) == TRUE) {
-        return TRUE;
-    }
-
-    LockMutex(&(Keyboard.Mutex), INFINITY);
-
-    KeyCode->VirtualKey = Keyboard.Buffer[0].VirtualKey;
-    KeyCode->ASCIICode = Keyboard.Buffer[0].ASCIICode;
-
-    //-------------------------------------
-    // Roll the keyboard buffer
-
-    for (Index = 1; Index < MAXKEYBUFFER; Index++) {
-        Keyboard.Buffer[Index - 1] = Keyboard.Buffer[Index];
-    }
-
-    Keyboard.Buffer[MAXKEYBUFFER - 1].VirtualKey = 0;
-    Keyboard.Buffer[MAXKEYBUFFER - 1].ASCIICode = 0;
-
-    UnlockMutex(&(Keyboard.Mutex));
-
-    return TRUE;
-}
-
-/***************************************************************************/
-
 BOOL GetKeyCodeDown(KEYCODE KeyCode) {
     U32 Index;
 
@@ -818,33 +603,6 @@ U32 GetKeyModifiers(void) {
     }
 
     return modifiers;
-}
-
-/***************************************************************************/
-
-void WaitKey(void) {
-    ConsolePrint(TEXT("Press a key\n"));
-    while (!PeekChar()) {
-    }
-    GetChar();
-}
-
-/***************************************************************************/
-
-/**
- * @brief Clear buffered keyboard characters.
- */
-void ClearKeyboardBuffer(void) {
-    U32 Index;
-
-    LockMutex(&(Keyboard.Mutex), INFINITY);
-
-    for (Index = 0; Index < MAXKEYBUFFER; Index++) {
-        Keyboard.Buffer[Index].VirtualKey = 0;
-        Keyboard.Buffer[Index].ASCIICode = 0;
-    }
-
-    UnlockMutex(&(Keyboard.Mutex));
 }
 
 /***************************************************************************/

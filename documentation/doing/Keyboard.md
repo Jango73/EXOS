@@ -6,17 +6,23 @@
 - Add PS/2 Set 1 (and Set 2 if needed) → HID usage translation tables.
 - Decide size limits: max modifier levels (base/shift/altgr/ctrl), max compose entries.
 
-## [ ] Step 1 — Format & Structures
+## [x] Step 1 - Format & Structures
 
-- Pick the layout file format (HID-indexed, optionally imported from `.kmap`) and allowed directives.
-- Define kernel structures (`KEY_LAYOUT`, compose table, dead-key markers).
-- Specify fallback embedded layout when file load fails.
+- Keep legacy PS/2 scan code path (KEYTRANS tables) untouched for compatibility.
+- Add a distinct HID layout path (usage page 0x07) that can be used by USB/HID.
+- Layout format: UTF-8 text, "KBD1" header, HID usage page 0x07 indexed.
+- Directives: code, levels, map, dead, compose, and comments using #.
+- map format: map <usage_hex> <level> <vk_hex> <ascii_hex> <unicode_hex>.
+- dead format: dead <dead_unicode_hex> <base_unicode_hex> <result_unicode_hex>.
+- compose format: compose <first_unicode_hex> <second_unicode_hex> <result_unicode_hex>.
+- Limits: levels <= 4, dead keys <= 128, compose entries <= 256.
+- Fallback: embedded en-US layout when file load fails.
 
 ## [ ] Step 2 — Loader/Parser (Kernel)
 
 - Freestanding parser (no stdlib), UTF-8 aware, with bounds checks.
 - Validate entries (usage range, level count), log errors, reject malformed files.
-- Expose `LoadKeyboardLayout(path) -> const KEY_LAYOUT*`.
+- Expose `LoadKeyboardLayout(path) -> const KEY_LAYOUT_HID*`.
 
 ## [ ] Step 3 — Input Pipeline Refactor
 

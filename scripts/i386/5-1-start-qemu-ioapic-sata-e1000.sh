@@ -17,8 +17,10 @@ echo "ACPI support enabled for IOAPIC testing with kernel-irqchip=split"
 
 qemu-system-i386 \
 -machine q35,acpi=on,kernel-irqchip=split \
+-nodefaults \
 -smp cpus=1,cores=1,threads=1 \
 -device qemu-xhci,id=xhci \
+-device usb-kbd,bus=xhci.0 \
 -device usb-mouse,bus=xhci.0 \
 -device ahci,id=ahci \
 -drive format=raw,file="$IMG_1_PATH",if=none,id=drive0 \

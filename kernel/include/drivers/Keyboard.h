@@ -51,6 +51,21 @@
 #define KEYTABSIZE 128
 #define MAXKEYBUFFER 128
 
+#define KEY_USAGE_PAGE_KEYBOARD 0x07
+#define KEY_USAGE_MIN 0x04
+#define KEY_USAGE_MAX 0xE7
+
+#define KEY_LAYOUT_HID_MAX_LEVELS 4
+#define KEY_LAYOUT_HID_MAX_DEAD_KEYS 128
+#define KEY_LAYOUT_HID_MAX_COMPOSE 256
+
+#define KEY_LAYOUT_HID_LEVEL_BASE 0x00
+#define KEY_LAYOUT_HID_LEVEL_SHIFT 0x01
+#define KEY_LAYOUT_HID_LEVEL_ALTGR 0x02
+#define KEY_LAYOUT_HID_LEVEL_CONTROL 0x03
+
+#define KEY_LAYOUT_FALLBACK_CODE "en-US"
+
 /***************************************************************************/
 
 typedef struct tag_KEYTRANS {
@@ -58,6 +73,44 @@ typedef struct tag_KEYTRANS {
     KEYCODE Shift;
     KEYCODE Alt;
 } KEYTRANS, *LPKEYTRANS;
+
+/***************************************************************************/
+
+typedef UINT KEY_USAGE;
+
+typedef struct tag_KEY_LAYOUT_HID_ENTRY {
+    KEYCODE Levels[KEY_LAYOUT_HID_MAX_LEVELS];
+} KEY_LAYOUT_HID_ENTRY, *LPKEY_LAYOUT_HID_ENTRY;
+
+/***************************************************************************/
+
+typedef struct tag_KEY_HID_DEAD_KEY {
+    U32 DeadKey;
+    U32 BaseKey;
+    U32 Result;
+} KEY_HID_DEAD_KEY, *LPKEY_HID_DEAD_KEY;
+
+/***************************************************************************/
+
+typedef struct tag_KEY_HID_COMPOSE_ENTRY {
+    U32 FirstKey;
+    U32 SecondKey;
+    U32 Result;
+} KEY_HID_COMPOSE_ENTRY, *LPKEY_HID_COMPOSE_ENTRY;
+
+/***************************************************************************/
+
+// HID usage page 0x07 layout (separate from legacy PS/2 scan code tables).
+typedef struct tag_KEY_LAYOUT_HID {
+    LPCSTR Code;
+    UINT LevelCount;
+    const KEY_LAYOUT_HID_ENTRY *Entries;
+    UINT EntryCount;
+    const KEY_HID_DEAD_KEY *DeadKeys;
+    UINT DeadKeyCount;
+    const KEY_HID_COMPOSE_ENTRY *ComposeEntries;
+    UINT ComposeCount;
+} KEY_LAYOUT_HID, *LPKEY_LAYOUT_HID;
 
 /***************************************************************************/
 
@@ -84,6 +137,7 @@ extern KEYBOARDSTRUCT Keyboard;
 
 /***************************************************************************/
 
+void RouteKeyCode(LPKEYCODE KeyCode);
 BOOL PeekChar(void);
 STR GetChar(void);
 BOOL GetKeyCode(LPKEYCODE);
