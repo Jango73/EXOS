@@ -276,7 +276,7 @@ BOOL CheckStack(void) {
     InKernelMode = ((CurrentCS & SELECTOR_RPL_MASK) == 0);
 
     // Determine which ESP to check and which stack bounds to use
-    if (CurrentTask->Process->Privilege == PRIVILEGE_KERNEL) {
+    if (CurrentTask->Process->Privilege == CPU_PRIVILEGE_KERNEL) {
         // Kernel tasks always use their normal stack
         CurrentESP = StackGetSavedPointer(CurrentTask);
         StackBase = CurrentTask->Arch.Stack.Base;

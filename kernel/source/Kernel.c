@@ -890,7 +890,7 @@ static void KillActiveUserlandProcesses(void) {
     SAFE_USE(ProcessList) {
         for (LPPROCESS Process = (LPPROCESS)ProcessList->First; Process; Process = (LPPROCESS)Process->Next) {
             SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
-                if (Process != &KernelProcess && Process->Privilege == PRIVILEGE_USER &&
+                if (Process != &KernelProcess && Process->Privilege == CPU_PRIVILEGE_USER &&
                     Process->Status != PROCESS_STATUS_DEAD) {
                     ListAddTail(ProcessesToKill, Process);
                 }

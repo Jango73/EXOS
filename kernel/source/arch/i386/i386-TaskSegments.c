@@ -132,9 +132,9 @@ static UINT TaskSegmentsDriverCommands(UINT Function, UINT Parameter) {
             TaskSegmentsDriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RET_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(TASK_SEGMENTS_VER_MAJOR, TASK_SEGMENTS_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RET_NOT_IMPLEMENTED;
 }

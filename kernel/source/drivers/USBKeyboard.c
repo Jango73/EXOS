@@ -679,7 +679,7 @@ UINT USBKeyboardCommands(UINT Function, UINT Parameter) {
                 USBKeyboardDriverState.State.PollHandle =
                     DeferredWorkRegisterPollOnly(USBKeyboardPoll, NULL, TEXT("USBKeyboard"));
                 if (USBKeyboardDriverState.State.PollHandle == DEFERRED_WORK_INVALID_HANDLE) {
-                    return DF_RET_UNEXPECT;
+                    return DF_RET_UNEXPECTED;
                 }
             }
 
@@ -700,7 +700,7 @@ UINT USBKeyboardCommands(UINT Function, UINT Parameter) {
             USBKeyboardClearState();
             USBKeyboardDriverState.Driver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RET_SUCCESS;
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(USB_KEYBOARD_VER_MAJOR, USB_KEYBOARD_VER_MINOR);
         case DF_KEY_GETSTATE:
             return 0;

@@ -5,13 +5,13 @@
 - Opening a file in a userland program without an absolute path should do the same as using getcwd().
 - Add a getpd() that returns the folder in which the current executable's image lives.
 
+## USB Keyboard
+
+- In terminal-tactics and tictactoe, arrow keys have double effect with only one keypress, not in the shell.
+
 ## Naming
 
 - Remove all abbreviations (SysStack, ...)
-- Rename PRIVILEGE_KERNEL to CPU_PRIVILEGE_KERNEL
-- Rename PRIVILEGE_DRIVERS  to CPU_PRIVILEGE_DRIVERS
-- Rename PRIVILEGE_ROUTINES to CPU_PRIVILEGE_ROUTINES
-- Rename PRIVILEGE_USER to CPU_PRIVILEGE_USER
 
 ## Logs
 

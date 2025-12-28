@@ -60,7 +60,7 @@ BOOL ExposeIsKernelCaller(void) {
     LPPROCESS Caller = ExposeGetCallerProcess();
 
     SAFE_USE_VALID_ID(Caller, KOID_PROCESS) {
-        if (Caller->Privilege != PRIVILEGE_KERNEL) {
+        if (Caller->Privilege != CPU_PRIVILEGE_KERNEL) {
             return FALSE;
         }
 
@@ -178,7 +178,7 @@ BOOL ExposeCanReadProcess(LPPROCESS Caller, LPPROCESS Target, UINT RequiredAcces
 
     if ((RequiredAccess & EXPOSE_ACCESS_KERNEL) != 0u) {
         SAFE_USE_VALID_ID(Caller, KOID_PROCESS) {
-            if (Caller->Privilege == PRIVILEGE_KERNEL) {
+            if (Caller->Privilege == CPU_PRIVILEGE_KERNEL) {
                 return TRUE;
             }
         }

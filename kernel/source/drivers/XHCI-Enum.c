@@ -92,17 +92,17 @@ static void XHCI_FillEnumItem(LPDRIVER_ENUM_ITEM Item, UINT Domain, UINT Index, 
 
 U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
     if (Next == NULL || Next->Query == NULL || Next->Item == NULL) {
-        return DF_RET_BADPARAM;
+        return DF_RET_BAD_PARAMETER;
     }
     if (Next->Query->Header.Size < sizeof(DRIVER_ENUM_QUERY) ||
         Next->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
-        return DF_RET_BADPARAM;
+        return DF_RET_BAD_PARAMETER;
     }
 
     if (Next->Query->Domain != ENUM_DOMAIN_XHCI_PORT &&
         Next->Query->Domain != ENUM_DOMAIN_USB_DEVICE &&
         Next->Query->Domain != ENUM_DOMAIN_USB_NODE) {
-        return DF_RET_NOTIMPL;
+        return DF_RET_NOT_IMPLEMENTED;
     }
 
     LPLIST PciList = GetPCIDeviceList();
@@ -257,7 +257,7 @@ U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                     }
                 }
             } else {
-                return DF_RET_NOTIMPL;
+                return DF_RET_NOT_IMPLEMENTED;
             }
         }
     }
@@ -269,15 +269,15 @@ U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
 
 U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
     if (Pretty == NULL || Pretty->Item == NULL || Pretty->Buffer == NULL || Pretty->BufferSize == 0) {
-        return DF_RET_BADPARAM;
+        return DF_RET_BAD_PARAMETER;
     }
     if (Pretty->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
-        return DF_RET_BADPARAM;
+        return DF_RET_BAD_PARAMETER;
     }
 
     if (Pretty->Item->Domain == ENUM_DOMAIN_XHCI_PORT) {
         if (Pretty->Item->DataSize < sizeof(DRIVER_ENUM_XHCI_PORT)) {
-            return DF_RET_BADPARAM;
+            return DF_RET_BAD_PARAMETER;
         }
 
         const DRIVER_ENUM_XHCI_PORT* Data = (const DRIVER_ENUM_XHCI_PORT*)Pretty->Item->Data;
@@ -296,7 +296,7 @@ U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
 
     if (Pretty->Item->Domain == ENUM_DOMAIN_USB_DEVICE) {
         if (Pretty->Item->DataSize < sizeof(DRIVER_ENUM_USB_DEVICE)) {
-            return DF_RET_BADPARAM;
+            return DF_RET_BAD_PARAMETER;
         }
 
         const DRIVER_ENUM_USB_DEVICE* Data = (const DRIVER_ENUM_USB_DEVICE*)Pretty->Item->Data;
@@ -315,7 +315,7 @@ U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
 
     if (Pretty->Item->Domain == ENUM_DOMAIN_USB_NODE) {
         if (Pretty->Item->DataSize < sizeof(DRIVER_ENUM_USB_NODE)) {
-            return DF_RET_BADPARAM;
+            return DF_RET_BAD_PARAMETER;
         }
 
         const DRIVER_ENUM_USB_NODE* Data = (const DRIVER_ENUM_USB_NODE*)Pretty->Item->Data;
@@ -361,6 +361,6 @@ U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
         }
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 

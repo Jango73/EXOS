@@ -1538,7 +1538,7 @@ LINEAR ResizeKernelRegion(LINEAR Base, UINT Size, UINT NewSize, U32 Flags) {
  *
  * @param Function Driver command selector.
  * @param Parameter Unused.
- * @return DF_RET_SUCCESS on success, DF_RET_NOTIMPL otherwise.
+ * @return DF_RET_SUCCESS on success, DF_RET_NOT_IMPLEMENTED otherwise.
  */
 static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
     UNUSED(Parameter);
@@ -1561,11 +1561,11 @@ static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
             MemoryManagerDriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RET_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(MEMORY_MANAGER_VER_MAJOR, MEMORY_MANAGER_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RET_NOT_IMPLEMENTED;
 }
 
 /************************************************************************/

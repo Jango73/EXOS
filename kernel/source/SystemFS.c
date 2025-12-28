@@ -201,10 +201,10 @@ static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
     LPSYSTEMFSFILE Parent;
     LPSYSTEMFSFILE Child;
 
-    if (Control == NULL) return DF_RET_BADPARAM;
+    if (Control == NULL) return DF_RET_BAD_PARAMETER;
 
     Parts = DecomposePath(Control->Path);
-    if (Parts == NULL) return DF_RET_BADPARAM;
+    if (Parts == NULL) return DF_RET_BAD_PARAMETER;
 
     Parent = GetSystemFSFilesystem()->Root;
     for (Node = Parts->First; Node; Node = Node->Next) {
@@ -225,7 +225,7 @@ static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
 
     if (Part == NULL || Control->Node == NULL) {
         DeleteList(Parts);
-        return DF_RET_BADPARAM;
+        return DF_RET_BAD_PARAMETER;
     }
 
     if (FindChild(Parent, Part->Name)) {
@@ -268,7 +268,7 @@ static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
 static U32 UnmountObject(LPFS_UNMOUNT_CONTROL Control) {
     LPSYSTEMFSFILE Node;
 
-    if (Control == NULL) return DF_RET_BADPARAM;
+    if (Control == NULL) return DF_RET_BAD_PARAMETER;
 
     Node = FindNode(Control->Path);
     if (Node == NULL || Node->Parent == NULL) return DF_RET_GENERIC;
@@ -444,10 +444,10 @@ static U32 CreateFolder(LPFILEINFO Info) {
     LPSYSTEMFSFILE Parent;
     LPSYSTEMFSFILE Child;
 
-    if (Info == NULL) return DF_RET_BADPARAM;
+    if (Info == NULL) return DF_RET_BAD_PARAMETER;
 
     Parts = DecomposePath(Info->Name);
-    if (Parts == NULL) return DF_RET_BADPARAM;
+    if (Parts == NULL) return DF_RET_BAD_PARAMETER;
 
     Parent = GetSystemFSFilesystem()->Root;
     for (Node = Parts->First; Node; Node = Node->Next) {
@@ -468,7 +468,7 @@ static U32 CreateFolder(LPFILEINFO Info) {
 
     if (Part == NULL) {
         DeleteList(Parts);
-        return DF_RET_BADPARAM;
+        return DF_RET_BAD_PARAMETER;
     }
 
     if (FindChild(Parent, Part->Name)) {
@@ -497,7 +497,7 @@ static U32 CreateFolder(LPFILEINFO Info) {
 static U32 DeleteFolder(LPFILEINFO Info) {
     LPSYSTEMFSFILE Node;
 
-    if (Info == NULL) return DF_RET_BADPARAM;
+    if (Info == NULL) return DF_RET_BAD_PARAMETER;
 
     Node = FindNode(Info->Name);
     if (Node == NULL || Node->Parent == NULL) return DF_RET_GENERIC;
@@ -761,7 +761,7 @@ static U32 OpenNext(LPSYSFSFILE File) {
     LPFILESYSTEM FS;
     U32 Result;
 
-    if (File == NULL) return DF_RET_BADPARAM;
+    if (File == NULL) return DF_RET_BAD_PARAMETER;
 
     if (File->MountedFile) {
         FS = File->Parent ? File->Parent->Mounted : NULL;
@@ -794,10 +794,10 @@ static U32 OpenNext(LPSYSFSFILE File) {
 /**
  * @brief Closes a SystemFS file or directory handle.
  * @param File File handle to close.
- * @return DF_RET_SUCCESS on success, DF_RET_BADPARAM otherwise.
+ * @return DF_RET_SUCCESS on success, DF_RET_BAD_PARAMETER otherwise.
  */
 static U32 CloseFile(LPSYSFSFILE File) {
-    if (File == NULL) return DF_RET_BADPARAM;
+    if (File == NULL) return DF_RET_BAD_PARAMETER;
 
     if (File->MountedFile && File->Parent && File->Parent->Mounted) {
         File->Parent->Mounted->Driver->Command(DF_FS_CLOSEFILE, (UINT)File->MountedFile);
@@ -824,7 +824,7 @@ static U32 ReadFile(LPSYSFSFILE File) {
         FS = (File->Parent) ? File->Parent->Mounted : NULL;
         Mounted = File->MountedFile;
 
-        if (FS == NULL || Mounted == NULL) return DF_RET_NOTIMPL;
+        if (FS == NULL || Mounted == NULL) return DF_RET_NOT_IMPLEMENTED;
 
         Mounted->Buffer = File->Header.Buffer;
         Mounted->ByteCount = File->Header.ByteCount;
@@ -838,7 +838,7 @@ static U32 ReadFile(LPSYSFSFILE File) {
         return Result;
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 
 /************************************************************************/
@@ -857,7 +857,7 @@ static U32 WriteFile(LPSYSFSFILE File) {
         FS = (File->Parent) ? File->Parent->Mounted : NULL;
         Mounted = File->MountedFile;
 
-        if (FS == NULL || Mounted == NULL) return DF_RET_NOTIMPL;
+        if (FS == NULL || Mounted == NULL) return DF_RET_NOT_IMPLEMENTED;
 
         Mounted->Buffer = File->Header.Buffer;
         Mounted->ByteCount = File->Header.ByteCount;
@@ -871,7 +871,7 @@ static U32 WriteFile(LPSYSFSFILE File) {
         return Result;
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 
 /************************************************************************/
@@ -958,7 +958,7 @@ UINT SystemFSCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return Initialize();
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_FS_GETVOLUMEINFO: {
             LPVOLUMEINFO Info = (LPVOLUMEINFO)Parameter;
@@ -966,10 +966,10 @@ UINT SystemFSCommands(UINT Function, UINT Parameter) {
                 StringCopy(Info->Name, TEXT("/"));
                 return DF_RET_SUCCESS;
             }
-            return DF_RET_BADPARAM;
+            return DF_RET_BAD_PARAMETER;
         }
         case DF_FS_SETVOLUMEINFO:
-            return DF_RET_NOTIMPL;
+            return DF_RET_NOT_IMPLEMENTED;
         case DF_FS_CREATEFOLDER:
             return CreateFolder((LPFILEINFO)Parameter);
         case DF_FS_DELETEFOLDER:
@@ -989,20 +989,20 @@ UINT SystemFSCommands(UINT Function, UINT Parameter) {
         case DF_FS_CLOSEFILE:
             return (UINT)CloseFile((LPSYSFSFILE)Parameter);
         case DF_FS_DELETEFILE:
-            return DF_RET_NOTIMPL;
+            return DF_RET_NOT_IMPLEMENTED;
         case DF_FS_READ:
             return (UINT)ReadFile((LPSYSFSFILE)Parameter);
         case DF_FS_WRITE:
             return (UINT)WriteFile((LPSYSFSFILE)Parameter);
         case DF_FS_GETPOSITION:
-            return DF_RET_NOTIMPL;
+            return DF_RET_NOT_IMPLEMENTED;
         case DF_FS_SETPOSITION:
-            return DF_RET_NOTIMPL;
+            return DF_RET_NOT_IMPLEMENTED;
         case DF_FS_GETATTRIBUTES:
-            return DF_RET_NOTIMPL;
+            return DF_RET_NOT_IMPLEMENTED;
         case DF_FS_SETATTRIBUTES:
-            return DF_RET_NOTIMPL;
+            return DF_RET_NOT_IMPLEMENTED;
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RET_NOT_IMPLEMENTED;
 }

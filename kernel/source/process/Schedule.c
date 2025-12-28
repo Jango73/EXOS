@@ -411,7 +411,7 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
     if (CurrentTaskStatus == TASK_STATUS_READY) {
         SetTaskStatus(NextTask, TASK_STATUS_RUNNING);
 
-        if (NextTask->Process->Privilege == PRIVILEGE_KERNEL) {
+        if (NextTask->Process->Privilege == CPU_PRIVILEGE_KERNEL) {
             LINEAR StackPointer = NextTask->Arch.Stack.Base + NextTask->Arch.Stack.Size - STACK_SAFETY_MARGIN;
 
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] StackPointer = %p"), StackPointer);

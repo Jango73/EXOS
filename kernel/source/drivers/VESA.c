@@ -1569,7 +1569,7 @@ UINT VESACommands(UINT Function, UINT Param) {
                 return DF_RET_SUCCESS;
             }
 
-            return DF_RET_UNEXPECT;
+            return DF_RET_UNEXPECTED;
         case DF_UNLOAD:
             if ((VESADriver.Flags & DRIVER_FLAG_READY) == 0) {
                 return DF_RET_SUCCESS;
@@ -1578,7 +1578,7 @@ UINT VESACommands(UINT Function, UINT Param) {
             ShutdownVESA();
             VESADriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RET_SUCCESS;
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_GFX_GETMODEINFO: {
             LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Param;
@@ -1606,5 +1606,5 @@ UINT VESACommands(UINT Function, UINT Param) {
             return VESA_Rectangle((LPRECTINFO)Param);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RET_NOT_IMPLEMENTED;
 }

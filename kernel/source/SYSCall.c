@@ -2467,7 +2467,7 @@ UINT SysCall_SocketCreate(UINT Parameter) {
         return SocketCreate(Info->AddressFamily, Info->SocketType, Info->Protocol);
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 
 /************************************************************************/
@@ -2485,7 +2485,7 @@ UINT SysCall_SocketBind(UINT Parameter) {
         return SocketBind(Info->SocketHandle, (LPSOCKET_ADDRESS)Info->AddressData, Info->AddressLength);
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 
 /************************************************************************/
@@ -2503,7 +2503,7 @@ UINT SysCall_SocketListen(UINT Parameter) {
         return SocketListen(Info->SocketHandle, Info->Backlog);
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 
 /************************************************************************/
@@ -2521,7 +2521,7 @@ UINT SysCall_SocketAccept(UINT Parameter) {
         return SocketAccept(Info->SocketHandle, (LPSOCKET_ADDRESS)Info->AddressBuffer, Info->AddressLength);
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 
 /************************************************************************/
@@ -2539,7 +2539,7 @@ UINT SysCall_SocketConnect(UINT Parameter) {
         return SocketConnect(Info->SocketHandle, (LPSOCKET_ADDRESS)Info->AddressData, Info->AddressLength);
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 
 /************************************************************************/
@@ -2557,7 +2557,7 @@ UINT SysCall_SocketSend(UINT Parameter) {
         return SocketSend(Info->SocketHandle, Info->Buffer, Info->Length, Info->Flags);
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 
 /************************************************************************/
@@ -2575,7 +2575,7 @@ UINT SysCall_SocketReceive(UINT Parameter) {
         return SocketReceive(Info->SocketHandle, Info->Buffer, Info->Length, Info->Flags);
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 
 /************************************************************************/
@@ -2593,7 +2593,7 @@ UINT SysCall_SocketSendTo(UINT Parameter) {
         return SocketSendTo(Info->SocketHandle, Info->Buffer, Info->Length, Info->Flags, (LPSOCKET_ADDRESS)Info->AddressData, Info->AddressLength);
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 
 /************************************************************************/
@@ -2614,7 +2614,7 @@ UINT SysCall_SocketReceiveFrom(UINT Parameter) {
         return Result;
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 
 /************************************************************************/
@@ -2645,7 +2645,7 @@ UINT SysCall_SocketShutdown(UINT Parameter) {
         return SocketShutdown(Info->SocketHandle, Info->How);
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 
 /************************************************************************/
@@ -2666,7 +2666,7 @@ UINT SysCall_SocketGetOption(UINT Parameter) {
         return Result;
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 
 /************************************************************************/
@@ -2684,7 +2684,7 @@ UINT SysCall_SocketSetOption(UINT Parameter) {
         return SocketSetOption(Info->SocketHandle, Info->Level, Info->OptionName, Info->OptionValue, Info->OptionLength);
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 
 /************************************************************************/
@@ -2702,7 +2702,7 @@ UINT SysCall_SocketGetPeerName(UINT Parameter) {
         return SocketGetPeerName(Info->SocketHandle, (LPSOCKET_ADDRESS)Info->AddressBuffer, Info->AddressLength);
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 
 /************************************************************************/
@@ -2720,7 +2720,7 @@ UINT SysCall_SocketGetSocketName(UINT Parameter) {
         return SocketGetSocketName(Info->SocketHandle, (LPSOCKET_ADDRESS)Info->AddressBuffer, Info->AddressLength);
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 
 /************************************************************************/

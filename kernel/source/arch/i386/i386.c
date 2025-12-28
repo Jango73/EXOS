@@ -269,7 +269,7 @@ void InitializeInterrupts(void) {
             IDT + Index,
             (LINEAR)(InterruptTable[Index]),
             GATE_TYPE_386_INT,
-            PRIVILEGE_KERNEL,
+            CPU_PRIVILEGE_KERNEL,
             0u);
     }
 
@@ -295,7 +295,7 @@ void InitSegmentDescriptor(LPSEGMENT_DESCRIPTOR This, U32 Type) {
     This->ConformExpand = 0;
     This->Type = Type;
     This->Segment = 1;
-    This->Privilege = PRIVILEGE_USER;
+    This->Privilege = CPU_PRIVILEGE_USER;
     This->Present = 1;
     This->Limit_16_19 = 0x0F;
     This->Available = 0;
@@ -457,7 +457,7 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
 
     DEBUG(TEXT("[SetupTask] Enter"));
 
-    if (Process->Privilege == PRIVILEGE_USER) {
+    if (Process->Privilege == CPU_PRIVILEGE_USER) {
         BaseVMA = VMA_USER;
         CodeSelector = SELECTOR_USER_CODE;
         DataSelector = SELECTOR_USER_DATA;
@@ -534,7 +534,7 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     StackTop = Task->Arch.Stack.Base + Task->Arch.Stack.Size;
     SysStackTop = Task->Arch.SysStack.Base + Task->Arch.SysStack.Size;
 
-    if (Process->Privilege == PRIVILEGE_KERNEL) {
+    if (Process->Privilege == CPU_PRIVILEGE_KERNEL) {
         DEBUG(TEXT("[SetupTask] Setting kernel privilege (ring 0)"));
         Task->Arch.Context.Registers.EIP = (LINEAR)TaskRunner;
         Task->Arch.Context.Registers.ESP = StackTop - STACK_SAFETY_MARGIN;
@@ -630,7 +630,7 @@ void InitializeSystemCall(void) {
         IDT + EXOS_USER_CALL,
         (LINEAR)Interrupt_SystemCall,
         GATE_TYPE_386_TRAP,
-        PRIVILEGE_USER,
+        CPU_PRIVILEGE_USER,
         0u);
 }
 
@@ -663,11 +663,11 @@ static UINT InterruptsDriverCommands(UINT Function, UINT Parameter) {
             InterruptsDriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RET_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(INTERRUPTS_VER_MAJOR, INTERRUPTS_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RET_NOT_IMPLEMENTED;
 }
 
 /************************************************************************/

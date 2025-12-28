@@ -655,7 +655,7 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
             PCIDriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RET_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(PCI_VER_MAJOR, PCI_VER_MINOR);
         case DF_ENUM_NEXT:
             return PCI_EnumNext((LPDRIVER_ENUM_NEXT)(LPVOID)Parameter);
@@ -663,7 +663,7 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
             return PCI_EnumPretty((LPDRIVER_ENUM_PRETTY)(LPVOID)Parameter);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RET_NOT_IMPLEMENTED;
 }
 
 /************************************************************************/
@@ -692,15 +692,15 @@ void PCIHandler(void) {
 
 static U32 PCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
     if (Next == NULL || Next->Query == NULL || Next->Item == NULL) {
-        return DF_RET_BADPARAM;
+        return DF_RET_BAD_PARAMETER;
     }
     if (Next->Query->Header.Size < sizeof(DRIVER_ENUM_QUERY) ||
         Next->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
-        return DF_RET_BADPARAM;
+        return DF_RET_BAD_PARAMETER;
     }
 
     if (Next->Query->Domain != ENUM_DOMAIN_PCI_DEVICE) {
-        return DF_RET_NOTIMPL;
+        return DF_RET_NOT_IMPLEMENTED;
     }
 
     LPLIST PciList = GetPCIDeviceList();
@@ -748,15 +748,15 @@ static U32 PCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
 
 static U32 PCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
     if (Pretty == NULL || Pretty->Item == NULL || Pretty->Buffer == NULL || Pretty->BufferSize == 0) {
-        return DF_RET_BADPARAM;
+        return DF_RET_BAD_PARAMETER;
     }
     if (Pretty->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
-        return DF_RET_BADPARAM;
+        return DF_RET_BAD_PARAMETER;
     }
 
     if (Pretty->Item->Domain != ENUM_DOMAIN_PCI_DEVICE ||
         Pretty->Item->DataSize < sizeof(DRIVER_ENUM_PCI_DEVICE)) {
-        return DF_RET_BADPARAM;
+        return DF_RET_BAD_PARAMETER;
     }
 
     const DRIVER_ENUM_PCI_DEVICE* Data = (const DRIVER_ENUM_PCI_DEVICE*)Pretty->Item->Data;

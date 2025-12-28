@@ -48,7 +48,7 @@ PROCESS DATA_SECTION KernelProcess = {
     .HeapMutex = EMPTY_MUTEX,       // Heap mutex
     .Security = EMPTY_SECURITY,     // Security
     .Desktop = &MainDesktop,                // Desktop
-    .Privilege = PRIVILEGE_KERNEL,  // Privilege
+    .Privilege = CPU_PRIVILEGE_KERNEL,  // Privilege
     .Status = PROCESS_STATUS_ALIVE, // Status
     .Flags = PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH, // Flags
     .PageDirectory = 0,             // Page directory
@@ -192,11 +192,11 @@ static UINT KernelProcessDriverCommands(UINT Function, UINT Parameter) {
             KernelProcessDriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RET_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(KERNEL_PROCESS_VER_MAJOR, KERNEL_PROCESS_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RET_NOT_IMPLEMENTED;
 }
 
 /***************************************************************************/
@@ -229,7 +229,7 @@ LPPROCESS NewProcess(void) {
     } else {
         This->Desktop = &MainDesktop;
     }
-    This->Privilege = PRIVILEGE_USER;
+    This->Privilege = CPU_PRIVILEGE_USER;
     This->Status = PROCESS_STATUS_ALIVE;
     This->Flags = 0; // Will be set by CreateProcess
     This->MaximumAllocatedMemory = N_HalfMemory;

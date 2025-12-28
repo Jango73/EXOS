@@ -784,7 +784,7 @@ static UINT InterruptControllerDriverCommands(UINT Function, UINT Parameter) {
                 return DF_RET_SUCCESS;
             }
 
-            return DF_RET_UNEXPECT;
+            return DF_RET_UNEXPECTED;
 
         case DF_UNLOAD:
             if ((InterruptControllerDriver.Flags & DRIVER_FLAG_READY) == 0) {
@@ -795,9 +795,9 @@ static UINT InterruptControllerDriverCommands(UINT Function, UINT Parameter) {
             InterruptControllerDriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RET_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(INTCTRL_VER_MAJOR, INTCTRL_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RET_NOT_IMPLEMENTED;
 }

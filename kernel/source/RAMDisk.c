@@ -420,13 +420,13 @@ static U32 RAMDiskInitialize(void) {
     DEBUG(TEXT("[RAMDiskInitialize] Enter"));
 
     Disk = NewRAMDisk();
-    if (Disk == NULL) return DF_RET_NOMEMORY;
+    if (Disk == NULL) return DF_RET_NO_MEMORY;
 
     Disk->Size = N_512KB;
     Disk->Base = AllocKernelRegion(0, Disk->Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("RamDisk"));
 
     if (Disk->Base == NULL) {
-        return DF_RET_NOMEMORY;
+        return DF_RET_NO_MEMORY;
     }
 
     DEBUG(TEXT("[RAMDiskInitialize] Memory allocated at %x"), Disk->Base);
@@ -522,14 +522,14 @@ static U32 Read(LPIOCONTROL Control) {
     // Get the physical disk to which operation applies
 
     Disk = (LPRAMDISK)Control->Disk;
-    if (Disk == NULL) return DF_RET_BADPARAM;
+    if (Disk == NULL) return DF_RET_BAD_PARAMETER;
 
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.TypeID != KOID_DISK) return DF_RET_BADPARAM;
-    if (Disk->Base == NULL) return DF_RET_BADPARAM;
-    if (Disk->Size == 0) return DF_RET_BADPARAM;
+    if (Disk->Header.TypeID != KOID_DISK) return DF_RET_BAD_PARAMETER;
+    if (Disk->Base == NULL) return DF_RET_BAD_PARAMETER;
+    if (Disk->Size == 0) return DF_RET_BAD_PARAMETER;
 
     //-------------------------------------
     // Check if we are in the limits of the disk
@@ -557,31 +557,31 @@ static U32 Read(LPIOCONTROL Control) {
 static U32 Write(LPIOCONTROL Control) {
     LPRAMDISK Disk;
 
-    if (Control == NULL) return DF_RET_BADPARAM;
+    if (Control == NULL) return DF_RET_BAD_PARAMETER;
 
     //-------------------------------------
     // Get the physical disk to which operation applies
 
     Disk = (LPRAMDISK)Control->Disk;
-    if (Disk == NULL) return DF_RET_BADPARAM;
+    if (Disk == NULL) return DF_RET_BAD_PARAMETER;
 
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.TypeID != KOID_DISK) return DF_RET_BADPARAM;
-    if (Disk->Base == NULL) return DF_RET_BADPARAM;
-    if (Disk->Size == 0) return DF_RET_BADPARAM;
+    if (Disk->Header.TypeID != KOID_DISK) return DF_RET_BAD_PARAMETER;
+    if (Disk->Base == NULL) return DF_RET_BAD_PARAMETER;
+    if (Disk->Size == 0) return DF_RET_BAD_PARAMETER;
 
     //-------------------------------------
     // Check access permissions
 
-    if (Disk->Access & DISK_ACCESS_READONLY) return DF_RET_NOPERM;
+    if (Disk->Access & DISK_ACCESS_READONLY) return DF_RET_NO_PERMISSION;
 
     //-------------------------------------
     // Check if we are in the limits of the disk
 
     if (((Control->SectorLow * SECTOR_SIZE) + (Control->NumSectors * SECTOR_SIZE)) >= Disk->Size) {
-        return DF_RET_BADPARAM;
+        return DF_RET_BAD_PARAMETER;
     }
 
     //-------------------------------------
@@ -603,20 +603,20 @@ static U32 Write(LPIOCONTROL Control) {
 static U32 GetInfo(LPDISKINFO Info) {
     LPRAMDISK Disk;
 
-    if (Info == NULL) return DF_RET_BADPARAM;
+    if (Info == NULL) return DF_RET_BAD_PARAMETER;
 
     //-------------------------------------
     // Get the physical disk to which operation applies
 
     Disk = (LPRAMDISK)Info->Disk;
-    if (Disk == NULL) return DF_RET_BADPARAM;
+    if (Disk == NULL) return DF_RET_BAD_PARAMETER;
 
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.TypeID != KOID_DISK) return DF_RET_BADPARAM;
-    if (Disk->Base == NULL) return DF_RET_BADPARAM;
-    if (Disk->Size == 0) return DF_RET_BADPARAM;
+    if (Disk->Header.TypeID != KOID_DISK) return DF_RET_BAD_PARAMETER;
+    if (Disk->Base == NULL) return DF_RET_BAD_PARAMETER;
+    if (Disk->Size == 0) return DF_RET_BAD_PARAMETER;
 
     //-------------------------------------
 
@@ -638,20 +638,20 @@ static U32 GetInfo(LPDISKINFO Info) {
 static U32 SetAccess(LPDISKACCESS Access) {
     LPRAMDISK Disk;
 
-    if (Access == NULL) return DF_RET_BADPARAM;
+    if (Access == NULL) return DF_RET_BAD_PARAMETER;
 
     //-------------------------------------
     // Get the physical disk to which operation applies
 
     Disk = (LPRAMDISK)Access->Disk;
-    if (Disk == NULL) return DF_RET_BADPARAM;
+    if (Disk == NULL) return DF_RET_BAD_PARAMETER;
 
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.TypeID != KOID_DISK) return DF_RET_BADPARAM;
-    if (Disk->Base == NULL) return DF_RET_BADPARAM;
-    if (Disk->Size == 0) return DF_RET_BADPARAM;
+    if (Disk->Header.TypeID != KOID_DISK) return DF_RET_BAD_PARAMETER;
+    if (Disk->Base == NULL) return DF_RET_BAD_PARAMETER;
+    if (Disk->Size == 0) return DF_RET_BAD_PARAMETER;
 
     //-------------------------------------
 
@@ -680,7 +680,7 @@ UINT RAMDiskCommands(UINT Function, UINT Parameter) {
                 return DF_RET_SUCCESS;
             }
 
-            return DF_RET_UNEXPECT;
+            return DF_RET_UNEXPECTED;
         case DF_UNLOAD:
             if ((RAMDiskDriver.Flags & DRIVER_FLAG_READY) == 0) {
                 return DF_RET_SUCCESS;
@@ -688,10 +688,10 @@ UINT RAMDiskCommands(UINT Function, UINT Parameter) {
 
             RAMDiskDriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RET_SUCCESS;
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_DISK_RESET:
-            return DF_RET_NOTIMPL;
+            return DF_RET_NOT_IMPLEMENTED;
         case DF_DISK_READ:
             return Read((LPIOCONTROL)Parameter);
         case DF_DISK_WRITE:
@@ -702,5 +702,5 @@ UINT RAMDiskCommands(UINT Function, UINT Parameter) {
             return SetAccess((LPDISKACCESS)Parameter);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RET_NOT_IMPLEMENTED;
 }

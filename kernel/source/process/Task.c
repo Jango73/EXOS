@@ -427,7 +427,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         UnlockMutex(MUTEX_PROCESS);
     }
 
-    Task->Type = (Process->Privilege == PRIVILEGE_KERNEL) ?
+    Task->Type = (Process->Privilege == CPU_PRIVILEGE_KERNEL) ?
         TASK_TYPE_KERNEL_OTHER :
         Process->TaskCount == 0 ? TASK_TYPE_USER_MAIN : TASK_TYPE_USER_OTHER;
 

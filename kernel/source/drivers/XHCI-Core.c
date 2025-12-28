@@ -884,13 +884,13 @@ static BOOL XHCI_InitController(LPXHCI_DEVICE Device) {
 /**
  * @brief Probe callback used by PCI subsystem.
  * @param PciInfo PCI device info.
- * @return DF_RET_SUCCESS when supported, DF_RET_NOTIMPL otherwise.
+ * @return DF_RET_SUCCESS when supported, DF_RET_NOT_IMPLEMENTED otherwise.
  */
 static U32 XHCI_OnProbe(const PCI_INFO *PciInfo) {
-    if (PciInfo == NULL) return DF_RET_BADPARAM;
-    if (PciInfo->BaseClass != XHCI_CLASS_SERIAL_BUS) return DF_RET_NOTIMPL;
-    if (PciInfo->SubClass != XHCI_SUBCLASS_USB) return DF_RET_NOTIMPL;
-    if (PciInfo->ProgIF != XHCI_PROGIF_XHCI) return DF_RET_NOTIMPL;
+    if (PciInfo == NULL) return DF_RET_BAD_PARAMETER;
+    if (PciInfo->BaseClass != XHCI_CLASS_SERIAL_BUS) return DF_RET_NOT_IMPLEMENTED;
+    if (PciInfo->SubClass != XHCI_SUBCLASS_USB) return DF_RET_NOT_IMPLEMENTED;
+    if (PciInfo->ProgIF != XHCI_PROGIF_XHCI) return DF_RET_NOT_IMPLEMENTED;
     return DF_RET_SUCCESS;
 }
 
@@ -948,11 +948,11 @@ static UINT XHCI_Commands(UINT Function, UINT Param) {
             return XHCI_OnLoad();
         case DF_UNLOAD:
             return XHCI_OnUnload();
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return XHCI_OnGetVersion();
-        case DF_GETCAPS:
+        case DF_GET_CAPS:
             return XHCI_OnGetCaps();
-        case DF_GETLASTFUNC:
+        case DF_GET_LAST_FUNCTION:
             return XHCI_OnGetLastFunc();
         case DF_PROBE:
             return XHCI_OnProbe((const PCI_INFO *)(LPVOID)Param);
@@ -962,7 +962,7 @@ static UINT XHCI_Commands(UINT Function, UINT Param) {
             return XHCI_EnumPretty((LPDRIVER_ENUM_PRETTY)(LPVOID)Param);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RET_NOT_IMPLEMENTED;
 }
 
 /************************************************************************/

@@ -532,13 +532,13 @@ UINT USBMouseCommands(UINT Function, UINT Parameter) {
             }
 
             if (!MouseCommonInitialize(&USBMouseDriverState.Common)) {
-                return DF_RET_UNEXPECT;
+                return DF_RET_UNEXPECTED;
             }
 
             if (USBMouseDriverState.State.PollHandle == DEFERRED_WORK_INVALID_HANDLE) {
                 USBMouseDriverState.State.PollHandle = DeferredWorkRegisterPollOnly(USBMousePoll, NULL, TEXT("USBMouse"));
                 if (USBMouseDriverState.State.PollHandle == DEFERRED_WORK_INVALID_HANDLE) {
-                    return DF_RET_UNEXPECT;
+                    return DF_RET_UNEXPECTED;
                 }
             }
 
@@ -559,7 +559,7 @@ UINT USBMouseCommands(UINT Function, UINT Parameter) {
             USBMouseClearState();
             USBMouseDriverState.Driver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RET_SUCCESS;
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(USB_MOUSE_VER_MAJOR, USB_MOUSE_VER_MINOR);
         case DF_MOUSE_RESET:
             return 0;

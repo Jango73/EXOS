@@ -221,7 +221,7 @@ static BOOL TryExpandHeap(LPHEAPCONTROLBLOCK ControlBlock, UINT RequiredSize) {
     }
 
     U32 Flags = ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE;
-    if (Process->Privilege == PRIVILEGE_KERNEL) {
+    if (Process->Privilege == CPU_PRIVILEGE_KERNEL) {
         Flags |= ALLOC_PAGES_AT_OR_OVER;
     }
 

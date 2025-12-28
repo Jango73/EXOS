@@ -2021,7 +2021,7 @@ static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData) {
     U32 Result = DF_RET_GENERIC;
 
     if (Context == NULL || Command == NULL) {
-        return DF_RET_BADPARAM;
+        return DF_RET_BAD_PARAMETER;
     }
 
     DEBUG(TEXT("[ShellScriptExecuteCommand] Executing: %s"), Command);
@@ -2100,7 +2100,7 @@ static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID User
     if (STRINGS_EQUAL(FuncName, TEXT("exec"))) {
         if (Context == NULL || Argument == NULL) {
             DEBUG(TEXT("[ShellScriptCallFunction] Missing context or argument for exec"));
-            return DF_RET_BADPARAM;
+            return DF_RET_BAD_PARAMETER;
         }
 
         // Execute the provided command line using the standard shell command flow

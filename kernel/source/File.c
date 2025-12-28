@@ -297,7 +297,7 @@ UINT GetFilePosition(LPFILE File) {
 /**
  * @brief Sets current position within a file
  * @param Operation Pointer to file operation structure containing new position
- * @return DF_RET_SUCCESS on success, DF_RET_BADPARAM on failure
+ * @return DF_RET_SUCCESS on success, DF_RET_BAD_PARAMETER on failure
  */
 UINT SetFilePosition(LPFILEOPERATION Operation) {
     SAFE_USE_VALID(Operation) {
@@ -320,7 +320,7 @@ UINT SetFilePosition(LPFILEOPERATION Operation) {
         }
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RET_BAD_PARAMETER;
 }
 
 /***************************************************************************/

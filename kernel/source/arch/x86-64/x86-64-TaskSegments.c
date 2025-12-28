@@ -126,7 +126,7 @@ void InitializeTaskSegments(void) {
     Descriptor->Accessed = 1;
     Descriptor->Code = 1;
     Descriptor->S = 0;
-    Descriptor->Privilege = PRIVILEGE_KERNEL;
+    Descriptor->Privilege = CPU_PRIVILEGE_KERNEL;
     Descriptor->Present = 1;
     Descriptor->Limit_16_19 = (U8)(Descriptor->Limit_16_19 & 0x0F);
     Descriptor->Available = 0;
@@ -169,9 +169,9 @@ static UINT TaskSegmentsDriverCommands(UINT Function, UINT Parameter) {
             TaskSegmentsDriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RET_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(TASK_SEGMENTS_VER_MAJOR, TASK_SEGMENTS_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RET_NOT_IMPLEMENTED;
 }

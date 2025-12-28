@@ -605,7 +605,7 @@ static UINT DeviceInterruptDriverCommands(UINT Function, UINT Parameter) {
                 return DF_RET_SUCCESS;
             }
 
-            return DF_RET_UNEXPECT;
+            return DF_RET_UNEXPECTED;
 
         case DF_UNLOAD:
             if ((DeviceInterruptDriver.Flags & DRIVER_FLAG_READY) == 0) {
@@ -615,9 +615,9 @@ static UINT DeviceInterruptDriverCommands(UINT Function, UINT Parameter) {
             DeviceInterruptDriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RET_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(DEVICE_INTERRUPT_VER_MAJOR, DEVICE_INTERRUPT_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RET_NOT_IMPLEMENTED;
 }

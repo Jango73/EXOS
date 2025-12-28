@@ -731,7 +731,7 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
             ConsoleDriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RET_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(CONSOLE_VER_MAJOR, CONSOLE_VER_MINOR);
 
         case DF_GFX_GETMODEINFO: {
@@ -778,8 +778,8 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
         case DF_GFX_LINE:
         case DF_GFX_RECTANGLE:
         case DF_GFX_ELLIPSE:
-            return DF_RET_NOTIMPL;
+            return DF_RET_NOT_IMPLEMENTED;
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RET_NOT_IMPLEMENTED;
 }
