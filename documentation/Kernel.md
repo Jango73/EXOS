@@ -224,25 +224,6 @@ inspect kernel state without bypassing the interpreter API. The objects expose
 properties through the script runtime (for example `process[0].command_line`)
 so automation stays inside the supported host interface.
 
-#### Exposed objects
-
-- `process`: Kernel process list. Index-based access (`process[0]`, `process[1]`, ...)
-  returns a process view with `status`, `flags`, `exit_code`, `file_name`,
-  `command_line`, and `work_folder`. `process.count` returns the process count.
-  `process.task` exposes per-process tasks and `process.task.count` returns the task count.
-- `process.task`: Task list for the owning process. Index-based access
-  (`process.task[0]`, `process.task[1]`, ...) returns a task view with `name`,
-  `type`, `status`, `priority`, `function`, `parameter`, `exit_code`, `flags`,
-  `architecture`, `stack`, `system_stack`, `wake_up_time`, `mutex`,
-  `message_queue`, and `process`. The `architecture` view exposes `context`,
-  `stack`, and `system_stack`. The `stack` view exposes `base` and `size`.
-- `usb.ports`: xHCI port list. Index-based access (`usb.ports[0]`, `usb.ports[1]`, ...)
-  returns a port view with `bus`, `device`, `function`, `port_number`, `port_status`,
-  `speed_id`, `connected`, and `enabled`. `usb.ports.count` returns the port count.
-- `usb.devices`: USB device list. Index-based access (`usb.devices[0]`, `usb.devices[1]`, ...)
-  returns a device view with `bus`, `device`, `function`, `port_number`, `address`,
-  `speed_id`, `vendor_id`, and `product_id`. `usb.devices.count` returns the device count.
-
 ### ACPI services
 
 Advanced power management and reset paths live in `kernel/source/ACPI.c`. The
@@ -1284,6 +1265,71 @@ The network stack successfully handles real network traffic across multiple devi
 | (L3/L4)        |               | (Translate IP)    |             | (L3/L4)        |
 +----------------+               +-------------------+             +----------------+
 ```
+
+## Exposed objects in shell
+
+- `process`: Kernel process list root. provides indexed access to process views.
+  Permissions: exposed to scripts; access is enforced per item and per field.
+  - `process.count`: total number of processes. Permissions: anyone.
+  - `process[n]`: process view at index `n`. Permissions: see fields below.
+    - `handle`: handle for the process. Permissions: anyone (except `process[0]`, kernel and administrator only).
+    - `status`: current process status. Permissions: anyone (except `process[0]`, kernel and administrator only).
+    - `flags`: process flags bitfield. Permissions: anyone (except `process[0]`, kernel and administrator only).
+    - `exit_code`: termination status. Permissions: anyone (except `process[0]`, kernel and administrator only).
+    - `file_name`: executable name. Permissions: anyone (except `process[0]`, kernel and administrator only).
+    - `command_line`: full command line string. Permissions: anyone (except `process[0]`, kernel and administrator only).
+    - `work_folder`: current working folder. Permissions: anyone (except `process[0]`, kernel and administrator only).
+    - `page_directory`: page directory pointer. Permissions: kernel and administrator only.
+    - `heap_base`: heap base address. Permissions: kernel and administrator only.
+    - `heap_size`: heap size. Permissions: kernel and administrator only.
+    - `task`: task list for the owning process. Permissions: kernel and administrator only.
+      - `task.count`: number of tasks in the process. Permissions: kernel and administrator only.
+      - `task[n]`: task view at index `n`. Permissions: see fields below.
+        - `handle`: handle for the task. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
+        - `name`: task name. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
+        - `type`: task type. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
+        - `status`: current task status. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
+        - `priority`: scheduling priority. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
+        - `flags`: task flags bitfield. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
+        - `exit_code`: termination status. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
+        - `function`: task entry function pointer. Permissions: kernel, administrator, and owner process.
+        - `parameter`: task entry parameter pointer. Permissions: kernel, administrator, and owner process.
+        - `architecture`: architecture-specific context view. Permissions: kernel and administrator only.
+          - `context`: raw context pointer. Permissions: kernel and administrator only.
+          - `stack`: architecture stack view. Permissions: kernel and administrator only.
+          - `system_stack`: architecture system stack view. Permissions: kernel and administrator only.
+        - `stack`: task stack view. Permissions: kernel and administrator only.
+          - `base`: stack base address. Permissions: kernel and administrator only.
+          - `size`: stack size. Permissions: kernel and administrator only.
+        - `system_stack`: system stack pointer. Permissions: kernel and administrator only.
+        - `wake_up_time`: scheduler wake-up time. Permissions: kernel and administrator only.
+        - `mutex`: mutex pointer. Permissions: kernel and administrator only.
+        - `message_queue`: message queue pointer. Permissions: kernel and administrator only.
+        - `process`: owning process pointer. Permissions: kernel and administrator only.
+- `usb.ports`: xHCI port list root. provides indexed access to USB ports.
+  Permissions: kernel and administrator only.
+  - `usb.ports.count`: number of USB ports. Permissions: kernel and administrator only.
+  - `usb.ports[n]`: port view at index `n`. Permissions: kernel and administrator only.
+    - `bus`: PCI bus number. Permissions: kernel and administrator only.
+    - `device`: PCI device number. Permissions: kernel and administrator only.
+    - `function`: PCI function number. Permissions: kernel and administrator only.
+    - `port_number`: xHCI port index. Permissions: kernel and administrator only.
+    - `port_status`: raw port status. Permissions: kernel and administrator only.
+    - `speed_id`: link speed identifier. Permissions: kernel and administrator only.
+    - `connected`: connection status. Permissions: kernel and administrator only.
+    - `enabled`: port enable state. Permissions: kernel and administrator only.
+- `usb.devices`: USB device list root. provides indexed access to USB devices.
+  Permissions: anyone.
+  - `usb.devices.count`: number of USB devices. Permissions: anyone.
+  - `usb.devices[n]`: device view at index `n`. Permissions: anyone.
+    - `bus`: PCI bus number. Permissions: anyone.
+    - `device`: PCI device number. Permissions: anyone.
+    - `function`: PCI function number. Permissions: anyone.
+    - `port_number`: xHCI port index. Permissions: anyone.
+    - `address`: USB device address. Permissions: anyone.
+    - `speed_id`: link speed identifier. Permissions: anyone.
+    - `vendor_id`: USB vendor ID. Permissions: anyone.
+    - `product_id`: USB product ID. Permissions: anyone.
 
 ## Links
 

@@ -31,6 +31,19 @@
 
 /************************************************************************/
 
+#define EXPOSE_ACCESS_PUBLIC    0x00000000u
+#define EXPOSE_ACCESS_SAME_USER 0x00000001u
+#define EXPOSE_ACCESS_ADMIN     0x00000002u
+#define EXPOSE_ACCESS_KERNEL    0x00000004u
+#define EXPOSE_ACCESS_OWNER_PROCESS 0x00000008u
+
+#define EXPOSE_REQUIRE_ACCESS(RequiredAccess, TargetProcess) \
+    do { \
+        if (!ExposeCanReadProcess(ExposeGetCallerProcess(), (TargetProcess), (RequiredAccess))) { \
+            return SCRIPT_ERROR_UNAUTHORIZED; \
+        } \
+    } while (0)
+
 #define EXPOSE_PROPERTY_GUARD() \
     do { \
         if (OutValue == NULL || Parent == NULL || Property == NULL) { \
@@ -102,6 +115,18 @@
         } \
         return SCRIPT_ERROR_UNDEFINED_VAR; \
     }
+
+/************************************************************************/
+
+typedef struct tag_USERACCOUNT USERACCOUNT, *LPUSERACCOUNT;
+
+LPPROCESS ExposeGetCallerProcess(void);
+LPUSERACCOUNT ExposeGetCallerUser(void);
+BOOL ExposeIsKernelCaller(void);
+BOOL ExposeIsAdminCaller(void);
+BOOL ExposeIsSameUser(LPPROCESS Caller, LPPROCESS Target);
+BOOL ExposeIsOwnerProcess(LPPROCESS Caller, LPPROCESS Target);
+BOOL ExposeCanReadProcess(LPPROCESS Caller, LPPROCESS Target, UINT RequiredAccess);
 
 /************************************************************************/
 

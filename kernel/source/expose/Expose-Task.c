@@ -30,6 +30,10 @@
 
 /************************************************************************/
 
+#define EXPOSE_ACCESS_TASK_KERNEL (EXPOSE_ACCESS_ADMIN | EXPOSE_ACCESS_KERNEL)
+
+/************************************************************************/
+
 static UINT ProcessTaskGetCount(LPPROCESS Process) {
     UINT Count = 0;
 
@@ -108,9 +112,9 @@ SCRIPT_ERROR StackGetProperty(
     LPCSTR Property,
     LPSCRIPT_VALUE OutValue) {
 
-    UNUSED(Context);
-
     EXPOSE_PROPERTY_GUARD();
+
+    EXPOSE_REQUIRE_ACCESS(EXPOSE_ACCESS_TASK_KERNEL, (LPPROCESS)Context);
 
     LPSTACK Stack = (LPSTACK)Parent;
     if (Stack == NULL) {
@@ -139,9 +143,9 @@ SCRIPT_ERROR ArchitectureTaskDataGetProperty(
     LPCSTR Property,
     LPSCRIPT_VALUE OutValue) {
 
-    UNUSED(Context);
-
     EXPOSE_PROPERTY_GUARD();
+
+    EXPOSE_REQUIRE_ACCESS(EXPOSE_ACCESS_TASK_KERNEL, (LPPROCESS)Context);
 
     LPARCH_TASK_DATA Architecture = (LPARCH_TASK_DATA)Parent;
     if (Architecture == NULL) {
@@ -149,8 +153,8 @@ SCRIPT_ERROR ArchitectureTaskDataGetProperty(
     }
 
     EXPOSE_BIND_INTEGER("context", (UINT)(LPVOID)&Architecture->Context);
-    EXPOSE_BIND_HOST_HANDLE("stack", &Architecture->Stack, &StackDescriptor, NULL);
-    EXPOSE_BIND_HOST_HANDLE("system_stack", &Architecture->SysStack, &StackDescriptor, NULL);
+    EXPOSE_BIND_HOST_HANDLE("stack", &Architecture->Stack, &StackDescriptor, Context);
+    EXPOSE_BIND_HOST_HANDLE("system_stack", &Architecture->SysStack, &StackDescriptor, Context);
 
     return SCRIPT_ERROR_UNDEFINED_VAR;
 }
@@ -177,21 +181,88 @@ SCRIPT_ERROR TaskGetProperty(
 
     LPTASK Task = (LPTASK)Parent;
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
-        EXPOSE_BIND_INTEGER("mutex", (UINT)(LPVOID)&Task->Mutex);
+        BOOL IsKernelOrAdmin = ExposeIsKernelCaller() || ExposeIsAdminCaller();
+        LPPROCESS Caller = ExposeGetCallerProcess();
+        BOOL IsOwnerProcess = ExposeIsOwnerProcess(Caller, Task->Process);
+
+        if (Task->Process == &KernelProcess && IsKernelOrAdmin == FALSE) {
+            return SCRIPT_ERROR_UNAUTHORIZED;
+        }
+
+        EXPOSE_BIND_INTEGER("handle", (UINT)(LPVOID)Task);
         EXPOSE_BIND_HOST_HANDLE("process", Task->Process, &ProcessDescriptor, NULL);
         EXPOSE_BIND_STRING("name", Task->Name);
         EXPOSE_BIND_INTEGER("type", Task->Type);
         EXPOSE_BIND_INTEGER("status", Task->Status);
         EXPOSE_BIND_INTEGER("priority", Task->Priority);
-        EXPOSE_BIND_INTEGER("function", (UINT)(LPVOID)Task->Function);
-        EXPOSE_BIND_INTEGER("parameter", (UINT)(LPVOID)Task->Parameter);
         EXPOSE_BIND_INTEGER("exit_code", Task->ExitCode);
         EXPOSE_BIND_INTEGER("flags", Task->Flags);
-        EXPOSE_BIND_HOST_HANDLE("architecture", &Task->Arch, &ArchitectureTaskDataDescriptor, NULL);
-        EXPOSE_BIND_HOST_HANDLE("stack", &Task->Arch.Stack, &StackDescriptor, NULL);
-        EXPOSE_BIND_HOST_HANDLE("system_stack", &Task->Arch.SysStack, &StackDescriptor, NULL);
+
+        if (STRINGS_EQUAL_NO_CASE(Property, TEXT("function"))) {
+            if (IsKernelOrAdmin == FALSE && IsOwnerProcess == FALSE) {
+                return SCRIPT_ERROR_UNAUTHORIZED;
+            }
+            OutValue->Type = SCRIPT_VAR_INTEGER;
+            OutValue->Value.Integer = (I32)(UINT)(LPVOID)Task->Function;
+            return SCRIPT_OK;
+        }
+
+        if (STRINGS_EQUAL_NO_CASE(Property, TEXT("parameter"))) {
+            if (IsKernelOrAdmin == FALSE && IsOwnerProcess == FALSE) {
+                return SCRIPT_ERROR_UNAUTHORIZED;
+            }
+            OutValue->Type = SCRIPT_VAR_INTEGER;
+            OutValue->Value.Integer = (I32)(UINT)(LPVOID)Task->Parameter;
+            return SCRIPT_OK;
+        }
+
+        if (STRINGS_EQUAL_NO_CASE(Property, TEXT("architecture"))) {
+            if (IsKernelOrAdmin == FALSE) {
+                return SCRIPT_ERROR_UNAUTHORIZED;
+            }
+            OutValue->Type = SCRIPT_VAR_HOST_HANDLE;
+            OutValue->Value.HostHandle = &Task->Arch;
+            OutValue->HostDescriptor = &ArchitectureTaskDataDescriptor;
+            OutValue->HostContext = Task->Process;
+            OutValue->OwnsValue = FALSE;
+            return SCRIPT_OK;
+        }
+
+        if (STRINGS_EQUAL_NO_CASE(Property, TEXT("stack"))) {
+            if (IsKernelOrAdmin == FALSE) {
+                return SCRIPT_ERROR_UNAUTHORIZED;
+            }
+            OutValue->Type = SCRIPT_VAR_HOST_HANDLE;
+            OutValue->Value.HostHandle = &Task->Arch.Stack;
+            OutValue->HostDescriptor = &StackDescriptor;
+            OutValue->HostContext = Task->Process;
+            OutValue->OwnsValue = FALSE;
+            return SCRIPT_OK;
+        }
+
+        if (STRINGS_EQUAL_NO_CASE(Property, TEXT("system_stack"))) {
+            if (IsKernelOrAdmin == FALSE) {
+                return SCRIPT_ERROR_UNAUTHORIZED;
+            }
+            OutValue->Type = SCRIPT_VAR_HOST_HANDLE;
+            OutValue->Value.HostHandle = &Task->Arch.SysStack;
+            OutValue->HostDescriptor = &StackDescriptor;
+            OutValue->HostContext = Task->Process;
+            OutValue->OwnsValue = FALSE;
+            return SCRIPT_OK;
+        }
+
+        if (STRINGS_EQUAL_NO_CASE(Property, TEXT("wake_up_time")) ||
+            STRINGS_EQUAL_NO_CASE(Property, TEXT("message_queue")) ||
+            STRINGS_EQUAL_NO_CASE(Property, TEXT("mutex"))) {
+            if (IsKernelOrAdmin == FALSE) {
+                return SCRIPT_ERROR_UNAUTHORIZED;
+            }
+        }
+
         EXPOSE_BIND_INTEGER("wake_up_time", Task->WakeUpTime);
         EXPOSE_BIND_INTEGER("message_queue", (UINT)(LPVOID)&Task->MessageQueue);
+        EXPOSE_BIND_INTEGER("mutex", (UINT)(LPVOID)&Task->Mutex);
 
         return SCRIPT_ERROR_UNDEFINED_VAR;
     }
@@ -221,6 +292,7 @@ SCRIPT_ERROR TaskArrayGetProperty(
 
     LPPROCESS Process = (LPPROCESS)Parent;
     SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+        EXPOSE_REQUIRE_ACCESS(EXPOSE_ACCESS_TASK_KERNEL, Process);
         EXPOSE_BIND_INTEGER("count", ProcessTaskGetCount(Process));
         return SCRIPT_ERROR_UNDEFINED_VAR;
     }
@@ -250,6 +322,7 @@ SCRIPT_ERROR TaskArrayGetElement(
 
     LPPROCESS Process = (LPPROCESS)Parent;
     SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+        EXPOSE_REQUIRE_ACCESS(EXPOSE_ACCESS_TASK_KERNEL, Process);
         LPTASK Task = ProcessTaskGetByIndex(Process, Index);
         if (Task == NULL) {
             return SCRIPT_ERROR_UNDEFINED_VAR;

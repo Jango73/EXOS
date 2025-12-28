@@ -7,7 +7,12 @@
 
 ## Naming
 
-- Remove all abbrviations (SysStack, ...)
+- Remove all abbreviations (SysStack, ...)
+- Rename PRIVILEGE_KERNEL to CPU_PRIVILEGE_KERNEL
+- Rename PRIVILEGE_DRIVERS  to CPU_PRIVILEGE_DRIVERS
+- Rename PRIVILEGE_ROUTINES to CPU_PRIVILEGE_ROUTINES
+- Rename PRIVILEGE_USER to CPU_PRIVILEGE_USER
+
 
 ## Logs
 

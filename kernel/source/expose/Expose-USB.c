@@ -29,6 +29,10 @@
 
 /************************************************************************/
 
+#define EXPOSE_ACCESS_USB_PORTS (EXPOSE_ACCESS_ADMIN | EXPOSE_ACCESS_KERNEL)
+
+/************************************************************************/
+
 typedef struct tag_USB_PORT_HANDLE {
     DRIVER_ENUM_XHCI_PORT Data;
 } USB_PORT_HANDLE, *LPUSB_PORT_HANDLE;
@@ -159,7 +163,16 @@ SCRIPT_ERROR UsbGetProperty(
 
     EXPOSE_PROPERTY_GUARD();
 
-    EXPOSE_BIND_HOST_HANDLE("ports", &UsbPortArraySentinel, &UsbPortArrayDescriptor, NULL);
+    if (STRINGS_EQUAL_NO_CASE(Property, TEXT("ports"))) {
+        EXPOSE_REQUIRE_ACCESS(EXPOSE_ACCESS_USB_PORTS, NULL);
+        OutValue->Type = SCRIPT_VAR_HOST_HANDLE;
+        OutValue->Value.HostHandle = &UsbPortArraySentinel;
+        OutValue->HostDescriptor = &UsbPortArrayDescriptor;
+        OutValue->HostContext = NULL;
+        OutValue->OwnsValue = FALSE;
+        return SCRIPT_OK;
+    }
+
     EXPOSE_BIND_HOST_HANDLE("devices", &UsbDeviceArraySentinel, &UsbDeviceArrayDescriptor, NULL);
 
     return SCRIPT_ERROR_UNDEFINED_VAR;
@@ -185,6 +198,7 @@ SCRIPT_ERROR UsbPortGetProperty(
     UNUSED(Parent);
 
     EXPOSE_PROPERTY_GUARD();
+    EXPOSE_REQUIRE_ACCESS(EXPOSE_ACCESS_USB_PORTS, NULL);
 
     LPUSB_PORT_HANDLE Port = (LPUSB_PORT_HANDLE)Parent;
     if (Port == NULL) {
@@ -222,6 +236,7 @@ SCRIPT_ERROR UsbPortArrayGetProperty(
     UNUSED(Context);
 
     EXPOSE_PROPERTY_GUARD();
+    EXPOSE_REQUIRE_ACCESS(EXPOSE_ACCESS_USB_PORTS, NULL);
 
     EXPOSE_BIND_INTEGER("count", UsbEnumGetCount(ENUM_DOMAIN_XHCI_PORT));
 
@@ -248,6 +263,7 @@ SCRIPT_ERROR UsbPortArrayGetElement(
     UNUSED(Parent);
 
     EXPOSE_ARRAY_GUARD();
+    EXPOSE_REQUIRE_ACCESS(EXPOSE_ACCESS_USB_PORTS, NULL);
 
     DRIVER_ENUM_XHCI_PORT Data;
     if (!UsbEnumFetchByIndex(ENUM_DOMAIN_XHCI_PORT, Index, &Data, sizeof(Data))) {
