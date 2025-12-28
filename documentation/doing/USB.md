@@ -23,7 +23,7 @@
 
 **Goal**: do Control transfers and retrieve descriptors.
 
-- [X] Implement **Control Transfer** (SETUP + DATA + STATUS) + timeouts + STALL → CLEAR_FEATURE.
+- [X] Implement **Control Transfer** (SETUP + DATA + STATUS) + timeouts + STALL -> CLEAR_FEATURE.
 - [X] Standard sequence: **GET_DESCRIPTOR(Device)**, **SET_ADDRESS**, **GET_DESCRIPTOR(Config)**.
 - [X] No **SET_CONFIGURATION** yet (read-only).\
 
@@ -44,10 +44,10 @@
 
 **Goal**: support real hotplug through hubs.
 
-- [X] Hub class: **Interrupt IN** status change → reset port, **GetPortStatus**, **SetPortFeature**.
+- [X] Hub class: **Interrupt IN** status change -> reset port, **GetPortStatus**, **SetPortFeature**.
 - [X] xHCI: handle **TT** for FS/LS behind HS.
 - [X] Reuse Step 3 enumeration for each new port.
-**Success**: plugging on a hub → new device appears / disappears
+**Success**: plugging on a hub -> new device appears / disappears
 cleanly.
 
 ## Step 5 --- User Notification (mount/hotplug)
@@ -71,10 +71,10 @@ cleanly.
 
 **Goal**: functional USB keyboard.
 
-- [ ] Select **HID Interface**, **Get Report Descriptor** (optional for Boot).
-- [ ] **SET_PROTOCOL(BOOT)**, **SET_IDLE**.
-- [ ] Open **Interrupt IN** (polling via xHCI ring); 8-byte report → map to internal HID Usage.
-- [ ] Translate HID→EXOS KeyCode (separate layout).
+- [X] Select **HID Interface**, **Get Report Descriptor** (optional for Boot).
+- [X] **SET_PROTOCOL(BOOT)**, **SET_IDLE**.
+- [X] Open **Interrupt IN** (polling via xHCI ring); 8-byte report -> map to internal HID Usage.
+- [X] Translate HID->EXOS KeyCode (separate layout).
 
 **Success**: keystrokes visible in EXOS TTY (6KRO OK).
 **Independent**: nothing else required.
@@ -85,9 +85,9 @@ cleanly.
 
 - [ ] Bulk IN/OUT engine (queues, timeouts, retry).
 - [ ] MSC BOT: **CBW/CSW**, SCSI **INQUIRY**, **READ CAPACITY(10)**, **READ(10)**.
-- [ ] Expose block device `usbms0` (read-only) → attach to existing VFS.
+- [ ] Expose block device `usb0` (read-only) -> attach to existing VFS.
 
-**Success**: homemade `fdisk/lsblk` sees capacity, `mount` (RO) works.
+**Success**: shell command `usb drives` sees mounted USB drives.
 
 ## Step 9 --- Mass Storage read/write + cache/flush
 
@@ -96,7 +96,7 @@ cleanly.
 - [ ] **WRITE(10)**, write-cache, **SYNCHRONIZE CACHE**.
 - [ ] SCSI error paths (UNIT ATTENTION, NOT READY), clean re-init.
 
-**Success**: create a file on a FS (FAT32/EXFS) on `usbms0`.
+**Success**: create a file on a FS (FAT32/EXT2) on `usb0`.
 
 ## Step 10 --- Robust hotplug & teardown
 
@@ -105,7 +105,7 @@ cleanly.
 - [ ] Cancel URB/TD, flush rings, **STOP/RESET EP**, **Disable Slot**.
 - [ ] Refcount on device/interface/endpoint objects.
 
-**Success**: unplug during I/O → no panic, resources freed.
+**Success**: unplug during I/O -> no panic, resources freed.
 
 ## Step 11 --- CDC-ACM (USB-Serial)
 
