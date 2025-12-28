@@ -1287,6 +1287,80 @@ BOOL XHCI_AddInterruptEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice
 /************************************************************************/
 
 /**
+ * @brief Add a bulk endpoint to the device context.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device state.
+ * @param Endpoint Endpoint descriptor.
+ * @return TRUE on success.
+ */
+BOOL XHCI_AddBulkEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, LPXHCI_USB_ENDPOINT Endpoint) {
+    if (Device == NULL || UsbDevice == NULL || Endpoint == NULL) {
+        return FALSE;
+    }
+
+    if (Endpoint->TransferRingLinear == 0 || Endpoint->TransferRingPhysical == 0) {
+        if (!XHCI_InitEndpointRing(Endpoint, TEXT("XHCI_EpRing"))) {
+            return FALSE;
+        }
+    }
+
+    Endpoint->Dci = XHCI_GetEndpointDci(Endpoint->Address);
+
+    MemorySet((LPVOID)UsbDevice->InputContextLinear, 0, PAGE_SIZE);
+    LPXHCI_CONTEXT_32 Control = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, 0);
+    Control->Dword1 = (1U << 0) | (1U << Endpoint->Dci);
+
+    LPVOID SlotIn = (LPVOID)XHCI_GetContextPointer(UsbDevice->DeviceContextLinear, Device->ContextSize, 0);
+    LPVOID SlotOut = (LPVOID)XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, 1);
+    MemoryCopy(SlotOut, SlotIn, Device->ContextSize);
+
+    {
+        LPXHCI_CONTEXT_32 Slot = (LPXHCI_CONTEXT_32)SlotOut;
+        U32 ContextEntries = (U32)Endpoint->Dci + 1U;
+        Slot->Dword0 &= ~(0x1FU << XHCI_SLOT_CTX_CONTEXT_ENTRIES_SHIFT);
+        Slot->Dword0 |= ((ContextEntries & 0x1FU) << XHCI_SLOT_CTX_CONTEXT_ENTRIES_SHIFT);
+    }
+
+    LPXHCI_CONTEXT_32 EpCtx = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, (U32)Endpoint->Dci + 1U);
+    U32 EpType = ((Endpoint->Address & 0x80) != 0) ? 6U : 2U;
+    U32 MaximumPacketSize = ((U32)Endpoint->MaxPacketSize & 0x7FFU);
+
+    EpCtx->Dword0 = 0;
+    EpCtx->Dword1 = (3U) | ((EpType << 3) | (MaximumPacketSize << 16));
+
+    {
+        U64 Dequeue = U64_FromUINT(Endpoint->TransferRingPhysical);
+        EpCtx->Dword2 = (U32)(U64_Low32(Dequeue) & ~0xFU);
+        EpCtx->Dword2 |= (Endpoint->TransferRingCycleState ? 1U : 0U);
+        EpCtx->Dword3 = U64_High32(Dequeue);
+        EpCtx->Dword4 = MaximumPacketSize;
+    }
+
+    DEBUG(TEXT("[XHCI_AddBulkEndpoint] Slot=%x DCI=%x Speed=%x EpAddr=%x Attr=%x MaxPacketSize=%u Dequeue=%x:%x"),
+          (U32)UsbDevice->SlotId,
+          (U32)Endpoint->Dci,
+          (U32)UsbDevice->SpeedId,
+          (U32)Endpoint->Address,
+          (U32)Endpoint->Attributes,
+          (U32)MaximumPacketSize,
+          (U32)EpCtx->Dword3,
+          (U32)EpCtx->Dword2);
+    DEBUG(TEXT("[XHCI_AddBulkEndpoint] CtrlAdd=%x SlotD0=%x SlotD1=%x EpD0=%x EpD1=%x EpD2=%x EpD3=%x EpD4=%x"),
+          (U32)Control->Dword1,
+          (U32)((LPXHCI_CONTEXT_32)SlotOut)->Dword0,
+          (U32)((LPXHCI_CONTEXT_32)SlotOut)->Dword1,
+          (U32)EpCtx->Dword0,
+          (U32)EpCtx->Dword1,
+          (U32)EpCtx->Dword2,
+          (U32)EpCtx->Dword3,
+          (U32)EpCtx->Dword4);
+
+    return XHCI_ConfigureEndpoint(Device, UsbDevice);
+}
+
+/************************************************************************/
+
+/**
  * @brief Update slot context for hub information.
  * @param Device xHCI device.
  * @param UsbDevice USB device state.

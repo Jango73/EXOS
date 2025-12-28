@@ -83,9 +83,9 @@ cleanly.
 
 **Goal**: read a USB stick.
 
-- [ ] Bulk IN/OUT engine (queues, timeouts, retry).
-- [ ] MSC BOT: **CBW/CSW**, SCSI **INQUIRY**, **READ CAPACITY(10)**, **READ(10)**.
-- [ ] Expose block device `usb0` (read-only) -> attach to existing VFS.
+- [X] Bulk IN/OUT engine (queues, timeouts, retry).
+- [X] MSC BOT: **CBW/CSW**, SCSI **INQUIRY**, **READ CAPACITY(10)**, **READ(10)**.
+- [X] Expose block device `usb0` (read-only) -> attach to existing VFS.
 
 **Success**: shell command `usb drives` sees mounted USB drives.
 
@@ -95,6 +95,7 @@ cleanly.
 
 - [ ] **WRITE(10)**, write-cache, **SYNCHRONIZE CACHE**.
 - [ ] SCSI error paths (UNIT ATTENTION, NOT READY), clean re-init.
+
 
 **Success**: create a file on a FS (FAT32/EXT2) on `usb0`.
 

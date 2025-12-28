@@ -26,6 +26,7 @@
 #include "Clock.h"
 #include "Console.h"
 #include "drivers/Keyboard.h"
+#include "drivers/USBMassStorage.h"
 #include "DriverEnum.h"
 #include "Endianness.h"
 #include "Exposed.h"
@@ -179,7 +180,7 @@ static struct {
     {"whoami", "who", "", CMD_whoami},
     {"passwd", "setpassword", "", CMD_passwd},
     {"prof", "profiling", "", CMD_prof},
-    {"usb", "usb", "ports|devices|device-tree", CMD_usb},
+    {"usb", "usb", "ports|devices|device-tree|drives", CMD_usb},
     {"", "", "", NULL},
 };
 
@@ -1766,8 +1767,37 @@ static U32 CMD_usb(LPSHELLCONTEXT Context) {
     if (StringLength(Context->Command) == 0 ||
         (StringCompareNC(Context->Command, TEXT("ports")) != 0 &&
          StringCompareNC(Context->Command, TEXT("devices")) != 0 &&
-         StringCompareNC(Context->Command, TEXT("device-tree")) != 0)) {
-        ConsolePrint(TEXT("Usage: usb ports|devices|device-tree\n"));
+         StringCompareNC(Context->Command, TEXT("device-tree")) != 0 &&
+         StringCompareNC(Context->Command, TEXT("drives")) != 0)) {
+        ConsolePrint(TEXT("Usage: usb ports|devices|device-tree|drives\n"));
+        return DF_RET_SUCCESS;
+    }
+
+    if (StringCompareNC(Context->Command, TEXT("drives")) == 0) {
+        LPLIST UsbDeviceList = GetUsbDeviceList();
+        if (UsbDeviceList == NULL || UsbDeviceList->First == NULL) {
+            ConsolePrint(TEXT("No USB drive detected\n"));
+            return DF_RET_SUCCESS;
+        }
+
+        UINT Index = 0;
+        for (LPLISTNODE Node = UsbDeviceList->First; Node; Node = Node->Next) {
+            LPUSB_STORAGE_ENTRY Entry = (LPUSB_STORAGE_ENTRY)Node;
+            if (Entry == NULL) {
+                continue;
+            }
+
+            ConsolePrint(TEXT("usb%u: addr=%x vid=%x pid=%x blocks=%u block_size=%u state=%s\n"),
+                         Index,
+                         (U32)Entry->Address,
+                         (U32)Entry->VendorId,
+                         (U32)Entry->ProductId,
+                         Entry->BlockCount,
+                         Entry->BlockSize,
+                         Entry->Present ? TEXT("online") : TEXT("offline"));
+            Index++;
+        }
+
         return DF_RET_SUCCESS;
     }
 

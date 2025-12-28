@@ -86,6 +86,17 @@ static LIST DiskList = {
 
 /************************************************************************/
 
+static LIST USBDeviceList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
+
+/************************************************************************/
+
 static LIST PciDeviceList = {
     .First = NULL,
     .Last = NULL,
@@ -181,6 +192,7 @@ static KERNELDATA DATA_SECTION Kernel = {
     .Task = &TaskList,
     .Mutex = &MutexList,
     .Disk = &DiskList,
+    .USBDevice = &USBDeviceList,
     .PCIDevice = &PciDeviceList,
     .NetworkDevice = &NetworkDeviceList,
     .Event = &EventList,
@@ -246,6 +258,7 @@ void InitializeDriverList(void) {
     ListAddTail(Kernel.Drivers, ClockGetDriver());
     ListAddTail(Kernel.Drivers, PCIGetDriver());
     ListAddTail(Kernel.Drivers, USBMouseGetDriver());
+    ListAddTail(Kernel.Drivers, USBMassStorageGetDriver());
     ListAddTail(Kernel.Drivers, ATADiskGetDriver());
     ListAddTail(Kernel.Drivers, SATADiskGetDriver());
     ListAddTail(Kernel.Drivers, RAMDiskGetDriver());
@@ -313,6 +326,16 @@ LPLIST GetMutexList(void) {
  */
 LPLIST GetDiskList(void) {
     return Kernel.Disk;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the USB device list.
+ * @return Pointer to the USB device list.
+ */
+LPLIST GetUsbDeviceList(void) {
+    return Kernel.USBDevice;
 }
 
 /************************************************************************/

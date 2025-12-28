@@ -207,6 +207,13 @@ Hub-class devices are supported: the driver reads hub descriptors, powers ports,
 tracks downstream devices, and polls hub interrupt endpoints for change bits to
 trigger per-port reset and re-enumeration.
 
+USB mass storage (BOT, read-only) is handled by `kernel/source/drivers/USBMassStorage.c`.
+The driver configures bulk endpoints, sends CBW/CSW sequences for SCSI INQUIRY,
+READ CAPACITY(10), and READ(10), and registers detected disks in the global disk
+list so `MountDiskPartitions` can attach file systems. Mounted USB storage
+instances are tracked in `Kernel.USBDevice`, and the shell command `usb drives`
+prints the current entries with their address, VID/PID, and block geometry.
+
 The VESA graphics driver always requests VBE modes in linear frame buffer
 mode (bit 14 set in INT 10h 4F02h), checks that the selected mode advertises
 the LFB capability, and maps the `PhysBasePtr` through `MapIOMemory`. Drawing

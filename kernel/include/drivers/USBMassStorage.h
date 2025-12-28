@@ -17,46 +17,44 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Driver getters
+    USB Mass Storage
 
 \************************************************************************/
 
-#ifndef DRIVERGETTERS_H_INCLUDED
-#define DRIVERGETTERS_H_INCLUDED
+#ifndef USBMASSSTORAGE_H_INCLUDED
+#define USBMASSSTORAGE_H_INCLUDED
 
 /************************************************************************/
 
 #include "Base.h"
 #include "Driver.h"
+#include "List.h"
 
 /************************************************************************/
-// External symbols
 
-LPDRIVER ConsoleGetDriver(void);
-LPDRIVER KernelLogGetDriver(void);
-LPDRIVER MemoryManagerGetDriver(void);
-LPDRIVER TaskSegmentsGetDriver(void);
-LPDRIVER InterruptsGetDriver(void);
-LPDRIVER KernelProcessGetDriver(void);
-LPDRIVER ACPIGetDriver(void);
-LPDRIVER LocalAPICGetDriver(void);
-LPDRIVER IOAPICGetDriver(void);
-LPDRIVER InterruptControllerGetDriver(void);
-LPDRIVER DeviceInterruptGetDriver(void);
-LPDRIVER DeferredWorkGetDriver(void);
-LPDRIVER StdKeyboardGetDriver(void);
-LPDRIVER ClockGetDriver(void);
-LPDRIVER PCIGetDriver(void);
-LPDRIVER ATADiskGetDriver(void);
-LPDRIVER SATADiskGetDriver(void);
-LPDRIVER RAMDiskGetDriver(void);
+#pragma pack(push, 1)
+
+/************************************************************************/
+
+typedef struct tag_USB_MASS_STORAGE_DEVICE USB_MASS_STORAGE_DEVICE, *LPUSB_MASS_STORAGE_DEVICE;
+
+typedef struct tag_USB_STORAGE_ENTRY {
+    LISTNODE_FIELDS
+    LPUSB_MASS_STORAGE_DEVICE Device;
+    U8 Address;
+    U16 VendorId;
+    U16 ProductId;
+    UINT BlockCount;
+    UINT BlockSize;
+    BOOL Present;
+} USB_STORAGE_ENTRY, *LPUSB_STORAGE_ENTRY;
+
+/************************************************************************/
+
 LPDRIVER USBMassStorageGetDriver(void);
-LPDRIVER FileSystemGetDriver(void);
-LPDRIVER NetworkManagerGetDriver(void);
-LPDRIVER UserAccountGetDriver(void);
-LPDRIVER VESAGetDriver(void);
-LPDRIVER EXFSGetDriver(void);
 
 /************************************************************************/
 
-#endif  // DRIVERGETTERS_H_INCLUDED
+#pragma pack(pop)
+
+#endif  // USBMASSSTORAGE_H_INCLUDED
