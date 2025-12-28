@@ -20,6 +20,9 @@ echo ACPI support enabled for IOAPIC testing with kernel-irqchip=split
 -device qemu-xhci,id=xhci ^
 -device usb-kbd,bus=xhci.0 ^
 -device usb-mouse,bus=xhci.0 ^
+-audiodev dsound,id=audio0 ^
+-device intel-hda,id=hda ^
+-device hda-output,bus=hda.0,audiodev=audio0 ^
 -device ahci,id=ahci ^
 -drive format=raw,file="%IMG_1_PATH%",if=none,id=drive0 ^
 -device ide-hd,drive=drive0,bus=ahci.0 ^

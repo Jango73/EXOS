@@ -13,7 +13,6 @@
 - Rename PRIVILEGE_ROUTINES to CPU_PRIVILEGE_ROUTINES
 - Rename PRIVILEGE_USER to CPU_PRIVILEGE_USER
 
-
 ## Logs
 
 - Use __func__ to automatically include function name
