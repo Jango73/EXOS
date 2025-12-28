@@ -1306,6 +1306,22 @@ The network stack successfully handles real network traffic across multiple devi
         - `mutex`: mutex pointer. Permissions: kernel and administrator only.
         - `message_queue`: message queue pointer. Permissions: kernel and administrator only.
         - `process`: owning process pointer. Permissions: kernel and administrator only.
+- `drivers`: Kernel driver list root. provides indexed access to driver views.
+  Permissions: kernel and administrator only.
+  - `drivers.count`: number of drivers. Permissions: kernel and administrator only.
+  - `drivers[n]`: driver view at index `n`. Permissions: kernel and administrator only.
+    - `type`: driver type. Permissions: kernel and administrator only.
+    - `version_major`: major version. Permissions: kernel and administrator only.
+    - `version_minor`: minor version. Permissions: kernel and administrator only.
+    - `designer`: driver designer. Permissions: kernel and administrator only.
+    - `manufacturer`: driver manufacturer. Permissions: kernel and administrator only.
+    - `product`: driver product name. Permissions: kernel and administrator only.
+    - `flags`: driver flags. Permissions: kernel and administrator only.
+    - `command`: driver command pointer. Permissions: kernel and administrator only.
+    - `enum_domain_count`: number of enum domains. Permissions: kernel and administrator only.
+    - `enum_domains`: enum domain array. Permissions: kernel and administrator only.
+      - `enum_domains.count`: enum domain count. Permissions: kernel and administrator only.
+      - `enum_domains[n]`: enum domain value at index `n`. Permissions: kernel and administrator only.
 - `usb.ports`: xHCI port list root. provides indexed access to USB ports.
   Permissions: kernel and administrator only.
   - `usb.ports.count`: number of USB ports. Permissions: kernel and administrator only.

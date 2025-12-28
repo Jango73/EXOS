@@ -204,6 +204,19 @@ static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context) {
         }
     }
 
+    LPLIST DriverList = GetDriverList();
+    SAFE_USE(DriverList) {
+        if (!ScriptRegisterHostSymbol(
+                Context->ScriptContext,
+                TEXT("drivers"),
+                SCRIPT_HOST_SYMBOL_ARRAY,
+                DriverList,
+                &DriverArrayDescriptor,
+                NULL)) {
+            DEBUG(TEXT("[ShellRegisterScriptHostObjects] Failed to register drivers host symbol"));
+        }
+    }
+
     if (!ScriptRegisterHostSymbol(
             Context->ScriptContext,
             TEXT("usb"),
