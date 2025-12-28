@@ -55,6 +55,7 @@ SCRIPT_ERROR ProcessGetProperty(
         EXPOSE_BIND_STRING("file_name", Process->FileName);
         EXPOSE_BIND_STRING("command_line", Process->CommandLine);
         EXPOSE_BIND_STRING("work_folder", Process->WorkFolder);
+        EXPOSE_BIND_HOST_HANDLE("task", Process, &TaskArrayDescriptor, NULL);
 
         return SCRIPT_ERROR_UNDEFINED_VAR;
     }

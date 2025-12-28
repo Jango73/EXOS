@@ -5,6 +5,10 @@
 - Opening a file in a userland program without an absolute path should do the same as using getcwd().
 - Add a getpd() that returns the folder in which the current executable's image lives.
 
+## Naming
+
+- Remove all abbrviations (SysStack, ...)
+
 ## Logs
 
 - Use __func__ to automatically include function name

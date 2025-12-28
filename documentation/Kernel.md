@@ -229,6 +229,13 @@ so automation stays inside the supported host interface.
 - `process`: Kernel process list. Index-based access (`process[0]`, `process[1]`, ...)
   returns a process view with `status`, `flags`, `exit_code`, `file_name`,
   `command_line`, and `work_folder`. `process.count` returns the process count.
+  `process.task` exposes per-process tasks and `process.task.count` returns the task count.
+- `process.task`: Task list for the owning process. Index-based access
+  (`process.task[0]`, `process.task[1]`, ...) returns a task view with `name`,
+  `type`, `status`, `priority`, `function`, `parameter`, `exit_code`, `flags`,
+  `architecture`, `stack`, `system_stack`, `wake_up_time`, `mutex`,
+  `message_queue`, and `process`. The `architecture` view exposes `context`,
+  `stack`, and `system_stack`. The `stack` view exposes `base` and `size`.
 - `usb.ports`: xHCI port list. Index-based access (`usb.ports[0]`, `usb.ports[1]`, ...)
   returns a port view with `bus`, `device`, `function`, `port_number`, `port_status`,
   `speed_id`, `connected`, and `enabled`. `usb.ports.count` returns the port count.

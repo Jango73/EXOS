@@ -120,6 +120,41 @@ SCRIPT_ERROR ProcessArrayGetProperty(
 extern const SCRIPT_HOST_DESCRIPTOR ProcessDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR ProcessArrayDescriptor;
 
+SCRIPT_ERROR TaskGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR TaskArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR TaskArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR ArchitectureTaskDataGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR StackGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+extern const SCRIPT_HOST_DESCRIPTOR TaskDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR TaskArrayDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR ArchitectureTaskDataDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR StackDescriptor;
+
 SCRIPT_ERROR UsbGetProperty(
     LPVOID Context,
     SCRIPT_HOST_HANDLE Parent,
