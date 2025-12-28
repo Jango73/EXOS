@@ -261,8 +261,8 @@ void EnsureScreenMetrics(void) {
         App.Render.ViewBlitInfo.Y = TOP_BAR_HEIGHT;
         App.Render.ViewBlitInfo.Width = ViewportWidth;
         App.Render.ViewBlitInfo.Height = ViewportHeight;
-        App.Render.ViewBlitInfo.TextPitch = ViewportWidth + 1;
-        App.Render.ViewBlitInfo.AttrPitch = ViewportWidth;
+        App.Render.ViewBlitInfo.TextPitch = MAX_VIEWPORT_WIDTH + 1;
+        App.Render.ViewBlitInfo.AttrPitch = MAX_VIEWPORT_WIDTH;
 
         ResetRenderCache();
     }
@@ -620,8 +620,8 @@ static void BlitFrameBuffer(void) {
     Frame.X = 0;
     Frame.Y = 0;
     Frame.Attr = (const U8*)App.Render.ScreenAttr[0];
-    Frame.TextPitch = SCREEN_WIDTH + 1;
-    Frame.AttrPitch = SCREEN_WIDTH;
+    Frame.TextPitch = MAX_SCREEN_WIDTH + 1;
+    Frame.AttrPitch = MAX_SCREEN_WIDTH;
     ConsoleBlitBuffer(&Frame);
 }
 
@@ -1299,8 +1299,8 @@ void RenderInGameScreen(void) {
     Frame.X = 0;
     Frame.Y = 0;
     Frame.Attr = (const U8*)App.Render.ScreenAttr[0];
-    Frame.TextPitch = SCREEN_WIDTH + 1;
-    Frame.AttrPitch = SCREEN_WIDTH;
+    Frame.TextPitch = MAX_SCREEN_WIDTH + 1;
+    Frame.AttrPitch = MAX_SCREEN_WIDTH;
     ConsoleBlitBuffer(&Frame);
 }
 
