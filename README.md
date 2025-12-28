@@ -75,12 +75,14 @@ It was a year-long solo project, developed the hard way:
 - I/O APIC management
 - PCI device management
 - ATA & SATA/AHCI hard disk drivers
+- xHCI driver
 - ACPI shutdown/reboot
 - Console management
-- Basic keyboard and mouse management
+- PS/2 keyboard and mouse drivers
+- USB keyboard and mouse drivers
 - Primitive graphics using VESA standard (broken)
 - Virtual file system with mount points
-- Scripted shell
+- Scripted shell with kernel object exposure
 - Configuration with TOML format
 - E1000 network driver
 - ARP/IPv4/DHCP/UDP/TCP network layers
@@ -94,15 +96,10 @@ It was a year-long solo project, developed the hard way:
 -------------------------------------------------------------------------------
 Language                     files          blank        comment           code
 -------------------------------------------------------------------------------
-C                              130          13683          13915          41583
-C/C++ Header                   129           3619           4264           8620
-Assembly                        16           1726           1104           4891
+C                              181          19626          20065          64494
+C/C++ Header                   164           4385           5166          10667
+Assembly                        16           1752           1128           5010
 -------------------------------------------------------------------------------
-SUM:                           275          19028          19283          55094
+SUM:                           361          25763          26359          80171
 -------------------------------------------------------------------------------
 ```
-
-## End of the road?
-AI once made it possible for a single person to develop an open-source project without astronomical costs.
-Now it has become impossible with the widespread adoption of “usage-based fees,” which makes building AI-powered open-source projects too expensive—especially since they bring in no revenue at all.
-So this project will now be coded very slowly if at all.
