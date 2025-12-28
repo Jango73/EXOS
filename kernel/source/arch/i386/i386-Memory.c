@@ -209,6 +209,16 @@ DRIVER DATA_SECTION MemoryManagerDriver = {
 /************************************************************************/
 
 /**
+ * @brief Retrieves the memory manager driver descriptor.
+ * @return Pointer to the memory manager driver.
+ */
+LPDRIVER MemoryManagerGetDriver(void) {
+    return &MemoryManagerDriver;
+}
+
+/************************************************************************/
+
+/**
  * @brief Clip a 64-bit range to 32 bits.
  * @param base Input base address.
  * @param len Length of the range.

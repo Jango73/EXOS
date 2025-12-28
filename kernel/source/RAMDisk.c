@@ -49,6 +49,16 @@ DRIVER DATA_SECTION RAMDiskDriver = {
     .Command = RAMDiskCommands};
 
 /***************************************************************************/
+
+/**
+ * @brief Retrieves the RAM disk driver descriptor.
+ * @return Pointer to the RAM disk driver.
+ */
+LPDRIVER RAMDiskGetDriver(void) {
+    return &RAMDiskDriver;
+}
+
+/***************************************************************************/
 // RAM physical disk, derives from PHYSICALDISK
 
 typedef struct tag_RAMDISK {

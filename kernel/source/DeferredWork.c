@@ -90,6 +90,16 @@ DRIVER DATA_SECTION DeferredWorkDriver = {
 /************************************************************************/
 
 /**
+ * @brief Retrieves the deferred work driver descriptor.
+ * @return Pointer to the deferred work driver.
+ */
+LPDRIVER DeferredWorkGetDriver(void) {
+    return &DeferredWorkDriver;
+}
+
+/************************************************************************/
+
+/**
  * @brief Initializes deferred work dispatcher task and event.
  *
  * Reads configuration for timeouts/polling, creates dispatcher task, and

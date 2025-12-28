@@ -60,6 +60,16 @@ DRIVER DATA_SECTION ConsoleDriver = {
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieves the console driver descriptor.
+ * @return Pointer to the console driver.
+ */
+LPDRIVER ConsoleGetDriver(void) {
+    return &ConsoleDriver;
+}
+
+/***************************************************************************/
+
 #define CHARATTR (Console.ForeColor | (Console.BackColor << 0x04) | (Console.Blink << 0x07))
 
 #define CGA_REGISTER 0x00

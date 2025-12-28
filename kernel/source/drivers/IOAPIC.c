@@ -59,6 +59,16 @@ DRIVER DATA_SECTION IOAPICDriver = {
 /***************************************************************************/
 
 /**
+ * @brief Retrieves the I/O APIC driver descriptor.
+ * @return Pointer to the I/O APIC driver.
+ */
+LPDRIVER IOAPICGetDriver(void) {
+    return &IOAPICDriver;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Initialize the I/O APIC subsystem.
  *
  * Discovers I/O APIC controllers through ACPI, maps their registers,

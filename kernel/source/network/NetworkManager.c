@@ -66,6 +66,16 @@ DRIVER DATA_SECTION NetworkManagerDriver = {
 /************************************************************************/
 
 /**
+ * @brief Retrieves the network manager driver descriptor.
+ * @return Pointer to the network manager driver.
+ */
+LPDRIVER NetworkManagerGetDriver(void) {
+    return &NetworkManagerDriver;
+}
+
+/************************************************************************/
+
+/**
  * @brief Get IP value from configuration with fallback.
  *
  * @param configPath Configuration key path

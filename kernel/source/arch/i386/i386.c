@@ -213,6 +213,16 @@ DRIVER DATA_SECTION InterruptsDriver = {
 /************************************************************************/
 
 /**
+ * @brief Retrieves the interrupts driver descriptor.
+ * @return Pointer to the interrupts driver.
+ */
+LPDRIVER InterruptsGetDriver(void) {
+    return &InterruptsDriver;
+}
+
+/************************************************************************/
+
+/**
  * @brief Set the handler address for an IDT gate descriptor.
  * @param Descriptor IDT entry to update.
  * @param Handler Linear address of the interrupt handler.

@@ -88,6 +88,16 @@ DRIVER DATA_SECTION KernelProcessDriver = {
 /***************************************************************************/
 
 /**
+ * @brief Retrieves the kernel process driver descriptor.
+ * @return Pointer to the kernel process driver.
+ */
+LPDRIVER KernelProcessGetDriver(void) {
+    return &KernelProcessDriver;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Initialize the kernel process and main task.
  *
  * Prepare the kernel heap, set up the kernel process fields and create the

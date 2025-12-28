@@ -65,6 +65,16 @@ DRIVER DATA_SECTION UserAccountDriver = {
 /************************************************************************/
 
 /**
+ * @brief Retrieves the user account driver descriptor.
+ * @return Pointer to the user account driver.
+ */
+LPDRIVER UserAccountGetDriver(void) {
+    return &UserAccountDriver;
+}
+
+/************************************************************************/
+
+/**
  * @brief Initialize the user account system.
  * @return TRUE on success, FALSE on failure.
  */

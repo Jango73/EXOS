@@ -61,6 +61,16 @@ DRIVER DATA_SECTION ATADiskDriver = {
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieves the ATA disk driver descriptor.
+ * @return Pointer to the ATA disk driver.
+ */
+LPDRIVER ATADiskGetDriver(void) {
+    return &ATADiskDriver;
+}
+
+/***************************************************************************/
+
 // ATA physical disk, derives from PHYSICALDISK
 
 typedef struct tag_ATADISK {

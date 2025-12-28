@@ -98,6 +98,16 @@ DRIVER DeviceInterruptDriver = {
 /************************************************************************/
 
 /**
+ * @brief Retrieves the device interrupt driver descriptor.
+ * @return Pointer to the device interrupt driver.
+ */
+LPDRIVER DeviceInterruptGetDriver(void) {
+    return &DeviceInterruptDriver;
+}
+
+/************************************************************************/
+
+/**
  * @brief Returns the number of device interrupt slots available.
  *
  * Clamps the configured slot count to the supported range to avoid invalid

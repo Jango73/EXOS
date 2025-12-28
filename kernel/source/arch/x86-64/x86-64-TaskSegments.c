@@ -56,6 +56,16 @@ DRIVER DATA_SECTION TaskSegmentsDriver = {
 /************************************************************************/
 
 /**
+ * @brief Retrieves the task segments driver descriptor.
+ * @return Pointer to the task segments driver.
+ */
+LPDRIVER TaskSegmentsGetDriver(void) {
+    return &TaskSegmentsDriver;
+}
+
+/************************************************************************/
+
+/**
  * @brief Populate the limit fields of a system segment descriptor.
  * @param Descriptor Descriptor to update.
  * @param Limit Segment limit value encoded on 20 bits.

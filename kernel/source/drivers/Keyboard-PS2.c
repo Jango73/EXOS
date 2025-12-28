@@ -55,6 +55,16 @@ DRIVER DATA_SECTION StdKeyboardDriver = {
     .Command = StdKeyboardCommands};
 
 /***************************************************************************/
+
+/**
+ * @brief Retrieves the standard keyboard driver descriptor.
+ * @return Pointer to the standard keyboard driver.
+ */
+LPDRIVER StdKeyboardGetDriver(void) {
+    return &StdKeyboardDriver;
+}
+
+/***************************************************************************/
 // Standard scan codes
 
 #define SCAN_ESCAPE 0x01

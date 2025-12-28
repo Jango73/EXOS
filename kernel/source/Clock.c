@@ -55,6 +55,16 @@ DRIVER DATA_SECTION ClockDriver = {
     .Command = ClockDriverCommands};
 
 /************************************************************************/
+
+/**
+ * @brief Retrieves the clock driver descriptor.
+ * @return Pointer to the clock driver.
+ */
+LPDRIVER ClockGetDriver(void) {
+    return &ClockDriver;
+}
+
+/************************************************************************/
 // Timer resolution
 
 #define DIVISOR 11932

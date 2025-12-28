@@ -57,6 +57,16 @@ DRIVER DATA_SECTION InterruptsDriver = {
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = InterruptsDriverCommands};
 
+/************************************************************************/
+
+/**
+ * @brief Retrieves the interrupts driver descriptor.
+ * @return Pointer to the interrupts driver.
+ */
+LPDRIVER InterruptsGetDriver(void) {
+    return &InterruptsDriver;
+}
+
 /************************************************************************\
 
                               ┌──────────────────────────────────────────┐

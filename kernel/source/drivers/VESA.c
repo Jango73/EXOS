@@ -67,6 +67,16 @@ DRIVER DATA_SECTION VESADriver = {
 
 /************************************************************************/
 
+/**
+ * @brief Retrieves the VESA driver descriptor.
+ * @return Pointer to the VESA driver.
+ */
+LPDRIVER VESAGetDriver(void) {
+    return &VESADriver;
+}
+
+/************************************************************************/
+
 typedef struct tag_VESA_CONTEXT VESA_CONTEXT, *LPVESA_CONTEXT;
 
 /************************************************************************/

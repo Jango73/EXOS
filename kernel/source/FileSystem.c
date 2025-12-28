@@ -63,6 +63,16 @@ DRIVER DATA_SECTION FileSystemDriver = {
 /***************************************************************************/
 
 /**
+ * @brief Retrieves the file system driver descriptor.
+ * @return Pointer to the file system driver.
+ */
+LPDRIVER FileSystemGetDriver(void) {
+    return &FileSystemDriver;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Loads and parses the kernel configuration file.
  *
  * Attempts to read "exos.toml" (case insensitive) and stores the resulting

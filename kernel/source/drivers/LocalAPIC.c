@@ -55,6 +55,16 @@ DRIVER DATA_SECTION LocalAPICDriver = {
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieves the local APIC driver descriptor.
+ * @return Pointer to the local APIC driver.
+ */
+LPDRIVER LocalAPICGetDriver(void) {
+    return &LocalAPICDriver;
+}
+
+/***************************************************************************/
+
 typedef struct tag_CPUIDREGISTERS {
     U32 reg_EAX;
     U32 reg_EBX;

@@ -58,6 +58,16 @@ DRIVER DATA_SECTION KernelLogDriver = {
 /************************************************************************/
 
 /**
+ * @brief Retrieves the kernel log driver descriptor.
+ * @return Pointer to the kernel log driver.
+ */
+LPDRIVER KernelLogGetDriver(void) {
+    return &KernelLogDriver;
+}
+
+/************************************************************************/
+
+/**
  * @brief Initializes the kernel logging system.
  *
  * Sets up the serial port used for kernel log output by resetting

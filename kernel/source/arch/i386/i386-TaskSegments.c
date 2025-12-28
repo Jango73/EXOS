@@ -53,6 +53,16 @@ DRIVER DATA_SECTION TaskSegmentsDriver = {
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieves the task segments driver descriptor.
+ * @return Pointer to the task segments driver.
+ */
+LPDRIVER TaskSegmentsGetDriver(void) {
+    return &TaskSegmentsDriver;
+}
+
+/***************************************************************************/
+
 void InitializeTaskSegments(void) {
     DEBUG(TEXT("[InitializeTaskSegments] Enter"));
 

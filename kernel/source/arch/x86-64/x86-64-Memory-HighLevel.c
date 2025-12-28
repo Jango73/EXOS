@@ -48,6 +48,16 @@ DRIVER DATA_SECTION MemoryManagerDriver = {
 
 /************************************************************************/
 
+/**
+ * @brief Retrieves the memory manager driver descriptor.
+ * @return Pointer to the memory manager driver.
+ */
+LPDRIVER MemoryManagerGetDriver(void) {
+    return &MemoryManagerDriver;
+}
+
+/************************************************************************/
+
 typedef enum {
     PAGE_TABLE_POPULATE_IDENTITY,
     PAGE_TABLE_POPULATE_SINGLE_ENTRY,

@@ -358,10 +358,6 @@ static void Welcome(void) {
     ConsolePrint(TEXT("#######\\ ##// ##\\ \\######// #######| \n"));
     ConsolePrint(TEXT("\\------/ \\-/  \\-/  \\-----/  \\------/ \n\n"));
 
-#if DEBUG_OUTPUT == 1 || SCHEDULING_DEBUG_OUTPUT == 1
-    ConsolePrint(TEXT("WARNING : This is a debug build.\n\n"));
-#endif
-
     ConsolePrint(
         TEXT(
             "Extensible Operating System for %s computers\n"
@@ -445,8 +441,7 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
     Object->Next = NULL;
     Object->Prev = NULL;
 
-    DEBUG(TEXT("[CreateKernelObject] Object created at %x, OwnerProcess: %x"),
-          (U32)Object, (U32)Object->OwnerProcess);
+    DEBUG(TEXT("[CreateKernelObject] Object created at %x, OwnerProcess: %x"), Object, Object->OwnerProcess);
 
     return Object;
 }
@@ -493,7 +488,7 @@ void DeleteUnreferencedObjects(void) {
 
             // Check if object has no references
             if (Current->References == 0) {
-                DEBUG(TEXT("[DeleteUnreferencedObjects] Deleting unreferenced %s object at %x (ID: %x)"), ListName, (U32)Current, Current->TypeID);
+                DEBUG(TEXT("[DeleteUnreferencedObjects] Deleting unreferenced %s object at %x (ID: %x)"), ListName, Current, Current->TypeID);
 
                 // Remove from list first
                 ListRemove(List, Current);
@@ -650,7 +645,6 @@ static void UseConfiguration(void) {
         Layout = TomlGet(Configuration, TEXT("Keyboard.Layout"));
 
         if (Layout) {
-            ConsolePrint(TEXT("Keyboard = %s\n"), Layout);
             SelectKeyboard(Layout);
         } else {
             ConsolePrint(TEXT("Keyboard layout not found in config, using default en-US\n"));
@@ -660,7 +654,7 @@ static void UseConfiguration(void) {
         QuantumMS = TomlGet(Configuration, TEXT(CONFIG_GENERAL_QUANTUM_MS));
 
         if (STRING_EMPTY(QuantumMS) == FALSE) {
-            ConsolePrint(TEXT("Task quantum set to %s\n"), QuantumMS);
+            DEBUG(TEXT("Task quantum set to %s\n"), QuantumMS);
             SetMinimumQuantum(StringToU32(QuantumMS));
         }
 
@@ -681,6 +675,10 @@ static void UseConfiguration(void) {
     if (StringEmpty(GetKeyboardCode())) {
         SelectKeyboard(TEXT("en-US"));
     }
+
+#if DEBUG_OUTPUT == 1 || SCHEDULING_DEBUG_OUTPUT == 1
+    ConsolePrint(TEXT("WARNING : This is a debug build\n\n"));
+#endif
 
     DEBUG(TEXT("[UseConfiguration] Exit"));
 }
@@ -977,35 +975,25 @@ void InitializeKernel(void) {
     LoadAllDrivers();
 
     //-------------------------------------
-    // Initialize object termination cache
+    // Initialize stuff
 
     CacheInit(GetObjectTerminationCache(), CACHE_DEFAULT_CAPACITY);
 
-    DEBUG(TEXT("[InitializeKernel] Object termination cache initialized"));
-
     HandleMapInit(GetHandleMap());
-    DEBUG(TEXT("[InitializeKernel] Handle map initialized"));
 
     InitializeFocusState();
-    DEBUG(TEXT("[InitializeKernel] Focus state initialized"));
-
-    //-------------------------------------
-    // Initialize quantum time based on environment and debug settings
 
     InitializeQuantumTime();
 
     //-------------------------------------
-    // Set keyboard mapping
+    // Set configuration dependent stuff
 
     UseConfiguration();
 
     //-------------------------------------
     // Run auto tests
 
-    // TODO : Fix RunAllTests in x86-64
-#if defined(__EXOS_ARCH_I386__)
     RunAllTests();
-#endif
 
     //-------------------------------------
     // Print the EXOS banner

@@ -54,6 +54,16 @@ DRIVER DATA_SECTION InterruptControllerDriver = {
     .Command = InterruptControllerDriverCommands};
 
 /************************************************************************/
+
+/**
+ * @brief Retrieves the interrupt controller driver descriptor.
+ * @return Pointer to the interrupt controller driver.
+ */
+LPDRIVER InterruptControllerGetDriver(void) {
+    return &InterruptControllerDriver;
+}
+
+/************************************************************************/
 // Global interrupt controller configuration
 
 static INTERRUPT_CONTROLLER_CONFIG g_InterruptControllerConfig;

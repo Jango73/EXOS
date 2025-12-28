@@ -2,6 +2,7 @@
 #include "Kernel.h"
 #include "Mouse.h"
 #include "Socket.h"
+#include "DriverGetters.h"
 #include "drivers/KeyboardDrivers.h"
 #include "drivers/MouseDrivers.h"
 #include "utils/Helpers.h"
@@ -16,33 +17,6 @@ typedef struct tag_CPUIDREGISTERS {
     U32 reg_ECX;
     U32 reg_EDX;
 } CPUIDREGISTERS, *LPCPUIDREGISTERS;
-
-/************************************************************************/
-
-extern DRIVER ConsoleDriver;
-extern DRIVER KernelLogDriver;
-extern DRIVER MemoryManagerDriver;
-extern DRIVER TaskSegmentsDriver;
-extern DRIVER InterruptsDriver;
-extern DRIVER KernelProcessDriver;
-extern DRIVER ACPIDriver;
-extern DRIVER LocalAPICDriver;
-extern DRIVER IOAPICDriver;
-extern DRIVER InterruptControllerDriver;
-extern DRIVER StdKeyboardDriver;
-extern DRIVER ClockDriver;
-extern DRIVER PCIDriver;
-extern DRIVER ATADiskDriver;
-extern DRIVER SATADiskDriver;
-extern DRIVER RAMDiskDriver;
-extern DRIVER FileSystemDriver;
-extern DRIVER DeviceInterruptDriver;
-extern DRIVER DeferredWorkDriver;
-extern DRIVER NetworkManagerDriver;
-extern DRIVER UserAccountDriver;
-extern DRIVER VESADriver;
-
-extern DRIVER EXFSDriver;
 
 /************************************************************************/
 
@@ -254,31 +228,31 @@ void InitializeDriverList(void) {
         return;
     }
 
-    ListAddTail(Kernel.Drivers, &ConsoleDriver);
-    ListAddTail(Kernel.Drivers, &KernelLogDriver);
-    ListAddTail(Kernel.Drivers, &MemoryManagerDriver);
-    ListAddTail(Kernel.Drivers, &TaskSegmentsDriver);
-    ListAddTail(Kernel.Drivers, &InterruptsDriver);
-    ListAddTail(Kernel.Drivers, &KernelProcessDriver);
-    ListAddTail(Kernel.Drivers, &ACPIDriver);
-    ListAddTail(Kernel.Drivers, &LocalAPICDriver);
-    ListAddTail(Kernel.Drivers, &IOAPICDriver);
-    ListAddTail(Kernel.Drivers, &InterruptControllerDriver);
-    ListAddTail(Kernel.Drivers, &DeviceInterruptDriver);
-    ListAddTail(Kernel.Drivers, &DeferredWorkDriver);
-    ListAddTail(Kernel.Drivers, &StdKeyboardDriver);
+    ListAddTail(Kernel.Drivers, ConsoleGetDriver());
+    ListAddTail(Kernel.Drivers, KernelLogGetDriver());
+    ListAddTail(Kernel.Drivers, MemoryManagerGetDriver());
+    ListAddTail(Kernel.Drivers, TaskSegmentsGetDriver());
+    ListAddTail(Kernel.Drivers, InterruptsGetDriver());
+    ListAddTail(Kernel.Drivers, KernelProcessGetDriver());
+    ListAddTail(Kernel.Drivers, ACPIGetDriver());
+    ListAddTail(Kernel.Drivers, LocalAPICGetDriver());
+    ListAddTail(Kernel.Drivers, IOAPICGetDriver());
+    ListAddTail(Kernel.Drivers, InterruptControllerGetDriver());
+    ListAddTail(Kernel.Drivers, DeviceInterruptGetDriver());
+    ListAddTail(Kernel.Drivers, DeferredWorkGetDriver());
+    ListAddTail(Kernel.Drivers, StdKeyboardGetDriver());
     ListAddTail(Kernel.Drivers, USBKeyboardGetDriver());
     ListAddTail(Kernel.Drivers, SerialMouseGetDriver());
-    ListAddTail(Kernel.Drivers, &ClockDriver);
-    ListAddTail(Kernel.Drivers, &PCIDriver);
+    ListAddTail(Kernel.Drivers, ClockGetDriver());
+    ListAddTail(Kernel.Drivers, PCIGetDriver());
     ListAddTail(Kernel.Drivers, USBMouseGetDriver());
-    ListAddTail(Kernel.Drivers, &ATADiskDriver);
-    ListAddTail(Kernel.Drivers, &SATADiskDriver);
-    ListAddTail(Kernel.Drivers, &RAMDiskDriver);
-    ListAddTail(Kernel.Drivers, &FileSystemDriver);
-    ListAddTail(Kernel.Drivers, &NetworkManagerDriver);
-    ListAddTail(Kernel.Drivers, &UserAccountDriver);
-    ListAddTail(Kernel.Drivers, &VESADriver);
+    ListAddTail(Kernel.Drivers, ATADiskGetDriver());
+    ListAddTail(Kernel.Drivers, SATADiskGetDriver());
+    ListAddTail(Kernel.Drivers, RAMDiskGetDriver());
+    ListAddTail(Kernel.Drivers, FileSystemGetDriver());
+    ListAddTail(Kernel.Drivers, NetworkManagerGetDriver());
+    ListAddTail(Kernel.Drivers, UserAccountGetDriver());
+    ListAddTail(Kernel.Drivers, VESAGetDriver());
 }
 
 /************************************************************************/
@@ -849,7 +823,7 @@ LPDRIVER GetMouseDriver(void) {
  * @return Pointer to the graphics driver.
  */
 LPDRIVER GetGraphicsDriver(void) {
-    return &VESADriver;
+    return VESAGetDriver();
 }
 
 /************************************************************************/
@@ -859,5 +833,5 @@ LPDRIVER GetGraphicsDriver(void) {
  * @return Pointer to the default file system driver.
  */
 LPDRIVER GetDefaultFileSystemDriver(void) {
-    return &EXFSDriver;
+    return EXFSGetDriver();
 }

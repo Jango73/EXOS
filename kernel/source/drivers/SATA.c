@@ -70,6 +70,16 @@ DRIVER DATA_SECTION SATADiskDriver = {
 
 /***************************************************************************/
 
+/**
+ * @brief Retrieves the SATA disk driver descriptor.
+ * @return Pointer to the SATA disk driver.
+ */
+LPDRIVER SATADiskGetDriver(void) {
+    return &SATADiskDriver;
+}
+
+/***************************************************************************/
+
 #define AHCI_MAX_PORTS 32
 #define AHCI_CMD_LIST_SIZE 1024  // 32 command headers * 32 bytes each
 #define AHCI_FIS_SIZE 256        // FIS receive area size

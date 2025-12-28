@@ -54,6 +54,16 @@ DRIVER DATA_SECTION ACPIDriver = {
     .Command = ACPIDriverCommands};
 
 /************************************************************************/
+
+/**
+ * @brief Retrieves the ACPI driver descriptor.
+ * @return Pointer to the ACPI driver.
+ */
+LPDRIVER ACPIGetDriver(void) {
+    return &ACPIDriver;
+}
+
+/************************************************************************/
 // Global ACPI configuration
 
 static ACPI_CONFIG G_AcpiConfig = {0};

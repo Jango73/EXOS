@@ -48,6 +48,16 @@ DRIVER DATA_SECTION EXFSDriver = {
     .Product = "EXOS File System",
     .Command = EXFSCommands};
 
+/************************************************************************/
+
+/**
+ * @brief Retrieves the EXFS driver descriptor.
+ * @return Pointer to the EXFS driver.
+ */
+LPDRIVER EXFSGetDriver(void) {
+    return &EXFSDriver;
+}
+
 U8 Dummy[128] = {1, 1};
 
 /************************************************************************/

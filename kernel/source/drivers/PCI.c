@@ -85,6 +85,16 @@ DRIVER DATA_SECTION PCIDriver = {
     .EnumDomains = {ENUM_DOMAIN_PCI_DEVICE}};
 
 /***************************************************************************/
+
+/**
+ * @brief Retrieves the PCI driver descriptor.
+ * @return Pointer to the PCI driver.
+ */
+LPDRIVER PCIGetDriver(void) {
+    return &PCIDriver;
+}
+
+/***************************************************************************/
 // Low-level config space access (assumes port I/O helpers exist)
 
 /**
