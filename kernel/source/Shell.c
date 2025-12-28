@@ -179,7 +179,7 @@ static struct {
     {"whoami", "who", "", CMD_whoami},
     {"passwd", "setpassword", "", CMD_passwd},
     {"prof", "profiling", "", CMD_prof},
-    {"usb", "usb", "ports|probe|devices", CMD_usb},
+    {"usb", "usb", "ports|devices|device-tree", CMD_usb},
     {"", "", "", NULL},
 };
 
@@ -202,6 +202,16 @@ static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context) {
                 NULL)) {
             DEBUG(TEXT("[ShellRegisterScriptHostObjects] Failed to register process host symbol"));
         }
+    }
+
+    if (!ScriptRegisterHostSymbol(
+            Context->ScriptContext,
+            TEXT("usb"),
+            SCRIPT_HOST_SYMBOL_OBJECT,
+            UsbRootHandle,
+            &UsbDescriptor,
+            NULL)) {
+        DEBUG(TEXT("[ShellRegisterScriptHostObjects] Failed to register usb host symbol"));
     }
 }
 
@@ -1742,9 +1752,9 @@ static U32 CMD_usb(LPSHELLCONTEXT Context) {
 
     if (StringLength(Context->Command) == 0 ||
         (StringCompareNC(Context->Command, TEXT("ports")) != 0 &&
-         StringCompareNC(Context->Command, TEXT("probe")) != 0 &&
-         StringCompareNC(Context->Command, TEXT("devices")) != 0)) {
-        ConsolePrint(TEXT("Usage: usb ports|probe|devices\n"));
+         StringCompareNC(Context->Command, TEXT("devices")) != 0 &&
+         StringCompareNC(Context->Command, TEXT("device-tree")) != 0)) {
+        ConsolePrint(TEXT("Usage: usb ports|devices|device-tree\n"));
         return DF_RET_SUCCESS;
     }
 
@@ -1752,9 +1762,9 @@ static U32 CMD_usb(LPSHELLCONTEXT Context) {
     MemorySet(&Query, 0, sizeof(Query));
     Query.Header.Size = sizeof(Query);
     Query.Header.Version = EXOS_ABI_VERSION;
-    if (StringCompareNC(Context->Command, TEXT("probe")) == 0) {
+    if (StringCompareNC(Context->Command, TEXT("devices")) == 0) {
         Query.Domain = ENUM_DOMAIN_USB_DEVICE;
-    } else if (StringCompareNC(Context->Command, TEXT("devices")) == 0) {
+    } else if (StringCompareNC(Context->Command, TEXT("device-tree")) == 0) {
         Query.Domain = ENUM_DOMAIN_USB_NODE;
     } else {
         Query.Domain = ENUM_DOMAIN_XHCI_PORT;

@@ -20,7 +20,7 @@ This is a multi-architecture operating system. Currently supporting i386 and x86
 - **Logging**: A log string **ALWAYS** begins with "[FunctionName]" where FunctionName is the name of function where the logging is done. Use "%p" for pointers and adresses, "%x" for values except for sizes which use "%u".
 - **Function order**: DO NOT OVERUSE forward declarations. Define functions before they are used.
 - **I18n**: Write comments, console output and technical doc in english.
-- **Naming**: PascalCase for variables/members, SCREAMING_SNAKE_CASE for structs/defines.
+- **Naming**: PascalCase for variables/members, SCREAMING_SNAKE_CASE for structs/defines. NEVER use abbreviations; always use full words. This **IS NOT** Linux.
 - **Order**: Group the declarations in headers. 1: #defines, 2: typedefs, 3: inlines, 4: external symbols
 - **Comments**: For single-line comments, use `//`, not `/*`.
 - **Style**: 4-space indentation, follow `.clang-format` rules.

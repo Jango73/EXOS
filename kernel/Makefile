@@ -74,6 +74,7 @@ SRC_C  = $(wildcard source/*.c) \
          $(wildcard source/system/*.c) \
          $(wildcard source/process/*.c) \
          $(wildcard source/drivers/*.c) \
+         $(wildcard source/expose/*.c) \
          $(wildcard source/utils/*.c) \
          $(wildcard source/test/*.c) \
          $(wildcard source/autotest/*.c) \

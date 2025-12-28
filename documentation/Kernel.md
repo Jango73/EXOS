@@ -219,11 +219,22 @@ write.
 The interactive shell keeps a persistent script interpreter context to run
 automation snippets. Host-side data is exposed through `ScriptRegisterHostSymbol`
 so scripts can inspect kernel state without bypassing the interpreter API. The
-shell publishes the kernel process list under the global identifier
-`process`. Scripts can iterate over the list (`process[0]`, `process[1]`, ...)
-and query per-process properties such as `Status`, `Flags`, `ExitCode`,
-`FileName`, `CommandLine`, and `WorkFolder`, enabling diagnostics like
-`process[0].CommandLine` directly from the scripting language.
+shell publishes selected kernel objects under global identifiers so scripts can
+inspect kernel state without bypassing the interpreter API. The objects expose
+properties through the script runtime (for example `process[0].command_line`)
+so automation stays inside the supported host interface.
+
+#### Exposed objects
+
+- `process`: Kernel process list. Index-based access (`process[0]`, `process[1]`, ...)
+  returns a process view with `status`, `flags`, `exit_code`, `file_name`,
+  `command_line`, and `work_folder`. `process.count` returns the process count.
+- `usb.ports`: xHCI port list. Index-based access (`usb.ports[0]`, `usb.ports[1]`, ...)
+  returns a port view with `bus`, `device`, `function`, `port_number`, `port_status`,
+  `speed_id`, `connected`, and `enabled`. `usb.ports.count` returns the port count.
+- `usb.devices`: USB device list. Index-based access (`usb.devices[0]`, `usb.devices[1]`, ...)
+  returns a device view with `bus`, `device`, `function`, `port_number`, `address`,
+  `speed_id`, `vendor_id`, and `product_id`. `usb.devices.count` returns the device count.
 
 ### ACPI services
 

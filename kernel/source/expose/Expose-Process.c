@@ -24,32 +24,7 @@
 
 #include "Exposed.h"
 
-#include "Base.h"
-#include "List.h"
-#include "Memory.h"
 #include "process/Process.h"
-#include "CoreString.h"
-
-/************************************************************************/
-
-#define PROCESS_BIND_INTEGER(ExposedName, PropertyName) \
-    do { \
-        if (STRINGS_EQUAL_NO_CASE(Property, TEXT(#ExposedName))) { \
-            OutValue->Type = SCRIPT_VAR_INTEGER; \
-            OutValue->Value.Integer = (I32)Process->PropertyName; \
-            return SCRIPT_OK; \
-        } \
-    } while (0)
-
-#define PROCESS_BIND_STRING(ExposedName, PropertyName) \
-    do { \
-        if (STRINGS_EQUAL_NO_CASE(Property, TEXT(#ExposedName))) { \
-            OutValue->Type = SCRIPT_VAR_STRING; \
-            OutValue->Value.String = Process->PropertyName; \
-            OutValue->OwnsValue = FALSE; \
-            return SCRIPT_OK; \
-        } \
-    } while (0)
 
 /************************************************************************/
 
@@ -69,21 +44,17 @@ SCRIPT_ERROR ProcessGetProperty(
 
     UNUSED(Context);
 
-    if (OutValue == NULL || Parent == NULL || Property == NULL) {
-        return SCRIPT_ERROR_UNDEFINED_VAR;
-    }
-
     LPPROCESS Process = (LPPROCESS)Parent;
 
     SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
-        MemorySet(OutValue, 0, sizeof(SCRIPT_VALUE));
+        EXPOSE_PROPERTY_GUARD();
 
-        PROCESS_BIND_INTEGER(status, Status);
-        PROCESS_BIND_INTEGER(flags, Flags);
-        PROCESS_BIND_INTEGER(exitCode, ExitCode);
-        PROCESS_BIND_STRING(fileName, FileName);
-        PROCESS_BIND_STRING(commandLine, CommandLine);
-        PROCESS_BIND_STRING(workFolder, WorkFolder);
+        EXPOSE_BIND_INTEGER("status", Process->Status);
+        EXPOSE_BIND_INTEGER("flags", Process->Flags);
+        EXPOSE_BIND_INTEGER("exit_code", Process->ExitCode);
+        EXPOSE_BIND_STRING("file_name", Process->FileName);
+        EXPOSE_BIND_STRING("command_line", Process->CommandLine);
+        EXPOSE_BIND_STRING("work_folder", Process->WorkFolder);
 
         return SCRIPT_ERROR_UNDEFINED_VAR;
     }
@@ -94,48 +65,41 @@ SCRIPT_ERROR ProcessGetProperty(
 /************************************************************************/
 
 /**
- * @brief Retrieve a process from the exposed kernel process array.
+ * @brief Retrieve a property value from the exposed kernel process array.
  * @param Context Host callback context (unused for process exposure)
  * @param Parent Handle to the process list exposed by the kernel
- * @param Index Array index requested by the script
- * @param OutValue Output holder for the resulting process handle
- * @return SCRIPT_OK when the process exists, SCRIPT_ERROR_UNDEFINED_VAR otherwise
+ * @param Property Property name requested by the script
+ * @param OutValue Output holder for the property value
+ * @return SCRIPT_OK when the property exists, SCRIPT_ERROR_UNDEFINED_VAR otherwise
  */
-SCRIPT_ERROR ProcessArrayGetElement(
+SCRIPT_ERROR ProcessArrayGetProperty(
     LPVOID Context,
     SCRIPT_HOST_HANDLE Parent,
-    U32 Index,
+    LPCSTR Property,
     LPSCRIPT_VALUE OutValue) {
 
     UNUSED(Context);
 
-    if (OutValue == NULL || Parent == NULL) {
-        return SCRIPT_ERROR_UNDEFINED_VAR;
-    }
+    EXPOSE_PROPERTY_GUARD();
 
     LPLIST ProcessList = (LPLIST)Parent;
     if (ProcessList == NULL) {
         return SCRIPT_ERROR_UNDEFINED_VAR;
     }
 
-    if (Index >= ListGetSize(ProcessList)) {
-        return SCRIPT_ERROR_UNDEFINED_VAR;
-    }
-
-    LPPROCESS Process = (LPPROCESS)ListGetItem(ProcessList, Index);
-
-    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
-        MemorySet(OutValue, 0, sizeof(SCRIPT_VALUE));
-        OutValue->Type = SCRIPT_VAR_HOST_HANDLE;
-        OutValue->Value.HostHandle = Process;
-        OutValue->HostDescriptor = &ProcessDescriptor;
-        OutValue->HostContext = NULL;
-        OutValue->OwnsValue = FALSE;
-        return SCRIPT_OK;
-    }
+    EXPOSE_BIND_INTEGER("count", ListGetSize(ProcessList));
 
     return SCRIPT_ERROR_UNDEFINED_VAR;
 }
+
+/************************************************************************/
+
+EXPOSE_LIST_ARRAY_GET_ELEMENT(
+    ProcessArrayGetElement,
+    LPPROCESS,
+    SAFE_USE_VALID_ID,
+    KOID_PROCESS,
+    &ProcessDescriptor)
 
 /************************************************************************/
 
@@ -147,15 +111,10 @@ const SCRIPT_HOST_DESCRIPTOR ProcessDescriptor = {
 };
 
 const SCRIPT_HOST_DESCRIPTOR ProcessArrayDescriptor = {
-    NULL,
+    ProcessArrayGetProperty,
     ProcessArrayGetElement,
     NULL,
     NULL
 };
-
-/************************************************************************/
-
-#undef PROCESS_BIND_INTEGER
-#undef PROCESS_BIND_STRING
 
 /************************************************************************/
