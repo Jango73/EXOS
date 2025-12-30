@@ -667,7 +667,7 @@ void ConsoleResetPaging(void) {
 /**
  * @brief Set console text mode using a graphics mode descriptor.
  * @param Info Mode description with Width/Height in characters.
- * @return DF_RET_SUCCESS on success, error code otherwise.
+ * @return DF_RETURN_SUCCESS on success, error code otherwise.
  */
 UINT ConsoleSetMode(LPGRAPHICSMODEINFO Info) { return ConsoleDriverCommands(DF_GFX_SETMODE, (UINT)Info); }
 
@@ -684,22 +684,22 @@ UINT ConsoleGetModeCount(void) { return VGAGetModeCount(); }
 /**
  * @brief Query a console mode by index.
  * @param Info Mode request (Index) and output (Columns/Rows/CharHeight).
- * @return DF_RET_SUCCESS on success, error code otherwise.
+ * @return DF_RETURN_SUCCESS on success, error code otherwise.
  */
 UINT ConsoleGetModeInfo(LPCONSOLEMODEINFO Info) {
     VGAMODEINFO VgaInfo;
 
-    if (Info == NULL) return DF_RET_GENERIC;
+    if (Info == NULL) return DF_RETURN_GENERIC;
 
     if (VGAGetModeInfo(Info->Index, &VgaInfo) == FALSE) {
-        return DF_RET_GENERIC;
+        return DF_RETURN_GENERIC;
     }
 
     Info->Columns = VgaInfo.Columns;
     Info->Rows = VgaInfo.Rows;
     Info->CharHeight = VgaInfo.CharHeight;
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -716,20 +716,20 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((ConsoleDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             InitializeConsole();
             ConsoleDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_UNLOAD:
             if ((ConsoleDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             ConsoleDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_GET_VERSION:
             return MAKE_VERSION(CONSOLE_VER_MAJOR, CONSOLE_VER_MINOR);
@@ -740,9 +740,9 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
                 Info->Width = Console.Width;
                 Info->Height = Console.Height;
                 Info->BitsPerPixel = 0;
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
-            return DF_RET_GENERIC;
+            return DF_RETURN_GENERIC;
         }
 
         case DF_GFX_SETMODE: {
@@ -755,7 +755,7 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
                 }
 
                 if (VGASetMode(ModeIndex) == FALSE) {
-                    return DF_RET_GENERIC;
+                    return DF_RETURN_GENERIC;
                 }
 
                 Console.Width = Info->Width;
@@ -765,9 +765,9 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
                 ClearConsole();
                 UpdateConsoleDesktopState(Console.Width, Console.Height);
 
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
-            return DF_RET_GENERIC;
+            return DF_RETURN_GENERIC;
         }
 
         case DF_GFX_CREATECONTEXT:
@@ -778,8 +778,8 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
         case DF_GFX_LINE:
         case DF_GFX_RECTANGLE:
         case DF_GFX_ELLIPSE:
-            return DF_RET_NOT_IMPLEMENTED;
+            return DF_RETURN_NOT_IMPLEMENTED;
     }
 
-    return DF_RET_NOT_IMPLEMENTED;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

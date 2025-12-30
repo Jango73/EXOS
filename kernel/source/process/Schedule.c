@@ -429,7 +429,7 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
         } else {
             LINEAR StackPointer = NextTask->Arch.Stack.Base + NextTask->Arch.Stack.Size - STACK_SAFETY_MARGIN;
             LINEAR SysStackPointer =
-                NextTask->Arch.SysStack.Base + NextTask->Arch.SysStack.Size - STACK_SAFETY_MARGIN;
+                NextTask->Arch.SystemStack.Base + NextTask->Arch.SystemStack.Size - STACK_SAFETY_MARGIN;
 
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] SysStackPointer = %p"), SysStackPointer);
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] StackPointer = %p"), StackPointer);

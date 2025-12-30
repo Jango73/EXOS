@@ -502,7 +502,7 @@ void PCI_ScanBus(void) {
                                     (INT)Device, (INT)Function);
 
                                 U32 Result = PciDriver->Command(DF_PROBE, (UINT)(LPVOID)&PciInfo);
-                                if (Result == DF_RET_SUCCESS) {
+                                if (Result == DF_RETURN_SUCCESS) {
                                     PciDevice.Driver = (LPDRIVER)PciDriver;
                                     PciDriver->Command(DF_LOAD, 0);
 
@@ -633,7 +633,7 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD: {
             if ((PCIDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             extern PCI_DRIVER AHCIPCIDriver;
@@ -644,16 +644,16 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
             PCI_ScanBus();
 
             PCIDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
         }
 
         case DF_UNLOAD:
             if ((PCIDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             PCIDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_GET_VERSION:
             return MAKE_VERSION(PCI_VER_MAJOR, PCI_VER_MINOR);
@@ -663,7 +663,7 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
             return PCI_EnumPretty((LPDRIVER_ENUM_PRETTY)(LPVOID)Parameter);
     }
 
-    return DF_RET_NOT_IMPLEMENTED;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /************************************************************************/
@@ -692,20 +692,20 @@ void PCIHandler(void) {
 
 static U32 PCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
     if (Next == NULL || Next->Query == NULL || Next->Item == NULL) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
     if (Next->Query->Header.Size < sizeof(DRIVER_ENUM_QUERY) ||
         Next->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     if (Next->Query->Domain != ENUM_DOMAIN_PCI_DEVICE) {
-        return DF_RET_NOT_IMPLEMENTED;
+        return DF_RETURN_NOT_IMPLEMENTED;
     }
 
     LPLIST PciList = GetPCIDeviceList();
     if (PciList == NULL) {
-        return DF_RET_NO_MORE;
+        return DF_RETURN_NO_MORE;
     }
 
     UINT MatchIndex = 0;
@@ -735,28 +735,28 @@ static U32 PCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                 MemoryCopy(Next->Item->Data, &Data, sizeof(Data));
 
                 Next->Query->Index++;
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
             MatchIndex++;
         }
     }
 
-    return DF_RET_NO_MORE;
+    return DF_RETURN_NO_MORE;
 }
 
 /************************************************************************/
 
 static U32 PCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
     if (Pretty == NULL || Pretty->Item == NULL || Pretty->Buffer == NULL || Pretty->BufferSize == 0) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
     if (Pretty->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     if (Pretty->Item->Domain != ENUM_DOMAIN_PCI_DEVICE ||
         Pretty->Item->DataSize < sizeof(DRIVER_ENUM_PCI_DEVICE)) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     const DRIVER_ENUM_PCI_DEVICE* Data = (const DRIVER_ENUM_PCI_DEVICE*)Pretty->Item->Data;
@@ -772,5 +772,5 @@ static U32 PCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
                       (U32)Data->ProgIF,
                       (U32)Data->Revision);
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }

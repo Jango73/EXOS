@@ -1992,7 +1992,7 @@ U32 Edit(U32 NumArguments, LPCSTR* Arguments, BOOL LineNumbers) {
     Context = NewEditContext();
 
     if (Context == NULL) {
-        return DF_RET_GENERIC;
+        return DF_RETURN_GENERIC;
     }
 
     Context->ShowLineNumbers = LineNumbers;

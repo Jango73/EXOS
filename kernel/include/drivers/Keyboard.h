@@ -36,15 +36,15 @@
 
 // Functions supplied by a keyboard driver
 
-#define DF_KEY_GETSTATE (DF_FIRSTFUNC + 0)
-#define DF_KEY_ISKEY (DF_FIRSTFUNC + 1)
-#define DF_KEY_GETKEY (DF_FIRSTFUNC + 2)
-#define DF_KEY_GETLED (DF_FIRSTFUNC + 3)
-#define DF_KEY_SETLED (DF_FIRSTFUNC + 4)
-#define DF_KEY_GETDELAY (DF_FIRSTFUNC + 5)
-#define DF_KEY_SETDELAY (DF_FIRSTFUNC + 6)
-#define DF_KEY_GETRATE (DF_FIRSTFUNC + 7)
-#define DF_KEY_SETRATE (DF_FIRSTFUNC + 8)
+#define DF_KEY_GETSTATE (DF_FIRST_FUNCTION + 0)
+#define DF_KEY_ISKEY (DF_FIRST_FUNCTION + 1)
+#define DF_KEY_GETKEY (DF_FIRST_FUNCTION + 2)
+#define DF_KEY_GETLED (DF_FIRST_FUNCTION + 3)
+#define DF_KEY_SETLED (DF_FIRST_FUNCTION + 4)
+#define DF_KEY_GETDELAY (DF_FIRST_FUNCTION + 5)
+#define DF_KEY_SETDELAY (DF_FIRST_FUNCTION + 6)
+#define DF_KEY_GETRATE (DF_FIRST_FUNCTION + 7)
+#define DF_KEY_SETRATE (DF_FIRST_FUNCTION + 8)
 
 /***************************************************************************/
 

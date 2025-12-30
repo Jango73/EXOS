@@ -334,7 +334,7 @@ typedef struct tag_INTERRUPT_FRAME {
 typedef struct tag_ARCH_TASK_DATA {
     INTERRUPT_FRAME Context;
     STACK Stack;
-    STACK SysStack;
+    STACK SystemStack;
     STACK Ist1Stack;
 } ARCH_TASK_DATA, *LPARCH_TASK_DATA;
 

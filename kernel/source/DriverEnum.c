@@ -83,14 +83,14 @@ static BOOL DriverSeenInPciList(LPDRIVER Driver, LPLIST PciList, LPLISTNODE Stop
  * @param Query Enumeration query (domain filter).
  * @param ProviderIndex Index among providers that support the domain.
  * @param ProviderOut Receives the provider handle on success.
- * @return DF_RET_SUCCESS on success, DF_RET_NO_MORE otherwise.
+ * @return DF_RETURN_SUCCESS on success, DF_RETURN_NO_MORE otherwise.
  */
 UINT KernelEnumGetProvider(const DRIVER_ENUM_QUERY* Query, UINT ProviderIndex, DRIVER_ENUM_PROVIDER* ProviderOut) {
     if (Query == NULL || ProviderOut == NULL) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
     if (Query->Header.Size < sizeof(DRIVER_ENUM_QUERY)) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     UINT MatchIndex = 0;
@@ -103,7 +103,7 @@ UINT KernelEnumGetProvider(const DRIVER_ENUM_QUERY* Query, UINT ProviderIndex, D
                 if (DriverSupportsDomain(Driver, Query->Domain)) {
                     if (MatchIndex == ProviderIndex) {
                         *ProviderOut = (DRIVER_ENUM_PROVIDER)Driver;
-                        return DF_RET_SUCCESS;
+                        return DF_RETURN_SUCCESS;
                     }
                     MatchIndex++;
                 }
@@ -128,13 +128,13 @@ UINT KernelEnumGetProvider(const DRIVER_ENUM_QUERY* Query, UINT ProviderIndex, D
 
             if (MatchIndex == ProviderIndex) {
                 *ProviderOut = (DRIVER_ENUM_PROVIDER)Driver;
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
             MatchIndex++;
         }
     }
 
-    return DF_RET_NO_MORE;
+    return DF_RETURN_NO_MORE;
 }
 
 /************************************************************************/
@@ -144,20 +144,20 @@ UINT KernelEnumGetProvider(const DRIVER_ENUM_QUERY* Query, UINT ProviderIndex, D
  * @param Provider Provider handle returned by KernelEnumGetProvider.
  * @param Query Enumeration query (index is updated on success).
  * @param Item Receives the enumerated item.
- * @return Driver return code (DF_RET_SUCCESS or DF_RET_NO_MORE).
+ * @return Driver return code (DF_RETURN_SUCCESS or DF_RETURN_NO_MORE).
  */
 UINT KernelEnumNext(DRIVER_ENUM_PROVIDER Provider, DRIVER_ENUM_QUERY* Query, DRIVER_ENUM_ITEM* Item) {
     if (Provider == NULL || Query == NULL || Item == NULL) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
     if (Query->Header.Size < sizeof(DRIVER_ENUM_QUERY) || Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     LPDRIVER Driver = (LPDRIVER)Provider;
     SAFE_USE_VALID_ID(Driver, KOID_DRIVER) {
         if (Driver->Command == NULL) {
-            return DF_RET_NOT_IMPLEMENTED;
+            return DF_RETURN_NOT_IMPLEMENTED;
         }
 
         DRIVER_ENUM_NEXT Next;
@@ -170,7 +170,7 @@ UINT KernelEnumNext(DRIVER_ENUM_PROVIDER Provider, DRIVER_ENUM_QUERY* Query, DRI
         return Driver->Command(DF_ENUM_NEXT, (UINT)(LPVOID)&Next);
     }
 
-    return DF_RET_BAD_PARAMETER;
+    return DF_RETURN_BAD_PARAMETER;
 }
 
 /************************************************************************/
@@ -187,16 +187,16 @@ UINT KernelEnumNext(DRIVER_ENUM_PROVIDER Provider, DRIVER_ENUM_QUERY* Query, DRI
 UINT KernelEnumPretty(DRIVER_ENUM_PROVIDER Provider, const DRIVER_ENUM_QUERY* Query, const DRIVER_ENUM_ITEM* Item,
                       LPSTR Buffer, UINT BufferSize) {
     if (Provider == NULL || Query == NULL || Item == NULL || Buffer == NULL || BufferSize == 0) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
     if (Query->Header.Size < sizeof(DRIVER_ENUM_QUERY) || Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     LPDRIVER Driver = (LPDRIVER)Provider;
     SAFE_USE_VALID_ID(Driver, KOID_DRIVER) {
         if (Driver->Command == NULL) {
-            return DF_RET_NOT_IMPLEMENTED;
+            return DF_RETURN_NOT_IMPLEMENTED;
         }
 
         DRIVER_ENUM_PRETTY Pretty;
@@ -211,5 +211,5 @@ UINT KernelEnumPretty(DRIVER_ENUM_PROVIDER Provider, const DRIVER_ENUM_QUERY* Qu
         return Driver->Command(DF_ENUM_PRETTY, (UINT)(LPVOID)&Pretty);
     }
 
-    return DF_RET_BAD_PARAMETER;
+    return DF_RETURN_BAD_PARAMETER;
 }

@@ -187,7 +187,7 @@ void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
         }
     } while (Context->FileSystem != NULL && Context->FileSystem->Driver != NULL &&
              Context->FileSystem->Driver->Command != NULL &&
-             Context->FileSystem->Driver->Command(DF_FS_OPENNEXT, (UINT)File) == DF_RET_SUCCESS);
+             Context->FileSystem->Driver->Command(DF_FS_OPENNEXT, (UINT)File) == DF_RETURN_SUCCESS);
 
     if (Context->FileSystem != NULL && Context->FileSystem->Driver != NULL &&
         Context->FileSystem->Driver->Command != NULL) {

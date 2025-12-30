@@ -38,13 +38,13 @@
 #pragma pack(push, 1)
 
 /***************************************************************************/
-/* Driver-specific command IDs (>= DF_FIRSTFUNC)                           */
+/* Driver-specific command IDs (>= DF_FIRST_FUNCTION)                           */
 /* Call via DRIVER::Command for DRIVER_TYPE_NETWORK                        */
 
-#define DF_NET_GETMAC (DF_FIRSTFUNC + 0x00)  /* out: U8[6] in param */
-#define DF_NET_SEND (DF_FIRSTFUNC + 0x01)    /* in: ptr (frame), param2 = len */
-#define DF_NET_POLL (DF_FIRSTFUNC + 0x02)    /* RX polling */
-#define DF_NET_SETRXCB (DF_FIRSTFUNC + 0x03) /* in: function pointer to RX callback */
+#define DF_NET_GETMAC (DF_FIRST_FUNCTION + 0x00)  /* out: U8[6] in param */
+#define DF_NET_SEND (DF_FIRST_FUNCTION + 0x01)    /* in: ptr (frame), param2 = len */
+#define DF_NET_POLL (DF_FIRST_FUNCTION + 0x02)    /* RX polling */
+#define DF_NET_SETRXCB (DF_FIRST_FUNCTION + 0x03) /* in: function pointer to RX callback */
 
 /***************************************************************************/
 /* Known PCI IDs (QEMU emulates 82540EM with 0x8086:0x100E)                */

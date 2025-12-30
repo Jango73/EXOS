@@ -342,20 +342,20 @@ static U32 Read(LPIOCONTROL Control) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (Control == NULL) return DF_RET_BAD_PARAMETER;
+    if (Control == NULL) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
     // Get the physical disk to which operation applies
 
     Disk = (LPATADISK)Control->Disk;
-    if (Disk == NULL) return DF_RET_BAD_PARAMETER;
+    if (Disk == NULL) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.TypeID != KOID_DISK) return DF_RET_BAD_PARAMETER;
-    if (Disk->IOPort == 0) return DF_RET_BAD_PARAMETER;
-    if (Disk->IRQ == 0) return DF_RET_BAD_PARAMETER;
+    if (Disk->Header.TypeID != KOID_DISK) return DF_RETURN_BAD_PARAMETER;
+    if (Disk->IOPort == 0) return DF_RETURN_BAD_PARAMETER;
+    if (Disk->IRQ == 0) return DF_RETURN_BAD_PARAMETER;
 
     CacheCleanup(&Disk->SectorCache, GetSystemTime());
 
@@ -366,7 +366,7 @@ static U32 Read(LPIOCONTROL Control) {
         if (Buffer == NULL) {
             Buffer = (LPSECTORBUFFER)KernelHeapAlloc(sizeof(SECTORBUFFER));
 
-            if (Buffer == NULL) return DF_RET_UNEXPECTED;
+            if (Buffer == NULL) return DF_RETURN_UNEXPECTED;
 
             Buffer->SectorLow = Context.SectorLow;
             Buffer->SectorHigh = Context.SectorHigh;
@@ -387,14 +387,14 @@ static U32 Read(LPIOCONTROL Control) {
 
             if (!CacheAdd(&Disk->SectorCache, Buffer, DISK_CACHE_TTL_MS)) {
                 KernelHeapFree(Buffer);
-                return DF_RET_UNEXPECTED;
+                return DF_RETURN_UNEXPECTED;
             }
         }
 
         MemoryCopy(((U8*)Control->Buffer) + (Current * SECTOR_SIZE), Buffer->Data, SECTOR_SIZE);
     }
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -407,25 +407,25 @@ static U32 Write(LPIOCONTROL Control) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (Control == NULL) return DF_RET_BAD_PARAMETER;
+    if (Control == NULL) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
     // Get the physical disk to which operation applies
 
     Disk = (LPATADISK)Control->Disk;
-    if (Disk == NULL) return DF_RET_BAD_PARAMETER;
+    if (Disk == NULL) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.TypeID != KOID_DISK) return DF_RET_BAD_PARAMETER;
-    if (Disk->IOPort == 0) return DF_RET_BAD_PARAMETER;
-    if (Disk->IRQ == 0) return DF_RET_BAD_PARAMETER;
+    if (Disk->Header.TypeID != KOID_DISK) return DF_RETURN_BAD_PARAMETER;
+    if (Disk->IOPort == 0) return DF_RETURN_BAD_PARAMETER;
+    if (Disk->IRQ == 0) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
     // Check access permissions
 
-    if (Disk->Access & DISK_ACCESS_READONLY) return DF_RET_NO_PERMISSION;
+    if (Disk->Access & DISK_ACCESS_READONLY) return DF_RETURN_NO_PERMISSION;
 
     CacheCleanup(&Disk->SectorCache, GetSystemTime());
 
@@ -437,7 +437,7 @@ static U32 Write(LPIOCONTROL Control) {
         if (Buffer == NULL) {
             Buffer = (LPSECTORBUFFER)KernelHeapAlloc(sizeof(SECTORBUFFER));
 
-            if (Buffer == NULL) return DF_RET_UNEXPECTED;
+            if (Buffer == NULL) return DF_RETURN_UNEXPECTED;
 
             Buffer->SectorLow = Context.SectorLow;
             Buffer->SectorHigh = Context.SectorHigh;
@@ -465,12 +465,12 @@ static U32 Write(LPIOCONTROL Control) {
         if (AddedToCache) {
             if (!CacheAdd(&Disk->SectorCache, Buffer, DISK_CACHE_TTL_MS)) {
                 KernelHeapFree(Buffer);
-                return DF_RET_UNEXPECTED;
+                return DF_RETURN_UNEXPECTED;
             }
         }
     }
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -478,20 +478,20 @@ static U32 Write(LPIOCONTROL Control) {
 static U32 GetInfo(LPDISKINFO Info) {
     LPATADISK Disk;
 
-    if (Info == NULL) return DF_RET_BAD_PARAMETER;
+    if (Info == NULL) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
     // Get the physical disk to which operation applies
 
     Disk = (LPATADISK)Info->Disk;
-    if (Disk == NULL) return DF_RET_BAD_PARAMETER;
+    if (Disk == NULL) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.TypeID != KOID_DISK) return DF_RET_BAD_PARAMETER;
-    if (Disk->IOPort == 0) return DF_RET_BAD_PARAMETER;
-    if (Disk->IRQ == 0) return DF_RET_BAD_PARAMETER;
+    if (Disk->Header.TypeID != KOID_DISK) return DF_RETURN_BAD_PARAMETER;
+    if (Disk->IOPort == 0) return DF_RETURN_BAD_PARAMETER;
+    if (Disk->IRQ == 0) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
 
@@ -500,7 +500,7 @@ static U32 GetInfo(LPDISKINFO Info) {
     Info->NumSectors = Disk->Geometry.Cylinders * Disk->Geometry.Heads * Disk->Geometry.SectorsPerTrack;
     Info->Access = Disk->Access;
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -508,24 +508,24 @@ static U32 GetInfo(LPDISKINFO Info) {
 static U32 SetAccess(LPDISKACCESS Access) {
     LPATADISK Disk;
 
-    if (Access == NULL) return DF_RET_BAD_PARAMETER;
+    if (Access == NULL) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
     // Get the physical disk to which operation applies
 
     Disk = (LPATADISK)Access->Disk;
-    if (Disk == NULL) return DF_RET_BAD_PARAMETER;
+    if (Disk == NULL) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
     // Check validity of parameters
 
-    if (Disk->Header.TypeID != KOID_DISK) return DF_RET_BAD_PARAMETER;
-    if (Disk->IOPort == 0) return DF_RET_BAD_PARAMETER;
-    if (Disk->IRQ == 0) return DF_RET_BAD_PARAMETER;
+    if (Disk->Header.TypeID != KOID_DISK) return DF_RETURN_BAD_PARAMETER;
+    if (Disk->IOPort == 0) return DF_RETURN_BAD_PARAMETER;
+    if (Disk->IRQ == 0) return DF_RETURN_BAD_PARAMETER;
 
     Disk->Access = Access->Access;
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -567,20 +567,20 @@ void HardDriveHandler(void) {
 
 static U32 ATA_EnumNext(LPDRIVER_ENUM_NEXT Next) {
     if (Next == NULL || Next->Query == NULL || Next->Item == NULL) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
     if (Next->Query->Header.Size < sizeof(DRIVER_ENUM_QUERY) ||
         Next->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     if (Next->Query->Domain != ENUM_DOMAIN_ATA_DEVICE) {
-        return DF_RET_NOT_IMPLEMENTED;
+        return DF_RETURN_NOT_IMPLEMENTED;
     }
 
     LPLIST DiskList = GetDiskList();
     if (DiskList == NULL) {
-        return DF_RET_NO_MORE;
+        return DF_RETURN_NO_MORE;
     }
 
     UINT MatchIndex = 0;
@@ -614,29 +614,29 @@ static U32 ATA_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                 MemoryCopy(Next->Item->Data, &Data, sizeof(Data));
 
                 Next->Query->Index++;
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             MatchIndex++;
         }
     }
 
-    return DF_RET_NO_MORE;
+    return DF_RETURN_NO_MORE;
 }
 
 /***************************************************************************/
 
 static U32 ATA_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
     if (Pretty == NULL || Pretty->Item == NULL || Pretty->Buffer == NULL || Pretty->BufferSize == 0) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
     if (Pretty->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     if (Pretty->Item->Domain != ENUM_DOMAIN_ATA_DEVICE ||
         Pretty->Item->DataSize < sizeof(DRIVER_ENUM_ATA_DEVICE)) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     const DRIVER_ENUM_ATA_DEVICE* Data = (const DRIVER_ENUM_ATA_DEVICE*)Pretty->Item->Data;
@@ -649,7 +649,7 @@ static U32 ATA_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
                       Data->Heads,
                       Data->SectorsPerTrack);
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -658,26 +658,26 @@ UINT ATADiskCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((ATADiskDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             if (InitializeATA()) {
                 ATADiskDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
-            return DF_RET_UNEXPECTED;
+            return DF_RETURN_UNEXPECTED;
         case DF_UNLOAD:
             if ((ATADiskDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             ATADiskDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
         case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_DISK_RESET:
-            return DF_RET_NOT_IMPLEMENTED;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_DISK_READ:
             return Read((LPIOCONTROL)Parameter);
         case DF_DISK_WRITE:
@@ -692,5 +692,5 @@ UINT ATADiskCommands(UINT Function, UINT Parameter) {
             return ATA_EnumPretty((LPDRIVER_ENUM_PRETTY)(LPVOID)Parameter);
     }
 
-    return DF_RET_NOT_IMPLEMENTED;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

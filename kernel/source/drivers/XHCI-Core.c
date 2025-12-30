@@ -1,4 +1,5 @@
-/************************************************************************\\
+
+/************************************************************************\
 
     EXOS Kernel
     Copyright (c) 1999-2025 Jango73
@@ -884,31 +885,31 @@ static BOOL XHCI_InitController(LPXHCI_DEVICE Device) {
 /**
  * @brief Probe callback used by PCI subsystem.
  * @param PciInfo PCI device info.
- * @return DF_RET_SUCCESS when supported, DF_RET_NOT_IMPLEMENTED otherwise.
+ * @return DF_RETURN_SUCCESS when supported, DF_RETURN_NOT_IMPLEMENTED otherwise.
  */
 static U32 XHCI_OnProbe(const PCI_INFO *PciInfo) {
-    if (PciInfo == NULL) return DF_RET_BAD_PARAMETER;
-    if (PciInfo->BaseClass != XHCI_CLASS_SERIAL_BUS) return DF_RET_NOT_IMPLEMENTED;
-    if (PciInfo->SubClass != XHCI_SUBCLASS_USB) return DF_RET_NOT_IMPLEMENTED;
-    if (PciInfo->ProgIF != XHCI_PROGIF_XHCI) return DF_RET_NOT_IMPLEMENTED;
-    return DF_RET_SUCCESS;
+    if (PciInfo == NULL) return DF_RETURN_BAD_PARAMETER;
+    if (PciInfo->BaseClass != XHCI_CLASS_SERIAL_BUS) return DF_RETURN_NOT_IMPLEMENTED;
+    if (PciInfo->SubClass != XHCI_SUBCLASS_USB) return DF_RETURN_NOT_IMPLEMENTED;
+    if (PciInfo->ProgIF != XHCI_PROGIF_XHCI) return DF_RETURN_NOT_IMPLEMENTED;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
 
 /**
  * @brief Load callback for driver.
- * @return DF_RET_SUCCESS.
+ * @return DF_RETURN_SUCCESS.
  */
-static U32 XHCI_OnLoad(void) { return DF_RET_SUCCESS; }
+static U32 XHCI_OnLoad(void) { return DF_RETURN_SUCCESS; }
 
 /************************************************************************/
 
 /**
  * @brief Unload callback for driver.
- * @return DF_RET_SUCCESS.
+ * @return DF_RETURN_SUCCESS.
  */
-static U32 XHCI_OnUnload(void) { return DF_RET_SUCCESS; }
+static U32 XHCI_OnUnload(void) { return DF_RETURN_SUCCESS; }
 
 /************************************************************************/
 
@@ -940,7 +941,7 @@ static U32 XHCI_OnGetLastFunc(void) { return DF_PROBE; }
  * @brief Driver command handler.
  * @param Function Function identifier.
  * @param Param Function parameter.
- * @return DF_RET_* code.
+ * @return DF_RETURN_* code.
  */
 static UINT XHCI_Commands(UINT Function, UINT Param) {
     switch (Function) {
@@ -962,7 +963,7 @@ static UINT XHCI_Commands(UINT Function, UINT Param) {
             return XHCI_EnumPretty((LPDRIVER_ENUM_PRETTY)(LPVOID)Param);
     }
 
-    return DF_RET_NOT_IMPLEMENTED;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /************************************************************************/

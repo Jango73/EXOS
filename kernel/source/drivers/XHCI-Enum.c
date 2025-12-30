@@ -1,4 +1,5 @@
-/************************************************************************\\
+
+/************************************************************************\
 
     EXOS Kernel
     Copyright (c) 1999-2025 Jango73
@@ -92,22 +93,22 @@ static void XHCI_FillEnumItem(LPDRIVER_ENUM_ITEM Item, UINT Domain, UINT Index, 
 
 U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
     if (Next == NULL || Next->Query == NULL || Next->Item == NULL) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
     if (Next->Query->Header.Size < sizeof(DRIVER_ENUM_QUERY) ||
         Next->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     if (Next->Query->Domain != ENUM_DOMAIN_XHCI_PORT &&
         Next->Query->Domain != ENUM_DOMAIN_USB_DEVICE &&
         Next->Query->Domain != ENUM_DOMAIN_USB_NODE) {
-        return DF_RET_NOT_IMPLEMENTED;
+        return DF_RETURN_NOT_IMPLEMENTED;
     }
 
     LPLIST PciList = GetPCIDeviceList();
     if (PciList == NULL) {
-        return DF_RET_NO_MORE;
+        return DF_RETURN_NO_MORE;
     }
 
     UINT MatchIndex = 0;
@@ -141,7 +142,7 @@ U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                     XHCI_FillEnumItem(Next->Item, ENUM_DOMAIN_XHCI_PORT, Next->Query->Index, &Data, sizeof(Data));
 
                     Next->Query->Index++;
-                    return DF_RET_SUCCESS;
+                    return DF_RETURN_SUCCESS;
                 }
 
                     MatchIndex++;
@@ -168,7 +169,7 @@ U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                         XHCI_FillEnumItem(Next->Item, ENUM_DOMAIN_USB_DEVICE, Next->Query->Index, &Data, sizeof(Data));
 
                         Next->Query->Index++;
-                        return DF_RET_SUCCESS;
+                        return DF_RETURN_SUCCESS;
                     }
 
                     MatchIndex++;
@@ -188,7 +189,7 @@ U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                         XHCI_FillEnumItem(Next->Item, ENUM_DOMAIN_USB_NODE, Next->Query->Index, &Data, sizeof(Data));
 
                         Next->Query->Index++;
-                        return DF_RET_SUCCESS;
+                        return DF_RETURN_SUCCESS;
                     }
                     MatchIndex++;
 
@@ -206,7 +207,7 @@ U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                             XHCI_FillEnumItem(Next->Item, ENUM_DOMAIN_USB_NODE, Next->Query->Index, &Data, sizeof(Data));
 
                             Next->Query->Index++;
-                            return DF_RET_SUCCESS;
+                            return DF_RETURN_SUCCESS;
                         }
                         MatchIndex++;
 
@@ -227,7 +228,7 @@ U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                                 XHCI_FillEnumItem(Next->Item, ENUM_DOMAIN_USB_NODE, Next->Query->Index, &Data, sizeof(Data));
 
                                 Next->Query->Index++;
-                                return DF_RET_SUCCESS;
+                                return DF_RETURN_SUCCESS;
                             }
                             MatchIndex++;
 
@@ -249,7 +250,7 @@ U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                                     XHCI_FillEnumItem(Next->Item, ENUM_DOMAIN_USB_NODE, Next->Query->Index, &Data, sizeof(Data));
 
                                     Next->Query->Index++;
-                                    return DF_RET_SUCCESS;
+                                    return DF_RETURN_SUCCESS;
                                 }
                                 MatchIndex++;
                             }
@@ -257,27 +258,27 @@ U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                     }
                 }
             } else {
-                return DF_RET_NOT_IMPLEMENTED;
+                return DF_RETURN_NOT_IMPLEMENTED;
             }
         }
     }
 
-    return DF_RET_NO_MORE;
+    return DF_RETURN_NO_MORE;
 }
 
 /************************************************************************/
 
 U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
     if (Pretty == NULL || Pretty->Item == NULL || Pretty->Buffer == NULL || Pretty->BufferSize == 0) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
     if (Pretty->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     if (Pretty->Item->Domain == ENUM_DOMAIN_XHCI_PORT) {
         if (Pretty->Item->DataSize < sizeof(DRIVER_ENUM_XHCI_PORT)) {
-            return DF_RET_BAD_PARAMETER;
+            return DF_RETURN_BAD_PARAMETER;
         }
 
         const DRIVER_ENUM_XHCI_PORT* Data = (const DRIVER_ENUM_XHCI_PORT*)Pretty->Item->Data;
@@ -291,12 +292,12 @@ U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
                           Data->Enabled,
                           XHCI_SpeedToString(Data->SpeedId),
                           Data->PortStatus);
-        return DF_RET_SUCCESS;
+        return DF_RETURN_SUCCESS;
     }
 
     if (Pretty->Item->Domain == ENUM_DOMAIN_USB_DEVICE) {
         if (Pretty->Item->DataSize < sizeof(DRIVER_ENUM_USB_DEVICE)) {
-            return DF_RET_BAD_PARAMETER;
+            return DF_RETURN_BAD_PARAMETER;
         }
 
         const DRIVER_ENUM_USB_DEVICE* Data = (const DRIVER_ENUM_USB_DEVICE*)Pretty->Item->Data;
@@ -310,12 +311,12 @@ U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
                           (U32)Data->VendorID,
                           (U32)Data->ProductID,
                           XHCI_SpeedToString(Data->SpeedId));
-        return DF_RET_SUCCESS;
+        return DF_RETURN_SUCCESS;
     }
 
     if (Pretty->Item->Domain == ENUM_DOMAIN_USB_NODE) {
         if (Pretty->Item->DataSize < sizeof(DRIVER_ENUM_USB_NODE)) {
-            return DF_RET_BAD_PARAMETER;
+            return DF_RETURN_BAD_PARAMETER;
         }
 
         const DRIVER_ENUM_USB_NODE* Data = (const DRIVER_ENUM_USB_NODE*)Pretty->Item->Data;
@@ -332,14 +333,14 @@ U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
                                   (U32)Data->DeviceSubClass,
                                   (U32)Data->DeviceProtocol,
                                   XHCI_SpeedToString(Data->SpeedId));
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             case USB_NODE_CONFIG:
                 StringPrintFormat(Pretty->Buffer,
                                   TEXT("  Config %u Attr=%x MaxPower=%u"),
                                   (U32)Data->ConfigValue,
                                   (U32)Data->ConfigAttributes,
                                   (U32)Data->ConfigMaxPower);
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             case USB_NODE_INTERFACE:
                 StringPrintFormat(Pretty->Buffer,
                                   TEXT("    Interface %u Alt=%u Class=%x/%x/%x"),
@@ -348,7 +349,7 @@ U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
                                   (U32)Data->InterfaceClass,
                                   (U32)Data->InterfaceSubClass,
                                   (U32)Data->InterfaceProtocol);
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             case USB_NODE_ENDPOINT:
                 StringPrintFormat(Pretty->Buffer,
                                   TEXT("      Endpoint %x %s %s MaxPacket=%u Interval=%u"),
@@ -357,10 +358,10 @@ U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
                                   XHCI_EndpointTypeToString(Data->EndpointAttributes),
                                   (U32)Data->EndpointMaxPacketSize,
                                   (U32)Data->EndpointInterval);
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
         }
     }
 
-    return DF_RET_BAD_PARAMETER;
+    return DF_RETURN_BAD_PARAMETER;
 }
 

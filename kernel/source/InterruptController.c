@@ -776,28 +776,28 @@ static UINT InterruptControllerDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((InterruptControllerDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             if (InitializeInterruptController(INTCTRL_MODE_AUTO)) {
                 InterruptControllerDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
-            return DF_RET_UNEXPECTED;
+            return DF_RETURN_UNEXPECTED;
 
         case DF_UNLOAD:
             if ((InterruptControllerDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             ShutdownInterruptController();
             InterruptControllerDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_GET_VERSION:
             return MAKE_VERSION(INTCTRL_VER_MAJOR, INTCTRL_VER_MINOR);
     }
 
-    return DF_RET_NOT_IMPLEMENTED;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

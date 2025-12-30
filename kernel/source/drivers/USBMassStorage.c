@@ -54,9 +54,9 @@
 #define USB_MASS_STORAGE_BULK_TIMEOUT_MILLISECONDS 1000
 #define USB_MASS_STORAGE_BULK_RETRIES 3
 
-#define DF_RET_HARDWARE 0x00001001
-#define DF_RET_TIMEOUT 0x00001002
-#define DF_RET_NODEVICE 0x00001004
+#define DF_RETURN_HARDWARE 0x00001001
+#define DF_RETURN_TIMEOUT 0x00001002
+#define DF_RETURN_NODEVICE 0x00001004
 
 /************************************************************************/
 
@@ -917,57 +917,57 @@ static void USBMassStoragePoll(LPVOID Context) {
 /**
  * @brief Read sectors from a USB mass storage device.
  * @param Control I/O control structure.
- * @return DF_RET_SUCCESS on success or error code.
+ * @return DF_RETURN_SUCCESS on success or error code.
  */
 static U32 USBMassStorageRead(LPIOCONTROL Control) {
     if (Control == NULL) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     LPUSB_MASS_STORAGE_DEVICE Device = (LPUSB_MASS_STORAGE_DEVICE)Control->Disk;
     if (Device == NULL) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     if (Device->Disk.TypeID != KOID_DISK) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     if (Control->SectorHigh != 0) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     if (Control->Buffer == NULL) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     if (!Device->Ready) {
-        return DF_RET_NODEVICE;
+        return DF_RETURN_NODEVICE;
     }
 
     if (!USBMassStorageIsDevicePresent(Device->Controller, Device->UsbDevice)) {
-        return DF_RET_NODEVICE;
+        return DF_RETURN_NODEVICE;
     }
 
     if (Control->NumSectors == 0) {
-        return DF_RET_SUCCESS;
+        return DF_RETURN_SUCCESS;
     }
 
     if (Control->SectorLow >= Device->BlockCount) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     if (Control->NumSectors > (Device->BlockCount - Control->SectorLow)) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     if (Control->NumSectors > (MAX_UINT / SECTOR_SIZE)) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     UINT TotalBytes = Control->NumSectors * SECTOR_SIZE;
     if (Control->BufferSize < TotalBytes) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     UINT Remaining = Control->NumSectors;
@@ -982,7 +982,7 @@ static U32 USBMassStorageRead(LPIOCONTROL Control) {
         }
 
         if (!USBMassStorageReadBlocks(Device, CurrentLogicalBlockAddress, Blocks, Output)) {
-            return DF_RET_HARDWARE;
+            return DF_RETURN_HARDWARE;
         }
 
         Output += Blocks * Device->BlockSize;
@@ -990,7 +990,7 @@ static U32 USBMassStorageRead(LPIOCONTROL Control) {
         Remaining -= Blocks;
     }
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -998,11 +998,11 @@ static U32 USBMassStorageRead(LPIOCONTROL Control) {
 /**
  * @brief Reject writes to a read-only USB mass storage device.
  * @param Control I/O control structure.
- * @return DF_RET_NO_PERMISSION.
+ * @return DF_RETURN_NO_PERMISSION.
  */
 static U32 USBMassStorageWrite(LPIOCONTROL Control) {
     UNUSED(Control);
-    return DF_RET_NO_PERMISSION;
+    return DF_RETURN_NO_PERMISSION;
 }
 
 /************************************************************************/
@@ -1010,20 +1010,20 @@ static U32 USBMassStorageWrite(LPIOCONTROL Control) {
 /**
  * @brief Populate disk information for a USB mass storage device.
  * @param Info Output disk info structure.
- * @return DF_RET_SUCCESS on success.
+ * @return DF_RETURN_SUCCESS on success.
  */
 static U32 USBMassStorageGetInfo(LPDISKINFO Info) {
     if (Info == NULL) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     LPUSB_MASS_STORAGE_DEVICE Device = (LPUSB_MASS_STORAGE_DEVICE)Info->Disk;
     if (Device == NULL) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     if (Device->Disk.TypeID != KOID_DISK) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     Info->Type = DRIVER_TYPE_HARDDISK;
@@ -1031,7 +1031,7 @@ static U32 USBMassStorageGetInfo(LPDISKINFO Info) {
     Info->NumSectors = (U32)Device->BlockCount;
     Info->Access = Device->Access;
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -1039,24 +1039,24 @@ static U32 USBMassStorageGetInfo(LPDISKINFO Info) {
 /**
  * @brief Update access flags for a USB mass storage device.
  * @param Access Access request.
- * @return DF_RET_SUCCESS on success.
+ * @return DF_RETURN_SUCCESS on success.
  */
 static U32 USBMassStorageSetAccess(LPDISKACCESS Access) {
     if (Access == NULL) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     LPUSB_MASS_STORAGE_DEVICE Device = (LPUSB_MASS_STORAGE_DEVICE)Access->Disk;
     if (Device == NULL) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     if (Device->Disk.TypeID != KOID_DISK) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     Device->Access = (Access->Access | DISK_ACCESS_READONLY);
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -1064,15 +1064,15 @@ static U32 USBMassStorageSetAccess(LPDISKACCESS Access) {
 /**
  * @brief Reset readiness state for a USB mass storage device.
  * @param Device USB mass storage device.
- * @return DF_RET_SUCCESS on completion.
+ * @return DF_RETURN_SUCCESS on completion.
  */
 static U32 USBMassStorageReset(LPUSB_MASS_STORAGE_DEVICE Device) {
     if (Device == NULL) {
-        return DF_RET_BAD_PARAMETER;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     Device->Ready = USBMassStorageIsDevicePresent(Device->Controller, Device->UsbDevice);
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -1087,24 +1087,24 @@ UINT USBMassStorageCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((USBMassStorageDriverState.Driver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             if (USBMassStorageDriverState.State.PollHandle == DEFERRED_WORK_INVALID_HANDLE) {
                 USBMassStorageDriverState.State.PollHandle =
                     DeferredWorkRegisterPollOnly(USBMassStoragePoll, NULL, TEXT("USBMassStorage"));
                 if (USBMassStorageDriverState.State.PollHandle == DEFERRED_WORK_INVALID_HANDLE) {
-                    return DF_RET_UNEXPECTED;
+                    return DF_RETURN_UNEXPECTED;
                 }
             }
 
             USBMassStorageDriverState.State.Initialized = TRUE;
             USBMassStorageDriverState.Driver.Flags |= DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_UNLOAD:
             if ((USBMassStorageDriverState.Driver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             if (USBMassStorageDriverState.State.PollHandle != DEFERRED_WORK_INVALID_HANDLE) {
@@ -1114,7 +1114,7 @@ UINT USBMassStorageCommands(UINT Function, UINT Parameter) {
 
             USBMassStorageDriverState.State.Initialized = FALSE;
             USBMassStorageDriverState.Driver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_GET_VERSION:
             return MAKE_VERSION(USB_MASS_STORAGE_VER_MAJOR, USB_MASS_STORAGE_VER_MINOR);
@@ -1131,7 +1131,7 @@ UINT USBMassStorageCommands(UINT Function, UINT Parameter) {
             return USBMassStorageSetAccess((LPDISKACCESS)Parameter);
     }
 
-    return DF_RET_NOT_IMPLEMENTED;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /************************************************************************/

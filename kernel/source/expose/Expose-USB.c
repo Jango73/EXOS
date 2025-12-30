@@ -83,14 +83,14 @@ static BOOL UsbEnumFetchByIndex(UINT Domain, UINT Index, void* OutData, UINT Dat
     Query.Domain = Domain;
     Query.Flags = 0;
 
-    while (KernelEnumGetProvider(&Query, ProviderIndex, &Provider) == DF_RET_SUCCESS) {
+    while (KernelEnumGetProvider(&Query, ProviderIndex, &Provider) == DF_RETURN_SUCCESS) {
         Query.Index = 0;
 
         MemorySet(&Item, 0, sizeof(Item));
         Item.Header.Size = sizeof(Item);
         Item.Header.Version = EXOS_ABI_VERSION;
 
-        while (KernelEnumNext(Provider, &Query, &Item) == DF_RET_SUCCESS) {
+        while (KernelEnumNext(Provider, &Query, &Item) == DF_RETURN_SUCCESS) {
             if (Item.DataSize < DataSize) {
                 ProviderIndex++;
                 break;
@@ -125,14 +125,14 @@ static UINT UsbEnumGetCount(UINT Domain) {
     Query.Domain = Domain;
     Query.Flags = 0;
 
-    while (KernelEnumGetProvider(&Query, ProviderIndex, &Provider) == DF_RET_SUCCESS) {
+    while (KernelEnumGetProvider(&Query, ProviderIndex, &Provider) == DF_RETURN_SUCCESS) {
         Query.Index = 0;
 
         MemorySet(&Item, 0, sizeof(Item));
         Item.Header.Size = sizeof(Item);
         Item.Header.Version = EXOS_ABI_VERSION;
 
-        while (KernelEnumNext(Provider, &Query, &Item) == DF_RET_SUCCESS) {
+        while (KernelEnumNext(Provider, &Query, &Item) == DF_RETURN_SUCCESS) {
             Count++;
         }
 

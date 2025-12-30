@@ -194,8 +194,8 @@ void DeleteTask(LPTASK This) {
         // Lock kernel mutex for the entire operation
         DEBUG(TEXT("[DeleteTask] Task=%p Type=%x Status=%x Flags=%x"), This, This->Type, This->Status,
             This->Flags);
-        DEBUG(TEXT("[DeleteTask] Stack base=%p size=%u SysStack base=%p size=%u"), This->Arch.Stack.Base,
-            This->Arch.Stack.Size, This->Arch.SysStack.Base, This->Arch.SysStack.Size);
+        DEBUG(TEXT("[DeleteTask] Stack base=%p size=%u SystemStack base=%p size=%u"), This->Arch.Stack.Base,
+            This->Arch.Stack.Size, This->Arch.SystemStack.Base, This->Arch.SystemStack.Size);
         SAFE_USE(This->Process) {
             DEBUG(TEXT("[DeleteTask] Process=%p Name=%s TaskCount=%u"), This->Process, This->Process->FileName,
                 This->Process->TaskCount);
@@ -220,10 +220,10 @@ void DeleteTask(LPTASK This) {
 
         DEBUG(TEXT("[DeleteTask] Deleting stacks"));
 
-        SAFE_USE(This->Arch.SysStack.Base) {
-            DEBUG(TEXT("[DeleteTask] Freeing SysStack: base=%X, size=%X"), This->Arch.SysStack.Base,
-                This->Arch.SysStack.Size);
-            FreeRegion(This->Arch.SysStack.Base, This->Arch.SysStack.Size);
+        SAFE_USE(This->Arch.SystemStack.Base) {
+            DEBUG(TEXT("[DeleteTask] Freeing SystemStack: base=%X, size=%X"), This->Arch.SystemStack.Base,
+                This->Arch.SystemStack.Size);
+            FreeRegion(This->Arch.SystemStack.Base, This->Arch.SystemStack.Size);
         }
 
 #if defined(__EXOS_ARCH_X86_64__)
@@ -876,8 +876,8 @@ void DumpTask(LPTASK Task) {
     VERBOSE(TEXT("ExitCode        : %u"), (U32)Task->ExitCode);
     VERBOSE(TEXT("StackBase       : %p"), Task->Arch.Stack.Base);
     VERBOSE(TEXT("StackSize       : %u"), Task->Arch.Stack.Size);
-    VERBOSE(TEXT("SysStackBase    : %p"), Task->Arch.SysStack.Base);
-    VERBOSE(TEXT("SysStackSize    : %u"), Task->Arch.SysStack.Size);
+    VERBOSE(TEXT("SysStackBase    : %p"), Task->Arch.SystemStack.Base);
+    VERBOSE(TEXT("SysStackSize    : %u"), Task->Arch.SystemStack.Size);
 #if defined(__EXOS_ARCH_X86_64__)
     VERBOSE(TEXT("IST1StackBase   : %p"), Task->Arch.Ist1Stack.Base);
     VERBOSE(TEXT("IST1StackSize   : %u"), Task->Arch.Ist1Stack.Size);

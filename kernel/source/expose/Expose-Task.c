@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -154,7 +155,7 @@ SCRIPT_ERROR ArchitectureTaskDataGetProperty(
 
     EXPOSE_BIND_INTEGER("context", (UINT)(LPVOID)&Architecture->Context);
     EXPOSE_BIND_HOST_HANDLE("stack", &Architecture->Stack, &StackDescriptor, Context);
-    EXPOSE_BIND_HOST_HANDLE("system_stack", &Architecture->SysStack, &StackDescriptor, Context);
+    EXPOSE_BIND_HOST_HANDLE("system_stack", &Architecture->SystemStack, &StackDescriptor, Context);
 
     return SCRIPT_ERROR_UNDEFINED_VAR;
 }
@@ -245,7 +246,7 @@ SCRIPT_ERROR TaskGetProperty(
                 return SCRIPT_ERROR_UNAUTHORIZED;
             }
             OutValue->Type = SCRIPT_VAR_HOST_HANDLE;
-            OutValue->Value.HostHandle = &Task->Arch.SysStack;
+            OutValue->Value.HostHandle = &Task->Arch.SystemStack;
             OutValue->HostDescriptor = &StackDescriptor;
             OutValue->HostContext = Task->Process;
             OutValue->OwnsValue = FALSE;

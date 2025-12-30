@@ -1415,42 +1415,42 @@ static U32 CreateNode(LPFILEINFO Info, BOOL Directory) {
     U32 ExistingIndex;
     EXT2INODE ExistingInode;
 
-    if (Info == NULL) return DF_RET_BAD_PARAMETER;
+    if (Info == NULL) return DF_RETURN_BAD_PARAMETER;
 
     FileSystem = (LPEXT2FILESYSTEM)Info->FileSystem;
-    if (FileSystem == NULL) return DF_RET_BAD_PARAMETER;
+    if (FileSystem == NULL) return DF_RETURN_BAD_PARAMETER;
 
     LockMutex(&(FileSystem->FilesMutex), INFINITY);
 
     if (EnsureParentDirectory(FileSystem, Info->Name, &ParentInode, &ParentIndex, FinalComponent) == FALSE) {
         UnlockMutex(&(FileSystem->FilesMutex));
-        return DF_RET_GENERIC;
+        return DF_RETURN_GENERIC;
     }
 
     if (FindInodeInDirectory(FileSystem, &ParentInode, FinalComponent, &ExistingIndex)) {
         if (ReadInode(FileSystem, ExistingIndex, &ExistingInode) == FALSE) {
             UnlockMutex(&(FileSystem->FilesMutex));
-            return DF_RET_INPUT_OUTPUT;
+            return DF_RETURN_INPUT_OUTPUT;
         }
 
         if (Directory && (ExistingInode.Mode & EXT2_MODE_TYPE_MASK) == EXT2_MODE_DIRECTORY) {
             UnlockMutex(&(FileSystem->FilesMutex));
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
         }
 
         if (!Directory && (ExistingInode.Mode & EXT2_MODE_TYPE_MASK) == EXT2_MODE_REGULAR) {
             UnlockMutex(&(FileSystem->FilesMutex));
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
         }
 
         UnlockMutex(&(FileSystem->FilesMutex));
-        return DF_RET_GENERIC;
+        return DF_RETURN_GENERIC;
     }
 
     if (Directory) {
         if (CreateDirectoryInternal(FileSystem, &ParentInode, ParentIndex, FinalComponent, NULL, NULL) == FALSE) {
             UnlockMutex(&(FileSystem->FilesMutex));
-            return DF_RET_GENERIC;
+            return DF_RETURN_GENERIC;
         }
     } else {
         U32 NewInodeIndex;
@@ -1458,25 +1458,25 @@ static U32 CreateNode(LPFILEINFO Info, BOOL Directory) {
 
         if (AllocateInode(FileSystem, FALSE, &NewInodeIndex, &NewInode, NULL) == FALSE) {
             UnlockMutex(&(FileSystem->FilesMutex));
-            return DF_RET_GENERIC;
+            return DF_RETURN_GENERIC;
         }
 
         if (AddDirectoryEntry(FileSystem, &ParentInode, ParentIndex, NewInodeIndex, FinalComponent, EXT2_FT_REG_FILE) == FALSE) {
             FreeInode(FileSystem, NewInodeIndex, FALSE);
             UnlockMutex(&(FileSystem->FilesMutex));
-            return DF_RET_GENERIC;
+            return DF_RETURN_GENERIC;
         }
 
         if (WriteInode(FileSystem, NewInodeIndex, &NewInode) == FALSE) {
             FreeInode(FileSystem, NewInodeIndex, FALSE);
             UnlockMutex(&(FileSystem->FilesMutex));
-            return DF_RET_GENERIC;
+            return DF_RETURN_GENERIC;
         }
     }
 
     UnlockMutex(&(FileSystem->FilesMutex));
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -1519,7 +1519,7 @@ static BOOL ReadSectors(LPEXT2FILESYSTEM FileSystem, U32 Sector, U32 Count, LPVO
     Control.Buffer = Buffer;
     Control.BufferSize = Count * SECTOR_SIZE;
 
-    return FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control) == DF_RET_SUCCESS;
+    return FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control) == DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -1563,7 +1563,7 @@ static BOOL WriteSectors(LPEXT2FILESYSTEM FileSystem, U32 Sector, U32 Count, LPC
     Control.Buffer = (LPVOID)Buffer;
     Control.BufferSize = Count * SECTOR_SIZE;
 
-    return FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control) == DF_RET_SUCCESS;
+    return FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control) == DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -2324,9 +2324,9 @@ static LPEXT2FILE NewEXT2File(LPEXT2FILESYSTEM FileSystem) {
 
 /**
  * @brief Initializes the EXT2 driver when it is loaded by the kernel.
- * @return DF_RET_SUCCESS on success.
+ * @return DF_RETURN_SUCCESS on success.
  */
-static U32 Initialize(void) { return DF_RET_SUCCESS; }
+static U32 Initialize(void) { return DF_RETURN_SUCCESS; }
 
 /************************************************************************/
 
@@ -2400,7 +2400,7 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
             if (Info->Flags & FILE_OPEN_CREATE_ALWAYS) {
                 UnlockMutex(&(FileSystem->FilesMutex));
 
-                if (CreateNode(Info, FALSE) != DF_RET_SUCCESS) {
+                if (CreateNode(Info, FALSE) != DF_RETURN_SUCCESS) {
                     return NULL;
                 }
 
@@ -2494,18 +2494,18 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
 /**
  * @brief Advances to the next entry when enumerating a directory.
  * @param File Directory enumeration handle.
- * @return DF_RET_SUCCESS on success or an error code otherwise.
+ * @return DF_RETURN_SUCCESS on success or an error code otherwise.
  */
 static U32 OpenNext(LPEXT2FILE File) {
-    if (File == NULL) return DF_RET_BAD_PARAMETER;
-    if (File->Header.TypeID != KOID_FILE) return DF_RET_BAD_PARAMETER;
+    if (File == NULL) return DF_RETURN_BAD_PARAMETER;
+    if (File->Header.TypeID != KOID_FILE) return DF_RETURN_BAD_PARAMETER;
 
-    if (File->IsDirectory == FALSE) return DF_RET_GENERIC;
-    if (File->Enumerate == FALSE) return DF_RET_GENERIC;
+    if (File->IsDirectory == FALSE) return DF_RETURN_GENERIC;
+    if (File->Enumerate == FALSE) return DF_RETURN_GENERIC;
 
-    if (LoadNextDirectoryEntry(File) == FALSE) return DF_RET_GENERIC;
+    if (LoadNextDirectoryEntry(File) == FALSE) return DF_RETURN_GENERIC;
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -2513,11 +2513,11 @@ static U32 OpenNext(LPEXT2FILE File) {
 /**
  * @brief Closes an EXT2 file handle and releases its memory.
  * @param File File handle to close.
- * @return DF_RET_SUCCESS on success, DF_RET_BAD_PARAMETER if the handle is invalid.
+ * @return DF_RETURN_SUCCESS on success, DF_RETURN_BAD_PARAMETER if the handle is invalid.
  */
 static U32 CloseFile(LPEXT2FILE File) {
-    if (File == NULL) return DF_RET_BAD_PARAMETER;
-    if (File->Header.TypeID != KOID_FILE) return DF_RET_BAD_PARAMETER;
+    if (File == NULL) return DF_RETURN_BAD_PARAMETER;
+    if (File->Header.TypeID != KOID_FILE) return DF_RETURN_BAD_PARAMETER;
 
     if (File->IsDirectory) {
         ReleaseDirectoryResources(File);
@@ -2525,7 +2525,7 @@ static U32 CloseFile(LPEXT2FILE File) {
 
     ReleaseKernelObject(File);
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -2533,27 +2533,27 @@ static U32 CloseFile(LPEXT2FILE File) {
 /**
  * @brief Reads data from an EXT2 file into the provided buffer.
  * @param File File handle describing the read request.
- * @return DF_RET_SUCCESS on success or an error code on failure.
+ * @return DF_RETURN_SUCCESS on success or an error code on failure.
  */
 static U32 ReadFile(LPEXT2FILE File) {
     LPEXT2FILESYSTEM FileSystem;
     U32 Remaining;
 
-    if (File == NULL) return DF_RET_BAD_PARAMETER;
-    if (File->Header.TypeID != KOID_FILE) return DF_RET_BAD_PARAMETER;
-    if (File->Header.Buffer == NULL) return DF_RET_BAD_PARAMETER;
+    if (File == NULL) return DF_RETURN_BAD_PARAMETER;
+    if (File->Header.TypeID != KOID_FILE) return DF_RETURN_BAD_PARAMETER;
+    if (File->Header.Buffer == NULL) return DF_RETURN_BAD_PARAMETER;
 
     if ((File->Header.OpenFlags & FILE_OPEN_READ) == 0) {
-        return DF_RET_NO_PERMISSION;
+        return DF_RETURN_NO_PERMISSION;
     }
 
     if (File->IsDirectory) {
-        return DF_RET_GENERIC;
+        return DF_RETURN_GENERIC;
     }
 
     FileSystem = (LPEXT2FILESYSTEM)File->Header.FileSystem;
-    if (FileSystem == NULL) return DF_RET_BAD_PARAMETER;
-    if (FileSystem->BlockSize == 0 || FileSystem->IOBuffer == NULL) return DF_RET_INPUT_OUTPUT;
+    if (FileSystem == NULL) return DF_RETURN_BAD_PARAMETER;
+    if (FileSystem->BlockSize == 0 || FileSystem->IOBuffer == NULL) return DF_RETURN_INPUT_OUTPUT;
 
     LockMutex(&(FileSystem->FilesMutex), INFINITY);
 
@@ -2561,12 +2561,12 @@ static U32 ReadFile(LPEXT2FILE File) {
 
     if (File->Header.Position >= File->Inode.Size) {
         UnlockMutex(&(FileSystem->FilesMutex));
-        return DF_RET_SUCCESS;
+        return DF_RETURN_SUCCESS;
     }
 
     if (File->Header.ByteCount == 0) {
         UnlockMutex(&(FileSystem->FilesMutex));
-        return DF_RET_SUCCESS;
+        return DF_RETURN_SUCCESS;
     }
 
     Remaining = File->Inode.Size - File->Header.Position;
@@ -2585,14 +2585,14 @@ static U32 ReadFile(LPEXT2FILE File) {
 
         if (GetInodeBlockNumber(FileSystem, &(File->Inode), BlockIndex, &BlockNumber) == FALSE) {
             UnlockMutex(&(FileSystem->FilesMutex));
-            return DF_RET_INPUT_OUTPUT;
+            return DF_RETURN_INPUT_OUTPUT;
         }
 
         if (BlockNumber == 0) {
             MemorySet(FileSystem->IOBuffer, 0, FileSystem->BlockSize);
         } else if (ReadBlock(FileSystem, BlockNumber, FileSystem->IOBuffer) == FALSE) {
             UnlockMutex(&(FileSystem->FilesMutex));
-            return DF_RET_INPUT_OUTPUT;
+            return DF_RETURN_INPUT_OUTPUT;
         }
 
         Chunk = FileSystem->BlockSize - OffsetInBlock;
@@ -2611,7 +2611,7 @@ static U32 ReadFile(LPEXT2FILE File) {
 
     UnlockMutex(&(FileSystem->FilesMutex));
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -2619,27 +2619,27 @@ static U32 ReadFile(LPEXT2FILE File) {
 /**
  * @brief Writes buffered data to an EXT2 file block by block.
  * @param File File handle describing the write request.
- * @return DF_RET_SUCCESS on success or an error code on failure.
+ * @return DF_RETURN_SUCCESS on success or an error code on failure.
  */
 static U32 WriteFile(LPEXT2FILE File) {
     LPEXT2FILESYSTEM FileSystem;
     U32 Remaining;
 
-    if (File == NULL) return DF_RET_BAD_PARAMETER;
-    if (File->Header.TypeID != KOID_FILE) return DF_RET_BAD_PARAMETER;
-    if (File->Header.Buffer == NULL) return DF_RET_BAD_PARAMETER;
+    if (File == NULL) return DF_RETURN_BAD_PARAMETER;
+    if (File->Header.TypeID != KOID_FILE) return DF_RETURN_BAD_PARAMETER;
+    if (File->Header.Buffer == NULL) return DF_RETURN_BAD_PARAMETER;
 
     if ((File->Header.OpenFlags & FILE_OPEN_WRITE) == 0) {
-        return DF_RET_NO_PERMISSION;
+        return DF_RETURN_NO_PERMISSION;
     }
 
     if (File->IsDirectory) {
-        return DF_RET_GENERIC;
+        return DF_RETURN_GENERIC;
     }
 
     FileSystem = (LPEXT2FILESYSTEM)File->Header.FileSystem;
-    if (FileSystem == NULL) return DF_RET_BAD_PARAMETER;
-    if (FileSystem->BlockSize == 0 || FileSystem->IOBuffer == NULL) return DF_RET_INPUT_OUTPUT;
+    if (FileSystem == NULL) return DF_RETURN_BAD_PARAMETER;
+    if (FileSystem->BlockSize == 0 || FileSystem->IOBuffer == NULL) return DF_RETURN_INPUT_OUTPUT;
 
     LockMutex(&(FileSystem->FilesMutex), INFINITY);
 
@@ -2651,7 +2651,7 @@ static U32 WriteFile(LPEXT2FILE File) {
 
     if (File->Header.ByteCount == 0) {
         UnlockMutex(&(FileSystem->FilesMutex));
-        return DF_RET_SUCCESS;
+        return DF_RETURN_SUCCESS;
     }
 
     Remaining = File->Header.ByteCount;
@@ -2668,12 +2668,12 @@ static U32 WriteFile(LPEXT2FILE File) {
 
         if (ResolveInodeBlock(FileSystem, &(File->Inode), BlockIndex, TRUE, &BlockNumber) == FALSE) {
             UnlockMutex(&(FileSystem->FilesMutex));
-            return DF_RET_INPUT_OUTPUT;
+            return DF_RETURN_INPUT_OUTPUT;
         }
 
         if (BlockNumber == 0) {
             UnlockMutex(&(FileSystem->FilesMutex));
-            return DF_RET_INPUT_OUTPUT;
+            return DF_RETURN_INPUT_OUTPUT;
         }
 
         Chunk = FileSystem->BlockSize - OffsetInBlock;
@@ -2686,19 +2686,19 @@ static U32 WriteFile(LPEXT2FILE File) {
         if (Chunk != FileSystem->BlockSize || OffsetInBlock != 0) {
             if (ReadBlock(FileSystem, BlockNumber, FileSystem->IOBuffer) == FALSE) {
                 UnlockMutex(&(FileSystem->FilesMutex));
-                return DF_RET_INPUT_OUTPUT;
+                return DF_RETURN_INPUT_OUTPUT;
             }
 
             MemoryCopy(FileSystem->IOBuffer + OffsetInBlock, Source, Chunk);
 
             if (WriteBlock(FileSystem, BlockNumber, FileSystem->IOBuffer) == FALSE) {
                 UnlockMutex(&(FileSystem->FilesMutex));
-                return DF_RET_INPUT_OUTPUT;
+                return DF_RETURN_INPUT_OUTPUT;
             }
         } else {
             if (WriteBlock(FileSystem, BlockNumber, Source) == FALSE) {
                 UnlockMutex(&(FileSystem->FilesMutex));
-                return DF_RET_INPUT_OUTPUT;
+                return DF_RETURN_INPUT_OUTPUT;
             }
         }
 
@@ -2715,12 +2715,12 @@ static U32 WriteFile(LPEXT2FILE File) {
 
     if (WriteInode(FileSystem, File->InodeIndex, &(File->Inode)) == FALSE) {
         UnlockMutex(&(FileSystem->FilesMutex));
-        return DF_RET_INPUT_OUTPUT;
+        return DF_RETURN_INPUT_OUTPUT;
     }
 
     UnlockMutex(&(FileSystem->FilesMutex));
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -2755,7 +2755,7 @@ BOOL MountPartition_EXT2(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 
     Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
-    if (Result != DF_RET_SUCCESS) return FALSE;
+    if (Result != DF_RETURN_SUCCESS) return FALSE;
 
     Super = (LPEXT2SUPER)Buffer;
 
@@ -2846,5 +2846,5 @@ UINT EXT2Commands(UINT Function, UINT Parameter) {
             break;
     }
 
-    return DF_RET_NOT_IMPLEMENTED;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

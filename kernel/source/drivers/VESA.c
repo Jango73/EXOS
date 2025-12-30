@@ -260,10 +260,10 @@ static BOOL InitializeVESA(void) {
         DEBUG(TEXT("[InitializeVESA] VESAInfo.Version: %u"), VESAContext.VESAInfo.Version);
         DEBUG(TEXT("[InitializeVESA] VESAInfo.Memory: %u KB"), VESAContext.VESAInfo.Memory * 64);
 
-        if (VESAContext.VESAInfo.Signature[0] != 'V') return DF_RET_GENERIC;
-        if (VESAContext.VESAInfo.Signature[1] != 'E') return DF_RET_GENERIC;
-        if (VESAContext.VESAInfo.Signature[2] != 'S') return DF_RET_GENERIC;
-        if (VESAContext.VESAInfo.Signature[3] != 'A') return DF_RET_GENERIC;
+        if (VESAContext.VESAInfo.Signature[0] != 'V') return DF_RETURN_GENERIC;
+        if (VESAContext.VESAInfo.Signature[1] != 'E') return DF_RETURN_GENERIC;
+        if (VESAContext.VESAInfo.Signature[2] != 'S') return DF_RETURN_GENERIC;
+        if (VESAContext.VESAInfo.Signature[3] != 'A') return DF_RETURN_GENERIC;
     } else {
         ERROR(TEXT("[InitializeVESA] Call to VESA information failed"));
     }
@@ -290,7 +290,7 @@ static BOOL InitializeVESA(void) {
  *
  * Unmaps LFB when mapped and switches back to BIOS text mode.
  *
- * @return DF_RET_SUCCESS always
+ * @return DF_RETURN_SUCCESS always
  */
 static U32 ShutdownVESA(void) {
     INTEL_X86_REGISTERS Regs;
@@ -318,7 +318,7 @@ static U32 ShutdownVESA(void) {
     Regs.X.BX = 0x03;
     RealModeCall(VIDEO_CALL, &Regs);
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -330,7 +330,7 @@ static U32 ShutdownVESA(void) {
  * and updates graphics context capabilities.
  *
  * @param Info Requested mode description
- * @return DF_RET_SUCCESS on success, DF_RET_GENERIC otherwise
+ * @return DF_RETURN_SUCCESS on success, DF_RETURN_GENERIC otherwise
  */
 static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
     INTEL_X86_REGISTERS Regs;
@@ -354,7 +354,7 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
     VESAContext.Header.MemoryBase = NULL;
 
     for (Index = 0;; Index++) {
-        if (VESAModeSpecs[Index].Mode == 0) return DF_RET_GENERIC;
+        if (VESAModeSpecs[Index].Mode == 0) return DF_RETURN_GENERIC;
 
         DEBUG(TEXT("[SetVideoMode] Checking mode %x"), VESAModeSpecs[Index].Mode);
 
@@ -406,7 +406,7 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
         }
     }
 
-    if (Found == 0) return DF_RET_GENERIC;
+    if (Found == 0) return DF_RETURN_GENERIC;
 
     //-------------------------------------
     // Get info about the mode
@@ -422,19 +422,19 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
 
     if (Regs.X.AX != 0x004F) {
         ERROR(TEXT("[SetVideoMode] VESA GetModeInfo failed (AX=%x)"), Regs.X.AX);
-        return DF_RET_GENERIC;
+        return DF_RETURN_GENERIC;
     }
 
     MemoryCopy(&(VESAContext.ModeInfo), (LPVOID)(LOW_MEMORY_PAGE_6), sizeof(MODEINFOBLOCK));
 
     if ((VESAContext.ModeInfo.Attributes & 0x80) == 0) {
         ERROR(TEXT("[SetVideoMode] Mode %x does not support linear frame buffers"), VESAContext.ModeSpecs.Mode);
-        return DF_RET_GENERIC;
+        return DF_RETURN_GENERIC;
     }
 
     if (VESAContext.ModeInfo.PhysBasePtr == 0) {
         ERROR(TEXT("[SetVideoMode] Mode %x returned null PhysBasePtr"), VESAContext.ModeSpecs.Mode);
-        return DF_RET_GENERIC;
+        return DF_RETURN_GENERIC;
     }
 
     //-------------------------------------
@@ -447,7 +447,7 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
 
     if (Regs.X.AX != 0x004F) {
         ERROR(TEXT("[SetVideoMode] Failed to set mode %x (AX=%x)"), VESAContext.ModeSpecs.Mode, Regs.X.AX);
-        return DF_RET_GENERIC;
+        return DF_RETURN_GENERIC;
     }
 
     //-------------------------------------
@@ -470,7 +470,7 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
     if (FrameBufferSize == 0) {
         ERROR(TEXT("[SetVideoMode] Frame buffer size is zero (pitch=%u height=%u)"), VESAContext.Header.BytesPerScanLine,
             VESAContext.Header.Height);
-        return DF_RET_GENERIC;
+        return DF_RETURN_GENERIC;
     }
 
     VESAContext.FrameBufferPhysical = (PHYSICAL)VESAContext.ModeInfo.PhysBasePtr;
@@ -479,7 +479,7 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
         ERROR(TEXT("[SetVideoMode] MapIOMemory failed for LFB base %p size %u"),
             (LPVOID)(LINEAR)VESAContext.FrameBufferPhysical, FrameBufferSize);
         VESAContext.FrameBufferPhysical = 0;
-        return DF_RET_GENERIC;
+        return DF_RETURN_GENERIC;
     }
 
     VESAContext.FrameBufferLinear = LinearBase;
@@ -494,7 +494,7 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
     VESADrawSelfTest(&VESAContext);
 #endif
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1561,23 +1561,23 @@ UINT VESACommands(UINT Function, UINT Param) {
     switch (Function) {
         case DF_LOAD:
             if ((VESADriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             if (InitializeVESA()) {
                 VESADriver.Flags |= DRIVER_FLAG_READY;
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
-            return DF_RET_UNEXPECTED;
+            return DF_RETURN_UNEXPECTED;
         case DF_UNLOAD:
             if ((VESADriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             ShutdownVESA();
             VESADriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
         case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_GFX_GETMODEINFO: {
@@ -1586,9 +1586,9 @@ UINT VESACommands(UINT Function, UINT Param) {
                 Info->Width = VESAContext.Header.Width;
                 Info->Height = VESAContext.Header.Height;
                 Info->BitsPerPixel = VESAContext.Header.BitsPerPixel;
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
-            return DF_RET_GENERIC;
+            return DF_RETURN_GENERIC;
         }
         case DF_GFX_SETMODE:
             return SetVideoMode((LPGRAPHICSMODEINFO)Param);
@@ -1606,5 +1606,5 @@ UINT VESACommands(UINT Function, UINT Param) {
             return VESA_Rectangle((LPRECTINFO)Param);
     }
 
-    return DF_RET_NOT_IMPLEMENTED;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

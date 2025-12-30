@@ -35,12 +35,12 @@
 
 // Functions supplied by a file driver
 
-#define DF_FILE_OPEN (DF_FIRSTFUNC + 0)
-#define DF_FILE_CLOSE (DF_FIRSTFUNC + 1)
-#define DF_FILE_READ (DF_FIRSTFUNC + 2)
-#define DF_FILE_WRITE (DF_FIRSTFUNC + 3)
-#define DF_FILE_GETPOS (DF_FIRSTFUNC + 4)
-#define DF_FILE_SETPOS (DF_FIRSTFUNC + 5)
+#define DF_FILE_OPEN (DF_FIRST_FUNCTION + 0)
+#define DF_FILE_CLOSE (DF_FIRST_FUNCTION + 1)
+#define DF_FILE_READ (DF_FIRST_FUNCTION + 2)
+#define DF_FILE_WRITE (DF_FIRST_FUNCTION + 3)
+#define DF_FILE_GETPOS (DF_FIRST_FUNCTION + 4)
+#define DF_FILE_SETPOS (DF_FIRST_FUNCTION + 5)
 
 /***************************************************************************/
 

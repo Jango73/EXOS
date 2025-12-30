@@ -63,26 +63,26 @@ struct tag_MEMORY_REGION_DESCRIPTOR;
 \************************************************************************/
 
 struct tag_PROCESS {
-    LISTNODE_FIELDS          // Standard EXOS object fields
-        MUTEX Mutex;         // This structure's mutex
-    MUTEX HeapMutex;         // This structure's mutex for heap allocation
-    SECURITY Security;       // This process' security attributes
-    LPDESKTOP Desktop;       // This process' desktop
-    U32 Privilege;           // This process' privilege level
-    U32 Status;              // Process status (alive/dead)
-    U32 Flags;               // Process creation flags
-    PHYSICAL PageDirectory;  // This process' page directory
+    LISTNODE_FIELDS                 // Standard EXOS object fields
+        MUTEX Mutex;                // This structure's mutex
+    MUTEX HeapMutex;                // This structure's mutex for heap allocation
+    SECURITY Security;              // Security attributes
+    LPDESKTOP Desktop;              // This process' desktop
+    U32 Privilege;                  // This process' privilege level
+    U32 Status;                     // (alive/dead)
+    U32 Flags;                      // Process creation flags
+    PHYSICAL PageDirectory;         // This process' page directory
     LINEAR HeapBase;
     UINT HeapSize;
     UINT MaximumAllocatedMemory;
-    UINT ExitCode;           // This process' exit code
+    UINT ExitCode;                  // This process' exit code
     STR FileName[MAX_PATH_NAME];
     STR CommandLine[MAX_PATH_NAME];
     STR WorkFolder[MAX_PATH_NAME];
-    UINT TaskCount;          // Number of active tasks in this process
-    MESSAGEQUEUE MessageQueue;  // Process-level message queue (input, etc.)
-    U64 UserID;              // Owner user
-    LPUSERSESSION Session;   // User session
+    UINT TaskCount;                 // Number of active tasks in this process
+    MESSAGEQUEUE MessageQueue;      // Process-level message queue (input, etc.)
+    U64 UserID;                     // Owner user
+    LPUSERSESSION Session;          // User session
 
     struct tag_MEMORY_REGION_DESCRIPTOR* RegionListHead;
     struct tag_MEMORY_REGION_DESCRIPTOR* RegionListTail;

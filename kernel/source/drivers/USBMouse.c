@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -528,27 +529,27 @@ UINT USBMouseCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD: {
             if ((USBMouseDriverState.Driver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             if (!MouseCommonInitialize(&USBMouseDriverState.Common)) {
-                return DF_RET_UNEXPECTED;
+                return DF_RETURN_UNEXPECTED;
             }
 
             if (USBMouseDriverState.State.PollHandle == DEFERRED_WORK_INVALID_HANDLE) {
                 USBMouseDriverState.State.PollHandle = DeferredWorkRegisterPollOnly(USBMousePoll, NULL, TEXT("USBMouse"));
                 if (USBMouseDriverState.State.PollHandle == DEFERRED_WORK_INVALID_HANDLE) {
-                    return DF_RET_UNEXPECTED;
+                    return DF_RETURN_UNEXPECTED;
                 }
             }
 
             USBMouseDriverState.State.Initialized = TRUE;
             USBMouseDriverState.Driver.Flags |= DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
         }
         case DF_UNLOAD:
             if ((USBMouseDriverState.Driver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             if (USBMouseDriverState.State.PollHandle != DEFERRED_WORK_INVALID_HANDLE) {
@@ -558,7 +559,7 @@ UINT USBMouseCommands(UINT Function, UINT Parameter) {
 
             USBMouseClearState();
             USBMouseDriverState.Driver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
         case DF_GET_VERSION:
             return MAKE_VERSION(USB_MOUSE_VER_MAJOR, USB_MOUSE_VER_MINOR);
         case DF_MOUSE_RESET:

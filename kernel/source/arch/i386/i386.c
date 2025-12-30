@@ -464,7 +464,7 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     }
 
     Task->Arch.Stack.Size = Info->StackSize;
-    Task->Arch.SysStack.Size = TASK_MINIMUM_SYSTEM_STACK_SIZE;
+    Task->Arch.SystemStack.Size = TASK_MINIMUM_SYSTEM_STACK_SIZE;
 
     /* Place user stack just below TaskRunner to keep distance from the heap. */
     Task->Arch.Stack.Base = 0;
@@ -484,23 +484,23 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
         }
     }
 
-    Task->Arch.SysStack.Base =
-        AllocKernelRegion(0, Task->Arch.SysStack.Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("SysStack"));
+    Task->Arch.SystemStack.Base =
+        AllocKernelRegion(0, Task->Arch.SystemStack.Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("SystemStack"));
 
     DEBUG(TEXT("[SetupTask] BaseVMA=%p, Requested StackBase at BaseVMA"), BaseVMA);
     DEBUG(TEXT("[SetupTask] Actually got StackBase=%p"), Task->Arch.Stack.Base);
 
-    if (Task->Arch.Stack.Base == NULL || Task->Arch.SysStack.Base == NULL) {
+    if (Task->Arch.Stack.Base == NULL || Task->Arch.SystemStack.Base == NULL) {
         if (Task->Arch.Stack.Base != NULL) {
             FreeRegion(Task->Arch.Stack.Base, Task->Arch.Stack.Size);
             Task->Arch.Stack.Base = 0;
             Task->Arch.Stack.Size = 0;
         }
 
-        if (Task->Arch.SysStack.Base != NULL) {
-            FreeRegion(Task->Arch.SysStack.Base, Task->Arch.SysStack.Size);
-            Task->Arch.SysStack.Base = 0;
-            Task->Arch.SysStack.Size = 0;
+        if (Task->Arch.SystemStack.Base != NULL) {
+            FreeRegion(Task->Arch.SystemStack.Base, Task->Arch.SystemStack.Size);
+            Task->Arch.SystemStack.Base = 0;
+            Task->Arch.SystemStack.Size = 0;
         }
 
         ERROR(TEXT("[SetupTask] Stack or system stack allocation failed"));
@@ -508,11 +508,11 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     }
 
     DEBUG(TEXT("[SetupTask] Stack (%u bytes) allocated at %p"), Task->Arch.Stack.Size, Task->Arch.Stack.Base);
-    DEBUG(TEXT("[SetupTask] System stack (%u bytes) allocated at %p"), Task->Arch.SysStack.Size,
-        Task->Arch.SysStack.Base);
+    DEBUG(TEXT("[SetupTask] System stack (%u bytes) allocated at %p"), Task->Arch.SystemStack.Size,
+        Task->Arch.SystemStack.Base);
 
     MemorySet((LPVOID)(Task->Arch.Stack.Base), 0, Task->Arch.Stack.Size);
-    MemorySet((LPVOID)(Task->Arch.SysStack.Base), 0, Task->Arch.SysStack.Size);
+    MemorySet((LPVOID)(Task->Arch.SystemStack.Base), 0, Task->Arch.SystemStack.Size);
     MemorySet(&(Task->Arch.Context), 0, sizeof(Task->Arch.Context));
 
     GetCR4(CR4);
@@ -532,7 +532,7 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     Task->Arch.Context.Registers.CR4 = CR4;
 
     StackTop = Task->Arch.Stack.Base + Task->Arch.Stack.Size;
-    SysStackTop = Task->Arch.SysStack.Base + Task->Arch.SysStack.Size;
+    SysStackTop = Task->Arch.SystemStack.Base + Task->Arch.SystemStack.Size;
 
     if (Process->Privilege == CPU_PRIVILEGE_KERNEL) {
         DEBUG(TEXT("[SetupTask] Setting kernel privilege (ring 0)"));
@@ -587,7 +587,7 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
  */
 void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask) {
     SAFE_USE(NextTask) {
-        LINEAR NextSysStackTop = NextTask->Arch.SysStack.Base + NextTask->Arch.SysStack.Size;
+        LINEAR NextSysStackTop = NextTask->Arch.SystemStack.Base + NextTask->Arch.SystemStack.Size;
 
         Kernel_i386.TSS->SS0 = SELECTOR_KERNEL_DATA;
         Kernel_i386.TSS->ESP0 = NextSysStackTop - STACK_SAFETY_MARGIN;
@@ -648,26 +648,26 @@ static UINT InterruptsDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((InterruptsDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             InitializeInterrupts();
             InterruptsDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_UNLOAD:
             if ((InterruptsDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             InterruptsDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_GET_VERSION:
             return MAKE_VERSION(INTERRUPTS_VER_MAJOR, INTERRUPTS_VER_MINOR);
     }
 
-    return DF_RET_NOT_IMPLEMENTED;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /************************************************************************/

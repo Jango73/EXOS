@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -670,7 +671,7 @@ UINT USBKeyboardCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD: {
             if ((USBKeyboardDriverState.Driver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             KeyboardCommonInitialize();
@@ -679,17 +680,17 @@ UINT USBKeyboardCommands(UINT Function, UINT Parameter) {
                 USBKeyboardDriverState.State.PollHandle =
                     DeferredWorkRegisterPollOnly(USBKeyboardPoll, NULL, TEXT("USBKeyboard"));
                 if (USBKeyboardDriverState.State.PollHandle == DEFERRED_WORK_INVALID_HANDLE) {
-                    return DF_RET_UNEXPECTED;
+                    return DF_RETURN_UNEXPECTED;
                 }
             }
 
             USBKeyboardDriverState.State.Initialized = TRUE;
             USBKeyboardDriverState.Driver.Flags |= DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
         }
         case DF_UNLOAD:
             if ((USBKeyboardDriverState.Driver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             if (USBKeyboardDriverState.State.PollHandle != DEFERRED_WORK_INVALID_HANDLE) {
@@ -699,7 +700,7 @@ UINT USBKeyboardCommands(UINT Function, UINT Parameter) {
 
             USBKeyboardClearState();
             USBKeyboardDriverState.Driver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
         case DF_GET_VERSION:
             return MAKE_VERSION(USB_KEYBOARD_VER_MAJOR, USB_KEYBOARD_VER_MINOR);
         case DF_KEY_GETSTATE:

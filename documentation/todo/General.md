@@ -11,7 +11,7 @@
 
 ## Naming
 
-- Remove all abbreviations (SysStack, ...)
+- Remove all abbreviations
 
 ## Logs
 
@@ -19,8 +19,12 @@
 
 ## Errors
 
-- Functions returning U32 MUST return DF_RET_XXXX codes : meaning 0 on success, an error otherwise.
+- Functions returning U32 MUST return DF_RETURN_XXXX codes : meaning 0 on success, an error otherwise.
 - If they are meant to return 0 or 1, they must use BOOL.
+
+## Shell kernel exposure
+
+- Expose keyboard and mouse structures
 
 ## Shared modules
 
@@ -36,7 +40,6 @@
 
 ## Keyboard
 
-- Implement serious keyboard management (PS2/USB/HID)
 - Add more keyboard layouts
 
 ## Security 

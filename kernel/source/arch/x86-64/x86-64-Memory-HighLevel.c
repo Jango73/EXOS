@@ -1105,7 +1105,7 @@ Out:
  *
  * @param Function Driver command selector.
  * @param Parameter Unused.
- * @return DF_RET_SUCCESS on success, DF_RET_NOT_IMPLEMENTED otherwise.
+ * @return DF_RETURN_SUCCESS on success, DF_RETURN_NOT_IMPLEMENTED otherwise.
  */
 static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
     UNUSED(Parameter);
@@ -1113,26 +1113,26 @@ static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((MemoryManagerDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             InitializeMemoryManager();
             MemoryManagerDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_UNLOAD:
             if ((MemoryManagerDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             MemoryManagerDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_GET_VERSION:
             return MAKE_VERSION(MEMORY_MANAGER_VER_MAJOR, MEMORY_MANAGER_VER_MINOR);
     }
 
-    return DF_RET_NOT_IMPLEMENTED;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /************************************************************************/
