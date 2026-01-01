@@ -572,14 +572,13 @@ typedef struct tag_OBJECT {
 // A datetime
 
 typedef struct tag_DATETIME {
-    U32 Year : 22;
-    U32 Month : 4;
-    U32 Day : 6;
-    U32 Hour : 6;
-    U32 Minute : 6;
-    U32 Second : 6;
-    U32 Milli : 10;
-    U32 Unused : 4;
+    U32 Year : 26;              // 67 108 863
+    U32 Month : 4;              // 15
+    U32 Day : 6;                // 63
+    U32 Hour : 6;               // 63
+    U32 Minute : 6;             // 63
+    U32 Second : 6;             // 63
+    U32 Milli : 10;             // 1023
 } DATETIME, *LPDATETIME;
 
 /************************************************************************/

@@ -13,31 +13,37 @@ This model ensures:
 - reproducibility of system states,
 - zero-risk upgrades (no partial installations).
 
-Conceptually, the package manager is not an “installer” — it’s a **volume orchestrator**.
+In short: EXOS treats packages as immutable, compressed volumes mounted by the kernel, not unpacked.  
+System components are shared globally, while application-specific libraries remain inside each package for isolation.  
+Updates and rollbacks are atomic because the system state is just a list of mounted package files.
+
+Conceptually, the package manager is not an "installer" -- it is a **volume orchestrator**.
 
 ---
 
 ## 2. Design Principles
 
 1. **Mount, not copy**  
-   Packages remain compressed archives (`.hpkg`) and are mounted by the kernel’s *packagefs* rather than unpacked.
+   Packages remain compressed archives (`.epk`) and are mounted by the kernel's *packagefs* rather than unpacked.
 
 2. **Read-only system base**  
    The core system runs entirely from mounted packages.  
-   No writable files exist in `/system`; user and runtime data live in `/data`.
+   Packaged app data is read-only in `/package/data` and dynamic app data uses `/user-data` which is an alias to `/current-user/<application-name>/data`.
 
 3. **Atomic state changes**  
    Installing or removing a package = adding or removing a single file.  
    The kernel rebuilds the active package graph in real-time.
 
-4. **Layered namespaces**  
-   Packages are overlaid in priority order:
+4. **Namespace layout**  
+   Packages are mounted by role:
    ```
-   /system/   → core system packages
-   /common/   → shared optional packages
-   /user/     → per-user packages and overlays
+   /library/package/ -> system shared packages (runtime, drivers, stack)
+   /apps/            -> application packages (global)
+   /users/           -> per-user package files under /users/<user-name>/package
    ```
-   This allows user-level package customization without affecting the base OS.
+   Applications see all mounts from configuration, plus a private `/package` view.
+
+
 
 5. **Compression transparency**  
    Files inside packages are zlib-compressed and transparently decompressed on demand.  
@@ -46,15 +52,69 @@ Conceptually, the package manager is not an “installer” — it’s a **volum
 6. **Minimal external tooling**  
    Package management requires only:
    - filesystem support for `packagefs`,
-   - a userland tool for adding/removing `.hpkg` files,
+   - a userland tool for adding/removing `.epk` files,
    - a daemon (optional) for dependency resolution.
 
 ---
 
 ## 3. Package Structure
 
-Each package (`.hpkg`) is a **single compressed archive** with an internal directory tree and metadata table.
-The format is described here : https://www.haiku-os.org/docs/develop/packages/FileFormat.html
+Each package (`.epk`) is a **single compressed archive** with an internal folder tree and metadata table.
+
+### 3.1 File Layout (binary)
+
+The `.epk` format is designed for mount-time validation, fast metadata lookup, and on-demand decompression.
+
+**Header (fixed 64 bytes, little-endian)**
+- Magic: `EPK1`
+- Version: `U32`
+- Flags: `U32` (bitfield: compression, signed, encrypted)
+- HeaderSize: `U32`
+- TocOffset: `U64`, TocSize: `U64`
+- BlockTableOffset: `U64`, BlockTableSize: `U64`
+- ManifestOffset: `U64`, ManifestSize: `U64`
+- SignatureOffset: `U64`, SignatureSize: `U64`
+- PackageHash: SHA-256 over all bytes except the signature block
+
+**TOC (Table of Contents)**
+Each entry describes a path and how to access its data.
+- PathLength: `U32`, PathBytes (UTF-8)
+- NodeType: `U32` (file, folder)
+- Permissions: `U32`
+- ModifiedTime: `DATETIME`
+- FileSize: `U64`
+- DataOffset: `U64` (into data region, for small inline files)
+- BlockIndexStart: `U32`, BlockCount: `U32` (for chunked files)
+- FileHash: SHA-256 of uncompressed file data
+- SymlinkTargetLength + SymlinkTarget (for symlinks)
+
+**DATETIME (stored as 64-bit packed fields, little-endian)**
+- Year: 26 bits
+- Month: 4 bits
+- Day: 6 bits
+- Hour: 6 bits
+- Minute: 6 bits
+- Second: 6 bits
+- Milli: 10 bits
+
+**Data Region**
+File content is stored as independently compressed chunks (default 64 KiB uncompressed).
+Each chunk is compressed with zlib to allow random access without full extraction.
+
+**Block Table**
+Indexed by `BlockIndexStart` and `BlockCount`.
+Each entry provides:
+- CompressedOffset: `U64`
+- CompressedSize: `U32`
+- UncompressedSize: `U32`
+- ChunkHash: SHA-256
+
+**Manifest**
+A UTF-8 JSON blob with the package metadata (same content as `/package/manifest.json`).
+The manifest is stored as a dedicated blob for fast dependency checks at mount time.
+
+**Signature (optional)**
+Detached signature over `PackageHash`. The format is flexible (e.g., ed25519).
 
 ---
 
@@ -63,24 +123,21 @@ The format is described here : https://www.haiku-os.org/docs/develop/packages/Fi
 1. **Detection**  
    At boot or runtime, the system scans known package directories:
    ```
-   /system/packages/
-   /common/packages/
-   /user/packages/
+   /library/package/
+   /apps/
+   /current-user/package/
    ```
 
 2. **Validation**  
-   Each `.hpkg` file is verified (header, checksum, optional signature).
+   Each `.epk` file is verified (header, checksum, optional signature).
 
 3. **Mounting**  
-   The kernel mounts the package into a virtual view (like a read-only overlay).  
+   The kernel mounts the package into a virtual read-only view.  
    Files inside the package become visible in the global namespace:
-   ```
-   /system/packages/core.hpkg → /system/bin, /system/lib, /system/include
-   ```
 
 4. **On-demand decompression**  
    When a file is accessed, the filesystem reads its compressed blocks from the package and decompresses them in memory.  
-   Pages are cached transparently by the kernel’s VM.
+   Pages are cached transparently by the kernel's VM.
 
 5. **Unloading**  
    Removing a package simply unmounts it; no residual files remain.
@@ -95,11 +152,30 @@ The format is described here : https://www.haiku-os.org/docs/develop/packages/Fi
 
 - **Caching**  
   Frequently used pages are cached in RAM for instant reuse.  
-  An optional `/var/cache/exec/` can persist decompressed code across boots.
 
 - **Isolation**  
   Each process inherits a view of the mounted package graph according to its namespace.  
-  System processes see `/system + /common`, while user processes may overlay `/user`.
+  Packaged apps see all mounts from configuration plus their private `/package` view.
+
+### Application View Graph (Packaged App)
+
+```
+/
+|-- system/               (global root, from configuration)
+|-- library/package/      (global shared packages)
+|-- apps/                 (application packages)
+|-- users/                (all user folders, each may contain package files)
+|-- current-user/         (current user folder alias -> /users/<user-name>)
+|-- package/              (private mount of the application package)
+    |-- binary/
+    |-- data/
+    |-- manifest.json
+|-- user-data/            (alias to /current-user/<application-name>/data)
+```
+
+Library lookup order: `/package/binary` then `/library/package`.
+Default packaged app work folder: `/package/data`.
+Application data alias: `/user-data` -> `/current-user/<application-name>/data`.
 
 ---
 
@@ -123,12 +199,9 @@ This allows multiple package versions to coexist if they expose compatible inter
 
 ---
 
-
----
-
 ## 6.1 System vs Embedded Dependencies
 
-Not all dependencies should be packaged inside `.hpkg` archives.  
+Not all dependencies should be packaged inside `.epk` archives.  
 EXOS distinguishes between **system-level shared components** and **application-level dependencies**.
 
 ### **1. System Dependencies**
@@ -136,16 +209,16 @@ System dependencies are global components that provide hardware access or critic
 
 | Category | Example | Provided By | Shared Across Packages |
 |-----------|----------|--------------|------------------------|
-| GPU drivers | `libcuda.so`, `libvulkan.so` | `/system/packages/driver.cuda.hpkg` | Yes |
-| Audio drivers | `libalsa.so`, `libaudio.so` | `/system/packages/driver.audio.hpkg` | Yes |
-| Kernel runtime | `libc.so`, `libm.so`, core runtime | `/system/packages/core.runtime.hpkg` | Yes |
-| Network stack | `libnet.so`, sockets layer | `/system/packages/netstack.hpkg` | Yes |
+| GPU drivers | `libcuda.so`, `libvulkan.so` | `/library/package/driver.cuda.epk` | Yes |
+| Audio drivers | `libalsa.so`, `libaudio.so` | `/library/package/driver.audio.epk` | Yes |
+| Kernel runtime | `libc.so`, `libm.so`, core runtime | `/library/package/core.runtime.epk` | Yes |
+| Network stack | `libnet.so`, sockets layer | `/library/package/netstack.epk` | Yes |
 
 These components are considered *stable and trusted*, maintained by the OS vendor.  
-They are mounted globally and accessible to all packages through `/system/lib/`.
+They are mounted globally and accessible to all packages through `/library/`.
 
 ### **2. Embedded Dependencies**
-Application-level libraries are packaged inside each `.hpkg` to ensure version independence and reproducibility.
+Application-level libraries are packaged inside each `.epk` to ensure version independence and reproducibility.
 
 | Category | Example | Packaged With |
 |-----------|----------|---------------|
@@ -154,7 +227,7 @@ Application-level libraries are packaged inside each `.hpkg` to ensure version i
 | Engine or tool-specific code | Rendering modules, plugin loaders | Application |
 
 These libraries live entirely inside the package and are not exposed globally.  
-This prevents “dependency hell” and guarantees that each application uses exactly the environment it was built for.
+This prevents dependency hell and guarantees that each application uses exactly the environment it was built for.
 
 ### **3. Manifest-based Linking**
 
@@ -175,9 +248,9 @@ If a required system package is missing, the mount fails gracefully, allowing th
 
 | Type | Location | Managed By | Update Model | Example |
 |------|-----------|-------------|---------------|----------|
-| System dependency | `/system/packages/` | OS vendor | global updates | `driver.cuda.hpkg` |
-| Shared runtime | `/system/packages/` | OS core | versioned snapshots | `core.runtime.hpkg` |
-| App-level lib | Inside app `.hpkg` | App developer | self-contained | `game.engine.hpkg` |
+| System dependency | `/library/package/` | OS vendor | global updates | `driver.cuda.epk` |
+| Shared runtime | `/library/package/` | OS core | versioned snapshots | `core.runtime.epk` |
+| App-level lib | Inside app `.epk` | App developer | self-contained | `game.engine.epk` |
 
 This hybrid approach provides both immutability and efficiency:
 - Large, hardware-specific components are shared system-wide.  
@@ -186,7 +259,7 @@ This hybrid approach provides both immutability and efficiency:
 
 ## 7. Updates and Rollback
 
-- **Updating** = replacing one `.hpkg` file.
+- **Updating** = replacing one `.epk` file.
 - **Rollback** = switching back to the previous package set (recorded snapshot).
 - The system maintains a list of active package hashes:
   ```
@@ -212,7 +285,6 @@ This hybrid approach provides both immutability and efficiency:
 ## 9. Future Extensions
 
 - **Delta packages** (binary diffs between versions)  
-- **Runtime package overlays** (for debugging or hot-patching)  
 - **User namespaces** for sandboxed apps  
 - **Optional encryption** of package contents  
 - **Shared page deduplication** between similar packages  
@@ -223,6 +295,49 @@ This hybrid approach provides both immutability and efficiency:
 
 The EXOS packaging model replaces the traditional installer paradigm with a **declarative, mount-based package system**.  
 It prioritizes consistency, simplicity, and safety over raw I/O speed.  
-Every system state is a reproducible composition of packages — compressed, verified, and mounted dynamically.
+Every system state is a reproducible composition of packages -- compressed, verified, and mounted dynamically.
 
 This model eliminates classically fragile layers (installers, dependency solvers, post-install scripts) and provides a clean foundation for a stable, modular operating system.
+
+
+---
+
+## 11. Concrete Examples (Disk and Mounted Views)
+
+### Example: Per-user package location
+
+```
+/users/alice/
+|-- package/
+|   `-- theme.dark.epk
+|-- documents/
+`-- settings/
+```
+
+### Example: Mounted view of global libraries
+
+```
+/library/
+|-- runtime/
+|   |-- core.runtime.so
+|   |-- image.codec.so
+|   `-- manifest.json
+|-- drivers/
+|   |-- driver.audio.so
+|   `-- manifest.json
+```
+
+### Example: Mounted view of the application package (per-process)
+
+```
+/package/
+|-- binaries/
+|   |-- video-editor
+|   |-- video.engine.so
+|   `-- image.codec.so
+|-- data/
+|   `-- presets/
+|-- manifest.json
+```
+Library selection: the loader resolves `/package/libraries/image.codec.so` before `/library/runtime/libraries/image.codec.so`.
+

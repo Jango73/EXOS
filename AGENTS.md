@@ -15,26 +15,32 @@ This is a multi-architecture operating system. Currently supporting i386 and x86
 
 ## Coding Conventions
 - **Types**: Use **LINEAR** for virtual addresses (when not using direct pointers), **PHYSICAL** for physical addresses, **UINT** for indexes, sizes and error values. In the kernel, it is **STRICTLY FORBIDDEN** to use a direct c type (int, unsigned long, long long, etc...) : **only types in Base.h are allowed.**
-- **Freestanding**: The codebase **MUST NOT** rely on **ANY** library/module outside of the EXOS codebase. **NO** stdlib, stdio, whatever. Everything the kernel needs is built in the compiler and in the codebase.
+- **Freestanding**: The kernel **MUST NOT** rely on **ANY** external library/module (unless specified otherwise). **NO** stdlib, stdio, whatever. Everything the kernel needs is built in the compiler and in the codebase.
 - **Debugging**: Debug output is logged with DEBUG(). Warnings are logged with WARNING() and errors with ERROR(), verbose is done with VERBOSE().
-- **Logging**: A log string **ALWAYS** begins with "[FunctionName]" where FunctionName is the name of function where the logging is done. Use "%p" for pointers and adresses, "%x" for values except for sizes which use "%u".
+- **Logging**: A log string **ALWAYS** begins with "[FunctionName]" where FunctionName is the name of the function where the logging is done. Use "%p" for pointers and addresses, "%x" for values except for sizes which use "%u".
 - **Function order**: DO NOT OVERUSE forward declarations. Define functions before they are used.
 - **I18n**: Write comments, console output and technical doc in english.
-- **Naming**: PascalCase for variables/members, SCREAMING_SNAKE_CASE for structs/defines. NEVER use abbreviations; always use full words. This **IS NOT** Linux.
-- **Order**: Group the declarations in headers. 1: #defines, 2: typedefs, 3: inlines, 4: external symbols
+- **Naming**: PascalCase for variables/members, SCREAMING_SNAKE_CASE for structs/defines.
+- **Declaration order**: Group the declarations in headers. 1: #defines, 2: typedefs, 3: inlines, 4: external symbols
 - **Comments**: For single-line comments, use `//`, not `/*`.
 - **Style**: 4-space indentation, follow `.clang-format` rules.
-- **Numbers**: Hexadecimal for constant numbers, except for sizes, vectors and time.
+- **Numbers**: Hexadecimal for constant numbers, except for sizes, vectors, points and time.
 - **Documentation**: Update `documentation/Kernel.md` when adding/modifying kernel components.
 - **Languages**: C for kernel, avoid Python (use Node.js/JS if needed).
 - **Libraries**: NO stdlib/stdio in kernel - custom implementations only.
 - **Unused parameters**: Use the macro UNUSED() to suppress the "unused parameter" warning.
-- **SAFE_USE macros**: These macros validate pointers against kernel space. In userland code (runtime/system apps), NEVER use SAFE_USE_VALID/SAFE_USE_VALID_ID variants, as they will reject userland addresses.
+- **SAFE_USE macros**: These macros validate pointers in kernel space. In userland code (runtime/system apps), NEVER use SAFE_USE_VALID/SAFE_USE_VALID_ID variants, as they will reject userland addresses.
 - **Pointers**: In the kernel, before using a kernel object pointer, use the appropriate macro for this : SAFE_USE if you got a pointer to any kind of object, SAFE_USE_VALID_ID if you got a pointer to a kernel object **which inherits LISTNODE_FIELDS**. SAFE_USE_2 does the same as SAFE_USE but for two pointers, SAFE_USE_VALID_ID_2 does the same as SAFE_USE_VALID_ID but for two pointers (SAFE_USE_VALID_ID_3 for 3 pointers, etc...).
 - **No direct access to physical memory**: Use the MapTemporaryPhysicalPage1 (MapTemporaryPhysicalPage2, etc...) and MapIOMemory/UnMapIOMemory functions to access physical memory pages.
 - **Clean code**: No duplicate code. Create intermediate functions to avoid it.
 - **No globals**: Before adding a global variable, **ALWAYS ASK** if permitted.
 - **Functions**: Add a doxygen header to functions and separate all functions with a 75 character long line such as : /************************************************************************/
+- **EXOS != Unix/Linux/Windows/Whatever** :
+  - NEVER use abbreviations; ALWAYS use full words (acronyms are OK).
+  - No directory : use folder.
+  - No symlink : use folder alias.
+  - No unix seconds / timestamp : use DATETIME structure.
+  - No INT/UINT in persistent data : those are register-sized.
 
 ## Common Build Commands
 
