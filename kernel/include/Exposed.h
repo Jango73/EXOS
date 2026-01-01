@@ -267,3 +267,22 @@ extern const SCRIPT_HOST_DESCRIPTOR DriverArrayDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR DriverEnumDomainArrayDescriptor;
 
 /************************************************************************/
+
+SCRIPT_ERROR KeyboardGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR MouseGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+const SCRIPT_HOST_DESCRIPTOR *GetKeyboardDescriptor(void);
+const SCRIPT_HOST_DESCRIPTOR *GetMouseDescriptor(void);
+SCRIPT_HOST_HANDLE GetKeyboardRootHandle(void);
+SCRIPT_HOST_HANDLE GetMouseRootHandle(void);
+
+/************************************************************************/

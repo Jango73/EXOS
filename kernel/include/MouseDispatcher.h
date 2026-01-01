@@ -37,6 +37,7 @@
 
 BOOL InitializeMouseDispatcher(void);
 void MouseDispatcherOnInput(I32 DeltaX, I32 DeltaY, U32 Buttons);
+BOOL GetMousePosition(I32* X, I32* Y);
 
 /************************************************************************/
 

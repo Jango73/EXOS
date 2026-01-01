@@ -61,7 +61,6 @@ SCRIPT_ERROR DriverGetProperty(
         EXPOSE_BIND_STRING("manufacturer", Driver->Manufacturer);
         EXPOSE_BIND_STRING("product", Driver->Product);
         EXPOSE_BIND_INTEGER("flags", Driver->Flags);
-        EXPOSE_BIND_INTEGER("command", (UINT)(LPVOID)Driver->Command);
         EXPOSE_BIND_INTEGER("enum_domain_count", Driver->EnumDomainCount);
 
         if (STRINGS_EQUAL_NO_CASE(Property, TEXT("enum_domains"))) {

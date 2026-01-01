@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -38,6 +39,28 @@
 #define USB_CLASS_HID 0x03
 #define USB_HID_SUBCLASS_BOOT 0x01
 #define USB_HID_PROTOCOL_KEYBOARD 0x01
+
+/************************************************************************/
+// Forward declarations
+
+static UINT KeyboardSelectorCommands(UINT Function, UINT Parameter);
+
+/************************************************************************/
+
+static DRIVER DATA_SECTION KeyboardSelectorDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_KEYBOARD,
+    .VersionMajor = KEYBOARD_SELECTOR_VER_MAJOR,
+    .VersionMinor = KEYBOARD_SELECTOR_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "EXOS",
+    .Product = "Keyboard selector",
+    .Flags = 0,
+    .Command = KeyboardSelectorCommands
+};
 
 /************************************************************************/
 
@@ -192,23 +215,6 @@ static UINT KeyboardSelectorCommands(UINT Function, UINT Parameter) {
 
     return MAX_U32;
 }
-
-/************************************************************************/
-
-static DRIVER DATA_SECTION KeyboardSelectorDriver = {
-    .TypeID = KOID_DRIVER,
-    .References = 1,
-    .Next = NULL,
-    .Prev = NULL,
-    .Type = DRIVER_TYPE_KEYBOARD,
-    .VersionMajor = KEYBOARD_SELECTOR_VER_MAJOR,
-    .VersionMinor = KEYBOARD_SELECTOR_VER_MINOR,
-    .Designer = "Jango73",
-    .Manufacturer = "EXOS",
-    .Product = "Keyboard selector",
-    .Flags = 0,
-    .Command = KeyboardSelectorCommands
-};
 
 /************************************************************************/
 

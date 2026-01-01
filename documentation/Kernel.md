@@ -1333,6 +1333,15 @@ The network stack successfully handles real network traffic across multiple devi
     - `enum_domains`: enum domain array. Permissions: kernel and administrator only.
       - `enum_domains.count`: enum domain count. Permissions: kernel and administrator only.
       - `enum_domains[n]`: enum domain value at index `n`. Permissions: kernel and administrator only.
+- `keyboard`: Keyboard exposure root. provides access to keyboard state.
+  Permissions: anyone.
+  - `keyboard.layout`: active keyboard layout code. Permissions: anyone.
+  - `keyboard.driver`: active keyboard driver. Permissions: kernel and administrator only.
+- `mouse`: Mouse exposure root. provides access to mouse state.
+  Permissions: anyone.
+  - `mouse.x`: cursor X coordinate. Permissions: anyone.
+  - `mouse.y`: cursor Y coordinate. Permissions: anyone.
+  - `mouse.driver`: active mouse driver. Permissions: kernel and administrator only.
 - `usb.ports`: xHCI port list root. provides indexed access to USB ports.
   Permissions: kernel and administrator only.
   - `usb.ports.count`: number of USB ports. Permissions: kernel and administrator only.

@@ -20,7 +20,11 @@
 
 ## Shell kernel exposure
 
-- Expose keyboard and mouse structures
+- Expose PCI devices
+
+## Scripting
+
+- Use + for string concat
 
 ## Shared modules
 

@@ -258,3 +258,38 @@ void MouseDispatcherOnInput(I32 DeltaX, I32 DeltaY, U32 Buttons) {
 }
 
 /************************************************************************/
+
+/**
+ * @brief Retrieve the current mouse cursor position.
+ * @param X Output X coordinate.
+ * @param Y Output Y coordinate.
+ * @return TRUE when the dispatcher is initialized and the position is copied.
+ */
+BOOL GetMousePosition(I32* X, I32* Y) {
+    UINT Flags;
+    I32 CurrentX;
+    I32 CurrentY;
+
+    if (X == NULL || Y == NULL) {
+        return FALSE;
+    }
+
+    if (g_MouseDispatch.Initialized == FALSE) {
+        return FALSE;
+    }
+
+    SaveFlags(&Flags);
+    DisableInterrupts();
+
+    CurrentX = g_MouseDispatch.PosX;
+    CurrentY = g_MouseDispatch.PosY;
+
+    RestoreFlags(&Flags);
+
+    *X = CurrentX;
+    *Y = CurrentY;
+
+    return TRUE;
+}
+
+/************************************************************************/

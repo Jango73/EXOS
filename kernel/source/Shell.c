@@ -227,6 +227,26 @@ static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context) {
             NULL)) {
         DEBUG(TEXT("[ShellRegisterScriptHostObjects] Failed to register usb host symbol"));
     }
+
+    if (!ScriptRegisterHostSymbol(
+            Context->ScriptContext,
+            TEXT("keyboard"),
+            SCRIPT_HOST_SYMBOL_OBJECT,
+            GetKeyboardRootHandle(),
+            GetKeyboardDescriptor(),
+            NULL)) {
+        DEBUG(TEXT("[ShellRegisterScriptHostObjects] Failed to register keyboard host symbol"));
+    }
+
+    if (!ScriptRegisterHostSymbol(
+            Context->ScriptContext,
+            TEXT("mouse"),
+            SCRIPT_HOST_SYMBOL_OBJECT,
+            GetMouseRootHandle(),
+            GetMouseDescriptor(),
+            NULL)) {
+        DEBUG(TEXT("[ShellRegisterScriptHostObjects] Failed to register mouse host symbol"));
+    }
 }
 
 /************************************************************************/
