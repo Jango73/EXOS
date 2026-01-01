@@ -739,7 +739,9 @@ void LoadDriver(LPDRIVER Driver) {
         UINT Result = Driver->Command(DF_LOAD, 0);
         if (Result == DF_RETURN_SUCCESS && (Driver->Flags & DRIVER_FLAG_READY) != 0) {
             DEBUG(TEXT("[LoadDriver] : %s driver loaded successfully"), TEXT(Driver->Product));
+            TEST(TEXT("[LoadDriver] %s.Load : OK"), TEXT(Driver->Product));
         } else {
+            TEST(TEXT("[LoadDriver] %s.Load : KO"), TEXT(Driver->Product));
             if ((Driver->Flags & DRIVER_FLAG_CRITICAL)) {
                 ConsolePanic(TEXT("Critical driver %s failed to load"), TEXT(Driver->Product));
             } else {
@@ -771,7 +773,9 @@ void UnloadDriver(LPDRIVER Driver) {
         UINT Result = Driver->Command(DF_UNLOAD, 0);
         if (Result == DF_RETURN_SUCCESS) {
             DEBUG(TEXT("[UnloadDriver] : %s driver unloaded successfully"), TEXT(Driver->Product));
+            TEST(TEXT("[UnloadDriver] %s.Unload : OK"), TEXT(Driver->Product));
         } else {
+            TEST(TEXT("[UnloadDriver] %s.Unload : KO"), TEXT(Driver->Product));
             WARNING(TEXT("[UnloadDriver] : Failed to unload %s driver (code = %x)"), TEXT(Driver->Product), Result);
         }
     }

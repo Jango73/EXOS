@@ -933,6 +933,7 @@ static U32 CMD_dir(LPSHELLCONTEXT Context) {
 
     if (FileSystem == NULL || FileSystem->Driver == NULL) {
         ConsolePrint(TEXT("No file system mounted !\n"));
+        TEST(TEXT("[CMD_dir] dir : KO (No file system mounted)"));
         return DF_RETURN_SUCCESS;
     }
 
@@ -944,6 +945,7 @@ static U32 CMD_dir(LPSHELLCONTEXT Context) {
 
     ListDirectory(Context, Base, 0, Pause, Recurse, &NumListed);
 
+    TEST(TEXT("[CMD_dir] dir : OK"));
     DEBUG(TEXT("[CMD_dir] Exit"));
 
     return DF_RETURN_SUCCESS;
@@ -1018,6 +1020,7 @@ static U32 CMD_sysinfo(LPSHELLCONTEXT Context) {
     ConsolePrint(TEXT("Number of tasks           : %d\n"), Info.NumTasks);
     ConsolePrint(TEXT("Keyboard layout           : %s\n"), Info.KeyboardLayout);
 
+    TEST(TEXT("[CMD_sysinfo] sysinfo : OK"));
     return DF_RETURN_SUCCESS;
 }
 

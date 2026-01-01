@@ -166,6 +166,13 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
             KernelPrintString(Text_NewLine);
         } break;
 
+        case LOG_TEST: {
+            KernelPrintString(TimeBuffer);
+            KernelPrintString(TEXT("TEST > "));
+            KernelPrintString(TextBuffer);
+            KernelPrintString(Text_NewLine);
+        } break;
+
         default:
         case LOG_VERBOSE: {
             KernelPrintString(TimeBuffer);

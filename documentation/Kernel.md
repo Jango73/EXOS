@@ -105,6 +105,14 @@ User applications receive stable handles for their windows, and the runtime
 can translate those handles back to the original kernel pointers without any
 fallback logic.
 
+### Kernel logging
+
+Kernel logging is routed through `KernelLogText` with typed prefixes. Debug
+builds add a `TEST` log type used by automated test scripts; the `TEST` macro
+is compiled out when `DEBUG_OUTPUT` is disabled. Test logs follow the standard
+`[FunctionName]` prefix rule and emit structured results such as
+`TEST > [CMD_sysinfo] sysinfo : OK`.
+
 ### Command line editing
 
 Interactive editing of shell command lines is implemented in

@@ -744,8 +744,10 @@ static inline U32 U64_Low32(U64 Value) {
 
 #if DEBUG_OUTPUT == 1
     #define DEBUG(a, ...) KernelLogText(LOG_DEBUG, (a), ##__VA_ARGS__)
+    #define TEST(a, ...) KernelLogText(LOG_TEST, (a), ##__VA_ARGS__)
 #else
     #define DEBUG(a, ...)
+    #define TEST(a, ...)
 #endif
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
@@ -762,8 +764,10 @@ static inline U32 U64_Low32(U64 Value) {
 
 #if DEBUG_OUTPUT == 1
     #define DEBUG(a, ...) debug((a), ##__VA_ARGS__)
+    #define TEST(a, ...)
 #else
     #define DEBUG(a, ...)
+    #define TEST(a, ...)
 #endif
 
 #if SCHEDULING_DEBUG_OUTPUT == 1

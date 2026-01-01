@@ -837,6 +837,7 @@ UINT Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
     }
 
     DEBUG(TEXT("[Spawn] Process completed successfully, exit code: %u"), WaitInfo.ExitCodes[0]);
+    TEST(TEXT("[Spawn] Executable finished normally : %s"), CommandLine);
     return WaitInfo.ExitCodes[0];
 }
 
