@@ -157,16 +157,25 @@ static UINT KeyboardSelectorLoad(UINT Parameter) {
     BOOL HasUsbKeyboard = KeyboardSelectorDetectUsbKeyboard();
     if (HasUsbKeyboard) {
         DEBUG(TEXT("[KeyboardSelectorLoad] USB HID keyboard detected"));
-        return USBKeyboardGetDriver()->Command(DF_LOAD, 0);
+        UINT Result = USBKeyboardGetDriver()->Command(DF_LOAD, 0);
+        if (Result == DF_RETURN_SUCCESS) {
+            KeyboardSelectorDriver.Flags |= DRIVER_FLAG_READY;
+        }
+        return Result;
     }
 
     U16 Ps2Identifier = DetectKeyboard();
     if (Ps2Identifier != 0) {
         DEBUG(TEXT("[KeyboardSelectorLoad] PS/2 keyboard detected (id=%x)"), (UINT)Ps2Identifier);
-        return StdKeyboardGetDriver()->Command(DF_LOAD, 0);
+        UINT Result = StdKeyboardGetDriver()->Command(DF_LOAD, 0);
+        if (Result == DF_RETURN_SUCCESS) {
+            KeyboardSelectorDriver.Flags |= DRIVER_FLAG_READY;
+        }
+        return Result;
     }
 
     ERROR(TEXT("[KeyboardSelectorLoad] No keyboard detected"));
+    KeyboardSelectorDriver.Flags &= ~DRIVER_FLAG_READY;
     return DF_RETURN_UNEXPECTED;
 }
 
@@ -182,6 +191,7 @@ static UINT KeyboardSelectorUnload(UINT Parameter) {
 
     (void)USBKeyboardGetDriver()->Command(DF_UNLOAD, 0);
     (void)StdKeyboardGetDriver()->Command(DF_UNLOAD, 0);
+    KeyboardSelectorDriver.Flags &= ~DRIVER_FLAG_READY;
     return DF_RETURN_SUCCESS;
 }
 
