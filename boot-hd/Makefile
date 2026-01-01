@@ -209,11 +209,26 @@ $(MBR_BIN): $(MBR_SOURCE)
 	@echo "Assembling custom MBR (NASM)..."
 	@mkdir -p $(BUILD_DIR)/boot-hd
 	$(NASM) $(NASMFLAGS) -f bin $(MBR_SOURCE) -o $(MBR_BIN)
+	@{ \
+		sz=$$(stat -c %s "$(MBR_BIN)"); \
+		if [ $$sz -gt 510 ]; then \
+			echo "ERROR: $(MBR_BIN) is too large ($$sz bytes). Must be <= 510."; \
+			exit 1; \
+		fi; \
+	}
 
 $(VBR_BIN): $(VBR_SRC)
 	@echo "Assembling VBR (NASM)..."
 	@mkdir -p $(BUILD_DIR)/boot-hd
 	$(NASM) $(NASMFLAGS) -f bin $(VBR_SRC) -o $(VBR_BIN)
+	@{ \
+		sz=$$(stat -c %s "$(VBR_BIN)"); \
+		max=$$((512 - $(VBR_CODE_OFFSET))); \
+		if [ $$sz -gt $$max ]; then \
+			echo "ERROR: $(VBR_BIN) is too large ($$sz bytes). Must be <= $$max."; \
+			exit 1; \
+		fi; \
+	}
 
 $(PAYLOAD_STUB_O): $(PAYLOAD_STUB)
 	@echo "Assembling payload stub (NASM)..."
