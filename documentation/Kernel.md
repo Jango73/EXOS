@@ -125,6 +125,10 @@ The HID layout loader parses EKM1 files with a tolerant UTF-8 decoder, logs
 replacement counts, and rejects malformed directives or out-of-range entries.
 USB HID keyboard support lives in `kernel/source/drivers/USBKeyboard.c` and
 feeds boot protocol reports into the same HID usage pipeline as PS/2.
+Keyboard initialization is now mediated by a selector driver
+(`kernel/source/drivers/Keyboard-Selector.c`) that probes for a USB HID
+keyboard after PCI/xHCI enumeration and otherwise falls back to PS/2 detection,
+ensuring only one keyboard driver is active at a time.
 
 All reusable helpers -such as the command line editor, adaptive delay, string
 containers, CRC utilities, notifications, path helpers, TOML parsing, UUID

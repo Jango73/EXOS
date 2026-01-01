@@ -32,6 +32,7 @@
 /************************************************************************/
 // External symbols
 
+LPDRIVER KeyboardSelectorGetDriver(void);
 LPDRIVER USBKeyboardGetDriver(void);
 
 /************************************************************************/

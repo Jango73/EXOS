@@ -252,11 +252,10 @@ void InitializeDriverList(void) {
     ListAddTail(Kernel.Drivers, InterruptControllerGetDriver());
     ListAddTail(Kernel.Drivers, DeviceInterruptGetDriver());
     ListAddTail(Kernel.Drivers, DeferredWorkGetDriver());
-    ListAddTail(Kernel.Drivers, StdKeyboardGetDriver());
-    ListAddTail(Kernel.Drivers, USBKeyboardGetDriver());
     ListAddTail(Kernel.Drivers, SerialMouseGetDriver());
     ListAddTail(Kernel.Drivers, ClockGetDriver());
     ListAddTail(Kernel.Drivers, PCIGetDriver());
+    ListAddTail(Kernel.Drivers, KeyboardSelectorGetDriver());
     ListAddTail(Kernel.Drivers, USBMouseGetDriver());
     ListAddTail(Kernel.Drivers, USBMassStorageGetDriver());
     ListAddTail(Kernel.Drivers, ATADiskGetDriver());
