@@ -1375,6 +1375,48 @@ The network stack successfully handles real network traffic across multiple devi
     - `vendor_id`: USB vendor ID. Permissions: anyone.
     - `product_id`: USB product ID. Permissions: anyone.
 
+## Keyboard Layout Format (EKM1)
+
+The EKM1 layout file describes a USB HID keyboard map using usage page 0x07.
+Files are UTF-8 text with a required 4-byte header "EKM1". Lines are tokenized
+on whitespace and comments start with `#`. Tokens are case-sensitive and
+directive order matters only for `levels`, which must appear before any `map`
+entry. The loader rejects malformed entries.
+
+Directives:
+- `code <layout_code>`: required, unique layout identifier string (example:
+  `code en-US`).
+- `levels <count>`: optional, decimal level count, range 1 to 4. Defaults to 1
+  when omitted.
+- `map <usage_hex> <level_dec> <vk_hex> <ascii_hex> <unicode_hex>`: maps a HID
+  usage to a keycode for a given level.
+  - `usage_hex` range: 0x04 to 0xE7 (HID usage page 0x07).
+  - `level_dec` range: 0 to levels-1.
+  - `vk_hex` range: 0x00 to 0xFF.
+  - `ascii_hex` range: 0x00 to 0xFF.
+  - `unicode_hex` range: 0x0000 to 0xFFFF.
+  - Each usage and level pair may appear only once.
+- `dead <dead_unicode_hex> <base_unicode_hex> <result_unicode_hex>`: defines a
+  dead key combination. Maximum 128 entries.
+- `compose <first_unicode_hex> <second_unicode_hex> <result_unicode_hex>`:
+  defines a compose sequence. Maximum 256 entries.
+
+Recommended layout levels:
+- Level 0: base.
+- Level 1: shift.
+- Level 2: AltGr.
+- Level 3: control.
+
+Example:
+```
+EKM1
+# US QWERTY layout (en-US)
+code en-US
+levels 2
+map 0x04 0 0x30 0x61 0x0061
+map 0x04 1 0x30 0x41 0x0041
+```
+
 ## Links
 
 RFCs        	https://datatracker.ietf.org/
