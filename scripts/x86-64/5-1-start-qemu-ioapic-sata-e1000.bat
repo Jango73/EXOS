@@ -3,9 +3,15 @@ setlocal enabledelayedexpansion
 
 set "QEMU=c:\program files\qemu\qemu-system-x86_64
 set "IMG_1_PATH=build/x86-64/boot-hd/exos.img"
+set "USB_3_PATH=build/x86-64/boot-hd/usb-3.img"
 
 if not exist "%IMG_1_PATH%" (
     echo Image not found: %IMG_1_PATH%
+    exit /b 1
+)
+
+if not exist "%USB_3_PATH%" (
+    echo Image not found: %USB_3_PATH%
     exit /b 1
 )
 
@@ -20,6 +26,8 @@ echo ACPI support enabled for IOAPIC testing with kernel-irqchip=split
 -device qemu-xhci,id=xhci ^
 -device usb-kbd,bus=xhci.0 ^
 -device usb-mouse,bus=xhci.0 ^
+-drive format=raw,file="%USB_3_PATH%",if=none,id=usbdrive0 ^
+-device usb-storage,drive=usbdrive0,bus=xhci.0 ^
 -audiodev dsound,id=audio0 ^
 -device intel-hda,id=hda ^
 -device hda-output,bus=hda.0,audiodev=audio0 ^

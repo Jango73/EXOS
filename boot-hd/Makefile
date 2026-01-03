@@ -86,6 +86,7 @@ PAYLOAD_BIN     = $(BUILD_DIR)/boot-hd/vbr-payload.bin
 PAYLOAD_ELF     = $(BUILD_DIR)/boot-hd/vbr-payload.elf
 PAYLOAD_MAP     = $(BUILD_DIR)/boot-hd/vbr-payload.map
 FINAL_IMG       = $(BUILD_DIR)/boot-hd/exos.img
+USB3_IMG        = $(BUILD_DIR)/boot-hd/usb-3.img
 KERNEL_BIN      = $(BUILD_DIR)/kernel/exos.bin
 PORTAL_ELF      = $(BUILD_DIR)/system/portal/portal
 NETGET_ELF      = $(BUILD_DIR)/system/netget/netget
@@ -96,6 +97,7 @@ MOUSEINFO_ELF   = $(BUILD_DIR)/system/mouse-info/mouse-info
 MASTER_ELF      = $(BUILD_DIR)/system/test/master/master
 SLAVE_ELF       = $(BUILD_DIR)/system/test/slave/slave
 EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/ext2-root
+USB3_STAGING_DIR= $(BUILD_DIR)/boot-hd/usb-3-root
 EXT2_LABEL      ?= exos
 
 define CREATE_FAT32_IMAGE
@@ -193,10 +195,10 @@ define MCOPY_IF_NEEDED
 	fi;
 endef
 
-.PHONY: all update update-fat32 update-ext2 install-mbr install-vbr-payload clean check_tools rebuild-image
+.PHONY: all update update-fat32 update-ext2 install-mbr install-vbr-payload clean check_tools rebuild-image usb-3-image
 
 # Default: build tools, ensure images exist (create once), then update contents
-all: check_tools $(FINAL_IMG) update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
+all: check_tools $(FINAL_IMG) $(USB3_IMG) update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
 
 check_tools:
 	@command -v $(NASM) >/dev/null 2>&1 || { echo "$(NASM) is not installed. Please run: sudo apt install nasm"; exit 1; }
@@ -261,6 +263,17 @@ $(BUILD_DIR)/boot-hd/payload.sym: $(PAYLOAD_ELF)
 $(FINAL_IMG): check_tools $(KERNEL_BIN) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(MOUSEINFO_ELF) $(MASTER_ELF) $(SLAVE_ELF)
 	@mkdir -p $(dir $@)
 	$(call $(CREATE_IMAGE_MACRO),$@)
+
+$(USB3_IMG): check_tools $(TICTACTOE_ELF)
+	@mkdir -p $(dir $@)
+	$(call CREATE_EXT2_IMAGE,$@)
+	@echo "Preparing USB MSD staging directory at $(USB3_STAGING_DIR)"
+	@rm -rf $(USB3_STAGING_DIR)
+	@mkdir -p $(USB3_STAGING_DIR)
+	@cp $(TICTACTOE_ELF) $(USB3_STAGING_DIR)/tictactoe
+	$(call POPULATE_EXT2_IMAGE,$(USB3_IMG),$(USB3_STAGING_DIR))
+
+usb-3-image: $(USB3_IMG)
 
 $(KERNEL_CFG_FAT32): $(FINAL_IMG)
 	@[ -f $@ ] || cp $(KERNEL_CFG_REF) $@

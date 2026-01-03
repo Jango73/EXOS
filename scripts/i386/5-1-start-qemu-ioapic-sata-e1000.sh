@@ -2,10 +2,16 @@
 set -e
 
 IMG_1_PATH="build/i386/boot-hd/exos.img"
+USB_3_PATH="build/i386/boot-hd/usb-3.img"
 CYCLE_PATH="build/i386/tools/cycle"
 
 if [ ! -f "$IMG_1_PATH" ]; then
     echo "Image not found: $IMG_1_PATH"
+    exit 1
+fi
+
+if [ ! -f "$USB_3_PATH" ]; then
+    echo "Image not found: $USB_3_PATH"
     exit 1
 fi
 
@@ -22,6 +28,8 @@ qemu-system-i386 \
 -device qemu-xhci,id=xhci \
 -device usb-kbd,bus=xhci.0 \
 -device usb-mouse,bus=xhci.0 \
+-drive format=raw,file="$USB_3_PATH",if=none,id=usbdrive0 \
+-device usb-storage,drive=usbdrive0,bus=xhci.0 \
 -audiodev pa,id=audio0 \
 -device intel-hda,id=hda \
 -device hda-duplex,bus=hda.0,audiodev=audio0 \
