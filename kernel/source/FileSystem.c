@@ -29,6 +29,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "CoreString.h"
+#include "SystemFS.h"
 #include "User.h"
 #include "Text.h"
 #include "utils/TOML.h"
@@ -252,7 +253,10 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
         Control.BufferSize = SECTOR_SIZE;
 
         Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
-        if (Result != DF_RETURN_SUCCESS) return FALSE;
+        if (Result != DF_RETURN_SUCCESS) {
+            WARNING(TEXT("[MountDiskPartitions] MBR read failed result=%x"), Result);
+            return FALSE;
+        }
 
         Partition = (LPBOOTPARTITION)(Buffer + MBR_PARTITION_START);
     }
@@ -319,13 +323,24 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
                 } break;
             }
 
-            if (PartitionMounted && PartitionIsActive) {
+            if (PartitionMounted) {
                 LPLIST FileSystemList = GetFileSystemList();
                 LPFILESYSTEM MountedFileSystem =
                     (LPFILESYSTEM)(FileSystemList != NULL ? FileSystemList->Last : NULL);
 
                 if (MountedFileSystem != NULL && MountedFileSystem != PreviousLast) {
-                    FileSystemSetActivePartition(MountedFileSystem);
+                    if (GetSystemFSData()->Root != NULL) {
+                        if (!SystemFSMountFileSystem(MountedFileSystem)) {
+                            WARNING(TEXT("[MountDiskPartitions] SystemFS mount failed for %s"),
+                                MountedFileSystem->Name);
+                        }
+                    } else {
+                        WARNING(TEXT("[MountDiskPartitions] SystemFS not ready for %s"),
+                            MountedFileSystem->Name);
+                    }
+                    if (PartitionIsActive) {
+                        FileSystemSetActivePartition(MountedFileSystem);
+                    }
                 }
             }
         }

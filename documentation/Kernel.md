@@ -207,13 +207,16 @@ core USB types (speeds, endpoint kinds, addresses) and the standard descriptor
 layouts for device, configuration, interface, endpoint, and string metadata so
 future host controllers and class drivers can share a single set of structs.
 
-The xHCI host controller driver in `kernel/source/drivers/XHCI-Core.c` (split across `kernel/source/drivers/XHCI-Device.c`, `kernel/source/drivers/XHCI-Hub.c`, and `kernel/source/drivers/XHCI-Enum.c`) is registered
+The xHCI host controller driver in `kernel/source/drivers/XHCI-Core.c`
+(split across `kernel/source/drivers/XHCI-Device.c`, `kernel/source/drivers/XHCI-Hub.c`,
+and `kernel/source/drivers/XHCI-Enum.c`) is registered
 by the PCI subsystem. It maps the controller MMIO region, performs the mandatory
 halt/reset/run sequence, allocates DCBAA/command/event rings, programs
 interrupter 0, runs minimal EP0 control transfers, builds a basic device tree
 (configs/interfaces/endpoints), and reports status via `usbctl ports`, `usbctl probe`,
 and `usbctl devices`.
-Endpoint configuration after `SET_CONFIGURATION` relies on the xHCI Configure Endpoint command before enabling interrupt polling for HID devices.
+Endpoint configuration after `SET_CONFIGURATION` relies on the xHCI Configure Endpoint
+command before enabling interrupt polling for HID devices.
 
 Hub-class devices are supported: the driver reads hub descriptors, powers ports,
 tracks downstream devices, and polls hub interrupt endpoints for change bits to
@@ -225,6 +228,12 @@ READ CAPACITY(10), and READ(10), and registers detected disks in the global disk
 list so `MountDiskPartitions` can attach file systems. Mounted USB storage
 instances are tracked in `Kernel.USBDevice`, and the shell command `usb drives`
 prints the current entries with their address, VID/PID, and block geometry.
+When SystemFS is already initialized, newly mounted partitions are attached
+under `/fs/<volume>`.
+On device removal, the associated file systems are detached from `/fs` and
+released.
+Mounting a USB mass storage partition broadcasts `ETM_USB_MASS_STORAGE_MOUNTED`/
+`ETM_USB_MASS_STORAGE_UNMOUNTED` to userland process message queues.
 
 The VESA graphics driver always requests VBE modes in linear frame buffer
 mode (bit 14 set in INT 10h 4F02h), checks that the selected mode advertises

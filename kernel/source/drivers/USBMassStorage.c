@@ -32,7 +32,11 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
+#include "Console.h"
+#include "User.h"
 #include "drivers/XHCI-Internal.h"
+#include "process/TaskMessaging.h"
+#include "utils/Helpers.h"
 
 /************************************************************************/
 
@@ -137,6 +141,132 @@ static USB_MASS_STORAGE_DRIVER DATA_SECTION USBMassStorageDriverState = {
         .RetryDelay = 0
     }
 };
+
+/************************************************************************/
+
+/**
+ * @brief Get the physical disk pointer stored in a filesystem instance.
+ * @param FileSystem Filesystem instance.
+ * @return Disk pointer or NULL when not applicable.
+ */
+static LPPHYSICALDISK USBMassStorageGetFileSystemDisk(LPFILESYSTEM FileSystem) {
+    if (FileSystem == NULL) return NULL;
+    if (FileSystem == GetSystemFS()) return NULL;
+
+    // All current filesystem implementations store Disk right after Header.
+    struct tag_FILESYSTEM_DISK_REF {
+        FILESYSTEM Header;
+        LPPHYSICALDISK Disk;
+    };
+
+    return ((struct tag_FILESYSTEM_DISK_REF*)FileSystem)->Disk;
+}
+
+/************************************************************************/
+
+static UINT USBMassStorageReportMounts(LPUSB_MASS_STORAGE_DEVICE Device, LPLISTNODE PreviousLast) {
+    LPLIST FileSystemList = GetFileSystemList();
+    UINT MountedCount = 0;
+    LPLISTNODE Node = NULL;
+
+    if (Device == NULL || FileSystemList == NULL) {
+        return 0;
+    }
+
+    if (PreviousLast != NULL) {
+        Node = PreviousLast->Next;
+    } else {
+        Node = FileSystemList->First;
+    }
+
+    for (; Node; Node = Node->Next) {
+        LPFILESYSTEM FileSystem = (LPFILESYSTEM)Node;
+        if (USBMassStorageGetFileSystemDisk(FileSystem) != (LPPHYSICALDISK)Device) {
+            continue;
+        }
+
+        MountedCount++;
+    }
+
+    return MountedCount;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Unmount and release filesystems associated with a USB disk.
+ * @param Disk USB disk to detach.
+ */
+static void USBMassStorageDetachFileSystems(LPPHYSICALDISK Disk, U32 UsbAddress) {
+    LPLIST FileSystemList = GetFileSystemList();
+    FILESYSTEM_GLOBAL_INFO* GlobalInfo = GetFileSystemGlobalInfo();
+    UINT UnmountedCount = 0;
+
+    if (Disk == NULL || FileSystemList == NULL || GlobalInfo == NULL) {
+        return;
+    }
+
+    for (LPLISTNODE Node = FileSystemList->First; Node;) {
+        LPLISTNODE Next = Node->Next;
+        LPFILESYSTEM FileSystem = (LPFILESYSTEM)Node;
+        LPPHYSICALDISK FileSystemDisk = USBMassStorageGetFileSystemDisk(FileSystem);
+
+        if (FileSystemDisk == Disk) {
+            SystemFSUnmountFileSystem(FileSystem);
+            if (StringCompare(GlobalInfo->ActivePartitionName, FileSystem->Name) == 0) {
+                StringClear(GlobalInfo->ActivePartitionName);
+            }
+            ReleaseKernelObject(FileSystem);
+            UnmountedCount++;
+        }
+
+        Node = Next;
+    }
+
+    if (UnmountedCount > 0) {
+        BroadcastProcessMessage(ETM_USB_MASS_STORAGE_UNMOUNTED, UsbAddress, 0);
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Detach a USB mass storage device and release its resources.
+ * @param Device Device to detach.
+ */
+static void USBMassStorageDetachDevice(LPUSB_MASS_STORAGE_DEVICE Device) {
+    if (Device == NULL) {
+        return;
+    }
+
+    Device->Ready = FALSE;
+
+    if (Device->ListEntry != NULL) {
+        USBMassStorageDetachFileSystems((LPPHYSICALDISK)Device, (U32)Device->ListEntry->Address);
+    } else {
+        USBMassStorageDetachFileSystems((LPPHYSICALDISK)Device, 0);
+    }
+
+    if (Device->InputOutputBufferLinear != 0) {
+        FreeRegion(Device->InputOutputBufferLinear, PAGE_SIZE);
+        Device->InputOutputBufferLinear = 0;
+    }
+    if (Device->InputOutputBufferPhysical != 0) {
+        FreePhysicalPage(Device->InputOutputBufferPhysical);
+        Device->InputOutputBufferPhysical = 0;
+    }
+
+    if (Device->ListEntry != NULL) {
+        LPLIST UsbDeviceList = GetUsbDeviceList();
+        if (UsbDeviceList != NULL) {
+            ListEraseItem(UsbDeviceList, Device->ListEntry);
+        }
+        KernelHeapFree(Device->ListEntry);
+        Device->ListEntry = NULL;
+    }
+
+    ReleaseKernelObject(Device);
+}
 
 /************************************************************************/
 
@@ -276,6 +406,50 @@ static BOOL USBMassStorageClearEndpointHalt(LPXHCI_DEVICE Device,
     Setup.Length = 0;
 
     return XHCI_ControlTransfer(Device, UsbDevice, &Setup, 0, NULL, 0, FALSE);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Perform BOT reset recovery sequence for a device.
+ * @param Device USB mass storage device context.
+ * @return TRUE on success.
+ */
+static BOOL USBMassStorageResetRecovery(LPUSB_MASS_STORAGE_DEVICE Device) {
+    USB_SETUP_PACKET Setup;
+    BOOL BulkInOk;
+    BOOL BulkOutOk;
+
+    if (Device == NULL || Device->Controller == NULL || Device->UsbDevice == NULL) {
+        return FALSE;
+    }
+
+    MemorySet(&Setup, 0, sizeof(Setup));
+    Setup.RequestType = USB_REQUEST_DIRECTION_OUT | USB_REQUEST_TYPE_CLASS | USB_REQUEST_RECIPIENT_INTERFACE;
+    Setup.Request = 0xFF;  // Bulk-Only Transport Reset
+    Setup.Value = 0;
+    Setup.Index = Device->InterfaceNumber;
+    Setup.Length = 0;
+
+    if (!XHCI_ControlTransfer(Device->Controller, Device->UsbDevice, &Setup, 0, NULL, 0, FALSE)) {
+        WARNING(TEXT("[USBMassStorageResetRecovery] BOT reset failed for interface %u"),
+            (UINT)Device->InterfaceNumber);
+        return FALSE;
+    }
+
+    BulkInOk = USBMassStorageClearEndpointHalt(Device->Controller,
+                                               Device->UsbDevice,
+                                               Device->BulkInEndpoint->Address);
+    BulkOutOk = USBMassStorageClearEndpointHalt(Device->Controller,
+                                                Device->UsbDevice,
+                                                Device->BulkOutEndpoint->Address);
+    if (!BulkInOk || !BulkOutOk) {
+        WARNING(TEXT("[USBMassStorageResetRecovery] Clear halt failed in=%x out=%x"),
+            (U32)(BulkInOk != FALSE),
+            (U32)(BulkOutOk != FALSE));
+    }
+
+    return TRUE;
 }
 
 /************************************************************************/
@@ -744,16 +918,28 @@ static BOOL USBMassStorageStartDevice(LPXHCI_DEVICE Controller,
     }
 
     if (!USBMassStorageInquiry(Device)) {
-        ERROR(TEXT("[USBMassStorageStartDevice] INQUIRY failed"));
-        USBMassStorageFreeDevice(Device);
-        return FALSE;
+        WARNING(TEXT("[USBMassStorageStartDevice] INQUIRY failed, attempting reset"));
+        if (!USBMassStorageResetRecovery(Device) || !USBMassStorageInquiry(Device)) {
+            ERROR(TEXT("[USBMassStorageStartDevice] INQUIRY failed"));
+            USBMassStorageFreeDevice(Device);
+            return FALSE;
+        }
     }
 
     if (!USBMassStorageReadCapacity(Device)) {
-        ERROR(TEXT("[USBMassStorageStartDevice] READ CAPACITY failed"));
-        USBMassStorageFreeDevice(Device);
-        return FALSE;
+        WARNING(TEXT("[USBMassStorageStartDevice] READ CAPACITY failed, attempting reset"));
+        if (!USBMassStorageResetRecovery(Device) || !USBMassStorageReadCapacity(Device)) {
+            ERROR(TEXT("[USBMassStorageStartDevice] READ CAPACITY failed"));
+            USBMassStorageFreeDevice(Device);
+            return FALSE;
+        }
     }
+
+    DEBUG(TEXT("[USBMassStorageStartDevice] Capacity blocks=%u block_size=%u"),
+          Device->BlockCount,
+          Device->BlockSize);
+
+    Device->Ready = TRUE;
 
     LPUSB_STORAGE_ENTRY Entry = (LPUSB_STORAGE_ENTRY)KernelHeapAlloc(sizeof(USB_STORAGE_ENTRY));
     if (Entry == NULL) {
@@ -788,11 +974,20 @@ static BOOL USBMassStorageStartDevice(LPXHCI_DEVICE Controller,
         return FALSE;
     }
 
+    LPLIST FileSystemList = GetFileSystemList();
+    LPLISTNODE PreviousLast = FileSystemList != NULL ? FileSystemList->Last : NULL;
+
+    DEBUG(TEXT("[USBMassStorageStartDevice] Mounting disk partitions"));
     if (!MountDiskPartitions((LPPHYSICALDISK)Device, NULL, 0)) {
         WARNING(TEXT("[USBMassStorageStartDevice] Partition mount failed"));
     }
 
-    Device->Ready = TRUE;
+    UINT MountedCount = USBMassStorageReportMounts(Device, PreviousLast);
+    if (MountedCount > 0) {
+        BroadcastProcessMessage(ETM_USB_MASS_STORAGE_MOUNTED,
+                                (U32)UsbDevice->Address,
+                                Device->BlockCount);
+    }
 
     DEBUG(TEXT("[USBMassStorageStartDevice] USB disk addr=%x blocks=%u block_size=%u"),
           (U32)UsbDevice->Address,
@@ -813,19 +1008,28 @@ static void USBMassStorageUpdatePresence(void) {
         return;
     }
 
-    for (LPLISTNODE Node = UsbDeviceList->First; Node; Node = Node->Next) {
+    for (LPLISTNODE Node = UsbDeviceList->First; Node;) {
+        LPLISTNODE Next = Node->Next;
         LPUSB_STORAGE_ENTRY Entry = (LPUSB_STORAGE_ENTRY)Node;
         if (Entry == NULL || Entry->Device == NULL) {
+            Node = Next;
             continue;
         }
 
         LPUSB_MASS_STORAGE_DEVICE Device = Entry->Device;
         if (Device->Controller == NULL || Device->UsbDevice == NULL) {
             Entry->Present = FALSE;
+            USBMassStorageDetachDevice(Device);
+            Node = Next;
             continue;
         }
 
         Entry->Present = USBMassStorageIsDevicePresent(Device->Controller, Device->UsbDevice);
+        if (Entry->Present == FALSE) {
+            USBMassStorageDetachDevice(Device);
+        }
+
+        Node = Next;
     }
 }
 

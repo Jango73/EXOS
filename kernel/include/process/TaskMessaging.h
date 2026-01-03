@@ -36,6 +36,7 @@ BOOL EnsureTaskMessageQueue(LPTASK Task, BOOL CreateIfMissing);
 BOOL EnsureProcessMessageQueue(LPPROCESS Process, BOOL CreateIfMissing);
 BOOL EnsureAllMessageQueues(LPTASK Task, BOOL CreateIfMissing);
 BOOL EnqueueInputMessage(U32 Msg, U32 Param1, U32 Param2);
+BOOL BroadcastProcessMessage(U32 Msg, U32 Param1, U32 Param2);
 BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2);
 U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2);
 BOOL PeekMessage(LPMESSAGEINFO Message);

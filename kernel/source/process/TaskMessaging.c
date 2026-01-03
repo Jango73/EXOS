@@ -463,6 +463,57 @@ BOOL EnqueueInputMessage(U32 Msg, U32 Param1, U32 Param2) {
 /************************************************************************/
 
 /**
+ * @brief Broadcast a message to all user processes with message queues.
+ * @param Msg Message identifier.
+ * @param Param1 First message parameter.
+ * @param Param2 Second message parameter.
+ * @return TRUE when at least one message was posted.
+ */
+BOOL BroadcastProcessMessage(U32 Msg, U32 Param1, U32 Param2) {
+    BOOL Sent = FALSE;
+    LPLIST ProcessList = GetProcessList();
+
+    if (ProcessList == NULL) return FALSE;
+
+    LockMutex(MUTEX_TASK, INFINITY);
+
+    for (LPLISTNODE Node = ProcessList->First; Node; Node = Node->Next) {
+        LPPROCESS Process = (LPPROCESS)Node;
+
+        SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+            if (Process == &KernelProcess) {
+                continue;
+            }
+
+            if (Process->MessageQueue.Messages == NULL) {
+                continue;
+            }
+
+            LPMESSAGE Message = NewMessage();
+            if (Message == NULL) {
+                continue;
+            }
+
+            GetLocalTime(&(Message->Time));
+            Message->Target = NULL;
+            Message->Message = Msg;
+            Message->Param1 = Param1;
+            Message->Param2 = Param2;
+
+            if (AddProcessMessage(Process, Message) == TRUE) {
+                Sent = TRUE;
+            }
+        }
+    }
+
+    UnlockMutex(MUTEX_TASK);
+
+    return Sent;
+}
+
+/************************************************************************/
+
+/**
  * @brief Posts a message asynchronously to a task or window.
  *
  * Sends a message to the specified target without waiting for completion.

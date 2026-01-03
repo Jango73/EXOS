@@ -67,6 +67,8 @@ typedef struct tag_SYSFSFILE {
 /***************************************************************************/
 
 extern DRIVER SystemFSDriver;
+BOOL SystemFSMountFileSystem(LPFILESYSTEM FileSystem);
+BOOL SystemFSUnmountFileSystem(LPFILESYSTEM FileSystem);
 
 /***************************************************************************/
 

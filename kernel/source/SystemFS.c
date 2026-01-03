@@ -570,19 +570,124 @@ static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR Sou
 /************************************************************************/
 
 /**
+ * @brief Mount a filesystem into SystemFS when the root is available.
+ * @param FileSystem Filesystem to mount.
+ * @return TRUE on success or when already mounted, FALSE otherwise.
+ */
+BOOL SystemFSMountFileSystem(LPFILESYSTEM FileSystem) {
+    FS_MOUNT_CONTROL Control;
+    FS_PATHCHECK Check;
+    VOLUMEINFO Volume;
+    STR Path[MAX_PATH_NAME];
+    const STR FsRoot[] = {PATH_SEP, 'f', 's', STR_NULL};
+    LPSYSTEMFSFILESYSTEM SystemFS = GetSystemFSData();
+    U32 Result;
+    U32 Length;
+
+    if (FileSystem == NULL) return FALSE;
+    if (SystemFS == NULL || SystemFS->Root == NULL) return FALSE;
+    if (FileSystem == &SystemFS->Header) return TRUE;
+
+    Volume.Size = sizeof(VOLUMEINFO);
+    Volume.Volume = (HANDLE)FileSystem;
+    Volume.Name[0] = STR_NULL;
+    Result = FileSystem->Driver->Command(DF_FS_GETVOLUMEINFO, (UINT)&Volume);
+    if (Result != DF_RETURN_SUCCESS || Volume.Name[0] == STR_NULL) {
+        StringCopy(Volume.Name, FileSystem->Name);
+    }
+
+    StringCopy(Path, FsRoot);
+    Length = StringLength(Path);
+    Path[Length] = PATH_SEP;
+    Path[Length + 1] = STR_NULL;
+    StringConcat(Path, Volume.Name);
+
+    StringCopy(Check.CurrentFolder, TEXT("/"));
+    StringCopy(Check.SubFolder, Path);
+    if (GetSystemFS()->Driver->Command(DF_FS_PATHEXISTS, (UINT)&Check)) {
+        DEBUG(TEXT("[SystemFSMountFileSystem] Already mounted %s at %s"), Volume.Name, Path);
+        return TRUE;
+    }
+
+    DEBUG(TEXT("[SystemFSMountFileSystem] Mounting %s at %s (fs=%p)"), Volume.Name, Path, FileSystem);
+    StringCopy(Control.Path, Path);
+    Control.Node = (LPLISTNODE)FileSystem;
+    Control.SourcePath[0] = STR_NULL;
+    Result = GetSystemFS()->Driver->Command(DF_FS_MOUNTOBJECT, (UINT)&Control);
+
+    if (Result != DF_RETURN_SUCCESS) {
+        WARNING(TEXT("[SystemFSMountFileSystem] Mount failed for %s (result=%x)"), Volume.Name, Result);
+    }
+
+    return Result == DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Unmount a filesystem from SystemFS when the root is available.
+ * @param FileSystem Filesystem to unmount.
+ * @return TRUE on success or when already unmounted, FALSE otherwise.
+ */
+BOOL SystemFSUnmountFileSystem(LPFILESYSTEM FileSystem) {
+    FS_UNMOUNT_CONTROL Control;
+    FS_PATHCHECK Check;
+    VOLUMEINFO Volume;
+    STR Path[MAX_PATH_NAME];
+    const STR FsRoot[] = {PATH_SEP, 'f', 's', STR_NULL};
+    LPSYSTEMFSFILESYSTEM SystemFS = GetSystemFSData();
+    U32 Result;
+    U32 Length;
+
+    if (FileSystem == NULL) return FALSE;
+    if (SystemFS == NULL || SystemFS->Root == NULL) return FALSE;
+    if (FileSystem == &SystemFS->Header) return TRUE;
+
+    Volume.Size = sizeof(VOLUMEINFO);
+    Volume.Volume = (HANDLE)FileSystem;
+    Volume.Name[0] = STR_NULL;
+    Result = FileSystem->Driver->Command(DF_FS_GETVOLUMEINFO, (UINT)&Volume);
+    if (Result != DF_RETURN_SUCCESS || Volume.Name[0] == STR_NULL) {
+        StringCopy(Volume.Name, FileSystem->Name);
+    }
+
+    StringCopy(Path, FsRoot);
+    Length = StringLength(Path);
+    Path[Length] = PATH_SEP;
+    Path[Length + 1] = STR_NULL;
+    StringConcat(Path, Volume.Name);
+
+    StringCopy(Check.CurrentFolder, TEXT("/"));
+    StringCopy(Check.SubFolder, Path);
+    if (!GetSystemFS()->Driver->Command(DF_FS_PATHEXISTS, (UINT)&Check)) {
+        DEBUG(TEXT("[SystemFSUnmountFileSystem] Already unmounted %s at %s"), Volume.Name, Path);
+        return TRUE;
+    }
+
+    DEBUG(TEXT("[SystemFSUnmountFileSystem] Unmounting %s at %s (fs=%p)"), Volume.Name, Path, FileSystem);
+    StringCopy(Control.Path, Path);
+    Control.Node = (LPLISTNODE)FileSystem;
+    Control.SourcePath[0] = STR_NULL;
+    Result = GetSystemFS()->Driver->Command(DF_FS_UNMOUNTOBJECT, (UINT)&Control);
+
+    if (Result != DF_RETURN_SUCCESS) {
+        WARNING(TEXT("[SystemFSUnmountFileSystem] Unmount failed for %s (result=%x)"), Volume.Name, Result);
+    }
+
+    return Result == DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
  * @brief Initializes and mounts the SystemFS root and known filesystems.
  * @return TRUE on successful mount, FALSE otherwise.
  */
 BOOL MountSystemFS(void) {
     LPLISTNODE Node;
     LPFILESYSTEM FS;
-    VOLUMEINFO Volume;
-    FS_MOUNT_CONTROL Control;
     FILEINFO Info;
-    STR Path[MAX_PATH_NAME];
     const STR FsRoot[] = {PATH_SEP, 'f', 's', STR_NULL};
-    U32 Result;
-    U32 Length;
     LPSYSTEMFSFILESYSTEM SystemFS = GetSystemFSData();
     LPLIST FileSystemList = GetFileSystemList();
 
@@ -604,25 +709,9 @@ BOOL MountSystemFS(void) {
     for (Node = FileSystemList != NULL ? FileSystemList->First : NULL; Node; Node = Node->Next) {
         FS = (LPFILESYSTEM)Node;
         if (FS == &SystemFS->Header) continue;
-
-        Volume.Size = sizeof(VOLUMEINFO);
-        Volume.Volume = (HANDLE)FS;
-        Volume.Name[0] = STR_NULL;
-        Result = FS->Driver->Command(DF_FS_GETVOLUMEINFO, (UINT)&Volume);
-        if (Result != DF_RETURN_SUCCESS || Volume.Name[0] == STR_NULL) {
-            StringCopy(Volume.Name, FS->Name);
+        if (!SystemFSMountFileSystem(FS)) {
+            WARNING(TEXT("[MountSystemFS] Unable to mount FileSystem %s"), FS->Name);
         }
-
-        StringCopy(Path, FsRoot);
-        Length = StringLength(Path);
-        Path[Length] = PATH_SEP;
-        Path[Length + 1] = STR_NULL;
-        StringConcat(Path, Volume.Name);
-
-        StringCopy(Control.Path, Path);
-        Control.Node = (LPLISTNODE)FS;
-        Control.SourcePath[0] = STR_NULL;  // No subdirectory for auto-mounted filesystems
-        MountObject(&Control);
     }
 
     ListAddItem(FileSystemList, GetSystemFS());

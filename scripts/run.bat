@@ -76,7 +76,7 @@ if not exist log mkdir log
 
 set "USB_ARGS="
 if "%USB3_ENABLED%"=="1" (
-    set "USB_ARGS=-drive format=raw,file=%USB_3_PATH%,if=none,id=usbdrive0 -device usb-storage,drive=usbdrive0,bus=xhci.0"
+    set "USB_ARGS=-drive format=raw,file=%USB_3_PATH%,if=none,id=usbdrive0 -device usb-storage,drive=usbdrive0,bus=xhci.0,id=usbmsd0"
 )
 
 set "GDB_ARGS="

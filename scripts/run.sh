@@ -79,7 +79,7 @@ USB_ARGUMENTS=()
 function BuildUsbArguments() {
     USB_ARGUMENTS=()
     if [ "$USB3_ENABLED" -eq 1 ]; then
-        USB_ARGUMENTS=(-drive format=raw,file="$USB_3_PATH",if=none,id=usbdrive0 -device usb-storage,drive=usbdrive0,bus=xhci.0)
+        USB_ARGUMENTS=(-drive format=raw,file="$USB_3_PATH",if=none,id=usbdrive0 -device usb-storage,drive=usbdrive0,bus=xhci.0,id=usbmsd0)
     fi
 }
 
