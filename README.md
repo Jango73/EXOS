@@ -21,28 +21,22 @@ Build was recently ported to i686-elf-gcc/nasm/i686-elf-ld.
 
 ### Build (Disk image with ext2)
 
-./scripts/(arch)/4-4-build-release-ext2.sh
+./scripts/build --arch <i386|x86-64> --fs ext2 --release
 
-( or ./scripts/(arch)/4-1-clean-build-release-ext2.sh to later build from a clean repo )
-
-Note: (arch) = i386 or x86-64
+( add --clean for a clean build )
 
 ### Build (Disk image with FAT32)
 
-./scripts/(arch)/4-4-build-release-fat32.sh
+./scripts/build --arch <i386|x86-64> --fs fat32 --release
 
-( or ./scripts/(arch)/4-1-clean-build-release-fat32.sh to later build from a clean repo )
-
-Note: (arch) = i386 or x86-64
+( add --clean for a clean build )
 
 ### Run
 
-./scripts/(arch)/5-1-start-qemu-ioapic-sata-e1000.sh
+./scripts/run --arch <i386|x86-64>
 
-( or ./scripts/(arch)/5-2-debug-qemu-ioapic-sata-e1000.sh to debug with gdb)
+( add --gdb to debug with gdb )
 ( or ./scripts/(arch)/5-5-start-bochs.sh to use Bochs )
-
-Note: (arch) = i386 or x86-64
 
 ## Dependencies
 

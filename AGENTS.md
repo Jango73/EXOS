@@ -44,27 +44,26 @@ This is a multi-architecture operating system. Currently supporting i386 and x86
 
 ## Common Build Commands
 
-All helper scripts are organized per architecture:
-- i386 scripts live in `./scripts/i386/`
-- x86-64 scripts live in `./scripts/x86-64/`
-
-**i386 debug build workflow**
-
-**Use `./scripts/i386/4-2-clean-build-debug.sh` for a complete debug build and `./scripts/i386/4-5-build-debug.sh` for an incremental debug build when unsure which build script to use.**
-
-**Build (i386):**
+**Build (ext2):**
 ```bash
-./scripts/i386/4-2-clean-build-debug.sh    # Clean then build debug
-./scripts/i386/4-3-clean-build-scheduling-debug.sh # Clean then build with debug and scheduling debug logs : DON'T USE
+./scripts/build --arch i386 --fs ext2 --release
+./scripts/build --arch i386 --fs ext2 --debug
+./scripts/build --arch i386 --fs ext2 --debug --clean
 ```
 
-**Run in QEMU (i386):**
+**Build (fat32):**
 ```bash
-./scripts/i386/5-1-start-qemu-ioapic-sata-e1000.sh  # Launches QEMU
-./scripts/i386/5-2-debug-qemu-ioapic-sata-e1000.sh  # Launches QEMU with graphics and GDB
+./scripts/build --arch i386 --fs fat32 --release
+./scripts/build --arch i386 --fs fat32 --debug
 ```
 
-Replicate the same commands under `./scripts/x86-64/` when targeting the x86-64 architecture.
+**Run in QEMU:**
+```bash
+./scripts/run --arch i386
+./scripts/run --arch i386 --gdb
+```
+
+Replace `i386` with `x86-64` when targeting the x86-64 architecture.
 
 **Remote build on Windows (SSH to a Linux build host):**
 ```bat
@@ -114,7 +113,7 @@ Doxygen documentation is in `documentation/kernel/*`
 - `System.asm`: Many small bare-metal routines (LGDT, GetCR4, etc...)
 
 ## Debug Workflow
-1. Use scheduling debug build when needing per-tick information, for scheduler/interrupt issues: `./scripts/i386/4-6-build-scheduling-debug.sh` (or `./scripts/i386/4-3-clean-build-scheduling-debug.sh` for a clean make) and their `./scripts/x86-64/` equivalents : GENERATES TONS OF LOG, USE WITH CARE.
+1. Use scheduling debug build when needing per-tick information, for scheduler or interrupt issues: `./scripts/build --arch i386 --fs ext2 --scheduling-debug` (or add `--clean` for a clean make) and the `x86-64` equivalent: `./scripts/build --arch x86-64 --fs ext2 --scheduling-debug`. GENERATES TONS OF LOG, USE WITH CARE.
 2. Monitor `log/kernel.log` for exceptions and page faults
 3. **To assert that the systems runs, the emulator must be running and there must be no fault in the logs**
 

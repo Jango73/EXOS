@@ -217,7 +217,7 @@ function RunArchitecture() {
     mkdir -p "$ROOT_DIR/log"
     : > "$LOG_FILE"
 
-    "$ROOT_DIR/$QemuScript" &
+    bash -c "cd \"$ROOT_DIR\" && $QemuScript" &
     local QemuPid=$!
 
     if ! WaitForMonitor; then
@@ -235,5 +235,5 @@ function RunArchitecture() {
     wait "$QemuPid" || true
 }
 
-RunArchitecture "i386" "scripts/i386/4-2-clean-build-debug-ext2.sh" "scripts/i386/5-1-start-qemu-ioapic-sata-e1000.sh"
-RunArchitecture "x86-64" "scripts/x86-64/4-2-clean-build-debug-ext2.sh" "scripts/x86-64/5-1-start-qemu-ioapic-sata-e1000.sh"
+RunArchitecture "i386" "scripts/build.sh --arch i386 --fs ext2 --debug --clean" "scripts/run.sh --arch i386"
+RunArchitecture "x86-64" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean" "scripts/run.sh --arch x86-64"
