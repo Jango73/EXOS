@@ -47,7 +47,7 @@ DRIVER DATA_SECTION IOAPICDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
+    .Type = DRIVER_TYPE_INIT,
     .VersionMajor = IOAPIC_VER_MAJOR,
     .VersionMinor = IOAPIC_VER_MINOR,
     .Designer = "Jango73",
@@ -55,6 +55,16 @@ DRIVER DATA_SECTION IOAPICDriver = {
     .Product = "IOAPIC",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = IOAPICDriverCommands};
+
+/***************************************************************************/
+
+/**
+ * @brief Retrieves the I/O APIC driver descriptor.
+ * @return Pointer to the I/O APIC driver.
+ */
+LPDRIVER IOAPICGetDriver(void) {
+    return &IOAPICDriver;
+}
 
 /***************************************************************************/
 
@@ -197,29 +207,29 @@ static UINT IOAPICDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((IOAPICDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             if (InitializeIOAPIC()) {
                 IOAPICDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
-            return DF_RET_UNEXPECT;
+            return DF_RETURN_UNEXPECTED;
 
         case DF_UNLOAD:
             if ((IOAPICDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             IOAPICDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(IOAPIC_VER_MAJOR, IOAPIC_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /***************************************************************************/

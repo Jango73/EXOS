@@ -64,7 +64,7 @@ const char* TerminalTacticsManual =
 "- Power Plant: generates energy for your base.\n"
 "- Factory: produces vehicles (tech level 2 units).\n"
 "- Tech Center: unlocks tech level 2 options.\n"
-"- Turret: static defense, attacks nearby enemies.\n"
+"- Turret: static defense, attacks nearby enemies (range 3, damage 10, speed 1000ms).\n"
 "- Wall: basic defensive segment.\n"
 "\n"
 "Units\n"
@@ -75,7 +75,8 @@ const char* TerminalTacticsManual =
 "- Mobile Artillery: long-range vehicle with high damage.\n"
 "- Tank: armored vehicle for frontline fighting.\n"
 "- Transport: utility vehicle for movement and support.\n"
-"- Driller: harvests plasma from nearby fields.\n";
+"- Driller: harvests plasma from nearby fields.\n"
+"- Attack speed: 1000ms for all units.\n";
 
 /************************************************************************/
 

@@ -48,7 +48,7 @@ CFLAGS          = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
                   -Werror-implicit-function-declaration -Wstrict-prototypes \
                   -DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) -DPROFILING=$(PROFILING) -DUSE_SYSCALL=$(USE_SYSCALL) \
                   -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) \
-                  -Iinclude -I../third/include -I../runtime/include
+                  -Iinclude -I../third -I../third/include -I../runtime/include
 CFLAGS         += $(ARCH_CFLAGS)
 
 NASM            = nasm
@@ -74,12 +74,14 @@ SRC_C  = $(wildcard source/*.c) \
          $(wildcard source/system/*.c) \
          $(wildcard source/process/*.c) \
          $(wildcard source/drivers/*.c) \
+         $(wildcard source/expose/*.c) \
          $(wildcard source/utils/*.c) \
          $(wildcard source/test/*.c) \
          $(wildcard source/autotest/*.c) \
          ../third/bcrypt/blowfish.c \
          ../third/bcrypt/wrapbf.c \
          ../third/bcrypt/endian.c \
+         ../third/utf8-hoehrmann/utf8-hoehrmann.c \
          ../runtime/source/exos-runtime-c.c
 SRC_S  = $(wildcard source/asm/*.asm) \
          $(wildcard source/arch/$(ARCH)/asm/*.asm)
@@ -92,6 +94,7 @@ endif
 
 OBJ_C  = $(patsubst source/%.c, $(BUILD_DIR)/kernel/%.o, $(filter source/%.c, $(SRC_C))) \
          $(patsubst ../third/bcrypt/%.c, $(BUILD_DIR)/kernel/bcrypt_%.o, $(filter ../third/bcrypt/%.c, $(SRC_C))) \
+         $(patsubst ../third/utf8-hoehrmann/%.c, $(BUILD_DIR)/kernel/utf8_%.o, $(filter ../third/utf8-hoehrmann/%.c, $(SRC_C))) \
          $(patsubst ../runtime/source/%.c, $(BUILD_DIR)/kernel/runtime_%.o, $(filter ../runtime/source/%.c, $(SRC_C)))
 OBJ_S  = $(patsubst source/%.asm, $(BUILD_DIR)/kernel/%.o, $(filter source/%.asm, $(SRC_S))) \
          $(patsubst ../runtime/source/%.asm, $(BUILD_DIR)/kernel/runtime_%.o, $(filter ../runtime/source/%.asm, $(SRC_S)))
@@ -187,6 +190,10 @@ $(BUILD_DIR)/kernel/%.o: source/%.asm
 	$(NASM) $(AFLAGS) -o $@ $<
 
 $(BUILD_DIR)/kernel/bcrypt_%.o: ../third/bcrypt/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(BUILD_DIR)/kernel/utf8_%.o: ../third/utf8-hoehrmann/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 

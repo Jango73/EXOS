@@ -225,48 +225,48 @@ typedef struct tag_INTERRUPT_OVERRIDE_INFO {
 // Fixed ACPI Description Table (FACP/FADT)
 
 typedef struct tag_ACPI_FADT {
-    ACPI_TABLE_HEADER Header;      // Standard ACPI table header
-    U32 FirmwareCtrl;              // 32-bit physical address of FACS
-    U32 Dsdt;                      // 32-bit physical address of DSDT
-    U8  Reserved1;                 // System Interrupt Model (ACPI 1.0)
-    U8  PreferredPowerManagementProfile; // Conveys preferred power management profile
-    U16 SciInterrupt;              // System vector of SCI interrupt
-    U32 SmiCommandPort;            // 32-bit Port address of SMI command port
-    U8  AcpiEnable;                // Value to write to SMI_CMD to enable ACPI
-    U8  AcpiDisable;               // Value to write to SMI_CMD to disable ACPI
-    U8  S4BiosReq;                 // Value to write to SMI_CMD to enter S4BIOS state
-    U8  PstateControl;             // Processor performance state control
-    U32 Pm1aEventBlock;            // 32-bit Port address of Power Mgt 1a Event Reg Blk
-    U32 Pm1bEventBlock;            // 32-bit Port address of Power Mgt 1b Event Reg Blk
-    U32 Pm1aControlBlock;          // 32-bit Port address of Power Mgt 1a Control Reg Blk
-    U32 Pm1bControlBlock;          // 32-bit Port address of Power Mgt 1b Control Reg Blk
-    U32 Pm2ControlBlock;           // 32-bit Port address of Power Mgt 2 Control Reg Blk
-    U32 PmTimerBlock;              // 32-bit Port address of Power Mgt Timer Ctrl Reg Blk
-    U32 Gpe0Block;                 // 32-bit Port address of General Purpose Event 0 Reg Blk
-    U32 Gpe1Block;                 // 32-bit Port address of General Purpose Event 1 Reg Blk
-    U8  Pm1EventLength;            // Byte Length of Port described by Pm1aEventBlock
-    U8  Pm1ControlLength;          // Byte Length of Port described by Pm1aControlBlock
-    U8  Pm2ControlLength;          // Byte Length of Port described by Pm2ControlBlock
-    U8  PmTimerLength;             // Byte Length of Port described by PmTimerBlock
-    U8  Gpe0Length;                // Byte Length of Port described by Gpe0Block
-    U8  Gpe1Length;                // Byte Length of Port described by Gpe1Block
-    U8  Gpe1Base;                  // Offset in GPE number space where GPE1 events start
-    U8  CstateControl;             // Support for the _CST object and C States change notification
-    U16 WorstC2Latency;            // Worst case HW latency to enter/exit C2 state
-    U16 WorstC3Latency;            // Worst case HW latency to enter/exit C3 state
-    U16 FlushSize;                 // Processor memory cache line width in units of 1024 bytes
-    U16 FlushStride;               // Processor's memory cache line stride
-    U8  DutyOffset;                // Processor duty cycle index in processor P_CNT reg
-    U8  DutyWidth;                 // Processor duty cycle value bit width in P_CNT register
-    U8  DayAlarm;                  // Index to day-of-month alarm in RTC CMOS RAM
-    U8  MonthAlarm;                // Index to month alarm in RTC CMOS RAM
-    U8  Century;                   // Index to century in RTC CMOS RAM
-    U16 BootArchitectureFlags;     // IA-PC Boot Architecture Flags
-    U8  Reserved2;                 // Reserved field
-    U32 Flags;                     // Fixed feature flags
-    ACPI_GENERIC_ADDRESS ResetReg; // Reset register descriptor (ACPI 2.0+)
-    U8  ResetValue;                // Value to write to reset register
-    U8  Reserved3[3];              // Reserved field
+    ACPI_TABLE_HEADER Header;               // Standard ACPI table header
+    U32 FirmwareCtrl;                       // 32-bit physical address of FACS
+    U32 Dsdt;                               // 32-bit physical address of DSDT
+    U8  Reserved1;                          // System Interrupt Model (ACPI 1.0)
+    U8  PreferredPowerManagementProfile;    // Conveys preferred power management profile
+    U16 SciInterrupt;                       // System vector of SCI interrupt
+    U32 SmiCommandPort;                     // 32-bit Port address of SMI command port
+    U8  AcpiEnable;                         // Value to write to SMI_CMD to enable ACPI
+    U8  AcpiDisable;                        // Value to write to SMI_CMD to disable ACPI
+    U8  S4BiosReq;                          // Value to write to SMI_CMD to enter S4BIOS state
+    U8  PstateControl;                      // Processor performance state control
+    U32 Pm1aEventBlock;                     // 32-bit Port address of Power Mgt 1a Event Reg Blk
+    U32 Pm1bEventBlock;                     // 32-bit Port address of Power Mgt 1b Event Reg Blk
+    U32 Pm1aControlBlock;                   // 32-bit Port address of Power Mgt 1a Control Reg Blk
+    U32 Pm1bControlBlock;                   // 32-bit Port address of Power Mgt 1b Control Reg Blk
+    U32 Pm2ControlBlock;                    // 32-bit Port address of Power Mgt 2 Control Reg Blk
+    U32 PmTimerBlock;                       // 32-bit Port address of Power Mgt Timer Ctrl Reg Blk
+    U32 Gpe0Block;                          // 32-bit Port address of General Purpose Event 0 Reg Blk
+    U32 Gpe1Block;                          // 32-bit Port address of General Purpose Event 1 Reg Blk
+    U8  Pm1EventLength;                     // Byte Length of Port described by Pm1aEventBlock
+    U8  Pm1ControlLength;                   // Byte Length of Port described by Pm1aControlBlock
+    U8  Pm2ControlLength;                   // Byte Length of Port described by Pm2ControlBlock
+    U8  PmTimerLength;                      // Byte Length of Port described by PmTimerBlock
+    U8  Gpe0Length;                         // Byte Length of Port described by Gpe0Block
+    U8  Gpe1Length;                         // Byte Length of Port described by Gpe1Block
+    U8  Gpe1Base;                           // Offset in GPE number space where GPE1 events start
+    U8  CstateControl;                      // Support for the _CST object and C States change notification
+    U16 WorstC2Latency;                     // Worst case HW latency to enter/exit C2 state
+    U16 WorstC3Latency;                     // Worst case HW latency to enter/exit C3 state
+    U16 FlushSize;                          // Processor memory cache line width in units of 1024 bytes
+    U16 FlushStride;                        // Processor's memory cache line stride
+    U8  DutyOffset;                         // Processor duty cycle index in processor P_CNT reg
+    U8  DutyWidth;                          // Processor duty cycle value bit width in P_CNT register
+    U8  DayAlarm;                           // Index to day-of-month alarm in RTC CMOS RAM
+    U8  MonthAlarm;                         // Index to month alarm in RTC CMOS RAM
+    U8  Century;                            // Index to century in RTC CMOS RAM
+    U16 BootArchitectureFlags;              // IA-PC Boot Architecture Flags
+    U8  Reserved2;                          // Reserved field
+    U32 Flags;                              // Fixed feature flags
+    ACPI_GENERIC_ADDRESS ResetReg;          // Reset register descriptor (ACPI 2.0+)
+    U8  ResetValue;                         // Value to write to reset register
+    U8  Reserved3[3];                       // Reserved field
 } ACPI_FADT, *LPACPI_FADT;
 
 /***************************************************************************/

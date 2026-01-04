@@ -44,7 +44,7 @@ DRIVER DATA_SECTION LocalAPICDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
+    .Type = DRIVER_TYPE_INIT,
     .VersionMajor = LOCAL_APIC_VER_MAJOR,
     .VersionMinor = LOCAL_APIC_VER_MINOR,
     .Designer = "Jango73",
@@ -52,6 +52,16 @@ DRIVER DATA_SECTION LocalAPICDriver = {
     .Product = "LocalAPIC",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = LocalAPICDriverCommands};
+
+/***************************************************************************/
+
+/**
+ * @brief Retrieves the local APIC driver descriptor.
+ * @return Pointer to the local APIC driver.
+ */
+LPDRIVER LocalAPICGetDriver(void) {
+    return &LocalAPICDriver;
+}
 
 /***************************************************************************/
 
@@ -428,27 +438,27 @@ static UINT LocalAPICDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((LocalAPICDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             if (InitializeLocalAPIC()) {
                 LocalAPICDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
-            return DF_RET_UNEXPECT;
+            return DF_RETURN_UNEXPECTED;
 
         case DF_UNLOAD:
             if ((LocalAPICDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             LocalAPICDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(LOCAL_APIC_VER_MAJOR, LOCAL_APIC_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

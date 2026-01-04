@@ -53,7 +53,7 @@ DRIVER DATA_SECTION UserAccountDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
+    .Type = DRIVER_TYPE_INIT,
     .VersionMajor = USER_SYSTEM_VER_MAJOR,
     .VersionMinor = USER_SYSTEM_VER_MINOR,
     .Designer = "Jango73",
@@ -61,6 +61,16 @@ DRIVER DATA_SECTION UserAccountDriver = {
     .Product = "UserSystem",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = UserAccountDriverCommands};
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the user account driver descriptor.
+ * @return Pointer to the user account driver.
+ */
+LPDRIVER UserAccountGetDriver(void) {
+    return &UserAccountDriver;
+}
 
 /************************************************************************/
 
@@ -110,30 +120,30 @@ static UINT UserAccountDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((UserAccountDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             if (InitializeUserSystem()) {
                 UserAccountDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
-            return DF_RET_UNEXPECT;
+            return DF_RETURN_UNEXPECTED;
 
         case DF_UNLOAD:
             if ((UserAccountDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             ShutdownUserSystem();
             UserAccountDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(USER_SYSTEM_VER_MAJOR, USER_SYSTEM_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /************************************************************************/

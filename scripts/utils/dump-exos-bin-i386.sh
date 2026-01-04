@@ -4,7 +4,7 @@ BIN_PATH="./build/i386/kernel/exos.bin"
 ELF_PATH="./build/i386/kernel/exos.elf"
 
 if [ ! -f "$BIN_PATH" ] || [ ! -f "$ELF_PATH" ]; then
-    echo "Error: i386 build artifacts not found. Run ./scripts/i386/4-5-build-debug.sh first."
+    echo "Error: i386 build artifacts not found. Run ./scripts/build.sh --arch i386 --fs ext2 --debug first."
     exit 1
 fi
 

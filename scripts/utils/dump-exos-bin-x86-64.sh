@@ -4,7 +4,7 @@ BIN_PATH="./build/x86-64/kernel/exos.bin"
 ELF_PATH="./build/x86-64/kernel/exos.elf"
 
 if [ ! -f "$BIN_PATH" ] || [ ! -f "$ELF_PATH" ]; then
-    echo "Error: x86-64 build artifacts not found. Run ./scripts/x86-64/4-5-build-debug.sh first."
+    echo "Error: x86-64 build artifacts not found. Run ./scripts/build.sh --arch x86-64 --fs ext2 --debug first."
     exit 1
 fi
 

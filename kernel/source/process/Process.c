@@ -48,7 +48,7 @@ PROCESS DATA_SECTION KernelProcess = {
     .HeapMutex = EMPTY_MUTEX,       // Heap mutex
     .Security = EMPTY_SECURITY,     // Security
     .Desktop = &MainDesktop,                // Desktop
-    .Privilege = PRIVILEGE_KERNEL,  // Privilege
+    .Privilege = CPU_PRIVILEGE_KERNEL,  // Privilege
     .Status = PROCESS_STATUS_ALIVE, // Status
     .Flags = PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH, // Flags
     .PageDirectory = 0,             // Page directory
@@ -76,7 +76,7 @@ DRIVER DATA_SECTION KernelProcessDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
+    .Type = DRIVER_TYPE_INIT,
     .VersionMajor = KERNEL_PROCESS_VER_MAJOR,
     .VersionMinor = KERNEL_PROCESS_VER_MINOR,
     .Designer = "Jango73",
@@ -84,6 +84,16 @@ DRIVER DATA_SECTION KernelProcessDriver = {
     .Product = "KernelProcess",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = KernelProcessDriverCommands};
+
+/***************************************************************************/
+
+/**
+ * @brief Retrieves the kernel process driver descriptor.
+ * @return Pointer to the kernel process driver.
+ */
+LPDRIVER KernelProcessGetDriver(void) {
+    return &KernelProcessDriver;
+}
 
 /***************************************************************************/
 
@@ -167,26 +177,26 @@ static UINT KernelProcessDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((KernelProcessDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             InitializeKernelProcess();
             KernelProcessDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_UNLOAD:
             if ((KernelProcessDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             KernelProcessDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(KERNEL_PROCESS_VER_MAJOR, KERNEL_PROCESS_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /***************************************************************************/
@@ -219,7 +229,7 @@ LPPROCESS NewProcess(void) {
     } else {
         This->Desktop = &MainDesktop;
     }
-    This->Privilege = PRIVILEGE_USER;
+    This->Privilege = CPU_PRIVILEGE_USER;
     This->Status = PROCESS_STATUS_ALIVE;
     This->Flags = 0; // Will be set by CreateProcess
     This->MaximumAllocatedMemory = N_HalfMemory;
@@ -827,6 +837,7 @@ UINT Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
     }
 
     DEBUG(TEXT("[Spawn] Process completed successfully, exit code: %u"), WaitInfo.ExitCodes[0]);
+    TEST(TEXT("[Spawn] Executable finished normally : %s"), CommandLine);
     return WaitInfo.ExitCodes[0];
 }
 

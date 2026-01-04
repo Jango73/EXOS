@@ -48,6 +48,16 @@ DRIVER DATA_SECTION EXFSDriver = {
     .Product = "EXOS File System",
     .Command = EXFSCommands};
 
+/************************************************************************/
+
+/**
+ * @brief Retrieves the EXFS driver descriptor.
+ * @return Pointer to the EXFS driver.
+ */
+LPDRIVER EXFSGetDriver(void) {
+    return &EXFSDriver;
+}
+
 U8 Dummy[128] = {1, 1};
 
 /************************************************************************/
@@ -167,7 +177,7 @@ BOOL MountPartition_EXFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 
     Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
-    if (Result != DF_RET_SUCCESS) return FALSE;
+    if (Result != DF_RETURN_SUCCESS) return FALSE;
 
     //-------------------------------------
     // Read the Superblock
@@ -182,7 +192,7 @@ BOOL MountPartition_EXFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 
     Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
-    if (Result != DF_RET_SUCCESS) return FALSE;
+    if (Result != DF_RETURN_SUCCESS) return FALSE;
 
     //-------------------------------------
     // Assign pointers
@@ -273,7 +283,7 @@ static BOOL ReadCluster(LPEXFSFILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buf
 
     Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
-    if (Result != DF_RET_SUCCESS) return FALSE;
+    if (Result != DF_RETURN_SUCCESS) return FALSE;
 
     return TRUE;
 }
@@ -305,7 +315,7 @@ static BOOL WriteCluster(LPEXFSFILESYSTEM FileSystem, CLUSTER Cluster,
 
     Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control);
 
-    if (Result != DF_RET_SUCCESS) return FALSE;
+    if (Result != DF_RETURN_SUCCESS) return FALSE;
 
     return TRUE;
 }
@@ -471,7 +481,7 @@ static BOOL WriteSectors(LPPHYSICALDISK Disk, SECTOR Sector, U32 NumSectors, LPV
 
     Result = Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control);
 
-    if (Result != DF_RET_SUCCESS) return FALSE;
+    if (Result != DF_RETURN_SUCCESS) return FALSE;
 
     return TRUE;
 }
@@ -504,9 +514,9 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (Create == NULL) return DF_RET_BADPARAM;
-    if (Create->Size != sizeof(PARTITION_CREATION)) return DF_RET_BADPARAM;
-    if (Create->Disk == NULL) return DF_RET_BADPARAM;
+    if (Create == NULL) return DF_RETURN_BAD_PARAMETER;
+    if (Create->Size != sizeof(PARTITION_CREATION)) return DF_RETURN_BAD_PARAMETER;
+    if (Create->Disk == NULL) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
 
@@ -551,7 +561,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     Master->BIOSMark = 0xAA55;
 
     if (WriteSectors(Create->Disk, CurrentSector, 2, Master) == FALSE) {
-        return DF_RET_FS_CANT_WRITE_SECTOR;
+        return DF_RETURN_FS_CANT_WRITE_SECTOR;
     }
 
     CurrentSector += 2;
@@ -582,7 +592,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     StringCopy(Super->VolumeName, Create->VolumeName);
 
     if (WriteSectors(Create->Disk, CurrentSector, 2, Super) == FALSE) {
-        return DF_RET_FS_CANT_WRITE_SECTOR;
+        return DF_RETURN_FS_CANT_WRITE_SECTOR;
     }
 
     CurrentSector += 2;
@@ -607,7 +617,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     Buffer3Long[1] = EXFS_CLUSTER_END;
 
     if (WriteSectors(Create->Disk, CurrentSector, 1, Buffer3) == FALSE) {
-        return DF_RET_FS_CANT_WRITE_SECTOR;
+        return DF_RETURN_FS_CANT_WRITE_SECTOR;
     }
 
     CurrentSector += Create->SectorsPerCluster;
@@ -622,14 +632,14 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     FileRec->ClusterTable = EXFS_CLUSTER_END;
 
     if (WriteSectors(Create->Disk, CurrentSector, 1, Buffer3) == FALSE) {
-        return DF_RET_FS_CANT_WRITE_SECTOR;
+        return DF_RETURN_FS_CANT_WRITE_SECTOR;
     }
 
     DEBUG(TEXT("[EXFS.CreatePartition] First file record written"));
 
     //-------------------------------------
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -689,7 +699,7 @@ static void TranslateFileInfo(LPEXFSFILEREC FileRec, LPEXFSFILE File) {
  * @brief Initialize the EXFS driver.
  * @return Driver-specific result code.
  */
-static U32 Initialize(void) { return DF_RET_SUCCESS; }
+static U32 Initialize(void) { return DF_RETURN_SUCCESS; }
 
 /***************************************************************************/
 
@@ -753,8 +763,8 @@ static U32 OpenNext(LPEXFSFILE File) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (File == NULL) return DF_RET_BADPARAM;
-    if (File->Header.TypeID != KOID_FILE) return DF_RET_BADPARAM;
+    if (File == NULL) return DF_RETURN_BAD_PARAMETER;
+    if (File->Header.TypeID != KOID_FILE) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
     // Get the associated file system
@@ -780,25 +790,25 @@ static U32 OpenNext(LPEXFSFILE File) {
                 File->Location.PageCluster = GET_PAGE_ENTRY();
                 File->Location.PageOffset = 0;
 
-                if (File->Location.PageCluster == EXFS_CLUSTER_END) return DF_RET_GENERIC;
+                if (File->Location.PageCluster == EXFS_CLUSTER_END) return DF_RETURN_GENERIC;
 
                 if (!ReadCluster(FileSystem, File->Location.PageCluster, FileSystem->PageBuffer)) {
-                    return DF_RET_GENERIC;
+                    return DF_RETURN_GENERIC;
                 }
             }
 
             File->Location.FileCluster = GET_PAGE_ENTRY();
 
-            if (File->Location.FileCluster == EXFS_CLUSTER_END) return DF_RET_GENERIC;
+            if (File->Location.FileCluster == EXFS_CLUSTER_END) return DF_RETURN_GENERIC;
 
             if (!ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer)) {
-                return DF_RET_GENERIC;
+                return DF_RETURN_GENERIC;
             }
         }
 
         FileRec = (LPEXFSFILEREC)(FileSystem->IOBuffer + File->Location.FileOffset);
 
-        if (FileRec->ClusterTable == EXFS_CLUSTER_END) return DF_RET_GENERIC;
+        if (FileRec->ClusterTable == EXFS_CLUSTER_END) return DF_RETURN_GENERIC;
 
         if (FileRec->ClusterTable) {
             File->Location.DataCluster = FileRec->ClusterTable;
@@ -808,7 +818,7 @@ static U32 OpenNext(LPEXFSFILE File) {
         }
     }
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -822,7 +832,7 @@ static U32 CloseFile(LPEXFSFILE File) {
     // LPEXFSFILESYSTEM FileSystem = NULL;
     // LPEXFSFILEREC FileRec = NULL;
 
-    if (File == NULL) return DF_RET_BADPARAM;
+    if (File == NULL) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
     // Get the associated file system
@@ -836,7 +846,7 @@ static U32 CloseFile(LPEXFSFILE File) {
       if (ReadCluster(FileSystem, File->Location.FileCluster,
       FileSystem->IOBuffer) == FALSE)
       {
-    return DF_RET_IO;
+    return DF_RETURN_INPUT_OUTPUT;
       }
 
       DirEntry = (LPFATDIRENTRY_EXT) (FileSystem->IOBuffer +
@@ -849,14 +859,14 @@ static U32 CloseFile(LPEXFSFILE File) {
     if (WriteCluster(FileSystem, File->Location.FileCluster,
       FileSystem->IOBuffer) == FALSE)
     {
-      return DF_RET_IO;
+      return DF_RETURN_INPUT_OUTPUT;
     }
       }
     */
 
     ReleaseKernelObject(File);
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -871,18 +881,18 @@ UINT EXFSCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return Initialize();
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_FS_GETVOLUMEINFO:
-            return DF_RET_NOTIMPL;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_SETVOLUMEINFO:
-            return DF_RET_NOTIMPL;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_CREATEFOLDER:
-            return DF_RET_NOTIMPL;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_DELETEFOLDER:
-            return DF_RET_NOTIMPL;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_RENAMEFOLDER:
-            return DF_RET_NOTIMPL;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_OPENFILE:
             return (UINT)OpenFile((LPFILEINFO)Parameter);
         case DF_FS_OPENNEXT:
@@ -890,16 +900,16 @@ UINT EXFSCommands(UINT Function, UINT Parameter) {
         case DF_FS_CLOSEFILE:
             return (UINT)CloseFile((LPEXFSFILE)Parameter);
         case DF_FS_DELETEFILE:
-            return DF_RET_NOTIMPL;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_RENAMEFILE:
-            return DF_RET_NOTIMPL;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_READ:
-            return DF_RET_NOTIMPL;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_WRITE:
-            return DF_RET_NOTIMPL;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_CREATEPARTITION:
             return CreatePartition((LPPARTITION_CREATION)Parameter);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

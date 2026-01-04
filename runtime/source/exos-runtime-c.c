@@ -537,7 +537,7 @@ int fseek(FILE* fp, long int pos, int whence) {
     Operation.Buffer = NULL;
 
     Result = (UINT)exoscall(SYSCALL_SetFilePointer, EXOS_PARAM(&Operation));
-    return (Result == DF_RET_SUCCESS) ? 0 : -1;
+    return (Result == DF_RETURN_SUCCESS) ? 0 : -1;
 }
 
 /************************************************************************/
@@ -885,7 +885,7 @@ void _SetupArguments(void) {
     _ProcessInfo.Header.Flags = 0;
     _ProcessInfo.Process = 0;
 
-    if (exoscall(SYSCALL_GetProcessInfo, EXOS_PARAM(&_ProcessInfo)) != DF_RET_SUCCESS) {
+    if (exoscall(SYSCALL_GetProcessInfo, EXOS_PARAM(&_ProcessInfo)) != DF_RETURN_SUCCESS) {
         return;
     }
 

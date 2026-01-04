@@ -86,7 +86,7 @@ DRIVER DeviceInterruptDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
+    .Type = DRIVER_TYPE_INTERRUPT,
     .VersionMajor = DEVICE_INTERRUPT_VER_MAJOR,
     .VersionMinor = DEVICE_INTERRUPT_VER_MINOR,
     .Designer = "Jango73",
@@ -94,6 +94,16 @@ DRIVER DeviceInterruptDriver = {
     .Product = "DeviceInterrupts",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = DeviceInterruptDriverCommands};
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the device interrupt driver descriptor.
+ * @return Pointer to the device interrupt driver.
+ */
+LPDRIVER DeviceInterruptGetDriver(void) {
+    return &DeviceInterruptDriver;
+}
 
 /************************************************************************/
 
@@ -586,28 +596,28 @@ static UINT DeviceInterruptDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((DeviceInterruptDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             InitializeDeviceInterrupts();
             if (g_DeviceInterruptEntries != NULL) {
                 DeviceInterruptDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
-            return DF_RET_UNEXPECT;
+            return DF_RETURN_UNEXPECTED;
 
         case DF_UNLOAD:
             if ((DeviceInterruptDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             DeviceInterruptDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(DEVICE_INTERRUPT_VER_MAJOR, DEVICE_INTERRUPT_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

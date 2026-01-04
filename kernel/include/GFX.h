@@ -36,23 +36,23 @@
 
 // Functions supplied by a graphics driver
 
-#define DF_GFX_ENUMMODES (DF_FIRSTFUNC + 0)
-#define DF_GFX_GETMODEINFO (DF_FIRSTFUNC + 1)
-#define DF_GFX_SETMODE (DF_FIRSTFUNC + 2)
-#define DF_GFX_CREATECONTEXT (DF_FIRSTFUNC + 3)
-#define DF_GFX_CREATEBRUSH (DF_FIRSTFUNC + 4)
-#define DF_GFX_CREATEPEN (DF_FIRSTFUNC + 5)
-#define DF_GFX_SETPIXEL (DF_FIRSTFUNC + 6)
-#define DF_GFX_GETPIXEL (DF_FIRSTFUNC + 7)
-#define DF_GFX_LINE (DF_FIRSTFUNC + 8)
-#define DF_GFX_RECTANGLE (DF_FIRSTFUNC + 9)
-#define DF_GFX_ELLIPSE (DF_FIRSTFUNC + 10)
+#define DF_GFX_ENUMMODES (DF_FIRST_FUNCTION + 0)
+#define DF_GFX_GETMODEINFO (DF_FIRST_FUNCTION + 1)
+#define DF_GFX_SETMODE (DF_FIRST_FUNCTION + 2)
+#define DF_GFX_CREATECONTEXT (DF_FIRST_FUNCTION + 3)
+#define DF_GFX_CREATEBRUSH (DF_FIRST_FUNCTION + 4)
+#define DF_GFX_CREATEPEN (DF_FIRST_FUNCTION + 5)
+#define DF_GFX_SETPIXEL (DF_FIRST_FUNCTION + 6)
+#define DF_GFX_GETPIXEL (DF_FIRST_FUNCTION + 7)
+#define DF_GFX_LINE (DF_FIRST_FUNCTION + 8)
+#define DF_GFX_RECTANGLE (DF_FIRST_FUNCTION + 9)
+#define DF_GFX_ELLIPSE (DF_FIRST_FUNCTION + 10)
 
 /***************************************************************************/
 
 // Graphics driver error codes
 
-#define DF_GFX_ERROR_MODEUNAVAIL DF_RET_FIRST
+#define DF_GFX_ERROR_MODEUNAVAIL DF_RETURN_FIRST
 
 /***************************************************************************/
 

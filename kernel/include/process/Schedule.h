@@ -56,6 +56,9 @@ BOOL FreezeScheduler(void);
 // Unfreezes the scheduler
 BOOL UnfreezeScheduler(void);
 
+// Returns TRUE when the scheduler is frozen
+BOOL IsSchedulerFrozen(void);
+
 // Waits for one or more kernel objects to become signaled
 U32 Wait(LPWAITINFO WaitInfo);
 

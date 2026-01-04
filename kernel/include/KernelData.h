@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -111,6 +112,10 @@ typedef struct tag_KERNELDATA {
     LPLIST Task;
     LPLIST Mutex;
     LPLIST Disk;
+    LPLIST USBDevice;
+    LPLIST USBInterface;
+    LPLIST USBEndpoint;
+    LPLIST USBStorage;
     LPLIST PCIDevice;
     LPLIST NetworkDevice;
     LPLIST Event;
@@ -142,57 +147,62 @@ typedef struct tag_KERNELDATA {
 /************************************************************************/
 // Functions in KernelData.c
 
-LPLIST GetDriverList(void);
-LPLIST GetDesktopList(void);
-LPLIST GetProcessList(void);
-LPLIST GetTaskList(void);
-LPLIST GetMutexList(void);
-LPLIST GetDiskList(void);
-LPLIST GetPCIDeviceList(void);
-LPLIST GetNetworkDeviceList(void);
-LPLIST GetEventList(void);
-LPLIST GetFileSystemList(void);
-LPLIST GetFileList(void);
-LPLIST GetTCPConnectionList(void);
-LPLIST GetSocketList(void);
-LPLIST GetUserSessionList(void);
-void SetUserSessionList(LPLIST List);
-LPLIST GetUserAccountList(void);
-void SetUserAccountList(LPLIST List);
-FILESYSTEM_GLOBAL_INFO* GetFileSystemGlobalInfo(void);
-LPSYSTEMFSFILESYSTEM GetSystemFSData(void);
-LPCACHE GetObjectTerminationCache(void);
-LPHANDLE_MAP GetHandleMap(void);
-UINT GetPhysicalPageBitmapSize(void);
-void SetPhysicalPageBitmapSize(UINT Size);
-LPPAGEBITMAP GetPhysicalPageBitmap(void);
-void SetPhysicalPageBitmap(LPPAGEBITMAP Bitmap);
-LPCPUINFORMATION GetKernelCPUInfo(void);
-UINT GetDeferredWorkWaitTimeout(void);
-void SetDeferredWorkWaitTimeout(UINT Timeout);
-UINT GetDeferredWorkPollDelay(void);
-void SetDeferredWorkPollDelay(UINT Delay);
-void InitializeDriverList(void);
-LPTOML GetConfiguration(void);
 void SetConfiguration(LPTOML Configuration);
-BOOL GetDoLogin(void);
+void SetDeferredWorkPollDelay(UINT Delay);
+void SetDeferredWorkWaitTimeout(UINT Timeout);
 void SetDoLogin(BOOL DoLogin);
-LPCSTR GetLanguageCode(void);
-void SetLanguageCode(LPCSTR LanguageCode);
-LPCSTR GetKeyboardCode(void);
-void SetKeyboardCode(LPCSTR KeyboardCode);
-UINT GetMinimumQuantum(void);
-void SetMinimumQuantum(UINT MinimumQuantum);
-UINT GetMaximumQuantum(void);
-void SetMaximumQuantum(UINT MaximumQuantum);
-LPDESKTOP GetFocusedDesktop(void);
 void SetFocusedDesktop(LPDESKTOP Desktop);
-LPPROCESS GetFocusedProcess(void);
 void SetFocusedProcess(LPPROCESS Process);
+void SetKeyboardCode(LPCSTR KeyboardCode);
+void SetLanguageCode(LPCSTR LanguageCode);
+void SetMaximumQuantum(UINT MaximumQuantum);
+void SetMinimumQuantum(UINT MinimumQuantum);
+void SetPhysicalPageBitmap(LPPAGEBITMAP Bitmap);
+void SetPhysicalPageBitmapSize(UINT Size);
+void SetUserAccountList(LPLIST List);
+void SetUserSessionList(LPLIST List);
+
 BOOL GetCPUInformation(LPCPUINFORMATION);
-LPDRIVER GetMouseDriver(void);
-LPDRIVER GetGraphicsDriver(void);
+LPTOML GetConfiguration(void);
+UINT GetDeferredWorkPollDelay(void);
+UINT GetDeferredWorkWaitTimeout(void);
+LPLIST GetDesktopList(void);
+LPLIST GetDiskList(void);
+BOOL GetDoLogin(void);
 LPDRIVER GetDefaultFileSystemDriver(void);
+LPLIST GetDriverList(void);
+LPLIST GetEventList(void);
+LPLIST GetFileList(void);
+FILESYSTEM_GLOBAL_INFO* GetFileSystemGlobalInfo(void);
+LPLIST GetFileSystemList(void);
+LPDESKTOP GetFocusedDesktop(void);
+LPPROCESS GetFocusedProcess(void);
+LPDRIVER GetGraphicsDriver(void);
+LPHANDLE_MAP GetHandleMap(void);
+LPCPUINFORMATION GetKernelCPUInfo(void);
+LPCSTR GetKeyboardCode(void);
+LPCSTR GetLanguageCode(void);
+UINT GetMaximumQuantum(void);
+UINT GetMinimumQuantum(void);
+LPDRIVER GetMouseDriver(void);
+LPLIST GetMutexList(void);
+LPLIST GetNetworkDeviceList(void);
+LPCACHE GetObjectTerminationCache(void);
+LPLIST GetPCIDeviceList(void);
+LPPAGEBITMAP GetPhysicalPageBitmap(void);
+UINT GetPhysicalPageBitmapSize(void);
+LPLIST GetProcessList(void);
+LPLIST GetSocketList(void);
+LPSYSTEMFSFILESYSTEM GetSystemFSData(void);
+LPLIST GetTaskList(void);
+LPLIST GetTCPConnectionList(void);
+LPLIST GetUsbDeviceList(void);
+LPLIST GetUsbInterfaceList(void);
+LPLIST GetUsbEndpointList(void);
+LPLIST GetUsbStorageList(void);
+LPLIST GetUserAccountList(void);
+LPLIST GetUserSessionList(void);
+void InitializeDriverList(void);
 
 /************************************************************************/
 

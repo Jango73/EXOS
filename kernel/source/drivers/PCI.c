@@ -28,7 +28,9 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "CoreString.h"
+#include "DriverEnum.h"
 #include "drivers/E1000.h"
+#include "drivers/XHCI.h"
 #include "User.h"
 
 /***************************************************************************/
@@ -48,6 +50,8 @@
 static int PciInternalMatch(const DRIVER_MATCH* DriverMatch, const PCI_INFO* PciInfo);
 static void PciFillFunctionInfo(U8 Bus, U8 Device, U8 Function, PCI_INFO* PciInfo);
 static void PciDecodeBARs(const PCI_INFO* PciInfo, PCI_DEVICE* PciDevice);
+static U32 PCI_EnumNext(LPDRIVER_ENUM_NEXT Next);
+static U32 PCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty);
 
 /***************************************************************************/
 // Registered PCI drivers
@@ -69,14 +73,26 @@ DRIVER DATA_SECTION PCIDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
+    .Type = DRIVER_TYPE_INIT,
     .VersionMajor = PCI_VER_MAJOR,
     .VersionMinor = PCI_VER_MINOR,
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "PCI",
     .Flags = DRIVER_FLAG_CRITICAL,
-    .Command = PCIDriverCommands};
+    .Command = PCIDriverCommands,
+    .EnumDomainCount = 1,
+    .EnumDomains = {ENUM_DOMAIN_PCI_DEVICE}};
+
+/***************************************************************************/
+
+/**
+ * @brief Retrieves the PCI driver descriptor.
+ * @return Pointer to the PCI driver.
+ */
+LPDRIVER PCIGetDriver(void) {
+    return &PCIDriver;
+}
 
 /***************************************************************************/
 // Low-level config space access (assumes port I/O helpers exist)
@@ -486,7 +502,7 @@ void PCI_ScanBus(void) {
                                     (INT)Device, (INT)Function);
 
                                 U32 Result = PciDriver->Command(DF_PROBE, (UINT)(LPVOID)&PciInfo);
-                                if (Result == DF_RET_SUCCESS) {
+                                if (Result == DF_RETURN_SUCCESS) {
                                     PciDevice.Driver = (LPDRIVER)PciDriver;
                                     PciDriver->Command(DF_LOAD, 0);
 
@@ -617,32 +633,37 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD: {
             if ((PCIDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             extern PCI_DRIVER AHCIPCIDriver;
 
             PCI_RegisterDriver(&E1000Driver);
             PCI_RegisterDriver(&AHCIPCIDriver);
+            PCI_RegisterDriver(&XHCIDriver);
             PCI_ScanBus();
 
             PCIDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
         }
 
         case DF_UNLOAD:
             if ((PCIDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             PCIDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(PCI_VER_MAJOR, PCI_VER_MINOR);
+        case DF_ENUM_NEXT:
+            return PCI_EnumNext((LPDRIVER_ENUM_NEXT)(LPVOID)Parameter);
+        case DF_ENUM_PRETTY:
+            return PCI_EnumPretty((LPDRIVER_ENUM_PRETTY)(LPVOID)Parameter);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /************************************************************************/
@@ -665,4 +686,91 @@ void PCIHandler(void) {
     }
 
     DEBUG(TEXT("[PCIHandler] Exit"));
+}
+
+/************************************************************************/
+
+static U32 PCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
+    if (Next == NULL || Next->Query == NULL || Next->Item == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+    if (Next->Query->Header.Size < sizeof(DRIVER_ENUM_QUERY) ||
+        Next->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    if (Next->Query->Domain != ENUM_DOMAIN_PCI_DEVICE) {
+        return DF_RETURN_NOT_IMPLEMENTED;
+    }
+
+    LPLIST PciList = GetPCIDeviceList();
+    if (PciList == NULL) {
+        return DF_RETURN_NO_MORE;
+    }
+
+    UINT MatchIndex = 0;
+    for (LPLISTNODE Node = PciList->First; Node; Node = Node->Next) {
+        LPPCI_DEVICE Device = (LPPCI_DEVICE)Node;
+        SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+            if (MatchIndex == Next->Query->Index) {
+                DRIVER_ENUM_PCI_DEVICE Data;
+                MemorySet(&Data, 0, sizeof(Data));
+
+                Data.Bus = Device->Info.Bus;
+                Data.Dev = Device->Info.Dev;
+                Data.Func = Device->Info.Func;
+                Data.VendorID = Device->Info.VendorID;
+                Data.DeviceID = Device->Info.DeviceID;
+                Data.BaseClass = Device->Info.BaseClass;
+                Data.SubClass = Device->Info.SubClass;
+                Data.ProgIF = Device->Info.ProgIF;
+                Data.Revision = Device->Info.Revision;
+
+                MemorySet(Next->Item, 0, sizeof(DRIVER_ENUM_ITEM));
+                Next->Item->Header.Size = sizeof(DRIVER_ENUM_ITEM);
+                Next->Item->Header.Version = EXOS_ABI_VERSION;
+                Next->Item->Domain = ENUM_DOMAIN_PCI_DEVICE;
+                Next->Item->Index = Next->Query->Index;
+                Next->Item->DataSize = sizeof(Data);
+                MemoryCopy(Next->Item->Data, &Data, sizeof(Data));
+
+                Next->Query->Index++;
+                return DF_RETURN_SUCCESS;
+            }
+            MatchIndex++;
+        }
+    }
+
+    return DF_RETURN_NO_MORE;
+}
+
+/************************************************************************/
+
+static U32 PCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
+    if (Pretty == NULL || Pretty->Item == NULL || Pretty->Buffer == NULL || Pretty->BufferSize == 0) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+    if (Pretty->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    if (Pretty->Item->Domain != ENUM_DOMAIN_PCI_DEVICE ||
+        Pretty->Item->DataSize < sizeof(DRIVER_ENUM_PCI_DEVICE)) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    const DRIVER_ENUM_PCI_DEVICE* Data = (const DRIVER_ENUM_PCI_DEVICE*)Pretty->Item->Data;
+    StringPrintFormat(Pretty->Buffer,
+                      TEXT("PCI %x:%x.%u VID=%x DID=%x Class=%x Sub=%x ProgIF=%x Rev=%x"),
+                      (U32)Data->Bus,
+                      (U32)Data->Dev,
+                      (U32)Data->Func,
+                      (U32)Data->VendorID,
+                      (U32)Data->DeviceID,
+                      (U32)Data->BaseClass,
+                      (U32)Data->SubClass,
+                      (U32)Data->ProgIF,
+                      (U32)Data->Revision);
+
+    return DF_RETURN_SUCCESS;
 }

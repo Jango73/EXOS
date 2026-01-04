@@ -28,7 +28,10 @@
 #include "tt-types.h"
 
 void ProcessUnitAttacks(U32 currentTime);
+void ProcessTurretAttacks(U32 currentTime);
 void ProcessAITeams(void);
 BOOL FindFortressPlacement(I32 team, I32 typeId, I32* outX, I32* outY);
+I32 AiComputeUnitScore(const UNIT_TYPE* unitType);
+void InitializeAiConstants(void);
 
 #endif /* TT_AI_H */

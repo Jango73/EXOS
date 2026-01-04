@@ -25,11 +25,30 @@
 #include "tt-entities.h"
 #include "tt-path.h"
 #include "tt-game.h"
+#include "tt-log.h"
 
 /************************************************************************/
 
 /* External helpers */
 extern void RecalculateEnergy(void);
+
+/************************************************************************/
+
+void LogTeamAction(I32 team, const char* action, U32 id, U32 x, U32 y, const char* name, const char* extra) {
+    if (action == NULL) action = "Unknown";
+    if (name == NULL) name = "None";
+    if (extra == NULL) extra = "None";
+    GAME_LOGF(team, "Action=%s Id=%x X=%x Y=%x Name=%s Extra=%s",
+              action, id, x, y, name, extra);
+}
+
+/************************************************************************/
+
+void LogTeamActionCounts(I32 team, const char* action, U32 a, U32 b, U32 c, U32 d) {
+    if (action == NULL) action = "Unknown";
+    GAME_LOGF(team, "Action=%s A=%x B=%x C=%x D=%x",
+              action, a, b, c, d);
+}
 
 /************************************************************************/
 
@@ -98,13 +117,23 @@ BOOL IsTeamEliminated(I32 team) {
     TEAM_RESOURCES* res;
 
     if (!IsValidTeam(team)) return FALSE;
-    if (!TeamHasConstructionYard(team)) return TRUE;
+    if (!TeamHasConstructionYard(team)) {
+        if (App.GameState != NULL && !App.GameState->TeamDefeatedLogged[team]) {
+            GAME_LOG(team, "TeamDefeated Reason=NoConstructionYard");
+            App.GameState->TeamDefeatedLogged[team] = TRUE;
+        }
+        return TRUE;
+    }
 
     res = GetTeamResources(team);
     if (res == NULL) return FALSE;
     if (res->Plasma > 0) return FALSE;
 
     if (FindTeamUnit(team, UNIT_TYPE_DRILLER) != NULL) return FALSE;
+    if (App.GameState != NULL && !App.GameState->TeamDefeatedLogged[team]) {
+        GAME_LOG(team, "TeamDefeated Reason=NoPlasmaNoDriller");
+        App.GameState->TeamDefeatedLogged[team] = TRUE;
+    }
     return TRUE;
 }
 
@@ -221,10 +250,23 @@ void SetUnitMoveTarget(UNIT* unit, I32 targetX, I32 targetY) {
     unit->TargetX = WrapNearest(unit->X, targetX, App.GameState->MapWidth);
     unit->TargetY = WrapNearest(unit->Y, targetY, App.GameState->MapHeight);
     unit->IsMoving = (unit->TargetX != unit->X || unit->TargetY != unit->Y);
+    unit->IsGridlocked = FALSE;
+    unit->GridlockLastUpdateTime = 0;
     ClearUnitPath(unit);
+    unit->StuckDetourActive = FALSE;
+    unit->StuckDetourCount = 0;
+    unit->StuckOriginalTargetX = unit->TargetX;
+    unit->StuckOriginalTargetY = unit->TargetY;
+    unit->StuckDetourTargetX = unit->TargetX;
+    unit->StuckDetourTargetY = unit->TargetY;
     if (unit->IsMoving) {
         unit->MoveProgress = 0;
+        unit->LastMoveTime = App.GameState->GameTime;
+        unit->LastMoveX = unit->X;
+        unit->LastMoveY = unit->Y;
     }
+    GAME_LOGF(unit->Team, "OrderMove Unit=%x Target=%x,%x",
+              (U32)unit->Id, (U32)unit->TargetX, (U32)unit->TargetY);
 }
 
 /************************************************************************/
@@ -240,7 +282,12 @@ void SetUnitStateIdle(UNIT* unit) {
     unit->LastStateUpdateTime = 0;
     unit->IsMoving = FALSE;
     unit->MoveProgress = 0;
+    unit->IsGridlocked = FALSE;
+    unit->GridlockLastUpdateTime = 0;
+    unit->StuckDetourActive = FALSE;
+    unit->StuckDetourCount = 0;
     ClearUnitPath(unit);
+    GAME_LOGF(unit->Team, "OrderIdle Unit=%x", (U32)unit->Id);
 }
 
 /************************************************************************/
@@ -256,7 +303,13 @@ void SetUnitStateEscort(UNIT* unit, I32 targetTeam, I32 targetUnitId) {
     unit->LastStateUpdateTime = 0;
     unit->IsMoving = FALSE;
     unit->MoveProgress = 0;
+    unit->IsGridlocked = FALSE;
+    unit->GridlockLastUpdateTime = 0;
+    unit->StuckDetourActive = FALSE;
+    unit->StuckDetourCount = 0;
     ClearUnitPath(unit);
+    GAME_LOGF(unit->Team, "OrderEscort Unit=%x TargetTeam=%x TargetUnit=%x",
+              (U32)unit->Id, (U32)targetTeam, (U32)targetUnitId);
 }
 
 /************************************************************************/
@@ -272,7 +325,13 @@ void SetUnitStateExplore(UNIT* unit, I32 targetX, I32 targetY) {
     unit->LastStateUpdateTime = 0;
     unit->IsMoving = FALSE;
     unit->MoveProgress = 0;
+    unit->IsGridlocked = FALSE;
+    unit->GridlockLastUpdateTime = 0;
+    unit->StuckDetourActive = FALSE;
+    unit->StuckDetourCount = 0;
     ClearUnitPath(unit);
+    GAME_LOGF(unit->Team, "OrderExplore Unit=%x Target=%x,%x",
+              (U32)unit->Id, (U32)targetX, (U32)targetY);
 }
 
 /************************************************************************/
@@ -298,9 +357,12 @@ BUILDING* CreateBuilding(I32 typeId, I32 team, I32 x, I32 y) {
     node->BuildQueueCount = 0;
     node->UnitQueueCount = 0;
     node->LastDamageTime = 0;
+    node->LastAttackTime = 0;
     node->Next = NULL;
 
     SetBuildingOccupancy(node, TRUE);
+    GAME_LOGF(team, "SpawnBuilding Type=%s Id=%x X=%x Y=%x",
+              type->Name, (U32)node->Id, (U32)x, (U32)y);
     return node;
 }
 
@@ -345,6 +407,17 @@ UNIT* CreateUnit(I32 typeId, I32 team, I32 x, I32 y) {
     node->LastHarvestTime = 0;
     node->LastStateUpdateTime = 0;
     node->MoveProgress = 0;
+    node->LastMoveX = x;
+    node->LastMoveY = y;
+    node->LastMoveTime = (App.GameState != NULL) ? App.GameState->GameTime : 0;
+    node->StuckDetourActive = FALSE;
+    node->StuckDetourCount = 0;
+    node->StuckOriginalTargetX = x;
+    node->StuckOriginalTargetY = y;
+    node->StuckDetourTargetX = x;
+    node->StuckDetourTargetY = y;
+    node->IsGridlocked = FALSE;
+    node->GridlockLastUpdateTime = 0;
     node->PathHead = NULL;
     node->PathTail = NULL;
     node->PathTargetX = x;
@@ -352,6 +425,8 @@ UNIT* CreateUnit(I32 typeId, I32 team, I32 x, I32 y) {
     node->Next = NULL;
 
     SetUnitOccupancy(node, TRUE);
+    GAME_LOGF(team, "SpawnUnit Type=%s Id=%x X=%x Y=%x",
+              type->Name, (U32)node->Id, (U32)x, (U32)y);
     return node;
 }
 
@@ -395,6 +470,10 @@ void RemoveUnitFromTeamList(I32 team, UNIT* target) {
     current = *head;
     while (current != NULL) {
         if (current == target) {
+            const UNIT_TYPE* ut = GetUnitTypeById(current->TypeId);
+            GAME_LOGF(team, "UnitDestroyed Type=%s Id=%x X=%x Y=%x",
+                      ut != NULL ? ut->Name : "Unknown",
+                      (U32)current->Id, (U32)current->X, (U32)current->Y);
             if (prev == NULL) {
                 *head = current->Next;
             } else {
@@ -428,6 +507,10 @@ void RemoveBuildingFromTeamList(I32 team, BUILDING* target) {
     current = *head;
     while (current != NULL) {
         if (current == target) {
+            const BUILDING_TYPE* bt = GetBuildingTypeById(current->TypeId);
+            GAME_LOGF(team, "BuildingDestroyed Type=%s Id=%x X=%x Y=%x",
+                      bt != NULL ? bt->Name : "Unknown",
+                      (U32)current->Id, (U32)current->X, (U32)current->Y);
             if (prev == NULL) {
                 *head = current->Next;
             } else {

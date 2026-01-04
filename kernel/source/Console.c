@@ -23,8 +23,10 @@
 \************************************************************************/
 
 #include "Console.h"
-
+#include "GFX.h"
 #include "Kernel.h"
+#include "drivers/VGA.h"
+#include "process/Process.h"
 #include "drivers/Keyboard.h"
 #include "Log.h"
 #include "Mutex.h"
@@ -40,13 +42,14 @@
 #define CONSOLE_VER_MINOR 0
 
 static UINT ConsoleDriverCommands(UINT Function, UINT Parameter);
+static void UpdateConsoleDesktopState(U32 Columns, U32 Rows);
 
 DRIVER DATA_SECTION ConsoleDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
+    .Type = DRIVER_TYPE_GRAPHICS,
     .VersionMajor = CONSOLE_VER_MAJOR,
     .VersionMinor = CONSOLE_VER_MINOR,
     .Designer = "Jango73",
@@ -54,6 +57,16 @@ DRIVER DATA_SECTION ConsoleDriver = {
     .Product = "Console",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = ConsoleDriverCommands};
+
+/***************************************************************************/
+
+/**
+ * @brief Retrieves the console driver descriptor.
+ * @return Pointer to the console driver.
+ */
+LPDRIVER ConsoleGetDriver(void) {
+    return &ConsoleDriver;
+}
 
 /***************************************************************************/
 
@@ -72,8 +85,103 @@ CONSOLE_STRUCT Console = {
     .BackColor = 0,
     .ForeColor = 0,
     .Blink = 0,
+    .PagingEnabled = TRUE,
+    .PagingActive = FALSE,
+    .PagingRemaining = 0,
     .Port = 0x03D4,
     .Memory = (LPVOID)0xB8000};
+
+/***************************************************************************/
+
+/**
+ * @brief Show the console paging prompt and wait for user input.
+ */
+static void ConsolePagerWaitLocked(void) {
+    KEYCODE KeyCode;
+    U32 Width = Console.Width;
+    U32 Height = Console.Height;
+    U32 Row;
+    U32 Col;
+    U32 Offset;
+    U16 Attribute;
+    STR Prompt[] = "-- Press a key --";
+    U32 PromptLen;
+    U32 Start;
+
+    if (Console.PagingEnabled == FALSE || Console.PagingActive == FALSE) return;
+    if (Width == 0 || Height < 2) return;
+
+    Row = Height - 1;
+    Attribute = (U16)(CHARATTR << 0x08);
+
+    for (Col = 0; Col < Width; Col++) {
+        Console.Memory[(Row * Width) + Col] = (U16)STR_SPACE | Attribute;
+    }
+
+    PromptLen = StringLength(Prompt);
+    if (PromptLen > Width) PromptLen = Width;
+    Start = (Width > PromptLen) ? (Width - PromptLen) / 2 : 0;
+    Offset = (Row * Width) + Start;
+    for (Col = 0; Col < PromptLen; Col++) {
+        Console.Memory[Offset + Col] = (U16)Prompt[Col] | Attribute;
+    }
+
+    SetConsoleCursorPosition(0, Row);
+
+    while (TRUE) {
+        if (PeekChar()) {
+            GetKeyCode(&KeyCode);
+            if (KeyCode.VirtualKey == VK_SPACE || KeyCode.VirtualKey == VK_ENTER) {
+                Console.PagingRemaining = Height - 1;
+                break;
+            }
+            if (KeyCode.VirtualKey == VK_ESCAPE) {
+                Console.PagingRemaining = Height - 1;
+                break;
+            }
+        }
+
+        Sleep(10);
+    }
+
+    for (Col = 0; Col < Width; Col++) {
+        Console.Memory[(Row * Width) + Col] = (U16)STR_SPACE | Attribute;
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Sync the desktop screen rectangle to the current console size.
+ * @param Columns Number of console columns.
+ * @param Rows Number of console rows.
+ */
+static void UpdateConsoleDesktopState(U32 Columns, U32 Rows) {
+    RECT Rect;
+
+    if (Columns == 0 || Rows == 0) return;
+
+    Rect.X1 = 0;
+    Rect.Y1 = 0;
+    Rect.X2 = (I32)Columns - 1;
+    Rect.Y2 = (I32)Rows - 1;
+
+    SAFE_USE_VALID_ID(&MainDesktop, KOID_DESKTOP) {
+        LockMutex(&(MainDesktop.Mutex), INFINITY);
+        MainDesktop.Graphics = &ConsoleDriver;
+        MainDesktop.Mode = DESKTOP_MODE_CONSOLE;
+
+        SAFE_USE_VALID_ID(MainDesktop.Window, KOID_WINDOW) {
+            LockMutex(&(MainDesktop.Window->Mutex), INFINITY);
+            MainDesktop.Window->Rect = Rect;
+            MainDesktop.Window->ScreenRect = Rect;
+            MainDesktop.Window->InvalidRect = Rect;
+            UnlockMutex(&(MainDesktop.Window->Mutex));
+        }
+
+        UnlockMutex(&(MainDesktop.Mutex));
+    }
+}
 
 /***************************************************************************/
 
@@ -168,6 +276,13 @@ void ScrollConsole(void) {
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
     while (Keyboard.ScrollLock) {
+    }
+
+    if (Console.PagingRemaining == 0) {
+        ConsolePagerWaitLocked();
+    }
+    if (Console.PagingRemaining > 0) {
+        Console.PagingRemaining--;
     }
 
     Width = Console.Width;
@@ -466,9 +581,108 @@ void InitializeConsole(void) {
     Console.Height = 25;
     Console.BackColor = 0;
     Console.ForeColor = 7;
+    Console.PagingEnabled = TRUE;
+    Console.PagingActive = FALSE;
+    Console.PagingRemaining = 0;
 
     GetConsoleCursorPosition(&Console.CursorX, &Console.CursorY);
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Enable or disable console paging.
+ * @param Enabled TRUE to enable paging, FALSE to disable.
+ */
+void ConsoleSetPagingEnabled(BOOL Enabled) {
+    Console.PagingEnabled = Enabled ? TRUE : FALSE;
+    if (Console.PagingEnabled == FALSE) {
+        Console.PagingRemaining = 0;
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Query whether console paging is enabled.
+ * @return TRUE if paging is enabled, FALSE otherwise.
+ */
+BOOL ConsoleGetPagingEnabled(void) {
+    return Console.PagingEnabled ? TRUE : FALSE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Activate or deactivate console paging.
+ * @param Active TRUE to allow paging prompts, FALSE to disable them.
+ */
+void ConsoleSetPagingActive(BOOL Active) {
+    Console.PagingActive = Active ? TRUE : FALSE;
+    if (Console.PagingActive == FALSE) {
+        Console.PagingRemaining = 0;
+    } else {
+        ConsoleResetPaging();
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Reset console paging state for the next command.
+ */
+void ConsoleResetPaging(void) {
+    if (Console.PagingEnabled == FALSE || Console.PagingActive == FALSE) {
+        Console.PagingRemaining = 0;
+        return;
+    }
+
+    if (Console.Height > 0) {
+        Console.PagingRemaining = Console.Height - 1;
+    } else {
+        Console.PagingRemaining = 0;
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Set console text mode using a graphics mode descriptor.
+ * @param Info Mode description with Width/Height in characters.
+ * @return DF_RETURN_SUCCESS on success, error code otherwise.
+ */
+UINT ConsoleSetMode(LPGRAPHICSMODEINFO Info) { return ConsoleDriverCommands(DF_GFX_SETMODE, (UINT)Info); }
+
+/***************************************************************************/
+
+/**
+ * @brief Return the number of available VGA console modes.
+ * @return Number of console modes.
+ */
+UINT ConsoleGetModeCount(void) { return VGAGetModeCount(); }
+
+/***************************************************************************/
+
+/**
+ * @brief Query a console mode by index.
+ * @param Info Mode request (Index) and output (Columns/Rows/CharHeight).
+ * @return DF_RETURN_SUCCESS on success, error code otherwise.
+ */
+UINT ConsoleGetModeInfo(LPCONSOLEMODEINFO Info) {
+    VGAMODEINFO VgaInfo;
+
+    if (Info == NULL) return DF_RETURN_GENERIC;
+
+    if (VGAGetModeInfo(Info->Index, &VgaInfo) == FALSE) {
+        return DF_RETURN_GENERIC;
+    }
+
+    Info->Columns = VgaInfo.Columns;
+    Info->Rows = VgaInfo.Rows;
+    Info->CharHeight = VgaInfo.CharHeight;
+
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -485,24 +699,70 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((ConsoleDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             InitializeConsole();
             ConsoleDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_UNLOAD:
             if ((ConsoleDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             ConsoleDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(CONSOLE_VER_MAJOR, CONSOLE_VER_MINOR);
+
+        case DF_GFX_GETMODEINFO: {
+            LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Parameter;
+            SAFE_USE(Info) {
+                Info->Width = Console.Width;
+                Info->Height = Console.Height;
+                Info->BitsPerPixel = 0;
+                return DF_RETURN_SUCCESS;
+            }
+            return DF_RETURN_GENERIC;
+        }
+
+        case DF_GFX_SETMODE: {
+            LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Parameter;
+            SAFE_USE(Info) {
+                U32 ModeIndex;
+
+                if (VGAFindTextMode(Info->Width, Info->Height, &ModeIndex) == FALSE) {
+                    return DF_GFX_ERROR_MODEUNAVAIL;
+                }
+
+                if (VGASetMode(ModeIndex) == FALSE) {
+                    return DF_RETURN_GENERIC;
+                }
+
+                Console.Width = Info->Width;
+                Console.Height = Info->Height;
+                Console.CursorX = 0;
+                Console.CursorY = 0;
+                ClearConsole();
+                UpdateConsoleDesktopState(Console.Width, Console.Height);
+
+                return DF_RETURN_SUCCESS;
+            }
+            return DF_RETURN_GENERIC;
+        }
+
+        case DF_GFX_CREATECONTEXT:
+        case DF_GFX_CREATEBRUSH:
+        case DF_GFX_CREATEPEN:
+        case DF_GFX_SETPIXEL:
+        case DF_GFX_GETPIXEL:
+        case DF_GFX_LINE:
+        case DF_GFX_RECTANGLE:
+        case DF_GFX_ELLIPSE:
+            return DF_RETURN_NOT_IMPLEMENTED;
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

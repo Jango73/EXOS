@@ -22,6 +22,7 @@
 
 \************************************************************************/
 
+#include "Console.h"
 #include "GFX.h"
 #include "Kernel.h"
 #include "Log.h"
@@ -33,6 +34,7 @@
 
 extern DRIVER VESADriver;
 extern GRAPHICSCONTEXT VESAContext;
+extern DRIVER ConsoleDriver;
 
 /***************************************************************************/
 
@@ -55,11 +57,11 @@ WINDOW MainDesktopWindow = {
     .Mutex = EMPTY_MUTEX,
     .Task = NULL,
     .Function = &DesktopWindowFunc,
-    .Parent = NULL,
+    .ParentWindow = NULL,
     .Children = &MainDesktopChildren,
     .Properties = NULL,
-    .Rect = {0, 0, 639, 479},
-    .ScreenRect = {0, 0, 639, 479},
+    .Rect = {0, 0, 79, 24},
+    .ScreenRect = {0, 0, 79, 24},
     .InvalidRect = {0, 0, 0, 0},
     .WindowID = 0,
     .Style = 0,
@@ -78,13 +80,43 @@ DESKTOP MainDesktop = {
     .Prev = NULL,
     .Mutex = EMPTY_MUTEX,
     .Task = NULL,
-    .Graphics = &VESADriver,
+    .Graphics = &ConsoleDriver,
     .Window = &MainDesktopWindow,
     .Capture = NULL,
     .Focus = NULL,
     .FocusedProcess = &KernelProcess,
+    .Mode = DESKTOP_MODE_CONSOLE,
     .Order = 0
 };
+
+/***************************************************************************/
+
+/**
+ * @brief Update the desktop root window rectangle from a size.
+ * @param Desktop Desktop to update.
+ * @param Width New width in pixels/cells.
+ * @param Height New height in pixels/cells.
+ */
+static void UpdateDesktopWindowRect(LPDESKTOP Desktop, I32 Width, I32 Height) {
+    RECT Rect;
+
+    if (Width <= 0 || Height <= 0) return;
+
+    Rect.X1 = 0;
+    Rect.Y1 = 0;
+    Rect.X2 = Width - 1;
+    Rect.Y2 = Height - 1;
+
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        SAFE_USE_VALID_ID(Desktop->Window, KOID_WINDOW) {
+            LockMutex(&(Desktop->Window->Mutex), INFINITY);
+            Desktop->Window->Rect = Rect;
+            Desktop->Window->ScreenRect = Rect;
+            Desktop->Window->InvalidRect = Rect;
+            UnlockMutex(&(Desktop->Window->Mutex));
+        }
+    }
+}
 
 /***************************************************************************/
 
@@ -212,8 +244,9 @@ LPDESKTOP CreateDesktop(void) {
         KernelHeapFree(This);
         return NULL;
     }
-    This->Graphics = GetGraphicsDriver();
+    This->Graphics = &ConsoleDriver;
     This->FocusedProcess = GetCurrentProcess();
+    This->Mode = DESKTOP_MODE_CONSOLE;
 
     WindowInfo.Header.Size = sizeof(WINDOWINFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
@@ -224,8 +257,8 @@ LPDESKTOP CreateDesktop(void) {
     WindowInfo.ID = 0;
     WindowInfo.WindowPosition.X = 0;
     WindowInfo.WindowPosition.Y = 0;
-    WindowInfo.WindowSize.X = 800;
-    WindowInfo.WindowSize.Y = 600;
+    WindowInfo.WindowSize.X = (I32)Console.Width;
+    WindowInfo.WindowSize.Y = (I32)Console.Height;
 
     PreviousDesktop = GetCurrentProcess()->Desktop;
     GetCurrentProcess()->Desktop = This;
@@ -237,6 +270,7 @@ LPDESKTOP CreateDesktop(void) {
         KernelHeapFree(This);
         return NULL;
     }
+    UpdateDesktopWindowRect(This, (I32)Console.Width, (I32)Console.Height);
 
     //-------------------------------------
     // Add the desktop to the kernel's list
@@ -321,7 +355,11 @@ BOOL ShowDesktop(LPDESKTOP This) {
 
     DEBUG(TEXT("[ShowDesktop] Setting gfx mode %ux%u"), ModeInfo.Width, ModeInfo.Height);
 
+    This->Graphics = GetGraphicsDriver();
+    This->Mode = DESKTOP_MODE_GRAPHICS;
+
     This->Graphics->Command(DF_GFX_SETMODE, (UINT)&ModeInfo);
+    UpdateDesktopWindowRect(This, (I32)ModeInfo.Width, (I32)ModeInfo.Height);
 
     // PostMessage((HANDLE) This->Window, EWM_DRAW, 0, 0);
 
@@ -337,6 +375,47 @@ BOOL ShowDesktop(LPDESKTOP This) {
     SAFE_USE_VALID_ID(This->Window, KOID_WINDOW) { InvalidateWindowRect((HANDLE)This->Window, NULL); }
 
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Retrieve the desktop screen rectangle for the current mode.
+ * @param Desktop Desktop to query.
+ * @param Rect Output rectangle.
+ * @return TRUE if the rectangle is returned, FALSE otherwise.
+ */
+BOOL GetDesktopScreenRect(LPDESKTOP Desktop, LPRECT Rect) {
+    if (Rect == NULL) return FALSE;
+
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        LockMutex(&(Desktop->Mutex), INFINITY);
+
+        if (Desktop->Mode == DESKTOP_MODE_CONSOLE) {
+            if (Console.Width == 0 || Console.Height == 0) {
+                UnlockMutex(&(Desktop->Mutex));
+                return FALSE;
+            }
+            Rect->X1 = 0;
+            Rect->Y1 = 0;
+            Rect->X2 = (I32)Console.Width - 1;
+            Rect->Y2 = (I32)Console.Height - 1;
+            UnlockMutex(&(Desktop->Mutex));
+            return TRUE;
+        }
+
+        SAFE_USE_VALID_ID(Desktop->Window, KOID_WINDOW) {
+            LockMutex(&(Desktop->Window->Mutex), INFINITY);
+            *Rect = Desktop->Window->ScreenRect;
+            UnlockMutex(&(Desktop->Window->Mutex));
+            UnlockMutex(&(Desktop->Mutex));
+            return TRUE;
+        }
+
+        UnlockMutex(&(Desktop->Mutex));
+    }
+
+    return FALSE;
 }
 
 /***************************************************************************/
@@ -377,7 +456,7 @@ BOOL DeleteWindow(LPWINDOW This) {
     // Check validity of parameters
 
     if (This->TypeID != KOID_WINDOW) return FALSE;
-    if (This->Parent == NULL) return FALSE;
+    if (This->ParentWindow == NULL) return FALSE;
 
     Task = This->Task;
     if (Task == NULL) return FALSE;
@@ -411,11 +490,11 @@ BOOL DeleteWindow(LPWINDOW This) {
     //-------------------------------------
     // Remove window from it's parent's list
 
-    LockMutex(&(This->Parent->Mutex), INFINITY);
+    LockMutex(&(This->ParentWindow->Mutex), INFINITY);
 
-    ListRemove(This->Parent->Children, This);
+    ListRemove(This->ParentWindow->Children, This);
 
-    UnlockMutex(&(This->Parent->Mutex));
+    UnlockMutex(&(This->ParentWindow->Mutex));
 
     ReleaseKernelObject(This);
 
@@ -498,7 +577,7 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     if (This == NULL) return NULL;
 
     This->Task = GetCurrentTask();
-    This->Parent = Parent;
+    This->ParentWindow = Parent;
     This->Function = Info->Function;
     This->WindowID = Info->ID;
     This->Style = Info->Style;
@@ -513,37 +592,37 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     This->ScreenRect = This->Rect;
     This->InvalidRect = This->Rect;
 
-    if (This->Parent == NULL) {
+    if (This->ParentWindow == NULL) {
         SAFE_USE(Desktop) {
             if (Desktop->Window == NULL) {
                 Desktop->Window = This;
             } else {
-                This->Parent = Desktop->Window;
+                This->ParentWindow = Desktop->Window;
             }
         }
     }
 
-    SAFE_USE(This->Parent) {
-        LockMutex(&(This->Parent->Mutex), INFINITY);
+    SAFE_USE(This->ParentWindow) {
+        LockMutex(&(This->ParentWindow->Mutex), INFINITY);
 
-        This->ScreenRect.X1 = This->Parent->ScreenRect.X1 + This->Rect.X1;
-        This->ScreenRect.Y1 = This->Parent->ScreenRect.Y1 + This->Rect.Y1;
-        This->ScreenRect.X2 = This->Parent->ScreenRect.X1 + This->Rect.X2;
-        This->ScreenRect.Y2 = This->Parent->ScreenRect.Y1 + This->Rect.Y2;
+        This->ScreenRect.X1 = This->ParentWindow->ScreenRect.X1 + This->Rect.X1;
+        This->ScreenRect.Y1 = This->ParentWindow->ScreenRect.Y1 + This->Rect.Y1;
+        This->ScreenRect.X2 = This->ParentWindow->ScreenRect.X1 + This->Rect.X2;
+        This->ScreenRect.Y2 = This->ParentWindow->ScreenRect.Y1 + This->Rect.Y2;
 
-        This->InvalidRect.X1 = This->Parent->ScreenRect.X1 + This->Rect.X1;
-        This->InvalidRect.Y1 = This->Parent->ScreenRect.Y1 + This->Rect.Y1;
-        This->InvalidRect.X2 = This->Parent->ScreenRect.X1 + This->Rect.X2;
-        This->InvalidRect.Y2 = This->Parent->ScreenRect.Y1 + This->Rect.Y2;
+        This->InvalidRect.X1 = This->ParentWindow->ScreenRect.X1 + This->Rect.X1;
+        This->InvalidRect.Y1 = This->ParentWindow->ScreenRect.Y1 + This->Rect.Y1;
+        This->InvalidRect.X2 = This->ParentWindow->ScreenRect.X1 + This->Rect.X2;
+        This->InvalidRect.Y2 = This->ParentWindow->ScreenRect.Y1 + This->Rect.Y2;
 
-        ListAddHead(This->Parent->Children, This);
+        ListAddHead(This->ParentWindow->Children, This);
 
         //-------------------------------------
         // Compute the level of the window
 
-        for (Win = This->Parent; Win; Win = Win->Parent) This->Level++;
+        for (Win = This->ParentWindow; Win; Win = Win->ParentWindow) This->Level++;
 
-        UnlockMutex(&(This->Parent->Mutex));
+        UnlockMutex(&(This->ParentWindow->Mutex));
     }
 
     //-------------------------------------
@@ -785,7 +864,7 @@ BOOL BringWindowToFront(HANDLE Handle) {
 
     LockMutex(&(This->Mutex), INFINITY);
 
-    if (This->Parent == NULL) goto Out;
+    if (This->ParentWindow == NULL) goto Out;
 
     //-------------------------------------
     // Invalidate hidden regions
@@ -801,7 +880,7 @@ BOOL BringWindowToFront(HANDLE Handle) {
     //-------------------------------------
     // Reorder the windows
 
-    for (Node = This->Parent->Children->First, Order = 1; Node; Node = Node->Next) {
+    for (Node = This->ParentWindow->Children->First, Order = 1; Node; Node = Node->Next) {
         That = (LPWINDOW)Node;
         if (That == This)
             That->Order = 0;
@@ -809,7 +888,7 @@ BOOL BringWindowToFront(HANDLE Handle) {
             That->Order = Order++;
     }
 
-    ListSort(This->Parent->Children, SortWindows_Order);
+    ListSort(This->ParentWindow->Children, SortWindows_Order);
 
     //-------------------------------------
     // Tell the window it needs redraw
@@ -971,7 +1050,7 @@ HANDLE GetWindowParent(HANDLE Handle) {
     if (This == NULL) return FALSE;
     if (This->TypeID != KOID_WINDOW) return FALSE;
 
-    return (HANDLE)This->Parent;
+    return (HANDLE)This->ParentWindow;
 }
 
 /***************************************************************************/

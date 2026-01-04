@@ -48,5 +48,6 @@ void RebuildOccupancy(void);
 void SetUnitOccupancy(const UNIT* unit, BOOL occupied);
 void SetBuildingOccupancy(const BUILDING* building, BOOL occupied);
 BOOL IsAreaBlocked(I32 x, I32 y, I32 width, I32 height, const BUILDING* ignoreBuilding, const UNIT* ignoreUnit);
+BOOL IsAreaBlockedForUnitType(I32 x, I32 y, I32 width, I32 height, I32 unitTypeId);
 
 #endif /* TT_MAP_H */

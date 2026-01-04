@@ -24,6 +24,8 @@
 
 #include "tt-fog.h"
 #include "tt-map.h"
+#include "tt-entities.h"
+#include "tt-game.h"
 
 /************************************************************************/
 
@@ -38,6 +40,18 @@ void FreeTeamMemoryBuffers(void) {
             free(App.GameState->TeamData[team].VisibleNow);
             App.GameState->TeamData[team].VisibleNow = NULL;
         }
+        if (App.GameState->TeamData[team].VisibleEnemyUnits != NULL) {
+            free(App.GameState->TeamData[team].VisibleEnemyUnits);
+            App.GameState->TeamData[team].VisibleEnemyUnits = NULL;
+        }
+        if (App.GameState->TeamData[team].VisibleEnemyBuildings != NULL) {
+            free(App.GameState->TeamData[team].VisibleEnemyBuildings);
+            App.GameState->TeamData[team].VisibleEnemyBuildings = NULL;
+        }
+        App.GameState->TeamData[team].VisibleEnemyUnitCount = 0;
+        App.GameState->TeamData[team].VisibleEnemyUnitCapacity = 0;
+        App.GameState->TeamData[team].VisibleEnemyBuildingCount = 0;
+        App.GameState->TeamData[team].VisibleEnemyBuildingCapacity = 0;
     }
     App.GameState->TeamMemoryBytes = 0;
 }
@@ -48,6 +62,7 @@ BOOL EnsureTeamMemoryBuffers(I32 mapW, I32 mapH, I32 teamCount) {
     size_t cellCount;
     size_t memoryBytes;
     size_t visibleBytes;
+    I32 maxUnits;
 
     if (App.GameState == NULL) return FALSE;
     if (mapW <= 0 || mapH <= 0 || teamCount <= 0 || teamCount > MAX_TEAMS) return FALSE;
@@ -55,6 +70,7 @@ BOOL EnsureTeamMemoryBuffers(I32 mapW, I32 mapH, I32 teamCount) {
     cellCount = (size_t)mapW * (size_t)mapH;
     memoryBytes = cellCount * sizeof(MEMORY_CELL);
     visibleBytes = cellCount * sizeof(U8);
+    maxUnits = GetMaxUnitsForMap(mapW, mapH);
 
     if (App.GameState->TeamMemoryBytes != memoryBytes) {
         FreeTeamMemoryBuffers();
@@ -72,11 +88,31 @@ BOOL EnsureTeamMemoryBuffers(I32 mapW, I32 mapH, I32 teamCount) {
             App.GameState->TeamData[team].VisibleNow = (U8*)malloc(visibleBytes);
             if (App.GameState->TeamData[team].VisibleNow == NULL) return FALSE;
         }
+        if (App.GameState->TeamData[team].VisibleEnemyUnits == NULL ||
+            App.GameState->TeamData[team].VisibleEnemyUnitCapacity != maxUnits) {
+            if (App.GameState->TeamData[team].VisibleEnemyUnits != NULL) {
+                free(App.GameState->TeamData[team].VisibleEnemyUnits);
+            }
+            App.GameState->TeamData[team].VisibleEnemyUnits = (VISIBLE_ENTITY*)malloc(sizeof(VISIBLE_ENTITY) * (size_t)maxUnits);
+            if (App.GameState->TeamData[team].VisibleEnemyUnits == NULL) return FALSE;
+            App.GameState->TeamData[team].VisibleEnemyUnitCapacity = maxUnits;
+        }
+        if (App.GameState->TeamData[team].VisibleEnemyBuildings == NULL ||
+            App.GameState->TeamData[team].VisibleEnemyBuildingCapacity != MAX_BUILDINGS) {
+            if (App.GameState->TeamData[team].VisibleEnemyBuildings != NULL) {
+                free(App.GameState->TeamData[team].VisibleEnemyBuildings);
+            }
+            App.GameState->TeamData[team].VisibleEnemyBuildings = (VISIBLE_ENTITY*)malloc(sizeof(VISIBLE_ENTITY) * (size_t)MAX_BUILDINGS);
+            if (App.GameState->TeamData[team].VisibleEnemyBuildings == NULL) return FALSE;
+            App.GameState->TeamData[team].VisibleEnemyBuildingCapacity = MAX_BUILDINGS;
+        }
 
         if (allocatedMemory) {
             memset(App.GameState->TeamData[team].MemoryMap, 0, memoryBytes);
         }
         memset(App.GameState->TeamData[team].VisibleNow, 0, visibleBytes);
+        App.GameState->TeamData[team].VisibleEnemyUnitCount = 0;
+        App.GameState->TeamData[team].VisibleEnemyBuildingCount = 0;
     }
 
     return TRUE;
@@ -365,6 +401,44 @@ void UpdateFogOfWar(U32 currentTime) {
                 }
             }
             unit = unit->Next;
+        }
+    }
+
+    for (I32 viewerTeam = 0; viewerTeam < App.GameState->TeamCount; viewerTeam++) {
+        TEAM_DATA* viewer = &App.GameState->TeamData[viewerTeam];
+        if (viewer->VisibleEnemyUnits == NULL || viewer->VisibleEnemyBuildings == NULL) continue;
+        viewer->VisibleEnemyUnitCount = 0;
+        viewer->VisibleEnemyBuildingCount = 0;
+
+        for (I32 targetTeam = 0; targetTeam < App.GameState->TeamCount; targetTeam++) {
+            if (targetTeam == viewerTeam) continue;
+            if (App.GameState->GhostMode && targetTeam == HUMAN_TEAM_INDEX && viewerTeam != HUMAN_TEAM_INDEX) continue;
+
+            UNIT* unit = App.GameState->TeamData[targetTeam].Units;
+            while (unit != NULL) {
+                const UNIT_TYPE* ut = GetUnitTypeById(unit->TypeId);
+                if (ut != NULL &&
+                    IsAreaVisibleToTeam(unit->X, unit->Y, ut->Width, ut->Height, viewerTeam) &&
+                    viewer->VisibleEnemyUnitCount < viewer->VisibleEnemyUnitCapacity) {
+                    viewer->VisibleEnemyUnits[viewer->VisibleEnemyUnitCount].Team = targetTeam;
+                    viewer->VisibleEnemyUnits[viewer->VisibleEnemyUnitCount].Id = unit->Id;
+                    viewer->VisibleEnemyUnitCount++;
+                }
+                unit = unit->Next;
+            }
+
+            BUILDING* building = App.GameState->TeamData[targetTeam].Buildings;
+            while (building != NULL) {
+                const BUILDING_TYPE* bt = GetBuildingTypeById(building->TypeId);
+                if (bt != NULL &&
+                    IsAreaVisibleToTeam(building->X, building->Y, bt->Width, bt->Height, viewerTeam) &&
+                    viewer->VisibleEnemyBuildingCount < viewer->VisibleEnemyBuildingCapacity) {
+                    viewer->VisibleEnemyBuildings[viewer->VisibleEnemyBuildingCount].Team = targetTeam;
+                    viewer->VisibleEnemyBuildings[viewer->VisibleEnemyBuildingCount].Id = building->Id;
+                    viewer->VisibleEnemyBuildingCount++;
+                }
+                building = building->Next;
+            }
         }
     }
 

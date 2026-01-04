@@ -28,10 +28,12 @@
 #include "tt-entities.h"
 #include "tt-game.h"
 #include "tt-render.h"
+#include "tt-ai.h"
+#include "tt-log.h"
 
 /************************************************************************/
 
-#define SAVE_VERSION 9
+#define SAVE_VERSION 11
 
 /************************************************************************/
 
@@ -53,7 +55,6 @@ static BOOL ResolveSaveDirectory(char* directory, U32 directorySize) {
     if (directory == NULL || directorySize == 0) return FALSE;
 
     if (getcwd(cwd, sizeof(cwd)) == NULL || cwd[0] == '\0') {
-        debug("[ResolveSaveDirectory] getcwd failed");
         return FALSE;
     }
 
@@ -76,7 +77,6 @@ static BOOL ResolveSaveDirectory(char* directory, U32 directorySize) {
         directory[1] = '\0';
     }
 
-    debug("[ResolveSaveDirectory] Using directory %s", directory);
     return TRUE;
 }
 
@@ -126,7 +126,7 @@ static BOOL WriteAll(FILE* file, const void* buffer, size_t size) {
 
 /************************************************************************/
 
-static BOOL BuildSavePath(const char* fileName, char* fullPath, U32 fullPathSize) {
+BOOL ResolveAppFilePath(const char* fileName, char* fullPath, U32 fullPathSize) {
     char directory[MAX_PATH_NAME];
     U32 dirLength;
     U32 nameLength;
@@ -136,16 +136,13 @@ static BOOL BuildSavePath(const char* fileName, char* fullPath, U32 fullPathSize
 
     if (strchr(fileName, PATH_SEP) != NULL) {
         if (strlen(fileName) + 1 > fullPathSize) {
-            debug("[BuildSavePath] Name too long %s", fileName);
             return FALSE;
         }
         snprintf(fullPath, fullPathSize, "%s", fileName);
-        debug("[BuildSavePath] Absolute path %s", fullPath);
         return TRUE;
     }
 
     if (!ResolveSaveDirectory(directory, sizeof(directory))) {
-        debug("[BuildSavePath] ResolveSaveDirectory failed for %s", fileName);
         return FALSE;
     }
 
@@ -154,12 +151,10 @@ static BOOL BuildSavePath(const char* fileName, char* fullPath, U32 fullPathSize
     needsSeparator = (dirLength > 0 && directory[dirLength - 1] != PATH_SEP);
 
     if (dirLength + (needsSeparator ? 1 : 0) + nameLength + 1 > fullPathSize) {
-        debug("[BuildSavePath] Final path too long dir=%s name=%s", directory, fileName);
         return FALSE;
     }
 
     snprintf(fullPath, fullPathSize, "%s%s%s", directory, needsSeparator ? "/" : "", fileName);
-    debug("[BuildSavePath] Built %s", fullPath);
     return TRUE;
 }
 
@@ -170,23 +165,13 @@ BOOL SaveGame(const char* path) {
 
     RebuildOccupancy();
 
-    debug("[SaveGame] Request to save as %s", path != NULL ? path : "(null)");
 
-    if (!BuildSavePath(path, fullPath, sizeof(fullPath))) {
-        debug("[SaveGame] BuildSavePath failed for %s", path != NULL ? path : "(null)");
+    if (!ResolveAppFilePath(path, fullPath, sizeof(fullPath))) {
         return FALSE;
     }
 
-    debug("[SaveGame] Saving to %s (map %dx%d, buildings %u, units %u)",
-          fullPath,
-          App.GameState->MapWidth,
-          App.GameState->MapHeight,
-          CountBuildings(),
-          CountUnits());
-
     FILE* file = fopen(fullPath, "wb");
     if (file == NULL) {
-        debug("[SaveGame] fopen failed for %s", fullPath);
         return FALSE;
     }
 
@@ -284,7 +269,6 @@ BOOL SaveGame(const char* path) {
 
             if (GetBuildingTypeById(record.TypeId) == NULL) {
                 fclose(file);
-                debug("[SaveGame] Unknown building type id %d", record.TypeId);
                 return FALSE;
             }
 
@@ -316,7 +300,6 @@ BOOL SaveGame(const char* path) {
 
             if (GetUnitTypeById(record.TypeId) == NULL) {
                 fclose(file);
-                debug("[SaveGame] Unknown unit type id %d", record.TypeId);
                 return FALSE;
             }
 
@@ -326,15 +309,6 @@ BOOL SaveGame(const char* path) {
             }
 
             unit = unit->Next;
-        }
-    }
-
-    {
-        long finalSize = ftell(file);
-        if (finalSize >= 0) {
-            debug("[SaveGame] Saved %s (%ld bytes)", fullPath, finalSize);
-        } else {
-            debug("[SaveGame] Saved %s (size unknown)", fullPath);
         }
     }
 
@@ -362,15 +336,10 @@ static long GetFileSize(FILE* file) {
 /************************************************************************/
 
 static BOOL ReadBlock(FILE* file, void* buffer, size_t size, const char* label, long fileSize) {
+    UNUSED(label);
+    UNUSED(fileSize);
     size_t readCount = fread(buffer, 1, size, file);
     if (readCount != size) {
-        long pos = ftell(file);
-        debug("[LoadGame] Failed reading %s (read=%u expected=%u offset=%ld size=%ld)",
-              label != NULL ? label : "block",
-              (U32)readCount,
-              (U32)size,
-              pos,
-              fileSize);
         return FALSE;
     }
     return TRUE;
@@ -385,9 +354,6 @@ void LoadSaveList(void) {
     if (!ResolveSaveDirectory(saveDirectory, sizeof(saveDirectory))) {
         saveDirectory[0] = '.';
         saveDirectory[1] = '\0';
-        debug("[LoadSaveList] Using fallback directory .");
-    } else {
-        debug("[LoadSaveList] Using directory %s", saveDirectory);
     }
 
     App.Menu.SavedGameCount = 0;
@@ -402,7 +368,6 @@ void LoadSaveList(void) {
     FindInfo.SearchHandle = 0;
 
     if (FindFirstFile(&FindInfo)) {
-        debug("[LoadSaveList] First save %s", FindInfo.Name);
         do {
             if (App.Menu.SavedGameCount < MAX_SAVED_GAMES) {
                 CopyName(App.Menu.SavedGames[App.Menu.SavedGameCount], (const char*)FindInfo.Name);
@@ -415,7 +380,6 @@ void LoadSaveList(void) {
             FindInfo.SearchHandle = 0;
         }
     }
-    debug("[LoadSaveList] Found %d saves", App.Menu.SavedGameCount);
 }
 
 /************************************************************************/
@@ -425,25 +389,17 @@ BOOL LoadGame(const char* path) {
     FILE* file;
     long fileSize;
 
-    debug("[LoadGame] Request to load %s", path ? path : "(null)");
 
-    if (!BuildSavePath(path, fullPath, sizeof(fullPath))) {
-        debug("[LoadGame] Failed to build path for %s", path ? path : "(null)");
+    if (!ResolveAppFilePath(path, fullPath, sizeof(fullPath))) {
         return FALSE;
     }
 
     file = fopen(fullPath, "rb");
     if (file == NULL) {
-        debug("[LoadGame] Unable to open %s", fullPath);
         return FALSE;
     }
 
     fileSize = GetFileSize(file);
-    if (fileSize >= 0) {
-        debug("[LoadGame] %s size %ld bytes", fullPath, fileSize);
-    } else {
-        debug("[LoadGame] Unable to determine size for %s", fullPath);
-    }
 
     TEAM_RESOURCES res[MAX_TEAMS];
     I32 aiAttitudes[MAX_TEAMS];
@@ -476,13 +432,11 @@ BOOL LoadGame(const char* path) {
     if (!ReadBlock(file, &magic, sizeof(magic), "magic", fileSize) ||
         !ReadBlock(file, &version, sizeof(version), "version", fileSize)) {
         fclose(file);
-        debug("[LoadGame] Header read failed for %s", fullPath);
         return FALSE;
     }
 
     if (magic != 0x54544143 || version != SAVE_VERSION) {
         fclose(file);
-        debug("[LoadGame] Invalid magic/version for %s", fullPath);
         return FALSE;
     }
 
@@ -492,37 +446,15 @@ BOOL LoadGame(const char* path) {
         !ReadBlock(file, &viewportX, sizeof(viewportX), "viewportX", fileSize) ||
         !ReadBlock(file, &viewportY, sizeof(viewportY), "viewportY", fileSize)) {
         fclose(file);
-        debug("[LoadGame] Header read failed for %s", fullPath);
         return FALSE;
     }
 
-    if (version >= 5) {
-        if (!ReadBlock(file, &teamCount, sizeof(teamCount), "teamCount", fileSize) ||
-            !ReadBlock(file, &res, sizeof(res), "resources[]", fileSize) ||
-            !ReadBlock(file, &aiAttitudes, sizeof(aiAttitudes), "aiAttitudes[]", fileSize) ||
-            !ReadBlock(file, &aiMindsets, sizeof(aiMindsets), "aiMindsets[]", fileSize)) {
-            fclose(file);
-            debug("[LoadGame] Team header read failed for %s", fullPath);
-            return FALSE;
-        }
-    } else if (version >= 4) {
-        if (!ReadBlock(file, &teamCount, sizeof(teamCount), "teamCount", fileSize) ||
-            !ReadBlock(file, &res, sizeof(res), "resources[]", fileSize)) {
-            fclose(file);
-            debug("[LoadGame] Team header read failed for %s", fullPath);
-            return FALSE;
-        }
-        memset(aiAttitudes, 0, sizeof(aiAttitudes));
-        memset(aiMindsets, 0, sizeof(aiMindsets));
-    } else {
-        if (!ReadBlock(file, &res[0], sizeof(TEAM_RESOURCES), "resources", fileSize)) {
-            fclose(file);
-            debug("[LoadGame] Team 0 resources read failed for %s", fullPath);
-            return FALSE;
-        }
-        teamCount = 1;
-        memset(aiAttitudes, 0, sizeof(aiAttitudes));
-        memset(aiMindsets, 0, sizeof(aiMindsets));
+    if (!ReadBlock(file, &teamCount, sizeof(teamCount), "teamCount", fileSize) ||
+        !ReadBlock(file, &res, sizeof(res), "resources[]", fileSize) ||
+        !ReadBlock(file, &aiAttitudes, sizeof(aiAttitudes), "aiAttitudes[]", fileSize) ||
+        !ReadBlock(file, &aiMindsets, sizeof(aiMindsets), "aiMindsets[]", fileSize)) {
+        fclose(file);
+        return FALSE;
     }
 
     if (!ReadBlock(file, &gameTime, sizeof(gameTime), "gameTime", fileSize) ||
@@ -537,20 +469,17 @@ BOOL LoadGame(const char* path) {
         !ReadBlock(file, &placementX, sizeof(placementX), "placementX", fileSize) ||
         !ReadBlock(file, &placementY, sizeof(placementY), "placementY", fileSize)) {
         fclose(file);
-        debug("[LoadGame] Header read failed for %s", fullPath);
         return FALSE;
     }
 
     if (mapWidth < MIN_MAP_SIZE || mapWidth > MAX_MAP_SIZE ||
         mapHeight < MIN_MAP_SIZE || mapHeight > MAX_MAP_SIZE) {
         fclose(file);
-        debug("[LoadGame] Map size out of bounds (%d x %d)", mapWidth, mapHeight);
         return FALSE;
     }
 
     if (teamCount < 1 || teamCount > MAX_TEAMS) {
         fclose(file);
-        debug("[LoadGame] Invalid team count %d", teamCount);
         return FALSE;
     }
 
@@ -564,6 +493,7 @@ BOOL LoadGame(const char* path) {
 
     GAME_STATE* oldState = App.GameState;
     App.GameState = newState;
+    GameLogInit();
 
     if (!AllocateMap(mapWidth, mapHeight)) {
         App.GameState = newState;
@@ -578,26 +508,12 @@ BOOL LoadGame(const char* path) {
     for (I32 y = 0; y < mapHeight; y++) {
         char label[UI_SAVE_LABEL_SIZE];
         snprintf(label, sizeof(label), "terrain row %d/%d", y + 1, mapHeight);
-        if (version >= 3) {
-            if (!ReadBlock(file, App.GameState->Terrain[y], sizeof(TERRAIN) * (size_t)mapWidth, label, fileSize)) {
-                App.GameState = newState;
-                CleanupGame();
-                App.GameState = oldState;
-                fclose(file);
-                return FALSE;
-            }
-        } else {
-            char row[MAX_MAP_SIZE];
-            if (!ReadBlock(file, row, (size_t)mapWidth, label, fileSize)) {
-                App.GameState = newState;
-                CleanupGame();
-                App.GameState = oldState;
-                fclose(file);
-                return FALSE;
-            }
-            for (I32 x = 0; x < mapWidth; x++) {
-                TerrainInitCell(&App.GameState->Terrain[y][x], TerrainCharToType(row[x]));
-            }
+        if (!ReadBlock(file, App.GameState->Terrain[y], sizeof(TERRAIN) * (size_t)mapWidth, label, fileSize)) {
+            App.GameState = newState;
+            CleanupGame();
+            App.GameState = oldState;
+            fclose(file);
+            return FALSE;
         }
     }
 
@@ -625,13 +541,9 @@ BOOL LoadGame(const char* path) {
         CleanupGame();
         App.GameState = oldState;
         fclose(file);
-        if (buildingCount > MAX_BUILDINGS) {
-            debug("[LoadGame] Building count too large %u", buildingCount);
-        }
         return FALSE;
     }
 
-    debug("[LoadGame] Reading %u buildings", buildingCount);
 
     for (U32 i = 0; i < buildingCount; i++) {
         BUILDING temp;
@@ -649,7 +561,6 @@ BOOL LoadGame(const char* path) {
             CleanupGame();
             App.GameState = oldState;
             fclose(file);
-            debug("[LoadGame] Unknown building type id %d", temp.TypeId);
             return FALSE;
         }
         BUILDING* node = (BUILDING*)malloc(sizeof(BUILDING));
@@ -658,7 +569,6 @@ BOOL LoadGame(const char* path) {
             CleanupGame();
             App.GameState = oldState;
             fclose(file);
-            debug("[LoadGame] Out of memory for building %u/%u", i + 1, buildingCount);
             return FALSE;
         }
         *node = temp;
@@ -669,7 +579,6 @@ BOOL LoadGame(const char* path) {
             App.GameState = oldState;
             free(node);
             fclose(file);
-            debug("[LoadGame] Invalid building team %d", temp.Team);
             return FALSE;
         }
         node->Next = *head;
@@ -683,13 +592,9 @@ BOOL LoadGame(const char* path) {
         CleanupGame();
         App.GameState = oldState;
         fclose(file);
-        if (unitCount > (U32)maxUnits) {
-            debug("[LoadGame] Unit count too large %u (max %d)", unitCount, maxUnits);
-        }
         return FALSE;
     }
 
-    debug("[LoadGame] Reading %u units", unitCount);
 
     for (U32 i = 0; i < unitCount; i++) {
         UNIT temp;
@@ -707,7 +612,6 @@ BOOL LoadGame(const char* path) {
             CleanupGame();
             App.GameState = oldState;
             fclose(file);
-            debug("[LoadGame] Unknown unit type id %d", temp.TypeId);
             return FALSE;
         }
         UNIT* node = (UNIT*)malloc(sizeof(UNIT));
@@ -716,7 +620,6 @@ BOOL LoadGame(const char* path) {
             CleanupGame();
             App.GameState = oldState;
             fclose(file);
-            debug("[LoadGame] Out of memory for unit %u/%u", i + 1, unitCount);
             return FALSE;
         }
         *node = temp;
@@ -732,7 +635,6 @@ BOOL LoadGame(const char* path) {
             App.GameState = oldState;
             free(node);
             fclose(file);
-            debug("[LoadGame] Invalid unit team %d", temp.Team);
             return FALSE;
         }
         node->Next = *head;
@@ -743,7 +645,9 @@ BOOL LoadGame(const char* path) {
 
     App.GameState->MapWidth = mapWidth;
     App.GameState->MapHeight = mapHeight;
+    App.GameState->MapMaxDim = imax(mapWidth, mapHeight);
     App.GameState->Difficulty = difficulty;
+    InitializeAiConstants();
     App.GameState->ViewportPos.X = viewportX;
     App.GameState->ViewportPos.Y = viewportY;
     App.GameState->TeamCount = teamCount;
@@ -766,6 +670,7 @@ BOOL LoadGame(const char* path) {
             App.GameState->TeamData[i].AiAttitude = attitude;
             App.GameState->TeamData[i].AiMindset = mindset;
             App.GameState->TeamData[i].AiLastClusterUpdate = 0;
+            App.GameState->TeamData[i].AiLastShuffleTime = 0;
         }
     App.GameState->GameTime = gameTime;
     App.GameState->LastUpdate = GetSystemTime();
@@ -822,7 +727,6 @@ BOOL LoadGame(const char* path) {
     App.GameState->CommandY = 0;
     App.Render.BorderDrawn = FALSE;
     ResetRenderCache();
-    debug("[LoadGame] Loaded %s (size %dx%d, time %u)", fullPath, mapWidth, mapHeight, gameTime);
 
     if (oldState != NULL) {
         App.GameState = oldState;
@@ -830,6 +734,5 @@ BOOL LoadGame(const char* path) {
     }
 
     App.GameState = newState;
-    debug("[LoadGame] Active game set, entering play");
     return TRUE;
 }

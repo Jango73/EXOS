@@ -44,7 +44,7 @@ DRIVER DATA_SECTION ACPIDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
+    .Type = DRIVER_TYPE_INIT,
     .VersionMajor = ACPI_VER_MAJOR,
     .VersionMinor = ACPI_VER_MINOR,
     .Designer = "Jango73",
@@ -52,6 +52,16 @@ DRIVER DATA_SECTION ACPIDriver = {
     .Product = "ACPI",
     .Flags = 0,
     .Command = ACPIDriverCommands};
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the ACPI driver descriptor.
+ * @return Pointer to the ACPI driver.
+ */
+LPDRIVER ACPIGetDriver(void) {
+    return &ACPIDriver;
+}
 
 /************************************************************************/
 // Global ACPI configuration
@@ -1052,27 +1062,27 @@ static UINT ACPIDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((ACPIDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             if (InitializeACPI()) {
                 ACPIDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
-            return DF_RET_UNEXPECT;
+            return DF_RETURN_UNEXPECTED;
 
         case DF_UNLOAD:
             if ((ACPIDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             ACPIDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(ACPI_VER_MAJOR, ACPI_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

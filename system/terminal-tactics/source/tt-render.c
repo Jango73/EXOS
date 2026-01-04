@@ -60,6 +60,16 @@ static const char* GetAttitudeName(I32 attitude) {
 
 /************************************************************************/
 
+static BOOL QueryConsoleRect(RECT* Rect) {
+    HANDLE Desktop = GetCurrentDesktop();
+    if (Desktop == NULL) return FALSE;
+    HANDLE Window = GetDesktopWindow(Desktop);
+    if (Window == NULL) return FALSE;
+    return GetWindowRect(Window, Rect);
+}
+
+/************************************************************************/
+
 static void AddMenuToken(const char* token, const char** tokens, I32* tokenCount, I32 maxTokens) {
     if (tokens == NULL || tokenCount == NULL) return;
     if (*tokenCount >= maxTokens) return;
@@ -198,6 +208,68 @@ void ResetRenderCache(void) {
 
 /************************************************************************/
 
+void EnsureScreenMetrics(void) {
+    RECT Rect;
+    U32 Width = App.Render.ScreenWidth;
+    U32 Height = App.Render.ScreenHeight;
+    U32 MapHeight;
+    U32 ViewportWidth;
+    U32 ViewportHeight;
+    BOOL Changed = FALSE;
+
+    if (QueryConsoleRect(&Rect)) {
+        I32 NewWidth = Rect.X2 - Rect.X1 + 1;
+        I32 NewHeight = Rect.Y2 - Rect.Y1 + 1;
+        if (NewWidth > 0) Width = (U32)NewWidth;
+        if (NewHeight > 0) Height = (U32)NewHeight;
+    }
+
+    if (Width > MAX_SCREEN_WIDTH) Width = MAX_SCREEN_WIDTH;
+    if (Height > MAX_SCREEN_HEIGHT) Height = MAX_SCREEN_HEIGHT;
+    if (Width == 0) Width = 1;
+    if (Height == 0) Height = 1;
+
+    if (Height > TOP_BAR_HEIGHT + BOTTOM_BAR_HEIGHT + 1) {
+        MapHeight = Height - TOP_BAR_HEIGHT - BOTTOM_BAR_HEIGHT - 1;
+    } else {
+        MapHeight = 1;
+    }
+    if (MapHeight > MAX_MAP_VIEW_HEIGHT) MapHeight = MAX_MAP_VIEW_HEIGHT;
+
+    ViewportWidth = Width;
+    if (ViewportWidth > MAX_VIEWPORT_WIDTH) ViewportWidth = MAX_VIEWPORT_WIDTH;
+
+    ViewportHeight = MapHeight;
+    if (ViewportHeight > MAX_VIEWPORT_HEIGHT) ViewportHeight = MAX_VIEWPORT_HEIGHT;
+
+    if (Width != App.Render.ScreenWidth ||
+        Height != App.Render.ScreenHeight ||
+        MapHeight != App.Render.MapViewHeight ||
+        ViewportWidth != App.Render.ViewportWidth ||
+        ViewportHeight != App.Render.ViewportHeight) {
+        Changed = TRUE;
+    }
+
+    if (Changed) {
+        App.Render.ScreenWidth = Width;
+        App.Render.ScreenHeight = Height;
+        App.Render.MapViewHeight = MapHeight;
+        App.Render.ViewportWidth = ViewportWidth;
+        App.Render.ViewportHeight = ViewportHeight;
+
+        App.Render.ViewBlitInfo.X = 0;
+        App.Render.ViewBlitInfo.Y = TOP_BAR_HEIGHT;
+        App.Render.ViewBlitInfo.Width = ViewportWidth;
+        App.Render.ViewBlitInfo.Height = ViewportHeight;
+        App.Render.ViewBlitInfo.TextPitch = MAX_VIEWPORT_WIDTH + 1;
+        App.Render.ViewBlitInfo.AttrPitch = MAX_VIEWPORT_WIDTH;
+
+        ResetRenderCache();
+    }
+}
+
+/************************************************************************/
+
 void GotoCursor(I32 x, I32 y) {
     POINT pos;
     pos.X = x;
@@ -258,11 +330,13 @@ void SetStatus(const char* status) {
 /************************************************************************/
 
 static void HighlightArea(I32 screenX, I32 screenY, I32 width, I32 height, U8 attr) {
+    I32 viewW = (I32)VIEWPORT_WIDTH;
+    I32 viewH = (I32)VIEWPORT_HEIGHT;
     for (I32 dy = 0; dy < height; dy++) {
         for (I32 dx = 0; dx < width; dx++) {
             I32 sx = screenX + dx;
             I32 sy = screenY + dy;
-            if (sx < 0 || sx >= VIEWPORT_WIDTH || sy < 0 || sy >= VIEWPORT_HEIGHT) continue;
+            if (sx < 0 || sx >= viewW || sy < 0 || sy >= viewH) continue;
             App.Render.ViewColors[sy][sx] = attr;
         }
     }
@@ -319,11 +393,13 @@ static char GetIconChar(const char* icon, I32 row, I32 col) {
 /************************************************************************/
 
 static void RenderIconToBuffer(I32 screenX, I32 screenY, const char* icon, I32 width, I32 height, U8 attr) {
+    I32 viewW = (I32)VIEWPORT_WIDTH;
+    I32 viewH = (I32)VIEWPORT_HEIGHT;
     for (I32 dy = 0; dy < height; dy++) {
         for (I32 dx = 0; dx < width; dx++) {
             I32 drawX = screenX + dx;
             I32 drawY = screenY + dy;
-            if (drawX < 0 || drawX >= VIEWPORT_WIDTH || drawY < 0 || drawY >= VIEWPORT_HEIGHT) continue;
+            if (drawX < 0 || drawX >= viewW || drawY < 0 || drawY >= viewH) continue;
             App.Render.ViewBuffer[drawY][drawX] = GetIconChar(icon, dy, dx);
             App.Render.ViewColors[drawY][drawX] = attr;
         }
@@ -333,6 +409,8 @@ static void RenderIconToBuffer(I32 screenX, I32 screenY, const char* icon, I32 w
 /************************************************************************/
 
 static void RenderBuildingSprite(const BUILDING* building, const BUILDING_TYPE* buildingType, I32 screenX, I32 screenY) {
+    I32 viewW = (I32)VIEWPORT_WIDTH;
+    I32 viewH = (I32)VIEWPORT_HEIGHT;
     U8 back = CONSOLE_BLACK;
     if (building->LastDamageTime != 0 && App.GameState != NULL) {
         U32 now = GetSystemTime();
@@ -354,7 +432,7 @@ static void RenderBuildingSprite(const BUILDING* building, const BUILDING_TYPE* 
     if (building->Hp < buildingType->MaxHp) {
         I32 overlayX = screenX;
         I32 overlayY = screenY;
-        if (overlayX >= 0 && overlayX < VIEWPORT_WIDTH && overlayY >= 0 && overlayY < VIEWPORT_HEIGHT) {
+        if (overlayX >= 0 && overlayX < viewW && overlayY >= 0 && overlayY < viewH) {
             I32 hp = building->Hp;
             if (hp > UI_HP_MAX_DISPLAY) hp = UI_HP_MAX_DISPLAY;
             char buffer[UI_HP_BUFFER_SIZE];
@@ -372,7 +450,7 @@ static void RenderBuildingSprite(const BUILDING* building, const BUILDING_TYPE* 
                 buffer[0] = (char)('0' + hp);
                 length = 1;
             }
-            for (I32 i = 0; i < length && overlayX + i < VIEWPORT_WIDTH; i++) {
+            for (I32 i = 0; i < length && overlayX + i < viewW; i++) {
                 if (overlayX + i < screenX + buildingType->Width) {
                     App.Render.ViewBuffer[overlayY][overlayX + i] = buffer[i];
                     App.Render.ViewColors[overlayY][overlayX + i] = MakeAttr(CONSOLE_WHITE, CONSOLE_BLACK);
@@ -393,7 +471,7 @@ static void RenderBuildingSprite(const BUILDING* building, const BUILDING_TYPE* 
                 break;
             }
         }
-        if (seconds >= 0 && indicatorX >= 0 && indicatorX < VIEWPORT_WIDTH && indicatorY >= 0 && indicatorY < VIEWPORT_HEIGHT) {
+        if (seconds >= 0 && indicatorX >= 0 && indicatorX < viewW && indicatorY >= 0 && indicatorY < viewH) {
             if (seconds > UI_BUILD_TIME_MAX_SECONDS) seconds = UI_BUILD_TIME_MAX_SECONDS;
             if (seconds >= UI_TWO_DIGIT_MIN && indicatorX - 1 >= 0) {
                 App.Render.ViewBuffer[indicatorY][indicatorX - 1] = (char)('0' + (seconds / UI_DECIMAL_BASE) % UI_DECIMAL_BASE);
@@ -408,7 +486,7 @@ static void RenderBuildingSprite(const BUILDING* building, const BUILDING_TYPE* 
     } else if (building->UnderConstruction && building->BuildTimeRemaining > 0) {
         I32 indicatorX = screenX + buildingType->Width - 1;
         I32 indicatorY = screenY + buildingType->Height - 1;
-        if (indicatorX >= 0 && indicatorX < VIEWPORT_WIDTH && indicatorY >= 0 && indicatorY < VIEWPORT_HEIGHT) {
+        if (indicatorX >= 0 && indicatorX < viewW && indicatorY >= 0 && indicatorY < viewH) {
             I32 seconds = (I32)(building->BuildTimeRemaining / UI_MS_PER_SECOND);
             if (seconds > UI_BUILD_TIME_MAX_SECONDS) seconds = UI_BUILD_TIME_MAX_SECONDS;
             if (seconds >= UI_TWO_DIGIT_MIN && indicatorX - 1 >= 0) {
@@ -426,7 +504,7 @@ static void RenderBuildingSprite(const BUILDING* building, const BUILDING_TYPE* 
     if (!building->UnderConstruction && !IsBuildingPowered(building)) {
         I32 indicatorX = screenX;
         I32 indicatorY = screenY + buildingType->Height - 1;
-        if (indicatorX >= 0 && indicatorX < VIEWPORT_WIDTH && indicatorY >= 0 && indicatorY < VIEWPORT_HEIGHT) {
+        if (indicatorX >= 0 && indicatorX < viewW && indicatorY >= 0 && indicatorY < viewH) {
             App.Render.ViewBuffer[indicatorY][indicatorX] = '!';
             App.Render.ViewColors[indicatorY][indicatorX] = MakeAttr(CONSOLE_RED, CONSOLE_BLACK);
         }
@@ -436,6 +514,8 @@ static void RenderBuildingSprite(const BUILDING* building, const BUILDING_TYPE* 
 /************************************************************************/
 
 static void RenderUnitSprite(const UNIT* unit, const UNIT_TYPE* unitType, I32 screenX, I32 screenY, U32 now) {
+    I32 viewW = (I32)VIEWPORT_WIDTH;
+    I32 viewH = (I32)VIEWPORT_HEIGHT;
     U8 attr = GetUnitHighlightAttr(unit, now);
     U8 back = (U8)((attr >> 4) & 0x0F);
 
@@ -447,7 +527,7 @@ static void RenderUnitSprite(const UNIT* unit, const UNIT_TYPE* unitType, I32 sc
     if (unit->Hp < unitType->MaxHp) {
         I32 overlayX = screenX;
         I32 overlayY = screenY;
-        if (overlayX >= 0 && overlayX < VIEWPORT_WIDTH && overlayY >= 0 && overlayY < VIEWPORT_HEIGHT) {
+        if (overlayX >= 0 && overlayX < viewW && overlayY >= 0 && overlayY < viewH) {
             I32 hp = unit->Hp;
             if (hp > UI_HP_MAX_DISPLAY) hp = UI_HP_MAX_DISPLAY;
             char buffer[UI_HP_BUFFER_SIZE];
@@ -465,7 +545,7 @@ static void RenderUnitSprite(const UNIT* unit, const UNIT_TYPE* unitType, I32 sc
                 buffer[0] = (char)('0' + hp);
                 length = 1;
             }
-            for (I32 i = 0; i < length && overlayX + i < VIEWPORT_WIDTH; i++) {
+            for (I32 i = 0; i < length && overlayX + i < viewW; i++) {
                 if (overlayX + i < screenX + unitType->Width) {
                     App.Render.ViewBuffer[overlayY][overlayX + i] = buffer[i];
                     App.Render.ViewColors[overlayY][overlayX + i] = MakeAttr(CONSOLE_WHITE, CONSOLE_BLACK);
@@ -479,11 +559,13 @@ static void RenderUnitSprite(const UNIT* unit, const UNIT_TYPE* unitType, I32 sc
 
 static void ClearFrameBuffers(void) {
     U8 defaultAttr = MakeAttr(CONSOLE_WHITE, CONSOLE_BLACK);
+    I32 screenW = (I32)SCREEN_WIDTH;
+    I32 screenH = (I32)SCREEN_HEIGHT;
 
-    for (I32 y = 0; y < SCREEN_HEIGHT; y++) {
-        memset(App.Render.ScreenBuffer[y], ' ', SCREEN_WIDTH);
-        App.Render.ScreenBuffer[y][SCREEN_WIDTH] = '\0';
-        for (I32 x = 0; x < SCREEN_WIDTH; x++) {
+    for (I32 y = 0; y < screenH; y++) {
+        memset(App.Render.ScreenBuffer[y], ' ', (size_t)screenW);
+        App.Render.ScreenBuffer[y][screenW] = '\0';
+        for (I32 x = 0; x < screenW; x++) {
             App.Render.ScreenAttr[y][x] = defaultAttr;
         }
     }
@@ -493,15 +575,17 @@ static void ClearFrameBuffers(void) {
 
 static void WriteLineToFrame(I32 y, I32 xStart, I32 maxWidth, const char* text, U8 attr) {
     size_t len;
+    I32 screenW = (I32)SCREEN_WIDTH;
+    I32 screenH = (I32)SCREEN_HEIGHT;
 
     if (text == NULL) return;
-    if (y < 0 || y >= SCREEN_HEIGHT) return;
-    if (xStart < 0 || xStart >= SCREEN_WIDTH) return;
+    if (y < 0 || y >= screenH) return;
+    if (xStart < 0 || xStart >= screenW) return;
     if (maxWidth <= 0) return;
 
     len = strlen(text);
     if (len > (size_t)maxWidth) len = (size_t)maxWidth;
-    if ((I32)len > (SCREEN_WIDTH - xStart)) len = (size_t)(SCREEN_WIDTH - xStart);
+    if ((I32)len > (screenW - xStart)) len = (size_t)(screenW - xStart);
 
     if (len > 0) {
         memcpy(&App.Render.ScreenBuffer[y][xStart], text, len);
@@ -536,15 +620,15 @@ static void BlitFrameBuffer(void) {
     Frame.X = 0;
     Frame.Y = 0;
     Frame.Attr = (const U8*)App.Render.ScreenAttr[0];
-    Frame.TextPitch = SCREEN_WIDTH + 1;
-    Frame.AttrPitch = SCREEN_WIDTH;
+    Frame.TextPitch = MAX_SCREEN_WIDTH + 1;
+    Frame.AttrPitch = MAX_SCREEN_WIDTH;
     ConsoleBlitBuffer(&Frame);
 }
 
 /************************************************************************/
 
 void RenderTopBar(void) {
-    char line0[SCREEN_WIDTH + 1];
+    char line0[MAX_SCREEN_WIDTH + 1];
     if (App.GameState == NULL) return;
 
     TEAM_RESOURCES* res = GetTeamResources(HUMAN_TEAM_INDEX);
@@ -565,7 +649,7 @@ void RenderTopBar(void) {
         strncat(line0, keyInfo, sizeof(line0) - strlen(line0) - 1);
     }
 
-    char buf0[SCREEN_WIDTH + 1];
+    char buf0[MAX_SCREEN_WIDTH + 1];
     size_t len0 = strlen(line0);
     if (len0 > (size_t)SCREEN_WIDTH) len0 = SCREEN_WIDTH;
     memset(buf0, ' ', SCREEN_WIDTH);
@@ -580,13 +664,15 @@ void RenderTopBar(void) {
 void RenderMapArea(void) {
     I32 viewX, viewY;
     I32 mapX, mapY;
+    I32 viewW = (I32)VIEWPORT_WIDTH;
+    I32 viewH = (I32)VIEWPORT_HEIGHT;
 
     if (App.GameState == NULL) return;
     I32 teamCount = GetTeamCountSafe();
     U32 currentTimeMs = GetSystemTime();
 
-    for (viewY = 0; viewY < VIEWPORT_HEIGHT; viewY++) {
-        for (viewX = 0; viewX < VIEWPORT_WIDTH; viewX++) {
+    for (viewY = 0; viewY < viewH; viewY++) {
+        for (viewX = 0; viewX < viewW; viewX++) {
             mapX = App.GameState->ViewportPos.X + viewX;
             mapY = App.GameState->ViewportPos.Y + viewY;
 
@@ -603,7 +689,7 @@ void RenderMapArea(void) {
             }
             App.Render.ViewColors[viewY][viewX] = GetTerrainColor(terrainType);
         }
-        App.Render.ViewBuffer[viewY][VIEWPORT_WIDTH] = '\0';
+        App.Render.ViewBuffer[viewY][viewW] = '\0';
     }
 
     for (I32 team = 0; team < teamCount; team++) {
@@ -672,6 +758,21 @@ void RenderMapArea(void) {
         }
     }
 
+    if (App.GameState->SelectedUnit != NULL) {
+        UNIT* selected = App.GameState->SelectedUnit;
+        const UNIT_TYPE* selectedType = GetUnitTypeById(selected->TypeId);
+        if (selectedType != NULL &&
+            selectedType->Id == UNIT_TYPE_DRILLER &&
+            selected->StateTargetX != UNIT_STATE_TARGET_NONE &&
+            selected->StateTargetY != UNIT_STATE_TARGET_NONE) {
+            I32 screenX;
+            I32 screenY;
+            if (GetScreenPosition(selected->StateTargetX, selected->StateTargetY, 1, 1, &screenX, &screenY)) {
+                App.Render.ViewColors[screenY][screenX] = MakeAttr(CONSOLE_WHITE, CONSOLE_BLACK);
+            }
+        }
+    }
+
     if (App.GameState->IsPlacingBuilding) {
         const BUILDING_TYPE* previewType = GetBuildingTypeById(App.GameState->PendingBuildingTypeId);
         if (previewType != NULL && App.GameState->Terrain != NULL) {
@@ -706,12 +807,17 @@ void RenderMapArea(void) {
 /************************************************************************/
 
 static void CopyMapToFrame(void) {
-    for (I32 y = 0; y < VIEWPORT_HEIGHT; y++) {
-        I32 destY = TOP_BAR_HEIGHT + y;
-        if (destY >= SCREEN_HEIGHT) break;
+    I32 screenW = (I32)SCREEN_WIDTH;
+    I32 screenH = (I32)SCREEN_HEIGHT;
+    I32 viewW = (I32)VIEWPORT_WIDTH;
+    I32 viewH = (I32)VIEWPORT_HEIGHT;
 
-        for (I32 x = 0; x < VIEWPORT_WIDTH; x++) {
-            if (x >= SCREEN_WIDTH) break;
+    for (I32 y = 0; y < viewH; y++) {
+        I32 destY = TOP_BAR_HEIGHT + y;
+        if (destY >= screenH) break;
+
+        for (I32 x = 0; x < viewW; x++) {
+            if (x >= screenW) break;
             App.Render.ScreenBuffer[destY][x] = App.Render.ViewBuffer[y][x];
             App.Render.ScreenAttr[destY][x] = App.Render.ViewColors[y][x];
         }
@@ -722,31 +828,33 @@ static void CopyMapToFrame(void) {
 
 static void DrawBottomMenuFrame(void) {
     I32 top = TOP_BAR_HEIGHT + MAP_VIEW_HEIGHT;
-    I32 bottom = SCREEN_HEIGHT - 1;
+    I32 screenW = (I32)SCREEN_WIDTH;
+    I32 screenH = (I32)SCREEN_HEIGHT;
+    I32 bottom = screenH - 1;
     U8 attr = MakeAttr(CONSOLE_WHITE, CONSOLE_BLACK);
 
-    if (top >= bottom || bottom >= SCREEN_HEIGHT) return;
+    if (top >= bottom || bottom >= screenH) return;
 
     App.Render.ScreenBuffer[top][0] = '+';
-    App.Render.ScreenBuffer[top][SCREEN_WIDTH - 1] = '+';
+    App.Render.ScreenBuffer[top][screenW - 1] = '+';
     App.Render.ScreenAttr[top][0] = attr;
-    App.Render.ScreenAttr[top][SCREEN_WIDTH - 1] = attr;
-    for (I32 x = 1; x < SCREEN_WIDTH - 1; x++) {
+    App.Render.ScreenAttr[top][screenW - 1] = attr;
+    for (I32 x = 1; x < screenW - 1; x++) {
         App.Render.ScreenBuffer[top][x] = '-';
         App.Render.ScreenAttr[top][x] = attr;
     }
 
     for (I32 y = top + 1; y <= bottom; y++) {
         App.Render.ScreenBuffer[y][0] = '|';
-        App.Render.ScreenBuffer[y][SCREEN_WIDTH - 1] = '|';
+        App.Render.ScreenBuffer[y][screenW - 1] = '|';
         App.Render.ScreenAttr[y][0] = attr;
-        App.Render.ScreenAttr[y][SCREEN_WIDTH - 1] = attr;
+        App.Render.ScreenAttr[y][screenW - 1] = attr;
     }
 
     App.Render.ScreenBuffer[bottom][0] = '+';
-    App.Render.ScreenBuffer[bottom][SCREEN_WIDTH - 1] = '+';
+    App.Render.ScreenBuffer[bottom][screenW - 1] = '+';
     App.Render.ScreenAttr[bottom][0] = attr;
-    App.Render.ScreenAttr[bottom][SCREEN_WIDTH - 1] = attr;
+    App.Render.ScreenAttr[bottom][screenW - 1] = attr;
 }
 
 /************************************************************************/
@@ -942,14 +1050,14 @@ static I32 BuildProductionStatusTokens(const BUILDING* building, const char** to
 
 void RenderBottomMenu(void) {
     I32 menuY = TOP_BAR_HEIGHT + MAP_VIEW_HEIGHT;
-    char line0[SCREEN_WIDTH + 1];
-    char line1[SCREEN_WIDTH + 1];
-    char line2[SCREEN_WIDTH + 1];
+    char line0[MAX_SCREEN_WIDTH + 1];
+    char line1[MAX_SCREEN_WIDTH + 1];
+    char line2[MAX_SCREEN_WIDTH + 1];
     const char* tokens[MENU_TOKEN_MAX];
     char tokenStorage[MENU_TOKEN_MAX][UI_TOKEN_SIZE];
     I32 tokenCount = 0;
     I32 storageIndex = 0;
-    static char BlankLine[SCREEN_WIDTH + 1] = {0};
+    static char BlankLine[MAX_SCREEN_WIDTH + 1] = {0};
     static BOOL BlankInit = FALSE;
     line0[0] = '\0';
     line1[0] = '\0';
@@ -1118,7 +1226,7 @@ void RenderBottomMenu(void) {
 
     for (I32 i = 0; i < BOTTOM_BAR_HEIGHT; i++) {
         I32 y = menuY + i;
-        char desired[SCREEN_WIDTH + 1];
+        char desired[MAX_SCREEN_WIDTH + 1];
         switch (i) {
             case 0: snprintf(desired, sizeof(desired), "%-*s", SCREEN_WIDTH - 2, line0); break;
             case 1: snprintf(desired, sizeof(desired), "%-*s", SCREEN_WIDTH - 2, line1); break;
@@ -1134,7 +1242,7 @@ void RenderBottomMenu(void) {
 
 static void RenderStatusBar(void) {
     I32 statusY = SCREEN_HEIGHT - 1;
-    char lineBuf[SCREEN_WIDTH + 1];
+    char lineBuf[MAX_SCREEN_WIDTH + 1];
     char suffix[UI_SUFFIX_SIZE];
     size_t suffixLen = 0;
     size_t startPos = 0;
@@ -1191,8 +1299,8 @@ void RenderInGameScreen(void) {
     Frame.X = 0;
     Frame.Y = 0;
     Frame.Attr = (const U8*)App.Render.ScreenAttr[0];
-    Frame.TextPitch = SCREEN_WIDTH + 1;
-    Frame.AttrPitch = SCREEN_WIDTH;
+    Frame.TextPitch = MAX_SCREEN_WIDTH + 1;
+    Frame.AttrPitch = MAX_SCREEN_WIDTH;
     ConsoleBlitBuffer(&Frame);
 }
 
@@ -1201,10 +1309,11 @@ void RenderInGameScreen(void) {
 void RenderDebugScreen(void) {
     if (App.GameState == NULL) return;
 
+    I32 screenH = (I32)SCREEN_HEIGHT;
     I32 teamCount = GetTeamCountSafe();
     if (teamCount <= 0) teamCount = 1;
 
-    for (I32 y = 0; y < SCREEN_HEIGHT; y++) {
+    for (I32 y = 0; y < screenH; y++) {
         memset(App.Render.ScreenBuffer[y], ' ', SCREEN_WIDTH);
         App.Render.ScreenBuffer[y][SCREEN_WIDTH] = '\0';
     }
@@ -1218,6 +1327,10 @@ void RenderDebugScreen(void) {
         TEAM_RESOURCES* res = &App.GameState->TeamData[team].Resources;
         I32 buildingCount = 0;
         I32 unitCount = 0;
+        const char* lastDecision = App.GameState->TeamData[team].AiLastDecision;
+        if (lastDecision == NULL || lastDecision[0] == '\0') {
+            lastDecision = "None";
+        }
         BUILDING* b = App.GameState->TeamData[team].Buildings;
         while (b != NULL) {
             buildingCount++;
@@ -1231,8 +1344,9 @@ void RenderDebugScreen(void) {
         I32 attitude = App.GameState->TeamData[team].AiAttitude;
         I32 mindset = App.GameState->TeamData[team].AiMindset;
 
-        char line0[SCREEN_WIDTH + 1];
-        char line1[SCREEN_WIDTH + 1];
+        char line0[MAX_SCREEN_WIDTH + 1];
+        char line1[MAX_SCREEN_WIDTH + 1];
+        char line2[MAX_SCREEN_WIDTH + 1];
         snprintf(line0, sizeof(line0),
                  "Team %d | Plasma:%d Energy:%d/%d",
                  team,
@@ -1242,21 +1356,35 @@ void RenderDebugScreen(void) {
                  buildingCount, unitCount,
                  GetAttitudeName(attitude),
                  GetMindsetName(mindset));
+        snprintf(line2, sizeof(line2),
+                 "LastAI:%s",
+                 lastDecision);
 
-        I32 y0 = 3 + team * 2;
+        I32 y0 = 3 + team * 3;
         I32 y1 = y0 + 1;
-        if (y1 >= SCREEN_HEIGHT) break;
+        I32 y2 = y0 + 2;
+        if (y2 >= screenH) break;
 
         size_t len0 = strlen(line0);
         size_t len1 = strlen(line1);
+        size_t len2 = strlen(line2);
         if (len0 > (size_t)SCREEN_WIDTH) len0 = SCREEN_WIDTH;
         if (len1 > (size_t)SCREEN_WIDTH) len1 = SCREEN_WIDTH;
+        if (len2 > (size_t)SCREEN_WIDTH) len2 = SCREEN_WIDTH;
         memcpy(&App.Render.ScreenBuffer[y0][0], line0, len0);
         memcpy(&App.Render.ScreenBuffer[y1][0], line1, len1);
+        memcpy(&App.Render.ScreenBuffer[y2][0], line2, len2);
     }
 
-    for (I32 y = 0; y < SCREEN_HEIGHT; y++) {
-        CONSOLEBLITBUFFER Line = {0, (U32)y, SCREEN_WIDTH, 1, (LPCSTR)App.Render.ScreenBuffer[y], CONSOLE_GRAY, CONSOLE_BLACK, SCREEN_WIDTH, NULL, 0};
+    for (I32 y = 0; y < screenH; y++) {
+        U8 fore = CONSOLE_GRAY;
+        if (y >= 3) {
+            I32 team = (y - 3) / 3;
+            if (team >= 0 && team < teamCount) {
+                fore = TeamColors[(U32)team % MAX_TEAMS];
+            }
+        }
+        CONSOLEBLITBUFFER Line = {0, (U32)y, SCREEN_WIDTH, 1, (LPCSTR)App.Render.ScreenBuffer[y], fore, CONSOLE_BLACK, SCREEN_WIDTH, NULL, 0};
         ConsoleBlitBuffer(&Line);
         strcpy(App.Render.PrevScreenBuffer[y], App.Render.ScreenBuffer[y]);
     }
@@ -1304,6 +1432,7 @@ void RenderManualScreen(void) {
     I32 visibleLines = MANUAL_CONTENT_BOTTOM - MANUAL_CONTENT_TOP + 1;
     I32 maxScroll = GetManualScrollMax(visibleLines);
     I32 startLine;
+    I32 screenW = (I32)SCREEN_WIDTH;
 
     ClearFrameBuffers();
     WriteCenteredToFrame(MANUAL_TITLE_Y, title, attr);
@@ -1316,17 +1445,17 @@ void RenderManualScreen(void) {
         I32 lineIndex = startLine + i;
         const char* start = NULL;
         I32 length = 0;
-        char line[SCREEN_WIDTH + 1];
+        char line[MAX_SCREEN_WIDTH + 1];
 
         line[0] = '\0';
         if (GetManualLineSpan(lineIndex, &start, &length)) {
             if (length < 0) length = 0;
-            if (length > SCREEN_WIDTH) length = SCREEN_WIDTH;
+            if (length > screenW) length = screenW;
             memcpy(line, start, (size_t)length);
             line[length] = '\0';
         }
 
-        WriteLineToFrame(MANUAL_CONTENT_TOP + i, 0, SCREEN_WIDTH, line, attr);
+        WriteLineToFrame(MANUAL_CONTENT_TOP + i, 0, screenW, line, attr);
     }
 
     WriteCenteredToFrame(MANUAL_FOOTER_Y, footer, attr);
@@ -1336,7 +1465,7 @@ void RenderManualScreen(void) {
 /************************************************************************/
 
 void RenderNewGameScreen(void) {
-    char buffer[SCREEN_WIDTH + 1];
+    char buffer[MAX_SCREEN_WIDTH + 1];
     U8 attr = MakeAttr(CONSOLE_GRAY, CONSOLE_BLACK);
     U8 selectedAttr = MakeAttr(CONSOLE_RED, CONSOLE_BLACK);
 
@@ -1393,7 +1522,7 @@ void RenderLoadGameScreen(void) {
     I32 startY = LOAD_GAME_START_Y;
     if (App.Menu.SavedGameCount > 0) {
         for (I32 i = 0; i < App.Menu.SavedGameCount && i < LOAD_GAME_MAX_ITEMS; i++) {
-            char line[SCREEN_WIDTH + 1];
+            char line[MAX_SCREEN_WIDTH + 1];
             snprintf(line, sizeof(line), "%c %s", (i == App.Menu.SelectedSaveIndex) ? '>' : ' ', App.Menu.SavedGames[i]);
             WriteCenteredToFrame(startY + i, line, (i == App.Menu.SelectedSaveIndex) ? selectedAttr : attr);
         }
@@ -1411,7 +1540,7 @@ void RenderLoadGameScreen(void) {
 void RenderSaveGameScreen(void) {
     const char* title = "Save Game";
     const char* prompt = "Type a filename, ENTER to save, ESC to cancel";
-    char line[SCREEN_WIDTH + 1];
+    char line[MAX_SCREEN_WIDTH + 1];
     U8 attr = MakeAttr(CONSOLE_GRAY, CONSOLE_BLACK);
 
     if (App.Menu.PrevMenu == (I32)MENU_SAVE && strcmp(App.Render.CachedSaveName, App.Menu.SaveFileName) == 0) {
@@ -1458,7 +1587,7 @@ static void RenderGameOverScreen(void) {
             I32 energy = (res != NULL) ? res->Energy : 0;
             I32 maxEnergy = (res != NULL) ? res->MaxEnergy : 0;
 
-            char line[SCREEN_WIDTH + 1];
+            char line[MAX_SCREEN_WIDTH + 1];
             snprintf(line, sizeof(line),
                      "T%d   | %6d |  %3d/%3d | %9u | %5u | %6d",
                      team, plasma, energy, maxEnergy, buildingCount, unitCount, score);
@@ -1475,6 +1604,8 @@ static void RenderGameOverScreen(void) {
 /************************************************************************/
 
 void RenderScreen(void) {
+    EnsureScreenMetrics();
+
     if ((I32)App.Menu.CurrentMenu != App.Menu.PrevMenu) {
         if (App.Menu.CurrentMenu == MENU_MAIN) {
             LoadSaveList();

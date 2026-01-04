@@ -21,28 +21,22 @@ Build was recently ported to i686-elf-gcc/nasm/i686-elf-ld.
 
 ### Build (Disk image with ext2)
 
-./scripts/(arch)/4-4-build-release-ext2.sh
+./scripts/build --arch <i386|x86-64> --fs ext2 --release
 
-( or ./scripts/(arch)/4-1-clean-build-release-ext2.sh to later build from a clean repo )
-
-Note: (arch) = i386 or x86-64
+( add --clean for a clean build )
 
 ### Build (Disk image with FAT32)
 
-./scripts/(arch)/4-4-build-release-fat32.sh
+./scripts/build --arch <i386|x86-64> --fs fat32 --release
 
-( or ./scripts/(arch)/4-1-clean-build-release-fat32.sh to later build from a clean repo )
-
-Note: (arch) = i386 or x86-64
+( add --clean for a clean build )
 
 ### Run
 
-./scripts/(arch)/5-1-start-qemu-ioapic-sata-e1000.sh
+./scripts/run --arch <i386|x86-64>
 
-( or ./scripts/(arch)/5-2-debug-qemu-ioapic-sata-e1000.sh to debug with gdb)
+( add --gdb to debug with gdb )
 ( or ./scripts/(arch)/5-5-start-bochs.sh to use Bochs )
-
-Note: (arch) = i386 or x86-64
 
 ## Dependencies
 
@@ -52,6 +46,9 @@ Note: (arch) = i386 or x86-64
 Used for password hashing. Sources in third/bcrypt (under Apache 2.0, see third/bcrypt/README and third/bcrypt/LICENSE).
 Compiled files in kernel: bcrypt.c, blowfish.c.
 bcrypt is copyright (c) 2002 Johnny Shelley <jshelley@cahaus.com>
+
+### utf8-hoehrmann
+Used for UTF-8 decoding in layout parsing. Sources in third/utf8-hoehrmann (MIT license, see headers).
 
 ## Historical background
 
@@ -72,34 +69,32 @@ It was a year-long solo project, developed the hard way:
 - I/O APIC management
 - PCI device management
 - ATA & SATA/AHCI hard disk drivers
+- xHCI driver (USB 3)
 - ACPI shutdown/reboot
 - Console management
-- Basic keyboard and mouse management
+- PS/2 keyboard and mouse drivers
+- USB keyboard (HID) and mouse drivers
+- USB mass storage device driver
 - Primitive graphics using VESA standard (broken)
 - Virtual file system with mount points
-- Scripted shell
+- Scripted shell with kernel object exposure
 - Configuration with TOML format
 - E1000 network driver
 - ARP/IPv4/DHCP/UDP/TCP network layers
 - Minimal HTTP client
-- Kernel pointer masking
+- Kernel pointer masking, handles in userland
 - A few test apps
 
-## Metrics
+## Metrics (cloc)
 
 ```
 -------------------------------------------------------------------------------
 Language                     files          blank        comment           code
 -------------------------------------------------------------------------------
-C                              130          13683          13915          41583
-C/C++ Header                   129           3619           4264           8620
-Assembly                        16           1726           1104           4891
+C                              185          20136          20614          66312
+C/C++ Header                   165           4434           5192          10746
+Assembly                        16           1752           1128           5010
 -------------------------------------------------------------------------------
-SUM:                           275          19028          19283          55094
+SUM:                           366          26322          26934          82068
 -------------------------------------------------------------------------------
 ```
-
-## End of the road?
-AI once made it possible for a single person to develop an open-source project without astronomical costs.
-Now it has become impossible with the widespread adoption of “usage-based fees,” which makes building AI-powered open-source projects too expensive—especially since they bring in no revenue at all.
-So this project will now be coded very slowly if at all.

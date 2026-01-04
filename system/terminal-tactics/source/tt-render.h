@@ -28,6 +28,7 @@
 #include "tt-types.h"
 
 void ResetRenderCache(void);
+void EnsureScreenMetrics(void);
 void RenderScreen(void);
 void RenderInGameScreen(void);
 void RenderDebugScreen(void);

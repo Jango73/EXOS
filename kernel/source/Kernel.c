@@ -358,10 +358,6 @@ static void Welcome(void) {
     ConsolePrint(TEXT("#######\\ ##// ##\\ \\######// #######| \n"));
     ConsolePrint(TEXT("\\------/ \\-/  \\-/  \\-----/  \\------/ \n\n"));
 
-#if DEBUG_OUTPUT == 1 || SCHEDULING_DEBUG_OUTPUT == 1
-    ConsolePrint(TEXT("WARNING : This is a debug build.\n\n"));
-#endif
-
     ConsolePrint(
         TEXT(
             "Extensible Operating System for %s computers\n"
@@ -424,7 +420,6 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
     LPLISTNODE Object;
     U8 Identifier[UUID_BINARY_SIZE];
     U64 ObjectID = U64_0;
-    U32 Index;
 
     DEBUG(TEXT("[CreateKernelObject] Creating object of size %u with ID %x"), Size, ObjectTypeID);
 
@@ -445,9 +440,9 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
     Object->ID = ObjectID;
     Object->Next = NULL;
     Object->Prev = NULL;
+    Object->Parent = NULL;
 
-    DEBUG(TEXT("[CreateKernelObject] Object created at %x, OwnerProcess: %x"),
-          (U32)Object, (U32)Object->OwnerProcess);
+    DEBUG(TEXT("[CreateKernelObject] Object created at %x, OwnerProcess: %x"), Object, Object->OwnerProcess);
 
     return Object;
 }
@@ -494,7 +489,7 @@ void DeleteUnreferencedObjects(void) {
 
             // Check if object has no references
             if (Current->References == 0) {
-                DEBUG(TEXT("[DeleteUnreferencedObjects] Deleting unreferenced %s object at %x (ID: %x)"), ListName, (U32)Current, Current->TypeID);
+                DEBUG(TEXT("[DeleteUnreferencedObjects] Deleting unreferenced %s object at %x (ID: %x)"), ListName, Current, Current->TypeID);
 
                 // Remove from list first
                 ListRemove(List, Current);
@@ -518,6 +513,10 @@ void DeleteUnreferencedObjects(void) {
     ProcessList(GetTaskList(), TEXT("Task"));
     ProcessList(GetMutexList(), TEXT("Mutex"));
     ProcessList(GetDiskList(), TEXT("Disk"));
+    ProcessList(GetUsbDeviceList(), TEXT("USBDevice"));
+    ProcessList(GetUsbInterfaceList(), TEXT("USBInterface"));
+    ProcessList(GetUsbEndpointList(), TEXT("USBEndpoint"));
+    ProcessList(GetUsbStorageList(), TEXT("USBStorage"));
     ProcessList(GetPCIDeviceList(), TEXT("PCIDevice"));
     ProcessList(GetNetworkDeviceList(), TEXT("NetworkDevice"));
     ProcessList(GetEventList(), TEXT("KernelEvent"));
@@ -578,6 +577,8 @@ void ReleaseProcessKernelObjects(struct tag_PROCESS* Process) {
         ReleaseProcessObjectsFromList(Process, GetTaskList());
         ReleaseProcessObjectsFromList(Process, GetMutexList());
         ReleaseProcessObjectsFromList(Process, GetDiskList());
+        ReleaseProcessObjectsFromList(Process, GetUsbDeviceList());
+        ReleaseProcessObjectsFromList(Process, GetUsbStorageList());
         ReleaseProcessObjectsFromList(Process, GetPCIDeviceList());
         ReleaseProcessObjectsFromList(Process, GetNetworkDeviceList());
         ReleaseProcessObjectsFromList(Process, GetEventList());
@@ -651,7 +652,6 @@ static void UseConfiguration(void) {
         Layout = TomlGet(Configuration, TEXT("Keyboard.Layout"));
 
         if (Layout) {
-            ConsolePrint(TEXT("Keyboard = %s\n"), Layout);
             SelectKeyboard(Layout);
         } else {
             ConsolePrint(TEXT("Keyboard layout not found in config, using default en-US\n"));
@@ -661,7 +661,7 @@ static void UseConfiguration(void) {
         QuantumMS = TomlGet(Configuration, TEXT(CONFIG_GENERAL_QUANTUM_MS));
 
         if (STRING_EMPTY(QuantumMS) == FALSE) {
-            ConsolePrint(TEXT("Task quantum set to %s\n"), QuantumMS);
+            DEBUG(TEXT("Task quantum set to %s\n"), QuantumMS);
             SetMinimumQuantum(StringToU32(QuantumMS));
         }
 
@@ -682,6 +682,10 @@ static void UseConfiguration(void) {
     if (StringEmpty(GetKeyboardCode())) {
         SelectKeyboard(TEXT("en-US"));
     }
+
+#if DEBUG_OUTPUT == 1 || SCHEDULING_DEBUG_OUTPUT == 1
+    ConsolePrint(TEXT("WARNING : This is a debug build\n\n"));
+#endif
 
     DEBUG(TEXT("[UseConfiguration] Exit"));
 }
@@ -728,8 +732,6 @@ U32 GetPhysicalMemoryUsed(void) {
  */
 
 void LoadDriver(LPDRIVER Driver) {
-    BOOL Success = FALSE;
-
     SAFE_USE(Driver) {
         DEBUG(TEXT("[LoadDriver] : Loading %s driver at %X"), TEXT(Driver->Product), Driver);
 
@@ -742,10 +744,11 @@ void LoadDriver(LPDRIVER Driver) {
         }
 
         UINT Result = Driver->Command(DF_LOAD, 0);
-        if (Result == DF_RET_SUCCESS && (Driver->Flags & DRIVER_FLAG_READY) != 0) {
+        if (Result == DF_RETURN_SUCCESS && (Driver->Flags & DRIVER_FLAG_READY) != 0) {
             DEBUG(TEXT("[LoadDriver] : %s driver loaded successfully"), TEXT(Driver->Product));
-            Success = TRUE;
+            TEST(TEXT("[LoadDriver] %s.Load : OK"), TEXT(Driver->Product));
         } else {
+            TEST(TEXT("[LoadDriver] %s.Load : KO"), TEXT(Driver->Product));
             if ((Driver->Flags & DRIVER_FLAG_CRITICAL)) {
                 ConsolePanic(TEXT("Critical driver %s failed to load"), TEXT(Driver->Product));
             } else {
@@ -775,9 +778,11 @@ void UnloadDriver(LPDRIVER Driver) {
         }
 
         UINT Result = Driver->Command(DF_UNLOAD, 0);
-        if (Result == DF_RET_SUCCESS) {
+        if (Result == DF_RETURN_SUCCESS) {
             DEBUG(TEXT("[UnloadDriver] : %s driver unloaded successfully"), TEXT(Driver->Product));
+            TEST(TEXT("[UnloadDriver] %s.Unload : OK"), TEXT(Driver->Product));
         } else {
+            TEST(TEXT("[UnloadDriver] %s.Unload : KO"), TEXT(Driver->Product));
             WARNING(TEXT("[UnloadDriver] : Failed to unload %s driver (code = %x)"), TEXT(Driver->Product), Result);
         }
     }
@@ -854,7 +859,7 @@ static U32 KernelMonitor(LPVOID Parameter) {
 
         LogCounter++;
         if (LogCounter >= 60) {  // 60 * 500ms = 30 seconds
-            DEBUG("[KernelMonitor] Monitor task running normally");
+            DEBUG(TEXT("[KernelMonitor] Monitor task running normally"));
             LogCounter = 0;
         }
 
@@ -867,6 +872,8 @@ static U32 KernelMonitor(LPVOID Parameter) {
 /************************************************************************/
 
 void KernelIdle(void) {
+    ConsoleSetPagingActive(TRUE);
+
     FOREVER {
         Sleep(4000);
     }
@@ -894,7 +901,7 @@ static void KillActiveUserlandProcesses(void) {
     SAFE_USE(ProcessList) {
         for (LPPROCESS Process = (LPPROCESS)ProcessList->First; Process; Process = (LPPROCESS)Process->Next) {
             SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
-                if (Process != &KernelProcess && Process->Privilege == PRIVILEGE_USER &&
+                if (Process != &KernelProcess && Process->Privilege == CPU_PRIVILEGE_USER &&
                     Process->Status != PROCESS_STATUS_DEAD) {
                     ListAddTail(ProcessesToKill, Process);
                 }
@@ -979,35 +986,25 @@ void InitializeKernel(void) {
     LoadAllDrivers();
 
     //-------------------------------------
-    // Initialize object termination cache
+    // Initialize stuff
 
     CacheInit(GetObjectTerminationCache(), CACHE_DEFAULT_CAPACITY);
 
-    DEBUG(TEXT("[InitializeKernel] Object termination cache initialized"));
-
     HandleMapInit(GetHandleMap());
-    DEBUG(TEXT("[InitializeKernel] Handle map initialized"));
 
     InitializeFocusState();
-    DEBUG(TEXT("[InitializeKernel] Focus state initialized"));
-
-    //-------------------------------------
-    // Initialize quantum time based on environment and debug settings
 
     InitializeQuantumTime();
 
     //-------------------------------------
-    // Set keyboard mapping
+    // Set configuration dependent stuff
 
     UseConfiguration();
 
     //-------------------------------------
     // Run auto tests
 
-    // TODO : Fix RunAllTests in x86-64
-#if defined(__EXOS_ARCH_I386__)
     RunAllTests();
-#endif
 
     //-------------------------------------
     // Print the EXOS banner

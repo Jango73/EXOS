@@ -39,11 +39,11 @@
 
 // Functions supplied by a disk driver
 
-#define DF_DISK_RESET (DF_FIRSTFUNC + 0)
-#define DF_DISK_READ (DF_FIRSTFUNC + 1)
-#define DF_DISK_WRITE (DF_FIRSTFUNC + 2)
-#define DF_DISK_GETINFO (DF_FIRSTFUNC + 3)
-#define DF_DISK_SETACCESS (DF_FIRSTFUNC + 4)
+#define DF_DISK_RESET (DF_FIRST_FUNCTION + 0)
+#define DF_DISK_READ (DF_FIRST_FUNCTION + 1)
+#define DF_DISK_WRITE (DF_FIRST_FUNCTION + 2)
+#define DF_DISK_GETINFO (DF_FIRST_FUNCTION + 3)
+#define DF_DISK_SETACCESS (DF_FIRST_FUNCTION + 4)
 
 /***************************************************************************/
 

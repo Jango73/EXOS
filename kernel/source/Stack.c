@@ -51,11 +51,11 @@ static LPSTACK StackLocateActiveDescriptor(LPTASK Task, LINEAR CurrentSP) {
         }
     }
 
-    if (Task->Arch.SysStack.Base != 0 && Task->Arch.SysStack.Size != 0) {
-        LINEAR Base = Task->Arch.SysStack.Base;
-        LINEAR Top = Base + (LINEAR)Task->Arch.SysStack.Size;
+    if (Task->Arch.SystemStack.Base != 0 && Task->Arch.SystemStack.Size != 0) {
+        LINEAR Base = Task->Arch.SystemStack.Base;
+        LINEAR Top = Base + (LINEAR)Task->Arch.SystemStack.Size;
         if (CurrentSP >= Base && CurrentSP <= Top) {
-            return &(Task->Arch.SysStack);
+            return &(Task->Arch.SystemStack);
         }
     }
 
@@ -276,7 +276,7 @@ BOOL CheckStack(void) {
     InKernelMode = ((CurrentCS & SELECTOR_RPL_MASK) == 0);
 
     // Determine which ESP to check and which stack bounds to use
-    if (CurrentTask->Process->Privilege == PRIVILEGE_KERNEL) {
+    if (CurrentTask->Process->Privilege == CPU_PRIVILEGE_KERNEL) {
         // Kernel tasks always use their normal stack
         CurrentESP = StackGetSavedPointer(CurrentTask);
         StackBase = CurrentTask->Arch.Stack.Base;
@@ -286,7 +286,7 @@ BOOL CheckStack(void) {
         // The hardware switches to ESP0 stack, which may not be the task's system stack
         // We cannot reliably validate the current ESP since it might be on a different kernel stack
         // Instead, we just verify the task has a valid system stack allocated
-        if (CurrentTask->Arch.SysStack.Base == 0 || CurrentTask->Arch.SysStack.Size == 0) {
+        if (CurrentTask->Arch.SystemStack.Base == 0 || CurrentTask->Arch.SystemStack.Size == 0) {
             ERROR(TEXT("[CheckStack] User task in kernel mode without system stack!"));
             ERROR(TEXT("[CheckStack] Task: %x (%s @ %s)"), CurrentTask, CurrentTask->Name, CurrentTask->Process->FileName);
             return FALSE;
@@ -489,7 +489,7 @@ BOOL GrowCurrentStack(UINT AdditionalBytes) {
                 LINEAR Delta = NewTop - OldTop;
                 CurrentTask->Arch.Context.Registers.ESP += (UINT)Delta;
                 CurrentTask->Arch.Context.Registers.EBP += (UINT)Delta;
-            } else if (ActiveStack == &(CurrentTask->Arch.SysStack)) {
+            } else if (ActiveStack == &(CurrentTask->Arch.SystemStack)) {
                 LINEAR SysTop = ActiveStack->Base + (LINEAR)ActiveStack->Size;
                 CurrentTask->Arch.Context.ESP0 = (U32)(SysTop - STACK_SAFETY_MARGIN);
             }
@@ -498,7 +498,7 @@ BOOL GrowCurrentStack(UINT AdditionalBytes) {
                 LINEAR Delta = NewTop - OldTop;
                 CurrentTask->Arch.Context.Registers.RSP += (U64)Delta;
                 CurrentTask->Arch.Context.Registers.RBP += (U64)Delta;
-            } else if (ActiveStack == &(CurrentTask->Arch.SysStack)) {
+            } else if (ActiveStack == &(CurrentTask->Arch.SystemStack)) {
                 LINEAR SysTop = ActiveStack->Base + (LINEAR)ActiveStack->Size;
                 CurrentTask->Arch.Context.RSP0 = (U64)(SysTop - STACK_SAFETY_MARGIN);
             }

@@ -197,7 +197,7 @@ DRIVER DATA_SECTION MemoryManagerDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
+    .Type = DRIVER_TYPE_MEMORY,
     .VersionMajor = MEMORY_MANAGER_VER_MAJOR,
     .VersionMinor = MEMORY_MANAGER_VER_MINOR,
     .Designer = "Jango73",
@@ -205,6 +205,16 @@ DRIVER DATA_SECTION MemoryManagerDriver = {
     .Product = "MemoryManager",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = MemoryManagerCommands};
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the memory manager driver descriptor.
+ * @return Pointer to the memory manager driver.
+ */
+LPDRIVER MemoryManagerGetDriver(void) {
+    return &MemoryManagerDriver;
+}
 
 /************************************************************************/
 
@@ -1528,7 +1538,7 @@ LINEAR ResizeKernelRegion(LINEAR Base, UINT Size, UINT NewSize, U32 Flags) {
  *
  * @param Function Driver command selector.
  * @param Parameter Unused.
- * @return DF_RET_SUCCESS on success, DF_RET_NOTIMPL otherwise.
+ * @return DF_RETURN_SUCCESS on success, DF_RETURN_NOT_IMPLEMENTED otherwise.
  */
 static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
     UNUSED(Parameter);
@@ -1536,26 +1546,26 @@ static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((MemoryManagerDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             InitializeMemoryManager();
             MemoryManagerDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_UNLOAD:
             if ((MemoryManagerDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             MemoryManagerDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(MEMORY_MANAGER_VER_MAJOR, MEMORY_MANAGER_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /************************************************************************/

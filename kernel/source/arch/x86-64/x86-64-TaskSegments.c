@@ -44,7 +44,7 @@ DRIVER DATA_SECTION TaskSegmentsDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
+    .Type = DRIVER_TYPE_MEMORY,
     .VersionMajor = TASK_SEGMENTS_VER_MAJOR,
     .VersionMinor = TASK_SEGMENTS_VER_MINOR,
     .Designer = "Jango73",
@@ -52,6 +52,16 @@ DRIVER DATA_SECTION TaskSegmentsDriver = {
     .Product = "TaskSegments",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = TaskSegmentsDriverCommands};
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the task segments driver descriptor.
+ * @return Pointer to the task segments driver.
+ */
+LPDRIVER TaskSegmentsGetDriver(void) {
+    return &TaskSegmentsDriver;
+}
 
 /************************************************************************/
 
@@ -116,7 +126,7 @@ void InitializeTaskSegments(void) {
     Descriptor->Accessed = 1;
     Descriptor->Code = 1;
     Descriptor->S = 0;
-    Descriptor->Privilege = PRIVILEGE_KERNEL;
+    Descriptor->Privilege = CPU_PRIVILEGE_KERNEL;
     Descriptor->Present = 1;
     Descriptor->Limit_16_19 = (U8)(Descriptor->Limit_16_19 & 0x0F);
     Descriptor->Available = 0;
@@ -144,24 +154,24 @@ static UINT TaskSegmentsDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((TaskSegmentsDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             InitializeTaskSegments();
             TaskSegmentsDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_UNLOAD:
             if ((TaskSegmentsDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             TaskSegmentsDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(TASK_SEGMENTS_VER_MAJOR, TASK_SEGMENTS_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

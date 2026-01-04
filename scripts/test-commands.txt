@@ -1,0 +1,7 @@
+# Command|Expected log fragment (fixed string, matched in log/kernel.log)
+sysinfo|TEST > [CMD_sysinfo] sysinfo : OK
+dir -r|TEST > [CMD_dir] dir : OK
+/system/apps/hello|TEST > [Spawn] Executable finished normally : /system/apps/hello
+/system/apps/hello|TEST > [Spawn] Executable finished normally : /system/apps/hello
+/system/apps/hello|TEST > [Spawn] Executable finished normally : /system/apps/hello
+/system/apps/hello|TEST > [Spawn] Executable finished normally : /system/apps/hello

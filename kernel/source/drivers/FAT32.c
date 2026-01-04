@@ -263,7 +263,7 @@ static BOOL ReadCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Bu
 
     Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
-    if (Result != DF_RET_SUCCESS) return FALSE;
+    if (Result != DF_RETURN_SUCCESS) return FALSE;
 
     return TRUE;
 }
@@ -299,7 +299,7 @@ static BOOL WriteCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID B
 
     Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control);
 
-    if (Result != DF_RET_SUCCESS) return FALSE;
+    if (Result != DF_RETURN_SUCCESS) return FALSE;
 
     return TRUE;
 }
@@ -337,7 +337,7 @@ static CLUSTER GetNextClusterInChain(LPFAT32FILESYSTEM FileSystem, CLUSTER Clust
 
     Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
-    if (Result == DF_RET_SUCCESS) {
+    if (Result == DF_RETURN_SUCCESS) {
         NextCluster = Buffer[Offset];
     }
 
@@ -378,7 +378,7 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
         Control.NumSectors = 1;
 
         Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
-        if (Result != DF_RET_SUCCESS) {
+        if (Result != DF_RETURN_SUCCESS) {
             goto Out;
         }
 
@@ -396,7 +396,7 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
                 Control.SectorHigh = 0;
                 Control.NumSectors = 1;
                 Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control);
-                if (Result != DF_RET_SUCCESS) {
+                if (Result != DF_RETURN_SUCCESS) {
                     goto Out;
                 }
 
@@ -410,7 +410,7 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
                     Control.SectorHigh = 0;
                     Control.NumSectors = 1;
                     Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
-                    if (Result != DF_RET_SUCCESS) {
+                    if (Result != DF_RETURN_SUCCESS) {
                         goto Out;
                     }
 
@@ -426,7 +426,7 @@ static CLUSTER FindFreeCluster(LPFAT32FILESYSTEM FileSystem) {
                     Control.SectorHigh = 0;
                     Control.NumSectors = 1;
                     Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control);
-                    if (Result != DF_RET_SUCCESS) {
+                    if (Result != DF_RETURN_SUCCESS) {
                         goto Out;
                     }
                 }
@@ -475,7 +475,7 @@ static BOOL FindFreeFATEntry(LPFAT32FILESYSTEM FileSystem, U32* Sector,
 
         Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
-        if (Result != DF_RET_SUCCESS) {
+        if (Result != DF_RETURN_SUCCESS) {
             return FALSE;
         }
 
@@ -808,7 +808,7 @@ static CLUSTER ChainNewCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster) {
 
         Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
-        if (Result != DF_RET_SUCCESS) {
+        if (Result != DF_RETURN_SUCCESS) {
             return NewCluster;
         }
 
@@ -838,7 +838,7 @@ Next:
 
         Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
-        if (Result != DF_RET_SUCCESS) {
+        if (Result != DF_RETURN_SUCCESS) {
             return NewCluster;
         }
 
@@ -846,7 +846,7 @@ Next:
 
         Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control);
 
-        if (Result != DF_RET_SUCCESS) {
+        if (Result != DF_RETURN_SUCCESS) {
             return NewCluster;
         }
 
@@ -1083,9 +1083,9 @@ static void TranslateFileInfo(LPFATDIRENTRY_EXT DirEntry, LPFATFILE File) {
 
 /**
  * @brief Initialize the FAT32 driver.
- * @return DF_RET_SUCCESS.
+ * @return DF_RETURN_SUCCESS.
  */
-static U32 Initialize(void) { return DF_RET_SUCCESS; }
+static U32 Initialize(void) { return DF_RETURN_SUCCESS; }
 
 /***************************************************************************/
 
@@ -1093,7 +1093,7 @@ static U32 Initialize(void) { return DF_RET_SUCCESS; }
  * @brief Create a file or folder on the file system.
  * @param File File information containing path and attributes.
  * @param IsFolder TRUE to create a folder, FALSE to create a file.
- * @return DF_RET_* code.
+ * @return DF_RETURN_* code.
  */
 static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
     LPFAT32FILESYSTEM FileSystem = NULL;
@@ -1109,7 +1109,7 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
     // Check validity of parameters
 
     if (File == NULL) {
-        return DF_RET_BADPARAM;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     //-------------------------------------
@@ -1117,7 +1117,7 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
 
     FileSystem = (LPFAT32FILESYSTEM)File->FileSystem;
     if (FileSystem == NULL) {
-        return DF_RET_BADPARAM;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     //-------------------------------------
@@ -1133,7 +1133,7 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
     // Read the root cluster
 
     if (!ReadCluster(FileSystem, FileLoc.FileCluster, FileSystem->IOBuffer)) {
-        return DF_RET_IO;
+        return DF_RETURN_INPUT_OUTPUT;
     }
 
     FOREVER {
@@ -1183,11 +1183,11 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
                     if (IsLastComponent) {
                         // Found existing item with same name
                         if (IsFolder && (DirEntry->Attributes & FAT_ATTR_FOLDER)) {
-                            return DF_RET_SUCCESS; // Folder already exists
+                            return DF_RETURN_SUCCESS; // Folder already exists
                         } else if (!IsFolder && !(DirEntry->Attributes & FAT_ATTR_FOLDER)) {
-                            return DF_RET_SUCCESS; // File already exists
+                            return DF_RETURN_SUCCESS; // File already exists
                         }
-                        return DF_RET_GENERIC; // Type mismatch
+                        return DF_RETURN_GENERIC; // Type mismatch
                     } else {
                         // Navigating to next directory component
                         if (DirEntry->Attributes & FAT_ATTR_FOLDER) {
@@ -1201,11 +1201,11 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
                             FileLoc.Offset = 0;
 
                             if (ReadCluster(FileSystem, FileLoc.FileCluster, FileSystem->IOBuffer) == FALSE)
-                                return DF_RET_IO;
+                                return DF_RETURN_INPUT_OUTPUT;
 
                             goto NextComponent;
                         } else {
-                            return DF_RET_GENERIC; // Path component is not a directory
+                            return DF_RETURN_GENERIC; // Path component is not a directory
                         }
                     }
                 }
@@ -1229,11 +1229,11 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
                     if (IsLastComponent) {
                         // Create the final file/folder
                         BOOL result = CreateDirEntry(FileSystem, FileLoc.FolderCluster, Component, IsFolder ? FAT_ATTR_FOLDER : FAT_ATTR_ARCHIVE);
-                        return result ? DF_RET_SUCCESS : DF_RET_GENERIC;
+                        return result ? DF_RETURN_SUCCESS : DF_RETURN_GENERIC;
                     } else {
                         // Create intermediate directory and continue navigation
                         if (CreateDirEntry(FileSystem, FileLoc.FolderCluster, Component, FAT_ATTR_FOLDER) != TRUE) {
-                            return DF_RET_GENERIC;
+                            return DF_RETURN_GENERIC;
                         }
 
                         // Find the newly created directory and navigate into it
@@ -1241,7 +1241,7 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
                         FileLoc.FileCluster = FileLoc.FolderCluster;
 
                         if (ReadCluster(FileSystem, FileLoc.FileCluster, FileSystem->IOBuffer) == FALSE) {
-                            return DF_RET_IO;
+                            return DF_RETURN_INPUT_OUTPUT;
                         }
 
                         // Search for the newly created directory
@@ -1259,7 +1259,7 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
                                     FileLoc.Offset = 0;
 
                                     if (ReadCluster(FileSystem, FileLoc.FileCluster, FileSystem->IOBuffer) == FALSE) {
-                                        return DF_RET_IO;
+                                        return DF_RETURN_INPUT_OUTPUT;
                                     }
 
                                     goto NextComponent;
@@ -1268,18 +1268,18 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
 
                             FileLoc.Offset += sizeof(FATDIRENTRY_EXT);
                             if (FileLoc.Offset >= FileSystem->BytesPerCluster) {
-                                return DF_RET_GENERIC; // Should have found the directory we just created
+                                return DF_RETURN_GENERIC; // Should have found the directory we just created
                             }
                         }
                     }
                 }
 
-                if (ReadCluster(FileSystem, FileLoc.FileCluster, FileSystem->IOBuffer) == FALSE) return DF_RET_IO;
+                if (ReadCluster(FileSystem, FileLoc.FileCluster, FileSystem->IOBuffer) == FALSE) return DF_RETURN_INPUT_OUTPUT;
             }
         }
     }
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1287,12 +1287,12 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
 /**
  * @brief Delete a folder from the file system.
  * @param File File information describing folder.
- * @return DF_RET_* code.
+ * @return DF_RETURN_* code.
  */
 static U32 DeleteFolder(LPFILEINFO File) {
     UNUSED(File);
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1300,12 +1300,12 @@ static U32 DeleteFolder(LPFILEINFO File) {
 /**
  * @brief Rename a folder within the file system.
  * @param File File information with old and new names.
- * @return DF_RET_* code.
+ * @return DF_RETURN_* code.
  */
 static U32 RenameFolder(LPFILEINFO File) {
     UNUSED(File);
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1370,7 +1370,7 @@ static LPFATFILE OpenFile(LPFILEINFO Find) {
         TempFileInfo.FileSystem = (LPFILESYSTEM)FileSystem;
         StringCopy(TempFileInfo.Name, Find->Name);
 
-        if (CreateFile(&TempFileInfo, FALSE) != DF_RET_SUCCESS) {
+        if (CreateFile(&TempFileInfo, FALSE) != DF_RETURN_SUCCESS) {
             return NULL;
         }
 
@@ -1405,7 +1405,7 @@ static LPFATFILE OpenFile(LPFILEINFO Find) {
 /**
  * @brief Advance to next directory entry during enumeration.
  * @param File Current FAT file handle representing directory.
- * @return DF_RET_SUCCESS or error code.
+ * @return DF_RETURN_SUCCESS or error code.
  */
 static U32 OpenNext(LPFATFILE File) {
     LPFAT32FILESYSTEM FileSystem = NULL;
@@ -1414,8 +1414,8 @@ static U32 OpenNext(LPFATFILE File) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (File == NULL) return DF_RET_BADPARAM;
-    if (File->Header.TypeID != KOID_FILE) return DF_RET_BADPARAM;
+    if (File == NULL) return DF_RETURN_BAD_PARAMETER;
+    if (File->Header.TypeID != KOID_FILE) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
     // Get the associated file system
@@ -1425,7 +1425,7 @@ static U32 OpenNext(LPFATFILE File) {
     //-------------------------------------
     // Read the cluster containing the file
 
-    if (ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) return DF_RET_IO;
+    if (ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) return DF_RETURN_INPUT_OUTPUT;
 
     FOREVER {
         File->Location.Offset += sizeof(FATDIRENTRY_EXT);
@@ -1436,9 +1436,9 @@ static U32 OpenNext(LPFATFILE File) {
             File->Location.FileCluster = GetNextClusterInChain(FileSystem, File->Location.FileCluster);
 
             if (File->Location.FileCluster == 0 || File->Location.FileCluster >= FAT32_CLUSTER_RESERVED)
-                return DF_RET_GENERIC;
+                return DF_RETURN_GENERIC;
 
-            if (ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) return DF_RET_IO;
+            if (ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) return DF_RETURN_INPUT_OUTPUT;
         }
 
         DirEntry = (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + File->Location.Offset);
@@ -1453,7 +1453,7 @@ static U32 OpenNext(LPFATFILE File) {
         }
     }
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1461,13 +1461,13 @@ static U32 OpenNext(LPFATFILE File) {
 /**
  * @brief Close an open FAT32 file handle.
  * @param File File handle to close.
- * @return DF_RET_SUCCESS.
+ * @return DF_RETURN_SUCCESS.
  */
 static U32 CloseFile(LPFATFILE File) {
     LPFAT32FILESYSTEM FileSystem;
     LPFATDIRENTRY_EXT DirEntry;
 
-    if (File == NULL) return DF_RET_BADPARAM;
+    if (File == NULL) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
     // Get the associated file system
@@ -1478,7 +1478,7 @@ static U32 CloseFile(LPFATFILE File) {
     // Update file information in directory entry
 
     if (ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) {
-        return DF_RET_IO;
+        return DF_RETURN_INPUT_OUTPUT;
     }
 
     DirEntry = (LPFATDIRENTRY_EXT)(FileSystem->IOBuffer + File->Location.Offset);
@@ -1487,13 +1487,13 @@ static U32 CloseFile(LPFATFILE File) {
         DirEntry->Size = File->Header.SizeLow;
 
         if (WriteCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) {
-            return DF_RET_IO;
+            return DF_RETURN_INPUT_OUTPUT;
         }
     }
 
     ReleaseKernelObject(File);
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1501,7 +1501,7 @@ static U32 CloseFile(LPFATFILE File) {
 /**
  * @brief Read data from a file.
  * @param File File handle with read parameters.
- * @return DF_RET_SUCCESS or error code.
+ * @return DF_RETURN_SUCCESS or error code.
  */
 static U32 ReadFile(LPFATFILE File) {
     LPFAT32FILESYSTEM FileSystem;
@@ -1515,9 +1515,9 @@ static U32 ReadFile(LPFATFILE File) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (File == NULL) return DF_RET_BADPARAM;
-    if (File->Header.TypeID != KOID_FILE) return DF_RET_BADPARAM;
-    if (File->Header.Buffer == NULL) return DF_RET_BADPARAM;
+    if (File == NULL) return DF_RETURN_BAD_PARAMETER;
+    if (File->Header.TypeID != KOID_FILE) return DF_RETURN_BAD_PARAMETER;
+    if (File->Header.Buffer == NULL) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
     // Get the associated file system
@@ -1537,7 +1537,7 @@ static U32 ReadFile(LPFATFILE File) {
     for (Index = 0; Index < RelativeCluster; Index++) {
         Cluster = GetNextClusterInChain(FileSystem, Cluster);
         if (Cluster == 0 || Cluster >= FAT32_CLUSTER_RESERVED) {
-            return DF_RET_IO;
+            return DF_RETURN_INPUT_OUTPUT;
         }
     }
 
@@ -1546,7 +1546,7 @@ static U32 ReadFile(LPFATFILE File) {
         // Read the current data cluster
 
         if (ReadCluster(FileSystem, Cluster, FileSystem->IOBuffer) == FALSE) {
-            return DF_RET_IO;
+            return DF_RETURN_INPUT_OUTPUT;
         }
 
         ByteCount = FileSystem->BytesPerCluster - OffsetInCluster;
@@ -1581,7 +1581,7 @@ static U32 ReadFile(LPFATFILE File) {
         }
     }
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1589,7 +1589,7 @@ static U32 ReadFile(LPFATFILE File) {
 /**
  * @brief Write data to a file.
  * @param File File handle with write parameters.
- * @return DF_RET_SUCCESS or error code.
+ * @return DF_RETURN_SUCCESS or error code.
  */
 static U32 WriteFile(LPFATFILE File) {
     LPFAT32FILESYSTEM FileSystem;
@@ -1604,9 +1604,9 @@ static U32 WriteFile(LPFATFILE File) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (File == NULL) return DF_RET_BADPARAM;
-    if (File->Header.TypeID != KOID_FILE) return DF_RET_BADPARAM;
-    if (File->Header.Buffer == NULL) return DF_RET_BADPARAM;
+    if (File == NULL) return DF_RETURN_BAD_PARAMETER;
+    if (File->Header.TypeID != KOID_FILE) return DF_RETURN_BAD_PARAMETER;
+    if (File->Header.Buffer == NULL) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
     // Get the associated file system
@@ -1636,7 +1636,7 @@ static U32 WriteFile(LPFATFILE File) {
             Cluster = ChainNewCluster(FileSystem, LastValidCluster);
 
             if (Cluster == 0 || Cluster >= FAT32_CLUSTER_RESERVED) {
-                return DF_RET_FS_NOSPACE;
+                return DF_RETURN_FS_NOSPACE;
             }
         }
 
@@ -1648,7 +1648,7 @@ static U32 WriteFile(LPFATFILE File) {
         // Read the current data cluster
 
         if (ReadCluster(FileSystem, Cluster, FileSystem->IOBuffer) == FALSE) {
-            return DF_RET_IO;
+            return DF_RETURN_INPUT_OUTPUT;
         }
 
         //-------------------------------------
@@ -1667,7 +1667,7 @@ static U32 WriteFile(LPFATFILE File) {
         // Write the current data cluster
 
         if (WriteCluster(FileSystem, Cluster, FileSystem->IOBuffer) == FALSE) {
-            return DF_RET_IO;
+            return DF_RETURN_INPUT_OUTPUT;
         }
 
         //-------------------------------------
@@ -1699,7 +1699,7 @@ static U32 WriteFile(LPFATFILE File) {
             Cluster = ChainNewCluster(FileSystem, LastValidCluster);
 
             if (Cluster == 0 || Cluster >= FAT32_CLUSTER_RESERVED) {
-                return DF_RET_FS_NOSPACE;
+                return DF_RETURN_FS_NOSPACE;
             }
         }
 
@@ -1710,7 +1710,7 @@ static U32 WriteFile(LPFATFILE File) {
         File->Header.SizeLow = File->Header.Position;
     }
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1718,7 +1718,7 @@ static U32 WriteFile(LPFATFILE File) {
 /**
  * @brief Create a new FAT32 partition on disk.
  * @param Create Partition creation parameters.
- * @return DF_RET_* code.
+ * @return DF_RETURN_* code.
  */
 static U32 CreatePartition(LPPARTITION_CREATION Create) {
     LPFAT32MBR Master = NULL;
@@ -1726,14 +1726,14 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     //-------------------------------------
     // Check validity of parameters
 
-    if (Create == NULL) return DF_RET_BADPARAM;
-    if (Create->Disk == NULL) return DF_RET_BADPARAM;
+    if (Create == NULL) return DF_RETURN_BAD_PARAMETER;
+    if (Create->Disk == NULL) return DF_RETURN_BAD_PARAMETER;
 
     //-------------------------------------
 
     Master = (LPFAT32MBR)KernelHeapAlloc(sizeof(FAT32MBR));
 
-    if (Master == NULL) return DF_RET_NOMEMORY;
+    if (Master == NULL) return DF_RETURN_NO_MEMORY;
 
     //-------------------------------------
     // Fill the master boot record
@@ -1780,7 +1780,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
     //-------------------------------------
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1789,18 +1789,18 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
  * @brief Dispatch function for FAT32 driver commands.
  * @param Function Requested driver function.
  * @param Parameter Optional parameter pointer.
- * @return DF_RET_* result code.
+ * @return DF_RETURN_* result code.
  */
 UINT FAT32Commands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             return Initialize();
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_FS_GETVOLUMEINFO:
-            return DF_RET_NOTIMPL;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_SETVOLUMEINFO:
-            return DF_RET_NOTIMPL;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_CREATEFOLDER:
             return (UINT)CreateFile((LPFILEINFO)Parameter, TRUE);
         case DF_FS_DELETEFOLDER:
@@ -1814,9 +1814,9 @@ UINT FAT32Commands(UINT Function, UINT Parameter) {
         case DF_FS_CLOSEFILE:
             return (UINT)CloseFile((LPFATFILE)Parameter);
         case DF_FS_DELETEFILE:
-            return DF_RET_NOTIMPL;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_RENAMEFILE:
-            return DF_RET_NOTIMPL;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_READ:
             return (UINT)ReadFile((LPFATFILE)Parameter);
         case DF_FS_WRITE:
@@ -1825,5 +1825,5 @@ UINT FAT32Commands(UINT Function, UINT Parameter) {
             return (UINT)CreatePartition((LPPARTITION_CREATION)Parameter);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

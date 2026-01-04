@@ -67,7 +67,6 @@ static UINT DeferredWorkDriverCommands(UINT Function, UINT Parameter);
 static void ProcessPendingWork(void);
 static void ProcessPollCallbacks(void);
 static U32 DeferredWorkDispatcherTask(LPVOID Param);
-static BOOL DeferredWorkDispatch(LPVOID Param);
 
 /************************************************************************/
 
@@ -79,7 +78,7 @@ DRIVER DATA_SECTION DeferredWorkDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
+    .Type = DRIVER_TYPE_INIT,
     .VersionMajor = DEFERRED_WORK_VER_MAJOR,
     .VersionMinor = DEFERRED_WORK_VER_MINOR,
     .Designer = "Jango73",
@@ -87,6 +86,16 @@ DRIVER DATA_SECTION DeferredWorkDriver = {
     .Product = "DeferredWork",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = DeferredWorkDriverCommands};
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the deferred work driver descriptor.
+ * @return Pointer to the deferred work driver.
+ */
+LPDRIVER DeferredWorkGetDriver(void) {
+    return &DeferredWorkDriver;
+}
 
 /************************************************************************/
 
@@ -436,27 +445,27 @@ static UINT DeferredWorkDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((DeferredWorkDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             if (InitializeDeferredWork()) {
                 DeferredWorkDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
-            return DF_RET_UNEXPECT;
+            return DF_RETURN_UNEXPECTED;
 
         case DF_UNLOAD:
             if ((DeferredWorkDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             DeferredWorkDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(DEFERRED_WORK_VER_MAJOR, DEFERRED_WORK_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

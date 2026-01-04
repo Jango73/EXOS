@@ -46,6 +46,9 @@ typedef struct tag_CONSOLE_STRUCT {
     U32 BackColor;
     U32 ForeColor;
     U32 Blink;
+    U32 PagingEnabled;
+    U32 PagingActive;
+    U32 PagingRemaining;
     U32 Port;
     U16* Memory;
 } CONSOLE_STRUCT, *LPCONSOLE_STRUCT;
@@ -66,6 +69,13 @@ int SetConsoleForeColor(U32 Color);
 BOOL ConsoleGetString(LPSTR, U32);
 void ConsolePanic(LPCSTR Format, ...);
 void InitializeConsole(void);
+UINT ConsoleSetMode(LPGRAPHICSMODEINFO Info);
+UINT ConsoleGetModeCount(void);
+UINT ConsoleGetModeInfo(LPCONSOLEMODEINFO Info);
+void ConsoleSetPagingEnabled(BOOL Enabled);
+BOOL ConsoleGetPagingEnabled(void);
+void ConsoleSetPagingActive(BOOL Active);
+void ConsoleResetPaging(void);
 
 // Functions in Shell.c
 

@@ -731,3 +731,7 @@ VGAMODEREGS VGAModeRegs [] =
     0x00, 0x00, 0x00, 0x00,
   } }
 };
+
+/****************************************************************************/
+
+const U32 VGAModeRegsCount = sizeof(VGAModeRegs) / sizeof(VGAModeRegs[0]);

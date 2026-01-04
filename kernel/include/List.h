@@ -38,7 +38,8 @@
 #define LISTNODE_FIELDS     \
     OBJECT_FIELDS           \
     LPLISTNODE Next;        \
-    LPLISTNODE Prev;
+    LPLISTNODE Prev;        \
+    LPLISTNODE Parent;
 
 typedef struct tag_LISTNODE LISTNODE, *LPLISTNODE;
 
@@ -56,7 +57,7 @@ typedef struct tag_LIST {
     LPLISTNODE First;
     LPLISTNODE Last;
     LPLISTNODE Current;
-    U32 NumItems;
+    UINT NumItems;
     MEMALLOCFUNC MemAllocFunc;
     MEMFREEFUNC MemFreeFunc;
     LISTITEMDESTRUCTOR Destructor;
@@ -73,6 +74,7 @@ LPLIST NewList(LISTITEMDESTRUCTOR Destructor, MEMALLOCFUNC Alloc, MEMFREEFUNC Fr
 U32 DeleteList(LPLIST List);
 U32 ListGetSize(LPLIST List);
 U32 ListAddItem(LPLIST List, LPVOID Item);
+U32 ListAddItemWithParent(LPLIST List, LPVOID Item, LPLISTNODE Parent);
 U32 ListAddBefore(LPLIST List, LPVOID RefItem, LPVOID NewItem);
 U32 ListAddAfter(LPLIST List, LPVOID RefItem, LPVOID NewItem);
 U32 ListAddHead(LPLIST List, LPVOID Item);

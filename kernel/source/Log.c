@@ -46,7 +46,7 @@ DRIVER DATA_SECTION KernelLogDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
+    .Type = DRIVER_TYPE_INIT,
     .VersionMajor = KERNEL_LOG_VER_MAJOR,
     .VersionMinor = KERNEL_LOG_VER_MINOR,
     .Designer = "Jango73",
@@ -54,6 +54,16 @@ DRIVER DATA_SECTION KernelLogDriver = {
     .Product = "KernelLog",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = KernelLogDriverCommands};
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the kernel log driver descriptor.
+ * @return Pointer to the kernel log driver.
+ */
+LPDRIVER KernelLogGetDriver(void) {
+    return &KernelLogDriver;
+}
 
 /************************************************************************/
 
@@ -93,26 +103,26 @@ static UINT KernelLogDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((KernelLogDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             InitKernelLog();
             KernelLogDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_UNLOAD:
             if ((KernelLogDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             KernelLogDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(KERNEL_LOG_VER_MAJOR, KERNEL_LOG_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /************************************************************************/
@@ -152,6 +162,13 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
         case LOG_DEBUG: {
             KernelPrintString(TimeBuffer);
             KernelPrintString(TEXT("DEBUG > "));
+            KernelPrintString(TextBuffer);
+            KernelPrintString(Text_NewLine);
+        } break;
+
+        case LOG_TEST: {
+            KernelPrintString(TimeBuffer);
+            KernelPrintString(TEXT("TEST > "));
             KernelPrintString(TextBuffer);
             KernelPrintString(Text_NewLine);
         } break;

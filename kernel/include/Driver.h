@@ -30,6 +30,7 @@
 #include "Base.h"
 #include "ID.h"
 #include "List.h"
+#include "DriverEnum.h"
 
 /***************************************************************************/
 
@@ -38,24 +39,29 @@
 /***************************************************************************/
 
 #define DRIVER_TYPE_NONE 0x00000000
-#define DRIVER_TYPE_FLOPPYDISK 0x00000001
-#define DRIVER_TYPE_HARDDISK 0x00000002
-#define DRIVER_TYPE_RAMDISK 0x00000003
-#define DRIVER_TYPE_FILESYSTEM 0x00000004
-#define DRIVER_TYPE_KEYBOARD 0x00000005
-#define DRIVER_TYPE_GRAPHICS 0x00000006
-#define DRIVER_TYPE_MONITOR 0x00000007
-#define DRIVER_TYPE_MOUSE 0x00000008
-#define DRIVER_TYPE_CDROM 0x00000009
-#define DRIVER_TYPE_MODEM 0x0000000A
-#define DRIVER_TYPE_NETWORK 0x0000000B
-#define DRIVER_TYPE_WAVE 0x0000000C
-#define DRIVER_TYPE_MIDI 0x0000000D
-#define DRIVER_TYPE_SYNTH 0x0000000E
-#define DRIVER_TYPE_PRINTER 0x0000000F
-#define DRIVER_TYPE_SCANNER 0x00000010
-#define DRIVER_TYPE_GRAPHTABLE 0x00000011
-#define DRIVER_TYPE_DVD 0x00000012
+#define DRIVER_TYPE_INIT 0x00000001
+#define DRIVER_TYPE_CLOCK 0x00000002
+#define DRIVER_TYPE_CONSOLE 0x00000003
+#define DRIVER_TYPE_INTERRUPT 0x00000004
+#define DRIVER_TYPE_MEMORY 0x00000005
+#define DRIVER_TYPE_FLOPPYDISK 0x00000006
+#define DRIVER_TYPE_HARDDISK 0x00000007
+#define DRIVER_TYPE_RAMDISK 0x00000008
+#define DRIVER_TYPE_FILESYSTEM 0x00000009
+#define DRIVER_TYPE_KEYBOARD 0x0000000A
+#define DRIVER_TYPE_GRAPHICS 0x0000000B
+#define DRIVER_TYPE_MONITOR 0x0000000C
+#define DRIVER_TYPE_MOUSE 0x0000000D
+#define DRIVER_TYPE_CDROM 0x0000000E
+#define DRIVER_TYPE_MODEM 0x0000000F
+#define DRIVER_TYPE_NETWORK 0x00000010
+#define DRIVER_TYPE_WAVE 0x00000011
+#define DRIVER_TYPE_MIDI 0x00000012
+#define DRIVER_TYPE_SYNTH 0x00000013
+#define DRIVER_TYPE_PRINTER 0x00000014
+#define DRIVER_TYPE_SCANNER 0x00000015
+#define DRIVER_TYPE_GRAPHTABLE 0x00000016
+#define DRIVER_TYPE_DVD 0x00000017
 #define DRIVER_TYPE_OTHER 0xFFFFFFFF
 
 /***************************************************************************/
@@ -69,15 +75,17 @@ typedef UINT (*DRVFUNC)(UINT Function, UINT Parameter);
 
 /***************************************************************************/
 
-#define DRIVER_FIELDS           \
-    U32 Type;                   \
-    U32 VersionMajor;           \
-    U32 VersionMinor;           \
-    STR Designer[MAX_NAME];     \
-    STR Manufacturer[MAX_NAME]; \
-    STR Product[MAX_NAME];      \
-    U32 Flags;                  \
-    DRVFUNC Command;
+#define DRIVER_FIELDS                   \
+    U32 Type;                           \
+    U32 VersionMajor;                   \
+    U32 VersionMinor;                   \
+    STR Designer[MAX_NAME];             \
+    STR Manufacturer[MAX_NAME];         \
+    STR Product[MAX_NAME];              \
+    U32 Flags;                          \
+    DRVFUNC Command;                    \
+    UINT EnumDomainCount;               \
+    UINT EnumDomains[DRIVER_ENUM_MAX_DOMAINS];
 
 typedef struct tag_DRIVER {
     LISTNODE_FIELDS

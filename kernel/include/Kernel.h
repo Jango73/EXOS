@@ -28,10 +28,10 @@
 /************************************************************************/
 
 // Privilege levels (rings)
-#define PRIVILEGE_KERNEL 0x00
-#define PRIVILEGE_DRIVERS 0x01
-#define PRIVILEGE_ROUTINES 0x02
-#define PRIVILEGE_USER 0x03
+#define CPU_PRIVILEGE_KERNEL 0x00
+#define CPU_PRIVILEGE_DRIVERS 0x01
+#define CPU_PRIVILEGE_ROUTINES 0x02
+#define CPU_PRIVILEGE_USER 0x03
 
 /************************************************************************/
 

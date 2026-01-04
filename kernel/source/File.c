@@ -297,7 +297,7 @@ UINT GetFilePosition(LPFILE File) {
 /**
  * @brief Sets current position within a file
  * @param Operation Pointer to file operation structure containing new position
- * @return DF_RET_SUCCESS on success, DF_RET_BADPARAM on failure
+ * @return DF_RETURN_SUCCESS on success, DF_RETURN_BAD_PARAMETER on failure
  */
 UINT SetFilePosition(LPFILEOPERATION Operation) {
     SAFE_USE_VALID(Operation) {
@@ -316,11 +316,11 @@ UINT SetFilePosition(LPFILEOPERATION Operation) {
 
             UnlockMutex(&(File->Mutex));
 
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
         }
     }
 
-    return DF_RET_BADPARAM;
+    return DF_RETURN_BAD_PARAMETER;
 }
 
 /***************************************************************************/
@@ -351,7 +351,7 @@ UINT ReadFile(LPFILEOPERATION Operation) {
 
             Result = File->FileSystem->Driver->Command(DF_FS_READ, (UINT)File);
 
-            if (Result == DF_RET_SUCCESS) {
+            if (Result == DF_RETURN_SUCCESS) {
                 BytesTransferred = File->BytesTransferred;
             }
 
@@ -392,7 +392,7 @@ UINT WriteFile(LPFILEOPERATION Operation) {
 
             Result = File->FileSystem->Driver->Command(DF_FS_WRITE, (UINT)File);
 
-            if (Result == DF_RET_SUCCESS) {
+            if (Result == DF_RETURN_SUCCESS) {
                 BytesWritten = File->BytesTransferred;
             }
 

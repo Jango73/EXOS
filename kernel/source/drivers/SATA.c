@@ -29,6 +29,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
+#include "DriverEnum.h"
 #include "drivers/PCI.h"
 #include "User.h"
 #include "utils/Cache.h"
@@ -42,10 +43,10 @@
 /***************************************************************************/
 // Additional error codes not in User.h
 
-#define DF_RET_HARDWARE 0x00001001
-#define DF_RET_TIMEOUT 0x00001002
-#define DF_RET_BUSY 0x00001003
-#define DF_RET_NODEVICE 0x00001004
+#define DF_RETURN_HARDWARE 0x00001001
+#define DF_RETURN_TIMEOUT 0x00001002
+#define DF_RETURN_BUSY 0x00001003
+#define DF_RETURN_NODEVICE 0x00001004
 
 /***************************************************************************/
 
@@ -63,7 +64,19 @@ DRIVER DATA_SECTION SATADiskDriver = {
     .Manufacturer = "AHCI Controllers",
     .Product = "AHCI SATA Controller",
     .Flags = 0,
-    .Command = SATADiskCommands};
+    .Command = SATADiskCommands,
+    .EnumDomainCount = 1,
+    .EnumDomains = {ENUM_DOMAIN_AHCI_PORT}};
+
+/***************************************************************************/
+
+/**
+ * @brief Retrieves the SATA disk driver descriptor.
+ * @return Pointer to the SATA disk driver.
+ */
+LPDRIVER SATADiskGetDriver(void) {
+    return &SATADiskDriver;
+}
 
 /***************************************************************************/
 
@@ -122,13 +135,15 @@ static AHCI_STATE AHCIState = {
 /***************************************************************************/
 // AHCI PCI Driver
 
-static U32 AHCIProbe(UINT Function, UINT Parameter);
+static UINT AHCIProbe(UINT Function, UINT Parameter);
 static LPPCI_DEVICE AHCIAttach(LPPCI_DEVICE PciDevice);
 static U32 InitializeAHCIController(void);
 static BOOL AHCIRegisterInterrupts(void);
 static BOOL AHCIInterruptTopHalf(LPDEVICE Device, LPVOID Context);
 static void AHCIInterruptBottomHalf(LPDEVICE Device, LPVOID Context);
 static void AHCIInterruptPoll(LPDEVICE Device, LPVOID Context);
+static U32 SATA_EnumNext(LPDRIVER_ENUM_NEXT Next);
+static U32 SATA_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty);
 
 static const DRIVER_MATCH AHCIMatches[] = {
     // Match any AHCI controller (Class 01h, Subclass 06h, Programming Interface 01h)
@@ -452,23 +467,23 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
  *
  * @param Function Driver function code.
  * @param Parameter Function-specific parameter.
- * @return DF_RET_SUCCESS on handled, DF_RET_NOTIMPL otherwise.
+ * @return DF_RETURN_SUCCESS on handled, DF_RETURN_NOT_IMPLEMENTED otherwise.
  */
-static U32 AHCIProbe(UINT Function, UINT Parameter) {
+static UINT AHCIProbe(UINT Function, UINT Parameter) {
     LPPCI_INFO PciInfo = (LPPCI_INFO)Parameter;
 
     if (Function != DF_PROBE) {
-        return DF_RET_NOTIMPL;
+        return DF_RETURN_NOT_IMPLEMENTED;
     }
 
     if (PciInfo == NULL) {
-        return DF_RET_BADPARAM;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     DEBUG(TEXT("[AHCIProbe] Found AHCI controller %x:%x"),
           (INT)PciInfo->VendorID, (INT)PciInfo->DeviceID);
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -545,7 +560,7 @@ static LPPCI_DEVICE AHCIAttach(LPPCI_DEVICE PciDevice) {
     PCI_EnableBusMaster(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, TRUE);
 
     // Initialize AHCI
-    if (InitializeAHCIController() != DF_RET_SUCCESS) {
+    if (InitializeAHCIController() != DF_RETURN_SUCCESS) {
         DEBUG(TEXT("[AHCIAttach] Failed to initialize AHCI controller"));
         KernelHeapFree(Device);
         return NULL;
@@ -562,11 +577,11 @@ static LPPCI_DEVICE AHCIAttach(LPPCI_DEVICE PciDevice) {
  * Maps HBA registers, enumerates implemented ports, and leaves interrupts
  * masked for polling mode.
  *
- * @return DF_RET_SUCCESS on success or an error code.
+ * @return DF_RETURN_SUCCESS on success or an error code.
  */
 static U32 InitializeAHCIController(void) {
     if (AHCIState.Base == NULL) {
-        return DF_RET_BADPARAM;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     DEBUG(TEXT("[InitializeAHCIController] Initializing AHCI HBA"));
@@ -627,7 +642,7 @@ static U32 InitializeAHCIController(void) {
 
     DEBUG(TEXT("[InitializeAHCIController] AHCI initialization complete"));
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -641,12 +656,12 @@ static U32 InitializeAHCIController(void) {
  * @param SectorCount Number of sectors to transfer.
  * @param Buffer Data buffer.
  * @param IsWrite TRUE for write, FALSE for read.
- * @return DF_RET_SUCCESS or error code.
+ * @return DF_RETURN_SUCCESS or error code.
  */
 static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCount, LPVOID Buffer, BOOL IsWrite) {
     if (AHCIPort == NULL || Buffer == NULL) {
         DEBUG(TEXT("[AHCICommand] Invalid parameters"));
-        return DF_RET_BADPARAM;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     // DEBUG(TEXT("[AHCICommand] Command=%x, LBA=%x, SectorCount=%u, IsWrite=%d"), Command, LBA, SectorCount, IsWrite);
@@ -654,7 +669,7 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
     LPAHCI_HBA_PORT Port = AHCIPort->HBAPort;
     if (Port == NULL) {
         DEBUG(TEXT("[AHCICommand] Port not initialized"));
-        return DF_RET_HARDWARE;
+        return DF_RETURN_HARDWARE;
     }
 
     // Wait for port to be ready
@@ -664,7 +679,7 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
     }
     if (timeout == 0) {
         DEBUG(TEXT("[AHCICommand] Port busy timeout"));
-        return DF_RET_TIMEOUT;
+        return DF_RETURN_TIMEOUT;
     }
 
     // Clear pending interrupts
@@ -699,7 +714,7 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
     PHYSICAL bufferPhys = MapLinearToPhysical((LINEAR)Buffer);
     if (bufferPhys == 0) {
         DEBUG(TEXT("[AHCICommand] Failed to get physical address for buffer"));
-        return DF_RET_HARDWARE;
+        return DF_RETURN_HARDWARE;
     }
 
     cmdtbl->prdt_entry[0].dba = bufferPhys;
@@ -717,24 +732,24 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
     while ((Port->ci & 1) && timeout > 0) {
         if (Port->is & AHCI_PORT_IS_TFES) {
             DEBUG(TEXT("[AHCICommand] Task file error"));
-            return DF_RET_HARDWARE;
+            return DF_RETURN_HARDWARE;
         }
         timeout--;
     }
 
     if (timeout == 0) {
         DEBUG(TEXT("[AHCICommand] Command timeout"));
-        return DF_RET_TIMEOUT;
+        return DF_RETURN_TIMEOUT;
     }
 
     // Check for errors
     if (Port->is & AHCI_PORT_IS_TFES) {
         DEBUG(TEXT("[AHCICommand] Task file error after completion"));
-        return DF_RET_HARDWARE;
+        return DF_RETURN_HARDWARE;
     }
 
     // DEBUG(TEXT("[AHCICommand] Command completed successfully"));
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -743,7 +758,7 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
  * @brief Read sectors from a SATA disk using AHCI.
  *
  * @param Control IO control structure describing request.
- * @return DF_RET_SUCCESS or error code.
+ * @return DF_RETURN_SUCCESS or error code.
  */
 static U32 Read(LPIOCONTROL Control) {
     LPAHCI_PORT AHCIPort;
@@ -751,14 +766,14 @@ static U32 Read(LPIOCONTROL Control) {
     U32 Result;
 
     // Check validity of parameters
-    if (Control == NULL) return DF_RET_BADPARAM;
+    if (Control == NULL) return DF_RETURN_BAD_PARAMETER;
 
     // Get the physical disk to which operation applies
     AHCIPort = (LPAHCI_PORT)Control->Disk;
-    if (AHCIPort == NULL) return DF_RET_BADPARAM;
+    if (AHCIPort == NULL) return DF_RETURN_BAD_PARAMETER;
 
     // Check validity of parameters
-    if (AHCIPort->Header.TypeID != KOID_DISK) return DF_RET_BADPARAM;
+    if (AHCIPort->Header.TypeID != KOID_DISK) return DF_RETURN_BAD_PARAMETER;
 
     CacheCleanup(&AHCIPort->SectorCache, GetSystemTime());
 
@@ -769,7 +784,7 @@ static U32 Read(LPIOCONTROL Control) {
         if (Buffer == NULL) {
             Buffer = (LPSECTORBUFFER)KernelHeapAlloc(sizeof(SECTORBUFFER));
 
-            if (Buffer == NULL) return DF_RET_UNEXPECT;
+            if (Buffer == NULL) return DF_RETURN_UNEXPECTED;
 
             Buffer->SectorLow = Context.SectorLow;
             Buffer->SectorHigh = Context.SectorHigh;
@@ -778,21 +793,21 @@ static U32 Read(LPIOCONTROL Control) {
             Result = AHCICommand(
                 AHCIPort, ATA_CMD_READ_DMA_EXT, Context.SectorLow, 1, Buffer->Data, FALSE);
 
-            if (Result != DF_RET_SUCCESS) {
+            if (Result != DF_RETURN_SUCCESS) {
                 KernelHeapFree(Buffer);
                 return Result;
             }
 
             if (!CacheAdd(&AHCIPort->SectorCache, Buffer, DISK_CACHE_TTL_MS)) {
                 KernelHeapFree(Buffer);
-                return DF_RET_UNEXPECT;
+                return DF_RETURN_UNEXPECTED;
             }
         }
 
         MemoryCopy(((U8*)Control->Buffer) + (Current * SECTOR_SIZE), Buffer->Data, SECTOR_SIZE);
     }
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -801,7 +816,7 @@ static U32 Read(LPIOCONTROL Control) {
  * @brief Write sectors to a SATA disk using AHCI.
  *
  * @param Control IO control structure describing request.
- * @return DF_RET_SUCCESS or error code.
+ * @return DF_RETURN_SUCCESS or error code.
  */
 static U32 Write(LPIOCONTROL Control) {
     LPAHCI_PORT AHCIPort;
@@ -809,17 +824,17 @@ static U32 Write(LPIOCONTROL Control) {
     U32 Result;
 
     // Check validity of parameters
-    if (Control == NULL) return DF_RET_BADPARAM;
+    if (Control == NULL) return DF_RETURN_BAD_PARAMETER;
 
     // Get the physical disk to which operation applies
     AHCIPort = (LPAHCI_PORT)Control->Disk;
-    if (AHCIPort == NULL) return DF_RET_BADPARAM;
+    if (AHCIPort == NULL) return DF_RETURN_BAD_PARAMETER;
 
     // Check validity of parameters
-    if (AHCIPort->Header.TypeID != KOID_DISK) return DF_RET_BADPARAM;
+    if (AHCIPort->Header.TypeID != KOID_DISK) return DF_RETURN_BAD_PARAMETER;
 
     // Check access permissions
-    if (AHCIPort->Access & DISK_ACCESS_READONLY) return DF_RET_NOPERM;
+    if (AHCIPort->Access & DISK_ACCESS_READONLY) return DF_RETURN_NO_PERMISSION;
 
     CacheCleanup(&AHCIPort->SectorCache, GetSystemTime());
 
@@ -831,7 +846,7 @@ static U32 Write(LPIOCONTROL Control) {
         if (Buffer == NULL) {
             Buffer = (LPSECTORBUFFER)KernelHeapAlloc(sizeof(SECTORBUFFER));
 
-            if (Buffer == NULL) return DF_RET_UNEXPECT;
+            if (Buffer == NULL) return DF_RETURN_UNEXPECTED;
 
             Buffer->SectorLow = Context.SectorLow;
             Buffer->SectorHigh = Context.SectorHigh;
@@ -845,7 +860,7 @@ static U32 Write(LPIOCONTROL Control) {
         Result = AHCICommand(
             AHCIPort, ATA_CMD_WRITE_DMA_EXT, Context.SectorLow, 1, Buffer->Data, TRUE);
 
-        if (Result != DF_RET_SUCCESS) {
+        if (Result != DF_RETURN_SUCCESS) {
             if (AddedToCache) {
                 KernelHeapFree(Buffer);
             }
@@ -857,12 +872,12 @@ static U32 Write(LPIOCONTROL Control) {
         if (AddedToCache) {
             if (!CacheAdd(&AHCIPort->SectorCache, Buffer, DISK_CACHE_TTL_MS)) {
                 KernelHeapFree(Buffer);
-                return DF_RET_UNEXPECT;
+                return DF_RETURN_UNEXPECTED;
             }
         }
     }
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -871,26 +886,26 @@ static U32 Write(LPIOCONTROL Control) {
  * @brief Retrieve disk information for a SATA device.
  *
  * @param Info Output structure to populate.
- * @return DF_RET_SUCCESS on success, DF_RET_BADPARAM otherwise.
+ * @return DF_RETURN_SUCCESS on success, DF_RETURN_BAD_PARAMETER otherwise.
  */
 static U32 GetInfo(LPDISKINFO Info) {
     LPAHCI_PORT AHCIPort;
 
-    if (Info == NULL) return DF_RET_BADPARAM;
+    if (Info == NULL) return DF_RETURN_BAD_PARAMETER;
 
     // Get the physical disk to which operation applies
     AHCIPort = (LPAHCI_PORT)Info->Disk;
-    if (AHCIPort == NULL) return DF_RET_BADPARAM;
+    if (AHCIPort == NULL) return DF_RETURN_BAD_PARAMETER;
 
     // Check validity of parameters
-    if (AHCIPort->Header.TypeID != KOID_DISK) return DF_RET_BADPARAM;
+    if (AHCIPort->Header.TypeID != KOID_DISK) return DF_RETURN_BAD_PARAMETER;
 
     Info->Type = DRIVER_TYPE_HARDDISK;
     Info->Removable = 0;
     Info->NumSectors = AHCIPort->Geometry.Cylinders * AHCIPort->Geometry.Heads * AHCIPort->Geometry.SectorsPerTrack;
     Info->Access = AHCIPort->Access;
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -899,23 +914,23 @@ static U32 GetInfo(LPDISKINFO Info) {
  * @brief Set access parameters for a SATA disk.
  *
  * @param Access Access parameters to store.
- * @return DF_RET_SUCCESS on success, DF_RET_BADPARAM otherwise.
+ * @return DF_RETURN_SUCCESS on success, DF_RETURN_BAD_PARAMETER otherwise.
  */
 static U32 SetAccess(LPDISKACCESS Access) {
     LPAHCI_PORT AHCIPort;
 
-    if (Access == NULL) return DF_RET_BADPARAM;
+    if (Access == NULL) return DF_RETURN_BAD_PARAMETER;
 
     // Get the physical disk to which operation applies
     AHCIPort = (LPAHCI_PORT)Access->Disk;
-    if (AHCIPort == NULL) return DF_RET_BADPARAM;
+    if (AHCIPort == NULL) return DF_RETURN_BAD_PARAMETER;
 
     // Check validity of parameters
-    if (AHCIPort->Header.TypeID != KOID_DISK) return DF_RET_BADPARAM;
+    if (AHCIPort->Header.TypeID != KOID_DISK) return DF_RETURN_BAD_PARAMETER;
 
     AHCIPort->Access = Access->Access;
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1156,22 +1171,22 @@ UINT SATADiskCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((SATADiskDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             SATADiskDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
         case DF_UNLOAD:
             if ((SATADiskDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             SATADiskDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
-        case DF_GETVERSION:
+            return DF_RETURN_SUCCESS;
+        case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_DISK_RESET:
-            return DF_RET_NOTIMPL;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_DISK_READ:
             return Read((LPIOCONTROL)Parameter);
         case DF_DISK_WRITE:
@@ -1180,7 +1195,106 @@ UINT SATADiskCommands(UINT Function, UINT Parameter) {
             return GetInfo((LPDISKINFO)Parameter);
         case DF_DISK_SETACCESS:
             return SetAccess((LPDISKACCESS)Parameter);
+        case DF_ENUM_NEXT:
+            return SATA_EnumNext((LPDRIVER_ENUM_NEXT)(LPVOID)Parameter);
+        case DF_ENUM_PRETTY:
+            return SATA_EnumPretty((LPDRIVER_ENUM_PRETTY)(LPVOID)Parameter);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
+}
+
+/************************************************************************/
+
+static LPCSTR SataDetToString(UINT Det) {
+    switch (Det) {
+        case AHCI_PORT_SSTS_DET_NONE:
+            return TEXT("None");
+        case AHCI_PORT_SSTS_DET_PRESENT:
+            return TEXT("Present");
+        case AHCI_PORT_SSTS_DET_ESTABLISHED:
+            return TEXT("Established");
+        default:
+            return TEXT("Unknown");
+    }
+}
+
+/************************************************************************/
+
+static U32 SATA_EnumNext(LPDRIVER_ENUM_NEXT Next) {
+    if (Next == NULL || Next->Query == NULL || Next->Item == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+    if (Next->Query->Header.Size < sizeof(DRIVER_ENUM_QUERY) ||
+        Next->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    if (Next->Query->Domain != ENUM_DOMAIN_AHCI_PORT) {
+        return DF_RETURN_NOT_IMPLEMENTED;
+    }
+
+    UINT MatchIndex = 0;
+    for (UINT PortIndex = 0; PortIndex < AHCI_MAX_PORTS; PortIndex++) {
+        if ((AHCIState.PortsImplemented & (1U << PortIndex)) == 0U) {
+            continue;
+        }
+
+        if (MatchIndex == Next->Query->Index) {
+            DRIVER_ENUM_AHCI_PORT Data;
+            MemorySet(&Data, 0, sizeof(Data));
+
+            Data.PortNumber = PortIndex;
+            Data.PortImplemented = 1;
+
+            if (AHCIState.Base != NULL) {
+                LPAHCI_HBA_PORT Port = &AHCIState.Base->ports[PortIndex];
+                Data.Ssts = Port->ssts;
+                Data.Sig = Port->sig;
+            }
+
+            MemorySet(Next->Item, 0, sizeof(DRIVER_ENUM_ITEM));
+            Next->Item->Header.Size = sizeof(DRIVER_ENUM_ITEM);
+            Next->Item->Header.Version = EXOS_ABI_VERSION;
+            Next->Item->Domain = ENUM_DOMAIN_AHCI_PORT;
+            Next->Item->Index = Next->Query->Index;
+            Next->Item->DataSize = sizeof(Data);
+            MemoryCopy(Next->Item->Data, &Data, sizeof(Data));
+
+            Next->Query->Index++;
+            return DF_RETURN_SUCCESS;
+        }
+
+        MatchIndex++;
+    }
+
+    return DF_RETURN_NO_MORE;
+}
+
+/************************************************************************/
+
+static U32 SATA_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
+    if (Pretty == NULL || Pretty->Item == NULL || Pretty->Buffer == NULL || Pretty->BufferSize == 0) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+    if (Pretty->Item->Header.Size < sizeof(DRIVER_ENUM_ITEM)) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    if (Pretty->Item->Domain != ENUM_DOMAIN_AHCI_PORT ||
+        Pretty->Item->DataSize < sizeof(DRIVER_ENUM_AHCI_PORT)) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    const DRIVER_ENUM_AHCI_PORT* Data = (const DRIVER_ENUM_AHCI_PORT*)Pretty->Item->Data;
+    UINT Det = Data->Ssts & AHCI_PORT_SSTS_DET_MASK;
+
+    StringPrintFormat(Pretty->Buffer,
+                      TEXT("AHCI Port %u: DET=%s SSTS=%x SIG=%x"),
+                      Data->PortNumber,
+                      SataDetToString(Det),
+                      Data->Ssts,
+                      Data->Sig);
+
+    return DF_RETURN_SUCCESS;
 }

@@ -157,6 +157,9 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_ConsoleGetString 0x00000031
 #define SYSCALL_ConsoleGotoXY 0x00000032
 #define SYSCALL_ConsoleClear 0x00000034
+#define SYSCALL_ConsoleSetMode 0x00000079
+#define SYSCALL_ConsoleGetModeCount 0x0000007A
+#define SYSCALL_ConsoleGetModeInfo 0x0000007B
 #define SYSCALL_ConsoleBlitBuffer 0x00000077
 #define SYSCALL_ConsoleGetKeyModifiers 0x00000078
 
@@ -272,7 +275,7 @@ typedef struct PACKED tag_ABI_HEADER {
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x00000079
+#define SYSCALL_Last 0x0000007C
 
 /************************************************************************/
 // Structure limits
@@ -340,6 +343,14 @@ typedef struct PACKED tag_CONSOLEBLITBUFFER {
     const U8* Attr;      /* Fore | (Back << 4) per cell, optional */
     UINT AttrPitch;      /* Bytes per row in Attr when provided */
 } CONSOLEBLITBUFFER, *LPCONSOLEBLITBUFFER;
+
+typedef struct PACKED tag_CONSOLEMODEINFO {
+    ABI_HEADER Header;
+    U32 Index;
+    U32 Columns;
+    U32 Rows;
+    U32 CharHeight;
+} CONSOLEMODEINFO, *LPCONSOLEMODEINFO;
 
 typedef struct PACKED tag_TASKINFO {
     ABI_HEADER Header;
@@ -699,27 +710,32 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 
 #define DF_LOAD 0x0000
 #define DF_UNLOAD 0x0001
-#define DF_GETVERSION 0x0002
-#define DF_GETCAPS 0x0003
-#define DF_GETLASTFUNC 0x0004
+#define DF_GET_VERSION 0x0002
+#define DF_GET_CAPS 0x0003
+#define DF_GET_LAST_FUNCTION 0x0004
 #define DF_PROBE 0x0005
 #define DF_ATTACH 0x0006
 #define DF_DETACH 0x0007
+#define DF_ENUM_BEGIN 0x0008
+#define DF_ENUM_NEXT 0x0009
+#define DF_ENUM_END 0x000A
+#define DF_ENUM_PRETTY 0x000B
 
-#define DF_FIRSTFUNC 0x1000
+#define DF_FIRST_FUNCTION 0x1000
 
 /************************************************************************/
 // Error codes common to all EXOS calls
 
-#define DF_RET_SUCCESS 0x00000000
-#define DF_RET_NOTIMPL 0x00000001
-#define DF_RET_BADPARAM 0x00000002
-#define DF_RET_NOMEMORY 0x00000003
-#define DF_RET_UNEXPECT 0x00000004
-#define DF_RET_IO 0x00000005
-#define DF_RET_NOPERM 0x00000006
-#define DF_RET_FIRST 0x00001000
-#define DF_RET_GENERIC 0xFFFFFFFF
+#define DF_RETURN_SUCCESS 0x00000000
+#define DF_RETURN_NOT_IMPLEMENTED 0x00000001
+#define DF_RETURN_BAD_PARAMETER 0x00000002
+#define DF_RETURN_NO_MEMORY 0x00000003
+#define DF_RETURN_UNEXPECTED 0x00000004
+#define DF_RETURN_INPUT_OUTPUT 0x00000005
+#define DF_RETURN_NO_PERMISSION 0x00000006
+#define DF_RETURN_NO_MORE 0x00000007
+#define DF_RETURN_FIRST 0x00001000
+#define DF_RETURN_GENERIC 0xFFFFFFFF
 
 /************************************************************************/
 // Window styles
@@ -736,6 +752,8 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 #define ETM_DELETE 0x00000003
 #define ETM_PAUSE 0x00000004
 #define ETM_USER 0x20000000
+#define ETM_USB_MASS_STORAGE_MOUNTED (ETM_USER + 0x00000001)
+#define ETM_USB_MASS_STORAGE_UNMOUNTED (ETM_USER + 0x00000002)
 
 #define EWM_NONE 0x40000000
 #define EWM_CREATE 0x40000001

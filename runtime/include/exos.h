@@ -40,6 +40,9 @@ extern "C" {
 #define EXOS_PARAM(Value) ((uint_t)(Value))
 #endif
 
+static inline I32 imin(I32 A, I32 B) { return (A < B) ? A : B; }
+static inline I32 imax(I32 A, I32 B) { return (A > B) ? A : B; }
+
 typedef struct tag_MESSAGE {
     HANDLE Target;
     DATETIME Time;
@@ -99,6 +102,7 @@ U32 ConsoleGetKey(LPKEYCODE);
 U32 ConsoleBlitBuffer(LPCONSOLEBLITBUFFER);
 void ConsoleGotoXY(LPPOINT);
 void ConsoleClear(void);
+U32 ConsoleSetMode(U32 Columns, U32 Rows);
 BOOL DeleteObject(HANDLE);
 void srand(U32);
 U32 rand(void);

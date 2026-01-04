@@ -1,13 +1,30 @@
 # General TODO list
 
+## Problems
+
+- Opening a file in a userland program without an absolute path should do the same as using getcwd().
+- Add a getpd() that returns the folder in which the current executable's image lives.
+
+## Naming
+
+- Remove all abbreviations
+
 ## Logs
 
 - Use __func__ to automatically include function name
 
 ## Errors
 
-- Functions returning U32 MUST return DF_RET_XXXX codes : meaning 0 on success, an error otherwise.
+- Functions returning U32 MUST return DF_RETURN_XXXX codes : meaning 0 on success, an error otherwise.
 - If they are meant to return 0 or 1, they must use BOOL.
+
+## Shell kernel exposure
+
+- Expose PCI devices
+
+## Scripting
+
+- Use + for string concat
 
 ## Shared modules
 
@@ -23,7 +40,6 @@
 
 ## Keyboard
 
-- Implement serious keyboard management (PS2/USB/HID)
 - Add more keyboard layouts
 
 ## Security 
@@ -50,12 +66,12 @@
 
 ## Drivers
 
-- USB
 - PCIe
 - NVMe
 
 ## Localization
 
+- UTF
 - Unicode
 - I18n
 

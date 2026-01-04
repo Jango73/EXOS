@@ -598,8 +598,8 @@ void LogTask(U32 LogType, const LPTASK Task) {
              "  WakeUpTime : %x"),
         (LINEAR)Task, Task->Name, (U32)Task->Process, (Task->Process == &KernelProcess ? "K" : "U"), (U32)Task->Type,
         (U32)Task->Status, (U32)Task->Priority, (U32)Task->Function, (U32)Task->Parameter, (U32)Task->ExitCode,
-        (U32)Task->Arch.Stack.Base, (U32)Task->Arch.Stack.Size, (U32)Task->Arch.SysStack.Base,
-        (U32)Task->Arch.SysStack.Size,
+        (U32)Task->Arch.Stack.Base, (U32)Task->Arch.Stack.Size, (U32)Task->Arch.SystemStack.Base,
+        (U32)Task->Arch.SystemStack.Size,
         (U32)Task->WakeUpTime);
 }
 

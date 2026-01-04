@@ -60,6 +60,7 @@ void InitMutex(LPMUTEX This) {
         This->OwnerProcess = GetCurrentProcess();
         This->Next = NULL;
         This->Prev = NULL;
+        This->Parent = NULL;
     }
 
     This->Owner = NULL;

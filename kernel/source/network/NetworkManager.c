@@ -54,7 +54,7 @@ DRIVER DATA_SECTION NetworkManagerDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
+    .Type = DRIVER_TYPE_NETWORK,
     .VersionMajor = NETWORK_MANAGER_VER_MAJOR,
     .VersionMinor = NETWORK_MANAGER_VER_MINOR,
     .Designer = "Jango73",
@@ -62,6 +62,16 @@ DRIVER DATA_SECTION NetworkManagerDriver = {
     .Product = "NetworkManager",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = NetworkManagerDriverCommands};
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the network manager driver descriptor.
+ * @return Pointer to the network manager driver.
+ */
+LPDRIVER NetworkManagerGetDriver(void) {
+    return &NetworkManagerDriver;
+}
 
 /************************************************************************/
 
@@ -320,26 +330,26 @@ static UINT NetworkManagerDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((NetworkManagerDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             InitializeNetwork();
             NetworkManagerDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_UNLOAD:
             if ((NetworkManagerDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             NetworkManagerDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(NETWORK_MANAGER_VER_MAJOR, NETWORK_MANAGER_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /************************************************************************/
@@ -463,7 +473,7 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             InterruptConfig.InterruptEnabled = FALSE;
 
             U32 InterruptResult = Device->Driver->Command(DF_DEV_ENABLE_INTERRUPT, (UINT)(LPVOID)&InterruptConfig);
-            if (InterruptResult == DF_RET_SUCCESS && InterruptConfig.VectorSlot != DEVICE_INTERRUPT_INVALID_SLOT) {
+            if (InterruptResult == DF_RETURN_SUCCESS && InterruptConfig.VectorSlot != DEVICE_INTERRUPT_INVALID_SLOT) {
                 DeviceContext->InterruptSlot = InterruptConfig.VectorSlot;
                 DeviceContext->InterruptsEnabled = InterruptConfig.InterruptEnabled;
                 if (DeviceContext->InterruptsEnabled) {

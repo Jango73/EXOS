@@ -25,7 +25,7 @@
 
 # Project
 temp
-build
+/build
 kernel/configuration/exos.ext2.toml
 kernel/configuration/exos.fat32.toml
 documentation/kernel

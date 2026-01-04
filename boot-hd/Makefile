@@ -38,6 +38,7 @@ VBR_CODE_OFFSET = 0x5A          # Offset of code in VBR sector
 KERNEL_CFG_FAT32= ../kernel/configuration/exos.fat32.toml
 KERNEL_CFG_EXT2 = ../kernel/configuration/exos.ext2.toml
 KERNEL_CFG_REF  = ../kernel/configuration/exos.ref.toml
+KEYBOARD_LAYOUTS= ../deploy/keyboard/*.ekm1
 MTOOLS_CONF     = .mtoolsrc.tmp
 MBR_SOURCE      = source/mbr.asm
 
@@ -85,15 +86,18 @@ PAYLOAD_BIN     = $(BUILD_DIR)/boot-hd/vbr-payload.bin
 PAYLOAD_ELF     = $(BUILD_DIR)/boot-hd/vbr-payload.elf
 PAYLOAD_MAP     = $(BUILD_DIR)/boot-hd/vbr-payload.map
 FINAL_IMG       = $(BUILD_DIR)/boot-hd/exos.img
+USB3_IMG        = $(BUILD_DIR)/boot-hd/usb-3.img
 KERNEL_BIN      = $(BUILD_DIR)/kernel/exos.bin
 PORTAL_ELF      = $(BUILD_DIR)/system/portal/portal
 NETGET_ELF      = $(BUILD_DIR)/system/netget/netget
 HELLO_ELF       = $(BUILD_DIR)/system/hello/hello
 TICTACTOE_ELF	= $(BUILD_DIR)/system/tictactoe/tictactoe
 TERMTACTICS_ELF	= $(BUILD_DIR)/system/terminal-tactics/terminal-tactics
+MOUSEINFO_ELF   = $(BUILD_DIR)/system/mouse-info/mouse-info
 MASTER_ELF      = $(BUILD_DIR)/system/test/master/master
 SLAVE_ELF       = $(BUILD_DIR)/system/test/slave/slave
 EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/ext2-root
+USB3_STAGING_DIR= $(BUILD_DIR)/boot-hd/usb-3-root
 EXT2_LABEL      ?= exos
 
 define CREATE_FAT32_IMAGE
@@ -191,10 +195,10 @@ define MCOPY_IF_NEEDED
 	fi;
 endef
 
-.PHONY: all update update-fat32 update-ext2 install-mbr install-vbr-payload clean check_tools rebuild-image
+.PHONY: all update update-fat32 update-ext2 install-mbr install-vbr-payload clean check_tools rebuild-image usb-3-image
 
 # Default: build tools, ensure images exist (create once), then update contents
-all: check_tools $(FINAL_IMG) update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
+all: check_tools $(FINAL_IMG) $(USB3_IMG) update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
 
 check_tools:
 	@command -v $(NASM) >/dev/null 2>&1 || { echo "$(NASM) is not installed. Please run: sudo apt install nasm"; exit 1; }
@@ -207,11 +211,26 @@ $(MBR_BIN): $(MBR_SOURCE)
 	@echo "Assembling custom MBR (NASM)..."
 	@mkdir -p $(BUILD_DIR)/boot-hd
 	$(NASM) $(NASMFLAGS) -f bin $(MBR_SOURCE) -o $(MBR_BIN)
+	@{ \
+		sz=$$(stat -c %s "$(MBR_BIN)"); \
+		if [ $$sz -gt 510 ]; then \
+			echo "ERROR: $(MBR_BIN) is too large ($$sz bytes). Must be <= 510."; \
+			exit 1; \
+		fi; \
+	}
 
 $(VBR_BIN): $(VBR_SRC)
 	@echo "Assembling VBR (NASM)..."
 	@mkdir -p $(BUILD_DIR)/boot-hd
 	$(NASM) $(NASMFLAGS) -f bin $(VBR_SRC) -o $(VBR_BIN)
+	@{ \
+		sz=$$(stat -c %s "$(VBR_BIN)"); \
+		max=$$((512 - $(VBR_CODE_OFFSET))); \
+		if [ $$sz -gt $$max ]; then \
+			echo "ERROR: $(VBR_BIN) is too large ($$sz bytes). Must be <= $$max."; \
+			exit 1; \
+		fi; \
+	}
 
 $(PAYLOAD_STUB_O): $(PAYLOAD_STUB)
 	@echo "Assembling payload stub (NASM)..."
@@ -241,9 +260,20 @@ $(BUILD_DIR)/boot-hd/payload.sym: $(PAYLOAD_ELF)
 	$(NM) $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
 # Create image only if it does not exist
-$(FINAL_IMG): check_tools $(KERNEL_BIN) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(MASTER_ELF) $(SLAVE_ELF)
+$(FINAL_IMG): check_tools $(KERNEL_BIN) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(MOUSEINFO_ELF) $(MASTER_ELF) $(SLAVE_ELF)
 	@mkdir -p $(dir $@)
 	$(call $(CREATE_IMAGE_MACRO),$@)
+
+$(USB3_IMG): check_tools $(TICTACTOE_ELF)
+	@mkdir -p $(dir $@)
+	$(call CREATE_EXT2_IMAGE,$@)
+	@echo "Preparing USB MSD staging directory at $(USB3_STAGING_DIR)"
+	@rm -rf $(USB3_STAGING_DIR)
+	@mkdir -p $(USB3_STAGING_DIR)
+	@cp $(TICTACTOE_ELF) $(USB3_STAGING_DIR)/tictactoe
+	$(call POPULATE_EXT2_IMAGE,$(USB3_IMG),$(USB3_STAGING_DIR))
+
+usb-3-image: $(USB3_IMG)
 
 $(KERNEL_CFG_FAT32): $(FINAL_IMG)
 	@[ -f $@ ] || cp $(KERNEL_CFG_REF) $@
@@ -258,15 +288,23 @@ update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32)
 		$(call MCOPY_IF_NEEDED,$(KERNEL_BIN),z:/EXOS.BIN) \
 		$(call MCOPY_IF_NEEDED,$(KERNEL_CFG_FAT32),z:/exos.toml) \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS || true; \
+		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/KEYBOARD || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/USERS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS/TEST || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/TEMP || true; \
+		for f in $(KEYBOARD_LAYOUTS); do \
+			if [ -f "$$f" ]; then \
+				echo "Copying $$f -> z:/EXOS/KEYBOARD/$$(basename $$f)"; \
+				MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$$f" "z:/EXOS/KEYBOARD/$$(basename $$f)"; \
+			fi; \
+		done; \
 		$(call MCOPY_IF_NEEDED,$(PORTAL_ELF),z:/EXOS/APPS/PORTAL) \
 		$(call MCOPY_IF_NEEDED,$(NETGET_ELF),z:/EXOS/APPS/NETGET) \
 		$(call MCOPY_IF_NEEDED,$(HELLO_ELF),z:/EXOS/APPS/HELLO)\
 		$(call MCOPY_IF_NEEDED,$(TICTACTOE_ELF),z:/EXOS/APPS/tictactoe)\
 		$(call MCOPY_IF_NEEDED,$(TERMTACTICS_ELF),z:/EXOS/APPS/terminal-tactics)\
+		$(call MCOPY_IF_NEEDED,$(MOUSEINFO_ELF),z:/EXOS/APPS/mouse-info)\
 		$(call MCOPY_IF_NEEDED,$(MASTER_ELF),z:/EXOS/APPS/TEST/MASTER)\
 		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE),\
 		All files injected into image.)
@@ -277,14 +315,22 @@ update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2)
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/data
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/users
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/apps/test
+	@mkdir -p $(EXT2_STAGING_DIR)/exos/keyboard
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/temp
 	@cp $(KERNEL_BIN) $(EXT2_STAGING_DIR)/exos.bin
 	@cp $(KERNEL_CFG_EXT2) $(EXT2_STAGING_DIR)/exos.toml
+	@for f in $(KEYBOARD_LAYOUTS); do \
+		if [ -f "$$f" ]; then \
+			echo "Copying $$f -> $(EXT2_STAGING_DIR)/exos/keyboard/$$(basename $$f)"; \
+			cp "$$f" "$(EXT2_STAGING_DIR)/exos/keyboard/$$(basename $$f)"; \
+		fi; \
+	done
 	@cp $(PORTAL_ELF) $(EXT2_STAGING_DIR)/exos/apps/portal
 	@cp $(NETGET_ELF) $(EXT2_STAGING_DIR)/exos/apps/netget
 	@cp $(HELLO_ELF) $(EXT2_STAGING_DIR)/exos/apps/hello
 	@cp $(TICTACTOE_ELF) $(EXT2_STAGING_DIR)/exos/apps/tictactoe
 	@cp $(TERMTACTICS_ELF) $(EXT2_STAGING_DIR)/exos/apps/terminal-tactics
+	@cp $(MOUSEINFO_ELF) $(EXT2_STAGING_DIR)/exos/apps/mouse-info
 	@cp $(MASTER_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/master
 	@cp $(SLAVE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/slave
 	$(call POPULATE_EXT2_IMAGE,$(FINAL_IMG),$(EXT2_STAGING_DIR))

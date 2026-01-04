@@ -28,6 +28,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "process/Process.h"
+#include "process/Schedule.h"
 #include "process/TaskMessaging.h"
 #include "CoreString.h"
 #include "utils/Helpers.h"
@@ -194,8 +195,8 @@ void DeleteTask(LPTASK This) {
         // Lock kernel mutex for the entire operation
         DEBUG(TEXT("[DeleteTask] Task=%p Type=%x Status=%x Flags=%x"), This, This->Type, This->Status,
             This->Flags);
-        DEBUG(TEXT("[DeleteTask] Stack base=%p size=%u SysStack base=%p size=%u"), This->Arch.Stack.Base,
-            This->Arch.Stack.Size, This->Arch.SysStack.Base, This->Arch.SysStack.Size);
+        DEBUG(TEXT("[DeleteTask] Stack base=%p size=%u SystemStack base=%p size=%u"), This->Arch.Stack.Base,
+            This->Arch.Stack.Size, This->Arch.SystemStack.Base, This->Arch.SystemStack.Size);
         SAFE_USE(This->Process) {
             DEBUG(TEXT("[DeleteTask] Process=%p Name=%s TaskCount=%u"), This->Process, This->Process->FileName,
                 This->Process->TaskCount);
@@ -220,10 +221,10 @@ void DeleteTask(LPTASK This) {
 
         DEBUG(TEXT("[DeleteTask] Deleting stacks"));
 
-        SAFE_USE(This->Arch.SysStack.Base) {
-            DEBUG(TEXT("[DeleteTask] Freeing SysStack: base=%X, size=%X"), This->Arch.SysStack.Base,
-                This->Arch.SysStack.Size);
-            FreeRegion(This->Arch.SysStack.Base, This->Arch.SysStack.Size);
+        SAFE_USE(This->Arch.SystemStack.Base) {
+            DEBUG(TEXT("[DeleteTask] Freeing SystemStack: base=%X, size=%X"), This->Arch.SystemStack.Base,
+                This->Arch.SystemStack.Size);
+            FreeRegion(This->Arch.SystemStack.Base, This->Arch.SystemStack.Size);
         }
 
 #if defined(__EXOS_ARCH_X86_64__)
@@ -427,7 +428,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         UnlockMutex(MUTEX_PROCESS);
     }
 
-    Task->Type = (Process->Privilege == PRIVILEGE_KERNEL) ?
+    Task->Type = (Process->Privilege == CPU_PRIVILEGE_KERNEL) ?
         TASK_TYPE_KERNEL_OTHER :
         Process->TaskCount == 0 ? TASK_TYPE_USER_MAIN : TASK_TYPE_USER_OTHER;
 
@@ -726,6 +727,33 @@ void Sleep(U32 MilliSeconds) {
 /************************************************************************/
 
 /**
+ * @brief Suspends the current task even when the scheduler is frozen.
+ *
+ * Uses a timed idle loop when task switching is disabled.
+ *
+ * @param MilliSeconds Number of milliseconds to sleep
+ */
+void SleepWithSchedulerFrozenSupport(U32 MilliSeconds) {
+    if (MilliSeconds == 0) {
+        return;
+    }
+
+    if (IsSchedulerFrozen()) {
+        UINT StartTime = GetSystemTime();
+
+        while ((UINT)(GetSystemTime() - StartTime) < MilliSeconds) {
+            IdleCPU();
+        }
+
+        return;
+    }
+
+    Sleep(MilliSeconds);
+}
+
+/************************************************************************/
+
+/**
  * @brief Retrieves the current status of a task.
  *
  * @param Task Pointer to task to query
@@ -876,8 +904,8 @@ void DumpTask(LPTASK Task) {
     VERBOSE(TEXT("ExitCode        : %u"), (U32)Task->ExitCode);
     VERBOSE(TEXT("StackBase       : %p"), Task->Arch.Stack.Base);
     VERBOSE(TEXT("StackSize       : %u"), Task->Arch.Stack.Size);
-    VERBOSE(TEXT("SysStackBase    : %p"), Task->Arch.SysStack.Base);
-    VERBOSE(TEXT("SysStackSize    : %u"), Task->Arch.SysStack.Size);
+    VERBOSE(TEXT("SysStackBase    : %p"), Task->Arch.SystemStack.Base);
+    VERBOSE(TEXT("SysStackSize    : %u"), Task->Arch.SystemStack.Size);
 #if defined(__EXOS_ARCH_X86_64__)
     VERBOSE(TEXT("IST1StackBase   : %p"), Task->Arch.Ist1Stack.Base);
     VERBOSE(TEXT("IST1StackSize   : %u"), Task->Arch.Ist1Stack.Size);

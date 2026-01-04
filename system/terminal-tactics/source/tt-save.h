@@ -31,5 +31,6 @@ BOOL SaveGame(const char* path);
 BOOL LoadGame(const char* path);
 void LoadSaveList(void);
 BOOL IsValidFilenameChar(char c);
+BOOL ResolveAppFilePath(const char* fileName, char* fullPath, U32 fullPathSize);
 
 #endif /* TT_SAVE_H */

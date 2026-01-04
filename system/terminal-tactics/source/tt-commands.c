@@ -118,7 +118,7 @@ void ConfirmUnitCommand(void) {
                 const UNIT_TYPE* targetType = GetUnitTypeById(target->TypeId);
                 const char* targetName = (targetType != NULL) ? targetType->Name : "unit";
                 U32 idx = RandomIndex((U32)(sizeof(EscortAckPhrases) / sizeof(EscortAckPhrases[0])));
-                char msg[SCREEN_WIDTH + 1];
+                char msg[MAX_SCREEN_WIDTH + 1];
 
                 SetUnitStateEscort(unit, target->Team, target->Id);
                 snprintf(msg, sizeof(msg), EscortAckPhrases[idx], targetName);

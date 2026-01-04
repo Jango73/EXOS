@@ -30,13 +30,18 @@
 #include "../../../kernel/include/User.h"
 #include "../../../kernel/include/VKey.h"
 
-#define SCREEN_WIDTH                 80
-#define SCREEN_HEIGHT                25
-#define MAP_VIEW_HEIGHT              18
+#define MAX_SCREEN_WIDTH             160
+#define MAX_SCREEN_HEIGHT            60
 #define TOP_BAR_HEIGHT               1
 #define BOTTOM_BAR_HEIGHT            5
-#define VIEWPORT_WIDTH               (SCREEN_WIDTH)
-#define VIEWPORT_HEIGHT              (MAP_VIEW_HEIGHT)
+#define MAX_MAP_VIEW_HEIGHT          (MAX_SCREEN_HEIGHT - TOP_BAR_HEIGHT - BOTTOM_BAR_HEIGHT)
+#define MAX_VIEWPORT_WIDTH           (MAX_SCREEN_WIDTH)
+#define MAX_VIEWPORT_HEIGHT          (MAX_MAP_VIEW_HEIGHT)
+#define SCREEN_WIDTH                 (App.Render.ScreenWidth)
+#define SCREEN_HEIGHT                (App.Render.ScreenHeight)
+#define MAP_VIEW_HEIGHT              (App.Render.MapViewHeight)
+#define VIEWPORT_WIDTH               (App.Render.ViewportWidth)
+#define VIEWPORT_HEIGHT              (App.Render.ViewportHeight)
 #define NEW_GAME_SELECT_WIDTH        0
 #define NEW_GAME_SELECT_HEIGHT       1
 #define NEW_GAME_SELECT_TEAMS        2
@@ -57,6 +62,7 @@
 #define TEAM_START_ZONE_HALF_DIVISOR 2
 #define TEAM_START_ZONE_THREE_QUARTERS_NUM 3
 #define TEAM_START_SEARCH_RADIUS     6
+#define TEAM_START_ESCAPE_RADIUS     15
 
 #define AI_ATTITUDE_AGGRESSIVE       1
 #define AI_ATTITUDE_DEFENSIVE        2
@@ -69,6 +75,7 @@
 #define AI_UPDATE_INTERVAL_NORMAL_MS 4000
 #define AI_UPDATE_INTERVAL_HARD_MS   0
 #define AI_DRILLER_ALERT_MS          3000
+#define AI_DRILLER_ESCORT_FORCE_DIVISOR 2
 #define AI_DAMAGE_REDUCTION_MIN      10
 #define AI_DAMAGE_REDUCTION_MAX      30
 #define AI_DAMAGE_REDUCTION_DIVISOR  20
@@ -83,6 +90,9 @@
 #define AI_DRILLER_TARGET_COUNT      2
 #define AI_DRILLER_PER_NON_DRILLER   30
 #define AI_SCOUT_TARGET_COUNT        2
+#define AI_BASE_SHUFFLE_RADIUS       8
+#define AI_BASE_SHUFFLE_COUNT        3
+#define AI_BASE_SHUFFLE_COOLDOWN_MS  10000
 #define AI_ATTITUDE_RANDOM_THRESHOLD 0.5f
 #define DRILLER_HARVEST_AMOUNT       40
 #define DRILLER_HARVEST_INTERVAL_MS  10000
@@ -91,6 +101,10 @@
 #define FOG_OF_WAR_UPDATE_INTERVAL_MS 2000
 #define FOG_OF_WAR_SIGHT_RADIUS       5
 #define UNIT_MOVE_TIME_MS             2000
+#define UNIT_STUCK_BACKOFF_TILES      5
+#define UNIT_STUCK_TIMEOUT_MULTIPLIER 3
+#define UNIT_GRIDLOCK_MOVE_LIMIT      3
+#define AI_LAST_DECISION_LEN          64
 #define ENABLE_CHEATS                 1
 #define COMMAND_NONE                  0
 #define COMMAND_MOVE                  1
@@ -245,6 +259,9 @@ typedef struct {
     I32 Height;
     I32 MaxHp;
     I32 Armor;
+    I32 Damage;
+    I32 Range;
+    I32 AttackSpeed;
     I32 CostPlasma;
     I32 EnergyConsumption;
     I32 EnergyProduction;
@@ -302,6 +319,7 @@ struct BUILDING_STRUCT {
     UNIT_JOB UnitQueue[MAX_UNIT_QUEUE];
     I32 UnitQueueCount;
     U32 LastDamageTime;
+    U32 LastAttackTime;
     struct BUILDING_STRUCT* Next;
 };
 
@@ -325,6 +343,17 @@ struct UNIT_STRUCT {
     U32 LastHarvestTime;
     U32 LastStateUpdateTime;
     U32 MoveProgress;
+    I32 LastMoveX;
+    I32 LastMoveY;
+    U32 LastMoveTime;
+    BOOL StuckDetourActive;
+    U32 StuckDetourCount;
+    I32 StuckOriginalTargetX;
+    I32 StuckOriginalTargetY;
+    I32 StuckDetourTargetX;
+    I32 StuckDetourTargetY;
+    BOOL IsGridlocked;
+    U32 GridlockLastUpdateTime;
     PATH_NODE* PathHead;
     PATH_NODE* PathTail;
     I32 PathTargetX;
@@ -338,20 +367,34 @@ struct PATH_NODE_STRUCT {
 };
 
 typedef struct {
+    I32 Team;
+    I32 Id;
+} VISIBLE_ENTITY;
+
+typedef struct {
     TEAM_RESOURCES Resources;
     BUILDING* Buildings;
     UNIT* Units;
     I32 AiAttitude;
     I32 AiMindset;
+    char AiLastDecision[AI_LAST_DECISION_LEN];
     U32 AiLastUpdate;
     U32 AiLastClusterUpdate;
+    U32 AiLastShuffleTime;
     MEMORY_CELL* MemoryMap;
     U8* VisibleNow;
+    VISIBLE_ENTITY* VisibleEnemyUnits;
+    I32 VisibleEnemyUnitCount;
+    I32 VisibleEnemyUnitCapacity;
+    VISIBLE_ENTITY* VisibleEnemyBuildings;
+    I32 VisibleEnemyBuildingCount;
+    I32 VisibleEnemyBuildingCapacity;
 } TEAM_DATA;
 
 typedef struct {
     I32 MapWidth;
     I32 MapHeight;
+    I32 MapMaxDim;
     TERRAIN** Terrain;
     I32** PlasmaDensity;
     I32 TeamCount;
@@ -380,6 +423,7 @@ typedef struct {
     BOOL ShowGrid;
     BOOL ShowCoordinates;
     BOOL SeeEverything;
+    BOOL GhostMode;
     BOOL FogDirty;
     BOOL IsCommandMode;
     I32 CommandType;
@@ -389,6 +433,7 @@ typedef struct {
     MEMORY_CELL* ScratchOccupancy;
     size_t ScratchOccupancyBytes;
     size_t TeamMemoryBytes;
+    BOOL TeamDefeatedLogged[MAX_TEAMS];
 } GAME_STATE;
 
 typedef enum {
@@ -422,16 +467,21 @@ typedef struct {
 } MENU_STATE;
 
 typedef struct {
-    char ViewBuffer[VIEWPORT_HEIGHT][VIEWPORT_WIDTH + 1];
-    U8 ViewColors[VIEWPORT_HEIGHT][VIEWPORT_WIDTH];
+    U32 ScreenWidth;
+    U32 ScreenHeight;
+    U32 MapViewHeight;
+    U32 ViewportWidth;
+    U32 ViewportHeight;
+    char ViewBuffer[MAX_VIEWPORT_HEIGHT][MAX_VIEWPORT_WIDTH + 1];
+    U8 ViewColors[MAX_VIEWPORT_HEIGHT][MAX_VIEWPORT_WIDTH];
     CONSOLEBLITBUFFER ViewBlitInfo;
-    char PrevViewBuffer[VIEWPORT_HEIGHT][VIEWPORT_WIDTH + 1];
-    U8 PrevViewColors[VIEWPORT_HEIGHT][VIEWPORT_WIDTH];
-    char PrevTopLine0[SCREEN_WIDTH + 1];
-    char PrevTopLine1[SCREEN_WIDTH + 1];
-    char PrevBottom[BOTTOM_BAR_HEIGHT][SCREEN_WIDTH + 1];
-    char StatusLine[SCREEN_WIDTH + 1];
-    char PrevStatusLine[SCREEN_WIDTH + 1];
+    char PrevViewBuffer[MAX_VIEWPORT_HEIGHT][MAX_VIEWPORT_WIDTH + 1];
+    U8 PrevViewColors[MAX_VIEWPORT_HEIGHT][MAX_VIEWPORT_WIDTH];
+    char PrevTopLine0[MAX_SCREEN_WIDTH + 1];
+    char PrevTopLine1[MAX_SCREEN_WIDTH + 1];
+    char PrevBottom[BOTTOM_BAR_HEIGHT][MAX_SCREEN_WIDTH + 1];
+    char StatusLine[MAX_SCREEN_WIDTH + 1];
+    char PrevStatusLine[MAX_SCREEN_WIDTH + 1];
     U32 StatusStartTime;
     BOOL BorderDrawn;
     BOOL MainMenuDrawn;
@@ -444,9 +494,9 @@ typedef struct {
     I32 CachedLoadCount;
     char CachedSaveName[NAME_MAX_LENGTH];
     BOOL DebugDrawn;
-    char ScreenBuffer[SCREEN_HEIGHT][SCREEN_WIDTH + 1];
-    char PrevScreenBuffer[SCREEN_HEIGHT][SCREEN_WIDTH + 1];
-    U8 ScreenAttr[SCREEN_HEIGHT][SCREEN_WIDTH];
+    char ScreenBuffer[MAX_SCREEN_HEIGHT][MAX_SCREEN_WIDTH + 1];
+    char PrevScreenBuffer[MAX_SCREEN_HEIGHT][MAX_SCREEN_WIDTH + 1];
+    U8 ScreenAttr[MAX_SCREEN_HEIGHT][MAX_SCREEN_WIDTH];
 } RENDER_STATE;
 
 typedef struct {

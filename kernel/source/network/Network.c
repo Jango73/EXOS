@@ -57,7 +57,7 @@ INT Network_SendRawFrame(LPDEVICE Device, const U8 *Data, U32 Length) {
     SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
         SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
             Result =
-                (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SEND, (UINT)(LPVOID)&Send) == DF_RET_SUCCESS) ? 1 : 0;
+                (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_SEND, (UINT)(LPVOID)&Send) == DF_RETURN_SUCCESS) ? 1 : 0;
         }
     }
 

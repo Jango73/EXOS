@@ -130,6 +130,7 @@ U32 SetDeviceContext(LPDEVICE Device, U32 ID, LPVOID Context) {
     DeviceContext->References = 1;
     DeviceContext->Next = NULL;
     DeviceContext->Prev = NULL;
+    DeviceContext->Parent = NULL;
     DeviceContext->ContextID = ID;
     DeviceContext->Context = Context;
 

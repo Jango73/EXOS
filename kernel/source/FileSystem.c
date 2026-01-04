@@ -29,6 +29,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "CoreString.h"
+#include "SystemFS.h"
 #include "User.h"
 #include "Text.h"
 #include "utils/TOML.h"
@@ -51,7 +52,7 @@ DRIVER DATA_SECTION FileSystemDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
+    .Type = DRIVER_TYPE_INIT,
     .VersionMajor = FILESYSTEM_VER_MAJOR,
     .VersionMinor = FILESYSTEM_VER_MINOR,
     .Designer = "Jango73",
@@ -59,6 +60,16 @@ DRIVER DATA_SECTION FileSystemDriver = {
     .Product = "FileSystems",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = FileSystemDriverCommands};
+
+/***************************************************************************/
+
+/**
+ * @brief Retrieves the file system driver descriptor.
+ * @return Pointer to the file system driver.
+ */
+LPDRIVER FileSystemGetDriver(void) {
+    return &FileSystemDriver;
+}
 
 /***************************************************************************/
 
@@ -201,7 +212,7 @@ BOOL MountPartition_Extended(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32
 
     Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
-    if (Result != DF_RET_SUCCESS) return FALSE;
+    if (Result != DF_RETURN_SUCCESS) return FALSE;
 
     Base += Partition->LBA;
 
@@ -242,7 +253,10 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
         Control.BufferSize = SECTOR_SIZE;
 
         Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
-        if (Result != DF_RET_SUCCESS) return FALSE;
+        if (Result != DF_RETURN_SUCCESS) {
+            WARNING(TEXT("[MountDiskPartitions] MBR read failed result=%x"), Result);
+            return FALSE;
+        }
 
         Partition = (LPBOOTPARTITION)(Buffer + MBR_PARTITION_START);
     }
@@ -309,13 +323,24 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
                 } break;
             }
 
-            if (PartitionMounted && PartitionIsActive) {
+            if (PartitionMounted) {
                 LPLIST FileSystemList = GetFileSystemList();
                 LPFILESYSTEM MountedFileSystem =
                     (LPFILESYSTEM)(FileSystemList != NULL ? FileSystemList->Last : NULL);
 
                 if (MountedFileSystem != NULL && MountedFileSystem != PreviousLast) {
-                    FileSystemSetActivePartition(MountedFileSystem);
+                    if (GetSystemFSData()->Root != NULL) {
+                        if (!SystemFSMountFileSystem(MountedFileSystem)) {
+                            WARNING(TEXT("[MountDiskPartitions] SystemFS mount failed for %s"),
+                                MountedFileSystem->Name);
+                        }
+                    } else {
+                        WARNING(TEXT("[MountDiskPartitions] SystemFS not ready for %s"),
+                            MountedFileSystem->Name);
+                    }
+                    if (PartitionIsActive) {
+                        FileSystemSetActivePartition(MountedFileSystem);
+                    }
                 }
             }
         }
@@ -359,24 +384,24 @@ static UINT FileSystemDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((FileSystemDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             InitializeFileSystems();
             FileSystemDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_UNLOAD:
             if ((FileSystemDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             FileSystemDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(FILESYSTEM_VER_MAJOR, FILESYSTEM_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

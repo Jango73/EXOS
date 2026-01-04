@@ -940,7 +940,7 @@ void DHCP_Initialize(LPDEVICE Device) {
 
     SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
         SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
-            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) == DF_RET_SUCCESS) {
+            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) == DF_RETURN_SUCCESS) {
                 MemoryCopy(Context->LocalMacAddress, Info.MAC, 6);
                 DEBUG(TEXT("[DHCP_Initialize] MAC: %x:%x:%x:%x:%x:%x"),
                       (U32)Info.MAC[0], (U32)Info.MAC[1], (U32)Info.MAC[2],

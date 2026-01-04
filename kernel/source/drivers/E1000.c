@@ -120,7 +120,7 @@
 
 typedef struct tag_E1000DEVICE E1000DEVICE, *LPE1000DEVICE;
 
-struct PACKED tag_E1000DEVICE {
+struct tag_E1000DEVICE {
     PCI_DEVICE_FIELDS
 
     // MMIO mapping
@@ -1026,10 +1026,10 @@ static void E1000_PollRoutine(LPDEVICE DevicePointer, LPVOID Context) {
  * @param Device Target E1000 device.
  * @param Data Pointer to frame data.
  * @param Length Length of frame in bytes.
- * @return DF_RET_SUCCESS on success or error code.
+ * @return DF_RETURN_SUCCESS on success or error code.
  */
 static U32 E1000_TransmitSend(LPE1000DEVICE Device, const U8 *Data, U32 Length) {
-    if (Length == 0 || Length > E1000_TX_BUF_SIZE) return DF_RET_BADPARAM;
+    if (Length == 0 || Length > E1000_TX_BUF_SIZE) return DF_RETURN_BAD_PARAMETER;
 
     DEBUG(TEXT("[E1000_TransmitSend] ENTRY len=%u TxTail=%u"), Length, Device->TxTail);
 
@@ -1081,10 +1081,10 @@ static U32 E1000_TransmitSend(LPE1000DEVICE Device, const U8 *Data, U32 Length) 
 
     if (Wait >= E1000_TX_TIMEOUT_ITER) {
         ERROR(TEXT("[E1000_TransmitSend] TX timeout - packet transmission failed"));
-        return DF_RET_NT_TX_FAIL;
+        return DF_RETURN_NT_TX_FAIL;
     }
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -1092,7 +1092,7 @@ static U32 E1000_TransmitSend(LPE1000DEVICE Device, const U8 *Data, U32 Length) 
 /**
  * @brief Poll the receive ring for incoming frames.
  * @param Device Target E1000 device.
- * @return DF_RET_SUCCESS after processing frames.
+ * @return DF_RETURN_SUCCESS after processing frames.
  */
 static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
     LPE1000_RXDESC Ring = (LPE1000_RXDESC)Device->RxRingLinear;
@@ -1116,6 +1116,7 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
                     U32 RDH = E1000_ReadReg32(Device->MmioBase, E1000_REG_RDH);
                     U32 RDT = E1000_ReadReg32(Device->MmioBase, E1000_REG_RDT);
                     U32 RCTL = E1000_ReadReg32(Device->MmioBase, E1000_REG_RCTL);
+                    DEBUG(TEXT("[E1000_ReceivePoll] RDH=%x RDT=%x RCTL=%x"), RDH, RDT, RCTL);
                 }
                 break;
             }
@@ -1159,7 +1160,7 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
         WARNING(TEXT("[E1000_ReceivePoll] Hit maximum iteration limit (%u), potential infinite loop prevented"), MaxIterations);
     }
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -1168,14 +1169,14 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
 /**
  * @brief Verify PCI information matches supported hardware.
  * @param PciInfo PCI configuration to probe.
- * @return DF_RET_SUCCESS if supported, otherwise DF_RET_NOTIMPL.
+ * @return DF_RETURN_SUCCESS if supported, otherwise DF_RETURN_NOT_IMPLEMENTED.
  */
 static U32 E1000_OnProbe(const PCI_INFO *PciInfo) {
-    if (PciInfo->VendorID != E1000_VENDOR_INTEL) return DF_RET_NOTIMPL;
-    if (PciInfo->DeviceID != E1000_DEVICE_82540EM) return DF_RET_NOTIMPL;
-    if (PciInfo->BaseClass != PCI_CLASS_NETWORK) return DF_RET_NOTIMPL;
-    if (PciInfo->SubClass != PCI_SUBCLASS_ETHERNET) return DF_RET_NOTIMPL;
-    return DF_RET_SUCCESS;
+    if (PciInfo->VendorID != E1000_VENDOR_INTEL) return DF_RETURN_NOT_IMPLEMENTED;
+    if (PciInfo->DeviceID != E1000_DEVICE_82540EM) return DF_RETURN_NOT_IMPLEMENTED;
+    if (PciInfo->BaseClass != PCI_CLASS_NETWORK) return DF_RETURN_NOT_IMPLEMENTED;
+    if (PciInfo->SubClass != PCI_SUBCLASS_ETHERNET) return DF_RETURN_NOT_IMPLEMENTED;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -1185,23 +1186,23 @@ static U32 E1000_OnProbe(const PCI_INFO *PciInfo) {
  * @brief Enable device interrupts via network stack hook.
  *
  * @param Config Interrupt configuration parameters.
- * @return DF_RET_SUCCESS on success or error code.
+ * @return DF_RETURN_SUCCESS on success or error code.
  */
 static U32 E1000_OnEnableInterrupts(DEVICE_INTERRUPT_CONFIG *Config) {
     if (Config == NULL || Config->Device == NULL) {
-        return DF_RET_BADPARAM;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     LPE1000DEVICE Device = (LPE1000DEVICE)Config->Device;
 
     if (!E1000_EnableInterrupts(Device, Config->LegacyIRQ, Config->TargetCPU)) {
-        return DF_RET_IO;
+        return DF_RETURN_INPUT_OUTPUT;
     }
 
     Config->VectorSlot = Device->InterruptSlot;
     Config->InterruptEnabled = Device->InterruptArmed;
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -1210,23 +1211,23 @@ static U32 E1000_OnEnableInterrupts(DEVICE_INTERRUPT_CONFIG *Config) {
  * @brief Disable device interrupts via network stack hook.
  *
  * @param Config Interrupt configuration parameters.
- * @return DF_RET_SUCCESS on success or error code.
+ * @return DF_RETURN_SUCCESS on success or error code.
  */
 static U32 E1000_OnDisableInterrupts(DEVICE_INTERRUPT_CONFIG *Config) {
     if (Config == NULL || Config->Device == NULL) {
-        return DF_RET_BADPARAM;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     LPE1000DEVICE Device = (LPE1000DEVICE)Config->Device;
 
     if (!E1000_DisableInterrupts(Device, Config->LegacyIRQ)) {
-        return DF_RET_IO;
+        return DF_RETURN_INPUT_OUTPUT;
     }
 
     Config->VectorSlot = DEVICE_INTERRUPT_INVALID_SLOT;
     Config->InterruptEnabled = FALSE;
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -1235,11 +1236,11 @@ static U32 E1000_OnDisableInterrupts(DEVICE_INTERRUPT_CONFIG *Config) {
  * @brief Reset callback invoked by network stack.
  *
  * @param Reset Reset parameters.
- * @return DF_RET_SUCCESS on success, DF_RET_UNEXPECT on failure.
+ * @return DF_RETURN_SUCCESS on success, DF_RETURN_UNEXPECTED on failure.
  */
 static U32 E1000_OnReset(const NETWORKRESET *Reset) {
-    if (Reset == NULL || Reset->Device == NULL) return DF_RET_BADPARAM;
-    return E1000_Reset((LPE1000DEVICE)Reset->Device) ? DF_RET_SUCCESS : DF_RET_UNEXPECT;
+    if (Reset == NULL || Reset->Device == NULL) return DF_RETURN_BAD_PARAMETER;
+    return E1000_Reset((LPE1000DEVICE)Reset->Device) ? DF_RETURN_SUCCESS : DF_RETURN_UNEXPECTED;
 }
 
 /************************************************************************/
@@ -1247,11 +1248,11 @@ static U32 E1000_OnReset(const NETWORKRESET *Reset) {
 /**
  * @brief Fill NETWORKINFO structure with device state.
  * @param Get Query parameters and output buffer.
- * @return DF_RET_SUCCESS on success or error code.
+ * @return DF_RETURN_SUCCESS on success or error code.
  */
 static U32 E1000_OnGetInfo(const NETWORKGETINFO *Get) {
     DEBUG(TEXT("[E1000_OnGetInfo] Enter"));
-    if (Get == NULL || Get->Device == NULL || Get->Info == NULL) return DF_RET_BADPARAM;
+    if (Get == NULL || Get->Device == NULL || Get->Info == NULL) return DF_RETURN_BAD_PARAMETER;
     LPE1000DEVICE Device = (LPE1000DEVICE)Get->Device;
     U32 Status = E1000_ReadReg32(Device->MmioBase, E1000_REG_STATUS);
 
@@ -1274,7 +1275,7 @@ static U32 E1000_OnGetInfo(const NETWORKGETINFO *Get) {
           Get->Info->LinkUp ? "UP" : "DOWN", Get->Info->SpeedMbps,
           Get->Info->DuplexFull ? "FULL" : "HALF", Get->Info->MTU);
 
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -1282,19 +1283,19 @@ static U32 E1000_OnGetInfo(const NETWORKGETINFO *Get) {
 /**
  * @brief Register a callback for received frames.
  * @param Set Parameters including callback pointer.
- * @return DF_RET_SUCCESS on success or error code.
+ * @return DF_RETURN_SUCCESS on success or error code.
  */
 static U32 E1000_OnSetReceiveCallback(const NETWORKSETRXCB *Set) {
     DEBUG(TEXT("[E1000_OnSetReceiveCallback] Entry Set=%p"), Set);
     if (Set == NULL || Set->Device == NULL) {
         DEBUG(TEXT("[E1000_OnSetReceiveCallback] Bad parameters: Set=%p Device=%p"), Set, Set ? Set->Device : 0);
-        return DF_RET_BADPARAM;
+        return DF_RETURN_BAD_PARAMETER;
     }
     LPE1000DEVICE Device = (LPE1000DEVICE)Set->Device;
     Device->RxCallback = Set->Callback;
     Device->RxUserData = Set->UserData;
     DEBUG(TEXT("[E1000_OnSetReceiveCallback] Callback set to %p with UserData %x for device %p"), Set->Callback, Set->UserData, Device);
-    return DF_RET_SUCCESS;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -1302,13 +1303,13 @@ static U32 E1000_OnSetReceiveCallback(const NETWORKSETRXCB *Set) {
 /**
  * @brief Send frame through network stack interface.
  * @param Send Parameters describing frame to send.
- * @return DF_RET_SUCCESS on success or error code.
+ * @return DF_RETURN_SUCCESS on success or error code.
  */
 static U32 E1000_OnSend(const NETWORKSEND *Send) {
     DEBUG(TEXT("[E1000_OnSend] Entry: Send=%x"), Send);
     if (Send == NULL || Send->Device == NULL || Send->Data == NULL || Send->Length == 0) {
         DEBUG(TEXT("[E1000_OnSend] ERROR: Bad parameters"));
-        return DF_RET_BADPARAM;
+        return DF_RETURN_BAD_PARAMETER;
     }
     DEBUG(TEXT("[E1000_OnSend] Calling TxSend: Device=%p, Length=%u"), Send->Device, Send->Length);
     U32 result = E1000_TransmitSend((LPE1000DEVICE)Send->Device, Send->Data, Send->Length);
@@ -1321,10 +1322,10 @@ static U32 E1000_OnSend(const NETWORKSEND *Send) {
 /**
  * @brief Poll device for received frames through network stack interface.
  * @param Poll Poll parameters.
- * @return DF_RET_SUCCESS on success or error code.
+ * @return DF_RETURN_SUCCESS on success or error code.
  */
 static U32 E1000_OnPoll(const NETWORKPOLL *Poll) {
-    if (Poll == NULL || Poll->Device == NULL) return DF_RET_BADPARAM;
+    if (Poll == NULL || Poll->Device == NULL) return DF_RETURN_BAD_PARAMETER;
     return E1000_ReceivePoll((LPE1000DEVICE)Poll->Device);
 }
 
@@ -1333,17 +1334,17 @@ static U32 E1000_OnPoll(const NETWORKPOLL *Poll) {
 
 /**
  * @brief Driver load callback.
- * @return DF_RET_SUCCESS.
+ * @return DF_RETURN_SUCCESS.
  */
-static U32 E1000_OnLoad(void) { return DF_RET_SUCCESS; }
+static U32 E1000_OnLoad(void) { return DF_RETURN_SUCCESS; }
 
 /************************************************************************/
 
 /**
  * @brief Driver unload callback.
- * @return DF_RET_SUCCESS.
+ * @return DF_RETURN_SUCCESS.
  */
-static U32 E1000_OnUnload(void) { return DF_RET_SUCCESS; }
+static U32 E1000_OnUnload(void) { return DF_RETURN_SUCCESS; }
 
 /************************************************************************/
 
@@ -1376,7 +1377,7 @@ static U32 E1000_OnGetLastFunc(void) { return DF_DEV_DISABLE_INTERRUPT; }
  * @brief Central dispatch for all driver functions.
  * @param Function Identifier of requested driver operation.
  * @param Param Optional pointer to parameters.
- * @return DF_RET_* code depending on operation.
+ * @return DF_RETURN_* code depending on operation.
  */
 static UINT E1000Commands(UINT Function, UINT Param) {
     switch (Function) {
@@ -1384,11 +1385,11 @@ static UINT E1000Commands(UINT Function, UINT Param) {
             return E1000_OnLoad();
         case DF_UNLOAD:
             return E1000_OnUnload();
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return E1000_OnGetVersion();
-        case DF_GETCAPS:
+        case DF_GET_CAPS:
             return E1000_OnGetCaps();
-        case DF_GETLASTFUNC:
+        case DF_GET_LAST_FUNCTION:
             return E1000_OnGetLastFunc();
 
         // PCI binding
@@ -1412,5 +1413,5 @@ static UINT E1000Commands(UINT Function, UINT Param) {
             return E1000_OnPoll((const NETWORKPOLL *)(LPVOID)Param);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

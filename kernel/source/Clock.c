@@ -45,7 +45,7 @@ DRIVER DATA_SECTION ClockDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
+    .Type = DRIVER_TYPE_CLOCK,
     .VersionMajor = CLOCK_VER_MAJOR,
     .VersionMinor = CLOCK_VER_MINOR,
     .Designer = "Jango73",
@@ -53,6 +53,16 @@ DRIVER DATA_SECTION ClockDriver = {
     .Product = "Clock",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = ClockDriverCommands};
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the clock driver descriptor.
+ * @return Pointer to the clock driver.
+ */
+LPDRIVER ClockGetDriver(void) {
+    return &ClockDriver;
+}
 
 /************************************************************************/
 // Timer resolution
@@ -298,24 +308,24 @@ static UINT ClockDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((ClockDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             InitializeClock();
             ClockDriver.Flags |= DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
         case DF_UNLOAD:
             if ((ClockDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             ClockDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(CLOCK_VER_MAJOR, CLOCK_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

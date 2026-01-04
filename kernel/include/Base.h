@@ -212,46 +212,6 @@ typedef U8* LPPAGEBITMAP;       // Pointer to a page allocation bitmap
 
 /************************************************************************/
 
-#ifdef __KERNEL__
-
-#if DEBUG_OUTPUT == 1
-    #define DEBUG(a, ...) KernelLogText(LOG_DEBUG, (a), ##__VA_ARGS__)
-#else
-    #define DEBUG(a, ...)
-#endif
-
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    #define FINE_DEBUG(a, ...) DEBUG(a, ##__VA_ARGS__)
-#else
-    #define FINE_DEBUG(a, ...)
-#endif
-
-#define VERBOSE(a, ...) KernelLogText(LOG_VERBOSE, (a), ##__VA_ARGS__)
-#define WARNING(a, ...) KernelLogText(LOG_WARNING, (a), ##__VA_ARGS__)
-#define ERROR(a, ...) KernelLogText(LOG_ERROR, (a), ##__VA_ARGS__)
-
-#else   // __KERNEL__
-
-#if DEBUG_OUTPUT == 1
-    #define DEBUG(a, ...) debug((a), ##__VA_ARGS__)
-#else
-    #define DEBUG(a, ...)
-#endif
-
-#if SCHEDULING_DEBUG_OUTPUT == 1
-    #define FINE_DEBUG(a, ...) DEBUG(a, ##__VA_ARGS__)
-#else
-    #define FINE_DEBUG(a, ...)
-#endif
-
-#define VERBOSE(a, ...)
-#define WARNING(a, ...)
-#define ERROR(a, ...)
-
-#endif  // __KERNEL__
-
-/************************************************************************/
-
 typedef void* LPVOID;
 typedef const void* LPCVOID;
 
@@ -274,43 +234,6 @@ typedef UINT BOOL;
 #endif
 
 /************************************************************************/
-// Utilities
-
-#define UNUSED(x) (void)(x)
-#define SAFE_USE(a) if ((a) != NULL)
-#define SAFE_USE_2(a, b) if ((a) != NULL && (b) != NULL)
-#define SAFE_USE_3(a, b, c) if ((a) != NULL && (b) != NULL && (c) != NULL)
-#define SAFE_USE_ID(a, i) if ((a) != NULL && (a->TypeID == i))
-#define SAFE_USE_ID_2(a, b, i) if ((a) != NULL && (a->TypeID == i) && (b) != NULL && (b->TypeID == i))
-#define SAFE_USE_VALID(a) if ((a) != NULL && IsValidMemory((LINEAR)a))
-#define SAFE_USE_VALID_2(a, b) if ((a) != NULL && IsValidMemory((LINEAR)a) && (b) != NULL && IsValidMemory((LINEAR)b))
-#define SAFE_USE_VALID_ID(a, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->TypeID == i))
-#define SAFE_USE_VALID_ID_2(a, b, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->TypeID == i) \
-        && ((b) != NULL && IsValidMemory((LINEAR)b) && ((b)->TypeID == i)))
-
-// This is called before dereferencing a user-provided pointer to a parameter structure
-#define SAFE_USE_INPUT_POINTER(p, s) if ((p) != NULL && IsValidMemory((LINEAR)p) && (p)->Header.Size >= sizeof(s))
-
-// Do an infinite loop
-#define FOREVER while(1)
-
-// Put CPU to sleep forever: disable IRQs, halt, and loop.
-#define DO_THE_SLEEPING_BEAUTY \
-    do {                       \
-        __asm__ __volatile__(  \
-            "1:\n\t"           \
-            "cli\n\t"          \
-            "hlt\n\t"          \
-            "jmp 1b\n\t"       \
-            :                  \
-            :                  \
-            : "memory");       \
-    } while (0)
-
-#define STRINGS_EQUAL(a,b) (StringCompare(a,b)==0)
-#define STRINGS_EQUAL_NO_CASE(a,b) (StringCompareNC(a,b)==0)
-
-/************************************************************************/
 // NULL values
 
 #ifndef NULL
@@ -327,6 +250,16 @@ typedef UINT BOOL;
 // Time values
 
 #define INFINITY MAX_UINT
+
+/************************************************************************/
+// Handles - Replace pointers in userland to protect kernel
+
+typedef UINT HANDLE;
+typedef UINT SOCKET_HANDLE;
+
+#define HANDLE_MINIMUM 0x10
+
+#define LOOP_LIMIT 512
 
 /************************************************************************/
 // Some machine constants
@@ -376,6 +309,7 @@ typedef UINT BOOL;
 #endif
 
 /************************************************************************/
+// Bitwise shift multipliers
 
 #define MUL_2 1
 #define MUL_4 2
@@ -521,82 +455,16 @@ extern void ConsolePrint(LPCSTR Format, ...);
 #define USTR_MINUS ((USTR)'-')
 
 /************************************************************************/
-// Forward declaration to avoid circular dependencies
-
-typedef struct tag_PROCESS PROCESS, *LPPROCESS;
-
-/************************************************************************/
-// A kernel object header
-
-#define OBJECT_FIELDS       \
-    UINT TypeID;            \
-    UINT References;        \
-    U64 ID;                 \
-    LPPROCESS OwnerProcess; \
-
-typedef struct tag_OBJECT {
-    OBJECT_FIELDS
-} OBJECT, *LPOBJECT;
-
-/************************************************************************/
-// A datetime
-
-typedef struct tag_DATETIME {
-    U32 Year : 22;
-    U32 Month : 4;
-    U32 Day : 6;
-    U32 Hour : 6;
-    U32 Minute : 6;
-    U32 Second : 6;
-    U32 Milli : 10;
-    U32 Unused : 4;
-} DATETIME, *LPDATETIME;
-
-/************************************************************************/
-// Handles - They are a pointer in reality, but called handles so that they
-// are not used in userland, otherwise you get a nice privilege violation,
-// at best. Will implement pointer masking soon.
-
-typedef UINT HANDLE;
-typedef UINT SOCKET_HANDLE;
-
-#define HANDLE_MINIMUM 0x10
-
-/************************************************************************/
 // Maximum string lengths
 
 #define MAX_STRING_BUFFER 1024
+#define MAX_COMMAND_LINE MAX_STRING_BUFFER
+#define MAX_PATH_NAME MAX_STRING_BUFFER
 #define MAX_FS_LOGICAL_NAME 64
-#define MAX_COMMAND_LINE 1024
-#define MAX_PATH_NAME 1024
 #define MAX_FILE_NAME 256
 #define MAX_USER_NAME 128
 #define MAX_NAME 128
 #define MAX_PASSWORD 64
-#define LOOP_LIMIT 500
-
-/************************************************************************/
-
-#define MAKE_VERSION(maj, min) ((U32)(((((U32)maj) & 0xFFFF) << 16) | (((U32)min) & 0xFFFF)))
-
-#define UNSIGNED(val) *((U32*)(&(val)))
-#define SIGNED(val) *((I32*)(&(val)))
-
-/************************************************************************/
-// Color manipulations
-
-typedef U32 COLOR;
-
-#define MAKERGB(r, g, b) ((((COLOR)r & 0xFF) << 0x00) | (((COLOR)g & 0xFF) << 0x08) | (((COLOR)b & 0xFF) << 0x10))
-
-#define MAKERGBA(r, g, b, a)                                                                   \
-    ((((COLOR)r & 0xFF) << 0x00) | (((COLOR)g & 0xFF) << 0x08) | (((COLOR)b & 0xFF) << 0x10) | \
-     (((COLOR)a & 0xFF) << 0x18))
-
-#define SETRED(c, r) (((COLOR)c & 0xFFFFFF00) | ((COLOR)r << 0x00))
-#define SETGREEN(c, g) (((COLOR)c & 0xFFFF00FF) | ((COLOR)g << 0x08))
-#define SETBLUE(c, b) (((COLOR)c & 0xFF00FFFF) | ((COLOR)b << 0x10))
-#define SETALPHA(c, a) (((COLOR)c & 0x00FFFFFF) | ((COLOR)a << 0x18))
 
 /************************************************************************/
 // Common color values
@@ -620,6 +488,98 @@ typedef U32 COLOR;
 #define COLOR_PURPLE ((COLOR)0x00FF00FF)
 #define COLOR_BROWN ((COLOR)0x00008080)
 #define COLOR_DARK_CYAN ((COLOR)0x00808000)
+
+/************************************************************************/
+// Version macros
+
+#define MAKE_VERSION(maj, min) ((U32)(((((U32)maj) & 0xFFFF) << 16) | (((U32)min) & 0xFFFF)))
+
+#define UNSIGNED(val) *((U32*)(&(val)))
+#define SIGNED(val) *((I32*)(&(val)))
+
+/************************************************************************/
+// Color manipulations
+
+typedef U32 COLOR;
+
+#define MAKERGB(r, g, b) ((((COLOR)r & 0xFF) << 0x00) | (((COLOR)g & 0xFF) << 0x08) | (((COLOR)b & 0xFF) << 0x10))
+
+#define MAKERGBA(r, g, b, a)                                                                   \
+    ((((COLOR)r & 0xFF) << 0x00) | (((COLOR)g & 0xFF) << 0x08) | (((COLOR)b & 0xFF) << 0x10) | \
+     (((COLOR)a & 0xFF) << 0x18))
+
+#define SETRED(c, r) (((COLOR)c & 0xFFFFFF00) | ((COLOR)r << 0x00))
+#define SETGREEN(c, g) (((COLOR)c & 0xFFFF00FF) | ((COLOR)g << 0x08))
+#define SETBLUE(c, b) (((COLOR)c & 0xFF00FFFF) | ((COLOR)b << 0x10))
+#define SETALPHA(c, a) (((COLOR)c & 0x00FFFFFF) | ((COLOR)a << 0x18))
+
+/************************************************************************/
+// Utilitiy macros
+
+#define UNUSED(x) (void)(x)
+#define SAFE_USE(a) if ((a) != NULL)
+#define SAFE_USE_2(a, b) if ((a) != NULL && (b) != NULL)
+#define SAFE_USE_3(a, b, c) if ((a) != NULL && (b) != NULL && (c) != NULL)
+#define SAFE_USE_ID(a, i) if ((a) != NULL && (a->TypeID == i))
+#define SAFE_USE_ID_2(a, b, i) if ((a) != NULL && (a->TypeID == i) && (b) != NULL && (b->TypeID == i))
+#define SAFE_USE_VALID(a) if ((a) != NULL && IsValidMemory((LINEAR)a))
+#define SAFE_USE_VALID_2(a, b) if ((a) != NULL && IsValidMemory((LINEAR)a) && (b) != NULL && IsValidMemory((LINEAR)b))
+#define SAFE_USE_VALID_ID(a, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->TypeID == i))
+#define SAFE_USE_VALID_ID_2(a, b, i) if ((a) != NULL && IsValidMemory((LINEAR)a) && ((a)->TypeID == i) \
+        && ((b) != NULL && IsValidMemory((LINEAR)b) && ((b)->TypeID == i)))
+
+// This is called before dereferencing a user-provided pointer to a parameter structure
+#define SAFE_USE_INPUT_POINTER(p, s) if ((p) != NULL && IsValidMemory((LINEAR)p) && (p)->Header.Size >= sizeof(s))
+
+// Do an infinite loop
+#define FOREVER while(1)
+
+// Put CPU to sleep forever: disable IRQs, halt, and loop.
+#define DO_THE_SLEEPING_BEAUTY \
+    do {                       \
+        __asm__ __volatile__(  \
+            "1:\n\t"           \
+            "cli\n\t"          \
+            "hlt\n\t"          \
+            "jmp 1b\n\t"       \
+            :                  \
+            :                  \
+            : "memory");       \
+    } while (0)
+
+#define STRINGS_EQUAL(a,b) (StringCompare(a,b)==0)
+#define STRINGS_EQUAL_NO_CASE(a,b) (StringCompareNC(a,b)==0)
+
+/************************************************************************/
+// Forward declaration to avoid circular dependencies
+
+typedef struct tag_PROCESS PROCESS, *LPPROCESS;
+
+/************************************************************************/
+// A kernel object header
+
+#define OBJECT_FIELDS       \
+    UINT TypeID;            \
+    UINT References;        \
+    U64 ID;                 \
+    LPPROCESS OwnerProcess; \
+
+typedef struct tag_OBJECT {
+    OBJECT_FIELDS
+} OBJECT, *LPOBJECT;
+
+/************************************************************************/
+// A datetime
+
+typedef struct tag_DATETIME {
+    U32 Year : 26;              // 67 108 863
+    U32 Month : 4;              // 15
+    U32 Day : 6;                // 63
+    U32 Hour : 6;               // 63
+    U32 Minute : 6;             // 63
+    U32 Second : 6;             // 63
+    U32 Milli : 10;             // 1023
+} DATETIME, *LPDATETIME;
 
 /************************************************************************/
 // 64 bits math
@@ -775,6 +735,51 @@ static inline U32 U64_Low32(U64 Value) {
 }
 
 #endif
+
+/************************************************************************/
+// Logging macros
+
+#ifdef __KERNEL__
+
+#if DEBUG_OUTPUT == 1
+    #define DEBUG(a, ...) KernelLogText(LOG_DEBUG, (a), ##__VA_ARGS__)
+    #define TEST(a, ...) KernelLogText(LOG_TEST, (a), ##__VA_ARGS__)
+#else
+    #define DEBUG(a, ...)
+    #define TEST(a, ...)
+#endif
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    #define FINE_DEBUG(a, ...) DEBUG(a, ##__VA_ARGS__)
+#else
+    #define FINE_DEBUG(a, ...)
+#endif
+
+#define VERBOSE(a, ...) KernelLogText(LOG_VERBOSE, (a), ##__VA_ARGS__)
+#define WARNING(a, ...) KernelLogText(LOG_WARNING, (a), ##__VA_ARGS__)
+#define ERROR(a, ...) KernelLogText(LOG_ERROR, (a), ##__VA_ARGS__)
+
+#else   // __KERNEL__
+
+#if DEBUG_OUTPUT == 1
+    #define DEBUG(a, ...) debug((a), ##__VA_ARGS__)
+    #define TEST(a, ...)
+#else
+    #define DEBUG(a, ...)
+    #define TEST(a, ...)
+#endif
+
+#if SCHEDULING_DEBUG_OUTPUT == 1
+    #define FINE_DEBUG(a, ...) DEBUG(a, ##__VA_ARGS__)
+#else
+    #define FINE_DEBUG(a, ...)
+#endif
+
+#define VERBOSE(a, ...)
+#define WARNING(a, ...)
+#define ERROR(a, ...)
+
+#endif  // __KERNEL__
 
 /************************************************************************/
 

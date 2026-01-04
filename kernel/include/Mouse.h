@@ -37,10 +37,11 @@
 
 // Functions supplied by a mouse driver
 
-#define DF_MOUSE_RESET (DF_FIRSTFUNC + 0)
-#define DF_MOUSE_GETDELTAX (DF_FIRSTFUNC + 1)
-#define DF_MOUSE_GETDELTAY (DF_FIRSTFUNC + 2)
-#define DF_MOUSE_GETBUTTONS (DF_FIRSTFUNC + 3)
+#define DF_MOUSE_RESET (DF_FIRST_FUNCTION + 0)
+#define DF_MOUSE_GETDELTAX (DF_FIRST_FUNCTION + 1)
+#define DF_MOUSE_GETDELTAY (DF_FIRST_FUNCTION + 2)
+#define DF_MOUSE_GETBUTTONS (DF_FIRST_FUNCTION + 3)
+#define DF_MOUSE_HAS_DEVICE (DF_FIRST_FUNCTION + 4)
 
 /************************************************************************/
 

@@ -44,7 +44,7 @@ DRIVER DATA_SECTION InterruptControllerDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
+    .Type = DRIVER_TYPE_INTERRUPT,
     .VersionMajor = INTCTRL_VER_MAJOR,
     .VersionMinor = INTCTRL_VER_MINOR,
     .Designer = "Jango73",
@@ -52,6 +52,16 @@ DRIVER DATA_SECTION InterruptControllerDriver = {
     .Product = "InterruptController",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = InterruptControllerDriverCommands};
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the interrupt controller driver descriptor.
+ * @return Pointer to the interrupt controller driver.
+ */
+LPDRIVER InterruptControllerGetDriver(void) {
+    return &InterruptControllerDriver;
+}
 
 /************************************************************************/
 // Global interrupt controller configuration
@@ -766,28 +776,28 @@ static UINT InterruptControllerDriverCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             if ((InterruptControllerDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             if (InitializeInterruptController(INTCTRL_MODE_AUTO)) {
                 InterruptControllerDriver.Flags |= DRIVER_FLAG_READY;
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
-            return DF_RET_UNEXPECT;
+            return DF_RETURN_UNEXPECTED;
 
         case DF_UNLOAD:
             if ((InterruptControllerDriver.Flags & DRIVER_FLAG_READY) == 0) {
-                return DF_RET_SUCCESS;
+                return DF_RETURN_SUCCESS;
             }
 
             ShutdownInterruptController();
             InterruptControllerDriver.Flags &= ~DRIVER_FLAG_READY;
-            return DF_RET_SUCCESS;
+            return DF_RETURN_SUCCESS;
 
-        case DF_GETVERSION:
+        case DF_GET_VERSION:
             return MAKE_VERSION(INTCTRL_VER_MAJOR, INTCTRL_VER_MINOR);
     }
 
-    return DF_RET_NOTIMPL;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

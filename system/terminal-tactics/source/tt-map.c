@@ -234,6 +234,7 @@ BOOL AllocateMap(I32 width, I32 height) {
 
     App.GameState->MapWidth = width;
     App.GameState->MapHeight = height;
+    App.GameState->MapMaxDim = imax(width, height);
     return TRUE;
 }
 
@@ -265,6 +266,7 @@ void FreeMap(void) {
     FreeTeamMemoryBuffers();
     App.GameState->MapWidth = 0;
     App.GameState->MapHeight = 0;
+    App.GameState->MapMaxDim = 0;
 }
 
 /************************************************************************/
@@ -330,15 +332,14 @@ void RebuildOccupancy(void) {
 
 /************************************************************************/
 
-BOOL IsAreaBlocked(I32 x, I32 y, I32 width, I32 height, const BUILDING* ignoreBuilding, const UNIT* ignoreUnit) {
+static BOOL IsAreaBlockedInternal(I32 x, I32 y, I32 width, I32 height,
+                                  const BUILDING* ignoreBuilding, const UNIT* ignoreUnit, I32 unitTypeId) {
     I32 mapW;
     I32 mapH;
-    I32 unitTypeId;
 
     if (App.GameState == NULL || App.GameState->Terrain == NULL) return TRUE;
     mapW = App.GameState->MapWidth;
     mapH = App.GameState->MapHeight;
-    unitTypeId = (ignoreUnit != NULL) ? ignoreUnit->TypeId : -1;
 
     if (!IsTerrainWalkableForUnitType(x, y, width, height, unitTypeId)) {
         return TRUE;
@@ -370,4 +371,17 @@ BOOL IsAreaBlocked(I32 x, I32 y, I32 width, I32 height, const BUILDING* ignoreBu
     }
 
     return FALSE;
+}
+
+/************************************************************************/
+
+BOOL IsAreaBlocked(I32 x, I32 y, I32 width, I32 height, const BUILDING* ignoreBuilding, const UNIT* ignoreUnit) {
+    I32 unitTypeId = (ignoreUnit != NULL) ? ignoreUnit->TypeId : -1;
+    return IsAreaBlockedInternal(x, y, width, height, ignoreBuilding, ignoreUnit, unitTypeId);
+}
+
+/************************************************************************/
+
+BOOL IsAreaBlockedForUnitType(I32 x, I32 y, I32 width, I32 height, I32 unitTypeId) {
+    return IsAreaBlockedInternal(x, y, width, height, NULL, NULL, unitTypeId);
 }

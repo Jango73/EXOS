@@ -28,8 +28,8 @@
 /************************************************************************/
 
 #include "Base.h"
-#include "drivers/DeviceInterrupt.h"
 #include "Driver.h"
+#include "drivers/DeviceInterrupt.h"
 #include "arch/intel/x86-Common.h"
 #include "arch/i386/i386-Memory.h"
 #include "process/TaskStack.h"
@@ -429,7 +429,7 @@ typedef struct tag_INTERRUPT_FRAME {
 typedef struct tag_ARCH_TASK_DATA {
     INTERRUPT_FRAME Context;
     STACK Stack;
-    STACK SysStack;
+    STACK SystemStack;
 } ARCH_TASK_DATA, *LPARCH_TASK_DATA;
 
 // The GDT register

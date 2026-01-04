@@ -357,6 +357,24 @@ BOOL UnfreezeScheduler(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Report whether the scheduler is currently frozen.
+ * @return TRUE when the scheduler is frozen, FALSE otherwise.
+ */
+BOOL IsSchedulerFrozen(void) {
+    U32 Flags;
+    BOOL Frozen;
+
+    SaveFlags(&Flags);
+    DisableInterrupts();
+    Frozen = (TaskList.Freeze != 0);
+    RestoreFlags(&Flags);
+
+    return Frozen;
+}
+
+/************************************************************************/
+
 void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
     FINE_DEBUG(TEXT("[SwitchToNextTask] CurrentTask = %p (%s), NextTask = %p (%s)"),
         CurrentTask, CurrentTask->Name, NextTask, NextTask->Name);
@@ -411,7 +429,7 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
     if (CurrentTaskStatus == TASK_STATUS_READY) {
         SetTaskStatus(NextTask, TASK_STATUS_RUNNING);
 
-        if (NextTask->Process->Privilege == PRIVILEGE_KERNEL) {
+        if (NextTask->Process->Privilege == CPU_PRIVILEGE_KERNEL) {
             LINEAR StackPointer = NextTask->Arch.Stack.Base + NextTask->Arch.Stack.Size - STACK_SAFETY_MARGIN;
 
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] StackPointer = %p"), StackPointer);
@@ -429,7 +447,7 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
         } else {
             LINEAR StackPointer = NextTask->Arch.Stack.Base + NextTask->Arch.Stack.Size - STACK_SAFETY_MARGIN;
             LINEAR SysStackPointer =
-                NextTask->Arch.SysStack.Base + NextTask->Arch.SysStack.Size - STACK_SAFETY_MARGIN;
+                NextTask->Arch.SystemStack.Base + NextTask->Arch.SystemStack.Size - STACK_SAFETY_MARGIN;
 
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] SysStackPointer = %p"), SysStackPointer);
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] StackPointer = %p"), StackPointer);

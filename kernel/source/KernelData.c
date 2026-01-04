@@ -1,6 +1,10 @@
 
 #include "Kernel.h"
+#include "Mouse.h"
 #include "Socket.h"
+#include "DriverGetters.h"
+#include "drivers/KeyboardDrivers.h"
+#include "drivers/MouseDrivers.h"
 #include "utils/Helpers.h"
 #include "process/Process.h"
 #include "drivers/Keyboard.h"
@@ -13,34 +17,6 @@ typedef struct tag_CPUIDREGISTERS {
     U32 reg_ECX;
     U32 reg_EDX;
 } CPUIDREGISTERS, *LPCPUIDREGISTERS;
-
-/************************************************************************/
-
-extern DRIVER ConsoleDriver;
-extern DRIVER KernelLogDriver;
-extern DRIVER MemoryManagerDriver;
-extern DRIVER TaskSegmentsDriver;
-extern DRIVER InterruptsDriver;
-extern DRIVER KernelProcessDriver;
-extern DRIVER ACPIDriver;
-extern DRIVER LocalAPICDriver;
-extern DRIVER IOAPICDriver;
-extern DRIVER InterruptControllerDriver;
-extern DRIVER StdKeyboardDriver;
-extern DRIVER SerialMouseDriver;
-extern DRIVER ClockDriver;
-extern DRIVER PCIDriver;
-extern DRIVER ATADiskDriver;
-extern DRIVER SATADiskDriver;
-extern DRIVER RAMDiskDriver;
-extern DRIVER FileSystemDriver;
-extern DRIVER DeviceInterruptDriver;
-extern DRIVER DeferredWorkDriver;
-extern DRIVER NetworkManagerDriver;
-extern DRIVER UserAccountDriver;
-extern DRIVER VESADriver;
-
-extern DRIVER EXFSDriver;
 
 /************************************************************************/
 
@@ -100,6 +76,50 @@ static LIST MutexList = {
 /************************************************************************/
 
 static LIST DiskList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
+
+/************************************************************************/
+
+static LIST USBDeviceList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
+
+/************************************************************************/
+
+static LIST USBInterfaceList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
+
+/************************************************************************/
+
+static LIST USBEndpointList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
+
+/************************************************************************/
+
+static LIST USBStorageList = {
     .First = NULL,
     .Last = NULL,
     .Current = NULL,
@@ -205,6 +225,10 @@ static KERNELDATA DATA_SECTION Kernel = {
     .Task = &TaskList,
     .Mutex = &MutexList,
     .Disk = &DiskList,
+    .USBDevice = &USBDeviceList,
+    .USBInterface = &USBInterfaceList,
+    .USBEndpoint = &USBEndpointList,
+    .USBStorage = &USBStorageList,
     .PCIDevice = &PciDeviceList,
     .NetworkDevice = &NetworkDeviceList,
     .Event = &EventList,
@@ -252,29 +276,31 @@ void InitializeDriverList(void) {
         return;
     }
 
-    ListAddTail(Kernel.Drivers, &ConsoleDriver);
-    ListAddTail(Kernel.Drivers, &KernelLogDriver);
-    ListAddTail(Kernel.Drivers, &MemoryManagerDriver);
-    ListAddTail(Kernel.Drivers, &TaskSegmentsDriver);
-    ListAddTail(Kernel.Drivers, &InterruptsDriver);
-    ListAddTail(Kernel.Drivers, &KernelProcessDriver);
-    ListAddTail(Kernel.Drivers, &ACPIDriver);
-    ListAddTail(Kernel.Drivers, &LocalAPICDriver);
-    ListAddTail(Kernel.Drivers, &IOAPICDriver);
-    ListAddTail(Kernel.Drivers, &InterruptControllerDriver);
-    ListAddTail(Kernel.Drivers, &DeviceInterruptDriver);
-    ListAddTail(Kernel.Drivers, &DeferredWorkDriver);
-    ListAddTail(Kernel.Drivers, &StdKeyboardDriver);
-    ListAddTail(Kernel.Drivers, &SerialMouseDriver);
-    ListAddTail(Kernel.Drivers, &ClockDriver);
-    ListAddTail(Kernel.Drivers, &PCIDriver);
-    ListAddTail(Kernel.Drivers, &ATADiskDriver);
-    ListAddTail(Kernel.Drivers, &SATADiskDriver);
-    ListAddTail(Kernel.Drivers, &RAMDiskDriver);
-    ListAddTail(Kernel.Drivers, &FileSystemDriver);
-    ListAddTail(Kernel.Drivers, &NetworkManagerDriver);
-    ListAddTail(Kernel.Drivers, &UserAccountDriver);
-    ListAddTail(Kernel.Drivers, &VESADriver);
+    ListAddTail(Kernel.Drivers, ConsoleGetDriver());
+    ListAddTail(Kernel.Drivers, KernelLogGetDriver());
+    ListAddTail(Kernel.Drivers, MemoryManagerGetDriver());
+    ListAddTail(Kernel.Drivers, TaskSegmentsGetDriver());
+    ListAddTail(Kernel.Drivers, InterruptsGetDriver());
+    ListAddTail(Kernel.Drivers, KernelProcessGetDriver());
+    ListAddTail(Kernel.Drivers, ACPIGetDriver());
+    ListAddTail(Kernel.Drivers, LocalAPICGetDriver());
+    ListAddTail(Kernel.Drivers, IOAPICGetDriver());
+    ListAddTail(Kernel.Drivers, InterruptControllerGetDriver());
+    ListAddTail(Kernel.Drivers, DeviceInterruptGetDriver());
+    ListAddTail(Kernel.Drivers, DeferredWorkGetDriver());
+    ListAddTail(Kernel.Drivers, SerialMouseGetDriver());
+    ListAddTail(Kernel.Drivers, ClockGetDriver());
+    ListAddTail(Kernel.Drivers, PCIGetDriver());
+    ListAddTail(Kernel.Drivers, KeyboardSelectorGetDriver());
+    ListAddTail(Kernel.Drivers, USBMouseGetDriver());
+    ListAddTail(Kernel.Drivers, USBMassStorageGetDriver());
+    ListAddTail(Kernel.Drivers, ATADiskGetDriver());
+    ListAddTail(Kernel.Drivers, SATADiskGetDriver());
+    ListAddTail(Kernel.Drivers, RAMDiskGetDriver());
+    ListAddTail(Kernel.Drivers, FileSystemGetDriver());
+    ListAddTail(Kernel.Drivers, NetworkManagerGetDriver());
+    ListAddTail(Kernel.Drivers, UserAccountGetDriver());
+    ListAddTail(Kernel.Drivers, VESAGetDriver());
 }
 
 /************************************************************************/
@@ -335,6 +361,46 @@ LPLIST GetMutexList(void) {
  */
 LPLIST GetDiskList(void) {
     return Kernel.Disk;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the USB device list.
+ * @return Pointer to the USB device list.
+ */
+LPLIST GetUsbDeviceList(void) {
+    return Kernel.USBDevice;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the USB interface list.
+ * @return Pointer to the USB interface list.
+ */
+LPLIST GetUsbInterfaceList(void) {
+    return Kernel.USBInterface;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the USB endpoint list.
+ * @return Pointer to the USB endpoint list.
+ */
+LPLIST GetUsbEndpointList(void) {
+    return Kernel.USBEndpoint;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the USB storage list.
+ * @return Pointer to the USB storage list.
+ */
+LPLIST GetUsbStorageList(void) {
+    return Kernel.USBStorage;
 }
 
 /************************************************************************/
@@ -830,7 +896,12 @@ BOOL GetCPUInformation(LPCPUINFORMATION Info) {
  * @return Pointer to the mouse driver.
  */
 LPDRIVER GetMouseDriver(void) {
-    return &SerialMouseDriver;
+    LPDRIVER UsbDriver = USBMouseGetDriver();
+    if (UsbDriver != NULL && UsbDriver->Command(DF_MOUSE_HAS_DEVICE, 0) == 1U) {
+        return UsbDriver;
+    }
+
+    return SerialMouseGetDriver();
 }
 
 /************************************************************************/
@@ -840,7 +911,7 @@ LPDRIVER GetMouseDriver(void) {
  * @return Pointer to the graphics driver.
  */
 LPDRIVER GetGraphicsDriver(void) {
-    return &VESADriver;
+    return VESAGetDriver();
 }
 
 /************************************************************************/
@@ -850,5 +921,5 @@ LPDRIVER GetGraphicsDriver(void) {
  * @return Pointer to the default file system driver.
  */
 LPDRIVER GetDefaultFileSystemDriver(void) {
-    return &EXFSDriver;
+    return EXFSGetDriver();
 }

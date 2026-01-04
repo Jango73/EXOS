@@ -1,235 +1,195 @@
-# Kernel documentation
+# EXOS Kernel documentation
+
+## Table of contents
+- [Table of contents](#table-of-contents)
+- [Notations used in this document](#notations-used-in-this-document)
+- [Architecture](#architecture)
+  - [Paging abstractions](#paging-abstractions)
+  - [Logging](#logging)
+  - [Kernel objects](#kernel-objects)
+    - [Object identifiers](#object-identifiers)
+    - [Event objects](#event-objects)
+    - [List nodes](#list-nodes)
+    - [File system globals](#file-system-globals)
+  - [Handle reuse guarantees](#handle-reuse-guarantees)
+  - [Command line editing](#command-line-editing)
+  - [Shell scripting integration](#shell-scripting-integration)
+  - [Task and window message delivery](#task-and-window-message-delivery)
+  - [ACPI services](#acpi-services)
+  - [Desktop ownership helpers](#desktop-ownership-helpers)
+- [Startup sequence on HD (real HD on i386 or qemu-system-i386)](#startup-sequence-on-hd-real-hd-on-i386-or-qemu-system-i386)
+- [Physical Memory map (may change)](#physical-memory-map-may-change)
+- [Disk interfaces](#disk-interfaces)
+- [Foreign File systems](#foreign-file-systems)
+- [Tasks](#tasks)
+  - [Architecture-specific task data](#architecture-specific-task-data)
+  - [Stack sizing](#stack-sizing)
+  - [IRQ scheduling](#irq-scheduling)
+    - [IRQ 0 path](#irq-0-path)
+    - [ISR 0 call graph](#isr-0-call-graph)
+- [System calls](#system-calls)
+  - [System call full path - i386](#system-call-full-path-i386)
+  - [System call full path - x86-64](#system-call-full-path-x86-64)
+- [Process and Task Lifecycle Management](#process-and-task-lifecycle-management)
+  - [Process Heap Management](#process-heap-management)
+  - [Status States](#status-states)
+  - [Process Creation Flags](#process-creation-flags)
+  - [Session Inheritance](#session-inheritance)
+  - [Lifecycle Flow](#lifecycle-flow)
+  - [Key Design Principles](#key-design-principles)
+- [Network Stack](#network-stack)
+  - [Architecture Overview](#architecture-overview)
+  - [Device Infrastructure](#device-infrastructure)
+  - [Device Interrupt Infrastructure](#device-interrupt-infrastructure)
+  - [Network Manager](#network-manager)
+  - [E1000 Ethernet Driver](#e1000-ethernet-driver)
+  - [ARP (Address Resolution Protocol)](#arp-address-resolution-protocol)
+  - [IPv4 Internet Protocol](#ipv4-internet-protocol)
+  - [TCP (Transmission Control Protocol)](#tcp-transmission-control-protocol)
+  - [Layer Interactions](#layer-interactions)
+  - [Network Configuration](#network-configuration)
+  - [Key Benefits of Per-Device Architecture](#key-benefits-of-per-device-architecture)
+- [Exposed objects in shell](#exposed-objects-in-shell)
+- [Keyboard Layout Format (EKM1)](#keyboard-layout-format-ekm1)
+- [EXOS File System - EXFS](#exos-file-system-exfs)
+  - [Structure of the Master Boot Record](#structure-of-the-master-boot-record)
+  - [Structure of SuperBlock](#structure-of-superblock)
+  - [Structure of FileRecord](#structure-of-filerecord)
+  - [FileRecord fields](#filerecord-fields)
+  - [Structure of folders and files](#structure-of-folders-and-files)
+  - [Clusters](#clusters)
+  - [Cluster bitmap](#cluster-bitmap)
+- [EXT2 structure](#ext2-structure)
+- [QEMU network graph](#qemu-network-graph)
+- [Links](#links)
+
+
+## Notations used in this document
+
+| Abbrev | Meaning                         |
+|--------|---------------------------------|
+| U8     | unsigned byte                   |
+| I8     | signed byte                     |
+| U16    | unsigned word                   |
+| I16    | signed word                     |
+| U32    | unsigned long                   |
+| I32    | signed long                     |
+| U64    | unsigned qword                  |
+| I64    | signed qword                    |
+| UINT   | unsigned register-sized integer |
+| INT    | signed register-sized integer   |
+
+| Abbrev | Meaning                           |
+|--------|-----------------------------------|
+| EXOS   | Extensible Operating System       |
+| BIOS   | Basic Input/Output System         |
+| CHS    | Cylinder-Head-Sector              |
+| MBR    | Master Boot Record                |
+| OS     | Operating System                  |
+
+---
+
 
 ## Architecture
 
 ### Paging abstractions
 
-The memory manager relies on `arch/Memory.h` to describe page hierarchy
-helpers exposed by the active architecture backend. The i386
-implementation (`arch/i386/i386-Memory.h`) centralizes directory and
-table index calculations, exposes accessors for the self-mapped page
-directory, and provides helper routines to build raw page directory and
-page table entries. Kernel code constructs mappings through
-`MakePageDirectoryEntryValue`, `MakePageTableEntryValue`, and
-`WritePage*EntryValue` instead of touching the i386 bitfields directly.
-This abstraction keeps `Memory.c` agnostic of the paging depth so that a
-future x86-64 backend can extend the hierarchy without refactoring the
-core allocator.
+The memory manager relies on `arch/Memory.h` to describe page hierarchy helpers exposed by the active architecture backend. The i386 implementation (`arch/i386/i386-Memory.h`) centralizes directory and table index calculations, exposes accessors for the self-mapped page directory, and provides helper routines to build raw page directory and page table entries. Kernel code constructs mappings through `MakePageDirectoryEntryValue`, `MakePageTableEntryValue`, and `WritePage*EntryValue` instead of touching the i386 bitfields directly. This abstraction keeps `Memory.c` agnostic of the paging depth so that a future x86-64 backend can extend the hierarchy without refactoring the core allocator.
 
-`arch/i386/i386-Memory.h` exposes a generic `ARCH_PAGE_ITERATOR`
-helper that walks page mappings without assuming a fixed number of page
-table levels. Region management routines (`IsRegionFree`, `AllocRegion`,
-`FreeRegion`, and friends) advance the iterator rather than manually
-splitting linear addresses into directory/table indexes, and table
-reclamation relies on `PageTableIsEmpty`. Physical range clipping is
-also delegated to the architecture via `ClipPhysicalRange`, keeping
-future 64-bit backends free to extend address limits without touching the
-common kernel code.
+`arch/i386/i386-Memory.h` exposes a generic `ARCH_PAGE_ITERATOR` helper that walks page mappings without assuming a fixed number of page table levels. Region management routines (`IsRegionFree`, `AllocRegion`, `FreeRegion`, and friends) advance the iterator rather than manually splitting linear addresses into directory/table indexes, and table reclamation relies on `PageTableIsEmpty`. Physical range clipping is also delegated to the architecture via `ClipPhysicalRange`, keeping future 64-bit backends free to extend address limits without touching the common kernel code.
 
-`InitializeMemoryManager` defers to `InitializeMemoryManager` so
-the architecture backend owns the low-level bootstrap steps. The i386
-implementation continues to reserve the bitmap in low memory, seed the
-temporary mapping slots, install the recursive page directory, and load
-the GDT. The x86-64 path mirrors these steps, wiring the temporary
-linear aliases, building the initial PML4, and installing a long-mode
-GDT so higher-half execution can begin without architecture-specific
-hooks inside the generic memory manager.
+`InitializeMemoryManager` defers to `InitializeMemoryManager` so the architecture backend owns the low-level bootstrap steps. The i386 implementation continues to reserve the bitmap in low memory, seed the temporary mapping slots, install the recursive page directory, and load the GDT. The x86-64 path mirrors these steps, wiring the temporary linear aliases, building the initial PML4, and installing a long-mode GDT so higher-half execution can begin without architecture-specific hooks inside the generic memory manager.
 
-On long mode builds the kernel allocates paging structures explicitly
-instead of cloning the loader tables. `AllocPageDirectory` creates fresh
-low-memory and kernel PDPTs, wires the task-runner window, and programs
-the recursive slot before returning the new PML4. `AllocUserPageDirectory`
-reuses those helpers but also reserves an empty userland page table so
-`AllocRegion` can immediately populate process space without reconstructing
-the hierarchy first. The low-memory region builder keeps a cached pair of
-BIOS-protected and general identity tables so new page directories only
-consume fresh pages for their PDPT, directory, and any userland seed tables.
+On long mode builds the kernel allocates paging structures explicitly instead of cloning the loader tables. `AllocPageDirectory` creates fresh low-memory and kernel PDPTs, wires the task-runner window, and programs the recursive slot before returning the new PML4. `AllocUserPageDirectory` reuses those helpers but also reserves an empty userland page table so `AllocRegion` can immediately populate process space without reconstructing the hierarchy first. The low-memory region builder keeps a cached pair of BIOS-protected and general identity tables so new page directories only consume fresh pages for their PDPT, directory, and any userland seed tables.
 
-On x86-64 every successful `AllocRegion` emits a `MEMORY_REGION_DESCRIPTOR`
-record that inherits `LISTNODE_FIELDS` and lives in an intrusive list anchored
-on `PROCESS.RegionListHead`. The allocator carves descriptor slabs from
-dedicated metadata pages (mapped through `AllocKernelRegion`) so the kernel
-heap stays untouched while diagnostics can enumerate allocations. Each
-descriptor stores the canonical base, committed size, physical origin (when
-fixed), allocation flags, and paging granularity. `FreeRegion` and
-`ResizeRegion` update the list in place, logging registration and teardown so
-validation runs can confirm descriptor lifetimes line up with the virtual
-memory operations they front.
+On x86-64 every successful `AllocRegion` emits a `MEMORY_REGION_DESCRIPTOR` record that inherits `LISTNODE_FIELDS` and lives in an intrusive list anchored on `PROCESS.RegionListHead`. The allocator carves descriptor slabs from dedicated metadata pages (mapped through `AllocKernelRegion`) so the kernel heap stays untouched while diagnostics can enumerate allocations. Each descriptor stores the canonical base, committed size, physical origin (when fixed), allocation flags, and paging granularity. `FreeRegion` and `ResizeRegion` update the list in place, logging registration and teardown so validation runs can confirm descriptor lifetimes line up with the virtual memory operations they front.
 
-### Kernel object identifiers
+### Logging
 
-Kernel objects embed a 64-bit identifier in `OBJECT_FIELDS`. The identifier
-is assigned when `CreateKernelObject` allocates the structure and is derived
-from a randomly generated UUID. This value travels with the object for its
-entire lifetime and is persisted in the termination cache through
-`OBJECT_TERMINATION_STATE.ID`. Scheduler lookups rely on the shared identifier
-instead of raw pointers, eliminating accidental matches when memory is reused
-for new objects.
+Kernel logging funnels through `KernelLogText` and uses typed prefixes for log classes. The available log types are `DEBUG`, `WARNING`, `ERROR`, `VERBOSE`, and `TEST`. `DEBUG`, `WARNING`, `ERROR`, and `VERBOSE` are always available, while `TEST` is a debug-only type used by automated test scripts and is compiled out when `DEBUG_OUTPUT` is disabled. All logs follow the standard `[FunctionName]` prefix rule and emit structured results such as `TEST > [CMD_sysinfo] sysinfo : OK`.
 
-### Kernel event object
+### Kernel objects
 
-`kernel/source/KernelEvent.c` introduces `CreateKernelEvent`, a lightweight
-kernel object (`KOID_KERNELEVENT`) designed for ISR-to-task signaling. Events
-embed the standard `LISTNODE_FIELDS` header plus a `Signaled` flag and
-`SignalCount` counter. They live in `Kernel.Event` alongside other
-kernel-maintained lists so reference tracking and garbage collection treat
-them like existing objects (processes, sockets, etc.).
+#### Object identifiers
 
-Key helpers:
+Every kernel object stores a 64-bit identifier in `OBJECT_FIELDS`. The identifier is assigned by `CreateKernelObject` using a random UUID source and is kept for the object lifetime, including in the termination cache through `OBJECT_TERMINATION_STATE.ID`. This provides stable identity when memory is reused and keeps scheduler lookups independent from raw pointers. Any kernel object that contains `OBJECT_FIELDS` (and therefore `LISTNODE_FIELDS`) and is meant to live in a global kernel list must be created with `CreateKernelObject` and destroyed with `ReleaseKernelObject`.
 
-- `CreateKernelEvent()` / `DeleteKernelEvent()` allocate and reference-count
-  the object.
-- `SignalKernelEvent()` and `ResetKernelEvent()` flip the `Signaled` flag while
-  interrupts are masked locally (`SaveFlags`/`DisableInterrupts`). The helpers
-  are safe to call from interrupt context.
-- `KernelEventIsSignaled()` and `KernelEventGetSignalCount()` surface state for
-  consumer code.
+#### Event objects
 
-`Wait()` recognises the new type: when an event handle is present in
-`WAITINFO.Objects`, the scheduler returns as soon as `SignalKernelEvent`
-marks it signaled and propagates `SignalCount` through the wait exit codes.
-Legacy behaviour for process/task termination remains unchanged because the
-termination cache is still consulted first.
+Kernel events (`KOID_KERNELEVENT`) are lightweight objects for ISR-to-task signaling, implemented in `kernel/source/KernelEvent.c`. They embed `LISTNODE_FIELDS` plus a `Signaled` flag and `SignalCount` counter, and are tracked in `Kernel.Event` alongside other kernel-managed lists so reference tracking and garbage collection treat them uniformly.
+
+Event lifecycle and state helpers:
+
+- `CreateKernelEvent()` and `DeleteKernelEvent()` manage allocation and reference counting.
+- `SignalKernelEvent()` and `ResetKernelEvent()` update the signaled state with local interrupts masked (`SaveFlags`/`DisableInterrupts`) so they are safe in interrupt context.
+- `KernelEventIsSignaled()` and `KernelEventGetSignalCount()` expose state for scheduler and consumer code.
+
+`Wait()` recognizes event handles in `WAITINFO.Objects` and returns when `SignalKernelEvent` marks the event signaled, propagating `SignalCount` through the wait exit codes. The termination cache remains the first check for process and task exits to preserve legacy behavior.
+
+#### List nodes
+
+Kernel objects that embed `LISTNODE_FIELDS` participate in intrusive lists. Each list node carries a `Parent` pointer so objects can represent hierarchy when required, but insertion helpers keep the `Parent` pointer NULL unless it is explicitly set by the caller. This avoids accidental parent chains while still enabling structured ownership models.
+
+#### File system globals
+
+Shared file system state is stored in `Kernel.FileSystemInfo`. The current implementation tracks the logical name of the active partition while MBR partitions are mounted. `MountDiskPartitions` reads the active MBR entry and calls `FileSystemSetActivePartition` to copy the mounted file system name into `Kernel.FileSystemInfo.ActivePartitionName`, which is reused by shell and diagnostic paths.
 
 ### Handle reuse guarantees
 
-The global handle map enforces a strict 1:1 relationship between kernel
-objects and user-visible handles. `PointerToHandle()` first queries the handle
-map to see if the pointer is already exported and reuses the existing handle
-instead of allocating a duplicate. A new reverse lookup helper walks the handle
-map so conversions remain O(n) only in debugging scenarios while the common
-case reuses cached handles. This change eliminates transient handles created
-every time `SysCall_GetMessage()` returned a pointer to userland, which in turn
-kept GUI messages from round-tripping correctly through `DispatchMessage()`.
-User applications receive stable handles for their windows, and the runtime
-can translate those handles back to the original kernel pointers without any
-fallback logic.
+The global handle map enforces a strict 1:1 relationship between kernel objects and user-visible handles. `PointerToHandle()` first queries the handle map to see if the pointer is already exported and reuses the existing handle instead of allocating a duplicate. A new reverse lookup helper walks the handle map so conversions remain O(n) only in debugging scenarios while the common case reuses cached handles. This change eliminates transient handles created every time `SysCall_GetMessage()` returned a pointer to userland, which in turn kept GUI messages from round-tripping correctly through `DispatchMessage()`. User applications receive stable handles for their windows, and the runtime can translate those handles back to the original kernel pointers without any fallback logic.
 
 ### Command line editing
 
-Interactive editing of shell command lines is implemented in
-`kernel/source/utils/CommandLineEditor.c`. The module processes keyboard input,
-maintains an in-memory history, refreshes the console display, and relies on
-callbacks to retrieve completion suggestions. The shell owns an input state
-structure that embeds the editor instance and provides the shell-specific
-completion callback so the component remains agnostic of higher level shell
-logic.
+Interactive editing of shell command lines is implemented in `kernel/source/utils/CommandLineEditor.c`. The module processes keyboard input via the classic buffered path (`PeekChar`/`GetKeyCode`), maintains an in-memory history, refreshes the console display, and relies on callbacks to retrieve completion suggestions. The shell owns an input state structure that embeds the editor instance and provides the shell-specific completion callback so the component remains agnostic of higher level shell logic. While reading input, the editor now adjusts for console scrolling so the display does not re-trigger scrolling on each key press, and console paging prompts are suspended until the line is submitted.
 
-All reusable helpers —such as the command line editor, adaptive delay, string
-containers, CRC utilities, notifications, path helpers, TOML parsing, UUID
-support, regex, hysteresis control, cooldown timing, and network checksum
-helpers— live under `kernel/source/utils` with their public headers in
-`kernel/include/utils`. This keeps generic infrastructure separated from core
-subsystems and makes it easier to share common code across the kernel.
+Keyboard input keeps two distinct paths for compatibility. The legacy PS/2 pipeline continues to use scan code -> KEYTRANS tables, while a separate HID path uses usage page 0x07 indexed KEY_LAYOUT_HID layouts. The HID layout file format is UTF-8 text with an "EKM1" header and directives: code, levels, map, dead, and compose. The kernel keeps an embedded en-US fallback (KEY_LAYOUT_FALLBACK_CODE) used when HID layout loading fails. The HID layout loader parses EKM1 files with a tolerant UTF-8 decoder, logs replacement counts, and rejects malformed directives or out-of-range entries. USB HID keyboard support lives in `kernel/source/drivers/Keyboard-USB.c` and feeds boot protocol reports into the same HID usage pipeline as PS/2. Keyboard initialization is now mediated by a selector driver (`kernel/source/drivers/Keyboard-Selector.c`) that probes for a USB HID keyboard after PCI/xHCI enumeration and otherwise falls back to PS/2 detection, ensuring only one keyboard driver is active at a time.
 
-### Task and window message delivery
-
-Tasks own a lazily instantiated message queue (`MESSAGEQUEUE` in
-`kernel/source/process/TaskMessaging.c`) built on the generic list container.
-Only the
-kernel process starts with a queue; user processes and their tasks get a queue
-*only when they explicitly call* `GetMessage()`, `PeekMessage()`, or
-`WaitForMessage()` (which marks the task queue as initialized). No queue is
-created when posting; if a task/process never asked for one, posted messages
-are dropped and keyboard input continues down the classic buffered path for
-`getkey()`. Each queue is capped to 100 pending messages and guarded by a
-per-queue mutex plus a waiting flag. `WaitForMessage` marks the queue as
-waiting and sleeps the task; `AddTaskMessage` wakes the task when a new message
-arrives and clears the waiting flag.
-
-Message posting:
-- `PostMessage` accepts NULL targets (current task), task handles, and window
-  handles; window targets enqueue into the owning task queue. Keyboard drivers
-  and the mouse dispatcher push input events into the global input queue using
-  `EnqueueInputMessage` so only the focused process sees them.
-- Mouse input is throttled by a tiny dispatcher that filters `EWM_MOUSEMOVE`
-  with a 10ms cooldown between enqueues, while button changes still dispatch
-  immediately through the shared input queue.
-- `SendMessage` remains synchronous and window-only.
-
-Message retrieval:
-- `GetMessage`/`PeekMessage` first check the global input queue when the
-  caller’s process has focus (desktop focus + per-desktop `FocusedProcess`),
-  then fall back to the task’s own queue. `GetMessage` blocks if neither queue
-  holds messages; `PeekMessage` is non-blocking. Userland syscalls translate
-  handles in `MESSAGEINFO` before dispatching to the kernel implementations.
-- Focus tracking lives in `Kernel.FocusedDesktop` and `Desktop.FocusedProcess`.
-  When a process is created on the focused desktop it becomes the focused
-  process; when a focused process dies its desktop falls back to the kernel
-  process. The focus setters ensure a focused process always exists for the
-  active desktop.
-
-Hardware-facing components are grouped under `kernel/source/drivers` with their
-headers in `kernel/include/drivers`. The directory hosts the keyboard, serial
-mouse, interrupt controller (I/O APIC), PCI bus, network (E1000), storage (ATA
-and SATA), graphics (VGA, VESA, and mode tables), and file system backends
-(FAT16, FAT32, and EXFS). Keeping device drivers together simplifies discovery
-from the build system and clarifies the separation between reusable utilities
-and hardware support code. Kernel-side driver registration mirrors the rest
-of the codebase by storing the initialization order in a `LIST` declared in
-`KernelData.c`; `InitializeDriverList()` appends each static driver descriptor
-before `LoadAllDrivers()` walks the list.
-
-The VESA graphics driver always requests VBE modes in linear frame buffer
-mode (bit 14 set in INT 10h 4F02h), checks that the selected mode advertises
-the LFB capability, and maps the `PhysBasePtr` through `MapIOMemory`. Drawing
-code writes directly to the mapped VRAM region without issuing BIOS bank
-switching calls, which removes the heavy INT 10h overhead from every pixel
-write.
+All reusable helpers -such as the command line editor, adaptive delay, string containers, CRC utilities, notifications, path helpers, TOML parsing, UUID support, regex, hysteresis control, cooldown timing, and network checksum helpers— live under `kernel/source/utils` with their public headers in `kernel/include/utils`. This keeps generic infrastructure separated from core subsystems and makes it easier to share common code across the kernel.
 
 ### Shell scripting integration
 
-The interactive shell keeps a persistent script interpreter context to run
-automation snippets. Host-side data is exposed through `ScriptRegisterHostSymbol`
-so scripts can inspect kernel state without bypassing the interpreter API. The
-shell publishes the kernel process list under the global identifier
-`process`. Scripts can iterate over the list (`process[0]`, `process[1]`, ...)
-and query per-process properties such as `Status`, `Flags`, `ExitCode`,
-`FileName`, `CommandLine`, and `WorkFolder`, enabling diagnostics like
-`process[0].CommandLine` directly from the scripting language.
+The interactive shell keeps a persistent script interpreter context to run automation snippets. Host-side data is exposed through `ScriptRegisterHostSymbol` so scripts can inspect kernel state without bypassing the interpreter API. The shell publishes selected kernel objects under global identifiers so scripts can inspect kernel state without bypassing the interpreter API. The objects expose properties through the script runtime (for example `process[0].command_line`) so automation stays inside the supported host interface.
+
+### Task and window message delivery
+
+Tasks own a lazily instantiated message queue (`MESSAGEQUEUE` in `kernel/source/process/TaskMessaging.c`) built on the generic list container. Only the kernel process starts with a queue; user processes and their tasks get a queue *only when they explicitly call* `GetMessage()`, `PeekMessage()`, or `WaitForMessage()` (which marks the task queue as initialized). No queue is created when posting; if a task/process never asked for one, posted messages are dropped and keyboard input continues down the classic buffered path for `getkey()` (used by the shell). When a process message queue exists, the keyboard helpers (`PeekChar`, `GetChar`, `GetKeyCode`) consume key events from that queue by discarding `EWM_KEYUP` messages and returning the first `EWM_KEYDOWN`, then fall back to the classic buffer when no queue exists. Each queue is capped to 100 pending messages and guarded by a per-queue mutex plus a waiting flag. `WaitForMessage` marks the queue as waiting and sleeps the task; `AddTaskMessage` wakes the task when a new message arrives and clears the waiting flag.
+
+Message posting:
+- `PostMessage` accepts NULL targets (current task), task handles, and window handles; window targets enqueue into the owning task queue. Keyboard drivers and the mouse dispatcher push input events into the global input queue using `EnqueueInputMessage` so only the focused process sees them.
+- Mouse input is throttled by a tiny dispatcher that filters `EWM_MOUSEMOVE` with a 10ms cooldown between enqueues, while button changes still dispatch immediately through the shared input queue.
+- `SendMessage` remains synchronous and window-only.
+
+Message retrieval:
+- `GetMessage`/`PeekMessage` first check the global input queue when the caller’s process has focus (desktop focus + per-desktop `FocusedProcess`), then fall back to the task’s own queue. `GetMessage` blocks if neither queue holds messages; `PeekMessage` is non-blocking. Userland syscalls translate handles in `MESSAGEINFO` before dispatching to the kernel implementations.
+- Focus tracking lives in `Kernel.FocusedDesktop` and `Desktop.FocusedProcess`. When a process is created on the focused desktop it becomes the focused process; when a focused process dies its desktop falls back to the kernel process. The focus setters ensure a focused process always exists for the active desktop.
+
+Hardware-facing components are grouped under `kernel/source/drivers` with their headers in `kernel/include/drivers`. The directory hosts the keyboard, serial mouse, interrupt controller (I/O APIC), PCI bus, network (E1000), storage (ATA and SATA), graphics (VGA, VESA, and mode tables), and file system backends (FAT16, FAT32, and EXFS). Keeping device drivers together simplifies discovery from the build system and clarifies the separation between reusable utilities and hardware support code. Kernel-side driver registration mirrors the rest of the codebase by storing the initialization order in a `LIST` declared in `KernelData.c`; `InitializeDriverList()` appends each static driver descriptor before `LoadAllDrivers()` walks the list.
+
+Mouse input is shared through `kernel/source/MouseCommon.c`, which buffers deltas/buttons, dispatches events, and selects the active mouse driver. USB HID mouse support lives in `kernel/source/drivers/Mouse-USB.c` and takes priority over the serial mouse when a USB device is present.
+
+USB foundations live under `kernel/include/drivers/USB.h`. The header defines core USB types (speeds, endpoint kinds, addresses) and the standard descriptor layouts for device, configuration, interface, endpoint, and string metadata so future host controllers and class drivers can share a single set of structs.
+
+The xHCI host controller driver in `kernel/source/drivers/XHCI-Core.c` (split across `kernel/source/drivers/XHCI-Device.c`, `kernel/source/drivers/XHCI-Hub.c`, and `kernel/source/drivers/XHCI-Enum.c`) is registered by the PCI subsystem. It maps the controller MMIO region, performs the mandatory halt/reset/run sequence, allocates DCBAA/command/event rings, programs interrupter 0, runs minimal EP0 control transfers, builds a basic device tree (configs/interfaces/endpoints), and reports status via `usbctl ports`, `usbctl probe`, and `usbctl devices`. Endpoint configuration after `SET_CONFIGURATION` relies on the xHCI Configure Endpoint command before enabling interrupt polling for HID devices.
+USB interfaces and endpoints are kernel objects tracked in global lists, with references held by class drivers to defer teardown until hotplug release completes.
+Hotplug teardown now stops and resets endpoints, flushes transfer rings, disables the affected slot, and defers resource destruction until USB device/interface/endpoint references are released so disconnects during I/O do not trigger invalid memory access.
+
+Hub-class devices are supported: the driver reads hub descriptors, powers ports, tracks downstream devices, and polls hub interrupt endpoints for change bits to trigger per-port reset and re-enumeration.
+
+USB mass storage (BOT, read-only) is handled by `kernel/source/drivers/USBMassStorage.c`. The driver configures bulk endpoints, sends CBW/CSW sequences for SCSI INQUIRY, READ CAPACITY(10), and READ(10), and registers detected disks in the global disk list so `MountDiskPartitions` can attach file systems. Mounted USB storage instances are tracked in `Kernel.USBDevice`, and the shell command `usb drives` prints the current entries with their address, VID/PID, and block geometry. When SystemFS is already initialized, newly mounted partitions are attached under `/fs/<volume>`. On device removal, the associated file systems are detached from `/fs` and released. Mounting a USB mass storage partition broadcasts `ETM_USB_MASS_STORAGE_MOUNTED`/ `ETM_USB_MASS_STORAGE_UNMOUNTED` to userland process message queues.
+
+The VESA graphics driver always requests VBE modes in linear frame buffer mode (bit 14 set in INT 10h 4F02h), checks that the selected mode advertises the LFB capability, and maps the `PhysBasePtr` through `MapIOMemory`. Drawing code writes directly to the mapped VRAM region without issuing BIOS bank switching calls, which removes the heavy INT 10h overhead from every pixel write.
 
 ### ACPI services
 
-Advanced power management and reset paths live in `kernel/source/ACPI.c`. The
-module discovers ACPI tables, exposes the parsed configuration, and offers
-helpers for platform control. `ACPIShutdown()` releases ACPI mappings and
-state without powering off. `ACPIPowerOff()` enters the S5 soft-off state using
-the `_S5` sleep type from the DSDT when available (defaults to 7 otherwise) and
-falls back to legacy power-off sequences when the ACPI path fails. The new
-`ACPIReboot()` companion performs a warm reboot by first using the ACPI reset
-register (when present) and then chaining to legacy reset controllers to ensure
-the machine restarts even on older chipsets. Kernel-level wrappers
-`ShutdownKernel()` and `RebootKernel()` drive shell commands, clear userland
-processes, then kernel tasks, and perform a reverse-order driver unload before
-handing control to the ACPI routines so subsystems leave as few pending
-resources as possible when the machine powers off or reboots.
-
-### File system globals
-
-The kernel tracks shared file system information in `Kernel.FileSystemInfo`.
-It currently stores the logical name of the partition flagged as active while
-MBR partitions are mounted. `MountDiskPartitions` identifies the active entry
-directly from the MBR, then calls `FileSystemSetActivePartition` to copy the
-mounted file system name into `Kernel.FileSystemInfo.ActivePartitionName` for
-later use (for example, in the shell).
+Advanced power management and reset paths live in `kernel/source/ACPI.c`. The module discovers ACPI tables, exposes the parsed configuration, and offers helpers for platform control. `ACPIShutdown()` releases ACPI mappings and state without powering off. `ACPIPowerOff()` enters the S5 soft-off state using the `_S5` sleep type from the DSDT when available (defaults to 7 otherwise) and falls back to legacy power-off sequences when the ACPI path fails. The new `ACPIReboot()` companion performs a warm reboot by first using the ACPI reset register (when present) and then chaining to legacy reset controllers to ensure the machine restarts even on older chipsets. Kernel-level wrappers `ShutdownKernel()` and `RebootKernel()` drive shell commands, clear userland processes, then kernel tasks, and perform a reverse-order driver unload before handing control to the ACPI routines so subsystems leave as few pending resources as possible when the machine powers off or reboots.
 
 ### Desktop ownership helpers
 
-Window managers can reuse the desktop that was assigned to their process
-instead of blindly creating a new one. The kernel exports
-`SYSCALL_GetCurrentDesktop`, which returns the desktop handle currently
-associated with the caller. The runtime exposes this through
-`GetCurrentDesktop()`, allowing userland code to acquire the handle, fetch the
-desktop window, and issue `ShowDesktop()` without forking a duplicate desktop.
-Callers still retain the option to create a dedicated desktop when
-`GetCurrentDesktop()` returns `NULL`, but typical applications leverage the
-existing object so their top-level windows appear on the main desktop instead
-of being hidden behind a detached surface.
+Window managers can reuse the desktop that was assigned to their process instead of blindly creating a new one. The kernel exports `SYSCALL_GetCurrentDesktop`, which returns the desktop handle currently associated with the caller. The runtime exposes this through `GetCurrentDesktop()`, allowing userland code to acquire the handle, fetch the desktop window, and issue `ShowDesktop()` without forking a duplicate desktop. Callers still retain the option to create a dedicated desktop when `GetCurrentDesktop()` returns `NULL`, but typical applications leverage the existing object so their top-level windows appear on the main desktop instead of being hidden behind a detached surface.
 
 ## Startup sequence on HD (real HD on i386 or qemu-system-i386)
 
-Everything in this sequence runs in 16-bit real mode on i386+ processors.
-However, the code uses 32 bit registers when appropriate.
+Everything in this sequence runs in 16-bit real mode on i386+ processors. However, the code uses 32 bit registers when appropriate.
 
 1. BIOS loads disk MBR at 0x7C00.
 2. Code in mbr.asm is executed.
@@ -307,13 +267,7 @@ However, the code uses 32 bit registers when appropriate.
 +------------------------------------+
 ```
 
-**AHCI interrupt policy**: the SATA driver registers the controller with the
-shared `DeviceInterruptRegister` infrastructure and installs dedicated top and
-bottom halves so IRQ 11 traffic can be routed through a private slot when the
-hardware gets its own vector (MSI/MSI-X or a non-shared INTx line). Commands
-still complete synchronously, therefore all AHCI per-port interrupt masks
-(`PORT.ie`) and the global `GHC.IE` bit stay cleared in shipping builds to keep
-the shared IRQ 11 line quiet for the `E1000` NIC.
+**AHCI interrupt policy**: the SATA driver registers the controller with the shared `DeviceInterruptRegister` infrastructure and installs dedicated top and bottom halves so IRQ 11 traffic can be routed through a private slot when the hardware gets its own vector (MSI/MSI-X or a non-shared INTx line). Commands still complete synchronously, therefore all AHCI per-port interrupt masks (`PORT.ie`) and the global `GHC.IE` bit stay cleared in shipping builds to keep the shared IRQ 11 line quiet for the `E1000` NIC.
 
 ## Foreign File systems
 
@@ -338,314 +292,33 @@ the shared IRQ 11 line quiet for the `E1000` NIC.
 | **ZFS** | COW, pools, checksums, RAID-Z, snapshots | 7 | 10 | Includes volume mgmt; very large scope. |
 | **NTFS** | MFT, resident/non-resident attrs, bitmap, journal | 7 | 9 | Compression, sparse, ACLs, USN; very rich design. |
 
-## EXOS File System - EXFS
-
-### Notations used in this document
-
-| Abbrev | Meaning                |
-|--------|------------------------|
-| U8     | unsigned byte          |
-| I8     | signed byte            |
-| U16    | unsigned word          |
-| I16    | signed word            |
-| U32    | unsigned long          |
-| I32    | signed long            |
-
-| Abbrev | Meaning                           |
-|--------|-----------------------------------|
-| EXOS   | Extensible Operating System       |
-| BIOS   | Basic Input/Output System         |
-| CHS    | Cylinder-Head-Sector              |
-| MBR    | Master Boot Record                |
-| OS     | Operating System                  |
-
----
-
-### Structure of the Master Boot Record
-
-| Offset   | Type | Description                                  |
-|----------|------|----------------------------------------------|
-| 0..445   | U8x? | The boot sequence                            |
-| 446..461 | ?    | CHS location of partition No 1               |
-| 462..477 | ?    | CHS location of partition No 2               |
-| 478..493 | ?    | CHS location of partition No 3               |
-| 494..509 | ?    | CHS location of partition No 4               |
-| 510      | U16  | BIOS signature : 0x55AA (`_*_*_*_**_*_*_*_`) |
-
----
-
-### Structure of SuperBlock
-
-The SuperBlock is always **1024 bytes** in size.
-
-| Offset | Type   | Description                                   |
-|--------|--------|-----------------------------------------------|
-| 0      | U32    | Magic number, must be `"EXOS"`                |
-| 4      | U32    | Version (high word = major, low word = minor) |
-| 8      | U32    | Size of a cluster in bytes                    |
-| 12     | U32    | Number of clusters                            |
-| 16     | U32    | Number of free clusters                       |
-| 20     | U32    | Cluster index of cluster bitmap               |
-| 24     | U32    | Cluster index of bad cluster page             |
-| 28     | U32    | Cluster index of root FileRecord ("/")        |
-| 32     | U32    | Cluster index of security info                |
-| 36     | U32    | Index in root for OS kernel main file         |
-| 40     | U32    | Number of folders (excluding "." and "..")    |
-| 44     | U32    | Number of files                               |
-| 48     | U32    | Max mount count before check is forced        |
-| 52     | U32    | Current mount count                           |
-| 56     | U32    | Format of the volume name                     |
-| 60–63  | U8x4   | Reserved                                      |
-| 64     | U8x32  | Password (optional)                           |
-| 96     | U8x32  | Name of this file system's creator            |
-| 128    | U8x128 | Name of the volume                            |
-
----
-
-### Structure of FileRecord
-
-| Offset | Type   | Description                        |
-|--------|--------|------------------------------------|
-| 0      | U32    | SizeLow                            |
-| 4      | U32    | SizeHigh                           |
-| 8      | U64    | Creation time                      |
-| 16     | U64    | Last access time                   |
-| 24     | U64    | Last modification time             |
-| 32     | U32    | Cluster index for ClusterTable     |
-| 36     | U32    | Standard attributes                |
-| 40     | U32    | Security attributes                |
-| 44     | U32    | Group owner of this file           |
-| 48     | U32    | User owner of this file            |
-| 52     | U32    | Format of name                     |
-| 56–127 | U8x?   | Reserved, should be zero           |
-| 128    | U8x128 | Name of the file (NULL terminated) |
-
----
-
-### FileRecord fields
-
-**Time fields (bit layout):**
-
-- Bits 0..21  : Year (max: 4,194,303)  
-- Bits 22..25 : Month in the year (max: 15)  
-- Bits 26..31 : Day in the month (max: 63)  
-- Bits 32..37 : Hour in the day (max: 63)  
-- Bits 38..43 : Minute in the hour (max: 63)  
-- Bits 44..49 : Second in the minute (max: 63)  
-- Bits 50..59 : Millisecond in the second (max: 1023)  
-
-**Standard attributes field:**
-
-- Bit 0 : 1 = folder, 0 = file  
-- Bit 1 : 1 = read-only, 0 = read/write  
-- Bit 2 : 1 = system  
-- Bit 3 : 1 = archive  
-- Bit 4 : 1 = hidden  
-
-**Security attributes field:**
-
-- Bit 0 : 1 = only kernel has access to the file  
-- Bit 1 : 1 = fill the file's clusters with zeroes on delete  
-
-**Name format:**
-
-- 0 : ASCII (8 bits per character)  
-- 1 : Unicode (16 bits per character)  
-
----
-
-### Structure of folders and files
-
-- A cluster that contains 32-bit indices to other clusters is called a **page**.  
-- FileRecord contains a cluster index for its first page.  
-- A page is filled with cluster indices pointing to file/folder data.  
-- For folders: data = series of FileRecords.  
-- For files: data = arbitrary user data.  
-- The **last entry** of a page is `0xFFFFFFFF`.  
-- If more than one page is needed, the last index points to the **next page**.  
-
----
-
-### Clusters
-
-- All cluster pointers are 32-bit.  
-- Cluster 0 = boot sector (1024 bytes).  
-- Cluster 1 = SuperBlock (1024 bytes).  
-- First usable cluster starts at byte 2048.  
-
-**Max addressable bytes by cluster size:**
-
-| Cluster size | Max addressable bytes  |
-|--------------|-------------------------|
-| 1024         | 4,398,046,510,080       |
-| 2048         | 8,796,093,020,160       |
-| 4096         | 17,592,186,040,320      |
-| 8192         | 35,184,372,080,640      |
-
-**Number of clusters formula:**  
-
-```
-(Disc size in bytes - 2048) / Cluster size
-```
-
-Fractional part = unusable space.  
-
-**Examples:**
-
-| Disc size               | Cluster size | Total clusters |
-|-------------------------|--------------|----------------|
-| 536,870,912 (500 MB)    | 1,024 (1 KB) | 524,286        |
-| 536,870,912 (500 MB)    | 2,048 (2 KB) | 262,143        |
-| 536,870,912 (500 MB)    | 4,096 (4 KB) | 131,071        |
-| 536,870,912 (500 MB)    | 8,192 (8 KB) | 65,535         |
-| 4,294,967,296 (4 GB)    | 1,024 (1 KB) | 4,194,302      |
-| 4,294,967,296 (4 GB)    | 2,048 (2 KB) | 2,097,151      |
-| 4,294,967,296 (4 GB)    | 4,096 (4 KB) | 1,048,575      |
-| 4,294,967,296 (4 GB)    | 8,192 (8 KB) | 524,287        |
-
----
-
-### Cluster bitmap
-
-- A bit array showing free/used clusters.  
-- `0 = free`, `1 = used`.  
-- Size of bitmap =  
-
-```
-(Total disc size / Cluster size) / 8
-```
-
-**Examples:**
-
-| Disc size              | Cluster size | Bitmap size | Num. clusters |
-|------------------------|--------------|-------------|---------------|
-| 536,870,912 (500 MB)   | 1,024 (1 KB) | 65,536      | 64            |
-| 536,870,912 (500 MB)   | 2,048 (2 KB) | 32,768      | 16            |
-| 536,870,912 (500 MB)   | 4,096 (4 KB) | 16,384      | 4             |
-| 536,870,912 (500 MB)   | 8,192 (8 KB) | 8,192       | 1             |
-| 4,294,967,296 (4 GB)   | 1,024 (1 KB) | 524,288     | 512           |
-| 4,294,967,296 (4 GB)   | 2,048 (2 KB) | 262,144     | 128           |
-| 4,294,967,296 (4 GB)   | 4,096 (4 KB) | 131,072     | 32            |
-| 4,294,967,296 (4 GB)   | 8,192 (8 KB) | 65,536      | 8             |
-| 17,179,869,184 (16 GB) | 1,024 (1 KB) | 4,194,304   | 8,192         |
-| 17,179,869,184 (16 GB) | 2,048 (2 KB) | 1,048,576   | 512           |
-| 17,179,869,184 (16 GB) | 4,096 (4 KB) | 524,288     | 128           |
-| 17,179,869,184 (16 GB) | 8,192 (4 KB) | 262,144     | 32            |
-
-## EXT2 strcture
-
-                ┌──────────────────────────────────────┐
-                │               INODE                  │
-                ├──────────────────────────────────────┤
-                │ Block[0] → [DATA BLOCK 0]            │
-                │ Block[1] → [DATA BLOCK 1]            │
-                │   ...                                │
-                │ Block[11] → [DATA BLOCK 11]          │
-                │ Block[12] → [SINGLE INDIRECT]        │
-                │ Block[13] → [DOUBLE INDIRECT]        │
-                │ Block[14] → [TRIPLE INDIRECT]        │
-                └──────────────────────────────────────┘
-                               │
-                               │
-                               ▼
-─────────────────────────────────────────────────────────────────────
-(1) SINGLE INDIRECT (Block[12])
-─────────────────────────────────────────────────────────────────────
-[SINGLE INDIRECT BLOCK]
- ├── ptr[0] → [DATA BLOCK 12]
- ├── ptr[1] → [DATA BLOCK 13]
- ├── ptr[2] → [DATA BLOCK 14]
- ...
- └── ptr[1023] → [DATA BLOCK N]
-
-─────────────────────────────────────────────────────────────────────
-(2) DOUBLE INDIRECT (Block[13])
-─────────────────────────────────────────────────────────────────────
-[DOUBLE INDIRECT BLOCK]
- ├── ptr[0] → [SINGLE INDIRECT BLOCK A]
- │              ├── ptr[0] → [DATA BLOCK A0]
- │              ├── ptr[1] → [DATA BLOCK A1]
- │              └── ...
- ├── ptr[1] → [SINGLE INDIRECT BLOCK B]
- │              ├── ptr[0] → [DATA BLOCK B0]
- │              ├── ptr[1] → [DATA BLOCK B1]
- │              └── ...
- └── ptr[1023] → [SINGLE INDIRECT BLOCK Z]
-                 ├── ...
-                 └── [DATA BLOCK Zx]
-
-─────────────────────────────────────────────────────────────────────
-(3) TRIPLE INDIRECT (Block[14])
-─────────────────────────────────────────────────────────────────────
-[TRIPLE INDIRECT BLOCK]
- ├── ptr[0] → [DOUBLE INDIRECT BLOCK A]
- │              ├── ptr[0] → [SINGLE INDIRECT BLOCK A1]
- │              │              ├── ptr[0] → [DATA BLOCK A1-0]
- │              │              └── ...
- │              ├── ptr[1] → [SINGLE INDIRECT BLOCK A2]
- │              │              ├── ptr[0] → [DATA BLOCK A2-0]
- │              │              └── ...
- │              └── ...
- ├── ptr[1] → [DOUBLE INDIRECT BLOCK B]
- │              └── ...
- └── ...
-─────────────────────────────────────────────────────────────────────
-
 ## Tasks
 
 ### Architecture-specific task data
 
-Each task embeds an `ARCH_TASK_DATA` structure (declared in the architecture-specific header under
-`kernel/include/arch/`) that contains the saved interrupt frame along with the user, system, and
-any auxiliary stack descriptors that the target CPU requires. The generic `tag_TASK` definition in
-`kernel/include/process/Task.h` exposes this structure as the `Arch` member so that all stack and
-context manipulations remain scoped to the active architecture.
+Each task embeds an `ARCH_TASK_DATA` structure (declared in the architecture-specific header under `kernel/include/arch/`) that contains the saved interrupt frame along with the user, system, and any auxiliary stack descriptors that the target CPU requires. The generic `tag_TASK` definition in `kernel/include/process/Task.h` exposes this structure as the `Arch` member so that all stack and context manipulations remain scoped to the active architecture.
 
-The i386 implementation of `SetupTask` (`kernel/source/arch/i386/i386.c`) is responsible for
-allocating and clearing the per-task stacks, initialising the selectors in the interrupt frame and
-performing the bootstrap stack switch for the main kernel task. The x86-64 flavour performs the
-same duties and additionally provisions a dedicated Interrupt Stack Table (IST1) stack for faults
-that require a reliable kernel stack even if the regular system stack becomes unusable. During IDT
-initialisation the kernel assigns IST1 to the fault vectors that are most likely to execute with
-a corrupted task stack (double fault, invalid TSS, segment-not-present, stack, general protection
-and page faults). This ensures the handlers always run on the emergency per-task stack, preventing
-the double-fault escalation that previously produced a triple fault when the active stack pointer
-was already invalid.
-`CreateTask` calls the relevant helper after finishing the generic bookkeeping, which keeps the
-scheduler and task manager architecture-agnostic while allowing future architectures to provide
-their own `SetupTask` specialisation.
+The i386 implementation of `SetupTask` (`kernel/source/arch/i386/i386.c`) is responsible for allocating and clearing the per-task stacks, initialising the selectors in the interrupt frame and performing the bootstrap stack switch for the main kernel task. The x86-64 flavour performs the same duties and additionally provisions a dedicated Interrupt Stack Table (IST1) stack for faults that require a reliable kernel stack even if the regular system stack becomes unusable. During IDT initialisation the kernel assigns IST1 to the fault vectors that are most likely to execute with a corrupted task stack (double fault, invalid TSS, segment-not-present, stack, general protection and page faults). This ensures the handlers always run on the emergency per-task stack, preventing the double-fault escalation that previously produced a triple fault when the active stack pointer was already invalid. `CreateTask` calls the relevant helper after finishing the generic bookkeeping, which keeps the scheduler and task manager architecture-agnostic while allowing future architectures to provide their own `SetupTask` specialisation.
 
-Both the i386 and x86-64 context-switch helpers (`SetupStackForKernelMode` and
-`SetupStackForUserMode` in their respective architecture headers) must reserve space on the stack in
-bytes rather than entries before writing the return frame. Subtracting the correct byte count avoids
-writing past the top of the allocated stack when seeding the initial `iret` frame for a task. On
- x86-64 the helpers also arrange the bootstrap frame so that the stack pointer becomes 16-byte
- aligned after `iretq` pops its arguments, preserving the ABI-mandated alignment once execution
- resumes in the scheduled task.
+Both the i386 and x86-64 context-switch helpers (`SetupStackForKernelMode` and `SetupStackForUserMode` in their respective architecture headers) must reserve space on the stack in bytes rather than entries before writing the return frame. Subtracting the correct byte count avoids writing past the top of the allocated stack when seeding the initial `iret` frame for a task. On x86-64 the helpers also arrange the bootstrap frame so that the stack pointer becomes 16-byte aligned after `iretq` pops its arguments, preserving the ABI-mandated alignment once execution resumes in the scheduled task.
 
 ### Stack sizing
 
-The minimum sizes for task and system stacks are driven by the configuration keys
-`Task.MinimumTaskStackSize` and `Task.MinimumSystemStackSize` in `kernel/configuration/exos.ref.toml`.
-At boot the task manager reads those values, but it clamps them to the architecture defaults
-(`64 KiB`/`16 KiB` on i386 and `128 KiB`/`32 KiB` on x86-64) to prevent under-provisioned stacks.
-Increasing the values in the configuration grows every newly created task and keeps the auto stack
-growing logic operating on the larger baseline.
+The minimum sizes for task and system stacks are driven by the configuration keys `Task.MinimumTaskStackSize` and `Task.MinimumSystemStackSize` in `kernel/configuration/exos.ref.toml`. At boot the task manager reads those values, but it clamps them to the architecture defaults (`64 KiB`/`16 KiB` on i386 and `128 KiB`/`32 KiB` on x86-64) to prevent under-provisioned stacks. Increasing the values in the configuration grows every newly created task and keeps the auto stack growing logic operating on the larger baseline.
 
 ### IRQ scheduling
 
 #### IRQ 0 path
 
-IRQ 0
-└── trap lands in interrupt-a.asm : Interrupt_Clock
+IRQ 0 └── trap lands in interrupt-a.asm : Interrupt_Clock
     └── calls ClockHandler to increment system time
     └── calls Scheduler to check if it's time to switch to another task
         └── Scheduler switches page directory if needed and returns the next task's context
 
 #### ISR 0 call graph
 
-Interrupt_Clock
-└── BuildInterruptFrame
+```
+Interrupt_Clock └── BuildInterruptFrame
     └── KernelLogText
         └── StringEmpty
         └── StringPrintFormatArgs
@@ -716,38 +389,45 @@ Interrupt_Clock
                                 └── ...
             └── UnlockMutex
                 └── ...
+```
 
 ## System calls
 
 ### System call full path - i386
 
+```
 exos-runtime-c.c : malloc() (or any other function)
 └── calls exos-runtime-a.asm : exoscall()
-    └── calls int EXOS_USER_CALL
+    └── 'int EXOS_USER_CALL' instruction
         └── trap lands in interrupt-a.asm : Interrupt_SystemCall
             └── calls SYSCall.c : SystemCallHandler()
                 └── calls SysCall_xxx via SysCallTable[]
                     └── whew... finally job is done
+```
 
 ### System call full path - x86-64
 
 When `USE_SYSCALL = 0` (default build setting)
+```
 exos-runtime-c.c : malloc() (or any other function)
 └── calls exos-runtime-a.asm : exoscall()
-    └── calls int EXOS_USER_CALL
+    └── 'int EXOS_USER_CALL' instruction
         └── trap lands in interrupt-a.asm : Interrupt_SystemCall
             └── calls SYSCall.c : SystemCallHandler()
                 └── calls SysCall_xxx via SysCallTable[]
                     └── whew... finally job is done
+```
 
 When `USE_SYSCALL = 1`
+```
 exos-runtime-c.c : malloc() (or any other function)
 └── calls exos-runtime-a.asm : exoscall()
-    └── syscall instruction
+    └── 'syscall' instruction
         └── syscall lands in interrupt-a.asm : Interrupt_SystemCall
             └── calls SYSCall.c : SystemCallHandler()
                 └── calls SysCall_xxx via SysCallTable[]
                     └── whew... finally job is done
+```
 
 `USE_SYSCALL` is a project-level build flag (`make ARCH=x86-64 USE_SYSCALL=1`) that selects between the legacy interrupt gate and the SYSCALL/SYSRET pair on x86-64. The flag has no effect on i386 builds.
 
@@ -773,10 +453,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 - `TASK_STATUS_WAITMESSAGE` (0x05): Waiting for a message
 - `TASK_STATUS_DEAD` (0xFF): Marked for deletion
 
-- Sleep durations are specified in `UINT`. A value of `INFINITY` is treated as
-  a sentinel meaning "sleep indefinitely". `SetTaskWakeUpTime()` stores
-  `INFINITY` without adding the current time and the scheduler ignores such
-  tasks until another subsystem explicitly changes their status.
+- Sleep durations are specified in `UINT`. A value of `INFINITY` is treated as a sentinel meaning "sleep indefinitely". `SetTaskWakeUpTime()` stores `INFINITY` without adding the current time and the scheduler ignores such tasks until another subsystem explicitly changes their status.
 
 **Process Status (Process.Status):**
 - `PROCESS_STATUS_ALIVE` (0x00): Normal operating state
@@ -787,11 +464,16 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 **Process Creation Flags (Process.Flags):**
 - `PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH` (0x00000001): When the process terminates, all child processes are also killed. If this flag is not set, child processes are orphaned (their Parent field is set to NULL).
 
+### Session Inheritance
+
+- New processes inherit the user session pointer from their `OwnerProcess` during `NewProcess`.
+- Session ownership is therefore tied to the process tree: children share the same session by default unless explicitly reassigned.
+- This keeps user identity and security context consistent across a spawned process hierarchy.
+
 ### Lifecycle Flow
 
 **1. Task Termination:**
-- When a task terminates, `KillTask()` releases every mutex held by the task
-  before marking it as `TASK_STATUS_DEAD`
+- When a task terminates, `KillTask()` releases every mutex held by the task before marking it as `TASK_STATUS_DEAD`
 - The task remains in the scheduler queue until the next context switch
 - `DeleteDeadTasksAndProcesses()` (called periodically) removes dead tasks and processes from lists
 
@@ -1206,7 +888,360 @@ IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_TCP, TCP_OnIPv4Packet);
 
 The network stack successfully handles real network traffic across multiple devices and provides a robust foundation for implementing network applications and services.
 
-## QEMU Network
+## Exposed objects in shell
+
+- `process`: Kernel process list root. provides indexed access to process views. Permissions: exposed to scripts; access is enforced per item and per field.
+  - `process.count`: total number of processes. Permissions: anyone.
+  - `process[n]`: process view at index `n`. Permissions: see fields below.
+    - `handle`: handle for the process. Permissions: anyone (except `process[0]`, kernel and administrator only).
+    - `status`: current process status. Permissions: anyone (except `process[0]`, kernel and administrator only).
+    - `flags`: process flags bitfield. Permissions: anyone (except `process[0]`, kernel and administrator only).
+    - `exit_code`: termination status. Permissions: anyone (except `process[0]`, kernel and administrator only).
+    - `file_name`: executable name. Permissions: anyone (except `process[0]`, kernel and administrator only).
+    - `command_line`: full command line string. Permissions: anyone (except `process[0]`, kernel and administrator only).
+    - `work_folder`: current working folder. Permissions: anyone (except `process[0]`, kernel and administrator only).
+    - `page_directory`: page directory pointer. Permissions: kernel and administrator only.
+    - `heap_base`: heap base address. Permissions: kernel and administrator only.
+    - `heap_size`: heap size. Permissions: kernel and administrator only.
+    - `task`: task list for the owning process. Permissions: kernel and administrator only.
+      - `task.count`: number of tasks in the process. Permissions: kernel and administrator only.
+      - `task[n]`: task view at index `n`. Permissions: see fields below.
+        - `handle`: handle for the task. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
+        - `name`: task name. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
+        - `type`: task type. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
+        - `status`: current task status. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
+        - `priority`: scheduling priority. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
+        - `flags`: task flags bitfield. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
+        - `exit_code`: termination status. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
+        - `function`: task entry function pointer. Permissions: kernel, administrator, and owner process.
+        - `parameter`: task entry parameter pointer. Permissions: kernel, administrator, and owner process.
+        - `architecture`: architecture-specific context view. Permissions: kernel and administrator only.
+          - `context`: raw context pointer. Permissions: kernel and administrator only.
+          - `stack`: architecture stack view. Permissions: kernel and administrator only.
+          - `system_stack`: architecture system stack view. Permissions: kernel and administrator only.
+        - `stack`: task stack view. Permissions: kernel and administrator only.
+          - `base`: stack base address. Permissions: kernel and administrator only.
+          - `size`: stack size. Permissions: kernel and administrator only.
+        - `system_stack`: system stack pointer. Permissions: kernel and administrator only.
+        - `wake_up_time`: scheduler wake-up time. Permissions: kernel and administrator only.
+        - `mutex`: mutex pointer. Permissions: kernel and administrator only.
+        - `message_queue`: message queue pointer. Permissions: kernel and administrator only.
+        - `process`: owning process pointer. Permissions: kernel and administrator only.
+- `drivers`: Kernel driver list root. provides indexed access to driver views. Permissions: kernel and administrator only.
+  - `drivers.count`: number of drivers. Permissions: kernel and administrator only.
+  - `drivers[n]`: driver view at index `n`. Permissions: kernel and administrator only.
+    - `type`: driver type. Permissions: kernel and administrator only.
+    - `version_major`: major version. Permissions: kernel and administrator only.
+    - `version_minor`: minor version. Permissions: kernel and administrator only.
+    - `designer`: driver designer. Permissions: kernel and administrator only.
+    - `manufacturer`: driver manufacturer. Permissions: kernel and administrator only.
+    - `product`: driver product name. Permissions: kernel and administrator only.
+    - `flags`: driver flags. Permissions: kernel and administrator only.
+    - `command`: driver command pointer. Permissions: kernel and administrator only.
+    - `enum_domain_count`: number of enum domains. Permissions: kernel and administrator only.
+    - `enum_domains`: enum domain array. Permissions: kernel and administrator only.
+      - `enum_domains.count`: enum domain count. Permissions: kernel and administrator only.
+      - `enum_domains[n]`: enum domain value at index `n`. Permissions: kernel and administrator only.
+- `keyboard`: Keyboard exposure root. provides access to keyboard state. Permissions: anyone.
+  - `keyboard.layout`: active keyboard layout code. Permissions: anyone.
+  - `keyboard.driver`: active keyboard driver. Permissions: kernel and administrator only.
+- `mouse`: Mouse exposure root. provides access to mouse state. Permissions: anyone.
+  - `mouse.x`: cursor X coordinate. Permissions: anyone.
+  - `mouse.y`: cursor Y coordinate. Permissions: anyone.
+  - `mouse.driver`: active mouse driver. Permissions: kernel and administrator only.
+- `usb.ports`: xHCI port list root. provides indexed access to USB ports. Permissions: kernel and administrator only.
+  - `usb.ports.count`: number of USB ports. Permissions: kernel and administrator only.
+  - `usb.ports[n]`: port view at index `n`. Permissions: kernel and administrator only.
+    - `bus`: PCI bus number. Permissions: kernel and administrator only.
+    - `device`: PCI device number. Permissions: kernel and administrator only.
+    - `function`: PCI function number. Permissions: kernel and administrator only.
+    - `port_number`: xHCI port index. Permissions: kernel and administrator only.
+    - `port_status`: raw port status. Permissions: kernel and administrator only.
+    - `speed_id`: link speed identifier. Permissions: kernel and administrator only.
+    - `connected`: connection status. Permissions: kernel and administrator only.
+    - `enabled`: port enable state. Permissions: kernel and administrator only.
+- `usb.devices`: USB device list root. provides indexed access to USB devices. Permissions: anyone.
+  - `usb.devices.count`: number of USB devices. Permissions: anyone.
+  - `usb.devices[n]`: device view at index `n`. Permissions: anyone.
+    - `bus`: PCI bus number. Permissions: anyone.
+    - `device`: PCI device number. Permissions: anyone.
+    - `function`: PCI function number. Permissions: anyone.
+    - `port_number`: xHCI port index. Permissions: anyone.
+    - `address`: USB device address. Permissions: anyone.
+    - `speed_id`: link speed identifier. Permissions: anyone.
+    - `vendor_id`: USB vendor ID. Permissions: anyone.
+    - `product_id`: USB product ID. Permissions: anyone.
+
+## Keyboard Layout Format (EKM1)
+
+The EKM1 layout file describes a USB HID keyboard map using usage page 0x07. Files are UTF-8 text with a required 4-byte header "EKM1". Lines are tokenized on whitespace and comments start with `#`. Tokens are case-sensitive and directive order matters only for `levels`, which must appear before any `map` entry. The loader rejects malformed entries.
+
+Directives:
+- `code <layout_code>`: required, unique layout identifier string (example: `code en-US`).
+- `levels <count>`: optional, decimal level count, range 1 to 4. Defaults to 1 when omitted.
+- `map <usage_hex> <level_dec> <vk_hex> <ascii_hex> <unicode_hex>`: maps a HID usage to a keycode for a given level.
+  - `usage_hex` range: 0x04 to 0xE7 (HID usage page 0x07).
+  - `level_dec` range: 0 to levels-1.
+  - `vk_hex` range: 0x00 to 0xFF.
+  - `ascii_hex` range: 0x00 to 0xFF.
+  - `unicode_hex` range: 0x0000 to 0xFFFF.
+  - Each usage and level pair may appear only once.
+- `dead <dead_unicode_hex> <base_unicode_hex> <result_unicode_hex>`: defines a dead key combination. Maximum 128 entries.
+- `compose <first_unicode_hex> <second_unicode_hex> <result_unicode_hex>`: defines a compose sequence. Maximum 256 entries.
+
+Recommended layout levels:
+- Level 0: base.
+- Level 1: shift.
+- Level 2: AltGr.
+- Level 3: control.
+
+Example:
+```
+EKM1
+# US QWERTY layout (en-US)
+code en-US
+levels 2
+map 0x04 0 0x30 0x61 0x0061
+map 0x04 1 0x30 0x41 0x0041
+```
+
+
+## EXOS File System - EXFS
+
+### Structure of the Master Boot Record
+
+| Offset   | Type | Description                                  |
+|----------|------|----------------------------------------------|
+| 0..445   | U8x? | The boot sequence                            |
+| 446..461 | ?    | CHS location of partition No 1               |
+| 462..477 | ?    | CHS location of partition No 2               |
+| 478..493 | ?    | CHS location of partition No 3               |
+| 494..509 | ?    | CHS location of partition No 4               |
+| 510      | U16  | BIOS signature : 0x55AA (`_*_*_*_**_*_*_*_`) |
+
+---
+
+### Structure of SuperBlock
+
+The SuperBlock is always **1024 bytes** in size.
+
+| Offset | Type   | Description                                   |
+|--------|--------|-----------------------------------------------|
+| 0      | U32    | Magic number, must be `"EXOS"`                |
+| 4      | U32    | Version (high word = major, low word = minor) |
+| 8      | U32    | Size of a cluster in bytes                    |
+| 12     | U32    | Number of clusters                            |
+| 16     | U32    | Number of free clusters                       |
+| 20     | U32    | Cluster index of cluster bitmap               |
+| 24     | U32    | Cluster index of bad cluster page             |
+| 28     | U32    | Cluster index of root FileRecord ("/")        |
+| 32     | U32    | Cluster index of security info                |
+| 36     | U32    | Index in root for OS kernel main file         |
+| 40     | U32    | Number of folders (excluding "." and "..")    |
+| 44     | U32    | Number of files                               |
+| 48     | U32    | Max mount count before check is forced        |
+| 52     | U32    | Current mount count                           |
+| 56     | U32    | Format of the volume name                     |
+| 60–63  | U8x4   | Reserved                                      |
+| 64     | U8x32  | Password (optional)                           |
+| 96     | U8x32  | Name of this file system's creator            |
+| 128    | U8x128 | Name of the volume                            |
+
+---
+
+### Structure of FileRecord
+
+| Offset | Type   | Description                        |
+|--------|--------|------------------------------------|
+| 0      | U32    | SizeLow                            |
+| 4      | U32    | SizeHigh                           |
+| 8      | U64    | Creation time                      |
+| 16     | U64    | Last access time                   |
+| 24     | U64    | Last modification time             |
+| 32     | U32    | Cluster index for ClusterTable     |
+| 36     | U32    | Standard attributes                |
+| 40     | U32    | Security attributes                |
+| 44     | U32    | Group owner of this file           |
+| 48     | U32    | User owner of this file            |
+| 52     | U32    | Format of name                     |
+| 56–127 | U8x?   | Reserved, should be zero           |
+| 128    | U8x128 | Name of the file (NULL terminated) |
+
+---
+
+### FileRecord fields
+
+**Time fields (bit layout):**
+
+- Bits 0..21  : Year (max: 4,194,303)
+- Bits 22..25 : Month in the year (max: 15)
+- Bits 26..31 : Day in the month (max: 63)
+- Bits 32..37 : Hour in the day (max: 63)
+- Bits 38..43 : Minute in the hour (max: 63)
+- Bits 44..49 : Second in the minute (max: 63)
+- Bits 50..59 : Millisecond in the second (max: 1023)
+
+**Standard attributes field:**
+
+- Bit 0 : 1 = folder, 0 = file
+- Bit 1 : 1 = read-only, 0 = read/write
+- Bit 2 : 1 = system
+- Bit 3 : 1 = archive
+- Bit 4 : 1 = hidden
+
+**Security attributes field:**
+
+- Bit 0 : 1 = only kernel has access to the file
+- Bit 1 : 1 = fill the file's clusters with zeroes on delete
+
+**Name format:**
+
+- 0 : ASCII (8 bits per character)
+- 1 : Unicode (16 bits per character)
+
+---
+
+### Structure of folders and files
+
+- A cluster that contains 32-bit indices to other clusters is called a **page**.
+- FileRecord contains a cluster index for its first page.
+- A page is filled with cluster indices pointing to file/folder data.
+- For folders: data = series of FileRecords.
+- For files: data = arbitrary user data.
+- The **last entry** of a page is `0xFFFFFFFF`.
+- If more than one page is needed, the last index points to the **next page**.
+
+---
+
+### Clusters
+
+- All cluster pointers are 32-bit.
+- Cluster 0 = boot sector (1024 bytes).
+- Cluster 1 = SuperBlock (1024 bytes).
+- First usable cluster starts at byte 2048.
+
+**Max addressable bytes by cluster size:**
+
+| Cluster size | Max addressable bytes  |
+|--------------|-------------------------|
+| 1024         | 4,398,046,510,080       |
+| 2048         | 8,796,093,020,160       |
+| 4096         | 17,592,186,040,320      |
+| 8192         | 35,184,372,080,640      |
+
+**Number of clusters formula:**
+
+```
+(Disc size in bytes - 2048) / Cluster size
+```
+
+Fractional part = unusable space.
+
+**Examples:**
+
+| Disc size               | Cluster size | Total clusters |
+|-------------------------|--------------|----------------|
+| 536,870,912 (500 MB)    | 1,024 (1 KB) | 524,286        |
+| 536,870,912 (500 MB)    | 2,048 (2 KB) | 262,143        |
+| 536,870,912 (500 MB)    | 4,096 (4 KB) | 131,071        |
+| 536,870,912 (500 MB)    | 8,192 (8 KB) | 65,535         |
+| 4,294,967,296 (4 GB)    | 1,024 (1 KB) | 4,194,302      |
+| 4,294,967,296 (4 GB)    | 2,048 (2 KB) | 2,097,151      |
+| 4,294,967,296 (4 GB)    | 4,096 (4 KB) | 1,048,575      |
+| 4,294,967,296 (4 GB)    | 8,192 (8 KB) | 524,287        |
+
+---
+
+### Cluster bitmap
+
+- A bit array showing free/used clusters.
+- `0 = free`, `1 = used`.
+- Size of bitmap =
+
+```
+(Total disc size / Cluster size) / 8
+```
+
+**Examples:**
+
+| Disc size              | Cluster size | Bitmap size | Num. clusters |
+|------------------------|--------------|-------------|---------------|
+| 536,870,912 (500 MB)   | 1,024 (1 KB) | 65,536      | 64            |
+| 536,870,912 (500 MB)   | 2,048 (2 KB) | 32,768      | 16            |
+| 536,870,912 (500 MB)   | 4,096 (4 KB) | 16,384      | 4             |
+| 536,870,912 (500 MB)   | 8,192 (8 KB) | 8,192       | 1             |
+| 4,294,967,296 (4 GB)   | 1,024 (1 KB) | 524,288     | 512           |
+| 4,294,967,296 (4 GB)   | 2,048 (2 KB) | 262,144     | 128           |
+| 4,294,967,296 (4 GB)   | 4,096 (4 KB) | 131,072     | 32            |
+| 4,294,967,296 (4 GB)   | 8,192 (8 KB) | 65,536      | 8             |
+| 17,179,869,184 (16 GB) | 1,024 (1 KB) | 4,194,304   | 8,192         |
+| 17,179,869,184 (16 GB) | 2,048 (2 KB) | 1,048,576   | 512           |
+| 17,179,869,184 (16 GB) | 4,096 (4 KB) | 524,288     | 128           |
+| 17,179,869,184 (16 GB) | 8,192 (4 KB) | 262,144     | 32            |
+
+
+## EXT2 structure
+
+```
+                ┌──────────────────────────────────────┐
+                │               INODE                  │
+                ├──────────────────────────────────────┤
+                │ Block[0] → [DATA BLOCK 0]            │
+                │ Block[1] → [DATA BLOCK 1]            │
+                │   ...                                │
+                │ Block[11] → [DATA BLOCK 11]          │
+                │ Block[12] → [SINGLE INDIRECT]        │
+                │ Block[13] → [DOUBLE INDIRECT]        │
+                │ Block[14] → [TRIPLE INDIRECT]        │
+                └──────────────────────────────────────┘
+                               │
+                               │
+                               ▼
+─────────────────────────────────────────────────────────────────────
+(1) SINGLE INDIRECT (Block[12])
+─────────────────────────────────────────────────────────────────────
+[SINGLE INDIRECT BLOCK]
+ ├── ptr[0] → [DATA BLOCK 12]
+ ├── ptr[1] → [DATA BLOCK 13]
+ ├── ptr[2] → [DATA BLOCK 14]
+ ...
+ └── ptr[1023] → [DATA BLOCK N]
+
+─────────────────────────────────────────────────────────────────────
+(2) DOUBLE INDIRECT (Block[13])
+─────────────────────────────────────────────────────────────────────
+[DOUBLE INDIRECT BLOCK]
+ ├── ptr[0] → [SINGLE INDIRECT BLOCK A]
+ │              ├── ptr[0] → [DATA BLOCK A0]
+ │              ├── ptr[1] → [DATA BLOCK A1]
+ │              └── ...
+ ├── ptr[1] → [SINGLE INDIRECT BLOCK B]
+ │              ├── ptr[0] → [DATA BLOCK B0]
+ │              ├── ptr[1] → [DATA BLOCK B1]
+ │              └── ...
+ └── ptr[1023] → [SINGLE INDIRECT BLOCK Z]
+                 ├── ...
+                 └── [DATA BLOCK Zx]
+
+─────────────────────────────────────────────────────────────────────
+(3) TRIPLE INDIRECT (Block[14])
+─────────────────────────────────────────────────────────────────────
+[TRIPLE INDIRECT BLOCK]
+ ├── ptr[0] → [DOUBLE INDIRECT BLOCK A]
+ │              ├── ptr[0] → [SINGLE INDIRECT BLOCK A1]
+ │              │              ├── ptr[0] → [DATA BLOCK A1-0]
+ │              │              └── ...
+ │              ├── ptr[1] → [SINGLE INDIRECT BLOCK A2]
+ │              │              ├── ptr[0] → [DATA BLOCK A2-0]
+ │              │              └── ...
+ │              └── ...
+ ├── ptr[1] → [DOUBLE INDIRECT BLOCK B]
+ │              └── ...
+ └── ...
+─────────────────────────────────────────────────────────────────────
+```
+
+## QEMU network graph
 
 ```
 [ VM (Guest OS) ]                [ QEMU Process ]                  [ Host OS / PC ]
@@ -1226,7 +1261,9 @@ The network stack successfully handles real network traffic across multiple devi
 
 ## Links
 
-RFCs        	https://datatracker.ietf.org/
-RFC 791     	Internet protocol               https://datatracker.ietf.org/doc/html/rfc791/
-RFC 793     	Transmission Control Protocol   https://datatracker.ietf.org/doc/html/rfc793/
-Intel x86-64	https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html
+| Name | Description | Link |
+|------|-------------|------|
+| RFCs | RFC Root | https://datatracker.ietf.org/ |
+| RFC 791 | Internet protocol | https://datatracker.ietf.org/doc/html/rfc791/ |
+| RFC 793 | Transmission Control Protocol | https://datatracker.ietf.org/doc/html/rfc793/ |
+| Intel x86-64 | x86-64 Technical Documentation | https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html |

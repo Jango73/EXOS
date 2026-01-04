@@ -28,11 +28,6 @@
 #include "Log.h"
 #include "process/Process.h"
 #include "Memory.h"
-#if defined(__EXOS_ARCH_I386__)
-    #include "arch/i386/i386-Log.h"
-#elif defined(__EXOS_ARCH_X86_64__)
-    #include "arch/x86-64/x86-64-Log.h"
-#endif
 
 /************************************************************************/
 
@@ -136,19 +131,6 @@ static void RemoveFromFreeList(LPHEAPCONTROLBLOCK ControlBlock, LPHEAPBLOCKHEADE
 /************************************************************************/
 
 /**
- * @brief Dump the current task frame to ease heap allocation debugging.
- */
-static void DumpCurrentTaskFrame(void) {
-    LPTASK Task = GetCurrentTask();
-
-    SAFE_USE(Task) {
-        LogCPUState(&(Task->Arch.Context));
-    }
-}
-
-/************************************************************************/
-
-/**
  * @brief Initializes a heap with freelist-based allocation
  * @param HeapBase Linear address of the heap base
  * @param HeapSize Size of the heap in bytes
@@ -221,7 +203,7 @@ static BOOL TryExpandHeap(LPHEAPCONTROLBLOCK ControlBlock, UINT RequiredSize) {
     }
 
     U32 Flags = ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE;
-    if (Process->Privilege == PRIVILEGE_KERNEL) {
+    if (Process->Privilege == CPU_PRIVILEGE_KERNEL) {
         Flags |= ALLOC_PAGES_AT_OR_OVER;
     }
 
@@ -557,7 +539,6 @@ LPVOID KernelHeapAlloc(UINT Size) {
 
     if (Pointer == NULL) {
         ERROR(TEXT("[KernelHeapAlloc] Allocation failed"));
-        DumpCurrentTaskFrame();
     }
 
     return Pointer;

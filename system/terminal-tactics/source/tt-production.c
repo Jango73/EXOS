@@ -24,6 +24,7 @@
 
 #include "tt-production.h"
 #include "tt-entities.h"
+#include "tt-log.h"
 
 /************************************************************************/
 
@@ -154,5 +155,7 @@ BOOL EnqueueUnitProduction(BUILDING* producer, I32 unitTypeId, I32 team, I32* ou
     producer->UnitQueue[idx].TypeId = unitTypeId;
     producer->UnitQueue[idx].TimeRemaining = (U32)ut->BuildTime;
     producer->UnitQueueCount++;
+    GAME_LOGF(team, "UnitQueueAdd Producer=%x Type=%s Count=%u",
+              (U32)producer->Id, ut->Name, (U32)producer->UnitQueueCount);
     return TRUE;
 }

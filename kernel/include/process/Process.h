@@ -63,26 +63,26 @@ struct tag_MEMORY_REGION_DESCRIPTOR;
 \************************************************************************/
 
 struct tag_PROCESS {
-    LISTNODE_FIELDS          // Standard EXOS object fields
-        MUTEX Mutex;         // This structure's mutex
-    MUTEX HeapMutex;         // This structure's mutex for heap allocation
-    SECURITY Security;       // This process' security attributes
-    LPDESKTOP Desktop;       // This process' desktop
-    U32 Privilege;           // This process' privilege level
-    U32 Status;              // Process status (alive/dead)
-    U32 Flags;               // Process creation flags
-    PHYSICAL PageDirectory;  // This process' page directory
+    LISTNODE_FIELDS                 // Standard EXOS object fields
+        MUTEX Mutex;                // This structure's mutex
+    MUTEX HeapMutex;                // This structure's mutex for heap allocation
+    SECURITY Security;              // Security attributes
+    LPDESKTOP Desktop;              // This process' desktop
+    U32 Privilege;                  // This process' privilege level
+    U32 Status;                     // (alive/dead)
+    U32 Flags;                      // Process creation flags
+    PHYSICAL PageDirectory;         // This process' page directory
     LINEAR HeapBase;
     UINT HeapSize;
     UINT MaximumAllocatedMemory;
-    UINT ExitCode;           // This process' exit code
+    UINT ExitCode;                  // This process' exit code
     STR FileName[MAX_PATH_NAME];
     STR CommandLine[MAX_PATH_NAME];
     STR WorkFolder[MAX_PATH_NAME];
-    UINT TaskCount;          // Number of active tasks in this process
-    MESSAGEQUEUE MessageQueue;  // Process-level message queue (input, etc.)
-    U64 UserID;              // Owner user
-    LPUSERSESSION Session;   // User session
+    UINT TaskCount;                 // Number of active tasks in this process
+    MESSAGEQUEUE MessageQueue;      // Process-level message queue (input, etc.)
+    U64 UserID;                     // Owner user
+    LPUSERSESSION Session;          // User session
 
     struct tag_MEMORY_REGION_DESCRIPTOR* RegionListHead;
     struct tag_MEMORY_REGION_DESCRIPTOR* RegionListTail;
@@ -152,6 +152,12 @@ UINT TaskGetMinimumSystemStackSize(void);
 #define PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH 0x00000001
 
 /************************************************************************/
+// Desktop modes
+
+#define DESKTOP_MODE_CONSOLE 0x00000000
+#define DESKTOP_MODE_GRAPHICS 0x00000001
+
+/************************************************************************/
 // The window structure
 
 struct tag_WINDOW {
@@ -159,7 +165,7 @@ struct tag_WINDOW {
         MUTEX Mutex;      // This window's mutex
     LPTASK Task;          // The task that created this window
     WINDOWFUNC Function;  // The function that manages this window
-    LPWINDOW Parent;      // The parent of this window
+    LPWINDOW ParentWindow;      // The parent of this window
     LPLIST Children;      // The children of this window
     LPLIST Properties;    // The user-defined properties of this window
     RECT Rect;            // The rectangle of this window
@@ -198,6 +204,7 @@ struct tag_DESKTOP {
     LPWINDOW Capture;   // Window that captured mouse
     LPWINDOW Focus;     // Window that has focus
     LPPROCESS FocusedProcess; // Process with input focus on this desktop
+    U32 Mode;
     I32 Order;
 };
 
@@ -237,6 +244,7 @@ BOOL GetWindowRect(HANDLE, LPRECT);
 BOOL MoveWindow(HANDLE, LPPOINT);
 BOOL SizeWindow(HANDLE, LPPOINT);
 HANDLE GetWindowParent(HANDLE);
+BOOL GetDesktopScreenRect(LPDESKTOP, LPRECT);
 U32 SetWindowProp(HANDLE, LPCSTR, U32);
 U32 GetWindowProp(HANDLE, LPCSTR);
 HANDLE GetWindowGC(HANDLE);

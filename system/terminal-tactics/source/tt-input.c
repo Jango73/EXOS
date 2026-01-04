@@ -85,6 +85,8 @@ STR toupper(STR c) {
 BOOL GetScreenPosition(I32 objX, I32 objY, I32 width, I32 height, I32* screenX, I32* screenY) {
     I32 sx;
     I32 sy;
+    I32 viewW;
+    I32 viewH;
 
     if (App.GameState == NULL) return FALSE;
     if (App.GameState->MapWidth <= 0 || App.GameState->MapHeight <= 0) return FALSE;
@@ -98,7 +100,9 @@ BOOL GetScreenPosition(I32 objX, I32 objY, I32 width, I32 height, I32* screenX, 
     if (sy < 0) sy += App.GameState->MapHeight;
     else if (sy >= App.GameState->MapHeight) sy -= App.GameState->MapHeight;
 
-    if (sx >= VIEWPORT_WIDTH || sy >= VIEWPORT_HEIGHT) return FALSE;
+    viewW = (I32)VIEWPORT_WIDTH;
+    viewH = (I32)VIEWPORT_HEIGHT;
+    if (sx >= viewW || sy >= viewH) return FALSE;
     if (sx + width <= 0 || sy + height <= 0) return FALSE;
 
     if (screenX != NULL) *screenX = sx;
@@ -220,7 +224,7 @@ static void SetUnitProductionStatus(I32 result, const UNIT_TYPE* ut) {
             }
             return;
         case PRODUCTION_RESULT_RESOURCES: {
-            char msg[SCREEN_WIDTH + 1];
+            char msg[MAX_SCREEN_WIDTH + 1];
             snprintf(msg, sizeof(msg), "Not enough plasma for %s (need %d)", ut->Name, ut->CostPlasma);
             SetStatus(msg);
             return;
@@ -252,7 +256,7 @@ static BOOL HandleProductionMenuKey(BUILDING* producer, I32 key) {
             I32 result = PRODUCTION_RESULT_OK;
             const UNIT_TYPE* ut = GetUnitTypeById(options[i].TypeId);
             if (EnqueueUnitProduction(producer, options[i].TypeId, producer->Team, &result)) {
-                char msg[SCREEN_WIDTH + 1];
+                char msg[MAX_SCREEN_WIDTH + 1];
                 snprintf(msg, sizeof(msg), "Queued %s", ut != NULL ? ut->Name : "unit");
                 SetStatus(msg);
                 return TRUE;
@@ -425,10 +429,6 @@ void HandleMainMenuInput(I32 key) {
     switch (key) {
         case VK_N:
             App.Menu.CurrentMenu = MENU_NEW_GAME;
-            App.Menu.PendingMapWidth = DEFAULT_MAP_SIZE;
-            App.Menu.PendingMapHeight = DEFAULT_MAP_SIZE;
-            App.Menu.PendingDifficulty = DIFFICULTY_NORMAL;
-            App.Menu.PendingTeamCount = 2;
             App.Menu.SelectedOption = NEW_GAME_SELECT_WIDTH;
             break;
 
@@ -645,7 +645,7 @@ void HandleInGameInput(I32 key) {
                     name = (ut != NULL) ? ut->Name : "unit";
                 }
                 if (name != NULL) {
-                    char msg[SCREEN_WIDTH + 1];
+                    char msg[MAX_SCREEN_WIDTH + 1];
                     snprintf(msg, sizeof(msg), "No visible %s on screen", name);
                     SetStatus(msg);
                 }
@@ -701,6 +701,37 @@ void HandleInGameInput(I32 key) {
         App.Menu.CurrentMenu = MENU_DEBUG;
         App.Menu.PrevMenu = -1;
         ResetRenderCache();
+        return;
+    }
+
+    if (key == VK_F4) {
+        if (App.GameState != NULL) {
+            App.GameState->GhostMode = !App.GameState->GhostMode;
+            SetStatus(App.GameState->GhostMode ? "Ghost mode enabled" : "Ghost mode disabled");
+            LogTeamAction(HUMAN_TEAM_INDEX, "GhostMode", 0,
+                          (U32)(App.GameState->GhostMode ? 1 : 0), 0, "", "");
+        }
+        return;
+    }
+
+    if (key == VK_F5) {
+        if (App.GameState != NULL) {
+            SpawnDebugBaseForAllTeams();
+        }
+        return;
+    }
+
+    if (key == VK_PLUS || key == VK_MINUS) {
+        if (App.GameState != NULL) {
+            char msg[MAX_SCREEN_WIDTH + 1];
+            if (key == VK_PLUS) {
+                App.GameState->GameSpeed++;
+            } else if (App.GameState->GameSpeed > 1) {
+                App.GameState->GameSpeed--;
+            }
+            snprintf(msg, sizeof(msg), "Game speed: %d", App.GameState->GameSpeed);
+            SetStatus(msg);
+        }
         return;
     }
 
@@ -762,7 +793,7 @@ void HandleInGameInput(I32 key) {
             TEAM_RESOURCES* res = GetTeamResources(HUMAN_TEAM_INDEX);
             if (res != NULL) {
                 {
-                    char msg[SCREEN_WIDTH + 1];
+                    char msg[MAX_SCREEN_WIDTH + 1];
                     res->Plasma += CHEAT_PLASMA_AMOUNT;
                     snprintf(msg, sizeof(msg), "Plasma boosted by %d", CHEAT_PLASMA_AMOUNT);
                     SetStatus(msg);
@@ -875,11 +906,9 @@ void HandleLoadInput(I32 key) {
 
     if (key == VK_ENTER && App.Menu.SavedGameCount > 0) {
         if (LoadGame(App.Menu.SavedGames[App.Menu.SelectedSaveIndex])) {
-            debug("[HandleLoadInput] Load succeeded");
             App.Menu.CurrentMenu = MENU_IN_GAME;
             App.Menu.PrevMenu = -1;
         } else {
-            debug("[HandleLoadInput] Load failed");
             App.Menu.CurrentMenu = MENU_MAIN;
         }
         return;
