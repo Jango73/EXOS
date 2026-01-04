@@ -54,8 +54,8 @@ cleanly.
 
 **Goal**: notify userland when USB devices are attached/removed.
 
-- [ ] Emit a kernel-level notification on USB device attach/detach (no task messaging).
-- [ ] Provide a minimal userland hook to display the notification.
+- [X] Emit a kernel-level notification on USB device attach/detach.
+- [X] Provide a minimal userland hook to display the notification.
 
 **Success**: plug/unplug triggers a visible notice without polling commands.
 
@@ -95,7 +95,6 @@ cleanly.
 
 - [ ] **WRITE(10)**, write-cache, **SYNCHRONIZE CACHE**.
 - [ ] SCSI error paths (UNIT ATTENTION, NOT READY), clean re-init.
-
 
 **Success**: create a file on a FS (FAT32/EXT2) on `usb0`.
 
