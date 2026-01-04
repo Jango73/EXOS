@@ -53,6 +53,7 @@ typedef struct tag_USB_MOUSE_STATE {
     LINEAR ReportLinear;
     U64 ReportTrbPhysical;
     BOOL ReportPending;
+    BOOL ReferencesHeld;
     U32 RetryDelay;
     U32 PollHandle;
 } USB_MOUSE_STATE, *LPUSB_MOUSE_STATE;
@@ -105,6 +106,7 @@ static USB_MOUSE_DRIVER DATA_SECTION USBMouseDriverState = {
         .ReportLinear = 0,
         .ReportTrbPhysical = U64_0,
         .ReportPending = FALSE,
+        .ReferencesHeld = FALSE,
         .RetryDelay = 0,
         .PollHandle = DEFERRED_WORK_INVALID_HANDLE
     }
@@ -149,19 +151,7 @@ static LPXHCI_USB_ENDPOINT USBMouseFindInterruptInEndpoint(LPXHCI_USB_INTERFACE 
         return NULL;
     }
 
-    for (UINT Index = 0; Index < Interface->EndpointCount; Index++) {
-        LPXHCI_USB_ENDPOINT Endpoint = &Interface->Endpoints[Index];
-        if ((Endpoint->Attributes & 0x03) != USB_ENDPOINT_TYPE_INTERRUPT) {
-            continue;
-        }
-        if ((Endpoint->Address & 0x80) == 0) {
-            continue;
-        }
-
-        return Endpoint;
-    }
-
-    return NULL;
+    return XHCI_FindInterfaceEndpoint(Interface, USB_ENDPOINT_TYPE_INTERRUPT, TRUE);
 }
 
 /***************************************************************************/
@@ -212,6 +202,13 @@ static BOOL USBMouseSetIdle(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U
  * @brief Release resources for the active USB mouse.
  */
 static void USBMouseClearState(void) {
+    if (USBMouseDriverState.State.ReferencesHeld) {
+        XHCI_ReleaseUsbEndpoint(USBMouseDriverState.State.Endpoint);
+        XHCI_ReleaseUsbInterface(USBMouseDriverState.State.Interface);
+        XHCI_ReleaseUsbDevice(USBMouseDriverState.State.UsbDevice);
+        USBMouseDriverState.State.ReferencesHeld = FALSE;
+    }
+
     if (USBMouseDriverState.State.ReportLinear != 0) {
         FreeRegion(USBMouseDriverState.State.ReportLinear, PAGE_SIZE);
         USBMouseDriverState.State.ReportLinear = 0;
@@ -314,8 +311,19 @@ static BOOL USBMouseFindDevice(LPXHCI_DEVICE* DeviceOut,
                     continue;
                 }
 
-                for (UINT IfIndex = 0; IfIndex < Config->InterfaceCount; IfIndex++) {
-                    LPXHCI_USB_INTERFACE Interface = &Config->Interfaces[IfIndex];
+                LPLIST InterfaceList = GetUsbInterfaceList();
+                if (InterfaceList == NULL) {
+                    continue;
+                }
+
+                for (LPLISTNODE IfNode = InterfaceList->First; IfNode != NULL; IfNode = IfNode->Next) {
+                    LPXHCI_USB_INTERFACE Interface = (LPXHCI_USB_INTERFACE)IfNode;
+                    if (Interface->Parent != (LPLISTNODE)UsbDevice) {
+                        continue;
+                    }
+                    if (Interface->ConfigurationValue != Config->ConfigurationValue) {
+                        continue;
+                    }
                     if (!USBMouseIsHidMouseInterface(Interface)) {
                         continue;
                     }
@@ -459,6 +467,11 @@ static BOOL USBMouseStartDevice(LPXHCI_DEVICE Device,
     USBMouseDriverState.State.ReportLength = ReportLength;
     USBMouseDriverState.State.ReportTrbPhysical = U64_FromUINT(0);
     USBMouseDriverState.State.ReportPending = FALSE;
+
+    XHCI_ReferenceUsbDevice(UsbDevice);
+    XHCI_ReferenceUsbInterface(Interface);
+    XHCI_ReferenceUsbEndpoint(Endpoint);
+    USBMouseDriverState.State.ReferencesHeld = TRUE;
 
     DEBUG(TEXT("[USBMouseStartDevice] Mouse addr=%x if=%u ep=%x"),
           UsbDevice->Address,

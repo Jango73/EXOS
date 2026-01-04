@@ -102,8 +102,8 @@ cleanly.
 
 **Goal**: unplug/insert without breaking system.
 
-- [ ] Cancel URB/TD, flush rings, **STOP/RESET EP**, **Disable Slot**.
-- [ ] Refcount on device/interface/endpoint objects.
+- [X] Cancel URB/TD, flush rings, **STOP/RESET EP**, **Disable Slot**.
+- [X] Refcount on device/interface/endpoint objects.
 
 **Success**: unplug during I/O -> no panic, resources freed.
 

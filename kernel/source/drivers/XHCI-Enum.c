@@ -227,8 +227,20 @@ U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                         }
                         MatchIndex++;
 
-                        for (UINT IfIndex = 0; IfIndex < Config->InterfaceCount; IfIndex++) {
-                            LPXHCI_USB_INTERFACE Interface = &Config->Interfaces[IfIndex];
+                        LPLIST InterfaceList = GetUsbInterfaceList();
+                        LPLIST EndpointList = GetUsbEndpointList();
+                        if (InterfaceList == NULL || EndpointList == NULL) {
+                            continue;
+                        }
+
+                        for (LPLISTNODE IfNode = InterfaceList->First; IfNode != NULL; IfNode = IfNode->Next) {
+                            LPXHCI_USB_INTERFACE Interface = (LPXHCI_USB_INTERFACE)IfNode;
+                            if (Interface->Parent != (LPLISTNODE)UsbDevice) {
+                                continue;
+                            }
+                            if (Interface->ConfigurationValue != Config->ConfigurationValue) {
+                                continue;
+                            }
 
                             if (MatchIndex == Next->Query->Index) {
                                 DRIVER_ENUM_USB_NODE Data;
@@ -248,8 +260,11 @@ U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                             }
                             MatchIndex++;
 
-                            for (UINT EpIndex = 0; EpIndex < Interface->EndpointCount; EpIndex++) {
-                                LPXHCI_USB_ENDPOINT Endpoint = &Interface->Endpoints[EpIndex];
+                            for (LPLISTNODE EpNode = EndpointList->First; EpNode != NULL; EpNode = EpNode->Next) {
+                                LPXHCI_USB_ENDPOINT Endpoint = (LPXHCI_USB_ENDPOINT)EpNode;
+                                if (Endpoint->Parent != (LPLISTNODE)Interface) {
+                                    continue;
+                                }
 
                                 if (MatchIndex == Next->Query->Index) {
                                     DRIVER_ENUM_USB_NODE Data;

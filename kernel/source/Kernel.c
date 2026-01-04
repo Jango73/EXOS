@@ -514,6 +514,8 @@ void DeleteUnreferencedObjects(void) {
     ProcessList(GetMutexList(), TEXT("Mutex"));
     ProcessList(GetDiskList(), TEXT("Disk"));
     ProcessList(GetUsbDeviceList(), TEXT("USBDevice"));
+    ProcessList(GetUsbInterfaceList(), TEXT("USBInterface"));
+    ProcessList(GetUsbEndpointList(), TEXT("USBEndpoint"));
     ProcessList(GetUsbStorageList(), TEXT("USBStorage"));
     ProcessList(GetPCIDeviceList(), TEXT("PCIDevice"));
     ProcessList(GetNetworkDeviceList(), TEXT("NetworkDevice"));

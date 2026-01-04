@@ -102,6 +102,7 @@ typedef struct tag_USB_MASS_STORAGE_DEVICE {
     PHYSICAL InputOutputBufferPhysical;
     LINEAR InputOutputBufferLinear;
     BOOL Ready;
+    BOOL ReferencesHeld;
     LPUSB_STORAGE_ENTRY ListEntry;
 } USB_MASS_STORAGE_DEVICE, *LPUSB_MASS_STORAGE_DEVICE;
 
@@ -309,21 +310,8 @@ static BOOL USBMassStorageFindBulkEndpoints(LPXHCI_USB_INTERFACE Interface,
         return FALSE;
     }
 
-    *BulkInOut = NULL;
-    *BulkOutOut = NULL;
-
-    for (UINT Index = 0; Index < Interface->EndpointCount; Index++) {
-        LPXHCI_USB_ENDPOINT Endpoint = &Interface->Endpoints[Index];
-        if ((Endpoint->Attributes & 0x03) != USB_ENDPOINT_TYPE_BULK) {
-            continue;
-        }
-
-        if ((Endpoint->Address & 0x80) != 0) {
-            *BulkInOut = Endpoint;
-        } else {
-            *BulkOutOut = Endpoint;
-        }
-    }
+    *BulkInOut = XHCI_FindInterfaceEndpoint(Interface, USB_ENDPOINT_TYPE_BULK, TRUE);
+    *BulkOutOut = XHCI_FindInterfaceEndpoint(Interface, USB_ENDPOINT_TYPE_BULK, FALSE);
 
     return (*BulkInOut != NULL && *BulkOutOut != NULL);
 }
@@ -480,7 +468,7 @@ static BOOL USBMassStorageWaitCompletion(LPXHCI_DEVICE Device,
             return TRUE;
         }
 
-        Sleep(1);
+        SleepWithSchedulerFrozenSupport(1);
         Remaining--;
     }
 
@@ -841,6 +829,42 @@ static LPUSB_MASS_STORAGE_DEVICE USBMassStorageAllocateDevice(void) {
 /************************************************************************/
 
 /**
+ * @brief Acquire USB device/interface/endpoint references for a mass storage device.
+ * @param Device USB mass storage device context.
+ */
+static void USBMassStorageAcquireReferences(LPUSB_MASS_STORAGE_DEVICE Device) {
+    if (Device == NULL || Device->ReferencesHeld) {
+        return;
+    }
+
+    XHCI_ReferenceUsbDevice(Device->UsbDevice);
+    XHCI_ReferenceUsbInterface(Device->Interface);
+    XHCI_ReferenceUsbEndpoint(Device->BulkInEndpoint);
+    XHCI_ReferenceUsbEndpoint(Device->BulkOutEndpoint);
+    Device->ReferencesHeld = TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Release USB device/interface/endpoint references for a mass storage device.
+ * @param Device USB mass storage device context.
+ */
+static void USBMassStorageReleaseReferences(LPUSB_MASS_STORAGE_DEVICE Device) {
+    if (Device == NULL || !Device->ReferencesHeld) {
+        return;
+    }
+
+    XHCI_ReleaseUsbEndpoint(Device->BulkOutEndpoint);
+    XHCI_ReleaseUsbEndpoint(Device->BulkInEndpoint);
+    XHCI_ReleaseUsbInterface(Device->Interface);
+    XHCI_ReleaseUsbDevice(Device->UsbDevice);
+    Device->ReferencesHeld = FALSE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Free a USB mass storage device object and its resources.
  * @param Device Device to free.
  */
@@ -848,6 +872,8 @@ static void USBMassStorageFreeDevice(LPUSB_MASS_STORAGE_DEVICE Device) {
     if (Device == NULL) {
         return;
     }
+
+    USBMassStorageReleaseReferences(Device);
 
     if (Device->InputOutputBufferLinear != 0) {
         FreeRegion(Device->InputOutputBufferLinear, PAGE_SIZE);
@@ -901,6 +927,7 @@ static BOOL USBMassStorageStartDevice(LPXHCI_DEVICE Controller,
     Device->BulkInEndpoint = BulkInEndpoint;
     Device->BulkOutEndpoint = BulkOutEndpoint;
     Device->InterfaceNumber = Interface->Number;
+    USBMassStorageAcquireReferences(Device);
 
     if (!XHCI_AddBulkEndpoint(Controller, UsbDevice, BulkOutEndpoint)) {
         ERROR(TEXT("[USBMassStorageStartDevice] Bulk OUT endpoint setup failed"));
@@ -1082,8 +1109,19 @@ static void USBMassStorageScanControllers(void) {
                     continue;
                 }
 
-                for (UINT InterfaceIndex = 0; InterfaceIndex < Config->InterfaceCount; InterfaceIndex++) {
-                    LPXHCI_USB_INTERFACE Interface = &Config->Interfaces[InterfaceIndex];
+                LPLIST InterfaceList = GetUsbInterfaceList();
+                if (InterfaceList == NULL) {
+                    continue;
+                }
+
+                for (LPLISTNODE IfNode = InterfaceList->First; IfNode != NULL; IfNode = IfNode->Next) {
+                    LPXHCI_USB_INTERFACE Interface = (LPXHCI_USB_INTERFACE)IfNode;
+                    if (Interface->Parent != (LPLISTNODE)UsbDevice) {
+                        continue;
+                    }
+                    if (Interface->ConfigurationValue != Config->ConfigurationValue) {
+                        continue;
+                    }
                     if (!USBMassStorageIsMassStorageInterface(Interface)) {
                         continue;
                     }

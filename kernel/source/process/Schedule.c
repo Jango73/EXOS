@@ -357,6 +357,24 @@ BOOL UnfreezeScheduler(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Report whether the scheduler is currently frozen.
+ * @return TRUE when the scheduler is frozen, FALSE otherwise.
+ */
+BOOL IsSchedulerFrozen(void) {
+    U32 Flags;
+    BOOL Frozen;
+
+    SaveFlags(&Flags);
+    DisableInterrupts();
+    Frozen = (TaskList.Freeze != 0);
+    RestoreFlags(&Flags);
+
+    return Frozen;
+}
+
+/************************************************************************/
+
 void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
     FINE_DEBUG(TEXT("[SwitchToNextTask] CurrentTask = %p (%s), NextTask = %p (%s)"),
         CurrentTask, CurrentTask->Name, NextTask, NextTask->Name);

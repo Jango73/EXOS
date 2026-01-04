@@ -170,6 +170,8 @@ Mouse input is shared through `kernel/source/MouseCommon.c`, which buffers delta
 USB foundations live under `kernel/include/drivers/USB.h`. The header defines core USB types (speeds, endpoint kinds, addresses) and the standard descriptor layouts for device, configuration, interface, endpoint, and string metadata so future host controllers and class drivers can share a single set of structs.
 
 The xHCI host controller driver in `kernel/source/drivers/XHCI-Core.c` (split across `kernel/source/drivers/XHCI-Device.c`, `kernel/source/drivers/XHCI-Hub.c`, and `kernel/source/drivers/XHCI-Enum.c`) is registered by the PCI subsystem. It maps the controller MMIO region, performs the mandatory halt/reset/run sequence, allocates DCBAA/command/event rings, programs interrupter 0, runs minimal EP0 control transfers, builds a basic device tree (configs/interfaces/endpoints), and reports status via `usbctl ports`, `usbctl probe`, and `usbctl devices`. Endpoint configuration after `SET_CONFIGURATION` relies on the xHCI Configure Endpoint command before enabling interrupt polling for HID devices.
+USB interfaces and endpoints are kernel objects tracked in global lists, with references held by class drivers to defer teardown until hotplug release completes.
+Hotplug teardown now stops and resets endpoints, flushes transfer rings, disables the affected slot, and defers resource destruction until USB device/interface/endpoint references are released so disconnects during I/O do not trigger invalid memory access.
 
 Hub-class devices are supported: the driver reads hub descriptors, powers ports, tracks downstream devices, and polls hub interrupt endpoints for change bits to trigger per-port reset and re-enumeration.
 

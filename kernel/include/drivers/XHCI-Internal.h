@@ -134,9 +134,12 @@
 #define XHCI_TRB_TYPE_DATA_STAGE 3
 #define XHCI_TRB_TYPE_STATUS_STAGE 4
 #define XHCI_TRB_TYPE_ENABLE_SLOT 9
+#define XHCI_TRB_TYPE_DISABLE_SLOT 0x0A
 #define XHCI_TRB_TYPE_ADDRESS_DEVICE 11
 #define XHCI_TRB_TYPE_CONFIGURE_ENDPOINT 12
 #define XHCI_TRB_TYPE_EVALUATE_CONTEXT 13
+#define XHCI_TRB_TYPE_RESET_ENDPOINT 0x0E
+#define XHCI_TRB_TYPE_STOP_ENDPOINT 0x0F
 #define XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT 33
 #define XHCI_TRB_TYPE_TRANSFER_EVENT 32
 
@@ -204,6 +207,7 @@ typedef struct tag_XHCI_CONTEXT_32 {
 } XHCI_CONTEXT_32, *LPXHCI_CONTEXT_32;
 
 typedef struct tag_XHCI_USB_ENDPOINT {
+    LISTNODE_FIELDS
     U8 Address;
     U8 Attributes;
     U16 MaxPacketSize;
@@ -216,6 +220,8 @@ typedef struct tag_XHCI_USB_ENDPOINT {
 } XHCI_USB_ENDPOINT, *LPXHCI_USB_ENDPOINT;
 
 typedef struct tag_XHCI_USB_INTERFACE {
+    LISTNODE_FIELDS
+    U8 ConfigurationValue;
     U8 Number;
     U8 AlternateSetting;
     U8 NumEndpoints;
@@ -224,7 +230,6 @@ typedef struct tag_XHCI_USB_INTERFACE {
     U8 InterfaceProtocol;
     U8 InterfaceIndex;
     UINT EndpointCount;
-    LPXHCI_USB_ENDPOINT Endpoints;
 } XHCI_USB_INTERFACE, *LPXHCI_USB_INTERFACE;
 
 typedef struct tag_XHCI_USB_CONFIGURATION {
@@ -235,7 +240,6 @@ typedef struct tag_XHCI_USB_CONFIGURATION {
     U8 NumInterfaces;
     U16 TotalLength;
     UINT InterfaceCount;
-    LPXHCI_USB_INTERFACE Interfaces;
 } XHCI_USB_CONFIGURATION, *LPXHCI_USB_CONFIGURATION;
 
 typedef struct tag_XHCI_ERST_ENTRY {
@@ -248,6 +252,7 @@ typedef struct tag_XHCI_ERST_ENTRY {
 typedef struct tag_XHCI_USB_DEVICE {
     USB_DEVICE_FIELDS
     BOOL Present;
+    BOOL DestroyPending;
     U8 PortNumber;
     U8 RootPortNumber;
     U8 Depth;
@@ -358,8 +363,15 @@ U32 XHCI_ReadPortStatus(LPXHCI_DEVICE Device, U32 PortIndex);
 void XHCI_AddDeviceToList(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice);
 
 void XHCI_DestroyUsbDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, BOOL FreeSelf);
+void XHCI_ReferenceUsbDevice(LPXHCI_USB_DEVICE UsbDevice);
+void XHCI_ReleaseUsbDevice(LPXHCI_USB_DEVICE UsbDevice);
+void XHCI_ReferenceUsbInterface(LPXHCI_USB_INTERFACE Interface);
+void XHCI_ReleaseUsbInterface(LPXHCI_USB_INTERFACE Interface);
+void XHCI_ReferenceUsbEndpoint(LPXHCI_USB_ENDPOINT Endpoint);
+void XHCI_ReleaseUsbEndpoint(LPXHCI_USB_ENDPOINT Endpoint);
 LPCSTR XHCI_SpeedToString(U32 SpeedId);
 LPXHCI_USB_ENDPOINT XHCI_FindHubInterruptEndpoint(LPXHCI_USB_DEVICE UsbDevice);
+LPXHCI_USB_ENDPOINT XHCI_FindInterfaceEndpoint(LPXHCI_USB_INTERFACE Interface, U8 EndpointType, BOOL DirectionIn);
 BOOL XHCI_AddInterruptEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, LPXHCI_USB_ENDPOINT Endpoint);
 BOOL XHCI_AddBulkEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, LPXHCI_USB_ENDPOINT Endpoint);
 BOOL XHCI_UpdateHubSlotContext(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice);

@@ -97,6 +97,28 @@ static LIST USBDeviceList = {
 
 /************************************************************************/
 
+static LIST USBInterfaceList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
+
+/************************************************************************/
+
+static LIST USBEndpointList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
+
+/************************************************************************/
+
 static LIST USBStorageList = {
     .First = NULL,
     .Last = NULL,
@@ -204,6 +226,8 @@ static KERNELDATA DATA_SECTION Kernel = {
     .Mutex = &MutexList,
     .Disk = &DiskList,
     .USBDevice = &USBDeviceList,
+    .USBInterface = &USBInterfaceList,
+    .USBEndpoint = &USBEndpointList,
     .USBStorage = &USBStorageList,
     .PCIDevice = &PciDeviceList,
     .NetworkDevice = &NetworkDeviceList,
@@ -347,6 +371,26 @@ LPLIST GetDiskList(void) {
  */
 LPLIST GetUsbDeviceList(void) {
     return Kernel.USBDevice;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the USB interface list.
+ * @return Pointer to the USB interface list.
+ */
+LPLIST GetUsbInterfaceList(void) {
+    return Kernel.USBInterface;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the USB endpoint list.
+ * @return Pointer to the USB endpoint list.
+ */
+LPLIST GetUsbEndpointList(void) {
+    return Kernel.USBEndpoint;
 }
 
 /************************************************************************/

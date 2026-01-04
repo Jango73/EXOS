@@ -28,6 +28,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "process/Process.h"
+#include "process/Schedule.h"
 #include "process/TaskMessaging.h"
 #include "CoreString.h"
 #include "utils/Helpers.h"
@@ -721,6 +722,33 @@ void Sleep(U32 MilliSeconds) {
 
     // DEBUG(TEXT("[Sleep] Exit"));
     return;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Suspends the current task even when the scheduler is frozen.
+ *
+ * Uses a timed idle loop when task switching is disabled.
+ *
+ * @param MilliSeconds Number of milliseconds to sleep
+ */
+void SleepWithSchedulerFrozenSupport(U32 MilliSeconds) {
+    if (MilliSeconds == 0) {
+        return;
+    }
+
+    if (IsSchedulerFrozen()) {
+        UINT StartTime = GetSystemTime();
+
+        while ((UINT)(GetSystemTime() - StartTime) < MilliSeconds) {
+            IdleCPU();
+        }
+
+        return;
+    }
+
+    Sleep(MilliSeconds);
 }
 
 /************************************************************************/

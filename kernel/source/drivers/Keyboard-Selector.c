@@ -96,8 +96,19 @@ static BOOL KeyboardSelectorHasUsbKeyboardInterface(LPXHCI_USB_DEVICE UsbDevice)
         return FALSE;
     }
 
-    for (UINT InterfaceIndex = 0; InterfaceIndex < Config->InterfaceCount; InterfaceIndex++) {
-        LPXHCI_USB_INTERFACE Interface = &Config->Interfaces[InterfaceIndex];
+    LPLIST InterfaceList = GetUsbInterfaceList();
+    if (InterfaceList == NULL) {
+        return FALSE;
+    }
+
+    for (LPLISTNODE Node = InterfaceList->First; Node != NULL; Node = Node->Next) {
+        LPXHCI_USB_INTERFACE Interface = (LPXHCI_USB_INTERFACE)Node;
+        if (Interface->Parent != (LPLISTNODE)UsbDevice) {
+            continue;
+        }
+        if (Interface->ConfigurationValue != Config->ConfigurationValue) {
+            continue;
+        }
         if (KeyboardSelectorIsUsbKeyboardInterface(Interface)) {
             return TRUE;
         }

@@ -66,6 +66,7 @@ typedef struct tag_USB_KEYBOARD_STATE {
     U32 PollHandle;
     U8 PrevModifiers;
     U8 PrevKeys[USB_KEYBOARD_BOOT_KEYS];
+    BOOL ReferencesHeld;
 } USB_KEYBOARD_STATE, *LPUSB_KEYBOARD_STATE;
 
 typedef struct tag_USB_KEYBOARD_DRIVER {
@@ -109,7 +110,8 @@ static USB_KEYBOARD_DRIVER DATA_SECTION USBKeyboardDriverState = {
         .RetryDelay = 0,
         .PollHandle = DEFERRED_WORK_INVALID_HANDLE,
         .PrevModifiers = 0,
-        .PrevKeys = {0}
+        .PrevKeys = {0},
+        .ReferencesHeld = FALSE
     }
 };
 
@@ -152,19 +154,7 @@ static LPXHCI_USB_ENDPOINT USBKeyboardFindInterruptInEndpoint(LPXHCI_USB_INTERFA
         return NULL;
     }
 
-    for (UINT Index = 0; Index < Interface->EndpointCount; Index++) {
-        LPXHCI_USB_ENDPOINT Endpoint = &Interface->Endpoints[Index];
-        if ((Endpoint->Attributes & 0x03) != USB_ENDPOINT_TYPE_INTERRUPT) {
-            continue;
-        }
-        if ((Endpoint->Address & 0x80) == 0) {
-            continue;
-        }
-
-        return Endpoint;
-    }
-
-    return NULL;
+    return XHCI_FindInterfaceEndpoint(Interface, USB_ENDPOINT_TYPE_INTERRUPT, TRUE);
 }
 
 /***************************************************************************/
@@ -215,6 +205,13 @@ static BOOL USBKeyboardSetIdle(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice
  * @brief Release resources for the active USB keyboard.
  */
 static void USBKeyboardClearState(void) {
+    if (USBKeyboardDriverState.State.ReferencesHeld) {
+        XHCI_ReleaseUsbEndpoint(USBKeyboardDriverState.State.Endpoint);
+        XHCI_ReleaseUsbInterface(USBKeyboardDriverState.State.Interface);
+        XHCI_ReleaseUsbDevice(USBKeyboardDriverState.State.UsbDevice);
+        USBKeyboardDriverState.State.ReferencesHeld = FALSE;
+    }
+
     if (USBKeyboardDriverState.State.ReportLinear != 0) {
         FreeRegion(USBKeyboardDriverState.State.ReportLinear, PAGE_SIZE);
         USBKeyboardDriverState.State.ReportLinear = 0;
@@ -320,8 +317,19 @@ static BOOL USBKeyboardFindDevice(LPXHCI_DEVICE* DeviceOut,
                     continue;
                 }
 
-                for (UINT IfIndex = 0; IfIndex < Config->InterfaceCount; IfIndex++) {
-                    LPXHCI_USB_INTERFACE Interface = &Config->Interfaces[IfIndex];
+                LPLIST InterfaceList = GetUsbInterfaceList();
+                if (InterfaceList == NULL) {
+                    continue;
+                }
+
+                for (LPLISTNODE IfNode = InterfaceList->First; IfNode != NULL; IfNode = IfNode->Next) {
+                    LPXHCI_USB_INTERFACE Interface = (LPXHCI_USB_INTERFACE)IfNode;
+                    if (Interface->Parent != (LPLISTNODE)UsbDevice) {
+                        continue;
+                    }
+                    if (Interface->ConfigurationValue != Config->ConfigurationValue) {
+                        continue;
+                    }
                     if (!USBKeyboardIsHidKeyboardInterface(Interface)) {
                         continue;
                     }
@@ -597,6 +605,11 @@ static BOOL USBKeyboardStartDevice(LPXHCI_DEVICE Device,
     USBKeyboardDriverState.State.PrevModifiers = 0;
     MemorySet(USBKeyboardDriverState.State.PrevKeys, 0, sizeof(USBKeyboardDriverState.State.PrevKeys));
     Keyboard.SoftwareRepeat = TRUE;
+
+    XHCI_ReferenceUsbDevice(UsbDevice);
+    XHCI_ReferenceUsbInterface(Interface);
+    XHCI_ReferenceUsbEndpoint(Endpoint);
+    USBKeyboardDriverState.State.ReferencesHeld = TRUE;
 
     DEBUG(TEXT("[USBKeyboardStartDevice] Keyboard addr=%x if=%u ep=%x"),
           UsbDevice->Address,
