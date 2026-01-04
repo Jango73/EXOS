@@ -48,17 +48,58 @@ static void UpdateInputCursor(U32 StartX, U32 StartY, U32 CursorPos) {
 
 /***************************************************************************/
 
+/**
+ * @brief Ensure the input rendering fits on screen by scrolling when needed.
+ * @param StartX Input start column.
+ * @param StartY Input start row, updated when the console scrolls.
+ * @param DisplayLength Maximum length rendered on screen.
+ */
+static void AdjustInputStartForScroll(U32 StartX, U32* StartY, U32 DisplayLength) {
+    U32 Width;
+    U32 Height;
+    U32 LastRow;
+    U32 ScrollCount;
+
+    if (StartY == NULL || DisplayLength == 0) return;
+
+    Width = Console.Width;
+    Height = Console.Height;
+
+    if (Width == 0 || Height == 0) return;
+
+    LastRow = *StartY + ((StartX + DisplayLength) / Width);
+
+    if (LastRow < Height) return;
+
+    ScrollCount = LastRow - (Height - 1);
+
+    while (ScrollCount > 0) {
+        ScrollConsole();
+        if (*StartY > 0) {
+            (*StartY)--;
+        }
+        ScrollCount--;
+    }
+}
+
+/***************************************************************************/
+
 static void RefreshInputDisplay(
     LPCSTR Buffer,
     U32 StartX,
-    U32 StartY,
+    U32* StartY,
     U32 Length,
     U32 PreviousLength,
     U32 CursorPos,
     BOOL MaskCharacters) {
     U32 Index;
+    U32 DisplayLength;
 
-    SetConsoleCursorPosition(StartX, StartY);
+    DisplayLength = (Length > PreviousLength) ? Length : PreviousLength;
+
+    AdjustInputStartForScroll(StartX, StartY, DisplayLength);
+
+    SetConsoleCursorPosition(StartX, *StartY);
 
     for (Index = 0; Index < Length; Index++) {
         if (MaskCharacters) {
@@ -72,7 +113,7 @@ static void RefreshInputDisplay(
         ConsolePrintChar(STR_SPACE);
     }
 
-    UpdateInputCursor(StartX, StartY, CursorPos);
+    UpdateInputCursor(StartX, *StartY, CursorPos);
 }
 
 /***************************************************************************/
@@ -127,6 +168,7 @@ BOOL CommandLineEditorReadLine(
     U32 HistoryPos = Editor->History.Count;
     U32 StartX = 0;
     U32 StartY = 0;
+    BOOL PreviousPagingActive = FALSE;
 
     DEBUG(TEXT("[CommandLineEditorReadLine] Enter"));
 
@@ -134,6 +176,9 @@ BOOL CommandLineEditorReadLine(
 
     Buffer[0] = STR_NULL;
     GetConsoleCursorPosition(&StartX, &StartY);
+
+    PreviousPagingActive = Console.PagingActive ? TRUE : FALSE;
+    ConsoleSetPagingActive(FALSE);
 
     FOREVER {
         if (PeekChar() == FALSE) {
@@ -148,7 +193,7 @@ BOOL CommandLineEditorReadLine(
             CursorPos = 0;
             Buffer[0] = STR_NULL;
             RefreshInputDisplay(
-                Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+                Buffer, StartX, &StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
             DisplayedLength = Length;
         } else if (KeyCode.VirtualKey == VK_BACKSPACE) {
             if (CursorPos > 0) {
@@ -156,7 +201,7 @@ BOOL CommandLineEditorReadLine(
                 CursorPos--;
                 Length--;
                 RefreshInputDisplay(
-                    Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+                    Buffer, StartX, &StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
                 DisplayedLength = Length;
             }
         } else if (KeyCode.VirtualKey == VK_DELETE) {
@@ -165,7 +210,7 @@ BOOL CommandLineEditorReadLine(
                 Length--;
                 Buffer[Length] = STR_NULL;
                 RefreshInputDisplay(
-                    Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+                    Buffer, StartX, &StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
                 DisplayedLength = Length;
             }
         } else if (KeyCode.VirtualKey == VK_LEFT) {
@@ -199,7 +244,7 @@ BOOL CommandLineEditorReadLine(
                 Length = StringLength(Buffer);
                 CursorPos = Length;
                 RefreshInputDisplay(
-                    Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+                    Buffer, StartX, &StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
                 DisplayedLength = Length;
             }
         } else if (KeyCode.VirtualKey == VK_DOWN) {
@@ -214,7 +259,7 @@ BOOL CommandLineEditorReadLine(
                 CursorPos = Length;
             }
             RefreshInputDisplay(
-                Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+                Buffer, StartX, &StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
             DisplayedLength = Length;
         } else if (KeyCode.VirtualKey == VK_TAB) {
             if (Editor->CompletionCallback) {
@@ -254,7 +299,7 @@ BOOL CommandLineEditorReadLine(
                         RefreshInputDisplay(
                             Buffer,
                             StartX,
-                            StartY,
+                            &StartY,
                             Length,
                             DisplayedLength,
                             CursorPos,
@@ -271,11 +316,13 @@ BOOL CommandLineEditorReadLine(
                 Length++;
                 Buffer[Length] = STR_NULL;
                 RefreshInputDisplay(
-                    Buffer, StartX, StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
+                    Buffer, StartX, &StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
                 DisplayedLength = Length;
             }
         }
     }
+
+    ConsoleSetPagingActive(PreviousPagingActive);
 
     DEBUG(TEXT("[CommandLineEditorReadLine] Exit"));
 

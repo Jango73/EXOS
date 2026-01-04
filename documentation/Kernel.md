@@ -122,6 +122,9 @@ history, refreshes the console display, and relies on callbacks to retrieve
 completion suggestions. The shell owns an input state structure that embeds the
 editor instance and provides the shell-specific completion callback so the
 component remains agnostic of higher level shell logic.
+While reading input, the editor now adjusts for console scrolling so the
+display does not re-trigger scrolling on each key press, and console paging
+prompts are suspended until the line is submitted.
 
 Keyboard input keeps two distinct paths for compatibility. The legacy PS/2
 pipeline continues to use scan code -> KEYTRANS tables, while a separate HID
