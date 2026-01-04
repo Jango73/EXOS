@@ -610,6 +610,27 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
 /************************************************************************/
 
 /**
+ * @brief Configure x87 control flags and clear pending exceptions.
+ */
+static void InitializeFPUState(void) {
+    U32 Cr0Value;
+
+    DEBUG(TEXT("[InitializeFPUState] Enter"));
+
+    __asm__ volatile("mov %%cr0, %0" : "=r"(Cr0Value));
+    Cr0Value |= (CR0_COPROCESSOR | CR0_80387 | CR0_NUMERIC_ERROR);
+    Cr0Value &= ~(CR0_MONITOR_COPROCESSOR | CR0_TASKSWITCH);
+    __asm__ volatile("mov %0, %%cr0" : : "r"(Cr0Value));
+
+    __asm__ volatile("fninit");
+    __asm__ volatile("fnclex");
+
+    DEBUG(TEXT("[InitializeFPUState] CR0=%x"), Cr0Value);
+}
+
+/************************************************************************/
+
+/**
  * @brief Perform architecture-specific pre-initialization.
  */
 void PreInitializeKernel(void) {
@@ -621,6 +642,8 @@ void PreInitializeKernel(void) {
     KernelStartup.PageDirectory = GetPageDirectory();
     KernelStartup.IRQMask_21_RM = 0;
     KernelStartup.IRQMask_A1_RM = 0;
+
+    InitializeFPUState();
 }
 
 /***************************************************************************/

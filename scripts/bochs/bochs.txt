@@ -6,6 +6,7 @@ vgaromimage: file=/usr/share/bochs/VGABIOS-lgpl-latest
 
 # Enable ACPI and IOAPIC support (if supported by this Bochs version)
 cpu: count=1, ips=20000000, reset_on_triple_fault=1
+cpuid: x86_64=0
 # Note: acpi/apic/ioapic directives may not be available in older Bochs versions
 ata0-master: type=disk, path="build/i386/boot-hd/exos.img", mode=flat
 vga: extension=vbe, update_freq=20
@@ -14,7 +15,7 @@ boot: disk
 com1: enabled=1, mode=file, dev="log/debug-com1.log"
 com2: enabled=1, mode=file, dev="log/kernel.log"
 log: log/bochs.log
-magic_break: enabled=1
+magic_break: enabled=0
 
 panic: action=fatal
 # error: action=report

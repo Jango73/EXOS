@@ -563,8 +563,8 @@ void PreInitializeKernel(void) {
     DEBUG(TEXT("[PreInitializeKernel] CR0 : CR0_COPROCESSOR on and CR0_EMULATION off"));
 
     __asm__ volatile("mov %%cr0, %0" : "=r"(Cr0));
-    Cr0 |= (U64)CR0_COPROCESSOR;
-    Cr0 &= ~(U64)CR0_EMULATION;
+    Cr0 |= (U64)(CR0_COPROCESSOR | CR0_NUMERIC_ERROR);
+    Cr0 &= ~(U64)(CR0_EMULATION | CR0_TASKSWITCH);
     __asm__ volatile("mov %0, %%cr0" : : "r"(Cr0));
 
     DEBUG(TEXT("[PreInitializeKernel] CR4 : CR4_OSFXSR and CR4_OSXMMEXCPT on"));
@@ -572,6 +572,9 @@ void PreInitializeKernel(void) {
     __asm__ volatile("mov %%cr4, %0" : "=r"(Cr4));
     Cr4 |= (U64)(CR4_OSFXSR | CR4_OSXMMEXCPT);
     __asm__ volatile("mov %0, %%cr4" : : "r"(Cr4));
+
+    __asm__ volatile("fninit");
+    __asm__ volatile("fnclex");
 }
 
 /************************************************************************/

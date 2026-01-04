@@ -131,12 +131,29 @@ static BOOL ATAWaitNotBusy(U32 Port, U32 TimeOut) {
 
     while (TimeOut--) {
         Status = InPortByte(Port + HD_STATUS);
-        if ((Status & (HD_STATUS_BUSY | HD_STATUS_READY)) == HD_STATUS_READY) {
+        if ((Status & HD_STATUS_BUSY) == 0) {
             return TRUE;
         }
     }
 
     WARNING(TEXT("[ATAWaitNotBusy] Time-out in ATA port %x"), Port);
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+static BOOL ATAWaitDataReady(U32 Port, U32 TimeOut) {
+    U32 Status;
+
+    while (TimeOut--) {
+        Status = InPortByte(Port + HD_STATUS);
+        if ((Status & HD_STATUS_BUSY) == 0 && (Status & HD_STATUS_DRQ) != 0) {
+            return TRUE;
+        }
+    }
+
+    WARNING(TEXT("[ATAWaitDataReady] Time-out in ATA port %x"), Port);
 
     return FALSE;
 }
@@ -182,7 +199,7 @@ static BOOL InitializeATA(void) {
             OutPortByte(RealPort + HD_NUMSECTORS, 1);
             OutPortByte(RealPort + HD_COMMAND, HD_COMMAND_IDENTIFY);
 
-            if (ATAWaitNotBusy(RealPort, TIMEOUT) == FALSE) continue;
+            if (ATAWaitDataReady(RealPort, TIMEOUT) == FALSE) continue;
 
             // Check for error after IDENTIFY command
             Status = InPortByte(RealPort + HD_STATUS);
@@ -319,7 +336,7 @@ static void ATADriveOut(U32 Port, U32 Drive, U32 Command, U8* Buffer, U32 Cylind
     OutPortByte(Port + HD_NUMSECTORS, Count & 0xFF);
     OutPortByte(Port + HD_COMMAND, Command);
 
-    if (ATAWaitNotBusy(Port, TIMEOUT) == FALSE) goto Out;
+    if (ATAWaitDataReady(Port, TIMEOUT) == FALSE) goto Out;
 
     if (Command == HD_COMMAND_READ) {
         InPortStringWord(Port + HD_DATA, Buffer, (Count * SECTOR_SIZE) / 2);

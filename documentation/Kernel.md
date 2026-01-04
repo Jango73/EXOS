@@ -96,6 +96,8 @@
 
 The memory manager relies on `arch/Memory.h` to describe page hierarchy helpers exposed by the active architecture backend. The i386 implementation (`arch/i386/i386-Memory.h`) centralizes directory and table index calculations, exposes accessors for the self-mapped page directory, and provides helper routines to build raw page directory and page table entries. Kernel code constructs mappings through `MakePageDirectoryEntryValue`, `MakePageTableEntryValue`, and `WritePage*EntryValue` instead of touching the i386 bitfields directly. This abstraction keeps `Memory.c` agnostic of the paging depth so that a future x86-64 backend can extend the hierarchy without refactoring the core allocator.
 
+The i386 page directory bootstrap maps the TaskRunner page with write access so the kernel main stack can live in the TaskRunner window during early bring-up.
+
 `arch/i386/i386-Memory.h` exposes a generic `ARCH_PAGE_ITERATOR` helper that walks page mappings without assuming a fixed number of page table levels. Region management routines (`IsRegionFree`, `AllocRegion`, `FreeRegion`, and friends) advance the iterator rather than manually splitting linear addresses into directory/table indexes, and table reclamation relies on `PageTableIsEmpty`. Physical range clipping is also delegated to the architecture via `ClipPhysicalRange`, keeping future 64-bit backends free to extend address limits without touching the common kernel code.
 
 `InitializeMemoryManager` defers to `InitializeMemoryManager` so the architecture backend owns the low-level bootstrap steps. The i386 implementation continues to reserve the bitmap in low memory, seed the temporary mapping slots, install the recursive page directory, and load the GDT. The x86-64 path mirrors these steps, wiring the temporary linear aliases, building the initial PML4, and installing a long-mode GDT so higher-half execution can begin without architecture-specific hooks inside the generic memory manager.
@@ -106,7 +108,7 @@ On x86-64 every successful `AllocRegion` emits a `MEMORY_REGION_DESCRIPTOR` reco
 
 ### Logging
 
-Kernel logging funnels through `KernelLogText` and uses typed prefixes for log classes. The available log types are `DEBUG`, `WARNING`, `ERROR`, `VERBOSE`, and `TEST`. `DEBUG`, `WARNING`, `ERROR`, and `VERBOSE` are always available, while `TEST` is a debug-only type used by automated test scripts and is compiled out when `DEBUG_OUTPUT` is disabled. All logs follow the standard `[FunctionName]` prefix rule and emit structured results such as `TEST > [CMD_sysinfo] sysinfo : OK`.
+Kernel logging funnels through `KernelLogText` and uses typed prefixes for log classes. The available log types are `DEBUG`, `WARNING`, `ERROR`, `VERBOSE`, and `TEST`. `DEBUG`, `WARNING`, `ERROR`, and `VERBOSE` are always available, while `TEST` is a debug-only type used by automated test scripts and is compiled out when `DEBUG_OUTPUT` is disabled. All logs follow the standard `[FunctionName]` prefix rule and emit structured results such as `TEST > [CMD_sysinfo] sysinfo : OK`. Serial output is sanitized to printable ASCII (plus tab/newline) before being written to the log.
 
 ### Kernel objects
 
@@ -607,12 +609,14 @@ The device interrupt layer centralizes vector assignment, interrupt routing, and
 - `DeferredWorkDispatcher` waits on a kernel event, running deferred callbacks when signaled and invoking poll routines on timeout or when global polling mode is forced.
 - Automatic spurious-interrupt suppression masks a slot after repeated suppressed top halves and relies on its poll routine until the driver re-arms the IRQ.
 - Graceful fallback to polling when hardware interrupts are unavailable.
+- The IOAPIC driver is optional; when ACPI is unavailable the kernel continues in PIC mode and boots without IOAPIC.
 
 **API Functions:**
 - `InitializeDeviceInterrupts()`: Reset slot bookkeeping at boot.
 - `DeviceInterruptRegister()/DeviceInterruptUnregister()`: Manage slot lifetime.
 - `DeviceInterruptHandler(slot)`: ASM entry point fan-out for interrupt vectors 0x30–0x37.
 - `InitializeDeferredWork()`: Start the dispatcher kernel task and supporting event.
+- PIC mode remaps IRQs to vectors 0x20–0x2F before interrupts are enabled.
 
 ### Network Manager
 

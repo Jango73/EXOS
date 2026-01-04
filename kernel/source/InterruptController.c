@@ -127,6 +127,36 @@ static void WritePICMask(U8 PicNumber, U8 Mask) {
 /************************************************************************/
 
 /**
+ * @brief Initialize PIC 8259 for protected mode (remap to 0x20/0x28).
+ */
+static void InitializePIC8259(void) {
+    U8 Mask1 = ReadPICMask(1);
+    U8 Mask2 = ReadPICMask(2);
+
+    g_InterruptControllerConfig.PICBaseMask = 0xFF;
+
+    OutPortByte(PIC1_COMMAND, ICW1_INIT | ICW1_ICW4);
+    OutPortByte(PIC2_COMMAND, ICW1_INIT | ICW1_ICW4);
+
+    OutPortByte(PIC1_DATA, 0x20);
+    OutPortByte(PIC2_DATA, 0x28);
+
+    OutPortByte(PIC1_DATA, 0x04); // IRQ2 connects to slave
+    OutPortByte(PIC2_DATA, 0x02); // Slave ID
+
+    OutPortByte(PIC1_DATA, ICW4_8086);
+    OutPortByte(PIC2_DATA, ICW4_8086);
+
+    WritePICMask(1, 0xFF);
+    WritePICMask(2, 0xFF);
+
+    DEBUG(TEXT("[InitializePIC8259] Remapped PIC (0x20/0x28), masks %x/%x"),
+          Mask1, Mask2);
+}
+
+/************************************************************************/
+
+/**
  * @brief Disable PIC 8259 controllers
  */
 static void DisablePIC8259(void) {
@@ -205,6 +235,7 @@ BOOL InitializeInterruptController(INTERRUPT_CONTROLLER_MODE RequestedMode) {
         case INTCTRL_MODE_FORCE_PIC:
             if (g_InterruptControllerConfig.PICPresent) {
                 g_InterruptControllerConfig.ActiveType = INTCTRL_TYPE_PIC;
+                InitializePIC8259();
                 DEBUG(TEXT("[InitializeInterruptController] Forced PIC 8259 mode"));
             } else {
                 ERROR(TEXT("[InitializeInterruptController]  PIC 8259 forced but not available"));
@@ -239,6 +270,7 @@ BOOL InitializeInterruptController(INTERRUPT_CONTROLLER_MODE RequestedMode) {
                 }
             } else {
                 g_InterruptControllerConfig.ActiveType = INTCTRL_TYPE_PIC;
+                InitializePIC8259();
                 DEBUG(TEXT("[InitializeInterruptController] Automatically selected PIC 8259 mode (no IOAPIC available)"));
             }
             break;

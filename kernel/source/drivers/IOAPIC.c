@@ -53,7 +53,7 @@ DRIVER DATA_SECTION IOAPICDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "IOAPIC",
-    .Flags = DRIVER_FLAG_CRITICAL,
+    .Flags = 0,
     .Command = IOAPICDriverCommands};
 
 /***************************************************************************/

@@ -773,7 +773,7 @@ PHYSICAL AllocPageDirectory(void) {
     UINT TaskRunnerTableIndex = GetTableEntry(VMA_TASK_RUNNER);
 
     TaskRunnerTable[TaskRunnerTableIndex].Present = 1;
-    TaskRunnerTable[TaskRunnerTableIndex].ReadWrite = 0;  // Read-only for user
+    TaskRunnerTable[TaskRunnerTableIndex].ReadWrite = 1;  // Writable for task stack usage
     TaskRunnerTable[TaskRunnerTableIndex].Privilege = PAGE_PRIVILEGE_USER;
     TaskRunnerTable[TaskRunnerTableIndex].WriteThrough = 0;
     TaskRunnerTable[TaskRunnerTableIndex].CacheDisabled = 0;

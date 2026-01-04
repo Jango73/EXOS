@@ -211,6 +211,7 @@
 #define CR0_MONITOR_COPROCESSOR 0x00000004  // Emulate co-processor
 #define CR0_TASKSWITCH 0x00000008           // Set on task switch
 #define CR0_80387 0x00000010                // Type of co-processor
+#define CR0_NUMERIC_ERROR 0x00000020        // Native x87 error reporting
 #define CR0_PAGING 0x80000000               // Paging on/off
 
 /* PIC and IRQ helpers */
