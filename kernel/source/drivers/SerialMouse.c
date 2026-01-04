@@ -74,8 +74,6 @@ static SERIAL_MOUSE_DRIVER DATA_SECTION SerialMouseDriverState = {
 
 /***************************************************************************/
 
-/***************************************************************************/
-
 #define LOGIMOUSE_DATA 0x023C
 #define LOGIMOUSE_SIGNATURE 0x023D
 #define LOGIMOUSE_CONTROL 0x023E
