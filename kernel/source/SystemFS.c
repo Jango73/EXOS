@@ -85,7 +85,7 @@ static LPSYSTEMFSFILE NewSystemFile(LPCSTR Name, LPSYSTEMFSFILE Parent) {
         .Next = NULL,
         .Prev = NULL,
         .Children = NewList(NULL, KernelHeapAlloc, KernelHeapFree),
-        .Parent = Parent,
+        .ParentNode = Parent,
         .Mounted = NULL,
         .MountPath = {0},
         .Attributes = FS_ATTR_FOLDER | FS_ATTR_READONLY,
@@ -181,7 +181,7 @@ static BOOL IsCircularMount(LPSYSTEMFSFILE Node, LPFILESYSTEM FilesystemToMount)
             // Found the same filesystem already mounted in a parent
             return TRUE;
         }
-        Current = Current->Parent;
+        Current = Current->ParentNode;
     }
 
     return FALSE;
@@ -271,9 +271,9 @@ static U32 UnmountObject(LPFS_UNMOUNT_CONTROL Control) {
     if (Control == NULL) return DF_RETURN_BAD_PARAMETER;
 
     Node = FindNode(Control->Path);
-    if (Node == NULL || Node->Parent == NULL) return DF_RETURN_GENERIC;
+    if (Node == NULL || Node->ParentNode == NULL) return DF_RETURN_GENERIC;
 
-    ListErase(Node->Parent->Children, Node);
+    ListErase(Node->ParentNode->Children, Node);
     KernelHeapFree(Node);
     return DF_RETURN_SUCCESS;
 }
@@ -309,7 +309,7 @@ static BOOL ResolvePath(LPCSTR Path, LPSYSTEMFSFILE *Node, STR Remaining[MAX_PAT
         }
 
         if (StringCompare(Part->Name, TEXT("..")) == 0) {
-            if (Current && Current->Parent) Current = Current->Parent;
+            if (Current && Current->ParentNode) Current = Current->ParentNode;
             continue;
         }
 
@@ -500,10 +500,10 @@ static U32 DeleteFolder(LPFILEINFO Info) {
     if (Info == NULL) return DF_RETURN_BAD_PARAMETER;
 
     Node = FindNode(Info->Name);
-    if (Node == NULL || Node->Parent == NULL) return DF_RETURN_GENERIC;
+    if (Node == NULL || Node->ParentNode == NULL) return DF_RETURN_GENERIC;
     if (Node->Children && Node->Children->NumItems) return DF_RETURN_GENERIC;
 
-    ListErase(Node->Parent->Children, Node);
+    ListErase(Node->ParentNode->Children, Node);
     KernelHeapFree(Node);
     return DF_RETURN_SUCCESS;
 }
@@ -831,7 +831,7 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         File->Header.References = 1;
         File->Header.FileSystem = GetSystemFS();
         File->SystemFile = (Node->Children) ? (LPSYSTEMFSFILE)Node->Children->First : NULL;
-        File->Parent = Node->Parent;
+        File->Parent = Node->ParentNode;
         StringCopy(File->Header.Name, Node->Name);
         File->Header.Attributes = Node->Attributes;
         File->Header.Creation = Node->Creation;

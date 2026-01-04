@@ -65,6 +65,9 @@ entire lifetime and is persisted in the termination cache through
 `OBJECT_TERMINATION_STATE.ID`. Scheduler lookups rely on the shared identifier
 instead of raw pointers, eliminating accidental matches when memory is reused
 for new objects.
+Any kernel object that contains `OBJECT_FIELDS` (thus inherits
+`LISTNODE_FIELDS`) and is meant to exist in a global kernel list must be
+created with `CreateKernelObject` and destroyed with `ReleaseKernelObject`.
 
 ### Kernel event object
 
@@ -112,6 +115,12 @@ builds add a `TEST` log type used by automated test scripts; the `TEST` macro
 is compiled out when `DEBUG_OUTPUT` is disabled. Test logs follow the standard
 `[FunctionName]` prefix rule and emit structured results such as
 `TEST > [CMD_sysinfo] sysinfo : OK`.
+
+### Kernel list nodes
+
+List nodes (`LISTNODE_FIELDS`) now include a `Parent` pointer so kernel objects
+can model hierarchical relationships when needed. List insertion helpers keep
+the parent pointer NULL by default unless explicitly set.
 
 ### Command line editing
 

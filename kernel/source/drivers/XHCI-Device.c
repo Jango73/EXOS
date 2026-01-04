@@ -27,6 +27,33 @@
 /************************************************************************/
 
 /**
+ * @brief Initialize USB device object fields for xHCI.
+ *
+ * LISTNODE_FIELDS are expected to be initialized by CreateKernelObject.
+ * @param Device xHCI controller.
+ * @param UsbDevice USB device state.
+ */
+void XHCI_InitUsbDeviceObject(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
+    if (UsbDevice == NULL) {
+        return;
+    }
+
+    MemorySet(&UsbDevice->Mutex, 0, sizeof(XHCI_USB_DEVICE) - sizeof(LISTNODE));
+    UsbDevice->Controller = Device;
+
+    InitMutex(&UsbDevice->Mutex);
+    UsbDevice->Contexts.First = NULL;
+    UsbDevice->Contexts.Last = NULL;
+    UsbDevice->Contexts.Current = NULL;
+    UsbDevice->Contexts.NumItems = 0;
+    UsbDevice->Contexts.MemAllocFunc = KernelHeapAlloc;
+    UsbDevice->Contexts.MemFreeFunc = KernelHeapFree;
+    UsbDevice->Contexts.Destructor = NULL;
+}
+
+/************************************************************************/
+
+/**
  * @brief Free USB configuration tree.
  * @param UsbDevice USB device state.
  */
@@ -136,38 +163,7 @@ static void XHCI_FreeUsbDeviceResources(LPXHCI_USB_DEVICE UsbDevice) {
     UsbDevice->ParentPort = 0;
     UsbDevice->Depth = 0;
     UsbDevice->RouteString = 0;
-}
-
-/************************************************************************/
-
-/**
- * @brief Remove a device from the controller list.
- * @param Device xHCI device.
- * @param UsbDevice USB device state.
- */
-static void XHCI_RemoveDeviceFromList(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
-    if (Device == NULL || UsbDevice == NULL) {
-        return;
-    }
-
-    LPXHCI_USB_DEVICE Prev = NULL;
-    LPXHCI_USB_DEVICE Curr = Device->DeviceList;
-    while (Curr != NULL) {
-        if (Curr == UsbDevice) {
-            if (Prev != NULL) {
-                Prev->NextDevice = Curr->NextDevice;
-            } else {
-                Device->DeviceList = Curr->NextDevice;
-            }
-            if (Device->DeviceCount > 0) {
-                Device->DeviceCount--;
-            }
-            Curr->NextDevice = NULL;
-            return;
-        }
-        Prev = Curr;
-        Curr = Curr->NextDevice;
-    }
+    UsbDevice->Controller = NULL;
 }
 
 /************************************************************************/
@@ -177,20 +173,24 @@ static void XHCI_RemoveDeviceFromList(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Us
  * @param Device xHCI device.
  * @param UsbDevice USB device state.
  */
-static void XHCI_AddDeviceToList(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
+void XHCI_AddDeviceToList(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
     if (Device == NULL || UsbDevice == NULL) {
         return;
     }
 
-    for (LPXHCI_USB_DEVICE Curr = Device->DeviceList; Curr != NULL; Curr = Curr->NextDevice) {
-        if (Curr == UsbDevice) {
+    LPLIST UsbDeviceList = GetUsbDeviceList();
+    if (UsbDeviceList == NULL) {
+        return;
+    }
+
+    for (LPLISTNODE Node = UsbDeviceList->First; Node != NULL; Node = Node->Next) {
+        if (Node == (LPLISTNODE)UsbDevice) {
             return;
         }
     }
 
-    UsbDevice->NextDevice = Device->DeviceList;
-    Device->DeviceList = UsbDevice;
-    Device->DeviceCount++;
+    UsbDevice->Controller = Device;
+    (void)ListAddItemWithParent(UsbDeviceList, UsbDevice, UsbDevice->Parent);
 }
 
 /************************************************************************/
@@ -199,12 +199,14 @@ static void XHCI_AddDeviceToList(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevi
  * @brief Destroy a USB device and its children.
  * @param Device xHCI device.
  * @param UsbDevice USB device state.
- * @param FreeSelf TRUE when the UsbDevice structure is heap allocated.
+ * @param FreeSelf TRUE when the UsbDevice object should be released.
  */
 void XHCI_DestroyUsbDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, BOOL FreeSelf) {
     if (UsbDevice == NULL) {
         return;
     }
+
+    UNUSED(Device);
 
     if (UsbDevice->IsHub && UsbDevice->HubChildren != NULL) {
         for (U32 PortIndex = 0; PortIndex < UsbDevice->HubPortCount; PortIndex++) {
@@ -216,11 +218,10 @@ void XHCI_DestroyUsbDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, BO
         }
     }
 
-    XHCI_RemoveDeviceFromList(Device, UsbDevice);
     XHCI_FreeUsbDeviceResources(UsbDevice);
 
     if (FreeSelf) {
-        KernelHeapFree(UsbDevice);
+        ReleaseKernelObject(UsbDevice);
     }
 }
 
@@ -889,7 +890,6 @@ static BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical
  * @return TRUE on success.
  */
 static BOOL XHCI_InitUsbDeviceState(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
-    UNUSED(Device);
     XHCI_FreeUsbTree(UsbDevice);
     if (UsbDevice->InputContextLinear) {
         FreeRegion(UsbDevice->InputContextLinear, PAGE_SIZE);
@@ -971,6 +971,7 @@ static BOOL XHCI_InitUsbDeviceState(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbD
     UsbDevice->HubInterruptLength = 0;
     UsbDevice->HubStatusTrbPhysical = U64_FromUINT(0);
     UsbDevice->HubStatusPending = FALSE;
+    UsbDevice->Controller = Device;
 
     return TRUE;
 }
@@ -1001,10 +1002,11 @@ static void XHCI_BuildInputContextForAddress(LPXHCI_DEVICE Device, LPXHCI_USB_DE
         Slot->Dword1 |= ((U32)UsbDevice->HubPortCount << XHCI_SLOT_CTX_PORT_COUNT_SHIFT);
     }
 
-    if (UsbDevice->Parent != NULL) {
-        if ((UsbDevice->Parent->SpeedId == USB_SPEED_HS) &&
+    LPXHCI_USB_DEVICE Parent = (LPXHCI_USB_DEVICE)UsbDevice->Parent;
+    if (Parent != NULL) {
+        if ((Parent->SpeedId == USB_SPEED_HS) &&
             (UsbDevice->SpeedId == USB_SPEED_LS || UsbDevice->SpeedId == USB_SPEED_FS)) {
-            Slot->Dword2 = ((U32)UsbDevice->Parent->SlotId << XHCI_SLOT_CTX_TT_HUB_SLOT_SHIFT) |
+            Slot->Dword2 = ((U32)Parent->SlotId << XHCI_SLOT_CTX_TT_HUB_SLOT_SHIFT) |
                            ((U32)UsbDevice->ParentPort << XHCI_SLOT_CTX_TT_PORT_SHIFT);
         }
     }
@@ -1693,6 +1695,7 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
     UsbDevice->Parent = NULL;
     UsbDevice->ParentPort = 0;
     UsbDevice->IsRootPort = TRUE;
+    UsbDevice->Controller = Device;
     UsbDevice->SpeedId = (U8)SpeedId;
 
     if (UsbDevice->Present) {
@@ -1739,7 +1742,10 @@ void XHCI_EnsureUsbDevices(LPXHCI_DEVICE Device) {
     }
 
     for (U32 PortIndex = 0; PortIndex < Device->MaxPorts; PortIndex++) {
-        LPXHCI_USB_DEVICE UsbDevice = &Device->UsbDevices[PortIndex];
+        LPXHCI_USB_DEVICE UsbDevice = Device->UsbDevices[PortIndex];
+        if (UsbDevice == NULL) {
+            continue;
+        }
         U32 PortStatus = XHCI_ReadPortStatus(Device, PortIndex);
         BOOL Connected = (PortStatus & XHCI_PORTSC_CCS) != 0;
         if (!Connected) {
@@ -1754,4 +1760,3 @@ void XHCI_EnsureUsbDevices(LPXHCI_DEVICE Device) {
         }
     }
 }
-

@@ -189,6 +189,7 @@ U32 ListAddItem(LPLIST This, LPVOID Item) {
 
             This->Last = NewNode;
             NewNode->Next = NULL;
+            NewNode->Parent = NULL;
 
             This->NumItems++;
 
@@ -197,6 +198,29 @@ U32 ListAddItem(LPLIST This, LPVOID Item) {
     }
 
     return FALSE;
+}
+
+/*************************************************************************************************/
+
+/**
+ * @brief Adds an item at the end of the list with an explicit parent.
+ *
+ * @param This Pointer to the list.
+ * @param Item Pointer to the item to add (must be castable to LPLISTNODE).
+ * @param Parent Parent node to associate with the item.
+ * @return TRUE on success, FALSE on failure.
+ */
+U32 ListAddItemWithParent(LPLIST This, LPVOID Item, LPLISTNODE Parent) {
+    if (!ListAddItem(This, Item)) {
+        return FALSE;
+    }
+
+    LPLISTNODE Node = (LPLISTNODE)Item;
+    if (Node != NULL) {
+        Node->Parent = Parent;
+    }
+
+    return TRUE;
 }
 
 /*************************************************************************************************/
@@ -226,6 +250,7 @@ U32 ListAddBefore(LPLIST This, LPVOID RefItem, LPVOID NewItem) {
                 This->First = NewNode;
                 NewNode->Next = CurNode;
                 NewNode->Prev = NULL;
+                NewNode->Parent = NULL;
                 CurNode->Prev = NewNode;
 
                 This->NumItems++;
@@ -234,6 +259,7 @@ U32 ListAddBefore(LPLIST This, LPVOID RefItem, LPVOID NewItem) {
             } else {
                 NewNode->Next = CurNode;
                 NewNode->Prev = PrevNode;
+                NewNode->Parent = NULL;
                 PrevNode->Next = NewNode;
                 CurNode->Prev = NewNode;
 
@@ -278,6 +304,7 @@ U32 ListAddAfter(LPLIST This, LPVOID RefItem, LPVOID NewItem) {
                 NextNode->Prev = NewNode;
                 NewNode->Prev = PrevNode;
                 NewNode->Next = NextNode;
+                NewNode->Parent = NULL;
 
                 This->NumItems++;
 
@@ -352,6 +379,10 @@ LPVOID ListRemove(LPLIST This, LPVOID Item) {
         if (This->First == Temp) This->First = Temp->Next;
         if (This->Last == Temp) This->Last = Temp->Prev;
 
+        Temp->Next = NULL;
+        Temp->Prev = NULL;
+        Temp->Parent = NULL;
+
         return Temp;
     }
 
@@ -366,6 +397,10 @@ LPVOID ListRemove(LPLIST This, LPVOID Item) {
 
             if (This->First == Temp) This->First = Temp->Next;
             if (This->Last == Temp) This->Last = Temp->Prev;
+
+            Temp->Next = NULL;
+            Temp->Prev = NULL;
+            Temp->Parent = NULL;
 
             return Temp;
         } else {

@@ -440,6 +440,7 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
     Object->ID = ObjectID;
     Object->Next = NULL;
     Object->Prev = NULL;
+    Object->Parent = NULL;
 
     DEBUG(TEXT("[CreateKernelObject] Object created at %x, OwnerProcess: %x"), Object, Object->OwnerProcess);
 
@@ -512,6 +513,8 @@ void DeleteUnreferencedObjects(void) {
     ProcessList(GetTaskList(), TEXT("Task"));
     ProcessList(GetMutexList(), TEXT("Mutex"));
     ProcessList(GetDiskList(), TEXT("Disk"));
+    ProcessList(GetUsbDeviceList(), TEXT("USBDevice"));
+    ProcessList(GetUsbStorageList(), TEXT("USBStorage"));
     ProcessList(GetPCIDeviceList(), TEXT("PCIDevice"));
     ProcessList(GetNetworkDeviceList(), TEXT("NetworkDevice"));
     ProcessList(GetEventList(), TEXT("KernelEvent"));
@@ -572,6 +575,8 @@ void ReleaseProcessKernelObjects(struct tag_PROCESS* Process) {
         ReleaseProcessObjectsFromList(Process, GetTaskList());
         ReleaseProcessObjectsFromList(Process, GetMutexList());
         ReleaseProcessObjectsFromList(Process, GetDiskList());
+        ReleaseProcessObjectsFromList(Process, GetUsbDeviceList());
+        ReleaseProcessObjectsFromList(Process, GetUsbStorageList());
         ReleaseProcessObjectsFromList(Process, GetPCIDeviceList());
         ReleaseProcessObjectsFromList(Process, GetNetworkDeviceList());
         ReleaseProcessObjectsFromList(Process, GetEventList());

@@ -113,6 +113,7 @@ typedef struct tag_KERNELDATA {
     LPLIST Mutex;
     LPLIST Disk;
     LPLIST USBDevice;
+    LPLIST USBStorage;
     LPLIST PCIDevice;
     LPLIST NetworkDevice;
     LPLIST Event;
@@ -194,6 +195,7 @@ LPSYSTEMFSFILESYSTEM GetSystemFSData(void);
 LPLIST GetTaskList(void);
 LPLIST GetTCPConnectionList(void);
 LPLIST GetUsbDeviceList(void);
+LPLIST GetUsbStorageList(void);
 LPLIST GetUserAccountList(void);
 LPLIST GetUserSessionList(void);
 void InitializeDriverList(void);

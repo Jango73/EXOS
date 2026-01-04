@@ -1797,14 +1797,14 @@ static U32 CMD_usb(LPSHELLCONTEXT Context) {
     }
 
     if (StringCompareNC(Context->Command, TEXT("drives")) == 0) {
-        LPLIST UsbDeviceList = GetUsbDeviceList();
-        if (UsbDeviceList == NULL || UsbDeviceList->First == NULL) {
+        LPLIST UsbStorageList = GetUsbStorageList();
+        if (UsbStorageList == NULL || UsbStorageList->First == NULL) {
             ConsolePrint(TEXT("No USB drive detected\n"));
             return DF_RETURN_SUCCESS;
         }
 
         UINT Index = 0;
-        for (LPLISTNODE Node = UsbDeviceList->First; Node; Node = Node->Next) {
+        for (LPLISTNODE Node = UsbStorageList->First; Node; Node = Node->Next) {
             LPUSB_STORAGE_ENTRY Entry = (LPUSB_STORAGE_ENTRY)Node;
             if (Entry == NULL) {
                 continue;

@@ -111,9 +111,6 @@ static void ConsolePagerWaitLocked(void) {
     if (Console.PagingEnabled == FALSE || Console.PagingActive == FALSE) return;
     if (Width == 0 || Height < 2) return;
 
-    DEBUG(TEXT("[ConsolePagerWaitLocked] Enter Enabled=%u Active=%u Width=%u Height=%u"),
-          Console.PagingEnabled, Console.PagingActive, Width, Height);
-
     Row = Height - 1;
     Attribute = (U16)(CHARATTR << 0x08);
 
@@ -134,8 +131,6 @@ static void ConsolePagerWaitLocked(void) {
     while (TRUE) {
         if (PeekChar()) {
             GetKeyCode(&KeyCode);
-            DEBUG(TEXT("[ConsolePagerWaitLocked] Key VK=%x ASCII=%x"),
-                  (U32)KeyCode.VirtualKey, (U32)KeyCode.ASCIICode);
             if (KeyCode.VirtualKey == VK_SPACE || KeyCode.VirtualKey == VK_ENTER) {
                 Console.PagingRemaining = Height - 1;
                 break;
@@ -152,8 +147,6 @@ static void ConsolePagerWaitLocked(void) {
     for (Col = 0; Col < Width; Col++) {
         Console.Memory[(Row * Width) + Col] = (U16)STR_SPACE | Attribute;
     }
-
-    DEBUG(TEXT("[ConsolePagerWaitLocked] Exit"));
 }
 
 /***************************************************************************/
@@ -285,10 +278,6 @@ void ScrollConsole(void) {
     while (Keyboard.ScrollLock) {
     }
 
-    DEBUG(TEXT("[ScrollConsole] Cursor=%ux%u Size=%ux%u Paging=%u/%u Remaining=%u"),
-          Console.CursorX, Console.CursorY, Console.Width, Console.Height,
-          Console.PagingEnabled, Console.PagingActive, Console.PagingRemaining);
-
     if (Console.PagingRemaining == 0) {
         ConsolePagerWaitLocked();
     }
@@ -321,9 +310,6 @@ void ScrollConsole(void) {
     }
 
     UnlockMutex(MUTEX_CONSOLE);
-
-    DEBUG(TEXT("[ScrollConsole] Done Cursor=%ux%u Remaining=%u"),
-          Console.CursorX, Console.CursorY, Console.PagingRemaining);
 
     ProfileStop(&Scope);
 }
@@ -369,7 +355,6 @@ void ConsolePrintChar(STR Char) {
         Console.CursorX = 0;
         Console.CursorY++;
         if (Console.CursorY >= Console.Height) {
-            DEBUG(TEXT("[ConsolePrintChar] Newline triggers scroll CursorY=%u Height=%u"), Console.CursorY, Console.Height);
             ScrollConsole();
             Console.CursorY = Console.Height - 1;
         }
@@ -380,7 +365,6 @@ void ConsolePrintChar(STR Char) {
             Console.CursorX = 0;
             Console.CursorY++;
             if (Console.CursorY >= Console.Height) {
-                DEBUG(TEXT("[ConsolePrintChar] Tab triggers scroll CursorY=%u Height=%u"), Console.CursorY, Console.Height);
                 ScrollConsole();
                 Console.CursorY = Console.Height - 1;
             }
@@ -392,7 +376,6 @@ void ConsolePrintChar(STR Char) {
             Console.CursorX = 0;
             Console.CursorY++;
             if (Console.CursorY >= Console.Height) {
-                DEBUG(TEXT("[ConsolePrintChar] Wrap triggers scroll CursorY=%u Height=%u"), Console.CursorY, Console.Height);
                 ScrollConsole();
                 Console.CursorY = Console.Height - 1;
             }

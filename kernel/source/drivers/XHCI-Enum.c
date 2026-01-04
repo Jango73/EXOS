@@ -149,7 +149,15 @@ U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                 }
             } else if (Next->Query->Domain == ENUM_DOMAIN_USB_DEVICE) {
                 XHCI_EnsureUsbDevices(Device);
-                for (LPXHCI_USB_DEVICE UsbDevice = Device->DeviceList; UsbDevice != NULL; UsbDevice = UsbDevice->NextDevice) {
+                LPLIST UsbDeviceList = GetUsbDeviceList();
+                if (UsbDeviceList == NULL) {
+                    continue;
+                }
+                for (LPLISTNODE UsbNode = UsbDeviceList->First; UsbNode != NULL; UsbNode = UsbNode->Next) {
+                    LPXHCI_USB_DEVICE UsbDevice = (LPXHCI_USB_DEVICE)UsbNode;
+                    if (UsbDevice->Controller != Device) {
+                        continue;
+                    }
                     if (!UsbDevice->Present) {
                         continue;
                     }
@@ -176,7 +184,15 @@ U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                 }
             } else if (Next->Query->Domain == ENUM_DOMAIN_USB_NODE) {
                 XHCI_EnsureUsbDevices(Device);
-                for (LPXHCI_USB_DEVICE UsbDevice = Device->DeviceList; UsbDevice != NULL; UsbDevice = UsbDevice->NextDevice) {
+                LPLIST UsbDeviceList = GetUsbDeviceList();
+                if (UsbDeviceList == NULL) {
+                    continue;
+                }
+                for (LPLISTNODE UsbNode = UsbDeviceList->First; UsbNode != NULL; UsbNode = UsbNode->Next) {
+                    LPXHCI_USB_DEVICE UsbDevice = (LPXHCI_USB_DEVICE)UsbNode;
+                    if (UsbDevice->Controller != Device) {
+                        continue;
+                    }
                     if (!UsbDevice->Present) {
                         continue;
                     }
@@ -364,4 +380,3 @@ U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
 
     return DF_RETURN_BAD_PARAMETER;
 }
-

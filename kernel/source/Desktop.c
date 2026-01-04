@@ -57,7 +57,7 @@ WINDOW MainDesktopWindow = {
     .Mutex = EMPTY_MUTEX,
     .Task = NULL,
     .Function = &DesktopWindowFunc,
-    .Parent = NULL,
+    .ParentWindow = NULL,
     .Children = &MainDesktopChildren,
     .Properties = NULL,
     .Rect = {0, 0, 79, 24},
@@ -456,7 +456,7 @@ BOOL DeleteWindow(LPWINDOW This) {
     // Check validity of parameters
 
     if (This->TypeID != KOID_WINDOW) return FALSE;
-    if (This->Parent == NULL) return FALSE;
+    if (This->ParentWindow == NULL) return FALSE;
 
     Task = This->Task;
     if (Task == NULL) return FALSE;
@@ -490,11 +490,11 @@ BOOL DeleteWindow(LPWINDOW This) {
     //-------------------------------------
     // Remove window from it's parent's list
 
-    LockMutex(&(This->Parent->Mutex), INFINITY);
+    LockMutex(&(This->ParentWindow->Mutex), INFINITY);
 
-    ListRemove(This->Parent->Children, This);
+    ListRemove(This->ParentWindow->Children, This);
 
-    UnlockMutex(&(This->Parent->Mutex));
+    UnlockMutex(&(This->ParentWindow->Mutex));
 
     ReleaseKernelObject(This);
 
@@ -577,7 +577,7 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     if (This == NULL) return NULL;
 
     This->Task = GetCurrentTask();
-    This->Parent = Parent;
+    This->ParentWindow = Parent;
     This->Function = Info->Function;
     This->WindowID = Info->ID;
     This->Style = Info->Style;
@@ -592,37 +592,37 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     This->ScreenRect = This->Rect;
     This->InvalidRect = This->Rect;
 
-    if (This->Parent == NULL) {
+    if (This->ParentWindow == NULL) {
         SAFE_USE(Desktop) {
             if (Desktop->Window == NULL) {
                 Desktop->Window = This;
             } else {
-                This->Parent = Desktop->Window;
+                This->ParentWindow = Desktop->Window;
             }
         }
     }
 
-    SAFE_USE(This->Parent) {
-        LockMutex(&(This->Parent->Mutex), INFINITY);
+    SAFE_USE(This->ParentWindow) {
+        LockMutex(&(This->ParentWindow->Mutex), INFINITY);
 
-        This->ScreenRect.X1 = This->Parent->ScreenRect.X1 + This->Rect.X1;
-        This->ScreenRect.Y1 = This->Parent->ScreenRect.Y1 + This->Rect.Y1;
-        This->ScreenRect.X2 = This->Parent->ScreenRect.X1 + This->Rect.X2;
-        This->ScreenRect.Y2 = This->Parent->ScreenRect.Y1 + This->Rect.Y2;
+        This->ScreenRect.X1 = This->ParentWindow->ScreenRect.X1 + This->Rect.X1;
+        This->ScreenRect.Y1 = This->ParentWindow->ScreenRect.Y1 + This->Rect.Y1;
+        This->ScreenRect.X2 = This->ParentWindow->ScreenRect.X1 + This->Rect.X2;
+        This->ScreenRect.Y2 = This->ParentWindow->ScreenRect.Y1 + This->Rect.Y2;
 
-        This->InvalidRect.X1 = This->Parent->ScreenRect.X1 + This->Rect.X1;
-        This->InvalidRect.Y1 = This->Parent->ScreenRect.Y1 + This->Rect.Y1;
-        This->InvalidRect.X2 = This->Parent->ScreenRect.X1 + This->Rect.X2;
-        This->InvalidRect.Y2 = This->Parent->ScreenRect.Y1 + This->Rect.Y2;
+        This->InvalidRect.X1 = This->ParentWindow->ScreenRect.X1 + This->Rect.X1;
+        This->InvalidRect.Y1 = This->ParentWindow->ScreenRect.Y1 + This->Rect.Y1;
+        This->InvalidRect.X2 = This->ParentWindow->ScreenRect.X1 + This->Rect.X2;
+        This->InvalidRect.Y2 = This->ParentWindow->ScreenRect.Y1 + This->Rect.Y2;
 
-        ListAddHead(This->Parent->Children, This);
+        ListAddHead(This->ParentWindow->Children, This);
 
         //-------------------------------------
         // Compute the level of the window
 
-        for (Win = This->Parent; Win; Win = Win->Parent) This->Level++;
+        for (Win = This->ParentWindow; Win; Win = Win->ParentWindow) This->Level++;
 
-        UnlockMutex(&(This->Parent->Mutex));
+        UnlockMutex(&(This->ParentWindow->Mutex));
     }
 
     //-------------------------------------
@@ -864,7 +864,7 @@ BOOL BringWindowToFront(HANDLE Handle) {
 
     LockMutex(&(This->Mutex), INFINITY);
 
-    if (This->Parent == NULL) goto Out;
+    if (This->ParentWindow == NULL) goto Out;
 
     //-------------------------------------
     // Invalidate hidden regions
@@ -880,7 +880,7 @@ BOOL BringWindowToFront(HANDLE Handle) {
     //-------------------------------------
     // Reorder the windows
 
-    for (Node = This->Parent->Children->First, Order = 1; Node; Node = Node->Next) {
+    for (Node = This->ParentWindow->Children->First, Order = 1; Node; Node = Node->Next) {
         That = (LPWINDOW)Node;
         if (That == This)
             That->Order = 0;
@@ -888,7 +888,7 @@ BOOL BringWindowToFront(HANDLE Handle) {
             That->Order = Order++;
     }
 
-    ListSort(This->Parent->Children, SortWindows_Order);
+    ListSort(This->ParentWindow->Children, SortWindows_Order);
 
     //-------------------------------------
     // Tell the window it needs redraw
@@ -1050,7 +1050,7 @@ HANDLE GetWindowParent(HANDLE Handle) {
     if (This == NULL) return FALSE;
     if (This->TypeID != KOID_WINDOW) return FALSE;
 
-    return (HANDLE)This->Parent;
+    return (HANDLE)This->ParentWindow;
 }
 
 /***************************************************************************/

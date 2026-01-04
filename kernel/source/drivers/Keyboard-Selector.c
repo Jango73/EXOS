@@ -129,11 +129,16 @@ static BOOL KeyboardSelectorDetectUsbKeyboard(void) {
         SAFE_USE_VALID_ID(Controller, KOID_PCIDEVICE) {
             XHCI_EnsureUsbDevices(Controller);
 
-            for (LPXHCI_USB_DEVICE UsbDevice = Controller->DeviceList;
-                 UsbDevice != NULL;
-                 UsbDevice = UsbDevice->NextDevice) {
-                if (KeyboardSelectorHasUsbKeyboardInterface(UsbDevice)) {
-                    return TRUE;
+            LPLIST UsbDeviceList = GetUsbDeviceList();
+            if (UsbDeviceList != NULL) {
+                for (LPLISTNODE UsbNode = UsbDeviceList->First; UsbNode; UsbNode = UsbNode->Next) {
+                    LPXHCI_USB_DEVICE UsbDevice = (LPXHCI_USB_DEVICE)UsbNode;
+                    if (UsbDevice->Controller != Controller) {
+                        continue;
+                    }
+                    if (KeyboardSelectorHasUsbKeyboardInterface(UsbDevice)) {
+                        return TRUE;
+                    }
                 }
             }
         }

@@ -165,7 +165,7 @@ struct tag_WINDOW {
         MUTEX Mutex;      // This window's mutex
     LPTASK Task;          // The task that created this window
     WINDOWFUNC Function;  // The function that manages this window
-    LPWINDOW Parent;      // The parent of this window
+    LPWINDOW ParentWindow;      // The parent of this window
     LPLIST Children;      // The children of this window
     LPLIST Properties;    // The user-defined properties of this window
     RECT Rect;            // The rectangle of this window

@@ -257,11 +257,9 @@ static void USBMassStorageDetachDevice(LPUSB_MASS_STORAGE_DEVICE Device) {
     }
 
     if (Device->ListEntry != NULL) {
-        LPLIST UsbDeviceList = GetUsbDeviceList();
-        if (UsbDeviceList != NULL) {
-            ListEraseItem(UsbDeviceList, Device->ListEntry);
-        }
-        KernelHeapFree(Device->ListEntry);
+        Device->ListEntry->Present = FALSE;
+        Device->ListEntry->Device = NULL;
+        ReleaseKernelObject(Device->ListEntry);
         Device->ListEntry = NULL;
     }
 
@@ -344,7 +342,16 @@ static BOOL USBMassStorageIsDevicePresent(LPXHCI_DEVICE Device, LPXHCI_USB_DEVIC
     }
 
     SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
-        for (LPXHCI_USB_DEVICE Curr = Device->DeviceList; Curr != NULL; Curr = Curr->NextDevice) {
+        LPLIST UsbDeviceList = GetUsbDeviceList();
+        if (UsbDeviceList == NULL) {
+            return FALSE;
+        }
+
+        for (LPLISTNODE Node = UsbDeviceList->First; Node != NULL; Node = Node->Next) {
+            LPXHCI_USB_DEVICE Curr = (LPXHCI_USB_DEVICE)Node;
+            if (Curr->Controller != Device) {
+                continue;
+            }
             if (Curr == UsbDevice && Curr->Present) {
                 return TRUE;
             }
@@ -366,12 +373,12 @@ static BOOL USBMassStorageIsTracked(LPXHCI_USB_DEVICE UsbDevice) {
         return FALSE;
     }
 
-    LPLIST UsbDeviceList = GetUsbDeviceList();
-    if (UsbDeviceList == NULL) {
+    LPLIST UsbStorageList = GetUsbStorageList();
+    if (UsbStorageList == NULL) {
         return FALSE;
     }
 
-    for (LPLISTNODE Node = UsbDeviceList->First; Node; Node = Node->Next) {
+    for (LPLISTNODE Node = UsbStorageList->First; Node; Node = Node->Next) {
         LPUSB_STORAGE_ENTRY Entry = (LPUSB_STORAGE_ENTRY)Node;
         if (Entry == NULL || Entry->Device == NULL) {
             continue;
@@ -852,11 +859,9 @@ static void USBMassStorageFreeDevice(LPUSB_MASS_STORAGE_DEVICE Device) {
     }
 
     if (Device->ListEntry != NULL) {
-        LPLIST UsbDeviceList = GetUsbDeviceList();
-        if (UsbDeviceList != NULL) {
-            ListEraseItem(UsbDeviceList, Device->ListEntry);
-        }
-        KernelHeapFree(Device->ListEntry);
+        Device->ListEntry->Present = FALSE;
+        Device->ListEntry->Device = NULL;
+        ReleaseKernelObject(Device->ListEntry);
         Device->ListEntry = NULL;
     }
 
@@ -941,16 +946,15 @@ static BOOL USBMassStorageStartDevice(LPXHCI_DEVICE Controller,
 
     Device->Ready = TRUE;
 
-    LPUSB_STORAGE_ENTRY Entry = (LPUSB_STORAGE_ENTRY)KernelHeapAlloc(sizeof(USB_STORAGE_ENTRY));
+    LPUSB_STORAGE_ENTRY Entry =
+        (LPUSB_STORAGE_ENTRY)CreateKernelObject(sizeof(USB_STORAGE_ENTRY), KOID_USBSTORAGE);
     if (Entry == NULL) {
         ERROR(TEXT("[USBMassStorageStartDevice] List entry allocation failed"));
         USBMassStorageFreeDevice(Device);
         return FALSE;
     }
 
-    MemorySet(Entry, 0, sizeof(USB_STORAGE_ENTRY));
-    Entry->TypeID = KOID_NONE;
-    Entry->References = 1;
+    MemorySet(&Entry->Device, 0, sizeof(USB_STORAGE_ENTRY) - sizeof(LISTNODE));
     Entry->Device = Device;
     Entry->Address = UsbDevice->Address;
     Entry->VendorId = UsbDevice->DeviceDescriptor.VendorID;
@@ -960,9 +964,11 @@ static BOOL USBMassStorageStartDevice(LPXHCI_DEVICE Controller,
     Entry->Present = TRUE;
     Device->ListEntry = Entry;
 
-    LPLIST UsbDeviceList = GetUsbDeviceList();
-    if (UsbDeviceList == NULL || ListAddItem(UsbDeviceList, Entry) == FALSE) {
-        ERROR(TEXT("[USBMassStorageStartDevice] Unable to register USB device list entry"));
+    LPLIST UsbStorageList = GetUsbStorageList();
+    if (UsbStorageList == NULL || ListAddItem(UsbStorageList, Entry) == FALSE) {
+        ERROR(TEXT("[USBMassStorageStartDevice] Unable to register USB storage list entry"));
+        ReleaseKernelObject(Entry);
+        KernelHeapFree(Entry);
         USBMassStorageFreeDevice(Device);
         return FALSE;
     }
@@ -1003,12 +1009,12 @@ static BOOL USBMassStorageStartDevice(LPXHCI_DEVICE Controller,
  * @brief Refresh presence flags for registered USB storage devices.
  */
 static void USBMassStorageUpdatePresence(void) {
-    LPLIST UsbDeviceList = GetUsbDeviceList();
-    if (UsbDeviceList == NULL) {
+    LPLIST UsbStorageList = GetUsbStorageList();
+    if (UsbStorageList == NULL) {
         return;
     }
 
-    for (LPLISTNODE Node = UsbDeviceList->First; Node;) {
+    for (LPLISTNODE Node = UsbStorageList->First; Node;) {
         LPLISTNODE Next = Node->Next;
         LPUSB_STORAGE_ENTRY Entry = (LPUSB_STORAGE_ENTRY)Node;
         if (Entry == NULL || Entry->Device == NULL) {
@@ -1054,9 +1060,15 @@ static void USBMassStorageScanControllers(void) {
         SAFE_USE_VALID_ID(Controller, KOID_PCIDEVICE) {
             XHCI_EnsureUsbDevices(Controller);
 
-            for (LPXHCI_USB_DEVICE UsbDevice = Controller->DeviceList;
-                 UsbDevice != NULL;
-                 UsbDevice = UsbDevice->NextDevice) {
+            LPLIST UsbDeviceList = GetUsbDeviceList();
+            if (UsbDeviceList == NULL) {
+                continue;
+            }
+            for (LPLISTNODE UsbNode = UsbDeviceList->First; UsbNode != NULL; UsbNode = UsbNode->Next) {
+                LPXHCI_USB_DEVICE UsbDevice = (LPXHCI_USB_DEVICE)UsbNode;
+                if (UsbDevice->Controller != Controller) {
+                    continue;
+                }
                 if (!UsbDevice->Present || UsbDevice->IsHub) {
                     continue;
                 }

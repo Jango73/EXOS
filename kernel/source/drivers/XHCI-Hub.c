@@ -285,19 +285,20 @@ static LPXHCI_USB_DEVICE XHCI_AllocateChildDevice(LPXHCI_DEVICE Device, LPXHCI_U
         return NULL;
     }
 
-    LPXHCI_USB_DEVICE Child = (LPXHCI_USB_DEVICE)KernelHeapAlloc(sizeof(XHCI_USB_DEVICE));
+    LPXHCI_USB_DEVICE Child = (LPXHCI_USB_DEVICE)CreateKernelObject(sizeof(XHCI_USB_DEVICE), KOID_USBDEVICE);
     if (Child == NULL) {
         return NULL;
     }
 
-    MemorySet(Child, 0, sizeof(XHCI_USB_DEVICE));
-    Child->Parent = Parent;
+    XHCI_InitUsbDeviceObject(Device, Child);
+    Child->Parent = (LPLISTNODE)Parent;
     Child->ParentPort = Port;
     Child->RootPortNumber = Parent->RootPortNumber;
     Child->Depth = (U8)(Parent->Depth + 1U);
     Child->RouteString = Parent->RouteString | ((U32)Port << (Parent->Depth * 4U));
     Child->PortNumber = Port;
     Child->IsRootPort = FALSE;
+    XHCI_AddDeviceToList(Device, Child);
 
     return Child;
 }
@@ -546,7 +547,17 @@ static void XHCI_PollHubs(LPVOID Context) {
         return;
     }
 
-    for (LPXHCI_USB_DEVICE Hub = Device->DeviceList; Hub != NULL; Hub = Hub->NextDevice) {
+    LPLIST UsbDeviceList = GetUsbDeviceList();
+    if (UsbDeviceList == NULL) {
+        return;
+    }
+
+    for (LPLISTNODE Node = UsbDeviceList->First; Node != NULL; Node = Node->Next) {
+        LPXHCI_USB_DEVICE Hub = (LPXHCI_USB_DEVICE)Node;
+        if (Hub->Controller != Device) {
+            continue;
+        }
+
         if (!Hub->Present || !Hub->IsHub || Hub->HubInterruptEndpoint == NULL || Hub->HubStatusLinear == 0) {
             continue;
         }
@@ -590,4 +601,3 @@ void XHCI_RegisterHubPoll(LPXHCI_DEVICE Device) {
         WARNING(TEXT("[XHCI_RegisterHubPoll] Failed to register hub poll"));
     }
 }
-

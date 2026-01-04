@@ -31,6 +31,7 @@ This is a multi-architecture operating system. Currently supporting i386 and x86
 - **Unused parameters**: Use the macro UNUSED() to suppress the "unused parameter" warning.
 - **SAFE_USE macros**: These macros validate pointers in kernel space. In userland code (runtime/system apps), NEVER use SAFE_USE_VALID/SAFE_USE_VALID_ID variants, as they will reject userland addresses.
 - **Pointers**: In the kernel, before using a kernel object pointer, use the appropriate macro for this : SAFE_USE if you got a pointer to any kind of object, SAFE_USE_VALID_ID if you got a pointer to a kernel object **which inherits LISTNODE_FIELDS**. SAFE_USE_2 does the same as SAFE_USE but for two pointers, SAFE_USE_VALID_ID_2 does the same as SAFE_USE_VALID_ID but for two pointers (SAFE_USE_VALID_ID_3 for 3 pointers, etc...).
+- **Kernel objects**: Any kernel object that contains OBJECT_FIELDS (thus inherits LISTNODE_FIELDS) and is meant to exist in a global kernel list must be created with CreateKernelObject and destroyed with ReleaseKernelObject.
 - **No direct access to physical memory**: Use the MapTemporaryPhysicalPage1 (MapTemporaryPhysicalPage2, etc...) and MapIOMemory/UnMapIOMemory functions to access physical memory pages.
 - **Drivers**: In driver command dispatchers, any non-implemented function MUST return `DF_RETURN_NOT_IMPLEMENTED`.
 - **Clean code**: No duplicate code. Create intermediate functions to avoid it.

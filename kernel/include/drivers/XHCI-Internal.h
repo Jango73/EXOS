@@ -246,19 +246,12 @@ typedef struct tag_XHCI_ERST_ENTRY {
 } XHCI_ERST_ENTRY, *LPXHCI_ERST_ENTRY;
 
 typedef struct tag_XHCI_USB_DEVICE {
+    USB_DEVICE_FIELDS
     BOOL Present;
     U8 PortNumber;
     U8 RootPortNumber;
     U8 Depth;
     U8 SlotId;
-    USB_ADDRESS Address;
-    U8 SpeedId;
-    U16 MaxPacketSize0;
-    USB_DEVICE_DESCRIPTOR DeviceDescriptor;
-    U8 SelectedConfigValue;
-    U8 StringManufacturer;
-    U8 StringProduct;
-    U8 StringSerial;
     UINT ConfigCount;
     LPXHCI_USB_CONFIGURATION Configs;
     PHYSICAL InputContextPhysical;
@@ -282,9 +275,8 @@ typedef struct tag_XHCI_USB_DEVICE {
     BOOL HubStatusPending;
     U32 RouteString;
     U8 ParentPort;
-    struct tag_XHCI_USB_DEVICE* Parent;
-    struct tag_XHCI_USB_DEVICE* NextDevice;
     BOOL IsRootPort;
+    struct tag_XHCI_DEVICE* Controller;
 } XHCI_USB_DEVICE, *LPXHCI_USB_DEVICE;
 
 typedef struct tag_XHCI_COMPLETION {
@@ -328,10 +320,8 @@ struct tag_XHCI_DEVICE {
     U32 EventRingDequeueIndex;
     U32 EventRingCycleState;
 
-    LPXHCI_USB_DEVICE UsbDevices;
+    LPXHCI_USB_DEVICE* UsbDevices;
 
-    LPXHCI_USB_DEVICE DeviceList;
-    U32 DeviceCount;
     XHCI_COMPLETION CompletionQueue[XHCI_COMPLETION_QUEUE_MAX];
     U32 CompletionCount;
     U32 HubPollHandle;
@@ -354,6 +344,7 @@ void XHCI_Write32(LINEAR Base, U32 Offset, U32 Value);
 void XHCI_Write64(LINEAR Base, U32 Offset, U64 Value);
 LPXHCI_CONTEXT_32 XHCI_GetContextPointer(LINEAR Base, U32 ContextSize, U32 Index);
 void XHCI_RingDoorbell(LPXHCI_DEVICE Device, U32 DoorbellIndex, U32 Target);
+void XHCI_InitUsbDeviceObject(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice);
 BOOL XHCI_PopCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* SlotIdOut, U32* CompletionOut);
 BOOL XHCI_CommandRingEnqueue(LPXHCI_DEVICE Device, const XHCI_TRB* Trb, U64* PhysicalOut);
 BOOL XHCI_TransferRingEnqueue(LPXHCI_USB_DEVICE UsbDevice, const XHCI_TRB* Trb, U64* PhysicalOut);
@@ -364,6 +355,7 @@ void XHCI_PollCompletions(LPXHCI_DEVICE Device);
 BOOL XHCI_WaitForRegister(LINEAR Base, U32 Offset, U32 Mask, U32 Value, U32 Timeout);
 BOOL XHCI_AllocPage(LPCSTR Tag, PHYSICAL *PhysicalOut, LINEAR *LinearOut);
 U32 XHCI_ReadPortStatus(LPXHCI_DEVICE Device, U32 PortIndex);
+void XHCI_AddDeviceToList(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice);
 
 void XHCI_DestroyUsbDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, BOOL FreeSelf);
 LPCSTR XHCI_SpeedToString(U32 SpeedId);

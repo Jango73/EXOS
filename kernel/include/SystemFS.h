@@ -38,7 +38,7 @@ typedef struct tag_SYSTEMFSFILE SYSTEMFSFILE, *LPSYSTEMFSFILE;
 struct tag_SYSTEMFSFILE {
     LISTNODE_FIELDS
     LPLIST Children;
-    LPSYSTEMFSFILE Parent;
+    LPSYSTEMFSFILE ParentNode;
     LPFILESYSTEM Mounted;
     STR MountPath[MAX_PATH_NAME];
     U32 Attributes;

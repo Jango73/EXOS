@@ -581,13 +581,14 @@ void XHCI_FreeResources(LPXHCI_DEVICE Device) {
 
         if (Device->UsbDevices != NULL) {
             for (U32 PortIndex = 0; PortIndex < Device->MaxPorts; PortIndex++) {
-                LPXHCI_USB_DEVICE UsbDevice = &Device->UsbDevices[PortIndex];
-                XHCI_DestroyUsbDevice(Device, UsbDevice, FALSE);
+                LPXHCI_USB_DEVICE UsbDevice = Device->UsbDevices[PortIndex];
+                if (UsbDevice != NULL) {
+                    XHCI_DestroyUsbDevice(Device, UsbDevice, TRUE);
+                    Device->UsbDevices[PortIndex] = NULL;
+                }
             }
             KernelHeapFree(Device->UsbDevices);
             Device->UsbDevices = NULL;
-            Device->DeviceList = NULL;
-            Device->DeviceCount = 0;
         }
         if (Device->EventRingTableLinear) {
             FreeRegion(Device->EventRingTableLinear, PAGE_SIZE);
@@ -1032,21 +1033,31 @@ static LPPCI_DEVICE XHCI_Attach(LPPCI_DEVICE PciDevice) {
 
     if (Device->MaxPorts > 0) {
         U32 PortCount = Device->MaxPorts;
-        Device->UsbDevices = (LPXHCI_USB_DEVICE)KernelHeapAlloc(sizeof(XHCI_USB_DEVICE) * PortCount);
+        Device->UsbDevices = (LPXHCI_USB_DEVICE*)KernelHeapAlloc(sizeof(LPXHCI_USB_DEVICE) * PortCount);
         if (Device->UsbDevices == NULL) {
             ERROR(TEXT("[XHCI_Attach] USB device state allocation failed"));
             XHCI_FreeResources(Device);
             KernelHeapFree(Device);
             return NULL;
         }
-        MemorySet(Device->UsbDevices, 0, sizeof(XHCI_USB_DEVICE) * PortCount);
+        MemorySet(Device->UsbDevices, 0, sizeof(LPXHCI_USB_DEVICE) * PortCount);
         for (U32 PortIndex = 0; PortIndex < PortCount; PortIndex++) {
-            LPXHCI_USB_DEVICE UsbDevice = &Device->UsbDevices[PortIndex];
+            LPXHCI_USB_DEVICE UsbDevice = (LPXHCI_USB_DEVICE)CreateKernelObject(sizeof(XHCI_USB_DEVICE),
+                                                                                KOID_USBDEVICE);
+            if (UsbDevice == NULL) {
+                ERROR(TEXT("[XHCI_Attach] USB device object allocation failed"));
+                XHCI_FreeResources(Device);
+                KernelHeapFree(Device);
+                return NULL;
+            }
+            XHCI_InitUsbDeviceObject(Device, UsbDevice);
             UsbDevice->IsRootPort = TRUE;
             UsbDevice->PortNumber = (U8)(PortIndex + 1);
             UsbDevice->RootPortNumber = UsbDevice->PortNumber;
             UsbDevice->Depth = 0;
             UsbDevice->RouteString = 0;
+            Device->UsbDevices[PortIndex] = UsbDevice;
+            XHCI_AddDeviceToList(Device, UsbDevice);
         }
     }
 

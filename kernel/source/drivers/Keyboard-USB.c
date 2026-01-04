@@ -251,7 +251,16 @@ static BOOL USBKeyboardIsDevicePresent(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE U
         return FALSE;
     }
 
-    for (LPXHCI_USB_DEVICE Curr = Device->DeviceList; Curr != NULL; Curr = Curr->NextDevice) {
+    LPLIST UsbDeviceList = GetUsbDeviceList();
+    if (UsbDeviceList == NULL) {
+        return FALSE;
+    }
+
+    for (LPLISTNODE Node = UsbDeviceList->First; Node != NULL; Node = Node->Next) {
+        LPXHCI_USB_DEVICE Curr = (LPXHCI_USB_DEVICE)Node;
+        if (Curr->Controller != Device) {
+            continue;
+        }
         if (Curr == UsbDevice && Curr->Present) {
             return TRUE;
         }
@@ -293,7 +302,15 @@ static BOOL USBKeyboardFindDevice(LPXHCI_DEVICE* DeviceOut,
         SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
             XHCI_EnsureUsbDevices(Device);
 
-            for (LPXHCI_USB_DEVICE UsbDevice = Device->DeviceList; UsbDevice != NULL; UsbDevice = UsbDevice->NextDevice) {
+            LPLIST UsbDeviceList = GetUsbDeviceList();
+            if (UsbDeviceList == NULL) {
+                continue;
+            }
+            for (LPLISTNODE UsbNode = UsbDeviceList->First; UsbNode != NULL; UsbNode = UsbNode->Next) {
+                LPXHCI_USB_DEVICE UsbDevice = (LPXHCI_USB_DEVICE)UsbNode;
+                if (UsbDevice->Controller != Device) {
+                    continue;
+                }
                 if (!UsbDevice->Present || UsbDevice->IsHub) {
                     continue;
                 }

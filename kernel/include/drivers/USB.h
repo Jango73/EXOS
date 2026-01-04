@@ -28,6 +28,7 @@
 /***************************************************************************/
 
 #include "Base.h"
+#include "Device.h"
 
 /***************************************************************************/
 
@@ -171,6 +172,20 @@ typedef struct tag_USB_SETUP_PACKET {
     U16 Index;
     U16 Length;
 } USB_SETUP_PACKET, *LPUSB_SETUP_PACKET;
+
+/***************************************************************************/
+// USB device base fields
+
+#define USB_DEVICE_FIELDS           \
+    DEVICE_FIELDS                   \
+    USB_ADDRESS Address;            \
+    U8 SpeedId;                     \
+    U16 MaxPacketSize0;             \
+    USB_DEVICE_DESCRIPTOR DeviceDescriptor; \
+    U8 SelectedConfigValue;         \
+    U8 StringManufacturer;          \
+    U8 StringProduct;               \
+    U8 StringSerial;
 
 /***************************************************************************/
 
