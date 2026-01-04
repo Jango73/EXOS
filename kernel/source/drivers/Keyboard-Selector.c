@@ -220,10 +220,10 @@ static UINT KeyboardSelectorCommands(UINT Function, UINT Parameter) {
         case DF_KEY_SETDELAY:
         case DF_KEY_GETRATE:
         case DF_KEY_SETRATE:
-            return MAX_U32;
+            return DF_RETURN_NOT_IMPLEMENTED;
     }
 
-    return MAX_U32;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /************************************************************************/

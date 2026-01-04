@@ -569,7 +569,7 @@ UINT SerialMouseCommands(UINT Function, UINT Parameter) {
         case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_MOUSE_RESET:
-            return 0;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_MOUSE_GETDELTAX:
             return (UINT)MouseCommonGetDeltaX(&SerialMouseDriverState.Common);
         case DF_MOUSE_GETDELTAY:
@@ -580,5 +580,5 @@ UINT SerialMouseCommands(UINT Function, UINT Parameter) {
             return ((SerialMouseDriverState.Driver.Flags & DRIVER_FLAG_READY) != 0) ? 1U : 0U;
     }
 
-    return (UINT)MAX_U32;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }

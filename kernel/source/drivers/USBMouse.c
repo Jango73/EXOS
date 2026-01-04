@@ -563,7 +563,7 @@ UINT USBMouseCommands(UINT Function, UINT Parameter) {
         case DF_GET_VERSION:
             return MAKE_VERSION(USB_MOUSE_VER_MAJOR, USB_MOUSE_VER_MINOR);
         case DF_MOUSE_RESET:
-            return 0;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_MOUSE_GETDELTAX:
             return (UINT)MouseCommonGetDeltaX(&USBMouseDriverState.Common);
         case DF_MOUSE_GETDELTAY:
@@ -580,7 +580,7 @@ UINT USBMouseCommands(UINT Function, UINT Parameter) {
             return 0;
     }
 
-    return (UINT)MAX_U32;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /***************************************************************************/

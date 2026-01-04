@@ -704,7 +704,7 @@ UINT USBKeyboardCommands(UINT Function, UINT Parameter) {
         case DF_GET_VERSION:
             return MAKE_VERSION(USB_KEYBOARD_VER_MAJOR, USB_KEYBOARD_VER_MINOR);
         case DF_KEY_GETSTATE:
-            return 0;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_KEY_GETLED:
         case DF_KEY_SETLED:
         case DF_KEY_GETDELAY:
@@ -713,10 +713,10 @@ UINT USBKeyboardCommands(UINT Function, UINT Parameter) {
         case DF_KEY_SETRATE:
         case DF_KEY_ISKEY:
         case DF_KEY_GETKEY:
-            return (UINT)MAX_U32;
+            return DF_RETURN_NOT_IMPLEMENTED;
     }
 
-    return (UINT)MAX_U32;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /***************************************************************************/

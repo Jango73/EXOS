@@ -525,7 +525,7 @@ UINT StdKeyboardCommands(UINT Function, UINT Parameter) {
         case DF_GET_LAST_FUNCTION:
             return 0;
         case DF_KEY_GETSTATE:
-            return 0;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_KEY_ISKEY:
             return (UINT)PeekChar();
         case DF_KEY_GETKEY:
@@ -535,16 +535,16 @@ UINT StdKeyboardCommands(UINT Function, UINT Parameter) {
         case DF_KEY_SETLED:
             return (UINT)SetKeyboardLEDs(Parameter);
         case DF_KEY_GETDELAY:
-            return 0;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_KEY_SETDELAY:
-            return 0;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_KEY_GETRATE:
-            return 0;
+            return DF_RETURN_NOT_IMPLEMENTED;
         case DF_KEY_SETRATE:
-            return 0;
+            return DF_RETURN_NOT_IMPLEMENTED;
     }
 
-    return MAX_U32;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /***************************************************************************/
