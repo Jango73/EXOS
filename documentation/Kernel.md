@@ -131,7 +131,7 @@ dead, and compose. The kernel keeps an embedded en-US fallback
 (KEY_LAYOUT_FALLBACK_CODE) used when HID layout loading fails.
 The HID layout loader parses EKM1 files with a tolerant UTF-8 decoder, logs
 replacement counts, and rejects malformed directives or out-of-range entries.
-USB HID keyboard support lives in `kernel/source/drivers/USBKeyboard.c` and
+USB HID keyboard support lives in `kernel/source/drivers/Keyboard-USB.c` and
 feeds boot protocol reports into the same HID usage pipeline as PS/2.
 Keyboard initialization is now mediated by a selector driver
 (`kernel/source/drivers/Keyboard-Selector.c`) that probes for a USB HID
@@ -199,7 +199,7 @@ before `LoadAllDrivers()` walks the list.
 
 Mouse input is shared through `kernel/source/MouseCommon.c`, which buffers
 deltas/buttons, dispatches events, and selects the active mouse driver. USB HID
-mouse support lives in `kernel/source/drivers/USBMouse.c` and takes priority
+mouse support lives in `kernel/source/drivers/Mouse-USB.c` and takes priority
 over the serial mouse when a USB device is present.
 
 USB foundations live under `kernel/include/drivers/USB.h`. The header defines
