@@ -23,6 +23,8 @@
 \\************************************************************************/
 
 #include "drivers/XHCI-Internal.h"
+#include "Clock.h"
+#include "utils/ThresholdLatch.h"
 
 /************************************************************************/
 
@@ -376,6 +378,10 @@ static void XHCI_ResetTransferRingState(PHYSICAL RingPhysical, LINEAR RingLinear
  */
 static BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U8* SlotIdOut, U32* CompletionOut) {
     U32 Timeout = XHCI_EVENT_TIMEOUT_MS;
+    U32 StartTick = GetSystemTime();
+    THRESHOLD_LATCH Latch;
+
+    ThresholdLatchInit(&Latch, TEXT("Command completion"), 200, StartTick);
 
     LockMutex(&(Device->Mutex), INFINITY);
     if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT, TrbPhysical, SlotIdOut, CompletionOut)) {
@@ -390,11 +396,19 @@ static BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical,
             return TRUE;
         }
 
+        if (ThresholdLatchCheck(&Latch, GetSystemTime())) {
+            WARNING(TEXT("[XHCI_WaitForCommandCompletion] %s exceeded %u ms (TRB=%p)"),
+                    Latch.Name ? Latch.Name : TEXT("?"),
+                    Latch.ThresholdMS,
+                    (LPVOID)U64_Low32(TrbPhysical));
+        }
+
         Sleep(1);
         Timeout--;
     }
 
     UnlockMutex(&(Device->Mutex));
+    WARNING(TEXT("[XHCI_WaitForCommandCompletion] Timeout %u ms (TRB=%p)"), XHCI_EVENT_TIMEOUT_MS, (LPVOID)U64_Low32(TrbPhysical));
     return FALSE;
 }
 
@@ -409,6 +423,10 @@ static BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical,
  */
 static BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* CompletionOut) {
     U32 Timeout = XHCI_EVENT_TIMEOUT_MS;
+    U32 StartTick = GetSystemTime();
+    THRESHOLD_LATCH Latch;
+
+    ThresholdLatchInit(&Latch, TEXT("Transfer completion"), 200, StartTick);
 
     LockMutex(&(Device->Mutex), INFINITY);
     if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut)) {
@@ -423,11 +441,19 @@ static BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical
             return TRUE;
         }
 
+        if (ThresholdLatchCheck(&Latch, GetSystemTime())) {
+            WARNING(TEXT("[XHCI_WaitForTransferCompletion] %s exceeded %u ms (TRB=%p)"),
+                    Latch.Name ? Latch.Name : TEXT("?"),
+                    Latch.ThresholdMS,
+                    (LPVOID)U64_Low32(TrbPhysical));
+        }
+
         Sleep(1);
         Timeout--;
     }
 
     UnlockMutex(&(Device->Mutex));
+    WARNING(TEXT("[XHCI_WaitForTransferCompletion] Timeout %u ms (TRB=%p)"), XHCI_EVENT_TIMEOUT_MS, (LPVOID)U64_Low32(TrbPhysical));
     return FALSE;
 }
 
@@ -1190,7 +1216,12 @@ static BOOL XHCI_ResetPort(LPXHCI_DEVICE Device, U32 PortIndex) {
     PortStatus &= ~XHCI_PORTSC_W1C_MASK;
     XHCI_Write32(Device->OpBase, Offset, PortStatus);
 
-    if (!XHCI_WaitForRegister(Device->OpBase, Offset, XHCI_PORTSC_PR, 0, XHCI_PORT_RESET_TIMEOUT)) {
+    if (!XHCI_WaitForRegister(Device->OpBase,
+                              Offset,
+                              XHCI_PORTSC_PR,
+                              0,
+                              XHCI_PORT_RESET_TIMEOUT,
+                              TEXT("Port reset"))) {
         ERROR(TEXT("[XHCI_ResetPort] Port %u reset timeout"), PortIndex + 1);
         return FALSE;
     }
@@ -2043,6 +2074,14 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
     }
 
     if (!XHCI_ResetPort(Device, PortIndex)) {
+        return FALSE;
+    }
+
+    PortStatus = XHCI_ReadPortStatus(Device, PortIndex);
+    SpeedId = (PortStatus & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
+    UsbDevice->SpeedId = (U8)SpeedId;
+    if (UsbDevice->SpeedId == 0) {
+        WARNING(TEXT("[XHCI_ProbePort] Port %u invalid speed after reset"), PortIndex + 1);
         return FALSE;
     }
 

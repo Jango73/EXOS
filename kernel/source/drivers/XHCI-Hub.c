@@ -182,6 +182,10 @@ static BOOL XHCI_ResetHubPort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub, U8 Po
         Timeout--;
     }
 
+    if (Timeout == 0) {
+        WARNING(TEXT("[XHCI_ResetHubPort] Timeout %u ms (Port=%u)"), XHCI_PORT_RESET_TIMEOUT, Port);
+    }
+
     return (Timeout != 0);
 }
 

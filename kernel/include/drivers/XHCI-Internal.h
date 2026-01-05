@@ -122,6 +122,7 @@
 
 #define XHCI_TRB_TYPE_SHIFT 10
 #define XHCI_TRB_TYPE_LINK 6
+#define XHCI_TRB_TYPE_MASK 0x3F
 
 #define XHCI_TRB_CYCLE 0x00000001
 #define XHCI_TRB_TOGGLE_CYCLE 0x00000002
@@ -357,7 +358,7 @@ BOOL XHCI_RingEnqueue(LINEAR RingLinear, PHYSICAL RingPhysical, U32* EnqueueInde
                       U32 RingTrbs, const XHCI_TRB* Trb, U64* PhysicalOut);
 BOOL XHCI_DequeueEvent(LPXHCI_DEVICE Device, XHCI_TRB* EventOut);
 void XHCI_PollCompletions(LPXHCI_DEVICE Device);
-BOOL XHCI_WaitForRegister(LINEAR Base, U32 Offset, U32 Mask, U32 Value, U32 Timeout);
+BOOL XHCI_WaitForRegister(LINEAR Base, U32 Offset, U32 Mask, U32 Value, U32 Timeout, LPCSTR Name);
 BOOL XHCI_AllocPage(LPCSTR Tag, PHYSICAL *PhysicalOut, LINEAR *LinearOut);
 U32 XHCI_ReadPortStatus(LPXHCI_DEVICE Device, U32 PortIndex);
 void XHCI_AddDeviceToList(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice);

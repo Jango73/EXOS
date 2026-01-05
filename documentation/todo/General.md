@@ -5,6 +5,10 @@
 - Opening a file in a userland program without an absolute path should do the same as using getcwd().
 - Add a getpd() that returns the folder in which the current executable's image lives.
 
+## Defines
+
+- CR0_* must be common to i386 and x86-64, using same names.
+
 ## Naming
 
 - Remove all abbreviations

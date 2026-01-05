@@ -24,6 +24,8 @@
 
 #include "drivers/USBKeyboard.h"
 #include "drivers/XHCI-Internal.h"
+#include "Clock.h"
+#include "utils/ThresholdLatch.h"
 
 /************************************************************************/
 // MMIO access
@@ -431,13 +433,49 @@ BOOL XHCI_RingEnqueue(LINEAR RingLinear, PHYSICAL RingPhysical, U32* EnqueueInde
  * @param PhysicalOut Receives physical address of the enqueued TRB.
  * @return TRUE on success.
  */
+static LPCSTR XHCI_GetCommandTypeName(U32 Type) {
+    switch (Type) {
+        case XHCI_TRB_TYPE_ENABLE_SLOT:
+            return TEXT("Enable Slot");
+        case XHCI_TRB_TYPE_DISABLE_SLOT:
+            return TEXT("Disable Slot");
+        case XHCI_TRB_TYPE_ADDRESS_DEVICE:
+            return TEXT("Address Device");
+        case XHCI_TRB_TYPE_CONFIGURE_ENDPOINT:
+            return TEXT("Configure Endpoint");
+        case XHCI_TRB_TYPE_EVALUATE_CONTEXT:
+            return TEXT("Evaluate Context");
+        case XHCI_TRB_TYPE_RESET_ENDPOINT:
+            return TEXT("Reset Endpoint");
+        case XHCI_TRB_TYPE_STOP_ENDPOINT:
+            return TEXT("Stop Endpoint");
+        default:
+            return TEXT("Unknown command");
+    }
+}
+
+/************************************************************************/
+
 BOOL XHCI_CommandRingEnqueue(LPXHCI_DEVICE Device, const XHCI_TRB* Trb, U64* PhysicalOut) {
     if (Device == NULL || Trb == NULL) {
         return FALSE;
     }
-    return XHCI_RingEnqueue(Device->CommandRingLinear, Device->CommandRingPhysical,
-                            &Device->CommandRingEnqueueIndex, &Device->CommandRingCycleState,
-                            XHCI_COMMAND_RING_TRBS, Trb, PhysicalOut);
+    if (!XHCI_RingEnqueue(Device->CommandRingLinear, Device->CommandRingPhysical,
+                          &Device->CommandRingEnqueueIndex, &Device->CommandRingCycleState,
+                          XHCI_COMMAND_RING_TRBS, Trb, PhysicalOut)) {
+        return FALSE;
+    }
+
+    if (PhysicalOut != NULL) {
+        U32 Type = (Trb->Dword3 >> XHCI_TRB_TYPE_SHIFT) & XHCI_TRB_TYPE_MASK;
+        LPCSTR Name = XHCI_GetCommandTypeName(Type);
+        WARNING(TEXT("[XHCI_CommandRingEnqueue] Command=%s Type=%x TRB=%p"),
+                Name ? Name : TEXT("?"),
+                Type,
+                (LPVOID)U64_Low32(*PhysicalOut));
+    }
+
+    return TRUE;
 }
 
 /************************************************************************/
@@ -522,13 +560,48 @@ void XHCI_PollCompletions(LPXHCI_DEVICE Device) {
  * @param Timeout Loop bound.
  * @return TRUE on success, FALSE on timeout.
  */
-BOOL XHCI_WaitForRegister(LINEAR Base, U32 Offset, U32 Mask, U32 Value, U32 Timeout) {
+BOOL XHCI_WaitForRegister(LINEAR Base, U32 Offset, U32 Mask, U32 Value, U32 Timeout, LPCSTR Name) {
     U32 Count = 0;
+    U32 StartTick = GetSystemTime();
+    U32 StartTickFallback = StartTick;
+    U32 StartCount = 0;
+    THRESHOLD_LATCH Latch;
+
+    ThresholdLatchInit(&Latch, Name, 200, StartTick);
     while (Count < Timeout) {
         if ((XHCI_Read32(Base, Offset) & Mask) == Value) {
             return TRUE;
         }
         Count++;
+        if ((Count & 0x0FFF) == 0) {
+            U32 Now = GetSystemTime();
+            if (Now > StartTickFallback) {
+                if (ThresholdLatchCheck(&Latch, Now)) {
+                    WARNING(TEXT("[XHCI_WaitForRegister] %s exceeded %u ms (base=%p off=%x mask=%x value=%x)"),
+                            (Latch.Name != NULL) ? Latch.Name : TEXT("?"),
+                            Latch.ThresholdMS,
+                            (LPVOID)Base,
+                            Offset,
+                            Mask,
+                            Value);
+                }
+            } else if (StartCount == 0) {
+                StartCount = Count;
+                StartTickFallback = Now;
+            } else {
+                U32 ElapsedCounts = Count - StartCount;
+                if (ElapsedCounts >= 0x40000U) {
+                    WARNING(TEXT("[XHCI_WaitForRegister] %s exceeded %x spins (base=%p off=%x mask=%x value=%x)"),
+                            (Latch.Name != NULL) ? Latch.Name : TEXT("?"),
+                            ElapsedCounts,
+                            (LPVOID)Base,
+                            Offset,
+                            Mask,
+                            Value);
+                    StartCount = Count;
+                }
+            }
+        }
     }
     return FALSE;
 }
@@ -772,7 +845,12 @@ static BOOL XHCI_ResetAndStart(LPXHCI_DEVICE Device) {
     Command &= ~XHCI_USBCMD_RS;
     XHCI_Write32(Device->OpBase, XHCI_OP_USBCMD, Command);
 
-    if (!XHCI_WaitForRegister(Device->OpBase, XHCI_OP_USBSTS, XHCI_USBSTS_HCH, XHCI_USBSTS_HCH, XHCI_HALT_TIMEOUT)) {
+    if (!XHCI_WaitForRegister(Device->OpBase,
+                              XHCI_OP_USBSTS,
+                              XHCI_USBSTS_HCH,
+                              XHCI_USBSTS_HCH,
+                              XHCI_HALT_TIMEOUT,
+                              TEXT("Controller halt"))) {
         ERROR(TEXT("[XHCI_ResetAndStart] Halt timeout"));
         return FALSE;
     }
@@ -780,12 +858,22 @@ static BOOL XHCI_ResetAndStart(LPXHCI_DEVICE Device) {
     Command |= XHCI_USBCMD_HCRST;
     XHCI_Write32(Device->OpBase, XHCI_OP_USBCMD, Command);
 
-    if (!XHCI_WaitForRegister(Device->OpBase, XHCI_OP_USBCMD, XHCI_USBCMD_HCRST, 0, XHCI_RESET_TIMEOUT)) {
+    if (!XHCI_WaitForRegister(Device->OpBase,
+                              XHCI_OP_USBCMD,
+                              XHCI_USBCMD_HCRST,
+                              0,
+                              XHCI_RESET_TIMEOUT,
+                              TEXT("Controller reset"))) {
         ERROR(TEXT("[XHCI_ResetAndStart] Reset bit timeout"));
         return FALSE;
     }
 
-    if (!XHCI_WaitForRegister(Device->OpBase, XHCI_OP_USBSTS, XHCI_USBSTS_CNR, 0, XHCI_RESET_TIMEOUT)) {
+    if (!XHCI_WaitForRegister(Device->OpBase,
+                              XHCI_OP_USBSTS,
+                              XHCI_USBSTS_CNR,
+                              0,
+                              XHCI_RESET_TIMEOUT,
+                              TEXT("Controller ready"))) {
         ERROR(TEXT("[XHCI_ResetAndStart] Controller not ready"));
         return FALSE;
     }
@@ -819,7 +907,12 @@ static BOOL XHCI_ResetAndStart(LPXHCI_DEVICE Device) {
     Command |= XHCI_USBCMD_RS;
     XHCI_Write32(Device->OpBase, XHCI_OP_USBCMD, Command);
 
-    if (!XHCI_WaitForRegister(Device->OpBase, XHCI_OP_USBSTS, XHCI_USBSTS_HCH, 0, XHCI_RUN_TIMEOUT)) {
+    if (!XHCI_WaitForRegister(Device->OpBase,
+                              XHCI_OP_USBSTS,
+                              XHCI_USBSTS_HCH,
+                              0,
+                              XHCI_RUN_TIMEOUT,
+                              TEXT("Controller run"))) {
         ERROR(TEXT("[XHCI_ResetAndStart] Run timeout"));
         return FALSE;
     }

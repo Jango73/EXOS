@@ -196,6 +196,8 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
             KernelPrintString(TEXT("WARNING > "));
             KernelPrintString(TextBuffer);
             KernelPrintString(Text_NewLine);
+            ConsolePrint(TextBuffer);
+            ConsolePrint(Text_NewLine);
         } break;
 
         case LOG_ERROR: {
