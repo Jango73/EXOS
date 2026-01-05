@@ -71,6 +71,7 @@ endstruc
 Start:
     cli                                     ; Disable interrupts
     xor         ax, ax
+    mov         ds, ax
     mov         ss, ax
     mov         sp, 0x7C00
     mov         ax, 0xB800
@@ -195,7 +196,7 @@ DAP_Buffer_Segment : dw 0x0000
 DAP_Start_LBA_Low : dd 0
 DAP_Start_LBA_High : dd 0
 
-ActivePartition : db 0
+ActivePartition : dw 0
 Text_Failed: db "VBR boot failed.",13,10,0
 
 %if DEBUG_OUTPUT

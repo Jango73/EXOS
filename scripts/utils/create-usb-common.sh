@@ -68,9 +68,27 @@ show_success() {
 
 SUCCESS! $DEVICE_PATH is now bootable.
 
-1. Safely remove the USB key
+1. The USB key will be ejected when possible
 2. Plug it into the target machine
 3. Boot → select USB in BIOS/UEFI
 
 EOF
+}
+
+eject_device() {
+    local DEVICE_PATH="$1"
+
+    if command -v udisksctl >/dev/null 2>&1; then
+        if udisksctl power-off -b "$DEVICE_PATH" >/dev/null 2>&1; then
+            return 0
+        fi
+    fi
+
+    if command -v eject >/dev/null 2>&1; then
+        if eject "$DEVICE_PATH" >/dev/null 2>&1; then
+            return 0
+        fi
+    fi
+
+    echo "WARNING: Could not eject $DEVICE_PATH. Remove it safely."
 }
