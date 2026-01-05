@@ -26,5 +26,8 @@ IMAGE_PATH="build/$ARCH/boot-hd/exos.img"
 
 confirm_flash "$ARCH" "$IMAGE_PATH" "$DEVICE_PATH"
 flash_image "$IMAGE_PATH" "$DEVICE_PATH"
-show_success "$DEVICE_PATH"
-eject_device "$DEVICE_PATH"
+if eject_device "$DEVICE_PATH"; then
+    show_success "$DEVICE_PATH" "OK"
+else
+    show_success "$DEVICE_PATH" "FAILED"
+fi

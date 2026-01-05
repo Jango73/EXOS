@@ -63,14 +63,16 @@ flash_image() {
 
 show_success() {
     local DEVICE_PATH="$1"
-    
+    local EJECTED="$2"
+
     cat <<EOF
 
 SUCCESS! $DEVICE_PATH is now bootable.
 
-1. The USB key will be ejected when possible
-2. Plug it into the target machine
-3. Boot → select USB in BIOS/UEFI
+Ejection: $EJECTED
+
+1. Plug it into the target machine
+2. Boot → select USB in BIOS/UEFI
 
 EOF
 }
@@ -90,5 +92,5 @@ eject_device() {
         fi
     fi
 
-    echo "WARNING: Could not eject $DEVICE_PATH. Remove it safely."
+    return 1
 }
