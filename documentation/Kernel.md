@@ -108,7 +108,7 @@ On x86-64 every successful `AllocRegion` emits a `MEMORY_REGION_DESCRIPTOR` reco
 
 ### Logging
 
-Kernel logging funnels through `KernelLogText` and uses typed prefixes for log classes. The available log types are `DEBUG`, `WARNING`, `ERROR`, `VERBOSE`, and `TEST`. `DEBUG`, `WARNING`, `ERROR`, and `VERBOSE` are always available, while `TEST` is a debug-only type used by automated test scripts and is compiled out when `DEBUG_OUTPUT` is disabled. All logs follow the standard `[FunctionName]` prefix rule and emit structured results such as `TEST > [CMD_sysinfo] sysinfo : OK`. Serial output is sanitized to printable ASCII (plus tab/newline) before being written to the log.
+Kernel logging funnels through `KernelLogText` and uses typed prefixes for log classes. The available log types are `DEBUG`, `WARNING`, `ERROR`, `VERBOSE`, and `TEST`. `DEBUG`, `WARNING`, `ERROR`, and `VERBOSE` are always available, while `TEST` is a debug-only type used by automated test scripts and is compiled out when `DEBUG_OUTPUT` is disabled. All logs follow the standard `[FunctionName]` prefix rule and emit structured results such as `TEST > [CMD_sysinfo] sysinfo : OK`. Serial output is sanitized to printable ASCII (plus tab/newline) before being written to the log. When `DEBUG_SPLIT` is set to `1`, the kernel log stream is sent to a dedicated console region on the right side of the screen while standard console output remains on the left.
 
 ### Kernel objects
 

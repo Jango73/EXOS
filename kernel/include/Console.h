@@ -38,7 +38,30 @@
 
 /***************************************************************************/
 
+#define MAX_CONSOLE_REGIONS 16
+
+/***************************************************************************/
+
+typedef struct tag_CONSOLE_REGION {
+    U32 X;
+    U32 Y;
+    U32 Width;
+    U32 Height;
+    U32 CursorX;
+    U32 CursorY;
+    U32 ForeColor;
+    U32 BackColor;
+    U32 Blink;
+    U32 PagingEnabled;
+    U32 PagingActive;
+    U32 PagingRemaining;
+} CONSOLE_REGION, *LPCONSOLE_REGION;
+
+/***************************************************************************/
+
 typedef struct tag_CONSOLE_STRUCT {
+    U32 ScreenWidth;
+    U32 ScreenHeight;
     U32 Width;
     U32 Height;
     U32 CursorX;
@@ -49,8 +72,12 @@ typedef struct tag_CONSOLE_STRUCT {
     U32 PagingEnabled;
     U32 PagingActive;
     U32 PagingRemaining;
+    U32 RegionCount;
+    U32 ActiveRegion;
+    U32 DebugRegion;
     U32 Port;
     U16* Memory;
+    CONSOLE_REGION Regions[MAX_CONSOLE_REGIONS];
 } CONSOLE_STRUCT, *LPCONSOLE_STRUCT;
 
 /***************************************************************************/
@@ -63,6 +90,8 @@ void ClearConsole(void);
 void ConsolePrintChar(STR);
 void ConsoleBackSpace(void);
 void ConsolePrint(LPCSTR Format, ...);
+void ConsolePrintDebugChar(STR Char);
+BOOL ConsoleIsDebugSplitEnabled(void);
 void ConsolePrintLine(U32 Row, U32 Column, LPCSTR Text, U32 Length);
 int SetConsoleBackColor(U32 Color);
 int SetConsoleForeColor(U32 Color);

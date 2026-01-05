@@ -1284,6 +1284,8 @@ UINT SysCall_ConsoleBlitBuffer(UINT Parameter) {
     if (Info != NULL && IsValidMemory((LINEAR)Info) && IsValidMemory((LINEAR)Info->Text)) {
         UINT maxWidth = Console.Width;
         UINT maxHeight = Console.Height;
+        UINT baseX = Console.Regions[0].X;
+        UINT baseY = Console.Regions[0].Y;
         UINT row;
         UINT width = Info->Width;
         UINT height = Info->Height;
@@ -1328,7 +1330,7 @@ UINT SysCall_ConsoleBlitBuffer(UINT Parameter) {
                 U16 attribute = (U16)(cellFore | (cellBack << 0x04) | (Console.Blink << 0x07));
                 attribute = (U16)(attribute << 0x08);
                 if (x + col < maxWidth && y + row < maxHeight) {
-                    UINT offset = ((y + row) * Console.Width) + (x + col);
+                    UINT offset = ((baseY + y + row) * Console.ScreenWidth) + (baseX + x + col);
                     STR character = Info->Text[(row * textPitch) + col];
                     Console.Memory[offset] = (U16)character | attribute;
                 }

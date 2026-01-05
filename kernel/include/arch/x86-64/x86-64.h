@@ -93,6 +93,8 @@
 
 #define CR0_COPROCESSOR 0x00000002
 #define CR0_EMULATION 0x00000004
+#define CR0_TASKSWITCH 0x00000008           // Set on task switch
+#define CR0_NUMERIC_ERROR 0x00000020        // Native x87 error reporting
 #define CR4_OSFXSR 0x00000200
 #define CR4_OSXMMEXCPT 0x00000400
 

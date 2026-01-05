@@ -4,6 +4,7 @@ SHELL = /bin/bash
 ARCH 					?= i386
 BARE_METAL              ?= 0
 DEBUG_OUTPUT            ?= 0
+DEBUG_SPLIT             ?= 0
 SCHEDULING_DEBUG_OUTPUT ?= 0
 TRACE_STACK_USAGE       ?= 0
 PROFILING               ?= 0
@@ -39,14 +40,14 @@ else
 $(error Unsupported architecture $(ARCH))
 endif
 
-NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DUSE_SYSCALL=$(USE_SYSCALL) -DPROFILING=$(PROFILING)
+NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DDEBUG_SPLIT=$(DEBUG_SPLIT) -DUSE_SYSCALL=$(USE_SYSCALL) -DPROFILING=$(PROFILING)
 CFLAGS          = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
                   -ffreestanding -fno-builtin -nostdinc \
                   -fno-pic -fno-pie -fno-stack-protector \
                   -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
                   -fvisibility=hidden -mno-red-zone \
                   -Werror-implicit-function-declaration -Wstrict-prototypes \
-                  -DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) -DPROFILING=$(PROFILING) -DUSE_SYSCALL=$(USE_SYSCALL) \
+                  -DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DDEBUG_SPLIT=$(DEBUG_SPLIT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) -DPROFILING=$(PROFILING) -DUSE_SYSCALL=$(USE_SYSCALL) \
                   -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) \
                   -Iinclude -I../third -I../third/include -I../runtime/include
 CFLAGS         += $(ARCH_CFLAGS)
@@ -59,7 +60,7 @@ ifeq ($(ARCH),x86-64)
 AFLAGS_INCLUDES += -I source/arch/i386/asm/
 endif
 
-AFLAGS          = -f $(NASM_FORMAT) -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DPROFILING=$(PROFILING) -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) -DUSE_SYSCALL=$(USE_SYSCALL) $(AFLAGS_INCLUDES)
+AFLAGS          = -f $(NASM_FORMAT) -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DDEBUG_SPLIT=$(DEBUG_SPLIT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DPROFILING=$(PROFILING) -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) -DUSE_SYSCALL=$(USE_SYSCALL) $(AFLAGS_INCLUDES)
 
 LINKER_SCRIPT   = exos-$(ARCH).ld
 
