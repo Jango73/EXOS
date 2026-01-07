@@ -316,8 +316,6 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize) {
 /************************************************************************/
 
 static void BuildGdtFlat(void) {
-    BootDebugPrint(TEXT("[VBR x86-64] BuildGdtFlat\r\n"));
-
     MemorySet(GdtEntries, 0, sizeof(GdtEntries));
 
     SetSegmentDescriptorX8664(
