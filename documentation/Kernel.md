@@ -16,7 +16,6 @@
   - [Shell scripting integration](#shell-scripting-integration)
   - [Task and window message delivery](#task-and-window-message-delivery)
   - [ACPI services](#acpi-services)
-  - [Desktop ownership helpers](#desktop-ownership-helpers)
 - [Startup sequence on HD (real HD on i386 or qemu-system-i386)](#startup-sequence-on-hd-real-hd-on-i386-or-qemu-system-i386)
 - [Physical Memory map (may change)](#physical-memory-map-may-change)
 - [Disk interfaces](#disk-interfaces)
@@ -186,10 +185,6 @@ The VESA graphics driver always requests VBE modes in linear frame buffer mode (
 
 Advanced power management and reset paths live in `kernel/source/ACPI.c`. The module discovers ACPI tables, exposes the parsed configuration, and offers helpers for platform control. `ACPIShutdown()` releases ACPI mappings and state without powering off. `ACPIPowerOff()` enters the S5 soft-off state using the `_S5` sleep type from the DSDT when available (defaults to 7 otherwise) and falls back to legacy power-off sequences when the ACPI path fails. The new `ACPIReboot()` companion performs a warm reboot by first using the ACPI reset register (when present) and then chaining to legacy reset controllers to ensure the machine restarts even on older chipsets. Kernel-level wrappers `ShutdownKernel()` and `RebootKernel()` drive shell commands, clear userland processes, then kernel tasks, and perform a reverse-order driver unload before handing control to the ACPI routines so subsystems leave as few pending resources as possible when the machine powers off or reboots.
 
-### Desktop ownership helpers
-
-Window managers can reuse the desktop that was assigned to their process instead of blindly creating a new one. The kernel exports `SYSCALL_GetCurrentDesktop`, which returns the desktop handle currently associated with the caller. The runtime exposes this through `GetCurrentDesktop()`, allowing userland code to acquire the handle, fetch the desktop window, and issue `ShowDesktop()` without forking a duplicate desktop. Callers still retain the option to create a dedicated desktop when `GetCurrentDesktop()` returns `NULL`, but typical applications leverage the existing object so their top-level windows appear on the main desktop instead of being hidden behind a detached surface.
-
 ## Startup sequence on HD (real HD on i386 or qemu-system-i386)
 
 Everything in this sequence runs in 16-bit real mode on i386+ processors. However, the code uses 32 bit registers when appropriate.
@@ -198,10 +193,10 @@ Everything in this sequence runs in 16-bit real mode on i386+ processors. Howeve
 2. Code in mbr.asm is executed.
 3. MBR code looks for the active partition and loads its VBR at 0x7E00.
 4. Code in vbr.asm is executed.
-5. VBR code loads the reserved FAT32 sectors (which contain VBR payload) at 0x8000.
+5. VBR code loads the reserved FAT32/EXT2 sectors (which contain VBR payload) at 0x8000.
 6. Code in vbr-payload-a.asm is executed.
 7. VBR payload asm sets up a stack and calls BootMain in vbr-payload-c.c.
-8. BootMain finds the FAT32 entry for the specified binary.
+8. BootMain finds the FAT32/EXT2 entry for the specified binary.
 9. BootMain reads all the clusters of the binary at 0x20000.
 10. EnterProtectedPagingAndJump sets up minimal GDT and paging structures for the loaded binary to execute in higher half memory (0xC0000000).
 11. It finally jumps to the loaded binary.

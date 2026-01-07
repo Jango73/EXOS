@@ -18,10 +18,10 @@ This is a multi-architecture operating system. Currently supporting i386 and x86
 - **Freestanding**: The kernel **MUST NOT** rely on **ANY** external library/module (unless specified otherwise). **NO** stdlib, stdio, whatever. Everything the kernel needs is built in the compiler and in the codebase.
 - **Debugging**: Debug output is logged with DEBUG(). Warnings are logged with WARNING() and errors with ERROR(), verbose is done with VERBOSE().
 - **Logging**: A log string **ALWAYS** begins with "[FunctionName]" where FunctionName is the name of the function where the logging is done. Use "%p" for pointers and addresses, "%x" for values except for sizes which use "%u".
+- **Declaration order**: Group declarations by type. 1: macros / 2: type definitions / 3: inline functions / 4: external functions / 5: other
 - **Function order**: DO NOT OVERUSE forward declarations. Define functions before they are used.
 - **I18n**: Write comments, console output and technical doc in english.
 - **Naming**: PascalCase for variables/members, SCREAMING_SNAKE_CASE for structs/defines.
-- **Declaration order**: Group the declarations in headers. 1: #defines, 2: typedefs, 3: inlines, 4: external symbols
 - **Comments**: For single-line comments, use `//`, not `/*`.
 - **Style**: 4-space indentation, follow `.clang-format` rules.
 - **Numbers**: Hexadecimal for constant numbers, except for sizes, vectors, points and time.
@@ -36,13 +36,13 @@ This is a multi-architecture operating system. Currently supporting i386 and x86
 - **Drivers**: In driver command dispatchers, any non-implemented function MUST return `DF_RETURN_NOT_IMPLEMENTED`.
 - **Clean code**: No duplicate code. Create intermediate functions to avoid it.
 - **No globals**: Before adding a global variable, **ALWAYS ASK** if permitted.
-- **Functions**: Add a doxygen header to functions and separate all functions with a 75 character long line such as : /************************************************************************/
+- **Functions**: Add a doxygen header to functions and separate all functions with a 75 character line such as : /************************************************************************/
 - **EXOS != Unix/Linux/Windows/Whatever** :
   - NEVER use abbreviations; ALWAYS use full words (acronyms are OK).
-  - No directory : use folder.
-  - No symlink : use folder alias.
+  - No "directory" : use "folder".
+  - No "symlink" : use "folder alias".
   - No unix seconds / timestamp : use DATETIME structure.
-  - No INT/UINT in persistent data : those are register-sized.
+  - No INT/UINT in persistent data, those are register-sized. use U8/I8, U16/I16, U32/I32, U64/I64, F32, F64, ...
 
 ## Common Build Commands
 
