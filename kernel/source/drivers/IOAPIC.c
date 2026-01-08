@@ -24,6 +24,7 @@
 
 #include "Base.h"
 #include "drivers/IOAPIC.h"
+#include "drivers/LocalAPIC.h"
 #include "drivers/ACPI.h"
 #include "User.h"
 #include "InterruptController.h"
@@ -701,6 +702,7 @@ void SetDefaultIOAPICConfiguration(void)
     U8 StandardIRQs[] = {0, 1, 3, 4, 7, 8, 12, 14, 15}; // Standard PC IRQs to configure
     U8 NumIRQs = sizeof(StandardIRQs) / sizeof(StandardIRQs[0]);
     U8 i, Vector, ActualPin, TriggerMode, Polarity;
+    U8 DestCPU = GetLocalAPICId();
 
     // DEBUG(TEXT("[SetDefaultIOAPICConfiguration] Setting up default interrupt configuration with IRQ mapping"));
 
@@ -715,7 +717,7 @@ void SetDefaultIOAPICConfiguration(void)
             // DEBUG(TEXT("[SetDefaultIOAPICConfiguration] Configuring IRQ %u -> Pin %u, Vector %02X, Trigger=%u, Polarity=%u"), IRQ, ActualPin, Vector, TriggerMode, Polarity);
 
             ConfigureIOAPICInterrupt(IRQ, Vector, IOAPIC_REDTBL_DELMOD_FIXED,
-                                   TriggerMode, Polarity, 0);
+                                   TriggerMode, Polarity, DestCPU);
         } else {
             ERROR(TEXT("[SetDefaultIOAPICConfiguration] Failed to map IRQ %u"), IRQ);
         }

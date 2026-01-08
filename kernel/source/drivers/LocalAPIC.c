@@ -203,6 +203,7 @@ BOOL EnableLocalAPIC(void) {
     // Write back to MSR
     WriteMSR64(IA32_APIC_BASE_MSR, ApicBaseLow, ApicBaseHigh);
 
+    g_LocalApicConfig.Enabled = TRUE;
     DEBUG(TEXT("[LocalAPIC] Local APIC enabled via MSR"));
     return TRUE;
 }
