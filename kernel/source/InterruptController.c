@@ -879,7 +879,13 @@ static UINT InterruptControllerDriverCommands(UINT Function, UINT Parameter) {
                 return DF_RETURN_SUCCESS;
             }
 
-            if (InitializeInterruptController(INTCTRL_MODE_AUTO)) {
+            INTERRUPT_CONTROLLER_MODE RequestedMode = INTCTRL_MODE_AUTO;
+#if FORCE_PIC == 1
+            RequestedMode = INTCTRL_MODE_FORCE_PIC;
+            VERBOSE(TEXT("[InterruptController] Forcing PIC interrupt controller via build flag"));
+#endif
+
+            if (InitializeInterruptController(RequestedMode)) {
                 InterruptControllerDriver.Flags |= DRIVER_FLAG_READY;
                 return DF_RETURN_SUCCESS;
             }

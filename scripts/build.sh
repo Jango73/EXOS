@@ -2,7 +2,7 @@
 set -e
 
 function Usage() {
-    echo "Usage: $0 --arch <i386|x86-64> --fs <ext2|fat32> [--debug|--release] [--clean] [--scheduling-debug]"
+    echo "Usage: $0 --arch <i386|x86-64> --fs <ext2|fat32> [--debug|--release] [--clean] [--scheduling-debug] [--force-pic]"
 }
 
 ARCH="i386"
@@ -10,6 +10,7 @@ FILE_SYSTEM="ext2"
 BUILD_MODE="release"
 CLEAN=0
 SCHEDULING_DEBUG=0
+FORCE_PIC=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -32,6 +33,9 @@ while [ $# -gt 0 ]; do
             ;;
         --scheduling-debug)
             SCHEDULING_DEBUG=1
+            ;;
+        --force-pic)
+            FORCE_PIC=1
             ;;
         --help|-h)
             Usage
@@ -86,6 +90,7 @@ export PROFILING
 export DEBUG_OUTPUT
 export SCHEDULING_DEBUG_OUTPUT
 export TRACE_STACK_USAGE
+export FORCE_PIC
 export KERNEL_FILE="exos.bin"
 export FILE_SYSTEM="$FILE_SYSTEM"
 
