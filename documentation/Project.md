@@ -65,9 +65,6 @@ Third-party libraries:
 ### `/tools/`
 Development tools and system utilities with their sources.
 
-### `/xfs-manager/`
-EXFS filesystem manager with C++ and assembly code.
-
 ## Root Files
 
 - `Makefile`: Main project build

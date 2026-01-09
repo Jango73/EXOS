@@ -51,6 +51,11 @@ PAYLOAD_STR_C   = ../kernel/source/CoreString.c
 PAYLOAD_SOURCE  ?= source/vbr-payload-c.c
 PAYLOAD_ARCH_SOURCE = source/vbr-payload-$(ARCH).c
 
+TEST_PAYLOAD := 0
+ifneq ($(filter test-payloads/%,$(PAYLOAD_SOURCE)),)
+TEST_PAYLOAD := 1
+endif
+
 PAYLOAD_BIN_LD  = main-bin.ld
 PAYLOAD_ELF_LD  = main-elf.ld
 
@@ -82,7 +87,11 @@ PAYLOAD_STUB_O  = $(BUILD_DIR)/boot-hd/vbr-payload-a.o
 ifneq ($(filter test-payloads/%,$(PAYLOAD_SOURCE)),)
 PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE)
 else
+ifneq ($(filter test-payloads/%,$(PAYLOAD_SOURCE)),)
+PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE)
+else
 PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE) $(PAYLOAD_ARCH_SOURCE) source/vbr-payload-fat32.c source/vbr-payload-ext2.c
+endif
 endif
 PAYLOAD_C_OBJS  = $(patsubst source/%.c,$(BUILD_DIR)/boot-hd/%.o,$(filter source/%.c,$(PAYLOAD_C_SOURCES))) \
                   $(patsubst test-payloads/%.c,$(BUILD_DIR)/boot-hd/test-payloads/%.o,$(filter test-payloads/%.c,$(PAYLOAD_C_SOURCES)))
@@ -200,7 +209,7 @@ define MCOPY_IF_NEEDED
 	fi;
 endef
 
-.PHONY: all update update-fat32 update-ext2 install-mbr install-vbr-payload clean check_tools rebuild-image usb-3-image
+.PHONY: all update update-fat32 update-ext2 update-test-image install-mbr install-vbr-payload clean check_tools rebuild-image usb-3-image
 
 # Default: build tools, ensure images exist (create once), then update contents
 all: check_tools $(FINAL_IMG) $(USB3_IMG) update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
@@ -270,7 +279,17 @@ $(BUILD_DIR)/boot-hd/payload.sym: $(PAYLOAD_ELF)
 	$(NM) $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
 # Create image only if it does not exist
-$(FINAL_IMG): check_tools $(KERNEL_BIN) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(MOUSEINFO_ELF) $(MASTER_ELF) $(SLAVE_ELF)
+FINAL_IMG_DEPS_COMMON = check_tools $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN)
+FINAL_IMG_DEPS_FULL = $(FINAL_IMG_DEPS_COMMON) $(KERNEL_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(MOUSEINFO_ELF) $(MASTER_ELF) $(SLAVE_ELF)
+
+ifeq ($(TEST_PAYLOAD),1)
+FINAL_IMG_DEPS = $(FINAL_IMG_DEPS_COMMON)
+UPDATE_TARGET = update-test-image
+else
+FINAL_IMG_DEPS = $(FINAL_IMG_DEPS_FULL)
+endif
+
+$(FINAL_IMG): $(FINAL_IMG_DEPS)
 	@mkdir -p $(dir $@)
 	$(call $(CREATE_IMAGE_MACRO),$@)
 
@@ -292,6 +311,9 @@ $(KERNEL_CFG_EXT2): $(FINAL_IMG)
 	@[ -f $@ ] || cp $(KERNEL_CFG_REF) $@
 
 update: $(UPDATE_TARGET)
+
+update-test-image: check_payload_size $(FINAL_IMG)
+	@echo "Skipping filesystem staging for test payload build."
 
 update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32)
 	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
