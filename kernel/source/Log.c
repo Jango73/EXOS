@@ -185,6 +185,7 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
         default:
         case LOG_VERBOSE: {
             KernelPrintString(TimeBuffer);
+            KernelPrintString(TEXT("VERBOSE > "));
             KernelPrintString(TextBuffer);
             KernelPrintString(Text_NewLine);
             ConsolePrint(TextBuffer);
@@ -196,8 +197,6 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
             KernelPrintString(TEXT("WARNING > "));
             KernelPrintString(TextBuffer);
             KernelPrintString(Text_NewLine);
-            ConsolePrint(TextBuffer);
-            ConsolePrint(Text_NewLine);
         } break;
 
         case LOG_ERROR: {
