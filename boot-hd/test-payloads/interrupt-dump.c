@@ -488,7 +488,7 @@ static U32 FindMadtFromXsdt(U32 XsdtAddress) {
  * @param PageIndex Page index.
  */
 static void DrawPageHeader(LPOUTPUT_CONTEXT Context, LPCSTR Title, U8 PageIndex) {
-    WriteString(TEXT("EXOS Early Boot Interrupt Dump (ESC-only)\r\n"));
+    WriteString(TEXT("Early Boot Dump\r\n"));
     WriteFormat(Context, TEXT("Build               %s\r\n"), TEXT(BOOT_PAYLOAD_BUILD_ID));
     WriteFormat(Context, TEXT("Page %u/%u: %s\r\n"), (U32)(PageIndex + 1), (U32)PAGE_COUNT, Title);
     WriteString(TEXT("------------------------------------------------\r\n"));

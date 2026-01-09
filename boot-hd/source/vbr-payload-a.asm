@@ -537,10 +537,18 @@ EnableA20:
     push    eax
     push    ecx
 
+    call    CheckA20Enabled
+    cmp     al, 1
+    je      .done
+
     ; Method 1: Fast A20 (port 0x92)
     in      al, 0x92
     or      al, 2
     out     0x92, al
+
+    call    CheckA20Enabled
+    cmp     al, 1
+    je      .done
 
     ; Method 2: Keyboard controller
     call    EnableA20_wait_8042
@@ -570,6 +578,7 @@ EnableA20:
 
     call    EnableA20_wait_8042
 
+.done:
     pop     ecx
     pop     eax
     ret
@@ -793,6 +802,56 @@ EnableA20_wait_8042_data:
     jnz     .done
     loop    .wait
 .done:
+    ret
+
+;-------------------------------------------------------------------------
+; CheckA20Enabled
+; Out: AL = 1 if enabled, 0 otherwise
+;-------------------------------------------------------------------------
+CheckA20Enabled:
+    pushf
+    cli
+    push    ds
+    push    es
+    push    eax
+    push    ebx
+    push    edi
+    push    esi
+
+    xor     eax, eax
+    mov     ds, ax
+    mov     ax, 0xFFFF
+    mov     es, ax
+    mov     edi, 0x0500
+    mov     esi, 0x0510
+
+    mov     al, [ds:di]
+    mov     ah, [es:si]
+    push    eax
+
+    mov     byte [ds:di], 0x00
+    mov     byte [es:si], 0xFF
+
+    cmp     byte [ds:di], 0xFF
+    jne     .enabled
+.disabled:
+    xor     ebx, ebx
+    jmp     .restore
+.enabled:
+    mov     ebx, 1
+.restore:
+    pop     eax
+    mov     [ds:di], al
+    mov     [es:si], ah
+
+    pop     esi
+    pop     edi
+    pop     ebx
+    pop     eax
+    pop     es
+    pop     ds
+    popf
+    mov     al, bl
     ret
 
 ;-------------------------------------------------------------------------
