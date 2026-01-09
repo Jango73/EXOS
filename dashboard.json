@@ -18,6 +18,7 @@
 
         "f3": { "label": "Clean Build Debug", "script": "scripts/build --arch i386 --fs ext2 --debug --clean" },
         "f4": { "label": "Build Debug", "script": "scripts/build --arch i386 --fs ext2 --debug" },
+        "C-b": { "label": "Build Debug Split", "script": "DEBUG_SPLIT=1 scripts/build --arch i386 --fs ext2 --debug" },
 
         "f5": { "label": "Start QEMU", "script": "scripts/run --arch i386" },
         "f6": { "label": "Start QEMU + GDB", "script": "scripts/run --arch i386 --gdb" },
