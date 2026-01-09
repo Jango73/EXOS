@@ -86,59 +86,34 @@ function BuildUsbArguments() {
 function RunStandardQemu() {
     BuildUsbArguments
 
-    if [ "$ARCH" = "x86-64" ]; then
-        if [ ! -x "$CYCLE_BIN" ]; then
-            echo "Cycle tool not found or not executable: $CYCLE_BIN"
-            exit 1
-        fi
-
-        "$QEMU_BIN" \
-        -machine q35,acpi=on,kernel-irqchip=split \
-        -nodefaults \
-        -smp cpus=1,cores=1,threads=1 \
-        -device qemu-xhci,id=xhci \
-        -device usb-kbd,bus=xhci.0 \
-        -device usb-mouse,bus=xhci.0 \
-        "${USB_ARGUMENTS[@]}" \
-        -audiodev pa,id=audio0 \
-        -device intel-hda,id=hda \
-        -device hda-duplex,bus=hda.0,audiodev=audio0 \
-        -device ahci,id=ahci \
-        -drive format=raw,file="$IMG_PATH",if=none,id=drive0 \
-        -device ide-hd,drive=drive0,bus=ahci.0 \
-        -netdev user,id=net0 \
-        -device e1000,netdev=net0 \
-        -object filter-dump,id=dump0,netdev=net0,file=log/kernel-net.pcap \
-        -monitor telnet:127.0.0.1:4444,server,nowait \
-        -serial file:"log/debug-com1.log" \
-        -serial stdio \
-        -vga std \
-        -no-reboot \
-        2>&1 | "$CYCLE_BIN" -o log/kernel.log -s 200000
-    else
-        "$QEMU_BIN" \
-        -machine q35,acpi=on,kernel-irqchip=split \
-        -nodefaults \
-        -smp cpus=1,cores=1,threads=1 \
-        -device qemu-xhci,id=xhci \
-        -device usb-kbd,bus=xhci.0 \
-        -device usb-mouse,bus=xhci.0 \
-        "${USB_ARGUMENTS[@]}" \
-        -audiodev pa,id=audio0 \
-        -device intel-hda,id=hda \
-        -device hda-duplex,bus=hda.0,audiodev=audio0 \
-        -device ahci,id=ahci \
-        -drive format=raw,file="$IMG_PATH",if=none,id=drive0 \
-        -device ide-hd,drive=drive0,bus=ahci.0 \
-        -netdev user,id=net0 \
-        -device e1000,netdev=net0 \
-        -object filter-dump,id=dump0,netdev=net0,file=log/kernel-net.pcap \
-        -monitor telnet:127.0.0.1:4444,server,nowait \
-        -serial file:"log/debug-com1.log" \
-        -serial file:"log/kernel.log" \
-        -vga std \
-        -no-reboot
+    if [ ! -x "$CYCLE_BIN" ]; then
+        echo "Cycle tool not found or not executable: $CYCLE_BIN"
+        exit 1
     fi
+
+    "$QEMU_BIN" \
+    -machine q35,acpi=on,kernel-irqchip=split \
+    -nodefaults \
+    -smp cpus=1,cores=1,threads=1 \
+    -device qemu-xhci,id=xhci \
+    -device usb-kbd,bus=xhci.0 \
+    -device usb-mouse,bus=xhci.0 \
+    "${USB_ARGUMENTS[@]}" \
+    -audiodev pa,id=audio0 \
+    -device intel-hda,id=hda \
+    -device hda-duplex,bus=hda.0,audiodev=audio0 \
+    -device ahci,id=ahci \
+    -drive format=raw,file="$IMG_PATH",if=none,id=drive0 \
+    -device ide-hd,drive=drive0,bus=ahci.0 \
+    -netdev user,id=net0 \
+    -device e1000,netdev=net0 \
+    -object filter-dump,id=dump0,netdev=net0,file=log/kernel-net.pcap \
+    -monitor telnet:127.0.0.1:4444,server,nowait \
+    -serial file:"log/debug-com1.log" \
+    -serial stdio \
+    -vga std \
+    -no-reboot \
+    2>&1 | "$CYCLE_BIN" -o log/kernel.log -s 200000
 }
 
 function RunGdbQemu() {

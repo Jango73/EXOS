@@ -104,6 +104,7 @@ PAYLOAD_ELF     = $(BUILD_DIR)/boot-hd/vbr-payload.elf
 PAYLOAD_MAP     = $(BUILD_DIR)/boot-hd/vbr-payload.map
 FINAL_IMG       = $(BUILD_DIR)/boot-hd/exos.img
 USB3_IMG        = $(BUILD_DIR)/boot-hd/usb-3.img
+CYCLE_BIN       = $(BUILD_DIR)/tools/cycle
 KERNEL_BIN      = $(BUILD_DIR)/kernel/exos.bin
 PORTAL_ELF      = $(BUILD_DIR)/system/portal/portal
 NETGET_ELF      = $(BUILD_DIR)/system/netget/netget
@@ -281,6 +282,9 @@ $(BUILD_DIR)/boot-hd/payload.sym: $(PAYLOAD_ELF)
 	# @echo "Extracting payload symbols for Bochs debugging"
 	$(NM) $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
+$(CYCLE_BIN):
+	$(MAKE) -C ../tools ARCH=$(ARCH)
+
 # Create image only if it does not exist
 FINAL_IMG_DEPS_COMMON = check_tools $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN)
 FINAL_IMG_DEPS_FULL = $(FINAL_IMG_DEPS_COMMON) $(KERNEL_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(MOUSEINFO_ELF) $(MASTER_ELF) $(SLAVE_ELF)
@@ -384,7 +388,7 @@ install-mbr: update $(MBR_BIN) $(VBR_BIN)
 	@echo "Custom MBR written."
 
 ifeq ($(TEST_PAYLOAD),1)
-install-vbr-payload: check_payload_size install-mbr $(PAYLOAD_BIN) $(VBR_BIN) $(USB3_IMG)
+install-vbr-payload: check_payload_size install-mbr $(PAYLOAD_BIN) $(VBR_BIN) $(USB3_IMG) $(CYCLE_BIN)
 else
 install-vbr-payload: check_payload_size install-mbr $(PAYLOAD_BIN) $(VBR_BIN)
 endif
