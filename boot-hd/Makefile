@@ -50,6 +50,7 @@ PAYLOAD_STR_C   = ../kernel/source/CoreString.c
 # Configurable payload source (can be overridden with make PAYLOAD_SOURCE=...)
 PAYLOAD_SOURCE  ?= source/vbr-payload-c.c
 PAYLOAD_ARCH_SOURCE = source/vbr-payload-$(ARCH).c
+PAYLOAD_BUILD_ID ?= $(shell date +%Y%m%d-%H%M%S)
 
 TEST_PAYLOAD := 0
 ifneq ($(filter test-payloads/%,$(PAYLOAD_SOURCE)),)
@@ -73,7 +74,9 @@ CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -DMEMORY_BASE=$(MEMORY_BASE) \
                   -DMEMORY_SIZE=$(MEMORY_SIZE) \
                   -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) \
+                  -DBOOT_PAYLOAD_BUILD_ID=\"$(PAYLOAD_BUILD_ID)\" \
                   -Iinclude -I../kernel/include
+NASMFLAGS       += -DBOOT_PAYLOAD_BUILD_ID=\"$(PAYLOAD_BUILD_ID)\"
 
 NASM            = nasm
 CC              = $(TOOLCHAIN_PREFIX)-gcc
@@ -293,6 +296,12 @@ $(FINAL_IMG): $(FINAL_IMG_DEPS)
 	@mkdir -p $(dir $@)
 	$(call $(CREATE_IMAGE_MACRO),$@)
 
+ifeq ($(TEST_PAYLOAD),1)
+$(USB3_IMG): check_tools
+	@mkdir -p $(dir $@)
+	$(call CREATE_EXT2_IMAGE,$@)
+	@echo "Skipping USB MSD staging for test payload build."
+else
 $(USB3_IMG): check_tools $(TICTACTOE_ELF)
 	@mkdir -p $(dir $@)
 	$(call CREATE_EXT2_IMAGE,$@)
@@ -301,6 +310,7 @@ $(USB3_IMG): check_tools $(TICTACTOE_ELF)
 	@mkdir -p $(USB3_STAGING_DIR)
 	@cp $(TICTACTOE_ELF) $(USB3_STAGING_DIR)/tictactoe
 	$(call POPULATE_EXT2_IMAGE,$(USB3_IMG),$(USB3_STAGING_DIR))
+endif
 
 usb-3-image: $(USB3_IMG)
 
@@ -373,7 +383,11 @@ install-mbr: update $(MBR_BIN) $(VBR_BIN)
 	printf '\125\252' | dd of=$(FINAL_IMG) bs=1 seek=510 count=2 conv=notrunc
 	@echo "Custom MBR written."
 
+ifeq ($(TEST_PAYLOAD),1)
+install-vbr-payload: check_payload_size install-mbr $(PAYLOAD_BIN) $(VBR_BIN) $(USB3_IMG)
+else
 install-vbr-payload: check_payload_size install-mbr $(PAYLOAD_BIN) $(VBR_BIN)
+endif
 	@echo "Injecting VBR code at offset 0x5A in VBR sector, and payload into the pre-partition gap..."
 	@{ \
 		PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \

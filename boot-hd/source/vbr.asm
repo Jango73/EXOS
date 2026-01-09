@@ -34,6 +34,10 @@ ORG (0x7E00 + 0x005A)
 %error "PAYLOAD_ADDRESS is not defined"
 %endif
 
+%ifndef BOOT_PAYLOAD_BUILD_ID
+%define BOOT_PAYLOAD_BUILD_ID "unknown"
+%endif
+
 %macro DebugPrint 1
 %if DEBUG_OUTPUT
     mov         si, %1
@@ -171,3 +175,4 @@ PartitionStartLBA : dd 0
 Text_Loading: db "Loading payload...",13,10,0
 Text_Jumping: db "Jumping to VBR-2 code...",13,10,0
 Text_Failed: db "Payload boot failed.",13,10,0
+BuildIdString: db "BUILDID=", BOOT_PAYLOAD_BUILD_ID, 0

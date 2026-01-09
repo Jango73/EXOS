@@ -66,6 +66,19 @@ global SetPixel24
 global EnterUnrealMode
 global LeaveUnrealMode
 global EnableA20
+global BootInPortByte
+global BootOutPortByte
+global BootIsKeyAvailable
+global BootReadKeyBlocking
+global BootReadKeyExtended
+global BootReadLinearU8
+global BootReadLinearU16
+global BootReadLinearU32
+global BootWriteLinearU32
+global BootStoreIdt
+global BootStoreGdt
+global BootEnableInterrupts
+global BootCpuRelax
 
 extern BootMain
 %ifdef ARCH_X86_64
@@ -530,47 +543,256 @@ EnableA20:
     out     0x92, al
 
     ; Method 2: Keyboard controller
-    call    .wait_8042
+    call    EnableA20_wait_8042
     mov     al, 0xAD        ; Disable keyboard
     out     0x64, al
 
-    call    .wait_8042
+    call    EnableA20_wait_8042
     mov     al, 0xD0        ; Read output port
     out     0x64, al
 
-    call    .wait_8042_data
+    call    EnableA20_wait_8042_data
     in      al, 0x60        ; Read current settings
     push    eax
 
-    call    .wait_8042
+    call    EnableA20_wait_8042
     mov     al, 0xD1        ; Write output port
     out     0x64, al
 
-    call    .wait_8042
+    call    EnableA20_wait_8042
     pop     eax
     or      al, 2           ; Set A20 bit
     out     0x60, al
 
-    call    .wait_8042
+    call    EnableA20_wait_8042
     mov     al, 0xAE        ; Enable keyboard
     out     0x64, al
 
-    call    .wait_8042
+    call    EnableA20_wait_8042
 
     pop     ecx
     pop     eax
     ret
 
-.wait_8042:
-    in      al, 0x64
-    test    al, 2
-    jnz     .wait_8042
+;-------------------------------------------------------------------------
+; BootInPortByte
+; In : EBP+8 = port (U32, low 16 used)
+; Out: AL = value
+;-------------------------------------------------------------------------
+BootInPortByte:
+    push        ebp
+    mov         ebp, esp
+    push        dx
+    mov         dx, [ebp+(PBN+0)]
+    in          al, dx
+    mov         ah, 0
+    pop         dx
+    pop         ebp
     ret
 
-.wait_8042_data:
+;-------------------------------------------------------------------------
+; BootOutPortByte
+; In : EBP+8 = port (U32, low 16 used)
+;      EBP+12 = value (U32, low 8 used)
+;-------------------------------------------------------------------------
+BootOutPortByte:
+    push        ebp
+    mov         ebp, esp
+    push        ax
+    push        dx
+    mov         dx, [ebp+(PBN+0)]
+    mov         al, [ebp+(PBN+4)]
+    out         dx, al
+    pop         dx
+    pop         ax
+    pop         ebp
+    ret
+
+;-------------------------------------------------------------------------
+; BootIsKeyAvailable
+; Out: AL = 1 if available, 0 otherwise
+;-------------------------------------------------------------------------
+BootIsKeyAvailable:
+    mov         ah, 0x11
+    int         0x16
+    jnz         .available
+    mov         ah, 0x01
+    int         0x16
+    jnz         .available
+    mov         al, 0
+    jmp         .done
+.available:
+    mov         al, 1
+.done:
+    mov         ah, 0
+    ret
+
+;-------------------------------------------------------------------------
+; BootReadKeyBlocking
+; Out: AX = key (AH=scan, AL=char)
+;-------------------------------------------------------------------------
+BootReadKeyBlocking:
+    xor         ah, ah
+    int         0x16
+    ret
+
+;-------------------------------------------------------------------------
+; BootReadKeyExtended
+; Out: AX = key (AH=scan, AL=char)
+;-------------------------------------------------------------------------
+BootReadKeyExtended:
+    mov         ah, 0x10
+    int         0x16
+    ret
+
+;-------------------------------------------------------------------------
+; BootReadLinearU8
+; In : EBP+8 = linear address
+; Out: AL = value
+;-------------------------------------------------------------------------
+BootReadLinearU8:
+    push        ebp
+    mov         ebp, esp
+    push        esi
+
+    call        EnterUnrealMode
+    mov         esi, [ebp+(PBN+0)]
+    a32 mov     al, [esi]
+    mov         ah, 0
+    call        LeaveUnrealMode
+
+    pop         esi
+    pop         ebp
+    ret
+
+;-------------------------------------------------------------------------
+; BootReadLinearU16
+; In : EBP+8 = linear address
+; Out: AX = value
+;-------------------------------------------------------------------------
+BootReadLinearU16:
+    push        ebp
+    mov         ebp, esp
+    push        esi
+
+    call        EnterUnrealMode
+    mov         esi, [ebp+(PBN+0)]
+    a32 mov     ax, [esi]
+    call        LeaveUnrealMode
+
+    pop         esi
+    pop         ebp
+    ret
+
+;-------------------------------------------------------------------------
+; BootReadLinearU32
+; In : EBP+8 = linear address
+; Out: EAX = value
+;-------------------------------------------------------------------------
+BootReadLinearU32:
+    push        ebp
+    mov         ebp, esp
+    push        esi
+
+    call        EnterUnrealMode
+    mov         esi, [ebp+(PBN+0)]
+    a32 mov     eax, [esi]
+    call        LeaveUnrealMode
+
+    pop         esi
+    pop         ebp
+    ret
+
+;-------------------------------------------------------------------------
+; BootWriteLinearU32
+; In : EBP+8 = linear address
+;      EBP+12 = value
+;-------------------------------------------------------------------------
+BootWriteLinearU32:
+    push        ebp
+    mov         ebp, esp
+    push        esi
+    push        eax
+
+    call        EnterUnrealMode
+    mov         esi, [ebp+(PBN+0)]
+    mov         eax, [ebp+(PBN+4)]
+    a32 mov     [esi], eax
+    call        LeaveUnrealMode
+
+    pop         eax
+    pop         esi
+    pop         ebp
+    ret
+
+;-------------------------------------------------------------------------
+; BootStoreIdt
+; In : EBP+8 = linear address of DESCRIPTOR_TABLE_PTR
+;-------------------------------------------------------------------------
+BootStoreIdt:
+    push        ebp
+    mov         ebp, esp
+    push        edi
+
+    call        EnterUnrealMode
+    mov         edi, [ebp+(PBN+0)]
+    a32 sidt    [edi]
+    call        LeaveUnrealMode
+
+    pop         edi
+    pop         ebp
+    ret
+
+;-------------------------------------------------------------------------
+; BootStoreGdt
+; In : EBP+8 = linear address of DESCRIPTOR_TABLE_PTR
+;-------------------------------------------------------------------------
+BootStoreGdt:
+    push        ebp
+    mov         ebp, esp
+    push        edi
+
+    call        EnterUnrealMode
+    mov         edi, [ebp+(PBN+0)]
+    a32 sgdt    [edi]
+    call        LeaveUnrealMode
+
+    pop         edi
+    pop         ebp
+    ret
+
+;-------------------------------------------------------------------------
+; BootEnableInterrupts
+;-------------------------------------------------------------------------
+BootEnableInterrupts:
+    sti
+    ret
+
+;-------------------------------------------------------------------------
+; BootCpuRelax
+;-------------------------------------------------------------------------
+BootCpuRelax:
+    nop
+    ret
+
+EnableA20_wait_8042:
+    mov     cx, 0xFFFF
+.wait:
+    in      al, 0x64
+    test    al, 2
+    jz      .done
+    loop    .wait
+.done:
+    ret
+
+EnableA20_wait_8042_data:
+    mov     cx, 0xFFFF
+.wait:
     in      al, 0x64
     test    al, 1
-    jz      .wait_8042_data
+    jnz     .done
+    loop    .wait
+.done:
     ret
 
 ;-------------------------------------------------------------------------
