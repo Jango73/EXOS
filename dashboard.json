@@ -25,6 +25,7 @@
 
         "C-v": { "label": "Build VESA Test Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/vesa-test.c ARCH=i386 install-vbr-payload" },
         "C-d": { "label": "Build Interrupt Dump Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/interrupt-dump.c ARCH=i386 install-vbr-payload" },
+        "C-k": { "label": "Build BIOS Keyboard Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/bios-keyboard.c ARCH=i386 install-vbr-payload" },
 
         "x86-64---------------": "",
 
