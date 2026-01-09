@@ -79,8 +79,13 @@ LDDEFS          = --defsym=PAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS)
 MBR_BIN         = $(BUILD_DIR)/boot-hd/mbr.bin
 VBR_BIN         = $(BUILD_DIR)/boot-hd/vbr.bin
 PAYLOAD_STUB_O  = $(BUILD_DIR)/boot-hd/vbr-payload-a.o
+ifneq ($(filter test-payloads/%,$(PAYLOAD_SOURCE)),)
+PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE)
+else
 PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE) $(PAYLOAD_ARCH_SOURCE) source/vbr-payload-fat32.c source/vbr-payload-ext2.c
-PAYLOAD_C_OBJS  = $(patsubst source/%.c,$(BUILD_DIR)/boot-hd/%.o,$(sort $(PAYLOAD_C_SOURCES)))
+endif
+PAYLOAD_C_OBJS  = $(patsubst source/%.c,$(BUILD_DIR)/boot-hd/%.o,$(filter source/%.c,$(PAYLOAD_C_SOURCES))) \
+                  $(patsubst test-payloads/%.c,$(BUILD_DIR)/boot-hd/test-payloads/%.o,$(filter test-payloads/%.c,$(PAYLOAD_C_SOURCES)))
 PAYLOAD_STR_O   = $(BUILD_DIR)/boot-hd/String.o
 PAYLOAD_BIN     = $(BUILD_DIR)/boot-hd/vbr-payload.bin
 PAYLOAD_ELF     = $(BUILD_DIR)/boot-hd/vbr-payload.elf
@@ -240,6 +245,11 @@ $(PAYLOAD_STUB_O): $(PAYLOAD_STUB)
 $(BUILD_DIR)/boot-hd/%.o: source/%.c
 	@echo "Compiling payload C from $<..."
 	@mkdir -p $(BUILD_DIR)/boot-hd
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/boot-hd/test-payloads/%.o: test-payloads/%.c
+	@echo "Compiling payload C from $<..."
+	@mkdir -p $(BUILD_DIR)/boot-hd/test-payloads
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(PAYLOAD_STR_O): $(PAYLOAD_STR_C)

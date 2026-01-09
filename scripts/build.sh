@@ -2,7 +2,7 @@
 set -e
 
 function Usage() {
-    echo "Usage: $0 --arch <i386|x86-64> --fs <ext2|fat32> [--debug|--release] [--clean] [--scheduling-debug] [--force-pic]"
+    echo "Usage: $0 --arch <i386|x86-64> --fs <ext2|fat32> [--debug|--release] [--scheduling-debug] [--clean] [--force-pic]"
 }
 
 ARCH="i386"
@@ -28,11 +28,11 @@ while [ $# -gt 0 ]; do
         --release)
             BUILD_MODE="release"
             ;;
-        --clean)
-            CLEAN=1
-            ;;
         --scheduling-debug)
             SCHEDULING_DEBUG=1
+            ;;
+        --clean)
+            CLEAN=1
             ;;
         --force-pic)
             FORCE_PIC=1

@@ -20,6 +20,9 @@
         "f5": { "label": "Start QEMU", "script": "scripts/run --arch i386" },
         "f6": { "label": "Start QEMU + GDB", "script": "scripts/run --arch i386 --gdb" },
 
+        "C-v": { "label": "Build VESA Test Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/vesa-test.c ARCH=i386 install-vbr-payload" },
+        "C-d": { "label": "Build Interrupt Dump Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/interrupt-dump.c ARCH=i386 install-vbr-payload" },
+
         "x86-64---------------": "",
 
         "f7": { "label": "Clean Build", "script": "scripts/build --arch x86-64 --fs ext2 --release --clean" },

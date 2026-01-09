@@ -126,7 +126,7 @@ static void WriteString(LPCSTR Str) {
 /************************************************************************/
 
 static const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
-static STR TempString[128];
+STR TempString[128];
 static VESA_MODE_INFO ModeInfo;
 static U32 FrameBuffer = 0;
 static U32 LinearRandom = 1;
