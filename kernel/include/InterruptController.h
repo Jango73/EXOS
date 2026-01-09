@@ -72,6 +72,7 @@ typedef struct tag_INTERRUPT_CONTROLLER_CONFIG {
     INTERRUPT_CONTROLLER_MODE   RequestedMode;     // User-requested mode
     BOOL                        PICPresent;        // TRUE if PIC 8259 is present
     BOOL                        IOAPICPresent;     // TRUE if I/O APIC is present
+    BOOL                        IMCRPresent;       // TRUE if IMCR register is writable
     BOOL                        TransitionActive;  // TRUE during PIC->IOAPIC transition
     U8                          PICBaseMask;       // Original PIC mask before shutdown
     IRQ_MAPPING                 IRQMappings[16];   // IRQ to pin mappings

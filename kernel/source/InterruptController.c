@@ -94,15 +94,115 @@ static INTERRUPT_CONTROLLER_CONFIG g_InterruptControllerConfig;
 /************************************************************************/
 
 /**
+ * @brief Detect whether the IMCR register is present and writable.
+ *
+ * @return TRUE if IMCR appears writable, FALSE otherwise.
+ */
+static BOOL DetectIMCRPresence(void) {
+    U8 Value;
+    U8 ToggleValue;
+    U8 ReadBack;
+    U8 FinalRead;
+
+    OutPortByte(0x22, 0x70);
+    Value = (U8)InPortByte(0x23);
+
+    ToggleValue = (U8)(Value ^ 0x01);
+    OutPortByte(0x23, ToggleValue);
+
+    OutPortByte(0x22, 0x70);
+    ReadBack = (U8)InPortByte(0x23);
+
+    OutPortByte(0x23, Value);
+    OutPortByte(0x22, 0x70);
+    FinalRead = (U8)InPortByte(0x23);
+
+    return (ReadBack == ToggleValue && FinalRead == Value);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Enable Local APIC virtual wire for PIC interrupts.
+ */
+static void EnableLocalApicVirtualWire(void) {
+    LPLOCAL_APIC_CONFIG LocalApicConfig;
+
+    LocalApicConfig = GetLocalAPICConfig();
+    SAFE_USE(LocalApicConfig) {
+        if (!LocalApicConfig->Present) {
+            WARNING(TEXT("[EnableLocalApicVirtualWire] Local APIC not present"));
+            return;
+        }
+
+        if (!EnableLocalAPIC()) {
+            WARNING(TEXT("[EnableLocalApicVirtualWire] Failed to enable Local APIC"));
+            return;
+        }
+
+        if (!SetSpuriousInterruptVector(IOAPIC_SPURIOUS_VECTOR)) {
+            WARNING(TEXT("[EnableLocalApicVirtualWire] Failed to set spurious vector"));
+        }
+
+        if (!ConfigureLVTEntry(LOCAL_APIC_LVT_LINT0, 0x20, LOCAL_APIC_LVT_DELIVERY_EXTINT, FALSE)) {
+            WARNING(TEXT("[EnableLocalApicVirtualWire] Failed to configure LINT0 ExtINT"));
+            return;
+        }
+
+        WARNING(TEXT("[EnableLocalApicVirtualWire] Local APIC virtual wire enabled"));
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Enable Local APIC virtual wire if IMCR is not present.
+ */
+static void SetupPicVirtualWireIfNeeded(void) {
+    if (g_InterruptControllerConfig.IMCRPresent == FALSE) {
+        WARNING(TEXT("[SetupPicVirtualWireIfNeeded] IMCR not present, enabling Local APIC virtual wire"));
+        EnableLocalApicVirtualWire();
+    }
+}
+
+/************************************************************************/
+
+/**
  * @brief Route legacy PIC interrupts to the Local APIC through IMCR.
  */
 static void RoutePicToLocalApic(void) {
     U8 Value;
 
+    if (g_InterruptControllerConfig.IMCRPresent == FALSE) {
+        WARNING(TEXT("[RoutePicToLocalApic] IMCR not present, using Local APIC virtual wire"));
+        EnableLocalApicVirtualWire();
+        return;
+    }
+
     OutPortByte(0x22, 0x70);
-    Value = InPortByte(0x23);
+    Value = (U8)InPortByte(0x23);
     OutPortByte(0x23, (U8)(Value | 0x01));
     WARNING(TEXT("[RoutePicToLocalApic] IMCR %x -> %x"), Value, (U8)(Value | 0x01));
+}
+
+/************************************************************************/
+
+/**
+ * @brief Route legacy PIC interrupts to the PIC through IMCR.
+ */
+static void RoutePicToPic(void) {
+    U8 Value;
+
+    if (g_InterruptControllerConfig.IMCRPresent == FALSE) {
+        WARNING(TEXT("[RoutePicToPic] IMCR not present, keeping default routing"));
+        SetupPicVirtualWireIfNeeded();
+        return;
+    }
+
+    OutPortByte(0x22, 0x70);
+    Value = (U8)InPortByte(0x23);
+    OutPortByte(0x23, (U8)(Value & 0xFE));
+    WARNING(TEXT("[RoutePicToPic] IMCR %x -> %x"), Value, (U8)(Value & 0xFE));
 }
 
 /************************************************************************/
@@ -243,6 +343,12 @@ BOOL InitializeInterruptController(INTERRUPT_CONTROLLER_MODE RequestedMode) {
 
     // Detect available interrupt controllers
     DetectInterruptControllers();
+    g_InterruptControllerConfig.IMCRPresent = DetectIMCRPresence();
+    if (g_InterruptControllerConfig.IMCRPresent) {
+        DEBUG(TEXT("[InitializeInterruptController] IMCR present"));
+    } else {
+        WARNING(TEXT("[InitializeInterruptController] IMCR not present"));
+    }
 
     // Determine which controller to use
     switch (RequestedMode) {
@@ -250,6 +356,7 @@ BOOL InitializeInterruptController(INTERRUPT_CONTROLLER_MODE RequestedMode) {
             if (g_InterruptControllerConfig.PICPresent) {
                 g_InterruptControllerConfig.ActiveType = INTCTRL_TYPE_PIC;
                 InitializePIC8259();
+                SetupPicVirtualWireIfNeeded();
                 DEBUG(TEXT("[InitializeInterruptController] Forced PIC 8259 mode"));
             } else {
                 ERROR(TEXT("[InitializeInterruptController]  PIC 8259 forced but not available"));
@@ -285,6 +392,7 @@ BOOL InitializeInterruptController(INTERRUPT_CONTROLLER_MODE RequestedMode) {
             } else {
                 g_InterruptControllerConfig.ActiveType = INTCTRL_TYPE_PIC;
                 InitializePIC8259();
+                SetupPicVirtualWireIfNeeded();
                 DEBUG(TEXT("[InitializeInterruptController] Automatically selected PIC 8259 mode (no IOAPIC available)"));
             }
             break;
@@ -367,6 +475,15 @@ BOOL EnableInterrupt(U8 IRQ) {
             Result = FALSE;
         }
         Result = TRUE;
+
+        if (IRQ == 0) {
+            U8 Mask1 = ReadPICMask(1);
+            U8 Mask2 = ReadPICMask(2);
+            WARNING(TEXT("[EnableInterrupt] PIC IRQ=%u Mask1=%x Mask2=%x"),
+                IRQ,
+                Mask1,
+                Mask2);
+        }
     }
 
     if (IRQ == 0) {
@@ -886,6 +1003,9 @@ static UINT InterruptControllerDriverCommands(UINT Function, UINT Parameter) {
 #endif
 
             if (InitializeInterruptController(RequestedMode)) {
+#if FORCE_PIC == 1
+                RoutePicToPic();
+#endif
                 InterruptControllerDriver.Flags |= DRIVER_FLAG_READY;
                 return DF_RETURN_SUCCESS;
             }

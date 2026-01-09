@@ -613,6 +613,7 @@ The device interrupt layer centralizes vector assignment, interrupt routing, and
 - `DeviceInterruptHandler(slot)`: ASM entry point fan-out for interrupt vectors 0x30–0x37.
 - `InitializeDeferredWork()`: Start the dispatcher kernel task and supporting event.
 - PIC mode remaps IRQs to vectors 0x20–0x2F before interrupts are enabled.
+- PIC routing consults the IMCR presence flag set at initialization; if the register is not writable, the Local APIC LINT0 ExtINT path is enabled to keep legacy IRQs flowing.
 
 ### Network Manager
 
