@@ -77,6 +77,7 @@ global BootReadLinearU32
 global BootWriteLinearU32
 global BootStoreIdt
 global BootStoreGdt
+global BootClearScreen
 global BootEnableInterrupts
 global BootCpuRelax
 
@@ -768,6 +769,33 @@ BootStoreGdt:
 
     pop         edi
     pop         ebp
+    ret
+
+;-------------------------------------------------------------------------
+; BootClearScreen
+;-------------------------------------------------------------------------
+BootClearScreen:
+    push        ax
+    push        bx
+    push        cx
+    push        dx
+
+    mov         ah, 0x06
+    mov         al, 0x00
+    mov         bh, 0x07
+    mov         cx, 0x0000
+    mov         dx, 0x184F
+    int         0x10
+
+    mov         ah, 0x02
+    mov         bh, 0x00
+    mov         dx, 0x0000
+    int         0x10
+
+    pop         dx
+    pop         cx
+    pop         bx
+    pop         ax
     ret
 
 ;-------------------------------------------------------------------------

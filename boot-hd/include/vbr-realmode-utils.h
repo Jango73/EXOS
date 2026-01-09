@@ -115,6 +115,7 @@ extern U32 BootReadLinearU32(U32 Address);
 extern void BootWriteLinearU32(U32 Address, U32 Value);
 extern void BootStoreIdt(U32 Address);
 extern void BootStoreGdt(U32 Address);
+extern void BootClearScreen(void);
 extern void BootEnableInterrupts(void);
 extern void BootCpuRelax(void);
 

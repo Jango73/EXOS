@@ -212,6 +212,28 @@ static void OutPortByte(U16 Port, U8 Value) {
 /************************************************************************/
 
 /**
+ * @brief Enable A20 using the fast port 0x92 method.
+ */
+static void EnableA20Fast(void) {
+    U8 Value = InPortByte(0x92);
+    Value = (U8)(Value | 0x02);
+    OutPortByte(0x92, Value);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Disable A20 using the fast port 0x92 method.
+ */
+static void DisableA20Fast(void) {
+    U8 Value = InPortByte(0x92);
+    Value = (U8)(Value & (U8)~0x02);
+    OutPortByte(0x92, Value);
+}
+
+/************************************************************************/
+
+/**
  * @brief Check whether a key is available in BIOS keyboard buffer.
  * @return TRUE if a key is available.
  */
@@ -227,12 +249,6 @@ static BOOL IsKeyAvailable(void) {
  */
 static U16 ReadKey(void) {
     return BootReadKeyExtended();
-}
-
-/************************************************************************/
-
-static U16 ReadKeyBlocking(void) {
-    return BootReadKeyBlocking();
 }
 
 /************************************************************************/
@@ -503,8 +519,7 @@ static void DrawPageHeader(LPOUTPUT_CONTEXT Context, LPCSTR Title, U8 PageIndex)
  */
 static void DrawFooter(void) {
     WriteString(TEXT("------------------------------------------------\r\n"));
-    WriteString(TEXT("ESC: next page (loop)\r\n"));
-    WriteString(TEXT("Auto refresh disabled.\r\n"));
+    WriteString(TEXT("[<-] Previous page  |  [->] Next page\r\n"));
 }
 
 /************************************************************************/
@@ -529,16 +544,16 @@ static void DrawPageAcpiMadt(LPOUTPUT_CONTEXT Context, U8 PageIndex) {
     }
 
     CopyFromLinear(RsdpAddress, &Rsdp, sizeof(Rsdp));
-    WriteFormat(Context, TEXT("RSDP Address         0x%08x\r\n"), RsdpAddress);
+    WriteFormat(Context, TEXT("RSDP Address         %p\r\n"), RsdpAddress);
     WriteFormat(Context, TEXT("RSDP Revision        %u\r\n"), (U32)Rsdp.Revision);
-    WriteFormat(Context, TEXT("RSDP Checksum        0x%02x\r\n"), (U32)ComputeChecksum(RsdpAddress, (Rsdp.Revision >= 2) ? Rsdp.Length : 20));
+    WriteFormat(Context, TEXT("RSDP Checksum        %x\r\n"), (U32)ComputeChecksum(RsdpAddress, (Rsdp.Revision >= 2) ? Rsdp.Length : 20));
 
     if (Rsdp.Revision >= 2 && Rsdp.XsdtAddressLow != 0) {
         MadtAddress = FindMadtFromXsdt(Rsdp.XsdtAddressLow);
-        WriteFormat(Context, TEXT("XSDT Address         0x%08x\r\n"), Rsdp.XsdtAddressLow);
+        WriteFormat(Context, TEXT("XSDT Address         %p\r\n"), Rsdp.XsdtAddressLow);
     } else {
         MadtAddress = FindMadtFromRsdt(Rsdp.RsdtAddress);
-        WriteFormat(Context, TEXT("RSDT Address         0x%08x\r\n"), Rsdp.RsdtAddress);
+        WriteFormat(Context, TEXT("RSDT Address         %p\r\n"), Rsdp.RsdtAddress);
     }
 
     if (MadtAddress == 0) {
@@ -553,9 +568,9 @@ static void DrawPageAcpiMadt(LPOUTPUT_CONTEXT Context, U8 PageIndex) {
         DrawFooter();
         return;
     }
-    WriteFormat(Context, TEXT("MADT Address         0x%08x\r\n"), MadtAddress);
-    WriteFormat(Context, TEXT("Local APIC Address   0x%08x\r\n"), MadtHeader.LocalApicAddress);
-    WriteFormat(Context, TEXT("MADT Flags           0x%08x\r\n"), MadtHeader.Flags);
+    WriteFormat(Context, TEXT("MADT Address         %p\r\n"), MadtAddress);
+    WriteFormat(Context, TEXT("Local APIC Address   %p\r\n"), MadtHeader.LocalApicAddress);
+    WriteFormat(Context, TEXT("MADT Flags           %x\r\n"), MadtHeader.Flags);
 
     Offset = sizeof(MADT_HEADER);
     while (Offset + sizeof(MADT_ENTRY_HEADER) <= MadtHeader.Header.Length) {
@@ -610,27 +625,34 @@ static void DrawPagePicIoApic(LPOUTPUT_CONTEXT Context, U8 PageIndex) {
 
     DrawPageHeader(Context, TEXT("PIC / IOAPIC"), PageIndex);
 
-    WriteFormat(Context, TEXT("PIC Mask1           0x%02x\r\n"), Mask1);
-    WriteFormat(Context, TEXT("PIC Mask2           0x%02x\r\n"), Mask2);
-    WriteFormat(Context, TEXT("PIC IRR1            0x%02x\r\n"), Irr1);
-    WriteFormat(Context, TEXT("PIC IRR2            0x%02x\r\n"), Irr2);
-    WriteFormat(Context, TEXT("PIC ISR1            0x%02x\r\n"), Isr1);
-    WriteFormat(Context, TEXT("PIC ISR2            0x%02x\r\n"), Isr2);
-    WriteFormat(Context, TEXT("IMCR Value          0x%02x\r\n"), ImcrValue);
+    WriteFormat(Context, TEXT("PIC Mask1           %x\r\n"), Mask1);
+    WriteFormat(Context, TEXT("PIC Mask2           %x\r\n"), Mask2);
+    WriteFormat(Context, TEXT("PIC IRR1            %x\r\n"), Irr1);
+    WriteFormat(Context, TEXT("PIC IRR2            %x\r\n"), Irr2);
+    WriteFormat(Context, TEXT("PIC ISR1            %x\r\n"), Isr1);
+    WriteFormat(Context, TEXT("PIC ISR2            %x\r\n"), Isr2);
+    WriteFormat(Context, TEXT("IMCR Value          %x\r\n"), ImcrValue);
     WriteFormat(Context, TEXT("PIT Counter         %u\r\n"), PitCounter);
 
     {
         U32 Base = IOAPIC_BASE_DEFAULT;
-        U32 IdReg = ReadIOApicRegister(Base, IOAPIC_REG_ID);
-        U32 VerReg = ReadIOApicRegister(Base, IOAPIC_REG_VER);
-        U32 RedirLow = ReadIOApicRegister(Base, IOAPIC_REG_REDTBL_BASE + (2 * 2));
-        U32 RedirHigh = ReadIOApicRegister(Base, IOAPIC_REG_REDTBL_BASE + (2 * 2) + 1);
+        U32 IdReg;
+        U32 VerReg;
+        U32 RedirLow;
+        U32 RedirHigh;
 
-        WriteFormat(Context, TEXT("IOAPIC Base         0x%08x\r\n"), Base);
-        WriteFormat(Context, TEXT("IOAPIC ID           0x%08x\r\n"), IdReg);
-        WriteFormat(Context, TEXT("IOAPIC VER          0x%08x\r\n"), VerReg);
-        WriteFormat(Context, TEXT("IOAPIC Redir[2].L   0x%08x\r\n"), RedirLow);
-        WriteFormat(Context, TEXT("IOAPIC Redir[2].H   0x%08x\r\n"), RedirHigh);
+        EnableA20Fast();
+        IdReg = ReadIOApicRegister(Base, IOAPIC_REG_ID);
+        VerReg = ReadIOApicRegister(Base, IOAPIC_REG_VER);
+        RedirLow = ReadIOApicRegister(Base, IOAPIC_REG_REDTBL_BASE + (2 * 2));
+        RedirHigh = ReadIOApicRegister(Base, IOAPIC_REG_REDTBL_BASE + (2 * 2) + 1);
+        DisableA20Fast();
+
+        WriteFormat(Context, TEXT("IOAPIC Base         %p\r\n"), Base);
+        WriteFormat(Context, TEXT("IOAPIC ID           %x\r\n"), IdReg);
+        WriteFormat(Context, TEXT("IOAPIC VER          %x\r\n"), VerReg);
+        WriteFormat(Context, TEXT("IOAPIC Redir[2].L   %x\r\n"), RedirLow);
+        WriteFormat(Context, TEXT("IOAPIC Redir[2].H   %x\r\n"), RedirHigh);
     }
 
     DrawFooter();
@@ -644,7 +666,7 @@ static void DrawPagePit(LPOUTPUT_CONTEXT Context, U8 PageIndex) {
 
     DrawPageHeader(Context, TEXT("PIT"), PageIndex);
     WriteFormat(Context, TEXT("Counter             %u\r\n"), Counter);
-    WriteFormat(Context, TEXT("Status              0x%02x\r\n"), Status);
+    WriteFormat(Context, TEXT("Status              %x\r\n"), Status);
     DrawFooter();
 }
 
@@ -657,13 +679,13 @@ static void DrawPageIdt(LPOUTPUT_CONTEXT Context, U8 PageIndex) {
     BootStoreIdt((U32)&Idtr);
 
     DrawPageHeader(Context, TEXT("IDT"), PageIndex);
-    WriteFormat(Context, TEXT("IDT Base            0x%08x\r\n"), Idtr.Base);
-    WriteFormat(Context, TEXT("IDT Limit           0x%04x\r\n"), Idtr.Limit);
+    WriteFormat(Context, TEXT("IDT Base            %p\r\n"), Idtr.Base);
+    WriteFormat(Context, TEXT("IDT Limit           %x\r\n"), Idtr.Limit);
 
     for (U32 Vector = 0x20; Vector < 0x24; Vector++) {
         CopyFromLinear(Idtr.Base + Vector * sizeof(IDT_ENTRY_32), &Entry, sizeof(Entry));
         U32 Offset = ((U32)Entry.OffsetHigh << 16) | Entry.OffsetLow;
-        WriteFormat(Context, TEXT("Vec 0x%02x           Off=0x%08x Sel=0x%04x\r\n"),
+        WriteFormat(Context, TEXT("Vec %x           Off=%x Sel=%x\r\n"),
             Vector, Offset, (U32)Entry.Selector);
     }
 
@@ -679,8 +701,8 @@ static void DrawPageGdt(LPOUTPUT_CONTEXT Context, U8 PageIndex) {
     BootStoreGdt((U32)&Gdtr);
 
     DrawPageHeader(Context, TEXT("GDT"), PageIndex);
-    WriteFormat(Context, TEXT("GDT Base            0x%08x\r\n"), Gdtr.Base);
-    WriteFormat(Context, TEXT("GDT Limit           0x%04x\r\n"), Gdtr.Limit);
+    WriteFormat(Context, TEXT("GDT Base            %p\r\n"), Gdtr.Base);
+    WriteFormat(Context, TEXT("GDT Limit           %x\r\n"), Gdtr.Limit);
 
     for (U32 Index = 0; Index < 4; Index++) {
         CopyFromLinear(Gdtr.Base + Index * sizeof(GDT_ENTRY), &Entry, sizeof(Entry));
@@ -688,7 +710,7 @@ static void DrawPageGdt(LPOUTPUT_CONTEXT Context, U8 PageIndex) {
             ((U32)Entry.BaseMid << 16) |
             ((U32)Entry.BaseHigh << 24);
         U32 Limit = (U32)Entry.LimitLow | (((U32)Entry.Granularity & 0x0F) << 16);
-        WriteFormat(Context, TEXT("Idx %u             Base=0x%08x Lim=0x%05x\r\n"),
+        WriteFormat(Context, TEXT("Idx %u             Base=%p Lim=%x\r\n"),
             Index, Base, Limit);
     }
 
@@ -734,24 +756,20 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
 
     OUTPUT_CONTEXT Context;
     U8 CurrentPage = 0;
-    EnableA20();
-    BootEnableInterrupts();
 
     while (TRUE) {
+        BootClearScreen();
         DrawPage(&Context, CurrentPage);
 
         {
-            U16 Key = ReadKeyBlocking();
-            U8 Character = (U8)(Key & 0xFF);
+            U16 Key = BootReadKeyExtended();
             U8 ScanCode = (U8)((Key >> 8) & 0xFF);
 
-            if (Character == 27 || ScanCode == 0x01) {
+            if (ScanCode == 0x4D) {
                 CurrentPage = (U8)((CurrentPage + 1) % PAGE_COUNT);
+            } else if (ScanCode == 0x4B) {
+                CurrentPage = (U8)((CurrentPage + PAGE_COUNT - 1) % PAGE_COUNT);
             }
-        }
-
-        while (IsKeyAvailable()) {
-            (void)ReadKey();
         }
     }
 
