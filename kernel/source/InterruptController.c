@@ -356,7 +356,7 @@ BOOL InitializeInterruptController(INTERRUPT_CONTROLLER_MODE RequestedMode) {
             if (g_InterruptControllerConfig.PICPresent) {
                 g_InterruptControllerConfig.ActiveType = INTCTRL_TYPE_PIC;
                 InitializePIC8259();
-                SetupPicVirtualWireIfNeeded();
+                RoutePicToPic();
                 DEBUG(TEXT("[InitializeInterruptController] Forced PIC 8259 mode"));
             } else {
                 ERROR(TEXT("[InitializeInterruptController]  PIC 8259 forced but not available"));
@@ -388,11 +388,13 @@ BOOL InitializeInterruptController(INTERRUPT_CONTROLLER_MODE RequestedMode) {
                 } else {
                     DEBUG(TEXT("[InitializeInterruptController] I/O APIC transition failed, falling back to PIC"));
                     g_InterruptControllerConfig.ActiveType = INTCTRL_TYPE_PIC;
+                    InitializePIC8259();
+                    RoutePicToPic();
                 }
             } else {
                 g_InterruptControllerConfig.ActiveType = INTCTRL_TYPE_PIC;
                 InitializePIC8259();
-                SetupPicVirtualWireIfNeeded();
+                RoutePicToPic();
                 DEBUG(TEXT("[InitializeInterruptController] Automatically selected PIC 8259 mode (no IOAPIC available)"));
             }
             break;
@@ -475,15 +477,6 @@ BOOL EnableInterrupt(U8 IRQ) {
             Result = FALSE;
         }
         Result = TRUE;
-
-        if (IRQ == 0) {
-            U8 Mask1 = ReadPICMask(1);
-            U8 Mask2 = ReadPICMask(2);
-            WARNING(TEXT("[EnableInterrupt] PIC IRQ=%u Mask1=%x Mask2=%x"),
-                IRQ,
-                Mask1,
-                Mask2);
-        }
     }
 
     if (IRQ == 0) {
@@ -496,28 +489,11 @@ BOOL EnableInterrupt(U8 IRQ) {
                 ReadRedirectionEntry(ControllerIndex, Entry, &RedirEntry);
 
             if (ReadOk) {
-                WARNING(TEXT("[EnableInterrupt] IRQ=%u GSI=%u IOAPIC=%u Entry=%u Low=%x High=%x"),
-                    IRQ,
-                    MappedIRQ,
-                    ControllerIndex,
-                    Entry,
-                    RedirEntry.Low,
-                    RedirEntry.High);
             } else {
                 WARNING(TEXT("[EnableInterrupt] IRQ=%u GSI=%u IOAPIC entry read failed"),
                     IRQ,
                     MappedIRQ);
             }
-        } else if (IsPICModeActive()) {
-            U8 PicMask1 = ReadPICMask(1);
-            U8 PicMask2 = ReadPICMask(2);
-            WARNING(TEXT("[EnableInterrupt] IRQ=%u Result=%u Type=PIC Mask1=%x Mask2=%x"),
-                IRQ,
-                Result ? 1U : 0U,
-                PicMask1,
-                PicMask2);
-        } else {
-            WARNING(TEXT("[EnableInterrupt] IRQ=%u Result=%u Type=NONE"), IRQ, Result ? 1U : 0U);
         }
     }
 

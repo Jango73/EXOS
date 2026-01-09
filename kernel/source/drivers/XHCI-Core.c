@@ -466,15 +466,6 @@ BOOL XHCI_CommandRingEnqueue(LPXHCI_DEVICE Device, const XHCI_TRB* Trb, U64* Phy
         return FALSE;
     }
 
-    if (PhysicalOut != NULL) {
-        U32 Type = (Trb->Dword3 >> XHCI_TRB_TYPE_SHIFT) & XHCI_TRB_TYPE_MASK;
-        LPCSTR Name = XHCI_GetCommandTypeName(Type);
-        WARNING(TEXT("[XHCI_CommandRingEnqueue] Command=%s Type=%x TRB=%p"),
-                Name ? Name : TEXT("?"),
-                Type,
-                (LPVOID)U64_Low32(*PhysicalOut));
-    }
-
     return TRUE;
 }
 

@@ -606,6 +606,8 @@ The device interrupt layer centralizes vector assignment, interrupt routing, and
 - Automatic spurious-interrupt suppression masks a slot after repeated suppressed top halves and relies on its poll routine until the driver re-arms the IRQ.
 - Graceful fallback to polling when hardware interrupts are unavailable.
 - The IOAPIC driver is optional; when ACPI is unavailable the kernel continues in PIC mode and boots without IOAPIC.
+- Local APIC initialization enables the APIC and programs the spurious vector (SVR bit 8) early for consistent delivery.
+- When PIC mode is active, the IMCR is forced to route legacy IRQs to the PIC.
 
 **API Functions:**
 - `InitializeDeviceInterrupts()`: Reset slot bookkeeping at boot.
