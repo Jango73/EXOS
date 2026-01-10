@@ -52,8 +52,16 @@ PAYLOAD_SOURCE  ?= source/vbr-payload-c.c
 PAYLOAD_ARCH_SOURCE = source/vbr-payload-$(ARCH).c
 PAYLOAD_BUILD_ID ?= $(shell date +%Y%m%d-%H%M%S)
 
+PAYLOAD_SOURCE_EFFECTIVE := $(PAYLOAD_SOURCE)
+ifneq ($(findstring *,$(PAYLOAD_SOURCE)),)
+PAYLOAD_SOURCE_WILDCARD := $(wildcard $(PAYLOAD_SOURCE))
+ifneq ($(PAYLOAD_SOURCE_WILDCARD),)
+PAYLOAD_SOURCE_EFFECTIVE := $(PAYLOAD_SOURCE_WILDCARD)
+endif
+endif
+
 TEST_PAYLOAD := 0
-ifneq ($(filter test-payloads/%,$(PAYLOAD_SOURCE)),)
+ifneq ($(filter test-payloads/%,$(PAYLOAD_SOURCE_EFFECTIVE)),)
 TEST_PAYLOAD := 1
 endif
 
@@ -87,13 +95,13 @@ LDDEFS          = --defsym=PAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS)
 MBR_BIN         = $(BUILD_DIR)/boot-hd/mbr.bin
 VBR_BIN         = $(BUILD_DIR)/boot-hd/vbr.bin
 PAYLOAD_STUB_O  = $(BUILD_DIR)/boot-hd/vbr-payload-a.o
-ifneq ($(filter test-payloads/%,$(PAYLOAD_SOURCE)),)
-PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE)
+ifneq ($(filter test-payloads/%,$(PAYLOAD_SOURCE_EFFECTIVE)),)
+PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE_EFFECTIVE)
 else
-ifneq ($(filter test-payloads/%,$(PAYLOAD_SOURCE)),)
-PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE)
+ifneq ($(filter test-payloads/%,$(PAYLOAD_SOURCE_EFFECTIVE)),)
+PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE_EFFECTIVE)
 else
-PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE) $(PAYLOAD_ARCH_SOURCE) source/vbr-payload-fat32.c source/vbr-payload-ext2.c
+PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE_EFFECTIVE) $(PAYLOAD_ARCH_SOURCE) source/vbr-payload-fat32.c source/vbr-payload-ext2.c
 endif
 endif
 PAYLOAD_C_OBJS  = $(patsubst source/%.c,$(BUILD_DIR)/boot-hd/%.o,$(filter source/%.c,$(PAYLOAD_C_SOURCES))) \
