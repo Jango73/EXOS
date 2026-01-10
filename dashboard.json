@@ -16,6 +16,7 @@
         "f3": { "label": "Build Debug", "script": "scripts/build --arch i386 --fs ext2 --debug" },
         "f4": { "label": "Build Debug Split", "script": "DEBUG_SPLIT=1 scripts/build --arch i386 --fs ext2 --debug" },
 
+        "C-y": { "label": "Build System Data View", "script": "scripts/build --arch i386 --fs ext2 --system-data-view" },
         "C-v": { "label": "Build VESA Test Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/vesa-test.c ARCH=i386 install-vbr-payload" },
         "C-d": { "label": "Build Dumper Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/dumper*.c ARCH=i386 install-vbr-payload" },
         "C-k": { "label": "Build BIOS Keyboard Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/bios-keyboard.c ARCH=i386 install-vbr-payload" },

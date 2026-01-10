@@ -45,6 +45,12 @@ extern U32 DeadBeef;
 
 /************************************************************************/
 
+#if SYSTEM_DATA_VIEW == 1
+void SystemDataViewMode(void);
+#endif
+
+/************************************************************************/
+
 U32 EXOS_End SECTION(".end_mark") = 0x534F5845;
 
 /************************************************************************/
@@ -1021,6 +1027,13 @@ void InitializeKernel(void) {
     EnableInterrupts();
 
     DEBUG(TEXT("[InitializeKernel] Interrupts enabled"));
+
+    //-------------------------------------
+#if SYSTEM_DATA_VIEW == 1
+
+    SystemDataViewMode();
+
+#endif
 
     //-------------------------------------
 
