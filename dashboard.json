@@ -11,21 +11,17 @@
 
         "i386-----------------": "",
 
-        "C-i": { "label": "Clean", "script": "make ARCH=i386 clean" },
-
-        "f1": { "label": "Clean Build", "script": "scripts/build --arch i386 --fs ext2 --release --clean" },
+        "f1": { "label": "Clean", "script": "make ARCH=i386 clean" },
         "f2": { "label": "Build", "script": "scripts/build --arch i386 --fs ext2 --release" },
-
-        "f3": { "label": "Clean Build Debug", "script": "scripts/build --arch i386 --fs ext2 --debug --clean" },
-        "f4": { "label": "Build Debug", "script": "scripts/build --arch i386 --fs ext2 --debug" },
-        "C-b": { "label": "Build Debug Split", "script": "DEBUG_SPLIT=1 scripts/build --arch i386 --fs ext2 --debug" },
-
-        "f5": { "label": "Start QEMU", "script": "scripts/run --arch i386" },
-        "f6": { "label": "Start QEMU + GDB", "script": "scripts/run --arch i386 --gdb" },
+        "f3": { "label": "Build Debug", "script": "scripts/build --arch i386 --fs ext2 --debug" },
+        "f4": { "label": "Build Debug Split", "script": "DEBUG_SPLIT=1 scripts/build --arch i386 --fs ext2 --debug" },
 
         "C-v": { "label": "Build VESA Test Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/vesa-test.c ARCH=i386 install-vbr-payload" },
         "C-d": { "label": "Build Interrupt Dump Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/interrupt-dump.c ARCH=i386 install-vbr-payload" },
         "C-k": { "label": "Build BIOS Keyboard Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/bios-keyboard.c ARCH=i386 install-vbr-payload" },
+
+        "f5": { "label": "Start QEMU", "script": "scripts/run --arch i386" },
+        "f6": { "label": "Start QEMU + GDB", "script": "scripts/run --arch i386 --gdb" },
 
         "x86-64---------------": "",
 
