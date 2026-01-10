@@ -136,7 +136,7 @@ static BOOL ATAWaitNotBusy(U32 Port, U32 TimeOut) {
         }
     }
 
-    WARNING(TEXT("[ATAWaitNotBusy] Time-out in ATA port %x"), Port);
+    DEBUG(TEXT("[ATAWaitNotBusy] Time-out in ATA port %x"), Port);
 
     return FALSE;
 }
@@ -153,7 +153,7 @@ static BOOL ATAWaitDataReady(U32 Port, U32 TimeOut) {
         }
     }
 
-    WARNING(TEXT("[ATAWaitDataReady] Time-out in ATA port %x"), Port);
+    DEBUG(TEXT("[ATAWaitDataReady] Time-out in ATA port %x"), Port);
 
     return FALSE;
 }
