@@ -678,8 +678,14 @@ BOOL TransitionToIOAPICMode(void) {
         return FALSE;
     }
 
-    WARNING(TEXT("[TransitionToIOAPICMode] Local APIC enabled"));
+    DEBUG(TEXT("[TransitionToIOAPICMode] Local APIC enabled"));
     RoutePicToLocalApic();
+
+    if (!ConfigureLVTEntry(LOCAL_APIC_LVT_LINT0, 0x20, LOCAL_APIC_LVT_DELIVERY_EXTINT, TRUE)) {
+        WARNING(TEXT("[TransitionToIOAPICMode] Failed to mask LINT0 after IOAPIC enable"));
+    } else {
+        DEBUG(TEXT("[TransitionToIOAPICMode] LINT0 masked for IOAPIC mode"));
+    }
 
     // Step 4: Shutdown PIC 8259
     if (!ShutdownPIC8259()) {

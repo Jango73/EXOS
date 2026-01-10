@@ -849,8 +849,6 @@ static BOOL EnsureFadtLoaded(void) {
 U32 MapInterrupt(U8 IRQ) {
     for (U32 i = 0; i < G_AcpiConfig.InterruptOverrideCount; i++) {
         if (G_InterruptOverrides[i].Bus == 0 && G_InterruptOverrides[i].Source == IRQ) {
-            DEBUG(TEXT("[MapInterrupt] IRQ %d mapped to GSI %d"),
-                  IRQ, G_InterruptOverrides[i].GlobalSystemInterrupt);
             return G_InterruptOverrides[i].GlobalSystemInterrupt;
         }
     }
