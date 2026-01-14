@@ -1,13 +1,7 @@
 
 SHELL = /bin/bash
 
-ARCH ?= i386
-
-ifeq ($(ARCH),i386)
-VMA_KERNEL ?= 0xC0000000
-else ifeq ($(ARCH),x86-64)
-VMA_KERNEL ?= 0xFFFFFFFFC0000000
-endif
+include ../make/arch.mk
 
 BUILD_DIR := ../build/$(ARCH)
 
@@ -49,7 +43,13 @@ PAYLOAD_STR_C   = ../kernel/source/CoreString.c
 
 # Configurable payload source (can be overridden with make PAYLOAD_SOURCE=...)
 PAYLOAD_SOURCE  ?= source/vbr-payload-c.c
+ifeq ($(ARCH),x86-64)
+PAYLOAD_ARCH_SOURCE = source/vbr-payload-x86-64-mbr.c
+else ifeq ($(ARCH),i386)
+PAYLOAD_ARCH_SOURCE = source/vbr-payload-i386-mbr.c
+else
 PAYLOAD_ARCH_SOURCE = source/vbr-payload-$(ARCH).c
+endif
 PAYLOAD_BUILD_ID ?= $(shell date +%Y%m%d-%H%M%S)
 
 PAYLOAD_SOURCE_EFFECTIVE := $(PAYLOAD_SOURCE)
@@ -83,7 +83,7 @@ CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -DMEMORY_SIZE=$(MEMORY_SIZE) \
                   -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) \
                   -DBOOT_PAYLOAD_BUILD_ID=\"$(PAYLOAD_BUILD_ID)\" \
-                  -Iinclude -I../kernel/include
+                  -Iinclude -I../boot-shared/include -I../kernel/include
 NASMFLAGS       += -DBOOT_PAYLOAD_BUILD_ID=\"$(PAYLOAD_BUILD_ID)\"
 
 NASM            = nasm
@@ -104,8 +104,10 @@ else
 PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE_EFFECTIVE) $(PAYLOAD_ARCH_SOURCE) source/vbr-payload-fat32.c source/vbr-payload-ext2.c
 endif
 endif
+BOOT_SHARED_C_SOURCES = ../boot-shared/source/boot-multiboot.c
 PAYLOAD_C_OBJS  = $(patsubst source/%.c,$(BUILD_DIR)/boot-hd/%.o,$(filter source/%.c,$(PAYLOAD_C_SOURCES))) \
-                  $(patsubst test-payloads/%.c,$(BUILD_DIR)/boot-hd/test-payloads/%.o,$(filter test-payloads/%.c,$(PAYLOAD_C_SOURCES)))
+                  $(patsubst test-payloads/%.c,$(BUILD_DIR)/boot-hd/test-payloads/%.o,$(filter test-payloads/%.c,$(PAYLOAD_C_SOURCES))) \
+                  $(patsubst ../boot-shared/source/%.c,$(BUILD_DIR)/boot-hd/boot-shared/%.o,$(BOOT_SHARED_C_SOURCES))
 PAYLOAD_STR_O   = $(BUILD_DIR)/boot-hd/String.o
 PAYLOAD_BIN     = $(BUILD_DIR)/boot-hd/vbr-payload.bin
 PAYLOAD_ELF     = $(BUILD_DIR)/boot-hd/vbr-payload.elf
@@ -271,6 +273,11 @@ $(BUILD_DIR)/boot-hd/%.o: source/%.c
 $(BUILD_DIR)/boot-hd/test-payloads/%.o: test-payloads/%.c
 	@echo "Compiling payload C from $<..."
 	@mkdir -p $(BUILD_DIR)/boot-hd/test-payloads
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/boot-hd/boot-shared/%.o: ../boot-shared/source/%.c
+	@echo "Compiling payload C from $<..."
+	@mkdir -p $(BUILD_DIR)/boot-hd/boot-shared
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(PAYLOAD_STR_O): $(PAYLOAD_STR_C)

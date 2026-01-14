@@ -31,14 +31,6 @@
 #error "CONFIG_VMA_KERNEL is not defined"
 #endif
 
-#ifdef __EXOS_32__
-static const U64 KERNEL_LONG_MODE_BASE = {
-    (U32)(CONFIG_VMA_KERNEL & 0xFFFFFFFFu),
-    (U32)((CONFIG_VMA_KERNEL >> 32) & 0xFFFFFFFFu)
-};
-#else
-static const U64 KERNEL_LONG_MODE_BASE = (U64)CONFIG_VMA_KERNEL;
-#endif
 static const UINT MAX_KERNEL_PAGE_TABLES = 64u;
 static const U32 TEMP_LINEAR_LAST_OFFSET = 0x00102000u;
 static const U32 TEMP_LINEAR_REQUIRED_SPAN = TEMP_LINEAR_LAST_OFFSET + PAGE_SIZE;
@@ -60,88 +52,6 @@ static LPPAGE_TABLE PageTableLowHigh = (LPPAGE_TABLE)LOW_MEMORY_PAGE_8;
 static SEGMENT_DESCRIPTOR GdtEntries[VBR_GDT_ENTRY_LONG_MODE_DATA + 1u];
 static GDT_REGISTER Gdtr;
 
-#if defined(BOOT_UEFI)
-static void UefiSerialWriteByte(U8 Value) {
-    const U16 Port = 0x3F8u;
-    const U16 LineStatusPort = (U16)(Port + 0x05u);
-    const U8 LineStatusThre = 0x20u;
-    U8 Status = 0u;
-
-    do {
-        __asm__ __volatile__("inb %1, %0" : "=a"(Status) : "Nd"(LineStatusPort));
-    } while ((Status & LineStatusThre) == 0u);
-
-    __asm__ __volatile__("outb %0, %1" ::"a"(Value), "Nd"(Port));
-}
-
-static void UefiSerialWriteString(LPCSTR Text) {
-    if (Text == NULL) {
-        return;
-    }
-
-    while (*Text != 0u) {
-        UefiSerialWriteByte(*Text);
-        Text++;
-    }
-}
-
-/************************************************************************/
-
-/**
- * @brief Write a 32-bit value as hexadecimal to the legacy serial port.
- *
- * @param Value Value to output.
- */
-static void UefiSerialWriteHex32(U32 Value) {
-    STR HexValue[9];
-
-    U32ToHexString(Value, HexValue);
-    UefiSerialWriteString((LPCSTR)HexValue);
-}
-
-/************************************************************************/
-
-/**
- * @brief Write a 64-bit value as hexadecimal to the legacy serial port.
- *
- * @param Value Value to output.
- */
-static void UefiSerialWriteHex64(U64 Value) {
-    UefiSerialWriteHex32(U64_High32(Value));
-    UefiSerialWriteHex32(U64_Low32(Value));
-}
-
-/************************************************************************/
-
-/**
- * @brief Write a labeled 32-bit hexadecimal value to the legacy serial port.
- *
- * @param Label Prefix string.
- * @param Value Value to output.
- */
-static void UefiSerialWriteLabelHex32(LPCSTR Label, U32 Value) {
-    UefiSerialWriteString(Label);
-    UefiSerialWriteString((LPCSTR)"0x");
-    UefiSerialWriteHex32(Value);
-    UefiSerialWriteString((LPCSTR)"\r\n");
-}
-
-/************************************************************************/
-
-/**
- * @brief Write a labeled 64-bit hexadecimal value to the legacy serial port.
- *
- * @param Label Prefix string.
- * @param Value Value to output.
- */
-static void UefiSerialWriteLabelHex64(LPCSTR Label, U64 Value) {
-    UefiSerialWriteString(Label);
-    UefiSerialWriteString((LPCSTR)"0x");
-    UefiSerialWriteHex64(Value);
-    UefiSerialWriteString((LPCSTR)"\r\n");
-}
-#endif
-
 typedef char VerifySegmentDescriptorSize[(sizeof(SEGMENT_DESCRIPTOR) == 8u) ? 1 : -1];
 typedef char VerifyProtectedCodeSelector[
     (VBR_PROTECTED_MODE_CODE_SELECTOR == (U16)(VBR_GDT_ENTRY_PROTECTED_CODE * (U16)sizeof(SEGMENT_DESCRIPTOR))) ? 1 : -1];
@@ -159,69 +69,35 @@ const U16 VbrLongModeDataSelector = VBR_LONG_MODE_DATA_SELECTOR;
 
 /************************************************************************/
 
-#ifdef __EXOS_32__
+static U64 VbrGetKernelLongModeBase(void) {
+    return U64_Make((U32)((CONFIG_VMA_KERNEL >> 32) & 0xFFFFFFFFu), (U32)(CONFIG_VMA_KERNEL & 0xFFFFFFFFu));
+}
+
+/************************************************************************/
+
 static U64 VbrShiftRightU64(U64 Value, UINT Count) {
-    U64 Result = { 0u, 0u };
-
-    if (Count >= 64u) {
-        return Result;
+    for (UINT Index = 0u; Index < Count; ++Index) {
+        Value = U64_ShiftRight1(Value);
     }
-
-    if (Count >= 32u) {
-        const UINT Shift = Count - 32u;
-        Result.LO = Value.HI >> Shift;
-        Result.HI = 0u;
-        return Result;
-    }
-
-    if (Count != 0u) {
-        const UINT Right = Count;
-        const UINT Left = 32u - Right;
-        Result.LO = (Value.LO >> Right) | (Value.HI << Left);
-        Result.HI = Value.HI >> Right;
-        return Result;
-    }
-
     return Value;
 }
-#else
-static U64 VbrShiftRightU64(U64 Value, UINT Count) {
-    return Value >> Count;
-}
-#endif
 
 /************************************************************************/
 
 static UINT VbrExtractU64Bits(U64 Value, UINT Shift, UINT Width) {
     U64 Shifted = VbrShiftRightU64(Value, Shift);
 
-#ifdef __EXOS_32__
-    U32 Mask;
     if (Width >= 32u) {
-        Mask = 0xFFFFFFFFu;
-    } else {
-        Mask = (1u << Width) - 1u;
+        return U64_Low32(Shifted);
     }
-    return Shifted.LO & Mask;
-#else
-    U64 Mask;
-    if (Width >= 64u) {
-        Mask = ~0ull;
-    } else {
-        Mask = (1ull << Width) - 1ull;
-    }
-    return (UINT)(Shifted & Mask);
-#endif
+
+    return U64_Low32(Shifted) & ((1u << Width) - 1u);
 }
 
 /************************************************************************/
 
 static U64 VbrPointerToPhysical(const void* Pointer) {
-#ifdef __EXOS_32__
-    return U64_FromU32((U32)(UINT)Pointer);
-#else
     return U64_FromUINT((UINT)Pointer);
-#endif
 }
 
 /************************************************************************/
@@ -308,72 +184,6 @@ static U64 VbrEntryToPhysical(const X86_64_PAGING_ENTRY* Entry) {
 
     return U64_Make(PhysicalHigh, PhysicalLow);
 }
-
-/************************************************************************/
-
-/**
- * @brief Identity-map a physical range so the UEFI image remains executable after CR3 switch.
- *
- * @param Base Physical base address.
- * @param Size Size in bytes.
- * @param NextTablePhysical Physical address allocator for paging tables.
- */
-#if defined(BOOT_UEFI)
-static void MapIdentityRange(U64 Base, U64 Size, U64* NextTablePhysical) {
-    if (Size == 0) {
-        return;
-    }
-
-    U64 Start = Base & ~(U64)(PAGE_SIZE - 1u);
-    U64 End = Base + Size;
-    End = (End + (U64)(PAGE_SIZE - 1u)) & ~(U64)(PAGE_SIZE - 1u);
-
-    for (U64 Address = Start; Address < End; Address += PAGE_SIZE) {
-        const UINT Pml4Index = (UINT)((Address >> 39) & 0x1FFu);
-        const UINT PdptIndex = (UINT)((Address >> 30) & 0x1FFu);
-        const UINT PdIndex = (UINT)((Address >> 21) & 0x1FFu);
-        const UINT PtIndex = (UINT)((Address >> 12) & 0x1FFu);
-
-        if (Pml4Index != 0u) {
-            UefiSerialWriteString((LPCSTR)"[MapIdentityRange] ERROR: Pml4 index not supported\r\n");
-            Hang();
-        }
-
-        LPX86_64_PAGING_ENTRY PdptEntry = (LPX86_64_PAGING_ENTRY)(PageDirectoryPointerLow + PdptIndex);
-        LPPAGE_DIRECTORY PageDirectory = NULL;
-        if (!VbrIsLongModeEntryPresent(PdptEntry)) {
-            const U64 TablePhysical = *NextTablePhysical;
-            *NextTablePhysical += PAGE_TABLE_SIZE;
-            PageDirectory = (LPPAGE_DIRECTORY)VbrU64ToUINT(TablePhysical);
-            MemorySet(PageDirectory, 0, PAGE_TABLE_SIZE);
-            SetLongModeEntry(PdptEntry, U64_FromUINT(TablePhysical), 0u);
-        } else {
-            const U64 Physical = VbrEntryToPhysical(PdptEntry);
-            PageDirectory = (LPPAGE_DIRECTORY)VbrU64ToUINT(Physical);
-        }
-
-        LPX86_64_PAGING_ENTRY PdEntry = (LPX86_64_PAGING_ENTRY)(PageDirectory + PdIndex);
-        LPPAGE_TABLE PageTable = NULL;
-        if (!VbrIsLongModeEntryPresent(PdEntry)) {
-            const U64 TablePhysical = *NextTablePhysical;
-            *NextTablePhysical += PAGE_TABLE_SIZE;
-            PageTable = (LPPAGE_TABLE)VbrU64ToUINT(TablePhysical);
-            MemorySet(PageTable, 0, PAGE_TABLE_SIZE);
-            SetLongModeEntry(PdEntry, U64_FromUINT(TablePhysical), 0u);
-        } else {
-            const U64 Physical = VbrEntryToPhysical(PdEntry);
-            PageTable = (LPPAGE_TABLE)VbrU64ToUINT(Physical);
-        }
-
-        SetLongModeEntry(
-            (LPX86_64_PAGING_ENTRY)(PageTable + PtIndex),
-            Address,
-            LONG_MODE_ENTRY_GLOBAL);
-    }
-}
-#endif
-
-/************************************************************************/
 
 static void SetSegmentDescriptorX8664(
     LPSEGMENT_DESCRIPTOR Descriptor,
@@ -497,15 +307,8 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize, U64
         ++TableIndex;
     }
 
-#if defined(BOOT_UEFI)
-    if (UefiImageSize != 0) {
-        U64 NextTablePhysical = (U64)BaseTablePhysical + (U64)(TablesRequired * PAGE_TABLE_SIZE);
-        MapIdentityRange(UefiImageBase, UefiImageSize, &NextTablePhysical);
-    }
-#else
     UNUSED(UefiImageBase);
     UNUSED(UefiImageSize);
-#endif
 }
 
 /************************************************************************/
@@ -566,32 +369,13 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U6
         MapSize = TEMP_LINEAR_REQUIRED_SPAN;
     }
 
-#if !defined(BOOT_UEFI)
     EnableA20();
     UNUSED(UefiImageBase);
     UNUSED(UefiImageSize);
-#endif
 
-#if defined(BOOT_UEFI)
-    UefiSerialWriteString((LPCSTR)"[EnterProtectedPagingAndJump] Start\r\n");
-    UefiSerialWriteLabelHex64(
-        (LPCSTR)"[EnterProtectedPagingAndJump] UefiImageBase=",
-        UefiImageBase);
-    UefiSerialWriteLabelHex64(
-        (LPCSTR)"[EnterProtectedPagingAndJump] UefiImageSize=",
-        UefiImageSize);
-#endif
-
-    const U64 KernelVirtBase = KERNEL_LONG_MODE_BASE;
+    const U64 KernelVirtBase = VbrGetKernelLongModeBase();
     BuildPaging(KernelPhysBase, KernelVirtBase, MapSize, UefiImageBase, UefiImageSize);
     BuildGdtFlat();
-
-#if defined(BOOT_UEFI)
-    UefiSerialWriteString((LPCSTR)"[EnterProtectedPagingAndJump] Paging and GDT ready\r\n");
-    UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] KernelPhysicalBase=", KernelPhysBase);
-    UefiSerialWriteLabelHex64((LPCSTR)"[EnterProtectedPagingAndJump] KernelVirtualBase=", KernelVirtBase);
-    UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] MapSize=", MapSize);
-#endif
 
     const U32 KernelEntryLo = U64_Low32(KernelVirtBase);
     const U32 KernelEntryHi = U64_High32(KernelVirtBase);
@@ -603,16 +387,6 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U6
 
     BootDebugPrint(TEXT("[VBR x86-64] About to jump\r\n"));
 
-#if defined(BOOT_UEFI)
-    UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] KernelEntryLow=", KernelEntryLo);
-    UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] KernelEntryHigh=", KernelEntryHi);
-    UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] PagingStructure=", PagingStructure);
-    UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] MultibootInfoPointer=", MultibootInfoPtr);
-    UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] GdtRegister=", (U32)(UINT)&Gdtr);
-    UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] GdtRegisterBase=", Gdtr.Base);
-    UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] GdtRegisterLimit=", Gdtr.Limit);
-    UefiSerialWriteString((LPCSTR)"[EnterProtectedPagingAndJump] Jumping to kernel\r\n");
-#endif
     StubJumpToImage((U32)(&Gdtr), PagingStructure, KernelEntryLo, KernelEntryHi, MultibootInfoPtr, MULTIBOOT_BOOTLOADER_MAGIC);
 
     __builtin_unreachable();

@@ -2,7 +2,7 @@ ENTRY(start)
 
 SECTIONS
 {
-    __kernel_vma = DEFINED(__VMA_KERNEL) ? __VMA_KERNEL : 0xFFFFFFFFC0000000;
+    __kernel_vma = __VMA_KERNEL;
 
     /* Code */
     . = __kernel_vma;

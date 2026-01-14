@@ -202,6 +202,13 @@ Everything in this sequence runs in 16-bit real mode on i386+ processors. Howeve
 11. It finally jumps to the loaded binary.
 12. That's all folks. But it was a real pain to code :D
 
+## Startup sequence on UEFI
+
+1. Firmware loads `EFI/BOOT/BOOTX64.EFI` (x86-64) or `EFI/BOOT/BOOTIA32.EFI` (i386) from the EFI System Partition (FAT32).
+2. The UEFI loader reads `exos.bin` from the root folder of the EFI System Partition into physical address 0x200000.
+3. The loader gathers the UEFI memory map, converts it to an E820 map, and builds the Multiboot information block.
+4. The loader switches to EXOS paging and GDT layout, then jumps to the kernel entry with the Multiboot registers set.
+
 ## Physical Memory map (may change)
 
 ```

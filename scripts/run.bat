@@ -4,6 +4,9 @@ setlocal enabledelayedexpansion
 set "ARCH=i386"
 set "USE_GDB=0"
 set "USB3_ENABLED=1"
+set "USE_UEFI=0"
+set "UEFI_ARGS="
+set "UEFI_VARS_COPY="
 
 :parse
 if "%~1"=="" goto done
@@ -28,6 +31,11 @@ if "%~1"=="--no-usb3" (
     shift
     goto parse
 )
+if "%~1"=="--uefi" (
+    set "USE_UEFI=1"
+    shift
+    goto parse
+)
 if "%~1"=="--help" goto usage
 if "%~1"=="-h" goto usage
 
@@ -35,7 +43,7 @@ echo Unknown option: %~1
 goto usage
 
 :usage
-echo Usage: %~nx0 --arch ^<i386^|x86-64^> [--gdb] [--usb3^|--no-usb3]
+echo Usage: %~nx0 --arch ^<i386^|x86-64^> [--gdb] [--usb3^|--no-usb3] [--uefi]
 exit /b 1
 
 :done
@@ -44,11 +52,15 @@ if "%ARCH%"=="i386" (
     set "IMG_PATH=build\i386\boot-hd\exos.img"
     set "USB_3_PATH=build\i386\boot-hd\usb-3.img"
     set "DEBUG_ELF=build\i386\kernel\exos.elf"
+    set "OVMF_CODE_DEFAULT=c:\program files\qemu\share\qemu\OVMF32_CODE.fd"
+    set "OVMF_VARS_DEFAULT=c:\program files\qemu\share\qemu\OVMF32_VARS.fd"
 ) else if "%ARCH%"=="x86-64" (
     set "QEMU_BIN_DEFAULT=c:\program files\qemu\qemu-system-x86_64"
     set "IMG_PATH=build\x86-64\boot-hd\exos.img"
     set "USB_3_PATH=build\x86-64\boot-hd\usb-3.img"
     set "DEBUG_ELF=build\x86-64\kernel\exos.elf"
+    set "OVMF_CODE_DEFAULT=c:\program files\qemu\share\qemu\OVMF_CODE.fd"
+    set "OVMF_VARS_DEFAULT=c:\program files\qemu\share\qemu\OVMF_VARS.fd"
 ) else (
     echo Unknown architecture: %ARCH%
     goto usage
@@ -60,12 +72,16 @@ if defined QEMU_BIN (
     set "QEMU_BIN=%QEMU_BIN_DEFAULT%"
 )
 
+if "%USE_UEFI%"=="1" (
+    set "IMG_PATH=build\%ARCH%\boot-uefi\exos-uefi.img"
+)
+
 if not exist "%IMG_PATH%" (
     echo Image not found: %IMG_PATH%
     exit /b 1
 )
 
-if "%USB3_ENABLED%"=="1" (
+if "%USE_UEFI%"=="0" if "%USB3_ENABLED%"=="1" (
     if not exist "%USB_3_PATH%" (
         echo Image not found: %USB_3_PATH%
         exit /b 1
@@ -75,8 +91,37 @@ if "%USB3_ENABLED%"=="1" (
 if not exist log mkdir log
 
 set "USB_ARGS="
-if "%USB3_ENABLED%"=="1" (
+if "%USE_UEFI%"=="0" if "%USB3_ENABLED%"=="1" (
     set "USB_ARGS=-drive format=raw,file=%USB_3_PATH%,if=none,id=usbdrive0 -device usb-storage,drive=usbdrive0,bus=xhci.0,id=usbmsd0"
+)
+
+if "%USE_UEFI%"=="1" (
+    if defined OVMF_CODE (
+        set "OVMF_CODE=%OVMF_CODE%"
+    ) else (
+        set "OVMF_CODE=%OVMF_CODE_DEFAULT%"
+    )
+
+    if defined OVMF_VARS (
+        set "OVMF_VARS=%OVMF_VARS%"
+    ) else (
+        set "OVMF_VARS=%OVMF_VARS_DEFAULT%"
+    )
+
+    if not exist "%OVMF_CODE%" (
+        echo OVMF code firmware not found: %OVMF_CODE%
+        exit /b 1
+    )
+
+    if not exist "%OVMF_VARS%" (
+        echo OVMF variables firmware not found: %OVMF_VARS%
+        exit /b 1
+    )
+
+    if not exist "build\%ARCH%\boot-uefi" mkdir "build\%ARCH%\boot-uefi"
+    set "UEFI_VARS_COPY=build\%ARCH%\boot-uefi\ovmf-vars.fd"
+    copy /y "%OVMF_VARS%" "%UEFI_VARS_COPY%" >nul
+    set "UEFI_ARGS=-drive if=pflash,format=raw,readonly=on,file=%OVMF_CODE% -drive if=pflash,format=raw,file=%UEFI_VARS_COPY%"
 )
 
 set "GDB_ARGS="
@@ -99,6 +144,7 @@ echo Starting QEMU for %ARCH%
 -device usb-kbd,bus=xhci.0 ^
 -device usb-mouse,bus=xhci.0 ^
 %USB_ARGS% ^
+%UEFI_ARGS% ^
 -audiodev dsound,id=audio0 ^
 -device intel-hda,id=hda ^
 -device hda-output,bus=hda.0,audiodev=audio0 ^

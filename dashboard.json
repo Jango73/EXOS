@@ -2,7 +2,7 @@
     "logs": [
         "log/kernel.log"
     ],
-    "scriptsDir": "./scripts",
+    "scriptsDir": ".",
     "keyBindings": {
         "C-e": { "label": "Setup Dependencies", "script": "1-1-setup-deps.sh" },
         "C-f": { "label": "Format Code", "script": "3-1-format-all-code.sh" },
@@ -12,9 +12,11 @@
         "i386-----------------": "",
 
         "f1": { "label": "Clean", "script": "make ARCH=i386 clean" },
-        "f2": { "label": "Build", "script": "scripts/build --arch i386 --fs ext2 --release" },
-        "f3": { "label": "Build Debug", "script": "scripts/build --arch i386 --fs ext2 --debug" },
-        "f4": { "label": "Build Debug Split", "script": "DEBUG_SPLIT=1 scripts/build --arch i386 --fs ext2 --debug" },
+        "f2": { "label": "Build MBR Release", "script": "scripts/build --arch i386 --fs ext2 --release" },
+        "f3": { "label": "Build MBR Debug", "script": "scripts/build --arch i386 --fs ext2 --debug" },
+        "f4": { "label": "Build MBR Debug Split", "script": "DEBUG_SPLIT=1 scripts/build --arch i386 --fs ext2 --debug" },
+        "C-u": { "label": "Build UEFI Release", "script": "scripts/build --arch i386 --fs ext2 --release --uefi" },
+        "C-i": { "label": "Build UEFI Debug", "script": "scripts/build --arch i386 --fs ext2 --debug --uefi" },
 
         "C-y": { "label": "Build System Data View", "script": "scripts/build --arch i386 --fs ext2 --system-data-view" },
         "C-v": { "label": "Build VESA Test Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/vesa-test.c ARCH=i386 install-vbr-payload" },
@@ -23,19 +25,21 @@
 
         "f5": { "label": "Start QEMU", "script": "scripts/run --arch i386" },
         "f6": { "label": "Start QEMU + GDB", "script": "scripts/run --arch i386 --gdb" },
+        "C-o": { "label": "Start QEMU UEFI", "script": "scripts/run --arch i386 --uefi" },
+        "C-l": { "label": "Start QEMU UEFI + GDB", "script": "scripts/run --arch i386 --gdb --uefi" },
 
         "x86-64---------------": "",
 
-        "C-x": { "label": "Clean", "script": "make ARCH=x86-64 clean" },
-
-        "f7": { "label": "Clean Build", "script": "scripts/build --arch x86-64 --fs ext2 --release --clean" },
-        "f8": { "label": "Build", "script": "scripts/build --arch x86-64 --fs ext2 --release" },
-
-        "f9": { "label": "Clean Build Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug --clean" },
-        "f10": { "label": "Build Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug" },
+        "f8": { "label": "Clean", "script": "make ARCH=x86-64 clean" },
+        "f9": { "label": "Build MBR Release", "script": "scripts/build --arch x86-64 --fs ext2 --release" },
+        "f10": { "label": "Build MBR Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug" },
+        "C-b": { "label": "Build UEFI Release", "script": "scripts/build --arch x86-64 --fs ext2 --release --uefi" },
+        "C-n": { "label": "Build UEFI Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug --uefi" },
 
         "f11": { "label": "Start QEMU", "script": "scripts/run --arch x86-64" },
         "f12": { "label": "Start QEMU + GDB", "script": "scripts/run --arch x86-64 --gdb" },
+        "C-g": { "label": "Start QEMU UEFI", "script": "scripts/run --arch x86-64 --uefi" },
+        "C-t": { "label": "Start QEMU UEFI + GDB", "script": "scripts/run --arch x86-64 --gdb --uefi" },
 
         "3--------------------": "",
 

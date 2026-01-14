@@ -26,7 +26,7 @@
 #define VBR_PAYLOAD_SHARED_H_INCLUDED
 
 #include "CoreString.h"
-#include "vbr-multiboot.h"
+#include "boot-multiboot.h"
 #include "vbr-realmode-utils.h"
 
 /************************************************************************/
@@ -59,38 +59,8 @@
 #endif
 
 /************************************************************************/
-// Constants shared with the architecture specific code
-
-#define E820_MAX_ENTRIES 32
-#define E820_ENTRY_SIZE 24
-#define E820_SIZE (E820_MAX_ENTRIES * E820_ENTRY_SIZE)
-
-/************************************************************************/
-// E820 memory map
-
-typedef struct PACKED tag_E820ENTRY {
-    U64 Base;
-    U64 Size;
-    U32 Type;
-    U32 Attributes;
-} E820ENTRY;
-
-/************************************************************************/
-// Globals provided by the common payload implementation
-
-extern U32 E820_EntryCount;
-extern E820ENTRY E820_Map[E820_MAX_ENTRIES];
-extern multiboot_info_t MultibootInfo;
-extern multiboot_memory_map_t MultibootMemMap[E820_MAX_ENTRIES];
-extern multiboot_module_t KernelModule;
-extern const char BootloaderName[];
-extern const char KernelCmdLine[];
-extern STR TempString[128];
-
-/************************************************************************/
 // Common helpers exposed to the architecture specific units
 
-U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize);
 void BootDebugPrint(LPCSTR Format, ...);
 void BootVerbosePrint(LPCSTR Format, ...);
 void BootErrorPrint(LPCSTR Format, ...);

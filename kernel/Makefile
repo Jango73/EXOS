@@ -1,7 +1,7 @@
 
 SHELL = /bin/bash
 
-ARCH 					?= i386
+include ../make/arch.mk
 BARE_METAL              ?= 0
 DEBUG_OUTPUT            ?= 0
 DEBUG_SPLIT             ?= 0
@@ -11,12 +11,6 @@ TRACE_STACK_USAGE       ?= 0
 PROFILING               ?= 0
 USE_SYSCALL             ?= 0
 SYSTEM_DATA_VIEW        ?= 0
-
-ifeq ($(ARCH),i386)
-VMA_KERNEL ?= 0xC0000000
-else ifeq ($(ARCH),x86-64)
-VMA_KERNEL ?= 0xFFFFFFFFC0000000
-endif
 
 BUILD_DIR := ../build/$(ARCH)
 

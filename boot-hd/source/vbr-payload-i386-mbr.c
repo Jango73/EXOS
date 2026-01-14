@@ -155,14 +155,10 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U6
     const U32 KernelPhysBase = KERNEL_LINEAR_LOAD_ADDRESS;
     const U32 MapSize = PAGE_ALIGN(FileSize + N_512KB);
 
-#if defined(BOOT_UEFI)
     UNUSED(UefiImageBase);
     UNUSED(UefiImageSize);
-#endif
 
-#if !defined(BOOT_UEFI)
     EnableA20();
-#endif
 
     const U32 KernelVirtBase = (U32)CONFIG_VMA_KERNEL;
     BuildPaging(KernelPhysBase, KernelVirtBase, MapSize);

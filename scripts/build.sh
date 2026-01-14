@@ -2,7 +2,7 @@
 set -e
 
 function Usage() {
-    echo "Usage: $0 --arch <i386|x86-64> --fs <ext2|fat32> [--debug|--release] [--scheduling-debug] [--clean] [--force-pic] [--system-data-view]"
+    echo "Usage: $0 --arch <i386|x86-64> --fs <ext2|fat32> [--debug|--release] [--scheduling-debug] [--clean] [--force-pic] [--system-data-view] [--uefi]"
 }
 
 ARCH="i386"
@@ -12,6 +12,7 @@ CLEAN=0
 SCHEDULING_DEBUG=0
 FORCE_PIC=0
 SYSTEM_DATA_VIEW=0
+BUILD_UEFI=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -39,6 +40,9 @@ while [ $# -gt 0 ]; do
             ;;
         --system-data-view)
             SYSTEM_DATA_VIEW=1
+            ;;
+        --uefi)
+            BUILD_UEFI=1
             ;;
         --help|-h)
             Usage
@@ -74,13 +78,8 @@ case "$FILE_SYSTEM" in
 esac
 
 PROFILING=0
-DEBUG_OUTPUT=0
 SCHEDULING_DEBUG_OUTPUT=0
 TRACE_STACK_USAGE=0
-
-if [ "$BUILD_MODE" = "debug" ]; then
-    DEBUG_OUTPUT=1
-fi
 
 if [ "$SCHEDULING_DEBUG" -eq 1 ]; then
     PROFILING=1
@@ -103,3 +102,7 @@ if [ "$CLEAN" -eq 1 ]; then
 fi
 
 make ARCH="$ARCH" -j"$(nproc)"
+
+if [ "$BUILD_UEFI" -eq 1 ]; then
+    make ARCH="$ARCH" -C boot-uefi
+fi
