@@ -320,6 +320,75 @@ typedef struct tag_EFI_FILE_INFO {
 } EFI_FILE_INFO;
 
 /************************************************************************/
+// Graphics Output Protocol (GOP)
+
+typedef struct tag_EFI_GRAPHICS_OUTPUT_PROTOCOL EFI_GRAPHICS_OUTPUT_PROTOCOL;
+typedef struct tag_EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE;
+typedef struct tag_EFI_GRAPHICS_OUTPUT_MODE_INFORMATION EFI_GRAPHICS_OUTPUT_MODE_INFORMATION;
+
+typedef struct tag_EFI_PIXEL_BITMASK {
+    U32 RedMask;
+    U32 GreenMask;
+    U32 BlueMask;
+    U32 ReservedMask;
+} EFI_PIXEL_BITMASK;
+
+typedef enum {
+    PixelRedGreenBlueReserved8BitPerColor = 0,
+    PixelBlueGreenRedReserved8BitPerColor = 1,
+    PixelBitMask = 2,
+    PixelBltOnly = 3,
+    PixelFormatMax = 4
+} EFI_GRAPHICS_PIXEL_FORMAT;
+
+struct tag_EFI_GRAPHICS_OUTPUT_MODE_INFORMATION {
+    U32 Version;
+    U32 HorizontalResolution;
+    U32 VerticalResolution;
+    EFI_GRAPHICS_PIXEL_FORMAT PixelFormat;
+    EFI_PIXEL_BITMASK PixelInformation;
+    U32 PixelsPerScanLine;
+};
+
+struct tag_EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE {
+    U32 MaxMode;
+    U32 Mode;
+    EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* Info;
+    EFI_UINTN SizeOfInfo;
+    EFI_PHYSICAL_ADDRESS FrameBufferBase;
+    EFI_UINTN FrameBufferSize;
+};
+
+typedef EFI_STATUS(EFIAPI* EFI_GRAPHICS_OUTPUT_PROTOCOL_QUERY_MODE)(
+    EFI_GRAPHICS_OUTPUT_PROTOCOL* This,
+    U32 ModeNumber,
+    EFI_UINTN* SizeOfInfo,
+    EFI_GRAPHICS_OUTPUT_MODE_INFORMATION** Info);
+
+typedef EFI_STATUS(EFIAPI* EFI_GRAPHICS_OUTPUT_PROTOCOL_SET_MODE)(
+    EFI_GRAPHICS_OUTPUT_PROTOCOL* This,
+    U32 ModeNumber);
+
+typedef EFI_STATUS(EFIAPI* EFI_GRAPHICS_OUTPUT_PROTOCOL_BLT)(
+    EFI_GRAPHICS_OUTPUT_PROTOCOL* This,
+    void* BltBuffer,
+    EFI_UINTN BltOperation,
+    EFI_UINTN SourceX,
+    EFI_UINTN SourceY,
+    EFI_UINTN DestinationX,
+    EFI_UINTN DestinationY,
+    EFI_UINTN Width,
+    EFI_UINTN Height,
+    EFI_UINTN Delta);
+
+struct tag_EFI_GRAPHICS_OUTPUT_PROTOCOL {
+    EFI_GRAPHICS_OUTPUT_PROTOCOL_QUERY_MODE QueryMode;
+    EFI_GRAPHICS_OUTPUT_PROTOCOL_SET_MODE SetMode;
+    EFI_GRAPHICS_OUTPUT_PROTOCOL_BLT Blt;
+    EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* Mode;
+};
+
+/************************************************************************/
 // Status codes
 
 #if defined(__EXOS_ARCH_X86_64__)

@@ -77,6 +77,23 @@ typedef struct tag_CONSOLE_STRUCT {
     U32 DebugRegion;
     U32 Port;
     U16* Memory;
+    PHYSICAL FramebufferPhysical;
+    U8* FramebufferLinear;
+    U32 FramebufferPitch;
+    U32 FramebufferWidth;
+    U32 FramebufferHeight;
+    U32 FramebufferBitsPerPixel;
+    U32 FramebufferType;
+    U32 FramebufferRedPosition;
+    U32 FramebufferRedMaskSize;
+    U32 FramebufferGreenPosition;
+    U32 FramebufferGreenMaskSize;
+    U32 FramebufferBluePosition;
+    U32 FramebufferBlueMaskSize;
+    U32 FramebufferBytesPerPixel;
+    U32 FontWidth;
+    U32 FontHeight;
+    BOOL UseFramebuffer;
     CONSOLE_REGION Regions[MAX_CONSOLE_REGIONS];
 } CONSOLE_STRUCT, *LPCONSOLE_STRUCT;
 
@@ -98,6 +115,19 @@ int SetConsoleForeColor(U32 Color);
 BOOL ConsoleGetString(LPSTR, U32);
 void ConsolePanic(LPCSTR Format, ...);
 void InitializeConsole(void);
+void ConsoleSetFramebufferInfo(
+    PHYSICAL FramebufferPhysical,
+    U32 Width,
+    U32 Height,
+    U32 Pitch,
+    U32 BitsPerPixel,
+    U32 Type,
+    U32 RedPosition,
+    U32 RedMaskSize,
+    U32 GreenPosition,
+    U32 GreenMaskSize,
+    U32 BluePosition,
+    U32 BlueMaskSize);
 UINT ConsoleSetMode(LPGRAPHICSMODEINFO Info);
 UINT ConsoleGetModeCount(void);
 UINT ConsoleGetModeInfo(LPCONSOLEMODEINFO Info);

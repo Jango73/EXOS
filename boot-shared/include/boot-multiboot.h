@@ -45,6 +45,23 @@ typedef struct PACKED tag_E820ENTRY {
 
 /************************************************************************/
 
+typedef struct tag_BOOT_FRAMEBUFFER_INFO {
+    U32 Type;
+    U64 Address;
+    U32 Pitch;
+    U32 Width;
+    U32 Height;
+    U32 BitsPerPixel;
+    U32 RedPosition;
+    U32 RedMaskSize;
+    U32 GreenPosition;
+    U32 GreenMaskSize;
+    U32 BluePosition;
+    U32 BlueMaskSize;
+} BOOT_FRAMEBUFFER_INFO, *LPBOOT_FRAMEBUFFER_INFO;
+
+/************************************************************************/
+
 U32 BootBuildMultibootInfo(
     multiboot_info_t* MultibootInfo,
     multiboot_memory_map_t* MultibootMemMap,
@@ -54,6 +71,7 @@ U32 BootBuildMultibootInfo(
     U32 KernelPhysBase,
     U32 FileSize,
     LPCSTR BootloaderName,
-    LPCSTR KernelCmdLine);
+    LPCSTR KernelCmdLine,
+    const BOOT_FRAMEBUFFER_INFO* FramebufferInfo);
 
 #endif  // BOOT_MULTIBOOT_H_INCLUDED

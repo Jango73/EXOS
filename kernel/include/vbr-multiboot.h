@@ -49,6 +49,10 @@
 #define MULTIBOOT_INFO_VBE_INFO       0x00000800
 #define MULTIBOOT_INFO_FRAMEBUFFER_INFO 0x00001000
 
+// Multiboot framebuffer types
+#define MULTIBOOT_FRAMEBUFFER_RGB 1
+#define MULTIBOOT_FRAMEBUFFER_TEXT 2
+
 // Multiboot memory map entry types
 #define MULTIBOOT_MEMORY_AVAILABLE    1
 #define MULTIBOOT_MEMORY_RESERVED     2

@@ -88,6 +88,9 @@ static U32 BootUefiBuildE820Map(
     E820ENTRY* E820Map,
     U32 E820MaxEntries);
 static U64 BootUefiShiftLeftPages(U64 Value);
+static BOOL BootUefiGetFramebufferInfo(BOOT_UEFI_CONTEXT* Context, BOOT_FRAMEBUFFER_INFO* FramebufferInfo);
+static U32 BootUefiMaskPosition(U32 Mask);
+static U32 BootUefiMaskSize(U32 Mask);
 
 /************************************************************************/
 
@@ -673,6 +676,110 @@ static U64 BootUefiShiftLeftPages(U64 Value) {
 
 /************************************************************************/
 
+static U32 BootUefiMaskPosition(U32 Mask) {
+    if (Mask == 0u) {
+        return 0u;
+    }
+
+    U32 Position = 0u;
+    while ((Mask & 1u) == 0u) {
+        Mask >>= 1;
+        Position++;
+    }
+
+    return Position;
+}
+
+/************************************************************************/
+
+static U32 BootUefiMaskSize(U32 Mask) {
+    U32 Count = 0u;
+    while (Mask != 0u) {
+        if ((Mask & 1u) != 0u) {
+            Count++;
+        }
+        Mask >>= 1;
+    }
+
+    return Count;
+}
+
+/************************************************************************/
+
+static BOOL BootUefiGetFramebufferInfo(BOOT_UEFI_CONTEXT* Context, BOOT_FRAMEBUFFER_INFO* FramebufferInfo) {
+    if (Context == NULL || FramebufferInfo == NULL) {
+        return FALSE;
+    }
+
+    EFI_GUID GraphicsOutputGuid = {
+        0x9042A9DEu, 0x23DCu, 0x4A38u,
+        {0x96, 0xFB, 0x7A, 0xDE, 0xD0, 0x80, 0x51, 0x6A}
+    };
+
+    EFI_GRAPHICS_OUTPUT_PROTOCOL* Graphics = NULL;
+    EFI_STATUS Status = Context->BootServices->LocateProtocol(
+        &GraphicsOutputGuid,
+        NULL,
+        (void**)&Graphics);
+    if (Status != EFI_SUCCESS || Graphics == NULL || Graphics->Mode == NULL || Graphics->Mode->Info == NULL) {
+        return FALSE;
+    }
+
+    EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* Info = Graphics->Mode->Info;
+    if (Info->PixelFormat == PixelBltOnly) {
+        return FALSE;
+    }
+
+    MemorySet(FramebufferInfo, 0, sizeof(*FramebufferInfo));
+    FramebufferInfo->Type = MULTIBOOT_FRAMEBUFFER_RGB;
+    FramebufferInfo->Address = Graphics->Mode->FrameBufferBase;
+    FramebufferInfo->Width = Info->HorizontalResolution;
+    FramebufferInfo->Height = Info->VerticalResolution;
+
+    U32 BitsPerPixel = 32u;
+    if (Info->PixelFormat == PixelRedGreenBlueReserved8BitPerColor) {
+        FramebufferInfo->RedPosition = 0u;
+        FramebufferInfo->RedMaskSize = 8u;
+        FramebufferInfo->GreenPosition = 8u;
+        FramebufferInfo->GreenMaskSize = 8u;
+        FramebufferInfo->BluePosition = 16u;
+        FramebufferInfo->BlueMaskSize = 8u;
+    } else if (Info->PixelFormat == PixelBlueGreenRedReserved8BitPerColor) {
+        FramebufferInfo->BluePosition = 0u;
+        FramebufferInfo->BlueMaskSize = 8u;
+        FramebufferInfo->GreenPosition = 8u;
+        FramebufferInfo->GreenMaskSize = 8u;
+        FramebufferInfo->RedPosition = 16u;
+        FramebufferInfo->RedMaskSize = 8u;
+    } else if (Info->PixelFormat == PixelBitMask) {
+        FramebufferInfo->RedPosition = BootUefiMaskPosition(Info->PixelInformation.RedMask);
+        FramebufferInfo->RedMaskSize = BootUefiMaskSize(Info->PixelInformation.RedMask);
+        FramebufferInfo->GreenPosition = BootUefiMaskPosition(Info->PixelInformation.GreenMask);
+        FramebufferInfo->GreenMaskSize = BootUefiMaskSize(Info->PixelInformation.GreenMask);
+        FramebufferInfo->BluePosition = BootUefiMaskPosition(Info->PixelInformation.BlueMask);
+        FramebufferInfo->BlueMaskSize = BootUefiMaskSize(Info->PixelInformation.BlueMask);
+        U32 AllMask = Info->PixelInformation.RedMask |
+                      Info->PixelInformation.GreenMask |
+                      Info->PixelInformation.BlueMask |
+                      Info->PixelInformation.ReservedMask;
+        if (AllMask != 0u) {
+            U32 Highest = 0u;
+            U32 Temp = AllMask;
+            while (Temp != 0u) {
+                Highest++;
+                Temp >>= 1;
+            }
+            BitsPerPixel = Highest;
+        }
+    }
+
+    FramebufferInfo->BitsPerPixel = BitsPerPixel;
+    FramebufferInfo->Pitch = Info->PixelsPerScanLine * (BitsPerPixel / 8u);
+    return TRUE;
+}
+
+/************************************************************************/
+
 /**
  * @brief Build an E820 map from the UEFI memory descriptors.
  *
@@ -832,6 +939,8 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 
     E820ENTRY E820Map[E820_MAX_ENTRIES];
     MemorySet(E820Map, 0, sizeof(E820Map));
+    BOOT_FRAMEBUFFER_INFO FramebufferInfo;
+    BOOL HasFramebuffer = BootUefiGetFramebufferInfo(&Context, &FramebufferInfo);
 
     for (;;) {
         BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] Preparing memory map\r\n");
@@ -892,7 +1001,8 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         KERNEL_LINEAR_LOAD_ADDRESS,
         (U32)FileSize,
         BootloaderName,
-        KernelCommandLine);
+        KernelCommandLine,
+        HasFramebuffer ? &FramebufferInfo : NULL);
 
     BootUefiSerialWriteString(0x3F8u, (LPCSTR)"[EfiMain] ExitBootServices ok\r\n");
     EnterProtectedPagingAndJump((U32)FileSize, MultibootInfoPtr, Context.ImageBase, Context.ImageSize);

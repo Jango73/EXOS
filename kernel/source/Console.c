@@ -23,8 +23,11 @@
 \************************************************************************/
 
 #include "Console.h"
+#include "Font.h"
 #include "GFX.h"
 #include "Kernel.h"
+#include "Memory.h"
+#include "vbr-multiboot.h"
 #include "drivers/VGA.h"
 #include "process/Process.h"
 #include "drivers/Keyboard.h"
@@ -74,7 +77,6 @@ LPDRIVER ConsoleGetDriver(void) {
 
 #define CGA_REGISTER 0x00
 #define CGA_DATA 0x01
-
 /***************************************************************************/
 
 CONSOLE_STRUCT Console = {
@@ -94,7 +96,24 @@ CONSOLE_STRUCT Console = {
     .ActiveRegion = 0,
     .DebugRegion = 0,
     .Port = 0x03D4,
-    .Memory = (LPVOID)0xB8000};
+    .Memory = (LPVOID)0xB8000,
+    .FramebufferPhysical = 0,
+    .FramebufferLinear = NULL,
+    .FramebufferPitch = 0,
+    .FramebufferWidth = 0,
+    .FramebufferHeight = 0,
+    .FramebufferBitsPerPixel = 0,
+    .FramebufferType = 0,
+    .FramebufferRedPosition = 0,
+    .FramebufferRedMaskSize = 0,
+    .FramebufferGreenPosition = 0,
+    .FramebufferGreenMaskSize = 0,
+    .FramebufferBluePosition = 0,
+    .FramebufferBlueMaskSize = 0,
+    .FramebufferBytesPerPixel = 0,
+    .FontWidth = 8,
+    .FontHeight = 16,
+    .UseFramebuffer = FALSE};
 
 /***************************************************************************/
 
@@ -114,6 +133,159 @@ typedef struct tag_CONSOLE_REGION_STATE {
 } CONSOLE_REGION_STATE, *LPCONSOLE_REGION_STATE;
 
 /***************************************************************************/
+
+static const U32 ConsolePalette[16] = {
+    0x000000u, 0x0000AAu, 0x00AA00u, 0x00AAAAu,
+    0xAA0000u, 0xAA00AAu, 0xAA5500u, 0xAAAAAAu,
+    0x555555u, 0x5555FFu, 0x55FF55u, 0x55FFFFu,
+    0xFF5555u, 0xFF55FFu, 0xFFFF55u, 0xFFFFFFu
+};
+
+/***************************************************************************/
+
+static U32 ConsoleScaleColor(U32 Value, U32 MaskSize) {
+    if (MaskSize == 0u) {
+        return 0u;
+    }
+
+    if (MaskSize >= 8u) {
+        return Value & 0xFFu;
+    }
+
+    U32 MaxValue = (1u << MaskSize) - 1u;
+    return (Value * MaxValue) / 255u;
+}
+
+/***************************************************************************/
+
+static BOOL ConsoleEnsureFramebufferMapped(void) {
+    if (Console.UseFramebuffer == FALSE || Console.FramebufferPhysical == 0) {
+        return FALSE;
+    }
+
+    if (Console.FramebufferLinear != NULL) {
+        return TRUE;
+    }
+
+    if (Console.FramebufferBytesPerPixel == 0u || Console.FramebufferPitch == 0u ||
+        Console.FramebufferHeight == 0u) {
+        return FALSE;
+    }
+
+    UINT Size = (UINT)(Console.FramebufferPitch * Console.FramebufferHeight);
+    LINEAR Linear = MapIOMemory(Console.FramebufferPhysical, Size);
+    if (Linear == 0) {
+        ERROR(TEXT("[ConsoleEnsureFramebufferMapped] MapIOMemory failed for %p size %u"),
+              (LPVOID)(LINEAR)Console.FramebufferPhysical,
+              Size);
+        return FALSE;
+    }
+
+    Console.FramebufferLinear = (U8*)Linear;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Return the framebuffer cell width in pixels.
+ * @return Cell width in pixels.
+ */
+static U32 ConsoleGetCellWidth(void) {
+    U32 Spacing = (Console.FontWidth + 4u) / 5u;
+    return Console.FontWidth + Spacing;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Return the framebuffer cell height in pixels.
+ * @return Cell height in pixels.
+ */
+static U32 ConsoleGetCellHeight(void) {
+    U32 Spacing = (Console.FontHeight + 4u) / 5u;
+    return Console.FontHeight + Spacing;
+}
+
+/***************************************************************************/
+
+static U32 ConsolePackColor(U32 ColorIndex) {
+    U32 Color = ConsolePalette[ColorIndex & 0x0Fu];
+    U32 Red = (Color >> 16) & 0xFFu;
+    U32 Green = (Color >> 8) & 0xFFu;
+    U32 Blue = Color & 0xFFu;
+
+    U32 Packed = 0u;
+    Packed |= ConsoleScaleColor(Red, Console.FramebufferRedMaskSize) << Console.FramebufferRedPosition;
+    Packed |= ConsoleScaleColor(Green, Console.FramebufferGreenMaskSize) << Console.FramebufferGreenPosition;
+    Packed |= ConsoleScaleColor(Blue, Console.FramebufferBlueMaskSize) << Console.FramebufferBluePosition;
+    return Packed;
+}
+
+/***************************************************************************/
+
+static void ConsoleWritePixel(U32 X, U32 Y, U32 Pixel) {
+    if (Console.FramebufferLinear == NULL) {
+        return;
+    }
+
+    U32 Offset = (Y * Console.FramebufferPitch) + (X * Console.FramebufferBytesPerPixel);
+    U8* Target = Console.FramebufferLinear + Offset;
+
+    switch (Console.FramebufferBytesPerPixel) {
+        case 4:
+            *((U32*)Target) = Pixel;
+            break;
+        case 3:
+            Target[0] = (U8)(Pixel & 0xFFu);
+            Target[1] = (U8)((Pixel >> 8) & 0xFFu);
+            Target[2] = (U8)((Pixel >> 16) & 0xFFu);
+            break;
+        case 2:
+            *((U16*)Target) = (U16)Pixel;
+            break;
+        default:
+            break;
+    }
+}
+
+/***************************************************************************/
+
+static void ConsoleDrawGlyph(U32 X, U32 Y, STR Char) {
+    const FONT_GLYPH_SET* Font = FontGetDefault();
+    if (Font == NULL || Font->GlyphData == NULL) {
+        return;
+    }
+
+    const U8* Glyph = FontGetGlyph(Font, (U32)Char);
+    if (Glyph == NULL) {
+        return;
+    }
+
+    U32 Foreground = ConsolePackColor(Console.ForeColor);
+    U32 Background = ConsolePackColor(Console.BackColor);
+    U32 CellWidth = ConsoleGetCellWidth();
+    U32 CellHeight = ConsoleGetCellHeight();
+
+    for (U32 Row = 0; Row < CellHeight; ++Row) {
+        for (U32 Col = 0; Col < CellWidth; ++Col) {
+            ConsoleWritePixel(X + Col, Y + Row, Background);
+        }
+    }
+
+    for (U32 Row = 0; Row < Font->Height; ++Row) {
+        for (U32 Col = 0; Col < Font->Width; ++Col) {
+            U32 ByteIndex = (Row * Font->BytesPerRow) + (Col / 8u);
+            U8 Bits = Glyph[ByteIndex];
+            U32 BitMask = 0x80u >> (Col % 8u);
+            U32 Pixel = (Bits & BitMask) ? Foreground : Background;
+            ConsoleWritePixel(X + Col, Y + Row, Pixel);
+        }
+    }
+}
+
+/***************************************************************************/
+
 
 /**
  * @brief Resolve a console region into a mutable state descriptor.
@@ -158,6 +330,75 @@ static BOOL ConsoleResolveRegionState(U32 Index, LPCONSOLE_REGION_STATE State) {
     }
 
     return TRUE;
+}
+
+/***************************************************************************/
+
+static void ConsoleClearRegionFramebuffer(U32 RegionIndex) {
+    if (ConsoleEnsureFramebufferMapped() == FALSE) {
+        return;
+    }
+
+    CONSOLE_REGION_STATE State;
+    if (ConsoleResolveRegionState(RegionIndex, &State) == FALSE) {
+        return;
+    }
+
+    const U32 Background = ConsolePackColor(Console.BackColor);
+    const U32 CellWidth = ConsoleGetCellWidth();
+    const U32 CellHeight = ConsoleGetCellHeight();
+    const U32 PixelX = State.X * CellWidth;
+    const U32 PixelY = State.Y * CellHeight;
+    const U32 PixelWidth = State.Width * CellWidth;
+    const U32 PixelHeight = State.Height * CellHeight;
+
+    for (U32 Row = 0; Row < PixelHeight; ++Row) {
+        for (U32 Col = 0; Col < PixelWidth; ++Col) {
+            ConsoleWritePixel(PixelX + Col, PixelY + Row, Background);
+        }
+    }
+}
+
+/***************************************************************************/
+
+static void ConsoleScrollRegionFramebuffer(U32 RegionIndex) {
+    if (ConsoleEnsureFramebufferMapped() == FALSE) {
+        return;
+    }
+
+    CONSOLE_REGION_STATE State;
+    if (ConsoleResolveRegionState(RegionIndex, &State) == FALSE) {
+        return;
+    }
+
+    const U32 CellWidth = ConsoleGetCellWidth();
+    const U32 CellHeight = ConsoleGetCellHeight();
+    const U32 PixelX = State.X * CellWidth;
+    const U32 PixelY = State.Y * CellHeight;
+    const U32 PixelWidth = State.Width * CellWidth;
+    const U32 PixelHeight = State.Height * CellHeight;
+    const U32 RowBytes = PixelWidth * Console.FramebufferBytesPerPixel;
+    const U32 Background = ConsolePackColor(Console.BackColor);
+
+    if (PixelHeight <= CellHeight) {
+        return;
+    }
+
+    for (U32 Row = 0; Row < PixelHeight - CellHeight; ++Row) {
+        U8* Dest = Console.FramebufferLinear +
+                   ((PixelY + Row) * Console.FramebufferPitch) +
+                   (PixelX * Console.FramebufferBytesPerPixel);
+        U8* Src = Console.FramebufferLinear +
+                  ((PixelY + Row + CellHeight) * Console.FramebufferPitch) +
+                  (PixelX * Console.FramebufferBytesPerPixel);
+        MemoryMove(Dest, Src, RowBytes);
+    }
+
+    for (U32 Row = PixelHeight - CellHeight; Row < PixelHeight; ++Row) {
+        for (U32 Col = 0; Col < PixelWidth; ++Col) {
+            ConsoleWritePixel(PixelX + Col, PixelY + Row, Background);
+        }
+    }
 }
 
 /***************************************************************************/
@@ -334,6 +575,30 @@ static void ConsolePagerWaitLockedRegion(U32 RegionIndex) {
     Row = State.Height - 1;
     Attribute = (U16)(((*State.ForeColor) | ((*State.BackColor) << 0x04) | ((*State.Blink) << 0x07)) << 0x08);
 
+    if (Console.UseFramebuffer != FALSE) {
+        if (ConsoleEnsureFramebufferMapped() == FALSE) {
+            return;
+        }
+
+        for (Column = 0; Column < State.Width; Column++) {
+            U32 PixelX = (State.X + Column) * ConsoleGetCellWidth();
+            U32 PixelY = (State.Y + Row) * ConsoleGetCellHeight();
+            ConsoleDrawGlyph(PixelX, PixelY, STR_SPACE);
+        }
+
+        PromptLen = StringLength(Prompt);
+        if (PromptLen > State.Width) PromptLen = State.Width;
+        Start = (State.Width > PromptLen) ? (State.Width - PromptLen) / 2 : 0;
+        for (Column = 0; Column < PromptLen; Column++) {
+            U32 PixelX = (State.X + Start + Column) * ConsoleGetCellWidth();
+            U32 PixelY = (State.Y + Row) * ConsoleGetCellHeight();
+            ConsoleDrawGlyph(PixelX, PixelY, Prompt[Column]);
+        }
+
+        SetConsoleCursorPosition(0, Row);
+        goto WaitForKey;
+    }
+
     for (Column = 0; Column < State.Width; Column++) {
         Offset = ((State.Y + Row) * Console.ScreenWidth) + (State.X + Column);
         Console.Memory[Offset] = (U16)STR_SPACE | Attribute;
@@ -349,6 +614,7 @@ static void ConsolePagerWaitLockedRegion(U32 RegionIndex) {
 
     SetConsoleCursorPosition(0, Row);
 
+WaitForKey:
     while (TRUE) {
         if (PeekChar()) {
             GetKeyCode(&KeyCode);
@@ -428,6 +694,17 @@ static void ConsoleSetCharacterRegion(U32 RegionIndex, STR Char) {
     if (ConsoleResolveRegionState(RegionIndex, &State) == FALSE) return;
     if ((*State.CursorX) >= State.Width || (*State.CursorY) >= State.Height) return;
 
+    if (Console.UseFramebuffer != FALSE) {
+        if (ConsoleEnsureFramebufferMapped() == FALSE) {
+            return;
+        }
+
+        U32 PixelX = (State.X + (*State.CursorX)) * ConsoleGetCellWidth();
+        U32 PixelY = (State.Y + (*State.CursorY)) * ConsoleGetCellHeight();
+        ConsoleDrawGlyph(PixelX, PixelY, Char);
+        return;
+    }
+
     Offset = ((State.Y + (*State.CursorY)) * Console.ScreenWidth) + (State.X + (*State.CursorX));
     Attribute = (U16)(((*State.ForeColor) | ((*State.BackColor) << 0x04) | ((*State.Blink) << 0x07)) << 0x08);
     Console.Memory[Offset] = (U16)Char | Attribute;
@@ -455,6 +732,11 @@ static void ConsoleScrollRegion(U32 RegionIndex) {
     }
     if ((*State.PagingRemaining) > 0) {
         (*State.PagingRemaining)--;
+    }
+
+    if (Console.UseFramebuffer != FALSE) {
+        ConsoleScrollRegionFramebuffer(RegionIndex);
+        return;
     }
 
     for (Row = 1; Row < State.Height; Row++) {
@@ -487,6 +769,13 @@ static void ConsoleClearRegion(U32 RegionIndex) {
 
     if (ConsoleResolveRegionState(RegionIndex, &State) == FALSE) return;
     if (State.Width == 0 || State.Height == 0) return;
+
+    if (Console.UseFramebuffer != FALSE) {
+        ConsoleClearRegionFramebuffer(RegionIndex);
+        (*State.CursorX) = 0;
+        (*State.CursorY) = 0;
+        return;
+    }
 
     Attribute = (U16)(((*State.ForeColor) | ((*State.BackColor) << 0x04) | ((*State.Blink) << 0x07)) << 0x08);
     for (Row = 0; Row < State.Height; Row++) {
@@ -588,6 +877,12 @@ void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
+    if (Console.UseFramebuffer != FALSE) {
+        UnlockMutex(MUTEX_CONSOLE);
+        ProfileStop(&Scope);
+        return;
+    }
+
     OutPortByte(Console.Port + CGA_REGISTER, 14);
     OutPortByte(Console.Port + CGA_DATA, (Position >> 8) & 0xFF);
     OutPortByte(Console.Port + CGA_REGISTER, 15);
@@ -613,6 +908,15 @@ void GetConsoleCursorPosition(U32* CursorX, U32* CursorY) {
     U32 AbsoluteY;
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
+
+    if (Console.UseFramebuffer != FALSE) {
+        SAFE_USE_2(CursorX, CursorY) {
+            *CursorX = Console.CursorX;
+            *CursorY = Console.CursorY;
+        }
+        UnlockMutex(MUTEX_CONSOLE);
+        return;
+    }
 
     OutPortByte(Console.Port + CGA_REGISTER, 14);
     PositionHigh = InPortByte(Console.Port + CGA_DATA);
@@ -666,8 +970,16 @@ void SetConsoleCharacter(STR Char) {
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
     if (ConsoleResolveRegionState(0, &State) == TRUE) {
-        Offset = ((State.Y + Console.CursorY) * Console.ScreenWidth) + (State.X + Console.CursorX);
-        Console.Memory[Offset] = Char | (CHARATTR << 0x08);
+        if (Console.UseFramebuffer != FALSE) {
+            if (ConsoleEnsureFramebufferMapped() == TRUE) {
+                U32 PixelX = (State.X + Console.CursorX) * ConsoleGetCellWidth();
+                U32 PixelY = (State.Y + Console.CursorY) * ConsoleGetCellHeight();
+                ConsoleDrawGlyph(PixelX, PixelY, Char);
+            }
+        } else {
+            Offset = ((State.Y + Console.CursorY) * Console.ScreenWidth) + (State.X + Console.CursorX);
+            Console.Memory[Offset] = Char | (CHARATTR << 0x08);
+        }
     }
 
     UnlockMutex(MUTEX_CONSOLE);
@@ -801,8 +1113,16 @@ void ConsoleBackSpace(void) {
         Console.CursorX--;
     }
 
-    Offset = ((State.Y + Console.CursorY) * Console.ScreenWidth) + (State.X + Console.CursorX);
-    Console.Memory[Offset] = (U16)STR_SPACE | (CHARATTR << 0x08);
+    if (Console.UseFramebuffer != FALSE) {
+        if (ConsoleEnsureFramebufferMapped() == TRUE) {
+            U32 PixelX = (State.X + Console.CursorX) * ConsoleGetCellWidth();
+            U32 PixelY = (State.Y + Console.CursorY) * ConsoleGetCellHeight();
+            ConsoleDrawGlyph(PixelX, PixelY, STR_SPACE);
+        }
+    } else {
+        Offset = ((State.Y + Console.CursorY) * Console.ScreenWidth) + (State.X + Console.CursorX);
+        Console.Memory[Offset] = (U16)STR_SPACE | (CHARATTR << 0x08);
+    }
 
 Out:
 
@@ -872,6 +1192,19 @@ void ConsolePrintLine(U32 Row, U32 Column, LPCSTR Text, U32 Length) {
     if (ConsoleResolveRegionState(0, &State) == FALSE) return;
 
     if (Row >= State.Height || Column >= State.Width) return;
+
+    if (Console.UseFramebuffer != FALSE) {
+        if (ConsoleEnsureFramebufferMapped() == FALSE) {
+            return;
+        }
+
+        for (Index = 0; Index < Length && (Column + Index) < State.Width; Index++) {
+            U32 PixelX = (State.X + Column + Index) * ConsoleGetCellWidth();
+            U32 PixelY = (State.Y + Row) * ConsoleGetCellHeight();
+            ConsoleDrawGlyph(PixelX, PixelY, Text[Index]);
+        }
+        return;
+    }
 
     Offset = ((State.Y + Row) * Console.ScreenWidth) + (State.X + Column);
     Attribute = (U16)(Console.ForeColor | (Console.BackColor << 0x04) | (Console.Blink << 0x07));
@@ -971,8 +1304,37 @@ void ConsolePanic(LPCSTR Format, ...) {
 /***************************************************************************/
 
 void InitializeConsole(void) {
-    Console.ScreenWidth = 80;
-    Console.ScreenHeight = 25;
+    const FONT_GLYPH_SET* Font = FontGetDefault();
+
+    if (Font != NULL) {
+        Console.FontWidth = Font->Width;
+        Console.FontHeight = Font->Height;
+    }
+
+    if (Console.UseFramebuffer != FALSE) {
+        U32 CellWidth = ConsoleGetCellWidth();
+        U32 CellHeight = ConsoleGetCellHeight();
+
+        Console.FramebufferBytesPerPixel = Console.FramebufferBitsPerPixel / 8u;
+        if (Console.FramebufferBytesPerPixel == 0u) {
+            Console.FramebufferBytesPerPixel = 4u;
+        }
+
+        Console.ScreenWidth = Console.FramebufferWidth / CellWidth;
+        Console.ScreenHeight = Console.FramebufferHeight / CellHeight;
+        if (Console.ScreenWidth == 0u || Console.ScreenHeight == 0u) {
+            Console.UseFramebuffer = FALSE;
+            Console.ScreenWidth = 80;
+            Console.ScreenHeight = 25;
+        }
+    } else {
+        if (Console.FramebufferType != MULTIBOOT_FRAMEBUFFER_TEXT ||
+            Console.ScreenWidth == 0u || Console.ScreenHeight == 0u) {
+            Console.ScreenWidth = 80;
+            Console.ScreenHeight = 25;
+        }
+    }
+
     Console.BackColor = 0;
     Console.ForeColor = 7;
     Console.PagingEnabled = TRUE;
@@ -984,6 +1346,68 @@ void InitializeConsole(void) {
     GetConsoleCursorPosition(&Console.CursorX, &Console.CursorY);
     ConsoleClampCursorToRegionZero();
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Configure framebuffer metadata for console output.
+ *
+ * This stores framebuffer parameters for later use during console initialization.
+ *
+ * @param FramebufferPhysical Physical base address of the framebuffer.
+ * @param Width Framebuffer width in pixels or text columns.
+ * @param Height Framebuffer height in pixels or text rows.
+ * @param Pitch Bytes per scan line.
+ * @param BitsPerPixel Bits per pixel.
+ * @param Type Multiboot framebuffer type.
+ * @param RedPosition Red channel bit position.
+ * @param RedMaskSize Red channel bit size.
+ * @param GreenPosition Green channel bit position.
+ * @param GreenMaskSize Green channel bit size.
+ * @param BluePosition Blue channel bit position.
+ * @param BlueMaskSize Blue channel bit size.
+ */
+void ConsoleSetFramebufferInfo(
+    PHYSICAL FramebufferPhysical,
+    U32 Width,
+    U32 Height,
+    U32 Pitch,
+    U32 BitsPerPixel,
+    U32 Type,
+    U32 RedPosition,
+    U32 RedMaskSize,
+    U32 GreenPosition,
+    U32 GreenMaskSize,
+    U32 BluePosition,
+    U32 BlueMaskSize) {
+    Console.FramebufferPhysical = FramebufferPhysical;
+    Console.FramebufferLinear = NULL;
+    Console.FramebufferBytesPerPixel = 0;
+    Console.FramebufferWidth = Width;
+    Console.FramebufferHeight = Height;
+    Console.FramebufferPitch = Pitch;
+    Console.FramebufferBitsPerPixel = BitsPerPixel;
+    Console.FramebufferType = Type;
+    Console.FramebufferRedPosition = RedPosition;
+    Console.FramebufferRedMaskSize = RedMaskSize;
+    Console.FramebufferGreenPosition = GreenPosition;
+    Console.FramebufferGreenMaskSize = GreenMaskSize;
+    Console.FramebufferBluePosition = BluePosition;
+    Console.FramebufferBlueMaskSize = BlueMaskSize;
+
+    if (Type == MULTIBOOT_FRAMEBUFFER_RGB && FramebufferPhysical != 0 && Width != 0u && Height != 0u) {
+        Console.UseFramebuffer = TRUE;
+        Console.Memory = NULL;
+        Console.Port = 0;
+    } else if (Type == MULTIBOOT_FRAMEBUFFER_TEXT && FramebufferPhysical != 0) {
+        Console.UseFramebuffer = FALSE;
+        Console.Memory = (U16*)(UINT)FramebufferPhysical;
+        Console.ScreenWidth = (Width != 0u) ? Width : 80u;
+        Console.ScreenHeight = (Height != 0u) ? Height : 25u;
+    } else {
+        Console.UseFramebuffer = FALSE;
+    }
 }
 
 /***************************************************************************/

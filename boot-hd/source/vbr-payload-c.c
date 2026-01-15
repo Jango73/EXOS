@@ -325,6 +325,15 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
 
     BootDebugPrint(TEXT("[VBR] Calling architecture specific boot code\r\n"));
 
+    BOOT_FRAMEBUFFER_INFO FramebufferInfo;
+    MemorySet(&FramebufferInfo, 0, sizeof(FramebufferInfo));
+    FramebufferInfo.Type = MULTIBOOT_FRAMEBUFFER_TEXT;
+    FramebufferInfo.Address = U64_Make(0u, 0x000B8000u);
+    FramebufferInfo.Pitch = 80U * 2U;
+    FramebufferInfo.Width = 80U;
+    FramebufferInfo.Height = 25U;
+    FramebufferInfo.BitsPerPixel = 16U;
+
     U32 MultibootInfoPtr = BootBuildMultibootInfo(
         &MultibootInfo,
         MultibootMemMap,
@@ -333,8 +342,9 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
         E820_EntryCount,
         KERNEL_LINEAR_LOAD_ADDRESS,
         FileSize,
-        BootloaderName,
-        KernelCmdLine);
+        (LPCSTR)BootloaderName,
+        (LPCSTR)KernelCmdLine,
+        &FramebufferInfo);
 
     const U64 UefiImageBase = U64_0;
     const U64 UefiImageSize = U64_0;

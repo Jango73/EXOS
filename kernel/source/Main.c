@@ -76,6 +76,25 @@ void KernelMain(void) {
     // Map the multiboot info structure to access it
     multiboot_info_t* MultibootInfo = (multiboot_info_t*)(UINT)MultibootInfoLinear;
 
+    if ((MultibootInfo->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) != 0u) {
+        U64 FramebufferAddress = U64_Make(
+            MultibootInfo->framebuffer_addr_high,
+            MultibootInfo->framebuffer_addr_low);
+        ConsoleSetFramebufferInfo(
+            (PHYSICAL)FramebufferAddress,
+            MultibootInfo->framebuffer_width,
+            MultibootInfo->framebuffer_height,
+            MultibootInfo->framebuffer_pitch,
+            (U32)MultibootInfo->framebuffer_bpp,
+            (U32)MultibootInfo->framebuffer_type,
+            (U32)MultibootInfo->color_info[0],
+            (U32)MultibootInfo->color_info[1],
+            (U32)MultibootInfo->color_info[2],
+            (U32)MultibootInfo->color_info[3],
+            (U32)MultibootInfo->color_info[4],
+            (U32)MultibootInfo->color_info[5]);
+    }
+
     // Extract information from Multiboot structure
     // Get kernel address from first module
     if (MultibootInfo->flags & MULTIBOOT_INFO_MODS && MultibootInfo->mods_count > 0) {

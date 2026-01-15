@@ -53,7 +53,8 @@ U32 BootBuildMultibootInfo(
     U32 KernelPhysBase,
     U32 FileSize,
     LPCSTR BootloaderName,
-    LPCSTR KernelCmdLine) {
+    LPCSTR KernelCmdLine,
+    const BOOT_FRAMEBUFFER_INFO* FramebufferInfo) {
     // Clear the multiboot info structure
     MemorySet(MultibootInfo, 0, sizeof(multiboot_info_t));
     MemorySet(MultibootMemMap, 0, sizeof(multiboot_memory_map_t) * E820_MAX_ENTRIES);
@@ -151,6 +152,23 @@ U32 BootBuildMultibootInfo(
     MultibootInfo->mods_count = 1;
     MultibootInfo->mods_addr = (U32)(UINT)KernelModule;
 
+    if (FramebufferInfo != NULL && FramebufferInfo->Type != 0u) {
+        MultibootInfo->flags |= MULTIBOOT_INFO_FRAMEBUFFER_INFO;
+        MultibootInfo->framebuffer_addr_low = U64_Low32(FramebufferInfo->Address);
+        MultibootInfo->framebuffer_addr_high = U64_High32(FramebufferInfo->Address);
+        MultibootInfo->framebuffer_pitch = FramebufferInfo->Pitch;
+        MultibootInfo->framebuffer_width = FramebufferInfo->Width;
+        MultibootInfo->framebuffer_height = FramebufferInfo->Height;
+        MultibootInfo->framebuffer_bpp = (U8)FramebufferInfo->BitsPerPixel;
+        MultibootInfo->framebuffer_type = (U8)FramebufferInfo->Type;
+        MultibootInfo->color_info[0] = (U8)FramebufferInfo->RedPosition;
+        MultibootInfo->color_info[1] = (U8)FramebufferInfo->RedMaskSize;
+        MultibootInfo->color_info[2] = (U8)FramebufferInfo->GreenPosition;
+        MultibootInfo->color_info[3] = (U8)FramebufferInfo->GreenMaskSize;
+        MultibootInfo->color_info[4] = (U8)FramebufferInfo->BluePosition;
+        MultibootInfo->color_info[5] = (U8)FramebufferInfo->BlueMaskSize;
+    }
+
     BootDebugPrint(
         TEXT("[BootBuildMultibootInfo] Multiboot info at %p\r\n"),
         MultibootInfo);
@@ -158,6 +176,17 @@ U32 BootBuildMultibootInfo(
         TEXT("[BootBuildMultibootInfo] mem_lower=%u KB, mem_upper=%u KB\r\n"),
         LowerMem,
         UpperMem);
+    if ((MultibootInfo->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) != 0u) {
+        BootDebugPrint(
+            TEXT("[BootBuildMultibootInfo] framebuffer=%x:%x %ux%u pitch=%u bpp=%u type=%u\r\n"),
+            U64_High32(FramebufferInfo->Address),
+            U64_Low32(FramebufferInfo->Address),
+            FramebufferInfo->Width,
+            FramebufferInfo->Height,
+            FramebufferInfo->Pitch,
+            FramebufferInfo->BitsPerPixel,
+            FramebufferInfo->Type);
+    }
 
     return (U32)(UINT)MultibootInfo;
 }
