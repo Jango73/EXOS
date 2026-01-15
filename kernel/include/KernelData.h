@@ -92,6 +92,7 @@ typedef struct tag_KERNELSTARTUPINFO {
     UINT MemorySize;  // Total memory size in bytes
     UINT PageCount;   // Total memory size in pages (4K)
     U32 MultibootMemoryEntryCount;
+    PHYSICAL RsdpPhysical;
     MULTIBOOTMEMORYENTRY MultibootMemoryEntries[N_4KB / sizeof(MULTIBOOTMEMORYENTRY)];
     STR CommandLine[MAX_COMMAND_LINE];
 } KERNELSTARTUPINFO, *LPKERNELSTARTUPINFO;

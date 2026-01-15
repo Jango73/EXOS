@@ -1084,20 +1084,33 @@ static LPPCI_DEVICE XHCI_Attach(LPPCI_DEVICE PciDevice) {
     U32 Bar0Base = PCI_GetBARBase(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 0);
     U32 Bar0Size = PCI_GetBARSize(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 0);
     BOOL Is64Bit = ((Bar0Raw & 0x6) == 0x4);
+    PHYSICAL MmioPhysical = (PHYSICAL)Bar0Base;
 
-    if (Is64Bit && Bar1Raw != 0) {
-        ERROR(TEXT("[XHCI_Attach] 64-bit BAR above 4GB not supported (BAR1=%x)"), Bar1Raw);
-        KernelHeapFree(Device);
-        return NULL;
+    if (Is64Bit) {
+#if defined(__EXOS_ARCH_X86_64__)
+        U64 Bar64 = U64_Make(Bar1Raw, Bar0Base);
+        MmioPhysical = (PHYSICAL)Bar64;
+        if (U64_EQUAL(Bar64, U64_0)) {
+            ERROR(TEXT("[XHCI_Attach] Invalid BAR0"));
+            KernelHeapFree(Device);
+            return NULL;
+        }
+#else
+        if (Bar1Raw != 0u) {
+            ERROR(TEXT("[XHCI_Attach] 64-bit BAR above 4GB not supported (BAR1=%x)"), Bar1Raw);
+            KernelHeapFree(Device);
+            return NULL;
+        }
+#endif
     }
 
-    if (Bar0Base == 0 || Bar0Size == 0) {
+    if (Bar0Size == 0) {
         ERROR(TEXT("[XHCI_Attach] Invalid BAR0"));
         KernelHeapFree(Device);
         return NULL;
     }
 
-    Device->MmioBase = MapIOMemory(Bar0Base, Bar0Size);
+    Device->MmioBase = MapIOMemory(MmioPhysical, Bar0Size);
     Device->MmioSize = Bar0Size;
 
     if (Device->MmioBase == 0) {

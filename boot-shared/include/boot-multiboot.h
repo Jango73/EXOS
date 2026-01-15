@@ -70,6 +70,7 @@ U32 BootBuildMultibootInfo(
     U32 E820EntryCount,
     U32 KernelPhysBase,
     U32 FileSize,
+    U32 RsdpPhysical,
     LPCSTR BootloaderName,
     LPCSTR KernelCmdLine,
     const BOOT_FRAMEBUFFER_INFO* FramebufferInfo);

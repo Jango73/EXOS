@@ -475,6 +475,83 @@ static EFI_STATUS BootUefiGetFileSize(
 /************************************************************************/
 
 /**
+ * @brief Compare two EFI GUID values.
+ *
+ * @param Left First GUID.
+ * @param Right Second GUID.
+ * @return TRUE if equal, FALSE otherwise.
+ */
+static BOOL BootUefiGuidEquals(const EFI_GUID* Left, const EFI_GUID* Right) {
+    if (Left == NULL || Right == NULL) {
+        return FALSE;
+    }
+
+    if (Left->Data1 != Right->Data1 || Left->Data2 != Right->Data2 || Left->Data3 != Right->Data3) {
+        return FALSE;
+    }
+
+    for (U32 Index = 0; Index < 8u; Index++) {
+        if (Left->Data4[Index] != Right->Data4[Index]) {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Locate the ACPI RSDP from the UEFI configuration table.
+ *
+ * @param Context UEFI context.
+ * @return Physical address of the RSDP, or 0 on failure.
+ */
+static EFI_PHYSICAL_ADDRESS BootUefiFindRsdp(BOOT_UEFI_CONTEXT* Context) {
+    if (Context == NULL || Context->SystemTable == NULL) {
+        return U64_FromU32(0u);
+    }
+
+    EFI_SYSTEM_TABLE* SystemTable = Context->SystemTable;
+    if (SystemTable->ConfigurationTable == NULL || SystemTable->NumberOfTableEntries == 0u) {
+        return U64_FromU32(0u);
+    }
+
+    EFI_GUID Acpi20Guid = {
+        0x8868E871u, 0xE4F1u, 0x11D3u,
+        {0xBC, 0x22, 0x00, 0x80, 0xC7, 0x3C, 0x88, 0x81}
+    };
+    EFI_GUID Acpi10Guid = {
+        0xEB9D2D30u, 0x2D88u, 0x11D3u,
+        {0x9A, 0x16, 0x00, 0x90, 0x27, 0x3F, 0xC1, 0x4D}
+    };
+
+    EFI_CONFIGURATION_TABLE* Tables = (EFI_CONFIGURATION_TABLE*)SystemTable->ConfigurationTable;
+    EFI_PHYSICAL_ADDRESS RsdpPhysical = U64_FromU32(0u);
+
+    for (EFI_UINTN Index = 0; Index < SystemTable->NumberOfTableEntries; Index++) {
+        EFI_CONFIGURATION_TABLE* Entry = &Tables[Index];
+        if (BootUefiGuidEquals(&Entry->VendorGuid, &Acpi20Guid) != FALSE) {
+            RsdpPhysical = U64_FromUINT((UINT)(EFI_UINTN)Entry->VendorTable);
+            BootUefiOutputHex64(Context->ConsoleOut, "[BootUefiFindRsdp] ACPI 2.0 RSDP ", RsdpPhysical);
+            return RsdpPhysical;
+        }
+        if (U64_EQUAL(RsdpPhysical, U64_FromU32(0u)) &&
+            BootUefiGuidEquals(&Entry->VendorGuid, &Acpi10Guid) != FALSE) {
+            RsdpPhysical = U64_FromUINT((UINT)(EFI_UINTN)Entry->VendorTable);
+        }
+    }
+
+    if (U64_EQUAL(RsdpPhysical, U64_FromU32(0u)) == FALSE) {
+        BootUefiOutputHex64(Context->ConsoleOut, "[BootUefiFindRsdp] ACPI 1.0 RSDP ", RsdpPhysical);
+    }
+
+    return RsdpPhysical;
+}
+
+/************************************************************************/
+
+/**
  * @brief Read a file from the EFI system partition into memory.
  *
  * @param Context UEFI context.
@@ -941,6 +1018,15 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     MemorySet(E820Map, 0, sizeof(E820Map));
     BOOT_FRAMEBUFFER_INFO FramebufferInfo;
     BOOL HasFramebuffer = BootUefiGetFramebufferInfo(&Context, &FramebufferInfo);
+    EFI_PHYSICAL_ADDRESS RsdpPhysical = BootUefiFindRsdp(&Context);
+    U32 RsdpPhysicalLow = 0u;
+    if (U64_EQUAL(RsdpPhysical, U64_FromU32(0u)) == FALSE) {
+        if (U64_High32(RsdpPhysical) != 0u) {
+            BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] WARNING: RSDP above 4GB not supported\r\n");
+        } else {
+            RsdpPhysicalLow = U64_Low32(RsdpPhysical);
+        }
+    }
 
     for (;;) {
         BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] Preparing memory map\r\n");
@@ -1000,6 +1086,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         E820Count,
         KERNEL_LINEAR_LOAD_ADDRESS,
         (U32)FileSize,
+        RsdpPhysicalLow,
         BootloaderName,
         KernelCommandLine,
         HasFramebuffer ? &FramebufferInfo : NULL);

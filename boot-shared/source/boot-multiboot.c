@@ -52,6 +52,7 @@ U32 BootBuildMultibootInfo(
     U32 E820EntryCount,
     U32 KernelPhysBase,
     U32 FileSize,
+    U32 RsdpPhysical,
     LPCSTR BootloaderName,
     LPCSTR KernelCmdLine,
     const BOOT_FRAMEBUFFER_INFO* FramebufferInfo) {
@@ -142,6 +143,11 @@ U32 BootBuildMultibootInfo(
     // Set bootloader name
     MultibootInfo->boot_loader_name = (U32)(UINT)BootloaderName;
 
+    if (RsdpPhysical != 0u) {
+        MultibootInfo->flags |= MULTIBOOT_INFO_CONFIG_TABLE;
+        MultibootInfo->config_table = RsdpPhysical;
+    }
+
     // Set up kernel module
     KernelModule->mod_start = KernelPhysBase;
     KernelModule->mod_end = KernelPhysBase + FileSize;
@@ -186,6 +192,11 @@ U32 BootBuildMultibootInfo(
             FramebufferInfo->Pitch,
             FramebufferInfo->BitsPerPixel,
             FramebufferInfo->Type);
+    }
+    if ((MultibootInfo->flags & MULTIBOOT_INFO_CONFIG_TABLE) != 0u) {
+        BootDebugPrint(
+            TEXT("[BootBuildMultibootInfo] rsdp=%x\r\n"),
+            RsdpPhysical);
     }
 
     return (U32)(UINT)MultibootInfo;

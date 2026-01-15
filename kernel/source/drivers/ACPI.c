@@ -186,23 +186,30 @@ static PHYSICAL SearchRSDPInRange(PHYSICAL StartPhysical, U32 Length) {
 LPACPI_RSDP FindRSDP(void) {
     DEBUG(TEXT("[FindRSDP] Enter"));
 
-    PHYSICAL RsdpPhysical = 0;
+    PHYSICAL RsdpPhysical = KernelStartup.RsdpPhysical;
+    BOOL FromBootloader = (RsdpPhysical != 0);
 
-    // Search in EBDA (Extended BIOS Data Area)
-    // EBDA segment is stored at 0x40E (physical address 0x40E)
-    U16 EbdaSegment = 0;
-    if (ReadPhysicalMemory(0x40E, &EbdaSegment, sizeof(EbdaSegment))) {
-        PHYSICAL EbdaAddress = ((PHYSICAL)EbdaSegment) << 4;  // Convert segment to physical address
-        if (EbdaAddress != 0 && EbdaAddress < 0x100000) {
-            DEBUG(TEXT("[FindRSDP] Searching EBDA at %p"), (LPVOID)(LINEAR)EbdaAddress);
-            RsdpPhysical = SearchRSDPInRange(EbdaAddress, 1024);  // Search first 1KB of EBDA
-        }
+    if (FromBootloader != FALSE) {
+        DEBUG(TEXT("[FindRSDP] Using bootloader RSDP at %p"), (LPVOID)(LINEAR)RsdpPhysical);
     }
 
-    // If not found in EBDA, search in standard BIOS ROM area (0xE0000 - 0xFFFFF)
     if (RsdpPhysical == 0) {
-        DEBUG(TEXT("[FindRSDP] Searching BIOS ROM area"));
-        RsdpPhysical = SearchRSDPInRange(0xE0000, 0x20000);  // 128KB range
+        // Search in EBDA (Extended BIOS Data Area)
+        // EBDA segment is stored at 0x40E (physical address 0x40E)
+        U16 EbdaSegment = 0;
+        if (ReadPhysicalMemory(0x40E, &EbdaSegment, sizeof(EbdaSegment))) {
+            PHYSICAL EbdaAddress = ((PHYSICAL)EbdaSegment) << 4;  // Convert segment to physical address
+            if (EbdaAddress != 0 && EbdaAddress < 0x100000) {
+                DEBUG(TEXT("[FindRSDP] Searching EBDA at %p"), (LPVOID)(LINEAR)EbdaAddress);
+                RsdpPhysical = SearchRSDPInRange(EbdaAddress, 1024);  // Search first 1KB of EBDA
+            }
+        }
+
+        // If not found in EBDA, search in standard BIOS ROM area (0xE0000 - 0xFFFFF)
+        if (RsdpPhysical == 0) {
+            DEBUG(TEXT("[FindRSDP] Searching BIOS ROM area"));
+            RsdpPhysical = SearchRSDPInRange(0xE0000, 0x20000);  // 128KB range
+        }
     }
 
     if (RsdpPhysical == 0) {

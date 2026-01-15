@@ -213,6 +213,14 @@ typedef struct tag_EFI_SYSTEM_TABLE {
 } EFI_SYSTEM_TABLE;
 
 /************************************************************************/
+// Configuration table
+
+typedef struct tag_EFI_CONFIGURATION_TABLE {
+    EFI_GUID VendorGuid;
+    void* VendorTable;
+} EFI_CONFIGURATION_TABLE;
+
+/************************************************************************/
 // Simple file system protocol
 
 typedef struct tag_EFI_SIMPLE_FILE_SYSTEM_PROTOCOL EFI_SIMPLE_FILE_SYSTEM_PROTOCOL;

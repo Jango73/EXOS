@@ -342,6 +342,7 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
         E820_EntryCount,
         KERNEL_LINEAR_LOAD_ADDRESS,
         FileSize,
+        0u,
         (LPCSTR)BootloaderName,
         (LPCSTR)KernelCmdLine,
         &FramebufferInfo);

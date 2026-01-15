@@ -77,11 +77,20 @@ void KernelMain(void) {
     multiboot_info_t* MultibootInfo = (multiboot_info_t*)(UINT)MultibootInfoLinear;
 
     if ((MultibootInfo->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) != 0u) {
+        PHYSICAL FramebufferPhysical = 0;
+#if defined(__EXOS_ARCH_X86_64__)
         U64 FramebufferAddress = U64_Make(
             MultibootInfo->framebuffer_addr_high,
             MultibootInfo->framebuffer_addr_low);
+        FramebufferPhysical = (PHYSICAL)FramebufferAddress;
+#else
+        FramebufferPhysical = (PHYSICAL)MultibootInfo->framebuffer_addr_low;
+        if (MultibootInfo->framebuffer_addr_high != 0u) {
+            WARNING(TEXT("[KernelMain] Framebuffer above 4GB not supported"));
+        }
+#endif
         ConsoleSetFramebufferInfo(
-            (PHYSICAL)FramebufferAddress,
+            FramebufferPhysical,
             MultibootInfo->framebuffer_width,
             MultibootInfo->framebuffer_height,
             MultibootInfo->framebuffer_pitch,
@@ -93,6 +102,12 @@ void KernelMain(void) {
             (U32)MultibootInfo->color_info[3],
             (U32)MultibootInfo->color_info[4],
             (U32)MultibootInfo->color_info[5]);
+    }
+
+    if ((MultibootInfo->flags & MULTIBOOT_INFO_CONFIG_TABLE) != 0u) {
+        KernelStartup.RsdpPhysical = (PHYSICAL)MultibootInfo->config_table;
+    } else {
+        KernelStartup.RsdpPhysical = 0;
     }
 
     // Extract information from Multiboot structure
