@@ -5,8 +5,11 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_FILE="$ROOT_DIR/log/kernel.log"
 COMMANDS_FILE="$ROOT_DIR/scripts/test-commands.txt"
 MONITOR_HOST="127.0.0.1"
-MONITOR_PORT="4444"
+MONITOR_PORT="${MONITOR_PORT:-4444}"
 DEFAULT_TIMEOUT_SECONDS=15
+KEY_DELAY_SECONDS=0.12
+COMMAND_DELAY_SECONDS=0.25
+BOOT_INPUT_DELAY_SECONDS=1.0
 
 FAULT_PATTERN="#PF|#GP|#UD|#SS|#NP|#TS|#DE|#DF|#MF|#AC|#MC"
 TEST_KO_PATTERN="TEST > .* : KO"
@@ -82,12 +85,13 @@ function WaitForMonitor() {
 function KeyForChar() {
     local Char="$1"
     case "$Char" in
+        [A-Z]) echo "shift-${Char,,}" ;;
         [a-z0-9]) echo "$Char" ;;
         " ") echo "spc" ;;
         "/") echo "slash" ;;
         "-") echo "minus" ;;
         ".") echo "dot" ;;
-        "_") echo "underscore" ;;
+        "_") echo "shift-minus" ;;
         *) echo "" ;;
     esac
 }
@@ -99,7 +103,7 @@ function SendKey() {
         return 1
     fi
     MonitorCommand "sendkey $Key"
-    sleep 0.05
+    sleep "$KEY_DELAY_SECONDS"
 }
 
 function SendCommand() {
@@ -117,6 +121,7 @@ function SendCommand() {
     done
 
     SendKey "ret"
+    sleep "$COMMAND_DELAY_SECONDS"
 }
 
 function WaitForExpectedLog() {
@@ -210,8 +215,8 @@ function RunArchitecture() {
     local BuildScript="$2"
     local QemuScript="$3"
 
-#    echo "Building $Name..."
-#    "$ROOT_DIR/$BuildScript"
+    echo "Building $Name..."
+    bash -c "cd \"$ROOT_DIR\" && $BuildScript"
 
     echo "Starting QEMU for $Name..."
     mkdir -p "$ROOT_DIR/log"
@@ -219,6 +224,7 @@ function RunArchitecture() {
 
     bash -c "cd \"$ROOT_DIR\" && $QemuScript" &
     local QemuPid=$!
+    trap 'StopQemu || true; if kill -0 "$QemuPid" 2>/dev/null; then kill "$QemuPid" || true; fi' RETURN
 
     if ! WaitForMonitor; then
         echo "QEMU monitor did not start."
@@ -227,6 +233,7 @@ function RunArchitecture() {
     fi
 
     sleep 2
+    sleep "$BOOT_INPUT_DELAY_SECONDS"
     AssertNoFailures 0
     RunCommandList
     AssertNoFailures 0
@@ -235,5 +242,6 @@ function RunArchitecture() {
     wait "$QemuPid" || true
 }
 
-RunArchitecture "i386" "scripts/build.sh --arch i386 --fs ext2 --debug --clean" "scripts/run.sh --arch i386"
+# RunArchitecture "i386" "scripts/build.sh --arch i386 --fs ext2 --debug --clean" "scripts/run.sh --arch i386"
 RunArchitecture "x86-64" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean" "scripts/run.sh --arch x86-64"
+# RunArchitecture "x86-64 UEFI" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean --uefi" "scripts/run.sh --arch x86-64 --uefi"

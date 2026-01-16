@@ -32,6 +32,7 @@
 #include "Exposed.h"
 #include "File.h"
 #include "Kernel.h"
+#include "Lang.h"
 #include "Log.h"
 #include "Memory-Descriptors.h"
 #include "network/Network.h"
@@ -86,6 +87,7 @@ typedef U32 (*SHELLCOMMAND)(LPSHELLCONTEXT);
 static U32 CMD_commands(LPSHELLCONTEXT);
 static U32 CMD_cls(LPSHELLCONTEXT);
 static U32 CMD_conmode(LPSHELLCONTEXT);
+static U32 CMD_keyboard(LPSHELLCONTEXT);
 static U32 CMD_pause(LPSHELLCONTEXT);
 static U32 CMD_dir(LPSHELLCONTEXT);
 static U32 CMD_cd(LPSHELLCONTEXT);
@@ -149,6 +151,7 @@ static struct {
     {"commands", "help", "", CMD_commands},
     {"clear", "cls", "", CMD_cls},
     {"conmode", "mode", "Columns Rows|list", CMD_conmode},
+    {"keyboard", "keyboard", "--layout Code", CMD_keyboard},
     {"pause", "pause", "on|off", CMD_pause},
     {"ls", "dir", "[Name] [-p] [-r]", CMD_dir},
     {"cd", "cd", "Name", CMD_cd},
@@ -871,6 +874,32 @@ static U32 CMD_conmode(LPSHELLCONTEXT Context) {
         ConsolePrint(TEXT("Console mode set to %ux%u\n"), Columns, Rows);
     }
 
+    return DF_RETURN_SUCCESS;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Update or display the active keyboard layout.
+ * @param Context Shell context.
+ * @return DF_RETURN_SUCCESS.
+ */
+static U32 CMD_keyboard(LPSHELLCONTEXT Context) {
+    ParseNextCommandLineComponent(Context);
+
+    if (StringLength(Context->Command) == 0) {
+        ConsolePrint(TEXT("Keyboard layout: %s\n"), GetKeyboardCode());
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (HasOption(Context, "l", "layout")) {
+        SelectKeyboard(Context->Command);
+        ConsolePrint(TEXT("Keyboard layout set to %s\n"), GetKeyboardCode());
+        TEST(TEXT("[CMD_keyboard] keyboard : OK"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    ConsolePrint(TEXT("Usage: keyboard --layout Code\n"));
     return DF_RETURN_SUCCESS;
 }
 

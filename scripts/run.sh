@@ -9,6 +9,7 @@ ARCH="i386"
 USE_GDB=0
 USB3_ENABLED=1
 USE_UEFI=0
+MONITOR_PORT="${MONITOR_PORT:-4444}"
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -179,7 +180,7 @@ function RunStandardQemu() {
     -netdev user,id=net0 \
     -device e1000,netdev=net0 \
     -object filter-dump,id=dump0,netdev=net0,file=log/kernel-net.pcap \
-    -monitor telnet:127.0.0.1:4444,server,nowait \
+    -monitor telnet:127.0.0.1:${MONITOR_PORT},server,nowait \
     -serial file:"log/debug-com1.log" \
     -serial stdio \
     -vga std \
