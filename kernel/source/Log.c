@@ -79,8 +79,10 @@ void InitKernelLog(void) { SerialReset(LOG_COM_INDEX); }
 
 static void KernelPrintChar(STR Char) {
 #if DEBUG_SPLIT == 1
-    if (ConsoleIsDebugSplitEnabled() == TRUE) {
+    if (ConsoleIsDebugSplitEnabled() == TRUE &&
+        ConsoleIsFramebufferMappingInProgress() == FALSE) {
         ConsolePrintDebugChar(Char);
+        SerialOut(LOG_COM_INDEX, Char);
         return;
     }
 #endif

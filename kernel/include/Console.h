@@ -109,12 +109,14 @@ void ConsoleBackSpace(void);
 void ConsolePrint(LPCSTR Format, ...);
 void ConsolePrintDebugChar(STR Char);
 BOOL ConsoleIsDebugSplitEnabled(void);
+BOOL ConsoleIsFramebufferMappingInProgress(void);
 void ConsolePrintLine(U32 Row, U32 Column, LPCSTR Text, U32 Length);
 int SetConsoleBackColor(U32 Color);
 int SetConsoleForeColor(U32 Color);
 BOOL ConsoleGetString(LPSTR, U32);
 void ConsolePanic(LPCSTR Format, ...);
 void InitializeConsole(void);
+void ConsoleInvalidateFramebufferMapping(void);
 void ConsoleSetFramebufferInfo(
     PHYSICAL FramebufferPhysical,
     U32 Width,

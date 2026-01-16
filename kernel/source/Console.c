@@ -35,6 +35,7 @@
 #include "Mutex.h"
 #include "CoreString.h"
 #include "System.h"
+#include "DriverGetters.h"
 #include "VKey.h"
 #include "VarArg.h"
 #include "Profile.h"
@@ -117,6 +118,10 @@ CONSOLE_STRUCT Console = {
 
 /***************************************************************************/
 
+static BOOL ConsoleFramebufferMappingInProgress = FALSE;
+
+/***************************************************************************/
+
 typedef struct tag_CONSOLE_REGION_STATE {
     U32 X;
     U32 Y;
@@ -163,8 +168,17 @@ static BOOL ConsoleEnsureFramebufferMapped(void) {
         return FALSE;
     }
 
+    if (ConsoleFramebufferMappingInProgress != FALSE) {
+        return FALSE;
+    }
+
     if (Console.FramebufferLinear != NULL) {
         return TRUE;
+    }
+
+    LPDRIVER MemoryDriver = MemoryManagerGetDriver();
+    if (MemoryDriver == NULL || (MemoryDriver->Flags & DRIVER_FLAG_READY) == 0u) {
+        return FALSE;
     }
 
     if (Console.FramebufferBytesPerPixel == 0u || Console.FramebufferPitch == 0u ||
@@ -173,7 +187,9 @@ static BOOL ConsoleEnsureFramebufferMapped(void) {
     }
 
     UINT Size = (UINT)(Console.FramebufferPitch * Console.FramebufferHeight);
+    ConsoleFramebufferMappingInProgress = TRUE;
     LINEAR Linear = MapIOMemory(Console.FramebufferPhysical, Size);
+    ConsoleFramebufferMappingInProgress = FALSE;
     if (Linear == 0) {
         ERROR(TEXT("[ConsoleEnsureFramebufferMapped] MapIOMemory failed for %p size %u"),
               (LPVOID)(LINEAR)Console.FramebufferPhysical,
@@ -183,6 +199,29 @@ static BOOL ConsoleEnsureFramebufferMapped(void) {
 
     Console.FramebufferLinear = (U8*)Linear;
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Returns TRUE while the framebuffer mapping is in progress.
+ * @return TRUE if a mapping operation is active.
+ */
+BOOL ConsoleIsFramebufferMappingInProgress(void) {
+    return (ConsoleFramebufferMappingInProgress != FALSE) ? TRUE : FALSE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Invalidates the current framebuffer mapping so it can be remapped.
+ */
+void ConsoleInvalidateFramebufferMapping(void) {
+    if (Console.UseFramebuffer == FALSE) {
+        return;
+    }
+
+    Console.FramebufferLinear = NULL;
 }
 
 /***************************************************************************/

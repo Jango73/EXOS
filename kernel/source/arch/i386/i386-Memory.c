@@ -1629,6 +1629,8 @@ void InitializeMemoryManager(void) {
 
     LoadPageDirectory(NewPageDirectory);
 
+    ConsoleInvalidateFramebufferMapping();
+
     DEBUG(TEXT("[InitializeMemoryManager] Page directory set: %p"), NewPageDirectory);
 
     FlushTLB();

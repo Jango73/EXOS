@@ -1196,6 +1196,8 @@ void InitializeMemoryManager(void) {
 
     LoadPageDirectory(NewPageDirectory);
 
+    ConsoleInvalidateFramebufferMapping();
+
     FlushTLB();
 
     LogPageDirectory64(NewPageDirectory);
