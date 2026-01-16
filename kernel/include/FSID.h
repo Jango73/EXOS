@@ -69,6 +69,7 @@
 #define FSID_LINUXSWAP 0x82    // Linux Swap
 #define FSID_LINUXNATIVE 0x83   // Linux Native
 #define FSID_LINUX_EXT2 0x83    // Linux EXT2
+#define FSID_GPT_PROTECTIVE 0xEE  // GPT protective MBR
 #define FSID_LINUX_EXT3 0x83    // Linux EXT3
 #define FSID_LINUX_EXT4 0x83    // Linux EXT4
 #define FSID_LINUX_EXTENDED 0x85  // Linux Extended
@@ -80,6 +81,21 @@
 #define FSID_BEOS 0xEB         // BeOS
 #define FSID_DOS_SECOND 0xF2   // DOS Secondary
 #define FSID_EXOS 0xF8         // EXOS
+
+// GPT partition type GUIDs (little-endian on disk)
+#define GPT_GUID_LENGTH 16
+#define GPT_GUID_LINUX_EXTX { \
+    0xAF, 0x3D, 0xC6, 0x0F, 0x83, 0x84, 0x72, 0x47, \
+    0x8E, 0x79, 0x3D, 0x69, 0xD8, 0x47, 0x7D, 0xE4  \
+}
+#define GPT_GUID_EFI_SYSTEM { \
+    0x28, 0x73, 0x2A, 0xC1, 0x1F, 0xF8, 0xD2, 0x11, \
+    0xBA, 0x4B, 0x00, 0xA0, 0xC9, 0x3E, 0xC9, 0x3B  \
+}
+#define GPT_GUID_MICROSOFT_BASIC_DATA { \
+    0xA2, 0xA0, 0xD0, 0xEB, 0xE5, 0xB9, 0x33, 0x44, \
+    0x87, 0xC0, 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7  \
+}
 #define FSID_XENIX_BBT 0xFF    // Xenix Bad Block Table
 
 /***************************************************************************/

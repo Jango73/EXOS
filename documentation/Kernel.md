@@ -135,6 +135,7 @@ Kernel objects that embed `LISTNODE_FIELDS` participate in intrusive lists. Each
 #### File system globals
 
 Shared file system state is stored in `Kernel.FileSystemInfo`. The current implementation tracks the logical name of the active partition while MBR partitions are mounted. `MountDiskPartitions` reads the active MBR entry and calls `FileSystemSetActivePartition` to copy the mounted file system name into `Kernel.FileSystemInfo.ActivePartitionName`, which is reused by shell and diagnostic paths.
+When a GPT protective MBR (type 0xEE) is detected, `MountDiskPartitions` switches to a GPT parser that reads the header and entry array, then mounts Linux EXT2/3/4 partitions from their GPT GUIDs. EFI System and Microsoft Basic Data GUIDs are detected but not mounted yet.
 
 ### Handle reuse guarantees
 

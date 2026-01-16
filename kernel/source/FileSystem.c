@@ -45,6 +45,36 @@ extern BOOL MountPartition_EXT2(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
 #define FILESYSTEM_VER_MAJOR 1
 #define FILESYSTEM_VER_MINOR 0
 
+/***************************************************************************/
+
+typedef struct PACKED tag_GPT_HEADER {
+    U8 Signature[8];
+    U32 Revision;
+    U32 HeaderSize;
+    U32 HeaderCrc32;
+    U32 Reserved;
+    U64 CurrentLba;
+    U64 BackupLba;
+    U64 FirstUsableLba;
+    U64 LastUsableLba;
+    U8 DiskGuid[GPT_GUID_LENGTH];
+    U64 PartitionEntryLba;
+    U32 NumPartitionEntries;
+    U32 SizeOfPartitionEntry;
+    U32 PartitionArrayCrc32;
+} GPT_HEADER, *LPGPT_HEADER;
+
+typedef struct PACKED tag_GPT_ENTRY {
+    U8 TypeGuid[GPT_GUID_LENGTH];
+    U8 UniqueGuid[GPT_GUID_LENGTH];
+    U64 FirstLba;
+    U64 LastLba;
+    U64 Attributes;
+    U16 Name[36];
+} GPT_ENTRY, *LPGPT_ENTRY;
+
+/***************************************************************************/
+
 static UINT FileSystemDriverCommands(UINT Function, UINT Parameter);
 
 DRIVER DATA_SECTION FileSystemDriver = {
@@ -69,6 +99,206 @@ DRIVER DATA_SECTION FileSystemDriver = {
  */
 LPDRIVER FileSystemGetDriver(void) {
     return &FileSystemDriver;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Read a 512-byte sector from a disk.
+ * @param Disk Target disk.
+ * @param Sector LBA sector index.
+ * @param Buffer Destination buffer (must be 512 bytes).
+ * @return TRUE on success, FALSE otherwise.
+ */
+static BOOL FileSystemReadSector(LPPHYSICALDISK Disk, U32 Sector, LPVOID Buffer) {
+    IOCONTROL Control;
+
+    if (Disk == NULL || Buffer == NULL) return FALSE;
+
+    Control.TypeID = KOID_IOCONTROL;
+    Control.Disk = Disk;
+    Control.SectorLow = Sector;
+    Control.SectorHigh = 0;
+    Control.NumSectors = 1;
+    Control.Buffer = Buffer;
+    Control.BufferSize = SECTOR_SIZE;
+
+    return (Disk->Driver->Command(DF_DISK_READ, (UINT)&Control) == DF_RETURN_SUCCESS);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Compare two GPT GUIDs.
+ * @param Left First GUID.
+ * @param Right Second GUID.
+ * @return TRUE when identical, FALSE otherwise.
+ */
+static BOOL GptGuidEquals(const U8* Left, const U8* Right) {
+    if (Left == NULL || Right == NULL) return FALSE;
+    for (U32 Index = 0; Index < GPT_GUID_LENGTH; Index++) {
+        if (Left[Index] != Right[Index]) return FALSE;
+    }
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Check whether a GPT GUID is zero-filled.
+ * @param Guid GUID bytes.
+ * @return TRUE when the GUID is empty, FALSE otherwise.
+ */
+static BOOL GptGuidIsZero(const U8* Guid) {
+    if (Guid == NULL) return TRUE;
+    for (U32 Index = 0; Index < GPT_GUID_LENGTH; Index++) {
+        if (Guid[Index] != 0u) return FALSE;
+    }
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Mount a GPT FAT partition (ESP or data).
+ * @param Disk Target disk.
+ * @param Partition Partition descriptor.
+ * @param PartIndex GPT entry index.
+ * @return TRUE when a FAT file system is mounted, FALSE otherwise.
+ */
+static BOOL MountGptFatPartition(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 PartIndex) {
+    BOOL Mounted = FALSE;
+
+    if (Disk == NULL || Partition == NULL) return FALSE;
+
+    Mounted = MountPartition_FAT32(Disk, Partition, 0u, PartIndex);
+    if (Mounted) {
+        DEBUG(TEXT("[MountGptFatPartition] FAT32 mounted entry %u"), PartIndex);
+        return TRUE;
+    }
+
+    Mounted = MountPartition_FAT16(Disk, Partition, 0u, PartIndex);
+    if (Mounted) {
+        DEBUG(TEXT("[MountGptFatPartition] FAT16 mounted entry %u"), PartIndex);
+        return TRUE;
+    }
+
+    WARNING(TEXT("[MountGptFatPartition] FAT mount failed for entry %u"), PartIndex);
+    return FALSE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Mount GPT partitions from a disk.
+ * @param Disk Target disk.
+ * @return TRUE when the GPT is parsed, FALSE otherwise.
+ */
+static BOOL MountDiskPartitionsGpt(LPPHYSICALDISK Disk) {
+    U8 SectorBuffer[SECTOR_SIZE];
+    GPT_HEADER Header;
+    const U8 GptGuidLinuxExtx[GPT_GUID_LENGTH] = GPT_GUID_LINUX_EXTX;
+    const U8 GptGuidEfiSystem[GPT_GUID_LENGTH] = GPT_GUID_EFI_SYSTEM;
+    const U8 GptGuidMicrosoftBasicData[GPT_GUID_LENGTH] = GPT_GUID_MICROSOFT_BASIC_DATA;
+
+    if (Disk == NULL) return FALSE;
+
+    if (!FileSystemReadSector(Disk, 1u, SectorBuffer)) {
+        WARNING(TEXT("[MountDiskPartitionsGpt] GPT header read failed"));
+        return FALSE;
+    }
+
+    MemoryCopy(&Header, SectorBuffer, sizeof(GPT_HEADER));
+    if (Header.Signature[0] != 'E' || Header.Signature[1] != 'F' ||
+        Header.Signature[2] != 'I' || Header.Signature[3] != ' ' ||
+        Header.Signature[4] != 'P' || Header.Signature[5] != 'A' ||
+        Header.Signature[6] != 'R' || Header.Signature[7] != 'T') {
+        WARNING(TEXT("[MountDiskPartitionsGpt] Invalid GPT signature"));
+        return FALSE;
+    }
+
+    if (Header.SizeOfPartitionEntry == 0u || Header.NumPartitionEntries == 0u) {
+        WARNING(TEXT("[MountDiskPartitionsGpt] No GPT entries"));
+        return FALSE;
+    }
+
+    if (Header.SizeOfPartitionEntry > SECTOR_SIZE) {
+        WARNING(TEXT("[MountDiskPartitionsGpt] GPT entry size too large (%u)"), Header.SizeOfPartitionEntry);
+        return FALSE;
+    }
+
+    if (U64_High32(Header.PartitionEntryLba) != 0u) {
+        WARNING(TEXT("[MountDiskPartitionsGpt] GPT entry LBA above 4GB not supported"));
+        return FALSE;
+    }
+
+    U32 EntryLbaBase = U64_Low32(Header.PartitionEntryLba);
+    U32 EntriesPerSector = SECTOR_SIZE / Header.SizeOfPartitionEntry;
+    if (EntriesPerSector == 0u) {
+        WARNING(TEXT("[MountDiskPartitionsGpt] GPT entry size invalid (%u)"), Header.SizeOfPartitionEntry);
+        return FALSE;
+    }
+
+    DEBUG(TEXT("[MountDiskPartitionsGpt] GPT entries=%u entry_size=%u"),
+          Header.NumPartitionEntries, Header.SizeOfPartitionEntry);
+
+    for (U32 EntryIndex = 0; EntryIndex < Header.NumPartitionEntries; EntryIndex++) {
+        U32 SectorIndex = EntryIndex / EntriesPerSector;
+        U32 EntryInSector = EntryIndex % EntriesPerSector;
+        U32 SectorLba = EntryLbaBase + SectorIndex;
+
+        if (!FileSystemReadSector(Disk, SectorLba, SectorBuffer)) {
+            WARNING(TEXT("[MountDiskPartitionsGpt] GPT entry read failed at LBA %u"), SectorLba);
+            return FALSE;
+        }
+
+        U32 EntryOffset = EntryInSector * Header.SizeOfPartitionEntry;
+        if ((EntryOffset + sizeof(GPT_ENTRY)) > SECTOR_SIZE) {
+            continue;
+        }
+
+        GPT_ENTRY Entry;
+        MemoryCopy(&Entry, SectorBuffer + EntryOffset, sizeof(GPT_ENTRY));
+
+        if (GptGuidIsZero(Entry.TypeGuid)) {
+            continue;
+        }
+
+        if (U64_High32(Entry.FirstLba) != 0u || U64_High32(Entry.LastLba) != 0u) {
+            WARNING(TEXT("[MountDiskPartitionsGpt] GPT entry %u above 4GB not supported"), EntryIndex);
+            continue;
+        }
+
+        U32 FirstLba = U64_Low32(Entry.FirstLba);
+        U32 LastLba = U64_Low32(Entry.LastLba);
+        if (LastLba < FirstLba) {
+            WARNING(TEXT("[MountDiskPartitionsGpt] GPT entry %u has invalid range"), EntryIndex);
+            continue;
+        }
+
+        BOOTPARTITION Partition;
+        MemorySet(&Partition, 0, sizeof(BOOTPARTITION));
+        Partition.LBA = (SECTOR)FirstLba;
+        Partition.Size = (LastLba - FirstLba) + 1u;
+
+        if (GptGuidEquals(Entry.TypeGuid, GptGuidLinuxExtx)) {
+            Partition.Type = FSID_LINUX_EXT2;
+            DEBUG(TEXT("[MountDiskPartitionsGpt] Mounting EXT2 partition %u"), EntryIndex);
+            if (!MountPartition_EXT2(Disk, &Partition, 0u, EntryIndex)) {
+                WARNING(TEXT("[MountDiskPartitionsGpt] EXT2 mount failed for entry %u"), EntryIndex);
+            }
+            continue;
+        }
+
+        if (GptGuidEquals(Entry.TypeGuid, GptGuidEfiSystem) ||
+            GptGuidEquals(Entry.TypeGuid, GptGuidMicrosoftBasicData)) {
+            DEBUG(TEXT("[MountDiskPartitionsGpt] FAT partition detected at entry %u"), EntryIndex);
+            MountGptFatPartition(Disk, &Partition, EntryIndex);
+            continue;
+        }
+    }
+
+    return TRUE;
 }
 
 /***************************************************************************/
@@ -263,6 +493,13 @@ BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Bas
 
     //-------------------------------------
     // Read the list of partitions
+
+    for (Index = 0; Index < MBR_PARTITION_COUNT; Index++) {
+        if (Partition[Index].Type == FSID_GPT_PROTECTIVE) {
+            DEBUG(TEXT("[MountDiskPartitions] GPT protective MBR detected"));
+            return MountDiskPartitionsGpt(Disk);
+        }
+    }
 
     for (Index = 0; Index < MBR_PARTITION_COUNT; Index++) {
         if (Partition[Index].LBA != 0) {
