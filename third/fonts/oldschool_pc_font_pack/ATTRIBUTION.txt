@@ -1,0 +1,6 @@
+Font: Bm437_IBM_VGA_8x16.otb
+Author: VileR
+Source: http://int10h.org/oldschool-pc-fonts/
+License: Creative Commons Attribution-ShareAlike 4.0 International
+License file: third/fonts/oldschool_pc_font_pack/LICENSE.TXT
+Modifications: Converted to a C glyph table for EXOS.

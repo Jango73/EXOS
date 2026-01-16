@@ -50,6 +50,9 @@ bcrypt is copyright (c) 2002 Johnny Shelley <jshelley@cahaus.com>
 ### utf8-hoehrmann
 Used for UTF-8 decoding in layout parsing. Sources in third/utf8-hoehrmann (MIT license, see headers).
 
+### Fonts
+Bm437_IBM_VGA_8x16.otb from the Ultimate Oldschool PC Font Pack by VileR, licensed under CC BY-SA 4.0. See third/fonts/oldschool_pc_font_pack/ATTRIBUTION.txt and third/fonts/oldschool_pc_font_pack/LICENSE.TXT.
+
 ## Historical background
 
 In 1999, I started EXOS as a simple experiment: I wanted to write a minimal OS bootloader for fun.  

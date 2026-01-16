@@ -192,8 +192,7 @@ static BOOL ConsoleEnsureFramebufferMapped(void) {
  * @return Cell width in pixels.
  */
 static U32 ConsoleGetCellWidth(void) {
-    U32 Spacing = (Console.FontWidth + 4u) / 5u;
-    return Console.FontWidth + Spacing;
+    return Console.FontWidth;
 }
 
 /***************************************************************************/
@@ -203,8 +202,7 @@ static U32 ConsoleGetCellWidth(void) {
  * @return Cell height in pixels.
  */
 static U32 ConsoleGetCellHeight(void) {
-    U32 Spacing = (Console.FontHeight + 4u) / 5u;
-    return Console.FontHeight + Spacing;
+    return Console.FontHeight;
 }
 
 /***************************************************************************/
