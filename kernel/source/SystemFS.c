@@ -525,13 +525,24 @@ static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR Sou
     BOOL FileSystemFound = FALSE;
     LPLIST FileSystemList = GetFileSystemList();
     LPSYSTEMFSFILESYSTEM SystemFS = GetSystemFSData();
+    const STR ActiveLabel[] = {'a', 'c', 't', 'i', 'v', 'e', STR_NULL};
+    LPCSTR EffectiveFileSystem = FileSystem;
 
     if (FileSystem == NULL || Path == NULL) return;
+
+    if (STRINGS_EQUAL_NO_CASE(FileSystem, ActiveLabel)) {
+        FILESYSTEM_GLOBAL_INFO* GlobalInfo = GetFileSystemGlobalInfo();
+        if (GlobalInfo == NULL || StringEmpty(GlobalInfo->ActivePartitionName)) {
+            ERROR(TEXT("[MountConfiguredFileSystem] Active filesystem not set"));
+            return;
+        }
+        EffectiveFileSystem = GlobalInfo->ActivePartitionName;
+    }
 
     for (Node = FileSystemList != NULL ? FileSystemList->First : NULL; Node; Node = Node->Next) {
         FS = (LPFILESYSTEM)Node;
         if (FS == &SystemFS->Header) continue;
-        if (STRINGS_EQUAL(FS->Name, FileSystem)) {
+        if (STRINGS_EQUAL(FS->Name, EffectiveFileSystem)) {
             FileSystemFound = TRUE;
 
             // Check if SourcePath exists in the filesystem
@@ -563,7 +574,7 @@ static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR Sou
     }
 
     if (!FileSystemFound) {
-        ERROR(TEXT("[MountConfiguredFileSystem] FileSystem '%s' not found"), FileSystem);
+        ERROR(TEXT("[MountConfiguredFileSystem] FileSystem '%s' not found"), EffectiveFileSystem);
     }
 }
 

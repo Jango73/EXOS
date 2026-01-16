@@ -30,6 +30,7 @@
 #include "Log.h"
 #include "CoreString.h"
 #include "SystemFS.h"
+#include "utils/Helpers.h"
 #include "User.h"
 #include "Text.h"
 #include "utils/TOML.h"
@@ -306,23 +307,25 @@ static BOOL MountDiskPartitionsGpt(LPPHYSICALDISK Disk) {
 /**
  * @brief Loads and parses the kernel configuration file.
  *
- * Attempts to read "exos.toml" (case insensitive) and stores the resulting
- * TOML data in the kernel configuration state.
+ * Attempts to read the kernel configuration file (case insensitive) and stores
+ * the resulting TOML data in the kernel configuration state.
  */
 static void ReadKernelConfiguration(void) {
     DEBUG(TEXT("[ReadKernelConfiguration] Enter"));
 
     UINT Size = 0;
-    LPVOID Buffer = FileReadAll(TEXT("exos.toml"), &Size);
+    LPVOID Buffer = FileReadAll(TEXT(KERNEL_CONFIG_NAME), &Size);
 
     if (Buffer == NULL) {
-        Buffer = FileReadAll(TEXT("EXOS.TOML"), &Size);
+        Buffer = FileReadAll(TEXT(KERNEL_CONFIG_NAME_UPPER), &Size);
 
         SAFE_USE(Buffer) {
-            DEBUG(TEXT("[ReadKernelConfiguration] Config read from EXOS.TOML"));
+            DEBUG(TEXT("[ReadKernelConfiguration] Config read from %s"),
+                  TEXT(KERNEL_CONFIG_NAME_UPPER));
         }
     } else {
-        DEBUG(TEXT("[ReadKernelConfiguration] Config read from exos.toml"));
+        DEBUG(TEXT("[ReadKernelConfiguration] Config read from %s"),
+              TEXT(KERNEL_CONFIG_NAME));
     }
 
     SAFE_USE(Buffer) {
@@ -331,6 +334,63 @@ static void ReadKernelConfiguration(void) {
     }
 
     DEBUG(TEXT("[ReadKernelConfiguration] Exit"));
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Test whether a filesystem contains the kernel configuration file.
+ * @param FileSystem Target filesystem.
+ * @param Name Configuration file name.
+ * @return TRUE when found, FALSE otherwise.
+ */
+static BOOL FileSystemHasConfigFile(LPFILESYSTEM FileSystem, LPCSTR Name) {
+    FILEINFO Info;
+    LPFILE File;
+
+    if (FileSystem == NULL || Name == NULL) return FALSE;
+
+    Info.Size = sizeof(FILEINFO);
+    Info.FileSystem = FileSystem;
+    Info.Attributes = MAX_U32;
+    Info.Flags = FILE_OPEN_READ;
+    StringCopy(Info.Name, Name);
+
+    File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (UINT)&Info);
+    if (File == NULL) return FALSE;
+
+    FileSystem->Driver->Command(DF_FS_CLOSEFILE, (UINT)File);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Select the active filesystem by locating the kernel config file.
+ */
+static void FileSystemSelectActivePartitionFromConfig(void) {
+    FILESYSTEM_GLOBAL_INFO* GlobalInfo = GetFileSystemGlobalInfo();
+    LPLIST FileSystemList = GetFileSystemList();
+    LPLISTNODE Node;
+    LPFILESYSTEM FileSystem;
+
+    if (GlobalInfo == NULL || FileSystemList == NULL) return;
+    if (StringEmpty(GlobalInfo->ActivePartitionName) == FALSE) return;
+
+    for (Node = FileSystemList->First; Node; Node = Node->Next) {
+        FileSystem = (LPFILESYSTEM)Node;
+        if (FileSystem == GetSystemFS()) continue;
+
+        if (FileSystemHasConfigFile(FileSystem, TEXT(KERNEL_CONFIG_NAME)) ||
+            FileSystemHasConfigFile(FileSystem, TEXT(KERNEL_CONFIG_NAME_UPPER))) {
+            DEBUG(TEXT("[FileSystemSelectActivePartitionFromConfig] Active partition set to %s"),
+                  FileSystem->Name);
+            FileSystemSetActivePartition(FileSystem);
+            return;
+        }
+    }
+
+    WARNING(TEXT("[FileSystemSelectActivePartitionFromConfig] Config not found in any filesystem"));
 }
 
 /***************************************************************************/
@@ -601,6 +661,8 @@ void InitializeFileSystems(void) {
     for (Node = DiskList != NULL ? DiskList->First : NULL; Node; Node = Node->Next) {
         MountDiskPartitions((LPPHYSICALDISK)Node, NULL, 0);
     }
+
+    FileSystemSelectActivePartitionFromConfig();
 
     MountSystemFS();
     ReadKernelConfiguration();

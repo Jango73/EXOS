@@ -67,6 +67,7 @@
 ## File systems
 
 - Implement ext3 and ext4
+- Load exos.bin from the EXT2 system partition instead of the ESP in UEFI
 
 ## Drivers
 

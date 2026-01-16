@@ -2,11 +2,29 @@ include ../make/arch.mk
 
 BUILD_DIR := ../build/$(ARCH)
 UEFI_BUILD_DIR := $(BUILD_DIR)/boot-uefi
-IMG_SIZE_MB ?= 64
+IMG_SIZE_MB ?= 16
+ESP_SIZE_MB ?= 4
+EXT2_BLOCK_SIZE ?= 4096
+EXT2_LABEL ?= exos
+CONFIG_TOML_NAME ?= exos.toml
 
 KERNEL_BIN := $(BUILD_DIR)/kernel/exos.bin
 UEFI_IMAGE := $(UEFI_BUILD_DIR)/exos-uefi.img
 UEFI_STAGING_DIR := $(UEFI_BUILD_DIR)/esp-root
+EXT2_STAGING_DIR := $(UEFI_BUILD_DIR)/ext2-root
+
+KERNEL_CFG_EXT2 := ../kernel/configuration/exos.ext2.toml
+KERNEL_CFG_REF  := ../kernel/configuration/exos.ref.toml
+KEYBOARD_LAYOUTS := ../deploy/keyboard/*.ekm1
+
+PORTAL_ELF      := $(BUILD_DIR)/system/portal/portal
+NETGET_ELF      := $(BUILD_DIR)/system/netget/netget
+HELLO_ELF       := $(BUILD_DIR)/system/hello/hello
+TICTACTOE_ELF   := $(BUILD_DIR)/system/tictactoe/tictactoe
+TERMTACTICS_ELF := $(BUILD_DIR)/system/terminal-tactics/terminal-tactics
+MOUSEINFO_ELF   := $(BUILD_DIR)/system/mouse-info/mouse-info
+MASTER_ELF      := $(BUILD_DIR)/system/test/master/master
+SLAVE_ELF       := $(BUILD_DIR)/system/test/slave/slave
 
 ifeq ($(ARCH),i386)
 UEFI_TARGET := i686-unknown-windows
@@ -69,6 +87,7 @@ check_tools:
 	@command -v mformat >/dev/null 2>&1 || { echo "mtools is not installed."; exit 1; }
 	@command -v mcopy >/dev/null 2>&1 || { echo "mtools is not installed."; exit 1; }
 	@command -v parted >/dev/null 2>&1 || { echo "parted is not installed."; exit 1; }
+	@command -v mke2fs >/dev/null 2>&1 || { echo "mke2fs is not installed. Please run: sudo apt install e2fsprogs"; exit 1; }
 
 $(UEFI_BUILD_DIR):
 	@mkdir -p $(UEFI_BUILD_DIR)
@@ -107,19 +126,51 @@ $(UEFI_IMAGE): $(UEFI_BOOT_FILE_PATH) $(KERNEL_BIN)
 	@mkdir -p $(UEFI_STAGING_DIR)/EFI/BOOT
 	@cp -f $(UEFI_BOOT_FILE_PATH) $(UEFI_STAGING_DIR)/EFI/BOOT/$(UEFI_BOOT_FILE)
 	@cp -f $(KERNEL_BIN) $(UEFI_STAGING_DIR)/exos.bin
+	@[ -f $(KERNEL_CFG_EXT2) ] || cp $(KERNEL_CFG_REF) $(KERNEL_CFG_EXT2)
+	@echo "Preparing EXT2 staging directory at $(EXT2_STAGING_DIR)"
+	@rm -rf $(EXT2_STAGING_DIR)
+	@mkdir -p $(EXT2_STAGING_DIR)/exos/data
+	@mkdir -p $(EXT2_STAGING_DIR)/exos/users
+	@mkdir -p $(EXT2_STAGING_DIR)/exos/apps/test
+	@mkdir -p $(EXT2_STAGING_DIR)/exos/keyboard
+	@mkdir -p $(EXT2_STAGING_DIR)/exos/temp
+	@cp $(KERNEL_BIN) $(EXT2_STAGING_DIR)/exos.bin
+	@cp $(KERNEL_CFG_EXT2) $(EXT2_STAGING_DIR)/$(CONFIG_TOML_NAME)
+	@for f in $(KEYBOARD_LAYOUTS); do \
+		if [ -f "$$f" ]; then \
+			echo "Copying $$f -> $(EXT2_STAGING_DIR)/exos/keyboard/$$(basename $$f)"; \
+			cp "$$f" "$(EXT2_STAGING_DIR)/exos/keyboard/$$(basename $$f)"; \
+		fi; \
+	done
+	@cp $(PORTAL_ELF) $(EXT2_STAGING_DIR)/exos/apps/portal
+	@cp $(NETGET_ELF) $(EXT2_STAGING_DIR)/exos/apps/netget
+	@cp $(HELLO_ELF) $(EXT2_STAGING_DIR)/exos/apps/hello
+	@cp $(TICTACTOE_ELF) $(EXT2_STAGING_DIR)/exos/apps/tictactoe
+	@cp $(TERMTACTICS_ELF) $(EXT2_STAGING_DIR)/exos/apps/terminal-tactics
+	@cp $(MOUSEINFO_ELF) $(EXT2_STAGING_DIR)/exos/apps/mouse-info
+	@cp $(MASTER_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/master
+	@cp $(SLAVE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/slave
 	@echo "Creating UEFI disk image ($(IMG_SIZE_MB)MiB)..."
 	@dd if=/dev/zero of=$(UEFI_IMAGE) bs=1M count=$(IMG_SIZE_MB)
 	@parted -s $(UEFI_IMAGE) mklabel gpt
-	@parted -s $(UEFI_IMAGE) mkpart ESP fat32 1MiB 100%
+	@parted -s $(UEFI_IMAGE) mkpart ESP fat32 1MiB $(ESP_SIZE_MB)MiB
+	@parted -s $(UEFI_IMAGE) mkpart EXOS ext2 $(ESP_SIZE_MB)MiB 100%
 	@parted -s $(UEFI_IMAGE) set 1 esp on
 	@{ \
-		PART_OFFSET=$$(parted -s $(UEFI_IMAGE) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
-		if [ -z "$$PART_OFFSET" ] || [ "$$PART_OFFSET" = "0" ]; then \
-			echo "ERROR: Partition not found, or PART_OFFSET is zero. Aborting."; \
+		PART1_OFFSET=$$(parted -s $(UEFI_IMAGE) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
+		PART2_OFFSET=$$(parted -s $(UEFI_IMAGE) unit B print | awk '/^ 2/ { gsub("B","",$$2); print $$2; exit }'); \
+		if [ -z "$$PART1_OFFSET" ] || [ "$$PART1_OFFSET" = "0" ]; then \
+			echo "ERROR: ESP partition not found, or PART1_OFFSET is zero. Aborting."; \
 			exit 1; \
 		fi; \
-		MTOOLS_SKIP_CHECK=1 mformat -i $(UEFI_IMAGE)@@$$PART_OFFSET -v EXOS -F ::; \
-		MTOOLS_SKIP_CHECK=1 mcopy -i $(UEFI_IMAGE)@@$$PART_OFFSET -s $(UEFI_STAGING_DIR)/* ::/; \
+		if [ -z "$$PART2_OFFSET" ] || [ "$$PART2_OFFSET" = "0" ]; then \
+			echo "ERROR: EXT2 partition not found, or PART2_OFFSET is zero. Aborting."; \
+			exit 1; \
+		fi; \
+		MTOOLS_SKIP_CHECK=1 mformat -i $(UEFI_IMAGE)@@$$PART1_OFFSET -v EXOS ::; \
+		MTOOLS_SKIP_CHECK=1 mcopy -i $(UEFI_IMAGE)@@$$PART1_OFFSET -s $(UEFI_STAGING_DIR)/* ::/; \
+		echo "Populating EXT2 filesystem at offset $$PART2_OFFSET from $(EXT2_STAGING_DIR)"; \
+		mke2fs -F -t ext2 -b $(EXT2_BLOCK_SIZE) -q -L $(EXT2_LABEL) -d $(EXT2_STAGING_DIR) -E offset=$$PART2_OFFSET $(UEFI_IMAGE); \
 	}
 
 clean:

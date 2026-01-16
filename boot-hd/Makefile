@@ -19,7 +19,7 @@ endif
 
 DEBUG_OUTPUT    ?= 0
 
-IMG_SIZE_MB     ?= 64
+IMG_SIZE_MB     ?= 16
 FILE_SYSTEM     ?= ext2
 EXT2_BLOCK_SIZE ?= 4096
 KERNEL_FILE     ?= exos.bin
@@ -127,6 +127,7 @@ SLAVE_ELF       = $(BUILD_DIR)/system/test/slave/slave
 EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/ext2-root
 USB3_STAGING_DIR= $(BUILD_DIR)/boot-hd/usb-3-root
 EXT2_LABEL      ?= exos
+CONFIG_TOML_NAME ?= exos.toml
 
 define CREATE_FAT32_IMAGE
 	@if [ -f $1 ]; then \
@@ -347,7 +348,7 @@ update-test-image: check_payload_size $(FINAL_IMG)
 update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32)
 	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
 		$(call MCOPY_IF_NEEDED,$(KERNEL_BIN),z:/EXOS.BIN) \
-		$(call MCOPY_IF_NEEDED,$(KERNEL_CFG_FAT32),z:/exos.toml) \
+		$(call MCOPY_IF_NEEDED,$(KERNEL_CFG_FAT32),z:/$(CONFIG_TOML_NAME)) \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/KEYBOARD || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/USERS || true; \
@@ -379,7 +380,7 @@ update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2)
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/keyboard
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/temp
 	@cp $(KERNEL_BIN) $(EXT2_STAGING_DIR)/exos.bin
-	@cp $(KERNEL_CFG_EXT2) $(EXT2_STAGING_DIR)/exos.toml
+	@cp $(KERNEL_CFG_EXT2) $(EXT2_STAGING_DIR)/$(CONFIG_TOML_NAME)
 	@for f in $(KEYBOARD_LAYOUTS); do \
 		if [ -f "$$f" ]; then \
 			echo "Copying $$f -> $(EXT2_STAGING_DIR)/exos/keyboard/$$(basename $$f)"; \

@@ -95,7 +95,7 @@ if [ ! -f "$IMG_PATH" ]; then
     exit 1
 fi
 
-if [ "$USE_UEFI" -eq 0 ] && [ "$USB3_ENABLED" -eq 1 ] && [ ! -f "$USB_3_PATH" ]; then
+if [ "$USB3_ENABLED" -eq 1 ] && [ ! -f "$USB_3_PATH" ]; then
     echo "Image not found: $USB_3_PATH"
     exit 1
 fi
@@ -106,7 +106,7 @@ USB_ARGUMENTS=()
 
 function BuildUsbArguments() {
     USB_ARGUMENTS=()
-    if [ "$USE_UEFI" -eq 0 ] && [ "$USB3_ENABLED" -eq 1 ]; then
+    if [ "$USB3_ENABLED" -eq 1 ]; then
         USB_ARGUMENTS=(-drive format=raw,file="$USB_3_PATH",if=none,id=usbdrive0 -device usb-storage,drive=usbdrive0,bus=xhci.0,id=usbmsd0)
     fi
 }
