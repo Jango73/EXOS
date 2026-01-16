@@ -132,6 +132,51 @@ static void UefiSerialWriteLabelHex64(LPCSTR Label, U64 Value) {
     UefiSerialWriteString((LPCSTR)"\r\n");
 }
 
+/************************************************************************/
+
+static void PayloadFramebufferMark(U32 MultibootInfoPtr, U32 Step) {
+    multiboot_info_t* Info = (multiboot_info_t*)(UINT)MultibootInfoPtr;
+    if (Info == NULL) {
+        return;
+    }
+
+    if ((Info->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) == 0u) {
+        return;
+    }
+
+    U64 FramebufferAddress = U64_Make(Info->framebuffer_addr_high, Info->framebuffer_addr_low);
+    if (U64_EQUAL(FramebufferAddress, U64_FromU32(0u)) != FALSE) {
+        return;
+    }
+
+    U32 Pitch = Info->framebuffer_pitch;
+    if (Pitch == 0u) {
+        return;
+    }
+
+    U32 BytesPerPixel = (U32)(Info->framebuffer_bpp / 8u);
+    if (BytesPerPixel == 0u) {
+        BytesPerPixel = 4u;
+    }
+
+    U8* Base = (U8*)(UINT)FramebufferAddress;
+    U32 XBase = 0u;
+    U32 YBase = 80u;
+    if (Step == 1u) {
+        XBase = 0u;
+    }
+
+    for (U32 Y = 0; Y < 16u; Y++) {
+        U8* Row = Base + ((YBase + Y) * Pitch);
+        for (U32 X = 0; X < 16u; X++) {
+            U8* Pixel = Row + ((XBase + X) * BytesPerPixel);
+            for (U32 Byte = 0; Byte < BytesPerPixel; Byte++) {
+                Pixel[Byte] = 0xFFu;
+            }
+        }
+    }
+}
+
 typedef char VerifySegmentDescriptorSize[(sizeof(SEGMENT_DESCRIPTOR) == 8u) ? 1 : -1];
 typedef char VerifyProtectedCodeSelector[
     (VBR_PROTECTED_MODE_CODE_SELECTOR == (U16)(VBR_GDT_ENTRY_PROTECTED_CODE * (U16)sizeof(SEGMENT_DESCRIPTOR))) ? 1 : -1];
@@ -360,7 +405,14 @@ static void SetSegmentDescriptorX8664(
 
 /************************************************************************/
 
-static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize, U64 UefiImageBase, U64 UefiImageSize) {
+static void BuildPaging(
+    U32 KernelPhysBase,
+    U64 KernelVirtBase,
+    U32 MapSize,
+    U64 UefiImageBase,
+    U64 UefiImageSize,
+    U64 FramebufferBase,
+    U64 FramebufferSize) {
     ClearLongModeStructures();
 
     SetLongModeEntry((LPX86_64_PAGING_ENTRY)(PageMapLevel4 + 0), VbrPointerToPhysical(PageDirectoryPointerLow), 0u);
@@ -454,6 +506,12 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize, U64
     if (UefiImageSize != 0) {
         U64 NextTablePhysical = (U64)BaseTablePhysical + (U64)(TablesRequired * PAGE_TABLE_SIZE);
         MapIdentityRange(UefiImageBase, UefiImageSize, &NextTablePhysical);
+        if (FramebufferSize != 0u) {
+            const U32 Pml4Index = (U32)U64_Low32(VbrShiftRightU64(FramebufferBase, 39u)) & 0x1FFu;
+            if (Pml4Index == 0u) {
+                MapIdentityRange(FramebufferBase, FramebufferSize, &NextTablePhysical);
+            }
+        }
     }
 }
 
@@ -510,6 +568,8 @@ static void BuildGdtFlat(void) {
 void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U64 UefiImageBase, U64 UefiImageSize) {
     const U32 KernelPhysBase = KERNEL_LINEAR_LOAD_ADDRESS;
     U32 MapSize = VbrAlignToPage(FileSize + N_512KB);
+    U64 FramebufferBase = U64_FromU32(0u);
+    U64 FramebufferSize = U64_FromU32(0u);
 
     if (MapSize < TEMP_LINEAR_REQUIRED_SPAN) {
         MapSize = TEMP_LINEAR_REQUIRED_SPAN;
@@ -523,8 +583,23 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U6
         (LPCSTR)"[EnterProtectedPagingAndJump] UefiImageSize=",
         UefiImageSize);
 
+    multiboot_info_t* Info = (multiboot_info_t*)(UINT)MultibootInfoPtr;
+    if (Info != NULL && (Info->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) != 0u) {
+        FramebufferBase = U64_Make(Info->framebuffer_addr_high, Info->framebuffer_addr_low);
+        if (Info->framebuffer_pitch != 0u && Info->framebuffer_height != 0u) {
+            FramebufferSize = U64_FromU32(Info->framebuffer_pitch * Info->framebuffer_height);
+        }
+    }
+
     const U64 KernelVirtBase = VbrGetKernelLongModeBase();
-    BuildPaging(KernelPhysBase, KernelVirtBase, MapSize, UefiImageBase, UefiImageSize);
+    BuildPaging(
+        KernelPhysBase,
+        KernelVirtBase,
+        MapSize,
+        UefiImageBase,
+        UefiImageSize,
+        FramebufferBase,
+        FramebufferSize);
     BuildGdtFlat();
 
     UefiSerialWriteString((LPCSTR)"[EnterProtectedPagingAndJump] Paging and GDT ready\r\n");
@@ -550,6 +625,7 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U6
     UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] GdtRegisterBase=", Gdtr.Base);
     UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] GdtRegisterLimit=", Gdtr.Limit);
     UefiSerialWriteString((LPCSTR)"[EnterProtectedPagingAndJump] Jumping to kernel\r\n");
+    PayloadFramebufferMark(MultibootInfoPtr, 1u);
     StubJumpToImage((U32)(&Gdtr), PagingStructure, KernelEntryLo, KernelEntryHi, MultibootInfoPtr, MULTIBOOT_BOOTLOADER_MAGIC);
 
     __builtin_unreachable();

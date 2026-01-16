@@ -659,6 +659,10 @@ static inline U64 U64_FromUINT(UINT Value) {
     return Result;
 }
 
+static inline UINT U64_ToUINT(U64 Value) {
+    return (UINT)Value.LO;
+}
+
 static inline U64 U64_ShiftRight8(U64 Value) {
     U64 Result;
     Result.LO = (Value.LO >> 8) | ((Value.HI & 0xFF) << 24);
@@ -720,6 +724,10 @@ static inline U64 U64_FromU32(U32 Value) {
 
 static inline U64 U64_FromUINT(UINT Value) {
     return (U64)Value;
+}
+
+static inline UINT U64_ToUINT(U64 Value) {
+    return (UINT)Value;
 }
 
 static inline U64 U64_ShiftRight8(U64 Value) {

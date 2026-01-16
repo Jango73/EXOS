@@ -1069,6 +1069,52 @@ ProtectedEntryPoint:
     mov         eax, [ebp + 20]             ; Kernel entry high
     mov         [LongModeKernelEntry + 4], eax
 
+    ; Framebuffer marker in protected mode (x=60,y=80).
+    mov         esi, [ebp + 24]             ; multiboot info pointer
+    test        esi, esi
+    jz          .skip_fb_mark_pm
+    mov         eax, [esi + 0]              ; flags
+    test        eax, 0x00001000
+    jz          .skip_fb_mark_pm
+    mov         eax, [esi + 88]             ; framebuffer_addr_low
+    test        eax, eax
+    jz          .skip_fb_mark_pm
+    mov         edx, [esi + 96]             ; framebuffer_pitch
+    test        edx, edx
+    jz          .skip_fb_mark_pm
+    movzx       ecx, byte [esi + 108]       ; framebuffer_bpp
+    shr         ecx, 3
+    test        ecx, ecx
+    jnz         .fb_bpp_ok_pm
+    mov         ecx, 4
+.fb_bpp_ok_pm:
+    mov         ebx, 80
+    imul        ebx, edx
+    add         eax, ebx
+    mov         ebx, 60
+    imul        ebx, ecx
+    add         eax, ebx
+    mov         edi, eax
+    xor         esi, esi
+.fb_row_pm:
+    mov         eax, edi
+    mov         ebx, esi
+    imul        ebx, edx
+    add         eax, ebx
+    xor         ebx, ebx
+.fb_col_pm:
+    mov         ebp, ebx
+    imul        ebp, ecx
+    add         ebp, eax
+    mov         dword [ebp], 0x0000FF00
+    inc         ebx
+    cmp         ebx, 16
+    jl          .fb_col_pm
+    inc         esi
+    cmp         esi, 16
+    jl          .fb_row_pm
+.skip_fb_mark_pm:
+
     ; Enable PAE
     mov         eax, cr4
     or          eax, CR4_PAE
@@ -1109,6 +1155,29 @@ LongModeEntry:
     mov         eax, [LongModeMultibootMagic]
     mov         rbx, qword [LongModeMultibootInfo]
     mov         rdx, qword [LongModeKernelEntry]
+
+    ; Framebuffer marker (green) to confirm LongModeEntry reached.
+    mov         ecx, [rbx + 88]             ; framebuffer_addr_low
+    mov         r8d, [rbx + 92]             ; framebuffer_addr_high
+    mov         rax, r8
+    shl         rax, 32
+    or          rax, rcx
+    test        rax, rax
+    jz          .skip_fb_mark
+    mov         r9d, [rbx + 96]             ; framebuffer_pitch
+    test        r9d, r9d
+    jz          .skip_fb_mark
+    mov         r10d, [rbx + 108]           ; framebuffer_bpp
+    shr         r10d, 3
+    cmp         r10d, 0
+    jne         .fb_bpp_ok
+    mov         r10d, 4
+.fb_bpp_ok:
+    mov         ecx, 80
+    imul        ecx, r10d
+    add         rax, rcx
+    mov         dword [rax], 0x0000FF00
+.skip_fb_mark:
     jmp         rdx
 
 [BITS 32]

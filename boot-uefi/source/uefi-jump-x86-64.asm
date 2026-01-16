@@ -108,6 +108,7 @@ SerialWriteLabelHex64:
     ret
 
 StubJumpToImage:
+    cli
     mov     r10d, dword [rsp + 0x28]
     mov     r11d, dword [rsp + 0x30]
 
@@ -144,6 +145,49 @@ StubJumpToImage:
     mov         eax, r13d
     mov         cr3, rax
     mov         rsp, TRANSITION_STACK_TOP
+
+    ; Framebuffer marker after CR3 switch (x=0,y=100).
+    mov         rax, r10
+    test        rax, rax
+    jz          .skip_fb_mark_cr3
+    mov         eax, dword [r10 + 88]       ; framebuffer_addr_low
+    mov         r8d, dword [r10 + 92]       ; framebuffer_addr_high
+    mov         r9, r8
+    shl         r9, 32
+    or          r9, rax
+    test        r9, r9
+    jz          .skip_fb_mark_cr3
+    mov         edx, dword [r10 + 96]       ; framebuffer_pitch
+    test        edx, edx
+    jz          .skip_fb_mark_cr3
+    movzx       ecx, byte [r10 + 108]       ; framebuffer_bpp
+    shr         ecx, 3
+    test        ecx, ecx
+    jnz         .fb_bpp_ok_cr3
+    mov         ecx, 4
+.fb_bpp_ok_cr3:
+    mov         eax, 100
+    imul        eax, edx
+    add         r9, rax
+
+    xor         rsi, rsi
+.fb_row_cr3:
+    mov         rax, rsi
+    imul        rax, rdx
+    add         rax, r9
+    xor         rdi, rdi
+.fb_col_cr3:
+    mov         rbx, rdi
+    imul        rbx, rcx
+    add         rbx, rax
+    mov         dword [rbx], 0x00FFFF00
+    inc         rdi
+    cmp         rdi, 16
+    jl          .fb_col_cr3
+    inc         rsi
+    cmp         rsi, 16
+    jl          .fb_row_cr3
+.skip_fb_mark_cr3:
 
     mov         rax, r15
     shl         rax, 32
@@ -199,6 +243,52 @@ LongModeEntry:
     or          rax, rdx
     lea         rdi, [rel LongLogEfer]
     call        SerialWriteLabelHex64
+
+    ; Framebuffer marker to confirm LongModeEntry reached (x=40,y=80).
+    mov         rax, r12
+    test        rax, rax
+    jz          .skip_fb_mark
+    mov         eax, dword [r12 + 88]       ; framebuffer_addr_low
+    mov         r8d, dword [r12 + 92]       ; framebuffer_addr_high
+    mov         r9, r8
+    shl         r9, 32
+    or          r9, rax
+    test        r9, r9
+    jz          .skip_fb_mark
+    mov         edx, dword [r12 + 96]       ; framebuffer_pitch
+    test        edx, edx
+    jz          .skip_fb_mark
+    movzx       ecx, byte [r12 + 108]       ; framebuffer_bpp
+    shr         ecx, 3
+    test        ecx, ecx
+    jnz         .fb_bpp_ok
+    mov         ecx, 4
+.fb_bpp_ok:
+    mov         eax, 80
+    imul        eax, edx
+    add         r9, rax
+    mov         eax, 40
+    imul        eax, ecx
+    add         r9, rax
+
+    xor         rsi, rsi
+.fb_row:
+    mov         rax, rsi
+    imul        rax, rdx
+    add         rax, r9
+    xor         rdi, rdi
+.fb_col:
+    mov         rbx, rdi
+    imul        rbx, rcx
+    add         rbx, rax
+    mov         dword [rbx], 0x00FF00FF
+    inc         rdi
+    cmp         rdi, 16
+    jl          .fb_col
+    inc         rsi
+    cmp         rsi, 16
+    jl          .fb_row
+.skip_fb_mark:
 
     mov         eax, r13d
     mov         rbx, r12

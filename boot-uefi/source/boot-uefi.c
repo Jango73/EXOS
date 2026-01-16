@@ -102,6 +102,7 @@ static U64 BootUefiShiftLeftPages(U64 Value);
 static BOOL BootUefiGetFramebufferInfo(BOOT_UEFI_CONTEXT* Context, BOOT_FRAMEBUFFER_INFO* FramebufferInfo);
 static U32 BootUefiMaskPosition(U32 Mask);
 static U32 BootUefiMaskSize(U32 Mask);
+static void BootUefiFramebufferMark(BOOT_FRAMEBUFFER_INFO* FramebufferInfo, U32 Step);
 
 /************************************************************************/
 
@@ -696,8 +697,14 @@ static EFI_STATUS BootUefiGetMemoryMap(
     EFI_MEMORY_DESCRIPTOR* MemoryMap = NULL;
     Status = Context->BootServices->AllocatePool(EfiLoaderData, MemoryMapSize, (void**)&MemoryMap);
     BootUefiOutputStatus(Context->ConsoleOut, "[BootUefiGetMemoryMap] AllocatePool ", Status);
-    BootUefiOutputHex64(Context->ConsoleOut, "[BootUefiGetMemoryMap] MemoryMap buffer ", (U64)(EFI_UINTN)MemoryMap);
-    BootUefiOutputHex64(Context->ConsoleOut, "[BootUefiGetMemoryMap] MemoryMapSize (alloc) ", (U64)MemoryMapSize);
+    BootUefiOutputHex64(
+        Context->ConsoleOut,
+        "[BootUefiGetMemoryMap] MemoryMap buffer ",
+        U64_FromU32((U32)(EFI_UINTN)MemoryMap));
+    BootUefiOutputHex64(
+        Context->ConsoleOut,
+        "[BootUefiGetMemoryMap] MemoryMapSize (alloc) ",
+        U64_FromU32((U32)MemoryMapSize));
     if (Status != EFI_SUCCESS || MemoryMap == NULL) {
         return Status;
     }
@@ -709,9 +716,15 @@ static EFI_STATUS BootUefiGetMemoryMap(
         DescriptorSizeOut,
         DescriptorVersionOut);
     BootUefiOutputStatus(Context->ConsoleOut, "[BootUefiGetMemoryMap] GetMemoryMap(data) ", Status);
-    BootUefiOutputHex64(Context->ConsoleOut, "[BootUefiGetMemoryMap] MemoryMapSize (data) ", (U64)MemoryMapSize);
-    BootUefiOutputHex64(Context->ConsoleOut, "[BootUefiGetMemoryMap] MapKey ", (U64)(*MapKeyOut));
-    BootUefiOutputHex64(Context->ConsoleOut, "[BootUefiGetMemoryMap] DescriptorSize ", (U64)(*DescriptorSizeOut));
+    BootUefiOutputHex64(
+        Context->ConsoleOut,
+        "[BootUefiGetMemoryMap] MemoryMapSize (data) ",
+        U64_FromU32((U32)MemoryMapSize));
+    BootUefiOutputHex64(Context->ConsoleOut, "[BootUefiGetMemoryMap] MapKey ", U64_FromU32((U32)(*MapKeyOut)));
+    BootUefiOutputHex64(
+        Context->ConsoleOut,
+        "[BootUefiGetMemoryMap] DescriptorSize ",
+        U64_FromU32((U32)(*DescriptorSizeOut)));
     BootUefiOutputHex32(Context->ConsoleOut, "[BootUefiGetMemoryMap] DescriptorVersion ", (U32)(*DescriptorVersionOut));
 
     if (Status != EFI_SUCCESS) {
@@ -765,7 +778,11 @@ static EFI_STATUS BootUefiGetMemoryMapSilent(
             return Status;
         }
 
-        MemoryMapSize += EFI_PAGE_SIZE;
+        EFI_UINTN DescriptorSize = *DescriptorSizeOut;
+        if (DescriptorSize == 0u) {
+            DescriptorSize = 0x30u;
+        }
+        MemoryMapSize += EFI_PAGE_SIZE + (DescriptorSize * 4u);
         Status = Context->BootServices->AllocatePool(EfiLoaderData, MemoryMapSize, (void**)&MemoryMap);
         if (Status != EFI_SUCCESS || MemoryMap == NULL) {
             return Status;
@@ -923,6 +940,104 @@ static U32 BootUefiMaskSize(U32 Mask) {
     }
 
     return Count;
+}
+
+/************************************************************************/
+
+static U32 BootUefiScaleColor(U32 Value, U32 MaskSize) {
+    if (MaskSize == 0u) {
+        return 0u;
+    }
+
+    if (MaskSize >= 8u) {
+        return Value & 0xFFu;
+    }
+
+    U32 MaxValue = (1u << MaskSize) - 1u;
+    return (Value * MaxValue) / 255u;
+}
+
+/************************************************************************/
+
+static void BootUefiFramebufferMark(BOOT_FRAMEBUFFER_INFO* FramebufferInfo, U32 Step) {
+    if (FramebufferInfo == NULL || U64_EQUAL(FramebufferInfo->Address, U64_FromU32(0u)) != FALSE) {
+        return;
+    }
+
+    U32 BytesPerPixel = FramebufferInfo->BitsPerPixel / 8u;
+    if (BytesPerPixel == 0u) {
+        BytesPerPixel = 4u;
+    }
+
+    U32 Red = 0u;
+    U32 Green = 0u;
+    U32 Blue = 0u;
+
+    switch (Step) {
+        case 1u:
+            Red = 255u;
+            Green = 255u;
+            Blue = 0u;
+            break;
+        case 2u:
+            Red = 0u;
+            Green = 255u;
+            Blue = 0u;
+            break;
+        case 3u:
+            Red = 255u;
+            Green = 0u;
+            Blue = 0u;
+            break;
+        default:
+            Red = 0u;
+            Green = 0u;
+            Blue = 255u;
+            break;
+    }
+
+    U32 Packed = 0u;
+    Packed |= BootUefiScaleColor(Red, FramebufferInfo->RedMaskSize) << FramebufferInfo->RedPosition;
+    Packed |= BootUefiScaleColor(Green, FramebufferInfo->GreenMaskSize) << FramebufferInfo->GreenPosition;
+    Packed |= BootUefiScaleColor(Blue, FramebufferInfo->BlueMaskSize) << FramebufferInfo->BluePosition;
+
+    U8* Base = (U8*)(UINT)U64_Low32(FramebufferInfo->Address);
+    U32 Pitch = FramebufferInfo->Pitch;
+    if (Pitch == 0u) {
+        return;
+    }
+
+    U32 XBase = 0u;
+    U32 YBase = 0u;
+    switch (Step) {
+        case 1u:
+            XBase = 0u;
+            YBase = 0u;
+            break;
+        case 2u:
+            XBase = 0u;
+            YBase = 20u;
+            break;
+        case 3u:
+            XBase = 0u;
+            YBase = 40u;
+            break;
+        default:
+            XBase = 0u;
+            YBase = 60u;
+            break;
+    }
+
+    const U32 Size = 16u;
+    for (U32 Y = 0; Y < Size; Y++) {
+        U8* Row = Base + ((YBase + Y) * Pitch);
+        for (U32 X = 0; X < Size; X++) {
+            U8* Pixel = Row + ((XBase + X) * BytesPerPixel);
+            for (U32 Byte = 0; Byte < BytesPerPixel; Byte++) {
+                Pixel[Byte] = (U8)(Packed >> (Byte * 8u));
+            }
+        }
+    }
 }
 
 /************************************************************************/
@@ -1176,6 +1291,9 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 
     for (;;) {
         BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] Preparing memory map\r\n");
+        if (HasFramebuffer != FALSE) {
+            BootUefiFramebufferMark(&FramebufferInfo, 1u);
+        }
         Status = BootUefiGetMemoryMapSilent(
             &Context,
             &MemoryMap,
@@ -1189,9 +1307,16 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         }
         UNUSED(DescriptorVersion);
 
+        if (HasFramebuffer != FALSE) {
+            BootUefiFramebufferMark(&FramebufferInfo, 2u);
+        }
+
         // Do not call any boot services between GetMemoryMap and ExitBootServices.
         Status = Context.BootServices->ExitBootServices(Context.ImageHandle, MapKey);
         if (Status == EFI_SUCCESS) {
+            if (HasFramebuffer != FALSE) {
+                BootUefiFramebufferMark(&FramebufferInfo, 4u);
+            }
             break;
         }
 
@@ -1200,6 +1325,9 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         BootUefiOutputStatus(Context.ConsoleOut, "[EfiMain] ExitBootServices status ", Status);
         BootUefiOutputHex32(Context.ConsoleOut, "[EfiMain] ExitBootServices map key ", (U32)MapKey);
         BootUefiOutputHex32(Context.ConsoleOut, "[EfiMain] ExitBootServices attempt ", (U32)ExitBootAttempts);
+        if (HasFramebuffer != FALSE) {
+            BootUefiFramebufferMark(&FramebufferInfo, 3u);
+        }
 
         if (MemoryMap != NULL) {
             Context.BootServices->FreePool(MemoryMap);
