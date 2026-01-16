@@ -81,6 +81,17 @@ static EFI_STATUS BootUefiGetMemoryMap(
     EFI_UINTN* MapKeyOut,
     EFI_UINTN* DescriptorSizeOut,
     EFI_UINTN* DescriptorVersionOut);
+static EFI_STATUS BootUefiGetMemoryMapSilent(
+    BOOT_UEFI_CONTEXT* Context,
+    EFI_MEMORY_DESCRIPTOR** MemoryMapOut,
+    EFI_UINTN* MemoryMapSizeOut,
+    EFI_UINTN* MapKeyOut,
+    EFI_UINTN* DescriptorSizeOut,
+    EFI_UINTN* DescriptorVersionOut);
+typedef EFI_STATUS (*EFI_STALL_FN)(EFI_UINTN);
+typedef EFI_STATUS (*EFI_SET_WATCHDOG_TIMER_FN)(EFI_UINTN, EFI_UINTN, EFI_UINTN, CHAR16*);
+static void BootUefiDisableWatchdog(BOOT_UEFI_CONTEXT* Context);
+static void NORETURN BootUefiHalt(BOOT_UEFI_CONTEXT* Context, const char* Reason);
 static U32 BootUefiBuildE820Map(
     const EFI_MEMORY_DESCRIPTOR* MemoryMap,
     EFI_UINTN MemoryMapSize,
@@ -284,6 +295,55 @@ static void BootUefiOutputHex64(EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL* ConsoleOut, con
     BootUefiOutputAscii(ConsoleOut, (const char*)HexHigh);
     BootUefiOutputAscii(ConsoleOut, (const char*)HexLow);
     BootUefiOutputAscii(ConsoleOut, "\r\n");
+}
+
+/************************************************************************/
+
+/**
+ * @brief Waits for a key press on the UEFI console input.
+ *
+ * @param Context UEFI context.
+ */
+/**
+ * @brief Disable the UEFI watchdog timer to avoid automatic resets.
+ *
+ * @param Context UEFI context.
+ */
+static void BootUefiDisableWatchdog(BOOT_UEFI_CONTEXT* Context) {
+    if (Context == NULL || Context->BootServices == NULL || Context->BootServices->SetWatchdogTimer == NULL) {
+        return;
+    }
+
+    EFI_SET_WATCHDOG_TIMER_FN SetWatchdogTimer =
+        (EFI_SET_WATCHDOG_TIMER_FN)Context->BootServices->SetWatchdogTimer;
+    SetWatchdogTimer(0, 0, 0, NULL);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Halt execution to keep logs visible.
+ *
+ * @param Context UEFI context.
+ * @param Reason Halt reason string.
+ */
+static void NORETURN BootUefiHalt(BOOT_UEFI_CONTEXT* Context, const char* Reason) {
+    if (Context != NULL && Context->ConsoleOut != NULL && Reason != NULL) {
+        BootUefiOutputAscii(Context->ConsoleOut, "[BootUefiHalt] ");
+        BootUefiOutputAscii(Context->ConsoleOut, Reason);
+        BootUefiOutputAscii(Context->ConsoleOut, "\r\n");
+    }
+
+    if (Context != NULL && Context->BootServices != NULL && Context->BootServices->Stall != NULL) {
+        EFI_STALL_FN Stall = (EFI_STALL_FN)Context->BootServices->Stall;
+        for (;;) {
+            Stall(2000000);
+        }
+    }
+
+    for (;;) {
+        __asm__ __volatile__("hlt");
+    }
 }
 
 /************************************************************************/
@@ -636,6 +696,8 @@ static EFI_STATUS BootUefiGetMemoryMap(
     EFI_MEMORY_DESCRIPTOR* MemoryMap = NULL;
     Status = Context->BootServices->AllocatePool(EfiLoaderData, MemoryMapSize, (void**)&MemoryMap);
     BootUefiOutputStatus(Context->ConsoleOut, "[BootUefiGetMemoryMap] AllocatePool ", Status);
+    BootUefiOutputHex64(Context->ConsoleOut, "[BootUefiGetMemoryMap] MemoryMap buffer ", (U64)(EFI_UINTN)MemoryMap);
+    BootUefiOutputHex64(Context->ConsoleOut, "[BootUefiGetMemoryMap] MemoryMapSize (alloc) ", (U64)MemoryMapSize);
     if (Status != EFI_SUCCESS || MemoryMap == NULL) {
         return Status;
     }
@@ -646,10 +708,92 @@ static EFI_STATUS BootUefiGetMemoryMap(
         MapKeyOut,
         DescriptorSizeOut,
         DescriptorVersionOut);
+    BootUefiOutputStatus(Context->ConsoleOut, "[BootUefiGetMemoryMap] GetMemoryMap(data) ", Status);
+    BootUefiOutputHex64(Context->ConsoleOut, "[BootUefiGetMemoryMap] MemoryMapSize (data) ", (U64)MemoryMapSize);
+    BootUefiOutputHex64(Context->ConsoleOut, "[BootUefiGetMemoryMap] MapKey ", (U64)(*MapKeyOut));
+    BootUefiOutputHex64(Context->ConsoleOut, "[BootUefiGetMemoryMap] DescriptorSize ", (U64)(*DescriptorSizeOut));
+    BootUefiOutputHex32(Context->ConsoleOut, "[BootUefiGetMemoryMap] DescriptorVersion ", (U32)(*DescriptorVersionOut));
 
     if (Status != EFI_SUCCESS) {
         Context->BootServices->FreePool(MemoryMap);
         return Status;
+    }
+
+    *MemoryMapOut = MemoryMap;
+    *MemoryMapSizeOut = MemoryMapSize;
+    return EFI_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the UEFI memory map without emitting console output.
+ *
+ * @param Context UEFI context.
+ * @param MemoryMapOut Receives the allocated memory map buffer.
+ * @param MemoryMapSizeOut Receives the map size.
+ * @param MapKeyOut Receives the map key.
+ * @param DescriptorSizeOut Receives descriptor size.
+ * @param DescriptorVersionOut Receives descriptor version.
+ * @return EFI status code.
+ */
+static EFI_STATUS BootUefiGetMemoryMapSilent(
+    BOOT_UEFI_CONTEXT* Context,
+    EFI_MEMORY_DESCRIPTOR** MemoryMapOut,
+    EFI_UINTN* MemoryMapSizeOut,
+    EFI_UINTN* MapKeyOut,
+    EFI_UINTN* DescriptorSizeOut,
+    EFI_UINTN* DescriptorVersionOut) {
+    EFI_UINTN MemoryMapSize = 0;
+    EFI_STATUS Status = EFI_SUCCESS;
+    EFI_MEMORY_DESCRIPTOR* MemoryMap = NULL;
+    UINT Attempts = 0;
+
+    if (Context == NULL || Context->BootServices == NULL) {
+        return EFI_INVALID_PARAMETER;
+    }
+
+    for (;;) {
+        Status = Context->BootServices->GetMemoryMap(
+            &MemoryMapSize,
+            NULL,
+            MapKeyOut,
+            DescriptorSizeOut,
+            DescriptorVersionOut);
+
+        if (Status != EFI_BUFFER_TOO_SMALL) {
+            return Status;
+        }
+
+        MemoryMapSize += EFI_PAGE_SIZE;
+        Status = Context->BootServices->AllocatePool(EfiLoaderData, MemoryMapSize, (void**)&MemoryMap);
+        if (Status != EFI_SUCCESS || MemoryMap == NULL) {
+            return Status;
+        }
+
+        Status = Context->BootServices->GetMemoryMap(
+            &MemoryMapSize,
+            MemoryMap,
+            MapKeyOut,
+            DescriptorSizeOut,
+            DescriptorVersionOut);
+
+        if (Status == EFI_SUCCESS) {
+            break;
+        }
+
+        Context->BootServices->FreePool(MemoryMap);
+        MemoryMap = NULL;
+        MemoryMapSize = 0;
+
+        if (Status != EFI_BUFFER_TOO_SMALL) {
+            return Status;
+        }
+
+        Attempts++;
+        if (Attempts >= 8u) {
+            return Status;
+        }
     }
 
     *MemoryMapOut = MemoryMap;
@@ -927,6 +1071,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         return Status;
     }
     BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] Root folder opened\r\n");
+    BootUefiDisableWatchdog(&Context);
 
     const CHAR16 KernelPath[] = { '\\', 'e', 'x', 'o', 's', '.', 'b', 'i', 'n', 0 };
     LPCSTR KernelFileName = KernelFileNameText;
@@ -1013,6 +1158,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     EFI_UINTN DescriptorSize = 0;
     EFI_UINTN DescriptorVersion = 0;
     U32 MultibootInfoPtr = 0;
+    UINT ExitBootAttempts = 0;
 
     E820ENTRY E820Map[E820_MAX_ENTRIES];
     MemorySet(E820Map, 0, sizeof(E820Map));
@@ -1030,7 +1176,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 
     for (;;) {
         BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] Preparing memory map\r\n");
-        Status = BootUefiGetMemoryMap(
+        Status = BootUefiGetMemoryMapSilent(
             &Context,
             &MemoryMap,
             &MemoryMapSize,
@@ -1043,14 +1189,17 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         }
         UNUSED(DescriptorVersion);
 
+        // Do not call any boot services between GetMemoryMap and ExitBootServices.
         Status = Context.BootServices->ExitBootServices(Context.ImageHandle, MapKey);
         if (Status == EFI_SUCCESS) {
             break;
         }
 
+        ExitBootAttempts++;
         BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] ExitBootServices retry\r\n");
         BootUefiOutputStatus(Context.ConsoleOut, "[EfiMain] ExitBootServices status ", Status);
         BootUefiOutputHex32(Context.ConsoleOut, "[EfiMain] ExitBootServices map key ", (U32)MapKey);
+        BootUefiOutputHex32(Context.ConsoleOut, "[EfiMain] ExitBootServices attempt ", (U32)ExitBootAttempts);
 
         if (MemoryMap != NULL) {
             Context.BootServices->FreePool(MemoryMap);
@@ -1064,6 +1213,11 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         if (Status != EFI_INVALID_PARAMETER) {
             BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] ERROR: ExitBootServices failed\r\n");
             return Status;
+        }
+
+        if (ExitBootAttempts >= 4u) {
+            BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] ERROR: ExitBootServices retry limit reached\r\n");
+            BootUefiHalt(&Context, "ExitBootServices retry limit");
         }
     }
 
