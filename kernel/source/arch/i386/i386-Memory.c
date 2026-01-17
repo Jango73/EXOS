@@ -446,6 +446,71 @@ LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
 /************************************************************************/
 
 /**
+ * @brief Synchronize a kernel-space mapping into the kernel page directory.
+ * @param Linear Linear address being mapped.
+ * @param CurrentPdeValue Raw PDE value from the current page directory.
+ * @param CurrentPteValue Raw PTE value from the current page table.
+ * @return TRUE on success, FALSE otherwise.
+ */
+static BOOL SyncKernelMappingForPage(LINEAR Linear, U32 CurrentPdeValue, U32 CurrentPteValue) {
+    if (Linear < VMA_KERNEL) return TRUE;
+
+    PHYSICAL KernelDirectoryPhysical = KernelProcess.PageDirectory;
+    if (KernelDirectoryPhysical == 0) {
+        KernelDirectoryPhysical = KernelStartup.PageDirectory;
+    }
+
+    if (KernelDirectoryPhysical == 0) {
+        ERROR(TEXT("[SyncKernelMappingForPage] No kernel page directory available (Linear=%p)"), (LPVOID)Linear);
+        return FALSE;
+    }
+
+    PHYSICAL CurrentDirectoryPhysical = GetPageDirectory();
+    if (CurrentDirectoryPhysical == 0 || CurrentDirectoryPhysical == KernelDirectoryPhysical) {
+        return TRUE;
+    }
+
+    UINT DirectoryIndex = GetDirectoryEntry(Linear);
+    UINT TableIndex = GetTableEntry(Linear);
+
+    LINEAR KernelDirectoryLinear = MapTemporaryPhysicalPage1(KernelDirectoryPhysical);
+    if (KernelDirectoryLinear == 0) {
+        ERROR(TEXT("[SyncKernelMappingForPage] MapTemporaryPhysicalPage1 failed for kernel directory %p"),
+              (LPVOID)KernelDirectoryPhysical);
+        return FALSE;
+    }
+
+    LPPAGE_DIRECTORY KernelDirectory = (LPPAGE_DIRECTORY)KernelDirectoryLinear;
+    volatile U32* KernelPdePtr = (volatile U32*)&KernelDirectory[DirectoryIndex];
+    PHYSICAL KernelTablePhysical;
+
+    if ((*KernelPdePtr & PAGE_FLAG_PRESENT) == 0u) {
+        *KernelPdePtr = CurrentPdeValue;
+        KernelTablePhysical = (PHYSICAL)(CurrentPdeValue & PAGE_MASK);
+    } else {
+        KernelTablePhysical = (PHYSICAL)(*KernelPdePtr & PAGE_MASK);
+    }
+
+    LINEAR KernelTableLinear = MapTemporaryPhysicalPage2(KernelTablePhysical);
+    if (KernelTableLinear == 0) {
+        ERROR(TEXT("[SyncKernelMappingForPage] MapTemporaryPhysicalPage2 failed for kernel table %p"),
+              (LPVOID)KernelTablePhysical);
+        return FALSE;
+    }
+
+    LPPAGE_TABLE KernelTable = (LPPAGE_TABLE)KernelTableLinear;
+    volatile U32* KernelPtePtr = (volatile U32*)&KernelTable[TableIndex];
+
+    if (*KernelPtePtr != CurrentPteValue) {
+        *KernelPtePtr = CurrentPteValue;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Check if a linear address is mapped and accessible.
  * @param Pointer Linear address to test.
  * @return TRUE if address is valid.
@@ -1195,6 +1260,15 @@ static BOOL PopulateRegionPages(LINEAR Base,
                 Table[TabEntry].Privilege = PAGE_PRIVILEGE(Base);
                 Table[TabEntry].Address = Physical >> PAGE_SIZE_MUL;
             }
+        }
+
+        if (SyncKernelMappingForPage(
+                Base,
+                *(volatile U32*)&Directory[DirEntry],
+                *(volatile U32*)&Table[TabEntry]) == FALSE) {
+            FreeRegion(RollbackBase, (Index << PAGE_SIZE_MUL));
+            ERROR(TEXT("[%s] Kernel mapping synchronization failed for %p"), FunctionName, (LPVOID)Base);
+            return FALSE;
         }
 
         Base += PAGE_SIZE;
