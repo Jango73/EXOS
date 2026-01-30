@@ -11,6 +11,12 @@ global LongModeEntry
 
 extern VbrLongModeCodeSelector
 extern VbrLongModeDataSelector
+extern UefiStubMultibootInfoPtr
+extern UefiStubMultibootMagic
+extern UefiStubFramebufferBase
+extern UefiStubFramebufferPitch
+extern UefiStubFramebufferBytesPerPixel
+extern UefiStubTestOnly
 
 ; Parameters (Microsoft x64 ABI)
 ; RCX: GDTR
@@ -109,8 +115,9 @@ SerialWriteLabelHex64:
 
 StubJumpToImage:
     cli
-    mov     r10d, dword [rsp + 0x28]
-    mov     r11d, dword [rsp + 0x30]
+    ; Read parameters from globals instead of stack (bare metal stack offsets are unreliable).
+    mov     r10d, dword [rel UefiStubMultibootInfoPtr]
+    mov     r11d, dword [rel UefiStubMultibootMagic]
 
     mov     r12, rcx
     mov     r13, rdx
@@ -133,6 +140,52 @@ StubJumpToImage:
     call    SerialWriteLabelHex32
 
     cli
+
+    ; Framebuffer marker before CR3 switch (x=20,y=60).
+    mov         r9, qword [rel UefiStubFramebufferBase]
+    test        r9, r9
+    jz          .skip_fb_mark_pre_cr3
+    mov         edx, dword [rel UefiStubFramebufferPitch]
+    test        edx, edx
+    jz          .skip_fb_mark_pre_cr3
+    mov         ecx, dword [rel UefiStubFramebufferBytesPerPixel]
+    test        ecx, ecx
+    jnz         .fb_bpp_ok_pre_cr3
+    mov         ecx, 4
+.fb_bpp_ok_pre_cr3:
+    mov         eax, 60
+    imul        eax, edx
+    add         r9, rax
+    mov         eax, 20
+    imul        eax, ecx
+    add         r9, rax
+
+    xor         rsi, rsi
+.fb_row_pre_cr3:
+    mov         rax, rsi
+    imul        rax, rdx
+    add         rax, r9
+    xor         rdi, rdi
+.fb_col_pre_cr3:
+    mov         rbx, rdi
+    imul        rbx, rcx
+    add         rbx, rax
+    mov         dword [rbx], 0x00FF8000
+    inc         rdi
+    cmp         rdi, 16
+    jl          .fb_col_pre_cr3
+    inc         rsi
+    cmp         rsi, 16
+    jl          .fb_row_pre_cr3
+.skip_fb_mark_pre_cr3:
+    mov         eax, dword [rel UefiStubTestOnly]
+    test        eax, eax
+    jz          .continue_boot
+    ; Stub test mode: halt here to confirm stub execution on bare metal.
+.stub_test_loop:
+    hlt
+    jmp         .stub_test_loop
+.continue_boot:
 
     lgdt        [r12]
     mov         ax, [rel VbrLongModeDataSelector]

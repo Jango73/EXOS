@@ -162,8 +162,29 @@ static void PayloadFramebufferMark(U32 MultibootInfoPtr, U32 Step) {
     U8* Base = (U8*)(UINT)FramebufferAddress;
     U32 XBase = 0u;
     U32 YBase = 80u;
-    if (Step == 1u) {
-        XBase = 0u;
+    U32 Packed = 0x00FFFFFFu;
+
+    switch (Step) {
+        case 1u:
+            Packed = 0x00FFFFFFu;
+            YBase = 80u;
+            break;
+        case 2u:
+            Packed = 0x0000FFFFu;
+            YBase = 100u;
+            break;
+        case 3u:
+            Packed = 0x00FF00FFu;
+            YBase = 120u;
+            break;
+        case 4u:
+            Packed = 0x0000FF00u;
+            YBase = 140u;
+            break;
+        default:
+            Packed = 0x0000FF00u;
+            YBase = 140u;
+            break;
     }
 
     for (U32 Y = 0; Y < 16u; Y++) {
@@ -171,7 +192,7 @@ static void PayloadFramebufferMark(U32 MultibootInfoPtr, U32 Step) {
         for (U32 X = 0; X < 16u; X++) {
             U8* Pixel = Row + ((XBase + X) * BytesPerPixel);
             for (U32 Byte = 0; Byte < BytesPerPixel; Byte++) {
-                Pixel[Byte] = 0xFFu;
+                Pixel[Byte] = (U8)(Packed >> (Byte * 8u));
             }
         }
     }
@@ -334,12 +355,20 @@ static void MapIdentityRange(U64 Base, U64 Size, U64* NextTablePhysical) {
         const UINT PdIndex = (UINT)((Address >> 21) & 0x1FFu);
         const UINT PtIndex = (UINT)((Address >> 12) & 0x1FFu);
 
-        if (Pml4Index != 0u) {
-            UefiSerialWriteString((LPCSTR)"[MapIdentityRange] ERROR: Pml4 index not supported\r\n");
-            Hang();
+        LPX86_64_PAGING_ENTRY Pml4Entry = (LPX86_64_PAGING_ENTRY)(PageMapLevel4 + Pml4Index);
+        LPPDPT PageDirectoryPointer = NULL;
+        if (!VbrIsLongModeEntryPresent(Pml4Entry)) {
+            const U64 TablePhysical = *NextTablePhysical;
+            *NextTablePhysical += PAGE_TABLE_SIZE;
+            PageDirectoryPointer = (LPPDPT)VbrU64ToUINT(TablePhysical);
+            MemorySet(PageDirectoryPointer, 0, PAGE_TABLE_SIZE);
+            SetLongModeEntry(Pml4Entry, U64_FromUINT(TablePhysical), 0u);
+        } else {
+            const U64 Physical = VbrEntryToPhysical(Pml4Entry);
+            PageDirectoryPointer = (LPPDPT)VbrU64ToUINT(Physical);
         }
 
-        LPX86_64_PAGING_ENTRY PdptEntry = (LPX86_64_PAGING_ENTRY)(PageDirectoryPointerLow + PdptIndex);
+        LPX86_64_PAGING_ENTRY PdptEntry = (LPX86_64_PAGING_ENTRY)(PageDirectoryPointer + PdptIndex);
         LPPAGE_DIRECTORY PageDirectory = NULL;
         if (!VbrIsLongModeEntryPresent(PdptEntry)) {
             const U64 TablePhysical = *NextTablePhysical;
@@ -517,6 +546,32 @@ static void BuildPaging(
 
 /************************************************************************/
 
+#if UEFI_STUB_C_FALLBACK == 1
+U64 _fltused = 0u;
+U64 __fltused = 0u;
+
+void NORETURN StubJumpToImage(
+    U32 GdtRegister,
+    U32 PagingStructure,
+    U32 KernelEntryLow,
+    U32 KernelEntryHigh,
+    U32 MultibootInfoPtr,
+    U32 MultibootMagic) {
+    UNUSED(GdtRegister);
+    UNUSED(PagingStructure);
+    UNUSED(KernelEntryLow);
+    UNUSED(KernelEntryHigh);
+    UNUSED(MultibootMagic);
+
+    PayloadFramebufferMark(MultibootInfoPtr, 4u);
+    for (;;) {
+        __asm__ __volatile__("hlt");
+    }
+}
+
+/************************************************************************/
+#endif
+
 static void BuildGdtFlat(void) {
     MemorySet(GdtEntries, 0, sizeof(GdtEntries));
 
@@ -626,7 +681,16 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U6
     UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] GdtRegisterLimit=", Gdtr.Limit);
     UefiSerialWriteString((LPCSTR)"[EnterProtectedPagingAndJump] Jumping to kernel\r\n");
     PayloadFramebufferMark(MultibootInfoPtr, 1u);
+    PayloadFramebufferMark(MultibootInfoPtr, 2u);
+    PayloadFramebufferMark(MultibootInfoPtr, 3u);
+#if UEFI_STUB_REPLACE == 1
+    PayloadFramebufferMark(MultibootInfoPtr, 4u);
+    for (;;) {
+        __asm__ __volatile__("hlt");
+    }
+#else
     StubJumpToImage((U32)(&Gdtr), PagingStructure, KernelEntryLo, KernelEntryHi, MultibootInfoPtr, MULTIBOOT_BOOTLOADER_MAGIC);
+#endif
 
     __builtin_unreachable();
 }

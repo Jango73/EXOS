@@ -52,6 +52,16 @@ static const STR KernelFileNameText[] = {
 
 /************************************************************************/
 
+// Used by the x86-64 UEFI jump stub to fetch parameters reliably.
+U32 UefiStubMultibootInfoPtr = 0u;
+U32 UefiStubMultibootMagic = 0u;
+U64 UefiStubFramebufferBase = 0u;
+U32 UefiStubFramebufferPitch = 0u;
+U32 UefiStubFramebufferBytesPerPixel = 0u;
+U32 UefiStubTestOnly = 0u;
+
+/************************************************************************/
+
 static UINT BootUefiAlignUp(UINT Value, UINT Alignment);
 static U8* BootUefiAlignPointer(U8* Pointer, UINT Alignment);
 static EFI_PHYSICAL_ADDRESS BootUefiPhysicalFromU32(U32 Value);
@@ -103,6 +113,7 @@ static BOOL BootUefiGetFramebufferInfo(BOOT_UEFI_CONTEXT* Context, BOOT_FRAMEBUF
 static U32 BootUefiMaskPosition(U32 Mask);
 static U32 BootUefiMaskSize(U32 Mask);
 static void BootUefiFramebufferMark(BOOT_FRAMEBUFFER_INFO* FramebufferInfo, U32 Step);
+static void NORETURN BootUefiHaltNoServices(void);
 
 /************************************************************************/
 
@@ -989,6 +1000,11 @@ static void BootUefiFramebufferMark(BOOT_FRAMEBUFFER_INFO* FramebufferInfo, U32 
             Green = 0u;
             Blue = 0u;
             break;
+        case 5u:
+            Red = 255u;
+            Green = 255u;
+            Blue = 255u;
+            break;
         default:
             Red = 0u;
             Green = 0u;
@@ -1001,7 +1017,7 @@ static void BootUefiFramebufferMark(BOOT_FRAMEBUFFER_INFO* FramebufferInfo, U32 
     Packed |= BootUefiScaleColor(Green, FramebufferInfo->GreenMaskSize) << FramebufferInfo->GreenPosition;
     Packed |= BootUefiScaleColor(Blue, FramebufferInfo->BlueMaskSize) << FramebufferInfo->BluePosition;
 
-    U8* Base = (U8*)(UINT)U64_Low32(FramebufferInfo->Address);
+    U8* Base = (U8*)BootUefiPhysicalToPointer(FramebufferInfo->Address);
     U32 Pitch = FramebufferInfo->Pitch;
     if (Pitch == 0u) {
         return;
@@ -1037,6 +1053,14 @@ static void BootUefiFramebufferMark(BOOT_FRAMEBUFFER_INFO* FramebufferInfo, U32 
                 Pixel[Byte] = (U8)(Packed >> (Byte * 8u));
             }
         }
+    }
+}
+
+/************************************************************************/
+
+static void NORETURN BootUefiHaltNoServices(void) {
+    for (;;) {
+        __asm__ __volatile__("hlt");
     }
 }
 
@@ -1279,6 +1303,26 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     MemorySet(E820Map, 0, sizeof(E820Map));
     BOOT_FRAMEBUFFER_INFO FramebufferInfo;
     BOOL HasFramebuffer = BootUefiGetFramebufferInfo(&Context, &FramebufferInfo);
+    if (HasFramebuffer != FALSE) {
+        UefiStubFramebufferBase = FramebufferInfo.Address;
+        UefiStubFramebufferPitch = FramebufferInfo.Pitch;
+        UefiStubFramebufferBytesPerPixel = FramebufferInfo.BitsPerPixel / 8u;
+        if (UefiStubFramebufferBytesPerPixel == 0u) {
+            UefiStubFramebufferBytesPerPixel = 4u;
+        }
+    } else {
+        UefiStubFramebufferBase = 0u;
+        UefiStubFramebufferPitch = 0u;
+        UefiStubFramebufferBytesPerPixel = 0u;
+    }
+#if UEFI_STUB_EARLY_CALL == 1
+    UefiStubMultibootInfoPtr = 0u;
+    UefiStubMultibootMagic = 0u;
+    UefiStubTestOnly = 1u;
+    __asm__ __volatile__("" ::: "memory");
+    EnterProtectedPagingAndJump(0u, 0u, Context.ImageBase, Context.ImageSize);
+    BootUefiHalt(&Context, "UEFI_STUB_EARLY_CALL returned");
+#endif
     EFI_PHYSICAL_ADDRESS RsdpPhysical = BootUefiFindRsdp(&Context);
     U32 RsdpPhysicalLow = 0u;
     if (U64_EQUAL(RsdpPhysical, U64_FromU32(0u)) == FALSE) {
@@ -1374,7 +1418,24 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         HasFramebuffer ? &FramebufferInfo : NULL);
 
     BootUefiSerialWriteString(0x3F8u, (LPCSTR)"[EfiMain] ExitBootServices ok\r\n");
+    UefiStubMultibootInfoPtr = MultibootInfoPtr;
+    UefiStubMultibootMagic = MULTIBOOT_BOOTLOADER_MAGIC;
+#if UEFI_STUB_TEST == 1
+    UefiStubTestOnly = 1u;
+#else
+    UefiStubTestOnly = 0u;
+#endif
+    __asm__ __volatile__("" ::: "memory");
+#if UEFI_EARLY_HALT == 1
+    if (HasFramebuffer != FALSE) {
+        BootUefiFramebufferMark(&FramebufferInfo, 5u);
+    }
+    BootUefiHaltNoServices();
+#endif
+    BootUefiSerialWriteString(0x3F8u, (LPCSTR)"[EfiMain] Calling EnterProtectedPagingAndJump\r\n");
     EnterProtectedPagingAndJump((U32)FileSize, MultibootInfoPtr, Context.ImageBase, Context.ImageSize);
+    BootUefiSerialWriteString(0x3F8u, (LPCSTR)"[EfiMain] Returned from EnterProtectedPagingAndJump\r\n");
+    __asm__ __volatile__("ud2");
     Hang();
 
     return EFI_SUCCESS;

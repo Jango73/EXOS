@@ -7,6 +7,11 @@ ESP_SIZE_MB ?= 4
 EXT2_BLOCK_SIZE ?= 4096
 EXT2_LABEL ?= exos
 CONFIG_TOML_NAME ?= exos.toml
+UEFI_EARLY_HALT ?= 0
+UEFI_STUB_TEST ?= 0
+UEFI_STUB_EARLY_CALL ?= 0
+UEFI_STUB_REPLACE ?= 0
+UEFI_STUB_C_FALLBACK ?= 0
 
 KERNEL_BIN := $(BUILD_DIR)/kernel/exos.bin
 UEFI_IMAGE := $(UEFI_BUILD_DIR)/exos-uefi.img
@@ -53,6 +58,11 @@ CFLAGS := -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
           -mno-red-zone -Wall -Wextra -Werror-implicit-function-declaration -Wstrict-prototypes \
           -DBOOT_UEFI=1 -DPAYLOAD_ADDRESS=0x8000 -DMEMORY_BASE=0x10000 -DMEMORY_SIZE=0x80000 \
           -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) \
+          -DUEFI_EARLY_HALT=$(UEFI_EARLY_HALT) \
+          -DUEFI_STUB_TEST=$(UEFI_STUB_TEST) \
+          -DUEFI_STUB_EARLY_CALL=$(UEFI_STUB_EARLY_CALL) \
+          -DUEFI_STUB_REPLACE=$(UEFI_STUB_REPLACE) \
+          -DUEFI_STUB_C_FALLBACK=$(UEFI_STUB_C_FALLBACK) \
           -DARCH=$(ARCH) \
           -Iinclude -I../boot-hd/include -I../boot-shared/include -I../kernel/include
 
@@ -72,7 +82,11 @@ UEFI_C_OBJS := $(UEFI_BUILD_DIR)/boot-uefi.o \
                $(UEFI_BUILD_DIR)/CoreString.o \
                $(UEFI_BUILD_DIR)/vbr-payload-$(ARCH).o
 
+ifeq ($(UEFI_STUB_C_FALLBACK),1)
+UEFI_ASM_OBJ :=
+else
 UEFI_ASM_OBJ := $(UEFI_BUILD_DIR)/uefi-jump-$(ARCH).o
+endif
 
 .PHONY: all clean check_tools image
 
