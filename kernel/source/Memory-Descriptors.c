@@ -99,11 +99,6 @@ static BOOL EnsureDescriptorSlab(void) {
 
     G_RegionDescriptorPages++;
 
-    DEBUG(TEXT("[EnsureDescriptorSlab] Added slab #%u (capacity=%u free=%u total=%u)"),
-        G_RegionDescriptorPages,
-        Capacity,
-        G_FreeRegionDescriptorCount,
-        G_TotalRegionDescriptorCount);
 
     return TRUE;
 }
@@ -313,11 +308,6 @@ void ExtendDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor, UINT AdditionalPage
     Descriptor->PageCount += AdditionalPages;
     RefreshDescriptorGranularity(Descriptor);
 
-    DEBUG(TEXT("[ExtendDescriptor] Base=%p addedPages=%u newSize=%u newPages=%u"),
-        (LPVOID)Descriptor->CanonicalBase,
-        AdditionalPages,
-        Descriptor->Size,
-        Descriptor->PageCount);
 }
 
 /************************************************************************/
@@ -438,9 +428,6 @@ void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
                 Descriptor->Size = Remaining;
                 Descriptor->PageCount = Remaining >> PAGE_SIZE_MUL;
                 RefreshDescriptorGranularity(Descriptor);
-                DEBUG(TEXT("[UpdateDescriptorsForFree] Shrunk tail base=%p newSize=%u"),
-                    (LPVOID)RegionStart,
-                    Descriptor->Size);
             }
         } else if (TrimHead) {
             UINT Remaining = (UINT)(RegionEnd - FreeEnd);
@@ -457,9 +444,6 @@ void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
                 ReleaseRegionDescriptor(Descriptor);
             } else {
                 InsertDescriptorOrdered(Process, Descriptor);
-                DEBUG(TEXT("[UpdateDescriptorsForFree] Trimmed head newBase=%p newSize=%u"),
-                    (LPVOID)Descriptor->CanonicalBase,
-                    Descriptor->Size);
             }
         } else {
             UINT LeftBytes = (UINT)(FreeStart - RegionStart);

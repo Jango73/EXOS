@@ -204,7 +204,6 @@ static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context) {
                 ProcessList,
                 &ProcessArrayDescriptor,
                 NULL)) {
-            DEBUG(TEXT("[ShellRegisterScriptHostObjects] Failed to register process host symbol"));
         }
     }
 
@@ -217,7 +216,6 @@ static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context) {
                 DriverList,
                 &DriverArrayDescriptor,
                 NULL)) {
-            DEBUG(TEXT("[ShellRegisterScriptHostObjects] Failed to register drivers host symbol"));
         }
     }
 
@@ -228,7 +226,6 @@ static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context) {
             UsbRootHandle,
             &UsbDescriptor,
             NULL)) {
-        DEBUG(TEXT("[ShellRegisterScriptHostObjects] Failed to register usb host symbol"));
     }
 
     if (!ScriptRegisterHostSymbol(
@@ -238,7 +235,6 @@ static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context) {
             GetKeyboardRootHandle(),
             GetKeyboardDescriptor(),
             NULL)) {
-        DEBUG(TEXT("[ShellRegisterScriptHostObjects] Failed to register keyboard host symbol"));
     }
 
     if (!ScriptRegisterHostSymbol(
@@ -248,7 +244,6 @@ static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context) {
             GetMouseRootHandle(),
             GetMouseDescriptor(),
             NULL)) {
-        DEBUG(TEXT("[ShellRegisterScriptHostObjects] Failed to register mouse host symbol"));
     }
 }
 
@@ -259,7 +254,6 @@ static void InitShellContext(LPSHELLCONTEXT This) {
 
     MemorySet(This, 0, sizeof(SHELLCONTEXT));
 
-    DEBUG(TEXT("[InitShellContext] Enter"));
 
     This->Component = 0;
     This->CommandChar = 0;
@@ -293,7 +287,6 @@ static void InitShellContext(LPSHELLCONTEXT This) {
 
     ShellRegisterScriptHostObjects(This);
 
-    DEBUG(TEXT("[InitShellContext] Exit"));
 }
 
 /***************************************************************************/
@@ -301,7 +294,6 @@ static void InitShellContext(LPSHELLCONTEXT This) {
 static void DeinitShellContext(LPSHELLCONTEXT This) {
     U32 Index;
 
-    DEBUG(TEXT("[DeinitShellContext] Enter"));
 
     for (Index = 0; Index < SHELL_NUM_BUFFERS; Index++) {
         if (This->Buffer[Index]) HeapFree(This->Buffer[Index]);
@@ -317,7 +309,6 @@ static void DeinitShellContext(LPSHELLCONTEXT This) {
         This->ScriptContext = NULL;
     }
 
-    DEBUG(TEXT("[DeinitShellContext] Exit"));
 }
 
 /***************************************************************************/
@@ -666,7 +657,6 @@ static void ListFile(LPFILE File, U32 Indent) {
     U32 Length;
     U32 Index;
 
-    DEBUG(TEXT("[ListFile] Processing file: %s"), File->Name);
 
     //-------------------------------------
     // Eliminate the . and .. files
@@ -674,7 +664,6 @@ static void ListFile(LPFILE File, U32 Indent) {
     if (StringCompare(File->Name, TEXT(".")) == 0) return;
     if (StringCompare(File->Name, TEXT("..")) == 0) return;
 
-    DEBUG(TEXT("[ListFile] Displaying file: %s"), File->Name);
 
     StringCopy(Name, File->Name);
 
@@ -932,7 +921,6 @@ static U32 CMD_pause(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 static U32 CMD_dir(LPSHELLCONTEXT Context) {
-    DEBUG(TEXT("[CMD_dir] Enter"));
 
     STR Target[MAX_PATH_NAME];
     STR Base[MAX_PATH_NAME];
@@ -975,7 +963,6 @@ static U32 CMD_dir(LPSHELLCONTEXT Context) {
     ListDirectory(Context, Base, 0, Pause, Recurse, &NumListed);
 
     TEST(TEXT("[CMD_dir] dir : OK"));
-    DEBUG(TEXT("[CMD_dir] Exit"));
 
     return DF_RETURN_SUCCESS;
 }
@@ -1120,7 +1107,6 @@ static U32 CMD_memorymap(LPSHELLCONTEXT Context) {
     UINT Index = 0;
 
     ConsolePrint(TEXT("Kernel regions: %u\n"), Process->RegionCount);
-    DEBUG(TEXT("[CMD_memorymap] Kernel regions: %u"), Process->RegionCount);
 
     while (Descriptor != NULL) {
         LPCSTR Tag = (Descriptor->Tag[0] == STR_NULL) ? TEXT("???") : Descriptor->Tag;
@@ -1130,19 +1116,8 @@ static U32 CMD_memorymap(LPSHELLCONTEXT Context) {
                 Tag,
                 (LPVOID)Descriptor->CanonicalBase,
                 Descriptor->Size);
-            DEBUG(TEXT("[CMD_memorymap] %u: tag=%s base=%p size=%u phys=???"),
-                Index,
-                Tag,
-                (LPVOID)Descriptor->CanonicalBase,
-                Descriptor->Size);
         } else {
             ConsolePrint(TEXT("%u: tag=%s base=%p size=%u phys=%p\n"),
-                Index,
-                Tag,
-                (LPVOID)Descriptor->CanonicalBase,
-                Descriptor->Size,
-                (LPVOID)Descriptor->PhysicalBase);
-            DEBUG(TEXT("[CMD_memorymap] %u: tag=%s base=%p size=%u phys=%p"),
                 Index,
                 Tag,
                 (LPVOID)Descriptor->CanonicalBase,
@@ -1159,7 +1134,6 @@ static U32 CMD_memorymap(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 static U32 CMD_disasm(LPSHELLCONTEXT Context) {
-    DEBUG(TEXT("[CMD_disasm] Enter"));
 
     U32 Address = 0;
     U32 InstrCount = 0;
@@ -1185,7 +1159,6 @@ static U32 CMD_disasm(LPSHELLCONTEXT Context) {
         ConsolePrint(TEXT("Missing parameter\n"));
     }
 
-    DEBUG(TEXT("[CMD_disasm] Exit"));
 
     return DF_RETURN_SUCCESS;
 }
@@ -1512,7 +1485,6 @@ static U32 CMD_inp(LPSHELLCONTEXT Context) {
 static U32 CMD_reboot(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
-    DEBUG(TEXT("[CMD_reboot] Rebooting system"));
     ConsolePrint(TEXT("Rebooting system...\n"));
 
     RebootKernel();
@@ -1529,7 +1501,6 @@ static U32 CMD_reboot(LPSHELLCONTEXT Context) {
 static U32 CMD_shutdown(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
-    DEBUG(TEXT("[CMD_shutdown] Shutting down system"));
     ConsolePrint(TEXT("Shutting down system...\n"));
 
     ShutdownKernel();
@@ -1545,16 +1516,13 @@ static U32 CMD_adduser(LPSHELLCONTEXT Context) {
     STR PrivilegeStr[16];
     U32 Privilege = EXOS_PRIVILEGE_ADMIN;  // Default to admin for first user
 
-    DEBUG(TEXT("[CMD_adduser] Enter"));
 
     ParseNextCommandLineComponent(Context);
     if (StringLength(Context->Command) > 0) {
         StringCopy(UserName, Context->Command);
-        DEBUG(TEXT("[CMD_adduser] Username from command: %s"), UserName);
     } else {
         ConsolePrint(TEXT("Enter username: "));
         ConsoleGetString(UserName, MAX_USER_NAME - 1);
-        DEBUG(TEXT("[CMD_adduser] Username from input: %s"), UserName);
         if (StringLength(UserName) == 0) {
             ConsolePrint(TEXT("ERROR: Username cannot be empty\n"));
             return DF_RETURN_SUCCESS;
@@ -1565,7 +1533,6 @@ static U32 CMD_adduser(LPSHELLCONTEXT Context) {
     CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, TRUE);
     StringCopy(Password, Context->Input.CommandLine);
 
-    DEBUG(TEXT("[CMD_adduser] Password entered (length: %d)"), StringLength(Password));
 
     // Check if this is the first user (no users exist yet)
     LPLIST UserAccountList = GetUserAccountList();
@@ -1583,17 +1550,14 @@ static U32 CMD_adduser(LPSHELLCONTEXT Context) {
         }
     }
 
-    DEBUG(TEXT("[CMD_adduser] Creating user with privilege %d"), Privilege);
 
     LPUSERACCOUNT Account = CreateUserAccount(UserName, Password, Privilege);
 
     SAFE_USE(Account) {
     } else {
         ConsolePrint(TEXT("ERROR: Failed to create user '%s'\n"), UserName);
-        DEBUG(TEXT("[CMD_adduser] CreateUserAccount returned NULL"));
     }
 
-    DEBUG(TEXT("[CMD_adduser] Exit"));
 
     return DF_RETURN_SUCCESS;
 }
@@ -1642,22 +1606,18 @@ static U32 CMD_login(LPSHELLCONTEXT Context) {
     STR UserName[MAX_USER_NAME];
     STR Password[MAX_USER_NAME];
 
-    DEBUG(TEXT("[CMD_login] Enter"));
 
     ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command) > 0) {
         StringCopy(UserName, Context->Command);
-        DEBUG(TEXT("[CMD_login] Username from command: %s"), UserName);
     } else {
         ConsolePrint(TEXT("Username: "));
         ConsoleGetString(UserName, MAX_USER_NAME - 1);
 
-        DEBUG(TEXT("[CMD_login] Username from input: %s"), UserName);
 
         if (StringLength(UserName) == 0) {
             ConsolePrint(TEXT("ERROR: Username cannot be empty\n"));
-            DEBUG(TEXT("[CMD_login] Empty username entered"));
             return DF_RETURN_SUCCESS;
         }
     }
@@ -1665,44 +1625,32 @@ static U32 CMD_login(LPSHELLCONTEXT Context) {
     ConsolePrint(TEXT("Password: "));
     CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, TRUE);
     StringCopy(Password, Context->Input.CommandLine);
-    DEBUG(TEXT("[CMD_login] Password entered (length: %d)"), StringLength(Password));
 
-    DEBUG(TEXT("[CMD_login] Looking for user '%s'"), UserName);
     LPUSERACCOUNT Account = FindUserAccount(UserName);
     if (Account == NULL) {
         ConsolePrint(TEXT("ERROR: User '%s' not found\n"), UserName);
-        DEBUG(TEXT("[CMD_login] User not found"));
         return DF_RETURN_SUCCESS;
     }
 
-    DEBUG(TEXT("[CMD_login] User found, verifying password"));
     if (!VerifyPassword(Password, Account->PasswordHash)) {
         ConsolePrint(TEXT("ERROR: Invalid password\n"));
-        DEBUG(TEXT("[CMD_login] Password verification failed"));
         return DF_RETURN_SUCCESS;
     }
 
-    DEBUG(TEXT("[CMD_login] Password verified, creating session"));
     LPUSERSESSION Session = CreateUserSession(Account->UserID, (HANDLE)GetCurrentTask());
     if (Session == NULL) {
         ConsolePrint(TEXT("ERROR: Failed to create session\n"));
-        DEBUG(TEXT("[CMD_login] Session creation failed"));
         return DF_RETURN_SUCCESS;
     }
 
-    DEBUG(TEXT("[CMD_login] Session created, updating login time"));
     GetLocalTime(&Account->LastLoginTime);
 
-    DEBUG(TEXT("[CMD_login] Setting current session"));
     if (SetCurrentSession(Session)) {
-        DEBUG(TEXT("[CMD_login] Session set successfully"));
     } else {
         ConsolePrint(TEXT("ERROR: Failed to set session\n"));
-        DEBUG(TEXT("[CMD_login] Failed to set current session"));
         DestroyUserSession(Session);
     }
 
-    DEBUG(TEXT("[CMD_login] Exit"));
 
     return DF_RETURN_SUCCESS;
 }
@@ -1808,7 +1756,6 @@ static U32 CMD_passwd(LPSHELLCONTEXT Context) {
 
 static U32 CMD_prof(LPSHELLCONTEXT Context) {
     UNUSED(Context);
-    DEBUG(TEXT("[CMD_prof] dumping profiling data"));
     ProfileDump();
     return 0;
 }
@@ -1943,7 +1890,6 @@ static BOOL SpawnExecutable(LPSHELLCONTEXT Context, LPCSTR CommandName, BOOL Bac
             ProcessInfo.Task = NULL;
 
             if (CreateProcess(&ProcessInfo)) {
-                DEBUG(TEXT("Process started in background"));
             }
         } else {
             UINT ExitCode = Spawn(QualifiedCommandLine, Context->CurrentFolder);
@@ -1968,16 +1914,12 @@ static void ExecuteStartupCommands(void) {
     LPCSTR CommandLine;
     SHELLCONTEXT Context;
 
-    DEBUG(TEXT("[ExecuteStartupCommands] Enter"));
 
     // Wait 2 seconds for network stack to stabilize (ARP, etc.)
-    DEBUG(TEXT("[ExecuteStartupCommands] Waiting 2000ms for network initialization"));
     Sleep(2000);
-    DEBUG(TEXT("[ExecuteStartupCommands] Wait complete, starting commands"));
 
     LPTOML Configuration = GetConfiguration();
     if (Configuration == NULL) {
-        DEBUG(TEXT("[ExecuteStartupCommands] Exit"));
         return;
     }
 
@@ -1988,7 +1930,6 @@ static void ExecuteStartupCommands(void) {
         CommandLine = TomlGet(Configuration, Key);
         if (CommandLine == NULL) break;
 
-        DEBUG(TEXT("[ExecuteStartupCommands] Executing command: %s"), CommandLine);
         ExecuteCommandLine(&Context, CommandLine);
 
         ConfigIndex++;
@@ -1996,7 +1937,6 @@ static void ExecuteStartupCommands(void) {
 
     DeinitShellContext(&Context);
 
-    DEBUG(TEXT("[ExecuteStartupCommands] Exit"));
 }
 
 /***************************************************************************/
@@ -2011,7 +1951,6 @@ static void ExecuteStartupCommands(void) {
  */
 static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine) {
     SAFE_USE_3(Context, Context->ScriptContext, CommandLine) {
-        DEBUG(TEXT("[ExecuteCommandLine] Executing: %s"), CommandLine);
 
         SCRIPT_ERROR Error = ScriptExecute(Context->ScriptContext, CommandLine);
 
@@ -2032,7 +1971,6 @@ static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine) {
  * @return TRUE to continue the shell loop, FALSE otherwise.
  */
 static BOOL ParseCommand(LPSHELLCONTEXT Context) {
-    DEBUG(TEXT("[ParseCommand] Enter"));
 
     ShowPrompt(Context);
 
@@ -2048,7 +1986,6 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
         ExecuteCommandLine(Context, Context->Input.CommandLine);
     }
 
-    DEBUG(TEXT("[ParseCommand] Exit"));
 
     return TRUE;
 }
@@ -2062,7 +1999,6 @@ static BOOL ParseCommand(LPSHELLCONTEXT Context) {
  */
 static void ShellScriptOutput(LPCSTR Message, LPVOID UserData) {
     UNUSED(UserData);
-    DEBUG(TEXT("[ShellScriptOutput] %s"), Message);
     ConsolePrint(Message);
 }
 
@@ -2083,7 +2019,6 @@ static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    DEBUG(TEXT("[ShellScriptExecuteCommand] Executing: %s"), Command);
 
     StringCopy(Context->Input.CommandLine, Command);
 
@@ -2139,7 +2074,6 @@ static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData) {
 static LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData) {
     UNUSED(VarName);
     UNUSED(UserData);
-    DEBUG(TEXT("[ShellScriptResolveVariable] Resolving: %s"), VarName);
     return NULL;
 }
 
@@ -2154,24 +2088,20 @@ static LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData) {
  */
 static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData) {
     LPSHELLCONTEXT Context = (LPSHELLCONTEXT)UserData;
-    DEBUG(TEXT("[ShellScriptCallFunction] Calling: %s with arg: %s"), FuncName, Argument);
 
     if (STRINGS_EQUAL(FuncName, TEXT("exec"))) {
         if (Context == NULL || Argument == NULL) {
-            DEBUG(TEXT("[ShellScriptCallFunction] Missing context or argument for exec"));
             return DF_RETURN_BAD_PARAMETER;
         }
 
         // Execute the provided command line using the standard shell command flow
         U32 Result = ShellScriptExecuteCommand(Argument, Context);
-        DEBUG(TEXT("[ShellScriptCallFunction] exec returned: %u"), Result);
         return Result;
     } else if (STRINGS_EQUAL(FuncName, TEXT("print"))) {
         ConsolePrint(Argument);
         return 0;
     }
 
-    DEBUG(TEXT("[ShellScriptCallFunction] Unknown function: %s"), FuncName);
     return MAX_U32;
 }
 
@@ -2254,7 +2184,6 @@ U32 Shell(LPVOID Param) {
     UNUSED(Param);
     SHELLCONTEXT Context;
 
-    DEBUG(TEXT("[Shell] Enter"));
 
     InitShellContext(&Context);
 
@@ -2269,7 +2198,6 @@ U32 Shell(LPVOID Param) {
 
     DeinitShellContext(&Context);
 
-    DEBUG(TEXT("[Shell] Exit"));
 
     TRACED_EPILOGUE("Shell");
     return 1;

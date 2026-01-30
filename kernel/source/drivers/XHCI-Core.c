@@ -180,10 +180,6 @@ static BOOL XHCI_InterruptTopHalf(LPDEVICE DevicePointer, LPVOID Context) {
 
         XHCI_ClearInterruptPending(Device);
         Device->InterruptCount++;
-        if (Device->InterruptCount <= 4U) {
-            DEBUG(TEXT("[XHCI_InterruptTopHalf] Pending interrupt acknowledged (count=%u)"),
-                  Device->InterruptCount);
-        }
 
         return TRUE;
     }
@@ -262,10 +258,6 @@ static BOOL XHCI_RegisterInterrupts(LPXHCI_DEVICE Device) {
     Device->InterruptEnabled = DeviceInterruptSlotIsEnabled(Device->InterruptSlot);
     XHCI_SetInterruptEnabled(Device, Device->InterruptEnabled);
 
-    DEBUG(TEXT("[XHCI_RegisterInterrupts] Slot %u registered for IRQ %u (mode=%s)"),
-          Device->InterruptSlot,
-          Device->Info.IRQLine,
-          Device->InterruptEnabled ? TEXT("INTERRUPT") : TEXT("POLLING"));
 
     return TRUE;
 }
@@ -739,28 +731,6 @@ static void XHCI_PowerPort(LPXHCI_DEVICE Device, U32 PortIndex) {
 /************************************************************************/
 
 /**
- * @brief Log port status to kernel log.
- * @param Device xHCI device.
- */
-static void XHCI_LogPorts(LPXHCI_DEVICE Device) {
-    for (U32 PortIndex = 0; PortIndex < Device->MaxPorts; PortIndex++) {
-        U32 PortStatus = XHCI_ReadPortStatus(Device, PortIndex);
-        U32 SpeedId = (PortStatus & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
-        BOOL Connected = (PortStatus & XHCI_PORTSC_CCS) != 0;
-        BOOL Enabled = (PortStatus & XHCI_PORTSC_PED) != 0;
-
-        DEBUG(TEXT("[XHCI_LogPorts] Port %u CCS=%u PED=%u Speed=%s Raw=%x"),
-              PortIndex + 1,
-              Connected ? 1U : 0U,
-              Enabled ? 1U : 0U,
-              XHCI_SpeedToString(SpeedId),
-              PortStatus);
-    }
-}
-
-/************************************************************************/
-
-/**
  * @brief Initialize the command ring.
  * @param Device xHCI device.
  * @return TRUE on success, FALSE otherwise.
@@ -937,18 +907,9 @@ static BOOL XHCI_InitController(LPXHCI_DEVICE Device) {
     Device->DoorbellBase = Device->MmioBase + (DbOff & 0xFFFFFFFC);
     Device->RuntimeBase = Device->MmioBase + (RtOff & 0xFFFFFFE0);
 
-    DEBUG(TEXT("[XHCI_InitController] CapLen=%u HciVer=%x MaxSlots=%u MaxPorts=%u MaxIntrs=%u"),
-          Device->CapLength,
-          Device->HciVersion,
-          Device->MaxSlots,
-          Device->MaxPorts,
-          Device->MaxInterrupters);
-
-    U32 PageSize = XHCI_Read32(Device->OpBase, XHCI_OP_PAGESIZE);
-    DEBUG(TEXT("[XHCI_InitController] PageSize bitmap=%x"), PageSize);
 
     if ((Device->HccParams1 & XHCI_HCCPARAMS1_AC64) == 0) {
-        DEBUG(TEXT("[XHCI_InitController] 64-bit addressing not supported"));
+        WARNING(TEXT("[XHCI_InitController] 64-bit addressing not supported"));
     }
 
     if (!XHCI_ResetAndStart(Device)) {
@@ -961,7 +922,6 @@ static BOOL XHCI_InitController(LPXHCI_DEVICE Device) {
         }
     }
 
-    XHCI_LogPorts(Device);
     return TRUE;
 }
 
@@ -1063,10 +1023,6 @@ static LPPCI_DEVICE XHCI_Attach(LPPCI_DEVICE PciDevice) {
         return NULL;
     }
 
-    DEBUG(TEXT("[XHCI_Attach] New device %x:%x.%u"),
-          (U32)PciDevice->Info.Bus,
-          (U32)PciDevice->Info.Dev,
-          (U32)PciDevice->Info.Func);
 
     LPXHCI_DEVICE Device = (LPXHCI_DEVICE)KernelHeapAlloc(sizeof(XHCI_DEVICE));
     if (Device == NULL) {
@@ -1161,10 +1117,6 @@ static LPPCI_DEVICE XHCI_Attach(LPPCI_DEVICE PciDevice) {
     (void)XHCI_RegisterInterrupts(Device);
     XHCI_RegisterHubPoll(Device);
 
-    DEBUG(TEXT("[XHCI_Attach] Attached MMIO=%p Size=%u MaxPorts=%u"),
-          Device->MmioBase,
-          Device->MmioSize,
-          Device->MaxPorts);
 
     return (LPPCI_DEVICE)Device;
 }

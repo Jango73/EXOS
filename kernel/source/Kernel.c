@@ -211,7 +211,6 @@ static void InitializeFocusState(void) {
 
     // Ensure the main desktop is registered in the kernel's desktop list
     if (DesktopList != NULL && DesktopList->First == NULL) {
-        DEBUG(TEXT("[InitializeFocusState] Registering MainDesktop in desktop list"));
         ListAddHead(DesktopList, &MainDesktop);
     }
 
@@ -246,17 +245,13 @@ void InitializeQuantumTime(void) {
     // Set base quantum time based on environment
 #if BARE_METAL == 1
     SetMinimumQuantum(10);  // Shorter quantum for bare-metal
-    DEBUG(TEXT("[InitializeQuantumTime] Bare-metal mode, base quantum = %d ms"), GetMinimumQuantum());
 #else
     SetMinimumQuantum(50);  // Longer quantum for emulation/virtualization
-    DEBUG(TEXT("[InitializeQuantumTime] Emulation mode, base quantum = %d ms"), GetMinimumQuantum());
 #endif
 
     if (SCHEDULING_DEBUG_OUTPUT == 1) {
         // Double quantum when scheduling debug is enabled (logs slow down execution)
         SetMinimumQuantum(GetMinimumQuantum() * 2);
-        FINE_DEBUG(TEXT("[InitializeQuantumTime] Scheduling debug enabled, final quantum = %d ms"),
-            GetMinimumQuantum());
     }
 
     SetMaximumQuantum(GetMinimumQuantum() * 4);
@@ -429,8 +424,6 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
     U8 Identifier[UUID_BINARY_SIZE];
     U64 ObjectID = U64_0;
 
-    DEBUG(TEXT("[CreateKernelObject] Creating object of size %u with ID %x"), Size, ObjectTypeID);
-
     Object = (LPLISTNODE)KernelHeapAlloc(Size);
 
     if (Object == NULL) {
@@ -449,8 +442,6 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
     Object->Next = NULL;
     Object->Prev = NULL;
     Object->Parent = NULL;
-
-    DEBUG(TEXT("[CreateKernelObject] Object created at %x, OwnerProcess: %x"), Object, Object->OwnerProcess);
 
     return Object;
 }
@@ -497,8 +488,6 @@ void DeleteUnreferencedObjects(void) {
 
             // Check if object has no references
             if (Current->References == 0) {
-                DEBUG(TEXT("[DeleteUnreferencedObjects] Deleting unreferenced %s object at %x (ID: %x)"), ListName, Current, Current->TypeID);
-
                 // Remove from list first
                 ListRemove(List, Current);
 
@@ -547,11 +536,6 @@ static void ReleaseProcessObjectsFromList(LPPROCESS Process, LPLIST List) {
 
             SAFE_USE_VALID(Node) {
                 if (Node->OwnerProcess == Process) {
-                    DEBUG(TEXT("[ReleaseProcessKernelObjects] Releasing object %p (ID=%x) owned by %s"),
-                          Node,
-                          Node->TypeID,
-                          Process->FileName);
-
                     ReleaseKernelObject(Node);
                 }
             }
@@ -620,12 +604,6 @@ void StoreObjectTerminationState(LPVOID Object, UINT ExitCode) {
             TermState->ID = KernelObject->ID;
             CacheAdd(GetObjectTerminationCache(), TermState, OBJECT_TERMINATION_TTL_MS);
 
-            DEBUG(TEXT("[StoreObjectTerminationState] Handle=%x ID=%08x%08x ExitCode=%u"),
-                  KernelObject,
-                  IdHigh,
-                  IdLow,
-                  ExitCode);
-
             UNUSED(IdHigh);
             UNUSED(IdLow);
         }
@@ -646,16 +624,12 @@ void StoreObjectTerminationState(LPVOID Object, UINT ExitCode) {
  */
 
 static void UseConfiguration(void) {
-    DEBUG(TEXT("[UseConfiguration] Enter"));
-
     LPTOML Configuration = GetConfiguration();
 
     SAFE_USE(Configuration) {
         LPCSTR Layout;
         LPCSTR QuantumMS;
         LPCSTR DoLogin;
-
-        DEBUG(TEXT("[UseConfiguration] Handling keyboard layout"));
 
         Layout = TomlGet(Configuration, TEXT("Keyboard.Layout"));
 
@@ -669,7 +643,6 @@ static void UseConfiguration(void) {
         QuantumMS = TomlGet(Configuration, TEXT(CONFIG_GENERAL_QUANTUM_MS));
 
         if (STRING_EMPTY(QuantumMS) == FALSE) {
-            DEBUG(TEXT("Task quantum set to %s\n"), QuantumMS);
             SetMinimumQuantum(StringToU32(QuantumMS));
         }
 
@@ -694,8 +667,6 @@ static void UseConfiguration(void) {
 #if DEBUG_OUTPUT == 1 || SCHEDULING_DEBUG_OUTPUT == 1
     ConsolePrint(TEXT("WARNING : This is a debug build\n\n"));
 #endif
-
-    DEBUG(TEXT("[UseConfiguration] Exit"));
 }
 
 /************************************************************************/
@@ -741,8 +712,6 @@ U32 GetPhysicalMemoryUsed(void) {
 
 void LoadDriver(LPDRIVER Driver) {
     SAFE_USE(Driver) {
-        DEBUG(TEXT("[LoadDriver] : Loading %s driver at %X"), TEXT(Driver->Product), Driver);
-
         if (Driver->TypeID != KOID_DRIVER) {
             KernelLogText(
                 LOG_ERROR, TEXT("%s driver not valid (at address %X). ID = %X. Halting."), TEXT(Driver->Product), Driver, Driver->TypeID);
@@ -753,7 +722,6 @@ void LoadDriver(LPDRIVER Driver) {
 
         UINT Result = Driver->Command(DF_LOAD, 0);
         if (Result == DF_RETURN_SUCCESS && (Driver->Flags & DRIVER_FLAG_READY) != 0) {
-            DEBUG(TEXT("[LoadDriver] : %s driver loaded successfully"), TEXT(Driver->Product));
             TEST(TEXT("[LoadDriver] %s.Load : OK"), TEXT(Driver->Product));
         } else {
             TEST(TEXT("[LoadDriver] %s.Load : KO"), TEXT(Driver->Product));
@@ -778,8 +746,6 @@ void LoadDriver(LPDRIVER Driver) {
  */
 void UnloadDriver(LPDRIVER Driver) {
     SAFE_USE(Driver) {
-        DEBUG(TEXT("[UnloadDriver] : Unloading %s driver at %X"), TEXT(Driver->Product), Driver);
-
         if (Driver->TypeID != KOID_DRIVER) {
             WARNING(TEXT("[UnloadDriver] : %s driver not valid (at address %X). ID = %X."), TEXT(Driver->Product), Driver, Driver->TypeID);
             return;
@@ -787,7 +753,6 @@ void UnloadDriver(LPDRIVER Driver) {
 
         UINT Result = Driver->Command(DF_UNLOAD, 0);
         if (Result == DF_RETURN_SUCCESS) {
-            DEBUG(TEXT("[UnloadDriver] : %s driver unloaded successfully"), TEXT(Driver->Product));
             TEST(TEXT("[UnloadDriver] %s.Unload : OK"), TEXT(Driver->Product));
         } else {
             TEST(TEXT("[UnloadDriver] %s.Unload : KO"), TEXT(Driver->Product));
@@ -842,13 +807,8 @@ static void KillActiveKernelTasks(void);
  * drivers in reverse initialization order.
  */
 static void PrepareForPowerTransition(void) {
-    DEBUG(TEXT("[PrepareForPowerTransition] Killing userland processes"));
     KillActiveUserlandProcesses();
-
-    DEBUG(TEXT("[PrepareForPowerTransition] Killing kernel tasks"));
     KillActiveKernelTasks();
-
-    DEBUG(TEXT("[PrepareForPowerTransition] Unloading drivers"));
     UnloadAllDrivers();
 }
 
@@ -858,8 +818,6 @@ static U32 KernelMonitor(LPVOID Parameter) {
     UNUSED(Parameter);
     U32 LogCounter = 0;
 
-    FINE_DEBUG("[KernelMonitor] Enter");
-
     FOREVER {
         DeleteDeadTasksAndProcesses();
         DeleteUnreferencedObjects();
@@ -867,7 +825,6 @@ static U32 KernelMonitor(LPVOID Parameter) {
 
         LogCounter++;
         if (LogCounter >= 60) {  // 60 * 500ms = 30 seconds
-            DEBUG(TEXT("[KernelMonitor] Monitor task running normally"));
             LogCounter = 0;
         }
 
@@ -922,7 +879,6 @@ static void KillActiveUserlandProcesses(void) {
     for (LPLISTNODE Node = ProcessesToKill->First; Node; Node = Node->Next) {
         LPPROCESS Process = (LPPROCESS)Node;
         SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
-            DEBUG(TEXT("[KillActiveUserlandProcesses] Killing process %s"), Process->FileName);
             KillProcess(Process);
         }
     }
@@ -1019,14 +975,10 @@ void InitializeKernel(void) {
 
     Welcome();
 
-    DEBUG(TEXT("[InitializeKernel] Welcome done"));
-
     //-------------------------------------
     // Enable interrupts
 
     EnableInterrupts();
-
-    DEBUG(TEXT("[InitializeKernel] Interrupts enabled"));
 
     //-------------------------------------
 #if SYSTEM_DATA_VIEW == 1
@@ -1047,9 +999,6 @@ void InitializeKernel(void) {
     } else {
         //-------------------------------------
         // Kernel monitor
-
-        DEBUG(TEXT("[InitializeKernel] ========================================"));
-        DEBUG(TEXT("[InitializeKernel] Starting monitor task"));
 
         TaskInfo.Header.Size = sizeof(TASKINFO);
         TaskInfo.Header.Version = EXOS_ABI_VERSION;
@@ -1086,9 +1035,6 @@ void InitializeKernel(void) {
         //-------------------------------------
         // Shell task
 
-        DEBUG(TEXT("[InitializeKernel] ========================================"));
-        DEBUG(TEXT("[InitializeKernel] Starting shell task"));
-
         TaskInfo.Header.Size = sizeof(TASKINFO);
         TaskInfo.Header.Version = EXOS_ABI_VERSION;
         TaskInfo.Header.Flags = 0;
@@ -1117,7 +1063,6 @@ void InitializeKernel(void) {
  * ACPIPowerOff().
  */
 void ShutdownKernel(void) {
-    DEBUG(TEXT("[ShutdownKernel] Preparing for shutdown"));
     PrepareForPowerTransition();
     ACPIPowerOff();
 }
@@ -1131,7 +1076,6 @@ void ShutdownKernel(void) {
  * ACPIReboot().
  */
 void RebootKernel(void) {
-    DEBUG(TEXT("[RebootKernel] Preparing for reboot"));
     PrepareForPowerTransition();
     ACPIReboot();
 }

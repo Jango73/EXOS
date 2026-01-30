@@ -974,7 +974,6 @@ static BOOL XHCI_ForEachDescriptor(const U8* Buffer, U16 Length, XHCI_DESC_CALLB
         const U8* Desc = &Buffer[Offset];
 
         if (DescLength < 2 || (Offset + DescLength) > Length) {
-            DEBUG(TEXT("[XHCI_ForEachDescriptor] Invalid descriptor length=%u type=%u"), DescLength, DescType);
             return FALSE;
         }
 
@@ -1627,27 +1626,6 @@ BOOL XHCI_AddInterruptEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice
         EpCtx->Dword4 = MaxPacket;
     }
 
-    DEBUG(TEXT("[XHCI_AddInterruptEndpoint] Slot=%x DCI=%x Speed=%x EpAddr=%x Attr=%x Interval=%x Field=%x MaxPkt=%x Dequeue=%x:%x"),
-          (U32)UsbDevice->SlotId,
-          (U32)Endpoint->Dci,
-          (U32)UsbDevice->SpeedId,
-          (U32)Endpoint->Address,
-          (U32)Endpoint->Attributes,
-          (U32)Endpoint->Interval,
-          (U32)IntervalField,
-          (U32)MaxPacket,
-          (U32)EpCtx->Dword3,
-          (U32)EpCtx->Dword2);
-    DEBUG(TEXT("[XHCI_AddInterruptEndpoint] CtrlAdd=%x SlotD0=%x SlotD1=%x EpD0=%x EpD1=%x EpD2=%x EpD3=%x EpD4=%x"),
-          (U32)Control->Dword1,
-          (U32)((LPXHCI_CONTEXT_32)SlotOut)->Dword0,
-          (U32)((LPXHCI_CONTEXT_32)SlotOut)->Dword1,
-          (U32)EpCtx->Dword0,
-          (U32)EpCtx->Dword1,
-          (U32)EpCtx->Dword2,
-          (U32)EpCtx->Dword3,
-          (U32)EpCtx->Dword4);
-
     return XHCI_ConfigureEndpoint(Device, UsbDevice);
 }
 
@@ -1702,25 +1680,6 @@ BOOL XHCI_AddBulkEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, LPX
         EpCtx->Dword3 = U64_High32(Dequeue);
         EpCtx->Dword4 = MaximumPacketSize;
     }
-
-    DEBUG(TEXT("[XHCI_AddBulkEndpoint] Slot=%x DCI=%x Speed=%x EpAddr=%x Attr=%x MaxPacketSize=%u Dequeue=%x:%x"),
-          (U32)UsbDevice->SlotId,
-          (U32)Endpoint->Dci,
-          (U32)UsbDevice->SpeedId,
-          (U32)Endpoint->Address,
-          (U32)Endpoint->Attributes,
-          (U32)MaximumPacketSize,
-          (U32)EpCtx->Dword3,
-          (U32)EpCtx->Dword2);
-    DEBUG(TEXT("[XHCI_AddBulkEndpoint] CtrlAdd=%x SlotD0=%x SlotD1=%x EpD0=%x EpD1=%x EpD2=%x EpD3=%x EpD4=%x"),
-          (U32)Control->Dword1,
-          (U32)((LPXHCI_CONTEXT_32)SlotOut)->Dword0,
-          (U32)((LPXHCI_CONTEXT_32)SlotOut)->Dword1,
-          (U32)EpCtx->Dword0,
-          (U32)EpCtx->Dword1,
-          (U32)EpCtx->Dword2,
-          (U32)EpCtx->Dword3,
-          (U32)EpCtx->Dword4);
 
     return XHCI_ConfigureEndpoint(Device, UsbDevice);
 }
@@ -1892,7 +1851,6 @@ static BOOL XHCI_ReadConfigDescriptor(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Us
     }
 
     if (TotalLength > PAGE_SIZE) {
-        DEBUG(TEXT("[XHCI_ReadConfigDescriptor] Truncated config descriptor %u -> %u"), TotalLength, PAGE_SIZE);
         TotalLength = PAGE_SIZE;
     }
 
@@ -2089,16 +2047,6 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
         ERROR(TEXT("[XHCI_ProbePort] Port %u enumerate failed"), PortIndex + 1);
         return FALSE;
     }
-
-    DEBUG(TEXT("[XHCI_ProbePort] Port %u VID=%x PID=%x"),
-          PortIndex + 1,
-          UsbDevice->DeviceDescriptor.VendorID,
-          UsbDevice->DeviceDescriptor.ProductID);
-
-    DEBUG(TEXT("[XHCI_ProbePort] Port %u Configs=%u SelectedConfig=%u"),
-          PortIndex + 1,
-          UsbDevice->ConfigCount,
-          UsbDevice->SelectedConfigValue);
 
     if (UsbDevice->IsHub) {
         if (!XHCI_InitHub(Device, UsbDevice)) {

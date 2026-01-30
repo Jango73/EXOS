@@ -708,8 +708,6 @@ BOOL FreeRegionLegacyInternal(LINEAR CanonicalBase, UINT NumPages, LINEAR Origin
             PHYSICAL EntryPhysical = PageTableEntryGetPhysical(Table, TabEntry);
             BOOL Fixed = PageTableEntryIsFixed(Table, TabEntry);
 
-            DEBUG(TEXT("[FreeRegion] Unmap Dir=%u Tab=%u Phys=%p Fixed=%u"), DirEntry, TabEntry,
-                (LPVOID)EntryPhysical, (UINT)(Fixed ? 1u : 0u));
 
             if (Fixed == FALSE) {
                 SetPhysicalPageMark((UINT)(EntryPhysical >> PAGE_SIZE_MUL), 0u);
@@ -717,8 +715,6 @@ BOOL FreeRegionLegacyInternal(LINEAR CanonicalBase, UINT NumPages, LINEAR Origin
 
             ClearPageTableEntry(Table, TabEntry);
         } else if (IsLargePage == TRUE) {
-            DEBUG(TEXT("[FreeRegion] Large mapping covers Dir=%u"),
-                MemoryPageIteratorGetDirectoryIndex(&Iterator));
         } else {
             DEBUG(TEXT("[FreeRegion] Missing mapping Dir=%u Tab=%u IsLarge=%u"),
                 DirEntry,
@@ -735,7 +731,6 @@ BOOL FreeRegionLegacyInternal(LINEAR CanonicalBase, UINT NumPages, LINEAR Origin
     FreeEmptyPageTables();
     FlushTLB();
 
-    DEBUG(TEXT("[FreeRegion] Exit base=%p size=%u"), (LPVOID)OriginalBase, Size);
 
     return TRUE;
 }

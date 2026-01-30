@@ -544,7 +544,6 @@ BOOL IsValidMemory(LINEAR Pointer) {
  */
 BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
     if (FaultAddress < VMA_KERNEL) {
-        DEBUG(TEXT("[ResolveKernelPageFault] Address %X below kernel VMA"), FaultAddress);
         return FALSE;
     }
 
@@ -560,10 +559,6 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
 
     PHYSICAL CurrentDirectoryPhysical = GetPageDirectory();
     if (CurrentDirectoryPhysical == 0 || CurrentDirectoryPhysical == KernelDirectoryPhysical) {
-        DEBUG(TEXT("[ResolveKernelPageFault] CR3=%X matches kernel directory %X (Fault=%X)"),
-              CurrentDirectoryPhysical,
-              KernelDirectoryPhysical,
-              FaultAddress);
         return FALSE;
     }
 
@@ -618,10 +613,6 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
     BOOL Updated = FALSE;
 
     if ((*CurrentPdePtr & PAGE_FLAG_PRESENT) == 0u || *CurrentPdePtr != KernelPdeValue) {
-        DEBUG(TEXT("[ResolveKernelPageFault] Updating PDE[%u]: old=%X new=%X"),
-              DirectoryIndex,
-              *CurrentPdePtr,
-              KernelPdeValue);
         *CurrentPdePtr = KernelPdeValue;
         NeedsFullFlush = TRUE;
         Updated = TRUE;
@@ -631,24 +622,17 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
     volatile U32* CurrentPtePtr = (volatile U32*)&CurrentTable[TableIndex];
 
     if (*CurrentPtePtr != KernelPteValue) {
-        DEBUG(TEXT("[ResolveKernelPageFault] Updating PTE[%u]: old=%X new=%X"),
-              TableIndex,
-              *CurrentPtePtr,
-              KernelPteValue);
         *CurrentPtePtr = KernelPteValue;
         Updated = TRUE;
     }
 
     if (Updated == FALSE) {
-        DEBUG(TEXT("[ResolveKernelPageFault] PDE/PTE already matched for %X"), FaultAddress);
         return FALSE;
     }
 
     if (NeedsFullFlush) {
-        DEBUG(TEXT("[ResolveKernelPageFault] Flushing entire TLB"));
         FlushTLB();
     } else {
-        DEBUG(TEXT("[ResolveKernelPageFault] Invalidating page %X"), FaultAddress);
         InvalidatePage(FaultAddress);
     }
 
@@ -673,7 +657,6 @@ PHYSICAL AllocPageDirectory(void) {
     LPPAGE_TABLE KernelTable = NULL;
     LPPAGE_TABLE TaskRunnerTable = NULL;
 
-    DEBUG(TEXT("[AllocPageDirectory] Enter"));
 
     UINT DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);           // 4MB directory slot for VMA_KERNEL
     UINT DirTaskRunner = (VMA_TASK_RUNNER >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_TASK_RUNNER
@@ -700,7 +683,6 @@ PHYSICAL AllocPageDirectory(void) {
     Directory = (LPPAGE_DIRECTORY)VMA_PD;
     MemorySet(Directory, 0, PAGE_SIZE);
 
-    DEBUG(TEXT("[AllocPageDirectory] Page directory cleared"));
 
     // Directory[0] -> identity map 0..4MB via PMA_LowTable
     Directory[0].Present = 1;
@@ -767,7 +749,6 @@ PHYSICAL AllocPageDirectory(void) {
     LowTable = (LPPAGE_TABLE)VMA_PT;
     MemorySet(LowTable, 0, PAGE_SIZE);
 
-    DEBUG(TEXT("[AllocPageDirectory] Low memory table cleared"));
 
     for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
         #ifdef PROTECT_BIOS
@@ -801,7 +782,6 @@ PHYSICAL AllocPageDirectory(void) {
 
     MemorySet(KernelTable, 0, PAGE_SIZE);
 
-    DEBUG(TEXT("[AllocPageDirectory] Kernel table cleared"));
 
     UINT KernelFirstFrame = (PhysBaseKernel >> PAGE_SIZE_MUL);
     for (Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
@@ -828,12 +808,9 @@ PHYSICAL AllocPageDirectory(void) {
     TaskRunnerTable = (LPPAGE_TABLE)VMA_PT;
     MemorySet(TaskRunnerTable, 0, PAGE_SIZE);
 
-    DEBUG(TEXT("[AllocPageDirectory] TaskRunner table cleared"));
 
     PHYSICAL TaskRunnerPhysical = PhysBaseKernel + ((PHYSICAL)&__task_runner_start - VMA_KERNEL);
 
-    DEBUG(TEXT("[AllocPageDirectory] TaskRunnerPhysical = %p + (%p - %p) = %p"), (LINEAR)PhysBaseKernel,
-        (LINEAR)&__task_runner_start, VMA_KERNEL, (LINEAR)TaskRunnerPhysical);
 
     UINT TaskRunnerTableIndex = GetTableEntry(VMA_TASK_RUNNER);
 
@@ -853,14 +830,6 @@ PHYSICAL AllocPageDirectory(void) {
     // TLB sync before returning
     FlushTLB();
 
-    DEBUG(TEXT("[AllocPageDirectory] PDE[0]=%x, PDE[768]=%x, PDE[%u]=%x, PDE[1023]=%x"), *(U32*)&Directory[0],
-        *(U32*)&Directory[768], DirTaskRunner, *(U32*)&Directory[DirTaskRunner], *(U32*)&Directory[1023]);
-    DEBUG(TEXT("[AllocPageDirectory] LowTable[0]=%x, KernelTable[0]=%x, TaskRunnerTable[%u]=%x"),
-        *(U32*)&LowTable[0], *(U32*)&KernelTable[0], TaskRunnerTableIndex,
-        *(U32*)&TaskRunnerTable[TaskRunnerTableIndex]);
-    DEBUG(TEXT("[AllocPageDirectory] TaskRunner VMA=%x -> Physical=%x"), VMA_TASK_RUNNER, TaskRunnerPhysical);
-
-    DEBUG(TEXT("[AllocPageDirectory] Exit"));
     return PMA_Directory;
 
 Out_Error:
@@ -887,7 +856,6 @@ PHYSICAL AllocUserPageDirectory(void) {
     LPPAGE_TABLE LowTable = NULL;
     LPPAGE_DIRECTORY CurrentPD = (LPPAGE_DIRECTORY)PD_VA;
 
-    DEBUG(TEXT("[AllocUserPageDirectory] Enter"));
 
     UINT DirKernel = (VMA_KERNEL >> PAGE_TABLE_CAPACITY_MUL);  // 4MB directory slot for VMA_KERNEL
     UINT Index;
@@ -910,7 +878,6 @@ PHYSICAL AllocUserPageDirectory(void) {
     Directory = (LPPAGE_DIRECTORY)VMA_PD;
     MemorySet(Directory, 0, PAGE_SIZE);
 
-    DEBUG(TEXT("[AllocUserPageDirectory] Page directory cleared"));
 
     // Directory[0] -> identity map 0..4MB via PMA_LowTable
     Directory[0].Present = 1;
@@ -935,17 +902,14 @@ PHYSICAL AllocUserPageDirectory(void) {
         if (CurrentPD[Index].Present) {
             // Skip user space PDEs to avoid copying current process's user space
             if (Index >= UserStartPDE && Index <= UserEndPDE) {
-                DEBUG(TEXT("[AllocUserPageDirectory] Skipped user space PDE[%d]"), Index);
                 continue;
             }
             Directory[Index] = CurrentPD[Index];
-            DEBUG(TEXT("[AllocUserPageDirectory] Copied PDE[%d]"), Index);
         }
     }
 
     if (Directory[DirKernel].Present == 0 && CurrentPD[DirKernel].Present != 0) {
         Directory[DirKernel] = CurrentPD[DirKernel];
-        DEBUG(TEXT("[AllocUserPageDirectory] Copied kernel PDE[%u] from current directory"), DirKernel);
     }
 
     if (Directory[DirKernel].Present == 0) {
@@ -999,21 +963,10 @@ PHYSICAL AllocUserPageDirectory(void) {
         LowTable[Index].Address = Index;  // Identity mapping: page Index -> physical page Index
     }
 
-    DEBUG(TEXT("[AllocUserPageDirectory] Low memory table copied from current"));
 
     // TLB sync before returning
     FlushTLB();
 
-    DEBUG(TEXT("[AllocUserPageDirectory] PDE[0]=%x, PDE[%u]=%x, PDE[%u]=%x, PDE[1023]=%x"),
-        *(U32*)&Directory[0],
-        DirKernel,
-        *(U32*)&Directory[DirKernel],
-        DirKernel + 1,
-        *(U32*)&Directory[DirKernel + 1],
-        *(U32*)&Directory[1023]);
-    DEBUG(TEXT("[AllocUserPageDirectory] LowTable[0]=%x"), *(U32*)&LowTable[0]);
-
-    DEBUG(TEXT("[AllocUserPageDirectory] Exit"));
     return PMA_Directory;
 
 Out_Error:
@@ -1115,10 +1068,8 @@ BOOL IsRegionFree(LINEAR Base, UINT Size) {
 static LINEAR FindFreeRegion(LINEAR StartBase, UINT Size) {
     UINT Base = N_4MB;
 
-    DEBUG(TEXT("[FindFreeRegion] Enter"));
 
     if (StartBase >= Base) {
-        DEBUG(TEXT("[FindFreeRegion] Starting at %x"), StartBase);
         Base = StartBase;
     }
 
@@ -1127,7 +1078,6 @@ static LINEAR FindFreeRegion(LINEAR StartBase, UINT Size) {
         Base += PAGE_SIZE;
     }
 
-    DEBUG(TEXT("[FindFreeRegion] Exit"));
 
     return NULL;
 }
@@ -1302,7 +1252,6 @@ static BOOL PopulateRegionPages(LINEAR Base,
 LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag) {
     LINEAR Pointer = NULL;
     UINT NumPages = 0;
-    DEBUG(TEXT("[AllocRegion] Enter: Base=%x Target=%x Size=%x Flags=%x"), Base, Target, Size, Flags);
 
     // Can't allocate more than 25% of total memory at once
     if (Size > KernelStartup.MemorySize / 4) {
@@ -1334,7 +1283,6 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
        see if the region is not already allocated. */
     if (Base != 0 && (Flags & ALLOC_PAGES_AT_OR_OVER) == 0) {
         if (IsRegionFree(Base, Size) == FALSE) {
-            DEBUG(TEXT("[AllocRegion] No free region found with specified base : %x"), Base);
             return NULL;
         }
     }
@@ -1343,24 +1291,20 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
        the region, try to find a region which is at least as large as
        the "Size" parameter. */
     if (Base == 0 || (Flags & ALLOC_PAGES_AT_OR_OVER)) {
-        DEBUG(TEXT("[AllocRegion] Calling FindFreeRegion with base = %x and size = %x"), Base, Size);
 
         LINEAR NewBase = FindFreeRegion(Base, Size);
 
         if (NewBase == NULL) {
-            DEBUG(TEXT("[AllocRegion] No free region found with unspecified base from %x"), Base);
             return NULL;
         }
 
         Base = NewBase;
 
-        DEBUG(TEXT("[AllocRegion] FindFreeRegion found with base = %x and size = %x"), Base, Size);
     }
 
     // Set the return value to "Base".
     Pointer = Base;
 
-    DEBUG(TEXT("[AllocRegion] Allocating pages"));
 
     if (PopulateRegionPages(Base, Target, NumPages, Flags, Pointer, TEXT("AllocRegion")) == FALSE) {
         return NULL;
@@ -1374,7 +1318,6 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
     // Flush the Translation Look-up Buffer of the CPU
     FlushTLB();
 
-    DEBUG(TEXT("[AllocRegion] Exit"));
 
     return Pointer;
 }
@@ -1392,12 +1335,6 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
  * @return TRUE on success, FALSE otherwise.
  */
 BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Flags) {
-    DEBUG(TEXT("[ResizeRegion] Enter: Base=%x Target=%x Size=%x NewSize=%x Flags=%x"),
-          Base,
-          Target,
-          Size,
-          NewSize,
-          Flags);
 
     if (Base == 0) {
         ERROR(TEXT("[ResizeRegion] Base cannot be null"));
@@ -1436,7 +1373,6 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
             AdditionalTarget = Target + (CurrentPages << PAGE_SIZE_MUL);
         }
 
-        DEBUG(TEXT("[ResizeRegion] Expanding region by %x bytes"), AdditionalSize);
 
         if (PopulateRegionPages(NewBase,
                                 AdditionalTarget,
@@ -1456,12 +1392,10 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
             LINEAR ReleaseBase = Base + (RequestedPages << PAGE_SIZE_MUL);
             UINT ReleaseSize = PagesToRelease << PAGE_SIZE_MUL;
 
-            DEBUG(TEXT("[ResizeRegion] Shrinking region by %x bytes"), ReleaseSize);
             FreeRegion(ReleaseBase, ReleaseSize);
         }
     }
 
-    DEBUG(TEXT("[ResizeRegion] Exit"));
     return TRUE;
 }
 
@@ -1538,8 +1472,6 @@ LINEAR MapIOMemory(PHYSICAL PhysicalBase, UINT Size) {
     PHYSICAL AlignedPhysicalBase = PhysicalBase & ~(PAGE_SIZE - 1);
     UINT AdjustedSize = ((Size + PageOffset + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1));
 
-    DEBUG(TEXT("[MapIOMemory] Original: PA=%x Size=%x"), PhysicalBase, Size);
-    DEBUG(TEXT("[MapIOMemory] Aligned: PA=%x Size=%x Offset=%x"), AlignedPhysicalBase, AdjustedSize, PageOffset);
 
     // Map as Uncached, Read/Write, exact PMA mapping, IO semantics
     LINEAR AlignedResult = AllocRegion(
@@ -1553,13 +1485,11 @@ LINEAR MapIOMemory(PHYSICAL PhysicalBase, UINT Size) {
     );
 
     if (AlignedResult == NULL) {
-        DEBUG(TEXT("[MapIOMemory] AllocRegion failed"));
         return NULL;
     }
 
     // Return the address adjusted for the original offset
     LINEAR result = AlignedResult + PageOffset;
-    DEBUG(TEXT("[MapIOMemory] Mapped at aligned=%x, returning=%x"), AlignedResult, result);
     return result;
 }
 
@@ -1690,7 +1620,6 @@ static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
  * called during early kernel initialization.
  */
 void InitializeMemoryManager(void) {
-    DEBUG(TEXT("[InitializeMemoryManager] Enter"));
 
     UpdateKernelMemoryMetricsFromMultibootMap();
 
@@ -1709,8 +1638,6 @@ void InitializeMemoryManager(void) {
     SetPhysicalPageBitmap((LPPAGEBITMAP)(UINT)PpbPhysical);
     SetPhysicalPageBitmapSize(BitmapBytesAligned);
 
-    DEBUG(TEXT("[InitializeMemoryManager] Kernel.PPB physical base: %p"), (LPVOID)PpbPhysical);
-    DEBUG(TEXT("[InitializeMemoryManager] Kernel.PPB bytes (aligned): %lX"), BitmapBytesAligned);
 
     MemorySet(GetPhysicalPageBitmap(), 0, GetPhysicalPageBitmapSize());
 
@@ -1720,16 +1647,11 @@ void InitializeMemoryManager(void) {
         ConsolePanic(TEXT("Detected memory = 0"));
     }
 
-    DEBUG(TEXT("[InitializeMemoryManager] Temp pages reserved: %p, %p, %p"),
-        I386_TEMP_LINEAR_PAGE_1,
-        I386_TEMP_LINEAR_PAGE_2,
-        I386_TEMP_LINEAR_PAGE_3);
 
     PHYSICAL NewPageDirectory = AllocPageDirectory();
 
     LogPageDirectory(NewPageDirectory);
 
-    DEBUG(TEXT("[InitializeMemoryManager] Page directory ready"));
 
     if (NewPageDirectory == NULL) {
         ERROR(TEXT("[InitializeMemoryManager] AllocPageDirectory failed"));
@@ -1737,17 +1659,14 @@ void InitializeMemoryManager(void) {
         DO_THE_SLEEPING_BEAUTY;
     }
 
-    DEBUG(TEXT("[InitializeMemoryManager] New page directory: %p"), NewPageDirectory);
 
     LoadPageDirectory(NewPageDirectory);
 
     ConsoleInvalidateFramebufferMapping();
 
-    DEBUG(TEXT("[InitializeMemoryManager] Page directory set: %p"), NewPageDirectory);
 
     FlushTLB();
 
-    DEBUG(TEXT("[InitializeMemoryManager] TLB flushed"));
 
     InitializeRegionDescriptorTracking();
 
@@ -1762,11 +1681,9 @@ void InitializeMemoryManager(void) {
 
     InitializeGlobalDescriptorTable(Kernel_i386.GDT);
 
-    DEBUG(TEXT("[InitializeMemoryManager] Loading GDT"));
 
     LoadGlobalDescriptorTable((PHYSICAL)Kernel_i386.GDT, GDT_SIZE - 1);
 
     LogGlobalDescriptorTable(Kernel_i386.GDT, 10);
 
-    DEBUG(TEXT("[InitializeMemoryManager] Exit"));
 }

@@ -142,13 +142,11 @@ UINT GetPhysicalPageMark(UINT Page) {
  * @param Used Non-zero to mark used.
  */
 void SetPhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used) {
-    DEBUG(TEXT("[SetPhysicalPageRangeMark] Enter"));
 
     UINT End = FirstPage + PageCount;
     if (FirstPage >= KernelStartup.PageCount) return;
     if (End > KernelStartup.PageCount) End = KernelStartup.PageCount;
 
-    DEBUG(TEXT("[SetPhysicalPageRangeMark] Start, End : %x, %x"), FirstPage, End);
 
     LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
     if (Bitmap == NULL) return;
@@ -203,7 +201,6 @@ void UpdateKernelMemoryMetricsFromMultibootMap(void) {
  * @brief Public wrapper to mark reserved and used physical pages.
  */
 void MarkUsedPhysicalMemory(void) {
-    DEBUG(TEXT("[MarkUsedPhysicalMemory] Enter"));
 
     UpdateKernelMemoryMetricsFromMultibootMap();
 
@@ -231,7 +228,6 @@ void MarkUsedPhysicalMemory(void) {
         PHYSICAL Base = 0;
         UINT Size = 0;
 
-        DEBUG(TEXT("[MarkUsedPhysicalMemory] Entry base = %p, size = %x, type = %x"), Entry->Base, Entry->Length, Entry->Type);
 
         if (ClipPhysicalRange(Entry->Base, Entry->Length, &Base, &Size) == FALSE) {
             continue;

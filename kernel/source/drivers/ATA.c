@@ -309,12 +309,10 @@ static void ResetController(U32 Port) {
     for (Index = 0; Index < 1000; Index++) barrier();
     if (IsDriveBusy())
     {
-        VERBOSE("HD : Controller still busy\n");
     }
     else
     if ((HD_Error = InPortByte(Port + HD_ERROR)) != 1)
     {
-        VERBOSE("HD : Controller reset failed\n");
     }
 }
 */

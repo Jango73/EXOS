@@ -595,10 +595,6 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
 
     PHYSICAL CurrentDirectoryPhysical = GetPageDirectory();
     if (CurrentDirectoryPhysical == 0 || CurrentDirectoryPhysical == KernelDirectoryPhysical) {
-        DEBUG(TEXT("[ResolveKernelPageFault] CR3=%p matches kernel directory %p (Address=%p)"),
-              (LPVOID)CurrentDirectoryPhysical,
-              (LPVOID)KernelDirectoryPhysical,
-              (LPVOID)Address);
         return FALSE;
     }
 
@@ -628,10 +624,6 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
     LPPML4 CurrentPml4 = GetCurrentPml4VA();
     U64 CurrentPml4Value = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)CurrentPml4, Pml4Index);
     if ((CurrentPml4Value & PAGE_FLAG_PRESENT) == 0u || CurrentPml4Value != KernelPml4Value) {
-        DEBUG(TEXT("[ResolveKernelPageFault] Updating PML4[%u]: old=%p new=%p"),
-              Pml4Index,
-              (LPVOID)CurrentPml4Value,
-              (LPVOID)KernelPml4Value);
         WritePageDirectoryEntryValue((LPPAGE_DIRECTORY)CurrentPml4, Pml4Index, KernelPml4Value);
         Updated = TRUE;
         NeedsFullFlush = TRUE;
@@ -656,10 +648,6 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
     LPPDPT CurrentPdpt = GetPageDirectoryPointerTableVAFor(Address);
     U64 CurrentPdptValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)CurrentPdpt, PdptIndex);
     if ((CurrentPdptValue & PAGE_FLAG_PRESENT) == 0u || CurrentPdptValue != KernelPdptValue) {
-        DEBUG(TEXT("[ResolveKernelPageFault] Updating PDPT[%u]: old=%p new=%p"),
-              PdptIndex,
-              (LPVOID)CurrentPdptValue,
-              (LPVOID)KernelPdptValue);
         WritePageDirectoryEntryValue((LPPAGE_DIRECTORY)CurrentPdpt, PdptIndex, KernelPdptValue);
         Updated = TRUE;
         NeedsFullFlush = TRUE;
@@ -676,7 +664,6 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
             InvalidatePage((LINEAR)Address);
         }
 
-        DEBUG(TEXT("[ResolveKernelPageFault] Mirrored kernel 1GB mapping for %p"), (LPVOID)Address);
         return TRUE;
     }
 
@@ -699,10 +686,6 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
     LPPAGE_DIRECTORY CurrentDirectory = GetPageDirectoryVAFor(Address);
     U64 CurrentDirectoryValue = ReadPageDirectoryEntryValue(CurrentDirectory, DirectoryIndex);
     if ((CurrentDirectoryValue & PAGE_FLAG_PRESENT) == 0u || CurrentDirectoryValue != KernelDirectoryValue) {
-        DEBUG(TEXT("[ResolveKernelPageFault] Updating directory[%u]: old=%p new=%p"),
-              DirectoryIndex,
-              (LPVOID)CurrentDirectoryValue,
-              (LPVOID)KernelDirectoryValue);
         WritePageDirectoryEntryValue(CurrentDirectory, DirectoryIndex, KernelDirectoryValue);
         Updated = TRUE;
         NeedsFullFlush = TRUE;
@@ -719,7 +702,6 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
             InvalidatePage((LINEAR)Address);
         }
 
-        DEBUG(TEXT("[ResolveKernelPageFault] Mirrored kernel 2MB mapping for %p"), (LPVOID)Address);
         return TRUE;
     }
 
@@ -742,16 +724,11 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
     LPPAGE_TABLE CurrentTable = GetPageTableVAFor(Address);
     U64 CurrentTableValue = ReadPageTableEntryValue(CurrentTable, TableIndex);
     if (CurrentTableValue != KernelTableValue) {
-        DEBUG(TEXT("[ResolveKernelPageFault] Updating PTE[%u]: old=%p new=%p"),
-              TableIndex,
-              (LPVOID)CurrentTableValue,
-              (LPVOID)KernelTableValue);
         WritePageTableEntryValue(CurrentTable, TableIndex, KernelTableValue);
         Updated = TRUE;
     }
 
     if (Updated == FALSE) {
-        DEBUG(TEXT("[ResolveKernelPageFault] Entries already matched for %p"), (LPVOID)Address);
         return FALSE;
     }
 
