@@ -288,6 +288,29 @@ static void ConsoleWritePixel(U32 X, U32 Y, U32 Pixel) {
 
 /***************************************************************************/
 
+static void ConsoleFillRect32(U32 X, U32 Y, U32 Width, U32 Height, U32 Pixel) {
+    if (Console.FramebufferLinear == NULL) {
+        return;
+    }
+
+    if (Console.FramebufferBytesPerPixel != 4u || Width == 0u || Height == 0u) {
+        return;
+    }
+
+    U32 RowBytes = Width * 4u;
+    for (U32 Row = 0; Row < Height; ++Row) {
+        U8* Dest = Console.FramebufferLinear +
+                   ((Y + Row) * Console.FramebufferPitch) +
+                   (X * 4u);
+        U32* Dest32 = (U32*)Dest;
+        for (U32 Col = 0; Col < Width; ++Col) {
+            Dest32[Col] = Pixel;
+        }
+    }
+}
+
+/***************************************************************************/
+
 static void ConsoleDrawGlyph(U32 X, U32 Y, STR Char) {
     const FONT_GLYPH_SET* Font = FontGetDefault();
     if (Font == NULL || Font->GlyphData == NULL) {
@@ -304,9 +327,13 @@ static void ConsoleDrawGlyph(U32 X, U32 Y, STR Char) {
     U32 CellWidth = ConsoleGetCellWidth();
     U32 CellHeight = ConsoleGetCellHeight();
 
-    for (U32 Row = 0; Row < CellHeight; ++Row) {
-        for (U32 Col = 0; Col < CellWidth; ++Col) {
-            ConsoleWritePixel(X + Col, Y + Row, Background);
+    if (Console.FramebufferBytesPerPixel == 4u) {
+        ConsoleFillRect32(X, Y, CellWidth, CellHeight, Background);
+    } else {
+        for (U32 Row = 0; Row < CellHeight; ++Row) {
+            for (U32 Col = 0; Col < CellWidth; ++Col) {
+                ConsoleWritePixel(X + Col, Y + Row, Background);
+            }
         }
     }
 
@@ -431,9 +458,13 @@ static void ConsoleScrollRegionFramebuffer(U32 RegionIndex) {
         MemoryMove(Dest, Src, RowBytes);
     }
 
-    for (U32 Row = PixelHeight - CellHeight; Row < PixelHeight; ++Row) {
-        for (U32 Col = 0; Col < PixelWidth; ++Col) {
-            ConsoleWritePixel(PixelX + Col, PixelY + Row, Background);
+    if (Console.FramebufferBytesPerPixel == 4u) {
+        ConsoleFillRect32(PixelX, PixelY + (PixelHeight - CellHeight), PixelWidth, CellHeight, Background);
+    } else {
+        for (U32 Row = PixelHeight - CellHeight; Row < PixelHeight; ++Row) {
+            for (U32 Col = 0; Col < PixelWidth; ++Col) {
+                ConsoleWritePixel(PixelX + Col, PixelY + Row, Background);
+            }
         }
     }
 }
