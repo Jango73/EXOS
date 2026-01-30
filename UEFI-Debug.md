@@ -83,6 +83,27 @@ Tests Performed
     - Result on bare metal: extra green marker appears (same as QEMU), so call boundary works.
       This confirms the NASM stub object/code path is the failure point on bare metal.
 
+12) Remove serial output from stub (pending result):
+    - Deleted all serial routines/calls and removed .rodata strings/hex table in
+      `boot-uefi/source/uefi-jump-x86-64.asm`.
+    - Goal: eliminate serial I/O side effects and .rodata relocations without changing control flow.
+    - Result on bare metal: orange marker now appears; stub executes. Still stops before reaching
+      LongModeEntry (no post-CR3 or long-mode marker).
+
+13) Move stub markers to distinct lines (pending result):
+    - Pre-CR3 marker moved to Y=160, post-CR3 marker moved to Y=180 (both X=20).
+    - Goal: avoid overlap with existing UEFI/payload markers and remove ordering ambiguity.
+    - Result: pre-CR3 marker appears on bare metal at Y=160; post-CR3 marker does not.
+
+14) Added CR3 pre-test marker (pending result):
+    - Marker at Y=200 drawn just before `mov cr3`.
+    - Goal: determine if the crash happens at the CR3 load or after it.
+
+15) Use full 64-bit UEFI ImageBase (pending result):
+    - `BootUefiOpenRootFileSystem` now stores `LoadedImage->ImageBase` without truncation.
+    - Goal: ensure paging maps the UEFI image correctly when it is above 4GB on bare metal.
+    - Result on bare metal: boot progresses; console log now appears (fix confirmed).
+
 Conclusion So Far
 -----------------
 - UEFI boot path and ExitBootServices complete successfully on bare metal.

@@ -26,93 +26,6 @@ extern UefiStubTestOnly
 ; [RSP+0x20]: Multiboot info pointer
 ; [RSP+0x28]: Multiboot magic
 
-SerialWriteByte:
-    push    rax
-    push    rdx
-    mov     ah, al
-.wait:
-    mov     dx, 0x03FD
-    in      al, dx
-    test    al, 0x20
-    jz      .wait
-    mov     al, ah
-    mov     dx, 0x03F8
-    out     dx, al
-    pop     rdx
-    pop     rax
-    ret
-
-SerialWriteString:
-    push    rax
-    push    rdx
-.loop:
-    mov     al, [rdi]
-    test    al, al
-    jz      .done
-    call    SerialWriteByte
-    inc     rdi
-    jmp     .loop
-.done:
-    pop     rdx
-    pop     rax
-    ret
-
-SerialWriteHex32:
-    push    rax
-    push    rbx
-    push    rcx
-    push    rdx
-    mov     edx, eax
-    mov     ecx, 8
-.hex32_loop:
-    mov     eax, edx
-    shr     eax, 28
-    and     eax, 0x0F
-    mov     al, [rel HexDigits + rax]
-    call    SerialWriteByte
-    shl     edx, 4
-    dec     ecx
-    jnz     .hex32_loop
-    pop     rdx
-    pop     rcx
-    pop     rbx
-    pop     rax
-    ret
-
-SerialWriteHex64:
-    push    rax
-    push    rbx
-    mov     rbx, rax
-    shr     rax, 32
-    call    SerialWriteHex32
-    mov     eax, ebx
-    call    SerialWriteHex32
-    pop     rbx
-    pop     rax
-    ret
-
-SerialWriteLabelHex32:
-    push    rax
-    push    rdi
-    call    SerialWriteString
-    pop     rdi
-    pop     rax
-    call    SerialWriteHex32
-    lea     rdi, [rel NewLine]
-    call    SerialWriteString
-    ret
-
-SerialWriteLabelHex64:
-    push    rax
-    push    rdi
-    call    SerialWriteString
-    pop     rdi
-    pop     rax
-    call    SerialWriteHex64
-    lea     rdi, [rel NewLine]
-    call    SerialWriteString
-    ret
-
 StubJumpToImage:
     cli
     ; Read parameters from globals instead of stack (bare metal stack offsets are unreliable).
@@ -124,24 +37,7 @@ StubJumpToImage:
     mov     r14d, r8d
     mov     r15d, r9d
 
-    lea     rdi, [rel StubLogStart]
-    call    SerialWriteString
-
-    movzx   eax, word [r12]
-    lea     rdi, [rel StubLogGdtrLimit]
-    call    SerialWriteLabelHex32
-
-    mov     eax, dword [r12 + 2]
-    lea     rdi, [rel StubLogGdtrBase]
-    call    SerialWriteLabelHex32
-
-    mov     eax, r13d
-    lea     rdi, [rel StubLogCr3]
-    call    SerialWriteLabelHex32
-
-    cli
-
-    ; Framebuffer marker before CR3 switch (x=20,y=60).
+    ; Framebuffer marker before CR3 switch (x=20,y=160).
     mov         r9, qword [rel UefiStubFramebufferBase]
     test        r9, r9
     jz          .skip_fb_mark_pre_cr3
@@ -153,7 +49,7 @@ StubJumpToImage:
     jnz         .fb_bpp_ok_pre_cr3
     mov         ecx, 4
 .fb_bpp_ok_pre_cr3:
-    mov         eax, 60
+    mov         eax, 160
     imul        eax, edx
     add         r9, rax
     mov         eax, 20
@@ -195,11 +91,49 @@ StubJumpToImage:
     mov         fs, ax
     mov         gs, ax
 
+    ; CR3 pre-test marker (x=20,y=200) before loading new CR3.
+    mov         r9, qword [rel UefiStubFramebufferBase]
+    test        r9, r9
+    jz          .skip_fb_mark_cr3_pret
+    mov         edx, dword [rel UefiStubFramebufferPitch]
+    test        edx, edx
+    jz          .skip_fb_mark_cr3_pret
+    mov         ecx, dword [rel UefiStubFramebufferBytesPerPixel]
+    test        ecx, ecx
+    jnz         .fb_bpp_ok_cr3_pret
+    mov         ecx, 4
+.fb_bpp_ok_cr3_pret:
+    mov         eax, 200
+    imul        eax, edx
+    add         r9, rax
+    mov         eax, 20
+    imul        eax, ecx
+    add         r9, rax
+
+    xor         rsi, rsi
+.fb_row_cr3_pret:
+    mov         rax, rsi
+    imul        rax, rdx
+    add         rax, r9
+    xor         rdi, rdi
+.fb_col_cr3_pret:
+    mov         rbx, rdi
+    imul        rbx, rcx
+    add         rbx, rax
+    mov         dword [rbx], 0x0000FFFF
+    inc         rdi
+    cmp         rdi, 16
+    jl          .fb_col_cr3_pret
+    inc         rsi
+    cmp         rsi, 16
+    jl          .fb_row_cr3_pret
+.skip_fb_mark_cr3_pret:
+
     mov         eax, r13d
     mov         cr3, rax
     mov         rsp, TRANSITION_STACK_TOP
 
-    ; Framebuffer marker after CR3 switch (x=0,y=100).
+    ; Framebuffer marker after CR3 switch (x=20,y=180).
     mov         rax, r10
     test        rax, rax
     jz          .skip_fb_mark_cr3
@@ -219,8 +153,11 @@ StubJumpToImage:
     jnz         .fb_bpp_ok_cr3
     mov         ecx, 4
 .fb_bpp_ok_cr3:
-    mov         eax, 100
+    mov         eax, 180
     imul        eax, edx
+    add         r9, rax
+    mov         eax, 20
+    imul        eax, ecx
     add         r9, rax
 
     xor         rsi, rsi
@@ -266,36 +203,6 @@ LongModeEntry:
 
     mov         rsp, KERNEL_LOAD_ADDRESS
     mov         rbp, rsp
-
-    lea         rdi, [rel LongLogEntered]
-    call        SerialWriteString
-
-    mov         rax, r14
-    lea         rdi, [rel LongLogKernelEntry]
-    call        SerialWriteLabelHex64
-
-    mov         eax, r12d
-    lea         rdi, [rel LongLogMultibootPointer]
-    call        SerialWriteLabelHex32
-
-    mov         eax, r13d
-    lea         rdi, [rel LongLogMultibootMagic]
-    call        SerialWriteLabelHex32
-
-    mov         rax, cr0
-    lea         rdi, [rel LongLogCr0]
-    call        SerialWriteLabelHex64
-
-    mov         rax, cr4
-    lea         rdi, [rel LongLogCr4]
-    call        SerialWriteLabelHex64
-
-    mov         ecx, 0xC0000080
-    rdmsr
-    shl         rdx, 32
-    or          rax, rdx
-    lea         rdi, [rel LongLogEfer]
-    call        SerialWriteLabelHex64
 
     ; Framebuffer marker to confirm LongModeEntry reached (x=40,y=80).
     mov         rax, r12
@@ -355,19 +262,3 @@ global __fltused
 _fltused:
 __fltused:
     dq 0
-
-section .rodata
-
-StubLogStart: db "[StubJumpToImage] Start", 0x0D, 0x0A, 0
-StubLogGdtrLimit: db "[StubJumpToImage] GdtrLimit=0x", 0
-StubLogGdtrBase: db "[StubJumpToImage] GdtrBase=0x", 0
-StubLogCr3: db "[StubJumpToImage] Cr3=0x", 0
-LongLogEntered: db "[LongModeEntry] Entered", 0x0D, 0x0A, 0
-LongLogKernelEntry: db "[LongModeEntry] KernelEntry=0x", 0
-LongLogMultibootPointer: db "[LongModeEntry] MultibootPointer=0x", 0
-LongLogMultibootMagic: db "[LongModeEntry] MultibootMagic=0x", 0
-LongLogCr0: db "[LongModeEntry] Cr0=0x", 0
-LongLogCr4: db "[LongModeEntry] Cr4=0x", 0
-LongLogEfer: db "[LongModeEntry] Efer=0x", 0
-NewLine: db 0x0D, 0x0A, 0
-HexDigits: db "0123456789ABCDEF", 0

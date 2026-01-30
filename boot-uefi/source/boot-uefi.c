@@ -65,6 +65,7 @@ U32 UefiStubTestOnly = 0u;
 static UINT BootUefiAlignUp(UINT Value, UINT Alignment);
 static U8* BootUefiAlignPointer(U8* Pointer, UINT Alignment);
 static EFI_PHYSICAL_ADDRESS BootUefiPhysicalFromU32(U32 Value);
+static U64 BootUefiPhysicalToU64(EFI_PHYSICAL_ADDRESS Address);
 static void* BootUefiPhysicalToPointer(EFI_PHYSICAL_ADDRESS Address);
 static void BootUefiOutputAscii(EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL* ConsoleOut, const char* Text);
 static void BootUefiOutputStatus(EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL* ConsoleOut, const char* Prefix, EFI_STATUS Status);
@@ -192,6 +193,22 @@ static EFI_PHYSICAL_ADDRESS BootUefiPhysicalFromU32(U32 Value) {
     return U64_FromU32(Value);
 #else
     return (EFI_PHYSICAL_ADDRESS)Value;
+#endif
+}
+
+/************************************************************************/
+
+/**
+ * @brief Convert a UEFI physical address to a 64-bit value.
+ *
+ * @param Address Physical address.
+ * @return 64-bit address value.
+ */
+static U64 BootUefiPhysicalToU64(EFI_PHYSICAL_ADDRESS Address) {
+#ifdef __EXOS_32__
+    return U64_FromU32((U32)Address);
+#else
+    return (U64)Address;
 #endif
 }
 
@@ -449,7 +466,7 @@ static EFI_STATUS BootUefiOpenRootFileSystem(BOOT_UEFI_CONTEXT* Context, EFI_FIL
         return Status;
     }
 
-    Context->ImageBase = U64_FromUINT((UINT)LoadedImage->ImageBase);
+    Context->ImageBase = BootUefiPhysicalToU64(LoadedImage->ImageBase);
     Context->ImageSize = LoadedImage->ImageSize;
     BootUefiOutputHex64(Context->ConsoleOut, "[BootUefiOpenRootFileSystem] ImageBase ", Context->ImageBase);
     BootUefiOutputHex64(Context->ConsoleOut, "[BootUefiOpenRootFileSystem] ImageSize ", Context->ImageSize);
