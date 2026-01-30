@@ -170,7 +170,7 @@ static struct {
     {"edit", "edit", "Name", CMD_edit},
     {"hd", "hd", "", CMD_hd},
     {"fs", "filesystem", "", CMD_filesystem},
-    {"net", "network", "", CMD_network},
+    {"net", "network", "devices", CMD_network},
     {"pic", "pic", "", CMD_pic},
     {"outp", "outp", "", CMD_outp},
     {"inp", "inp", "", CMD_inp},
@@ -1413,13 +1413,22 @@ static U32 CMD_filesystem(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 static U32 CMD_network(LPSHELLCONTEXT Context) {
-    UNUSED(Context);
+    ParseNextCommandLineComponent(Context);
 
-    LPLISTNODE Node;
+    if (StringLength(Context->Command) == 0 ||
+        StringCompareNC(Context->Command, TEXT("devices")) != 0) {
+        ConsolePrint(TEXT("Usage: network devices\n"));
+        return DF_RETURN_SUCCESS;
+    }
 
     LPLIST NetworkDeviceList = GetNetworkDeviceList();
+    if (NetworkDeviceList == NULL || NetworkDeviceList->First == NULL) {
+        ConsolePrint(TEXT("No network device detected\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
     SAFE_USE(NetworkDeviceList) {
-        for (Node = NetworkDeviceList->First; Node; Node = Node->Next) {
+        for (LPLISTNODE Node = NetworkDeviceList->First; Node; Node = Node->Next) {
             LPNETWORK_DEVICE_CONTEXT NetContext = (LPNETWORK_DEVICE_CONTEXT)Node;
 
             SAFE_USE_VALID_ID(NetContext, KOID_NETWORKDEVICE) {
@@ -1427,13 +1436,11 @@ static U32 CMD_network(LPSHELLCONTEXT Context) {
 
                 SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
                     SAFE_USE_VALID_ID(Device->Driver, KOID_DRIVER) {
-                        // Get device info
                         NETWORKINFO Info;
                         MemorySet(&Info, 0, sizeof(Info));
                         NETWORKGETINFO GetInfo = {.Device = Device, .Info = &Info};
                         Device->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo);
 
-                        // Convert IP from network to host byte order
                         U32 IpHost = Ntohl(NetContext->ActiveConfig.LocalIPv4_Be);
                         U8 Ip1 = (IpHost >> 24) & 0xFF;
                         U8 Ip2 = (IpHost >> 16) & 0xFF;
