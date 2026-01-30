@@ -92,11 +92,11 @@ void InitializePat(void) {
         return;
     }
 
-    const U64 PatValue = 0x0007010600070106ULL;
+    const U64 PatValue = U64_Make(0x00070106u, 0x00070106u);
     WriteMSR64(
         IA32_PAT_MSR,
-        (U32)(PatValue & 0xFFFFFFFFu),
-        (U32)(PatValue >> 32));
+        U64_Low32(PatValue),
+        U64_High32(PatValue));
 }
 
 /***************************************************************************/
