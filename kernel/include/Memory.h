@@ -110,6 +110,7 @@ BOOL FreeRegion(LINEAR Base, UINT Size);
 
 // Map/unmap a physical MMIO region (BAR or Base Address Register) as Uncached Read/Write
 LINEAR MapIOMemory(PHYSICAL PhysicalBase, UINT Size);
+LINEAR MapFramebufferMemory(PHYSICAL PhysicalBase, UINT Size);
 BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size);
 
 // Kernel region allocation wrapper - automatically uses VMA_KERNEL and AT_OR_OVER

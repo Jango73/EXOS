@@ -104,6 +104,14 @@ Tests Performed
     - Goal: ensure paging maps the UEFI image correctly when it is above 4GB on bare metal.
     - Result on bare metal: boot progresses; console log now appears (fix confirmed).
 
+16) Map framebuffer as write-combining (pending result):
+    - Added `MapFramebufferMemory` using `ALLOC_PAGES_WC` and switched console to use it.
+    - Goal: speed up framebuffer writes for kernel log on bare metal.
+
+17) Initialize PAT for WC (pending result):
+    - Added PAT MSR initialization to map PAT entry 1 to WC.
+    - Goal: ensure `ALLOC_PAGES_WC` results in real write-combining on bare metal.
+
 Conclusion So Far
 -----------------
 - UEFI boot path and ExitBootServices complete successfully on bare metal.

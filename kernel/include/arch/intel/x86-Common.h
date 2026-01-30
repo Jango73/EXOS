@@ -61,7 +61,7 @@
 #define INTEL_CPU_FEAT_PGE 0x00002000
 #define INTEL_CPU_FEAT_MCA 0x00004000
 #define INTEL_CPU_FEAT_CMOV 0x00008000
-#define INTEL_CPU_FEAT_RES3 0x00010000
+#define INTEL_CPU_FEAT_PAT 0x00010000
 #define INTEL_CPU_FEAT_RES4 0x00020000
 #define INTEL_CPU_FEAT_RES5 0x00040000
 #define INTEL_CPU_FEAT_RES6 0x00080000
@@ -77,6 +77,8 @@
 #define INTEL_CPU_FEAT_RESG 0x20000000
 #define INTEL_CPU_FEAT_RESH 0x40000000
 #define INTEL_CPU_FEAT_RESI 0x80000000
+
+#define IA32_PAT_MSR 0x00000277
 
 /*************************************************************************/
 // Structures
@@ -169,5 +171,7 @@ void WriteMSR(U32 Msr, U32 Value);
  * @param ValueHigh High 32 bits of the value.
  */
 void WriteMSR64(U32 Msr, U32 ValueLow, U32 ValueHigh);
+
+void InitializePat(void);
 
 #endif  // X86_COMMON_H_INCLUDED

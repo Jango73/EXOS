@@ -644,6 +644,7 @@ void PreInitializeKernel(void) {
     KernelStartup.IRQMask_A1_RM = 0;
 
     InitializeFPUState();
+    InitializePat();
 }
 
 /***************************************************************************/

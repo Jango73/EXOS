@@ -1811,6 +1811,45 @@ LINEAR MapIOMemory(PHYSICAL PhysicalBase, UINT Size) {
 /************************************************************************/
 
 /**
+ * @brief Map a framebuffer physical range using write-combining when possible.
+ * @param PhysicalBase Physical base address.
+ * @param Size Size in bytes.
+ * @return Linear address or 0 on failure.
+ */
+LINEAR MapFramebufferMemory(PHYSICAL PhysicalBase, UINT Size) {
+    if (PhysicalBase == 0 || Size == 0) {
+        ERROR(TEXT("[MapFramebufferMemory] Invalid parameters (PA=%p Size=%u)"),
+              (LPVOID)(LINEAR)PhysicalBase,
+              Size);
+        return NULL;
+    }
+
+    UINT PageOffset = (UINT)(PhysicalBase & (PAGE_SIZE - 1));
+    PHYSICAL AlignedPhysicalBase = PhysicalBase & ~(PAGE_SIZE - 1);
+    UINT AdjustedSize = ((Size + PageOffset + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1));
+
+    LINEAR AlignedResult = AllocRegion(
+        VMA_KERNEL,
+        AlignedPhysicalBase,
+        AdjustedSize,
+        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_WC |
+            ALLOC_PAGES_IO | ALLOC_PAGES_AT_OR_OVER,
+        TEXT("Framebuffer")
+    );
+
+    if (AlignedResult == NULL) {
+        WARNING(TEXT("[MapFramebufferMemory] WC mapping failed, falling back to UC"));
+        return MapIOMemory(PhysicalBase, Size);
+    }
+
+    LINEAR CanonicalAligned = CanonicalizeLinearAddress(AlignedResult);
+    LINEAR result = CanonicalizeLinearAddress(CanonicalAligned + (LINEAR)PageOffset);
+    return result;
+}
+
+/************************************************************************/
+
+/**
  * @brief Unmap a previously mapped I/O range.
  * @param LinearBase Linear base address.
  * @param Size Size in bytes.

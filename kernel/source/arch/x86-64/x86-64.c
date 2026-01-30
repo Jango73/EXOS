@@ -575,6 +575,8 @@ void PreInitializeKernel(void) {
 
     __asm__ volatile("fninit");
     __asm__ volatile("fnclex");
+
+    InitializePat();
 }
 
 /************************************************************************/

@@ -188,7 +188,7 @@ static BOOL ConsoleEnsureFramebufferMapped(void) {
 
     UINT Size = (UINT)(Console.FramebufferPitch * Console.FramebufferHeight);
     ConsoleFramebufferMappingInProgress = TRUE;
-    LINEAR Linear = MapIOMemory(Console.FramebufferPhysical, Size);
+    LINEAR Linear = MapFramebufferMemory(Console.FramebufferPhysical, Size);
     ConsoleFramebufferMappingInProgress = FALSE;
     if (Linear == 0) {
         ERROR(TEXT("[ConsoleEnsureFramebufferMapped] MapIOMemory failed for %p size %u"),

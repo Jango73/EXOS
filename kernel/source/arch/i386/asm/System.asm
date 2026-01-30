@@ -82,6 +82,8 @@ BITS 32
     global OutPortLong
     global InPortStringWord
     global OutPortStringWord
+    global MemoryCopy
+    global MemoryMove
     global MaskIRQ
     global UnmaskIRQ
     global DisableIRQ
@@ -172,6 +174,83 @@ EnablePaging :
     mov     eax, cr0
     or      eax, CR0_PAGING
     mov     cr0, eax
+    ret
+
+;--------------------------------------
+
+FUNC_HEADER
+MemoryCopy :
+
+    push    ebp
+    mov     ebp, esp
+    push    esi
+    push    edi
+
+    mov     edi, [ebp + PBN]
+    mov     esi, [ebp + PBN + 4]
+    mov     ecx, [ebp + PBN + 8]
+
+    test    ecx, ecx
+    jz      .done
+    cmp     edi, esi
+    je      .done
+
+    mov     edx, ecx
+    shr     ecx, 2
+    cld
+    rep     movsd
+
+    mov     ecx, edx
+    and     ecx, 3
+    rep     movsb
+
+.done:
+    pop     edi
+    pop     esi
+    pop     ebp
+    ret
+
+;--------------------------------------
+
+FUNC_HEADER
+MemoryMove :
+
+    push    ebp
+    mov     ebp, esp
+    push    esi
+    push    edi
+
+    mov     edi, [ebp + PBN]
+    mov     esi, [ebp + PBN + 4]
+    mov     ecx, [ebp + PBN + 8]
+
+    test    ecx, ecx
+    jz      .done
+    cmp     edi, esi
+    je      .done
+
+    mov     edx, esi
+    add     edx, ecx
+    cmp     edi, esi
+    jb      .forward
+    cmp     edi, edx
+    jae     .forward
+
+    std
+    lea     esi, [esi + ecx - 1]
+    lea     edi, [edi + ecx - 1]
+    rep     movsb
+    cld
+    jmp     .done
+
+.forward:
+    cld
+    rep     movsb
+
+.done:
+    pop     edi
+    pop     esi
+    pop     ebp
     ret
 
 ;--------------------------------------
