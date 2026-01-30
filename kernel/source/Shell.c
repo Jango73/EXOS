@@ -26,6 +26,7 @@
 #include "Clock.h"
 #include "Console.h"
 #include "drivers/Keyboard.h"
+#include "drivers/XHCI.h"
 #include "drivers/USBMassStorage.h"
 #include "DriverEnum.h"
 #include "Endianness.h"
@@ -78,6 +79,39 @@ typedef struct tag_SHELLCONTEXT {
     PATHCOMPLETION PathCompletion;
     LPSCRIPT_CONTEXT ScriptContext;
 } SHELLCONTEXT, *LPSHELLCONTEXT;
+
+/************************************************************************/
+
+static LPCSTR UsbEnumErrorToString(U8 Code) {
+    switch (Code) {
+        case XHCI_ENUM_ERROR_NONE:
+            return TEXT("OK");
+        case XHCI_ENUM_ERROR_BUSY:
+            return TEXT("BUSY");
+        case XHCI_ENUM_ERROR_RESET_TIMEOUT:
+            return TEXT("RESET");
+        case XHCI_ENUM_ERROR_INVALID_SPEED:
+            return TEXT("SPEED");
+        case XHCI_ENUM_ERROR_INIT_STATE:
+            return TEXT("STATE");
+        case XHCI_ENUM_ERROR_ENABLE_SLOT:
+            return TEXT("SLOT");
+        case XHCI_ENUM_ERROR_ADDRESS_DEVICE:
+            return TEXT("ADDRESS");
+        case XHCI_ENUM_ERROR_DEVICE_DESC:
+            return TEXT("DEVICE");
+        case XHCI_ENUM_ERROR_CONFIG_DESC:
+            return TEXT("CONFIG");
+        case XHCI_ENUM_ERROR_CONFIG_PARSE:
+            return TEXT("PARSE");
+        case XHCI_ENUM_ERROR_SET_CONFIG:
+            return TEXT("SETCONFIG");
+        case XHCI_ENUM_ERROR_HUB_INIT:
+            return TEXT("HUB");
+        default:
+            return TEXT("UNKNOWN");
+    }
+}
 
 /************************************************************************/
 // The shell command functions
@@ -183,7 +217,7 @@ static struct {
     {"whoami", "who", "", CMD_whoami},
     {"passwd", "setpassword", "", CMD_passwd},
     {"prof", "profiling", "", CMD_prof},
-    {"usb", "usb", "ports|devices|device-tree|drives", CMD_usb},
+    {"usb", "usb", "ports|devices|device-tree|drives|probe", CMD_usb},
     {"", "", "", NULL},
 };
 
@@ -1774,8 +1808,9 @@ static U32 CMD_usb(LPSHELLCONTEXT Context) {
         (StringCompareNC(Context->Command, TEXT("ports")) != 0 &&
          StringCompareNC(Context->Command, TEXT("devices")) != 0 &&
          StringCompareNC(Context->Command, TEXT("device-tree")) != 0 &&
-         StringCompareNC(Context->Command, TEXT("drives")) != 0)) {
-        ConsolePrint(TEXT("Usage: usb ports|devices|device-tree|drives\n"));
+         StringCompareNC(Context->Command, TEXT("drives")) != 0 &&
+         StringCompareNC(Context->Command, TEXT("probe")) != 0)) {
+        ConsolePrint(TEXT("Usage: usb ports|devices|device-tree|drives|probe\n"));
         return DF_RETURN_SUCCESS;
     }
 
@@ -1811,7 +1846,53 @@ static U32 CMD_usb(LPSHELLCONTEXT Context) {
     MemorySet(&Query, 0, sizeof(Query));
     Query.Header.Size = sizeof(Query);
     Query.Header.Version = EXOS_ABI_VERSION;
-    if (StringCompareNC(Context->Command, TEXT("devices")) == 0) {
+    if (StringCompareNC(Context->Command, TEXT("probe")) == 0) {
+        DRIVER_ENUM_QUERY PortQuery;
+        MemorySet(&PortQuery, 0, sizeof(PortQuery));
+        PortQuery.Header.Size = sizeof(PortQuery);
+        PortQuery.Header.Version = EXOS_ABI_VERSION;
+        PortQuery.Domain = ENUM_DOMAIN_XHCI_PORT;
+        PortQuery.Flags = 0;
+
+        UINT ProviderIndexProbe = 0;
+        DRIVER_ENUM_PROVIDER ProviderProbe = NULL;
+        BOOL FoundProbe = FALSE;
+
+        while (KernelEnumGetProvider(&PortQuery, ProviderIndexProbe, &ProviderProbe) == DF_RETURN_SUCCESS) {
+            DRIVER_ENUM_ITEM ItemProbe;
+            PortQuery.Index = 0;
+            FoundProbe = TRUE;
+
+            MemorySet(&ItemProbe, 0, sizeof(ItemProbe));
+            ItemProbe.Header.Size = sizeof(ItemProbe);
+            ItemProbe.Header.Version = EXOS_ABI_VERSION;
+
+            while (KernelEnumNext(ProviderProbe, &PortQuery, &ItemProbe) == DF_RETURN_SUCCESS) {
+                const DRIVER_ENUM_XHCI_PORT* Data = (const DRIVER_ENUM_XHCI_PORT*)ItemProbe.Data;
+                if (ItemProbe.DataSize < sizeof(DRIVER_ENUM_XHCI_PORT)) {
+                    break;
+                }
+                if (Data->Connected) {
+                    if (Data->LastEnumError == XHCI_ENUM_ERROR_ENABLE_SLOT) {
+                        ConsolePrint(TEXT("P%u Err=%s C=%u\n"),
+                                     (U32)Data->PortNumber,
+                                     UsbEnumErrorToString(Data->LastEnumError),
+                                     (U32)Data->LastEnumCompletion);
+                    } else {
+                        ConsolePrint(TEXT("P%u Err=%s\n"),
+                                     (U32)Data->PortNumber,
+                                     UsbEnumErrorToString(Data->LastEnumError));
+                    }
+                }
+            }
+            ProviderIndexProbe++;
+        }
+
+        if (!FoundProbe) {
+            ConsolePrint(TEXT("No xHCI controller detected\n"));
+        }
+        return DF_RETURN_SUCCESS;
+    } else if (StringCompareNC(Context->Command, TEXT("devices")) == 0) {
         Query.Domain = ENUM_DOMAIN_USB_DEVICE;
     } else if (StringCompareNC(Context->Command, TEXT("device-tree")) == 0) {
         Query.Domain = ENUM_DOMAIN_USB_NODE;

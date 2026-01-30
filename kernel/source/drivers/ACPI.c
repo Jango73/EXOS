@@ -530,7 +530,6 @@ BOOL InitializeACPI(void) {
 #if defined(__EXOS_32__)
         if (U64_Low32(G_RSDP->XsdtAddress) != 0 || U64_High32(G_RSDP->XsdtAddress) != 0) {
             if (U64_High32(G_RSDP->XsdtAddress) != 0) {
-                      U64_High32(G_RSDP->XsdtAddress), U64_Low32(G_RSDP->XsdtAddress));
             } else {
                 HasXsdt = TRUE;
                 XsdtPhysical = (PHYSICAL)U64_Low32(G_RSDP->XsdtAddress);

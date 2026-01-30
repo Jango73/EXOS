@@ -96,6 +96,19 @@
 #define XHCI_PORTSC_SPEED_SHIFT 10
 #define XHCI_PORTSC_W1C_MASK 0x00FE0000
 
+#define XHCI_ENUM_ERROR_NONE            0u
+#define XHCI_ENUM_ERROR_BUSY            1u
+#define XHCI_ENUM_ERROR_RESET_TIMEOUT   2u
+#define XHCI_ENUM_ERROR_INVALID_SPEED   3u
+#define XHCI_ENUM_ERROR_INIT_STATE      4u
+#define XHCI_ENUM_ERROR_ENABLE_SLOT     5u
+#define XHCI_ENUM_ERROR_ADDRESS_DEVICE  6u
+#define XHCI_ENUM_ERROR_DEVICE_DESC     7u
+#define XHCI_ENUM_ERROR_CONFIG_DESC     8u
+#define XHCI_ENUM_ERROR_CONFIG_PARSE    9u
+#define XHCI_ENUM_ERROR_SET_CONFIG     10u
+#define XHCI_ENUM_ERROR_HUB_INIT       11u
+
 /************************************************************************/
 // xHCI runtime registers
 
@@ -254,6 +267,8 @@ typedef struct tag_XHCI_USB_DEVICE {
     USB_DEVICE_FIELDS
     BOOL Present;
     BOOL DestroyPending;
+    U8 LastEnumError;
+    U16 LastEnumCompletion;
     U8 PortNumber;
     U8 RootPortNumber;
     U8 Depth;

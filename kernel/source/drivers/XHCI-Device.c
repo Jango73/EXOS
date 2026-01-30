@@ -42,6 +42,8 @@ void XHCI_InitUsbDeviceObject(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice)
 
     MemorySet(&UsbDevice->Mutex, 0, sizeof(XHCI_USB_DEVICE) - sizeof(LISTNODE));
     UsbDevice->Controller = Device;
+    UsbDevice->LastEnumError = XHCI_ENUM_ERROR_NONE;
+    UsbDevice->LastEnumCompletion = 0;
 
     InitMutex(&UsbDevice->Mutex);
     UsbDevice->Contexts.First = NULL;
@@ -1419,7 +1421,7 @@ static void XHCI_BuildInputContextForEp0(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE
  * @param SlotIdOut Receives allocated slot ID.
  * @return TRUE on success.
  */
-static BOOL XHCI_EnableSlot(LPXHCI_DEVICE Device, U8* SlotIdOut) {
+static BOOL XHCI_EnableSlot(LPXHCI_DEVICE Device, U8* SlotIdOut, U32* CompletionOut) {
     XHCI_TRB Trb;
     U64 TrbPhysical = U64_0;
     U8 SlotId = 0;
@@ -1435,16 +1437,25 @@ static BOOL XHCI_EnableSlot(LPXHCI_DEVICE Device, U8* SlotIdOut) {
     XHCI_RingDoorbell(Device, 0, 0);
 
     if (!XHCI_WaitForCommandCompletion(Device, TrbPhysical, &SlotId, &Completion)) {
+        if (CompletionOut != NULL) {
+            *CompletionOut = XHCI_ENUM_COMPLETION_TIMEOUT;
+        }
         return FALSE;
     }
 
     if (Completion != XHCI_COMPLETION_SUCCESS) {
+        if (CompletionOut != NULL) {
+            *CompletionOut = Completion;
+        }
         ERROR(TEXT("[XHCI_EnableSlot] Completion code %u"), Completion);
         return FALSE;
     }
 
     if (SlotIdOut != NULL) {
         *SlotIdOut = SlotId;
+    }
+    if (CompletionOut != NULL) {
+        *CompletionOut = Completion;
     }
 
     return TRUE;
@@ -1922,14 +1933,20 @@ BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
     PHYSICAL ConfigPhysical = 0;
     LINEAR ConfigLinear = 0;
     U16 ConfigLength = 0;
+    U32 Completion = 0;
 
+    UsbDevice->LastEnumError = XHCI_ENUM_ERROR_NONE;
+    UsbDevice->LastEnumCompletion = 0;
     UsbDevice->MaxPacketSize0 = XHCI_GetDefaultMaxPacketSize0(UsbDevice->SpeedId);
 
     if (!XHCI_InitUsbDeviceState(Device, UsbDevice)) {
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_INIT_STATE;
         return FALSE;
     }
 
-    if (!XHCI_EnableSlot(Device, &UsbDevice->SlotId)) {
+    if (!XHCI_EnableSlot(Device, &UsbDevice->SlotId, &Completion)) {
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_ENABLE_SLOT;
+        UsbDevice->LastEnumCompletion = (U16)Completion;
         return FALSE;
     }
 
@@ -1937,12 +1954,14 @@ BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
 
     XHCI_BuildInputContextForAddress(Device, UsbDevice);
     if (!XHCI_AddressDevice(Device, UsbDevice)) {
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_ADDRESS_DEVICE;
         return FALSE;
     }
 
     UsbDevice->Address = UsbDevice->SlotId;
 
     if (!XHCI_GetDeviceDescriptor(Device, UsbDevice)) {
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_DEVICE_DESC;
         return FALSE;
     }
 
@@ -1957,12 +1976,14 @@ BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
     (void)XHCI_EvaluateContext(Device, UsbDevice);
 
     if (!XHCI_ReadConfigDescriptor(Device, UsbDevice, &ConfigPhysical, &ConfigLinear, &ConfigLength)) {
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_CONFIG_DESC;
         return FALSE;
     }
 
     if (!XHCI_ParseConfigDescriptor(UsbDevice, (const U8*)ConfigLinear, ConfigLength)) {
         FreeRegion(ConfigLinear, PAGE_SIZE);
         FreePhysicalPage(ConfigPhysical);
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_CONFIG_PARSE;
         return FALSE;
     }
 
@@ -1981,6 +2002,7 @@ BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
         Setup.Length = 0;
 
         if (!XHCI_ControlTransfer(Device, UsbDevice, &Setup, 0, NULL, 0, FALSE)) {
+            UsbDevice->LastEnumError = XHCI_ENUM_ERROR_SET_CONFIG;
             return FALSE;
         }
 
@@ -2007,12 +2029,14 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
 
     if ((PortStatus & XHCI_PORTSC_CCS) == 0) {
         UsbDevice->Present = FALSE;
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_NONE;
         return FALSE;
     }
 
     if (UsbDevice->DestroyPending && XHCI_UsbTreeHasReferences(UsbDevice)) {
         WARNING(TEXT("[XHCI_ProbePort] Port %u still referenced, delaying re-enumeration"),
                 PortIndex + 1);
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_BUSY;
         return FALSE;
     }
 
@@ -2031,8 +2055,21 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
         return TRUE;
     }
 
-    if (!XHCI_ResetPort(Device, PortIndex)) {
-        return FALSE;
+    BOOL PortEnabled = (PortStatus & XHCI_PORTSC_PED) != 0;
+    if (!PortEnabled) {
+        if (!XHCI_ResetPort(Device, PortIndex)) {
+            U32 RetryStatus = XHCI_ReadPortStatus(Device, PortIndex);
+            BOOL RetryConnected = (RetryStatus & XHCI_PORTSC_CCS) != 0;
+            BOOL RetryEnabled = (RetryStatus & XHCI_PORTSC_PED) != 0;
+            U32 RetrySpeed = (RetryStatus & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
+            if (!(RetryConnected && RetryEnabled && RetrySpeed != 0u)) {
+                UsbDevice->LastEnumError = XHCI_ENUM_ERROR_RESET_TIMEOUT;
+                return FALSE;
+            }
+            PortStatus = RetryStatus;
+            SpeedId = RetrySpeed;
+            UsbDevice->SpeedId = (U8)SpeedId;
+        }
     }
 
     PortStatus = XHCI_ReadPortStatus(Device, PortIndex);
@@ -2040,6 +2077,7 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
     UsbDevice->SpeedId = (U8)SpeedId;
     if (UsbDevice->SpeedId == 0) {
         WARNING(TEXT("[XHCI_ProbePort] Port %u invalid speed after reset"), PortIndex + 1);
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_INVALID_SPEED;
         return FALSE;
     }
 
@@ -2051,6 +2089,7 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
     if (UsbDevice->IsHub) {
         if (!XHCI_InitHub(Device, UsbDevice)) {
             ERROR(TEXT("[XHCI_ProbePort] Port %u hub init failed"), PortIndex + 1);
+            UsbDevice->LastEnumError = XHCI_ENUM_ERROR_HUB_INIT;
         }
     }
 
