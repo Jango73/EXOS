@@ -8,6 +8,15 @@ global LongModeEntry
 
 %define KERNEL_LOAD_ADDRESS 0x200000
 %define TRANSITION_STACK_TOP 0x0000A000
+%define MARK_BASE_X 8
+%define MARK_BASE_Y 8
+%define MARK_SIZE 8
+%define MARK_GAP 4
+%define MARK_STRIDE (MARK_SIZE + MARK_GAP)
+%define MARK_INDEX_PRE_CR3 5
+%define MARK_INDEX_CR3_PRETEST 6
+%define MARK_INDEX_POST_CR3 7
+%define MARK_INDEX_LONGMODE 8
 
 extern VbrLongModeCodeSelector
 extern VbrLongModeDataSelector
@@ -37,7 +46,7 @@ StubJumpToImage:
     mov     r14d, r8d
     mov     r15d, r9d
 
-    ; Framebuffer marker before CR3 switch (x=20,y=160).
+    ; Framebuffer marker before CR3 switch.
     mov         r9, qword [rel UefiStubFramebufferBase]
     test        r9, r9
     jz          .skip_fb_mark_pre_cr3
@@ -49,10 +58,10 @@ StubJumpToImage:
     jnz         .fb_bpp_ok_pre_cr3
     mov         ecx, 4
 .fb_bpp_ok_pre_cr3:
-    mov         eax, 160
+    mov         eax, MARK_BASE_Y
     imul        eax, edx
     add         r9, rax
-    mov         eax, 20
+    mov         eax, MARK_BASE_X + (MARK_STRIDE * MARK_INDEX_PRE_CR3)
     imul        eax, ecx
     add         r9, rax
 
@@ -68,10 +77,10 @@ StubJumpToImage:
     add         rbx, rax
     mov         dword [rbx], 0x00FF8000
     inc         rdi
-    cmp         rdi, 16
+    cmp         rdi, MARK_SIZE
     jl          .fb_col_pre_cr3
     inc         rsi
-    cmp         rsi, 16
+    cmp         rsi, MARK_SIZE
     jl          .fb_row_pre_cr3
 .skip_fb_mark_pre_cr3:
     mov         eax, dword [rel UefiStubTestOnly]
@@ -91,7 +100,7 @@ StubJumpToImage:
     mov         fs, ax
     mov         gs, ax
 
-    ; CR3 pre-test marker (x=20,y=200) before loading new CR3.
+    ; CR3 pre-test marker before loading new CR3.
     mov         r9, qword [rel UefiStubFramebufferBase]
     test        r9, r9
     jz          .skip_fb_mark_cr3_pret
@@ -103,10 +112,10 @@ StubJumpToImage:
     jnz         .fb_bpp_ok_cr3_pret
     mov         ecx, 4
 .fb_bpp_ok_cr3_pret:
-    mov         eax, 200
+    mov         eax, MARK_BASE_Y
     imul        eax, edx
     add         r9, rax
-    mov         eax, 20
+    mov         eax, MARK_BASE_X + (MARK_STRIDE * MARK_INDEX_CR3_PRETEST)
     imul        eax, ecx
     add         r9, rax
 
@@ -122,10 +131,10 @@ StubJumpToImage:
     add         rbx, rax
     mov         dword [rbx], 0x0000FFFF
     inc         rdi
-    cmp         rdi, 16
+    cmp         rdi, MARK_SIZE
     jl          .fb_col_cr3_pret
     inc         rsi
-    cmp         rsi, 16
+    cmp         rsi, MARK_SIZE
     jl          .fb_row_cr3_pret
 .skip_fb_mark_cr3_pret:
 
@@ -133,7 +142,7 @@ StubJumpToImage:
     mov         cr3, rax
     mov         rsp, TRANSITION_STACK_TOP
 
-    ; Framebuffer marker after CR3 switch (x=20,y=180).
+    ; Framebuffer marker after CR3 switch.
     mov         rax, r10
     test        rax, rax
     jz          .skip_fb_mark_cr3
@@ -153,10 +162,10 @@ StubJumpToImage:
     jnz         .fb_bpp_ok_cr3
     mov         ecx, 4
 .fb_bpp_ok_cr3:
-    mov         eax, 180
+    mov         eax, MARK_BASE_Y
     imul        eax, edx
     add         r9, rax
-    mov         eax, 20
+    mov         eax, MARK_BASE_X + (MARK_STRIDE * MARK_INDEX_POST_CR3)
     imul        eax, ecx
     add         r9, rax
 
@@ -172,10 +181,10 @@ StubJumpToImage:
     add         rbx, rax
     mov         dword [rbx], 0x00FFFF00
     inc         rdi
-    cmp         rdi, 16
+    cmp         rdi, MARK_SIZE
     jl          .fb_col_cr3
     inc         rsi
-    cmp         rsi, 16
+    cmp         rsi, MARK_SIZE
     jl          .fb_row_cr3
 .skip_fb_mark_cr3:
 
@@ -204,7 +213,7 @@ LongModeEntry:
     mov         rsp, KERNEL_LOAD_ADDRESS
     mov         rbp, rsp
 
-    ; Framebuffer marker to confirm LongModeEntry reached (x=40,y=80).
+    ; Framebuffer marker to confirm LongModeEntry reached.
     mov         rax, r12
     test        rax, rax
     jz          .skip_fb_mark
@@ -224,10 +233,10 @@ LongModeEntry:
     jnz         .fb_bpp_ok
     mov         ecx, 4
 .fb_bpp_ok:
-    mov         eax, 80
+    mov         eax, MARK_BASE_Y
     imul        eax, edx
     add         r9, rax
-    mov         eax, 40
+    mov         eax, MARK_BASE_X + (MARK_STRIDE * MARK_INDEX_LONGMODE)
     imul        eax, ecx
     add         r9, rax
 
@@ -243,10 +252,10 @@ LongModeEntry:
     add         rbx, rax
     mov         dword [rbx], 0x00FF00FF
     inc         rdi
-    cmp         rdi, 16
+    cmp         rdi, MARK_SIZE
     jl          .fb_col
     inc         rsi
-    cmp         rsi, 16
+    cmp         rsi, MARK_SIZE
     jl          .fb_row
 .skip_fb_mark:
 

@@ -140,6 +140,13 @@ static void PayloadFramebufferMark(U32 MultibootInfoPtr, U32 Step) {
         return;
     }
 
+    const U32 MarkerSize = 8u;
+    const U32 MarkerGap = 4u;
+    const U32 MarkerStride = MarkerSize + MarkerGap;
+    const U32 MarkerXBase = 8u;
+    const U32 MarkerYBase = 8u;
+    const U32 MarkerBaseIndex = 9u;
+
     if ((Info->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) == 0u) {
         return;
     }
@@ -160,36 +167,36 @@ static void PayloadFramebufferMark(U32 MultibootInfoPtr, U32 Step) {
     }
 
     U8* Base = (U8*)(UINT)FramebufferAddress;
-    U32 XBase = 0u;
-    U32 YBase = 80u;
+    U32 StepIndex = 0u;
+    if (Step > 0u) {
+        StepIndex = MarkerBaseIndex + (Step - 1u);
+    }
+
+    U32 XBase = MarkerXBase + (StepIndex * MarkerStride);
+    U32 YBase = MarkerYBase;
     U32 Packed = 0x00FFFFFFu;
 
     switch (Step) {
         case 1u:
             Packed = 0x00FFFFFFu;
-            YBase = 80u;
             break;
         case 2u:
             Packed = 0x0000FFFFu;
-            YBase = 100u;
             break;
         case 3u:
             Packed = 0x00FF00FFu;
-            YBase = 120u;
             break;
         case 4u:
             Packed = 0x0000FF00u;
-            YBase = 140u;
             break;
         default:
             Packed = 0x0000FF00u;
-            YBase = 140u;
             break;
     }
 
-    for (U32 Y = 0; Y < 16u; Y++) {
+    for (U32 Y = 0; Y < MarkerSize; Y++) {
         U8* Row = Base + ((YBase + Y) * Pitch);
-        for (U32 X = 0; X < 16u; X++) {
+        for (U32 X = 0; X < MarkerSize; X++) {
             U8* Pixel = Row + ((XBase + X) * BytesPerPixel);
             for (U32 Byte = 0; Byte < BytesPerPixel; Byte++) {
                 Pixel[Byte] = (U8)(Packed >> (Byte * 8u));

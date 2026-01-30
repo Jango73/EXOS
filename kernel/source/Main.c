@@ -80,9 +80,16 @@ static void KernelFramebufferMark(multiboot_info_t* MultibootInfo) {
         BytesPerPixel = 4u;
     }
 
+    const U32 MarkerSize = 8u;
+    const U32 MarkerGap = 4u;
+    const U32 MarkerStride = MarkerSize + MarkerGap;
+    const U32 MarkerXBase = 8u;
+    const U32 MarkerYBase = 8u;
+    const U32 MarkerIndex = 13u;
+
     U8* Base = (U8*)U64_ToUINT(FramebufferAddress);
-    const U32 XBase = 20u;
-    const U32 YBase = 80u;
+    const U32 XBase = MarkerXBase + (MarkerIndex * MarkerStride);
+    const U32 YBase = MarkerYBase;
     U32 Packed = 0u;
     U32 RedPosition = (U32)MultibootInfo->color_info[0];
     U32 RedMaskSize = (U32)MultibootInfo->color_info[1];
@@ -99,9 +106,9 @@ static void KernelFramebufferMark(multiboot_info_t* MultibootInfo) {
         Packed = 0x00FF0000u;
     }
 
-    for (U32 Y = 0; Y < 16u; Y++) {
+    for (U32 Y = 0; Y < MarkerSize; Y++) {
         U8* Row = Base + ((YBase + Y) * Pitch);
-        for (U32 X = 0; X < 16u; X++) {
+        for (U32 X = 0; X < MarkerSize; X++) {
             U8* Pixel = Row + ((XBase + X) * BytesPerPixel);
             for (U32 Byte = 0; Byte < BytesPerPixel; Byte++) {
                 Pixel[Byte] = (U8)(Packed >> (Byte * 8u));

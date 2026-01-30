@@ -992,6 +992,12 @@ static void BootUefiFramebufferMark(BOOT_FRAMEBUFFER_INFO* FramebufferInfo, U32 
         return;
     }
 
+    const U32 MarkerSize = 8u;
+    const U32 MarkerGap = 4u;
+    const U32 MarkerStride = MarkerSize + MarkerGap;
+    const U32 MarkerXBase = 8u;
+    const U32 MarkerYBase = 8u;
+
     U32 BytesPerPixel = FramebufferInfo->BitsPerPixel / 8u;
     if (BytesPerPixel == 0u) {
         BytesPerPixel = 4u;
@@ -1040,31 +1046,17 @@ static void BootUefiFramebufferMark(BOOT_FRAMEBUFFER_INFO* FramebufferInfo, U32 
         return;
     }
 
-    U32 XBase = 0u;
-    U32 YBase = 0u;
-    switch (Step) {
-        case 1u:
-            XBase = 0u;
-            YBase = 0u;
-            break;
-        case 2u:
-            XBase = 0u;
-            YBase = 20u;
-            break;
-        case 3u:
-            XBase = 0u;
-            YBase = 40u;
-            break;
-        default:
-            XBase = 0u;
-            YBase = 60u;
-            break;
+    U32 StepIndex = 0u;
+    if (Step > 0u) {
+        StepIndex = Step - 1u;
     }
 
-    const U32 Size = 16u;
-    for (U32 Y = 0; Y < Size; Y++) {
+    U32 XBase = MarkerXBase + (StepIndex * MarkerStride);
+    U32 YBase = MarkerYBase;
+
+    for (U32 Y = 0; Y < MarkerSize; Y++) {
         U8* Row = Base + ((YBase + Y) * Pitch);
-        for (U32 X = 0; X < Size; X++) {
+        for (U32 X = 0; X < MarkerSize; X++) {
             U8* Pixel = Row + ((XBase + X) * BytesPerPixel);
             for (U32 Byte = 0; Byte < BytesPerPixel; Byte++) {
                 Pixel[Byte] = (U8)(Packed >> (Byte * 8u));
