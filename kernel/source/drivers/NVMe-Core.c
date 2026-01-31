@@ -194,6 +194,7 @@ static LPPCI_DEVICE NVMeAttach(LPPCI_DEVICE PciDevice) {
     Device->Next = NULL;
     Device->Prev = NULL;
     Device->References = 1;
+    NVMeInitDiskDriver(Device);
     Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
     Device->MsixVector = 0;
     Device->MsixEnabled = FALSE;
@@ -311,7 +312,7 @@ static LPPCI_DEVICE NVMeAttach(LPPCI_DEVICE PciDevice) {
     if (!NVMeIdentifyController(Device)) {
         WARNING(TEXT("[NVMeAttach] Identify controller failed"));
     }
-    if (!NVMeIdentifyNamespace(Device, 1)) {
+    if (!NVMeIdentifyNamespace(Device, 1, NULL)) {
         WARNING(TEXT("[NVMeAttach] Identify namespace 1 failed"));
     }
     if (!NVMeSetNumberOfQueues(Device, 1)) {
@@ -329,6 +330,8 @@ static LPPCI_DEVICE NVMeAttach(LPPCI_DEVICE PciDevice) {
         } else {
             if (!NVMeReadTest(Device)) {
                 WARNING(TEXT("[NVMeAttach] Read test failed"));
+            } else if (!NVMeRegisterNamespaces(Device)) {
+                WARNING(TEXT("[NVMeAttach] Namespace registration failed"));
             }
         }
     }

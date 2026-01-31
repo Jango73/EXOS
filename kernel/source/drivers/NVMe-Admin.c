@@ -308,9 +308,10 @@ BOOL NVMeIdentifyController(LPNVME_DEVICE Device) {
  *
  * @param Device NVMe device.
  * @param NamespaceId Namespace identifier.
+ * @param NumSectorsOut Receives namespace size in sectors (optional).
  * @return TRUE on success, FALSE on failure.
  */
-BOOL NVMeIdentifyNamespace(LPNVME_DEVICE Device, U32 NamespaceId) {
+BOOL NVMeIdentifyNamespace(LPNVME_DEVICE Device, U32 NamespaceId, U64* NumSectorsOut) {
     if (Device == NULL || NamespaceId == 0) {
         return FALSE;
     }
@@ -376,15 +377,84 @@ BOOL NVMeIdentifyNamespace(LPNVME_DEVICE Device, U32 NamespaceId) {
 
     DEBUG(TEXT("[NVMeIdentifyNamespace] NSID=%u NSZE=%x%08x"),
           (U32)NamespaceId,
-#ifdef __EXOS_32__
-          (U32)Nsze.HI,
-          (U32)Nsze.LO
-#else
-          (U32)((Nsze >> 32) & 0xFFFFFFFF),
-          (U32)(Nsze & 0xFFFFFFFF)
-#endif
-    );
+          (U32)U64_High32(Nsze),
+          (U32)U64_Low32(Nsze));
 
+    if (NumSectorsOut != NULL) {
+        *NumSectorsOut = Nsze;
+    }
+
+    KernelHeapFree(Raw);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Identify active namespace list.
+ *
+ * @param Device NVMe device.
+ * @param NamespaceIds Output array of namespace IDs.
+ * @param MaxIds Capacity of NamespaceIds array.
+ * @param CountOut Receives number of IDs written.
+ * @return TRUE on success, FALSE on failure.
+ */
+BOOL NVMeIdentifyNamespaceList(LPNVME_DEVICE Device, U32* NamespaceIds, UINT MaxIds, UINT* CountOut) {
+    if (Device == NULL || NamespaceIds == NULL || CountOut == NULL || MaxIds == 0) {
+        return FALSE;
+    }
+
+    *CountOut = 0;
+
+    LPVOID Buffer = NULL;
+    LPVOID Raw = NULL;
+    if (!NVMeAllocateIdentifyBuffer(&Buffer, &Raw)) {
+        return FALSE;
+    }
+
+    PHYSICAL BufferPhys = MapLinearToPhysical((LINEAR)Buffer);
+    if (BufferPhys == 0 || (BufferPhys & (N_4KB - 1)) != 0) {
+        KernelHeapFree(Raw);
+        return FALSE;
+    }
+
+    NVME_COMMAND Command;
+    MemorySet(&Command, 0, sizeof(Command));
+    Command.Opcode = NVME_ADMIN_OP_IDENTIFY;
+    Command.CommandId = 6;
+    Command.NamespaceId = 0;
+    Command.Prp1Low = (U32)(BufferPhys & 0xFFFFFFFF);
+    Command.Prp1High = 0;
+#ifdef __EXOS_64__
+    Command.Prp1High = (U32)((BufferPhys >> 32) & 0xFFFFFFFF);
+#endif
+    Command.CommandDword10 = 2;
+
+    NVME_COMPLETION Completion;
+    if (!NVMeSubmitAdminCommand(Device, &Command, &Completion)) {
+        KernelHeapFree(Raw);
+        return FALSE;
+    }
+
+    U16 Status = (U16)(Completion.Status >> 1);
+    if (Status != 0) {
+        WARNING(TEXT("[NVMeIdentifyNamespaceList] Completion status %x"), (U32)Status);
+        KernelHeapFree(Raw);
+        return FALSE;
+    }
+
+    U32* Data = (U32*)Buffer;
+    UINT Count = 0;
+    for (UINT Index = 0; Index < MaxIds; Index++) {
+        U32 NamespaceId = Data[Index];
+        if (NamespaceId == 0) {
+            break;
+        }
+        NamespaceIds[Count] = NamespaceId;
+        Count++;
+    }
+
+    *CountOut = Count;
     KernelHeapFree(Raw);
     return TRUE;
 }

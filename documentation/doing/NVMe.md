@@ -47,11 +47,11 @@ Success: write a signature and verify by reading it back.
 
 ## Step 7 — Namespace Management
 Goal: support multiple namespaces.  
-- [ ] Enumerate all namespaces (Identify CNS=0x02).  
-- [ ] Expose each namespace as a DISK object (OBJECT_FIELDS, KOID_DISK).  
-- [ ] Implement DF_DISK_READ/WRITE/GETINFO/SETACCESS for the NVMe driver.  
-- [ ] Add each NVMe disk to `GetDiskList()` so filesystem mount can use it.  
-- [ ] Ensure the partition scan runs on NVMe disks so EXT2 can mount.  
+- [x] Enumerate all namespaces (Identify CNS=0x02).  
+- [x] Expose each namespace as a DISK object (OBJECT_FIELDS, KOID_DISK).  
+- [x] Implement DF_DISK_READ/WRITE/GETINFO/SETACCESS for the NVMe driver.  
+- [x] Add each NVMe disk to `GetDiskList()` so filesystem mount can use it.  
+- [x] Ensure the partition scan runs on NVMe disks so EXT2 can mount.  
 Success: shell command `hd` lists all NVMe namespaces with capacities and the filesystem mount sees the EXT2 partition.
 
 ## Step 8 — Error Handling & Reset

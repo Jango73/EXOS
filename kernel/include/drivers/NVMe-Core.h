@@ -27,6 +27,7 @@
 /************************************************************************/
 
 #include "Base.h"
+#include "Driver.h"
 #include "drivers/PCI.h"
 
 /************************************************************************/
@@ -135,6 +136,7 @@ typedef struct tag_NVME_DEVICE {
     U8 IoCqPhase;
     U16 IoQueueId;
     U16 IoCommandId;
+    DRIVER DiskDriver;
 } NVME_DEVICE, *LPNVME_DEVICE;
 
 /************************************************************************/

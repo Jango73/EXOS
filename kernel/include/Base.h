@@ -465,6 +465,7 @@ extern void ConsolePrint(LPCSTR Format, ...);
 #define MAX_USER_NAME 128
 #define MAX_NAME 128
 #define MAX_PASSWORD 64
+#define MAX_COMMAND_NAME 64
 
 /************************************************************************/
 // Common color values

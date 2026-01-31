@@ -128,6 +128,7 @@ MASTER_ELF      = $(BUILD_DIR)/system/test/master/master
 SLAVE_ELF       = $(BUILD_DIR)/system/test/slave/slave
 EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/ext2-root
 USB3_STAGING_DIR= $(BUILD_DIR)/boot-hd/usb-3-root
+NVME_STAGING_DIR= $(BUILD_DIR)/boot-hd/nvme-root
 EXT2_LABEL      ?= exos
 CONFIG_TOML_NAME ?= exos.toml
 
@@ -338,9 +339,14 @@ $(FINAL_IMG): $(FINAL_IMG_DEPS)
 	@mkdir -p $(dir $@)
 	$(call $(CREATE_IMAGE_MACRO),$@)
 
-$(NVME_IMG): check_tools
+$(NVME_IMG): check_tools $(HELLO_ELF)
 	@mkdir -p $(dir $@)
 	$(call CREATE_EXT2_IMAGE_SIZE,$@,$(NVME_IMG_SIZE_MB))
+	@echo "Preparing NVMe staging directory at $(NVME_STAGING_DIR)"
+	@rm -rf $(NVME_STAGING_DIR)
+	@mkdir -p $(NVME_STAGING_DIR)
+	@cp $(HELLO_ELF) $(NVME_STAGING_DIR)/hello
+	$(call POPULATE_EXT2_IMAGE,$(NVME_IMG),$(NVME_STAGING_DIR))
 
 ifeq ($(TEST_PAYLOAD),1)
 $(USB3_IMG): check_tools

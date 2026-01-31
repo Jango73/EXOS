@@ -182,9 +182,9 @@ static BOOL SpawnExecutable(LPSHELLCONTEXT, LPCSTR, BOOL);
 // The shell command table
 
 static struct {
-    STR Name[32];
-    STR AltName[32];
-    STR Usage[32];
+    STR Name[MAX_COMMAND_NAME];
+    STR AltName[MAX_COMMAND_NAME];
+    STR Usage[MAX_COMMAND_NAME];
     SHELLCOMMAND Command;
 } COMMANDS[] = {
     {"commands", "help", "", CMD_commands},
@@ -222,7 +222,7 @@ static struct {
     {"whoami", "who", "", CMD_whoami},
     {"passwd", "setpassword", "", CMD_passwd},
     {"prof", "profiling", "", CMD_prof},
-    {"usb", "usb", "ports|devices|device-tree|drives|probe", CMD_usb},
+    {"usb", "usb", "ports|devices|tree|drives|probe", CMD_usb},
     {"nvme", "nvme", "list", CMD_nvme},
     {"data", "dataview", "", CMD_dataview},
     {"", "", "", NULL},

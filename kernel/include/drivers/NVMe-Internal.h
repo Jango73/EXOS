@@ -27,6 +27,7 @@
 /************************************************************************/
 
 #include "drivers/NVMe-Core.h"
+#include "Disk.h"
 #include "Driver.h"
 #include "Kernel.h"
 #include "Log.h"
@@ -50,23 +51,39 @@
 #define NVME_IDENTIFY_TIMEOUT_LOOPS 1000000
 
 /************************************************************************/
+// Type definitions
+
+typedef struct tag_NVME_DISK {
+    PHYSICALDISK Header;
+    LPNVME_DEVICE Controller;
+    U32 NamespaceId;
+    U64 NumSectors;
+    U32 Access;
+} NVME_DISK, *LPNVME_DISK;
+
+/************************************************************************/
 // External functions
 
 BOOL NVMeSetupAdminQueues(LPNVME_DEVICE Device);
 void NVMeFreeAdminQueues(LPNVME_DEVICE Device);
 BOOL NVMeSubmitAdminCommand(LPNVME_DEVICE Device, const NVME_COMMAND* Command, NVME_COMPLETION* CompletionOut);
 BOOL NVMeIdentifyController(LPNVME_DEVICE Device);
-BOOL NVMeIdentifyNamespace(LPNVME_DEVICE Device, U32 NamespaceId);
+BOOL NVMeIdentifyNamespace(LPNVME_DEVICE Device, U32 NamespaceId, U64* NumSectorsOut);
+BOOL NVMeIdentifyNamespaceList(LPNVME_DEVICE Device, U32* NamespaceIds, UINT MaxIds, UINT* CountOut);
 BOOL NVMeSetNumberOfQueues(LPNVME_DEVICE Device, U16 QueueCount);
 
 BOOL NVMeSetupInterrupts(LPNVME_DEVICE Device);
 BOOL NVMeCreateIoQueues(LPNVME_DEVICE Device);
 BOOL NVMeSubmitIoNoop(LPNVME_DEVICE Device);
-BOOL NVMeReadSectors(LPNVME_DEVICE Device, U64 Lba, U32 SectorCount, LPVOID Buffer, U32 BufferBytes);
+BOOL NVMeReadSectors(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 SectorCount, LPVOID Buffer,
+                     U32 BufferBytes);
 BOOL NVMeReadTest(LPNVME_DEVICE Device);
 void NVMeFreeIoQueues(LPNVME_DEVICE Device);
 
 volatile U32* NVMeGetDoorbellBase(LPNVME_DEVICE Device);
+
+void NVMeInitDiskDriver(LPNVME_DEVICE Device);
+BOOL NVMeRegisterNamespaces(LPNVME_DEVICE Device);
 
 /************************************************************************/
 

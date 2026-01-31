@@ -463,13 +463,15 @@ BOOL NVMeSubmitIoNoop(LPNVME_DEVICE Device) {
  * @brief Read sectors using the I/O queue.
  *
  * @param Device NVMe device.
+ * @param NamespaceId Namespace identifier.
  * @param Lba Starting logical block address.
  * @param SectorCount Number of sectors to read.
  * @param Buffer Destination buffer (4 KiB aligned).
  * @param BufferBytes Buffer size in bytes.
  * @return TRUE on success, FALSE on failure.
  */
-BOOL NVMeReadSectors(LPNVME_DEVICE Device, U64 Lba, U32 SectorCount, LPVOID Buffer, U32 BufferBytes) {
+BOOL NVMeReadSectors(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 SectorCount, LPVOID Buffer,
+                     U32 BufferBytes) {
     if (Device == NULL || Device->IoSq == NULL || Device->IoCq == NULL) {
         return FALSE;
     }
@@ -517,7 +519,7 @@ BOOL NVMeReadSectors(LPNVME_DEVICE Device, U64 Lba, U32 SectorCount, LPVOID Buff
     NVME_COMMAND Command;
     MemorySet(&Command, 0, sizeof(Command));
     Command.Opcode = NVME_IO_OP_READ;
-    Command.NamespaceId = 1;
+    Command.NamespaceId = NamespaceId;
     Command.Prp1Low = (U32)(BasePhys & 0xFFFFFFFF);
     Command.Prp1High = 0;
 #ifdef __EXOS_64__
@@ -587,7 +589,7 @@ BOOL NVMeReadTest(LPNVME_DEVICE Device) {
     LPVOID Buffer = (LPVOID)AlignedBase;
     MemorySet(Buffer, 0, TransferBytes);
 
-    BOOL Result = NVMeReadSectors(Device, U64_FromU32(0), 1, Buffer, TransferBytes);
+    BOOL Result = NVMeReadSectors(Device, 1, U64_FromU32(0), 1, Buffer, TransferBytes);
     if (Result) {
         U8* Data = (U8*)Buffer;
         U32 SigLow = (U32)Data[SECTOR_SIZE - 2];
