@@ -26,6 +26,7 @@
 #include "Clock.h"
 #include "Console.h"
 #include "drivers/Keyboard.h"
+#include "drivers/NVMe-Core.h"
 #include "drivers/XHCI.h"
 #include "drivers/USBMassStorage.h"
 #include "DriverEnum.h"
@@ -154,6 +155,7 @@ static U32 CMD_whoami(LPSHELLCONTEXT);
 static U32 CMD_passwd(LPSHELLCONTEXT);
 static U32 CMD_prof(LPSHELLCONTEXT);
 static U32 CMD_usb(LPSHELLCONTEXT);
+static U32 CMD_nvme(LPSHELLCONTEXT);
 static U32 CMD_dataview(LPSHELLCONTEXT);
 
 void SystemDataViewMode(void);
@@ -221,6 +223,7 @@ static struct {
     {"passwd", "setpassword", "", CMD_passwd},
     {"prof", "profiling", "", CMD_prof},
     {"usb", "usb", "ports|devices|device-tree|drives|probe", CMD_usb},
+    {"nvme", "nvme", "list", CMD_nvme},
     {"data", "dataview", "", CMD_dataview},
     {"", "", "", NULL},
 };
@@ -1954,6 +1957,84 @@ static U32 CMD_usb(LPSHELLCONTEXT Context) {
     } else if (!Printed && Query.Domain == ENUM_DOMAIN_USB_NODE) {
         ConsolePrint(TEXT("No USB device tree detected\n"));
     }
+    return DF_RETURN_SUCCESS;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief NVMe control command (device list).
+ * @param Context Shell context.
+ * @return DF_RETURN_SUCCESS on completion.
+ */
+static U32 CMD_nvme(LPSHELLCONTEXT Context) {
+    ParseNextCommandLineComponent(Context);
+
+    if (StringLength(Context->Command) == 0 ||
+        StringCompareNC(Context->Command, TEXT("list")) != 0) {
+        ConsolePrint(TEXT("Usage: nvme list\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    DRIVER_ENUM_QUERY Query;
+    MemorySet(&Query, 0, sizeof(Query));
+    Query.Header.Size = sizeof(Query);
+    Query.Header.Version = EXOS_ABI_VERSION;
+    Query.Domain = ENUM_DOMAIN_PCI_DEVICE;
+    Query.Flags = 0;
+
+    UINT ProviderIndex = 0;
+    BOOL Found = FALSE;
+    BOOL Printed = FALSE;
+    DRIVER_ENUM_PROVIDER Provider = NULL;
+    UINT Index = 0;
+
+    while (KernelEnumGetProvider(&Query, ProviderIndex, &Provider) == DF_RETURN_SUCCESS) {
+        DRIVER_ENUM_ITEM Item;
+
+        Found = TRUE;
+        Query.Index = 0;
+
+        MemorySet(&Item, 0, sizeof(Item));
+        Item.Header.Size = sizeof(Item);
+        Item.Header.Version = EXOS_ABI_VERSION;
+
+        while (KernelEnumNext(Provider, &Query, &Item) == DF_RETURN_SUCCESS) {
+            if (Item.DataSize < sizeof(DRIVER_ENUM_PCI_DEVICE)) {
+                break;
+            }
+
+            const DRIVER_ENUM_PCI_DEVICE* Data = (const DRIVER_ENUM_PCI_DEVICE*)Item.Data;
+            if (Data->BaseClass != NVME_PCI_CLASS ||
+                Data->SubClass != NVME_PCI_SUBCLASS ||
+                Data->ProgIF != NVME_PCI_PROG_IF) {
+                continue;
+            }
+
+            ConsolePrint(TEXT("nvme%u: bus=%x device=%x function=%x vendor_identifier=%x device_identifier=%x revision=%x\n"),
+                         Index,
+                         (U32)Data->Bus,
+                         (U32)Data->Dev,
+                         (U32)Data->Func,
+                         (U32)Data->VendorID,
+                         (U32)Data->DeviceID,
+                         (U32)Data->Revision);
+            Index++;
+            Printed = TRUE;
+        }
+
+        ProviderIndex++;
+    }
+
+    if (!Found) {
+        ConsolePrint(TEXT("No PCI device provider detected\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (!Printed) {
+        ConsolePrint(TEXT("No NVMe device detected\n"));
+    }
+
     return DF_RETURN_SUCCESS;
 }
 

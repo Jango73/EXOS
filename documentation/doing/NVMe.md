@@ -12,20 +12,20 @@ Goal: confirm NVMe presence and read capabilities.
 - [x] Scan PCI config, find class 0x0108.  
 - [x] Map BAR0, read CAP, VS, CC, CSTS, AQA, ASQ, ACQ.  
 - [ ] Record version and queue entry size limits.  
-Success: `nvmectl info` prints controller version and max queue depth.
+Success: kernel log shows controller version and max queue depth.
 
 ## Step 2 — Admin Queue Setup
 Goal: enable the controller and exchange admin commands.  
 - [x] Allocate ASQ/ACQ in DMA memory and program AQA/ASQ/ACQ.  
 - [x] Set CC.EN = 1, wait for CSTS.RDY = 1.  
-Success: `nvmectl ready` reports controller is up.
+Success: kernel log confirms the controller is ready.
 
 ## Step 3 — Identify Controller & Namespace
 Goal: retrieve identity and basic namespace info.  
 - [x] Identify Controller (Admin 0x06) → serial, model, firmware.  
 - [x] Identify Namespace (Admin 0x06, CNS=0x00, NSID=1).  
 - [ ] Parse LBA formats (size, metadata).  
-Success: `nvmectl list` shows NSID=1 with capacity in sectors.
+Success: kernel log shows NSID=1 with capacity in sectors.
 
 ## Step 4 — Create I/O Queues
 Goal: operational I/O submission/completion queues.  
@@ -37,7 +37,7 @@ Success: dummy no-op commands complete on the I/O CQ.
 Goal: implement the read path.  
 - [x] Build PRP (1–2 pages) for destination buffer.  
 - [x] Submit Read (0x02) to I/O SQ and wait for completion.  
-Success: `dd if=/dev/nvme0n1 count=1` returns the MBR bytes.
+Success: kernel log shows the MBR signature read from LBA0.
 
 ## Step 6 — Write Sectors
 Goal: implement the write path.  
@@ -48,8 +48,11 @@ Success: write a signature and verify by reading it back.
 ## Step 7 — Namespace Management
 Goal: support multiple namespaces.  
 - [ ] Enumerate all namespaces (Identify CNS=0x02).  
-- [ ] Expose `/dev/nvme0n1`, `/dev/nvme0n2`, … nodes.  
-Success: `nvmectl list` shows all namespaces with capacities.
+- [ ] Expose each namespace as a DISK object (OBJECT_FIELDS, KOID_DISK).  
+- [ ] Implement DF_DISK_READ/WRITE/GETINFO/SETACCESS for the NVMe driver.  
+- [ ] Add each NVMe disk to `GetDiskList()` so filesystem mount can use it.  
+- [ ] Ensure the partition scan runs on NVMe disks so EXT2 can mount.  
+Success: shell command `hd` lists all NVMe namespaces with capacities and the filesystem mount sees the EXT2 partition.
 
 ## Step 8 — Error Handling & Reset
 Goal: robust recovery.  
@@ -70,7 +73,7 @@ Goal: useful admin features.
 - [ ] Get/Set Features: number of queues, write cache, arbitration.  
 - [ ] SMART/Health Log: temperature, media errors, endurance stats.  
 - [ ] Dataset Management/TRIM (0x09).  
-Success: `nvmectl smart` prints key health metrics.
+Success: kernel log or shell output shows key health metrics.
 
 ## Step Decoupling (each step runs without the next)
 - 1–3: read-only discovery, safe to ship.  
@@ -119,17 +122,7 @@ Goal: integrate NVMe cleanly with existing EXOS driver and disk layers.
 
 ### System Data View and shell
 - Add a System Data View page for NVMe controllers (optional but useful for bare metal).
-- Add a shell command `nvme` with subcommands `info`, `list`, `smart` as the driver matures.
+- Add a shell command `nvme` with `list` first, then extend with `info` and `smart` as the driver matures.
 
 ### Tests and validation
-- QEMU NVMe device for initial bring-up.
 - On bare metal, validate PCI detection first, then admin queue readiness.
-
-## QEMU Test Hints
-- Single NVMe device:
-```bash
-qemu-system-x86_64 \
-  -drive file=disk.img,if=none,id=nvme0 \
-  -device nvme,drive=nvme0,serial=deadbeef
-```
-- Multiple namespaces: add additional `nvme-ns` devices bound to the same controller.
