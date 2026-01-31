@@ -1282,7 +1282,7 @@ static U32 USBMassStorageGetInfo(LPDISKINFO Info) {
 
     Info->Type = DRIVER_TYPE_STORAGE;
     Info->Removable = 1;
-    Info->NumSectors = (U32)Device->BlockCount;
+    Info->NumSectors = U64_FromUINT(Device->BlockCount);
     Info->Access = Device->Access;
 
     return DF_RETURN_SUCCESS;
