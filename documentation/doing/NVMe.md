@@ -22,8 +22,8 @@ Success: `nvmectl ready` reports controller is up.
 
 ## Step 3 — Identify Controller & Namespace
 Goal: retrieve identity and basic namespace info.  
-- [ ] Identify Controller (Admin 0x06) → serial, model, firmware.  
-- [ ] Identify Namespace (Admin 0x06, CNS=0x00, NSID=1).  
+- [x] Identify Controller (Admin 0x06) → serial, model, firmware.  
+- [x] Identify Namespace (Admin 0x06, CNS=0x00, NSID=1).  
 - [ ] Parse LBA formats (size, metadata).  
 Success: `nvmectl list` shows NSID=1 with capacity in sectors.
 

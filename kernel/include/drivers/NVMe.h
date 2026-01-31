@@ -46,8 +46,47 @@
 #define NVME_REG_ASQ 0x28
 #define NVME_REG_ACQ 0x30
 
+#define NVME_CC_EN 0x1u
+#define NVME_CC_CSS_SHIFT 4u
+#define NVME_CC_MPS_SHIFT 7u
+#define NVME_CC_AMS_SHIFT 11u
+#define NVME_CC_SHN_SHIFT 14u
+#define NVME_CC_IOSQES_SHIFT 16u
+#define NVME_CC_IOCQES_SHIFT 20u
+
+#define NVME_ADMIN_OP_IDENTIFY 0x06
+
 /************************************************************************/
 // Type definitions
+
+typedef struct PACKED tag_NVME_COMMAND {
+    U8 Opcode;
+    U8 Flags;
+    U16 CommandId;
+    U32 NamespaceId;
+    U32 Reserved0[2];
+    U32 MetadataPointerLow;
+    U32 MetadataPointerHigh;
+    U32 Prp1Low;
+    U32 Prp1High;
+    U32 Prp2Low;
+    U32 Prp2High;
+    U32 CommandDword10;
+    U32 CommandDword11;
+    U32 CommandDword12;
+    U32 CommandDword13;
+    U32 CommandDword14;
+    U32 CommandDword15;
+} NVME_COMMAND, *LPNVME_COMMAND;
+
+typedef struct PACKED tag_NVME_COMPLETION {
+    U32 Result;
+    U32 Reserved;
+    U16 SubmissionQueueHead;
+    U16 SubmissionQueueId;
+    U16 CommandId;
+    U16 Status;
+} NVME_COMPLETION, *LPNVME_COMPLETION;
 
 typedef struct tag_NVME_DEVICE {
     PCI_DEVICE_FIELDS
@@ -63,6 +102,10 @@ typedef struct tag_NVME_DEVICE {
     U32 AdminCqEntries;
     U8* AdminSq;
     U8* AdminCq;
+    UINT AdminSqTail;
+    UINT AdminCqHead;
+    U8 AdminCqPhase;
+    U32 DoorbellStride;
 } NVME_DEVICE, *LPNVME_DEVICE;
 
 /************************************************************************/

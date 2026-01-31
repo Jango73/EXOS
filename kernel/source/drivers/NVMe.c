@@ -39,6 +39,7 @@
 #define NVME_ADMIN_CQ_ENTRY_SIZE 16u
 #define NVME_ADMIN_QUEUE_ALIGNMENT N_4KB
 #define NVME_READY_TIMEOUT_LOOPS 1000000u
+#define NVME_IDENTIFY_TIMEOUT_LOOPS 1000000u
 
 /************************************************************************/
 // Forward declarations
@@ -50,6 +51,8 @@ static BOOL NVMeGetBar0Physical(LPPCI_DEVICE Device, PHYSICAL* BaseOut, U32* Siz
 static BOOL NVMeWaitForReady(LPNVME_DEVICE Device, BOOL Ready);
 static BOOL NVMeSetupAdminQueues(LPNVME_DEVICE Device);
 static void NVMeFreeAdminQueues(LPNVME_DEVICE Device);
+static BOOL NVMeIdentifyController(LPNVME_DEVICE Device);
+static BOOL NVMeIdentifyNamespace(LPNVME_DEVICE Device, U32 NamespaceId);
 
 /************************************************************************/
 // PCI match table and driver
@@ -261,7 +264,309 @@ static BOOL NVMeSetupAdminQueues(LPNVME_DEVICE Device) {
     Device->AdminQueuePhysical = BasePhys;
     Device->AdminSq = (U8*)Device->AdminQueueBase;
     Device->AdminCq = (U8*)(Device->AdminQueueBase + AdminSqSize);
+    Device->AdminSqTail = 0;
+    Device->AdminCqHead = 0;
+    Device->AdminCqPhase = 1u;
 
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Compute doorbell register base for SQ0/CQ0.
+ *
+ * @param Device NVMe device.
+ * @return Pointer to doorbell base.
+ */
+static volatile U32* NVMeGetDoorbellBase(LPNVME_DEVICE Device) {
+    if (Device == NULL || Device->MmioBase == 0) {
+        return NULL;
+    }
+
+    return (volatile U32*)((U8*)Device->MmioBase + 0x1000);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Submit an admin command and wait for completion.
+ *
+ * @param Device NVMe device.
+ * @param Command Command to submit.
+ * @param CompletionOut Completion entry output (optional).
+ * @return TRUE on success, FALSE on failure.
+ */
+static BOOL NVMeSubmitAdminCommand(LPNVME_DEVICE Device, const NVME_COMMAND* Command, NVME_COMPLETION* CompletionOut) {
+    if (Device == NULL || Command == NULL || Device->AdminSq == NULL || Device->AdminCq == NULL) {
+        return FALSE;
+    }
+
+    UINT Tail = Device->AdminSqTail;
+    LPNVME_COMMAND Sq = (LPNVME_COMMAND)Device->AdminSq;
+    LPNVME_COMPLETION Cq = (LPNVME_COMPLETION)Device->AdminCq;
+
+    MemoryCopy(&Sq[Tail], Command, sizeof(NVME_COMMAND));
+    Device->AdminSqTail = (Tail + 1u) % Device->AdminSqEntries;
+
+    volatile U32* Doorbell = NVMeGetDoorbellBase(Device);
+    if (Doorbell == NULL) {
+        return FALSE;
+    }
+
+    UINT DbStride = (UINT)(Device->DoorbellStride / 4u);
+    Doorbell[0] = (U32)Device->AdminSqTail;
+
+    UINT Head = Device->AdminCqHead;
+    U8 Phase = Device->AdminCqPhase;
+
+    for (UINT Loop = 0; Loop < NVME_IDENTIFY_TIMEOUT_LOOPS; Loop++) {
+        LPNVME_COMPLETION Entry = &Cq[Head];
+        U16 Status = Entry->Status;
+        U8 EntryPhase = (U8)(Status & 0x1u);
+        if (EntryPhase == Phase) {
+            if (CompletionOut != NULL) {
+                *CompletionOut = *Entry;
+            }
+
+            Head++;
+            if (Head >= Device->AdminCqEntries) {
+                Head = 0;
+                Phase ^= 1u;
+            }
+
+            Device->AdminCqHead = Head;
+            Device->AdminCqPhase = Phase;
+            Doorbell[DbStride] = (U32)Head;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Prepare an aligned buffer for identify data.
+ *
+ * @param BufferOut Receives aligned buffer pointer.
+ * @param RawOut Receives raw allocation pointer.
+ * @return TRUE on success, FALSE on failure.
+ */
+static BOOL NVMeAllocateIdentifyBuffer(LPVOID* BufferOut, LPVOID* RawOut) {
+    if (BufferOut == NULL || RawOut == NULL) {
+        return FALSE;
+    }
+
+    *BufferOut = NULL;
+    *RawOut = NULL;
+
+    UINT RawSize = N_4KB + N_4KB;
+    LPVOID Raw = KernelHeapAlloc(RawSize);
+    if (Raw == NULL) {
+        return FALSE;
+    }
+
+    LINEAR RawBase = (LINEAR)Raw;
+    LINEAR AlignedBase = (LINEAR)((RawBase + (N_4KB - 1u)) & ~(N_4KB - 1u));
+    *BufferOut = (LPVOID)AlignedBase;
+    *RawOut = Raw;
+    MemorySet((LPVOID)AlignedBase, 0, N_4KB);
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Trim trailing spaces from a fixed-size string.
+ *
+ * @param Text Buffer to trim.
+ * @param MaxLength Buffer length.
+ */
+static void NVMeTrimString(STR* Text, UINT MaxLength) {
+    if (Text == NULL || MaxLength == 0) {
+        return;
+    }
+
+    INT Index = (INT)MaxLength - 1;
+    while (Index >= 0) {
+        if (Text[Index] != ' ') {
+            Text[Index + 1] = STR_NULL;
+            return;
+        }
+        Index--;
+    }
+    Text[0] = STR_NULL;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Identify the NVMe controller.
+ *
+ * @param Device NVMe device.
+ * @return TRUE on success, FALSE on failure.
+ */
+static BOOL NVMeIdentifyController(LPNVME_DEVICE Device) {
+    if (Device == NULL) {
+        return FALSE;
+    }
+
+    LPVOID Buffer = NULL;
+    LPVOID Raw = NULL;
+    if (!NVMeAllocateIdentifyBuffer(&Buffer, &Raw)) {
+        return FALSE;
+    }
+
+    PHYSICAL BufferPhys = MapLinearToPhysical((LINEAR)Buffer);
+    if (BufferPhys == 0 || (BufferPhys & (N_4KB - 1u)) != 0) {
+        KernelHeapFree(Raw);
+        return FALSE;
+    }
+
+    NVME_COMMAND Command;
+    MemorySet(&Command, 0, sizeof(Command));
+    Command.Opcode = NVME_ADMIN_OP_IDENTIFY;
+    Command.CommandId = 1u;
+    Command.NamespaceId = 0u;
+    Command.Prp1Low = (U32)(BufferPhys & 0xFFFFFFFFu);
+    Command.Prp1High = 0u;
+#ifdef __EXOS_64__
+    Command.Prp1High = (U32)((BufferPhys >> 32) & 0xFFFFFFFFu);
+#endif
+    Command.CommandDword10 = 1u;
+
+    NVME_COMPLETION Completion;
+    if (!NVMeSubmitAdminCommand(Device, &Command, &Completion)) {
+        KernelHeapFree(Raw);
+        return FALSE;
+    }
+
+    U16 Status = (U16)(Completion.Status >> 1);
+    if (Status != 0u) {
+        WARNING(TEXT("[NVMeIdentifyController] Completion status %x"), (U32)Status);
+        KernelHeapFree(Raw);
+        return FALSE;
+    }
+
+    U8* Data = (U8*)Buffer;
+    STR Serial[21];
+    STR Model[41];
+    STR Firmware[9];
+
+    for (UINT Index = 0; Index < 20; Index++) {
+        Serial[Index] = (STR)Data[4 + Index];
+    }
+    Serial[20] = STR_NULL;
+    for (UINT Index = 0; Index < 40; Index++) {
+        Model[Index] = (STR)Data[24 + Index];
+    }
+    Model[40] = STR_NULL;
+    for (UINT Index = 0; Index < 8; Index++) {
+        Firmware[Index] = (STR)Data[64 + Index];
+    }
+    Firmware[8] = STR_NULL;
+
+    NVMeTrimString(Serial, 20);
+    NVMeTrimString(Model, 40);
+    NVMeTrimString(Firmware, 8);
+
+    DEBUG(TEXT("[NVMeIdentifyController] Serial=%s Model=%s Firmware=%s"),
+          Serial,
+          Model,
+          Firmware);
+
+    KernelHeapFree(Raw);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Identify a namespace.
+ *
+ * @param Device NVMe device.
+ * @param NamespaceId Namespace identifier.
+ * @return TRUE on success, FALSE on failure.
+ */
+static BOOL NVMeIdentifyNamespace(LPNVME_DEVICE Device, U32 NamespaceId) {
+    if (Device == NULL || NamespaceId == 0u) {
+        return FALSE;
+    }
+
+    LPVOID Buffer = NULL;
+    LPVOID Raw = NULL;
+    if (!NVMeAllocateIdentifyBuffer(&Buffer, &Raw)) {
+        return FALSE;
+    }
+
+    PHYSICAL BufferPhys = MapLinearToPhysical((LINEAR)Buffer);
+    if (BufferPhys == 0 || (BufferPhys & (N_4KB - 1u)) != 0) {
+        KernelHeapFree(Raw);
+        return FALSE;
+    }
+
+    NVME_COMMAND Command;
+    MemorySet(&Command, 0, sizeof(Command));
+    Command.Opcode = NVME_ADMIN_OP_IDENTIFY;
+    Command.CommandId = 2u;
+    Command.NamespaceId = NamespaceId;
+    Command.Prp1Low = (U32)(BufferPhys & 0xFFFFFFFFu);
+    Command.Prp1High = 0u;
+#ifdef __EXOS_64__
+    Command.Prp1High = (U32)((BufferPhys >> 32) & 0xFFFFFFFFu);
+#endif
+    Command.CommandDword10 = 0u;
+
+    NVME_COMPLETION Completion;
+    if (!NVMeSubmitAdminCommand(Device, &Command, &Completion)) {
+        KernelHeapFree(Raw);
+        return FALSE;
+    }
+
+    U16 Status = (U16)(Completion.Status >> 1);
+    if (Status != 0u) {
+        WARNING(TEXT("[NVMeIdentifyNamespace] Completion status %x"), (U32)Status);
+        KernelHeapFree(Raw);
+        return FALSE;
+    }
+
+    U8* Data = (U8*)Buffer;
+    U64 Nsze;
+#ifdef __EXOS_32__
+    Nsze.LO = (U32)Data[0] |
+              ((U32)Data[1] << 8) |
+              ((U32)Data[2] << 16) |
+              ((U32)Data[3] << 24);
+    Nsze.HI = (U32)Data[4] |
+              ((U32)Data[5] << 8) |
+              ((U32)Data[6] << 16) |
+              ((U32)Data[7] << 24);
+#else
+    Nsze = (U64)Data[0] |
+           ((U64)Data[1] << 8) |
+           ((U64)Data[2] << 16) |
+           ((U64)Data[3] << 24) |
+           ((U64)Data[4] << 32) |
+           ((U64)Data[5] << 40) |
+           ((U64)Data[6] << 48) |
+           ((U64)Data[7] << 56);
+#endif
+
+    DEBUG(TEXT("[NVMeIdentifyNamespace] NSID=%u NSZE=%x%08x"),
+          (U32)NamespaceId,
+#ifdef __EXOS_32__
+          (U32)Nsze.HI,
+          (U32)Nsze.LO
+#else
+          (U32)((Nsze >> 32) & 0xFFFFFFFFu),
+          (U32)(Nsze & 0xFFFFFFFFu)
+#endif
+    );
+
+    KernelHeapFree(Raw);
     return TRUE;
 }
 
@@ -311,6 +616,7 @@ static LPPCI_DEVICE NVMeAttach(LPPCI_DEVICE PciDevice) {
     volatile U32* Regs = (volatile U32*)Device->MmioBase;
     U32 CapLow = Regs[NVME_REG_CAP / 4];
     U32 CapHigh = Regs[(NVME_REG_CAP / 4) + 1];
+    U32 Dstrd = CapHigh & 0xFu;
     U32 Version = Regs[NVME_REG_VS / 4];
     U32 Cc = Regs[NVME_REG_CC / 4];
     U32 Csts = Regs[NVME_REG_CSTS / 4];
@@ -335,6 +641,8 @@ static LPPCI_DEVICE NVMeAttach(LPPCI_DEVICE PciDevice) {
           AcqLow,
           AcqHigh);
 
+    Device->DoorbellStride = (U32)(4u << Dstrd);
+
     if (!NVMeSetupAdminQueues(Device)) {
         ERROR(TEXT("[NVMeAttach] Failed to allocate admin queues"));
         UnMapIOMemory(Device->MmioBase, Device->MmioSize);
@@ -343,8 +651,8 @@ static LPPCI_DEVICE NVMeAttach(LPPCI_DEVICE PciDevice) {
     }
 
     U32 CcValue = Regs[NVME_REG_CC / 4];
-    if ((CcValue & 0x1u) != 0u) {
-        Regs[NVME_REG_CC / 4] = (CcValue & ~0x1u);
+    if ((CcValue & NVME_CC_EN) != 0u) {
+        Regs[NVME_REG_CC / 4] = (CcValue & ~NVME_CC_EN);
         if (!NVMeWaitForReady(Device, FALSE)) {
             ERROR(TEXT("[NVMeAttach] Controller did not stop"));
             NVMeFreeAdminQueues(Device);
@@ -354,7 +662,12 @@ static LPPCI_DEVICE NVMeAttach(LPPCI_DEVICE PciDevice) {
         }
     }
 
-    CcValue = Regs[NVME_REG_CC / 4];
+    CcValue = (0u << NVME_CC_CSS_SHIFT) |
+              (0u << NVME_CC_MPS_SHIFT) |
+              (0u << NVME_CC_AMS_SHIFT) |
+              (0u << NVME_CC_SHN_SHIFT) |
+              (6u << NVME_CC_IOSQES_SHIFT) |
+              (4u << NVME_CC_IOCQES_SHIFT);
     U32 AqaValue = ((Device->AdminCqEntries - 1u) << 16) | (Device->AdminSqEntries - 1u);
     Regs[NVME_REG_AQA / 4] = AqaValue;
 
@@ -375,7 +688,8 @@ static LPPCI_DEVICE NVMeAttach(LPPCI_DEVICE PciDevice) {
     Regs[NVME_REG_ACQ / 4] = AcqLowNew;
     Regs[(NVME_REG_ACQ / 4) + 1] = AcqHighNew;
 
-    Regs[NVME_REG_CC / 4] = (CcValue | 0x1u);
+    Regs[NVME_REG_CC / 4] = CcValue;
+    Regs[NVME_REG_CC / 4] = (CcValue | NVME_CC_EN);
     if (!NVMeWaitForReady(Device, TRUE)) {
         ERROR(TEXT("[NVMeAttach] Controller did not become ready"));
         NVMeFreeAdminQueues(Device);
@@ -388,6 +702,13 @@ static LPPCI_DEVICE NVMeAttach(LPPCI_DEVICE PciDevice) {
           (LPVOID)(LINEAR)AsqPhys,
           (LPVOID)(LINEAR)AcqPhys,
           AqaValue);
+
+    if (!NVMeIdentifyController(Device)) {
+        WARNING(TEXT("[NVMeAttach] Identify controller failed"));
+    }
+    if (!NVMeIdentifyNamespace(Device, 1u)) {
+        WARNING(TEXT("[NVMeAttach] Identify namespace 1 failed"));
+    }
 
     return (LPPCI_DEVICE)Device;
 }
