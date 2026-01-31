@@ -127,7 +127,7 @@ static USB_MASS_STORAGE_DRIVER DATA_SECTION USBMassStorageDriverState = {
         .References = 1,
         .Next = NULL,
         .Prev = NULL,
-        .Type = DRIVER_TYPE_HARDDISK,
+        .Type = DRIVER_TYPE_STORAGE,
         .VersionMajor = USB_MASS_STORAGE_VER_MAJOR,
         .VersionMinor = USB_MASS_STORAGE_VER_MINOR,
         .Designer = "Jango73",
@@ -1280,7 +1280,7 @@ static U32 USBMassStorageGetInfo(LPDISKINFO Info) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    Info->Type = DRIVER_TYPE_HARDDISK;
+    Info->Type = DRIVER_TYPE_STORAGE;
     Info->Removable = 1;
     Info->NumSectors = (U32)Device->BlockCount;
     Info->Access = Device->Access;

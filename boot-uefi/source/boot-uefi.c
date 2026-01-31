@@ -55,7 +55,7 @@ static const STR KernelFileNameText[] = {
 // Used by the x86-64 UEFI jump stub to fetch parameters reliably.
 U32 UefiStubMultibootInfoPtr = 0u;
 U32 UefiStubMultibootMagic = 0u;
-U64 UefiStubFramebufferBase = 0u;
+U64 UefiStubFramebufferBase = U64_0;
 U32 UefiStubFramebufferPitch = 0u;
 U32 UefiStubFramebufferBytesPerPixel = 0u;
 U32 UefiStubTestOnly = 0u;
@@ -206,7 +206,7 @@ static EFI_PHYSICAL_ADDRESS BootUefiPhysicalFromU32(U32 Value) {
  */
 static U64 BootUefiPhysicalToU64(EFI_PHYSICAL_ADDRESS Address) {
 #ifdef __EXOS_32__
-    return U64_FromU32((U32)Address);
+    return Address;
 #else
     return (U64)Address;
 #endif
@@ -466,7 +466,11 @@ static EFI_STATUS BootUefiOpenRootFileSystem(BOOT_UEFI_CONTEXT* Context, EFI_FIL
         return Status;
     }
 
-    Context->ImageBase = BootUefiPhysicalToU64(LoadedImage->ImageBase);
+    #ifdef __EXOS_32__
+    Context->ImageBase = U64_FromU32((U32)(UINT)LoadedImage->ImageBase);
+    #else
+    Context->ImageBase = BootUefiPhysicalToU64((EFI_PHYSICAL_ADDRESS)LoadedImage->ImageBase);
+    #endif
     Context->ImageSize = LoadedImage->ImageSize;
     BootUefiOutputHex64(Context->ConsoleOut, "[BootUefiOpenRootFileSystem] ImageBase ", Context->ImageBase);
     BootUefiOutputHex64(Context->ConsoleOut, "[BootUefiOpenRootFileSystem] ImageSize ", Context->ImageSize);
@@ -1320,7 +1324,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
             UefiStubFramebufferBytesPerPixel = 4u;
         }
     } else {
-        UefiStubFramebufferBase = 0u;
+        UefiStubFramebufferBase = U64_FromU32(0u);
         UefiStubFramebufferPitch = 0u;
         UefiStubFramebufferBytesPerPixel = 0u;
     }

@@ -48,7 +48,7 @@ DRIVER DATA_SECTION ATADiskDriver = {
     .OwnerProcess = &KernelProcess,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_HARDDISK,
+    .Type = DRIVER_TYPE_STORAGE,
     .VersionMajor = VER_MAJOR,
     .VersionMinor = VER_MINOR,
     .Designer = "Jango73",
@@ -510,7 +510,7 @@ static U32 GetInfo(LPDISKINFO Info) {
 
     //-------------------------------------
 
-    Info->Type = DRIVER_TYPE_HARDDISK;
+    Info->Type = DRIVER_TYPE_STORAGE;
     Info->Removable = 0;
     Info->NumSectors = Disk->Geometry.Cylinders * Disk->Geometry.Heads * Disk->Geometry.SectorsPerTrack;
     Info->Access = Disk->Access;

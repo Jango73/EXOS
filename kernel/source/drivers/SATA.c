@@ -57,7 +57,7 @@ DRIVER DATA_SECTION SATADiskDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_HARDDISK,
+    .Type = DRIVER_TYPE_STORAGE,
     .VersionMajor = VER_MAJOR,
     .VersionMinor = VER_MINOR,
     .Designer = "Jango73",
@@ -155,7 +155,7 @@ PCI_DRIVER AHCIPCIDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_HARDDISK,
+    .Type = DRIVER_TYPE_STORAGE,
     .VersionMajor = VER_MAJOR,
     .VersionMinor = VER_MINOR,
     .Designer = "Jango73",
@@ -839,7 +839,7 @@ static U32 GetInfo(LPDISKINFO Info) {
     // Check validity of parameters
     if (AHCIPort->Header.TypeID != KOID_DISK) return DF_RETURN_BAD_PARAMETER;
 
-    Info->Type = DRIVER_TYPE_HARDDISK;
+    Info->Type = DRIVER_TYPE_STORAGE;
     Info->Removable = 0;
     Info->NumSectors = AHCIPort->Geometry.Cylinders * AHCIPort->Geometry.Heads * AHCIPort->Geometry.SectorsPerTrack;
     Info->Access = AHCIPort->Access;

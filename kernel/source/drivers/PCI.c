@@ -637,9 +637,11 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
             }
 
             extern PCI_DRIVER AHCIPCIDriver;
+            extern PCI_DRIVER NVMePCIDriver;
 
             PCI_RegisterDriver(&E1000Driver);
             PCI_RegisterDriver(&AHCIPCIDriver);
+            PCI_RegisterDriver(&NVMePCIDriver);
             PCI_RegisterDriver(&XHCIDriver);
             PCI_ScanBus();
 

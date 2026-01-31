@@ -3,8 +3,10 @@ setlocal enabledelayedexpansion
 
 set "ARCH=i386"
 set "USE_GDB=0"
-set "USB3_ENABLED=1"
 set "USE_UEFI=0"
+set "USB3_ENABLED=1"
+set "NVME_ENABLED=1"
+set "NVME_SIZE_MB=1024"
 set "UEFI_ARGS="
 set "UEFI_VARS_COPY="
 
@@ -36,6 +38,17 @@ if "%~1"=="--uefi" (
     shift
     goto parse
 )
+if "%~1"=="--nvme" (
+    set "NVME_ENABLED=1"
+    shift
+    goto parse
+)
+if "%~1"=="--nvme-size-mb" (
+    set "NVME_SIZE_MB=%~2"
+    shift
+    shift
+    goto parse
+)
 if "%~1"=="--help" goto usage
 if "%~1"=="-h" goto usage
 
@@ -43,7 +56,7 @@ echo Unknown option: %~1
 goto usage
 
 :usage
-echo Usage: %~nx0 --arch ^<i386^|x86-64^> [--gdb] [--usb3^|--no-usb3] [--uefi]
+echo Usage: %~nx0 --arch ^<i386^|x86-64^> [--gdb] [--usb3^|--no-usb3] [--uefi] [--nvme] [--nvme-size-mb N]
 exit /b 1
 
 :done
@@ -51,6 +64,7 @@ if "%ARCH%"=="i386" (
     set "QEMU_BIN_DEFAULT=c:\program files\qemu\qemu-system-i386"
     set "IMG_PATH=build\i386\boot-hd\exos.img"
     set "USB_3_PATH=build\i386\boot-hd\usb-3.img"
+    set "NVME_IMG_PATH=build\i386\boot-hd\nvme.img"
     set "DEBUG_ELF=build\i386\kernel\exos.elf"
     set "OVMF_CODE_DEFAULT=c:\program files\qemu\share\qemu\OVMF32_CODE.fd"
     set "OVMF_VARS_DEFAULT=c:\program files\qemu\share\qemu\OVMF32_VARS.fd"
@@ -58,6 +72,7 @@ if "%ARCH%"=="i386" (
     set "QEMU_BIN_DEFAULT=c:\program files\qemu\qemu-system-x86_64"
     set "IMG_PATH=build\x86-64\boot-hd\exos.img"
     set "USB_3_PATH=build\x86-64\boot-hd\usb-3.img"
+    set "NVME_IMG_PATH=build\x86-64\boot-hd\nvme.img"
     set "DEBUG_ELF=build\x86-64\kernel\exos.elf"
     set "OVMF_CODE_DEFAULT=c:\program files\qemu\share\qemu\OVMF_CODE.fd"
     set "OVMF_VARS_DEFAULT=c:\program files\qemu\share\qemu\OVMF_VARS.fd"
@@ -93,6 +108,15 @@ if not exist log mkdir log
 set "USB_ARGS="
 if "%USE_UEFI%"=="0" if "%USB3_ENABLED%"=="1" (
     set "USB_ARGS=-drive format=raw,file=%USB_3_PATH%,if=none,id=usbdrive0 -device usb-storage,drive=usbdrive0,bus=xhci.0,id=usbmsd0"
+)
+
+set "NVME_ARGS="
+if "%NVME_ENABLED%"=="1" (
+    if not exist "%NVME_IMG_PATH%" (
+        if not exist "build\%ARCH%\boot-hd" mkdir "build\%ARCH%\boot-hd"
+        fsutil file createnew "%NVME_IMG_PATH%" %NVME_SIZE_MB%000000 >nul
+    )
+    set "NVME_ARGS=-drive format=raw,file=%NVME_IMG_PATH%,if=none,id=nvme0 -device nvme,drive=nvme0,serial=exosnvme0"
 )
 
 if "%USE_UEFI%"=="1" (
@@ -144,6 +168,7 @@ echo Starting QEMU for %ARCH%
 -device usb-kbd,bus=xhci.0 ^
 -device usb-mouse,bus=xhci.0 ^
 %USB_ARGS% ^
+%NVME_ARGS% ^
 %UEFI_ARGS% ^
 -audiodev dsound,id=audio0 ^
 -device intel-hda,id=hda ^
@@ -153,10 +178,10 @@ echo Starting QEMU for %ARCH%
 -device ide-hd,drive=drive0,bus=ahci.0 ^
 -netdev user,id=net0 ^
 -device e1000,netdev=net0 ^
--object filter-dump,id=dump0,netdev=net0,file=log/kernel-net.pcap ^
+-object filter-dump,id=dump0,netdev=net0,file=log/kernel-net-%ARCH%.pcap ^
 -monitor telnet:127.0.0.1:4444,server,nowait ^
--serial file:"log/debug-com1.log" ^
--serial file:"log/kernel.log" ^
+-serial file:"log/debug-com1-%ARCH%.log" ^
+-serial file:"log/kernel-%ARCH%.log" ^
 -vga std ^
 -no-reboot ^
 %GDB_ARGS% ^

@@ -2,13 +2,15 @@
 set -e
 
 function Usage() {
-    echo "Usage: $0 --arch <i386|x86-64> [--gdb] [--usb3|--no-usb3] [--uefi]"
+    echo "Usage: $0 --arch <i386|x86-64> [--gdb] [--usb3|--no-usb3] [--uefi] [--nvme] [--nvme-size-mb N]"
 }
 
 ARCH="i386"
 USE_GDB=0
-USB3_ENABLED=1
 USE_UEFI=0
+USB3_ENABLED=1
+NVME_ENABLED=1
+NVME_SIZE_MB="${NVME_SIZE_MB:-1024}"
 MONITOR_PORT="${MONITOR_PORT:-4444}"
 
 while [ $# -gt 0 ]; do
@@ -29,6 +31,13 @@ while [ $# -gt 0 ]; do
         --uefi)
             USE_UEFI=1
             ;;
+        --nvme)
+            NVME_ENABLED=1
+            ;;
+        --nvme-size-mb)
+            shift
+            NVME_SIZE_MB="$1"
+            ;;
         --help|-h)
             Usage
             exit 0
@@ -47,6 +56,7 @@ case "$ARCH" in
         QEMU_BIN_DEFAULT="qemu-system-i386"
         IMG_PATH="build/i386/boot-hd/exos.img"
         USB_3_PATH="build/i386/boot-hd/usb-3.img"
+        NVME_IMG_PATH="build/i386/boot-hd/nvme.img"
         CYCLE_BIN="build/i386/tools/cycle"
         DEBUG_ELF="build/i386/kernel/exos.elf"
         OVMF_CODE_CANDIDATES=(
@@ -64,6 +74,7 @@ case "$ARCH" in
         QEMU_BIN_DEFAULT="qemu-system-x86_64"
         IMG_PATH="build/x86-64/boot-hd/exos.img"
         USB_3_PATH="build/x86-64/boot-hd/usb-3.img"
+        NVME_IMG_PATH="build/x86-64/boot-hd/nvme.img"
         CYCLE_BIN="build/x86-64/tools/cycle"
         DEBUG_ELF="build/x86-64/kernel/exos.elf"
         DEBUG_GDB="scripts/x86-64/debug.gdb"
@@ -104,11 +115,30 @@ fi
 mkdir -p log
 
 USB_ARGUMENTS=()
+NVME_ARGUMENTS=()
 
 function BuildUsbArguments() {
     USB_ARGUMENTS=()
     if [ "$USB3_ENABLED" -eq 1 ]; then
         USB_ARGUMENTS=(-drive format=raw,file="$USB_3_PATH",if=none,id=usbdrive0 -device usb-storage,drive=usbdrive0,bus=xhci.0,id=usbmsd0)
+    fi
+}
+
+function BuildNvmeArguments() {
+    NVME_ARGUMENTS=()
+    if [ "$NVME_ENABLED" -eq 1 ]; then
+        if [ -z "${NVME_IMG_PATH:-}" ]; then
+            echo "NVMe image path not set"
+            exit 1
+        fi
+        if [ ! -f "$NVME_IMG_PATH" ]; then
+            mkdir -p "$(dirname "$NVME_IMG_PATH")"
+            dd if=/dev/zero of="$NVME_IMG_PATH" bs=1M count="$NVME_SIZE_MB" status=none
+        fi
+        NVME_ARGUMENTS=(
+            -drive format=raw,file="$NVME_IMG_PATH",if=none,id=nvme0
+            -device nvme,drive=nvme0,serial=exosnvme0
+        )
     fi
 }
 
@@ -155,6 +185,7 @@ function BuildUefiArguments() {
 
 function RunStandardQemu() {
     BuildUsbArguments
+    BuildNvmeArguments
     BuildUefiArguments
 
     if [ ! -x "$CYCLE_BIN" ]; then
@@ -170,6 +201,7 @@ function RunStandardQemu() {
     -device usb-kbd,bus=xhci.0 \
     -device usb-mouse,bus=xhci.0 \
     "${USB_ARGUMENTS[@]}" \
+    "${NVME_ARGUMENTS[@]}" \
     "${UEFI_ARGUMENTS[@]}" \
     -audiodev pa,id=audio0 \
     -device intel-hda,id=hda \
@@ -179,17 +211,18 @@ function RunStandardQemu() {
     -device ide-hd,drive=drive0,bus=ahci.0 \
     -netdev user,id=net0 \
     -device e1000,netdev=net0 \
-    -object filter-dump,id=dump0,netdev=net0,file=log/kernel-net.pcap \
+    -object filter-dump,id=dump0,netdev=net0,file=log/kernel-net-${ARCH}.pcap \
     -monitor telnet:127.0.0.1:${MONITOR_PORT},server,nowait \
-    -serial file:"log/debug-com1.log" \
+    -serial file:"log/debug-com1-${ARCH}.log" \
     -serial stdio \
     -vga std \
     -no-reboot \
-    2>&1 | "$CYCLE_BIN" -o log/kernel.log -s 200000
+    2>&1 | "$CYCLE_BIN" -o log/kernel-${ARCH}.log -s 200000
 }
 
 function RunGdbQemu() {
     BuildUsbArguments
+    BuildNvmeArguments
     BuildUefiArguments
 
     if [ ! -f "$DEBUG_ELF" ]; then
@@ -209,14 +242,15 @@ function RunGdbQemu() {
     -device usb-kbd,bus=xhci.0 \
     -device usb-mouse,bus=xhci.0 \
     "${USB_ARGUMENTS[@]}" \
+    "${NVME_ARGUMENTS[@]}" \
     "${UEFI_ARGUMENTS[@]}" \
     -device ahci,id=ahci \
     -drive format=raw,file="$IMG_PATH",if=none,id=drive0 \
     -device ide-hd,drive=drive0,bus=ahci.0 \
     -netdev user,id=net0 \
     -device e1000,netdev=net0 \
-    -serial file:"log/debug-com1.log" \
-    -serial file:"log/kernel.log" \
+    -serial file:"log/debug-com1-${ARCH}.log" \
+    -serial file:"log/kernel-${ARCH}.log" \
     -vga std \
     -no-reboot \
     -s -S &
