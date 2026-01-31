@@ -79,7 +79,7 @@ Configure SSH and the remote repo root once in `scripts/remote/ssh-config.bat`. 
 
 ## Debug output
 
-Kernel debug output goes to `log/kernel.log`.
+Kernel debug output goes to `log/kernel-i386.log` and `kernel-x86-64.log`.
 QEMU traces go to `qemu.log`.
 Bochs output goes to `bochs.log`.
 **Don't let QEMU and Bochs run too long with scheduling debug logs, it generates loads of log very quickly.**

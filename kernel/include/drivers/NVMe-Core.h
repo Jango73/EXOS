@@ -21,8 +21,8 @@
 
 \************************************************************************/
 
-#ifndef DRIVERS_NVME_H_INCLUDED
-#define DRIVERS_NVME_H_INCLUDED
+#ifndef DRIVERS_NVME_CORE_H_INCLUDED
+#define DRIVERS_NVME_CORE_H_INCLUDED
 
 /************************************************************************/
 
@@ -59,13 +59,13 @@
 #define NVME_CQ_FLAGS_IEN (1 << 1)
 #define NVME_SQ_FLAGS_PC (1 << 0)
 
-#define NVME_CC_EN 0x1u
-#define NVME_CC_CSS_SHIFT 4u
-#define NVME_CC_MPS_SHIFT 7u
-#define NVME_CC_AMS_SHIFT 11u
-#define NVME_CC_SHN_SHIFT 14u
-#define NVME_CC_IOSQES_SHIFT 16u
-#define NVME_CC_IOCQES_SHIFT 20u
+#define NVME_CC_EN 0x1
+#define NVME_CC_CSS_SHIFT 4
+#define NVME_CC_MPS_SHIFT 7
+#define NVME_CC_AMS_SHIFT 11
+#define NVME_CC_SHN_SHIFT 14
+#define NVME_CC_IOSQES_SHIFT 16
+#define NVME_CC_IOCQES_SHIFT 20
 
 /************************************************************************/
 // Type definitions
@@ -137,4 +137,4 @@ typedef struct tag_NVME_DEVICE {
 
 /************************************************************************/
 
-#endif  // DRIVERS_NVME_H_INCLUDED
+#endif  // DRIVERS_NVME_CORE_H_INCLUDED

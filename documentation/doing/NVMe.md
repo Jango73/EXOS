@@ -29,8 +29,8 @@ Success: `nvmectl list` shows NSID=1 with capacity in sectors.
 
 ## Step 4 — Create I/O Queues
 Goal: operational I/O submission/completion queues.  
-- [ ] Create I/O CQ (Admin 0x05), Create I/O SQ (Admin 0x01).  
-- [ ] Route CQ to an MSI/MSI-X vector and arm interrupts.  
+- [x] Create I/O CQ (Admin 0x05), Create I/O SQ (Admin 0x01).  
+- [x] Route CQ to an MSI/MSI-X vector and arm interrupts.  
 Success: dummy no-op commands complete on the I/O CQ.
 
 ## Step 5 — Read Sectors
@@ -92,7 +92,7 @@ Goal: integrate NVMe cleanly with existing EXOS driver and disk layers.
 - Driver enumeration: expose NVMe through `DriverEnum` in the same style as AHCI/USB if needed.
 
 ### Proposed modules and file layout
-- `kernel/include/drivers/NVMe.h`: register definitions, queue entries, command opcodes, driver structs.  
+- `kernel/include/drivers/NVMe-Core.h`: register definitions, queue entries, command opcodes, driver structs.  
 - `kernel/source/drivers/NVMe.c`: PCI probe, attach, controller init, admin queue, I/O queue, read/write path.  
 - Optional shared helpers (only if duplication is real and not trivial):
   - `kernel/include/drivers/PCIe-Helpers.h` and `kernel/source/drivers/PCIe-Helpers.c` for PCIe capabilities/MSI-MSIX parsing.
