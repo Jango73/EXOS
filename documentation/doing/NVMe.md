@@ -79,7 +79,51 @@ Success: `nvmectl smart` prints key health metrics.
 - 6: adds writes.  
 - 7: multi-namespace abstraction.  
 - 8–9: robustness and performance.  
-- 10: optional enhancements.
+- 10: optional enhancements.  
+
+## Integration into EXOS
+Goal: integrate NVMe cleanly with existing EXOS driver and disk layers.  
+
+### Reuse and align with existing code
+- Driver model: follow the PCI driver pattern used by `kernel/source/drivers/SATA.c` and `kernel/source/drivers/XHCI-*.c`.
+- Device lists: reuse `GetDiskList()` and disk info structs already used by AHCI (see `kernel/source/drivers/SATA.c`).
+- DMA + mapping: reuse `MapIOMemory`, `MapLinearToPhysical`, `KernelHeapAlloc`, `KernelHeapFree`, and cache helpers in `kernel/include/utils/Cache.h`.
+- Interrupts: reuse `DeviceInterruptRegister` and the top-half/bottom-half pattern from AHCI and XHCI.
+- Driver enumeration: expose NVMe through `DriverEnum` in the same style as AHCI/USB if needed.
+
+### Proposed modules and file layout
+- `kernel/include/drivers/NVMe.h`: register definitions, queue entries, command opcodes, driver structs.  
+- `kernel/source/drivers/NVMe.c`: PCI probe, attach, controller init, admin queue, I/O queue, read/write path.  
+- Optional shared helpers (only if duplication is real and not trivial):
+  - `kernel/include/drivers/PCIe-Helpers.h` and `kernel/source/drivers/PCIe-Helpers.c` for PCIe capabilities/MSI-MSIX parsing.
+  - `kernel/include/drivers/DMA-Helpers.h` and `kernel/source/drivers/DMA-Helpers.c` for aligned DMA alloc/free.
+
+### PCI integration
+- Register `NVMePCIDriver` in `kernel/source/drivers/PCI.c` alongside AHCI/XHCI.
+- Match class 0x01, subclass 0x08, progIF 0x02.
+- Store BAR0 MMIO base and size; map with `MapIOMemory`.
+
+### Disk integration (read/write)
+- Expose each namespace as a `DISK` object with `OBJECT_FIELDS` and `KOID_DISK`.
+- Add each NVMe disk to `GetDiskList()` just like AHCI does in `InitializeAHCIController`.
+- Implement `DF_DISK_READ/WRITE/GETINFO/SETACCESS` on the NVMe driver, matching the AHCI disk interface.
+- Reuse the sector cache (`CacheInit`, `CacheFind`, `CacheAdd`, `CacheCleanup`) for read path parity with AHCI.
+
+### Scheduling and polling
+- Provide poll-mode handler for interrupts (see `AHCIInterruptPoll`) to keep early boot functional.
+- Ensure queue submission does not busy-loop; yield or sleep where needed.
+
+### Error handling and reset
+- Follow the style in AHCI: concise `WARNING`/`ERROR` logs, no flood.
+- On fatal controller errors, disable CC.EN, wait for RDY=0, reinit queues.
+
+### System Data View and shell
+- Add a System Data View page for NVMe controllers (optional but useful for bare metal).
+- Add a shell command `nvme` with subcommands `info`, `list`, `smart` as the driver matures.
+
+### Tests and validation
+- QEMU NVMe device for initial bring-up.
+- On bare metal, validate PCI detection first, then admin queue readiness.
 
 ## QEMU Test Hints
 - Single NVMe device:
