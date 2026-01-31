@@ -46,6 +46,19 @@
 #define NVME_REG_ASQ 0x28
 #define NVME_REG_ACQ 0x30
 
+#define NVME_ADMIN_OP_CREATE_IO_SQ 0x01
+#define NVME_ADMIN_OP_CREATE_IO_CQ 0x05
+#define NVME_ADMIN_OP_IDENTIFY 0x06
+#define NVME_ADMIN_OP_SET_FEATURES 0x09
+
+#define NVME_IO_OP_NOOP 0x00
+
+#define NVME_FEATURE_NUMBER_OF_QUEUES 0x07
+
+#define NVME_CQ_FLAGS_PC (1 << 0)
+#define NVME_CQ_FLAGS_IEN (1 << 1)
+#define NVME_SQ_FLAGS_PC (1 << 0)
+
 #define NVME_CC_EN 0x1u
 #define NVME_CC_CSS_SHIFT 4u
 #define NVME_CC_MPS_SHIFT 7u
@@ -53,8 +66,6 @@
 #define NVME_CC_SHN_SHIFT 14u
 #define NVME_CC_IOSQES_SHIFT 16u
 #define NVME_CC_IOCQES_SHIFT 20u
-
-#define NVME_ADMIN_OP_IDENTIFY 0x06
 
 /************************************************************************/
 // Type definitions
@@ -106,6 +117,22 @@ typedef struct tag_NVME_DEVICE {
     UINT AdminCqHead;
     U8 AdminCqPhase;
     U32 DoorbellStride;
+    U8 InterruptSlot;
+    U8 MsixVector;
+    BOOL MsixEnabled;
+
+    LINEAR IoQueueBase;
+    LPVOID IoQueueRaw;
+    PHYSICAL IoQueuePhysical;
+    U32 IoQueueSize;
+    U32 IoSqEntries;
+    U32 IoCqEntries;
+    U8* IoSq;
+    U8* IoCq;
+    UINT IoSqTail;
+    UINT IoCqHead;
+    U8 IoCqPhase;
+    U16 IoQueueId;
 } NVME_DEVICE, *LPNVME_DEVICE;
 
 /************************************************************************/

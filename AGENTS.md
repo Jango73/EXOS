@@ -25,6 +25,7 @@ This is a multi-architecture operating system. Currently supporting i386 and x86
 - **Comments**: For single-line comments, use `//`, not `/*`.
 - **Style**: 4-space indentation, follow `.clang-format` rules.
 - **Numbers**: Hexadecimal for constant numbers, except for sizes, vectors, points and time.
+- **Number suffixes**: Do not add numeric suffixes like `u` to constants; they are not wanted here.
 - **Documentation**: Update `documentation/Kernel.md` when adding/modifying kernel components.
 - **Languages**: C for kernel, avoid Python (use Node.js/JS if needed).
 - **Libraries**: NO stdlib/stdio in kernel - custom implementations only.
@@ -91,33 +92,14 @@ Doxygen documentation is in `documentation/kernel/*`
 **Core Components:**
 - **Kernel** (`kernel/source/`): Main OS kernel with multitasking, memory management, drivers
 - **Shell** (`kernel/source/Shell.c`): Command-line interface
-- **Boot** (`boot-qemu-hd/`): Bootloader and disk image creation
+- **Boot** (`boot-hd/` and `boot-uefi/`): Bootloader and disk image creation
 - **Runtime** (`runtime/`): User-space runtime library, but included in the kernel to interface with 3rd party code
-
-## Architecture Overview
-
-**Key Modules:**
-- `Kernel.c`: Initialization sequence and global objects
-- `Mutex.c`: Synchronization primitives
-- `Memory.c`: Memory management
-- `Heap.c`: Heap management
-- `Interrupt.c`: IDT creation
-- `InterruptController.c`: IOAPIC management
-- `Interrupt-a.asm`: Fault and ISR stubs
-- `Clock.c`: RTC and scheduler caller
-- `Fault.c`: Fault handlers like #GP, #PF, #UD, ...
-- `Process.c`: Process management
-- `Task.c`: Task management
-- `Schedule.c`: Task scheduler
-- `Console.c`: Console I/O
-- `FileSystem.c`, `FAT16.c`, `FAT32.c`, `EXFS.c`: File system implementations
-- `SystemFS.c`: POSIX-like virtual file system
-- `System.asm`: Many small bare-metal routines (LGDT, GetCR4, etc...)
+- **System** (`system/`): User-space system library, samples
 
 ## Debug Workflow
 1. Use scheduling debug build when needing per-tick information, for scheduler or interrupt issues: `./scripts/build --arch i386 --fs ext2 --scheduling-debug` (or add `--clean` for a clean make) and the `x86-64` equivalent: `./scripts/build --arch x86-64 --fs ext2 --scheduling-debug`. GENERATES TONS OF LOG, USE WITH CARE.
-2. Monitor `log/kernel.log` for exceptions and page faults
-3. **To assert that the systems runs, the emulator must be running and there must be no fault in the logs**
+2. Monitor `log/kernel-i386.log` and `kernel-x86-64.log` for exceptions and page faults
+3. **To assert that the systems runs, the emulator must be running and there must be no fault in the logs, in all architectures**
 
 **Disassembly Analysis:**
 - `./scripts/utils/show-i386.sh <address> [context_lines]` (i386 build)
