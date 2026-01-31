@@ -34,6 +34,12 @@
 #define NVME_VER_MAJOR 1
 #define NVME_VER_MINOR 0
 
+#define NVME_ADMIN_QUEUE_ENTRIES 64u
+#define NVME_ADMIN_SQ_ENTRY_SIZE 64u
+#define NVME_ADMIN_CQ_ENTRY_SIZE 16u
+#define NVME_ADMIN_QUEUE_ALIGNMENT N_4KB
+#define NVME_READY_TIMEOUT_LOOPS 1000000u
+
 /************************************************************************/
 // Forward declarations
 
@@ -41,6 +47,9 @@ static UINT NVMeCommands(UINT Function, UINT Param);
 static UINT NVMeProbe(UINT Function, UINT Parameter);
 static LPPCI_DEVICE NVMeAttach(LPPCI_DEVICE PciDevice);
 static BOOL NVMeGetBar0Physical(LPPCI_DEVICE Device, PHYSICAL* BaseOut, U32* SizeOut);
+static BOOL NVMeWaitForReady(LPNVME_DEVICE Device, BOOL Ready);
+static BOOL NVMeSetupAdminQueues(LPNVME_DEVICE Device);
+static void NVMeFreeAdminQueues(LPNVME_DEVICE Device);
 
 /************************************************************************/
 // PCI match table and driver
@@ -153,6 +162,112 @@ static BOOL NVMeGetBar0Physical(LPPCI_DEVICE Device, PHYSICAL* BaseOut, U32* Siz
 /************************************************************************/
 
 /**
+ * @brief Wait for the controller ready state.
+ *
+ * @param Device NVMe device.
+ * @param Ready TRUE to wait for ready, FALSE to wait for not ready.
+ * @return TRUE on expected state, FALSE on timeout.
+ */
+static BOOL NVMeWaitForReady(LPNVME_DEVICE Device, BOOL Ready) {
+    if (Device == NULL || Device->MmioBase == 0) {
+        return FALSE;
+    }
+
+    volatile U32* Regs = (volatile U32*)Device->MmioBase;
+    for (UINT Loop = 0; Loop < NVME_READY_TIMEOUT_LOOPS; Loop++) {
+        U32 Csts = Regs[NVME_REG_CSTS / 4];
+        BOOL IsReady = ((Csts & 0x1u) != 0u);
+        if (IsReady == Ready) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Free admin queue memory.
+ *
+ * @param Device NVMe device.
+ */
+static void NVMeFreeAdminQueues(LPNVME_DEVICE Device) {
+    if (Device == NULL) {
+        return;
+    }
+
+    if (Device->AdminQueueRaw != NULL) {
+        KernelHeapFree(Device->AdminQueueRaw);
+    }
+
+    Device->AdminQueueRaw = NULL;
+    Device->AdminQueueBase = 0;
+    Device->AdminQueuePhysical = 0;
+    Device->AdminQueueSize = 0;
+    Device->AdminSqEntries = 0;
+    Device->AdminCqEntries = 0;
+    Device->AdminSq = NULL;
+    Device->AdminCq = NULL;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Allocate and configure admin queues.
+ *
+ * @param Device NVMe device.
+ * @return TRUE on success, FALSE on failure.
+ */
+static BOOL NVMeSetupAdminQueues(LPNVME_DEVICE Device) {
+    if (Device == NULL) {
+        return FALSE;
+    }
+
+    Device->AdminSqEntries = NVME_ADMIN_QUEUE_ENTRIES;
+    Device->AdminCqEntries = NVME_ADMIN_QUEUE_ENTRIES;
+
+    U32 AdminSqSize = Device->AdminSqEntries * NVME_ADMIN_SQ_ENTRY_SIZE;
+    U32 AdminCqSize = Device->AdminCqEntries * NVME_ADMIN_CQ_ENTRY_SIZE;
+    Device->AdminQueueSize = AdminSqSize + AdminCqSize;
+
+    U32 RawSize = Device->AdminQueueSize + NVME_ADMIN_QUEUE_ALIGNMENT;
+    Device->AdminQueueRaw = KernelHeapAlloc(RawSize);
+    if (Device->AdminQueueRaw == NULL) {
+        return FALSE;
+    }
+
+    LINEAR RawBase = (LINEAR)Device->AdminQueueRaw;
+    LINEAR AlignedBase = (LINEAR)((RawBase + (NVME_ADMIN_QUEUE_ALIGNMENT - 1u)) &
+        ~(NVME_ADMIN_QUEUE_ALIGNMENT - 1u));
+    Device->AdminQueueBase = AlignedBase;
+    MemorySet((LPVOID)Device->AdminQueueBase, 0, Device->AdminQueueSize);
+
+    PHYSICAL BasePhys = MapLinearToPhysical(Device->AdminQueueBase);
+    if (BasePhys == 0) {
+        NVMeFreeAdminQueues(Device);
+        return FALSE;
+    }
+
+    for (UINT Offset = 0; Offset < Device->AdminQueueSize; Offset += N_4KB) {
+        LINEAR Linear = Device->AdminQueueBase + (LINEAR)Offset;
+        PHYSICAL Physical = MapLinearToPhysical(Linear);
+        if (Physical != (BasePhys + (PHYSICAL)Offset)) {
+            NVMeFreeAdminQueues(Device);
+            return FALSE;
+        }
+    }
+
+    Device->AdminQueuePhysical = BasePhys;
+    Device->AdminSq = (U8*)Device->AdminQueueBase;
+    Device->AdminCq = (U8*)(Device->AdminQueueBase + AdminSqSize);
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Attach detected NVMe controller and map registers.
  *
  * @param PciDevice Detected PCI device descriptor.
@@ -219,6 +334,60 @@ static LPPCI_DEVICE NVMeAttach(LPPCI_DEVICE PciDevice) {
           AsqHigh,
           AcqLow,
           AcqHigh);
+
+    if (!NVMeSetupAdminQueues(Device)) {
+        ERROR(TEXT("[NVMeAttach] Failed to allocate admin queues"));
+        UnMapIOMemory(Device->MmioBase, Device->MmioSize);
+        KernelHeapFree(Device);
+        return NULL;
+    }
+
+    U32 CcValue = Regs[NVME_REG_CC / 4];
+    if ((CcValue & 0x1u) != 0u) {
+        Regs[NVME_REG_CC / 4] = (CcValue & ~0x1u);
+        if (!NVMeWaitForReady(Device, FALSE)) {
+            ERROR(TEXT("[NVMeAttach] Controller did not stop"));
+            NVMeFreeAdminQueues(Device);
+            UnMapIOMemory(Device->MmioBase, Device->MmioSize);
+            KernelHeapFree(Device);
+            return NULL;
+        }
+    }
+
+    CcValue = Regs[NVME_REG_CC / 4];
+    U32 AqaValue = ((Device->AdminCqEntries - 1u) << 16) | (Device->AdminSqEntries - 1u);
+    Regs[NVME_REG_AQA / 4] = AqaValue;
+
+    PHYSICAL AsqPhys = Device->AdminQueuePhysical;
+    PHYSICAL AcqPhys = Device->AdminQueuePhysical + (PHYSICAL)(Device->AdminSqEntries * NVME_ADMIN_SQ_ENTRY_SIZE);
+
+    U32 AsqLowNew = (U32)(AsqPhys & 0xFFFFFFFFu);
+    U32 AsqHighNew = 0u;
+    U32 AcqLowNew = (U32)(AcqPhys & 0xFFFFFFFFu);
+    U32 AcqHighNew = 0u;
+#ifdef __EXOS_64__
+    AsqHighNew = (U32)((AsqPhys >> 32) & 0xFFFFFFFFu);
+    AcqHighNew = (U32)((AcqPhys >> 32) & 0xFFFFFFFFu);
+#endif
+
+    Regs[NVME_REG_ASQ / 4] = AsqLowNew;
+    Regs[(NVME_REG_ASQ / 4) + 1] = AsqHighNew;
+    Regs[NVME_REG_ACQ / 4] = AcqLowNew;
+    Regs[(NVME_REG_ACQ / 4) + 1] = AcqHighNew;
+
+    Regs[NVME_REG_CC / 4] = (CcValue | 0x1u);
+    if (!NVMeWaitForReady(Device, TRUE)) {
+        ERROR(TEXT("[NVMeAttach] Controller did not become ready"));
+        NVMeFreeAdminQueues(Device);
+        UnMapIOMemory(Device->MmioBase, Device->MmioSize);
+        KernelHeapFree(Device);
+        return NULL;
+    }
+
+    DEBUG(TEXT("[NVMeAttach] Admin queues ready ASQ=%p ACQ=%p AQA=%x"),
+          (LPVOID)(LINEAR)AsqPhys,
+          (LPVOID)(LINEAR)AcqPhys,
+          AqaValue);
 
     return (LPPCI_DEVICE)Device;
 }

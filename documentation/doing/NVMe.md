@@ -9,15 +9,15 @@
 
 ## Step 1 — Detect NVMe Controller
 Goal: confirm NVMe presence and read capabilities.  
-- [ ] Scan PCI config, find class 0x0108.  
-- [ ] Map BAR0, read CAP, VS, CC, CSTS, AQA, ASQ, ACQ.  
+- [x] Scan PCI config, find class 0x0108.  
+- [x] Map BAR0, read CAP, VS, CC, CSTS, AQA, ASQ, ACQ.  
 - [ ] Record version and queue entry size limits.  
 Success: `nvmectl info` prints controller version and max queue depth.
 
 ## Step 2 — Admin Queue Setup
 Goal: enable the controller and exchange admin commands.  
-- [ ] Allocate ASQ/ACQ in DMA memory and program AQA/ASQ/ACQ.  
-- [ ] Set CC.EN = 1, wait for CSTS.RDY = 1.  
+- [x] Allocate ASQ/ACQ in DMA memory and program AQA/ASQ/ACQ.  
+- [x] Set CC.EN = 1, wait for CSTS.RDY = 1.  
 Success: `nvmectl ready` reports controller is up.
 
 ## Step 3 — Identify Controller & Namespace

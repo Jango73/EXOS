@@ -54,6 +54,15 @@ typedef struct tag_NVME_DEVICE {
 
     LINEAR MmioBase;
     U32 MmioSize;
+
+    LINEAR AdminQueueBase;
+    LPVOID AdminQueueRaw;
+    PHYSICAL AdminQueuePhysical;
+    U32 AdminQueueSize;
+    U32 AdminSqEntries;
+    U32 AdminCqEntries;
+    U8* AdminSq;
+    U8* AdminCq;
 } NVME_DEVICE, *LPNVME_DEVICE;
 
 /************************************************************************/
