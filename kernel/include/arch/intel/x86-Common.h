@@ -81,6 +81,25 @@
 #define IA32_PAT_MSR 0x00000277
 
 /*************************************************************************/
+// Bit layout of CR0 (Control register 0)
+
+#define CR0_PROTECTED_MODE 0x00000001       // Protected mode on or off
+#define CR0_COPROCESSOR 0x00000002          // Math present
+#define CR0_MONITOR_COPROCESSOR 0x00000004  // Emulate coprocessor
+#define CR0_EMULATION 0x00000004            // Emulate coprocessor
+#define CR0_TASKSWITCH 0x00000008           // Set on task switch
+#define CR0_80387 0x00000010                // Type of coprocessor
+#define CR0_NUMERIC_ERROR 0x00000020        // Native x87 error reporting
+#define CR0_PAGING 0x80000000               // Paging on or off
+
+/*************************************************************************/
+// Bit layout of CR4 (Control register 4)
+
+#define CR4_PAE 0x00000020                   // Physical Address Extension
+#define CR4_OSFXSR 0x00000200                // OS supports FXSAVE/FXRSTOR
+#define CR4_OSXMMEXCPT 0x00000400            // OS supports SIMD exceptions
+
+/*************************************************************************/
 // Structures
 
 typedef struct tag_INTEL_FPU_REGISTERS {

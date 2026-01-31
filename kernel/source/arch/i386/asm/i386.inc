@@ -28,16 +28,7 @@
 %define KERNEL_ARCH_MAX_UINT 0xFFFFFFFF
 
 %include "../../common/Kernel.inc"
-
-;-------------------------------------------------------------------------
-; Bit layout of CR0
-
-CR0_PROTECTED_MODE equ 0x00000001
-CR0_COPROCESSOR   equ 0x00000002
-CR0_MONITOR_COPROCESSOR  equ 0x00000004
-CR0_TASKSWITCH    equ 0x00000008
-CR0_80387         equ 0x00000010
-CR0_PAGING        equ 0x80000000
+%include "../../common/Cpu.inc"
 
 ;-------------------------------------------------------------------------
 ; Page descriptor helpers

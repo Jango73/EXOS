@@ -205,15 +205,6 @@
 #define EFLAGS_RES17 0x40000000
 #define EFLAGS_RES18 0x80000000
 
-/* Bit layout of CR0 (Control register 0) */
-#define CR0_PROTECTED_MODE 0x00000001       // Protected mode on/off
-#define CR0_COPROCESSOR 0x00000002          // Math present
-#define CR0_MONITOR_COPROCESSOR 0x00000004  // Emulate co-processor
-#define CR0_TASKSWITCH 0x00000008           // Set on task switch
-#define CR0_80387 0x00000010                // Type of co-processor
-#define CR0_NUMERIC_ERROR 0x00000020        // Native x87 error reporting
-#define CR0_PAGING 0x80000000               // Paging on/off
-
 /* PIC and IRQ helpers */
 #define INTERRUPT_COMMAND 0x0020
 #define MAX_IRQ 16

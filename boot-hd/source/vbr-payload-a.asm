@@ -34,6 +34,8 @@ BITS 16
 ORIGIN equ PAYLOAD_ADDRESS
 KERNEL_LOAD_ADDRESS      equ 0x200000
 
+%include "../kernel/source/arch/common/Cpu.inc"
+
 %macro DebugPrint 1
 %if DEBUG_OUTPUT
     mov         si, %1
@@ -91,15 +93,8 @@ extern VbrLongModeDataSelector
 
 PBN                         equ 0x08        ; Param base near
 PBF                         equ 0x0A        ; Param base far
-CR0_PROTECTED_MODE          equ 0x00000001  ; Protected mode on/off
-CR0_COPROCESSOR             equ 0x00000002  ; Math present
-CR0_MONITOR_COPROCESSOR     equ 0x00000004  ; Emulate co-processor
-CR0_TASKSWITCH              equ 0x00000008  ; Set on task switch
-CR0_80387                   equ 0x00000010  ; Type of co-processor
-CR0_PAGING                  equ 0x80000000  ; Paging on/off
 
 %ifdef ARCH_X86_64
-CR4_PAE                     equ 0x00000020
 IA32_EFER                   equ 0xC0000080
 EFER_LME                    equ 0x00000100
 %endif

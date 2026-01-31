@@ -14,12 +14,7 @@
 %define KERNEL_ARCH_MAX_UINT 0xFFFFFFFFFFFFFFFF
 
 %include "../../common/Kernel.inc"
-
-;-------------------------------------------------------------------------
-; Bit layout of CR0
-
-CR0_PROTECTED_MODE equ 0x00000001
-CR0_PAGING         equ 0x80000000
+%include "../../common/Cpu.inc"
 
 ;-------------------------------------------------------------------------
 ; Physical and virtual memory addresses
