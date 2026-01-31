@@ -52,6 +52,7 @@
 #define NVME_ADMIN_OP_SET_FEATURES 0x09
 
 #define NVME_IO_OP_NOOP 0x00
+#define NVME_IO_OP_READ 0x02
 
 #define NVME_FEATURE_NUMBER_OF_QUEUES 0x07
 
@@ -133,6 +134,7 @@ typedef struct tag_NVME_DEVICE {
     UINT IoCqHead;
     U8 IoCqPhase;
     U16 IoQueueId;
+    U16 IoCommandId;
 } NVME_DEVICE, *LPNVME_DEVICE;
 
 /************************************************************************/

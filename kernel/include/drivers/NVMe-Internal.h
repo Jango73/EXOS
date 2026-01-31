@@ -62,6 +62,8 @@ BOOL NVMeSetNumberOfQueues(LPNVME_DEVICE Device, U16 QueueCount);
 BOOL NVMeSetupInterrupts(LPNVME_DEVICE Device);
 BOOL NVMeCreateIoQueues(LPNVME_DEVICE Device);
 BOOL NVMeSubmitIoNoop(LPNVME_DEVICE Device);
+BOOL NVMeReadSectors(LPNVME_DEVICE Device, U64 Lba, U32 SectorCount, LPVOID Buffer, U32 BufferBytes);
+BOOL NVMeReadTest(LPNVME_DEVICE Device);
 void NVMeFreeIoQueues(LPNVME_DEVICE Device);
 
 volatile U32* NVMeGetDoorbellBase(LPNVME_DEVICE Device);

@@ -326,6 +326,10 @@ static LPPCI_DEVICE NVMeAttach(LPPCI_DEVICE PciDevice) {
         if (!NVMeSubmitIoNoop(Device)) {
             WARNING(TEXT("[NVMeAttach] I/O NO-OP failed"));
             NVMeFreeIoQueues(Device);
+        } else {
+            if (!NVMeReadTest(Device)) {
+                WARNING(TEXT("[NVMeAttach] Read test failed"));
+            }
         }
     }
 

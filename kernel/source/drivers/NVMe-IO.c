@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "drivers/NVMe-Internal.h"
+#include "Disk.h"
 
 /************************************************************************/
 
@@ -51,6 +52,7 @@ void NVMeFreeIoQueues(LPNVME_DEVICE Device) {
     Device->IoCqHead = 0;
     Device->IoCqPhase = 0;
     Device->IoQueueId = 0;
+    Device->IoCommandId = 0;
 }
 
 /************************************************************************/
@@ -121,6 +123,7 @@ static BOOL NVMeSetupIoQueues(LPNVME_DEVICE Device) {
     Device->IoSqTail = 0;
     Device->IoCqHead = 0;
     Device->IoCqPhase = 1;
+    Device->IoCommandId = 1;
 
     return TRUE;
 }
@@ -335,31 +338,39 @@ BOOL NVMeSetupInterrupts(LPNVME_DEVICE Device) {
 /************************************************************************/
 
 /**
- * @brief Submit an I/O NO-OP command and wait for completion.
+ * @brief Submit an I/O command and wait for completion.
  *
  * @param Device NVMe device.
+ * @param Command I/O command to submit.
+ * @param CompletionOut Completion output (optional).
  * @return TRUE on success, FALSE on failure.
  */
-BOOL NVMeSubmitIoNoop(LPNVME_DEVICE Device) {
-    if (Device == NULL || Device->IoSq == NULL || Device->IoCq == NULL) {
+static BOOL NVMeSubmitIoCommand(LPNVME_DEVICE Device, const NVME_COMMAND* Command, NVME_COMPLETION* CompletionOut) {
+    if (Device == NULL || Command == NULL || Device->IoSq == NULL || Device->IoCq == NULL) {
         return FALSE;
     }
+
+    if (Device->IoCommandId == 0) {
+        Device->IoCommandId = 1;
+    }
+
+    NVME_COMMAND LocalCommand = *Command;
+    U16 CommandId = Device->IoCommandId;
+    Device->IoCommandId = (U16)(Device->IoCommandId + 1);
+    if (Device->IoCommandId == 0) {
+        Device->IoCommandId = 1;
+    }
+    LocalCommand.CommandId = CommandId;
+
+    UINT Tail = Device->IoSqTail;
+    LPNVME_COMMAND Sq = (LPNVME_COMMAND)Device->IoSq;
+    MemoryCopy(&Sq[Tail], &LocalCommand, sizeof(NVME_COMMAND));
+    Device->IoSqTail = (Tail + 1) % Device->IoSqEntries;
 
     volatile U32* Doorbell = NVMeGetDoorbellBase(Device);
     if (Doorbell == NULL) {
         return FALSE;
     }
-
-    NVME_COMMAND Command;
-    MemorySet(&Command, 0, sizeof(Command));
-    Command.Opcode = NVME_IO_OP_NOOP;
-    Command.CommandId = 1;
-    Command.NamespaceId = 1;
-
-    UINT Tail = Device->IoSqTail;
-    LPNVME_COMMAND Sq = (LPNVME_COMMAND)Device->IoSq;
-    MemoryCopy(&Sq[Tail], &Command, sizeof(NVME_COMMAND));
-    Device->IoSqTail = (Tail + 1) % Device->IoSqEntries;
 
     UINT DbStride = (UINT)(Device->DoorbellStride / 4);
     UINT QueueId = (UINT)Device->IoQueueId;
@@ -378,10 +389,14 @@ BOOL NVMeSubmitIoNoop(LPNVME_DEVICE Device) {
             continue;
         }
 
-        if (Entry->CommandId != Command.CommandId) {
-            WARNING(TEXT("[NVMeSubmitIoNoop] Unexpected completion ID=%x expected=%x"),
+        if (Entry->CommandId != CommandId) {
+            WARNING(TEXT("[NVMeSubmitIoCommand] Unexpected completion ID=%x expected=%x"),
                     (U32)Entry->CommandId,
-                    (U32)Command.CommandId);
+                    (U32)CommandId);
+        }
+
+        if (CompletionOut != NULL) {
+            *CompletionOut = *Entry;
         }
 
         Head++;
@@ -395,27 +410,197 @@ BOOL NVMeSubmitIoNoop(LPNVME_DEVICE Device) {
 
         UINT CqDoorbellIndex = ((QueueId * 2) + 1) * DbStride;
         Doorbell[CqDoorbellIndex] = (U32)Head;
-
-        U16 Status = (U16)(EntryStatus >> 1);
-        if (Status != 0) {
-            U16 Sc = (U16)(Status & 0xFF);
-            U16 Sct = (U16)((Status >> 8) & 0x7);
-            U16 Dnr = (U16)((Status >> 14) & 0x1);
-            WARNING(TEXT("[NVMeSubmitIoNoop] Status=%x SCT=%x SC=%x DNR=%x"),
-                    (U32)Status,
-                    (U32)Sct,
-                    (U32)Sc,
-                    (U32)Dnr);
-            return FALSE;
-        }
-
-        DEBUG(TEXT("[NVMeSubmitIoNoop] NO-OP completed on QID=%x"),
-              (U32)Device->IoQueueId);
         return TRUE;
     }
 
-    WARNING(TEXT("[NVMeSubmitIoNoop] Timeout waiting for completion"));
+    WARNING(TEXT("[NVMeSubmitIoCommand] Timeout waiting for completion"));
     return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Submit an I/O NO-OP command and wait for completion.
+ *
+ * @param Device NVMe device.
+ * @return TRUE on success, FALSE on failure.
+ */
+BOOL NVMeSubmitIoNoop(LPNVME_DEVICE Device) {
+    if (Device == NULL || Device->IoSq == NULL || Device->IoCq == NULL) {
+        return FALSE;
+    }
+
+    NVME_COMMAND Command;
+    MemorySet(&Command, 0, sizeof(Command));
+    Command.Opcode = NVME_IO_OP_NOOP;
+    Command.NamespaceId = 1;
+    NVME_COMPLETION Completion;
+    if (!NVMeSubmitIoCommand(Device, &Command, &Completion)) {
+        return FALSE;
+    }
+
+    U16 Status = (U16)(Completion.Status >> 1);
+    if (Status != 0) {
+        U16 Sc = (U16)(Status & 0xFF);
+        U16 Sct = (U16)((Status >> 8) & 0x7);
+        U16 Dnr = (U16)((Status >> 14) & 0x1);
+        WARNING(TEXT("[NVMeSubmitIoNoop] Status=%x SCT=%x SC=%x DNR=%x"),
+                (U32)Status,
+                (U32)Sct,
+                (U32)Sc,
+                (U32)Dnr);
+        return FALSE;
+    }
+
+    DEBUG(TEXT("[NVMeSubmitIoNoop] NO-OP completed on QID=%x"),
+          (U32)Device->IoQueueId);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read sectors using the I/O queue.
+ *
+ * @param Device NVMe device.
+ * @param Lba Starting logical block address.
+ * @param SectorCount Number of sectors to read.
+ * @param Buffer Destination buffer (4 KiB aligned).
+ * @param BufferBytes Buffer size in bytes.
+ * @return TRUE on success, FALSE on failure.
+ */
+BOOL NVMeReadSectors(LPNVME_DEVICE Device, U64 Lba, U32 SectorCount, LPVOID Buffer, U32 BufferBytes) {
+    if (Device == NULL || Device->IoSq == NULL || Device->IoCq == NULL) {
+        return FALSE;
+    }
+    if (Buffer == NULL || SectorCount == 0 || BufferBytes == 0) {
+        return FALSE;
+    }
+    if (SectorCount > (0xFFFFFFFF / SECTOR_SIZE)) {
+        return FALSE;
+    }
+
+    U32 TransferBytes = SectorCount * SECTOR_SIZE;
+    if (BufferBytes < TransferBytes) {
+        return FALSE;
+    }
+    if (TransferBytes > (2 * N_4KB)) {
+        WARNING(TEXT("[NVMeReadSectors] Transfer too large for PRP1/PRP2 %u bytes"),
+                (U32)TransferBytes);
+        return FALSE;
+    }
+    if (SectorCount > 0x10000) {
+        WARNING(TEXT("[NVMeReadSectors] Too many sectors %u"), (U32)SectorCount);
+        return FALSE;
+    }
+
+    LINEAR BufferLinear = (LINEAR)Buffer;
+    if ((BufferLinear & (N_4KB - 1)) != 0) {
+        WARNING(TEXT("[NVMeReadSectors] Buffer not 4 KiB aligned %p"), Buffer);
+        return FALSE;
+    }
+
+    PHYSICAL BasePhys = MapLinearToPhysical(BufferLinear);
+    if (BasePhys == 0) {
+        return FALSE;
+    }
+
+    for (UINT Offset = 0; Offset < TransferBytes; Offset += N_4KB) {
+        LINEAR Linear = BufferLinear + (LINEAR)Offset;
+        PHYSICAL Physical = MapLinearToPhysical(Linear);
+        if (Physical != (BasePhys + (PHYSICAL)Offset)) {
+            WARNING(TEXT("[NVMeReadSectors] Buffer not contiguous at %x"), (U32)Offset);
+            return FALSE;
+        }
+    }
+
+    NVME_COMMAND Command;
+    MemorySet(&Command, 0, sizeof(Command));
+    Command.Opcode = NVME_IO_OP_READ;
+    Command.NamespaceId = 1;
+    Command.Prp1Low = (U32)(BasePhys & 0xFFFFFFFF);
+    Command.Prp1High = 0;
+#ifdef __EXOS_64__
+    Command.Prp1High = (U32)((BasePhys >> 32) & 0xFFFFFFFF);
+#endif
+
+    if (TransferBytes > N_4KB) {
+        PHYSICAL SecondPage = BasePhys + N_4KB;
+        Command.Prp2Low = (U32)(SecondPage & 0xFFFFFFFF);
+        Command.Prp2High = 0;
+#ifdef __EXOS_64__
+        Command.Prp2High = (U32)((SecondPage >> 32) & 0xFFFFFFFF);
+#endif
+    }
+
+    Command.CommandDword10 = U64_Low32(Lba);
+    Command.CommandDword11 = U64_High32(Lba);
+    Command.CommandDword12 = (U32)((SectorCount - 1) & 0xFFFF);
+
+    NVME_COMPLETION Completion;
+    if (!NVMeSubmitIoCommand(Device, &Command, &Completion)) {
+        return FALSE;
+    }
+
+    U16 Status = (U16)(Completion.Status >> 1);
+    if (Status != 0) {
+        U16 Sc = (U16)(Status & 0xFF);
+        U16 Sct = (U16)((Status >> 8) & 0x7);
+        U16 Dnr = (U16)((Status >> 14) & 0x1);
+        WARNING(TEXT("[NVMeReadSectors] Status=%x SCT=%x SC=%x DNR=%x"),
+                (U32)Status,
+                (U32)Sct,
+                (U32)Sc,
+                (U32)Dnr);
+        return FALSE;
+    }
+
+    DEBUG(TEXT("[NVMeReadSectors] Read LBA=%x:%x sectors=%u"),
+          U64_High32(Lba),
+          U64_Low32(Lba),
+          (U32)SectorCount);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read LBA 0 and log the MBR signature.
+ *
+ * @param Device NVMe device.
+ * @return TRUE on success, FALSE on failure.
+ */
+BOOL NVMeReadTest(LPNVME_DEVICE Device) {
+    if (Device == NULL) {
+        return FALSE;
+    }
+
+    U32 TransferBytes = SECTOR_SIZE;
+    U32 RawSize = TransferBytes + N_4KB;
+    LPVOID Raw = KernelHeapAlloc(RawSize);
+    if (Raw == NULL) {
+        return FALSE;
+    }
+
+    LINEAR RawBase = (LINEAR)Raw;
+    LINEAR AlignedBase = (LINEAR)((RawBase + (N_4KB - 1)) & ~(N_4KB - 1));
+    LPVOID Buffer = (LPVOID)AlignedBase;
+    MemorySet(Buffer, 0, TransferBytes);
+
+    BOOL Result = NVMeReadSectors(Device, U64_FromU32(0), 1, Buffer, TransferBytes);
+    if (Result) {
+        U8* Data = (U8*)Buffer;
+        U32 SigLow = (U32)Data[SECTOR_SIZE - 2];
+        U32 SigHigh = (U32)Data[SECTOR_SIZE - 1];
+        DEBUG(TEXT("[NVMeReadTest] MBR signature=%x %x"),
+              SigLow,
+              SigHigh);
+    } else {
+        WARNING(TEXT("[NVMeReadTest] Read LBA0 failed"));
+    }
+
+    KernelHeapFree(Raw);
+    return Result;
 }
 
 /************************************************************************/

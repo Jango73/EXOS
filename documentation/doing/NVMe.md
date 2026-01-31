@@ -35,8 +35,8 @@ Success: dummy no-op commands complete on the I/O CQ.
 
 ## Step 5 — Read Sectors
 Goal: implement the read path.  
-- [ ] Build PRP (1–2 pages) for destination buffer.  
-- [ ] Submit Read (0x02) to I/O SQ and wait for completion.  
+- [x] Build PRP (1–2 pages) for destination buffer.  
+- [x] Submit Read (0x02) to I/O SQ and wait for completion.  
 Success: `dd if=/dev/nvme0n1 count=1` returns the MBR bytes.
 
 ## Step 6 — Write Sectors
@@ -93,7 +93,7 @@ Goal: integrate NVMe cleanly with existing EXOS driver and disk layers.
 
 ### Proposed modules and file layout
 - `kernel/include/drivers/NVMe-Core.h`: register definitions, queue entries, command opcodes, driver structs.  
-- `kernel/source/drivers/NVMe.c`: PCI probe, attach, controller init, admin queue, I/O queue, read/write path.  
+- `kernel/source/drivers/NVMe-Core.c`: PCI probe, attach, controller init, admin queue, I/O queue, read/write path.  
 - Optional shared helpers (only if duplication is real and not trivial):
   - `kernel/include/drivers/PCIe-Helpers.h` and `kernel/source/drivers/PCIe-Helpers.c` for PCIe capabilities/MSI-MSIX parsing.
   - `kernel/include/drivers/DMA-Helpers.h` and `kernel/source/drivers/DMA-Helpers.c` for aligned DMA alloc/free.

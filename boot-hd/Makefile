@@ -20,6 +20,7 @@ endif
 DEBUG_OUTPUT    ?= 0
 
 IMG_SIZE_MB     ?= 16
+NVME_IMG_SIZE_MB ?= 1024
 FILE_SYSTEM     ?= ext2
 EXT2_BLOCK_SIZE ?= 4096
 KERNEL_FILE     ?= exos.bin
@@ -114,6 +115,7 @@ PAYLOAD_ELF     = $(BUILD_DIR)/boot-hd/vbr-payload.elf
 PAYLOAD_MAP     = $(BUILD_DIR)/boot-hd/vbr-payload.map
 FINAL_IMG       = $(BUILD_DIR)/boot-hd/exos.img
 USB3_IMG        = $(BUILD_DIR)/boot-hd/usb-3.img
+NVME_IMG        = $(BUILD_DIR)/boot-hd/nvme.img
 CYCLE_BIN       = $(BUILD_DIR)/tools/cycle
 KERNEL_BIN      = $(BUILD_DIR)/kernel/exos.bin
 PORTAL_ELF      = $(BUILD_DIR)/system/portal/portal
@@ -165,6 +167,26 @@ define CREATE_EXT2_IMAGE
 				exit 1; \
 			fi; \
                         mke2fs -F -t ext2 -b $(EXT2_BLOCK_SIZE) -q -L $(EXT2_LABEL) -E offset=$$PART_OFFSET $1; \
+		}; \
+	fi
+endef
+
+define CREATE_EXT2_IMAGE_SIZE
+	@if [ -f $1 ]; then \
+		echo "Skipping creation of $1 (already exists)."; \
+	else \
+		echo "Creating $2MiB image with partition table and EXT2 partition..."; \
+		dd if=/dev/zero of=$1 bs=1M count=$2; \
+		parted -s $1 mklabel msdos; \
+		parted -s $1 mkpart primary ext2 2048s 100%; \
+		parted -s $1 set 1 boot on; \
+		{ \
+			PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
+			if [ -z "$$PART_OFFSET" ] || [ "$$PART_OFFSET" = "0" ]; then \
+				echo "ERROR: Partition not found, or PART_OFFSET is zero. Aborting."; \
+				exit 1; \
+			fi; \
+			mke2fs -F -t ext2 -b $(EXT2_BLOCK_SIZE) -q -L $(EXT2_LABEL) -E offset=$$PART_OFFSET $1; \
 		}; \
 	fi
 endef
@@ -227,7 +249,7 @@ endef
 .PHONY: all update update-fat32 update-ext2 update-test-image install-mbr install-vbr-payload clean check_tools rebuild-image usb-3-image
 
 # Default: build tools, ensure images exist (create once), then update contents
-all: check_tools $(FINAL_IMG) $(USB3_IMG) update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
+all: check_tools $(FINAL_IMG) $(USB3_IMG) $(NVME_IMG) update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
 
 check_tools:
 	@command -v $(NASM) >/dev/null 2>&1 || { echo "$(NASM) is not installed. Please run: sudo apt install nasm"; exit 1; }
@@ -315,6 +337,10 @@ endif
 $(FINAL_IMG): $(FINAL_IMG_DEPS)
 	@mkdir -p $(dir $@)
 	$(call $(CREATE_IMAGE_MACRO),$@)
+
+$(NVME_IMG): check_tools
+	@mkdir -p $(dir $@)
+	$(call CREATE_EXT2_IMAGE_SIZE,$@,$(NVME_IMG_SIZE_MB))
 
 ifeq ($(TEST_PAYLOAD),1)
 $(USB3_IMG): check_tools
