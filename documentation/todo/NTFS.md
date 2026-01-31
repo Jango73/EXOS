@@ -1,0 +1,94 @@
+# NTFS Implementation Roadmap
+
+## Prerequisites (one-time)
+
+- [ ] **Block device**: read sectors with LBA, 512 bytes or 4K.
+- [ ] **Partition**: identify NTFS partition in GPT or MBR, expose start LBA.
+- [ ] **Cache**: basic read cache for clusters (read-only).
+- [ ] **Unicode**: UTF-16LE decode for file and folder names.
+- [ ] **DATETIME**: convert NTFS timestamps to DATETIME structure.
+
+## Step 1 --- Volume detection + Boot Sector
+
+**Goal**: validate NTFS volume and extract core geometry.
+
+- [ ] Read boot sector, check OEM and signature.
+- [ ] Parse bytes per sector, sectors per cluster, MFT start cluster.
+- [ ] Support only standard sector sizes (reject exotic values).
+
+**Success**: `fsctl volume` prints NTFS geometry and volume label.
+
+## Step 2 --- MFT read (minimal)
+
+**Goal**: read file records by index.
+
+- [ ] Read MFT file record 0 and parse basic header.
+- [ ] Support fixup array, record size, flags.
+- [ ] Expose a minimal `NtfsReadFileRecord(Index)`.
+
+**Success**: a debug command can dump file record metadata for a given index.
+
+## Step 3 --- Attributes: FILE_NAME + DATA (read-only)
+
+**Goal**: retrieve file metadata and file contents.
+
+- [ ] Parse resident and non-resident attributes.
+- [ ] Implement runlist parsing for non-resident DATA.
+- [ ] Read DATA stream (default stream only, no alternate streams).
+- [ ] Extract FILE_NAME (primary) and basic timestamps.
+
+**Success**: a single file can be read by MFT index and its name is visible.
+
+## Step 4 --- Folder listing (INDEX_ROOT + INDEX_ALLOCATION)
+
+**Goal**: list folder entries.
+
+- [ ] Parse INDEX_ROOT for small folders.
+- [ ] Parse INDEX_ALLOCATION and BITMAP for large folders.
+- [ ] Implement index entry traversal (B+ tree walk).
+- [ ] Ignore reparse points and hard links for now.
+
+**Success**: `ls` on a mounted NTFS volume lists folder contents.
+
+## Step 5 --- Path lookup (\Folder\File)
+
+**Goal**: resolve paths to file records.
+
+- [ ] Root folder lookup using index entries.
+- [ ] Implement case-insensitive compare (ASCII first, then Unicode).
+- [ ] Cache recent folder lookups to reduce MFT reads.
+
+**Success**: `cat` on a path prints file contents.
+
+## Step 6 --- Integration with VFS (read-only)
+
+**Goal**: mount NTFS read-only as a filesystem.
+
+- [ ] Implement NtfsMount, NtfsOpen, NtfsRead, NtfsListFolder.
+- [ ] Translate NTFS metadata to VFS attributes.
+- [ ] Enforce read-only and return proper errors on write attempts.
+
+**Success**: NTFS volume is browseable and files are readable.
+
+## Step 7 --- Future full implementation hooks
+
+**Goal**: keep design ready for full NTFS later.
+
+- [ ] Separate on-disk parsing from VFS layer.
+- [ ] Reserve structures for security descriptors and object identifiers.
+- [ ] Add placeholder interfaces for write path (create, write, delete).
+- [ ] Define attribute handlers table to extend support cleanly.
+
+**Success**: adding full NTFS features later does not require large refactors.
+
+## Step 8 --- Full NTFS features (later)
+
+- [ ] Alternate data streams.
+- [ ] Compression.
+- [ ] Encryption (EFS).
+- [ ] USN journal.
+- [ ] Security descriptors and ACLs.
+- [ ] Hard links and reparse points.
+- [ ] Sparse files.
+- [ ] Object identifiers and quotas.
+- [ ] Journaled write support.
