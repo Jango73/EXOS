@@ -23,6 +23,10 @@
 - Functions returning U32 MUST return DF_RETURN_XXXX codes : meaning 0 on success, an error otherwise.
 - If they are meant to return 0 or 1, they must use BOOL.
 
+## Shell
+
+- Add a storage command that lists all existing storage devices and all partitions that exist on it, whether or not handlee by the OS.
+
 ## Shell kernel exposure
 
 - Expose PCI devices
@@ -74,7 +78,6 @@
 ## Drivers
 
 - PCIe
-- NVMe
 
 ## Localization
 
