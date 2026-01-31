@@ -154,6 +154,9 @@ static U32 CMD_whoami(LPSHELLCONTEXT);
 static U32 CMD_passwd(LPSHELLCONTEXT);
 static U32 CMD_prof(LPSHELLCONTEXT);
 static U32 CMD_usb(LPSHELLCONTEXT);
+static U32 CMD_dataview(LPSHELLCONTEXT);
+
+void SystemDataViewMode(void);
 
 static void ShellScriptOutput(LPCSTR Message, LPVOID UserData);
 static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
@@ -218,6 +221,7 @@ static struct {
     {"passwd", "setpassword", "", CMD_passwd},
     {"prof", "profiling", "", CMD_prof},
     {"usb", "usb", "ports|devices|device-tree|drives|probe", CMD_usb},
+    {"data", "dataview", "", CMD_dataview},
     {"", "", "", NULL},
 };
 
@@ -1792,6 +1796,19 @@ static U32 CMD_prof(LPSHELLCONTEXT Context) {
     UNUSED(Context);
     ProfileDump();
     return 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Run the System Data View mode from the shell.
+ * @param Context Shell context.
+ * @return DF_RETURN_SUCCESS on completion.
+ */
+static U32 CMD_dataview(LPSHELLCONTEXT Context) {
+    UNUSED(Context);
+    SystemDataViewMode();
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/

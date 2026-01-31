@@ -36,14 +36,12 @@
 
 /************************************************************************/
 
-#if SYSTEM_DATA_VIEW == 1
-
 /************************************************************************/
 // Macros
 
-#define SYSTEM_DATA_VIEW_PAGE_COUNT 9
-#define SYSTEM_DATA_VIEW_OUTPUT_BUFFER_SIZE 8192
-#define SYSTEM_DATA_VIEW_OUTPUT_MAX_LINES 256
+#define SYSTEM_DATA_VIEW_PAGE_COUNT 12
+#define SYSTEM_DATA_VIEW_OUTPUT_BUFFER_SIZE 32768
+#define SYSTEM_DATA_VIEW_OUTPUT_MAX_LINES 1024
 #define SYSTEM_DATA_VIEW_VALUE_COLUMN 20
 
 #define SYSTEM_DATA_VIEW_PIC1_COMMAND 0x20
@@ -56,11 +54,16 @@
 #define SYSTEM_DATA_VIEW_PCI_CLASS_MASS_STORAGE 0x01
 #define SYSTEM_DATA_VIEW_PCI_SUBCLASS_SATA 0x06
 #define SYSTEM_DATA_VIEW_PCI_PROGRAMMING_INTERFACE_AHCI 0x01
+#define SYSTEM_DATA_VIEW_PCI_SUBCLASS_NVM 0x08
+#define SYSTEM_DATA_VIEW_PCI_PROGRAMMING_INTERFACE_NVME 0x02
 
 #define SYSTEM_DATA_VIEW_PCI_CLASS_SERIAL_BUS 0x0C
 #define SYSTEM_DATA_VIEW_PCI_SUBCLASS_USB 0x03
 #define SYSTEM_DATA_VIEW_PCI_PROGRAMMING_INTERFACE_EHCI 0x20
 #define SYSTEM_DATA_VIEW_PCI_PROGRAMMING_INTERFACE_XHCI 0x30
+
+#define SYSTEM_DATA_VIEW_PCI_VENDOR_INTEL 0x8086
+#define SYSTEM_DATA_VIEW_PCI_CLASS_BRIDGE 0x06
 
 /************************************************************************/
 // Type definitions
@@ -72,6 +75,40 @@ typedef struct tag_SYSTEM_DATA_VIEW_CONTEXT {
     UINT LineCount;
     UINT LineOffsets[SYSTEM_DATA_VIEW_OUTPUT_MAX_LINES];
 } SYSTEM_DATA_VIEW_CONTEXT, *LPSYSTEM_DATA_VIEW_CONTEXT;
+
+typedef struct tag_SYSTEM_DATA_VIEW_PCI_INFO {
+    U8 Bus;
+    U8 Dev;
+    U8 Func;
+    U16 VendorID;
+    U16 DeviceID;
+    U8 BaseClass;
+    U8 SubClass;
+    U8 ProgIF;
+    U8 Revision;
+    U8 HeaderType;
+    U8 IRQLine;
+    U8 IRQLegacyPin;
+    U32 BAR[6];
+} SYSTEM_DATA_VIEW_PCI_INFO, *LPSYSTEM_DATA_VIEW_PCI_INFO;
+
+typedef BOOL (*SYSTEM_DATA_VIEW_PCI_VISITOR)(LPSYSTEM_DATA_VIEW_CONTEXT Context,
+    const SYSTEM_DATA_VIEW_PCI_INFO* Info,
+    LPVOID UserData);
+
+typedef struct tag_SYSTEM_DATA_VIEW_PCI_LIST_STATE {
+    UINT Index;
+} SYSTEM_DATA_VIEW_PCI_LIST_STATE, *LPSYSTEM_DATA_VIEW_PCI_LIST_STATE;
+
+typedef struct tag_SYSTEM_DATA_VIEW_PCI_STORAGE_STATE {
+    UINT Index;
+    UINT Count;
+} SYSTEM_DATA_VIEW_PCI_STORAGE_STATE, *LPSYSTEM_DATA_VIEW_PCI_STORAGE_STATE;
+
+typedef struct tag_SYSTEM_DATA_VIEW_PCI_VMD_STATE {
+    UINT Index;
+    UINT Count;
+} SYSTEM_DATA_VIEW_PCI_VMD_STATE, *LPSYSTEM_DATA_VIEW_PCI_VMD_STATE;
 
 /************************************************************************/
 
@@ -910,6 +947,319 @@ static void SystemDataViewDrawPageXhci(LPSYSTEM_DATA_VIEW_CONTEXT Context, U8 Pa
 /************************************************************************/
 
 /**
+ * @brief Fill PCI info for a given function.
+ *
+ * @param Bus Bus number.
+ * @param Device Device number.
+ * @param Function Function number.
+ * @param Info Output info structure.
+ * @return TRUE when the function exists.
+ */
+static BOOL SystemDataViewPciReadInfo(U8 Bus, U8 Device, U8 Function, LPSYSTEM_DATA_VIEW_PCI_INFO Info) {
+    if (Info == NULL) {
+        return FALSE;
+    }
+
+    U16 VendorId = PCI_Read16(Bus, Device, Function, PCI_CFG_VENDOR_ID);
+    if (VendorId == 0xFFFFU) {
+        return FALSE;
+    }
+
+    MemorySet(Info, 0, sizeof(SYSTEM_DATA_VIEW_PCI_INFO));
+    Info->Bus = Bus;
+    Info->Dev = Device;
+    Info->Func = Function;
+    Info->VendorID = VendorId;
+    Info->DeviceID = PCI_Read16(Bus, Device, Function, PCI_CFG_DEVICE_ID);
+    Info->BaseClass = PCI_Read8(Bus, Device, Function, PCI_CFG_BASECLASS);
+    Info->SubClass = PCI_Read8(Bus, Device, Function, PCI_CFG_SUBCLASS);
+    Info->ProgIF = PCI_Read8(Bus, Device, Function, PCI_CFG_PROG_IF);
+    Info->Revision = PCI_Read8(Bus, Device, Function, PCI_CFG_REVISION);
+    Info->HeaderType = PCI_Read8(Bus, Device, Function, PCI_CFG_HEADER_TYPE);
+    Info->IRQLine = PCI_Read8(Bus, Device, Function, PCI_CFG_IRQ_LINE);
+    Info->IRQLegacyPin = PCI_Read8(Bus, Device, Function, PCI_CFG_IRQ_PIN);
+
+    for (UINT Index = 0; Index < 6; Index++) {
+        Info->BAR[Index] = PCI_Read32(Bus, Device, Function, (U16)(PCI_CFG_BAR0 + Index * 4));
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Enumerate all PCI functions and call a visitor.
+ *
+ * @param Context Output context.
+ * @param Visitor Visitor callback.
+ * @param UserData Visitor data.
+ * @param DeviceCountOut Device count output.
+ */
+static void SystemDataViewPciEnumerate(LPSYSTEM_DATA_VIEW_CONTEXT Context,
+    SYSTEM_DATA_VIEW_PCI_VISITOR Visitor,
+    LPVOID UserData,
+    UINT* DeviceCountOut) {
+    U32 Bus = 0;
+    U32 Device = 0;
+    U32 Function = 0;
+    UINT DeviceCount = 0;
+
+    for (Bus = 0; Bus < PCI_MAX_BUS; Bus++) {
+        for (Device = 0; Device < PCI_MAX_DEV; Device++) {
+            U16 VendorFunction0 = PCI_Read16((U8)Bus, (U8)Device, 0, PCI_CFG_VENDOR_ID);
+            if (VendorFunction0 == 0xFFFFU) {
+                continue;
+            }
+
+            U8 HeaderType = PCI_Read8((U8)Bus, (U8)Device, 0, PCI_CFG_HEADER_TYPE);
+            U8 IsMultiFunction = (U8)((HeaderType & PCI_HEADER_MULTI_FN) ? 1 : 0);
+            U8 MaxFunction = (U8)(IsMultiFunction ? (PCI_MAX_FUNC - 1) : 0);
+
+            for (Function = 0; Function <= (U32)MaxFunction; Function++) {
+                SYSTEM_DATA_VIEW_PCI_INFO Info;
+                if (!SystemDataViewPciReadInfo((U8)Bus, (U8)Device, (U8)Function, &Info)) {
+                    continue;
+                }
+
+                DeviceCount++;
+
+                if (Context != NULL &&
+                    Context->BufferLength + 128 >= SYSTEM_DATA_VIEW_OUTPUT_BUFFER_SIZE) {
+                    SystemDataViewWriteString(Context, TEXT("Output truncated\n"));
+                    Bus = PCI_MAX_BUS;
+                    break;
+                }
+
+                if (Visitor != NULL) {
+                    if (!Visitor(Context, &Info, UserData)) {
+                        Bus = PCI_MAX_BUS;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    if (DeviceCountOut != NULL) {
+        *DeviceCountOut = DeviceCount;
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief PCI list visitor for the System Data View.
+ *
+ * @param Context Output context.
+ * @param Info PCI function info.
+ * @param UserData User data pointer.
+ * @return TRUE to continue.
+ */
+static BOOL SystemDataViewPciListVisitor(LPSYSTEM_DATA_VIEW_CONTEXT Context,
+    const SYSTEM_DATA_VIEW_PCI_INFO* Info,
+    LPVOID UserData) {
+    STR Label[24];
+    LPSYSTEM_DATA_VIEW_PCI_LIST_STATE State = (LPSYSTEM_DATA_VIEW_PCI_LIST_STATE)UserData;
+
+    if (Context == NULL || Info == NULL || State == NULL) {
+        return FALSE;
+    }
+
+    State->Index++;
+    StringPrintFormat(Label, TEXT("PCI %u"), (U32)State->Index);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, Label,
+        TEXT("Bus=%u Dev=%u Fn=%u Class=%x Sub=%x IF=%x VID=%x DID=%x\n"),
+        (U32)Info->Bus,
+        (U32)Info->Dev,
+        (U32)Info->Func,
+        (U32)Info->BaseClass,
+        (U32)Info->SubClass,
+        (U32)Info->ProgIF,
+        (U32)Info->VendorID,
+        (U32)Info->DeviceID);
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Storage controller visitor for the System Data View.
+ *
+ * @param Context Output context.
+ * @param Info PCI function info.
+ * @param UserData User data pointer.
+ * @return TRUE to continue.
+ */
+static BOOL SystemDataViewPciStorageVisitor(LPSYSTEM_DATA_VIEW_CONTEXT Context,
+    const SYSTEM_DATA_VIEW_PCI_INFO* Info,
+    LPVOID UserData) {
+    STR Label[32];
+    LPSYSTEM_DATA_VIEW_PCI_STORAGE_STATE State = (LPSYSTEM_DATA_VIEW_PCI_STORAGE_STATE)UserData;
+
+    if (Context == NULL || Info == NULL || State == NULL) {
+        return FALSE;
+    }
+
+    if (Info->BaseClass != SYSTEM_DATA_VIEW_PCI_CLASS_MASS_STORAGE) {
+        return TRUE;
+    }
+
+    State->Count++;
+    State->Index++;
+
+    StringPrintFormat(Label, TEXT("Controller %u"), (U32)State->Index);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, Label,
+        TEXT("Bus=%u Dev=%u Fn=%u Class=%x Sub=%x IF=%x\n"),
+        (U32)Info->Bus,
+        (U32)Info->Dev,
+        (U32)Info->Func,
+        (U32)Info->BaseClass,
+        (U32)Info->SubClass,
+        (U32)Info->ProgIF);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("VID/DID/IRQ"),
+        TEXT("%x / %x / %u\n"),
+        (U32)Info->VendorID,
+        (U32)Info->DeviceID,
+        (U32)Info->IRQLine);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("BAR0/BAR5"),
+        TEXT("%x / %x\n"),
+        Info->BAR[0],
+        Info->BAR[5]);
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief VMD candidate visitor for the System Data View.
+ *
+ * @param Context Output context.
+ * @param Info PCI function info.
+ * @param UserData User data pointer.
+ * @return TRUE to continue.
+ */
+static BOOL SystemDataViewPciVmdVisitor(LPSYSTEM_DATA_VIEW_CONTEXT Context,
+    const SYSTEM_DATA_VIEW_PCI_INFO* Info,
+    LPVOID UserData) {
+    STR Label[32];
+    LPSYSTEM_DATA_VIEW_PCI_VMD_STATE State = (LPSYSTEM_DATA_VIEW_PCI_VMD_STATE)UserData;
+
+    if (Context == NULL || Info == NULL || State == NULL) {
+        return FALSE;
+    }
+
+    if (Info->VendorID != SYSTEM_DATA_VIEW_PCI_VENDOR_INTEL ||
+        Info->BaseClass != SYSTEM_DATA_VIEW_PCI_CLASS_BRIDGE) {
+        return TRUE;
+    }
+
+    State->Count++;
+    State->Index++;
+
+    StringPrintFormat(Label, TEXT("Bridge %u"), (U32)State->Index);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, Label,
+        TEXT("Bus=%u Dev=%u Fn=%u Class=%x Sub=%x IF=%x\n"),
+        (U32)Info->Bus,
+        (U32)Info->Dev,
+        (U32)Info->Func,
+        (U32)Info->BaseClass,
+        (U32)Info->SubClass,
+        (U32)Info->ProgIF);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("VID/DID/IRQ"),
+        TEXT("%x / %x / %u\n"),
+        (U32)Info->VendorID,
+        (U32)Info->DeviceID,
+        (U32)Info->IRQLine);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Header Type/Pin"),
+        TEXT("%x / %u\n"),
+        (U32)Info->HeaderType,
+        (U32)Info->IRQLegacyPin);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("BAR0/BAR1"),
+        TEXT("%x / %x\n"),
+        Info->BAR[0],
+        Info->BAR[1]);
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Draw the PCI device list page.
+ *
+ * @param Context Output context.
+ * @param PageIndex Page index.
+ */
+static void SystemDataViewDrawPagePciList(LPSYSTEM_DATA_VIEW_CONTEXT Context, U8 PageIndex) {
+    UINT DeviceCount = 0;
+    SYSTEM_DATA_VIEW_PCI_LIST_STATE State;
+
+    SystemDataViewDrawPageHeader(Context, TEXT("PCI Devices"), PageIndex);
+    MemorySet(&State, 0, sizeof(State));
+    SystemDataViewPciEnumerate(Context, SystemDataViewPciListVisitor, &State, &DeviceCount);
+
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Devices Found"),
+        TEXT("%u\n"), (U32)DeviceCount);
+
+    SystemDataViewDrawFooter(Context);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Draw the VMD controller summary page.
+ *
+ * @param Context Output context.
+ * @param PageIndex Page index.
+ */
+static void SystemDataViewDrawPageVmd(LPSYSTEM_DATA_VIEW_CONTEXT Context, U8 PageIndex) {
+    SYSTEM_DATA_VIEW_PCI_VMD_STATE State;
+
+    SystemDataViewDrawPageHeader(Context, TEXT("VMD (Intel Bridge)"), PageIndex);
+    MemorySet(&State, 0, sizeof(State));
+    SystemDataViewPciEnumerate(Context, SystemDataViewPciVmdVisitor, &State, NULL);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Candidates Found"),
+        TEXT("%u\n"), (U32)State.Count);
+    if (State.Count == 0) {
+        SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("VMD"),
+            TEXT("Not Detected\n"));
+    }
+
+    SystemDataViewDrawFooter(Context);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Check if the PCI device is a mass storage controller.
+ *
+ * @param Device PCI device to evaluate.
+ * @return TRUE when the device is a mass storage controller.
+ */
+/**
+ * @brief Draw the storage controller summary page.
+ *
+ * @param Context Output context.
+ * @param PageIndex Page index.
+ */
+static void SystemDataViewDrawPageStorageControllers(LPSYSTEM_DATA_VIEW_CONTEXT Context, U8 PageIndex) {
+    SYSTEM_DATA_VIEW_PCI_STORAGE_STATE State;
+
+    SystemDataViewDrawPageHeader(Context, TEXT("Storage Controllers"), PageIndex);
+    MemorySet(&State, 0, sizeof(State));
+    SystemDataViewPciEnumerate(Context, SystemDataViewPciStorageVisitor, &State, NULL);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Controllers Found"),
+        TEXT("%u\n"), (U32)State.Count);
+
+    SystemDataViewDrawFooter(Context);
+}
+
+/************************************************************************/
+
+/**
  * @brief Draw the IDT page for System Data View.
  *
  * @param Context Output context.
@@ -1018,9 +1368,18 @@ static void SystemDataViewDrawPage(LPSYSTEM_DATA_VIEW_CONTEXT Context, U8 PageIn
             SystemDataViewDrawPageXhci(Context, PageIndex);
             break;
         case 7:
-            SystemDataViewDrawPageIdt(Context, PageIndex);
+            SystemDataViewDrawPagePciList(Context, PageIndex);
             break;
         case 8:
+            SystemDataViewDrawPageVmd(Context, PageIndex);
+            break;
+        case 9:
+            SystemDataViewDrawPageStorageControllers(Context, PageIndex);
+            break;
+        case 10:
+            SystemDataViewDrawPageIdt(Context, PageIndex);
+            break;
+        case 11:
         default:
             SystemDataViewDrawPageGdt(Context, PageIndex);
             break;
@@ -1068,38 +1427,39 @@ void SystemDataViewMode(void) {
             NeedsRedraw = FALSE;
         }
 
-        if (PeekChar()) {
-            KEYCODE KeyCode;
-            GetKeyCode(&KeyCode);
+        if (PeekChar() == FALSE) {
+            Sleep(10);
+            continue;
+        }
 
-            switch (KeyCode.VirtualKey) {
-                case VK_ESCAPE:
-                    return;
-                case VK_RIGHT:
-                    CurrentPage = (U8)((CurrentPage + 1) % SYSTEM_DATA_VIEW_PAGE_COUNT);
+        KEYCODE KeyCode;
+        GetKeyCode(&KeyCode);
+
+        switch (KeyCode.VirtualKey) {
+            case VK_ESCAPE:
+                return;
+            case VK_RIGHT:
+                CurrentPage = (U8)((CurrentPage + 1) % SYSTEM_DATA_VIEW_PAGE_COUNT);
+                NeedsRedraw = TRUE;
+                break;
+            case VK_LEFT:
+                CurrentPage = (U8)((CurrentPage + SYSTEM_DATA_VIEW_PAGE_COUNT - 1) % SYSTEM_DATA_VIEW_PAGE_COUNT);
+                NeedsRedraw = TRUE;
+                break;
+            case VK_UP:
+                if (ScrollOffsets[CurrentPage] > 0) {
+                    ScrollOffsets[CurrentPage]--;
                     NeedsRedraw = TRUE;
-                    break;
-                case VK_LEFT:
-                    CurrentPage = (U8)((CurrentPage + SYSTEM_DATA_VIEW_PAGE_COUNT - 1) % SYSTEM_DATA_VIEW_PAGE_COUNT);
+                }
+                break;
+            case VK_DOWN:
+                if (ScrollOffsets[CurrentPage] < MaxScroll) {
+                    ScrollOffsets[CurrentPage]++;
                     NeedsRedraw = TRUE;
-                    break;
-                case VK_UP:
-                    if (ScrollOffsets[CurrentPage] > 0) {
-                        ScrollOffsets[CurrentPage]--;
-                        NeedsRedraw = TRUE;
-                    }
-                    break;
-                case VK_DOWN:
-                    if (ScrollOffsets[CurrentPage] < MaxScroll) {
-                        ScrollOffsets[CurrentPage]++;
-                        NeedsRedraw = TRUE;
-                    }
-                    break;
-            }
+                }
+                break;
         }
     }
 }
 
 /************************************************************************/
-
-#endif
