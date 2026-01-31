@@ -40,7 +40,7 @@ extern "C" {
 // Target architecture detection
 
 #if defined(__i386__) || defined(_M_IX86)
-    #define __EXOS_ARCH_I386__
+    #define __EXOS_ARCH_X86_32__
 #elif defined(__x86_64__) || defined(_M_X64)
     #define __EXOS_ARCH_X86_64__
 #else
@@ -81,9 +81,9 @@ extern "C" {
 /************************************************************************/
 // Validate architecture and ABI combination
 
-#if defined(__EXOS_ARCH_I386__)
+#if defined(__EXOS_ARCH_X86_32__)
     #if __SIZEOF_POINTER__ != 4
-        #error "i386 build requires 32-bit pointer size"
+        #error "x86-32 build requires 32-bit pointer size"
     #endif
 #elif defined(__EXOS_ARCH_X86_64__)
     #if __SIZEOF_POINTER__ != 8

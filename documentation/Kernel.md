@@ -16,7 +16,7 @@
   - [Shell scripting integration](#shell-scripting-integration)
   - [Task and window message delivery](#task-and-window-message-delivery)
   - [ACPI services](#acpi-services)
-- [Startup sequence on HD (real HD on i386 or qemu-system-i386)](#startup-sequence-on-hd-real-hd-on-i386-or-qemu-system-i386)
+- [Startup sequence on HD (real HD on x86-32 or qemu-system-i386)](#startup-sequence-on-hd-real-hd-on-x86-32-or-qemu-system-i386)
 - [Physical Memory map (may change)](#physical-memory-map-may-change)
 - [Disk interfaces](#disk-interfaces)
 - [Foreign File systems](#foreign-file-systems)
@@ -27,7 +27,7 @@
     - [IRQ 0 path](#irq-0-path)
     - [ISR 0 call graph](#isr-0-call-graph)
 - [System calls](#system-calls)
-  - [System call full path - i386](#system-call-full-path-i386)
+  - [System call full path - x86-32](#system-call-full-path-x86-32)
   - [System call full path - x86-64](#system-call-full-path-x86-64)
 - [Process and Task Lifecycle Management](#process-and-task-lifecycle-management)
   - [Process Heap Management](#process-heap-management)
@@ -93,13 +93,13 @@
 
 ### Paging abstractions
 
-The memory manager relies on `arch/Memory.h` to describe page hierarchy helpers exposed by the active architecture backend. The i386 implementation (`arch/i386/i386-Memory.h`) centralizes directory and table index calculations, exposes accessors for the self-mapped page directory, and provides helper routines to build raw page directory and page table entries. Kernel code constructs mappings through `MakePageDirectoryEntryValue`, `MakePageTableEntryValue`, and `WritePage*EntryValue` instead of touching the i386 bitfields directly. This abstraction keeps `Memory.c` agnostic of the paging depth so that a future x86-64 backend can extend the hierarchy without refactoring the core allocator.
+The memory manager relies on `arch/Memory.h` to describe page hierarchy helpers exposed by the active architecture backend. The x86-32 implementation (`arch/x86-32/x86-32-Memory.h`) centralizes directory and table index calculations, exposes accessors for the self-mapped page directory, and provides helper routines to build raw page directory and page table entries. Kernel code constructs mappings through `MakePageDirectoryEntryValue`, `MakePageTableEntryValue`, and `WritePage*EntryValue` instead of touching the x86-32 bitfields directly. This abstraction keeps `Memory.c` agnostic of the paging depth so that a future x86-64 backend can extend the hierarchy without refactoring the core allocator.
 
-The i386 page directory bootstrap maps the TaskRunner page with write access so the kernel main stack can live in the TaskRunner window during early bring-up.
+The x86-32 page directory bootstrap maps the TaskRunner page with write access so the kernel main stack can live in the TaskRunner window during early bring-up.
 
-`arch/i386/i386-Memory.h` exposes a generic `ARCH_PAGE_ITERATOR` helper that walks page mappings without assuming a fixed number of page table levels. Region management routines (`IsRegionFree`, `AllocRegion`, `FreeRegion`, and friends) advance the iterator rather than manually splitting linear addresses into directory/table indexes, and table reclamation relies on `PageTableIsEmpty`. Physical range clipping is also delegated to the architecture via `ClipPhysicalRange`, keeping future 64-bit backends free to extend address limits without touching the common kernel code.
+`arch/x86-32/x86-32-Memory.h` exposes a generic `ARCH_PAGE_ITERATOR` helper that walks page mappings without assuming a fixed number of page table levels. Region management routines (`IsRegionFree`, `AllocRegion`, `FreeRegion`, and friends) advance the iterator rather than manually splitting linear addresses into directory/table indexes, and table reclamation relies on `PageTableIsEmpty`. Physical range clipping is also delegated to the architecture via `ClipPhysicalRange`, keeping future 64-bit backends free to extend address limits without touching the common kernel code.
 
-`InitializeMemoryManager` defers to `InitializeMemoryManager` so the architecture backend owns the low-level bootstrap steps. The i386 implementation continues to reserve the bitmap in low memory, seed the temporary mapping slots, install the recursive page directory, and load the GDT. The x86-64 path mirrors these steps, wiring the temporary linear aliases, building the initial PML4, and installing a long-mode GDT so higher-half execution can begin without architecture-specific hooks inside the generic memory manager.
+`InitializeMemoryManager` defers to `InitializeMemoryManager` so the architecture backend owns the low-level bootstrap steps. The x86-32 implementation continues to reserve the bitmap in low memory, seed the temporary mapping slots, install the recursive page directory, and load the GDT. The x86-64 path mirrors these steps, wiring the temporary linear aliases, building the initial PML4, and installing a long-mode GDT so higher-half execution can begin without architecture-specific hooks inside the generic memory manager.
 
 On long mode builds the kernel allocates paging structures explicitly instead of cloning the loader tables. `AllocPageDirectory` creates fresh low-memory and kernel PDPTs, wires the task-runner window, and programs the recursive slot before returning the new PML4. `AllocUserPageDirectory` reuses those helpers but also reserves an empty userland page table so `AllocRegion` can immediately populate process space without reconstructing the hierarchy first. The low-memory region builder keeps a cached pair of BIOS-protected and general identity tables so new page directories only consume fresh pages for their PDPT, directory, and any userland seed tables.
 
@@ -188,9 +188,9 @@ The console can also render directly into a linear frame buffer when the bootloa
 
 Advanced power management and reset paths live in `kernel/source/ACPI.c`. The module discovers ACPI tables, exposes the parsed configuration, and offers helpers for platform control. `ACPIShutdown()` releases ACPI mappings and state without powering off. `ACPIPowerOff()` enters the S5 soft-off state using the `_S5` sleep type from the DSDT when available (defaults to 7 otherwise) and falls back to legacy power-off sequences when the ACPI path fails. The new `ACPIReboot()` companion performs a warm reboot by first using the ACPI reset register (when present) and then chaining to legacy reset controllers to ensure the machine restarts even on older chipsets. Kernel-level wrappers `ShutdownKernel()` and `RebootKernel()` drive shell commands, clear userland processes, then kernel tasks, and perform a reverse-order driver unload before handing control to the ACPI routines so subsystems leave as few pending resources as possible when the machine powers off or reboots.
 
-## Startup sequence on HD (real HD on i386 or qemu-system-i386)
+## Startup sequence on HD (real HD on x86-32 or qemu-system-i386)
 
-Everything in this sequence runs in 16-bit real mode on i386+ processors. However, the code uses 32 bit registers when appropriate.
+Everything in this sequence runs in 16-bit real mode on x86-32+ processors. However, the code uses 32 bit registers when appropriate.
 
 1. BIOS loads disk MBR at 0x7C00.
 2. Code in mbr.asm is executed.
@@ -207,7 +207,7 @@ Everything in this sequence runs in 16-bit real mode on i386+ processors. Howeve
 
 ## Startup sequence on UEFI
 
-1. Firmware loads `EFI/BOOT/BOOTX64.EFI` (x86-64) or `EFI/BOOT/BOOTIA32.EFI` (i386) from the EFI System Partition (FAT32).
+1. Firmware loads `EFI/BOOT/BOOTX64.EFI` (x86-64) or `EFI/BOOT/BOOTIA32.EFI` (x86-32) from the EFI System Partition (FAT32).
 2. The UEFI loader reads `exos.bin` from the root folder of the EFI System Partition into physical address 0x200000.
 3. The loader gathers the UEFI memory map, converts it to an E820 map, and builds the Multiboot information block.
 4. The loader switches to EXOS paging and GDT layout, then jumps to the kernel entry with the Multiboot registers set.
@@ -306,13 +306,13 @@ Everything in this sequence runs in 16-bit real mode on i386+ processors. Howeve
 
 Each task embeds an `ARCH_TASK_DATA` structure (declared in the architecture-specific header under `kernel/include/arch/`) that contains the saved interrupt frame along with the user, system, and any auxiliary stack descriptors that the target CPU requires. The generic `tag_TASK` definition in `kernel/include/process/Task.h` exposes this structure as the `Arch` member so that all stack and context manipulations remain scoped to the active architecture.
 
-The i386 implementation of `SetupTask` (`kernel/source/arch/i386/i386.c`) is responsible for allocating and clearing the per-task stacks, initialising the selectors in the interrupt frame and performing the bootstrap stack switch for the main kernel task. The x86-64 flavour performs the same duties and additionally provisions a dedicated Interrupt Stack Table (IST1) stack for faults that require a reliable kernel stack even if the regular system stack becomes unusable. During IDT initialisation the kernel assigns IST1 to the fault vectors that are most likely to execute with a corrupted task stack (double fault, invalid TSS, segment-not-present, stack, general protection and page faults). This ensures the handlers always run on the emergency per-task stack, preventing the double-fault escalation that previously produced a triple fault when the active stack pointer was already invalid. `CreateTask` calls the relevant helper after finishing the generic bookkeeping, which keeps the scheduler and task manager architecture-agnostic while allowing future architectures to provide their own `SetupTask` specialisation.
+The x86-32 implementation of `SetupTask` (`kernel/source/arch/x86-32/x86-32.c`) is responsible for allocating and clearing the per-task stacks, initialising the selectors in the interrupt frame and performing the bootstrap stack switch for the main kernel task. The x86-64 flavour performs the same duties and additionally provisions a dedicated Interrupt Stack Table (IST1) stack for faults that require a reliable kernel stack even if the regular system stack becomes unusable. During IDT initialisation the kernel assigns IST1 to the fault vectors that are most likely to execute with a corrupted task stack (double fault, invalid TSS, segment-not-present, stack, general protection and page faults). This ensures the handlers always run on the emergency per-task stack, preventing the double-fault escalation that previously produced a triple fault when the active stack pointer was already invalid. `CreateTask` calls the relevant helper after finishing the generic bookkeeping, which keeps the scheduler and task manager architecture-agnostic while allowing future architectures to provide their own `SetupTask` specialisation.
 
-Both the i386 and x86-64 context-switch helpers (`SetupStackForKernelMode` and `SetupStackForUserMode` in their respective architecture headers) must reserve space on the stack in bytes rather than entries before writing the return frame. Subtracting the correct byte count avoids writing past the top of the allocated stack when seeding the initial `iret` frame for a task. On x86-64 the helpers also arrange the bootstrap frame so that the stack pointer becomes 16-byte aligned after `iretq` pops its arguments, preserving the ABI-mandated alignment once execution resumes in the scheduled task.
+Both the x86-32 and x86-64 context-switch helpers (`SetupStackForKernelMode` and `SetupStackForUserMode` in their respective architecture headers) must reserve space on the stack in bytes rather than entries before writing the return frame. Subtracting the correct byte count avoids writing past the top of the allocated stack when seeding the initial `iret` frame for a task. On x86-64 the helpers also arrange the bootstrap frame so that the stack pointer becomes 16-byte aligned after `iretq` pops its arguments, preserving the ABI-mandated alignment once execution resumes in the scheduled task.
 
 ### Stack sizing
 
-The minimum sizes for task and system stacks are driven by the configuration keys `Task.MinimumTaskStackSize` and `Task.MinimumSystemStackSize` in `kernel/configuration/exos.ref.toml`. At boot the task manager reads those values, but it clamps them to the architecture defaults (`64 KiB`/`16 KiB` on i386 and `128 KiB`/`32 KiB` on x86-64) to prevent under-provisioned stacks. Increasing the values in the configuration grows every newly created task and keeps the auto stack growing logic operating on the larger baseline.
+The minimum sizes for task and system stacks are driven by the configuration keys `Task.MinimumTaskStackSize` and `Task.MinimumSystemStackSize` in `kernel/configuration/exos.ref.toml`. At boot the task manager reads those values, but it clamps them to the architecture defaults (`64 KiB`/`16 KiB` on x86-32 and `128 KiB`/`32 KiB` on x86-64) to prevent under-provisioned stacks. Increasing the values in the configuration grows every newly created task and keeps the auto stack growing logic operating on the larger baseline.
 
 ### IRQ scheduling
 
@@ -401,7 +401,7 @@ Interrupt_Clock └── BuildInterruptFrame
 
 ## System calls
 
-### System call full path - i386
+### System call full path - x86-32
 
 ```
 exos-runtime-c.c : malloc() (or any other function)
@@ -437,9 +437,9 @@ exos-runtime-c.c : malloc() (or any other function)
                     └── whew... finally job is done
 ```
 
-`USE_SYSCALL` is a project-level build flag (`make ARCH=x86-64 USE_SYSCALL=1`) that selects between the legacy interrupt gate and the SYSCALL/SYSRET pair on x86-64. The flag has no effect on i386 builds.
+`USE_SYSCALL` is a project-level build flag (`make ARCH=x86-64 USE_SYSCALL=1`) that selects between the legacy interrupt gate and the SYSCALL/SYSRET pair on x86-64. The flag has no effect on x86-32 builds.
 
-`SYSTEM_DATA_VIEW` is a project-level build flag (`make ARCH=i386 SYSTEM_DATA_VIEW=1`) that enables the System Data View mode before task creation. The mode shows the system data pages, uses the kernel keyboard input for navigation (left/right to change page, up/down to scroll), and exits on `Esc` to continue boot.
+`SYSTEM_DATA_VIEW` is a project-level build flag (`make ARCH=x86-32 SYSTEM_DATA_VIEW=1`) that enables the System Data View mode before task creation. The mode shows the system data pages, uses the kernel keyboard input for navigation (left/right to change page, up/down to scroll), and exits on `Esc` to continue boot.
 
 ## Process and Task Lifecycle Management
 

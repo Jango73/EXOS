@@ -1,6 +1,6 @@
 # Makefile mtools - inject EXOS into a FreeDOS image with FAT32 partition
 
-ARCH ?= i386
+ARCH ?= x86-32
 
 BUILD_DIR := ../build/$(ARCH)
 

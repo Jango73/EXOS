@@ -584,7 +584,7 @@ static inline U32 LoadPageDirectory(PHYSICAL Base)
 
 /***************************************************************************/
 
-extern KERNELDATA_X86_64 Kernel_i386;
+extern KERNELDATA_X86_64 Kernel_x86_32;
 
 struct tag_TASK;
 struct tag_PROCESS;

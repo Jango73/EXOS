@@ -3,7 +3,7 @@ set -euo pipefail
 
 MONITOR_HOST="${MONITOR_HOST:-127.0.0.1}"
 MONITOR_PORT="${MONITOR_PORT:-4444}"
-ARCH="${ARCH:-i386}"
+ARCH="${ARCH:-x86-32}"
 IMG_PATH="${IMG_PATH:-build/${ARCH}/boot-hd/usb-3.img}"
 
 if ! command -v nc >/dev/null 2>&1; then

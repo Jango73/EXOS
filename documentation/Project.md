@@ -2,7 +2,7 @@
 
 ## Overview
 
-EXOS is a 32-bit operating system for the i386 architecture, developed since 1999.  
+EXOS is a 32-bit operating system for the x86-32 architecture, developed since 1999.  
 This document describes the organization of the git repository directories.
 
 ## Directory Tree

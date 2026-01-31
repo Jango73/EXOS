@@ -40,8 +40,8 @@ const STR Text_Exit[] = "Exit";
 const STR Text_Image[] = "Image :";
 const STR Text_Separator[] = "================\n";
 
-#ifdef __EXOS_ARCH_I386__
-    const STR Text_Architecture[] = "i386";
+#ifdef __EXOS_ARCH_X86_32__
+    const STR Text_Architecture[] = "x86-32";
 #endif
 
 #ifdef __EXOS_ARCH_X86_64__

@@ -1266,7 +1266,7 @@ static void SystemDataViewDrawPageStorageControllers(LPSYSTEM_DATA_VIEW_CONTEXT 
  * @param PageIndex Page index.
  */
 static void SystemDataViewDrawPageIdt(LPSYSTEM_DATA_VIEW_CONTEXT Context, U8 PageIndex) {
-    LPGATE_DESCRIPTOR Table = (LPGATE_DESCRIPTOR)Kernel_i386.IDT;
+    LPGATE_DESCRIPTOR Table = (LPGATE_DESCRIPTOR)Kernel_x86_32.IDT;
 
     SystemDataViewDrawPageHeader(Context, TEXT("IDT"), PageIndex);
     SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("IDT Base"),
@@ -1309,7 +1309,7 @@ static void SystemDataViewDrawPageIdt(LPSYSTEM_DATA_VIEW_CONTEXT Context, U8 Pag
  * @param PageIndex Page index.
  */
 static void SystemDataViewDrawPageGdt(LPSYSTEM_DATA_VIEW_CONTEXT Context, U8 PageIndex) {
-    LPSEGMENT_DESCRIPTOR Table = (LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT;
+    LPSEGMENT_DESCRIPTOR Table = (LPSEGMENT_DESCRIPTOR)Kernel_x86_32.GDT;
 
     SystemDataViewDrawPageHeader(Context, TEXT("GDT"), PageIndex);
     SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("GDT Base"),

@@ -32,7 +32,7 @@
 
 #if defined(__EXOS_ARCH_X86_64__)
     #define EFIAPI __attribute__((ms_abi))
-#elif defined(__EXOS_ARCH_I386__)
+#elif defined(__EXOS_ARCH_X86_32__)
     #define EFIAPI __attribute__((stdcall))
 #else
     #error "Unsupported architecture for UEFI build"

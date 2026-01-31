@@ -1073,20 +1073,20 @@ void InitializeMemoryManager(void) {
     LogPageDirectory64(NewPageDirectory);
 
 
-    Kernel_i386.GDT = (LPVOID)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("GDT"));
+    Kernel_x86_32.GDT = (LPVOID)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("GDT"));
 
-    if (Kernel_i386.GDT == NULL) {
+    if (Kernel_x86_32.GDT == NULL) {
         ERROR(TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));
         ConsolePanic(TEXT("Could not allocate critical memory management tool"));
         DO_THE_SLEEPING_BEAUTY;
     }
 
-    InitializeGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT);
+    InitializeGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_x86_32.GDT);
 
-    LogGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT, 10);
+    LogGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_x86_32.GDT, 10);
 
 
-    LoadGlobalDescriptorTable((PHYSICAL)Kernel_i386.GDT, GDT_SIZE - 1);
+    LoadGlobalDescriptorTable((PHYSICAL)Kernel_x86_32.GDT, GDT_SIZE - 1);
 
     InitializeRegionDescriptorTracking();
 

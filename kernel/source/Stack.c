@@ -74,7 +74,7 @@ static LPSTACK StackLocateActiveDescriptor(LPTASK Task, LINEAR CurrentSP) {
 
 /************************************************************************/
 
-#if defined(__EXOS_ARCH_I386__)
+#if defined(__EXOS_ARCH_X86_32__)
 static inline SELECTOR StackReadCodeSegment(void) {
     U32 SegmentValue;
 
@@ -166,7 +166,7 @@ BOOL CopyStackWithEBP(LINEAR DestStackTop, LINEAR SourceStackTop, UINT Size, LIN
  * @return TRUE on success, FALSE on failure
  */
 BOOL CopyStack(LINEAR DestStackTop, LINEAR SourceStackTop, UINT Size) {
-#if defined(__EXOS_ARCH_I386__)
+#if defined(__EXOS_ARCH_X86_32__)
     LINEAR CurrentEbp;
     GetEBP(CurrentEbp);
     return CopyStackWithEBP(DestStackTop, SourceStackTop, Size, CurrentEbp);
@@ -216,7 +216,7 @@ BOOL SwitchStack(LINEAR DestStackTop, LINEAR SourceStackTop, UINT Size) {
         DEBUG(TEXT("[SwitchStack] Switching SP %p -> %p, BP %p -> %p"), CurrentSP, NewSP, CurrentBP, NewBP);
 
         // Switch SP and BP
-#if defined(__EXOS_ARCH_I386__)
+#if defined(__EXOS_ARCH_X86_32__)
         __asm__ __volatile__(
             "mov %0, %%esp\n\t"
             "mov %1, %%ebp"
@@ -484,7 +484,7 @@ BOOL GrowCurrentStack(UINT AdditionalBytes) {
             GetESP(UpdatedSP);
             UINT RemainingBytes = (UINT)(UpdatedSP - Base);
 
-#if defined(__EXOS_ARCH_I386__)
+#if defined(__EXOS_ARCH_X86_32__)
             if (ActiveStack == &(CurrentTask->Arch.Stack)) {
                 LINEAR Delta = NewTop - OldTop;
                 CurrentTask->Arch.Context.Registers.ESP += (UINT)Delta;

@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-Multi-threaded operating system for i386 and x86_64.
+Multi-threaded operating system for x86-32 and x86-64.
 Currently booting in QEMU and Bochs.
 
 ## What it is
@@ -21,19 +21,19 @@ Build was recently ported to i686-elf-gcc/nasm/i686-elf-ld.
 
 ### Build (Disk image with ext2)
 
-./scripts/build --arch <i386|x86-64> --fs ext2 --release
+./scripts/build --arch <x86-32|x86-64> --fs ext2 --release
 
 ( add --clean for a clean build )
 
 ### Build (Disk image with FAT32)
 
-./scripts/build --arch <i386|x86-64> --fs fat32 --release
+./scripts/build --arch <x86-32|x86-64> --fs fat32 --release
 
 ( add --clean for a clean build )
 
 ### Run
 
-./scripts/run --arch <i386|x86-64>
+./scripts/run --arch <x86-32|x86-64>
 
 ( add --gdb to debug with gdb )
 ( or ./scripts/(arch)/5-5-start-bochs.sh to use Bochs )
@@ -64,14 +64,15 @@ It was a year-long solo project, developed the hard way:
 
 ## Things it does
 
-- Multi-architecture : i386, x86-64
+- Multi-architecture : x86-32, x86-64
 - Virtual memory management (paging)
 - Heap management (free lists)
 - Process spawning, task spawning, scheduling
+- Security at kernel object level
 - File system management : FAT16, FAT32, EXT2, EXFS (EXOS file system)
 - I/O APIC management
 - PCI device management
-- ATA & SATA/AHCI hard disk drivers
+- ATA, SATA/AHCI & NVMe storage drivers
 - xHCI driver (USB 3)
 - ACPI shutdown/reboot
 - Console management

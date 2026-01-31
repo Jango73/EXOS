@@ -242,6 +242,6 @@ function RunArchitecture() {
     wait "$QemuPid" || true
 }
 
-# RunArchitecture "i386" "scripts/build.sh --arch i386 --fs ext2 --debug --clean" "scripts/run.sh --arch i386"
+# RunArchitecture "x86-32" "scripts/build.sh --arch x86-32 --fs ext2 --debug --clean" "scripts/run.sh --arch x86-32"
 RunArchitecture "x86-64" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean" "scripts/run.sh --arch x86-64"
 # RunArchitecture "x86-64 UEFI" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean --uefi" "scripts/run.sh --arch x86-64 --uefi"

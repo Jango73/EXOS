@@ -2,10 +2,10 @@
 set -e
 
 function Usage() {
-    echo "Usage: $0 --arch <i386|x86-64> --fs <ext2|fat32> [--debug|--release] [--scheduling-debug] [--clean] [--force-pic] [--system-data-view] [--uefi]"
+    echo "Usage: $0 --arch <x86-32|x86-64> --fs <ext2|fat32> [--debug|--release] [--scheduling-debug] [--clean] [--force-pic] [--system-data-view] [--uefi]"
 }
 
-ARCH="i386"
+ARCH="x86-32"
 FILE_SYSTEM="ext2"
 DEBUG_OUTPUT=0
 CLEAN=0
@@ -58,7 +58,7 @@ while [ $# -gt 0 ]; do
 done
 
 case "$ARCH" in
-    i386|x86-64)
+    x86-32|x86-64)
         ;;
     *)
         echo "Unknown architecture: $ARCH"

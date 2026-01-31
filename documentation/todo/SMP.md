@@ -1,6 +1,6 @@
 # SMP Implementation Plan
 
-Goal: enable n-core SMP on modern x86 (i386 and x86-64) using Local APIC + IOAPIC, with minimal regression for current single-core flow.
+Goal: enable n-core SMP on modern x86 (x86-32 and x86-64) using Local APIC + IOAPIC, with minimal regression for current single-core flow.
 Use LAPIC timers when available, fallback to PIT.
 
 ---
@@ -14,7 +14,7 @@ Use LAPIC timers when available, fallback to PIT.
 ---
 
 ## [ ] Step 1 — CPU Discovery and Boot Policy
-- Use MADT to enumerate enabled processors; store per-CPU records (ACPI ProcessorId, APIC ID, flags) for both i386 and x86-64.
+- Use MADT to enumerate enabled processors; store per-CPU records (ACPI ProcessorId, APIC ID, flags) for both x86-32 and x86-64.
 - Validate APIC base from MSR vs ACPI override; refuse SMP if APIC disabled or no MADT.
 - Define maximum CPU count (e.g., 32) and error out gracefully when exceeded.
 - Success: boot log lists all detected CPUs with APIC IDs and selected BSP.
@@ -34,7 +34,7 @@ Use LAPIC timers when available, fallback to PIT.
 
 ## [ ] Step 4 — Per-CPU Structures and Accessors
 - Introduce `CPU` struct (PascalCase fields) holding: APIC ID, ACPI ProcessorId, Status (offline/booting/online), PerCpuStack/TSS pointers, CurrentTask, LocalAPIC base, LapicTimer state, PerCpuFlags, Statistics.
-- Provide per-CPU storage accessors/macros (CurrentCPU(), PerCPUGet/Set) using GS base on x86-64 and segment-bases or per-CPU array indexed by APIC ID on i386.
+- Provide per-CPU storage accessors/macros (CurrentCPU(), PerCPUGet/Set) using GS base on x86-64 and segment-bases or per-CPU array indexed by APIC ID on x86-32.
 - Keep a global CPU table and bitmap of online CPUs; initialize BSP entry before AP start.
 - Success: any CPU can obtain its CPU struct without global locks.
 
@@ -76,7 +76,7 @@ Use LAPIC timers when available, fallback to PIT.
 - Success: clean boot logs and orderly halt/reboot with multiple CPUs.
 
 ## [ ] Step 11 — Testing Matrix
-- QEMU: run with `-smp 4` on both i386 and x86-64; verify all CPUs online, tasks scheduled, no faults in `log/kernel.log`.
+- QEMU: run with `-smp 4` on both x86-32 and x86-64; verify all CPUs online, tasks scheduled, no faults in `log/kernel.log`.
 - Stress: spawn many tasks, IPC, file ops; verify no deadlocks/races.
 - Timer: measure tick accuracy before/after switching to LAPIC timer.
 - Interrupts: confirm device IRQ delivery (keyboard/net) and IPI handling.

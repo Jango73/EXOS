@@ -2,10 +2,10 @@
 set -e
 
 function Usage() {
-    echo "Usage: $0 --arch <i386|x86-64> [--gdb] [--usb3|--no-usb3] [--uefi] [--nvme] [--nvme-size-mb N]"
+    echo "Usage: $0 --arch <x86-32|x86-64> [--gdb] [--usb3|--no-usb3] [--uefi] [--nvme] [--nvme-size-mb N]"
 }
 
-ARCH="i386"
+ARCH="x86-32"
 USE_GDB=0
 USE_UEFI=0
 USB3_ENABLED=1
@@ -52,13 +52,13 @@ while [ $# -gt 0 ]; do
 done
 
 case "$ARCH" in
-    i386)
+    x86-32)
         QEMU_BIN_DEFAULT="qemu-system-i386"
-        IMG_PATH="build/i386/boot-hd/exos.img"
-        USB_3_PATH="build/i386/boot-hd/usb-3.img"
-        NVME_IMG_PATH="build/i386/boot-hd/nvme.img"
-        CYCLE_BIN="build/i386/tools/cycle"
-        DEBUG_ELF="build/i386/kernel/exos.elf"
+        IMG_PATH="build/x86-32/boot-hd/exos.img"
+        USB_3_PATH="build/x86-32/boot-hd/usb-3.img"
+        NVME_IMG_PATH="build/x86-32/boot-hd/nvme.img"
+        CYCLE_BIN="build/x86-32/tools/cycle"
+        DEBUG_ELF="build/x86-32/kernel/exos.elf"
         OVMF_CODE_CANDIDATES=(
             "/usr/share/OVMF/OVMF32_CODE.fd"
             "/usr/share/edk2/ovmf/OVMF32_CODE.fd"
@@ -261,7 +261,7 @@ function RunGdbQemu() {
         cgdb "$DEBUG_ELF" -ex "set architecture x86-64" -ex "target remote localhost:1234" \
         -ex "break SwitchToNextTask" -ex "source $DEBUG_GDB"
     else
-        cgdb "$DEBUG_ELF" -ex "set architecture i386" -ex "target remote localhost:1234" \
+        cgdb "$DEBUG_ELF" -ex "set architecture x86-32" -ex "target remote localhost:1234" \
         -ex "break EnableInterrupts"
     fi
 }

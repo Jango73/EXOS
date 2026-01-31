@@ -16,7 +16,7 @@ BUILD_DIR := ../build/$(ARCH)
 
 ARCH_CFLAGS =
 
-ifeq ($(ARCH),i386)
+ifeq ($(ARCH),x86-32)
 TOOLCHAIN_PREFIX = i686-elf
 NASM_FORMAT      = elf
 CC               = $(TOOLCHAIN_PREFIX)-gcc
@@ -54,7 +54,7 @@ NASM            = nasm
 AFLAGS_INCLUDES = -I source/asm/ -I source/arch/$(ARCH)/asm/
 
 ifeq ($(ARCH),x86-64)
-AFLAGS_INCLUDES += -I source/arch/i386/asm/
+AFLAGS_INCLUDES += -I source/arch/x86-32/asm/
 endif
 
 AFLAGS          = -f $(NASM_FORMAT) -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DDEBUG_SPLIT=$(DEBUG_SPLIT) -DFORCE_PIC=$(FORCE_PIC) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DPROFILING=$(PROFILING) -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) -DUSE_SYSCALL=$(USE_SYSCALL) $(AFLAGS_INCLUDES)
@@ -88,7 +88,7 @@ SRC_S  = $(wildcard source/asm/*.asm) \
 ifeq ($(ARCH),x86-64)
 SRC_S += ../runtime/source/x86-64/exos-runtime-a.asm
 else
-SRC_S += ../runtime/source/i386/exos-runtime-a.asm
+SRC_S += ../runtime/source/x86-32/exos-runtime-a.asm
 endif
 
 OBJ_C  = $(patsubst source/%.c, $(BUILD_DIR)/kernel/%.o, $(filter source/%.c, $(SRC_C))) \

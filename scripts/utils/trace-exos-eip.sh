@@ -3,8 +3,8 @@
 # Script to parse EIP values from qemu.log and disassemble each instruction
 
 TRACE_LOG="log/qemu.log"
-ELF_FILE="build/i386/kernel/exos.elf"
-ADDR_TO_SRC="scripts/utils/addr2src-kernel-i386.sh"
+ELF_FILE="build/x86-32/kernel/exos.elf"
+ADDR_TO_SRC="scripts/utils/addr2src-kernel-x86-32.sh"
 
 if [ ! -f "$TRACE_LOG" ]; then
     echo "Error: $TRACE_LOG not found"

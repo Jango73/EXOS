@@ -155,7 +155,7 @@ LPDRIVER InterruptsGetDriver(void) {
 
 \************************************************************************/
 
-KERNELDATA_X86_64 DATA_SECTION Kernel_i386 = {
+KERNELDATA_X86_64 DATA_SECTION Kernel_x86_32 = {
     .IDT = NULL,
     .GDT = NULL,
     .TSS = NULL,
@@ -243,7 +243,7 @@ static U8 SelectInterruptStackTable(U32 InterruptIndex) {
 /***************************************************************************/
 
 void InitializeInterrupts(void) {
-    Kernel_i386.IDT = IDT;
+    Kernel_x86_32.IDT = IDT;
 
     for (U32 Index = 0; Index < NUM_INTERRUPTS; Index++) {
         U8 InterruptStack = SelectInterruptStackTable(Index);
@@ -516,9 +516,9 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
         FINE_DEBUG(TEXT("[PrepareNextTaskSwitch] NextSysStackTop = %p"), NextSysStackTop);
         FINE_DEBUG(TEXT("[PrepareNextTaskSwitch] NextIst1StackTop = %p"), NextIst1StackTop);
 
-        Kernel_i386.TSS->RSP0 = NextSysStackTop - STACK_SAFETY_MARGIN;
-        Kernel_i386.TSS->IST1 = NextIst1StackTop - STACK_SAFETY_MARGIN;
-        Kernel_i386.TSS->IOMapBase = (U16)sizeof(X86_64_TASK_STATE_SEGMENT);
+        Kernel_x86_32.TSS->RSP0 = NextSysStackTop - STACK_SAFETY_MARGIN;
+        Kernel_x86_32.TSS->IST1 = NextIst1StackTop - STACK_SAFETY_MARGIN;
+        Kernel_x86_32.TSS->IOMapBase = (U16)sizeof(X86_64_TASK_STATE_SEGMENT);
 
         SAFE_USE(CurrentTask) {
             GetFS(CurrentTask->Arch.Context.Registers.FS);
@@ -554,7 +554,7 @@ void PreInitializeKernel(void) {
     U64 Cr4;
 
     ReadGlobalDescriptorTable(&Gdtr);
-    Kernel_i386.GDT = (LPVOID)(LINEAR)Gdtr.Base;
+    Kernel_x86_32.GDT = (LPVOID)(LINEAR)Gdtr.Base;
 
     KernelStartup.PageDirectory = GetPageDirectory();
     KernelStartup.IRQMask_21_RM = 0;

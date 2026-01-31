@@ -31,12 +31,12 @@ MOUSEINFO_ELF   := $(BUILD_DIR)/system/mouse-info/mouse-info
 MASTER_ELF      := $(BUILD_DIR)/system/test/master/master
 SLAVE_ELF       := $(BUILD_DIR)/system/test/slave/slave
 
-ifeq ($(ARCH),i386)
+ifeq ($(ARCH),x86-32)
 UEFI_TARGET := i686-unknown-windows
 UEFI_MACHINE := X86
 UEFI_BOOT_FILE := BOOTIA32.EFI
-UEFI_ARCH_SOURCE := ../boot-hd/source/vbr-payload-i386-uefi.c
-UEFI_JUMP_SOURCE := source/uefi-jump-i386.asm
+UEFI_ARCH_SOURCE := ../boot-hd/source/vbr-payload-x86-32-uefi.c
+UEFI_JUMP_SOURCE := source/uefi-jump-x86-32.asm
 NASM_FORMAT := win32
 else ifeq ($(ARCH),x86-64)
 UEFI_TARGET := x86_64-unknown-windows

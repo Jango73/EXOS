@@ -1,5 +1,5 @@
 
-ARCH ?= i386
+ARCH ?= x86-32
 PROFILING ?= 0
 USE_SYSCALL ?= 0
 
@@ -7,7 +7,7 @@ BUILD_DIR := ../build/$(ARCH)
 
 NASM    = nasm
 
-ifeq ($(ARCH),i386)
+ifeq ($(ARCH),x86-32)
 TOOLCHAIN_PREFIX = i686-elf
 NASM_FORMAT      = elf
 CC               = $(TOOLCHAIN_PREFIX)-gcc

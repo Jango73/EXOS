@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-set "ARCH=i386"
+set "ARCH=x86-32"
 set "USE_GDB=0"
 set "USE_UEFI=0"
 set "USB3_ENABLED=1"
@@ -56,16 +56,16 @@ echo Unknown option: %~1
 goto usage
 
 :usage
-echo Usage: %~nx0 --arch ^<i386^|x86-64^> [--gdb] [--usb3^|--no-usb3] [--uefi] [--nvme] [--nvme-size-mb N]
+echo Usage: %~nx0 --arch ^<x86-32^|x86-64^> [--gdb] [--usb3^|--no-usb3] [--uefi] [--nvme] [--nvme-size-mb N]
 exit /b 1
 
 :done
-if "%ARCH%"=="i386" (
+if "%ARCH%"=="x86-32" (
     set "QEMU_BIN_DEFAULT=c:\program files\qemu\qemu-system-i386"
-    set "IMG_PATH=build\i386\boot-hd\exos.img"
-    set "USB_3_PATH=build\i386\boot-hd\usb-3.img"
-    set "NVME_IMG_PATH=build\i386\boot-hd\nvme.img"
-    set "DEBUG_ELF=build\i386\kernel\exos.elf"
+    set "IMG_PATH=build\x86-32\boot-hd\exos.img"
+    set "USB_3_PATH=build\x86-32\boot-hd\usb-3.img"
+    set "NVME_IMG_PATH=build\x86-32\boot-hd\nvme.img"
+    set "DEBUG_ELF=build\x86-32\kernel\exos.elf"
     set "OVMF_CODE_DEFAULT=c:\program files\qemu\share\qemu\OVMF32_CODE.fd"
     set "OVMF_VARS_DEFAULT=c:\program files\qemu\share\qemu\OVMF32_VARS.fd"
 ) else if "%ARCH%"=="x86-64" (

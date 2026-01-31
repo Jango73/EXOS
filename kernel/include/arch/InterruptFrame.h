@@ -27,8 +27,8 @@
 
 #include "Base.h"
 
-#if defined(__EXOS_ARCH_I386__)
-    #include "arch/i386/InterruptFrame.h"
+#if defined(__EXOS_ARCH_X86_32__)
+    #include "arch/x86-32/InterruptFrame.h"
 #elif defined(__EXOS_ARCH_X86_64__)
     #include "arch/x86-64/InterruptFrame.h"
 #else

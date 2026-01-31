@@ -1,6 +1,6 @@
 #!/bin/sh
 
-ARCH_DIR="i386"
+ARCH_DIR="x86-32"
 
 if [ $# -lt 1 ] || [ $# -gt 2 ]; then
     echo "Usage: $0 <address> [context_lines] (hex with 0x or decimal)"

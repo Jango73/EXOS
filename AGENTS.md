@@ -3,7 +3,7 @@
 This file provides guidance to agents when working with code in this repository.
 
 ## Project Overview
-This is a multi-architecture operating system. Currently supporting i386 and x86-64.
+This is a multi-architecture operating system. Currently supporting x86-32 and x86-64.
 
 **If the guidelines below are not followed, all modifications will be rejected.**
 
@@ -49,28 +49,28 @@ This is a multi-architecture operating system. Currently supporting i386 and x86
 
 **Build (ext2):**
 ```bash
-./scripts/build --arch i386 --fs ext2 --release
-./scripts/build --arch i386 --fs ext2 --debug
-./scripts/build --arch i386 --fs ext2 --debug --clean
+./scripts/build --arch x86-32 --fs ext2 --release
+./scripts/build --arch x86-32 --fs ext2 --debug
+./scripts/build --arch x86-32 --fs ext2 --debug --clean
 ```
 
 **Build (fat32):**
 ```bash
-./scripts/build --arch i386 --fs fat32 --release
-./scripts/build --arch i386 --fs fat32 --debug
+./scripts/build --arch x86-32 --fs fat32 --release
+./scripts/build --arch x86-32 --fs fat32 --debug
 ```
 
 **Run in QEMU:**
 ```bash
-./scripts/run --arch i386
-./scripts/run --arch i386 --gdb
+./scripts/run --arch x86-32
+./scripts/run --arch x86-32 --gdb
 ```
 
-Replace `i386` with `x86-64` when targeting the x86-64 architecture.
+Replace `x86-32` with `x86-64` when targeting the x86-64 architecture.
 
 **Remote build on Windows (SSH to a Linux build host):**
 ```bat
-scripts\remote\i386\4-5-build-debug-ext2-ssh.bat
+scripts\remote\x86-32\4-5-build-debug-ext2-ssh.bat
 scripts\remote\x86-64\4-5-build-debug-ext2-ssh.bat
 ```
 Configure SSH and the remote repo root once in `scripts/remote/ssh-config.bat`. The remote build runs in the same repository (same path, same branch/commit) as the Windows workspace (shared folder).
@@ -79,7 +79,7 @@ Configure SSH and the remote repo root once in `scripts/remote/ssh-config.bat`. 
 
 ## Debug output
 
-Kernel debug output goes to `log/kernel-i386.log` and `kernel-x86-64.log`.
+Kernel debug output goes to `log/kernel-x86-32.log` and `kernel-x86-64.log`.
 QEMU traces go to `qemu.log`.
 Bochs output goes to `bochs.log`.
 **Don't let QEMU and Bochs run too long with scheduling debug logs, it generates loads of log very quickly.**
@@ -97,12 +97,12 @@ Doxygen documentation is in `documentation/kernel/*`
 - **System** (`system/`): User-space system library, samples
 
 ## Debug Workflow
-1. Use scheduling debug build when needing per-tick information, for scheduler or interrupt issues: `./scripts/build --arch i386 --fs ext2 --scheduling-debug` (or add `--clean` for a clean make) and the `x86-64` equivalent: `./scripts/build --arch x86-64 --fs ext2 --scheduling-debug`. GENERATES TONS OF LOG, USE WITH CARE.
-2. Monitor `log/kernel-i386.log` and `kernel-x86-64.log` for exceptions and page faults
+1. Use scheduling debug build when needing per-tick information, for scheduler or interrupt issues: `./scripts/build --arch x86-32 --fs ext2 --scheduling-debug` (or add `--clean` for a clean make) and the `x86-64` equivalent: `./scripts/build --arch x86-64 --fs ext2 --scheduling-debug`. GENERATES TONS OF LOG, USE WITH CARE.
+2. Monitor `log/kernel-x86-32.log` and `kernel-x86-64.log` for exceptions and page faults
 3. **To assert that the systems runs, the emulator must be running and there must be no fault in the logs, in all architectures**
 
 **Disassembly Analysis:**
-- `./scripts/utils/show-i386.sh <address> [context_lines]` (i386 build)
+- `./scripts/utils/show-x86-32.sh <address> [context_lines]` (x86-32 build)
 - `./scripts/utils/show-x86-64.sh <address> [context_lines]` (x86-64 build)
   - Default context: 20 lines before/after target address
   - Target line marked with `>>> ... <<<`

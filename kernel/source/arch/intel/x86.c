@@ -26,7 +26,7 @@
 #include "Memory.h"
 #include "CoreString.h"
 #include "KernelData.h"
-#include "arch/intel/i386-Asm.h"
+#include "arch/intel/x86-32-Asm.h"
 
 /***************************************************************************/
 

@@ -1,4 +1,4 @@
-ARCH ?= i386
+ARCH ?= x86-32
 
 BUILD_DIR := ../build/$(ARCH)
 

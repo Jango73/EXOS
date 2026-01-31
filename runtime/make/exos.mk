@@ -5,7 +5,7 @@
 #
 ################################################################################
 
-ARCH ?= i386
+ARCH ?= x86-32
 
 EXOS_MAKE_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 EXOS_ROOT := $(abspath $(EXOS_MAKE_DIR)../..)
@@ -29,7 +29,7 @@ endif
 
 APP_HEADERS ?=
 
-ifeq ($(ARCH),i386)
+ifeq ($(ARCH),x86-32)
 TOOLCHAIN_PREFIX = i686-elf
 CC      = $(TOOLCHAIN_PREFIX)-gcc
 LD      = $(TOOLCHAIN_PREFIX)-ld

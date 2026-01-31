@@ -22,10 +22,10 @@
 
 \************************************************************************/
 
-// I386 16-bit real mode VESA test payload
+// X86_32 16-bit real mode VESA test payload
 // Sets 640x480x24 mode and draws random rectangles
 
-#include "../../kernel/include/arch/i386/i386.h"
+#include "../../kernel/include/arch/x86-32/x86-32.h"
 #include "../../kernel/include/SerialPort.h"
 #include "../../kernel/include/CoreString.h"
 #include "../include/vbr-realmode-utils.h"

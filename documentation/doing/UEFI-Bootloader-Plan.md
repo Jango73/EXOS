@@ -44,7 +44,7 @@ Plan
    - This keeps the first deliverable minimal while still aligned with existing code.
 
 4) Build System Integration
-   - Add a UEFI build target that produces `BOOTX64.EFI` (x86-64) and `BOOTIA32.EFI` (i386).
+   - Add a UEFI build target that produces `BOOTX64.EFI` (x86-64) and `BOOTIA32.EFI` (x86-32).
    - Use a dedicated linker script for PE32+ output.
    - Keep the current `boot-hd` make flow intact.
    - Add a new image output, for example `build/<arch>/boot-uefi/exos-uefi.img`.
@@ -60,10 +60,10 @@ Plan
    - Keep both BIOS and UEFI boot paths working in parallel.
 
 Assumptions Confirmed
-- Target architecture for UEFI: x86-64 and i386.
+- Target architecture for UEFI: x86-64 and x86-32.
 - UEFI-only boot (no CSM) is required.
 - Kernel file remains `exos.bin` and is placed on the EFI System Partition.
-- Architecture coupling is strict: `BOOTX64.EFI` loads x86-64 `exos.bin`, `BOOTIA32.EFI` loads i386 `exos.bin`.
+- Architecture coupling is strict: `BOOTX64.EFI` loads x86-64 `exos.bin`, `BOOTIA32.EFI` loads x86-32 `exos.bin`.
 
 Deliverable Order
 1) Core refactor and BIOS adapter in place (no behavior change).

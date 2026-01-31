@@ -5,10 +5,10 @@ include ../make/arch.mk
 
 BUILD_DIR := ../build/$(ARCH)
 
-ifeq ($(ARCH),i386)
+ifeq ($(ARCH),x86-32)
 TOOLCHAIN_PREFIX = i686-elf
 NASM_FORMAT = elf32
-NASM_ARCH_FLAGS = -DARCH_I386
+NASM_ARCH_FLAGS = -DARCH_X86_32
 else ifeq ($(ARCH),x86-64)
 TOOLCHAIN_PREFIX = i686-elf
 NASM_FORMAT = elf32
@@ -46,8 +46,8 @@ PAYLOAD_STR_C   = ../kernel/source/CoreString.c
 PAYLOAD_SOURCE  ?= source/vbr-payload-c.c
 ifeq ($(ARCH),x86-64)
 PAYLOAD_ARCH_SOURCE = source/vbr-payload-x86-64-mbr.c
-else ifeq ($(ARCH),i386)
-PAYLOAD_ARCH_SOURCE = source/vbr-payload-i386-mbr.c
+else ifeq ($(ARCH),x86-32)
+PAYLOAD_ARCH_SOURCE = source/vbr-payload-x86-32-mbr.c
 else
 PAYLOAD_ARCH_SOURCE = source/vbr-payload-$(ARCH).c
 endif

@@ -22,12 +22,12 @@
 
 \************************************************************************/
 
-// i386 32 bits real mode payload entry point
+// x86-32 32 bits real mode payload entry point
 
 #include "../include/vbr-multiboot.h"
 #include "../include/vbr-realmode-utils.h"
 #include "../include/vbr-payload-shared.h"
-#include "arch/i386/i386.h"
+#include "arch/x86-32/x86-32.h"
 #include "SerialPort.h"
 #include "CoreString.h"
 

@@ -47,7 +47,7 @@ static TESTENTRY TestRegistry[] = {
     {TEXT("TestBlockList"), TestBlockList},
     {TEXT("TestRadixTree"), TestRadixTree},
     {TEXT("TestRegex"), TestRegex},
-    {TEXT("TestI386Disassembler"), TestI386Disassembler},
+    {TEXT("TestX86_32Disassembler"), TestX86_32Disassembler},
     {TEXT("TestBcrypt"), TestBcrypt},
     {TEXT("TestIPv4"), TestIPv4},
     {TEXT("TestMacros"), TestMacros},
