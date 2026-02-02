@@ -6,6 +6,16 @@
 - Opening a file in a userland program without an absolute path should do the same as using getcwd().
 - Add a getpd() that returns the folder in which the current executable's image lives.
 
+## System data view
+
+- Add following infos in PCI page:
+  - VendorID/DeviceID
+  - Command / Status
+  - Class/Subclass/ProgIF
+  - BAR0..BAR5 (detect 32 vs 64-bit)
+  - Capabilities Pointer + scan capabilities (MSI/MSI-X, PCIe)
+  - Interrupt Line/Pin
+
 ## Naming
 
 - Remove all abbreviations

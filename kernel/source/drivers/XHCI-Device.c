@@ -2075,6 +2075,7 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
     PortStatus = XHCI_ReadPortStatus(Device, PortIndex);
     SpeedId = (PortStatus & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
     UsbDevice->SpeedId = (U8)SpeedId;
+
     if (UsbDevice->SpeedId == 0) {
         WARNING(TEXT("[XHCI_ProbePort] Port %u invalid speed after reset"), PortIndex + 1);
         UsbDevice->LastEnumError = XHCI_ENUM_ERROR_INVALID_SPEED;
@@ -2082,13 +2083,13 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
     }
 
     if (!XHCI_EnumerateDevice(Device, UsbDevice)) {
-        ERROR(TEXT("[XHCI_ProbePort] Port %u enumerate failed"), PortIndex + 1);
+        WARNING(TEXT("[XHCI_ProbePort] Port %u enumerate failed"), PortIndex + 1);
         return FALSE;
     }
 
     if (UsbDevice->IsHub) {
         if (!XHCI_InitHub(Device, UsbDevice)) {
-            ERROR(TEXT("[XHCI_ProbePort] Port %u hub init failed"), PortIndex + 1);
+            WARNING(TEXT("[XHCI_ProbePort] Port %u hub init failed"), PortIndex + 1);
             UsbDevice->LastEnumError = XHCI_ENUM_ERROR_HUB_INIT;
         }
     }
