@@ -50,36 +50,6 @@
 
 /***************************************************************************/
 
-UINT SATADiskCommands(UINT, UINT);
-
-DRIVER DATA_SECTION SATADiskDriver = {
-    .TypeID = KOID_DRIVER,
-    .References = 1,
-    .Next = NULL,
-    .Prev = NULL,
-    .Type = DRIVER_TYPE_STORAGE,
-    .VersionMajor = VER_MAJOR,
-    .VersionMinor = VER_MINOR,
-    .Designer = "Jango73",
-    .Manufacturer = "AHCI Controllers",
-    .Product = "AHCI SATA Controller",
-    .Flags = 0,
-    .Command = SATADiskCommands,
-    .EnumDomainCount = 1,
-    .EnumDomains = {ENUM_DOMAIN_AHCI_PORT}};
-
-/***************************************************************************/
-
-/**
- * @brief Retrieves the SATA disk driver descriptor.
- * @return Pointer to the SATA disk driver.
- */
-LPDRIVER SATADiskGetDriver(void) {
-    return &SATADiskDriver;
-}
-
-/***************************************************************************/
-
 #define AHCI_MAX_PORTS 32
 #define AHCI_CMD_LIST_SIZE 1024  // 32 command headers * 32 bytes each
 #define AHCI_FIS_SIZE 256        // FIS receive area size
@@ -133,6 +103,13 @@ static AHCI_STATE AHCIState = {
     .InterruptEnabled = FALSE};
 
 /***************************************************************************/
+
+typedef struct tag_SATA_CACHE_CONTEXT {
+    U32 SectorLow;
+    U32 SectorHigh;
+} SATA_CACHE_CONTEXT, *LPSATA_CACHE_CONTEXT;
+
+/***************************************************************************/
 // AHCI PCI Driver
 
 static UINT AHCIProbe(UINT Function, UINT Parameter);
@@ -150,7 +127,29 @@ static const DRIVER_MATCH AHCIMatches[] = {
     {PCI_ANY_ID, PCI_ANY_ID, PCI_CLASS_STORAGE, 0x06, 0x01}
 };
 
-PCI_DRIVER AHCIPCIDriver = {
+/***************************************************************************/
+
+UINT SATADiskCommands(UINT, UINT);
+
+DRIVER DATA_SECTION SATADiskDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_STORAGE,
+    .VersionMajor = VER_MAJOR,
+    .VersionMinor = VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "AHCI Controllers",
+    .Product = "AHCI SATA Controller",
+    .Flags = 0,
+    .Command = SATADiskCommands,
+    .EnumDomainCount = 1,
+    .EnumDomains = {ENUM_DOMAIN_AHCI_PORT}};
+
+/***************************************************************************/
+
+PCI_DRIVER DATA_SECTION AHCIPCIDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
@@ -169,10 +168,13 @@ PCI_DRIVER AHCIPCIDriver = {
 
 /***************************************************************************/
 
-typedef struct tag_SATA_CACHE_CONTEXT {
-    U32 SectorLow;
-    U32 SectorHigh;
-} SATA_CACHE_CONTEXT, *LPSATA_CACHE_CONTEXT;
+/**
+ * @brief Retrieves the SATA disk driver descriptor.
+ * @return Pointer to the SATA disk driver.
+ */
+LPDRIVER SATADiskGetDriver(void) {
+    return &SATADiskDriver;
+}
 
 /***************************************************************************/
 
