@@ -71,10 +71,10 @@ LPDRIVER ATADiskGetDriver(void) {
 
 /***************************************************************************/
 
-// ATA physical disk, derives from PHYSICALDISK
+// ATA physical disk, derives from STORAGE_UNIT
 
 typedef struct tag_ATADISK {
-    PHYSICALDISK Header;
+    STORAGE_UNIT Header;
     DISKGEOMETRY Geometry;
     U32 Access;  // Access parameters
     U32 IOPort;  // 0x01F0 or 0x0170

@@ -60,7 +60,7 @@
 // AHCI Port Structure
 
 typedef struct tag_AHCI_PORT {
-    PHYSICALDISK Header;
+    STORAGE_UNIT Header;
     DISKGEOMETRY Geometry;
     U32 Access;  // Access parameters
     U32 PortNumber;

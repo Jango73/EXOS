@@ -241,7 +241,7 @@ BOOL NVMeRegisterNamespaces(LPNVME_DEVICE Device) {
                   (U32)U64_High32(NumSectors),
                   (U32)U64_Low32(NumSectors));
 
-            if (!MountDiskPartitions((LPPHYSICALDISK)Disk, NULL, 0)) {
+            if (!MountDiskPartitions((LPSTORAGE_UNIT)Disk, NULL, 0)) {
                 WARNING(TEXT("[NVMeRegisterNamespaces] Partition mount failed NSID=%u"), (U32)NamespaceId);
             }
         }

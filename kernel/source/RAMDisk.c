@@ -59,10 +59,10 @@ LPDRIVER RAMDiskGetDriver(void) {
 }
 
 /***************************************************************************/
-// RAM physical disk, derives from PHYSICALDISK
+// RAM physical disk, derives from STORAGE_UNIT
 
 typedef struct tag_RAMDISK {
-    PHYSICALDISK Header;
+    STORAGE_UNIT Header;
     LINEAR Base;
     UINT Size;
     U32 Access;  // Access parameters
@@ -488,7 +488,7 @@ static U32 RAMDiskInitialize(void) {
     // Create an EXFS partition
 
     Create.Size = sizeof(PARTITION_CREATION);
-    Create.Disk = (LPPHYSICALDISK)Disk;
+    Create.Disk = (LPSTORAGE_UNIT)Disk;
     Create.PartitionStartSector = 2;
     Create.PartitionNumSectors = Partition->Size;
     Create.SectorsPerCluster = 8;

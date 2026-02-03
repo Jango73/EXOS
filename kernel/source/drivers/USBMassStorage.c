@@ -88,7 +88,7 @@ typedef struct tag_USB_MASS_STORAGE_COMMAND_STATUS_WRAPPER {
 /************************************************************************/
 
 typedef struct tag_USB_MASS_STORAGE_DEVICE {
-    PHYSICALDISK Disk;
+    STORAGE_UNIT Disk;
     U32 Access;
     LPXHCI_DEVICE Controller;
     LPXHCI_USB_DEVICE UsbDevice;
@@ -162,7 +162,7 @@ static UINT USBMassStorageReportMounts(LPUSB_MASS_STORAGE_DEVICE Device, LPLISTN
 
     for (; Node; Node = Node->Next) {
         LPFILESYSTEM FileSystem = (LPFILESYSTEM)Node;
-        if (FileSystemGetPhysicalDisk(FileSystem) != (LPPHYSICALDISK)Device) {
+        if (FileSystemGetStorageUnit(FileSystem) != (LPSTORAGE_UNIT)Device) {
             continue;
         }
 
@@ -178,7 +178,7 @@ static UINT USBMassStorageReportMounts(LPUSB_MASS_STORAGE_DEVICE Device, LPLISTN
  * @brief Unmount and release filesystems associated with a USB disk.
  * @param Disk USB disk to detach.
  */
-static void USBMassStorageDetachFileSystems(LPPHYSICALDISK Disk, U32 UsbAddress) {
+static void USBMassStorageDetachFileSystems(LPSTORAGE_UNIT Disk, U32 UsbAddress) {
     LPLIST FileSystemList = GetFileSystemList();
     FILESYSTEM_GLOBAL_INFO* GlobalInfo = GetFileSystemGlobalInfo();
     UINT UnmountedCount = 0;
@@ -190,7 +190,7 @@ static void USBMassStorageDetachFileSystems(LPPHYSICALDISK Disk, U32 UsbAddress)
     for (LPLISTNODE Node = FileSystemList->First; Node;) {
         LPLISTNODE Next = Node->Next;
         LPFILESYSTEM FileSystem = (LPFILESYSTEM)Node;
-        LPPHYSICALDISK FileSystemDisk = FileSystemGetPhysicalDisk(FileSystem);
+        LPSTORAGE_UNIT FileSystemDisk = FileSystemGetStorageUnit(FileSystem);
 
         if (FileSystemDisk == Disk) {
             SystemFSUnmountFileSystem(FileSystem);
@@ -223,9 +223,9 @@ static void USBMassStorageDetachDevice(LPUSB_MASS_STORAGE_DEVICE Device) {
     Device->Ready = FALSE;
 
     if (Device->ListEntry != NULL) {
-        USBMassStorageDetachFileSystems((LPPHYSICALDISK)Device, (U32)Device->ListEntry->Address);
+        USBMassStorageDetachFileSystems((LPSTORAGE_UNIT)Device, (U32)Device->ListEntry->Address);
     } else {
-        USBMassStorageDetachFileSystems((LPPHYSICALDISK)Device, 0);
+        USBMassStorageDetachFileSystems((LPSTORAGE_UNIT)Device, 0);
     }
 
     if (Device->InputOutputBufferLinear != 0) {
@@ -991,7 +991,7 @@ static BOOL USBMassStorageStartDevice(LPXHCI_DEVICE Controller,
     LPLISTNODE PreviousLast = FileSystemList != NULL ? FileSystemList->Last : NULL;
 
     DEBUG(TEXT("[USBMassStorageStartDevice] Mounting disk partitions"));
-    if (!MountDiskPartitions((LPPHYSICALDISK)Device, NULL, 0)) {
+    if (!MountDiskPartitions((LPSTORAGE_UNIT)Device, NULL, 0)) {
         WARNING(TEXT("[USBMassStorageStartDevice] Partition mount failed"));
     }
 

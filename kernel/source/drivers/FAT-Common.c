@@ -35,7 +35,7 @@
  * @param Buffer Caller-provided SECTOR_SIZE buffer to fill.
  * @return TRUE on success with valid BIOS mark, FALSE otherwise.
  */
-BOOL FATReadBootSector(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, LPVOID Buffer) {
+BOOL FATReadBootSector(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, LPVOID Buffer) {
     IOCONTROL Control;
     U32 Result;
     U16* BiosMark;

@@ -123,7 +123,7 @@ typedef struct tag_FILESYSTEM {
     LISTNODE_FIELDS
     MUTEX Mutex;
     LPDRIVER Driver;
-    LPPHYSICALDISK PhysicalDisk;
+    LPSTORAGE_UNIT StorageUnit;
     STR Name[MAX_FS_LOGICAL_NAME];
 } FILESYSTEM, *LPFILESYSTEM;
 
@@ -176,7 +176,7 @@ typedef struct tag_FILE {
 
 typedef struct tag_PARTITION_CREATION {
     UINT Size;
-    LPPHYSICALDISK Disk;
+    LPSTORAGE_UNIT Disk;
     UINT PartitionStartSector;
     UINT PartitionNumSectors;
     UINT SectorsPerCluster;
@@ -210,11 +210,11 @@ typedef struct tag_FS_PATHCHECK {
 
 /***************************************************************************/
 
-BOOL MountDiskPartitions(LPPHYSICALDISK, LPBOOTPARTITION, U32);
+BOOL MountDiskPartitions(LPSTORAGE_UNIT, LPBOOTPARTITION, U32);
 U32 GetNumFileSystems(void);
-LPPHYSICALDISK FileSystemGetPhysicalDisk(LPFILESYSTEM FileSystem);
-BOOL FileSystemHasPhysicalDisk(LPFILESYSTEM FileSystem);
-BOOL GetDefaultFileSystemName(LPSTR, LPPHYSICALDISK, U32);
+LPSTORAGE_UNIT FileSystemGetStorageUnit(LPFILESYSTEM FileSystem);
+BOOL FileSystemHasStorageUnit(LPFILESYSTEM FileSystem);
+BOOL GetDefaultFileSystemName(LPSTR, LPSTORAGE_UNIT, U32);
 BOOL MountSystemFS(void);
 BOOL MountUserNodes(void);
 void InitializeFileSystems(void);

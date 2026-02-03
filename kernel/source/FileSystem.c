@@ -35,11 +35,11 @@
 #include "Text.h"
 #include "utils/TOML.h"
 
-extern BOOL MountPartition_FAT16(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
-extern BOOL MountPartition_FAT32(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
-extern BOOL MountPartition_NTFS(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
-extern BOOL MountPartition_EXFS(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
-extern BOOL MountPartition_EXT2(LPPHYSICALDISK, LPBOOTPARTITION, U32, U32);
+extern BOOL MountPartition_FAT16(LPSTORAGE_UNIT, LPBOOTPARTITION, U32, U32);
+extern BOOL MountPartition_FAT32(LPSTORAGE_UNIT, LPBOOTPARTITION, U32, U32);
+extern BOOL MountPartition_NTFS(LPSTORAGE_UNIT, LPBOOTPARTITION, U32, U32);
+extern BOOL MountPartition_EXFS(LPSTORAGE_UNIT, LPBOOTPARTITION, U32, U32);
+extern BOOL MountPartition_EXT2(LPSTORAGE_UNIT, LPBOOTPARTITION, U32, U32);
 
 /***************************************************************************/
 
@@ -111,7 +111,7 @@ LPDRIVER FileSystemGetDriver(void) {
  * @param Buffer Destination buffer (must be 512 bytes).
  * @return TRUE on success, FALSE otherwise.
  */
-static BOOL FileSystemReadSector(LPPHYSICALDISK Disk, U32 Sector, LPVOID Buffer) {
+static BOOL FileSystemReadSector(LPSTORAGE_UNIT Disk, U32 Sector, LPVOID Buffer) {
     IOCONTROL Control;
 
     if (Disk == NULL || Buffer == NULL) return FALSE;
@@ -167,7 +167,7 @@ static BOOL GptGuidIsZero(const U8* Guid) {
  * @param PartIndex GPT entry index.
  * @return TRUE when a FAT file system is mounted, FALSE otherwise.
  */
-static BOOL MountGptFatPartition(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 PartIndex) {
+static BOOL MountGptFatPartition(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 PartIndex) {
     BOOL Mounted = FALSE;
 
     if (Disk == NULL || Partition == NULL) return FALSE;
@@ -195,7 +195,7 @@ static BOOL MountGptFatPartition(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition,
  * @param Disk Target disk.
  * @return TRUE when the GPT is parsed, FALSE otherwise.
  */
-static BOOL MountDiskPartitionsGpt(LPPHYSICALDISK Disk) {
+static BOOL MountDiskPartitionsGpt(LPSTORAGE_UNIT Disk) {
     U8 SectorBuffer[SECTOR_SIZE];
     GPT_HEADER Header;
     const U8 GptGuidLinuxExtx[GPT_GUID_LENGTH] = GPT_GUID_LINUX_EXTX;
@@ -413,9 +413,9 @@ U32 GetNumFileSystems(void) {
  * @param FileSystem Mounted filesystem instance.
  * @return Associated physical disk pointer, or NULL for virtual filesystems.
  */
-LPPHYSICALDISK FileSystemGetPhysicalDisk(LPFILESYSTEM FileSystem) {
+LPSTORAGE_UNIT FileSystemGetStorageUnit(LPFILESYSTEM FileSystem) {
     SAFE_USE_VALID_ID(FileSystem, KOID_FILESYSTEM) {
-        return FileSystem->PhysicalDisk;
+        return FileSystem->StorageUnit;
     }
     return NULL;
 }
@@ -428,8 +428,8 @@ LPPHYSICALDISK FileSystemGetPhysicalDisk(LPFILESYSTEM FileSystem) {
  * @param FileSystem Mounted filesystem instance.
  * @return TRUE when the filesystem has a backing disk, FALSE otherwise.
  */
-BOOL FileSystemHasPhysicalDisk(LPFILESYSTEM FileSystem) {
-    return FileSystemGetPhysicalDisk(FileSystem) != NULL;
+BOOL FileSystemHasStorageUnit(LPFILESYSTEM FileSystem) {
+    return FileSystemGetStorageUnit(FileSystem) != NULL;
 }
 
 /***************************************************************************/
@@ -445,16 +445,16 @@ BOOL FileSystemHasPhysicalDisk(LPFILESYSTEM FileSystem) {
  * @param PartIndex Zero-based partition index on the disk
  * @return TRUE if name was generated successfully, FALSE otherwise
  */
-BOOL GetDefaultFileSystemName(LPSTR Name, LPPHYSICALDISK Disk, U32 PartIndex) {
+BOOL GetDefaultFileSystemName(LPSTR Name, LPSTORAGE_UNIT Disk, U32 PartIndex) {
     STR Temp[12];
     LPLISTNODE Node;
-    LPPHYSICALDISK CurrentDisk;
+    LPSTORAGE_UNIT CurrentDisk;
     U32 DiskIndex = 0;
 
     // Find the index of this disk among disks of the same type
     LPLIST DiskList = GetDiskList();
     for (Node = DiskList != NULL ? DiskList->First : NULL; Node; Node = Node->Next) {
-        CurrentDisk = (LPPHYSICALDISK)Node;
+        CurrentDisk = (LPSTORAGE_UNIT)Node;
         if (CurrentDisk == Disk) break;
         if (CurrentDisk->Driver->Type == Disk->Driver->Type) DiskIndex++;
     }
@@ -514,7 +514,7 @@ void FileSystemSetActivePartition(LPFILESYSTEM FileSystem) {
  * @param Base Base sector address for partition calculations
  * @return TRUE if extended partitions were processed successfully, FALSE otherwise
  */
-BOOL MountPartition_Extended(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base) {
+BOOL MountPartition_Extended(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base) {
     U8 Buffer[SECTOR_SIZE];
     IOCONTROL Control;
     U32 Result;
@@ -552,7 +552,7 @@ BOOL MountPartition_Extended(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32
  * @param Base Base sector address for partition offset calculations
  * @return TRUE if partitions were processed successfully, FALSE otherwise
  */
-BOOL MountDiskPartitions(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base) {
+BOOL MountDiskPartitions(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base) {
     U8 Buffer[SECTOR_SIZE];
     IOCONTROL Control;
     U32 Result;
@@ -686,7 +686,7 @@ void InitializeFileSystems(void) {
 
     LPLIST DiskList = GetDiskList();
     for (Node = DiskList != NULL ? DiskList->First : NULL; Node; Node = Node->Next) {
-        MountDiskPartitions((LPPHYSICALDISK)Node, NULL, 0);
+        MountDiskPartitions((LPSTORAGE_UNIT)Node, NULL, 0);
     }
 
     FileSystemSelectActivePartitionFromConfig();

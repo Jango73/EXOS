@@ -54,7 +54,7 @@ DRIVER DATA_SECTION FAT32Driver = {
 
 typedef struct tag_FAT32FILESYSTEM {
     FILESYSTEM Header;
-    LPPHYSICALDISK Disk;
+    LPSTORAGE_UNIT Disk;
     FAT32MBR Master;
     SECTOR PartitionStart;
     U32 PartitionSize;
@@ -79,7 +79,7 @@ typedef struct tag_FATFILE {
  * @param Disk Physical disk hosting the partition.
  * @return Pointer to a new FAT32 file system or NULL on failure.
  */
-static LPFAT32FILESYSTEM NewFATFileSystem(LPPHYSICALDISK Disk) {
+static LPFAT32FILESYSTEM NewFATFileSystem(LPSTORAGE_UNIT Disk) {
     LPFAT32FILESYSTEM This;
 
     This = (LPFAT32FILESYSTEM)KernelHeapAlloc(sizeof(FAT32FILESYSTEM));
@@ -92,7 +92,7 @@ static LPFAT32FILESYSTEM NewFATFileSystem(LPPHYSICALDISK Disk) {
     This->Header.Next = NULL;
     This->Header.Prev = NULL;
     This->Header.Driver = &FAT32Driver;
-    This->Header.PhysicalDisk = Disk;
+    This->Header.StorageUnit = Disk;
     This->Disk = Disk;
     This->FATStart = 0;
     This->FATStart2 = 0;
@@ -148,7 +148,7 @@ static LPFATFILE NewFATFile(LPFAT32FILESYSTEM FileSystem, LPFATFILELOC FileLoc) 
  * @param PartIndex Partition index for naming.
  * @return TRUE on success, FALSE on failure.
  */
-BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
+BOOL MountPartition_FAT32(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer[SECTOR_SIZE];
     LPFAT32MBR Master;
     LPFAT32FILESYSTEM FileSystem;

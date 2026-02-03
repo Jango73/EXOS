@@ -1372,12 +1372,12 @@ static U32 CMD_hd(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
     LPLISTNODE Node;
-    LPPHYSICALDISK Disk;
+    LPSTORAGE_UNIT Disk;
     DISKINFO DiskInfo;
 
     LPLIST DiskList = GetDiskList();
     for (Node = DiskList != NULL ? DiskList->First : NULL; Node; Node = Node->Next) {
-        Disk = (LPPHYSICALDISK)Node;
+        Disk = (LPSTORAGE_UNIT)Node;
 
         DiskInfo.Disk = Disk;
         Disk->Driver->Command(DF_DISK_GETINFO, (UINT)&DiskInfo);

@@ -54,7 +54,7 @@
 // Type definitions
 
 typedef struct tag_NVME_DISK {
-    PHYSICALDISK Header;
+    STORAGE_UNIT Header;
     LPNVME_DEVICE Controller;
     U32 NamespaceId;
     U64 NumSectors;
