@@ -145,26 +145,6 @@ static USB_MASS_STORAGE_DRIVER DATA_SECTION USBMassStorageDriverState = {
 
 /************************************************************************/
 
-/**
- * @brief Get the physical disk pointer stored in a filesystem instance.
- * @param FileSystem Filesystem instance.
- * @return Disk pointer or NULL when not applicable.
- */
-static LPPHYSICALDISK USBMassStorageGetFileSystemDisk(LPFILESYSTEM FileSystem) {
-    if (FileSystem == NULL) return NULL;
-    if (FileSystem == GetSystemFS()) return NULL;
-
-    // All current filesystem implementations store Disk right after Header.
-    struct tag_FILESYSTEM_DISK_REF {
-        FILESYSTEM Header;
-        LPPHYSICALDISK Disk;
-    };
-
-    return ((struct tag_FILESYSTEM_DISK_REF*)FileSystem)->Disk;
-}
-
-/************************************************************************/
-
 static UINT USBMassStorageReportMounts(LPUSB_MASS_STORAGE_DEVICE Device, LPLISTNODE PreviousLast) {
     LPLIST FileSystemList = GetFileSystemList();
     UINT MountedCount = 0;
@@ -182,7 +162,7 @@ static UINT USBMassStorageReportMounts(LPUSB_MASS_STORAGE_DEVICE Device, LPLISTN
 
     for (; Node; Node = Node->Next) {
         LPFILESYSTEM FileSystem = (LPFILESYSTEM)Node;
-        if (USBMassStorageGetFileSystemDisk(FileSystem) != (LPPHYSICALDISK)Device) {
+        if (FileSystemGetPhysicalDisk(FileSystem) != (LPPHYSICALDISK)Device) {
             continue;
         }
 
@@ -210,7 +190,7 @@ static void USBMassStorageDetachFileSystems(LPPHYSICALDISK Disk, U32 UsbAddress)
     for (LPLISTNODE Node = FileSystemList->First; Node;) {
         LPLISTNODE Next = Node->Next;
         LPFILESYSTEM FileSystem = (LPFILESYSTEM)Node;
-        LPPHYSICALDISK FileSystemDisk = USBMassStorageGetFileSystemDisk(FileSystem);
+        LPPHYSICALDISK FileSystemDisk = FileSystemGetPhysicalDisk(FileSystem);
 
         if (FileSystemDisk == Disk) {
             SystemFSUnmountFileSystem(FileSystem);

@@ -103,6 +103,7 @@ static LPEXFSFILESYSTEM NewEXFSFileSystem(LPPHYSICALDISK Disk) {
     This->Header.Next = NULL;
     This->Header.Prev = NULL;
     This->Header.Driver = &EXFSDriver;
+    This->Header.PhysicalDisk = Disk;
     This->Disk = Disk;
     This->PageBuffer = NULL;
     This->IOBuffer = NULL;

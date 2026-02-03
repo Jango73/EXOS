@@ -709,6 +709,7 @@ BOOL MountSystemFS(void) {
 
     InitMutex(&(SystemFS->Header.Mutex));
     SystemFS->Header.Driver = &SystemFSDriver;
+    SystemFS->Header.PhysicalDisk = NULL;
 
     Info.Size = sizeof(FILEINFO);
     Info.FileSystem = &SystemFS->Header;

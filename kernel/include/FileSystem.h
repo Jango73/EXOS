@@ -123,6 +123,7 @@ typedef struct tag_FILESYSTEM {
     LISTNODE_FIELDS
     MUTEX Mutex;
     LPDRIVER Driver;
+    LPPHYSICALDISK PhysicalDisk;
     STR Name[MAX_FS_LOGICAL_NAME];
 } FILESYSTEM, *LPFILESYSTEM;
 
@@ -211,6 +212,8 @@ typedef struct tag_FS_PATHCHECK {
 
 BOOL MountDiskPartitions(LPPHYSICALDISK, LPBOOTPARTITION, U32);
 U32 GetNumFileSystems(void);
+LPPHYSICALDISK FileSystemGetPhysicalDisk(LPFILESYSTEM FileSystem);
+BOOL FileSystemHasPhysicalDisk(LPFILESYSTEM FileSystem);
 BOOL GetDefaultFileSystemName(LPSTR, LPPHYSICALDISK, U32);
 BOOL MountSystemFS(void);
 BOOL MountUserNodes(void);

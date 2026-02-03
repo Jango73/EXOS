@@ -248,6 +248,7 @@ static KERNELDATA DATA_SECTION Kernel = {
             .Prev = NULL,
             .Mutex = EMPTY_MUTEX,
             .Driver = &SystemFSDriver,
+            .PhysicalDisk = NULL,
             .Name = "System"
         },
         .Root = NULL

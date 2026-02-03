@@ -92,6 +92,7 @@ static LPFAT32FILESYSTEM NewFATFileSystem(LPPHYSICALDISK Disk) {
     This->Header.Next = NULL;
     This->Header.Prev = NULL;
     This->Header.Driver = &FAT32Driver;
+    This->Header.PhysicalDisk = Disk;
     This->Disk = Disk;
     This->FATStart = 0;
     This->FATStart2 = 0;

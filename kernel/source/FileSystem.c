@@ -408,6 +408,33 @@ U32 GetNumFileSystems(void) {
 /***************************************************************************/
 
 /**
+ * @brief Returns the physical disk associated with a mounted filesystem.
+ *
+ * @param FileSystem Mounted filesystem instance.
+ * @return Associated physical disk pointer, or NULL for virtual filesystems.
+ */
+LPPHYSICALDISK FileSystemGetPhysicalDisk(LPFILESYSTEM FileSystem) {
+    SAFE_USE_VALID_ID(FileSystem, KOID_FILESYSTEM) {
+        return FileSystem->PhysicalDisk;
+    }
+    return NULL;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Indicates whether a mounted filesystem is backed by a physical disk.
+ *
+ * @param FileSystem Mounted filesystem instance.
+ * @return TRUE when the filesystem has a backing disk, FALSE otherwise.
+ */
+BOOL FileSystemHasPhysicalDisk(LPFILESYSTEM FileSystem) {
+    return FileSystemGetPhysicalDisk(FileSystem) != NULL;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Generates a default file system name for a disk partition.
  *
  * Creates a volume name using the disk type and zero-based partition index.

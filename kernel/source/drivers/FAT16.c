@@ -92,6 +92,7 @@ static LPFAT16FILESYSTEM NewFAT16FileSystem(LPPHYSICALDISK Disk) {
     This->Header.Next = NULL;
     This->Header.Prev = NULL;
     This->Header.Driver = &FAT16Driver;
+    This->Header.PhysicalDisk = Disk;
     This->Disk = Disk;
     This->FATStart = 0;
     This->FATStart2 = 0;

@@ -2272,6 +2272,7 @@ static LPEXT2FILESYSTEM NewEXT2FileSystem(LPPHYSICALDISK Disk) {
     FileSystem->Header.Next = NULL;
     FileSystem->Header.Prev = NULL;
     FileSystem->Header.Driver = &EXT2Driver;
+    FileSystem->Header.PhysicalDisk = Disk;
     FileSystem->Disk = Disk;
     FileSystem->Groups = NULL;
     FileSystem->GroupCount = 0;
