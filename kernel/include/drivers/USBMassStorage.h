@@ -53,6 +53,7 @@ typedef struct tag_USB_STORAGE_ENTRY {
 /************************************************************************/
 
 LPDRIVER USBMassStorageGetDriver(void);
+LPCSTR UsbEnumErrorToString(U8 Code);
 
 /************************************************************************/
 

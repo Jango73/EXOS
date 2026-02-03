@@ -83,37 +83,6 @@ typedef struct tag_SHELLCONTEXT {
 
 /************************************************************************/
 
-static LPCSTR UsbEnumErrorToString(U8 Code) {
-    switch (Code) {
-        case XHCI_ENUM_ERROR_NONE:
-            return TEXT("OK");
-        case XHCI_ENUM_ERROR_BUSY:
-            return TEXT("BUSY");
-        case XHCI_ENUM_ERROR_RESET_TIMEOUT:
-            return TEXT("RESET");
-        case XHCI_ENUM_ERROR_INVALID_SPEED:
-            return TEXT("SPEED");
-        case XHCI_ENUM_ERROR_INIT_STATE:
-            return TEXT("STATE");
-        case XHCI_ENUM_ERROR_ENABLE_SLOT:
-            return TEXT("SLOT");
-        case XHCI_ENUM_ERROR_ADDRESS_DEVICE:
-            return TEXT("ADDRESS");
-        case XHCI_ENUM_ERROR_DEVICE_DESC:
-            return TEXT("DEVICE");
-        case XHCI_ENUM_ERROR_CONFIG_DESC:
-            return TEXT("CONFIG");
-        case XHCI_ENUM_ERROR_CONFIG_PARSE:
-            return TEXT("PARSE");
-        case XHCI_ENUM_ERROR_SET_CONFIG:
-            return TEXT("SETCONFIG");
-        case XHCI_ENUM_ERROR_HUB_INIT:
-            return TEXT("HUB");
-        default:
-            return TEXT("UNKNOWN");
-    }
-}
-
 /************************************************************************/
 // The shell command functions
 
@@ -208,7 +177,7 @@ static struct {
     {"cp", "copy", "", CMD_copy},
     {"edit", "edit", "Name", CMD_edit},
     {"hd", "hd", "", CMD_hd},
-    {"fs", "filesystem", "", CMD_filesystem},
+    {"fs", "filesystem", "[--long]", CMD_filesystem},
     {"net", "network", "devices", CMD_network},
     {"pic", "pic", "", CMD_pic},
     {"outp", "outp", "", CMD_outp},
@@ -1396,22 +1365,35 @@ static U32 CMD_hd(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 static U32 CMD_filesystem(LPSHELLCONTEXT Context) {
-    UNUSED(Context);
-
     LPLISTNODE Node;
     LPFILESYSTEM FileSystem;
+    BOOL LongMode;
 
-    ConsolePrint(TEXT("General information\n"));
-    FILESYSTEM_GLOBAL_INFO* FileSystemInfo = GetFileSystemGlobalInfo();
+    ParseNextCommandLineComponent(Context);
+    LongMode = HasOption(Context, TEXT("l"), TEXT("long"));
 
-    if (StringEmpty(FileSystemInfo->ActivePartitionName) == FALSE) {
-        ConsolePrint(TEXT("Active partition : %s\n"), FileSystemInfo->ActivePartitionName);
-    } else {
-        ConsolePrint(TEXT("Active partition : <none>\n"));
+    if (StringLength(Context->Command) != 0) {
+        ConsolePrint(TEXT("Usage: fs [--long]\n"));
+        return DF_RETURN_SUCCESS;
     }
 
-    ConsolePrint(TEXT("\n"));
-    ConsolePrint(TEXT("Mounted file systems\n"));
+    if (LongMode) {
+        ConsolePrint(TEXT("General information\n"));
+        FILESYSTEM_GLOBAL_INFO* FileSystemInfo = GetFileSystemGlobalInfo();
+
+        if (StringEmpty(FileSystemInfo->ActivePartitionName) == FALSE) {
+            ConsolePrint(TEXT("Active partition : %s\n"), FileSystemInfo->ActivePartitionName);
+        } else {
+            ConsolePrint(TEXT("Active partition : <none>\n"));
+        }
+
+        ConsolePrint(TEXT("\n"));
+        ConsolePrint(TEXT("Mounted file systems\n"));
+    } else {
+        ConsolePrint(TEXT("%-12s %-12s %-10s %11s\n"),
+            TEXT("Name"), TEXT("Type"), TEXT("Format"), TEXT("Size"));
+        ConsolePrint(TEXT("-------------------------------------------------\n"));
+    }
 
     LPLIST FileSystemList = GetFileSystemList();
     for (Node = FileSystemList != NULL ? FileSystemList->First : NULL; Node; Node = Node->Next) {
@@ -1423,6 +1405,15 @@ static U32 CMD_filesystem(LPSHELLCONTEXT Context) {
         FileSystem = (LPFILESYSTEM)Node;
         StorageUnit = FileSystemGetStorageUnit(FileSystem);
         PartitionSizeMiB = FileSystem->Partition.NumSectors / 2048;
+
+        if (!LongMode) {
+            ConsolePrint(TEXT("%-12s %-12s %-10s %7u MiB\n"),
+                FileSystem->Name,
+                FileSystemGetPartitionTypeName(&FileSystem->Partition),
+                FileSystemGetPartitionFormatName(FileSystem->Partition.Format),
+                PartitionSizeMiB);
+            continue;
+        }
 
         ConsolePrint(TEXT("Name         : %s\n"), FileSystem->Name);
         ConsolePrint(TEXT("FS driver    : %s / %s\n"), FileSystem->Driver->Manufacturer, FileSystem->Driver->Product);

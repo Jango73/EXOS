@@ -31,7 +31,7 @@
 
 ## Shell
 
-- Add a storage command that lists all existing storage devices and all partitions that exist on it, whether or not handlee by the OS.
+- Add a storage command that lists all existing storage devices and all partitions that exist on it, whether or not handled by the OS.
 
 ## Shell kernel exposure
 
