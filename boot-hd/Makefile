@@ -249,10 +249,17 @@ define MCOPY_IF_NEEDED
 	fi;
 endef
 
-.PHONY: all update update-fat32 update-ext2 update-test-image install-mbr install-vbr-payload clean check_tools rebuild-image usb-3-image
+.PHONY: all update update-fat32 update-ext2 update-test-image install-mbr install-vbr-payload clean check_tools rebuild-image usb-3-image normalize-partition-flags
 
 # Default: build tools, ensure images exist (create once), then update contents
-all: check_tools $(FINAL_IMG) $(USB3_IMG) $(NVME_IMG) $(NVME_UNSUPPORTED_IMG) update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
+all: check_tools normalize-partition-flags update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
+
+normalize-partition-flags: $(FINAL_IMG) $(USB3_IMG) $(NVME_IMG) $(NVME_UNSUPPORTED_IMG)
+	@echo "Normalizing partition active flags..."
+	@if [ -f "$(FINAL_IMG)" ]; then parted -s "$(FINAL_IMG)" set 1 boot on; fi
+	@if [ -f "$(USB3_IMG)" ]; then parted -s "$(USB3_IMG)" set 1 boot off; fi
+	@if [ -f "$(NVME_IMG)" ]; then parted -s "$(NVME_IMG)" set 1 boot off; fi
+	@if [ -f "$(NVME_UNSUPPORTED_IMG)" ]; then parted -s "$(NVME_UNSUPPORTED_IMG)" set 1 boot off; fi
 
 check_tools:
 	@command -v $(NASM) >/dev/null 2>&1 || { echo "$(NASM) is not installed. Please run: sudo apt install nasm"; exit 1; }
@@ -344,6 +351,7 @@ $(FINAL_IMG): $(FINAL_IMG_DEPS)
 $(NVME_IMG): check_tools $(HELLO_ELF)
 	@mkdir -p $(dir $@)
 	$(call CREATE_EXT2_IMAGE_SIZE,$@,$(NVME_IMG_SIZE_MB))
+	@parted -s $@ set 1 boot off
 	@echo "Preparing NVMe staging directory at $(NVME_STAGING_DIR)"
 	@rm -rf $(NVME_STAGING_DIR)
 	@mkdir -p $(NVME_STAGING_DIR)
@@ -359,18 +367,20 @@ $(NVME_UNSUPPORTED_IMG): check_tools
 		dd if=/dev/zero of=$@ bs=1M count=$(NVME_UNSUPPORTED_IMG_SIZE_MB); \
 		parted -s $@ mklabel msdos; \
 		parted -s $@ mkpart primary ntfs 2048s 100%; \
-		parted -s $@ set 1 boot on; \
+		parted -s $@ set 1 boot off; \
 	fi
 
 ifeq ($(TEST_PAYLOAD),1)
 $(USB3_IMG): check_tools
 	@mkdir -p $(dir $@)
 	$(call CREATE_EXT2_IMAGE,$@)
+	@parted -s $@ set 1 boot off
 	@echo "Skipping USB MSD staging for test payload build."
 else
 $(USB3_IMG): check_tools $(TICTACTOE_ELF)
 	@mkdir -p $(dir $@)
 	$(call CREATE_EXT2_IMAGE,$@)
+	@parted -s $@ set 1 boot off
 	@echo "Preparing USB MSD staging directory at $(USB3_STAGING_DIR)"
 	@rm -rf $(USB3_STAGING_DIR)
 	@mkdir -p $(USB3_STAGING_DIR)
