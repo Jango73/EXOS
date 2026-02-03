@@ -31,6 +31,8 @@
 #define NTFS_VER_MAJOR 1
 #define NTFS_VER_MINOR 0
 #define NTFS_MAX_SECTOR_SIZE 4096
+#define NTFS_MIN_FILE_RECORD_SIZE 512
+#define NTFS_MAX_FILE_RECORD_SIZE 4096
 
 /***************************************************************************/
 
@@ -43,9 +45,30 @@ typedef struct tag_NTFSFILESYSTEM {
     U32 BytesPerSector;
     U32 SectorsPerCluster;
     U32 BytesPerCluster;
+    U32 FileRecordSize;
+    U32 MftStartSector;
     U64 MftStartCluster;
     STR VolumeLabel[MAX_FS_LOGICAL_NAME];
 } NTFSFILESYSTEM, *LPNTFSFILESYSTEM;
+
+/***************************************************************************/
+
+typedef struct tag_NTFS_FILE_RECORD_HEADER {
+    U32 Magic;
+    U16 UpdateSequenceOffset;
+    U16 UpdateSequenceSize;
+    U64 LogFileSequenceNumber;
+    U16 SequenceNumber;
+    U16 ReferenceCount;
+    U16 SequenceOfAttributesOffset;
+    U16 Flags;
+    U32 RealSize;
+    U32 AllocatedSize;
+    U64 BaseRecord;
+    U16 MaximumAttributeID;
+    U16 Alignment;
+    U32 RecordNumber;
+} NTFS_FILE_RECORD_HEADER, *LPNTFS_FILE_RECORD_HEADER;
 
 /***************************************************************************/
 
@@ -102,6 +125,131 @@ static U32 NtfsGetDiskBytesPerSector(LPSTORAGE_UNIT Disk) {
 /***************************************************************************/
 
 /**
+ * @brief Load a U16 from an arbitrary memory address.
+ *
+ * @param Address Source address.
+ * @return Loaded value.
+ */
+static U16 NtfsLoadU16(LPCVOID Address) {
+    U16 Value;
+
+    MemoryCopy(&Value, Address, sizeof(U16));
+    return Value;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Store a U16 to an arbitrary memory address.
+ *
+ * @param Address Destination address.
+ * @param Value Value to store.
+ */
+static void NtfsStoreU16(LPVOID Address, U16 Value) {
+    MemoryCopy(Address, &Value, sizeof(U16));
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Shift a U64 value left by one bit.
+ *
+ * @param Value Input value.
+ * @return Shifted value.
+ */
+static U64 NtfsU64ShiftLeft1(U64 Value) {
+    U32 High;
+    U32 Low;
+
+    High = U64_High32(Value);
+    Low = U64_Low32(Value);
+
+    return U64_Make((High << 1) | (Low >> 31), Low << 1);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Shift a U64 value right by one bit.
+ *
+ * @param Value Input value.
+ * @return Shifted value.
+ */
+static U64 NtfsU64ShiftRight1(U64 Value) {
+    U32 High;
+    U32 Low;
+
+    High = U64_High32(Value);
+    Low = U64_Low32(Value);
+
+    return U64_Make(High >> 1, (Low >> 1) | ((High & 1) << 31));
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Multiply two U32 values and return a U64 product.
+ *
+ * @param Left Left factor.
+ * @param Right Right factor.
+ * @return 64-bit product.
+ */
+static U64 NtfsMultiplyU32ToU64(U32 Left, U32 Right) {
+    U64 Result = U64_Make(0, 0);
+    U64 Addend = U64_FromU32(Left);
+
+    while (Right != 0) {
+        if ((Right & 1) != 0) {
+            Result = U64_Add(Result, Addend);
+        }
+        Right >>= 1;
+        if (Right != 0) {
+            Addend = NtfsU64ShiftLeft1(Addend);
+        }
+    }
+
+    return Result;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Shift a U64 value right by N bits.
+ *
+ * @param Value Input value.
+ * @param Shift Number of bits to shift.
+ * @return Shifted value.
+ */
+static U64 NtfsU64ShiftRight(U64 Value, U32 Shift) {
+    while (Shift > 0) {
+        Value = NtfsU64ShiftRight1(Value);
+        Shift--;
+    }
+    return Value;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Return base-2 logarithm for power-of-two value.
+ *
+ * @param Value Input power-of-two.
+ * @return Bit index.
+ */
+static U32 NtfsLog2(U32 Value) {
+    U32 Shift = 0;
+
+    while (Value > 1) {
+        Value >>= 1;
+        Shift++;
+    }
+
+    return Shift;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Reads a partition boot sector.
  *
  * @param Disk Target disk.
@@ -146,6 +294,227 @@ static BOOL NtfsReadBootSector(
     }
 
     if (BytesPerSectorOut != NULL) *BytesPerSectorOut = BytesPerSector;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Read sectors from a mounted NTFS partition.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param Sector Absolute disk sector.
+ * @param NumSectors Number of sectors to read.
+ * @param Buffer Destination buffer.
+ * @param BufferSize Destination buffer size in bytes.
+ * @return TRUE on success, FALSE otherwise.
+ */
+static BOOL NtfsReadSectors(
+    LPNTFSFILESYSTEM FileSystem, SECTOR Sector, U32 NumSectors, LPVOID Buffer, U32 BufferSize) {
+    IOCONTROL Control;
+    U32 RelativeSector;
+    U32 MaxBytes;
+    U32 Result;
+
+    if (FileSystem == NULL || Buffer == NULL) return FALSE;
+    if (NumSectors == 0) return FALSE;
+
+    if (Sector < FileSystem->PartitionStart) {
+        WARNING(TEXT("[NtfsReadSectors] Sector underflow %u"), Sector);
+        return FALSE;
+    }
+
+    RelativeSector = Sector - FileSystem->PartitionStart;
+    if (RelativeSector >= FileSystem->PartitionSize) {
+        WARNING(TEXT("[NtfsReadSectors] Sector out of partition %u"), Sector);
+        return FALSE;
+    }
+
+    if (NumSectors > FileSystem->PartitionSize - RelativeSector) {
+        WARNING(TEXT("[NtfsReadSectors] Read over partition boundary sector=%u count=%u"),
+            Sector, NumSectors);
+        return FALSE;
+    }
+
+    if (NumSectors > 0xFFFFFFFF / FileSystem->BytesPerSector) {
+        WARNING(TEXT("[NtfsReadSectors] Byte size overflow count=%u"), NumSectors);
+        return FALSE;
+    }
+
+    MaxBytes = NumSectors * FileSystem->BytesPerSector;
+    if (BufferSize < MaxBytes) {
+        WARNING(TEXT("[NtfsReadSectors] Buffer too small %u<%u"), BufferSize, MaxBytes);
+        return FALSE;
+    }
+
+    Control.TypeID = KOID_IOCONTROL;
+    Control.Disk = FileSystem->Disk;
+    Control.SectorLow = Sector;
+    Control.SectorHigh = 0;
+    Control.NumSectors = NumSectors;
+    Control.Buffer = Buffer;
+    Control.BufferSize = MaxBytes;
+
+    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
+    if (Result != DF_RETURN_SUCCESS) {
+        WARNING(TEXT("[NtfsReadSectors] Read failed result=%x"), Result);
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Decode file record size from NTFS boot data.
+ *
+ * @param BootSector Boot sector structure.
+ * @param BytesPerCluster Bytes per cluster.
+ * @param RecordSizeOut Destination record size in bytes.
+ * @return TRUE on success, FALSE otherwise.
+ */
+static BOOL NtfsComputeFileRecordSize(
+    LPNTFS_MBR BootSector, U32 BytesPerCluster, U32* RecordSizeOut) {
+    U8 RawValue;
+    U32 RecordSize;
+
+    if (RecordSizeOut != NULL) *RecordSizeOut = 0;
+    if (BootSector == NULL || RecordSizeOut == NULL) return FALSE;
+
+    RawValue = (U8)(BootSector->FileRecordSize & 0xFF);
+    if (RawValue == 0) {
+        WARNING(TEXT("[NtfsComputeFileRecordSize] Invalid file record size byte=0"));
+        return FALSE;
+    }
+
+    if ((RawValue & 0x80) == 0) {
+        RecordSize = ((U32)RawValue) * BytesPerCluster;
+    } else {
+        I8 SignedValue = (I8)RawValue;
+        U8 Shift = (U8)(-SignedValue);
+
+        if (Shift > 31) {
+            WARNING(TEXT("[NtfsComputeFileRecordSize] Invalid file record exponent=%u"), Shift);
+            return FALSE;
+        }
+
+        RecordSize = (U32)(1 << Shift);
+    }
+
+    if (RecordSize < NTFS_MIN_FILE_RECORD_SIZE || RecordSize > NTFS_MAX_FILE_RECORD_SIZE) {
+        WARNING(TEXT("[NtfsComputeFileRecordSize] Unsupported file record size=%u"), RecordSize);
+        return FALSE;
+    }
+
+    if (!NtfsIsPowerOfTwo(RecordSize)) {
+        WARNING(TEXT("[NtfsComputeFileRecordSize] File record size not power-of-two=%u"), RecordSize);
+        return FALSE;
+    }
+
+    *RecordSizeOut = RecordSize;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Compute absolute sector of $MFT record 0.
+ *
+ * @param PartitionStart Partition start sector.
+ * @param SectorsPerCluster Cluster size in sectors.
+ * @param MftStartCluster MFT start cluster.
+ * @param SectorOut Destination absolute sector.
+ * @return TRUE on success, FALSE on overflow or unsupported value.
+ */
+static BOOL NtfsComputeMftStartSector(
+    SECTOR PartitionStart, U32 SectorsPerCluster, U64 MftStartCluster, U32* SectorOut) {
+    U32 ClusterLow;
+    U32 ClusterOffsetSectors;
+    U32 MftSector;
+
+    if (SectorOut != NULL) *SectorOut = 0;
+    if (SectorOut == NULL) return FALSE;
+
+    if (U64_High32(MftStartCluster) != 0) {
+        WARNING(TEXT("[NtfsComputeMftStartSector] Unsupported MFT cluster high part=%x"),
+            (U32)U64_High32(MftStartCluster));
+        return FALSE;
+    }
+
+    ClusterLow = (U32)U64_Low32(MftStartCluster);
+    if (ClusterLow > 0xFFFFFFFF / SectorsPerCluster) {
+        WARNING(TEXT("[NtfsComputeMftStartSector] Cluster multiplication overflow cluster=%u"), ClusterLow);
+        return FALSE;
+    }
+
+    ClusterOffsetSectors = ClusterLow * SectorsPerCluster;
+    if (PartitionStart > 0xFFFFFFFF - ClusterOffsetSectors) {
+        WARNING(TEXT("[NtfsComputeMftStartSector] Sector overflow start=%u"), PartitionStart);
+        return FALSE;
+    }
+
+    MftSector = PartitionStart + ClusterOffsetSectors;
+    *SectorOut = MftSector;
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Apply NTFS update sequence fixup on a file record buffer.
+ *
+ * @param RecordBuffer Record buffer to patch in place.
+ * @param RecordSize Record size in bytes.
+ * @param SectorSize Sector size in bytes.
+ * @param UpdateSequenceOffset Update sequence array offset.
+ * @param UpdateSequenceSize Number of U16 values in update sequence array.
+ * @return TRUE on success, FALSE on validation mismatch.
+ */
+static BOOL NtfsApplyFileRecordFixup(
+    U8* RecordBuffer, U32 RecordSize, U32 SectorSize, U16 UpdateSequenceOffset, U16 UpdateSequenceSize) {
+    U16 UpdateSequenceNumber;
+    U32 SectorsInRecord;
+    U32 FixupWords;
+    U32 Index;
+
+    if (RecordBuffer == NULL || SectorSize == 0) return FALSE;
+    if (RecordSize == 0 || (RecordSize % SectorSize) != 0) return FALSE;
+    if (UpdateSequenceSize < 2) return FALSE;
+
+    SectorsInRecord = RecordSize / SectorSize;
+    if ((U32)UpdateSequenceSize != (SectorsInRecord + 1)) {
+        WARNING(TEXT("[NtfsApplyFileRecordFixup] Invalid update sequence size=%u sectors=%u"),
+            UpdateSequenceSize, SectorsInRecord);
+        return FALSE;
+    }
+
+    FixupWords = (U32)UpdateSequenceSize;
+    if ((U32)UpdateSequenceOffset > RecordSize) return FALSE;
+    if (FixupWords > (RecordSize - (U32)UpdateSequenceOffset) / sizeof(U16)) {
+        WARNING(TEXT("[NtfsApplyFileRecordFixup] Update sequence out of range offset=%u words=%u"),
+            UpdateSequenceOffset, FixupWords);
+        return FALSE;
+    }
+
+    UpdateSequenceNumber = NtfsLoadU16(RecordBuffer + UpdateSequenceOffset);
+
+    for (Index = 0; Index < SectorsInRecord; Index++) {
+        U32 TailOffset = ((Index + 1) * SectorSize) - sizeof(U16);
+        U16 TailValue = NtfsLoadU16(RecordBuffer + TailOffset);
+        U16 Replacement;
+
+        if (TailValue != UpdateSequenceNumber) {
+            WARNING(TEXT("[NtfsApplyFileRecordFixup] Update sequence mismatch index=%u"), Index);
+            return FALSE;
+        }
+
+        Replacement = NtfsLoadU16(
+            RecordBuffer + UpdateSequenceOffset + ((Index + 1) * sizeof(U16)));
+        NtfsStoreU16(RecordBuffer + TailOffset, Replacement);
+    }
+
     return TRUE;
 }
 
@@ -240,8 +609,11 @@ BOOL MountPartition_NTFS(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
     U32 BootBytesPerSector;
     U32 SectorsPerCluster;
     U32 BytesPerCluster;
+    U32 FileRecordSize;
+    U32 MftStartSector;
     U64 MftStartCluster;
     SECTOR PartitionStart;
+    NTFS_FILE_RECORD_INFO RecordInfo;
 
     if (Disk == NULL || Partition == NULL) return FALSE;
 
@@ -292,6 +664,13 @@ BOOL MountPartition_NTFS(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
     }
 
     MftStartCluster = BootSector->LCN_VCN0_MFT;
+    if (!NtfsComputeFileRecordSize(BootSector, BytesPerCluster, &FileRecordSize)) {
+        return FALSE;
+    }
+
+    if (!NtfsComputeMftStartSector(PartitionStart, SectorsPerCluster, MftStartCluster, &MftStartSector)) {
+        return FALSE;
+    }
 
     FileSystem = (LPNTFSFILESYSTEM)CreateKernelObject(sizeof(NTFSFILESYSTEM), KOID_FILESYSTEM);
     if (FileSystem == NULL) {
@@ -311,17 +690,30 @@ BOOL MountPartition_NTFS(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
     FileSystem->BytesPerSector = BootBytesPerSector;
     FileSystem->SectorsPerCluster = SectorsPerCluster;
     FileSystem->BytesPerCluster = BytesPerCluster;
+    FileSystem->FileRecordSize = FileRecordSize;
+    FileSystem->MftStartSector = MftStartSector;
     FileSystem->MftStartCluster = MftStartCluster;
     StringClear(FileSystem->VolumeLabel);
 
     ListAddItem(GetFileSystemList(), FileSystem);
 
-    DEBUG(TEXT("[MountPartition_NTFS] Mounted %s bytes_per_sector=%u sectors_per_cluster=%u mft_cluster=%x%08x"),
+    DEBUG(TEXT("[MountPartition_NTFS] Mounted %s bytes_per_sector=%u sectors_per_cluster=%u record_size=%u mft_cluster=%x%08x"),
         FileSystem->Header.Name,
         FileSystem->BytesPerSector,
         FileSystem->SectorsPerCluster,
+        FileSystem->FileRecordSize,
         (U32)U64_High32(FileSystem->MftStartCluster),
         (U32)U64_Low32(FileSystem->MftStartCluster));
+
+    MemorySet(&RecordInfo, 0, sizeof(NTFS_FILE_RECORD_INFO));
+    if (NtfsReadFileRecord((LPFILESYSTEM)FileSystem, 0, &RecordInfo)) {
+        DEBUG(TEXT("[MountPartition_NTFS] MFT[0] flags=%x attrs=%u used=%u"),
+            RecordInfo.Flags,
+            RecordInfo.SequenceOfAttributesOffset,
+            RecordInfo.UsedSize);
+    } else {
+        WARNING(TEXT("[MountPartition_NTFS] MFT[0] read failed"));
+    }
 
     return TRUE;
 }
@@ -346,9 +738,145 @@ BOOL NtfsGetVolumeGeometry(LPFILESYSTEM FileSystem, LPNTFS_VOLUME_GEOMETRY Geome
         Geometry->BytesPerSector = NtfsFileSystem->BytesPerSector;
         Geometry->SectorsPerCluster = NtfsFileSystem->SectorsPerCluster;
         Geometry->BytesPerCluster = NtfsFileSystem->BytesPerCluster;
+        Geometry->FileRecordSize = NtfsFileSystem->FileRecordSize;
         Geometry->MftStartCluster = NtfsFileSystem->MftStartCluster;
         StringCopy(Geometry->VolumeLabel, NtfsFileSystem->VolumeLabel);
 
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Read one MFT file record and parse the base record header.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param Index File record index in $MFT.
+ * @param RecordInfo Destination metadata structure.
+ * @return TRUE on success, FALSE otherwise.
+ */
+BOOL NtfsReadFileRecord(LPFILESYSTEM FileSystem, U32 Index, LPNTFS_FILE_RECORD_INFO RecordInfo) {
+    LPNTFSFILESYSTEM NtfsFileSystem;
+    U64 RecordOffset;
+    U64 SectorOffset64;
+    U32 SectorShift;
+    U32 SectorOffset;
+    U32 OffsetInSector;
+    U32 TotalBytes;
+    U32 NumSectors;
+    U32 ReadSize;
+    U32 RecordSector;
+    U8* ReadBuffer;
+    U8* RecordBuffer;
+    NTFS_FILE_RECORD_HEADER Header;
+
+    if (RecordInfo != NULL) {
+        MemorySet(RecordInfo, 0, sizeof(NTFS_FILE_RECORD_INFO));
+    }
+
+    if (FileSystem == NULL || RecordInfo == NULL) return FALSE;
+
+    SAFE_USE_VALID_ID(FileSystem, KOID_FILESYSTEM) {
+        if (FileSystem->Driver != &NTFSDriver) return FALSE;
+
+        NtfsFileSystem = (LPNTFSFILESYSTEM)FileSystem;
+        if (NtfsFileSystem->FileRecordSize == 0 || NtfsFileSystem->BytesPerSector == 0 ||
+            !NtfsIsPowerOfTwo(NtfsFileSystem->BytesPerSector)) {
+            WARNING(TEXT("[NtfsReadFileRecord] Invalid NTFS geometry"));
+            return FALSE;
+        }
+
+        RecordOffset = NtfsMultiplyU32ToU64(Index, NtfsFileSystem->FileRecordSize);
+        SectorShift = NtfsLog2(NtfsFileSystem->BytesPerSector);
+        SectorOffset64 = NtfsU64ShiftRight(RecordOffset, SectorShift);
+        OffsetInSector = U64_Low32(RecordOffset) & (NtfsFileSystem->BytesPerSector - 1);
+
+        if (U64_High32(SectorOffset64) != 0) {
+            WARNING(TEXT("[NtfsReadFileRecord] Sector offset too large index=%u"), Index);
+            return FALSE;
+        }
+        SectorOffset = (U32)U64_Low32(SectorOffset64);
+
+        if (NtfsFileSystem->MftStartSector > 0xFFFFFFFF - SectorOffset) {
+            WARNING(TEXT("[NtfsReadFileRecord] Record sector overflow index=%u"), Index);
+            return FALSE;
+        }
+        RecordSector = NtfsFileSystem->MftStartSector + SectorOffset;
+
+        if (OffsetInSector > 0xFFFFFFFF - NtfsFileSystem->FileRecordSize) {
+            WARNING(TEXT("[NtfsReadFileRecord] Record size overflow index=%u"), Index);
+            return FALSE;
+        }
+        TotalBytes = OffsetInSector + NtfsFileSystem->FileRecordSize;
+        NumSectors = TotalBytes / NtfsFileSystem->BytesPerSector;
+        if ((TotalBytes % NtfsFileSystem->BytesPerSector) != 0) {
+            NumSectors++;
+        }
+
+        if (NumSectors == 0 || NumSectors > 0xFFFFFFFF / NtfsFileSystem->BytesPerSector) {
+            WARNING(TEXT("[NtfsReadFileRecord] Invalid sector count index=%u"), Index);
+            return FALSE;
+        }
+        ReadSize = NumSectors * NtfsFileSystem->BytesPerSector;
+
+        ReadBuffer = (U8*)KernelHeapAlloc(ReadSize);
+        if (ReadBuffer == NULL) {
+            ERROR(TEXT("[NtfsReadFileRecord] Unable to allocate %u bytes"), ReadSize);
+            return FALSE;
+        }
+
+        if (!NtfsReadSectors(NtfsFileSystem, RecordSector, NumSectors, ReadBuffer, ReadSize)) {
+            KernelHeapFree(ReadBuffer);
+            return FALSE;
+        }
+
+        RecordBuffer = ReadBuffer + OffsetInSector;
+        if (NtfsFileSystem->FileRecordSize < sizeof(NTFS_FILE_RECORD_HEADER)) {
+            WARNING(TEXT("[NtfsReadFileRecord] Record size too small=%u"), NtfsFileSystem->FileRecordSize);
+            KernelHeapFree(ReadBuffer);
+            return FALSE;
+        }
+
+        MemoryCopy(&Header, RecordBuffer, sizeof(NTFS_FILE_RECORD_HEADER));
+        if (Header.Magic != NTFS_FILE_RECORD_MAGIC) {
+            WARNING(TEXT("[NtfsReadFileRecord] Invalid file record magic=%x index=%u"), Header.Magic, Index);
+            KernelHeapFree(ReadBuffer);
+            return FALSE;
+        }
+
+        if (!NtfsApplyFileRecordFixup(
+                RecordBuffer,
+                NtfsFileSystem->FileRecordSize,
+                NtfsFileSystem->BytesPerSector,
+                Header.UpdateSequenceOffset,
+                Header.UpdateSequenceSize)) {
+            WARNING(TEXT("[NtfsReadFileRecord] Fixup failed index=%u"), Index);
+            KernelHeapFree(ReadBuffer);
+            return FALSE;
+        }
+
+        MemoryCopy(&Header, RecordBuffer, sizeof(NTFS_FILE_RECORD_HEADER));
+
+        if (Header.RealSize > NtfsFileSystem->FileRecordSize) {
+            WARNING(TEXT("[NtfsReadFileRecord] Invalid real size=%u index=%u"), Header.RealSize, Index);
+            KernelHeapFree(ReadBuffer);
+            return FALSE;
+        }
+
+        RecordInfo->Index = Index;
+        RecordInfo->RecordSize = NtfsFileSystem->FileRecordSize;
+        RecordInfo->UsedSize = Header.RealSize;
+        RecordInfo->Flags = Header.Flags;
+        RecordInfo->SequenceNumber = Header.SequenceNumber;
+        RecordInfo->ReferenceCount = Header.ReferenceCount;
+        RecordInfo->SequenceOfAttributesOffset = Header.SequenceOfAttributesOffset;
+        RecordInfo->UpdateSequenceOffset = Header.UpdateSequenceOffset;
+        RecordInfo->UpdateSequenceSize = Header.UpdateSequenceSize;
+
+        KernelHeapFree(ReadBuffer);
         return TRUE;
     }
 

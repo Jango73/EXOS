@@ -72,6 +72,7 @@ typedef struct tag_NTFS_FILEREF {
 /***************************************************************************/
 
 #define NTFS_FR_END_MARK 0xFFFFFFFF
+#define NTFS_FILE_RECORD_MAGIC 0x454C4946
 
 #define NTFS_FR_FLAG_IN_USE 0x0001
 #define NTFS_FR_FLAG_FOLDER 0x0002
@@ -139,9 +140,24 @@ typedef struct tag_NTFS_VOLUME_GEOMETRY {
     U32 BytesPerSector;
     U32 SectorsPerCluster;
     U32 BytesPerCluster;
+    U32 FileRecordSize;
     U64 MftStartCluster;
     STR VolumeLabel[MAX_FS_LOGICAL_NAME];
 } NTFS_VOLUME_GEOMETRY, *LPNTFS_VOLUME_GEOMETRY;
+
+/***************************************************************************/
+
+typedef struct tag_NTFS_FILE_RECORD_INFO {
+    U32 Index;
+    U32 RecordSize;
+    U32 UsedSize;
+    U32 Flags;
+    U32 SequenceNumber;
+    U32 ReferenceCount;
+    U32 SequenceOfAttributesOffset;
+    U32 UpdateSequenceOffset;
+    U32 UpdateSequenceSize;
+} NTFS_FILE_RECORD_INFO, *LPNTFS_FILE_RECORD_INFO;
 
 /***************************************************************************/
 
@@ -183,6 +199,18 @@ BOOL MountPartition_NTFS(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
  * @return TRUE on success, FALSE on invalid parameters.
  */
 BOOL NtfsGetVolumeGeometry(LPFILESYSTEM FileSystem, LPNTFS_VOLUME_GEOMETRY Geometry);
+
+/***************************************************************************/
+
+/**
+ * @brief Read one NTFS MFT file record and parse its base header.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param Index MFT file record index.
+ * @param RecordInfo Destination structure for parsed metadata.
+ * @return TRUE on success, FALSE on read or validation failure.
+ */
+BOOL NtfsReadFileRecord(LPFILESYSTEM FileSystem, U32 Index, LPNTFS_FILE_RECORD_INFO RecordInfo);
 
 /***************************************************************************/
 

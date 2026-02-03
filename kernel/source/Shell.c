@@ -111,6 +111,7 @@ static U32 CMD_edit(LPSHELLCONTEXT);
 static U32 CMD_memorymap(LPSHELLCONTEXT);
 static U32 CMD_hd(LPSHELLCONTEXT);
 static U32 CMD_filesystem(LPSHELLCONTEXT);
+static U32 CMD_ntfsrecord(LPSHELLCONTEXT);
 static U32 CMD_network(LPSHELLCONTEXT);
 static U32 CMD_pic(LPSHELLCONTEXT);
 static U32 CMD_outp(LPSHELLCONTEXT);
@@ -1468,6 +1469,7 @@ static U32 CMD_filesystem(LPSHELLCONTEXT Context) {
                     ConsolePrint(TEXT("NTFS bytes/sector   : %u\n"), Geometry.BytesPerSector);
                     ConsolePrint(TEXT("NTFS sectors/cluster: %u\n"), Geometry.SectorsPerCluster);
                     ConsolePrint(TEXT("NTFS bytes/cluster  : %u\n"), Geometry.BytesPerCluster);
+                    ConsolePrint(TEXT("NTFS record size    : %u\n"), Geometry.FileRecordSize);
                     ConsolePrint(TEXT("NTFS MFT LCN : %x, %x\n"),
                         (U32)U64_High32(Geometry.MftStartCluster),
                         (U32)U64_Low32(Geometry.MftStartCluster));
