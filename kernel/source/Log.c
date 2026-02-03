@@ -40,9 +40,7 @@
 #define KERNEL_LOG_VER_MINOR 0
 #define KERNEL_LOG_TAG_FILTER_MAX_LENGTH 256
 
-static CSTR KernelLogDefaultTagFilter[] =
-    "[NVMeAttach],[NVMeSubmitAdminCommand],[NVMeIdentifyNamespaceList],[NVMeIdentifyNamespace],[NVMeRegisterNamespaces],"
-    "[NVMeReadTest],[NVMeReadSectors],[MountDiskPartitions],[MountDiskPartitionsGpt],[MountGptFatPartition]";
+static CSTR KernelLogDefaultTagFilter[] = "";
 
 static STR KernelLogTagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
 

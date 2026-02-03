@@ -283,6 +283,7 @@ Everything in this sequence runs in 16-bit real mode on x86-32+ processors. Howe
 Disk drivers now expose `BytesPerSector` through `DF_DISK_GETINFO` (`DISKINFO.BytesPerSector`). Partition probing in `FileSystem.c` consumes this value and accepts 512-byte and 4096-byte sectors when reading MBR/GPT and signature data.
 NTFS timestamp conversion is provided by `NtfsTimestampToDateTime` in `kernel/source/drivers/NTFS.c`, converting NTFS 100ns intervals since 1601-01-01 to the kernel `DATETIME` structure.
 NTFS boot-sector validation and geometry extraction are now implemented in `MountPartition_NTFS` (`kernel/source/drivers/NTFS.c`). The mount path validates OEM/signature, enforces 512/4096 sector sizes, and stores bytes-per-sector, sectors-per-cluster, bytes-per-cluster, and MFT start cluster. `NtfsGetVolumeGeometry` exposes that data for diagnostics, and `fs --long` prints those fields for mounted NTFS volumes.
+NTFS MFT step 2 is now implemented with `NtfsReadFileRecord`, which computes file-record size from the boot sector, reads an MFT record by index, applies the update sequence (fixup) array, and returns basic record metadata (flags, sizes, attribute offset, sequence data). The shell debug command `ntfs-record <filesystem> <index>` uses this path to dump parsed metadata.
 A UTF-16LE utility layer for NTFS name decoding is provided by `kernel/source/utils/Unicode.c` (`Utf16LeNextCodePoint`, `Utf16LeToUtf8`, `Utf16LeCompareCaseInsensitiveAscii`) to bridge on-disk UTF-16LE names with UTF-8 shell and VFS-facing strings.
 
 ## Foreign File systems

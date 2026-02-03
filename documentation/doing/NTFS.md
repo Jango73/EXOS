@@ -24,11 +24,9 @@
 
 **Goal**: read file records by index.
 
-- [ ] Read MFT file record 0 and parse basic header.
-- [ ] Support fixup array, record size, flags.
-- [ ] Expose a minimal `NtfsReadFileRecord(Index)`.
-
-**Success**: a debug command can dump file record metadata for a given index.
+- [X] Read MFT file record 0 and parse basic header.
+- [X] Support fixup array, record size, flags.
+- [X] Expose a minimal `NtfsReadFileRecord(Index)`.
 
 ## Step 3 --- Attributes: FILE_NAME + DATA (read-only)
 
