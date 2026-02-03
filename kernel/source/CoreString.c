@@ -452,6 +452,46 @@ INT StringCompareNC(LPCSTR Text1, LPCSTR Text2) {
 
 /***************************************************************************/
 
+/**
+ * @brief Determines whether a string contains another string.
+ *
+ * Performs a case-sensitive substring search and returns TRUE when Search is
+ * found in Text.
+ *
+ * @param Text Source string.
+ * @param Search Substring to locate.
+ * @return TRUE when Search is found, FALSE otherwise.
+ */
+BOOL StringContains(LPCSTR Text, LPCSTR Search) {
+    if (Text == NULL || Search == NULL) {
+        return FALSE;
+    }
+
+    if (Search[0] == STR_NULL) {
+        return TRUE;
+    }
+
+    while (*Text != STR_NULL) {
+        U32 Index = 0;
+
+        while (Text[Index] != STR_NULL &&
+               Search[Index] != STR_NULL &&
+               Text[Index] == Search[Index]) {
+            Index++;
+        }
+
+        if (Search[Index] == STR_NULL) {
+            return TRUE;
+        }
+
+        Text++;
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
 LPSTR StringToLower(LPSTR Src) {
     LPSTR SrcPtr = Src;
 
