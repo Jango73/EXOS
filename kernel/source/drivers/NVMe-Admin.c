@@ -348,10 +348,16 @@ BOOL NVMeIdentifyNamespace(LPNVME_DEVICE Device, U32 NamespaceId, U64* NumSector
 
     PHYSICAL BufferPhys = MapLinearToPhysical((LINEAR)Buffer);
     if (BufferPhys == 0 || (BufferPhys & (N_4KB - 1)) != 0) {
-        WARNING(TEXT("[NVMeIdentifyNamespace] Invalid identify buffer mapping NSID=%u phys=%x%08x"),
+#ifdef __EXOS_64__
+        WARNING(TEXT("[NVMeIdentifyNamespace] Invalid identify buffer mapping NSID=%u phys=%x,%x"),
                 NamespaceId,
                 (U32)U64_High32(BufferPhys),
                 (U32)U64_Low32(BufferPhys));
+#else
+        WARNING(TEXT("[NVMeIdentifyNamespace] Invalid identify buffer mapping NSID=%u phys=%x"),
+                NamespaceId,
+                (U32)BufferPhys);
+#endif
         KernelHeapFree(Raw);
         return FALSE;
     }
@@ -404,7 +410,7 @@ BOOL NVMeIdentifyNamespace(LPNVME_DEVICE Device, U32 NamespaceId, U64* NumSector
            ((U64)Data[7] << 56);
 #endif
 
-    DEBUG(TEXT("[NVMeIdentifyNamespace] NSID=%u NSZE=%x%08x"),
+    DEBUG(TEXT("[NVMeIdentifyNamespace] NSID=%u NSZE=%x,%x"),
           (U32)NamespaceId,
           (U32)U64_High32(Nsze),
           (U32)U64_Low32(Nsze));
@@ -445,9 +451,14 @@ BOOL NVMeIdentifyNamespaceList(LPNVME_DEVICE Device, U32* NamespaceIds, UINT Max
 
     PHYSICAL BufferPhys = MapLinearToPhysical((LINEAR)Buffer);
     if (BufferPhys == 0 || (BufferPhys & (N_4KB - 1)) != 0) {
-        WARNING(TEXT("[NVMeIdentifyNamespaceList] Invalid identify buffer mapping phys=%x%08x"),
+#ifdef __EXOS_64__
+        WARNING(TEXT("[NVMeIdentifyNamespaceList] Invalid identify buffer mapping phys=%x,%x"),
                 (U32)U64_High32(BufferPhys),
                 (U32)U64_Low32(BufferPhys));
+#else
+        WARNING(TEXT("[NVMeIdentifyNamespaceList] Invalid identify buffer mapping phys=%x"),
+                (U32)BufferPhys);
+#endif
         KernelHeapFree(Raw);
         return FALSE;
     }

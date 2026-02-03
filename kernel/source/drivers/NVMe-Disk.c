@@ -243,7 +243,7 @@ BOOL NVMeRegisterNamespaces(LPNVME_DEVICE Device) {
             }
 
             RegisteredAny = TRUE;
-            DEBUG(TEXT("[NVMeRegisterNamespaces] Disk registered NSID=%u sectors=%x%08x"),
+            DEBUG(TEXT("[NVMeRegisterNamespaces] Disk registered NSID=%u sectors=%x,%x"),
                   (U32)NamespaceId,
                   (U32)U64_High32(NumSectors),
                   (U32)U64_Low32(NumSectors));

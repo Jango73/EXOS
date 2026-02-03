@@ -130,6 +130,71 @@ static BOOL FileSystemReadSector(LPSTORAGE_UNIT Disk, U32 Sector, LPVOID Buffer)
 /***************************************************************************/
 
 /**
+ * @brief Compare a fixed signature inside a sector buffer.
+ * @param Buffer Sector data.
+ * @param Offset Byte offset in sector.
+ * @param Signature Expected signature bytes.
+ * @param Length Signature length.
+ * @return TRUE when signature matches, FALSE otherwise.
+ */
+static BOOL FileSystemSectorHasSignature(const U8* Buffer, U32 Offset, const U8* Signature, U32 Length) {
+    if (Buffer == NULL || Signature == NULL) return FALSE;
+    if (Length == 0) return FALSE;
+    if ((Offset + Length) > SECTOR_SIZE) return FALSE;
+
+    for (U32 Index = 0; Index < Length; Index++) {
+        if (Buffer[Offset + Index] != Signature[Index]) {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Probe filesystem format from partition on-disk signatures.
+ * @param Disk Target storage unit.
+ * @param StartSector Partition first sector.
+ * @return PARTITION_FORMAT_* value, or UNKNOWN when not detected.
+ */
+static U32 FileSystemDetectPartitionFormat(LPSTORAGE_UNIT Disk, SECTOR StartSector) {
+    U8 SectorBuffer[SECTOR_SIZE];
+    const U8 SignatureNtfs[8] = {'N', 'T', 'F', 'S', ' ', ' ', ' ', ' '};
+    const U8 SignatureFat32[8] = {'F', 'A', 'T', '3', '2', ' ', ' ', ' '};
+    const U8 SignatureFat16[8] = {'F', 'A', 'T', '1', '6', ' ', ' ', ' '};
+
+    if (Disk == NULL) return PARTITION_FORMAT_UNKNOWN;
+
+    if (!FileSystemReadSector(Disk, StartSector, SectorBuffer)) {
+        return PARTITION_FORMAT_UNKNOWN;
+    }
+
+    if (FileSystemSectorHasSignature(SectorBuffer, 3, SignatureNtfs, 8)) {
+        return PARTITION_FORMAT_NTFS;
+    }
+
+    if (FileSystemSectorHasSignature(SectorBuffer, 82, SignatureFat32, 8)) {
+        return PARTITION_FORMAT_FAT32;
+    }
+
+    if (FileSystemSectorHasSignature(SectorBuffer, 54, SignatureFat16, 8)) {
+        return PARTITION_FORMAT_FAT16;
+    }
+
+    // EXT superblock starts at byte 1024, magic (0xEF53) at offset 0x38.
+    if (FileSystemReadSector(Disk, StartSector + 2, SectorBuffer) &&
+        SectorBuffer[56] == 0x53 && SectorBuffer[57] == 0xEF) {
+        return PARTITION_FORMAT_EXT2;
+    }
+
+    return PARTITION_FORMAT_UNKNOWN;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Compare two GPT GUIDs.
  * @param Left First GUID.
  * @param Right Second GUID.
@@ -256,6 +321,9 @@ static void RegisterUnusedFileSystem(
     FileSystem->Driver = NULL;
     FileSystem->StorageUnit = Disk;
     GetDefaultFileSystemName(FileSystem->Name, Disk, Index);
+    if (Format == PARTITION_FORMAT_UNKNOWN) {
+        Format = FileSystemDetectPartitionFormat(Disk, StartSector);
+    }
     SetFileSystemPartitionInfo(FileSystem,
         Scheme,
         Type,
