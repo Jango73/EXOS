@@ -1492,7 +1492,7 @@ DRIVER DATA_SECTION EXT2Driver = {
     .VersionMinor = VER_MINOR,
     .Designer = "Jango73",
     .Manufacturer = "Jango73",
-    .Product = "Minimal EXT2",
+    .Product = "EXT2 File System",
     .Command = EXT2Commands};
 
 /************************************************************************/

@@ -249,6 +249,16 @@ static KERNELDATA DATA_SECTION Kernel = {
             .Mutex = EMPTY_MUTEX,
             .Driver = &SystemFSDriver,
             .StorageUnit = NULL,
+            .Partition = {
+                .Scheme = PARTITION_SCHEME_VIRTUAL,
+                .Type = FSID_NONE,
+                .Format = PARTITION_FORMAT_UNKNOWN,
+                .Index = 0,
+                .Flags = 0,
+                .StartSector = 0,
+                .NumSectors = 0,
+                .TypeGuid = {0}
+            },
             .Name = "System"
         },
         .Root = NULL

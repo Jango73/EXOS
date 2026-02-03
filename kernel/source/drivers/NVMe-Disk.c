@@ -241,8 +241,12 @@ BOOL NVMeRegisterNamespaces(LPNVME_DEVICE Device) {
                   (U32)U64_High32(NumSectors),
                   (U32)U64_Low32(NumSectors));
 
-            if (!MountDiskPartitions((LPSTORAGE_UNIT)Disk, NULL, 0)) {
-                WARNING(TEXT("[NVMeRegisterNamespaces] Partition mount failed NSID=%u"), (U32)NamespaceId);
+            if (FileSystemReady()) {
+                if (!MountDiskPartitions((LPSTORAGE_UNIT)Disk, NULL, 0)) {
+                    WARNING(TEXT("[NVMeRegisterNamespaces] Partition mount failed NSID=%u"), (U32)NamespaceId);
+                }
+            } else {
+                DEBUG(TEXT("[NVMeRegisterNamespaces] Deferred partition mount NSID=%u"), (U32)NamespaceId);
             }
         }
 

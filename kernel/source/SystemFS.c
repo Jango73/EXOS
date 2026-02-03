@@ -710,6 +710,14 @@ BOOL MountSystemFS(void) {
     InitMutex(&(SystemFS->Header.Mutex));
     SystemFS->Header.Driver = &SystemFSDriver;
     SystemFS->Header.StorageUnit = NULL;
+    SystemFS->Header.Partition.Scheme = PARTITION_SCHEME_VIRTUAL;
+    SystemFS->Header.Partition.Type = FSID_NONE;
+    SystemFS->Header.Partition.Format = PARTITION_FORMAT_UNKNOWN;
+    SystemFS->Header.Partition.Index = 0;
+    SystemFS->Header.Partition.Flags = 0;
+    SystemFS->Header.Partition.StartSector = 0;
+    SystemFS->Header.Partition.NumSectors = 0;
+    MemorySet(SystemFS->Header.Partition.TypeGuid, 0, GPT_GUID_LENGTH);
 
     Info.Size = sizeof(FILEINFO);
     Info.FileSystem = &SystemFS->Header;

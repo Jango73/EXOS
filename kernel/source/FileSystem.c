@@ -161,25 +161,87 @@ static BOOL GptGuidIsZero(const U8* Guid) {
 /***************************************************************************/
 
 /**
+ * @brief Returns the newly mounted filesystem since the provided tail snapshot.
+ * @param PreviousLast Last item from the filesystem list before mount attempt.
+ * @return Mounted filesystem pointer, or NULL when nothing new was mounted.
+ */
+static LPFILESYSTEM ResolveMountedFileSystem(LPFILESYSTEM PreviousLast) {
+    LPLIST FileSystemList = GetFileSystemList();
+    LPFILESYSTEM MountedFileSystem =
+        (LPFILESYSTEM)(FileSystemList != NULL ? FileSystemList->Last : NULL);
+
+    if (MountedFileSystem == NULL || MountedFileSystem == PreviousLast) {
+        return NULL;
+    }
+
+    return MountedFileSystem;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Stores partition metadata in a mounted filesystem descriptor.
+ * @param FileSystem Mounted filesystem object.
+ * @param Scheme Partition scheme constant.
+ * @param Type Partition type identifier (MBR type value).
+ * @param TypeGuid GPT type GUID, or NULL when not applicable.
+ * @param Index Partition index.
+ * @param Flags Partition flags.
+ * @param StartSector First sector of the partition.
+ * @param NumSectors Number of sectors in the partition.
+ * @param Format Mounted filesystem format.
+ */
+static void SetMountedFileSystemPartitionInfo(
+    LPFILESYSTEM FileSystem,
+    U32 Scheme,
+    U32 Type,
+    const U8* TypeGuid,
+    U32 Index,
+    U32 Flags,
+    SECTOR StartSector,
+    U32 NumSectors,
+    U32 Format) {
+    if (FileSystem == NULL) return;
+
+    FileSystem->Partition.Scheme = Scheme;
+    FileSystem->Partition.Type = Type;
+    FileSystem->Partition.Format = Format;
+    FileSystem->Partition.Index = Index;
+    FileSystem->Partition.Flags = Flags;
+    FileSystem->Partition.StartSector = StartSector;
+    FileSystem->Partition.NumSectors = NumSectors;
+    MemorySet(FileSystem->Partition.TypeGuid, 0, GPT_GUID_LENGTH);
+
+    if (TypeGuid != NULL) {
+        MemoryCopy(FileSystem->Partition.TypeGuid, TypeGuid, GPT_GUID_LENGTH);
+    }
+}
+
+/***************************************************************************/
+
+/**
  * @brief Mount a GPT FAT partition (ESP or data).
  * @param Disk Target disk.
  * @param Partition Partition descriptor.
  * @param PartIndex GPT entry index.
  * @return TRUE when a FAT file system is mounted, FALSE otherwise.
  */
-static BOOL MountGptFatPartition(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 PartIndex) {
+static BOOL MountGptFatPartition(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 PartIndex, U32* FormatOut) {
     BOOL Mounted = FALSE;
 
     if (Disk == NULL || Partition == NULL) return FALSE;
+    if (FormatOut != NULL) *FormatOut = PARTITION_FORMAT_UNKNOWN;
 
     Mounted = MountPartition_FAT32(Disk, Partition, 0u, PartIndex);
     if (Mounted) {
+        if (FormatOut != NULL) *FormatOut = PARTITION_FORMAT_FAT32;
         DEBUG(TEXT("[MountGptFatPartition] FAT32 mounted entry %u"), PartIndex);
         return TRUE;
     }
 
     Mounted = MountPartition_FAT16(Disk, Partition, 0u, PartIndex);
     if (Mounted) {
+        if (FormatOut != NULL) *FormatOut = PARTITION_FORMAT_FAT16;
         DEBUG(TEXT("[MountGptFatPartition] FAT16 mounted entry %u"), PartIndex);
         return TRUE;
     }
@@ -244,6 +306,8 @@ static BOOL MountDiskPartitionsGpt(LPSTORAGE_UNIT Disk) {
           Header.NumPartitionEntries, Header.SizeOfPartitionEntry);
 
     for (U32 EntryIndex = 0; EntryIndex < Header.NumPartitionEntries; EntryIndex++) {
+        LPFILESYSTEM PreviousLast =
+            (LPFILESYSTEM)((GetFileSystemList() != NULL) ? GetFileSystemList()->Last : NULL);
         U32 SectorIndex = EntryIndex / EntriesPerSector;
         U32 EntryInSector = EntryIndex % EntriesPerSector;
         U32 SectorLba = EntryLbaBase + SectorIndex;
@@ -287,14 +351,37 @@ static BOOL MountDiskPartitionsGpt(LPSTORAGE_UNIT Disk) {
             DEBUG(TEXT("[MountDiskPartitionsGpt] Mounting EXT2 partition %u"), EntryIndex);
             if (!MountPartition_EXT2(Disk, &Partition, 0u, EntryIndex)) {
                 WARNING(TEXT("[MountDiskPartitionsGpt] EXT2 mount failed for entry %u"), EntryIndex);
+            } else {
+                LPFILESYSTEM MountedFileSystem = ResolveMountedFileSystem(PreviousLast);
+                SetMountedFileSystemPartitionInfo(MountedFileSystem,
+                    PARTITION_SCHEME_GPT,
+                    FSID_NONE,
+                    Entry.TypeGuid,
+                    EntryIndex,
+                    0,
+                    Partition.LBA,
+                    Partition.Size,
+                    PARTITION_FORMAT_EXT2);
             }
             continue;
         }
 
         if (GptGuidEquals(Entry.TypeGuid, GptGuidEfiSystem) ||
             GptGuidEquals(Entry.TypeGuid, GptGuidMicrosoftBasicData)) {
+            U32 MountedFormat = PARTITION_FORMAT_UNKNOWN;
             DEBUG(TEXT("[MountDiskPartitionsGpt] FAT partition detected at entry %u"), EntryIndex);
-            MountGptFatPartition(Disk, &Partition, EntryIndex);
+            if (MountGptFatPartition(Disk, &Partition, EntryIndex, &MountedFormat)) {
+                LPFILESYSTEM MountedFileSystem = ResolveMountedFileSystem(PreviousLast);
+                SetMountedFileSystemPartitionInfo(MountedFileSystem,
+                    PARTITION_SCHEME_GPT,
+                    FSID_NONE,
+                    Entry.TypeGuid,
+                    EntryIndex,
+                    0,
+                    Partition.LBA,
+                    Partition.Size,
+                    MountedFormat);
+            }
             continue;
         }
     }
@@ -408,10 +495,10 @@ U32 GetNumFileSystems(void) {
 /***************************************************************************/
 
 /**
- * @brief Returns the physical disk associated with a mounted filesystem.
+ * @brief Returns the storage unit associated with a mounted filesystem.
  *
  * @param FileSystem Mounted filesystem instance.
- * @return Associated physical disk pointer, or NULL for virtual filesystems.
+ * @return Associated storage unit pointer, or NULL for virtual filesystems.
  */
 LPSTORAGE_UNIT FileSystemGetStorageUnit(LPFILESYSTEM FileSystem) {
     SAFE_USE_VALID_ID(FileSystem, KOID_FILESYSTEM) {
@@ -423,13 +510,143 @@ LPSTORAGE_UNIT FileSystemGetStorageUnit(LPFILESYSTEM FileSystem) {
 /***************************************************************************/
 
 /**
- * @brief Indicates whether a mounted filesystem is backed by a physical disk.
+ * @brief Indicates whether a mounted filesystem is backed by a storage unit.
  *
  * @param FileSystem Mounted filesystem instance.
  * @return TRUE when the filesystem has a backing disk, FALSE otherwise.
  */
 BOOL FileSystemHasStorageUnit(LPFILESYSTEM FileSystem) {
     return FileSystemGetStorageUnit(FileSystem) != NULL;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Indicates whether runtime mounts can be attached to SystemFS.
+ * @return TRUE when SystemFS root is initialized, FALSE otherwise.
+ */
+BOOL FileSystemReady(void) {
+    LPSYSTEMFSFILESYSTEM SystemFS = GetSystemFSData();
+    return (SystemFS != NULL && SystemFS->Root != NULL);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Returns a readable partition scheme name.
+ * @param Scheme Partition scheme constant.
+ * @return Constant string describing the scheme.
+ */
+LPCSTR FileSystemGetPartitionSchemeName(U32 Scheme) {
+    switch (Scheme) {
+        case PARTITION_SCHEME_MBR:
+            return TEXT("MBR");
+        case PARTITION_SCHEME_GPT:
+            return TEXT("GPT");
+        case PARTITION_SCHEME_VIRTUAL:
+            return TEXT("VIRTUAL");
+        default:
+            return TEXT("NONE");
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Returns a readable mounted partition format name.
+ * @param Format Partition format constant.
+ * @return Constant string for the mounted format.
+ */
+LPCSTR FileSystemGetPartitionFormatName(U32 Format) {
+    switch (Format) {
+        case PARTITION_FORMAT_FAT16:
+            return TEXT("FAT16");
+        case PARTITION_FORMAT_FAT32:
+            return TEXT("FAT32");
+        case PARTITION_FORMAT_NTFS:
+            return TEXT("NTFS");
+        case PARTITION_FORMAT_EXFS:
+            return TEXT("EXFS");
+        case PARTITION_FORMAT_EXT2:
+            return TEXT("EXT2");
+        case PARTITION_FORMAT_EXT3:
+            return TEXT("EXT3");
+        case PARTITION_FORMAT_EXT4:
+            return TEXT("EXT4");
+        default:
+            return TEXT("UNKNOWN");
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Returns a readable partition type description.
+ * @param Partition Partition metadata.
+ * @return Constant string for the partition type.
+ */
+LPCSTR FileSystemGetPartitionTypeName(LPPARTITION Partition) {
+    if (Partition == NULL) return TEXT("UNKNOWN");
+
+    if (Partition->Scheme == PARTITION_SCHEME_GPT) {
+        const U8 GptGuidLinuxExtx[GPT_GUID_LENGTH] = GPT_GUID_LINUX_EXTX;
+        const U8 GptGuidEfiSystem[GPT_GUID_LENGTH] = GPT_GUID_EFI_SYSTEM;
+        const U8 GptGuidMicrosoftBasicData[GPT_GUID_LENGTH] = GPT_GUID_MICROSOFT_BASIC_DATA;
+
+        if (GptGuidEquals(Partition->TypeGuid, GptGuidLinuxExtx)) {
+            return TEXT("Linux filesystem");
+        }
+        if (GptGuidEquals(Partition->TypeGuid, GptGuidEfiSystem)) {
+            return TEXT("EFI System");
+        }
+        if (GptGuidEquals(Partition->TypeGuid, GptGuidMicrosoftBasicData)) {
+            return TEXT("Microsoft Basic Data");
+        }
+        return TEXT("Unknown GPT type");
+    }
+
+    if (Partition->Scheme != PARTITION_SCHEME_MBR) {
+        return TEXT("N/A");
+    }
+
+    switch (Partition->Type) {
+        case FSID_NONE:
+            return TEXT("Unused");
+        case FSID_EXTENDED:
+            return TEXT("Extended");
+        case FSID_LINUX_EXTENDED:
+            return TEXT("Linux Extended");
+        case FSID_DOS_FAT16S:
+            return TEXT("FAT16 (< 32MB)");
+        case FSID_DOS_FAT16L:
+            return TEXT("FAT16");
+        case FSID_DOS_FAT32:
+            return TEXT("FAT32");
+        case FSID_DOS_FAT32_LBA1:
+            return TEXT("FAT32 (LBA)");
+        case FSID_OS2_HPFS:
+            return TEXT("NTFS/HPFS");
+        case FSID_EXOS:
+            return TEXT("EXOS");
+        case FSID_LINUX_EXT2:
+            return TEXT("Linux native");
+#if FSID_LINUX_EXT3 != FSID_LINUX_EXT2
+        case FSID_LINUX_EXT3:
+            return TEXT("Linux EXT3");
+#endif
+#if FSID_LINUX_EXT4 != FSID_LINUX_EXT2
+        case FSID_LINUX_EXT4:
+            return TEXT("Linux EXT4");
+#endif
+#if FSID_LINUXNATIVE != FSID_LINUX_EXT2
+        case FSID_LINUXNATIVE:
+            return TEXT("Linux native");
+#endif
+        case FSID_GPT_PROTECTIVE:
+            return TEXT("GPT Protective MBR");
+        default:
+            return TEXT("Unknown MBR type");
+    }
 }
 
 /***************************************************************************/
@@ -592,6 +809,7 @@ BOOL MountDiskPartitions(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
         if (Partition[Index].LBA != 0) {
             BOOL PartitionMounted = FALSE;
             BOOL PartitionIsActive = ((Partition[Index].Disk & 0x80) != 0);
+            U32 PartitionFormat = PARTITION_FORMAT_UNKNOWN;
             LPLIST FileSystemList = GetFileSystemList();
             LPFILESYSTEM PreviousLast =
                 (LPFILESYSTEM)(FileSystemList != NULL ? FileSystemList->Last : NULL);
@@ -607,6 +825,7 @@ BOOL MountDiskPartitions(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
 
                 case FSID_DOS_FAT16S:
                 case FSID_DOS_FAT16L: {
+                    PartitionFormat = PARTITION_FORMAT_FAT16;
                     DEBUG(TEXT("[MountDiskPartitions] Mounting FAT16 partition"));
                     PartitionMounted =
                         MountPartition_FAT16(Disk, Partition + Index, Base, Index);
@@ -614,26 +833,38 @@ BOOL MountDiskPartitions(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
 
                 case FSID_DOS_FAT32:
                 case FSID_DOS_FAT32_LBA1: {
+                    PartitionFormat = PARTITION_FORMAT_FAT32;
                     DEBUG(TEXT("[MountDiskPartitions] Mounting FAT32 partition"));
                     PartitionMounted =
                         MountPartition_FAT32(Disk, Partition + Index, Base, Index);
                 } break;
 
+                case FSID_OS2_HPFS: {
+                    PartitionFormat = PARTITION_FORMAT_NTFS;
+                    WARNING(TEXT("[MountDiskPartitions] NTFS partition detected but not implemented"));
+                    PartitionMounted = FALSE;
+                } break;
+
                 case FSID_EXOS: {
+                    PartitionFormat = PARTITION_FORMAT_EXFS;
                     DEBUG(TEXT("[MountDiskPartitions] Mounting EXFS partition"));
                     PartitionMounted =
                         MountPartition_EXFS(Disk, Partition + Index, Base, Index);
                 } break;
 
                 case FSID_LINUX_EXT2:
+                    PartitionFormat = PARTITION_FORMAT_EXT2;
 #if FSID_LINUX_EXT3 != FSID_LINUX_EXT2
                 case FSID_LINUX_EXT3:
+                    PartitionFormat = PARTITION_FORMAT_EXT3;
 #endif
 #if FSID_LINUX_EXT4 != FSID_LINUX_EXT2
                 case FSID_LINUX_EXT4:
+                    PartitionFormat = PARTITION_FORMAT_EXT4;
 #endif
 #if FSID_LINUXNATIVE != FSID_LINUX_EXT2
                 case FSID_LINUXNATIVE:
+                    PartitionFormat = PARTITION_FORMAT_EXT2;
 #endif
                 {
                     DEBUG(TEXT("[MountDiskPartitions] Mounting EXT2 partition"));
@@ -653,6 +884,16 @@ BOOL MountDiskPartitions(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
                     (LPFILESYSTEM)(FileSystemList != NULL ? FileSystemList->Last : NULL);
 
                 if (MountedFileSystem != NULL && MountedFileSystem != PreviousLast) {
+                    SetMountedFileSystemPartitionInfo(MountedFileSystem,
+                        PARTITION_SCHEME_MBR,
+                        Partition[Index].Type,
+                        NULL,
+                        Index,
+                        PartitionIsActive ? PARTITION_FLAG_ACTIVE : 0,
+                        Base + Partition[Index].LBA,
+                        Partition[Index].Size,
+                        PartitionFormat);
+
                     if (GetSystemFSData()->Root != NULL) {
                         if (!SystemFSMountFileSystem(MountedFileSystem)) {
                             WARNING(TEXT("[MountDiskPartitions] SystemFS mount failed for %s"),

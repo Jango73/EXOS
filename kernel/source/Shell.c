@@ -1415,11 +1415,61 @@ static U32 CMD_filesystem(LPSHELLCONTEXT Context) {
 
     LPLIST FileSystemList = GetFileSystemList();
     for (Node = FileSystemList != NULL ? FileSystemList->First : NULL; Node; Node = Node->Next) {
+        DISKINFO DiskInfo;
+        BOOL DiskInfoValid = FALSE;
+        LPSTORAGE_UNIT StorageUnit;
+        U32 PartitionSizeMiB;
+
         FileSystem = (LPFILESYSTEM)Node;
+        StorageUnit = FileSystemGetStorageUnit(FileSystem);
+        PartitionSizeMiB = FileSystem->Partition.NumSectors / 2048;
 
         ConsolePrint(TEXT("Name         : %s\n"), FileSystem->Name);
-        ConsolePrint(TEXT("Manufacturer : %s\n"), FileSystem->Driver->Manufacturer);
-        ConsolePrint(TEXT("Product      : %s\n"), FileSystem->Driver->Product);
+        ConsolePrint(TEXT("FS driver    : %s / %s\n"), FileSystem->Driver->Manufacturer, FileSystem->Driver->Product);
+        ConsolePrint(TEXT("Scheme       : %s\n"), FileSystemGetPartitionSchemeName(FileSystem->Partition.Scheme));
+        ConsolePrint(TEXT("Type         : %s\n"), FileSystemGetPartitionTypeName(&FileSystem->Partition));
+        ConsolePrint(TEXT("Format       : %s\n"), FileSystemGetPartitionFormatName(FileSystem->Partition.Format));
+        ConsolePrint(TEXT("Index        : %u\n"), FileSystem->Partition.Index);
+        ConsolePrint(TEXT("Start sector : %u\n"), FileSystem->Partition.StartSector);
+        ConsolePrint(TEXT("Size         : %u sectors (%u MiB)\n"),
+            FileSystem->Partition.NumSectors, PartitionSizeMiB);
+        ConsolePrint(TEXT("Active       : %s\n"),
+            (FileSystem->Partition.Flags & PARTITION_FLAG_ACTIVE) ? TEXT("YES") : TEXT("NO"));
+
+        if (FileSystem->Partition.Scheme == PARTITION_SCHEME_MBR) {
+            ConsolePrint(TEXT("Type id      : %x\n"), FileSystem->Partition.Type);
+        } else if (FileSystem->Partition.Scheme == PARTITION_SCHEME_GPT) {
+            ConsolePrint(TEXT("Type GUID    : %x-%x-%x-%x-%x-%x-%x-%x-%x-%x-%x-%x-%x-%x-%x-%x\n"),
+                FileSystem->Partition.TypeGuid[0], FileSystem->Partition.TypeGuid[1],
+                FileSystem->Partition.TypeGuid[2], FileSystem->Partition.TypeGuid[3],
+                FileSystem->Partition.TypeGuid[4], FileSystem->Partition.TypeGuid[5],
+                FileSystem->Partition.TypeGuid[6], FileSystem->Partition.TypeGuid[7],
+                FileSystem->Partition.TypeGuid[8], FileSystem->Partition.TypeGuid[9],
+                FileSystem->Partition.TypeGuid[10], FileSystem->Partition.TypeGuid[11],
+                FileSystem->Partition.TypeGuid[12], FileSystem->Partition.TypeGuid[13],
+                FileSystem->Partition.TypeGuid[14], FileSystem->Partition.TypeGuid[15]);
+        }
+
+        if (StorageUnit != NULL && StorageUnit->Driver != NULL) {
+            MemorySet(&DiskInfo, 0, sizeof(DISKINFO));
+            DiskInfo.Disk = StorageUnit;
+            if (StorageUnit->Driver->Command(DF_DISK_GETINFO, (UINT)&DiskInfo) == DF_RETURN_SUCCESS) {
+                DiskInfoValid = TRUE;
+            }
+            ConsolePrint(TEXT("Storage      : %s / %s\n"),
+                StorageUnit->Driver->Manufacturer, StorageUnit->Driver->Product);
+        } else {
+            ConsolePrint(TEXT("Storage      : <none>\n"));
+        }
+
+        if (DiskInfoValid) {
+            ConsolePrint(TEXT("Removable    : %s\n"), DiskInfo.Removable ? TEXT("YES") : TEXT("NO"));
+            ConsolePrint(TEXT("Read only    : %s\n"),
+                (DiskInfo.Access & DISK_ACCESS_READONLY) ? TEXT("YES") : TEXT("NO"));
+            ConsolePrint(TEXT("Disk sectors : %x, %x\n"),
+                (U32)U64_High32(DiskInfo.NumSectors),
+                (U32)U64_Low32(DiskInfo.NumSectors));
+        }
         ConsolePrint(TEXT("\n"));
     }
 

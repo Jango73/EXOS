@@ -987,19 +987,23 @@ static BOOL USBMassStorageStartDevice(LPXHCI_DEVICE Controller,
         return FALSE;
     }
 
-    LPLIST FileSystemList = GetFileSystemList();
-    LPLISTNODE PreviousLast = FileSystemList != NULL ? FileSystemList->Last : NULL;
+    if (FileSystemReady()) {
+        LPLIST FileSystemList = GetFileSystemList();
+        LPLISTNODE PreviousLast = FileSystemList != NULL ? FileSystemList->Last : NULL;
 
-    DEBUG(TEXT("[USBMassStorageStartDevice] Mounting disk partitions"));
-    if (!MountDiskPartitions((LPSTORAGE_UNIT)Device, NULL, 0)) {
-        WARNING(TEXT("[USBMassStorageStartDevice] Partition mount failed"));
-    }
+        DEBUG(TEXT("[USBMassStorageStartDevice] Mounting disk partitions"));
+        if (!MountDiskPartitions((LPSTORAGE_UNIT)Device, NULL, 0)) {
+            WARNING(TEXT("[USBMassStorageStartDevice] Partition mount failed"));
+        }
 
-    UINT MountedCount = USBMassStorageReportMounts(Device, PreviousLast);
-    if (MountedCount > 0) {
-        BroadcastProcessMessage(ETM_USB_MASS_STORAGE_MOUNTED,
-                                (U32)UsbDevice->Address,
-                                Device->BlockCount);
+        UINT MountedCount = USBMassStorageReportMounts(Device, PreviousLast);
+        if (MountedCount > 0) {
+            BroadcastProcessMessage(ETM_USB_MASS_STORAGE_MOUNTED,
+                                    (U32)UsbDevice->Address,
+                                    Device->BlockCount);
+        }
+    } else {
+        DEBUG(TEXT("[USBMassStorageStartDevice] Deferred partition mount (filesystem not ready)"));
     }
 
     DEBUG(TEXT("[USBMassStorageStartDevice] USB disk addr=%x blocks=%u block_size=%u"),
