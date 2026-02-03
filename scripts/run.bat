@@ -65,6 +65,7 @@ if "%ARCH%"=="x86-32" (
     set "IMG_PATH=build\x86-32\boot-hd\exos.img"
     set "USB_3_PATH=build\x86-32\boot-hd\usb-3.img"
     set "NVME_IMG_PATH=build\x86-32\boot-hd\nvme.img"
+    set "NVME_UNSUPPORTED_IMG_PATH=build\x86-32\boot-hd\nvme-unsupported.img"
     set "DEBUG_ELF=build\x86-32\kernel\exos.elf"
     set "OVMF_CODE_DEFAULT=c:\program files\qemu\share\qemu\OVMF32_CODE.fd"
     set "OVMF_VARS_DEFAULT=c:\program files\qemu\share\qemu\OVMF32_VARS.fd"
@@ -73,6 +74,7 @@ if "%ARCH%"=="x86-32" (
     set "IMG_PATH=build\x86-64\boot-hd\exos.img"
     set "USB_3_PATH=build\x86-64\boot-hd\usb-3.img"
     set "NVME_IMG_PATH=build\x86-64\boot-hd\nvme.img"
+    set "NVME_UNSUPPORTED_IMG_PATH=build\x86-64\boot-hd\nvme-unsupported.img"
     set "DEBUG_ELF=build\x86-64\kernel\exos.elf"
     set "OVMF_CODE_DEFAULT=c:\program files\qemu\share\qemu\OVMF_CODE.fd"
     set "OVMF_VARS_DEFAULT=c:\program files\qemu\share\qemu\OVMF_VARS.fd"
@@ -116,7 +118,12 @@ if "%NVME_ENABLED%"=="1" (
         if not exist "build\%ARCH%\boot-hd" mkdir "build\%ARCH%\boot-hd"
         fsutil file createnew "%NVME_IMG_PATH%" %NVME_SIZE_MB%000000 >nul
     )
-    set "NVME_ARGS=-drive format=raw,file=%NVME_IMG_PATH%,if=none,id=nvme0 -device nvme,drive=nvme0,serial=exosnvme0"
+    if not exist "%NVME_UNSUPPORTED_IMG_PATH%" (
+        echo Image not found: %NVME_UNSUPPORTED_IMG_PATH%
+        echo Build it with: scripts\build.bat --arch %ARCH% --fs ext2 --debug
+        exit /b 1
+    )
+    set "NVME_ARGS=-drive format=raw,file=%NVME_IMG_PATH%,if=none,id=nvme0 -device nvme,drive=nvme0,serial=exosnvme0 -drive format=raw,file=%NVME_UNSUPPORTED_IMG_PATH%,if=none,id=nvme1 -device nvme,drive=nvme1,serial=exosnvme1"
 )
 
 if "%USE_UEFI%"=="1" (

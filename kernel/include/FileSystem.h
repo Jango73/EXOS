@@ -153,6 +153,7 @@ typedef struct tag_PARTITION {
 typedef struct tag_FILESYSTEM {
     LISTNODE_FIELDS
     MUTEX Mutex;
+    BOOL Mounted;
     LPDRIVER Driver;
     LPSTORAGE_UNIT StorageUnit;
     PARTITION Partition;

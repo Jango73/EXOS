@@ -174,6 +174,17 @@ static LIST FileSystemList = {
 
 /************************************************************************/
 
+static LIST UnusedFileSystemList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
+
+/************************************************************************/
+
 static LIST FileList = {
     .First = NULL,
     .Last = NULL,
@@ -233,6 +244,7 @@ static KERNELDATA DATA_SECTION Kernel = {
     .NetworkDevice = &NetworkDeviceList,
     .Event = &EventList,
     .FileSystem = &FileSystemList,
+    .UnusedFileSystem = &UnusedFileSystemList,
     .File = &FileList,
     .TCPConnection = &TCPConnectionList,
     .Socket = &SocketList,
@@ -247,6 +259,7 @@ static KERNELDATA DATA_SECTION Kernel = {
             .Next = NULL,
             .Prev = NULL,
             .Mutex = EMPTY_MUTEX,
+            .Mounted = TRUE,
             .Driver = &SystemFSDriver,
             .StorageUnit = NULL,
             .Partition = {
@@ -452,6 +465,16 @@ LPLIST GetEventList(void) {
  */
 LPLIST GetFileSystemList(void) {
     return Kernel.FileSystem;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the list of discovered but not mounted file systems.
+ * @return Pointer to the unused file system list.
+ */
+LPLIST GetUnusedFileSystemList(void) {
+    return Kernel.UnusedFileSystem;
 }
 
 /************************************************************************/

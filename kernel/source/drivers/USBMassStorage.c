@@ -180,10 +180,12 @@ static UINT USBMassStorageReportMounts(LPUSB_MASS_STORAGE_DEVICE Device, LPLISTN
  */
 static void USBMassStorageDetachFileSystems(LPSTORAGE_UNIT Disk, U32 UsbAddress) {
     LPLIST FileSystemList = GetFileSystemList();
+    LPLIST UnusedFileSystemList = GetUnusedFileSystemList();
     FILESYSTEM_GLOBAL_INFO* GlobalInfo = GetFileSystemGlobalInfo();
     UINT UnmountedCount = 0;
+    UINT UnusedCount = 0;
 
-    if (Disk == NULL || FileSystemList == NULL || GlobalInfo == NULL) {
+    if (Disk == NULL || FileSystemList == NULL || UnusedFileSystemList == NULL || GlobalInfo == NULL) {
         return;
     }
 
@@ -204,7 +206,20 @@ static void USBMassStorageDetachFileSystems(LPSTORAGE_UNIT Disk, U32 UsbAddress)
         Node = Next;
     }
 
-    if (UnmountedCount > 0) {
+    for (LPLISTNODE Node = UnusedFileSystemList->First; Node;) {
+        LPLISTNODE Next = Node->Next;
+        LPFILESYSTEM FileSystem = (LPFILESYSTEM)Node;
+        LPSTORAGE_UNIT FileSystemDisk = FileSystemGetStorageUnit(FileSystem);
+
+        if (FileSystemDisk == Disk) {
+            ReleaseKernelObject(FileSystem);
+            UnusedCount++;
+        }
+
+        Node = Next;
+    }
+
+    if (UnmountedCount > 0 || UnusedCount > 0) {
         BroadcastProcessMessage(ETM_USB_MASS_STORAGE_UNMOUNTED, UsbAddress, 0);
     }
 }

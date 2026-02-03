@@ -708,6 +708,7 @@ BOOL MountSystemFS(void) {
     if (SystemFS->Root == NULL) return FALSE;
 
     InitMutex(&(SystemFS->Header.Mutex));
+    SystemFS->Header.Mounted = TRUE;
     SystemFS->Header.Driver = &SystemFSDriver;
     SystemFS->Header.StorageUnit = NULL;
     SystemFS->Header.Partition.Scheme = PARTITION_SCHEME_VIRTUAL;

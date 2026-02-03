@@ -57,6 +57,7 @@ case "$ARCH" in
         IMG_PATH="build/x86-32/boot-hd/exos.img"
         USB_3_PATH="build/x86-32/boot-hd/usb-3.img"
         NVME_IMG_PATH="build/x86-32/boot-hd/nvme.img"
+        NVME_UNSUPPORTED_IMG_PATH="build/x86-32/boot-hd/nvme-unsupported.img"
         CYCLE_BIN="build/x86-32/tools/cycle"
         DEBUG_ELF="build/x86-32/kernel/exos.elf"
         OVMF_CODE_CANDIDATES=(
@@ -75,6 +76,7 @@ case "$ARCH" in
         IMG_PATH="build/x86-64/boot-hd/exos.img"
         USB_3_PATH="build/x86-64/boot-hd/usb-3.img"
         NVME_IMG_PATH="build/x86-64/boot-hd/nvme.img"
+        NVME_UNSUPPORTED_IMG_PATH="build/x86-64/boot-hd/nvme-unsupported.img"
         CYCLE_BIN="build/x86-64/tools/cycle"
         DEBUG_ELF="build/x86-64/kernel/exos.elf"
         DEBUG_GDB="scripts/x86-64/debug.gdb"
@@ -135,9 +137,16 @@ function BuildNvmeArguments() {
             mkdir -p "$(dirname "$NVME_IMG_PATH")"
             dd if=/dev/zero of="$NVME_IMG_PATH" bs=1M count="$NVME_SIZE_MB" status=none
         fi
+        if [ ! -f "$NVME_UNSUPPORTED_IMG_PATH" ]; then
+            echo "Image not found: $NVME_UNSUPPORTED_IMG_PATH"
+            echo "Build it with: ./scripts/build.sh --arch $ARCH --fs ext2 --debug"
+            exit 1
+        fi
         NVME_ARGUMENTS=(
             -drive format=raw,file="$NVME_IMG_PATH",if=none,id=nvme0
             -device nvme,drive=nvme0,serial=exosnvme0
+            -drive format=raw,file="$NVME_UNSUPPORTED_IMG_PATH",if=none,id=nvme1
+            -device nvme,drive=nvme1,serial=exosnvme1
         )
     fi
 }

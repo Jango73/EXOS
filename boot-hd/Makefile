@@ -21,6 +21,7 @@ DEBUG_OUTPUT    ?= 0
 
 IMG_SIZE_MB     ?= 16
 NVME_IMG_SIZE_MB ?= 1024
+NVME_UNSUPPORTED_IMG_SIZE_MB ?= 64
 FILE_SYSTEM     ?= ext2
 EXT2_BLOCK_SIZE ?= 4096
 KERNEL_FILE     ?= exos.bin
@@ -116,6 +117,7 @@ PAYLOAD_MAP     = $(BUILD_DIR)/boot-hd/vbr-payload.map
 FINAL_IMG       = $(BUILD_DIR)/boot-hd/exos.img
 USB3_IMG        = $(BUILD_DIR)/boot-hd/usb-3.img
 NVME_IMG        = $(BUILD_DIR)/boot-hd/nvme.img
+NVME_UNSUPPORTED_IMG = $(BUILD_DIR)/boot-hd/nvme-unsupported.img
 CYCLE_BIN       = $(BUILD_DIR)/tools/cycle
 KERNEL_BIN      = $(BUILD_DIR)/kernel/exos.bin
 PORTAL_ELF      = $(BUILD_DIR)/system/portal/portal
@@ -250,7 +252,7 @@ endef
 .PHONY: all update update-fat32 update-ext2 update-test-image install-mbr install-vbr-payload clean check_tools rebuild-image usb-3-image
 
 # Default: build tools, ensure images exist (create once), then update contents
-all: check_tools $(FINAL_IMG) $(USB3_IMG) $(NVME_IMG) update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
+all: check_tools $(FINAL_IMG) $(USB3_IMG) $(NVME_IMG) $(NVME_UNSUPPORTED_IMG) update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
 
 check_tools:
 	@command -v $(NASM) >/dev/null 2>&1 || { echo "$(NASM) is not installed. Please run: sudo apt install nasm"; exit 1; }
@@ -347,6 +349,18 @@ $(NVME_IMG): check_tools $(HELLO_ELF)
 	@mkdir -p $(NVME_STAGING_DIR)
 	@cp $(HELLO_ELF) $(NVME_STAGING_DIR)/hello
 	$(call POPULATE_EXT2_IMAGE,$(NVME_IMG),$(NVME_STAGING_DIR))
+
+$(NVME_UNSUPPORTED_IMG): check_tools
+	@mkdir -p $(dir $@)
+	@if [ -f $@ ]; then \
+		echo "Skipping creation of $@ (already exists)."; \
+	else \
+		echo "Creating $(NVME_UNSUPPORTED_IMG_SIZE_MB)MiB NVMe image with unsupported NTFS partition type..."; \
+		dd if=/dev/zero of=$@ bs=1M count=$(NVME_UNSUPPORTED_IMG_SIZE_MB); \
+		parted -s $@ mklabel msdos; \
+		parted -s $@ mkpart primary ntfs 2048s 100%; \
+		parted -s $@ set 1 boot on; \
+	fi
 
 ifeq ($(TEST_PAYLOAD),1)
 $(USB3_IMG): check_tools

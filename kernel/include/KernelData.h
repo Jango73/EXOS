@@ -121,6 +121,7 @@ typedef struct tag_KERNELDATA {
     LPLIST NetworkDevice;
     LPLIST Event;
     LPLIST FileSystem;
+    LPLIST UnusedFileSystem;
     LPLIST File;
     LPLIST TCPConnection;
     LPLIST Socket;
@@ -176,6 +177,7 @@ LPLIST GetEventList(void);
 LPLIST GetFileList(void);
 FILESYSTEM_GLOBAL_INFO* GetFileSystemGlobalInfo(void);
 LPLIST GetFileSystemList(void);
+LPLIST GetUnusedFileSystemList(void);
 LPDESKTOP GetFocusedDesktop(void);
 LPPROCESS GetFocusedProcess(void);
 LPDRIVER GetGraphicsDriver(void);
