@@ -55,9 +55,6 @@ static const STR KernelFileNameText[] = {
 // Used by the x86-64 UEFI jump stub to fetch parameters reliably.
 U32 UefiStubMultibootInfoPtr = 0u;
 U32 UefiStubMultibootMagic = 0u;
-U64 UefiStubFramebufferBase = U64_0;
-U32 UefiStubFramebufferPitch = 0u;
-U32 UefiStubFramebufferBytesPerPixel = 0u;
 U32 UefiStubTestOnly = 0u;
 
 /************************************************************************/
@@ -113,7 +110,6 @@ static U64 BootUefiShiftLeftPages(U64 Value);
 static BOOL BootUefiGetFramebufferInfo(BOOT_UEFI_CONTEXT* Context, BOOT_FRAMEBUFFER_INFO* FramebufferInfo);
 static U32 BootUefiMaskPosition(U32 Mask);
 static U32 BootUefiMaskSize(U32 Mask);
-static void BootUefiFramebufferMark(BOOT_FRAMEBUFFER_INFO* FramebufferInfo, U32 Step);
 static void NORETURN BootUefiHaltNoServices(void);
 
 /************************************************************************/
@@ -976,101 +972,6 @@ static U32 BootUefiMaskSize(U32 Mask) {
 
 /************************************************************************/
 
-static U32 BootUefiScaleColor(U32 Value, U32 MaskSize) {
-    if (MaskSize == 0u) {
-        return 0u;
-    }
-
-    if (MaskSize >= 8u) {
-        return Value & 0xFFu;
-    }
-
-    U32 MaxValue = (1u << MaskSize) - 1u;
-    return (Value * MaxValue) / 255u;
-}
-
-/************************************************************************/
-
-static void BootUefiFramebufferMark(BOOT_FRAMEBUFFER_INFO* FramebufferInfo, U32 Step) {
-    if (FramebufferInfo == NULL || U64_EQUAL(FramebufferInfo->Address, U64_FromU32(0u)) != FALSE) {
-        return;
-    }
-
-    const U32 MarkerSize = 8u;
-    const U32 MarkerGap = 4u;
-    const U32 MarkerStride = MarkerSize + MarkerGap;
-    const U32 MarkerXBase = 8u;
-    const U32 MarkerYBase = 8u;
-
-    U32 BytesPerPixel = FramebufferInfo->BitsPerPixel / 8u;
-    if (BytesPerPixel == 0u) {
-        BytesPerPixel = 4u;
-    }
-
-    U32 Red = 0u;
-    U32 Green = 0u;
-    U32 Blue = 0u;
-
-    switch (Step) {
-        case 1u:
-            Red = 255u;
-            Green = 255u;
-            Blue = 0u;
-            break;
-        case 2u:
-            Red = 0u;
-            Green = 255u;
-            Blue = 0u;
-            break;
-        case 3u:
-            Red = 255u;
-            Green = 0u;
-            Blue = 0u;
-            break;
-        case 5u:
-            Red = 255u;
-            Green = 255u;
-            Blue = 255u;
-            break;
-        default:
-            Red = 0u;
-            Green = 0u;
-            Blue = 255u;
-            break;
-    }
-
-    U32 Packed = 0u;
-    Packed |= BootUefiScaleColor(Red, FramebufferInfo->RedMaskSize) << FramebufferInfo->RedPosition;
-    Packed |= BootUefiScaleColor(Green, FramebufferInfo->GreenMaskSize) << FramebufferInfo->GreenPosition;
-    Packed |= BootUefiScaleColor(Blue, FramebufferInfo->BlueMaskSize) << FramebufferInfo->BluePosition;
-
-    U8* Base = (U8*)BootUefiPhysicalToPointer(FramebufferInfo->Address);
-    U32 Pitch = FramebufferInfo->Pitch;
-    if (Pitch == 0u) {
-        return;
-    }
-
-    U32 StepIndex = 0u;
-    if (Step > 0u) {
-        StepIndex = Step - 1u;
-    }
-
-    U32 XBase = MarkerXBase + (StepIndex * MarkerStride);
-    U32 YBase = MarkerYBase;
-
-    for (U32 Y = 0; Y < MarkerSize; Y++) {
-        U8* Row = Base + ((YBase + Y) * Pitch);
-        for (U32 X = 0; X < MarkerSize; X++) {
-            U8* Pixel = Row + ((XBase + X) * BytesPerPixel);
-            for (U32 Byte = 0; Byte < BytesPerPixel; Byte++) {
-                Pixel[Byte] = (U8)(Packed >> (Byte * 8u));
-            }
-        }
-    }
-}
-
-/************************************************************************/
-
 static void NORETURN BootUefiHaltNoServices(void) {
     for (;;) {
         __asm__ __volatile__("hlt");
@@ -1316,18 +1217,6 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     MemorySet(E820Map, 0, sizeof(E820Map));
     BOOT_FRAMEBUFFER_INFO FramebufferInfo;
     BOOL HasFramebuffer = BootUefiGetFramebufferInfo(&Context, &FramebufferInfo);
-    if (HasFramebuffer != FALSE) {
-        UefiStubFramebufferBase = FramebufferInfo.Address;
-        UefiStubFramebufferPitch = FramebufferInfo.Pitch;
-        UefiStubFramebufferBytesPerPixel = FramebufferInfo.BitsPerPixel / 8u;
-        if (UefiStubFramebufferBytesPerPixel == 0u) {
-            UefiStubFramebufferBytesPerPixel = 4u;
-        }
-    } else {
-        UefiStubFramebufferBase = U64_FromU32(0u);
-        UefiStubFramebufferPitch = 0u;
-        UefiStubFramebufferBytesPerPixel = 0u;
-    }
 #if UEFI_STUB_EARLY_CALL == 1
     UefiStubMultibootInfoPtr = 0u;
     UefiStubMultibootMagic = 0u;
@@ -1348,9 +1237,6 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 
     for (;;) {
         BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] Preparing memory map\r\n");
-        if (HasFramebuffer != FALSE) {
-            BootUefiFramebufferMark(&FramebufferInfo, 1u);
-        }
         Status = BootUefiGetMemoryMapSilent(
             &Context,
             &MemoryMap,
@@ -1364,16 +1250,9 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         }
         UNUSED(DescriptorVersion);
 
-        if (HasFramebuffer != FALSE) {
-            BootUefiFramebufferMark(&FramebufferInfo, 2u);
-        }
-
         // Do not call any boot services between GetMemoryMap and ExitBootServices.
         Status = Context.BootServices->ExitBootServices(Context.ImageHandle, MapKey);
         if (Status == EFI_SUCCESS) {
-            if (HasFramebuffer != FALSE) {
-                BootUefiFramebufferMark(&FramebufferInfo, 4u);
-            }
             break;
         }
 
@@ -1382,10 +1261,6 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         BootUefiOutputStatus(Context.ConsoleOut, "[EfiMain] ExitBootServices status ", Status);
         BootUefiOutputHex32(Context.ConsoleOut, "[EfiMain] ExitBootServices map key ", (U32)MapKey);
         BootUefiOutputHex32(Context.ConsoleOut, "[EfiMain] ExitBootServices attempt ", (U32)ExitBootAttempts);
-        if (HasFramebuffer != FALSE) {
-            BootUefiFramebufferMark(&FramebufferInfo, 3u);
-        }
-
         if (MemoryMap != NULL) {
             Context.BootServices->FreePool(MemoryMap);
             MemoryMap = NULL;
@@ -1440,9 +1315,6 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 #endif
     __asm__ __volatile__("" ::: "memory");
 #if UEFI_EARLY_HALT == 1
-    if (HasFramebuffer != FALSE) {
-        BootUefiFramebufferMark(&FramebufferInfo, 5u);
-    }
     BootUefiHaltNoServices();
 #endif
     BootUefiSerialWriteString(0x3F8u, (LPCSTR)"[EfiMain] Calling EnterProtectedPagingAndJump\r\n");

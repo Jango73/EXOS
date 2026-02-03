@@ -39,86 +39,6 @@ KERNELSTARTUPINFO KernelStartup = {
 
 /************************************************************************/
 
-static U32 KernelScaleColor(U32 Value, U32 MaskSize) {
-    if (MaskSize == 0u) {
-        return 0u;
-    }
-
-    if (MaskSize >= 8u) {
-        return Value & 0xFFu;
-    }
-
-    U32 MaxValue = (1u << MaskSize) - 1u;
-    return (Value * MaxValue) / 255u;
-}
-
-/************************************************************************/
-
-static void KernelFramebufferMark(multiboot_info_t* MultibootInfo) {
-    if (MultibootInfo == NULL) {
-        return;
-    }
-
-    if ((MultibootInfo->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) == 0u) {
-        return;
-    }
-
-    U64 FramebufferAddress = U64_Make(
-        MultibootInfo->framebuffer_addr_high,
-        MultibootInfo->framebuffer_addr_low);
-    if (U64_EQUAL(FramebufferAddress, U64_FromU32(0u)) != FALSE) {
-        return;
-    }
-
-    U32 Pitch = MultibootInfo->framebuffer_pitch;
-    if (Pitch == 0u) {
-        return;
-    }
-
-    U32 BytesPerPixel = (U32)(MultibootInfo->framebuffer_bpp / 8u);
-    if (BytesPerPixel == 0u) {
-        BytesPerPixel = 4u;
-    }
-
-    const U32 MarkerSize = 8u;
-    const U32 MarkerGap = 4u;
-    const U32 MarkerStride = MarkerSize + MarkerGap;
-    const U32 MarkerXBase = 8u;
-    const U32 MarkerYBase = 8u;
-    const U32 MarkerIndex = 13u;
-
-    U8* Base = (U8*)U64_ToUINT(FramebufferAddress);
-    const U32 XBase = MarkerXBase + (MarkerIndex * MarkerStride);
-    const U32 YBase = MarkerYBase;
-    U32 Packed = 0u;
-    U32 RedPosition = (U32)MultibootInfo->color_info[0];
-    U32 RedMaskSize = (U32)MultibootInfo->color_info[1];
-    U32 GreenPosition = (U32)MultibootInfo->color_info[2];
-    U32 GreenMaskSize = (U32)MultibootInfo->color_info[3];
-    U32 BluePosition = (U32)MultibootInfo->color_info[4];
-    U32 BlueMaskSize = (U32)MultibootInfo->color_info[5];
-
-    if (RedMaskSize != 0u || GreenMaskSize != 0u || BlueMaskSize != 0u) {
-        Packed |= KernelScaleColor(255u, RedMaskSize) << RedPosition;
-        Packed |= KernelScaleColor(0u, GreenMaskSize) << GreenPosition;
-        Packed |= KernelScaleColor(0u, BlueMaskSize) << BluePosition;
-    } else {
-        Packed = 0x00FF0000u;
-    }
-
-    for (U32 Y = 0; Y < MarkerSize; Y++) {
-        U8* Row = Base + ((YBase + Y) * Pitch);
-        for (U32 X = 0; X < MarkerSize; X++) {
-            U8* Pixel = Row + ((XBase + X) * BytesPerPixel);
-            for (U32 Byte = 0; Byte < BytesPerPixel; Byte++) {
-                Pixel[Byte] = (U8)(Packed >> (Byte * 8u));
-            }
-        }
-    }
-}
-
-/************************************************************************/
-
 /**
  * @brief Main entry point for the EXOS kernel in paged protected mode.
  *
@@ -155,8 +75,6 @@ void KernelMain(void) {
 
     // Map the multiboot info structure to access it
     multiboot_info_t* MultibootInfo = (multiboot_info_t*)(UINT)MultibootInfoLinear;
-
-    KernelFramebufferMark(MultibootInfo);
 
     if ((MultibootInfo->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) != 0u) {
         PHYSICAL FramebufferPhysical = 0;

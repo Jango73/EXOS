@@ -134,77 +134,6 @@ static void UefiSerialWriteLabelHex64(LPCSTR Label, U64 Value) {
 
 /************************************************************************/
 
-static void PayloadFramebufferMark(U32 MultibootInfoPtr, U32 Step) {
-    multiboot_info_t* Info = (multiboot_info_t*)(UINT)MultibootInfoPtr;
-    if (Info == NULL) {
-        return;
-    }
-
-    const U32 MarkerSize = 8u;
-    const U32 MarkerGap = 4u;
-    const U32 MarkerStride = MarkerSize + MarkerGap;
-    const U32 MarkerXBase = 8u;
-    const U32 MarkerYBase = 8u;
-    const U32 MarkerBaseIndex = 9u;
-
-    if ((Info->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) == 0u) {
-        return;
-    }
-
-    U64 FramebufferAddress = U64_Make(Info->framebuffer_addr_high, Info->framebuffer_addr_low);
-    if (U64_EQUAL(FramebufferAddress, U64_FromU32(0u)) != FALSE) {
-        return;
-    }
-
-    U32 Pitch = Info->framebuffer_pitch;
-    if (Pitch == 0u) {
-        return;
-    }
-
-    U32 BytesPerPixel = (U32)(Info->framebuffer_bpp / 8u);
-    if (BytesPerPixel == 0u) {
-        BytesPerPixel = 4u;
-    }
-
-    U8* Base = (U8*)(UINT)FramebufferAddress;
-    U32 StepIndex = 0u;
-    if (Step > 0u) {
-        StepIndex = MarkerBaseIndex + (Step - 1u);
-    }
-
-    U32 XBase = MarkerXBase + (StepIndex * MarkerStride);
-    U32 YBase = MarkerYBase;
-    U32 Packed = 0x00FFFFFFu;
-
-    switch (Step) {
-        case 1u:
-            Packed = 0x00FFFFFFu;
-            break;
-        case 2u:
-            Packed = 0x0000FFFFu;
-            break;
-        case 3u:
-            Packed = 0x00FF00FFu;
-            break;
-        case 4u:
-            Packed = 0x0000FF00u;
-            break;
-        default:
-            Packed = 0x0000FF00u;
-            break;
-    }
-
-    for (U32 Y = 0; Y < MarkerSize; Y++) {
-        U8* Row = Base + ((YBase + Y) * Pitch);
-        for (U32 X = 0; X < MarkerSize; X++) {
-            U8* Pixel = Row + ((XBase + X) * BytesPerPixel);
-            for (U32 Byte = 0; Byte < BytesPerPixel; Byte++) {
-                Pixel[Byte] = (U8)(Packed >> (Byte * 8u));
-            }
-        }
-    }
-}
-
 typedef char VerifySegmentDescriptorSize[(sizeof(SEGMENT_DESCRIPTOR) == 8u) ? 1 : -1];
 typedef char VerifyProtectedCodeSelector[
     (VBR_PROTECTED_MODE_CODE_SELECTOR == (U16)(VBR_GDT_ENTRY_PROTECTED_CODE * (U16)sizeof(SEGMENT_DESCRIPTOR))) ? 1 : -1];
@@ -570,7 +499,6 @@ void NORETURN StubJumpToImage(
     UNUSED(KernelEntryHigh);
     UNUSED(MultibootMagic);
 
-    PayloadFramebufferMark(MultibootInfoPtr, 4u);
     for (;;) {
         __asm__ __volatile__("hlt");
     }
@@ -687,11 +615,7 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U6
     UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] GdtRegisterBase=", Gdtr.Base);
     UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] GdtRegisterLimit=", Gdtr.Limit);
     UefiSerialWriteString((LPCSTR)"[EnterProtectedPagingAndJump] Jumping to kernel\r\n");
-    PayloadFramebufferMark(MultibootInfoPtr, 1u);
-    PayloadFramebufferMark(MultibootInfoPtr, 2u);
-    PayloadFramebufferMark(MultibootInfoPtr, 3u);
 #if UEFI_STUB_REPLACE == 1
-    PayloadFramebufferMark(MultibootInfoPtr, 4u);
     for (;;) {
         __asm__ __volatile__("hlt");
     }
