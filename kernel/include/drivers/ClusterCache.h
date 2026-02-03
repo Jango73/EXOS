@@ -43,9 +43,14 @@ typedef struct tag_CLUSTER_CACHE_ENTRY {
     U8 Data[1];
 } CLUSTER_CACHE_ENTRY, *LPCLUSTER_CACHE_ENTRY;
 
+typedef BOOL (*CLUSTER_CACHE_FLUSH_CALLBACK)(
+    LPCVOID Owner, U64 ClusterIndex, LPCVOID Data, UINT DataSize, LPVOID Context);
+
 typedef struct tag_CLUSTER_CACHE {
     CACHE Cache;
     UINT DefaultTimeToLive;
+    CLUSTER_CACHE_FLUSH_CALLBACK FlushCallback;
+    LPVOID FlushContext;
 } CLUSTER_CACHE, *LPCLUSTER_CACHE;
 
 /***************************************************************************/
@@ -58,6 +63,19 @@ typedef struct tag_CLUSTER_CACHE {
  * @param DefaultTimeToLive Default entry lifetime in milliseconds.
  */
 void ClusterCacheInit(LPCLUSTER_CACHE ClusterCache, UINT Capacity, UINT DefaultTimeToLive);
+
+/***************************************************************************/
+
+/**
+ * @brief Configure write policy for a cluster cache descriptor.
+ *
+ * @param ClusterCache Cache descriptor.
+ * @param WritePolicy One of CACHE_WRITE_POLICY_* values.
+ * @param FlushCallback Flush callback used for dirty entries.
+ * @param FlushContext Context pointer forwarded to FlushCallback.
+ */
+void ClusterCacheSetWritePolicy(
+    LPCLUSTER_CACHE ClusterCache, U32 WritePolicy, CLUSTER_CACHE_FLUSH_CALLBACK FlushCallback, LPVOID FlushContext);
 
 /***************************************************************************/
 
@@ -86,6 +104,21 @@ BOOL ClusterCacheStore(
 /***************************************************************************/
 
 /**
+ * @brief Store data in cache and mark it dirty using cache write policy.
+ *
+ * @param ClusterCache Cache descriptor.
+ * @param Owner Namespace key (usually filesystem instance pointer).
+ * @param ClusterIndex Cluster index key.
+ * @param Data Cluster payload.
+ * @param DataSize Payload size in bytes.
+ * @return TRUE when operation succeeds, FALSE otherwise.
+ */
+BOOL ClusterCacheWrite(
+    LPCLUSTER_CACHE ClusterCache, LPCVOID Owner, U64 ClusterIndex, LPCVOID Data, UINT DataSize);
+
+/***************************************************************************/
+
+/**
  * @brief Read one cluster cache entry.
  *
  * @param ClusterCache Cache descriptor.
@@ -97,6 +130,30 @@ BOOL ClusterCacheStore(
  */
 BOOL ClusterCacheRead(
     LPCLUSTER_CACHE ClusterCache, LPCVOID Owner, U64 ClusterIndex, LPVOID Buffer, UINT BufferSize);
+
+/***************************************************************************/
+
+/**
+ * @brief Flush one cluster entry identified by owner and cluster index.
+ *
+ * @param ClusterCache Cache descriptor.
+ * @param Owner Namespace key (usually filesystem instance pointer).
+ * @param ClusterIndex Cluster index key.
+ * @param DataSize Entry payload size in bytes.
+ * @return TRUE when flush succeeds or entry is already clean, FALSE otherwise.
+ */
+BOOL ClusterCacheFlushCluster(
+    LPCLUSTER_CACHE ClusterCache, LPCVOID Owner, U64 ClusterIndex, UINT DataSize);
+
+/***************************************************************************/
+
+/**
+ * @brief Flush all dirty cluster entries.
+ *
+ * @param ClusterCache Cache descriptor.
+ * @return Number of flushed entries.
+ */
+UINT ClusterCacheFlushAll(LPCLUSTER_CACHE ClusterCache);
 
 /***************************************************************************/
 
