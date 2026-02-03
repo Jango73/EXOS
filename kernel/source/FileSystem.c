@@ -45,6 +45,7 @@ extern BOOL MountPartition_EXT2(LPSTORAGE_UNIT, LPBOOTPARTITION, U32, U32);
 
 #define FILESYSTEM_VER_MAJOR 1
 #define FILESYSTEM_VER_MINOR 0
+#define FILESYSTEM_MAX_SECTOR_SIZE 4096
 
 /***************************************************************************/
 
@@ -105,16 +106,46 @@ LPDRIVER FileSystemGetDriver(void) {
 /***************************************************************************/
 
 /**
- * @brief Read a 512-byte sector from a disk.
+ * @brief Retrieve disk sector size in bytes.
+ * @param Disk Target disk.
+ * @return Sector size in bytes (512 by default).
+ */
+static U32 FileSystemGetDiskBytesPerSector(LPSTORAGE_UNIT Disk) {
+    DISKINFO DiskInfo;
+
+    if (Disk == NULL || Disk->Driver == NULL) return SECTOR_SIZE;
+
+    MemorySet(&DiskInfo, 0, sizeof(DISKINFO));
+    DiskInfo.Disk = Disk;
+    if (Disk->Driver->Command(DF_DISK_GETINFO, (UINT)&DiskInfo) != DF_RETURN_SUCCESS) {
+        return SECTOR_SIZE;
+    }
+
+    if (DiskInfo.BytesPerSector == 0) {
+        return SECTOR_SIZE;
+    }
+
+    return DiskInfo.BytesPerSector;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Read one full on-disk sector from a disk.
  * @param Disk Target disk.
  * @param Sector LBA sector index.
- * @param Buffer Destination buffer (must be 512 bytes).
+ * @param Buffer Destination buffer.
+ * @param BufferSize Buffer size in bytes.
  * @return TRUE on success, FALSE otherwise.
  */
-static BOOL FileSystemReadSector(LPSTORAGE_UNIT Disk, U32 Sector, LPVOID Buffer) {
+static BOOL FileSystemReadDiskSector(LPSTORAGE_UNIT Disk, U32 Sector, LPVOID Buffer, U32 BufferSize) {
     IOCONTROL Control;
+    U32 BytesPerSector = 0;
 
     if (Disk == NULL || Buffer == NULL) return FALSE;
+    BytesPerSector = FileSystemGetDiskBytesPerSector(Disk);
+    if (BytesPerSector > FILESYSTEM_MAX_SECTOR_SIZE) return FALSE;
+    if (BufferSize < BytesPerSector) return FALSE;
 
     Control.TypeID = KOID_IOCONTROL;
     Control.Disk = Disk;
@@ -122,7 +153,7 @@ static BOOL FileSystemReadSector(LPSTORAGE_UNIT Disk, U32 Sector, LPVOID Buffer)
     Control.SectorHigh = 0;
     Control.NumSectors = 1;
     Control.Buffer = Buffer;
-    Control.BufferSize = SECTOR_SIZE;
+    Control.BufferSize = BytesPerSector;
 
     return (Disk->Driver->Command(DF_DISK_READ, (UINT)&Control) == DF_RETURN_SUCCESS);
 }
@@ -160,14 +191,20 @@ static BOOL FileSystemSectorHasSignature(const U8* Buffer, U32 Offset, const U8*
  * @return PARTITION_FORMAT_* value, or UNKNOWN when not detected.
  */
 static U32 FileSystemDetectPartitionFormat(LPSTORAGE_UNIT Disk, SECTOR StartSector) {
-    U8 SectorBuffer[SECTOR_SIZE];
+    U8 SectorBuffer[FILESYSTEM_MAX_SECTOR_SIZE];
     const U8 SignatureNtfs[8] = {'N', 'T', 'F', 'S', ' ', ' ', ' ', ' '};
     const U8 SignatureFat32[8] = {'F', 'A', 'T', '3', '2', ' ', ' ', ' '};
     const U8 SignatureFat16[8] = {'F', 'A', 'T', '1', '6', ' ', ' ', ' '};
+    U32 BytesPerSector = 0;
+    U32 ExtMagicOffset = 1024 + 56;
+    U32 ExtMagicSectorOffset = 0;
+    U32 ExtMagicByteOffset = 0;
 
     if (Disk == NULL) return PARTITION_FORMAT_UNKNOWN;
+    BytesPerSector = FileSystemGetDiskBytesPerSector(Disk);
+    if (BytesPerSector > FILESYSTEM_MAX_SECTOR_SIZE) return PARTITION_FORMAT_UNKNOWN;
 
-    if (!FileSystemReadSector(Disk, StartSector, SectorBuffer)) {
+    if (!FileSystemReadDiskSector(Disk, StartSector, SectorBuffer, sizeof(SectorBuffer))) {
         return PARTITION_FORMAT_UNKNOWN;
     }
 
@@ -184,8 +221,12 @@ static U32 FileSystemDetectPartitionFormat(LPSTORAGE_UNIT Disk, SECTOR StartSect
     }
 
     // EXT superblock starts at byte 1024, magic (0xEF53) at offset 0x38.
-    if (FileSystemReadSector(Disk, StartSector + 2, SectorBuffer) &&
-        SectorBuffer[56] == 0x53 && SectorBuffer[57] == 0xEF) {
+    ExtMagicSectorOffset = ExtMagicOffset / BytesPerSector;
+    ExtMagicByteOffset = ExtMagicOffset % BytesPerSector;
+    if ((ExtMagicByteOffset + 1) < BytesPerSector &&
+        FileSystemReadDiskSector(Disk, StartSector + ExtMagicSectorOffset, SectorBuffer, sizeof(SectorBuffer)) &&
+        SectorBuffer[ExtMagicByteOffset + 0] == 0x53 &&
+        SectorBuffer[ExtMagicByteOffset + 1] == 0xEF) {
         return PARTITION_FORMAT_EXT2;
     }
 
@@ -379,15 +420,21 @@ static BOOL MountGptFatPartition(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition,
  * @return TRUE when the GPT is parsed, FALSE otherwise.
  */
 static BOOL MountDiskPartitionsGpt(LPSTORAGE_UNIT Disk) {
-    U8 SectorBuffer[SECTOR_SIZE];
+    U8 SectorBuffer[FILESYSTEM_MAX_SECTOR_SIZE];
     GPT_HEADER Header;
     const U8 GptGuidLinuxExtx[GPT_GUID_LENGTH] = GPT_GUID_LINUX_EXTX;
     const U8 GptGuidEfiSystem[GPT_GUID_LENGTH] = GPT_GUID_EFI_SYSTEM;
     const U8 GptGuidMicrosoftBasicData[GPT_GUID_LENGTH] = GPT_GUID_MICROSOFT_BASIC_DATA;
+    U32 DiskSectorBytes = 0;
 
     if (Disk == NULL) return FALSE;
+    DiskSectorBytes = FileSystemGetDiskBytesPerSector(Disk);
+    if (DiskSectorBytes > FILESYSTEM_MAX_SECTOR_SIZE) {
+        WARNING(TEXT("[MountDiskPartitionsGpt] Unsupported sector size %u"), DiskSectorBytes);
+        return FALSE;
+    }
 
-    if (!FileSystemReadSector(Disk, 1u, SectorBuffer)) {
+    if (!FileSystemReadDiskSector(Disk, 1u, SectorBuffer, sizeof(SectorBuffer))) {
         WARNING(TEXT("[MountDiskPartitionsGpt] GPT header read failed"));
         return FALSE;
     }
@@ -406,7 +453,7 @@ static BOOL MountDiskPartitionsGpt(LPSTORAGE_UNIT Disk) {
         return FALSE;
     }
 
-    if (Header.SizeOfPartitionEntry > SECTOR_SIZE) {
+    if (Header.SizeOfPartitionEntry > DiskSectorBytes) {
         WARNING(TEXT("[MountDiskPartitionsGpt] GPT entry size too large (%u)"), Header.SizeOfPartitionEntry);
         return FALSE;
     }
@@ -417,7 +464,7 @@ static BOOL MountDiskPartitionsGpt(LPSTORAGE_UNIT Disk) {
     }
 
     U32 EntryLbaBase = U64_Low32(Header.PartitionEntryLba);
-    U32 EntriesPerSector = SECTOR_SIZE / Header.SizeOfPartitionEntry;
+    U32 EntriesPerSector = DiskSectorBytes / Header.SizeOfPartitionEntry;
     if (EntriesPerSector == 0u) {
         WARNING(TEXT("[MountDiskPartitionsGpt] GPT entry size invalid (%u)"), Header.SizeOfPartitionEntry);
         return FALSE;
@@ -433,13 +480,13 @@ static BOOL MountDiskPartitionsGpt(LPSTORAGE_UNIT Disk) {
         U32 EntryInSector = EntryIndex % EntriesPerSector;
         U32 SectorLba = EntryLbaBase + SectorIndex;
 
-        if (!FileSystemReadSector(Disk, SectorLba, SectorBuffer)) {
+        if (!FileSystemReadDiskSector(Disk, SectorLba, SectorBuffer, sizeof(SectorBuffer))) {
             WARNING(TEXT("[MountDiskPartitionsGpt] GPT entry read failed at LBA %u"), SectorLba);
             return FALSE;
         }
 
         U32 EntryOffset = EntryInSector * Header.SizeOfPartitionEntry;
-        if ((EntryOffset + sizeof(GPT_ENTRY)) > SECTOR_SIZE) {
+        if ((EntryOffset + sizeof(GPT_ENTRY)) > DiskSectorBytes) {
             continue;
         }
 
@@ -884,9 +931,13 @@ void FileSystemSetActivePartition(LPFILESYSTEM FileSystem) {
  * @return TRUE if extended partitions were processed successfully, FALSE otherwise
  */
 BOOL MountPartition_Extended(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base) {
-    U8 Buffer[SECTOR_SIZE];
+    U8 Buffer[FILESYSTEM_MAX_SECTOR_SIZE];
     IOCONTROL Control;
     U32 Result;
+    U32 BytesPerSector;
+
+    BytesPerSector = FileSystemGetDiskBytesPerSector(Disk);
+    if (BytesPerSector > FILESYSTEM_MAX_SECTOR_SIZE) return FALSE;
 
     Control.TypeID = KOID_IOCONTROL;
     Control.Disk = Disk;
@@ -894,7 +945,7 @@ BOOL MountPartition_Extended(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32
     Control.SectorHigh = 0;
     Control.NumSectors = 1;
     Control.Buffer = (LPVOID)Buffer;
-    Control.BufferSize = SECTOR_SIZE;
+    Control.BufferSize = BytesPerSector;
 
     Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
 
@@ -922,12 +973,19 @@ BOOL MountPartition_Extended(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32
  * @return TRUE if partitions were processed successfully, FALSE otherwise
  */
 BOOL MountDiskPartitions(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base) {
-    U8 Buffer[SECTOR_SIZE];
+    U8 Buffer[FILESYSTEM_MAX_SECTOR_SIZE];
     IOCONTROL Control;
     U32 Result;
     U32 Index;
+    U32 BytesPerSector;
 
     DEBUG(TEXT("[MountDiskPartitions] Disk = %x, Partition = %x, Base = %x"), Disk, Partition, Base);
+
+    BytesPerSector = FileSystemGetDiskBytesPerSector(Disk);
+    if (BytesPerSector > FILESYSTEM_MAX_SECTOR_SIZE) {
+        WARNING(TEXT("[MountDiskPartitions] Unsupported sector size %u"), BytesPerSector);
+        return FALSE;
+    }
 
     if (Partition == NULL) {
         Control.TypeID = KOID_IOCONTROL;
@@ -936,7 +994,7 @@ BOOL MountDiskPartitions(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
         Control.SectorHigh = 0;
         Control.NumSectors = 1;
         Control.Buffer = (LPVOID)Buffer;
-        Control.BufferSize = SECTOR_SIZE;
+        Control.BufferSize = BytesPerSector;
 
         Result = Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
         if (Result != DF_RETURN_SUCCESS) {

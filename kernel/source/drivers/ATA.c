@@ -512,6 +512,7 @@ static U32 GetInfo(LPDISKINFO Info) {
 
     Info->Type = DRIVER_TYPE_STORAGE;
     Info->Removable = 0;
+    Info->BytesPerSector = Disk->Geometry.BytesPerSector;
     Info->NumSectors = U64_FromU32(
         Disk->Geometry.Cylinders * Disk->Geometry.Heads * Disk->Geometry.SectorsPerTrack);
     Info->Access = Disk->Access;

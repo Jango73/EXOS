@@ -89,6 +89,7 @@ typedef struct tag_DISKINFO {
     LPSTORAGE_UNIT Disk;
     U32 Type;
     U32 Removable;
+    U32 BytesPerSector;
     U64 NumSectors;
     U32 Access;
 } DISKINFO, *LPDISKINFO;

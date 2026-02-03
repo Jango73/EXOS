@@ -775,7 +775,7 @@ static BOOL USBMassStorageReadCapacity(LPUSB_MASS_STORAGE_DEVICE Device) {
         return FALSE;
     }
 
-    if (BlockSize != SECTOR_SIZE) {
+    if (BlockSize != 512 && BlockSize != 4096) {
         ERROR(TEXT("[USBMassStorageReadCapacity] Unsupported block size %u"), BlockSize);
         return FALSE;
     }
@@ -1252,11 +1252,11 @@ static U32 USBMassStorageRead(LPIOCONTROL Control) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    if (Control->NumSectors > (MAX_UINT / SECTOR_SIZE)) {
+    if (Control->NumSectors > (MAX_UINT / Device->BlockSize)) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    UINT TotalBytes = Control->NumSectors * SECTOR_SIZE;
+    UINT TotalBytes = Control->NumSectors * Device->BlockSize;
     if (Control->BufferSize < TotalBytes) {
         return DF_RETURN_BAD_PARAMETER;
     }
@@ -1319,6 +1319,7 @@ static U32 USBMassStorageGetInfo(LPDISKINFO Info) {
 
     Info->Type = DRIVER_TYPE_STORAGE;
     Info->Removable = 1;
+    Info->BytesPerSector = Device->BlockSize;
     Info->NumSectors = U64_FromUINT(Device->BlockCount);
     Info->Access = Device->Access;
 

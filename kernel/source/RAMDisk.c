@@ -622,6 +622,7 @@ static U32 GetInfo(LPDISKINFO Info) {
 
     Info->Type = DRIVER_TYPE_RAMDISK;
     Info->Removable = 0;
+    Info->BytesPerSector = SECTOR_SIZE;
     Info->NumSectors = U64_FromUINT(Disk->Size / SECTOR_SIZE);
     Info->Access = Disk->Access;
 

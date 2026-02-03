@@ -843,6 +843,7 @@ static U32 GetInfo(LPDISKINFO Info) {
 
     Info->Type = DRIVER_TYPE_STORAGE;
     Info->Removable = 0;
+    Info->BytesPerSector = AHCIPort->Geometry.BytesPerSector;
     Info->NumSectors = U64_FromU32(
         AHCIPort->Geometry.Cylinders * AHCIPort->Geometry.Heads * AHCIPort->Geometry.SectorsPerTrack);
     Info->Access = AHCIPort->Access;

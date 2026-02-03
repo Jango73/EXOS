@@ -2,7 +2,7 @@
 
 ## Prerequisites (one-time)
 
-- [ ] **Block device**: read sectors with LBA, 512 bytes or 4K. (LBA + 512 bytes validated; 4K sector path still to validate.)
+- [X] **Block device**: read sectors with LBA, 512 bytes or 4K. (Disk info now exposes BytesPerSector and partition probing reads 512/4K sectors.)
 - [X] **Partition**: identify NTFS partition in GPT or MBR, expose start LBA.
 - [X] **Cache**: cache for clusters.
 - [ ] **Unicode**: UTF-16LE decode for file and folder names.

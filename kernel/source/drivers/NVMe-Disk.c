@@ -391,6 +391,7 @@ static UINT NVMeDiskGetInfo(LPDISKINFO Info) {
     SAFE_USE_VALID_ID((LPLISTNODE)Disk, KOID_DISK) {
         Info->Type = DRIVER_TYPE_STORAGE;
         Info->Removable = 0;
+        Info->BytesPerSector = SECTOR_SIZE;
         Info->NumSectors = Disk->NumSectors;
         Info->Access = Disk->Access;
 

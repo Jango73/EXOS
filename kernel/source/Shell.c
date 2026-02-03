@@ -1353,6 +1353,7 @@ static U32 CMD_hd(LPSHELLCONTEXT Context) {
 
         ConsolePrint(TEXT("Manufacturer : %s\n"), Disk->Driver->Manufacturer);
         ConsolePrint(TEXT("Product      : %s\n"), Disk->Driver->Product);
+        ConsolePrint(TEXT("Sector size  : %u\n"), DiskInfo.BytesPerSector);
         ConsolePrint(TEXT("Sectors      : %x%08x\n"),
                      (U32)U64_High32(DiskInfo.NumSectors),
                      (U32)U64_Low32(DiskInfo.NumSectors));
