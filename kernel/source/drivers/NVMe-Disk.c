@@ -202,20 +202,27 @@ BOOL NVMeRegisterNamespaces(LPNVME_DEVICE Device) {
             return FALSE;
         }
 
+        MemorySet(NamespaceIds, 0, N_4KB);
+
         UINT Count = 0;
         if (!NVMeIdentifyNamespaceList(Device, NamespaceIds, MaxIds, &Count)) {
-            KernelHeapFree(NamespaceIds);
-            return FALSE;
-        }
-
-        if (Count == 0) {
+            WARNING(TEXT("[NVMeRegisterNamespaces] Identify namespace list failed, fallback to NSID=1"));
             NamespaceIds[0] = 1;
             Count = 1;
         }
 
+        if (Count == 0) {
+            WARNING(TEXT("[NVMeRegisterNamespaces] Namespace list is empty, fallback to NSID=1"));
+            NamespaceIds[0] = 1;
+            Count = 1;
+        }
+
+        DEBUG(TEXT("[NVMeRegisterNamespaces] Namespace count=%u"), Count);
+
         BOOL RegisteredAny = FALSE;
         for (UINT Index = 0; Index < Count; Index++) {
             U32 NamespaceId = NamespaceIds[Index];
+            DEBUG(TEXT("[NVMeRegisterNamespaces] Namespace[%u]=%u"), Index, NamespaceId);
             U64 NumSectors = U64_0;
             if (!NVMeIdentifyNamespace(Device, NamespaceId, &NumSectors)) {
                 WARNING(TEXT("[NVMeRegisterNamespaces] Identify namespace failed NSID=%u"), (U32)NamespaceId);

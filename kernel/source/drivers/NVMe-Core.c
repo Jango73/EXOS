@@ -130,15 +130,20 @@ static BOOL NVMeGetBar0Physical(LPPCI_DEVICE Device, PHYSICAL* BaseOut, U32* Siz
 
     U32 Bar0Low = (Bar0Raw & PCI_BAR_MEM_MASK);
     U32 BarType = (Bar0Raw >> 1) & 0x3;
+    PHYSICAL BarPhysical = (PHYSICAL)Bar0Low;
 
     if (BarType == 0x2) {
         U32 Bar0High = PCI_Read32(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_BAR1);
+        #ifdef __EXOS_32__
         if (Bar0High != 0) {
             return FALSE;
         }
+        #else
+        BarPhysical = ((PHYSICAL)Bar0High << 32) | (PHYSICAL)Bar0Low;
+        #endif
     }
 
-    *BaseOut = (PHYSICAL)Bar0Low;
+    *BaseOut = BarPhysical;
     *SizeOut = PCI_GetBARSize(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 0);
 
     return (*BaseOut != 0 && *SizeOut != 0);
