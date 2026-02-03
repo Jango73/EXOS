@@ -6,7 +6,7 @@
 - [X] **Partition**: identify NTFS partition in GPT or MBR, expose start LBA.
 - [X] **Cache**: cache for clusters.
 - [ ] **Unicode**: UTF-16LE decode for file and folder names.
-- [ ] **DATETIME**: convert NTFS timestamps to DATETIME structure.
+- [X] **DATETIME**: convert NTFS timestamps to DATETIME structure. (`NtfsTimestampToDateTime` helper added in `kernel/source/drivers/NTFS.c`.)
 
 ## Step 1 --- Volume detection + Boot Sector
 

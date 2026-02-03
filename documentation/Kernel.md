@@ -281,6 +281,7 @@ Everything in this sequence runs in 16-bit real mode on x86-32+ processors. Howe
 
 **AHCI interrupt policy**: the SATA driver registers the controller with the shared `DeviceInterruptRegister` infrastructure and installs dedicated top and bottom halves so IRQ 11 traffic can be routed through a private slot when the hardware gets its own vector (MSI/MSI-X or a non-shared INTx line). Commands still complete synchronously, therefore all AHCI per-port interrupt masks (`PORT.ie`) and the global `GHC.IE` bit stay cleared in shipping builds to keep the shared IRQ 11 line quiet for the `E1000` NIC.
 Disk drivers now expose `BytesPerSector` through `DF_DISK_GETINFO` (`DISKINFO.BytesPerSector`). Partition probing in `FileSystem.c` consumes this value and accepts 512-byte and 4096-byte sectors when reading MBR/GPT and signature data.
+NTFS timestamp conversion is provided by `NtfsTimestampToDateTime` in `kernel/source/drivers/NTFS.c`, converting NTFS 100ns intervals since 1601-01-01 to the kernel `DATETIME` structure.
 
 ## Foreign File systems
 

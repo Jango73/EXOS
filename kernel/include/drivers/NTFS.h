@@ -122,7 +122,7 @@ typedef struct tag_NTFS_ATTRDEF {
 
 /***************************************************************************/
 // $STANDARD_INFORMATION
-// Time is nanoseconds since Jan 1, 1601
+// Time is in 100-nanosecond intervals since Jan 1, 1601 (UTC)
 
 typedef struct tag_NTFS_STDINFO {
     U64 CreationTime;
@@ -136,5 +136,20 @@ typedef struct tag_NTFS_STDINFO {
 /***************************************************************************/
 
 #pragma pack(pop)
+
+/***************************************************************************/
+
+/**
+ * @brief Convert an NTFS timestamp to DATETIME.
+ *
+ * NTFS timestamps use 100-nanosecond intervals since January 1st, 1601.
+ *
+ * @param NtfsTimestamp Timestamp value from NTFS metadata.
+ * @param DateTime Destination DATETIME structure.
+ * @return TRUE on success, FALSE on invalid parameters.
+ */
+BOOL NtfsTimestampToDateTime(U64 NtfsTimestamp, LPDATETIME DateTime);
+
+/***************************************************************************/
 
 #endif  // NTFS_H_INCLUDED
