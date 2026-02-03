@@ -363,11 +363,24 @@ $(NVME_UNSUPPORTED_IMG): check_tools
 	@if [ -f $@ ]; then \
 		echo "Skipping creation of $@ (already exists)."; \
 	else \
-		echo "Creating $(NVME_UNSUPPORTED_IMG_SIZE_MB)MiB NVMe image with unsupported NTFS partition type..."; \
+		echo "Creating $(NVME_UNSUPPORTED_IMG_SIZE_MB)MiB NVMe image with real NTFS partition..."; \
 		dd if=/dev/zero of=$@ bs=1M count=$(NVME_UNSUPPORTED_IMG_SIZE_MB); \
 		parted -s $@ mklabel msdos; \
 		parted -s $@ mkpart primary ntfs 2048s 100%; \
 		parted -s $@ set 1 boot off; \
+		if command -v mkfs.ntfs >/dev/null 2>&1; then \
+			PART_START=$$(parted -ms $@ unit s print | awk -F: '$$1=="1"{gsub("s","",$$2); print $$2}'); \
+			PART_END=$$(parted -ms $@ unit s print | awk -F: '$$1=="1"{gsub("s","",$$3); print $$3}'); \
+			PART_SECTORS=$$((PART_END - PART_START + 1)); \
+			TMP_NTFS="$(BUILD_DIR)/boot-hd/nvme-unsupported-partition-$(ARCH).img"; \
+			rm -f "$$TMP_NTFS"; \
+			dd if=/dev/zero of="$$TMP_NTFS" bs=512 count="$$PART_SECTORS"; \
+			mkfs.ntfs -F -Q -L EXOS_NTFS "$$TMP_NTFS" >/dev/null; \
+			dd if="$$TMP_NTFS" of=$@ bs=512 seek="$$PART_START" conv=notrunc; \
+			rm -f "$$TMP_NTFS"; \
+		else \
+			echo "WARNING: mkfs.ntfs not found, image keeps only NTFS partition type"; \
+		fi; \
 	fi
 
 ifeq ($(TEST_PAYLOAD),1)

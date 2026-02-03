@@ -135,6 +135,16 @@ typedef struct tag_NTFS_STDINFO {
 
 /***************************************************************************/
 
+typedef struct tag_NTFS_VOLUME_GEOMETRY {
+    U32 BytesPerSector;
+    U32 SectorsPerCluster;
+    U32 BytesPerCluster;
+    U64 MftStartCluster;
+    STR VolumeLabel[MAX_FS_LOGICAL_NAME];
+} NTFS_VOLUME_GEOMETRY, *LPNTFS_VOLUME_GEOMETRY;
+
+/***************************************************************************/
+
 #pragma pack(pop)
 
 /***************************************************************************/
@@ -149,6 +159,30 @@ typedef struct tag_NTFS_STDINFO {
  * @return TRUE on success, FALSE on invalid parameters.
  */
 BOOL NtfsTimestampToDateTime(U64 NtfsTimestamp, LPDATETIME DateTime);
+
+/***************************************************************************/
+
+/**
+ * @brief Mount an NTFS partition after validating its boot sector.
+ *
+ * @param Disk Physical disk pointer.
+ * @param Partition Partition descriptor.
+ * @param Base Base LBA offset.
+ * @param PartIndex Partition index used for volume naming.
+ * @return TRUE on success, FALSE when validation or allocation fails.
+ */
+BOOL MountPartition_NTFS(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex);
+
+/***************************************************************************/
+
+/**
+ * @brief Retrieve cached NTFS geometry for a mounted volume.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param Geometry Destination geometry structure.
+ * @return TRUE on success, FALSE on invalid parameters.
+ */
+BOOL NtfsGetVolumeGeometry(LPFILESYSTEM FileSystem, LPNTFS_VOLUME_GEOMETRY Geometry);
 
 /***************************************************************************/
 

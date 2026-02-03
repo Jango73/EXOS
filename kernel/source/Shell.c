@@ -26,6 +26,7 @@
 #include "Clock.h"
 #include "Console.h"
 #include "drivers/Keyboard.h"
+#include "drivers/NTFS.h"
 #include "drivers/NVMe-Core.h"
 #include "drivers/XHCI.h"
 #include "drivers/USBMassStorage.h"
@@ -1439,6 +1440,23 @@ static U32 CMD_filesystem(LPSHELLCONTEXT Context) {
             ConsolePrint(TEXT("Scheme       : %s\n"), FileSystemGetPartitionSchemeName(FileSystem->Partition.Scheme));
             ConsolePrint(TEXT("Type         : %s\n"), FileSystemGetPartitionTypeName(&FileSystem->Partition));
             ConsolePrint(TEXT("Format       : %s\n"), FileSystemGetPartitionFormatName(FileSystem->Partition.Format));
+            if (FileSystem->Partition.Format == PARTITION_FORMAT_NTFS) {
+                NTFS_VOLUME_GEOMETRY Geometry;
+                MemorySet(&Geometry, 0, sizeof(NTFS_VOLUME_GEOMETRY));
+                if (NtfsGetVolumeGeometry(FileSystem, &Geometry)) {
+                    ConsolePrint(TEXT("NTFS bytes/sector   : %u\n"), Geometry.BytesPerSector);
+                    ConsolePrint(TEXT("NTFS sectors/cluster: %u\n"), Geometry.SectorsPerCluster);
+                    ConsolePrint(TEXT("NTFS bytes/cluster  : %u\n"), Geometry.BytesPerCluster);
+                    ConsolePrint(TEXT("NTFS MFT LCN : %x, %x\n"),
+                        (U32)U64_High32(Geometry.MftStartCluster),
+                        (U32)U64_Low32(Geometry.MftStartCluster));
+                    if (StringEmpty(Geometry.VolumeLabel)) {
+                        ConsolePrint(TEXT("NTFS label   : <unknown>\n"));
+                    } else {
+                        ConsolePrint(TEXT("NTFS label   : %s\n"), Geometry.VolumeLabel);
+                    }
+                }
+            }
             ConsolePrint(TEXT("Index        : %u\n"), FileSystem->Partition.Index);
             ConsolePrint(TEXT("Start sector : %u\n"), FileSystem->Partition.StartSector);
             ConsolePrint(TEXT("Size         : %u sectors (%u MiB)\n"),

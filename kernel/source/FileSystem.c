@@ -25,6 +25,7 @@
 #include "FileSystem.h"
 
 #include "Console.h"
+#include "drivers/NTFS.h"
 #include "File.h"
 #include "Kernel.h"
 #include "Log.h"
@@ -37,7 +38,6 @@
 
 extern BOOL MountPartition_FAT16(LPSTORAGE_UNIT, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_FAT32(LPSTORAGE_UNIT, LPBOOTPARTITION, U32, U32);
-extern BOOL MountPartition_NTFS(LPSTORAGE_UNIT, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_EXFS(LPSTORAGE_UNIT, LPBOOTPARTITION, U32, U32);
 extern BOOL MountPartition_EXT2(LPSTORAGE_UNIT, LPBOOTPARTITION, U32, U32);
 
@@ -544,10 +544,9 @@ static BOOL MountDiskPartitionsGpt(LPSTORAGE_UNIT Disk) {
             continue;
         }
 
-        if (GptGuidEquals(Entry.TypeGuid, GptGuidEfiSystem) ||
-            GptGuidEquals(Entry.TypeGuid, GptGuidMicrosoftBasicData)) {
+        if (GptGuidEquals(Entry.TypeGuid, GptGuidEfiSystem)) {
             U32 MountedFormat = PARTITION_FORMAT_UNKNOWN;
-            DEBUG(TEXT("[MountDiskPartitionsGpt] FAT partition detected at entry %u"), EntryIndex);
+            DEBUG(TEXT("[MountDiskPartitionsGpt] EFI FAT partition detected at entry %u"), EntryIndex);
             if (MountGptFatPartition(Disk, &Partition, EntryIndex, &MountedFormat)) {
                 LPFILESYSTEM MountedFileSystem = ResolveMountedFileSystem(PreviousLast);
                 SetFileSystemPartitionInfo(MountedFileSystem,
@@ -570,6 +569,47 @@ static BOOL MountDiskPartitionsGpt(LPSTORAGE_UNIT Disk) {
                     Partition.LBA,
                     Partition.Size,
                     PARTITION_FORMAT_UNKNOWN);
+            }
+            continue;
+        }
+
+        if (GptGuidEquals(Entry.TypeGuid, GptGuidMicrosoftBasicData)) {
+            U32 MountedFormat = PARTITION_FORMAT_UNKNOWN;
+            DEBUG(TEXT("[MountDiskPartitionsGpt] Microsoft basic data detected at entry %u"), EntryIndex);
+            if (MountGptFatPartition(Disk, &Partition, EntryIndex, &MountedFormat)) {
+                LPFILESYSTEM MountedFileSystem = ResolveMountedFileSystem(PreviousLast);
+                SetFileSystemPartitionInfo(MountedFileSystem,
+                    PARTITION_SCHEME_GPT,
+                    FSID_NONE,
+                    Entry.TypeGuid,
+                    EntryIndex,
+                    0,
+                    Partition.LBA,
+                    Partition.Size,
+                    MountedFormat,
+                    TRUE);
+            } else if (MountPartition_NTFS(Disk, &Partition, 0u, EntryIndex)) {
+                LPFILESYSTEM MountedFileSystem = ResolveMountedFileSystem(PreviousLast);
+                SetFileSystemPartitionInfo(MountedFileSystem,
+                    PARTITION_SCHEME_GPT,
+                    FSID_NONE,
+                    Entry.TypeGuid,
+                    EntryIndex,
+                    0,
+                    Partition.LBA,
+                    Partition.Size,
+                    PARTITION_FORMAT_NTFS,
+                    TRUE);
+            } else {
+                RegisterUnusedFileSystem(Disk,
+                    PARTITION_SCHEME_GPT,
+                    FSID_NONE,
+                    Entry.TypeGuid,
+                    EntryIndex,
+                    0,
+                    Partition.LBA,
+                    Partition.Size,
+                    PARTITION_FORMAT_NTFS);
             }
             continue;
         }
@@ -633,6 +673,7 @@ static void ReadKernelConfiguration(void) {
 static BOOL FileSystemHasConfigFile(LPFILESYSTEM FileSystem, LPCSTR Name) {
     FILEINFO Info;
     LPFILE File;
+    UINT Result;
 
     if (FileSystem == NULL || Name == NULL) return FALSE;
 
@@ -642,11 +683,14 @@ static BOOL FileSystemHasConfigFile(LPFILESYSTEM FileSystem, LPCSTR Name) {
     Info.Flags = FILE_OPEN_READ;
     StringCopy(Info.Name, Name);
 
-    File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (UINT)&Info);
-    if (File == NULL) return FALSE;
+    Result = FileSystem->Driver->Command(DF_FS_OPENFILE, (UINT)&Info);
+    File = (LPFILE)Result;
+    SAFE_USE_VALID_ID(File, KOID_FILE) {
+        FileSystem->Driver->Command(DF_FS_CLOSEFILE, (UINT)File);
+        return TRUE;
+    }
 
-    FileSystem->Driver->Command(DF_FS_CLOSEFILE, (UINT)File);
-    return TRUE;
+    return FALSE;
 }
 
 /***************************************************************************/
@@ -1051,8 +1095,9 @@ BOOL MountDiskPartitions(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
 
                 case FSID_OS2_HPFS: {
                     PartitionFormat = PARTITION_FORMAT_NTFS;
-                    WARNING(TEXT("[MountDiskPartitions] NTFS partition detected but not implemented"));
-                    PartitionMounted = FALSE;
+                    DEBUG(TEXT("[MountDiskPartitions] Mounting NTFS partition"));
+                    PartitionMounted =
+                        MountPartition_NTFS(Disk, Partition + Index, Base, Index);
                 } break;
 
                 case FSID_EXOS: {

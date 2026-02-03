@@ -14,11 +14,11 @@
 
 **Goal**: validate NTFS volume and extract core geometry.
 
-- [ ] Read boot sector, check OEM and signature.
-- [ ] Parse bytes per sector, sectors per cluster, MFT start cluster.
-- [ ] Support only standard sector sizes (reject exotic values).
+- [X] Read boot sector, check OEM and signature.
+- [X] Parse bytes per sector, sectors per cluster, MFT start cluster.
+- [X] Support only standard sector sizes (reject exotic values).
 
-**Success**: `fsctl volume` prints NTFS geometry and volume label.
+**Success**: `fs --long` prints NTFS geometry and the current volume label state.
 
 ## Step 2 --- MFT read (minimal)
 
