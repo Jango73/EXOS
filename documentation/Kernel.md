@@ -304,6 +304,8 @@ Everything in this sequence runs in 16-bit real mode on x86-32+ processors. Howe
 | **ZFS** | COW, pools, checksums, RAID-Z, snapshots | 7 | 10 | Includes volume mgmt; very large scope. |
 | **NTFS** | MFT, resident/non-resident attrs, bitmap, journal | 7 | 9 | Compression, sparse, ACLs, USN; very rich design. |
 
+The shared cluster cache helper is implemented in `kernel/source/drivers/ClusterCache.c` with its public interface in `kernel/include/drivers/ClusterCache.h`. It reuses the generic `utils/Cache` engine (TTL, cleanup, eviction) and adds cluster-oriented keys (`owner + cluster index + size`) so multiple filesystem drivers can share one non-duplicated cache pattern.
+
 ## Tasks
 
 ### Architecture-specific task data

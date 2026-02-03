@@ -2,9 +2,9 @@
 
 ## Prerequisites (one-time)
 
-- [ ] **Block device**: read sectors with LBA, 512 bytes or 4K.
-- [ ] **Partition**: identify NTFS partition in GPT or MBR, expose start LBA.
-- [ ] **Cache**: basic read cache for clusters (read-only).
+- [ ] **Block device**: read sectors with LBA, 512 bytes or 4K. (LBA + 512 bytes validated; 4K sector path still to validate.)
+- [X] **Partition**: identify NTFS partition in GPT or MBR, expose start LBA.
+- [X] **Cache**: cache for clusters.
 - [ ] **Unicode**: UTF-16LE decode for file and folder names.
 - [ ] **DATETIME**: convert NTFS timestamps to DATETIME structure.
 
