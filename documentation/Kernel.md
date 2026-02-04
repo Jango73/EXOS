@@ -449,9 +449,9 @@ exos-runtime-c.c : malloc() (or any other function)
                     └── whew... finally job is done
 ```
 
-`USE_SYSCALL` is a project-level build flag (`make ARCH=x86-64 USE_SYSCALL=1`) that selects between the legacy interrupt gate and the SYSCALL/SYSRET pair on x86-64. The flag has no effect on x86-32 builds.
+`USE_SYSCALL` is a project-level build flag (`./scripts/build --arch x86-64 --fs ext2 --debug --use-syscall`) that selects between the legacy interrupt gate and the SYSCALL/SYSRET pair on x86-64. The flag has no effect on x86-32 builds.
 
-`SYSTEM_DATA_VIEW` is a project-level build flag (`make ARCH=x86-32 SYSTEM_DATA_VIEW=1`) that enables the System Data View mode before task creation. The mode shows the system data pages, uses the kernel keyboard input for navigation (left/right to change page, up/down to scroll), and exits on `Esc` to continue boot.
+`SYSTEM_DATA_VIEW` is a project-level build flag (`./scripts/build --arch x86-32 --fs ext2 --system-data-view`) that enables the System Data View mode before task creation. The mode shows the system data pages, uses the kernel keyboard input for navigation (left/right to change page, up/down to scroll), and exits on `Esc` to continue boot.
 
 ## Process and Task Lifecycle Management
 

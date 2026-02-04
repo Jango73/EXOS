@@ -7,7 +7,7 @@ Context
 -------
 - Target: x86-64, UEFI boot on bare metal (Predator laptop)
 - QEMU UEFI boots successfully
-- Build: debug split (`DEBUG_SPLIT=1`)
+- Build: debug split (`./scripts/build --arch x86-64 --fs ext2 --debug --split`)
 
 Observed Color Markers (baseline)
 ---------------------------------

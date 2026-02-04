@@ -2,17 +2,21 @@
 set -e
 
 function Usage() {
-    echo "Usage: $0 --arch <x86-32|x86-64> --fs <ext2|fat32> [--debug|--release] [--scheduling-debug] [--clean] [--force-pic] [--system-data-view] [--uefi]"
+    echo "Usage: $0 --arch <x86-32|x86-64> --fs <ext2|fat32> [--bare-metal] [--clean] [--debug|--release] [--force-pic] [--profiling] [--scheduling-debug] [--split] [--system-data-view] [--uefi] [--use-syscall]"
 }
 
 ARCH="x86-32"
-FILE_SYSTEM="ext2"
-DEBUG_OUTPUT=0
-CLEAN=0
-SCHEDULING_DEBUG=0
-FORCE_PIC=0
-SYSTEM_DATA_VIEW=0
+BARE_METAL=0
 BUILD_UEFI=0
+CLEAN=0
+DEBUG_OUTPUT=0
+DEBUG_SPLIT=0
+FILE_SYSTEM="ext2"
+FORCE_PIC=0
+PROFILING=0
+SCHEDULING_DEBUG=0
+SYSTEM_DATA_VIEW=0
+USE_SYSCALL=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -20,23 +24,36 @@ while [ $# -gt 0 ]; do
             shift
             ARCH="$1"
             ;;
+        --bare-metal)
+            BARE_METAL=1
+            ;;
+        --clean)
+            CLEAN=1
+            ;;
+        --debug)
+            DEBUG_OUTPUT=1
+            ;;
+        --force-pic)
+            FORCE_PIC=1
+            ;;
         --fs)
             shift
             FILE_SYSTEM="$1"
             ;;
-        --debug)
-            DEBUG_OUTPUT=1
+        --help|-h)
+            Usage
+            exit 0
+            ;;
+        --profiling)
+            PROFILING=1
             ;;
         --release)
             ;;
         --scheduling-debug)
             SCHEDULING_DEBUG=1
             ;;
-        --clean)
-            CLEAN=1
-            ;;
-        --force-pic)
-            FORCE_PIC=1
+        --split)
+            DEBUG_SPLIT=1
             ;;
         --system-data-view)
             SYSTEM_DATA_VIEW=1
@@ -44,9 +61,8 @@ while [ $# -gt 0 ]; do
         --uefi)
             BUILD_UEFI=1
             ;;
-        --help|-h)
-            Usage
-            exit 0
+        --use-syscall)
+            USE_SYSCALL=1
             ;;
         *)
             echo "Unknown option: $1"
@@ -77,7 +93,6 @@ case "$FILE_SYSTEM" in
         ;;
 esac
 
-PROFILING=0
 SCHEDULING_DEBUG_OUTPUT=0
 TRACE_STACK_USAGE=0
 
@@ -88,12 +103,15 @@ if [ "$SCHEDULING_DEBUG" -eq 1 ]; then
     TRACE_STACK_USAGE=1
 fi
 
-export PROFILING
+export BARE_METAL
 export DEBUG_OUTPUT
-export SCHEDULING_DEBUG_OUTPUT
-export TRACE_STACK_USAGE
+export DEBUG_SPLIT
 export FORCE_PIC
+export PROFILING
+export SCHEDULING_DEBUG_OUTPUT
 export SYSTEM_DATA_VIEW
+export TRACE_STACK_USAGE
+export USE_SYSCALL
 export KERNEL_FILE="exos.bin"
 export FILE_SYSTEM="$FILE_SYSTEM"
 
