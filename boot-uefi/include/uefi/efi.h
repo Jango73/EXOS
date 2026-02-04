@@ -52,6 +52,7 @@ typedef EFI_UINTN EFI_TPL;
 typedef U16 CHAR16;
 typedef U64 EFI_PHYSICAL_ADDRESS;
 typedef U64 EFI_VIRTUAL_ADDRESS;
+typedef void* EFI_EVENT;
 
 /************************************************************************/
 
@@ -394,6 +395,86 @@ struct tag_EFI_GRAPHICS_OUTPUT_PROTOCOL {
     EFI_GRAPHICS_OUTPUT_PROTOCOL_SET_MODE SetMode;
     EFI_GRAPHICS_OUTPUT_PROTOCOL_BLT Blt;
     EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* Mode;
+};
+
+/************************************************************************/
+// Simple Network Protocol (SNP)
+
+#define EFI_SIMPLE_NETWORK_MAX_MCAST_FILTER_CNT 16
+
+typedef struct tag_EFI_SIMPLE_NETWORK_PROTOCOL EFI_SIMPLE_NETWORK_PROTOCOL;
+typedef struct tag_EFI_SIMPLE_NETWORK_MODE EFI_SIMPLE_NETWORK_MODE;
+
+typedef struct tag_EFI_MAC_ADDRESS {
+    U8 Addr[32];
+} EFI_MAC_ADDRESS;
+
+typedef struct tag_EFI_IPv4_ADDRESS {
+    U8 Addr[4];
+} EFI_IPv4_ADDRESS;
+
+typedef EFI_STATUS(EFIAPI* EFI_SIMPLE_NETWORK_START)(
+    EFI_SIMPLE_NETWORK_PROTOCOL* This);
+
+typedef EFI_STATUS(EFIAPI* EFI_SIMPLE_NETWORK_STOP)(
+    EFI_SIMPLE_NETWORK_PROTOCOL* This);
+
+typedef EFI_STATUS(EFIAPI* EFI_SIMPLE_NETWORK_INITIALIZE)(
+    EFI_SIMPLE_NETWORK_PROTOCOL* This,
+    EFI_UINTN ExtraRxBufferSize,
+    EFI_UINTN ExtraTxBufferSize);
+
+typedef EFI_STATUS(EFIAPI* EFI_SIMPLE_NETWORK_SHUTDOWN)(
+    EFI_SIMPLE_NETWORK_PROTOCOL* This);
+
+typedef EFI_STATUS(EFIAPI* EFI_SIMPLE_NETWORK_TRANSMIT)(
+    EFI_SIMPLE_NETWORK_PROTOCOL* This,
+    EFI_UINTN HeaderSize,
+    EFI_UINTN BufferSize,
+    void* Buffer,
+    EFI_MAC_ADDRESS* SrcAddr,
+    EFI_MAC_ADDRESS* DestAddr,
+    U16* Protocol);
+
+struct tag_EFI_SIMPLE_NETWORK_MODE {
+    U32 State;
+    U32 HwAddressSize;
+    U32 MediaHeaderSize;
+    U32 MaxPacketSize;
+    U32 NvRamSize;
+    U32 NvRamAccessSize;
+    U32 ReceiveFilterMask;
+    U32 ReceiveFilterSetting;
+    U32 MaxMCastFilterCount;
+    U32 MCastFilterCount;
+    EFI_MAC_ADDRESS MCastFilter[EFI_SIMPLE_NETWORK_MAX_MCAST_FILTER_CNT];
+    EFI_MAC_ADDRESS CurrentAddress;
+    EFI_MAC_ADDRESS BroadcastAddress;
+    EFI_MAC_ADDRESS PermanentAddress;
+    U8 IfType;
+    BOOL MacAddressChangeable;
+    BOOL MultipleTxSupported;
+    BOOL MediaPresentSupported;
+    BOOL MediaPresent;
+};
+
+struct tag_EFI_SIMPLE_NETWORK_PROTOCOL {
+    U64 Revision;
+    EFI_SIMPLE_NETWORK_START Start;
+    EFI_SIMPLE_NETWORK_STOP Stop;
+    EFI_SIMPLE_NETWORK_INITIALIZE Initialize;
+    void* Reset;
+    EFI_SIMPLE_NETWORK_SHUTDOWN Shutdown;
+    void* ReceiveFilters;
+    void* StationAddress;
+    void* Statistics;
+    void* MCastIpToMac;
+    void* NvData;
+    void* GetStatus;
+    EFI_SIMPLE_NETWORK_TRANSMIT Transmit;
+    void* Receive;
+    EFI_EVENT WaitForPacket;
+    EFI_SIMPLE_NETWORK_MODE* Mode;
 };
 
 /************************************************************************/

@@ -36,7 +36,7 @@
         "C-d": { "label": "Build MBR Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug" },
         "C-f": { "label": "Build MBR Debug Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split" },
         "C-g": { "label": "Build UEFI Release", "script": "scripts/build --arch x86-64 --fs ext2 --release --uefi" },
-        "C-h": { "label": "Build UEFI Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug --uefi" },
+        "C-h": { "label": "Build UEFI Debug UDP", "script": "scripts/build --arch x86-64 --fs ext2 --debug --uefi --use-log-udp --log-udp-source 10.0.2.15:18195 --log-udp-dest 10.0.2.2:18194" },
         "C-j": { "label": "Build UEFI Debug Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split --uefi" },
 
         "f5": { "label": "Start QEMU", "script": "scripts/run --arch x86-64" },

@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "uefi/efi.h"
+#include "uefi/uefi-log-udp.h"
 #include "boot-multiboot.h"
 #include "vbr-realmode-utils.h"
 #include "CoreString.h"
@@ -83,6 +84,9 @@ static void BootUefiOutputHex32(EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL* ConsoleOut, con
 static void BootUefiOutputHex64(EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL* ConsoleOut, const char* Prefix, U64 Value);
 static void BootUefiSerialInit(U16 PortBase);
 static void BootUefiSerialWriteString(U16 PortBase, LPCSTR Text);
+static void BootUefiDebugTransportInit(BOOT_UEFI_CONTEXT* Context);
+static void BootUefiDebugTransportWrite(LPCSTR Text);
+static void BootUefiDebugTransportNotifyExitBootServices(void);
 static EFI_STATUS BootUefiOpenRootFileSystem(BOOT_UEFI_CONTEXT* Context, EFI_FILE_PROTOCOL** RootFileOut);
 static EFI_STATUS BootUefiGetFileSize(
     BOOT_UEFI_CONTEXT* Context,
@@ -471,6 +475,77 @@ static void BootUefiSerialWriteString(U16 PortBase, LPCSTR Text) {
         __asm__ __volatile__("outb %0, %1" ::"a"(Value), "Nd"(PortBase));
         Text++;
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Initialize debug transport (serial or UDP).
+ *
+ * @param Context UEFI context.
+ */
+static void BootUefiDebugTransportInit(BOOT_UEFI_CONTEXT* Context) {
+#if UEFI_LOG_USE_UDP == 1
+    if (Context == NULL) {
+        return;
+    }
+
+    BootUefiUdpLogInitialize(Context->BootServices);
+    U32 InitFlags = BootUefiUdpLogGetInitFlags();
+    BootUefiMarkStage(
+        Context,
+        11u,
+        (InitFlags & UEFI_UDP_INIT_FLAG_LOCATE_OK) != 0u ? 0u : 255u,
+        (InitFlags & UEFI_UDP_INIT_FLAG_LOCATE_OK) != 0u ? 200u : 0u,
+        0u);
+    BootUefiMarkStage(
+        Context,
+        12u,
+        (InitFlags & UEFI_UDP_INIT_FLAG_START_OK) != 0u ? 0u : 255u,
+        (InitFlags & UEFI_UDP_INIT_FLAG_START_OK) != 0u ? 200u : 0u,
+        0u);
+    BootUefiMarkStage(
+        Context,
+        13u,
+        (InitFlags & UEFI_UDP_INIT_FLAG_INITIALIZE_OK) != 0u ? 0u : 255u,
+        (InitFlags & UEFI_UDP_INIT_FLAG_INITIALIZE_OK) != 0u ? 200u : 0u,
+        0u);
+    BootUefiMarkStage(
+        Context,
+        14u,
+        (InitFlags & UEFI_UDP_INIT_FLAG_ENABLED) != 0u ? 0u : 255u,
+        (InitFlags & UEFI_UDP_INIT_FLAG_ENABLED) != 0u ? 200u : 0u,
+        0u);
+#else
+    UNUSED(Context);
+    BootUefiSerialInit(0x3F8u);
+#endif
+}
+
+/************************************************************************/
+
+/**
+ * @brief Write text to the selected debug transport.
+ *
+ * @param Text Text to output.
+ */
+static void BootUefiDebugTransportWrite(LPCSTR Text) {
+#if UEFI_LOG_USE_UDP == 1
+    BootUefiUdpLogWrite(Text);
+#else
+    BootUefiSerialWriteString(0x3F8u, Text);
+#endif
+}
+
+/************************************************************************/
+
+/**
+ * @brief Notify transport that boot services are no longer available.
+ */
+static void BootUefiDebugTransportNotifyExitBootServices(void) {
+#if UEFI_LOG_USE_UDP == 1
+    BootUefiUdpLogNotifyExitBootServices();
+#endif
 }
 
 /************************************************************************/
@@ -1638,7 +1713,7 @@ static void NORETURN BootUefiEnterKernel(
     U32 KernelPhysicalBase,
     U64 UefiImageBase,
     U64 UefiImageSize) {
-    BootUefiSerialWriteString(0x3F8u, (LPCSTR)"[EfiMain] ExitBootServices ok\r\n");
+    BootUefiDebugTransportWrite((LPCSTR)"[EfiMain] ExitBootServices ok\r\n");
     UefiStubMultibootInfoPtr = MultibootInfoPtr;
     UefiStubMultibootMagic = MULTIBOOT_BOOTLOADER_MAGIC;
     UefiStubKernelPhysicalBase = KernelPhysicalBase;
@@ -1651,9 +1726,9 @@ static void NORETURN BootUefiEnterKernel(
 #if UEFI_EARLY_HALT == 1
     BootUefiHaltNoServices();
 #endif
-    BootUefiSerialWriteString(0x3F8u, (LPCSTR)"[EfiMain] Calling EnterProtectedPagingAndJump\r\n");
+    BootUefiDebugTransportWrite((LPCSTR)"[EfiMain] Calling EnterProtectedPagingAndJump\r\n");
     EnterProtectedPagingAndJump(FileSize, MultibootInfoPtr, UefiImageBase, UefiImageSize);
-    BootUefiSerialWriteString(0x3F8u, (LPCSTR)"[EfiMain] Returned from EnterProtectedPagingAndJump\r\n");
+    BootUefiDebugTransportWrite((LPCSTR)"[EfiMain] Returned from EnterProtectedPagingAndJump\r\n");
     __asm__ __volatile__("ud2");
     Hang();
 }
@@ -1680,7 +1755,8 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 
     BootUefiMarkStage(&Context, 0u, 255u, 0u, 0u);
     BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] Starting EXOS UEFI boot\r\n");
-    BootUefiSerialInit(0x3F8u);
+    BootUefiDebugTransportInit(&Context);
+    BootUefiDebugTransportWrite((LPCSTR)"[EfiMain] Debug transport initialized\r\n");
     BootUefiMarkStage(&Context, 1u, 255u, 128u, 0u);
 
     EFI_FILE_PROTOCOL* RootFile = NULL;
@@ -1688,6 +1764,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     if (Status != EFI_SUCCESS) {
         return Status;
     }
+    BootUefiDebugTransportWrite((LPCSTR)"[EfiMain] Root folder opened\r\n");
     BootUefiMarkStage(&Context, 2u, 255u, 255u, 0u);
 
     const CHAR16 KernelPath[] = { '\\', 'e', 'x', 'o', 's', '.', 'b', 'i', 'n', 0 };
@@ -1708,6 +1785,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     if (Status != EFI_SUCCESS) {
         return Status;
     }
+    BootUefiDebugTransportWrite((LPCSTR)"[EfiMain] Kernel loaded\r\n");
     BootUefiMarkStage(&Context, 3u, 0u, 255u, 0u);
 
     BOOT_UEFI_MULTIBOOT_LAYOUT MultibootLayout;
@@ -1716,6 +1794,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     if (Status != EFI_SUCCESS) {
         return Status;
     }
+    BootUefiDebugTransportWrite((LPCSTR)"[EfiMain] Multiboot data allocated\r\n");
     BootUefiMarkStage(&Context, 4u, 0u, 255u, 255u);
 
     E820ENTRY E820Map[E820_MAX_ENTRIES];
@@ -1737,6 +1816,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 #endif
 
     U32 RsdpPhysicalLow = BootUefiGetRsdpPhysicalLow(&Context);
+    BootUefiDebugTransportWrite((LPCSTR)"[EfiMain] RSDP captured\r\n");
     BootUefiMarkStage(&Context, 6u, 0u, 0u, 255u);
 
     EFI_MEMORY_DESCRIPTOR* MemoryMap = NULL;
@@ -1744,11 +1824,13 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     EFI_UINTN DescriptorSize = 0;
     // This is the last point where boot services are callable.
     BootUefiMarkStage(&Context, 7u, 128u, 0u, 255u);
+    BootUefiDebugTransportWrite((LPCSTR)"[EfiMain] Entering ExitBootServices\r\n");
     Status = BootUefiExitBootServicesWithRetry(&Context, &MemoryMap, &MemoryMapSize, &DescriptorSize);
     if (Status != EFI_SUCCESS) {
         return Status;
     }
     Context.BootServicesExited = TRUE;
+    BootUefiDebugTransportNotifyExitBootServices();
     BootUefiMarkStage(&Context, 8u, 255u, 0u, 255u);
 
     U32 E820Count = BootUefiBuildE820Map(

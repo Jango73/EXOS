@@ -12,6 +12,17 @@ UEFI_STUB_TEST ?= 0
 UEFI_STUB_EARLY_CALL ?= 0
 UEFI_STUB_REPLACE ?= 0
 UEFI_STUB_C_FALLBACK ?= 0
+UEFI_LOG_USE_UDP ?= 0
+UEFI_LOG_UDP_DEST_IP_0 ?= 192
+UEFI_LOG_UDP_DEST_IP_1 ?= 168
+UEFI_LOG_UDP_DEST_IP_2 ?= 50
+UEFI_LOG_UDP_DEST_IP_3 ?= 1
+UEFI_LOG_UDP_SOURCE_IP_0 ?= 192
+UEFI_LOG_UDP_SOURCE_IP_1 ?= 168
+UEFI_LOG_UDP_SOURCE_IP_2 ?= 50
+UEFI_LOG_UDP_SOURCE_IP_3 ?= 2
+UEFI_LOG_UDP_DEST_PORT ?= 18194
+UEFI_LOG_UDP_SOURCE_PORT ?= 18195
 
 KERNEL_BIN := $(BUILD_DIR)/kernel/exos.bin
 UEFI_IMAGE := $(UEFI_BUILD_DIR)/exos-uefi.img
@@ -63,6 +74,17 @@ CFLAGS := -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
           -DUEFI_STUB_EARLY_CALL=$(UEFI_STUB_EARLY_CALL) \
           -DUEFI_STUB_REPLACE=$(UEFI_STUB_REPLACE) \
           -DUEFI_STUB_C_FALLBACK=$(UEFI_STUB_C_FALLBACK) \
+          -DUEFI_LOG_USE_UDP=$(UEFI_LOG_USE_UDP) \
+          -DUEFI_LOG_UDP_DEST_IP_0=$(UEFI_LOG_UDP_DEST_IP_0) \
+          -DUEFI_LOG_UDP_DEST_IP_1=$(UEFI_LOG_UDP_DEST_IP_1) \
+          -DUEFI_LOG_UDP_DEST_IP_2=$(UEFI_LOG_UDP_DEST_IP_2) \
+          -DUEFI_LOG_UDP_DEST_IP_3=$(UEFI_LOG_UDP_DEST_IP_3) \
+          -DUEFI_LOG_UDP_SOURCE_IP_0=$(UEFI_LOG_UDP_SOURCE_IP_0) \
+          -DUEFI_LOG_UDP_SOURCE_IP_1=$(UEFI_LOG_UDP_SOURCE_IP_1) \
+          -DUEFI_LOG_UDP_SOURCE_IP_2=$(UEFI_LOG_UDP_SOURCE_IP_2) \
+          -DUEFI_LOG_UDP_SOURCE_IP_3=$(UEFI_LOG_UDP_SOURCE_IP_3) \
+          -DUEFI_LOG_UDP_DEST_PORT=$(UEFI_LOG_UDP_DEST_PORT) \
+          -DUEFI_LOG_UDP_SOURCE_PORT=$(UEFI_LOG_UDP_SOURCE_PORT) \
           -DARCH=$(ARCH) \
           -Iinclude -I../boot-hd/include -I../boot-shared/include -I../kernel/include
 
@@ -71,12 +93,14 @@ LDFLAGS := /subsystem:efi_application /entry:EfiMain /nodefaultlib /dll /machine
 UEFI_BOOT_FILE_PATH := $(UEFI_BUILD_DIR)/$(UEFI_BOOT_FILE)
 
 UEFI_C_SOURCES := source/boot-uefi.c \
+                  source/uefi-log-udp.c \
                   source/uefi-compat.c \
                   ../boot-shared/source/boot-multiboot.c \
                   ../kernel/source/CoreString.c \
                   $(UEFI_ARCH_SOURCE)
 
 UEFI_C_OBJS := $(UEFI_BUILD_DIR)/boot-uefi.o \
+               $(UEFI_BUILD_DIR)/uefi-log-udp.o \
                $(UEFI_BUILD_DIR)/uefi-compat.o \
                $(UEFI_BUILD_DIR)/boot-multiboot.o \
                $(UEFI_BUILD_DIR)/CoreString.o \
@@ -116,6 +140,10 @@ $(UEFI_BUILD_DIR)/boot-multiboot.o: ../boot-shared/source/boot-multiboot.c | $(U
 
 $(UEFI_BUILD_DIR)/uefi-compat.o: source/uefi-compat.c | $(UEFI_BUILD_DIR)
 	@echo "Compiling UEFI compat..."
+	$(CC) -target $(UEFI_TARGET) $(CFLAGS) -c $< -o $@
+
+$(UEFI_BUILD_DIR)/uefi-log-udp.o: source/uefi-log-udp.c | $(UEFI_BUILD_DIR)
+	@echo "Compiling UEFI UDP logger..."
 	$(CC) -target $(UEFI_TARGET) $(CFLAGS) -c $< -o $@
 
 $(UEFI_BUILD_DIR)/CoreString.o: ../kernel/source/CoreString.c | $(UEFI_BUILD_DIR)

@@ -9,6 +9,15 @@ Context
 - QEMU UEFI boots successfully
 - Build: debug split (`./scripts/build --arch x86-64 --fs ext2 --debug --split`)
 
+UDP log capture (RJ45)
+----------------------
+- Build with UDP logger enabled:
+  - `./scripts/build --arch x86-64 --fs ext2 --debug --split --clean --uefi --use-log-udp --log-udp-source 192.168.50.2:18195 --log-udp-dest 192.168.50.1:18194`
+- Listen on the workstation:
+  - `./scripts/utils/uefi-udp-log-listen.sh --bind 0.0.0.0 --port 18194`
+- Optional raw capture:
+  - `./scripts/utils/uefi-udp-log-listen.sh --port 18194 --raw /tmp/uefi-udp.log`
+
 Observed Color Markers (baseline)
 ---------------------------------
 On bare metal:

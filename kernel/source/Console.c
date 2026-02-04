@@ -119,6 +119,7 @@ CONSOLE_STRUCT Console = {
 /***************************************************************************/
 
 static BOOL ConsoleFramebufferMappingInProgress = FALSE;
+static BOOL ConsoleFirstOutputOffsetPending = TRUE;
 
 /***************************************************************************/
 
@@ -466,6 +467,25 @@ static void ConsoleScrollRegionFramebuffer(U32 RegionIndex) {
                 ConsoleWritePixel(PixelX + Col, PixelY + Row, Background);
             }
         }
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Move the first console output to the second line once.
+ *
+ * Keeps the top line available for early boot visual markers.
+ */
+static void ConsoleApplyFirstOutputOffset(void) {
+    if (ConsoleFirstOutputOffsetPending == FALSE) {
+        return;
+    }
+
+    ConsoleFirstOutputOffsetPending = FALSE;
+
+    if (Console.CursorX == 0u && Console.CursorY == 0u && Console.Height > 1u) {
+        Console.CursorY = 1u;
     }
 }
 
@@ -1106,6 +1126,7 @@ void ConsolePrintChar(STR Char) {
     ProfileStart(&Scope, TEXT("ConsolePrintChar"));
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
+    ConsoleApplyFirstOutputOffset();
 
     if (Char == STR_NEWLINE) {
         Console.CursorX = 0;
