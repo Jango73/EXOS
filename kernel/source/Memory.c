@@ -216,11 +216,28 @@ void MarkUsedPhysicalMemory(void) {
         return;
     }
 
-    PHYSICAL PpbPhysicalBase = (PHYSICAL)(UINT)(Bitmap);
-    PHYSICAL ReservedEnd = PAGE_ALIGN(PpbPhysicalBase + (PHYSICAL)BitmapSize);
-    UINT ReservedPageCount = (UINT)(ReservedEnd >> PAGE_SIZE_MUL);
+    LINEAR BitmapLinear = (LINEAR)(Bitmap);
+    PHYSICAL PpbPhysicalBase = 0;
 
-    SetPhysicalPageRangeMark(0, ReservedPageCount, 1);
+    if (BitmapLinear >= (LINEAR)VMA_KERNEL) {
+        PpbPhysicalBase = KernelStartup.KernelPhysicalBase + (PHYSICAL)(BitmapLinear - (LINEAR)VMA_KERNEL);
+    } else {
+        PpbPhysicalBase = (PHYSICAL)(UINT)(Bitmap);
+    }
+    PHYSICAL ReservedEnd = PAGE_ALIGN(PpbPhysicalBase + (PHYSICAL)BitmapSize);
+    PHYSICAL ReservedLowEnd = (PHYSICAL)RESERVED_LOW_MEMORY;
+    PHYSICAL LoaderReservedStart = KernelStartup.KernelPhysicalBase;
+
+    // Always keep low physical memory reserved for legacy structures.
+    SetPhysicalPageRangeMark(0, (UINT)(ReservedLowEnd >> PAGE_SIZE_MUL), 1);
+
+    // Reserve the loader-owned contiguous span: kernel image, bootstrap paging
+    // workspace and the physical page bitmap itself.
+    if (LoaderReservedStart != 0 && ReservedEnd > LoaderReservedStart) {
+        UINT FirstPage = (UINT)(LoaderReservedStart >> PAGE_SIZE_MUL);
+        UINT PageCount = (UINT)((ReservedEnd - LoaderReservedStart) >> PAGE_SIZE_MUL);
+        SetPhysicalPageRangeMark(FirstPage, PageCount, 1);
+    }
 
     // Derive total memory size and number of pages from the Multiboot map
     for (UINT i = 0; i < KernelStartup.MultibootMemoryEntryCount; i++) {

@@ -42,6 +42,7 @@ static const U64 KERNEL_LONG_MODE_BASE = (U64)CONFIG_VMA_KERNEL;
 static const UINT MAX_KERNEL_PAGE_TABLES = 64u;
 static const U32 TEMP_LINEAR_LAST_OFFSET = 0x00102000u;
 static const U32 TEMP_LINEAR_REQUIRED_SPAN = TEMP_LINEAR_LAST_OFFSET + PAGE_SIZE;
+static const U32 KERNEL_IDENTITY_WORKSPACE_SPAN = N_2MB;
 
 enum {
     LONG_MODE_ENTRY_GLOBAL = 0x00000001u,
@@ -497,9 +498,15 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize, U64
         ++TableIndex;
     }
 
+    U64 NextTablePhysical = (U64)BaseTablePhysical + (U64)(TablesRequired * PAGE_TABLE_SIZE);
+
+    MapIdentityRange(
+        U64_FromU32(KernelPhysBase),
+        U64_FromU32(MapSize + KERNEL_IDENTITY_WORKSPACE_SPAN),
+        &NextTablePhysical);
+
 #if defined(BOOT_UEFI)
     if (UefiImageSize != 0) {
-        U64 NextTablePhysical = (U64)BaseTablePhysical + (U64)(TablesRequired * PAGE_TABLE_SIZE);
         MapIdentityRange(UefiImageBase, UefiImageSize, &NextTablePhysical);
     }
 #else

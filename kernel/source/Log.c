@@ -40,14 +40,10 @@
 #define KERNEL_LOG_VER_MINOR 0
 #define KERNEL_LOG_TAG_FILTER_MAX_LENGTH 256
 
-static CSTR KernelLogDefaultTagFilter[] =
-    "[NVMeAttach],[NVMeSubmitAdminCommand],[NVMeIdentifyNamespaceList],[NVMeIdentifyNamespace],[NVMeRegisterNamespaces],"
-    "[NVMeReadTest],[NVMeReadSectors],[MountDiskPartitions],[MountDiskPartitionsGpt],[MountGptFatPartition]";
-
+static CSTR KernelLogDefaultTagFilter[] = "";
 static STR KernelLogTagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
 
 static UINT KernelLogDriverCommands(UINT Function, UINT Parameter);
-static void KernelLogSerialDiag(LPCSTR Text);
 static BOOL KernelLogIsTagSeparator(STR Char);
 static BOOL KernelLogFilterContainsTag(LPCSTR Tag, U32 TagLength);
 static BOOL KernelLogShouldEmit(LPCSTR Text);
@@ -79,36 +75,14 @@ LPDRIVER KernelLogGetDriver(void) {
 /************************************************************************/
 
 /**
- * @brief Emit a short debug line directly to the serial log port.
- *
- * @param Text Null-terminated text to send.
- */
-static void KernelLogSerialDiag(LPCSTR Text) {
-    SAFE_USE(Text) {
-        for (U32 Index = 0; Index < 0x1000; Index++) {
-            STR Char = Text[Index];
-            if (Char == STR_NULL) {
-                break;
-            }
-            SerialOut(LOG_COM_INDEX, Char);
-        }
-    }
-}
-
-/************************************************************************/
-
-/**
  * @brief Initializes the kernel logging system.
  *
  * Sets up the serial port used for kernel log output by resetting
  * the designated communication port.
  */
 void InitKernelLog(void) {
-    KernelLogSerialDiag(TEXT("T0> TEST > [InitKernelLog] Enter\r\n"));
     SerialReset(LOG_COM_INDEX);
-    KernelLogSerialDiag(TEXT("T0> TEST > [InitKernelLog] SerialReset done\r\n"));
     KernelLogSetTagFilter(KernelLogDefaultTagFilter);
-    KernelLogSerialDiag(TEXT("T0> TEST > [InitKernelLog] TagFilter done\r\n"));
 }
 
 /************************************************************************/
@@ -304,15 +278,12 @@ static UINT KernelLogDriverCommands(UINT Function, UINT Parameter) {
 
     switch (Function) {
         case DF_LOAD:
-            KernelLogSerialDiag(TEXT("T0> TEST > [KernelLogDriverCommands] DF_LOAD enter\r\n"));
             if ((KernelLogDriver.Flags & DRIVER_FLAG_READY) != 0) {
-                KernelLogSerialDiag(TEXT("T0> TEST > [KernelLogDriverCommands] Already ready\r\n"));
                 return DF_RETURN_SUCCESS;
             }
 
             InitKernelLog();
             KernelLogDriver.Flags |= DRIVER_FLAG_READY;
-            KernelLogSerialDiag(TEXT("T0> TEST > [KernelLogDriverCommands] DF_LOAD done\r\n"));
             return DF_RETURN_SUCCESS;
 
         case DF_UNLOAD:

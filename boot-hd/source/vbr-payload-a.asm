@@ -33,6 +33,7 @@ BITS 16
 
 ORIGIN equ PAYLOAD_ADDRESS
 KERNEL_LOAD_ADDRESS      equ 0x200000
+TRANSITION_STACK_TOP     equ 0x001FF000
 
 %include "../kernel/source/arch/common/Cpu.inc"
 
@@ -1098,7 +1099,7 @@ LongModeEntry:
     mov         fs, ax
     mov         gs, ax
 
-    mov         rsp, KERNEL_LOAD_ADDRESS
+    mov         rsp, TRANSITION_STACK_TOP
     mov         rbp, rsp
 
     mov         eax, [LongModeMultibootMagic]
