@@ -37,6 +37,8 @@ typedef struct BOOT_UEFI_CONTEXT {
     EFI_SYSTEM_TABLE* SystemTable;
     EFI_BOOT_SERVICES* BootServices;
     EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL* ConsoleOut;
+    EFI_GRAPHICS_OUTPUT_PROTOCOL* GraphicsOutput;
+    BOOL BootServicesExited;
     U64 ImageBase;
     U64 ImageSize;
 } BOOT_UEFI_CONTEXT;
@@ -121,6 +123,10 @@ static U64 BootUefiShiftLeftPages(U64 Value);
 static BOOL BootUefiGetFramebufferInfo(BOOT_UEFI_CONTEXT* Context, BOOT_FRAMEBUFFER_INFO* FramebufferInfo);
 static U32 BootUefiMaskPosition(U32 Mask);
 static U32 BootUefiMaskSize(U32 Mask);
+static U32 BootUefiScaleColorToMask(U8 Value, U32 MaskSize);
+static EFI_GRAPHICS_OUTPUT_PROTOCOL* BootUefiGetGraphicsOutput(BOOT_UEFI_CONTEXT* Context);
+static U32 BootUefiComposePixelColor(const EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* Info, U8 Red, U8 Green, U8 Blue);
+static void BootUefiMarkStage(BOOT_UEFI_CONTEXT* Context, U32 StageIndex, U8 Red, U8 Green, U8 Blue);
 static void NORETURN BootUefiHaltNoServices(void);
 static EFI_STATUS BootUefiOpenRootFolder(BOOT_UEFI_CONTEXT* Context, EFI_FILE_PROTOCOL** RootFileOut);
 static EFI_STATUS BootUefiLoadKernelImage(
@@ -1007,6 +1013,189 @@ static U32 BootUefiMaskSize(U32 Mask) {
 
 /************************************************************************/
 
+/**
+ * @brief Scale an 8-bit color channel to an arbitrary mask width.
+ *
+ * @param Value Channel value in [0, 255].
+ * @param MaskSize Number of bits in the destination channel.
+ * @return Scaled value limited to mask width.
+ */
+static U32 BootUefiScaleColorToMask(U8 Value, U32 MaskSize) {
+    if (MaskSize == 0u) {
+        return 0u;
+    }
+
+    if (MaskSize >= 32u) {
+        return (U32)Value;
+    }
+
+    U32 MaxValue = (1u << MaskSize) - 1u;
+    return ((U32)Value * MaxValue) / 255u;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve and cache GOP pointer while boot services are available.
+ *
+ * @param Context Boot context.
+ * @return Cached GOP pointer, or NULL if unavailable.
+ */
+static EFI_GRAPHICS_OUTPUT_PROTOCOL* BootUefiGetGraphicsOutput(BOOT_UEFI_CONTEXT* Context) {
+    if (Context == NULL) {
+        return NULL;
+    }
+
+    if (Context->GraphicsOutput != NULL) {
+        return Context->GraphicsOutput;
+    }
+
+    if (Context->BootServicesExited == TRUE || Context->BootServices == NULL) {
+        return NULL;
+    }
+
+    EFI_GUID GraphicsOutputGuid = {
+        0x9042A9DEu, 0x23DCu, 0x4A38u,
+        {0x96, 0xFB, 0x7A, 0xDE, 0xD0, 0x80, 0x51, 0x6A}
+    };
+
+    EFI_GRAPHICS_OUTPUT_PROTOCOL* Graphics = NULL;
+    EFI_STATUS Status = Context->BootServices->LocateProtocol(
+        &GraphicsOutputGuid,
+        NULL,
+        (void**)&Graphics);
+    if (Status != EFI_SUCCESS || Graphics == NULL || Graphics->Mode == NULL || Graphics->Mode->Info == NULL) {
+        return NULL;
+    }
+
+    Context->GraphicsOutput = Graphics;
+    return Context->GraphicsOutput;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Compose a native framebuffer pixel value from RGB channels.
+ *
+ * @param Info GOP mode information.
+ * @param Red Red channel (8-bit).
+ * @param Green Green channel (8-bit).
+ * @param Blue Blue channel (8-bit).
+ * @return Pixel value in framebuffer format.
+ */
+static U32 BootUefiComposePixelColor(const EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* Info, U8 Red, U8 Green, U8 Blue) {
+    if (Info == NULL) {
+        return 0u;
+    }
+
+    if (Info->PixelFormat == PixelRedGreenBlueReserved8BitPerColor) {
+        return (U32)Red | ((U32)Green << 8) | ((U32)Blue << 16);
+    }
+
+    if (Info->PixelFormat == PixelBlueGreenRedReserved8BitPerColor) {
+        return (U32)Blue | ((U32)Green << 8) | ((U32)Red << 16);
+    }
+
+    if (Info->PixelFormat == PixelBitMask) {
+        U32 RedShift = BootUefiMaskPosition(Info->PixelInformation.RedMask);
+        U32 GreenShift = BootUefiMaskPosition(Info->PixelInformation.GreenMask);
+        U32 BlueShift = BootUefiMaskPosition(Info->PixelInformation.BlueMask);
+        U32 RedValue = BootUefiScaleColorToMask(Red, BootUefiMaskSize(Info->PixelInformation.RedMask));
+        U32 GreenValue = BootUefiScaleColorToMask(Green, BootUefiMaskSize(Info->PixelInformation.GreenMask));
+        U32 BlueValue = BootUefiScaleColorToMask(Blue, BootUefiMaskSize(Info->PixelInformation.BlueMask));
+        return (RedValue << RedShift) | (GreenValue << GreenShift) | (BlueValue << BlueShift);
+    }
+
+    return 0u;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Draw one colored boot stage marker in the top-left corner.
+ *
+ * @param Context Boot context.
+ * @param StageIndex Marker index on the first line.
+ * @param Red Marker red channel.
+ * @param Green Marker green channel.
+ * @param Blue Marker blue channel.
+ */
+static void BootUefiMarkStage(BOOT_UEFI_CONTEXT* Context, U32 StageIndex, U8 Red, U8 Green, U8 Blue) {
+    EFI_GRAPHICS_OUTPUT_PROTOCOL* Graphics = BootUefiGetGraphicsOutput(Context);
+    if (Graphics == NULL || Graphics->Mode == NULL || Graphics->Mode->Info == NULL) {
+        return;
+    }
+
+    EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* Info = Graphics->Mode->Info;
+    if (Info->PixelFormat == PixelBltOnly) {
+        return;
+    }
+
+    U32 BytesPerPixel = 4u;
+    if (Info->PixelFormat == PixelBitMask) {
+        U32 AllMask = Info->PixelInformation.RedMask |
+                      Info->PixelInformation.GreenMask |
+                      Info->PixelInformation.BlueMask |
+                      Info->PixelInformation.ReservedMask;
+        U32 Highest = 0u;
+        while (AllMask != 0u) {
+            Highest++;
+            AllMask >>= 1;
+        }
+        if (Highest == 0u) {
+            return;
+        }
+        BytesPerPixel = (Highest + 7u) / 8u;
+    }
+
+    if (BytesPerPixel == 0u || BytesPerPixel > 4u) {
+        return;
+    }
+
+    const U32 MarkerSize = 8u;
+    const U32 MarkerSpacing = 2u;
+    U32 StartX = 2u + StageIndex * (MarkerSize + MarkerSpacing);
+    U32 StartY = 2u;
+    if (StartX >= Info->HorizontalResolution || StartY >= Info->VerticalResolution) {
+        return;
+    }
+
+    U32 DrawWidth = MarkerSize;
+    U32 DrawHeight = MarkerSize;
+    if (StartX + DrawWidth > Info->HorizontalResolution) {
+        DrawWidth = Info->HorizontalResolution - StartX;
+    }
+    if (StartY + DrawHeight > Info->VerticalResolution) {
+        DrawHeight = Info->VerticalResolution - StartY;
+    }
+
+    U32 Pixel = BootUefiComposePixelColor(Info, Red, Green, Blue);
+    U8* FrameBuffer = (U8*)BootUefiPhysicalToPointer(Graphics->Mode->FrameBufferBase);
+    if (FrameBuffer == NULL) {
+        return;
+    }
+
+    U32 Pitch = Info->PixelsPerScanLine * BytesPerPixel;
+    for (U32 Y = 0u; Y < DrawHeight; Y++) {
+        U8* Row = FrameBuffer + ((StartY + Y) * Pitch) + (StartX * BytesPerPixel);
+        for (U32 X = 0u; X < DrawWidth; X++) {
+            Row[0] = (U8)(Pixel & 0xFFu);
+            if (BytesPerPixel > 1u) {
+                Row[1] = (U8)((Pixel >> 8) & 0xFFu);
+            }
+            if (BytesPerPixel > 2u) {
+                Row[2] = (U8)((Pixel >> 16) & 0xFFu);
+            }
+            if (BytesPerPixel > 3u) {
+                Row[3] = (U8)((Pixel >> 24) & 0xFFu);
+            }
+            Row += BytesPerPixel;
+        }
+    }
+}
+
+/************************************************************************/
+
 static void NORETURN BootUefiHaltNoServices(void) {
     for (;;) {
         __asm__ __volatile__("hlt");
@@ -1484,17 +1673,22 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         .ImageHandle = ImageHandle,
         .SystemTable = SystemTable,
         .BootServices = SystemTable->BootServices,
-        .ConsoleOut = SystemTable->ConOut
+        .ConsoleOut = SystemTable->ConOut,
+        .GraphicsOutput = NULL,
+        .BootServicesExited = FALSE
     };
 
+    BootUefiMarkStage(&Context, 0u, 255u, 0u, 0u);
     BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] Starting EXOS UEFI boot\r\n");
     BootUefiSerialInit(0x3F8u);
+    BootUefiMarkStage(&Context, 1u, 255u, 128u, 0u);
 
     EFI_FILE_PROTOCOL* RootFile = NULL;
     EFI_STATUS Status = BootUefiOpenRootFolder(&Context, &RootFile);
     if (Status != EFI_SUCCESS) {
         return Status;
     }
+    BootUefiMarkStage(&Context, 2u, 255u, 255u, 0u);
 
     const CHAR16 KernelPath[] = { '\\', 'e', 'x', 'o', 's', '.', 'b', 'i', 'n', 0 };
     LPCSTR KernelFileName = KernelFileNameText;
@@ -1514,6 +1708,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     if (Status != EFI_SUCCESS) {
         return Status;
     }
+    BootUefiMarkStage(&Context, 3u, 0u, 255u, 0u);
 
     BOOT_UEFI_MULTIBOOT_LAYOUT MultibootLayout;
     // Allocate and prepare multiboot buffers while firmware allocators are available.
@@ -1521,6 +1716,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     if (Status != EFI_SUCCESS) {
         return Status;
     }
+    BootUefiMarkStage(&Context, 4u, 0u, 255u, 255u);
 
     E820ENTRY E820Map[E820_MAX_ENTRIES];
     MemorySet(E820Map, 0, sizeof(E820Map));
@@ -1528,6 +1724,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     BOOT_FRAMEBUFFER_INFO FramebufferInfo;
     // Framebuffer data is optional and only attached when graphics mode is valid.
     BOOL HasFramebuffer = BootUefiGetFramebufferInfo(&Context, &FramebufferInfo);
+    BootUefiMarkStage(&Context, 5u, 0u, 128u, 255u);
 
 #if UEFI_STUB_EARLY_CALL == 1
     UefiStubMultibootInfoPtr = 0u;
@@ -1540,15 +1737,19 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 #endif
 
     U32 RsdpPhysicalLow = BootUefiGetRsdpPhysicalLow(&Context);
+    BootUefiMarkStage(&Context, 6u, 0u, 0u, 255u);
 
     EFI_MEMORY_DESCRIPTOR* MemoryMap = NULL;
     EFI_UINTN MemoryMapSize = 0;
     EFI_UINTN DescriptorSize = 0;
     // This is the last point where boot services are callable.
+    BootUefiMarkStage(&Context, 7u, 128u, 0u, 255u);
     Status = BootUefiExitBootServicesWithRetry(&Context, &MemoryMap, &MemoryMapSize, &DescriptorSize);
     if (Status != EFI_SUCCESS) {
         return Status;
     }
+    Context.BootServicesExited = TRUE;
+    BootUefiMarkStage(&Context, 8u, 255u, 0u, 255u);
 
     U32 E820Count = BootUefiBuildE820Map(
         MemoryMap,
@@ -1560,6 +1761,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] ERROR: E820 map overflow\r\n");
         return EFI_BUFFER_TOO_SMALL;
     }
+    BootUefiMarkStage(&Context, 9u, 255u, 255u, 255u);
 
     U32 MultibootInfoPtr = BootBuildMultibootInfo(
         MultibootLayout.MultibootInfo,
@@ -1573,6 +1775,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         MultibootLayout.BootloaderName,
         MultibootLayout.KernelCommandLine,
         HasFramebuffer ? &FramebufferInfo : NULL);
+    BootUefiMarkStage(&Context, 10u, 128u, 128u, 128u);
 
     // No return path after this call.
     BootUefiEnterKernel((U32)FileSize, MultibootInfoPtr, KernelPhysicalBase, Context.ImageBase, Context.ImageSize);
