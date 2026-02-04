@@ -65,6 +65,26 @@ static const STR KernelFileNameText[] = {
 
 /************************************************************************/
 
+enum {
+    BOOT_UEFI_STAGE_BOOT_START = 0u,
+    BOOT_UEFI_STAGE_DEBUG_TRANSPORT_READY = 1u,
+    BOOT_UEFI_STAGE_ROOT_FOLDER_OPENED = 2u,
+    BOOT_UEFI_STAGE_KERNEL_LOADED = 3u,
+    BOOT_UEFI_STAGE_MULTIBOOT_ALLOCATED = 4u,
+    BOOT_UEFI_STAGE_FRAMEBUFFER_QUERIED = 5u,
+    BOOT_UEFI_STAGE_RSDP_CAPTURED = 6u,
+    BOOT_UEFI_STAGE_EXIT_BOOT_BEGIN = 7u,
+    BOOT_UEFI_STAGE_EXIT_BOOT_DONE = 8u,
+    BOOT_UEFI_STAGE_E820_READY = 9u,
+    BOOT_UEFI_STAGE_MULTIBOOT_READY = 10u,
+    BOOT_UEFI_STAGE_UDP_LOCATE = 11u,
+    BOOT_UEFI_STAGE_UDP_START = 12u,
+    BOOT_UEFI_STAGE_UDP_INITIALIZE = 13u,
+    BOOT_UEFI_STAGE_UDP_ENABLED = 14u
+};
+
+/************************************************************************/
+
 // Used by the x86-64 UEFI jump stub to fetch parameters reliably.
 U32 UefiStubMultibootInfoPtr = 0u;
 U32 UefiStubMultibootMagic = 0u;
@@ -494,25 +514,25 @@ static void BootUefiDebugTransportInit(BOOT_UEFI_CONTEXT* Context) {
     U32 InitFlags = BootUefiUdpLogGetInitFlags();
     BootUefiMarkStage(
         Context,
-        11u,
+        BOOT_UEFI_STAGE_UDP_LOCATE,
         (InitFlags & UEFI_UDP_INIT_FLAG_LOCATE_OK) != 0u ? 0u : 255u,
         (InitFlags & UEFI_UDP_INIT_FLAG_LOCATE_OK) != 0u ? 200u : 0u,
         0u);
     BootUefiMarkStage(
         Context,
-        12u,
+        BOOT_UEFI_STAGE_UDP_START,
         (InitFlags & UEFI_UDP_INIT_FLAG_START_OK) != 0u ? 0u : 255u,
         (InitFlags & UEFI_UDP_INIT_FLAG_START_OK) != 0u ? 200u : 0u,
         0u);
     BootUefiMarkStage(
         Context,
-        13u,
+        BOOT_UEFI_STAGE_UDP_INITIALIZE,
         (InitFlags & UEFI_UDP_INIT_FLAG_INITIALIZE_OK) != 0u ? 0u : 255u,
         (InitFlags & UEFI_UDP_INIT_FLAG_INITIALIZE_OK) != 0u ? 200u : 0u,
         0u);
     BootUefiMarkStage(
         Context,
-        14u,
+        BOOT_UEFI_STAGE_UDP_ENABLED,
         (InitFlags & UEFI_UDP_INIT_FLAG_ENABLED) != 0u ? 0u : 255u,
         (InitFlags & UEFI_UDP_INIT_FLAG_ENABLED) != 0u ? 200u : 0u,
         0u);
@@ -1753,11 +1773,11 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         .BootServicesExited = FALSE
     };
 
-    BootUefiMarkStage(&Context, 0u, 255u, 0u, 0u);
+    BootUefiMarkStage(&Context, BOOT_UEFI_STAGE_BOOT_START, 255u, 0u, 0u);
     BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] Starting EXOS UEFI boot\r\n");
     BootUefiDebugTransportInit(&Context);
     BootUefiDebugTransportWrite((LPCSTR)"[EfiMain] Debug transport initialized\r\n");
-    BootUefiMarkStage(&Context, 1u, 255u, 128u, 0u);
+    BootUefiMarkStage(&Context, BOOT_UEFI_STAGE_DEBUG_TRANSPORT_READY, 255u, 128u, 0u);
 
     EFI_FILE_PROTOCOL* RootFile = NULL;
     EFI_STATUS Status = BootUefiOpenRootFolder(&Context, &RootFile);
@@ -1765,7 +1785,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         return Status;
     }
     BootUefiDebugTransportWrite((LPCSTR)"[EfiMain] Root folder opened\r\n");
-    BootUefiMarkStage(&Context, 2u, 255u, 255u, 0u);
+    BootUefiMarkStage(&Context, BOOT_UEFI_STAGE_ROOT_FOLDER_OPENED, 255u, 255u, 0u);
 
     const CHAR16 KernelPath[] = { '\\', 'e', 'x', 'o', 's', '.', 'b', 'i', 'n', 0 };
     LPCSTR KernelFileName = KernelFileNameText;
@@ -1786,7 +1806,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         return Status;
     }
     BootUefiDebugTransportWrite((LPCSTR)"[EfiMain] Kernel loaded\r\n");
-    BootUefiMarkStage(&Context, 3u, 0u, 255u, 0u);
+    BootUefiMarkStage(&Context, BOOT_UEFI_STAGE_KERNEL_LOADED, 0u, 255u, 0u);
 
     BOOT_UEFI_MULTIBOOT_LAYOUT MultibootLayout;
     // Allocate and prepare multiboot buffers while firmware allocators are available.
@@ -1795,7 +1815,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         return Status;
     }
     BootUefiDebugTransportWrite((LPCSTR)"[EfiMain] Multiboot data allocated\r\n");
-    BootUefiMarkStage(&Context, 4u, 0u, 255u, 255u);
+    BootUefiMarkStage(&Context, BOOT_UEFI_STAGE_MULTIBOOT_ALLOCATED, 0u, 255u, 255u);
 
     E820ENTRY E820Map[E820_MAX_ENTRIES];
     MemorySet(E820Map, 0, sizeof(E820Map));
@@ -1803,7 +1823,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     BOOT_FRAMEBUFFER_INFO FramebufferInfo;
     // Framebuffer data is optional and only attached when graphics mode is valid.
     BOOL HasFramebuffer = BootUefiGetFramebufferInfo(&Context, &FramebufferInfo);
-    BootUefiMarkStage(&Context, 5u, 0u, 128u, 255u);
+    BootUefiMarkStage(&Context, BOOT_UEFI_STAGE_FRAMEBUFFER_QUERIED, 0u, 128u, 255u);
 
 #if UEFI_STUB_EARLY_CALL == 1
     UefiStubMultibootInfoPtr = 0u;
@@ -1817,13 +1837,13 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 
     U32 RsdpPhysicalLow = BootUefiGetRsdpPhysicalLow(&Context);
     BootUefiDebugTransportWrite((LPCSTR)"[EfiMain] RSDP captured\r\n");
-    BootUefiMarkStage(&Context, 6u, 0u, 0u, 255u);
+    BootUefiMarkStage(&Context, BOOT_UEFI_STAGE_RSDP_CAPTURED, 0u, 0u, 255u);
 
     EFI_MEMORY_DESCRIPTOR* MemoryMap = NULL;
     EFI_UINTN MemoryMapSize = 0;
     EFI_UINTN DescriptorSize = 0;
     // This is the last point where boot services are callable.
-    BootUefiMarkStage(&Context, 7u, 128u, 0u, 255u);
+    BootUefiMarkStage(&Context, BOOT_UEFI_STAGE_EXIT_BOOT_BEGIN, 128u, 0u, 255u);
     BootUefiDebugTransportWrite((LPCSTR)"[EfiMain] Entering ExitBootServices\r\n");
     Status = BootUefiExitBootServicesWithRetry(&Context, &MemoryMap, &MemoryMapSize, &DescriptorSize);
     if (Status != EFI_SUCCESS) {
@@ -1831,7 +1851,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     }
     Context.BootServicesExited = TRUE;
     BootUefiDebugTransportNotifyExitBootServices();
-    BootUefiMarkStage(&Context, 8u, 255u, 0u, 255u);
+    BootUefiMarkStage(&Context, BOOT_UEFI_STAGE_EXIT_BOOT_DONE, 255u, 0u, 255u);
 
     U32 E820Count = BootUefiBuildE820Map(
         MemoryMap,
@@ -1843,7 +1863,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] ERROR: E820 map overflow\r\n");
         return EFI_BUFFER_TOO_SMALL;
     }
-    BootUefiMarkStage(&Context, 9u, 255u, 255u, 255u);
+    BootUefiMarkStage(&Context, BOOT_UEFI_STAGE_E820_READY, 255u, 255u, 255u);
 
     U32 MultibootInfoPtr = BootBuildMultibootInfo(
         MultibootLayout.MultibootInfo,
@@ -1857,7 +1877,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         MultibootLayout.BootloaderName,
         MultibootLayout.KernelCommandLine,
         HasFramebuffer ? &FramebufferInfo : NULL);
-    BootUefiMarkStage(&Context, 10u, 128u, 128u, 128u);
+    BootUefiMarkStage(&Context, BOOT_UEFI_STAGE_MULTIBOOT_READY, 128u, 128u, 128u);
 
     // No return path after this call.
     BootUefiEnterKernel((U32)FileSize, MultibootInfoPtr, KernelPhysicalBase, Context.ImageBase, Context.ImageSize);

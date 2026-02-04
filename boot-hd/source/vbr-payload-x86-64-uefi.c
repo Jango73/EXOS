@@ -35,6 +35,21 @@ static const UINT MAX_KERNEL_PAGE_TABLES = 64u;
 static const U32 TEMP_LINEAR_LAST_OFFSET = 0x00102000u;
 static const U32 TEMP_LINEAR_REQUIRED_SPAN = TEMP_LINEAR_LAST_OFFSET + PAGE_SIZE;
 static const U32 KERNEL_IDENTITY_WORKSPACE_SPAN = N_2MB;
+static const U32 BOOT_MARKER_BASE_X = 2u;
+static const U32 BOOT_MARKER_Y_TRANSITION = 2u;
+static const U32 BOOT_MARKER_SIZE = 8u;
+static const U32 BOOT_MARKER_SPACING = 2u;
+
+enum {
+    BOOT_STAGE_TRANSITION_ENTRY = 16u,          // Jump of 2 after UEFI stage 14
+    BOOT_STAGE_TRANSITION_FRAMEBUFFER = 17u,
+    BOOT_STAGE_TRANSITION_PAGING = 18u,
+    BOOT_STAGE_TRANSITION_GDT = 19u,
+    BOOT_STAGE_TRANSITION_BEFORE_STUB = 20u,
+    BOOT_STAGE_STUB_ENTRY = 22u,                // Jump of 2 before stub stages
+    BOOT_STAGE_STUB_AFTER_CR3 = 23u,
+    BOOT_STAGE_LONG_MODE_ENTRY = 25u            // Jump of 2 before long mode stage
+};
 
 enum {
     LONG_MODE_ENTRY_GLOBAL = 0x00000001u,
@@ -53,6 +68,81 @@ static LPPAGE_TABLE PageTableLowHigh = (LPPAGE_TABLE)LOW_MEMORY_PAGE_8;
 static SEGMENT_DESCRIPTOR GdtEntries[VBR_GDT_ENTRY_LONG_MODE_DATA + 1u];
 static GDT_REGISTER Gdtr;
 extern U32 UefiStubKernelPhysicalBase;
+U32 UefiStubFramebufferLow = 0u;
+U32 UefiStubFramebufferHigh = 0u;
+U32 UefiStubFramebufferPitch = 0u;
+U32 UefiStubFramebufferBytesPerPixel = 0u;
+
+/************************************************************************/
+
+static U32 VbrScaleColorToMask(U32 Value, U32 MaskSize) {
+    if (MaskSize == 0u) {
+        return 0u;
+    }
+
+    if (MaskSize >= 8u) {
+        return Value & 0xFFu;
+    }
+
+    U32 MaxValue = (1u << MaskSize) - 1u;
+    return (Value * MaxValue) / 255u;
+}
+
+/************************************************************************/
+
+static U32 VbrComposeFramebufferPixel(const multiboot_info_t* Info, U32 Red, U32 Green, U32 Blue) {
+    if (Info == NULL || Info->framebuffer_type != MULTIBOOT_FRAMEBUFFER_RGB) {
+        return 0u;
+    }
+
+    U32 Pixel = 0u;
+    Pixel |= VbrScaleColorToMask(Red, Info->color_info[1]) << Info->color_info[0];
+    Pixel |= VbrScaleColorToMask(Green, Info->color_info[3]) << Info->color_info[2];
+    Pixel |= VbrScaleColorToMask(Blue, Info->color_info[5]) << Info->color_info[4];
+    return Pixel;
+}
+
+/************************************************************************/
+
+static void PayloadFramebufferMarkStage(const multiboot_info_t* Info, U32 StageIndex, U32 Red, U32 Green, U32 Blue) {
+    if (Info == NULL || (Info->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) == 0u) {
+        return;
+    }
+
+    if (Info->framebuffer_bpp != 32u || Info->framebuffer_pitch == 0u || Info->framebuffer_addr_low == 0u) {
+        return;
+    }
+
+    U64 Address = U64_Make(Info->framebuffer_addr_high, Info->framebuffer_addr_low);
+    U8* Framebuffer = (U8*)(UINT)U64_Low32(Address);
+    if (Framebuffer == NULL) {
+        return;
+    }
+
+    U32 Pixel = VbrComposeFramebufferPixel(Info, Red, Green, Blue);
+    U32 StartX = BOOT_MARKER_BASE_X + StageIndex * (BOOT_MARKER_SIZE + BOOT_MARKER_SPACING);
+    U32 StartY = BOOT_MARKER_Y_TRANSITION;
+
+    if (StartX >= Info->framebuffer_width || StartY >= Info->framebuffer_height) {
+        return;
+    }
+
+    U32 DrawWidth = BOOT_MARKER_SIZE;
+    U32 DrawHeight = BOOT_MARKER_SIZE;
+    if (StartX + DrawWidth > Info->framebuffer_width) {
+        DrawWidth = Info->framebuffer_width - StartX;
+    }
+    if (StartY + DrawHeight > Info->framebuffer_height) {
+        DrawHeight = Info->framebuffer_height - StartY;
+    }
+
+    for (U32 Y = 0u; Y < DrawHeight; Y++) {
+        U32* Row = (U32*)(Framebuffer + ((StartY + Y) * Info->framebuffer_pitch) + (StartX * 4u));
+        for (U32 X = 0u; X < DrawWidth; X++) {
+            Row[X] = Pixel;
+        }
+    }
+}
 
 static void UefiSerialWriteByte(U8 Value) {
     const U16 Port = 0x3F8u;
@@ -585,12 +675,18 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U6
         UefiImageSize);
 
     multiboot_info_t* Info = (multiboot_info_t*)(UINT)MultibootInfoPtr;
+    PayloadFramebufferMarkStage(Info, BOOT_STAGE_TRANSITION_ENTRY, 255u, 0u, 0u);
     if (Info != NULL && (Info->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) != 0u) {
         FramebufferBase = U64_Make(Info->framebuffer_addr_high, Info->framebuffer_addr_low);
         if (Info->framebuffer_pitch != 0u && Info->framebuffer_height != 0u) {
             FramebufferSize = U64_FromU32(Info->framebuffer_pitch * Info->framebuffer_height);
         }
+        UefiStubFramebufferLow = Info->framebuffer_addr_low;
+        UefiStubFramebufferHigh = Info->framebuffer_addr_high;
+        UefiStubFramebufferPitch = Info->framebuffer_pitch;
+        UefiStubFramebufferBytesPerPixel = (U32)(Info->framebuffer_bpp / 8u);
     }
+    PayloadFramebufferMarkStage(Info, BOOT_STAGE_TRANSITION_FRAMEBUFFER, 255u, 128u, 0u);
 
     const U64 KernelVirtBase = VbrGetKernelLongModeBase();
     BuildPaging(
@@ -601,7 +697,9 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U6
         UefiImageSize,
         FramebufferBase,
         FramebufferSize);
+    PayloadFramebufferMarkStage(Info, BOOT_STAGE_TRANSITION_PAGING, 255u, 255u, 0u);
     BuildGdtFlat();
+    PayloadFramebufferMarkStage(Info, BOOT_STAGE_TRANSITION_GDT, 0u, 255u, 0u);
 
     UefiSerialWriteString((LPCSTR)"[EnterProtectedPagingAndJump] Paging and GDT ready\r\n");
     UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] KernelPhysicalBase=", KernelPhysBase);
@@ -626,6 +724,7 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U6
     UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] GdtRegisterBase=", Gdtr.Base);
     UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] GdtRegisterLimit=", Gdtr.Limit);
     UefiSerialWriteString((LPCSTR)"[EnterProtectedPagingAndJump] Jumping to kernel\r\n");
+    PayloadFramebufferMarkStage(Info, BOOT_STAGE_TRANSITION_BEFORE_STUB, 0u, 255u, 255u);
 #if UEFI_STUB_REPLACE == 1
     for (;;) {
         __asm__ __volatile__("hlt");
