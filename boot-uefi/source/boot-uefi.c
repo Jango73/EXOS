@@ -43,6 +43,16 @@ typedef struct BOOT_UEFI_CONTEXT {
 
 /************************************************************************/
 
+typedef struct BOOT_UEFI_MULTIBOOT_LAYOUT {
+    multiboot_info_t* MultibootInfo;
+    multiboot_memory_map_t* MultibootMemoryMap;
+    multiboot_module_t* KernelModule;
+    LPSTR BootloaderName;
+    LPSTR KernelCommandLine;
+} BOOT_UEFI_MULTIBOOT_LAYOUT;
+
+/************************************************************************/
+
 static const STR BootloaderNameText[] = {
     'E','X','O','S',' ','U','E','F','I',0
 };
@@ -111,6 +121,27 @@ static BOOL BootUefiGetFramebufferInfo(BOOT_UEFI_CONTEXT* Context, BOOT_FRAMEBUF
 static U32 BootUefiMaskPosition(U32 Mask);
 static U32 BootUefiMaskSize(U32 Mask);
 static void NORETURN BootUefiHaltNoServices(void);
+static EFI_STATUS BootUefiOpenRootFolder(BOOT_UEFI_CONTEXT* Context, EFI_FILE_PROTOCOL** RootFileOut);
+static EFI_STATUS BootUefiLoadKernelImage(
+    BOOT_UEFI_CONTEXT* Context,
+    EFI_FILE_PROTOCOL* RootFile,
+    const CHAR16* KernelPath,
+    UINT* FileSizeOut);
+static EFI_STATUS BootUefiAllocateMultibootData(
+    BOOT_UEFI_CONTEXT* Context,
+    LPCSTR KernelFileName,
+    BOOT_UEFI_MULTIBOOT_LAYOUT* LayoutOut);
+static U32 BootUefiGetRsdpPhysicalLow(BOOT_UEFI_CONTEXT* Context);
+static EFI_STATUS BootUefiExitBootServicesWithRetry(
+    BOOT_UEFI_CONTEXT* Context,
+    EFI_MEMORY_DESCRIPTOR** MemoryMapOut,
+    EFI_UINTN* MemoryMapSizeOut,
+    EFI_UINTN* DescriptorSizeOut);
+static void NORETURN BootUefiEnterKernel(
+    U32 FileSize,
+    U32 MultibootInfoPtr,
+    U64 UefiImageBase,
+    U64 UefiImageSize);
 
 /************************************************************************/
 
@@ -1100,72 +1131,106 @@ static U32 BootUefiBuildE820Map(
 /************************************************************************/
 
 /**
- * @brief UEFI bootloader entry point.
+ * @brief Open the root folder and prepare the boot context.
  *
- * @param ImageHandle Current image handle.
- * @param SystemTable UEFI system table.
- * @return EFI status code (not returned on success).
+ * @param Context Boot context.
+ * @param RootFileOut Receives opened root folder protocol.
+ * @return EFI status code.
  */
-EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable) {
-    BOOT_UEFI_CONTEXT Context = {
-        .ImageHandle = ImageHandle,
-        .SystemTable = SystemTable,
-        .BootServices = SystemTable->BootServices,
-        .ConsoleOut = SystemTable->ConOut
-    };
+static EFI_STATUS BootUefiOpenRootFolder(BOOT_UEFI_CONTEXT* Context, EFI_FILE_PROTOCOL** RootFileOut) {
+    if (Context == NULL || RootFileOut == NULL) {
+        return EFI_INVALID_PARAMETER;
+    }
 
-    BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] Starting EXOS UEFI boot\r\n");
-    BootUefiSerialInit(0x3F8u);
-
-    EFI_FILE_PROTOCOL* RootFile = NULL;
-    EFI_STATUS Status = BootUefiOpenRootFileSystem(&Context, &RootFile);
-    if (Status != EFI_SUCCESS || RootFile == NULL) {
-        BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] ERROR: Cannot open root folder\r\n");
+    EFI_STATUS Status = BootUefiOpenRootFileSystem(Context, RootFileOut);
+    if (Status != EFI_SUCCESS || *RootFileOut == NULL) {
+        BootUefiOutputAscii(Context->ConsoleOut, "[EfiMain] ERROR: Cannot open root folder\r\n");
         return Status;
     }
-    BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] Root folder opened\r\n");
-    BootUefiDisableWatchdog(&Context);
 
-    const CHAR16 KernelPath[] = { '\\', 'e', 'x', 'o', 's', '.', 'b', 'i', 'n', 0 };
-    LPCSTR KernelFileName = KernelFileNameText;
+    BootUefiOutputAscii(Context->ConsoleOut, "[EfiMain] Root folder opened\r\n");
+    BootUefiDisableWatchdog(Context);
+    return EFI_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Load the kernel image into its fixed physical destination.
+ *
+ * @param Context Boot context.
+ * @param RootFile Opened root folder protocol.
+ * @param KernelPath UTF-16 kernel file path.
+ * @param FileSizeOut Receives kernel file size.
+ * @return EFI status code.
+ */
+static EFI_STATUS BootUefiLoadKernelImage(
+    BOOT_UEFI_CONTEXT* Context,
+    EFI_FILE_PROTOCOL* RootFile,
+    const CHAR16* KernelPath,
+    UINT* FileSizeOut) {
+    if (Context == NULL || RootFile == NULL || KernelPath == NULL || FileSizeOut == NULL) {
+        return EFI_INVALID_PARAMETER;
+    }
 
     UINT FileSize = 0;
-    Status = BootUefiGetFileSize(&Context, RootFile, KernelPath, &FileSize);
+    EFI_STATUS Status = BootUefiGetFileSize(Context, RootFile, KernelPath, &FileSize);
     if (Status != EFI_SUCCESS) {
-        RootFile->Close(RootFile);
-        BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] ERROR: Cannot read kernel size\r\n");
-        BootUefiOutputStatus(Context.ConsoleOut, "[EfiMain] Status ", Status);
+        BootUefiOutputAscii(Context->ConsoleOut, "[EfiMain] ERROR: Cannot read kernel size\r\n");
+        BootUefiOutputStatus(Context->ConsoleOut, "[EfiMain] Status ", Status);
         return Status;
     }
     if (FileSize == 0u) {
-        RootFile->Close(RootFile);
-        BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] ERROR: Kernel size is zero\r\n");
+        BootUefiOutputAscii(Context->ConsoleOut, "[EfiMain] ERROR: Kernel size is zero\r\n");
         return EFI_BUFFER_TOO_SMALL;
     }
-    BootUefiOutputHex32(Context.ConsoleOut, "[EfiMain] Kernel size ", FileSize);
+    // Keep early logs explicit to simplify boot debugging in firmware consoles.
+    BootUefiOutputHex32(Context->ConsoleOut, "[EfiMain] Kernel size ", FileSize);
 
+    // Kernel must be placed at the fixed multiboot load address.
     UINT KernelPages = BootUefiAlignUp(FileSize, EFI_PAGE_SIZE) / EFI_PAGE_SIZE;
     EFI_PHYSICAL_ADDRESS KernelAddress = BootUefiPhysicalFromU32(KERNEL_LINEAR_LOAD_ADDRESS);
-    Status = Context.BootServices->AllocatePages(
+    Status = Context->BootServices->AllocatePages(
         EFI_ALLOCATE_ADDRESS,
         EfiLoaderData,
         KernelPages,
         &KernelAddress);
     if (Status != EFI_SUCCESS) {
-        RootFile->Close(RootFile);
-        BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] ERROR: Cannot reserve kernel pages\r\n");
+        BootUefiOutputAscii(Context->ConsoleOut, "[EfiMain] ERROR: Cannot reserve kernel pages\r\n");
         return Status;
     }
-    BootUefiOutputHex32(Context.ConsoleOut, "[EfiMain] Kernel pages ", KernelPages);
+    BootUefiOutputHex32(Context->ConsoleOut, "[EfiMain] Kernel pages ", KernelPages);
 
-    Status = BootUefiReadFile(&Context, RootFile, KernelPath, KernelAddress, FileSize);
-    RootFile->Close(RootFile);
+    Status = BootUefiReadFile(Context, RootFile, KernelPath, KernelAddress, FileSize);
     if (Status != EFI_SUCCESS) {
-        BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] ERROR: Cannot read kernel file\r\n");
+        BootUefiOutputAscii(Context->ConsoleOut, "[EfiMain] ERROR: Cannot read kernel file\r\n");
         return Status;
     }
-    BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] Kernel loaded\r\n");
 
+    BootUefiOutputAscii(Context->ConsoleOut, "[EfiMain] Kernel loaded\r\n");
+    *FileSizeOut = FileSize;
+    return EFI_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Allocate and layout all multiboot structures in one buffer.
+ *
+ * @param Context Boot context.
+ * @param KernelFileName Kernel command line text.
+ * @param LayoutOut Receives pointers to all multiboot regions.
+ * @return EFI status code.
+ */
+static EFI_STATUS BootUefiAllocateMultibootData(
+    BOOT_UEFI_CONTEXT* Context,
+    LPCSTR KernelFileName,
+    BOOT_UEFI_MULTIBOOT_LAYOUT* LayoutOut) {
+    if (Context == NULL || KernelFileName == NULL || LayoutOut == NULL) {
+        return EFI_INVALID_PARAMETER;
+    }
+
+    // Reserve one contiguous low-memory block for all multiboot payload sections.
     UINT MultibootBytes =
         (UINT)sizeof(multiboot_info_t) +
         (UINT)(sizeof(multiboot_memory_map_t) * E820_MAX_ENTRIES) +
@@ -1175,136 +1240,192 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     UINT MultibootPages = BootUefiAlignUp(MultibootBytes, EFI_PAGE_SIZE) / EFI_PAGE_SIZE;
 
     EFI_PHYSICAL_ADDRESS MultibootBase = BootUefiPhysicalFromU32(0x001FFFFFu);
-    Status = Context.BootServices->AllocatePages(
+    EFI_STATUS Status = Context->BootServices->AllocatePages(
         EFI_ALLOCATE_MAX_ADDRESS,
         EfiLoaderData,
         MultibootPages,
         &MultibootBase);
     if (Status != EFI_SUCCESS) {
-        BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] ERROR: Cannot allocate Multiboot data\r\n");
+        BootUefiOutputAscii(Context->ConsoleOut, "[EfiMain] ERROR: Cannot allocate Multiboot data\r\n");
         return Status;
     }
 
+    // Slice the block with explicit alignment to match multiboot structure expectations.
+    MemorySet(LayoutOut, 0, sizeof(*LayoutOut));
     U8* MultibootCursor = (U8*)BootUefiPhysicalToPointer(MultibootBase);
-    multiboot_info_t* MultibootInfo = (multiboot_info_t*)MultibootCursor;
+
+    LayoutOut->MultibootInfo = (multiboot_info_t*)MultibootCursor;
     MultibootCursor += sizeof(multiboot_info_t);
     MultibootCursor = BootUefiAlignPointer(MultibootCursor, 8u);
 
-    multiboot_memory_map_t* MultibootMemMap = (multiboot_memory_map_t*)MultibootCursor;
+    LayoutOut->MultibootMemoryMap = (multiboot_memory_map_t*)MultibootCursor;
     MultibootCursor += sizeof(multiboot_memory_map_t) * E820_MAX_ENTRIES;
     MultibootCursor = BootUefiAlignPointer(MultibootCursor, 8u);
 
-    multiboot_module_t* KernelModule = (multiboot_module_t*)MultibootCursor;
+    LayoutOut->KernelModule = (multiboot_module_t*)MultibootCursor;
     MultibootCursor += sizeof(multiboot_module_t);
     MultibootCursor = BootUefiAlignPointer(MultibootCursor, 8u);
 
-    LPSTR BootloaderName = (LPSTR)MultibootCursor;
-    StringCopy(BootloaderName, BootloaderNameText);
-    MultibootCursor += StringLength(BootloaderName) + 1u;
+    LayoutOut->BootloaderName = (LPSTR)MultibootCursor;
+    StringCopy(LayoutOut->BootloaderName, BootloaderNameText);
+    MultibootCursor += StringLength(LayoutOut->BootloaderName) + 1u;
 
-    LPSTR KernelCommandLine = (LPSTR)MultibootCursor;
-    StringCopy(KernelCommandLine, KernelFileName);
+    LayoutOut->KernelCommandLine = (LPSTR)MultibootCursor;
+    StringCopy(LayoutOut->KernelCommandLine, KernelFileName);
+    return EFI_SUCCESS;
+}
 
-    EFI_MEMORY_DESCRIPTOR* MemoryMap = NULL;
-    EFI_UINTN MemoryMapSize = 0;
-    EFI_UINTN MapKey = 0;
-    EFI_UINTN DescriptorSize = 0;
-    EFI_UINTN DescriptorVersion = 0;
-    U32 MultibootInfoPtr = 0;
-    UINT ExitBootAttempts = 0;
+/************************************************************************/
 
-    E820ENTRY E820Map[E820_MAX_ENTRIES];
-    MemorySet(E820Map, 0, sizeof(E820Map));
-    BOOT_FRAMEBUFFER_INFO FramebufferInfo;
-    BOOL HasFramebuffer = BootUefiGetFramebufferInfo(&Context, &FramebufferInfo);
-#if UEFI_STUB_EARLY_CALL == 1
-    UefiStubMultibootInfoPtr = 0u;
-    UefiStubMultibootMagic = 0u;
-    UefiStubTestOnly = 1u;
-    __asm__ __volatile__("" ::: "memory");
-    EnterProtectedPagingAndJump(0u, 0u, Context.ImageBase, Context.ImageSize);
-    BootUefiHalt(&Context, "UEFI_STUB_EARLY_CALL returned");
-#endif
-    EFI_PHYSICAL_ADDRESS RsdpPhysical = BootUefiFindRsdp(&Context);
+/**
+ * @brief Get the RSDP address truncated to 32 bits for multiboot.
+ *
+ * @param Context Boot context.
+ * @return Lower 32 bits of RSDP physical address, or zero when unavailable.
+ */
+static U32 BootUefiGetRsdpPhysicalLow(BOOT_UEFI_CONTEXT* Context) {
+    EFI_PHYSICAL_ADDRESS RsdpPhysical = BootUefiFindRsdp(Context);
     U32 RsdpPhysicalLow = 0u;
     if (U64_EQUAL(RsdpPhysical, U64_FromU32(0u)) == FALSE) {
         if (U64_High32(RsdpPhysical) != 0u) {
-            BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] WARNING: RSDP above 4GB not supported\r\n");
+            BootUefiOutputAscii(Context->ConsoleOut, "[EfiMain] WARNING: RSDP above 4GB not supported\r\n");
         } else {
             RsdpPhysicalLow = U64_Low32(RsdpPhysical);
         }
     }
 
+    return RsdpPhysicalLow;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Exit UEFI boot services with retries on stale map keys.
+ *
+ * @param Context Boot context.
+ * @param MemoryMapOut Receives final memory map buffer.
+ * @param MemoryMapSizeOut Receives memory map size.
+ * @param DescriptorSizeOut Receives memory map descriptor size.
+ * @return EFI status code.
+ */
+static EFI_STATUS BootUefiExitBootServicesWithRetry(
+    BOOT_UEFI_CONTEXT* Context,
+    EFI_MEMORY_DESCRIPTOR** MemoryMapOut,
+    EFI_UINTN* MemoryMapSizeOut,
+    EFI_UINTN* DescriptorSizeOut) {
+    if (Context == NULL || MemoryMapOut == NULL || MemoryMapSizeOut == NULL || DescriptorSizeOut == NULL) {
+        return EFI_INVALID_PARAMETER;
+    }
+
+    EFI_MEMORY_DESCRIPTOR* MemoryMap = NULL;
+    EFI_UINTN MemoryMapSize = 0;
+    EFI_UINTN MemoryMapCapacity = 0;
+    EFI_UINTN MapKey = 0;
+    EFI_UINTN DescriptorSize = 0;
+    EFI_UINTN DescriptorVersion = 0;
+    UINT ExitBootAttempts = 0;
+
+    // Allocate a large reusable map buffer once, before retry attempts.
+    EFI_STATUS Status = Context->BootServices->GetMemoryMap(
+        &MemoryMapSize,
+        NULL,
+        &MapKey,
+        &DescriptorSize,
+        &DescriptorVersion);
+    if (Status != EFI_BUFFER_TOO_SMALL) {
+        return Status;
+    }
+
+    if (DescriptorSize == 0u) {
+        DescriptorSize = 0x30u;
+    }
+    MemoryMapCapacity = BootUefiAlignUp(
+        (UINT)(MemoryMapSize + (DescriptorSize * 0x40u) + (EFI_PAGE_SIZE * 2u)),
+        EFI_PAGE_SIZE);
+    Status = Context->BootServices->AllocatePool(EfiLoaderData, MemoryMapCapacity, (void**)&MemoryMap);
+    if (Status != EFI_SUCCESS || MemoryMap == NULL) {
+        return Status;
+    }
+
     for (;;) {
-        BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] Preparing memory map\r\n");
-        Status = BootUefiGetMemoryMapSilent(
-            &Context,
-            &MemoryMap,
+        // Always refresh the map just before ExitBootServices to get a valid MapKey.
+        BootUefiOutputAscii(Context->ConsoleOut, "[EfiMain] Preparing memory map\r\n");
+        MemoryMapSize = MemoryMapCapacity;
+        Status = Context->BootServices->GetMemoryMap(
             &MemoryMapSize,
+            MemoryMap,
             &MapKey,
             &DescriptorSize,
             &DescriptorVersion);
+        if (Status == EFI_BUFFER_TOO_SMALL) {
+            // Grow once in place when firmware map unexpectedly expanded.
+            Context->BootServices->FreePool(MemoryMap);
+            MemoryMap = NULL;
+            MemoryMapCapacity = BootUefiAlignUp(
+                (UINT)(MemoryMapSize + (DescriptorSize * 0x40u) + (EFI_PAGE_SIZE * 2u)),
+                EFI_PAGE_SIZE);
+            Status = Context->BootServices->AllocatePool(EfiLoaderData, MemoryMapCapacity, (void**)&MemoryMap);
+            if (Status != EFI_SUCCESS || MemoryMap == NULL) {
+                return Status;
+            }
+            continue;
+        }
         if (Status != EFI_SUCCESS) {
-            BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] ERROR: Cannot get memory map\r\n");
+            BootUefiOutputAscii(Context->ConsoleOut, "[EfiMain] ERROR: Cannot get memory map\r\n");
+            Context->BootServices->FreePool(MemoryMap);
             return Status;
         }
         UNUSED(DescriptorVersion);
 
         // Do not call any boot services between GetMemoryMap and ExitBootServices.
-        Status = Context.BootServices->ExitBootServices(Context.ImageHandle, MapKey);
+        Status = Context->BootServices->ExitBootServices(Context->ImageHandle, MapKey);
         if (Status == EFI_SUCCESS) {
-            break;
+            *MemoryMapOut = MemoryMap;
+            *MemoryMapSizeOut = MemoryMapSize;
+            *DescriptorSizeOut = DescriptorSize;
+            return EFI_SUCCESS;
         }
 
         ExitBootAttempts++;
-        BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] ExitBootServices retry\r\n");
-        BootUefiOutputStatus(Context.ConsoleOut, "[EfiMain] ExitBootServices status ", Status);
-        BootUefiOutputHex32(Context.ConsoleOut, "[EfiMain] ExitBootServices map key ", (U32)MapKey);
-        BootUefiOutputHex32(Context.ConsoleOut, "[EfiMain] ExitBootServices attempt ", (U32)ExitBootAttempts);
-        if (MemoryMap != NULL) {
-            Context.BootServices->FreePool(MemoryMap);
-            MemoryMap = NULL;
-        }
-        MemoryMapSize = 0;
+        BootUefiOutputAscii(Context->ConsoleOut, "[EfiMain] ExitBootServices retry\r\n");
+        BootUefiOutputStatus(Context->ConsoleOut, "[EfiMain] ExitBootServices status ", Status);
+        BootUefiOutputHex32(Context->ConsoleOut, "[EfiMain] ExitBootServices map key ", (U32)MapKey);
+        BootUefiOutputHex32(Context->ConsoleOut, "[EfiMain] ExitBootServices attempt ", (U32)ExitBootAttempts);
+        // Reuse the same buffer so retry iterations do not perturb the map.
+        MemoryMapSize = MemoryMapCapacity;
         MapKey = 0;
-        DescriptorSize = 0;
+        DescriptorSize = 0x30u;
         DescriptorVersion = 0;
 
         if (Status != EFI_INVALID_PARAMETER) {
-            BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] ERROR: ExitBootServices failed\r\n");
+            BootUefiOutputAscii(Context->ConsoleOut, "[EfiMain] ERROR: ExitBootServices failed\r\n");
+            Context->BootServices->FreePool(MemoryMap);
             return Status;
         }
 
         if (ExitBootAttempts >= 4u) {
-            BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] ERROR: ExitBootServices retry limit reached\r\n");
-            BootUefiHalt(&Context, "ExitBootServices retry limit");
+            BootUefiOutputAscii(Context->ConsoleOut, "[EfiMain] ERROR: ExitBootServices retry limit reached\r\n");
+            Context->BootServices->FreePool(MemoryMap);
+            return Status;
         }
     }
+}
 
-    U32 E820Count = BootUefiBuildE820Map(
-        MemoryMap,
-        MemoryMapSize,
-        DescriptorSize,
-        E820Map,
-        E820_MAX_ENTRIES);
-    if (E820Count == 0u) {
-        BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] ERROR: E820 map overflow\r\n");
-        return EFI_BUFFER_TOO_SMALL;
-    }
+/************************************************************************/
 
-    MultibootInfoPtr = BootBuildMultibootInfo(
-        MultibootInfo,
-        MultibootMemMap,
-        KernelModule,
-        E820Map,
-        E820Count,
-        KERNEL_LINEAR_LOAD_ADDRESS,
-        (U32)FileSize,
-        RsdpPhysicalLow,
-        BootloaderName,
-        KernelCommandLine,
-        HasFramebuffer ? &FramebufferInfo : NULL);
-
+/**
+ * @brief Publish handoff parameters and jump to the protected-mode entry.
+ *
+ * @param FileSize Kernel file size.
+ * @param MultibootInfoPtr Multiboot info physical pointer.
+ * @param UefiImageBase UEFI image base address.
+ * @param UefiImageSize UEFI image size.
+ */
+static void NORETURN BootUefiEnterKernel(
+    U32 FileSize,
+    U32 MultibootInfoPtr,
+    U64 UefiImageBase,
+    U64 UefiImageSize) {
     BootUefiSerialWriteString(0x3F8u, (LPCSTR)"[EfiMain] ExitBootServices ok\r\n");
     UefiStubMultibootInfoPtr = MultibootInfoPtr;
     UefiStubMultibootMagic = MULTIBOOT_BOOTLOADER_MAGIC;
@@ -1318,10 +1439,110 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     BootUefiHaltNoServices();
 #endif
     BootUefiSerialWriteString(0x3F8u, (LPCSTR)"[EfiMain] Calling EnterProtectedPagingAndJump\r\n");
-    EnterProtectedPagingAndJump((U32)FileSize, MultibootInfoPtr, Context.ImageBase, Context.ImageSize);
+    EnterProtectedPagingAndJump(FileSize, MultibootInfoPtr, UefiImageBase, UefiImageSize);
     BootUefiSerialWriteString(0x3F8u, (LPCSTR)"[EfiMain] Returned from EnterProtectedPagingAndJump\r\n");
     __asm__ __volatile__("ud2");
     Hang();
+}
+
+/************************************************************************/
+
+/**
+ * @brief UEFI bootloader entry point.
+ *
+ * @param ImageHandle Current image handle.
+ * @param SystemTable UEFI system table.
+ * @return EFI status code (not returned on success).
+ */
+EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable) {
+    // Build a compact context passed through all boot stages.
+    BOOT_UEFI_CONTEXT Context = {
+        .ImageHandle = ImageHandle,
+        .SystemTable = SystemTable,
+        .BootServices = SystemTable->BootServices,
+        .ConsoleOut = SystemTable->ConOut
+    };
+
+    BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] Starting EXOS UEFI boot\r\n");
+    BootUefiSerialInit(0x3F8u);
+
+    EFI_FILE_PROTOCOL* RootFile = NULL;
+    EFI_STATUS Status = BootUefiOpenRootFolder(&Context, &RootFile);
+    if (Status != EFI_SUCCESS) {
+        return Status;
+    }
+
+    const CHAR16 KernelPath[] = { '\\', 'e', 'x', 'o', 's', '.', 'b', 'i', 'n', 0 };
+    LPCSTR KernelFileName = KernelFileNameText;
+
+    // Load the kernel image before leaving boot services.
+    UINT FileSize = 0;
+    Status = BootUefiLoadKernelImage(&Context, RootFile, KernelPath, &FileSize);
+    RootFile->Close(RootFile);
+    if (Status != EFI_SUCCESS) {
+        return Status;
+    }
+
+    BOOT_UEFI_MULTIBOOT_LAYOUT MultibootLayout;
+    // Allocate and prepare multiboot buffers while firmware allocators are available.
+    Status = BootUefiAllocateMultibootData(&Context, KernelFileName, &MultibootLayout);
+    if (Status != EFI_SUCCESS) {
+        return Status;
+    }
+
+    E820ENTRY E820Map[E820_MAX_ENTRIES];
+    MemorySet(E820Map, 0, sizeof(E820Map));
+
+    BOOT_FRAMEBUFFER_INFO FramebufferInfo;
+    // Framebuffer data is optional and only attached when graphics mode is valid.
+    BOOL HasFramebuffer = BootUefiGetFramebufferInfo(&Context, &FramebufferInfo);
+
+#if UEFI_STUB_EARLY_CALL == 1
+    UefiStubMultibootInfoPtr = 0u;
+    UefiStubMultibootMagic = 0u;
+    UefiStubTestOnly = 1u;
+    __asm__ __volatile__("" ::: "memory");
+    EnterProtectedPagingAndJump(0u, 0u, Context.ImageBase, Context.ImageSize);
+    BootUefiHalt(&Context, "UEFI_STUB_EARLY_CALL returned");
+#endif
+
+    U32 RsdpPhysicalLow = BootUefiGetRsdpPhysicalLow(&Context);
+
+    EFI_MEMORY_DESCRIPTOR* MemoryMap = NULL;
+    EFI_UINTN MemoryMapSize = 0;
+    EFI_UINTN DescriptorSize = 0;
+    // This is the last point where boot services are callable.
+    Status = BootUefiExitBootServicesWithRetry(&Context, &MemoryMap, &MemoryMapSize, &DescriptorSize);
+    if (Status != EFI_SUCCESS) {
+        return Status;
+    }
+
+    U32 E820Count = BootUefiBuildE820Map(
+        MemoryMap,
+        MemoryMapSize,
+        DescriptorSize,
+        E820Map,
+        E820_MAX_ENTRIES);
+    if (E820Count == 0u) {
+        BootUefiOutputAscii(Context.ConsoleOut, "[EfiMain] ERROR: E820 map overflow\r\n");
+        return EFI_BUFFER_TOO_SMALL;
+    }
+
+    U32 MultibootInfoPtr = BootBuildMultibootInfo(
+        MultibootLayout.MultibootInfo,
+        MultibootLayout.MultibootMemoryMap,
+        MultibootLayout.KernelModule,
+        E820Map,
+        E820Count,
+        KERNEL_LINEAR_LOAD_ADDRESS,
+        (U32)FileSize,
+        RsdpPhysicalLow,
+        MultibootLayout.BootloaderName,
+        MultibootLayout.KernelCommandLine,
+        HasFramebuffer ? &FramebufferInfo : NULL);
+
+    // No return path after this call.
+    BootUefiEnterKernel((U32)FileSize, MultibootInfoPtr, Context.ImageBase, Context.ImageSize);
 
     return EFI_SUCCESS;
 }

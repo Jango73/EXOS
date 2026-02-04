@@ -103,6 +103,8 @@ The x86-32 page directory bootstrap maps the TaskRunner page with write access s
 
 On long mode builds the kernel allocates paging structures explicitly instead of cloning the loader tables. `AllocPageDirectory` creates fresh low-memory and kernel PDPTs, wires the task-runner window, and programs the recursive slot before returning the new PML4. `AllocUserPageDirectory` reuses those helpers but also reserves an empty userland page table so `AllocRegion` can immediately populate process space without reconstructing the hierarchy first. The low-memory region builder keeps a cached pair of BIOS-protected and general identity tables so new page directories only consume fresh pages for their PDPT, directory, and any userland seed tables.
 
+The default x86-64 kernel virtual base (`VMA_KERNEL`) is `0xFFFFFFFFC0000000`.
+
 On x86-64 every successful `AllocRegion` emits a `MEMORY_REGION_DESCRIPTOR` record that inherits `LISTNODE_FIELDS` and lives in an intrusive list anchored on `PROCESS.RegionListHead`. The allocator carves descriptor slabs from dedicated metadata pages (mapped through `AllocKernelRegion`) so the kernel heap stays untouched while diagnostics can enumerate allocations. Each descriptor stores the canonical base, committed size, physical origin (when fixed), allocation flags, and paging granularity. `FreeRegion` and `ResizeRegion` update the list in place, logging registration and teardown so validation runs can confirm descriptor lifetimes line up with the virtual memory operations they front.
 
 ### Logging
