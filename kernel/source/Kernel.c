@@ -34,6 +34,7 @@
 #include "Log.h"
 #include "process/Process.h"
 #include "process/Task.h"
+#include "SerialPort.h"
 #include "utils/Helpers.h"
 #include "utils/TOML.h"
 #include "utils/UUID.h"
@@ -45,6 +46,26 @@ extern U32 DeadBeef;
 /************************************************************************/
 
 void SystemDataViewMode(void);
+
+/************************************************************************/
+
+/**
+ * @brief Write a short diagnostics string to the kernel serial log port.
+ *
+ * @param Text Null-terminated text.
+ */
+static void KernelWriteSerialDiag(LPCSTR Text) {
+    SAFE_USE(Text) {
+        for (UINT Index = 0; Index < 0x1000; Index++) {
+            STR Char = Text[Index];
+            if (Char == STR_NULL) {
+                break;
+            }
+
+            SerialOut(LOG_COM_INDEX, Char);
+        }
+    }
+}
 
 /************************************************************************/
 
@@ -769,7 +790,20 @@ void LoadAllDrivers(void) {
     }
 
     for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
+        LPDRIVER Driver = (LPDRIVER)Node;
+        SAFE_USE(Driver) {
+            KernelWriteSerialDiag(TEXT("T0> TEST > [LoadAllDrivers] Loading "));
+            KernelWriteSerialDiag(TEXT(Driver->Product));
+            KernelWriteSerialDiag(TEXT("\r\n"));
+            TEST(TEXT("[LoadAllDrivers] Loading %s"), TEXT(Driver->Product));
+        }
         LoadDriver((LPDRIVER)Node);
+        SAFE_USE(Driver) {
+            KernelWriteSerialDiag(TEXT("T0> TEST > [LoadAllDrivers] Loaded "));
+            KernelWriteSerialDiag(TEXT(Driver->Product));
+            KernelWriteSerialDiag(TEXT("\r\n"));
+            TEST(TEXT("[LoadAllDrivers] Loaded %s"), TEXT(Driver->Product));
+        }
     }
 }
 

@@ -34,6 +34,7 @@
 static const UINT MAX_KERNEL_PAGE_TABLES = 64u;
 static const U32 TEMP_LINEAR_LAST_OFFSET = 0x00102000u;
 static const U32 TEMP_LINEAR_REQUIRED_SPAN = TEMP_LINEAR_LAST_OFFSET + PAGE_SIZE;
+static const U32 KERNEL_IDENTITY_WORKSPACE_SPAN = N_2MB;
 
 enum {
     LONG_MODE_ENTRY_GLOBAL = 0x00000001u,
@@ -51,6 +52,7 @@ static LPPAGE_TABLE PageTableLow = (LPPAGE_TABLE)LOW_MEMORY_PAGE_7;
 static LPPAGE_TABLE PageTableLowHigh = (LPPAGE_TABLE)LOW_MEMORY_PAGE_8;
 static SEGMENT_DESCRIPTOR GdtEntries[VBR_GDT_ENTRY_LONG_MODE_DATA + 1u];
 static GDT_REGISTER Gdtr;
+extern U32 UefiStubKernelPhysicalBase;
 
 static void UefiSerialWriteByte(U8 Value) {
     const U16 Port = 0x3F8u;
@@ -187,8 +189,6 @@ static U64 VbrPointerToPhysical(const void* Pointer) {
 static U32 VbrAlignToPage(U32 Value) {
     return (Value + (PAGE_SIZE - 1u)) & ~(PAGE_SIZE - 1u);
 }
-
-/************************************************************************/
 
 static void ClearLongModeStructures(void) {
     MemorySet(PageMapLevel4, 0, PAGE_TABLE_SIZE);
@@ -468,8 +468,16 @@ static void BuildPaging(
         ++TableIndex;
     }
 
+    U64 NextTablePhysical = (U64)BaseTablePhysical + (U64)(TablesRequired * PAGE_TABLE_SIZE);
+
+    // Keep the loader-reserved kernel span identity-mapped because early
+    // kernel code still accesses some bootstrap data through physical pointers.
+    MapIdentityRange(
+        U64_FromU32(KernelPhysBase),
+        U64_FromU32(MapSize + KERNEL_IDENTITY_WORKSPACE_SPAN),
+        &NextTablePhysical);
+
     if (UefiImageSize != 0) {
-        U64 NextTablePhysical = (U64)BaseTablePhysical + (U64)(TablesRequired * PAGE_TABLE_SIZE);
         MapIdentityRange(UefiImageBase, UefiImageSize, &NextTablePhysical);
         if (FramebufferSize != 0u) {
             const U32 Pml4Index = (U32)U64_Low32(VbrShiftRightU64(FramebufferBase, 39u)) & 0x1FFu;
@@ -556,7 +564,10 @@ static void BuildGdtFlat(void) {
 /************************************************************************/
 
 void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U64 UefiImageBase, U64 UefiImageSize) {
-    const U32 KernelPhysBase = KERNEL_LINEAR_LOAD_ADDRESS;
+    U32 KernelPhysBase = UefiStubKernelPhysicalBase;
+    if (KernelPhysBase == 0u) {
+        KernelPhysBase = KERNEL_LINEAR_LOAD_ADDRESS;
+    }
     U32 MapSize = VbrAlignToPage(FileSize + N_512KB);
     U64 FramebufferBase = U64_FromU32(0u);
     U64 FramebufferSize = U64_FromU32(0u);

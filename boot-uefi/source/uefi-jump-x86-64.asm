@@ -7,7 +7,7 @@ global StubJumpToImage
 global LongModeEntry
 
 %define KERNEL_LOAD_ADDRESS 0x200000
-%define TRANSITION_STACK_TOP 0x0000A000
+%define TRANSITION_STACK_TOP 0x00200000
 
 extern VbrLongModeCodeSelector
 extern VbrLongModeDataSelector
@@ -77,7 +77,7 @@ LongModeEntry:
     mov         fs, ax
     mov         gs, ax
 
-    mov         rsp, KERNEL_LOAD_ADDRESS
+    mov         rsp, TRANSITION_STACK_TOP
     mov         rbp, rsp
 
     mov         eax, r13d

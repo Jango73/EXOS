@@ -24,6 +24,7 @@
 
 
 #include "arch/x86-64/x86-64-Memory-Internal.h"
+#include "SerialPort.h"
 
 /************************************************************************/
 
@@ -45,6 +46,20 @@ DRIVER DATA_SECTION MemoryManagerDriver = {
     .Product = "MemoryManager",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = MemoryManagerCommands};
+
+/************************************************************************/
+
+static void MemoryManagerSerialDiag(LPCSTR Text) {
+    SAFE_USE(Text) {
+        for (U32 Index = 0; Index < 0x1000; Index++) {
+            STR Char = Text[Index];
+            if (Char == STR_NULL) {
+                break;
+            }
+            SerialOut(LOG_COM_INDEX, Char);
+        }
+    }
+}
 
 /************************************************************************/
 
@@ -111,6 +126,8 @@ LOW_REGION_SHARED_TABLES LowRegionSharedTables = {
     .BiosTablePhysical = NULL,
     .IdentityTablePhysical = NULL,
 };
+
+PHYSICAL BootstrapBitmapPhysical = NULL;
 
 /************************************************************************/
 
@@ -440,6 +457,32 @@ BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
             /*CacheDisabled*/ 0,
             /*Global*/ 0,
             /*Fixed*/ 1));
+
+    if (BootstrapBitmapPhysical != NULL) {
+        UINT BitmapDirectoryIndex = (UINT)(BootstrapBitmapPhysical >> PAGE_TABLE_CAPACITY_MUL);
+
+        if (BitmapDirectoryIndex >= 2u && BitmapDirectoryIndex < PAGE_TABLE_NUM_ENTRIES) {
+            if (Region->TableCount >= ARRAY_COUNT(Region->Tables)) {
+                ERROR(TEXT("[SetupLowRegion] Bitmap seed table overflow index=%u"), BitmapDirectoryIndex);
+                return FALSE;
+            }
+
+            PAGE_TABLE_SETUP* Table = &Region->Tables[Region->TableCount];
+            Table->DirectoryIndex = BitmapDirectoryIndex;
+            Table->ReadWrite = 1;
+            Table->Privilege = PAGE_PRIVILEGE_KERNEL;
+            Table->Global = 0;
+            Table->Mode = PAGE_TABLE_POPULATE_IDENTITY;
+            Table->Data.Identity.PhysicalBase = (PHYSICAL)(BitmapDirectoryIndex << PAGE_TABLE_CAPACITY_MUL);
+            Table->Data.Identity.ProtectBios = FALSE;
+
+            if (AllocateTableAndPopulate(Region, Table, Directory) == FALSE) {
+                return FALSE;
+            }
+
+            Region->TableCount++;
+        }
+    }
 
     if (UserSeedTables != 0u) {
         UINT TableCapacity = (UINT)(sizeof(Region->Tables) / sizeof(Region->Tables[0]));
@@ -1024,9 +1067,11 @@ static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
  * mode execution.
  */
 void InitializeMemoryManager(void) {
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [InitializeMemoryManager] Enter\r\n"));
 
 
     UpdateKernelMemoryMetricsFromMultibootMap();
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [InitializeMemoryManager] Metrics updated\r\n"));
 
     if (KernelStartup.PageCount == 0) {
         ConsolePanic(TEXT("Detected memory = 0"));
@@ -1037,25 +1082,30 @@ void InitializeMemoryManager(void) {
 
     U64 KernelSpan = (U64)KernelStartup.KernelSize + (U64)N_512KB;
     PHYSICAL MapSize = (PHYSICAL)PAGE_ALIGN(KernelSpan);
-    U64 TotalPages = (MapSize + PAGE_SIZE - 1) >> PAGE_SIZE_MUL;
-    U64 TablesRequired = (TotalPages + (U64)PAGE_TABLE_NUM_ENTRIES - 1) / (U64)PAGE_TABLE_NUM_ENTRIES;
-    PHYSICAL TablesSize = (PHYSICAL)(TablesRequired * (U64)PAGE_TABLE_SIZE);
-    PHYSICAL LoaderReservedEnd = KernelStartup.KernelPhysicalBase + MapSize + TablesSize;
+    // UEFI loader reserves MapSize + 1MB: kernel span plus paging-table workspace.
+    // Keep the full workspace untouched so runtime allocators cannot overlap
+    // bootstrap paging structures built before KernelMain.
+    PHYSICAL LoaderReservedEnd = KernelStartup.KernelPhysicalBase + MapSize + (PHYSICAL)N_1MB;
     PHYSICAL PpbPhysical = PAGE_ALIGN(LoaderReservedEnd);
+    BootstrapBitmapPhysical = PpbPhysical;
 
     SetPhysicalPageBitmap((LPPAGEBITMAP)(UINT)PpbPhysical);
     SetPhysicalPageBitmapSize(BitmapBytesAligned);
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [InitializeMemoryManager] PPB set\r\n"));
 
 
     MemorySet(GetPhysicalPageBitmap(), 0, GetPhysicalPageBitmapSize());
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [InitializeMemoryManager] PPB cleared\r\n"));
 
     MarkUsedPhysicalMemory();
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [InitializeMemoryManager] MarkUsed done\r\n"));
 
     if (KernelStartup.MemorySize == 0) {
         ConsolePanic(TEXT("Detected memory = 0"));
     }
 
     PHYSICAL NewPageDirectory = AllocPageDirectory();
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [InitializeMemoryManager] AllocPageDirectory done\r\n"));
 
 
     if (NewPageDirectory == NULL) {
@@ -1065,15 +1115,20 @@ void InitializeMemoryManager(void) {
     }
 
     LoadPageDirectory(NewPageDirectory);
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [InitializeMemoryManager] LoadPageDirectory done\r\n"));
 
     ConsoleInvalidateFramebufferMapping();
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [InitializeMemoryManager] ConsoleInvalidateFramebufferMapping done\r\n"));
 
     FlushTLB();
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [InitializeMemoryManager] FlushTLB done\r\n"));
 
     LogPageDirectory64(NewPageDirectory);
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [InitializeMemoryManager] LogPageDirectory64 done\r\n"));
 
 
     Kernel_x86_32.GDT = (LPVOID)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("GDT"));
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [InitializeMemoryManager] AllocKernelRegion(GDT) done\r\n"));
 
     if (Kernel_x86_32.GDT == NULL) {
         ERROR(TEXT("[InitializeMemoryManager] AllocRegion for GDT failed"));
@@ -1082,6 +1137,7 @@ void InitializeMemoryManager(void) {
     }
 
     InitializeGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_x86_32.GDT);
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [InitializeMemoryManager] InitializeGlobalDescriptorTable done\r\n"));
 
     LogGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_x86_32.GDT, 10);
 
@@ -1209,11 +1265,13 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
     ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Base);
 
     for (UINT Index = 0; Index < NumPages; Index++) {
+        MemoryManagerSerialDiag(TEXT("T0> TEST > [PopulateRegionPagesLegacy] Loop begin\r\n"));
         UINT TabEntry = MemoryPageIteratorGetTableIndex(&Iterator);
         LINEAR CurrentLinear = MemoryPageIteratorGetLinear(&Iterator);
 
         BOOL IsLargePage = FALSE;
 
+        MemoryManagerSerialDiag(TEXT("T0> TEST > [PopulateRegionPagesLegacy] TryGetPageTableForIterator #1\r\n"));
         if (!TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage)) {
             if (IsLargePage) {
                 BOOL PreviousBootstrap = G_RegionDescriptorBootstrap;
@@ -1223,6 +1281,7 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
                 return FALSE;
             }
 
+            MemoryManagerSerialDiag(TEXT("T0> TEST > [PopulateRegionPagesLegacy] AllocPageTable begin\r\n"));
             if (AllocPageTable(CurrentLinear) == NULL) {
                 BOOL PreviousBootstrap = G_RegionDescriptorBootstrap;
                 G_RegionDescriptorBootstrap = TRUE;
@@ -1230,7 +1289,9 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
                 G_RegionDescriptorBootstrap = PreviousBootstrap;
                 return FALSE;
             }
+            MemoryManagerSerialDiag(TEXT("T0> TEST > [PopulateRegionPagesLegacy] AllocPageTable done\r\n"));
 
+            MemoryManagerSerialDiag(TEXT("T0> TEST > [PopulateRegionPagesLegacy] TryGetPageTableForIterator #2\r\n"));
             if (!TryGetPageTableForIterator(&Iterator, &Table, NULL)) {
                 BOOL PreviousBootstrap = G_RegionDescriptorBootstrap;
                 G_RegionDescriptorBootstrap = TRUE;
@@ -1239,6 +1300,7 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
                 return FALSE;
             }
         }
+        MemoryManagerSerialDiag(TEXT("T0> TEST > [PopulateRegionPagesLegacy] Table ready\r\n"));
 
         U32 Privilege = PAGE_PRIVILEGE(CurrentLinear);
         U32 FixedFlag = (Flags & ALLOC_PAGES_IO) ? 1u : 0u;
@@ -1247,6 +1309,7 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
         PHYSICAL ReservedPhysical = (PHYSICAL)(MAX_U32 & ~(PAGE_SIZE - 1));
 
         WritePageTableEntryValue(Table, TabEntry, MakePageEntryRaw(ReservedPhysical, ReservedFlags));
+        MemoryManagerSerialDiag(TEXT("T0> TEST > [PopulateRegionPagesLegacy] Reserved entry written\r\n"));
 
         if (Flags & ALLOC_PAGES_COMMIT) {
             if (Target != 0) {
@@ -1278,6 +1341,7 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
                             /*Global*/ 0,
                             /*Fixed*/ 0));
                 }
+                MemoryManagerSerialDiag(TEXT("T0> TEST > [PopulateRegionPagesLegacy] Commit target written\r\n"));
             } else {
                 Physical = AllocPhysicalPage();
 
@@ -1301,10 +1365,12 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
                         PteCacheDisabled,
                         /*Global*/ 0,
                         /*Fixed*/ 0));
+                MemoryManagerSerialDiag(TEXT("T0> TEST > [PopulateRegionPagesLegacy] Commit alloc written\r\n"));
             }
         }
 
         MemoryPageIteratorStepPage(&Iterator);
+        MemoryManagerSerialDiag(TEXT("T0> TEST > [PopulateRegionPagesLegacy] Step done\r\n"));
         Base += PAGE_SIZE;
     }
 
@@ -1334,6 +1400,7 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
  * @return Allocated linear base address or 0 on failure.
  */
 LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag) {
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [AllocRegion] Enter\r\n"));
     LINEAR Pointer = NULL;
     UINT NumPages = 0;
 
@@ -1382,8 +1449,10 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
        the region, try to find a region which is at least as large as
        the "Size" parameter. */
     if (Base == 0 || (Flags & ALLOC_PAGES_AT_OR_OVER)) {
+        MemoryManagerSerialDiag(TEXT("T0> TEST > [AllocRegion] FindFreeRegion begin\r\n"));
 
         LINEAR NewBase = FindFreeRegion(Base, Size);
+        MemoryManagerSerialDiag(TEXT("T0> TEST > [AllocRegion] FindFreeRegion done\r\n"));
 
         if (NewBase == NULL) {
             return NULL;
@@ -1432,20 +1501,25 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
 #endif
 
     if (FastPathUsed == FALSE) {
+        MemoryManagerSerialDiag(TEXT("T0> TEST > [AllocRegion] PopulateRegionPagesLegacy begin\r\n"));
         if (PopulateRegionPagesLegacy(Base, Target, NumPages, Flags, Pointer, TEXT("AllocRegion")) == FALSE) {
             return NULL;
         }
+        MemoryManagerSerialDiag(TEXT("T0> TEST > [AllocRegion] PopulateRegionPagesLegacy done\r\n"));
     }
 
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [AllocRegion] RegionTrackAlloc begin\r\n"));
     if (RegionTrackAlloc(Pointer, Target, NumPages << PAGE_SIZE_MUL, Flags, Tag) == FALSE) {
         G_RegionDescriptorBootstrap = TRUE;
         FreeRegion(Pointer, NumPages << PAGE_SIZE_MUL);
         G_RegionDescriptorBootstrap = FALSE;
         return NULL;
     }
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [AllocRegion] RegionTrackAlloc done\r\n"));
 
     // Flush the Translation Look-up Buffer of the CPU
     FlushTLB();
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [AllocRegion] FlushTLB done\r\n"));
 
 
     return Pointer;
@@ -1713,7 +1787,10 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
  */
 LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag) {
     // Always use VMA_KERNEL base and add AT_OR_OVER flag
-    return AllocRegion(VMA_KERNEL, Target, Size, Flags | ALLOC_PAGES_AT_OR_OVER, Tag);
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [AllocKernelRegion] Enter\r\n"));
+    LINEAR Result = AllocRegion(VMA_KERNEL, Target, Size, Flags | ALLOC_PAGES_AT_OR_OVER, Tag);
+    MemoryManagerSerialDiag(TEXT("T0> TEST > [AllocKernelRegion] Return\r\n"));
+    return Result;
 }
 
 /************************************************************************/

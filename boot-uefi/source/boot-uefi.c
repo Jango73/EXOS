@@ -66,6 +66,7 @@ static const STR KernelFileNameText[] = {
 U32 UefiStubMultibootInfoPtr = 0u;
 U32 UefiStubMultibootMagic = 0u;
 U32 UefiStubTestOnly = 0u;
+U32 UefiStubKernelPhysicalBase = 0u;
 
 /************************************************************************/
 
@@ -126,7 +127,9 @@ static EFI_STATUS BootUefiLoadKernelImage(
     BOOT_UEFI_CONTEXT* Context,
     EFI_FILE_PROTOCOL* RootFile,
     const CHAR16* KernelPath,
-    UINT* FileSizeOut);
+    UINT* FileSizeOut,
+    U32* KernelPhysicalBaseOut,
+    U32* KernelReservedBytesOut);
 static EFI_STATUS BootUefiAllocateMultibootData(
     BOOT_UEFI_CONTEXT* Context,
     LPCSTR KernelFileName,
@@ -140,6 +143,7 @@ static EFI_STATUS BootUefiExitBootServicesWithRetry(
 static void NORETURN BootUefiEnterKernel(
     U32 FileSize,
     U32 MultibootInfoPtr,
+    U32 KernelPhysicalBase,
     U64 UefiImageBase,
     U64 UefiImageSize);
 
@@ -1156,20 +1160,24 @@ static EFI_STATUS BootUefiOpenRootFolder(BOOT_UEFI_CONTEXT* Context, EFI_FILE_PR
 /************************************************************************/
 
 /**
- * @brief Load the kernel image into its fixed physical destination.
+ * @brief Load the kernel image into a firmware-selected physical destination.
  *
  * @param Context Boot context.
  * @param RootFile Opened root folder protocol.
  * @param KernelPath UTF-16 kernel file path.
  * @param FileSizeOut Receives kernel file size.
+ * @param KernelPhysicalBaseOut Receives kernel physical base (32-bit).
  * @return EFI status code.
  */
 static EFI_STATUS BootUefiLoadKernelImage(
     BOOT_UEFI_CONTEXT* Context,
     EFI_FILE_PROTOCOL* RootFile,
     const CHAR16* KernelPath,
-    UINT* FileSizeOut) {
-    if (Context == NULL || RootFile == NULL || KernelPath == NULL || FileSizeOut == NULL) {
+    UINT* FileSizeOut,
+    U32* KernelPhysicalBaseOut,
+    U32* KernelReservedBytesOut) {
+    if (Context == NULL || RootFile == NULL || KernelPath == NULL || FileSizeOut == NULL ||
+        KernelPhysicalBaseOut == NULL || KernelReservedBytesOut == NULL) {
         return EFI_INVALID_PARAMETER;
     }
 
@@ -1187,11 +1195,13 @@ static EFI_STATUS BootUefiLoadKernelImage(
     // Keep early logs explicit to simplify boot debugging in firmware consoles.
     BootUefiOutputHex32(Context->ConsoleOut, "[EfiMain] Kernel size ", FileSize);
 
-    // Kernel must be placed at the fixed multiboot load address.
-    UINT KernelPages = BootUefiAlignUp(FileSize, EFI_PAGE_SIZE) / EFI_PAGE_SIZE;
-    EFI_PHYSICAL_ADDRESS KernelAddress = BootUefiPhysicalFromU32(KERNEL_LINEAR_LOAD_ADDRESS);
+    UINT KernelMapBytes = BootUefiAlignUp((UINT)(FileSize + 0x00080000u), EFI_PAGE_SIZE);
+    UINT KernelTableWorkspaceBytes = 0x00100000u;
+    UINT KernelReservedBytes = KernelMapBytes + KernelTableWorkspaceBytes;
+    UINT KernelPages = BootUefiAlignUp(KernelReservedBytes, EFI_PAGE_SIZE) / EFI_PAGE_SIZE;
+    EFI_PHYSICAL_ADDRESS KernelAddress = BootUefiPhysicalFromU32(0xFFFFFFFFu);
     Status = Context->BootServices->AllocatePages(
-        EFI_ALLOCATE_ADDRESS,
+        EFI_ALLOCATE_MAX_ADDRESS,
         EfiLoaderData,
         KernelPages,
         &KernelAddress);
@@ -1199,7 +1209,16 @@ static EFI_STATUS BootUefiLoadKernelImage(
         BootUefiOutputAscii(Context->ConsoleOut, "[EfiMain] ERROR: Cannot reserve kernel pages\r\n");
         return Status;
     }
+    U64 KernelAddress64 = BootUefiPhysicalToU64(KernelAddress);
+    if (U64_High32(KernelAddress64) != 0u) {
+        Context->BootServices->FreePages(KernelAddress, KernelPages);
+        BootUefiOutputAscii(Context->ConsoleOut, "[EfiMain] ERROR: Kernel physical base above 4GB\r\n");
+        return EFI_INVALID_PARAMETER;
+    }
+    U32 KernelPhysicalBase = U64_Low32(KernelAddress64);
+    BootUefiOutputHex32(Context->ConsoleOut, "[EfiMain] Kernel physical base ", KernelPhysicalBase);
     BootUefiOutputHex32(Context->ConsoleOut, "[EfiMain] Kernel pages ", KernelPages);
+    BootUefiOutputHex32(Context->ConsoleOut, "[EfiMain] Kernel reserved bytes ", (U32)KernelReservedBytes);
 
     Status = BootUefiReadFile(Context, RootFile, KernelPath, KernelAddress, FileSize);
     if (Status != EFI_SUCCESS) {
@@ -1209,6 +1228,8 @@ static EFI_STATUS BootUefiLoadKernelImage(
 
     BootUefiOutputAscii(Context->ConsoleOut, "[EfiMain] Kernel loaded\r\n");
     *FileSizeOut = FileSize;
+    *KernelPhysicalBaseOut = KernelPhysicalBase;
+    *KernelReservedBytesOut = (U32)KernelReservedBytes;
     return EFI_SUCCESS;
 }
 
@@ -1418,17 +1439,20 @@ static EFI_STATUS BootUefiExitBootServicesWithRetry(
  *
  * @param FileSize Kernel file size.
  * @param MultibootInfoPtr Multiboot info physical pointer.
+ * @param KernelPhysicalBase Kernel physical base address.
  * @param UefiImageBase UEFI image base address.
  * @param UefiImageSize UEFI image size.
  */
 static void NORETURN BootUefiEnterKernel(
     U32 FileSize,
     U32 MultibootInfoPtr,
+    U32 KernelPhysicalBase,
     U64 UefiImageBase,
     U64 UefiImageSize) {
     BootUefiSerialWriteString(0x3F8u, (LPCSTR)"[EfiMain] ExitBootServices ok\r\n");
     UefiStubMultibootInfoPtr = MultibootInfoPtr;
     UefiStubMultibootMagic = MULTIBOOT_BOOTLOADER_MAGIC;
+    UefiStubKernelPhysicalBase = KernelPhysicalBase;
 #if UEFI_STUB_TEST == 1
     UefiStubTestOnly = 1u;
 #else
@@ -1477,7 +1501,15 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 
     // Load the kernel image before leaving boot services.
     UINT FileSize = 0;
-    Status = BootUefiLoadKernelImage(&Context, RootFile, KernelPath, &FileSize);
+    U32 KernelPhysicalBase = 0u;
+    U32 KernelReservedBytes = 0u;
+    Status = BootUefiLoadKernelImage(
+        &Context,
+        RootFile,
+        KernelPath,
+        &FileSize,
+        &KernelPhysicalBase,
+        &KernelReservedBytes);
     RootFile->Close(RootFile);
     if (Status != EFI_SUCCESS) {
         return Status;
@@ -1501,6 +1533,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     UefiStubMultibootInfoPtr = 0u;
     UefiStubMultibootMagic = 0u;
     UefiStubTestOnly = 1u;
+    UefiStubKernelPhysicalBase = 0u;
     __asm__ __volatile__("" ::: "memory");
     EnterProtectedPagingAndJump(0u, 0u, Context.ImageBase, Context.ImageSize);
     BootUefiHalt(&Context, "UEFI_STUB_EARLY_CALL returned");
@@ -1534,7 +1567,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         MultibootLayout.KernelModule,
         E820Map,
         E820Count,
-        KERNEL_LINEAR_LOAD_ADDRESS,
+        KernelPhysicalBase,
         (U32)FileSize,
         RsdpPhysicalLow,
         MultibootLayout.BootloaderName,
@@ -1542,7 +1575,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         HasFramebuffer ? &FramebufferInfo : NULL);
 
     // No return path after this call.
-    BootUefiEnterKernel((U32)FileSize, MultibootInfoPtr, Context.ImageBase, Context.ImageSize);
+    BootUefiEnterKernel((U32)FileSize, MultibootInfoPtr, KernelPhysicalBase, Context.ImageBase, Context.ImageSize);
 
     return EFI_SUCCESS;
 }
