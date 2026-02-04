@@ -76,6 +76,9 @@ void MarkUsedPhysicalMemory(void);
 LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical);
 LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical);
 LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical);
+LINEAR MapTemporaryPhysicalPage4(PHYSICAL Physical);
+LINEAR MapTemporaryPhysicalPage5(PHYSICAL Physical);
+LINEAR MapTemporaryPhysicalPage6(PHYSICAL Physical);
 BOOL ReadPhysicalMemory(PHYSICAL PhysicalAddress, LPVOID Buffer, UINT Length);
 
 // Allocates physical space for a new page directory

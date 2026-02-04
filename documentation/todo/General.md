@@ -2,7 +2,6 @@
 
 ## Problems
 
-- x86-64 : crash on second program launch, probably due to kernel space resize from non-kernel process : kernel mappings are not broadcasted correctly.
 - Opening a file in a userland program without an absolute path should do the same as using getcwd().
 - Add a getpd() that returns the folder in which the current executable's image lives.
 

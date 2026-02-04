@@ -32,9 +32,15 @@
 static LINEAR G_TempLinear1 = TEMP_LINEAR_PAGE_1;
 static LINEAR G_TempLinear2 = TEMP_LINEAR_PAGE_2;
 static LINEAR G_TempLinear3 = TEMP_LINEAR_PAGE_3;
+static LINEAR G_TempLinear4 = TEMP_LINEAR_PAGE_4;
+static LINEAR G_TempLinear5 = TEMP_LINEAR_PAGE_5;
+static LINEAR G_TempLinear6 = TEMP_LINEAR_PAGE_6;
 static PHYSICAL G_TempPhysical1 = 0;
 static PHYSICAL G_TempPhysical2 = 0;
 static PHYSICAL G_TempPhysical3 = 0;
+static PHYSICAL G_TempPhysical4 = 0;
+static PHYSICAL G_TempPhysical5 = 0;
+static PHYSICAL G_TempPhysical6 = 0;
 
 /************************************************************************/
 /**
@@ -352,6 +358,81 @@ LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
     FlushTLB();
 
     return G_TempLinear3;
+}
+
+/************************************************************************/
+// Public temporary map #4
+
+/**
+ * @brief Map a physical page to the fourth temporary linear address.
+ * @param Physical Physical page number.
+ * @return Linear address mapping or 0 on failure.
+ */
+LINEAR MapTemporaryPhysicalPage4(PHYSICAL Physical) {
+    if (G_TempLinear4 == 0) {
+        ConsolePanic(TEXT("[MapTemporaryPhysicalPage4] Temp slot #4 not reserved"));
+        return NULL;
+    }
+
+    G_TempPhysical4 = Physical;
+
+    MapOnePage(
+        G_TempLinear4, Physical,
+        /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
+
+    FlushTLB();
+
+    return G_TempLinear4;
+}
+
+/************************************************************************/
+// Public temporary map #5
+
+/**
+ * @brief Map a physical page to the fifth temporary linear address.
+ * @param Physical Physical page number.
+ * @return Linear address mapping or 0 on failure.
+ */
+LINEAR MapTemporaryPhysicalPage5(PHYSICAL Physical) {
+    if (G_TempLinear5 == 0) {
+        ConsolePanic(TEXT("[MapTemporaryPhysicalPage5] Temp slot #5 not reserved"));
+        return NULL;
+    }
+
+    G_TempPhysical5 = Physical;
+
+    MapOnePage(
+        G_TempLinear5, Physical,
+        /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
+
+    FlushTLB();
+
+    return G_TempLinear5;
+}
+
+/************************************************************************/
+// Public temporary map #6
+
+/**
+ * @brief Map a physical page to the sixth temporary linear address.
+ * @param Physical Physical page number.
+ * @return Linear address mapping or 0 on failure.
+ */
+LINEAR MapTemporaryPhysicalPage6(PHYSICAL Physical) {
+    if (G_TempLinear6 == 0) {
+        ConsolePanic(TEXT("[MapTemporaryPhysicalPage6] Temp slot #6 not reserved"));
+        return NULL;
+    }
+
+    G_TempPhysical6 = Physical;
+
+    MapOnePage(
+        G_TempLinear6, Physical,
+        /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
+
+    FlushTLB();
+
+    return G_TempLinear6;
 }
 
 /************************************************************************/

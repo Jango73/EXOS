@@ -27,7 +27,6 @@
 #include "CoreString.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "process/Schedule.h"
 #include "System.h"
 
 /************************************************************************/
@@ -55,14 +54,10 @@ LPPROCESS ResolveCurrentAddressSpaceOwner(void) {
 
 /************************************************************************/
 /**
- * @brief Allocate a new descriptor slab when the free list runs empty.
+ * @brief Allocate and chain one descriptor slab.
  * @return TRUE on success, FALSE otherwise.
  */
-static BOOL EnsureDescriptorSlab(void) {
-    if (G_FreeRegionDescriptors != NULL) {
-        return TRUE;
-    }
-
+static BOOL GrowDescriptorSlab(void) {
     PHYSICAL Physical = AllocPhysicalPage();
     if (Physical == NULL) {
         ERROR(TEXT("[EnsureDescriptorSlab] No physical page available"));
@@ -99,8 +94,20 @@ static BOOL EnsureDescriptorSlab(void) {
 
     G_RegionDescriptorPages++;
 
-
     return TRUE;
+}
+
+/************************************************************************/
+/**
+ * @brief Allocate a new descriptor slab when the free list runs empty.
+ * @return TRUE on success, FALSE otherwise.
+ */
+static BOOL EnsureDescriptorSlab(void) {
+    if (G_FreeRegionDescriptors != NULL) {
+        return TRUE;
+    }
+
+    return GrowDescriptorSlab();
 }
 
 /************************************************************************/

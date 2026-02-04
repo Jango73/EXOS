@@ -153,7 +153,7 @@ BOOL EnsureSharedLowTable(
         return FALSE;
     }
 
-    LINEAR Linear = MapTemporaryPhysicalPage3(Physical);
+    LINEAR Linear = MapTemporaryPhysicalPage6(Physical);
 
     if (Linear == NULL) {
         ERROR(TEXT("[SetupLowRegion] MapTemporaryPhysicalPage3 failed for shared %s table"), Label);
@@ -261,7 +261,7 @@ BOOL AllocateTableAndPopulate(
     }
 
 
-    LINEAR TableLinear = MapTemporaryPhysicalPage3(Table->Physical);
+    LINEAR TableLinear = MapTemporaryPhysicalPage6(Table->Physical);
 
     if (TableLinear == NULL) {
         ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage3 failed for %s table"), Region->Label);
@@ -387,7 +387,7 @@ BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
         return FALSE;
     }
 
-    LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage1(Region->PdptPhysical);
+    LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage4(Region->PdptPhysical);
 
     if (Pdpt == NULL) {
         ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage1 failed for low PDPT"));
@@ -397,7 +397,7 @@ BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
 
     MemorySet(Pdpt, 0, PAGE_SIZE);
 
-    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(Region->DirectoryPhysical);
+    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage5(Region->DirectoryPhysical);
 
     if (Directory == NULL) {
         ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage2 failed for low directory"));
@@ -463,9 +463,7 @@ BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
             Table->Data.Identity.PhysicalBase = (PHYSICAL)(BitmapDirectoryIndex << PAGE_TABLE_CAPACITY_MUL);
             Table->Data.Identity.ProtectBios = FALSE;
 
-            if (AllocateTableAndPopulate(Region, Table, Directory) == FALSE) {
-                return FALSE;
-            }
+            if (AllocateTableAndPopulate(Region, Table, Directory) == FALSE) return FALSE;
 
             Region->TableCount++;
         }
@@ -560,7 +558,7 @@ BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
         return FALSE;
     }
 
-    LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage1(Region->PdptPhysical);
+    LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage4(Region->PdptPhysical);
 
     if (Pdpt == NULL) {
         ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage1 failed for kernel PDPT"));
@@ -569,7 +567,7 @@ BOOL SetupKernelRegion(REGION_SETUP* Region, UINT TableCountRequired) {
 
     MemorySet(Pdpt, 0, PAGE_SIZE);
 
-    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(Region->DirectoryPhysical);
+    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage5(Region->DirectoryPhysical);
 
     if (Directory == NULL) {
         ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage2 failed for kernel directory"));
@@ -643,7 +641,7 @@ BOOL SetupTaskRunnerRegion(
         return FALSE;
     }
 
-    LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage1(Region->PdptPhysical);
+    LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage4(Region->PdptPhysical);
 
     if (Pdpt == NULL) {
         ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage1 failed for TaskRunner PDPT"));
@@ -652,7 +650,7 @@ BOOL SetupTaskRunnerRegion(
 
     MemorySet(Pdpt, 0, PAGE_SIZE);
 
-    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(Region->DirectoryPhysical);
+    LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage5(Region->DirectoryPhysical);
 
     if (Directory == NULL) {
         ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage2 failed for TaskRunner directory"));
@@ -701,7 +699,7 @@ U64 ReadTableEntrySnapshot(PHYSICAL TablePhysical, UINT Index) {
         return 0;
     }
 
-    LINEAR Linear = MapTemporaryPhysicalPage3(TablePhysical);
+    LINEAR Linear = MapTemporaryPhysicalPage6(TablePhysical);
 
     if (Linear == NULL) {
         return 0;
@@ -710,8 +708,6 @@ U64 ReadTableEntrySnapshot(PHYSICAL TablePhysical, UINT Index) {
     return ReadPageTableEntryValue((LPPAGE_TABLE)Linear, Index);
 }
 */
-
-/************************************************************************/
 
 /**
  * @brief Build the kernel-mode long mode paging hierarchy.
@@ -763,7 +759,7 @@ PHYSICAL AllocPageDirectory(void) {
         goto Out;
     }
 
-    LINEAR Pml4Linear = MapTemporaryPhysicalPage1(Pml4Physical);
+    LINEAR Pml4Linear = MapTemporaryPhysicalPage4(Pml4Physical);
 
     if (Pml4Linear == NULL) {
         ERROR(TEXT("[AllocPageDirectory] MapTemporaryPhysicalPage1 failed on PML4"));
@@ -860,7 +856,6 @@ PHYSICAL AllocUserPageDirectory(void) {
     BOOL Success = FALSE;
     BOOL TaskRunnerReused = FALSE;
 
-
     if (EnsureCurrentStackSpace(N_32KB) == FALSE) {
         ERROR(TEXT("[AllocUserPageDirectory] Unable to ensure stack availability"));
         return NULL;
@@ -884,7 +879,7 @@ PHYSICAL AllocUserPageDirectory(void) {
         goto Out;
     }
 
-    LINEAR Pml4Linear = MapTemporaryPhysicalPage1(Pml4Physical);
+    LINEAR Pml4Linear = MapTemporaryPhysicalPage4(Pml4Physical);
 
     if (Pml4Linear == NULL) {
         ERROR(TEXT("[AllocUserPageDirectory] MapTemporaryPhysicalPage1 failed on PML4"));
@@ -912,35 +907,29 @@ PHYSICAL AllocUserPageDirectory(void) {
             /*Global*/ 0,
             /*Fixed*/ 1));
 
-    if (BootstrapBitmapPhysical != NULL) {
-        UINT BitmapDirectoryIndex = (UINT)(BootstrapBitmapPhysical >> PAGE_TABLE_CAPACITY_MUL);
+    // Mirror all present low-directory mappings from the active CR3 into the
+    // new user directory. This keeps bootstrap low-memory helpers available
+    // even when they span multiple 2MB directory entries.
+    U64 CurrentLowPdptEntry = ReadPageDirectoryEntryValue(CurrentPml4, LowPml4Index);
 
-        if (BitmapDirectoryIndex < PAGE_TABLE_NUM_ENTRIES) {
-            U64 CurrentLowPdptEntry = ReadPageDirectoryEntryValue(CurrentPml4, LowPml4Index);
+    if ((CurrentLowPdptEntry & PAGE_FLAG_PRESENT) != 0) {
+        PHYSICAL CurrentLowPdptPhysical = (PHYSICAL)(CurrentLowPdptEntry & PAGE_MASK);
+        LPPAGE_DIRECTORY CurrentLowPdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage5(CurrentLowPdptPhysical);
 
-            if ((CurrentLowPdptEntry & PAGE_FLAG_PRESENT) != 0) {
-                PHYSICAL CurrentLowPdptPhysical = (PHYSICAL)(CurrentLowPdptEntry & PAGE_MASK);
-                LPPAGE_DIRECTORY CurrentLowPdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(CurrentLowPdptPhysical);
+        if (CurrentLowPdpt != NULL) {
+            U64 CurrentLowDirectoryEntry = ReadPageDirectoryEntryValue(CurrentLowPdpt, 0);
 
-                if (CurrentLowPdpt != NULL) {
-                    U64 CurrentLowDirectoryEntry = ReadPageDirectoryEntryValue(CurrentLowPdpt, 0);
+            if ((CurrentLowDirectoryEntry & PAGE_FLAG_PRESENT) != 0) {
+                PHYSICAL CurrentLowDirectoryPhysical = (PHYSICAL)(CurrentLowDirectoryEntry & PAGE_MASK);
+                LPPAGE_DIRECTORY CurrentLowDirectory =
+                    (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage6(CurrentLowDirectoryPhysical);
+                LPPAGE_DIRECTORY NewLowDirectory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage5(LowRegion.DirectoryPhysical);
 
-                    if ((CurrentLowDirectoryEntry & PAGE_FLAG_PRESENT) != 0) {
-                        PHYSICAL CurrentLowDirectoryPhysical = (PHYSICAL)(CurrentLowDirectoryEntry & PAGE_MASK);
-                        LPPAGE_DIRECTORY CurrentLowDirectory =
-                            (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage3(CurrentLowDirectoryPhysical);
-
-                        if (CurrentLowDirectory != NULL) {
-                            U64 BitmapEntryValue = ReadPageDirectoryEntryValue(CurrentLowDirectory, BitmapDirectoryIndex);
-
-                            if ((BitmapEntryValue & PAGE_FLAG_PRESENT) != 0) {
-                                LPPAGE_DIRECTORY NewLowDirectory =
-                                    (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(LowRegion.DirectoryPhysical);
-
-                                if (NewLowDirectory != NULL) {
-                                    WritePageDirectoryEntryValue(NewLowDirectory, BitmapDirectoryIndex, BitmapEntryValue);
-                                }
-                            }
+                if (CurrentLowDirectory != NULL && NewLowDirectory != NULL) {
+                    for (UINT Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
+                        U64 EntryValue = ReadPageDirectoryEntryValue(CurrentLowDirectory, Index);
+                        if ((EntryValue & PAGE_FLAG_PRESENT) != 0) {
+                            WritePageDirectoryEntryValue(NewLowDirectory, Index, EntryValue);
                         }
                     }
                 }
@@ -989,8 +978,8 @@ PHYSICAL AllocUserPageDirectory(void) {
     WritePageDirectoryEntryValue(Pml4, TaskRunnerPml4Index, TaskRunnerEntryValue);
 
     if (!TaskRunnerReused) {
-        LINEAR TaskRunnerDirectoryLinear = MapTemporaryPhysicalPage2(TaskRunnerRegion.DirectoryPhysical);
-        LINEAR TaskRunnerTableLinear = MapTemporaryPhysicalPage3(TaskRunnerRegion.Tables[0].Physical);
+        LINEAR TaskRunnerDirectoryLinear = MapTemporaryPhysicalPage5(TaskRunnerRegion.DirectoryPhysical);
+        LINEAR TaskRunnerTableLinear = MapTemporaryPhysicalPage6(TaskRunnerRegion.Tables[0].Physical);
 
         if (TaskRunnerDirectoryLinear != NULL && TaskRunnerTableLinear != NULL) {
             UINT TaskRunnerDirectoryIndex = GetDirectoryEntry((U64)VMA_TASK_RUNNER);
@@ -1017,8 +1006,6 @@ PHYSICAL AllocUserPageDirectory(void) {
             /*Fixed*/ 1));
 
 
-
-    LogPageDirectory64(Pml4Physical);
 
     FlushTLB();
 
@@ -1144,9 +1131,6 @@ void InitializeMemoryManager(void) {
 
     FlushTLB();
 
-    LogPageDirectory64(NewPageDirectory);
-
-
     Kernel_x86_32.GDT = (LPVOID)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("GDT"));
 
     if (Kernel_x86_32.GDT == NULL) {
@@ -1220,7 +1204,7 @@ void FreeEmptyPageTables(void) {
         }
 
         PHYSICAL PdptPhysical = (PHYSICAL)(Pml4EntryValue & PAGE_MASK);
-        LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage1(PdptPhysical);
+        LPPAGE_DIRECTORY Pdpt = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage4(PdptPhysical);
 
         for (UINT PdptIndex = 0u; PdptIndex < PAGE_TABLE_NUM_ENTRIES; PdptIndex++) {
             U64 PdptEntryValue = ReadPageDirectoryEntryValue(Pdpt, PdptIndex);
@@ -1232,7 +1216,7 @@ void FreeEmptyPageTables(void) {
             }
 
             PHYSICAL DirectoryPhysical = (PHYSICAL)(PdptEntryValue & PAGE_MASK);
-            LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage2(DirectoryPhysical);
+            LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage5(DirectoryPhysical);
 
             for (UINT DirIndex = 0u; DirIndex < PAGE_TABLE_NUM_ENTRIES; DirIndex++) {
                 U64 DirectoryEntryValue = ReadPageDirectoryEntryValue(Directory, DirIndex);
@@ -1248,7 +1232,7 @@ void FreeEmptyPageTables(void) {
                     continue;
                 }
 
-                LPPAGE_TABLE Table = (LPPAGE_TABLE)MapTemporaryPhysicalPage3(TablePhysical);
+                LPPAGE_TABLE Table = (LPPAGE_TABLE)MapTemporaryPhysicalPage6(TablePhysical);
                 if (Table == NULL) {
                     ERROR(TEXT("[FreeEmptyPageTables] Failed to map table PML4=%u PDPT=%u Dir=%u phys=%p"),
                         Pml4Index, PdptIndex, DirIndex, (LPVOID)TablePhysical);
