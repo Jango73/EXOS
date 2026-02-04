@@ -7,6 +7,7 @@ set "USE_UEFI=0"
 set "USB3_ENABLED=1"
 set "NVME_ENABLED=1"
 set "NVME_SIZE_MB=1024"
+set "BOOT_MODE=mbr"
 set "UEFI_ARGS="
 set "UEFI_VARS_COPY="
 
@@ -35,6 +36,7 @@ if "%~1"=="--no-usb3" (
 )
 if "%~1"=="--uefi" (
     set "USE_UEFI=1"
+    set "BOOT_MODE=uefi"
     shift
     goto parse
 )
@@ -106,6 +108,9 @@ if "%USE_UEFI%"=="0" if "%USB3_ENABLED%"=="1" (
 )
 
 if not exist log mkdir log
+set "LOG_DEBUG_COM1=log/debug-com1-%ARCH%-%BOOT_MODE%.log"
+set "LOG_KERNEL=log/kernel-%ARCH%-%BOOT_MODE%.log"
+set "LOG_NET=log/kernel-net-%ARCH%-%BOOT_MODE%.pcap"
 
 set "USB_ARGS="
 if "%USE_UEFI%"=="0" if "%USB3_ENABLED%"=="1" (
@@ -185,10 +190,10 @@ echo Starting QEMU for %ARCH%
 -device ide-hd,drive=drive0,bus=ahci.0 ^
 -netdev user,id=net0 ^
 -device e1000,netdev=net0 ^
--object filter-dump,id=dump0,netdev=net0,file=log/kernel-net-%ARCH%.pcap ^
+-object filter-dump,id=dump0,netdev=net0,file=%LOG_NET% ^
 -monitor telnet:127.0.0.1:4444,server,nowait ^
--serial file:"log/debug-com1-%ARCH%.log" ^
--serial file:"log/kernel-%ARCH%.log" ^
+-serial file:"%LOG_DEBUG_COM1%" ^
+-serial file:"%LOG_KERNEL%" ^
 -vga std ^
 -no-reboot ^
 %GDB_ARGS% ^

@@ -12,6 +12,7 @@ USB3_ENABLED=1
 NVME_ENABLED=1
 NVME_SIZE_MB="${NVME_SIZE_MB:-1024}"
 MONITOR_PORT="${MONITOR_PORT:-4444}"
+BOOT_MODE="mbr"
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -30,6 +31,7 @@ while [ $# -gt 0 ]; do
             ;;
         --uefi)
             USE_UEFI=1
+            BOOT_MODE="uefi"
             ;;
         --nvme)
             NVME_ENABLED=1
@@ -115,6 +117,10 @@ if [ "$USB3_ENABLED" -eq 1 ] && [ ! -f "$USB_3_PATH" ]; then
 fi
 
 mkdir -p log
+
+LOG_DEBUG_COM1="log/debug-com1-${ARCH}-${BOOT_MODE}.log"
+LOG_KERNEL="log/kernel-${ARCH}-${BOOT_MODE}.log"
+LOG_NET_PCAP="log/kernel-net-${ARCH}-${BOOT_MODE}.pcap"
 
 USB_ARGUMENTS=()
 NVME_ARGUMENTS=()
@@ -220,13 +226,13 @@ function RunStandardQemu() {
     -device ide-hd,drive=drive0,bus=ahci.0 \
     -netdev user,id=net0 \
     -device e1000,netdev=net0 \
-    -object filter-dump,id=dump0,netdev=net0,file=log/kernel-net-${ARCH}.pcap \
+    -object filter-dump,id=dump0,netdev=net0,file="${LOG_NET_PCAP}" \
     -monitor telnet:127.0.0.1:${MONITOR_PORT},server,nowait \
-    -serial file:"log/debug-com1-${ARCH}.log" \
+    -serial file:"${LOG_DEBUG_COM1}" \
     -serial stdio \
     -vga std \
     -no-reboot \
-    2>&1 | "$CYCLE_BIN" -o log/kernel-${ARCH}.log -s 200000
+    2>&1 | "$CYCLE_BIN" -o "${LOG_KERNEL}" -s 200000
 }
 
 function RunGdbQemu() {
@@ -258,8 +264,8 @@ function RunGdbQemu() {
     -device ide-hd,drive=drive0,bus=ahci.0 \
     -netdev user,id=net0 \
     -device e1000,netdev=net0 \
-    -serial file:"log/debug-com1-${ARCH}.log" \
-    -serial file:"log/kernel-${ARCH}.log" \
+    -serial file:"${LOG_DEBUG_COM1}" \
+    -serial file:"${LOG_KERNEL}" \
     -vga std \
     -no-reboot \
     -s -S &
