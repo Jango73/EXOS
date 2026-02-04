@@ -1077,13 +1077,13 @@ static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
  */
 void InitializeMemoryManager(void) {
 #if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(60, 255, 0, 0);
+    BootStageMarkerFromConsole(45, 255, 0, 0);
 #endif
 
     UpdateKernelMemoryMetricsFromMultibootMap();
 
 #if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(61, 255, 128, 0);
+    BootStageMarkerFromConsole(46, 255, 128, 0);
 #endif
 
     if (KernelStartup.PageCount == 0) {
@@ -1115,7 +1115,7 @@ void InitializeMemoryManager(void) {
     SetPhysicalPageBitmapSize(BitmapBytesAligned);
 
 #if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(62, 255, 255, 0);
+    BootStageMarkerFromConsole(47, 255, 255, 0);
 #endif
 
     MemorySet(GetPhysicalPageBitmap(), 0, GetPhysicalPageBitmapSize());
@@ -1123,7 +1123,7 @@ void InitializeMemoryManager(void) {
     MarkUsedPhysicalMemory();
 
 #if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(63, 0, 255, 0);
+    BootStageMarkerFromConsole(48, 0, 255, 0);
 #endif
 
     if (KernelStartup.MemorySize == 0) {
@@ -1140,7 +1140,7 @@ void InitializeMemoryManager(void) {
     }
 
 #if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(64, 0, 255, 255);
+    BootStageMarkerFromConsole(49, 0, 255, 255);
 #endif
 
     LoadPageDirectory(NewPageDirectory);
@@ -1150,7 +1150,17 @@ void InitializeMemoryManager(void) {
     FlushTLB();
 
 #if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(65, 0, 128, 255);
+    BootStageMarkerFromConsole(50, 0, 128, 255);
+#endif
+
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(51, 255, 255, 255);
+#endif
+
+    InitializeRegionDescriptorTracking();
+
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(62, 255, 255, 255);
 #endif
 
     Kernel_x86_32.GDT = (LPVOID)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("GDT"));
@@ -1161,17 +1171,26 @@ void InitializeMemoryManager(void) {
         DO_THE_SLEEPING_BEAUTY;
     }
 
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(63, 255, 0, 0);
+#endif
+
     InitializeGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_x86_32.GDT);
 
-    LogGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_x86_32.GDT, 10);
-
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(64, 255, 128, 0);
+#endif
 
     LoadGlobalDescriptorTable((PHYSICAL)Kernel_x86_32.GDT, GDT_SIZE - 1);
 
-    InitializeRegionDescriptorTracking();
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(65, 255, 255, 0);
+#endif
+
+    LogGlobalDescriptorTable((LPSEGMENT_DESCRIPTOR)Kernel_x86_32.GDT, 10);
 
 #if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(66, 255, 255, 255);
+    BootStageMarkerFromConsole(66, 0, 255, 0);
 #endif
 
 }

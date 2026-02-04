@@ -43,6 +43,8 @@ static const U32 TEMP_LINEAR_REQUIRED_SPAN = TEMP_LINEAR_LAST_OFFSET + PAGE_SIZE
 static const U32 KERNEL_IDENTITY_WORKSPACE_SPAN = N_2MB;
 static const U32 BOOT_MARKER_BASE_X = 2u;
 static const U32 BOOT_MARKER_Y_TRANSITION = 2u;
+static const U32 BOOT_MARKER_GROUP_SIZE = 10u;
+static const U32 BOOT_MARKER_LINE_STRIDE = 10u;
 static const U32 BOOT_MARKER_SIZE = 8u;
 static const U32 BOOT_MARKER_SPACING = 2u;
 
@@ -127,8 +129,10 @@ static void PayloadFramebufferMarkStage(const multiboot_info_t* Info, U32 StageI
     }
 
     U32 Pixel = VbrComposeFramebufferPixel(Info, Red, Green, Blue);
-    U32 StartX = BOOT_MARKER_BASE_X + StageIndex * (BOOT_MARKER_SIZE + BOOT_MARKER_SPACING);
-    U32 StartY = BOOT_MARKER_Y_TRANSITION;
+    U32 GroupIndex = StageIndex / BOOT_MARKER_GROUP_SIZE;
+    U32 GroupOffset = StageIndex % BOOT_MARKER_GROUP_SIZE;
+    U32 StartX = BOOT_MARKER_BASE_X + GroupOffset * (BOOT_MARKER_SIZE + BOOT_MARKER_SPACING);
+    U32 StartY = BOOT_MARKER_Y_TRANSITION + GroupIndex * BOOT_MARKER_LINE_STRIDE;
 
     if (StartX >= Info->framebuffer_width || StartY >= Info->framebuffer_height) {
         return;

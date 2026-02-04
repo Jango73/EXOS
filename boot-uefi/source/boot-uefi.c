@@ -1256,8 +1256,12 @@ static void BootUefiMarkStage(BOOT_UEFI_CONTEXT* Context, U32 StageIndex, U8 Red
 
     const U32 MarkerSize = 8u;
     const U32 MarkerSpacing = 2u;
-    U32 StartX = 2u + StageIndex * (MarkerSize + MarkerSpacing);
-    U32 StartY = 2u;
+    const U32 MarkerGroupSize = 10u;
+    const U32 MarkerLineStride = MarkerSize + MarkerSpacing;
+    U32 GroupIndex = StageIndex / MarkerGroupSize;
+    U32 GroupOffset = StageIndex % MarkerGroupSize;
+    U32 StartX = 2u + GroupOffset * (MarkerSize + MarkerSpacing);
+    U32 StartY = 2u + GroupIndex * MarkerLineStride;
     if (StartX >= Info->HorizontalResolution || StartY >= Info->VerticalResolution) {
         return;
     }

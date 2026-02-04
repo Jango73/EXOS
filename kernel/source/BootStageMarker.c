@@ -23,11 +23,13 @@
 
 #include "BootStageMarker.h"
 #include "Console.h"
+#include "Memory.h"
 
 /************************************************************************/
 
 typedef struct tag_BOOT_STAGE_MARKER_FRAMEBUFFER_INFO {
     U8* Linear;
+    PHYSICAL Physical;
     U32 Pitch;
     U32 Width;
     U32 Height;
@@ -59,6 +61,7 @@ static void BootStageMarkerDraw(
     U32 Red,
     U32 Green,
     U32 Blue);
+static void BootStageMarkerWritePixelPhysical(PHYSICAL Address, U32 Pixel);
 
 /************************************************************************/
 
@@ -176,11 +179,12 @@ static BOOL BootStageMarkerBuildFromConsole(BOOT_STAGE_MARKER_FRAMEBUFFER_INFO* 
         Console.FramebufferPitch == 0 ||
         Console.FramebufferWidth == 0 ||
         Console.FramebufferHeight == 0 ||
-        Console.FramebufferLinear == NULL) {
+        Console.FramebufferPhysical == 0) {
         return FALSE;
     }
 
     FramebufferInfo->Linear = Console.FramebufferLinear;
+    FramebufferInfo->Physical = Console.FramebufferPhysical;
     FramebufferInfo->Pitch = Console.FramebufferPitch;
     FramebufferInfo->Width = Console.FramebufferWidth;
     FramebufferInfo->Height = Console.FramebufferHeight;
@@ -221,10 +225,11 @@ static BOOL BootStageMarkerBuildFromMultiboot(
     }
 
     FramebufferInfo->Linear = (U8*)(UINT)MultibootInfo->framebuffer_addr_low;
-    if (FramebufferInfo->Linear == NULL) {
+    if (FramebufferInfo->Linear == NULL || MultibootInfo->framebuffer_addr_low == 0u) {
         return FALSE;
     }
 
+    FramebufferInfo->Physical = (PHYSICAL)MultibootInfo->framebuffer_addr_low;
     FramebufferInfo->Pitch = MultibootInfo->framebuffer_pitch;
     FramebufferInfo->Width = MultibootInfo->framebuffer_width;
     FramebufferInfo->Height = MultibootInfo->framebuffer_height;
@@ -285,10 +290,42 @@ static void BootStageMarkerDraw(
 
     U32 Pixel = BootStageMarkerComposeColor(FramebufferInfo, Red, Green, Blue);
 
+    if (FramebufferInfo->Linear == NULL) {
+        for (U32 Y = 0; Y < DrawHeight; Y++) {
+            PHYSICAL RowAddress = FramebufferInfo->Physical +
+                                  ((PHYSICAL)(StartY + Y) * (PHYSICAL)FramebufferInfo->Pitch) +
+                                  ((PHYSICAL)StartX * (PHYSICAL)4);
+            for (U32 X = 0; X < DrawWidth; X++) {
+                BootStageMarkerWritePixelPhysical(RowAddress + ((PHYSICAL)X * (PHYSICAL)4), Pixel);
+            }
+        }
+        return;
+    }
+
     for (U32 Y = 0; Y < DrawHeight; Y++) {
         U32* Row = (U32*)(FramebufferInfo->Linear + ((StartY + Y) * FramebufferInfo->Pitch) + (StartX * 4));
         for (U32 X = 0; X < DrawWidth; X++) {
             Row[X] = Pixel;
         }
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Write one 32-bit pixel at a physical address through temp mapping.
+ *
+ * @param Address Physical pixel address.
+ * @param Pixel Pixel value.
+ */
+static void BootStageMarkerWritePixelPhysical(PHYSICAL Address, U32 Pixel) {
+    PHYSICAL PagePhysical = Address & ~((PHYSICAL)PAGE_SIZE - (PHYSICAL)1);
+    U32 Offset = (U32)(Address - PagePhysical);
+    LINEAR PageLinear = MapTemporaryPhysicalPage1(PagePhysical);
+    if (PageLinear == 0) {
+        return;
+    }
+
+    U32* Target = (U32*)(UINT)(PageLinear + Offset);
+    Target[0] = Pixel;
 }

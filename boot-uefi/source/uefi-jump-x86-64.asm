@@ -13,6 +13,8 @@ global LongModeEntry
 %define BOOT_MARKER_SIZE 8
 %define BOOT_MARKER_SPACING 2
 %define BOOT_MARKER_STRIDE (BOOT_MARKER_SIZE + BOOT_MARKER_SPACING)
+%define BOOT_MARKER_GROUP_SIZE 10
+%define BOOT_MARKER_LINE_STRIDE (BOOT_MARKER_SIZE + BOOT_MARKER_SPACING)
 %define BOOT_STAGE_STUB_ENTRY 22
 %define BOOT_STAGE_STUB_AFTER_CR3 23
 %define BOOT_STAGE_LONG_MODE_ENTRY 25
@@ -64,8 +66,8 @@ StubJumpToImage:
     test        ebx, ebx
     jz          .skip_marker_20
     mov         edx, ebx
-    imul        edx, BOOT_MARKER_Y_TRANSITION
-    lea         rsi, [rdi + rdx + (BOOT_MARKER_BASE_X + BOOT_STAGE_STUB_ENTRY * BOOT_MARKER_STRIDE) * 4]
+    imul        edx, (BOOT_MARKER_Y_TRANSITION + ((BOOT_STAGE_STUB_ENTRY / BOOT_MARKER_GROUP_SIZE) * BOOT_MARKER_LINE_STRIDE))
+    lea         rsi, [rdi + rdx + (BOOT_MARKER_BASE_X + ((BOOT_STAGE_STUB_ENTRY % BOOT_MARKER_GROUP_SIZE) * BOOT_MARKER_STRIDE)) * 4]
     mov         ecx, 8
 .marker20_row:
     mov         dword [rsi + 0],  0x00AA00FF
@@ -115,8 +117,8 @@ StubJumpToImage:
     test        ebx, ebx
     jz          .skip_marker_21
     mov         edx, ebx
-    imul        edx, BOOT_MARKER_Y_TRANSITION
-    lea         rsi, [rdi + rdx + (BOOT_MARKER_BASE_X + BOOT_STAGE_STUB_AFTER_CR3 * BOOT_MARKER_STRIDE) * 4]
+    imul        edx, (BOOT_MARKER_Y_TRANSITION + ((BOOT_STAGE_STUB_AFTER_CR3 / BOOT_MARKER_GROUP_SIZE) * BOOT_MARKER_LINE_STRIDE))
+    lea         rsi, [rdi + rdx + (BOOT_MARKER_BASE_X + ((BOOT_STAGE_STUB_AFTER_CR3 % BOOT_MARKER_GROUP_SIZE) * BOOT_MARKER_STRIDE)) * 4]
     mov         ecx, 8
 .marker21_row:
     mov         dword [rsi + 0],  0x0000AAFF
@@ -163,8 +165,8 @@ LongModeEntry:
     test        ebx, ebx
     jz          .skip_marker_22
     mov         edx, ebx
-    imul        edx, BOOT_MARKER_Y_TRANSITION
-    lea         rsi, [rdi + rdx + (BOOT_MARKER_BASE_X + BOOT_STAGE_LONG_MODE_ENTRY * BOOT_MARKER_STRIDE) * 4]
+    imul        edx, (BOOT_MARKER_Y_TRANSITION + ((BOOT_STAGE_LONG_MODE_ENTRY / BOOT_MARKER_GROUP_SIZE) * BOOT_MARKER_LINE_STRIDE))
+    lea         rsi, [rdi + rdx + (BOOT_MARKER_BASE_X + ((BOOT_STAGE_LONG_MODE_ENTRY % BOOT_MARKER_GROUP_SIZE) * BOOT_MARKER_STRIDE)) * 4]
     mov         ecx, 8
 .marker22_row:
     mov         dword [rsi + 0],  0x0000FF00
@@ -204,8 +206,8 @@ LongModeEntry:
     test        ebx, ebx
     jz          .skip_marker_23
     mov         edx, ebx
-    imul        edx, BOOT_MARKER_Y_TRANSITION
-    lea         rsi, [rdi + rdx + (BOOT_MARKER_BASE_X + BOOT_STAGE_JUMP_KERNEL * BOOT_MARKER_STRIDE) * 4]
+    imul        edx, (BOOT_MARKER_Y_TRANSITION + ((BOOT_STAGE_JUMP_KERNEL / BOOT_MARKER_GROUP_SIZE) * BOOT_MARKER_LINE_STRIDE))
+    lea         rsi, [rdi + rdx + (BOOT_MARKER_BASE_X + ((BOOT_STAGE_JUMP_KERNEL % BOOT_MARKER_GROUP_SIZE) * BOOT_MARKER_STRIDE)) * 4]
     mov         ecx, 8
 .marker23_row:
     mov         dword [rsi + 0],  0x00FFFFFF

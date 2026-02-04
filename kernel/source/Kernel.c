@@ -47,11 +47,38 @@
 
 /************************************************************************/
 
+#define BOOT_STAGE_DRIVER_PRE_BASE 40
+#define BOOT_STAGE_MEMORY_MANAGER_BASE 45
+#define BOOT_STAGE_MEMORY_MANAGER_COUNT 22
+
+/************************************************************************/
+
 extern U32 DeadBeef;
 
 /************************************************************************/
 
 void SystemDataViewMode(void);
+
+/************************************************************************/
+
+static U32 GetLoadDriverMarkerIndex(U32 DriverIndex, BOOL AfterLoad) {
+    if (DriverIndex < 2) {
+        U32 BaseIndex = BOOT_STAGE_DRIVER_PRE_BASE + (DriverIndex * 2);
+        return (AfterLoad == FALSE) ? BaseIndex : (BaseIndex + 1);
+    }
+
+    if (DriverIndex == 2) {
+        if (AfterLoad == FALSE) {
+            return BOOT_STAGE_DRIVER_PRE_BASE + 4;
+        }
+
+        return BOOT_STAGE_MEMORY_MANAGER_BASE + BOOT_STAGE_MEMORY_MANAGER_COUNT;
+    }
+
+    U32 BaseAfterMemory = BOOT_STAGE_MEMORY_MANAGER_BASE + BOOT_STAGE_MEMORY_MANAGER_COUNT + 1;
+    U32 BaseIndex = BaseAfterMemory + ((DriverIndex - 3) * 2);
+    return (AfterLoad == FALSE) ? BaseIndex : (BaseIndex + 1);
+}
 
 /************************************************************************/
 
@@ -790,12 +817,12 @@ void LoadAllDrivers(void) {
         LPDRIVER Driver = (LPDRIVER)Node;
         SAFE_USE(Driver) { DEBUG(TEXT("[LoadAllDrivers] Driver[%u] loading %s @ %p"), DriverIndex, Driver->Product, Driver); }
 #if BOOT_STAGE_MARKERS == 1
-        BootStageMarkerFromConsole(40 + (DriverIndex * 2), 0, 255, 255);
+        BootStageMarkerFromConsole(GetLoadDriverMarkerIndex(DriverIndex, FALSE), 0, 255, 255);
 #endif
         LoadDriver(Driver);
         SAFE_USE(Driver) { DEBUG(TEXT("[LoadAllDrivers] Driver[%u] load done flags=%x"), DriverIndex, Driver->Flags); }
 #if BOOT_STAGE_MARKERS == 1
-        BootStageMarkerFromConsole(41 + (DriverIndex * 2), 0, 255, 0);
+        BootStageMarkerFromConsole(GetLoadDriverMarkerIndex(DriverIndex, TRUE), 0, 255, 0);
 #endif
     }
 
