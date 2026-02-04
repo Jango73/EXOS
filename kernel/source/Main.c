@@ -25,6 +25,7 @@
 #include "Console.h"
 #include "Kernel.h"
 #include "Arch.h"
+#include "BootStageMarker.h"
 #include "Log.h"
 #include "System.h"
 #include "vbr-multiboot.h"
@@ -36,8 +37,6 @@ extern LINEAR __bss_init_end;
 
 KERNELSTARTUPINFO KernelStartup = {
     .IRQMask_21_PM = 0x000000FB, .IRQMask_A1_PM = 0x000000FF, .IRQMask_21_RM = 0, .IRQMask_A1_RM = 0};
-
-/************************************************************************/
 
 /**
  * @brief Main entry point for the EXOS kernel in paged protected mode.
@@ -68,10 +67,18 @@ void KernelMain(void) {
     __asm__ __volatile__("movl %%ebx, %0" : "=m"(MultibootInfoLinear));
 #endif
 
+#if defined(__EXOS_ARCH_X86_64__) && BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromMultiboot((const multiboot_info_t*)(UINT)MultibootInfoLinear, 29, 255, 128, 0);
+#endif
+
     // Validate Multiboot magic number
     if (MultibootMagic != MULTIBOOT_BOOTLOADER_MAGIC) {
         ConsolePanic(TEXT("Multiboot information not valid"));
     }
+
+#if defined(__EXOS_ARCH_X86_64__) && BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromMultiboot((const multiboot_info_t*)(UINT)MultibootInfoLinear, 28, 255, 255, 0);
+#endif
 
     // Map the multiboot info structure to access it
     multiboot_info_t* MultibootInfo = (multiboot_info_t*)(UINT)MultibootInfoLinear;
@@ -103,6 +110,10 @@ void KernelMain(void) {
             (U32)MultibootInfo->color_info[4],
             (U32)MultibootInfo->color_info[5]);
     }
+
+#if defined(__EXOS_ARCH_X86_64__) && BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromMultiboot(MultibootInfo, 30, 0, 255, 255);
+#endif
 
     if ((MultibootInfo->flags & MULTIBOOT_INFO_CONFIG_TABLE) != 0u) {
         KernelStartup.RsdpPhysical = (PHYSICAL)MultibootInfo->config_table;
@@ -162,6 +173,10 @@ void KernelMain(void) {
 
     //--------------------------------------
     // Main initialization routine
+
+#if defined(__EXOS_ARCH_X86_64__) && BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromMultiboot(MultibootInfo, 31, 255, 255, 255);
+#endif
 
     InitializeKernel();
 }

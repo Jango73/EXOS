@@ -483,11 +483,13 @@ static void ConsoleScrollRegionFramebuffer(U32 RegionIndex) {
 /***************************************************************************/
 
 /**
- * @brief Move the first console output to the second line once.
+ * @brief Move the first console output to line 10 once.
  *
- * Keeps the top line available for early boot visual markers.
+ * Keeps the top lines available for early boot visual markers.
  */
 static void ConsoleApplyFirstOutputOffset(void) {
+    const U32 FirstOutputLine = 10u;
+
     if (ConsoleFirstOutputOffsetPending == FALSE) {
         return;
     }
@@ -495,7 +497,11 @@ static void ConsoleApplyFirstOutputOffset(void) {
     ConsoleFirstOutputOffsetPending = FALSE;
 
     if (Console.CursorX == 0u && Console.CursorY == 0u && Console.Height > 1u) {
-        Console.CursorY = 1u;
+        if (FirstOutputLine < Console.Height) {
+            Console.CursorY = FirstOutputLine;
+        } else {
+            Console.CursorY = Console.Height - 1u;
+        }
     }
 }
 

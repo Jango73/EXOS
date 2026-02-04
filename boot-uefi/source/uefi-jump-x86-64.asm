@@ -16,6 +16,7 @@ global LongModeEntry
 %define BOOT_STAGE_STUB_ENTRY 22
 %define BOOT_STAGE_STUB_AFTER_CR3 23
 %define BOOT_STAGE_LONG_MODE_ENTRY 25
+%define BOOT_STAGE_JUMP_KERNEL 26
 
 %ifndef BOOT_STAGE_MARKERS
 %define BOOT_STAGE_MARKERS 0
@@ -188,6 +189,38 @@ LongModeEntry:
 
     mov         rsp, TRANSITION_STACK_TOP
     mov         rbp, rsp
+
+%if BOOT_STAGE_MARKERS = 1
+    ; Stage BOOT_STAGE_JUMP_KERNEL: jumping from loader stub to kernel entry.
+    mov         eax, dword [rel UefiStubFramebufferBytesPerPixel]
+    cmp         eax, 4
+    jne         .skip_marker_23
+    mov         eax, dword [rel UefiStubFramebufferHigh]
+    shl         rax, 32
+    mov         edx, dword [rel UefiStubFramebufferLow]
+    or          rax, rdx
+    mov         rdi, rax
+    mov         ebx, dword [rel UefiStubFramebufferPitch]
+    test        ebx, ebx
+    jz          .skip_marker_23
+    mov         edx, ebx
+    imul        edx, BOOT_MARKER_Y_TRANSITION
+    lea         rsi, [rdi + rdx + (BOOT_MARKER_BASE_X + BOOT_STAGE_JUMP_KERNEL * BOOT_MARKER_STRIDE) * 4]
+    mov         ecx, 8
+.marker23_row:
+    mov         dword [rsi + 0],  0x00FFFFFF
+    mov         dword [rsi + 4],  0x00FFFFFF
+    mov         dword [rsi + 8],  0x00FFFFFF
+    mov         dword [rsi + 12], 0x00FFFFFF
+    mov         dword [rsi + 16], 0x00FFFFFF
+    mov         dword [rsi + 20], 0x00FFFFFF
+    mov         dword [rsi + 24], 0x00FFFFFF
+    mov         dword [rsi + 28], 0x00FFFFFF
+    add         rsi, rbx
+    dec         ecx
+    jnz         .marker23_row
+.skip_marker_23:
+%endif
 
     mov         eax, r13d
     mov         rbx, r12

@@ -26,6 +26,7 @@
 
 #include "Autotest.h"
 #include "Clock.h"
+#include "BootStageMarker.h"
 #include "Console.h"
 #include "drivers/ACPI.h"
 #include "drivers/Keyboard.h"
@@ -40,6 +41,12 @@
 
 /************************************************************************/
 
+#ifndef BOOT_STAGE_MARKERS
+#define BOOT_STAGE_MARKERS 0
+#endif
+
+/************************************************************************/
+
 extern U32 DeadBeef;
 
 /************************************************************************/
@@ -49,8 +56,6 @@ void SystemDataViewMode(void);
 /************************************************************************/
 
 U32 EXOS_End SECTION(".end_mark") = 0x534F5845;
-
-/************************************************************************/
 
 void DoPageFault(void) {
     UINT* Table = (UINT*)0;
@@ -761,16 +766,40 @@ void UnloadDriver(LPDRIVER Driver) {
 /************************************************************************/
 
 void LoadAllDrivers(void) {
+    DEBUG(TEXT("[LoadAllDrivers] Start"));
+
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(35, 255, 0, 0);
+#endif
+
     InitializeDriverList();
+    DEBUG(TEXT("[LoadAllDrivers] Driver list initialized"));
+
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(36, 255, 128, 0);
+#endif
 
     LPLIST DriverList = GetDriverList();
     if (DriverList == NULL || DriverList->First == NULL) {
+        DEBUG(TEXT("[LoadAllDrivers] No drivers to load"));
         return;
     }
 
-    for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
-        LoadDriver((LPDRIVER)Node);
+    U32 DriverIndex = 0;
+    for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next, DriverIndex++) {
+        LPDRIVER Driver = (LPDRIVER)Node;
+        SAFE_USE(Driver) { DEBUG(TEXT("[LoadAllDrivers] Driver[%u] loading %s @ %p"), DriverIndex, Driver->Product, Driver); }
+#if BOOT_STAGE_MARKERS == 1
+        BootStageMarkerFromConsole(40 + (DriverIndex * 2), 0, 255, 255);
+#endif
+        LoadDriver(Driver);
+        SAFE_USE(Driver) { DEBUG(TEXT("[LoadAllDrivers] Driver[%u] load done flags=%x"), DriverIndex, Driver->Flags); }
+#if BOOT_STAGE_MARKERS == 1
+        BootStageMarkerFromConsole(41 + (DriverIndex * 2), 0, 255, 0);
+#endif
     }
+
+    DEBUG(TEXT("[LoadAllDrivers] Complete (%u drivers)"), DriverIndex);
 }
 
 /************************************************************************/
@@ -938,44 +967,66 @@ static void KillActiveKernelTasks(void) {
 void InitializeKernel(void) {
     TASKINFO TaskInfo;
 
+    DEBUG(TEXT("[InitializeKernel] Start"));
+
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(32, 255, 0, 0);
+#endif
+
     GetCPUInformation(GetKernelCPUInfo());
+    DEBUG(TEXT("[InitializeKernel] CPU information captured"));
     PreInitializeKernel();
+    DEBUG(TEXT("[InitializeKernel] Architecture pre-initialization complete"));
+
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(33, 255, 128, 0);
+    BootStageMarkerFromConsole(34, 255, 255, 0);
+#endif
 
     //-------------------------------------
     // Load all drivers
 
     LoadAllDrivers();
+    DEBUG(TEXT("[InitializeKernel] Drivers loaded"));
 
     //-------------------------------------
     // Initialize stuff
 
     CacheInit(GetObjectTerminationCache(), CACHE_DEFAULT_CAPACITY);
+    DEBUG(TEXT("[InitializeKernel] Object cache initialized"));
 
     HandleMapInit(GetHandleMap());
+    DEBUG(TEXT("[InitializeKernel] Handle map initialized"));
 
     InitializeFocusState();
+    DEBUG(TEXT("[InitializeKernel] Focus state initialized"));
 
     InitializeQuantumTime();
+    DEBUG(TEXT("[InitializeKernel] Quantum initialized"));
 
     //-------------------------------------
     // Set configuration dependent stuff
 
     UseConfiguration();
+    DEBUG(TEXT("[InitializeKernel] Configuration applied"));
 
     //-------------------------------------
     // Run auto tests
 
     RunAllTests();
+    DEBUG(TEXT("[InitializeKernel] Tests completed"));
 
     //-------------------------------------
     // Print the EXOS banner
 
     Welcome();
+    DEBUG(TEXT("[InitializeKernel] Banner printed"));
 
     //-------------------------------------
     // Enable interrupts
 
     EnableInterrupts();
+    DEBUG(TEXT("[InitializeKernel] Interrupts enabled"));
 
     //-------------------------------------
 
@@ -1007,6 +1058,7 @@ void InitializeKernel(void) {
         StringCopy(TaskInfo.Name, TEXT("KernelMonitor"));
 
         CreateTask(&KernelProcess, &TaskInfo);
+        DEBUG(TEXT("[InitializeKernel] KernelMonitor task created"));
 
         //-------------------------------------
         // Test tasks
@@ -1042,11 +1094,13 @@ void InitializeKernel(void) {
         StringCopy(TaskInfo.Name, TEXT("Shell"));
 
         CreateTask(&KernelProcess, &TaskInfo);
+        DEBUG(TEXT("[InitializeKernel] Shell task created"));
     }
 
     //--------------------------------------
     // Enter idle
 
+    DEBUG(TEXT("[InitializeKernel] Entering idle loop"));
     KernelIdle();
 }
 

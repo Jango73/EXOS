@@ -24,6 +24,7 @@
 
 
 #include "arch/x86-64/x86-64-Memory-Internal.h"
+#include "BootStageMarker.h"
 
 /************************************************************************/
 
@@ -1075,9 +1076,15 @@ static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
  * mode execution.
  */
 void InitializeMemoryManager(void) {
-
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(60, 255, 0, 0);
+#endif
 
     UpdateKernelMemoryMetricsFromMultibootMap();
+
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(61, 255, 128, 0);
+#endif
 
     if (KernelStartup.PageCount == 0) {
         ConsolePanic(TEXT("Detected memory = 0"));
@@ -1107,10 +1114,17 @@ void InitializeMemoryManager(void) {
     SetPhysicalPageBitmap((LPPAGEBITMAP)(UINT)PpbPhysical);
     SetPhysicalPageBitmapSize(BitmapBytesAligned);
 
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(62, 255, 255, 0);
+#endif
 
     MemorySet(GetPhysicalPageBitmap(), 0, GetPhysicalPageBitmapSize());
 
     MarkUsedPhysicalMemory();
+
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(63, 0, 255, 0);
+#endif
 
     if (KernelStartup.MemorySize == 0) {
         ConsolePanic(TEXT("Detected memory = 0"));
@@ -1125,11 +1139,19 @@ void InitializeMemoryManager(void) {
         DO_THE_SLEEPING_BEAUTY;
     }
 
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(64, 0, 255, 255);
+#endif
+
     LoadPageDirectory(NewPageDirectory);
 
     ConsoleInvalidateFramebufferMapping();
 
     FlushTLB();
+
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(65, 0, 128, 255);
+#endif
 
     Kernel_x86_32.GDT = (LPVOID)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("GDT"));
 
@@ -1147,6 +1169,10 @@ void InitializeMemoryManager(void) {
     LoadGlobalDescriptorTable((PHYSICAL)Kernel_x86_32.GDT, GDT_SIZE - 1);
 
     InitializeRegionDescriptorTracking();
+
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(66, 255, 255, 255);
+#endif
 
 }
 
