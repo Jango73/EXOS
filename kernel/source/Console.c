@@ -42,6 +42,12 @@
 
 /***************************************************************************/
 
+#ifndef BOOT_STAGE_MARKERS
+#define BOOT_STAGE_MARKERS 0
+#endif
+
+/***************************************************************************/
+
 #define CONSOLE_VER_MAJOR 1
 #define CONSOLE_VER_MINOR 0
 
@@ -119,7 +125,11 @@ CONSOLE_STRUCT Console = {
 /***************************************************************************/
 
 static BOOL ConsoleFramebufferMappingInProgress = FALSE;
+#if BOOT_STAGE_MARKERS == 1
 static BOOL ConsoleFirstOutputOffsetPending = TRUE;
+#else
+static BOOL ConsoleFirstOutputOffsetPending = FALSE;
+#endif
 
 /***************************************************************************/
 

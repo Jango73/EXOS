@@ -18,6 +18,7 @@ $(error Unsupported architecture $(ARCH))
 endif
 
 DEBUG_OUTPUT    ?= 0
+BOOT_STAGE_MARKERS ?= 0
 
 IMG_SIZE_MB     ?= 16
 NVME_IMG_SIZE_MB ?= 1024
@@ -70,7 +71,7 @@ endif
 PAYLOAD_BIN_LD  = main-bin.ld
 PAYLOAD_ELF_LD  = main-elf.ld
 
-NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DRESERVED_SECTORS=$(RESERVED_SECTORS) -DPAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS) -DMEMORY_BASE=$(MEMORY_BASE) -DMEMORY_SIZE=$(MEMORY_SIZE) -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) $(NASM_ARCH_FLAGS)
+NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DBOOT_STAGE_MARKERS=$(BOOT_STAGE_MARKERS) -DRESERVED_SECTORS=$(RESERVED_SECTORS) -DPAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS) -DMEMORY_BASE=$(MEMORY_BASE) -DMEMORY_SIZE=$(MEMORY_SIZE) -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) $(NASM_ARCH_FLAGS)
 CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
                   -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
@@ -80,6 +81,7 @@ CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -DARCH=$(ARCH) \
                   -DKERNEL_FILE=\"$(KERNEL_FILE)\" \
                   -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) \
+                  -DBOOT_STAGE_MARKERS=$(BOOT_STAGE_MARKERS) \
                   -DPAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS) \
                   -DMEMORY_BASE=$(MEMORY_BASE) \
                   -DMEMORY_SIZE=$(MEMORY_SIZE) \

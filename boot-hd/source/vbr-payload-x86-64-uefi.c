@@ -27,6 +27,12 @@
 
 /************************************************************************/
 
+#ifndef BOOT_STAGE_MARKERS
+#define BOOT_STAGE_MARKERS 0
+#endif
+
+/************************************************************************/
+
 #ifndef CONFIG_VMA_KERNEL
 #error "CONFIG_VMA_KERNEL is not defined"
 #endif
@@ -104,6 +110,7 @@ static U32 VbrComposeFramebufferPixel(const multiboot_info_t* Info, U32 Red, U32
 
 /************************************************************************/
 
+#if BOOT_STAGE_MARKERS == 1
 static void PayloadFramebufferMarkStage(const multiboot_info_t* Info, U32 StageIndex, U32 Red, U32 Green, U32 Blue) {
     if (Info == NULL || (Info->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) == 0u) {
         return;
@@ -143,6 +150,15 @@ static void PayloadFramebufferMarkStage(const multiboot_info_t* Info, U32 StageI
         }
     }
 }
+#else
+static void PayloadFramebufferMarkStage(const multiboot_info_t* Info, U32 StageIndex, U32 Red, U32 Green, U32 Blue) {
+    UNUSED(Info);
+    UNUSED(StageIndex);
+    UNUSED(Red);
+    UNUSED(Green);
+    UNUSED(Blue);
+}
+#endif
 
 static void UefiSerialWriteByte(U8 Value) {
     const U16 Port = 0x3F8u;

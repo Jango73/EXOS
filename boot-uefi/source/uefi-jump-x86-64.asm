@@ -17,6 +17,10 @@ global LongModeEntry
 %define BOOT_STAGE_STUB_AFTER_CR3 23
 %define BOOT_STAGE_LONG_MODE_ENTRY 25
 
+%ifndef BOOT_STAGE_MARKERS
+%define BOOT_STAGE_MARKERS 0
+%endif
+
 extern VbrLongModeCodeSelector
 extern VbrLongModeDataSelector
 extern UefiStubMultibootInfoPtr
@@ -45,6 +49,7 @@ StubJumpToImage:
     mov     r13, rdx
     mov     r14d, r8d
     mov     r15d, r9d
+%if BOOT_STAGE_MARKERS = 1
     ; Stage BOOT_STAGE_STUB_ENTRY: stub entry reached.
     mov         eax, dword [rel UefiStubFramebufferBytesPerPixel]
     cmp         eax, 4
@@ -74,6 +79,7 @@ StubJumpToImage:
     dec         ecx
     jnz         .marker20_row
 .skip_marker_20:
+%endif
 
     mov         eax, dword [rel UefiStubTestOnly]
     test        eax, eax
@@ -94,6 +100,7 @@ StubJumpToImage:
 
     mov         eax, r13d
     mov         cr3, rax
+%if BOOT_STAGE_MARKERS = 1
     ; Stage BOOT_STAGE_STUB_AFTER_CR3: CR3 switched.
     mov         eax, dword [rel UefiStubFramebufferBytesPerPixel]
     cmp         eax, 4
@@ -123,6 +130,7 @@ StubJumpToImage:
     dec         ecx
     jnz         .marker21_row
 .skip_marker_21:
+%endif
     mov         rsp, TRANSITION_STACK_TOP
 
     mov         rax, r15
@@ -140,6 +148,7 @@ StubJumpToImage:
     retfq
 
 LongModeEntry:
+%if BOOT_STAGE_MARKERS = 1
     ; Stage BOOT_STAGE_LONG_MODE_ENTRY: long mode entry reached.
     mov         eax, dword [rel UefiStubFramebufferBytesPerPixel]
     cmp         eax, 4
@@ -169,6 +178,7 @@ LongModeEntry:
     dec         ecx
     jnz         .marker22_row
 .skip_marker_22:
+%endif
     mov         ax, [rel VbrLongModeDataSelector]
     mov         ds, ax
     mov         es, ax

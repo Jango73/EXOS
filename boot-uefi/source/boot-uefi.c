@@ -29,6 +29,12 @@
 
 /************************************************************************/
 
+#ifndef BOOT_STAGE_MARKERS
+#define BOOT_STAGE_MARKERS 0
+#endif
+
+/************************************************************************/
+
 void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U64 UefiImageBase, U64 UefiImageSize);
 
 /************************************************************************/
@@ -1215,6 +1221,7 @@ static U32 BootUefiComposePixelColor(const EFI_GRAPHICS_OUTPUT_MODE_INFORMATION*
  * @param Green Marker green channel.
  * @param Blue Marker blue channel.
  */
+#if BOOT_STAGE_MARKERS == 1
 static void BootUefiMarkStage(BOOT_UEFI_CONTEXT* Context, U32 StageIndex, U8 Red, U8 Green, U8 Blue) {
     EFI_GRAPHICS_OUTPUT_PROTOCOL* Graphics = BootUefiGetGraphicsOutput(Context);
     if (Graphics == NULL || Graphics->Mode == NULL || Graphics->Mode->Info == NULL) {
@@ -1288,6 +1295,15 @@ static void BootUefiMarkStage(BOOT_UEFI_CONTEXT* Context, U32 StageIndex, U8 Red
         }
     }
 }
+#else
+static void BootUefiMarkStage(BOOT_UEFI_CONTEXT* Context, U32 StageIndex, U8 Red, U8 Green, U8 Blue) {
+    UNUSED(Context);
+    UNUSED(StageIndex);
+    UNUSED(Red);
+    UNUSED(Green);
+    UNUSED(Blue);
+}
+#endif
 
 /************************************************************************/
 

@@ -2,7 +2,7 @@
 set -e
 
 function Usage() {
-    echo "Usage: $0 --arch <x86-32|x86-64> --fs <ext2|fat32> [--bare-metal] [--clean] [--debug|--release] [--force-pic] [--log-udp-dest <ip:port>] [--log-udp-source <ip:port>] [--profiling] [--scheduling-debug] [--split] [--system-data-view] [--uefi] [--use-log-udp] [--use-syscall]"
+    echo "Usage: $0 --arch <x86-32|x86-64> --fs <ext2|fat32> [--bare-metal] [--boot-stage-markers] [--clean] [--debug|--release] [--force-pic] [--log-udp-dest <ip:port>] [--log-udp-source <ip:port>] [--profiling] [--scheduling-debug] [--split] [--system-data-view] [--uefi] [--use-log-udp] [--use-syscall]"
 }
 
 function ParseIpPort() {
@@ -45,6 +45,7 @@ function ParseIpPort() {
 
 ARCH="x86-32"
 BARE_METAL=0
+BOOT_STAGE_MARKERS=0
 BUILD_UEFI=0
 CLEAN=0
 DEBUG_OUTPUT=0
@@ -80,6 +81,9 @@ while [ $# -gt 0 ]; do
             ;;
         --bare-metal)
             BARE_METAL=1
+            ;;
+        --boot-stage-markers)
+            BOOT_STAGE_MARKERS=1
             ;;
         --clean)
             CLEAN=1
@@ -184,6 +188,7 @@ if [ "$SCHEDULING_DEBUG" -eq 1 ]; then
 fi
 
 export BARE_METAL
+export BOOT_STAGE_MARKERS
 export DEBUG_OUTPUT
 export DEBUG_SPLIT
 export FORCE_PIC
