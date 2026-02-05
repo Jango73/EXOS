@@ -1,5 +1,12 @@
 # General TODO list
 
+## Critical : memory
+
+- Completely remove global PPB management
+- Create a buddy allocator module
+- Use the AllocRegion buddy allocator to track physical page allocation
+- Make UEFI boot robust
+
 ## Problems
 
 - Opening a file in a userland program without an absolute path should do the same as using getcwd().
