@@ -49,11 +49,18 @@
         "p": { "label": "Git Pull", "script": "git pull" },
         "S-p": { "label": "Git Push", "script": "git push" },
         "s": { "label": "Git Status", "script": "git status" },
-        "S-s": { "label": "Git Diff Staged", "script": "git diff --staged" }
+        "S-s": { "label": "Git Diff Staged", "script": "git diff --staged" },
+
+        "4--------------------": "",
+
+        "n": { "label": "Netboot Setup Dry Run (x86-64)", "script": "scripts/net/setup-local-netboot.sh --arch x86-64 --dry-run" },
+        "S-n": { "label": "Netboot Setup (x86-64)", "script": "sudo scripts/net/setup-local-netboot.sh --arch x86-64" },
+        "m": { "label": "Netboot Deploy Latest + Rotate (x86-64)", "script": "sudo scripts/net/deploy-local-netboot.sh --arch x86-64 --slot latest --rotate" },
+        "S-m": { "label": "Netboot Deploy Safe (x86-64)", "script": "sudo scripts/net/deploy-local-netboot.sh --arch x86-64 --slot safe" }
     },
     "settings": {
         "enableCommandHistory": true,
-        "persistLogs": true,
+        "persistLogs": false,
         "notifyOnExit": true,
         "renderThrottleMs": 50,
         "maxLogLines": 1000,
