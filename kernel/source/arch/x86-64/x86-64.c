@@ -26,7 +26,6 @@
 #include "arch/x86-64/x86-64-Log.h"
 
 #include "Console.h"
-#include "BootStageMarker.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
@@ -554,10 +553,6 @@ void PreInitializeKernel(void) {
     U64 Cr0;
     U64 Cr4;
 
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(37, 255, 0, 0);
-#endif
-
     ReadGlobalDescriptorTable(&Gdtr);
     Kernel_x86_32.GDT = (LPVOID)(LINEAR)Gdtr.Base;
 
@@ -572,9 +567,6 @@ void PreInitializeKernel(void) {
     Cr0 &= ~(U64)(CR0_EMULATION | CR0_TASKSWITCH);
     __asm__ volatile("mov %0, %%cr0" : : "r"(Cr0));
 
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(38, 255, 128, 0);
-#endif
 
     DEBUG(TEXT("[PreInitializeKernel] CR4 : CR4_OSFXSR and CR4_OSXMMEXCPT on"));
 
@@ -587,9 +579,6 @@ void PreInitializeKernel(void) {
 
     InitializePat();
 
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(39, 255, 255, 0);
-#endif
 }
 
 /************************************************************************/

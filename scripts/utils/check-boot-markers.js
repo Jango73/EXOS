@@ -176,7 +176,11 @@ function assertKernelDriverRanges(kernelFixedMarkers, kernelSourceText) {
     const memoryCount = parseDefine(kernelSourceText, "BOOT_STAGE_MEMORY_MANAGER_COUNT");
 
     if (preBase == null || memoryBase == null || memoryCount == null) {
-        fail("[check-boot-markers] Missing boot marker range defines in kernel/source/Kernel.c");
+        if (kernelFixedMarkers.length !== 0) {
+            fail("[check-boot-markers] Missing kernel marker range defines while kernel markers still exist");
+        }
+
+        return null;
     }
 
     const memoryEnd = memoryBase + memoryCount - 1;
@@ -239,10 +243,14 @@ function main() {
     process.stdout.write("[check-boot-markers] OK\n");
     process.stdout.write(`- Kernel fixed markers: ${kernelFixedMarkers.length}\n`);
     process.stdout.write(`- UEFI fixed markers: ${uefiFixedMarkers.length}\n`);
-    process.stdout.write(`- Driver pre-range: ${ranges.preRange}\n`);
-    process.stdout.write(`- Memory-manager range: ${ranges.memoryRange}\n`);
-    process.stdout.write(`- Memory driver post-load marker: ${ranges.memoryDriverAfter}\n`);
-    process.stdout.write(`- Dynamic driver markers start at: ${ranges.postDriverStart}\n`);
+    if (ranges == null) {
+        process.stdout.write("- Kernel marker ranges: disabled (no kernel markers)\n");
+    } else {
+        process.stdout.write(`- Driver pre-range: ${ranges.preRange}\n`);
+        process.stdout.write(`- Memory-manager range: ${ranges.memoryRange}\n`);
+        process.stdout.write(`- Memory driver post-load marker: ${ranges.memoryDriverAfter}\n`);
+        process.stdout.write(`- Dynamic driver markers start at: ${ranges.postDriverStart}\n`);
+    }
 }
 
 main();

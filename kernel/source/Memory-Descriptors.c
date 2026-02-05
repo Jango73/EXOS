@@ -23,19 +23,15 @@
 
 #include "Memory-Descriptors.h"
 
-#include "BootStageMarker.h"
 #include "Console.h"
 #include "CoreString.h"
+#include "EarlyBootConsole.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "System.h"
 
 /************************************************************************/
 // Region descriptor tracking state
-
-#ifndef BOOT_STAGE_MARKERS
-    #define BOOT_STAGE_MARKERS 0
-#endif
 
 BOOL G_RegionDescriptorsEnabled = FALSE;
 BOOL G_RegionDescriptorBootstrap = FALSE;
@@ -63,34 +59,20 @@ LPPROCESS ResolveCurrentAddressSpaceOwner(void) {
  * @return TRUE on success, FALSE otherwise.
  */
 static BOOL GrowDescriptorSlab(void) {
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(54, 255, 0, 0);
-    BootStageMarkerFromConsole(78, 255, 0, 128);
-#endif
+    EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] GDS before AllocPhysicalPage"));
 
     PHYSICAL Physical = AllocPhysicalPage();
-
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(79, 255, 128, 128);
-#endif
+    EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] GDS after AllocPhysicalPage"));
 
     if (Physical == NULL) {
-#if BOOT_STAGE_MARKERS == 1
-        BootStageMarkerFromConsole(80, 255, 255, 128);
-#endif
         ERROR(TEXT("[EnsureDescriptorSlab] No physical page available"));
+        EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] GDS AllocPhysicalPage failed"));
         return FALSE;
     }
 
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(55, 255, 128, 0);
-#endif
 
     G_RegionDescriptorBootstrap = TRUE;
 
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(56, 255, 255, 0);
-#endif
 
     LINEAR Linear = AllocKernelRegion(
         Physical,
@@ -102,18 +84,13 @@ static BOOL GrowDescriptorSlab(void) {
     if (Linear == NULL) {
         ERROR(TEXT("[EnsureDescriptorSlab] Failed to map descriptor slab"));
         FreePhysicalPage(Physical);
+        EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] GDS AllocKernelRegion failed"));
         return FALSE;
     }
 
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(57, 0, 255, 0);
-#endif
 
     MemorySet((LPVOID)Linear, 0, PAGE_SIZE);
 
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(58, 0, 255, 255);
-#endif
 
     UINT Capacity = (UINT)(PAGE_SIZE / (UINT)sizeof(MEMORY_REGION_DESCRIPTOR));
     LPMEMORY_REGION_DESCRIPTOR DescriptorArray = (LPMEMORY_REGION_DESCRIPTOR)(LINEAR)Linear;
@@ -128,10 +105,6 @@ static BOOL GrowDescriptorSlab(void) {
     }
 
     G_RegionDescriptorPages++;
-
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(59, 0, 128, 255);
-#endif
 
     return TRUE;
 }
@@ -561,32 +534,19 @@ void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
  * @brief Initialize the descriptor tracking subsystem.
  */
 void InitializeRegionDescriptorTracking(void) {
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(52, 255, 0, 0);
-#endif
+    EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] RDT enter"));
 
     if (G_RegionDescriptorsEnabled == TRUE) {
         return;
     }
 
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(53, 255, 128, 0);
-#endif
 
     if (EnsureDescriptorSlab() == FALSE) {
         ERROR(TEXT("[InitializeRegionDescriptorTracking] Initial slab allocation failed"));
+        EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] RDT initial slab failed"));
         return;
     }
-
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(60, 255, 255, 0);
-#endif
-
     G_RegionDescriptorsEnabled = TRUE;
-
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(61, 0, 255, 0);
-#endif
 
     DEBUG(TEXT("[InitializeRegionDescriptorTracking] Enabled (free=%u total=%u)"),
         G_FreeRegionDescriptorCount,

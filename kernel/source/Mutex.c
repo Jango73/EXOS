@@ -23,16 +23,11 @@
 \************************************************************************/
 
 #include "Clock.h"
-#include "BootStageMarker.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "process/Process.h"
 
 /***************************************************************************/
-
-#ifndef BOOT_STAGE_MARKERS
-    #define BOOT_STAGE_MARKERS 0
-#endif
 
 /***************************************************************************/
 
@@ -136,49 +131,28 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
     UINT Flags;
     UINT Ret = 0;
 
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(81, 255, 0, 192);
-#endif
 
     SaveFlags(&Flags);
     DisableInterrupts();
 
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(82, 255, 64, 192);
-#endif
 
     //-------------------------------------
     // Check validity of parameters
 
     SAFE_USE_ID(Mutex, KOID_MUTEX) {
-#if BOOT_STAGE_MARKERS == 1
-        BootStageMarkerFromConsole(83, 255, 128, 192);
-#endif
         // Have at leat two tasks
         LPLIST TaskList = GetTaskList();
         SAFE_USE_ID_2(TaskList->First, TaskList->First->Next, KOID_TASK) {
-#if BOOT_STAGE_MARKERS == 1
-            BootStageMarkerFromConsole(84, 255, 192, 192);
-#endif
             Task = GetCurrentTask();
 
             SAFE_USE_VALID_ID(Task, KOID_TASK) {
-#if BOOT_STAGE_MARKERS == 1
-                BootStageMarkerFromConsole(85, 255, 255, 192);
-#endif
                 Process = Task->Process;
 
                 SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
                     if (Mutex->Task == Task) {
-#if BOOT_STAGE_MARKERS == 1
-                        BootStageMarkerFromConsole(86, 192, 255, 192);
-#endif
                         Mutex->Lock++;
                         Ret = Mutex->Lock;
                     } else {
-#if BOOT_STAGE_MARKERS == 1
-                        BootStageMarkerFromConsole(87, 128, 255, 192);
-#endif
                         //-------------------------------------
                         // Wait for mutex to be unlocked by its owner task
 
@@ -186,16 +160,10 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                         UINT LastDebugTime = StartWaitTime;
 
                         FOREVER {
-#if BOOT_STAGE_MARKERS == 1
-                            BootStageMarkerFromConsole(88, 64, 255, 192);
-#endif
                             //-------------------------------------
                             // Check if a process deleted this mutex
 
                             if (Mutex->TypeID != KOID_MUTEX) {
-#if BOOT_STAGE_MARKERS == 1
-                                BootStageMarkerFromConsole(89, 0, 255, 192);
-#endif
                                 RestoreFlags(&Flags);
                                 return 0;
                             }
@@ -204,9 +172,6 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                             // Check if the mutex is not locked anymore
 
                             if (Mutex->Task == NULL) {
-#if BOOT_STAGE_MARKERS == 1
-                                BootStageMarkerFromConsole(90, 0, 192, 255);
-#endif
                                 break;
                             }
 
@@ -225,23 +190,14 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                             //-------------------------------------
                             // Sleep with proper interrupt handling
 
-#if BOOT_STAGE_MARKERS == 1
-                            BootStageMarkerFromConsole(91, 0, 128, 255);
-#endif
                             SetTaskStatusDirect(Task, TASK_STATUS_SLEEPING);
                             Task->WakeUpTime = GetSystemTime() + 20;
 
                             // Keep interrupts disabled during critical section
                             while (Task->Status == TASK_STATUS_SLEEPING) {
-#if BOOT_STAGE_MARKERS == 1
-                                BootStageMarkerFromConsole(92, 0, 64, 255);
-#endif
                                 IdleCPU();            // IdleCPU enables interrupts
                                 DisableInterrupts();  // Disable immediately after
                             }
-#if BOOT_STAGE_MARKERS == 1
-                            BootStageMarkerFromConsole(93, 0, 0, 255);
-#endif
                             // Continue loop with interrupts already disabled
                         }
 
@@ -249,9 +205,6 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                         Mutex->Task = Task;
                         Mutex->Lock = 1;
 
-#if BOOT_STAGE_MARKERS == 1
-                        BootStageMarkerFromConsole(94, 64, 0, 255);
-#endif
                         Ret = Mutex->Lock;
                     }
                 }
@@ -259,16 +212,10 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
         }
         else {
             // Consider mutex free if no task valid
-#if BOOT_STAGE_MARKERS == 1
-            BootStageMarkerFromConsole(95, 128, 0, 255);
-#endif
             Ret = 1;
         }
     }
 
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(96, 192, 0, 255);
-#endif
     RestoreFlags(&Flags);
     return Ret;
 }

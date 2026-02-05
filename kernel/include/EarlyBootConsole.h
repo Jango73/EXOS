@@ -17,22 +17,33 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Boot stage markers
+    Early boot console
 
 \************************************************************************/
 
-#ifndef BOOT_STAGE_MARKER_H_INCLUDED
-#define BOOT_STAGE_MARKER_H_INCLUDED
-
-/************************************************************************/
+#ifndef EARLY_BOOT_CONSOLE_H_INCLUDED
+#define EARLY_BOOT_CONSOLE_H_INCLUDED
 
 #include "Base.h"
-#include "vbr-multiboot.h"
 
 /************************************************************************/
 
-void BootStageMarkerFromConsole(U32 StageIndex, U32 Red, U32 Green, U32 Blue);
-void BootStageMarkerFromMultiboot(const multiboot_info_t* MultibootInfo, U32 StageIndex, U32 Red, U32 Green, U32 Blue);
+void EarlyBootConsoleInitialize(
+    PHYSICAL FramebufferPhysical,
+    U32 Width,
+    U32 Height,
+    U32 Pitch,
+    U32 BitsPerPixel,
+    U32 Type,
+    U32 RedPosition,
+    U32 RedMaskSize,
+    U32 GreenPosition,
+    U32 GreenMaskSize,
+    U32 BluePosition,
+    U32 BlueMaskSize);
+void EarlyBootConsoleWrite(LPCSTR Text);
+void EarlyBootConsoleWriteLine(LPCSTR Text);
+BOOL EarlyBootConsoleIsInitialized(void);
 
 /************************************************************************/
 

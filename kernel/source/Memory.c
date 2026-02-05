@@ -24,7 +24,6 @@
 
 #include "Memory.h"
 
-#include "BootStageMarker.h"
 #include "Base.h"
 #include "Console.h"
 #include "Kernel.h"
@@ -35,10 +34,6 @@
 #include "System.h"
 
 /************************************************************************/
-
-#ifndef BOOT_STAGE_MARKERS
-    #define BOOT_STAGE_MARKERS 0
-#endif
 
 /************************************************************************/
 
@@ -325,20 +320,12 @@ PHYSICAL AllocPhysicalPage(void) {
     UINT BitmapBytes = 0;
     PHYSICAL result = 0;
     LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
-
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(71, 255, 0, 64);
-#endif
-
     if (Bitmap == NULL) {
         return result;
     }
 
     LockMutex(MUTEX_MEMORY, INFINITY);
 
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(72, 255, 128, 64);
-#endif
 
     // Start from end of kernel region
     StartPage = RESERVED_LOW_MEMORY >> PAGE_SIZE_MUL;
@@ -363,9 +350,6 @@ PHYSICAL AllocPhysicalPage(void) {
         goto Out;
     }
 
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(73, 255, 255, 64);
-#endif
 
     /* Scan from StartByte upward */
     for (i = StartByte; i < MaxByte; i++) {
@@ -377,9 +361,6 @@ PHYSICAL AllocPhysicalPage(void) {
                 if ((v & mask) == 0) {
                     Bitmap[i] = (U8)(v | (U8)mask);
                     result = (PHYSICAL)(page << PAGE_SIZE_MUL); /* page * 4096 */
-#if BOOT_STAGE_MARKERS == 1
-                    BootStageMarkerFromConsole(74, 0, 255, 64);
-#endif
                     goto Out;
                 }
             }
@@ -387,18 +368,7 @@ PHYSICAL AllocPhysicalPage(void) {
     }
 
 Out:
-#if BOOT_STAGE_MARKERS == 1
-    if (result == 0) {
-        BootStageMarkerFromConsole(75, 255, 64, 64);
-    }
-    BootStageMarkerFromConsole(76, 128, 255, 64);
-#endif
-
     UnlockMutex(MUTEX_MEMORY);
-
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(77, 64, 255, 64);
-#endif
 
     return result;
 }

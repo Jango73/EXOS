@@ -26,7 +26,6 @@
 
 #include "Autotest.h"
 #include "Clock.h"
-#include "BootStageMarker.h"
 #include "Console.h"
 #include "drivers/ACPI.h"
 #include "drivers/Keyboard.h"
@@ -41,44 +40,11 @@
 
 /************************************************************************/
 
-#ifndef BOOT_STAGE_MARKERS
-#define BOOT_STAGE_MARKERS 0
-#endif
-
-/************************************************************************/
-
-#define BOOT_STAGE_DRIVER_PRE_BASE 40
-#define BOOT_STAGE_MEMORY_MANAGER_BASE 45
-#define BOOT_STAGE_MEMORY_MANAGER_COUNT 52
-
-/************************************************************************/
-
 extern U32 DeadBeef;
 
 /************************************************************************/
 
 void SystemDataViewMode(void);
-
-/************************************************************************/
-
-static U32 GetLoadDriverMarkerIndex(U32 DriverIndex, BOOL AfterLoad) {
-    if (DriverIndex < 2) {
-        U32 BaseIndex = BOOT_STAGE_DRIVER_PRE_BASE + (DriverIndex * 2);
-        return (AfterLoad == FALSE) ? BaseIndex : (BaseIndex + 1);
-    }
-
-    if (DriverIndex == 2) {
-        if (AfterLoad == FALSE) {
-            return BOOT_STAGE_DRIVER_PRE_BASE + 4;
-        }
-
-        return BOOT_STAGE_MEMORY_MANAGER_BASE + BOOT_STAGE_MEMORY_MANAGER_COUNT;
-    }
-
-    U32 BaseAfterMemory = BOOT_STAGE_MEMORY_MANAGER_BASE + BOOT_STAGE_MEMORY_MANAGER_COUNT + 1;
-    U32 BaseIndex = BaseAfterMemory + ((DriverIndex - 3) * 2);
-    return (AfterLoad == FALSE) ? BaseIndex : (BaseIndex + 1);
-}
 
 /************************************************************************/
 
@@ -796,16 +762,10 @@ void UnloadDriver(LPDRIVER Driver) {
 void LoadAllDrivers(void) {
     DEBUG(TEXT("[LoadAllDrivers] Start"));
 
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(35, 255, 0, 0);
-#endif
 
     InitializeDriverList();
     DEBUG(TEXT("[LoadAllDrivers] Driver list initialized"));
 
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(36, 255, 128, 0);
-#endif
 
     LPLIST DriverList = GetDriverList();
     if (DriverList == NULL || DriverList->First == NULL) {
@@ -817,14 +777,8 @@ void LoadAllDrivers(void) {
     for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next, DriverIndex++) {
         LPDRIVER Driver = (LPDRIVER)Node;
         SAFE_USE(Driver) { DEBUG(TEXT("[LoadAllDrivers] Driver[%u] loading %s @ %p"), DriverIndex, Driver->Product, Driver); }
-#if BOOT_STAGE_MARKERS == 1
-        BootStageMarkerFromConsole(GetLoadDriverMarkerIndex(DriverIndex, FALSE), 0, 255, 255);
-#endif
         LoadDriver(Driver);
         SAFE_USE(Driver) { DEBUG(TEXT("[LoadAllDrivers] Driver[%u] load done flags=%x"), DriverIndex, Driver->Flags); }
-#if BOOT_STAGE_MARKERS == 1
-        BootStageMarkerFromConsole(GetLoadDriverMarkerIndex(DriverIndex, TRUE), 0, 255, 0);
-#endif
     }
 
     DEBUG(TEXT("[LoadAllDrivers] Complete (%u drivers)"), DriverIndex);
@@ -997,19 +951,12 @@ void InitializeKernel(void) {
 
     DEBUG(TEXT("[InitializeKernel] Start"));
 
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(32, 255, 0, 0);
-#endif
 
     GetCPUInformation(GetKernelCPUInfo());
     DEBUG(TEXT("[InitializeKernel] CPU information captured"));
     PreInitializeKernel();
     DEBUG(TEXT("[InitializeKernel] Architecture pre-initialization complete"));
 
-#if BOOT_STAGE_MARKERS == 1
-    BootStageMarkerFromConsole(33, 255, 128, 0);
-    BootStageMarkerFromConsole(34, 255, 255, 0);
-#endif
 
     //-------------------------------------
     // Load all drivers

@@ -24,24 +24,6 @@
 %include "x86-64.inc"
 %include "System.inc"
 
-%define BOOT_MARKER_BASE_X 2
-%define BOOT_MARKER_Y 2
-%define BOOT_MARKER_SIZE 8
-%define BOOT_MARKER_SPACING 2
-%define BOOT_MARKER_STRIDE (BOOT_MARKER_SIZE + BOOT_MARKER_SPACING)
-%define BOOT_MARKER_GROUP_SIZE 10
-%define BOOT_MARKER_LINE_STRIDE (BOOT_MARKER_SIZE + BOOT_MARKER_SPACING)
-%define BOOT_STAGE_KERNEL_ENTRY_ASM 27
-
-%define MULTIBOOT_FLAGS_OFFSET 0
-%define MULTIBOOT_FRAMEBUFFER_ADDR_LOW_OFFSET 88
-%define MULTIBOOT_FRAMEBUFFER_ADDR_HIGH_OFFSET 92
-%define MULTIBOOT_FRAMEBUFFER_PITCH_OFFSET 96
-%define MULTIBOOT_FRAMEBUFFER_BPP_OFFSET 108
-%define MULTIBOOT_FRAMEBUFFER_TYPE_OFFSET 109
-%define MULTIBOOT_INFO_FRAMEBUFFER_INFO 0x00001000
-%define MULTIBOOT_FRAMEBUFFER_RGB 1
-
 extern SystemCallHandler
 
 ;-------------------------------------------------------------------------
@@ -82,49 +64,6 @@ start:
     push        rdx
     push        rdi
     push        rsi
-
-%if BOOT_STAGE_MARKERS = 1
-    ; Stage BOOT_STAGE_KERNEL_ENTRY_ASM: kernel start stub reached.
-    mov         ebx, r11d
-    test        rbx, rbx
-    jz          .skip_marker_27
-    mov         eax, dword [rbx + MULTIBOOT_FLAGS_OFFSET]
-    test        eax, MULTIBOOT_INFO_FRAMEBUFFER_INFO
-    jz          .skip_marker_27
-    cmp         byte [rbx + MULTIBOOT_FRAMEBUFFER_TYPE_OFFSET], MULTIBOOT_FRAMEBUFFER_RGB
-    jne         .skip_marker_27
-    cmp         byte [rbx + MULTIBOOT_FRAMEBUFFER_BPP_OFFSET], 32
-    jne         .skip_marker_27
-    mov         eax, dword [rbx + MULTIBOOT_FRAMEBUFFER_ADDR_HIGH_OFFSET]
-    test        eax, eax
-    jnz         .skip_marker_27
-    shl         rax, 32
-    mov         edx, dword [rbx + MULTIBOOT_FRAMEBUFFER_ADDR_LOW_OFFSET]
-    or          rax, rdx
-    test        rax, rax
-    jz          .skip_marker_27
-    mov         rdi, rax
-    mov         ebx, dword [rbx + MULTIBOOT_FRAMEBUFFER_PITCH_OFFSET]
-    test        ebx, ebx
-    jz          .skip_marker_27
-    mov         edx, ebx
-    imul        edx, (BOOT_MARKER_Y + ((BOOT_STAGE_KERNEL_ENTRY_ASM / BOOT_MARKER_GROUP_SIZE) * BOOT_MARKER_LINE_STRIDE))
-    lea         rsi, [rdi + rdx + (BOOT_MARKER_BASE_X + ((BOOT_STAGE_KERNEL_ENTRY_ASM % BOOT_MARKER_GROUP_SIZE) * BOOT_MARKER_STRIDE)) * 4]
-    mov         ecx, 8
-.marker27_row:
-    mov         dword [rsi + 0],  0x0000AAFF
-    mov         dword [rsi + 4],  0x0000AAFF
-    mov         dword [rsi + 8],  0x0000AAFF
-    mov         dword [rsi + 12], 0x0000AAFF
-    mov         dword [rsi + 16], 0x0000AAFF
-    mov         dword [rsi + 20], 0x0000AAFF
-    mov         dword [rsi + 24], 0x0000AAFF
-    mov         dword [rsi + 28], 0x0000AAFF
-    add         rsi, rbx
-    dec         ecx
-    jnz         .marker27_row
-.skip_marker_27:
-%endif
 
     lea         rdi, [rel StartLogEntered]
     call        SerialWriteString

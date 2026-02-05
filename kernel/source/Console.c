@@ -42,12 +42,6 @@
 
 /***************************************************************************/
 
-#ifndef BOOT_STAGE_MARKERS
-#define BOOT_STAGE_MARKERS 0
-#endif
-
-/***************************************************************************/
-
 #define CONSOLE_VER_MAJOR 1
 #define CONSOLE_VER_MINOR 0
 
@@ -125,11 +119,6 @@ CONSOLE_STRUCT Console = {
 /***************************************************************************/
 
 static BOOL ConsoleFramebufferMappingInProgress = FALSE;
-#if BOOT_STAGE_MARKERS == 1
-static BOOL ConsoleFirstOutputOffsetPending = TRUE;
-#else
-static BOOL ConsoleFirstOutputOffsetPending = FALSE;
-#endif
 
 /***************************************************************************/
 
@@ -476,31 +465,6 @@ static void ConsoleScrollRegionFramebuffer(U32 RegionIndex) {
             for (U32 Col = 0; Col < PixelWidth; ++Col) {
                 ConsoleWritePixel(PixelX + Col, PixelY + Row, Background);
             }
-        }
-    }
-}
-
-/***************************************************************************/
-
-/**
- * @brief Move the first console output to line 10 once.
- *
- * Keeps the top lines available for early boot visual markers.
- */
-static void ConsoleApplyFirstOutputOffset(void) {
-    const U32 FirstOutputLine = 10u;
-
-    if (ConsoleFirstOutputOffsetPending == FALSE) {
-        return;
-    }
-
-    ConsoleFirstOutputOffsetPending = FALSE;
-
-    if (Console.CursorX == 0u && Console.CursorY == 0u && Console.Height > 1u) {
-        if (FirstOutputLine < Console.Height) {
-            Console.CursorY = FirstOutputLine;
-        } else {
-            Console.CursorY = Console.Height - 1u;
         }
     }
 }
@@ -1142,7 +1106,6 @@ void ConsolePrintChar(STR Char) {
     ProfileStart(&Scope, TEXT("ConsolePrintChar"));
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
-    ConsoleApplyFirstOutputOffset();
 
     if (Char == STR_NEWLINE) {
         Console.CursorX = 0;
