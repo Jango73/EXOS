@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "../include/vbr-payload-shared.h"
+#include "boot-reservation.h"
 #include "arch/x86-32/x86-32-Memory.h"
 #include "arch/x86-32/x86-32.h"
 
@@ -153,7 +154,7 @@ static void BuildGdtFlat(void) {
 
 void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U64 UefiImageBase, U64 UefiImageSize) {
     const U32 KernelPhysBase = KERNEL_LINEAR_LOAD_ADDRESS;
-    const U32 MapSize = PAGE_ALIGN(FileSize + N_512KB);
+    const U32 MapSize = PAGE_ALIGN(FileSize + BOOT_KERNEL_MAP_PADDING_BYTES);
 
     UNUSED(UefiImageBase);
     UNUSED(UefiImageSize);

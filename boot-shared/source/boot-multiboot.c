@@ -40,6 +40,7 @@ void BootDebugPrint(LPCSTR Format, ...);
  * @param E820EntryCount Number of E820 entries.
  * @param KernelPhysBase Physical base address of the loaded kernel.
  * @param FileSize Size of the loaded kernel in bytes.
+ * @param KernelReservedBytes Loader-reserved kernel span size in bytes.
  * @param BootloaderName ASCII bootloader name string.
  * @param KernelCmdLine ASCII command line string for the kernel.
  * @return Physical address of MultibootInfo.
@@ -52,6 +53,7 @@ U32 BootBuildMultibootInfo(
     U32 E820EntryCount,
     U32 KernelPhysBase,
     U32 FileSize,
+    U32 KernelReservedBytes,
     U32 RsdpPhysical,
     LPCSTR BootloaderName,
     LPCSTR KernelCmdLine,
@@ -152,7 +154,7 @@ U32 BootBuildMultibootInfo(
     KernelModule->mod_start = KernelPhysBase;
     KernelModule->mod_end = KernelPhysBase + FileSize;
     KernelModule->cmdline = (U32)(UINT)KernelCmdLine;
-    KernelModule->reserved = 0;
+    KernelModule->reserved = KernelReservedBytes;
 
     // Set module information in multiboot info
     MultibootInfo->mods_count = 1;

@@ -65,10 +65,19 @@ LPPROCESS ResolveCurrentAddressSpaceOwner(void) {
 static BOOL GrowDescriptorSlab(void) {
 #if BOOT_STAGE_MARKERS == 1
     BootStageMarkerFromConsole(54, 255, 0, 0);
+    BootStageMarkerFromConsole(78, 255, 0, 128);
 #endif
 
     PHYSICAL Physical = AllocPhysicalPage();
+
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(79, 255, 128, 128);
+#endif
+
     if (Physical == NULL) {
+#if BOOT_STAGE_MARKERS == 1
+        BootStageMarkerFromConsole(80, 255, 255, 128);
+#endif
         ERROR(TEXT("[EnsureDescriptorSlab] No physical page available"));
         return FALSE;
     }

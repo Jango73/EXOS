@@ -24,6 +24,7 @@
 
 #include "../include/vbr-payload-x86-64.h"
 #include "../include/vbr-payload-shared.h"
+#include "boot-reservation.h"
 
 /************************************************************************/
 
@@ -38,9 +39,6 @@
 #endif
 
 static const UINT MAX_KERNEL_PAGE_TABLES = 64u;
-static const U32 TEMP_LINEAR_LAST_OFFSET = 0x00102000u;
-static const U32 TEMP_LINEAR_REQUIRED_SPAN = TEMP_LINEAR_LAST_OFFSET + PAGE_SIZE;
-static const U32 KERNEL_IDENTITY_WORKSPACE_SPAN = N_2MB;
 static const U32 BOOT_MARKER_BASE_X = 2u;
 static const U32 BOOT_MARKER_Y_TRANSITION = 2u;
 static const U32 BOOT_MARKER_GROUP_SIZE = 10u;
@@ -584,7 +582,7 @@ static void BuildPaging(
     // kernel code still accesses some bootstrap data through physical pointers.
     MapIdentityRange(
         U64_FromU32(KernelPhysBase),
-        U64_FromU32(MapSize + KERNEL_IDENTITY_WORKSPACE_SPAN),
+        U64_FromU32(MapSize + BOOT_KERNEL_IDENTITY_WORKSPACE_BYTES),
         &NextTablePhysical);
 
     if (UefiImageSize != 0) {
@@ -678,12 +676,12 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U6
     if (KernelPhysBase == 0u) {
         KernelPhysBase = KERNEL_LINEAR_LOAD_ADDRESS;
     }
-    U32 MapSize = VbrAlignToPage(FileSize + N_512KB);
+    U32 MapSize = VbrAlignToPage(FileSize + BOOT_KERNEL_MAP_PADDING_BYTES);
     U64 FramebufferBase = U64_FromU32(0u);
     U64 FramebufferSize = U64_FromU32(0u);
 
-    if (MapSize < TEMP_LINEAR_REQUIRED_SPAN) {
-        MapSize = TEMP_LINEAR_REQUIRED_SPAN;
+    if (MapSize < BOOT_X86_64_TEMP_LINEAR_REQUIRED_SPAN) {
+        MapSize = BOOT_X86_64_TEMP_LINEAR_REQUIRED_SPAN;
     }
 
     UefiSerialWriteString((LPCSTR)"[EnterProtectedPagingAndJump] Start\r\n");

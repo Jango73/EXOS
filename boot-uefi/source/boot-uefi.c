@@ -24,6 +24,7 @@
 #include "uefi/efi.h"
 #include "uefi/uefi-log-udp.h"
 #include "boot-multiboot.h"
+#include "boot-reservation.h"
 #include "vbr-realmode-utils.h"
 #include "CoreString.h"
 
@@ -1499,8 +1500,8 @@ static EFI_STATUS BootUefiLoadKernelImage(
     // Keep early logs explicit to simplify boot debugging in firmware consoles.
     BootUefiOutputHex32(Context->ConsoleOut, "[EfiMain] Kernel size ", FileSize);
 
-    UINT KernelMapBytes = BootUefiAlignUp((UINT)(FileSize + 0x00080000u), EFI_PAGE_SIZE);
-    UINT KernelTableWorkspaceBytes = 0x00100000u;
+    UINT KernelMapBytes = BootUefiAlignUp((UINT)(FileSize + BOOT_KERNEL_MAP_PADDING_BYTES), EFI_PAGE_SIZE);
+    UINT KernelTableWorkspaceBytes = BOOT_KERNEL_TABLE_WORKSPACE_BYTES;
     UINT KernelReservedBytes = KernelMapBytes + KernelTableWorkspaceBytes;
     UINT KernelPages = BootUefiAlignUp(KernelReservedBytes, EFI_PAGE_SIZE) / EFI_PAGE_SIZE;
     EFI_PHYSICAL_ADDRESS KernelAddress = BootUefiPhysicalFromU32(0xFFFFFFFFu);
@@ -1893,6 +1894,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         E820Count,
         KernelPhysicalBase,
         (U32)FileSize,
+        KernelReservedBytes,
         RsdpPhysicalLow,
         MultibootLayout.BootloaderName,
         MultibootLayout.KernelCommandLine,

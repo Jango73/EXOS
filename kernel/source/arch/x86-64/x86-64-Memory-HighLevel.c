@@ -120,6 +120,121 @@ PHYSICAL BootstrapBitmapPhysical = NULL;
 /************************************************************************/
 
 /**
+ * @brief Find a valid physical placement for the bootstrap page bitmap.
+ * @param LoaderReservedEnd End of the loader-owned bootstrap workspace.
+ * @param BitmapBytesAligned Size of the bitmap in bytes.
+ * @param OutPpbPhysical Receives the selected physical address.
+ * @return TRUE on success, FALSE otherwise.
+ */
+static BOOL FindBootstrapBitmapPhysical(PHYSICAL LoaderReservedEnd, UINT BitmapBytesAligned, PHYSICAL* OutPpbPhysical) {
+    if (OutPpbPhysical == NULL || BitmapBytesAligned == 0) {
+        return FALSE;
+    }
+
+    PHYSICAL MaxLowIdentityPhysical = (PHYSICAL)((PHYSICAL)PAGE_TABLE_NUM_ENTRIES << PAGE_TABLE_CAPACITY_MUL);
+    PHYSICAL BitmapSize = (PHYSICAL)BitmapBytesAligned;
+    PHYSICAL Preferred = PAGE_ALIGN(LoaderReservedEnd);
+    PHYSICAL SearchFloor = LoaderReservedEnd;
+    PHYSICAL ClippedBase = 0;
+    UINT ClippedLength = 0;
+
+    // Keep the historical placement first: this address is expected to be
+    // accessible with the loader's bootstrap mappings before CR3 switch.
+    if (ClipPhysicalRange((U64)Preferred, (U64)BitmapSize, &ClippedBase, &ClippedLength) == TRUE) {
+        if (ClippedBase == Preferred && ClippedLength == BitmapBytesAligned) {
+            *OutPpbPhysical = Preferred;
+            return TRUE;
+        }
+    }
+
+    if (SearchFloor >= MaxLowIdentityPhysical) {
+        SearchFloor = (PHYSICAL)RESERVED_LOW_MEMORY;
+    }
+
+    if (Preferred < MaxLowIdentityPhysical) {
+        for (UINT Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
+            const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
+            PHYSICAL EntryBase = 0;
+            UINT EntrySize = 0;
+
+            if (Entry->Type != MULTIBOOT_MEMORY_AVAILABLE) {
+                continue;
+            }
+
+            if (ClipPhysicalRange(Entry->Base, Entry->Length, &EntryBase, &EntrySize) == FALSE) {
+                continue;
+            }
+
+            PHYSICAL EntryEnd = EntryBase + (PHYSICAL)EntrySize;
+            if (EntryEnd <= EntryBase) {
+                continue;
+            }
+
+            if (Preferred < EntryBase || Preferred >= EntryEnd) {
+                continue;
+            }
+
+            PHYSICAL PreferredEnd = Preferred + BitmapSize;
+            if (PreferredEnd <= Preferred) {
+                continue;
+            }
+
+            if (PreferredEnd <= EntryEnd && PreferredEnd <= MaxLowIdentityPhysical) {
+                *OutPpbPhysical = Preferred;
+                return TRUE;
+            }
+        }
+    }
+
+    for (UINT Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
+        const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
+        PHYSICAL EntryBase = 0;
+        UINT EntrySize = 0;
+
+        if (Entry->Type != MULTIBOOT_MEMORY_AVAILABLE) {
+            continue;
+        }
+
+        if (ClipPhysicalRange(Entry->Base, Entry->Length, &EntryBase, &EntrySize) == FALSE) {
+            continue;
+        }
+
+        PHYSICAL EntryEnd = EntryBase + (PHYSICAL)EntrySize;
+        if (EntryEnd <= EntryBase) {
+            continue;
+        }
+
+        PHYSICAL Candidate = EntryBase;
+
+        if (Candidate < SearchFloor) {
+            Candidate = SearchFloor;
+        }
+        if (Candidate < (PHYSICAL)RESERVED_LOW_MEMORY) {
+            Candidate = (PHYSICAL)RESERVED_LOW_MEMORY;
+        }
+
+        Candidate = PAGE_ALIGN(Candidate);
+        if (Candidate >= EntryEnd) {
+            continue;
+        }
+
+        PHYSICAL CandidateEnd = Candidate + BitmapSize;
+        if (CandidateEnd <= Candidate) {
+            continue;
+        }
+
+        if (CandidateEnd <= EntryEnd && CandidateEnd <= MaxLowIdentityPhysical) {
+            *OutPpbPhysical = Candidate;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Obtain or create a shared identity table used by the low region.
  *
  * The function lazily allocates the table, initializes its entries according
@@ -1093,22 +1208,27 @@ void InitializeMemoryManager(void) {
     UINT BitmapBytes = (KernelStartup.PageCount + 7) >> MUL_8;
     UINT BitmapBytesAligned = (UINT)PAGE_ALIGN(BitmapBytes);
 
-    U64 KernelSpan = (U64)KernelStartup.KernelSize + (U64)N_512KB;
-    PHYSICAL MapSize = (PHYSICAL)PAGE_ALIGN(KernelSpan);
-    PHYSICAL LoaderReservedEnd = KernelStartup.KernelPhysicalBase + MapSize;
-
-    // Legacy MBR x86-64 allocates kernel page tables immediately after the
-    // mapped kernel span. Keep that workspace reserved so the bootstrap bitmap
-    // does not overwrite the active boot page tables before CR3 is replaced.
-    if (KernelStartup.KernelPhysicalBase == (PHYSICAL)N_2MB) {
-        UINT TableCount = (UINT)((MapSize + PAGE_TABLE_CAPACITY - 1) >> PAGE_TABLE_CAPACITY_MUL);
-        LoaderReservedEnd += (PHYSICAL)(TableCount * PAGE_SIZE);
-    } else {
-        // UEFI keeps an additional paging-table workspace after the mapped
-        // kernel span.
-        LoaderReservedEnd += (PHYSICAL)N_1MB;
+    UINT ReservedBytes = KernelStartup.KernelReservedBytes;
+    if (ReservedBytes < KernelStartup.KernelSize) {
+        ERROR(TEXT("[InitializeMemoryManager] Invalid kernel reserved span (reserved=%u size=%u)"),
+            ReservedBytes,
+            KernelStartup.KernelSize);
+        ConsolePanic(TEXT("Invalid boot kernel reserved span"));
+        DO_THE_SLEEPING_BEAUTY;
     }
-    PHYSICAL PpbPhysical = PAGE_ALIGN(LoaderReservedEnd);
+
+    PHYSICAL LoaderReservedEnd =
+        KernelStartup.KernelPhysicalBase + (PHYSICAL)PAGE_ALIGN((PHYSICAL)ReservedBytes);
+    PHYSICAL PpbPhysical = 0;
+    if (FindBootstrapBitmapPhysical(LoaderReservedEnd, BitmapBytesAligned, &PpbPhysical) == FALSE) {
+        ERROR(TEXT("[InitializeMemoryManager] Could not place PPB (loaderEnd=%p size=%u)"),
+            (LPVOID)(LINEAR)LoaderReservedEnd,
+            BitmapBytesAligned);
+        ConsolePanic(TEXT("Could not place physical page bitmap"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    SetLoaderReservedPhysicalRange(KernelStartup.KernelPhysicalBase, LoaderReservedEnd);
     BootstrapBitmapPhysical = PpbPhysical;
 
     SetPhysicalPageBitmap((LPPAGEBITMAP)(UINT)PpbPhysical);
@@ -1118,9 +1238,21 @@ void InitializeMemoryManager(void) {
     BootStageMarkerFromConsole(47, 255, 255, 0);
 #endif
 
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(67, 255, 64, 0);
+#endif
+
     MemorySet(GetPhysicalPageBitmap(), 0, GetPhysicalPageBitmapSize());
 
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(68, 255, 192, 0);
+#endif
+
     MarkUsedPhysicalMemory();
+
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(69, 192, 255, 0);
+#endif
 
 #if BOOT_STAGE_MARKERS == 1
     BootStageMarkerFromConsole(48, 0, 255, 0);

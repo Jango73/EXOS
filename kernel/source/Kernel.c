@@ -49,7 +49,7 @@
 
 #define BOOT_STAGE_DRIVER_PRE_BASE 40
 #define BOOT_STAGE_MEMORY_MANAGER_BASE 45
-#define BOOT_STAGE_MEMORY_MANAGER_COUNT 22
+#define BOOT_STAGE_MEMORY_MANAGER_COUNT 52
 
 /************************************************************************/
 
@@ -357,6 +357,7 @@ void DumpCriticalInformation(void) {
     DEBUG(TEXT("Kernel startup info:"));
     DEBUG(TEXT("  KernelPhysicalBase = %p"), KernelStartup.KernelPhysicalBase);
     DEBUG(TEXT("  KernelSize = %d"), KernelStartup.KernelSize);
+    DEBUG(TEXT("  KernelReservedBytes = %u"), KernelStartup.KernelReservedBytes);
     DEBUG(TEXT("  StackTop = %p"), KernelStartup.StackTop);
     DEBUG(TEXT("  IRQMask_21_RM = %x"), KernelStartup.IRQMask_21_RM);
     DEBUG(TEXT("  IRQMask_A1_RM = %x"), KernelStartup.IRQMask_A1_RM);

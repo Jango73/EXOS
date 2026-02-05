@@ -83,6 +83,7 @@ typedef struct tag_MULTIBOOTMEMORYENTRY {
 typedef struct tag_KERNELSTARTUPINFO {
     PHYSICAL KernelPhysicalBase;
     UINT KernelSize;
+    UINT KernelReservedBytes;
     PHYSICAL StackTop;
     PHYSICAL PageDirectory;
     U32 IRQMask_21_PM;

@@ -24,6 +24,7 @@
 
 #include "../include/vbr-payload-x86-64.h"
 #include "../include/vbr-payload-shared.h"
+#include "boot-reservation.h"
 
 /************************************************************************/
 
@@ -40,9 +41,6 @@ static const U64 KERNEL_LONG_MODE_BASE = {
 static const U64 KERNEL_LONG_MODE_BASE = (U64)CONFIG_VMA_KERNEL;
 #endif
 static const UINT MAX_KERNEL_PAGE_TABLES = 64u;
-static const U32 TEMP_LINEAR_LAST_OFFSET = 0x00102000u;
-static const U32 TEMP_LINEAR_REQUIRED_SPAN = TEMP_LINEAR_LAST_OFFSET + PAGE_SIZE;
-static const U32 KERNEL_IDENTITY_WORKSPACE_SPAN = N_2MB;
 
 enum {
     LONG_MODE_ENTRY_GLOBAL = 0x00000001u,
@@ -502,7 +500,7 @@ static void BuildPaging(U32 KernelPhysBase, U64 KernelVirtBase, U32 MapSize, U64
 
     MapIdentityRange(
         U64_FromU32(KernelPhysBase),
-        U64_FromU32(MapSize + KERNEL_IDENTITY_WORKSPACE_SPAN),
+        U64_FromU32(MapSize + BOOT_KERNEL_IDENTITY_WORKSPACE_BYTES),
         &NextTablePhysical);
 
 #if defined(BOOT_UEFI)
@@ -567,10 +565,10 @@ static void BuildGdtFlat(void) {
 
 void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U64 UefiImageBase, U64 UefiImageSize) {
     const U32 KernelPhysBase = KERNEL_LINEAR_LOAD_ADDRESS;
-    U32 MapSize = VbrAlignToPage(FileSize + N_512KB);
+    U32 MapSize = VbrAlignToPage(FileSize + BOOT_KERNEL_MAP_PADDING_BYTES);
 
-    if (MapSize < TEMP_LINEAR_REQUIRED_SPAN) {
-        MapSize = TEMP_LINEAR_REQUIRED_SPAN;
+    if (MapSize < BOOT_X86_64_TEMP_LINEAR_REQUIRED_SPAN) {
+        MapSize = BOOT_X86_64_TEMP_LINEAR_REQUIRED_SPAN;
     }
 
 #if !defined(BOOT_UEFI)

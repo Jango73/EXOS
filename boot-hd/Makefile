@@ -9,10 +9,12 @@ ifeq ($(ARCH),x86-32)
 TOOLCHAIN_PREFIX = i686-elf
 NASM_FORMAT = elf32
 NASM_ARCH_FLAGS = -DARCH_X86_32
+ARCH_CFLAGS = -DARCH_X86_32=1
 else ifeq ($(ARCH),x86-64)
 TOOLCHAIN_PREFIX = i686-elf
 NASM_FORMAT = elf32
 NASM_ARCH_FLAGS = -DARCH_X86_64
+ARCH_CFLAGS = -DARCH_X86_64=1
 else
 $(error Unsupported architecture $(ARCH))
 endif
@@ -88,6 +90,7 @@ CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) \
                   -DBOOT_PAYLOAD_BUILD_ID=\"$(PAYLOAD_BUILD_ID)\" \
                   -Iinclude -I../boot-shared/include -I../kernel/include
+CFLAGS          += $(ARCH_CFLAGS)
 NASMFLAGS       += -DBOOT_PAYLOAD_BUILD_ID=\"$(PAYLOAD_BUILD_ID)\"
 
 NASM            = nasm

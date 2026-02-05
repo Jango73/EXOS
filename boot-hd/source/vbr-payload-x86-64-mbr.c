@@ -24,6 +24,7 @@
 
 #include "../include/vbr-payload-x86-64.h"
 #include "../include/vbr-payload-shared.h"
+#include "boot-reservation.h"
 
 /************************************************************************/
 
@@ -32,8 +33,6 @@
 #endif
 
 static const UINT MAX_KERNEL_PAGE_TABLES = 64u;
-static const U32 TEMP_LINEAR_LAST_OFFSET = 0x00102000u;
-static const U32 TEMP_LINEAR_REQUIRED_SPAN = TEMP_LINEAR_LAST_OFFSET + PAGE_SIZE;
 
 enum {
     LONG_MODE_ENTRY_GLOBAL = 0x00000001u,
@@ -363,10 +362,10 @@ static void BuildGdtFlat(void) {
 
 void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U64 UefiImageBase, U64 UefiImageSize) {
     const U32 KernelPhysBase = KERNEL_LINEAR_LOAD_ADDRESS;
-    U32 MapSize = VbrAlignToPage(FileSize + N_512KB);
+    U32 MapSize = VbrAlignToPage(FileSize + BOOT_KERNEL_MAP_PADDING_BYTES);
 
-    if (MapSize < TEMP_LINEAR_REQUIRED_SPAN) {
-        MapSize = TEMP_LINEAR_REQUIRED_SPAN;
+    if (MapSize < BOOT_X86_64_TEMP_LINEAR_REQUIRED_SPAN) {
+        MapSize = BOOT_X86_64_TEMP_LINEAR_REQUIRED_SPAN;
     }
 
     EnableA20();

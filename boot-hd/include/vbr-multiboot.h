@@ -84,7 +84,7 @@ typedef struct {
     U32 mod_start;     // Physical start address of module in RAM
     U32 mod_end;       // Physical end address of module
     U32 cmdline;       // Physical address of ASCII string (module arguments, null-terminated)
-    U32 reserved;      // Always 0 (padding for alignment)
+    U32 reserved;      // EXOS: loader-reserved kernel span in bytes
 } PACKED multiboot_module_t;
 
 // Main Multiboot information structure

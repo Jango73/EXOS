@@ -127,6 +127,13 @@ void KernelMain(void) {
         multiboot_module_t* FirstModule = (multiboot_module_t*)(UINT)(LINEAR)MultibootInfo->mods_addr;
         KernelStartup.KernelPhysicalBase = FirstModule->mod_start;
         KernelStartup.KernelSize = (UINT)(FirstModule->mod_end - FirstModule->mod_start);
+        KernelStartup.KernelReservedBytes = (UINT)FirstModule->reserved;
+        if (KernelStartup.KernelReservedBytes < KernelStartup.KernelSize) {
+            ERROR(TEXT("[KernelMain] Invalid kernel reserved span (reserved=%u size=%u)"),
+                KernelStartup.KernelReservedBytes,
+                KernelStartup.KernelSize);
+            ConsolePanic(TEXT("Invalid boot kernel reserved span"));
+        }
         // Get the command line
         LPCSTR ModuleCommandLine = (LPCSTR)(UINT)(LINEAR)FirstModule->cmdline;
         StringCopy(KernelStartup.CommandLine, ModuleCommandLine);
@@ -134,6 +141,7 @@ void KernelMain(void) {
         // Fallback - should not happen with our bootloader
         KernelStartup.KernelPhysicalBase = 0;
         KernelStartup.KernelSize = 0;
+        KernelStartup.KernelReservedBytes = 0;
         StringClear(KernelStartup.CommandLine);
     }
 

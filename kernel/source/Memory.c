@@ -24,6 +24,7 @@
 
 #include "Memory.h"
 
+#include "BootStageMarker.h"
 #include "Base.h"
 #include "Console.h"
 #include "Kernel.h"
@@ -32,6 +33,17 @@
 #include "CoreString.h"
 #include "process/Schedule.h"
 #include "System.h"
+
+/************************************************************************/
+
+#ifndef BOOT_STAGE_MARKERS
+    #define BOOT_STAGE_MARKERS 0
+#endif
+
+/************************************************************************/
+
+static PHYSICAL G_LoaderReservedStart = 0;
+static PHYSICAL G_LoaderReservedEnd = 0;
 
 /************************************************************************/
 
@@ -165,6 +177,27 @@ void SetPhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used) {
 /************************************************************************/
 
 /**
+ * @brief Configure the early loader-owned physical range to keep reserved.
+ * @param Start Inclusive physical start.
+ * @param End Exclusive physical end.
+ */
+void SetLoaderReservedPhysicalRange(PHYSICAL Start, PHYSICAL End) {
+    Start &= ~((PHYSICAL)(PAGE_SIZE - 1));
+    End = PAGE_ALIGN(End);
+
+    if (End <= Start) {
+        G_LoaderReservedStart = 0;
+        G_LoaderReservedEnd = 0;
+        return;
+    }
+
+    G_LoaderReservedStart = Start;
+    G_LoaderReservedEnd = End;
+}
+
+/************************************************************************/
+
+/**
  * @brief Update kernel memory metrics from the Multiboot memory map.
  */
 void UpdateKernelMemoryMetricsFromMultibootMap(void) {
@@ -226,16 +259,31 @@ void MarkUsedPhysicalMemory(void) {
     }
     PHYSICAL ReservedEnd = PAGE_ALIGN(PpbPhysicalBase + (PHYSICAL)BitmapSize);
     PHYSICAL ReservedLowEnd = (PHYSICAL)RESERVED_LOW_MEMORY;
-    PHYSICAL LoaderReservedStart = KernelStartup.KernelPhysicalBase;
+    PHYSICAL LoaderReservedStart = G_LoaderReservedStart;
+    PHYSICAL LoaderReservedEnd = G_LoaderReservedEnd;
 
     // Always keep low physical memory reserved for legacy structures.
     SetPhysicalPageRangeMark(0, (UINT)(ReservedLowEnd >> PAGE_SIZE_MUL), 1);
 
-    // Reserve the loader-owned contiguous span: kernel image, bootstrap paging
-    // workspace and the physical page bitmap itself.
-    if (LoaderReservedStart != 0 && ReservedEnd > LoaderReservedStart) {
+    // Reserve the loader-owned contiguous span (kernel image + bootstrap paging
+    // workspace). Keep a compatibility fallback for callers that did not set an
+    // explicit span yet.
+    if (LoaderReservedStart == 0 || LoaderReservedEnd <= LoaderReservedStart) {
+        LoaderReservedStart = KernelStartup.KernelPhysicalBase;
+        LoaderReservedEnd = ReservedEnd;
+    }
+
+    if (LoaderReservedStart != 0 && LoaderReservedEnd > LoaderReservedStart) {
         UINT FirstPage = (UINT)(LoaderReservedStart >> PAGE_SIZE_MUL);
-        UINT PageCount = (UINT)((ReservedEnd - LoaderReservedStart) >> PAGE_SIZE_MUL);
+        UINT PageCount = (UINT)((LoaderReservedEnd - LoaderReservedStart) >> PAGE_SIZE_MUL);
+        SetPhysicalPageRangeMark(FirstPage, PageCount, 1);
+    }
+
+    // Reserve the physical page bitmap itself. It may be outside the contiguous
+    // loader-owned range on some firmware layouts.
+    if (ReservedEnd > PpbPhysicalBase) {
+        UINT FirstPage = (UINT)(PpbPhysicalBase >> PAGE_SIZE_MUL);
+        UINT PageCount = (UINT)((ReservedEnd - PpbPhysicalBase) >> PAGE_SIZE_MUL);
         SetPhysicalPageRangeMark(FirstPage, PageCount, 1);
     }
 
@@ -274,10 +322,13 @@ PHYSICAL AllocPhysicalPage(void) {
     UINT StartPage = 0;
     UINT StartByte = 0;
     UINT MaxByte = 0;
+    UINT BitmapBytes = 0;
     PHYSICAL result = 0;
     LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
 
-    // DEBUG(TEXT("[AllocPhysicalPage] Enter"));
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(71, 255, 0, 64);
+#endif
 
     if (Bitmap == NULL) {
         return result;
@@ -285,12 +336,36 @@ PHYSICAL AllocPhysicalPage(void) {
 
     LockMutex(MUTEX_MEMORY, INFINITY);
 
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(72, 255, 128, 64);
+#endif
+
     // Start from end of kernel region
     StartPage = RESERVED_LOW_MEMORY >> PAGE_SIZE_MUL;
 
     // Convert to PPB byte index
     StartByte = StartPage >> MUL_8; /* == ((... >> 12) >> 3) */
     MaxByte = (KernelStartup.PageCount + 7) >> MUL_8;
+    BitmapBytes = GetPhysicalPageBitmapSize();
+
+    if (BitmapBytes == 0) {
+        goto Out;
+    }
+
+    if (MaxByte > BitmapBytes) {
+        WARNING(TEXT("[AllocPhysicalPage] Clamping scan bytes (%u -> %u)"),
+            MaxByte,
+            BitmapBytes);
+        MaxByte = BitmapBytes;
+    }
+
+    if (StartByte >= MaxByte) {
+        goto Out;
+    }
+
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(73, 255, 255, 64);
+#endif
 
     /* Scan from StartByte upward */
     for (i = StartByte; i < MaxByte; i++) {
@@ -298,10 +373,13 @@ PHYSICAL AllocPhysicalPage(void) {
         if (v != 0xFF) {
             page = (i << MUL_8); /* first page covered by this byte */
             for (bit = 0; bit < 8 && page < KernelStartup.PageCount; bit++, page++) {
-                mask = 1u << bit;
+                mask = 1 << bit;
                 if ((v & mask) == 0) {
                     Bitmap[i] = (U8)(v | (U8)mask);
                     result = (PHYSICAL)(page << PAGE_SIZE_MUL); /* page * 4096 */
+#if BOOT_STAGE_MARKERS == 1
+                    BootStageMarkerFromConsole(74, 0, 255, 64);
+#endif
                     goto Out;
                 }
             }
@@ -309,9 +387,19 @@ PHYSICAL AllocPhysicalPage(void) {
     }
 
 Out:
-    // DEBUG(TEXT("[AllocPhysicalPage] Exit"));
+#if BOOT_STAGE_MARKERS == 1
+    if (result == 0) {
+        BootStageMarkerFromConsole(75, 255, 64, 64);
+    }
+    BootStageMarkerFromConsole(76, 128, 255, 64);
+#endif
 
     UnlockMutex(MUTEX_MEMORY);
+
+#if BOOT_STAGE_MARKERS == 1
+    BootStageMarkerFromConsole(77, 64, 255, 64);
+#endif
+
     return result;
 }
 

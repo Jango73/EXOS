@@ -27,6 +27,7 @@
 /************************************************************************/
 
 #include "Base.h"
+#include "boot-reservation.h"
 #include "vbr-multiboot.h"
 
 /************************************************************************/
@@ -70,6 +71,7 @@ U32 BootBuildMultibootInfo(
     U32 E820EntryCount,
     U32 KernelPhysBase,
     U32 FileSize,
+    U32 KernelReservedBytes,
     U32 RsdpPhysical,
     LPCSTR BootloaderName,
     LPCSTR KernelCmdLine,

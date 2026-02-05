@@ -27,6 +27,7 @@
 #include "../include/vbr-multiboot.h"
 #include "../include/vbr-realmode-utils.h"
 #include "../include/vbr-payload-shared.h"
+#include "boot-reservation.h"
 #include "arch/x86-32/x86-32.h"
 #include "SerialPort.h"
 #include "CoreString.h"
@@ -50,6 +51,7 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
 static void InitDebug(void);
 static void OutputChar(U8 Char);
 static void WriteString(LPCSTR Str);
+static U32 ComputeKernelReservedBytes(U32 FileSize);
 
 STR TempString[128];
 static const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
@@ -84,6 +86,24 @@ static void WriteString(LPCSTR Str) {
     while (*Str) {
         OutputChar((U8)*Str++);
     }
+}
+
+/************************************************************************/
+
+static U32 ComputeKernelReservedBytes(U32 FileSize) {
+    U32 MapSize = PAGE_ALIGN(FileSize + BOOT_KERNEL_MAP_PADDING_BYTES);
+
+#if defined(ARCH_X86_64)
+    if (MapSize < BOOT_X86_64_TEMP_LINEAR_REQUIRED_SPAN) {
+        MapSize = BOOT_X86_64_TEMP_LINEAR_REQUIRED_SPAN;
+    }
+
+    U32 TotalPages = (MapSize + PAGE_SIZE - 1) >> MUL_4KB;
+    U32 TableCount = (TotalPages + BOOT_X86_64_PAGE_TABLE_ENTRIES - 1) / BOOT_X86_64_PAGE_TABLE_ENTRIES;
+    return MapSize + (TableCount * BOOT_X86_64_PAGE_TABLE_SIZE);
+#else
+    return MapSize;
+#endif
 }
 
 /************************************************************************/
@@ -309,6 +329,7 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
 
     U32 FileSize = 0;
     const char* LoadedFs = NULL;
+    U32 KernelReservedBytes = 0;
 
     if (LoadKernelFat32(BootDrive, PartitionLba, KERNEL_FILE, &FileSize)) {
         LoadedFs = "FAT32";
@@ -322,6 +343,7 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
     BootDebugPrint(TEXT("[VBR] Kernel loaded via %s\r\n"), LoadedFs);
 
     VerifyKernelImage(FileSize);
+    KernelReservedBytes = ComputeKernelReservedBytes(FileSize);
 
     BootDebugPrint(TEXT("[VBR] Calling architecture specific boot code\r\n"));
 
@@ -342,6 +364,7 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
         E820_EntryCount,
         KERNEL_LINEAR_LOAD_ADDRESS,
         FileSize,
+        KernelReservedBytes,
         0u,
         (LPCSTR)BootloaderName,
         (LPCSTR)KernelCmdLine,

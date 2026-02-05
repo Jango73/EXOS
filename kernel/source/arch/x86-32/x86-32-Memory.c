@@ -1630,11 +1630,20 @@ void InitializeMemoryManager(void) {
     UINT BitmapBytes = (KernelStartup.PageCount + 7u) >> MUL_8;
     UINT BitmapBytesAligned = (UINT)PAGE_ALIGN(BitmapBytes);
 
-    PHYSICAL KernelSpan = (PHYSICAL)KernelStartup.KernelSize + (PHYSICAL)N_512KB;
-    PHYSICAL MapSize = (PHYSICAL)PAGE_ALIGN(KernelSpan);
-    PHYSICAL LoaderReservedEnd = KernelStartup.KernelPhysicalBase + MapSize;
+    UINT ReservedBytes = KernelStartup.KernelReservedBytes;
+    if (ReservedBytes < KernelStartup.KernelSize) {
+        ERROR(TEXT("[InitializeMemoryManager] Invalid kernel reserved span (reserved=%u size=%u)"),
+            ReservedBytes,
+            KernelStartup.KernelSize);
+        ConsolePanic(TEXT("Invalid boot kernel reserved span"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
+    PHYSICAL LoaderReservedEnd =
+        KernelStartup.KernelPhysicalBase + (PHYSICAL)PAGE_ALIGN((PHYSICAL)ReservedBytes);
     PHYSICAL PpbPhysical = PAGE_ALIGN(LoaderReservedEnd);
 
+    SetLoaderReservedPhysicalRange(KernelStartup.KernelPhysicalBase, LoaderReservedEnd);
     SetPhysicalPageBitmap((LPPAGEBITMAP)(UINT)PpbPhysical);
     SetPhysicalPageBitmapSize(BitmapBytesAligned);
 
