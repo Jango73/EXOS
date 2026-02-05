@@ -28,6 +28,7 @@
 #include "Console.h"
 #include "Kernel.h"
 #include "Arch.h"
+#include "EarlyBootConsole.h"
 #include "Log.h"
 #include "CoreString.h"
 #include "process/Schedule.h"
@@ -39,6 +40,56 @@
 
 static PHYSICAL G_LoaderReservedStart = 0;
 static PHYSICAL G_LoaderReservedEnd = 0;
+static BOOL G_AllocPhysicalPageTraceEnabled = FALSE;
+
+/************************************************************************/
+
+/**
+ * @brief Resolve one PPB byte through temporary physical mapping.
+ * @param ByteIndex Byte index in the PPB.
+ * @param OutByte Receives mapped byte pointer.
+ * @return TRUE on success, FALSE otherwise.
+ */
+static BOOL ResolvePhysicalPageBitmapByte(UINT ByteIndex, volatile U8** OutByte) {
+    if (OutByte == NULL) {
+        return FALSE;
+    }
+
+    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
+    UINT BitmapSize = GetPhysicalPageBitmapSize();
+    if (Bitmap == NULL || ByteIndex >= BitmapSize) {
+        return FALSE;
+    }
+
+    PHYSICAL BitmapPhysicalBase = 0;
+    LINEAR BitmapLinear = (LINEAR)Bitmap;
+    if (BitmapLinear >= (LINEAR)VMA_KERNEL) {
+        BitmapPhysicalBase = KernelStartup.KernelPhysicalBase + (PHYSICAL)(BitmapLinear - (LINEAR)VMA_KERNEL);
+    } else {
+        BitmapPhysicalBase = (PHYSICAL)BitmapLinear;
+    }
+
+    PHYSICAL BytePhysical = BitmapPhysicalBase + (PHYSICAL)ByteIndex;
+    PHYSICAL BytePagePhysical = BytePhysical & ~((PHYSICAL)(PAGE_SIZE - 1));
+    UINT ByteOffset = (UINT)(BytePhysical - BytePagePhysical);
+    LINEAR BytePageLinear = MapTemporaryPhysicalPage1(BytePagePhysical);
+    if (BytePageLinear == NULL) {
+        return FALSE;
+    }
+
+    *OutByte = (volatile U8*)(LINEAR)(BytePageLinear + ByteOffset);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Enable or disable focused early-boot tracing in AllocPhysicalPage.
+ * @param Enabled TRUE to print trace lines, FALSE otherwise.
+ */
+void SetAllocPhysicalPageTraceEnabled(BOOL Enabled) {
+    G_AllocPhysicalPageTraceEnabled = Enabled;
+}
 
 /************************************************************************/
 
@@ -94,18 +145,21 @@ void SetPhysicalPageMark(UINT Page, UINT Used) {
 
     if (Page >= KernelStartup.PageCount) return;
 
-    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
-    if (Bitmap == NULL) return;
-
     LockMutex(MUTEX_MEMORY, INFINITY);
 
     Offset = Page >> MUL_8;
     Value = (UINT)0x01 << (Page & 0x07);
+    volatile U8* Byte = NULL;
+
+    if (ResolvePhysicalPageBitmapByte(Offset, &Byte) == FALSE) {
+        UnlockMutex(MUTEX_MEMORY);
+        return;
+    }
 
     if (Used) {
-        Bitmap[Offset] |= (U8)Value;
+        *Byte |= (U8)Value;
     } else {
-        Bitmap[Offset] &= (U8)(~Value);
+        *Byte &= (U8)(~Value);
     }
 
     UnlockMutex(MUTEX_MEMORY);
@@ -318,13 +372,27 @@ PHYSICAL AllocPhysicalPage(void) {
     UINT StartByte = 0;
     UINT MaxByte = 0;
     UINT BitmapBytes = 0;
+    PHYSICAL BitmapPhysicalBase = 0;
     PHYSICAL result = 0;
     LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
+    if (G_AllocPhysicalPageTraceEnabled) {
+        EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP enter"));
+    }
+
     if (Bitmap == NULL) {
+        if (G_AllocPhysicalPageTraceEnabled) {
+            EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP bitmap null"));
+        }
         return result;
     }
 
     LockMutex(MUTEX_MEMORY, INFINITY);
+
+    if ((LINEAR)Bitmap >= (LINEAR)VMA_KERNEL) {
+        BitmapPhysicalBase = KernelStartup.KernelPhysicalBase + (PHYSICAL)((LINEAR)Bitmap - (LINEAR)VMA_KERNEL);
+    } else {
+        BitmapPhysicalBase = (PHYSICAL)(LINEAR)Bitmap;
+    }
 
 
     // Start from end of kernel region
@@ -334,8 +402,14 @@ PHYSICAL AllocPhysicalPage(void) {
     StartByte = StartPage >> MUL_8; /* == ((... >> 12) >> 3) */
     MaxByte = (KernelStartup.PageCount + 7) >> MUL_8;
     BitmapBytes = GetPhysicalPageBitmapSize();
+    if (G_AllocPhysicalPageTraceEnabled) {
+        EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP setup done"));
+    }
 
     if (BitmapBytes == 0) {
+        if (G_AllocPhysicalPageTraceEnabled) {
+            EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP bitmap bytes zero"));
+        }
         goto Out;
     }
 
@@ -347,28 +421,60 @@ PHYSICAL AllocPhysicalPage(void) {
     }
 
     if (StartByte >= MaxByte) {
+        if (G_AllocPhysicalPageTraceEnabled) {
+            EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP start>=max"));
+        }
         goto Out;
     }
 
+    if (G_AllocPhysicalPageTraceEnabled) {
+        EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP scan start"));
+    }
 
     /* Scan from StartByte upward */
     for (i = StartByte; i < MaxByte; i++) {
-        U8 v = Bitmap[i];
+        if (G_AllocPhysicalPageTraceEnabled && i == StartByte) {
+            EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP first byte pre-read"));
+        }
+        PHYSICAL BytePhysical = BitmapPhysicalBase + (PHYSICAL)i;
+        PHYSICAL BytePagePhysical = BytePhysical & ~((PHYSICAL)(PAGE_SIZE - 1));
+        UINT ByteOffset = (UINT)(BytePhysical - BytePagePhysical);
+        LINEAR BytePageLinear = MapTemporaryPhysicalPage1(BytePagePhysical);
+        if (BytePageLinear == NULL) {
+            if (G_AllocPhysicalPageTraceEnabled) {
+                EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP first byte map fail"));
+            }
+            goto Out;
+        }
+
+        U8 v = *((volatile U8*)(LINEAR)(BytePageLinear + ByteOffset));
+        if (G_AllocPhysicalPageTraceEnabled && i == StartByte) {
+            EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP first byte post-read"));
+        }
         if (v != 0xFF) {
             page = (i << MUL_8); /* first page covered by this byte */
             for (bit = 0; bit < 8 && page < KernelStartup.PageCount; bit++, page++) {
                 mask = 1 << bit;
                 if ((v & mask) == 0) {
-                    Bitmap[i] = (U8)(v | (U8)mask);
+                    *((volatile U8*)(LINEAR)(BytePageLinear + ByteOffset)) = (U8)(v | (U8)mask);
                     result = (PHYSICAL)(page << PAGE_SIZE_MUL); /* page * 4096 */
+                    if (G_AllocPhysicalPageTraceEnabled) {
+                        EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP found page"));
+                    }
                     goto Out;
                 }
             }
         }
     }
+    if (G_AllocPhysicalPageTraceEnabled) {
+        EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP no page found"));
+    }
 
 Out:
     UnlockMutex(MUTEX_MEMORY);
+    if (G_AllocPhysicalPageTraceEnabled) {
+        EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP return"));
+    }
 
     return result;
 }
@@ -410,25 +516,24 @@ void FreePhysicalPage(PHYSICAL Page) {
     }
 
     LockMutex(MUTEX_MEMORY, INFINITY);
-    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
-    if (Bitmap == NULL) {
+    UINT ByteIndex = PageIndex >> MUL_8;        // == PageIndex / 8
+    volatile U8* Byte = NULL;
+    if (ResolvePhysicalPageBitmapByte(ByteIndex, &Byte) == FALSE) {
         UnlockMutex(MUTEX_MEMORY);
         return;
     }
 
-    // Bitmap math: 8 pages per byte
-    UINT ByteIndex = PageIndex >> MUL_8;        // == PageIndex / 8
     U8 mask = (U8)(1u << (PageIndex & 0x07));  // bit within the byte
 
     // If already free, nothing to do
-    if ((Bitmap[ByteIndex] & mask) == 0) {
+    if (((U8)(*Byte) & mask) == 0) {
         UnlockMutex(MUTEX_MEMORY);
         DEBUG(TEXT("[FreePhysicalPage] Page already free (PA=%x)"), Page);
         return;
     }
 
     // Mark page as free
-    Bitmap[ByteIndex] = (U8)(Bitmap[ByteIndex] & (U8)~mask);
+    *Byte = (U8)((U8)(*Byte) & (U8)~mask);
 
     UnlockMutex(MUTEX_MEMORY);
 }

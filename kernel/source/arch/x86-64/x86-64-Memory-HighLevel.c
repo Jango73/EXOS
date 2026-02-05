@@ -1191,7 +1191,7 @@ static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
  * mode execution.
  */
 void InitializeMemoryManager(void) {
-    EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] MM enter"));
+    EarlyBootConsoleWriteLine(TEXT("[D] M1"));
 
     UpdateKernelMemoryMetricsFromMultibootMap();
 
@@ -1259,9 +1259,9 @@ void InitializeMemoryManager(void) {
 
 
 
-    EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] MM before RDT"));
+    EarlyBootConsoleWriteLine(TEXT("[D] M2"));
     InitializeRegionDescriptorTracking();
-    EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] MM after RDT"));
+    EarlyBootConsoleWriteLine(TEXT("[D] M3"));
 
 
     Kernel_x86_32.GDT = (LPVOID)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("GDT"));
@@ -1395,18 +1395,32 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
     U32 ReadWrite = (Flags & ALLOC_PAGES_READWRITE) ? 1 : 0;
     U32 PteCacheDisabled = (Flags & ALLOC_PAGES_UC) ? 1 : 0;
     U32 PteWriteThrough = (Flags & ALLOC_PAGES_WC) ? 1 : 0;
+    BOOL BootstrapTrace = (G_RegionDescriptorBootstrap == TRUE);
 
     if (PteCacheDisabled) PteWriteThrough = 0;
 
     ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Base);
 
+    if (BootstrapTrace) {
+        EarlyBootConsoleWriteLine(TEXT("[D] P1"));
+    }
+
     for (UINT Index = 0; Index < NumPages; Index++) {
+        if (BootstrapTrace) {
+            EarlyBootConsoleWriteLine(TEXT("[D] P2"));
+        }
         UINT TabEntry = MemoryPageIteratorGetTableIndex(&Iterator);
         LINEAR CurrentLinear = MemoryPageIteratorGetLinear(&Iterator);
 
         BOOL IsLargePage = FALSE;
+        if (BootstrapTrace) {
+            EarlyBootConsoleWriteLine(TEXT("[D] P3"));
+        }
 
         if (!TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage)) {
+            if (BootstrapTrace) {
+                EarlyBootConsoleWriteLine(TEXT("[D] P4"));
+            }
             if (IsLargePage) {
                 BOOL PreviousBootstrap = G_RegionDescriptorBootstrap;
                 G_RegionDescriptorBootstrap = TRUE;
@@ -1415,6 +1429,9 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
                 return FALSE;
             }
 
+            if (BootstrapTrace) {
+                EarlyBootConsoleWriteLine(TEXT("[D] P5"));
+            }
             if (AllocPageTable(CurrentLinear) == NULL) {
                 BOOL PreviousBootstrap = G_RegionDescriptorBootstrap;
                 G_RegionDescriptorBootstrap = TRUE;
@@ -1423,12 +1440,22 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
                 return FALSE;
             }
 
+            if (BootstrapTrace) {
+                EarlyBootConsoleWriteLine(TEXT("[D] P6"));
+            }
             if (!TryGetPageTableForIterator(&Iterator, &Table, NULL)) {
                 BOOL PreviousBootstrap = G_RegionDescriptorBootstrap;
                 G_RegionDescriptorBootstrap = TRUE;
                 FreeRegion(RollbackBase, (UINT)(Index << PAGE_SIZE_MUL));
                 G_RegionDescriptorBootstrap = PreviousBootstrap;
                 return FALSE;
+            }
+            if (BootstrapTrace) {
+                EarlyBootConsoleWriteLine(TEXT("[D] P7"));
+            }
+        } else {
+            if (BootstrapTrace) {
+                EarlyBootConsoleWriteLine(TEXT("[D] P8"));
             }
         }
 
@@ -1439,10 +1466,19 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
         PHYSICAL ReservedPhysical = (PHYSICAL)(MAX_U32 & ~(PAGE_SIZE - 1));
 
         WritePageTableEntryValue(Table, TabEntry, MakePageEntryRaw(ReservedPhysical, ReservedFlags));
+        if (BootstrapTrace) {
+            EarlyBootConsoleWriteLine(TEXT("[D] P9"));
+        }
 
         if (Flags & ALLOC_PAGES_COMMIT) {
+            if (BootstrapTrace) {
+                EarlyBootConsoleWriteLine(TEXT("[D] P10"));
+            }
             if (Target != 0) {
                 Physical = Target + (PHYSICAL)(Index << PAGE_SIZE_MUL);
+                if (BootstrapTrace) {
+                    EarlyBootConsoleWriteLine(TEXT("[D] P11"));
+                }
 
                 if (Flags & ALLOC_PAGES_IO) {
                     WritePageTableEntryValue(
@@ -1469,8 +1505,14 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
                             PteCacheDisabled,
                             /*Global*/ 0,
                             /*Fixed*/ 0));
+                    if (BootstrapTrace) {
+                        EarlyBootConsoleWriteLine(TEXT("[D] P12"));
+                    }
                 }
             } else {
+                if (BootstrapTrace) {
+                    EarlyBootConsoleWriteLine(TEXT("[D] P13"));
+                }
                 Physical = AllocPhysicalPage();
 
                 if (Physical == NULL) {
@@ -1493,13 +1535,22 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
                         PteCacheDisabled,
                         /*Global*/ 0,
                         /*Fixed*/ 0));
+                if (BootstrapTrace) {
+                    EarlyBootConsoleWriteLine(TEXT("[D] P14"));
+                }
             }
         }
 
         MemoryPageIteratorStepPage(&Iterator);
         Base += PAGE_SIZE;
+        if (BootstrapTrace) {
+            EarlyBootConsoleWriteLine(TEXT("[D] P15"));
+        }
     }
 
+    if (BootstrapTrace) {
+        EarlyBootConsoleWriteLine(TEXT("[D] P16"));
+    }
     return TRUE;
 }
 
@@ -1528,6 +1579,11 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
 LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag) {
     LINEAR Pointer = NULL;
     UINT NumPages = 0;
+    BOOL BootstrapTrace = (G_RegionDescriptorBootstrap == TRUE);
+
+    if (BootstrapTrace) {
+        EarlyBootConsoleWriteLine(TEXT("[D] A1"));
+    }
 
     // Can't allocate more than 25% of total memory at once
     if (Size > KernelStartup.MemorySize / 4) {
@@ -1574,6 +1630,9 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
        the region, try to find a region which is at least as large as
        the "Size" parameter. */
     if (Base == 0 || (Flags & ALLOC_PAGES_AT_OR_OVER)) {
+        if (BootstrapTrace) {
+            EarlyBootConsoleWriteLine(TEXT("[D] A2"));
+        }
 
         LINEAR NewBase = FindFreeRegion(Base, Size);
 
@@ -1582,6 +1641,9 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
         }
 
         Base = NewBase;
+        if (BootstrapTrace) {
+            EarlyBootConsoleWriteLine(TEXT("[D] A3"));
+        }
 
     }
 
@@ -1624,11 +1686,20 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
 #endif
 
     if (FastPathUsed == FALSE) {
+        if (BootstrapTrace) {
+            EarlyBootConsoleWriteLine(TEXT("[D] A4"));
+        }
         if (PopulateRegionPagesLegacy(Base, Target, NumPages, Flags, Pointer, TEXT("AllocRegion")) == FALSE) {
             return NULL;
         }
+        if (BootstrapTrace) {
+            EarlyBootConsoleWriteLine(TEXT("[D] A5"));
+        }
     }
 
+    if (BootstrapTrace) {
+        EarlyBootConsoleWriteLine(TEXT("[D] A6"));
+    }
     if (RegionTrackAlloc(Pointer, Target, NumPages << PAGE_SIZE_MUL, Flags, Tag) == FALSE) {
         G_RegionDescriptorBootstrap = TRUE;
         FreeRegion(Pointer, NumPages << PAGE_SIZE_MUL);
@@ -1639,6 +1710,9 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
     // Flush the Translation Look-up Buffer of the CPU
     FlushTLB();
 
+    if (BootstrapTrace) {
+        EarlyBootConsoleWriteLine(TEXT("[D] A7"));
+    }
 
     return Pointer;
 }
@@ -1904,8 +1978,17 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
  * @return Linear address or 0 on failure.
  */
 LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag) {
+    if (G_RegionDescriptorBootstrap == TRUE) {
+        EarlyBootConsoleWriteLine(TEXT("[D] K1"));
+    }
+
     // Always use VMA_KERNEL base and add AT_OR_OVER flag
     LINEAR Result = AllocRegion(VMA_KERNEL, Target, Size, Flags | ALLOC_PAGES_AT_OR_OVER, Tag);
+
+    if (G_RegionDescriptorBootstrap == TRUE) {
+        EarlyBootConsoleWriteLine(TEXT("[D] K2"));
+    }
+
     return Result;
 }
 
