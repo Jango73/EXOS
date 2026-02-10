@@ -25,6 +25,7 @@
 #include "Memory.h"
 
 #include "Base.h"
+#include "BuddyAllocator.h"
 #include "Console.h"
 #include "Kernel.h"
 #include "Log.h"
@@ -1235,7 +1236,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
  *             is not set, the allocator picks any free region.
  * @param Target Desired physical base address or 0. Requires
  *               ALLOC_PAGES_COMMIT when specified. Use with ALLOC_PAGES_IO to
- *               map device memory without touching the physical bitmap.
+ *               map device memory without touching the physical allocator state.
  * @param Size Size in bytes, rounded up to page granularity. Limited to 25% of
  *             the available physical memory.
  * @param Flags Mapping flags:
@@ -1275,7 +1276,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
             return NULL;
         }
         /* NOTE: Do not reject pages already marked used here.
-           Target may come from AllocPhysicalPage(), which marks the page in the bitmap.
+           Target may come from AllocPhysicalPage(), which marks the page in the allocator.
            We will just map it and keep the mark consistent. */
     }
 
@@ -1428,7 +1429,7 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
             Table = GetPageTableVAFor(Base);
 
             if (Table[TabEntry].Address != NULL) {
-                /* Skip bitmap mark if it was an IO mapping (BAR) */
+                /* Skip allocator release if it was an IO mapping (BAR) */
                 if (Table[TabEntry].Fixed == 0) {
                     SetPhysicalPageMark(Table[TabEntry].Address, 0);
                 }
@@ -1480,7 +1481,7 @@ LINEAR MapIOMemory(PHYSICAL PhysicalBase, UINT Size) {
         AdjustedSize,        // Page-aligned size
         ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_UC |  // MMIO must be UC
             ALLOC_PAGES_IO |
-            ALLOC_PAGES_AT_OR_OVER,  // Do not touch RAM bitmap; mark PTE.Fixed; search at or over VMA_KERNEL
+            ALLOC_PAGES_AT_OR_OVER,  // Do not touch RAM allocator state; mark PTE.Fixed; search at or over VMA_KERNEL
         TEXT("IOMemory")
     );
 
@@ -1546,7 +1547,7 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
         return FALSE;
     }
 
-    // Just unmap; FreeRegion will skip RAM bitmap if PTE.Fixed was set
+    // Just unmap; FreeRegion will skip allocator page release if PTE.Fixed was set
     return FreeRegion(LinearBase, Size);
 }
 
@@ -1615,7 +1616,7 @@ static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
 /**
  * @brief Initializes the x86-32 memory manager structures.
  *
- * This routine prepares the physical page bitmap, builds and loads the initial
+ * This routine prepares the physical buddy allocator, builds and loads the initial
  * page directory, and initializes segmentation through the GDT. It must be
  * called during early kernel initialization.
  */
@@ -1627,8 +1628,8 @@ void InitializeMemoryManager(void) {
         ConsolePanic(TEXT("Detected memory = 0"));
     }
 
-    UINT BitmapBytes = (KernelStartup.PageCount + 7u) >> MUL_8;
-    UINT BitmapBytesAligned = (UINT)PAGE_ALIGN(BitmapBytes);
+    UINT BuddyMetadataSize = BuddyGetMetadataSize(KernelStartup.PageCount);
+    UINT BuddyMetadataSizeAligned = (UINT)PAGE_ALIGN(BuddyMetadataSize);
 
     UINT ReservedBytes = KernelStartup.KernelReservedBytes;
     if (ReservedBytes < KernelStartup.KernelSize) {
@@ -1641,14 +1642,19 @@ void InitializeMemoryManager(void) {
 
     PHYSICAL LoaderReservedEnd =
         KernelStartup.KernelPhysicalBase + (PHYSICAL)PAGE_ALIGN((PHYSICAL)ReservedBytes);
-    PHYSICAL PpbPhysical = PAGE_ALIGN(LoaderReservedEnd);
+    PHYSICAL BuddyMetadataPhysical = PAGE_ALIGN(LoaderReservedEnd);
 
     SetLoaderReservedPhysicalRange(KernelStartup.KernelPhysicalBase, LoaderReservedEnd);
-    SetPhysicalPageBitmap((LPPAGEBITMAP)(UINT)PpbPhysical);
-    SetPhysicalPageBitmapSize(BitmapBytesAligned);
+    SetPhysicalAllocatorMetadataRange(BuddyMetadataPhysical, BuddyMetadataPhysical + BuddyMetadataSizeAligned);
 
-
-    MemorySet(GetPhysicalPageBitmap(), 0, GetPhysicalPageBitmapSize());
+    if (BuddyInitialize(BuddyMetadataPhysical, BuddyMetadataSizeAligned, KernelStartup.PageCount) == FALSE) {
+        ERROR(TEXT("[InitializeMemoryManager] BuddyInitialize failed (PA=%p size=%u pages=%u)"),
+            (LPVOID)(LINEAR)BuddyMetadataPhysical,
+            BuddyMetadataSizeAligned,
+            KernelStartup.PageCount);
+        ConsolePanic(TEXT("Could not initialize physical memory allocator"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
 
     MarkUsedPhysicalMemory();
 

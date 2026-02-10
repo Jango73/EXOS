@@ -1,4 +1,3 @@
-
 /************************************************************************\
 
     EXOS Kernel
@@ -24,62 +23,23 @@
 
 #include "Memory.h"
 
-#include "Base.h"
-#include "Console.h"
-#include "Kernel.h"
 #include "Arch.h"
-#include "EarlyBootConsole.h"
-#include "Log.h"
+#include "Base.h"
+#include "BuddyAllocator.h"
 #include "CoreString.h"
-#include "process/Schedule.h"
+#include "EarlyBootConsole.h"
+#include "Kernel.h"
+#include "Log.h"
 #include "System.h"
-
-/************************************************************************/
+#include "process/Schedule.h"
 
 /************************************************************************/
 
 static PHYSICAL G_LoaderReservedStart = 0;
 static PHYSICAL G_LoaderReservedEnd = 0;
+static PHYSICAL G_PhysicalAllocatorMetadataStart = 0;
+static PHYSICAL G_PhysicalAllocatorMetadataEnd = 0;
 static BOOL G_AllocPhysicalPageTraceEnabled = FALSE;
-
-/************************************************************************/
-
-/**
- * @brief Resolve one PPB byte through temporary physical mapping.
- * @param ByteIndex Byte index in the PPB.
- * @param OutByte Receives mapped byte pointer.
- * @return TRUE on success, FALSE otherwise.
- */
-static BOOL ResolvePhysicalPageBitmapByte(UINT ByteIndex, volatile U8** OutByte) {
-    if (OutByte == NULL) {
-        return FALSE;
-    }
-
-    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
-    UINT BitmapSize = GetPhysicalPageBitmapSize();
-    if (Bitmap == NULL || ByteIndex >= BitmapSize) {
-        return FALSE;
-    }
-
-    PHYSICAL BitmapPhysicalBase = 0;
-    LINEAR BitmapLinear = (LINEAR)Bitmap;
-    if (BitmapLinear >= (LINEAR)VMA_KERNEL) {
-        BitmapPhysicalBase = KernelStartup.KernelPhysicalBase + (PHYSICAL)(BitmapLinear - (LINEAR)VMA_KERNEL);
-    } else {
-        BitmapPhysicalBase = (PHYSICAL)BitmapLinear;
-    }
-
-    PHYSICAL BytePhysical = BitmapPhysicalBase + (PHYSICAL)ByteIndex;
-    PHYSICAL BytePagePhysical = BytePhysical & ~((PHYSICAL)(PAGE_SIZE - 1));
-    UINT ByteOffset = (UINT)(BytePhysical - BytePagePhysical);
-    LINEAR BytePageLinear = MapTemporaryPhysicalPage1(BytePagePhysical);
-    if (BytePageLinear == NULL) {
-        return FALSE;
-    }
-
-    *OutByte = (volatile U8*)(LINEAR)(BytePageLinear + ByteOffset);
-    return TRUE;
-}
 
 /************************************************************************/
 
@@ -135,64 +95,19 @@ BOOL ReadPhysicalMemory(PHYSICAL PhysicalAddress, LPVOID Buffer, UINT Length) {
 /************************************************************************/
 
 /**
- * @brief Mark a physical page as used or free in the PPB.
+ * @brief Mark a physical page as used or free in the allocator.
  * @param Page Page index.
  * @param Used Non-zero to mark used.
  */
 void SetPhysicalPageMark(UINT Page, UINT Used) {
-    UINT Offset = 0;
-    UINT Value = 0;
-
-    if (Page >= KernelStartup.PageCount) return;
-
-    LockMutex(MUTEX_MEMORY, INFINITY);
-
-    Offset = Page >> MUL_8;
-    Value = (UINT)0x01 << (Page & 0x07);
-    volatile U8* Byte = NULL;
-
-    if (ResolvePhysicalPageBitmapByte(Offset, &Byte) == FALSE) {
-        UnlockMutex(MUTEX_MEMORY);
+    if (Page >= KernelStartup.PageCount) {
         return;
     }
 
-    if (Used) {
-        *Byte |= (U8)Value;
-    } else {
-        *Byte &= (U8)(~Value);
-    }
-
-    UnlockMutex(MUTEX_MEMORY);
-}
-
-/************************************************************************/
-
-/**
- * @brief Query the usage mark of a physical page.
- * @param Page Page index.
- * @return Non-zero if page is used.
- */
-/*
-UINT GetPhysicalPageMark(UINT Page) {
-    UINT Offset = 0;
-    UINT Value = 0;
-    UINT RetVal = 0;
-
-    if (Page >= KernelStartup.PageCount) return 0;
-
     LockMutex(MUTEX_MEMORY, INFINITY);
-
-    Offset = Page >> MUL_8;
-    Value = (UINT)0x01 << (Page & 0x07);
-
-    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
-    if (Bitmap != NULL && (Bitmap[Offset] & Value)) RetVal = 1;
-
+    BuddySetRange(Page, 1, Used);
     UnlockMutex(MUTEX_MEMORY);
-
-    return RetVal;
 }
-*/
 
 /************************************************************************/
 
@@ -203,24 +118,7 @@ UINT GetPhysicalPageMark(UINT Page) {
  * @param Used Non-zero to mark used.
  */
 void SetPhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used) {
-
-    UINT End = FirstPage + PageCount;
-    if (FirstPage >= KernelStartup.PageCount) return;
-    if (End > KernelStartup.PageCount) End = KernelStartup.PageCount;
-
-
-    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
-    if (Bitmap == NULL) return;
-
-    for (UINT Page = FirstPage; Page < End; Page++) {
-        UINT Byte = Page >> MUL_8;
-        U8 Mask = (U8)(1u << (Page & 0x07)); /* bit within byte */
-        if (Used) {
-            Bitmap[Byte] |= Mask;
-        } else {
-            Bitmap[Byte] &= (U8)~Mask;
-        }
-    }
+    BuddySetRange(FirstPage, PageCount, Used);
 }
 
 /************************************************************************/
@@ -242,6 +140,27 @@ void SetLoaderReservedPhysicalRange(PHYSICAL Start, PHYSICAL End) {
 
     G_LoaderReservedStart = Start;
     G_LoaderReservedEnd = End;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Configure physical range used by allocator metadata.
+ * @param Start Inclusive physical start.
+ * @param End Exclusive physical end.
+ */
+void SetPhysicalAllocatorMetadataRange(PHYSICAL Start, PHYSICAL End) {
+    Start &= ~((PHYSICAL)(PAGE_SIZE - 1));
+    End = PAGE_ALIGN(End);
+
+    if (End <= Start) {
+        G_PhysicalAllocatorMetadataStart = 0;
+        G_PhysicalAllocatorMetadataEnd = 0;
+        return;
+    }
+
+    G_PhysicalAllocatorMetadataStart = Start;
+    G_PhysicalAllocatorMetadataEnd = End;
 }
 
 /************************************************************************/
@@ -283,7 +202,6 @@ void UpdateKernelMemoryMetricsFromMultibootMap(void) {
  * @brief Public wrapper to mark reserved and used physical pages.
  */
 void MarkUsedPhysicalMemory(void) {
-
     UpdateKernelMemoryMetricsFromMultibootMap();
 
     if (KernelStartup.PageCount == 0) {
@@ -291,35 +209,24 @@ void MarkUsedPhysicalMemory(void) {
         return;
     }
 
-    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
-    UINT BitmapSize = GetPhysicalPageBitmapSize();
-    if (Bitmap == NULL || BitmapSize == 0) {
-        ERROR(TEXT("[MarkUsedPhysicalMemory] PPB not initialized"));
+    if (BuddyIsReady() == FALSE) {
+        ERROR(TEXT("[MarkUsedPhysicalMemory] Buddy allocator not initialized"));
         return;
     }
 
-    LINEAR BitmapLinear = (LINEAR)(Bitmap);
-    PHYSICAL PpbPhysicalBase = 0;
+    BuddyResetAllReserved();
 
-    if (BitmapLinear >= (LINEAR)VMA_KERNEL) {
-        PpbPhysicalBase = KernelStartup.KernelPhysicalBase + (PHYSICAL)(BitmapLinear - (LINEAR)VMA_KERNEL);
-    } else {
-        PpbPhysicalBase = (PHYSICAL)(UINT)(Bitmap);
-    }
-    PHYSICAL ReservedEnd = PAGE_ALIGN(PpbPhysicalBase + (PHYSICAL)BitmapSize);
     PHYSICAL ReservedLowEnd = (PHYSICAL)RESERVED_LOW_MEMORY;
     PHYSICAL LoaderReservedStart = G_LoaderReservedStart;
     PHYSICAL LoaderReservedEnd = G_LoaderReservedEnd;
+    PHYSICAL MetadataStart = G_PhysicalAllocatorMetadataStart;
+    PHYSICAL MetadataEnd = G_PhysicalAllocatorMetadataEnd;
 
-    // Always keep low physical memory reserved for legacy structures.
     SetPhysicalPageRangeMark(0, (UINT)(ReservedLowEnd >> PAGE_SIZE_MUL), 1);
 
-    // Reserve the loader-owned contiguous span (kernel image + bootstrap paging
-    // workspace). Keep a compatibility fallback for callers that did not set an
-    // explicit span yet.
     if (LoaderReservedStart == 0 || LoaderReservedEnd <= LoaderReservedStart) {
         LoaderReservedStart = KernelStartup.KernelPhysicalBase;
-        LoaderReservedEnd = ReservedEnd;
+        LoaderReservedEnd = MetadataEnd;
     }
 
     if (LoaderReservedStart != 0 && LoaderReservedEnd > LoaderReservedStart) {
@@ -328,20 +235,16 @@ void MarkUsedPhysicalMemory(void) {
         SetPhysicalPageRangeMark(FirstPage, PageCount, 1);
     }
 
-    // Reserve the physical page bitmap itself. It may be outside the contiguous
-    // loader-owned range on some firmware layouts.
-    if (ReservedEnd > PpbPhysicalBase) {
-        UINT FirstPage = (UINT)(PpbPhysicalBase >> PAGE_SIZE_MUL);
-        UINT PageCount = (UINT)((ReservedEnd - PpbPhysicalBase) >> PAGE_SIZE_MUL);
+    if (MetadataStart != 0 && MetadataEnd > MetadataStart) {
+        UINT FirstPage = (UINT)(MetadataStart >> PAGE_SIZE_MUL);
+        UINT PageCount = (UINT)((MetadataEnd - MetadataStart) >> PAGE_SIZE_MUL);
         SetPhysicalPageRangeMark(FirstPage, PageCount, 1);
     }
 
-    // Derive total memory size and number of pages from the Multiboot map
-    for (UINT i = 0; i < KernelStartup.MultibootMemoryEntryCount; i++) {
-        const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[i];
+    for (UINT Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
+        const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
         PHYSICAL Base = 0;
         UINT Size = 0;
-
 
         if (ClipPhysicalRange(Entry->Base, Entry->Length, &Base, &Size) == FALSE) {
             continue;
@@ -361,132 +264,38 @@ void MarkUsedPhysicalMemory(void) {
 
 /**
  * @brief Allocate a free physical page.
- * @return Physical page number or MAX_U32 on failure.
+ * @return Physical page number or 0 on failure.
  */
 PHYSICAL AllocPhysicalPage(void) {
-    UINT i = 0;
-    UINT bit = 0;
-    UINT page = 0;
-    UINT mask = 0;
-    UINT StartPage = 0;
-    UINT StartByte = 0;
-    UINT MaxByte = 0;
-    UINT BitmapBytes = 0;
-    PHYSICAL BitmapPhysicalBase = 0;
-    PHYSICAL result = 0;
-    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
+    PHYSICAL Result = 0;
+
     if (G_AllocPhysicalPageTraceEnabled) {
-        EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP enter"));
+        EarlyBootConsoleWriteLine(TEXT("[AllocPhysicalPage] Enter"));
     }
 
-    if (Bitmap == NULL) {
-        if (G_AllocPhysicalPageTraceEnabled) {
-            EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP bitmap null"));
-        }
-        return result;
+    if (BuddyIsReady() == FALSE) {
+        return 0;
     }
 
     LockMutex(MUTEX_MEMORY, INFINITY);
-
-    if ((LINEAR)Bitmap >= (LINEAR)VMA_KERNEL) {
-        BitmapPhysicalBase = KernelStartup.KernelPhysicalBase + (PHYSICAL)((LINEAR)Bitmap - (LINEAR)VMA_KERNEL);
-    } else {
-        BitmapPhysicalBase = (PHYSICAL)(LINEAR)Bitmap;
-    }
-
-
-    // Start from end of kernel region
-    StartPage = RESERVED_LOW_MEMORY >> PAGE_SIZE_MUL;
-
-    // Convert to PPB byte index
-    StartByte = StartPage >> MUL_8; /* == ((... >> 12) >> 3) */
-    MaxByte = (KernelStartup.PageCount + 7) >> MUL_8;
-    BitmapBytes = GetPhysicalPageBitmapSize();
-    if (G_AllocPhysicalPageTraceEnabled) {
-        EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP setup done"));
-    }
-
-    if (BitmapBytes == 0) {
-        if (G_AllocPhysicalPageTraceEnabled) {
-            EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP bitmap bytes zero"));
-        }
-        goto Out;
-    }
-
-    if (MaxByte > BitmapBytes) {
-        WARNING(TEXT("[AllocPhysicalPage] Clamping scan bytes (%u -> %u)"),
-            MaxByte,
-            BitmapBytes);
-        MaxByte = BitmapBytes;
-    }
-
-    if (StartByte >= MaxByte) {
-        if (G_AllocPhysicalPageTraceEnabled) {
-            EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP start>=max"));
-        }
-        goto Out;
-    }
-
-    if (G_AllocPhysicalPageTraceEnabled) {
-        EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP scan start"));
-    }
-
-    /* Scan from StartByte upward */
-    for (i = StartByte; i < MaxByte; i++) {
-        if (G_AllocPhysicalPageTraceEnabled && i == StartByte) {
-            EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP first byte pre-read"));
-        }
-        PHYSICAL BytePhysical = BitmapPhysicalBase + (PHYSICAL)i;
-        PHYSICAL BytePagePhysical = BytePhysical & ~((PHYSICAL)(PAGE_SIZE - 1));
-        UINT ByteOffset = (UINT)(BytePhysical - BytePagePhysical);
-        LINEAR BytePageLinear = MapTemporaryPhysicalPage1(BytePagePhysical);
-        if (BytePageLinear == NULL) {
-            if (G_AllocPhysicalPageTraceEnabled) {
-                EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP first byte map fail"));
-            }
-            goto Out;
-        }
-
-        U8 v = *((volatile U8*)(LINEAR)(BytePageLinear + ByteOffset));
-        if (G_AllocPhysicalPageTraceEnabled && i == StartByte) {
-            EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP first byte post-read"));
-        }
-        if (v != 0xFF) {
-            page = (i << MUL_8); /* first page covered by this byte */
-            for (bit = 0; bit < 8 && page < KernelStartup.PageCount; bit++, page++) {
-                mask = 1 << bit;
-                if ((v & mask) == 0) {
-                    *((volatile U8*)(LINEAR)(BytePageLinear + ByteOffset)) = (U8)(v | (U8)mask);
-                    result = (PHYSICAL)(page << PAGE_SIZE_MUL); /* page * 4096 */
-                    if (G_AllocPhysicalPageTraceEnabled) {
-                        EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP found page"));
-                    }
-                    goto Out;
-                }
-            }
-        }
-    }
-    if (G_AllocPhysicalPageTraceEnabled) {
-        EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP no page found"));
-    }
-
-Out:
+    Result = BuddyAllocPage();
     UnlockMutex(MUTEX_MEMORY);
+
     if (G_AllocPhysicalPageTraceEnabled) {
-        EarlyBootConsoleWriteLine(TEXT("[UEFI-DBG] AP return"));
+        EarlyBootConsoleWriteLine(TEXT("[AllocPhysicalPage] Return"));
     }
 
-    return result;
+    return Result;
 }
 
 /************************************************************************/
 
 /**
  * @brief Release a previously allocated physical page.
- * @param Page Page number to free.
+ * @param Page Page address to free.
  */
 void FreePhysicalPage(PHYSICAL Page) {
-    UINT StartPage = 0;
+    UINT StartPage = RESERVED_LOW_MEMORY >> PAGE_SIZE_MUL;
     UINT PageIndex = 0;
 
     if ((Page & (PAGE_SIZE - 1)) != 0) {
@@ -494,46 +303,27 @@ void FreePhysicalPage(PHYSICAL Page) {
         return;
     }
 
-    // Start from end of kernel region (KER + BSS + STK), in pages
-    StartPage = RESERVED_LOW_MEMORY >> PAGE_SIZE_MUL;
-
-    // Translate PA -> page index
     PageIndex = (UINT)(Page >> PAGE_SIZE_MUL);
 
-    // Guard: null and alignment
-    if (PageIndex < StartPage) return;
+    if (PageIndex < StartPage) {
+        return;
+    }
 
-    // Guard: never free page 0 (kept reserved on purpose)
     if (PageIndex == 0) {
         ERROR(TEXT("[FreePhysicalPage] Attempt to free page 0"));
         return;
     }
 
-    // Bounds check
     if (PageIndex >= KernelStartup.PageCount) {
         ERROR(TEXT("[FreePhysicalPage] Page index out of range (%x)"), PageIndex);
         return;
     }
 
     LockMutex(MUTEX_MEMORY, INFINITY);
-    UINT ByteIndex = PageIndex >> MUL_8;        // == PageIndex / 8
-    volatile U8* Byte = NULL;
-    if (ResolvePhysicalPageBitmapByte(ByteIndex, &Byte) == FALSE) {
+    if (BuddyFreePage(Page) == FALSE) {
         UnlockMutex(MUTEX_MEMORY);
+        DEBUG(TEXT("[FreePhysicalPage] Page already free or invalid (PA=%x)"), Page);
         return;
     }
-
-    U8 mask = (U8)(1u << (PageIndex & 0x07));  // bit within the byte
-
-    // If already free, nothing to do
-    if (((U8)(*Byte) & mask) == 0) {
-        UnlockMutex(MUTEX_MEMORY);
-        DEBUG(TEXT("[FreePhysicalPage] Page already free (PA=%x)"), Page);
-        return;
-    }
-
-    // Mark page as free
-    *Byte = (U8)((U8)(*Byte) & (U8)~mask);
-
     UnlockMutex(MUTEX_MEMORY);
 }

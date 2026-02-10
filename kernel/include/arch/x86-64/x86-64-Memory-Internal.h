@@ -41,7 +41,7 @@
 #include "arch/x86-64/x86-64-Log.h"
 
 #ifndef EXOS_X86_64_FAST_VMM
-#define EXOS_X86_64_FAST_VMM 1
+#define EXOS_X86_64_FAST_VMM 0
 #endif
 
 #if EXOS_X86_64_FAST_VMM
@@ -62,7 +62,6 @@ BOOL FastReleaseRegionFromDescriptor(
 BOOL ReleaseRegionWithFastWalker(LINEAR CanonicalBase, UINT NumPages);
 #endif
 
-BOOL FreeRegionLegacyInternal(LINEAR CanonicalBase, UINT NumPages, LINEAR OriginalBase, UINT Size);
 UINT ComputePagesUntilAlignment(LINEAR Base, U64 SpanSize);
 BOOL IsRegionFree(LINEAR Base, UINT Size);
 void FreeEmptyPageTables(void);

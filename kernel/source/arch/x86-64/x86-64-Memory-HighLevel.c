@@ -24,6 +24,7 @@
 
 
 #include "arch/x86-64/x86-64-Memory-Internal.h"
+#include "BuddyAllocator.h"
 #include "EarlyBootConsole.h"
 
 /************************************************************************/
@@ -115,24 +116,48 @@ LOW_REGION_SHARED_TABLES LowRegionSharedTables = {
     .IdentityTablePhysical = NULL,
 };
 
-PHYSICAL BootstrapBitmapPhysical = NULL;
+PHYSICAL BootstrapAllocatorMetadataPhysical = NULL;
 
 /************************************************************************/
 
 /**
- * @brief Find a valid physical placement for the bootstrap page bitmap.
+ * @brief Determine the largest paging granularity compatible with a region.
+ * @param Base Canonical base of the region.
+ * @param PageCount Number of pages described by the region.
+ * @return Corresponding granularity.
+ */
+MEMORY_REGION_GRANULARITY ComputeDescriptorGranularity(LINEAR Base, UINT PageCount) {
+    if (PageCount == 0) {
+        return MEMORY_REGION_GRANULARITY_4K;
+    }
+
+    if ((((U64)Base & ((U64)N_1GB - (U64)1)) == 0) && (PageCount % (PAGE_TABLE_NUM_ENTRIES * PAGE_TABLE_NUM_ENTRIES)) == 0) {
+        return MEMORY_REGION_GRANULARITY_1G;
+    }
+
+    if ((((U64)Base & ((U64)N_2MB - (U64)1)) == 0) && (PageCount % PAGE_TABLE_NUM_ENTRIES) == 0) {
+        return MEMORY_REGION_GRANULARITY_2M;
+    }
+
+    return MEMORY_REGION_GRANULARITY_4K;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Find a valid physical placement for bootstrap allocator metadata.
  * @param LoaderReservedEnd End of the loader-owned bootstrap workspace.
- * @param BitmapBytesAligned Size of the bitmap in bytes.
- * @param OutPpbPhysical Receives the selected physical address.
+ * @param MetadataBytesAligned Size of metadata in bytes.
+ * @param OutMetadataPhysical Receives the selected physical address.
  * @return TRUE on success, FALSE otherwise.
  */
-static BOOL FindBootstrapBitmapPhysical(PHYSICAL LoaderReservedEnd, UINT BitmapBytesAligned, PHYSICAL* OutPpbPhysical) {
-    if (OutPpbPhysical == NULL || BitmapBytesAligned == 0) {
+static BOOL FindBootstrapAllocatorMetadataPhysical(PHYSICAL LoaderReservedEnd, UINT MetadataBytesAligned, PHYSICAL* OutMetadataPhysical) {
+    if (OutMetadataPhysical == NULL || MetadataBytesAligned == 0) {
         return FALSE;
     }
 
     PHYSICAL MaxLowIdentityPhysical = (PHYSICAL)((PHYSICAL)PAGE_TABLE_NUM_ENTRIES << PAGE_TABLE_CAPACITY_MUL);
-    PHYSICAL BitmapSize = (PHYSICAL)BitmapBytesAligned;
+    PHYSICAL MetadataSize = (PHYSICAL)MetadataBytesAligned;
     PHYSICAL Preferred = PAGE_ALIGN(LoaderReservedEnd);
     PHYSICAL SearchFloor = LoaderReservedEnd;
     PHYSICAL ClippedBase = 0;
@@ -140,9 +165,9 @@ static BOOL FindBootstrapBitmapPhysical(PHYSICAL LoaderReservedEnd, UINT BitmapB
 
     // Keep the historical placement first: this address is expected to be
     // accessible with the loader's bootstrap mappings before CR3 switch.
-    if (ClipPhysicalRange((U64)Preferred, (U64)BitmapSize, &ClippedBase, &ClippedLength) == TRUE) {
-        if (ClippedBase == Preferred && ClippedLength == BitmapBytesAligned) {
-            *OutPpbPhysical = Preferred;
+    if (ClipPhysicalRange((U64)Preferred, (U64)MetadataSize, &ClippedBase, &ClippedLength) == TRUE) {
+        if (ClippedBase == Preferred && ClippedLength == MetadataBytesAligned) {
+            *OutMetadataPhysical = Preferred;
             return TRUE;
         }
     }
@@ -174,13 +199,13 @@ static BOOL FindBootstrapBitmapPhysical(PHYSICAL LoaderReservedEnd, UINT BitmapB
                 continue;
             }
 
-            PHYSICAL PreferredEnd = Preferred + BitmapSize;
+            PHYSICAL PreferredEnd = Preferred + MetadataSize;
             if (PreferredEnd <= Preferred) {
                 continue;
             }
 
             if (PreferredEnd <= EntryEnd && PreferredEnd <= MaxLowIdentityPhysical) {
-                *OutPpbPhysical = Preferred;
+                *OutMetadataPhysical = Preferred;
                 return TRUE;
             }
         }
@@ -218,13 +243,13 @@ static BOOL FindBootstrapBitmapPhysical(PHYSICAL LoaderReservedEnd, UINT BitmapB
             continue;
         }
 
-        PHYSICAL CandidateEnd = Candidate + BitmapSize;
+        PHYSICAL CandidateEnd = Candidate + MetadataSize;
         if (CandidateEnd <= Candidate) {
             continue;
         }
 
         if (CandidateEnd <= EntryEnd && CandidateEnd <= MaxLowIdentityPhysical) {
-            *OutPpbPhysical = Candidate;
+            *OutMetadataPhysical = Candidate;
             return TRUE;
         }
     }
@@ -561,8 +586,8 @@ BOOL SetupLowRegion(REGION_SETUP* Region, UINT UserSeedTables) {
             /*Global*/ 0,
             /*Fixed*/ 1));
 
-    if (BootstrapBitmapPhysical != NULL) {
-        UINT BitmapDirectoryIndex = (UINT)(BootstrapBitmapPhysical >> PAGE_TABLE_CAPACITY_MUL);
+    if (BootstrapAllocatorMetadataPhysical != NULL) {
+        UINT BitmapDirectoryIndex = (UINT)(BootstrapAllocatorMetadataPhysical >> PAGE_TABLE_CAPACITY_MUL);
 
         if (BitmapDirectoryIndex >= 2u && BitmapDirectoryIndex < PAGE_TABLE_NUM_ENTRIES) {
             if (Region->TableCount >= ARRAY_COUNT(Region->Tables)) {
@@ -1186,7 +1211,7 @@ static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
 /**
  * @brief Initialize the x86-64 memory manager and install the kernel mappings.
  *
- * The routine prepares the physical page bitmap, constructs a new kernel page
+ * The routine prepares the physical buddy allocator, constructs a new kernel page
  * directory, loads it and finalizes the descriptor tables required for long
  * mode execution.
  */
@@ -1199,8 +1224,8 @@ void InitializeMemoryManager(void) {
         ConsolePanic(TEXT("Detected memory = 0"));
     }
 
-    UINT BitmapBytes = (KernelStartup.PageCount + 7) >> MUL_8;
-    UINT BitmapBytesAligned = (UINT)PAGE_ALIGN(BitmapBytes);
+    UINT BuddyMetadataSize = BuddyGetMetadataSize(KernelStartup.PageCount);
+    UINT BuddyMetadataSizeAligned = (UINT)PAGE_ALIGN(BuddyMetadataSize);
 
     UINT ReservedBytes = KernelStartup.KernelReservedBytes;
     if (ReservedBytes < KernelStartup.KernelSize) {
@@ -1213,24 +1238,27 @@ void InitializeMemoryManager(void) {
 
     PHYSICAL LoaderReservedEnd =
         KernelStartup.KernelPhysicalBase + (PHYSICAL)PAGE_ALIGN((PHYSICAL)ReservedBytes);
-    PHYSICAL PpbPhysical = 0;
-    if (FindBootstrapBitmapPhysical(LoaderReservedEnd, BitmapBytesAligned, &PpbPhysical) == FALSE) {
-        ERROR(TEXT("[InitializeMemoryManager] Could not place PPB (loaderEnd=%p size=%u)"),
+    PHYSICAL BuddyMetadataPhysical = 0;
+    if (FindBootstrapAllocatorMetadataPhysical(LoaderReservedEnd, BuddyMetadataSizeAligned, &BuddyMetadataPhysical) == FALSE) {
+        ERROR(TEXT("[InitializeMemoryManager] Could not place buddy metadata (loaderEnd=%p size=%u)"),
             (LPVOID)(LINEAR)LoaderReservedEnd,
-            BitmapBytesAligned);
-        ConsolePanic(TEXT("Could not place physical page bitmap"));
+            BuddyMetadataSizeAligned);
+        ConsolePanic(TEXT("Could not place physical memory allocator metadata"));
         DO_THE_SLEEPING_BEAUTY;
     }
 
     SetLoaderReservedPhysicalRange(KernelStartup.KernelPhysicalBase, LoaderReservedEnd);
-    BootstrapBitmapPhysical = PpbPhysical;
+    BootstrapAllocatorMetadataPhysical = BuddyMetadataPhysical;
+    SetPhysicalAllocatorMetadataRange(BuddyMetadataPhysical, BuddyMetadataPhysical + BuddyMetadataSizeAligned);
 
-    SetPhysicalPageBitmap((LPPAGEBITMAP)(UINT)PpbPhysical);
-    SetPhysicalPageBitmapSize(BitmapBytesAligned);
-
-
-
-    MemorySet(GetPhysicalPageBitmap(), 0, GetPhysicalPageBitmapSize());
+    if (BuddyInitialize(BuddyMetadataPhysical, BuddyMetadataSizeAligned, KernelStartup.PageCount) == FALSE) {
+        ERROR(TEXT("[InitializeMemoryManager] BuddyInitialize failed (PA=%p size=%u pages=%u)"),
+            (LPVOID)(LINEAR)BuddyMetadataPhysical,
+            BuddyMetadataSizeAligned,
+            KernelStartup.PageCount);
+        ConsolePanic(TEXT("Could not initialize physical memory allocator"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
 
 
     MarkUsedPhysicalMemory();
@@ -1562,7 +1590,7 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
  *             is not set, the allocator picks any free region.
  * @param Target Desired physical base address or 0. Requires
  *               ALLOC_PAGES_COMMIT when specified. Use with ALLOC_PAGES_IO to
- *               map device memory without touching the physical bitmap.
+ *               map device memory without touching the physical allocator state.
  * @param Size Size in bytes, rounded up to page granularity. Limited to 25% of
  *             the available physical memory.
  * @param Flags Mapping flags:
@@ -1614,7 +1642,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
             return NULL;
         }
         /* NOTE: Do not reject pages already marked used here.
-           Target may come from AllocPhysicalPage(), which marks the page in the bitmap.
+           Target may come from AllocPhysicalPage(), which marks the page in the allocator.
            We will just map it and keep the mark consistent. */
     }
 
@@ -1651,39 +1679,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
     Pointer = Base;
 
 
-#if EXOS_X86_64_FAST_VMM
     BOOL FastPathUsed = FALSE;
-    if (G_RegionDescriptorsEnabled && G_RegionDescriptorBootstrap == FALSE) {
-        MEMORY_REGION_DESCRIPTOR TempDescriptor;
-        InitializeTransientDescriptor(&TempDescriptor, Pointer, NumPages, Target, Flags);
-
-        UINT PagesProcessed = 0u;
-        if (FastPopulateRegionFromDescriptor(&TempDescriptor,
-                                             Target,
-                                             Flags,
-                                             TEXT("AllocRegion"),
-                                             &PagesProcessed) == TRUE &&
-            PagesProcessed == NumPages) {
-            FastPathUsed = TRUE;
-        } else {
-            if (PagesProcessed != 0u) {
-                MEMORY_REGION_DESCRIPTOR RollbackDescriptor;
-                InitializeTransientDescriptor(&RollbackDescriptor, Pointer, PagesProcessed, Target, Flags);
-                if (FastReleaseRegionFromDescriptor(&RollbackDescriptor, NULL) == FALSE) {
-                    WARNING(TEXT("[AllocRegion] Fast rollback failed for base=%p pages=%u"),
-                        (LPVOID)Pointer,
-                        PagesProcessed);
-                }
-            }
-
-            DEBUG(TEXT("[AllocRegion] Falling back to legacy population (processed=%u targetPages=%u)"),
-                PagesProcessed,
-                NumPages);
-        }
-    }
-#else
-    BOOL FastPathUsed = FALSE;
-#endif
 
     if (FastPathUsed == FALSE) {
         if (BootstrapTrace) {
@@ -1771,43 +1767,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
         }
 
 
-#if EXOS_X86_64_FAST_VMM
         BOOL ExpansionFastPathUsed = FALSE;
-        if (G_RegionDescriptorsEnabled && G_RegionDescriptorBootstrap == FALSE) {
-            MEMORY_REGION_DESCRIPTOR TempDescriptor;
-            InitializeTransientDescriptor(&TempDescriptor, NewBase, AdditionalPages, AdditionalTarget, Flags);
-
-            UINT PagesProcessed = 0u;
-            if (FastPopulateRegionFromDescriptor(&TempDescriptor,
-                                                 AdditionalTarget,
-                                                 Flags,
-                                                 TEXT("ResizeRegion"),
-                                                 &PagesProcessed) == TRUE &&
-                PagesProcessed == AdditionalPages) {
-                ExpansionFastPathUsed = TRUE;
-            } else {
-                if (PagesProcessed != 0u) {
-                    MEMORY_REGION_DESCRIPTOR RollbackDescriptor;
-                    InitializeTransientDescriptor(&RollbackDescriptor,
-                                                  NewBase,
-                                                  PagesProcessed,
-                                                  AdditionalTarget,
-                                                  Flags);
-                    if (FastReleaseRegionFromDescriptor(&RollbackDescriptor, NULL) == FALSE) {
-                        WARNING(TEXT("[ResizeRegion] Fast rollback failed for base=%p pages=%u"),
-                            (LPVOID)NewBase,
-                            PagesProcessed);
-                    }
-                }
-
-                DEBUG(TEXT("[ResizeRegion] Falling back to legacy population (processed=%u targetPages=%u)"),
-                    PagesProcessed,
-                    AdditionalPages);
-            }
-        }
-#else
-        BOOL ExpansionFastPathUsed = FALSE;
-#endif
 
         if (ExpansionFastPathUsed == FALSE) {
             if (PopulateRegionPagesLegacy(NewBase,
@@ -1852,20 +1812,43 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
 
 
     LINEAR CanonicalBase = CanonicalizeLinearAddress(Base);
+    LPPAGE_TABLE Table = NULL;
+    ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(CanonicalBase);
 
-#if EXOS_X86_64_FAST_VMM
-    if (G_RegionDescriptorsEnabled && G_RegionDescriptorBootstrap == FALSE) {
-        if (ReleaseRegionWithFastWalker(CanonicalBase, NumPages) == TRUE) {
-            RegionTrackFree(CanonicalBase, NumPages << PAGE_SIZE_MUL);
-            FreeEmptyPageTables();
-            FlushTLB();
-            return TRUE;
+    UNUSED(OriginalBase);
+    UNUSED(Size);
+
+    for (UINT Index = 0; Index < NumPages; Index++) {
+        UINT TabEntry = MemoryPageIteratorGetTableIndex(&Iterator);
+        UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(&Iterator);
+#if DEBUG_OUTPUT == 0
+        UNUSED(DirEntry);
+#endif
+        BOOL IsLargePage = FALSE;
+
+        if (TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage) && PageTableEntryIsPresent(Table, TabEntry)) {
+            PHYSICAL EntryPhysical = PageTableEntryGetPhysical(Table, TabEntry);
+            BOOL Fixed = PageTableEntryIsFixed(Table, TabEntry);
+
+            if (Fixed == FALSE) {
+                SetPhysicalPageMark((UINT)(EntryPhysical >> PAGE_SIZE_MUL), 0u);
+            }
+
+            ClearPageTableEntry(Table, TabEntry);
+        } else if (IsLargePage == FALSE) {
+            DEBUG(TEXT("[FreeRegion] Missing mapping Dir=%u Tab=%u IsLarge=%u"),
+                DirEntry,
+                TabEntry,
+                (UINT)(IsLargePage ? 1u : 0u));
         }
 
+        MemoryPageIteratorStepPage(&Iterator);
     }
-#endif
 
-    return FreeRegionLegacyInternal(CanonicalBase, NumPages, OriginalBase, Size);
+    RegionTrackFree(CanonicalBase, NumPages << PAGE_SIZE_MUL);
+    FreeEmptyPageTables();
+    FlushTLB();
+    return TRUE;
 }
 
 /************************************************************************/
@@ -1896,7 +1879,7 @@ LINEAR MapIOMemory(PHYSICAL PhysicalBase, UINT Size) {
         AdjustedSize,        // Page-aligned size
         ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_UC |  // MMIO must be UC
             ALLOC_PAGES_IO |
-            ALLOC_PAGES_AT_OR_OVER,  // Do not touch RAM bitmap; mark PTE.Fixed; search at or over VMA_KERNEL
+            ALLOC_PAGES_AT_OR_OVER,  // Do not touch RAM allocator state; mark PTE.Fixed; search at or over VMA_KERNEL
         TEXT("IOMemory")
     );
 
@@ -1964,7 +1947,7 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
         return FALSE;
     }
 
-    // Just unmap; FreeRegion will skip RAM bitmap if PTE.Fixed was set
+    // Just unmap; FreeRegion will skip allocator page release if PTE.Fixed was set
     return FreeRegion(CanonicalizeLinearAddress(LinearBase), Size);
 }
 

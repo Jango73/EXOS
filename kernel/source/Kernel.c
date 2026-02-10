@@ -25,6 +25,7 @@
 #include "Kernel.h"
 
 #include "Autotest.h"
+#include "BuddyAllocator.h"
 #include "Clock.h"
 #include "Console.h"
 #include "drivers/ACPI.h"
@@ -676,23 +677,13 @@ static void UseConfiguration(void) {
  */
 
 U32 GetPhysicalMemoryUsed(void) {
-    U32 NumPages = 0;
-    U32 Index = 0;
-    U32 Byte = 0;
-    U32 Mask = 0;
-    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
+    UINT NumPages = 0;
 
     LockMutex(MUTEX_MEMORY, INFINITY);
-
-    for (Index = 0; Bitmap != NULL && Index < KernelStartup.PageCount; Index++) {
-        Byte = Index >> MUL_8;
-        Mask = (U32)0x01 << (Index & 0x07);
-        if (Bitmap[Byte] & Mask) NumPages++;
-    }
-
+    NumPages = BuddyGetUsedPageCount();
     UnlockMutex(MUTEX_MEMORY);
 
-    return (NumPages << PAGE_SIZE_MUL);
+    return (U32)(NumPages << PAGE_SIZE_MUL);
 }
 
 /************************************************************************/
