@@ -1642,12 +1642,24 @@ void InitializeMemoryManager(void) {
 
     PHYSICAL LoaderReservedEnd =
         KernelStartup.KernelPhysicalBase + (PHYSICAL)PAGE_ALIGN((PHYSICAL)ReservedBytes);
-    PHYSICAL BuddyMetadataPhysical = PAGE_ALIGN(LoaderReservedEnd);
+    PHYSICAL BuddyMetadataPhysical = 0;
 
     SetLoaderReservedPhysicalRange(KernelStartup.KernelPhysicalBase, LoaderReservedEnd);
+    if (FindAvailableMemoryRangeInWindow(
+            (PHYSICAL)N_1MB,
+            (PHYSICAL)RESERVED_LOW_MEMORY,
+            KernelStartup.KernelPhysicalBase,
+            LoaderReservedEnd,
+            BuddyMetadataSizeAligned,
+            &BuddyMetadataPhysical) == FALSE) {
+        ERROR(TEXT("[InitializeMemoryManager] Could not place buddy metadata (size=%u)"), BuddyMetadataSizeAligned);
+        ConsolePanic(TEXT("Could not place physical memory allocator metadata"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
     SetPhysicalAllocatorMetadataRange(BuddyMetadataPhysical, BuddyMetadataPhysical + BuddyMetadataSizeAligned);
 
-    if (BuddyInitialize(BuddyMetadataPhysical, BuddyMetadataSizeAligned, KernelStartup.PageCount) == FALSE) {
+    if (BuddyInitialize((LINEAR)BuddyMetadataPhysical, BuddyMetadataSizeAligned, KernelStartup.PageCount) == FALSE) {
         ERROR(TEXT("[InitializeMemoryManager] BuddyInitialize failed (PA=%p size=%u pages=%u)"),
             (LPVOID)(LINEAR)BuddyMetadataPhysical,
             BuddyMetadataSizeAligned,

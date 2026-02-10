@@ -13,6 +13,37 @@ NVME_ENABLED=1
 NVME_SIZE_MB="${NVME_SIZE_MB:-1024}"
 MONITOR_PORT="${MONITOR_PORT:-4444}"
 BOOT_MODE="mbr"
+BUILD_LOCK_DIR=""
+
+function WaitForBuildIfNeeded() {
+    BUILD_LOCK_DIR="build/$ARCH/.build-lock"
+    local WaitLoops=0
+    local MaxWaitLoops=300
+
+    while [ -d "$BUILD_LOCK_DIR" ]; do
+        local BuildPid=""
+
+        if [ -f "$BUILD_LOCK_DIR/pid" ]; then
+            BuildPid="$(cat "$BUILD_LOCK_DIR/pid" 2>/dev/null || true)"
+        fi
+
+        if [ -n "$BuildPid" ] && ! kill -0 "$BuildPid" 2>/dev/null; then
+            rm -rf "$BUILD_LOCK_DIR"
+            break
+        fi
+
+        if [ "$WaitLoops" -eq 0 ]; then
+            echo "Build lock detected for $ARCH, waiting for image generation..."
+        fi
+
+        sleep 0.2
+        WaitLoops=$((WaitLoops + 1))
+        if [ "$WaitLoops" -ge "$MaxWaitLoops" ]; then
+            echo "Timed out waiting for build lock: $BUILD_LOCK_DIR"
+            exit 1
+        fi
+    done
+}
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -99,6 +130,8 @@ case "$ARCH" in
         exit 1
         ;;
 esac
+
+WaitForBuildIfNeeded
 
 QEMU_BIN="${QEMU_BIN:-$QEMU_BIN_DEFAULT}"
 

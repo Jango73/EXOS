@@ -103,10 +103,13 @@ GATE_OFFSET_OFFSET_16_31  equ 0x06
 
 ;-------------------------------------------------------------------------
 ; KernelStartupInfo data layout (partial)
+; WARNING: MUST stay in sync with C struct tag_KERNELSTARTUPINFO
+; in kernel/include/KernelData.h.
 
 STRUC KernelStartupInfo
     .KernelPhysicalBase RESB 4
     .KernelSize         RESB 4
+    .KernelReservedBytes RESB 4
     .StackTop           RESB 4
     .PageDirectory      RESB 4
     .IRQMask_21_PM      RESB 4

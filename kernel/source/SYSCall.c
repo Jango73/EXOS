@@ -88,13 +88,14 @@ UINT SysCall_GetSystemInfo(UINT Parameter) {
     LPSYSTEMINFO Info = (LPSYSTEMINFO)Parameter;
 
     SAFE_USE_INPUT_POINTER(Info, SYSTEMINFO) {
-        Info->TotalPhysicalMemory = KernelStartup.MemorySize;
-        Info->PhysicalMemoryUsed = GetPhysicalMemoryUsed();
-        Info->PhysicalMemoryAvail = KernelStartup.MemorySize - Info->PhysicalMemoryUsed;
-        Info->TotalSwapMemory = 0;
-        Info->SwapMemoryUsed = 0;
-        Info->SwapMemoryAvail = 0;
-        Info->TotalMemoryAvail = Info->TotalPhysicalMemory + Info->TotalSwapMemory;
+        Info->TotalPhysicalMemory = U64_FromUINT(KernelStartup.MemorySize);
+        Info->PhysicalMemoryUsed = U64_FromUINT(GetPhysicalMemoryUsed());
+        Info->PhysicalMemoryAvail = U64_Sub(Info->TotalPhysicalMemory, Info->PhysicalMemoryUsed);
+        Info->TotalSwapMemory = U64_FromUINT(0);
+        Info->SwapMemoryUsed = U64_FromUINT(0);
+        Info->SwapMemoryAvail = U64_FromUINT(0);
+        Info->TotalMemoryUsed = U64_Add(Info->PhysicalMemoryUsed, Info->SwapMemoryUsed);
+        Info->TotalMemoryAvail = U64_Add(Info->PhysicalMemoryAvail, Info->SwapMemoryAvail);
         Info->PageSize = PAGE_SIZE;
         Info->TotalPhysicalPages = KernelStartup.PageCount;
         Info->MinimumLinearAddress = VMA_USER;

@@ -62,7 +62,7 @@ typedef struct tag_SYSCALLENTRY {
 
 void InitializeQuantumTime(void);
 U32 ClockTestTask(LPVOID);
-U32 GetPhysicalMemoryUsed(void);
+UINT GetPhysicalMemoryUsed(void);
 void TestProcess(void);
 void InitializeKernel(void);
 void ShutdownKernel(void);

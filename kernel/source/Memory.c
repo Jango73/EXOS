@@ -166,6 +166,188 @@ void SetPhysicalAllocatorMetadataRange(PHYSICAL Start, PHYSICAL End) {
 /************************************************************************/
 
 /**
+ * @brief Find an available physical range in the boot memory map.
+ * @param MinimumAddress Minimum acceptable physical start address.
+ * @param Size Size in bytes.
+ * @param OutAddress Receives the selected physical base address.
+ * @return TRUE on success.
+ */
+BOOL FindAvailableMemoryRange(PHYSICAL MinimumAddress, UINT Size, PHYSICAL* OutAddress) {
+    if (OutAddress == NULL || Size == 0) {
+        return FALSE;
+    }
+
+    PHYSICAL AlignedMinimum = PAGE_ALIGN(MinimumAddress);
+    UINT AlignedSize = (UINT)PAGE_ALIGN(Size);
+
+    for (UINT Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
+        const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
+        PHYSICAL EntryBase = 0;
+        UINT EntrySize = 0;
+
+        if (Entry->Type != MULTIBOOT_MEMORY_AVAILABLE) {
+            continue;
+        }
+
+        if (ClipPhysicalRange(Entry->Base, Entry->Length, &EntryBase, &EntrySize) == FALSE) {
+            continue;
+        }
+
+        PHYSICAL EntryStart = EntryBase;
+        PHYSICAL EntryEnd = EntryBase + (PHYSICAL)EntrySize;
+        if (EntryEnd <= EntryStart) {
+            continue;
+        }
+
+        if (EntryEnd <= AlignedMinimum) {
+            continue;
+        }
+
+        if (EntryStart < AlignedMinimum) {
+            EntryStart = AlignedMinimum;
+        }
+
+        PHYSICAL Candidate = PAGE_ALIGN(EntryStart);
+        if (Candidate >= EntryEnd) {
+            continue;
+        }
+
+        PHYSICAL CandidateEnd = Candidate + (PHYSICAL)AlignedSize;
+        if (CandidateEnd <= Candidate) {
+            continue;
+        }
+
+        if (CandidateEnd <= EntryEnd) {
+            *OutAddress = Candidate;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Find an available physical range inside a window, excluding one range.
+ * @param MinimumAddress Inclusive window start.
+ * @param MaximumAddress Exclusive window end.
+ * @param ExcludedStart Inclusive excluded start.
+ * @param ExcludedEnd Exclusive excluded end.
+ * @param Size Size in bytes.
+ * @param OutAddress Receives selected physical base.
+ * @return TRUE on success.
+ */
+BOOL FindAvailableMemoryRangeInWindow(
+    PHYSICAL MinimumAddress,
+    PHYSICAL MaximumAddress,
+    PHYSICAL ExcludedStart,
+    PHYSICAL ExcludedEnd,
+    UINT Size,
+    PHYSICAL* OutAddress) {
+
+    if (OutAddress == NULL || Size == 0) {
+        return FALSE;
+    }
+
+    PHYSICAL WindowStart = PAGE_ALIGN(MinimumAddress);
+    PHYSICAL WindowEnd = MaximumAddress & ~((PHYSICAL)(PAGE_SIZE - 1));
+    UINT AlignedSize = (UINT)PAGE_ALIGN(Size);
+
+    if (WindowEnd <= WindowStart) {
+        return FALSE;
+    }
+
+    if (ExcludedEnd <= ExcludedStart) {
+        ExcludedStart = 0;
+        ExcludedEnd = 0;
+    }
+
+    for (UINT Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
+        const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
+        PHYSICAL EntryBase = 0;
+        UINT EntrySize = 0;
+
+        if (Entry->Type != MULTIBOOT_MEMORY_AVAILABLE) {
+            continue;
+        }
+
+        if (ClipPhysicalRange(Entry->Base, Entry->Length, &EntryBase, &EntrySize) == FALSE) {
+            continue;
+        }
+
+        PHYSICAL SegmentStart = EntryBase;
+        PHYSICAL SegmentEnd = EntryBase + (PHYSICAL)EntrySize;
+        if (SegmentEnd <= SegmentStart) {
+            continue;
+        }
+
+        if (SegmentEnd <= WindowStart || SegmentStart >= WindowEnd) {
+            continue;
+        }
+
+        if (SegmentStart < WindowStart) {
+            SegmentStart = WindowStart;
+        }
+        if (SegmentEnd > WindowEnd) {
+            SegmentEnd = WindowEnd;
+        }
+
+        if (SegmentEnd <= SegmentStart) {
+            continue;
+        }
+
+        PHYSICAL CandidateRangesStart[2] = {SegmentStart, 0};
+        PHYSICAL CandidateRangesEnd[2] = {SegmentEnd, 0};
+        UINT CandidateRangeCount = 1;
+
+        if (ExcludedEnd > SegmentStart && ExcludedStart < SegmentEnd) {
+            CandidateRangeCount = 0;
+
+            if (ExcludedStart > SegmentStart) {
+                CandidateRangesStart[CandidateRangeCount] = SegmentStart;
+                CandidateRangesEnd[CandidateRangeCount] = ExcludedStart;
+                CandidateRangeCount++;
+            }
+
+            if (ExcludedEnd < SegmentEnd) {
+                CandidateRangesStart[CandidateRangeCount] = ExcludedEnd;
+                CandidateRangesEnd[CandidateRangeCount] = SegmentEnd;
+                CandidateRangeCount++;
+            }
+        }
+
+        for (UINT CandidateIndex = 0; CandidateIndex < CandidateRangeCount; CandidateIndex++) {
+            PHYSICAL RangeStart = CandidateRangesStart[CandidateIndex];
+            PHYSICAL RangeEnd = CandidateRangesEnd[CandidateIndex];
+
+            if (RangeEnd <= RangeStart) {
+                continue;
+            }
+
+            PHYSICAL Candidate = PAGE_ALIGN(RangeStart);
+            if (Candidate >= RangeEnd) {
+                continue;
+            }
+
+            PHYSICAL CandidateEnd = Candidate + (PHYSICAL)AlignedSize;
+            if (CandidateEnd <= Candidate) {
+                continue;
+            }
+
+            if (CandidateEnd <= RangeEnd) {
+                *OutAddress = Candidate;
+                return TRUE;
+            }
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Update kernel memory metrics from the Multiboot memory map.
  */
 void UpdateKernelMemoryMetricsFromMultibootMap(void) {
@@ -213,8 +395,6 @@ void MarkUsedPhysicalMemory(void) {
         ERROR(TEXT("[MarkUsedPhysicalMemory] Buddy allocator not initialized"));
         return;
     }
-
-    BuddyResetAllReserved();
 
     PHYSICAL ReservedLowEnd = (PHYSICAL)RESERVED_LOW_MEMORY;
     PHYSICAL LoaderReservedStart = G_LoaderReservedStart;

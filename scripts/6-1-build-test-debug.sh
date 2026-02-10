@@ -4,18 +4,70 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_FILE="$ROOT_DIR/log/kernel.log"
 COMMANDS_FILE="$ROOT_DIR/scripts/test-commands.txt"
+CONFIG_FILES=(
+    "$ROOT_DIR/kernel/configuration/exos.ext2.toml"
+    "$ROOT_DIR/kernel/configuration/exos.fat32.toml"
+)
 MONITOR_HOST="127.0.0.1"
 MONITOR_PORT="${MONITOR_PORT:-4444}"
 DEFAULT_TIMEOUT_SECONDS=15
+BOOT_READY_TIMEOUT_SECONDS=45
 KEY_DELAY_SECONDS=0.12
 COMMAND_DELAY_SECONDS=0.25
 BOOT_INPUT_DELAY_SECONDS=1.0
+TEST_KEYBOARD_LAYOUT="en-US"
+CONFIG_BACKUP_DIR=""
+BOOT_READY_PATTERN="[InitializeKernel] Shell task created"
 
 FAULT_PATTERN="#PF|#GP|#UD|#SS|#NP|#TS|#DE|#DF|#MF|#AC|#MC"
 TEST_KO_PATTERN="TEST > .* : KO"
+ERROR_PATTERN="ERROR >"
 
 RG_BIN="$(command -v rg || true)"
 GREP_BIN="$(command -v grep || true)"
+RUN_X86_32=1
+RUN_X86_64=1
+RUN_X86_64_UEFI=1
+
+function Usage() {
+    echo "Usage: $0 [--only <x86-32|x86-64|x86-64-uefi>] [--help]"
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --only)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "Missing value for --only"
+                Usage
+                exit 1
+            fi
+            RUN_X86_32=0
+            RUN_X86_64=0
+            RUN_X86_64_UEFI=0
+            case "$1" in
+                x86-32) RUN_X86_32=1 ;;
+                x86-64) RUN_X86_64=1 ;;
+                x86-64-uefi) RUN_X86_64_UEFI=1 ;;
+                *)
+                    echo "Invalid --only target: $1"
+                    Usage
+                    exit 1
+                    ;;
+            esac
+            ;;
+        --help|-h)
+            Usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            Usage
+            exit 1
+            ;;
+    esac
+    shift
+done
 
 if [ -z "$GREP_BIN" ]; then
     echo "Missing grep. Aborting."
@@ -35,6 +87,72 @@ function SearchFixed() {
         rg -n -F "$1"
     else
         grep -n -F "$1"
+    fi
+}
+
+function ForceTestKeyboardLayout() {
+    CONFIG_BACKUP_DIR="$(mktemp -d)"
+
+    for ConfigPath in "${CONFIG_FILES[@]}"; do
+        if [ ! -f "$ConfigPath" ]; then
+            continue
+        fi
+
+        cp "$ConfigPath" "$CONFIG_BACKUP_DIR/$(basename "$ConfigPath")"
+
+        awk -v layout="$TEST_KEYBOARD_LAYOUT" '
+        BEGIN {
+            in_keyboard = 0;
+            layout_set = 0;
+        }
+        {
+            if ($0 ~ /^\[Keyboard\]/) {
+                in_keyboard = 1;
+                print $0;
+                next;
+            }
+
+            if ($0 ~ /^\[/ && in_keyboard == 1) {
+                if (layout_set == 0) {
+                    print "Layout=\"" layout "\"";
+                    layout_set = 1;
+                }
+                in_keyboard = 0;
+                print $0;
+                next;
+            }
+
+            if (in_keyboard == 1 && $0 ~ /^Layout[[:space:]]*=/) {
+                if (layout_set == 0) {
+                    print "Layout=\"" layout "\"";
+                    layout_set = 1;
+                }
+                next;
+            }
+
+            print $0;
+        }
+        END {
+            if (in_keyboard == 1 && layout_set == 0) {
+                print "Layout=\"" layout "\"";
+            }
+        }
+    ' "$ConfigPath" > "$ConfigPath.tmp"
+
+        mv "$ConfigPath.tmp" "$ConfigPath"
+    done
+}
+
+function RestoreConfigFile() {
+    if [ -n "$CONFIG_BACKUP_DIR" ] && [ -d "$CONFIG_BACKUP_DIR" ]; then
+        for ConfigPath in "${CONFIG_FILES[@]}"; do
+            local BackupPath="$CONFIG_BACKUP_DIR/$(basename "$ConfigPath")"
+            if [ -f "$BackupPath" ] && [ -f "$ConfigPath" ]; then
+                cp "$BackupPath" "$ConfigPath"
+            fi
+        done
+        rm -rf "$CONFIG_BACKUP_DIR"
+        CONFIG_BACKUP_DIR=""
     fi
 }
 
@@ -88,7 +206,7 @@ function KeyForChar() {
         [A-Z]) echo "shift-${Char,,}" ;;
         [a-z0-9]) echo "$Char" ;;
         " ") echo "spc" ;;
-        "/") echo "slash" ;;
+        "/") echo "kp_divide" ;;
         "-") echo "minus" ;;
         ".") echo "dot" ;;
         "_") echo "shift-minus" ;;
@@ -127,9 +245,10 @@ function SendCommand() {
 function WaitForExpectedLog() {
     local Expected="$1"
     local Offset="$2"
+    local TimeoutSeconds="${3:-$DEFAULT_TIMEOUT_SECONDS}"
     local StartTime="$SECONDS"
 
-    while [ $((SECONDS - StartTime)) -lt "$DEFAULT_TIMEOUT_SECONDS" ]; do
+    while [ $((SECONDS - StartTime)) -lt "$TimeoutSeconds" ]; do
         if TailFromOffset "$Offset" | SearchRegex "$FAULT_PATTERN" >/dev/null; then
             echo "Fault detected in kernel log."
             TailFromOffset "$Offset" | SearchRegex "$FAULT_PATTERN" || true
@@ -169,6 +288,16 @@ function AssertNoFailures() {
     fi
 }
 
+function WarnLogErrors() {
+    local Offset="$1"
+    local ContextLabel="${2:-run}"
+
+    if TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" >/dev/null; then
+        echo "WARNING: kernel errors detected in $ContextLabel:"
+        TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" || true
+    fi
+}
+
 function RunCommandList() {
     local Line
     local CommandText
@@ -203,6 +332,7 @@ function RunCommandList() {
         WaitForExpectedLog "$ExpectedText" "$Offset"
         sleep 0.2
         AssertNoFailures "$Offset"
+        WarnLogErrors "$Offset" "command '$CommandText'"
     done < "$COMMANDS_FILE"
 }
 
@@ -214,12 +344,14 @@ function RunArchitecture() {
     local Name="$1"
     local BuildScript="$2"
     local QemuScript="$3"
+    local KernelLogRelativePath="$4"
 
     echo "Building $Name..."
     bash -c "cd \"$ROOT_DIR\" && $BuildScript"
 
     echo "Starting QEMU for $Name..."
     mkdir -p "$ROOT_DIR/log"
+    LOG_FILE="$ROOT_DIR/$KernelLogRelativePath"
     : > "$LOG_FILE"
 
     bash -c "cd \"$ROOT_DIR\" && $QemuScript" &
@@ -235,13 +367,25 @@ function RunArchitecture() {
     sleep 2
     sleep "$BOOT_INPUT_DELAY_SECONDS"
     AssertNoFailures 0
+    WaitForExpectedLog "$BOOT_READY_PATTERN" 0 "$BOOT_READY_TIMEOUT_SECONDS"
+    WarnLogErrors 0 "boot phase"
     RunCommandList
     AssertNoFailures 0
+    WarnLogErrors 0 "$Name full run"
     StopQemu
 
     wait "$QemuPid" || true
 }
 
-# RunArchitecture "x86-32" "scripts/build.sh --arch x86-32 --fs ext2 --debug --clean" "scripts/run.sh --arch x86-32"
-RunArchitecture "x86-64" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean" "scripts/run.sh --arch x86-64"
-# RunArchitecture "x86-64 UEFI" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean --uefi" "scripts/run.sh --arch x86-64 --uefi"
+trap 'RestoreConfigFile' EXIT
+ForceTestKeyboardLayout
+
+if [ "$RUN_X86_32" -eq 1 ]; then
+    RunArchitecture "x86-32" "scripts/build.sh --arch x86-32 --fs ext2 --debug --clean" "scripts/run.sh --arch x86-32" "log/kernel-x86-32-mbr.log"
+fi
+if [ "$RUN_X86_64" -eq 1 ]; then
+    RunArchitecture "x86-64" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean" "scripts/run.sh --arch x86-64" "log/kernel-x86-64-mbr.log"
+fi
+if [ "$RUN_X86_64_UEFI" -eq 1 ]; then
+    RunArchitecture "x86-64 UEFI" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean --uefi" "scripts/run.sh --arch x86-64 --uefi" "log/kernel-x86-64-uefi.log"
+fi

@@ -68,6 +68,15 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 
 Replace `x86-32` with `x86-64` when targeting the x86-64 architecture.
 
+**Automated build + smoke tests (dashboard-driven):**
+```bash
+./scripts/6-1-build-test-debug.sh
+./scripts/6-1-build-test-debug.sh --only x86-32
+./scripts/6-1-build-test-debug.sh --only x86-64
+./scripts/6-1-build-test-debug.sh --only x86-64-uefi
+```
+This script runs build + boot + shell command checks (`sysinfo`, `dir`, `/system/apps/hello`) and supports selecting a single target with `--only`.
+
 **Remote build on Windows (SSH to a Linux build host):**
 ```bat
 scripts\remote\x86-32\4-5-build-debug-ext2-ssh.bat

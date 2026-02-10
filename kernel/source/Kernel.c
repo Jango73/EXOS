@@ -45,6 +45,32 @@ extern U32 DeadBeef;
 
 /************************************************************************/
 
+#define KERNEL_LAYOUT_OFFSET_OF(Type, Member) ((UINT)__builtin_offsetof(Type, Member))
+
+#if defined(__EXOS_ARCH_X86_32__)
+typedef char KERNELSTARTUPINFO_OFFSET_KERNELRESERVEDBYTES_X86_32[
+    (KERNEL_LAYOUT_OFFSET_OF(KERNELSTARTUPINFO, KernelReservedBytes) == 0x08) ? 1 : -1];
+typedef char KERNELSTARTUPINFO_OFFSET_STACKTOP_X86_32[
+    (KERNEL_LAYOUT_OFFSET_OF(KERNELSTARTUPINFO, StackTop) == 0x0C) ? 1 : -1];
+typedef char KERNELSTARTUPINFO_OFFSET_IRQMASK21PM_X86_32[
+    (KERNEL_LAYOUT_OFFSET_OF(KERNELSTARTUPINFO, IRQMask_21_PM) == 0x14) ? 1 : -1];
+typedef char KERNELSTARTUPINFO_OFFSET_IRQMASKA1PM_X86_32[
+    (KERNEL_LAYOUT_OFFSET_OF(KERNELSTARTUPINFO, IRQMask_A1_PM) == 0x18) ? 1 : -1];
+#endif
+
+#if defined(__EXOS_ARCH_X86_64__)
+typedef char KERNELSTARTUPINFO_OFFSET_KERNELRESERVEDBYTES_X86_64[
+    (KERNEL_LAYOUT_OFFSET_OF(KERNELSTARTUPINFO, KernelReservedBytes) == 0x10) ? 1 : -1];
+typedef char KERNELSTARTUPINFO_OFFSET_STACKTOP_X86_64[
+    (KERNEL_LAYOUT_OFFSET_OF(KERNELSTARTUPINFO, StackTop) == 0x18) ? 1 : -1];
+typedef char KERNELSTARTUPINFO_OFFSET_IRQMASK21PM_X86_64[
+    (KERNEL_LAYOUT_OFFSET_OF(KERNELSTARTUPINFO, IRQMask_21_PM) == 0x28) ? 1 : -1];
+typedef char KERNELSTARTUPINFO_OFFSET_IRQMASKA1PM_X86_64[
+    (KERNEL_LAYOUT_OFFSET_OF(KERNELSTARTUPINFO, IRQMask_A1_PM) == 0x2C) ? 1 : -1];
+#endif
+
+/************************************************************************/
+
 void SystemDataViewMode(void);
 
 /************************************************************************/
@@ -676,14 +702,14 @@ static void UseConfiguration(void) {
  * @return Number of bytes of physical memory used.
  */
 
-U32 GetPhysicalMemoryUsed(void) {
+UINT GetPhysicalMemoryUsed(void) {
     UINT NumPages = 0;
 
     LockMutex(MUTEX_MEMORY, INFINITY);
     NumPages = BuddyGetUsedPageCount();
     UnlockMutex(MUTEX_MEMORY);
 
-    return (U32)(NumPages << PAGE_SIZE_MUL);
+    return (NumPages << PAGE_SIZE_MUL);
 }
 
 /************************************************************************/
@@ -708,6 +734,7 @@ void LoadDriver(LPDRIVER Driver) {
         }
 
         UINT Result = Driver->Command(DF_LOAD, 0);
+
         if (Result == DF_RETURN_SUCCESS && (Driver->Flags & DRIVER_FLAG_READY) != 0) {
             TEST(TEXT("[LoadDriver] %s.Load : OK"), TEXT(Driver->Product));
         } else {
@@ -947,8 +974,6 @@ void InitializeKernel(void) {
     DEBUG(TEXT("[InitializeKernel] CPU information captured"));
     PreInitializeKernel();
     DEBUG(TEXT("[InitializeKernel] Architecture pre-initialization complete"));
-
-
     //-------------------------------------
     // Load all drivers
 

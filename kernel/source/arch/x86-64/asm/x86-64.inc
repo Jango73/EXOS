@@ -46,10 +46,13 @@ SELECTOR_REAL_DATA   equ (0x30 | SELECTOR_GLOBAL | CPU_PRIVILEGE_KERNEL)
 
 ;-------------------------------------------------------------------------
 ; KernelStartupInfo data layout (partial)
+; WARNING: MUST stay in sync with C struct tag_KERNELSTARTUPINFO
+; in kernel/include/KernelData.h.
 
 STRUC KernelStartupInfo
     .KernelPhysicalBase RESQ 1
     .KernelSize         RESQ 1
+    .KernelReservedBytes RESQ 1
     .StackTop           RESQ 1
     .PageDirectory      RESQ 1
     .IRQMask_21_PM      RESB 4

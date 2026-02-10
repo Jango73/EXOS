@@ -1021,6 +1021,27 @@ static U32 CMD_exit(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
+/**
+ * @brief Convert a byte count to kilobytes for console display.
+ * @param Value Byte count in 64-bit representation.
+ * @return Kilobytes clipped to UINT range.
+ */
+static UINT BytesToKiloBytesForDisplay(U64 Value) {
+#ifdef __EXOS_32__
+    U64 Shifted = Value;
+
+    for (UINT Index = 0; Index < 10; Index++) {
+        Shifted = U64_ShiftRight1(Shifted);
+    }
+
+    return U64_ToU32_Clip(Shifted);
+#else
+    return (UINT)(Value >> 10);
+#endif
+}
+
+/***************************************************************************/
+
 static U32 CMD_sysinfo(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
@@ -1031,13 +1052,13 @@ static U32 CMD_sysinfo(LPSHELLCONTEXT Context) {
     Info.Header.Flags = 0;
     DoSystemCall(SYSCALL_GetSystemInfo, SYSCALL_PARAM(&Info));
 
-    ConsolePrint(TEXT("Total physical memory     : %u KB\n"), Info.TotalPhysicalMemory / N_1KB);
-    ConsolePrint(TEXT("Physical memory used      : %u KB\n"), Info.PhysicalMemoryUsed / N_1KB);
-    ConsolePrint(TEXT("Physical memory available : %u KB\n"), Info.PhysicalMemoryAvail / N_1KB);
-    ConsolePrint(TEXT("Total swap memory         : %u KB\n"), Info.TotalSwapMemory / N_1KB);
-    ConsolePrint(TEXT("Swap memory used          : %u KB\n"), Info.SwapMemoryUsed / N_1KB);
-    ConsolePrint(TEXT("Swap memory available     : %u KB\n"), Info.SwapMemoryAvail / N_1KB);
-    ConsolePrint(TEXT("Total memory available    : %u KB\n"), Info.TotalMemoryAvail / N_1KB);
+    ConsolePrint(TEXT("Total physical memory     : %u KB\n"), BytesToKiloBytesForDisplay(Info.TotalPhysicalMemory));
+    ConsolePrint(TEXT("Physical memory used      : %u KB\n"), BytesToKiloBytesForDisplay(Info.PhysicalMemoryUsed));
+    ConsolePrint(TEXT("Physical memory available : %u KB\n"), BytesToKiloBytesForDisplay(Info.PhysicalMemoryAvail));
+    ConsolePrint(TEXT("Total swap memory         : %u KB\n"), BytesToKiloBytesForDisplay(Info.TotalSwapMemory));
+    ConsolePrint(TEXT("Swap memory used          : %u KB\n"), BytesToKiloBytesForDisplay(Info.SwapMemoryUsed));
+    ConsolePrint(TEXT("Swap memory available     : %u KB\n"), BytesToKiloBytesForDisplay(Info.SwapMemoryAvail));
+    ConsolePrint(TEXT("Total memory available    : %u KB\n"), BytesToKiloBytesForDisplay(Info.TotalMemoryAvail));
     ConsolePrint(TEXT("Processor page size       : %u bytes\n"), Info.PageSize);
     ConsolePrint(TEXT("Total physical pages      : %u pages\n"), Info.TotalPhysicalPages);
     ConsolePrint(TEXT("Minimum linear address    : %x\n"), Info.MinimumLinearAddress);

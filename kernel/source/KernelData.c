@@ -277,8 +277,6 @@ static KERNELDATA DATA_SECTION Kernel = {
         .Root = NULL
     },
     .HandleMap = {0},
-    .PPBSize = 0,
-    .PPB = NULL,
     .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0},
     .Configuration = NULL,
     .MinimumQuantum = 10,
@@ -586,48 +584,6 @@ LPCACHE GetObjectTerminationCache(void) {
 LPHANDLE_MAP GetHandleMap(void) {
     return &(Kernel.HandleMap);
 }
-
-/************************************************************************/
-
-/**
- * @brief Retrieves the size of the physical page bitmap.
- * @return Size in bytes.
- */
-UINT GetPhysicalPageBitmapSize(void) {
-    return Kernel.PPBSize;
-}
-
-/************************************************************************/
-
-/**
- * @brief Sets the size of the physical page bitmap.
- * @param Size Size in bytes.
- */
-void SetPhysicalPageBitmapSize(UINT Size) {
-    Kernel.PPBSize = Size;
-}
-
-/************************************************************************/
-
-/**
- * @brief Retrieves the physical page bitmap pointer.
- * @return Pointer to the bitmap.
- */
-LPPAGEBITMAP GetPhysicalPageBitmap(void) {
-    return Kernel.PPB;
-}
-
-/************************************************************************/
-
-/**
- * @brief Sets the physical page bitmap pointer.
- * @param Bitmap Pointer to the bitmap.
- */
-void SetPhysicalPageBitmap(LPPAGEBITMAP Bitmap) {
-    Kernel.PPB = Bitmap;
-}
-
-/************************************************************************/
 
 /**
  * @brief Retrieves the CPU information storage.

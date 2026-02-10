@@ -365,13 +365,13 @@ UINT BuddyGetMetadataSize(UINT TotalPages) {
 /************************************************************************/
 /**
  * @brief Initialize the buddy allocator metadata in place.
- * @param MetadataPhysical Physical base of the metadata buffer.
+ * @param MetadataAddress Linear base of the metadata buffer.
  * @param MetadataSize Size of metadata buffer in bytes.
  * @param TotalPages Number of pages to manage.
  * @return TRUE on success.
  */
-BOOL BuddyInitialize(PHYSICAL MetadataPhysical, UINT MetadataSize, UINT TotalPages) {
-    if (MetadataPhysical == 0 || MetadataSize == 0 || TotalPages == 0) {
+BOOL BuddyInitialize(LINEAR MetadataAddress, UINT MetadataSize, UINT TotalPages) {
+    if (MetadataAddress == 0 || MetadataSize == 0 || TotalPages == 0) {
         return FALSE;
     }
 
@@ -380,7 +380,7 @@ BOOL BuddyInitialize(PHYSICAL MetadataPhysical, UINT MetadataSize, UINT TotalPag
         return FALSE;
     }
 
-    U8* Base = (U8*)(LINEAR)MetadataPhysical;
+    U8* Base = (U8*)MetadataAddress;
     MemorySet(Base, 0, MetadataSize);
 
     UINT Offset = 0;

@@ -296,14 +296,14 @@ typedef BOOL (*ENUMVOLUMESFUNC)(HANDLE, LPVOID);
 
 typedef struct PACKED tag_SYSTEMINFO {
     ABI_HEADER Header;
-    UINT TotalPhysicalMemory;
-    UINT PhysicalMemoryUsed;
-    UINT PhysicalMemoryAvail;
-    UINT TotalSwapMemory;
-    UINT SwapMemoryUsed;
-    UINT SwapMemoryAvail;
-    UINT TotalMemoryUsed;
-    UINT TotalMemoryAvail;
+    U64 TotalPhysicalMemory;
+    U64 PhysicalMemoryUsed;
+    U64 PhysicalMemoryAvail;
+    U64 TotalSwapMemory;
+    U64 SwapMemoryUsed;
+    U64 SwapMemoryAvail;
+    U64 TotalMemoryUsed;
+    U64 TotalMemoryAvail;
     UINT PageSize;
     UINT TotalPhysicalPages;
     UINT MinimumLinearAddress;

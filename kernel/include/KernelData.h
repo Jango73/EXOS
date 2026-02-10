@@ -81,6 +81,10 @@ typedef struct tag_MULTIBOOTMEMORYENTRY {
 } MULTIBOOTMEMORYENTRY, *LPMULTIBOOTMEMORYENTRY;
 
 typedef struct tag_KERNELSTARTUPINFO {
+    // WARNING: This layout is mirrored in assembly:
+    // - kernel/source/arch/x86-32/asm/x86-32.inc (KernelStartupInfo)
+    // - kernel/source/arch/x86-64/asm/x86-64.inc (KernelStartupInfo)
+    // Any field addition/removal/reorder here must be reflected in both ASM structs.
     PHYSICAL KernelPhysicalBase;
     UINT KernelSize;
     UINT KernelReservedBytes;
@@ -109,6 +113,8 @@ typedef struct tag_OBJECT_TERMINATION_STATE {
 } OBJECT_TERMINATION_STATE, *LPOBJECT_TERMINATION_STATE;
 
 typedef struct tag_KERNELDATA {
+    // NOTE: This structure has no global assembly mirror.
+    // Assembly code must not rely on hardcoded offsets into this struct.
     LPLIST Desktop;
     LPLIST Process;
     LPLIST Task;
@@ -134,8 +140,6 @@ typedef struct tag_KERNELDATA {
     FILESYSTEM_GLOBAL_INFO FileSystemInfo;
     SYSTEMFSFILESYSTEM SystemFS;
     HANDLE_MAP HandleMap;           // Global handle to pointer mapping
-    UINT PPBSize;                   // Size in bytes of the physical page bitmap
-    LPPAGEBITMAP PPB;               // Physical page bitmap
     CPUINFORMATION CPU;
     LPTOML Configuration;
     UINT MinimumQuantum;            // Minimum quantum time in milliseconds (adjusted for emulation)
@@ -160,8 +164,6 @@ void SetKeyboardCode(LPCSTR KeyboardCode);
 void SetLanguageCode(LPCSTR LanguageCode);
 void SetMaximumQuantum(UINT MaximumQuantum);
 void SetMinimumQuantum(UINT MinimumQuantum);
-void SetPhysicalPageBitmap(LPPAGEBITMAP Bitmap);
-void SetPhysicalPageBitmapSize(UINT Size);
 void SetUserAccountList(LPLIST List);
 void SetUserSessionList(LPLIST List);
 
@@ -193,8 +195,6 @@ LPLIST GetMutexList(void);
 LPLIST GetNetworkDeviceList(void);
 LPCACHE GetObjectTerminationCache(void);
 LPLIST GetPCIDeviceList(void);
-LPPAGEBITMAP GetPhysicalPageBitmap(void);
-UINT GetPhysicalPageBitmapSize(void);
 LPLIST GetProcessList(void);
 LPLIST GetSocketList(void);
 LPSYSTEMFSFILESYSTEM GetSystemFSData(void);

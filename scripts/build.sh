@@ -67,6 +67,36 @@ PROFILING=0
 SCHEDULING_DEBUG=0
 SYSTEM_DATA_VIEW=0
 USE_SYSCALL=0
+BUILD_LOCK_DIR=""
+
+function AcquireBuildLock() {
+    BUILD_LOCK_DIR="build/$ARCH/.build-lock"
+
+    mkdir -p "build/$ARCH"
+    if ! mkdir "$BUILD_LOCK_DIR" 2>/dev/null; then
+        if [ -f "$BUILD_LOCK_DIR/pid" ]; then
+            ExistingPid="$(cat "$BUILD_LOCK_DIR/pid" 2>/dev/null || true)"
+            if [ -n "$ExistingPid" ] && kill -0 "$ExistingPid" 2>/dev/null; then
+                echo "A build is already running for $ARCH (pid: $ExistingPid)."
+                exit 1
+            fi
+        fi
+
+        rm -rf "$BUILD_LOCK_DIR"
+        if ! mkdir "$BUILD_LOCK_DIR" 2>/dev/null; then
+            echo "Could not acquire build lock for $ARCH."
+            exit 1
+        fi
+    fi
+
+    echo "$$" > "$BUILD_LOCK_DIR/pid"
+}
+
+function ReleaseBuildLock() {
+    if [ -n "$BUILD_LOCK_DIR" ] && [ -d "$BUILD_LOCK_DIR" ]; then
+        rm -rf "$BUILD_LOCK_DIR"
+    fi
+}
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -176,6 +206,9 @@ case "$FILE_SYSTEM" in
         exit 1
         ;;
 esac
+
+AcquireBuildLock
+trap ReleaseBuildLock EXIT
 
 SCHEDULING_DEBUG_OUTPUT=0
 TRACE_STACK_USAGE=0

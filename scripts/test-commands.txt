@@ -4,4 +4,3 @@ dir|TEST > [CMD_dir] dir : OK
 /system/apps/hello|TEST > [Spawn] Executable finished normally : /system/apps/hello
 /system/apps/hello|TEST > [Spawn] Executable finished normally : /system/apps/hello
 /system/apps/hello|TEST > [Spawn] Executable finished normally : /system/apps/hello
-/system/apps/hello|TEST > [Spawn] Executable finished normally : /system/apps/hello

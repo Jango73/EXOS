@@ -208,7 +208,6 @@ typedef double F64;             // 64 bit float
 typedef UINT SIZE;              // Size type
 typedef UINT LINEAR;            // Linear virtual address, paged or not
 typedef UINT PHYSICAL;          // Physical address
-typedef U8* LPPAGEBITMAP;       // Pointer to a page allocation bitmap
 
 /************************************************************************/
 

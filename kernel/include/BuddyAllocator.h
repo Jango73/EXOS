@@ -30,7 +30,7 @@
 // External functions
 
 UINT BuddyGetMetadataSize(UINT TotalPages);
-BOOL BuddyInitialize(PHYSICAL MetadataPhysical, UINT MetadataSize, UINT TotalPages);
+BOOL BuddyInitialize(LINEAR MetadataAddress, UINT MetadataSize, UINT TotalPages);
 BOOL BuddyResetAllReserved(void);
 BOOL BuddySetRange(UINT FirstPage, UINT PageCount, UINT Used);
 PHYSICAL BuddyAllocPage(void);

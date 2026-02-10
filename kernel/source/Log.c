@@ -40,10 +40,7 @@
 #define KERNEL_LOG_VER_MINOR 0
 #define KERNEL_LOG_TAG_FILTER_MAX_LENGTH 256
 
-static CSTR KernelLogDefaultTagFilter[] =
-    "KernelMain,InitializeKernel,LoadAllDrivers,LoadDriver,"
-    "CreateProcess,Spawn,ResolveKernelPageFault,SwitchToNextTask,"
-    "Scheduler,CheckStack,GrowCurrentStack,MemoryManagerSerialDiag";
+static CSTR KernelLogDefaultTagFilter[] = "";
 static STR KernelLogTagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
 
 static UINT KernelLogDriverCommands(UINT Function, UINT Parameter);

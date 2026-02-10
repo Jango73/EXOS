@@ -25,7 +25,6 @@
 
 #include "arch/x86-64/x86-64-Memory-Internal.h"
 #include "BuddyAllocator.h"
-#include "EarlyBootConsole.h"
 
 /************************************************************************/
 
@@ -120,6 +119,8 @@ PHYSICAL BootstrapAllocatorMetadataPhysical = NULL;
 
 /************************************************************************/
 
+/************************************************************************/
+
 /**
  * @brief Determine the largest paging granularity compatible with a region.
  * @param Base Canonical base of the region.
@@ -140,121 +141,6 @@ MEMORY_REGION_GRANULARITY ComputeDescriptorGranularity(LINEAR Base, UINT PageCou
     }
 
     return MEMORY_REGION_GRANULARITY_4K;
-}
-
-/************************************************************************/
-
-/**
- * @brief Find a valid physical placement for bootstrap allocator metadata.
- * @param LoaderReservedEnd End of the loader-owned bootstrap workspace.
- * @param MetadataBytesAligned Size of metadata in bytes.
- * @param OutMetadataPhysical Receives the selected physical address.
- * @return TRUE on success, FALSE otherwise.
- */
-static BOOL FindBootstrapAllocatorMetadataPhysical(PHYSICAL LoaderReservedEnd, UINT MetadataBytesAligned, PHYSICAL* OutMetadataPhysical) {
-    if (OutMetadataPhysical == NULL || MetadataBytesAligned == 0) {
-        return FALSE;
-    }
-
-    PHYSICAL MaxLowIdentityPhysical = (PHYSICAL)((PHYSICAL)PAGE_TABLE_NUM_ENTRIES << PAGE_TABLE_CAPACITY_MUL);
-    PHYSICAL MetadataSize = (PHYSICAL)MetadataBytesAligned;
-    PHYSICAL Preferred = PAGE_ALIGN(LoaderReservedEnd);
-    PHYSICAL SearchFloor = LoaderReservedEnd;
-    PHYSICAL ClippedBase = 0;
-    UINT ClippedLength = 0;
-
-    // Keep the historical placement first: this address is expected to be
-    // accessible with the loader's bootstrap mappings before CR3 switch.
-    if (ClipPhysicalRange((U64)Preferred, (U64)MetadataSize, &ClippedBase, &ClippedLength) == TRUE) {
-        if (ClippedBase == Preferred && ClippedLength == MetadataBytesAligned) {
-            *OutMetadataPhysical = Preferred;
-            return TRUE;
-        }
-    }
-
-    if (SearchFloor >= MaxLowIdentityPhysical) {
-        SearchFloor = (PHYSICAL)RESERVED_LOW_MEMORY;
-    }
-
-    if (Preferred < MaxLowIdentityPhysical) {
-        for (UINT Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
-            const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
-            PHYSICAL EntryBase = 0;
-            UINT EntrySize = 0;
-
-            if (Entry->Type != MULTIBOOT_MEMORY_AVAILABLE) {
-                continue;
-            }
-
-            if (ClipPhysicalRange(Entry->Base, Entry->Length, &EntryBase, &EntrySize) == FALSE) {
-                continue;
-            }
-
-            PHYSICAL EntryEnd = EntryBase + (PHYSICAL)EntrySize;
-            if (EntryEnd <= EntryBase) {
-                continue;
-            }
-
-            if (Preferred < EntryBase || Preferred >= EntryEnd) {
-                continue;
-            }
-
-            PHYSICAL PreferredEnd = Preferred + MetadataSize;
-            if (PreferredEnd <= Preferred) {
-                continue;
-            }
-
-            if (PreferredEnd <= EntryEnd && PreferredEnd <= MaxLowIdentityPhysical) {
-                *OutMetadataPhysical = Preferred;
-                return TRUE;
-            }
-        }
-    }
-
-    for (UINT Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
-        const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
-        PHYSICAL EntryBase = 0;
-        UINT EntrySize = 0;
-
-        if (Entry->Type != MULTIBOOT_MEMORY_AVAILABLE) {
-            continue;
-        }
-
-        if (ClipPhysicalRange(Entry->Base, Entry->Length, &EntryBase, &EntrySize) == FALSE) {
-            continue;
-        }
-
-        PHYSICAL EntryEnd = EntryBase + (PHYSICAL)EntrySize;
-        if (EntryEnd <= EntryBase) {
-            continue;
-        }
-
-        PHYSICAL Candidate = EntryBase;
-
-        if (Candidate < SearchFloor) {
-            Candidate = SearchFloor;
-        }
-        if (Candidate < (PHYSICAL)RESERVED_LOW_MEMORY) {
-            Candidate = (PHYSICAL)RESERVED_LOW_MEMORY;
-        }
-
-        Candidate = PAGE_ALIGN(Candidate);
-        if (Candidate >= EntryEnd) {
-            continue;
-        }
-
-        PHYSICAL CandidateEnd = Candidate + MetadataSize;
-        if (CandidateEnd <= Candidate) {
-            continue;
-        }
-
-        if (CandidateEnd <= EntryEnd && CandidateEnd <= MaxLowIdentityPhysical) {
-            *OutMetadataPhysical = Candidate;
-            return TRUE;
-        }
-    }
-
-    return FALSE;
 }
 
 /************************************************************************/
@@ -1216,8 +1102,6 @@ static UINT MemoryManagerCommands(UINT Function, UINT Parameter) {
  * mode execution.
  */
 void InitializeMemoryManager(void) {
-    EarlyBootConsoleWriteLine(TEXT("[D] M1"));
-
     UpdateKernelMemoryMetricsFromMultibootMap();
 
     if (KernelStartup.PageCount == 0) {
@@ -1239,19 +1123,24 @@ void InitializeMemoryManager(void) {
     PHYSICAL LoaderReservedEnd =
         KernelStartup.KernelPhysicalBase + (PHYSICAL)PAGE_ALIGN((PHYSICAL)ReservedBytes);
     PHYSICAL BuddyMetadataPhysical = 0;
-    if (FindBootstrapAllocatorMetadataPhysical(LoaderReservedEnd, BuddyMetadataSizeAligned, &BuddyMetadataPhysical) == FALSE) {
-        ERROR(TEXT("[InitializeMemoryManager] Could not place buddy metadata (loaderEnd=%p size=%u)"),
-            (LPVOID)(LINEAR)LoaderReservedEnd,
-            BuddyMetadataSizeAligned);
+
+    SetLoaderReservedPhysicalRange(KernelStartup.KernelPhysicalBase, LoaderReservedEnd);
+
+    if (FindAvailableMemoryRangeInWindow(
+            (PHYSICAL)N_1MB,
+            (PHYSICAL)RESERVED_LOW_MEMORY,
+            KernelStartup.KernelPhysicalBase,
+            LoaderReservedEnd,
+            BuddyMetadataSizeAligned,
+            &BuddyMetadataPhysical) == FALSE) {
+        ERROR(TEXT("[InitializeMemoryManager] Could not place buddy metadata (size=%u)"), BuddyMetadataSizeAligned);
         ConsolePanic(TEXT("Could not place physical memory allocator metadata"));
         DO_THE_SLEEPING_BEAUTY;
     }
-
-    SetLoaderReservedPhysicalRange(KernelStartup.KernelPhysicalBase, LoaderReservedEnd);
     BootstrapAllocatorMetadataPhysical = BuddyMetadataPhysical;
     SetPhysicalAllocatorMetadataRange(BuddyMetadataPhysical, BuddyMetadataPhysical + BuddyMetadataSizeAligned);
 
-    if (BuddyInitialize(BuddyMetadataPhysical, BuddyMetadataSizeAligned, KernelStartup.PageCount) == FALSE) {
+    if (BuddyInitialize((LINEAR)BuddyMetadataPhysical, BuddyMetadataSizeAligned, KernelStartup.PageCount) == FALSE) {
         ERROR(TEXT("[InitializeMemoryManager] BuddyInitialize failed (PA=%p size=%u pages=%u)"),
             (LPVOID)(LINEAR)BuddyMetadataPhysical,
             BuddyMetadataSizeAligned,
@@ -1260,17 +1149,13 @@ void InitializeMemoryManager(void) {
         DO_THE_SLEEPING_BEAUTY;
     }
 
-
     MarkUsedPhysicalMemory();
-
-
 
     if (KernelStartup.MemorySize == 0) {
         ConsolePanic(TEXT("Detected memory = 0"));
     }
 
     PHYSICAL NewPageDirectory = AllocPageDirectory();
-
 
     if (NewPageDirectory == NULL) {
         ERROR(TEXT("[InitializeMemoryManager] AllocPageDirectory failed"));
@@ -1286,10 +1171,7 @@ void InitializeMemoryManager(void) {
     FlushTLB();
 
 
-
-    EarlyBootConsoleWriteLine(TEXT("[D] M2"));
     InitializeRegionDescriptorTracking();
-    EarlyBootConsoleWriteLine(TEXT("[D] M3"));
 
 
     Kernel_x86_32.GDT = (LPVOID)AllocKernelRegion(0, GDT_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("GDT"));
@@ -1430,24 +1312,20 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
     ARCH_PAGE_ITERATOR Iterator = MemoryPageIteratorFromLinear(Base);
 
     if (BootstrapTrace) {
-        EarlyBootConsoleWriteLine(TEXT("[D] P1"));
     }
 
     for (UINT Index = 0; Index < NumPages; Index++) {
         if (BootstrapTrace) {
-            EarlyBootConsoleWriteLine(TEXT("[D] P2"));
         }
         UINT TabEntry = MemoryPageIteratorGetTableIndex(&Iterator);
         LINEAR CurrentLinear = MemoryPageIteratorGetLinear(&Iterator);
 
         BOOL IsLargePage = FALSE;
         if (BootstrapTrace) {
-            EarlyBootConsoleWriteLine(TEXT("[D] P3"));
         }
 
         if (!TryGetPageTableForIterator(&Iterator, &Table, &IsLargePage)) {
             if (BootstrapTrace) {
-                EarlyBootConsoleWriteLine(TEXT("[D] P4"));
             }
             if (IsLargePage) {
                 BOOL PreviousBootstrap = G_RegionDescriptorBootstrap;
@@ -1458,7 +1336,6 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
             }
 
             if (BootstrapTrace) {
-                EarlyBootConsoleWriteLine(TEXT("[D] P5"));
             }
             if (AllocPageTable(CurrentLinear) == NULL) {
                 BOOL PreviousBootstrap = G_RegionDescriptorBootstrap;
@@ -1469,7 +1346,6 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
             }
 
             if (BootstrapTrace) {
-                EarlyBootConsoleWriteLine(TEXT("[D] P6"));
             }
             if (!TryGetPageTableForIterator(&Iterator, &Table, NULL)) {
                 BOOL PreviousBootstrap = G_RegionDescriptorBootstrap;
@@ -1479,11 +1355,9 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
                 return FALSE;
             }
             if (BootstrapTrace) {
-                EarlyBootConsoleWriteLine(TEXT("[D] P7"));
             }
         } else {
             if (BootstrapTrace) {
-                EarlyBootConsoleWriteLine(TEXT("[D] P8"));
             }
         }
 
@@ -1495,17 +1369,14 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
 
         WritePageTableEntryValue(Table, TabEntry, MakePageEntryRaw(ReservedPhysical, ReservedFlags));
         if (BootstrapTrace) {
-            EarlyBootConsoleWriteLine(TEXT("[D] P9"));
         }
 
         if (Flags & ALLOC_PAGES_COMMIT) {
             if (BootstrapTrace) {
-                EarlyBootConsoleWriteLine(TEXT("[D] P10"));
             }
             if (Target != 0) {
                 Physical = Target + (PHYSICAL)(Index << PAGE_SIZE_MUL);
                 if (BootstrapTrace) {
-                    EarlyBootConsoleWriteLine(TEXT("[D] P11"));
                 }
 
                 if (Flags & ALLOC_PAGES_IO) {
@@ -1534,12 +1405,10 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
                             /*Global*/ 0,
                             /*Fixed*/ 0));
                     if (BootstrapTrace) {
-                        EarlyBootConsoleWriteLine(TEXT("[D] P12"));
                     }
                 }
             } else {
                 if (BootstrapTrace) {
-                    EarlyBootConsoleWriteLine(TEXT("[D] P13"));
                 }
                 Physical = AllocPhysicalPage();
 
@@ -1564,7 +1433,6 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
                         /*Global*/ 0,
                         /*Fixed*/ 0));
                 if (BootstrapTrace) {
-                    EarlyBootConsoleWriteLine(TEXT("[D] P14"));
                 }
             }
         }
@@ -1572,12 +1440,10 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
         MemoryPageIteratorStepPage(&Iterator);
         Base += PAGE_SIZE;
         if (BootstrapTrace) {
-            EarlyBootConsoleWriteLine(TEXT("[D] P15"));
         }
     }
 
     if (BootstrapTrace) {
-        EarlyBootConsoleWriteLine(TEXT("[D] P16"));
     }
     return TRUE;
 }
@@ -1610,7 +1476,6 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
     BOOL BootstrapTrace = (G_RegionDescriptorBootstrap == TRUE);
 
     if (BootstrapTrace) {
-        EarlyBootConsoleWriteLine(TEXT("[D] A1"));
     }
 
     // Can't allocate more than 25% of total memory at once
@@ -1659,7 +1524,6 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
        the "Size" parameter. */
     if (Base == 0 || (Flags & ALLOC_PAGES_AT_OR_OVER)) {
         if (BootstrapTrace) {
-            EarlyBootConsoleWriteLine(TEXT("[D] A2"));
         }
 
         LINEAR NewBase = FindFreeRegion(Base, Size);
@@ -1670,7 +1534,6 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
 
         Base = NewBase;
         if (BootstrapTrace) {
-            EarlyBootConsoleWriteLine(TEXT("[D] A3"));
         }
 
     }
@@ -1683,18 +1546,15 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
 
     if (FastPathUsed == FALSE) {
         if (BootstrapTrace) {
-            EarlyBootConsoleWriteLine(TEXT("[D] A4"));
         }
         if (PopulateRegionPagesLegacy(Base, Target, NumPages, Flags, Pointer, TEXT("AllocRegion")) == FALSE) {
             return NULL;
         }
         if (BootstrapTrace) {
-            EarlyBootConsoleWriteLine(TEXT("[D] A5"));
         }
     }
 
     if (BootstrapTrace) {
-        EarlyBootConsoleWriteLine(TEXT("[D] A6"));
     }
     if (RegionTrackAlloc(Pointer, Target, NumPages << PAGE_SIZE_MUL, Flags, Tag) == FALSE) {
         G_RegionDescriptorBootstrap = TRUE;
@@ -1707,7 +1567,6 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
     FlushTLB();
 
     if (BootstrapTrace) {
-        EarlyBootConsoleWriteLine(TEXT("[D] A7"));
     }
 
     return Pointer;
@@ -1962,14 +1821,12 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
  */
 LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag) {
     if (G_RegionDescriptorBootstrap == TRUE) {
-        EarlyBootConsoleWriteLine(TEXT("[D] K1"));
     }
 
     // Always use VMA_KERNEL base and add AT_OR_OVER flag
     LINEAR Result = AllocRegion(VMA_KERNEL, Target, Size, Flags | ALLOC_PAGES_AT_OR_OVER, Tag);
 
     if (G_RegionDescriptorBootstrap == TRUE) {
-        EarlyBootConsoleWriteLine(TEXT("[D] K2"));
     }
 
     return Result;

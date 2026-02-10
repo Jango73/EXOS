@@ -85,8 +85,10 @@ REG_OFF_DR7    equ 236
 
 ;----------------------------------------------------------------------------
 
-KERNELSTARTUP_IRQMASK_21_PM equ 24
-KERNELSTARTUP_IRQMASK_A1_PM equ 28
+; NOTE: Keep these aliases tied to the KernelStartupInfo ASM layout.
+; Do not hardcode numeric offsets here.
+KERNELSTARTUP_IRQMASK_21_PM equ KernelStartupInfo.IRQMask_21_PM
+KERNELSTARTUP_IRQMASK_A1_PM equ KernelStartupInfo.IRQMask_A1_PM
 
 ;----------------------------------------------------------------------------
 

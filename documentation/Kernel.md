@@ -113,6 +113,18 @@ Kernel logging funnels through `KernelLogText` and uses typed prefixes for log c
 `KernelLogSetTagFilter()` adds optional tag-based filtering. The filter string is a separator-based list (comma, semicolon, pipe, or spaces) and each entry matches a log prefix tag (for example `MountDiskPartitionsGpt` or `[MountDiskPartitionsGpt]`). When a filter is active, only log lines whose first bracket tag is listed are emitted. The default kernel filter is initialized for NVMe/GPT diagnosis.
 The `ThresholdLatch` utility supports one-shot logging when a time threshold is exceeded during long-running operations.
 
+### Automated debug validation script
+
+The repository provides `scripts/6-1-build-test-debug.sh` to run an automated debug validation flow:
+
+- clean build + image generation,
+- QEMU boot,
+- shell command injection (`sysinfo`, `dir`, `/system/apps/hello`),
+- kernel log pattern checks.
+
+The script supports selecting one target with `--only x86-32`, `--only x86-64`, or `--only x86-64-uefi`.  
+Kernel logs are consumed from per-target files (`log/kernel-x86-32-mbr.log`, `log/kernel-x86-64-mbr.log`, `log/kernel-x86-64-uefi.log`).
+
 ### Kernel objects
 
 #### Object identifiers
