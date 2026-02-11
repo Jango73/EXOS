@@ -1,6 +1,10 @@
-# Command|Expected log fragment (fixed string, matched in log/kernel.log)
-sysinfo|TEST > [CMD_sysinfo] sysinfo : OK
-dir|TEST > [CMD_dir] dir : OK
-/system/apps/hello --no-pause|TEST > [Spawn] Executable finished normally : /system/apps/hello
-/system/apps/hello --no-pause|TEST > [Spawn] Executable finished normally : /system/apps/hello
-/system/apps/hello --no-pause|TEST > [Spawn] Executable finished normally : /system/apps/hello
+# Smoke-test command specification
+# Format:
+# command: "<command line>" | log: "<expected fixed log fragment>" | file-size-compare: "<source-file>" "<downloaded-file>"
+
+command: "sysinfo" | log: "TEST > [CMD_sysinfo] sysinfo : OK"
+command: "dir" | log: "TEST > [CMD_dir] dir : OK"
+command: "/system/apps/hello --no-pause" | log: "TEST > [Spawn] Executable finished normally : /system/apps/hello"
+command: "/system/apps/hello --no-pause" | log: "TEST > [Spawn] Executable finished normally : /system/apps/hello"
+command: "/system/apps/hello --no-pause" | log: "TEST > [Spawn] Executable finished normally : /system/apps/hello"
+command: "/system/apps/netget --smoke-local" | log: "TEST > [Spawn] Executable finished normally : /system/apps/netget" | file-size-compare: "scripts/net/www/index.html" "index.html"

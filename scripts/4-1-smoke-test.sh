@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_FILE="$ROOT_DIR/log/kernel.log"
 COMMANDS_FILE="$ROOT_DIR/scripts/test-commands.txt"
+LOCAL_HTTP_SERVER_SCRIPT="$ROOT_DIR/scripts/net/start-server.sh"
+LOCAL_HTTP_SERVER_PORT="${LOCAL_HTTP_SERVER_PORT:-8081}"
 CONFIG_FILES=(
     "$ROOT_DIR/kernel/configuration/exos.ext2.toml"
     "$ROOT_DIR/kernel/configuration/exos.fat32.toml"
@@ -18,6 +20,7 @@ COMMAND_DELAY_SECONDS=0.25
 BOOT_INPUT_DELAY_SECONDS=1.0
 TEST_KEYBOARD_LAYOUT="en-US"
 CONFIG_BACKUP_DIR=""
+LOCAL_HTTP_SERVER_PID=""
 BOOT_READY_PATTERN="[InitializeKernel] Shell task created"
 
 FAULT_PATTERN="#PF|#GP|#UD|#SS|#NP|#TS|#DE|#DF|#MF|#AC|#MC"
@@ -29,6 +32,8 @@ GREP_BIN="$(command -v grep || true)"
 RUN_X86_32=1
 RUN_X86_64=1
 RUN_X86_64_UEFI=1
+CURRENT_IMAGE_PATH=""
+CURRENT_FS_OFFSET=0
 
 function Usage() {
     echo "Usage: $0 [--only <x86-32|x86-64|x86-64-uefi>] [--help]"
@@ -74,6 +79,10 @@ if [ -z "$GREP_BIN" ]; then
     echo "Missing grep. Aborting."
     exit 1
 fi
+if ! command -v debugfs >/dev/null 2>&1; then
+    echo "Missing debugfs. Aborting."
+    exit 1
+fi
 
 function SearchRegex() {
     if [ -n "$RG_BIN" ]; then
@@ -89,6 +98,13 @@ function SearchFixed() {
     else
         grep -n -F "$1"
     fi
+}
+
+function Trim() {
+    local Value="$1"
+    Value="${Value#"${Value%%[![:space:]]*}"}"
+    Value="${Value%"${Value##*[![:space:]]}"}"
+    echo "$Value"
 }
 
 function ForceTestKeyboardLayout() {
@@ -154,6 +170,41 @@ function RestoreConfigFile() {
         done
         rm -rf "$CONFIG_BACKUP_DIR"
         CONFIG_BACKUP_DIR=""
+    fi
+}
+
+function EnsureLocalHttpServer() {
+    local Index=0
+
+    if [ ! -x "$LOCAL_HTTP_SERVER_SCRIPT" ]; then
+        echo "Missing local HTTP server script: $LOCAL_HTTP_SERVER_SCRIPT"
+        exit 1
+    fi
+
+    echo "Starting local HTTP server for netget test..."
+    bash "$LOCAL_HTTP_SERVER_SCRIPT" >/dev/null
+
+    while [ "$Index" -lt 30 ]; do
+        if exec 4<>"/dev/tcp/127.0.0.1/$LOCAL_HTTP_SERVER_PORT" 2>/dev/null; then
+            exec 4<&-
+            exec 4>&-
+            break
+        fi
+        Index=$((Index + 1))
+        sleep 0.1
+    done
+
+    if [ "$Index" -ge 30 ]; then
+        echo "Local HTTP server did not start on port $LOCAL_HTTP_SERVER_PORT"
+        exit 1
+    fi
+
+    LOCAL_HTTP_SERVER_PID="$(pgrep -f "http.server $LOCAL_HTTP_SERVER_PORT" | head -n 1 || true)"
+}
+
+function StopLocalHttpServer() {
+    if [ -n "$LOCAL_HTTP_SERVER_PID" ] && kill -0 "$LOCAL_HTTP_SERVER_PID" 2>/dev/null; then
+        kill "$LOCAL_HTTP_SERVER_PID" || true
     fi
 }
 
@@ -233,6 +284,7 @@ function KeyForChar() {
         "/") echo "kp_divide" ;;
         "-") echo "minus" ;;
         ".") echo "dot" ;;
+        ":") echo "shift-semicolon" ;;
         "_") echo "shift-minus" ;;
         *) echo "" ;;
     esac
@@ -245,6 +297,9 @@ function SendKey() {
         return 1
     fi
     MonitorCommand "sendkey $Key"
+    if [[ "$Key" == shift-* ]]; then
+        MonitorCommand "sendkey shift" 1 1 || true
+    fi
     sleep "$KEY_DELAY_SECONDS"
 }
 
@@ -324,10 +379,69 @@ function AssertNoFailures() {
     fi
 }
 
+function AssertDownloadedFileSize() {
+    local Offset="$1"
+    local SourcePath="$2"
+    local DownloadedName="$3"
+    local SourceSize
+    local DownloadedSize
+    local ResolvedSourcePath
+    local DownloadedPath
+    local PartitionImage
+    local FsOffset
+
+    if [[ "$SourcePath" = /* ]]; then
+        ResolvedSourcePath="$SourcePath"
+    else
+        ResolvedSourcePath="$ROOT_DIR/$SourcePath"
+    fi
+
+    if [ ! -f "$ResolvedSourcePath" ]; then
+        echo "Source file not found for size compare: $ResolvedSourcePath"
+        return 1
+    fi
+
+    if [ -z "$CURRENT_IMAGE_PATH" ] || [ ! -f "$CURRENT_IMAGE_PATH" ]; then
+        echo "Guest disk image not available for size compare: $CURRENT_IMAGE_PATH"
+        return 1
+    fi
+    if [ -z "$DownloadedName" ]; then
+        echo "Missing downloaded file name in file-size-compare."
+        return 1
+    fi
+
+    if [[ "$DownloadedName" = /* ]]; then
+        DownloadedPath="$DownloadedName"
+    else
+        DownloadedPath="/$DownloadedName"
+    fi
+
+    SourceSize="$(wc -c < "$ResolvedSourcePath" | tr -d ' ')"
+
+    FsOffset="$CURRENT_FS_OFFSET"
+    PartitionImage="$(mktemp)"
+    dd if="$CURRENT_IMAGE_PATH" of="$PartitionImage" bs=1 skip="$FsOffset" status=none
+    DownloadedSize="$(debugfs -R "stat $DownloadedPath" "$PartitionImage" 2>/dev/null | sed -n 's/.*Size:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n 1)"
+    rm -f "$PartitionImage"
+
+    if [ -z "$DownloadedSize" ]; then
+        echo "Could not read downloaded file size from guest image: $DownloadedPath"
+        return 1
+    fi
+
+    if [ "$SourceSize" != "$DownloadedSize" ]; then
+        echo "Downloaded size mismatch for $DownloadedName: expected $SourceSize got $DownloadedSize"
+        return 1
+    fi
+}
+
 function RunCommandList() {
     local Line
-    local CommandText
-    local ExpectedText
+    local Part
+    local CommandText=""
+    local ExpectedText=""
+    local CompareSource=""
+    local CompareDownloaded=""
 
     if [ ! -f "$COMMANDS_FILE" ]; then
         echo "Commands file not found: $COMMANDS_FILE"
@@ -343,11 +457,28 @@ function RunCommandList() {
             continue
         fi
 
-        CommandText="${Line%%|*}"
-        ExpectedText="${Line#*|}"
+        CommandText=""
+        ExpectedText=""
+        CompareSource=""
+        CompareDownloaded=""
 
-        if [ "$CommandText" = "$ExpectedText" ]; then
-            echo "Invalid test line, missing expected text: $Line"
+        while IFS= read -r Part; do
+            Part="$(Trim "$Part")"
+            if [[ "$Part" =~ ^command:[[:space:]]*\"([^\"]*)\"$ ]]; then
+                CommandText="${BASH_REMATCH[1]}"
+            elif [[ "$Part" =~ ^log:[[:space:]]*\"([^\"]*)\"$ ]]; then
+                ExpectedText="${BASH_REMATCH[1]}"
+            elif [[ "$Part" =~ ^file-size-compare:[[:space:]]*\"([^\"]*)\"[[:space:]]+\"([^\"]*)\"$ ]]; then
+                CompareSource="${BASH_REMATCH[1]}"
+                CompareDownloaded="${BASH_REMATCH[2]}"
+            else
+                echo "Invalid command spec segment: $Part"
+                exit 1
+            fi
+        done < <(echo "$Line" | tr '|' '\n')
+
+        if [ -z "$CommandText" ] || [ -z "$ExpectedText" ]; then
+            echo "Invalid command spec, missing command or log: $Line"
             exit 1
         fi
 
@@ -358,6 +489,9 @@ function RunCommandList() {
         WaitForExpectedLog "$ExpectedText" "$Offset"
         sleep 0.2
         AssertNoFailures "$Offset"
+        if [ -n "$CompareSource" ] || [ -n "$CompareDownloaded" ]; then
+            AssertDownloadedFileSize "$Offset" "$CompareSource" "$CompareDownloaded"
+        fi
     done < "$COMMANDS_FILE"
 }
 
@@ -370,6 +504,8 @@ function RunArchitecture() {
     local BuildScript="$2"
     local QemuScript="$3"
     local KernelLogRelativePath="$4"
+    local ImageRelativePath="$5"
+    local FileSystemOffset="$6"
 
     echo "Building $Name..."
     bash -c "cd \"$ROOT_DIR\" && $BuildScript"
@@ -377,6 +513,8 @@ function RunArchitecture() {
     echo "Starting QEMU for $Name..."
     mkdir -p "$ROOT_DIR/log"
     LOG_FILE="$ROOT_DIR/$KernelLogRelativePath"
+    CURRENT_IMAGE_PATH="$ROOT_DIR/$ImageRelativePath"
+    CURRENT_FS_OFFSET="$FileSystemOffset"
     : > "$LOG_FILE"
 
     bash -c "cd \"$ROOT_DIR\" && $QemuScript" &
@@ -400,15 +538,16 @@ function RunArchitecture() {
     wait "$QemuPid" || true
 }
 
-trap 'RestoreConfigFile' EXIT
+trap 'RestoreConfigFile; StopLocalHttpServer' EXIT
 ForceTestKeyboardLayout
+EnsureLocalHttpServer
 
 if [ "$RUN_X86_32" -eq 1 ]; then
-    RunArchitecture "x86-32" "scripts/build.sh --arch x86-32 --fs ext2 --debug --clean" "scripts/run.sh --arch x86-32" "log/kernel-x86-32-mbr.log"
+    RunArchitecture "x86-32" "scripts/build.sh --arch x86-32 --fs ext2 --debug --clean" "scripts/run.sh --arch x86-32" "log/kernel-x86-32-mbr.log" "build/x86-32/boot-hd/exos.img" "1048576"
 fi
 if [ "$RUN_X86_64" -eq 1 ]; then
-    RunArchitecture "x86-64" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean" "scripts/run.sh --arch x86-64" "log/kernel-x86-64-mbr.log"
+    RunArchitecture "x86-64" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean" "scripts/run.sh --arch x86-64" "log/kernel-x86-64-mbr.log" "build/x86-64/boot-hd/exos.img" "1048576"
 fi
 if [ "$RUN_X86_64_UEFI" -eq 1 ]; then
-    RunArchitecture "x86-64 UEFI" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean --uefi" "scripts/run.sh --arch x86-64 --uefi" "log/kernel-x86-64-uefi.log"
+    RunArchitecture "x86-64 UEFI" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean --uefi" "scripts/run.sh --arch x86-64 --uefi" "log/kernel-x86-64-uefi.log" "build/x86-64/boot-uefi/exos-uefi.img" "4194304"
 fi
