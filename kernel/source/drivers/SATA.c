@@ -401,16 +401,23 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
     PHYSICAL FISBasePhys = MapLinearToPhysical((LINEAR)AHCIPort->FISBase);
     PHYSICAL CommandTablePhys = MapLinearToPhysical((LINEAR)AHCIPort->CommandTable);
 
-    Port->clb = CommandListPhys;
-    Port->clbu = 0; // Assume 32-bit system
-    Port->fb = FISBasePhys;
-    Port->fbu = 0; // Assume 32-bit system
+    Port->clb = (U32)(CommandListPhys & 0xFFFFFFFF);
+    Port->clbu = 0;
+    Port->fb = (U32)(FISBasePhys & 0xFFFFFFFF);
+    Port->fbu = 0;
+#ifdef __EXOS_64__
+    Port->clbu = (U32)((CommandListPhys >> 32) & 0xFFFFFFFF);
+    Port->fbu = (U32)((FISBasePhys >> 32) & 0xFFFFFFFF);
+#endif
 
     // Set up command header for slot 0
     AHCIPort->CommandList[0].cfl = sizeof(FIS_REG_H2D) / 4; // FIS length
     AHCIPort->CommandList[0].prdtl = 1; // One PRDT entry
-    AHCIPort->CommandList[0].ctba = CommandTablePhys;
+    AHCIPort->CommandList[0].ctba = (U32)(CommandTablePhys & 0xFFFFFFFF);
     AHCIPort->CommandList[0].ctbau = 0;
+#ifdef __EXOS_64__
+    AHCIPort->CommandList[0].ctbau = (U32)((CommandTablePhys >> 32) & 0xFFFFFFFF);
+#endif
 
     // Store references
     AHCIPort->PortNumber = PortNum;
@@ -610,13 +617,43 @@ static U32 InitializeAHCIController(void) {
  * @return DF_RETURN_SUCCESS or error code.
  */
 static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCount, LPVOID Buffer, BOOL IsWrite) {
+    U32 TransferBytes;
+    LPVOID EffectiveBuffer;
+    LPVOID BounceRaw;
+    LPVOID BounceAligned;
+    LINEAR BounceBase;
+    U32 BounceSize;
+
     if (AHCIPort == NULL || Buffer == NULL) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
+    TransferBytes = (U32)SectorCount * SECTOR_SIZE;
+    EffectiveBuffer = Buffer;
+    BounceRaw = NULL;
+    BounceAligned = NULL;
+
+    if (TransferBytes <= N_4KB) {
+        BounceSize = TransferBytes + N_4KB;
+        BounceRaw = KernelHeapAlloc(BounceSize);
+        if (BounceRaw == NULL) {
+            return DF_RETURN_UNEXPECTED;
+        }
+
+        BounceBase = (LINEAR)BounceRaw;
+        BounceAligned = (LPVOID)((BounceBase + (N_4KB - 1)) & ~(N_4KB - 1));
+        EffectiveBuffer = BounceAligned;
+
+        if (IsWrite) {
+            MemoryCopy(EffectiveBuffer, Buffer, TransferBytes);
+        } else {
+            MemorySet(EffectiveBuffer, 0, TransferBytes);
+        }
+    }
 
     LPAHCI_HBA_PORT Port = AHCIPort->HBAPort;
     if (Port == NULL) {
+        if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
         return DF_RETURN_HARDWARE;
     }
 
@@ -626,6 +663,7 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
         timeout--;
     }
     if (timeout == 0) {
+        if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
         return DF_RETURN_TIMEOUT;
     }
 
@@ -658,13 +696,17 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
     cmdfis->counth = (SectorCount >> 8) & 0xFF;
 
     // Set up PRDT entry
-    PHYSICAL bufferPhys = MapLinearToPhysical((LINEAR)Buffer);
+    PHYSICAL bufferPhys = MapLinearToPhysical((LINEAR)EffectiveBuffer);
     if (bufferPhys == 0) {
+        if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
         return DF_RETURN_HARDWARE;
     }
 
-    cmdtbl->prdt_entry[0].dba = bufferPhys;
-    cmdtbl->prdt_entry[0].dbau = 0; // Assume 32-bit
+    cmdtbl->prdt_entry[0].dba = (U32)(bufferPhys & 0xFFFFFFFF);
+    cmdtbl->prdt_entry[0].dbau = 0;
+#ifdef __EXOS_64__
+    cmdtbl->prdt_entry[0].dbau = (U32)((bufferPhys >> 32) & 0xFFFFFFFF);
+#endif
     cmdtbl->prdt_entry[0].dbc = (SectorCount * 512) - 1; // Byte count - 1
     cmdtbl->prdt_entry[0].i = 0; // No interrupt on completion for this entry
 
@@ -676,19 +718,28 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
     timeout = 1000000;
     while ((Port->ci & 1) && timeout > 0) {
         if (Port->is & AHCI_PORT_IS_TFES) {
+            if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
             return DF_RETURN_HARDWARE;
         }
         timeout--;
     }
 
     if (timeout == 0) {
+        if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
         return DF_RETURN_TIMEOUT;
     }
 
     // Check for errors
     if (Port->is & AHCI_PORT_IS_TFES) {
+        if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
         return DF_RETURN_HARDWARE;
     }
+
+    if (!IsWrite && BounceRaw != NULL) {
+        MemoryCopy(Buffer, EffectiveBuffer, TransferBytes);
+    }
+
+    if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
 
     return DF_RETURN_SUCCESS;
 }
