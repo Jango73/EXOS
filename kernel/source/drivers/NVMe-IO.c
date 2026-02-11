@@ -27,6 +27,84 @@
 /************************************************************************/
 
 /**
+ * @brief Free one queue buffer allocation.
+ *
+ * @param Queue Queue buffer descriptor.
+ */
+static void NVMeFreeQueueBuffer(LPNVME_QUEUE_BUFFER Queue) {
+    if (Queue == NULL) {
+        return;
+    }
+
+    if (Queue->Raw != NULL) {
+        KernelHeapFree(Queue->Raw);
+    }
+
+    Queue->Raw = NULL;
+    Queue->Base = 0;
+    Queue->Physical = 0;
+    Queue->Size = 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Allocate one aligned queue buffer and validate physical contiguity.
+ *
+ * @param Queue Queue descriptor output.
+ * @param QueueSize Requested queue size in bytes.
+ * @param QueueName Queue name used in logs.
+ * @return TRUE on success.
+ */
+static BOOL NVMeAllocateQueueBuffer(LPNVME_QUEUE_BUFFER Queue, U32 QueueSize, LPCSTR QueueName) {
+    if (Queue == NULL || QueueSize == 0) {
+        return FALSE;
+    }
+
+    U32 RawSize = QueueSize + NVME_IO_QUEUE_ALIGNMENT;
+    Queue->Raw = KernelHeapAlloc(RawSize);
+    if (Queue->Raw == NULL) {
+        ERROR(TEXT("[NVMeAllocateQueueBuffer] KernelHeapAlloc failed for %s (raw_size=%u)"), QueueName, RawSize);
+        return FALSE;
+    }
+
+    LINEAR RawBase = (LINEAR)Queue->Raw;
+    Queue->Base = (LINEAR)((RawBase + (NVME_IO_QUEUE_ALIGNMENT - 1)) &
+        ~(NVME_IO_QUEUE_ALIGNMENT - 1));
+    Queue->Size = QueueSize;
+    MemorySet((LPVOID)Queue->Base, 0, Queue->Size);
+
+    Queue->Physical = MapLinearToPhysical(Queue->Base);
+    if (Queue->Physical == 0) {
+        ERROR(TEXT("[NVMeAllocateQueueBuffer] MapLinearToPhysical failed for %s base=%p"),
+              QueueName,
+              (LPVOID)Queue->Base);
+        NVMeFreeQueueBuffer(Queue);
+        return FALSE;
+    }
+
+    for (UINT Offset = 0; Offset < Queue->Size; Offset += N_4KB) {
+        LINEAR Linear = Queue->Base + (LINEAR)Offset;
+        PHYSICAL Physical = MapLinearToPhysical(Linear);
+        PHYSICAL Expected = Queue->Physical + (PHYSICAL)Offset;
+        if (Physical != Expected) {
+            ERROR(TEXT("[NVMeAllocateQueueBuffer] Non contiguous %s (base_pa=%p offset=%u pa=%p expected=%p)"),
+                  QueueName,
+                  (LPVOID)(LINEAR)Queue->Physical,
+                  Offset,
+                  (LPVOID)(LINEAR)Physical,
+                  (LPVOID)(LINEAR)Expected);
+            NVMeFreeQueueBuffer(Queue);
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Free I/O queue memory.
  *
  * @param Device NVMe device.
@@ -36,14 +114,8 @@ void NVMeFreeIoQueues(LPNVME_DEVICE Device) {
         return;
     }
 
-    if (Device->IoQueueRaw != NULL) {
-        KernelHeapFree(Device->IoQueueRaw);
-    }
-
-    Device->IoQueueRaw = NULL;
-    Device->IoQueueBase = 0;
-    Device->IoQueuePhysical = 0;
-    Device->IoQueueSize = 0;
+    NVMeFreeQueueBuffer(&Device->IoSqBuffer);
+    NVMeFreeQueueBuffer(&Device->IoCqBuffer);
     Device->IoSqEntries = 0;
     Device->IoCqEntries = 0;
     Device->IoSq = NULL;
@@ -85,41 +157,19 @@ static BOOL NVMeSetupIoQueues(LPNVME_DEVICE Device) {
 
     U32 IoSqSize = Device->IoSqEntries * NVME_IO_SQ_ENTRY_SIZE;
     U32 IoCqSize = Device->IoCqEntries * NVME_IO_CQ_ENTRY_SIZE;
-    U32 RawSize = IoSqSize + IoCqSize + (2 * NVME_IO_QUEUE_ALIGNMENT);
-    Device->IoQueueRaw = KernelHeapAlloc(RawSize);
-    if (Device->IoQueueRaw == NULL) {
-        return FALSE;
-    }
 
-    LINEAR RawBase = (LINEAR)Device->IoQueueRaw;
-    LINEAR AlignedSqBase = (LINEAR)((RawBase + (NVME_IO_QUEUE_ALIGNMENT - 1)) &
-        ~(NVME_IO_QUEUE_ALIGNMENT - 1));
-    LINEAR AlignedCqBase = (LINEAR)((AlignedSqBase + IoSqSize + (NVME_IO_QUEUE_ALIGNMENT - 1)) &
-        ~(NVME_IO_QUEUE_ALIGNMENT - 1));
-    U32 TotalSpan = (U32)(AlignedCqBase - AlignedSqBase) + IoCqSize;
-
-    Device->IoQueueBase = AlignedSqBase;
-    Device->IoQueueSize = TotalSpan;
-    MemorySet((LPVOID)Device->IoQueueBase, 0, Device->IoQueueSize);
-
-    PHYSICAL BasePhys = MapLinearToPhysical(Device->IoQueueBase);
-    if (BasePhys == 0) {
+    if (NVMeAllocateQueueBuffer(&Device->IoSqBuffer, IoSqSize, "IOSQ") == FALSE) {
         NVMeFreeIoQueues(Device);
         return FALSE;
     }
 
-    for (UINT Offset = 0; Offset < Device->IoQueueSize; Offset += N_4KB) {
-        LINEAR Linear = Device->IoQueueBase + (LINEAR)Offset;
-        PHYSICAL Physical = MapLinearToPhysical(Linear);
-        if (Physical != (BasePhys + (PHYSICAL)Offset)) {
-            NVMeFreeIoQueues(Device);
-            return FALSE;
-        }
+    if (NVMeAllocateQueueBuffer(&Device->IoCqBuffer, IoCqSize, "IOCQ") == FALSE) {
+        NVMeFreeIoQueues(Device);
+        return FALSE;
     }
 
-    Device->IoQueuePhysical = BasePhys;
-    Device->IoSq = (U8*)Device->IoQueueBase;
-    Device->IoCq = (U8*)AlignedCqBase;
+    Device->IoSq = (U8*)Device->IoSqBuffer.Base;
+    Device->IoCq = (U8*)Device->IoCqBuffer.Base;
     Device->IoSqTail = 0;
     Device->IoCqHead = 0;
     Device->IoCqPhase = 1;
@@ -729,9 +779,8 @@ BOOL NVMeCreateIoQueues(LPNVME_DEVICE Device) {
         return FALSE;
     }
 
-    LINEAR CqOffset = (LINEAR)Device->IoCq - (LINEAR)Device->IoSq;
-    PHYSICAL CqPhys = Device->IoQueuePhysical + (PHYSICAL)CqOffset;
-    PHYSICAL SqPhys = Device->IoQueuePhysical;
+    PHYSICAL SqPhys = Device->IoSqBuffer.Physical;
+    PHYSICAL CqPhys = Device->IoCqBuffer.Physical;
 
     NVME_COMMAND Command;
     NVME_COMPLETION Completion;
@@ -776,7 +825,7 @@ BOOL NVMeCreateIoQueues(LPNVME_DEVICE Device) {
         WARNING(TEXT("[NVMeCreateIoQueues] SQ=%p CQ=%p CqOffset=%x CqAlign=%x SqAlign=%x"),
                 (LPVOID)(LINEAR)SqPhys,
                 (LPVOID)(LINEAR)CqPhys,
-                (U32)CqOffset,
+                (U32)0,
                 (U32)(CqPhys & (N_4KB - 1)),
                 (U32)(SqPhys & (N_4KB - 1)));
         WARNING(TEXT("[NVMeCreateIoQueues] Create CQ status %x SCT=%x SC=%x DNR=%x"),

@@ -129,10 +129,8 @@ typedef struct tag_NVME_DEVICE {
     U8 MsixVector;
     BOOL MsixEnabled;
 
-    LINEAR IoQueueBase;
-    LPVOID IoQueueRaw;
-    PHYSICAL IoQueuePhysical;
-    U32 IoQueueSize;
+    NVME_QUEUE_BUFFER IoSqBuffer;
+    NVME_QUEUE_BUFFER IoCqBuffer;
     U32 IoSqEntries;
     U32 IoCqEntries;
     U8* IoSq;
