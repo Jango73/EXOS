@@ -147,6 +147,21 @@ typedef struct tag_NTFS_VOLUME_GEOMETRY {
 
 /***************************************************************************/
 
+typedef struct tag_NTFS_SECURITY_DESCRIPTOR_INFO {
+    BOOL IsPresent;
+    BOOL IsResident;
+    U64 Size;
+} NTFS_SECURITY_DESCRIPTOR_INFO, *LPNTFS_SECURITY_DESCRIPTOR_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_NTFS_OBJECT_IDENTIFIER_INFO {
+    BOOL IsPresent;
+    U8 Value[16];
+} NTFS_OBJECT_IDENTIFIER_INFO, *LPNTFS_OBJECT_IDENTIFIER_INFO;
+
+/***************************************************************************/
+
 typedef struct tag_NTFS_FILE_RECORD_INFO {
     U32 Index;
     U32 RecordSize;
@@ -164,6 +179,8 @@ typedef struct tag_NTFS_FILE_RECORD_INFO {
     DATETIME LastModificationTime;
     DATETIME FileRecordModificationTime;
     DATETIME LastAccessTime;
+    NTFS_SECURITY_DESCRIPTOR_INFO SecurityDescriptor;
+    NTFS_OBJECT_IDENTIFIER_INFO ObjectIdentifier;
     BOOL HasDataAttribute;
     BOOL DataIsResident;
     U64 DataSize;

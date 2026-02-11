@@ -41,6 +41,8 @@
 #define NTFS_MAX_FILE_RECORD_SIZE 4096
 #define NTFS_ATTRIBUTE_STANDARD_INFORMATION 0x10
 #define NTFS_ATTRIBUTE_FILE_NAME 0x30
+#define NTFS_ATTRIBUTE_OBJECT_IDENTIFIER 0x40
+#define NTFS_ATTRIBUTE_SECURITY_DESCRIPTOR 0x50
 #define NTFS_ATTRIBUTE_DATA 0x80
 #define NTFS_ATTRIBUTE_INDEX_ROOT 0x90
 #define NTFS_ATTRIBUTE_INDEX_ALLOCATION 0xA0
@@ -235,6 +237,11 @@ U32 NtfsOpenNext(LPNTFSFILE File);
 U32 NtfsCloseFile(LPNTFSFILE File);
 U32 NtfsReadFile(LPNTFSFILE File);
 U32 NtfsWriteFile(LPNTFSFILE File);
+U32 NtfsCreateFolder(LPFILEINFO Info);
+U32 NtfsDeleteFolder(LPFILEINFO Info);
+U32 NtfsRenameFolder(LPFILEINFO Info);
+U32 NtfsDeleteFile(LPFILEINFO Info);
+U32 NtfsRenameFile(LPFILEINFO Info);
 
 /***************************************************************************/
 

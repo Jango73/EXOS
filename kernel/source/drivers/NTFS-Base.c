@@ -640,11 +640,15 @@ static UINT NTFSCommands(UINT Function, UINT Parameter) {
         case DF_FS_SETVOLUMEINFO:
             return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_CREATEFOLDER:
+            return NtfsCreateFolder((LPFILEINFO)Parameter);
         case DF_FS_DELETEFOLDER:
+            return NtfsDeleteFolder((LPFILEINFO)Parameter);
         case DF_FS_RENAMEFOLDER:
+            return NtfsRenameFolder((LPFILEINFO)Parameter);
         case DF_FS_DELETEFILE:
+            return NtfsDeleteFile((LPFILEINFO)Parameter);
         case DF_FS_RENAMEFILE:
-            return DF_RETURN_NO_PERMISSION;
+            return NtfsRenameFile((LPFILEINFO)Parameter);
         case DF_FS_OPENFILE:
             return (UINT)NtfsOpenFile((LPFILEINFO)Parameter);
         case DF_FS_OPENNEXT:

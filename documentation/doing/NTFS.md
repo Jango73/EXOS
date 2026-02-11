@@ -74,10 +74,10 @@
 
 **Goal**: keep design ready for full NTFS later.
 
-- [ ] Separate on-disk parsing from VFS layer.
-- [ ] Reserve structures for security descriptors and object identifiers.
-- [ ] Add placeholder interfaces for write path (create, write, delete).
-- [ ] Define attribute handlers table to extend support cleanly.
+- [X] Separate on-disk parsing from VFS layer. (`kernel/source/drivers/NTFS-Record.c`, `kernel/source/drivers/NTFS-VFS.c`)
+- [X] Reserve structures for security descriptors and object identifiers. (`kernel/include/drivers/NTFS.h`)
+- [X] Add placeholder interfaces for write path (create, write, delete). (`kernel/source/drivers/NTFS-Write.c`)
+- [X] Define attribute handlers table to extend support cleanly. (`kernel/source/drivers/NTFS-Record.c`)
 
 **Success**: adding full NTFS features later does not require large refactors.
 

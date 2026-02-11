@@ -205,7 +205,239 @@ static void NtfsParseFileNameValue(
 /***************************************************************************/
 
 /**
- * @brief Parse FILE_NAME and DATA attributes from one file record.
+ * @brief View describing one raw NTFS attribute in one file record.
+ */
+typedef struct tag_NTFS_ATTRIBUTE_VIEW {
+    const U8* RecordBuffer;
+    U32 RecordSize;
+    LPNTFS_FILE_RECORD_INFO RecordInfo;
+    U32 AttributeType;
+    U32 AttributeOffset;
+    U32 AttributeLength;
+    BOOL IsNonResident;
+    U8 NameLength;
+} NTFS_ATTRIBUTE_VIEW, *LPNTFS_ATTRIBUTE_VIEW;
+
+/***************************************************************************/
+
+/**
+ * @brief Parse state shared between NTFS attribute handlers.
+ */
+typedef struct tag_NTFS_ATTRIBUTE_PARSE_STATE {
+    BOOL DataFound;
+    U32 DataAttributeOffset;
+    U32 DataAttributeLength;
+} NTFS_ATTRIBUTE_PARSE_STATE, *LPNTFS_ATTRIBUTE_PARSE_STATE;
+
+/***************************************************************************/
+
+typedef BOOL (*NTFS_ATTRIBUTE_HANDLER_FN)(
+    LPNTFS_ATTRIBUTE_VIEW AttributeView, LPNTFS_ATTRIBUTE_PARSE_STATE ParseState);
+
+/***************************************************************************/
+
+typedef struct tag_NTFS_ATTRIBUTE_HANDLER_ENTRY {
+    U32 AttributeType;
+    NTFS_ATTRIBUTE_HANDLER_FN Handler;
+} NTFS_ATTRIBUTE_HANDLER_ENTRY, *LPNTFS_ATTRIBUTE_HANDLER_ENTRY;
+
+/***************************************************************************/
+
+/**
+ * @brief Validate and expose resident attribute value span.
+ *
+ * @param AttributeView Parsed attribute view.
+ * @param ValueOut Output pointer to value bytes.
+ * @param ValueLengthOut Output value length in bytes.
+ * @return TRUE on success, FALSE on malformed resident layout.
+ */
+static BOOL NtfsGetResidentValue(
+    LPNTFS_ATTRIBUTE_VIEW AttributeView, const U8** ValueOut, U32* ValueLengthOut) {
+    U32 ValueLength;
+    U16 ValueOffset;
+
+    if (ValueOut != NULL) *ValueOut = NULL;
+    if (ValueLengthOut != NULL) *ValueLengthOut = 0;
+    if (AttributeView == NULL || AttributeView->RecordBuffer == NULL) return FALSE;
+    if (AttributeView->IsNonResident) return FALSE;
+    if (AttributeView->AttributeLength < NTFS_ATTRIBUTE_HEADER_RESIDENT_SIZE) {
+        WARNING(TEXT("[NtfsGetResidentValue] Invalid resident length=%u"), AttributeView->AttributeLength);
+        return FALSE;
+    }
+
+    ValueLength = NtfsLoadU32(AttributeView->RecordBuffer + AttributeView->AttributeOffset + 16);
+    ValueOffset = NtfsLoadU16(AttributeView->RecordBuffer + AttributeView->AttributeOffset + 20);
+    if ((U32)ValueOffset > AttributeView->AttributeLength ||
+        ValueLength > (AttributeView->AttributeLength - (U32)ValueOffset)) {
+        WARNING(TEXT("[NtfsGetResidentValue] Invalid resident value offset=%u length=%u"), ValueOffset, ValueLength);
+        return FALSE;
+    }
+
+    if (ValueOut != NULL) {
+        *ValueOut = AttributeView->RecordBuffer + AttributeView->AttributeOffset + (U32)ValueOffset;
+    }
+    if (ValueLengthOut != NULL) *ValueLengthOut = ValueLength;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Handle FILE_NAME attribute during file-record parsing.
+ */
+static BOOL NtfsHandleFileNameAttribute(
+    LPNTFS_ATTRIBUTE_VIEW AttributeView, LPNTFS_ATTRIBUTE_PARSE_STATE ParseState) {
+    const U8* Value;
+    U32 ValueLength;
+
+    UNUSED(ParseState);
+
+    if (AttributeView == NULL) return FALSE;
+    if (AttributeView->IsNonResident) return TRUE;
+    if (!NtfsGetResidentValue(AttributeView, &Value, &ValueLength)) return FALSE;
+    NtfsParseFileNameValue(Value, ValueLength, AttributeView->RecordInfo);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Handle DATA attribute during file-record parsing.
+ */
+static BOOL NtfsHandleDataAttribute(
+    LPNTFS_ATTRIBUTE_VIEW AttributeView, LPNTFS_ATTRIBUTE_PARSE_STATE ParseState) {
+    const U8* Value;
+    U32 ValueLength;
+
+    if (AttributeView == NULL || ParseState == NULL) return FALSE;
+    if (ParseState->DataFound || AttributeView->NameLength != 0) return TRUE;
+
+    if (AttributeView->IsNonResident) {
+        U16 RunListOffset;
+
+        if (AttributeView->AttributeLength < NTFS_ATTRIBUTE_HEADER_NON_RESIDENT_SIZE) {
+            WARNING(TEXT("[NtfsHandleDataAttribute] Invalid non-resident length=%u"), AttributeView->AttributeLength);
+            return FALSE;
+        }
+
+        RunListOffset = NtfsLoadU16(AttributeView->RecordBuffer + AttributeView->AttributeOffset + 32);
+        if ((U32)RunListOffset >= AttributeView->AttributeLength) {
+            WARNING(TEXT("[NtfsHandleDataAttribute] Invalid runlist offset=%u"), RunListOffset);
+            return FALSE;
+        }
+
+        AttributeView->RecordInfo->HasDataAttribute = TRUE;
+        AttributeView->RecordInfo->DataIsResident = FALSE;
+        AttributeView->RecordInfo->AllocatedDataSize = NtfsLoadU64(AttributeView->RecordBuffer + AttributeView->AttributeOffset + 40);
+        AttributeView->RecordInfo->DataSize = NtfsLoadU64(AttributeView->RecordBuffer + AttributeView->AttributeOffset + 48);
+        AttributeView->RecordInfo->InitializedDataSize = NtfsLoadU64(AttributeView->RecordBuffer + AttributeView->AttributeOffset + 56);
+        ParseState->DataFound = TRUE;
+        ParseState->DataAttributeOffset = AttributeView->AttributeOffset;
+        ParseState->DataAttributeLength = AttributeView->AttributeLength;
+        return TRUE;
+    }
+
+    if (!NtfsGetResidentValue(AttributeView, &Value, &ValueLength)) return FALSE;
+    UNUSED(Value);
+    AttributeView->RecordInfo->HasDataAttribute = TRUE;
+    AttributeView->RecordInfo->DataIsResident = TRUE;
+    AttributeView->RecordInfo->DataSize = U64_FromU32(ValueLength);
+    AttributeView->RecordInfo->AllocatedDataSize = U64_FromU32(ValueLength);
+    AttributeView->RecordInfo->InitializedDataSize = U64_FromU32(ValueLength);
+    ParseState->DataFound = TRUE;
+    ParseState->DataAttributeOffset = AttributeView->AttributeOffset;
+    ParseState->DataAttributeLength = AttributeView->AttributeLength;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Handle OBJECT_IDENTIFIER attribute during file-record parsing.
+ */
+static BOOL NtfsHandleObjectIdentifierAttribute(
+    LPNTFS_ATTRIBUTE_VIEW AttributeView, LPNTFS_ATTRIBUTE_PARSE_STATE ParseState) {
+    const U8* Value;
+    U32 ValueLength;
+
+    UNUSED(ParseState);
+
+    if (AttributeView == NULL) return FALSE;
+
+    AttributeView->RecordInfo->ObjectIdentifier.IsPresent = TRUE;
+    if (AttributeView->IsNonResident) return TRUE;
+    if (!NtfsGetResidentValue(AttributeView, &Value, &ValueLength)) return FALSE;
+
+    if (ValueLength >= sizeof(AttributeView->RecordInfo->ObjectIdentifier.Value)) {
+        MemoryCopy(
+            AttributeView->RecordInfo->ObjectIdentifier.Value,
+            Value,
+            sizeof(AttributeView->RecordInfo->ObjectIdentifier.Value));
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Handle SECURITY_DESCRIPTOR attribute during file-record parsing.
+ */
+static BOOL NtfsHandleSecurityDescriptorAttribute(
+    LPNTFS_ATTRIBUTE_VIEW AttributeView, LPNTFS_ATTRIBUTE_PARSE_STATE ParseState) {
+    const U8* Value;
+    U32 ValueLength;
+
+    UNUSED(ParseState);
+
+    if (AttributeView == NULL) return FALSE;
+
+    AttributeView->RecordInfo->SecurityDescriptor.IsPresent = TRUE;
+    AttributeView->RecordInfo->SecurityDescriptor.IsResident = !AttributeView->IsNonResident;
+
+    if (AttributeView->IsNonResident) {
+        if (AttributeView->AttributeLength < NTFS_ATTRIBUTE_HEADER_NON_RESIDENT_SIZE) {
+            WARNING(TEXT("[NtfsHandleSecurityDescriptorAttribute] Invalid non-resident length=%u"), AttributeView->AttributeLength);
+            return FALSE;
+        }
+        AttributeView->RecordInfo->SecurityDescriptor.Size = NtfsLoadU64(
+            AttributeView->RecordBuffer + AttributeView->AttributeOffset + 48);
+        return TRUE;
+    }
+
+    if (!NtfsGetResidentValue(AttributeView, &Value, &ValueLength)) return FALSE;
+    UNUSED(Value);
+    AttributeView->RecordInfo->SecurityDescriptor.Size = U64_FromU32(ValueLength);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Return the handler function for one NTFS attribute type.
+ */
+static NTFS_ATTRIBUTE_HANDLER_FN NtfsFindAttributeHandler(U32 AttributeType) {
+    static const NTFS_ATTRIBUTE_HANDLER_ENTRY Handlers[] = {
+        {.AttributeType = NTFS_ATTRIBUTE_FILE_NAME, .Handler = NtfsHandleFileNameAttribute},
+        {.AttributeType = NTFS_ATTRIBUTE_OBJECT_IDENTIFIER, .Handler = NtfsHandleObjectIdentifierAttribute},
+        {.AttributeType = NTFS_ATTRIBUTE_SECURITY_DESCRIPTOR, .Handler = NtfsHandleSecurityDescriptorAttribute},
+        {.AttributeType = NTFS_ATTRIBUTE_DATA, .Handler = NtfsHandleDataAttribute},
+    };
+    U32 Index;
+
+    for (Index = 0; Index < ARRAY_COUNT(Handlers); Index++) {
+        if (Handlers[Index].AttributeType == AttributeType) {
+            return Handlers[Index].Handler;
+        }
+    }
+
+    return NULL;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Parse selected attributes from one file record using a handler table.
  *
  * @param RecordBuffer File record buffer after fixup.
  * @param RecordSize File record size in bytes.
@@ -221,15 +453,8 @@ static BOOL NtfsParseFileRecordAttributes(
     U32* DataAttributeOffsetOut,
     U32* DataAttributeLengthOut) {
     U32 AttributeOffset;
-    U32 AttributeType;
     U32 AttributeLength;
-    BOOL IsNonResident;
-    U8 NameLength;
-    U32 ValueLength;
-    U32 ValueOffset;
-    U32 DataOffset;
-    U32 DataLength;
-    BOOL DataFound;
+    NTFS_ATTRIBUTE_PARSE_STATE ParseState;
 
     if (DataAttributeOffsetOut != NULL) *DataAttributeOffsetOut = 0;
     if (DataAttributeLengthOut != NULL) *DataAttributeLengthOut = 0;
@@ -241,10 +466,22 @@ static BOOL NtfsParseFileRecordAttributes(
         return FALSE;
     }
 
-    DataFound = FALSE;
+    MemorySet(&ParseState, 0, sizeof(NTFS_ATTRIBUTE_PARSE_STATE));
     while (AttributeOffset + 8 <= RecordInfo->UsedSize && AttributeOffset + 8 <= RecordSize) {
+        U32 AttributeType;
+        BOOL IsNonResident;
+        U8 NameLength;
+        NTFS_ATTRIBUTE_VIEW AttributeView;
+        NTFS_ATTRIBUTE_HANDLER_FN AttributeHandler;
+
         AttributeType = NtfsLoadU32(RecordBuffer + AttributeOffset);
-        if (AttributeType == NTFS_ATTRIBUTE_END_MARKER) return TRUE;
+        if (AttributeType == NTFS_ATTRIBUTE_END_MARKER) {
+            if (ParseState.DataFound) {
+                if (DataAttributeOffsetOut != NULL) *DataAttributeOffsetOut = ParseState.DataAttributeOffset;
+                if (DataAttributeLengthOut != NULL) *DataAttributeLengthOut = ParseState.DataAttributeLength;
+            }
+            return TRUE;
+        }
 
         AttributeLength = NtfsLoadU32(RecordBuffer + AttributeOffset + 4);
         if (AttributeLength < NTFS_ATTRIBUTE_HEADER_RESIDENT_SIZE) {
@@ -261,69 +498,26 @@ static BOOL NtfsParseFileRecordAttributes(
 
         IsNonResident = RecordBuffer[AttributeOffset + 8] != 0;
         NameLength = RecordBuffer[AttributeOffset + 9];
+        AttributeView.RecordBuffer = RecordBuffer;
+        AttributeView.RecordSize = RecordSize;
+        AttributeView.RecordInfo = RecordInfo;
+        AttributeView.AttributeType = AttributeType;
+        AttributeView.AttributeOffset = AttributeOffset;
+        AttributeView.AttributeLength = AttributeLength;
+        AttributeView.IsNonResident = IsNonResident;
+        AttributeView.NameLength = NameLength;
 
-        if (IsNonResident) {
-            U16 RunListOffset;
-
-            if (AttributeLength < NTFS_ATTRIBUTE_HEADER_NON_RESIDENT_SIZE) {
-                WARNING(TEXT("[NtfsParseFileRecordAttributes] Invalid non-resident length=%u"), AttributeLength);
-                return FALSE;
-            }
-
-            if (AttributeType == NTFS_ATTRIBUTE_DATA && !DataFound && NameLength == 0) {
-                RecordInfo->HasDataAttribute = TRUE;
-                RecordInfo->DataIsResident = FALSE;
-                RecordInfo->AllocatedDataSize = NtfsLoadU64(RecordBuffer + AttributeOffset + 40);
-                RecordInfo->DataSize = NtfsLoadU64(RecordBuffer + AttributeOffset + 48);
-                RecordInfo->InitializedDataSize = NtfsLoadU64(RecordBuffer + AttributeOffset + 56);
-                DataFound = TRUE;
-
-                RunListOffset = NtfsLoadU16(RecordBuffer + AttributeOffset + 32);
-                if (RunListOffset >= AttributeLength) {
-                    WARNING(TEXT("[NtfsParseFileRecordAttributes] Invalid runlist offset=%u"), RunListOffset);
-                    return FALSE;
-                }
-
-                DataOffset = AttributeOffset;
-                DataLength = AttributeLength;
-                if (DataAttributeOffsetOut != NULL) *DataAttributeOffsetOut = DataOffset;
-                if (DataAttributeLengthOut != NULL) *DataAttributeLengthOut = DataLength;
-            }
-        } else {
-            if (AttributeLength < NTFS_ATTRIBUTE_HEADER_RESIDENT_SIZE) {
-                WARNING(TEXT("[NtfsParseFileRecordAttributes] Invalid resident length=%u"), AttributeLength);
-                return FALSE;
-            }
-
-            ValueLength = NtfsLoadU32(RecordBuffer + AttributeOffset + 16);
-            ValueOffset = NtfsLoadU16(RecordBuffer + AttributeOffset + 20);
-            if (ValueOffset > AttributeLength || ValueLength > (AttributeLength - ValueOffset)) {
-                WARNING(TEXT("[NtfsParseFileRecordAttributes] Invalid resident value offset=%u length=%u"),
-                    ValueOffset, ValueLength);
-                return FALSE;
-            }
-
-            if (AttributeType == NTFS_ATTRIBUTE_FILE_NAME) {
-                NtfsParseFileNameValue(
-                    RecordBuffer + AttributeOffset + ValueOffset,
-                    ValueLength,
-                    RecordInfo);
-            } else if (AttributeType == NTFS_ATTRIBUTE_DATA && !DataFound && NameLength == 0) {
-                RecordInfo->HasDataAttribute = TRUE;
-                RecordInfo->DataIsResident = TRUE;
-                RecordInfo->DataSize = U64_FromU32(ValueLength);
-                RecordInfo->AllocatedDataSize = U64_FromU32(ValueLength);
-                RecordInfo->InitializedDataSize = U64_FromU32(ValueLength);
-                DataFound = TRUE;
-
-                DataOffset = AttributeOffset;
-                DataLength = AttributeLength;
-                if (DataAttributeOffsetOut != NULL) *DataAttributeOffsetOut = DataOffset;
-                if (DataAttributeLengthOut != NULL) *DataAttributeLengthOut = DataLength;
-            }
+        AttributeHandler = NtfsFindAttributeHandler(AttributeType);
+        if (AttributeHandler != NULL && !AttributeHandler(&AttributeView, &ParseState)) {
+            return FALSE;
         }
 
         AttributeOffset += AttributeLength;
+    }
+
+    if (ParseState.DataFound) {
+        if (DataAttributeOffsetOut != NULL) *DataAttributeOffsetOut = ParseState.DataAttributeOffset;
+        if (DataAttributeLengthOut != NULL) *DataAttributeLengthOut = ParseState.DataAttributeLength;
     }
 
     WARNING(TEXT("[NtfsParseFileRecordAttributes] Missing attribute end marker"));
