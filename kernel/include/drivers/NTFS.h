@@ -157,6 +157,18 @@ typedef struct tag_NTFS_FILE_RECORD_INFO {
     U32 SequenceOfAttributesOffset;
     U32 UpdateSequenceOffset;
     U32 UpdateSequenceSize;
+    BOOL HasPrimaryFileName;
+    U32 PrimaryFileNameNamespace;
+    STR PrimaryFileName[MAX_FILE_NAME];
+    DATETIME CreationTime;
+    DATETIME LastModificationTime;
+    DATETIME FileRecordModificationTime;
+    DATETIME LastAccessTime;
+    BOOL HasDataAttribute;
+    BOOL DataIsResident;
+    U64 DataSize;
+    U64 AllocatedDataSize;
+    U64 InitializedDataSize;
 } NTFS_FILE_RECORD_INFO, *LPNTFS_FILE_RECORD_INFO;
 
 /***************************************************************************/
@@ -211,6 +223,23 @@ BOOL NtfsGetVolumeGeometry(LPFILESYSTEM FileSystem, LPNTFS_VOLUME_GEOMETRY Geome
  * @return TRUE on success, FALSE on read or validation failure.
  */
 BOOL NtfsReadFileRecord(LPFILESYSTEM FileSystem, U32 Index, LPNTFS_FILE_RECORD_INFO RecordInfo);
+
+/***************************************************************************/
+
+/**
+ * @brief Read default DATA stream of one NTFS file record by MFT index.
+ *
+ * Only the unnamed default stream is read. Alternate streams are ignored.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param Index MFT file record index.
+ * @param Buffer Destination buffer.
+ * @param BufferSize Destination buffer size in bytes.
+ * @param BytesReadOut Optional output for number of bytes copied to Buffer.
+ * @return TRUE on success, FALSE on read or validation failure.
+ */
+BOOL NtfsReadFileDataByIndex(
+    LPFILESYSTEM FileSystem, U32 Index, LPVOID Buffer, U32 BufferSize, U32* BytesReadOut);
 
 /***************************************************************************/
 

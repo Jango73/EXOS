@@ -32,10 +32,10 @@
 
 **Goal**: retrieve file metadata and file contents.
 
-- [ ] Parse resident and non-resident attributes.
-- [ ] Implement runlist parsing for non-resident DATA.
-- [ ] Read DATA stream (default stream only, no alternate streams).
-- [ ] Extract FILE_NAME (primary) and basic timestamps.
+- [X] Parse resident and non-resident attributes.
+- [X] Implement runlist parsing for non-resident DATA.
+- [X] Read DATA stream (default stream only, no alternate streams).
+- [X] Extract FILE_NAME (primary) and basic timestamps.
 
 **Success**: a single file can be read by MFT index and its name is visible.
 
