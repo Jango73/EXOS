@@ -161,6 +161,59 @@ static BOOL NVMeReadSectorsBuffered(LPNVME_DEVICE Device, U32 NamespaceId, U64 L
 /************************************************************************/
 
 /**
+ * @brief Write sectors with a bounce buffer when needed.
+ * @param Device NVMe device.
+ * @param NamespaceId Namespace identifier.
+ * @param Lba Starting logical block address.
+ * @param SectorCount Number of sectors.
+ * @param Buffer Source buffer.
+ * @param BufferBytes Buffer size in bytes.
+ * @return TRUE on success, FALSE on failure.
+ */
+static BOOL NVMeWriteSectorsBuffered(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 SectorCount,
+                                     LPCVOID Buffer, U32 BufferBytes) {
+    if (Device == NULL || Buffer == NULL) {
+        return FALSE;
+    }
+
+    if (SectorCount > (0xFFFFFFFF / SECTOR_SIZE)) {
+        return FALSE;
+    }
+
+    U32 TransferBytes = SectorCount * SECTOR_SIZE;
+    if (BufferBytes < TransferBytes) {
+        return FALSE;
+    }
+
+    if (TransferBytes > (2 * N_4KB)) {
+        return FALSE;
+    }
+
+    if (NVMeIsAlignedBuffer((LPVOID)Buffer) && NVMeIsContiguousBuffer((LPVOID)Buffer, TransferBytes)) {
+        return NVMeWriteSectors(Device, NamespaceId, Lba, SectorCount, Buffer, BufferBytes);
+    }
+
+    U32 RawSize = TransferBytes + N_4KB;
+    LPVOID Raw = KernelHeapAlloc(RawSize);
+    if (Raw == NULL) {
+        return FALSE;
+    }
+
+    LINEAR RawBase = (LINEAR)Raw;
+    LINEAR AlignedBase = (LINEAR)((RawBase + (N_4KB - 1)) & ~(N_4KB - 1));
+    LPVOID AlignedBuffer = (LPVOID)AlignedBase;
+    MemorySet(AlignedBuffer, 0, TransferBytes);
+    MemoryCopy(AlignedBuffer, Buffer, TransferBytes);
+
+    BOOL Result = NVMeWriteSectors(Device, NamespaceId, Lba, SectorCount, AlignedBuffer, TransferBytes);
+
+    KernelHeapFree(Raw);
+    return Result;
+}
+
+/************************************************************************/
+
+/**
  * @brief Create a disk object for a namespace.
  * @param Device NVMe device.
  * @param NamespaceId Namespace identifier.
@@ -181,7 +234,7 @@ static LPNVME_DISK NVMeCreateDisk(LPNVME_DEVICE Device, U32 NamespaceId, U64 Num
     Disk->Controller = Device;
     Disk->NamespaceId = NamespaceId;
     Disk->NumSectors = NumSectors;
-    Disk->Access = DISK_ACCESS_READONLY;
+    Disk->Access = 0;
 
     return Disk;
 }
@@ -354,22 +407,64 @@ static UINT NVMeDiskRead(LPIOCONTROL Control) {
 /************************************************************************/
 
 /**
- * @brief Write sectors to an NVMe disk (not implemented).
+ * @brief Write sectors to an NVMe disk.
  * @param Control IO control structure describing request.
  * @return DF_RETURN_* code.
  */
 static UINT NVMeDiskWrite(LPIOCONTROL Control) {
-    if (Control == NULL || Control->Disk == NULL) {
+    if (Control == NULL || Control->Disk == NULL || Control->Buffer == NULL) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
     LPNVME_DISK Disk = (LPNVME_DISK)Control->Disk;
     SAFE_USE_VALID_ID((LPLISTNODE)Disk, KOID_DISK) {
+        if (Disk->Controller == NULL || Control->NumSectors == 0) {
+            return DF_RETURN_BAD_PARAMETER;
+        }
+
         if (Disk->Access & DISK_ACCESS_READONLY) {
             return DF_RETURN_NO_PERMISSION;
         }
 
-        return DF_RETURN_NOT_IMPLEMENTED;
+        SAFE_USE_VALID_ID(Disk->Controller, KOID_PCIDEVICE) {
+            if (Control->NumSectors > (0xFFFFFFFF / SECTOR_SIZE)) {
+                return DF_RETURN_BAD_PARAMETER;
+            }
+
+            U32 TotalBytes = Control->NumSectors * SECTOR_SIZE;
+            if (Control->BufferSize < TotalBytes) {
+                return DF_RETURN_BAD_PARAMETER;
+            }
+
+            U32 MaxSectors = (2 * N_4KB) / SECTOR_SIZE;
+            U32 Remaining = Control->NumSectors;
+            U8* In = (U8*)Control->Buffer;
+            U64 Lba = U64_Make(Control->SectorHigh, Control->SectorLow);
+
+            while (Remaining > 0) {
+                U32 Chunk = Remaining > MaxSectors ? MaxSectors : Remaining;
+                U32 ChunkBytes = Chunk * SECTOR_SIZE;
+
+                if (!NVMeWriteSectorsBuffered(Disk->Controller,
+                                              Disk->NamespaceId,
+                                              Lba,
+                                              Chunk,
+                                              In,
+                                              ChunkBytes)) {
+                    WARNING(TEXT("[NVMeDiskWrite] Write failed LBA=%x:%x sectors=%u"),
+                            (U32)U64_High32(Lba),
+                            (U32)U64_Low32(Lba),
+                            (U32)Chunk);
+                    return DF_RETURN_UNEXPECTED;
+                }
+
+                Lba = U64_Add(Lba, U64_FromU32(Chunk));
+                In += ChunkBytes;
+                Remaining -= Chunk;
+            }
+
+            return DF_RETURN_SUCCESS;
+        }
     }
 
     return DF_RETURN_BAD_PARAMETER;
@@ -415,7 +510,7 @@ static UINT NVMeDiskSetAccess(LPDISKACCESS Access) {
 
     LPNVME_DISK Disk = (LPNVME_DISK)Access->Disk;
     SAFE_USE_VALID_ID((LPLISTNODE)Disk, KOID_DISK) {
-        Disk->Access = (Access->Access | DISK_ACCESS_READONLY);
+        Disk->Access = Access->Access;
         return DF_RETURN_SUCCESS;
     }
 

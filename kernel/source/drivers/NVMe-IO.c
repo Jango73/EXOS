@@ -567,6 +567,113 @@ BOOL NVMeReadSectors(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 SectorC
 /************************************************************************/
 
 /**
+ * @brief Write sectors using the I/O queue.
+ *
+ * @param Device NVMe device.
+ * @param NamespaceId Namespace identifier.
+ * @param Lba Starting logical block address.
+ * @param SectorCount Number of sectors to write.
+ * @param Buffer Source buffer (4 KiB aligned).
+ * @param BufferBytes Buffer size in bytes.
+ * @return TRUE on success, FALSE on failure.
+ */
+BOOL NVMeWriteSectors(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 SectorCount, LPCVOID Buffer,
+                      U32 BufferBytes) {
+    if (Device == NULL || Device->IoSq == NULL || Device->IoCq == NULL) {
+        return FALSE;
+    }
+    if (Buffer == NULL || SectorCount == 0 || BufferBytes == 0) {
+        return FALSE;
+    }
+    if (SectorCount > (0xFFFFFFFF / SECTOR_SIZE)) {
+        return FALSE;
+    }
+
+    U32 TransferBytes = SectorCount * SECTOR_SIZE;
+    if (BufferBytes < TransferBytes) {
+        return FALSE;
+    }
+    if (TransferBytes > (2 * N_4KB)) {
+        WARNING(TEXT("[NVMeWriteSectors] Transfer too large for PRP1/PRP2 %u bytes"),
+                (U32)TransferBytes);
+        return FALSE;
+    }
+    if (SectorCount > 0x10000) {
+        WARNING(TEXT("[NVMeWriteSectors] Too many sectors %u"), (U32)SectorCount);
+        return FALSE;
+    }
+
+    LINEAR BufferLinear = (LINEAR)Buffer;
+    if ((BufferLinear & (N_4KB - 1)) != 0) {
+        WARNING(TEXT("[NVMeWriteSectors] Buffer not 4 KiB aligned %p"), Buffer);
+        return FALSE;
+    }
+
+    PHYSICAL BasePhys = MapLinearToPhysical(BufferLinear);
+    if (BasePhys == 0) {
+        return FALSE;
+    }
+
+    for (UINT Offset = 0; Offset < TransferBytes; Offset += N_4KB) {
+        LINEAR Linear = BufferLinear + (LINEAR)Offset;
+        PHYSICAL Physical = MapLinearToPhysical(Linear);
+        if (Physical != (BasePhys + (PHYSICAL)Offset)) {
+            WARNING(TEXT("[NVMeWriteSectors] Buffer not contiguous at %x"), (U32)Offset);
+            return FALSE;
+        }
+    }
+
+    NVME_COMMAND Command;
+    MemorySet(&Command, 0, sizeof(Command));
+    Command.Opcode = NVME_IO_OP_WRITE;
+    Command.NamespaceId = NamespaceId;
+    Command.Prp1Low = (U32)(BasePhys & 0xFFFFFFFF);
+    Command.Prp1High = 0;
+#ifdef __EXOS_64__
+    Command.Prp1High = (U32)((BasePhys >> 32) & 0xFFFFFFFF);
+#endif
+
+    if (TransferBytes > N_4KB) {
+        PHYSICAL SecondPage = BasePhys + N_4KB;
+        Command.Prp2Low = (U32)(SecondPage & 0xFFFFFFFF);
+        Command.Prp2High = 0;
+#ifdef __EXOS_64__
+        Command.Prp2High = (U32)((SecondPage >> 32) & 0xFFFFFFFF);
+#endif
+    }
+
+    Command.CommandDword10 = U64_Low32(Lba);
+    Command.CommandDword11 = U64_High32(Lba);
+    Command.CommandDword12 = (U32)((SectorCount - 1) & 0xFFFF);
+
+    NVME_COMPLETION Completion;
+    if (!NVMeSubmitIoCommand(Device, &Command, &Completion)) {
+        return FALSE;
+    }
+
+    U16 Status = (U16)(Completion.Status >> 1);
+    if (Status != 0) {
+        U16 Sc = (U16)(Status & 0xFF);
+        U16 Sct = (U16)((Status >> 8) & 0x7);
+        U16 Dnr = (U16)((Status >> 14) & 0x1);
+        WARNING(TEXT("[NVMeWriteSectors] Status=%x SCT=%x SC=%x DNR=%x"),
+                (U32)Status,
+                (U32)Sct,
+                (U32)Sc,
+                (U32)Dnr);
+        return FALSE;
+    }
+
+    DEBUG(TEXT("[NVMeWriteSectors] Wrote LBA=%x:%x sectors=%u"),
+          U64_High32(Lba),
+          U64_Low32(Lba),
+          (U32)SectorCount);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Read LBA 0 and log the MBR signature.
  *
  * @param Device NVMe device.

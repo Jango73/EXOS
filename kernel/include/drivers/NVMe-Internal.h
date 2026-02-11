@@ -77,6 +77,8 @@ BOOL NVMeCreateIoQueues(LPNVME_DEVICE Device);
 BOOL NVMeSubmitIoNoop(LPNVME_DEVICE Device);
 BOOL NVMeReadSectors(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 SectorCount, LPVOID Buffer,
                      U32 BufferBytes);
+BOOL NVMeWriteSectors(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 SectorCount, LPCVOID Buffer,
+                      U32 BufferBytes);
 BOOL NVMeReadTest(LPNVME_DEVICE Device);
 void NVMeFreeIoQueues(LPNVME_DEVICE Device);
 
