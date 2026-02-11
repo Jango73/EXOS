@@ -1,16 +1,14 @@
 include ../make/arch.mk
 
-ifneq ($(strip $(BUILD_CORE_NAME)),)
+ifeq ($(strip $(BUILD_CORE_NAME)),)
+$(error BUILD_CORE_NAME is required)
+endif
 CORE_BUILD_DIR := ../build/core/$(BUILD_CORE_NAME)
-else
-CORE_BUILD_DIR := ../build/$(ARCH)
-endif
 
-ifneq ($(strip $(BUILD_IMAGE_NAME)),)
-IMAGE_BUILD_DIR := ../build/image/$(BUILD_IMAGE_NAME)
-else
-IMAGE_BUILD_DIR := ../build/$(ARCH)
+ifeq ($(strip $(BUILD_IMAGE_NAME)),)
+$(error BUILD_IMAGE_NAME is required)
 endif
+IMAGE_BUILD_DIR := ../build/image/$(BUILD_IMAGE_NAME)
 
 UEFI_BUILD_DIR := $(IMAGE_BUILD_DIR)/boot-uefi
 IMG_SIZE_MB ?= 16

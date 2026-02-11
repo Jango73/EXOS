@@ -16,11 +16,10 @@ APP_DIR := $(abspath $(dir $(APP_MAKEFILE)))
 REL_APP_DIR := $(patsubst $(SYSTEM_ROOT)/%,%,$(APP_DIR))
 REL_APP_DIR := $(patsubst %/,%, $(REL_APP_DIR))
 
-ifneq ($(strip $(BUILD_CORE_NAME)),)
-BUILD_DIR := $(EXOS_ROOT)/build/core/$(BUILD_CORE_NAME)
-else
-BUILD_DIR := $(EXOS_ROOT)/build/$(ARCH)
+ifeq ($(strip $(BUILD_CORE_NAME)),)
+$(error BUILD_CORE_NAME is required)
 endif
+BUILD_DIR := $(EXOS_ROOT)/build/core/$(BUILD_CORE_NAME)
 
 APP_OUT_DIR := $(BUILD_DIR)/system/$(REL_APP_DIR)
 

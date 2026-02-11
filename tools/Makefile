@@ -1,10 +1,9 @@
 ARCH ?= x86-32
 
-ifneq ($(strip $(BUILD_CORE_NAME)),)
-BUILD_DIR := ../build/core/$(BUILD_CORE_NAME)
-else
-BUILD_DIR := ../build/$(ARCH)
+ifeq ($(strip $(BUILD_CORE_NAME)),)
+$(error BUILD_CORE_NAME is required)
 endif
+BUILD_DIR := ../build/core/$(BUILD_CORE_NAME)
 
 CC = gcc
 CFLAGS = -Wall -Wextra -O2
