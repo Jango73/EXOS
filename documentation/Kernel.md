@@ -19,7 +19,6 @@
 - [Startup sequence on HD (real HD on x86-32 or qemu-system-i386)](#startup-sequence-on-hd-real-hd-on-x86-32-or-qemu-system-i386)
 - [Physical Memory map (may change)](#physical-memory-map-may-change)
 - [Disk interfaces](#disk-interfaces)
-- [Foreign File systems](#foreign-file-systems)
 - [Tasks](#tasks)
   - [Architecture-specific task data](#architecture-specific-task-data)
   - [Stack sizing](#stack-sizing)
@@ -58,7 +57,9 @@
   - [Structure of folders and files](#structure-of-folders-and-files)
   - [Clusters](#clusters)
   - [Cluster bitmap](#cluster-bitmap)
-- [EXT2 structure](#ext2-structure)
+- [Foreign File systems](#foreign-file-systems)
+  - [EXT2](#ext2)
+  - [NTFS](#ntfs)
 - [QEMU network graph](#qemu-network-graph)
 - [Links](#links)
 
@@ -297,45 +298,6 @@ Everything in this sequence runs in 16-bit real mode on x86-32+ processors. Howe
 
 **AHCI interrupt policy**: the SATA driver registers the controller with the shared `DeviceInterruptRegister` infrastructure and installs dedicated top and bottom halves so IRQ 11 traffic can be routed through a private slot when the hardware gets its own vector (MSI/MSI-X or a non-shared INTx line). Commands still complete synchronously, therefore all AHCI per-port interrupt masks (`PORT.ie`) and the global `GHC.IE` bit stay cleared in shipping builds to keep the shared IRQ 11 line quiet for the `E1000` NIC.
 Disk drivers expose `BytesPerSector` through `DF_DISK_GETINFO` (`DISKINFO.BytesPerSector`). Partition probing in `FileSystem.c` consumes this value and accepts 512-byte and 4096-byte sectors when reading MBR/GPT and signature data.
-
-## Foreign File systems
-
-| FS | Key Concepts | RO Difficulty | Full RW Difficulty | Notes |
-|---|---|---:|---:|---|
-| **FAT12/16** | Boot-friendly, allocation tables, 8.3 names | 2 | 3 | Very simple; some edge cases with cluster chains. |
-| **ISO9660/Joliet/Rock Ridge** | CD-ROM FS, fixed tables | 2 | 2 | Read-only only; trivial for mounting images. |
-| **MINIX (v1/v2)** | Bitmaps, inodes, direct/indirect | 3 | 4 | Educational, limited size, very clean spec. |
-| **FAT32** | FAT + FSInfo + VFAT long names | 3 | 4 | Long File Names, timestamp quirks, no journal. |
-| **squashfs** | Read-only, compressed, indexed tables | 3 | 3 | Dead simple in RO; great for system images. |
-| **exFAT** | Bitmap + FAT, chained dir entries | 4 | 6 | Official specs exist, but many entry types. |
-| **UDF** | Successor to ISO9660, incremental writes | 4 | 6–7 | Many versions/profiles; optical and USB use. |
-| **ext2** | Superblock, group desc, bitmaps, inodes | 5 | 6 | Very documented; no journal; fsck required. |
-| **ext3** | ext2 + JBD journal | 6 | 7 | Journaling metadata/data, proper recovery required. |
-| **ReiserFS (v3)** | Balanced trees, small entry packing | 6 | 8 | Non-standard layout; legacy. |
-| **HFS+** | B-trees (catalog, extents), forks | 6 | 8 | Unicode normalization, legacy quirks. |
-| **ext4** | Extents, htree, 64-bit, JBD2 | 6 | 9 | Extents + journal + optional features. |
-| **XFS** | Btrees everywhere, delayed alloc, journaling | 6 | 9 | High-performance, recovery heavy. |
-| **F2FS** | Log-structured, flash segments | 6 | 8 | GC/segment cleaning, wear-level tuning. |
-| **APFS** | Copy-on-write, containers, snapshots | 7 | 9–10 | Encryption, clones, variable blocks; partial docs. |
-| **Btrfs** | COW, extent trees, checksums, RAID, snapshots | 7 | 9–10 | Complex balance between many trees; fragile. |
-| **ZFS** | COW, pools, checksums, RAID-Z, snapshots | 7 | 10 | Includes volume mgmt; very large scope. |
-| **NTFS** | MFT, resident/non-resident attrs, bitmap, journal | 7 | 9 | Compression, sparse, ACLs, USN; very rich design. |
-
-### NTFS
-
-NTFS timestamp conversion is provided by `NtfsTimestampToDateTime` in `kernel/source/drivers/NTFS-Time.c`, converting NTFS 100ns intervals since 1601-01-01 to the kernel `DATETIME` structure.
-NTFS boot-sector validation and geometry extraction are implemented in `MountPartition_NTFS` (`kernel/source/drivers/NTFS-Base.c`). The mount path validates OEM/signature, enforces 512/4096 sector sizes, and stores bytes-per-sector, sectors-per-cluster, bytes-per-cluster, and MFT start cluster. `NtfsGetVolumeGeometry` exposes that data for diagnostics, and `fs --long` prints those fields for mounted NTFS volumes.
-NTFS MFT step 2 is implemented with `NtfsReadFileRecord`, which computes file-record size from the boot sector, reads an MFT record by index, applies the update sequence (fixup) array, and returns basic record metadata (flags, sizes, attribute offset, sequence data). The shell debug command `ntfs-record <filesystem> <index>` uses this path to dump parsed metadata.
-NTFS step 3 is in place for read-only attribute parsing: resident and non-resident attributes are parsed, default `DATA` runlists are decoded, and `FILE_NAME` primary name/timestamps are extracted. `NtfsReadFileDataByIndex` reads the unnamed default stream by MFT index.
-NTFS step 4 folder index parsing is implemented with `NtfsEnumerateFolderByIndex`, covering `INDEX_ROOT` and large-folder traversal through `INDEX_ALLOCATION` plus `BITMAP` usage. The B+ tree walk collects visible entries from both resident and non-resident index records.
-NTFS step 5 path lookup is implemented with `NtfsResolvePathToIndex` (`kernel/source/drivers/NTFS-Path.c`), walking components from root record 5 through folder index entries with case-insensitive matching (ASCII fold + Unicode code point comparison). The path lookup cache in `NTFSFILESYSTEM.PathLookupCache` stores recent parent/name->child resolutions to reduce repeated MFT and index reads.
-NTFS step 6 VFS integration is implemented in `kernel/source/drivers/NTFS-VFS.c`. `DF_FS_OPENFILE`, `DF_FS_OPENNEXT`, `DF_FS_CLOSEFILE`, and `DF_FS_READ` are wired through the NTFS driver command dispatcher (`kernel/source/drivers/NTFS-Base.c`) so the volume is browseable/readable through the generic file APIs. Metadata from NTFS records (folder flag, size, timestamps) is translated into `FILE` attributes, and mutating operations (`create`, `delete`, `rename`, `write`) return read-only permission errors.
-NTFS step 7 extension hooks are implemented through a table-driven attribute parser in `kernel/source/drivers/NTFS-Record.c`, with dedicated handlers for `FILE_NAME`, `DATA`, `OBJECT_IDENTIFIER`, and `SECURITY_DESCRIPTOR`. Future metadata is reserved in `NTFS_FILE_RECORD_INFO` (`kernel/include/drivers/NTFS.h`) via `NTFS_OBJECT_IDENTIFIER_INFO` and `NTFS_SECURITY_DESCRIPTOR_INFO`. Write-path hooks are isolated in `kernel/source/drivers/NTFS-Write.c` and dispatched from `kernel/source/drivers/NTFS-Base.c`, keeping read-only behavior while providing stable function entry points for later write support.
-A UTF-16LE utility layer for NTFS name decoding is provided by `kernel/source/utils/Unicode.c` (`Utf16LeNextCodePoint`, `Utf16LeToUtf8`, `Utf16LeCompareCaseInsensitiveAscii`) to bridge on-disk UTF-16LE names with UTF-8 shell and VFS-facing strings.
-
-### Cluster cache
-
-The shared cluster cache helper is implemented in `kernel/source/drivers/ClusterCache.c` with its public interface in `kernel/include/drivers/ClusterCache.h`. It reuses the generic `utils/Cache` engine (TTL, cleanup, eviction) and adds cluster-oriented keys (`owner + cluster index + size`) so multiple filesystem drivers can share one non-duplicated cache pattern. The generic cache supports `CACHE_WRITE_POLICY_READ_ONLY`, `CACHE_WRITE_POLICY_WRITE_THROUGH`, and `CACHE_WRITE_POLICY_WRITE_BACK`, with optional flush callbacks for dirty entry persistence.
 
 ## Tasks
 
@@ -1057,7 +1019,6 @@ map 0x04 0 0x30 0x61 0x0061
 map 0x04 1 0x30 0x41 0x0041
 ```
 
-
 ## EXOS File System - EXFS
 
 ### Structure of the Master Boot Record
@@ -1231,8 +1192,34 @@ Fractional part = unusable space.
 | 17,179,869,184 (16 GB) | 4,096 (4 KB) | 524,288     | 128           |
 | 17,179,869,184 (16 GB) | 8,192 (4 KB) | 262,144     | 32            |
 
+## Filesystem Cluster cache
 
-## EXT2 structure
+The shared cluster cache helper is implemented in `kernel/source/drivers/ClusterCache.c` with its public interface in `kernel/include/drivers/ClusterCache.h`. It reuses the generic `utils/Cache` engine (TTL, cleanup, eviction) and adds cluster-oriented keys (`owner + cluster index + size`) so multiple filesystem drivers can share one non-duplicated cache pattern. The generic cache supports `CACHE_WRITE_POLICY_READ_ONLY`, `CACHE_WRITE_POLICY_WRITE_THROUGH`, and `CACHE_WRITE_POLICY_WRITE_BACK`, with optional flush callbacks for dirty entry persistence.
+
+## Foreign File systems
+
+| FS | Key Concepts | RO Difficulty | Full RW Difficulty | Notes |
+|---|---|---:|---:|---|
+| **FAT12/16** | Boot-friendly, allocation tables, 8.3 names | 2 | 3 | Very simple; some edge cases with cluster chains. |
+| **ISO9660/Joliet/Rock Ridge** | CD-ROM FS, fixed tables | 2 | 2 | Read-only only; trivial for mounting images. |
+| **MINIX (v1/v2)** | Bitmaps, inodes, direct/indirect | 3 | 4 | Educational, limited size, very clean spec. |
+| **FAT32** | FAT + FSInfo + VFAT long names | 3 | 4 | Long File Names, timestamp quirks, no journal. |
+| **squashfs** | Read-only, compressed, indexed tables | 3 | 3 | Dead simple in RO; great for system images. |
+| **exFAT** | Bitmap + FAT, chained dir entries | 4 | 6 | Official specs exist, but many entry types. |
+| **UDF** | Successor to ISO9660, incremental writes | 4 | 6–7 | Many versions/profiles; optical and USB use. |
+| **ext2** | Superblock, group desc, bitmaps, inodes | 5 | 6 | Very documented; no journal; fsck required. |
+| **ext3** | ext2 + JBD journal | 6 | 7 | Journaling metadata/data, proper recovery required. |
+| **ReiserFS (v3)** | Balanced trees, small entry packing | 6 | 8 | Non-standard layout; legacy. |
+| **HFS+** | B-trees (catalog, extents), forks | 6 | 8 | Unicode normalization, legacy quirks. |
+| **ext4** | Extents, htree, 64-bit, JBD2 | 6 | 9 | Extents + journal + optional features. |
+| **XFS** | Btrees everywhere, delayed alloc, journaling | 6 | 9 | High-performance, recovery heavy. |
+| **F2FS** | Log-structured, flash segments | 6 | 8 | GC/segment cleaning, wear-level tuning. |
+| **APFS** | Copy-on-write, containers, snapshots | 7 | 9–10 | Encryption, clones, variable blocks; partial docs. |
+| **Btrfs** | COW, extent trees, checksums, RAID, snapshots | 7 | 9–10 | Complex balance between many trees; fragile. |
+| **ZFS** | COW, pools, checksums, RAID-Z, snapshots | 7 | 10 | Includes volume mgmt; very large scope. |
+| **NTFS** | MFT, resident/non-resident attrs, bitmap, journal | 7 | 9 | Compression, sparse, ACLs, USN; very rich design. |
+
+### EXT2
 
 ```
                 ┌──────────────────────────────────────┐
@@ -1292,6 +1279,23 @@ Fractional part = unusable space.
  └── ...
 ─────────────────────────────────────────────────────────────────────
 ```
+
+### NTFS
+
+The NTFS driver is split across dedicated modules under `kernel/source/drivers/`:
+`NTFS-Base.c`, `NTFS-Record.c`, `NTFS-Index.c`, `NTFS-Path.c`, `NTFS-VFS.c`, `NTFS-Time.c`, and `NTFS-Write.c`.
+
+`MountPartition_NTFS` (`NTFS-Base.c`) validates the boot sector, checks sector-size compatibility (512/4096), computes geometry (`BytesPerSector`, `SectorsPerCluster`, `BytesPerCluster`, `MftStartCluster`, `MftStartSector`), initializes the filesystem object, and registers the mounted volume. `NtfsGetVolumeGeometry` exposes the cached geometry to diagnostics.
+
+Low-level file-record loading is implemented by `NtfsLoadFileRecordBuffer` (`NTFS-Record.c`), which reads raw MFT records, applies update-sequence fixups, and returns a validated in-memory record image. Parsed record metadata is exposed through `NtfsReadFileRecord`.
+
+Record attribute parsing is table-driven in `NtfsParseFileRecordAttributes` (`NTFS-Record.c`). Dedicated handlers process `FILE_NAME`, default `DATA`, `OBJECT_IDENTIFIER`, and `SECURITY_DESCRIPTOR` attributes. Stream reads are provided by `NtfsReadFileDataByIndex` and `NtfsReadFileDataRangeByIndex`; non-resident runlist reads are handled by `NtfsReadNonResidentDataAttributeRange`.
+
+Folder traversal is implemented by `NtfsEnumerateFolderByIndex` (`NTFS-Index.c`) using `INDEX_ROOT`, `INDEX_ALLOCATION`, and `BITMAP` metadata to walk NTFS index entries. Path resolution is implemented by `NtfsResolvePathToIndex` (`NTFS-Path.c`) with case-insensitive matching and a lookup cache (`NTFSFILESYSTEM.PathLookupCache`) to reduce repeated lookups.
+
+VFS integration is implemented in `NTFS-VFS.c` and dispatched from `NTFS-Base.c` through `DF_FS_OPENFILE`, `DF_FS_OPENNEXT`, `DF_FS_CLOSEFILE`, `DF_FS_READ`, and `DF_FS_WRITE`. NTFS metadata is translated into generic `FILE` fields and attributes (folder flag, sizes, timestamps). The current mode is read-only: write and mutating operations are routed to explicit placeholders in `NTFS-Write.c` and return `DF_RETURN_NO_PERMISSION`.
+
+Timestamp conversion from NTFS 100ns units to kernel `DATETIME` is implemented by `NtfsTimestampToDateTime` (`NTFS-Time.c`). UTF-16LE filename decoding and comparison support is provided by `kernel/source/utils/Unicode.c` (`Utf16LeNextCodePoint`, `Utf16LeToUtf8`, `Utf16LeCompareCaseInsensitiveAscii`).
 
 ## QEMU network graph
 
