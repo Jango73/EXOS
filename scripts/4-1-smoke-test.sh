@@ -1,6 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
+# Smoke test orchestrator:
+# 1) Optional build(s)
+# 2) Boot QEMU and wait until shell is ready
+# 3) Inject deterministic keyboard input through QEMU monitor
+# 4) Validate expected logs and fail on faults/KO/fatal errors
+# 5) Optionally compare downloaded file size against host source file
+
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_FILE="$ROOT_DIR/log/kernel.log"
 COMMANDS_FILE="$ROOT_DIR/scripts/smoke-test-commands.txt"
@@ -90,6 +97,7 @@ if ! command -v mdir >/dev/null 2>&1; then
 fi
 
 function SearchRegex() {
+    # Prefer ripgrep when available for speed and clearer output.
     if [ -n "$RG_BIN" ]; then
         rg -n "$1"
     else
@@ -113,6 +121,8 @@ function Trim() {
 }
 
 function SetImageKeyboardLayout() {
+    # Force a deterministic keyboard layout directly in exos.toml.
+    # This avoids flaky input when host/guest layouts differ.
     local ImagePath="$1"
     local FileSystemOffset="$2"
     local Layout="$3"
@@ -206,6 +216,7 @@ function SetImageKeyboardLayout() {
 }
 
 function EnsureLocalHttpServer() {
+    # netget smoke command expects a local HTTP endpoint.
     local Index=0
 
     if [ "$SKIP_LOCAL_HTTP_SERVER" = "1" ]; then
@@ -264,6 +275,7 @@ function TailFromOffset() {
 }
 
 function MonitorCommand() {
+    # Send one command to QEMU monitor (telnet) with retry/backoff.
     local Cmd="$1"
     local MaxAttempts="${2:-$MONITOR_CONNECT_MAX_ATTEMPTS}"
     local Quiet="${3:-0}"
@@ -316,6 +328,7 @@ function WaitForMonitor() {
 }
 
 function KeyForChar() {
+    # Map command characters to QEMU sendkey names.
     local Char="$1"
     case "$Char" in
         [A-Z]) echo "shift-${Char,,}" ;;
@@ -341,6 +354,7 @@ function SendKey() {
 }
 
 function SendCommand() {
+    # Type a full shell command as key events, then press Enter.
     local Cmd="$1"
     local Index=0
     local Length=${#Cmd}
@@ -359,6 +373,7 @@ function SendCommand() {
 }
 
 function WaitForExpectedLog() {
+    # Poll newly appended log data for success/failure conditions.
     local Expected="$1"
     local Offset="$2"
     local TimeoutSeconds="${3:-$DEFAULT_TIMEOUT_SECONDS}"
@@ -402,6 +417,7 @@ function WaitForExpectedLog() {
 }
 
 function AssertNoFailures() {
+    # Validate there is no fault/KO/fatal error in the selected log slice.
     local Offset="$1"
     local ErrorLines=""
     local FatalErrorLines=""
@@ -436,6 +452,7 @@ function AssertNoFailures() {
 }
 
 function AssertDownloadedFileSize() {
+    # Read guest file metadata from the disk image and compare with host source.
     local Offset="$1"
     local SourcePath="$2"
     local DownloadedName="$3"
@@ -492,6 +509,8 @@ function AssertDownloadedFileSize() {
 }
 
 function RunCommandSpec() {
+    # Execute one command specification line:
+    # command + expected log + optional file-size-compare check.
     local CommandText="$1"
     local ExpectedText="$2"
     local CompareSource="$3"
@@ -516,6 +535,8 @@ function RunCommandSpec() {
 }
 
 function RunCommandList() {
+    # Command file grammar (one spec per line):
+    # command: "..." | log: "..." | file-size-compare: "host/path" "/guest/path"
     local Line
     local Part
     local CommandText=""
@@ -570,6 +591,7 @@ function StopQemu() {
 }
 
 function RunArchitecture() {
+    # End-to-end flow for one target (build, run, drive shell, validate, shutdown).
     local Name="$1"
     local BuildScript="$2"
     local QemuScript="$3"
