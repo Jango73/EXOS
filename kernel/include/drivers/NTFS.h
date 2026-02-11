@@ -173,6 +173,19 @@ typedef struct tag_NTFS_FILE_RECORD_INFO {
 
 /***************************************************************************/
 
+typedef struct tag_NTFS_FOLDER_ENTRY_INFO {
+    U32 FileRecordIndex;
+    BOOL IsFolder;
+    U32 NameSpace;
+    STR Name[MAX_FILE_NAME];
+    DATETIME CreationTime;
+    DATETIME LastModificationTime;
+    DATETIME FileRecordModificationTime;
+    DATETIME LastAccessTime;
+} NTFS_FOLDER_ENTRY_INFO, *LPNTFS_FOLDER_ENTRY_INFO;
+
+/***************************************************************************/
+
 #pragma pack(pop)
 
 /***************************************************************************/
@@ -240,6 +253,30 @@ BOOL NtfsReadFileRecord(LPFILESYSTEM FileSystem, U32 Index, LPNTFS_FILE_RECORD_I
  */
 BOOL NtfsReadFileDataByIndex(
     LPFILESYSTEM FileSystem, U32 Index, LPVOID Buffer, U32 BufferSize, U32* BytesReadOut);
+
+/***************************************************************************/
+
+/**
+ * @brief Enumerate one NTFS folder by file-record index.
+ *
+ * The function parses INDEX_ROOT and, when present, INDEX_ALLOCATION/BITMAP
+ * to walk the folder B+ tree and return visible entries.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param FolderIndex Folder file-record index.
+ * @param Entries Optional output buffer for folder entries.
+ * @param MaxEntries Maximum number of entries that can be stored in Entries.
+ * @param EntryCountOut Optional output for number of stored entries.
+ * @param TotalEntriesOut Optional output for total enumerated entries.
+ * @return TRUE on success, FALSE on malformed metadata or read failure.
+ */
+BOOL NtfsEnumerateFolderByIndex(
+    LPFILESYSTEM FileSystem,
+    U32 FolderIndex,
+    LPNTFS_FOLDER_ENTRY_INFO Entries,
+    U32 MaxEntries,
+    U32* EntryCountOut,
+    U32* TotalEntriesOut);
 
 /***************************************************************************/
 

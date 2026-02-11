@@ -43,10 +43,10 @@
 
 **Goal**: list folder entries.
 
-- [ ] Parse INDEX_ROOT for small folders.
-- [ ] Parse INDEX_ALLOCATION and BITMAP for large folders.
-- [ ] Implement index entry traversal (B+ tree walk).
-- [ ] Ignore reparse points and hard links for now.
+- [X] Parse INDEX_ROOT for small folders.
+- [X] Parse INDEX_ALLOCATION and BITMAP for large folders.
+- [X] Implement index entry traversal (B+ tree walk).
+- [X] Ignore reparse points and hard links for now.
 
 **Success**: `ls` on a mounted NTFS volume lists folder contents.
 
