@@ -90,6 +90,18 @@ typedef struct tag_NTFSFILESYSTEM {
 
 /***************************************************************************/
 
+typedef struct tag_NTFSFILE {
+    FILE Header;
+    U32 FileRecordIndex;
+    BOOL IsFolder;
+    BOOL Enumerate;
+    U32 EnumerationIndex;
+    U32 EnumerationCount;
+    LPNTFS_FOLDER_ENTRY_INFO EnumerationEntries;
+} NTFSFILE, *LPNTFSFILE;
+
+/***************************************************************************/
+
 typedef struct tag_NTFS_FILE_RECORD_HEADER {
     U32 Magic;
     U16 UpdateSequenceOffset;
@@ -199,6 +211,30 @@ BOOL NtfsReadNonResidentDataAttribute(
     U32 BufferSize,
     U64 DataSize,
     U32* BytesReadOut);
+BOOL NtfsReadNonResidentDataAttributeRange(
+    LPNTFSFILESYSTEM FileSystem,
+    const U8* DataAttribute,
+    U32 DataAttributeLength,
+    U64 DataOffset,
+    LPVOID Buffer,
+    U32 BufferSize,
+    U64 DataSize,
+    U32* BytesReadOut);
+BOOL NtfsReadFileDataRangeByIndex(
+    LPFILESYSTEM FileSystem,
+    U32 Index,
+    U64 Offset,
+    LPVOID Buffer,
+    U32 BufferSize,
+    U32* BytesReadOut);
+
+/***************************************************************************/
+
+LPFILE NtfsOpenFile(LPFILEINFO Info);
+U32 NtfsOpenNext(LPNTFSFILE File);
+U32 NtfsCloseFile(LPNTFSFILE File);
+U32 NtfsReadFile(LPNTFSFILE File);
+U32 NtfsWriteFile(LPNTFSFILE File);
 
 /***************************************************************************/
 

@@ -64,9 +64,9 @@
 
 **Goal**: mount NTFS read-only as a filesystem.
 
-- [ ] Implement NtfsMount, NtfsOpen, NtfsRead, NtfsListFolder.
-- [ ] Translate NTFS metadata to VFS attributes.
-- [ ] Enforce read-only and return proper errors on write attempts.
+- [X] Implement NtfsMount, NtfsOpen, NtfsRead, NtfsListFolder.
+- [X] Translate NTFS metadata to VFS attributes.
+- [X] Enforce read-only and return proper errors on write attempts.
 
 **Success**: NTFS volume is browseable and files are readable.
 

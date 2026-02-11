@@ -352,20 +352,66 @@ BOOL NtfsReadNonResidentDataAttribute(
     U32 BufferSize,
     U64 DataSize,
     U32* BytesReadOut) {
+    return NtfsReadNonResidentDataAttributeRange(
+        FileSystem,
+        DataAttribute,
+        DataAttributeLength,
+        U64_Make(0, 0),
+        Buffer,
+        BufferSize,
+        DataSize,
+        BytesReadOut);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Read one non-resident DATA stream range using runlist mapping.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param DataAttribute Pointer to DATA attribute header.
+ * @param DataAttributeLength DATA attribute length.
+ * @param DataOffset Stream start offset in bytes.
+ * @param Buffer Destination buffer.
+ * @param BufferSize Destination buffer size.
+ * @param DataSize Logical data size in bytes.
+ * @param BytesReadOut Output number of bytes copied in Buffer.
+ * @return TRUE on success, FALSE on malformed runlist or read failure.
+ */
+BOOL NtfsReadNonResidentDataAttributeRange(
+    LPNTFSFILESYSTEM FileSystem,
+    const U8* DataAttribute,
+    U32 DataAttributeLength,
+    U64 DataOffset,
+    LPVOID Buffer,
+    U32 BufferSize,
+    U64 DataSize,
+    U32* BytesReadOut) {
     U16 RunListOffset;
     const U8* RunPointer;
     const U8* RunEnd;
     U32 TargetBytes;
     U32 BytesWritten;
+    U64 RemainingOffset;
+    U32 BytesPerSector;
     I32 CurrentLcn;
+    U8* SectorBuffer;
 
     if (BytesReadOut != NULL) *BytesReadOut = 0;
     if (FileSystem == NULL || DataAttribute == NULL || Buffer == NULL) return FALSE;
     if (DataAttributeLength < NTFS_ATTRIBUTE_HEADER_NON_RESIDENT_SIZE) return FALSE;
+    if (U64_Cmp(DataOffset, DataSize) >= 0) return TRUE;
+    if (FileSystem->BytesPerSector == 0) return FALSE;
+
+    BytesPerSector = FileSystem->BytesPerSector;
+    RemainingOffset = DataOffset;
 
     TargetBytes = BufferSize;
-    if (U64_High32(DataSize) == 0 && U64_Low32(DataSize) < TargetBytes) {
-        TargetBytes = U64_Low32(DataSize);
+    {
+        U64 RemainingData = U64_Sub(DataSize, DataOffset);
+        if (U64_High32(RemainingData) == 0 && U64_Low32(RemainingData) < TargetBytes) {
+            TargetBytes = U64_Low32(RemainingData);
+        }
     }
 
     if (TargetBytes == 0) {
@@ -383,6 +429,7 @@ BOOL NtfsReadNonResidentDataAttribute(
     RunEnd = DataAttribute + DataAttributeLength;
     BytesWritten = 0;
     CurrentLcn = 0;
+    SectorBuffer = NULL;
 
     while (RunPointer < RunEnd && BytesWritten < TargetBytes) {
         U8 Header;
@@ -393,6 +440,8 @@ BOOL NtfsReadNonResidentDataAttribute(
         I32 LcnDelta;
         BOOL IsSparse;
         U32 RunBytes;
+        U64 RunBytes64;
+        U32 SkipInRun;
         U32 CopyBytes;
 
         Header = *RunPointer++;
@@ -421,6 +470,7 @@ BOOL NtfsReadNonResidentDataAttribute(
         ClusterCount = U64_Low32(ClusterCount64);
         if (ClusterCount == 0) continue;
 
+        RunBytes = 0;
         IsSparse = OffsetSize == 0;
         LcnDelta = 0;
         if (!IsSparse) {
@@ -434,8 +484,20 @@ BOOL NtfsReadNonResidentDataAttribute(
             return FALSE;
         }
         RunBytes = ClusterCount * FileSystem->BytesPerCluster;
+        RunBytes64 = U64_FromU32(RunBytes);
+        if (U64_Cmp(RemainingOffset, RunBytes64) >= 0) {
+            RemainingOffset = U64_Sub(RemainingOffset, RunBytes64);
+            continue;
+        }
+
+        SkipInRun = U64_Low32(RemainingOffset);
+        RemainingOffset = U64_Make(0, 0);
+
         CopyBytes = TargetBytes - BytesWritten;
-        if (CopyBytes > RunBytes) CopyBytes = RunBytes;
+        if (CopyBytes > (RunBytes - SkipInRun)) {
+            CopyBytes = RunBytes - SkipInRun;
+        }
+        if (CopyBytes == 0) continue;
 
         if (IsSparse) {
             MemorySet((U8*)Buffer + BytesWritten, 0, CopyBytes);
@@ -443,54 +505,214 @@ BOOL NtfsReadNonResidentDataAttribute(
             U32 ClusterLcn;
             U32 SectorOffset;
             U32 StartSector;
-            U32 ReadBytesAligned;
-            U32 NumSectors;
-            U8* ReadBuffer;
+            U32 RelativeSector;
+            U32 OffsetInSector;
+            U32 RemainingCopy;
+            U32 DestinationOffset;
 
             if (CurrentLcn < 0) {
                 WARNING(TEXT("[NtfsReadNonResidentDataAttribute] Invalid LCN"));
+                if (SectorBuffer != NULL) KernelHeapFree(SectorBuffer);
                 return FALSE;
             }
 
             ClusterLcn = (U32)CurrentLcn;
             if (ClusterLcn > 0xFFFFFFFF / FileSystem->SectorsPerCluster) {
                 WARNING(TEXT("[NtfsReadNonResidentDataAttribute] LCN sector overflow"));
+                if (SectorBuffer != NULL) KernelHeapFree(SectorBuffer);
                 return FALSE;
             }
 
             SectorOffset = ClusterLcn * FileSystem->SectorsPerCluster;
+            RelativeSector = SkipInRun / BytesPerSector;
+            OffsetInSector = SkipInRun % BytesPerSector;
+            if (SectorOffset > 0xFFFFFFFF - RelativeSector) {
+                WARNING(TEXT("[NtfsReadNonResidentDataAttribute] Partition sector overflow"));
+                if (SectorBuffer != NULL) KernelHeapFree(SectorBuffer);
+                return FALSE;
+            }
+            SectorOffset += RelativeSector;
             if (FileSystem->PartitionStart > 0xFFFFFFFF - SectorOffset) {
                 WARNING(TEXT("[NtfsReadNonResidentDataAttribute] Partition sector overflow"));
+                if (SectorBuffer != NULL) KernelHeapFree(SectorBuffer);
                 return FALSE;
             }
             StartSector = FileSystem->PartitionStart + SectorOffset;
 
-            ReadBytesAligned = CopyBytes;
-            if ((ReadBytesAligned % FileSystem->BytesPerSector) != 0) {
-                ReadBytesAligned += FileSystem->BytesPerSector - (ReadBytesAligned % FileSystem->BytesPerSector);
-            }
-            NumSectors = ReadBytesAligned / FileSystem->BytesPerSector;
-
-            ReadBuffer = (U8*)KernelHeapAlloc(ReadBytesAligned);
-            if (ReadBuffer == NULL) {
-                ERROR(TEXT("[NtfsReadNonResidentDataAttribute] Unable to allocate %u bytes"), ReadBytesAligned);
-                return FALSE;
+            if (SectorBuffer == NULL) {
+                SectorBuffer = (U8*)KernelHeapAlloc(BytesPerSector);
+                if (SectorBuffer == NULL) {
+                    ERROR(TEXT("[NtfsReadNonResidentDataAttribute] Unable to allocate sector buffer"));
+                    return FALSE;
+                }
             }
 
-            if (!NtfsReadSectors(FileSystem, StartSector, NumSectors, ReadBuffer, ReadBytesAligned)) {
-                KernelHeapFree(ReadBuffer);
-                return FALSE;
-            }
+            RemainingCopy = CopyBytes;
+            DestinationOffset = BytesWritten;
+            while (RemainingCopy > 0) {
+                U32 Chunk = BytesPerSector - OffsetInSector;
+                if (Chunk > RemainingCopy) Chunk = RemainingCopy;
 
-            MemoryCopy((U8*)Buffer + BytesWritten, ReadBuffer, CopyBytes);
-            KernelHeapFree(ReadBuffer);
+                if (!NtfsReadSectors(FileSystem, StartSector, 1, SectorBuffer, BytesPerSector)) {
+                    KernelHeapFree(SectorBuffer);
+                    return FALSE;
+                }
+
+                MemoryCopy(
+                    ((U8*)Buffer) + DestinationOffset,
+                    SectorBuffer + OffsetInSector,
+                    Chunk);
+
+                DestinationOffset += Chunk;
+                RemainingCopy -= Chunk;
+                StartSector++;
+                OffsetInSector = 0;
+            }
         }
 
         BytesWritten += CopyBytes;
     }
 
+    if (SectorBuffer != NULL) {
+        KernelHeapFree(SectorBuffer);
+    }
+
     if (BytesReadOut != NULL) *BytesReadOut = BytesWritten;
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Read one NTFS default DATA stream range by file-record index.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param Index File record index in $MFT.
+ * @param Offset Start offset within stream.
+ * @param Buffer Destination buffer.
+ * @param BufferSize Destination buffer size in bytes.
+ * @param BytesReadOut Optional output for bytes copied to Buffer.
+ * @return TRUE on success, FALSE on malformed attributes or read failure.
+ */
+BOOL NtfsReadFileDataRangeByIndex(
+    LPFILESYSTEM FileSystem,
+    U32 Index,
+    U64 Offset,
+    LPVOID Buffer,
+    U32 BufferSize,
+    U32* BytesReadOut) {
+    LPNTFSFILESYSTEM NtfsFileSystem;
+    U8* RecordBuffer;
+    NTFS_FILE_RECORD_HEADER Header;
+    NTFS_FILE_RECORD_INFO RecordInfo;
+    U32 DataAttributeOffset;
+    U32 DataAttributeLength;
+
+    if (BytesReadOut != NULL) *BytesReadOut = 0;
+    if (FileSystem == NULL || Buffer == NULL) return FALSE;
+
+    SAFE_USE_VALID_ID(FileSystem, KOID_FILESYSTEM) {
+        U8* DataAttribute;
+        U32 ValueLength;
+        U32 ValueOffset;
+        U32 BytesToCopy;
+
+        if (FileSystem->Driver != &NTFSDriver) return FALSE;
+
+        NtfsFileSystem = (LPNTFSFILESYSTEM)FileSystem;
+        if (!NtfsLoadFileRecordBuffer(NtfsFileSystem, Index, &RecordBuffer, &Header)) {
+            return FALSE;
+        }
+
+        MemorySet(&RecordInfo, 0, sizeof(NTFS_FILE_RECORD_INFO));
+        RecordInfo.Index = Index;
+        RecordInfo.RecordSize = NtfsFileSystem->FileRecordSize;
+        RecordInfo.UsedSize = Header.RealSize;
+        RecordInfo.Flags = Header.Flags;
+        RecordInfo.SequenceNumber = Header.SequenceNumber;
+        RecordInfo.ReferenceCount = Header.ReferenceCount;
+        RecordInfo.SequenceOfAttributesOffset = Header.SequenceOfAttributesOffset;
+        RecordInfo.UpdateSequenceOffset = Header.UpdateSequenceOffset;
+        RecordInfo.UpdateSequenceSize = Header.UpdateSequenceSize;
+
+        DataAttributeOffset = 0;
+        DataAttributeLength = 0;
+        if (!NtfsParseFileRecordAttributes(
+                RecordBuffer,
+                NtfsFileSystem->FileRecordSize,
+                &RecordInfo,
+                &DataAttributeOffset,
+                &DataAttributeLength)) {
+            KernelHeapFree(RecordBuffer);
+            return FALSE;
+        }
+
+        if (!RecordInfo.HasDataAttribute || DataAttributeLength == 0) {
+            KernelHeapFree(RecordBuffer);
+            if (BytesReadOut != NULL) *BytesReadOut = 0;
+            return TRUE;
+        }
+
+        if (U64_Cmp(Offset, RecordInfo.DataSize) >= 0) {
+            KernelHeapFree(RecordBuffer);
+            if (BytesReadOut != NULL) *BytesReadOut = 0;
+            return TRUE;
+        }
+
+        DataAttribute = RecordBuffer + DataAttributeOffset;
+        if (RecordInfo.DataIsResident) {
+            U32 StartOffset;
+
+            if (DataAttributeLength < NTFS_ATTRIBUTE_HEADER_RESIDENT_SIZE) {
+                KernelHeapFree(RecordBuffer);
+                return FALSE;
+            }
+
+            if (U64_High32(Offset) != 0) {
+                KernelHeapFree(RecordBuffer);
+                return FALSE;
+            }
+            StartOffset = U64_Low32(Offset);
+
+            ValueLength = NtfsLoadU32(DataAttribute + 16);
+            ValueOffset = NtfsLoadU16(DataAttribute + 20);
+            if (ValueOffset > DataAttributeLength || ValueLength > (DataAttributeLength - ValueOffset)) {
+                KernelHeapFree(RecordBuffer);
+                return FALSE;
+            }
+            if (StartOffset >= ValueLength) {
+                KernelHeapFree(RecordBuffer);
+                return TRUE;
+            }
+
+            BytesToCopy = ValueLength - StartOffset;
+            if (BytesToCopy > BufferSize) BytesToCopy = BufferSize;
+            if (BytesToCopy > 0) {
+                MemoryCopy(Buffer, DataAttribute + ValueOffset + StartOffset, BytesToCopy);
+            }
+            if (BytesReadOut != NULL) *BytesReadOut = BytesToCopy;
+            KernelHeapFree(RecordBuffer);
+            return TRUE;
+        }
+
+        if (!NtfsReadNonResidentDataAttributeRange(
+                NtfsFileSystem,
+                DataAttribute,
+                DataAttributeLength,
+                Offset,
+                Buffer,
+                BufferSize,
+                RecordInfo.DataSize,
+                BytesReadOut)) {
+            KernelHeapFree(RecordBuffer);
+            return FALSE;
+        }
+
+        KernelHeapFree(RecordBuffer);
+        return TRUE;
+    }
+
+    return FALSE;
 }
 
 /***************************************************************************/
@@ -567,97 +789,11 @@ BOOL NtfsReadFileRecord(LPFILESYSTEM FileSystem, U32 Index, LPNTFS_FILE_RECORD_I
  */
 BOOL NtfsReadFileDataByIndex(
     LPFILESYSTEM FileSystem, U32 Index, LPVOID Buffer, U32 BufferSize, U32* BytesReadOut) {
-    LPNTFSFILESYSTEM NtfsFileSystem;
-    U8* RecordBuffer;
-    NTFS_FILE_RECORD_HEADER Header;
-    NTFS_FILE_RECORD_INFO RecordInfo;
-    U32 DataAttributeOffset;
-    U32 DataAttributeLength;
-
-    if (BytesReadOut != NULL) *BytesReadOut = 0;
-    if (FileSystem == NULL || Buffer == NULL) return FALSE;
-
-    SAFE_USE_VALID_ID(FileSystem, KOID_FILESYSTEM) {
-        U8* DataAttribute;
-        U32 ValueLength;
-        U32 ValueOffset;
-        U32 BytesToCopy;
-
-        if (FileSystem->Driver != &NTFSDriver) return FALSE;
-
-        NtfsFileSystem = (LPNTFSFILESYSTEM)FileSystem;
-        if (!NtfsLoadFileRecordBuffer(NtfsFileSystem, Index, &RecordBuffer, &Header)) {
-            return FALSE;
-        }
-
-        MemorySet(&RecordInfo, 0, sizeof(NTFS_FILE_RECORD_INFO));
-        RecordInfo.Index = Index;
-        RecordInfo.RecordSize = NtfsFileSystem->FileRecordSize;
-        RecordInfo.UsedSize = Header.RealSize;
-        RecordInfo.Flags = Header.Flags;
-        RecordInfo.SequenceNumber = Header.SequenceNumber;
-        RecordInfo.ReferenceCount = Header.ReferenceCount;
-        RecordInfo.SequenceOfAttributesOffset = Header.SequenceOfAttributesOffset;
-        RecordInfo.UpdateSequenceOffset = Header.UpdateSequenceOffset;
-        RecordInfo.UpdateSequenceSize = Header.UpdateSequenceSize;
-
-        DataAttributeOffset = 0;
-        DataAttributeLength = 0;
-        if (!NtfsParseFileRecordAttributes(
-                RecordBuffer,
-                NtfsFileSystem->FileRecordSize,
-                &RecordInfo,
-                &DataAttributeOffset,
-                &DataAttributeLength)) {
-            KernelHeapFree(RecordBuffer);
-            return FALSE;
-        }
-
-        if (!RecordInfo.HasDataAttribute || DataAttributeLength == 0) {
-            KernelHeapFree(RecordBuffer);
-            if (BytesReadOut != NULL) *BytesReadOut = 0;
-            return TRUE;
-        }
-
-        DataAttribute = RecordBuffer + DataAttributeOffset;
-        if (RecordInfo.DataIsResident) {
-            if (DataAttributeLength < NTFS_ATTRIBUTE_HEADER_RESIDENT_SIZE) {
-                KernelHeapFree(RecordBuffer);
-                return FALSE;
-            }
-
-            ValueLength = NtfsLoadU32(DataAttribute + 16);
-            ValueOffset = NtfsLoadU16(DataAttribute + 20);
-            if (ValueOffset > DataAttributeLength || ValueLength > (DataAttributeLength - ValueOffset)) {
-                KernelHeapFree(RecordBuffer);
-                return FALSE;
-            }
-
-            BytesToCopy = BufferSize;
-            if (ValueLength < BytesToCopy) BytesToCopy = ValueLength;
-            if (BytesToCopy > 0) {
-                MemoryCopy(Buffer, DataAttribute + ValueOffset, BytesToCopy);
-            }
-            if (BytesReadOut != NULL) *BytesReadOut = BytesToCopy;
-            KernelHeapFree(RecordBuffer);
-            return TRUE;
-        }
-
-        if (!NtfsReadNonResidentDataAttribute(
-                NtfsFileSystem,
-                DataAttribute,
-                DataAttributeLength,
-                Buffer,
-                BufferSize,
-                RecordInfo.DataSize,
-                BytesReadOut)) {
-            KernelHeapFree(RecordBuffer);
-            return FALSE;
-        }
-
-        KernelHeapFree(RecordBuffer);
-        return TRUE;
-    }
-
-    return FALSE;
+    return NtfsReadFileDataRangeByIndex(
+        FileSystem,
+        Index,
+        U64_Make(0, 0),
+        Buffer,
+        BufferSize,
+        BytesReadOut);
 }
