@@ -252,7 +252,7 @@ define MTOOLS_OPERATION
 		PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
 		echo "drive z: file=\"$1\" offset=$$PART_OFFSET" > $(MTOOLS_CONF); \
 		echo "$2 at offset $$PART_OFFSET"; \
-		$3 \
+		$3; \
 		rm -f $(MTOOLS_CONF); \
 		echo "$4"; \
 	}
@@ -261,7 +261,7 @@ endef
 define MCOPY_IF_NEEDED
 	if ! MTOOLSRC=$(MTOOLS_CONF) mdir "$(2)" >/dev/null 2>&1; then \
 		echo "Copying $(1) -> $(2) (destination missing)"; \
-		MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(1)" "$(2)"; \
+		MTOOLSRC=$(MTOOLS_CONF) mcopy -D o "$(1)" "$(2)"; \
 	else \
 		SRC_MTIME=$$(stat -c %Y "$(1)"); \
 		DST_INFO=$$(MTOOLSRC=$(MTOOLS_CONF) mdir -/ "$(2)" 2>/dev/null | awk 'NF>=7 {print $$6" "$$7; exit}'); \
@@ -272,7 +272,7 @@ define MCOPY_IF_NEEDED
 			else \
 				echo "Updating $(2) from $(1) (source newer)"; \
 			fi; \
-			MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(1)" "$(2)"; \
+			MTOOLSRC=$(MTOOLS_CONF) mcopy -D o "$(1)" "$(2)"; \
 		else \
 			echo "Skipping $(2) (destination up-to-date)"; \
 		fi; \
@@ -395,7 +395,7 @@ $(FS_TEST_FAT32_IMG): check_tools
 	@parted -s $@ set 1 boot off
 	@printf '%s\n' "$(FS_TEST_FAT32_READ_MARKER)" > $(BUILD_DIR)/boot-hd/fs-test-fat32-read.txt
 	$(call MTOOLS_OPERATION,$(FS_TEST_FAT32_IMG),Injecting FAT32 smoke marker,\
-		MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(BUILD_DIR)/boot-hd/fs-test-fat32-read.txt z:/$(FS_TEST_READ_FILE),\
+		MTOOLSRC=$(MTOOLS_CONF) mcopy -D o $(BUILD_DIR)/boot-hd/fs-test-fat32-read.txt z:/$(FS_TEST_READ_FILE),\
 		FAT32 smoke marker injected.)
 
 $(FS_TEST_NTFS_IMG): check_tools
@@ -469,7 +469,7 @@ update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32)
 		for f in $(KEYBOARD_LAYOUTS); do \
 			if [ -f "$$f" ]; then \
 				echo "Copying $$f -> z:/EXOS/KEYBOARD/$$(basename $$f)"; \
-				MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$$f" "z:/EXOS/KEYBOARD/$$(basename $$f)"; \
+				MTOOLSRC=$(MTOOLS_CONF) mcopy -D o "$$f" "z:/EXOS/KEYBOARD/$$(basename $$f)"; \
 			fi; \
 		done; \
 		$(call MCOPY_IF_NEEDED,$(PORTAL_ELF),z:/EXOS/APPS/PORTAL) \

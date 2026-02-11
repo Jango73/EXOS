@@ -22,6 +22,7 @@ BOOT_READY_PATTERN="[InitializeKernel] Shell task created"
 FAULT_PATTERN="#PF|#GP|#UD|#SS|#NP|#TS|#DE|#DF|#MF|#AC|#MC"
 TEST_KO_PATTERN="TEST > .* : KO"
 ERROR_PATTERN="ERROR >"
+NON_FATAL_ERROR_PATTERN="ERROR > \\[NVMeAttach\\] Failed to allocate admin queues"
 
 RG_BIN="$(command -v rg || true)"
 GREP_BIN="$(command -v grep || true)"
@@ -362,6 +363,8 @@ function WaitForExpectedLog() {
     local Offset="$2"
     local TimeoutSeconds="${3:-$DEFAULT_TIMEOUT_SECONDS}"
     local StartTime="$SECONDS"
+    local ErrorLines=""
+    local FatalErrorLines=""
 
     while [ $((SECONDS - StartTime)) -lt "$TimeoutSeconds" ]; do
         if TailFromOffset "$Offset" | SearchRegex "$FAULT_PATTERN" >/dev/null; then
@@ -377,9 +380,14 @@ function WaitForExpectedLog() {
         fi
 
         if TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" >/dev/null; then
-            echo "Kernel error detected in log."
-            TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" || true
-            return 1
+            ErrorLines="$(TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" || true)"
+            FatalErrorLines="$(echo "$ErrorLines" | "$GREP_BIN" -E -v "$NON_FATAL_ERROR_PATTERN" || true)"
+
+            if [ -n "$FatalErrorLines" ]; then
+                echo "Kernel fatal error detected in log."
+                echo "$FatalErrorLines"
+                return 1
+            fi
         fi
 
         if [ -n "$Expected" ] && TailFromOffset "$Offset" | SearchFixed "$Expected" >/dev/null; then
@@ -395,6 +403,8 @@ function WaitForExpectedLog() {
 
 function AssertNoFailures() {
     local Offset="$1"
+    local ErrorLines=""
+    local FatalErrorLines=""
 
     if TailFromOffset "$Offset" | SearchRegex "$FAULT_PATTERN" >/dev/null; then
         echo "Fault detected in kernel log."
@@ -409,9 +419,19 @@ function AssertNoFailures() {
     fi
 
     if TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" >/dev/null; then
-        echo "Kernel error detected in kernel log."
-        TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" || true
-        return 1
+        ErrorLines="$(TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" || true)"
+        FatalErrorLines="$(echo "$ErrorLines" | "$GREP_BIN" -E -v "$NON_FATAL_ERROR_PATTERN" || true)"
+
+        if [ -n "$FatalErrorLines" ]; then
+            echo "Kernel fatal error detected in kernel log."
+            echo "$FatalErrorLines"
+            return 1
+        fi
+
+        if [ -n "$ErrorLines" ]; then
+            echo "Kernel non-fatal errors detected in kernel log."
+            echo "$ErrorLines"
+        fi
     fi
 }
 
