@@ -84,7 +84,7 @@ Target naming examples:
 ## Risks and Controls
 - [ ] Risk: run/build mismatch selects wrong core/image combination.
   - Control: derive both names from the same option set and expose optional explicit overrides.
-- [ ] Risk: stale scripts still point to `build/x86-32` or `build/x86-64`.
+- [x] Risk: stale scripts still point to `build/x86-32` or `build/x86-64`.
   - Control: global grep audit before finalizing.
 - [ ] Risk: concurrent builds collide.
   - Control: per-core lock directory (`build/core/<BUILD_CORE_NAME>/.build-lock`).

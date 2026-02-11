@@ -4,7 +4,8 @@ set -eu
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 EXTRACT="$SCRIPT_DIR/../utils/extract-exos-file.sh"
 LOG_PATH="/exos/apps/terminal-tactics.log"
-IMG="$SCRIPT_DIR/../../build/x86-32/boot-hd/exos.img"
+BUILD_IMAGE_NAME="${BUILD_IMAGE_NAME:-x86-32-mbr-debug-ext2}"
+IMG="$SCRIPT_DIR/../../build/image/$BUILD_IMAGE_NAME/boot-hd/exos.img"
 
 if [ ! -x "$EXTRACT" ]; then
     echo "Missing helper: $EXTRACT"

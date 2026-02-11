@@ -2,7 +2,8 @@
 setlocal enabledelayedexpansion
 
 set "BOCHS=c:\program files\bochs-3.0\bochs.exe"
-set "IMG_1_PATH=build/x86-32/boot-hd/exos.img"
+if "%BUILD_IMAGE_NAME%"=="" set "BUILD_IMAGE_NAME=x86-32-mbr-debug-ext2"
+set "IMG_1_PATH=build/image/%BUILD_IMAGE_NAME%/boot-hd/exos.img"
 
 if not exist "%IMG_1_PATH%" (
     echo Image not found: %IMG_1_PATH%
