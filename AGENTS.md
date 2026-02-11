@@ -35,7 +35,7 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 - **Kernel objects**: Any kernel object that contains OBJECT_FIELDS (thus inherits LISTNODE_FIELDS) and is meant to exist in a global kernel list must be created with CreateKernelObject and destroyed with ReleaseKernelObject.
 - **No direct access to physical memory**: Use the MapTemporaryPhysicalPage1 (MapTemporaryPhysicalPage2, etc...) and MapIOMemory/UnMapIOMemory functions to access physical memory pages.
 - **Drivers**: In driver command dispatchers, any non-implemented function MUST return `DF_RETURN_NOT_IMPLEMENTED`.
-- **Clean code**: No duplicate code. Create intermediate functions to avoid it.
+- **Clean code**: No duplicate code. Create intermediate functions to avoid it. This also applies to data: create intermediate structures to avoid duplicating data.
 - **No globals**: Before adding a global variable, **ALWAYS ASK** if permitted.
 - **Functions**: Add a doxygen header to functions and separate all functions with a 75 character line such as : /************************************************************************/
 - **EXOS != Unix/Linux/Windows/Whatever** :
