@@ -10,6 +10,7 @@ CONFIG_FILES=(
 )
 MONITOR_HOST="127.0.0.1"
 MONITOR_PORT="${MONITOR_PORT:-4444}"
+MONITOR_CONNECT_MAX_ATTEMPTS=50
 DEFAULT_TIMEOUT_SECONDS=15
 BOOT_READY_TIMEOUT_SECONDS=45
 KEY_DELAY_SECONDS=0.12
@@ -173,28 +174,51 @@ function TailFromOffset() {
 
 function MonitorCommand() {
     local Cmd="$1"
+    local MaxAttempts="${2:-$MONITOR_CONNECT_MAX_ATTEMPTS}"
+    local Quiet="${3:-0}"
+    local Attempt=0
+    local Delay=0.05
 
-    if ! exec 3<>"/dev/tcp/$MONITOR_HOST/$MONITOR_PORT"; then
-        echo "Failed to connect to QEMU monitor at $MONITOR_HOST:$MONITOR_PORT"
-        return 1
+    while [ "$Attempt" -lt "$MaxAttempts" ]; do
+        if exec 3<>"/dev/tcp/$MONITOR_HOST/$MONITOR_PORT" 2>/dev/null; then
+            printf "%s\r\n" "$Cmd" >&3
+            exec 3<&-
+            exec 3>&-
+            return 0
+        fi
+
+        Attempt=$((Attempt + 1))
+        if [ "$Attempt" -ge 10 ] && [ "$Attempt" -lt 30 ]; then
+            Delay=0.1
+        elif [ "$Attempt" -ge 30 ]; then
+            Delay=0.2
+        fi
+        sleep "$Delay"
+    done
+
+    if [ "$Quiet" != "1" ]; then
+        echo "Failed to connect to QEMU monitor at $MONITOR_HOST:$MONITOR_PORT after $MaxAttempts attempts"
     fi
-
-    printf "%s\r\n" "$Cmd" >&3
-    exec 3<&-
-    exec 3>&-
+    return 1
 }
 
 function WaitForMonitor() {
     local Index=0
+    local Delay=0.05
 
-    while [ "$Index" -lt 50 ]; do
+    while [ "$Index" -lt "$MONITOR_CONNECT_MAX_ATTEMPTS" ]; do
         if exec 3<>"/dev/tcp/$MONITOR_HOST/$MONITOR_PORT"; then
             exec 3<&-
             exec 3>&-
             return 0
         fi
         Index=$((Index + 1))
-        sleep 0.2
+        if [ "$Index" -ge 10 ] && [ "$Index" -lt 30 ]; then
+            Delay=0.1
+        elif [ "$Index" -ge 30 ]; then
+            Delay=0.2
+        fi
+        sleep "$Delay"
     done
 
     return 1
@@ -261,6 +285,12 @@ function WaitForExpectedLog() {
             return 1
         fi
 
+        if TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" >/dev/null; then
+            echo "Kernel error detected in log."
+            TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" || true
+            return 1
+        fi
+
         if [ -n "$Expected" ] && TailFromOffset "$Offset" | SearchFixed "$Expected" >/dev/null; then
             return 0
         fi
@@ -286,15 +316,11 @@ function AssertNoFailures() {
         TailFromOffset "$Offset" | SearchRegex "$TEST_KO_PATTERN" || true
         return 1
     fi
-}
-
-function WarnLogErrors() {
-    local Offset="$1"
-    local ContextLabel="${2:-run}"
 
     if TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" >/dev/null; then
-        echo "WARNING: kernel errors detected in $ContextLabel:"
+        echo "Kernel error detected in kernel log."
         TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" || true
+        return 1
     fi
 }
 
@@ -332,12 +358,11 @@ function RunCommandList() {
         WaitForExpectedLog "$ExpectedText" "$Offset"
         sleep 0.2
         AssertNoFailures "$Offset"
-        WarnLogErrors "$Offset" "command '$CommandText'"
     done < "$COMMANDS_FILE"
 }
 
 function StopQemu() {
-    MonitorCommand "quit" || true
+    MonitorCommand "quit" 1 1 || true
 }
 
 function RunArchitecture() {
@@ -368,10 +393,8 @@ function RunArchitecture() {
     sleep "$BOOT_INPUT_DELAY_SECONDS"
     AssertNoFailures 0
     WaitForExpectedLog "$BOOT_READY_PATTERN" 0 "$BOOT_READY_TIMEOUT_SECONDS"
-    WarnLogErrors 0 "boot phase"
     RunCommandList
     AssertNoFailures 0
-    WarnLogErrors 0 "$Name full run"
     StopQemu
 
     wait "$QemuPid" || true
