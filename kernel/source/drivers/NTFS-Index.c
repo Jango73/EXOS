@@ -445,15 +445,49 @@ static BOOL NtfsTraverseIndexHeader(
     U32 PendingCapacity) {
     U32 EntryOffset;
     U32 EntrySize;
+    U32 AllocatedEntrySize;
     U32 Cursor;
 
     if (Context == NULL || Header == NULL || PendingCountInOut == NULL) return FALSE;
     if (HeaderRegionSize < sizeof(NTFS_INDEX_HEADER)) return FALSE;
 
-    EntryOffset = Header->EntryOffset;
-    EntrySize = Header->EntrySize;
-    if (EntryOffset > HeaderRegionSize || EntrySize > (HeaderRegionSize - EntryOffset)) {
-        WARNING(TEXT("[NtfsTraverseIndexHeader] Invalid index header bounds"));
+    EntryOffset = NtfsLoadU32((const U8*)Header);
+    EntrySize = NtfsLoadU32(((const U8*)Header) + 4);
+    AllocatedEntrySize = NtfsLoadU32(((const U8*)Header) + 8);
+
+    if (EntryOffset > HeaderRegionSize) {
+        // Some volumes expose entry offsets relative to the INDX record start.
+        if (EntryOffset >= 24 && (EntryOffset - 24) <= HeaderRegionSize) {
+            EntryOffset -= 24;
+        } else {
+            WARNING(TEXT("[NtfsTraverseIndexHeader] Invalid entry offset (offset=%u, region=%u)"),
+                    EntryOffset,
+                    HeaderRegionSize);
+            return FALSE;
+        }
+    }
+
+    if (EntrySize > (HeaderRegionSize - EntryOffset)) {
+        if (EntrySize >= EntryOffset && EntrySize <= HeaderRegionSize) {
+            // Some NTFS index headers encode EntrySize as an absolute end offset
+            // from the beginning of the header region.
+            EntrySize -= EntryOffset;
+        } else
+        if (AllocatedEntrySize != 0 &&
+            AllocatedEntrySize <= (HeaderRegionSize - EntryOffset) &&
+            EntrySize > AllocatedEntrySize) {
+            EntrySize = AllocatedEntrySize;
+        } else {
+            WARNING(TEXT("[NtfsTraverseIndexHeader] Clamping entry size (size=%u, offset=%u, region=%u)"),
+                    EntrySize,
+                    EntryOffset,
+                    HeaderRegionSize);
+            EntrySize = HeaderRegionSize - EntryOffset;
+        }
+    }
+
+    if (EntrySize < 16) {
+        WARNING(TEXT("[NtfsTraverseIndexHeader] Invalid entry size after normalization (%u)"), EntrySize);
         return FALSE;
     }
 
