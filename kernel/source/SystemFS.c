@@ -325,8 +325,7 @@ static BOOL ResolvePath(LPCSTR Path, LPSYSTEMFSFILE *Node, STR Remaining[MAX_PAT
                         StringConcat(Remaining, Sep);
                     }
                 } else {
-                    Remaining[0] = PATH_SEP;
-                    Remaining[1] = STR_NULL;
+                    Remaining[0] = STR_NULL;
                 }
 
                 for (; It; It = It->Next) {

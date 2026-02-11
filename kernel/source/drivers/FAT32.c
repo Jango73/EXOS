@@ -933,6 +933,7 @@ static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
     STR Component[MAX_FILE_NAME];
     STR Name[MAX_FILE_NAME];
     LPFATDIRENTRY_EXT DirEntry;
+    BOOL NamesMatch;
     U32 PathIndex = 0;
     U32 CompIndex = 0;
 
@@ -987,7 +988,10 @@ static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
                 (DirEntry->Name[0] != 0xE5)) {
                 DecodeFileName(DirEntry, Name);
 
-                if (StringCompare(Component, TEXT("*")) == 0 || STRINGS_EQUAL(Component, Name)) {
+                NamesMatch = (StringCompare(Component, TEXT("*")) == 0) || STRINGS_EQUAL(Component, Name) ||
+                             (StringCompareNC(Component, Name) == 0);
+
+                if (NamesMatch) {
                     if (Path[PathIndex] == STR_NULL) {
                         FileLoc->DataCluster = (((U32)DirEntry->ClusterLow) | (((U32)DirEntry->ClusterHigh) << 16));
 
