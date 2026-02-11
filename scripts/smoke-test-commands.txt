@@ -14,3 +14,4 @@ command: "type /fs/hd1p0/read.txt" | log: "TEST > [CMD_type] type /fs/hd1p0/read
 command: "copy /fs/hd1p0/read.txt /fs/hd1p0/write.txt" | log: "TEST > [CMD_copy] copy /fs/hd1p0/read.txt /fs/hd1p0/write.txt : OK"
 command: "type /fs/hd1p0/write.txt" | log: "TEST > [CMD_type] type /fs/hd1p0/write.txt : OK"
 command: "/system/apps/netget --smoke-local /temp/index.html" | log: "TEST > [Spawn] Executable finished normally : /system/apps/netget" | file-size-compare: "scripts/net/www/index.html" "/exos/temp/index.html"
+command: "shutdown"

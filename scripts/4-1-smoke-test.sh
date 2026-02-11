@@ -25,7 +25,6 @@ BOOT_INPUT_DELAY_SECONDS=1.0
 TEST_KEYBOARD_LAYOUT="en-US"
 LOCAL_HTTP_SERVER_PID=""
 BOOT_READY_PATTERN="[InitializeKernel] Shell task created"
-MONITOR_FD_OPEN=0
 
 FAULT_PATTERN="#PF|#GP|#UD|#SS|#NP|#TS|#DE|#DF|#MF|#AC|#MC"
 TEST_KO_PATTERN="TEST > .* : KO"
@@ -304,7 +303,7 @@ function TailFromOffset() {
 
 function MonitorCommand() {
     # Send one command to QEMU monitor (telnet) with retry/backoff.
-    # Reuses a persistent socket to avoid reconnecting per key event.
+    # Uses a short-lived socket per command for robustness.
     local Cmd="$1"
     local MaxAttempts="${2:-$MONITOR_CONNECT_MAX_ATTEMPTS}"
     local Quiet="${3:-0}"
@@ -312,29 +311,14 @@ function MonitorCommand() {
     local Delay=0.05
 
     while [ "$Attempt" -lt "$MaxAttempts" ]; do
-        if [ "$MONITOR_FD_OPEN" -eq 0 ]; then
-            if ! exec 3<>"/dev/tcp/$MONITOR_HOST/$MONITOR_PORT" 2>/dev/null; then
-                Attempt=$((Attempt + 1))
-                if [ "$Attempt" -ge 10 ] && [ "$Attempt" -lt 30 ]; then
-                    Delay=0.1
-                elif [ "$Attempt" -ge 30 ]; then
-                    Delay=0.2
-                fi
-                sleep "$Delay"
-                continue
-            fi
-            MONITOR_FD_OPEN=1
-        fi
-
-        if printf "%s\r\n" "$Cmd" >&3 2>/dev/null; then
+        if exec 3<>"/dev/tcp/$MONITOR_HOST/$MONITOR_PORT" 2>/dev/null && printf "%s\r\n" "$Cmd" >&3 2>/dev/null; then
+            exec 3<&- || true
+            exec 3>&- || true
             return 0
         fi
 
-        # Connection dropped by QEMU: close and retry with a new socket.
         exec 3<&- || true
         exec 3>&- || true
-        MONITOR_FD_OPEN=0
-
         Attempt=$((Attempt + 1))
         if [ "$Attempt" -ge 10 ] && [ "$Attempt" -lt 30 ]; then
             Delay=0.1
@@ -571,7 +555,11 @@ function RunCommandSpec() {
     echo "Running command: $CommandText"
     Offset="$(GetLogSize)"
     SendCommand "$CommandText"
-    WaitForExpectedLog "$ExpectedText" "$Offset" "$TimeoutSeconds"
+    if [ -n "$ExpectedText" ]; then
+        WaitForExpectedLog "$ExpectedText" "$Offset" "$TimeoutSeconds"
+    else
+        sleep 0.5
+    fi
     sleep 0.2
     AssertNoFailures "$Offset"
     if [ -n "$CompareSource" ] || [ -n "$CompareDownloaded" ]; then
@@ -581,7 +569,7 @@ function RunCommandSpec() {
 
 function RunCommandList() {
     # Command file grammar (one spec per line):
-    # command: "..." | log: "..." | file-size-compare: "host/path" "/guest/path"
+    # command: "..." | [log: "..."] | [file-size-compare: "host/path" "/guest/path"]
     local Line
     local Part
     local CommandText=""
@@ -622,8 +610,8 @@ function RunCommandList() {
             fi
         done < <(echo "$Line" | tr '|' '\n')
 
-        if [ -z "$CommandText" ] || [ -z "$ExpectedText" ]; then
-            echo "Invalid command spec, missing command or log: $Line"
+        if [ -z "$CommandText" ]; then
+            echo "Invalid command spec, missing command: $Line"
             exit 1
         fi
 
@@ -633,11 +621,8 @@ function RunCommandList() {
 
 function StopQemu() {
     MonitorCommand "quit" 1 1 || true
-    if [ "$MONITOR_FD_OPEN" -eq 1 ]; then
-        exec 3<&- || true
-        exec 3>&- || true
-        MONITOR_FD_OPEN=0
-    fi
+    exec 3<&- || true
+    exec 3>&- || true
 }
 
 function RunArchitecture() {
@@ -664,9 +649,12 @@ function RunArchitecture() {
     SetImageKeyboardLayout "$CURRENT_IMAGE_PATH" "$CURRENT_FS_OFFSET" "$TEST_KEYBOARD_LAYOUT"
     : > "$LOG_FILE"
 
+    local ShutdownWaitStart
+    local ShutdownWaitTimeout=20
+
     bash -c "cd \"$ROOT_DIR\" && $QemuScript" &
     local QemuPid=$!
-    trap 'StopQemu || true; if kill -0 "$QemuPid" 2>/dev/null; then kill "$QemuPid" || true; fi' RETURN
+    trap 'if kill -0 "$QemuPid" 2>/dev/null; then kill "$QemuPid" || true; fi' RETURN
 
     if ! WaitForMonitor; then
         echo "QEMU monitor did not start."
@@ -680,7 +668,16 @@ function RunArchitecture() {
     WaitForExpectedLog "$BOOT_READY_PATTERN" 0 "$BOOT_READY_TIMEOUT_SECONDS"
     RunCommandList
     AssertNoFailures 0
-    StopQemu
+
+    ShutdownWaitStart="$SECONDS"
+    while kill -0 "$QemuPid" 2>/dev/null; do
+        if [ $((SECONDS - ShutdownWaitStart)) -ge "$ShutdownWaitTimeout" ]; then
+            echo "Timed out waiting for QEMU shutdown from shell command."
+            kill "$QemuPid" || true
+            exit 1
+        fi
+        sleep 0.2
+    done
 
     wait "$QemuPid" || true
 }
