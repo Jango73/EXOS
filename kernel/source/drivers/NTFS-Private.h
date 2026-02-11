@@ -56,6 +56,18 @@
 #define NTFS_FILE_NAME_NAMESPACE_WIN32 1
 #define NTFS_FILE_NAME_NAMESPACE_DOS 2
 #define NTFS_FILE_NAME_NAMESPACE_WIN32_DOS 3
+#define NTFS_ROOT_FILE_RECORD_INDEX 5
+#define NTFS_PATH_LOOKUP_CACHE_SIZE 32
+
+/***************************************************************************/
+
+typedef struct tag_NTFS_PATH_LOOKUP_CACHE_ENTRY {
+    BOOL IsValid;
+    U32 ParentFolderIndex;
+    U32 ChildFileRecordIndex;
+    BOOL ChildIsFolder;
+    STR Name[MAX_FILE_NAME];
+} NTFS_PATH_LOOKUP_CACHE_ENTRY, *LPNTFS_PATH_LOOKUP_CACHE_ENTRY;
 
 /***************************************************************************/
 
@@ -72,6 +84,8 @@ typedef struct tag_NTFSFILESYSTEM {
     U32 MftStartSector;
     U64 MftStartCluster;
     STR VolumeLabel[MAX_FS_LOGICAL_NAME];
+    U32 PathLookupCacheNextSlot;
+    NTFS_PATH_LOOKUP_CACHE_ENTRY PathLookupCache[NTFS_PATH_LOOKUP_CACHE_SIZE];
 } NTFSFILESYSTEM, *LPNTFSFILESYSTEM;
 
 /***************************************************************************/

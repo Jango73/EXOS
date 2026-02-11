@@ -766,6 +766,8 @@ BOOL MountPartition_NTFS(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
     FileSystem->MftStartSector = MftStartSector;
     FileSystem->MftStartCluster = MftStartCluster;
     StringClear(FileSystem->VolumeLabel);
+    FileSystem->PathLookupCacheNextSlot = 0;
+    MemorySet(FileSystem->PathLookupCache, 0, sizeof(FileSystem->PathLookupCache));
 
     ListAddItem(GetFileSystemList(), FileSystem);
 
@@ -820,4 +822,3 @@ BOOL NtfsGetVolumeGeometry(LPFILESYSTEM FileSystem, LPNTFS_VOLUME_GEOMETRY Geome
 
     return FALSE;
 }
-

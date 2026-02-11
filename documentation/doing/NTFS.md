@@ -54,11 +54,11 @@
 
 **Goal**: resolve paths to file records.
 
-- [ ] Root folder lookup using index entries.
-- [ ] Implement case-insensitive compare (ASCII first, then Unicode).
-- [ ] Cache recent folder lookups to reduce MFT reads.
+- [X] Root folder lookup using index entries.
+- [X] Implement case-insensitive compare (ASCII first, then Unicode).
+- [X] Cache recent folder lookups to reduce MFT reads.
 
-**Success**: `cat` on a path prints file contents.
+**Success**: `type` on a path prints file contents.
 
 ## Step 6 --- Integration with VFS (read-only)
 

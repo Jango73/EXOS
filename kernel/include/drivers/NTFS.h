@@ -257,6 +257,40 @@ BOOL NtfsReadFileDataByIndex(
 /***************************************************************************/
 
 /**
+ * @brief Resolve one NTFS path to a file-record index.
+ *
+ * Path separators '\' and '/' are both accepted.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param Path NTFS path to resolve.
+ * @param IndexOut Output resolved file-record index.
+ * @param IsFolderOut Optional output folder/file flag for resolved record.
+ * @return TRUE on success, FALSE when one component is missing or invalid.
+ */
+BOOL NtfsResolvePathToIndex(
+    LPFILESYSTEM FileSystem, LPCSTR Path, U32* IndexOut, BOOL* IsFolderOut);
+
+/***************************************************************************/
+
+/**
+ * @brief Read default DATA stream using a path lookup.
+ *
+ * This helper resolves Path through folder indexes, then delegates to
+ * NtfsReadFileDataByIndex for unnamed DATA stream reading.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param Path NTFS path to file.
+ * @param Buffer Destination buffer.
+ * @param BufferSize Destination buffer size in bytes.
+ * @param BytesReadOut Optional output for number of bytes copied to Buffer.
+ * @return TRUE on success, FALSE on lookup or read failure.
+ */
+BOOL NtfsReadFileDataByPath(
+    LPFILESYSTEM FileSystem, LPCSTR Path, LPVOID Buffer, U32 BufferSize, U32* BytesReadOut);
+
+/***************************************************************************/
+
+/**
  * @brief Enumerate one NTFS folder by file-record index.
  *
  * The function parses INDEX_ROOT and, when present, INDEX_ALLOCATION/BITMAP
