@@ -1282,6 +1282,56 @@ The shared cluster cache helper is implemented in `kernel/source/drivers/Cluster
 
 ### NTFS
 
+```
+                  ┌─────────────────────────────────────────┐
+                  │           NTFS BOOT SECTOR              │
+                  ├─────────────────────────────────────────┤
+                  │ BPB/EBPB                                │
+                  │ BytesPerSector, SectorsPerCluster       │
+                  │ MFT LCN, MFTMirr LCN, Record size       │
+                  └─────────────────────────────────────────┘
+                                   │
+               ┌───────────────────┴───────────────────┐
+               ▼                                       ▼
+┌──────────────────────────────────┐      ┌───────────────────────────┐
+│ $MFT (Master File Table)         │      │ $MFTMirr                  │
+│ record 0..N                      │      │ mirror of first records   │
+└──────────────────────────────────┘      └───────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│ FILE RECORD (typically 1024 bytes)                                  │
+├─────────────────────────────────────────────────────────────────────┤
+│ Header: "FILE", USA/Fixup array, sequence, flags, attr offsets      │
+│ Attributes (typed TLV chain):                                       │
+│ - STANDARD_INFORMATION                                              │
+│ - FILE_NAME (parent ref + UTF-16 name)                              │
+│ - DATA (resident or non-resident)                                   │
+│ - INDEX_ROOT / INDEX_ALLOCATION / BITMAP (folders)                  │
+│ - other metadata attributes                                         │
+└─────────────────────────────────────────────────────────────────────┘
+               │
+   ┌───────────┴───────────┐
+   ▼                       ▼
+┌───────────────────┐   ┌────────────────────────────────────────────┐
+│ Resident DATA     │   │ Non-resident DATA                          │
+│ bytes in record   │   │ Runlist: (VCN range -> LCN range)          │
+└───────────────────┘   │ sparse/compressed flags possible           │
+                        └────────────────────────────────────────────┘
+
+───────────────────────────────────────────────────────────────────────
+Folder indexing (B+tree-like)
+───────────────────────────────────────────────────────────────────────
+INDEX_ROOT (small entries in record)
+    └─ if overflow -> INDEX_ALLOCATION blocks + BITMAP allocation map
+         each index entry: filename key + file reference (MFT index)
+
+───────────────────────────────────────────────────────────────────────
+Core metadata files in MFT
+───────────────────────────────────────────────────────────────────────
+$MFT, $MFTMirr, $Bitmap, $LogFile, $Volume, $AttrDef, $UpCase, ...
+```
+
 The NTFS driver is split across dedicated modules under `kernel/source/drivers/`:
 `NTFS-Base.c`, `NTFS-Record.c`, `NTFS-Index.c`, `NTFS-Path.c`, `NTFS-VFS.c`, `NTFS-Time.c`, and `NTFS-Write.c`.
 
