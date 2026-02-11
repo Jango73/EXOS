@@ -64,11 +64,15 @@ Target naming examples:
 
 ## Validation Matrix
 - [ ] `x86-32 + mbr + debug + ext2`
+- [ ] `x86-32 + mbr + debug + fat32`
+- [ ] `x86-32 + mbr + release + ext2`
+- [ ] `x86-32 + mbr + release + fat32`
 - [ ] `x86-64 + mbr + debug + ext2`
+- [ ] `x86-64 + mbr + debug + fat32`
+- [ ] `x86-64 + mbr + release + ext2`
+- [ ] `x86-64 + mbr + release + fat32`
 - [ ] `x86-64 + uefi + debug + ext2`
 - [ ] `x86-64 + uefi + release + ext2`
-- [ ] `x86-32 + mbr + release + fat32`
-- [ ] `x86-64 + mbr + release + fat32`
 - [ ] `x86-64 + uefi + debug + ext2 + split`
 - [ ] `x86-64 + uefi + release + ext2 + split`
 
