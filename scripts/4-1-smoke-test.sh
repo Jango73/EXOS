@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_FILE="$ROOT_DIR/log/kernel.log"
-COMMANDS_FILE="$ROOT_DIR/scripts/test-commands.txt"
+COMMANDS_FILE="$ROOT_DIR/scripts/smoke-test-commands.txt"
 LOCAL_HTTP_SERVER_SCRIPT="$ROOT_DIR/scripts/net/start-server.sh"
 LOCAL_HTTP_SERVER_PORT="${LOCAL_HTTP_SERVER_PORT:-8081}"
 SKIP_LOCAL_HTTP_SERVER="${SKIP_LOCAL_HTTP_SERVER:-0}"
