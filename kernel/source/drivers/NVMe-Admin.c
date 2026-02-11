@@ -26,6 +26,84 @@
 /************************************************************************/
 
 /**
+ * @brief Free one queue buffer allocation.
+ *
+ * @param Queue Queue buffer descriptor.
+ */
+static void NVMeFreeQueueBuffer(LPNVME_QUEUE_BUFFER Queue) {
+    if (Queue == NULL) {
+        return;
+    }
+
+    if (Queue->Raw != NULL) {
+        KernelHeapFree(Queue->Raw);
+    }
+
+    Queue->Raw = NULL;
+    Queue->Base = 0;
+    Queue->Physical = 0;
+    Queue->Size = 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Allocate one aligned queue buffer and validate physical contiguity.
+ *
+ * @param Queue Queue descriptor output.
+ * @param QueueSize Requested queue size in bytes.
+ * @param QueueName Queue name used in logs.
+ * @return TRUE on success.
+ */
+static BOOL NVMeAllocateQueueBuffer(LPNVME_QUEUE_BUFFER Queue, U32 QueueSize, LPCSTR QueueName) {
+    if (Queue == NULL || QueueSize == 0) {
+        return FALSE;
+    }
+
+    U32 RawSize = QueueSize + NVME_ADMIN_QUEUE_ALIGNMENT;
+    Queue->Raw = KernelHeapAlloc(RawSize);
+    if (Queue->Raw == NULL) {
+        ERROR(TEXT("[NVMeAllocateQueueBuffer] KernelHeapAlloc failed for %s (raw_size=%u)"), QueueName, RawSize);
+        return FALSE;
+    }
+
+    LINEAR RawBase = (LINEAR)Queue->Raw;
+    Queue->Base = (LINEAR)((RawBase + (NVME_ADMIN_QUEUE_ALIGNMENT - 1)) &
+        ~(NVME_ADMIN_QUEUE_ALIGNMENT - 1));
+    Queue->Size = QueueSize;
+    MemorySet((LPVOID)Queue->Base, 0, Queue->Size);
+
+    Queue->Physical = MapLinearToPhysical(Queue->Base);
+    if (Queue->Physical == 0) {
+        ERROR(TEXT("[NVMeAllocateQueueBuffer] MapLinearToPhysical failed for %s base=%p"),
+              QueueName,
+              (LPVOID)Queue->Base);
+        NVMeFreeQueueBuffer(Queue);
+        return FALSE;
+    }
+
+    for (UINT Offset = 0; Offset < Queue->Size; Offset += N_4KB) {
+        LINEAR Linear = Queue->Base + (LINEAR)Offset;
+        PHYSICAL Physical = MapLinearToPhysical(Linear);
+        PHYSICAL Expected = Queue->Physical + (PHYSICAL)Offset;
+        if (Physical != Expected) {
+            ERROR(TEXT("[NVMeAllocateQueueBuffer] Non contiguous %s (base_pa=%p offset=%u pa=%p expected=%p)"),
+                  QueueName,
+                  (LPVOID)(LINEAR)Queue->Physical,
+                  Offset,
+                  (LPVOID)(LINEAR)Physical,
+                  (LPVOID)(LINEAR)Expected);
+            NVMeFreeQueueBuffer(Queue);
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Free admin queue memory.
  *
  * @param Device NVMe device.
@@ -35,14 +113,8 @@ void NVMeFreeAdminQueues(LPNVME_DEVICE Device) {
         return;
     }
 
-    if (Device->AdminQueueRaw != NULL) {
-        KernelHeapFree(Device->AdminQueueRaw);
-    }
-
-    Device->AdminQueueRaw = NULL;
-    Device->AdminQueueBase = 0;
-    Device->AdminQueuePhysical = 0;
-    Device->AdminQueueSize = 0;
+    NVMeFreeQueueBuffer(&Device->AdminSqBuffer);
+    NVMeFreeQueueBuffer(&Device->AdminCqBuffer);
     Device->AdminSqEntries = 0;
     Device->AdminCqEntries = 0;
     Device->AdminSq = NULL;
@@ -67,38 +139,19 @@ BOOL NVMeSetupAdminQueues(LPNVME_DEVICE Device) {
 
     U32 AdminSqSize = Device->AdminSqEntries * NVME_ADMIN_SQ_ENTRY_SIZE;
     U32 AdminCqSize = Device->AdminCqEntries * NVME_ADMIN_CQ_ENTRY_SIZE;
-    Device->AdminQueueSize = AdminSqSize + AdminCqSize;
 
-    U32 RawSize = Device->AdminQueueSize + NVME_ADMIN_QUEUE_ALIGNMENT;
-    Device->AdminQueueRaw = KernelHeapAlloc(RawSize);
-    if (Device->AdminQueueRaw == NULL) {
-        return FALSE;
-    }
-
-    LINEAR RawBase = (LINEAR)Device->AdminQueueRaw;
-    LINEAR AlignedBase = (LINEAR)((RawBase + (NVME_ADMIN_QUEUE_ALIGNMENT - 1)) &
-        ~(NVME_ADMIN_QUEUE_ALIGNMENT - 1));
-    Device->AdminQueueBase = AlignedBase;
-    MemorySet((LPVOID)Device->AdminQueueBase, 0, Device->AdminQueueSize);
-
-    PHYSICAL BasePhys = MapLinearToPhysical(Device->AdminQueueBase);
-    if (BasePhys == 0) {
+    if (NVMeAllocateQueueBuffer(&Device->AdminSqBuffer, AdminSqSize, "ASQ") == FALSE) {
         NVMeFreeAdminQueues(Device);
         return FALSE;
     }
 
-    for (UINT Offset = 0; Offset < Device->AdminQueueSize; Offset += N_4KB) {
-        LINEAR Linear = Device->AdminQueueBase + (LINEAR)Offset;
-        PHYSICAL Physical = MapLinearToPhysical(Linear);
-        if (Physical != (BasePhys + (PHYSICAL)Offset)) {
-            NVMeFreeAdminQueues(Device);
-            return FALSE;
-        }
+    if (NVMeAllocateQueueBuffer(&Device->AdminCqBuffer, AdminCqSize, "ACQ") == FALSE) {
+        NVMeFreeAdminQueues(Device);
+        return FALSE;
     }
 
-    Device->AdminQueuePhysical = BasePhys;
-    Device->AdminSq = (U8*)Device->AdminQueueBase;
-    Device->AdminCq = (U8*)(Device->AdminQueueBase + AdminSqSize);
+    Device->AdminSq = (U8*)Device->AdminSqBuffer.Base;
+    Device->AdminCq = (U8*)Device->AdminCqBuffer.Base;
     Device->AdminSqTail = 0;
     Device->AdminCqHead = 0;
     Device->AdminCqPhase = 1;

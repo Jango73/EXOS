@@ -102,16 +102,21 @@ typedef struct PACKED tag_NVME_COMPLETION {
     U16 Status;
 } NVME_COMPLETION, *LPNVME_COMPLETION;
 
+typedef struct tag_NVME_QUEUE_BUFFER {
+    LINEAR Base;
+    LPVOID Raw;
+    PHYSICAL Physical;
+    U32 Size;
+} NVME_QUEUE_BUFFER, *LPNVME_QUEUE_BUFFER;
+
 typedef struct tag_NVME_DEVICE {
     PCI_DEVICE_FIELDS
 
     LINEAR MmioBase;
     U32 MmioSize;
 
-    LINEAR AdminQueueBase;
-    LPVOID AdminQueueRaw;
-    PHYSICAL AdminQueuePhysical;
-    U32 AdminQueueSize;
+    NVME_QUEUE_BUFFER AdminSqBuffer;
+    NVME_QUEUE_BUFFER AdminCqBuffer;
     U32 AdminSqEntries;
     U32 AdminCqEntries;
     U8* AdminSq;

@@ -282,8 +282,8 @@ static LPPCI_DEVICE NVMeAttach(LPPCI_DEVICE PciDevice) {
     U32 AqaValue = ((Device->AdminCqEntries - 1) << 16) | (Device->AdminSqEntries - 1);
     Regs[NVME_REG_AQA / 4] = AqaValue;
 
-    PHYSICAL AsqPhys = Device->AdminQueuePhysical;
-    PHYSICAL AcqPhys = Device->AdminQueuePhysical + (PHYSICAL)(Device->AdminSqEntries * NVME_ADMIN_SQ_ENTRY_SIZE);
+    PHYSICAL AsqPhys = Device->AdminSqBuffer.Physical;
+    PHYSICAL AcqPhys = Device->AdminCqBuffer.Physical;
 
     U32 AsqLowNew = (U32)(AsqPhys & 0xFFFFFFFF);
     U32 AsqHighNew = 0;
