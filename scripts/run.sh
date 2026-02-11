@@ -2,7 +2,7 @@
 set -e
 
 function Usage() {
-    echo "Usage: $0 --arch <x86-32|x86-64> [--gdb] [--usb3|--no-usb3] [--uefi] [--nvme] [--nvme-size-mb N]"
+    echo "Usage: $0 --arch <x86-32|x86-64> [--gdb] [--usb3|--no-usb3] [--uefi] [--nvme]"
 }
 
 ARCH="x86-32"
@@ -10,7 +10,6 @@ USE_GDB=0
 USE_UEFI=0
 USB3_ENABLED=1
 NVME_ENABLED=1
-NVME_SIZE_MB="${NVME_SIZE_MB:-1024}"
 MONITOR_PORT="${MONITOR_PORT:-4444}"
 BOOT_MODE="mbr"
 BUILD_LOCK_DIR=""
@@ -67,10 +66,6 @@ while [ $# -gt 0 ]; do
         --nvme)
             NVME_ENABLED=1
             ;;
-        --nvme-size-mb)
-            shift
-            NVME_SIZE_MB="$1"
-            ;;
         --help|-h)
             Usage
             exit 0
@@ -89,8 +84,9 @@ case "$ARCH" in
         QEMU_BIN_DEFAULT="qemu-system-i386"
         IMG_PATH="build/x86-32/boot-hd/exos.img"
         USB_3_PATH="build/x86-32/boot-hd/usb-3.img"
-        NVME_IMG_PATH="build/x86-32/boot-hd/nvme.img"
-        NVME_UNSUPPORTED_IMG_PATH="build/x86-32/boot-hd/nvme-unsupported.img"
+        FS_TEST_EXT2_IMG_PATH="build/x86-32/boot-hd/fs-test-ext2.img"
+        FS_TEST_FAT32_IMG_PATH="build/x86-32/boot-hd/fs-test-fat32.img"
+        FS_TEST_NTFS_IMG_PATH="build/x86-32/boot-hd/fs-test-ntfs.img"
         CYCLE_BIN="build/x86-32/tools/cycle"
         DEBUG_ELF="build/x86-32/kernel/exos.elf"
         OVMF_CODE_CANDIDATES=(
@@ -108,8 +104,9 @@ case "$ARCH" in
         QEMU_BIN_DEFAULT="qemu-system-x86_64"
         IMG_PATH="build/x86-64/boot-hd/exos.img"
         USB_3_PATH="build/x86-64/boot-hd/usb-3.img"
-        NVME_IMG_PATH="build/x86-64/boot-hd/nvme.img"
-        NVME_UNSUPPORTED_IMG_PATH="build/x86-64/boot-hd/nvme-unsupported.img"
+        FS_TEST_EXT2_IMG_PATH="build/x86-64/boot-hd/fs-test-ext2.img"
+        FS_TEST_FAT32_IMG_PATH="build/x86-64/boot-hd/fs-test-fat32.img"
+        FS_TEST_NTFS_IMG_PATH="build/x86-64/boot-hd/fs-test-ntfs.img"
         CYCLE_BIN="build/x86-64/tools/cycle"
         DEBUG_ELF="build/x86-64/kernel/exos.elf"
         DEBUG_GDB="scripts/x86-64/debug.gdb"
@@ -168,24 +165,25 @@ function BuildUsbArguments() {
 function BuildNvmeArguments() {
     NVME_ARGUMENTS=()
     if [ "$NVME_ENABLED" -eq 1 ]; then
-        if [ -z "${NVME_IMG_PATH:-}" ]; then
-            echo "NVMe image path not set"
+        if [ -z "${FS_TEST_EXT2_IMG_PATH:-}" ] || [ -z "${FS_TEST_FAT32_IMG_PATH:-}" ] || [ -z "${FS_TEST_NTFS_IMG_PATH:-}" ]; then
+            echo "FS test image path not set"
             exit 1
         fi
-        if [ ! -f "$NVME_IMG_PATH" ]; then
-            mkdir -p "$(dirname "$NVME_IMG_PATH")"
-            dd if=/dev/zero of="$NVME_IMG_PATH" bs=1M count="$NVME_SIZE_MB" status=none
-        fi
-        if [ ! -f "$NVME_UNSUPPORTED_IMG_PATH" ]; then
-            echo "Image not found: $NVME_UNSUPPORTED_IMG_PATH"
+        if [ ! -f "$FS_TEST_EXT2_IMG_PATH" ] || [ ! -f "$FS_TEST_FAT32_IMG_PATH" ] || [ ! -f "$FS_TEST_NTFS_IMG_PATH" ]; then
+            echo "Missing one or more FS test images:"
+            echo "  $FS_TEST_EXT2_IMG_PATH"
+            echo "  $FS_TEST_FAT32_IMG_PATH"
+            echo "  $FS_TEST_NTFS_IMG_PATH"
             echo "Build it with: ./scripts/build.sh --arch $ARCH --fs ext2 --debug"
             exit 1
         fi
         NVME_ARGUMENTS=(
-            -drive format=raw,file="$NVME_IMG_PATH",if=none,id=nvme0
-            -device nvme,drive=nvme0,serial=exosnvme0
-            -drive format=raw,file="$NVME_UNSUPPORTED_IMG_PATH",if=none,id=nvme1
-            -device nvme,drive=nvme1,serial=exosnvme1
+            -drive format=raw,file="$FS_TEST_EXT2_IMG_PATH",if=none,id=fsxt0
+            -device nvme,drive=fsxt0,serial=exosfs0
+            -drive format=raw,file="$FS_TEST_FAT32_IMG_PATH",if=none,id=fsxt1
+            -device nvme,drive=fsxt1,serial=exosfs1
+            -drive format=raw,file="$FS_TEST_NTFS_IMG_PATH",if=none,id=fsxt2
+            -device nvme,drive=fsxt2,serial=exosfs2
         )
     fi
 }

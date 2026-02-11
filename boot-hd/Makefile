@@ -23,8 +23,7 @@ DEBUG_OUTPUT    ?= 0
 BOOT_STAGE_MARKERS ?= 0
 
 IMG_SIZE_MB     ?= 16
-NVME_IMG_SIZE_MB ?= 1024
-NVME_UNSUPPORTED_IMG_SIZE_MB ?= 64
+FS_TEST_IMG_SIZE_MB ?= 80
 FILE_SYSTEM     ?= ext2
 EXT2_BLOCK_SIZE ?= 4096
 KERNEL_FILE     ?= exos.bin
@@ -121,8 +120,11 @@ PAYLOAD_ELF     = $(BUILD_DIR)/boot-hd/vbr-payload.elf
 PAYLOAD_MAP     = $(BUILD_DIR)/boot-hd/vbr-payload.map
 FINAL_IMG       = $(BUILD_DIR)/boot-hd/exos.img
 USB3_IMG        = $(BUILD_DIR)/boot-hd/usb-3.img
-NVME_IMG        = $(BUILD_DIR)/boot-hd/nvme.img
-NVME_UNSUPPORTED_IMG = $(BUILD_DIR)/boot-hd/nvme-unsupported.img
+FS_TEST_EXT2_IMG= $(BUILD_DIR)/boot-hd/fs-test-ext2.img
+FS_TEST_FAT32_IMG= $(BUILD_DIR)/boot-hd/fs-test-fat32.img
+FS_TEST_NTFS_IMG= $(BUILD_DIR)/boot-hd/fs-test-ntfs.img
+NVME_IMG        = $(FS_TEST_EXT2_IMG)
+NVME_UNSUPPORTED_IMG = $(FS_TEST_NTFS_IMG)
 CYCLE_BIN       = $(BUILD_DIR)/tools/cycle
 KERNEL_BIN      = $(BUILD_DIR)/kernel/exos.bin
 PORTAL_ELF      = $(BUILD_DIR)/system/portal/portal
@@ -135,7 +137,10 @@ MASTER_ELF      = $(BUILD_DIR)/system/test/master/master
 SLAVE_ELF       = $(BUILD_DIR)/system/test/slave/slave
 EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/ext2-root
 USB3_STAGING_DIR= $(BUILD_DIR)/boot-hd/usb-3-root
-NVME_STAGING_DIR= $(BUILD_DIR)/boot-hd/nvme-root
+FS_TEST_EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/fs-test-ext2-root
+FS_TEST_READ_FILE= read.txt
+FS_TEST_EXT2_READ_MARKER=FS_TEST_EXT2_READ_OK
+FS_TEST_FAT32_READ_MARKER=FS_TEST_FAT32_READ_OK
 EXT2_LABEL      ?= exos
 CONFIG_TOML_NAME ?= exos.toml
 
@@ -195,6 +200,26 @@ define CREATE_EXT2_IMAGE_SIZE
 				exit 1; \
 			fi; \
 			mke2fs -F -t ext2 -b $(EXT2_BLOCK_SIZE) -q -L $(EXT2_LABEL) -E offset=$$PART_OFFSET $1; \
+		}; \
+	fi
+endef
+
+define CREATE_FAT32_IMAGE_SIZE
+	@if [ -f $1 ]; then \
+		echo "Skipping creation of $1 (already exists)."; \
+	else \
+		echo "Creating $2MiB image with partition table and FAT32 partition..."; \
+		dd if=/dev/zero of=$1 bs=1M count=$2; \
+		parted -s $1 mklabel msdos; \
+		parted -s $1 mkpart primary fat32 2048s 100%; \
+		parted -s $1 set 1 boot on; \
+		{ \
+			PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
+			if [ -z "$$PART_OFFSET" ] || [ "$$PART_OFFSET" = "0" ]; then \
+				echo "ERROR: Partition not found, or PART_OFFSET is zero. Aborting."; \
+				exit 1; \
+			fi; \
+			MTOOLS_SKIP_CHECK=1 mformat -i $1@@$$PART_OFFSET -v EXOS -F -R $(RESERVED_SECTORS) ::; \
 		}; \
 	fi
 endef
@@ -259,12 +284,13 @@ endef
 # Default: build tools, ensure images exist (create once), then update contents
 all: check_tools normalize-partition-flags update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
 
-normalize-partition-flags: $(FINAL_IMG) $(USB3_IMG) $(NVME_IMG) $(NVME_UNSUPPORTED_IMG)
+normalize-partition-flags: $(FINAL_IMG) $(USB3_IMG) $(FS_TEST_EXT2_IMG) $(FS_TEST_FAT32_IMG) $(FS_TEST_NTFS_IMG)
 	@echo "Normalizing partition active flags..."
 	@if [ -f "$(FINAL_IMG)" ]; then parted -s "$(FINAL_IMG)" set 1 boot on; fi
 	@if [ -f "$(USB3_IMG)" ]; then parted -s "$(USB3_IMG)" set 1 boot off; fi
-	@if [ -f "$(NVME_IMG)" ]; then parted -s "$(NVME_IMG)" set 1 boot off; fi
-	@if [ -f "$(NVME_UNSUPPORTED_IMG)" ]; then parted -s "$(NVME_UNSUPPORTED_IMG)" set 1 boot off; fi
+	@if [ -f "$(FS_TEST_EXT2_IMG)" ]; then parted -s "$(FS_TEST_EXT2_IMG)" set 1 boot off; fi
+	@if [ -f "$(FS_TEST_FAT32_IMG)" ]; then parted -s "$(FS_TEST_FAT32_IMG)" set 1 boot off; fi
+	@if [ -f "$(FS_TEST_NTFS_IMG)" ]; then parted -s "$(FS_TEST_NTFS_IMG)" set 1 boot off; fi
 
 check_tools:
 	@command -v $(NASM) >/dev/null 2>&1 || { echo "$(NASM) is not installed. Please run: sudo apt install nasm"; exit 1; }
@@ -353,23 +379,32 @@ $(FINAL_IMG): $(FINAL_IMG_DEPS)
 	@mkdir -p $(dir $@)
 	$(call $(CREATE_IMAGE_MACRO),$@)
 
-$(NVME_IMG): check_tools $(HELLO_ELF)
+$(FS_TEST_EXT2_IMG): check_tools
 	@mkdir -p $(dir $@)
-	$(call CREATE_EXT2_IMAGE_SIZE,$@,$(NVME_IMG_SIZE_MB))
+	$(call CREATE_EXT2_IMAGE_SIZE,$@,$(FS_TEST_IMG_SIZE_MB))
 	@parted -s $@ set 1 boot off
-	@echo "Preparing NVMe staging directory at $(NVME_STAGING_DIR)"
-	@rm -rf $(NVME_STAGING_DIR)
-	@mkdir -p $(NVME_STAGING_DIR)
-	@cp $(HELLO_ELF) $(NVME_STAGING_DIR)/hello
-	$(call POPULATE_EXT2_IMAGE,$(NVME_IMG),$(NVME_STAGING_DIR))
+	@echo "Preparing EXT2 smoke-test staging directory at $(FS_TEST_EXT2_STAGING_DIR)"
+	@rm -rf $(FS_TEST_EXT2_STAGING_DIR)
+	@mkdir -p $(FS_TEST_EXT2_STAGING_DIR)
+	@printf '%s\n' "$(FS_TEST_EXT2_READ_MARKER)" > $(FS_TEST_EXT2_STAGING_DIR)/$(FS_TEST_READ_FILE)
+	$(call POPULATE_EXT2_IMAGE,$(FS_TEST_EXT2_IMG),$(FS_TEST_EXT2_STAGING_DIR))
 
-$(NVME_UNSUPPORTED_IMG): check_tools
+$(FS_TEST_FAT32_IMG): check_tools
+	@mkdir -p $(dir $@)
+	$(call CREATE_FAT32_IMAGE_SIZE,$@,$(FS_TEST_IMG_SIZE_MB))
+	@parted -s $@ set 1 boot off
+	@printf '%s\n' "$(FS_TEST_FAT32_READ_MARKER)" > $(BUILD_DIR)/boot-hd/fs-test-fat32-read.txt
+	$(call MTOOLS_OPERATION,$(FS_TEST_FAT32_IMG),Injecting FAT32 smoke marker,\
+		MTOOLSRC=$(MTOOLS_CONF) mcopy -o $(BUILD_DIR)/boot-hd/fs-test-fat32-read.txt z:/$(FS_TEST_READ_FILE),\
+		FAT32 smoke marker injected.)
+
+$(FS_TEST_NTFS_IMG): check_tools
 	@mkdir -p $(dir $@)
 	@if [ -f $@ ]; then \
 		echo "Skipping creation of $@ (already exists)."; \
 	else \
-		echo "Creating $(NVME_UNSUPPORTED_IMG_SIZE_MB)MiB NVMe image with real NTFS partition..."; \
-		dd if=/dev/zero of=$@ bs=1M count=$(NVME_UNSUPPORTED_IMG_SIZE_MB); \
+		echo "Creating $(FS_TEST_IMG_SIZE_MB)MiB image with real NTFS partition..."; \
+		dd if=/dev/zero of=$@ bs=1M count=$(FS_TEST_IMG_SIZE_MB); \
 		parted -s $@ mklabel msdos; \
 		parted -s $@ mkpart primary ntfs 2048s 100%; \
 		parted -s $@ set 1 boot off; \
@@ -377,10 +412,12 @@ $(NVME_UNSUPPORTED_IMG): check_tools
 			PART_START=$$(parted -ms $@ unit s print | awk -F: '$$1=="1"{gsub("s","",$$2); print $$2}'); \
 			PART_END=$$(parted -ms $@ unit s print | awk -F: '$$1=="1"{gsub("s","",$$3); print $$3}'); \
 			PART_SECTORS=$$((PART_END - PART_START + 1)); \
-			TMP_NTFS="$(BUILD_DIR)/boot-hd/nvme-unsupported-partition-$(ARCH).img"; \
+			TMP_NTFS="$(BUILD_DIR)/boot-hd/fs-test-ntfs-partition-$(ARCH).img"; \
 			rm -f "$$TMP_NTFS"; \
 			dd if=/dev/zero of="$$TMP_NTFS" bs=512 count="$$PART_SECTORS"; \
 			mkfs.ntfs -F -Q -L EXOS_NTFS "$$TMP_NTFS" >/dev/null; \
+			printf '%s\n' "FS_TEST_NTFS_READ_OK" > "$(BUILD_DIR)/boot-hd/fs-test-ntfs-read.txt"; \
+			ntfscp -q -f "$$TMP_NTFS" "$(BUILD_DIR)/boot-hd/fs-test-ntfs-read.txt" "/$(FS_TEST_READ_FILE)"; \
 			dd if="$$TMP_NTFS" of=$@ bs=512 seek="$$PART_START" conv=notrunc; \
 			rm -f "$$TMP_NTFS"; \
 		else \

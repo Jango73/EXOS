@@ -6,10 +6,7 @@ LOG_FILE="$ROOT_DIR/log/kernel.log"
 COMMANDS_FILE="$ROOT_DIR/scripts/test-commands.txt"
 LOCAL_HTTP_SERVER_SCRIPT="$ROOT_DIR/scripts/net/start-server.sh"
 LOCAL_HTTP_SERVER_PORT="${LOCAL_HTTP_SERVER_PORT:-8081}"
-CONFIG_FILES=(
-    "$ROOT_DIR/kernel/configuration/exos.ext2.toml"
-    "$ROOT_DIR/kernel/configuration/exos.fat32.toml"
-)
+SKIP_LOCAL_HTTP_SERVER="${SKIP_LOCAL_HTTP_SERVER:-0}"
 MONITOR_HOST="127.0.0.1"
 MONITOR_PORT="${MONITOR_PORT:-4444}"
 MONITOR_CONNECT_MAX_ATTEMPTS=50
@@ -19,7 +16,6 @@ KEY_DELAY_SECONDS=0.12
 COMMAND_DELAY_SECONDS=0.25
 BOOT_INPUT_DELAY_SECONDS=1.0
 TEST_KEYBOARD_LAYOUT="en-US"
-CONFIG_BACKUP_DIR=""
 LOCAL_HTTP_SERVER_PID=""
 BOOT_READY_PATTERN="[InitializeKernel] Shell task created"
 
@@ -32,11 +28,12 @@ GREP_BIN="$(command -v grep || true)"
 RUN_X86_32=1
 RUN_X86_64=1
 RUN_X86_64_UEFI=1
+SKIP_BUILD=0
 CURRENT_IMAGE_PATH=""
 CURRENT_FS_OFFSET=0
 
 function Usage() {
-    echo "Usage: $0 [--only <x86-32|x86-64|x86-64-uefi>] [--help]"
+    echo "Usage: $0 [--only <x86-32|x86-64|x86-64-uefi>] [--no-build] [--help]"
 }
 
 while [ $# -gt 0 ]; do
@@ -66,6 +63,9 @@ while [ $# -gt 0 ]; do
             Usage
             exit 0
             ;;
+        --no-build)
+            SKIP_BUILD=1
+            ;;
         *)
             echo "Unknown option: $1"
             Usage
@@ -81,6 +81,10 @@ if [ -z "$GREP_BIN" ]; then
 fi
 if ! command -v debugfs >/dev/null 2>&1; then
     echo "Missing debugfs. Aborting."
+    exit 1
+fi
+if ! command -v mdir >/dev/null 2>&1; then
+    echo "Missing mtools (mdir). Aborting."
     exit 1
 fi
 
@@ -107,74 +111,105 @@ function Trim() {
     echo "$Value"
 }
 
-function ForceTestKeyboardLayout() {
-    CONFIG_BACKUP_DIR="$(mktemp -d)"
+function SetImageKeyboardLayout() {
+    local ImagePath="$1"
+    local FileSystemOffset="$2"
+    local Layout="$3"
+    local PartitionImage
+    local ConfigFile
+    local PatchedConfigFile
+    local OffsetMegabytes
+    local OffsetRemainder
 
-    for ConfigPath in "${CONFIG_FILES[@]}"; do
-        if [ ! -f "$ConfigPath" ]; then
-            continue
-        fi
-
-        cp "$ConfigPath" "$CONFIG_BACKUP_DIR/$(basename "$ConfigPath")"
-
-        awk -v layout="$TEST_KEYBOARD_LAYOUT" '
-        BEGIN {
-            in_keyboard = 0;
-            layout_set = 0;
-        }
-        {
-            if ($0 ~ /^\[Keyboard\]/) {
-                in_keyboard = 1;
-                print $0;
-                next;
-            }
-
-            if ($0 ~ /^\[/ && in_keyboard == 1) {
-                if (layout_set == 0) {
-                    print "Layout=\"" layout "\"";
-                    layout_set = 1;
-                }
-                in_keyboard = 0;
-                print $0;
-                next;
-            }
-
-            if (in_keyboard == 1 && $0 ~ /^Layout[[:space:]]*=/) {
-                if (layout_set == 0) {
-                    print "Layout=\"" layout "\"";
-                    layout_set = 1;
-                }
-                next;
-            }
-
-            print $0;
-        }
-        END {
-            if (in_keyboard == 1 && layout_set == 0) {
-                print "Layout=\"" layout "\"";
-            }
-        }
-    ' "$ConfigPath" > "$ConfigPath.tmp"
-
-        mv "$ConfigPath.tmp" "$ConfigPath"
-    done
-}
-
-function RestoreConfigFile() {
-    if [ -n "$CONFIG_BACKUP_DIR" ] && [ -d "$CONFIG_BACKUP_DIR" ]; then
-        for ConfigPath in "${CONFIG_FILES[@]}"; do
-            local BackupPath="$CONFIG_BACKUP_DIR/$(basename "$ConfigPath")"
-            if [ -f "$BackupPath" ] && [ -f "$ConfigPath" ]; then
-                cp "$BackupPath" "$ConfigPath"
-            fi
-        done
-        rm -rf "$CONFIG_BACKUP_DIR"
-        CONFIG_BACKUP_DIR=""
+    if [ ! -f "$ImagePath" ]; then
+        echo "Image not found for keyboard layout patch: $ImagePath"
+        return 1
     fi
+
+    PartitionImage="$(mktemp)"
+    ConfigFile="$(mktemp)"
+    PatchedConfigFile="$(mktemp)"
+
+    OffsetMegabytes=$((FileSystemOffset / 1048576))
+    OffsetRemainder=$((FileSystemOffset % 1048576))
+    if [ "$OffsetRemainder" -eq 0 ]; then
+        dd if="$ImagePath" of="$PartitionImage" bs=1M skip="$OffsetMegabytes" status=none
+    else
+        dd if="$ImagePath" of="$PartitionImage" bs=1 skip="$FileSystemOffset" status=none
+    fi
+    if ! debugfs -R "cat /exos.toml" "$PartitionImage" > "$ConfigFile" 2>/dev/null; then
+        rm -f "$PartitionImage" "$ConfigFile" "$PatchedConfigFile"
+        echo "Could not read /exos.toml from image: $ImagePath"
+        return 1
+    fi
+
+    awk -v layout="$Layout" '
+    BEGIN {
+        in_keyboard = 0;
+        layout_set = 0;
+    }
+    {
+        if ($0 ~ /^\[Keyboard\]/) {
+            in_keyboard = 1;
+            print $0;
+            next;
+        }
+
+        if ($0 ~ /^\[/ && in_keyboard == 1) {
+            if (layout_set == 0) {
+                print "Layout=\"" layout "\"";
+                layout_set = 1;
+            }
+            in_keyboard = 0;
+            print $0;
+            next;
+        }
+
+        if (in_keyboard == 1 && $0 ~ /^Layout[[:space:]]*=/) {
+            if (layout_set == 0) {
+                print "Layout=\"" layout "\"";
+                layout_set = 1;
+            }
+            next;
+        }
+
+        print $0;
+    }
+    END {
+        if (in_keyboard == 1 && layout_set == 0) {
+            print "Layout=\"" layout "\"";
+        }
+    }
+    ' "$ConfigFile" > "$PatchedConfigFile"
+
+    debugfs -w -R "rm /exos.toml" "$PartitionImage" >/dev/null 2>&1 || true
+    if ! debugfs -w -R "write $PatchedConfigFile /exos.toml" "$PartitionImage" >/dev/null 2>&1; then
+        rm -f "$PartitionImage" "$ConfigFile" "$PatchedConfigFile"
+        echo "Could not write patched /exos.toml into image: $ImagePath"
+        return 1
+    fi
+
+    if [ "$OffsetRemainder" -eq 0 ]; then
+        dd if="$PartitionImage" of="$ImagePath" bs=1M seek="$OffsetMegabytes" conv=notrunc status=none
+    else
+        dd if="$PartitionImage" of="$ImagePath" bs=1 seek="$FileSystemOffset" conv=notrunc status=none
+    fi
+
+    if ! debugfs -R "cat /exos.toml" "$PartitionImage" 2>/dev/null | SearchRegex '^Layout="' >/dev/null; then
+        rm -f "$PartitionImage" "$ConfigFile" "$PatchedConfigFile"
+        echo "Keyboard layout verification failed for image: $ImagePath"
+        return 1
+    fi
+
+    rm -f "$PartitionImage" "$ConfigFile" "$PatchedConfigFile"
 }
 
 function EnsureLocalHttpServer() {
     local Index=0
+
+    if [ "$SKIP_LOCAL_HTTP_SERVER" = "1" ]; then
+        return 0
+    fi
 
     if [ ! -x "$LOCAL_HTTP_SERVER_SCRIPT" ]; then
         echo "Missing local HTTP server script: $LOCAL_HTTP_SERVER_SCRIPT"
@@ -203,6 +238,10 @@ function EnsureLocalHttpServer() {
 }
 
 function StopLocalHttpServer() {
+    if [ "$SKIP_LOCAL_HTTP_SERVER" = "1" ]; then
+        return 0
+    fi
+
     if [ -n "$LOCAL_HTTP_SERVER_PID" ] && kill -0 "$LOCAL_HTTP_SERVER_PID" 2>/dev/null; then
         kill "$LOCAL_HTTP_SERVER_PID" || true
     fi
@@ -281,7 +320,7 @@ function KeyForChar() {
         [A-Z]) echo "shift-${Char,,}" ;;
         [a-z0-9]) echo "$Char" ;;
         " ") echo "spc" ;;
-        "/") echo "kp_divide" ;;
+        "/") echo "slash" ;;
         "-") echo "minus" ;;
         ".") echo "dot" ;;
         ":") echo "shift-semicolon" ;;
@@ -297,9 +336,6 @@ function SendKey() {
         return 1
     fi
     MonitorCommand "sendkey $Key"
-    if [[ "$Key" == shift-* ]]; then
-        MonitorCommand "sendkey shift" 1 1 || true
-    fi
     sleep "$KEY_DELAY_SECONDS"
 }
 
@@ -435,6 +471,30 @@ function AssertDownloadedFileSize() {
     fi
 }
 
+function RunCommandSpec() {
+    local CommandText="$1"
+    local ExpectedText="$2"
+    local CompareSource="$3"
+    local CompareDownloaded="$4"
+    local TimeoutSeconds="${5:-$DEFAULT_TIMEOUT_SECONDS}"
+    local Offset
+
+    if [ -z "$CommandText" ]; then
+        echo "Invalid empty command in command specification."
+        return 1
+    fi
+
+    echo "Running command: $CommandText"
+    Offset="$(GetLogSize)"
+    SendCommand "$CommandText"
+    WaitForExpectedLog "$ExpectedText" "$Offset" "$TimeoutSeconds"
+    sleep 0.2
+    AssertNoFailures "$Offset"
+    if [ -n "$CompareSource" ] || [ -n "$CompareDownloaded" ]; then
+        AssertDownloadedFileSize "$Offset" "$CompareSource" "$CompareDownloaded"
+    fi
+}
+
 function RunCommandList() {
     local Line
     local Part
@@ -456,7 +516,6 @@ function RunCommandList() {
         if [[ "$Line" == \#* ]]; then
             continue
         fi
-
         CommandText=""
         ExpectedText=""
         CompareSource=""
@@ -482,16 +541,7 @@ function RunCommandList() {
             exit 1
         fi
 
-        echo "Running command: $CommandText"
-        local Offset
-        Offset="$(GetLogSize)"
-        SendCommand "$CommandText"
-        WaitForExpectedLog "$ExpectedText" "$Offset"
-        sleep 0.2
-        AssertNoFailures "$Offset"
-        if [ -n "$CompareSource" ] || [ -n "$CompareDownloaded" ]; then
-            AssertDownloadedFileSize "$Offset" "$CompareSource" "$CompareDownloaded"
-        fi
+        RunCommandSpec "$CommandText" "$ExpectedText" "$CompareSource" "$CompareDownloaded"
     done < "$COMMANDS_FILE"
 }
 
@@ -507,14 +557,19 @@ function RunArchitecture() {
     local ImageRelativePath="$5"
     local FileSystemOffset="$6"
 
-    echo "Building $Name..."
-    bash -c "cd \"$ROOT_DIR\" && $BuildScript"
+    if [ "$SKIP_BUILD" -eq 0 ]; then
+        echo "Building $Name..."
+        bash -c "cd \"$ROOT_DIR\" && $BuildScript"
+    else
+        echo "Skipping build for $Name (--no-build)"
+    fi
 
     echo "Starting QEMU for $Name..."
     mkdir -p "$ROOT_DIR/log"
     LOG_FILE="$ROOT_DIR/$KernelLogRelativePath"
     CURRENT_IMAGE_PATH="$ROOT_DIR/$ImageRelativePath"
     CURRENT_FS_OFFSET="$FileSystemOffset"
+    SetImageKeyboardLayout "$CURRENT_IMAGE_PATH" "$CURRENT_FS_OFFSET" "$TEST_KEYBOARD_LAYOUT"
     : > "$LOG_FILE"
 
     bash -c "cd \"$ROOT_DIR\" && $QemuScript" &
@@ -538,8 +593,7 @@ function RunArchitecture() {
     wait "$QemuPid" || true
 }
 
-trap 'RestoreConfigFile; StopLocalHttpServer' EXIT
-ForceTestKeyboardLayout
+trap 'StopLocalHttpServer' EXIT
 EnsureLocalHttpServer
 
 if [ "$RUN_X86_32" -eq 1 ]; then

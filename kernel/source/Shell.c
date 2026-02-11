@@ -1205,6 +1205,7 @@ static U32 CMD_cat(LPSHELLCONTEXT Context) {
     HANDLE Handle;
     U32 FileSize;
     U8* Buffer;
+    BOOL Success = FALSE;
 
     ParseNextCommandLineComponent(Context);
 
@@ -1235,6 +1236,7 @@ static U32 CMD_cat(LPSHELLCONTEXT Context) {
                         if (DoSystemCall(SYSCALL_ReadFile, SYSCALL_PARAM(&FileOperation))) {
                             Buffer[FileSize] = STR_NULL;
                             ConsolePrint((LPSTR)Buffer);
+                            Success = TRUE;
                         }
 
                         HeapFree(Buffer);
@@ -1243,6 +1245,12 @@ static U32 CMD_cat(LPSHELLCONTEXT Context) {
                 DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(Handle));
             }
         }
+    }
+
+    if (Success) {
+        TEST(TEXT("[CMD_type] type %s : OK"), FileName);
+    } else {
+        TEST(TEXT("[CMD_type] type : KO"));
     }
 
     return DF_RETURN_SUCCESS;
@@ -1261,6 +1269,8 @@ static U32 CMD_copy(LPSHELLCONTEXT Context) {
     U32 FileSize;
     U32 ByteCount;
     U32 Index;
+    U32 TotalCopied = 0;
+    BOOL Success = FALSE;
 
     ParseNextCommandLineComponent(Context);
     if (QualifyFileName(Context, Context->Command, SrcName) == 0) return DF_RETURN_SUCCESS;
@@ -1276,23 +1286,28 @@ static U32 CMD_copy(LPSHELLCONTEXT Context) {
     FileOpenInfo.Name = SrcName;
     FileOpenInfo.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
     SrcFile = DoSystemCall(SYSCALL_OpenFile, SYSCALL_PARAM(&FileOpenInfo));
-    if (SrcFile == NULL) return DF_RETURN_SUCCESS;
+    if (SrcFile == NULL) {
+        TEST(TEXT("[CMD_copy] copy %s %s : KO"), SrcName, DstName);
+        return DF_RETURN_SUCCESS;
+    }
 
     FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
     FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
     FileOpenInfo.Header.Flags = 0;
     FileOpenInfo.Name = DstName;
-    FileOpenInfo.Flags = FILE_OPEN_WRITE;
+    FileOpenInfo.Flags = FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
     DstFile = DoSystemCall(SYSCALL_OpenFile, SYSCALL_PARAM(&FileOpenInfo));
     if (DstFile == NULL) {
         DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(SrcFile));
+        TEST(TEXT("[CMD_copy] copy %s %s : KO"), SrcName, DstName);
         return DF_RETURN_SUCCESS;
     }
 
     FileSize = DoSystemCall(SYSCALL_GetFileSize, SYSCALL_PARAM(SrcFile));
-
     if (FileSize != 0) {
         for (Index = 0; Index < FileSize; Index += 1024) {
+            U32 ReadResult;
+            U32 WriteResult;
             ByteCount = 1024;
             if (Index + 1024 > FileSize) ByteCount = FileSize - Index;
 
@@ -1303,7 +1318,11 @@ static U32 CMD_copy(LPSHELLCONTEXT Context) {
             FileOperation.NumBytes = ByteCount;
             FileOperation.Buffer = Buffer;
 
-            if (ReadFile(&FileOperation) != ByteCount) break;
+            ReadResult = DoSystemCall(SYSCALL_ReadFile, SYSCALL_PARAM(&FileOperation));
+            if (ReadResult != ByteCount) {
+                DEBUG(TEXT("[CMD_copy] Read failed at %u (expected %u got %u)"), Index, ByteCount, ReadResult);
+                break;
+            }
 
             FileOperation.Header.Size = sizeof(FILEOPERATION);
             FileOperation.Header.Version = EXOS_ABI_VERSION;
@@ -1312,12 +1331,26 @@ static U32 CMD_copy(LPSHELLCONTEXT Context) {
             FileOperation.NumBytes = ByteCount;
             FileOperation.Buffer = Buffer;
 
-            if (WriteFile(&FileOperation) != ByteCount) break;
+            WriteResult = DoSystemCall(SYSCALL_WriteFile, SYSCALL_PARAM(&FileOperation));
+            if (WriteResult != ByteCount) {
+                DEBUG(TEXT("[CMD_copy] Write failed at %u (expected %u got %u)"), Index, ByteCount, WriteResult);
+                break;
+            }
+            TotalCopied += ByteCount;
         }
     }
 
+    Success = (TotalCopied == FileSize);
+    DEBUG(TEXT("[CMD_copy] TotalCopied=%u FileSize=%u"), TotalCopied, FileSize);
+
     DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(SrcFile));
     DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(DstFile));
+
+    if (Success) {
+        TEST(TEXT("[CMD_copy] copy %s %s : OK"), SrcName, DstName);
+    } else {
+        TEST(TEXT("[CMD_copy] copy %s %s : KO"), SrcName, DstName);
+    }
 
     return DF_RETURN_SUCCESS;
 }
