@@ -2,7 +2,7 @@
     "logs": [
         "log/kernel.log"
     ],
-    "scriptsDir": ".",
+    "scriptsDir": "scripts",
     "keyBindings": {
         "f9": { "label": "Setup Dependencies", "script": "1-1-setup-deps.sh" },
         "f10": { "label": "Format Code", "script": "3-1-format-all-code.sh" },
@@ -11,15 +11,14 @@
 
         "x86-32-----------------": "",
 
-        "C-a": { "label": "Clean", "script": "make ARCH=x86-32 clean" },
-        "C-z": { "label": "Build MBR Release", "script": "scripts/build --arch x86-32 --fs ext2 --release" },
-        "C-e": { "label": "Build MBR Debug", "script": "scripts/build --arch x86-32 --fs ext2 --debug" },
-        "C-r": { "label": "Build MBR Debug Split", "script": "scripts/build --arch x86-32 --fs ext2 --debug --split" },
-        "C-t": { "label": "Build UEFI Release", "script": "scripts/build --arch x86-32 --fs ext2 --release --uefi" },
-        "C-y": { "label": "Build UEFI Debug", "script": "scripts/build --arch x86-32 --fs ext2 --debug --uefi" },
-        "C-u": { "label": "Build UEFI Debug split", "script": "scripts/build --arch x86-32 --fs ext2 --debug --split --uefi" },
+        "C-z": { "label": "Build MBR Release", "script": "scripts/build --arch x86-32 --fs ext2 --release --clean" },
+        "C-e": { "label": "Build MBR Debug", "script": "scripts/build --arch x86-32 --fs ext2 --debug --clean" },
+        "C-r": { "label": "Build MBR Debug Split", "script": "scripts/build --arch x86-32 --fs ext2 --debug --split --clean" },
+        "C-t": { "label": "Build UEFI Release", "script": "scripts/build --arch x86-32 --fs ext2 --release --uefi --clean" },
+        "C-y": { "label": "Build UEFI Debug", "script": "scripts/build --arch x86-32 --fs ext2 --debug --uefi --clean" },
+        "C-u": { "label": "Build UEFI Debug split", "script": "scripts/build --arch x86-32 --fs ext2 --debug --split --uefi --clean" },
 
-        "C-w": { "label": "Build System Data View", "script": "scripts/build --arch x86-32 --fs ext2 --system-data-view" },
+        "C-w": { "label": "Build System Data View", "script": "scripts/build --arch x86-32 --fs ext2 --system-data-view --clean" },
         "C-x": { "label": "Build VESA Test Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/vesa-test.c ARCH=x86-32 install-vbr-payload" },
         "C-c": { "label": "Build Dumper Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/dumper*.c ARCH=x86-32 install-vbr-payload" },
         "C-v": { "label": "Build BIOS Keyboard Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/bios-keyboard.c ARCH=x86-32 install-vbr-payload" },
@@ -31,13 +30,12 @@
 
         "x86-64---------------": "",
 
-        "C-q": { "label": "Clean", "script": "make ARCH=x86-64 clean" },
-        "C-s": { "label": "Build MBR Release", "script": "scripts/build --arch x86-64 --fs ext2 --release" },
-        "C-d": { "label": "Build MBR Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug" },
-        "C-f": { "label": "Build MBR Debug Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split" },
-        "C-g": { "label": "Build UEFI Release", "script": "scripts/build --arch x86-64 --fs ext2 --release --uefi" },
-        "C-h": { "label": "Build UEFI Debug UDP", "script": "scripts/build --arch x86-64 --fs ext2 --debug --uefi --use-log-udp --log-udp-source 10.0.2.15:18195 --log-udp-dest 10.0.2.2:18194" },
-        "C-j": { "label": "Build UEFI Debug Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split --uefi --boot-stage-markers" },
+        "C-s": { "label": "Build MBR Release", "script": "scripts/build --arch x86-64 --fs ext2 --release --clean" },
+        "C-d": { "label": "Build MBR Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug --clean" },
+        "C-f": { "label": "Build MBR Debug Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split --clean" },
+        "C-g": { "label": "Build UEFI Release", "script": "scripts/build --arch x86-64 --fs ext2 --release --uefi --clean" },
+        "C-h": { "label": "Build UEFI Debug UDP", "script": "scripts/build --arch x86-64 --fs ext2 --debug --uefi --use-log-udp --log-udp-source 10.0.2.15:18195 --log-udp-dest 10.0.2.2:18194 --clean" },
+        "C-j": { "label": "Build UEFI Debug Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split --uefi --boot-stage-markers --clean" },
 
         "f5": { "label": "Start QEMU", "script": "scripts/run --arch x86-64" },
         "f6": { "label": "Start QEMU + GDB", "script": "scripts/run --arch x86-64 --gdb" },
