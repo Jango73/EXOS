@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Script to convert kernel address to source code line
-# Usage: ./addr2src-kernel.sh 0xc0123456
+# Usage: ./addr2src-kernel-x86-32.sh 0xc0123456
 
 if [ $# -ne 1 ]; then
     echo "Usage: $0 <address>"
@@ -10,7 +10,8 @@ if [ $# -ne 1 ]; then
 fi
 
 ADDR=$1
-KERNEL_ELF="kernel/bin/exos.elf"
+BUILD_CORE_NAME="${BUILD_CORE_NAME:-x86-32-mbr-debug}"
+KERNEL_ELF="build/core/${BUILD_CORE_NAME}/kernel/exos.elf"
 
 if [ ! -f "$KERNEL_ELF" ]; then
     echo "Error: $KERNEL_ELF not found"

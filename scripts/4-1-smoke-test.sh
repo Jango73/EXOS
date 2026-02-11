@@ -686,11 +686,11 @@ trap 'StopLocalHttpServer' EXIT
 EnsureLocalHttpServer
 
 if [ "$RUN_X86_32" -eq 1 ]; then
-    RunArchitecture "x86-32" "scripts/build.sh --arch x86-32 --fs ext2 --debug --clean" "scripts/run.sh --arch x86-32" "log/kernel-x86-32-mbr.log" "build/x86-32/boot-hd/exos.img" "1048576"
+    RunArchitecture "x86-32" "scripts/build.sh --arch x86-32 --fs ext2 --debug --clean" "scripts/run.sh --arch x86-32 --fs ext2 --debug" "log/kernel-x86-32-mbr.log" "build/image/x86-32-mbr-debug-ext2/boot-hd/exos.img" "1048576"
 fi
 if [ "$RUN_X86_64" -eq 1 ]; then
-    RunArchitecture "x86-64" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean" "scripts/run.sh --arch x86-64" "log/kernel-x86-64-mbr.log" "build/x86-64/boot-hd/exos.img" "1048576"
+    RunArchitecture "x86-64" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean" "scripts/run.sh --arch x86-64 --fs ext2 --debug" "log/kernel-x86-64-mbr.log" "build/image/x86-64-mbr-debug-ext2/boot-hd/exos.img" "1048576"
 fi
 if [ "$RUN_X86_64_UEFI" -eq 1 ]; then
-    RunArchitecture "x86-64 UEFI" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean --uefi" "scripts/run.sh --arch x86-64 --uefi" "log/kernel-x86-64-uefi.log" "build/x86-64/boot-uefi/exos-uefi.img" "4194304"
+    RunArchitecture "x86-64 UEFI" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean --uefi" "scripts/run.sh --arch x86-64 --fs ext2 --debug --uefi" "log/kernel-x86-64-uefi.log" "build/image/x86-64-uefi-debug-ext2/boot-uefi/exos-uefi.img" "4194304"
 fi

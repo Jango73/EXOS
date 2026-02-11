@@ -126,6 +126,36 @@ The repository provides `scripts/4-1-smoke-test.sh` to run an automated debug va
 The script supports selecting one target with `--only x86-32`, `--only x86-64`, or `--only x86-64-uefi`.  
 Kernel logs are consumed from per-target files (`log/kernel-x86-32-mbr.log`, `log/kernel-x86-64-mbr.log`, `log/kernel-x86-64-uefi.log`).
 
+### Build output layout
+
+Build artifacts are split between a core folder and an image folder:
+
+- core outputs: `build/core/<BUILD_CORE_NAME>/...`
+- image outputs: `build/image/<BUILD_IMAGE_NAME>/...`
+- `BUILD_CORE_NAME`: `<arch>-<boot>-<config>[-split]`
+- `BUILD_IMAGE_NAME`: `<BUILD_CORE_NAME>-<filesystem>`
+
+Examples:
+
+- x86-32 MBR debug ext2:
+  - core: `build/core/x86-32-mbr-debug`
+  - image: `build/image/x86-32-mbr-debug-ext2`
+- x86-64 UEFI debug ext2:
+  - core: `build/core/x86-64-uefi-debug`
+  - image: `build/image/x86-64-uefi-debug-ext2`
+
+Path mapping (migration reference):
+
+| Old path | New path |
+|---|---|
+| `build/x86-32/kernel/exos.elf` | `build/core/x86-32-mbr-debug/kernel/exos.elf` |
+| `build/x86-64/kernel/exos.elf` | `build/core/x86-64-mbr-debug/kernel/exos.elf` |
+| `build/x86-32/boot-hd/exos.img` | `build/image/x86-32-mbr-debug-ext2/boot-hd/exos.img` |
+| `build/x86-64/boot-hd/exos.img` | `build/image/x86-64-mbr-debug-ext2/boot-hd/exos.img` |
+| `build/x86-64/boot-uefi/exos-uefi.img` | `build/image/x86-64-uefi-debug-ext2/boot-uefi/exos-uefi.img` |
+| `build/x86-32/tools/cycle` | `build/core/x86-32-mbr-debug/tools/cycle` |
+| `build/x86-64/tools/cycle` | `build/core/x86-64-mbr-debug/tools/cycle` |
+
 ### Kernel objects
 
 #### Object identifiers

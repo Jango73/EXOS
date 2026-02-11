@@ -10,7 +10,8 @@ if [ $# -ne 1 ]; then
 fi
 
 ADDR=$1
-KERNEL_ELF="build/x86-64/kernel/exos.elf"
+BUILD_CORE_NAME="${BUILD_CORE_NAME:-x86-64-mbr-debug}"
+KERNEL_ELF="build/core/${BUILD_CORE_NAME}/kernel/exos.elf"
 
 if [ ! -f "$KERNEL_ELF" ]; then
     echo "Error: $KERNEL_ELF not found"

@@ -1,7 +1,18 @@
 include ../make/arch.mk
 
-BUILD_DIR := ../build/$(ARCH)
-UEFI_BUILD_DIR := $(BUILD_DIR)/boot-uefi
+ifneq ($(strip $(BUILD_CORE_NAME)),)
+CORE_BUILD_DIR := ../build/core/$(BUILD_CORE_NAME)
+else
+CORE_BUILD_DIR := ../build/$(ARCH)
+endif
+
+ifneq ($(strip $(BUILD_IMAGE_NAME)),)
+IMAGE_BUILD_DIR := ../build/image/$(BUILD_IMAGE_NAME)
+else
+IMAGE_BUILD_DIR := ../build/$(ARCH)
+endif
+
+UEFI_BUILD_DIR := $(IMAGE_BUILD_DIR)/boot-uefi
 IMG_SIZE_MB ?= 16
 ESP_SIZE_MB ?= 4
 EXT2_BLOCK_SIZE ?= 4096
@@ -25,7 +36,7 @@ UEFI_LOG_UDP_SOURCE_IP_3 ?= 2
 UEFI_LOG_UDP_DEST_PORT ?= 18194
 UEFI_LOG_UDP_SOURCE_PORT ?= 18195
 
-KERNEL_BIN := $(BUILD_DIR)/kernel/exos.bin
+KERNEL_BIN := $(CORE_BUILD_DIR)/kernel/exos.bin
 UEFI_IMAGE := $(UEFI_BUILD_DIR)/exos-uefi.img
 UEFI_STAGING_DIR := $(UEFI_BUILD_DIR)/esp-root
 EXT2_STAGING_DIR := $(UEFI_BUILD_DIR)/ext2-root
@@ -34,14 +45,14 @@ KERNEL_CFG_EXT2 := ../kernel/configuration/exos.ext2.toml
 KERNEL_CFG_REF  := ../kernel/configuration/exos.ref.toml
 KEYBOARD_LAYOUTS := ../deploy/keyboard/*.ekm1
 
-PORTAL_ELF      := $(BUILD_DIR)/system/portal/portal
-NETGET_ELF      := $(BUILD_DIR)/system/netget/netget
-HELLO_ELF       := $(BUILD_DIR)/system/hello/hello
-TICTACTOE_ELF   := $(BUILD_DIR)/system/tictactoe/tictactoe
-TERMTACTICS_ELF := $(BUILD_DIR)/system/terminal-tactics/terminal-tactics
-MOUSEINFO_ELF   := $(BUILD_DIR)/system/mouse-info/mouse-info
-MASTER_ELF      := $(BUILD_DIR)/system/test/master/master
-SLAVE_ELF       := $(BUILD_DIR)/system/test/slave/slave
+PORTAL_ELF      := $(CORE_BUILD_DIR)/system/portal/portal
+NETGET_ELF      := $(CORE_BUILD_DIR)/system/netget/netget
+HELLO_ELF       := $(CORE_BUILD_DIR)/system/hello/hello
+TICTACTOE_ELF   := $(CORE_BUILD_DIR)/system/tictactoe/tictactoe
+TERMTACTICS_ELF := $(CORE_BUILD_DIR)/system/terminal-tactics/terminal-tactics
+MOUSEINFO_ELF   := $(CORE_BUILD_DIR)/system/mouse-info/mouse-info
+MASTER_ELF      := $(CORE_BUILD_DIR)/system/test/master/master
+SLAVE_ELF       := $(CORE_BUILD_DIR)/system/test/slave/slave
 
 ifeq ($(ARCH),x86-32)
 UEFI_TARGET := i686-unknown-windows

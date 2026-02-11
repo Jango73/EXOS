@@ -78,6 +78,20 @@ Replace `x86-32` with `x86-64` when targeting the x86-64 architecture.
 ```
 This script runs build + boot + shell command checks (`sysinfo`, `dir`, `/system/apps/hello`) and supports selecting a single target with `--only`.
 
+**Build output layout:**
+- Core artifacts are written to `build/core/<BUILD_CORE_NAME>/`.
+- Image artifacts are written to `build/image/<BUILD_IMAGE_NAME>/`.
+- `BUILD_CORE_NAME` format: `<arch>-<boot>-<config>[-split]`
+  - example: `x86-32-mbr-debug`
+  - example: `x86-64-uefi-release-split`
+- `BUILD_IMAGE_NAME` format: `<BUILD_CORE_NAME>-<filesystem>`
+  - example: `x86-32-mbr-debug-ext2`
+  - example: `x86-64-uefi-release-fat32`
+- Typical files:
+  - kernel ELF: `build/core/<BUILD_CORE_NAME>/kernel/exos.elf`
+  - MBR image: `build/image/<BUILD_IMAGE_NAME>/boot-hd/exos.img`
+  - UEFI image: `build/image/<BUILD_IMAGE_NAME>/boot-uefi/exos-uefi.img`
+
 **Remote build on Windows (SSH to a Linux build host):**
 ```bat
 scripts\remote\x86-32\4-5-build-debug-ext2-ssh.bat

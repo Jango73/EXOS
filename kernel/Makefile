@@ -12,7 +12,11 @@ PROFILING               ?= 0
 USE_SYSCALL             ?= 0
 SYSTEM_DATA_VIEW        ?= 0
 
+ifneq ($(strip $(BUILD_CORE_NAME)),)
+BUILD_DIR := ../build/core/$(BUILD_CORE_NAME)
+else
 BUILD_DIR := ../build/$(ARCH)
+endif
 
 ARCH_CFLAGS =
 

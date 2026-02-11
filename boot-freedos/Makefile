@@ -2,12 +2,22 @@
 
 ARCH ?= x86-32
 
+ifneq ($(strip $(BUILD_CORE_NAME)),)
+CORE_BUILD_DIR := ../build/core/$(BUILD_CORE_NAME)
+else
+CORE_BUILD_DIR := ../build/$(ARCH)
+endif
+
+ifneq ($(strip $(BUILD_IMAGE_NAME)),)
+BUILD_DIR := ../build/image/$(BUILD_IMAGE_NAME)
+else
 BUILD_DIR := ../build/$(ARCH)
+endif
 
 LOADER_SRC     = source/loader.asm
 LOADER_LST     = source/loader.lst
 LOADER_COM     = $(BUILD_DIR)/boot-freedos/loader.com
-KERNEL_BIN     = $(BUILD_DIR)/kernel/exos.bin
+KERNEL_BIN     = $(CORE_BUILD_DIR)/kernel/exos.bin
 BASE_IMG       = freedos/FD14FULL.img
 FINAL_IMG      = $(BUILD_DIR)/boot-freedos/exos_dos.img
 AUTOEXEC       = $(BUILD_DIR)/boot-freedos/AUTOEXEC.BAT

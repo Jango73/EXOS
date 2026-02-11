@@ -2,20 +2,43 @@
 set -e
 
 function Usage() {
-    echo "Usage: $0 --arch <x86-32|x86-64> [--gdb] [--usb3|--no-usb3] [--uefi] [--nvme]"
+    echo "Usage: $0 --arch <x86-32|x86-64> [--fs <ext2|fat32>] [--debug|--release] [--split] [--build-core-name <name>] [--build-image-name <name>] [--gdb] [--usb3|--no-usb3] [--uefi] [--nvme]"
 }
 
 ARCH="x86-32"
+FILE_SYSTEM="ext2"
 USE_GDB=0
 USE_UEFI=0
 USB3_ENABLED=1
 NVME_ENABLED=1
 MONITOR_PORT="${MONITOR_PORT:-4444}"
 BOOT_MODE="mbr"
+BUILD_CONFIGURATION="release"
+DEBUG_SPLIT=0
+BUILD_CORE_NAME=""
+BUILD_IMAGE_NAME=""
+CORE_BUILD_DIR=""
+IMAGE_BUILD_DIR=""
 BUILD_LOCK_DIR=""
 
+function ComputeBuildNames() {
+    local Suffix=""
+
+    if [ "$DEBUG_SPLIT" -eq 1 ]; then
+        Suffix="-split"
+    fi
+
+    if [ -z "$BUILD_CORE_NAME" ]; then
+        BUILD_CORE_NAME="${ARCH}-${BOOT_MODE}-${BUILD_CONFIGURATION}${Suffix}"
+    fi
+
+    if [ -z "$BUILD_IMAGE_NAME" ]; then
+        BUILD_IMAGE_NAME="${BUILD_CORE_NAME}-${FILE_SYSTEM}"
+    fi
+}
+
 function WaitForBuildIfNeeded() {
-    BUILD_LOCK_DIR="build/$ARCH/.build-lock"
+    BUILD_LOCK_DIR="build/core/$BUILD_CORE_NAME/.build-lock"
     local WaitLoops=0
     local MaxWaitLoops=300
 
@@ -32,7 +55,7 @@ function WaitForBuildIfNeeded() {
         fi
 
         if [ "$WaitLoops" -eq 0 ]; then
-            echo "Build lock detected for $ARCH, waiting for image generation..."
+            echo "Build lock detected for $BUILD_CORE_NAME, waiting for image generation..."
         fi
 
         sleep 0.2
@@ -53,6 +76,19 @@ while [ $# -gt 0 ]; do
         --gdb)
             USE_GDB=1
             ;;
+        --fs)
+            shift
+            FILE_SYSTEM="$1"
+            ;;
+        --debug)
+            BUILD_CONFIGURATION="debug"
+            ;;
+        --release)
+            BUILD_CONFIGURATION="release"
+            ;;
+        --split)
+            DEBUG_SPLIT=1
+            ;;
         --usb3)
             USB3_ENABLED=1
             ;;
@@ -65,6 +101,14 @@ while [ $# -gt 0 ]; do
             ;;
         --nvme)
             NVME_ENABLED=1
+            ;;
+        --build-core-name)
+            shift
+            BUILD_CORE_NAME="$1"
+            ;;
+        --build-image-name)
+            shift
+            BUILD_IMAGE_NAME="$1"
             ;;
         --help|-h)
             Usage
@@ -79,16 +123,41 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+case "$FILE_SYSTEM" in
+    ext2|fat32)
+        ;;
+    *)
+        echo "Unknown file system: $FILE_SYSTEM"
+        Usage
+        exit 1
+        ;;
+esac
+
+if [ -z "$BUILD_CORE_NAME" ] && [ -n "$BUILD_IMAGE_NAME" ]; then
+    case "$BUILD_IMAGE_NAME" in
+        *-ext2)
+            BUILD_CORE_NAME="${BUILD_IMAGE_NAME%-ext2}"
+            FILE_SYSTEM="ext2"
+            ;;
+        *-fat32)
+            BUILD_CORE_NAME="${BUILD_IMAGE_NAME%-fat32}"
+            FILE_SYSTEM="fat32"
+            ;;
+        *)
+            echo "Cannot derive build core name from image name: $BUILD_IMAGE_NAME"
+            echo "Use --build-core-name explicitly."
+            exit 1
+            ;;
+    esac
+fi
+
+ComputeBuildNames
+CORE_BUILD_DIR="build/core/$BUILD_CORE_NAME"
+IMAGE_BUILD_DIR="build/image/$BUILD_IMAGE_NAME"
+
 case "$ARCH" in
     x86-32)
         QEMU_BIN_DEFAULT="qemu-system-i386"
-        IMG_PATH="build/x86-32/boot-hd/exos.img"
-        USB_3_PATH="build/x86-32/boot-hd/usb-3.img"
-        FS_TEST_EXT2_IMG_PATH="build/x86-32/boot-hd/fs-test-ext2.img"
-        FS_TEST_FAT32_IMG_PATH="build/x86-32/boot-hd/fs-test-fat32.img"
-        FS_TEST_NTFS_IMG_PATH="build/x86-32/boot-hd/fs-test-ntfs.img"
-        CYCLE_BIN="build/x86-32/tools/cycle"
-        DEBUG_ELF="build/x86-32/kernel/exos.elf"
         OVMF_CODE_CANDIDATES=(
             "/usr/share/OVMF/OVMF32_CODE.fd"
             "/usr/share/edk2/ovmf/OVMF32_CODE.fd"
@@ -102,13 +171,6 @@ case "$ARCH" in
         ;;
     x86-64)
         QEMU_BIN_DEFAULT="qemu-system-x86_64"
-        IMG_PATH="build/x86-64/boot-hd/exos.img"
-        USB_3_PATH="build/x86-64/boot-hd/usb-3.img"
-        FS_TEST_EXT2_IMG_PATH="build/x86-64/boot-hd/fs-test-ext2.img"
-        FS_TEST_FAT32_IMG_PATH="build/x86-64/boot-hd/fs-test-fat32.img"
-        FS_TEST_NTFS_IMG_PATH="build/x86-64/boot-hd/fs-test-ntfs.img"
-        CYCLE_BIN="build/x86-64/tools/cycle"
-        DEBUG_ELF="build/x86-64/kernel/exos.elf"
         DEBUG_GDB="scripts/x86-64/debug.gdb"
         OVMF_CODE_CANDIDATES=(
             "/usr/share/OVMF/OVMF_CODE.fd"
@@ -128,12 +190,20 @@ case "$ARCH" in
         ;;
 esac
 
+IMG_PATH="$IMAGE_BUILD_DIR/boot-hd/exos.img"
+USB_3_PATH="$IMAGE_BUILD_DIR/boot-hd/usb-3.img"
+FS_TEST_EXT2_IMG_PATH="$IMAGE_BUILD_DIR/boot-hd/fs-test-ext2.img"
+FS_TEST_FAT32_IMG_PATH="$IMAGE_BUILD_DIR/boot-hd/fs-test-fat32.img"
+FS_TEST_NTFS_IMG_PATH="$IMAGE_BUILD_DIR/boot-hd/fs-test-ntfs.img"
+CYCLE_BIN="$CORE_BUILD_DIR/tools/cycle"
+DEBUG_ELF="$CORE_BUILD_DIR/kernel/exos.elf"
+
 WaitForBuildIfNeeded
 
 QEMU_BIN="${QEMU_BIN:-$QEMU_BIN_DEFAULT}"
 
 if [ "$USE_UEFI" -eq 1 ]; then
-    IMG_PATH="build/$ARCH/boot-uefi/exos-uefi.img"
+    IMG_PATH="$IMAGE_BUILD_DIR/boot-uefi/exos-uefi.img"
 fi
 
 if [ ! -f "$IMG_PATH" ]; then
@@ -219,8 +289,8 @@ function BuildUefiArguments() {
         exit 1
     }
 
-    OVMF_VARS_COPY="build/$ARCH/boot-uefi/ovmf-vars.fd"
-    mkdir -p "build/$ARCH/boot-uefi"
+    OVMF_VARS_COPY="$IMAGE_BUILD_DIR/boot-uefi/ovmf-vars.fd"
+    mkdir -p "$IMAGE_BUILD_DIR/boot-uefi"
     cp -f "$OVMF_VARS_PATH" "$OVMF_VARS_COPY"
 
     UEFI_ARGUMENTS=(

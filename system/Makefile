@@ -16,7 +16,10 @@ else
 $(error Unsupported architecture $(ARCH))
 endif
 
-SUBMAKE = $(MAKE) ARCH=$(ARCH)
+BUILD_CORE_NAME ?=
+BUILD_IMAGE_NAME ?=
+
+SUBMAKE = $(MAKE) ARCH=$(ARCH) BUILD_CORE_NAME=$(BUILD_CORE_NAME) BUILD_IMAGE_NAME=$(BUILD_IMAGE_NAME)
 
 ################################################################################
 

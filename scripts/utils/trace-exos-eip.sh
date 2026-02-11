@@ -3,7 +3,8 @@
 # Script to parse EIP values from qemu.log and disassemble each instruction
 
 TRACE_LOG="log/qemu.log"
-ELF_FILE="build/x86-32/kernel/exos.elf"
+BUILD_CORE_NAME="${BUILD_CORE_NAME:-x86-32-mbr-debug}"
+ELF_FILE="build/core/${BUILD_CORE_NAME}/kernel/exos.elf"
 ADDR_TO_SRC="scripts/utils/addr2src-kernel-x86-32.sh"
 
 if [ ! -f "$TRACE_LOG" ]; then

@@ -3,9 +3,10 @@
 import re
 import subprocess
 import sys
+import os
 from pathlib import Path
 
-ARCH_DIR = "x86-64"
+DEFAULT_CORE_BUILD_NAME = "x86-64-mbr-debug"
 
 
 def format_hex(value: int) -> str:
@@ -127,17 +128,18 @@ def main() -> int:
 
     script_dir = Path(__file__).resolve().parent
     root_dir = script_dir.parent.parent
-    map_path = root_dir / "build" / ARCH_DIR / "kernel" / "exos.map"
-    elf_path = root_dir / "build" / ARCH_DIR / "kernel" / "exos.elf"
+    core_build_name = os.environ.get("BUILD_CORE_NAME", DEFAULT_CORE_BUILD_NAME)
+    map_path = root_dir / "build" / "core" / core_build_name / "kernel" / "exos.map"
+    elf_path = root_dir / "build" / "core" / core_build_name / "kernel" / "exos.elf"
 
     if not map_path.is_file():
         print(f"Missing map file: {map_path}")
-        print(f"Build the {ARCH_DIR} kernel before using this tool.")
+        print("Build the x86-64 kernel before using this tool.")
         return 1
 
     if not elf_path.is_file():
         print(f"Missing ELF file: {elf_path}")
-        print(f"Build the {ARCH_DIR} kernel before using this tool.")
+        print("Build the x86-64 kernel before using this tool.")
         return 1
 
     print(f"Input address: {format_hex(target_addr)}")

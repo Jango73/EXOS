@@ -3,7 +3,11 @@ ARCH ?= x86-32
 PROFILING ?= 0
 USE_SYSCALL ?= 0
 
+ifneq ($(strip $(BUILD_CORE_NAME)),)
+BUILD_DIR := ../build/core/$(BUILD_CORE_NAME)
+else
 BUILD_DIR := ../build/$(ARCH)
+endif
 
 NASM    = nasm
 

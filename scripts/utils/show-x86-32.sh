@@ -1,6 +1,6 @@
 #!/bin/sh
 
-ARCH_DIR="x86-32"
+DEFAULT_CORE_BUILD_NAME="x86-32-mbr-debug"
 
 if [ $# -lt 1 ] || [ $# -gt 2 ]; then
     echo "Usage: $0 <address> [context_lines] (hex with 0x or decimal)"
@@ -10,18 +10,19 @@ fi
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 ROOT_DIR="$(dirname -- "$(dirname -- "$SCRIPT_DIR")")"
-MAP_FILE="$ROOT_DIR/build/$ARCH_DIR/kernel/exos.map"
-ELF_FILE="$ROOT_DIR/build/$ARCH_DIR/kernel/exos.elf"
+CORE_BUILD_NAME="${BUILD_CORE_NAME:-$DEFAULT_CORE_BUILD_NAME}"
+MAP_FILE="$ROOT_DIR/build/core/$CORE_BUILD_NAME/kernel/exos.map"
+ELF_FILE="$ROOT_DIR/build/core/$CORE_BUILD_NAME/kernel/exos.elf"
 
 if [ ! -f "$MAP_FILE" ]; then
     echo "Missing map file: $MAP_FILE"
-    echo "Build the $ARCH_DIR kernel before using this tool."
+    echo "Build the x86-32 kernel before using this tool."
     exit 1
 fi
 
 if [ ! -f "$ELF_FILE" ]; then
     echo "Missing ELF file: $ELF_FILE"
-    echo "Build the $ARCH_DIR kernel before using this tool."
+    echo "Build the x86-32 kernel before using this tool."
     exit 1
 fi
 

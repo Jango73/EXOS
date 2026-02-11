@@ -47,6 +47,9 @@ ARCH="x86-32"
 BARE_METAL=0
 BOOT_STAGE_MARKERS=0
 BUILD_UEFI=0
+BUILD_CONFIGURATION="release"
+BUILD_CORE_NAME=""
+BUILD_IMAGE_NAME=""
 CLEAN=0
 DEBUG_OUTPUT=0
 DEBUG_SPLIT=0
@@ -69,22 +72,39 @@ SYSTEM_DATA_VIEW=0
 USE_SYSCALL=0
 BUILD_LOCK_DIR=""
 
-function AcquireBuildLock() {
-    BUILD_LOCK_DIR="build/$ARCH/.build-lock"
+function ComputeBuildNames() {
+    local BootMode
+    local Suffix=""
 
-    mkdir -p "build/$ARCH"
+    BootMode="mbr"
+    if [ "$BUILD_UEFI" -eq 1 ]; then
+        BootMode="uefi"
+    fi
+
+    if [ "$DEBUG_SPLIT" -eq 1 ]; then
+        Suffix="-split"
+    fi
+
+    BUILD_CORE_NAME="${ARCH}-${BootMode}-${BUILD_CONFIGURATION}${Suffix}"
+    BUILD_IMAGE_NAME="${BUILD_CORE_NAME}-${FILE_SYSTEM}"
+}
+
+function AcquireBuildLock() {
+    BUILD_LOCK_DIR="build/core/$BUILD_CORE_NAME/.build-lock"
+
+    mkdir -p "build/core/$BUILD_CORE_NAME"
     if ! mkdir "$BUILD_LOCK_DIR" 2>/dev/null; then
         if [ -f "$BUILD_LOCK_DIR/pid" ]; then
             ExistingPid="$(cat "$BUILD_LOCK_DIR/pid" 2>/dev/null || true)"
             if [ -n "$ExistingPid" ] && kill -0 "$ExistingPid" 2>/dev/null; then
-                echo "A build is already running for $ARCH (pid: $ExistingPid)."
+                echo "A build is already running for $BUILD_CORE_NAME (pid: $ExistingPid)."
                 exit 1
             fi
         fi
 
         rm -rf "$BUILD_LOCK_DIR"
         if ! mkdir "$BUILD_LOCK_DIR" 2>/dev/null; then
-            echo "Could not acquire build lock for $ARCH."
+            echo "Could not acquire build lock for $BUILD_CORE_NAME."
             exit 1
         fi
     fi
@@ -120,6 +140,7 @@ while [ $# -gt 0 ]; do
             ;;
         --debug)
             DEBUG_OUTPUT=1
+            BUILD_CONFIGURATION="debug"
             ;;
         --force-pic)
             FORCE_PIC=1
@@ -159,6 +180,7 @@ while [ $# -gt 0 ]; do
             PROFILING=1
             ;;
         --release)
+            BUILD_CONFIGURATION="release"
             ;;
         --scheduling-debug)
             SCHEDULING_DEBUG=1
@@ -216,12 +238,19 @@ TRACE_STACK_USAGE=0
 if [ "$SCHEDULING_DEBUG" -eq 1 ]; then
     PROFILING=1
     DEBUG_OUTPUT=1
+    BUILD_CONFIGURATION="debug"
     SCHEDULING_DEBUG_OUTPUT=1
     TRACE_STACK_USAGE=1
 fi
 
+ComputeBuildNames
+
 export BARE_METAL
 export BOOT_STAGE_MARKERS
+export BUILD_CONFIGURATION
+export BUILD_CORE_NAME
+export BUILD_IMAGE_NAME
+export BUILD_DIR_COMPATIBILITY="build/$ARCH"
 export DEBUG_OUTPUT
 export DEBUG_SPLIT
 export FORCE_PIC

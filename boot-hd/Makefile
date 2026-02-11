@@ -3,7 +3,17 @@ SHELL = /bin/bash
 
 include ../make/arch.mk
 
+ifneq ($(strip $(BUILD_CORE_NAME)),)
+CORE_BUILD_DIR := ../build/core/$(BUILD_CORE_NAME)
+else
+CORE_BUILD_DIR := ../build/$(ARCH)
+endif
+
+ifneq ($(strip $(BUILD_IMAGE_NAME)),)
+BUILD_DIR := ../build/image/$(BUILD_IMAGE_NAME)
+else
 BUILD_DIR := ../build/$(ARCH)
+endif
 
 ifeq ($(ARCH),x86-32)
 TOOLCHAIN_PREFIX = i686-elf
@@ -125,16 +135,16 @@ FS_TEST_FAT32_IMG= $(BUILD_DIR)/boot-hd/fs-test-fat32.img
 FS_TEST_NTFS_IMG= $(BUILD_DIR)/boot-hd/fs-test-ntfs.img
 NVME_IMG        = $(FS_TEST_EXT2_IMG)
 NVME_UNSUPPORTED_IMG = $(FS_TEST_NTFS_IMG)
-CYCLE_BIN       = $(BUILD_DIR)/tools/cycle
-KERNEL_BIN      = $(BUILD_DIR)/kernel/exos.bin
-PORTAL_ELF      = $(BUILD_DIR)/system/portal/portal
-NETGET_ELF      = $(BUILD_DIR)/system/netget/netget
-HELLO_ELF       = $(BUILD_DIR)/system/hello/hello
-TICTACTOE_ELF	= $(BUILD_DIR)/system/tictactoe/tictactoe
-TERMTACTICS_ELF	= $(BUILD_DIR)/system/terminal-tactics/terminal-tactics
-MOUSEINFO_ELF   = $(BUILD_DIR)/system/mouse-info/mouse-info
-MASTER_ELF      = $(BUILD_DIR)/system/test/master/master
-SLAVE_ELF       = $(BUILD_DIR)/system/test/slave/slave
+CYCLE_BIN       = $(CORE_BUILD_DIR)/tools/cycle
+KERNEL_BIN      = $(CORE_BUILD_DIR)/kernel/exos.bin
+PORTAL_ELF      = $(CORE_BUILD_DIR)/system/portal/portal
+NETGET_ELF      = $(CORE_BUILD_DIR)/system/netget/netget
+HELLO_ELF       = $(CORE_BUILD_DIR)/system/hello/hello
+TICTACTOE_ELF	= $(CORE_BUILD_DIR)/system/tictactoe/tictactoe
+TERMTACTICS_ELF	= $(CORE_BUILD_DIR)/system/terminal-tactics/terminal-tactics
+MOUSEINFO_ELF   = $(CORE_BUILD_DIR)/system/mouse-info/mouse-info
+MASTER_ELF      = $(CORE_BUILD_DIR)/system/test/master/master
+SLAVE_ELF       = $(CORE_BUILD_DIR)/system/test/slave/slave
 EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/ext2-root
 USB3_STAGING_DIR= $(BUILD_DIR)/boot-hd/usb-3-root
 FS_TEST_EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/fs-test-ext2-root
