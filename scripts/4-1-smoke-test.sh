@@ -25,6 +25,7 @@ BOOT_INPUT_DELAY_SECONDS=1.0
 TEST_KEYBOARD_LAYOUT="en-US"
 LOCAL_HTTP_SERVER_PID=""
 BOOT_READY_PATTERN="[InitializeKernel] Shell task created"
+MONITOR_FD_OPEN=0
 
 FAULT_PATTERN="#PF|#GP|#UD|#SS|#NP|#TS|#DE|#DF|#MF|#AC|#MC"
 TEST_KO_PATTERN="TEST > .* : KO"
@@ -41,7 +42,7 @@ CURRENT_IMAGE_PATH=""
 CURRENT_FS_OFFSET=0
 
 function Usage() {
-    echo "Usage: $0 [--only <x86-32|x86-64|x86-64-uefi>] [--no-build] [--help]"
+    echo "Usage: $0 [--only <x86-32|x86-64|x86-64-uefi>] [--no-build] [--key-delay <seconds>] [--command-delay <seconds>] [--boot-input-delay <seconds>] [--help]"
 }
 
 while [ $# -gt 0 ]; do
@@ -70,6 +71,33 @@ while [ $# -gt 0 ]; do
         --help|-h)
             Usage
             exit 0
+            ;;
+        --key-delay)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "Missing value for --key-delay"
+                Usage
+                exit 1
+            fi
+            KEY_DELAY_SECONDS="$1"
+            ;;
+        --command-delay)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "Missing value for --command-delay"
+                Usage
+                exit 1
+            fi
+            COMMAND_DELAY_SECONDS="$1"
+            ;;
+        --boot-input-delay)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "Missing value for --boot-input-delay"
+                Usage
+                exit 1
+            fi
+            BOOT_INPUT_DELAY_SECONDS="$1"
             ;;
         --no-build)
             SKIP_BUILD=1
@@ -276,6 +304,7 @@ function TailFromOffset() {
 
 function MonitorCommand() {
     # Send one command to QEMU monitor (telnet) with retry/backoff.
+    # Reuses a persistent socket to avoid reconnecting per key event.
     local Cmd="$1"
     local MaxAttempts="${2:-$MONITOR_CONNECT_MAX_ATTEMPTS}"
     local Quiet="${3:-0}"
@@ -283,12 +312,28 @@ function MonitorCommand() {
     local Delay=0.05
 
     while [ "$Attempt" -lt "$MaxAttempts" ]; do
-        if exec 3<>"/dev/tcp/$MONITOR_HOST/$MONITOR_PORT" 2>/dev/null; then
-            printf "%s\r\n" "$Cmd" >&3
-            exec 3<&-
-            exec 3>&-
+        if [ "$MONITOR_FD_OPEN" -eq 0 ]; then
+            if ! exec 3<>"/dev/tcp/$MONITOR_HOST/$MONITOR_PORT" 2>/dev/null; then
+                Attempt=$((Attempt + 1))
+                if [ "$Attempt" -ge 10 ] && [ "$Attempt" -lt 30 ]; then
+                    Delay=0.1
+                elif [ "$Attempt" -ge 30 ]; then
+                    Delay=0.2
+                fi
+                sleep "$Delay"
+                continue
+            fi
+            MONITOR_FD_OPEN=1
+        fi
+
+        if printf "%s\r\n" "$Cmd" >&3 2>/dev/null; then
             return 0
         fi
+
+        # Connection dropped by QEMU: close and retry with a new socket.
+        exec 3<&- || true
+        exec 3>&- || true
+        MONITOR_FD_OPEN=0
 
         Attempt=$((Attempt + 1))
         if [ "$Attempt" -ge 10 ] && [ "$Attempt" -lt 30 ]; then
@@ -588,6 +633,11 @@ function RunCommandList() {
 
 function StopQemu() {
     MonitorCommand "quit" 1 1 || true
+    if [ "$MONITOR_FD_OPEN" -eq 1 ]; then
+        exec 3<&- || true
+        exec 3>&- || true
+        MONITOR_FD_OPEN=0
+    fi
 }
 
 function RunArchitecture() {
