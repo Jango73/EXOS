@@ -2,7 +2,7 @@
 # Format:
 # command: "<command line>" | log: "<expected fixed log fragment>" | file-size-compare: "<source-file>" "<downloaded-file>"
 
-command: "sysinfo" | log: "TEST > [CMD_sysinfo] sysinfo : OK"
+command: "sys_info" | log: "TEST > [CMD_sysinfo] sys_info : OK"
 command: "dir" | log: "TEST > [CMD_dir] dir : OK"
 command: "/system/apps/hello --no-pause" | log: "TEST > [Spawn] Executable finished normally : /system/apps/hello"
 command: "/system/apps/hello --no-pause" | log: "TEST > [Spawn] Executable finished normally : /system/apps/hello"

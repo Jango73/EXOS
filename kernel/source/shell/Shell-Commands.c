@@ -78,7 +78,7 @@ static void ListDirectory(LPSHELLCONTEXT, LPCSTR, U32, BOOL, BOOL, U32*);
 SHELL_COMMAND_ENTRY COMMANDS[] = {
     {"commands", "help", "", CMD_commands},
     {"clear", "cls", "", CMD_cls},
-    {"conmode", "mode", "Columns Rows|list", CMD_conmode},
+    {"con_mode", "mode", "Columns Rows|list", CMD_conmode},
     {"keyboard", "keyboard", "--layout Code", CMD_keyboard},
     {"pause", "pause", "on|off", CMD_pause},
     {"ls", "dir", "[Name] [-p] [-r]", CMD_dir},
@@ -86,34 +86,34 @@ SHELL_COMMAND_ENTRY COMMANDS[] = {
     {"mkdir", "md", "Name", CMD_md},
     {"run", "launch", "Name [-b|--background]", CMD_run},
     {"quit", "exit", "", CMD_exit},
-    {"sys", "sysinfo", "", CMD_sysinfo},
-    {"kill", "killtask", "Number", CMD_killtask},
-    {"process", "showprocess", "Number", CMD_showprocess},
-    {"task", "showtask", "Number", CMD_showtask},
-    {"mem", "memedit", "Address", CMD_memedit},
+    {"sys", "sys_info", "", CMD_sysinfo},
+    {"kill", "kill_task", "Number", CMD_killtask},
+    {"process", "show_process", "Number", CMD_showprocess},
+    {"task", "show_task", "Number", CMD_showtask},
+    {"mem", "mem_edit", "Address", CMD_memedit},
     {"dis", "disasm", "Address InstructionCount", CMD_disasm},
-    {"memory-map", "memory-map", "", CMD_memorymap},
+    {"memory_map", "memory_map", "", CMD_memorymap},
     {"cat", "type", "", CMD_cat},
     {"cp", "copy", "", CMD_copy},
     {"edit", "edit", "Name", CMD_edit},
     {"disk", "disk", "", CMD_disk},
-    {"fs", "filesystem", "[--long]", CMD_filesystem},
+    {"fs", "file_system", "[--long]", CMD_filesystem},
     {"net", "network", "devices", CMD_network},
     {"pic", "pic", "", CMD_pic},
     {"outp", "outp", "", CMD_outp},
     {"inp", "inp", "", CMD_inp},
     {"reboot", "reboot", "", CMD_reboot},
-    {"shutdown", "poweroff", "", CMD_shutdown},
-    {"adduser", "newuser", "username", CMD_adduser},
-    {"deluser", "deleteuser", "username", CMD_deluser},
+    {"shutdown", "power_off", "", CMD_shutdown},
+    {"add_user", "new_user", "username", CMD_adduser},
+    {"del_user", "delete_user", "username", CMD_deluser},
     {"login", "login", "", CMD_login},
     {"logout", "logout", "", CMD_logout},
-    {"whoami", "who", "", CMD_whoami},
-    {"passwd", "setpassword", "", CMD_passwd},
+    {"who_am_i", "who", "", CMD_whoami},
+    {"passwd", "set_password", "", CMD_passwd},
     {"prof", "profiling", "", CMD_prof},
     {"usb", "usb", "ports|devices|tree|drives|probe", CMD_usb},
     {"nvme", "nvme", "list", CMD_nvme},
-    {"data", "dataview", "", CMD_dataview},
+    {"data", "data_view", "", CMD_dataview},
     {"", "", "", NULL},
 };
 
@@ -777,7 +777,7 @@ static U32 CMD_conmode(LPSHELLCONTEXT Context) {
 
     ParseNextCommandLineComponent(Context);
     if (StringLength(Context->Command) == 0) {
-        ConsolePrint(TEXT("Usage: conmode Columns Rows | conmode list\n"));
+        ConsolePrint(TEXT("Usage: con_mode Columns Rows | con_mode list\n"));
         return DF_RETURN_SUCCESS;
     }
 
@@ -806,7 +806,7 @@ static U32 CMD_conmode(LPSHELLCONTEXT Context) {
 
     ParseNextCommandLineComponent(Context);
     if (StringLength(Context->Command) == 0) {
-        ConsolePrint(TEXT("Usage: conmode Columns Rows | conmode list\n"));
+        ConsolePrint(TEXT("Usage: con_mode Columns Rows | con_mode list\n"));
         return DF_RETURN_SUCCESS;
     }
     Rows = StringToU32(Context->Command);
@@ -1133,7 +1133,7 @@ static U32 CMD_sysinfo(LPSHELLCONTEXT Context) {
     ConsolePrint(TEXT("Number of tasks           : %d\n"), Info.NumTasks);
     ConsolePrint(TEXT("Keyboard layout           : %s\n"), Info.KeyboardLayout);
 
-    TEST(TEXT("[CMD_sysinfo] sysinfo : OK"));
+    TEST(TEXT("[CMD_sysinfo] sys_info : OK"));
     return DF_RETURN_SUCCESS;
 }
 
@@ -1444,7 +1444,7 @@ static U32 CMD_edit(LPSHELLCONTEXT Context) {
         ParseNextCommandLineComponent(Context);
     }
 
-    LineNumbers = HasOption(Context, TEXT("n"), TEXT("line-numbers"));
+    LineNumbers = HasOption(Context, TEXT("n"), TEXT("line_numbers"));
 
     if (HasArgument) {
         Edit(1, (LPCSTR*)Arguments, LineNumbers);
