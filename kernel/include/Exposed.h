@@ -232,6 +232,49 @@ extern SCRIPT_HOST_HANDLE UsbRootHandle;
 
 /************************************************************************/
 
+SCRIPT_ERROR PciBusGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR PciBusArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR PciBusArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR PciDeviceGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR PciDeviceArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR PciDeviceArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+
+extern const SCRIPT_HOST_DESCRIPTOR PciBusDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR PciBusArrayDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR PciDeviceDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR PciDeviceArrayDescriptor;
+
+/************************************************************************/
+
 SCRIPT_ERROR DriverGetProperty(
     LPVOID Context,
     SCRIPT_HOST_HANDLE Parent,

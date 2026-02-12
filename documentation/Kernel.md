@@ -1031,6 +1031,23 @@ The network stack successfully handles real network traffic across multiple devi
     - `access`: access mode flags. Permissions: anyone.
     - `driver_manufacturer`: backing driver manufacturer. Permissions: anyone.
     - `driver_product`: backing driver product name. Permissions: anyone.
+- `pci_bus`: PCI bus list root. provides indexed access to PCI bus views. Permissions: anyone.
+  - `pci_bus.count`: number of PCI buses. Permissions: anyone.
+  - `pci_bus[n]`: PCI bus view at index `n`. Permissions: anyone.
+    - `number`: PCI bus number. Permissions: anyone.
+    - `device_count`: number of PCI devices on the bus. Permissions: anyone.
+- `pci_device`: PCI device list root. provides indexed access to PCI device views. Permissions: anyone.
+  - `pci_device.count`: number of PCI devices. Permissions: anyone.
+  - `pci_device[n]`: PCI device view at index `n`. Permissions: anyone.
+    - `bus`: PCI bus number. Permissions: anyone.
+    - `device`: PCI device number. Permissions: anyone.
+    - `function`: PCI function number. Permissions: anyone.
+    - `vendor_id`: PCI vendor identifier. Permissions: anyone.
+    - `device_id`: PCI device identifier. Permissions: anyone.
+    - `base_class`: PCI base class code. Permissions: anyone.
+    - `sub_class`: PCI subclass code. Permissions: anyone.
+    - `prog_if`: PCI programming interface code. Permissions: anyone.
+    - `revision`: PCI revision code. Permissions: anyone.
 - `keyboard`: Keyboard exposure root. provides access to keyboard state. Permissions: anyone.
   - `keyboard.layout`: active keyboard layout code. Permissions: anyone.
   - `keyboard.driver`: active keyboard driver. Permissions: kernel and administrator only.

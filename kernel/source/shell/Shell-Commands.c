@@ -161,6 +161,27 @@ static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context) {
         }
     }
 
+    LPLIST PciDeviceList = GetPCIDeviceList();
+    SAFE_USE(PciDeviceList) {
+        if (!ScriptRegisterHostSymbol(
+                Context->ScriptContext,
+                TEXT("pci_bus"),
+                SCRIPT_HOST_SYMBOL_ARRAY,
+                PciDeviceList,
+                &PciBusArrayDescriptor,
+                NULL)) {
+        }
+
+        if (!ScriptRegisterHostSymbol(
+                Context->ScriptContext,
+                TEXT("pci_device"),
+                SCRIPT_HOST_SYMBOL_ARRAY,
+                PciDeviceList,
+                &PciDeviceArrayDescriptor,
+                NULL)) {
+        }
+    }
+
     if (!ScriptRegisterHostSymbol(
             Context->ScriptContext,
             TEXT("usb"),
