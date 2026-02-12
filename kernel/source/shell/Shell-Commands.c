@@ -46,7 +46,7 @@ static U32 CMD_cat(LPSHELLCONTEXT);
 static U32 CMD_copy(LPSHELLCONTEXT);
 static U32 CMD_edit(LPSHELLCONTEXT);
 static U32 CMD_memorymap(LPSHELLCONTEXT);
-static U32 CMD_hd(LPSHELLCONTEXT);
+static U32 CMD_disk(LPSHELLCONTEXT);
 static U32 CMD_filesystem(LPSHELLCONTEXT);
 static U32 CMD_network(LPSHELLCONTEXT);
 static U32 CMD_pic(LPSHELLCONTEXT);
@@ -96,7 +96,7 @@ SHELL_COMMAND_ENTRY COMMANDS[] = {
     {"cat", "type", "", CMD_cat},
     {"cp", "copy", "", CMD_copy},
     {"edit", "edit", "Name", CMD_edit},
-    {"hd", "hd", "", CMD_hd},
+    {"disk", "disk", "", CMD_disk},
     {"fs", "filesystem", "[--long]", CMD_filesystem},
     {"net", "network", "devices", CMD_network},
     {"pic", "pic", "", CMD_pic},
@@ -1445,7 +1445,7 @@ static U32 CMD_edit(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
-static U32 CMD_hd(LPSHELLCONTEXT Context) {
+static U32 CMD_disk(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
     LPLISTNODE Node;

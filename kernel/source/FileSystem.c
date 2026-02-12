@@ -927,7 +927,7 @@ BOOL GetDefaultFileSystemName(LPSTR Name, LPSTORAGE_UNIT Disk, U32 PartIndex) {
             StringCopy(Name, Text_Fd);
             break;
         default:
-            StringCopy(Name, Text_Hd);
+            StringCopy(Name, Text_Disk);
             break;
     }
 
