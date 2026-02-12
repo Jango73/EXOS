@@ -22,72 +22,9 @@
 
 \************************************************************************/
 
-#include "arch/Disassemble.h"
-#include "Clock.h"
-#include "Console.h"
-#include "drivers/Keyboard.h"
-#include "drivers/NTFS.h"
-#include "drivers/NVMe-Core.h"
-#include "drivers/XHCI.h"
-#include "drivers/USBMassStorage.h"
-#include "DriverEnum.h"
-#include "Endianness.h"
-#include "Exposed.h"
-#include "File.h"
-#include "Kernel.h"
-#include "Lang.h"
-#include "Log.h"
-#include "Memory-Descriptors.h"
-#include "network/Network.h"
-#include "network/NetworkManager.h"
-#include "process/Process.h"
-#include "Script.h"
-#include "UserAccount.h"
-#include "UserSession.h"
-#include "utils/CommandLineEditor.h"
-#include "Profile.h"
-#include "utils/Helpers.h"
-#include "utils/Path.h"
-#include "utils/StringArray.h"
-#include "VKey.h"
+#include "shell/Shell-Shared.h"
 
 /************************************************************************/
-
-#define SHELL_NUM_BUFFERS 8
-#define BUFFER_SIZE 1024
-#define HISTORY_SIZE 20
-
-/************************************************************************/
-// Shell input state
-
-typedef struct tag_SHELLINPUTSTATE {
-    STR CommandLine[MAX_PATH_NAME];
-    COMMANDLINEEDITOR Editor;
-} SHELLINPUTSTATE, *LPSHELLINPUTSTATE;
-
-/************************************************************************/
-// The shell context
-
-typedef struct tag_SHELLCONTEXT {
-    U32 Component;
-    U32 CommandChar;
-    SHELLINPUTSTATE Input;
-    STR Command[256];
-    STR CurrentFolder[MAX_PATH_NAME];
-    LPVOID BufferBase;
-    U32 BufferSize;
-    LPSTR Buffer[SHELL_NUM_BUFFERS];
-    STRINGARRAY Options;
-    PATHCOMPLETION PathCompletion;
-    LPSCRIPT_CONTEXT ScriptContext;
-} SHELLCONTEXT, *LPSHELLCONTEXT;
-
-/************************************************************************/
-
-/************************************************************************/
-// The shell command functions
-
-typedef U32 (*SHELLCOMMAND)(LPSHELLCONTEXT);
 
 static U32 CMD_commands(LPSHELLCONTEXT);
 static U32 CMD_cls(LPSHELLCONTEXT);
@@ -111,16 +48,15 @@ static U32 CMD_edit(LPSHELLCONTEXT);
 static U32 CMD_memorymap(LPSHELLCONTEXT);
 static U32 CMD_hd(LPSHELLCONTEXT);
 static U32 CMD_filesystem(LPSHELLCONTEXT);
-static U32 CMD_ntfsrecord(LPSHELLCONTEXT);
 static U32 CMD_network(LPSHELLCONTEXT);
 static U32 CMD_pic(LPSHELLCONTEXT);
 static U32 CMD_outp(LPSHELLCONTEXT);
 static U32 CMD_inp(LPSHELLCONTEXT);
 static U32 CMD_reboot(LPSHELLCONTEXT);
 static U32 CMD_shutdown(LPSHELLCONTEXT);
-static U32 CMD_adduser(LPSHELLCONTEXT);
+U32 CMD_adduser(LPSHELLCONTEXT);
 static U32 CMD_deluser(LPSHELLCONTEXT);
-static U32 CMD_login(LPSHELLCONTEXT);
+U32 CMD_login(LPSHELLCONTEXT);
 static U32 CMD_logout(LPSHELLCONTEXT);
 static U32 CMD_whoami(LPSHELLCONTEXT);
 static U32 CMD_passwd(LPSHELLCONTEXT);
@@ -129,35 +65,17 @@ static U32 CMD_usb(LPSHELLCONTEXT);
 static U32 CMD_nvme(LPSHELLCONTEXT);
 static U32 CMD_dataview(LPSHELLCONTEXT);
 
-void SystemDataViewMode(void);
-
-static void ShellScriptOutput(LPCSTR Message, LPVOID UserData);
-static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
-static LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData);
-static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
 static BOOL ShellCommandLineCompletion(
     const COMMANDLINE_COMPLETION_CONTEXT* CompletionContext,
     LPSTR Output,
     U32 OutputSize);
 static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context);
-static void ClearOptions(LPSHELLCONTEXT);
-static BOOL HasOption(LPSHELLCONTEXT, LPCSTR, LPCSTR);
 static void ListDirectory(LPSHELLCONTEXT, LPCSTR, U32, BOOL, BOOL, U32*);
-static BOOL QualifyFileName(LPSHELLCONTEXT, LPCSTR, LPSTR);
-static BOOL QualifyCommandLine(LPSHELLCONTEXT, LPCSTR, LPSTR);
-static void ExecuteStartupCommands(void);
-static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine);
-static BOOL SpawnExecutable(LPSHELLCONTEXT, LPCSTR, BOOL);
 
 /************************************************************************/
 // The shell command table
 
-static struct {
-    STR Name[MAX_COMMAND_NAME];
-    STR AltName[MAX_COMMAND_NAME];
-    STR Usage[MAX_COMMAND_NAME];
-    SHELLCOMMAND Command;
-} COMMANDS[] = {
+SHELL_COMMAND_ENTRY COMMANDS[] = {
     {"commands", "help", "", CMD_commands},
     {"clear", "cls", "", CMD_cls},
     {"conmode", "mode", "Columns Rows|list", CMD_conmode},
@@ -261,7 +179,7 @@ static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context) {
 
 /************************************************************************/
 
-static void InitShellContext(LPSHELLCONTEXT This) {
+void InitShellContext(LPSHELLCONTEXT This) {
     U32 Index;
 
     MemorySet(This, 0, sizeof(SHELLCONTEXT));
@@ -303,7 +221,7 @@ static void InitShellContext(LPSHELLCONTEXT This) {
 
 /***************************************************************************/
 
-static void DeinitShellContext(LPSHELLCONTEXT This) {
+void DeinitShellContext(LPSHELLCONTEXT This) {
     U32 Index;
 
 
@@ -325,7 +243,7 @@ static void DeinitShellContext(LPSHELLCONTEXT This) {
 
 /***************************************************************************/
 
-static void ClearOptions(LPSHELLCONTEXT Context) {
+void ClearOptions(LPSHELLCONTEXT Context) {
     U32 Index;
     for (Index = 0; Index < Context->Options.Count; Index++) {
         if (Context->Options.Items[Index]) HeapFree(Context->Options.Items[Index]);
@@ -352,14 +270,14 @@ static void RotateBuffers(LPSHELLCONTEXT This) {
 
 /***************************************************************************/
 
-static BOOL ShowPrompt(LPSHELLCONTEXT Context) {
+BOOL ShowPrompt(LPSHELLCONTEXT Context) {
     ConsolePrint(TEXT("%s>"), Context->CurrentFolder);
     return TRUE;
 }
 
 /***************************************************************************/
 
-static BOOL ParseNextCommandLineComponent(LPSHELLCONTEXT Context) {
+BOOL ParseNextCommandLineComponent(LPSHELLCONTEXT Context) {
     U32 Quotes = 0;
     U32 d = 0;
 
@@ -416,7 +334,7 @@ static BOOL ParseNextCommandLineComponent(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
-static BOOL HasOption(LPSHELLCONTEXT Context, LPCSTR ShortName, LPCSTR LongName) {
+BOOL HasOption(LPSHELLCONTEXT Context, LPCSTR ShortName, LPCSTR LongName) {
     U32 Index;
     LPCSTR Option;
     for (Index = 0; Index < Context->Options.Count; Index++) {
@@ -495,7 +413,7 @@ static BOOL ShellCommandLineCompletion(
 
 /***************************************************************************/
 
-static BOOL QualifyFileName(LPSHELLCONTEXT Context, LPCSTR RawName, LPSTR FileName) {
+BOOL QualifyFileName(LPSHELLCONTEXT Context, LPCSTR RawName, LPSTR FileName) {
     STR Sep[2] = {PATH_SEP, STR_NULL};
     STR Temp[MAX_PATH_NAME];
     LPSTR Ptr;
@@ -549,7 +467,7 @@ static BOOL QualifyFileName(LPSHELLCONTEXT Context, LPCSTR RawName, LPSTR FileNa
 
 /***************************************************************************/
 
-static BOOL QualifyCommandLine(LPSHELLCONTEXT Context, LPCSTR RawCommandLine, LPSTR QualifiedCommandLine) {
+BOOL QualifyCommandLine(LPSHELLCONTEXT Context, LPCSTR RawCommandLine, LPSTR QualifiedCommandLine) {
     U32 Quotes = 0;
     U32 s = 0;  // source index
     U32 d = 0;  // destination index
@@ -1693,7 +1611,7 @@ static U32 CMD_shutdown(LPSHELLCONTEXT Context) {
 
 /************************************************************************/
 
-static U32 CMD_adduser(LPSHELLCONTEXT Context) {
+U32 CMD_adduser(LPSHELLCONTEXT Context) {
     STR UserName[MAX_USER_NAME];
     STR Password[MAX_USER_NAME];
     STR PrivilegeStr[16];
@@ -1785,7 +1703,7 @@ static U32 CMD_deluser(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
-static U32 CMD_login(LPSHELLCONTEXT Context) {
+U32 CMD_login(LPSHELLCONTEXT Context) {
     STR UserName[MAX_USER_NAME];
     STR Password[MAX_USER_NAME];
 
@@ -2189,7 +2107,7 @@ static U32 CMD_nvme(LPSHELLCONTEXT Context) {
  * @param CommandName Name of the command/executable to spawn.
  * @param Background TRUE to run in background, FALSE for foreground.
  */
-static BOOL SpawnExecutable(LPSHELLCONTEXT Context, LPCSTR CommandName, BOOL Background) {
+BOOL SpawnExecutable(LPSHELLCONTEXT Context, LPCSTR CommandName, BOOL Background) {
     STR QualifiedCommandLine[MAX_PATH_NAME];
 
     if (QualifyCommandLine(Context, CommandName, QualifiedCommandLine)) {
@@ -2222,304 +2140,3 @@ static BOOL SpawnExecutable(LPSHELLCONTEXT Context, LPCSTR CommandName, BOOL Bac
 }
 
 /***************************************************************************/
-
-/**
- * @brief Launch executables listed in the kernel configuration.
- *
- * Each [[Run]] item of exos.toml is checked and the command is executed
- * using the same pipeline as interactive shell commands.
- */
-static void ExecuteStartupCommands(void) {
-    U32 ConfigIndex = 0;
-    STR Key[MAX_USER_NAME];
-    LPCSTR CommandLine;
-    SHELLCONTEXT Context;
-
-
-    // Wait 2 seconds for network stack to stabilize (ARP, etc.)
-    Sleep(2000);
-
-    LPTOML Configuration = GetConfiguration();
-    if (Configuration == NULL) {
-        return;
-    }
-
-    InitShellContext(&Context);
-
-    FOREVER {
-        StringPrintFormat(Key, TEXT("Run.%u.Command"), ConfigIndex);
-        CommandLine = TomlGet(Configuration, Key);
-        if (CommandLine == NULL) break;
-
-        ExecuteCommandLine(&Context, CommandLine);
-
-        ConfigIndex++;
-    }
-
-    DeinitShellContext(&Context);
-
-}
-
-/***************************************************************************/
-
-/**
- * @brief Execute a command line string.
- *
- * Parses and executes a command line
- *
- * @param Context Shell context to use for execution
- * @param CommandLine Command line string to execute
- */
-static void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine) {
-    SAFE_USE_3(Context, Context->ScriptContext, CommandLine) {
-
-        SCRIPT_ERROR Error = ScriptExecute(Context->ScriptContext, CommandLine);
-
-        if (Error != SCRIPT_OK) {
-            ConsolePrint(TEXT("Error: %s\n"), ScriptGetErrorMessage(Context->ScriptContext));
-        }
-    } else {
-        ERROR(TEXT("[ExecuteCommandLine] Null pointer\n"));
-    }
-}
-
-/***************************************************************************/
-
-/**
- * @brief Parse and execute a single command line from user input.
- *
- * @param Context Shell context to fill and execute.
- * @return TRUE to continue the shell loop, FALSE otherwise.
- */
-static BOOL ParseCommand(LPSHELLCONTEXT Context) {
-
-    ShowPrompt(Context);
-
-    Context->Component = 0;
-    Context->CommandChar = 0;
-    MemorySet(Context->Input.CommandLine, 0, sizeof Context->Input.CommandLine);
-
-    CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, FALSE);
-
-    if (Context->Input.CommandLine[0] != STR_NULL) {
-        CommandLineEditorRemember(&Context->Input.Editor, Context->Input.CommandLine);
-        ConsoleResetPaging();
-        ExecuteCommandLine(Context, Context->Input.CommandLine);
-    }
-
-
-    return TRUE;
-}
-
-/************************************************************************/
-
-/**
- * @brief Shell callback for script output.
- * @param Message Message to output
- * @param UserData Shell context (unused)
- */
-static void ShellScriptOutput(LPCSTR Message, LPVOID UserData) {
-    UNUSED(UserData);
-    ConsolePrint(Message);
-}
-
-/************************************************************************/
-
-/**
- * @brief Shell callback for script command execution.
- * @param Command Command to execute
- * @param UserData Shell context
- * @return DF_RETURN_SUCCESS on success or an error code on failure
- */
-static U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData) {
-    LPSHELLCONTEXT Context = (LPSHELLCONTEXT)UserData;
-    U32 Index;
-    U32 Result = DF_RETURN_GENERIC;
-
-    if (Context == NULL || Command == NULL) {
-        return DF_RETURN_BAD_PARAMETER;
-    }
-
-
-    StringCopy(Context->Input.CommandLine, Command);
-
-    ClearOptions(Context);
-
-    Context->Component = 0;
-    Context->CommandChar = 0;
-
-    ParseNextCommandLineComponent(Context);
-
-    if (StringLength(Context->Command) == 0) {
-        Result = DF_RETURN_SUCCESS;
-        return Result;
-    }
-
-    {
-        STR CommandName[MAX_FILE_NAME];
-        StringCopy(CommandName, Context->Command);
-
-        for (Index = 0; COMMANDS[Index].Command != NULL; Index++) {
-            if (StringCompareNC(CommandName, COMMANDS[Index].Name) == 0 ||
-                StringCompareNC(CommandName, COMMANDS[Index].AltName) == 0) {
-                Result = COMMANDS[Index].Command(Context);
-                return Result;
-            }
-        }
-
-        if (SpawnExecutable(Context, Context->Input.CommandLine, FALSE) == TRUE) {
-            Result = DF_RETURN_SUCCESS;
-            return Result;
-        }
-
-        if (Context->ScriptContext) {
-            Context->ScriptContext->ErrorCode = SCRIPT_ERROR_SYNTAX;
-            StringPrintFormat(
-                Context->ScriptContext->ErrorMessage,
-                TEXT("Unknown command: %s"),
-                CommandName);
-        }
-    }
-
-    return Result;
-}
-
-/************************************************************************/
-
-/**
- * @brief Shell callback for script variable resolution.
- * @param VarName Variable name to resolve
- * @param UserData Shell context (unused)
- * @return Variable value or NULL if not found
- */
-static LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData) {
-    UNUSED(VarName);
-    UNUSED(UserData);
-    return NULL;
-}
-
-/************************************************************************/
-
-/**
- * @brief Shell callback for script function calls.
- * @param FuncName Function name to call
- * @param Argument String argument for the function
- * @param UserData Shell context
- * @return Function result (U32)
- */
-static U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData) {
-    LPSHELLCONTEXT Context = (LPSHELLCONTEXT)UserData;
-
-    if (STRINGS_EQUAL(FuncName, TEXT("exec"))) {
-        if (Context == NULL || Argument == NULL) {
-            return DF_RETURN_BAD_PARAMETER;
-        }
-
-        // Execute the provided command line using the standard shell command flow
-        U32 Result = ShellScriptExecuteCommand(Argument, Context);
-        return Result;
-    } else if (STRINGS_EQUAL(FuncName, TEXT("print"))) {
-        ConsolePrint(Argument);
-        return 0;
-    }
-
-    return MAX_U32;
-}
-
-/************************************************************************/
-
-static BOOL HandleUserLoginProcess(void) {
-    // Check if any users exist
-    LPLIST UserAccountList = GetUserAccountList();
-    BOOL HasUsers = (UserAccountList != NULL && UserAccountList->First != NULL);
-
-    if (!HasUsers) {
-        // No users exist, prompt to create the first admin user
-        ConsolePrint(TEXT("No existing user account. You need to create the first admin user.\n"));
-
-        SHELLCONTEXT TempContext;
-        InitShellContext(&TempContext);
-        CMD_adduser(&TempContext);
-
-        // Check if user was created successfully
-        UserAccountList = GetUserAccountList();
-        BOOL NewHasUsers = (UserAccountList != NULL && UserAccountList->First != NULL);
-
-        if (NewHasUsers == FALSE) {
-            ConsolePrint(TEXT("ERROR: Failed to create user account. System will exit.\n"));
-            return FALSE;
-        }
-    }
-
-    // Login loop - always required after user creation or if users exist
-    ConsolePrint(TEXT("Login\n"));
-    BOOL LoggedIn = FALSE;
-    U32 LoginAttempts = 0;
-
-    while (!LoggedIn && LoginAttempts < 5) {
-        LoginAttempts++;
-
-        SHELLCONTEXT TempContext;
-        InitShellContext(&TempContext);
-        CMD_login(&TempContext);
-
-        // Check if login was successful
-        LPUSERSESSION Session = GetCurrentSession();
-
-        SAFE_USE(Session) {
-            LoggedIn = TRUE;
-            LPUSERACCOUNT Account = FindUserAccountByID(Session->UserID);
-
-            SAFE_USE (Account) {
-                ConsolePrint(TEXT("Logged in as: %s (%s)\n"), Account->UserName,
-                    Account->Privilege == EXOS_PRIVILEGE_ADMIN ? TEXT("Administrator") : TEXT("User")
-                    );
-            }
-        } else {
-            ConsolePrint(TEXT("Login failed. Please try again. (Attempt %d/5)\n\n"), LoginAttempts);
-        }
-    }
-
-    if (!LoggedIn) {
-        ConsolePrint(TEXT("Too many failed login attempts.\n"));
-        return FALSE;
-    }
-
-    return TRUE;
-}
-
-/************************************************************************/
-
-/**
- * @brief Entry point for the interactive shell.
- *
- * Initializes the shell context, runs configured executables and processes
- * user commands until termination.
- *
- * @param Param Unused parameter.
- * @return Exit code of the shell.
- */
-U32 Shell(LPVOID Param) {
-    TRACED_FUNCTION;
-
-    UNUSED(Param);
-    SHELLCONTEXT Context;
-
-
-    InitShellContext(&Context);
-
-    if (GetDoLogin() && !HandleUserLoginProcess()) { return 0; }
-
-    ExecuteStartupCommands();
-
-    while (ParseCommand(&Context)) {
-    }
-
-    ConsolePrint(TEXT("Exiting shell\n"));
-
-    DeinitShellContext(&Context);
-
-
-    TRACED_EPILOGUE("Shell");
-    return 1;
-}

@@ -138,7 +138,7 @@ BOOL ConsoleGetPagingEnabled(void);
 void ConsoleSetPagingActive(BOOL Active);
 void ConsoleResetPaging(void);
 
-// Functions in Shell.c
+// Functions in shell/Shell-Main.c
 
 U32 Shell(LPVOID);
 

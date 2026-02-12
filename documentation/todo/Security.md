@@ -197,7 +197,7 @@ typedef struct tag_PASSWORD_CHANGE {
 
 #### Files to Modify
 - `kernel/source/SYSCall.c` - Add new syscalls
-- `kernel/source/Shell.c` - New commands
+- `kernel/source/shell/Shell-Commands.c` - New commands
 - `kernel/source/process/Process.c` - PROCESS extension
 - `kernel/source/Kernel.c` - User system initialization
 - `kernel/include/process/Process.h` - Structure extensions
