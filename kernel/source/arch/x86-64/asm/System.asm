@@ -52,43 +52,6 @@ Magic : db 'EXOS'
 
 FUNC_HEADER
 start:
-
-    mov         r10, rax
-    mov         r11, rbx
-    mov         r12, rsp
-    mov         r13, rbp
-
-    push        rax
-    push        rbx
-    push        rcx
-    push        rdx
-    push        rdi
-    push        rsi
-
-    lea         rdi, [rel StartLogEntered]
-    call        SerialWriteString
-    mov         rax, r10
-    lea         rdi, [rel StartLogRax]
-    call        SerialWriteLabelHex64
-    mov         rax, r11
-    lea         rdi, [rel StartLogRbx]
-    call        SerialWriteLabelHex64
-    mov         rax, r12
-    lea         rdi, [rel StartLogRsp]
-    call        SerialWriteLabelHex64
-    mov         rax, r13
-    lea         rdi, [rel StartLogRbp]
-    call        SerialWriteLabelHex64
-    lea         rdi, [rel StartLogCalling]
-    call        SerialWriteString
-
-    pop         rsi
-    pop         rdi
-    pop         rdx
-    pop         rcx
-    pop         rbx
-    pop         rax
-
     mov         [KernelStartup + KernelStartupInfo.StackTop], rsp
 
     call        KernelMain
@@ -98,94 +61,6 @@ start:
     hlt
     jmp .hang
     nop
-
-SerialWriteByte:
-    push    rax
-    push    rdx
-    mov     ah, al
-.wait:
-    mov     dx, 0x03FD
-    in      al, dx
-    test    al, 0x20
-    jz      .wait
-    mov     al, ah
-    mov     dx, 0x03F8
-    out     dx, al
-    pop     rdx
-    pop     rax
-    ret
-
-SerialWriteString:
-    push    rax
-    push    rdx
-.loop:
-    mov     al, [rdi]
-    test    al, al
-    jz      .done
-    call    SerialWriteByte
-    inc     rdi
-    jmp     .loop
-.done:
-    pop     rdx
-    pop     rax
-    ret
-
-SerialWriteHex32:
-    push    rax
-    push    rbx
-    push    rcx
-    push    rdx
-    mov     edx, eax
-    mov     ecx, 8
-.hex32_loop:
-    mov     eax, edx
-    shr     eax, 28
-    and     eax, 0x0F
-    mov     al, [rel StartHexDigits + rax]
-    call    SerialWriteByte
-    shl     edx, 4
-    dec     ecx
-    jnz     .hex32_loop
-    pop     rdx
-    pop     rcx
-    pop     rbx
-    pop     rax
-    ret
-
-SerialWriteHex64:
-    push    rax
-    push    rbx
-    mov     rbx, rax
-    shr     rax, 32
-    call    SerialWriteHex32
-    mov     eax, ebx
-    call    SerialWriteHex32
-    pop     rbx
-    pop     rax
-    ret
-
-SerialWriteLabelHex64:
-    push    rax
-    push    rdi
-    call    SerialWriteString
-    pop     rdi
-    pop     rax
-    call    SerialWriteHex64
-    lea     rdi, [rel StartLogNewLine]
-    call    SerialWriteString
-    ret
-
-section .rodata
-BITS 64
-
-StartLogEntered: db "[start] Entered kernel", 0x0D, 0x0A, 0
-StartLogCalling: db "[start] Calling KernelMain", 0x0D, 0x0A, 0
-StartLogRax: db "[start] Rax=0x", 0
-StartLogRbx: db "[start] Rbx=0x", 0
-StartLogRsp: db "[start] Rsp=0x", 0
-StartLogRbp: db "[start] Rbp=0x", 0
-StartLogNewLine: db 0x0D, 0x0A, 0
-StartHexDigits: db "0123456789ABCDEF", 0
 
 ;-------------------------------------------------------------------------
 

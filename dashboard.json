@@ -32,11 +32,11 @@
         "C-g": { "label": "Build 64 UEFI Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug --uefi --clean" },
         "C-j": { "label": "Build 64 UEFI Debug Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split --uefi --boot-stage-markers --clean" },
 
-        "f5": { "label": "Start 64 QEMU MBR Release", "script": "scripts/run --arch x86-64 --fs ext2 --release" },
-        "f6": { "label": "Start 64 QEMU MBR Debug", "script": "scripts/run --arch x86-64 --fs ext2 --debug" },
-        "f7": { "label": "Start 64 QEMU MBR Debug", "script": "scripts/run --arch x86-64 --fs ext2 --debug --split" },
-        "f8": { "label": "Start 64 QEMU UEFI Debug", "script": "scripts/run --arch x86-64 --fs ext2 --debug --uefi" },
-        "f9": { "label": "Start 64 QEMU UEFI Debug Split", "script": "scripts/run --arch x86-64 --fs ext2 --debug --uefi --split" },
+        "f4": { "label": "Start 64 QEMU MBR Release", "script": "scripts/run --arch x86-64 --fs ext2 --release" },
+        "f5": { "label": "Start 64 QEMU MBR Debug", "script": "scripts/run --arch x86-64 --fs ext2 --debug" },
+        "f6": { "label": "Start 64 QEMU MBR Debug Split", "script": "scripts/run --arch x86-64 --fs ext2 --debug --split" },
+        "f7": { "label": "Start 64 QEMU UEFI Debug", "script": "scripts/run --arch x86-64 --fs ext2 --debug --uefi" },
+        "f8": { "label": "Start 64 QEMU UEFI Debug Split", "script": "scripts/run --arch x86-64 --fs ext2 --debug --uefi --split" },
 
         "3--------------------": "",
 
