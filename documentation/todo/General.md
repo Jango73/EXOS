@@ -32,9 +32,7 @@
 - Functions returning U32 MUST return DF_RETURN_XXXX codes : meaning 0 on success, an error otherwise.
 - If they are meant to return 0 or 1, they must use BOOL.
 
-## Shell kernel exposure
-
-- Expose PCI devices
+## Shell kernel objects exposure
 
 ## Scripting
 
