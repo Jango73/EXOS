@@ -5,6 +5,10 @@
 - [Notations used in this document](#notations-used-in-this-document)
 - [Architecture](#architecture)
   - [Paging abstractions](#paging-abstractions)
+    - [Layering and architecture backend](#layering-and-architecture-backend)
+    - [Physical memory allocation (buddy allocator)](#physical-memory-allocation-buddy-allocator)
+    - [Virtual address space construction](#virtual-address-space-construction)
+    - [Region descriptor tracking](#region-descriptor-tracking)
   - [Logging](#logging)
   - [Kernel objects](#kernel-objects)
     - [Object identifiers](#object-identifiers)
@@ -94,19 +98,35 @@
 
 ### Paging abstractions
 
-The memory manager relies on `arch/Memory.h` to describe page hierarchy helpers exposed by the active architecture backend. The x86-32 implementation (`arch/x86-32/x86-32-Memory.h`) centralizes directory and table index calculations, exposes accessors for the self-mapped page directory, and provides helper routines to build raw page directory and page table entries. Kernel code constructs mappings through `MakePageDirectoryEntryValue`, `MakePageTableEntryValue`, and `WritePage*EntryValue` instead of touching the x86-32 bitfields directly. This abstraction keeps `Memory.c` agnostic of the paging depth so that a future x86-64 backend can extend the hierarchy without refactoring the core allocator.
+The memory subsystem is split into architecture-agnostic services and architecture backends.
 
-The x86-32 page directory bootstrap maps the TaskRunner page with write access so the kernel main stack can live in the TaskRunner window during early bring-up.
+#### Layering and architecture backend
 
-`arch/x86-32/x86-32-Memory.h` exposes a generic `ARCH_PAGE_ITERATOR` helper that walks page mappings without assuming a fixed number of page table levels. Region management routines (`IsRegionFree`, `AllocRegion`, `FreeRegion`, and friends) advance the iterator rather than manually splitting linear addresses into directory/table indexes, and table reclamation relies on `PageTableIsEmpty`. Physical range clipping is also delegated to the architecture via `ClipPhysicalRange`, keeping future 64-bit backends free to extend address limits without touching the common kernel code.
+Common memory code consumes helpers exposed by `arch/Memory.h` and does not manipulate paging bitfields directly. Backend headers expose entry builders and accessors such as `MakePageDirectoryEntryValue`, `MakePageTableEntryValue`, and `WritePage*EntryValue`, which keeps common allocation logic independent from paging depth.
 
-`InitializeMemoryManager` defers to `InitializeMemoryManager` so the architecture backend owns the low-level bootstrap steps. The x86-32 and x86-64 implementations bootstrap a shared physical buddy allocator metadata region in low mapped memory, record both the loader-owned span (`SetLoaderReservedPhysicalRange`) and allocator metadata span (`SetPhysicalAllocatorMetadataRange`), then call `MarkUsedPhysicalMemory` to reserve low memory, loader pages, allocator metadata pages, and all non-available multiboot ranges before regular page allocation begins.
+On x86-32, `arch/x86-32/x86-32-Memory.h` also exposes self-map helpers and an `ARCH_PAGE_ITERATOR`. Region routines (`IsRegionFree`, `AllocRegion`, `FreeRegion`, `ResizeRegion`) walk mappings through this iterator and reclaim empty page tables through `PageTableIsEmpty`. Physical range clipping is delegated to `ClipPhysicalRange`.
 
-On long mode builds the kernel allocates paging structures explicitly instead of cloning the loader tables. `AllocPageDirectory` creates fresh low-memory and kernel PDPTs, wires the task-runner window, and programs the recursive slot before returning the new PML4. `AllocUserPageDirectory` reuses those helpers but also reserves an empty userland page table so `AllocRegion` can immediately populate process space without reconstructing the hierarchy first. The low-memory region builder keeps a cached pair of BIOS-protected and general identity tables so new page directories only consume fresh pages for their PDPT, directory, and any userland seed tables.
+#### Physical memory allocation (buddy allocator)
 
-The default x86-64 kernel virtual base (`VMA_KERNEL`) is `0xFFFFFFFFC0000000`.
+Each architecture owns the low-level `InitializeMemoryManager` sequence. Both x86-32 and x86-64 bootstrap buddy metadata in low mapped memory, register loader-reserved and allocator-metadata physical spans (`SetLoaderReservedPhysicalRange`, `SetPhysicalAllocatorMetadataRange`), then call `MarkUsedPhysicalMemory` to reserve low memory, loader pages, allocator metadata pages, and non-available multiboot ranges before normal allocations start.
 
-On x86-64 every successful `AllocRegion` emits a `MEMORY_REGION_DESCRIPTOR` record that inherits `LISTNODE_FIELDS` and lives in an intrusive list anchored on `PROCESS.RegionListHead`. The allocator carves descriptor slabs from dedicated metadata pages (mapped through `AllocKernelRegion`) so the kernel heap stays untouched while diagnostics can enumerate allocations. Each descriptor stores the canonical base, committed size, physical origin (when fixed), allocation flags, and paging granularity. `FreeRegion` and `ResizeRegion` update the list in place, logging registration and teardown so validation runs can confirm descriptor lifetimes line up with the virtual memory operations they front.
+This separates physical page management (buddy allocator) from virtual mapping bookkeeping.
+
+#### Virtual address space construction
+
+Virtual mappings are managed through region APIs (`AllocRegion`, `FreeRegion`, `ResizeRegion`) that populate page tables and then flush translation state.
+
+On x86-32 bootstrap, the page directory maps the TaskRunner page with write access so the kernel main stack can execute during early bring-up.
+
+On x86-64, `AllocPageDirectory` builds fresh paging structures (low-memory region, kernel region, recursive slot, task-runner window) instead of cloning loader tables. `AllocUserPageDirectory` reuses these helpers and pre-installs a userland seed table so user mappings can be populated immediately. The default x86-64 kernel virtual base (`VMA_KERNEL`) is `0xFFFFFFFFC0000000`.
+
+#### Region descriptor tracking
+
+Both x86-32 and x86-64 track successful virtual region operations with `MEMORY_REGION_DESCRIPTOR` records linked from `PROCESS.RegionListHead`. Allocation uses `RegionTrackAlloc`, release uses `RegionTrackFree`, and growth/shrink uses `RegionTrackResize`.
+
+Descriptors are allocated from dedicated descriptor slabs mapped with `AllocKernelRegion`, so descriptor metadata does not consume the process heap. Each descriptor stores canonical base, size/page count, optional physical origin, flags/attributes, tag, and paging granularity.
+
+Descriptor slab bootstrap is protected by `G_RegionDescriptorBootstrap`. While descriptor slabs are being allocated and mapped, tracking callbacks are temporarily bypassed to prevent recursive descriptor allocation.
 
 ### Logging
 
