@@ -1,11 +1,13 @@
 # General TODO list
 
-## Critical : memory
+## Memory
 
-- Completely remove global PPB management
-- Create a buddy allocator module
-- Use the AllocRegion buddy allocator to track physical page allocation
-- Make UEFI boot robust
+- Later: align x86-32 page directory creation (`AllocPageDirectory` and `AllocUserPageDirectory`) with the modular x86-64 region-based approach (low region, kernel region, task runner, recursive slot) while preserving current behavior.
+- Execute this refactor in small validated steps to limit boot and paging regression risk.
+
+## UEFI
+
+- Make UEFI boot work again on bare metal
 
 ## Problems
 
@@ -81,7 +83,6 @@
 ## File systems
 
 - Implement ext3 and ext4
-- Implement NTFS
 - Load exos.bin from the EXT2 system partition instead of the ESP in UEFI
 
 ## Drivers
