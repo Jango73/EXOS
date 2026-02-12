@@ -268,7 +268,6 @@ static BOOL NVMeInterruptHandler(LPDEVICE Device, LPVOID Context) {
         return FALSE;
     }
 
-    DEBUG(TEXT("[NVMeInterruptHandler] Completed=%u"), Completed);
     return FALSE;
 }
 
@@ -607,10 +606,6 @@ BOOL NVMeReadSectors(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 SectorC
         return FALSE;
     }
 
-    DEBUG(TEXT("[NVMeReadSectors] Read LBA=%x:%x sectors=%u"),
-          U64_High32(Lba),
-          U64_Low32(Lba),
-          (U32)SectorCount);
     return TRUE;
 }
 
@@ -714,10 +709,6 @@ BOOL NVMeWriteSectors(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 Sector
         return FALSE;
     }
 
-    DEBUG(TEXT("[NVMeWriteSectors] Wrote LBA=%x:%x sectors=%u"),
-          U64_High32(Lba),
-          U64_Low32(Lba),
-          (U32)SectorCount);
     return TRUE;
 }
 

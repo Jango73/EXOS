@@ -653,6 +653,9 @@ static void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL 
     FILEINFO Find;
     LPFILESYSTEM FileSystem;
     LPFILE File;
+    FS_PATHCHECK PathCheck;
+    STR DiskName[MAX_FILE_NAME];
+    LPCSTR Reason = TEXT("unknown");
     STR Pattern[MAX_PATH_NAME];
     STR Sep[2] = {PATH_SEP, STR_NULL};
 
@@ -673,7 +676,30 @@ static void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL 
         StringCopy(Find.Name, Base);
         File = (LPFILE)FileSystem->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
         if (File == NULL) {
-            ConsolePrint(TEXT("Unknown file : %s\n"), Base);
+            StringCopy(DiskName, Base);
+            if (Base[0] == PATH_SEP && Base[1] == 'f' && Base[2] == 's' && Base[3] == PATH_SEP) {
+                UINT ReadIndex = 4;
+                UINT WriteIndex = 0;
+                while (Base[ReadIndex] != STR_NULL && Base[ReadIndex] != PATH_SEP && WriteIndex < MAX_FILE_NAME - 1) {
+                    DiskName[WriteIndex++] = Base[ReadIndex++];
+                }
+                DiskName[WriteIndex] = STR_NULL;
+            }
+
+            PathCheck.CurrentFolder[0] = STR_NULL;
+            StringCopy(PathCheck.SubFolder, Base);
+            if (FileSystem->Driver->Command(DF_FS_PATHEXISTS, (UINT)&PathCheck)) {
+                Reason = TEXT("file system driver refused open/list");
+            } else {
+                Reason = TEXT("path not found");
+            }
+            ConsolePrint(TEXT("Unable to read on volume %s, reason : %s\n"), DiskName, Reason);
+            WARNING(TEXT("[ListDirectory] Unable to read on volume %s, reason : %s (path=%s fs=%s driver=%s)"),
+                DiskName,
+                Reason,
+                Base,
+                FileSystem->Name,
+                FileSystem->Driver->Product);
             return;
         }
         ListFile(File, Indent);

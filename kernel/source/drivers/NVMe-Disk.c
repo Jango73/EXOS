@@ -270,12 +270,9 @@ BOOL NVMeRegisterNamespaces(LPNVME_DEVICE Device) {
             Count = 1;
         }
 
-        DEBUG(TEXT("[NVMeRegisterNamespaces] Namespace count=%u"), Count);
-
         BOOL RegisteredAny = FALSE;
         for (UINT Index = 0; Index < Count; Index++) {
             U32 NamespaceId = NamespaceIds[Index];
-            DEBUG(TEXT("[NVMeRegisterNamespaces] Namespace[%u]=%u"), Index, NamespaceId);
             U64 NumSectors = U64_0;
             if (!NVMeIdentifyNamespace(Device, NamespaceId, &NumSectors)) {
                 WARNING(TEXT("[NVMeRegisterNamespaces] Identify namespace failed NSID=%u"), (U32)NamespaceId);
@@ -296,17 +293,12 @@ BOOL NVMeRegisterNamespaces(LPNVME_DEVICE Device) {
             }
 
             RegisteredAny = TRUE;
-            DEBUG(TEXT("[NVMeRegisterNamespaces] Disk registered NSID=%u sectors=%x,%x"),
-                  (U32)NamespaceId,
-                  (U32)U64_High32(NumSectors),
-                  (U32)U64_Low32(NumSectors));
 
             if (FileSystemReady()) {
                 if (!MountDiskPartitions((LPSTORAGE_UNIT)Disk, NULL, 0)) {
                     WARNING(TEXT("[NVMeRegisterNamespaces] Partition mount failed NSID=%u"), (U32)NamespaceId);
                 }
             } else {
-                DEBUG(TEXT("[NVMeRegisterNamespaces] Deferred partition mount NSID=%u"), (U32)NamespaceId);
             }
         }
 

@@ -371,14 +371,6 @@ BOOL RegisterRegionDescriptor(LINEAR Base, UINT NumPages, PHYSICAL Target, U32 F
 
     InsertDescriptorOrdered(Process, Descriptor);
 
-    DEBUG(TEXT("[RegisterRegionDescriptor] Process=%p base=%p pages=%u flags=%x count=%u free=%u"),
-        (LPVOID)Process,
-        (LPVOID)Descriptor->CanonicalBase,
-        Descriptor->PageCount,
-        Flags,
-        Process->RegionCount,
-        G_FreeRegionDescriptorCount);
-
     return TRUE;
 }
 
@@ -426,10 +418,6 @@ void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
 
         if (EntireRegion) {
             RemoveDescriptor(Process, Descriptor);
-            DEBUG(TEXT("[UpdateDescriptorsForFree] Removed region base=%p size=%u remaining=%u"),
-                (LPVOID)RegionStart,
-                (UINT)Descriptor->Size,
-                Process->RegionCount);
             ReleaseRegionDescriptor(Descriptor);
         } else if (TrimTail) {
             UINT Remaining = (UINT)(FreeStart - RegionStart);
@@ -505,11 +493,6 @@ void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
                 InsertDescriptorOrdered(Process, Right);
             }
 
-            DEBUG(TEXT("[UpdateDescriptorsForFree] Split region %p -> left=%u right=%u count=%u"),
-                (LPVOID)RegionStart,
-                LeftBytes,
-                RightBytes,
-                Process->RegionCount);
         }
 
         if (RemainingBytes >= SegmentBytes) {
