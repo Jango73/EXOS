@@ -25,7 +25,6 @@
 
 #include "Console.h"
 #include "CoreString.h"
-#include "EarlyBootConsole.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "System.h"

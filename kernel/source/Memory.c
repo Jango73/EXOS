@@ -245,7 +245,6 @@ BOOL FindAvailableMemoryRangeInWindow(
     PHYSICAL ExcludedEnd,
     UINT Size,
     PHYSICAL* OutAddress) {
-
     if (OutAddress == NULL || Size == 0) {
         return FALSE;
     }

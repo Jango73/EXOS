@@ -1140,29 +1140,10 @@ void InitializeMemoryManager(void) {
         ConsolePanic(TEXT("Detected memory = 0"));
     }
 
-    UINT BuddyMetadataSize = BuddyGetMetadataSize(KernelStartup.PageCount);
-    UINT BuddyMetadataSizeAligned = (UINT)PAGE_ALIGN(BuddyMetadataSize);
-    PHYSICAL MetadataWindowStart = (PHYSICAL)LOW_MEMORY_THREE_QUARTER;
-    PHYSICAL MetadataWindowEnd = (PHYSICAL)RESERVED_LOW_MEMORY;
-    UINT MetadataWindowSize = (UINT)(MetadataWindowEnd - MetadataWindowStart);
-    if (BuddyMetadataSizeAligned > MetadataWindowSize) {
-        UINT OriginalPageCount = KernelStartup.PageCount;
-        UINT ClampedPageCount = ComputePageCountForMetadataWindow(OriginalPageCount, MetadataWindowSize);
-
-        if (ClampedPageCount == 0) {
-            ERROR(TEXT("[InitializeMemoryManager] Metadata window too small for buddy allocator"));
-            ConsolePanic(TEXT("Could not size memory allocator metadata"));
-            DO_THE_SLEEPING_BEAUTY;
-        }
-
-        KernelStartup.PageCount = ClampedPageCount;
-        KernelStartup.MemorySize = (PHYSICAL)ClampedPageCount << PAGE_SIZE_MUL;
-        BuddyMetadataSize = BuddyGetMetadataSize(KernelStartup.PageCount);
-        BuddyMetadataSizeAligned = (UINT)PAGE_ALIGN(BuddyMetadataSize);
-        WARNING(TEXT("[InitializeMemoryManager] Clamped page count from %u to %u to fit metadata window"),
-            OriginalPageCount,
-            ClampedPageCount);
-    }
+    UINT RequestedPageCount = KernelStartup.PageCount;
+    UINT WorkingPageCount = RequestedPageCount;
+    UINT BuddyMetadataSize = 0;
+    UINT BuddyMetadataSizeAligned = 0;
 
     UINT ReservedBytes = KernelStartup.KernelReservedBytes;
     if (ReservedBytes < KernelStartup.KernelSize) {
@@ -1176,20 +1157,71 @@ void InitializeMemoryManager(void) {
     PHYSICAL LoaderReservedEnd =
         KernelStartup.KernelPhysicalBase + (PHYSICAL)PAGE_ALIGN((PHYSICAL)ReservedBytes);
     PHYSICAL BuddyMetadataPhysical = 0;
+    const UINT LowWindowLowerSize = (UINT)((PHYSICAL)LOW_MEMORY_HALF - (PHYSICAL)N_1MB);
+    const UINT LowWindowUpperSize = (UINT)((PHYSICAL)RESERVED_LOW_MEMORY - (PHYSICAL)LOW_MEMORY_THREE_QUARTER);
 
     SetLoaderReservedPhysicalRange(KernelStartup.KernelPhysicalBase, LoaderReservedEnd);
 
-    if (FindAvailableMemoryRangeInWindow(
-            MetadataWindowStart,
-            MetadataWindowEnd,
+    while (TRUE) {
+        BuddyMetadataSize = BuddyGetMetadataSize(WorkingPageCount);
+        BuddyMetadataSizeAligned = (UINT)PAGE_ALIGN(BuddyMetadataSize);
+
+        BOOL FoundMetadataRange = FALSE;
+
+        FoundMetadataRange = FindAvailableMemoryRangeInWindow(
+            (PHYSICAL)LOW_MEMORY_THREE_QUARTER,
+            (PHYSICAL)RESERVED_LOW_MEMORY,
             KernelStartup.KernelPhysicalBase,
             LoaderReservedEnd,
             BuddyMetadataSizeAligned,
-            &BuddyMetadataPhysical) == FALSE) {
-        ERROR(TEXT("[InitializeMemoryManager] Could not place buddy metadata (size=%u)"), BuddyMetadataSizeAligned);
-        ConsolePanic(TEXT("Could not place physical memory allocator metadata"));
-        DO_THE_SLEEPING_BEAUTY;
+            &BuddyMetadataPhysical);
+
+        if (FoundMetadataRange == FALSE) {
+            FoundMetadataRange = FindAvailableMemoryRangeInWindow(
+                (PHYSICAL)N_1MB,
+                (PHYSICAL)LOW_MEMORY_HALF,
+                KernelStartup.KernelPhysicalBase,
+                LoaderReservedEnd,
+                BuddyMetadataSizeAligned,
+                &BuddyMetadataPhysical);
+        }
+
+        if (FoundMetadataRange != FALSE) {
+            break;
+        }
+
+        UINT CandidateFromLowLowerWindow = ComputePageCountForMetadataWindow(WorkingPageCount, LowWindowLowerSize);
+        UINT CandidateFromLowUpperWindow = ComputePageCountForMetadataWindow(WorkingPageCount, LowWindowUpperSize);
+        UINT NextPageCount = CandidateFromLowLowerWindow;
+        if (CandidateFromLowUpperWindow > NextPageCount) {
+            NextPageCount = CandidateFromLowUpperWindow;
+        }
+
+        if (NextPageCount >= WorkingPageCount) {
+            if (WorkingPageCount == 0) {
+                NextPageCount = 0;
+            } else {
+                NextPageCount = WorkingPageCount - 1;
+            }
+        }
+
+        if (NextPageCount == 0) {
+            ERROR(TEXT("[InitializeMemoryManager] Could not place buddy metadata (size=%u)"), BuddyMetadataSizeAligned);
+            ConsolePanic(TEXT("Could not place physical memory allocator metadata"));
+            DO_THE_SLEEPING_BEAUTY;
+        }
+
+        WorkingPageCount = NextPageCount;
     }
+
+    if (WorkingPageCount != RequestedPageCount) {
+        WARNING(TEXT("[InitializeMemoryManager] Clamped page count from %u to %u to place metadata"),
+            RequestedPageCount,
+            WorkingPageCount);
+        KernelStartup.PageCount = WorkingPageCount;
+        KernelStartup.MemorySize = (PHYSICAL)WorkingPageCount << PAGE_SIZE_MUL;
+    }
+
     BootstrapAllocatorMetadataPhysical = BuddyMetadataPhysical;
     SetPhysicalAllocatorMetadataRange(BuddyMetadataPhysical, BuddyMetadataPhysical + BuddyMetadataSizeAligned);
 
