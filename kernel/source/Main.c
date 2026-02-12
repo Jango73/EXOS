@@ -38,6 +38,104 @@ extern LINEAR __bss_init_end;
 KERNELSTARTUPINFO KernelStartup = {
     .IRQMask_21_PM = 0x000000FB, .IRQMask_A1_PM = 0x000000FF, .IRQMask_21_RM = 0, .IRQMask_A1_RM = 0};
 
+/************************************************************************/
+
+#ifndef BOOT_STAGE_MARKERS
+#define BOOT_STAGE_MARKERS 0
+#endif
+
+/************************************************************************/
+
+static U32 KernelBootMarkerScaleColor(U32 Value, U32 MaskSize) {
+    if (MaskSize == 0u) {
+        return 0u;
+    }
+
+    if (MaskSize >= 8u) {
+        return Value & 0xFFu;
+    }
+
+    U32 MaxValue = (1u << MaskSize) - 1u;
+    return (Value * MaxValue) / 255u;
+}
+
+/************************************************************************/
+
+static U32 KernelBootMarkerComposePixel(const multiboot_info_t* MultibootInfo, U32 Red, U32 Green, U32 Blue) {
+    if (MultibootInfo == NULL || MultibootInfo->framebuffer_type != MULTIBOOT_FRAMEBUFFER_RGB) {
+        return 0u;
+    }
+
+    U32 Pixel = 0u;
+    Pixel |= KernelBootMarkerScaleColor(Red, MultibootInfo->color_info[1]) << MultibootInfo->color_info[0];
+    Pixel |= KernelBootMarkerScaleColor(Green, MultibootInfo->color_info[3]) << MultibootInfo->color_info[2];
+    Pixel |= KernelBootMarkerScaleColor(Blue, MultibootInfo->color_info[5]) << MultibootInfo->color_info[4];
+    return Pixel;
+}
+
+/************************************************************************/
+
+void KernelBootMarkStage(multiboot_info_t* MultibootInfo, U32 StageIndex, U32 Red, U32 Green, U32 Blue) {
+#if BOOT_STAGE_MARKERS == 1
+    const U32 MarkerBaseX = 2u;
+    const U32 MarkerBaseY = 2u;
+    const U32 MarkerSize = 8u;
+    const U32 MarkerSpacing = 2u;
+    const U32 MarkerGroupSize = 10u;
+    const U32 MarkerLineStride = MarkerSize + MarkerSpacing;
+
+    if (MultibootInfo == NULL) {
+        return;
+    }
+    if ((MultibootInfo->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) == 0u) {
+        return;
+    }
+    if (MultibootInfo->framebuffer_bpp != 32u || MultibootInfo->framebuffer_pitch == 0u) {
+        return;
+    }
+    if (MultibootInfo->framebuffer_addr_high != 0u || MultibootInfo->framebuffer_addr_low == 0u) {
+        return;
+    }
+
+    U8* Framebuffer = (U8*)(UINT)MultibootInfo->framebuffer_addr_low;
+    if (Framebuffer == NULL) {
+        return;
+    }
+
+    U32 Pixel = KernelBootMarkerComposePixel(MultibootInfo, Red, Green, Blue);
+    U32 GroupIndex = StageIndex / MarkerGroupSize;
+    U32 GroupOffset = StageIndex % MarkerGroupSize;
+    U32 StartX = MarkerBaseX + GroupOffset * (MarkerSize + MarkerSpacing);
+    U32 StartY = MarkerBaseY + GroupIndex * MarkerLineStride;
+
+    if (StartX >= MultibootInfo->framebuffer_width || StartY >= MultibootInfo->framebuffer_height) {
+        return;
+    }
+
+    U32 DrawWidth = MarkerSize;
+    U32 DrawHeight = MarkerSize;
+    if (StartX + DrawWidth > MultibootInfo->framebuffer_width) {
+        DrawWidth = MultibootInfo->framebuffer_width - StartX;
+    }
+    if (StartY + DrawHeight > MultibootInfo->framebuffer_height) {
+        DrawHeight = MultibootInfo->framebuffer_height - StartY;
+    }
+
+    for (U32 Y = 0u; Y < DrawHeight; Y++) {
+        U32* Row = (U32*)(Framebuffer + ((StartY + Y) * MultibootInfo->framebuffer_pitch) + (StartX * 4u));
+        for (U32 X = 0u; X < DrawWidth; X++) {
+            Row[X] = Pixel;
+        }
+    }
+#else
+    UNUSED(MultibootInfo);
+    UNUSED(StageIndex);
+    UNUSED(Red);
+    UNUSED(Green);
+    UNUSED(Blue);
+#endif
+}
+
 /**
  * @brief Main entry point for the EXOS kernel in paged protected mode.
  *
@@ -186,7 +284,6 @@ void KernelMain(void) {
 
     //--------------------------------------
     // Main initialization routine
-
 
     InitializeKernel();
 }

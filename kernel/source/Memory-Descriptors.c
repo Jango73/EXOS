@@ -59,21 +59,15 @@ LPPROCESS ResolveCurrentAddressSpaceOwner(void) {
  * @return TRUE on success, FALSE otherwise.
  */
 static BOOL GrowDescriptorSlab(void) {
-    EarlyBootConsoleWriteLine(TEXT("[D] S1"));
-
     PHYSICAL Physical = AllocPhysicalPage();
-    EarlyBootConsoleWriteLine(TEXT("[D] S2"));
 
     if (Physical == NULL) {
         ERROR(TEXT("[EnsureDescriptorSlab] No physical page available"));
-        EarlyBootConsoleWriteLine(TEXT("[D] SE1"));
         return FALSE;
     }
 
 
     G_RegionDescriptorBootstrap = TRUE;
-
-    EarlyBootConsoleWriteLine(TEXT("[D] S3"));
 
     LINEAR Linear = AllocKernelRegion(
         Physical,
@@ -81,12 +75,10 @@ static BOOL GrowDescriptorSlab(void) {
         ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER,
         TEXT("RegionDescriptorSlab"));
     G_RegionDescriptorBootstrap = FALSE;
-    EarlyBootConsoleWriteLine(TEXT("[D] S4"));
 
     if (Linear == NULL) {
         ERROR(TEXT("[EnsureDescriptorSlab] Failed to map descriptor slab"));
         FreePhysicalPage(Physical);
-        EarlyBootConsoleWriteLine(TEXT("[D] SE2"));
         return FALSE;
     }
 
@@ -107,7 +99,6 @@ static BOOL GrowDescriptorSlab(void) {
     }
 
     G_RegionDescriptorPages++;
-    EarlyBootConsoleWriteLine(TEXT("[D] S5"));
 
     return TRUE;
 }
@@ -537,8 +528,6 @@ void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
  * @brief Initialize the descriptor tracking subsystem.
  */
 void InitializeRegionDescriptorTracking(void) {
-    EarlyBootConsoleWriteLine(TEXT("[D] R1"));
-
     if (G_RegionDescriptorsEnabled == TRUE) {
         return;
     }
@@ -546,7 +535,6 @@ void InitializeRegionDescriptorTracking(void) {
 
     if (EnsureDescriptorSlab() == FALSE) {
         ERROR(TEXT("[InitializeRegionDescriptorTracking] Initial slab allocation failed"));
-        EarlyBootConsoleWriteLine(TEXT("[D] RE1"));
         return;
     }
     G_RegionDescriptorsEnabled = TRUE;

@@ -208,6 +208,10 @@ static BOOL ResetToAllFree(void) {
         AddFreeBlock(Cursor, Order);
 
         UINT BlockPages = BuddyBlockPages(Order);
+        if (BlockPages == 0 || BlockPages > Remaining) {
+            return FALSE;
+        }
+
         Cursor += BlockPages;
         Remaining -= BlockPages;
     }

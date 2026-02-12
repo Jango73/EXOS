@@ -122,6 +122,38 @@ PHYSICAL BootstrapAllocatorMetadataPhysical = NULL;
 /************************************************************************/
 
 /**
+ * @brief Compute the maximum page count whose buddy metadata fits a fixed window.
+ *
+ * @param InitialPageCount Current page count candidate.
+ * @param MetadataWindowSize Available bytes for buddy metadata.
+ * @return Best page count that fits the metadata window, or 0 when none fits.
+ */
+static UINT ComputePageCountForMetadataWindow(UINT InitialPageCount, UINT MetadataWindowSize) {
+    UINT Low = 0;
+    UINT High = InitialPageCount;
+    UINT Best = 0;
+
+    while (Low <= High) {
+        UINT Mid = Low + ((High - Low) >> 1);
+        UINT MidMetadataSize = (UINT)PAGE_ALIGN(BuddyGetMetadataSize(Mid));
+
+        if (MidMetadataSize <= MetadataWindowSize) {
+            Best = Mid;
+            Low = Mid + 1;
+        } else {
+            if (Mid == 0) {
+                break;
+            }
+            High = Mid - 1;
+        }
+    }
+
+    return Best;
+}
+
+/************************************************************************/
+
+/**
  * @brief Determine the largest paging granularity compatible with a region.
  * @param Base Canonical base of the region.
  * @param PageCount Number of pages described by the region.
@@ -1110,6 +1142,27 @@ void InitializeMemoryManager(void) {
 
     UINT BuddyMetadataSize = BuddyGetMetadataSize(KernelStartup.PageCount);
     UINT BuddyMetadataSizeAligned = (UINT)PAGE_ALIGN(BuddyMetadataSize);
+    PHYSICAL MetadataWindowStart = (PHYSICAL)LOW_MEMORY_THREE_QUARTER;
+    PHYSICAL MetadataWindowEnd = (PHYSICAL)RESERVED_LOW_MEMORY;
+    UINT MetadataWindowSize = (UINT)(MetadataWindowEnd - MetadataWindowStart);
+    if (BuddyMetadataSizeAligned > MetadataWindowSize) {
+        UINT OriginalPageCount = KernelStartup.PageCount;
+        UINT ClampedPageCount = ComputePageCountForMetadataWindow(OriginalPageCount, MetadataWindowSize);
+
+        if (ClampedPageCount == 0) {
+            ERROR(TEXT("[InitializeMemoryManager] Metadata window too small for buddy allocator"));
+            ConsolePanic(TEXT("Could not size memory allocator metadata"));
+            DO_THE_SLEEPING_BEAUTY;
+        }
+
+        KernelStartup.PageCount = ClampedPageCount;
+        KernelStartup.MemorySize = (PHYSICAL)ClampedPageCount << PAGE_SIZE_MUL;
+        BuddyMetadataSize = BuddyGetMetadataSize(KernelStartup.PageCount);
+        BuddyMetadataSizeAligned = (UINT)PAGE_ALIGN(BuddyMetadataSize);
+        WARNING(TEXT("[InitializeMemoryManager] Clamped page count from %u to %u to fit metadata window"),
+            OriginalPageCount,
+            ClampedPageCount);
+    }
 
     UINT ReservedBytes = KernelStartup.KernelReservedBytes;
     if (ReservedBytes < KernelStartup.KernelSize) {
@@ -1127,8 +1180,8 @@ void InitializeMemoryManager(void) {
     SetLoaderReservedPhysicalRange(KernelStartup.KernelPhysicalBase, LoaderReservedEnd);
 
     if (FindAvailableMemoryRangeInWindow(
-            (PHYSICAL)N_1MB,
-            (PHYSICAL)RESERVED_LOW_MEMORY,
+            MetadataWindowStart,
+            MetadataWindowEnd,
             KernelStartup.KernelPhysicalBase,
             LoaderReservedEnd,
             BuddyMetadataSizeAligned,
