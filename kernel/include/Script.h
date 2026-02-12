@@ -38,6 +38,7 @@
 #define MAX_TOKEN_LENGTH 128
 #define MAX_ERROR_MESSAGE 256
 #define SCRIPT_VAR_HASH_SIZE 32
+#define E0_SCRIPT_FILE_EXTENSION TEXT(".e0")
 
 /************************************************************************/
 
@@ -285,6 +286,7 @@ LPSCRIPT_CONTEXT ScriptCreateContext(LPSCRIPT_CALLBACKS Callbacks);
 void ScriptDestroyContext(LPSCRIPT_CONTEXT Context);
 
 SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script);
+BOOL ScriptIsE0FileName(LPCSTR FileName);
 
 LPSCRIPT_VARIABLE ScriptSetVariable(LPSCRIPT_CONTEXT Context, LPCSTR Name, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value);
 LPSCRIPT_VARIABLE ScriptGetVariable(LPSCRIPT_CONTEXT Context, LPCSTR Name);

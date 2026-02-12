@@ -68,6 +68,33 @@ static LPSCRIPT_HOST_SYMBOL ScriptFindHostSymbol(LPSCRIPT_HOST_REGISTRY Registry
 /************************************************************************/
 
 /**
+ * @brief Check whether a file name targets an E0 script.
+ * @param FileName File name or path to inspect.
+ * @return TRUE when the file name ends with .e0 (case-insensitive), FALSE otherwise.
+ */
+BOOL ScriptIsE0FileName(LPCSTR FileName) {
+    UINT ExtensionLength;
+    UINT FileNameLength;
+    LPCSTR ExtensionPosition;
+
+    if (FileName == NULL) {
+        return FALSE;
+    }
+
+    ExtensionLength = StringLength(E0_SCRIPT_FILE_EXTENSION);
+    FileNameLength = StringLength(FileName);
+
+    if (FileNameLength < ExtensionLength) {
+        return FALSE;
+    }
+
+    ExtensionPosition = FileName + (FileNameLength - ExtensionLength);
+    return StringCompareNC(ExtensionPosition, E0_SCRIPT_FILE_EXTENSION) == 0;
+}
+
+/************************************************************************/
+
+/**
  * @brief Create a new script context with callback bindings.
  * @param Callbacks Pointer to callback structure for external integration
  * @return Pointer to new script context or NULL on failure

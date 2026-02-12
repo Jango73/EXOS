@@ -201,6 +201,7 @@ All reusable helpers -such as the command line editor, adaptive delay, string co
 ### Shell scripting integration
 
 The interactive shell keeps a persistent script interpreter context to run automation snippets. Host-side data is exposed through `ScriptRegisterHostSymbol` so scripts can inspect kernel state without bypassing the interpreter API. The shell publishes selected kernel objects under global identifiers so scripts can inspect kernel state without bypassing the interpreter API. The objects expose properties through the script runtime (for example `process[0].command_line`) so automation stays inside the supported host interface.
+The `run` shell command routes launch behavior by file extension: paths ending with `E0_SCRIPT_FILE_EXTENSION` (`.e0`, defined in `kernel/include/Script.h`) are executed by the E0 interpreter, while other targets follow the executable spawn path.
 
 ### Task and window message delivery
 

@@ -104,6 +104,7 @@ BOOL HasOption(LPSHELLCONTEXT Context, LPCSTR ShortName, LPCSTR LongName);
 BOOL QualifyFileName(LPSHELLCONTEXT Context, LPCSTR RawName, LPSTR FileName);
 BOOL QualifyCommandLine(LPSHELLCONTEXT Context, LPCSTR RawCommandLine, LPSTR QualifiedCommandLine);
 BOOL SpawnExecutable(LPSHELLCONTEXT Context, LPCSTR CommandName, BOOL Background);
+BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName);
 
 void ExecuteStartupCommands(void);
 void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine);

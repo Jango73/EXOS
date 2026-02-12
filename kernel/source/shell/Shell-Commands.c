@@ -914,18 +914,108 @@ static U32 CMD_md(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 /**
+ * @brief Load and execute an E0 script file.
+ *
+ * @param Context Shell context containing the script interpreter instance.
+ * @param ScriptFileName Qualified script path.
+ * @return TRUE on successful execution, FALSE otherwise.
+ */
+BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName) {
+    FILEOPENINFO FileOpenInfo;
+    FILEOPERATION FileOperation;
+    HANDLE Handle = NULL;
+    U32 FileSize = 0;
+    U32 BytesRead = 0;
+    U8* Buffer = NULL;
+    SCRIPT_ERROR Error = SCRIPT_OK;
+    BOOL Success = FALSE;
+
+    if (Context == NULL || ScriptFileName == NULL || Context->ScriptContext == NULL) {
+        return FALSE;
+    }
+
+    FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
+    FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
+    FileOpenInfo.Header.Flags = 0;
+    FileOpenInfo.Name = ScriptFileName;
+    FileOpenInfo.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
+
+    Handle = DoSystemCall(SYSCALL_OpenFile, SYSCALL_PARAM(&FileOpenInfo));
+
+    if (Handle == NULL) {
+        ConsolePrint(TEXT("Unable to open script file: %s\n"), ScriptFileName);
+        goto Out;
+    }
+
+    FileSize = DoSystemCall(SYSCALL_GetFileSize, SYSCALL_PARAM(Handle));
+    if (FileSize == 0) {
+        ConsolePrint(TEXT("Empty script file: %s\n"), ScriptFileName);
+        goto Out;
+    }
+
+    Buffer = (U8*)HeapAlloc(FileSize + 1);
+    if (Buffer == NULL) {
+        ConsolePrint(TEXT("Unable to allocate script buffer: %u bytes\n"), FileSize + 1);
+        goto Out;
+    }
+
+    FileOperation.Header.Size = sizeof(FILEOPERATION);
+    FileOperation.Header.Version = EXOS_ABI_VERSION;
+    FileOperation.Header.Flags = 0;
+    FileOperation.File = Handle;
+    FileOperation.NumBytes = FileSize;
+    FileOperation.Buffer = Buffer;
+
+    BytesRead = DoSystemCall(SYSCALL_ReadFile, SYSCALL_PARAM(&FileOperation));
+    if (BytesRead != FileSize) {
+        ConsolePrint(TEXT("Failed to read script file: %s\n"), ScriptFileName);
+        goto Out;
+    }
+
+    Buffer[FileSize] = STR_NULL;
+
+    Error = ScriptExecute(Context->ScriptContext, (LPCSTR)Buffer);
+    if (Error != SCRIPT_OK) {
+        ConsolePrint(TEXT("Error: %s\n"), ScriptGetErrorMessage(Context->ScriptContext));
+        goto Out;
+    }
+
+    Success = TRUE;
+
+Out:
+    if (Buffer != NULL) {
+        HeapFree(Buffer);
+    }
+
+    if (Handle != NULL) {
+        DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(Handle));
+    }
+
+    return Success;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Launch an executable specified on the command line.
  *
  * @param Context Shell context containing parsed arguments.
  */
 static U32 CMD_run(LPSHELLCONTEXT Context) {
+    STR TargetName[MAX_PATH_NAME];
     BOOL Background = FALSE;
 
     ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command)) {
-        Background = HasOption(Context, TEXT("-b"), TEXT("--background"));
-        SpawnExecutable(Context, Context->Command, Background);
+        StringCopy(TargetName, Context->Command);
+
+        while (Context->Input.CommandLine[Context->CommandChar] != STR_NULL) {
+            ParseNextCommandLineComponent(Context);
+        }
+
+        Background = HasOption(Context, TEXT("b"), TEXT("background"));
+        SpawnExecutable(Context, TargetName, Background);
     }
 
     return DF_RETURN_SUCCESS;
@@ -2101,7 +2191,7 @@ static U32 CMD_nvme(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 /**
- * @brief Common function to spawn an executable.
+ * @brief Common function to launch an executable or an E0 script.
  *
  * @param Context Shell context.
  * @param CommandName Name of the command/executable to spawn.
@@ -2109,8 +2199,26 @@ static U32 CMD_nvme(LPSHELLCONTEXT Context) {
  */
 BOOL SpawnExecutable(LPSHELLCONTEXT Context, LPCSTR CommandName, BOOL Background) {
     STR QualifiedCommandLine[MAX_PATH_NAME];
+    STR QualifiedCommand[MAX_PATH_NAME];
+    U32 CommandIndex = 0;
 
     if (QualifyCommandLine(Context, CommandName, QualifiedCommandLine)) {
+        while (QualifiedCommandLine[CommandIndex] != STR_NULL &&
+               QualifiedCommandLine[CommandIndex] > STR_SPACE &&
+               CommandIndex < MAX_PATH_NAME - 1) {
+            QualifiedCommand[CommandIndex] = QualifiedCommandLine[CommandIndex];
+            CommandIndex++;
+        }
+        QualifiedCommand[CommandIndex] = STR_NULL;
+
+        if (ScriptIsE0FileName(QualifiedCommand)) {
+            if (Background) {
+                ConsolePrint(TEXT("E0 scripts cannot be started in background mode.\n"));
+                return FALSE;
+            }
+            return RunScriptFile(Context, QualifiedCommand);
+        }
+
         if (Background) {
             PROCESSINFO ProcessInfo;
 
