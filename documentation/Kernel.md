@@ -3,6 +3,7 @@
 ## Table of contents
 - [Table of contents](#table-of-contents)
 - [Notations used in this document](#notations-used-in-this-document)
+- [Naming](#naming)
 - [Architecture](#architecture)
   - [Paging abstractions](#paging-abstractions)
     - [Layering and architecture backend](#layering-and-architecture-backend)
@@ -93,6 +94,16 @@
 
 ---
 
+## Naming
+
+The following naming conventions have been adopted throughout the EXOS code base and interface.
+
+- Structure : SCREAMING_SNAKE_CASE
+- Macro : SCREAMING_SNAKE_CASE
+- Function : PascalCase
+- Variable : PascalCase
+- Shell command : lower_snake_case
+- Shell object/property : lower_snake_case
 
 ## Architecture
 
@@ -956,8 +967,6 @@ IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_TCP, TCP_OnIPv4Packet);
 The network stack successfully handles real network traffic across multiple devices and provides a robust foundation for implementing network applications and services.
 
 ## Exposed objects in shell
-
-All shell commands, exposed shell/E0 object names, and property names use the `lower_snake_case` naming standard.
 
 - `process`: Kernel process list root. provides indexed access to process views. Permissions: exposed to scripts; access is enforced per item and per field.
   - `process.count`: total number of processes. Permissions: anyone.

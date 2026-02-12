@@ -2,12 +2,7 @@
 
 ## Memory
 
-- Later: align x86-32 page directory creation (`AllocPageDirectory` and `AllocUserPageDirectory`) with the modular x86-64 region-based approach (low region, kernel region, task runner, recursive slot) while preserving current behavior.
-- Execute this refactor in small validated steps to limit boot and paging regression risk.
-
-## UEFI
-
-- Make UEFI boot work again on bare metal
+- Later: align x86-32 page directory creation (`AllocPageDirectory` and `AllocUserPageDirectory`) with the modular x86-64 region-based approach (low region, kernel region, task runner, recursive slot) while preserving current behavior. Execute this refactor in small validated steps to limit boot and paging regression risk.
 
 ## Problems
 
