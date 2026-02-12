@@ -11,6 +11,8 @@ TRACE_STACK_USAGE       ?= 0
 PROFILING               ?= 0
 USE_SYSCALL             ?= 0
 SYSTEM_DATA_VIEW        ?= 0
+KERNEL_LOG_DEFAULT_TAG_FILTER_SET ?= 0
+KERNEL_LOG_DEFAULT_TAG_FILTER ?=
 
 ifeq ($(strip $(BUILD_CORE_NAME)),)
 $(error BUILD_CORE_NAME is required)
@@ -51,6 +53,9 @@ CFLAGS          = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
                   -DKERNEL_CONFIG_NAME=\"$(CONFIG_TOML_NAME)\" -DKERNEL_CONFIG_NAME_UPPER=\"$(CONFIG_TOML_NAME_UPPER)\" \
                   -Iinclude -I../third -I../third/include -I../runtime/include
 CFLAGS         += $(ARCH_CFLAGS)
+ifeq ($(KERNEL_LOG_DEFAULT_TAG_FILTER_SET),1)
+CFLAGS         += -DKERNEL_LOG_DEFAULT_TAG_FILTER=\"$(KERNEL_LOG_DEFAULT_TAG_FILTER)\"
+endif
 
 NASM            = nasm
 

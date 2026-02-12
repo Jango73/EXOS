@@ -2,7 +2,7 @@
 set -e
 
 function Usage() {
-    echo "Usage: $0 --arch <x86-32|x86-64> --fs <ext2|fat32> [--bare-metal] [--boot-stage-markers] [--clean] [--debug|--release] [--force-pic] [--log-udp-dest <ip:port>] [--log-udp-source <ip:port>] [--profiling] [--scheduling-debug] [--split] [--system-data-view] [--uefi] [--use-log-udp] [--use-syscall]"
+    echo "Usage: $0 --arch <x86-32|x86-64> --fs <ext2|fat32> [--bare-metal] [--boot-stage-markers] [--clean] [--debug|--release] [--force-pic] [--kernel-log-tag-filter <filter>] [--log-udp-dest <ip:port>] [--log-udp-source <ip:port>] [--profiling] [--scheduling-debug] [--split] [--system-data-view] [--uefi] [--use-log-udp] [--use-syscall]"
 }
 
 function ParseIpPort() {
@@ -70,6 +70,8 @@ PROFILING=0
 SCHEDULING_DEBUG=0
 SYSTEM_DATA_VIEW=0
 USE_SYSCALL=0
+KERNEL_LOG_DEFAULT_TAG_FILTER_SET="${KERNEL_LOG_DEFAULT_TAG_FILTER_SET:-0}"
+KERNEL_LOG_DEFAULT_TAG_FILTER="${KERNEL_LOG_DEFAULT_TAG_FILTER:-}"
 BUILD_LOCK_DIR=""
 
 function ComputeBuildNames() {
@@ -166,6 +168,16 @@ while [ $# -gt 0 ]; do
                 exit 1
             fi
             ParseIpPort "$1" "UEFI_LOG_UDP_DEST"
+            ;;
+        --kernel-log-tag-filter)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "Missing value for --kernel-log-tag-filter"
+                Usage
+                exit 1
+            fi
+            KERNEL_LOG_DEFAULT_TAG_FILTER_SET=1
+            KERNEL_LOG_DEFAULT_TAG_FILTER="$1"
             ;;
         --log-udp-source)
             shift
@@ -269,6 +281,8 @@ export UEFI_LOG_UDP_SOURCE_IP_3
 export UEFI_LOG_UDP_SOURCE_PORT
 export UEFI_LOG_USE_UDP
 export USE_SYSCALL
+export KERNEL_LOG_DEFAULT_TAG_FILTER_SET
+export KERNEL_LOG_DEFAULT_TAG_FILTER
 export KERNEL_FILE="exos.bin"
 export FILE_SYSTEM="$FILE_SYSTEM"
 

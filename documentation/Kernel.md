@@ -132,6 +132,7 @@ Descriptor slab bootstrap is protected by `G_RegionDescriptorBootstrap`. While d
 
 Kernel logging funnels through `KernelLogText` and uses typed prefixes for log classes. The available log types are `DEBUG`, `WARNING`, `ERROR`, `VERBOSE`, and `TEST`. `DEBUG`, `WARNING`, `ERROR`, and `VERBOSE` are always available, while `TEST` is a debug-only type used by automated test scripts and is compiled out when `DEBUG_OUTPUT` is disabled. All logs follow the standard `[FunctionName]` prefix rule and emit structured results such as `TEST > [CMD_sysinfo] sysinfo : OK`. Serial output is sanitized to printable ASCII (plus tab/newline) before being written to the log. When `DEBUG_SPLIT` is set to `1`, the kernel log stream is sent to a dedicated console region on the right side of the screen while standard console output remains on the left.
 `KernelLogSetTagFilter()` adds optional tag-based filtering. The filter string is a separator-based list (comma, semicolon, pipe, or spaces) and each entry matches a log prefix tag (for example `MountDiskPartitionsGpt` or `[MountDiskPartitionsGpt]`). When a filter is active, only log lines whose first bracket tag is listed are emitted. The default kernel filter is initialized for NVMe/GPT diagnosis.
+The build can override this startup filter with `--kernel-log-tag-filter <value>` in `scripts/build.sh`; passing an empty value compiles an empty default filter.
 The `ThresholdLatch` utility supports one-shot logging when a time threshold is exceeded during long-running operations.
 
 ### Automated debug validation script

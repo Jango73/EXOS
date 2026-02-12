@@ -40,13 +40,17 @@
 #define KERNEL_LOG_VER_MINOR 0
 #define KERNEL_LOG_TAG_FILTER_MAX_LENGTH 512
 
-static CSTR KernelLogDefaultTagFilter[] =
-    "NVMeAttach,NVMeSubmitAdminCommand,NVMeSubmitIoCommand,NVMeCreateIoQueues,"
-    "NVMeIdentifyNamespace,NVMeIdentifyNamespaceList,NVMeReadSectors,NVMeDiskRead,"
-    "MountPartition_NTFS,NtfsReadBootSector,NtfsReadSectors,NtfsLoadFileRecordBuffer,"
-    "NtfsApplyFileRecordFixup,NtfsParseFileRecordAttributes,NtfsReadNonResidentDataAttribute,"
-    "NtfsTraverseIndexHeader,NtfsPrepareIndexAllocationRecords,NtfsEnumerateFolderByIndex,"
-    "NtfsReadFileRecord,NtfsResolvePathToIndex,NtfsLookupChildByName,OpenFile,ResolvePath,ListDirectory";
+#ifndef KERNEL_LOG_DEFAULT_TAG_FILTER
+#define KERNEL_LOG_DEFAULT_TAG_FILTER \
+    "NVMeAttach,NVMeSubmitAdminCommand,NVMeSubmitIoCommand,NVMeCreateIoQueues," \
+    "NVMeIdentifyNamespace,NVMeIdentifyNamespaceList,NVMeReadSectors,NVMeDiskRead," \
+    "MountPartition_NTFS,NtfsReadBootSector,NtfsReadSectors,NtfsLoadFileRecordBuffer," \
+    "NtfsApplyFileRecordFixup,NtfsParseFileRecordAttributes,NtfsReadNonResidentDataAttribute," \
+    "NtfsTraverseIndexHeader,NtfsPrepareIndexAllocationRecords,NtfsEnumerateFolderByIndex," \
+    "NtfsReadFileRecord,NtfsResolvePathToIndex,NtfsLookupChildByName,OpenFile,ResolvePath,ListDirectory"
+#endif
+
+static CSTR KernelLogDefaultTagFilter[] = KERNEL_LOG_DEFAULT_TAG_FILTER;
 static STR KernelLogTagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
 
 static UINT KernelLogDriverCommands(UINT Function, UINT Parameter);
