@@ -300,6 +300,9 @@ static BOOL NtfsLookupChildByName(
 
     TotalEntries = 0;
     if (!NtfsEnumerateFolderByIndex((LPFILESYSTEM)FileSystem, ParentFolderIndex, NULL, 0, NULL, &TotalEntries)) {
+        WARNING(TEXT("[NtfsLookupChildByName] Unable to enumerate parent=%u name=%s (count pass)"),
+            ParentFolderIndex,
+            Name);
         return FALSE;
     }
     if (TotalEntries == 0) return FALSE;
@@ -322,6 +325,9 @@ static BOOL NtfsLookupChildByName(
             TotalEntries,
             &StoredEntries,
             &TotalEntries)) {
+        WARNING(TEXT("[NtfsLookupChildByName] Unable to enumerate parent=%u name=%s (list pass)"),
+            ParentFolderIndex,
+            Name);
         KernelHeapFree(Entries);
         return FALSE;
     }
@@ -329,10 +335,15 @@ static BOOL NtfsLookupChildByName(
     Found = FALSE;
     for (EntryIndex = 0; EntryIndex < StoredEntries; EntryIndex++) {
         LPNTFS_FOLDER_ENTRY_INFO Entry = Entries + EntryIndex;
+        NTFS_FILE_RECORD_INFO RecordInfo;
         if (!NtfsCompareNameCaseInsensitive(Entry->Name, Name)) continue;
+        MemorySet(&RecordInfo, 0, sizeof(NTFS_FILE_RECORD_INFO));
+        if (!NtfsReadFileRecord((LPFILESYSTEM)FileSystem, Entry->FileRecordIndex, &RecordInfo)) {
+            continue;
+        }
 
         *ChildFileRecordIndexOut = Entry->FileRecordIndex;
-        *ChildIsFolderOut = Entry->IsFolder;
+        *ChildIsFolderOut = (RecordInfo.Flags & NTFS_FR_FLAG_FOLDER) != 0;
         Found = TRUE;
         break;
     }
@@ -346,6 +357,12 @@ static BOOL NtfsLookupChildByName(
             *ChildFileRecordIndexOut,
             *ChildIsFolderOut);
         UnlockMutex(&(FileSystem->Header.Mutex));
+    }
+    if (!Found) {
+        WARNING(TEXT("[NtfsLookupChildByName] Entry not found parent=%u name=%s entries=%u"),
+            ParentFolderIndex,
+            Name,
+            StoredEntries);
     }
 
     KernelHeapFree(Entries);
@@ -400,6 +417,10 @@ BOOL NtfsResolvePathToIndex(
         }
 
         if (!NtfsLookupChildByName(NtfsFileSystem, CurrentIndex, Component, &ChildIndex, &ChildIsFolder)) {
+            WARNING(TEXT("[NtfsResolvePathToIndex] Component lookup failed component=%s parent=%u path=%s"),
+                Component,
+                CurrentIndex,
+                Path);
             return FALSE;
         }
 

@@ -25,6 +25,10 @@
 
 /***************************************************************************/
 
+#define NTFS_FILE_NAME_ATTRIBUTE_DIRECTORY_FLAG 0x10000000
+
+/***************************************************************************/
+
 /**
  * @brief Check whether an NTFS attribute name matches "$I30".
  *
@@ -242,22 +246,28 @@ static BOOL NtfsParseFolderIndexAttributes(
 /***************************************************************************/
 
 /**
- * @brief Decode MFT record index from index-entry file reference.
+ * @brief Decode one NTFS file reference (record number + sequence number).
  *
  * @param FileReference Pointer to 8-byte file reference field.
- * @param RecordIndexOut Output decoded record index.
- * @return TRUE on success, FALSE when index exceeds 32-bit range.
+ * @param RecordIndexOut Output decoded 32-bit record index.
+ * @param SequenceNumberOut Output sequence number from the file reference.
+ * @return TRUE on success, FALSE when record number exceeds 32-bit range.
  */
-static BOOL NtfsDecodeIndexEntryRecordIndex(const U8* FileReference, U32* RecordIndexOut) {
+static BOOL NtfsDecodeFileReference(
+    const U8* FileReference, U32* RecordIndexOut, U16* SequenceNumberOut) {
+    U32 RecordIndex;
+
     if (RecordIndexOut != NULL) *RecordIndexOut = 0;
-    if (FileReference == NULL || RecordIndexOut == NULL) return FALSE;
+    if (SequenceNumberOut != NULL) *SequenceNumberOut = 0;
+    if (FileReference == NULL || RecordIndexOut == NULL || SequenceNumberOut == NULL) return FALSE;
 
     if (FileReference[4] != 0 || FileReference[5] != 0) {
-        WARNING(TEXT("[NtfsDecodeIndexEntryRecordIndex] Record index out of range"));
         return FALSE;
     }
 
-    *RecordIndexOut = NtfsLoadU32(FileReference);
+    RecordIndex = NtfsLoadU32(FileReference);
+    *RecordIndexOut = RecordIndex;
+    *SequenceNumberOut = NtfsLoadU16(FileReference + 6);
     return TRUE;
 }
 
@@ -275,6 +285,7 @@ static BOOL NtfsDecodeFolderEntryFileName(
     const U8* FileNameValue, U32 FileNameLength, LPNTFS_FOLDER_ENTRY_INFO EntryInfo) {
     U8 NameLength;
     U32 Utf16Bytes;
+    U32 FileAttributes;
     UINT Utf8Length;
 
     if (EntryInfo != NULL) MemorySet(EntryInfo, 0, sizeof(NTFS_FOLDER_ENTRY_INFO));
@@ -299,6 +310,8 @@ static BOOL NtfsDecodeFolderEntryFileName(
     NtfsTimestampToDateTime(NtfsLoadU64(FileNameValue + 16), &(EntryInfo->LastModificationTime));
     NtfsTimestampToDateTime(NtfsLoadU64(FileNameValue + 24), &(EntryInfo->FileRecordModificationTime));
     NtfsTimestampToDateTime(NtfsLoadU64(FileNameValue + 32), &(EntryInfo->LastAccessTime));
+    FileAttributes = NtfsLoadU32(FileNameValue + 56);
+    EntryInfo->IsFolder = (FileAttributes & NTFS_FILE_NAME_ATTRIBUTE_DIRECTORY_FLAG) != 0;
 
     return TRUE;
 }
@@ -345,13 +358,20 @@ static BOOL NtfsAddFolderEntryFromIndexKey(
     LPNTFS_FOLDER_ENUM_CONTEXT Context, const U8* EntryBuffer, U32 EntryLength, U32 KeyLength) {
     NTFS_FOLDER_ENTRY_INFO EntryInfo;
     U32 FileRecordIndex;
-    NTFS_FILE_RECORD_INFO RecordInfo;
+    U16 FileReferenceSequence;
 
     if (Context == NULL || EntryBuffer == NULL) return FALSE;
     if (EntryLength < 16 || KeyLength > (EntryLength - 16)) return FALSE;
     if (KeyLength < NTFS_FILE_NAME_ATTRIBUTE_MIN_SIZE) return TRUE;
 
-    if (!NtfsDecodeIndexEntryRecordIndex(EntryBuffer, &FileRecordIndex)) return TRUE;
+    if (!NtfsDecodeFileReference(EntryBuffer, &FileRecordIndex, &FileReferenceSequence)) {
+        Context->DiagInvalidFileReferenceCount++;
+        return TRUE;
+    }
+    if (!NtfsIsValidFileRecordIndex(Context->FileSystem, FileRecordIndex)) {
+        Context->DiagInvalidRecordIndexCount++;
+        return TRUE;
+    }
     if (!NtfsDecodeFolderEntryFileName(EntryBuffer + 16, KeyLength, &EntryInfo)) return TRUE;
 
     if (StringCompare(EntryInfo.Name, TEXT(".")) == 0 || StringCompare(EntryInfo.Name, TEXT("..")) == 0) {
@@ -359,10 +379,6 @@ static BOOL NtfsAddFolderEntryFromIndexKey(
     }
 
     EntryInfo.FileRecordIndex = FileRecordIndex;
-    MemorySet(&RecordInfo, 0, sizeof(NTFS_FILE_RECORD_INFO));
-    if (NtfsReadFileRecord((LPFILESYSTEM)Context->FileSystem, FileRecordIndex, &RecordInfo)) {
-        EntryInfo.IsFolder = (RecordInfo.Flags & NTFS_FR_FLAG_FOLDER) != 0;
-    }
 
     if (NtfsFolderEntryAlreadyPresent(Context, &EntryInfo)) return TRUE;
 
@@ -478,11 +494,11 @@ static BOOL NtfsTraverseIndexHeader(
             EntrySize > AllocatedEntrySize) {
             EntrySize = AllocatedEntrySize;
         } else {
-            WARNING(TEXT("[NtfsTraverseIndexHeader] Clamping entry size (size=%u, offset=%u, region=%u)"),
-                    EntrySize,
-                    EntryOffset,
-                    HeaderRegionSize);
-            EntrySize = HeaderRegionSize - EntryOffset;
+            WARNING(TEXT("[NtfsTraverseIndexHeader] Invalid entry size (size=%u, offset=%u, region=%u)"),
+                EntrySize,
+                EntryOffset,
+                HeaderRegionSize);
+            return FALSE;
         }
     }
 
@@ -624,6 +640,7 @@ BOOL NtfsEnumerateFolderByIndex(
         NtfsFileSystem = (LPNTFSFILESYSTEM)FileSystem;
 
         if (!NtfsLoadFileRecordBuffer(NtfsFileSystem, FolderIndex, &RecordBuffer, &RecordHeader)) {
+            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Unable to load folder record index=%u"), FolderIndex);
             return FALSE;
         }
 
@@ -639,6 +656,7 @@ BOOL NtfsEnumerateFolderByIndex(
         RecordInfo.UpdateSequenceSize = RecordHeader.UpdateSequenceSize;
 
         if ((RecordInfo.Flags & NTFS_FR_FLAG_FOLDER) == 0) {
+            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Record is not a folder index=%u flags=%x"), FolderIndex, RecordInfo.Flags);
             KernelHeapFree(RecordBuffer);
             return FALSE;
         }
@@ -659,11 +677,13 @@ BOOL NtfsEnumerateFolderByIndex(
                 &IndexAllocationAttributeLength,
                 &BitmapAttribute,
                 &BitmapAttributeLength)) {
+            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Unable to parse folder attributes index=%u"), FolderIndex);
             KernelHeapFree(RecordBuffer);
             return FALSE;
         }
 
         if (IndexRootAttribute == NULL || IndexRootAttributeLength < NTFS_ATTRIBUTE_HEADER_RESIDENT_SIZE) {
+            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Missing INDEX_ROOT index=%u"), FolderIndex);
             KernelHeapFree(RecordBuffer);
             return FALSE;
         }
@@ -674,11 +694,15 @@ BOOL NtfsEnumerateFolderByIndex(
                 IndexRootAttributeLength,
                 &IndexRootValue,
                 &IndexRootValueSize)) {
+            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Unable to read INDEX_ROOT index=%u"), FolderIndex);
             KernelHeapFree(RecordBuffer);
             return FALSE;
         }
 
         if (IndexRootValue == NULL || IndexRootValueSize < sizeof(NTFS_INDEX_ROOT_HEADER) + sizeof(NTFS_INDEX_HEADER)) {
+            WARNING(TEXT("[NtfsEnumerateFolderByIndex] INDEX_ROOT payload invalid size=%u index=%u"),
+                IndexRootValueSize,
+                FolderIndex);
             KernelHeapFree(RecordBuffer);
             if (IndexRootValue != NULL) KernelHeapFree(IndexRootValue);
             return FALSE;
@@ -686,6 +710,9 @@ BOOL NtfsEnumerateFolderByIndex(
 
         MemoryCopy(&RootHeader, IndexRootValue, sizeof(NTFS_INDEX_ROOT_HEADER));
         if (RootHeader.IndexBlockSize == 0 || !NtfsIsPowerOfTwo(RootHeader.IndexBlockSize)) {
+            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Invalid index block size=%u index=%u"),
+                RootHeader.IndexBlockSize,
+                FolderIndex);
             KernelHeapFree(RecordBuffer);
             KernelHeapFree(IndexRootValue);
             return FALSE;
@@ -700,6 +727,7 @@ BOOL NtfsEnumerateFolderByIndex(
                     IndexAllocationAttributeLength,
                     &IndexAllocationData,
                     &IndexAllocationDataSize)) {
+                WARNING(TEXT("[NtfsEnumerateFolderByIndex] Unable to read INDEX_ALLOCATION index=%u"), FolderIndex);
                 KernelHeapFree(RecordBuffer);
                 KernelHeapFree(IndexRootValue);
                 return FALSE;
@@ -715,6 +743,7 @@ BOOL NtfsEnumerateFolderByIndex(
                     BitmapAttributeLength,
                     &BitmapData,
                     &BitmapDataSize)) {
+                WARNING(TEXT("[NtfsEnumerateFolderByIndex] Unable to read BITMAP index=%u"), FolderIndex);
                 KernelHeapFree(RecordBuffer);
                 KernelHeapFree(IndexRootValue);
                 if (IndexAllocationData != NULL) KernelHeapFree(IndexAllocationData);
@@ -737,6 +766,10 @@ BOOL NtfsEnumerateFolderByIndex(
         MaxVcnRecords = 0;
         if (Context.IndexAllocation != NULL && Context.IndexBlockSize != 0) {
             if ((Context.IndexAllocationSize % Context.IndexBlockSize) != 0) {
+                WARNING(TEXT("[NtfsEnumerateFolderByIndex] INDEX_ALLOCATION size misaligned size=%u block=%u index=%u"),
+                    Context.IndexAllocationSize,
+                    Context.IndexBlockSize,
+                    FolderIndex);
                 KernelHeapFree(RecordBuffer);
                 KernelHeapFree(IndexRootValue);
                 KernelHeapFree(IndexAllocationData);
@@ -752,6 +785,9 @@ BOOL NtfsEnumerateFolderByIndex(
             Context.VisitedVcnMapSize = (MaxVcnRecords + 7) / 8;
             Context.VisitedVcnMap = (U8*)KernelHeapAlloc(Context.VisitedVcnMapSize);
             if (Context.VisitedVcnMap == NULL) {
+                WARNING(TEXT("[NtfsEnumerateFolderByIndex] Unable to allocate visited map size=%u index=%u"),
+                    Context.VisitedVcnMapSize,
+                    FolderIndex);
                 KernelHeapFree(RecordBuffer);
                 KernelHeapFree(IndexRootValue);
                 KernelHeapFree(IndexAllocationData);
@@ -762,6 +798,7 @@ BOOL NtfsEnumerateFolderByIndex(
         }
 
         if (!NtfsPrepareIndexAllocationRecords(&Context)) {
+            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Unable to prepare index allocation records index=%u"), FolderIndex);
             if (Context.VisitedVcnMap != NULL) KernelHeapFree(Context.VisitedVcnMap);
             KernelHeapFree(RecordBuffer);
             KernelHeapFree(IndexRootValue);
@@ -775,6 +812,9 @@ BOOL NtfsEnumerateFolderByIndex(
         if (MaxVcnRecords > 0) {
             PendingVcns = (U32*)KernelHeapAlloc(MaxVcnRecords * sizeof(U32));
             if (PendingVcns == NULL) {
+                WARNING(TEXT("[NtfsEnumerateFolderByIndex] Unable to allocate pending VCN list count=%u index=%u"),
+                    MaxVcnRecords,
+                    FolderIndex);
                 if (Context.VisitedVcnMap != NULL) KernelHeapFree(Context.VisitedVcnMap);
                 KernelHeapFree(RecordBuffer);
                 KernelHeapFree(IndexRootValue);
@@ -818,6 +858,20 @@ BOOL NtfsEnumerateFolderByIndex(
                 PendingVcns,
                 &PendingCount,
                 MaxVcnRecords);
+        }
+        if (!Result) {
+            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Index traversal failed index=%u"), FolderIndex);
+        }
+        if (Context.DiagInvalidFileReferenceCount != 0 ||
+            Context.DiagInvalidRecordIndexCount != 0 ||
+            Context.DiagReadRecordFailureCount != 0 ||
+            Context.DiagSequenceMismatchCount != 0) {
+            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Diag index=%u ref_invalid=%u idx_invalid=%u record_read_fail=%u seq_mismatch=%u"),
+                FolderIndex,
+                Context.DiagInvalidFileReferenceCount,
+                Context.DiagInvalidRecordIndexCount,
+                Context.DiagReadRecordFailureCount,
+                Context.DiagSequenceMismatchCount);
         }
 
         if (EntryCountOut != NULL) *EntryCountOut = Context.EntryCount;

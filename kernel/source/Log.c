@@ -38,9 +38,15 @@
 
 #define KERNEL_LOG_VER_MAJOR 1
 #define KERNEL_LOG_VER_MINOR 0
-#define KERNEL_LOG_TAG_FILTER_MAX_LENGTH 256
+#define KERNEL_LOG_TAG_FILTER_MAX_LENGTH 512
 
-static CSTR KernelLogDefaultTagFilter[] = "";
+static CSTR KernelLogDefaultTagFilter[] =
+    "NVMeAttach,NVMeSubmitAdminCommand,NVMeSubmitIoCommand,NVMeCreateIoQueues,"
+    "NVMeIdentifyNamespace,NVMeIdentifyNamespaceList,NVMeReadSectors,NVMeDiskRead,"
+    "MountPartition_NTFS,NtfsReadBootSector,NtfsReadSectors,NtfsLoadFileRecordBuffer,"
+    "NtfsApplyFileRecordFixup,NtfsParseFileRecordAttributes,NtfsReadNonResidentDataAttribute,"
+    "NtfsTraverseIndexHeader,NtfsPrepareIndexAllocationRecords,NtfsEnumerateFolderByIndex,"
+    "NtfsReadFileRecord,NtfsResolvePathToIndex,NtfsLookupChildByName,OpenFile,ResolvePath,ListDirectory";
 static STR KernelLogTagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
 
 static UINT KernelLogDriverCommands(UINT Function, UINT Parameter);

@@ -27,6 +27,7 @@
 /************************************************************************/
 
 #include "drivers/NVMe-Core.h"
+#include "Clock.h"
 #include "Disk.h"
 #include "Driver.h"
 #include "Kernel.h"
@@ -49,6 +50,12 @@
 #define NVME_IO_QUEUE_ALIGNMENT N_4KB
 #define NVME_READY_TIMEOUT_LOOPS 1000000
 #define NVME_IDENTIFY_TIMEOUT_LOOPS 1000000
+#define NVME_COMMAND_TIMEOUT_MS 200
+#define NVME_COMMAND_TIMEOUT_LOOPS 0x10000000
+
+#ifndef NVME_POLLING_ONLY
+#define NVME_POLLING_ONLY 1
+#endif
 
 /************************************************************************/
 // Type definitions
@@ -58,6 +65,7 @@ typedef struct tag_NVME_DISK {
     LPNVME_DEVICE Controller;
     U32 NamespaceId;
     U64 NumSectors;
+    U32 BytesPerSector;
     U32 Access;
 } NVME_DISK, *LPNVME_DISK;
 
@@ -68,7 +76,7 @@ BOOL NVMeSetupAdminQueues(LPNVME_DEVICE Device);
 void NVMeFreeAdminQueues(LPNVME_DEVICE Device);
 BOOL NVMeSubmitAdminCommand(LPNVME_DEVICE Device, const NVME_COMMAND* Command, NVME_COMPLETION* CompletionOut);
 BOOL NVMeIdentifyController(LPNVME_DEVICE Device);
-BOOL NVMeIdentifyNamespace(LPNVME_DEVICE Device, U32 NamespaceId, U64* NumSectorsOut);
+BOOL NVMeIdentifyNamespace(LPNVME_DEVICE Device, U32 NamespaceId, U64* NumSectorsOut, U32* BytesPerSectorOut);
 BOOL NVMeIdentifyNamespaceList(LPNVME_DEVICE Device, U32* NamespaceIds, UINT MaxIds, UINT* CountOut);
 BOOL NVMeSetNumberOfQueues(LPNVME_DEVICE Device, U16 QueueCount);
 

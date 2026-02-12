@@ -774,7 +774,18 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         }
     }
 
-    if (!ResolvePath(Path, &Node, Remaining)) return NULL;
+    if (!ResolvePath(Path, &Node, Remaining)) {
+        WARNING(TEXT("[OpenFile] ResolvePath failed path=%s"), Path);
+        return NULL;
+    }
+
+    DEBUG(TEXT("[OpenFile] path=%s wildcard=%u node=%s mounted=%p mount_path=%s remaining=%s"),
+        Path,
+        Wildcard ? 1 : 0,
+        Node != NULL ? Node->Name : TEXT("<null>"),
+        Node != NULL ? Node->Mounted : NULL,
+        (Node != NULL && Node->MountPath[0] != STR_NULL) ? Node->MountPath : TEXT("<root>"),
+        Remaining[0] != STR_NULL ? Remaining : TEXT("<none>"));
 
     if (Remaining[0] != STR_NULL) {
         if (Node->Mounted == NULL) return NULL;
@@ -788,6 +799,12 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         }
 
         Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (UINT)&Local);
+        if (Mounted == NULL) {
+            WARNING(TEXT("[OpenFile] Mounted open failed path=%s local=%s wildcard=%u"),
+                Path,
+                Local.Name,
+                Wildcard ? 1 : 0);
+        }
         return WrapMountedFile(Node, Mounted);
     }
 
@@ -807,6 +824,11 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
                 StringCopy(Local.Name, TEXT("*"));
             }
             Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (UINT)&Local);
+            if (Mounted == NULL) {
+                WARNING(TEXT("[OpenFile] Mounted wildcard open failed path=%s local=%s"),
+                    Path,
+                    Local.Name);
+            }
             return WrapMountedFile(Node, Mounted);
         } else {
             LPSYSTEMFSFILE Child = (Node->Children) ? (LPSYSTEMFSFILE)Node->Children->First : NULL;
@@ -839,6 +861,11 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
             Local.Name[0] = STR_NULL;
         }
         Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (UINT)&Local);
+        if (Mounted == NULL) {
+            WARNING(TEXT("[OpenFile] Mounted direct open failed path=%s local=%s"),
+                Path,
+                Local.Name[0] != STR_NULL ? Local.Name : TEXT("<empty>"));
+        }
         return WrapMountedFile(Node, Mounted);
     }
 

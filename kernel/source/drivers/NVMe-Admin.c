@@ -25,6 +25,22 @@
 
 /************************************************************************/
 
+static BOOL NVMeShouldEmitAdminWarning(LPCOOLDOWN Cooldown) {
+    if (Cooldown == NULL) {
+        return FALSE;
+    }
+
+    if (Cooldown->Initialized == FALSE) {
+        if (CooldownInit(Cooldown, 200) == FALSE) {
+            return TRUE;
+        }
+    }
+
+    return CooldownTryArm(Cooldown, GetSystemTime());
+}
+
+/************************************************************************/
+
 /**
  * @brief Free one queue buffer allocation.
  *
@@ -140,12 +156,12 @@ BOOL NVMeSetupAdminQueues(LPNVME_DEVICE Device) {
     U32 AdminSqSize = Device->AdminSqEntries * NVME_ADMIN_SQ_ENTRY_SIZE;
     U32 AdminCqSize = Device->AdminCqEntries * NVME_ADMIN_CQ_ENTRY_SIZE;
 
-    if (NVMeAllocateQueueBuffer(&Device->AdminSqBuffer, AdminSqSize, "ASQ") == FALSE) {
+    if (NVMeAllocateQueueBuffer(&Device->AdminSqBuffer, AdminSqSize, TEXT("ASQ")) == FALSE) {
         NVMeFreeAdminQueues(Device);
         return FALSE;
     }
 
-    if (NVMeAllocateQueueBuffer(&Device->AdminCqBuffer, AdminCqSize, "ACQ") == FALSE) {
+    if (NVMeAllocateQueueBuffer(&Device->AdminCqBuffer, AdminCqSize, TEXT("ACQ")) == FALSE) {
         NVMeFreeAdminQueues(Device);
         return FALSE;
     }
@@ -175,6 +191,8 @@ BOOL NVMeSubmitAdminCommand(LPNVME_DEVICE Device, const NVME_COMMAND* Command, N
         return FALSE;
     }
 
+    LockMutex(&(Device->Mutex), INFINITY);
+
     UINT Tail = Device->AdminSqTail;
     LPNVME_COMMAND Sq = (LPNVME_COMMAND)Device->AdminSq;
     volatile LPNVME_COMPLETION Cq = (volatile LPNVME_COMPLETION)Device->AdminCq;
@@ -185,6 +203,7 @@ BOOL NVMeSubmitAdminCommand(LPNVME_DEVICE Device, const NVME_COMMAND* Command, N
     volatile U32* Doorbell = NVMeGetDoorbellBase(Device);
     if (Doorbell == NULL) {
         WARNING(TEXT("[NVMeSubmitAdminCommand] Doorbell base is null"));
+        UnlockMutex(&(Device->Mutex));
         return FALSE;
     }
 
@@ -194,21 +213,20 @@ BOOL NVMeSubmitAdminCommand(LPNVME_DEVICE Device, const NVME_COMMAND* Command, N
 
     UINT Head = Device->AdminCqHead;
     U8 Phase = Device->AdminCqPhase;
-
-    for (UINT Loop = 0; Loop < NVME_IDENTIFY_TIMEOUT_LOOPS; Loop++) {
+    UINT StartTime = GetSystemTime();
+    for (UINT Loop = 0; HasOperationTimedOut(StartTime, Loop, NVME_COMMAND_TIMEOUT_LOOPS, NVME_COMMAND_TIMEOUT_MS) == FALSE; Loop++) {
         volatile LPNVME_COMPLETION Entry = &Cq[Head];
         U16 Status = Entry->Status;
         U8 EntryPhase = (U8)(Status & 0x1);
         if (EntryPhase == Phase) {
             U16 EntryCommandId = Entry->CommandId;
-            if (CompletionOut != NULL) {
-                CompletionOut->Result = Entry->Result;
-                CompletionOut->Reserved = Entry->Reserved;
-                CompletionOut->SubmissionQueueHead = Entry->SubmissionQueueHead;
-                CompletionOut->SubmissionQueueId = Entry->SubmissionQueueId;
-                CompletionOut->CommandId = EntryCommandId;
-                CompletionOut->Status = Status;
-            }
+            NVME_COMPLETION Completion = {0};
+            Completion.Result = Entry->Result;
+            Completion.Reserved = Entry->Reserved;
+            Completion.SubmissionQueueHead = Entry->SubmissionQueueHead;
+            Completion.SubmissionQueueId = Entry->SubmissionQueueId;
+            Completion.CommandId = EntryCommandId;
+            Completion.Status = Status;
 
             Head++;
             if (Head >= Device->AdminCqEntries) {
@@ -220,22 +238,45 @@ BOOL NVMeSubmitAdminCommand(LPNVME_DEVICE Device, const NVME_COMMAND* Command, N
             Device->AdminCqPhase = Phase;
             Doorbell[DbStride] = (U32)Head;
 
-            if (EntryCommandId != Command->CommandId) {
-                WARNING(TEXT("[NVMeSubmitAdminCommand] Completion command id %x (expected %x)"),
-                        (U32)EntryCommandId,
-                        (U32)Command->CommandId);
+            if (Completion.SubmissionQueueId != 0 && NVMeShouldEmitAdminWarning(&Device->AdminCompletionMismatchWarningCooldown)) {
+                WARNING(TEXT("[NVMeSubmitAdminCommand] Unexpected SQID %x (expected 0)"),
+                        (U32)Completion.SubmissionQueueId);
             }
+
+            if (EntryCommandId != Command->CommandId) {
+                if (NVMeShouldEmitAdminWarning(&Device->AdminCompletionMismatchWarningCooldown)) {
+                    WARNING(TEXT("[NVMeSubmitAdminCommand] Completion command id %x (expected %x)"),
+                            (U32)EntryCommandId,
+                            (U32)Command->CommandId);
+                }
+                continue;
+            }
+
+            if (CompletionOut != NULL) {
+                *CompletionOut = Completion;
+            }
+
+            if (Completion.SubmissionQueueHead >= Device->AdminSqEntries &&
+                NVMeShouldEmitAdminWarning(&Device->AdminCompletionMismatchWarningCooldown)) {
+                WARNING(TEXT("[NVMeSubmitAdminCommand] Invalid SQ head=%x entries=%x"),
+                        (U32)Completion.SubmissionQueueHead,
+                        (U32)Device->AdminSqEntries);
+            }
+            UnlockMutex(&(Device->Mutex));
             return TRUE;
         }
 
         __asm__ __volatile__("pause");
     }
 
-    WARNING(TEXT("[NVMeSubmitAdminCommand] Timeout opcode=%x command_id=%x head=%u tail=%u"),
-            (U32)Command->Opcode,
-            (U32)Command->CommandId,
-            Head,
-            Device->AdminSqTail);
+    if (NVMeShouldEmitAdminWarning(&Device->AdminCompletionTimeoutWarningCooldown)) {
+        WARNING(TEXT("[NVMeSubmitAdminCommand] Timeout opcode=%x command_id=%x head=%u tail=%u"),
+                (U32)Command->Opcode,
+                (U32)Command->CommandId,
+                Head,
+                Device->AdminSqTail);
+    }
+    UnlockMutex(&(Device->Mutex));
     return FALSE;
 }
 
@@ -383,10 +424,11 @@ BOOL NVMeIdentifyController(LPNVME_DEVICE Device) {
  *
  * @param Device NVMe device.
  * @param NamespaceId Namespace identifier.
- * @param NumSectorsOut Receives namespace size in sectors (optional).
+ * @param NumSectorsOut Receives namespace size in logical blocks (optional).
+ * @param BytesPerSectorOut Receives namespace logical block size (optional).
  * @return TRUE on success, FALSE on failure.
  */
-BOOL NVMeIdentifyNamespace(LPNVME_DEVICE Device, U32 NamespaceId, U64* NumSectorsOut) {
+BOOL NVMeIdentifyNamespace(LPNVME_DEVICE Device, U32 NamespaceId, U64* NumSectorsOut, U32* BytesPerSectorOut) {
     if (Device == NULL || NamespaceId == 0) {
         WARNING(TEXT("[NVMeIdentifyNamespace] Invalid parameters NSID=%u"), NamespaceId);
         return FALSE;
@@ -443,6 +485,11 @@ BOOL NVMeIdentifyNamespace(LPNVME_DEVICE Device, U32 NamespaceId, U64* NumSector
 
     U8* Data = (U8*)Buffer;
     U64 Nsze;
+    U32 BytesPerSector;
+    U8 Flbas;
+    U8 FormatIndex;
+    U32 LbafDescriptor;
+    U8 Lbads;
 #ifdef __EXOS_32__
     Nsze.LO = (U32)Data[0] |
               ((U32)Data[1] << 8) |
@@ -463,13 +510,33 @@ BOOL NVMeIdentifyNamespace(LPNVME_DEVICE Device, U32 NamespaceId, U64* NumSector
            ((U64)Data[7] << 56);
 #endif
 
-    DEBUG(TEXT("[NVMeIdentifyNamespace] NSID=%u NSZE=%x,%x"),
+    Flbas = Data[26];
+    FormatIndex = (U8)(Flbas & 0x0F);
+    LbafDescriptor = (U32)Data[128 + (FormatIndex * 4)] |
+                     ((U32)Data[129 + (FormatIndex * 4)] << 8) |
+                     ((U32)Data[130 + (FormatIndex * 4)] << 16) |
+                     ((U32)Data[131 + (FormatIndex * 4)] << 24);
+    Lbads = (U8)((LbafDescriptor >> 16) & 0xFF);
+    if (Lbads < 9 || Lbads > 16) {
+        WARNING(TEXT("[NVMeIdentifyNamespace] Unsupported LBADS=%u NSID=%u"), (U32)Lbads, (U32)NamespaceId);
+        KernelHeapFree(Raw);
+        return FALSE;
+    }
+
+    BytesPerSector = (1 << Lbads);
+
+    DEBUG(TEXT("[NVMeIdentifyNamespace] NSID=%u NSZE=%x,%x LBADS=%u BPS=%u"),
           (U32)NamespaceId,
           (U32)U64_High32(Nsze),
-          (U32)U64_Low32(Nsze));
+          (U32)U64_Low32(Nsze),
+          (U32)Lbads,
+          (U32)BytesPerSector);
 
     if (NumSectorsOut != NULL) {
         *NumSectorsOut = Nsze;
+    }
+    if (BytesPerSectorOut != NULL) {
+        *BytesPerSectorOut = BytesPerSector;
     }
 
     KernelHeapFree(Raw);

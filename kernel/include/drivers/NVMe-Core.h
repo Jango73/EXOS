@@ -29,6 +29,7 @@
 #include "Base.h"
 #include "Driver.h"
 #include "drivers/PCI.h"
+#include "utils/Cooldown.h"
 
 /************************************************************************/
 // Macros
@@ -140,6 +141,12 @@ typedef struct tag_NVME_DEVICE {
     U8 IoCqPhase;
     U16 IoQueueId;
     U16 IoCommandId;
+    U32 LogicalBlockSize;
+    COOLDOWN IoCompletionMismatchWarningCooldown;
+    COOLDOWN IoCompletionTimeoutWarningCooldown;
+    COOLDOWN IoCompletionCoherencyWarningCooldown;
+    COOLDOWN AdminCompletionMismatchWarningCooldown;
+    COOLDOWN AdminCompletionTimeoutWarningCooldown;
     DRIVER DiskDriver;
 } NVME_DEVICE, *LPNVME_DEVICE;
 

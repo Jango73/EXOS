@@ -167,6 +167,10 @@ typedef struct tag_NTFS_FOLDER_ENUM_CONTEXT {
     U32 BitmapSize;
     U8* VisitedVcnMap;
     U32 VisitedVcnMapSize;
+    U32 DiagInvalidFileReferenceCount;
+    U32 DiagInvalidRecordIndexCount;
+    U32 DiagReadRecordFailureCount;
+    U32 DiagSequenceMismatchCount;
 } NTFS_FOLDER_ENUM_CONTEXT, *LPNTFS_FOLDER_ENUM_CONTEXT;
 
 /***************************************************************************/
@@ -190,6 +194,7 @@ U64 NtfsU64ShiftRight1(U64 Value);
 U64 NtfsMultiplyU32ToU64(U32 Left, U32 Right);
 U64 NtfsU64ShiftRight(U64 Value, U32 Shift);
 U32 NtfsLog2(U32 Value);
+BOOL NtfsIsValidFileRecordIndex(LPNTFSFILESYSTEM FileSystem, U32 Index);
 BOOL NtfsReadBootSector(
     LPSTORAGE_UNIT Disk, SECTOR BootSectorLba, LPVOID Buffer, U32 BufferSize, U32* BytesPerSectorOut);
 BOOL NtfsReadSectors(

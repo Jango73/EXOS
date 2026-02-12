@@ -203,6 +203,7 @@ static LPPCI_DEVICE NVMeAttach(LPPCI_DEVICE PciDevice) {
     Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
     Device->MsixVector = 0;
     Device->MsixEnabled = FALSE;
+    Device->LogicalBlockSize = SECTOR_SIZE;
 
     PHYSICAL Bar0Physical = 0;
     U32 Bar0Size = 0;
@@ -317,15 +318,19 @@ static LPPCI_DEVICE NVMeAttach(LPPCI_DEVICE PciDevice) {
     if (!NVMeIdentifyController(Device)) {
         WARNING(TEXT("[NVMeAttach] Identify controller failed"));
     }
-    if (!NVMeIdentifyNamespace(Device, 1, NULL)) {
+    if (!NVMeIdentifyNamespace(Device, 1, NULL, &Device->LogicalBlockSize)) {
         WARNING(TEXT("[NVMeAttach] Identify namespace 1 failed"));
     }
     if (!NVMeSetNumberOfQueues(Device, 1)) {
         WARNING(TEXT("[NVMeAttach] Set number of queues failed"));
     }
+#if NVME_POLLING_ONLY
+    Device->MsixEnabled = FALSE;
+#else
     if (!NVMeSetupInterrupts(Device)) {
         WARNING(TEXT("[NVMeAttach] MSI-X setup failed"));
     }
+#endif
     if (!NVMeCreateIoQueues(Device)) {
         WARNING(TEXT("[NVMeAttach] Create IO queues failed"));
     } else {

@@ -26,6 +26,22 @@
 
 /************************************************************************/
 
+static BOOL NVMeShouldEmitIoWarning(LPCOOLDOWN Cooldown) {
+    if (Cooldown == NULL) {
+        return FALSE;
+    }
+
+    if (Cooldown->Initialized == FALSE) {
+        if (CooldownInit(Cooldown, 200) == FALSE) {
+            return TRUE;
+        }
+    }
+
+    return CooldownTryArm(Cooldown, GetSystemTime());
+}
+
+/************************************************************************/
+
 /**
  * @brief Free one queue buffer allocation.
  *
@@ -158,12 +174,12 @@ static BOOL NVMeSetupIoQueues(LPNVME_DEVICE Device) {
     U32 IoSqSize = Device->IoSqEntries * NVME_IO_SQ_ENTRY_SIZE;
     U32 IoCqSize = Device->IoCqEntries * NVME_IO_CQ_ENTRY_SIZE;
 
-    if (NVMeAllocateQueueBuffer(&Device->IoSqBuffer, IoSqSize, "IOSQ") == FALSE) {
+    if (NVMeAllocateQueueBuffer(&Device->IoSqBuffer, IoSqSize, TEXT("IOSQ")) == FALSE) {
         NVMeFreeIoQueues(Device);
         return FALSE;
     }
 
-    if (NVMeAllocateQueueBuffer(&Device->IoCqBuffer, IoCqSize, "IOCQ") == FALSE) {
+    if (NVMeAllocateQueueBuffer(&Device->IoCqBuffer, IoCqSize, TEXT("IOCQ")) == FALSE) {
         NVMeFreeIoQueues(Device);
         return FALSE;
     }
@@ -194,60 +210,6 @@ volatile U32* NVMeGetDoorbellBase(LPNVME_DEVICE Device) {
     return (volatile U32*)((U8*)Device->MmioBase + 0x1000);
 }
 
-/************************************************************************/
-
-/**
- * @brief Drain I/O completion queue entries.
- *
- * @param Device NVMe device.
- * @return Number of completions processed.
- */
-static UINT NVMeProcessIoCompletions(LPNVME_DEVICE Device) {
-    if (Device == NULL || Device->IoCq == NULL) {
-        return 0;
-    }
-
-    LPNVME_COMPLETION Cq = (LPNVME_COMPLETION)Device->IoCq;
-    UINT Head = Device->IoCqHead;
-    U8 Phase = Device->IoCqPhase;
-    UINT Completed = 0;
-
-    while (Completed < Device->IoCqEntries) {
-        LPNVME_COMPLETION Entry = &Cq[Head];
-        U16 Status = Entry->Status;
-        U8 EntryPhase = (U8)(Status & 0x1);
-        if (EntryPhase != Phase) {
-            break;
-        }
-
-        Head++;
-        if (Head >= Device->IoCqEntries) {
-            Head = 0;
-            Phase ^= 1;
-        }
-        Completed++;
-    }
-
-    if (Completed == 0) {
-        return 0;
-    }
-
-    Device->IoCqHead = Head;
-    Device->IoCqPhase = Phase;
-
-    volatile U32* Doorbell = NVMeGetDoorbellBase(Device);
-    if (Doorbell != NULL) {
-        UINT DbStride = (UINT)(Device->DoorbellStride / 4);
-        UINT QueueId = (UINT)Device->IoQueueId;
-        UINT CqDoorbellIndex = ((QueueId * 2) + 1) * DbStride;
-        Doorbell[CqDoorbellIndex] = (U32)Head;
-    }
-
-    return Completed;
-}
-
-/************************************************************************/
-
 /**
  * @brief NVMe interrupt handler (top-half).
  *
@@ -256,17 +218,8 @@ static UINT NVMeProcessIoCompletions(LPNVME_DEVICE Device) {
  * @return TRUE to signal deferred work, FALSE to suppress.
  */
 static BOOL NVMeInterruptHandler(LPDEVICE Device, LPVOID Context) {
-    LPNVME_DEVICE NvmeDevice = (LPNVME_DEVICE)Device;
+    UNUSED(Device);
     UNUSED(Context);
-
-    if (NvmeDevice == NULL || NvmeDevice->IoCq == NULL) {
-        return FALSE;
-    }
-
-    UINT Completed = NVMeProcessIoCompletions(NvmeDevice);
-    if (Completed == 0) {
-        return FALSE;
-    }
 
     return FALSE;
 }
@@ -399,6 +352,8 @@ static BOOL NVMeSubmitIoCommand(LPNVME_DEVICE Device, const NVME_COMMAND* Comman
         return FALSE;
     }
 
+    LockMutex(&(Device->Mutex), INFINITY);
+
     if (Device->IoCommandId == 0) {
         Device->IoCommandId = 1;
     }
@@ -418,34 +373,47 @@ static BOOL NVMeSubmitIoCommand(LPNVME_DEVICE Device, const NVME_COMMAND* Comman
 
     volatile U32* Doorbell = NVMeGetDoorbellBase(Device);
     if (Doorbell == NULL) {
+        UnlockMutex(&(Device->Mutex));
         return FALSE;
     }
 
     UINT DbStride = (UINT)(Device->DoorbellStride / 4);
     UINT QueueId = (UINT)Device->IoQueueId;
     UINT SqDoorbellIndex = (QueueId * 2) * DbStride;
+    __asm__ __volatile__("" ::: "memory");
     Doorbell[SqDoorbellIndex] = (U32)Device->IoSqTail;
 
-    LPNVME_COMPLETION Cq = (LPNVME_COMPLETION)Device->IoCq;
+    volatile LPNVME_COMPLETION Cq = (volatile LPNVME_COMPLETION)Device->IoCq;
     UINT Head = Device->IoCqHead;
     U8 Phase = Device->IoCqPhase;
-
-    for (UINT Loop = 0; Loop < NVME_IDENTIFY_TIMEOUT_LOOPS; Loop++) {
-        LPNVME_COMPLETION Entry = &Cq[Head];
+    UINT StartTime = GetSystemTime();
+    for (UINT Loop = 0; HasOperationTimedOut(StartTime, Loop, NVME_COMMAND_TIMEOUT_LOOPS, NVME_COMMAND_TIMEOUT_MS) == FALSE; Loop++) {
+        volatile LPNVME_COMPLETION Entry = &Cq[Head];
         U16 EntryStatus = Entry->Status;
         U8 EntryPhase = (U8)(EntryStatus & 0x1);
         if (EntryPhase != Phase) {
             continue;
         }
 
-        if (Entry->CommandId != CommandId) {
-            WARNING(TEXT("[NVMeSubmitIoCommand] Unexpected completion ID=%x expected=%x"),
-                    (U32)Entry->CommandId,
-                    (U32)CommandId);
+        NVME_COMPLETION Completion = {0};
+        Completion.Result = Entry->Result;
+        Completion.Reserved = Entry->Reserved;
+        Completion.SubmissionQueueHead = Entry->SubmissionQueueHead;
+        Completion.SubmissionQueueId = Entry->SubmissionQueueId;
+        Completion.CommandId = Entry->CommandId;
+        Completion.Status = EntryStatus;
+
+        if (Completion.SubmissionQueueId != QueueId && NVMeShouldEmitIoWarning(&Device->IoCompletionCoherencyWarningCooldown)) {
+            WARNING(TEXT("[NVMeSubmitIoCommand] Unexpected SQID=%x expected=%x"),
+                (U32)Completion.SubmissionQueueId,
+                (U32)QueueId);
         }
 
-        if (CompletionOut != NULL) {
-            *CompletionOut = *Entry;
+        if (Completion.SubmissionQueueHead >= Device->IoSqEntries &&
+            NVMeShouldEmitIoWarning(&Device->IoCompletionCoherencyWarningCooldown)) {
+            WARNING(TEXT("[NVMeSubmitIoCommand] Invalid SQ head=%x entries=%x"),
+                (U32)Completion.SubmissionQueueHead,
+                (U32)Device->IoSqEntries);
         }
 
         Head++;
@@ -459,10 +427,28 @@ static BOOL NVMeSubmitIoCommand(LPNVME_DEVICE Device, const NVME_COMMAND* Comman
 
         UINT CqDoorbellIndex = ((QueueId * 2) + 1) * DbStride;
         Doorbell[CqDoorbellIndex] = (U32)Head;
+
+        if (Completion.CommandId != CommandId) {
+            if (NVMeShouldEmitIoWarning(&Device->IoCompletionMismatchWarningCooldown)) {
+                WARNING(TEXT("[NVMeSubmitIoCommand] Unexpected completion ID=%x expected=%x"),
+                    (U32)Completion.CommandId,
+                    (U32)CommandId);
+            }
+            continue;
+        }
+
+        if (CompletionOut != NULL) {
+            *CompletionOut = Completion;
+        }
+
+        UnlockMutex(&(Device->Mutex));
         return TRUE;
     }
 
-    WARNING(TEXT("[NVMeSubmitIoCommand] Timeout waiting for completion"));
+    if (NVMeShouldEmitIoWarning(&Device->IoCompletionTimeoutWarningCooldown)) {
+        WARNING(TEXT("[NVMeSubmitIoCommand] Timeout waiting for completion"));
+    }
+    UnlockMutex(&(Device->Mutex));
     return FALSE;
 }
 
@@ -521,17 +507,23 @@ BOOL NVMeSubmitIoNoop(LPNVME_DEVICE Device) {
  */
 BOOL NVMeReadSectors(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 SectorCount, LPVOID Buffer,
                      U32 BufferBytes) {
+    U32 BytesPerSector;
     if (Device == NULL || Device->IoSq == NULL || Device->IoCq == NULL) {
         return FALSE;
     }
     if (Buffer == NULL || SectorCount == 0 || BufferBytes == 0) {
         return FALSE;
     }
-    if (SectorCount > (0xFFFFFFFF / SECTOR_SIZE)) {
+    BytesPerSector = Device->LogicalBlockSize;
+    if (BytesPerSector == 0) {
+        BytesPerSector = SECTOR_SIZE;
+    }
+
+    if (SectorCount > (0xFFFFFFFF / BytesPerSector)) {
         return FALSE;
     }
 
-    U32 TransferBytes = SectorCount * SECTOR_SIZE;
+    U32 TransferBytes = SectorCount * BytesPerSector;
     if (BufferBytes < TransferBytes) {
         return FALSE;
     }
@@ -624,17 +616,23 @@ BOOL NVMeReadSectors(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 SectorC
  */
 BOOL NVMeWriteSectors(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 SectorCount, LPCVOID Buffer,
                       U32 BufferBytes) {
+    U32 BytesPerSector;
     if (Device == NULL || Device->IoSq == NULL || Device->IoCq == NULL) {
         return FALSE;
     }
     if (Buffer == NULL || SectorCount == 0 || BufferBytes == 0) {
         return FALSE;
     }
-    if (SectorCount > (0xFFFFFFFF / SECTOR_SIZE)) {
+    BytesPerSector = Device->LogicalBlockSize;
+    if (BytesPerSector == 0) {
+        BytesPerSector = SECTOR_SIZE;
+    }
+
+    if (SectorCount > (0xFFFFFFFF / BytesPerSector)) {
         return FALSE;
     }
 
-    U32 TransferBytes = SectorCount * SECTOR_SIZE;
+    U32 TransferBytes = SectorCount * BytesPerSector;
     if (BufferBytes < TransferBytes) {
         return FALSE;
     }
@@ -721,11 +719,17 @@ BOOL NVMeWriteSectors(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 Sector
  * @return TRUE on success, FALSE on failure.
  */
 BOOL NVMeReadTest(LPNVME_DEVICE Device) {
+    U32 BytesPerSector;
     if (Device == NULL) {
         return FALSE;
     }
 
-    U32 TransferBytes = SECTOR_SIZE;
+    BytesPerSector = Device->LogicalBlockSize;
+    if (BytesPerSector == 0) {
+        BytesPerSector = SECTOR_SIZE;
+    }
+
+    U32 TransferBytes = BytesPerSector;
     U32 RawSize = TransferBytes + N_4KB;
     LPVOID Raw = KernelHeapAlloc(RawSize);
     if (Raw == NULL) {
@@ -740,8 +744,8 @@ BOOL NVMeReadTest(LPNVME_DEVICE Device) {
     BOOL Result = NVMeReadSectors(Device, 1, U64_FromU32(0), 1, Buffer, TransferBytes);
     if (Result) {
         U8* Data = (U8*)Buffer;
-        U32 SigLow = (U32)Data[SECTOR_SIZE - 2];
-        U32 SigHigh = (U32)Data[SECTOR_SIZE - 1];
+        U32 SigLow = (U32)Data[510];
+        U32 SigHigh = (U32)Data[511];
         DEBUG(TEXT("[NVMeReadTest] MBR signature=%x %x"),
               SigLow,
               SigHigh);

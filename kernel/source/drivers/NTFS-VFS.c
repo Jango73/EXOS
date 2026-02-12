@@ -216,25 +216,27 @@ static void NtfsFillFileHeader(
  */
 static BOOL NtfsLoadCurrentEnumerationEntry(LPNTFSFILE File) {
     NTFS_FILE_RECORD_INFO RecordInfo;
-    LPNTFS_FOLDER_ENTRY_INFO Entry;
 
     if (File == NULL) return FALSE;
     if (!File->Enumerate) return FALSE;
     if (File->EnumerationEntries == NULL) return FALSE;
-    if (File->EnumerationIndex >= File->EnumerationCount) return FALSE;
 
-    Entry = File->EnumerationEntries + File->EnumerationIndex;
+    while (File->EnumerationIndex < File->EnumerationCount) {
+        LPNTFS_FOLDER_ENTRY_INFO Entry = File->EnumerationEntries + File->EnumerationIndex;
 
-    MemorySet(&RecordInfo, 0, sizeof(NTFS_FILE_RECORD_INFO));
-    if (!NtfsReadFileRecord(File->Header.FileSystem, Entry->FileRecordIndex, &RecordInfo)) {
-        return FALSE;
+        MemorySet(&RecordInfo, 0, sizeof(NTFS_FILE_RECORD_INFO));
+        if (!NtfsReadFileRecord(File->Header.FileSystem, Entry->FileRecordIndex, &RecordInfo)) {
+            File->EnumerationIndex++;
+            continue;
+        }
+
+        NtfsFillFileHeader(File, Entry->Name, &RecordInfo);
+        File->FileRecordIndex = Entry->FileRecordIndex;
+        File->IsFolder = (RecordInfo.Flags & NTFS_FR_FLAG_FOLDER) != 0;
+        return TRUE;
     }
 
-    NtfsFillFileHeader(File, Entry->Name, &RecordInfo);
-    File->FileRecordIndex = Entry->FileRecordIndex;
-    File->IsFolder = Entry->IsFolder;
-
-    return TRUE;
+    return FALSE;
 }
 
 /***************************************************************************/

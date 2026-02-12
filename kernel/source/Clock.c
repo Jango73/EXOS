@@ -222,6 +222,34 @@ UINT GetSystemTime(void) { return SystemUpTime; }
 /************************************************************************/
 
 /**
+ * @brief Check whether one operation timeout has been reached.
+ *
+ * This helper is safe for early-boot polling paths where GetSystemTime()
+ * can remain constant until interrupts are enabled. It always keeps a loop
+ * limit fallback in addition to elapsed-time validation.
+ *
+ * @param StartTime Start value from GetSystemTime().
+ * @param LoopCount Current polling loop index.
+ * @param LoopLimit Maximum polling loops before timeout.
+ * @param TimeoutMilliseconds Timeout window in milliseconds.
+ * @return TRUE when timeout is reached, FALSE otherwise.
+ */
+BOOL HasOperationTimedOut(UINT StartTime, UINT LoopCount, UINT LoopLimit, UINT TimeoutMilliseconds) {
+    if (LoopCount >= LoopLimit) {
+        return TRUE;
+    }
+
+    UINT CurrentTime = GetSystemTime();
+    if (CurrentTime == StartTime) {
+        return FALSE;
+    }
+
+    return ((UINT)(CurrentTime - StartTime) >= TimeoutMilliseconds);
+}
+
+/************************************************************************/
+
+/**
  * @brief Convert milliseconds to HH:MM:SS text representation.
  * @param MilliSeconds Time in milliseconds.
  * @param Text Destination buffer for formatted string.

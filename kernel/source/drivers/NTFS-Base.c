@@ -316,6 +316,35 @@ U32 NtfsLog2(U32 Value) {
 /***************************************************************************/
 
 /**
+ * @brief Validate one MFT file-record index against mounted volume geometry.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param Index Candidate file-record index.
+ * @return TRUE when the index can fit in the partition MFT address space.
+ */
+BOOL NtfsIsValidFileRecordIndex(LPNTFSFILESYSTEM FileSystem, U32 Index) {
+    U64 PartitionBytes;
+    U64 MaxRecordCount;
+    U32 RecordShift;
+
+    if (FileSystem == NULL) return FALSE;
+    if (FileSystem->BytesPerSector == 0 || FileSystem->FileRecordSize == 0) return FALSE;
+    if (!NtfsIsPowerOfTwo(FileSystem->BytesPerSector) || !NtfsIsPowerOfTwo(FileSystem->FileRecordSize)) return FALSE;
+
+    PartitionBytes = NtfsMultiplyU32ToU64(FileSystem->PartitionSize, FileSystem->BytesPerSector);
+    RecordShift = NtfsLog2(FileSystem->FileRecordSize);
+    MaxRecordCount = NtfsU64ShiftRight(PartitionBytes, RecordShift);
+
+    if (U64_High32(MaxRecordCount) != 0) {
+        return TRUE;
+    }
+
+    return Index < U64_Low32(MaxRecordCount);
+}
+
+/***************************************************************************/
+
+/**
  * @brief Reads a partition boot sector.
  *
  * @param Disk Target disk.

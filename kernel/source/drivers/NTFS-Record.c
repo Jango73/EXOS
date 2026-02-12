@@ -22,6 +22,13 @@
 \************************************************************************/
 
 #include "NTFS-Private.h"
+#include "Clock.h"
+#include "utils/RateLimiter.h"
+
+/***************************************************************************/
+
+#define NTFS_INVALID_RECORD_MAGIC_LOG_LIMIT 8
+#define NTFS_INVALID_RECORD_MAGIC_LOG_COOLDOWN_MS 1000
 
 /***************************************************************************/
 
@@ -39,6 +46,8 @@
  */
 BOOL NtfsLoadFileRecordBuffer(
     LPNTFSFILESYSTEM FileSystem, U32 Index, U8** RecordBufferOut, NTFS_FILE_RECORD_HEADER* HeaderOut) {
+    static RATE_LIMITER InvalidRecordMagicWarningLimiter = {0};
+    static BOOL InvalidRecordMagicWarningLimiterInitAttempted = FALSE;
     U64 RecordOffset;
     U64 SectorOffset64;
     U32 SectorShift;
@@ -51,6 +60,7 @@ BOOL NtfsLoadFileRecordBuffer(
     U8* ReadBuffer;
     U8* RecordBuffer;
     NTFS_FILE_RECORD_HEADER Header;
+    U32 SuppressedWarnings;
 
     if (RecordBufferOut != NULL) *RecordBufferOut = NULL;
     if (HeaderOut != NULL) MemorySet(HeaderOut, 0, sizeof(NTFS_FILE_RECORD_HEADER));
@@ -59,6 +69,9 @@ BOOL NtfsLoadFileRecordBuffer(
     if (FileSystem->FileRecordSize == 0 || FileSystem->BytesPerSector == 0 ||
         !NtfsIsPowerOfTwo(FileSystem->BytesPerSector)) {
         WARNING(TEXT("[NtfsLoadFileRecordBuffer] Invalid NTFS geometry"));
+        return FALSE;
+    }
+    if (!NtfsIsValidFileRecordIndex(FileSystem, Index)) {
         return FALSE;
     }
 
@@ -124,7 +137,23 @@ BOOL NtfsLoadFileRecordBuffer(
 
     MemoryCopy(&Header, RecordBuffer, sizeof(NTFS_FILE_RECORD_HEADER));
     if (Header.Magic != NTFS_FILE_RECORD_MAGIC) {
-        WARNING(TEXT("[NtfsLoadFileRecordBuffer] Invalid file record magic=%x index=%u"), Header.Magic, Index);
+        SuppressedWarnings = 0;
+        if (InvalidRecordMagicWarningLimiter.Initialized == FALSE && InvalidRecordMagicWarningLimiterInitAttempted == FALSE) {
+            InvalidRecordMagicWarningLimiterInitAttempted = TRUE;
+            if (RateLimiterInit(
+                    &InvalidRecordMagicWarningLimiter,
+                    NTFS_INVALID_RECORD_MAGIC_LOG_LIMIT,
+                    NTFS_INVALID_RECORD_MAGIC_LOG_COOLDOWN_MS) == FALSE) {
+                WARNING(TEXT("[NtfsLoadFileRecordBuffer] Unable to initialize warning limiter"));
+            }
+        }
+        if (RateLimiterShouldTrigger(&InvalidRecordMagicWarningLimiter, GetSystemTime(), &SuppressedWarnings)) {
+            WARNING(
+                TEXT("[NtfsLoadFileRecordBuffer] Invalid file record magic=%x index=%u suppressed=%u"),
+                Header.Magic,
+                Index,
+                SuppressedWarnings);
+        }
         KernelHeapFree(RecordBuffer);
         return FALSE;
     }

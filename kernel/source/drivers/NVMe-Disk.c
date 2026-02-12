@@ -116,16 +116,16 @@ static BOOL NVMeIsContiguousBuffer(LPVOID Buffer, U32 TransferBytes) {
  * @return TRUE on success, FALSE on failure.
  */
 static BOOL NVMeReadSectorsBuffered(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 SectorCount,
-                                    LPVOID Buffer, U32 BufferBytes) {
+                                    U32 BytesPerSector, LPVOID Buffer, U32 BufferBytes) {
     if (Device == NULL || Buffer == NULL) {
         return FALSE;
     }
 
-    if (SectorCount > (0xFFFFFFFF / SECTOR_SIZE)) {
+    if (BytesPerSector == 0 || SectorCount > (0xFFFFFFFF / BytesPerSector)) {
         return FALSE;
     }
 
-    U32 TransferBytes = SectorCount * SECTOR_SIZE;
+    U32 TransferBytes = SectorCount * BytesPerSector;
     if (BufferBytes < TransferBytes) {
         return FALSE;
     }
@@ -171,16 +171,16 @@ static BOOL NVMeReadSectorsBuffered(LPNVME_DEVICE Device, U32 NamespaceId, U64 L
  * @return TRUE on success, FALSE on failure.
  */
 static BOOL NVMeWriteSectorsBuffered(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 SectorCount,
-                                     LPCVOID Buffer, U32 BufferBytes) {
+                                     U32 BytesPerSector, LPCVOID Buffer, U32 BufferBytes) {
     if (Device == NULL || Buffer == NULL) {
         return FALSE;
     }
 
-    if (SectorCount > (0xFFFFFFFF / SECTOR_SIZE)) {
+    if (BytesPerSector == 0 || SectorCount > (0xFFFFFFFF / BytesPerSector)) {
         return FALSE;
     }
 
-    U32 TransferBytes = SectorCount * SECTOR_SIZE;
+    U32 TransferBytes = SectorCount * BytesPerSector;
     if (BufferBytes < TransferBytes) {
         return FALSE;
     }
@@ -220,7 +220,7 @@ static BOOL NVMeWriteSectorsBuffered(LPNVME_DEVICE Device, U32 NamespaceId, U64 
  * @param NumSectors Namespace size in sectors.
  * @return Disk object or NULL on failure.
  */
-static LPNVME_DISK NVMeCreateDisk(LPNVME_DEVICE Device, U32 NamespaceId, U64 NumSectors) {
+static LPNVME_DISK NVMeCreateDisk(LPNVME_DEVICE Device, U32 NamespaceId, U64 NumSectors, U32 BytesPerSector) {
     if (Device == NULL || NamespaceId == 0) {
         return NULL;
     }
@@ -234,6 +234,7 @@ static LPNVME_DISK NVMeCreateDisk(LPNVME_DEVICE Device, U32 NamespaceId, U64 Num
     Disk->Controller = Device;
     Disk->NamespaceId = NamespaceId;
     Disk->NumSectors = NumSectors;
+    Disk->BytesPerSector = BytesPerSector;
     Disk->Access = 0;
 
     return Disk;
@@ -274,15 +275,25 @@ BOOL NVMeRegisterNamespaces(LPNVME_DEVICE Device) {
         for (UINT Index = 0; Index < Count; Index++) {
             U32 NamespaceId = NamespaceIds[Index];
             U64 NumSectors = U64_0;
-            if (!NVMeIdentifyNamespace(Device, NamespaceId, &NumSectors)) {
+            U32 BytesPerSector = 0;
+            if (!NVMeIdentifyNamespace(Device, NamespaceId, &NumSectors, &BytesPerSector)) {
                 WARNING(TEXT("[NVMeRegisterNamespaces] Identify namespace failed NSID=%u"), (U32)NamespaceId);
                 continue;
             }
 
-            LPNVME_DISK Disk = NVMeCreateDisk(Device, NamespaceId, NumSectors);
+            if (BytesPerSector == 0) {
+                WARNING(TEXT("[NVMeRegisterNamespaces] Invalid bytes per sector NSID=%u"), (U32)NamespaceId);
+                continue;
+            }
+
+            LPNVME_DISK Disk = NVMeCreateDisk(Device, NamespaceId, NumSectors, BytesPerSector);
             if (Disk == NULL) {
                 WARNING(TEXT("[NVMeRegisterNamespaces] Disk allocation failed NSID=%u"), (U32)NamespaceId);
                 continue;
+            }
+
+            if (Device->LogicalBlockSize == 0 || Device->LogicalBlockSize == SECTOR_SIZE) {
+                Device->LogicalBlockSize = BytesPerSector;
             }
 
             LPLIST DiskList = GetDiskList();
@@ -353,28 +364,32 @@ static UINT NVMeDiskRead(LPIOCONTROL Control) {
         }
 
         SAFE_USE_VALID_ID(Disk->Controller, KOID_PCIDEVICE) {
-            if (Control->NumSectors > (0xFFFFFFFF / SECTOR_SIZE)) {
+            if (Disk->BytesPerSector == 0 || Control->NumSectors > (0xFFFFFFFF / Disk->BytesPerSector)) {
                 return DF_RETURN_BAD_PARAMETER;
             }
 
-            U32 TotalBytes = Control->NumSectors * SECTOR_SIZE;
+            U32 TotalBytes = Control->NumSectors * Disk->BytesPerSector;
             if (Control->BufferSize < TotalBytes) {
                 return DF_RETURN_BAD_PARAMETER;
             }
 
-            U32 MaxSectors = (2 * N_4KB) / SECTOR_SIZE;
+            U32 MaxSectors = (2 * N_4KB) / Disk->BytesPerSector;
+            if (MaxSectors == 0) {
+                return DF_RETURN_BAD_PARAMETER;
+            }
             U32 Remaining = Control->NumSectors;
             U8* Out = (U8*)Control->Buffer;
             U64 Lba = U64_Make(Control->SectorHigh, Control->SectorLow);
 
             while (Remaining > 0) {
                 U32 Chunk = Remaining > MaxSectors ? MaxSectors : Remaining;
-                U32 ChunkBytes = Chunk * SECTOR_SIZE;
+                U32 ChunkBytes = Chunk * Disk->BytesPerSector;
 
                 if (!NVMeReadSectorsBuffered(Disk->Controller,
                                              Disk->NamespaceId,
                                              Lba,
                                              Chunk,
+                                             Disk->BytesPerSector,
                                              Out,
                                              ChunkBytes)) {
                     WARNING(TEXT("[NVMeDiskRead] Read failed LBA=%x:%x sectors=%u"),
@@ -419,28 +434,32 @@ static UINT NVMeDiskWrite(LPIOCONTROL Control) {
         }
 
         SAFE_USE_VALID_ID(Disk->Controller, KOID_PCIDEVICE) {
-            if (Control->NumSectors > (0xFFFFFFFF / SECTOR_SIZE)) {
+            if (Disk->BytesPerSector == 0 || Control->NumSectors > (0xFFFFFFFF / Disk->BytesPerSector)) {
                 return DF_RETURN_BAD_PARAMETER;
             }
 
-            U32 TotalBytes = Control->NumSectors * SECTOR_SIZE;
+            U32 TotalBytes = Control->NumSectors * Disk->BytesPerSector;
             if (Control->BufferSize < TotalBytes) {
                 return DF_RETURN_BAD_PARAMETER;
             }
 
-            U32 MaxSectors = (2 * N_4KB) / SECTOR_SIZE;
+            U32 MaxSectors = (2 * N_4KB) / Disk->BytesPerSector;
+            if (MaxSectors == 0) {
+                return DF_RETURN_BAD_PARAMETER;
+            }
             U32 Remaining = Control->NumSectors;
             U8* In = (U8*)Control->Buffer;
             U64 Lba = U64_Make(Control->SectorHigh, Control->SectorLow);
 
             while (Remaining > 0) {
                 U32 Chunk = Remaining > MaxSectors ? MaxSectors : Remaining;
-                U32 ChunkBytes = Chunk * SECTOR_SIZE;
+                U32 ChunkBytes = Chunk * Disk->BytesPerSector;
 
                 if (!NVMeWriteSectorsBuffered(Disk->Controller,
                                               Disk->NamespaceId,
                                               Lba,
                                               Chunk,
+                                              Disk->BytesPerSector,
                                               In,
                                               ChunkBytes)) {
                     WARNING(TEXT("[NVMeDiskWrite] Write failed LBA=%x:%x sectors=%u"),
@@ -478,7 +497,7 @@ static UINT NVMeDiskGetInfo(LPDISKINFO Info) {
     SAFE_USE_VALID_ID((LPLISTNODE)Disk, KOID_DISK) {
         Info->Type = DRIVER_TYPE_STORAGE;
         Info->Removable = 0;
-        Info->BytesPerSector = SECTOR_SIZE;
+        Info->BytesPerSector = Disk->BytesPerSector;
         Info->NumSectors = Disk->NumSectors;
         Info->Access = Disk->Access;
 
