@@ -149,6 +149,18 @@ static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context) {
         }
     }
 
+    LPLIST StorageList = GetDiskList();
+    SAFE_USE(StorageList) {
+        if (!ScriptRegisterHostSymbol(
+                Context->ScriptContext,
+                TEXT("storage"),
+                SCRIPT_HOST_SYMBOL_ARRAY,
+                StorageList,
+                &StorageArrayDescriptor,
+                NULL)) {
+        }
+    }
+
     if (!ScriptRegisterHostSymbol(
             Context->ScriptContext,
             TEXT("usb"),

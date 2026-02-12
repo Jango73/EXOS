@@ -1009,6 +1009,17 @@ The network stack successfully handles real network traffic across multiple devi
     - `enum_domains`: enum domain array. Permissions: kernel and administrator only.
       - `enum_domains.count`: enum domain count. Permissions: kernel and administrator only.
       - `enum_domains[n]`: enum domain value at index `n`. Permissions: kernel and administrator only.
+- `storage`: Storage list root. provides indexed access to storage views. Permissions: anyone.
+  - `storage.count`: number of storage objects. Permissions: anyone.
+  - `storage[n]`: storage view at index `n`. Permissions: anyone.
+    - `type`: storage type. Permissions: anyone.
+    - `removable`: removable flag. Permissions: anyone.
+    - `bytes_per_sector`: sector size in bytes. Permissions: anyone.
+    - `num_sectors_low`: lower 32-bit sector count. Permissions: anyone.
+    - `num_sectors_high`: upper 32-bit sector count. Permissions: anyone.
+    - `access`: access mode flags. Permissions: anyone.
+    - `driver_manufacturer`: backing driver manufacturer. Permissions: anyone.
+    - `driver_product`: backing driver product name. Permissions: anyone.
 - `keyboard`: Keyboard exposure root. provides access to keyboard state. Permissions: anyone.
   - `keyboard.layout`: active keyboard layout code. Permissions: anyone.
   - `keyboard.driver`: active keyboard driver. Permissions: kernel and administrator only.
