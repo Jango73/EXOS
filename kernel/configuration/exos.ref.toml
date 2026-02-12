@@ -54,6 +54,11 @@ FileSystem="active"
 SourcePath="exos/temp"
 Path="/temp"
 
+[[SystemFS.Mount]]
+FileSystem="active"
+SourcePath="exos/scripts"
+Path="/scripts"
+
 [Keyboard]
 # Available layouts : de-DE, en-US, fr-FR
 Layout="en-US"

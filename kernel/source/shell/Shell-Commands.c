@@ -927,6 +927,9 @@ BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName) {
     U32 FileSize = 0;
     U32 BytesRead = 0;
     U8* Buffer = NULL;
+    STR ReturnText[64];
+    SCRIPT_VAR_TYPE ReturnType;
+    SCRIPT_VAR_VALUE ReturnValue;
     SCRIPT_ERROR Error = SCRIPT_OK;
     BOOL Success = FALSE;
 
@@ -978,6 +981,21 @@ BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName) {
     if (Error != SCRIPT_OK) {
         ConsolePrint(TEXT("Error: %s\n"), ScriptGetErrorMessage(Context->ScriptContext));
         goto Out;
+    }
+
+    if (ScriptGetReturnValue(Context->ScriptContext, &ReturnType, &ReturnValue)) {
+        if (ReturnType == SCRIPT_VAR_STRING) {
+            StringCopy(ReturnText, ReturnValue.String ? ReturnValue.String : TEXT(""));
+        } else if (ReturnType == SCRIPT_VAR_INTEGER) {
+            StringPrintFormat(ReturnText, TEXT("%d"), ReturnValue.Integer);
+        } else if (ReturnType == SCRIPT_VAR_FLOAT) {
+            StringPrintFormat(ReturnText, TEXT("%f"), ReturnValue.Float);
+        } else {
+            StringCopy(ReturnText, TEXT("unsupported"));
+        }
+
+        ConsolePrint(TEXT("Script return value: %s\n"), ReturnText);
+        TEST(TEXT("[CMD_script] Script return value: %s"), ReturnText);
     }
 
     Success = TRUE;

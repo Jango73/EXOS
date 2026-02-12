@@ -84,7 +84,8 @@ typedef enum {
     TOKEN_RBRACE,
     TOKEN_IF,
     TOKEN_ELSE,
-    TOKEN_FOR
+    TOKEN_FOR,
+    TOKEN_RETURN
 } TOKEN_TYPE;
 
 // AST Node Types
@@ -93,6 +94,7 @@ typedef enum {
     AST_IF,             // if (cond) then [else]
     AST_FOR,            // for (init; cond; inc) body
     AST_BLOCK,          // { statements }
+    AST_RETURN,         // return expr
     AST_EXPRESSION      // standalone expr
 } AST_NODE_TYPE;
 
@@ -236,6 +238,9 @@ typedef struct tag_AST_NODE {
             U32 Capacity;
         } Block;
         struct {
+            struct tag_AST_NODE* Expression;
+        } Return;
+        struct {
             TOKEN_TYPE TokenType;
             STR Value[MAX_TOKEN_LENGTH];
             F32 NumValue;
@@ -275,6 +280,10 @@ struct tag_SCRIPT_CONTEXT {
     LPVOID HeapBase;
     SCRIPT_ERROR ErrorCode;
     STR ErrorMessage[MAX_ERROR_MESSAGE];
+    BOOL HasReturnValue;
+    BOOL ReturnTriggered;
+    SCRIPT_VAR_TYPE ReturnType;
+    SCRIPT_VAR_VALUE ReturnValue;
     LPSCRIPT_SCOPE GlobalScope;
     LPSCRIPT_SCOPE CurrentScope;
     SCRIPT_HOST_REGISTRY HostRegistry;
@@ -294,6 +303,8 @@ void ScriptDeleteVariable(LPSCRIPT_CONTEXT Context, LPCSTR Name);
 
 SCRIPT_ERROR ScriptGetLastError(LPSCRIPT_CONTEXT Context);
 LPCSTR ScriptGetErrorMessage(LPSCRIPT_CONTEXT Context);
+BOOL ScriptHasReturnValue(LPSCRIPT_CONTEXT Context);
+BOOL ScriptGetReturnValue(LPSCRIPT_CONTEXT Context, SCRIPT_VAR_TYPE* Type, SCRIPT_VAR_VALUE* Value);
 
 // Array support functions
 LPSCRIPT_ARRAY ScriptCreateArray(U32 InitialCapacity);

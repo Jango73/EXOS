@@ -143,6 +143,7 @@ TERMTACTICS_ELF	= $(CORE_BUILD_DIR)/system/terminal-tactics/terminal-tactics
 MOUSEINFO_ELF   = $(CORE_BUILD_DIR)/system/mouse-info/mouse-info
 MASTER_ELF      = $(CORE_BUILD_DIR)/system/test/master/master
 SLAVE_ELF       = $(CORE_BUILD_DIR)/system/test/slave/slave
+TEST_E0_SCRIPT  = ../system/scripts/test.e0
 EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/ext2-root
 USB3_STAGING_DIR= $(BUILD_DIR)/boot-hd/usb-3-root
 FS_TEST_EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/fs-test-ext2-root
@@ -374,7 +375,7 @@ $(CYCLE_BIN):
 
 # Create image only if it does not exist
 FINAL_IMG_DEPS_COMMON = check_tools $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN)
-FINAL_IMG_DEPS_FULL = $(FINAL_IMG_DEPS_COMMON) $(KERNEL_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(MOUSEINFO_ELF) $(MASTER_ELF) $(SLAVE_ELF)
+FINAL_IMG_DEPS_FULL = $(FINAL_IMG_DEPS_COMMON) $(KERNEL_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(MOUSEINFO_ELF) $(MASTER_ELF) $(SLAVE_ELF) $(TEST_E0_SCRIPT)
 
 ifeq ($(TEST_PAYLOAD),1)
 FINAL_IMG_DEPS = $(FINAL_IMG_DEPS_COMMON)
@@ -473,6 +474,7 @@ update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32)
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/USERS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS/TEST || true; \
+		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/SCRIPTS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/TEMP || true; \
 		for f in $(KEYBOARD_LAYOUTS); do \
 			if [ -f "$$f" ]; then \
@@ -487,7 +489,8 @@ update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32)
 		$(call MCOPY_IF_NEEDED,$(TERMTACTICS_ELF),z:/EXOS/APPS/terminal-tactics)\
 		$(call MCOPY_IF_NEEDED,$(MOUSEINFO_ELF),z:/EXOS/APPS/mouse-info)\
 		$(call MCOPY_IF_NEEDED,$(MASTER_ELF),z:/EXOS/APPS/TEST/MASTER)\
-		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE),\
+		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE)\
+		$(call MCOPY_IF_NEEDED,$(TEST_E0_SCRIPT),z:/EXOS/SCRIPTS/TEST.E0),\
 		All files injected into image.)
 
 update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2)
@@ -497,6 +500,7 @@ update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2)
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/users
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/apps/test
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/keyboard
+	@mkdir -p $(EXT2_STAGING_DIR)/exos/scripts
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/temp
 	@cp $(KERNEL_BIN) $(EXT2_STAGING_DIR)/exos.bin
 	@cp $(KERNEL_CFG_EXT2) $(EXT2_STAGING_DIR)/$(CONFIG_TOML_NAME)
@@ -514,6 +518,7 @@ update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2)
 	@cp $(MOUSEINFO_ELF) $(EXT2_STAGING_DIR)/exos/apps/mouse-info
 	@cp $(MASTER_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/master
 	@cp $(SLAVE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/slave
+	@cp $(TEST_E0_SCRIPT) $(EXT2_STAGING_DIR)/exos/scripts/test.e0
 	$(call POPULATE_EXT2_IMAGE,$(FINAL_IMG),$(EXT2_STAGING_DIR))
 
 install-mbr: update $(MBR_BIN) $(VBR_BIN)

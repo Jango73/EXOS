@@ -46,6 +46,7 @@ static LPAST_NODE ScriptParseStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* 
 static LPAST_NODE ScriptParseBlockAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 static LPAST_NODE ScriptParseIfStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 static LPAST_NODE ScriptParseForStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
+static LPAST_NODE ScriptParseReturnStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 static LPAST_NODE ScriptParseShellCommandExpression(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 static BOOL ScriptShouldParseShellCommand(LPSCRIPT_PARSER Parser);
 static BOOL ScriptIsKeyword(LPCSTR Str);
@@ -60,6 +61,8 @@ static SCRIPT_ERROR ScriptExecuteAssignment(LPSCRIPT_PARSER Parser, LPAST_NODE N
 static SCRIPT_ERROR ScriptExecuteBlock(LPSCRIPT_PARSER Parser, LPAST_NODE Node);
 static BOOL IsInteger(F32 Value);
 static void ScriptCalculateLineColumn(LPCSTR Input, U32 Position, U32* Line, U32* Column);
+static void ScriptClearReturnValue(LPSCRIPT_CONTEXT Context);
+static BOOL ScriptStoreReturnValue(LPSCRIPT_CONTEXT Context, const SCRIPT_VALUE* Value);
 static U32 ScriptHashHostSymbol(LPCSTR Name);
 static BOOL ScriptInitHostRegistry(LPSCRIPT_HOST_REGISTRY Registry);
 static void ScriptClearHostRegistryInternal(LPSCRIPT_HOST_REGISTRY Registry);
@@ -142,6 +145,7 @@ LPSCRIPT_CONTEXT ScriptCreateContext(LPSCRIPT_CALLBACKS Callbacks) {
 void ScriptDestroyContext(LPSCRIPT_CONTEXT Context) {
     if (Context == NULL) return;
 
+    ScriptClearReturnValue(Context);
     ScriptClearHostRegistryInternal(&Context->HostRegistry);
 
     // Free global scope and all child scopes
@@ -168,6 +172,7 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
 
     Context->ErrorCode = SCRIPT_OK;
     Context->ErrorMessage[0] = STR_NULL;
+    ScriptClearReturnValue(Context);
 
     SCRIPT_PARSER Parser;
     ScriptInitParser(&Parser, Script, Context);
@@ -222,8 +227,8 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
 
         Root->Data.Block.Statements[Root->Data.Block.Count++] = Statement;
 
-        // Semicolon is mandatory after assignments, optional after blocks/if/for
-        if (Statement->Type == AST_ASSIGNMENT) {
+        // Semicolon is mandatory after assignments and returns.
+        if (Statement->Type == AST_ASSIGNMENT || Statement->Type == AST_RETURN) {
             if (Parser.CurrentToken.Type != TOKEN_SEMICOLON && Parser.CurrentToken.Type != TOKEN_EOF) {
                 StringPrintFormat(Context->ErrorMessage, TEXT("Expected semicolon (l:%d,c:%d)"), Parser.CurrentToken.Line, Parser.CurrentToken.Column);
                 Context->ErrorCode = SCRIPT_ERROR_SYNTAX;
@@ -244,7 +249,7 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
     // PASS 2: Execute AST - Execute statements directly without creating a new scope
     for (U32 i = 0; i < Root->Data.Block.Count; i++) {
         Error = ScriptExecuteAST(&Parser, Root->Data.Block.Statements[i]);
-        if (Error != SCRIPT_OK) {
+        if (Error != SCRIPT_OK || Context->ReturnTriggered) {
             break;
         }
     }
@@ -343,6 +348,24 @@ LPCSTR ScriptGetErrorMessage(LPSCRIPT_CONTEXT Context) {
 
 /************************************************************************/
 
+BOOL ScriptHasReturnValue(LPSCRIPT_CONTEXT Context) {
+    return (Context != NULL && Context->HasReturnValue);
+}
+
+/************************************************************************/
+
+BOOL ScriptGetReturnValue(LPSCRIPT_CONTEXT Context, SCRIPT_VAR_TYPE* Type, SCRIPT_VAR_VALUE* Value) {
+    if (Context == NULL || Type == NULL || Value == NULL || Context->HasReturnValue == FALSE) {
+        return FALSE;
+    }
+
+    *Type = Context->ReturnType;
+    *Value = Context->ReturnValue;
+    return TRUE;
+}
+
+/************************************************************************/
+
 /**
  * @brief Create a new AST node.
  * @param Type Node type
@@ -417,6 +440,12 @@ void ScriptDestroyAST(LPAST_NODE Node) {
             }
             break;
 
+        case AST_RETURN:
+            if (Node->Data.Return.Expression) {
+                ScriptDestroyAST(Node->Data.Return.Expression);
+            }
+            break;
+
         case AST_EXPRESSION:
             if (Node->Data.Expression.BaseExpression) {
                 ScriptDestroyAST(Node->Data.Expression.BaseExpression);
@@ -471,6 +500,67 @@ static U32 ScriptHashVariable(LPCSTR Name) {
  */
 static BOOL IsInteger(F32 Value) {
     return Value == (F32)(I32)Value;
+}
+
+/************************************************************************/
+
+static void ScriptClearReturnValue(LPSCRIPT_CONTEXT Context) {
+    if (Context == NULL) {
+        return;
+    }
+
+    if (Context->HasReturnValue) {
+        if (Context->ReturnType == SCRIPT_VAR_STRING && Context->ReturnValue.String != NULL) {
+            HeapFree(Context->ReturnValue.String);
+        } else if (Context->ReturnType == SCRIPT_VAR_ARRAY && Context->ReturnValue.Array != NULL) {
+            ScriptDestroyArray(Context->ReturnValue.Array);
+        }
+    }
+
+    Context->HasReturnValue = FALSE;
+    Context->ReturnTriggered = FALSE;
+    Context->ReturnType = SCRIPT_VAR_FLOAT;
+    MemorySet(&Context->ReturnValue, 0, sizeof(SCRIPT_VAR_VALUE));
+}
+
+/************************************************************************/
+
+static BOOL ScriptStoreReturnValue(LPSCRIPT_CONTEXT Context, const SCRIPT_VALUE* Value) {
+    if (Context == NULL || Value == NULL) {
+        return FALSE;
+    }
+
+    ScriptClearReturnValue(Context);
+
+    if (Value->Type == SCRIPT_VAR_HOST_HANDLE || Value->Type == SCRIPT_VAR_ARRAY) {
+        return FALSE;
+    }
+
+    Context->ReturnType = Value->Type;
+    Context->HasReturnValue = TRUE;
+    Context->ReturnTriggered = TRUE;
+
+    if (Value->Type == SCRIPT_VAR_STRING) {
+        U32 Length;
+
+        if (Value->Value.String == NULL) {
+            Context->ReturnValue.String = NULL;
+            return TRUE;
+        }
+
+        Length = StringLength(Value->Value.String) + 1;
+        Context->ReturnValue.String = (LPSTR)HeapAlloc(Length);
+        if (Context->ReturnValue.String == NULL) {
+            ScriptClearReturnValue(Context);
+            return FALSE;
+        }
+
+        StringCopy(Context->ReturnValue.String, Value->Value.String);
+        return TRUE;
+    }
+
+    Context->ReturnValue = Value->Value;
+    return TRUE;
 }
 
 /************************************************************************/
@@ -743,6 +833,8 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
                 Parser->CurrentToken.Type = TOKEN_ELSE;
             } else if (StringCompare(Parser->CurrentToken.Value, TEXT("for")) == 0) {
                 Parser->CurrentToken.Type = TOKEN_FOR;
+            } else if (StringCompare(Parser->CurrentToken.Value, TEXT("return")) == 0) {
+                Parser->CurrentToken.Type = TOKEN_RETURN;
             }
         }
 
@@ -1713,7 +1805,8 @@ static BOOL ScriptValueToFloat(const SCRIPT_VALUE* Value, F32* OutValue) {
 static BOOL ScriptIsKeyword(LPCSTR Str) {
     return (StringCompare(Str, TEXT("if")) == 0 ||
             StringCompare(Str, TEXT("else")) == 0 ||
-            StringCompare(Str, TEXT("for")) == 0);
+            StringCompare(Str, TEXT("for")) == 0 ||
+            StringCompare(Str, TEXT("return")) == 0);
 }
 
 /************************************************************************/
@@ -2385,7 +2478,7 @@ static SCRIPT_ERROR ScriptExecuteBlock(LPSCRIPT_PARSER Parser, LPAST_NODE Node) 
     SCRIPT_ERROR Error = SCRIPT_OK;
     for (U32 i = 0; i < Node->Data.Block.Count; i++) {
         Error = ScriptExecuteAST(Parser, Node->Data.Block.Statements[i]);
-        if (Error != SCRIPT_OK) {
+        if (Error != SCRIPT_OK || Parser->Context->ReturnTriggered) {
             break;
         }
     }
@@ -2444,6 +2537,7 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
             // Execute initialization
             SCRIPT_ERROR Error = ScriptExecuteAST(Parser, Node->Data.For.Init);
             if (Error != SCRIPT_OK) return Error;
+            if (Parser->Context->ReturnTriggered) return SCRIPT_OK;
 
             // Execute loop
             U32 LoopCount = 0;
@@ -2470,10 +2564,12 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
                 // Execute body
                 Error = ScriptExecuteAST(Parser, Node->Data.For.Body);
                 if (Error != SCRIPT_OK) return Error;
+                if (Parser->Context->ReturnTriggered) return SCRIPT_OK;
 
                 // Execute increment
                 Error = ScriptExecuteAST(Parser, Node->Data.For.Increment);
                 if (Error != SCRIPT_OK) return Error;
+                if (Parser->Context->ReturnTriggered) return SCRIPT_OK;
 
                 LoopCount++;
             }
@@ -2482,6 +2578,23 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
                 ERROR(TEXT("[ScriptExecuteAST] Loop exceeded maximum iterations"));
             }
 
+            return SCRIPT_OK;
+        }
+
+        case AST_RETURN: {
+            SCRIPT_ERROR Error = SCRIPT_OK;
+            SCRIPT_VALUE ReturnValue = ScriptEvaluateExpression(Parser, Node->Data.Return.Expression, &Error);
+            if (Error != SCRIPT_OK) {
+                ScriptValueRelease(&ReturnValue);
+                return Error;
+            }
+
+            if (!ScriptStoreReturnValue(Parser->Context, &ReturnValue)) {
+                ScriptValueRelease(&ReturnValue);
+                return SCRIPT_ERROR_TYPE_MISMATCH;
+            }
+
+            ScriptValueRelease(&ReturnValue);
             return SCRIPT_OK;
         }
 
@@ -2501,6 +2614,41 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
 /************************************************************************/
 
 /**
+ * @brief Parse a return statement and build AST node.
+ * @param Parser Parser state
+ * @param Error Pointer to error code
+ * @return AST node or NULL on failure
+ */
+static LPAST_NODE ScriptParseReturnStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
+    LPAST_NODE ReturnNode;
+
+    if (Parser == NULL || Error == NULL || Parser->CurrentToken.Type != TOKEN_RETURN) {
+        if (Error != NULL) {
+            *Error = SCRIPT_ERROR_SYNTAX;
+        }
+        return NULL;
+    }
+
+    ScriptNextToken(Parser);
+
+    ReturnNode = ScriptCreateASTNode(AST_RETURN);
+    if (ReturnNode == NULL) {
+        *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
+        return NULL;
+    }
+
+    ReturnNode->Data.Return.Expression = ScriptParseComparisonAST(Parser, Error);
+    if (*Error != SCRIPT_OK || ReturnNode->Data.Return.Expression == NULL) {
+        ScriptDestroyAST(ReturnNode);
+        return NULL;
+    }
+
+    return ReturnNode;
+}
+
+/************************************************************************/
+
+/**
  * @brief Parse a statement (assignment, if, for, or block) and build AST node.
  * @param Parser Parser state
  * @param Error Pointer to error code
@@ -2511,6 +2659,8 @@ static LPAST_NODE ScriptParseStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* 
         return ScriptParseIfStatementAST(Parser, Error);
     } else if (Parser->CurrentToken.Type == TOKEN_FOR) {
         return ScriptParseForStatementAST(Parser, Error);
+    } else if (Parser->CurrentToken.Type == TOKEN_RETURN) {
+        return ScriptParseReturnStatementAST(Parser, Error);
     } else if (Parser->CurrentToken.Type == TOKEN_LBRACE) {
         return ScriptParseBlockAST(Parser, Error);
     } else if (Parser->CurrentToken.Type == TOKEN_PATH) {
@@ -2766,8 +2916,8 @@ static LPAST_NODE ScriptParseBlockAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Erro
 
         BlockNode->Data.Block.Statements[BlockNode->Data.Block.Count++] = Statement;
 
-        // Semicolon is mandatory after assignments, optional after blocks/if/for
-        if (Statement->Type == AST_ASSIGNMENT) {
+        // Semicolon is mandatory after assignments and returns.
+        if (Statement->Type == AST_ASSIGNMENT || Statement->Type == AST_RETURN) {
             if (Parser->CurrentToken.Type != TOKEN_SEMICOLON && Parser->CurrentToken.Type != TOKEN_RBRACE) {
                 *Error = SCRIPT_ERROR_SYNTAX;
                 ScriptDestroyAST(BlockNode);
