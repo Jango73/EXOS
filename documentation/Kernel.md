@@ -808,6 +808,11 @@ Each `FILESYSTEM` object carries runtime fields (`Driver`, `StorageUnit`, `Mount
 5. Build and mount SystemFS (`MountSystemFS()`).
 6. Load kernel configuration (`ReadKernelConfiguration()`).
 7. Apply configured user mounts (`MountUserNodes()` via `SystemFS.Mount.<index>.*` keys).
+8. Resolve logical kernel paths through `KernelPath.<name>` keys when subsystems request configured file or folder locations.
+
+Logical kernel path keys are consumed through `utils/KernelPath`:
+- `KernelPath.UsersDatabase`: absolute VFS file path used by user account persistence.
+- `KernelPath.KeyboardLayouts`: absolute VFS folder path used to load keyboard layout files (`<layout>.ekm1`).
 
 `MountDiskPartitions()` handles MBR and switches to GPT parsing when a protective MBR entry (`0xEE`) is detected. Supported formats are mounted through dedicated drivers (FAT16/FAT32/NTFS/EXFS/EXT2 path); partition metadata is written with `SetFileSystemPartitionInfo()`. Non-mounted partitions are still materialized through `RegisterUnusedFileSystem()` so diagnostics and shell tooling can inspect them.
 
@@ -1688,4 +1693,3 @@ map 0x04 1 0x30 0x41 0x0041
 | RFC 791 | Internet protocol | https://datatracker.ietf.org/doc/html/rfc791/ |
 | RFC 793 | Transmission Control Protocol | https://datatracker.ietf.org/doc/html/rfc793/ |
 | Intel x86-64 | x86-64 Technical Documentation | https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html |
-

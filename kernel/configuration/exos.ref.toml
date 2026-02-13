@@ -34,6 +34,11 @@ MinimumTaskStackSize=65536
 # Specify minimum size for a task's system stack (interrupts, syscalls)
 MinimumSystemStackSize=16384
 
+[KernelPath]
+# Logical kernel file/folder paths.
+UsersDatabase="/system/data/users.database"
+KeyboardLayouts="/system/keyboard"
+
 [[SystemFS.Mount]]
 FileSystem="active"
 SourcePath="exos"

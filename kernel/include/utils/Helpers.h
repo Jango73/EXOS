@@ -56,9 +56,6 @@
 #define CONFIG_NETWORK_INTERFACE_DEVICE_NAME_FMT        "NetworkInterface.%u.DeviceName"
 #define CONFIG_NETWORK_INTERFACE_CONFIG_FMT             "NetworkInterface.%u.%s"
 
-// System paths
-#define PATH_USERS_DATABASE "/system/data/users.database"
-
 /***************************************************************************/
 // Configuration fallbacks
 
