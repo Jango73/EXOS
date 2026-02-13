@@ -3,13 +3,13 @@
 ## TL;DR
 
 Multi-threaded operating system for x86-32 and x86-64.
-Currently booting in QEMU and Bochs.
+Currently booting on QEMU, Bochs, ACER Predator.
 
 ## What it is
 
-This is an ongoing OS dev project that was abandoned in late 1999.
-Back then, it was 32 bit and compiled with gcc and nasm, but linked with jloc.
-Build was recently ported to i686-elf-gcc/nasm/i686-elf-ld.
+This is an ongoing operating system project that was abandoned in late 1999.
+Back then, it was 32 bit only and compiled with gcc and nasm, and linked with jloc.
+Build was recently ported to i686-elf-gcc/nasm/i686-elf-ld, then ported to x86-64.
 
 ## Debian compile & run
 
@@ -21,13 +21,19 @@ Build was recently ported to i686-elf-gcc/nasm/i686-elf-ld.
 
 ### Build (Disk image with ext2)
 
-./scripts/build --arch <x86-32|x86-64> --fs ext2 --release
+./scripts/build --arch <x86-32|x86-64> --fs ext2 --release (or --debug)
 
 ( add --clean for a clean build )
 
 ### Build (Disk image with FAT32)
 
-./scripts/build --arch <x86-32|x86-64> --fs fat32 --release
+./scripts/build --arch <x86-32|x86-64> --fs fat32 --release (or --debug)
+
+( add --clean for a clean build )
+
+### Build for UEFI boot
+
+./scripts/build --arch <x86-32|x86-64> --fs ext2 --release (or --debug) --uefi
 
 ( add --clean for a clean build )
 
@@ -52,15 +58,6 @@ Used for UTF-8 decoding in layout parsing. Sources in third/utf8-hoehrmann (MIT 
 
 ### Fonts
 Bm437_IBM_VGA_8x16.otb from the Ultimate Oldschool PC Font Pack by VileR, licensed under CC BY-SA 4.0. See third/fonts/oldschool_pc_font_pack/ATTRIBUTION.txt and third/fonts/oldschool_pc_font_pack/LICENSE.TXT.
-
-## Historical background
-
-In 1999, I started EXOS as a simple experiment: I wanted to write a minimal OS bootloader for fun.  
-Very quickly, I realized I was building much more than a bootloader. I began to re-implement full system headers, taking inspiration from Windows and low-level DOS/BIOS references, aiming to create a complete 32-bit OS from scratch.
-It was a year-long solo project, developed the hard way:
-- On a Pentium, in DOS environment, without any debugger or VM
-- Relying on endless console print statements to trace bugs
-- Learning everything on the fly as the project grew
 
 ## Things it does
 
@@ -88,6 +85,15 @@ It was a year-long solo project, developed the hard way:
 - Minimal HTTP client
 - Kernel pointer masking, handles in userland
 - A few test apps
+
+## Historical background
+
+In 1999, I started EXOS as a simple experiment: I wanted to write a minimal OS bootloader for fun.  
+Very quickly, I realized I was building much more than a bootloader. I began to re-implement full system headers, taking inspiration from Windows and low-level DOS/BIOS references, aiming to create a complete 32-bit OS from scratch.
+It was a year-long solo project, developed the hard way:
+- On a Pentium, in DOS environment, without any debugger or VM
+- Relying on endless console print statements to trace bugs
+- Learning everything on the fly as the project grew
 
 ## Metrics (cloc)
 

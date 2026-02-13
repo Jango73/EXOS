@@ -2,74 +2,51 @@
 
 ## Table of contents
 - [Table of contents](#table-of-contents)
-- [Notations used in this document](#notations-used-in-this-document)
-- [Naming](#naming)
-- [Architecture](#architecture)
+- [Conventions](#conventions)
+  - [Notations used in this document](#notations-used-in-this-document)
+  - [Naming](#naming)
+- [Platform and Memory Foundations](#platform-and-memory-foundations)
+  - [Startup sequence on HD (real HD on x86-32 or qemu-system-i386)](#startup-sequence-on-hd-real-hd-on-x86-32-or-qemu-system-i386)
+  - [Startup sequence on UEFI](#startup-sequence-on-uefi)
+  - [Physical Memory map (may change)](#physical-memory-map-may-change)
   - [Paging abstractions](#paging-abstractions)
-    - [Layering and architecture backend](#layering-and-architecture-backend)
-    - [Physical memory allocation (buddy allocator)](#physical-memory-allocation-buddy-allocator)
-    - [Virtual address space construction](#virtual-address-space-construction)
-    - [Region descriptor tracking](#region-descriptor-tracking)
-  - [Logging](#logging)
+- [Isolation and Kernel Core](#isolation-and-kernel-core)
+  - [Security Architecture](#security-architecture)
   - [Kernel objects](#kernel-objects)
-    - [Object identifiers](#object-identifiers)
-    - [Event objects](#event-objects)
-    - [List nodes](#list-nodes)
-    - [File system globals](#file-system-globals)
-  - [Handle reuse guarantees](#handle-reuse-guarantees)
-  - [Command line editing](#command-line-editing)
-  - [Shell scripting integration](#shell-scripting-integration)
+  - [Handle reuse](#handle-reuse)
+- [Execution Model and Kernel Interface](#execution-model-and-kernel-interface)
+  - [Tasks](#tasks)
+  - [Process and Task Lifecycle Management](#process-and-task-lifecycle-management)
+  - [System calls](#system-calls)
   - [Task and window message delivery](#task-and-window-message-delivery)
+  - [Command line editing](#command-line-editing)
+  - [Exposed objects in shell](#exposed-objects-in-shell)
+- [Hardware and Driver Stack](#hardware-and-driver-stack)
+  - [Driver architecture](#driver-architecture)
+  - [Input device stack](#input-device-stack)
+  - [USB host and class stack](#usb-host-and-class-stack)
+  - [Graphics and console paths](#graphics-and-console-paths)
+  - [Early boot console path](#early-boot-console-path)
   - [ACPI services](#acpi-services)
-- [Startup sequence on HD (real HD on x86-32 or qemu-system-i386)](#startup-sequence-on-hd-real-hd-on-x86-32-or-qemu-system-i386)
-- [Physical Memory map (may change)](#physical-memory-map-may-change)
-- [Disk interfaces](#disk-interfaces)
-- [Tasks](#tasks)
-  - [Architecture-specific task data](#architecture-specific-task-data)
-  - [Stack sizing](#stack-sizing)
-  - [IRQ scheduling](#irq-scheduling)
-    - [IRQ 0 path](#irq-0-path)
-    - [ISR 0 call graph](#isr-0-call-graph)
-- [System calls](#system-calls)
-  - [System call full path - x86-32](#system-call-full-path-x86-32)
-  - [System call full path - x86-64](#system-call-full-path-x86-64)
-- [Process and Task Lifecycle Management](#process-and-task-lifecycle-management)
-  - [Process Heap Management](#process-heap-management)
-  - [Status States](#status-states)
-  - [Process Creation Flags](#process-creation-flags)
-  - [Session Inheritance](#session-inheritance)
-  - [Lifecycle Flow](#lifecycle-flow)
-  - [Key Design Principles](#key-design-principles)
-- [Network Stack](#network-stack)
-  - [Architecture Overview](#architecture-overview)
-  - [Device Infrastructure](#device-infrastructure)
-  - [Device Interrupt Infrastructure](#device-interrupt-infrastructure)
-  - [Network Manager](#network-manager)
-  - [E1000 Ethernet Driver](#e1000-ethernet-driver)
-  - [ARP (Address Resolution Protocol)](#arp-address-resolution-protocol)
-  - [IPv4 Internet Protocol](#ipv4-internet-protocol)
-  - [TCP (Transmission Control Protocol)](#tcp-transmission-control-protocol)
-  - [Layer Interactions](#layer-interactions)
-  - [Network Configuration](#network-configuration)
-  - [Key Benefits of Per-Device Architecture](#key-benefits-of-per-device-architecture)
-- [Exposed objects in shell](#exposed-objects-in-shell)
-- [Keyboard Layout Format (EKM1)](#keyboard-layout-format-ekm1)
-- [EXOS File System - EXFS](#exos-file-system-exfs)
-  - [Structure of the Master Boot Record](#structure-of-the-master-boot-record)
-  - [Structure of SuperBlock](#structure-of-superblock)
-  - [Structure of FileRecord](#structure-of-filerecord)
-  - [FileRecord fields](#filerecord-fields)
-  - [Structure of folders and files](#structure-of-folders-and-files)
-  - [Clusters](#clusters)
-  - [Cluster bitmap](#cluster-bitmap)
-- [Foreign File systems](#foreign-file-systems)
-  - [EXT2](#ext2)
-  - [NTFS](#ntfs)
-- [QEMU network graph](#qemu-network-graph)
-- [Links](#links)
+  - [Disk interfaces](#disk-interfaces)
+- [Storage and Filesystems](#storage-and-filesystems)
+  - [File systems](#file-systems)
+  - [EXOS File System - EXFS](#exos-file-system---exfs)
+  - [Filesystem Cluster cache](#filesystem-cluster-cache)
+  - [Foreign File systems](#foreign-file-systems)
+- [Interaction and Networking](#interaction-and-networking)
+  - [Shell scripting](#shell-scripting)
+  - [Network Stack](#network-stack)
+- [Tooling and References](#tooling-and-references)
+  - [Logging](#logging)
+  - [Automated debug validation script](#automated-debug-validation-script)
+  - [Build output layout](#build-output-layout)
+  - [Keyboard Layout Format (EKM1)](#keyboard-layout-format-ekm1)
+  - [QEMU network graph](#qemu-network-graph)
+  - [Links](#links)
+## Conventions
 
-
-## Notations used in this document
+### Notations used in this document
 
 | Abbrev | Meaning                         |
 |--------|---------------------------------|
@@ -94,7 +71,8 @@
 
 ---
 
-## Naming
+
+### Naming
 
 The following naming conventions have been adopted throughout the EXOS code base and interface.
 
@@ -105,7 +83,67 @@ The following naming conventions have been adopted throughout the EXOS code base
 - Shell command : lower_snake_case
 - Shell object/property : lower_snake_case
 
-## Architecture
+
+## Platform and Memory Foundations
+
+### Startup sequence on HD (real HD on x86-32 or qemu-system-i386)
+
+Everything in this sequence runs in 16-bit real mode on x86-32 processors. However, the code uses 32 bit registers when appropriate.
+
+1. BIOS loads disk MBR at 0x7C00.
+2. Code in mbr.asm is executed.
+3. MBR code looks for the active partition and loads its VBR at 0x7E00.
+4. Code in vbr.asm is executed.
+5. VBR code loads the reserved FAT32/EXT2 sectors (which contain VBR payload) at 0x8000.
+6. Code in vbr-payload-a.asm is executed.
+7. VBR payload asm sets up a stack and calls BootMain in vbr-payload-c.c.
+8. BootMain finds the FAT32/EXT2 entry for the specified binary.
+9. BootMain reads all the clusters of the binary at 0x20000.
+10. EnterProtectedPagingAndJump sets up minimal GDT and paging structures for the loaded binary to execute in higher half memory (0xC0000000).
+11. It finally jumps to the loaded binary.
+12. That's all folks. But it was a real pain to code :D
+
+
+### Startup sequence on UEFI
+
+1. Firmware loads `EFI/BOOT/BOOTX64.EFI` (x86-64) or `EFI/BOOT/BOOTIA32.EFI` (x86-32) from the EFI System Partition (FAT32).
+2. The UEFI loader reads `exos.bin` from the root folder of the EFI System Partition into physical address 0x200000.
+3. The loader gathers the UEFI memory map, converts it to an E820 map, and builds the Multiboot information block. The first module descriptor carries the loader-reserved kernel span size in `module.reserved`; this value is mandatory for EXOS and consumed directly by the kernel memory initialization.
+4. The loader switches to EXOS paging and GDT layout, then jumps to the kernel entry with the Multiboot registers set.
+
+
+### Physical Memory map on x86-32 (may change)
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│ 00000000 -> 000003FF  IVT                                                │
+├──────────────────────────────────────────────────────────────────────────┤
+│ 00000400 -> 000004FF  BIOS Data                                          │
+├──────────────────────────────────────────────────────────────────────────┤
+│ 00000500 -> 00000FFF  ??                                                 │
+├──────────────────────────────────────────────────────────────────────────┤
+│ 00002000 -> 00004FFF  VBR memory                                         │
+├──────────────────────────────────────────────────────────────────────────┤
+│ 00005000 -> 0001FFFF  Unused                                             │
+├──────────────────────────────────────────────────────────────────────────┤
+│ 00020000 -> 0009FBFF  EXOS Kernel (523263 bytes) mapped at C0000000      │
+├──────────────────────────────────────────────────────────────────────────┤
+│ 0009FC00 -> 0009FFFF  Extended BIOS data area                            │
+├──────────────────────────────────────────────────────────────────────────┤
+│ 000A0000 -> 000B7FFF  ROM Reserved                                       │
+├──────────────────────────────────────────────────────────────────────────┤
+│ 000B8000 -> 000BFFFF  Console buffer                                     │
+├──────────────────────────────────────────────────────────────────────────┤
+│ 000C0000 -> 000CFFFF  VESA                                               │
+├──────────────────────────────────────────────────────────────────────────┤
+│ 000F0000 -> 000FFFFF  BIOS                                               │
+├──────────────────────────────────────────────────────────────────────────┤
+│ 00100000 -> 003FFFFF  ??                                                 │
+├──────────────────────────────────────────────────────────────────────────┤
+│ 00400000 -> EFFFFFFF  Flat free RAM                                      │
+├──────────────────────────────────────────────────────────────────────────┤
+```
+
 
 ### Paging abstractions
 
@@ -139,54 +177,63 @@ Descriptors are allocated from dedicated descriptor slabs mapped with `AllocKern
 
 Descriptor slab bootstrap is protected by `G_RegionDescriptorBootstrap`. While descriptor slabs are being allocated and mapped, tracking callbacks are temporarily bypassed to prevent recursive descriptor allocation.
 
-### Logging
 
-Kernel logging funnels through `KernelLogText` and uses typed prefixes for log classes. The available log types are `DEBUG`, `WARNING`, `ERROR`, `VERBOSE`, and `TEST`. `DEBUG`, `WARNING`, `ERROR`, and `VERBOSE` are always available, while `TEST` is a debug-only type used by automated test scripts and is compiled out when `DEBUG_OUTPUT` is disabled. All logs follow the standard `[FunctionName]` prefix rule and emit structured results such as `TEST > [CMD_sysinfo] sys_info : OK`. Serial output is sanitized to printable ASCII (plus tab/newline) before being written to the log. When `DEBUG_SPLIT` is set to `1`, the kernel log stream is sent to a dedicated console region on the right side of the screen while standard console output remains on the left.
-`KernelLogSetTagFilter()` adds optional tag-based filtering. The filter string is a separator-based list (comma, semicolon, pipe, or spaces) and each entry matches a log prefix tag (for example `MountDiskPartitionsGpt` or `[MountDiskPartitionsGpt]`). When a filter is active, only log lines whose first bracket tag is listed are emitted. The default kernel filter is initialized for NVMe/GPT diagnosis.
-The build can override this startup filter with `--kernel-log-tag-filter <value>` in `scripts/build.sh`; passing an empty value compiles an empty default filter.
-The `ThresholdLatch` utility supports one-shot logging when a time threshold is exceeded during long-running operations.
+## Isolation and Kernel Core
 
-### Automated debug validation script
+### Security Architecture
 
-The repository provides `scripts/4-1-smoke-test.sh` to run an automated debug validation flow:
+Security in EXOS is implemented as a layered architecture. The effective access decision is the result of CPU privilege isolation, virtual memory boundaries, session-backed user identity, syscall privilege checks, and object-level policy inside subsystems.
 
-- clean build + image generation,
-- QEMU boot,
-- shell command injection (`sys_info`, `dir`, `/system/apps/hello`),
-- kernel log pattern checks.
+#### Layer 1: CPU privilege domains and execution context
 
-The script supports selecting one target with `--only x86-32`, `--only x86-64`, or `--only x86-64-uefi`.  
-Kernel logs are consumed from per-target files (`log/kernel-x86-32-mbr.log`, `log/kernel-x86-64-mbr.log`, `log/kernel-x86-64-uefi.log`).
+- EXOS uses kernel/user CPU privilege separation (ring 0 and ring 3) in both x86-32 and x86-64 task setup paths.
+- Task setup selects kernel or user code/data selectors based on `Process->Privilege` and seeds the initial interrupt frame accordingly (`kernel/source/arch/x86-32/x86-32.c`, `kernel/source/arch/x86-64/x86-64.c`).
+- Kernel tasks start at `TaskRunner` with kernel selectors; user tasks start through the user-mapped task runner trampoline with user selectors.
+- On x86-64, task setup also allocates a dedicated IST1 stack for fault handling, reducing the risk of stack-corruption escalation during exceptions.
 
-### Build output layout
+#### Layer 2: Virtual memory isolation
 
-Build artifacts are split between a core folder and an image folder:
+- Per-process address spaces are built with separate kernel and user privilege page mappings.
+- Kernel mappings are created with kernel page privilege; user seed tables and task runner mappings are created with user page privilege (`kernel/source/arch/x86-32/x86-32-Memory.c`, `kernel/source/arch/x86-64/x86-64-Memory-HighLevel.c`).
+- User pointers received from syscalls are validated through `SAFE_USE_VALID`, `SAFE_USE_INPUT_POINTER`, and `IsValidMemory` checks before dereference (`kernel/source/SYSCall.c`).
 
-- core outputs: `build/core/<BUILD_CORE_NAME>/...`
-- image outputs: `build/image/<BUILD_IMAGE_NAME>/...`
-- `BUILD_CORE_NAME`: `<arch>-<boot>-<config>[-split]`
-- `BUILD_IMAGE_NAME`: `<BUILD_CORE_NAME>-<filesystem>`
+#### Layer 3: Identity and session model
 
-Examples:
+- Identity is session-centric: `GetCurrentUser()` resolves the current process session to a user account (`kernel/source/utils/Helpers.c`).
+- `USERACCOUNT` stores `UserID`, privilege (`EXOS_PRIVILEGE_USER` or `EXOS_PRIVILEGE_ADMIN`), status, and password hash; `USERSESSION` stores `SessionID`, `UserID`, login/activity timestamps, and shell task binding (`kernel/include/UserAccount.h`).
+- Session lifecycle is managed by `CreateUserSession`, `SetCurrentSession`, `GetCurrentSession`, and timeout validation in `UserSession.c`.
+- Child process creation inherits the parent session (`Process->Session`), preserving identity continuity across spawned processes (`kernel/source/process/Process.c`).
 
-- x86-32 MBR debug ext2:
-  - core: `build/core/x86-32-mbr-debug`
-  - image: `build/image/x86-32-mbr-debug-ext2`
-- x86-64 UEFI debug ext2:
-  - core: `build/core/x86-64-uefi-debug`
-  - image: `build/image/x86-64-uefi-debug-ext2`
+#### Layer 4: Syscall privilege gate
 
-Path mapping (migration reference):
+- Every syscall is dispatched through `SystemCallHandler`, which checks the required privilege stored in `SysCallTable[]` before calling the handler (`kernel/source/SYSCall.c`, `kernel/source/SYSCallTable.c`).
+- The privilege model is ordinal (`kernel < admin < user`) and compares current user privilege against the required level.
+- Authentication/user-management syscalls (`Login`, `Logout`, `CreateUser`, `DeleteUser`, `ListUsers`, `ChangePassword`) apply explicit account checks in their handlers (`kernel/source/SYSCall.c`).
 
-| Old path | New path |
-|---|---|
-| `build/x86-32/kernel/exos.elf` | `build/core/x86-32-mbr-debug/kernel/exos.elf` |
-| `build/x86-64/kernel/exos.elf` | `build/core/x86-64-mbr-debug/kernel/exos.elf` |
-| `build/x86-32/boot-hd/exos.img` | `build/image/x86-32-mbr-debug-ext2/boot-hd/exos.img` |
-| `build/x86-64/boot-hd/exos.img` | `build/image/x86-64-mbr-debug-ext2/boot-hd/exos.img` |
-| `build/x86-64/boot-uefi/exos-uefi.img` | `build/image/x86-64-uefi-debug-ext2/boot-uefi/exos-uefi.img` |
-| `build/x86-32/tools/cycle` | `build/core/x86-32-mbr-debug/tools/cycle` |
-| `build/x86-64/tools/cycle` | `build/core/x86-64-mbr-debug/tools/cycle` |
+#### Layer 5: Handle boundary and kernel object exposure
+
+- User space passes opaque handles; the kernel translates with `HandleToPointer`/`PointerToHandle` and validates target object type before operation (`kernel/source/SYSCall.c`).
+- The shell script exposure layer enforces read policy per object and per field using `EXPOSE_REQUIRE_ACCESS(...)` with flags:
+  - `EXPOSE_ACCESS_PUBLIC`
+  - `EXPOSE_ACCESS_SAME_USER`
+  - `EXPOSE_ACCESS_ADMIN`
+  - `EXPOSE_ACCESS_KERNEL`
+  - `EXPOSE_ACCESS_OWNER_PROCESS`
+  (defined in `kernel/include/Exposed.h`, implemented by `kernel/source/expose/Expose-Security.c`)
+- Process/task exposure protects sensitive fields (`page_directory`, heap metadata, architecture context, stack internals) behind kernel/admin or owner-process checks (`kernel/source/expose/Expose-Process.c`, `kernel/source/expose/Expose-Task.c`).
+
+#### Layer 6: Security data model for kernel objects
+
+- `SECURITY` objects provide owner and per-user permission fields (`READ`, `WRITE`, `EXECUTE`) with default permissions (`kernel/include/Security.h`).
+- Process structures embed a `SECURITY` instance initialized by `InitSecurity()` during process creation (`kernel/source/process/Process.c`).
+- This data model is present and initialized, while policy enforcement is currently concentrated in syscall handlers and expose-layer checks.
+
+#### Architectural properties and current boundaries
+
+- The architecture provides defense-in-depth through independent barriers (CPU ring separation, page privilege separation, session identity, syscall gate, and field-level exposure checks).
+- Access control for script-visible kernel state is fine-grained and centralized through reusable expose security helpers.
+- Security policy is not represented as a single global ACL engine. Some controls are explicit per-subsystem (for example, admin checks in user-management syscalls), which keeps behavior clear but requires discipline when adding new kernel entry points.
+
 
 ### Kernel objects
 
@@ -210,162 +257,51 @@ Event lifecycle and state helpers:
 
 Kernel objects that embed `LISTNODE_FIELDS` participate in intrusive lists. Each list node carries a `Parent` pointer so objects can represent hierarchy when required, but insertion helpers keep the `Parent` pointer NULL unless it is explicitly set by the caller. This avoids accidental parent chains while still enabling structured ownership models.
 
-#### File system globals
 
-Shared file system state is stored in `Kernel.FileSystemInfo`. The current implementation tracks the logical name of the active partition while MBR partitions are mounted. `MountDiskPartitions` reads the active MBR entry and calls `FileSystemSetActivePartition` to copy the mounted file system name into `Kernel.FileSystemInfo.ActivePartitionName`, which is reused by shell and diagnostic paths.
-Mounted filesystems expose their backing disk through `FILESYSTEM.StorageUnit`, with `FileSystemGetStorageUnit()` and `FileSystemHasStorageUnit()` providing a stable API for callers that need the associated `STORAGE_UNIT` without relying on driver-specific struct layouts. Partition metadata is stored in `FILESYSTEM.Partition` (`PARTITION` structure): scheme, type, mounted format, index, active flag, start sector, size in sectors, and GPT type GUID when applicable. Partition name mapping helpers (`FileSystemGetPartitionSchemeName`, `FileSystemGetPartitionTypeName`, `FileSystemGetPartitionFormatName`) centralize display logic so shell commands do not duplicate mapping tables.
-`Kernel.FileSystem` stores mounted filesystems and `Kernel.UnusedFileSystem` stores discovered partitions that could not be mounted. Both use the same `FILESYSTEM` object layout, with `FILESYSTEM.Mounted` distinguishing mounted (`TRUE`) and non-mounted (`FALSE`) entries.
-Boot-time partition mounting is centralized in `InitializeFileSystems()`. Storage drivers only trigger immediate mounts when `FileSystemReady()` reports that SystemFS is already initialized, avoiding duplicate mounts during early boot discovery.
-When a GPT protective MBR (type 0xEE) is detected, `MountDiskPartitions` switches to a GPT parser that reads the header and entry array, mounts supported partitions, and records non-mounted GPT entries in `Kernel.UnusedFileSystem`.
+### Handle reuse
 
-### Handle reuse guarantees
+#### Global mapping architecture
 
-The global handle map enforces a strict 1:1 relationship between kernel objects and user-visible handles. `PointerToHandle()` first queries the handle map to see if the pointer is already exported and reuses the existing handle instead of allocating a duplicate. A new reverse lookup helper walks the handle map so conversions remain O(n) only in debugging scenarios while the common case reuses cached handles. This change eliminates transient handles created every time `SysCall_GetMessage()` returned a pointer to userland, which in turn kept GUI messages from round-tripping correctly through `DispatchMessage()`. User applications receive stable handles for their windows, and the runtime can translate those handles back to the original kernel pointers without any fallback logic.
+Handle translation is centralized in one global `HANDLE_MAP` stored in `Kernel.HandleMap` and initialized during `InitializeKernel()` with `HandleMapInit()`.
 
-### Command line editing
+`HANDLE_MAP` combines:
+- a radix tree (`Map->Tree`) keyed by handle value,
+- a slab-style block allocator (`Map->EntryAllocator`) for `HANDLE_MAP_ENTRY`,
+- a mutex (`Map->Mutex`) guarding every map operation,
+- a monotonic allocator cursor (`Map->NextHandle`), starting at `HANDLE_MINIMUM` (`0x10`).
 
-Interactive editing of shell command lines is implemented in `kernel/source/utils/CommandLineEditor.c`. The module processes keyboard input via the classic buffered path (`PeekChar`/`GetKeyCode`), maintains an in-memory history, refreshes the console display, and relies on callbacks to retrieve completion suggestions. The shell owns an input state structure that embeds the editor instance and provides the shell-specific completion callback so the component remains agnostic of higher level shell logic. While reading input, the editor adjusts for console scrolling so the display does not re-trigger scrolling on each key press, and console paging prompts are suspended until the line is submitted.
+Each map entry stores `{Handle, Pointer, Attached}`. A handle is considered valid for resolution only when `Attached` is true and `Pointer` is non-null.
 
-Keyboard input keeps two distinct paths for compatibility. The legacy PS/2 pipeline continues to use scan code -> KEYTRANS tables, while a separate HID path uses usage page 0x07 indexed KEY_LAYOUT_HID layouts. The HID layout file format is UTF-8 text with an "EKM1" header and directives: code, levels, map, dead, and compose. The kernel keeps an embedded en-US fallback (KEY_LAYOUT_FALLBACK_CODE) used when HID layout loading fails. The HID layout loader parses EKM1 files with a tolerant UTF-8 decoder, logs replacement counts, and rejects malformed directives or out-of-range entries. USB HID keyboard support lives in `kernel/source/drivers/Keyboard-USB.c` and feeds boot protocol reports into the same HID usage pipeline as PS/2. Keyboard initialization is mediated by a selector driver (`kernel/source/drivers/Keyboard-Selector.c`) that probes for a USB HID keyboard after PCI/xHCI enumeration and otherwise falls back to PS/2 detection, ensuring only one keyboard driver is active at a time.
+#### Conversion flow
 
-All reusable helpers -such as the command line editor, adaptive delay, string containers, CRC utilities, notifications, path helpers, TOML parsing, UUID support, regex, hysteresis control, cooldown timing, rate limiting, and network checksum helpers— live under `kernel/source/utils` with their public headers in `kernel/include/utils`. This keeps generic infrastructure separated from core subsystems and makes it easier to share common code across the kernel.
+`PointerToHandle()` enforces pointer-to-handle reuse before allocation:
+1. Reject null pointers.
+2. Search for an existing mapping with `HandleMapFindHandleByPointer()`.
+3. Reuse the existing handle when found.
+4. Otherwise allocate a new handle (`HandleMapAllocateHandle`) and attach the pointer (`HandleMapAttachPointer`).
 
-### Shell scripting integration
+This guarantees one active exported handle per pointer in the global map and avoids duplicate exports during repeated conversions.
 
-The interactive shell keeps a persistent script interpreter context to run automation snippets. Host-side data is exposed through `ScriptRegisterHostSymbol` so scripts can inspect kernel state without bypassing the interpreter API. The shell publishes selected kernel objects under global identifiers so scripts can inspect kernel state without bypassing the interpreter API. The objects expose properties through the script runtime (for example `process[0].command_line`) so automation stays inside the supported host interface.
-The `run` shell command routes launch behavior by file extension: paths ending with `E0_SCRIPT_FILE_EXTENSION` (`.e0`, defined in `kernel/include/Script.h`) are executed by the E0 interpreter, while other targets follow the executable spawn path.
-E0 supports `return <expression>;` statements. When a script is launched through `run` (or directly by path), the shell prints the returned value as `Script return value: ...` after successful execution. Return values support string, integer, and float expressions.
+`HandleToPointer()` performs the reverse operation through `HandleMapResolveHandle()`. `ReleaseHandle()` detaches the pointer (`HandleMapDetachPointer`) then removes the handle entry (`HandleMapReleaseHandle`).
 
-### Task and window message delivery
+`EnsureKernelPointer()` and `EnsureHandle()` normalize mixed values in call paths that may receive either raw kernel pointers or user-visible handles.
 
-Tasks own a lazily instantiated message queue (`MESSAGEQUEUE` in `kernel/source/process/TaskMessaging.c`) built on the generic list container. Only the kernel process starts with a queue; user processes and their tasks get a queue *only when they explicitly call* `GetMessage()`, `PeekMessage()`, or `WaitForMessage()` (which marks the task queue as initialized). No queue is created when posting; if a task/process never asked for one, posted messages are dropped and keyboard input continues down the classic buffered path for `getkey()` (used by the shell). When a process message queue exists, the keyboard helpers (`PeekChar`, `GetChar`, `GetKeyCode`) consume key events from that queue by discarding `EWM_KEYUP` messages and returning the first `EWM_KEYDOWN`, then fall back to the classic buffer when no queue exists. Each queue is capped to 100 pending messages and guarded by a per-queue mutex plus a waiting flag. `WaitForMessage` marks the queue as waiting and sleeps the task; `AddTaskMessage` wakes the task when a new message arrives and clears the waiting flag.
+#### Message path behavior
 
-Message posting:
-- `PostMessage` accepts NULL targets (current task), task handles, and window handles; window targets enqueue into the owning task queue. Keyboard drivers and the mouse dispatcher push input events into the global input queue using `EnqueueInputMessage` so only the focused process sees them.
-- Mouse input is throttled by a tiny dispatcher that filters `EWM_MOUSEMOVE` with a 10ms cooldown between enqueues, while button changes still dispatch immediately through the shared input queue.
-- `SendMessage` remains synchronous and window-only.
+`SysCall_GetMessage()` and `SysCall_PeekMessage()` convert `MESSAGEINFO.Target` from handle to pointer before calling the internal queue logic, then convert the returned pointer back through `PointerToHandle()`. `SysCall_DispatchMessage()` resolves the incoming handle to a pointer for dispatch, then restores the original handle in the user buffer.
 
-Message retrieval:
-- `GetMessage`/`PeekMessage` first check the global input queue when the caller’s process has focus (desktop focus + per-desktop `FocusedProcess`), then fall back to the task’s own queue. `GetMessage` blocks if neither queue holds messages; `PeekMessage` is non-blocking. Userland syscalls translate handles in `MESSAGEINFO` before dispatching to the kernel implementations.
-- Focus tracking lives in `Kernel.FocusedDesktop` and `Desktop.FocusedProcess`. When a process is created on the focused desktop it becomes the focused process; when a focused process dies its desktop falls back to the kernel process. The focus setters ensure a focused process always exists for the active desktop.
+Because `PointerToHandle()` reuses existing mappings, repeated message retrieval and dispatch cycles keep target handles stable instead of generating transient replacements.
 
-Hardware-facing components are grouped under `kernel/source/drivers` with their headers in `kernel/include/drivers`. The directory hosts the keyboard, serial mouse, interrupt controller (I/O APIC), PCI bus, network (E1000), storage (ATA, SATA, and NVMe), graphics (VGA, VESA, and mode tables), and file system backends (FAT16, FAT32, and EXFS). Keeping device drivers together simplifies discovery from the build system and clarifies the separation between reusable utilities and hardware support code. Kernel-side driver registration mirrors the rest of the codebase by storing the initialization order in a `LIST` declared in `KernelData.c`; `InitializeDriverList()` appends each static driver descriptor before `LoadAllDrivers()` walks the list. The NVMe driver brings up admin queues, then creates I/O queues, wires completion interrupts through MSI-X when available, enumerates namespaces, and registers each namespace as a disk so `MountDiskPartitions` can attach file systems.
+#### Complexity boundary
 
-Mouse input is shared through `kernel/source/MouseCommon.c`, which buffers deltas/buttons, dispatches events, and selects the active mouse driver. USB HID mouse support lives in `kernel/source/drivers/Mouse-USB.c` and takes priority over the serial mouse when a USB device is present.
+Forward resolution (handle -> pointer) is radix-tree lookup. Reverse lookup (pointer -> handle reuse check) is implemented by iterating the radix tree (`HandleMapFindHandleByPointer`), so it is linear in the number of active handles. The design favors simple global consistency and stable handle identity over constant-time reverse indexing.
 
-USB foundations live under `kernel/include/drivers/USB.h`. The header defines core USB types (speeds, endpoint kinds, addresses) and the standard descriptor layouts for device, configuration, interface, endpoint, and string metadata so future host controllers and class drivers can share a single set of structs.
 
-The xHCI host controller driver in `kernel/source/drivers/XHCI-Core.c` (split across `kernel/source/drivers/XHCI-Device.c`, `kernel/source/drivers/XHCI-Hub.c`, and `kernel/source/drivers/XHCI-Enum.c`) is registered by the PCI subsystem. It maps the controller MMIO region, performs the mandatory halt/reset/run sequence, allocates DCBAA/command/event rings, programs interrupter 0, runs minimal EP0 control transfers, builds a basic device tree (configs/interfaces/endpoints), and reports status via `usbctl ports`, `usbctl probe`, and `usbctl devices`. Endpoint configuration after `SET_CONFIGURATION` relies on the xHCI Configure Endpoint command before enabling interrupt polling for HID devices.
-USB interfaces and endpoints are kernel objects tracked in global lists, with references held by class drivers to defer teardown until hotplug release completes.
-Hotplug teardown stops and resets endpoints, flushes transfer rings, disables the affected slot, and defers resource destruction until USB device/interface/endpoint references are released so disconnects during I/O do not trigger invalid memory access.
+## Execution Model and Kernel Interface
 
-Hub-class devices are supported: the driver reads hub descriptors, powers ports, tracks downstream devices, and polls hub interrupt endpoints for change bits to trigger per-port reset and re-enumeration.
+### Tasks
 
-USB mass storage (BOT, read-only) is handled by `kernel/source/drivers/USBMassStorage.c`. The driver configures bulk endpoints, sends CBW/CSW sequences for SCSI INQUIRY, READ CAPACITY(10), and READ(10), and registers detected disks in the global disk list so `MountDiskPartitions` can attach file systems. Mounted USB storage instances are tracked in `Kernel.USBDevice`, and the shell command `usb drives` prints the current entries with their address, VID/PID, and block geometry. When SystemFS is already initialized, newly mounted partitions are attached under `/fs/<volume>`. On device removal, the associated file systems are detached from `/fs` and released. Mounting a USB mass storage partition broadcasts `ETM_USB_MASS_STORAGE_MOUNTED`/ `ETM_USB_MASS_STORAGE_UNMOUNTED` to userland process message queues.
-
-The VESA graphics driver always requests VBE modes in linear frame buffer mode (bit 14 set in INT 10h 4F02h), checks that the selected mode advertises the LFB capability, and maps the `PhysBasePtr` through `MapIOMemory`. Drawing code writes directly to the mapped VRAM region without issuing BIOS bank switching calls, which removes the heavy INT 10h overhead from every pixel write.
-
-The console can also render directly into a linear frame buffer when the bootloader provides Multiboot framebuffer information. In BIOS/MBR mode the bootloader reports the standard VGA text buffer at 0xB8000 with a text framebuffer type. In UEFI mode the bootloader queries GOP, passes the framebuffer base, pitch, resolution, and RGB layout, and the console switches to a font-rendered path that draws glyphs into the GOP memory. The default font is an in-tree ASCII 8x16 design owned by EXOS and is replaceable through the font API for future on-disk font loading.
-
-For very early bring-up, `kernel/source/EarlyBootConsole.c` provides a minimal framebuffer text path that does not depend on the regular console initialization sequence. It writes glyphs directly from physical framebuffer mappings and is used by early boot/memory initialization checkpoints.
-
-### ACPI services
-
-Advanced power management and reset paths live in `kernel/source/ACPI.c`. The module discovers ACPI tables, exposes the parsed configuration, and offers helpers for platform control. `ACPIShutdown()` releases ACPI mappings and state without powering off. `ACPIPowerOff()` enters the S5 soft-off state using the `_S5` sleep type from the DSDT when available (defaults to 7 otherwise) and falls back to legacy power-off sequences when the ACPI path fails. The new `ACPIReboot()` companion performs a warm reboot by first using the ACPI reset register (when present) and then chaining to legacy reset controllers to ensure the machine restarts even on older chipsets. Kernel-level wrappers `ShutdownKernel()` and `RebootKernel()` drive shell commands, clear userland processes, then kernel tasks, and perform a reverse-order driver unload before handing control to the ACPI routines so subsystems leave as few pending resources as possible when the machine powers off or reboots.
-
-## Startup sequence on HD (real HD on x86-32 or qemu-system-i386)
-
-Everything in this sequence runs in 16-bit real mode on x86-32+ processors. However, the code uses 32 bit registers when appropriate.
-
-1. BIOS loads disk MBR at 0x7C00.
-2. Code in mbr.asm is executed.
-3. MBR code looks for the active partition and loads its VBR at 0x7E00.
-4. Code in vbr.asm is executed.
-5. VBR code loads the reserved FAT32/EXT2 sectors (which contain VBR payload) at 0x8000.
-6. Code in vbr-payload-a.asm is executed.
-7. VBR payload asm sets up a stack and calls BootMain in vbr-payload-c.c.
-8. BootMain finds the FAT32/EXT2 entry for the specified binary.
-9. BootMain reads all the clusters of the binary at 0x20000.
-10. EnterProtectedPagingAndJump sets up minimal GDT and paging structures for the loaded binary to execute in higher half memory (0xC0000000).
-11. It finally jumps to the loaded binary.
-12. That's all folks. But it was a real pain to code :D
-
-## Startup sequence on UEFI
-
-1. Firmware loads `EFI/BOOT/BOOTX64.EFI` (x86-64) or `EFI/BOOT/BOOTIA32.EFI` (x86-32) from the EFI System Partition (FAT32).
-2. The UEFI loader reads `exos.bin` from the root folder of the EFI System Partition into physical address 0x200000.
-3. The loader gathers the UEFI memory map, converts it to an E820 map, and builds the Multiboot information block. The first module descriptor carries the loader-reserved kernel span size in `module.reserved`; this value is mandatory for EXOS and consumed directly by the kernel memory initialization.
-4. The loader switches to EXOS paging and GDT layout, then jumps to the kernel entry with the Multiboot registers set.
-
-## Physical Memory map (may change)
-
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│ 00000000 -> 000003FF  IVT                                                │
-├──────────────────────────────────────────────────────────────────────────┤
-│ 00000400 -> 000004FF  BIOS Data                                          │
-├──────────────────────────────────────────────────────────────────────────┤
-│ 00000500 -> 00000FFF  ??                                                 │
-├──────────────────────────────────────────────────────────────────────────┤
-│ 00002000 -> 00004FFF  VBR memory                                         │
-├──────────────────────────────────────────────────────────────────────────┤
-│ 00005000 -> 0001FFFF  Unused                                             │
-├──────────────────────────────────────────────────────────────────────────┤
-│ 00020000 -> 0009FBFF  EXOS Kernel (523263 bytes) mapped at C0000000      │
-├──────────────────────────────────────────────────────────────────────────┤
-│ 0009FC00 -> 0009FFFF  Extended BIOS data area                            │
-├──────────────────────────────────────────────────────────────────────────┤
-│ 000A0000 -> 000B7FFF  ROM Reserved                                       │
-├──────────────────────────────────────────────────────────────────────────┤
-│ 000B8000 -> 000BFFFF  Console buffer                                     │
-├──────────────────────────────────────────────────────────────────────────┤
-│ 000C0000 -> 000CFFFF  VESA                                               │
-├──────────────────────────────────────────────────────────────────────────┤
-│ 000F0000 -> 000FFFFF  BIOS                                               │
-├──────────────────────────────────────────────────────────────────────────┤
-│ 00100000 -> 003FFFFF  ??                                                 │
-├──────────────────────────────────────────────────────────────────────────┤
-│ 00400000 -> EFFFFFFF  Flat free RAM                                      │
-├──────────────────────────────────────────────────────────────────────────┤
-```
-
-## Disk interfaces
-
-```
-+------------------------------------+
-|          Operating System          |
-+------------------------------------+
-                |
-                | (Software Drivers)
-                v
-+------------------------------------+
-| Controllers/Protocols              |
-| +--------+  +--------+  +--------+ |
-| |  AHCI  |  |  NVMe  |  |  SCSI  | |
-| +--------+  +--------+  +--------+ |
-|      |           |           |     |
-|      v           v           v     |
-| +--------+  +--------+  +--------+ |
-| |  SATA  |  |  PCIe  |  |  SAS/  | |
-| |Interface| |Interface| |SATA Int| |
-| +--------+  +--------+  +--------+ |
-|      |           |           |     |
-|      v           v           v     |
-| +--------+  +--------+  +--------+ |
-| | HDD,   |  | SSD    |  | HDD,   | |
-| | SSD    |  | NVMe   |  | SSD    | |
-| | (SATA) |  |        |  | (SAS/  | |
-| |        |  |        |  | SATA)  | |
-| +--------+  +--------+  +--------+ |
-+------------------------------------+
-```
-
-**AHCI interrupt policy**: the SATA driver registers the controller with the shared `DeviceInterruptRegister` infrastructure and installs dedicated top and bottom halves so IRQ 11 traffic can be routed through a private slot when the hardware gets its own vector (MSI/MSI-X or a non-shared INTx line). Commands still complete synchronously, therefore all AHCI per-port interrupt masks (`PORT.ie`) and the global `GHC.IE` bit stay cleared in shipping builds to keep the shared IRQ 11 line quiet for the `E1000` NIC.
-Disk drivers expose `BytesPerSector` through `DF_DISK_GETINFO` (`DISKINFO.BytesPerSector`). Partition probing in `FileSystem.c` consumes this value and accepts 512-byte and 4096-byte sectors when reading MBR/GPT and signature data.
-
-## Tasks
-
-### Architecture-specific task data
+#### Architecture-specific task data
 
 Each task embeds an `ARCH_TASK_DATA` structure (declared in the architecture-specific header under `kernel/include/arch/`) that contains the saved interrupt frame along with the user, system, and any auxiliary stack descriptors that the target CPU requires. The generic `tag_TASK` definition in `kernel/include/process/Task.h` exposes this structure as the `Arch` member so that all stack and context manipulations remain scoped to the active architecture.
 
@@ -373,20 +309,20 @@ The x86-32 implementation of `SetupTask` (`kernel/source/arch/x86-32/x86-32.c`) 
 
 Both the x86-32 and x86-64 context-switch helpers (`SetupStackForKernelMode` and `SetupStackForUserMode` in their respective architecture headers) must reserve space on the stack in bytes rather than entries before writing the return frame. Subtracting the correct byte count avoids writing past the top of the allocated stack when seeding the initial `iret` frame for a task. On x86-64 the helpers also arrange the bootstrap frame so that the stack pointer becomes 16-byte aligned after `iretq` pops its arguments, preserving the ABI-mandated alignment once execution resumes in the scheduled task.
 
-### Stack sizing
+#### Stack sizing
 
 The minimum sizes for task and system stacks are driven by the configuration keys `Task.MinimumTaskStackSize` and `Task.MinimumSystemStackSize` in `kernel/configuration/exos.ref.toml`. At boot the task manager reads those values, but it clamps them to the architecture defaults (`64 KiB`/`16 KiB` on x86-32 and `128 KiB`/`32 KiB` on x86-64) to prevent under-provisioned stacks. Increasing the values in the configuration grows every newly created task and keeps the auto stack growing logic operating on the larger baseline.
 
-### IRQ scheduling
+#### IRQ scheduling
 
-#### IRQ 0 path
+##### IRQ 0 path
 
 IRQ 0 └── trap lands in interrupt-a.asm : Interrupt_Clock
     └── calls ClockHandler to increment system time
     └── calls Scheduler to check if it's time to switch to another task
         └── Scheduler switches page directory if needed and returns the next task's context
 
-#### ISR 0 call graph
+##### ISR 0 call graph
 
 ```
 Interrupt_Clock └── BuildInterruptFrame
@@ -462,60 +398,19 @@ Interrupt_Clock └── BuildInterruptFrame
                 └── ...
 ```
 
-## System calls
 
-### System call full path - x86-32
-
-```
-exos-runtime-c.c : malloc() (or any other function)
-└── calls exos-runtime-a.asm : exoscall()
-    └── 'int EXOS_USER_CALL' instruction
-        └── trap lands in interrupt-a.asm : Interrupt_SystemCall
-            └── calls SYSCall.c : SystemCallHandler()
-                └── calls SysCall_xxx via SysCallTable[]
-                    └── whew... finally job is done
-```
-
-### System call full path - x86-64
-
-When `USE_SYSCALL = 0` (default build setting)
-```
-exos-runtime-c.c : malloc() (or any other function)
-└── calls exos-runtime-a.asm : exoscall()
-    └── 'int EXOS_USER_CALL' instruction
-        └── trap lands in interrupt-a.asm : Interrupt_SystemCall
-            └── calls SYSCall.c : SystemCallHandler()
-                └── calls SysCall_xxx via SysCallTable[]
-                    └── whew... finally job is done
-```
-
-When `USE_SYSCALL = 1`
-```
-exos-runtime-c.c : malloc() (or any other function)
-└── calls exos-runtime-a.asm : exoscall()
-    └── 'syscall' instruction
-        └── syscall lands in interrupt-a.asm : Interrupt_SystemCall
-            └── calls SYSCall.c : SystemCallHandler()
-                └── calls SysCall_xxx via SysCallTable[]
-                    └── whew... finally job is done
-```
-
-`USE_SYSCALL` is a project-level build flag (`./scripts/build --arch x86-64 --fs ext2 --debug --use-syscall`) that selects between the legacy interrupt gate and the SYSCALL/SYSRET pair on x86-64. The flag has no effect on x86-32 builds.
-
-`SYSTEM_DATA_VIEW` is a project-level build flag (`./scripts/build --arch x86-32 --fs ext2 --system-data-view`) that enables the System Data View mode before task creation. The mode shows the system data pages, uses the kernel keyboard input for navigation (left/right to change page, up/down to scroll), and exits on `Esc` to continue boot.
-
-## Process and Task Lifecycle Management
+### Process and Task Lifecycle Management
 
 EXOS implements a lifecycle management system for both processes and tasks that ensures consistent cleanup and prevents resource leaks.
 
-### Process Heap Management
+#### Process Heap Management
 
 - Every `PROCESS` keeps track of its `MaximumAllocatedMemory`, which is initialized to `N_HalfMemory` for both the kernel and user processes.
 - When a heap allocation exhausts the committed region, the kernel automatically attempts to double the heap size without exceeding the process limit by calling `ResizeRegion`.
 - If the resize operation cannot be completed, the allocator logs an error and the allocation fails gracefully.
 - Kernel heap allocations that still fail dump the current task interrupt frame through the same logging path used by the #GP/#PF handlers, giving register and backtrace context when diagnosing out-of-heap issues.
 
-### Status States
+#### Status States
 
 **Task Status (Task.Status):**
 - `TASK_STATUS_FREE` (0x00): Unused task slot
@@ -532,18 +427,18 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 - `PROCESS_STATUS_ALIVE` (0x00): Normal operating state
 - `PROCESS_STATUS_DEAD` (0xFF): Marked for deletion
 
-### Process Creation Flags
+#### Process Creation Flags
 
 **Process Creation Flags (Process.Flags):**
 - `PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH` (0x00000001): When the process terminates, all child processes are also killed. If this flag is not set, child processes are orphaned (their Parent field is set to NULL).
 
-### Session Inheritance
+#### Session Inheritance
 
 - New processes inherit the user session pointer from their `OwnerProcess` during `NewProcess`.
 - Session ownership is therefore tied to the process tree: children share the same session by default unless explicitly reassigned.
 - This keeps user identity and security context consistent across a spawned process hierarchy.
 
-### Lifecycle Flow
+#### Lifecycle Flow
 
 **1. Task Termination:**
 - When a task terminates, `KillTask()` releases every mutex held by the task before marking it as `TASK_STATUS_DEAD`
@@ -576,7 +471,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
   - Calls `DeleteProcessCommit()` which frees page directories, heaps, etc.
   - Removes process from global process list
 
-### Key Design Principles
+#### Key Design Principles
 
 **Deferred Deletion:**
 - Neither tasks nor processes are immediately freed when killed
@@ -610,363 +505,74 @@ This approach ensures that:
 - The system remains stable during complex termination scenarios
 - Both voluntary (task exit) and involuntary (kill) termination work consistently
 
-## Network Stack
 
-EXOS implements a modern layered network stack with per-device context isolation and support for Ethernet, ARP, IPv4, and TCP protocols. The implementation follows standard networking principles with clear separation between layers and full support for multiple network devices.
+### System calls
 
-### Architecture Overview
-
-The network stack is organized in five main layers with per-device context management:
+#### System call full path - x86-32
 
 ```
-┌─────────────────────────────────────┐
-│            Applications             │
-├─────────────────────────────────────┤
-│         Socket Layer (TCP)          │
-│    (Connection management, state    │
-│     machine, send/receive buffers)  │
-├─────────────────────────────────────┤
-│          IPv4 Protocol Layer        │
-│    (ICMP, UDP, TCP protocols)       │
-│    [Per-device IPv4 contexts]       │
-├─────────────────────────────────────┤
-│             ARP Layer               │
-│    (Address Resolution Protocol)    │
-│     [Per-device ARP contexts]       │
-├─────────────────────────────────────┤
-│         Network Manager Layer       │
-│  (Device discovery, initialization, │
-│   callback routing, maintenance)    │
-├─────────────────────────────────────┤
-│           Ethernet Layer            │
-│         (E1000 Driver)              │
-└─────────────────────────────────────┘
+exos-runtime-c.c : malloc() (or any other function)
+└── calls exos-runtime-a.asm : exoscall()
+    └── 'int EXOS_USER_CALL' instruction
+        └── trap lands in interrupt-a.asm : Interrupt_SystemCall
+            └── calls SYSCall.c : SystemCallHandler()
+                └── calls SysCall_xxx via SysCallTable[]
+                    └── whew... finally job is done
 ```
 
-### Device Infrastructure
+#### System call full path - x86-64
 
-**Location:** `kernel/include/Device.h`, `kernel/source/Device.c`
-
-The network stack uses a device-based architecture where all network devices inherit from a common `DEVICE` structure that supports context storage and management. Every device embeds a mutex used to serialize access to shared state; drivers must call `InitMutex()` on the device instance before exposing it to other subsystems.
-
-**Device Structure:**
-```c
-#define DEVICE_FIELDS       \
-    LISTNODE_FIELDS         \
-    MUTEX Mutex;            \
-    LPDRIVER Driver;        \
-    LIST Contexts;
-
-typedef struct DeviceTag {
-    DEVICE_FIELDS
-} DEVICE, *LPDEVICE;
+When `USE_SYSCALL = 0` (default build setting)
+```
+exos-runtime-c.c : malloc() (or any other function)
+└── calls exos-runtime-a.asm : exoscall()
+    └── 'int EXOS_USER_CALL' instruction
+        └── trap lands in interrupt-a.asm : Interrupt_SystemCall
+            └── calls SYSCall.c : SystemCallHandler()
+                └── calls SysCall_xxx via SysCallTable[]
+                    └── whew... finally job is done
 ```
 
-**Context Management API:**
-- `GetDeviceContext(Device, ID)`: Retrieve context by type ID
-- `SetDeviceContext(Device, ID, Context)`: Store context for device
-- `RemoveDeviceContext(Device, ID)`: Remove and free context
-
-### Device Interrupt Infrastructure
-
-**Location:** `kernel/source/drivers/DeviceInterrupt.c`, `kernel/include/drivers/DeviceInterrupt.h`, `kernel/source/DeferredWork.c`
-
-The device interrupt layer centralizes vector assignment, interrupt routing, and deferred work dispatching for hardware devices.
-
-**Key Features:**
-- Configurable interrupt vector slots shared across PCI/PIC paths (`General.DeviceInterruptSlots`, 1–32, default 32).
-- Slot bookkeeping is allocated dynamically from kernel memory so the table matches the configured slot count.
-- `DeviceInterruptRegister()` binds ISR top halves, deferred callbacks, and optional poll routines to a slot.
-- `DeferredWorkDispatcher` waits on a kernel event, running deferred callbacks when signaled and invoking poll routines on timeout or when global polling mode is forced.
-- Automatic spurious-interrupt suppression masks a slot after repeated suppressed top halves and relies on its poll routine until the driver re-arms the IRQ.
-- Graceful fallback to polling when hardware interrupts are unavailable.
-- The IOAPIC driver is optional; when ACPI is unavailable the kernel continues in PIC mode and boots without IOAPIC.
-- Local APIC initialization enables the APIC and programs the spurious vector (SVR bit 8) early for consistent delivery.
-- When PIC mode is active, the IMCR is forced to route legacy IRQs to the PIC.
-
-**API Functions:**
-- `InitializeDeviceInterrupts()`: Reset slot bookkeeping at boot.
-- `DeviceInterruptRegister()/DeviceInterruptUnregister()`: Manage slot lifetime.
-- `DeviceInterruptHandler(slot)`: ASM entry point fan-out for interrupt vectors 0x30–0x37.
-- `InitializeDeferredWork()`: Start the dispatcher kernel task and supporting event.
-- PIC mode remaps IRQs to vectors 0x20–0x2F before interrupts are enabled.
-- PIC routing consults the IMCR presence flag set at initialization; if the register is not writable, the Local APIC LINT0 ExtINT path is enabled to keep legacy IRQs flowing.
-
-### Network Manager
-
-**Location:** `kernel/source/network/NetworkManager.c`, `kernel/include/network/NetworkManager.h`
-
-The Network Manager provides centralized network device discovery, initialization, and maintenance.
-
-**Key Features:**
-- Automatic PCI network device discovery (up to 8 devices)
-- Per-device network stack initialization (ARP, IPv4, TCP)
-- Unified frame reception callback routing
-- Integration with the deferred work dispatcher for interrupt-driven receive paths with polling fallback
-- Primary device selection for global protocols
-
-**Initialization Flow:**
-```c
-void InitializeNetworkManager(void) {
-    // 1. Scan PCI devices for DRIVER_TYPE_NETWORK
-    // 2. For each network device:
-    //    a. Reset device hardware
-    //    b. Initialize ARP context
-    //    c. Initialize IPv4 context
-    //    d. Install device-specific RX callback
-    //    e. Initialize TCP (once globally)
-}
+When `USE_SYSCALL = 1`
+```
+exos-runtime-c.c : malloc() (or any other function)
+└── calls exos-runtime-a.asm : exoscall()
+    └── 'syscall' instruction
+        └── syscall lands in interrupt-a.asm : Interrupt_SystemCall
+            └── calls SYSCall.c : SystemCallHandler()
+                └── calls SysCall_xxx via SysCallTable[]
+                    └── whew... finally job is done
 ```
 
-**API Functions:**
-- `InitializeNetworkManager()`: Discover and initialize all network devices
-- `NetworkManager_InitializeDevice()`: Initialize specific network device
-- `NetworkManager_MaintenanceTick()`: Deferred maintenance routine invoked by `DeferredWorkDispatcher`
-- `NetworkManager_GetPrimaryDevice()`: Get primary device for TCP
+`USE_SYSCALL` is a project-level build flag (`./scripts/build --arch x86-64 --fs ext2 --debug --use-syscall`) that selects between the legacy interrupt gate and the SYSCALL/SYSRET pair on x86-64. The flag has no effect on x86-32 builds.
 
-**DHCP Integration**
-- DHCP ACK applies assigned IP, subnet mask, gateway, and DNS server to the IPv4 layer and network device context.
-- ARP cache and pending IPv4 routes are flushed on lease changes before marking the device ready, ensuring stale mappings are dropped when a lease is renewed or replaced.
-- DHCP retry backoff is capped; on exhaustion, the stack optionally falls back to the configured static IP/mask/gateway before declaring the device ready.
+`SYSTEM_DATA_VIEW` is a project-level build flag (`./scripts/build --arch x86-32 --fs ext2 --system-data-view`) that enables the System Data View mode before task creation. The mode shows the system data pages, uses the kernel keyboard input for navigation (left/right to change page, up/down to scroll), and exits on `Esc` to continue boot.
 
-### E1000 Ethernet Driver
 
-**Location:** `kernel/source/network/E1000.c`
+### Task and window message delivery
 
-The E1000 driver provides the hardware abstraction layer for Intel 82540EM network cards. It implements the standard EXOS driver interface with network-specific function IDs.
+Tasks own a lazily instantiated message queue (`MESSAGEQUEUE` in `kernel/source/process/TaskMessaging.c`) built on the generic list container. Only the kernel process starts with a queue; user processes and their tasks get a queue *only when they explicitly call* `GetMessage()`, `PeekMessage()`, or `WaitForMessage()` (which marks the task queue as initialized). No queue is created when posting; if a task/process never asked for one, posted messages are dropped and keyboard input continues down the classic buffered path for `getkey()` (used by the shell). When a process message queue exists, the keyboard helpers (`PeekChar`, `GetChar`, `GetKeyCode`) consume key events from that queue by discarding `EWM_KEYUP` messages and returning the first `EWM_KEYDOWN`, then fall back to the classic buffer when no queue exists. Each queue is capped to 100 pending messages and guarded by a per-queue mutex plus a waiting flag. `WaitForMessage` marks the queue as waiting and sleeps the task; `AddTaskMessage` wakes the task when a new message arrives and clears the waiting flag.
 
-**Key Features:**
-- TX/RX descriptor ring management
-- Hardware interrupt handling (IRQ 11)
-- Frame transmission and reception
-- EthType recognition (IPv4: 0x0800, ARP: 0x0806)
-- MAC address retrieval
-- Link status monitoring
+Message posting:
+- `PostMessage` accepts NULL targets (current task), task handles, and window handles; window targets enqueue into the owning task queue. Keyboard drivers and the mouse dispatcher push input events into the global input queue using `EnqueueInputMessage` so only the focused process sees them.
+- Mouse input is throttled by a tiny dispatcher that filters `EWM_MOUSEMOVE` with a 10ms cooldown between enqueues, while button changes still dispatch immediately through the shared input queue.
+- `SendMessage` remains synchronous and window-only.
 
-**Driver Interface:**
-- `DF_NT_RESET`: Reset network adapter
-- `DF_NT_GETINFO`: Get MAC address and link status
-- `DF_NT_SEND`: Send Ethernet frame
-- `DF_NT_POLL`: Poll receive ring for new frames
-- `DF_NT_SETRXCB`: Register frame receive callback
-- `DF_DEV_ENABLE_INTERRUPT`: Configure interrupt routing and unmask device interrupts
-- `DF_DEV_DISABLE_INTERRUPT`: Mask device interrupts and release routing
+Message retrieval:
+- `GetMessage`/`PeekMessage` first check the global input queue when the caller’s process has focus (desktop focus + per-desktop `FocusedProcess`), then fall back to the task’s own queue. `GetMessage` blocks if neither queue holds messages; `PeekMessage` is non-blocking. Userland syscalls translate handles in `MESSAGEINFO` before dispatching to the kernel implementations.
+- Focus tracking lives in `Kernel.FocusedDesktop` and `Desktop.FocusedProcess`. When a process is created on the focused desktop it becomes the focused process; when a focused process dies its desktop falls back to the kernel process. The focus setters ensure a focused process always exists for the active desktop.
 
-### ARP (Address Resolution Protocol)
 
-**Location:** `kernel/source/network/ARP.c`, `kernel/include/network/ARP.h`, `kernel/include/ARPContext.h`
+### Command line editing
 
-ARP handles IPv4-to-MAC address resolution with per-device cache management and automatic request generation.
+Interactive editing of shell command lines is implemented in `kernel/source/utils/CommandLineEditor.c`. The module processes keyboard input via the classic buffered path (`PeekChar`/`GetKeyCode`), maintains an in-memory history, refreshes the console display, and relies on callbacks to retrieve completion suggestions. The shell owns an input state structure that embeds the editor instance and provides the shell-specific completion callback so the component remains agnostic of higher level shell logic. While reading input, the editor adjusts for console scrolling so the display does not re-trigger scrolling on each key press, and console paging prompts are suspended until the line is submitted.
 
-**Per-Device Context:**
-```c
-typedef struct ArpContextTag {
-    LPDEVICE Device;
-    U8 LocalMacAddress[6];
-    U32 LocalIPv4_Be;
-    ArpCacheEntry Cache[ARP_CACHE_SIZE];
-} ArpContext, *LPArpContext;
-```
+Keyboard input keeps two distinct paths for compatibility. The legacy PS/2 pipeline continues to use scan code -> KEYTRANS tables, while a separate HID path uses usage page 0x07 indexed KEY_LAYOUT_HID layouts. The HID layout file format is UTF-8 text with an "EKM1" header and directives: code, levels, map, dead, and compose. The kernel keeps an embedded en-US fallback (KEY_LAYOUT_FALLBACK_CODE) used when HID layout loading fails. The HID layout loader parses EKM1 files with a tolerant UTF-8 decoder, logs replacement counts, and rejects malformed directives or out-of-range entries. USB HID keyboard support lives in `kernel/source/drivers/Keyboard-USB.c` and feeds boot protocol reports into the same HID usage pipeline as PS/2. Keyboard initialization is mediated by a selector driver (`kernel/source/drivers/Keyboard-Selector.c`) that probes for a USB HID keyboard after PCI/xHCI enumeration and otherwise falls back to PS/2 detection, ensuring only one keyboard driver is active at a time.
 
-**Key Features:**
-- 32-entry LRU cache per device with TTL (10 minutes default)
-- Automatic ARP request generation for unknown addresses
-- ARP reply processing and cache updates
-- Response to incoming ARP requests for local IP
-- Paced request retransmission (3-second intervals)
+All reusable helpers -such as the command line editor, adaptive delay, string containers, CRC utilities, notifications, path helpers, TOML parsing, UUID support, regex, hysteresis control, cooldown timing, rate limiting, and network checksum helpers— live under `kernel/source/utils` with their public headers in `kernel/include/utils`. This keeps generic infrastructure separated from core subsystems and makes it easier to share common code across the kernel.
 
-**Cache Entry Structure:**
-```c
-typedef struct ArpCacheEntryTag {
-    U32 IPv4_Be;        // IPv4 address (big-endian)
-    U8 MacAddress[6];   // Corresponding MAC address
-    U32 TimeToLive;     // Entry expiration timer
-    U8 IsValid;         // Entry validity flag
-    U8 IsProbing;       // Request already sent flag
-} ArpCacheEntry;
-```
 
-**API Functions:**
-- `ARP_Initialize(Device, LocalIPv4_Be, DeviceInfo)`: Initialize ARP context for device, optionally using cached link information
-- `ARP_Destroy(Device)`: Cleanup ARP context
-- `ARP_Resolve(Device, TargetIPv4_Be, OutMacAddress[])`: Resolve IPv4 to MAC
-- `ARP_Tick(Device)`: Age cache entries (call every 1 second)
-- `ARP_OnEthernetFrame(Device, Frame, Length)`: Process incoming ARP packets
-- `ARP_DumpCache(Device)`: Debug helper to display cache contents
-
-### IPv4 Internet Protocol
-
-**Location:** `kernel/source/network/IPv4.c`, `kernel/include/network/IPv4.h`
-
-IPv4 layer provides packet parsing, routing, and protocol multiplexing with per-device protocol handler registration.
-
-**Per-Device Context:**
-```c
-typedef struct IPv4ContextTag {
-    LPDEVICE Device;
-    U32 LocalIPv4_Be;
-    IPv4_ProtocolHandler ProtocolHandlers[IPV4_MAX_PROTOCOLS];
-} IPv4Context, *LPIPv4Context;
-```
-
-**Key Features:**
-- Complete IPv4 header validation (version, IHL, checksum, TTL)
-- Simple routing: local delivery vs. drop (no forwarding)
-- Per-device protocol handler registration (ICMP=1, TCP=6, UDP=17)
-- Automatic packet encapsulation to Ethernet
-- Fragmentation detection (non-fragmented packets only)
-- Checksum calculation and verification
-
-**IPv4 Header Structure:**
-```c
-typedef struct IPv4HeaderTag {
-    U8 VersionIHL;          // Version (4 bits) + IHL (4 bits)
-    U8 TypeOfService;       // DSCP/ToS field
-    U16 TotalLength;        // Total packet length (big-endian)
-    U16 Identification;     // Fragment identification
-    U16 FlagsFragmentOffset; // Flags + Fragment offset
-    U8 TimeToLive;          // TTL hop count
-    U8 Protocol;            // Next protocol number
-    U16 HeaderChecksum;     // Header checksum
-    U32 SourceAddress;      // Source IPv4 (big-endian)
-    U32 DestinationAddress; // Destination IPv4 (big-endian)
-} IPv4Header;
-```
-
-**Routing Logic:**
-1. Validate packet structure and checksum
-2. Check if destination matches device's local IP address
-3. If local: dispatch to device's registered protocol handler
-4. If remote: drop packet (no forwarding implemented)
-
-**API Functions:**
-- `IPv4_Initialize(Device, LocalIPv4_Be)`: Initialize IPv4 context for device
-- `IPv4_Destroy(Device)`: Cleanup IPv4 context
-- `IPv4_SetLocalAddress(Device, LocalIPv4_Be)`: Update device's local IP
-- `IPv4_RegisterProtocolHandler(Device, Protocol, Handler)`: Register protocol handler
-- `IPv4_Send(Device, DestinationIP, Protocol, Payload, Length)`: Send IPv4 packet
-- `IPv4_OnEthernetFrame(Device, Frame, Length)`: Process incoming IPv4 packets
-
-### TCP (Transmission Control Protocol)
-
-**Location:** `kernel/source/network/TCP.c`, `kernel/include/network/TCP.h`
-
-TCP provides reliable connection-oriented communication using a state machine-based implementation.
-
-**Key Features:**
-- RFC 793 compliant state machine (CLOSED, LISTEN, SYN_SENT, ESTABLISHED, etc.)
-- Connection management with unique 4-tuple identification
-- Send/receive buffers with flow control
-- Configurable buffer sizes through `TCP.SendBufferSize` and `TCP.ReceiveBufferSize`
-- Sequence number management
-- Timer-based retransmission and TIME_WAIT handling
-- Checksum validation with IPv4 pseudo-header
-
-**Connection Structure:**
-```c
-typedef struct TCPConnectionTag {
-    // Connection identification
-    U32 LocalIP;            // Local IP address (network byte order)
-    U16 LocalPort;          // Local port (network byte order)
-    U32 RemoteIP;           // Remote IP address (network byte order)
-    U16 RemotePort;         // Remote port (network byte order)
-
-    // Sequence numbers
-    U32 SendNext;           // Next sequence number to send
-    U32 SendUnacked;        // Oldest unacknowledged sequence number
-    U32 RecvNext;           // Next expected sequence number
-
-    // Window management
-    U16 SendWindow;         // Send window size
-    U16 RecvWindow;         // Receive window size
-
-    // Buffers
-    U8 SendBuffer[TCP_SEND_BUFFER_SIZE];
-    UINT SendBufferUsed;
-    UINT SendBufferCapacity;
-    U8 RecvBuffer[TCP_RECV_BUFFER_SIZE];
-    UINT RecvBufferUsed;
-    UINT RecvBufferCapacity;
-
-    // State machine
-    STATE_MACHINE StateMachine;
-
-    // Timers
-    U32 RetransmitTimer;
-    U32 TimeWaitTimer;
-} TCPConnection;
-```
-
-**API Functions:**
-- `TCP_Initialize()`: Initialize global TCP subsystem
-- `TCP_CreateConnection(LocalIP, LocalPort, RemoteIP, RemotePort)`: Create connection
-- `TCP_Connect(ConnectionID)`: Initiate active connection (SYN)
-- `TCP_Listen(ConnectionID)`: Set connection to listen state
-- `TCP_Send(ConnectionID, Data, Length)`: Send data
-- `TCP_Receive(ConnectionID, Buffer, BufferSize)`: Receive data
-- `TCP_Close(ConnectionID)`: Close connection
-- `TCP_GetState(ConnectionID)`: Get current connection state
-- `TCP_Update()`: Process timers and retransmissions
-- `TCP_OnIPv4Packet()`: Handle incoming TCP packets (IPv4 protocol handler)
-
-The buffer capacities default to 32768 bytes each when the configuration entries are absent.
-
-### Layer Interactions
-
-**Frame Reception Flow:**
-1. **E1000 Hardware** receives Ethernet frame and generates interrupt
-2. **E1000 Driver** copies frame to memory, calls device-specific RX callback
-3. **Network Manager** callback examines EthType and dispatches:
-   - `0x0806` → `ARP_OnEthernetFrame(Device, Frame, Length)`
-   - `0x0800` → `IPv4_OnEthernetFrame(Device, Frame, Length)`
-4. **ARP Layer** updates device cache and responds to requests
-5. **IPv4 Layer** validates packet and calls device's registered protocol handler
-6. **Protocol Handler** (ICMP/UDP/TCP) processes payload with source/destination IPs
-
-**Frame Transmission Flow:**
-1. **Application** calls `IPv4_Send(Device, DestinationIP, Protocol, Payload, Length)`
-2. **IPv4 Layer** calls `ARP_Resolve(Device, DestinationIP, OutMacAddress[])`
-3. **ARP Layer** returns cached MAC or triggers ARP request
-4. **IPv4 Layer** builds Ethernet + IPv4 headers with source MAC from device context
-5. **E1000 Driver** transmits frame via `DF_NT_SEND`
-
-### Network Configuration
-
-**Default Configuration:**
-- Primary device IP: `192.168.56.16` (big-endian: `0xC0A83810`)
-- Network: `192.168.56.0/24`
-- Gateway: `192.168.56.1`
-- QEMU TAP interface: `tap0`
-
-**Initialization Sequence:**
-```c
-// 1. Initialize Network Manager (discovers all devices)
-InitializeNetworkManager();
-
-// 2. For each device, Network Manager automatically:
-//    a. Calls ARP_Initialize(Device, DEFAULT_LOCAL_IP_BE, CachedInfo)
-//    b. Calls IPv4_Initialize(Device, DEFAULT_LOCAL_IP_BE)
-//    c. Calls TCP_Initialize() (once globally)
-
-// 3. Application registers protocol handlers per device:
-IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_ICMP, ICMPHandler);
-IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_UDP, UDPHandler);
-IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_TCP, TCP_OnIPv4Packet);
-
-// 4. Deferred work dispatcher drives maintenance once initialized during boot
-```
-
-### Key Benefits of Per-Device Architecture
-
-1. **Scalability**: Supports multiple network interfaces simultaneously
-2. **Isolation**: Each device maintains independent protocol state
-3. **Flexibility**: Different devices can have different IP addresses and protocol configurations
-4. **Reliability**: Failure of one network device doesn't affect others
-5. **Maintainability**: Clear separation of concerns and context management
-
-The network stack successfully handles real network traffic across multiple devices and provides a robust foundation for implementing network applications and services.
-
-## Exposed objects in shell
+### Exposed objects in shell
 
 - `process`: Kernel process list root. provides indexed access to process views. Permissions: exposed to scripts; access is enforced per item and per field.
   - `process.count`: total number of processes. Permissions: anyone.
@@ -1078,42 +684,155 @@ The network stack successfully handles real network traffic across multiple devi
     - `vendor_id`: USB vendor ID. Permissions: anyone.
     - `product_id`: USB product ID. Permissions: anyone.
 
-## Keyboard Layout Format (EKM1)
 
-The EKM1 layout file describes a USB HID keyboard map using usage page 0x07. Files are UTF-8 text with a required 4-byte header "EKM1". Lines are tokenized on whitespace and comments start with `#`. Tokens are case-sensitive and directive order matters only for `levels`, which must appear before any `map` entry. The loader rejects malformed entries.
+## Hardware and Driver Stack
 
-Directives:
-- `code <layout_code>`: required, unique layout identifier string (example: `code en-US`).
-- `levels <count>`: optional, decimal level count, range 1 to 4. Defaults to 1 when omitted.
-- `map <usage_hex> <level_dec> <vk_hex> <ascii_hex> <unicode_hex>`: maps a HID usage to a keycode for a given level.
-  - `usage_hex` range: 0x04 to 0xE7 (HID usage page 0x07).
-  - `level_dec` range: 0 to levels-1.
-  - `vk_hex` range: 0x00 to 0xFF.
-  - `ascii_hex` range: 0x00 to 0xFF.
-  - `unicode_hex` range: 0x0000 to 0xFFFF.
-  - Each usage and level pair may appear only once.
-- `dead <dead_unicode_hex> <base_unicode_hex> <result_unicode_hex>`: defines a dead key combination. Maximum 128 entries.
-- `compose <first_unicode_hex> <second_unicode_hex> <result_unicode_hex>`: defines a compose sequence. Maximum 256 entries.
+### Driver architecture
 
-Recommended layout levels:
-- Level 0: base.
-- Level 1: shift.
-- Level 2: AltGr.
-- Level 3: control.
+Hardware-facing components are grouped under `kernel/source/drivers` with public headers in `kernel/include/drivers`. This area contains keyboard, serial mouse, interrupt controller (I/O APIC), PCI bus, network (`E1000`), storage (`ATA`, `SATA`, `NVMe`), graphics (`VGA`, `VESA`, mode tables), and file system backends (`FAT16`, `FAT32`, `EXFS`).
 
-Example:
+Kernel-side registration follows a deterministic list-driven flow in `KernelData.c`: `InitializeDriverList()` appends static driver descriptors, then `LoadAllDrivers()` walks the list in order.
+
+The NVMe driver initializes admin queues first, then I/O queues, configures completion interrupts through MSI-X when available, enumerates namespaces, and registers each namespace as a disk so `MountDiskPartitions` can attach file systems.
+
+
+### Input device stack
+
+Mouse input is centralized in `kernel/source/MouseCommon.c`, which buffers deltas/buttons, dispatches events, and selects the active mouse driver. USB HID mouse support (`kernel/source/drivers/Mouse-USB.c`) takes priority over the serial mouse when a compatible USB device is present.
+
+Keyboard selection is handled by the keyboard selector driver, keeping one active keyboard path at a time while sharing the same higher-level input/message routing model.
+
+
+### USB host and class stack
+
+USB foundations are defined in `kernel/include/drivers/USB.h`, including shared type definitions (speed tiers, endpoint kinds, addressing) and standard descriptor layouts used by host controller and class drivers.
+
+The xHCI host stack (`kernel/source/drivers/XHCI-Core.c`, `kernel/source/drivers/XHCI-Device.c`, `kernel/source/drivers/XHCI-Hub.c`, `kernel/source/drivers/XHCI-Enum.c`) is attached by the PCI subsystem and performs:
+
+- controller halt/reset/run sequencing,
+- MMIO mapping and ring allocation (DCBAA, command ring, event ring),
+- interrupter programming,
+- EP0 control transfers for enumeration,
+- topology construction (device/config/interface/endpoint),
+- operational reporting via `usbctl ports`, `usbctl probe`, `usbctl devices`.
+
+USB interfaces and endpoints are kernel objects stored in global lists. Class drivers hold references so teardown is deferred until hotplug release is safe.
+
+Disconnect handling is staged: stop and reset endpoints, flush transfer rings, disable slot context, then release resources only after object references drain. This avoids invalid memory access during in-flight I/O.
+
+Hub-class devices are supported through descriptor parsing, port power management, downstream tracking, and interrupt-endpoint polling for port-change driven reset/re-enumeration.
+
+USB mass storage (`kernel/source/drivers/USBMassStorage.c`, BOT read-only path) configures bulk endpoints, executes CBW/CSW transactions for SCSI `INQUIRY`, `READ CAPACITY(10)`, and `READ(10)`, then registers discovered media in the global disk list for `MountDiskPartitions`. Active USB storage is tracked in `Kernel.USBDevice`; shell command `usb drives` reports address, VID/PID, and block geometry. When SystemFS is ready, new partitions are attached under `/fs/<volume>`. On removal, associated file systems are detached and released. Mount/unmount events broadcast `ETM_USB_MASS_STORAGE_MOUNTED` and `ETM_USB_MASS_STORAGE_UNMOUNTED` to userland process message queues.
+
+
+### Graphics and console paths
+
+The VESA driver requests VBE modes in linear frame buffer mode (INT 10h 4F02h, bit 14), validates LFB capability, and maps `PhysBasePtr` through `MapIOMemory`. Rendering writes directly to mapped VRAM, avoiding BIOS bank-switch calls.
+
+The console supports direct linear framebuffer rendering when Multiboot framebuffer metadata is available:
+
+- BIOS/MBR path uses VGA text buffer `0xB8000` with text framebuffer metadata.
+- UEFI path uses GOP-provided framebuffer base, pitch, resolution, and RGB layout, with glyph rendering into GOP memory.
+
+The default font is an in-tree ASCII 8x16 EXOS font and can be replaced through the font API.
+
+
+### Early boot console path
+
+`kernel/source/EarlyBootConsole.c` provides a minimal framebuffer text path independent from normal console initialization. It writes glyphs through physical framebuffer mappings and is used for early boot and memory-initialization checkpoints.
+
+
+### ACPI services
+
+Advanced power management and reset paths live in `kernel/source/ACPI.c`. The module discovers ACPI tables, exposes the parsed configuration, and offers helpers for platform control. `ACPIShutdown()` releases ACPI mappings and state without powering off. `ACPIPowerOff()` enters the S5 soft-off state using the `_S5` sleep type from the DSDT when available (defaults to 7 otherwise) and falls back to legacy power-off sequences when the ACPI path fails. The new `ACPIReboot()` companion performs a warm reboot by first using the ACPI reset register (when present) and then chaining to legacy reset controllers to ensure the machine restarts even on older chipsets. Kernel-level wrappers `ShutdownKernel()` and `RebootKernel()` drive shell commands, clear userland processes, then kernel tasks, and perform a reverse-order driver unload before handing control to the ACPI routines so subsystems leave as few pending resources as possible when the machine powers off or reboots.
+
+
+### Disk interfaces
+
 ```
-EKM1
-# US QWERTY layout (en-US)
-code en-US
-levels 2
-map 0x04 0 0x30 0x61 0x0061
-map 0x04 1 0x30 0x41 0x0041
++------------------------------------+
+|          Operating System          |
++------------------------------------+
+                |
+                | (Software Drivers)
+                v
++------------------------------------+
+| Controllers/Protocols              |
+| +--------+  +--------+  +--------+ |
+| |  AHCI  |  |  NVMe  |  |  SCSI  | |
+| +--------+  +--------+  +--------+ |
+|      |           |           |     |
+|      v           v           v     |
+| +--------+  +--------+  +--------+ |
+| |  SATA  |  |  PCIe  |  |  SAS/  | |
+| |Interface| |Interface| |SATA Int| |
+| +--------+  +--------+  +--------+ |
+|      |           |           |     |
+|      v           v           v     |
+| +--------+  +--------+  +--------+ |
+| | HDD,   |  | SSD    |  | HDD,   | |
+| | SSD    |  | NVMe   |  | SSD    | |
+| | (SATA) |  |        |  | (SAS/  | |
+| |        |  |        |  | SATA)  | |
+| +--------+  +--------+  +--------+ |
++------------------------------------+
 ```
 
-## EXOS File System - EXFS
+**AHCI interrupt policy**: the SATA driver registers the controller with the shared `DeviceInterruptRegister` infrastructure and installs dedicated top and bottom halves so IRQ 11 traffic can be routed through a private slot when the hardware gets its own vector (MSI/MSI-X or a non-shared INTx line). Commands still complete synchronously, therefore all AHCI per-port interrupt masks (`PORT.ie`) and the global `GHC.IE` bit stay cleared in shipping builds to keep the shared IRQ 11 line quiet for the `E1000` NIC.
+Disk drivers expose `BytesPerSector` through `DF_DISK_GETINFO` (`DISKINFO.BytesPerSector`). Partition probing in `FileSystem.c` consumes this value and accepts 512-byte and 4096-byte sectors when reading MBR/GPT and signature data.
 
-### Structure of the Master Boot Record
+
+## Storage and Filesystems
+
+### File systems
+
+#### Global state and object model
+
+File system state is split between:
+- `Kernel.FileSystem`: mounted `FILESYSTEM` objects,
+- `Kernel.UnusedFileSystem`: discovered but non-mounted `FILESYSTEM` objects,
+- `Kernel.FileSystemInfo`: global metadata (`ActivePartitionName`),
+- `Kernel.SystemFS`: virtual filesystem wrapper (`SYSTEMFSFILESYSTEM`) used as the global path entry point.
+
+Each `FILESYSTEM` object carries runtime fields (`Driver`, `StorageUnit`, `Mounted`, `Mutex`, `Name`) plus partition metadata in `PARTITION` (`Scheme`, `Type`, `Format`, `Index`, `Flags`, `StartSector`, `NumSectors`, `TypeGuid`).
+
+`FileSystemGetStorageUnit()` and `FileSystemHasStorageUnit()` expose backing storage uniformly for disk-backed and virtual filesystems. Display helpers (`FileSystemGetPartitionSchemeName`, `FileSystemGetPartitionTypeName`, `FileSystemGetPartitionFormatName`) centralize partition labeling.
+
+#### Discovery and mount pipeline
+
+`InitializeFileSystems()` is the main orchestration path:
+1. Clear `ActivePartitionName`.
+2. Release stale entries from `Kernel.UnusedFileSystem`.
+3. Scan `Kernel.Disk` and call `MountDiskPartitions()` for each storage unit.
+4. Select an active partition by searching for `exos.toml`/`EXOS.TOML` (`FileSystemSelectActivePartitionFromConfig()`).
+5. Build and mount SystemFS (`MountSystemFS()`).
+6. Load kernel configuration (`ReadKernelConfiguration()`).
+7. Apply configured user mounts (`MountUserNodes()` via `SystemFS.Mount.<index>.*` keys).
+
+`MountDiskPartitions()` handles MBR and switches to GPT parsing when a protective MBR entry (`0xEE`) is detected. Supported formats are mounted through dedicated drivers (FAT16/FAT32/NTFS/EXFS/EXT2 path); partition metadata is written with `SetFileSystemPartitionInfo()`. Non-mounted partitions are still materialized through `RegisterUnusedFileSystem()` so diagnostics and shell tooling can inspect them.
+
+When SystemFS is ready (`FileSystemReady()`), newly mounted filesystems are attached into SystemFS under `/fs/<volume>` through `SystemFSMountFileSystem()`.
+
+#### Runtime access paths
+
+`OpenFile()` takes two routing paths:
+- absolute path (`/...`): delegated to SystemFS (`DF_FS_OPENFILE`), which can traverse mounted nodes and forward to backing filesystems;
+- non-absolute path: probes mounted filesystems in `Kernel.FileSystem` until one resolves the file.
+
+The file layer is synchronized with `MUTEX_FILESYSTEM`, and open handles are tracked in `Kernel.File` with per-file ownership and reference management (`OwnerTask`, `OpenFlags`, refcount).
+
+#### Removable storage behavior
+
+USB mass storage hot-plug integrates with the same pipeline:
+- on attach, `USBMassStorageStartDevice()` calls `MountDiskPartitions()` only when `FileSystemReady()` is true;
+- on detach, `USBMassStorageDetachFileSystems()` unmounts from SystemFS (`SystemFSUnmountFileSystem()`), releases mounted and unused filesystem objects for that disk, and clears `ActivePartitionName` when the removed volume was active.
+
+Mount and unmount notifications are broadcast to processes (`ETM_USB_MASS_STORAGE_MOUNTED` / `ETM_USB_MASS_STORAGE_UNMOUNTED`).
+
+
+### EXOS File System - EXFS
+
+#### Structure of the Master Boot Record
 
 | Offset   | Type | Description                                  |
 |----------|------|----------------------------------------------|
@@ -1126,7 +845,7 @@ map 0x04 1 0x30 0x41 0x0041
 
 ---
 
-### Structure of SuperBlock
+#### Structure of SuperBlock
 
 The SuperBlock is always **1024 bytes** in size.
 
@@ -1154,7 +873,7 @@ The SuperBlock is always **1024 bytes** in size.
 
 ---
 
-### Structure of FileRecord
+#### Structure of FileRecord
 
 | Offset | Type   | Description                        |
 |--------|--------|------------------------------------|
@@ -1174,7 +893,7 @@ The SuperBlock is always **1024 bytes** in size.
 
 ---
 
-### FileRecord fields
+#### FileRecord fields
 
 **Time fields (bit layout):**
 
@@ -1206,7 +925,7 @@ The SuperBlock is always **1024 bytes** in size.
 
 ---
 
-### Structure of folders and files
+#### Structure of folders and files
 
 - A cluster that contains 32-bit indices to other clusters is called a **page**.
 - FileRecord contains a cluster index for its first page.
@@ -1218,7 +937,7 @@ The SuperBlock is always **1024 bytes** in size.
 
 ---
 
-### Clusters
+#### Clusters
 
 - All cluster pointers are 32-bit.
 - Cluster 0 = boot sector (1024 bytes).
@@ -1257,7 +976,7 @@ Fractional part = unusable space.
 
 ---
 
-### Cluster bitmap
+#### Cluster bitmap
 
 - A bit array showing free/used clusters.
 - `0 = free`, `1 = used`.
@@ -1284,11 +1003,13 @@ Fractional part = unusable space.
 | 17,179,869,184 (16 GB) | 4,096 (4 KB) | 524,288     | 128           |
 | 17,179,869,184 (16 GB) | 8,192 (4 KB) | 262,144     | 32            |
 
-## Filesystem Cluster cache
+
+### Filesystem Cluster cache
 
 The shared cluster cache helper is implemented in `kernel/source/drivers/ClusterCache.c` with its public interface in `kernel/include/drivers/ClusterCache.h`. It reuses the generic `utils/Cache` engine (TTL, cleanup, eviction) and adds cluster-oriented keys (`owner + cluster index + size`) so multiple filesystem drivers can share one non-duplicated cache pattern. The generic cache supports `CACHE_WRITE_POLICY_READ_ONLY`, `CACHE_WRITE_POLICY_WRITE_THROUGH`, and `CACHE_WRITE_POLICY_WRITE_BACK`, with optional flush callbacks for dirty entry persistence.
 
-## Foreign File systems
+
+### Foreign File systems
 
 | FS | Key Concepts | RO Difficulty | Full RW Difficulty | Notes |
 |---|---|---:|---:|---|
@@ -1311,7 +1032,7 @@ The shared cluster cache helper is implemented in `kernel/source/drivers/Cluster
 | **ZFS** | COW, pools, checksums, RAID-Z, snapshots | 7 | 10 | Includes volume mgmt; very large scope. |
 | **NTFS** | MFT, resident/non-resident attrs, bitmap, journal | 7 | 9 | Compression, sparse, ACLs, USN; very rich design. |
 
-### EXT2
+#### EXT2
 
 ```
                 ┌──────────────────────────────────────┐
@@ -1372,7 +1093,7 @@ The shared cluster cache helper is implemented in `kernel/source/drivers/Cluster
 ─────────────────────────────────────────────────────────────────────
 ```
 
-### NTFS
+#### NTFS
 
 ```
                   ┌─────────────────────────────────────────┐
@@ -1439,7 +1160,508 @@ VFS integration is implemented in `NTFS-VFS.c` and dispatched from `NTFS-Base.c`
 
 Timestamp conversion from NTFS 100ns units to kernel `DATETIME` is implemented by `NtfsTimestampToDateTime` (`NTFS-Time.c`). UTF-16LE filename decoding and comparison support is provided by `kernel/source/utils/Unicode.c` (`Utf16LeNextCodePoint`, `Utf16LeToUtf8`, `Utf16LeCompareCaseInsensitiveAscii`).
 
-## QEMU network graph
+
+## Interaction and Networking
+
+### Shell scripting
+
+#### Persistent interpreter context
+
+`InitShellContext()` creates one `SCRIPT_CONTEXT` per shell context with callbacks for output, command execution, variable resolution, and function calls. The same context is reused for command-line execution, startup commands, and `.e0` file execution until `DeinitShellContext()` destroys it.
+
+This gives a stable interpreter state across commands and keeps callback wiring centralized in one place (`kernel/source/shell/Shell-Commands.c`).
+
+#### Execution paths
+
+Shell command lines are executed through `ExecuteCommandLine()`, which calls `ScriptExecute()` directly on the entered text. Errors are reported through `ScriptGetErrorMessage()`.
+
+Startup automation (`ExecuteStartupCommands()`) loads `Run.<index>.Command` entries from `exos.toml` and executes each entry through the same `ExecuteCommandLine()` path.
+
+The `run` command delegates launch to `SpawnExecutable()`:
+
+- if the resolved target ends with `.e0` (`ScriptIsE0FileName()`), `RunScriptFile()` opens the file, reads it to memory, and executes its content with `ScriptExecute()`;
+- otherwise, it follows the process spawn path.
+
+Background mode is blocked for `.e0` scripts.
+
+#### Shell command bridge inside E0
+
+The parser supports shell-style command statements inside E0 source. When a statement is recognized as a shell command, the AST expression node is marked `IsShellCommand = TRUE` and stores the full command line.
+
+At evaluation time, this node calls the `ExecuteCommand` callback (`ShellScriptExecuteCommand()` in shell integration). That callback routes to:
+
+- built-in shell commands from `COMMANDS[]`;
+- executable launch via `SpawnExecutable()` when no built-in matches.
+
+This keeps command execution policy inside shell code while the script engine stays generic.
+
+#### Return value behavior
+
+`AST_RETURN` stores a return value in the script context (`ScriptStoreReturnValue()`). The shell path (`RunScriptFile()`) prints it as `Script return value: ...` after successful execution.
+
+Supported stored return categories are scalar values (string, integer, float). Host handles and arrays are rejected as return values by the interpreter storage path.
+
+#### Host object exposure model
+
+The shell registers host symbols with `ScriptRegisterHostSymbol()` during context initialization. Registered roots include:
+
+- `process`
+- `drivers`
+- `storage`
+- `pci_bus`
+- `pci_device`
+
+Each symbol is associated with a `SCRIPT_HOST_DESCRIPTOR` implemented under `kernel/source/expose/*`. Descriptor callbacks (`GetProperty`, `GetElement`) provide typed access to fields and arrays.
+
+Access control is enforced in exposure helpers through shared macros and checks (`EXPOSE_REQUIRE_ACCESS(...)`, `ExposeCanReadProcess(...)`) so scripts can inspect kernel state through controlled interfaces instead of raw object access.
+
+
+### Network Stack
+
+EXOS implements a modern layered network stack with per-device context isolation and support for Ethernet, ARP, IPv4, and TCP protocols. The implementation follows standard networking principles with clear separation between layers and full support for multiple network devices.
+
+#### Architecture Overview
+
+The network stack is organized in five main layers with per-device context management:
+
+```
+┌─────────────────────────────────────┐
+│            Applications             │
+├─────────────────────────────────────┤
+│         Socket Layer (TCP)          │
+│    (Connection management, state    │
+│     machine, send/receive buffers)  │
+├─────────────────────────────────────┤
+│          IPv4 Protocol Layer        │
+│    (ICMP, UDP, TCP protocols)       │
+│    [Per-device IPv4 contexts]       │
+├─────────────────────────────────────┤
+│             ARP Layer               │
+│    (Address Resolution Protocol)    │
+│     [Per-device ARP contexts]       │
+├─────────────────────────────────────┤
+│         Network Manager Layer       │
+│  (Device discovery, initialization, │
+│   callback routing, maintenance)    │
+├─────────────────────────────────────┤
+│           Ethernet Layer            │
+│         (E1000 Driver)              │
+└─────────────────────────────────────┘
+```
+
+#### Device Infrastructure
+
+**Location:** `kernel/include/Device.h`, `kernel/source/Device.c`
+
+The network stack uses a device-based architecture where all network devices inherit from a common `DEVICE` structure that supports context storage and management. Every device embeds a mutex used to serialize access to shared state; drivers must call `InitMutex()` on the device instance before exposing it to other subsystems.
+
+**Device Structure:**
+```c
+#define DEVICE_FIELDS       \
+    LISTNODE_FIELDS         \
+    MUTEX Mutex;            \
+    LPDRIVER Driver;        \
+    LIST Contexts;
+
+typedef struct DeviceTag {
+    DEVICE_FIELDS
+} DEVICE, *LPDEVICE;
+```
+
+**Context Management API:**
+- `GetDeviceContext(Device, ID)`: Retrieve context by type ID
+- `SetDeviceContext(Device, ID, Context)`: Store context for device
+- `RemoveDeviceContext(Device, ID)`: Remove and free context
+
+#### Device Interrupt Infrastructure
+
+**Location:** `kernel/source/drivers/DeviceInterrupt.c`, `kernel/include/drivers/DeviceInterrupt.h`, `kernel/source/DeferredWork.c`
+
+The device interrupt layer centralizes vector assignment, interrupt routing, and deferred work dispatching for hardware devices.
+
+**Key Features:**
+- Configurable interrupt vector slots shared across PCI/PIC paths (`General.DeviceInterruptSlots`, 1–32, default 32).
+- Slot bookkeeping is allocated dynamically from kernel memory so the table matches the configured slot count.
+- `DeviceInterruptRegister()` binds ISR top halves, deferred callbacks, and optional poll routines to a slot.
+- `DeferredWorkDispatcher` waits on a kernel event, running deferred callbacks when signaled and invoking poll routines on timeout or when global polling mode is forced.
+- Automatic spurious-interrupt suppression masks a slot after repeated suppressed top halves and relies on its poll routine until the driver re-arms the IRQ.
+- Graceful fallback to polling when hardware interrupts are unavailable.
+- The IOAPIC driver is optional; when ACPI is unavailable the kernel continues in PIC mode and boots without IOAPIC.
+- Local APIC initialization enables the APIC and programs the spurious vector (SVR bit 8) early for consistent delivery.
+- When PIC mode is active, the IMCR is forced to route legacy IRQs to the PIC.
+
+**API Functions:**
+- `InitializeDeviceInterrupts()`: Reset slot bookkeeping at boot.
+- `DeviceInterruptRegister()/DeviceInterruptUnregister()`: Manage slot lifetime.
+- `DeviceInterruptHandler(slot)`: ASM entry point fan-out for interrupt vectors 0x30–0x37.
+- `InitializeDeferredWork()`: Start the dispatcher kernel task and supporting event.
+- PIC mode remaps IRQs to vectors 0x20–0x2F before interrupts are enabled.
+- PIC routing consults the IMCR presence flag set at initialization; if the register is not writable, the Local APIC LINT0 ExtINT path is enabled to keep legacy IRQs flowing.
+
+#### Network Manager
+
+**Location:** `kernel/source/network/NetworkManager.c`, `kernel/include/network/NetworkManager.h`
+
+The Network Manager provides centralized network device discovery, initialization, and maintenance.
+
+**Key Features:**
+- Automatic PCI network device discovery (up to 8 devices)
+- Per-device network stack initialization (ARP, IPv4, TCP)
+- Unified frame reception callback routing
+- Integration with the deferred work dispatcher for interrupt-driven receive paths with polling fallback
+- Primary device selection for global protocols
+
+**Initialization Flow:**
+```c
+void InitializeNetworkManager(void) {
+    // 1. Scan PCI devices for DRIVER_TYPE_NETWORK
+    // 2. For each network device:
+    //    a. Reset device hardware
+    //    b. Initialize ARP context
+    //    c. Initialize IPv4 context
+    //    d. Install device-specific RX callback
+    //    e. Initialize TCP (once globally)
+}
+```
+
+**API Functions:**
+- `InitializeNetworkManager()`: Discover and initialize all network devices
+- `NetworkManager_InitializeDevice()`: Initialize specific network device
+- `NetworkManager_MaintenanceTick()`: Deferred maintenance routine invoked by `DeferredWorkDispatcher`
+- `NetworkManager_GetPrimaryDevice()`: Get primary device for TCP
+
+**DHCP Integration**
+- DHCP ACK applies assigned IP, subnet mask, gateway, and DNS server to the IPv4 layer and network device context.
+- ARP cache and pending IPv4 routes are flushed on lease changes before marking the device ready, ensuring stale mappings are dropped when a lease is renewed or replaced.
+- DHCP retry backoff is capped; on exhaustion, the stack optionally falls back to the configured static IP/mask/gateway before declaring the device ready.
+
+#### E1000 Ethernet Driver
+
+**Location:** `kernel/source/network/E1000.c`
+
+The E1000 driver provides the hardware abstraction layer for Intel 82540EM network cards. It implements the standard EXOS driver interface with network-specific function IDs.
+
+**Key Features:**
+- TX/RX descriptor ring management
+- Hardware interrupt handling (IRQ 11)
+- Frame transmission and reception
+- EthType recognition (IPv4: 0x0800, ARP: 0x0806)
+- MAC address retrieval
+- Link status monitoring
+
+**Driver Interface:**
+- `DF_NT_RESET`: Reset network adapter
+- `DF_NT_GETINFO`: Get MAC address and link status
+- `DF_NT_SEND`: Send Ethernet frame
+- `DF_NT_POLL`: Poll receive ring for new frames
+- `DF_NT_SETRXCB`: Register frame receive callback
+- `DF_DEV_ENABLE_INTERRUPT`: Configure interrupt routing and unmask device interrupts
+- `DF_DEV_DISABLE_INTERRUPT`: Mask device interrupts and release routing
+
+#### ARP (Address Resolution Protocol)
+
+**Location:** `kernel/source/network/ARP.c`, `kernel/include/network/ARP.h`, `kernel/include/ARPContext.h`
+
+ARP handles IPv4-to-MAC address resolution with per-device cache management and automatic request generation.
+
+**Per-Device Context:**
+```c
+typedef struct ArpContextTag {
+    LPDEVICE Device;
+    U8 LocalMacAddress[6];
+    U32 LocalIPv4_Be;
+    ArpCacheEntry Cache[ARP_CACHE_SIZE];
+} ArpContext, *LPArpContext;
+```
+
+**Key Features:**
+- 32-entry LRU cache per device with TTL (10 minutes default)
+- Automatic ARP request generation for unknown addresses
+- ARP reply processing and cache updates
+- Response to incoming ARP requests for local IP
+- Paced request retransmission (3-second intervals)
+
+**Cache Entry Structure:**
+```c
+typedef struct ArpCacheEntryTag {
+    U32 IPv4_Be;        // IPv4 address (big-endian)
+    U8 MacAddress[6];   // Corresponding MAC address
+    U32 TimeToLive;     // Entry expiration timer
+    U8 IsValid;         // Entry validity flag
+    U8 IsProbing;       // Request already sent flag
+} ArpCacheEntry;
+```
+
+**API Functions:**
+- `ARP_Initialize(Device, LocalIPv4_Be, DeviceInfo)`: Initialize ARP context for device, optionally using cached link information
+- `ARP_Destroy(Device)`: Cleanup ARP context
+- `ARP_Resolve(Device, TargetIPv4_Be, OutMacAddress[])`: Resolve IPv4 to MAC
+- `ARP_Tick(Device)`: Age cache entries (call every 1 second)
+- `ARP_OnEthernetFrame(Device, Frame, Length)`: Process incoming ARP packets
+- `ARP_DumpCache(Device)`: Debug helper to display cache contents
+
+#### IPv4 Internet Protocol
+
+**Location:** `kernel/source/network/IPv4.c`, `kernel/include/network/IPv4.h`
+
+IPv4 layer provides packet parsing, routing, and protocol multiplexing with per-device protocol handler registration.
+
+**Per-Device Context:**
+```c
+typedef struct IPv4ContextTag {
+    LPDEVICE Device;
+    U32 LocalIPv4_Be;
+    IPv4_ProtocolHandler ProtocolHandlers[IPV4_MAX_PROTOCOLS];
+} IPv4Context, *LPIPv4Context;
+```
+
+**Key Features:**
+- Complete IPv4 header validation (version, IHL, checksum, TTL)
+- Simple routing: local delivery vs. drop (no forwarding)
+- Per-device protocol handler registration (ICMP=1, TCP=6, UDP=17)
+- Automatic packet encapsulation to Ethernet
+- Fragmentation detection (non-fragmented packets only)
+- Checksum calculation and verification
+
+**IPv4 Header Structure:**
+```c
+typedef struct IPv4HeaderTag {
+    U8 VersionIHL;          // Version (4 bits) + IHL (4 bits)
+    U8 TypeOfService;       // DSCP/ToS field
+    U16 TotalLength;        // Total packet length (big-endian)
+    U16 Identification;     // Fragment identification
+    U16 FlagsFragmentOffset; // Flags + Fragment offset
+    U8 TimeToLive;          // TTL hop count
+    U8 Protocol;            // Next protocol number
+    U16 HeaderChecksum;     // Header checksum
+    U32 SourceAddress;      // Source IPv4 (big-endian)
+    U32 DestinationAddress; // Destination IPv4 (big-endian)
+} IPv4Header;
+```
+
+**Routing Logic:**
+1. Validate packet structure and checksum
+2. Check if destination matches device's local IP address
+3. If local: dispatch to device's registered protocol handler
+4. If remote: drop packet (no forwarding implemented)
+
+**API Functions:**
+- `IPv4_Initialize(Device, LocalIPv4_Be)`: Initialize IPv4 context for device
+- `IPv4_Destroy(Device)`: Cleanup IPv4 context
+- `IPv4_SetLocalAddress(Device, LocalIPv4_Be)`: Update device's local IP
+- `IPv4_RegisterProtocolHandler(Device, Protocol, Handler)`: Register protocol handler
+- `IPv4_Send(Device, DestinationIP, Protocol, Payload, Length)`: Send IPv4 packet
+- `IPv4_OnEthernetFrame(Device, Frame, Length)`: Process incoming IPv4 packets
+
+#### TCP (Transmission Control Protocol)
+
+**Location:** `kernel/source/network/TCP.c`, `kernel/include/network/TCP.h`
+
+TCP provides reliable connection-oriented communication using a state machine-based implementation.
+
+**Key Features:**
+- RFC 793 compliant state machine (CLOSED, LISTEN, SYN_SENT, ESTABLISHED, etc.)
+- Connection management with unique 4-tuple identification
+- Send/receive buffers with flow control
+- Configurable buffer sizes through `TCP.SendBufferSize` and `TCP.ReceiveBufferSize`
+- Sequence number management
+- Timer-based retransmission and TIME_WAIT handling
+- Checksum validation with IPv4 pseudo-header
+
+**Connection Structure:**
+```c
+typedef struct TCPConnectionTag {
+    // Connection identification
+    U32 LocalIP;            // Local IP address (network byte order)
+    U16 LocalPort;          // Local port (network byte order)
+    U32 RemoteIP;           // Remote IP address (network byte order)
+    U16 RemotePort;         // Remote port (network byte order)
+
+    // Sequence numbers
+    U32 SendNext;           // Next sequence number to send
+    U32 SendUnacked;        // Oldest unacknowledged sequence number
+    U32 RecvNext;           // Next expected sequence number
+
+    // Window management
+    U16 SendWindow;         // Send window size
+    U16 RecvWindow;         // Receive window size
+
+    // Buffers
+    U8 SendBuffer[TCP_SEND_BUFFER_SIZE];
+    UINT SendBufferUsed;
+    UINT SendBufferCapacity;
+    U8 RecvBuffer[TCP_RECV_BUFFER_SIZE];
+    UINT RecvBufferUsed;
+    UINT RecvBufferCapacity;
+
+    // State machine
+    STATE_MACHINE StateMachine;
+
+    // Timers
+    U32 RetransmitTimer;
+    U32 TimeWaitTimer;
+} TCPConnection;
+```
+
+**API Functions:**
+- `TCP_Initialize()`: Initialize global TCP subsystem
+- `TCP_CreateConnection(LocalIP, LocalPort, RemoteIP, RemotePort)`: Create connection
+- `TCP_Connect(ConnectionID)`: Initiate active connection (SYN)
+- `TCP_Listen(ConnectionID)`: Set connection to listen state
+- `TCP_Send(ConnectionID, Data, Length)`: Send data
+- `TCP_Receive(ConnectionID, Buffer, BufferSize)`: Receive data
+- `TCP_Close(ConnectionID)`: Close connection
+- `TCP_GetState(ConnectionID)`: Get current connection state
+- `TCP_Update()`: Process timers and retransmissions
+- `TCP_OnIPv4Packet()`: Handle incoming TCP packets (IPv4 protocol handler)
+
+The buffer capacities default to 32768 bytes each when the configuration entries are absent.
+
+#### Layer Interactions
+
+**Frame Reception Flow:**
+1. **E1000 Hardware** receives Ethernet frame and generates interrupt
+2. **E1000 Driver** copies frame to memory, calls device-specific RX callback
+3. **Network Manager** callback examines EthType and dispatches:
+   - `0x0806` → `ARP_OnEthernetFrame(Device, Frame, Length)`
+   - `0x0800` → `IPv4_OnEthernetFrame(Device, Frame, Length)`
+4. **ARP Layer** updates device cache and responds to requests
+5. **IPv4 Layer** validates packet and calls device's registered protocol handler
+6. **Protocol Handler** (ICMP/UDP/TCP) processes payload with source/destination IPs
+
+**Frame Transmission Flow:**
+1. **Application** calls `IPv4_Send(Device, DestinationIP, Protocol, Payload, Length)`
+2. **IPv4 Layer** calls `ARP_Resolve(Device, DestinationIP, OutMacAddress[])`
+3. **ARP Layer** returns cached MAC or triggers ARP request
+4. **IPv4 Layer** builds Ethernet + IPv4 headers with source MAC from device context
+5. **E1000 Driver** transmits frame via `DF_NT_SEND`
+
+#### Network Configuration
+
+**Default Configuration:**
+- Primary device IP: `192.168.56.16` (big-endian: `0xC0A83810`)
+- Network: `192.168.56.0/24`
+- Gateway: `192.168.56.1`
+- QEMU TAP interface: `tap0`
+
+**Initialization Sequence:**
+```c
+// 1. Initialize Network Manager (discovers all devices)
+InitializeNetworkManager();
+
+// 2. For each device, Network Manager automatically:
+//    a. Calls ARP_Initialize(Device, DEFAULT_LOCAL_IP_BE, CachedInfo)
+//    b. Calls IPv4_Initialize(Device, DEFAULT_LOCAL_IP_BE)
+//    c. Calls TCP_Initialize() (once globally)
+
+// 3. Application registers protocol handlers per device:
+IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_ICMP, ICMPHandler);
+IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_UDP, UDPHandler);
+IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_TCP, TCP_OnIPv4Packet);
+
+// 4. Deferred work dispatcher drives maintenance once initialized during boot
+```
+
+#### Key Benefits of Per-Device Architecture
+
+1. **Scalability**: Supports multiple network interfaces simultaneously
+2. **Isolation**: Each device maintains independent protocol state
+3. **Flexibility**: Different devices can have different IP addresses and protocol configurations
+4. **Reliability**: Failure of one network device doesn't affect others
+5. **Maintainability**: Clear separation of concerns and context management
+
+The network stack successfully handles real network traffic across multiple devices and provides a robust foundation for implementing network applications and services.
+
+
+## Tooling and References
+
+### Logging
+
+Kernel logging funnels through `KernelLogText` and uses typed prefixes for log classes. The available log types are `DEBUG`, `WARNING`, `ERROR`, `VERBOSE`, and `TEST`. `DEBUG`, `WARNING`, `ERROR`, and `VERBOSE` are always available, while `TEST` is a debug-only type used by automated test scripts and is compiled out when `DEBUG_OUTPUT` is disabled. All logs follow the standard `[FunctionName]` prefix rule and emit structured results such as `TEST > [CMD_sysinfo] sys_info : OK`. Serial output is sanitized to printable ASCII (plus tab/newline) before being written to the log. When `DEBUG_SPLIT` is set to `1`, the kernel log stream is sent to a dedicated console region on the right side of the screen while standard console output remains on the left.
+`KernelLogSetTagFilter()` adds optional tag-based filtering. The filter string is a separator-based list (comma, semicolon, pipe, or spaces) and each entry matches a log prefix tag (for example `MountDiskPartitionsGpt` or `[MountDiskPartitionsGpt]`). When a filter is active, only log lines whose first bracket tag is listed are emitted. The default kernel filter is initialized for NVMe/GPT diagnosis.
+The build can override this startup filter with `--kernel-log-tag-filter <value>` in `scripts/build.sh`; passing an empty value compiles an empty default filter.
+The `ThresholdLatch` utility supports one-shot logging when a time threshold is exceeded during long-running operations.
+
+
+### Automated debug validation script
+
+The repository provides `scripts/4-1-smoke-test.sh` to run an automated debug validation flow:
+
+- clean build + image generation,
+- QEMU boot,
+- shell command injection (`sys_info`, `dir`, `/system/apps/hello`),
+- kernel log pattern checks.
+
+The script supports selecting one target with `--only x86-32`, `--only x86-64`, or `--only x86-64-uefi`.  
+Kernel logs are consumed from per-target files (`log/kernel-x86-32-mbr.log`, `log/kernel-x86-64-mbr.log`, `log/kernel-x86-64-uefi.log`).
+
+
+### Build output layout
+
+Build artifacts are split between a core folder and an image folder:
+
+- core outputs: `build/core/<BUILD_CORE_NAME>/...`
+- image outputs: `build/image/<BUILD_IMAGE_NAME>/...`
+- `BUILD_CORE_NAME`: `<arch>-<boot>-<config>[-split]`
+- `BUILD_IMAGE_NAME`: `<BUILD_CORE_NAME>-<filesystem>`
+
+Examples:
+
+- x86-32 MBR debug ext2:
+  - core: `build/core/x86-32-mbr-debug`
+  - image: `build/image/x86-32-mbr-debug-ext2`
+- x86-64 UEFI debug ext2:
+  - core: `build/core/x86-64-uefi-debug`
+  - image: `build/image/x86-64-uefi-debug-ext2`
+
+Path mapping (migration reference):
+
+| Old path | New path |
+|---|---|
+| `build/x86-32/kernel/exos.elf` | `build/core/x86-32-mbr-debug/kernel/exos.elf` |
+| `build/x86-64/kernel/exos.elf` | `build/core/x86-64-mbr-debug/kernel/exos.elf` |
+| `build/x86-32/boot-hd/exos.img` | `build/image/x86-32-mbr-debug-ext2/boot-hd/exos.img` |
+| `build/x86-64/boot-hd/exos.img` | `build/image/x86-64-mbr-debug-ext2/boot-hd/exos.img` |
+| `build/x86-64/boot-uefi/exos-uefi.img` | `build/image/x86-64-uefi-debug-ext2/boot-uefi/exos-uefi.img` |
+| `build/x86-32/tools/cycle` | `build/core/x86-32-mbr-debug/tools/cycle` |
+| `build/x86-64/tools/cycle` | `build/core/x86-64-mbr-debug/tools/cycle` |
+
+
+### Keyboard Layout Format (EKM1)
+
+The EKM1 layout file describes a USB HID keyboard map using usage page 0x07. Files are UTF-8 text with a required 4-byte header "EKM1". Lines are tokenized on whitespace and comments start with `#`. Tokens are case-sensitive and directive order matters only for `levels`, which must appear before any `map` entry. The loader rejects malformed entries.
+
+Directives:
+- `code <layout_code>`: required, unique layout identifier string (example: `code en-US`).
+- `levels <count>`: optional, decimal level count, range 1 to 4. Defaults to 1 when omitted.
+- `map <usage_hex> <level_dec> <vk_hex> <ascii_hex> <unicode_hex>`: maps a HID usage to a keycode for a given level.
+  - `usage_hex` range: 0x04 to 0xE7 (HID usage page 0x07).
+  - `level_dec` range: 0 to levels-1.
+  - `vk_hex` range: 0x00 to 0xFF.
+  - `ascii_hex` range: 0x00 to 0xFF.
+  - `unicode_hex` range: 0x0000 to 0xFFFF.
+  - Each usage and level pair may appear only once.
+- `dead <dead_unicode_hex> <base_unicode_hex> <result_unicode_hex>`: defines a dead key combination. Maximum 128 entries.
+- `compose <first_unicode_hex> <second_unicode_hex> <result_unicode_hex>`: defines a compose sequence. Maximum 256 entries.
+
+Recommended layout levels:
+- Level 0: base.
+- Level 1: shift.
+- Level 2: AltGr.
+- Level 3: control.
+
+Example:
+```
+EKM1
+# US QWERTY layout (en-US)
+code en-US
+levels 2
+map 0x04 0 0x30 0x61 0x0061
+map 0x04 1 0x30 0x41 0x0041
+```
+
+
+### QEMU network graph
 
 ```
 [ VM (Guest OS) ]                [ QEMU Process ]                  [ Host OS / PC ]
@@ -1457,7 +1679,8 @@ Timestamp conversion from NTFS 100ns units to kernel `DATETIME` is implemented b
 +----------------+               +-------------------+             +----------------+
 ```
 
-## Links
+
+### Links
 
 | Name | Description | Link |
 |------|-------------|------|
@@ -1465,3 +1688,4 @@ Timestamp conversion from NTFS 100ns units to kernel `DATETIME` is implemented b
 | RFC 791 | Internet protocol | https://datatracker.ietf.org/doc/html/rfc791/ |
 | RFC 793 | Transmission Control Protocol | https://datatracker.ietf.org/doc/html/rfc793/ |
 | Intel x86-64 | x86-64 Technical Documentation | https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html |
+
