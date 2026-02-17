@@ -35,6 +35,7 @@
 #include "Log.h"
 #include "process/Process.h"
 #include "process/Task.h"
+#include "SerialPort.h"
 #include "utils/Helpers.h"
 #include "utils/TOML.h"
 #include "utils/UUID.h"
@@ -72,8 +73,6 @@ typedef char KERNELSTARTUPINFO_OFFSET_IRQMASKA1PM_X86_64[
 /************************************************************************/
 
 void SystemDataViewMode(void);
-
-/************************************************************************/
 
 U32 EXOS_End SECTION(".end_mark") = 0x534F5845;
 
@@ -657,10 +656,10 @@ static void UseConfiguration(void) {
         Layout = TomlGet(Configuration, TEXT("Keyboard.Layout"));
 
         if (Layout) {
-            SelectKeyboard(Layout);
+            SetKeyboardCode(Layout);
         } else {
             ConsolePrint(TEXT("Keyboard layout not found in config, using default en-US\n"));
-            SelectKeyboard(TEXT("en-US"));
+            SetKeyboardCode(TEXT("en-US"));
         }
 
         QuantumMS = TomlGet(Configuration, TEXT(CONFIG_GENERAL_QUANTUM_MS));
@@ -682,9 +681,9 @@ static void UseConfiguration(void) {
         }
     }
 
-    // Ensure a keyboard layout is always set, even if configuration failed
+    // Ensure a keyboard code is always set, even if configuration failed
     if (StringEmpty(GetKeyboardCode())) {
-        SelectKeyboard(TEXT("en-US"));
+        SetKeyboardCode(TEXT("en-US"));
     }
 
 #if DEBUG_OUTPUT == 1 || SCHEDULING_DEBUG_OUTPUT == 1
@@ -717,8 +716,7 @@ UINT GetPhysicalMemoryUsed(void) {
 /**
  * @brief Loads a driver and performs basic validation.
  *
- * Logs the driver address, verifies the magic ID and invokes its load
- * command.
+ * Verifies the magic ID and invokes the load command.
  *
  * @param Driver Pointer to driver structure.
  */
@@ -969,7 +967,6 @@ void InitializeKernel(void) {
 
     DEBUG(TEXT("[InitializeKernel] Start"));
 
-
     GetCPUInformation(GetKernelCPUInfo());
     DEBUG(TEXT("[InitializeKernel] CPU information captured"));
     PreInitializeKernel();
@@ -1018,6 +1015,12 @@ void InitializeKernel(void) {
 
     EnableInterrupts();
     DEBUG(TEXT("[InitializeKernel] Interrupts enabled"));
+
+    // Load keyboard layout only after interrupts are active.
+    // This avoids early boot fragility caused by filesystem access
+    // during the pre-interrupt initialization phase.
+    SelectKeyboard(GetKeyboardCode());
+    DEBUG(TEXT("[InitializeKernel] Keyboard layout applied"));
 
     //-------------------------------------
 

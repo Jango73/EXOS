@@ -118,6 +118,7 @@ extern void BootStoreGdt(U32 Address);
 extern void BootClearScreen(void);
 extern void BootEnableInterrupts(void);
 extern void BootCpuRelax(void);
+extern U32 CheckA20Enabled(void);
 
 // Memory helpers implemented in the shared C runtime
 void MemorySet(LPVOID Base, UINT What, UINT Size);

@@ -185,9 +185,29 @@
 /************************************************************************/
 // INTERNAL SELF-MAP + TEMP MAPPING ]
 
-static LINEAR G_TempLinear1 = TEMP_LINEAR_PAGE_1;
-static LINEAR G_TempLinear2 = TEMP_LINEAR_PAGE_2;
-static LINEAR G_TempLinear3 = TEMP_LINEAR_PAGE_3;
+extern LINEAR __bss_init_end;
+
+static BOOL G_TempLinearInitialized = FALSE;
+static LINEAR G_TempLinear1 = 0;
+static LINEAR G_TempLinear2 = 0;
+static LINEAR G_TempLinear3 = 0;
+
+/************************************************************************/
+
+/**
+ * @brief Place temporary mapping slots just after the kernel image.
+ */
+static void InitializeTemporaryLinearSlots(void) {
+    if (G_TempLinearInitialized) {
+        return;
+    }
+
+    LINEAR Base = ((LINEAR)(&__bss_init_end) + (LINEAR)(PAGE_SIZE - 1)) & ~(LINEAR)(PAGE_SIZE - 1);
+    G_TempLinear1 = Base;
+    G_TempLinear2 = G_TempLinear1 + PAGE_SIZE;
+    G_TempLinear3 = G_TempLinear2 + PAGE_SIZE;
+    G_TempLinearInitialized = TRUE;
+}
 
 /************************************************************************/
 
@@ -390,6 +410,8 @@ static inline void UnmapOnePage(LINEAR Linear) {
  * @return Linear address mapping or 0 on failure.
  */
 LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical) {
+    InitializeTemporaryLinearSlots();
+
     if (G_TempLinear1 == 0) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage1] Temp slot #1 not reserved"));
         return NULL;
@@ -411,6 +433,8 @@ LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical) {
  * @return Linear address mapping or 0 on failure.
  */
 LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
+    InitializeTemporaryLinearSlots();
+
     if (G_TempLinear2 == 0) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage2] Temp slot #2 not reserved"));
         return NULL;
@@ -432,6 +456,8 @@ LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
  * @return Linear address mapping or 0 on failure.
  */
 LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
+    InitializeTemporaryLinearSlots();
+
     if (G_TempLinear3 == 0) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage3] Temp slot #3 not reserved"));
         return NULL;

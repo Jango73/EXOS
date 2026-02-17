@@ -83,6 +83,7 @@ global BootStoreGdt
 global BootClearScreen
 global BootEnableInterrupts
 global BootCpuRelax
+global CheckA20Enabled
 
 extern BootMain
 %ifdef ARCH_X86_64

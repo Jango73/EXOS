@@ -82,8 +82,6 @@ LPDRIVER KernelLogGetDriver(void) {
     return &KernelLogDriver;
 }
 
-/************************************************************************/
-
 /**
  * @brief Initializes the kernel logging system.
  *

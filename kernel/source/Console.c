@@ -39,6 +39,7 @@
 #include "VKey.h"
 #include "VarArg.h"
 #include "Profile.h"
+#include "SerialPort.h"
 
 /***************************************************************************/
 
@@ -1419,13 +1420,29 @@ BOOL ConsoleGetString(LPSTR Buffer, U32 Size) {
  */
 void ConsolePanic(LPCSTR Format, ...) {
     STR Text[0x1000];
+    const STR Prefix[] = "[ConsolePanic] ";
+    const STR HaltText[] = "[ConsolePanic] >>> Halting system <<<\r\n";
     VarArgList Args;
+    UINT Index = 0;
 
     DisableInterrupts();
 
     VarArgStart(Args, Format);
     StringPrintFormatArgs(Text, Format, Args);
     VarArgEnd(Args);
+
+    SerialReset(0);
+    for (Index = 0; Prefix[Index] != STR_NULL; ++Index) {
+        SerialOut(0, Prefix[Index]);
+    }
+    for (Index = 0; Text[Index] != STR_NULL; ++Index) {
+        SerialOut(0, Text[Index]);
+    }
+    SerialOut(0, '\r');
+    SerialOut(0, '\n');
+    for (Index = 0; HaltText[Index] != STR_NULL; ++Index) {
+        SerialOut(0, HaltText[Index]);
+    }
 
     ConsolePrintString(Text);
     ConsolePrintString(TEXT("\n>>> Halting system <<<"));

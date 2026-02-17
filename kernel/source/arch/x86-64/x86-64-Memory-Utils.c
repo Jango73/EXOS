@@ -29,18 +29,41 @@
 /************************************************************************/
 // Temporary mapping slots state
 
-static LINEAR G_TempLinear1 = TEMP_LINEAR_PAGE_1;
-static LINEAR G_TempLinear2 = TEMP_LINEAR_PAGE_2;
-static LINEAR G_TempLinear3 = TEMP_LINEAR_PAGE_3;
-static LINEAR G_TempLinear4 = TEMP_LINEAR_PAGE_4;
-static LINEAR G_TempLinear5 = TEMP_LINEAR_PAGE_5;
-static LINEAR G_TempLinear6 = TEMP_LINEAR_PAGE_6;
+extern LINEAR __bss_init_end;
+
+static BOOL G_TempLinearInitialized = FALSE;
+static LINEAR G_TempLinear1 = 0;
+static LINEAR G_TempLinear2 = 0;
+static LINEAR G_TempLinear3 = 0;
+static LINEAR G_TempLinear4 = 0;
+static LINEAR G_TempLinear5 = 0;
+static LINEAR G_TempLinear6 = 0;
 static PHYSICAL DATA_SECTION G_TempPhysical1 = 0;
 static PHYSICAL DATA_SECTION G_TempPhysical2 = 0;
 static PHYSICAL DATA_SECTION G_TempPhysical3 = 0;
 static PHYSICAL DATA_SECTION G_TempPhysical4 = 0;
 static PHYSICAL DATA_SECTION G_TempPhysical5 = 0;
 static PHYSICAL DATA_SECTION G_TempPhysical6 = 0;
+
+/************************************************************************/
+
+/**
+ * @brief Place temporary mapping slots just after the kernel image.
+ */
+static void InitializeTemporaryLinearSlots(void) {
+    if (G_TempLinearInitialized) {
+        return;
+    }
+
+    LINEAR Base = ((LINEAR)(&__bss_init_end) + (LINEAR)(PAGE_SIZE - 1)) & ~(LINEAR)(PAGE_SIZE - 1);
+    G_TempLinear1 = Base;
+    G_TempLinear2 = G_TempLinear1 + PAGE_SIZE;
+    G_TempLinear3 = G_TempLinear2 + PAGE_SIZE;
+    G_TempLinear4 = G_TempLinear3 + PAGE_SIZE;
+    G_TempLinear5 = G_TempLinear4 + PAGE_SIZE;
+    G_TempLinear6 = G_TempLinear5 + PAGE_SIZE;
+    G_TempLinearInitialized = TRUE;
+}
 
 /************************************************************************/
 /**
@@ -288,6 +311,8 @@ inline void UnmapOnePage(LINEAR Linear) {
  * @return Linear address mapping or 0 on failure.
  */
 LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical) {
+    InitializeTemporaryLinearSlots();
+
     if (G_TempLinear1 == 0) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage1] Temp slot #1 not reserved"));
         return NULL;
@@ -315,6 +340,8 @@ LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical) {
  * @return Linear address mapping or 0 on failure.
  */
 LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
+    InitializeTemporaryLinearSlots();
+
     if (G_TempLinear2 == 0) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage2] Temp slot #2 not reserved"));
         return NULL;
@@ -342,6 +369,8 @@ LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
  * @return Linear address mapping or 0 on failure.
  */
 LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
+    InitializeTemporaryLinearSlots();
+
     if (G_TempLinear3 == 0) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage3] Temp slot #3 not reserved"));
         return NULL;
@@ -369,6 +398,8 @@ LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
  * @return Linear address mapping or 0 on failure.
  */
 LINEAR MapTemporaryPhysicalPage4(PHYSICAL Physical) {
+    InitializeTemporaryLinearSlots();
+
     if (G_TempLinear4 == 0) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage4] Temp slot #4 not reserved"));
         return NULL;
@@ -394,6 +425,8 @@ LINEAR MapTemporaryPhysicalPage4(PHYSICAL Physical) {
  * @return Linear address mapping or 0 on failure.
  */
 LINEAR MapTemporaryPhysicalPage5(PHYSICAL Physical) {
+    InitializeTemporaryLinearSlots();
+
     if (G_TempLinear5 == 0) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage5] Temp slot #5 not reserved"));
         return NULL;
@@ -419,6 +452,8 @@ LINEAR MapTemporaryPhysicalPage5(PHYSICAL Physical) {
  * @return Linear address mapping or 0 on failure.
  */
 LINEAR MapTemporaryPhysicalPage6(PHYSICAL Physical) {
+    InitializeTemporaryLinearSlots();
+
     if (G_TempLinear6 == 0) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage6] Temp slot #6 not reserved"));
         return NULL;

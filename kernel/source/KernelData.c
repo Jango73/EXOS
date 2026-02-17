@@ -8,6 +8,7 @@
 #include "utils/Helpers.h"
 #include "process/Process.h"
 #include "drivers/Keyboard.h"
+#include "Log.h"
 
 /************************************************************************/
 
