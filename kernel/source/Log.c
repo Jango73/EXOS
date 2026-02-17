@@ -51,7 +51,7 @@
 #endif
 
 static CSTR KernelLogDefaultTagFilter[] = KERNEL_LOG_DEFAULT_TAG_FILTER;
-static STR KernelLogTagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
+static STR DATA_SECTION KernelLogTagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
 
 static UINT KernelLogDriverCommands(UINT Function, UINT Parameter);
 static BOOL KernelLogIsTagSeparator(STR Char);

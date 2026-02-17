@@ -110,12 +110,12 @@ typedef struct tag_LOW_REGION_SHARED_TABLES {
     PHYSICAL IdentityTablePhysical;
 } LOW_REGION_SHARED_TABLES;
 
-LOW_REGION_SHARED_TABLES LowRegionSharedTables = {
+LOW_REGION_SHARED_TABLES DATA_SECTION LowRegionSharedTables = {
     .BiosTablePhysical = NULL,
     .IdentityTablePhysical = NULL,
 };
 
-PHYSICAL BootstrapAllocatorMetadataPhysical = NULL;
+PHYSICAL DATA_SECTION BootstrapAllocatorMetadataPhysical = NULL;
 
 /************************************************************************/
 

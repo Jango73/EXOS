@@ -56,7 +56,7 @@ typedef struct tag_DEFERRED_WORK_CONTEXT {
 
 /************************************************************************/
 
-static DEFERRED_WORK_CONTEXT g_DeferredWork = {
+static DEFERRED_WORK_CONTEXT DATA_SECTION g_DeferredWork = {
     .DeferredEvent = NULL,
     .PollingMode = FALSE,
     .DispatcherStarted = FALSE};

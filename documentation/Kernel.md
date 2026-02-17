@@ -1598,7 +1598,7 @@ The repository provides `scripts/4-1-smoke-test.sh` to run an automated debug va
 - kernel log pattern checks.
 
 The script supports selecting one target with `--only x86-32`, `--only x86-64`, or `--only x86-64-uefi`.  
-Kernel logs are consumed from per-target files (`log/kernel-x86-32-mbr.log`, `log/kernel-x86-64-mbr.log`, `log/kernel-x86-64-uefi.log`).
+Kernel logs are consumed from per-target files (`log/kernel-x86-32-mbr-debug.log`, `log/kernel-x86-64-mbr-debug.log`, `log/kernel-x86-64-uefi-debug.log` and release equivalents with `-release`).
 
 
 ### Build output layout

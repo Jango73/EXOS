@@ -7,6 +7,7 @@ set "BUILD_CONFIGURATION=release"
 set "DEBUG_SPLIT=0"
 set "BUILD_CORE_NAME="
 set "BUILD_IMAGE_NAME="
+set "LOG_CONFIGURATION="
 set "CORE_BUILD_DIR="
 set "IMAGE_BUILD_DIR="
 set "USE_GDB=0"
@@ -118,6 +119,9 @@ set "BUILD_SPLIT_SUFFIX="
 if "%DEBUG_SPLIT%"=="1" set "BUILD_SPLIT_SUFFIX=-split"
 if "%BUILD_CORE_NAME%"=="" set "BUILD_CORE_NAME=%ARCH%-%BOOT_MODE%-%BUILD_CONFIGURATION%%BUILD_SPLIT_SUFFIX%"
 if "%BUILD_IMAGE_NAME%"=="" set "BUILD_IMAGE_NAME=%BUILD_CORE_NAME%-%FILE_SYSTEM%"
+set "LOG_CONFIGURATION=%BUILD_CONFIGURATION%"
+echo %BUILD_CORE_NAME% | findstr /I /C:"-debug" >nul && set "LOG_CONFIGURATION=debug"
+echo %BUILD_CORE_NAME% | findstr /I /C:"-release" >nul && set "LOG_CONFIGURATION=release"
 set "CORE_BUILD_DIR=build\core\%BUILD_CORE_NAME%"
 set "IMAGE_BUILD_DIR=build\image\%BUILD_IMAGE_NAME%"
 
@@ -165,9 +169,9 @@ if "%USE_UEFI%"=="0" if "%USB3_ENABLED%"=="1" (
 )
 
 if not exist log mkdir log
-set "LOG_DEBUG_COM1=log/debug-com1-%ARCH%-%BOOT_MODE%.log"
-set "LOG_KERNEL=log/kernel-%ARCH%-%BOOT_MODE%.log"
-set "LOG_NET=log/kernel-net-%ARCH%-%BOOT_MODE%.pcap"
+set "LOG_DEBUG_COM1=log/debug-com1-%ARCH%-%BOOT_MODE%-%LOG_CONFIGURATION%.log"
+set "LOG_KERNEL=log/kernel-%ARCH%-%BOOT_MODE%-%LOG_CONFIGURATION%.log"
+set "LOG_NET=log/kernel-net-%ARCH%-%BOOT_MODE%-%LOG_CONFIGURATION%.pcap"
 
 set "USB_ARGS="
 if "%USE_UEFI%"=="0" if "%USB3_ENABLED%"=="1" (

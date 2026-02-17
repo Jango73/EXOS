@@ -35,12 +35,12 @@ static LINEAR G_TempLinear3 = TEMP_LINEAR_PAGE_3;
 static LINEAR G_TempLinear4 = TEMP_LINEAR_PAGE_4;
 static LINEAR G_TempLinear5 = TEMP_LINEAR_PAGE_5;
 static LINEAR G_TempLinear6 = TEMP_LINEAR_PAGE_6;
-static PHYSICAL G_TempPhysical1 = 0;
-static PHYSICAL G_TempPhysical2 = 0;
-static PHYSICAL G_TempPhysical3 = 0;
-static PHYSICAL G_TempPhysical4 = 0;
-static PHYSICAL G_TempPhysical5 = 0;
-static PHYSICAL G_TempPhysical6 = 0;
+static PHYSICAL DATA_SECTION G_TempPhysical1 = 0;
+static PHYSICAL DATA_SECTION G_TempPhysical2 = 0;
+static PHYSICAL DATA_SECTION G_TempPhysical3 = 0;
+static PHYSICAL DATA_SECTION G_TempPhysical4 = 0;
+static PHYSICAL DATA_SECTION G_TempPhysical5 = 0;
+static PHYSICAL DATA_SECTION G_TempPhysical6 = 0;
 
 /************************************************************************/
 /**

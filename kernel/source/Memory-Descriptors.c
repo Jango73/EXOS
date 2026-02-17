@@ -32,12 +32,12 @@
 /************************************************************************/
 // Region descriptor tracking state
 
-BOOL G_RegionDescriptorsEnabled = FALSE;
-BOOL G_RegionDescriptorBootstrap = FALSE;
-LPMEMORY_REGION_DESCRIPTOR G_FreeRegionDescriptors = NULL;
-UINT G_FreeRegionDescriptorCount = 0;
-UINT G_TotalRegionDescriptorCount = 0;
-UINT G_RegionDescriptorPages = 0;
+BOOL DATA_SECTION G_RegionDescriptorsEnabled = FALSE;
+BOOL DATA_SECTION G_RegionDescriptorBootstrap = FALSE;
+LPMEMORY_REGION_DESCRIPTOR DATA_SECTION G_FreeRegionDescriptors = NULL;
+UINT DATA_SECTION G_FreeRegionDescriptorCount = 0;
+UINT DATA_SECTION G_TotalRegionDescriptorCount = 0;
+UINT DATA_SECTION G_RegionDescriptorPages = 0;
 
 /************************************************************************/
 /**

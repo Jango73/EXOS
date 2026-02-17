@@ -548,7 +548,7 @@ static U32 SetAccess(LPDISKACCESS Access) {
 /***************************************************************************/
 
 void HardDriveHandler(void) {
-    static U32 Busy = 0;
+    static U32 DATA_SECTION Busy = 0;
     U32 Status0, Status1;
     BOOL RealInterrupt = FALSE;
 

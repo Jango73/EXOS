@@ -74,7 +74,7 @@ typedef struct tag_CPUIDREGISTERS {
 
 /***************************************************************************/
 
-static LOCAL_APIC_CONFIG g_LocalApicConfig = {0};
+static LOCAL_APIC_CONFIG DATA_SECTION g_LocalApicConfig = {0};
 
 /***************************************************************************/
 

@@ -114,7 +114,7 @@ const SCRIPT_HOST_DESCRIPTOR *GetKeyboardDescriptor(void) {
  * @return Host handle for the keyboard root object.
  */
 SCRIPT_HOST_HANDLE GetKeyboardRootHandle(void) {
-    static int KeyboardRootSentinel = 0;
+    static int DATA_SECTION KeyboardRootSentinel = 0;
 
     return &KeyboardRootSentinel;
 }

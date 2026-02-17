@@ -314,7 +314,7 @@ static U32 SetKeyboardLEDs(U32 LED) {
 /***************************************************************************/
 
 static void HandleScanCode(U32 ScanCode) {
-    static U32 PreviousCode = 0;
+    static U32 DATA_SECTION PreviousCode = 0;
     KEY_USAGE Usage = 0;
     BOOL Pressed = FALSE;
 
@@ -418,7 +418,7 @@ static void HandleScanCode(U32 ScanCode) {
 
 
 void KeyboardHandler(void) {
-    static U32 Busy = 0;
+    static U32 DATA_SECTION Busy = 0;
     U32 Status, Code;
 
     FINE_DEBUG(TEXT("[KeyboardHandler] Enter"));

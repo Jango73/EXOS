@@ -66,27 +66,27 @@ LPDRIVER ACPIGetDriver(void) {
 /************************************************************************/
 // Global ACPI configuration
 
-static ACPI_CONFIG G_AcpiConfig = {0};
-static LPACPI_RSDP G_RSDP = NULL;
-static LPACPI_RSDT G_RSDT = NULL;
-static LPACPI_XSDT G_XSDT = NULL;
-static LPACPI_MADT G_MADT = NULL;
-static LPACPI_FADT G_FADT = NULL;
-static LPACPI_TABLE_HEADER G_DSDT = NULL;
-static UINT G_RsdpLength = 0;
-static UINT G_RsdtLength = 0;
-static UINT G_XsdtLength = 0;
-static UINT G_MadtLength = 0;
-static UINT G_FadtLength = 0;
-static UINT G_DsdtLength = 0;
+static ACPI_CONFIG DATA_SECTION G_AcpiConfig = {0};
+static LPACPI_RSDP DATA_SECTION G_RSDP = NULL;
+static LPACPI_RSDT DATA_SECTION G_RSDT = NULL;
+static LPACPI_XSDT DATA_SECTION G_XSDT = NULL;
+static LPACPI_MADT DATA_SECTION G_MADT = NULL;
+static LPACPI_FADT DATA_SECTION G_FADT = NULL;
+static LPACPI_TABLE_HEADER DATA_SECTION G_DSDT = NULL;
+static UINT DATA_SECTION G_RsdpLength = 0;
+static UINT DATA_SECTION G_RsdtLength = 0;
+static UINT DATA_SECTION G_XsdtLength = 0;
+static UINT DATA_SECTION G_MadtLength = 0;
+static UINT DATA_SECTION G_FadtLength = 0;
+static UINT DATA_SECTION G_DsdtLength = 0;
 
 static BOOL ParseS5SleepType(LPACPI_TABLE_HEADER Dsdt, UINT Length);
 static BOOL EnsureFadtLoaded(void);
 
 // Arrays to store discovered hardware
-static IO_APIC_INFO G_IoApicInfo[8];                    // Support up to 8 I/O APICs
-static LOCAL_APIC_INFO G_LocalApicInfo[32];             // Support up to 32 Local APICs
-static INTERRUPT_OVERRIDE_INFO G_InterruptOverrides[24]; // Support up to 24 overrides
+static IO_APIC_INFO DATA_SECTION G_IoApicInfo[8];                    // Support up to 8 I/O APICs
+static LOCAL_APIC_INFO DATA_SECTION G_LocalApicInfo[32];             // Support up to 32 Local APICs
+static INTERRUPT_OVERRIDE_INFO DATA_SECTION G_InterruptOverrides[24]; // Support up to 24 overrides
 
 /************************************************************************/
 

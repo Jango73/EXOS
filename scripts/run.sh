@@ -20,6 +20,7 @@ BUILD_IMAGE_NAME=""
 CORE_BUILD_DIR=""
 IMAGE_BUILD_DIR=""
 BUILD_LOCK_DIR=""
+LOG_CONFIGURATION=""
 
 function ComputeBuildNames() {
     local Suffix=""
@@ -65,6 +66,16 @@ function WaitForBuildIfNeeded() {
             exit 1
         fi
     done
+}
+
+function ResolveLogConfiguration() {
+    if [[ "$BUILD_CORE_NAME" == *-debug* ]]; then
+        LOG_CONFIGURATION="debug"
+    elif [[ "$BUILD_CORE_NAME" == *-release* ]]; then
+        LOG_CONFIGURATION="release"
+    else
+        LOG_CONFIGURATION="$BUILD_CONFIGURATION"
+    fi
 }
 
 while [ $# -gt 0 ]; do
@@ -152,6 +163,7 @@ if [ -z "$BUILD_CORE_NAME" ] && [ -n "$BUILD_IMAGE_NAME" ]; then
 fi
 
 ComputeBuildNames
+ResolveLogConfiguration
 CORE_BUILD_DIR="build/core/$BUILD_CORE_NAME"
 IMAGE_BUILD_DIR="build/image/$BUILD_IMAGE_NAME"
 
@@ -218,9 +230,9 @@ fi
 
 mkdir -p log
 
-LOG_DEBUG_COM1="log/debug-com1-${ARCH}-${BOOT_MODE}.log"
-LOG_KERNEL="log/kernel-${ARCH}-${BOOT_MODE}.log"
-LOG_NET_PCAP="log/kernel-net-${ARCH}-${BOOT_MODE}.pcap"
+LOG_DEBUG_COM1="log/debug-com1-${ARCH}-${BOOT_MODE}-${LOG_CONFIGURATION}.log"
+LOG_KERNEL="log/kernel-${ARCH}-${BOOT_MODE}-${LOG_CONFIGURATION}.log"
+LOG_NET_PCAP="log/kernel-net-${ARCH}-${BOOT_MODE}-${LOG_CONFIGURATION}.pcap"
 
 USB_ARGUMENTS=()
 NVME_ARGUMENTS=()

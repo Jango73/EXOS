@@ -35,9 +35,9 @@
 
 /************************************************************************/
 
-static UINT TaskMinimumTaskStackSize = TASK_MINIMUM_TASK_STACK_SIZE_DEFAULT;
-static UINT TaskMinimumSystemStackSize = TASK_MINIMUM_SYSTEM_STACK_SIZE_DEFAULT;
-static BOOL TaskStackConfigInitialized = FALSE;
+static UINT DATA_SECTION TaskMinimumTaskStackSize = TASK_MINIMUM_TASK_STACK_SIZE_DEFAULT;
+static UINT DATA_SECTION TaskMinimumSystemStackSize = TASK_MINIMUM_SYSTEM_STACK_SIZE_DEFAULT;
+static BOOL DATA_SECTION TaskStackConfigInitialized = FALSE;
 
 /************************************************************************/
 

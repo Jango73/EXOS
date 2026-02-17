@@ -46,8 +46,8 @@
  */
 BOOL NtfsLoadFileRecordBuffer(
     LPNTFSFILESYSTEM FileSystem, U32 Index, U8** RecordBufferOut, NTFS_FILE_RECORD_HEADER* HeaderOut) {
-    static RATE_LIMITER InvalidRecordMagicWarningLimiter = {0};
-    static BOOL InvalidRecordMagicWarningLimiterInitAttempted = FALSE;
+    static RATE_LIMITER DATA_SECTION InvalidRecordMagicWarningLimiter = {0};
+    static BOOL DATA_SECTION InvalidRecordMagicWarningLimiterInitAttempted = FALSE;
     U64 RecordOffset;
     U64 SectorOffset64;
     U32 SectorShift;

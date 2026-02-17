@@ -118,7 +118,7 @@ CONSOLE_STRUCT Console = {
 
 /***************************************************************************/
 
-static BOOL ConsoleFramebufferMappingInProgress = FALSE;
+static BOOL DATA_SECTION ConsoleFramebufferMappingInProgress = FALSE;
 
 /***************************************************************************/
 
@@ -288,6 +288,67 @@ static void ConsoleWritePixel(U32 X, U32 Y, U32 Pixel) {
 
 /***************************************************************************/
 
+/**
+ * @brief Validate that a framebuffer rectangle can be written safely.
+ *
+ * The function probes the first and last byte of each row to ensure the
+ * underlying linear mapping is present before any write takes place.
+ *
+ * @param X Rectangle left coordinate in pixels.
+ * @param Y Rectangle top coordinate in pixels.
+ * @param Width Rectangle width in pixels.
+ * @param Height Rectangle height in pixels.
+ * @return TRUE when all tested addresses are mapped, FALSE otherwise.
+ */
+static BOOL ConsoleIsFramebufferRectMapped(U32 X, U32 Y, U32 Width, U32 Height) {
+    if (Console.FramebufferLinear == NULL || Width == 0u || Height == 0u) {
+        return FALSE;
+    }
+
+    UINT BytesPerPixel = Console.FramebufferBytesPerPixel;
+    if (BytesPerPixel == 0u) {
+        return FALSE;
+    }
+
+    for (U32 Row = 0; Row < Height; ++Row) {
+        LINEAR RowLinear = (LINEAR)Console.FramebufferLinear +
+            (((LINEAR)(Y + Row) * Console.FramebufferPitch) + ((LINEAR)X * BytesPerPixel));
+        LINEAR RowLastLinear = RowLinear + ((LINEAR)Width * BytesPerPixel) - 1u;
+
+        if (IsValidMemory(RowLinear) == FALSE || IsValidMemory(RowLastLinear) == FALSE) {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Ensure framebuffer mapping exists and is writable for a rectangle.
+ *
+ * @param X Rectangle left coordinate in pixels.
+ * @param Y Rectangle top coordinate in pixels.
+ * @param Width Rectangle width in pixels.
+ * @param Height Rectangle height in pixels.
+ * @return TRUE when drawing can proceed, FALSE otherwise.
+ */
+static BOOL ConsoleEnsureFramebufferRectMapped(U32 X, U32 Y, U32 Width, U32 Height) {
+    if (ConsoleIsFramebufferRectMapped(X, Y, Width, Height)) {
+        return TRUE;
+    }
+
+    ConsoleInvalidateFramebufferMapping();
+    if (ConsoleEnsureFramebufferMapped() == FALSE) {
+        return FALSE;
+    }
+
+    return ConsoleIsFramebufferRectMapped(X, Y, Width, Height);
+}
+
+/***************************************************************************/
+
 static void ConsoleFillRect32(U32 X, U32 Y, U32 Width, U32 Height, U32 Pixel) {
     if (Console.FramebufferLinear == NULL) {
         return;
@@ -297,7 +358,10 @@ static void ConsoleFillRect32(U32 X, U32 Y, U32 Width, U32 Height, U32 Pixel) {
         return;
     }
 
-    U32 RowBytes = Width * 4u;
+    if (ConsoleEnsureFramebufferRectMapped(X, Y, Width, Height) == FALSE) {
+        return;
+    }
+
     for (U32 Row = 0; Row < Height; ++Row) {
         U8* Dest = Console.FramebufferLinear +
                    ((Y + Row) * Console.FramebufferPitch) +

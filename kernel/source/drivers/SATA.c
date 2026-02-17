@@ -1030,7 +1030,7 @@ static BOOL AHCIInterruptTopHalf(LPDEVICE Device, LPVOID Context) {
     }
 
     if (!ShouldSignal) {
-        static U32 SpuriousCount = 0;
+        static U32 DATA_SECTION SpuriousCount = 0;
         if (SpuriousCount < 4U) {
         }
         SpuriousCount++;
@@ -1083,7 +1083,7 @@ static void AHCIInterruptBottomHalf(LPDEVICE Device, LPVOID Context) {
         return;
     }
 
-    static U32 BottomHalfLogCount = 0;
+    static U32 DATA_SECTION BottomHalfLogCount = 0;
 
     for (U32 PortIndex = 0; PortIndex < AHCI_MAX_PORTS; PortIndex++) {
         if ((LocalMask & (1U << PortIndex)) == 0U) {

@@ -35,11 +35,11 @@
 
 /************************************************************************/
 
-static PHYSICAL G_LoaderReservedStart = 0;
-static PHYSICAL G_LoaderReservedEnd = 0;
-static PHYSICAL G_PhysicalAllocatorMetadataStart = 0;
-static PHYSICAL G_PhysicalAllocatorMetadataEnd = 0;
-static BOOL G_AllocPhysicalPageTraceEnabled = FALSE;
+static PHYSICAL DATA_SECTION G_LoaderReservedStart = 0;
+static PHYSICAL DATA_SECTION G_LoaderReservedEnd = 0;
+static PHYSICAL DATA_SECTION G_PhysicalAllocatorMetadataStart = 0;
+static PHYSICAL DATA_SECTION G_PhysicalAllocatorMetadataEnd = 0;
+static BOOL DATA_SECTION G_AllocPhysicalPageTraceEnabled = FALSE;
 
 /************************************************************************/
 

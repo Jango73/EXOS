@@ -66,7 +66,7 @@ LPDRIVER InterruptControllerGetDriver(void) {
 /************************************************************************/
 // Global interrupt controller configuration
 
-static INTERRUPT_CONTROLLER_CONFIG g_InterruptControllerConfig;
+static INTERRUPT_CONTROLLER_CONFIG DATA_SECTION g_InterruptControllerConfig;
 
 /************************************************************************/
 // PIC 8259 constants and functions

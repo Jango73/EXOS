@@ -43,9 +43,9 @@ typedef struct tag_USB_DEVICE_HANDLE {
 
 /************************************************************************/
 
-static int UsbRootSentinel = 0;
-static int UsbPortArraySentinel = 0;
-static int UsbDeviceArraySentinel = 0;
+static int DATA_SECTION UsbRootSentinel = 0;
+static int DATA_SECTION UsbPortArraySentinel = 0;
+static int DATA_SECTION UsbDeviceArraySentinel = 0;
 
 SCRIPT_HOST_HANDLE UsbRootHandle = &UsbRootSentinel;
 

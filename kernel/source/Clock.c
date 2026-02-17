@@ -73,9 +73,9 @@ LPDRIVER ClockGetDriver(void) {
 
 /************************************************************************/
 
-static UINT SystemUpTime = 0;
-static UINT SchedulerTime = 0;
-static DATETIME CurrentTime;
+static UINT DATA_SECTION SystemUpTime = 0;
+static UINT DATA_SECTION SchedulerTime = 0;
+static DATETIME DATA_SECTION CurrentTime;
 static const U8 DaysInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
 #if SCHEDULING_DEBUG_OUTPUT == 1

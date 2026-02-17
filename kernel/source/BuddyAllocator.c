@@ -61,11 +61,11 @@ static inline UINT BuddyBlockPages(UINT Order) {
 /************************************************************************/
 // other
 
-static LPBUDDY_HEADER G_BuddyHeader = NULL;
-static UINT* G_OrderHeads = NULL;
-static LPBUDDY_NODE G_BlockLinks = NULL;
-static U8* G_BlockOrder = NULL;
-static U8* G_PageUsed = NULL;
+static LPBUDDY_HEADER DATA_SECTION G_BuddyHeader = NULL;
+static UINT* DATA_SECTION G_OrderHeads = NULL;
+static LPBUDDY_NODE DATA_SECTION G_BlockLinks = NULL;
+static U8* DATA_SECTION G_BlockOrder = NULL;
+static U8* DATA_SECTION G_PageUsed = NULL;
 
 /************************************************************************/
 /**

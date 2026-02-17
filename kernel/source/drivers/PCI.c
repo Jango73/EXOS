@@ -58,8 +58,8 @@ static U32 PCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty);
 
 #define PCI_MAX_REGISTERED_DRIVERS 32
 
-static LPPCI_DRIVER PciDriverTable[PCI_MAX_REGISTERED_DRIVERS];
-static U32 PciDriverCount = 0;
+static LPPCI_DRIVER DATA_SECTION PciDriverTable[PCI_MAX_REGISTERED_DRIVERS];
+static U32 DATA_SECTION PciDriverCount = 0;
 
 /***************************************************************************/
 

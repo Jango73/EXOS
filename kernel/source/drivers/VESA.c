@@ -96,7 +96,7 @@ static U32 Rect24(LPVESA_CONTEXT, I32, I32, I32, I32);
 
 #if VESA_ENABLE_SELFTEST
 static void VESADrawSelfTest(LPVESA_CONTEXT);
-static U32 VESARectangleLogCount = 0;
+static U32 DATA_SECTION VESARectangleLogCount = 0;
 #endif
 
 /************************************************************************/
@@ -1514,7 +1514,7 @@ static U32 VESA_Line(LPLINEINFO Info) {
  */
 static U32 VESA_Rectangle(LPRECTINFO Info) {
     LPVESA_CONTEXT Context;
-    static U32 VESARectangleDebugCount = 0;
+    static U32 DATA_SECTION VESARectangleDebugCount = 0;
 
     if (Info == NULL) return 0;
 

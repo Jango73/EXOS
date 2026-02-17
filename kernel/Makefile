@@ -142,7 +142,7 @@ $(BSS_BIN): $(KERNEL_ELF)
 	$(OBJCOPY) -O binary --only-section=.bss $< $@
 
 # Build final padded image
-$(FINAL_IMG): $(TEXT_BIN) $(SHARED_TEXT_BIN) $(DATA_BIN) $(BSS_BIN)
+$(FINAL_IMG): $(TEXT_BIN) $(SHARED_TEXT_BIN) $(DATA_BIN) $(KERNEL_ELF)
 	@echo "Building paged disk image: $@ (ALIGN=$(ALIGN))"
 
 	# Clear binary file
@@ -177,7 +177,32 @@ $(FINAL_IMG): $(TEXT_BIN) $(SHARED_TEXT_BIN) $(DATA_BIN) $(BSS_BIN)
 	# Append .data
 	cat $(DATA_BIN) >> $@
 
-	# .bss is typically not written to disk (zero-initialized at runtime)
+	# Align current image to next ALIGN boundary (before .bss)
+	@{ \
+		sz=$$(stat -c %s "$@"); \
+		pad=$$(( ($(ALIGN) - (sz % $(ALIGN))) % $(ALIGN) )); \
+		echo "Padding before .bss: $$pad bytes"; \
+		if [ $$pad -gt 0 ]; then \
+			dd if=/dev/zero bs=1 count=$$pad >> "$@" 2>/dev/null; \
+		fi; \
+	}
+
+	# Append zeroed .bss span so kernel runtime image size matches ELF layout
+	@{ \
+		bss_hex=$$($(READELF) -S --wide $(KERNEL_ELF) 2>/dev/null | awk '$$3 == ".bss" { print $$7; exit }'); \
+		if [ -z "$$bss_hex" ]; then \
+			echo "ERROR: could not resolve .bss size from $(KERNEL_ELF)"; \
+			exit 1; \
+		fi; \
+		bss_size=$$((16#$$bss_hex)); \
+		echo "Appending .bss zeros: $$bss_size bytes"; \
+		if [ $$bss_size -gt 0 ]; then \
+			dd if=/dev/zero bs=1 count=$$bss_size >> "$@" 2>/dev/null; \
+		fi; \
+	}
+
+	# Keep magic marker as second-to-last U32 (just before checksum)
+	@printf "\x45\x58\x4F\x53" >> "$@"
 
 	# Append checksum
 	@echo "Appending checksum to $(FINAL_IMG)"

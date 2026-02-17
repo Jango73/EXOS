@@ -992,7 +992,7 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
             if (ConsecutiveEmptyChecks >= 3) {
 
                 // No data available - show RX register state every 100 polls
-                static U32 PollCount = 0;
+                static U32 DATA_SECTION PollCount = 0;
                 if ((PollCount++ % 100) == 0) {
                     U32 RDH = E1000_ReadReg32(Device->MmioBase, E1000_REG_RDH);
                     U32 RDT = E1000_ReadReg32(Device->MmioBase, E1000_REG_RDT);
