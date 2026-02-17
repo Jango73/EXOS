@@ -357,6 +357,7 @@ static BOOL NtfsFolderEntryAlreadyPresent(
 static BOOL NtfsAddFolderEntryFromIndexKey(
     LPNTFS_FOLDER_ENUM_CONTEXT Context, const U8* EntryBuffer, U32 EntryLength, U32 KeyLength) {
     NTFS_FOLDER_ENTRY_INFO EntryInfo;
+    NTFS_FILE_RECORD_INFO RecordInfo;
     U32 FileRecordIndex;
     U16 FileReferenceSequence;
 
@@ -370,6 +371,19 @@ static BOOL NtfsAddFolderEntryFromIndexKey(
     }
     if (!NtfsIsValidFileRecordIndex(Context->FileSystem, FileRecordIndex)) {
         Context->DiagInvalidRecordIndexCount++;
+        return TRUE;
+    }
+    MemorySet(&RecordInfo, 0, sizeof(NTFS_FILE_RECORD_INFO));
+    if (!NtfsReadFileRecord((LPFILESYSTEM)Context->FileSystem, FileRecordIndex, &RecordInfo)) {
+        Context->DiagReadRecordFailureCount++;
+        return TRUE;
+    }
+    if (FileReferenceSequence != 0 && RecordInfo.SequenceNumber != FileReferenceSequence) {
+        Context->DiagSequenceMismatchCount++;
+        return TRUE;
+    }
+    if ((RecordInfo.Flags & NTFS_FR_FLAG_IN_USE) == 0) {
+        Context->DiagSequenceMismatchCount++;
         return TRUE;
     }
     if (!NtfsDecodeFolderEntryFileName(EntryBuffer + 16, KeyLength, &EntryInfo)) return TRUE;
