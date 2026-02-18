@@ -2,7 +2,7 @@
 set -e
 
 function Usage() {
-    echo "Usage: $0 --arch <x86-32|x86-64> [--fs <ext2|fat32>] [--debug|--release] [--split] [--build-core-name <name>] [--build-image-name <name>] [--gdb] [--usb3|--no-usb3] [--uefi] [--nvme]"
+    echo "Usage: $0 --arch <x86-32|x86-64> [--fs <ext2|fat32>] [--debug|--release] [--split] [--build-core-name <name>] [--build-image-name <name>] [--gdb] [--usb3|--no-usb3] [--uefi] [--nvme] [--ntfs-live]"
 }
 
 ARCH="x86-32"
@@ -11,6 +11,7 @@ USE_GDB=0
 USE_UEFI=0
 USB3_ENABLED=1
 NVME_ENABLED=1
+NTFS_LIVE_ENABLED=0
 MONITOR_PORT="${MONITOR_PORT:-4444}"
 BOOT_MODE="mbr"
 BUILD_CONFIGURATION="release"
@@ -112,6 +113,9 @@ while [ $# -gt 0 ]; do
             ;;
         --nvme)
             NVME_ENABLED=1
+            ;;
+        --ntfs-live)
+            NTFS_LIVE_ENABLED=1
             ;;
         --build-core-name)
             shift
@@ -249,10 +253,10 @@ function BuildNvmeArguments() {
     NVME_ARGUMENTS=()
     if [ "$NVME_ENABLED" -eq 1 ]; then
         local NtfsImagePath="$FS_TEST_NTFS_IMG_PATH"
-        if [ -f "$NTFS_LIVE_IMG_PATH" ] && [ -r "$NTFS_LIVE_IMG_PATH" ] && [ -w "$NTFS_LIVE_IMG_PATH" ]; then
+        if [ "$NTFS_LIVE_ENABLED" -eq 1 ] && [ -f "$NTFS_LIVE_IMG_PATH" ] && [ -r "$NTFS_LIVE_IMG_PATH" ] && [ -w "$NTFS_LIVE_IMG_PATH" ]; then
             NtfsImagePath="$NTFS_LIVE_IMG_PATH"
             echo "Using NTFS live image: $NtfsImagePath"
-        elif [ -f "$NTFS_LIVE_IMG_PATH" ]; then
+        elif [ "$NTFS_LIVE_ENABLED" -eq 1 ] && [ -f "$NTFS_LIVE_IMG_PATH" ]; then
             echo "NTFS live image exists but is not readable/writable, fallback to default: $NTFS_LIVE_IMG_PATH"
         fi
 
