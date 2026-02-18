@@ -34,6 +34,7 @@ extern STR Text_Clk[];
 extern STR Text_Rd[];
 extern STR Text_Fd[];
 extern STR Text_Disk[];
+extern STR Text_D[];
 extern STR Text_Eth[];
 extern STR Text_Separator[];
 extern STR Text_KB[];

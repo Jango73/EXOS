@@ -34,6 +34,7 @@ const STR Text_Clk[] = "Clk";
 const STR Text_Rd[] = "rd";
 const STR Text_Fd[] = "fd";
 const STR Text_Disk[] = "disk";
+const STR Text_D[] = "d";
 const STR Text_Eth[] = "eth";
 const STR Text_KB[] = "KB";
 const STR Text_Exit[] = "Exit";
