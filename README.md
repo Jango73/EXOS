@@ -11,6 +11,10 @@ This is an ongoing operating system project that was abandoned in late 1999.
 Back then, it was 32 bit only and compiled with gcc and nasm, and linked with jloc.
 Build was recently ported to i686-elf-gcc/nasm/i686-elf-ld, then ported to x86-64.
 
+## Disclaimer
+
+EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/contributors, nor the authors/contributors of bundled third-party software, can be held liable for any direct, indirect, incidental, special, exemplary, or consequential damages arising from the use of this project.
+
 ## Debian compile & run
 
 ### Setup dependencies
@@ -69,10 +73,6 @@ Used for UTF-8 decoding in layout parsing. Sources in third/utf8-hoehrmann (MIT 
 ### Fonts
 Bm437_IBM_VGA_8x16.otb from the Ultimate Oldschool PC Font Pack by VileR, licensed under CC BY-SA 4.0. See third/fonts/oldschool_pc_font_pack/ATTRIBUTION.txt and third/fonts/oldschool_pc_font_pack/LICENSE.TXT.
 
-## Disclaimer
-
-EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/contributors, nor the authors/contributors of bundled third-party software, can be held liable for any direct, indirect, incidental, special, exemplary, or consequential damages arising from the use of this project.
-
 ## Things it does
 
 - Multi-architecture : x86-32, x86-64
@@ -111,14 +111,16 @@ It was a year-long solo project, developed the hard way:
 
 ## Metrics (cloc)
 
+Lines of code this project, excluding third party software.
+
 ```
 -------------------------------------------------------------------------------
 Language                     files          blank        comment           code
 -------------------------------------------------------------------------------
-C                              227          23531          24642          79491
-C/C++ Header                   183           4903           5819          12152
+C                              219          23339          24518          78651
+C/C++ Header                   164           4649           5078          11677
 Assembly                        20           1861           1214           5750
 -------------------------------------------------------------------------------
-SUM:                           430          30295          31675          97393
+SUM:                           403          29849          30810          96078
 -------------------------------------------------------------------------------
 ```
