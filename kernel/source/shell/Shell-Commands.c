@@ -698,6 +698,7 @@ static void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL 
     Find.Size = sizeof(FILEINFO);
     Find.FileSystem = FileSystem;
     Find.Attributes = MAX_U32;
+    Find.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
 
     StringCopy(Pattern, Base);
     if (Pattern[StringLength(Pattern) - 1] != PATH_SEP) StringConcat(Pattern, Sep);

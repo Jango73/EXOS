@@ -335,15 +335,10 @@ static BOOL NtfsLookupChildByName(
     Found = FALSE;
     for (EntryIndex = 0; EntryIndex < StoredEntries; EntryIndex++) {
         LPNTFS_FOLDER_ENTRY_INFO Entry = Entries + EntryIndex;
-        NTFS_FILE_RECORD_INFO RecordInfo;
         if (!NtfsCompareNameCaseInsensitive(Entry->Name, Name)) continue;
-        MemorySet(&RecordInfo, 0, sizeof(NTFS_FILE_RECORD_INFO));
-        if (!NtfsReadFileRecord((LPFILESYSTEM)FileSystem, Entry->FileRecordIndex, &RecordInfo)) {
-            continue;
-        }
 
         *ChildFileRecordIndexOut = Entry->FileRecordIndex;
-        *ChildIsFolderOut = (RecordInfo.Flags & NTFS_FR_FLAG_FOLDER) != 0;
+        *ChildIsFolderOut = Entry->IsFolder;
         Found = TRUE;
         break;
     }

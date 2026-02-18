@@ -26,6 +26,15 @@
 /***************************************************************************/
 
 #define NTFS_FILE_NAME_ATTRIBUTE_DIRECTORY_FLAG 0x10000000
+#define NTFS_TRAVERSE_ERROR_NONE 0
+#define NTFS_TRAVERSE_ERROR_HEADER_TOO_SMALL 0x1001
+#define NTFS_TRAVERSE_ERROR_ENTRY_OFFSET 0x1002
+#define NTFS_TRAVERSE_ERROR_ENTRY_SIZE 0x1003
+#define NTFS_TRAVERSE_ERROR_ENTRY_SIZE_NORMALIZED 0x1004
+#define NTFS_TRAVERSE_ERROR_ENTRY_LENGTH 0x1005
+#define NTFS_TRAVERSE_ERROR_SUBNODE_LENGTH 0x1006
+#define NTFS_TRAVERSE_ERROR_SUBNODE_VCN 0x1007
+#define NTFS_TRAVERSE_ERROR_MISSING_LAST_ENTRY 0x1008
 
 /***************************************************************************/
 
@@ -456,6 +465,49 @@ static BOOL NtfsMarkIndexAllocationVcnVisited(LPNTFS_FOLDER_ENUM_CONTEXT Context
 /***************************************************************************/
 
 /**
+ * @brief Store compact diagnostics for one index-traversal failure.
+ *
+ * @param Context Enumeration context.
+ * @param ErrorCode Failure code.
+ * @param Stage Traversal stage (1=root, 2=index-allocation node).
+ * @param Vcn VCN for stage 2, 0 for stage 1.
+ * @param HeaderRegionSize Traversed region size.
+ * @param EntryOffset Normalized entry offset.
+ * @param EntrySize Normalized entry span.
+ * @param Cursor Cursor inside entry span.
+ * @param EntryLength Current entry length.
+ * @param EntryFlags Current entry flags.
+ * @return Always FALSE.
+ */
+static BOOL NtfsSetTraverseError(
+    LPNTFS_FOLDER_ENUM_CONTEXT Context,
+    U32 ErrorCode,
+    U32 Stage,
+    U32 Vcn,
+    U32 HeaderRegionSize,
+    U32 EntryOffset,
+    U32 EntrySize,
+    U32 Cursor,
+    U32 EntryLength,
+    U32 EntryFlags) {
+    if (Context != NULL && Context->DiagTraverseErrorCode == NTFS_TRAVERSE_ERROR_NONE) {
+        Context->DiagTraverseErrorCode = ErrorCode;
+        Context->DiagTraverseStage = Stage;
+        Context->DiagTraverseVcn = Vcn;
+        Context->DiagHeaderRegionSize = HeaderRegionSize;
+        Context->DiagEntryOffset = EntryOffset;
+        Context->DiagEntrySize = EntrySize;
+        Context->DiagCursor = Cursor;
+        Context->DiagEntryLength = EntryLength;
+        Context->DiagEntryFlags = EntryFlags;
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Traverse one NTFS index-header entry array.
  *
  * @param Context Enumeration context.
@@ -470,94 +522,251 @@ static BOOL NtfsTraverseIndexHeader(
     LPNTFS_FOLDER_ENUM_CONTEXT Context,
     const NTFS_INDEX_HEADER* Header,
     U32 HeaderRegionSize,
+    U32 Stage,
+    U32 Vcn,
     U32* PendingVcns,
     U32* PendingCountInOut,
     U32 PendingCapacity) {
-    U32 EntryOffset;
-    U32 EntrySize;
-    U32 AllocatedEntrySize;
-    U32 Cursor;
+    U32 RawEntryOffset;
+    U32 RawEntrySize;
+    U32 CandidateOffsets[2];
+    U32 CandidateCount;
+    U32 CandidateIndex;
+    U32 FirstErrorCode;
+    U32 FirstErrorStage;
+    U32 FirstErrorVcn;
+    U32 FirstHeaderRegionSize;
+    U32 FirstEntryOffset;
+    U32 FirstEntrySize;
+    U32 FirstCursor;
+    U32 FirstEntryLength;
+    U32 FirstEntryFlags;
+    BOOL FirstErrorCaptured;
 
     if (Context == NULL || Header == NULL || PendingCountInOut == NULL) return FALSE;
-    if (HeaderRegionSize < sizeof(NTFS_INDEX_HEADER)) return FALSE;
+    if (HeaderRegionSize < sizeof(NTFS_INDEX_HEADER)) {
+        return NtfsSetTraverseError(
+            Context, NTFS_TRAVERSE_ERROR_HEADER_TOO_SMALL, Stage, Vcn, HeaderRegionSize, 0, 0, 0, 0, 0);
+    }
 
-    EntryOffset = NtfsLoadU32((const U8*)Header);
-    EntrySize = NtfsLoadU32(((const U8*)Header) + 4);
-    AllocatedEntrySize = NtfsLoadU32(((const U8*)Header) + 8);
+    RawEntryOffset = NtfsLoadU32((const U8*)Header);
+    RawEntrySize = NtfsLoadU32(((const U8*)Header) + 4);
 
-    if (EntryOffset > HeaderRegionSize) {
-        // Some volumes expose entry offsets relative to the INDX record start.
-        if (EntryOffset >= 24 && (EntryOffset - 24) <= HeaderRegionSize) {
-            EntryOffset -= 24;
-        } else {
-            WARNING(TEXT("[NtfsTraverseIndexHeader] Invalid entry offset (offset=%u, region=%u)"),
-                    EntryOffset,
-                    HeaderRegionSize);
-            return FALSE;
+    CandidateOffsets[0] = RawEntryOffset;
+    CandidateCount = 1;
+    if (Stage == 2 && RawEntryOffset >= 24) {
+        U32 AlternateOffset = RawEntryOffset - 24;
+        if (AlternateOffset != RawEntryOffset) {
+            CandidateOffsets[CandidateCount] = AlternateOffset;
+            CandidateCount++;
         }
     }
 
-    if (EntrySize > (HeaderRegionSize - EntryOffset)) {
-        if (EntrySize >= EntryOffset && EntrySize <= HeaderRegionSize) {
-            // Some NTFS index headers encode EntrySize as an absolute end offset
-            // from the beginning of the header region.
-            EntrySize -= EntryOffset;
-        } else
-        if (AllocatedEntrySize != 0 &&
-            AllocatedEntrySize <= (HeaderRegionSize - EntryOffset) &&
-            EntrySize > AllocatedEntrySize) {
-            EntrySize = AllocatedEntrySize;
-        } else {
-            WARNING(TEXT("[NtfsTraverseIndexHeader] Invalid entry size (size=%u, offset=%u, region=%u)"),
-                EntrySize,
+    FirstErrorCaptured = FALSE;
+    FirstErrorCode = NTFS_TRAVERSE_ERROR_NONE;
+    FirstErrorStage = 0;
+    FirstErrorVcn = 0;
+    FirstHeaderRegionSize = 0;
+    FirstEntryOffset = 0;
+    FirstEntrySize = 0;
+    FirstCursor = 0;
+    FirstEntryLength = 0;
+    FirstEntryFlags = 0;
+
+    for (CandidateIndex = 0; CandidateIndex < CandidateCount; CandidateIndex++) {
+        U32 EntryOffset = CandidateOffsets[CandidateIndex];
+        U32 EntrySize = RawEntrySize;
+        U32 Cursor = 0;
+        BOOL LastEntryFound = FALSE;
+        U32 SavedEntryCount = Context->EntryCount;
+        U32 SavedTotalEntries = Context->TotalEntries;
+        U32 SavedPendingCount = *PendingCountInOut;
+        U32 SavedRefInvalid = Context->DiagInvalidFileReferenceCount;
+        U32 SavedIdxInvalid = Context->DiagInvalidRecordIndexCount;
+        U32 SavedReadFail = Context->DiagReadRecordFailureCount;
+        U32 SavedSeqMismatch = Context->DiagSequenceMismatchCount;
+
+        Context->DiagTraverseErrorCode = NTFS_TRAVERSE_ERROR_NONE;
+        Context->DiagTraverseStage = 0;
+        Context->DiagTraverseVcn = 0;
+        Context->DiagHeaderRegionSize = 0;
+        Context->DiagEntryOffset = 0;
+        Context->DiagEntrySize = 0;
+        Context->DiagCursor = 0;
+        Context->DiagEntryLength = 0;
+        Context->DiagEntryFlags = 0;
+
+        if (EntryOffset > HeaderRegionSize) {
+            NtfsSetTraverseError(
+                Context,
+                NTFS_TRAVERSE_ERROR_ENTRY_OFFSET,
+                Stage,
+                Vcn,
+                HeaderRegionSize,
                 EntryOffset,
-                HeaderRegionSize);
-            return FALSE;
-        }
-    }
-
-    if (EntrySize < 16) {
-        WARNING(TEXT("[NtfsTraverseIndexHeader] Invalid entry size after normalization (%u)"), EntrySize);
-        return FALSE;
-    }
-
-    Cursor = 0;
-    while (Cursor + 16 <= EntrySize) {
-        const U8* Entry = ((const U8*)Header) + EntryOffset + Cursor;
-        U16 Length = NtfsLoadU16(Entry + 8);
-        U16 KeyLength = NtfsLoadU16(Entry + 10);
-        U16 Flags = NtfsLoadU16(Entry + 12);
-
-        if (Length < 16 || Length > (EntrySize - Cursor)) {
-            WARNING(TEXT("[NtfsTraverseIndexHeader] Invalid index entry length=%u"), Length);
-            return FALSE;
-        }
-
-        if ((Flags & NTFS_INDEX_ENTRY_FLAG_LAST_ENTRY) == 0) {
-            if (!NtfsAddFolderEntryFromIndexKey(Context, Entry, Length, KeyLength)) return FALSE;
-        }
-
-        if ((Flags & NTFS_INDEX_ENTRY_FLAG_HAS_SUBNODE) != 0) {
-            U64 Vcn64;
-
-            if (Length < 24) return FALSE;
-            Vcn64 = NtfsLoadU64(Entry + Length - sizeof(U64));
-            if (U64_High32(Vcn64) != 0) {
-                WARNING(TEXT("[NtfsTraverseIndexHeader] Subnode VCN too large"));
-                return FALSE;
-            }
-
-            if (PendingVcns != NULL && *PendingCountInOut < PendingCapacity) {
-                PendingVcns[*PendingCountInOut] = U64_Low32(Vcn64);
-                (*PendingCountInOut)++;
+                EntrySize,
+                0,
+                0,
+                0);
+        } else if (EntrySize > (HeaderRegionSize - EntryOffset)) {
+            if (EntrySize >= EntryOffset && EntrySize <= HeaderRegionSize) {
+                EntrySize -= EntryOffset;
+            } else {
+                NtfsSetTraverseError(
+                    Context,
+                    NTFS_TRAVERSE_ERROR_ENTRY_SIZE,
+                    Stage,
+                    Vcn,
+                    HeaderRegionSize,
+                    EntryOffset,
+                    EntrySize,
+                    0,
+                    0,
+                    0);
             }
         }
 
-        Cursor += Length;
-        if ((Flags & NTFS_INDEX_ENTRY_FLAG_LAST_ENTRY) != 0) break;
+        if (Context->DiagTraverseErrorCode == NTFS_TRAVERSE_ERROR_NONE && EntrySize < 16) {
+            NtfsSetTraverseError(
+                Context,
+                NTFS_TRAVERSE_ERROR_ENTRY_SIZE_NORMALIZED,
+                Stage,
+                Vcn,
+                HeaderRegionSize,
+                EntryOffset,
+                EntrySize,
+                0,
+                0,
+                0);
+        }
+
+        while (Context->DiagTraverseErrorCode == NTFS_TRAVERSE_ERROR_NONE && Cursor + 16 <= EntrySize) {
+            const U8* Entry = ((const U8*)Header) + EntryOffset + Cursor;
+            U16 Length = NtfsLoadU16(Entry + 8);
+            U16 KeyLength = NtfsLoadU16(Entry + 10);
+            U16 Flags = NtfsLoadU16(Entry + 12);
+
+            if (Length < 16 || Length > (EntrySize - Cursor)) {
+                NtfsSetTraverseError(
+                    Context,
+                    NTFS_TRAVERSE_ERROR_ENTRY_LENGTH,
+                    Stage,
+                    Vcn,
+                    HeaderRegionSize,
+                    EntryOffset,
+                    EntrySize,
+                    Cursor,
+                    Length,
+                    Flags);
+                break;
+            }
+
+            if ((Flags & NTFS_INDEX_ENTRY_FLAG_LAST_ENTRY) == 0) {
+                if (!NtfsAddFolderEntryFromIndexKey(Context, Entry, Length, KeyLength)) {
+                    Context->DiagTraverseErrorCode = NTFS_TRAVERSE_ERROR_ENTRY_LENGTH;
+                    break;
+                }
+            }
+
+            if ((Flags & NTFS_INDEX_ENTRY_FLAG_HAS_SUBNODE) != 0) {
+                U64 Vcn64;
+
+                if (Length < 24) {
+                    NtfsSetTraverseError(
+                        Context,
+                        NTFS_TRAVERSE_ERROR_SUBNODE_LENGTH,
+                        Stage,
+                        Vcn,
+                        HeaderRegionSize,
+                        EntryOffset,
+                        EntrySize,
+                        Cursor,
+                        Length,
+                        Flags);
+                    break;
+                }
+                Vcn64 = NtfsLoadU64(Entry + Length - sizeof(U64));
+                if (U64_High32(Vcn64) != 0) {
+                    NtfsSetTraverseError(
+                        Context,
+                        NTFS_TRAVERSE_ERROR_SUBNODE_VCN,
+                        Stage,
+                        Vcn,
+                        HeaderRegionSize,
+                        EntryOffset,
+                        EntrySize,
+                        Cursor,
+                        Length,
+                        Flags);
+                    break;
+                }
+
+                if (PendingVcns != NULL && *PendingCountInOut < PendingCapacity) {
+                    PendingVcns[*PendingCountInOut] = U64_Low32(Vcn64);
+                    (*PendingCountInOut)++;
+                }
+            }
+
+            Cursor += Length;
+            if ((Flags & NTFS_INDEX_ENTRY_FLAG_LAST_ENTRY) != 0) {
+                LastEntryFound = TRUE;
+                break;
+            }
+        }
+
+        if (Context->DiagTraverseErrorCode == NTFS_TRAVERSE_ERROR_NONE && !LastEntryFound) {
+            NtfsSetTraverseError(
+                Context,
+                NTFS_TRAVERSE_ERROR_MISSING_LAST_ENTRY,
+                Stage,
+                Vcn,
+                HeaderRegionSize,
+                EntryOffset,
+                EntrySize,
+                Cursor,
+                0,
+                0);
+        }
+
+        if (Context->DiagTraverseErrorCode == NTFS_TRAVERSE_ERROR_NONE) {
+            return TRUE;
+        }
+
+        if (!FirstErrorCaptured) {
+            FirstErrorCaptured = TRUE;
+            FirstErrorCode = Context->DiagTraverseErrorCode;
+            FirstErrorStage = Context->DiagTraverseStage;
+            FirstErrorVcn = Context->DiagTraverseVcn;
+            FirstHeaderRegionSize = Context->DiagHeaderRegionSize;
+            FirstEntryOffset = Context->DiagEntryOffset;
+            FirstEntrySize = Context->DiagEntrySize;
+            FirstCursor = Context->DiagCursor;
+            FirstEntryLength = Context->DiagEntryLength;
+            FirstEntryFlags = Context->DiagEntryFlags;
+        }
+
+        Context->EntryCount = SavedEntryCount;
+        Context->TotalEntries = SavedTotalEntries;
+        *PendingCountInOut = SavedPendingCount;
+        Context->DiagInvalidFileReferenceCount = SavedRefInvalid;
+        Context->DiagInvalidRecordIndexCount = SavedIdxInvalid;
+        Context->DiagReadRecordFailureCount = SavedReadFail;
+        Context->DiagSequenceMismatchCount = SavedSeqMismatch;
     }
 
-    return TRUE;
+    if (FirstErrorCaptured) {
+        Context->DiagTraverseErrorCode = FirstErrorCode;
+        Context->DiagTraverseStage = FirstErrorStage;
+        Context->DiagTraverseVcn = FirstErrorVcn;
+        Context->DiagHeaderRegionSize = FirstHeaderRegionSize;
+        Context->DiagEntryOffset = FirstEntryOffset;
+        Context->DiagEntrySize = FirstEntrySize;
+        Context->DiagCursor = FirstCursor;
+        Context->DiagEntryLength = FirstEntryLength;
+        Context->DiagEntryFlags = FirstEntryFlags;
+    }
+
+    return FALSE;
 }
 
 /***************************************************************************/
@@ -842,6 +1051,8 @@ BOOL NtfsEnumerateFolderByIndex(
             &Context,
             (const NTFS_INDEX_HEADER*)(IndexRootValue + sizeof(NTFS_INDEX_ROOT_HEADER)),
             IndexRootValueSize - sizeof(NTFS_INDEX_ROOT_HEADER),
+            1,
+            0,
             PendingVcns,
             &PendingCount,
             MaxVcnRecords);
@@ -869,19 +1080,24 @@ BOOL NtfsEnumerateFolderByIndex(
                 &Context,
                 (const NTFS_INDEX_HEADER*)(RecordBufferNode + 24),
                 Context.IndexBlockSize - 24,
+                2,
+                Vcn,
                 PendingVcns,
                 &PendingCount,
                 MaxVcnRecords);
         }
         if (!Result) {
-            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Index traversal failed index=%u"), FolderIndex);
-        }
-        if (Context.DiagInvalidFileReferenceCount != 0 ||
-            Context.DiagInvalidRecordIndexCount != 0 ||
-            Context.DiagReadRecordFailureCount != 0 ||
-            Context.DiagSequenceMismatchCount != 0) {
-            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Diag index=%u ref_invalid=%u idx_invalid=%u record_read_fail=%u seq_mismatch=%u"),
+            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Index traversal failed index=%u error=%x stage=%u vcn=%u region=%u offset=%u size=%u cursor=%u len=%u flags=%x ref_invalid=%u idx_invalid=%u record_read_fail=%u seq_mismatch=%u"),
                 FolderIndex,
+                Context.DiagTraverseErrorCode,
+                Context.DiagTraverseStage,
+                Context.DiagTraverseVcn,
+                Context.DiagHeaderRegionSize,
+                Context.DiagEntryOffset,
+                Context.DiagEntrySize,
+                Context.DiagCursor,
+                Context.DiagEntryLength,
+                Context.DiagEntryFlags,
                 Context.DiagInvalidFileReferenceCount,
                 Context.DiagInvalidRecordIndexCount,
                 Context.DiagReadRecordFailureCount,

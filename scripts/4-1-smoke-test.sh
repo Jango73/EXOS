@@ -41,7 +41,7 @@ CURRENT_IMAGE_PATH=""
 CURRENT_FS_OFFSET=0
 
 function Usage() {
-    echo "Usage: $0 [--only <x86-32|x86-64|x86-64-uefi>] [--no-build] [--key-delay <seconds>] [--command-delay <seconds>] [--boot-input-delay <seconds>] [--help]"
+    echo "Usage: $0 [--only <x86-32|x86-64|x86-64-uefi>] [--commands-file <path>] [--no-build] [--key-delay <seconds>] [--command-delay <seconds>] [--boot-input-delay <seconds>] [--help]"
 }
 
 while [ $# -gt 0 ]; do
@@ -70,6 +70,15 @@ while [ $# -gt 0 ]; do
         --help|-h)
             Usage
             exit 0
+            ;;
+        --commands-file)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "Missing value for --commands-file"
+                Usage
+                exit 1
+            fi
+            COMMANDS_FILE="$1"
             ;;
         --key-delay)
             shift
@@ -577,7 +586,13 @@ function RunCommandList() {
     local CompareSource=""
     local CompareDownloaded=""
 
-    if [ ! -f "$COMMANDS_FILE" ]; then
+    local ResolvedCommandsFile="$COMMANDS_FILE"
+
+    if [ ! -f "$ResolvedCommandsFile" ] && [[ "$ResolvedCommandsFile" != /* ]]; then
+        ResolvedCommandsFile="$ROOT_DIR/$COMMANDS_FILE"
+    fi
+
+    if [ ! -f "$ResolvedCommandsFile" ]; then
         echo "Commands file not found: $COMMANDS_FILE"
         exit 1
     fi
@@ -616,7 +631,7 @@ function RunCommandList() {
         fi
 
         RunCommandSpec "$CommandText" "$ExpectedText" "$CompareSource" "$CompareDownloaded"
-    done < "$COMMANDS_FILE"
+    done < "$ResolvedCommandsFile"
 }
 
 function StopQemu() {

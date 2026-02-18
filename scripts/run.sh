@@ -207,6 +207,7 @@ USB_3_PATH="$IMAGE_BUILD_DIR/boot-hd/usb-3.img"
 FS_TEST_EXT2_IMG_PATH="$IMAGE_BUILD_DIR/boot-hd/fs-test-ext2.img"
 FS_TEST_FAT32_IMG_PATH="$IMAGE_BUILD_DIR/boot-hd/fs-test-fat32.img"
 FS_TEST_NTFS_IMG_PATH="$IMAGE_BUILD_DIR/boot-hd/fs-test-ntfs.img"
+NTFS_LIVE_IMG_PATH="build/test-images/ntfs-live.img"
 CYCLE_BIN="$CORE_BUILD_DIR/tools/cycle"
 DEBUG_ELF="$CORE_BUILD_DIR/kernel/exos.elf"
 
@@ -247,15 +248,23 @@ function BuildUsbArguments() {
 function BuildNvmeArguments() {
     NVME_ARGUMENTS=()
     if [ "$NVME_ENABLED" -eq 1 ]; then
+        local NtfsImagePath="$FS_TEST_NTFS_IMG_PATH"
+        if [ -f "$NTFS_LIVE_IMG_PATH" ] && [ -r "$NTFS_LIVE_IMG_PATH" ] && [ -w "$NTFS_LIVE_IMG_PATH" ]; then
+            NtfsImagePath="$NTFS_LIVE_IMG_PATH"
+            echo "Using NTFS live image: $NtfsImagePath"
+        elif [ -f "$NTFS_LIVE_IMG_PATH" ]; then
+            echo "NTFS live image exists but is not readable/writable, fallback to default: $NTFS_LIVE_IMG_PATH"
+        fi
+
         if [ -z "${FS_TEST_EXT2_IMG_PATH:-}" ] || [ -z "${FS_TEST_FAT32_IMG_PATH:-}" ] || [ -z "${FS_TEST_NTFS_IMG_PATH:-}" ]; then
             echo "FS test image path not set"
             exit 1
         fi
-        if [ ! -f "$FS_TEST_EXT2_IMG_PATH" ] || [ ! -f "$FS_TEST_FAT32_IMG_PATH" ] || [ ! -f "$FS_TEST_NTFS_IMG_PATH" ]; then
+        if [ ! -f "$FS_TEST_EXT2_IMG_PATH" ] || [ ! -f "$FS_TEST_FAT32_IMG_PATH" ] || [ ! -f "$NtfsImagePath" ]; then
             echo "Missing one or more FS test images:"
             echo "  $FS_TEST_EXT2_IMG_PATH"
             echo "  $FS_TEST_FAT32_IMG_PATH"
-            echo "  $FS_TEST_NTFS_IMG_PATH"
+            echo "  $NtfsImagePath"
             echo "Build it with: ./scripts/build.sh --arch $ARCH --fs ext2 --debug"
             exit 1
         fi
@@ -264,7 +273,7 @@ function BuildNvmeArguments() {
             -device nvme,drive=fsxt0,serial=exosfs0
             -drive format=raw,file="$FS_TEST_FAT32_IMG_PATH",if=none,id=fsxt1
             -device nvme,drive=fsxt1,serial=exosfs1
-            -drive format=raw,file="$FS_TEST_NTFS_IMG_PATH",if=none,id=fsxt2
+            -drive format=raw,file="$NtfsImagePath",if=none,id=fsxt2
             -device nvme,drive=fsxt2,serial=exosfs2
         )
     fi

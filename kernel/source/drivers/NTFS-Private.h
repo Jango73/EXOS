@@ -171,6 +171,15 @@ typedef struct tag_NTFS_FOLDER_ENUM_CONTEXT {
     U32 DiagInvalidRecordIndexCount;
     U32 DiagReadRecordFailureCount;
     U32 DiagSequenceMismatchCount;
+    U32 DiagTraverseErrorCode;
+    U32 DiagTraverseStage;
+    U32 DiagTraverseVcn;
+    U32 DiagHeaderRegionSize;
+    U32 DiagEntryOffset;
+    U32 DiagEntrySize;
+    U32 DiagCursor;
+    U32 DiagEntryLength;
+    U32 DiagEntryFlags;
 } NTFS_FOLDER_ENUM_CONTEXT, *LPNTFS_FOLDER_ENUM_CONTEXT;
 
 /***************************************************************************/

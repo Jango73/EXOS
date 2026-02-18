@@ -145,6 +145,7 @@ set "USB_3_PATH=%IMAGE_BUILD_DIR%\boot-hd\usb-3.img"
 set "FS_TEST_EXT2_IMG_PATH=%IMAGE_BUILD_DIR%\boot-hd\fs-test-ext2.img"
 set "FS_TEST_FAT32_IMG_PATH=%IMAGE_BUILD_DIR%\boot-hd\fs-test-fat32.img"
 set "FS_TEST_NTFS_IMG_PATH=%IMAGE_BUILD_DIR%\boot-hd\fs-test-ntfs.img"
+set "NTFS_LIVE_IMG_PATH=build\test-images\ntfs-live.img"
 
 if defined QEMU_BIN (
     set "QEMU_BIN=%QEMU_BIN%"
@@ -180,6 +181,12 @@ if "%USE_UEFI%"=="0" if "%USB3_ENABLED%"=="1" (
 
 set "NVME_ARGS="
 if "%NVME_ENABLED%"=="1" (
+    set "NTFS_NVME_IMG_PATH=%FS_TEST_NTFS_IMG_PATH%"
+    if exist "%NTFS_LIVE_IMG_PATH%" (
+        set "NTFS_NVME_IMG_PATH=%NTFS_LIVE_IMG_PATH%"
+        echo Using NTFS live image: %NTFS_NVME_IMG_PATH%
+    )
+
     if not exist "%FS_TEST_EXT2_IMG_PATH%" (
         echo Image not found: %FS_TEST_EXT2_IMG_PATH%
         echo Build it with: scripts\build.bat --arch %ARCH% --fs ext2 --debug
@@ -190,12 +197,12 @@ if "%NVME_ENABLED%"=="1" (
         echo Build it with: scripts\build.bat --arch %ARCH% --fs ext2 --debug
         exit /b 1
     )
-    if not exist "%FS_TEST_NTFS_IMG_PATH%" (
-        echo Image not found: %FS_TEST_NTFS_IMG_PATH%
+    if not exist "%NTFS_NVME_IMG_PATH%" (
+        echo Image not found: %NTFS_NVME_IMG_PATH%
         echo Build it with: scripts\build.bat --arch %ARCH% --fs ext2 --debug
         exit /b 1
     )
-    set "NVME_ARGS=-drive format=raw,file=%FS_TEST_EXT2_IMG_PATH%,if=none,id=fsxt0 -device nvme,drive=fsxt0,serial=exosfs0 -drive format=raw,file=%FS_TEST_FAT32_IMG_PATH%,if=none,id=fsxt1 -device nvme,drive=fsxt1,serial=exosfs1 -drive format=raw,file=%FS_TEST_NTFS_IMG_PATH%,if=none,id=fsxt2 -device nvme,drive=fsxt2,serial=exosfs2"
+    set "NVME_ARGS=-drive format=raw,file=%FS_TEST_EXT2_IMG_PATH%,if=none,id=fsxt0 -device nvme,drive=fsxt0,serial=exosfs0 -drive format=raw,file=%FS_TEST_FAT32_IMG_PATH%,if=none,id=fsxt1 -device nvme,drive=fsxt1,serial=exosfs1 -drive format=raw,file=%NTFS_NVME_IMG_PATH%,if=none,id=fsxt2 -device nvme,drive=fsxt2,serial=exosfs2"
 )
 
 if "%USE_UEFI%"=="1" (

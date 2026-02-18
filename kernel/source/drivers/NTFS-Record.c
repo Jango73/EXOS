@@ -32,6 +32,229 @@
 
 /***************************************************************************/
 
+static BOOL NtfsParseFileRecordAttributes(
+    const U8* RecordBuffer,
+    U32 RecordSize,
+    LPNTFS_FILE_RECORD_INFO RecordInfo,
+    U32* DataAttributeOffsetOut,
+    U32* DataAttributeLengthOut);
+
+/***************************************************************************/
+
+/**
+ * @brief Read one MFT record as a raw linear window from MFT start sector.
+ *
+ * This helper assumes the target record is linearly addressable from
+ * FileSystem->MftStartSector and copies exactly FileRecordSize bytes.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param Index MFT record index.
+ * @param RecordBufferOut Output allocated record buffer.
+ * @return TRUE on success, FALSE on read/allocation/geometry failure.
+ */
+static BOOL NtfsReadLinearFileRecordWindow(
+    LPNTFSFILESYSTEM FileSystem, U32 Index, U8** RecordBufferOut) {
+    U64 RecordOffset;
+    U64 SectorOffset64;
+    U32 SectorShift;
+    U32 SectorOffset;
+    U32 OffsetInSector;
+    U32 TotalBytes;
+    U32 NumSectors;
+    U32 ReadSize;
+    U32 RecordSector;
+    U8* ReadBuffer;
+    U8* RecordBuffer;
+
+    if (RecordBufferOut != NULL) *RecordBufferOut = NULL;
+    if (FileSystem == NULL || RecordBufferOut == NULL) return FALSE;
+
+    if (FileSystem->FileRecordSize == 0 || FileSystem->BytesPerSector == 0 ||
+        !NtfsIsPowerOfTwo(FileSystem->BytesPerSector)) {
+        return FALSE;
+    }
+
+    RecordOffset = NtfsMultiplyU32ToU64(Index, FileSystem->FileRecordSize);
+    SectorShift = NtfsLog2(FileSystem->BytesPerSector);
+    SectorOffset64 = NtfsU64ShiftRight(RecordOffset, SectorShift);
+    OffsetInSector = U64_Low32(RecordOffset) & (FileSystem->BytesPerSector - 1);
+
+    if (U64_High32(SectorOffset64) != 0) return FALSE;
+    SectorOffset = U64_Low32(SectorOffset64);
+
+    if (FileSystem->MftStartSector > 0xFFFFFFFF - SectorOffset) return FALSE;
+    RecordSector = FileSystem->MftStartSector + SectorOffset;
+
+    if (OffsetInSector > 0xFFFFFFFF - FileSystem->FileRecordSize) return FALSE;
+    TotalBytes = OffsetInSector + FileSystem->FileRecordSize;
+    NumSectors = TotalBytes / FileSystem->BytesPerSector;
+    if ((TotalBytes % FileSystem->BytesPerSector) != 0) NumSectors++;
+
+    if (NumSectors == 0 || NumSectors > 0xFFFFFFFF / FileSystem->BytesPerSector) return FALSE;
+    ReadSize = NumSectors * FileSystem->BytesPerSector;
+
+    ReadBuffer = (U8*)KernelHeapAlloc(ReadSize);
+    if (ReadBuffer == NULL) return FALSE;
+    if (!NtfsReadSectors(FileSystem, RecordSector, NumSectors, ReadBuffer, ReadSize)) {
+        KernelHeapFree(ReadBuffer);
+        return FALSE;
+    }
+
+    RecordBuffer = (U8*)KernelHeapAlloc(FileSystem->FileRecordSize);
+    if (RecordBuffer == NULL) {
+        KernelHeapFree(ReadBuffer);
+        return FALSE;
+    }
+
+    MemoryCopy(RecordBuffer, ReadBuffer + OffsetInSector, FileSystem->FileRecordSize);
+    KernelHeapFree(ReadBuffer);
+
+    *RecordBufferOut = RecordBuffer;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Validate one raw file record buffer and expose header.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param Index File-record index used for diagnostics.
+ * @param RecordBuffer File record buffer to validate in-place.
+ * @param HeaderOut Output validated header.
+ * @return TRUE on success, FALSE when header/fixup/size checks fail.
+ */
+static BOOL NtfsValidateFileRecordBuffer(
+    LPNTFSFILESYSTEM FileSystem, U32 Index, U8* RecordBuffer, NTFS_FILE_RECORD_HEADER* HeaderOut) {
+    NTFS_FILE_RECORD_HEADER Header;
+
+    if (HeaderOut != NULL) MemorySet(HeaderOut, 0, sizeof(NTFS_FILE_RECORD_HEADER));
+    if (FileSystem == NULL || RecordBuffer == NULL || HeaderOut == NULL) return FALSE;
+    if (FileSystem->FileRecordSize < sizeof(NTFS_FILE_RECORD_HEADER)) return FALSE;
+
+    MemoryCopy(&Header, RecordBuffer, sizeof(NTFS_FILE_RECORD_HEADER));
+    if (Header.Magic != NTFS_FILE_RECORD_MAGIC) return FALSE;
+
+    if (!NtfsApplyFileRecordFixup(
+            RecordBuffer,
+            FileSystem->FileRecordSize,
+            FileSystem->BytesPerSector,
+            Header.UpdateSequenceOffset,
+            Header.UpdateSequenceSize)) {
+        WARNING(TEXT("[NtfsValidateFileRecordBuffer] Fixup failed index=%u"), Index);
+        return FALSE;
+    }
+
+    MemoryCopy(&Header, RecordBuffer, sizeof(NTFS_FILE_RECORD_HEADER));
+    if (Header.RealSize > FileSystem->FileRecordSize) {
+        WARNING(TEXT("[NtfsValidateFileRecordBuffer] Invalid real size=%u index=%u"), Header.RealSize, Index);
+        return FALSE;
+    }
+    MemoryCopy(HeaderOut, &Header, sizeof(NTFS_FILE_RECORD_HEADER));
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Read one MFT record through the $MFT DATA runlist mapping.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param Index MFT file-record index to read.
+ * @param RecordBufferOut Output allocated record buffer.
+ * @param HeaderOut Output validated header.
+ * @return TRUE on success, FALSE otherwise.
+ */
+static BOOL NtfsLoadFileRecordBufferViaMftData(
+    LPNTFSFILESYSTEM FileSystem, U32 Index, U8** RecordBufferOut, NTFS_FILE_RECORD_HEADER* HeaderOut) {
+    U8* MftRecordBuffer;
+    NTFS_FILE_RECORD_HEADER MftHeader;
+    NTFS_FILE_RECORD_INFO MftRecordInfo;
+    U32 DataAttributeOffset;
+    U32 DataAttributeLength;
+    U8* RecordBuffer;
+    const U8* DataAttribute;
+    U64 RecordOffset;
+    U32 BytesRead;
+
+    if (RecordBufferOut != NULL) *RecordBufferOut = NULL;
+    if (HeaderOut != NULL) MemorySet(HeaderOut, 0, sizeof(NTFS_FILE_RECORD_HEADER));
+    if (FileSystem == NULL || RecordBufferOut == NULL || HeaderOut == NULL) return FALSE;
+
+    if (!NtfsReadLinearFileRecordWindow(FileSystem, 0, &MftRecordBuffer)) return FALSE;
+    if (!NtfsValidateFileRecordBuffer(FileSystem, 0, MftRecordBuffer, &MftHeader)) {
+        KernelHeapFree(MftRecordBuffer);
+        return FALSE;
+    }
+
+    MemorySet(&MftRecordInfo, 0, sizeof(NTFS_FILE_RECORD_INFO));
+    MftRecordInfo.Index = 0;
+    MftRecordInfo.RecordSize = FileSystem->FileRecordSize;
+    MftRecordInfo.UsedSize = MftHeader.RealSize;
+    MftRecordInfo.Flags = MftHeader.Flags;
+    MftRecordInfo.SequenceNumber = MftHeader.SequenceNumber;
+    MftRecordInfo.ReferenceCount = MftHeader.ReferenceCount;
+    MftRecordInfo.SequenceOfAttributesOffset = MftHeader.SequenceOfAttributesOffset;
+    MftRecordInfo.UpdateSequenceOffset = MftHeader.UpdateSequenceOffset;
+    MftRecordInfo.UpdateSequenceSize = MftHeader.UpdateSequenceSize;
+
+    DataAttributeOffset = 0;
+    DataAttributeLength = 0;
+    if (!NtfsParseFileRecordAttributes(
+            MftRecordBuffer,
+            FileSystem->FileRecordSize,
+            &MftRecordInfo,
+            &DataAttributeOffset,
+            &DataAttributeLength)) {
+        KernelHeapFree(MftRecordBuffer);
+        return FALSE;
+    }
+
+    if (!MftRecordInfo.HasDataAttribute || MftRecordInfo.DataIsResident) {
+        KernelHeapFree(MftRecordBuffer);
+        return FALSE;
+    }
+    if (DataAttributeLength < NTFS_ATTRIBUTE_HEADER_NON_RESIDENT_SIZE) {
+        KernelHeapFree(MftRecordBuffer);
+        return FALSE;
+    }
+
+    DataAttribute = MftRecordBuffer + DataAttributeOffset;
+    RecordBuffer = (U8*)KernelHeapAlloc(FileSystem->FileRecordSize);
+    if (RecordBuffer == NULL) {
+        KernelHeapFree(MftRecordBuffer);
+        return FALSE;
+    }
+
+    RecordOffset = NtfsMultiplyU32ToU64(Index, FileSystem->FileRecordSize);
+    BytesRead = 0;
+    if (!NtfsReadNonResidentDataAttributeRange(
+            FileSystem,
+            DataAttribute,
+            DataAttributeLength,
+            RecordOffset,
+            RecordBuffer,
+            FileSystem->FileRecordSize,
+            MftRecordInfo.DataSize,
+            &BytesRead) ||
+        BytesRead < FileSystem->FileRecordSize) {
+        KernelHeapFree(RecordBuffer);
+        KernelHeapFree(MftRecordBuffer);
+        return FALSE;
+    }
+
+    KernelHeapFree(MftRecordBuffer);
+    if (!NtfsValidateFileRecordBuffer(FileSystem, Index, RecordBuffer, HeaderOut)) {
+        KernelHeapFree(RecordBuffer);
+        return FALSE;
+    }
+
+    *RecordBufferOut = RecordBuffer;
+    return TRUE;
+}
+
+/***************************************************************************/
+
 /**
  * @brief Load one MFT file record into a dedicated contiguous buffer.
  *
@@ -48,16 +271,6 @@ BOOL NtfsLoadFileRecordBuffer(
     LPNTFSFILESYSTEM FileSystem, U32 Index, U8** RecordBufferOut, NTFS_FILE_RECORD_HEADER* HeaderOut) {
     static RATE_LIMITER DATA_SECTION InvalidRecordMagicWarningLimiter = {0};
     static BOOL DATA_SECTION InvalidRecordMagicWarningLimiterInitAttempted = FALSE;
-    U64 RecordOffset;
-    U64 SectorOffset64;
-    U32 SectorShift;
-    U32 SectorOffset;
-    U32 OffsetInSector;
-    U32 TotalBytes;
-    U32 NumSectors;
-    U32 ReadSize;
-    U32 RecordSector;
-    U8* ReadBuffer;
     U8* RecordBuffer;
     NTFS_FILE_RECORD_HEADER Header;
     U32 SuppressedWarnings;
@@ -75,68 +288,16 @@ BOOL NtfsLoadFileRecordBuffer(
         return FALSE;
     }
 
-    RecordOffset = NtfsMultiplyU32ToU64(Index, FileSystem->FileRecordSize);
-    SectorShift = NtfsLog2(FileSystem->BytesPerSector);
-    SectorOffset64 = NtfsU64ShiftRight(RecordOffset, SectorShift);
-    OffsetInSector = U64_Low32(RecordOffset) & (FileSystem->BytesPerSector - 1);
-
-    if (U64_High32(SectorOffset64) != 0) {
-        WARNING(TEXT("[NtfsLoadFileRecordBuffer] Sector offset too large index=%u"), Index);
+    if (!NtfsReadLinearFileRecordWindow(FileSystem, Index, &RecordBuffer)) {
         return FALSE;
     }
-    SectorOffset = (U32)U64_Low32(SectorOffset64);
+    if (!NtfsValidateFileRecordBuffer(FileSystem, Index, RecordBuffer, &Header)) {
+        if (Index != 0 && NtfsLoadFileRecordBufferViaMftData(FileSystem, Index, &RecordBuffer, &Header)) {
+            *RecordBufferOut = RecordBuffer;
+            MemoryCopy(HeaderOut, &Header, sizeof(NTFS_FILE_RECORD_HEADER));
+            return TRUE;
+        }
 
-    if (FileSystem->MftStartSector > 0xFFFFFFFF - SectorOffset) {
-        WARNING(TEXT("[NtfsLoadFileRecordBuffer] Record sector overflow index=%u"), Index);
-        return FALSE;
-    }
-    RecordSector = FileSystem->MftStartSector + SectorOffset;
-
-    if (OffsetInSector > 0xFFFFFFFF - FileSystem->FileRecordSize) {
-        WARNING(TEXT("[NtfsLoadFileRecordBuffer] Record size overflow index=%u"), Index);
-        return FALSE;
-    }
-    TotalBytes = OffsetInSector + FileSystem->FileRecordSize;
-    NumSectors = TotalBytes / FileSystem->BytesPerSector;
-    if ((TotalBytes % FileSystem->BytesPerSector) != 0) {
-        NumSectors++;
-    }
-
-    if (NumSectors == 0 || NumSectors > 0xFFFFFFFF / FileSystem->BytesPerSector) {
-        WARNING(TEXT("[NtfsLoadFileRecordBuffer] Invalid sector count index=%u"), Index);
-        return FALSE;
-    }
-    ReadSize = NumSectors * FileSystem->BytesPerSector;
-
-    ReadBuffer = (U8*)KernelHeapAlloc(ReadSize);
-    if (ReadBuffer == NULL) {
-        ERROR(TEXT("[NtfsLoadFileRecordBuffer] Unable to allocate %u bytes"), ReadSize);
-        return FALSE;
-    }
-
-    if (!NtfsReadSectors(FileSystem, RecordSector, NumSectors, ReadBuffer, ReadSize)) {
-        KernelHeapFree(ReadBuffer);
-        return FALSE;
-    }
-
-    RecordBuffer = (U8*)KernelHeapAlloc(FileSystem->FileRecordSize);
-    if (RecordBuffer == NULL) {
-        ERROR(TEXT("[NtfsLoadFileRecordBuffer] Unable to allocate %u bytes"), FileSystem->FileRecordSize);
-        KernelHeapFree(ReadBuffer);
-        return FALSE;
-    }
-
-    MemoryCopy(RecordBuffer, ReadBuffer + OffsetInSector, FileSystem->FileRecordSize);
-    KernelHeapFree(ReadBuffer);
-
-    if (FileSystem->FileRecordSize < sizeof(NTFS_FILE_RECORD_HEADER)) {
-        WARNING(TEXT("[NtfsLoadFileRecordBuffer] Record size too small=%u"), FileSystem->FileRecordSize);
-        KernelHeapFree(RecordBuffer);
-        return FALSE;
-    }
-
-    MemoryCopy(&Header, RecordBuffer, sizeof(NTFS_FILE_RECORD_HEADER));
-    if (Header.Magic != NTFS_FILE_RECORD_MAGIC) {
         SuppressedWarnings = 0;
         if (InvalidRecordMagicWarningLimiter.Initialized == FALSE && InvalidRecordMagicWarningLimiterInitAttempted == FALSE) {
             InvalidRecordMagicWarningLimiterInitAttempted = TRUE;
@@ -154,24 +315,6 @@ BOOL NtfsLoadFileRecordBuffer(
                 Index,
                 SuppressedWarnings);
         }
-        KernelHeapFree(RecordBuffer);
-        return FALSE;
-    }
-
-    if (!NtfsApplyFileRecordFixup(
-            RecordBuffer,
-            FileSystem->FileRecordSize,
-            FileSystem->BytesPerSector,
-            Header.UpdateSequenceOffset,
-            Header.UpdateSequenceSize)) {
-        WARNING(TEXT("[NtfsLoadFileRecordBuffer] Fixup failed index=%u"), Index);
-        KernelHeapFree(RecordBuffer);
-        return FALSE;
-    }
-
-    MemoryCopy(&Header, RecordBuffer, sizeof(NTFS_FILE_RECORD_HEADER));
-    if (Header.RealSize > FileSystem->FileRecordSize) {
-        WARNING(TEXT("[NtfsLoadFileRecordBuffer] Invalid real size=%u index=%u"), Header.RealSize, Index);
         KernelHeapFree(RecordBuffer);
         return FALSE;
     }
