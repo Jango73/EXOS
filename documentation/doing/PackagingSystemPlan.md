@@ -4,10 +4,8 @@
 
 - [x] **Read-only mount layer**: stable virtual filesystem mount/unmount flow for package volumes.
 - [ ] **Compression primitives**: zlib inflate path available in kernel for on-demand block decompression.
-- [ ] **Hashing primitives**: SHA-256 helper for package, file, and block validation.
+- [x] **Hashing primitives**: SHA-256 helper for package, file, and block validation.
 - [ ] **Signature primitives**: optional detached signature verification path.
-- [ ] **Userland tooling foundation**: implemented by this roadmap (Step 9), not assumed pre-existing.
-- [ ] **Snapshot persistence**: durable storage for active package set and rollback targets.
 
 ## Step 1 --- Freeze `.epk` binary format
 
@@ -25,6 +23,7 @@
 
 **Goal**: generate valid `.epk` archives from input folders.
 
+- [ ] Implement host-side packaging tools in `tools/` (Linux first, cross-oriented workflow).
 - [ ] Add a pack command that walks input folders and writes deterministic table of contents ordering.
 - [ ] Add chunking and zlib compression with configurable chunk size.
 - [ ] Compute file hashes, block hashes, and package hash.
@@ -107,6 +106,7 @@
 
 **Goal**: expose basic package operations to users and automation.
 
+- [ ] Keep `tools/` as the primary package creation path while native EXOS package management matures.
 - [ ] Implement `package list` command.
 - [ ] Implement `package add <file.epk>` command.
 - [ ] Implement `package remove <package-name>` command.

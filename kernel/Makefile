@@ -51,7 +51,7 @@ CFLAGS          = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
                   -DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DDEBUG_SPLIT=$(DEBUG_SPLIT) -DFORCE_PIC=$(FORCE_PIC) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) -DPROFILING=$(PROFILING) -DUSE_SYSCALL=$(USE_SYSCALL) -DSYSTEM_DATA_VIEW=$(SYSTEM_DATA_VIEW) \
                   -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) \
                   -DKERNEL_CONFIG_NAME=\"$(CONFIG_TOML_NAME)\" -DKERNEL_CONFIG_NAME_UPPER=\"$(CONFIG_TOML_NAME_UPPER)\" \
-                  -Iinclude -I../third -I../third/include -I../runtime/include
+                  -Iinclude -I../third -I../third/include -I../runtime/include -I../third/bearssl/inc -I../third/bearssl/src
 CFLAGS         += $(ARCH_CFLAGS)
 ifeq ($(KERNEL_LOG_DEFAULT_TAG_FILTER_SET),1)
 CFLAGS         += -DKERNEL_LOG_DEFAULT_TAG_FILTER=\"$(KERNEL_LOG_DEFAULT_TAG_FILTER)\"
@@ -89,6 +89,9 @@ SRC_C  = $(wildcard source/*.c) \
          ../third/bcrypt/blowfish.c \
          ../third/bcrypt/wrapbf.c \
          ../third/bcrypt/endian.c \
+         ../third/bearssl/src/hash/sha2small.c \
+         ../third/bearssl/src/codec/dec32be.c \
+         ../third/bearssl/src/codec/enc32be.c \
          ../third/utf8-hoehrmann/utf8-hoehrmann.c \
          ../runtime/source/exos-runtime-c.c
 SRC_S  = $(wildcard source/asm/*.asm) \
@@ -102,6 +105,7 @@ endif
 
 OBJ_C  = $(patsubst source/%.c, $(BUILD_DIR)/kernel/%.o, $(filter source/%.c, $(SRC_C))) \
          $(patsubst ../third/bcrypt/%.c, $(BUILD_DIR)/kernel/bcrypt_%.o, $(filter ../third/bcrypt/%.c, $(SRC_C))) \
+         $(patsubst ../third/bearssl/src/%.c, $(BUILD_DIR)/kernel/bearssl_%.o, $(filter ../third/bearssl/src/%.c, $(SRC_C))) \
          $(patsubst ../third/utf8-hoehrmann/%.c, $(BUILD_DIR)/kernel/utf8_%.o, $(filter ../third/utf8-hoehrmann/%.c, $(SRC_C))) \
          $(patsubst ../runtime/source/%.c, $(BUILD_DIR)/kernel/runtime_%.o, $(filter ../runtime/source/%.c, $(SRC_C)))
 OBJ_S  = $(patsubst source/%.asm, $(BUILD_DIR)/kernel/%.o, $(filter source/%.asm, $(SRC_S))) \
@@ -223,6 +227,10 @@ $(BUILD_DIR)/kernel/%.o: source/%.asm
 	$(NASM) $(AFLAGS) -o $@ $<
 
 $(BUILD_DIR)/kernel/bcrypt_%.o: ../third/bcrypt/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(BUILD_DIR)/kernel/bearssl_%.o: ../third/bearssl/src/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 

@@ -53,11 +53,20 @@ Used for password hashing. Sources in third/bcrypt (under Apache 2.0, see third/
 Compiled files in kernel: bcrypt.c, blowfish.c.
 bcrypt is copyright (c) 2002 Johnny Shelley <jshelley@cahaus.com>
 
+### BearSSL
+Used for SHA-256 hashing bridge in kernel crypt utilities. Sources in `third/bearssl` (MIT license, see `third/bearssl/LICENSE.txt` and `third/bearssl/README.txt`).
+Integrated SHA-256 sources: `third/bearssl/src/hash/sha2small.c`, `third/bearssl/src/codec/dec32be.c`, `third/bearssl/src/codec/enc32be.c`.
+BearSSL is copyright (c) 2016 Thomas Pornin <pornin@bolet.org>.
+
 ### utf8-hoehrmann
 Used for UTF-8 decoding in layout parsing. Sources in third/utf8-hoehrmann (MIT license, see headers).
 
 ### Fonts
 Bm437_IBM_VGA_8x16.otb from the Ultimate Oldschool PC Font Pack by VileR, licensed under CC BY-SA 4.0. See third/fonts/oldschool_pc_font_pack/ATTRIBUTION.txt and third/fonts/oldschool_pc_font_pack/LICENSE.TXT.
+
+## Disclaimer
+
+EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/contributors, nor the authors/contributors of bundled third-party software, can be held liable for any direct, indirect, incidental, special, exemplary, or consequential damages arising from the use of this project.
 
 ## Things it does
 
