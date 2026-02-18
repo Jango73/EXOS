@@ -853,6 +853,8 @@ Examples:
 The EPK package binary layout is frozen for parser/tooling integration in:
 - `documentation/EPKBinaryFormat.md`
 - `kernel/include/package/EpkFormat.h`
+- `kernel/include/package/EpkParser.h`
+- `kernel/source/package/EpkParser.c`
 
 The format is a strict on-disk contract:
 - fixed 128-byte header (`EPK_HEADER`) with explicit section offsets/sizes and package hash,
@@ -864,6 +866,13 @@ Compatibility is fail-closed by contract:
 - unknown flags or unsupported version are rejected,
 - reserved fields must stay zero,
 - malformed section bounds/order are rejected with deterministic validation status codes.
+
+Step-3 parser/validator behavior:
+- validates header layout and section bounds/order before deeper parsing,
+- parses TOC entries and block table into kernel-side parsed descriptors,
+- validates package hash (`SHA-256`) over package bytes excluding signature region,
+- optionally validates detached signature blob through `utils/Signature`,
+- returns stable validation status codes and logs explicit parse failures with function-tagged error messages.
 
 #### Runtime access paths
 

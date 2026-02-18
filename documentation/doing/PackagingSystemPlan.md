@@ -36,11 +36,11 @@
 
 **Goal**: safely open and verify package metadata without exposing file content yet.
 
-- [ ] Implement header parsing and structural bounds checks.
-- [ ] Implement package hash validation.
-- [ ] Implement optional signature verification flow.
-- [ ] Parse table of contents and block table into kernel structures.
-- [ ] Reject malformed package files with explicit error logs.
+- [x] Implement header parsing and structural bounds checks.
+- [x] Implement package hash validation.
+- [x] Implement optional signature verification flow.
+- [x] Parse table of contents and block table into kernel structures.
+- [x] Reject malformed package files with explicit error logs.
 
 **Success**: kernel can scan package folders and classify each package as valid or invalid.
 
