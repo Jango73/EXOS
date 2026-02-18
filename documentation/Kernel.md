@@ -32,6 +32,7 @@
 - [Storage and Filesystems](#storage-and-filesystems)
   - [File systems](#file-systems)
     - [Mounted volume naming](#mounted-volume-naming)
+    - [EPK package format](#epk-package-format)
   - [EXOS File System - EXFS](#exos-file-system---exfs)
   - [Filesystem Cluster cache](#filesystem-cluster-cache)
   - [Foreign File systems](#foreign-file-systems)
@@ -845,6 +846,23 @@ Examples:
 - `/fs/u0p0`
 - `/fs/f0p0`
 - `/fs/r0p0`
+
+#### EPK package format
+
+The EPK package binary layout is frozen for parser/tooling integration in:
+- `documentation/EPKBinaryFormat.md`
+- `kernel/include/package/EpkFormat.h`
+
+The format is a strict on-disk contract:
+- fixed 128-byte header (`EPK_HEADER`) with explicit section offsets/sizes and package hash,
+- TOC section (`EPK_TOC_HEADER` + `EPK_TOC_ENTRY` records + variable UTF-8 path blobs),
+- block table section (`EPK_BLOCK_ENTRY` records for compressed chunks),
+- dedicated manifest blob (`manifest.toml`) and optional detached signature blob.
+
+Compatibility is fail-closed by contract:
+- unknown flags or unsupported version are rejected,
+- reserved fields must stay zero,
+- malformed section bounds/order are rejected with deterministic validation status codes.
 
 #### Runtime access paths
 

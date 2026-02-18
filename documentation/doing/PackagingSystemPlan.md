@@ -11,11 +11,11 @@
 
 **Goal**: define a strict, versioned package format that can be validated at mount time.
 
-- [ ] Finalize fixed header fields (`Magic`, `Version`, offsets, sizes, flags).
-- [ ] Finalize table of contents entry layout (file, folder, folder alias, metadata).
-- [ ] Finalize block table layout for chunked compressed content.
-- [ ] Finalize manifest blob embedding and optional signature block.
-- [ ] Define compatibility policy for unknown flags and future versions.
+- [x] Finalize fixed header fields (`Magic`, `Version`, offsets, sizes, flags).
+- [x] Finalize table of contents entry layout (file, folder, folder alias, metadata).
+- [x] Finalize block table layout for chunked compressed content.
+- [x] Finalize manifest blob embedding and optional signature block.
+- [x] Define compatibility policy for unknown flags and future versions.
 
 **Success**: one specification file and one parser contract produce deterministic validation results.
 
