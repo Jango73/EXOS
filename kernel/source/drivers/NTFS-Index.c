@@ -523,6 +523,7 @@ static BOOL NtfsLoadFolderIndexStreams(
     U32 ReferencedRecordCount;
     U32 EntryOffset;
     U32 Index;
+    BOOL HasAttributeListParseFailure;
 
     if (IndexRootValueOut != NULL) *IndexRootValueOut = NULL;
     if (IndexRootValueSizeOut != NULL) *IndexRootValueSizeOut = 0;
@@ -562,6 +563,11 @@ static BOOL NtfsLoadFolderIndexStreams(
         return FALSE;
     }
 
+    if (*IndexRootValueOut != NULL && *IndexAllocationDataOut != NULL && *BitmapDataOut != NULL) {
+        KernelHeapFree(BaseRecordBuffer);
+        return TRUE;
+    }
+
     AttributeListAttribute = NULL;
     AttributeListAttributeLength = 0;
     if (!NtfsFindFirstAttributeByType(
@@ -590,10 +596,11 @@ static BOOL NtfsLoadFolderIndexStreams(
             &AttributeListValueSize)) {
         WARNING(TEXT("[NtfsLoadFolderIndexStreams] Unable to read ATTRIBUTE_LIST index=%u"), FolderIndex);
         KernelHeapFree(BaseRecordBuffer);
-        return FALSE;
+        return TRUE;
     }
 
     ReferencedRecordCount = 0;
+    HasAttributeListParseFailure = FALSE;
     EntryOffset = 0;
     while (EntryOffset + NTFS_ATTRIBUTE_LIST_ENTRY_MIN_SIZE <= AttributeListValueSize) {
         const U8* Entry = AttributeListValue + EntryOffset;
@@ -604,9 +611,8 @@ static BOOL NtfsLoadFolderIndexStreams(
             WARNING(TEXT("[NtfsLoadFolderIndexStreams] Invalid ATTRIBUTE_LIST entry length=%u index=%u"),
                 EntryLength,
                 FolderIndex);
-            if (AttributeListValue != NULL) KernelHeapFree(AttributeListValue);
-            KernelHeapFree(BaseRecordBuffer);
-            return FALSE;
+            HasAttributeListParseFailure = TRUE;
+            break;
         }
 
         if (EntryOffset > AttributeListValueSize - EntryLength) {
@@ -614,9 +620,8 @@ static BOOL NtfsLoadFolderIndexStreams(
                 EntryOffset,
                 EntryLength,
                 FolderIndex);
-            if (AttributeListValue != NULL) KernelHeapFree(AttributeListValue);
-            KernelHeapFree(BaseRecordBuffer);
-            return FALSE;
+            HasAttributeListParseFailure = TRUE;
+            break;
         }
 
         if (EntryType == NTFS_ATTRIBUTE_INDEX_ROOT ||
@@ -647,6 +652,10 @@ static BOOL NtfsLoadFolderIndexStreams(
         }
 
         EntryOffset += EntryLength;
+
+        if (*IndexRootValueOut != NULL && *IndexAllocationDataOut != NULL && *BitmapDataOut != NULL) {
+            break;
+        }
     }
 
     for (Index = 0; Index < ReferencedRecordCount; Index++) {
@@ -660,9 +669,27 @@ static BOOL NtfsLoadFolderIndexStreams(
             WARNING(TEXT("[NtfsLoadFolderIndexStreams] Unable to load extension record index=%u base=%u"),
                 RecordIndex,
                 FolderIndex);
-            if (AttributeListValue != NULL) KernelHeapFree(AttributeListValue);
-            KernelHeapFree(BaseRecordBuffer);
-            return FALSE;
+            continue;
+        }
+
+        if (U64_Cmp(RecordHeader.BaseRecord, U64_FromU32(0)) != 0) {
+            U32 BaseRecordIndex;
+            U16 BaseRecordSequence;
+
+            if (!NtfsDecodeFileReference(
+                    (const U8*)&RecordHeader.BaseRecord,
+                    &BaseRecordIndex,
+                    &BaseRecordSequence) ||
+                BaseRecordIndex != FolderIndex) {
+                WARNING(TEXT("[NtfsLoadFolderIndexStreams] Ignoring foreign extension record index=%u base=%u expected=%u"),
+                    RecordIndex,
+                    BaseRecordIndex,
+                    FolderIndex);
+                UNUSED(BaseRecordSequence);
+                KernelHeapFree(RecordBuffer);
+                continue;
+            }
+            UNUSED(BaseRecordSequence);
         }
 
         NtfsInitFileRecordInfoFromHeader(FileSystem, RecordIndex, &RecordHeader, &RecordInfo);
@@ -680,12 +707,18 @@ static BOOL NtfsLoadFolderIndexStreams(
                 RecordIndex,
                 FolderIndex);
             KernelHeapFree(RecordBuffer);
-            if (AttributeListValue != NULL) KernelHeapFree(AttributeListValue);
-            KernelHeapFree(BaseRecordBuffer);
-            return FALSE;
+            continue;
         }
 
         KernelHeapFree(RecordBuffer);
+
+        if (*IndexRootValueOut != NULL && *IndexAllocationDataOut != NULL && *BitmapDataOut != NULL) {
+            break;
+        }
+    }
+
+    if (HasAttributeListParseFailure) {
+        WARNING(TEXT("[NtfsLoadFolderIndexStreams] ATTRIBUTE_LIST parsing stopped early index=%u"), FolderIndex);
     }
 
     if (AttributeListValue != NULL) KernelHeapFree(AttributeListValue);
