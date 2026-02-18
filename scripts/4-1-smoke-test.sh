@@ -179,10 +179,12 @@ function SetImageKeyboardLayout() {
 
     OffsetMegabytes=$((FileSystemOffset / 1048576))
     OffsetRemainder=$((FileSystemOffset % 1048576))
-    if [ "$OffsetRemainder" -eq 0 ]; then
-        dd if="$ImagePath" of="$PartitionImage" bs=1M skip="$OffsetMegabytes" status=none
-    else
-        dd if="$ImagePath" of="$PartitionImage" bs=1 skip="$FileSystemOffset" status=none
+    if ! dd if="$ImagePath" of="$PartitionImage" iflag=skip_bytes skip="$FileSystemOffset" bs=1M status=none 2>/dev/null; then
+        if [ "$OffsetRemainder" -eq 0 ]; then
+            dd if="$ImagePath" of="$PartitionImage" bs=1M skip="$OffsetMegabytes" status=none
+        else
+            dd if="$ImagePath" of="$PartitionImage" bs=1 skip="$FileSystemOffset" status=none
+        fi
     fi
     if ! debugfs -R "cat /exos.toml" "$PartitionImage" > "$ConfigFile" 2>/dev/null; then
         rm -f "$PartitionImage" "$ConfigFile" "$PatchedConfigFile"
@@ -531,7 +533,9 @@ function AssertDownloadedFileSize() {
 
     FsOffset="$CURRENT_FS_OFFSET"
     PartitionImage="$(mktemp)"
-    dd if="$CURRENT_IMAGE_PATH" of="$PartitionImage" bs=1 skip="$FsOffset" status=none
+    if ! dd if="$CURRENT_IMAGE_PATH" of="$PartitionImage" iflag=skip_bytes skip="$FsOffset" bs=1M status=none 2>/dev/null; then
+        dd if="$CURRENT_IMAGE_PATH" of="$PartitionImage" bs=1 skip="$FsOffset" status=none
+    fi
     DownloadedSize="$(debugfs -R "stat $DownloadedPath" "$PartitionImage" 2>/dev/null | sed -n 's/.*Size:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n 1)"
     rm -f "$PartitionImage"
 
