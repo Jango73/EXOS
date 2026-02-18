@@ -35,6 +35,30 @@
 #define NTFS_TRAVERSE_ERROR_SUBNODE_LENGTH 0x1006
 #define NTFS_TRAVERSE_ERROR_SUBNODE_VCN 0x1007
 #define NTFS_TRAVERSE_ERROR_MISSING_LAST_ENTRY 0x1008
+#define NTFS_ATTRIBUTE_LIST_ENTRY_MIN_SIZE 0x1A
+#define NTFS_MAX_ATTRIBUTE_LIST_RECORD_REFERENCES 256
+
+/***************************************************************************/
+
+/**
+ * @brief Check whether one UTF-16LE name matches "$I30".
+ *
+ * @param NameUtf16 UTF-16LE name pointer.
+ * @param NameLength Name length in UTF-16 code units.
+ * @return TRUE when the name is "$I30" (case-insensitive ASCII), FALSE otherwise.
+ */
+static BOOL NtfsIsI30Utf16Name(const U8* NameUtf16, U32 NameLength) {
+    static const USTR NtfsI30Name[4] = {'$', 'I', '3', '0'};
+
+    if (NameUtf16 == NULL) return FALSE;
+    if (NameLength != ARRAY_COUNT(NtfsI30Name)) return FALSE;
+
+    return Utf16LeCompareCaseInsensitiveAscii(
+        (LPCUSTR)NameUtf16,
+        NameLength,
+        NtfsI30Name,
+        ARRAY_COUNT(NtfsI30Name));
+}
 
 /***************************************************************************/
 
@@ -46,7 +70,6 @@
  * @return TRUE when unnamed or "$I30", FALSE otherwise.
  */
 static BOOL NtfsIsI30AttributeName(const U8* Attribute, U32 AttributeLength) {
-    static const USTR NtfsI30Name[4] = {'$', 'I', '3', '0'};
     U8 NameLength;
     U16 NameOffset;
 
@@ -59,11 +82,7 @@ static BOOL NtfsIsI30AttributeName(const U8* Attribute, U32 AttributeLength) {
     if (NameOffset > AttributeLength) return FALSE;
     if (((U32)NameLength) > (AttributeLength - NameOffset) / sizeof(U16)) return FALSE;
 
-    return Utf16LeCompareCaseInsensitiveAscii(
-        (LPCUSTR)(Attribute + NameOffset),
-        NameLength,
-        NtfsI30Name,
-        ARRAY_COUNT(NtfsI30Name));
+    return NtfsIsI30Utf16Name(Attribute + NameOffset, NameLength);
 }
 
 /***************************************************************************/
@@ -277,6 +296,400 @@ static BOOL NtfsDecodeFileReference(
     RecordIndex = NtfsLoadU32(FileReference);
     *RecordIndexOut = RecordIndex;
     *SequenceNumberOut = NtfsLoadU16(FileReference + 6);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Initialize parsed file-record metadata from one on-disk header.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param RecordIndex MFT record index.
+ * @param Header File-record header.
+ * @param RecordInfoOut Output metadata structure.
+ */
+static void NtfsInitFileRecordInfoFromHeader(
+    LPNTFSFILESYSTEM FileSystem,
+    U32 RecordIndex,
+    const NTFS_FILE_RECORD_HEADER* Header,
+    LPNTFS_FILE_RECORD_INFO RecordInfoOut) {
+    if (RecordInfoOut == NULL) return;
+
+    MemorySet(RecordInfoOut, 0, sizeof(NTFS_FILE_RECORD_INFO));
+    if (FileSystem == NULL || Header == NULL) return;
+
+    RecordInfoOut->Index = RecordIndex;
+    RecordInfoOut->RecordSize = FileSystem->FileRecordSize;
+    RecordInfoOut->UsedSize = Header->RealSize;
+    RecordInfoOut->Flags = Header->Flags;
+    RecordInfoOut->SequenceNumber = Header->SequenceNumber;
+    RecordInfoOut->ReferenceCount = Header->ReferenceCount;
+    RecordInfoOut->SequenceOfAttributesOffset = Header->SequenceOfAttributesOffset;
+    RecordInfoOut->UpdateSequenceOffset = Header->UpdateSequenceOffset;
+    RecordInfoOut->UpdateSequenceSize = Header->UpdateSequenceSize;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Find the first attribute of one specific type inside one file record.
+ *
+ * @param RecordBuffer File record bytes.
+ * @param RecordInfo Parsed file-record metadata.
+ * @param AttributeType Target attribute type.
+ * @param AttributeOut Output pointer to found attribute.
+ * @param AttributeLengthOut Output attribute total length.
+ * @return TRUE on success, FALSE when malformed record.
+ */
+static BOOL NtfsFindFirstAttributeByType(
+    const U8* RecordBuffer,
+    LPNTFS_FILE_RECORD_INFO RecordInfo,
+    U32 AttributeType,
+    const U8** AttributeOut,
+    U32* AttributeLengthOut) {
+    U32 AttributeOffset;
+
+    if (AttributeOut != NULL) *AttributeOut = NULL;
+    if (AttributeLengthOut != NULL) *AttributeLengthOut = 0;
+    if (RecordBuffer == NULL || RecordInfo == NULL) return FALSE;
+
+    AttributeOffset = RecordInfo->SequenceOfAttributesOffset;
+    while (AttributeOffset + 8 <= RecordInfo->UsedSize) {
+        U32 CurrentAttributeType = NtfsLoadU32(RecordBuffer + AttributeOffset);
+        U32 CurrentAttributeLength;
+
+        if (CurrentAttributeType == NTFS_ATTRIBUTE_END_MARKER) return TRUE;
+
+        CurrentAttributeLength = NtfsLoadU32(RecordBuffer + AttributeOffset + 4);
+        if (CurrentAttributeLength < NTFS_ATTRIBUTE_HEADER_RESIDENT_SIZE) return FALSE;
+        if (AttributeOffset > RecordInfo->UsedSize - CurrentAttributeLength) return FALSE;
+
+        if (CurrentAttributeType == AttributeType) {
+            if (AttributeOut != NULL) *AttributeOut = RecordBuffer + AttributeOffset;
+            if (AttributeLengthOut != NULL) *AttributeLengthOut = CurrentAttributeLength;
+            return TRUE;
+        }
+
+        AttributeOffset += CurrentAttributeLength;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Check whether one ATTRIBUTE_LIST entry targets an "$I30" index stream.
+ *
+ * @param Entry Attribute-list entry pointer.
+ * @param EntryLength Entry length in bytes.
+ * @return TRUE when unnamed or "$I30", FALSE otherwise.
+ */
+static BOOL NtfsIsI30AttributeListEntry(const U8* Entry, U32 EntryLength) {
+    U8 NameLength;
+    U8 NameOffset;
+
+    if (Entry == NULL || EntryLength < NTFS_ATTRIBUTE_LIST_ENTRY_MIN_SIZE) return FALSE;
+
+    NameLength = Entry[6];
+    if (NameLength == 0) return TRUE;
+
+    NameOffset = Entry[7];
+    if (NameOffset > EntryLength) return FALSE;
+    if (((U32)NameLength) > (EntryLength - NameOffset) / sizeof(U16)) return FALSE;
+
+    return NtfsIsI30Utf16Name(Entry + NameOffset, NameLength);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Load folder index streams from one file record when present.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param RecordBuffer File record bytes.
+ * @param RecordInfo Parsed file-record metadata.
+ * @param IndexRootValueOut In/out INDEX_ROOT payload.
+ * @param IndexRootValueSizeOut In/out INDEX_ROOT payload size.
+ * @param IndexAllocationDataOut In/out INDEX_ALLOCATION payload.
+ * @param IndexAllocationDataSizeOut In/out INDEX_ALLOCATION payload size.
+ * @param BitmapDataOut In/out BITMAP payload.
+ * @param BitmapDataSizeOut In/out BITMAP payload size.
+ * @return TRUE on success, FALSE on malformed metadata or read failure.
+ */
+static BOOL NtfsLoadFolderIndexStreamsFromRecord(
+    LPNTFSFILESYSTEM FileSystem,
+    const U8* RecordBuffer,
+    LPNTFS_FILE_RECORD_INFO RecordInfo,
+    U8** IndexRootValueOut,
+    U32* IndexRootValueSizeOut,
+    U8** IndexAllocationDataOut,
+    U32* IndexAllocationDataSizeOut,
+    U8** BitmapDataOut,
+    U32* BitmapDataSizeOut) {
+    const U8* IndexRootAttribute;
+    U32 IndexRootAttributeLength;
+    const U8* IndexAllocationAttribute;
+    U32 IndexAllocationAttributeLength;
+    const U8* BitmapAttribute;
+    U32 BitmapAttributeLength;
+
+    if (FileSystem == NULL || RecordBuffer == NULL || RecordInfo == NULL) return FALSE;
+    if (IndexRootValueOut == NULL || IndexRootValueSizeOut == NULL) return FALSE;
+    if (IndexAllocationDataOut == NULL || IndexAllocationDataSizeOut == NULL) return FALSE;
+    if (BitmapDataOut == NULL || BitmapDataSizeOut == NULL) return FALSE;
+
+    if (!NtfsParseFolderIndexAttributes(
+            RecordBuffer,
+            RecordInfo,
+            &IndexRootAttribute,
+            &IndexRootAttributeLength,
+            &IndexAllocationAttribute,
+            &IndexAllocationAttributeLength,
+            &BitmapAttribute,
+            &BitmapAttributeLength)) {
+        return FALSE;
+    }
+
+    if (*IndexRootValueOut == NULL && IndexRootAttribute != NULL) {
+        if (!NtfsReadAttributeValue(
+                FileSystem,
+                IndexRootAttribute,
+                IndexRootAttributeLength,
+                IndexRootValueOut,
+                IndexRootValueSizeOut)) {
+            return FALSE;
+        }
+    }
+
+    if (*IndexAllocationDataOut == NULL && IndexAllocationAttribute != NULL) {
+        if (!NtfsReadAttributeValue(
+                FileSystem,
+                IndexAllocationAttribute,
+                IndexAllocationAttributeLength,
+                IndexAllocationDataOut,
+                IndexAllocationDataSizeOut)) {
+            return FALSE;
+        }
+    }
+
+    if (*BitmapDataOut == NULL && BitmapAttribute != NULL) {
+        if (!NtfsReadAttributeValue(
+                FileSystem,
+                BitmapAttribute,
+                BitmapAttributeLength,
+                BitmapDataOut,
+                BitmapDataSizeOut)) {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Load complete folder index streams, including ATTRIBUTE_LIST extents.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param FolderIndex Folder record index.
+ * @param IndexRootValueOut Output INDEX_ROOT payload.
+ * @param IndexRootValueSizeOut Output INDEX_ROOT payload size.
+ * @param IndexAllocationDataOut Output INDEX_ALLOCATION payload.
+ * @param IndexAllocationDataSizeOut Output INDEX_ALLOCATION payload size.
+ * @param BitmapDataOut Output BITMAP payload.
+ * @param BitmapDataSizeOut Output BITMAP payload size.
+ * @return TRUE on success, FALSE on malformed metadata or read failure.
+ */
+static BOOL NtfsLoadFolderIndexStreams(
+    LPNTFSFILESYSTEM FileSystem,
+    U32 FolderIndex,
+    U8** IndexRootValueOut,
+    U32* IndexRootValueSizeOut,
+    U8** IndexAllocationDataOut,
+    U32* IndexAllocationDataSizeOut,
+    U8** BitmapDataOut,
+    U32* BitmapDataSizeOut) {
+    U8* BaseRecordBuffer;
+    NTFS_FILE_RECORD_HEADER BaseRecordHeader;
+    NTFS_FILE_RECORD_INFO BaseRecordInfo;
+    const U8* AttributeListAttribute;
+    U32 AttributeListAttributeLength;
+    U8* AttributeListValue;
+    U32 AttributeListValueSize;
+    U32 ReferencedRecordIndices[NTFS_MAX_ATTRIBUTE_LIST_RECORD_REFERENCES];
+    U32 ReferencedRecordCount;
+    U32 EntryOffset;
+    U32 Index;
+
+    if (IndexRootValueOut != NULL) *IndexRootValueOut = NULL;
+    if (IndexRootValueSizeOut != NULL) *IndexRootValueSizeOut = 0;
+    if (IndexAllocationDataOut != NULL) *IndexAllocationDataOut = NULL;
+    if (IndexAllocationDataSizeOut != NULL) *IndexAllocationDataSizeOut = 0;
+    if (BitmapDataOut != NULL) *BitmapDataOut = NULL;
+    if (BitmapDataSizeOut != NULL) *BitmapDataSizeOut = 0;
+    if (FileSystem == NULL) return FALSE;
+    if (IndexRootValueOut == NULL || IndexRootValueSizeOut == NULL) return FALSE;
+    if (IndexAllocationDataOut == NULL || IndexAllocationDataSizeOut == NULL) return FALSE;
+    if (BitmapDataOut == NULL || BitmapDataSizeOut == NULL) return FALSE;
+
+    if (!NtfsLoadFileRecordBuffer(FileSystem, FolderIndex, &BaseRecordBuffer, &BaseRecordHeader)) {
+        WARNING(TEXT("[NtfsLoadFolderIndexStreams] Unable to load folder record index=%u"), FolderIndex);
+        return FALSE;
+    }
+
+    NtfsInitFileRecordInfoFromHeader(FileSystem, FolderIndex, &BaseRecordHeader, &BaseRecordInfo);
+    if ((BaseRecordInfo.Flags & NTFS_FR_FLAG_FOLDER) == 0) {
+        WARNING(TEXT("[NtfsLoadFolderIndexStreams] Record is not a folder index=%u flags=%x"), FolderIndex, BaseRecordInfo.Flags);
+        KernelHeapFree(BaseRecordBuffer);
+        return FALSE;
+    }
+
+    if (!NtfsLoadFolderIndexStreamsFromRecord(
+            FileSystem,
+            BaseRecordBuffer,
+            &BaseRecordInfo,
+            IndexRootValueOut,
+            IndexRootValueSizeOut,
+            IndexAllocationDataOut,
+            IndexAllocationDataSizeOut,
+            BitmapDataOut,
+            BitmapDataSizeOut)) {
+        WARNING(TEXT("[NtfsLoadFolderIndexStreams] Unable to parse folder index attributes index=%u"), FolderIndex);
+        KernelHeapFree(BaseRecordBuffer);
+        return FALSE;
+    }
+
+    AttributeListAttribute = NULL;
+    AttributeListAttributeLength = 0;
+    if (!NtfsFindFirstAttributeByType(
+            BaseRecordBuffer,
+            &BaseRecordInfo,
+            NTFS_ATTRIBUTE_ATTRIBUTE_LIST,
+            &AttributeListAttribute,
+            &AttributeListAttributeLength)) {
+        WARNING(TEXT("[NtfsLoadFolderIndexStreams] Unable to parse ATTRIBUTE_LIST index=%u"), FolderIndex);
+        KernelHeapFree(BaseRecordBuffer);
+        return FALSE;
+    }
+
+    if (AttributeListAttribute == NULL) {
+        KernelHeapFree(BaseRecordBuffer);
+        return TRUE;
+    }
+
+    AttributeListValue = NULL;
+    AttributeListValueSize = 0;
+    if (!NtfsReadAttributeValue(
+            FileSystem,
+            AttributeListAttribute,
+            AttributeListAttributeLength,
+            &AttributeListValue,
+            &AttributeListValueSize)) {
+        WARNING(TEXT("[NtfsLoadFolderIndexStreams] Unable to read ATTRIBUTE_LIST index=%u"), FolderIndex);
+        KernelHeapFree(BaseRecordBuffer);
+        return FALSE;
+    }
+
+    ReferencedRecordCount = 0;
+    EntryOffset = 0;
+    while (EntryOffset + NTFS_ATTRIBUTE_LIST_ENTRY_MIN_SIZE <= AttributeListValueSize) {
+        const U8* Entry = AttributeListValue + EntryOffset;
+        U32 EntryType = NtfsLoadU32(Entry);
+        U16 EntryLength = NtfsLoadU16(Entry + 4);
+
+        if (EntryLength < NTFS_ATTRIBUTE_LIST_ENTRY_MIN_SIZE) {
+            WARNING(TEXT("[NtfsLoadFolderIndexStreams] Invalid ATTRIBUTE_LIST entry length=%u index=%u"),
+                EntryLength,
+                FolderIndex);
+            if (AttributeListValue != NULL) KernelHeapFree(AttributeListValue);
+            KernelHeapFree(BaseRecordBuffer);
+            return FALSE;
+        }
+
+        if (EntryOffset > AttributeListValueSize - EntryLength) {
+            WARNING(TEXT("[NtfsLoadFolderIndexStreams] ATTRIBUTE_LIST entry out of bounds offset=%u length=%u index=%u"),
+                EntryOffset,
+                EntryLength,
+                FolderIndex);
+            if (AttributeListValue != NULL) KernelHeapFree(AttributeListValue);
+            KernelHeapFree(BaseRecordBuffer);
+            return FALSE;
+        }
+
+        if (EntryType == NTFS_ATTRIBUTE_INDEX_ROOT ||
+            EntryType == NTFS_ATTRIBUTE_INDEX_ALLOCATION ||
+            EntryType == NTFS_ATTRIBUTE_BITMAP) {
+            U32 ReferencedRecordIndex;
+            U16 ReferencedSequence;
+            BOOL AlreadyReferenced;
+
+            if (NtfsIsI30AttributeListEntry(Entry, EntryLength) &&
+                NtfsDecodeFileReference(Entry + 16, &ReferencedRecordIndex, &ReferencedSequence) &&
+                NtfsIsValidFileRecordIndex(FileSystem, ReferencedRecordIndex)) {
+                UNUSED(ReferencedSequence);
+                AlreadyReferenced = FALSE;
+                for (Index = 0; Index < ReferencedRecordCount; Index++) {
+                    if (ReferencedRecordIndices[Index] == ReferencedRecordIndex) {
+                        AlreadyReferenced = TRUE;
+                        break;
+                    }
+                }
+
+                if (!AlreadyReferenced &&
+                    ReferencedRecordCount < NTFS_MAX_ATTRIBUTE_LIST_RECORD_REFERENCES) {
+                    ReferencedRecordIndices[ReferencedRecordCount] = ReferencedRecordIndex;
+                    ReferencedRecordCount++;
+                }
+            }
+        }
+
+        EntryOffset += EntryLength;
+    }
+
+    for (Index = 0; Index < ReferencedRecordCount; Index++) {
+        U32 RecordIndex = ReferencedRecordIndices[Index];
+        U8* RecordBuffer;
+        NTFS_FILE_RECORD_HEADER RecordHeader;
+        NTFS_FILE_RECORD_INFO RecordInfo;
+
+        if (RecordIndex == FolderIndex) continue;
+        if (!NtfsLoadFileRecordBuffer(FileSystem, RecordIndex, &RecordBuffer, &RecordHeader)) {
+            WARNING(TEXT("[NtfsLoadFolderIndexStreams] Unable to load extension record index=%u base=%u"),
+                RecordIndex,
+                FolderIndex);
+            if (AttributeListValue != NULL) KernelHeapFree(AttributeListValue);
+            KernelHeapFree(BaseRecordBuffer);
+            return FALSE;
+        }
+
+        NtfsInitFileRecordInfoFromHeader(FileSystem, RecordIndex, &RecordHeader, &RecordInfo);
+        if (!NtfsLoadFolderIndexStreamsFromRecord(
+                FileSystem,
+                RecordBuffer,
+                &RecordInfo,
+                IndexRootValueOut,
+                IndexRootValueSizeOut,
+                IndexAllocationDataOut,
+                IndexAllocationDataSizeOut,
+                BitmapDataOut,
+                BitmapDataSizeOut)) {
+            WARNING(TEXT("[NtfsLoadFolderIndexStreams] Unable to parse extension index attributes index=%u base=%u"),
+                RecordIndex,
+                FolderIndex);
+            KernelHeapFree(RecordBuffer);
+            if (AttributeListValue != NULL) KernelHeapFree(AttributeListValue);
+            KernelHeapFree(BaseRecordBuffer);
+            return FALSE;
+        }
+
+        KernelHeapFree(RecordBuffer);
+    }
+
+    if (AttributeListValue != NULL) KernelHeapFree(AttributeListValue);
+    KernelHeapFree(BaseRecordBuffer);
     return TRUE;
 }
 
@@ -831,15 +1244,6 @@ BOOL NtfsEnumerateFolderByIndex(
     U32* EntryCountOut,
     U32* TotalEntriesOut) {
     LPNTFSFILESYSTEM NtfsFileSystem;
-    U8* RecordBuffer;
-    NTFS_FILE_RECORD_HEADER RecordHeader;
-    NTFS_FILE_RECORD_INFO RecordInfo;
-    const U8* IndexRootAttribute;
-    U32 IndexRootAttributeLength;
-    const U8* IndexAllocationAttribute;
-    U32 IndexAllocationAttributeLength;
-    const U8* BitmapAttribute;
-    U32 BitmapAttributeLength;
     U8* IndexRootValue;
     U32 IndexRootValueSize;
     U8* IndexAllocationData;
@@ -863,63 +1267,32 @@ BOOL NtfsEnumerateFolderByIndex(
         if (FileSystem->Driver != &NTFSDriver) return FALSE;
         NtfsFileSystem = (LPNTFSFILESYSTEM)FileSystem;
 
-        if (!NtfsLoadFileRecordBuffer(NtfsFileSystem, FolderIndex, &RecordBuffer, &RecordHeader)) {
-            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Unable to load folder record index=%u"), FolderIndex);
-            return FALSE;
-        }
-
-        MemorySet(&RecordInfo, 0, sizeof(NTFS_FILE_RECORD_INFO));
-        RecordInfo.Index = FolderIndex;
-        RecordInfo.RecordSize = NtfsFileSystem->FileRecordSize;
-        RecordInfo.UsedSize = RecordHeader.RealSize;
-        RecordInfo.Flags = RecordHeader.Flags;
-        RecordInfo.SequenceNumber = RecordHeader.SequenceNumber;
-        RecordInfo.ReferenceCount = RecordHeader.ReferenceCount;
-        RecordInfo.SequenceOfAttributesOffset = RecordHeader.SequenceOfAttributesOffset;
-        RecordInfo.UpdateSequenceOffset = RecordHeader.UpdateSequenceOffset;
-        RecordInfo.UpdateSequenceSize = RecordHeader.UpdateSequenceSize;
-
-        if ((RecordInfo.Flags & NTFS_FR_FLAG_FOLDER) == 0) {
-            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Record is not a folder index=%u flags=%x"), FolderIndex, RecordInfo.Flags);
-            KernelHeapFree(RecordBuffer);
-            return FALSE;
-        }
-
-        IndexRootAttribute = NULL;
-        IndexRootAttributeLength = 0;
-        IndexAllocationAttribute = NULL;
-        IndexAllocationAttributeLength = 0;
-        BitmapAttribute = NULL;
-        BitmapAttributeLength = 0;
-
-        if (!NtfsParseFolderIndexAttributes(
-                RecordBuffer,
-                &RecordInfo,
-                &IndexRootAttribute,
-                &IndexRootAttributeLength,
-                &IndexAllocationAttribute,
-                &IndexAllocationAttributeLength,
-                &BitmapAttribute,
-                &BitmapAttributeLength)) {
-            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Unable to parse folder attributes index=%u"), FolderIndex);
-            KernelHeapFree(RecordBuffer);
-            return FALSE;
-        }
-
-        if (IndexRootAttribute == NULL || IndexRootAttributeLength < NTFS_ATTRIBUTE_HEADER_RESIDENT_SIZE) {
-            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Missing INDEX_ROOT index=%u"), FolderIndex);
-            KernelHeapFree(RecordBuffer);
-            return FALSE;
-        }
-
-        if (!NtfsReadAttributeValue(
+        IndexRootValue = NULL;
+        IndexRootValueSize = 0;
+        IndexAllocationData = NULL;
+        IndexAllocationDataSize = 0;
+        BitmapData = NULL;
+        BitmapDataSize = 0;
+        if (!NtfsLoadFolderIndexStreams(
                 NtfsFileSystem,
-                IndexRootAttribute,
-                IndexRootAttributeLength,
+                FolderIndex,
                 &IndexRootValue,
-                &IndexRootValueSize)) {
-            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Unable to read INDEX_ROOT index=%u"), FolderIndex);
-            KernelHeapFree(RecordBuffer);
+                &IndexRootValueSize,
+                &IndexAllocationData,
+                &IndexAllocationDataSize,
+                &BitmapData,
+                &BitmapDataSize)) {
+            if (IndexRootValue != NULL) KernelHeapFree(IndexRootValue);
+            if (IndexAllocationData != NULL) KernelHeapFree(IndexAllocationData);
+            if (BitmapData != NULL) KernelHeapFree(BitmapData);
+            return FALSE;
+        }
+
+        if (IndexRootValue == NULL || IndexRootValueSize < NTFS_ATTRIBUTE_HEADER_RESIDENT_SIZE) {
+            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Missing INDEX_ROOT index=%u"), FolderIndex);
+            if (IndexRootValue != NULL) KernelHeapFree(IndexRootValue);
+            if (IndexAllocationData != NULL) KernelHeapFree(IndexAllocationData);
+            if (BitmapData != NULL) KernelHeapFree(BitmapData);
             return FALSE;
         }
 
@@ -927,8 +1300,9 @@ BOOL NtfsEnumerateFolderByIndex(
             WARNING(TEXT("[NtfsEnumerateFolderByIndex] INDEX_ROOT payload invalid size=%u index=%u"),
                 IndexRootValueSize,
                 FolderIndex);
-            KernelHeapFree(RecordBuffer);
             if (IndexRootValue != NULL) KernelHeapFree(IndexRootValue);
+            if (IndexAllocationData != NULL) KernelHeapFree(IndexAllocationData);
+            if (BitmapData != NULL) KernelHeapFree(BitmapData);
             return FALSE;
         }
 
@@ -937,42 +1311,10 @@ BOOL NtfsEnumerateFolderByIndex(
             WARNING(TEXT("[NtfsEnumerateFolderByIndex] Invalid index block size=%u index=%u"),
                 RootHeader.IndexBlockSize,
                 FolderIndex);
-            KernelHeapFree(RecordBuffer);
             KernelHeapFree(IndexRootValue);
+            if (IndexAllocationData != NULL) KernelHeapFree(IndexAllocationData);
+            if (BitmapData != NULL) KernelHeapFree(BitmapData);
             return FALSE;
-        }
-
-        IndexAllocationData = NULL;
-        IndexAllocationDataSize = 0;
-        if (IndexAllocationAttribute != NULL && IndexAllocationAttributeLength >= NTFS_ATTRIBUTE_HEADER_NON_RESIDENT_SIZE) {
-            if (!NtfsReadAttributeValue(
-                    NtfsFileSystem,
-                    IndexAllocationAttribute,
-                    IndexAllocationAttributeLength,
-                    &IndexAllocationData,
-                    &IndexAllocationDataSize)) {
-                WARNING(TEXT("[NtfsEnumerateFolderByIndex] Unable to read INDEX_ALLOCATION index=%u"), FolderIndex);
-                KernelHeapFree(RecordBuffer);
-                KernelHeapFree(IndexRootValue);
-                return FALSE;
-            }
-        }
-
-        BitmapData = NULL;
-        BitmapDataSize = 0;
-        if (BitmapAttribute != NULL && BitmapAttributeLength >= NTFS_ATTRIBUTE_HEADER_RESIDENT_SIZE) {
-            if (!NtfsReadAttributeValue(
-                    NtfsFileSystem,
-                    BitmapAttribute,
-                    BitmapAttributeLength,
-                    &BitmapData,
-                    &BitmapDataSize)) {
-                WARNING(TEXT("[NtfsEnumerateFolderByIndex] Unable to read BITMAP index=%u"), FolderIndex);
-                KernelHeapFree(RecordBuffer);
-                KernelHeapFree(IndexRootValue);
-                if (IndexAllocationData != NULL) KernelHeapFree(IndexAllocationData);
-                return FALSE;
-            }
         }
 
         MemorySet(&Context, 0, sizeof(NTFS_FOLDER_ENUM_CONTEXT));
@@ -994,7 +1336,6 @@ BOOL NtfsEnumerateFolderByIndex(
                     Context.IndexAllocationSize,
                     Context.IndexBlockSize,
                     FolderIndex);
-                KernelHeapFree(RecordBuffer);
                 KernelHeapFree(IndexRootValue);
                 KernelHeapFree(IndexAllocationData);
                 if (BitmapData != NULL) KernelHeapFree(BitmapData);
@@ -1012,7 +1353,6 @@ BOOL NtfsEnumerateFolderByIndex(
                 WARNING(TEXT("[NtfsEnumerateFolderByIndex] Unable to allocate visited map size=%u index=%u"),
                     Context.VisitedVcnMapSize,
                     FolderIndex);
-                KernelHeapFree(RecordBuffer);
                 KernelHeapFree(IndexRootValue);
                 KernelHeapFree(IndexAllocationData);
                 if (BitmapData != NULL) KernelHeapFree(BitmapData);
@@ -1024,7 +1364,6 @@ BOOL NtfsEnumerateFolderByIndex(
         if (!NtfsPrepareIndexAllocationRecords(&Context)) {
             WARNING(TEXT("[NtfsEnumerateFolderByIndex] Unable to prepare index allocation records index=%u"), FolderIndex);
             if (Context.VisitedVcnMap != NULL) KernelHeapFree(Context.VisitedVcnMap);
-            KernelHeapFree(RecordBuffer);
             KernelHeapFree(IndexRootValue);
             if (IndexAllocationData != NULL) KernelHeapFree(IndexAllocationData);
             if (BitmapData != NULL) KernelHeapFree(BitmapData);
@@ -1040,7 +1379,6 @@ BOOL NtfsEnumerateFolderByIndex(
                     MaxVcnRecords,
                     FolderIndex);
                 if (Context.VisitedVcnMap != NULL) KernelHeapFree(Context.VisitedVcnMap);
-                KernelHeapFree(RecordBuffer);
                 KernelHeapFree(IndexRootValue);
                 KernelHeapFree(IndexAllocationData);
                 if (BitmapData != NULL) KernelHeapFree(BitmapData);
@@ -1120,7 +1458,6 @@ BOOL NtfsEnumerateFolderByIndex(
 
         if (PendingVcns != NULL) KernelHeapFree(PendingVcns);
         if (Context.VisitedVcnMap != NULL) KernelHeapFree(Context.VisitedVcnMap);
-        KernelHeapFree(RecordBuffer);
         KernelHeapFree(IndexRootValue);
         if (IndexAllocationData != NULL) KernelHeapFree(IndexAllocationData);
         if (BitmapData != NULL) KernelHeapFree(BitmapData);
