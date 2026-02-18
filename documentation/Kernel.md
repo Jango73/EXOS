@@ -1217,6 +1217,15 @@ The `run` command delegates launch to `SpawnExecutable()`:
 
 Background mode is blocked for `.e0` scripts.
 
+#### String operators
+
+E0 expressions support string-specific operator behavior in the interpreter:
+
+- `string + string` concatenates both operands.
+- `string - string` removes every occurrence of the right operand from the left operand.
+
+Examples: `"foo" + "bar"` gives `"foobar"` and `"foobarfoo" - "foo"` gives `"bar"`.
+
 #### Shell command bridge inside E0
 
 The parser supports shell-style command statements inside E0 source. When a statement is recognized as a shell command, the AST expression node is marked `IsShellCommand = TRUE` and stores the full command line.

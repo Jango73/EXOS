@@ -57,6 +57,8 @@ static SCRIPT_VALUE ScriptEvaluateHostProperty(LPSCRIPT_PARSER Parser, LPAST_NOD
 static SCRIPT_VALUE ScriptEvaluateArrayAccess(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, SCRIPT_ERROR* Error);
 static SCRIPT_ERROR ScriptPrepareHostValue(SCRIPT_VALUE* Value, const SCRIPT_HOST_DESCRIPTOR* DefaultDescriptor, LPVOID DefaultContext);
 static BOOL ScriptValueToFloat(const SCRIPT_VALUE* Value, F32* OutValue);
+static SCRIPT_ERROR ScriptConcatStrings(const SCRIPT_VALUE* LeftValue, const SCRIPT_VALUE* RightValue, SCRIPT_VALUE* Result);
+static SCRIPT_ERROR ScriptRemoveStringOccurrences(const SCRIPT_VALUE* LeftValue, const SCRIPT_VALUE* RightValue, SCRIPT_VALUE* Result);
 static SCRIPT_ERROR ScriptExecuteAssignment(LPSCRIPT_PARSER Parser, LPAST_NODE Node);
 static SCRIPT_ERROR ScriptExecuteBlock(LPSCRIPT_PARSER Parser, LPAST_NODE Node);
 static BOOL IsInteger(F32 Value);
@@ -1798,6 +1800,113 @@ static BOOL ScriptValueToFloat(const SCRIPT_VALUE* Value, F32* OutValue) {
 /************************************************************************/
 
 /**
+ * @brief Concatenate two script strings and store the result.
+ * @param LeftValue Left operand (must be a string)
+ * @param RightValue Right operand (must be a string)
+ * @param Result Destination value
+ * @return SCRIPT_OK on success, otherwise an error code
+ */
+static SCRIPT_ERROR ScriptConcatStrings(const SCRIPT_VALUE* LeftValue, const SCRIPT_VALUE* RightValue, SCRIPT_VALUE* Result) {
+    if (LeftValue == NULL || RightValue == NULL || Result == NULL) {
+        return SCRIPT_ERROR_SYNTAX;
+    }
+
+    if (LeftValue->Type != SCRIPT_VAR_STRING || RightValue->Type != SCRIPT_VAR_STRING) {
+        return SCRIPT_ERROR_TYPE_MISMATCH;
+    }
+
+    LPCSTR LeftText = LeftValue->Value.String ? LeftValue->Value.String : TEXT("");
+    LPCSTR RightText = RightValue->Value.String ? RightValue->Value.String : TEXT("");
+
+    UINT LeftLength = StringLength(LeftText);
+    UINT RightLength = StringLength(RightText);
+    UINT TotalLength = LeftLength + RightLength + 1;
+
+    LPSTR NewString = (LPSTR)HeapAlloc(TotalLength);
+    if (NewString == NULL) {
+        return SCRIPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    StringCopy(NewString, LeftText);
+    StringConcat(NewString, RightText);
+
+    Result->Type = SCRIPT_VAR_STRING;
+    Result->Value.String = NewString;
+    Result->OwnsValue = TRUE;
+
+    return SCRIPT_OK;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Remove all occurrences of a substring from a script string.
+ * @param LeftValue Source string value
+ * @param RightValue Substring value to remove
+ * @param Result Destination value
+ * @return SCRIPT_OK on success, otherwise an error code
+ */
+static SCRIPT_ERROR ScriptRemoveStringOccurrences(const SCRIPT_VALUE* LeftValue, const SCRIPT_VALUE* RightValue, SCRIPT_VALUE* Result) {
+    UINT SourceIndex;
+    UINT WriteIndex;
+    UINT SourceLength;
+    UINT PatternLength;
+    LPCSTR SourceText;
+    LPCSTR PatternText;
+    LPSTR NewString;
+
+    if (LeftValue == NULL || RightValue == NULL || Result == NULL) {
+        return SCRIPT_ERROR_SYNTAX;
+    }
+
+    if (LeftValue->Type != SCRIPT_VAR_STRING || RightValue->Type != SCRIPT_VAR_STRING) {
+        return SCRIPT_ERROR_TYPE_MISMATCH;
+    }
+
+    SourceText = LeftValue->Value.String ? LeftValue->Value.String : TEXT("");
+    PatternText = RightValue->Value.String ? RightValue->Value.String : TEXT("");
+
+    SourceLength = StringLength(SourceText);
+    PatternLength = StringLength(PatternText);
+
+    NewString = (LPSTR)HeapAlloc(SourceLength + 1);
+    if (NewString == NULL) {
+        return SCRIPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    if (PatternLength == 0) {
+        StringCopy(NewString, SourceText);
+        Result->Type = SCRIPT_VAR_STRING;
+        Result->Value.String = NewString;
+        Result->OwnsValue = TRUE;
+        return SCRIPT_OK;
+    }
+
+    SourceIndex = 0;
+    WriteIndex = 0;
+
+    while (SourceIndex < SourceLength) {
+        if (SourceIndex + PatternLength <= SourceLength &&
+            MemoryCompare(SourceText + SourceIndex, PatternText, PatternLength) == 0) {
+            SourceIndex += PatternLength;
+            continue;
+        }
+
+        NewString[WriteIndex++] = SourceText[SourceIndex++];
+    }
+
+    NewString[WriteIndex] = STR_NULL;
+
+    Result->Type = SCRIPT_VAR_STRING;
+    Result->Value.String = NewString;
+    Result->OwnsValue = TRUE;
+
+    return SCRIPT_OK;
+}
+
+/************************************************************************/
+
+/**
  * @brief Check if a string is a script keyword.
  * @param Str String to check
  * @return TRUE if the string is a keyword
@@ -2151,23 +2260,45 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                 return Result;
             }
 
-            F32 LeftNumeric;
-            F32 RightNumeric;
-
-            if (!ScriptValueToFloat(&LeftValue, &LeftNumeric) ||
-                !ScriptValueToFloat(&RightValue, &RightNumeric)) {
-                if (Error) {
-                    *Error = SCRIPT_ERROR_TYPE_MISMATCH;
-                }
-                ScriptValueRelease(&LeftValue);
-                ScriptValueRelease(&RightValue);
-                return Result;
-            }
-
-            Result.Type = SCRIPT_VAR_FLOAT;
-
             if (Expr->Data.Expression.TokenType == TOKEN_OPERATOR) {
                 STR Operator = Expr->Data.Expression.Value[0];
+                SCRIPT_ERROR StringError = SCRIPT_OK;
+
+                if (Operator == '+') {
+                    if (LeftValue.Type == SCRIPT_VAR_STRING || RightValue.Type == SCRIPT_VAR_STRING) {
+                        StringError = ScriptConcatStrings(&LeftValue, &RightValue, &Result);
+                        if (StringError != SCRIPT_OK && Error) {
+                            *Error = StringError;
+                        }
+                        ScriptValueRelease(&LeftValue);
+                        ScriptValueRelease(&RightValue);
+                        return Result;
+                    }
+                } else if (Operator == '-') {
+                    if (LeftValue.Type == SCRIPT_VAR_STRING || RightValue.Type == SCRIPT_VAR_STRING) {
+                        StringError = ScriptRemoveStringOccurrences(&LeftValue, &RightValue, &Result);
+                        if (StringError != SCRIPT_OK && Error) {
+                            *Error = StringError;
+                        }
+                        ScriptValueRelease(&LeftValue);
+                        ScriptValueRelease(&RightValue);
+                        return Result;
+                    }
+                }
+
+                F32 LeftNumeric;
+                F32 RightNumeric;
+                if (!ScriptValueToFloat(&LeftValue, &LeftNumeric) ||
+                    !ScriptValueToFloat(&RightValue, &RightNumeric)) {
+                    if (Error) {
+                        *Error = SCRIPT_ERROR_TYPE_MISMATCH;
+                    }
+                    ScriptValueRelease(&LeftValue);
+                    ScriptValueRelease(&RightValue);
+                    return Result;
+                }
+
+                Result.Type = SCRIPT_VAR_FLOAT;
 
                 if (Operator == '+') {
                     Result.Value.Float = LeftNumeric + RightNumeric;
@@ -2196,6 +2327,21 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                     }
                 }
             } else {
+                F32 LeftNumeric;
+                F32 RightNumeric;
+
+                if (!ScriptValueToFloat(&LeftValue, &LeftNumeric) ||
+                    !ScriptValueToFloat(&RightValue, &RightNumeric)) {
+                    if (Error) {
+                        *Error = SCRIPT_ERROR_TYPE_MISMATCH;
+                    }
+                    ScriptValueRelease(&LeftValue);
+                    ScriptValueRelease(&RightValue);
+                    return Result;
+                }
+
+                Result.Type = SCRIPT_VAR_FLOAT;
+
                 if (StringCompare(Expr->Data.Expression.Value, TEXT("<")) == 0) {
                     Result.Value.Float = (LeftNumeric < RightNumeric) ? 1.0f : 0.0f;
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT("<=")) == 0) {

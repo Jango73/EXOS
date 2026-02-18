@@ -41,13 +41,7 @@
 #define KERNEL_LOG_TAG_FILTER_MAX_LENGTH 512
 
 #ifndef KERNEL_LOG_DEFAULT_TAG_FILTER
-#define KERNEL_LOG_DEFAULT_TAG_FILTER \
-    "NVMeAttach,NVMeSubmitAdminCommand,NVMeSubmitIoCommand,NVMeCreateIoQueues," \
-    "NVMeIdentifyNamespace,NVMeIdentifyNamespaceList,NVMeReadSectors,NVMeDiskRead," \
-    "MountPartition_NTFS,NtfsReadBootSector,NtfsReadSectors,NtfsLoadFileRecordBuffer," \
-    "NtfsApplyFileRecordFixup,NtfsParseFileRecordAttributes,NtfsReadNonResidentDataAttribute," \
-    "NtfsTraverseIndexHeader,NtfsPrepareIndexAllocationRecords,NtfsEnumerateFolderByIndex," \
-    "NtfsReadFileRecord,NtfsResolvePathToIndex,NtfsLookupChildByName,OpenFile,ResolvePath,ListDirectory"
+#define KERNEL_LOG_DEFAULT_TAG_FILTER ""
 #endif
 
 static CSTR KernelLogDefaultTagFilter[] = KERNEL_LOG_DEFAULT_TAG_FILTER;

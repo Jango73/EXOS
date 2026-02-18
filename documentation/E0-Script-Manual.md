@@ -52,6 +52,10 @@ Numeric coercion:
 
 Strings are immutable. Arrays can contain mixed values.
 
+String operators:
+- `string + string`: concatenation
+- `string - string`: removes all occurrences of the right string from the left string (`"foobarfoo" - "foo"` gives `"bar"`)
+
 ---
 
 ## 3) Variables and assignment
@@ -107,6 +111,8 @@ Left-associative.
 x = 1 + 2 * 3;
 ok = (x >= 7) == 1;
 z = (10 / 4);
+name = "foo" + "bar";
+trimmed = "foobarfoo" - "foo";
 ```
 
 ---
