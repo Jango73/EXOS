@@ -9,11 +9,12 @@ CC = gcc
 CFLAGS = -Wall -Wextra -O2
 BINDIR = $(BUILD_DIR)/tools
 SOURCEDIR = source
+CYCLE_SOURCE = $(SOURCEDIR)/core/cycle.c
 
 all: $(BINDIR)/cycle
 
-$(BINDIR)/cycle: $(SOURCEDIR)/cycle.c | $(BINDIR)
-	$(CC) $(CFLAGS) -o $@ $(SOURCEDIR)/cycle.c
+$(BINDIR)/cycle: $(CYCLE_SOURCE) | $(BINDIR)
+	$(CC) $(CFLAGS) -o $@ $(CYCLE_SOURCE)
 
 $(BINDIR):
 	mkdir -p $(BINDIR)
