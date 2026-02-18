@@ -43,6 +43,7 @@
   - [Logging](#logging)
   - [Automated debug validation script](#automated-debug-validation-script)
   - [Build output layout](#build-output-layout)
+  - [Package tooling](#package-tooling)
   - [Keyboard Layout Format (EKM1)](#keyboard-layout-format-ekm1)
   - [QEMU network graph](#qemu-network-graph)
   - [Links](#links)
@@ -1685,6 +1686,16 @@ Path mapping (migration reference):
 | `build/x86-64/boot-uefi/exos-uefi.img` | `build/image/x86-64-uefi-debug-ext2/boot-uefi/exos-uefi.img` |
 | `build/x86-32/tools/cycle` | `build/core/x86-32-mbr-debug/tools/cycle` |
 | `build/x86-64/tools/cycle` | `build/core/x86-64-mbr-debug/tools/cycle` |
+
+
+### Package tooling
+
+Host-side EPK package generation is implemented in `tools/source/package/epk_pack.c`.
+The binary is built by `tools/Makefile` and produced as:
+- `build/core/<build-core-name>/tools/epk-pack`
+
+Command form:
+- `build/core/<build-core-name>/tools/epk-pack pack --input <folder> --output <file.epk>`
 
 
 ### Keyboard Layout Format (EKM1)

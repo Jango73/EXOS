@@ -23,12 +23,12 @@
 
 **Goal**: generate valid `.epk` archives from input folders.
 
-- [ ] Implement host-side packaging tools in `tools/` (Linux first, cross-oriented workflow).
-- [ ] Add a pack command that walks input folders and writes deterministic table of contents ordering.
-- [ ] Add chunking and zlib compression with configurable chunk size.
-- [ ] Compute file hashes, block hashes, and package hash.
-- [ ] Embed `manifest.toml` as a dedicated section.
-- [ ] Add optional signature generation hook.
+- [x] Implement host-side packaging tools in `tools/` (Linux first, cross-oriented workflow).
+- [x] Add a pack command that walks input folders and writes deterministic table of contents ordering.
+- [x] Add chunking and zlib compression with configurable chunk size.
+- [x] Compute file hashes, block hashes, and package hash.
+- [x] Embed `manifest.toml` as a dedicated section.
+- [x] Add optional signature generation hook.
 
 **Success**: repeated packaging of identical input produces byte-identical `.epk` output.
 

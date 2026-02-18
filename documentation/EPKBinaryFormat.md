@@ -43,7 +43,7 @@ Section offsets and sizes are declared in header fields.
 - `BlockTableOffset`, `BlockTableSize`
 - `ManifestOffset`, `ManifestSize`
 - `SignatureOffset`, `SignatureSize`
-- `PackageHash[32]`: SHA-256 over all package bytes except signature region
+- `PackageHash[32]`: SHA-256 over all package bytes except signature region, with `PackageHash` bytes zeroed before hashing
 - `Reserved[16]`: must be zero
 
 Header contract:
@@ -98,7 +98,7 @@ Entry rules:
 - `ChunkHash[32]`: SHA-256 of uncompressed chunk
 
 Block rules:
-- block count = `BlockTableSize / EPK_BLOCK_ENTRY_SIZE`.
+- block count = `BlockTableSize / EPK_BLOCK_ENTRY_SIZE` (`52` bytes per block entry).
 - `CompressedOffset + CompressedSize` must stay inside package bounds.
 - for zlib blocks, `UncompressedSize` must be in `(0, chunk_size_limit]`.
 - file block ranges (`BlockIndexStart`, `BlockCount`) must be inside block table count.
