@@ -921,13 +921,25 @@ BOOL GetDefaultFileSystemName(LPSTR Name, LPSTORAGE_UNIT Disk, U32 PartIndex) {
 
     switch (Disk->Driver->Type) {
         case DRIVER_TYPE_RAMDISK:
-            StringCopy(Name, Text_Rd);
+            StringCopy(Name, Text_Prefix_RAMDrive);
             break;
         case DRIVER_TYPE_FLOPPYDISK:
-            StringCopy(Name, Text_Fd);
+            StringCopy(Name, Text_Prefix_FloppyDrive);
+            break;
+        case DRIVER_TYPE_USB_STORAGE:
+            StringCopy(Name, Text_Prefix_USBDrive);
+            break;
+        case DRIVER_TYPE_NVME_STORAGE:
+            StringCopy(Name, Text_Prefix_NVMe);
+            break;
+        case DRIVER_TYPE_SATA_STORAGE:
+            StringCopy(Name, Text_Prefix_SATADrive);
+            break;
+        case DRIVER_TYPE_ATA_STORAGE:
+            StringCopy(Name, Text_Prefix_ATADrive);
             break;
         default:
-            StringCopy(Name, Text_D);
+            StringCopy(Name, Text_Prefix_Drive);
             break;
     }
 

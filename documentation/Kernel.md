@@ -827,19 +827,24 @@ Format:
 - `<prefix><disk_index>p<partition_index>`
 
 Prefix by storage driver type:
-- `rd` for RAM disks (`DRIVER_TYPE_RAMDISK`)
-- `fd` for floppy disks (`DRIVER_TYPE_FLOPPYDISK`)
-- `d` for all other disk drivers (ATA/AHCI/SATA/NVMe/USB mass storage and equivalent block devices)
+- `r` for RAM disks (`DRIVER_TYPE_RAMDISK`)
+- `f` for floppy disks (`DRIVER_TYPE_FLOPPYDISK`)
+- `u` for USB mass storage (`DRIVER_TYPE_USB_STORAGE`)
+- `n` for NVMe storage (`DRIVER_TYPE_NVME_STORAGE`)
+- `s` for SATA/AHCI storage (`DRIVER_TYPE_SATA_STORAGE`)
+- `a` for ATA storage (`DRIVER_TYPE_ATA_STORAGE`)
+- `d` for all other disk drivers (fallback)
 
 Index rules:
 - `disk_index` is zero-based and counted among disks of the same driver type.
 - `partition_index` is zero-based and comes from the partition enumeration path (MBR slot index or GPT entry index).
 
 Examples:
-- `/fs/d0p0`
-- `/fs/d1p2`
-- `/fs/fd0p0`
-- `/fs/rd0p0`
+- `/fs/s0p0`
+- `/fs/n1p0`
+- `/fs/u0p0`
+- `/fs/f0p0`
+- `/fs/r0p0`
 
 #### Runtime access paths
 

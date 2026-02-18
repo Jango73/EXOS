@@ -51,7 +51,7 @@ void NVMeInitDiskDriver(LPNVME_DEVICE Device) {
         MemorySet(&Device->DiskDriver, 0, sizeof(Device->DiskDriver));
         Device->DiskDriver.TypeID = KOID_DRIVER;
         Device->DiskDriver.References = 1;
-        Device->DiskDriver.Type = DRIVER_TYPE_STORAGE;
+        Device->DiskDriver.Type = DRIVER_TYPE_NVME_STORAGE;
         Device->DiskDriver.VersionMajor = NVME_DISK_VER_MAJOR;
         Device->DiskDriver.VersionMinor = NVME_DISK_VER_MINOR;
         StringCopy(Device->DiskDriver.Designer, TEXT("Jango73"));
@@ -495,7 +495,7 @@ static UINT NVMeDiskGetInfo(LPDISKINFO Info) {
 
     LPNVME_DISK Disk = (LPNVME_DISK)Info->Disk;
     SAFE_USE_VALID_ID((LPLISTNODE)Disk, KOID_DISK) {
-        Info->Type = DRIVER_TYPE_STORAGE;
+        Info->Type = DRIVER_TYPE_NVME_STORAGE;
         Info->Removable = 0;
         Info->BytesPerSector = Disk->BytesPerSector;
         Info->NumSectors = Disk->NumSectors;
