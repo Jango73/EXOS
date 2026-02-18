@@ -28,7 +28,7 @@ Conceptually, the package manager is not an "installer" -- it is a **volume orch
 
 2. **Read-only system base**  
    The core system runs entirely from mounted packages.  
-   Packaged app data is read-only in `/package/data` and dynamic app data uses `/user-data` which is an alias to `/current-user/<application-name>/data`.
+   Packaged app data is read-only in `/package/data` and dynamic app data uses `/user-data` which is an alias to `/current-user/<package-name>/data`.
 
 3. **Atomic state changes**  
    Installing or removing a package = adding or removing a single file.  
@@ -37,7 +37,8 @@ Conceptually, the package manager is not an "installer" -- it is a **volume orch
 4. **Namespace layout**  
    Packages are mounted by role:
    ```
-   /library/package/ -> system shared packages (runtime, drivers, stack)
+   /library/package/ -> system shared packages (runtime, drivers, stack), one mount per package:
+                        /library/package/<package-name>/
    /apps/            -> application packages (global)
    /users/           -> per-user package files under /users/<user-name>/package
    ```
@@ -65,7 +66,7 @@ Each package (`.epk`) is a **single compressed archive** with an internal folder
 
 The `.epk` format is designed for mount-time validation, fast metadata lookup, and on-demand decompression.
 
-**Header (fixed 64 bytes, little-endian)**
+**Header (fixed 128 bytes, little-endian)**
 - Magic: `EPK1`
 - Version: `U32`
 - Flags: `U32` (bitfield: compression, signed, encrypted)
@@ -75,18 +76,19 @@ The `.epk` format is designed for mount-time validation, fast metadata lookup, a
 - ManifestOffset: `U64`, ManifestSize: `U64`
 - SignatureOffset: `U64`, SignatureSize: `U64`
 - PackageHash: SHA-256 over all bytes except the signature block
+- Reserved: remaining bytes up to 128 bytes (must be zero)
 
 **TOC (Table of Contents)**
 Each entry describes a path and how to access its data.
 - PathLength: `U32`, PathBytes (UTF-8)
-- NodeType: `U32` (file, folder)
+- NodeType: `U32` (file, folder, folder alias)
 - Permissions: `U32`
 - ModifiedTime: `DATETIME`
 - FileSize: `U64`
 - DataOffset: `U64` (into data region, for small inline files)
 - BlockIndexStart: `U32`, BlockCount: `U32` (for chunked files)
 - FileHash: SHA-256 of uncompressed file data
-- SymlinkTargetLength + SymlinkTarget (for symlinks)
+- FolderAliasTargetLength + FolderAliasTarget (for folder aliases)
 
 **DATETIME (stored as 64-bit packed fields, little-endian)**
 - Year: 26 bits
@@ -110,7 +112,7 @@ Each entry provides:
 - ChunkHash: SHA-256
 
 **Manifest**
-A UTF-8 JSON blob with the package metadata (same content as `/package/manifest.json`).
+A UTF-8 TOML document with the package metadata (same content as `/package/manifest.toml`).
 The manifest is stored as a dedicated blob for fast dependency checks at mount time.
 
 **Signature (optional)**
@@ -121,11 +123,11 @@ Detached signature over `PackageHash`. The format is flexible (e.g., ed25519).
 ## 4. Package Mounting Process
 
 1. **Detection**  
-   At boot or runtime, the system scans known package directories:
+   At boot or runtime, the system scans known package folders:
    ```
    /library/package/
    /apps/
-   /current-user/package/
+   /users/*/package/
    ```
 
 2. **Validation**  
@@ -169,29 +171,31 @@ Detached signature over `PackageHash`. The format is flexible (e.g., ed25519).
 |-- package/              (private mount of the application package)
     |-- binary/
     |-- data/
-    |-- manifest.json
-|-- user-data/            (alias to /current-user/<application-name>/data)
+    |-- manifest.toml
+|-- user-data/            (alias to folder /current-user/<package-name>/data)
 ```
 
-Library lookup order: `/package/binary` then `/library/package`.
-Default packaged app work folder: `/package/data`.
-Application data alias: `/user-data` -> `/current-user/<application-name>/data`.
+Library lookup order: `/package/binary` then `/library/package/<package-name>/binary`.
+Default packaged app work folder: `/user-data`.
+Application data alias: `/user-data` -> `/current-user/<package-name>/data`.
 
 ---
 
 ## 6. Dependency and Version Management
 
-Each package includes a `manifest.json` file describing:
-```json
-{
-  "name": "core.graphics",
-  "version": "2.4.1",
-  "provides": ["api.graphics", "api.window"],
-  "requires": [
-    { "api": "core.kernel", "version": ">=1.0" },
-    { "api": "core.io", "version": "~2.1" }
-  ]
-}
+Each package includes a `manifest.toml` file describing:
+```toml
+name = "core.graphics"
+version = "2.4.1"
+provides = ["api.graphics", "api.window"]
+
+[[requires]]
+api = "core.kernel"
+version = ">=1.0"
+
+[[requires]]
+api = "core.io"
+version = "~2.1"
 ```
 
 The package manager resolves dependencies **by API contract**, not by filename.  
@@ -215,7 +219,7 @@ System dependencies are global components that provide hardware access or critic
 | Network stack | `libnet.so`, sockets layer | `/library/package/netstack.epk` | Yes |
 
 These components are considered *stable and trusted*, maintained by the OS vendor.  
-They are mounted globally and accessible to all packages through `/library/`.
+They are mounted globally and accessible to all packages through `/library/package/<package-name>/`.
 
 ### **2. Embedded Dependencies**
 Application-level libraries are packaged inside each `.epk` to ensure version independence and reproducibility.
@@ -233,12 +237,18 @@ This prevents dependency hell and guarantees that each application uses exactly 
 
 Each package manifest declares explicitly which shared system APIs it needs:
 
-```json
-"uses": [
-  "system.cuda",
-  "system.opengl",
-  "core.runtime"
-]
+```toml
+[[requires]]
+api = "system.cuda"
+version = ">=1.0"
+
+[[requires]]
+api = "system.opengl"
+version = ">=4.0"
+
+[[requires]]
+api = "core.runtime"
+version = "~2.1"
 ```
 
 When mounting, the `packagefs` resolves those entries against the global package set.  
@@ -263,7 +273,7 @@ This hybrid approach provides both immutability and efficiency:
 - **Rollback** = switching back to the previous package set (recorded snapshot).
 - The system maintains a list of active package hashes:
   ```
-  /system/state/active.list
+  /system-data/package/active.list
   ```
   Booting from a previous state is instant and atomic (no reinstallation).
 
@@ -317,27 +327,28 @@ This model eliminates classically fragile layers (installers, dependency solvers
 ### Example: Mounted view of global libraries
 
 ```
-/library/
-|-- runtime/
-|   |-- core.runtime.so
-|   |-- image.codec.so
-|   `-- manifest.json
-|-- drivers/
-|   |-- driver.audio.so
-|   `-- manifest.json
+/library/package/
+|-- core.runtime/
+|   |-- binary/
+|   |   |-- core.runtime.so
+|   |   `-- image.codec.so
+|   `-- manifest.toml
+|-- driver.audio/
+|   |-- binary/
+|   |   `-- driver.audio.so
+|   `-- manifest.toml
 ```
 
 ### Example: Mounted view of the application package (per-process)
 
 ```
 /package/
-|-- binaries/
+|-- binary/
 |   |-- video-editor
 |   |-- video.engine.so
 |   `-- image.codec.so
 |-- data/
 |   `-- presets/
-|-- manifest.json
+|-- manifest.toml
 ```
-Library selection: the loader resolves `/package/libraries/image.codec.so` before `/library/runtime/libraries/image.codec.so`.
-
+Library selection: the loader resolves `/package/binary/image.codec.so` before `/library/package/core.runtime/binary/image.codec.so`.

@@ -48,6 +48,39 @@ static LPCSTR XHCI_EndpointTypeToString(U8 Attributes) {
 
 /************************************************************************/
 
+static LPCSTR XHCI_EnumErrorToString(U8 Code) {
+    switch (Code) {
+        case XHCI_ENUM_ERROR_NONE:
+            return TEXT("OK");
+        case XHCI_ENUM_ERROR_BUSY:
+            return TEXT("BUSY");
+        case XHCI_ENUM_ERROR_RESET_TIMEOUT:
+            return TEXT("RESET");
+        case XHCI_ENUM_ERROR_INVALID_SPEED:
+            return TEXT("SPEED");
+        case XHCI_ENUM_ERROR_INIT_STATE:
+            return TEXT("STATE");
+        case XHCI_ENUM_ERROR_ENABLE_SLOT:
+            return TEXT("SLOT");
+        case XHCI_ENUM_ERROR_ADDRESS_DEVICE:
+            return TEXT("ADDRESS");
+        case XHCI_ENUM_ERROR_DEVICE_DESC:
+            return TEXT("DEVICE");
+        case XHCI_ENUM_ERROR_CONFIG_DESC:
+            return TEXT("CONFIG");
+        case XHCI_ENUM_ERROR_CONFIG_PARSE:
+            return TEXT("PARSE");
+        case XHCI_ENUM_ERROR_SET_CONFIG:
+            return TEXT("SETCONFIG");
+        case XHCI_ENUM_ERROR_HUB_INIT:
+            return TEXT("HUB");
+        default:
+            return TEXT("UNKNOWN");
+    }
+}
+
+/************************************************************************/
+
 /**
  * @brief Initialize USB node data with common fields.
  * @param Data Output data.
@@ -138,6 +171,13 @@ U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                     Data.SpeedId = SpeedId;
                     Data.Connected = Connected;
                     Data.Enabled = Enabled;
+                    if (Device->UsbDevices != NULL) {
+                        LPXHCI_USB_DEVICE UsbDevice = Device->UsbDevices[PortIndex];
+                        if (UsbDevice != NULL) {
+                            Data.LastEnumError = UsbDevice->LastEnumError;
+                            Data.LastEnumCompletion = UsbDevice->LastEnumCompletion;
+                        }
+                    }
 
                     XHCI_FillEnumItem(Next->Item, ENUM_DOMAIN_XHCI_PORT, Next->Query->Index, &Data, sizeof(Data));
 
@@ -148,7 +188,6 @@ U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                     MatchIndex++;
                 }
             } else if (Next->Query->Domain == ENUM_DOMAIN_USB_DEVICE) {
-                XHCI_EnsureUsbDevices(Device);
                 LPLIST UsbDeviceList = GetUsbDeviceList();
                 if (UsbDeviceList == NULL) {
                     continue;
@@ -183,7 +222,6 @@ U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next) {
                     MatchIndex++;
                 }
             } else if (Next->Query->Domain == ENUM_DOMAIN_USB_NODE) {
-                XHCI_EnsureUsbDevices(Device);
                 LPLIST UsbDeviceList = GetUsbDeviceList();
                 if (UsbDeviceList == NULL) {
                     continue;
@@ -314,7 +352,7 @@ U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
 
         const DRIVER_ENUM_XHCI_PORT* Data = (const DRIVER_ENUM_XHCI_PORT*)Pretty->Item->Data;
         StringPrintFormat(Pretty->Buffer,
-                          TEXT("xHCI %x:%x.%u Port %u CCS=%u PED=%u Speed=%s Raw=%x"),
+                          TEXT("xHCI %x:%x.%u Port %u CCS=%u PED=%u Speed=%s Raw=%x Err=%s"),
                           (U32)Data->Bus,
                           (U32)Data->Dev,
                           (U32)Data->Func,
@@ -322,7 +360,8 @@ U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
                           Data->Connected,
                           Data->Enabled,
                           XHCI_SpeedToString(Data->SpeedId),
-                          Data->PortStatus);
+                          Data->PortStatus,
+                          XHCI_EnumErrorToString(Data->LastEnumError));
         return DF_RETURN_SUCCESS;
     }
 

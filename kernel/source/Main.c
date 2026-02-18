@@ -25,6 +25,7 @@
 #include "Console.h"
 #include "Kernel.h"
 #include "Arch.h"
+#include "EarlyBootConsole.h"
 #include "Log.h"
 #include "System.h"
 #include "vbr-multiboot.h"
@@ -38,6 +39,102 @@ KERNELSTARTUPINFO KernelStartup = {
     .IRQMask_21_PM = 0x000000FB, .IRQMask_A1_PM = 0x000000FF, .IRQMask_21_RM = 0, .IRQMask_A1_RM = 0};
 
 /************************************************************************/
+
+#ifndef BOOT_STAGE_MARKERS
+#define BOOT_STAGE_MARKERS 0
+#endif
+
+/************************************************************************/
+
+static U32 KernelBootMarkerScaleColor(U32 Value, U32 MaskSize) {
+    if (MaskSize == 0u) {
+        return 0u;
+    }
+
+    if (MaskSize >= 8u) {
+        return Value & 0xFFu;
+    }
+
+    U32 MaxValue = (1u << MaskSize) - 1u;
+    return (Value * MaxValue) / 255u;
+}
+
+/************************************************************************/
+
+static U32 KernelBootMarkerComposePixel(const multiboot_info_t* MultibootInfo, U32 Red, U32 Green, U32 Blue) {
+    if (MultibootInfo == NULL || MultibootInfo->framebuffer_type != MULTIBOOT_FRAMEBUFFER_RGB) {
+        return 0u;
+    }
+
+    U32 Pixel = 0u;
+    Pixel |= KernelBootMarkerScaleColor(Red, MultibootInfo->color_info[1]) << MultibootInfo->color_info[0];
+    Pixel |= KernelBootMarkerScaleColor(Green, MultibootInfo->color_info[3]) << MultibootInfo->color_info[2];
+    Pixel |= KernelBootMarkerScaleColor(Blue, MultibootInfo->color_info[5]) << MultibootInfo->color_info[4];
+    return Pixel;
+}
+
+/************************************************************************/
+
+void KernelBootMarkStage(multiboot_info_t* MultibootInfo, U32 StageIndex, U32 Red, U32 Green, U32 Blue) {
+#if BOOT_STAGE_MARKERS == 1
+    const U32 MarkerBaseX = 2u;
+    const U32 MarkerBaseY = 2u;
+    const U32 MarkerSize = 8u;
+    const U32 MarkerSpacing = 2u;
+    const U32 MarkerGroupSize = 10u;
+    const U32 MarkerLineStride = MarkerSize + MarkerSpacing;
+
+    if (MultibootInfo == NULL) {
+        return;
+    }
+    if ((MultibootInfo->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) == 0u) {
+        return;
+    }
+    if (MultibootInfo->framebuffer_bpp != 32u || MultibootInfo->framebuffer_pitch == 0u) {
+        return;
+    }
+    if (MultibootInfo->framebuffer_addr_high != 0u || MultibootInfo->framebuffer_addr_low == 0u) {
+        return;
+    }
+
+    U8* Framebuffer = (U8*)(UINT)MultibootInfo->framebuffer_addr_low;
+    if (Framebuffer == NULL) {
+        return;
+    }
+
+    U32 Pixel = KernelBootMarkerComposePixel(MultibootInfo, Red, Green, Blue);
+    U32 GroupIndex = StageIndex / MarkerGroupSize;
+    U32 GroupOffset = StageIndex % MarkerGroupSize;
+    U32 StartX = MarkerBaseX + GroupOffset * (MarkerSize + MarkerSpacing);
+    U32 StartY = MarkerBaseY + GroupIndex * MarkerLineStride;
+
+    if (StartX >= MultibootInfo->framebuffer_width || StartY >= MultibootInfo->framebuffer_height) {
+        return;
+    }
+
+    U32 DrawWidth = MarkerSize;
+    U32 DrawHeight = MarkerSize;
+    if (StartX + DrawWidth > MultibootInfo->framebuffer_width) {
+        DrawWidth = MultibootInfo->framebuffer_width - StartX;
+    }
+    if (StartY + DrawHeight > MultibootInfo->framebuffer_height) {
+        DrawHeight = MultibootInfo->framebuffer_height - StartY;
+    }
+
+    for (U32 Y = 0u; Y < DrawHeight; Y++) {
+        U32* Row = (U32*)(Framebuffer + ((StartY + Y) * MultibootInfo->framebuffer_pitch) + (StartX * 4u));
+        for (U32 X = 0u; X < DrawWidth; X++) {
+            Row[X] = Pixel;
+        }
+    }
+#else
+    UNUSED(MultibootInfo);
+    UNUSED(StageIndex);
+    UNUSED(Red);
+    UNUSED(Green);
+    UNUSED(Blue);
+#endif
+}
 
 /**
  * @brief Main entry point for the EXOS kernel in paged protected mode.
@@ -68,13 +165,64 @@ void KernelMain(void) {
     __asm__ __volatile__("movl %%ebx, %0" : "=m"(MultibootInfoLinear));
 #endif
 
+
     // Validate Multiboot magic number
     if (MultibootMagic != MULTIBOOT_BOOTLOADER_MAGIC) {
         ConsolePanic(TEXT("Multiboot information not valid"));
     }
 
+
     // Map the multiboot info structure to access it
     multiboot_info_t* MultibootInfo = (multiboot_info_t*)(UINT)MultibootInfoLinear;
+
+    if ((MultibootInfo->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) != 0u) {
+        PHYSICAL FramebufferPhysical = 0;
+#if defined(__EXOS_ARCH_X86_64__)
+        U64 FramebufferAddress = U64_Make(
+            MultibootInfo->framebuffer_addr_high,
+            MultibootInfo->framebuffer_addr_low);
+        FramebufferPhysical = (PHYSICAL)FramebufferAddress;
+#else
+        FramebufferPhysical = (PHYSICAL)MultibootInfo->framebuffer_addr_low;
+        if (MultibootInfo->framebuffer_addr_high != 0u) {
+            WARNING(TEXT("[KernelMain] Framebuffer above 4GB not supported"));
+        }
+#endif
+        ConsoleSetFramebufferInfo(
+            FramebufferPhysical,
+            MultibootInfo->framebuffer_width,
+            MultibootInfo->framebuffer_height,
+            MultibootInfo->framebuffer_pitch,
+            (U32)MultibootInfo->framebuffer_bpp,
+            (U32)MultibootInfo->framebuffer_type,
+            (U32)MultibootInfo->color_info[0],
+            (U32)MultibootInfo->color_info[1],
+            (U32)MultibootInfo->color_info[2],
+            (U32)MultibootInfo->color_info[3],
+            (U32)MultibootInfo->color_info[4],
+            (U32)MultibootInfo->color_info[5]);
+
+        EarlyBootConsoleInitialize(
+            FramebufferPhysical,
+            MultibootInfo->framebuffer_width,
+            MultibootInfo->framebuffer_height,
+            MultibootInfo->framebuffer_pitch,
+            (U32)MultibootInfo->framebuffer_bpp,
+            (U32)MultibootInfo->framebuffer_type,
+            (U32)MultibootInfo->color_info[0],
+            (U32)MultibootInfo->color_info[1],
+            (U32)MultibootInfo->color_info[2],
+            (U32)MultibootInfo->color_info[3],
+            (U32)MultibootInfo->color_info[4],
+            (U32)MultibootInfo->color_info[5]);
+    }
+
+
+    if ((MultibootInfo->flags & MULTIBOOT_INFO_CONFIG_TABLE) != 0u) {
+        KernelStartup.RsdpPhysical = (PHYSICAL)MultibootInfo->config_table;
+    } else {
+        KernelStartup.RsdpPhysical = 0;
+    }
 
     // Extract information from Multiboot structure
     // Get kernel address from first module
@@ -82,6 +230,13 @@ void KernelMain(void) {
         multiboot_module_t* FirstModule = (multiboot_module_t*)(UINT)(LINEAR)MultibootInfo->mods_addr;
         KernelStartup.KernelPhysicalBase = FirstModule->mod_start;
         KernelStartup.KernelSize = (UINT)(FirstModule->mod_end - FirstModule->mod_start);
+        KernelStartup.KernelReservedBytes = (UINT)FirstModule->reserved;
+        if (KernelStartup.KernelReservedBytes < KernelStartup.KernelSize) {
+            ERROR(TEXT("[KernelMain] Invalid kernel reserved span (reserved=%u size=%u)"),
+                KernelStartup.KernelReservedBytes,
+                KernelStartup.KernelSize);
+            ConsolePanic(TEXT("Invalid boot kernel reserved span"));
+        }
         // Get the command line
         LPCSTR ModuleCommandLine = (LPCSTR)(UINT)(LINEAR)FirstModule->cmdline;
         StringCopy(KernelStartup.CommandLine, ModuleCommandLine);
@@ -89,6 +244,7 @@ void KernelMain(void) {
         // Fallback - should not happen with our bootloader
         KernelStartup.KernelPhysicalBase = 0;
         KernelStartup.KernelSize = 0;
+        KernelStartup.KernelReservedBytes = 0;
         StringClear(KernelStartup.CommandLine);
     }
 

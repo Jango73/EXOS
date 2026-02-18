@@ -2,40 +2,215 @@
 set -e
 
 function Usage() {
-    echo "Usage: $0 --arch <i386|x86-64> --fs <ext2|fat32> [--debug|--release] [--clean] [--scheduling-debug]"
+    echo "Usage: $0 --arch <x86-32|x86-64> --fs <ext2|fat32> [--bare-metal] [--boot-stage-markers] [--clean] [--debug|--release] [--force-pic] [--kernel-log-tag-filter <filter>] [--log-udp-dest <ip:port>] [--log-udp-source <ip:port>] [--profiling] [--scheduling-debug] [--split] [--system-data-view] [--uefi] [--use-log-udp] [--use-syscall]"
 }
 
-ARCH="i386"
-FILE_SYSTEM="ext2"
-BUILD_MODE="release"
+function ParseIpPort() {
+    local Value="$1"
+    local Prefix="$2"
+    local Address Port
+    local Ip0 Ip1 Ip2 Ip3 Extra
+
+    Address="${Value%:*}"
+    Port="${Value##*:}"
+    if [ "$Address" = "$Value" ] || [ -z "$Address" ] || [ -z "$Port" ]; then
+        echo "Invalid value for $Prefix: $Value (expected ip:port)"
+        exit 1
+    fi
+
+    IFS='.' read -r Ip0 Ip1 Ip2 Ip3 Extra <<< "$Address"
+    if [ -n "$Extra" ] || [ -z "$Ip0" ] || [ -z "$Ip1" ] || [ -z "$Ip2" ] || [ -z "$Ip3" ]; then
+        echo "Invalid IP for $Prefix: $Address"
+        exit 1
+    fi
+
+    for Part in "$Ip0" "$Ip1" "$Ip2" "$Ip3"; do
+        if ! [[ "$Part" =~ ^[0-9]+$ ]] || [ "$Part" -lt 0 ] || [ "$Part" -gt 255 ]; then
+            echo "Invalid IP for $Prefix: $Address"
+            exit 1
+        fi
+    done
+
+    if ! [[ "$Port" =~ ^[0-9]+$ ]] || [ "$Port" -lt 1 ] || [ "$Port" -gt 65535 ]; then
+        echo "Invalid port for $Prefix: $Port"
+        exit 1
+    fi
+
+    eval "${Prefix}_IP_0=$Ip0"
+    eval "${Prefix}_IP_1=$Ip1"
+    eval "${Prefix}_IP_2=$Ip2"
+    eval "${Prefix}_IP_3=$Ip3"
+    eval "${Prefix}_PORT=$Port"
+}
+
+ARCH="x86-32"
+BARE_METAL=0
+BOOT_STAGE_MARKERS=0
+BUILD_UEFI=0
+BUILD_CONFIGURATION="release"
+BUILD_CORE_NAME=""
+BUILD_IMAGE_NAME=""
 CLEAN=0
+DEBUG_OUTPUT=0
+DEBUG_SPLIT=0
+FILE_SYSTEM="ext2"
+FORCE_PIC=0
+UEFI_LOG_UDP_DEST_IP_0=192
+UEFI_LOG_UDP_DEST_IP_1=168
+UEFI_LOG_UDP_DEST_IP_2=50
+UEFI_LOG_UDP_DEST_IP_3=1
+UEFI_LOG_UDP_DEST_PORT=18194
+UEFI_LOG_UDP_SOURCE_IP_0=192
+UEFI_LOG_UDP_SOURCE_IP_1=168
+UEFI_LOG_UDP_SOURCE_IP_2=50
+UEFI_LOG_UDP_SOURCE_IP_3=2
+UEFI_LOG_UDP_SOURCE_PORT=18195
+UEFI_LOG_USE_UDP=0
+PROFILING=0
 SCHEDULING_DEBUG=0
+SYSTEM_DATA_VIEW=0
+USE_SYSCALL=0
+KERNEL_LOG_DEFAULT_TAG_FILTER_SET="${KERNEL_LOG_DEFAULT_TAG_FILTER_SET:-0}"
+KERNEL_LOG_DEFAULT_TAG_FILTER="${KERNEL_LOG_DEFAULT_TAG_FILTER:-}"
+BUILD_LOCK_DIR=""
+
+function ComputeBuildNames() {
+    local BootMode
+    local Suffix=""
+
+    BootMode="mbr"
+    if [ "$BUILD_UEFI" -eq 1 ]; then
+        BootMode="uefi"
+    fi
+
+    if [ "$DEBUG_SPLIT" -eq 1 ]; then
+        Suffix="-split"
+    fi
+
+    BUILD_CORE_NAME="${ARCH}-${BootMode}-${BUILD_CONFIGURATION}${Suffix}"
+    BUILD_IMAGE_NAME="${BUILD_CORE_NAME}-${FILE_SYSTEM}"
+}
+
+function AcquireBuildLock() {
+    BUILD_LOCK_DIR="build/core/$BUILD_CORE_NAME/.build-lock"
+
+    mkdir -p "build/core/$BUILD_CORE_NAME"
+    if ! mkdir "$BUILD_LOCK_DIR" 2>/dev/null; then
+        if [ -f "$BUILD_LOCK_DIR/pid" ]; then
+            ExistingPid="$(cat "$BUILD_LOCK_DIR/pid" 2>/dev/null || true)"
+            if [ -n "$ExistingPid" ] && kill -0 "$ExistingPid" 2>/dev/null; then
+                echo "A build is already running for $BUILD_CORE_NAME (pid: $ExistingPid)."
+                exit 1
+            fi
+        fi
+
+        rm -rf "$BUILD_LOCK_DIR"
+        if ! mkdir "$BUILD_LOCK_DIR" 2>/dev/null; then
+            echo "Could not acquire build lock for $BUILD_CORE_NAME."
+            exit 1
+        fi
+    fi
+
+    echo "$$" > "$BUILD_LOCK_DIR/pid"
+}
+
+function ReleaseBuildLock() {
+    if [ -n "$BUILD_LOCK_DIR" ] && [ -d "$BUILD_LOCK_DIR" ]; then
+        rm -rf "$BUILD_LOCK_DIR"
+    fi
+}
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --arch)
             shift
+            if [ $# -eq 0 ]; then
+                echo "Missing value for --arch"
+                Usage
+                exit 1
+            fi
             ARCH="$1"
             ;;
-        --fs)
-            shift
-            FILE_SYSTEM="$1"
+        --bare-metal)
+            BARE_METAL=1
             ;;
-        --debug)
-            BUILD_MODE="debug"
-            ;;
-        --release)
-            BUILD_MODE="release"
+        --boot-stage-markers)
+            BOOT_STAGE_MARKERS=1
             ;;
         --clean)
             CLEAN=1
             ;;
-        --scheduling-debug)
-            SCHEDULING_DEBUG=1
+        --debug)
+            DEBUG_OUTPUT=1
+            BUILD_CONFIGURATION="debug"
+            ;;
+        --force-pic)
+            FORCE_PIC=1
+            ;;
+        --fs)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "Missing value for --fs"
+                Usage
+                exit 1
+            fi
+            FILE_SYSTEM="$1"
             ;;
         --help|-h)
             Usage
             exit 0
+            ;;
+        --log-udp-dest)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "Missing value for --log-udp-dest"
+                Usage
+                exit 1
+            fi
+            ParseIpPort "$1" "UEFI_LOG_UDP_DEST"
+            ;;
+        --kernel-log-tag-filter)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "Missing value for --kernel-log-tag-filter"
+                Usage
+                exit 1
+            fi
+            KERNEL_LOG_DEFAULT_TAG_FILTER_SET=1
+            KERNEL_LOG_DEFAULT_TAG_FILTER="$1"
+            ;;
+        --log-udp-source)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "Missing value for --log-udp-source"
+                Usage
+                exit 1
+            fi
+            ParseIpPort "$1" "UEFI_LOG_UDP_SOURCE"
+            ;;
+        --profiling)
+            PROFILING=1
+            ;;
+        --release)
+            BUILD_CONFIGURATION="release"
+            ;;
+        --scheduling-debug)
+            SCHEDULING_DEBUG=1
+            ;;
+        --split)
+            DEBUG_SPLIT=1
+            ;;
+        --system-data-view)
+            SYSTEM_DATA_VIEW=1
+            ;;
+        --uefi)
+            BUILD_UEFI=1
+            ;;
+        --use-log-udp)
+            UEFI_LOG_USE_UDP=1
+            ;;
+        --use-syscall)
+            USE_SYSCALL=1
             ;;
         *)
             echo "Unknown option: $1"
@@ -47,7 +222,7 @@ while [ $# -gt 0 ]; do
 done
 
 case "$ARCH" in
-    i386|x86-64)
+    x86-32|x86-64)
         ;;
     *)
         echo "Unknown architecture: $ARCH"
@@ -66,26 +241,48 @@ case "$FILE_SYSTEM" in
         ;;
 esac
 
-PROFILING=0
-DEBUG_OUTPUT=0
+AcquireBuildLock
+trap ReleaseBuildLock EXIT
+
 SCHEDULING_DEBUG_OUTPUT=0
 TRACE_STACK_USAGE=0
-
-if [ "$BUILD_MODE" = "debug" ]; then
-    DEBUG_OUTPUT=1
-fi
 
 if [ "$SCHEDULING_DEBUG" -eq 1 ]; then
     PROFILING=1
     DEBUG_OUTPUT=1
+    BUILD_CONFIGURATION="debug"
     SCHEDULING_DEBUG_OUTPUT=1
     TRACE_STACK_USAGE=1
 fi
 
-export PROFILING
+ComputeBuildNames
+
+export BARE_METAL
+export BOOT_STAGE_MARKERS
+export BUILD_CONFIGURATION
+export BUILD_CORE_NAME
+export BUILD_IMAGE_NAME
 export DEBUG_OUTPUT
+export DEBUG_SPLIT
+export FORCE_PIC
+export PROFILING
 export SCHEDULING_DEBUG_OUTPUT
+export SYSTEM_DATA_VIEW
 export TRACE_STACK_USAGE
+export UEFI_LOG_UDP_DEST_IP_0
+export UEFI_LOG_UDP_DEST_IP_1
+export UEFI_LOG_UDP_DEST_IP_2
+export UEFI_LOG_UDP_DEST_IP_3
+export UEFI_LOG_UDP_DEST_PORT
+export UEFI_LOG_UDP_SOURCE_IP_0
+export UEFI_LOG_UDP_SOURCE_IP_1
+export UEFI_LOG_UDP_SOURCE_IP_2
+export UEFI_LOG_UDP_SOURCE_IP_3
+export UEFI_LOG_UDP_SOURCE_PORT
+export UEFI_LOG_USE_UDP
+export USE_SYSCALL
+export KERNEL_LOG_DEFAULT_TAG_FILTER_SET
+export KERNEL_LOG_DEFAULT_TAG_FILTER
 export KERNEL_FILE="exos.bin"
 export FILE_SYSTEM="$FILE_SYSTEM"
 
@@ -94,3 +291,7 @@ if [ "$CLEAN" -eq 1 ]; then
 fi
 
 make ARCH="$ARCH" -j"$(nproc)"
+
+if [ "$BUILD_UEFI" -eq 1 ]; then
+    make ARCH="$ARCH" -C boot-uefi
+fi

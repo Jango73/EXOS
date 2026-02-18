@@ -88,7 +88,7 @@ typedef struct tag_USB_MASS_STORAGE_COMMAND_STATUS_WRAPPER {
 /************************************************************************/
 
 typedef struct tag_USB_MASS_STORAGE_DEVICE {
-    PHYSICALDISK Disk;
+    STORAGE_UNIT Disk;
     U32 Access;
     LPXHCI_DEVICE Controller;
     LPXHCI_USB_DEVICE UsbDevice;
@@ -127,7 +127,7 @@ static USB_MASS_STORAGE_DRIVER DATA_SECTION USBMassStorageDriverState = {
         .References = 1,
         .Next = NULL,
         .Prev = NULL,
-        .Type = DRIVER_TYPE_HARDDISK,
+        .Type = DRIVER_TYPE_USB_STORAGE,
         .VersionMajor = USB_MASS_STORAGE_VER_MAJOR,
         .VersionMinor = USB_MASS_STORAGE_VER_MINOR,
         .Designer = "Jango73",
@@ -142,26 +142,6 @@ static USB_MASS_STORAGE_DRIVER DATA_SECTION USBMassStorageDriverState = {
         .RetryDelay = 0
     }
 };
-
-/************************************************************************/
-
-/**
- * @brief Get the physical disk pointer stored in a filesystem instance.
- * @param FileSystem Filesystem instance.
- * @return Disk pointer or NULL when not applicable.
- */
-static LPPHYSICALDISK USBMassStorageGetFileSystemDisk(LPFILESYSTEM FileSystem) {
-    if (FileSystem == NULL) return NULL;
-    if (FileSystem == GetSystemFS()) return NULL;
-
-    // All current filesystem implementations store Disk right after Header.
-    struct tag_FILESYSTEM_DISK_REF {
-        FILESYSTEM Header;
-        LPPHYSICALDISK Disk;
-    };
-
-    return ((struct tag_FILESYSTEM_DISK_REF*)FileSystem)->Disk;
-}
 
 /************************************************************************/
 
@@ -182,7 +162,7 @@ static UINT USBMassStorageReportMounts(LPUSB_MASS_STORAGE_DEVICE Device, LPLISTN
 
     for (; Node; Node = Node->Next) {
         LPFILESYSTEM FileSystem = (LPFILESYSTEM)Node;
-        if (USBMassStorageGetFileSystemDisk(FileSystem) != (LPPHYSICALDISK)Device) {
+        if (FileSystemGetStorageUnit(FileSystem) != (LPSTORAGE_UNIT)Device) {
             continue;
         }
 
@@ -198,19 +178,21 @@ static UINT USBMassStorageReportMounts(LPUSB_MASS_STORAGE_DEVICE Device, LPLISTN
  * @brief Unmount and release filesystems associated with a USB disk.
  * @param Disk USB disk to detach.
  */
-static void USBMassStorageDetachFileSystems(LPPHYSICALDISK Disk, U32 UsbAddress) {
+static void USBMassStorageDetachFileSystems(LPSTORAGE_UNIT Disk, U32 UsbAddress) {
     LPLIST FileSystemList = GetFileSystemList();
+    LPLIST UnusedFileSystemList = GetUnusedFileSystemList();
     FILESYSTEM_GLOBAL_INFO* GlobalInfo = GetFileSystemGlobalInfo();
     UINT UnmountedCount = 0;
+    UINT UnusedCount = 0;
 
-    if (Disk == NULL || FileSystemList == NULL || GlobalInfo == NULL) {
+    if (Disk == NULL || FileSystemList == NULL || UnusedFileSystemList == NULL || GlobalInfo == NULL) {
         return;
     }
 
     for (LPLISTNODE Node = FileSystemList->First; Node;) {
         LPLISTNODE Next = Node->Next;
         LPFILESYSTEM FileSystem = (LPFILESYSTEM)Node;
-        LPPHYSICALDISK FileSystemDisk = USBMassStorageGetFileSystemDisk(FileSystem);
+        LPSTORAGE_UNIT FileSystemDisk = FileSystemGetStorageUnit(FileSystem);
 
         if (FileSystemDisk == Disk) {
             SystemFSUnmountFileSystem(FileSystem);
@@ -224,7 +206,20 @@ static void USBMassStorageDetachFileSystems(LPPHYSICALDISK Disk, U32 UsbAddress)
         Node = Next;
     }
 
-    if (UnmountedCount > 0) {
+    for (LPLISTNODE Node = UnusedFileSystemList->First; Node;) {
+        LPLISTNODE Next = Node->Next;
+        LPFILESYSTEM FileSystem = (LPFILESYSTEM)Node;
+        LPSTORAGE_UNIT FileSystemDisk = FileSystemGetStorageUnit(FileSystem);
+
+        if (FileSystemDisk == Disk) {
+            ReleaseKernelObject(FileSystem);
+            UnusedCount++;
+        }
+
+        Node = Next;
+    }
+
+    if (UnmountedCount > 0 || UnusedCount > 0) {
         BroadcastProcessMessage(ETM_USB_MASS_STORAGE_UNMOUNTED, UsbAddress, 0);
     }
 }
@@ -243,9 +238,9 @@ static void USBMassStorageDetachDevice(LPUSB_MASS_STORAGE_DEVICE Device) {
     Device->Ready = FALSE;
 
     if (Device->ListEntry != NULL) {
-        USBMassStorageDetachFileSystems((LPPHYSICALDISK)Device, (U32)Device->ListEntry->Address);
+        USBMassStorageDetachFileSystems((LPSTORAGE_UNIT)Device, (U32)Device->ListEntry->Address);
     } else {
-        USBMassStorageDetachFileSystems((LPPHYSICALDISK)Device, 0);
+        USBMassStorageDetachFileSystems((LPSTORAGE_UNIT)Device, 0);
     }
 
     if (Device->InputOutputBufferLinear != 0) {
@@ -275,6 +270,44 @@ static void USBMassStorageDetachDevice(LPUSB_MASS_STORAGE_DEVICE Device) {
  */
 LPDRIVER USBMassStorageGetDriver(void) {
     return &USBMassStorageDriverState.Driver;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Convert a USB enumeration error code to a short text label.
+ * @param Code Enumeration error code.
+ * @return Constant label for the code.
+ */
+LPCSTR UsbEnumErrorToString(U8 Code) {
+    switch (Code) {
+        case XHCI_ENUM_ERROR_NONE:
+            return TEXT("OK");
+        case XHCI_ENUM_ERROR_BUSY:
+            return TEXT("BUSY");
+        case XHCI_ENUM_ERROR_RESET_TIMEOUT:
+            return TEXT("RESET");
+        case XHCI_ENUM_ERROR_INVALID_SPEED:
+            return TEXT("SPEED");
+        case XHCI_ENUM_ERROR_INIT_STATE:
+            return TEXT("STATE");
+        case XHCI_ENUM_ERROR_ENABLE_SLOT:
+            return TEXT("SLOT");
+        case XHCI_ENUM_ERROR_ADDRESS_DEVICE:
+            return TEXT("ADDRESS");
+        case XHCI_ENUM_ERROR_DEVICE_DESC:
+            return TEXT("DEVICE");
+        case XHCI_ENUM_ERROR_CONFIG_DESC:
+            return TEXT("CONFIG");
+        case XHCI_ENUM_ERROR_CONFIG_PARSE:
+            return TEXT("PARSE");
+        case XHCI_ENUM_ERROR_SET_CONFIG:
+            return TEXT("SETCONFIG");
+        case XHCI_ENUM_ERROR_HUB_INIT:
+            return TEXT("HUB");
+        default:
+            return TEXT("UNKNOWN");
+    }
 }
 
 /************************************************************************/
@@ -742,7 +775,7 @@ static BOOL USBMassStorageReadCapacity(LPUSB_MASS_STORAGE_DEVICE Device) {
         return FALSE;
     }
 
-    if (BlockSize != SECTOR_SIZE) {
+    if (BlockSize != 512 && BlockSize != 4096) {
         ERROR(TEXT("[USBMassStorageReadCapacity] Unsupported block size %u"), BlockSize);
         return FALSE;
     }
@@ -1007,19 +1040,23 @@ static BOOL USBMassStorageStartDevice(LPXHCI_DEVICE Controller,
         return FALSE;
     }
 
-    LPLIST FileSystemList = GetFileSystemList();
-    LPLISTNODE PreviousLast = FileSystemList != NULL ? FileSystemList->Last : NULL;
+    if (FileSystemReady()) {
+        LPLIST FileSystemList = GetFileSystemList();
+        LPLISTNODE PreviousLast = FileSystemList != NULL ? FileSystemList->Last : NULL;
 
-    DEBUG(TEXT("[USBMassStorageStartDevice] Mounting disk partitions"));
-    if (!MountDiskPartitions((LPPHYSICALDISK)Device, NULL, 0)) {
-        WARNING(TEXT("[USBMassStorageStartDevice] Partition mount failed"));
-    }
+        DEBUG(TEXT("[USBMassStorageStartDevice] Mounting disk partitions"));
+        if (!MountDiskPartitions((LPSTORAGE_UNIT)Device, NULL, 0)) {
+            WARNING(TEXT("[USBMassStorageStartDevice] Partition mount failed"));
+        }
 
-    UINT MountedCount = USBMassStorageReportMounts(Device, PreviousLast);
-    if (MountedCount > 0) {
-        BroadcastProcessMessage(ETM_USB_MASS_STORAGE_MOUNTED,
-                                (U32)UsbDevice->Address,
-                                Device->BlockCount);
+        UINT MountedCount = USBMassStorageReportMounts(Device, PreviousLast);
+        if (MountedCount > 0) {
+            BroadcastProcessMessage(ETM_USB_MASS_STORAGE_MOUNTED,
+                                    (U32)UsbDevice->Address,
+                                    Device->BlockCount);
+        }
+    } else {
+        DEBUG(TEXT("[USBMassStorageStartDevice] Deferred partition mount (filesystem not ready)"));
     }
 
     DEBUG(TEXT("[USBMassStorageStartDevice] USB disk addr=%x blocks=%u block_size=%u"),
@@ -1215,11 +1252,11 @@ static U32 USBMassStorageRead(LPIOCONTROL Control) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    if (Control->NumSectors > (MAX_UINT / SECTOR_SIZE)) {
+    if (Control->NumSectors > (MAX_UINT / Device->BlockSize)) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    UINT TotalBytes = Control->NumSectors * SECTOR_SIZE;
+    UINT TotalBytes = Control->NumSectors * Device->BlockSize;
     if (Control->BufferSize < TotalBytes) {
         return DF_RETURN_BAD_PARAMETER;
     }
@@ -1280,9 +1317,10 @@ static U32 USBMassStorageGetInfo(LPDISKINFO Info) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    Info->Type = DRIVER_TYPE_HARDDISK;
+    Info->Type = DRIVER_TYPE_USB_STORAGE;
     Info->Removable = 1;
-    Info->NumSectors = (U32)Device->BlockCount;
+    Info->BytesPerSector = Device->BlockSize;
+    Info->NumSectors = U64_FromUINT(Device->BlockCount);
     Info->Access = Device->Access;
 
     return DF_RETURN_SUCCESS;

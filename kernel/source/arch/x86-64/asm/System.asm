@@ -52,7 +52,6 @@ Magic : db 'EXOS'
 
 FUNC_HEADER
 start:
-
     mov         [KernelStartup + KernelStartupInfo.StackTop], rsp
 
     call        KernelMain
@@ -125,6 +124,53 @@ SYS_FUNC_BEGIN EnablePaging
     mov     rax, cr0
     bts     rax, 31
     mov     cr0, rax
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN MemoryCopy
+    test    rdx, rdx
+    jz      .done
+    cmp     rdi, rsi
+    je      .done
+
+    mov     rcx, rdx
+    shr     rcx, 3
+    cld
+    rep     movsq
+
+    mov     rcx, rdx
+    and     rcx, 7
+    rep     movsb
+.done:
+SYS_FUNC_END
+
+;----------------------------------------------------------------------------
+
+SYS_FUNC_BEGIN MemoryMove
+    test    rdx, rdx
+    jz      .done
+    cmp     rdi, rsi
+    je      .done
+
+    lea     rax, [rsi + rdx]
+    cmp     rdi, rsi
+    jb      .forward
+    cmp     rdi, rax
+    jae     .forward
+
+    std
+    lea     rsi, [rsi + rdx - 1]
+    lea     rdi, [rdi + rdx - 1]
+    mov     rcx, rdx
+    rep     movsb
+    cld
+    jmp     .done
+.forward:
+    cld
+    mov     rcx, rdx
+    rep     movsb
+.done:
 SYS_FUNC_END
 
 ;----------------------------------------------------------------------------

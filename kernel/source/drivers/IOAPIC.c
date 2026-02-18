@@ -24,6 +24,7 @@
 
 #include "Base.h"
 #include "drivers/IOAPIC.h"
+#include "drivers/LocalAPIC.h"
 #include "drivers/ACPI.h"
 #include "User.h"
 #include "InterruptController.h"
@@ -33,7 +34,7 @@
 
 /***************************************************************************/
 
-static IOAPIC_CONFIG g_IOAPICConfig = {0};
+static IOAPIC_CONFIG DATA_SECTION g_IOAPICConfig = {0};
 
 /***************************************************************************/
 
@@ -53,7 +54,7 @@ DRIVER DATA_SECTION IOAPICDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "IOAPIC",
-    .Flags = DRIVER_FLAG_CRITICAL,
+    .Flags = 0,
     .Command = IOAPICDriverCommands};
 
 /***************************************************************************/
@@ -83,7 +84,6 @@ BOOL InitializeIOAPIC(void)
     U32 i;
     U32 ControllerIndex = 0;
 
-    DEBUG(TEXT("[InitializeIOAPIC] Initializing I/O APIC subsystem..."));
 
     // Get ACPI configuration
     pACPIConfig = GetACPIConfig();
@@ -93,11 +93,8 @@ BOOL InitializeIOAPIC(void)
     }
 
     if (!pACPIConfig->UseIoApic || pACPIConfig->IoApicCount == 0) {
-        DEBUG(TEXT("[InitializeIOAPIC] No I/O APIC found in ACPI tables"));
         return FALSE;
     }
-
-    DEBUG(TEXT("[InitializeIOAPIC] Found %u I/O APIC controller(s) in ACPI"), pACPIConfig->IoApicCount);
 
     // Initialize each I/O APIC controller
     for (i = 0; i < pACPIConfig->IoApicCount && ControllerIndex < 8; i++) {
@@ -105,10 +102,6 @@ BOOL InitializeIOAPIC(void)
         if (pIOAPICInfo == NULL) {
             continue;
         }
-
-        DEBUG(TEXT("[InitializeIOAPIC] Initializing controller %u: ID=%u, Address=%p, GSI Base=%u"),
-                  ControllerIndex, pIOAPICInfo->IoApicId, pIOAPICInfo->IoApicAddress,
-                  pIOAPICInfo->GlobalSystemInterruptBase);
 
         // Store controller information
         g_IOAPICConfig.Controllers[ControllerIndex].IoApicId = pIOAPICInfo->IoApicId;
@@ -123,12 +116,8 @@ BOOL InitializeIOAPIC(void)
         );
 
         if (g_IOAPICConfig.Controllers[ControllerIndex].MappedAddress == 0) {
-            DEBUG(TEXT("[InitializeIOAPIC] Failed to map controller %u registers"), ControllerIndex);
             continue;
         }
-
-        DEBUG(TEXT("[InitializeIOAPIC] Controller %u mapped to virtual address %p"),
-                  ControllerIndex, g_IOAPICConfig.Controllers[ControllerIndex].MappedAddress);
 
         // Set Present flag to TRUE so ReadIOAPICRegister works
         g_IOAPICConfig.Controllers[ControllerIndex].Present = TRUE;
@@ -139,33 +128,14 @@ BOOL InitializeIOAPIC(void)
         }
 
         // Test basic connectivity first
-        DEBUG(TEXT("[InitializeIOAPIC] Testing basic MMIO access to controller %u"), ControllerIndex);
-
-        // Test direct MMIO access
-        volatile U32* testPtr = (volatile U32*)g_IOAPICConfig.Controllers[ControllerIndex].MappedAddress;
-        U32 directRead = *testPtr;
-        DEBUG(TEXT("[InitializeIOAPIC] Direct MMIO read at %p = %08X"),
-              (LINEAR)testPtr, directRead);
-
-        // Try to read ID register first (register 0x00)
-        DEBUG(TEXT("[InitializeIOAPIC] About to read ID register for controller %u"), ControllerIndex);
-        U32 IDReg = ReadIOAPICRegister(ControllerIndex, IOAPIC_REG_ID);
-        DEBUG(TEXT("[InitializeIOAPIC] Controller %u - ID register=%x"), ControllerIndex, IDReg);
 
         // Read I/O APIC version and capabilities
-        DEBUG(TEXT("[InitializeIOAPIC] About to read version register for controller %u"), ControllerIndex);
         U32 VersionReg = ReadIOAPICRegister(ControllerIndex, IOAPIC_REG_VER);
-        DEBUG(TEXT("[InitializeIOAPIC] Controller %u - Version register read returned %x"), ControllerIndex, VersionReg);
 
-        DEBUG(TEXT("[InitializeIOAPIC] Controller %u - Raw version register=%x"), ControllerIndex, VersionReg);
 
         g_IOAPICConfig.Controllers[ControllerIndex].Version = (U8)(VersionReg & IOAPIC_VER_VERSION_MASK);
         g_IOAPICConfig.Controllers[ControllerIndex].MaxRedirectionEntry =
             (U8)((VersionReg & IOAPIC_VER_MRE_MASK) >> IOAPIC_VER_MRE_SHIFT);
-
-        DEBUG(TEXT("[InitializeIOAPIC] Controller %u - Version=%x, Max Redirection Entry=%u"),
-                  ControllerIndex, g_IOAPICConfig.Controllers[ControllerIndex].Version,
-                  g_IOAPICConfig.Controllers[ControllerIndex].MaxRedirectionEntry);
 
         // Mask all interrupts during initialization
         MaskAllIOAPICInterrupts(ControllerIndex);
@@ -180,12 +150,8 @@ BOOL InitializeIOAPIC(void)
     g_IOAPICConfig.NextFreeVector = IOAPIC_IRQ_BASE;
 
     if (g_IOAPICConfig.ControllerCount == 0) {
-        DEBUG(TEXT("[InitializeIOAPIC] No I/O APIC controllers could be initialized"));
         return FALSE;
     }
-
-    DEBUG(TEXT("[InitializeIOAPIC] Successfully initialized %u controller(s), %u total interrupts"),
-              g_IOAPICConfig.ControllerCount, g_IOAPICConfig.TotalInterrupts);
 
     // Set up default configuration for standard PC interrupts
     SetDefaultIOAPICConfiguration();
@@ -247,7 +213,6 @@ void ShutdownIOAPIC(void)
         return;
     }
 
-    DEBUG(TEXT("[ShutdownIOAPIC] Shutting down I/O APIC subsystem..."));
 
     // Mask all interrupts on all controllers
     for (i = 0; i < g_IOAPICConfig.ControllerCount; i++) {
@@ -267,7 +232,6 @@ void ShutdownIOAPIC(void)
     g_IOAPICConfig.TotalInterrupts = 0;
     g_IOAPICConfig.NextFreeVector = 0;
 
-    DEBUG(TEXT("[ShutdownIOAPIC] Shutdown complete"));
 }
 
 /***************************************************************************/
@@ -303,17 +267,14 @@ U32 ReadIOAPICRegister(U32 ControllerIndex, U8 Register)
     pRegSel = (volatile U32*)(BaseAddress + IOAPIC_REGSEL);
     pIOWin = (volatile U32*)(BaseAddress + IOAPIC_IOWIN);
 
-    // DEBUG(TEXT("[ReadIOAPICRegister] BaseAddr=%08X, RegSel=%08X, IOWin=%08X"), BaseAddress, (U32)pRegSel, (U32)pIOWin);
 
     // Write register index to IOREGSEL
     *pRegSel = Register;
 
-    // DEBUG(TEXT("[ReadIOAPICRegister] Wrote register %02X to RegSel"), Register);
 
     // Read value from IOWIN
     U32 value = *pIOWin;
 
-    // DEBUG(TEXT("[ReadIOAPICRegister] Read value %08X from IOWin"), value);
 
     return value;
 }
@@ -468,7 +429,6 @@ BOOL ConfigureIOAPICInterrupt(U8 IRQ, U8 Vector, U32 DeliveryMode, U8 TriggerMod
             pOverride = GetInterruptOverrideInfo(i);
             if (pOverride != NULL && pOverride->Source == IRQ) {
                 MappedIRQ = pOverride->GlobalSystemInterrupt;
-                // DEBUG(TEXT("[ConfigureIOAPICInterrupt] IRQ %u overridden to GSI %u"), IRQ, MappedIRQ);
                 break;
             }
         }
@@ -476,7 +436,6 @@ BOOL ConfigureIOAPICInterrupt(U8 IRQ, U8 Vector, U32 DeliveryMode, U8 TriggerMod
 
     // Find the I/O APIC controller and entry for this IRQ
     if (!MapIRQToIOAPIC(MappedIRQ, &ControllerIndex, &Entry)) {
-        // DEBUG(TEXT("[ConfigureIOAPICInterrupt] Cannot map IRQ %u (GSI %u) to I/O APIC"), IRQ, MappedIRQ);
         return FALSE;
     }
 
@@ -491,7 +450,6 @@ BOOL ConfigureIOAPICInterrupt(U8 IRQ, U8 Vector, U32 DeliveryMode, U8 TriggerMod
     RedirEntry.Mask = 0;  // Enable interrupt
     RedirEntry.Destination = DestCPU;
 
-    // DEBUG(TEXT("[ConfigureIOAPICInterrupt] Configuring IRQ %u -> Vector %x (Controller %u, Entry %u)"), IRQ, Vector, ControllerIndex, Entry);
 
     return WriteRedirectionEntry(ControllerIndex, Entry, &RedirEntry);
 }
@@ -513,23 +471,18 @@ BOOL EnableIOAPICInterrupt(U8 IRQ)
     IOAPIC_REDIRECTION_ENTRY RedirEntry;
     U32 MappedIRQ = MapInterrupt(IRQ);
 
-    // DEBUG(TEXT("[EnableIOAPICInterrupt] called for IRQ %u, mapped to GSI %u"), IRQ, MappedIRQ);
 
     if (!MapIRQToIOAPIC(MappedIRQ, &ControllerIndex, &Entry)) {
-        DEBUG(TEXT("[EnableIOAPICInterrupt] MapIRQToIOAPIC failed for GSI %u"), MappedIRQ);
         return FALSE;
     }
 
-    // DEBUG(TEXT("[EnableIOAPICInterrupt] Mapped GSI %u to controller %u, entry %u"), MappedIRQ, ControllerIndex, Entry);
 
     if (!ReadRedirectionEntry(ControllerIndex, Entry, &RedirEntry)) {
-        DEBUG(TEXT("[EnableIOAPICInterrupt] ReadRedirectionEntry failed for controller %u, entry %u"), ControllerIndex, Entry);
         return FALSE;
     }
 
     RedirEntry.Mask = 0;  // Unmask interrupt
 
-    // DEBUG(TEXT("[EnableIOAPICInterrupt] Enabling IRQ %u (GSI %u)"), IRQ, MappedIRQ);
     return WriteRedirectionEntry(ControllerIndex, Entry, &RedirEntry);
 }
 
@@ -560,7 +513,6 @@ BOOL DisableIOAPICInterrupt(U8 IRQ)
 
     RedirEntry.Mask = 1;  // Mask interrupt
 
-    // DEBUG(TEXT("[DisableIOAPICInterrupt] Disabling IRQ %u (GSI %u)"), IRQ, MappedIRQ);
     return WriteRedirectionEntry(ControllerIndex, Entry, &RedirEntry);
 }
 
@@ -586,7 +538,6 @@ void MaskAllIOAPICInterrupts(U32 ControllerIndex)
         return;
     }
 
-    // DEBUG(TEXT("[MaskAllIOAPICInterrupts] Masking all interrupts on controller %u"), ControllerIndex);
 
     for (Entry = 0; Entry <= g_IOAPICConfig.Controllers[ControllerIndex].MaxRedirectionEntry; Entry++) {
         // Read current entry
@@ -701,8 +652,8 @@ void SetDefaultIOAPICConfiguration(void)
     U8 StandardIRQs[] = {0, 1, 3, 4, 7, 8, 12, 14, 15}; // Standard PC IRQs to configure
     U8 NumIRQs = sizeof(StandardIRQs) / sizeof(StandardIRQs[0]);
     U8 i, Vector, ActualPin, TriggerMode, Polarity;
+    U8 DestCPU = GetLocalAPICId();
 
-    // DEBUG(TEXT("[SetDefaultIOAPICConfiguration] Setting up default interrupt configuration with IRQ mapping"));
 
     for (i = 0; i < NumIRQs; i++) {
         U8 IRQ = StandardIRQs[i];
@@ -712,14 +663,11 @@ void SetDefaultIOAPICConfiguration(void)
             // Use PIC-compatible vectors: 0x20 + IRQ (like traditional PIC)
             Vector = IOAPIC_IRQ_BASE + IRQ;
 
-            // DEBUG(TEXT("[SetDefaultIOAPICConfiguration] Configuring IRQ %u -> Pin %u, Vector %02X, Trigger=%u, Polarity=%u"), IRQ, ActualPin, Vector, TriggerMode, Polarity);
-
             ConfigureIOAPICInterrupt(IRQ, Vector, IOAPIC_REDTBL_DELMOD_FIXED,
-                                   TriggerMode, Polarity, 0);
+                                     TriggerMode, Polarity, DestCPU);
         } else {
             ERROR(TEXT("[SetDefaultIOAPICConfiguration] Failed to map IRQ %u"), IRQ);
         }
     }
 
-    // DEBUG(TEXT("[SetDefaultIOAPICConfiguration] Default configuration complete, next free vector = %02X"), g_IOAPICConfig.NextFreeVector);
 }

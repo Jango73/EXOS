@@ -88,10 +88,10 @@ function src2addr_convert() {
             print ""
             print "Total instructions for this source line: " count
             print "Range: 0x" first_addr " to 0x" addr
-            print "Use ./scripts/utils/show-i386.sh or ./scripts/utils/show-x86-64.sh 0x" first_addr " to see disassembly context"
+            print "Use ./scripts/utils/show-x86-32.sh or ./scripts/utils/show-x86-64.sh 0x" first_addr " to see disassembly context"
         } else if (count == 1) {
             print ""
-            print "Use ./scripts/utils/show-i386.sh or ./scripts/utils/show-x86-64.sh 0x" first_addr " to see disassembly context"
+            print "Use ./scripts/utils/show-x86-32.sh or ./scripts/utils/show-x86-64.sh 0x" first_addr " to see disassembly context"
         } else if (count == 0 && near_count > 0) {
             print ""
             print "EXACT line not found. Possible nearby lines due to compiler optimization:"

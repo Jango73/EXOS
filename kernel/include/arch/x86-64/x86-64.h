@@ -91,10 +91,6 @@
 #define RFLAGS_DF 0x0000000000000400
 #define RFLAGS_NT 0x0000000000004000        // Nested task
 
-#define CR0_COPROCESSOR 0x00000002
-#define CR0_EMULATION 0x00000004
-#define CR4_OSFXSR 0x00000200
-#define CR4_OSXMMEXCPT 0x00000400
 
 /************************************************************************/
 // Model Specific Registers
@@ -588,7 +584,7 @@ static inline U32 LoadPageDirectory(PHYSICAL Base)
 
 /***************************************************************************/
 
-extern KERNELDATA_X86_64 Kernel_i386;
+extern KERNELDATA_X86_64 Kernel_x86_32;
 
 struct tag_TASK;
 struct tag_PROCESS;

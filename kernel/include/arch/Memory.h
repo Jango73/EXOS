@@ -28,8 +28,8 @@
 void SetPhysicalPageMark(UINT Page, UINT Used);
 void SetPhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used);
 
-#if defined(__EXOS_ARCH_I386__)
-    #include "arch/i386/i386-Memory.h"
+#if defined(__EXOS_ARCH_X86_32__)
+    #include "arch/x86-32/x86-32-Memory.h"
 #elif defined(__EXOS_ARCH_X86_64__)
     #include "arch/x86-64/x86-64-Memory.h"
 #else

@@ -86,6 +86,17 @@ static BOOL ReadLineTokens(LPUTF8_CURSOR Cursor, STR Tokens[][EKM1_TOKEN_MAX], U
             continue;
         }
 
+        if (Byte == STR_NULL) {
+            if (InToken) {
+                Tokens[Count][Length] = STR_NULL;
+                Count++;
+                InToken = FALSE;
+            }
+            Cursor->Offset = Cursor->Size;
+            *EndOfFile = TRUE;
+            break;
+        }
+
         Cursor->Column++;
 
         if (Byte == '#') {
@@ -158,27 +169,6 @@ static BOOL ReadLineTokens(LPUTF8_CURSOR Cursor, STR Tokens[][EKM1_TOKEN_MAX], U
 
     *TokenCount = Count;
     return TRUE;
-}
-
-/***************************************************************************/
-
-static void DebugDumpLineBytes(const U8 *Buffer, UINT Size, UINT Offset, UINT LineNumber) {
-    UINT Index = 0;
-    UINT Count = 0;
-
-    if (Buffer == NULL) return;
-    if (Offset >= Size) return;
-
-    Index = Offset;
-    while (Index < Size && Buffer[Index] != '\n' && Count < 80) {
-        if ((Count % 8) == 0) {
-            DEBUG(TEXT("[LoadKeyboardLayout] Line %u bytes %u:"), LineNumber, Count);
-        }
-
-        DEBUG(TEXT("[LoadKeyboardLayout] Byte %u = %x"), Count, (U32)Buffer[Index]);
-        Index++;
-        Count++;
-    }
 }
 
 /***************************************************************************/
@@ -332,34 +322,10 @@ const KEY_LAYOUT_HID *LoadKeyboardLayout(LPCSTR Path) {
     Cursor.Column = 0;
     Cursor.DecodeErrors = 0;
 
-    for (UINT Index = 0; Index < 32 && Index < Size; Index += 8) {
-        U32 b0 = Buffer[Index + 0];
-        U32 b1 = (Index + 1 < Size) ? Buffer[Index + 1] : 0;
-        U32 b2 = (Index + 2 < Size) ? Buffer[Index + 2] : 0;
-        U32 b3 = (Index + 3 < Size) ? Buffer[Index + 3] : 0;
-        U32 b4 = (Index + 4 < Size) ? Buffer[Index + 4] : 0;
-        U32 b5 = (Index + 5 < Size) ? Buffer[Index + 5] : 0;
-        U32 b6 = (Index + 6 < Size) ? Buffer[Index + 6] : 0;
-        U32 b7 = (Index + 7 < Size) ? Buffer[Index + 7] : 0;
-
-        DEBUG(TEXT("[LoadKeyboardLayout] Bytes %u: %x %x %x %x %x %x %x %x"),
-              Index, b0, b1, b2, b3, b4, b5, b6, b7);
-    }
-
     while (ReadLineTokens(&Cursor, Tokens, &TokenCount, &LineNumber, &LineOffset, &EndOfFile) == TRUE) {
         if (TokenCount == 0) {
             if (EndOfFile) break;
             continue;
-        }
-
-        if (LineNumber <= 6) {
-            DebugDumpLineBytes(Buffer, Size, LineOffset, LineNumber);
-            LPCSTR Token0 = (TokenCount > 0) ? Tokens[0] : TEXT("");
-            LPCSTR Token1 = (TokenCount > 1) ? Tokens[1] : TEXT("");
-            LPCSTR Token2 = (TokenCount > 2) ? Tokens[2] : TEXT("");
-            LPCSTR Token3 = (TokenCount > 3) ? Tokens[3] : TEXT("");
-            DEBUG(TEXT("[LoadKeyboardLayout] Line %u tokens=%u '%s' '%s' '%s' '%s'"),
-                  LineNumber, TokenCount, Token0, Token1, Token2, Token3);
         }
 
         if (StringCompare(Tokens[0], TEXT("code")) == 0) {

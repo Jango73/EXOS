@@ -325,8 +325,7 @@ static BOOL ResolvePath(LPCSTR Path, LPSYSTEMFSFILE *Node, STR Remaining[MAX_PAT
                         StringConcat(Remaining, Sep);
                     }
                 } else {
-                    Remaining[0] = PATH_SEP;
-                    Remaining[1] = STR_NULL;
+                    Remaining[0] = STR_NULL;
                 }
 
                 for (; It; It = It->Next) {
@@ -418,7 +417,7 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
     Info.Size = sizeof(FILEINFO);
     Info.FileSystem = Node->Mounted;
     Info.Attributes = MAX_U32;
-    Info.Flags = 0;
+    Info.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
     StringCopy(Info.Name, Remaining);
 
     Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (UINT)&Info);
@@ -525,13 +524,24 @@ static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR Sou
     BOOL FileSystemFound = FALSE;
     LPLIST FileSystemList = GetFileSystemList();
     LPSYSTEMFSFILESYSTEM SystemFS = GetSystemFSData();
+    const STR ActiveLabel[] = {'a', 'c', 't', 'i', 'v', 'e', STR_NULL};
+    LPCSTR EffectiveFileSystem = FileSystem;
 
     if (FileSystem == NULL || Path == NULL) return;
+
+    if (STRINGS_EQUAL_NO_CASE(FileSystem, ActiveLabel)) {
+        FILESYSTEM_GLOBAL_INFO* GlobalInfo = GetFileSystemGlobalInfo();
+        if (GlobalInfo == NULL || StringEmpty(GlobalInfo->ActivePartitionName)) {
+            ERROR(TEXT("[MountConfiguredFileSystem] Active filesystem not set"));
+            return;
+        }
+        EffectiveFileSystem = GlobalInfo->ActivePartitionName;
+    }
 
     for (Node = FileSystemList != NULL ? FileSystemList->First : NULL; Node; Node = Node->Next) {
         FS = (LPFILESYSTEM)Node;
         if (FS == &SystemFS->Header) continue;
-        if (STRINGS_EQUAL(FS->Name, FileSystem)) {
+        if (STRINGS_EQUAL(FS->Name, EffectiveFileSystem)) {
             FileSystemFound = TRUE;
 
             // Check if SourcePath exists in the filesystem
@@ -539,7 +549,7 @@ static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR Sou
                 Info.Size = sizeof(FILEINFO);
                 Info.FileSystem = FS;
                 Info.Attributes = FS_ATTR_FOLDER;
-                Info.Flags = 0;
+                Info.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
                 StringCopy(Info.Name, SourcePath);
 
                 TestFile = (LPFILE)FS->Driver->Command(DF_FS_OPENFILE, (UINT)&Info);
@@ -563,7 +573,7 @@ static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR Sou
     }
 
     if (!FileSystemFound) {
-        ERROR(TEXT("[MountConfiguredFileSystem] FileSystem '%s' not found"), FileSystem);
+        ERROR(TEXT("[MountConfiguredFileSystem] FileSystem '%s' not found"), EffectiveFileSystem);
     }
 }
 
@@ -697,7 +707,17 @@ BOOL MountSystemFS(void) {
     if (SystemFS->Root == NULL) return FALSE;
 
     InitMutex(&(SystemFS->Header.Mutex));
+    SystemFS->Header.Mounted = TRUE;
     SystemFS->Header.Driver = &SystemFSDriver;
+    SystemFS->Header.StorageUnit = NULL;
+    SystemFS->Header.Partition.Scheme = PARTITION_SCHEME_VIRTUAL;
+    SystemFS->Header.Partition.Type = FSID_NONE;
+    SystemFS->Header.Partition.Format = PARTITION_FORMAT_UNKNOWN;
+    SystemFS->Header.Partition.Index = 0;
+    SystemFS->Header.Partition.Flags = 0;
+    SystemFS->Header.Partition.StartSector = 0;
+    SystemFS->Header.Partition.NumSectors = 0;
+    MemorySet(SystemFS->Header.Partition.TypeGuid, 0, GPT_GUID_LENGTH);
 
     Info.Size = sizeof(FILEINFO);
     Info.FileSystem = &SystemFS->Header;
@@ -754,7 +774,18 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         }
     }
 
-    if (!ResolvePath(Path, &Node, Remaining)) return NULL;
+    if (!ResolvePath(Path, &Node, Remaining)) {
+        WARNING(TEXT("[OpenFile] ResolvePath failed path=%s"), Path);
+        return NULL;
+    }
+
+    DEBUG(TEXT("[OpenFile] path=%s wildcard=%u node=%s mounted=%p mount_path=%s remaining=%s"),
+        Path,
+        Wildcard ? 1 : 0,
+        Node != NULL ? Node->Name : TEXT("<null>"),
+        Node != NULL ? Node->Mounted : NULL,
+        (Node != NULL && Node->MountPath[0] != STR_NULL) ? Node->MountPath : TEXT("<root>"),
+        Remaining[0] != STR_NULL ? Remaining : TEXT("<none>"));
 
     if (Remaining[0] != STR_NULL) {
         if (Node->Mounted == NULL) return NULL;
@@ -768,6 +799,12 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         }
 
         Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (UINT)&Local);
+        if (Mounted == NULL) {
+            WARNING(TEXT("[OpenFile] Mounted open failed path=%s local=%s wildcard=%u"),
+                Path,
+                Local.Name,
+                Wildcard ? 1 : 0);
+        }
         return WrapMountedFile(Node, Mounted);
     }
 
@@ -787,6 +824,11 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
                 StringCopy(Local.Name, TEXT("*"));
             }
             Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (UINT)&Local);
+            if (Mounted == NULL) {
+                WARNING(TEXT("[OpenFile] Mounted wildcard open failed path=%s local=%s"),
+                    Path,
+                    Local.Name);
+            }
             return WrapMountedFile(Node, Mounted);
         } else {
             LPSYSTEMFSFILE Child = (Node->Children) ? (LPSYSTEMFSFILE)Node->Children->First : NULL;
@@ -819,6 +861,11 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
             Local.Name[0] = STR_NULL;
         }
         Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (UINT)&Local);
+        if (Mounted == NULL) {
+            WARNING(TEXT("[OpenFile] Mounted direct open failed path=%s local=%s"),
+                Path,
+                Local.Name[0] != STR_NULL ? Local.Name : TEXT("<empty>"));
+        }
         return WrapMountedFile(Node, Mounted);
     }
 

@@ -23,6 +23,8 @@
 \\************************************************************************/
 
 #include "drivers/XHCI-Internal.h"
+#include "Clock.h"
+#include "utils/ThresholdLatch.h"
 
 /************************************************************************/
 
@@ -40,6 +42,8 @@ void XHCI_InitUsbDeviceObject(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice)
 
     MemorySet(&UsbDevice->Mutex, 0, sizeof(XHCI_USB_DEVICE) - sizeof(LISTNODE));
     UsbDevice->Controller = Device;
+    UsbDevice->LastEnumError = XHCI_ENUM_ERROR_NONE;
+    UsbDevice->LastEnumCompletion = 0;
 
     InitMutex(&UsbDevice->Mutex);
     UsbDevice->Contexts.First = NULL;
@@ -376,6 +380,10 @@ static void XHCI_ResetTransferRingState(PHYSICAL RingPhysical, LINEAR RingLinear
  */
 static BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U8* SlotIdOut, U32* CompletionOut) {
     U32 Timeout = XHCI_EVENT_TIMEOUT_MS;
+    U32 StartTick = GetSystemTime();
+    THRESHOLD_LATCH Latch;
+
+    ThresholdLatchInit(&Latch, TEXT("Command completion"), 200, StartTick);
 
     LockMutex(&(Device->Mutex), INFINITY);
     if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT, TrbPhysical, SlotIdOut, CompletionOut)) {
@@ -390,11 +398,19 @@ static BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical,
             return TRUE;
         }
 
+        if (ThresholdLatchCheck(&Latch, GetSystemTime())) {
+            WARNING(TEXT("[XHCI_WaitForCommandCompletion] %s exceeded %u ms (TRB=%p)"),
+                    Latch.Name ? Latch.Name : TEXT("?"),
+                    Latch.ThresholdMS,
+                    (LPVOID)U64_Low32(TrbPhysical));
+        }
+
         Sleep(1);
         Timeout--;
     }
 
     UnlockMutex(&(Device->Mutex));
+    WARNING(TEXT("[XHCI_WaitForCommandCompletion] Timeout %u ms (TRB=%p)"), XHCI_EVENT_TIMEOUT_MS, (LPVOID)U64_Low32(TrbPhysical));
     return FALSE;
 }
 
@@ -409,6 +425,10 @@ static BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical,
  */
 static BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* CompletionOut) {
     U32 Timeout = XHCI_EVENT_TIMEOUT_MS;
+    U32 StartTick = GetSystemTime();
+    THRESHOLD_LATCH Latch;
+
+    ThresholdLatchInit(&Latch, TEXT("Transfer completion"), 200, StartTick);
 
     LockMutex(&(Device->Mutex), INFINITY);
     if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut)) {
@@ -423,11 +443,19 @@ static BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical
             return TRUE;
         }
 
+        if (ThresholdLatchCheck(&Latch, GetSystemTime())) {
+            WARNING(TEXT("[XHCI_WaitForTransferCompletion] %s exceeded %u ms (TRB=%p)"),
+                    Latch.Name ? Latch.Name : TEXT("?"),
+                    Latch.ThresholdMS,
+                    (LPVOID)U64_Low32(TrbPhysical));
+        }
+
         Sleep(1);
         Timeout--;
     }
 
     UnlockMutex(&(Device->Mutex));
+    WARNING(TEXT("[XHCI_WaitForTransferCompletion] Timeout %u ms (TRB=%p)"), XHCI_EVENT_TIMEOUT_MS, (LPVOID)U64_Low32(TrbPhysical));
     return FALSE;
 }
 
@@ -948,7 +976,6 @@ static BOOL XHCI_ForEachDescriptor(const U8* Buffer, U16 Length, XHCI_DESC_CALLB
         const U8* Desc = &Buffer[Offset];
 
         if (DescLength < 2 || (Offset + DescLength) > Length) {
-            DEBUG(TEXT("[XHCI_ForEachDescriptor] Invalid descriptor length=%u type=%u"), DescLength, DescType);
             return FALSE;
         }
 
@@ -1190,7 +1217,12 @@ static BOOL XHCI_ResetPort(LPXHCI_DEVICE Device, U32 PortIndex) {
     PortStatus &= ~XHCI_PORTSC_W1C_MASK;
     XHCI_Write32(Device->OpBase, Offset, PortStatus);
 
-    if (!XHCI_WaitForRegister(Device->OpBase, Offset, XHCI_PORTSC_PR, 0, XHCI_PORT_RESET_TIMEOUT)) {
+    if (!XHCI_WaitForRegister(Device->OpBase,
+                              Offset,
+                              XHCI_PORTSC_PR,
+                              0,
+                              XHCI_PORT_RESET_TIMEOUT,
+                              TEXT("Port reset"))) {
         ERROR(TEXT("[XHCI_ResetPort] Port %u reset timeout"), PortIndex + 1);
         return FALSE;
     }
@@ -1389,7 +1421,7 @@ static void XHCI_BuildInputContextForEp0(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE
  * @param SlotIdOut Receives allocated slot ID.
  * @return TRUE on success.
  */
-static BOOL XHCI_EnableSlot(LPXHCI_DEVICE Device, U8* SlotIdOut) {
+static BOOL XHCI_EnableSlot(LPXHCI_DEVICE Device, U8* SlotIdOut, U32* CompletionOut) {
     XHCI_TRB Trb;
     U64 TrbPhysical = U64_0;
     U8 SlotId = 0;
@@ -1405,16 +1437,25 @@ static BOOL XHCI_EnableSlot(LPXHCI_DEVICE Device, U8* SlotIdOut) {
     XHCI_RingDoorbell(Device, 0, 0);
 
     if (!XHCI_WaitForCommandCompletion(Device, TrbPhysical, &SlotId, &Completion)) {
+        if (CompletionOut != NULL) {
+            *CompletionOut = XHCI_ENUM_COMPLETION_TIMEOUT;
+        }
         return FALSE;
     }
 
     if (Completion != XHCI_COMPLETION_SUCCESS) {
+        if (CompletionOut != NULL) {
+            *CompletionOut = Completion;
+        }
         ERROR(TEXT("[XHCI_EnableSlot] Completion code %u"), Completion);
         return FALSE;
     }
 
     if (SlotIdOut != NULL) {
         *SlotIdOut = SlotId;
+    }
+    if (CompletionOut != NULL) {
+        *CompletionOut = Completion;
     }
 
     return TRUE;
@@ -1596,27 +1637,6 @@ BOOL XHCI_AddInterruptEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice
         EpCtx->Dword4 = MaxPacket;
     }
 
-    DEBUG(TEXT("[XHCI_AddInterruptEndpoint] Slot=%x DCI=%x Speed=%x EpAddr=%x Attr=%x Interval=%x Field=%x MaxPkt=%x Dequeue=%x:%x"),
-          (U32)UsbDevice->SlotId,
-          (U32)Endpoint->Dci,
-          (U32)UsbDevice->SpeedId,
-          (U32)Endpoint->Address,
-          (U32)Endpoint->Attributes,
-          (U32)Endpoint->Interval,
-          (U32)IntervalField,
-          (U32)MaxPacket,
-          (U32)EpCtx->Dword3,
-          (U32)EpCtx->Dword2);
-    DEBUG(TEXT("[XHCI_AddInterruptEndpoint] CtrlAdd=%x SlotD0=%x SlotD1=%x EpD0=%x EpD1=%x EpD2=%x EpD3=%x EpD4=%x"),
-          (U32)Control->Dword1,
-          (U32)((LPXHCI_CONTEXT_32)SlotOut)->Dword0,
-          (U32)((LPXHCI_CONTEXT_32)SlotOut)->Dword1,
-          (U32)EpCtx->Dword0,
-          (U32)EpCtx->Dword1,
-          (U32)EpCtx->Dword2,
-          (U32)EpCtx->Dword3,
-          (U32)EpCtx->Dword4);
-
     return XHCI_ConfigureEndpoint(Device, UsbDevice);
 }
 
@@ -1671,25 +1691,6 @@ BOOL XHCI_AddBulkEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, LPX
         EpCtx->Dword3 = U64_High32(Dequeue);
         EpCtx->Dword4 = MaximumPacketSize;
     }
-
-    DEBUG(TEXT("[XHCI_AddBulkEndpoint] Slot=%x DCI=%x Speed=%x EpAddr=%x Attr=%x MaxPacketSize=%u Dequeue=%x:%x"),
-          (U32)UsbDevice->SlotId,
-          (U32)Endpoint->Dci,
-          (U32)UsbDevice->SpeedId,
-          (U32)Endpoint->Address,
-          (U32)Endpoint->Attributes,
-          (U32)MaximumPacketSize,
-          (U32)EpCtx->Dword3,
-          (U32)EpCtx->Dword2);
-    DEBUG(TEXT("[XHCI_AddBulkEndpoint] CtrlAdd=%x SlotD0=%x SlotD1=%x EpD0=%x EpD1=%x EpD2=%x EpD3=%x EpD4=%x"),
-          (U32)Control->Dword1,
-          (U32)((LPXHCI_CONTEXT_32)SlotOut)->Dword0,
-          (U32)((LPXHCI_CONTEXT_32)SlotOut)->Dword1,
-          (U32)EpCtx->Dword0,
-          (U32)EpCtx->Dword1,
-          (U32)EpCtx->Dword2,
-          (U32)EpCtx->Dword3,
-          (U32)EpCtx->Dword4);
 
     return XHCI_ConfigureEndpoint(Device, UsbDevice);
 }
@@ -1861,7 +1862,6 @@ static BOOL XHCI_ReadConfigDescriptor(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Us
     }
 
     if (TotalLength > PAGE_SIZE) {
-        DEBUG(TEXT("[XHCI_ReadConfigDescriptor] Truncated config descriptor %u -> %u"), TotalLength, PAGE_SIZE);
         TotalLength = PAGE_SIZE;
     }
 
@@ -1933,14 +1933,20 @@ BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
     PHYSICAL ConfigPhysical = 0;
     LINEAR ConfigLinear = 0;
     U16 ConfigLength = 0;
+    U32 Completion = 0;
 
+    UsbDevice->LastEnumError = XHCI_ENUM_ERROR_NONE;
+    UsbDevice->LastEnumCompletion = 0;
     UsbDevice->MaxPacketSize0 = XHCI_GetDefaultMaxPacketSize0(UsbDevice->SpeedId);
 
     if (!XHCI_InitUsbDeviceState(Device, UsbDevice)) {
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_INIT_STATE;
         return FALSE;
     }
 
-    if (!XHCI_EnableSlot(Device, &UsbDevice->SlotId)) {
+    if (!XHCI_EnableSlot(Device, &UsbDevice->SlotId, &Completion)) {
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_ENABLE_SLOT;
+        UsbDevice->LastEnumCompletion = (U16)Completion;
         return FALSE;
     }
 
@@ -1948,12 +1954,14 @@ BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
 
     XHCI_BuildInputContextForAddress(Device, UsbDevice);
     if (!XHCI_AddressDevice(Device, UsbDevice)) {
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_ADDRESS_DEVICE;
         return FALSE;
     }
 
     UsbDevice->Address = UsbDevice->SlotId;
 
     if (!XHCI_GetDeviceDescriptor(Device, UsbDevice)) {
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_DEVICE_DESC;
         return FALSE;
     }
 
@@ -1968,12 +1976,14 @@ BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
     (void)XHCI_EvaluateContext(Device, UsbDevice);
 
     if (!XHCI_ReadConfigDescriptor(Device, UsbDevice, &ConfigPhysical, &ConfigLinear, &ConfigLength)) {
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_CONFIG_DESC;
         return FALSE;
     }
 
     if (!XHCI_ParseConfigDescriptor(UsbDevice, (const U8*)ConfigLinear, ConfigLength)) {
         FreeRegion(ConfigLinear, PAGE_SIZE);
         FreePhysicalPage(ConfigPhysical);
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_CONFIG_PARSE;
         return FALSE;
     }
 
@@ -1992,6 +2002,7 @@ BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
         Setup.Length = 0;
 
         if (!XHCI_ControlTransfer(Device, UsbDevice, &Setup, 0, NULL, 0, FALSE)) {
+            UsbDevice->LastEnumError = XHCI_ENUM_ERROR_SET_CONFIG;
             return FALSE;
         }
 
@@ -2018,12 +2029,14 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
 
     if ((PortStatus & XHCI_PORTSC_CCS) == 0) {
         UsbDevice->Present = FALSE;
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_NONE;
         return FALSE;
     }
 
     if (UsbDevice->DestroyPending && XHCI_UsbTreeHasReferences(UsbDevice)) {
         WARNING(TEXT("[XHCI_ProbePort] Port %u still referenced, delaying re-enumeration"),
                 PortIndex + 1);
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_BUSY;
         return FALSE;
     }
 
@@ -2042,28 +2055,42 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
         return TRUE;
     }
 
-    if (!XHCI_ResetPort(Device, PortIndex)) {
+    BOOL PortEnabled = (PortStatus & XHCI_PORTSC_PED) != 0;
+    if (!PortEnabled) {
+        if (!XHCI_ResetPort(Device, PortIndex)) {
+            U32 RetryStatus = XHCI_ReadPortStatus(Device, PortIndex);
+            BOOL RetryConnected = (RetryStatus & XHCI_PORTSC_CCS) != 0;
+            BOOL RetryEnabled = (RetryStatus & XHCI_PORTSC_PED) != 0;
+            U32 RetrySpeed = (RetryStatus & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
+            if (!(RetryConnected && RetryEnabled && RetrySpeed != 0u)) {
+                UsbDevice->LastEnumError = XHCI_ENUM_ERROR_RESET_TIMEOUT;
+                return FALSE;
+            }
+            PortStatus = RetryStatus;
+            SpeedId = RetrySpeed;
+            UsbDevice->SpeedId = (U8)SpeedId;
+        }
+    }
+
+    PortStatus = XHCI_ReadPortStatus(Device, PortIndex);
+    SpeedId = (PortStatus & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
+    UsbDevice->SpeedId = (U8)SpeedId;
+
+    if (UsbDevice->SpeedId == 0) {
+        WARNING(TEXT("[XHCI_ProbePort] Port %u invalid speed after reset"), PortIndex + 1);
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_INVALID_SPEED;
         return FALSE;
     }
 
     if (!XHCI_EnumerateDevice(Device, UsbDevice)) {
-        ERROR(TEXT("[XHCI_ProbePort] Port %u enumerate failed"), PortIndex + 1);
+        WARNING(TEXT("[XHCI_ProbePort] Port %u enumerate failed"), PortIndex + 1);
         return FALSE;
     }
 
-    DEBUG(TEXT("[XHCI_ProbePort] Port %u VID=%x PID=%x"),
-          PortIndex + 1,
-          UsbDevice->DeviceDescriptor.VendorID,
-          UsbDevice->DeviceDescriptor.ProductID);
-
-    DEBUG(TEXT("[XHCI_ProbePort] Port %u Configs=%u SelectedConfig=%u"),
-          PortIndex + 1,
-          UsbDevice->ConfigCount,
-          UsbDevice->SelectedConfigValue);
-
     if (UsbDevice->IsHub) {
         if (!XHCI_InitHub(Device, UsbDevice)) {
-            ERROR(TEXT("[XHCI_ProbePort] Port %u hub init failed"), PortIndex + 1);
+            WARNING(TEXT("[XHCI_ProbePort] Port %u hub init failed"), PortIndex + 1);
+            UsbDevice->LastEnumError = XHCI_ENUM_ERROR_HUB_INIT;
         }
     }
 

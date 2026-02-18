@@ -5,7 +5,7 @@
 #
 ################################################################################
 
-ARCH ?= i386
+ARCH ?= x86-32
 
 EXOS_MAKE_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 EXOS_ROOT := $(abspath $(EXOS_MAKE_DIR)../..)
@@ -16,7 +16,11 @@ APP_DIR := $(abspath $(dir $(APP_MAKEFILE)))
 REL_APP_DIR := $(patsubst $(SYSTEM_ROOT)/%,%,$(APP_DIR))
 REL_APP_DIR := $(patsubst %/,%, $(REL_APP_DIR))
 
-BUILD_DIR := $(EXOS_ROOT)/build/$(ARCH)
+ifeq ($(strip $(BUILD_CORE_NAME)),)
+$(error BUILD_CORE_NAME is required)
+endif
+BUILD_DIR := $(EXOS_ROOT)/build/core/$(BUILD_CORE_NAME)
+
 APP_OUT_DIR := $(BUILD_DIR)/system/$(REL_APP_DIR)
 
 ifeq ($(strip $(APP_NAME)),)
@@ -29,7 +33,7 @@ endif
 
 APP_HEADERS ?=
 
-ifeq ($(ARCH),i386)
+ifeq ($(ARCH),x86-32)
 TOOLCHAIN_PREFIX = i686-elf
 CC      = $(TOOLCHAIN_PREFIX)-gcc
 LD      = $(TOOLCHAIN_PREFIX)-ld

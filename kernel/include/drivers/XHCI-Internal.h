@@ -96,6 +96,19 @@
 #define XHCI_PORTSC_SPEED_SHIFT 10
 #define XHCI_PORTSC_W1C_MASK 0x00FE0000
 
+#define XHCI_ENUM_ERROR_NONE            0u
+#define XHCI_ENUM_ERROR_BUSY            1u
+#define XHCI_ENUM_ERROR_RESET_TIMEOUT   2u
+#define XHCI_ENUM_ERROR_INVALID_SPEED   3u
+#define XHCI_ENUM_ERROR_INIT_STATE      4u
+#define XHCI_ENUM_ERROR_ENABLE_SLOT     5u
+#define XHCI_ENUM_ERROR_ADDRESS_DEVICE  6u
+#define XHCI_ENUM_ERROR_DEVICE_DESC     7u
+#define XHCI_ENUM_ERROR_CONFIG_DESC     8u
+#define XHCI_ENUM_ERROR_CONFIG_PARSE    9u
+#define XHCI_ENUM_ERROR_SET_CONFIG     10u
+#define XHCI_ENUM_ERROR_HUB_INIT       11u
+
 /************************************************************************/
 // xHCI runtime registers
 
@@ -122,6 +135,7 @@
 
 #define XHCI_TRB_TYPE_SHIFT 10
 #define XHCI_TRB_TYPE_LINK 6
+#define XHCI_TRB_TYPE_MASK 0x3F
 
 #define XHCI_TRB_CYCLE 0x00000001
 #define XHCI_TRB_TOGGLE_CYCLE 0x00000002
@@ -158,8 +172,8 @@
 #define XHCI_RESET_TIMEOUT 1000000
 #define XHCI_HALT_TIMEOUT 1000000
 #define XHCI_RUN_TIMEOUT 1000000
-#define XHCI_PORT_RESET_TIMEOUT 1000000
-#define XHCI_EVENT_TIMEOUT_MS 1000
+#define XHCI_PORT_RESET_TIMEOUT 50000
+#define XHCI_EVENT_TIMEOUT_MS 200
 
 #define XHCI_COMPLETION_QUEUE_MAX 64
 
@@ -253,6 +267,8 @@ typedef struct tag_XHCI_USB_DEVICE {
     USB_DEVICE_FIELDS
     BOOL Present;
     BOOL DestroyPending;
+    U8 LastEnumError;
+    U16 LastEnumCompletion;
     U8 PortNumber;
     U8 RootPortNumber;
     U8 Depth;
@@ -357,7 +373,7 @@ BOOL XHCI_RingEnqueue(LINEAR RingLinear, PHYSICAL RingPhysical, U32* EnqueueInde
                       U32 RingTrbs, const XHCI_TRB* Trb, U64* PhysicalOut);
 BOOL XHCI_DequeueEvent(LPXHCI_DEVICE Device, XHCI_TRB* EventOut);
 void XHCI_PollCompletions(LPXHCI_DEVICE Device);
-BOOL XHCI_WaitForRegister(LINEAR Base, U32 Offset, U32 Mask, U32 Value, U32 Timeout);
+BOOL XHCI_WaitForRegister(LINEAR Base, U32 Offset, U32 Mask, U32 Value, U32 Timeout, LPCSTR Name);
 BOOL XHCI_AllocPage(LPCSTR Tag, PHYSICAL *PhysicalOut, LINEAR *LinearOut);
 U32 XHCI_ReadPortStatus(LPXHCI_DEVICE Device, U32 PortIndex);
 void XHCI_AddDeviceToList(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice);

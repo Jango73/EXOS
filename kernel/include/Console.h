@@ -38,7 +38,30 @@
 
 /***************************************************************************/
 
+#define MAX_CONSOLE_REGIONS 16
+
+/***************************************************************************/
+
+typedef struct tag_CONSOLE_REGION {
+    U32 X;
+    U32 Y;
+    U32 Width;
+    U32 Height;
+    U32 CursorX;
+    U32 CursorY;
+    U32 ForeColor;
+    U32 BackColor;
+    U32 Blink;
+    U32 PagingEnabled;
+    U32 PagingActive;
+    U32 PagingRemaining;
+} CONSOLE_REGION, *LPCONSOLE_REGION;
+
+/***************************************************************************/
+
 typedef struct tag_CONSOLE_STRUCT {
+    U32 ScreenWidth;
+    U32 ScreenHeight;
     U32 Width;
     U32 Height;
     U32 CursorX;
@@ -49,8 +72,29 @@ typedef struct tag_CONSOLE_STRUCT {
     U32 PagingEnabled;
     U32 PagingActive;
     U32 PagingRemaining;
+    U32 RegionCount;
+    U32 ActiveRegion;
+    U32 DebugRegion;
     U32 Port;
     U16* Memory;
+    PHYSICAL FramebufferPhysical;
+    U8* FramebufferLinear;
+    U32 FramebufferPitch;
+    U32 FramebufferWidth;
+    U32 FramebufferHeight;
+    U32 FramebufferBitsPerPixel;
+    U32 FramebufferType;
+    U32 FramebufferRedPosition;
+    U32 FramebufferRedMaskSize;
+    U32 FramebufferGreenPosition;
+    U32 FramebufferGreenMaskSize;
+    U32 FramebufferBluePosition;
+    U32 FramebufferBlueMaskSize;
+    U32 FramebufferBytesPerPixel;
+    U32 FontWidth;
+    U32 FontHeight;
+    BOOL UseFramebuffer;
+    CONSOLE_REGION Regions[MAX_CONSOLE_REGIONS];
 } CONSOLE_STRUCT, *LPCONSOLE_STRUCT;
 
 /***************************************************************************/
@@ -63,12 +107,29 @@ void ClearConsole(void);
 void ConsolePrintChar(STR);
 void ConsoleBackSpace(void);
 void ConsolePrint(LPCSTR Format, ...);
+void ConsolePrintDebugChar(STR Char);
+BOOL ConsoleIsDebugSplitEnabled(void);
+BOOL ConsoleIsFramebufferMappingInProgress(void);
 void ConsolePrintLine(U32 Row, U32 Column, LPCSTR Text, U32 Length);
 int SetConsoleBackColor(U32 Color);
 int SetConsoleForeColor(U32 Color);
 BOOL ConsoleGetString(LPSTR, U32);
 void ConsolePanic(LPCSTR Format, ...);
 void InitializeConsole(void);
+void ConsoleInvalidateFramebufferMapping(void);
+void ConsoleSetFramebufferInfo(
+    PHYSICAL FramebufferPhysical,
+    U32 Width,
+    U32 Height,
+    U32 Pitch,
+    U32 BitsPerPixel,
+    U32 Type,
+    U32 RedPosition,
+    U32 RedMaskSize,
+    U32 GreenPosition,
+    U32 GreenMaskSize,
+    U32 BluePosition,
+    U32 BlueMaskSize);
 UINT ConsoleSetMode(LPGRAPHICSMODEINFO Info);
 UINT ConsoleGetModeCount(void);
 UINT ConsoleGetModeInfo(LPCONSOLEMODEINFO Info);
@@ -77,7 +138,7 @@ BOOL ConsoleGetPagingEnabled(void);
 void ConsoleSetPagingActive(BOOL Active);
 void ConsoleResetPaging(void);
 
-// Functions in Shell.c
+// Functions in shell/Shell-Main.c
 
 U32 Shell(LPVOID);
 

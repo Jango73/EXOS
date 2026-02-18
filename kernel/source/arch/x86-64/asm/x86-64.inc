@@ -14,12 +14,7 @@
 %define KERNEL_ARCH_MAX_UINT 0xFFFFFFFFFFFFFFFF
 
 %include "../../common/Kernel.inc"
-
-;-------------------------------------------------------------------------
-; Bit layout of CR0
-
-CR0_PROTECTED_MODE equ 0x00000001
-CR0_PAGING         equ 0x80000000
+%include "../../common/Cpu.inc"
 
 ;-------------------------------------------------------------------------
 ; Physical and virtual memory addresses
@@ -51,10 +46,13 @@ SELECTOR_REAL_DATA   equ (0x30 | SELECTOR_GLOBAL | CPU_PRIVILEGE_KERNEL)
 
 ;-------------------------------------------------------------------------
 ; KernelStartupInfo data layout (partial)
+; WARNING: MUST stay in sync with C struct tag_KERNELSTARTUPINFO
+; in kernel/include/KernelData.h.
 
 STRUC KernelStartupInfo
     .KernelPhysicalBase RESQ 1
     .KernelSize         RESQ 1
+    .KernelReservedBytes RESQ 1
     .StackTop           RESQ 1
     .PageDirectory      RESQ 1
     .IRQMask_21_PM      RESB 4

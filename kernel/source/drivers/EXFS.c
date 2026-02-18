@@ -65,7 +65,7 @@ U8 Dummy[128] = {1, 1};
 
 typedef struct tag_EXFSFILESYSTEM {
     FILESYSTEM Header;
-    LPPHYSICALDISK Disk;
+    LPSTORAGE_UNIT Disk;
     EXFSMBR Master;
     EXFSSUPER Super;
     SECTOR PartitionStart;
@@ -90,7 +90,7 @@ typedef struct tag_EXFSFILE {
  * @param Disk Physical disk associated with the file system.
  * @return Pointer to the created file system or NULL.
  */
-static LPEXFSFILESYSTEM NewEXFSFileSystem(LPPHYSICALDISK Disk) {
+static LPEXFSFILESYSTEM NewEXFSFileSystem(LPSTORAGE_UNIT Disk) {
     LPEXFSFILESYSTEM This;
 
     This = (LPEXFSFILESYSTEM)KernelHeapAlloc(sizeof(EXFSFILESYSTEM));
@@ -103,6 +103,7 @@ static LPEXFSFILESYSTEM NewEXFSFileSystem(LPPHYSICALDISK Disk) {
     This->Header.Next = NULL;
     This->Header.Prev = NULL;
     This->Header.Driver = &EXFSDriver;
+    This->Header.StorageUnit = Disk;
     This->Disk = Disk;
     This->PageBuffer = NULL;
     This->IOBuffer = NULL;
@@ -155,7 +156,7 @@ static LPEXFSFILE NewEXFSFile(LPEXFSFILESYSTEM FileSystem, LPEXFSFILELOC FileLoc
  * @param PartIndex Partition index.
  * @return TRUE on success.
  */
-BOOL MountPartition_EXFS(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
+BOOL MountPartition_EXFS(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer1[SECTOR_SIZE * 2];
     U8 Buffer2[SECTOR_SIZE * 2];
     IOCONTROL Control;
@@ -467,7 +468,7 @@ Out_Error:
  * @param Buffer Source buffer.
  * @return TRUE on success.
  */
-static BOOL WriteSectors(LPPHYSICALDISK Disk, SECTOR Sector, U32 NumSectors, LPVOID Buffer) {
+static BOOL WriteSectors(LPSTORAGE_UNIT Disk, SECTOR Sector, U32 NumSectors, LPVOID Buffer) {
     IOCONTROL Control;
     U32 Result;
 

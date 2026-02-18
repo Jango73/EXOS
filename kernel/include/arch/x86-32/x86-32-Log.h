@@ -1,0 +1,58 @@
+
+/************************************************************************\
+
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+    Log X86_32Struct header
+
+\************************************************************************/
+
+#ifndef X86_32_LOG_H_INCLUDED
+#define X86_32_LOG_H_INCLUDED
+
+/***************************************************************************/
+
+#include "Base.h"
+#include "process/Task.h"
+#include "arch/x86-32/x86-32.h"
+#include "arch/x86-32/InterruptFrame.h"
+
+/***************************************************************************/
+
+void LogMemoryLine16B(U32 LogType, LPCSTR Prefix, const U8* Memory);
+void LogFrameBuffer(U32 LogType, LPCSTR Prefix, const U8* Buffer, U32 Length);
+void LogRegisters32(LPINTEL_32_REGISTERS Regs);
+void LogFrame(LPINTERRUPT_FRAME Frame);
+void LogCPUState(LPINTERRUPT_FRAME Frame);
+void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 Size);
+void LogInterruptDescriptorTable(U32 LogType, const LPGATE_DESCRIPTOR Table, UINT EntriesToLog);
+void LogPageDirectoryEntry(U32 LogType, const PAGE_DIRECTORY* PageDirectory);
+void LogPageDirectory(PHYSICAL DirectoryPhysical);
+void LogPageTableEntry(U32 LogType, const PAGE_TABLE* PageTable);
+void LogSegmentDescriptor(U32 LogType, const SEGMENT_DESCRIPTOR* SegmentDescriptor);
+void LogPageTableFromDirectory(U32 LogType, const PAGE_DIRECTORY* PageDirectoryEntry);
+void LogAllPageTables(U32 LogType, const PAGE_DIRECTORY* PageDirectory);
+void LogTSSDescriptor(U32 LogType, const TSS_DESCRIPTOR* TssDescriptor);
+void LogTaskStateSegment(U32 LogType, const TASK_STATE_SEGMENT* Tss);
+void LogTask(U32 LogType, const LPTASK Task);
+void BacktraceFrom(U32 StartEbp, U32 MaxFrames);
+void BacktraceFromCurrent(U32 MaxFrames);
+
+/***************************************************************************/
+
+#endif  // X86_32_LOG_H_INCLUDED

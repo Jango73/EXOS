@@ -29,12 +29,41 @@
 /************************************************************************/
 // Temporary mapping slots state
 
-static LINEAR G_TempLinear1 = TEMP_LINEAR_PAGE_1;
-static LINEAR G_TempLinear2 = TEMP_LINEAR_PAGE_2;
-static LINEAR G_TempLinear3 = TEMP_LINEAR_PAGE_3;
-static PHYSICAL G_TempPhysical1 = 0;
-static PHYSICAL G_TempPhysical2 = 0;
-static PHYSICAL G_TempPhysical3 = 0;
+extern LINEAR __bss_init_end;
+
+static BOOL G_TempLinearInitialized = FALSE;
+static LINEAR G_TempLinear1 = 0;
+static LINEAR G_TempLinear2 = 0;
+static LINEAR G_TempLinear3 = 0;
+static LINEAR G_TempLinear4 = 0;
+static LINEAR G_TempLinear5 = 0;
+static LINEAR G_TempLinear6 = 0;
+static PHYSICAL DATA_SECTION G_TempPhysical1 = 0;
+static PHYSICAL DATA_SECTION G_TempPhysical2 = 0;
+static PHYSICAL DATA_SECTION G_TempPhysical3 = 0;
+static PHYSICAL DATA_SECTION G_TempPhysical4 = 0;
+static PHYSICAL DATA_SECTION G_TempPhysical5 = 0;
+static PHYSICAL DATA_SECTION G_TempPhysical6 = 0;
+
+/************************************************************************/
+
+/**
+ * @brief Place temporary mapping slots just after the kernel image.
+ */
+static void InitializeTemporaryLinearSlots(void) {
+    if (G_TempLinearInitialized) {
+        return;
+    }
+
+    LINEAR Base = ((LINEAR)(&__bss_init_end) + (LINEAR)(PAGE_SIZE - 1)) & ~(LINEAR)(PAGE_SIZE - 1);
+    G_TempLinear1 = Base;
+    G_TempLinear2 = G_TempLinear1 + PAGE_SIZE;
+    G_TempLinear3 = G_TempLinear2 + PAGE_SIZE;
+    G_TempLinear4 = G_TempLinear3 + PAGE_SIZE;
+    G_TempLinear5 = G_TempLinear4 + PAGE_SIZE;
+    G_TempLinear6 = G_TempLinear5 + PAGE_SIZE;
+    G_TempLinearInitialized = TRUE;
+}
 
 /************************************************************************/
 /**
@@ -282,6 +311,8 @@ inline void UnmapOnePage(LINEAR Linear) {
  * @return Linear address mapping or 0 on failure.
  */
 LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical) {
+    InitializeTemporaryLinearSlots();
+
     if (G_TempLinear1 == 0) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage1] Temp slot #1 not reserved"));
         return NULL;
@@ -309,6 +340,8 @@ LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical) {
  * @return Linear address mapping or 0 on failure.
  */
 LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
+    InitializeTemporaryLinearSlots();
+
     if (G_TempLinear2 == 0) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage2] Temp slot #2 not reserved"));
         return NULL;
@@ -336,6 +369,8 @@ LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical) {
  * @return Linear address mapping or 0 on failure.
  */
 LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
+    InitializeTemporaryLinearSlots();
+
     if (G_TempLinear3 == 0) {
         ConsolePanic(TEXT("[MapTemporaryPhysicalPage3] Temp slot #3 not reserved"));
         return NULL;
@@ -352,6 +387,87 @@ LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical) {
     FlushTLB();
 
     return G_TempLinear3;
+}
+
+/************************************************************************/
+// Public temporary map #4
+
+/**
+ * @brief Map a physical page to the fourth temporary linear address.
+ * @param Physical Physical page number.
+ * @return Linear address mapping or 0 on failure.
+ */
+LINEAR MapTemporaryPhysicalPage4(PHYSICAL Physical) {
+    InitializeTemporaryLinearSlots();
+
+    if (G_TempLinear4 == 0) {
+        ConsolePanic(TEXT("[MapTemporaryPhysicalPage4] Temp slot #4 not reserved"));
+        return NULL;
+    }
+
+    G_TempPhysical4 = Physical;
+
+    MapOnePage(
+        G_TempLinear4, Physical,
+        /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
+
+    FlushTLB();
+
+    return G_TempLinear4;
+}
+
+/************************************************************************/
+// Public temporary map #5
+
+/**
+ * @brief Map a physical page to the fifth temporary linear address.
+ * @param Physical Physical page number.
+ * @return Linear address mapping or 0 on failure.
+ */
+LINEAR MapTemporaryPhysicalPage5(PHYSICAL Physical) {
+    InitializeTemporaryLinearSlots();
+
+    if (G_TempLinear5 == 0) {
+        ConsolePanic(TEXT("[MapTemporaryPhysicalPage5] Temp slot #5 not reserved"));
+        return NULL;
+    }
+
+    G_TempPhysical5 = Physical;
+
+    MapOnePage(
+        G_TempLinear5, Physical,
+        /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
+
+    FlushTLB();
+
+    return G_TempLinear5;
+}
+
+/************************************************************************/
+// Public temporary map #6
+
+/**
+ * @brief Map a physical page to the sixth temporary linear address.
+ * @param Physical Physical page number.
+ * @return Linear address mapping or 0 on failure.
+ */
+LINEAR MapTemporaryPhysicalPage6(PHYSICAL Physical) {
+    InitializeTemporaryLinearSlots();
+
+    if (G_TempLinear6 == 0) {
+        ConsolePanic(TEXT("[MapTemporaryPhysicalPage6] Temp slot #6 not reserved"));
+        return NULL;
+    }
+
+    G_TempPhysical6 = Physical;
+
+    MapOnePage(
+        G_TempLinear6, Physical,
+        /*RW*/ 1, PAGE_PRIVILEGE_KERNEL, /*WT*/ 0, /*UC*/ 0, /*Global*/ 0, /*Fixed*/ 1);
+
+    FlushTLB();
+
+    return G_TempLinear6;
 }
 
 /************************************************************************/
@@ -595,10 +711,6 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
 
     PHYSICAL CurrentDirectoryPhysical = GetPageDirectory();
     if (CurrentDirectoryPhysical == 0 || CurrentDirectoryPhysical == KernelDirectoryPhysical) {
-        DEBUG(TEXT("[ResolveKernelPageFault] CR3=%p matches kernel directory %p (Address=%p)"),
-              (LPVOID)CurrentDirectoryPhysical,
-              (LPVOID)KernelDirectoryPhysical,
-              (LPVOID)Address);
         return FALSE;
     }
 
@@ -628,10 +740,6 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
     LPPML4 CurrentPml4 = GetCurrentPml4VA();
     U64 CurrentPml4Value = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)CurrentPml4, Pml4Index);
     if ((CurrentPml4Value & PAGE_FLAG_PRESENT) == 0u || CurrentPml4Value != KernelPml4Value) {
-        DEBUG(TEXT("[ResolveKernelPageFault] Updating PML4[%u]: old=%p new=%p"),
-              Pml4Index,
-              (LPVOID)CurrentPml4Value,
-              (LPVOID)KernelPml4Value);
         WritePageDirectoryEntryValue((LPPAGE_DIRECTORY)CurrentPml4, Pml4Index, KernelPml4Value);
         Updated = TRUE;
         NeedsFullFlush = TRUE;
@@ -656,10 +764,6 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
     LPPDPT CurrentPdpt = GetPageDirectoryPointerTableVAFor(Address);
     U64 CurrentPdptValue = ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)CurrentPdpt, PdptIndex);
     if ((CurrentPdptValue & PAGE_FLAG_PRESENT) == 0u || CurrentPdptValue != KernelPdptValue) {
-        DEBUG(TEXT("[ResolveKernelPageFault] Updating PDPT[%u]: old=%p new=%p"),
-              PdptIndex,
-              (LPVOID)CurrentPdptValue,
-              (LPVOID)KernelPdptValue);
         WritePageDirectoryEntryValue((LPPAGE_DIRECTORY)CurrentPdpt, PdptIndex, KernelPdptValue);
         Updated = TRUE;
         NeedsFullFlush = TRUE;
@@ -676,7 +780,6 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
             InvalidatePage((LINEAR)Address);
         }
 
-        DEBUG(TEXT("[ResolveKernelPageFault] Mirrored kernel 1GB mapping for %p"), (LPVOID)Address);
         return TRUE;
     }
 
@@ -699,10 +802,6 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
     LPPAGE_DIRECTORY CurrentDirectory = GetPageDirectoryVAFor(Address);
     U64 CurrentDirectoryValue = ReadPageDirectoryEntryValue(CurrentDirectory, DirectoryIndex);
     if ((CurrentDirectoryValue & PAGE_FLAG_PRESENT) == 0u || CurrentDirectoryValue != KernelDirectoryValue) {
-        DEBUG(TEXT("[ResolveKernelPageFault] Updating directory[%u]: old=%p new=%p"),
-              DirectoryIndex,
-              (LPVOID)CurrentDirectoryValue,
-              (LPVOID)KernelDirectoryValue);
         WritePageDirectoryEntryValue(CurrentDirectory, DirectoryIndex, KernelDirectoryValue);
         Updated = TRUE;
         NeedsFullFlush = TRUE;
@@ -719,7 +818,6 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
             InvalidatePage((LINEAR)Address);
         }
 
-        DEBUG(TEXT("[ResolveKernelPageFault] Mirrored kernel 2MB mapping for %p"), (LPVOID)Address);
         return TRUE;
     }
 
@@ -742,16 +840,11 @@ BOOL ResolveKernelPageFault(LINEAR FaultAddress) {
     LPPAGE_TABLE CurrentTable = GetPageTableVAFor(Address);
     U64 CurrentTableValue = ReadPageTableEntryValue(CurrentTable, TableIndex);
     if (CurrentTableValue != KernelTableValue) {
-        DEBUG(TEXT("[ResolveKernelPageFault] Updating PTE[%u]: old=%p new=%p"),
-              TableIndex,
-              (LPVOID)CurrentTableValue,
-              (LPVOID)KernelTableValue);
         WritePageTableEntryValue(CurrentTable, TableIndex, KernelTableValue);
         Updated = TRUE;
     }
 
     if (Updated == FALSE) {
-        DEBUG(TEXT("[ResolveKernelPageFault] Entries already matched for %p"), (LPVOID)Address);
         return FALSE;
     }
 

@@ -27,18 +27,17 @@
 #include "CoreString.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "process/Schedule.h"
 #include "System.h"
 
 /************************************************************************/
 // Region descriptor tracking state
 
-BOOL G_RegionDescriptorsEnabled = FALSE;
-BOOL G_RegionDescriptorBootstrap = FALSE;
-LPMEMORY_REGION_DESCRIPTOR G_FreeRegionDescriptors = NULL;
-UINT G_FreeRegionDescriptorCount = 0;
-UINT G_TotalRegionDescriptorCount = 0;
-UINT G_RegionDescriptorPages = 0;
+BOOL DATA_SECTION G_RegionDescriptorsEnabled = FALSE;
+BOOL DATA_SECTION G_RegionDescriptorBootstrap = FALSE;
+LPMEMORY_REGION_DESCRIPTOR DATA_SECTION G_FreeRegionDescriptors = NULL;
+UINT DATA_SECTION G_FreeRegionDescriptorCount = 0;
+UINT DATA_SECTION G_TotalRegionDescriptorCount = 0;
+UINT DATA_SECTION G_RegionDescriptorPages = 0;
 
 /************************************************************************/
 /**
@@ -55,21 +54,20 @@ LPPROCESS ResolveCurrentAddressSpaceOwner(void) {
 
 /************************************************************************/
 /**
- * @brief Allocate a new descriptor slab when the free list runs empty.
+ * @brief Allocate and chain one descriptor slab.
  * @return TRUE on success, FALSE otherwise.
  */
-static BOOL EnsureDescriptorSlab(void) {
-    if (G_FreeRegionDescriptors != NULL) {
-        return TRUE;
-    }
-
+static BOOL GrowDescriptorSlab(void) {
     PHYSICAL Physical = AllocPhysicalPage();
+
     if (Physical == NULL) {
         ERROR(TEXT("[EnsureDescriptorSlab] No physical page available"));
         return FALSE;
     }
 
+
     G_RegionDescriptorBootstrap = TRUE;
+
     LINEAR Linear = AllocKernelRegion(
         Physical,
         PAGE_SIZE,
@@ -83,7 +81,9 @@ static BOOL EnsureDescriptorSlab(void) {
         return FALSE;
     }
 
+
     MemorySet((LPVOID)Linear, 0, PAGE_SIZE);
+
 
     UINT Capacity = (UINT)(PAGE_SIZE / (UINT)sizeof(MEMORY_REGION_DESCRIPTOR));
     LPMEMORY_REGION_DESCRIPTOR DescriptorArray = (LPMEMORY_REGION_DESCRIPTOR)(LINEAR)Linear;
@@ -99,13 +99,20 @@ static BOOL EnsureDescriptorSlab(void) {
 
     G_RegionDescriptorPages++;
 
-    DEBUG(TEXT("[EnsureDescriptorSlab] Added slab #%u (capacity=%u free=%u total=%u)"),
-        G_RegionDescriptorPages,
-        Capacity,
-        G_FreeRegionDescriptorCount,
-        G_TotalRegionDescriptorCount);
-
     return TRUE;
+}
+
+/************************************************************************/
+/**
+ * @brief Allocate a new descriptor slab when the free list runs empty.
+ * @return TRUE on success, FALSE otherwise.
+ */
+static BOOL EnsureDescriptorSlab(void) {
+    if (G_FreeRegionDescriptors != NULL) {
+        return TRUE;
+    }
+
+    return GrowDescriptorSlab();
 }
 
 /************************************************************************/
@@ -313,11 +320,6 @@ void ExtendDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor, UINT AdditionalPage
     Descriptor->PageCount += AdditionalPages;
     RefreshDescriptorGranularity(Descriptor);
 
-    DEBUG(TEXT("[ExtendDescriptor] Base=%p addedPages=%u newSize=%u newPages=%u"),
-        (LPVOID)Descriptor->CanonicalBase,
-        AdditionalPages,
-        Descriptor->Size,
-        Descriptor->PageCount);
 }
 
 /************************************************************************/
@@ -369,14 +371,6 @@ BOOL RegisterRegionDescriptor(LINEAR Base, UINT NumPages, PHYSICAL Target, U32 F
 
     InsertDescriptorOrdered(Process, Descriptor);
 
-    DEBUG(TEXT("[RegisterRegionDescriptor] Process=%p base=%p pages=%u flags=%x count=%u free=%u"),
-        (LPVOID)Process,
-        (LPVOID)Descriptor->CanonicalBase,
-        Descriptor->PageCount,
-        Flags,
-        Process->RegionCount,
-        G_FreeRegionDescriptorCount);
-
     return TRUE;
 }
 
@@ -424,10 +418,6 @@ void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
 
         if (EntireRegion) {
             RemoveDescriptor(Process, Descriptor);
-            DEBUG(TEXT("[UpdateDescriptorsForFree] Removed region base=%p size=%u remaining=%u"),
-                (LPVOID)RegionStart,
-                (UINT)Descriptor->Size,
-                Process->RegionCount);
             ReleaseRegionDescriptor(Descriptor);
         } else if (TrimTail) {
             UINT Remaining = (UINT)(FreeStart - RegionStart);
@@ -438,9 +428,6 @@ void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
                 Descriptor->Size = Remaining;
                 Descriptor->PageCount = Remaining >> PAGE_SIZE_MUL;
                 RefreshDescriptorGranularity(Descriptor);
-                DEBUG(TEXT("[UpdateDescriptorsForFree] Shrunk tail base=%p newSize=%u"),
-                    (LPVOID)RegionStart,
-                    Descriptor->Size);
             }
         } else if (TrimHead) {
             UINT Remaining = (UINT)(RegionEnd - FreeEnd);
@@ -457,9 +444,6 @@ void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
                 ReleaseRegionDescriptor(Descriptor);
             } else {
                 InsertDescriptorOrdered(Process, Descriptor);
-                DEBUG(TEXT("[UpdateDescriptorsForFree] Trimmed head newBase=%p newSize=%u"),
-                    (LPVOID)Descriptor->CanonicalBase,
-                    Descriptor->Size);
             }
         } else {
             UINT LeftBytes = (UINT)(FreeStart - RegionStart);
@@ -509,11 +493,6 @@ void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
                 InsertDescriptorOrdered(Process, Right);
             }
 
-            DEBUG(TEXT("[UpdateDescriptorsForFree] Split region %p -> left=%u right=%u count=%u"),
-                (LPVOID)RegionStart,
-                LeftBytes,
-                RightBytes,
-                Process->RegionCount);
         }
 
         if (RemainingBytes >= SegmentBytes) {
@@ -535,11 +514,11 @@ void InitializeRegionDescriptorTracking(void) {
         return;
     }
 
+
     if (EnsureDescriptorSlab() == FALSE) {
         ERROR(TEXT("[InitializeRegionDescriptorTracking] Initial slab allocation failed"));
         return;
     }
-
     G_RegionDescriptorsEnabled = TRUE;
 
     DEBUG(TEXT("[InitializeRegionDescriptorTracking] Enabled (free=%u total=%u)"),

@@ -126,12 +126,12 @@ typedef struct tag_PASSWORD_CHANGE {
   - if no user account exists, do the add user command
   - if a user account exists, do the login command
 
-#### 4.1 CMD_adduser (name "adduser", alt "newuser")
+#### 4.1 CMD_adduser (name "add_user", alt "new_user")
 - Secure prompt for username and password
 - Password masking (asterisk display) : a specialized version of ConsolePrint that can take flags
 - User account creation
 
-#### 4.2 CMD_deluser (name "deluser", alt "deleteuser")
+#### 4.2 CMD_deluser (name "del_user", alt "delete_user")
 - Secure prompt for username
 - User account deletion
 
@@ -146,11 +146,11 @@ typedef struct tag_PASSWORD_CHANGE {
 - Return to login prompt
 - Resource cleanup
 
-#### 4.5 CMD_whoami (name "whoami", alt "who")
+#### 4.5 CMD_whoami (name "who_am_i", alt "who")
 - Display current user
 - Session information (login time, etc.)
 
-#### 4.6 CMD_passwd (name "pass", alt "setpassword")
+#### 4.6 CMD_passwd (name "pass", alt "set_password")
 - Password change
 - Old password verification
 - New password validation
@@ -197,7 +197,7 @@ typedef struct tag_PASSWORD_CHANGE {
 
 #### Files to Modify
 - `kernel/source/SYSCall.c` - Add new syscalls
-- `kernel/source/Shell.c` - New commands
+- `kernel/source/shell/Shell-Commands.c` - New commands
 - `kernel/source/process/Process.c` - PROCESS extension
 - `kernel/source/Kernel.c` - User system initialization
 - `kernel/include/process/Process.h` - Structure extensions

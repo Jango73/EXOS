@@ -23,7 +23,7 @@
 
 %include "x86-64.inc"
 
-extern Kernel_i386
+extern Kernel_x86_32
 extern SwitchToPICForRealMode
 extern RestoreIOAPICAfterRealMode
 
@@ -120,7 +120,7 @@ RealModeCall:
     ;--------------------------------------
     ; Copy the GDT at RMC code + 16
 
-    mov     rsi, [rel Kernel_i386 + KERNELDATA_X86_64.GDT]
+    mov     rsi, [rel Kernel_x86_32 + KERNELDATA_X86_64.GDT]
     mov     rdi, rbx
     add     rdi, 0x10
     mov     ecx, 8 * SEGMENT_DESCRIPTOR_SIZE
@@ -142,13 +142,13 @@ RealModeCall:
     lea     rsi, [rbx + Rel2 - RMCSetup]
     add     dword [rsi], ebx
 
-    ; Patch Real_IDT_Label base with Kernel_i386.IDT
-    mov     rsi, [rel Kernel_i386 + KERNELDATA_X86_64.IDT]
+    ; Patch Real_IDT_Label base with Kernel_x86_32.IDT
+    mov     rsi, [rel Kernel_x86_32 + KERNELDATA_X86_64.IDT]
     lea     rdi, [rbx + Real_IDT_Label - RMCSetup + 2]
     mov     dword [rdi], esi
 
-    ; Patch Real_GDT_Label base with Kernel_i386.GDT
-    mov     rsi, [rel Kernel_i386 + KERNELDATA_X86_64.GDT]
+    ; Patch Real_GDT_Label base with Kernel_x86_32.GDT
+    mov     rsi, [rel Kernel_x86_32 + KERNELDATA_X86_64.GDT]
     lea     rdi, [rbx + Real_GDT_Label - RMCSetup + 2]
     mov     dword [rdi], esi
 

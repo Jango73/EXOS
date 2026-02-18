@@ -29,6 +29,8 @@
 
 /***************************************************************************/
 
+/***************************************************************************/
+
 MUTEX KernelMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&LogMutex, .Prev = NULL, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
 MUTEX LogMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&MemoryMutex, .Prev = (LPLISTNODE)&KernelMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
 MUTEX MemoryMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ScheduleMutex, .Prev = (LPLISTNODE)&LogMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
@@ -129,8 +131,10 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
     UINT Flags;
     UINT Ret = 0;
 
+
     SaveFlags(&Flags);
     DisableInterrupts();
+
 
     //-------------------------------------
     // Check validity of parameters

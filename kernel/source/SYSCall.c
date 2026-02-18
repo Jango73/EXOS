@@ -88,13 +88,14 @@ UINT SysCall_GetSystemInfo(UINT Parameter) {
     LPSYSTEMINFO Info = (LPSYSTEMINFO)Parameter;
 
     SAFE_USE_INPUT_POINTER(Info, SYSTEMINFO) {
-        Info->TotalPhysicalMemory = KernelStartup.MemorySize;
-        Info->PhysicalMemoryUsed = GetPhysicalMemoryUsed();
-        Info->PhysicalMemoryAvail = KernelStartup.MemorySize - Info->PhysicalMemoryUsed;
-        Info->TotalSwapMemory = 0;
-        Info->SwapMemoryUsed = 0;
-        Info->SwapMemoryAvail = 0;
-        Info->TotalMemoryAvail = Info->TotalPhysicalMemory + Info->TotalSwapMemory;
+        Info->TotalPhysicalMemory = U64_FromUINT(KernelStartup.MemorySize);
+        Info->PhysicalMemoryUsed = U64_FromUINT(GetPhysicalMemoryUsed());
+        Info->PhysicalMemoryAvail = U64_Sub(Info->TotalPhysicalMemory, Info->PhysicalMemoryUsed);
+        Info->TotalSwapMemory = U64_FromUINT(0);
+        Info->SwapMemoryUsed = U64_FromUINT(0);
+        Info->SwapMemoryAvail = U64_FromUINT(0);
+        Info->TotalMemoryUsed = U64_Add(Info->PhysicalMemoryUsed, Info->SwapMemoryUsed);
+        Info->TotalMemoryAvail = U64_Add(Info->PhysicalMemoryAvail, Info->SwapMemoryAvail);
         Info->PageSize = PAGE_SIZE;
         Info->TotalPhysicalPages = KernelStartup.PageCount;
         Info->MinimumLinearAddress = VMA_USER;
@@ -1284,6 +1285,8 @@ UINT SysCall_ConsoleBlitBuffer(UINT Parameter) {
     if (Info != NULL && IsValidMemory((LINEAR)Info) && IsValidMemory((LINEAR)Info->Text)) {
         UINT maxWidth = Console.Width;
         UINT maxHeight = Console.Height;
+        UINT baseX = Console.Regions[0].X;
+        UINT baseY = Console.Regions[0].Y;
         UINT row;
         UINT width = Info->Width;
         UINT height = Info->Height;
@@ -1328,7 +1331,7 @@ UINT SysCall_ConsoleBlitBuffer(UINT Parameter) {
                 U16 attribute = (U16)(cellFore | (cellBack << 0x04) | (Console.Blink << 0x07));
                 attribute = (U16)(attribute << 0x08);
                 if (x + col < maxWidth && y + row < maxHeight) {
-                    UINT offset = ((y + row) * Console.Width) + (x + col);
+                    UINT offset = ((baseY + y + row) * Console.ScreenWidth) + (baseX + x + col);
                     STR character = Info->Text[(row * textPitch) + col];
                     Console.Memory[offset] = (U16)character | attribute;
                 }

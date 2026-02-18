@@ -8,6 +8,7 @@
 #include "utils/Helpers.h"
 #include "process/Process.h"
 #include "drivers/Keyboard.h"
+#include "Log.h"
 
 /************************************************************************/
 
@@ -174,6 +175,17 @@ static LIST FileSystemList = {
 
 /************************************************************************/
 
+static LIST UnusedFileSystemList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
+
+/************************************************************************/
+
 static LIST FileList = {
     .First = NULL,
     .Last = NULL,
@@ -233,6 +245,7 @@ static KERNELDATA DATA_SECTION Kernel = {
     .NetworkDevice = &NetworkDeviceList,
     .Event = &EventList,
     .FileSystem = &FileSystemList,
+    .UnusedFileSystem = &UnusedFileSystemList,
     .File = &FileList,
     .TCPConnection = &TCPConnectionList,
     .Socket = &SocketList,
@@ -247,14 +260,24 @@ static KERNELDATA DATA_SECTION Kernel = {
             .Next = NULL,
             .Prev = NULL,
             .Mutex = EMPTY_MUTEX,
+            .Mounted = TRUE,
             .Driver = &SystemFSDriver,
+            .StorageUnit = NULL,
+            .Partition = {
+                .Scheme = PARTITION_SCHEME_VIRTUAL,
+                .Type = FSID_NONE,
+                .Format = PARTITION_FORMAT_UNKNOWN,
+                .Index = 0,
+                .Flags = 0,
+                .StartSector = 0,
+                .NumSectors = 0,
+                .TypeGuid = {0}
+            },
             .Name = "System"
         },
         .Root = NULL
     },
     .HandleMap = {0},
-    .PPBSize = 0,
-    .PPB = NULL,
     .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0},
     .Configuration = NULL,
     .MinimumQuantum = 10,
@@ -446,6 +469,16 @@ LPLIST GetFileSystemList(void) {
 /************************************************************************/
 
 /**
+ * @brief Retrieves the list of discovered but not mounted file systems.
+ * @return Pointer to the unused file system list.
+ */
+LPLIST GetUnusedFileSystemList(void) {
+    return Kernel.UnusedFileSystem;
+}
+
+/************************************************************************/
+
+/**
  * @brief Retrieves the open file list.
  * @return Pointer to the file list.
  */
@@ -552,48 +585,6 @@ LPCACHE GetObjectTerminationCache(void) {
 LPHANDLE_MAP GetHandleMap(void) {
     return &(Kernel.HandleMap);
 }
-
-/************************************************************************/
-
-/**
- * @brief Retrieves the size of the physical page bitmap.
- * @return Size in bytes.
- */
-UINT GetPhysicalPageBitmapSize(void) {
-    return Kernel.PPBSize;
-}
-
-/************************************************************************/
-
-/**
- * @brief Sets the size of the physical page bitmap.
- * @param Size Size in bytes.
- */
-void SetPhysicalPageBitmapSize(UINT Size) {
-    Kernel.PPBSize = Size;
-}
-
-/************************************************************************/
-
-/**
- * @brief Retrieves the physical page bitmap pointer.
- * @return Pointer to the bitmap.
- */
-LPPAGEBITMAP GetPhysicalPageBitmap(void) {
-    return Kernel.PPB;
-}
-
-/************************************************************************/
-
-/**
- * @brief Sets the physical page bitmap pointer.
- * @param Bitmap Pointer to the bitmap.
- */
-void SetPhysicalPageBitmap(LPPAGEBITMAP Bitmap) {
-    Kernel.PPB = Bitmap;
-}
-
-/************************************************************************/
 
 /**
  * @brief Retrieves the CPU information storage.

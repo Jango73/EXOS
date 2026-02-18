@@ -99,29 +99,29 @@ void InitializeTaskSegments(void) {
 
     UINT TssSize = sizeof(X86_64_TASK_STATE_SEGMENT);
 
-    Kernel_i386.TSS = (LPX86_64_TASK_STATE_SEGMENT)AllocKernelRegion(
+    Kernel_x86_32.TSS = (LPX86_64_TASK_STATE_SEGMENT)AllocKernelRegion(
         0, TssSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("TSS"));
 
-    if (Kernel_i386.TSS == NULL) {
+    if (Kernel_x86_32.TSS == NULL) {
         ERROR(TEXT("[InitializeTaskSegments] AllocKernelRegion for TSS failed"));
         ConsolePanic(TEXT("AllocKernelRegion for TSS failed"));
     }
 
-    MemorySet(Kernel_i386.TSS, 0, TssSize);
-    Kernel_i386.TSS->IOMapBase = (U16)TssSize;
+    MemorySet(Kernel_x86_32.TSS, 0, TssSize);
+    Kernel_x86_32.TSS->IOMapBase = (U16)TssSize;
 
     LINEAR CurrentRsp;
     GetESP(CurrentRsp);
-    Kernel_i386.TSS->RSP0 = (U64)CurrentRsp;
-    Kernel_i386.TSS->IST1 = (U64)CurrentRsp;
+    Kernel_x86_32.TSS->RSP0 = (U64)CurrentRsp;
+    Kernel_x86_32.TSS->IST1 = (U64)CurrentRsp;
 
     LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR Descriptor =
-        (LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR)((LPSEGMENT_DESCRIPTOR)Kernel_i386.GDT + GDT_TSS_INDEX);
+        (LPX86_64_SYSTEM_SEGMENT_DESCRIPTOR)((LPSEGMENT_DESCRIPTOR)Kernel_x86_32.GDT + GDT_TSS_INDEX);
 
     MemorySet(Descriptor, 0, sizeof(X86_64_SYSTEM_SEGMENT_DESCRIPTOR));
 
     SetSystemSegmentDescriptorLimit(Descriptor, TssSize - 1);
-    SetSystemSegmentDescriptorBase(Descriptor, (UINT)Kernel_i386.TSS);
+    SetSystemSegmentDescriptorBase(Descriptor, (UINT)Kernel_x86_32.TSS);
 
     Descriptor->Accessed = 1;
     Descriptor->Code = 1;
@@ -135,7 +135,7 @@ void InitializeTaskSegments(void) {
     Descriptor->Granularity = 0;
     Descriptor->Reserved = 0;
 
-    DEBUG(TEXT("[InitializeTaskSegments] TSS = %p"), Kernel_i386.TSS);
+    DEBUG(TEXT("[InitializeTaskSegments] TSS = %p"), Kernel_x86_32.TSS);
     DEBUG(TEXT("[InitializeTaskSegments] Loading task register"));
 
     LoadInitialTaskRegister(SELECTOR_TSS);

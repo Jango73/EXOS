@@ -46,6 +46,7 @@ static LPAST_NODE ScriptParseStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* 
 static LPAST_NODE ScriptParseBlockAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 static LPAST_NODE ScriptParseIfStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 static LPAST_NODE ScriptParseForStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
+static LPAST_NODE ScriptParseReturnStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 static LPAST_NODE ScriptParseShellCommandExpression(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 static BOOL ScriptShouldParseShellCommand(LPSCRIPT_PARSER Parser);
 static BOOL ScriptIsKeyword(LPCSTR Str);
@@ -56,14 +57,45 @@ static SCRIPT_VALUE ScriptEvaluateHostProperty(LPSCRIPT_PARSER Parser, LPAST_NOD
 static SCRIPT_VALUE ScriptEvaluateArrayAccess(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, SCRIPT_ERROR* Error);
 static SCRIPT_ERROR ScriptPrepareHostValue(SCRIPT_VALUE* Value, const SCRIPT_HOST_DESCRIPTOR* DefaultDescriptor, LPVOID DefaultContext);
 static BOOL ScriptValueToFloat(const SCRIPT_VALUE* Value, F32* OutValue);
+static SCRIPT_ERROR ScriptConcatStrings(const SCRIPT_VALUE* LeftValue, const SCRIPT_VALUE* RightValue, SCRIPT_VALUE* Result);
+static SCRIPT_ERROR ScriptRemoveStringOccurrences(const SCRIPT_VALUE* LeftValue, const SCRIPT_VALUE* RightValue, SCRIPT_VALUE* Result);
 static SCRIPT_ERROR ScriptExecuteAssignment(LPSCRIPT_PARSER Parser, LPAST_NODE Node);
 static SCRIPT_ERROR ScriptExecuteBlock(LPSCRIPT_PARSER Parser, LPAST_NODE Node);
 static BOOL IsInteger(F32 Value);
 static void ScriptCalculateLineColumn(LPCSTR Input, U32 Position, U32* Line, U32* Column);
+static void ScriptClearReturnValue(LPSCRIPT_CONTEXT Context);
+static BOOL ScriptStoreReturnValue(LPSCRIPT_CONTEXT Context, const SCRIPT_VALUE* Value);
 static U32 ScriptHashHostSymbol(LPCSTR Name);
 static BOOL ScriptInitHostRegistry(LPSCRIPT_HOST_REGISTRY Registry);
 static void ScriptClearHostRegistryInternal(LPSCRIPT_HOST_REGISTRY Registry);
 static LPSCRIPT_HOST_SYMBOL ScriptFindHostSymbol(LPSCRIPT_HOST_REGISTRY Registry, LPCSTR Name);
+
+/************************************************************************/
+
+/**
+ * @brief Check whether a file name targets an E0 script.
+ * @param FileName File name or path to inspect.
+ * @return TRUE when the file name ends with .e0 (case-insensitive), FALSE otherwise.
+ */
+BOOL ScriptIsE0FileName(LPCSTR FileName) {
+    UINT ExtensionLength;
+    UINT FileNameLength;
+    LPCSTR ExtensionPosition;
+
+    if (FileName == NULL) {
+        return FALSE;
+    }
+
+    ExtensionLength = StringLength(E0_SCRIPT_FILE_EXTENSION);
+    FileNameLength = StringLength(FileName);
+
+    if (FileNameLength < ExtensionLength) {
+        return FALSE;
+    }
+
+    ExtensionPosition = FileName + (FileNameLength - ExtensionLength);
+    return StringCompareNC(ExtensionPosition, E0_SCRIPT_FILE_EXTENSION) == 0;
+}
 
 /************************************************************************/
 
@@ -115,6 +147,7 @@ LPSCRIPT_CONTEXT ScriptCreateContext(LPSCRIPT_CALLBACKS Callbacks) {
 void ScriptDestroyContext(LPSCRIPT_CONTEXT Context) {
     if (Context == NULL) return;
 
+    ScriptClearReturnValue(Context);
     ScriptClearHostRegistryInternal(&Context->HostRegistry);
 
     // Free global scope and all child scopes
@@ -141,6 +174,7 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
 
     Context->ErrorCode = SCRIPT_OK;
     Context->ErrorMessage[0] = STR_NULL;
+    ScriptClearReturnValue(Context);
 
     SCRIPT_PARSER Parser;
     ScriptInitParser(&Parser, Script, Context);
@@ -195,8 +229,8 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
 
         Root->Data.Block.Statements[Root->Data.Block.Count++] = Statement;
 
-        // Semicolon is mandatory after assignments, optional after blocks/if/for
-        if (Statement->Type == AST_ASSIGNMENT) {
+        // Semicolon is mandatory after assignments and returns.
+        if (Statement->Type == AST_ASSIGNMENT || Statement->Type == AST_RETURN) {
             if (Parser.CurrentToken.Type != TOKEN_SEMICOLON && Parser.CurrentToken.Type != TOKEN_EOF) {
                 StringPrintFormat(Context->ErrorMessage, TEXT("Expected semicolon (l:%d,c:%d)"), Parser.CurrentToken.Line, Parser.CurrentToken.Column);
                 Context->ErrorCode = SCRIPT_ERROR_SYNTAX;
@@ -217,7 +251,7 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
     // PASS 2: Execute AST - Execute statements directly without creating a new scope
     for (U32 i = 0; i < Root->Data.Block.Count; i++) {
         Error = ScriptExecuteAST(&Parser, Root->Data.Block.Statements[i]);
-        if (Error != SCRIPT_OK) {
+        if (Error != SCRIPT_OK || Context->ReturnTriggered) {
             break;
         }
     }
@@ -316,6 +350,24 @@ LPCSTR ScriptGetErrorMessage(LPSCRIPT_CONTEXT Context) {
 
 /************************************************************************/
 
+BOOL ScriptHasReturnValue(LPSCRIPT_CONTEXT Context) {
+    return (Context != NULL && Context->HasReturnValue);
+}
+
+/************************************************************************/
+
+BOOL ScriptGetReturnValue(LPSCRIPT_CONTEXT Context, SCRIPT_VAR_TYPE* Type, SCRIPT_VAR_VALUE* Value) {
+    if (Context == NULL || Type == NULL || Value == NULL || Context->HasReturnValue == FALSE) {
+        return FALSE;
+    }
+
+    *Type = Context->ReturnType;
+    *Value = Context->ReturnValue;
+    return TRUE;
+}
+
+/************************************************************************/
+
 /**
  * @brief Create a new AST node.
  * @param Type Node type
@@ -390,6 +442,12 @@ void ScriptDestroyAST(LPAST_NODE Node) {
             }
             break;
 
+        case AST_RETURN:
+            if (Node->Data.Return.Expression) {
+                ScriptDestroyAST(Node->Data.Return.Expression);
+            }
+            break;
+
         case AST_EXPRESSION:
             if (Node->Data.Expression.BaseExpression) {
                 ScriptDestroyAST(Node->Data.Expression.BaseExpression);
@@ -444,6 +502,67 @@ static U32 ScriptHashVariable(LPCSTR Name) {
  */
 static BOOL IsInteger(F32 Value) {
     return Value == (F32)(I32)Value;
+}
+
+/************************************************************************/
+
+static void ScriptClearReturnValue(LPSCRIPT_CONTEXT Context) {
+    if (Context == NULL) {
+        return;
+    }
+
+    if (Context->HasReturnValue) {
+        if (Context->ReturnType == SCRIPT_VAR_STRING && Context->ReturnValue.String != NULL) {
+            HeapFree(Context->ReturnValue.String);
+        } else if (Context->ReturnType == SCRIPT_VAR_ARRAY && Context->ReturnValue.Array != NULL) {
+            ScriptDestroyArray(Context->ReturnValue.Array);
+        }
+    }
+
+    Context->HasReturnValue = FALSE;
+    Context->ReturnTriggered = FALSE;
+    Context->ReturnType = SCRIPT_VAR_FLOAT;
+    MemorySet(&Context->ReturnValue, 0, sizeof(SCRIPT_VAR_VALUE));
+}
+
+/************************************************************************/
+
+static BOOL ScriptStoreReturnValue(LPSCRIPT_CONTEXT Context, const SCRIPT_VALUE* Value) {
+    if (Context == NULL || Value == NULL) {
+        return FALSE;
+    }
+
+    ScriptClearReturnValue(Context);
+
+    if (Value->Type == SCRIPT_VAR_HOST_HANDLE || Value->Type == SCRIPT_VAR_ARRAY) {
+        return FALSE;
+    }
+
+    Context->ReturnType = Value->Type;
+    Context->HasReturnValue = TRUE;
+    Context->ReturnTriggered = TRUE;
+
+    if (Value->Type == SCRIPT_VAR_STRING) {
+        U32 Length;
+
+        if (Value->Value.String == NULL) {
+            Context->ReturnValue.String = NULL;
+            return TRUE;
+        }
+
+        Length = StringLength(Value->Value.String) + 1;
+        Context->ReturnValue.String = (LPSTR)HeapAlloc(Length);
+        if (Context->ReturnValue.String == NULL) {
+            ScriptClearReturnValue(Context);
+            return FALSE;
+        }
+
+        StringCopy(Context->ReturnValue.String, Value->Value.String);
+        return TRUE;
+    }
+
+    Context->ReturnValue = Value->Value;
+    return TRUE;
 }
 
 /************************************************************************/
@@ -716,6 +835,8 @@ static void ScriptNextToken(LPSCRIPT_PARSER Parser) {
                 Parser->CurrentToken.Type = TOKEN_ELSE;
             } else if (StringCompare(Parser->CurrentToken.Value, TEXT("for")) == 0) {
                 Parser->CurrentToken.Type = TOKEN_FOR;
+            } else if (StringCompare(Parser->CurrentToken.Value, TEXT("return")) == 0) {
+                Parser->CurrentToken.Type = TOKEN_RETURN;
             }
         }
 
@@ -1679,6 +1800,113 @@ static BOOL ScriptValueToFloat(const SCRIPT_VALUE* Value, F32* OutValue) {
 /************************************************************************/
 
 /**
+ * @brief Concatenate two script strings and store the result.
+ * @param LeftValue Left operand (must be a string)
+ * @param RightValue Right operand (must be a string)
+ * @param Result Destination value
+ * @return SCRIPT_OK on success, otherwise an error code
+ */
+static SCRIPT_ERROR ScriptConcatStrings(const SCRIPT_VALUE* LeftValue, const SCRIPT_VALUE* RightValue, SCRIPT_VALUE* Result) {
+    if (LeftValue == NULL || RightValue == NULL || Result == NULL) {
+        return SCRIPT_ERROR_SYNTAX;
+    }
+
+    if (LeftValue->Type != SCRIPT_VAR_STRING || RightValue->Type != SCRIPT_VAR_STRING) {
+        return SCRIPT_ERROR_TYPE_MISMATCH;
+    }
+
+    LPCSTR LeftText = LeftValue->Value.String ? LeftValue->Value.String : TEXT("");
+    LPCSTR RightText = RightValue->Value.String ? RightValue->Value.String : TEXT("");
+
+    UINT LeftLength = StringLength(LeftText);
+    UINT RightLength = StringLength(RightText);
+    UINT TotalLength = LeftLength + RightLength + 1;
+
+    LPSTR NewString = (LPSTR)HeapAlloc(TotalLength);
+    if (NewString == NULL) {
+        return SCRIPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    StringCopy(NewString, LeftText);
+    StringConcat(NewString, RightText);
+
+    Result->Type = SCRIPT_VAR_STRING;
+    Result->Value.String = NewString;
+    Result->OwnsValue = TRUE;
+
+    return SCRIPT_OK;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Remove all occurrences of a substring from a script string.
+ * @param LeftValue Source string value
+ * @param RightValue Substring value to remove
+ * @param Result Destination value
+ * @return SCRIPT_OK on success, otherwise an error code
+ */
+static SCRIPT_ERROR ScriptRemoveStringOccurrences(const SCRIPT_VALUE* LeftValue, const SCRIPT_VALUE* RightValue, SCRIPT_VALUE* Result) {
+    UINT SourceIndex;
+    UINT WriteIndex;
+    UINT SourceLength;
+    UINT PatternLength;
+    LPCSTR SourceText;
+    LPCSTR PatternText;
+    LPSTR NewString;
+
+    if (LeftValue == NULL || RightValue == NULL || Result == NULL) {
+        return SCRIPT_ERROR_SYNTAX;
+    }
+
+    if (LeftValue->Type != SCRIPT_VAR_STRING || RightValue->Type != SCRIPT_VAR_STRING) {
+        return SCRIPT_ERROR_TYPE_MISMATCH;
+    }
+
+    SourceText = LeftValue->Value.String ? LeftValue->Value.String : TEXT("");
+    PatternText = RightValue->Value.String ? RightValue->Value.String : TEXT("");
+
+    SourceLength = StringLength(SourceText);
+    PatternLength = StringLength(PatternText);
+
+    NewString = (LPSTR)HeapAlloc(SourceLength + 1);
+    if (NewString == NULL) {
+        return SCRIPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    if (PatternLength == 0) {
+        StringCopy(NewString, SourceText);
+        Result->Type = SCRIPT_VAR_STRING;
+        Result->Value.String = NewString;
+        Result->OwnsValue = TRUE;
+        return SCRIPT_OK;
+    }
+
+    SourceIndex = 0;
+    WriteIndex = 0;
+
+    while (SourceIndex < SourceLength) {
+        if (SourceIndex + PatternLength <= SourceLength &&
+            MemoryCompare(SourceText + SourceIndex, PatternText, PatternLength) == 0) {
+            SourceIndex += PatternLength;
+            continue;
+        }
+
+        NewString[WriteIndex++] = SourceText[SourceIndex++];
+    }
+
+    NewString[WriteIndex] = STR_NULL;
+
+    Result->Type = SCRIPT_VAR_STRING;
+    Result->Value.String = NewString;
+    Result->OwnsValue = TRUE;
+
+    return SCRIPT_OK;
+}
+
+/************************************************************************/
+
+/**
  * @brief Check if a string is a script keyword.
  * @param Str String to check
  * @return TRUE if the string is a keyword
@@ -1686,7 +1914,8 @@ static BOOL ScriptValueToFloat(const SCRIPT_VALUE* Value, F32* OutValue) {
 static BOOL ScriptIsKeyword(LPCSTR Str) {
     return (StringCompare(Str, TEXT("if")) == 0 ||
             StringCompare(Str, TEXT("else")) == 0 ||
-            StringCompare(Str, TEXT("for")) == 0);
+            StringCompare(Str, TEXT("for")) == 0 ||
+            StringCompare(Str, TEXT("return")) == 0);
 }
 
 /************************************************************************/
@@ -2031,23 +2260,45 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                 return Result;
             }
 
-            F32 LeftNumeric;
-            F32 RightNumeric;
-
-            if (!ScriptValueToFloat(&LeftValue, &LeftNumeric) ||
-                !ScriptValueToFloat(&RightValue, &RightNumeric)) {
-                if (Error) {
-                    *Error = SCRIPT_ERROR_TYPE_MISMATCH;
-                }
-                ScriptValueRelease(&LeftValue);
-                ScriptValueRelease(&RightValue);
-                return Result;
-            }
-
-            Result.Type = SCRIPT_VAR_FLOAT;
-
             if (Expr->Data.Expression.TokenType == TOKEN_OPERATOR) {
                 STR Operator = Expr->Data.Expression.Value[0];
+                SCRIPT_ERROR StringError = SCRIPT_OK;
+
+                if (Operator == '+') {
+                    if (LeftValue.Type == SCRIPT_VAR_STRING || RightValue.Type == SCRIPT_VAR_STRING) {
+                        StringError = ScriptConcatStrings(&LeftValue, &RightValue, &Result);
+                        if (StringError != SCRIPT_OK && Error) {
+                            *Error = StringError;
+                        }
+                        ScriptValueRelease(&LeftValue);
+                        ScriptValueRelease(&RightValue);
+                        return Result;
+                    }
+                } else if (Operator == '-') {
+                    if (LeftValue.Type == SCRIPT_VAR_STRING || RightValue.Type == SCRIPT_VAR_STRING) {
+                        StringError = ScriptRemoveStringOccurrences(&LeftValue, &RightValue, &Result);
+                        if (StringError != SCRIPT_OK && Error) {
+                            *Error = StringError;
+                        }
+                        ScriptValueRelease(&LeftValue);
+                        ScriptValueRelease(&RightValue);
+                        return Result;
+                    }
+                }
+
+                F32 LeftNumeric;
+                F32 RightNumeric;
+                if (!ScriptValueToFloat(&LeftValue, &LeftNumeric) ||
+                    !ScriptValueToFloat(&RightValue, &RightNumeric)) {
+                    if (Error) {
+                        *Error = SCRIPT_ERROR_TYPE_MISMATCH;
+                    }
+                    ScriptValueRelease(&LeftValue);
+                    ScriptValueRelease(&RightValue);
+                    return Result;
+                }
+
+                Result.Type = SCRIPT_VAR_FLOAT;
 
                 if (Operator == '+') {
                     Result.Value.Float = LeftNumeric + RightNumeric;
@@ -2076,6 +2327,21 @@ static SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE 
                     }
                 }
             } else {
+                F32 LeftNumeric;
+                F32 RightNumeric;
+
+                if (!ScriptValueToFloat(&LeftValue, &LeftNumeric) ||
+                    !ScriptValueToFloat(&RightValue, &RightNumeric)) {
+                    if (Error) {
+                        *Error = SCRIPT_ERROR_TYPE_MISMATCH;
+                    }
+                    ScriptValueRelease(&LeftValue);
+                    ScriptValueRelease(&RightValue);
+                    return Result;
+                }
+
+                Result.Type = SCRIPT_VAR_FLOAT;
+
                 if (StringCompare(Expr->Data.Expression.Value, TEXT("<")) == 0) {
                     Result.Value.Float = (LeftNumeric < RightNumeric) ? 1.0f : 0.0f;
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT("<=")) == 0) {
@@ -2358,7 +2624,7 @@ static SCRIPT_ERROR ScriptExecuteBlock(LPSCRIPT_PARSER Parser, LPAST_NODE Node) 
     SCRIPT_ERROR Error = SCRIPT_OK;
     for (U32 i = 0; i < Node->Data.Block.Count; i++) {
         Error = ScriptExecuteAST(Parser, Node->Data.Block.Statements[i]);
-        if (Error != SCRIPT_OK) {
+        if (Error != SCRIPT_OK || Parser->Context->ReturnTriggered) {
             break;
         }
     }
@@ -2417,6 +2683,7 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
             // Execute initialization
             SCRIPT_ERROR Error = ScriptExecuteAST(Parser, Node->Data.For.Init);
             if (Error != SCRIPT_OK) return Error;
+            if (Parser->Context->ReturnTriggered) return SCRIPT_OK;
 
             // Execute loop
             U32 LoopCount = 0;
@@ -2443,10 +2710,12 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
                 // Execute body
                 Error = ScriptExecuteAST(Parser, Node->Data.For.Body);
                 if (Error != SCRIPT_OK) return Error;
+                if (Parser->Context->ReturnTriggered) return SCRIPT_OK;
 
                 // Execute increment
                 Error = ScriptExecuteAST(Parser, Node->Data.For.Increment);
                 if (Error != SCRIPT_OK) return Error;
+                if (Parser->Context->ReturnTriggered) return SCRIPT_OK;
 
                 LoopCount++;
             }
@@ -2455,6 +2724,23 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
                 ERROR(TEXT("[ScriptExecuteAST] Loop exceeded maximum iterations"));
             }
 
+            return SCRIPT_OK;
+        }
+
+        case AST_RETURN: {
+            SCRIPT_ERROR Error = SCRIPT_OK;
+            SCRIPT_VALUE ReturnValue = ScriptEvaluateExpression(Parser, Node->Data.Return.Expression, &Error);
+            if (Error != SCRIPT_OK) {
+                ScriptValueRelease(&ReturnValue);
+                return Error;
+            }
+
+            if (!ScriptStoreReturnValue(Parser->Context, &ReturnValue)) {
+                ScriptValueRelease(&ReturnValue);
+                return SCRIPT_ERROR_TYPE_MISMATCH;
+            }
+
+            ScriptValueRelease(&ReturnValue);
             return SCRIPT_OK;
         }
 
@@ -2474,6 +2760,41 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
 /************************************************************************/
 
 /**
+ * @brief Parse a return statement and build AST node.
+ * @param Parser Parser state
+ * @param Error Pointer to error code
+ * @return AST node or NULL on failure
+ */
+static LPAST_NODE ScriptParseReturnStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
+    LPAST_NODE ReturnNode;
+
+    if (Parser == NULL || Error == NULL || Parser->CurrentToken.Type != TOKEN_RETURN) {
+        if (Error != NULL) {
+            *Error = SCRIPT_ERROR_SYNTAX;
+        }
+        return NULL;
+    }
+
+    ScriptNextToken(Parser);
+
+    ReturnNode = ScriptCreateASTNode(AST_RETURN);
+    if (ReturnNode == NULL) {
+        *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
+        return NULL;
+    }
+
+    ReturnNode->Data.Return.Expression = ScriptParseComparisonAST(Parser, Error);
+    if (*Error != SCRIPT_OK || ReturnNode->Data.Return.Expression == NULL) {
+        ScriptDestroyAST(ReturnNode);
+        return NULL;
+    }
+
+    return ReturnNode;
+}
+
+/************************************************************************/
+
+/**
  * @brief Parse a statement (assignment, if, for, or block) and build AST node.
  * @param Parser Parser state
  * @param Error Pointer to error code
@@ -2484,6 +2805,8 @@ static LPAST_NODE ScriptParseStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* 
         return ScriptParseIfStatementAST(Parser, Error);
     } else if (Parser->CurrentToken.Type == TOKEN_FOR) {
         return ScriptParseForStatementAST(Parser, Error);
+    } else if (Parser->CurrentToken.Type == TOKEN_RETURN) {
+        return ScriptParseReturnStatementAST(Parser, Error);
     } else if (Parser->CurrentToken.Type == TOKEN_LBRACE) {
         return ScriptParseBlockAST(Parser, Error);
     } else if (Parser->CurrentToken.Type == TOKEN_PATH) {
@@ -2739,8 +3062,8 @@ static LPAST_NODE ScriptParseBlockAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Erro
 
         BlockNode->Data.Block.Statements[BlockNode->Data.Block.Count++] = Statement;
 
-        // Semicolon is mandatory after assignments, optional after blocks/if/for
-        if (Statement->Type == AST_ASSIGNMENT) {
+        // Semicolon is mandatory after assignments and returns.
+        if (Statement->Type == AST_ASSIGNMENT || Statement->Type == AST_RETURN) {
             if (Parser->CurrentToken.Type != TOKEN_SEMICOLON && Parser->CurrentToken.Type != TOKEN_RBRACE) {
                 *Error = SCRIPT_ERROR_SYNTAX;
                 ScriptDestroyAST(BlockNode);

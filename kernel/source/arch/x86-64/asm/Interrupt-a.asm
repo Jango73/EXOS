@@ -41,7 +41,7 @@ extern MouseHandler
 extern FPUHandler
 extern HardDriveHandler
 extern DeviceInterruptHandler
-extern Kernel_i386
+extern Kernel_x86_32
 extern DebugLogSyscallFrame
 extern SystemCallHandler
 
@@ -494,7 +494,7 @@ Interrupt_SystemCall:
     cli
 
     mov     rdx, rsp                     ; Preserve user-mode stack pointer
-    mov     rax, [rel Kernel_i386 + KERNELDATA_X86_64.TSS]
+    mov     rax, [rel Kernel_x86_32 + KERNELDATA_X86_64.TSS]
     mov     rsp, [rax + X86_64_TASK_STATE_SEGMENT.RSP0] ; Switch to task kernel stack
 
     push    rdx                          ; Store user-mode stack pointer on kernel stack

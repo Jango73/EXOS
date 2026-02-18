@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "Arch.h"
+#include "Console.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
@@ -87,7 +88,12 @@ void Die(void) {
 
         FreezeScheduler();
 
-        KillTask(Task);
+        if (Task->Process != &KernelProcess) {
+            KillTask(Task);
+        } else {
+            ERROR(TEXT("[Die] Fatal fault in kernel task, halting without KillTask"));
+            ConsolePanic(TEXT("Fatal fault in kernel task"));
+        }
 
         UnlockMutex(MUTEX_CONSOLE);
         UnlockMutex(MUTEX_MEMORY);

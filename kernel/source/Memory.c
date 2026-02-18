@@ -1,4 +1,3 @@
-
 /************************************************************************\
 
     EXOS Kernel
@@ -24,14 +23,33 @@
 
 #include "Memory.h"
 
-#include "Base.h"
-#include "Console.h"
-#include "Kernel.h"
 #include "Arch.h"
-#include "Log.h"
+#include "Base.h"
+#include "BuddyAllocator.h"
 #include "CoreString.h"
-#include "process/Schedule.h"
+#include "EarlyBootConsole.h"
+#include "Kernel.h"
+#include "Log.h"
 #include "System.h"
+#include "process/Schedule.h"
+
+/************************************************************************/
+
+static PHYSICAL DATA_SECTION G_LoaderReservedStart = 0;
+static PHYSICAL DATA_SECTION G_LoaderReservedEnd = 0;
+static PHYSICAL DATA_SECTION G_PhysicalAllocatorMetadataStart = 0;
+static PHYSICAL DATA_SECTION G_PhysicalAllocatorMetadataEnd = 0;
+static BOOL DATA_SECTION G_AllocPhysicalPageTraceEnabled = FALSE;
+
+/************************************************************************/
+
+/**
+ * @brief Enable or disable focused early-boot tracing in AllocPhysicalPage.
+ * @param Enabled TRUE to print trace lines, FALSE otherwise.
+ */
+void SetAllocPhysicalPageTraceEnabled(BOOL Enabled) {
+    G_AllocPhysicalPageTraceEnabled = Enabled;
+}
 
 /************************************************************************/
 
@@ -77,61 +95,19 @@ BOOL ReadPhysicalMemory(PHYSICAL PhysicalAddress, LPVOID Buffer, UINT Length) {
 /************************************************************************/
 
 /**
- * @brief Mark a physical page as used or free in the PPB.
+ * @brief Mark a physical page as used or free in the allocator.
  * @param Page Page index.
  * @param Used Non-zero to mark used.
  */
 void SetPhysicalPageMark(UINT Page, UINT Used) {
-    UINT Offset = 0;
-    UINT Value = 0;
-
-    if (Page >= KernelStartup.PageCount) return;
-
-    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
-    if (Bitmap == NULL) return;
-
-    LockMutex(MUTEX_MEMORY, INFINITY);
-
-    Offset = Page >> MUL_8;
-    Value = (UINT)0x01 << (Page & 0x07);
-
-    if (Used) {
-        Bitmap[Offset] |= (U8)Value;
-    } else {
-        Bitmap[Offset] &= (U8)(~Value);
+    if (Page >= KernelStartup.PageCount) {
+        return;
     }
 
-    UnlockMutex(MUTEX_MEMORY);
-}
-
-/************************************************************************/
-
-/**
- * @brief Query the usage mark of a physical page.
- * @param Page Page index.
- * @return Non-zero if page is used.
- */
-/*
-UINT GetPhysicalPageMark(UINT Page) {
-    UINT Offset = 0;
-    UINT Value = 0;
-    UINT RetVal = 0;
-
-    if (Page >= KernelStartup.PageCount) return 0;
-
     LockMutex(MUTEX_MEMORY, INFINITY);
-
-    Offset = Page >> MUL_8;
-    Value = (UINT)0x01 << (Page & 0x07);
-
-    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
-    if (Bitmap != NULL && (Bitmap[Offset] & Value)) RetVal = 1;
-
+    BuddySetRange(Page, 1, Used);
     UnlockMutex(MUTEX_MEMORY);
-
-    return RetVal;
 }
-*/
 
 /************************************************************************/
 
@@ -142,26 +118,230 @@ UINT GetPhysicalPageMark(UINT Page) {
  * @param Used Non-zero to mark used.
  */
 void SetPhysicalPageRangeMark(UINT FirstPage, UINT PageCount, UINT Used) {
-    DEBUG(TEXT("[SetPhysicalPageRangeMark] Enter"));
+    BuddySetRange(FirstPage, PageCount, Used);
+}
 
-    UINT End = FirstPage + PageCount;
-    if (FirstPage >= KernelStartup.PageCount) return;
-    if (End > KernelStartup.PageCount) End = KernelStartup.PageCount;
+/************************************************************************/
 
-    DEBUG(TEXT("[SetPhysicalPageRangeMark] Start, End : %x, %x"), FirstPage, End);
+/**
+ * @brief Configure the early loader-owned physical range to keep reserved.
+ * @param Start Inclusive physical start.
+ * @param End Exclusive physical end.
+ */
+void SetLoaderReservedPhysicalRange(PHYSICAL Start, PHYSICAL End) {
+    Start &= ~((PHYSICAL)(PAGE_SIZE - 1));
+    End = PAGE_ALIGN(End);
 
-    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
-    if (Bitmap == NULL) return;
+    if (End <= Start) {
+        G_LoaderReservedStart = 0;
+        G_LoaderReservedEnd = 0;
+        return;
+    }
 
-    for (UINT Page = FirstPage; Page < End; Page++) {
-        UINT Byte = Page >> MUL_8;
-        U8 Mask = (U8)(1u << (Page & 0x07)); /* bit within byte */
-        if (Used) {
-            Bitmap[Byte] |= Mask;
-        } else {
-            Bitmap[Byte] &= (U8)~Mask;
+    G_LoaderReservedStart = Start;
+    G_LoaderReservedEnd = End;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Configure physical range used by allocator metadata.
+ * @param Start Inclusive physical start.
+ * @param End Exclusive physical end.
+ */
+void SetPhysicalAllocatorMetadataRange(PHYSICAL Start, PHYSICAL End) {
+    Start &= ~((PHYSICAL)(PAGE_SIZE - 1));
+    End = PAGE_ALIGN(End);
+
+    if (End <= Start) {
+        G_PhysicalAllocatorMetadataStart = 0;
+        G_PhysicalAllocatorMetadataEnd = 0;
+        return;
+    }
+
+    G_PhysicalAllocatorMetadataStart = Start;
+    G_PhysicalAllocatorMetadataEnd = End;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Find an available physical range in the boot memory map.
+ * @param MinimumAddress Minimum acceptable physical start address.
+ * @param Size Size in bytes.
+ * @param OutAddress Receives the selected physical base address.
+ * @return TRUE on success.
+ */
+BOOL FindAvailableMemoryRange(PHYSICAL MinimumAddress, UINT Size, PHYSICAL* OutAddress) {
+    if (OutAddress == NULL || Size == 0) {
+        return FALSE;
+    }
+
+    PHYSICAL AlignedMinimum = PAGE_ALIGN(MinimumAddress);
+    UINT AlignedSize = (UINT)PAGE_ALIGN(Size);
+
+    for (UINT Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
+        const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
+        PHYSICAL EntryBase = 0;
+        UINT EntrySize = 0;
+
+        if (Entry->Type != MULTIBOOT_MEMORY_AVAILABLE) {
+            continue;
+        }
+
+        if (ClipPhysicalRange(Entry->Base, Entry->Length, &EntryBase, &EntrySize) == FALSE) {
+            continue;
+        }
+
+        PHYSICAL EntryStart = EntryBase;
+        PHYSICAL EntryEnd = EntryBase + (PHYSICAL)EntrySize;
+        if (EntryEnd <= EntryStart) {
+            continue;
+        }
+
+        if (EntryEnd <= AlignedMinimum) {
+            continue;
+        }
+
+        if (EntryStart < AlignedMinimum) {
+            EntryStart = AlignedMinimum;
+        }
+
+        PHYSICAL Candidate = PAGE_ALIGN(EntryStart);
+        if (Candidate >= EntryEnd) {
+            continue;
+        }
+
+        PHYSICAL CandidateEnd = Candidate + (PHYSICAL)AlignedSize;
+        if (CandidateEnd <= Candidate) {
+            continue;
+        }
+
+        if (CandidateEnd <= EntryEnd) {
+            *OutAddress = Candidate;
+            return TRUE;
         }
     }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Find an available physical range inside a window, excluding one range.
+ * @param MinimumAddress Inclusive window start.
+ * @param MaximumAddress Exclusive window end.
+ * @param ExcludedStart Inclusive excluded start.
+ * @param ExcludedEnd Exclusive excluded end.
+ * @param Size Size in bytes.
+ * @param OutAddress Receives selected physical base.
+ * @return TRUE on success.
+ */
+BOOL FindAvailableMemoryRangeInWindow(
+    PHYSICAL MinimumAddress,
+    PHYSICAL MaximumAddress,
+    PHYSICAL ExcludedStart,
+    PHYSICAL ExcludedEnd,
+    UINT Size,
+    PHYSICAL* OutAddress) {
+    if (OutAddress == NULL || Size == 0) {
+        return FALSE;
+    }
+
+    PHYSICAL WindowStart = PAGE_ALIGN(MinimumAddress);
+    PHYSICAL WindowEnd = MaximumAddress & ~((PHYSICAL)(PAGE_SIZE - 1));
+    UINT AlignedSize = (UINT)PAGE_ALIGN(Size);
+
+    if (WindowEnd <= WindowStart) {
+        return FALSE;
+    }
+
+    if (ExcludedEnd <= ExcludedStart) {
+        ExcludedStart = 0;
+        ExcludedEnd = 0;
+    }
+
+    for (UINT Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
+        const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
+        PHYSICAL EntryBase = 0;
+        UINT EntrySize = 0;
+
+        if (Entry->Type != MULTIBOOT_MEMORY_AVAILABLE) {
+            continue;
+        }
+
+        if (ClipPhysicalRange(Entry->Base, Entry->Length, &EntryBase, &EntrySize) == FALSE) {
+            continue;
+        }
+
+        PHYSICAL SegmentStart = EntryBase;
+        PHYSICAL SegmentEnd = EntryBase + (PHYSICAL)EntrySize;
+        if (SegmentEnd <= SegmentStart) {
+            continue;
+        }
+
+        if (SegmentEnd <= WindowStart || SegmentStart >= WindowEnd) {
+            continue;
+        }
+
+        if (SegmentStart < WindowStart) {
+            SegmentStart = WindowStart;
+        }
+        if (SegmentEnd > WindowEnd) {
+            SegmentEnd = WindowEnd;
+        }
+
+        if (SegmentEnd <= SegmentStart) {
+            continue;
+        }
+
+        PHYSICAL CandidateRangesStart[2] = {SegmentStart, 0};
+        PHYSICAL CandidateRangesEnd[2] = {SegmentEnd, 0};
+        UINT CandidateRangeCount = 1;
+
+        if (ExcludedEnd > SegmentStart && ExcludedStart < SegmentEnd) {
+            CandidateRangeCount = 0;
+
+            if (ExcludedStart > SegmentStart) {
+                CandidateRangesStart[CandidateRangeCount] = SegmentStart;
+                CandidateRangesEnd[CandidateRangeCount] = ExcludedStart;
+                CandidateRangeCount++;
+            }
+
+            if (ExcludedEnd < SegmentEnd) {
+                CandidateRangesStart[CandidateRangeCount] = ExcludedEnd;
+                CandidateRangesEnd[CandidateRangeCount] = SegmentEnd;
+                CandidateRangeCount++;
+            }
+        }
+
+        for (UINT CandidateIndex = 0; CandidateIndex < CandidateRangeCount; CandidateIndex++) {
+            PHYSICAL RangeStart = CandidateRangesStart[CandidateIndex];
+            PHYSICAL RangeEnd = CandidateRangesEnd[CandidateIndex];
+
+            if (RangeEnd <= RangeStart) {
+                continue;
+            }
+
+            PHYSICAL Candidate = PAGE_ALIGN(RangeStart);
+            if (Candidate >= RangeEnd) {
+                continue;
+            }
+
+            PHYSICAL CandidateEnd = Candidate + (PHYSICAL)AlignedSize;
+            if (CandidateEnd <= Candidate) {
+                continue;
+            }
+
+            if (CandidateEnd <= RangeEnd) {
+                *OutAddress = Candidate;
+                return TRUE;
+            }
+        }
+    }
+
+    return FALSE;
 }
 
 /************************************************************************/
@@ -203,8 +383,6 @@ void UpdateKernelMemoryMetricsFromMultibootMap(void) {
  * @brief Public wrapper to mark reserved and used physical pages.
  */
 void MarkUsedPhysicalMemory(void) {
-    DEBUG(TEXT("[MarkUsedPhysicalMemory] Enter"));
-
     UpdateKernelMemoryMetricsFromMultibootMap();
 
     if (KernelStartup.PageCount == 0) {
@@ -212,26 +390,40 @@ void MarkUsedPhysicalMemory(void) {
         return;
     }
 
-    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
-    UINT BitmapSize = GetPhysicalPageBitmapSize();
-    if (Bitmap == NULL || BitmapSize == 0) {
-        ERROR(TEXT("[MarkUsedPhysicalMemory] PPB not initialized"));
+    if (BuddyIsReady() == FALSE) {
+        ERROR(TEXT("[MarkUsedPhysicalMemory] Buddy allocator not initialized"));
         return;
     }
 
-    PHYSICAL PpbPhysicalBase = (PHYSICAL)(UINT)(Bitmap);
-    PHYSICAL ReservedEnd = PAGE_ALIGN(PpbPhysicalBase + (PHYSICAL)BitmapSize);
-    UINT ReservedPageCount = (UINT)(ReservedEnd >> PAGE_SIZE_MUL);
+    PHYSICAL ReservedLowEnd = (PHYSICAL)RESERVED_LOW_MEMORY;
+    PHYSICAL LoaderReservedStart = G_LoaderReservedStart;
+    PHYSICAL LoaderReservedEnd = G_LoaderReservedEnd;
+    PHYSICAL MetadataStart = G_PhysicalAllocatorMetadataStart;
+    PHYSICAL MetadataEnd = G_PhysicalAllocatorMetadataEnd;
 
-    SetPhysicalPageRangeMark(0, ReservedPageCount, 1);
+    SetPhysicalPageRangeMark(0, (UINT)(ReservedLowEnd >> PAGE_SIZE_MUL), 1);
 
-    // Derive total memory size and number of pages from the Multiboot map
-    for (UINT i = 0; i < KernelStartup.MultibootMemoryEntryCount; i++) {
-        const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[i];
+    if (LoaderReservedStart == 0 || LoaderReservedEnd <= LoaderReservedStart) {
+        LoaderReservedStart = KernelStartup.KernelPhysicalBase;
+        LoaderReservedEnd = MetadataEnd;
+    }
+
+    if (LoaderReservedStart != 0 && LoaderReservedEnd > LoaderReservedStart) {
+        UINT FirstPage = (UINT)(LoaderReservedStart >> PAGE_SIZE_MUL);
+        UINT PageCount = (UINT)((LoaderReservedEnd - LoaderReservedStart) >> PAGE_SIZE_MUL);
+        SetPhysicalPageRangeMark(FirstPage, PageCount, 1);
+    }
+
+    if (MetadataStart != 0 && MetadataEnd > MetadataStart) {
+        UINT FirstPage = (UINT)(MetadataStart >> PAGE_SIZE_MUL);
+        UINT PageCount = (UINT)((MetadataEnd - MetadataStart) >> PAGE_SIZE_MUL);
+        SetPhysicalPageRangeMark(FirstPage, PageCount, 1);
+    }
+
+    for (UINT Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
+        const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
         PHYSICAL Base = 0;
         UINT Size = 0;
-
-        DEBUG(TEXT("[MarkUsedPhysicalMemory] Entry base = %p, size = %x, type = %x"), Entry->Base, Entry->Length, Entry->Type);
 
         if (ClipPhysicalRange(Entry->Base, Entry->Length, &Base, &Size) == FALSE) {
             continue;
@@ -251,65 +443,38 @@ void MarkUsedPhysicalMemory(void) {
 
 /**
  * @brief Allocate a free physical page.
- * @return Physical page number or MAX_U32 on failure.
+ * @return Physical page number or 0 on failure.
  */
 PHYSICAL AllocPhysicalPage(void) {
-    UINT i = 0;
-    UINT bit = 0;
-    UINT page = 0;
-    UINT mask = 0;
-    UINT StartPage = 0;
-    UINT StartByte = 0;
-    UINT MaxByte = 0;
-    PHYSICAL result = 0;
-    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
+    PHYSICAL Result = 0;
 
-    // DEBUG(TEXT("[AllocPhysicalPage] Enter"));
+    if (G_AllocPhysicalPageTraceEnabled) {
+        EarlyBootConsoleWriteLine(TEXT("[AllocPhysicalPage] Enter"));
+    }
 
-    if (Bitmap == NULL) {
-        return result;
+    if (BuddyIsReady() == FALSE) {
+        return 0;
     }
 
     LockMutex(MUTEX_MEMORY, INFINITY);
+    Result = BuddyAllocPage();
+    UnlockMutex(MUTEX_MEMORY);
 
-    // Start from end of kernel region
-    StartPage = RESERVED_LOW_MEMORY >> PAGE_SIZE_MUL;
-
-    // Convert to PPB byte index
-    StartByte = StartPage >> MUL_8; /* == ((... >> 12) >> 3) */
-    MaxByte = (KernelStartup.PageCount + 7) >> MUL_8;
-
-    /* Scan from StartByte upward */
-    for (i = StartByte; i < MaxByte; i++) {
-        U8 v = Bitmap[i];
-        if (v != 0xFF) {
-            page = (i << MUL_8); /* first page covered by this byte */
-            for (bit = 0; bit < 8 && page < KernelStartup.PageCount; bit++, page++) {
-                mask = 1u << bit;
-                if ((v & mask) == 0) {
-                    Bitmap[i] = (U8)(v | (U8)mask);
-                    result = (PHYSICAL)(page << PAGE_SIZE_MUL); /* page * 4096 */
-                    goto Out;
-                }
-            }
-        }
+    if (G_AllocPhysicalPageTraceEnabled) {
+        EarlyBootConsoleWriteLine(TEXT("[AllocPhysicalPage] Return"));
     }
 
-Out:
-    // DEBUG(TEXT("[AllocPhysicalPage] Exit"));
-
-    UnlockMutex(MUTEX_MEMORY);
-    return result;
+    return Result;
 }
 
 /************************************************************************/
 
 /**
  * @brief Release a previously allocated physical page.
- * @param Page Page number to free.
+ * @param Page Page address to free.
  */
 void FreePhysicalPage(PHYSICAL Page) {
-    UINT StartPage = 0;
+    UINT StartPage = RESERVED_LOW_MEMORY >> PAGE_SIZE_MUL;
     UINT PageIndex = 0;
 
     if ((Page & (PAGE_SIZE - 1)) != 0) {
@@ -317,47 +482,27 @@ void FreePhysicalPage(PHYSICAL Page) {
         return;
     }
 
-    // Start from end of kernel region (KER + BSS + STK), in pages
-    StartPage = RESERVED_LOW_MEMORY >> PAGE_SIZE_MUL;
-
-    // Translate PA -> page index
     PageIndex = (UINT)(Page >> PAGE_SIZE_MUL);
 
-    // Guard: null and alignment
-    if (PageIndex < StartPage) return;
+    if (PageIndex < StartPage) {
+        return;
+    }
 
-    // Guard: never free page 0 (kept reserved on purpose)
     if (PageIndex == 0) {
         ERROR(TEXT("[FreePhysicalPage] Attempt to free page 0"));
         return;
     }
 
-    // Bounds check
     if (PageIndex >= KernelStartup.PageCount) {
         ERROR(TEXT("[FreePhysicalPage] Page index out of range (%x)"), PageIndex);
         return;
     }
 
     LockMutex(MUTEX_MEMORY, INFINITY);
-    LPPAGEBITMAP Bitmap = GetPhysicalPageBitmap();
-    if (Bitmap == NULL) {
+    if (BuddyFreePage(Page) == FALSE) {
         UnlockMutex(MUTEX_MEMORY);
+        DEBUG(TEXT("[FreePhysicalPage] Page already free or invalid (PA=%x)"), Page);
         return;
     }
-
-    // Bitmap math: 8 pages per byte
-    UINT ByteIndex = PageIndex >> MUL_8;        // == PageIndex / 8
-    U8 mask = (U8)(1u << (PageIndex & 0x07));  // bit within the byte
-
-    // If already free, nothing to do
-    if ((Bitmap[ByteIndex] & mask) == 0) {
-        UnlockMutex(MUTEX_MEMORY);
-        DEBUG(TEXT("[FreePhysicalPage] Page already free (PA=%x)"), Page);
-        return;
-    }
-
-    // Mark page as free
-    Bitmap[ByteIndex] = (U8)(Bitmap[ByteIndex] & (U8)~mask);
-
     UnlockMutex(MUTEX_MEMORY);
 }

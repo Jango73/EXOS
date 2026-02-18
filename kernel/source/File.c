@@ -445,6 +445,8 @@ LPVOID FileReadAll(LPCSTR Name, UINT *Size) {
     FILEOPERATION FileOp;
     LPFILE File = NULL;
     LPVOID Buffer = NULL;
+    UINT BytesToRead = 0;
+    UINT BytesRead = 0;
 
     DEBUG(TEXT("[FileReadAll] Name = %s"), Name);
 
@@ -464,16 +466,21 @@ LPVOID FileReadAll(LPCSTR Name, UINT *Size) {
         //-------------------------------------
         // Allocate buffer and read content
 
-        *Size = GetFileSize(File);
-        Buffer = KernelHeapAlloc(*Size + 1);
+        BytesToRead = GetFileSize(File);
+        *Size = BytesToRead;
+        Buffer = KernelHeapAlloc(BytesToRead + 1);
 
         SAFE_USE(Buffer) {
             FileOp.Header.Size = sizeof(FILEOPERATION);
             FileOp.File = (HANDLE)File;
             FileOp.Buffer = Buffer;
-            FileOp.NumBytes = *Size;
-            ReadFile(&FileOp);
-            ((LPSTR)Buffer)[*Size] = STR_NULL;
+            FileOp.NumBytes = BytesToRead;
+            BytesRead = ReadFile(&FileOp);
+            if (BytesRead < BytesToRead) {
+                WARNING(TEXT("[FileReadAll] Short read on %s (%u/%u)"), Name, BytesRead, BytesToRead);
+            }
+            *Size = BytesRead;
+            ((LPSTR)Buffer)[BytesRead] = STR_NULL;
         }
 
         CloseFile(File);

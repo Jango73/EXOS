@@ -28,29 +28,35 @@
 /***************************************************************************/
 
 int exosmain(int argc, char** argv) {
-    UNUSED(argc);
-    UNUSED(argv);
+    int PauseEnabled = TRUE;
+    int Index = 0;
+
+    for (Index = 1; Index < argc; Index++) {
+        if (strcmp(argv[Index], "--no-pause") == 0) {
+            PauseEnabled = FALSE;
+        }
+    }
 
     printf("Shall I compare thee to a summer's day?\n");
     printf("Thou art more lovely and more temperate:\n");
     printf("Rough winds do shake the darling buds of May,\n");
     printf("And summer's lease hath all too short a date:\n\n");
 
-    Sleep(2000);
+    if (PauseEnabled) Sleep(2000);
 
     printf("Sometime too hot the eye of heaven shines,\n");
     printf("And often is his gold complexion dimm'd;\n");
     printf("And every fair from fair sometime declines,\n");
     printf("By chance, or nature's changing course, untrimm'd;\n\n");
 
-    Sleep(2000);
+    if (PauseEnabled) Sleep(2000);
 
     printf("But thy eternal summer shall not fade,\n");
     printf("Nor lose possession of that fair thou ow'st,\n");
     printf("Nor shall death brag thou wander'st in his shade,\n");
     printf("When in eternal lines to time thou grow'st:\n\n");
 
-    Sleep(2000);
+    if (PauseEnabled) Sleep(2000);
 
     printf("So long as men can breathe or eyes can see,\n");
     printf("So long lives this, and this gives life to thee.\n\n");

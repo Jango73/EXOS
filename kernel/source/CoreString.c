@@ -53,6 +53,7 @@ void MemorySet(LPVOID Destination, UINT What, UINT Size) {
 
 /***************************************************************************/
 
+#ifndef __KERNEL__
 /**
  * @brief Copies a block of memory from source to destination.
  *
@@ -72,39 +73,12 @@ void MemoryCopy(LPVOID Destination, LPCVOID Source, UINT Size) {
         U8* Dst = (U8*)Destination;
         const U8* Src = (const U8*)Source;
 
-#ifdef __KERNEL__
-#if defined(__EXOS_ARCH_X86_64__)
-        UINT QuadCount = Size >> 3;
-        UINT ByteRemainder = Size & 0x7;
-
-        __asm__ __volatile__(
-            "cld\n"
-            "rep movsq\n"
-            "mov %3, %%rcx\n"
-            "rep movsb\n"
-            : "+D"(Dst), "+S"(Src), "+c"(QuadCount)
-            : "r"(ByteRemainder)
-            : "memory", "cc");
-#else
-        UINT DWordCount = Size >> 2;
-        UINT ByteRemainder = Size & 0x3;
-
-        __asm__ __volatile__(
-            "cld\n"
-            "rep movsd\n"
-            "mov %3, %%ecx\n"
-            "rep movsb\n"
-            : "+D"(Dst), "+S"(Src), "+c"(DWordCount)
-            : "r"(ByteRemainder)
-            : "memory", "cc");
-#endif
-#else
         for (UINT Index = 0; Index < Size; Index++) {
             Dst[Index] = Src[Index];
         }
-#endif
     }
 }
+#endif
 
 /***************************************************************************/
 
@@ -198,6 +172,7 @@ INT MemoryCompare(LPCVOID First, LPCVOID Second, UINT Size) {
  * @param Source Pointer to the source buffer
  * @param Size Number of bytes to move
  */
+#ifndef __KERNEL__
 void MemoryMove(LPVOID Destination, LPCVOID Source, UINT Size) {
     if (Destination == Source || Size == 0) return;
 
@@ -220,6 +195,7 @@ void MemoryMove(LPVOID Destination, LPCVOID Source, UINT Size) {
         }
     }
 }
+#endif
 
 /***************************************************************************/
 
@@ -472,6 +448,46 @@ INT StringCompareNC(LPCSTR Text1, LPCSTR Text2) {
     }
 
     return (INT)Result;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Determines whether a string contains another string.
+ *
+ * Performs a case-sensitive substring search and returns TRUE when Search is
+ * found in Text.
+ *
+ * @param Text Source string.
+ * @param Search Substring to locate.
+ * @return TRUE when Search is found, FALSE otherwise.
+ */
+BOOL StringContains(LPCSTR Text, LPCSTR Search) {
+    if (Text == NULL || Search == NULL) {
+        return FALSE;
+    }
+
+    if (Search[0] == STR_NULL) {
+        return TRUE;
+    }
+
+    while (*Text != STR_NULL) {
+        U32 Index = 0;
+
+        while (Text[Index] != STR_NULL &&
+               Search[Index] != STR_NULL &&
+               Text[Index] == Search[Index]) {
+            Index++;
+        }
+
+        if (Search[Index] == STR_NULL) {
+            return TRUE;
+        }
+
+        Text++;
+    }
+
+    return FALSE;
 }
 
 /***************************************************************************/

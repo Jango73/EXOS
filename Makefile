@@ -1,16 +1,13 @@
-ARCH ?= i386
+include make/arch.mk
+
 USE_SYSCALL ?= 0
 PROFILING ?= 0
+BUILD_CORE_NAME ?=
+BUILD_IMAGE_NAME ?=
 
-ifeq ($(ARCH),i386)
-VMA_KERNEL ?= 0xC0000000
-else ifeq ($(ARCH),x86-64)
-VMA_KERNEL ?= 0xFFFFFFFFC0000000
-endif
+SUBMAKE = $(MAKE) ARCH=$(ARCH) VMA_KERNEL=$(VMA_KERNEL) USE_SYSCALL=$(USE_SYSCALL) PROFILING=$(PROFILING) BUILD_CORE_NAME=$(BUILD_CORE_NAME) BUILD_IMAGE_NAME=$(BUILD_IMAGE_NAME)
 
-SUBMAKE = $(MAKE) ARCH=$(ARCH) VMA_KERNEL=$(VMA_KERNEL) USE_SYSCALL=$(USE_SYSCALL) PROFILING=$(PROFILING)
-
-.PHONY: all kernel runtime system boot-qemu boot-hd tools clean
+.PHONY: all kernel runtime system boot-qemu boot-hd boot-uefi tools clean
 
 all: log kernel runtime system boot-hd tools
 
@@ -33,6 +30,10 @@ boot-hd: kernel system
 	@echo "[ Building Qemu HD image ]"
 	@+$(SUBMAKE) -C boot-hd
 
+boot-uefi: kernel
+	@echo "[ Building UEFI image ]"
+	@+$(SUBMAKE) -C boot-uefi
+
 tools:
 	@echo "[ Building tools ]"
 	@+$(SUBMAKE) -C tools
@@ -44,4 +45,5 @@ clean:
 	@+$(SUBMAKE) -C system clean
 	@+$(SUBMAKE) -C boot-freedos clean
 	@+$(SUBMAKE) -C boot-hd clean
+	@+$(SUBMAKE) -C boot-uefi clean
 	@+$(SUBMAKE) -C tools clean

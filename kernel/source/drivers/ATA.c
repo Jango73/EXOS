@@ -48,7 +48,7 @@ DRIVER DATA_SECTION ATADiskDriver = {
     .OwnerProcess = &KernelProcess,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_HARDDISK,
+    .Type = DRIVER_TYPE_ATA_STORAGE,
     .VersionMajor = VER_MAJOR,
     .VersionMinor = VER_MINOR,
     .Designer = "Jango73",
@@ -71,10 +71,10 @@ LPDRIVER ATADiskGetDriver(void) {
 
 /***************************************************************************/
 
-// ATA physical disk, derives from PHYSICALDISK
+// ATA physical disk, derives from STORAGE_UNIT
 
 typedef struct tag_ATADISK {
-    PHYSICALDISK Header;
+    STORAGE_UNIT Header;
     DISKGEOMETRY Geometry;
     U32 Access;  // Access parameters
     U32 IOPort;  // 0x01F0 or 0x0170
@@ -131,12 +131,29 @@ static BOOL ATAWaitNotBusy(U32 Port, U32 TimeOut) {
 
     while (TimeOut--) {
         Status = InPortByte(Port + HD_STATUS);
-        if ((Status & (HD_STATUS_BUSY | HD_STATUS_READY)) == HD_STATUS_READY) {
+        if ((Status & HD_STATUS_BUSY) == 0) {
             return TRUE;
         }
     }
 
-    WARNING(TEXT("[ATAWaitNotBusy] Time-out in ATA port %x"), Port);
+    DEBUG(TEXT("[ATAWaitNotBusy] Time-out in ATA port %x"), Port);
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+static BOOL ATAWaitDataReady(U32 Port, U32 TimeOut) {
+    U32 Status;
+
+    while (TimeOut--) {
+        Status = InPortByte(Port + HD_STATUS);
+        if ((Status & HD_STATUS_BUSY) == 0 && (Status & HD_STATUS_DRQ) != 0) {
+            return TRUE;
+        }
+    }
+
+    DEBUG(TEXT("[ATAWaitDataReady] Time-out in ATA port %x"), Port);
 
     return FALSE;
 }
@@ -182,7 +199,7 @@ static BOOL InitializeATA(void) {
             OutPortByte(RealPort + HD_NUMSECTORS, 1);
             OutPortByte(RealPort + HD_COMMAND, HD_COMMAND_IDENTIFY);
 
-            if (ATAWaitNotBusy(RealPort, TIMEOUT) == FALSE) continue;
+            if (ATAWaitDataReady(RealPort, TIMEOUT) == FALSE) continue;
 
             // Check for error after IDENTIFY command
             Status = InPortByte(RealPort + HD_STATUS);
@@ -292,12 +309,10 @@ static void ResetController(U32 Port) {
     for (Index = 0; Index < 1000; Index++) barrier();
     if (IsDriveBusy())
     {
-        VERBOSE("HD : Controller still busy\n");
     }
     else
     if ((HD_Error = InPortByte(Port + HD_ERROR)) != 1)
     {
-        VERBOSE("HD : Controller reset failed\n");
     }
 }
 */
@@ -319,7 +334,7 @@ static void ATADriveOut(U32 Port, U32 Drive, U32 Command, U8* Buffer, U32 Cylind
     OutPortByte(Port + HD_NUMSECTORS, Count & 0xFF);
     OutPortByte(Port + HD_COMMAND, Command);
 
-    if (ATAWaitNotBusy(Port, TIMEOUT) == FALSE) goto Out;
+    if (ATAWaitDataReady(Port, TIMEOUT) == FALSE) goto Out;
 
     if (Command == HD_COMMAND_READ) {
         InPortStringWord(Port + HD_DATA, Buffer, (Count * SECTOR_SIZE) / 2);
@@ -495,9 +510,11 @@ static U32 GetInfo(LPDISKINFO Info) {
 
     //-------------------------------------
 
-    Info->Type = DRIVER_TYPE_HARDDISK;
+    Info->Type = DRIVER_TYPE_ATA_STORAGE;
     Info->Removable = 0;
-    Info->NumSectors = Disk->Geometry.Cylinders * Disk->Geometry.Heads * Disk->Geometry.SectorsPerTrack;
+    Info->BytesPerSector = Disk->Geometry.BytesPerSector;
+    Info->NumSectors = U64_FromU32(
+        Disk->Geometry.Cylinders * Disk->Geometry.Heads * Disk->Geometry.SectorsPerTrack);
     Info->Access = Disk->Access;
 
     return DF_RETURN_SUCCESS;
@@ -531,7 +548,7 @@ static U32 SetAccess(LPDISKACCESS Access) {
 /***************************************************************************/
 
 void HardDriveHandler(void) {
-    static U32 Busy = 0;
+    static U32 DATA_SECTION Busy = 0;
     U32 Status0, Status1;
     BOOL RealInterrupt = FALSE;
 

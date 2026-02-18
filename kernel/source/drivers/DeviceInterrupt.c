@@ -66,8 +66,8 @@ typedef struct tag_DEVICE_INTERRUPT_ENTRY {
 
 /************************************************************************/
 
-static LPDEVICE_INTERRUPT_ENTRY g_DeviceInterruptEntries = NULL;
-static U32 g_DeviceInterruptEntriesSize = 0;
+static LPDEVICE_INTERRUPT_ENTRY DATA_SECTION g_DeviceInterruptEntries = NULL;
+static U32 DATA_SECTION g_DeviceInterruptEntriesSize = 0;
 static U8 g_DeviceInterruptSlotCount = DEVICE_INTERRUPT_VECTOR_DEFAULT;
 
 /************************************************************************/
@@ -418,7 +418,7 @@ void DeviceInterruptHandler(U8 SlotIndex) {
 
     LPDEVICE_INTERRUPT_SLOT Slot = &Entry->Slot;
     if (!Slot->InUse) {
-        static U32 SpuriousCount = 0;
+        static U32 DATA_SECTION SpuriousCount = 0;
         if (SpuriousCount < INTERRUPT_LOG_SAMPLE_LIMIT) {
             DEBUG(TEXT("[DeviceInterruptHandler] Spurious device interrupt on slot %u"), SlotIndex);
         }

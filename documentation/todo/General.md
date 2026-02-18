@@ -1,9 +1,23 @@
 # General TODO list
 
+## Memory
+
+- Later: align x86-32 page directory creation (`AllocPageDirectory` and `AllocUserPageDirectory`) with the modular x86-64 region-based approach (low region, kernel region, task runner, recursive slot) while preserving current behavior. Execute this refactor in small validated steps to limit boot and paging regression risk.
+
 ## Problems
 
 - Opening a file in a userland program without an absolute path should do the same as using getcwd().
 - Add a getpd() that returns the folder in which the current executable's image lives.
+
+## System data view
+
+- Add following infos in PCI page:
+  - VendorID/DeviceID
+  - Command / Status
+  - Class/Subclass/ProgIF
+  - BAR0..BAR5 (detect 32 vs 64-bit)
+  - Capabilities Pointer + scan capabilities (MSI/MSI-X, PCIe)
+  - Interrupt Line/Pin
 
 ## Naming
 
@@ -18,9 +32,7 @@
 - Functions returning U32 MUST return DF_RETURN_XXXX codes : meaning 0 on success, an error otherwise.
 - If they are meant to return 0 or 1, they must use BOOL.
 
-## Shell kernel exposure
-
-- Expose PCI devices
+## Shell kernel objects exposure
 
 ## Scripting
 
@@ -56,18 +68,19 @@
 
 - Handle n CPUs
 
-## Multitasking
+## Scheduling
 
 - Improve the scheduler (task priorities)
+- A CPU-bound task that never blocks can starve lower-priority deferred work and input handling (e.g., System Data View loop). Preference: force yield when a task is too CPU-hungry.
 
 ## File systems
 
 - Implement ext3 and ext4
+- Load exos.bin from the EXT2 system partition instead of the ESP in UEFI
 
 ## Drivers
 
 - PCIe
-- NVMe
 
 ## Localization
 

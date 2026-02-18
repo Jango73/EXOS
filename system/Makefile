@@ -5,18 +5,21 @@
 #
 ################################################################################
 
-# Architecture selection (default to i386)
-ARCH ?= i386
+# Architecture selection (default to x86-32)
+ARCH ?= x86-32
 
-ifeq ($(ARCH),i386)
-# Using i386 cross-toolchain
+ifeq ($(ARCH),x86-32)
+# Using x86-32 cross-toolchain
 else ifeq ($(ARCH),x86-64)
 # Using host toolchain for x86-64 builds
 else
 $(error Unsupported architecture $(ARCH))
 endif
 
-SUBMAKE = $(MAKE) ARCH=$(ARCH)
+BUILD_CORE_NAME ?=
+BUILD_IMAGE_NAME ?=
+
+SUBMAKE = $(MAKE) ARCH=$(ARCH) BUILD_CORE_NAME=$(BUILD_CORE_NAME) BUILD_IMAGE_NAME=$(BUILD_IMAGE_NAME)
 
 ################################################################################
 

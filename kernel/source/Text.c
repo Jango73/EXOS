@@ -31,17 +31,24 @@ const STR Text_Space[] = " ";
 const STR Text_Colon[] = ":";
 const STR Text_0[] = "0";
 const STR Text_Clk[] = "Clk";
+const STR Text_Prefix_RAMDrive[] = "r";
+const STR Text_Prefix_FloppyDrive[] = "f";
+const STR Text_Prefix_USBDrive[] = "u";
+const STR Text_Prefix_NVMe[] = "n";
+const STR Text_Prefix_SATADrive[] = "s";
+const STR Text_Prefix_ATADrive[] = "a";
+const STR Text_Prefix_Drive[] = "d";
 const STR Text_Rd[] = "rd";
 const STR Text_Fd[] = "fd";
-const STR Text_Hd[] = "hd";
+const STR Text_Disk[] = "disk";
 const STR Text_Eth[] = "eth";
 const STR Text_KB[] = "KB";
 const STR Text_Exit[] = "Exit";
 const STR Text_Image[] = "Image :";
 const STR Text_Separator[] = "================\n";
 
-#ifdef __EXOS_ARCH_I386__
-    const STR Text_Architecture[] = "i386";
+#ifdef __EXOS_ARCH_X86_32__
+    const STR Text_Architecture[] = "x86-32";
 #endif
 
 #ifdef __EXOS_ARCH_X86_64__

@@ -1,25 +1,27 @@
 
 SHELL = /bin/bash
 
-ARCH 					?= i386
+include ../make/arch.mk
 BARE_METAL              ?= 0
 DEBUG_OUTPUT            ?= 0
+DEBUG_SPLIT             ?= 0
 SCHEDULING_DEBUG_OUTPUT ?= 0
+FORCE_PIC               ?= 0
 TRACE_STACK_USAGE       ?= 0
 PROFILING               ?= 0
 USE_SYSCALL             ?= 0
+SYSTEM_DATA_VIEW        ?= 0
+KERNEL_LOG_DEFAULT_TAG_FILTER_SET ?= 0
+KERNEL_LOG_DEFAULT_TAG_FILTER ?=
 
-ifeq ($(ARCH),i386)
-VMA_KERNEL ?= 0xC0000000
-else ifeq ($(ARCH),x86-64)
-VMA_KERNEL ?= 0xFFFFFFFFC0000000
+ifeq ($(strip $(BUILD_CORE_NAME)),)
+$(error BUILD_CORE_NAME is required)
 endif
-
-BUILD_DIR := ../build/$(ARCH)
+BUILD_DIR := ../build/core/$(BUILD_CORE_NAME)
 
 ARCH_CFLAGS =
 
-ifeq ($(ARCH),i386)
+ifeq ($(ARCH),x86-32)
 TOOLCHAIN_PREFIX = i686-elf
 NASM_FORMAT      = elf
 CC               = $(TOOLCHAIN_PREFIX)-gcc
@@ -39,27 +41,31 @@ else
 $(error Unsupported architecture $(ARCH))
 endif
 
-NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DUSE_SYSCALL=$(USE_SYSCALL) -DPROFILING=$(PROFILING)
+NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DDEBUG_SPLIT=$(DEBUG_SPLIT) -DFORCE_PIC=$(FORCE_PIC) -DUSE_SYSCALL=$(USE_SYSCALL) -DPROFILING=$(PROFILING)
 CFLAGS          = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
                   -ffreestanding -fno-builtin -nostdinc \
                   -fno-pic -fno-pie -fno-stack-protector \
                   -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
                   -fvisibility=hidden -mno-red-zone \
                   -Werror-implicit-function-declaration -Wstrict-prototypes \
-                  -DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) -DPROFILING=$(PROFILING) -DUSE_SYSCALL=$(USE_SYSCALL) \
+                  -DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DDEBUG_SPLIT=$(DEBUG_SPLIT) -DFORCE_PIC=$(FORCE_PIC) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) -DPROFILING=$(PROFILING) -DUSE_SYSCALL=$(USE_SYSCALL) -DSYSTEM_DATA_VIEW=$(SYSTEM_DATA_VIEW) \
                   -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) \
+                  -DKERNEL_CONFIG_NAME=\"$(CONFIG_TOML_NAME)\" -DKERNEL_CONFIG_NAME_UPPER=\"$(CONFIG_TOML_NAME_UPPER)\" \
                   -Iinclude -I../third -I../third/include -I../runtime/include
 CFLAGS         += $(ARCH_CFLAGS)
+ifeq ($(KERNEL_LOG_DEFAULT_TAG_FILTER_SET),1)
+CFLAGS         += -DKERNEL_LOG_DEFAULT_TAG_FILTER=\"$(KERNEL_LOG_DEFAULT_TAG_FILTER)\"
+endif
 
 NASM            = nasm
 
 AFLAGS_INCLUDES = -I source/asm/ -I source/arch/$(ARCH)/asm/
 
 ifeq ($(ARCH),x86-64)
-AFLAGS_INCLUDES += -I source/arch/i386/asm/
+AFLAGS_INCLUDES += -I source/arch/x86-32/asm/
 endif
 
-AFLAGS          = -f $(NASM_FORMAT) -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DPROFILING=$(PROFILING) -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) -DUSE_SYSCALL=$(USE_SYSCALL) $(AFLAGS_INCLUDES)
+AFLAGS          = -f $(NASM_FORMAT) -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DDEBUG_SPLIT=$(DEBUG_SPLIT) -DFORCE_PIC=$(FORCE_PIC) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DPROFILING=$(PROFILING) -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) -DUSE_SYSCALL=$(USE_SYSCALL) $(AFLAGS_INCLUDES)
 
 LINKER_SCRIPT   = exos-$(ARCH).ld
 
@@ -68,12 +74,14 @@ LDFLAGS_ELF     = -T $(LINKER_SCRIPT) -static -nostdlib -no-pie --no-dynamic-lin
 KERNEL_ELF      = $(BUILD_DIR)/kernel/exos.elf
 
 SRC_C  = $(wildcard source/*.c) \
+         $(wildcard source/shell/*.c) \
          $(wildcard source/arch/intel/*.c) \
          $(wildcard source/arch/$(ARCH)/*.c) \
          $(wildcard source/network/*.c) \
          $(wildcard source/system/*.c) \
          $(wildcard source/process/*.c) \
          $(wildcard source/drivers/*.c) \
+         $(wildcard source/font/*.c) \
          $(wildcard source/expose/*.c) \
          $(wildcard source/utils/*.c) \
          $(wildcard source/test/*.c) \
@@ -89,7 +97,7 @@ SRC_S  = $(wildcard source/asm/*.asm) \
 ifeq ($(ARCH),x86-64)
 SRC_S += ../runtime/source/x86-64/exos-runtime-a.asm
 else
-SRC_S += ../runtime/source/i386/exos-runtime-a.asm
+SRC_S += ../runtime/source/x86-32/exos-runtime-a.asm
 endif
 
 OBJ_C  = $(patsubst source/%.c, $(BUILD_DIR)/kernel/%.o, $(filter source/%.c, $(SRC_C))) \
@@ -134,7 +142,7 @@ $(BSS_BIN): $(KERNEL_ELF)
 	$(OBJCOPY) -O binary --only-section=.bss $< $@
 
 # Build final padded image
-$(FINAL_IMG): $(TEXT_BIN) $(SHARED_TEXT_BIN) $(DATA_BIN) $(BSS_BIN)
+$(FINAL_IMG): $(TEXT_BIN) $(SHARED_TEXT_BIN) $(DATA_BIN) $(KERNEL_ELF)
 	@echo "Building paged disk image: $@ (ALIGN=$(ALIGN))"
 
 	# Clear binary file
@@ -169,7 +177,32 @@ $(FINAL_IMG): $(TEXT_BIN) $(SHARED_TEXT_BIN) $(DATA_BIN) $(BSS_BIN)
 	# Append .data
 	cat $(DATA_BIN) >> $@
 
-	# .bss is typically not written to disk (zero-initialized at runtime)
+	# Align current image to next ALIGN boundary (before .bss)
+	@{ \
+		sz=$$(stat -c %s "$@"); \
+		pad=$$(( ($(ALIGN) - (sz % $(ALIGN))) % $(ALIGN) )); \
+		echo "Padding before .bss: $$pad bytes"; \
+		if [ $$pad -gt 0 ]; then \
+			dd if=/dev/zero bs=1 count=$$pad >> "$@" 2>/dev/null; \
+		fi; \
+	}
+
+	# Append zeroed .bss span so kernel runtime image size matches ELF layout
+	@{ \
+		bss_hex=$$($(READELF) -S --wide $(KERNEL_ELF) 2>/dev/null | awk '$$3 == ".bss" { print $$7; exit }'); \
+		if [ -z "$$bss_hex" ]; then \
+			echo "ERROR: could not resolve .bss size from $(KERNEL_ELF)"; \
+			exit 1; \
+		fi; \
+		bss_size=$$((16#$$bss_hex)); \
+		echo "Appending .bss zeros: $$bss_size bytes"; \
+		if [ $$bss_size -gt 0 ]; then \
+			dd if=/dev/zero bs=1 count=$$bss_size >> "$@" 2>/dev/null; \
+		fi; \
+	}
+
+	# Keep magic marker as second-to-last U32 (just before checksum)
+	@printf "\x45\x58\x4F\x53" >> "$@"
 
 	# Append checksum
 	@echo "Appending checksum to $(FINAL_IMG)"

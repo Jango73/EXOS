@@ -7,7 +7,7 @@ define setup
   display/x CurrentTask->Arch.Context.Registers.RBX
   display/x NextTask->Arch.Context.Registers.RAX
   display/x NextTask->Arch.Context.Registers.RBX
-  display/x Kernel_i386.TSS->RSP0
-  display/x Kernel_i386.TSS->IST1
+  display/x Kernel_x86_32.TSS->RSP0
+  display/x Kernel_x86_32.TSS->IST1
   display
 end

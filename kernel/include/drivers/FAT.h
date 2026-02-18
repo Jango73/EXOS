@@ -215,6 +215,6 @@ typedef struct tag_FATFILELOC {
  * @param Buffer Caller-provided SECTOR_SIZE buffer to fill.
  * @return TRUE if the sector is read successfully and the BIOS mark is valid.
  */
-BOOL FATReadBootSector(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, LPVOID Buffer);
+BOOL FATReadBootSector(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, LPVOID Buffer);
 
 #endif

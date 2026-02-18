@@ -6,16 +6,20 @@ ARCH=x86-64
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 UTILS_DIR="$SCRIPT_DIR/../utils"
 
-# Source common functions
 source "$UTILS_DIR/create-usb-common.sh"
 
-[[ $# -eq 1 ]] || { echo "Usage: $0 /dev/sdX"; exit 1; }
+if parse_usb_flash_args "$ARCH" "mbr" "$@"; then
+    :
+else
+    Status=$?
+    echo "Usage: $0 [--debug|--release] [--fs <ext2|fat32>] [--split] [--build-image-name <name>] /dev/sdX"
+    exit $([ "$Status" -eq 2 ] && echo 0 || echo 1)
+fi
 
-DEVICE_PATH="$1"
+DEVICE_PATH="$USB_DEVICE_PATH"
+IMAGE_PATH="$USB_IMAGE_PATH"
 
 check_device "$DEVICE_PATH"
-
-IMAGE_PATH="build/$ARCH/boot-hd/exos.img"
 
 [[ -f "$IMAGE_PATH" ]] || {
     echo "ERROR: Image not found:"
@@ -26,4 +30,8 @@ IMAGE_PATH="build/$ARCH/boot-hd/exos.img"
 
 confirm_flash "$ARCH" "$IMAGE_PATH" "$DEVICE_PATH"
 flash_image "$IMAGE_PATH" "$DEVICE_PATH"
-show_success "$DEVICE_PATH"
+if eject_device "$DEVICE_PATH"; then
+    show_success "$DEVICE_PATH" "OK"
+else
+    show_success "$DEVICE_PATH" "FAILED"
+fi

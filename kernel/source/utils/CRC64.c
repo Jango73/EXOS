@@ -31,8 +31,8 @@
 // CRC64-ECMA polynomial (used by Redis, PostgreSQL...)
 
 static const U64 CRC64_Poly = {0xD7870F42, 0xC96C5795};  // 0xC96C5795D7870F42ULL
-static U64 CRC64_Table[256];
-static BOOL CRC64_TableInitialized = FALSE;
+static U64 DATA_SECTION CRC64_Table[256];
+static BOOL DATA_SECTION CRC64_TableInitialized = FALSE;
 
 /************************************************************************/
 

@@ -1,13 +1,16 @@
 
-ARCH ?= i386
+ARCH ?= x86-32
 PROFILING ?= 0
 USE_SYSCALL ?= 0
 
-BUILD_DIR := ../build/$(ARCH)
+ifeq ($(strip $(BUILD_CORE_NAME)),)
+$(error BUILD_CORE_NAME is required)
+endif
+BUILD_DIR := ../build/core/$(BUILD_CORE_NAME)
 
 NASM    = nasm
 
-ifeq ($(ARCH),i386)
+ifeq ($(ARCH),x86-32)
 TOOLCHAIN_PREFIX = i686-elf
 NASM_FORMAT      = elf
 CC               = $(TOOLCHAIN_PREFIX)-gcc

@@ -10,11 +10,11 @@ pkill -f "python.*http.server.*$SERVER_PORT" 2>/dev/null || true
 
 echo "[start-server.sh] Starting HTTP server on $SERVER_HOST:$SERVER_PORT"
 cd "$SCRIPT_DIR"
-python3 -m http.server "$SERVER_PORT" --bind "$SERVER_HOST" &
+python3 -m http.server "$SERVER_PORT" --bind "$SERVER_HOST" --directory "$SCRIPT_DIR/www" &
 SERVER_PID=$!
 
 echo "[start-server.sh] HTTP server started with PID $SERVER_PID"
-echo "[start-server.sh] Serving files from: $SCRIPT_DIR"
+echo "[start-server.sh] Serving files from: $SCRIPT_DIR/www"
 echo "[start-server.sh] Test URL: http://$SERVER_HOST:$SERVER_PORT/"
 
 # Give server time to start

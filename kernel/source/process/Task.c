@@ -35,9 +35,9 @@
 
 /************************************************************************/
 
-static UINT TaskMinimumTaskStackSize = TASK_MINIMUM_TASK_STACK_SIZE_DEFAULT;
-static UINT TaskMinimumSystemStackSize = TASK_MINIMUM_SYSTEM_STACK_SIZE_DEFAULT;
-static BOOL TaskStackConfigInitialized = FALSE;
+static UINT DATA_SECTION TaskMinimumTaskStackSize = TASK_MINIMUM_TASK_STACK_SIZE_DEFAULT;
+static UINT DATA_SECTION TaskMinimumSystemStackSize = TASK_MINIMUM_SYSTEM_STACK_SIZE_DEFAULT;
+static BOOL DATA_SECTION TaskStackConfigInitialized = FALSE;
 
 /************************************************************************/
 
@@ -107,7 +107,6 @@ LPTASK NewTask(void) {
 
     LPTASK This = NULL;
 
-    DEBUG(TEXT("[NewTask] Enter"));
 
     This = (LPTASK)CreateKernelObject(sizeof(TASK), KOID_TASK);
 
@@ -125,7 +124,6 @@ LPTASK NewTask(void) {
         return NULL;
     }
 
-    DEBUG(TEXT("[NewTask] Task pointer = %p"), This);
 
     // Initialize task-specific fields (LISTNODE_FIELDS already initialized by CreateKernelObject)
     InitMutex(&(This->Mutex));
@@ -133,13 +131,10 @@ LPTASK NewTask(void) {
     This->Status = TASK_STATUS_READY;
     MemorySet(&(This->MessageQueue), 0, sizeof(MESSAGEQUEUE));
 
-    DEBUG(TEXT("[NewTask] Task initialized: Address=%p, Status=%x, TASK_STATUS_READY=%x"), This,
-        This->Status, TASK_STATUS_READY);
 
     //-------------------------------------
     // Initialize the message queue
 
-    DEBUG(TEXT("[NewTask] Exit"));
 
     TRACED_EPILOGUE("NewTask");
     return This;
@@ -186,20 +181,13 @@ static void ReleaseTaskMutexes(LPTASK Task) {
 void DeleteTask(LPTASK This) {
     TRACED_FUNCTION;
 
-    DEBUG(TEXT("[DeleteTask] Enter"));
 
     //-------------------------------------
     // Check validity of parameters
 
     SAFE_USE_VALID_ID(This, KOID_TASK) {
         // Lock kernel mutex for the entire operation
-        DEBUG(TEXT("[DeleteTask] Task=%p Type=%x Status=%x Flags=%x"), This, This->Type, This->Status,
-            This->Flags);
-        DEBUG(TEXT("[DeleteTask] Stack base=%p size=%u SystemStack base=%p size=%u"), This->Arch.Stack.Base,
-            This->Arch.Stack.Size, This->Arch.SystemStack.Base, This->Arch.SystemStack.Size);
         SAFE_USE(This->Process) {
-            DEBUG(TEXT("[DeleteTask] Process=%p Name=%s TaskCount=%u"), This->Process, This->Process->FileName,
-                This->Process->TaskCount);
         }
 
         LockMutex(MUTEX_KERNEL, INFINITY);
@@ -212,33 +200,25 @@ void DeleteTask(LPTASK This) {
         //-------------------------------------
         // Delete the task's message queue
 
-        DEBUG(TEXT("[DeleteTask] Deleting message queue"));
 
         DeleteMessageQueue(&(This->MessageQueue));
 
         //-------------------------------------
         // Delete the task's stacks
 
-        DEBUG(TEXT("[DeleteTask] Deleting stacks"));
 
         SAFE_USE(This->Arch.SystemStack.Base) {
-            DEBUG(TEXT("[DeleteTask] Freeing SystemStack: base=%X, size=%X"), This->Arch.SystemStack.Base,
-                This->Arch.SystemStack.Size);
             FreeRegion(This->Arch.SystemStack.Base, This->Arch.SystemStack.Size);
         }
 
 #if defined(__EXOS_ARCH_X86_64__)
         SAFE_USE(This->Arch.Ist1Stack.Base) {
-            DEBUG(TEXT("[DeleteTask] Freeing IST1 stack: base=%X, size=%X"), This->Arch.Ist1Stack.Base,
-                This->Arch.Ist1Stack.Size);
             FreeRegion(This->Arch.Ist1Stack.Base, This->Arch.Ist1Stack.Size);
         }
 #endif
 
         SAFE_USE(This->Process) {
             SAFE_USE(This->Arch.Stack.Base) {
-                DEBUG(TEXT("[DeleteTask] Freeing Stack: base=%X, size=%X"), This->Arch.Stack.Base,
-                    This->Arch.Stack.Size);
                 FreeRegion(This->Arch.Stack.Base, This->Arch.Stack.Size);
             }
         }
@@ -253,12 +233,8 @@ void DeleteTask(LPTASK This) {
             LockMutex(MUTEX_PROCESS, INFINITY);
             This->Process->TaskCount--;
 
-            DEBUG(TEXT("[DeleteTask] Process %s TaskCount decremented to %u"), This->Process->FileName,
-                This->Process->TaskCount);
 
             if (This->Process->TaskCount == 0) {
-                DEBUG(TEXT("[DeleteTask] Process %s has no more tasks, marking as DEAD"),
-                    This->Process->FileName);
 
                 // Set process exit code to last task's exit code
                 This->Process->ExitCode = This->ExitCode;
@@ -267,7 +243,6 @@ void DeleteTask(LPTASK This) {
 
                 // Apply child process policy
                 if (This->Process->Flags & PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH) {
-                    DEBUG(TEXT("[DeleteTask] Process %s policy: killing all children"), This->Process->FileName);
 
                     // Find and kill all child processes
                     LPPROCESS Current = (LPPROCESS)ProcessList->First;
@@ -277,7 +252,6 @@ void DeleteTask(LPTASK This) {
 
                         SAFE_USE_VALID_ID(Current, KOID_PROCESS) {
                             if (Current->OwnerProcess == This->Process) {
-                                DEBUG(TEXT("[DeleteTask] Killing child process %s"), Current->FileName);
 
                                 // Kill all tasks of the child process
                                 LPTASK ChildTask = (LPTASK)TaskList->First;
@@ -300,7 +274,6 @@ void DeleteTask(LPTASK This) {
                         Current = Next;
                     }
                 } else {
-                    DEBUG(TEXT("[DeleteTask] Process %s policy: orphaning children"), This->Process->FileName);
 
                     // Detach all child processes from parent
                     LPPROCESS Current = (LPPROCESS)ProcessList->First;
@@ -311,7 +284,6 @@ void DeleteTask(LPTASK This) {
                         SAFE_USE_VALID_ID(Current, KOID_PROCESS) {
                             if (Current->OwnerProcess == This->Process) {
                                 Current->OwnerProcess = NULL;
-                                DEBUG(TEXT("[DeleteTask] Orphaned child process %s"), Current->FileName);
                             }
                         }
                         Current = Next;
@@ -330,7 +302,6 @@ void DeleteTask(LPTASK This) {
         // Unlock kernel mutex
         UnlockMutex(MUTEX_KERNEL);
 
-        DEBUG(TEXT("[DeleteTask] Exit"));
     }
 
     TRACED_EPILOGUE("DeleteTask");
@@ -355,14 +326,8 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
 
     LPTASK Task = NULL;
 
-    DEBUG(TEXT("[CreateTask] Enter"));
-    DEBUG(TEXT("[CreateTask] Process : %X"), Process);
-    DEBUG(TEXT("[CreateTask] Info : %X"), Info);
 
     SAFE_USE(Info) {
-        DEBUG(TEXT("[CreateTask] Func : %X"), Info->Func);
-        DEBUG(TEXT("[CreateTask] Parameter : %X"), Info->Parameter);
-        DEBUG(TEXT("[CreateTask] Flags : %X"), Info->Flags);
     }
 
     //-------------------------------------
@@ -382,7 +347,6 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     }
 
     if (IsValidMemory((LINEAR)Info->Func) == FALSE) {
-        DEBUG(TEXT("[CreateTask] Function is not in mapped memory. Aborting."), Info->Func);
 
         TRACED_EPILOGUE("CreateTask");
         return NULL;
@@ -409,7 +373,6 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         goto Out;
     }
 
-    DEBUG(TEXT("[CreateTask] Task allocated at %X"), Task);
 
     //-------------------------------------
     // Setup the task
@@ -423,8 +386,6 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     SAFE_USE(Process) {
         LockMutex(MUTEX_PROCESS, INFINITY);
         Process->TaskCount++;
-        DEBUG(TEXT("[CreateTask] Process %s TaskCount incremented to %u"), Process->FileName,
-            Process->TaskCount);
         UnlockMutex(MUTEX_PROCESS);
     }
 
@@ -444,11 +405,6 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
     //-------------------------------------
     // Allocate the stacks
 
-    DEBUG(TEXT("[CreateTask] Allocating stack..."));
-    DEBUG(TEXT("[CreateTask] Calling process heap base %X, size %X"), Process->HeapBase, Process->HeapSize);
-    DEBUG(TEXT("[CreateTask] Kernel process heap base %X, size %X"), KernelProcess.HeapBase,
-        KernelProcess.HeapSize);
-    DEBUG(TEXT("[CreateTask] Process == KernelProcess ? %s"), (Process == &KernelProcess) ? "YES" : "NO");
 
     if (SetupTask(Task, Process, Info) == FALSE) {
         DeleteTask(Task);
@@ -481,7 +437,6 @@ Out:
     UnlockMutex(MUTEX_MEMORY);
     UnlockMutex(MUTEX_KERNEL);
 
-    DEBUG(TEXT("[CreateTask] Exit"));
 
     return Task;
 }
@@ -500,7 +455,6 @@ Out:
  */
 BOOL KillTask(LPTASK Task) {
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
-        DEBUG(TEXT("[KillTask] Enter"));
 
         if (Task->Type == TASK_TYPE_KERNEL_MAIN) {
             ERROR(TEXT("[KillTask] Can't kill kernel task"));
@@ -508,14 +462,10 @@ BOOL KillTask(LPTASK Task) {
             return FALSE;
         }
 
-        DEBUG(TEXT("[KillTask] Process : %x"), Task->Process);
-        DEBUG(TEXT("[KillTask] Task : %x"), Task);
-        DEBUG(TEXT("[KillTask] Func = %x"), Task->Function);
         UINT FirstMessage = 0;
         SAFE_USE_2(Task->MessageQueue.Messages, Task->MessageQueue.Messages->First) {
             FirstMessage = ((LPMESSAGE)Task->MessageQueue.Messages->First)->Message;
         }
-        DEBUG(TEXT("[KillTask] Message : %x"), FirstMessage);
 
         // Lock access to kernel data
         LockMutex(MUTEX_KERNEL, INFINITY);
@@ -534,7 +484,6 @@ BOOL KillTask(LPTASK Task) {
         // Unlock access to kernel data
         UnlockMutex(MUTEX_KERNEL);
 
-        DEBUG(TEXT("[KillTask] Exit"));
 
         return TRUE;
     }
@@ -593,12 +542,10 @@ void DeleteDeadTasksAndProcesses(void) {
             NextTask = (LPTASK)Task->Next;
 
             if (Task->Status == TASK_STATUS_DEAD) {
-                DEBUG(TEXT("[DeleteDeadTasksAndProcesses] About to delete task %p"), Task);
 
                 // DeleteTask will handle removing from list and cleanup
                 DeleteTask(Task);
 
-                DEBUG(TEXT("[DeleteDeadTasksAndProcesses] Deleted task %p"), Task);
             }
 
             Task = NextTask;
@@ -619,14 +566,12 @@ void DeleteDeadTasksAndProcesses(void) {
             NextProcess = (LPPROCESS)Process->Next;
 
             if (Process->Status == PROCESS_STATUS_DEAD) {
-                DEBUG(TEXT("[DeleteDeadTasksAndProcesses] About to delete process %s"), Process->FileName);
 
                 ReleaseProcessKernelObjects(Process);
 
                 // DeleteProcessCommit will handle removing from list and cleanup
                 DeleteProcessCommit(Process);
 
-                DEBUG(TEXT("[DeleteDeadTasksAndProcesses] Deleted process %s"), Process->FileName);
             }
 
             Process = NextProcess;

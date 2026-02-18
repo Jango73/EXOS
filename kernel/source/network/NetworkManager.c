@@ -448,7 +448,7 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             DeviceContext->StaticConfig.LocalIPv4_Be = LocalIPv4_Be;
 
             // Initialize TCP subsystem (global for all devices)
-            static BOOL TCPInitialized = FALSE;
+            static BOOL DATA_SECTION TCPInitialized = FALSE;
             if (!TCPInitialized) {
                 DEBUG(TEXT("[NetworkManager_InitializeDevice] Initializing TCP layer"));
                 TCP_Initialize();

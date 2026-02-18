@@ -104,6 +104,21 @@ extern U32 VESAGetModeInfo(U16 Mode, U32 Buffer);
 extern U32 VESASetMode(U16 Mode);
 extern void SetPixel24(U32 x, U32 y, U32 color, U32 framebuffer);
 extern void EnableA20(void);
+extern U8 BootInPortByte(U32 Port);
+extern void BootOutPortByte(U32 Port, U32 Value);
+extern U8 BootIsKeyAvailable(void);
+extern U16 BootReadKeyBlocking(void);
+extern U16 BootReadKeyExtended(void);
+extern U8 BootReadLinearU8(U32 Address);
+extern U16 BootReadLinearU16(U32 Address);
+extern U32 BootReadLinearU32(U32 Address);
+extern void BootWriteLinearU32(U32 Address, U32 Value);
+extern void BootStoreIdt(U32 Address);
+extern void BootStoreGdt(U32 Address);
+extern void BootClearScreen(void);
+extern void BootEnableInterrupts(void);
+extern void BootCpuRelax(void);
+extern U32 CheckA20Enabled(void);
 
 // Memory helpers implemented in the shared C runtime
 void MemorySet(LPVOID Base, UINT What, UINT Size);

@@ -55,7 +55,7 @@
 
 typedef struct tag_EXT2FILESYSTEM {
     FILESYSTEM Header;
-    LPPHYSICALDISK Disk;
+    LPSTORAGE_UNIT Disk;
     EXT2SUPER Super;
     LPEXT2BLOCKGROUP Groups;
     U32 GroupCount;
@@ -86,7 +86,7 @@ typedef struct tag_EXT2FILE {
 
 /************************************************************************/
 
-static LPEXT2FILESYSTEM NewEXT2FileSystem(LPPHYSICALDISK Disk);
+static LPEXT2FILESYSTEM NewEXT2FileSystem(LPSTORAGE_UNIT Disk);
 static LPEXT2FILE NewEXT2File(LPEXT2FILESYSTEM FileSystem);
 static BOOL HasWildcard(LPCSTR Path);
 static void ExtractBaseName(LPCSTR Path, LPSTR Name);
@@ -155,7 +155,7 @@ static U32 CloseFile(LPEXT2FILE File);
 static U32 ReadFile(LPEXT2FILE File);
 static U32 WriteFile(LPEXT2FILE File);
 
-BOOL MountPartition_EXT2(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex);
+BOOL MountPartition_EXT2(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex);
 UINT EXT2Commands(UINT Function, UINT Parameter);
 
 /************************************************************************/
@@ -1492,7 +1492,7 @@ DRIVER DATA_SECTION EXT2Driver = {
     .VersionMinor = VER_MINOR,
     .Designer = "Jango73",
     .Manufacturer = "Jango73",
-    .Product = "Minimal EXT2",
+    .Product = "EXT2 File System",
     .Command = EXT2Commands};
 
 /************************************************************************/
@@ -2259,7 +2259,7 @@ static BOOL ResolvePath(
  * @param Disk Pointer to the physical disk hosting the filesystem.
  * @return Newly allocated filesystem descriptor, or NULL on failure.
  */
-static LPEXT2FILESYSTEM NewEXT2FileSystem(LPPHYSICALDISK Disk) {
+static LPEXT2FILESYSTEM NewEXT2FileSystem(LPSTORAGE_UNIT Disk) {
     LPEXT2FILESYSTEM FileSystem;
 
     FileSystem = (LPEXT2FILESYSTEM)KernelHeapAlloc(sizeof(EXT2FILESYSTEM));
@@ -2272,6 +2272,7 @@ static LPEXT2FILESYSTEM NewEXT2FileSystem(LPPHYSICALDISK Disk) {
     FileSystem->Header.Next = NULL;
     FileSystem->Header.Prev = NULL;
     FileSystem->Header.Driver = &EXT2Driver;
+    FileSystem->Header.StorageUnit = Disk;
     FileSystem->Disk = Disk;
     FileSystem->Groups = NULL;
     FileSystem->GroupCount = 0;
@@ -2733,7 +2734,7 @@ static U32 WriteFile(LPEXT2FILE File) {
  * @param PartIndex Index of the partition on the disk.
  * @return TRUE on success, FALSE if the partition could not be mounted.
  */
-BOOL MountPartition_EXT2(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
+BOOL MountPartition_EXT2(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer[SECTOR_SIZE * 2];
     IOCONTROL Control;
     LPEXT2SUPER Super;

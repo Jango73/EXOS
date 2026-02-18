@@ -58,8 +58,8 @@ static U32 PCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty);
 
 #define PCI_MAX_REGISTERED_DRIVERS 32
 
-static LPPCI_DRIVER PciDriverTable[PCI_MAX_REGISTERED_DRIVERS];
-static U32 PciDriverCount = 0;
+static LPPCI_DRIVER DATA_SECTION PciDriverTable[PCI_MAX_REGISTERED_DRIVERS];
+static U32 DATA_SECTION PciDriverCount = 0;
 
 /***************************************************************************/
 
@@ -637,9 +637,11 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
             }
 
             extern PCI_DRIVER AHCIPCIDriver;
+            extern PCI_DRIVER NVMePCIDriver;
 
             PCI_RegisterDriver(&E1000Driver);
             PCI_RegisterDriver(&AHCIPCIDriver);
+            PCI_RegisterDriver(&NVMePCIDriver);
             PCI_RegisterDriver(&XHCIDriver);
             PCI_ScanBus();
 

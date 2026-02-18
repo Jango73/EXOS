@@ -3,7 +3,8 @@
 # Script to parse RIP values from kernel.log and disassemble each instruction
 
 TRACE_LOG="log/kernel.log"
-ELF_FILE="build/x86-64/kernel/exos.elf"
+BUILD_CORE_NAME="${BUILD_CORE_NAME:-x86-64-mbr-debug}"
+ELF_FILE="build/core/${BUILD_CORE_NAME}/kernel/exos.elf"
 ADDR_TO_SRC="scripts/utils/addr2src-kernel-x86-64.sh"
 
 if [ ! -f "$TRACE_LOG" ]; then

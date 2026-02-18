@@ -34,6 +34,14 @@
 /************************************************************************/
 
 #define CACHE_DEFAULT_CAPACITY 256
+#define CACHE_WRITE_POLICY_READ_ONLY 0
+#define CACHE_WRITE_POLICY_WRITE_THROUGH 1
+#define CACHE_WRITE_POLICY_WRITE_BACK 2
+
+/************************************************************************/
+
+typedef BOOL (*CACHE_FLUSH_CALLBACK)(LPVOID Data, LPVOID Context);
+typedef void (*CACHE_RELEASE_CALLBACK)(LPVOID Data, BOOL Dirty, LPVOID Context);
 
 /************************************************************************/
 
@@ -42,6 +50,7 @@ typedef struct tag_CACHE_ENTRY {
     UINT ExpirationTime;
     UINT TTL;
     UINT Score;
+    BOOL Dirty;
     BOOL Valid;
 } CACHE_ENTRY, *LPCACHE_ENTRY;
 
@@ -49,6 +58,10 @@ typedef struct tag_CACHE {
     LPCACHE_ENTRY Entries;
     UINT Capacity;
     UINT Count;
+    U32 WritePolicy;
+    CACHE_FLUSH_CALLBACK FlushCallback;
+    CACHE_RELEASE_CALLBACK ReleaseCallback;
+    LPVOID CallbackContext;
     MUTEX Mutex;
 } CACHE, *LPCACHE;
 
@@ -56,8 +69,13 @@ typedef struct tag_CACHE {
 
 void CacheInit(LPCACHE Cache, UINT Capacity);
 void CacheDeinit(LPCACHE Cache);
+void CacheSetWritePolicy(
+    LPCACHE Cache, U32 WritePolicy, CACHE_FLUSH_CALLBACK FlushCallback, CACHE_RELEASE_CALLBACK ReleaseCallback, LPVOID CallbackContext);
 BOOL CacheAdd(LPCACHE Cache, LPVOID Data, UINT TTL_MS);
 LPVOID CacheFind(LPCACHE Cache, BOOL (*Matcher)(LPVOID Data, LPVOID Context), LPVOID Context);
+BOOL CacheMarkEntryDirty(LPCACHE Cache, LPVOID Data);
+BOOL CacheFlushEntry(LPCACHE Cache, LPVOID Data);
+UINT CacheFlushAllEntries(LPCACHE Cache);
 void CacheCleanup(LPCACHE Cache, UINT CurrentTime);
 LPCACHE_ENTRY CacheFindLowestScoreEntry(LPCACHE Cache);
 

@@ -49,6 +49,10 @@
 #define MULTIBOOT_INFO_VBE_INFO         0x00000800
 #define MULTIBOOT_INFO_FRAMEBUFFER_INFO 0x00001000
 
+// Multiboot framebuffer types
+#define MULTIBOOT_FRAMEBUFFER_RGB 1
+#define MULTIBOOT_FRAMEBUFFER_TEXT 2
+
 // Multiboot memory map entry types
 #define MULTIBOOT_MEMORY_AVAILABLE    1
 #define MULTIBOOT_MEMORY_RESERVED     2
@@ -80,7 +84,7 @@ typedef struct {
     U32 mod_start;     // Physical start address of module in RAM
     U32 mod_end;       // Physical end address of module
     U32 cmdline;       // Physical address of ASCII string (module arguments, null-terminated)
-    U32 reserved;      // Always 0 (padding for alignment)
+    U32 reserved;      // EXOS: loader-reserved kernel span in bytes
 } PACKED multiboot_module_t;
 
 // Main Multiboot information structure

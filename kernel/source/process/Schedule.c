@@ -47,7 +47,7 @@ typedef struct tag_TASKLIST {
 
 /***************************************************************************/
 
-static TASKLIST TaskList = {.Freeze = 0, .SchedulerTime = 0, .NumTasks = 0, .CurrentIndex = 0, .Tasks = {NULL}};
+static TASKLIST DATA_SECTION TaskList = {.Freeze = 0, .SchedulerTime = 0, .NumTasks = 0, .CurrentIndex = 0, .Tasks = {NULL}};
 
 /***************************************************************************/
 

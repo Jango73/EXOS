@@ -1,0 +1,3 @@
+# NTFS repro: Renders folder must be listable from absolute path
+command: "dir /fs/n2p0/renders"
+command: "shutdown"

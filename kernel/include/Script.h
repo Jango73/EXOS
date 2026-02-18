@@ -38,6 +38,7 @@
 #define MAX_TOKEN_LENGTH 128
 #define MAX_ERROR_MESSAGE 256
 #define SCRIPT_VAR_HASH_SIZE 32
+#define E0_SCRIPT_FILE_EXTENSION TEXT(".e0")
 
 /************************************************************************/
 
@@ -83,7 +84,8 @@ typedef enum {
     TOKEN_RBRACE,
     TOKEN_IF,
     TOKEN_ELSE,
-    TOKEN_FOR
+    TOKEN_FOR,
+    TOKEN_RETURN
 } TOKEN_TYPE;
 
 // AST Node Types
@@ -92,6 +94,7 @@ typedef enum {
     AST_IF,             // if (cond) then [else]
     AST_FOR,            // for (init; cond; inc) body
     AST_BLOCK,          // { statements }
+    AST_RETURN,         // return expr
     AST_EXPRESSION      // standalone expr
 } AST_NODE_TYPE;
 
@@ -235,6 +238,9 @@ typedef struct tag_AST_NODE {
             U32 Capacity;
         } Block;
         struct {
+            struct tag_AST_NODE* Expression;
+        } Return;
+        struct {
             TOKEN_TYPE TokenType;
             STR Value[MAX_TOKEN_LENGTH];
             F32 NumValue;
@@ -274,6 +280,10 @@ struct tag_SCRIPT_CONTEXT {
     LPVOID HeapBase;
     SCRIPT_ERROR ErrorCode;
     STR ErrorMessage[MAX_ERROR_MESSAGE];
+    BOOL HasReturnValue;
+    BOOL ReturnTriggered;
+    SCRIPT_VAR_TYPE ReturnType;
+    SCRIPT_VAR_VALUE ReturnValue;
     LPSCRIPT_SCOPE GlobalScope;
     LPSCRIPT_SCOPE CurrentScope;
     SCRIPT_HOST_REGISTRY HostRegistry;
@@ -285,6 +295,7 @@ LPSCRIPT_CONTEXT ScriptCreateContext(LPSCRIPT_CALLBACKS Callbacks);
 void ScriptDestroyContext(LPSCRIPT_CONTEXT Context);
 
 SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script);
+BOOL ScriptIsE0FileName(LPCSTR FileName);
 
 LPSCRIPT_VARIABLE ScriptSetVariable(LPSCRIPT_CONTEXT Context, LPCSTR Name, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value);
 LPSCRIPT_VARIABLE ScriptGetVariable(LPSCRIPT_CONTEXT Context, LPCSTR Name);
@@ -292,6 +303,8 @@ void ScriptDeleteVariable(LPSCRIPT_CONTEXT Context, LPCSTR Name);
 
 SCRIPT_ERROR ScriptGetLastError(LPSCRIPT_CONTEXT Context);
 LPCSTR ScriptGetErrorMessage(LPSCRIPT_CONTEXT Context);
+BOOL ScriptHasReturnValue(LPSCRIPT_CONTEXT Context);
+BOOL ScriptGetReturnValue(LPSCRIPT_CONTEXT Context, SCRIPT_VAR_TYPE* Type, SCRIPT_VAR_VALUE* Value);
 
 // Array support functions
 LPSCRIPT_ARRAY ScriptCreateArray(U32 InitialCapacity);

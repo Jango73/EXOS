@@ -33,7 +33,7 @@
 /************************************************************************/
 // Global device pointer (single network device assumption)
 
-static LPDEVICE g_UDPDevice = NULL;
+static LPDEVICE DATA_SECTION g_UDPDevice = NULL;
 
 /************************************************************************/
 

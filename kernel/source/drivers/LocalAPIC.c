@@ -74,7 +74,7 @@ typedef struct tag_CPUIDREGISTERS {
 
 /***************************************************************************/
 
-static LOCAL_APIC_CONFIG g_LocalApicConfig = {0};
+static LOCAL_APIC_CONFIG DATA_SECTION g_LocalApicConfig = {0};
 
 /***************************************************************************/
 
@@ -126,16 +126,18 @@ BOOL InitializeLocalAPIC(void) {
     g_LocalApicConfig.BaseAddress = ApicBaseAddr;
     g_LocalApicConfig.Present = TRUE;
 
-    // TODO: Enable Local APIC later when we're ready to replace PIC completely
-    // For now, just detect and map but don't enable to avoid conflicts
-    /*
     if (!EnableLocalAPIC()) {
-        DEBUG(TEXT("[LocalAPIC] Failed to enable Local APIC"));
+        ERROR(TEXT("[InitializeLocalAPIC] Failed to enable Local APIC"));
         UnMapIOMemory(g_LocalApicConfig.MappedAddress, PAGE_SIZE);
         return FALSE;
     }
-    */
-    DEBUG(TEXT("[LocalAPIC] Local APIC mapped but not enabled (avoiding PIC conflict)"));
+
+    if (!SetSpuriousInterruptVector(0xFF)) {
+        ERROR(TEXT("[InitializeLocalAPIC] Failed to set spurious interrupt vector"));
+        UnMapIOMemory(g_LocalApicConfig.MappedAddress, PAGE_SIZE);
+        return FALSE;
+    }
+    DEBUG(TEXT("[InitializeLocalAPIC] Local APIC mapped and enabled"));
 
     // Read Local APIC information
     U32 VersionReg = ReadLocalAPICRegister(LOCAL_APIC_VERSION);
@@ -146,15 +148,6 @@ BOOL InitializeLocalAPIC(void) {
     DEBUG(TEXT("[LocalAPIC] Local APIC initialized: ID=%u, Version=0x%02X, MaxLVT=%u"),
               g_LocalApicConfig.ApicId, g_LocalApicConfig.Version, g_LocalApicConfig.MaxLvtEntries);
 
-    // TODO: Set spurious interrupt vector when we enable Local APIC
-    /*
-    if (!SetSpuriousInterruptVector(0xFF)) {
-        DEBUG(TEXT("[LocalAPIC] Failed to set spurious interrupt vector"));
-        return FALSE;
-    }
-    */
-
-    g_LocalApicConfig.Enabled = FALSE;  // Not enabled yet to avoid PIC conflicts
     return TRUE;
 }
 
@@ -203,6 +196,7 @@ BOOL EnableLocalAPIC(void) {
     // Write back to MSR
     WriteMSR64(IA32_APIC_BASE_MSR, ApicBaseLow, ApicBaseHigh);
 
+    g_LocalApicConfig.Enabled = TRUE;
     DEBUG(TEXT("[LocalAPIC] Local APIC enabled via MSR"));
     return TRUE;
 }

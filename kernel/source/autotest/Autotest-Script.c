@@ -777,6 +777,92 @@ void TestScriptArrays(TEST_RESULTS* Results) {
 /************************************************************************/
 
 /**
+ * @brief Test string operators in script expressions.
+ *
+ * This function validates string concatenation and string subtraction.
+ *
+ * @param Results Pointer to TEST_RESULTS structure to be filled with test results
+ */
+void TestScriptStringOperators(TEST_RESULTS* Results) {
+    Results->TestsRun = 0;
+    Results->TestsPassed = 0;
+
+    // Test 1: String concatenation with +
+    Results->TestsRun++;
+    LPSCRIPT_CONTEXT Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptStringOperators] Failed to create context"));
+        return;
+    }
+
+    SCRIPT_ERROR Error = ScriptExecute(Context, TEXT("value = \"foo\" + \"bar\";"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("value"));
+        if (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String &&
+            StringCompare(Var->Value.String, TEXT("foobar")) == 0) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptStringOperators] Test 1 failed: value = %s (expected foobar)"),
+                  (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String) ? Var->Value.String : TEXT("(null)"));
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptStringOperators] Test 1 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    // Test 2: String subtraction removes all occurrences
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptStringOperators] Failed to create context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("value = \"foobarfoo\" - \"foo\";"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("value"));
+        if (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String &&
+            StringCompare(Var->Value.String, TEXT("bar")) == 0) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptStringOperators] Test 2 failed: value = %s (expected bar)"),
+                  (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String) ? Var->Value.String : TEXT("(null)"));
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptStringOperators] Test 2 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    // Test 3: Removing an empty pattern keeps source unchanged
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptStringOperators] Failed to create context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("value = \"hello\" - \"\";"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("value"));
+        if (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String &&
+            StringCompare(Var->Value.String, TEXT("hello")) == 0) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptStringOperators] Test 3 failed: value = %s (expected hello)"),
+                  (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String) ? Var->Value.String : TEXT("(null)"));
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptStringOperators] Test 3 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+}
+
+/************************************************************************/
+
+/**
  * @brief Test host-exposed variables and properties.
  *
  * This function validates property symbols, array element bindings, and
@@ -1164,6 +1250,11 @@ void TestScript(TEST_RESULTS* Results) {
 
     // Run array tests
     TestScriptArrays(&SubResults);
+    Results->TestsRun += SubResults.TestsRun;
+    Results->TestsPassed += SubResults.TestsPassed;
+
+    // Run string operator tests
+    TestScriptStringOperators(&SubResults);
     Results->TestsRun += SubResults.TestsRun;
     Results->TestsPassed += SubResults.TestsPassed;
 

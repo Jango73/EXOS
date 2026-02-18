@@ -50,7 +50,7 @@ extern U32 IRQMask_A1_RM;
 
 extern UINT DoSystemCall(UINT Number, UINT Parameter);
 
-#if defined(__EXOS_ARCH_I386__)
+#if defined(__EXOS_ARCH_X86_32__)
 
 extern U32 SaveRegisters(LPINTEL_32_REGISTERS Registers);
 

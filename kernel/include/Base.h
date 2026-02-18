@@ -40,7 +40,7 @@ extern "C" {
 // Target architecture detection
 
 #if defined(__i386__) || defined(_M_IX86)
-    #define __EXOS_ARCH_I386__
+    #define __EXOS_ARCH_X86_32__
 #elif defined(__x86_64__) || defined(_M_X64)
     #define __EXOS_ARCH_X86_64__
 #else
@@ -81,9 +81,9 @@ extern "C" {
 /************************************************************************/
 // Validate architecture and ABI combination
 
-#if defined(__EXOS_ARCH_I386__)
+#if defined(__EXOS_ARCH_X86_32__)
     #if __SIZEOF_POINTER__ != 4
-        #error "i386 build requires 32-bit pointer size"
+        #error "x86-32 build requires 32-bit pointer size"
     #endif
 #elif defined(__EXOS_ARCH_X86_64__)
     #if __SIZEOF_POINTER__ != 8
@@ -208,7 +208,6 @@ typedef double F64;             // 64 bit float
 typedef UINT SIZE;              // Size type
 typedef UINT LINEAR;            // Linear virtual address, paged or not
 typedef UINT PHYSICAL;          // Physical address
-typedef U8* LPPAGEBITMAP;       // Pointer to a page allocation bitmap
 
 /************************************************************************/
 
@@ -465,6 +464,7 @@ extern void ConsolePrint(LPCSTR Format, ...);
 #define MAX_USER_NAME 128
 #define MAX_NAME 128
 #define MAX_PASSWORD 64
+#define MAX_COMMAND_NAME 64
 
 /************************************************************************/
 // Common color values
@@ -659,6 +659,10 @@ static inline U64 U64_FromUINT(UINT Value) {
     return Result;
 }
 
+static inline UINT U64_ToUINT(U64 Value) {
+    return (UINT)Value.LO;
+}
+
 static inline U64 U64_ShiftRight8(U64 Value) {
     U64 Result;
     Result.LO = (Value.LO >> 8) | ((Value.HI & 0xFF) << 24);
@@ -720,6 +724,10 @@ static inline U64 U64_FromU32(U32 Value) {
 
 static inline U64 U64_FromUINT(UINT Value) {
     return (U64)Value;
+}
+
+static inline UINT U64_ToUINT(U64 Value) {
+    return (UINT)Value;
 }
 
 static inline U64 U64_ShiftRight8(U64 Value) {

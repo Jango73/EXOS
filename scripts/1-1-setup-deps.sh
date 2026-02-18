@@ -18,6 +18,7 @@ sudo apt install -y \
     grep \
     gzip \
     gawk \
+    lld \
     make \
     mtools \
     nasm \

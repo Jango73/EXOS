@@ -41,7 +41,7 @@
 /************************************************************************/
 // Global device pointer
 
-static LPDEVICE g_DHCPDevice = NULL;
+static LPDEVICE DATA_SECTION g_DHCPDevice = NULL;
 
 /************************************************************************/
 

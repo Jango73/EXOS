@@ -1,31 +1,37 @@
 
 SHELL = /bin/bash
 
-ARCH ?= i386
+include ../make/arch.mk
 
-ifeq ($(ARCH),i386)
-VMA_KERNEL ?= 0xC0000000
-else ifeq ($(ARCH),x86-64)
-VMA_KERNEL ?= 0xFFFFFFFFC0000000
+ifeq ($(strip $(BUILD_CORE_NAME)),)
+$(error BUILD_CORE_NAME is required)
 endif
+CORE_BUILD_DIR := ../build/core/$(BUILD_CORE_NAME)
 
-BUILD_DIR := ../build/$(ARCH)
+ifeq ($(strip $(BUILD_IMAGE_NAME)),)
+$(error BUILD_IMAGE_NAME is required)
+endif
+BUILD_DIR := ../build/image/$(BUILD_IMAGE_NAME)
 
-ifeq ($(ARCH),i386)
+ifeq ($(ARCH),x86-32)
 TOOLCHAIN_PREFIX = i686-elf
 NASM_FORMAT = elf32
-NASM_ARCH_FLAGS = -DARCH_I386
+NASM_ARCH_FLAGS = -DARCH_X86_32
+ARCH_CFLAGS = -DARCH_X86_32=1
 else ifeq ($(ARCH),x86-64)
 TOOLCHAIN_PREFIX = i686-elf
 NASM_FORMAT = elf32
 NASM_ARCH_FLAGS = -DARCH_X86_64
+ARCH_CFLAGS = -DARCH_X86_64=1
 else
 $(error Unsupported architecture $(ARCH))
 endif
 
 DEBUG_OUTPUT    ?= 0
+BOOT_STAGE_MARKERS ?= 0
 
-IMG_SIZE_MB     ?= 64
+IMG_SIZE_MB     ?= 16
+FS_TEST_IMG_SIZE_MB ?= 80
 FILE_SYSTEM     ?= ext2
 EXT2_BLOCK_SIZE ?= 4096
 KERNEL_FILE     ?= exos.bin
@@ -49,12 +55,32 @@ PAYLOAD_STR_C   = ../kernel/source/CoreString.c
 
 # Configurable payload source (can be overridden with make PAYLOAD_SOURCE=...)
 PAYLOAD_SOURCE  ?= source/vbr-payload-c.c
+ifeq ($(ARCH),x86-64)
+PAYLOAD_ARCH_SOURCE = source/vbr-payload-x86-64-mbr.c
+else ifeq ($(ARCH),x86-32)
+PAYLOAD_ARCH_SOURCE = source/vbr-payload-x86-32-mbr.c
+else
 PAYLOAD_ARCH_SOURCE = source/vbr-payload-$(ARCH).c
+endif
+PAYLOAD_BUILD_ID ?= $(shell date +%Y%m%d-%H%M%S)
+
+PAYLOAD_SOURCE_EFFECTIVE := $(PAYLOAD_SOURCE)
+ifneq ($(findstring *,$(PAYLOAD_SOURCE)),)
+PAYLOAD_SOURCE_WILDCARD := $(wildcard $(PAYLOAD_SOURCE))
+ifneq ($(PAYLOAD_SOURCE_WILDCARD),)
+PAYLOAD_SOURCE_EFFECTIVE := $(PAYLOAD_SOURCE_WILDCARD)
+endif
+endif
+
+TEST_PAYLOAD := 0
+ifneq ($(filter test-payloads/%,$(PAYLOAD_SOURCE_EFFECTIVE)),)
+TEST_PAYLOAD := 1
+endif
 
 PAYLOAD_BIN_LD  = main-bin.ld
 PAYLOAD_ELF_LD  = main-elf.ld
 
-NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DRESERVED_SECTORS=$(RESERVED_SECTORS) -DPAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS) -DMEMORY_BASE=$(MEMORY_BASE) -DMEMORY_SIZE=$(MEMORY_SIZE) -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) $(NASM_ARCH_FLAGS)
+NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DBOOT_STAGE_MARKERS=$(BOOT_STAGE_MARKERS) -DRESERVED_SECTORS=$(RESERVED_SECTORS) -DPAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS) -DMEMORY_BASE=$(MEMORY_BASE) -DMEMORY_SIZE=$(MEMORY_SIZE) -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) $(NASM_ARCH_FLAGS)
 CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
                   -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
@@ -64,11 +90,15 @@ CFLAGS          = -m16 -g -Wall -Wextra -O0 \
                   -DARCH=$(ARCH) \
                   -DKERNEL_FILE=\"$(KERNEL_FILE)\" \
                   -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) \
+                  -DBOOT_STAGE_MARKERS=$(BOOT_STAGE_MARKERS) \
                   -DPAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS) \
                   -DMEMORY_BASE=$(MEMORY_BASE) \
                   -DMEMORY_SIZE=$(MEMORY_SIZE) \
                   -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) \
-                  -Iinclude -I../kernel/include
+                  -DBOOT_PAYLOAD_BUILD_ID=\"$(PAYLOAD_BUILD_ID)\" \
+                  -Iinclude -I../boot-shared/include -I../kernel/include
+CFLAGS          += $(ARCH_CFLAGS)
+NASMFLAGS       += -DBOOT_PAYLOAD_BUILD_ID=\"$(PAYLOAD_BUILD_ID)\"
 
 NASM            = nasm
 CC              = $(TOOLCHAIN_PREFIX)-gcc
@@ -79,26 +109,49 @@ LDDEFS          = --defsym=PAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS)
 MBR_BIN         = $(BUILD_DIR)/boot-hd/mbr.bin
 VBR_BIN         = $(BUILD_DIR)/boot-hd/vbr.bin
 PAYLOAD_STUB_O  = $(BUILD_DIR)/boot-hd/vbr-payload-a.o
-PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE) $(PAYLOAD_ARCH_SOURCE) source/vbr-payload-fat32.c source/vbr-payload-ext2.c
-PAYLOAD_C_OBJS  = $(patsubst source/%.c,$(BUILD_DIR)/boot-hd/%.o,$(sort $(PAYLOAD_C_SOURCES)))
+ifneq ($(filter test-payloads/%,$(PAYLOAD_SOURCE_EFFECTIVE)),)
+PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE_EFFECTIVE)
+else
+ifneq ($(filter test-payloads/%,$(PAYLOAD_SOURCE_EFFECTIVE)),)
+PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE_EFFECTIVE)
+else
+PAYLOAD_C_SOURCES = $(PAYLOAD_SOURCE_EFFECTIVE) $(PAYLOAD_ARCH_SOURCE) source/vbr-payload-fat32.c source/vbr-payload-ext2.c
+endif
+endif
+BOOT_SHARED_C_SOURCES = ../boot-shared/source/boot-multiboot.c
+PAYLOAD_C_OBJS  = $(patsubst source/%.c,$(BUILD_DIR)/boot-hd/%.o,$(filter source/%.c,$(PAYLOAD_C_SOURCES))) \
+                  $(patsubst test-payloads/%.c,$(BUILD_DIR)/boot-hd/test-payloads/%.o,$(filter test-payloads/%.c,$(PAYLOAD_C_SOURCES))) \
+                  $(patsubst ../boot-shared/source/%.c,$(BUILD_DIR)/boot-hd/boot-shared/%.o,$(BOOT_SHARED_C_SOURCES))
 PAYLOAD_STR_O   = $(BUILD_DIR)/boot-hd/String.o
 PAYLOAD_BIN     = $(BUILD_DIR)/boot-hd/vbr-payload.bin
 PAYLOAD_ELF     = $(BUILD_DIR)/boot-hd/vbr-payload.elf
 PAYLOAD_MAP     = $(BUILD_DIR)/boot-hd/vbr-payload.map
 FINAL_IMG       = $(BUILD_DIR)/boot-hd/exos.img
 USB3_IMG        = $(BUILD_DIR)/boot-hd/usb-3.img
-KERNEL_BIN      = $(BUILD_DIR)/kernel/exos.bin
-PORTAL_ELF      = $(BUILD_DIR)/system/portal/portal
-NETGET_ELF      = $(BUILD_DIR)/system/netget/netget
-HELLO_ELF       = $(BUILD_DIR)/system/hello/hello
-TICTACTOE_ELF	= $(BUILD_DIR)/system/tictactoe/tictactoe
-TERMTACTICS_ELF	= $(BUILD_DIR)/system/terminal-tactics/terminal-tactics
-MOUSEINFO_ELF   = $(BUILD_DIR)/system/mouse-info/mouse-info
-MASTER_ELF      = $(BUILD_DIR)/system/test/master/master
-SLAVE_ELF       = $(BUILD_DIR)/system/test/slave/slave
+FS_TEST_EXT2_IMG= $(BUILD_DIR)/boot-hd/fs-test-ext2.img
+FS_TEST_FAT32_IMG= $(BUILD_DIR)/boot-hd/fs-test-fat32.img
+FS_TEST_NTFS_IMG= $(BUILD_DIR)/boot-hd/fs-test-ntfs.img
+NVME_IMG        = $(FS_TEST_EXT2_IMG)
+NVME_UNSUPPORTED_IMG = $(FS_TEST_NTFS_IMG)
+CYCLE_BIN       = $(CORE_BUILD_DIR)/tools/cycle
+KERNEL_BIN      = $(CORE_BUILD_DIR)/kernel/exos.bin
+PORTAL_ELF      = $(CORE_BUILD_DIR)/system/portal/portal
+NETGET_ELF      = $(CORE_BUILD_DIR)/system/netget/netget
+HELLO_ELF       = $(CORE_BUILD_DIR)/system/hello/hello
+TICTACTOE_ELF	= $(CORE_BUILD_DIR)/system/tictactoe/tictactoe
+TERMTACTICS_ELF	= $(CORE_BUILD_DIR)/system/terminal-tactics/terminal-tactics
+MOUSEINFO_ELF   = $(CORE_BUILD_DIR)/system/mouse-info/mouse-info
+MASTER_ELF      = $(CORE_BUILD_DIR)/system/test/master/master
+SLAVE_ELF       = $(CORE_BUILD_DIR)/system/test/slave/slave
+TEST_E0_SCRIPT  = ../system/scripts/test.e0
 EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/ext2-root
 USB3_STAGING_DIR= $(BUILD_DIR)/boot-hd/usb-3-root
+FS_TEST_EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/fs-test-ext2-root
+FS_TEST_READ_FILE= read.txt
+FS_TEST_EXT2_READ_MARKER=FS_TEST_EXT2_READ_OK
+FS_TEST_FAT32_READ_MARKER=FS_TEST_FAT32_READ_OK
 EXT2_LABEL      ?= exos
+CONFIG_TOML_NAME ?= exos.toml
 
 define CREATE_FAT32_IMAGE
 	@if [ -f $1 ]; then \
@@ -140,6 +193,46 @@ define CREATE_EXT2_IMAGE
 	fi
 endef
 
+define CREATE_EXT2_IMAGE_SIZE
+	@if [ -f $1 ]; then \
+		echo "Skipping creation of $1 (already exists)."; \
+	else \
+		echo "Creating $2MiB image with partition table and EXT2 partition..."; \
+		dd if=/dev/zero of=$1 bs=1M count=$2; \
+		parted -s $1 mklabel msdos; \
+		parted -s $1 mkpart primary ext2 2048s 100%; \
+		parted -s $1 set 1 boot on; \
+		{ \
+			PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
+			if [ -z "$$PART_OFFSET" ] || [ "$$PART_OFFSET" = "0" ]; then \
+				echo "ERROR: Partition not found, or PART_OFFSET is zero. Aborting."; \
+				exit 1; \
+			fi; \
+			mke2fs -F -t ext2 -b $(EXT2_BLOCK_SIZE) -q -L $(EXT2_LABEL) -E offset=$$PART_OFFSET $1; \
+		}; \
+	fi
+endef
+
+define CREATE_FAT32_IMAGE_SIZE
+	@if [ -f $1 ]; then \
+		echo "Skipping creation of $1 (already exists)."; \
+	else \
+		echo "Creating $2MiB image with partition table and FAT32 partition..."; \
+		dd if=/dev/zero of=$1 bs=1M count=$2; \
+		parted -s $1 mklabel msdos; \
+		parted -s $1 mkpart primary fat32 2048s 100%; \
+		parted -s $1 set 1 boot on; \
+		{ \
+			PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
+			if [ -z "$$PART_OFFSET" ] || [ "$$PART_OFFSET" = "0" ]; then \
+				echo "ERROR: Partition not found, or PART_OFFSET is zero. Aborting."; \
+				exit 1; \
+			fi; \
+			MTOOLS_SKIP_CHECK=1 mformat -i $1@@$$PART_OFFSET -v EXOS -F -R $(RESERVED_SECTORS) ::; \
+		}; \
+	fi
+endef
+
 define POPULATE_EXT2_IMAGE
 	@{ \
 		PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
@@ -168,7 +261,7 @@ define MTOOLS_OPERATION
 		PART_OFFSET=$$(parted -s $1 unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \
 		echo "drive z: file=\"$1\" offset=$$PART_OFFSET" > $(MTOOLS_CONF); \
 		echo "$2 at offset $$PART_OFFSET"; \
-		$3 \
+		$3; \
 		rm -f $(MTOOLS_CONF); \
 		echo "$4"; \
 	}
@@ -177,7 +270,7 @@ endef
 define MCOPY_IF_NEEDED
 	if ! MTOOLSRC=$(MTOOLS_CONF) mdir "$(2)" >/dev/null 2>&1; then \
 		echo "Copying $(1) -> $(2) (destination missing)"; \
-		MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(1)" "$(2)"; \
+		MTOOLSRC=$(MTOOLS_CONF) mcopy -D o "$(1)" "$(2)"; \
 	else \
 		SRC_MTIME=$$(stat -c %Y "$(1)"); \
 		DST_INFO=$$(MTOOLSRC=$(MTOOLS_CONF) mdir -/ "$(2)" 2>/dev/null | awk 'NF>=7 {print $$6" "$$7; exit}'); \
@@ -188,17 +281,25 @@ define MCOPY_IF_NEEDED
 			else \
 				echo "Updating $(2) from $(1) (source newer)"; \
 			fi; \
-			MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$(1)" "$(2)"; \
+			MTOOLSRC=$(MTOOLS_CONF) mcopy -D o "$(1)" "$(2)"; \
 		else \
 			echo "Skipping $(2) (destination up-to-date)"; \
 		fi; \
 	fi;
 endef
 
-.PHONY: all update update-fat32 update-ext2 install-mbr install-vbr-payload clean check_tools rebuild-image usb-3-image
+.PHONY: all update update-fat32 update-ext2 update-test-image install-mbr install-vbr-payload clean check_tools rebuild-image usb-3-image normalize-partition-flags
 
 # Default: build tools, ensure images exist (create once), then update contents
-all: check_tools $(FINAL_IMG) $(USB3_IMG) update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
+all: check_tools normalize-partition-flags update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
+
+normalize-partition-flags: $(FINAL_IMG) $(USB3_IMG) $(FS_TEST_EXT2_IMG) $(FS_TEST_FAT32_IMG) $(FS_TEST_NTFS_IMG)
+	@echo "Normalizing partition active flags..."
+	@if [ -f "$(FINAL_IMG)" ]; then parted -s "$(FINAL_IMG)" set 1 boot on; fi
+	@if [ -f "$(USB3_IMG)" ]; then parted -s "$(USB3_IMG)" set 1 boot off; fi
+	@if [ -f "$(FS_TEST_EXT2_IMG)" ]; then parted -s "$(FS_TEST_EXT2_IMG)" set 1 boot off; fi
+	@if [ -f "$(FS_TEST_FAT32_IMG)" ]; then parted -s "$(FS_TEST_FAT32_IMG)" set 1 boot off; fi
+	@if [ -f "$(FS_TEST_NTFS_IMG)" ]; then parted -s "$(FS_TEST_NTFS_IMG)" set 1 boot off; fi
 
 check_tools:
 	@command -v $(NASM) >/dev/null 2>&1 || { echo "$(NASM) is not installed. Please run: sudo apt install nasm"; exit 1; }
@@ -242,6 +343,16 @@ $(BUILD_DIR)/boot-hd/%.o: source/%.c
 	@mkdir -p $(BUILD_DIR)/boot-hd
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(BUILD_DIR)/boot-hd/test-payloads/%.o: test-payloads/%.c
+	@echo "Compiling payload C from $<..."
+	@mkdir -p $(BUILD_DIR)/boot-hd/test-payloads
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/boot-hd/boot-shared/%.o: ../boot-shared/source/%.c
+	@echo "Compiling payload C from $<..."
+	@mkdir -p $(BUILD_DIR)/boot-hd/boot-shared
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(PAYLOAD_STR_O): $(PAYLOAD_STR_C)
 	@echo "Compiling String from $(PAYLOAD_STR_C)..."
 	@mkdir -p $(BUILD_DIR)/boot-hd
@@ -259,19 +370,88 @@ $(BUILD_DIR)/boot-hd/payload.sym: $(PAYLOAD_ELF)
 	# @echo "Extracting payload symbols for Bochs debugging"
 	$(NM) $< | awk '{if($$2=="T" || $$2=="t") print $$1 " " $$3}' > $@
 
+$(CYCLE_BIN):
+	$(MAKE) -C ../tools ARCH=$(ARCH)
+
 # Create image only if it does not exist
-$(FINAL_IMG): check_tools $(KERNEL_BIN) $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(MOUSEINFO_ELF) $(MASTER_ELF) $(SLAVE_ELF)
+FINAL_IMG_DEPS_COMMON = check_tools $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN)
+FINAL_IMG_DEPS_FULL = $(FINAL_IMG_DEPS_COMMON) $(KERNEL_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(MOUSEINFO_ELF) $(MASTER_ELF) $(SLAVE_ELF) $(TEST_E0_SCRIPT)
+
+ifeq ($(TEST_PAYLOAD),1)
+FINAL_IMG_DEPS = $(FINAL_IMG_DEPS_COMMON)
+UPDATE_TARGET = update-test-image
+else
+FINAL_IMG_DEPS = $(FINAL_IMG_DEPS_FULL)
+endif
+
+$(FINAL_IMG): $(FINAL_IMG_DEPS)
 	@mkdir -p $(dir $@)
 	$(call $(CREATE_IMAGE_MACRO),$@)
 
+$(FS_TEST_EXT2_IMG): check_tools
+	@mkdir -p $(dir $@)
+	$(call CREATE_EXT2_IMAGE_SIZE,$@,$(FS_TEST_IMG_SIZE_MB))
+	@parted -s $@ set 1 boot off
+	@echo "Preparing EXT2 smoke-test staging directory at $(FS_TEST_EXT2_STAGING_DIR)"
+	@rm -rf $(FS_TEST_EXT2_STAGING_DIR)
+	@mkdir -p $(FS_TEST_EXT2_STAGING_DIR)
+	@printf '%s\n' "$(FS_TEST_EXT2_READ_MARKER)" > $(FS_TEST_EXT2_STAGING_DIR)/$(FS_TEST_READ_FILE)
+	$(call POPULATE_EXT2_IMAGE,$(FS_TEST_EXT2_IMG),$(FS_TEST_EXT2_STAGING_DIR))
+
+$(FS_TEST_FAT32_IMG): check_tools
+	@mkdir -p $(dir $@)
+	$(call CREATE_FAT32_IMAGE_SIZE,$@,$(FS_TEST_IMG_SIZE_MB))
+	@parted -s $@ set 1 boot off
+	@printf '%s\n' "$(FS_TEST_FAT32_READ_MARKER)" > $(BUILD_DIR)/boot-hd/fs-test-fat32-read.txt
+	$(call MTOOLS_OPERATION,$(FS_TEST_FAT32_IMG),Injecting FAT32 smoke marker,\
+		MTOOLSRC=$(MTOOLS_CONF) mcopy -D o $(BUILD_DIR)/boot-hd/fs-test-fat32-read.txt z:/$(FS_TEST_READ_FILE),\
+		FAT32 smoke marker injected.)
+
+$(FS_TEST_NTFS_IMG): check_tools
+	@mkdir -p $(dir $@)
+	@if [ -f $@ ]; then \
+		echo "Skipping creation of $@ (already exists)."; \
+	else \
+		echo "Creating $(FS_TEST_IMG_SIZE_MB)MiB image with real NTFS partition..."; \
+		dd if=/dev/zero of=$@ bs=1M count=$(FS_TEST_IMG_SIZE_MB); \
+		parted -s $@ mklabel msdos; \
+		parted -s $@ mkpart primary ntfs 2048s 100%; \
+		parted -s $@ set 1 boot off; \
+		if command -v mkfs.ntfs >/dev/null 2>&1; then \
+			PART_START=$$(parted -ms $@ unit s print | awk -F: '$$1=="1"{gsub("s","",$$2); print $$2}'); \
+			PART_END=$$(parted -ms $@ unit s print | awk -F: '$$1=="1"{gsub("s","",$$3); print $$3}'); \
+			PART_SECTORS=$$((PART_END - PART_START + 1)); \
+			TMP_NTFS="$(BUILD_DIR)/boot-hd/fs-test-ntfs-partition-$(ARCH).img"; \
+			rm -f "$$TMP_NTFS"; \
+			dd if=/dev/zero of="$$TMP_NTFS" bs=512 count="$$PART_SECTORS"; \
+			mkfs.ntfs -F -Q -L EXOS_NTFS "$$TMP_NTFS" >/dev/null; \
+			printf '%s\n' "FS_TEST_NTFS_READ_OK" > "$(BUILD_DIR)/boot-hd/fs-test-ntfs-read.txt"; \
+			ntfscp -q -f "$$TMP_NTFS" "$(BUILD_DIR)/boot-hd/fs-test-ntfs-read.txt" "/$(FS_TEST_READ_FILE)"; \
+			dd if="$$TMP_NTFS" of=$@ bs=512 seek="$$PART_START" conv=notrunc; \
+			rm -f "$$TMP_NTFS"; \
+			echo "NTFS image created. Use scripts/ntfs/populate-ntfs-image.sh to add folders/files."; \
+		else \
+			echo "WARNING: mkfs.ntfs not found, image keeps only NTFS partition type"; \
+		fi; \
+	fi
+
+ifeq ($(TEST_PAYLOAD),1)
+$(USB3_IMG): check_tools
+	@mkdir -p $(dir $@)
+	$(call CREATE_EXT2_IMAGE,$@)
+	@parted -s $@ set 1 boot off
+	@echo "Skipping USB MSD staging for test payload build."
+else
 $(USB3_IMG): check_tools $(TICTACTOE_ELF)
 	@mkdir -p $(dir $@)
 	$(call CREATE_EXT2_IMAGE,$@)
+	@parted -s $@ set 1 boot off
 	@echo "Preparing USB MSD staging directory at $(USB3_STAGING_DIR)"
 	@rm -rf $(USB3_STAGING_DIR)
 	@mkdir -p $(USB3_STAGING_DIR)
 	@cp $(TICTACTOE_ELF) $(USB3_STAGING_DIR)/tictactoe
 	$(call POPULATE_EXT2_IMAGE,$(USB3_IMG),$(USB3_STAGING_DIR))
+endif
 
 usb-3-image: $(USB3_IMG)
 
@@ -283,20 +463,24 @@ $(KERNEL_CFG_EXT2): $(FINAL_IMG)
 
 update: $(UPDATE_TARGET)
 
+update-test-image: check_payload_size $(FINAL_IMG)
+	@echo "Skipping filesystem staging for test payload build."
+
 update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32)
 	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
 		$(call MCOPY_IF_NEEDED,$(KERNEL_BIN),z:/EXOS.BIN) \
-		$(call MCOPY_IF_NEEDED,$(KERNEL_CFG_FAT32),z:/exos.toml) \
+		$(call MCOPY_IF_NEEDED,$(KERNEL_CFG_FAT32),z:/$(CONFIG_TOML_NAME)) \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/KEYBOARD || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/USERS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS/TEST || true; \
+		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/SCRIPTS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/TEMP || true; \
 		for f in $(KEYBOARD_LAYOUTS); do \
 			if [ -f "$$f" ]; then \
 				echo "Copying $$f -> z:/EXOS/KEYBOARD/$$(basename $$f)"; \
-				MTOOLSRC=$(MTOOLS_CONF) mcopy -o "$$f" "z:/EXOS/KEYBOARD/$$(basename $$f)"; \
+				MTOOLSRC=$(MTOOLS_CONF) mcopy -D o "$$f" "z:/EXOS/KEYBOARD/$$(basename $$f)"; \
 			fi; \
 		done; \
 		$(call MCOPY_IF_NEEDED,$(PORTAL_ELF),z:/EXOS/APPS/PORTAL) \
@@ -306,7 +490,8 @@ update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32)
 		$(call MCOPY_IF_NEEDED,$(TERMTACTICS_ELF),z:/EXOS/APPS/terminal-tactics)\
 		$(call MCOPY_IF_NEEDED,$(MOUSEINFO_ELF),z:/EXOS/APPS/mouse-info)\
 		$(call MCOPY_IF_NEEDED,$(MASTER_ELF),z:/EXOS/APPS/TEST/MASTER)\
-		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE),\
+		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE)\
+		$(call MCOPY_IF_NEEDED,$(TEST_E0_SCRIPT),z:/EXOS/SCRIPTS/TEST.E0),\
 		All files injected into image.)
 
 update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2)
@@ -316,9 +501,10 @@ update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2)
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/users
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/apps/test
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/keyboard
+	@mkdir -p $(EXT2_STAGING_DIR)/exos/scripts
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/temp
 	@cp $(KERNEL_BIN) $(EXT2_STAGING_DIR)/exos.bin
-	@cp $(KERNEL_CFG_EXT2) $(EXT2_STAGING_DIR)/exos.toml
+	@cp $(KERNEL_CFG_EXT2) $(EXT2_STAGING_DIR)/$(CONFIG_TOML_NAME)
 	@for f in $(KEYBOARD_LAYOUTS); do \
 		if [ -f "$$f" ]; then \
 			echo "Copying $$f -> $(EXT2_STAGING_DIR)/exos/keyboard/$$(basename $$f)"; \
@@ -333,6 +519,7 @@ update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2)
 	@cp $(MOUSEINFO_ELF) $(EXT2_STAGING_DIR)/exos/apps/mouse-info
 	@cp $(MASTER_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/master
 	@cp $(SLAVE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/slave
+	@cp $(TEST_E0_SCRIPT) $(EXT2_STAGING_DIR)/exos/scripts/test.e0
 	$(call POPULATE_EXT2_IMAGE,$(FINAL_IMG),$(EXT2_STAGING_DIR))
 
 install-mbr: update $(MBR_BIN) $(VBR_BIN)
@@ -341,7 +528,11 @@ install-mbr: update $(MBR_BIN) $(VBR_BIN)
 	printf '\125\252' | dd of=$(FINAL_IMG) bs=1 seek=510 count=2 conv=notrunc
 	@echo "Custom MBR written."
 
+ifeq ($(TEST_PAYLOAD),1)
+install-vbr-payload: check_payload_size install-mbr $(PAYLOAD_BIN) $(VBR_BIN) $(USB3_IMG) $(CYCLE_BIN)
+else
 install-vbr-payload: check_payload_size install-mbr $(PAYLOAD_BIN) $(VBR_BIN)
+endif
 	@echo "Injecting VBR code at offset 0x5A in VBR sector, and payload into the pre-partition gap..."
 	@{ \
 		PART_OFFSET=$$(parted -s $(FINAL_IMG) unit B print | awk '/^ 1/ { gsub("B","",$$2); print $$2; exit }'); \

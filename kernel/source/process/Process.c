@@ -32,8 +32,8 @@
 #include "List.h"
 #include "Log.h"
 #include "CoreString.h"
-#if defined(__EXOS_ARCH_I386__)
-    #include "arch/i386/i386-Log.h"
+#if defined(__EXOS_ARCH_X86_32__)
+    #include "arch/x86-32/x86-32-Log.h"
 #endif
 
 /***************************************************************************/
@@ -655,8 +655,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     LoadPageDirectory(Process->PageDirectory);
 
-    DEBUG(TEXT("[CreateProcess] Page directory switch successful"));
-#if defined(__EXOS_ARCH_I386__)
+#if defined(__EXOS_ARCH_X86_32__)
     LogPageDirectory(Process->PageDirectory);
 #endif
 

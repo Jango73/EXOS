@@ -25,7 +25,8 @@
 #include "arch/Disassemble.h"
 #include "Memory.h"
 #include "CoreString.h"
-#include "arch/intel/i386-Asm.h"
+#include "KernelData.h"
+#include "arch/intel/x86-32-Asm.h"
 
 /***************************************************************************/
 
@@ -77,6 +78,25 @@ void WriteMSR64(U32 Msr, U32 ValueLow, U32 ValueHigh) {
         :
         : "c" (Msr), "a" (ValueLow), "d" (ValueHigh)
     );
+}
+
+/***************************************************************************/
+
+void InitializePat(void) {
+    LPCPUINFORMATION CpuInfo = GetKernelCPUInfo();
+    if (CpuInfo == NULL) {
+        return;
+    }
+
+    if ((CpuInfo->Features & INTEL_CPU_FEAT_PAT) == 0u) {
+        return;
+    }
+
+    const U64 PatValue = U64_Make(0x00070106u, 0x00070106u);
+    WriteMSR64(
+        IA32_PAT_MSR,
+        U64_Low32(PatValue),
+        U64_High32(PatValue));
 }
 
 /***************************************************************************/

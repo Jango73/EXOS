@@ -65,16 +65,16 @@ typedef struct tag_DISKGEOMETRY {
 
 /***************************************************************************/
 
-typedef struct tag_PHYSICALDISK {
+typedef struct tag_STORAGE_UNIT {
     LISTNODE_FIELDS
     LPDRIVER Driver;
-} PHYSICALDISK, *LPPHYSICALDISK;
+} STORAGE_UNIT, *LPSTORAGE_UNIT;
 
 /***************************************************************************/
 
 typedef struct tag_IOCONTROL {
     LISTNODE_FIELDS
-    LPPHYSICALDISK Disk;
+    LPSTORAGE_UNIT Disk;
     U32 SectorLow;
     U32 SectorHigh;
     U32 NumSectors;
@@ -86,10 +86,11 @@ typedef struct tag_IOCONTROL {
 
 typedef struct tag_DISKINFO {
     LISTNODE_FIELDS
-    LPPHYSICALDISK Disk;
+    LPSTORAGE_UNIT Disk;
     U32 Type;
     U32 Removable;
-    U32 NumSectors;
+    U32 BytesPerSector;
+    U64 NumSectors;
     U32 Access;
 } DISKINFO, *LPDISKINFO;
 
@@ -97,7 +98,7 @@ typedef struct tag_DISKINFO {
 
 typedef struct tag_DISKACCESS {
     LISTNODE_FIELDS
-    LPPHYSICALDISK Disk;
+    LPSTORAGE_UNIT Disk;
     U32 Access;
 } DISKACCESS, *LPDISKACCESS;
 

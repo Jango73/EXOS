@@ -1,0 +1,9 @@
+a = 0;
+b = 1;
+count = 30;
+for (i = 0; i < count; i = i + 1) {
+    next = a + b;
+    a = b;
+    b = next;
+}
+return a;

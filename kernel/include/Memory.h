@@ -71,11 +71,25 @@ void InitializeMemoryManager(void);
 // Architecture helpers
 void UpdateKernelMemoryMetricsFromMultibootMap(void);
 void MarkUsedPhysicalMemory(void);
+void SetLoaderReservedPhysicalRange(PHYSICAL Start, PHYSICAL End);
+void SetPhysicalAllocatorMetadataRange(PHYSICAL Start, PHYSICAL End);
+void SetAllocPhysicalPageTraceEnabled(BOOL Enabled);
+BOOL FindAvailableMemoryRange(PHYSICAL MinimumAddress, UINT Size, PHYSICAL* OutAddress);
+BOOL FindAvailableMemoryRangeInWindow(
+    PHYSICAL MinimumAddress,
+    PHYSICAL MaximumAddress,
+    PHYSICAL ExcludedStart,
+    PHYSICAL ExcludedEnd,
+    UINT Size,
+    PHYSICAL* OutAddress);
 
 // Uses temp page tables to get access to random physical pages
 LINEAR MapTemporaryPhysicalPage1(PHYSICAL Physical);
 LINEAR MapTemporaryPhysicalPage2(PHYSICAL Physical);
 LINEAR MapTemporaryPhysicalPage3(PHYSICAL Physical);
+LINEAR MapTemporaryPhysicalPage4(PHYSICAL Physical);
+LINEAR MapTemporaryPhysicalPage5(PHYSICAL Physical);
+LINEAR MapTemporaryPhysicalPage6(PHYSICAL Physical);
 BOOL ReadPhysicalMemory(PHYSICAL PhysicalAddress, LPVOID Buffer, UINT Length);
 
 // Allocates physical space for a new page directory
@@ -110,6 +124,7 @@ BOOL FreeRegion(LINEAR Base, UINT Size);
 
 // Map/unmap a physical MMIO region (BAR or Base Address Register) as Uncached Read/Write
 LINEAR MapIOMemory(PHYSICAL PhysicalBase, UINT Size);
+LINEAR MapFramebufferMemory(PHYSICAL PhysicalBase, UINT Size);
 BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size);
 
 // Kernel region allocation wrapper - automatically uses VMA_KERNEL and AT_OR_OVER

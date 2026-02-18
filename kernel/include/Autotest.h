@@ -50,7 +50,7 @@ void TestCircularBuffer(TEST_RESULTS* Results);
 void TestBlockList(TEST_RESULTS* Results);
 void TestRadixTree(TEST_RESULTS* Results);
 void TestRegex(TEST_RESULTS* Results);
-void TestI386Disassembler(TEST_RESULTS* Results);
+void TestX86_32Disassembler(TEST_RESULTS* Results);
 void TestBcrypt(TEST_RESULTS* Results);
 void TestE1000(TEST_RESULTS* Results);
 void TestIPv4(TEST_RESULTS* Results);

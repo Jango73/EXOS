@@ -3,8 +3,9 @@
 This file provides guidance to agents when working with code in this repository.
 
 ## Project Overview
-This is a multi-architecture operating system. Currently supporting i386 and x86-64.
+This is a multi-architecture operating system. Currently supporting x86-32 and x86-64.
 
+## Main rule
 **If the guidelines below are not followed, all modifications will be rejected.**
 
 ## Communication Guidelines
@@ -13,19 +14,29 @@ This is a multi-architecture operating system. Currently supporting i386 and x86
 - DON'T says "Great!", "Perfect!", "You're right" all the time.
 - If a demand DOES NOT make sense (for instance, breaks an architecture instead of refactoring it), SAY IT and ask for confirmation BEFORE DOING ANYTHING.
 
+## Architecture and Reuse Rules
+- Never implement one-off local mechanisms when a cross-kernel pattern is involved.
+- Any behavior likely to appear in multiple places (rate limit, retry, timeout policy, backoff, filtering, counters) MUST be implemented as a reusable module in `kernel/include/utils` + `kernel/source/utils`.
+- Before adding local logic in a driver/subsystem, check `kernel/include/utils` and `kernel/source/utils` first.
+- If no suitable module exists, create a generic one and use it from the caller.
+- Driver code should only express policy/usage, not duplicate generic mechanics.
+- For log-flood control, use the shared `RateLimiter` helper; do not hardcode ad-hoc counters/cooldowns inside drivers.
+
 ## Coding Conventions
 - **Types**: Use **LINEAR** for virtual addresses (when not using direct pointers), **PHYSICAL** for physical addresses, **UINT** for indexes, sizes and error values. In the kernel, it is **STRICTLY FORBIDDEN** to use a direct c type (int, unsigned long, long long, etc...) : **only types in Base.h are allowed.**
 - **Freestanding**: The kernel **MUST NOT** rely on **ANY** external library/module (unless specified otherwise). **NO** stdlib, stdio, whatever. Everything the kernel needs is built in the compiler and in the codebase.
 - **Debugging**: Debug output is logged with DEBUG(). Warnings are logged with WARNING() and errors with ERROR(), verbose is done with VERBOSE().
-- **Logging**: A log string **ALWAYS** begins with "[FunctionName]" where FunctionName is the name of the function where the logging is done. Use "%p" for pointers and addresses, "%x" for values except for sizes which use "%u".
+- **Logging**: A log string **ALWAYS** begins with "[FunctionName]" where FunctionName is the name of the function where the logging is done. Use "%p" for pointers and addresses, "%x" for values except for sizes which use "%u". Do not hide errors by removing warnings. Reduce flood with rate limiting while preserving diagnostic signal (`suppressed` count or equivalent).
+- **Declaration order**: Group declarations by type. 1: macros / 2: type definitions / 3: inline functions / 4: external functions / 5: other
 - **Function order**: DO NOT OVERUSE forward declarations. Define functions before they are used.
 - **I18n**: Write comments, console output and technical doc in english.
 - **Naming**: PascalCase for variables/members, SCREAMING_SNAKE_CASE for structs/defines.
-- **Declaration order**: Group the declarations in headers. 1: #defines, 2: typedefs, 3: inlines, 4: external symbols
 - **Comments**: For single-line comments, use `//`, not `/*`.
 - **Style**: 4-space indentation, follow `.clang-format` rules.
 - **Numbers**: Hexadecimal for constant numbers, except for sizes, vectors, points and time.
+- **Number suffixes**: Do not add numeric suffixes like `u` to constants; they are not wanted here.
 - **Documentation**: Update `documentation/Kernel.md` when adding/modifying kernel components.
+- **Documentation wording**: Use timeless technical wording. Do not use temporal terms like "now", "currently", "at this time" in documentation/comments.
 - **Languages**: C for kernel, avoid Python (use Node.js/JS if needed).
 - **Libraries**: NO stdlib/stdio in kernel - custom implementations only.
 - **Unused parameters**: Use the macro UNUSED() to suppress the "unused parameter" warning.
@@ -34,42 +45,71 @@ This is a multi-architecture operating system. Currently supporting i386 and x86
 - **Kernel objects**: Any kernel object that contains OBJECT_FIELDS (thus inherits LISTNODE_FIELDS) and is meant to exist in a global kernel list must be created with CreateKernelObject and destroyed with ReleaseKernelObject.
 - **No direct access to physical memory**: Use the MapTemporaryPhysicalPage1 (MapTemporaryPhysicalPage2, etc...) and MapIOMemory/UnMapIOMemory functions to access physical memory pages.
 - **Drivers**: In driver command dispatchers, any non-implemented function MUST return `DF_RETURN_NOT_IMPLEMENTED`.
-- **Clean code**: No duplicate code. Create intermediate functions to avoid it.
+- **Clean code**: No duplicate code. Create intermediate functions to avoid it. This also applies to data: create intermediate structures to avoid duplicating data.
 - **No globals**: Before adding a global variable, **ALWAYS ASK** if permitted.
-- **Functions**: Add a doxygen header to functions and separate all functions with a 75 character long line such as : /************************************************************************/
+- **Functions**: Add a doxygen header to functions and separate all functions with a 75 character line such as : /************************************************************************/
+- **Early boot timing**: `GetSystemTime` does not work in early boot until `EnableInterrupts` has been executed (timer ticks do not advance). For polling timeouts in early boot paths, always use `HasOperationTimedOut()` (Clock) so code keeps a loop-limit fallback and does not rely on time progression alone.
+- **Kernel log tag filter**: `KernelLogTagFilter` is defined in `kernel/source/Log.c` and controlled through `KernelLogSetTagFilter()` / `KernelLogGetTagFilter()` (`kernel/include/Log.h`). Use it first when narrowing boot diagnostics instead of editing/removing log calls.
 - **EXOS != Unix/Linux/Windows/Whatever** :
   - NEVER use abbreviations; ALWAYS use full words (acronyms are OK).
-  - No directory : use folder.
-  - No symlink : use folder alias.
+  - No "directory" : use "folder".
+  - No "symlink" : use "folder alias".
   - No unix seconds / timestamp : use DATETIME structure.
-  - No INT/UINT in persistent data : those are register-sized.
+  - No INT/UINT in persistent data, those are register-sized. use U8/I8, U16/I16, U32/I32, U64/I64, F32, F64, ...
 
 ## Common Build Commands
 
+## Tool Execution Policy
+- When running repository scripts that may require elevated permissions, always invoke them with the `bash scripts/...` form (example: `bash scripts/4-1-smoke-test.sh`).
+- Keep this invocation form consistent so persistent elevation approval can be reused on the same command prefix.
+
 **Build (ext2):**
 ```bash
-./scripts/build --arch i386 --fs ext2 --release
-./scripts/build --arch i386 --fs ext2 --debug
-./scripts/build --arch i386 --fs ext2 --debug --clean
+./scripts/build --arch x86-32 --fs ext2 --release
+./scripts/build --arch x86-32 --fs ext2 --debug
+./scripts/build --arch x86-32 --fs ext2 --debug --clean
 ```
 
 **Build (fat32):**
 ```bash
-./scripts/build --arch i386 --fs fat32 --release
-./scripts/build --arch i386 --fs fat32 --debug
+./scripts/build --arch x86-32 --fs fat32 --release
+./scripts/build --arch x86-32 --fs fat32 --debug
 ```
 
 **Run in QEMU:**
 ```bash
-./scripts/run --arch i386
-./scripts/run --arch i386 --gdb
+./scripts/run --arch x86-32
+./scripts/run --arch x86-32 --gdb
 ```
 
-Replace `i386` with `x86-64` when targeting the x86-64 architecture.
+Replace `x86-32` with `x86-64` when targeting the x86-64 architecture.
+
+**Automated build + smoke tests (dashboard-driven):**
+```bash
+./scripts/4-1-smoke-test.sh
+./scripts/4-1-smoke-test.sh --only x86-32
+./scripts/4-1-smoke-test.sh --only x86-64
+./scripts/4-1-smoke-test.sh --only x86-64-uefi
+```
+This script runs build + boot + shell command checks (`sysinfo`, `dir`, `/system/apps/hello`) and supports selecting a single target with `--only`.
+
+**Build output layout:**
+- Core artifacts are written to `build/core/<BUILD_CORE_NAME>/`.
+- Image artifacts are written to `build/image/<BUILD_IMAGE_NAME>/`.
+- `BUILD_CORE_NAME` format: `<arch>-<boot>-<config>[-split]`
+  - example: `x86-32-mbr-debug`
+  - example: `x86-64-uefi-release-split`
+- `BUILD_IMAGE_NAME` format: `<BUILD_CORE_NAME>-<filesystem>`
+  - example: `x86-32-mbr-debug-ext2`
+  - example: `x86-64-uefi-release-fat32`
+- Typical files:
+  - kernel ELF: `build/core/<BUILD_CORE_NAME>/kernel/exos.elf`
+  - MBR image: `build/image/<BUILD_IMAGE_NAME>/boot-hd/exos.img`
+  - UEFI image: `build/image/<BUILD_IMAGE_NAME>/boot-uefi/exos-uefi.img`
 
 **Remote build on Windows (SSH to a Linux build host):**
 ```bat
-scripts\remote\i386\4-5-build-debug-ext2-ssh.bat
+scripts\remote\x86-32\4-5-build-debug-ext2-ssh.bat
 scripts\remote\x86-64\4-5-build-debug-ext2-ssh.bat
 ```
 Configure SSH and the remote repo root once in `scripts/remote/ssh-config.bat`. The remote build runs in the same repository (same path, same branch/commit) as the Windows workspace (shared folder).
@@ -78,7 +118,7 @@ Configure SSH and the remote repo root once in `scripts/remote/ssh-config.bat`. 
 
 ## Debug output
 
-Kernel debug output goes to `log/kernel.log`.
+Kernel debug output goes to `log/kernel-x86-32.log` and `kernel-x86-64.log`.
 QEMU traces go to `qemu.log`.
 Bochs output goes to `bochs.log`.
 **Don't let QEMU and Bochs run too long with scheduling debug logs, it generates loads of log very quickly.**
@@ -91,36 +131,17 @@ Doxygen documentation is in `documentation/kernel/*`
 **Core Components:**
 - **Kernel** (`kernel/source/`): Main OS kernel with multitasking, memory management, drivers
 - **Shell** (`kernel/source/Shell.c`): Command-line interface
-- **Boot** (`boot-qemu-hd/`): Bootloader and disk image creation
+- **Boot** (`boot-hd/` and `boot-uefi/`): Bootloader and disk image creation
 - **Runtime** (`runtime/`): User-space runtime library, but included in the kernel to interface with 3rd party code
-
-## Architecture Overview
-
-**Key Modules:**
-- `Kernel.c`: Initialization sequence and global objects
-- `Mutex.c`: Synchronization primitives
-- `Memory.c`: Memory management
-- `Heap.c`: Heap management
-- `Interrupt.c`: IDT creation
-- `InterruptController.c`: IOAPIC management
-- `Interrupt-a.asm`: Fault and ISR stubs
-- `Clock.c`: RTC and scheduler caller
-- `Fault.c`: Fault handlers like #GP, #PF, #UD, ...
-- `Process.c`: Process management
-- `Task.c`: Task management
-- `Schedule.c`: Task scheduler
-- `Console.c`: Console I/O
-- `FileSystem.c`, `FAT16.c`, `FAT32.c`, `EXFS.c`: File system implementations
-- `SystemFS.c`: POSIX-like virtual file system
-- `System.asm`: Many small bare-metal routines (LGDT, GetCR4, etc...)
+- **System** (`system/`): User-space system library, samples
 
 ## Debug Workflow
-1. Use scheduling debug build when needing per-tick information, for scheduler or interrupt issues: `./scripts/build --arch i386 --fs ext2 --scheduling-debug` (or add `--clean` for a clean make) and the `x86-64` equivalent: `./scripts/build --arch x86-64 --fs ext2 --scheduling-debug`. GENERATES TONS OF LOG, USE WITH CARE.
-2. Monitor `log/kernel.log` for exceptions and page faults
-3. **To assert that the systems runs, the emulator must be running and there must be no fault in the logs**
+1. Use scheduling debug build when needing per-tick information, for scheduler or interrupt issues: `./scripts/build --arch x86-32 --fs ext2 --scheduling-debug` (or add `--clean` for a clean make) and the `x86-64` equivalent: `./scripts/build --arch x86-64 --fs ext2 --scheduling-debug`. GENERATES TONS OF LOG, USE WITH CARE.
+2. Monitor `log/kernel-x86-32.log` and `kernel-x86-64.log` for exceptions and page faults
+3. **To assert that the systems runs, the emulator must be running and there must be no fault in the logs, in all architectures**
 
 **Disassembly Analysis:**
-- `./scripts/utils/show-i386.sh <address> [context_lines]` (i386 build)
+- `./scripts/utils/show-x86-32.sh <address> [context_lines]` (x86-32 build)
 - `./scripts/utils/show-x86-64.sh <address> [context_lines]` (x86-64 build)
   - Default context: 20 lines before/after target address
   - Target line marked with `>>> ... <<<`

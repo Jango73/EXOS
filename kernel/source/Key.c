@@ -29,6 +29,7 @@
 #include "CoreString.h"
 #include "Log.h"
 #include "VKey.h"
+#include "utils/KernelPath.h"
 
 /************************************************************************/
 
@@ -520,9 +521,19 @@ void UseKeyboardLayout(LPCSTR Code) {
         return;
     }
 
-    StringCopy(Path, TEXT("/system/keyboard/"));
-    StringConcat(Path, Code);
-    StringConcat(Path, TEXT(".ekm1"));
+    if (KernelPathBuildFile(
+            KERNEL_FOLDER_KEYBOARD_LAYOUTS,
+            KERNEL_FOLDER_PATH_KEYBOARD_LAYOUTS_DEFAULT,
+            Code,
+            KERNEL_FILE_EXTENSION_KEYBOARD_LAYOUT,
+            Path,
+            MAX_PATH_NAME) == FALSE) {
+        WARNING(TEXT("[UseKeyboardLayout] Invalid keyboard layout path, using embedded en-US layout"));
+        Keyboard.LayoutHid = NULL;
+        Keyboard.PendingDeadKey = 0;
+        Keyboard.PendingComposeKey = 0;
+        return;
+    }
 
     DEBUG(TEXT("[UseKeyboardLayout] Loading %s"), Path);
 
@@ -686,5 +697,4 @@ BOOL GetKeyCodeDown(KEYCODE KeyCode) {
 
     return FALSE;
 }
-
 

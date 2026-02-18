@@ -87,7 +87,7 @@ typedef struct tag_TCP_GLOBAL_STATE {
     UINT ReceiveBufferSize;
 } TCP_GLOBAL_STATE, *LPTCP_GLOBAL_STATE;
 
-TCP_GLOBAL_STATE GlobalTCP;
+TCP_GLOBAL_STATE DATA_SECTION GlobalTCP;
 
 /************************************************************************/
 // State machine definitions

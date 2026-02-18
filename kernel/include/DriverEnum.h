@@ -123,6 +123,9 @@ typedef struct tag_DRIVER_ENUM_XHCI_PORT {
     UINT SpeedId;
     UINT Connected;
     UINT Enabled;
+    U8 LastEnumError;
+    U8 Reserved0;
+    U16 LastEnumCompletion;
 } DRIVER_ENUM_XHCI_PORT, *LPDRIVER_ENUM_XHCI_PORT;
 
 typedef struct tag_DRIVER_ENUM_USB_DEVICE {

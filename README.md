@@ -2,14 +2,14 @@
 
 ## TL;DR
 
-Multi-threaded operating system for i386 and x86_64.
-Currently booting in QEMU and Bochs.
+Multi-threaded operating system for x86-32 and x86-64.
+Tested on QEMU, Bochs, ACER Predator.
 
 ## What it is
 
-This is an ongoing OS dev project that was abandoned in late 1999.
-Back then, it was 32 bit and compiled with gcc and nasm, but linked with jloc.
-Build was recently ported to i686-elf-gcc/nasm/i686-elf-ld.
+This is an ongoing operating system project that was abandoned in late 1999.
+Back then, it was 32 bit only and compiled with gcc and nasm, and linked with jloc.
+Build was recently ported to i686-elf-gcc/nasm/i686-elf-ld, then ported to x86-64.
 
 ## Debian compile & run
 
@@ -21,19 +21,25 @@ Build was recently ported to i686-elf-gcc/nasm/i686-elf-ld.
 
 ### Build (Disk image with ext2)
 
-./scripts/build --arch <i386|x86-64> --fs ext2 --release
+./scripts/build --arch <x86-32|x86-64> --fs ext2 --release (or --debug)
 
 ( add --clean for a clean build )
 
 ### Build (Disk image with FAT32)
 
-./scripts/build --arch <i386|x86-64> --fs fat32 --release
+./scripts/build --arch <x86-32|x86-64> --fs fat32 --release (or --debug)
+
+( add --clean for a clean build )
+
+### Build for UEFI boot
+
+./scripts/build --arch <x86-32|x86-64> --fs ext2 --release (or --debug) --uefi
 
 ( add --clean for a clean build )
 
 ### Run
 
-./scripts/run --arch <i386|x86-64>
+./scripts/run --arch <x86-32|x86-64>
 
 ( add --gdb to debug with gdb )
 ( or ./scripts/(arch)/5-5-start-bochs.sh to use Bochs )
@@ -50,25 +56,20 @@ bcrypt is copyright (c) 2002 Johnny Shelley <jshelley@cahaus.com>
 ### utf8-hoehrmann
 Used for UTF-8 decoding in layout parsing. Sources in third/utf8-hoehrmann (MIT license, see headers).
 
-## Historical background
-
-In 1999, I started EXOS as a simple experiment: I wanted to write a minimal OS bootloader for fun.  
-Very quickly, I realized I was building much more than a bootloader. I began to re-implement full system headers, taking inspiration from Windows and low-level DOS/BIOS references, aiming to create a complete 32-bit OS from scratch.
-It was a year-long solo project, developed the hard way:
-- On a Pentium, in DOS environment, without any debugger or VM
-- Relying on endless console print statements to trace bugs
-- Learning everything on the fly as the project grew
+### Fonts
+Bm437_IBM_VGA_8x16.otb from the Ultimate Oldschool PC Font Pack by VileR, licensed under CC BY-SA 4.0. See third/fonts/oldschool_pc_font_pack/ATTRIBUTION.txt and third/fonts/oldschool_pc_font_pack/LICENSE.TXT.
 
 ## Things it does
 
-- Multi-architecture : i386, x86-64
-- Virtual memory management (paging)
+- Multi-architecture : x86-32, x86-64
+- Virtual memory management (paging) with a buddy allocator for physical pages
 - Heap management (free lists)
 - Process spawning, task spawning, scheduling
-- File system management : FAT16, FAT32, EXT2, EXFS (EXOS file system)
-- I/O APIC management
+- Security at kernel object level
+- File system management : FAT16, FAT32, EXT2, NTFS, EXFS (EXOS file system)
+- I/O APIC & Local APIC management
 - PCI device management
-- ATA & SATA/AHCI hard disk drivers
+- ATA, SATA/AHCI & NVMe storage drivers
 - xHCI driver (USB 3)
 - ACPI shutdown/reboot
 - Console management
@@ -85,16 +86,25 @@ It was a year-long solo project, developed the hard way:
 - Kernel pointer masking, handles in userland
 - A few test apps
 
+## Historical background
+
+In 1999, I started EXOS as a simple experiment: I wanted to write a minimal OS bootloader for fun.  
+Very quickly, I realized I was building much more than a bootloader. I began to re-implement full system headers, taking inspiration from Windows and low-level DOS/BIOS references, aiming to create a complete 32-bit OS from scratch.
+It was a year-long solo project, developed the hard way:
+- On a Pentium, in DOS environment, without any debugger or VM
+- Relying on endless console print statements to trace bugs
+- Learning everything on the fly as the project grew
+
 ## Metrics (cloc)
 
 ```
 -------------------------------------------------------------------------------
 Language                     files          blank        comment           code
 -------------------------------------------------------------------------------
-C                              185          20136          20614          66312
-C/C++ Header                   165           4434           5192          10746
-Assembly                        16           1752           1128           5010
+C                              227          23531          24642          79491
+C/C++ Header                   183           4903           5819          12152
+Assembly                        20           1861           1214           5750
 -------------------------------------------------------------------------------
-SUM:                           366          26322          26934          82068
+SUM:                           430          30295          31675          97393
 -------------------------------------------------------------------------------
 ```

@@ -65,6 +65,7 @@ void StringCopyNum(LPSTR Dst, LPCSTR Src, UINT Length);             // Copies Sr
 void StringConcat(LPSTR Dst, LPCSTR Src);                           // Concatenates Src to Dst
 INT StringCompare(LPCSTR, LPCSTR);                                  // Compares two strings WITH case sensitivity
 INT StringCompareNC(LPCSTR, LPCSTR);                                // Compares with strings NO case sensitivity
+BOOL StringContains(LPCSTR Text, LPCSTR Search);
 LPSTR StringToLower(LPSTR);
 LPSTR StringToUpper(LPSTR);
 LPSTR StringFindChar(LPCSTR, STR);

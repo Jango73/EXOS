@@ -63,14 +63,137 @@ flash_image() {
 
 show_success() {
     local DEVICE_PATH="$1"
-    
+    local EJECTED="$2"
+
     cat <<EOF
 
 SUCCESS! $DEVICE_PATH is now bootable.
 
-1. Safely remove the USB key
-2. Plug it into the target machine
-3. Boot → select USB in BIOS/UEFI
+Ejection: $EJECTED
+
+1. Plug it into the target machine
+2. Boot → select USB in BIOS/UEFI
 
 EOF
+}
+
+eject_device() {
+    local DEVICE_PATH="$1"
+
+    if command -v udisksctl >/dev/null 2>&1; then
+        if udisksctl power-off -b "$DEVICE_PATH" >/dev/null 2>&1; then
+            return 0
+        fi
+    fi
+
+    if command -v eject >/dev/null 2>&1; then
+        if eject "$DEVICE_PATH" >/dev/null 2>&1; then
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+compute_usb_build_image_name() {
+    local ARCH="$1"
+    local BOOT_MODE="$2"
+    local BUILD_CONFIGURATION="$3"
+    local FILE_SYSTEM="$4"
+    local DEBUG_SPLIT="$5"
+    local SUFFIX=""
+
+    if [ "$DEBUG_SPLIT" -eq 1 ]; then
+        SUFFIX="-split"
+    fi
+
+    echo "${ARCH}-${BOOT_MODE}-${BUILD_CONFIGURATION}${SUFFIX}-${FILE_SYSTEM}"
+}
+
+parse_usb_flash_args() {
+    local ARCH="$1"
+    local BOOT_MODE="$2"
+    shift 2
+
+    USB_DEVICE_PATH=""
+    USB_BUILD_CONFIGURATION="release"
+    USB_FILE_SYSTEM="ext2"
+    USB_DEBUG_SPLIT=0
+    USB_BUILD_IMAGE_NAME=""
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --debug)
+                USB_BUILD_CONFIGURATION="debug"
+                ;;
+            --release)
+                USB_BUILD_CONFIGURATION="release"
+                ;;
+            --fs)
+                shift
+                if [ $# -eq 0 ]; then
+                    echo "Missing value for --fs"
+                    return 1
+                fi
+                USB_FILE_SYSTEM="$1"
+                ;;
+            --split)
+                USB_DEBUG_SPLIT=1
+                ;;
+            --build-image-name)
+                shift
+                if [ $# -eq 0 ]; then
+                    echo "Missing value for --build-image-name"
+                    return 1
+                fi
+                USB_BUILD_IMAGE_NAME="$1"
+                ;;
+            --help|-h)
+                return 2
+                ;;
+            -*)
+                echo "Unknown option: $1"
+                return 1
+                ;;
+            *)
+                if [ -n "$USB_DEVICE_PATH" ]; then
+                    echo "Unexpected extra argument: $1"
+                    return 1
+                fi
+                USB_DEVICE_PATH="$1"
+                ;;
+        esac
+        shift
+    done
+
+    case "$USB_FILE_SYSTEM" in
+        ext2|fat32)
+            ;;
+        *)
+            echo "Unknown file system: $USB_FILE_SYSTEM"
+            return 1
+            ;;
+    esac
+
+    if [ -z "$USB_DEVICE_PATH" ]; then
+        echo "Missing target device path."
+        return 1
+    fi
+
+    if [ -z "$USB_BUILD_IMAGE_NAME" ]; then
+        USB_BUILD_IMAGE_NAME="$(compute_usb_build_image_name \
+            "$ARCH" \
+            "$BOOT_MODE" \
+            "$USB_BUILD_CONFIGURATION" \
+            "$USB_FILE_SYSTEM" \
+            "$USB_DEBUG_SPLIT")"
+    fi
+
+    if [ "$BOOT_MODE" = "uefi" ]; then
+        USB_IMAGE_PATH="build/image/${USB_BUILD_IMAGE_NAME}/boot-uefi/exos-uefi.img"
+    else
+        USB_IMAGE_PATH="build/image/${USB_BUILD_IMAGE_NAME}/boot-hd/exos.img"
+    fi
+
+    return 0
 }

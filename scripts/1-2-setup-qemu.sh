@@ -44,7 +44,7 @@ download_and_build_qemu() {
     cd "qemu-$QEMU_VERSION"
 
     echo "Configuring..."
-    ./configure --target-list=i386-softmmu,x86_64-softmmu --enable-kvm --enable-sdl --enable-slirp --enable-vnc --disable-spice --enable-gtk
+    ./configure --target-list=x86-32-softmmu,x86_64-softmmu --enable-kvm --enable-sdl --enable-slirp --enable-vnc --disable-spice --enable-gtk
 
     echo "Building (using $(nproc) processors)..."
     make -j$(nproc)

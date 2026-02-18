@@ -28,6 +28,7 @@
 #include "Driver.h"
 #include "utils/Crypt.h"
 #include "utils/Database.h"
+#include "utils/KernelPath.h"
 #include "Heap.h"
 #include "utils/Helpers.h"
 #include "Kernel.h"
@@ -351,13 +352,23 @@ BOOL ChangeUserPassword(LPCSTR UserName, LPCSTR OldPassword, LPCSTR NewPassword)
  * @return TRUE on success, FALSE on failure.
  */
 BOOL LoadUserDatabase(void) {
+    STR DatabasePath[MAX_PATH_NAME];
     DATABASE* Database = DatabaseCreate(sizeof(USERACCOUNT), (U32)((U8*)&((USERACCOUNT*)0)->UserID - (U8*)0), USER_DATABASE_CAPACITY);
     if (Database == NULL) {
         ERROR(TEXT("Failed to allocate temporary user database"));
         return FALSE;
     }
 
-    I32 Result = DatabaseLoad(Database, TEXT(PATH_USERS_DATABASE));
+    if (KernelPathResolve(
+            KERNEL_FILE_USERS_DATABASE,
+            KERNEL_FILE_PATH_USERS_DATABASE_DEFAULT,
+            DatabasePath,
+            MAX_PATH_NAME) == FALSE) {
+        DatabaseFree(Database);
+        return FALSE;
+    }
+
+    I32 Result = DatabaseLoad(Database, DatabasePath);
     if (Result != 0) {
         DatabaseFree(Database);
         return FALSE;
@@ -405,6 +416,7 @@ BOOL LoadUserDatabase(void) {
  * @return TRUE on success, FALSE on failure.
  */
 BOOL SaveUserDatabase(void) {
+    STR DatabasePath[MAX_PATH_NAME];
     DATABASE* Database = DatabaseCreate(sizeof(USERACCOUNT), (U32)((U8*)&((USERACCOUNT*)0)->UserID - (U8*)0), USER_DATABASE_CAPACITY);
     if (Database == NULL) {
         ERROR(TEXT("Failed to allocate temporary user database"));
@@ -432,8 +444,16 @@ BOOL SaveUserDatabase(void) {
 
     UnlockMutex(MUTEX_ACCOUNTS);
 
-    U32 SavedCount = Database->Count;
-    I32 Result = DatabaseSave(Database, TEXT(PATH_USERS_DATABASE));
+    if (KernelPathResolve(
+            KERNEL_FILE_USERS_DATABASE,
+            KERNEL_FILE_PATH_USERS_DATABASE_DEFAULT,
+            DatabasePath,
+            MAX_PATH_NAME) == FALSE) {
+        DatabaseFree(Database);
+        return FALSE;
+    }
+
+    I32 Result = DatabaseSave(Database, DatabasePath);
 
     DatabaseFree(Database);
 

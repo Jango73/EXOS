@@ -52,7 +52,7 @@ DRIVER DATA_SECTION FAT16Driver = {
 
 typedef struct tag_FAT16FILESYSTEM {
     FILESYSTEM Header;
-    LPPHYSICALDISK Disk;
+    LPSTORAGE_UNIT Disk;
     FAT16MBR Master;
     SECTOR PartitionStart;
     U32 PartitionSize;
@@ -79,7 +79,7 @@ typedef struct tag_FATFILE {
  * @param Disk Physical disk to bind.
  * @return Allocated filesystem or NULL on failure.
  */
-static LPFAT16FILESYSTEM NewFAT16FileSystem(LPPHYSICALDISK Disk) {
+static LPFAT16FILESYSTEM NewFAT16FileSystem(LPSTORAGE_UNIT Disk) {
     LPFAT16FILESYSTEM This;
 
     This = (LPFAT16FILESYSTEM)KernelHeapAlloc(sizeof(FAT16FILESYSTEM));
@@ -92,6 +92,7 @@ static LPFAT16FILESYSTEM NewFAT16FileSystem(LPPHYSICALDISK Disk) {
     This->Header.Next = NULL;
     This->Header.Prev = NULL;
     This->Header.Driver = &FAT16Driver;
+    This->Header.StorageUnit = Disk;
     This->Disk = Disk;
     This->FATStart = 0;
     This->FATStart2 = 0;
@@ -140,7 +141,7 @@ static LPFATFILE NewFATFile(LPFAT16FILESYSTEM FileSystem, LPFATFILELOC FileLoc) 
 
 /***************************************************************************/
 
-BOOL MountPartition_FAT16(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
+BOOL MountPartition_FAT16(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer[SECTOR_SIZE];
     LPFAT16MBR Master;
     LPFAT16FILESYSTEM FileSystem;

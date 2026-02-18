@@ -22,12 +22,13 @@
 
 \************************************************************************/
 
-// i386 32 bits real mode payload entry point
+// x86-32 32 bits real mode payload entry point
 
 #include "../include/vbr-multiboot.h"
 #include "../include/vbr-realmode-utils.h"
 #include "../include/vbr-payload-shared.h"
-#include "arch/i386/i386.h"
+#include "boot-reservation.h"
+#include "arch/x86-32/x86-32.h"
 #include "SerialPort.h"
 #include "CoreString.h"
 
@@ -41,7 +42,7 @@ __asm__(".code16gcc");
 
 /************************************************************************/
 
-void NORETURN EnterProtectedPagingAndJump(U32 FileSize);
+void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U64 UefiImageBase, U64 UefiImageSize);
 BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U32* FileSizeOut);
 BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32* FileSizeOut);
 
@@ -50,6 +51,7 @@ BOOL LoadKernelExt2(U32 BootDrive, U32 PartitionLba, const char* KernelName, U32
 static void InitDebug(void);
 static void OutputChar(U8 Char);
 static void WriteString(LPCSTR Str);
+static U32 ComputeKernelReservedBytes(U32 FileSize);
 
 STR TempString[128];
 static const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
@@ -84,6 +86,24 @@ static void WriteString(LPCSTR Str) {
     while (*Str) {
         OutputChar((U8)*Str++);
     }
+}
+
+/************************************************************************/
+
+static U32 ComputeKernelReservedBytes(U32 FileSize) {
+    U32 MapSize = PAGE_ALIGN(FileSize + BOOT_KERNEL_MAP_PADDING_BYTES);
+
+#if defined(ARCH_X86_64)
+    if (MapSize < BOOT_X86_64_TEMP_LINEAR_REQUIRED_SPAN) {
+        MapSize = BOOT_X86_64_TEMP_LINEAR_REQUIRED_SPAN;
+    }
+
+    U32 TotalPages = (MapSize + PAGE_SIZE - 1) >> MUL_4KB;
+    U32 TableCount = (TotalPages + BOOT_X86_64_PAGE_TABLE_ENTRIES - 1) / BOOT_X86_64_PAGE_TABLE_ENTRIES;
+    return MapSize + (TableCount * BOOT_X86_64_PAGE_TABLE_SIZE);
+#else
+    return MapSize;
+#endif
 }
 
 /************************************************************************/
@@ -294,117 +314,14 @@ static void RetrieveMemoryMap(void) {
 
 /************************************************************************/
 
-U32 BuildMultibootInfo(U32 KernelPhysBase, U32 FileSize) {
-    // Clear the multiboot info structure
-    MemorySet(&MultibootInfo, 0, sizeof(multiboot_info_t));
-    MemorySet(MultibootMemMap, 0, sizeof(MultibootMemMap));
-
-    // Set up multiboot flags
-    MultibootInfo.flags = MULTIBOOT_INFO_MEMORY | MULTIBOOT_INFO_MEM_MAP | MULTIBOOT_INFO_BOOT_LOADER_NAME | MULTIBOOT_INFO_MODS;
-
-    // Convert E820 map to Multiboot memory map format
-    U32 MmapLength = 0;
-    for (U32 i = 0; i < E820_EntryCount && i < E820_MAX_ENTRIES; i++) {
-        MultibootMemMap[i].size = sizeof(multiboot_memory_map_t) - sizeof(U32);
-        MultibootMemMap[i].addr_low = E820_Map[i].Base.LO;
-        MultibootMemMap[i].addr_high = E820_Map[i].Base.HI;
-        MultibootMemMap[i].len_low = E820_Map[i].Size.LO;
-        MultibootMemMap[i].len_high = E820_Map[i].Size.HI;
-
-        // Convert E820 types to Multiboot types
-        switch (E820_Map[i].Type) {
-            case E820_AVAILABLE:
-                MultibootMemMap[i].type = MULTIBOOT_MEMORY_AVAILABLE;
-                break;
-            case E820_RESERVED:
-                MultibootMemMap[i].type = MULTIBOOT_MEMORY_RESERVED;
-                break;
-            case E820_ACPI:
-                MultibootMemMap[i].type = MULTIBOOT_MEMORY_ACPI_RECLAIMABLE;
-                break;
-            case E820_NVS:
-                MultibootMemMap[i].type = MULTIBOOT_MEMORY_NVS;
-                break;
-            case E820_UNUSABLE:
-                MultibootMemMap[i].type = MULTIBOOT_MEMORY_BADRAM;
-                break;
-            default:
-                MultibootMemMap[i].type = MULTIBOOT_MEMORY_RESERVED;
-                break;
-        }
-        MmapLength += sizeof(multiboot_memory_map_t);
-    }
-
-    // Set memory map info
-    MultibootInfo.mmap_length = MmapLength;
-    MultibootInfo.mmap_addr = (U32)MultibootMemMap;
-
-    // Compute mem_lower and mem_upper from memory map
-    // mem_lower: available memory below 1MB in KB
-    // mem_upper: available memory above 1MB in KB
-    U32 LowerMem = 0;
-    U32 UpperMem = 0;
-
-    for (U32 i = 0; i < E820_EntryCount && i < E820_MAX_ENTRIES; i++) {
-        if (MultibootMemMap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
-            U32 StartLow = MultibootMemMap[i].addr_low;
-            U32 StartHigh = MultibootMemMap[i].addr_high;
-            U32 LengthLow = MultibootMemMap[i].len_low;
-            U32 LengthHigh = MultibootMemMap[i].len_high;
-
-            // For simplicity, only handle memory regions that fit in 32-bit space
-            if (StartHigh == 0 && LengthHigh == 0) {
-                U32 End = StartLow + LengthLow;
-
-                if (StartLow < 0x100000) { // Below 1MB
-                    U32 LowerEnd = (End > 0x100000) ? 0x100000 : End;
-                    U32 LowerSize = LowerEnd - StartLow;
-                    if (StartLow >= 0x1000) { // Exclude first 4KB
-                        LowerMem += LowerSize / 1024;
-                    }
-                }
-
-                if (End > 0x100000) { // Above 1MB
-                    U32 UpperStart = (StartLow < 0x100000) ? 0x100000 : StartLow;
-                    U32 UpperSize = End - UpperStart;
-                    UpperMem += UpperSize / 1024;
-                }
-            } else if (StartLow >= 0x100000) {
-                // Memory above 1MB - add what we can (up to 4GB)
-                U32 SizeToAdd = (LengthHigh == 0) ? LengthLow : 0xFFFFFFFF - StartLow;
-                UpperMem += SizeToAdd / 1024;
-            }
-        }
-    }
-
-    MultibootInfo.mem_lower = LowerMem;
-    MultibootInfo.mem_upper = UpperMem;
-
-    // Set bootloader name
-    MultibootInfo.boot_loader_name = (U32)BootloaderName;
-
-    // Set up kernel module
-    KernelModule.mod_start = KernelPhysBase;
-    KernelModule.mod_end = KernelPhysBase + FileSize;
-    KernelModule.cmdline = (U32)KernelCmdLine;
-    KernelModule.reserved = 0;
-
-    // Set module information in multiboot info
-    MultibootInfo.mods_count = 1;
-    MultibootInfo.mods_addr = (U32)&KernelModule;
-
-    // EXOS-specific extensions removed (cursor position now handled in Console module)
-
-    BootDebugPrint(TEXT("[VBR] Multiboot info at %x\r\n"), (U32)&MultibootInfo);
-    BootDebugPrint(TEXT("[VBR] mem_lower=%u KB, mem_upper=%u KB\r\n"), LowerMem, UpperMem);
-
-    return (U32)&MultibootInfo;
-}
-
-/************************************************************************/
 
 void BootMain(U32 BootDrive, U32 PartitionLba) {
     InitDebug();
+    EnableA20();
+    if (CheckA20Enabled() == 0) {
+        BootErrorPrint(TEXT("[VBR] ERROR: A20 is disabled. Halting.\r\n"));
+        Hang();
+    }
 
     RetrieveMemoryMap();
 
@@ -417,6 +334,7 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
 
     U32 FileSize = 0;
     const char* LoadedFs = NULL;
+    U32 KernelReservedBytes = 0;
 
     if (LoadKernelFat32(BootDrive, PartitionLba, KERNEL_FILE, &FileSize)) {
         LoadedFs = "FAT32";
@@ -430,10 +348,36 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
     BootDebugPrint(TEXT("[VBR] Kernel loaded via %s\r\n"), LoadedFs);
 
     VerifyKernelImage(FileSize);
+    KernelReservedBytes = ComputeKernelReservedBytes(FileSize);
 
     BootDebugPrint(TEXT("[VBR] Calling architecture specific boot code\r\n"));
 
-    EnterProtectedPagingAndJump(FileSize);
+    BOOT_FRAMEBUFFER_INFO FramebufferInfo;
+    MemorySet(&FramebufferInfo, 0, sizeof(FramebufferInfo));
+    FramebufferInfo.Type = MULTIBOOT_FRAMEBUFFER_TEXT;
+    FramebufferInfo.Address = U64_Make(0u, 0x000B8000u);
+    FramebufferInfo.Pitch = 80U * 2U;
+    FramebufferInfo.Width = 80U;
+    FramebufferInfo.Height = 25U;
+    FramebufferInfo.BitsPerPixel = 16U;
+
+    U32 MultibootInfoPtr = BootBuildMultibootInfo(
+        &MultibootInfo,
+        MultibootMemMap,
+        &KernelModule,
+        E820_Map,
+        E820_EntryCount,
+        KERNEL_LINEAR_LOAD_ADDRESS,
+        FileSize,
+        KernelReservedBytes,
+        0u,
+        (LPCSTR)BootloaderName,
+        (LPCSTR)KernelCmdLine,
+        &FramebufferInfo);
+
+    const U64 UefiImageBase = U64_0;
+    const U64 UefiImageSize = U64_0;
+    EnterProtectedPagingAndJump(FileSize, MultibootInfoPtr, UefiImageBase, UefiImageSize);
 
     Hang();
 }

@@ -38,8 +38,19 @@
 
 #define KERNEL_LOG_VER_MAJOR 1
 #define KERNEL_LOG_VER_MINOR 0
+#define KERNEL_LOG_TAG_FILTER_MAX_LENGTH 512
+
+#ifndef KERNEL_LOG_DEFAULT_TAG_FILTER
+#define KERNEL_LOG_DEFAULT_TAG_FILTER ""
+#endif
+
+static CSTR KernelLogDefaultTagFilter[] = KERNEL_LOG_DEFAULT_TAG_FILTER;
+static STR DATA_SECTION KernelLogTagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
 
 static UINT KernelLogDriverCommands(UINT Function, UINT Parameter);
+static BOOL KernelLogIsTagSeparator(STR Char);
+static BOOL KernelLogFilterContainsTag(LPCSTR Tag, U32 TagLength);
+static BOOL KernelLogShouldEmit(LPCSTR Text);
 
 DRIVER DATA_SECTION KernelLogDriver = {
     .TypeID = KOID_DRIVER,
@@ -65,19 +76,186 @@ LPDRIVER KernelLogGetDriver(void) {
     return &KernelLogDriver;
 }
 
-/************************************************************************/
-
 /**
  * @brief Initializes the kernel logging system.
  *
  * Sets up the serial port used for kernel log output by resetting
  * the designated communication port.
  */
-void InitKernelLog(void) { SerialReset(LOG_COM_INDEX); }
+void InitKernelLog(void) {
+    SerialReset(LOG_COM_INDEX);
+    KernelLogSetTagFilter(KernelLogDefaultTagFilter);
+}
 
 /************************************************************************/
 
-static void KernelPrintChar(STR Char) { SerialOut(LOG_COM_INDEX, Char); }
+/**
+ * @brief Configure tag-based filtering for kernel logs.
+ *
+ * TagFilter accepts a list of tags separated with comma, semicolon, pipe,
+ * or spaces. Tags can be written with or without brackets.
+ *
+ * @param TagFilter Filter string, empty to disable filtering.
+ */
+void KernelLogSetTagFilter(LPCSTR TagFilter) {
+    U32 Flags;
+
+    SaveFlags(&Flags);
+    FreezeScheduler();
+    DisableInterrupts();
+
+    if (StringEmpty(TagFilter)) {
+        StringClear(KernelLogTagFilter);
+    } else {
+        StringCopyLimit(
+            KernelLogTagFilter,
+            TagFilter,
+            KERNEL_LOG_TAG_FILTER_MAX_LENGTH);
+    }
+
+    UnfreezeScheduler();
+    RestoreFlags(&Flags);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Return the current log tag filter string.
+ * @return Active tag filter string (empty means no filter).
+ */
+LPCSTR KernelLogGetTagFilter(void) {
+    return KernelLogTagFilter;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Check whether a character separates filter tags.
+ * @param Char Character to evaluate.
+ * @return TRUE when Char is a separator, FALSE otherwise.
+ */
+static BOOL KernelLogIsTagSeparator(STR Char) {
+    return Char == ',' || Char == ';' || Char == '|' ||
+           Char == ' ' || Char == '\t' || Char == '\n' || Char == '\r';
+}
+
+/************************************************************************/
+
+/**
+ * @brief Check whether a tag is present in the active filter list.
+ * @param Tag Tag extracted from a log line (without brackets).
+ * @param TagLength Tag length in characters.
+ * @return TRUE when tag is allowed by filter, FALSE otherwise.
+ */
+static BOOL KernelLogFilterContainsTag(LPCSTR Tag, U32 TagLength) {
+    U32 Index = 0;
+
+    if (Tag == NULL || TagLength == 0) {
+        return FALSE;
+    }
+
+    while (KernelLogTagFilter[Index] != STR_NULL) {
+        U32 Start;
+        U32 End;
+        U32 TokenLength;
+        U32 TokenIndex;
+        BOOL Match;
+
+        while (KernelLogTagFilter[Index] != STR_NULL &&
+               KernelLogIsTagSeparator(KernelLogTagFilter[Index])) {
+            Index++;
+        }
+        if (KernelLogTagFilter[Index] == STR_NULL) {
+            break;
+        }
+
+        Start = Index;
+        while (KernelLogTagFilter[Index] != STR_NULL &&
+               !KernelLogIsTagSeparator(KernelLogTagFilter[Index])) {
+            Index++;
+        }
+        End = Index;
+
+        if (KernelLogTagFilter[Start] == '[') {
+            Start++;
+        }
+        if (End > Start && KernelLogTagFilter[End - 1] == ']') {
+            End--;
+        }
+
+        TokenLength = End - Start;
+        if (TokenLength != TagLength) {
+            continue;
+        }
+
+        Match = TRUE;
+        for (TokenIndex = 0; TokenIndex < TokenLength; TokenIndex++) {
+            if (KernelLogTagFilter[Start + TokenIndex] != Tag[TokenIndex]) {
+                Match = FALSE;
+                break;
+            }
+        }
+
+        if (Match) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Determines if a formatted log line passes the active tag filter.
+ * @param Text Fully formatted log line.
+ * @return TRUE when line should be emitted, FALSE otherwise.
+ */
+static BOOL KernelLogShouldEmit(LPCSTR Text) {
+    LPSTR OpenBracket;
+    LPSTR CloseBracket;
+    U32 TagLength;
+
+    if (StringEmpty(KernelLogTagFilter)) {
+        return TRUE;
+    }
+
+    if (StringEmpty(Text)) {
+        return FALSE;
+    }
+
+    OpenBracket = StringFindChar(Text, '[');
+    if (OpenBracket == NULL || OpenBracket[1] == STR_NULL) {
+        return FALSE;
+    }
+
+    CloseBracket = StringFindChar(OpenBracket + 1, ']');
+    if (CloseBracket == NULL) {
+        return FALSE;
+    }
+
+    TagLength = (U32)(CloseBracket - (OpenBracket + 1));
+    if (TagLength == 0) {
+        return FALSE;
+    }
+
+    return KernelLogFilterContainsTag(OpenBracket + 1, TagLength);
+}
+
+/************************************************************************/
+
+static void KernelPrintChar(STR Char) {
+#if DEBUG_SPLIT == 1
+    if (ConsoleIsDebugSplitEnabled() == TRUE &&
+        ConsoleIsFramebufferMappingInProgress() == FALSE) {
+        ConsolePrintDebugChar(Char);
+        SerialOut(LOG_COM_INDEX, Char);
+        return;
+    }
+#endif
+
+    SerialOut(LOG_COM_INDEX, Char);
+}
 
 /************************************************************************/
 
@@ -158,6 +336,12 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
     StringPrintFormatArgs(TextBuffer, Format, Args);
     VarArgEnd(Args);
 
+    if (!KernelLogShouldEmit(TextBuffer)) {
+        UnfreezeScheduler();
+        RestoreFlags(&Flags);
+        return;
+    }
+
     switch (Type) {
         case LOG_DEBUG: {
             KernelPrintString(TimeBuffer);
@@ -176,6 +360,7 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
         default:
         case LOG_VERBOSE: {
             KernelPrintString(TimeBuffer);
+            KernelPrintString(TEXT("VERBOSE > "));
             KernelPrintString(TextBuffer);
             KernelPrintString(Text_NewLine);
             ConsolePrint(TextBuffer);

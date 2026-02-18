@@ -26,7 +26,7 @@
 
 /************************************************************************/
 
-SYSCALLENTRY SysCallTable[SYSCALL_Last];
+SYSCALLENTRY DATA_SECTION SysCallTable[SYSCALL_Last];
 
 /************************************************************************/
 

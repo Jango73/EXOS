@@ -119,29 +119,21 @@ static void RefreshInputDisplay(
 /***************************************************************************/
 
 void CommandLineEditorInit(LPCOMMANDLINEEDITOR Editor, U32 HistoryCapacity) {
-    DEBUG(TEXT("[CommandLineEditorInit] Enter"));
-
     MemorySet(Editor, 0, sizeof(COMMANDLINEEDITOR));
 
     Editor->HistoryCapacity = HistoryCapacity;
     StringArrayInit(&Editor->History, HistoryCapacity);
     Editor->CompletionCallback = NULL;
     Editor->CompletionUserData = NULL;
-
-    DEBUG(TEXT("[CommandLineEditorInit] Exit"));
 }
 
 /***************************************************************************/
 
 void CommandLineEditorDeinit(LPCOMMANDLINEEDITOR Editor) {
-    DEBUG(TEXT("[CommandLineEditorDeinit] Enter"));
-
     StringArrayDeinit(&Editor->History);
     Editor->HistoryCapacity = 0;
     Editor->CompletionCallback = NULL;
     Editor->CompletionUserData = NULL;
-
-    DEBUG(TEXT("[CommandLineEditorDeinit] Exit"));
 }
 
 /***************************************************************************/
@@ -169,8 +161,6 @@ BOOL CommandLineEditorReadLine(
     U32 StartX = 0;
     U32 StartY = 0;
     BOOL PreviousPagingActive = FALSE;
-
-    DEBUG(TEXT("[CommandLineEditorReadLine] Enter"));
 
     if (BufferSize == 0) return FALSE;
 
@@ -232,10 +222,6 @@ BOOL CommandLineEditorReadLine(
         } else if (KeyCode.VirtualKey == VK_ENTER) {
             ConsolePrintChar(STR_NEWLINE);
             Buffer[Length] = STR_NULL;
-            DEBUG(
-                TEXT("[CommandLineEditorReadLine] ENTER pressed, final buffer: '%s', length=%d"),
-                Buffer,
-                Length);
             break;
         } else if (KeyCode.VirtualKey == VK_UP) {
             if (HistoryPos > 0) {
@@ -323,8 +309,6 @@ BOOL CommandLineEditorReadLine(
     }
 
     ConsoleSetPagingActive(PreviousPagingActive);
-
-    DEBUG(TEXT("[CommandLineEditorReadLine] Exit"));
 
     return TRUE;
 }

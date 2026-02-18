@@ -120,7 +120,7 @@ const SCRIPT_HOST_DESCRIPTOR *GetMouseDescriptor(void) {
  * @return Host handle for the mouse root object.
  */
 SCRIPT_HOST_HANDLE GetMouseRootHandle(void) {
-    static int MouseRootSentinel = 0;
+    static int DATA_SECTION MouseRootSentinel = 0;
 
     return &MouseRootSentinel;
 }

@@ -50,36 +50,6 @@
 
 /***************************************************************************/
 
-UINT SATADiskCommands(UINT, UINT);
-
-DRIVER DATA_SECTION SATADiskDriver = {
-    .TypeID = KOID_DRIVER,
-    .References = 1,
-    .Next = NULL,
-    .Prev = NULL,
-    .Type = DRIVER_TYPE_HARDDISK,
-    .VersionMajor = VER_MAJOR,
-    .VersionMinor = VER_MINOR,
-    .Designer = "Jango73",
-    .Manufacturer = "AHCI Controllers",
-    .Product = "AHCI SATA Controller",
-    .Flags = 0,
-    .Command = SATADiskCommands,
-    .EnumDomainCount = 1,
-    .EnumDomains = {ENUM_DOMAIN_AHCI_PORT}};
-
-/***************************************************************************/
-
-/**
- * @brief Retrieves the SATA disk driver descriptor.
- * @return Pointer to the SATA disk driver.
- */
-LPDRIVER SATADiskGetDriver(void) {
-    return &SATADiskDriver;
-}
-
-/***************************************************************************/
-
 #define AHCI_MAX_PORTS 32
 #define AHCI_CMD_LIST_SIZE 1024  // 32 command headers * 32 bytes each
 #define AHCI_FIS_SIZE 256        // FIS receive area size
@@ -90,7 +60,7 @@ LPDRIVER SATADiskGetDriver(void) {
 // AHCI Port Structure
 
 typedef struct tag_AHCI_PORT {
-    PHYSICALDISK Header;
+    STORAGE_UNIT Header;
     DISKGEOMETRY Geometry;
     U32 Access;  // Access parameters
     U32 PortNumber;
@@ -133,6 +103,13 @@ static AHCI_STATE AHCIState = {
     .InterruptEnabled = FALSE};
 
 /***************************************************************************/
+
+typedef struct tag_SATA_CACHE_CONTEXT {
+    U32 SectorLow;
+    U32 SectorHigh;
+} SATA_CACHE_CONTEXT, *LPSATA_CACHE_CONTEXT;
+
+/***************************************************************************/
 // AHCI PCI Driver
 
 static UINT AHCIProbe(UINT Function, UINT Parameter);
@@ -150,12 +127,34 @@ static const DRIVER_MATCH AHCIMatches[] = {
     {PCI_ANY_ID, PCI_ANY_ID, PCI_CLASS_STORAGE, 0x06, 0x01}
 };
 
-PCI_DRIVER AHCIPCIDriver = {
+/***************************************************************************/
+
+UINT SATADiskCommands(UINT, UINT);
+
+DRIVER DATA_SECTION SATADiskDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_HARDDISK,
+    .Type = DRIVER_TYPE_SATA_STORAGE,
+    .VersionMajor = VER_MAJOR,
+    .VersionMinor = VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "AHCI Controllers",
+    .Product = "AHCI SATA Controller",
+    .Flags = 0,
+    .Command = SATADiskCommands,
+    .EnumDomainCount = 1,
+    .EnumDomains = {ENUM_DOMAIN_AHCI_PORT}};
+
+/***************************************************************************/
+
+PCI_DRIVER DATA_SECTION AHCIPCIDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_SATA_STORAGE,
     .VersionMajor = VER_MAJOR,
     .VersionMinor = VER_MINOR,
     .Designer = "Jango73",
@@ -169,10 +168,13 @@ PCI_DRIVER AHCIPCIDriver = {
 
 /***************************************************************************/
 
-typedef struct tag_SATA_CACHE_CONTEXT {
-    U32 SectorLow;
-    U32 SectorHigh;
-} SATA_CACHE_CONTEXT, *LPSATA_CACHE_CONTEXT;
+/**
+ * @brief Retrieves the SATA disk driver descriptor.
+ * @return Pointer to the SATA disk driver.
+ */
+LPDRIVER SATADiskGetDriver(void) {
+    return &SATADiskDriver;
+}
 
 /***************************************************************************/
 
@@ -345,7 +347,6 @@ static BOOL AHCIPortReset(LPAHCI_HBA_PORT Port) {
 static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
     LPAHCI_HBA_PORT Port = &AHCIState.Base->ports[PortNum];
 
-    DEBUG(TEXT("[InitializeAHCIPort] Initializing port %u"), PortNum);
     AHCIState.Ports[PortNum] = NULL;
 
     // Check if port is implemented
@@ -356,20 +357,14 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
     // Check if device is present
     U32 ssts = Port->ssts;
     U32 det = ssts & AHCI_PORT_SSTS_DET_MASK;
-    DEBUG(TEXT("[InitializeAHCIPort] Port %u SSTS: %x, DET: %x"), PortNum, ssts, det);
-    DEBUG(TEXT("[InitializeAHCIPort] Expected DET_ESTABLISHED: %x"), AHCI_PORT_SSTS_DET_ESTABLISHED);
 
     if (det == AHCI_PORT_SSTS_DET_NONE) {
-        DEBUG(TEXT("[InitializeAHCIPort] No device on port %u (DET=%x)"), PortNum, det);
         return FALSE;
     }
 
     if (det == AHCI_PORT_SSTS_DET_PRESENT) {
-        DEBUG(TEXT("[InitializeAHCIPort] Device present on port %u but communication not established, continuing..."), PortNum);
     } else if (det == AHCI_PORT_SSTS_DET_ESTABLISHED) {
-        DEBUG(TEXT("[InitializeAHCIPort] Device communication established on port %u"), PortNum);
     } else {
-        DEBUG(TEXT("[InitializeAHCIPort] Unknown DET state %x on port %u"), det, PortNum);
     }
 
     // Stop port
@@ -378,7 +373,6 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
     // Allocate command list (use regular allocation for now)
     AHCIPort->CommandList = (LPAHCI_CMD_HEADER)KernelHeapAlloc(AHCI_CMD_LIST_SIZE);
     if (AHCIPort->CommandList == NULL) {
-        DEBUG(TEXT("[InitializeAHCIPort] Failed to allocate command list"));
         return FALSE;
     }
     MemorySet(AHCIPort->CommandList, 0, AHCI_CMD_LIST_SIZE);
@@ -386,7 +380,6 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
     // Allocate FIS receive area (use regular allocation for now)
     AHCIPort->FISBase = (LPAHCI_FIS)KernelHeapAlloc(AHCI_FIS_SIZE);
     if (AHCIPort->FISBase == NULL) {
-        DEBUG(TEXT("[InitializeAHCIPort] Failed to allocate FIS area"));
         return FALSE;
     }
     MemorySet(AHCIPort->FISBase, 0, AHCI_FIS_SIZE);
@@ -394,14 +387,12 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
     // Allocate command table
     AHCIPort->CommandTable = (LPAHCI_CMD_TBL)KernelHeapAlloc(AHCI_CMD_TBL_SIZE);
     if (AHCIPort->CommandTable == NULL) {
-        DEBUG(TEXT("[InitializeAHCIPort] Failed to allocate command table"));
         return FALSE;
     }
     MemorySet(AHCIPort->CommandTable, 0, AHCI_CMD_TBL_SIZE);
 
     CacheInit(&AHCIPort->SectorCache, NUM_BUFFERS);
     if (AHCIPort->SectorCache.Entries == NULL) {
-        DEBUG(TEXT("[InitializeAHCIPort] Failed to initialize cache"));
         return FALSE;
     }
 
@@ -410,21 +401,23 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
     PHYSICAL FISBasePhys = MapLinearToPhysical((LINEAR)AHCIPort->FISBase);
     PHYSICAL CommandTablePhys = MapLinearToPhysical((LINEAR)AHCIPort->CommandTable);
 
-    Port->clb = CommandListPhys;
-    Port->clbu = 0; // Assume 32-bit system
-    Port->fb = FISBasePhys;
-    Port->fbu = 0; // Assume 32-bit system
-
-    DEBUG(TEXT("[InitializeAHCIPort] CommandList: virt=%x phys=%x"),
-          (U32)AHCIPort->CommandList, (LINEAR)CommandListPhys);
-    DEBUG(TEXT("[InitializeAHCIPort] FISBase: virt=%x phys=%x"),
-          (U32)AHCIPort->FISBase, (LINEAR)FISBasePhys);
+    Port->clb = (U32)(CommandListPhys & 0xFFFFFFFF);
+    Port->clbu = 0;
+    Port->fb = (U32)(FISBasePhys & 0xFFFFFFFF);
+    Port->fbu = 0;
+#ifdef __EXOS_64__
+    Port->clbu = (U32)((CommandListPhys >> 32) & 0xFFFFFFFF);
+    Port->fbu = (U32)((FISBasePhys >> 32) & 0xFFFFFFFF);
+#endif
 
     // Set up command header for slot 0
     AHCIPort->CommandList[0].cfl = sizeof(FIS_REG_H2D) / 4; // FIS length
     AHCIPort->CommandList[0].prdtl = 1; // One PRDT entry
-    AHCIPort->CommandList[0].ctba = CommandTablePhys;
+    AHCIPort->CommandList[0].ctba = (U32)(CommandTablePhys & 0xFFFFFFFF);
     AHCIPort->CommandList[0].ctbau = 0;
+#ifdef __EXOS_64__
+    AHCIPort->CommandList[0].ctbau = (U32)((CommandTablePhys >> 32) & 0xFFFFFFFF);
+#endif
 
     // Store references
     AHCIPort->PortNumber = PortNum;
@@ -441,7 +434,6 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
 
     // Reset port
     if (!AHCIPortReset(Port)) {
-        DEBUG(TEXT("[InitializeAHCIPort] Port reset failed"));
         return FALSE;
     }
 
@@ -455,7 +447,6 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
     AHCIPort->Geometry.SectorsPerTrack = 63;
     AHCIPort->Geometry.BytesPerSector = SECTOR_SIZE;
 
-    DEBUG(TEXT("[InitializeAHCIPort] Port %u initialized successfully"), PortNum);
 
     return TRUE;
 }
@@ -480,9 +471,6 @@ static UINT AHCIProbe(UINT Function, UINT Parameter) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    DEBUG(TEXT("[AHCIProbe] Found AHCI controller %x:%x"),
-          (INT)PciInfo->VendorID, (INT)PciInfo->DeviceID);
-
     return DF_RETURN_SUCCESS;
 }
 
@@ -504,7 +492,6 @@ static LPPCI_DEVICE AHCIAttach(LPPCI_DEVICE PciDevice) {
     // Allocate a new device structure on kernel heap as required by PCI driver specification
     LPPCI_DEVICE Device = (LPPCI_DEVICE)KernelHeapAlloc(sizeof(PCI_DEVICE));
     if (Device == NULL) {
-        DEBUG(TEXT("[AHCIAttach] Failed to allocate device structure"));
         return NULL;
     }
 
@@ -517,29 +504,22 @@ static LPPCI_DEVICE AHCIAttach(LPPCI_DEVICE PciDevice) {
 
     // Check if AHCI is already initialized
     SAFE_USE(AHCIState.Base) {
-        DEBUG(TEXT("[AHCIAttach] AHCI already initialized, skipping duplicate controller"));
         return Device; // Return heap-allocated device but don't reinitialize
     }
 
     // Store the PCI device for interrupt handling
     AHCIState.Device = Device;
 
-    DEBUG(TEXT("[AHCIAttach] Attaching AHCI controller %x:%x.%u"),
-          (INT)Device->Info.Bus, (INT)Device->Info.Dev, (INT)Device->Info.Func);
-
     // Get ABAR (AHCI Base Address Register) from BAR5
     U32 ABAR = PCI_GetBARBase(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 5);
     if (ABAR == 0) {
-        DEBUG(TEXT("[AHCIAttach] No ABAR found"));
         KernelHeapFree(Device);
         return NULL;
     }
 
-    DEBUG(TEXT("[AHCIAttach] ABAR at %p"), (LINEAR)ABAR);
 
     // Verify ABAR is in a reasonable range
     if (ABAR < 0x1000 || ABAR > 0xFFFFF000) {
-        DEBUG(TEXT("[AHCIAttach] ABAR address %p is out of range"), (LINEAR)ABAR);
         KernelHeapFree(Device);
         return NULL;
     }
@@ -548,12 +528,10 @@ static LPPCI_DEVICE AHCIAttach(LPPCI_DEVICE PciDevice) {
     // AHCI registers typically need 4KB (0x1000) of space
     LINEAR MappedABAR = MapIOMemory(ABAR, N_4KB);
     if (MappedABAR == 0) {
-        DEBUG(TEXT("[AHCIAttach] Failed to map ABAR %p"), (LINEAR)ABAR);
         KernelHeapFree(Device);
         return NULL;
     }
 
-    DEBUG(TEXT("[AHCIAttach] ABAR mapped to virtual address 0x%X"), MappedABAR);
     AHCIState.Base = (LPAHCI_HBA_MEM)MappedABAR;
 
     // Enable bus mastering
@@ -561,7 +539,6 @@ static LPPCI_DEVICE AHCIAttach(LPPCI_DEVICE PciDevice) {
 
     // Initialize AHCI
     if (InitializeAHCIController() != DF_RETURN_SUCCESS) {
-        DEBUG(TEXT("[AHCIAttach] Failed to initialize AHCI controller"));
         KernelHeapFree(Device);
         return NULL;
     }
@@ -584,8 +561,6 @@ static U32 InitializeAHCIController(void) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    DEBUG(TEXT("[InitializeAHCIController] Initializing AHCI HBA"));
-    DEBUG(TEXT("[InitializeAHCIController] Base address: %p"), (LINEAR)AHCIState.Base);
 
     if (!AHCIState.InterruptRegistered) {
         AHCIRegisterInterrupts();
@@ -594,31 +569,16 @@ static U32 InitializeAHCIController(void) {
     MemorySet(AHCIState.Ports, 0, sizeof(AHCIState.Ports));
     AHCIState.PendingPortsMask = 0;
 
-    // Test read access to AHCI registers before proceeding
-    volatile U32* testPtr = (volatile U32*)AHCIState.Base;
-    DEBUG(TEXT("[InitializeAHCIController] Testing memory access..."));
-
-    U32 testRead = *testPtr;
-    DEBUG(TEXT("[InitializeAHCIController] First DWORD: 0x%X"), testRead);
-
-    // Check AHCI version - offset 0x10
-    volatile U32* versionPtr = (volatile U32*)((U8*)AHCIState.Base + 0x10);
-    U32 version = *versionPtr;
-    DEBUG(TEXT("[InitializeAHCIController] AHCI version %x.%x"),
-          (version >> 16) & 0xFFFF, version & 0xFFFF);
-
     // Get capabilities
     U32 cap = AHCIState.Base->cap;
     U32 nports = (cap & AHCI_CAP_NP_MASK) + 1;
 
-    DEBUG(TEXT("[InitializeAHCIController] %u ports, CAP=%x"), nports, cap);
 
     // Enable AHCI mode
     AHCIState.Base->ghc |= AHCI_GHC_AE;
 
     // Get ports implemented
     AHCIState.PortsImplemented = AHCIState.Base->pi;
-    DEBUG(TEXT("[InitializeAHCIController] Ports implemented: %x"), AHCIState.PortsImplemented);
 
     // Initialize available ports
     for (U32 i = 0; i < nports && i < AHCI_MAX_PORTS; i++) {
@@ -628,7 +588,6 @@ static U32 InitializeAHCIController(void) {
             SAFE_USE(AHCIPort) {
                 if (InitializeAHCIPort(AHCIPort, i)) {
                     ListAddItem(GetDiskList(), AHCIPort);
-                    DEBUG(TEXT("[InitializeAHCIController] Port %u added to disk list"), i);
                 }
             }
         }
@@ -640,7 +599,6 @@ static U32 InitializeAHCIController(void) {
     AHCIState.Base->ghc &= ~AHCI_GHC_IE;
     AHCIState.InterruptEnabled = FALSE;
 
-    DEBUG(TEXT("[InitializeAHCIController] AHCI initialization complete"));
 
     return DF_RETURN_SUCCESS;
 }
@@ -659,16 +617,43 @@ static U32 InitializeAHCIController(void) {
  * @return DF_RETURN_SUCCESS or error code.
  */
 static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCount, LPVOID Buffer, BOOL IsWrite) {
+    U32 TransferBytes;
+    LPVOID EffectiveBuffer;
+    LPVOID BounceRaw;
+    LPVOID BounceAligned;
+    LINEAR BounceBase;
+    U32 BounceSize;
+
     if (AHCIPort == NULL || Buffer == NULL) {
-        DEBUG(TEXT("[AHCICommand] Invalid parameters"));
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    // DEBUG(TEXT("[AHCICommand] Command=%x, LBA=%x, SectorCount=%u, IsWrite=%d"), Command, LBA, SectorCount, IsWrite);
+    TransferBytes = (U32)SectorCount * SECTOR_SIZE;
+    EffectiveBuffer = Buffer;
+    BounceRaw = NULL;
+    BounceAligned = NULL;
+
+    if (TransferBytes <= N_4KB) {
+        BounceSize = TransferBytes + N_4KB;
+        BounceRaw = KernelHeapAlloc(BounceSize);
+        if (BounceRaw == NULL) {
+            return DF_RETURN_UNEXPECTED;
+        }
+
+        BounceBase = (LINEAR)BounceRaw;
+        BounceAligned = (LPVOID)((BounceBase + (N_4KB - 1)) & ~(N_4KB - 1));
+        EffectiveBuffer = BounceAligned;
+
+        if (IsWrite) {
+            MemoryCopy(EffectiveBuffer, Buffer, TransferBytes);
+        } else {
+            MemorySet(EffectiveBuffer, 0, TransferBytes);
+        }
+    }
 
     LPAHCI_HBA_PORT Port = AHCIPort->HBAPort;
     if (Port == NULL) {
-        DEBUG(TEXT("[AHCICommand] Port not initialized"));
+        if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
         return DF_RETURN_HARDWARE;
     }
 
@@ -678,7 +663,7 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
         timeout--;
     }
     if (timeout == 0) {
-        DEBUG(TEXT("[AHCICommand] Port busy timeout"));
+        if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
         return DF_RETURN_TIMEOUT;
     }
 
@@ -711,18 +696,20 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
     cmdfis->counth = (SectorCount >> 8) & 0xFF;
 
     // Set up PRDT entry
-    PHYSICAL bufferPhys = MapLinearToPhysical((LINEAR)Buffer);
+    PHYSICAL bufferPhys = MapLinearToPhysical((LINEAR)EffectiveBuffer);
     if (bufferPhys == 0) {
-        DEBUG(TEXT("[AHCICommand] Failed to get physical address for buffer"));
+        if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
         return DF_RETURN_HARDWARE;
     }
 
-    cmdtbl->prdt_entry[0].dba = bufferPhys;
-    cmdtbl->prdt_entry[0].dbau = 0; // Assume 32-bit
+    cmdtbl->prdt_entry[0].dba = (U32)(bufferPhys & 0xFFFFFFFF);
+    cmdtbl->prdt_entry[0].dbau = 0;
+#ifdef __EXOS_64__
+    cmdtbl->prdt_entry[0].dbau = (U32)((bufferPhys >> 32) & 0xFFFFFFFF);
+#endif
     cmdtbl->prdt_entry[0].dbc = (SectorCount * 512) - 1; // Byte count - 1
     cmdtbl->prdt_entry[0].i = 0; // No interrupt on completion for this entry
 
-    // DEBUG(TEXT("[AHCICommand] Buffer virt=0x%X phys=0x%X, size=%u bytes"), (U32)Buffer, bufferPhys, SectorCount * 512);
 
     // Issue command
     Port->ci = 1; // Issue command slot 0
@@ -731,24 +718,29 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
     timeout = 1000000;
     while ((Port->ci & 1) && timeout > 0) {
         if (Port->is & AHCI_PORT_IS_TFES) {
-            DEBUG(TEXT("[AHCICommand] Task file error"));
+            if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
             return DF_RETURN_HARDWARE;
         }
         timeout--;
     }
 
     if (timeout == 0) {
-        DEBUG(TEXT("[AHCICommand] Command timeout"));
+        if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
         return DF_RETURN_TIMEOUT;
     }
 
     // Check for errors
     if (Port->is & AHCI_PORT_IS_TFES) {
-        DEBUG(TEXT("[AHCICommand] Task file error after completion"));
+        if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
         return DF_RETURN_HARDWARE;
     }
 
-    // DEBUG(TEXT("[AHCICommand] Command completed successfully"));
+    if (!IsWrite && BounceRaw != NULL) {
+        MemoryCopy(Buffer, EffectiveBuffer, TransferBytes);
+    }
+
+    if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
+
     return DF_RETURN_SUCCESS;
 }
 
@@ -900,9 +892,11 @@ static U32 GetInfo(LPDISKINFO Info) {
     // Check validity of parameters
     if (AHCIPort->Header.TypeID != KOID_DISK) return DF_RETURN_BAD_PARAMETER;
 
-    Info->Type = DRIVER_TYPE_HARDDISK;
+    Info->Type = DRIVER_TYPE_SATA_STORAGE;
     Info->Removable = 0;
-    Info->NumSectors = AHCIPort->Geometry.Cylinders * AHCIPort->Geometry.Heads * AHCIPort->Geometry.SectorsPerTrack;
+    Info->BytesPerSector = AHCIPort->Geometry.BytesPerSector;
+    Info->NumSectors = U64_FromU32(
+        AHCIPort->Geometry.Cylinders * AHCIPort->Geometry.Heads * AHCIPort->Geometry.SectorsPerTrack);
     Info->Access = AHCIPort->Access;
 
     return DF_RETURN_SUCCESS;
@@ -944,7 +938,6 @@ static BOOL AHCIRegisterInterrupts(void) {
     LPPCI_DEVICE Device = AHCIState.Device;
 
     if (Device == NULL) {
-        DEBUG(TEXT("[AHCIRegisterInterrupts] No PCI device context available"));
         return FALSE;
     }
 
@@ -976,10 +969,6 @@ static BOOL AHCIRegisterInterrupts(void) {
             AHCIState.InterruptRegistered = TRUE;
             AHCIState.InterruptEnabled = DeviceInterruptSlotIsEnabled(AHCIState.InterruptSlot);
             AHCIState.PendingPortsMask = 0;
-            DEBUG(TEXT("[AHCIRegisterInterrupts] Slot %u registered for IRQ %u (mode=%s)"),
-                  AHCIState.InterruptSlot,
-                  LegacyIRQ,
-                  AHCIState.InterruptEnabled ? TEXT("INTERRUPT") : TEXT("POLLING"));
             Registered = TRUE;
         } else {
             WARNING(TEXT("[AHCIRegisterInterrupts] Failed to register interrupt slot for IRQ %u"), LegacyIRQ);
@@ -1041,9 +1030,8 @@ static BOOL AHCIInterruptTopHalf(LPDEVICE Device, LPVOID Context) {
     }
 
     if (!ShouldSignal) {
-        static U32 SpuriousCount = 0;
+        static U32 DATA_SECTION SpuriousCount = 0;
         if (SpuriousCount < 4U) {
-            DEBUG(TEXT("[AHCIInterruptTopHalf] Spurious global status %x"), GlobalStatus);
         }
         SpuriousCount++;
     }
@@ -1095,7 +1083,7 @@ static void AHCIInterruptBottomHalf(LPDEVICE Device, LPVOID Context) {
         return;
     }
 
-    static U32 BottomHalfLogCount = 0;
+    static U32 DATA_SECTION BottomHalfLogCount = 0;
 
     for (U32 PortIndex = 0; PortIndex < AHCI_MAX_PORTS; PortIndex++) {
         if ((LocalMask & (1U << PortIndex)) == 0U) {
@@ -1114,7 +1102,6 @@ static void AHCIInterruptBottomHalf(LPDEVICE Device, LPVOID Context) {
                         PortIndex,
                         PortStatus);
             } else if (BottomHalfLogCount < 4U) {
-                DEBUG(TEXT("[AHCIInterruptBottomHalf] Port %u interrupt status %x"), PortIndex, PortStatus);
             }
         }
 

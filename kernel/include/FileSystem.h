@@ -119,10 +119,44 @@ typedef struct tag_BOOTPARTITION {
 
 /***************************************************************************/
 
+// Partition metadata associated with a mounted filesystem
+
+#define PARTITION_SCHEME_NONE 0x00000000
+#define PARTITION_SCHEME_MBR 0x00000001
+#define PARTITION_SCHEME_GPT 0x00000002
+#define PARTITION_SCHEME_VIRTUAL 0x00000003
+
+#define PARTITION_FLAG_ACTIVE 0x00000001
+
+#define PARTITION_FORMAT_UNKNOWN 0x00000000
+#define PARTITION_FORMAT_FAT16 0x00000001
+#define PARTITION_FORMAT_FAT32 0x00000002
+#define PARTITION_FORMAT_NTFS 0x00000003
+#define PARTITION_FORMAT_EXFS 0x00000004
+#define PARTITION_FORMAT_EXT2 0x00000005
+#define PARTITION_FORMAT_EXT3 0x00000006
+#define PARTITION_FORMAT_EXT4 0x00000007
+
+typedef struct tag_PARTITION {
+    U32 Scheme;
+    U32 Type;
+    U32 Format;
+    U32 Index;
+    U32 Flags;
+    SECTOR StartSector;
+    U32 NumSectors;
+    U8 TypeGuid[GPT_GUID_LENGTH];
+} PARTITION, *LPPARTITION;
+
+/***************************************************************************/
+
 typedef struct tag_FILESYSTEM {
     LISTNODE_FIELDS
     MUTEX Mutex;
+    BOOL Mounted;
     LPDRIVER Driver;
+    LPSTORAGE_UNIT StorageUnit;
+    PARTITION Partition;
     STR Name[MAX_FS_LOGICAL_NAME];
 } FILESYSTEM, *LPFILESYSTEM;
 
@@ -175,7 +209,7 @@ typedef struct tag_FILE {
 
 typedef struct tag_PARTITION_CREATION {
     UINT Size;
-    LPPHYSICALDISK Disk;
+    LPSTORAGE_UNIT Disk;
     UINT PartitionStartSector;
     UINT PartitionNumSectors;
     UINT SectorsPerCluster;
@@ -209,9 +243,15 @@ typedef struct tag_FS_PATHCHECK {
 
 /***************************************************************************/
 
-BOOL MountDiskPartitions(LPPHYSICALDISK, LPBOOTPARTITION, U32);
+BOOL MountDiskPartitions(LPSTORAGE_UNIT, LPBOOTPARTITION, U32);
 U32 GetNumFileSystems(void);
-BOOL GetDefaultFileSystemName(LPSTR, LPPHYSICALDISK, U32);
+LPSTORAGE_UNIT FileSystemGetStorageUnit(LPFILESYSTEM FileSystem);
+BOOL FileSystemHasStorageUnit(LPFILESYSTEM FileSystem);
+BOOL FileSystemReady(void);
+LPCSTR FileSystemGetPartitionSchemeName(U32 Scheme);
+LPCSTR FileSystemGetPartitionTypeName(LPPARTITION Partition);
+LPCSTR FileSystemGetPartitionFormatName(U32 Format);
+BOOL GetDefaultFileSystemName(LPSTR, LPSTORAGE_UNIT, U32);
 BOOL MountSystemFS(void);
 BOOL MountUserNodes(void);
 void InitializeFileSystems(void);

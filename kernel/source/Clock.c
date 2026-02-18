@@ -73,9 +73,9 @@ LPDRIVER ClockGetDriver(void) {
 
 /************************************************************************/
 
-static UINT SystemUpTime = 0;
-static UINT SchedulerTime = 0;
-static DATETIME CurrentTime;
+static UINT DATA_SECTION SystemUpTime = 0;
+static UINT DATA_SECTION SchedulerTime = 0;
+static DATETIME DATA_SECTION CurrentTime;
 static const U8 DaysInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
 #if SCHEDULING_DEBUG_OUTPUT == 1
@@ -218,6 +218,34 @@ void ClockHandler(void) {
  * @return Number of milliseconds since startup.
  */
 UINT GetSystemTime(void) { return SystemUpTime; }
+
+/************************************************************************/
+
+/**
+ * @brief Check whether one operation timeout has been reached.
+ *
+ * This helper is safe for early-boot polling paths where GetSystemTime()
+ * can remain constant until interrupts are enabled. It always keeps a loop
+ * limit fallback in addition to elapsed-time validation.
+ *
+ * @param StartTime Start value from GetSystemTime().
+ * @param LoopCount Current polling loop index.
+ * @param LoopLimit Maximum polling loops before timeout.
+ * @param TimeoutMilliseconds Timeout window in milliseconds.
+ * @return TRUE when timeout is reached, FALSE otherwise.
+ */
+BOOL HasOperationTimedOut(UINT StartTime, UINT LoopCount, UINT LoopLimit, UINT TimeoutMilliseconds) {
+    if (LoopCount >= LoopLimit) {
+        return TRUE;
+    }
+
+    UINT CurrentTime = GetSystemTime();
+    if (CurrentTime == StartTime) {
+        return FALSE;
+    }
+
+    return ((UINT)(CurrentTime - StartTime) >= TimeoutMilliseconds);
+}
 
 /************************************************************************/
 

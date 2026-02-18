@@ -43,13 +43,6 @@ SELECTOR_KERNEL_DATA    equ (0x10 | SELECTOR_GLOBAL | CPU_PRIVILEGE_KERNEL)
 SELECTOR_USER_CODE      equ (0x18 | SELECTOR_GLOBAL | CPU_PRIVILEGE_USER)
 SELECTOR_USER_DATA      equ (0x20 | SELECTOR_GLOBAL | CPU_PRIVILEGE_USER)
 
-CR0_PROTECTED_MODE 	    equ 0x00000001  ; Protected mode on/off
-CR0_COPROCESSOR         equ 0x00000002  ; Math present
-CR0_MONITOR_COPROCESSOR equ 0x00000004  ; Emulate co-processor
-CR0_TASKSWITCH          equ 0x00000008  ; Set on task switch
-CR0_80387               equ 0x00000010  ; Type of co-processor
-CR0_PAGING              equ 0x80000000  ; Paging on/off
-
 ;----------------------------------------------------------------------------
 
 CONSOLE_TEXT_BUFFER_BASE    equ 0x00000000000B8000
@@ -92,8 +85,10 @@ REG_OFF_DR7    equ 236
 
 ;----------------------------------------------------------------------------
 
-KERNELSTARTUP_IRQMASK_21_PM equ 24
-KERNELSTARTUP_IRQMASK_A1_PM equ 28
+; NOTE: Keep these aliases tied to the KernelStartupInfo ASM layout.
+; Do not hardcode numeric offsets here.
+KERNELSTARTUP_IRQMASK_21_PM equ KernelStartupInfo.IRQMask_21_PM
+KERNELSTARTUP_IRQMASK_A1_PM equ KernelStartupInfo.IRQMask_A1_PM
 
 ;----------------------------------------------------------------------------
 

@@ -54,7 +54,7 @@ DRIVER DATA_SECTION FAT32Driver = {
 
 typedef struct tag_FAT32FILESYSTEM {
     FILESYSTEM Header;
-    LPPHYSICALDISK Disk;
+    LPSTORAGE_UNIT Disk;
     FAT32MBR Master;
     SECTOR PartitionStart;
     U32 PartitionSize;
@@ -79,7 +79,7 @@ typedef struct tag_FATFILE {
  * @param Disk Physical disk hosting the partition.
  * @return Pointer to a new FAT32 file system or NULL on failure.
  */
-static LPFAT32FILESYSTEM NewFATFileSystem(LPPHYSICALDISK Disk) {
+static LPFAT32FILESYSTEM NewFATFileSystem(LPSTORAGE_UNIT Disk) {
     LPFAT32FILESYSTEM This;
 
     This = (LPFAT32FILESYSTEM)KernelHeapAlloc(sizeof(FAT32FILESYSTEM));
@@ -92,6 +92,7 @@ static LPFAT32FILESYSTEM NewFATFileSystem(LPPHYSICALDISK Disk) {
     This->Header.Next = NULL;
     This->Header.Prev = NULL;
     This->Header.Driver = &FAT32Driver;
+    This->Header.StorageUnit = Disk;
     This->Disk = Disk;
     This->FATStart = 0;
     This->FATStart2 = 0;
@@ -147,7 +148,7 @@ static LPFATFILE NewFATFile(LPFAT32FILESYSTEM FileSystem, LPFATFILELOC FileLoc) 
  * @param PartIndex Partition index for naming.
  * @return TRUE on success, FALSE on failure.
  */
-BOOL MountPartition_FAT32(LPPHYSICALDISK Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
+BOOL MountPartition_FAT32(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer[SECTOR_SIZE];
     LPFAT32MBR Master;
     LPFAT32FILESYSTEM FileSystem;
@@ -932,6 +933,7 @@ static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
     STR Component[MAX_FILE_NAME];
     STR Name[MAX_FILE_NAME];
     LPFATDIRENTRY_EXT DirEntry;
+    BOOL NamesMatch;
     U32 PathIndex = 0;
     U32 CompIndex = 0;
 
@@ -986,7 +988,10 @@ static BOOL LocateFile(LPFAT32FILESYSTEM FileSystem, LPCSTR Path, LPFATFILELOC F
                 (DirEntry->Name[0] != 0xE5)) {
                 DecodeFileName(DirEntry, Name);
 
-                if (StringCompare(Component, TEXT("*")) == 0 || STRINGS_EQUAL(Component, Name)) {
+                NamesMatch = (StringCompare(Component, TEXT("*")) == 0) || STRINGS_EQUAL(Component, Name) ||
+                             (StringCompareNC(Component, Name) == 0);
+
+                if (NamesMatch) {
                     if (Path[PathIndex] == STR_NULL) {
                         FileLoc->DataCluster = (((U32)DirEntry->ClusterLow) | (((U32)DirEntry->ClusterHigh) << 16));
 
@@ -1367,7 +1372,10 @@ static LPFATFILE OpenFile(LPFILEINFO Find) {
         // Create the file
 
         FILEINFO TempFileInfo;
+        TempFileInfo.Size = sizeof(FILEINFO);
         TempFileInfo.FileSystem = (LPFILESYSTEM)FileSystem;
+        TempFileInfo.Attributes = MAX_U32;
+        TempFileInfo.Flags = FILE_OPEN_CREATE_ALWAYS;
         StringCopy(TempFileInfo.Name, Find->Name);
 
         if (CreateFile(&TempFileInfo, FALSE) != DF_RETURN_SUCCESS) {

@@ -1,13 +1,21 @@
 # Makefile mtools - inject EXOS into a FreeDOS image with FAT32 partition
 
-ARCH ?= i386
+ARCH ?= x86-32
 
-BUILD_DIR := ../build/$(ARCH)
+ifeq ($(strip $(BUILD_CORE_NAME)),)
+$(error BUILD_CORE_NAME is required)
+endif
+CORE_BUILD_DIR := ../build/core/$(BUILD_CORE_NAME)
+
+ifeq ($(strip $(BUILD_IMAGE_NAME)),)
+$(error BUILD_IMAGE_NAME is required)
+endif
+BUILD_DIR := ../build/image/$(BUILD_IMAGE_NAME)
 
 LOADER_SRC     = source/loader.asm
 LOADER_LST     = source/loader.lst
 LOADER_COM     = $(BUILD_DIR)/boot-freedos/loader.com
-KERNEL_BIN     = $(BUILD_DIR)/kernel/exos.bin
+KERNEL_BIN     = $(CORE_BUILD_DIR)/kernel/exos.bin
 BASE_IMG       = freedos/FD14FULL.img
 FINAL_IMG      = $(BUILD_DIR)/boot-freedos/exos_dos.img
 AUTOEXEC       = $(BUILD_DIR)/boot-freedos/AUTOEXEC.BAT
