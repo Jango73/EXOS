@@ -51,6 +51,24 @@ cleanup() {
     if [ -n "$MOUNT_DIR" ] && [ -d "$MOUNT_DIR" ]; then
         rmdir "$MOUNT_DIR" >/dev/null 2>&1 || true
     fi
+    if [ -f "$IMAGE_PATH" ]; then
+        set_output_ownership "$IMAGE_PATH"
+    fi
+    if [ -d "$(dirname "$IMAGE_PATH")" ]; then
+        set_output_ownership "$(dirname "$IMAGE_PATH")"
+    fi
+}
+
+set_output_ownership() {
+    local target="$1"
+    local uid="${SUDO_UID:-}"
+    local gid="${SUDO_GID:-}"
+
+    if [ -n "$uid" ] && [ -n "$gid" ]; then
+        chown "$uid":"$gid" "$target" || true
+    elif [ -n "${SUDO_USER:-}" ]; then
+        chown "$SUDO_USER":"$SUDO_USER" "$target" || true
+    fi
 }
 
 create_partitioned_image() {
@@ -264,7 +282,9 @@ for round in $(seq 1 "$MUTATION_ROUNDS"); do
 done
 
 if [ -n "${SUDO_USER:-}" ]; then
-    chown "$SUDO_USER":"$SUDO_USER" "$IMAGE_PATH" || true
+    IMAGE_DIR="$(dirname "$IMAGE_PATH")"
+    set_output_ownership "$IMAGE_PATH"
+    set_output_ownership "$IMAGE_DIR"
 fi
 chmod 666 "$IMAGE_PATH" || true
 

@@ -851,6 +851,7 @@ BOOL NtfsEnumerateFolderByIndex(
     U32 MaxVcnRecords;
     U32* PendingVcns;
     U32 PendingCount;
+    BOOL HadNodeTraversalFailure;
     BOOL Result;
 
     if (EntryCountOut != NULL) *EntryCountOut = 0;
@@ -1056,12 +1057,14 @@ BOOL NtfsEnumerateFolderByIndex(
             PendingVcns,
             &PendingCount,
             MaxVcnRecords);
+        HadNodeTraversalFailure = FALSE;
 
         while (Result && PendingCount > 0) {
             U32 Vcn;
             U32 RecordOffset;
             U8* RecordBufferNode;
             NTFS_INDEX_RECORD_HEADER NodeHeader;
+            BOOL NodeResult;
 
             PendingCount--;
             Vcn = PendingVcns[PendingCount];
@@ -1076,7 +1079,7 @@ BOOL NtfsEnumerateFolderByIndex(
             MemoryCopy(&NodeHeader, RecordBufferNode, sizeof(NTFS_INDEX_RECORD_HEADER));
             if (NodeHeader.Magic != 0x58444E49) continue;
 
-            Result = NtfsTraverseIndexHeader(
+            NodeResult = NtfsTraverseIndexHeader(
                 &Context,
                 (const NTFS_INDEX_HEADER*)(RecordBufferNode + 24),
                 Context.IndexBlockSize - 24,
@@ -1085,6 +1088,14 @@ BOOL NtfsEnumerateFolderByIndex(
                 PendingVcns,
                 &PendingCount,
                 MaxVcnRecords);
+            if (!NodeResult) {
+                HadNodeTraversalFailure = TRUE;
+                Context.DiagTraverseErrorCode = NTFS_TRAVERSE_ERROR_NONE;
+                continue;
+            }
+        }
+        if (HadNodeTraversalFailure) {
+            WARNING(TEXT("[NtfsEnumerateFolderByIndex] Ignored one or more invalid index-allocation nodes index=%u"), FolderIndex);
         }
         if (!Result) {
             WARNING(TEXT("[NtfsEnumerateFolderByIndex] Index traversal failed index=%u error=%x stage=%u vcn=%u region=%u offset=%u size=%u cursor=%u len=%u flags=%x ref_invalid=%u idx_invalid=%u record_read_fail=%u seq_mismatch=%u"),

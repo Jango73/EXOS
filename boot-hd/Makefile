@@ -429,6 +429,7 @@ $(FS_TEST_NTFS_IMG): check_tools
 			ntfscp -q -f "$$TMP_NTFS" "$(BUILD_DIR)/boot-hd/fs-test-ntfs-read.txt" "/$(FS_TEST_READ_FILE)"; \
 			dd if="$$TMP_NTFS" of=$@ bs=512 seek="$$PART_START" conv=notrunc; \
 			rm -f "$$TMP_NTFS"; \
+			echo "NTFS image created. Use scripts/ntfs/populate-ntfs-image.sh to add folders/files."; \
 		else \
 			echo "WARNING: mkfs.ntfs not found, image keeps only NTFS partition type"; \
 		fi; \
