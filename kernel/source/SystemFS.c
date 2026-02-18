@@ -417,7 +417,7 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
     Info.Size = sizeof(FILEINFO);
     Info.FileSystem = Node->Mounted;
     Info.Attributes = MAX_U32;
-    Info.Flags = 0;
+    Info.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
     StringCopy(Info.Name, Remaining);
 
     Mounted = (LPFILE)Node->Mounted->Driver->Command(DF_FS_OPENFILE, (UINT)&Info);
@@ -549,7 +549,7 @@ static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR Sou
                 Info.Size = sizeof(FILEINFO);
                 Info.FileSystem = FS;
                 Info.Attributes = FS_ATTR_FOLDER;
-                Info.Flags = 0;
+                Info.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
                 StringCopy(Info.Name, SourcePath);
 
                 TestFile = (LPFILE)FS->Driver->Command(DF_FS_OPENFILE, (UINT)&Info);

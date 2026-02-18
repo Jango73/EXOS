@@ -607,6 +607,7 @@ static void MakeFolder(LPSHELLCONTEXT Context) {
         FileInfo.Size = sizeof(FILEINFO);
         FileInfo.FileSystem = FileSystem;
         FileInfo.Attributes = MAX_U32;
+        FileInfo.Flags = 0;
         StringCopy(FileInfo.Name, FileName);
         FileSystem->Driver->Command(DF_FS_CREATEFOLDER, (UINT)&FileInfo);
     }

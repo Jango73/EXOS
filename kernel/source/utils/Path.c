@@ -160,6 +160,7 @@ void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
     Find.Size = sizeof(FILEINFO);
     Find.FileSystem = Context->FileSystem;
     Find.Attributes = MAX_U32;
+    Find.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
     StringCopy(Find.Name, Pattern);
 
     if (Context->FileSystem == NULL) {

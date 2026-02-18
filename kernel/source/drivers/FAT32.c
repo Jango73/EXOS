@@ -1372,7 +1372,10 @@ static LPFATFILE OpenFile(LPFILEINFO Find) {
         // Create the file
 
         FILEINFO TempFileInfo;
+        TempFileInfo.Size = sizeof(FILEINFO);
         TempFileInfo.FileSystem = (LPFILESYSTEM)FileSystem;
+        TempFileInfo.Attributes = MAX_U32;
+        TempFileInfo.Flags = FILE_OPEN_CREATE_ALWAYS;
         StringCopy(TempFileInfo.Name, Find->Name);
 
         if (CreateFile(&TempFileInfo, FALSE) != DF_RETURN_SUCCESS) {
