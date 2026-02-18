@@ -3,7 +3,7 @@
 ## Prerequisites (one-time)
 
 - [x] **Read-only mount layer**: stable virtual filesystem mount/unmount flow for package volumes.
-- [ ] **Compression primitives**: zlib inflate path available in kernel for on-demand block decompression.
+- [x] **Compression primitives**: zlib inflate path available in kernel for on-demand block decompression.
 - [x] **Hashing primitives**: SHA-256 helper for package, file, and block validation.
 - [ ] **Signature primitives**: optional detached signature verification path.
 

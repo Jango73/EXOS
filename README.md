@@ -58,6 +58,11 @@ Used for SHA-256 hashing bridge in kernel crypt utilities. Sources in `third/bea
 Integrated SHA-256 sources: `third/bearssl/src/hash/sha2small.c`, `third/bearssl/src/codec/dec32be.c`, `third/bearssl/src/codec/enc32be.c`.
 BearSSL is copyright (c) 2016 Thomas Pornin <pornin@bolet.org>.
 
+### miniz
+Used for DEFLATE/zlib compression bridge in kernel compression utilities. Sources in `third/miniz` (MIT license, see `third/miniz/LICENSE` and `third/miniz/readme.md`).
+Integrated kernel backend source: `third/miniz/miniz.c`.
+miniz is copyright (c) Rich Geldreich, RAD Game Tools, and Valve Software.
+
 ### utf8-hoehrmann
 Used for UTF-8 decoding in layout parsing. Sources in third/utf8-hoehrmann (MIT license, see headers).
 
