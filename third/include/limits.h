@@ -3,6 +3,10 @@
 
 #define CHAR_BIT 8
 
-#define ULONG_MAX ((unsigned long)-1)
+#if defined(__EXOS_32__)
+#define ULONG_MAX 0xFFFFFFFF
+#else
+#define ULONG_MAX 0xFFFFFFFFFFFFFFFF
+#endif
 
 #endif  // limits_h

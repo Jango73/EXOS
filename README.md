@@ -67,6 +67,12 @@ Used for DEFLATE/zlib compression bridge in kernel compression utilities. Source
 Integrated kernel backend source: `third/miniz/miniz.c`.
 miniz is copyright (c) Rich Geldreich, RAD Game Tools, and Valve Software.
 
+### Monocypher
+Used for detached signature verification (Ed25519) bridge in kernel signature utilities. Sources in `third/monocypher` (BSD-2-Clause OR CC0-1.0, see `third/monocypher/LICENCE.md` and `third/monocypher/README.md`).
+Integrated signature backend sources: `third/monocypher/src/monocypher.c` and `third/monocypher/src/optional/monocypher-ed25519.c`.
+For kernel freestanding compatibility, Monocypher Argon2 is disabled in x86-32 builds.
+Monocypher is copyright (c) 2017-2019 Loup Vaillant.
+
 ### utf8-hoehrmann
 Used for UTF-8 decoding in layout parsing. Sources in third/utf8-hoehrmann (MIT license, see headers).
 

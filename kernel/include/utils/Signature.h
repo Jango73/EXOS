@@ -46,6 +46,9 @@ extern "C" {
 #define DETACHED_SIGNATURE_MAGIC 0x53474953
 #define DETACHED_SIGNATURE_VERSION 1
 
+#define SIGNATURE_ED25519_PUBLIC_KEY_SIZE 32
+#define SIGNATURE_ED25519_SIGNATURE_SIZE 64
+
 /***************************************************************************/
 
 typedef struct PACKED tag_DETACHED_SIGNATURE_HEADER {

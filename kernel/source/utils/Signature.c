@@ -24,20 +24,58 @@
 #include "utils/Signature.h"
 
 #include "CoreString.h"
+#include "monocypher-ed25519.h"
+
+/***************************************************************************/
+
+/**
+ * @brief Convert an EXOS U64 value to U32 when it fits.
+ * @param Value Source value.
+ * @param Out Receives converted U32 value.
+ * @return TRUE when conversion is exact.
+ */
+static BOOL SignatureU64ToU32(U64 Value, U32* Out) {
+    if (Out == NULL) {
+        return FALSE;
+    }
+
+    if (U64_High32(Value) != 0) {
+        return FALSE;
+    }
+
+    *Out = U64_Low32(Value);
+    return TRUE;
+}
 
 /***************************************************************************/
 
 /**
  * @brief Validate an offset/size range against a blob size.
- * @param Offset Start offset inside blob.
- * @param Size Number of bytes.
+ * @param Offset64 Start offset inside blob.
+ * @param Size64 Number of bytes.
  * @param BlobSize Total blob size.
+ * @param OffsetOut Receives converted offset.
+ * @param SizeOut Receives converted size.
  * @return TRUE when the range is valid.
  */
-static BOOL SignatureIsRangeValid(U64 Offset, U64 Size, U32 BlobSize) {
-    U64 End;
+static BOOL SignatureExtractRange(U64 Offset64,
+                                  U64 Size64,
+                                  U32 BlobSize,
+                                  U32* OffsetOut,
+                                  U32* SizeOut) {
+    U32 Offset;
+    U32 Size;
+    U32 End;
 
-    if (Offset > (U64)BlobSize) {
+    if (!SignatureU64ToU32(Offset64, &Offset)) {
+        return FALSE;
+    }
+
+    if (!SignatureU64ToU32(Size64, &Size)) {
+        return FALSE;
+    }
+
+    if (Offset > BlobSize) {
         return FALSE;
     }
 
@@ -46,8 +84,16 @@ static BOOL SignatureIsRangeValid(U64 Offset, U64 Size, U32 BlobSize) {
         return FALSE;
     }
 
-    if (End > (U64)BlobSize) {
+    if (End > BlobSize) {
         return FALSE;
+    }
+
+    if (OffsetOut != NULL) {
+        *OffsetOut = Offset;
+    }
+
+    if (SizeOut != NULL) {
+        *SizeOut = Size;
     }
 
     return TRUE;
@@ -73,7 +119,10 @@ U32 SignatureVerifyDetached(U32 Algorithm,
                             U32 PayloadSize,
                             const void* Signature,
                             U32 SignatureSize) {
-    if (Payload == NULL || PayloadSize == 0) {
+    static const U8 EmptyPayload = 0;
+    const U8* PayloadBytes;
+
+    if (Payload == NULL && PayloadSize != 0) {
         return SIGNATURE_STATUS_INVALID_ARGUMENT;
     }
 
@@ -93,9 +142,26 @@ U32 SignatureVerifyDetached(U32 Algorithm,
         return SIGNATURE_STATUS_INVALID_ARGUMENT;
     }
 
+    if (Payload == NULL) {
+        PayloadBytes = &EmptyPayload;
+    } else {
+        PayloadBytes = (const U8*)Payload;
+    }
+
     if (Algorithm == SIGNATURE_ALGORITHM_ED25519) {
-        // Backend not wired yet: keep stable API so implementation can be swapped.
-        return SIGNATURE_STATUS_UNSUPPORTED_ALGORITHM;
+        if (PublicKeySize != SIGNATURE_ED25519_PUBLIC_KEY_SIZE ||
+            SignatureSize != SIGNATURE_ED25519_SIGNATURE_SIZE) {
+            return SIGNATURE_STATUS_FORMAT_ERROR;
+        }
+
+        if (crypto_ed25519_check((const U8*)Signature,
+                                 (const U8*)PublicKey,
+                                 PayloadBytes,
+                                 (size_t)PayloadSize) == 0) {
+            return SIGNATURE_STATUS_OK;
+        }
+
+        return SIGNATURE_STATUS_INVALID_SIGNATURE;
     }
 
     if (Algorithm == SIGNATURE_ALGORITHM_RSA_PKCS1_V15_SHA256) {
@@ -122,6 +188,10 @@ U32 SignatureVerifyDetachedBlob(const void* Blob,
                                 U32 PayloadSize) {
     const U8* BlobBytes;
     const DETACHED_SIGNATURE_HEADER* Header;
+    U32 PublicKeyOffset;
+    U32 PublicKeySize;
+    U32 SignatureOffset;
+    U32 SignatureSize;
     const void* PublicKey;
     const void* Signature;
 
@@ -144,31 +214,39 @@ U32 SignatureVerifyDetachedBlob(const void* Blob,
         return SIGNATURE_STATUS_FORMAT_ERROR;
     }
 
-    if (!SignatureIsRangeValid(Header->PublicKeyOffset, Header->PublicKeySize, BlobSize)) {
+    if (!SignatureExtractRange(Header->PublicKeyOffset,
+                               Header->PublicKeySize,
+                               BlobSize,
+                               &PublicKeyOffset,
+                               &PublicKeySize)) {
         return SIGNATURE_STATUS_FORMAT_ERROR;
     }
 
-    if (!SignatureIsRangeValid(Header->SignatureOffset, Header->SignatureSize, BlobSize)) {
+    if (!SignatureExtractRange(Header->SignatureOffset,
+                               Header->SignatureSize,
+                               BlobSize,
+                               &SignatureOffset,
+                               &SignatureSize)) {
         return SIGNATURE_STATUS_FORMAT_ERROR;
     }
 
-    if (Header->PublicKeySize == 0) {
+    if (PublicKeySize == 0) {
         PublicKey = NULL;
     } else {
-        PublicKey = BlobBytes + (U32)Header->PublicKeyOffset;
+        PublicKey = BlobBytes + PublicKeyOffset;
     }
 
-    if (Header->SignatureSize == 0) {
+    if (SignatureSize == 0) {
         Signature = NULL;
     } else {
-        Signature = BlobBytes + (U32)Header->SignatureOffset;
+        Signature = BlobBytes + SignatureOffset;
     }
 
     return SignatureVerifyDetached(Header->Algorithm,
                                    PublicKey,
-                                   (U32)Header->PublicKeySize,
+                                   PublicKeySize,
                                    Payload,
                                    PayloadSize,
                                    Signature,
-                                   (U32)Header->SignatureSize);
+                                   SignatureSize);
 }
