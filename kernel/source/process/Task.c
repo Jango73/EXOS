@@ -27,6 +27,8 @@
 #include "Arch.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "package/PackageFS.h"
+#include "package/PackageNamespace.h"
 #include "process/Process.h"
 #include "process/Schedule.h"
 #include "process/TaskMessaging.h"
@@ -566,6 +568,15 @@ void DeleteDeadTasksAndProcesses(void) {
             NextProcess = (LPPROCESS)Process->Next;
 
             if (Process->Status == PROCESS_STATUS_DEAD) {
+                PackageNamespaceUnbindCurrentProcessPackageView();
+                if (Process->PackageFileSystem != NULL) {
+                    if (!PackageFSUnmount(Process->PackageFileSystem)) {
+                        WARNING(TEXT("[DeleteDeadTasksAndProcesses] PackageFS unmount failed process=%s fs=%p"),
+                            Process->FileName,
+                            Process->PackageFileSystem);
+                    }
+                    Process->PackageFileSystem = NULL;
+                }
 
                 ReleaseProcessKernelObjects(Process);
 

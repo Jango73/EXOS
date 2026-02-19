@@ -58,7 +58,7 @@ int exosmain(int argc, char** argv) {
     debug("[Master main] Launching slave process...");
     printf("Launching slave process...\n");
 
-    int result = system("/system/APPS/TEST/SLAVE");
+    int result = system("/package/binary/slave");
 
     if (result) {
         printf("Slave process launched successfully\n");

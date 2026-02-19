@@ -42,6 +42,8 @@ typedef struct tag_CRC32_CTX {
     U32 State; /* running CRC (already includes init/final-xor handling) */
 } CRC32_CTX, *LPCRC32_CTX;
 
+#define SHA256_SIZE 32
+
 /* Streaming API */
 void CRC32Begin(LPCRC32_CTX Ctx);
 void CRC32Update(LPCRC32_CTX Ctx, const void *Data, U32 Length);
@@ -49,6 +51,7 @@ U32 CRC32Final(LPCRC32_CTX Ctx);
 
 /* One-shot API */
 U32 CRC32(const void *Data, U32 Length);
+void SHA256(const void *Data, U32 Length, U8 Output[SHA256_SIZE]);
 
 /***************************************************************************/
 // CRC-64 functions

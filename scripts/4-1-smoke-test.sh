@@ -30,6 +30,8 @@ FAULT_PATTERN="#PF|#GP|#UD|#SS|#NP|#TS|#DE|#DF|#MF|#AC|#MC"
 TEST_KO_PATTERN="TEST > .* : KO"
 ERROR_PATTERN="ERROR >"
 NON_FATAL_ERROR_PATTERN="ERROR > \\[NVMeAttach\\] Failed to allocate admin queues"
+AUTOTEST_ERROR_SCOPE_BEGIN="AUTOTEST_ERROR_SCOPE_BEGIN"
+AUTOTEST_ERROR_SCOPE_END="AUTOTEST_ERROR_SCOPE_END"
 
 RG_BIN="$(command -v rg || true)"
 GREP_BIN="$(command -v grep || true)"
@@ -179,10 +181,12 @@ function SetImageKeyboardLayout() {
 
     OffsetMegabytes=$((FileSystemOffset / 1048576))
     OffsetRemainder=$((FileSystemOffset % 1048576))
-    if [ "$OffsetRemainder" -eq 0 ]; then
-        dd if="$ImagePath" of="$PartitionImage" bs=1M skip="$OffsetMegabytes" status=none
-    else
-        dd if="$ImagePath" of="$PartitionImage" bs=1 skip="$FileSystemOffset" status=none
+    if ! dd if="$ImagePath" of="$PartitionImage" iflag=skip_bytes skip="$FileSystemOffset" bs=1M status=none 2>/dev/null; then
+        if [ "$OffsetRemainder" -eq 0 ]; then
+            dd if="$ImagePath" of="$PartitionImage" bs=1M skip="$OffsetMegabytes" status=none
+        else
+            dd if="$ImagePath" of="$PartitionImage" bs=1 skip="$FileSystemOffset" status=none
+        fi
     fi
     if ! debugfs -R "cat /exos.toml" "$PartitionImage" > "$ConfigFile" 2>/dev/null; then
         rm -f "$PartitionImage" "$ConfigFile" "$PatchedConfigFile"
@@ -310,6 +314,34 @@ function TailFromOffset() {
     fi
 }
 
+function TailFromOffsetForErrorCheck() {
+    # Ignore ERROR lines emitted while autotests are running.
+    local Offset="$1"
+    TailFromOffset "$Offset" | awk \
+        -v ScopeBegin="$AUTOTEST_ERROR_SCOPE_BEGIN" \
+        -v ScopeEnd="$AUTOTEST_ERROR_SCOPE_END" \
+        -v ErrorPrefix="$ERROR_PATTERN" '
+        {
+            if (index($0, ScopeBegin) > 0) {
+                InAutotestScope = 1;
+                print $0;
+                next;
+            }
+
+            if (index($0, ScopeEnd) > 0) {
+                InAutotestScope = 0;
+                print $0;
+                next;
+            }
+
+            if (InAutotestScope == 1 && index($0, ErrorPrefix) > 0) {
+                next;
+            }
+
+            print $0;
+        }'
+}
+
 function MonitorCommand() {
     # Send one command to QEMU monitor (telnet) with retry/backoff.
     # Uses a short-lived socket per command for robustness.
@@ -432,8 +464,8 @@ function WaitForExpectedLog() {
             return 1
         fi
 
-        if TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" >/dev/null; then
-            ErrorLines="$(TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" || true)"
+        if TailFromOffsetForErrorCheck "$Offset" | SearchFixed "$ERROR_PATTERN" >/dev/null; then
+            ErrorLines="$(TailFromOffsetForErrorCheck "$Offset" | SearchFixed "$ERROR_PATTERN" || true)"
             FatalErrorLines="$(echo "$ErrorLines" | "$GREP_BIN" -E -v "$NON_FATAL_ERROR_PATTERN" || true)"
 
             if [ -n "$FatalErrorLines" ]; then
@@ -472,8 +504,8 @@ function AssertNoFailures() {
         return 1
     fi
 
-    if TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" >/dev/null; then
-        ErrorLines="$(TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" || true)"
+    if TailFromOffsetForErrorCheck "$Offset" | SearchFixed "$ERROR_PATTERN" >/dev/null; then
+        ErrorLines="$(TailFromOffsetForErrorCheck "$Offset" | SearchFixed "$ERROR_PATTERN" || true)"
         FatalErrorLines="$(echo "$ErrorLines" | "$GREP_BIN" -E -v "$NON_FATAL_ERROR_PATTERN" || true)"
 
         if [ -n "$FatalErrorLines" ]; then
@@ -531,7 +563,9 @@ function AssertDownloadedFileSize() {
 
     FsOffset="$CURRENT_FS_OFFSET"
     PartitionImage="$(mktemp)"
-    dd if="$CURRENT_IMAGE_PATH" of="$PartitionImage" bs=1 skip="$FsOffset" status=none
+    if ! dd if="$CURRENT_IMAGE_PATH" of="$PartitionImage" iflag=skip_bytes skip="$FsOffset" bs=1M status=none 2>/dev/null; then
+        dd if="$CURRENT_IMAGE_PATH" of="$PartitionImage" bs=1 skip="$FsOffset" status=none
+    fi
     DownloadedSize="$(debugfs -R "stat $DownloadedPath" "$PartitionImage" 2>/dev/null | sed -n 's/.*Size:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n 1)"
     rm -f "$PartitionImage"
 

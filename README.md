@@ -11,6 +11,10 @@ This is an ongoing operating system project that was abandoned in late 1999.
 Back then, it was 32 bit only and compiled with gcc and nasm, and linked with jloc.
 Build was recently ported to i686-elf-gcc/nasm/i686-elf-ld, then ported to x86-64.
 
+## Disclaimer
+
+EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/contributors, nor the authors/contributors of bundled third-party software, can be held liable for any direct, indirect, incidental, special, exemplary, or consequential damages arising from the use of this project.
+
 ## Debian compile & run
 
 ### Setup dependencies
@@ -52,6 +56,22 @@ Build was recently ported to i686-elf-gcc/nasm/i686-elf-ld, then ported to x86-6
 Used for password hashing. Sources in third/bcrypt (under Apache 2.0, see third/bcrypt/README and third/bcrypt/LICENSE).
 Compiled files in kernel: bcrypt.c, blowfish.c.
 bcrypt is copyright (c) 2002 Johnny Shelley <jshelley@cahaus.com>
+
+### BearSSL
+Used for SHA-256 hashing bridge in kernel crypt utilities. Sources in `third/bearssl` (MIT license, see `third/bearssl/LICENSE.txt` and `third/bearssl/README.txt`).
+Integrated SHA-256 sources: `third/bearssl/src/hash/sha2small.c`, `third/bearssl/src/codec/dec32be.c`, `third/bearssl/src/codec/enc32be.c`.
+BearSSL is copyright (c) 2016 Thomas Pornin <pornin@bolet.org>.
+
+### miniz
+Used for DEFLATE/zlib compression bridge in kernel compression utilities. Sources in `third/miniz` (MIT license, see `third/miniz/LICENSE` and `third/miniz/readme.md`).
+Integrated kernel backend source: `third/miniz/miniz.c`.
+miniz is copyright (c) Rich Geldreich, RAD Game Tools, and Valve Software.
+
+### Monocypher
+Used for detached signature verification (Ed25519) bridge in kernel signature utilities. Sources in `third/monocypher` (BSD-2-Clause OR CC0-1.0, see `third/monocypher/LICENCE.md` and `third/monocypher/README.md`).
+Integrated signature backend sources: `third/monocypher/src/monocypher.c` and `third/monocypher/src/optional/monocypher-ed25519.c`.
+For kernel freestanding compatibility, Monocypher Argon2 is disabled in x86-32 builds.
+Monocypher is copyright (c) 2017-2019 Loup Vaillant.
 
 ### utf8-hoehrmann
 Used for UTF-8 decoding in layout parsing. Sources in third/utf8-hoehrmann (MIT license, see headers).
@@ -97,14 +117,16 @@ It was a year-long solo project, developed the hard way:
 
 ## Metrics (cloc)
 
+Lines of code this project, excluding third party software.
+
 ```
 -------------------------------------------------------------------------------
 Language                     files          blank        comment           code
 -------------------------------------------------------------------------------
-C                              227          23531          24642          79491
-C/C++ Header                   183           4903           5819          12152
+C                              219          23339          24518          78651
+C/C++ Header                   164           4649           5078          11677
 Assembly                        20           1861           1214           5750
 -------------------------------------------------------------------------------
-SUM:                           430          30295          31675          97393
+SUM:                           403          29849          30810          96078
 -------------------------------------------------------------------------------
 ```

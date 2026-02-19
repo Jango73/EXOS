@@ -358,13 +358,15 @@ static BOOL ResolvePath(LPCSTR Path, LPSYSTEMFSFILE *Node, STR Remaining[MAX_PAT
  * @param Mounted File object returned by the mounted filesystem.
  * @return Wrapped SYSFSFILE, or NULL on failure.
  */
-static LPSYSFSFILE WrapMountedFile(LPSYSTEMFSFILE Parent, LPFILE Mounted) {
+static LPSYSFSFILE WrapMountedFile(LPSYSTEMFSFILE Parent, LPFILE Mounted, U32 OpenFlags) {
     LPSYSFSFILE File;
 
     if (Mounted == NULL) return NULL;
 
     File = (LPSYSFSFILE)KernelHeapAlloc(sizeof(SYSFSFILE));
     if (File == NULL) return NULL;
+
+    Mounted->OpenFlags = OpenFlags;
 
     *File = (SYSFSFILE){0};
     File->Header.TypeID = KOID_FILE;
@@ -805,7 +807,7 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
                 Local.Name,
                 Wildcard ? 1 : 0);
         }
-        return WrapMountedFile(Node, Mounted);
+        return WrapMountedFile(Node, Mounted, Find->Flags);
     }
 
     if (Wildcard) {
@@ -829,7 +831,7 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
                     Path,
                     Local.Name);
             }
-            return WrapMountedFile(Node, Mounted);
+            return WrapMountedFile(Node, Mounted, Find->Flags);
         } else {
             LPSYSTEMFSFILE Child = (Node->Children) ? (LPSYSTEMFSFILE)Node->Children->First : NULL;
             if (Child == NULL) return NULL;
@@ -866,7 +868,7 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
                 Path,
                 Local.Name[0] != STR_NULL ? Local.Name : TEXT("<empty>"));
         }
-        return WrapMountedFile(Node, Mounted);
+        return WrapMountedFile(Node, Mounted, Find->Flags);
     }
 
     {

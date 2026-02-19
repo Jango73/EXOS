@@ -55,6 +55,8 @@ void TestBcrypt(TEST_RESULTS* Results);
 void TestE1000(TEST_RESULTS* Results);
 void TestIPv4(TEST_RESULTS* Results);
 void TestMacros(TEST_RESULTS* Results);
+void TestPackageManifest(TEST_RESULTS* Results);
+void TestFileWriteAllOrFail(TEST_RESULTS* Results);
 void TestTCP(TEST_RESULTS* Results);
 void TestScript(TEST_RESULTS* Results);
 

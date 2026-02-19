@@ -32,6 +32,8 @@
 - [Storage and Filesystems](#storage-and-filesystems)
   - [File systems](#file-systems)
     - [Mounted volume naming](#mounted-volume-naming)
+    - [EPK package format](#epk-package-format)
+    - [Package namespace integration](#package-namespace-integration)
   - [EXOS File System - EXFS](#exos-file-system---exfs)
   - [Filesystem Cluster cache](#filesystem-cluster-cache)
   - [Foreign File systems](#foreign-file-systems)
@@ -42,6 +44,7 @@
   - [Logging](#logging)
   - [Automated debug validation script](#automated-debug-validation-script)
   - [Build output layout](#build-output-layout)
+  - [Package tooling](#package-tooling)
   - [Keyboard Layout Format (EKM1)](#keyboard-layout-format-ekm1)
   - [QEMU network graph](#qemu-network-graph)
   - [Links](#links)
@@ -314,6 +317,14 @@ Both the x86-32 and x86-64 context-switch helpers (`SetupStackForKernelMode` and
 
 The minimum sizes for task and system stacks are driven by the configuration keys `Task.MinimumTaskStackSize` and `Task.MinimumSystemStackSize` in `kernel/configuration/exos.ref.toml`. At boot the task manager reads those values, but it clamps them to the architecture defaults (`64 KiB`/`16 KiB` on x86-32 and `128 KiB`/`32 KiB` on x86-64) to prevent under-provisioned stacks. Increasing the values in the configuration grows every newly created task and keeps the auto stack growing logic operating on the larger baseline.
 
+Stack growth also enforces compile-time caps defined in `kernel/include/Stack.h` (`STACK_MAXIMUM_TASK_STACK_SIZE`, `STACK_MAXIMUM_SYSTEM_STACK_SIZE`). The kernel does not rely on runtime configuration for these hard limits.
+
+When an in-place resize fails (for example because the next virtual range is occupied), `GrowCurrentStack` relocates the active stack to a new region, switches the live stack pointer to the new top, updates the task stack descriptor, then releases the old region. This keeps kernel stack growth functional even when neighboring mappings block contiguous expansion.
+
+On x86-64, task setup allocates IST1 with an explicit guard gap above the system stack, so emergency fault stack placement does not sit immediately adjacent to the regular system stack.
+
+The stack autotest module (`TestCopyStack`) is registered for on-demand execution only. It is excluded from the boot-time `RunAllTests` path and can be triggered manually from the shell with `autotest stack`.
+
 #### IRQ scheduling
 
 ##### IRQ 0 path
@@ -570,7 +581,7 @@ Interactive editing of shell command lines is implemented in `kernel/source/util
 
 Keyboard input keeps two distinct paths for compatibility. The legacy PS/2 pipeline continues to use scan code -> KEYTRANS tables, while a separate HID path uses usage page 0x07 indexed KEY_LAYOUT_HID layouts. The HID layout file format is UTF-8 text with an "EKM1" header and directives: code, levels, map, dead, and compose. The kernel keeps an embedded en-US fallback (KEY_LAYOUT_FALLBACK_CODE) used when HID layout loading fails. The HID layout loader parses EKM1 files with a tolerant UTF-8 decoder, logs replacement counts, and rejects malformed directives or out-of-range entries. USB HID keyboard support lives in `kernel/source/drivers/Keyboard-USB.c` and feeds boot protocol reports into the same HID usage pipeline as PS/2. Keyboard initialization is mediated by a selector driver (`kernel/source/drivers/Keyboard-Selector.c`) that probes for a USB HID keyboard after PCI/xHCI enumeration and otherwise falls back to PS/2 detection, ensuring only one keyboard driver is active at a time.
 
-All reusable helpers -such as the command line editor, adaptive delay, string containers, CRC utilities, notifications, path helpers, TOML parsing, UUID support, regex, hysteresis control, cooldown timing, rate limiting, and network checksum helpers— live under `kernel/source/utils` with their public headers in `kernel/include/utils`. This keeps generic infrastructure separated from core subsystems and makes it easier to share common code across the kernel.
+All reusable helpers -such as the command line editor, adaptive delay, string containers, CRC/SHA-256 utilities, compression utilities, chunk cache utilities, detached signature utilities, notifications, path helpers, TOML parsing, UUID support, regex, hysteresis control, cooldown timing, rate limiting, and network checksum helpers— live under `kernel/source/utils` with their public headers in `kernel/include/utils`. SHA-256 is exposed through `utils/Crypt` and bridged to the vendored BearSSL hash implementation under `third/bearssl`. Compression is exposed through `utils/Compression` and bridged to the vendored miniz backend under `third/miniz`. Detached signature verification is exposed through `utils/Signature` with a backend-swappable API surface, and Ed25519 verification is wired to vendored Monocypher sources under `third/monocypher`. This keeps generic infrastructure separated from core subsystems and makes it easier to share common code across the kernel.
 
 
 ### Exposed objects in shell
@@ -814,6 +825,7 @@ Each `FILESYSTEM` object carries runtime fields (`Driver`, `StorageUnit`, `Mount
 Logical kernel path keys are consumed through `utils/KernelPath`:
 - `KernelPath.UsersDatabase`: absolute VFS file path used by user account persistence.
 - `KernelPath.KeyboardLayouts`: absolute VFS folder path used to load keyboard layout files (`<layout>.ekm1`).
+- `KernelPath.SystemAppsRoot`: absolute VFS folder path used by shell package-name resolution (`package run <name>`).
 
 `MountDiskPartitions()` handles MBR and switches to GPT parsing when a protective MBR entry (`0xEE`) is detected. Supported formats are mounted through dedicated drivers (FAT16/FAT32/NTFS/EXFS/EXT2 path); partition metadata is written with `SetFileSystemPartitionInfo()`. Non-mounted partitions are still materialized through `RegisterUnusedFileSystem()` so diagnostics and shell tooling can inspect them.
 
@@ -845,6 +857,125 @@ Examples:
 - `/fs/u0p0`
 - `/fs/f0p0`
 - `/fs/r0p0`
+
+#### EPK package format
+
+The EPK package binary layout is frozen for parser/tooling integration in:
+- `documentation/EPKBinaryFormat.md`
+- `kernel/include/package/EpkFormat.h`
+- `kernel/include/package/EpkParser.h`
+- `kernel/source/package/EpkParser.c`
+
+The format is a strict on-disk contract:
+- fixed 128-byte header (`EPK_HEADER`) with explicit section offsets/sizes and package hash,
+- TOC section (`EPK_TOC_HEADER` + `EPK_TOC_ENTRY` records + variable UTF-8 path blobs),
+- block table section (`EPK_BLOCK_ENTRY` records for compressed chunks),
+- dedicated manifest blob (`manifest.toml`) and optional detached signature blob.
+
+Compatibility is fail-closed by contract:
+- unknown flags or unsupported version are rejected,
+- reserved fields must stay zero,
+- malformed section bounds/order are rejected with deterministic validation status codes.
+
+Step-3 parser/validator behavior:
+- validates header layout and section bounds/order before deeper parsing,
+- parses TOC entries and block table into kernel-side parsed descriptors,
+- validates package hash (`SHA-256`) over package bytes excluding signature region,
+- optionally validates detached signature blob through `utils/Signature`,
+- returns stable validation status codes and logs explicit parse failures with function-tagged error messages.
+
+#### PackageFS readonly mount
+
+Step-4 introduces a dedicated PackageFS module:
+- `kernel/include/package/PackageFS.h`
+- `kernel/source/package/PackageFS.c`
+- `kernel/source/package/PackageFS-Tree.c`
+- `kernel/source/package/PackageFS-File.c`
+- `kernel/source/package/PackageFS-Mount.c`
+
+PackageFS mounts one validated `.epk` archive as a virtual read-only filesystem:
+- mount entry point: `PackageFSMountFromBuffer(...)`,
+- unmount entry point: `PackageFSUnmount(...)`,
+- TOC tree materialization for files, folders, and folder aliases,
+- wildcard folder enumeration through `DF_FS_OPENFILE` + `DF_FS_OPENNEXT`,
+- write-class operations (`create`, `delete`, `rename`, `write`, `set volume info`) rejected with `DF_RETURN_NO_PERMISSION`,
+- unmount refused when open handles still reference the mounted package,
+- block-backed file reads mapped to table ranges with on-demand per-chunk decompression,
+- per-chunk SHA-256 validation against block table hashes before serving data,
+- bounded decompressed chunk caching through `utils/ChunkCache`, with cleanup-based eviction and full invalidation during unmount.
+
+#### Package namespace integration
+
+Step-6 namespace integration is implemented by:
+- `kernel/include/package/PackageNamespace.h`
+- `kernel/source/package/PackageNamespace.c`
+
+Package integration targets per-process launch behavior:
+- packaged application receives a private `/package` mount,
+- packaged application receives `/user-data` alias to `/users/<current-user>/<package-name>/data`,
+- no global application package mount graph is required for launch.
+
+Process-view hooks:
+- `PackageNamespaceBindCurrentProcessPackageView(...)` mounts one package view at `/package`.
+- the same helper maps `/user-data` to `/users/<current-user>/<package-name>/data` on the active filesystem.
+- package namespace roots and aliases are resolved through `utils/KernelPath` keys:
+  - `KernelPath.UsersRoot`
+  - `KernelPath.CurrentUserAlias`
+  - `KernelPath.PrivatePackageAlias`
+  - `KernelPath.PrivateUserDataAlias`
+
+#### Package manifest compatibility checks
+
+Step-7 manifest resolution is implemented by:
+- `kernel/include/package/PackageManifest.h`
+- `kernel/source/package/PackageManifest.c`
+
+Launch validation flow includes:
+- parse and validate embedded `manifest.toml` (identity + compatibility fields),
+- enforce architecture and kernel compatibility policy before mount activation,
+- reject incompatible packages with deterministic diagnostics.
+
+Manifest model is strict and dependency-free:
+- required keys: `name`, `version`, `arch`, `kernel_api`, `entry`,
+- optional table: `[commands]` (`command-name -> package-relative executable path`),
+- accepted architecture values: `x86-32`, `x86-64`,
+- `kernel_api` compatibility policy: `required.major == kernel.major` and `required.minor <= kernel.minor`,
+- `provides` and `requires` keys are rejected.
+
+No dependency solver behavior is part of this model:
+- no provider graph,
+- no transitive dependency resolution,
+- no global package activation transaction state for application launches.
+
+Launch target rules:
+- `entry` is the default launch target for the package.
+- `commands.<name>` exposes additional named launch targets for multi-binary packages.
+- command-name collisions do not use implicit priority; ambiguous matches fail with explicit diagnostics.
+
+Command resolution without package name is deterministic:
+1. path token (contains `/`) runs as direct path,
+2. user alias namespace (`/users/<user>/commands/<name>`),
+3. system alias namespace (`/system/commands/<name>`),
+4. package command index (`commands.<name>` across known packages),
+5. on multiple package matches, launch is rejected as ambiguous.
+
+#### Package launch flow
+
+Step-8 launch activation is wired in shell launch path (`SpawnExecutable`):
+- when target extension is `.epk`, shell reads package bytes from disk,
+- package manifest is parsed and compatibility-checked before activation,
+- package is mounted through `PackageFSMountFromBuffer(...)`,
+- package aliases are bound through `PackageNamespaceBindCurrentProcessPackageView(...)`,
+- manifest `entry` is executed from `/package/...`,
+- launch failures trigger explicit unbind/unmount cleanup with no partial mounted leftovers,
+- background launches keep mounted package filesystem attached to process state and release it during process teardown.
+
+Shell package command:
+- `package run <package-name> [command-name] [args...]` resolves package file from `KernelPath.SystemAppsRoot`,
+- if `command-name` matches `manifest.commands.<name>`, that target is launched,
+- otherwise launch falls back to `manifest.entry` and keeps the token as the first application argument.
+- `package list <package-name|path.epk>` validates/mounts one package and lists manifest metadata plus package tree content.
+- `package add <package-name|path.epk>` validates source package and copies it to `KernelPath.SystemAppsRoot` under `<manifest.name>.epk`.
 
 #### Runtime access paths
 
@@ -1667,6 +1798,16 @@ Path mapping (migration reference):
 | `build/x86-64/boot-uefi/exos-uefi.img` | `build/image/x86-64-uefi-debug-ext2/boot-uefi/exos-uefi.img` |
 | `build/x86-32/tools/cycle` | `build/core/x86-32-mbr-debug/tools/cycle` |
 | `build/x86-64/tools/cycle` | `build/core/x86-64-mbr-debug/tools/cycle` |
+
+
+### Package tooling
+
+Host-side EPK package generation is implemented in `tools/source/package/epk_pack.c`.
+The binary is built by `tools/Makefile` and produced as:
+- `build/core/<build-core-name>/tools/epk-pack`
+
+Command form:
+- `build/core/<build-core-name>/tools/epk-pack pack --input <folder> --output <file.epk>`
 
 
 ### Keyboard Layout Format (EKM1)

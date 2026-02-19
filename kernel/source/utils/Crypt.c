@@ -26,6 +26,7 @@
 
 #include "CoreString.h"
 #include "System.h"
+#include "bearssl_hash.h"
 
 /***************************************************************************/
 
@@ -102,4 +103,22 @@ U32 CRC32(const void *Data, U32 Length) {
     CRC32Begin(&ctx);
     CRC32Update(&ctx, Data, Length);
     return CRC32Final(&ctx);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Compute a SHA-256 hash in a single call.
+ * @param Data Pointer to data block.
+ * @param Length Number of bytes to process.
+ * @param Output Output digest buffer (32 bytes).
+ */
+void SHA256(const void *Data, U32 Length, U8 Output[SHA256_SIZE]) {
+    br_sha256_context Context;
+
+    if (Output == NULL) return;
+
+    br_sha256_init(&Context);
+    br_sha256_update(&Context, Data, (size_t)Length);
+    br_sha256_out(&Context, Output);
 }

@@ -13,6 +13,7 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 - DON'T act like a human being with emotions, just be a machine.
 - DON'T says "Great!", "Perfect!", "You're right" all the time.
 - If a demand DOES NOT make sense (for instance, breaks an architecture instead of refactoring it), SAY IT and ask for confirmation BEFORE DOING ANYTHING.
+- NEVER create a commit unless the user explicitly asks for it in the current conversation.
 
 ## Architecture and Reuse Rules
 - Never implement one-off local mechanisms when a cross-kernel pattern is involved.
@@ -37,6 +38,7 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 - **Number suffixes**: Do not add numeric suffixes like `u` to constants; they are not wanted here.
 - **Documentation**: Update `documentation/Kernel.md` when adding/modifying kernel components.
 - **Documentation wording**: Use timeless technical wording. Do not use temporal terms like "now", "currently", "at this time" in documentation/comments.
+- **Kernel logical paths**: For kernel file/folder logical paths, use `utils/KernelPath` (`KernelPathResolve` / `KernelPathBuildFile`) and `KernelPath.*` config keys instead of hardcoded absolute paths.
 - **Languages**: C for kernel, avoid Python (use Node.js/JS if needed).
 - **Libraries**: NO stdlib/stdio in kernel - custom implementations only.
 - **Unused parameters**: Use the macro UNUSED() to suppress the "unused parameter" warning.
@@ -48,6 +50,7 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 - **Clean code**: No duplicate code. Create intermediate functions to avoid it. This also applies to data: create intermediate structures to avoid duplicating data.
 - **No globals**: Before adding a global variable, **ALWAYS ASK** if permitted.
 - **Functions**: Add a doxygen header to functions and separate all functions with a 75 character line such as : /************************************************************************/
+- **File size**: Keep source files under 1000 lines; split by responsibility before crossing this limit.
 - **Early boot timing**: `GetSystemTime` does not work in early boot until `EnableInterrupts` has been executed (timer ticks do not advance). For polling timeouts in early boot paths, always use `HasOperationTimedOut()` (Clock) so code keeps a loop-limit fallback and does not rely on time progression alone.
 - **Kernel log tag filter**: `KernelLogTagFilter` is defined in `kernel/source/Log.c` and controlled through `KernelLogSetTagFilter()` / `KernelLogGetTagFilter()` (`kernel/include/Log.h`). Use it first when narrowing boot diagnostics instead of editing/removing log calls.
 - **EXOS != Unix/Linux/Windows/Whatever** :

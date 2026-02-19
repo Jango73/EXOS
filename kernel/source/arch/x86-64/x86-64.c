@@ -40,6 +40,7 @@
 
 #define INTERRUPTS_VER_MAJOR 1
 #define INTERRUPTS_VER_MINOR 0
+#define X86_64_SYSTEM_STACK_GUARD_GAP N_64KB
 
 static UINT InterruptsDriverCommands(UINT Function, UINT Parameter);
 
@@ -387,8 +388,18 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     }
     Task->Arch.SystemStack.Base =
         AllocKernelRegion(0, Task->Arch.SystemStack.Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("SystemStack"));
-    Task->Arch.Ist1Stack.Base =
-        AllocKernelRegion(0, Task->Arch.Ist1Stack.Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("Ist1Stack"));
+    if (Task->Arch.SystemStack.Base != 0) {
+        LINEAR MinimumIst1Base =
+            Task->Arch.SystemStack.Base + (LINEAR)Task->Arch.SystemStack.Size + X86_64_SYSTEM_STACK_GUARD_GAP;
+        Task->Arch.Ist1Stack.Base = AllocRegion(
+            MinimumIst1Base,
+            0,
+            Task->Arch.Ist1Stack.Size,
+            ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER,
+            TEXT("Ist1Stack"));
+    } else {
+        Task->Arch.Ist1Stack.Base = 0;
+    }
 
     DEBUG(TEXT("[SetupTask] BaseVMA=%p, Requested StackBase at BaseVMA"), BaseVMA);
     DEBUG(TEXT("[SetupTask] Actually got StackBase=%p"), Task->Arch.Stack.Base);

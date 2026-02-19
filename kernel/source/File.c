@@ -394,6 +394,13 @@ UINT WriteFile(LPFILEOPERATION Operation) {
 
             if (Result == DF_RETURN_SUCCESS) {
                 BytesWritten = File->BytesTransferred;
+                if (BytesWritten != Operation->NumBytes) {
+                    ERROR(TEXT("[WriteFile] Short write rejected path=%s requested=%u written=%u"),
+                        File->Name,
+                        Operation->NumBytes,
+                        BytesWritten);
+                    BytesWritten = 0;
+                }
             }
 
             UnlockMutex(&(File->Mutex));
@@ -530,6 +537,13 @@ UINT FileWriteAll(LPCSTR Name, LPCVOID Buffer, UINT Size) {
         FileOp.Buffer = (LPVOID)Buffer;
         FileOp.NumBytes = Size;
         BytesWritten = WriteFile(&FileOp);
+        if (BytesWritten != Size) {
+            WARNING(TEXT("[FileWriteAll] Write failed name=%s requested=%u written=%u"),
+                Name,
+                Size,
+                BytesWritten);
+            BytesWritten = 0;
+        }
 
         CloseFile(File);
 

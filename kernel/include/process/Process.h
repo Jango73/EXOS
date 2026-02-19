@@ -51,6 +51,7 @@ typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 typedef struct tag_MESSAGE MESSAGE, *LPMESSAGE;
 typedef struct tag_WINDOW WINDOW, *LPWINDOW;
 typedef struct tag_DESKTOP DESKTOP, *LPDESKTOP;
+typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
 struct tag_MEMORY_REGION_DESCRIPTOR;
 
 /************************************************************************\
@@ -83,6 +84,7 @@ struct tag_PROCESS {
     MESSAGEQUEUE MessageQueue;      // Process-level message queue (input, etc.)
     U64 UserID;                     // Owner user
     LPUSERSESSION Session;          // User session
+    LPFILESYSTEM PackageFileSystem; // Mounted package filesystem tied to this process
 
     struct tag_MEMORY_REGION_DESCRIPTOR* RegionListHead;
     struct tag_MEMORY_REGION_DESCRIPTOR* RegionListTail;

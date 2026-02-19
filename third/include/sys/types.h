@@ -24,6 +24,8 @@ typedef unsigned long size_t;
     #error "Unsupported compiler for string.h"
 #endif
 
+#ifndef NULL
 #define NULL ((void*)0)
+#endif
 
 #endif	// sys_types_h

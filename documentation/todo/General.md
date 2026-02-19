@@ -36,7 +36,9 @@
 
 ## Scripting
 
-- Use + for string concat
+## Console
+
+- Add a cursor in kernel managed console
 
 ## Shared modules
 
@@ -77,6 +79,21 @@
 
 - Implement ext3 and ext4
 - Load exos.bin from the EXT2 system partition instead of the ESP in UEFI
+
+## File API split (major refactor)
+
+- Introduce an explicit API split between file and folder opening:
+  - `DF_FS_OPENFILE` for regular file handles only
+  - `DF_FS_OPENFOLDER` for folder handles and folder enumeration only
+- Keep one shared internal resolution/validation core per driver to avoid code duplication.
+- Use thin command-specific entry points on top of the shared core:
+  - `DF_FS_OPENFILE` path enforces "regular file only"
+  - `DF_FS_OPENFOLDER` path enforces "folder only"
+- Reject misuse explicitly:
+  - opening a folder through `DF_FS_OPENFILE` must fail
+  - opening a file through `DF_FS_OPENFOLDER` must fail
+- Update common kernel file routing and shell tooling to call the right command based on intent.
+- Add regression tests per driver to validate behavior parity after the split.
 
 ## Drivers
 

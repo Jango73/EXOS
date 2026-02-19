@@ -384,6 +384,174 @@ UINT GetCurrentStackFreeBytes(void) {
 /************************************************************************/
 
 /**
+ * @brief Resolve maximum allowed size for one stack descriptor.
+ * @param Task Owner task.
+ * @param ActiveStack Stack descriptor to inspect.
+ * @return Maximum size in bytes for this stack descriptor.
+ */
+static UINT StackGetMaximumSize(LPTASK Task, LPSTACK ActiveStack) {
+    if (Task == NULL || ActiveStack == NULL) {
+        return STACK_MAXIMUM_SYSTEM_STACK_SIZE;
+    }
+
+    if (ActiveStack == &(Task->Arch.Stack)) {
+        return STACK_MAXIMUM_TASK_STACK_SIZE;
+    }
+
+    return STACK_MAXIMUM_SYSTEM_STACK_SIZE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Compute copy size used when switching stack storage.
+ * @param OldSize Current stack size.
+ * @param UsedBytes Bytes currently used.
+ * @return Copy span in bytes.
+ */
+static UINT StackComputeCopySize(UINT OldSize, UINT UsedBytes) {
+    UINT CopySize = UsedBytes;
+
+    if (CopySize < STACK_SAFETY_MARGIN) {
+        CopySize = STACK_SAFETY_MARGIN;
+        if (CopySize > OldSize) {
+            CopySize = OldSize;
+        }
+    }
+
+    if (CopySize == 0) {
+        CopySize = OldSize;
+    }
+
+    return CopySize;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Compute live copy size from the current stack pointer.
+ * @param Base Stack base.
+ * @param OldTop Current top before growth.
+ * @param OldSize Current stack size.
+ * @return Copy span in bytes.
+ */
+static UINT StackComputeLiveCopySize(LINEAR Base, LINEAR OldTop, UINT OldSize) {
+    LINEAR CurrentSP;
+    UINT UsedBytes;
+    UINT CopySize;
+    const UINT CallHeadroom = N_4KB;
+
+    GetESP(CurrentSP);
+
+    if (CurrentSP < Base || CurrentSP > OldTop) {
+        WARNING(TEXT("[StackComputeLiveCopySize] SP %p outside stack range [%p-%p], copying full stack"),
+                CurrentSP,
+                Base,
+                OldTop);
+        return OldSize;
+    }
+
+    UsedBytes = (UINT)(OldTop - CurrentSP);
+
+    if (UsedBytes < OldSize) {
+        UINT ExpandedUsed = UsedBytes + CallHeadroom;
+        if (ExpandedUsed < UsedBytes || ExpandedUsed > OldSize) {
+            UsedBytes = OldSize;
+        } else {
+            UsedBytes = ExpandedUsed;
+        }
+    }
+
+    CopySize = StackComputeCopySize(OldSize, UsedBytes);
+    return CopySize;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Update task saved registers after stack relocation/growth.
+ * @param Task Current task.
+ * @param ActiveStack Stack descriptor that moved.
+ * @param OldTop Previous stack top.
+ * @param NewTop New stack top.
+ */
+static void StackUpdateTaskContextAfterMove(LPTASK Task, LPSTACK ActiveStack, LINEAR OldTop, LINEAR NewTop) {
+    LINEAR Delta = NewTop - OldTop;
+
+#if defined(__EXOS_ARCH_X86_32__)
+    if (ActiveStack == &(Task->Arch.Stack)) {
+        Task->Arch.Context.Registers.ESP += (UINT)Delta;
+        Task->Arch.Context.Registers.EBP += (UINT)Delta;
+    } else if (ActiveStack == &(Task->Arch.SystemStack)) {
+        Task->Arch.Context.ESP0 = (U32)(NewTop - STACK_SAFETY_MARGIN);
+    }
+#else
+    if (ActiveStack == &(Task->Arch.Stack)) {
+        Task->Arch.Context.Registers.RSP += (U64)Delta;
+        Task->Arch.Context.Registers.RBP += (U64)Delta;
+    } else if (ActiveStack == &(Task->Arch.SystemStack)) {
+        Task->Arch.Context.RSP0 = (U64)(NewTop - STACK_SAFETY_MARGIN);
+    }
+#endif
+}
+
+/************************************************************************/
+
+/**
+ * @brief Relocate one stack into a new region when in-place resize fails.
+ * @param ActiveStack Stack descriptor to relocate.
+ * @param DesiredSize Target stack size.
+ * @param CopySize Number of bytes to preserve from the old top.
+ * @param Flags Allocation flags.
+ * @return TRUE on success, FALSE on failure.
+ */
+static BOOL StackRelocateAndGrow(LPSTACK ActiveStack, UINT DesiredSize, U32 Flags) {
+    LINEAR OldBase;
+    LINEAR OldTop;
+    UINT OldSize;
+    LINEAR NewBase;
+    LINEAR NewTop;
+    UINT CopySize;
+
+    if (ActiveStack == NULL || ActiveStack->Base == 0 || ActiveStack->Size == 0) {
+        return FALSE;
+    }
+
+    OldBase = ActiveStack->Base;
+    OldSize = ActiveStack->Size;
+    OldTop = OldBase + (LINEAR)OldSize;
+
+    NewBase = AllocRegion(OldBase + PAGE_SIZE, 0, DesiredSize, Flags | ALLOC_PAGES_AT_OR_OVER, TEXT("StackGrowRelocate"));
+    if (NewBase == 0) {
+        ERROR(TEXT("[StackRelocateAndGrow] AllocRegion failed oldBase=%p oldSize=%u newSize=%u"),
+              OldBase,
+              OldSize,
+              DesiredSize);
+        return FALSE;
+    }
+
+    NewTop = NewBase + (LINEAR)DesiredSize;
+    CopySize = StackComputeLiveCopySize(OldBase, OldTop, OldSize);
+
+    if (SwitchStack(NewTop, OldTop, CopySize) == FALSE) {
+        ERROR(TEXT("[StackRelocateAndGrow] SwitchStack failed oldTop=%p newTop=%p size=%u"), OldTop, NewTop, CopySize);
+        FreeRegion(NewBase, DesiredSize);
+        return FALSE;
+    }
+
+    ActiveStack->Base = NewBase;
+    ActiveStack->Size = DesiredSize;
+
+    if (FreeRegion(OldBase, OldSize) == FALSE) {
+        WARNING(TEXT("[StackRelocateAndGrow] FreeRegion failed for old stack base=%p size=%u"), OldBase, OldSize);
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Expand the active stack by allocating additional space and migrating.
  * @param AdditionalBytes Requested growth amount (rounded and clamped).
  * @return TRUE on successful expansion, FALSE otherwise.
@@ -427,6 +595,9 @@ BOOL GrowCurrentStack(UINT AdditionalBytes) {
 
             UINT UsedBytes = (UINT)(OldTop - CurrentSP);
             UINT DesiredAdditional = AdditionalBytes;
+            UINT MaximumSize;
+            U32 Flags = ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER;
+            LINEAR NewTop;
 
             if (DesiredAdditional < STACK_GROW_MIN_INCREMENT) {
                 DesiredAdditional = STACK_GROW_MIN_INCREMENT;
@@ -440,7 +611,18 @@ BOOL GrowCurrentStack(UINT AdditionalBytes) {
                 DesiredSize = (UINT)PAGE_ALIGN(DesiredSize);
             }
 
-            U32 Flags = ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER;
+            MaximumSize = StackGetMaximumSize(CurrentTask, ActiveStack);
+            if (DesiredSize > MaximumSize) {
+                if (OldSize >= MaximumSize) {
+                    ERROR(TEXT("[GrowCurrentStack] Maximum stack size reached base=%p size=%u max=%u"),
+                          Base,
+                          OldSize,
+                          MaximumSize);
+                    break;
+                }
+
+                DesiredSize = (UINT)PAGE_ALIGN(MaximumSize);
+            }
 
             DEBUG(TEXT("[GrowCurrentStack] Base=%p Size=%u SP=%p Used=%u NewSize=%u"),
                 Base,
@@ -450,59 +632,42 @@ BOOL GrowCurrentStack(UINT AdditionalBytes) {
                 DesiredSize);
 
             if (ResizeRegion(Base, 0, OldSize, DesiredSize, Flags) == FALSE) {
-                ERROR(TEXT("[GrowCurrentStack] ResizeRegion failed for base=%p size=%u -> %u"), Base, OldSize, DesiredSize);
-                break;
-            }
+                WARNING(TEXT("[GrowCurrentStack] ResizeRegion failed for base=%p size=%u -> %u, trying relocation"),
+                        Base,
+                        OldSize,
+                        DesiredSize);
 
-            LINEAR NewTop = Base + (LINEAR)DesiredSize;
-            UINT CopySize = UsedBytes;
-
-            if (CopySize < STACK_SAFETY_MARGIN) {
-                CopySize = STACK_SAFETY_MARGIN;
-                if (CopySize > OldSize) {
-                    CopySize = OldSize;
-                }
-            }
-
-            if (CopySize == 0) {
-                CopySize = OldSize;
-            }
-
-            if (SwitchStack(NewTop, OldTop, CopySize) == FALSE) {
-                ERROR(TEXT("[GrowCurrentStack] SwitchStack failed (DestTop=%p SourceTop=%p Size=%u)"), NewTop, OldTop, CopySize);
-
-                if (ResizeRegion(Base, 0, DesiredSize, OldSize, Flags) == FALSE) {
-                    ERROR(TEXT("[GrowCurrentStack] Failed to roll back stack resize for base=%p"), Base);
+                if (StackRelocateAndGrow(ActiveStack, DesiredSize, Flags) == FALSE) {
+                    ERROR(TEXT("[GrowCurrentStack] Relocation failed for base=%p size=%u -> %u"), Base, OldSize, DesiredSize);
+                    break;
                 }
 
-                break;
-            }
+                NewTop = ActiveStack->Base + (LINEAR)ActiveStack->Size;
+            } else {
+                UINT CopySize = StackComputeLiveCopySize(Base, OldTop, OldSize);
+                NewTop = Base + (LINEAR)DesiredSize;
 
-            ActiveStack->Size = DesiredSize;
+                if (SwitchStack(NewTop, OldTop, CopySize) == FALSE) {
+                    ERROR(TEXT("[GrowCurrentStack] SwitchStack failed (DestTop=%p SourceTop=%p Size=%u)"),
+                          NewTop,
+                          OldTop,
+                          CopySize);
+
+                    if (ResizeRegion(Base, 0, DesiredSize, OldSize, Flags) == FALSE) {
+                        ERROR(TEXT("[GrowCurrentStack] Failed to roll back stack resize for base=%p"), Base);
+                    }
+
+                    break;
+                }
+
+                ActiveStack->Size = DesiredSize;
+            }
 
             LINEAR UpdatedSP;
             GetESP(UpdatedSP);
-            UINT RemainingBytes = (UINT)(UpdatedSP - Base);
+            UINT RemainingBytes = (UINT)(UpdatedSP - ActiveStack->Base);
 
-#if defined(__EXOS_ARCH_X86_32__)
-            if (ActiveStack == &(CurrentTask->Arch.Stack)) {
-                LINEAR Delta = NewTop - OldTop;
-                CurrentTask->Arch.Context.Registers.ESP += (UINT)Delta;
-                CurrentTask->Arch.Context.Registers.EBP += (UINT)Delta;
-            } else if (ActiveStack == &(CurrentTask->Arch.SystemStack)) {
-                LINEAR SysTop = ActiveStack->Base + (LINEAR)ActiveStack->Size;
-                CurrentTask->Arch.Context.ESP0 = (U32)(SysTop - STACK_SAFETY_MARGIN);
-            }
-#else
-            if (ActiveStack == &(CurrentTask->Arch.Stack)) {
-                LINEAR Delta = NewTop - OldTop;
-                CurrentTask->Arch.Context.Registers.RSP += (U64)Delta;
-                CurrentTask->Arch.Context.Registers.RBP += (U64)Delta;
-            } else if (ActiveStack == &(CurrentTask->Arch.SystemStack)) {
-                LINEAR SysTop = ActiveStack->Base + (LINEAR)ActiveStack->Size;
-                CurrentTask->Arch.Context.RSP0 = (U64)(SysTop - STACK_SAFETY_MARGIN);
-            }
-#endif
+            StackUpdateTaskContextAfterMove(CurrentTask, ActiveStack, OldTop, NewTop);
 
             DEBUG(TEXT("[GrowCurrentStack] Resize complete: Size=%u Remaining=%u SP=%p"),
                 ActiveStack->Size,
