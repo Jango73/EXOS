@@ -26,11 +26,14 @@
 
 #include "Mutex.h"
 #include "package/PackageFS.h"
+#include "utils/ChunkCache.h"
 
 /************************************************************************/
 
 #define PACKAGEFS_ALIAS_MAX_DEPTH 32
 #define PACKAGEFS_NODE_TYPE_ROOT 0
+#define PACKAGEFS_CHUNK_CACHE_CAPACITY 96
+#define PACKAGEFS_CHUNK_CACHE_TTL_MS 10000
 
 /************************************************************************/
 
@@ -39,6 +42,7 @@ typedef struct tag_PACKAGEFS_NODE PACKAGEFS_NODE, *LPPACKAGEFS_NODE;
 typedef struct tag_PACKAGEFSFILESYSTEM {
     FILESYSTEM Header;
     MUTEX FilesMutex;
+    CHUNK_CACHE ChunkCache;
     U8* PackageBytes;
     U32 PackageSize;
     EPK_VALIDATED_PACKAGE Package;

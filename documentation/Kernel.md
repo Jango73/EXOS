@@ -572,7 +572,7 @@ Interactive editing of shell command lines is implemented in `kernel/source/util
 
 Keyboard input keeps two distinct paths for compatibility. The legacy PS/2 pipeline continues to use scan code -> KEYTRANS tables, while a separate HID path uses usage page 0x07 indexed KEY_LAYOUT_HID layouts. The HID layout file format is UTF-8 text with an "EKM1" header and directives: code, levels, map, dead, and compose. The kernel keeps an embedded en-US fallback (KEY_LAYOUT_FALLBACK_CODE) used when HID layout loading fails. The HID layout loader parses EKM1 files with a tolerant UTF-8 decoder, logs replacement counts, and rejects malformed directives or out-of-range entries. USB HID keyboard support lives in `kernel/source/drivers/Keyboard-USB.c` and feeds boot protocol reports into the same HID usage pipeline as PS/2. Keyboard initialization is mediated by a selector driver (`kernel/source/drivers/Keyboard-Selector.c`) that probes for a USB HID keyboard after PCI/xHCI enumeration and otherwise falls back to PS/2 detection, ensuring only one keyboard driver is active at a time.
 
-All reusable helpers -such as the command line editor, adaptive delay, string containers, CRC/SHA-256 utilities, compression utilities, detached signature utilities, notifications, path helpers, TOML parsing, UUID support, regex, hysteresis control, cooldown timing, rate limiting, and network checksum helpers— live under `kernel/source/utils` with their public headers in `kernel/include/utils`. SHA-256 is exposed through `utils/Crypt` and bridged to the vendored BearSSL hash implementation under `third/bearssl`. Compression is exposed through `utils/Compression` and bridged to the vendored miniz backend under `third/miniz`. Detached signature verification is exposed through `utils/Signature` with a backend-swappable API surface, and Ed25519 verification is wired to vendored Monocypher sources under `third/monocypher`. This keeps generic infrastructure separated from core subsystems and makes it easier to share common code across the kernel.
+All reusable helpers -such as the command line editor, adaptive delay, string containers, CRC/SHA-256 utilities, compression utilities, chunk cache utilities, detached signature utilities, notifications, path helpers, TOML parsing, UUID support, regex, hysteresis control, cooldown timing, rate limiting, and network checksum helpers— live under `kernel/source/utils` with their public headers in `kernel/include/utils`. SHA-256 is exposed through `utils/Crypt` and bridged to the vendored BearSSL hash implementation under `third/bearssl`. Compression is exposed through `utils/Compression` and bridged to the vendored miniz backend under `third/miniz`. Detached signature verification is exposed through `utils/Signature` with a backend-swappable API surface, and Ed25519 verification is wired to vendored Monocypher sources under `third/monocypher`. This keeps generic infrastructure separated from core subsystems and makes it easier to share common code across the kernel.
 
 
 ### Exposed objects in shell
@@ -879,6 +879,9 @@ Step-3 parser/validator behavior:
 Step-4 introduces a dedicated PackageFS module:
 - `kernel/include/package/PackageFS.h`
 - `kernel/source/package/PackageFS.c`
+- `kernel/source/package/PackageFS-Tree.c`
+- `kernel/source/package/PackageFS-File.c`
+- `kernel/source/package/PackageFS-Mount.c`
 
 PackageFS mounts one validated `.epk` archive as a virtual read-only filesystem:
 - mount entry point: `PackageFSMountFromBuffer(...)`,
@@ -886,9 +889,10 @@ PackageFS mounts one validated `.epk` archive as a virtual read-only filesystem:
 - TOC tree materialization for files, folders, and folder aliases,
 - wildcard folder enumeration through `DF_FS_OPENFILE` + `DF_FS_OPENNEXT`,
 - write-class operations (`create`, `delete`, `rename`, `write`, `set volume info`) rejected with `DF_RETURN_NO_PERMISSION`,
-- unmount refused when open handles still reference the mounted package.
-
-Content streaming from compressed block table is intentionally deferred to Step 5; at this stage, metadata browsing and inline-data file reads are available, while block-backed file reads return `DF_RETURN_NOT_IMPLEMENTED`.
+- unmount refused when open handles still reference the mounted package,
+- block-backed file reads mapped to table ranges with on-demand per-chunk decompression,
+- per-chunk SHA-256 validation against block table hashes before serving data,
+- bounded decompressed chunk caching through `utils/ChunkCache`, with cleanup-based eviction and full invalidation during unmount.
 
 #### Runtime access paths
 

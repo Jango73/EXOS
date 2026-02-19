@@ -59,10 +59,10 @@
 
 **Goal**: stream file bytes from compressed blocks without extracting package content on disk.
 
-- [ ] Map file reads to block table ranges.
-- [ ] Decompress required chunks only, with bounds and hash validation.
-- [ ] Add reusable cache module for decompressed package chunks in `kernel/include/utils` + `kernel/source/utils`.
-- [ ] Integrate cache eviction and invalidation on unmount.
+- [x] Map file reads to block table ranges.
+- [x] Decompress required chunks only, with bounds and hash validation.
+- [x] Add reusable cache module for decompressed package chunks in `kernel/include/utils` + `kernel/source/utils`.
+- [x] Integrate cache eviction and invalidation on unmount.
 
 **Success**: executables and libraries load directly from mounted packages with no temporary files.
 

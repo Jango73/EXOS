@@ -85,9 +85,11 @@ U32 PackageFSMountFromBuffer(LPCVOID PackageBytes,
 
     InitMutex(&FileSystem->Header.Mutex);
     InitMutex(&FileSystem->FilesMutex);
+    ChunkCacheInit(&FileSystem->ChunkCache, PACKAGEFS_CHUNK_CACHE_CAPACITY, PACKAGEFS_CHUNK_CACHE_TTL_MS);
 
     FileSystem->PackageBytes = (U8*)KernelHeapAlloc(PackageSize);
     if (FileSystem->PackageBytes == NULL) {
+        ChunkCacheDeinit(&FileSystem->ChunkCache);
         ReleaseKernelObject(FileSystem);
         return DF_RETURN_NO_MEMORY;
     }
@@ -102,6 +104,7 @@ U32 PackageFSMountFromBuffer(LPCVOID PackageBytes,
     if (ValidationStatus != EPK_VALIDATION_OK) {
         ERROR(TEXT("[PackageFSMountFromBuffer] Package validation failed status=%u"), ValidationStatus);
         KernelHeapFree(FileSystem->PackageBytes);
+        ChunkCacheDeinit(&FileSystem->ChunkCache);
         ReleaseKernelObject(FileSystem);
         return DF_RETURN_BAD_PARAMETER;
     }
@@ -111,6 +114,7 @@ U32 PackageFSMountFromBuffer(LPCVOID PackageBytes,
         ERROR(TEXT("[PackageFSMountFromBuffer] Tree build failed status=%u"), Result);
         EpkReleaseValidatedPackage(&FileSystem->Package);
         KernelHeapFree(FileSystem->PackageBytes);
+        ChunkCacheDeinit(&FileSystem->ChunkCache);
         ReleaseKernelObject(FileSystem);
         return Result;
     }
@@ -170,6 +174,7 @@ BOOL PackageFSUnmount(LPFILESYSTEM FileSystem) {
 
     PackageFSReleaseNodeTree(This->Root);
     This->Root = NULL;
+    ChunkCacheDeinit(&This->ChunkCache);
 
     EpkReleaseValidatedPackage(&This->Package);
 

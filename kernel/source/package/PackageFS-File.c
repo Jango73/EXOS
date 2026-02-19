@@ -24,7 +24,11 @@
 #include "PackageFS-Internal.h"
 
 #include "CoreString.h"
+#include "Heap.h"
 #include "Kernel.h"
+#include "Log.h"
+#include "utils/Compression.h"
+#include "utils/Crypt.h"
 
 /************************************************************************/
 
@@ -318,6 +322,196 @@ U32 PackageFSCloseFile(LPPACKAGEFSFILE File) {
 /************************************************************************/
 
 /**
+ * @brief Read one PackageFS block into an uncompressed destination buffer.
+ * @param FileSystem PackageFS instance.
+ * @param BlockIndex Absolute block table index.
+ * @param Destination Destination buffer.
+ * @param DestinationSize Expected uncompressed block size.
+ * @return DF_RETURN_SUCCESS on success.
+ */
+static U32 PackageFSReadUncompressedBlock(LPPACKAGEFSFILESYSTEM FileSystem,
+                                          U32 BlockIndex,
+                                          LPVOID Destination,
+                                          U32 DestinationSize) {
+    const EPK_PARSED_BLOCK_ENTRY* Block;
+    U32 CompressedOffset;
+    U32 CompressedEnd;
+    const U8* Source;
+    U32 DecodedSize = 0;
+    U8 Digest[SHA256_SIZE];
+
+    if (FileSystem == NULL || Destination == NULL || DestinationSize == 0) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    if (BlockIndex >= FileSystem->Package.BlockCount) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    Block = &FileSystem->Package.BlockEntries[BlockIndex];
+    if (Block->UncompressedSize != DestinationSize || Block->CompressedSize == 0) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    CompressedOffset = U64_Low32(Block->CompressedOffset);
+    CompressedEnd = CompressedOffset + Block->CompressedSize;
+    if (CompressedEnd < CompressedOffset || CompressedEnd > FileSystem->PackageSize) {
+        ERROR(TEXT("[PackageFSReadUncompressedBlock] Invalid block bounds index=%u"), BlockIndex);
+        return DF_RETURN_GENERIC;
+    }
+
+    Source = FileSystem->Package.PackageBytes + CompressedOffset;
+
+    if (Block->CompressionMethod == EPK_COMPRESSION_METHOD_NONE) {
+        if (Block->CompressedSize != Block->UncompressedSize) {
+            ERROR(TEXT("[PackageFSReadUncompressedBlock] Raw block size mismatch index=%u"), BlockIndex);
+            return DF_RETURN_GENERIC;
+        }
+        MemoryCopy(Destination, Source, DestinationSize);
+    } else if (Block->CompressionMethod == EPK_COMPRESSION_METHOD_ZLIB) {
+        U32 InflateStatus =
+            CompressionInflate(Source,
+                              Block->CompressedSize,
+                              Destination,
+                              DestinationSize,
+                              &DecodedSize,
+                              COMPRESSION_FORMAT_ZLIB);
+
+        if (InflateStatus != COMPRESSION_STATUS_OK || DecodedSize != DestinationSize) {
+            ERROR(TEXT("[PackageFSReadUncompressedBlock] Inflate failed index=%u status=%u decoded=%u expected=%u"),
+                  BlockIndex,
+                  InflateStatus,
+                  DecodedSize,
+                  DestinationSize);
+            return DF_RETURN_GENERIC;
+        }
+    } else {
+        ERROR(TEXT("[PackageFSReadUncompressedBlock] Unsupported compression method=%u index=%u"),
+              Block->CompressionMethod,
+              BlockIndex);
+        return DF_RETURN_GENERIC;
+    }
+
+    SHA256(Destination, DestinationSize, Digest);
+    if (MemoryCompare(Digest, Block->ChunkHash, EPK_HASH_SIZE) != 0) {
+        ERROR(TEXT("[PackageFSReadUncompressedBlock] Block hash mismatch index=%u"), BlockIndex);
+        return DF_RETURN_GENERIC;
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read one file backed by block table chunks.
+ * @param File PackageFS file handle.
+ * @param FileSystem Owning PackageFS instance.
+ * @param Entry Parsed TOC entry for the file.
+ * @return DF_RETURN_SUCCESS when read succeeds.
+ */
+static U32 PackageFSReadBlockBackedFile(LPPACKAGEFSFILE File,
+                                        LPPACKAGEFSFILESYSTEM FileSystem,
+                                        const EPK_PARSED_TOC_ENTRY* Entry) {
+    U32 FileSize;
+    U32 Position;
+    U32 RemainingRequest;
+    U32 FileOffset;
+    U32 RelativeBlockIndex;
+    U8* Output;
+
+    if (File == NULL || FileSystem == NULL || Entry == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    if (Entry->BlockCount == 0) {
+        return DF_RETURN_GENERIC;
+    }
+
+    FileSize = U64_ToU32_Clip(Entry->FileSize);
+    Position = (U32)File->Header.Position;
+    if (Position >= FileSize || File->Header.ByteCount == 0) {
+        return DF_RETURN_SUCCESS;
+    }
+
+    RemainingRequest = File->Header.ByteCount;
+    if (RemainingRequest > FileSize - Position) {
+        RemainingRequest = FileSize - Position;
+    }
+
+    ChunkCacheCleanup(&FileSystem->ChunkCache);
+
+    Output = (U8*)File->Header.Buffer;
+    FileOffset = 0;
+
+    for (RelativeBlockIndex = 0;
+         RelativeBlockIndex < Entry->BlockCount && RemainingRequest > 0;
+         RelativeBlockIndex++) {
+        const EPK_PARSED_BLOCK_ENTRY* Block =
+            &FileSystem->Package.BlockEntries[Entry->BlockIndexStart + RelativeBlockIndex];
+        U32 BlockStart = FileOffset;
+        U32 BlockSize = Block->UncompressedSize;
+        U32 BlockEnd = BlockStart + BlockSize;
+        U32 BlockReadOffset;
+        U32 BlockCopySize;
+        U32 AbsoluteBlockIndex = Entry->BlockIndexStart + RelativeBlockIndex;
+        U8* BlockBuffer;
+        U64 CacheKey = U64_FromU32(AbsoluteBlockIndex);
+        U32 LoadStatus;
+
+        if (BlockEnd < BlockStart || BlockEnd > FileSize) {
+            ERROR(TEXT("[PackageFSReadBlockBackedFile] Invalid block coverage block=%u start=%u end=%u file=%u"),
+                  AbsoluteBlockIndex,
+                  BlockStart,
+                  BlockEnd,
+                  FileSize);
+            return DF_RETURN_GENERIC;
+        }
+
+        if (Position >= BlockEnd) {
+            FileOffset = BlockEnd;
+            continue;
+        }
+
+        BlockReadOffset = Position > BlockStart ? Position - BlockStart : 0;
+        BlockCopySize = BlockSize - BlockReadOffset;
+        if (BlockCopySize > RemainingRequest) {
+            BlockCopySize = RemainingRequest;
+        }
+
+        BlockBuffer = (U8*)KernelHeapAlloc(BlockSize);
+        if (BlockBuffer == NULL) {
+            return DF_RETURN_NO_MEMORY;
+        }
+
+        if (!ChunkCacheRead(&FileSystem->ChunkCache, FileSystem, CacheKey, BlockBuffer, BlockSize)) {
+            LoadStatus = PackageFSReadUncompressedBlock(FileSystem, AbsoluteBlockIndex, BlockBuffer, BlockSize);
+            if (LoadStatus != DF_RETURN_SUCCESS) {
+                KernelHeapFree(BlockBuffer);
+                return LoadStatus;
+            }
+
+            if (!ChunkCacheStore(&FileSystem->ChunkCache, FileSystem, CacheKey, BlockBuffer, BlockSize)) {
+                WARNING(TEXT("[PackageFSReadBlockBackedFile] Chunk cache store failed block=%u"), AbsoluteBlockIndex);
+            }
+        }
+
+        MemoryCopy(Output + File->Header.BytesTransferred, BlockBuffer + BlockReadOffset, BlockCopySize);
+        KernelHeapFree(BlockBuffer);
+
+        File->Header.BytesTransferred += BlockCopySize;
+        File->Header.Position += BlockCopySize;
+        Position += BlockCopySize;
+        RemainingRequest -= BlockCopySize;
+        FileOffset = BlockEnd;
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
  * @brief Read file bytes from PackageFS.
  * @param File File handle.
  * @return DF_RETURN_SUCCESS when read succeeds.
@@ -358,8 +552,12 @@ U32 PackageFSReadFile(LPPACKAGEFSFILE File) {
     Entry = &FileSystem->Package.TocEntries[File->Node->TocIndex];
     File->Header.BytesTransferred = 0;
 
+    if ((Entry->EntryFlags & EPK_TOC_ENTRY_FLAG_HAS_BLOCKS) != 0) {
+        return PackageFSReadBlockBackedFile(File, FileSystem, Entry);
+    }
+
     if ((Entry->EntryFlags & EPK_TOC_ENTRY_FLAG_HAS_INLINE_DATA) == 0) {
-        return DF_RETURN_NOT_IMPLEMENTED;
+        return DF_RETURN_GENERIC;
     }
 
     DataSize = Entry->InlineDataSize;
