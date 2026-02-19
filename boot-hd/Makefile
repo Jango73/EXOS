@@ -502,6 +502,7 @@ update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32) $(SYSTEM_TEST_
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/KEYBOARD || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/USERS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS || true; \
+		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS/TEST || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/SCRIPTS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/TEMP || true; \
 		for f in $(KEYBOARD_LAYOUTS); do \
@@ -516,9 +517,8 @@ update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32) $(SYSTEM_TEST_
 		$(call MCOPY_IF_NEEDED,$(TICTACTOE_ELF),z:/EXOS/APPS/tictactoe)\
 		$(call MCOPY_IF_NEEDED,$(TERMTACTICS_ELF),z:/EXOS/APPS/terminal-tactics)\
 		$(call MCOPY_IF_NEEDED,$(MOUSEINFO_ELF),z:/EXOS/APPS/mouse-info)\
-		MTOOLSRC=$(MTOOLS_CONF) mdel z:/EXOS/APPS/TEST/MASTER >/dev/null 2>&1 || true; \
-		MTOOLSRC=$(MTOOLS_CONF) mdel z:/EXOS/APPS/TEST/SLAVE >/dev/null 2>&1 || true; \
-		MTOOLSRC=$(MTOOLS_CONF) mdel z:/EXOS/APPS/TEST/MASTER.EPK >/dev/null 2>&1 || true; \
+		$(call MCOPY_IF_NEEDED,$(MASTER_ELF),z:/EXOS/APPS/TEST/MASTER)\
+		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE)\
 		$(call MCOPY_IF_NEEDED,$(SYSTEM_TEST_EPK),z:/EXOS/APPS/TEST.EPK)\
 		$(call MCOPY_IF_NEEDED,$(TEST_E0_SCRIPT),z:/EXOS/SCRIPTS/TEST.E0),\
 		All files injected into image.)
@@ -529,6 +529,7 @@ update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2) $(SYSTEM_TEST_EP
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/data
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/users
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/apps
+	@mkdir -p $(EXT2_STAGING_DIR)/exos/apps/test
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/keyboard
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/scripts
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/temp
@@ -546,6 +547,8 @@ update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2) $(SYSTEM_TEST_EP
 	@cp $(TICTACTOE_ELF) $(EXT2_STAGING_DIR)/exos/apps/tictactoe
 	@cp $(TERMTACTICS_ELF) $(EXT2_STAGING_DIR)/exos/apps/terminal-tactics
 	@cp $(MOUSEINFO_ELF) $(EXT2_STAGING_DIR)/exos/apps/mouse-info
+	@cp $(MASTER_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/master
+	@cp $(SLAVE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/slave
 	@cp $(SYSTEM_TEST_EPK) $(EXT2_STAGING_DIR)/exos/apps/test.epk
 	@cp $(TEST_E0_SCRIPT) $(EXT2_STAGING_DIR)/exos/scripts/test.e0
 	$(call POPULATE_EXT2_IMAGE,$(FINAL_IMG),$(EXT2_STAGING_DIR))
