@@ -23,6 +23,9 @@
 \************************************************************************/
 
 #include "shell/Shell-Shared.h"
+#include "package/PackageFS.h"
+#include "package/PackageManifest.h"
+#include "package/PackageNamespace.h"
 
 /************************************************************************/
 
@@ -2270,6 +2273,217 @@ static U32 CMD_nvme(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 /**
+ * @brief Check whether one command path targets an EPK package file.
+ * @param FileName Qualified executable or package file path.
+ * @return TRUE when extension is ".epk".
+ */
+static BOOL ShellIsPackageFileName(LPCSTR FileName) {
+    UINT Length;
+
+    if (STRING_EMPTY(FileName)) {
+        return FALSE;
+    }
+
+    Length = StringLength(FileName);
+    if (Length < 4) {
+        return FALSE;
+    }
+
+    return (StringCompareNC(FileName + Length - 4, TEXT(".epk")) == 0);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Build launch command line from package entry and trailing arguments.
+ * @param EntryPath Package-relative executable path from manifest.
+ * @param Arguments Optional trailing arguments from original command.
+ * @param OutCommandLine Receives full launch command line.
+ * @return TRUE on success.
+ */
+static BOOL ShellBuildPackageLaunchCommandLine(LPCSTR EntryPath, LPCSTR Arguments, STR OutCommandLine[MAX_PATH_NAME]) {
+    STR Prefix[MAX_PATH_NAME];
+
+    if (STRING_EMPTY(EntryPath) || OutCommandLine == NULL) {
+        return FALSE;
+    }
+
+    StringCopy(Prefix, TEXT("/package"));
+    if (EntryPath[0] != PATH_SEP) {
+        StringConcat(Prefix, TEXT("/"));
+    }
+    StringConcat(Prefix, EntryPath);
+
+    StringCopy(OutCommandLine, Prefix);
+
+    if (!STRING_EMPTY(Arguments)) {
+        StringConcat(OutCommandLine, TEXT(" "));
+        StringConcat(OutCommandLine, Arguments);
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Prepare one process launch from qualified command line.
+ * @param Context Shell context.
+ * @param QualifiedCommandLine Absolute command line.
+ * @param Background TRUE to launch in background.
+ * @param OutProcess Optional process pointer when background launch succeeds.
+ * @return TRUE on success.
+ */
+static BOOL ShellLaunchCommandLine(LPSHELLCONTEXT Context,
+                                   LPCSTR QualifiedCommandLine,
+                                   BOOL Background,
+                                   LPPROCESS* OutProcess) {
+    if (Context == NULL || STRING_EMPTY(QualifiedCommandLine)) {
+        return FALSE;
+    }
+
+    if (Background) {
+        PROCESSINFO ProcessInfo;
+
+        MemorySet(&ProcessInfo, 0, sizeof(ProcessInfo));
+        ProcessInfo.Header.Size = sizeof(PROCESSINFO);
+        ProcessInfo.Header.Version = EXOS_ABI_VERSION;
+        ProcessInfo.Header.Flags = 0;
+        ProcessInfo.Flags = 0;
+        StringCopy(ProcessInfo.CommandLine, QualifiedCommandLine);
+        StringCopy(ProcessInfo.WorkFolder, Context->CurrentFolder);
+        ProcessInfo.StdOut = NULL;
+        ProcessInfo.StdIn = NULL;
+        ProcessInfo.StdErr = NULL;
+        ProcessInfo.Process = NULL;
+        ProcessInfo.Task = NULL;
+
+        if (!CreateProcess(&ProcessInfo)) {
+            return FALSE;
+        }
+
+        if (OutProcess != NULL) {
+            *OutProcess = (LPPROCESS)ProcessInfo.Process;
+        }
+        return TRUE;
+    }
+
+    return (Spawn(QualifiedCommandLine, Context->CurrentFolder) != MAX_UINT);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Launch one package by validating, mounting and executing its entry.
+ * @param Context Shell context.
+ * @param QualifiedCommandLine Full qualified command line (package + args).
+ * @param QualifiedCommand Qualified package file path.
+ * @param Background TRUE for background launch.
+ * @return TRUE on success.
+ */
+static BOOL ShellLaunchPackage(LPSHELLCONTEXT Context,
+                               LPCSTR QualifiedCommandLine,
+                               LPCSTR QualifiedCommand,
+                               BOOL Background) {
+    UINT PackageSize = 0;
+    U8* PackageBytes = NULL;
+    PACKAGE_MANIFEST Manifest;
+    U32 Status;
+    LPFILESYSTEM PackageFileSystem = NULL;
+    STR MountName[MAX_FILE_NAME];
+    STR LaunchCommandLine[MAX_PATH_NAME];
+    LPCSTR Arguments;
+    BOOL LaunchResult;
+    LPPROCESS Process = NULL;
+    BOOL KeepMountedForBackground = FALSE;
+
+    if (Context == NULL || STRING_EMPTY(QualifiedCommandLine) || STRING_EMPTY(QualifiedCommand)) {
+        return FALSE;
+    }
+
+    PackageBytes = (U8*)FileReadAll(QualifiedCommand, &PackageSize);
+    if (PackageBytes == NULL || PackageSize == 0) {
+        ConsolePrint(TEXT("Cannot read package file: %s\n"), QualifiedCommand);
+        return FALSE;
+    }
+
+    Status = PackageManifestParseFromPackageBuffer(PackageBytes, PackageSize, &Manifest);
+    if (Status != PACKAGE_MANIFEST_STATUS_OK) {
+        ConsolePrint(TEXT("Package manifest error: %s (%u)\n"),
+            PackageManifestStatusToString(Status),
+            Status);
+        KernelHeapFree(PackageBytes);
+        return FALSE;
+    }
+
+    Status = PackageManifestCheckCompatibility(&Manifest);
+    if (Status != PACKAGE_MANIFEST_STATUS_OK) {
+        ConsolePrint(TEXT("Package compatibility error: %s (%u)\n"),
+            PackageManifestStatusToString(Status),
+            Status);
+        PackageManifestRelease(&Manifest);
+        KernelHeapFree(PackageBytes);
+        return FALSE;
+    }
+
+    StringPrintFormat(MountName, TEXT("pkg-%s-%u"), Manifest.Name, GetSystemTime());
+    Status = PackageFSMountFromBuffer(PackageBytes, PackageSize, MountName, NULL, &PackageFileSystem);
+    if (Status != DF_RETURN_SUCCESS || PackageFileSystem == NULL) {
+        ConsolePrint(TEXT("Package mount failed: %u\n"), Status);
+        PackageManifestRelease(&Manifest);
+        KernelHeapFree(PackageBytes);
+        return FALSE;
+    }
+
+    if (!PackageNamespaceBindCurrentProcessPackageView(PackageFileSystem, Manifest.Name)) {
+        ConsolePrint(TEXT("Package namespace bind failed\n"));
+        PackageFSUnmount(PackageFileSystem);
+        PackageManifestRelease(&Manifest);
+        KernelHeapFree(PackageBytes);
+        return FALSE;
+    }
+
+    Arguments = QualifiedCommandLine + StringLength(QualifiedCommand);
+    while (*Arguments == STR_SPACE) Arguments++;
+
+    if (!ShellBuildPackageLaunchCommandLine(Manifest.Entry, Arguments, LaunchCommandLine)) {
+        ConsolePrint(TEXT("Package launch command build failed\n"));
+        PackageNamespaceUnbindCurrentProcessPackageView();
+        PackageFSUnmount(PackageFileSystem);
+        PackageManifestRelease(&Manifest);
+        KernelHeapFree(PackageBytes);
+        return FALSE;
+    }
+
+    LaunchResult = ShellLaunchCommandLine(Context, LaunchCommandLine, Background, &Process);
+    if (!LaunchResult) {
+        PackageNamespaceUnbindCurrentProcessPackageView();
+        PackageFSUnmount(PackageFileSystem);
+        PackageManifestRelease(&Manifest);
+        KernelHeapFree(PackageBytes);
+        return FALSE;
+    }
+
+    if (Background) {
+        SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+            Process->PackageFileSystem = PackageFileSystem;
+            KeepMountedForBackground = TRUE;
+        }
+    }
+
+    if (!Background || !KeepMountedForBackground) {
+        PackageNamespaceUnbindCurrentProcessPackageView();
+        PackageFSUnmount(PackageFileSystem);
+    }
+
+    PackageManifestRelease(&Manifest);
+    KernelHeapFree(PackageBytes);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Common function to launch an executable or an E0 script.
  *
  * @param Context Shell context.
@@ -2298,29 +2512,11 @@ BOOL SpawnExecutable(LPSHELLCONTEXT Context, LPCSTR CommandName, BOOL Background
             return RunScriptFile(Context, QualifiedCommand);
         }
 
-        if (Background) {
-            PROCESSINFO ProcessInfo;
-
-            MemorySet(&ProcessInfo, 0, sizeof(ProcessInfo));
-
-            ProcessInfo.Header.Size = sizeof(PROCESSINFO);
-            ProcessInfo.Header.Version = EXOS_ABI_VERSION;
-            ProcessInfo.Header.Flags = 0;
-            ProcessInfo.Flags = 0;
-            StringCopy(ProcessInfo.CommandLine, QualifiedCommandLine);
-            StringCopy(ProcessInfo.WorkFolder, Context->CurrentFolder);
-            ProcessInfo.StdOut = NULL;
-            ProcessInfo.StdIn = NULL;
-            ProcessInfo.StdErr = NULL;
-            ProcessInfo.Process = NULL;
-            ProcessInfo.Task = NULL;
-
-            if (CreateProcess(&ProcessInfo)) {
-            }
-        } else {
-            UINT ExitCode = Spawn(QualifiedCommandLine, Context->CurrentFolder);
-            return (ExitCode != MAX_UINT);
+        if (ShellIsPackageFileName(QualifiedCommand)) {
+            return ShellLaunchPackage(Context, QualifiedCommandLine, QualifiedCommand, Background);
         }
+
+        return ShellLaunchCommandLine(Context, QualifiedCommandLine, Background, NULL);
     }
 
     return FALSE;

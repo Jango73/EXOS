@@ -93,10 +93,10 @@
 
 **Goal**: execute packaged applications through one simple pipeline.
 
-- [ ] Implement pipeline: read `.epk` -> validate -> private mount -> launch entry.
-- [ ] Avoid persistent global activation sets (`active/staged/rollback`).
-- [ ] Keep failure behavior fail-fast with no partial mounted leftovers.
-- [ ] Ensure explicit unmount/release on launch failure and process exit.
+- [x] Implement pipeline: read `.epk` -> validate -> private mount -> launch entry.
+- [x] Avoid persistent global activation sets (`active/staged/rollback`).
+- [x] Keep failure behavior fail-fast with no partial mounted leftovers.
+- [x] Ensure explicit unmount/release on launch failure and process exit.
 - [ ] Support `package run <package-name> [command-name]` where omitted command falls back to `entry`.
 
 **Success**: package launch is deterministic and stateless at system level.

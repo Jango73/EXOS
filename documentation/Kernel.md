@@ -950,6 +950,17 @@ Command resolution without package name is deterministic:
 4. package command index (`commands.<name>` across known packages),
 5. on multiple package matches, launch is rejected as ambiguous.
 
+#### Package launch flow
+
+Step-8 launch activation is wired in shell launch path (`SpawnExecutable`):
+- when target extension is `.epk`, shell reads package bytes from disk,
+- package manifest is parsed and compatibility-checked before activation,
+- package is mounted through `PackageFSMountFromBuffer(...)`,
+- package aliases are bound through `PackageNamespaceBindCurrentProcessPackageView(...)`,
+- manifest `entry` is executed from `/package/...`,
+- launch failures trigger explicit unbind/unmount cleanup with no partial mounted leftovers,
+- background launches keep mounted package filesystem attached to process state and release it during process teardown.
+
 #### Runtime access paths
 
 `OpenFile()` takes two routing paths:
