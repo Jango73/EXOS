@@ -273,7 +273,7 @@ This hybrid approach provides both immutability and efficiency:
 - **Rollback** = switching back to the previous package set (recorded snapshot).
 - The system maintains a list of active package hashes:
   ```
-  /system-data/package/active.list
+  /system/data/package/active.list
   ```
   Booting from a previous state is instant and atomic (no reinstallation).
 

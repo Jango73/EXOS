@@ -95,7 +95,7 @@
 
 **Goal**: make install, remove, update, and rollback state transitions atomic.
 
-- [ ] Persist active package hashes in `/system-data/package/active.list`.
+- [ ] Persist active package hashes in `/system/data/package/active.list`.
 - [ ] Add transaction flow: stage, validate, commit.
 - [ ] Add rollback flow to previous active set snapshot.
 - [ ] Guarantee crash-safe state restoration after interrupted activation.
