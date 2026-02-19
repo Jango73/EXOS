@@ -745,6 +745,7 @@ The console supports direct linear framebuffer rendering when Multiboot framebuf
 
 - BIOS/MBR path uses VGA text buffer `0xB8000` with text framebuffer metadata.
 - UEFI path uses GOP-provided framebuffer base, pitch, resolution, and RGB layout, with glyph rendering into GOP memory.
+- In framebuffer mode, a software cursor is rendered by inverting the active text cell and restored on each cursor move, so command-line editing keeps a visible caret position.
 
 The default font is an in-tree ASCII 8x16 EXOS font and can be replaced through the font API.
 

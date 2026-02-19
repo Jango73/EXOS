@@ -38,8 +38,6 @@
 
 ## Console
 
-- Add a cursor in kernel managed console
-
 ## Shared modules
 
 - Load and map shared modules
