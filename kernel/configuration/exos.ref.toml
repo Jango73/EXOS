@@ -38,6 +38,12 @@ MinimumSystemStackSize=16384
 # Logical kernel file/folder paths.
 UsersDatabase="/system/data/users.database"
 KeyboardLayouts="/system/keyboard"
+PackagesLibrary="/library/package"
+PackagesApps="/apps"
+UsersRoot="/users"
+CurrentUserAlias="/current-user"
+PrivatePackageAlias="/package"
+PrivateUserDataAlias="/user-data"
 
 [[SystemFS.Mount]]
 FileSystem="active"

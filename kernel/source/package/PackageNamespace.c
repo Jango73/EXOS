@@ -31,15 +31,95 @@
 #include "SystemFS.h"
 #include "package/PackageFS.h"
 #include "utils/Helpers.h"
+#include "utils/KernelPath.h"
 
 /***************************************************************************/
 
-static const STR PackageNamespaceLibraryRoot[] = "/library/package";
-static const STR PackageNamespaceAppsRoot[] = "/apps";
-static const STR PackageNamespaceUsersRoot[] = "/users";
-static const STR PackageNamespaceCurrentUserAlias[] = "/current-user";
-static const STR PackageNamespacePrivatePackageAlias[] = "/package";
-static const STR PackageNamespacePrivateUserDataAlias[] = "/user-data";
+typedef struct tag_PACKAGENAMESPACE_PATHS {
+    STR LibraryRoot[MAX_PATH_NAME];
+    STR AppsRoot[MAX_PATH_NAME];
+    STR UsersRoot[MAX_PATH_NAME];
+    STR CurrentUserAlias[MAX_PATH_NAME];
+    STR PrivatePackageAlias[MAX_PATH_NAME];
+    STR PrivateUserDataAlias[MAX_PATH_NAME];
+    BOOL Loaded;
+} PACKAGENAMESPACE_PATHS;
+
+static PACKAGENAMESPACE_PATHS PackageNamespacePaths = {
+    .LibraryRoot = "",
+    .AppsRoot = "",
+    .UsersRoot = "",
+    .CurrentUserAlias = "",
+    .PrivatePackageAlias = "",
+    .PrivateUserDataAlias = "",
+    .Loaded = FALSE};
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve package namespace paths from KernelPath configuration keys.
+ * @return TRUE when all paths are resolved.
+ */
+static BOOL PackageNamespaceLoadPaths(void) {
+    if (!KernelPathResolve(KERNEL_FOLDER_PACKAGES_LIBRARY,
+            KERNEL_FOLDER_PATH_PACKAGES_LIBRARY_DEFAULT,
+            PackageNamespacePaths.LibraryRoot,
+            MAX_PATH_NAME)) {
+        return FALSE;
+    }
+    if (!KernelPathResolve(KERNEL_FOLDER_PACKAGES_APPS,
+            KERNEL_FOLDER_PATH_PACKAGES_APPS_DEFAULT,
+            PackageNamespacePaths.AppsRoot,
+            MAX_PATH_NAME)) {
+        return FALSE;
+    }
+    if (!KernelPathResolve(KERNEL_FOLDER_USERS_ROOT,
+            KERNEL_FOLDER_PATH_USERS_ROOT_DEFAULT,
+            PackageNamespacePaths.UsersRoot,
+            MAX_PATH_NAME)) {
+        return FALSE;
+    }
+    if (!KernelPathResolve(KERNEL_FOLDER_CURRENT_USER_ALIAS,
+            KERNEL_FOLDER_PATH_CURRENT_USER_ALIAS_DEFAULT,
+            PackageNamespacePaths.CurrentUserAlias,
+            MAX_PATH_NAME)) {
+        return FALSE;
+    }
+    if (!KernelPathResolve(KERNEL_FOLDER_PRIVATE_PACKAGE_ALIAS,
+            KERNEL_FOLDER_PATH_PRIVATE_PACKAGE_ALIAS_DEFAULT,
+            PackageNamespacePaths.PrivatePackageAlias,
+            MAX_PATH_NAME)) {
+        return FALSE;
+    }
+    if (!KernelPathResolve(KERNEL_FOLDER_PRIVATE_USER_DATA_ALIAS,
+            KERNEL_FOLDER_PATH_PRIVATE_USER_DATA_ALIAS_DEFAULT,
+            PackageNamespacePaths.PrivateUserDataAlias,
+            MAX_PATH_NAME)) {
+        return FALSE;
+    }
+
+    PackageNamespacePaths.Loaded = TRUE;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Ensure package namespace paths are resolved before use.
+ * @return TRUE when paths are loaded.
+ */
+static BOOL PackageNamespaceEnsurePathsLoaded(void) {
+    if (PackageNamespacePaths.Loaded) {
+        return TRUE;
+    }
+
+    if (!PackageNamespaceLoadPaths()) {
+        ERROR(TEXT("[PackageNamespaceEnsurePathsLoaded] KernelPath resolution failed"));
+        return FALSE;
+    }
+
+    return TRUE;
+}
 
 /***************************************************************************/
 
@@ -383,12 +463,13 @@ static BOOL PackageNamespaceBindCurrentUserAlias(LPCSTR UserName) {
     LPFILESYSTEM ActiveFileSystem;
 
     if (UserName == NULL || UserName[0] == STR_NULL) return FALSE;
+    if (!PackageNamespaceEnsurePathsLoaded()) return FALSE;
     ActiveFileSystem = PackageNamespaceGetActiveFileSystem();
     if (ActiveFileSystem == NULL) return FALSE;
 
-    PackageNamespaceBuildChildPath(PackageNamespaceUsersRoot, UserName, SourcePath);
+    PackageNamespaceBuildChildPath(PackageNamespacePaths.UsersRoot, UserName, SourcePath);
     if (!PackageNamespacePathExists(SourcePath)) return FALSE;
-    return PackageNamespaceMountPath(ActiveFileSystem, PackageNamespaceCurrentUserAlias, SourcePath);
+    return PackageNamespaceMountPath(ActiveFileSystem, PackageNamespacePaths.CurrentUserAlias, SourcePath);
 }
 
 /***************************************************************************/
@@ -401,9 +482,10 @@ static void PackageNamespaceScanUserPackageFolders(void) {
     LPFILE UserEntry;
     STR Pattern[MAX_PATH_NAME];
 
-    if (!PackageNamespacePathExists(PackageNamespaceUsersRoot)) return;
+    if (!PackageNamespaceEnsurePathsLoaded()) return;
+    if (!PackageNamespacePathExists(PackageNamespacePaths.UsersRoot)) return;
 
-    PackageNamespaceBuildEnumeratePattern(PackageNamespaceUsersRoot, Pattern);
+    PackageNamespaceBuildEnumeratePattern(PackageNamespacePaths.UsersRoot, Pattern);
 
     Find.Size = sizeof(FILEINFO);
     Find.FileSystem = GetSystemFS();
@@ -421,10 +503,10 @@ static void PackageNamespaceScanUserPackageFolders(void) {
         if ((UserEntry->Attributes & FS_ATTR_FOLDER) == 0) continue;
         if (PackageNamespaceIsDotEntry(UserEntry->Name)) continue;
 
-        PackageNamespaceBuildChildPath(PackageNamespaceUsersRoot, UserEntry->Name, UserPackageFolder);
+        PackageNamespaceBuildChildPath(PackageNamespacePaths.UsersRoot, UserEntry->Name, UserPackageFolder);
         PackageNamespaceBuildChildPath(UserPackageFolder, TEXT("package"), UserPackageFolder);
 
-        PackageNamespaceBuildChildPath(PackageNamespaceUsersRoot, UserEntry->Name, UserMountRoot);
+        PackageNamespaceBuildChildPath(PackageNamespacePaths.UsersRoot, UserEntry->Name, UserMountRoot);
         PackageNamespaceBuildChildPath(UserMountRoot, TEXT("package"), UserMountRoot);
 
         PackageNamespaceScanPackageFolder(UserPackageFolder, UserMountRoot, TEXT("pkg.user"), UserEntry->Name);
@@ -445,17 +527,20 @@ BOOL PackageNamespaceInitialize(void) {
     if (!FileSystemReady()) {
         return FALSE;
     }
+    if (!PackageNamespaceEnsurePathsLoaded()) {
+        return FALSE;
+    }
 
-    PackageNamespaceEnsureFolder(PackageNamespaceLibraryRoot);
-    PackageNamespaceEnsureFolder(PackageNamespaceAppsRoot);
-    PackageNamespaceEnsureFolder(PackageNamespaceUsersRoot);
+    PackageNamespaceEnsureFolder(PackageNamespacePaths.LibraryRoot);
+    PackageNamespaceEnsureFolder(PackageNamespacePaths.AppsRoot);
+    PackageNamespaceEnsureFolder(PackageNamespacePaths.UsersRoot);
 
-    PackageNamespaceScanPackageFolder(PackageNamespaceLibraryRoot,
-        PackageNamespaceLibraryRoot,
+    PackageNamespaceScanPackageFolder(PackageNamespacePaths.LibraryRoot,
+        PackageNamespacePaths.LibraryRoot,
         TEXT("pkg.library"),
         NULL);
-    PackageNamespaceScanPackageFolder(PackageNamespaceAppsRoot,
-        PackageNamespaceAppsRoot,
+    PackageNamespaceScanPackageFolder(PackageNamespacePaths.AppsRoot,
+        PackageNamespacePaths.AppsRoot,
         TEXT("pkg.app"),
         NULL);
     PackageNamespaceScanUserPackageFolders();
@@ -483,8 +568,9 @@ BOOL PackageNamespaceBindCurrentProcessPackageView(LPFILESYSTEM PackageFileSyste
     STR UserDataSourcePath[MAX_PATH_NAME];
 
     if (PackageFileSystem == NULL || STRING_EMPTY(PackageName)) return FALSE;
+    if (!PackageNamespaceEnsurePathsLoaded()) return FALSE;
 
-    if (!PackageNamespaceMountPath(PackageFileSystem, PackageNamespacePrivatePackageAlias, NULL)) {
+    if (!PackageNamespaceMountPath(PackageFileSystem, PackageNamespacePaths.PrivatePackageAlias, NULL)) {
         return FALSE;
     }
 
@@ -493,7 +579,7 @@ BOOL PackageNamespaceBindCurrentProcessPackageView(LPFILESYSTEM PackageFileSyste
     if (ActiveFileSystem == NULL) return FALSE;
 
     UserDataSourcePath[0] = STR_NULL;
-    PackageNamespaceBuildChildPath(PackageNamespaceUsersRoot, CurrentUser->UserName, UserDataSourcePath);
+    PackageNamespaceBuildChildPath(PackageNamespacePaths.UsersRoot, CurrentUser->UserName, UserDataSourcePath);
     PackageNamespaceBuildChildPath(UserDataSourcePath, PackageName, UserDataSourcePath);
     PackageNamespaceBuildChildPath(UserDataSourcePath, TEXT("data"), UserDataSourcePath);
 
@@ -501,5 +587,5 @@ BOOL PackageNamespaceBindCurrentProcessPackageView(LPFILESYSTEM PackageFileSyste
         return FALSE;
     }
 
-    return PackageNamespaceMountPath(ActiveFileSystem, PackageNamespacePrivateUserDataAlias, UserDataSourcePath);
+    return PackageNamespaceMountPath(ActiveFileSystem, PackageNamespacePaths.PrivateUserDataAlias, UserDataSourcePath);
 }

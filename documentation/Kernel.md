@@ -915,6 +915,13 @@ Boot-time integration:
 Process-view hooks:
 - `PackageNamespaceBindCurrentProcessPackageView(...)` mounts one package view at `/package`.
 - the same helper maps `/user-data` to `/users/<current-user>/<package-name>/data` on the active filesystem.
+- package namespace roots and aliases are resolved through `utils/KernelPath` keys:
+  - `KernelPath.PackagesLibrary`
+  - `KernelPath.PackagesApps`
+  - `KernelPath.UsersRoot`
+  - `KernelPath.CurrentUserAlias`
+  - `KernelPath.PrivatePackageAlias`
+  - `KernelPath.PrivateUserDataAlias`
 
 #### Runtime access paths
 
