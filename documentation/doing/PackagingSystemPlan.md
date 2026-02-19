@@ -72,8 +72,8 @@
 
 - [x] Keep `/package` as a private process mount.
 - [x] Map `/user-data` to `/current-user/<package-name>/data`.
-- [ ] Ensure process teardown unmounts or releases package view cleanly.
-- [ ] Keep package launch path independent from global package scans.
+- [x] Ensure process teardown unmounts or releases package view cleanly.
+- [x] Keep package launch path independent from global package scans.
 
 **Success**: packaged process sees private mount aliases without requiring global package activation.
 

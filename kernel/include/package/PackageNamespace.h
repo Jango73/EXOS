@@ -33,6 +33,7 @@
 
 BOOL PackageNamespaceInitialize(void);
 BOOL PackageNamespaceBindCurrentProcessPackageView(LPFILESYSTEM PackageFileSystem, LPCSTR PackageName);
+void PackageNamespaceUnbindCurrentProcessPackageView(void);
 
 /***************************************************************************/
 

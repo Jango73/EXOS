@@ -27,6 +27,7 @@
 #include "Arch.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "package/PackageNamespace.h"
 #include "process/Process.h"
 #include "process/Schedule.h"
 #include "process/TaskMessaging.h"
@@ -566,6 +567,7 @@ void DeleteDeadTasksAndProcesses(void) {
             NextProcess = (LPPROCESS)Process->Next;
 
             if (Process->Status == PROCESS_STATUS_DEAD) {
+                PackageNamespaceUnbindCurrentProcessPackageView();
 
                 ReleaseProcessKernelObjects(Process);
 

@@ -232,6 +232,33 @@ static BOOL PackageNamespaceMountPath(LPFILESYSTEM FileSystem, LPCSTR Path, LPCS
 /***************************************************************************/
 
 /**
+ * @brief Unmount a SystemFS object path when present.
+ * @param Path Absolute mount path.
+ * @return TRUE on success or when already unmounted.
+ */
+static BOOL PackageNamespaceUnmountPath(LPCSTR Path) {
+    FS_UNMOUNT_CONTROL Control;
+    U32 Result;
+
+    if (Path == NULL || Path[0] != PATH_SEP) return FALSE;
+    if (!PackageNamespacePathExists(Path)) return TRUE;
+
+    StringCopy(Control.Path, Path);
+    Control.Node = NULL;
+    Control.SourcePath[0] = STR_NULL;
+
+    Result = GetSystemFS()->Driver->Command(DF_FS_UNMOUNTOBJECT, (UINT)&Control);
+    if (Result != DF_RETURN_SUCCESS) {
+        WARNING(TEXT("[PackageNamespaceUnmountPath] Unmount failed path=%s status=%u"), Path, Result);
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Return active filesystem object from global file system list.
  * @return Active filesystem pointer or NULL when unavailable.
  */
@@ -343,6 +370,21 @@ BOOL PackageNamespaceBindCurrentProcessPackageView(LPFILESYSTEM PackageFileSyste
     }
 
     return PackageNamespaceMountPath(ActiveFileSystem, PackageNamespacePaths.PrivateUserDataAlias, UserDataSourcePath);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Unbind package-local process aliases "/package" and "/user-data".
+ *
+ * @details This operation is best-effort cleanup used when one process exits.
+ * It unmounts process-local alias nodes when present.
+ */
+void PackageNamespaceUnbindCurrentProcessPackageView(void) {
+    if (!PackageNamespaceEnsurePathsLoaded()) return;
+
+    PackageNamespaceUnmountPath(PackageNamespacePaths.PrivateUserDataAlias);
+    PackageNamespaceUnmountPath(PackageNamespacePaths.PrivatePackageAlias);
 }
 
 /***************************************************************************/
