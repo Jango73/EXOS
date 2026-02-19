@@ -61,38 +61,38 @@ static PACKAGENAMESPACE_PATHS PackageNamespacePaths = {
  * @return TRUE when all paths are resolved.
  */
 static BOOL PackageNamespaceLoadPaths(void) {
-    if (!KernelPathResolve(KERNEL_FOLDER_PACKAGES_LIBRARY,
-            KERNEL_FOLDER_PATH_PACKAGES_LIBRARY_DEFAULT,
+    if (!KernelPathResolve(KERNEL_PATH_KEY_PACKAGES_LIBRARY,
+            KERNEL_PATH_DEFAULT_PACKAGES_LIBRARY,
             PackageNamespacePaths.LibraryRoot,
             MAX_PATH_NAME)) {
         return FALSE;
     }
-    if (!KernelPathResolve(KERNEL_FOLDER_PACKAGES_APPS,
-            KERNEL_FOLDER_PATH_PACKAGES_APPS_DEFAULT,
+    if (!KernelPathResolve(KERNEL_PATH_KEY_PACKAGES_APPS,
+            KERNEL_PATH_DEFAULT_PACKAGES_APPS,
             PackageNamespacePaths.AppsRoot,
             MAX_PATH_NAME)) {
         return FALSE;
     }
-    if (!KernelPathResolve(KERNEL_FOLDER_USERS_ROOT,
-            KERNEL_FOLDER_PATH_USERS_ROOT_DEFAULT,
+    if (!KernelPathResolve(KERNEL_PATH_KEY_USERS_ROOT,
+            KERNEL_PATH_DEFAULT_USERS_ROOT,
             PackageNamespacePaths.UsersRoot,
             MAX_PATH_NAME)) {
         return FALSE;
     }
-    if (!KernelPathResolve(KERNEL_FOLDER_CURRENT_USER_ALIAS,
-            KERNEL_FOLDER_PATH_CURRENT_USER_ALIAS_DEFAULT,
+    if (!KernelPathResolve(KERNEL_PATH_KEY_CURRENT_USER_ALIAS,
+            KERNEL_PATH_DEFAULT_CURRENT_USER_ALIAS,
             PackageNamespacePaths.CurrentUserAlias,
             MAX_PATH_NAME)) {
         return FALSE;
     }
-    if (!KernelPathResolve(KERNEL_FOLDER_PRIVATE_PACKAGE_ALIAS,
-            KERNEL_FOLDER_PATH_PRIVATE_PACKAGE_ALIAS_DEFAULT,
+    if (!KernelPathResolve(KERNEL_PATH_KEY_PRIVATE_PACKAGE_ALIAS,
+            KERNEL_PATH_DEFAULT_PRIVATE_PACKAGE_ALIAS,
             PackageNamespacePaths.PrivatePackageAlias,
             MAX_PATH_NAME)) {
         return FALSE;
     }
-    if (!KernelPathResolve(KERNEL_FOLDER_PRIVATE_USER_DATA_ALIAS,
-            KERNEL_FOLDER_PATH_PRIVATE_USER_DATA_ALIAS_DEFAULT,
+    if (!KernelPathResolve(KERNEL_PATH_KEY_PRIVATE_USER_DATA_ALIAS,
+            KERNEL_PATH_DEFAULT_PRIVATE_USER_DATA_ALIAS,
             PackageNamespacePaths.PrivateUserDataAlias,
             MAX_PATH_NAME)) {
         return FALSE;

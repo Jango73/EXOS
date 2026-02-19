@@ -360,8 +360,8 @@ BOOL LoadUserDatabase(void) {
     }
 
     if (KernelPathResolve(
-            KERNEL_FILE_USERS_DATABASE,
-            KERNEL_FILE_PATH_USERS_DATABASE_DEFAULT,
+            KERNEL_PATH_KEY_USERS_DATABASE,
+            KERNEL_PATH_DEFAULT_USERS_DATABASE,
             DatabasePath,
             MAX_PATH_NAME) == FALSE) {
         DatabaseFree(Database);
@@ -445,8 +445,8 @@ BOOL SaveUserDatabase(void) {
     UnlockMutex(MUTEX_ACCOUNTS);
 
     if (KernelPathResolve(
-            KERNEL_FILE_USERS_DATABASE,
-            KERNEL_FILE_PATH_USERS_DATABASE_DEFAULT,
+            KERNEL_PATH_KEY_USERS_DATABASE,
+            KERNEL_PATH_DEFAULT_USERS_DATABASE,
             DatabasePath,
             MAX_PATH_NAME) == FALSE) {
         DatabaseFree(Database);

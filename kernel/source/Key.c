@@ -522,8 +522,8 @@ void UseKeyboardLayout(LPCSTR Code) {
     }
 
     if (KernelPathBuildFile(
-            KERNEL_FOLDER_KEYBOARD_LAYOUTS,
-            KERNEL_FOLDER_PATH_KEYBOARD_LAYOUTS_DEFAULT,
+            KERNEL_PATH_KEY_KEYBOARD_LAYOUTS,
+            KERNEL_PATH_DEFAULT_KEYBOARD_LAYOUTS,
             Code,
             KERNEL_FILE_EXTENSION_KEYBOARD_LAYOUT,
             Path,
@@ -697,4 +697,3 @@ BOOL GetKeyCodeDown(KEYCODE KeyCode) {
 
     return FALSE;
 }
-

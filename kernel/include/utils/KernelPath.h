@@ -30,25 +30,25 @@
 
 /***************************************************************************/
 
-#define CONFIG_KERNEL_PATH_PREFIX TEXT("KernelPath.")
+#define KERNEL_PATH_CONFIG_PREFIX TEXT("KernelPath.")
 
-#define KERNEL_FILE_USERS_DATABASE TEXT("UsersDatabase")
-#define KERNEL_FOLDER_KEYBOARD_LAYOUTS TEXT("KeyboardLayouts")
-#define KERNEL_FOLDER_PACKAGES_LIBRARY TEXT("PackagesLibrary")
-#define KERNEL_FOLDER_PACKAGES_APPS TEXT("PackagesApps")
-#define KERNEL_FOLDER_USERS_ROOT TEXT("UsersRoot")
-#define KERNEL_FOLDER_CURRENT_USER_ALIAS TEXT("CurrentUserAlias")
-#define KERNEL_FOLDER_PRIVATE_PACKAGE_ALIAS TEXT("PrivatePackageAlias")
-#define KERNEL_FOLDER_PRIVATE_USER_DATA_ALIAS TEXT("PrivateUserDataAlias")
+#define KERNEL_PATH_KEY_USERS_DATABASE TEXT("UsersDatabase")
+#define KERNEL_PATH_KEY_KEYBOARD_LAYOUTS TEXT("KeyboardLayouts")
+#define KERNEL_PATH_KEY_PACKAGES_LIBRARY TEXT("PackagesLibrary")
+#define KERNEL_PATH_KEY_PACKAGES_APPS TEXT("PackagesApps")
+#define KERNEL_PATH_KEY_USERS_ROOT TEXT("UsersRoot")
+#define KERNEL_PATH_KEY_CURRENT_USER_ALIAS TEXT("CurrentUserAlias")
+#define KERNEL_PATH_KEY_PRIVATE_PACKAGE_ALIAS TEXT("PrivatePackageAlias")
+#define KERNEL_PATH_KEY_PRIVATE_USER_DATA_ALIAS TEXT("PrivateUserDataAlias")
 
-#define KERNEL_FILE_PATH_USERS_DATABASE_DEFAULT TEXT("/system/data/users.database")
-#define KERNEL_FOLDER_PATH_KEYBOARD_LAYOUTS_DEFAULT TEXT("/system/keyboard")
-#define KERNEL_FOLDER_PATH_PACKAGES_LIBRARY_DEFAULT TEXT("/library/package")
-#define KERNEL_FOLDER_PATH_PACKAGES_APPS_DEFAULT TEXT("/apps")
-#define KERNEL_FOLDER_PATH_USERS_ROOT_DEFAULT TEXT("/users")
-#define KERNEL_FOLDER_PATH_CURRENT_USER_ALIAS_DEFAULT TEXT("/current-user")
-#define KERNEL_FOLDER_PATH_PRIVATE_PACKAGE_ALIAS_DEFAULT TEXT("/package")
-#define KERNEL_FOLDER_PATH_PRIVATE_USER_DATA_ALIAS_DEFAULT TEXT("/user-data")
+#define KERNEL_PATH_DEFAULT_USERS_DATABASE TEXT("/system/data/users.database")
+#define KERNEL_PATH_DEFAULT_KEYBOARD_LAYOUTS TEXT("/system/keyboard")
+#define KERNEL_PATH_DEFAULT_PACKAGES_LIBRARY TEXT("/library/package")
+#define KERNEL_PATH_DEFAULT_PACKAGES_APPS TEXT("/apps")
+#define KERNEL_PATH_DEFAULT_USERS_ROOT TEXT("/users")
+#define KERNEL_PATH_DEFAULT_CURRENT_USER_ALIAS TEXT("/current-user")
+#define KERNEL_PATH_DEFAULT_PRIVATE_PACKAGE_ALIAS TEXT("/package")
+#define KERNEL_PATH_DEFAULT_PRIVATE_USER_DATA_ALIAS TEXT("/user-data")
 #define KERNEL_FILE_EXTENSION_KEYBOARD_LAYOUT TEXT(".ekm1")
 
 /***************************************************************************/

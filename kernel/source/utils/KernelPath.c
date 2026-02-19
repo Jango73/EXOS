@@ -76,7 +76,7 @@ BOOL KernelPathResolve(LPCSTR Name, LPCSTR DefaultPath, LPSTR OutPath, UINT OutP
         return FALSE;
     }
 
-    StringCopy(Key, CONFIG_KERNEL_PATH_PREFIX);
+    StringCopy(Key, KERNEL_PATH_CONFIG_PREFIX);
     StringConcat(Key, Name);
 
     Configuration = GetConfiguration();
