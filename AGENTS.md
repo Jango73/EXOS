@@ -49,6 +49,7 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 - **Clean code**: No duplicate code. Create intermediate functions to avoid it. This also applies to data: create intermediate structures to avoid duplicating data.
 - **No globals**: Before adding a global variable, **ALWAYS ASK** if permitted.
 - **Functions**: Add a doxygen header to functions and separate all functions with a 75 character line such as : /************************************************************************/
+- **File size**: Keep source files under 1000 lines; split by responsibility before crossing this limit.
 - **Early boot timing**: `GetSystemTime` does not work in early boot until `EnableInterrupts` has been executed (timer ticks do not advance). For polling timeouts in early boot paths, always use `HasOperationTimedOut()` (Clock) so code keeps a loop-limit fallback and does not rely on time progression alone.
 - **Kernel log tag filter**: `KernelLogTagFilter` is defined in `kernel/source/Log.c` and controlled through `KernelLogSetTagFilter()` / `KernelLogGetTagFilter()` (`kernel/include/Log.h`). Use it first when narrowing boot diagnostics instead of editing/removing log calls.
 - **EXOS != Unix/Linux/Windows/Whatever** :

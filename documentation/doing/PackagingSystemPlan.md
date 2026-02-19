@@ -42,7 +42,7 @@
 - [x] Parse table of contents and block table into kernel structures.
 - [x] Reject malformed package files with explicit error logs.
 
-**Success**: kernel can scan package folders and classify each package as valid or invalid.
+**Success**: kernel can classify one `.epk` as valid or invalid deterministically.
 
 ## Step 4 --- `packagefs` readonly mount
 
@@ -66,66 +66,76 @@
 
 **Success**: executables and libraries load directly from mounted packages with no temporary files.
 
-## Step 6 --- System namespace integration
+## Step 6 --- Per-process namespace integration
 
-**Goal**: integrate package mounts into EXOS namespace model.
+**Goal**: bind package views only for the launched process.
 
-- [x] Implement global scan sources:
-  - [x] `/library/package/`
-  - [x] `/apps/`
-  - [x] `/users/*/package/`
-- [x] Mount packages by role into expected locations.
-- [x] Add private process view for `/package`.
-- [x] Add `/user-data` alias to `/current-user/<package-name>/data`.
+- [x] Keep `/package` as a private process mount.
+- [x] Map `/user-data` to `/current-user/<package-name>/data`.
+- [ ] Ensure process teardown unmounts or releases package view cleanly.
+- [ ] Keep package launch path independent from global package scans.
 
-**Success**: packaged application process sees global mounts plus private `/package` and `/user-data`.
+**Success**: packaged process sees private mount aliases without requiring global package activation.
 
-## Step 7 --- Manifest and dependency resolution
+## Step 7 --- Manifest compatibility checks (no dependencies)
 
-**Goal**: resolve package dependencies by provided API contracts.
+**Goal**: validate launch compatibility without dependency resolution.
 
-- [x] Parse `manifest.toml` model (`name`, `version`, `provides`, `requires`).
-- [x] Build provider index from mounted global packages.
-- [x] Validate all `requires` entries before activating package mount.
-- [x] Produce deterministic dependency failure diagnostics.
+- [ ] Parse `manifest.toml` model (`name`, `version`, `arch`, `kernel_api`, `entry`).
+- [ ] Validate architecture compatibility.
+- [ ] Validate kernel API compatibility policy.
+- [ ] Enforce policy: no `provides/requires` dependency graph behavior.
+- [ ] Produce deterministic diagnostics for compatibility failures.
 
-**Success**: missing or incompatible system dependencies block activation with clear reasons.
+**Success**: incompatible package launch is rejected with explicit reasons.
 
-## Step 8 --- Atomic activation and rollback
+## Step 8 --- Launch-time package activation flow
 
-**Goal**: make package activation, removal, update, and rollback state transitions atomic.
+**Goal**: execute packaged applications through one simple pipeline.
 
-- [ ] Persist active package hashes in `/system/data/package/active.list`.
-- [ ] Add transaction flow: stage, validate, commit.
-- [ ] Add rollback flow to previous active set snapshot.
-- [ ] Guarantee crash-safe state restoration after interrupted activation.
+- [ ] Implement pipeline: read `.epk` -> validate -> private mount -> launch entry.
+- [ ] Avoid persistent global activation sets (`active/staged/rollback`).
+- [ ] Keep failure behavior fail-fast with no partial mounted leftovers.
+- [ ] Ensure explicit unmount/release on launch failure and process exit.
 
-**Success**: power loss during update does not leave partial package activation state.
+**Success**: package launch is deterministic and stateless at system level.
 
 ## Step 9 --- Userland package manager commands
 
 **Goal**: expose basic package operations to users and automation.
 
 - [ ] Keep `tools/` as the primary package creation path while native EXOS package management matures.
-- [ ] Implement `package list` command.
+- [ ] Implement `package list` command (file-based view).
 - [ ] Implement `package add <file.epk>` command.
 - [ ] Implement `package remove <package-name>` command.
 - [ ] Implement `package verify` command.
-- [ ] Report validation, dependency, and activation status in machine-readable and human-readable output.
+- [ ] Report validation, compatibility, and launch status in machine-readable and human-readable output.
 
 **Success**: package lifecycle operations are scriptable and predictable.
 
-## Step 10 --- Loader and runtime integration
+## Step 9.1 --- Remote repository integration (planned, not implemented now)
 
-**Goal**: ensure executable and shared library loading works with package search rules.
+**Goal**: prepare explicit package fetch workflows without adding dependency solver behavior.
+
+- [ ] Define signed repository index format.
+- [ ] Add explicit `package fetch <package-name>` flow (user-triggered only).
+- [ ] Verify downloaded package hash and optional signature before local storage.
+- [ ] Keep launch path identical to local package add.
+- [ ] Enforce policy: no transitive auto-fetch, no background auto-resolution.
+
+**Success**: remote installation is an explicit distribution channel, not a dependency-resolution system.
+
+## Step 10 --- Loader and runtime boundary integration
+
+**Goal**: guarantee deterministic runtime lookup for packaged applications.
 
 - [ ] Implement loader search order:
   - [ ] `/package/binary` first
-  - [ ] `/library/package/<package-name>/binary` second
-- [ ] Validate runtime symbol resolution with embedded and global shared components.
+  - [ ] fixed system runtime boundary second
+- [ ] Validate runtime symbol resolution with embedded package libraries.
 - [ ] Validate default packaged application work folder as `/user-data`.
 
-**Success**: packaged applications start without extracted binaries and resolve libraries deterministically.
+**Success**: packaged applications launch without extracted binaries and without global dependency resolution.
 
 ## Step 11 --- Security hardening
 
@@ -140,11 +150,11 @@
 
 ## Step 12 --- Observability and diagnostics
 
-**Goal**: make package state and failures easy to inspect.
+**Goal**: make package launch failures easy to inspect.
 
-- [ ] Add structured kernel logs for scan, validate, mount, unmount, dependency decisions.
-- [ ] Add shell command for mounted package graph inspection.
-- [ ] Add system data view page for package status and hashes.
+- [ ] Add structured kernel logs for validate, compatibility, mount, unmount, launch decisions.
+- [ ] Add shell command for mounted package view inspection.
+- [ ] Add shell command for package validation/compatibility report.
 
 **Success**: support and debugging workflows identify package failures without source code tracing.
 
@@ -153,10 +163,9 @@
 **Goal**: certify packaging behavior across supported architectures.
 
 - [ ] Validate full flow on `x86-32` and `x86-64`.
-- [ ] Validate boot with global system packages only.
-- [ ] Validate packaged application launch with private dependencies.
-- [ ] Validate update + rollback + reboot persistence.
-- [ ] Validate negative paths (corrupt hash, bad signature, missing dependency, invalid folder alias).
+- [ ] Validate packaged application launch with embedded runtime payload.
+- [ ] Validate stop/relaunch cycles without leaked mounts.
+- [ ] Validate negative paths (corrupt hash, bad signature, incompatible kernel_api, invalid folder alias).
 
 **Success**: packaging passes automated smoke coverage and manual fault-injection scenarios.
 
@@ -164,6 +173,6 @@
 
 - [ ] Steps 1-3: format and validation only, no mounted file access.
 - [ ] Steps 4-5: readonly package filesystem and streaming reads.
-- [ ] Steps 6-7: namespace model and dependency contracts.
-- [ ] Steps 8-9: atomic lifecycle operations and user commands.
-- [ ] Steps 10-13: runtime integration, hardening, and certification.
+- [ ] Steps 6-8: private process mount model and launch pipeline.
+- [ ] Steps 9-10: user commands and runtime boundary behavior.
+- [ ] Steps 11-13: hardening, observability, and certification.
