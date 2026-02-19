@@ -81,11 +81,11 @@
 
 **Goal**: validate launch compatibility without dependency resolution.
 
-- [ ] Parse `manifest.toml` model (`name`, `version`, `arch`, `kernel_api`, `entry`).
-- [ ] Validate architecture compatibility.
-- [ ] Validate kernel API compatibility policy.
-- [ ] Enforce policy: no `provides/requires` dependency graph behavior.
-- [ ] Produce deterministic diagnostics for compatibility failures.
+- [x] Parse `manifest.toml` model (`name`, `version`, `arch`, `kernel_api`, `entry`).
+- [x] Validate architecture compatibility.
+- [x] Validate kernel API compatibility policy.
+- [x] Enforce policy: no `provides/requires` dependency graph behavior.
+- [x] Produce deterministic diagnostics for compatibility failures.
 
 **Success**: incompatible package launch is rejected with explicit reasons.
 

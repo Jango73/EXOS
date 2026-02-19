@@ -926,6 +926,12 @@ Launch validation flow includes:
 - enforce architecture and kernel compatibility policy before mount activation,
 - reject incompatible packages with deterministic diagnostics.
 
+Manifest model is strict and dependency-free:
+- required keys: `name`, `version`, `arch`, `kernel_api`, `entry`,
+- accepted architecture values: `x86-32`, `x86-64`,
+- `kernel_api` compatibility policy: `required.major == kernel.major` and `required.minor <= kernel.minor`,
+- `provides` and `requires` keys are rejected.
+
 No dependency solver behavior is part of this model:
 - no provider graph,
 - no transitive dependency resolution,

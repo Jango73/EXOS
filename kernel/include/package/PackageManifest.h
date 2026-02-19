@@ -17,7 +17,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Package manifest parser and model
+    Package manifest parser and compatibility model
 
 \************************************************************************/
 
@@ -36,25 +36,33 @@
 #define PACKAGE_MANIFEST_STATUS_INVALID_TOML 3
 #define PACKAGE_MANIFEST_STATUS_MISSING_NAME 4
 #define PACKAGE_MANIFEST_STATUS_MISSING_VERSION 5
-#define PACKAGE_MANIFEST_STATUS_INVALID_LIST 6
-#define PACKAGE_MANIFEST_STATUS_INVALID_PACKAGE 7
-#define PACKAGE_MANIFEST_STATUS_INVALID_MANIFEST_BLOB 8
+#define PACKAGE_MANIFEST_STATUS_MISSING_ARCH 6
+#define PACKAGE_MANIFEST_STATUS_MISSING_KERNEL_API 7
+#define PACKAGE_MANIFEST_STATUS_MISSING_ENTRY 8
+#define PACKAGE_MANIFEST_STATUS_INVALID_PACKAGE 9
+#define PACKAGE_MANIFEST_STATUS_INVALID_MANIFEST_BLOB 10
+#define PACKAGE_MANIFEST_STATUS_FORBIDDEN_DEPENDENCY_GRAPH 11
+#define PACKAGE_MANIFEST_STATUS_INVALID_ARCH 12
+#define PACKAGE_MANIFEST_STATUS_INVALID_KERNEL_API 13
+#define PACKAGE_MANIFEST_STATUS_INCOMPATIBLE_ARCH 14
+#define PACKAGE_MANIFEST_STATUS_INCOMPATIBLE_KERNEL_API 15
 
 /***************************************************************************/
 
 typedef struct tag_PACKAGE_MANIFEST {
     STR Name[MAX_FILE_NAME];
     STR Version[32];
-    UINT ProvidesCount;
-    LPSTR* Provides;
-    UINT RequiresCount;
-    LPSTR* Requires;
+    STR Arch[16];
+    STR KernelApi[32];
+    STR Entry[MAX_PATH_NAME];
 } PACKAGE_MANIFEST, *LPPACKAGE_MANIFEST;
 
 /***************************************************************************/
 
 U32 PackageManifestParseText(LPCSTR ManifestText, LPPACKAGE_MANIFEST OutManifest);
 U32 PackageManifestParseFromPackageBuffer(LPCVOID PackageBytes, U32 PackageSize, LPPACKAGE_MANIFEST OutManifest);
+U32 PackageManifestCheckCompatibility(const PACKAGE_MANIFEST* Manifest);
+LPCSTR PackageManifestStatusToString(U32 Status);
 void PackageManifestRelease(LPPACKAGE_MANIFEST Manifest);
 
 /***************************************************************************/

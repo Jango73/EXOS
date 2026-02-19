@@ -17,7 +17,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Package manifest parser and model
+    Package manifest parser and compatibility model
 
 \************************************************************************/
 
@@ -26,6 +26,7 @@
 #include "CoreString.h"
 #include "Heap.h"
 #include "Log.h"
+#include "User.h"
 #include "package/EpkParser.h"
 #include "utils/TOML.h"
 
@@ -40,198 +41,128 @@ static void PackageManifestReset(LPPACKAGE_MANIFEST Manifest) {
 
     MemorySet(Manifest->Name, 0, sizeof(Manifest->Name));
     MemorySet(Manifest->Version, 0, sizeof(Manifest->Version));
-    Manifest->ProvidesCount = 0;
-    Manifest->Provides = NULL;
-    Manifest->RequiresCount = 0;
-    Manifest->Requires = NULL;
+    MemorySet(Manifest->Arch, 0, sizeof(Manifest->Arch));
+    MemorySet(Manifest->KernelApi, 0, sizeof(Manifest->KernelApi));
+    MemorySet(Manifest->Entry, 0, sizeof(Manifest->Entry));
 }
 
 /***************************************************************************/
 
 /**
- * @brief Check whether one character is TOML list whitespace.
- * @param Character Character to test.
- * @return TRUE when whitespace.
+ * @brief Resolve one manifest key from top-level or [package] section.
+ * @param Toml Parsed TOML object.
+ * @param KeyName Base key name.
+ * @return Key value when present.
  */
-static BOOL PackageManifestIsWhitespace(STR Character) {
-    return Character == ' ' || Character == '\t' || Character == '\r' || Character == '\n';
+static LPCSTR PackageManifestGetKey(LPTOML Toml, LPCSTR KeyName) {
+    STR ScopedKey[64];
+    LPCSTR Value;
+
+    if (Toml == NULL || STRING_EMPTY(KeyName)) {
+        return NULL;
+    }
+
+    Value = TomlGet(Toml, KeyName);
+    if (Value != NULL && Value[0] != STR_NULL) {
+        return Value;
+    }
+
+    StringPrintFormat(ScopedKey, TEXT("package.%s"), KeyName);
+    Value = TomlGet(Toml, ScopedKey);
+    if (Value != NULL && Value[0] != STR_NULL) {
+        return Value;
+    }
+
+    return NULL;
 }
 
 /***************************************************************************/
 
 /**
- * @brief Skip spaces in one manifest list string.
- * @param Cursor Current cursor pointer.
- * @return Pointer to first non-space character.
+ * @brief Parse one strict "major.minor" version string.
+ * @param Text Source string.
+ * @param OutMajor Receives major value.
+ * @param OutMinor Receives minor value.
+ * @return TRUE on valid parse.
  */
-static LPCSTR PackageManifestSkipWhitespace(LPCSTR Cursor) {
-    if (Cursor == NULL) return NULL;
-    while (*Cursor != STR_NULL && PackageManifestIsWhitespace(*Cursor)) Cursor++;
-    return Cursor;
+static BOOL PackageManifestParseVersionMajorMinor(LPCSTR Text, U32* OutMajor, U32* OutMinor) {
+    LPCSTR Dot;
+    UINT MajorLength;
+    UINT MinorLength;
+    STR MajorText[16];
+    STR MinorText[16];
+    UINT Index;
+
+    if (STRING_EMPTY(Text) || OutMajor == NULL || OutMinor == NULL) {
+        return FALSE;
+    }
+
+    Dot = StringFindChar(Text, '.');
+    if (Dot == NULL) {
+        return FALSE;
+    }
+
+    MajorLength = (UINT)(Dot - Text);
+    MinorLength = StringLength(Dot + 1);
+    if (MajorLength == 0 || MinorLength == 0 || MajorLength >= sizeof(MajorText) || MinorLength >= sizeof(MinorText)) {
+        return FALSE;
+    }
+
+    for (Index = 0; Index < MajorLength; Index++) {
+        if (!IsNumeric(Text[Index])) return FALSE;
+    }
+
+    for (Index = 0; Index < MinorLength; Index++) {
+        if (!IsNumeric(Dot[1 + Index])) return FALSE;
+    }
+
+    StringCopyNum(MajorText, Text, MajorLength);
+    MajorText[MajorLength] = STR_NULL;
+    StringCopyNum(MinorText, Dot + 1, MinorLength);
+    MinorText[MinorLength] = STR_NULL;
+
+    *OutMajor = StringToU32(MajorText);
+    *OutMinor = StringToU32(MinorText);
+    return TRUE;
 }
 
 /***************************************************************************/
 
 /**
- * @brief Duplicate one substring from manifest source.
- * @param Start Substring start.
- * @param Length Substring length.
- * @return Newly allocated null-terminated string, or NULL on allocation failure.
+ * @brief Return architecture name for the active kernel build.
+ * @return Architecture name used in package manifests.
  */
-static LPSTR PackageManifestDuplicateRange(LPCSTR Start, UINT Length) {
-    LPSTR Copy;
-
-    if (Start == NULL) return NULL;
-    Copy = (LPSTR)KernelHeapAlloc(Length + 1);
-    if (Copy == NULL) return NULL;
-
-    if (Length > 0) {
-        StringCopyNum(Copy, Start, Length);
-    }
-    Copy[Length] = STR_NULL;
-    return Copy;
+static LPCSTR PackageManifestGetCurrentArchitecture(void) {
+#if defined(__EXOS_ARCH_X86_32__)
+    return TEXT("x86-32");
+#elif defined(__EXOS_ARCH_X86_64__)
+    return TEXT("x86-64");
+#else
+    return TEXT("unknown");
+#endif
 }
 
 /***************************************************************************/
 
 /**
- * @brief Parse one quoted TOML list into allocated string array.
- * @param RawValue Raw TOML value.
- * @param OutItems Receives allocated string pointer array.
- * @param OutCount Receives number of strings.
- * @return PACKAGE_MANIFEST_STATUS_* result.
+ * @brief Validate one manifest architecture string.
+ * @param Arch Architecture string from manifest.
+ * @return TRUE when syntax is accepted.
  */
-static U32 PackageManifestParseQuotedList(LPCSTR RawValue, LPSTR** OutItems, UINT* OutCount) {
-    UINT Count = 0;
-    UINT Index = 0;
-    LPCSTR Cursor;
-    LPSTR* Items;
-
-    if (OutItems == NULL || OutCount == NULL) {
-        return PACKAGE_MANIFEST_STATUS_INVALID_ARGUMENT;
+static BOOL PackageManifestIsSupportedManifestArch(LPCSTR Arch) {
+    if (STRING_EMPTY(Arch)) {
+        return FALSE;
     }
 
-    *OutItems = NULL;
-    *OutCount = 0;
-
-    if (RawValue == NULL || RawValue[0] == STR_NULL) {
-        return PACKAGE_MANIFEST_STATUS_OK;
+    if (StringCompare(Arch, TEXT("x86-32")) == 0) {
+        return TRUE;
     }
 
-    Cursor = PackageManifestSkipWhitespace(RawValue);
-    if (Cursor == NULL) {
-        return PACKAGE_MANIFEST_STATUS_INVALID_ARGUMENT;
+    if (StringCompare(Arch, TEXT("x86-64")) == 0) {
+        return TRUE;
     }
 
-    if (*Cursor != '[') {
-        LPSTR Single = PackageManifestDuplicateRange(Cursor, StringLength(Cursor));
-        if (Single == NULL) {
-            return PACKAGE_MANIFEST_STATUS_OUT_OF_MEMORY;
-        }
-
-        Items = (LPSTR*)KernelHeapAlloc(sizeof(LPSTR));
-        if (Items == NULL) {
-            KernelHeapFree(Single);
-            return PACKAGE_MANIFEST_STATUS_OUT_OF_MEMORY;
-        }
-
-        Items[0] = Single;
-        *OutItems = Items;
-        *OutCount = 1;
-        return PACKAGE_MANIFEST_STATUS_OK;
-    }
-
-    Cursor++;
-    while (TRUE) {
-        Cursor = PackageManifestSkipWhitespace(Cursor);
-        if (*Cursor == ']') {
-            Cursor++;
-            Cursor = PackageManifestSkipWhitespace(Cursor);
-            if (*Cursor != STR_NULL) {
-                return PACKAGE_MANIFEST_STATUS_INVALID_LIST;
-            }
-            break;
-        }
-
-        if (*Cursor != '"') {
-            return PACKAGE_MANIFEST_STATUS_INVALID_LIST;
-        }
-
-        Cursor++;
-        while (*Cursor != STR_NULL && *Cursor != '"') Cursor++;
-        if (*Cursor != '"') {
-            return PACKAGE_MANIFEST_STATUS_INVALID_LIST;
-        }
-
-        Count++;
-        Cursor++;
-        Cursor = PackageManifestSkipWhitespace(Cursor);
-
-        if (*Cursor == ',') {
-            Cursor++;
-            continue;
-        }
-        if (*Cursor == ']') {
-            continue;
-        }
-        return PACKAGE_MANIFEST_STATUS_INVALID_LIST;
-    }
-
-    if (Count == 0) {
-        return PACKAGE_MANIFEST_STATUS_OK;
-    }
-
-    Items = (LPSTR*)KernelHeapAlloc(sizeof(LPSTR) * Count);
-    if (Items == NULL) {
-        return PACKAGE_MANIFEST_STATUS_OUT_OF_MEMORY;
-    }
-    MemorySet(Items, 0, sizeof(LPSTR) * Count);
-
-    Cursor = PackageManifestSkipWhitespace(RawValue) + 1;
-    while (Index < Count) {
-        LPCSTR Start;
-        UINT Length;
-
-        Cursor = PackageManifestSkipWhitespace(Cursor);
-        if (*Cursor != '"') {
-            break;
-        }
-
-        Cursor++;
-        Start = Cursor;
-        while (*Cursor != STR_NULL && *Cursor != '"') Cursor++;
-        if (*Cursor != '"') {
-            break;
-        }
-
-        Length = (UINT)(Cursor - Start);
-        Items[Index] = PackageManifestDuplicateRange(Start, Length);
-        if (Items[Index] == NULL) {
-            break;
-        }
-        Index++;
-
-        Cursor++;
-        Cursor = PackageManifestSkipWhitespace(Cursor);
-        if (*Cursor == ',') {
-            Cursor++;
-        }
-    }
-
-    if (Index != Count) {
-        UINT CleanupIndex;
-        for (CleanupIndex = 0; CleanupIndex < Count; CleanupIndex++) {
-            if (Items[CleanupIndex] != NULL) {
-                KernelHeapFree(Items[CleanupIndex]);
-            }
-        }
-        KernelHeapFree(Items);
-        return PACKAGE_MANIFEST_STATUS_INVALID_LIST;
-    }
-
-    *OutItems = Items;
-    *OutCount = Count;
-    return PACKAGE_MANIFEST_STATUS_OK;
+    return FALSE;
 }
 
 /***************************************************************************/
@@ -246,9 +177,11 @@ U32 PackageManifestParseText(LPCSTR ManifestText, LPPACKAGE_MANIFEST OutManifest
     LPTOML Toml;
     LPCSTR Name;
     LPCSTR Version;
+    LPCSTR Arch;
+    LPCSTR KernelApi;
+    LPCSTR Entry;
     LPCSTR Provides;
     LPCSTR Requires;
-    U32 Status;
 
     if (ManifestText == NULL || OutManifest == NULL) {
         return PACKAGE_MANIFEST_STATUS_INVALID_ARGUMENT;
@@ -258,53 +191,51 @@ U32 PackageManifestParseText(LPCSTR ManifestText, LPPACKAGE_MANIFEST OutManifest
 
     Toml = TomlParse(ManifestText);
     if (Toml == NULL) {
-        return PACKAGE_MANIFEST_STATUS_OUT_OF_MEMORY;
+        return PACKAGE_MANIFEST_STATUS_INVALID_TOML;
     }
 
-    Name = TomlGet(Toml, TEXT("name"));
-    if (Name == NULL || Name[0] == STR_NULL) {
-        Name = TomlGet(Toml, TEXT("package.name"));
-    }
-    if (Name == NULL || Name[0] == STR_NULL) {
+    Name = PackageManifestGetKey(Toml, TEXT("name"));
+    if (STRING_EMPTY(Name)) {
         TomlFree(Toml);
         return PACKAGE_MANIFEST_STATUS_MISSING_NAME;
     }
 
-    Version = TomlGet(Toml, TEXT("version"));
-    if (Version == NULL || Version[0] == STR_NULL) {
-        Version = TomlGet(Toml, TEXT("package.version"));
-    }
-    if (Version == NULL || Version[0] == STR_NULL) {
+    Version = PackageManifestGetKey(Toml, TEXT("version"));
+    if (STRING_EMPTY(Version)) {
         TomlFree(Toml);
         return PACKAGE_MANIFEST_STATUS_MISSING_VERSION;
     }
 
+    Arch = PackageManifestGetKey(Toml, TEXT("arch"));
+    if (STRING_EMPTY(Arch)) {
+        TomlFree(Toml);
+        return PACKAGE_MANIFEST_STATUS_MISSING_ARCH;
+    }
+
+    KernelApi = PackageManifestGetKey(Toml, TEXT("kernel_api"));
+    if (STRING_EMPTY(KernelApi)) {
+        TomlFree(Toml);
+        return PACKAGE_MANIFEST_STATUS_MISSING_KERNEL_API;
+    }
+
+    Entry = PackageManifestGetKey(Toml, TEXT("entry"));
+    if (STRING_EMPTY(Entry)) {
+        TomlFree(Toml);
+        return PACKAGE_MANIFEST_STATUS_MISSING_ENTRY;
+    }
+
+    Provides = PackageManifestGetKey(Toml, TEXT("provides"));
+    Requires = PackageManifestGetKey(Toml, TEXT("requires"));
+    if (!STRING_EMPTY(Provides) || !STRING_EMPTY(Requires)) {
+        TomlFree(Toml);
+        return PACKAGE_MANIFEST_STATUS_FORBIDDEN_DEPENDENCY_GRAPH;
+    }
+
     StringCopyLimit(OutManifest->Name, Name, MAX_FILE_NAME - 1);
     StringCopyLimit(OutManifest->Version, Version, sizeof(OutManifest->Version) - 1);
-
-    Provides = TomlGet(Toml, TEXT("provides"));
-    if (Provides == NULL) {
-        Provides = TomlGet(Toml, TEXT("package.provides"));
-    }
-
-    Requires = TomlGet(Toml, TEXT("requires"));
-    if (Requires == NULL) {
-        Requires = TomlGet(Toml, TEXT("package.requires"));
-    }
-
-    Status = PackageManifestParseQuotedList(Provides, &OutManifest->Provides, &OutManifest->ProvidesCount);
-    if (Status != PACKAGE_MANIFEST_STATUS_OK) {
-        TomlFree(Toml);
-        PackageManifestRelease(OutManifest);
-        return Status;
-    }
-
-    Status = PackageManifestParseQuotedList(Requires, &OutManifest->Requires, &OutManifest->RequiresCount);
-    if (Status != PACKAGE_MANIFEST_STATUS_OK) {
-        TomlFree(Toml);
-        PackageManifestRelease(OutManifest);
-        return Status;
-    }
+    StringCopyLimit(OutManifest->Arch, Arch, sizeof(OutManifest->Arch) - 1);
+    StringCopyLimit(OutManifest->KernelApi, KernelApi, sizeof(OutManifest->KernelApi) - 1);
+    StringCopyLimit(OutManifest->Entry, Entry, sizeof(OutManifest->Entry) - 1);
 
     TomlFree(Toml);
     return PACKAGE_MANIFEST_STATUS_OK;
@@ -369,31 +300,104 @@ U32 PackageManifestParseFromPackageBuffer(LPCVOID PackageBytes,
 /***************************************************************************/
 
 /**
- * @brief Release dynamic manifest model arrays.
+ * @brief Validate package manifest compatibility policy.
+ * @param Manifest Parsed manifest model.
+ * @return PACKAGE_MANIFEST_STATUS_* result.
+ */
+U32 PackageManifestCheckCompatibility(const PACKAGE_MANIFEST* Manifest) {
+    LPCSTR CurrentArchitecture;
+    U32 RequiredMajor;
+    U32 RequiredMinor;
+    U32 CurrentMajor = EXOS_VERSION_MAJOR;
+    U32 CurrentMinor = EXOS_VERSION_MINOR;
+
+    if (Manifest == NULL) {
+        ERROR(TEXT("[PackageManifestCheckCompatibility] Invalid argument"));
+        return PACKAGE_MANIFEST_STATUS_INVALID_ARGUMENT;
+    }
+
+    if (!PackageManifestIsSupportedManifestArch(Manifest->Arch)) {
+        ERROR(TEXT("[PackageManifestCheckCompatibility] Invalid arch value=%s"), Manifest->Arch);
+        return PACKAGE_MANIFEST_STATUS_INVALID_ARCH;
+    }
+
+    CurrentArchitecture = PackageManifestGetCurrentArchitecture();
+    if (StringCompare(Manifest->Arch, CurrentArchitecture) != 0) {
+        ERROR(TEXT("[PackageManifestCheckCompatibility] Incompatible arch required=%s current=%s"),
+            Manifest->Arch,
+            CurrentArchitecture);
+        return PACKAGE_MANIFEST_STATUS_INCOMPATIBLE_ARCH;
+    }
+
+    if (!PackageManifestParseVersionMajorMinor(Manifest->KernelApi, &RequiredMajor, &RequiredMinor)) {
+        ERROR(TEXT("[PackageManifestCheckCompatibility] Invalid kernel_api value=%s"), Manifest->KernelApi);
+        return PACKAGE_MANIFEST_STATUS_INVALID_KERNEL_API;
+    }
+
+    if (RequiredMajor != CurrentMajor || RequiredMinor > CurrentMinor) {
+        ERROR(TEXT("[PackageManifestCheckCompatibility] Incompatible kernel_api required=%u.%u current=%u.%u"),
+            RequiredMajor,
+            RequiredMinor,
+            CurrentMajor,
+            CurrentMinor);
+        return PACKAGE_MANIFEST_STATUS_INCOMPATIBLE_KERNEL_API;
+    }
+
+    return PACKAGE_MANIFEST_STATUS_OK;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Return one deterministic message for manifest status code.
+ * @param Status Manifest status value.
+ * @return Static status string.
+ */
+LPCSTR PackageManifestStatusToString(U32 Status) {
+    switch (Status) {
+        case PACKAGE_MANIFEST_STATUS_OK:
+            return TEXT("ok");
+        case PACKAGE_MANIFEST_STATUS_INVALID_ARGUMENT:
+            return TEXT("invalid_argument");
+        case PACKAGE_MANIFEST_STATUS_OUT_OF_MEMORY:
+            return TEXT("out_of_memory");
+        case PACKAGE_MANIFEST_STATUS_INVALID_TOML:
+            return TEXT("invalid_toml");
+        case PACKAGE_MANIFEST_STATUS_MISSING_NAME:
+            return TEXT("missing_name");
+        case PACKAGE_MANIFEST_STATUS_MISSING_VERSION:
+            return TEXT("missing_version");
+        case PACKAGE_MANIFEST_STATUS_MISSING_ARCH:
+            return TEXT("missing_arch");
+        case PACKAGE_MANIFEST_STATUS_MISSING_KERNEL_API:
+            return TEXT("missing_kernel_api");
+        case PACKAGE_MANIFEST_STATUS_MISSING_ENTRY:
+            return TEXT("missing_entry");
+        case PACKAGE_MANIFEST_STATUS_INVALID_PACKAGE:
+            return TEXT("invalid_package");
+        case PACKAGE_MANIFEST_STATUS_INVALID_MANIFEST_BLOB:
+            return TEXT("invalid_manifest_blob");
+        case PACKAGE_MANIFEST_STATUS_FORBIDDEN_DEPENDENCY_GRAPH:
+            return TEXT("forbidden_dependency_graph");
+        case PACKAGE_MANIFEST_STATUS_INVALID_ARCH:
+            return TEXT("invalid_arch");
+        case PACKAGE_MANIFEST_STATUS_INVALID_KERNEL_API:
+            return TEXT("invalid_kernel_api");
+        case PACKAGE_MANIFEST_STATUS_INCOMPATIBLE_ARCH:
+            return TEXT("incompatible_arch");
+        case PACKAGE_MANIFEST_STATUS_INCOMPATIBLE_KERNEL_API:
+            return TEXT("incompatible_kernel_api");
+        default:
+            return TEXT("unknown_status");
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Release dynamic manifest model allocations.
  * @param Manifest Manifest model.
  */
 void PackageManifestRelease(LPPACKAGE_MANIFEST Manifest) {
-    UINT Index;
-
-    if (Manifest == NULL) return;
-
-    if (Manifest->Provides != NULL) {
-        for (Index = 0; Index < Manifest->ProvidesCount; Index++) {
-            if (Manifest->Provides[Index] != NULL) {
-                KernelHeapFree(Manifest->Provides[Index]);
-            }
-        }
-        KernelHeapFree(Manifest->Provides);
-    }
-
-    if (Manifest->Requires != NULL) {
-        for (Index = 0; Index < Manifest->RequiresCount; Index++) {
-            if (Manifest->Requires[Index] != NULL) {
-                KernelHeapFree(Manifest->Requires[Index]);
-            }
-        }
-        KernelHeapFree(Manifest->Requires);
-    }
-
     PackageManifestReset(Manifest);
 }
