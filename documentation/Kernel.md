@@ -874,6 +874,22 @@ Step-3 parser/validator behavior:
 - optionally validates detached signature blob through `utils/Signature`,
 - returns stable validation status codes and logs explicit parse failures with function-tagged error messages.
 
+#### PackageFS readonly mount
+
+Step-4 introduces a dedicated PackageFS module:
+- `kernel/include/package/PackageFS.h`
+- `kernel/source/package/PackageFS.c`
+
+PackageFS mounts one validated `.epk` archive as a virtual read-only filesystem:
+- mount entry point: `PackageFSMountFromBuffer(...)`,
+- unmount entry point: `PackageFSUnmount(...)`,
+- TOC tree materialization for files, folders, and folder aliases,
+- wildcard folder enumeration through `DF_FS_OPENFILE` + `DF_FS_OPENNEXT`,
+- write-class operations (`create`, `delete`, `rename`, `write`, `set volume info`) rejected with `DF_RETURN_NO_PERMISSION`,
+- unmount refused when open handles still reference the mounted package.
+
+Content streaming from compressed block table is intentionally deferred to Step 5; at this stage, metadata browsing and inline-data file reads are available, while block-backed file reads return `DF_RETURN_NOT_IMPLEMENTED`.
+
 #### Runtime access paths
 
 `OpenFile()` takes two routing paths:

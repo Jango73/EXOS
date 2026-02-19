@@ -48,10 +48,10 @@
 
 **Goal**: mount one valid package as a virtual readonly filesystem tree.
 
-- [ ] Create package filesystem driver module and mount entry points.
-- [ ] Expose files, folders, and folder aliases from table of contents.
-- [ ] Enforce readonly semantics for every operation.
-- [ ] Add unmount cleanup path with object lifetime safety.
+- [x] Create package filesystem driver module and mount entry points.
+- [x] Expose files, folders, and folder aliases from table of contents.
+- [x] Enforce readonly semantics for every operation.
+- [x] Add unmount cleanup path with object lifetime safety.
 
 **Success**: browsing a mounted package shows expected tree and forbids writes.
 
