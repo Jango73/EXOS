@@ -70,13 +70,13 @@
 
 **Goal**: integrate package mounts into EXOS namespace model.
 
-- [ ] Implement global scan sources:
-  - [ ] `/library/package/`
-  - [ ] `/apps/`
-  - [ ] `/users/*/package/`
-- [ ] Mount packages by role into expected locations.
-- [ ] Add private process view for `/package`.
-- [ ] Add `/user-data` alias to `/current-user/<package-name>/data`.
+- [x] Implement global scan sources:
+  - [x] `/library/package/`
+  - [x] `/apps/`
+  - [x] `/users/*/package/`
+- [x] Mount packages by role into expected locations.
+- [x] Add private process view for `/package`.
+- [x] Add `/user-data` alias to `/current-user/<package-name>/data`.
 
 **Success**: packaged application process sees global mounts plus private `/package` and `/user-data`.
 

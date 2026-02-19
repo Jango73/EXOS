@@ -33,6 +33,7 @@
   - [File systems](#file-systems)
     - [Mounted volume naming](#mounted-volume-naming)
     - [EPK package format](#epk-package-format)
+    - [Package namespace integration](#package-namespace-integration)
   - [EXOS File System - EXFS](#exos-file-system---exfs)
   - [Filesystem Cluster cache](#filesystem-cluster-cache)
   - [Foreign File systems](#foreign-file-systems)
@@ -893,6 +894,27 @@ PackageFS mounts one validated `.epk` archive as a virtual read-only filesystem:
 - block-backed file reads mapped to table ranges with on-demand per-chunk decompression,
 - per-chunk SHA-256 validation against block table hashes before serving data,
 - bounded decompressed chunk caching through `utils/ChunkCache`, with cleanup-based eviction and full invalidation during unmount.
+
+#### Package namespace integration
+
+Step-6 namespace integration is implemented by:
+- `kernel/include/package/PackageNamespace.h`
+- `kernel/source/package/PackageNamespace.c`
+
+Boot-time integration:
+- `InitializeFileSystems()` calls `PackageNamespaceInitialize()` after `MountSystemFS()`, configuration load, and configured user mounts.
+- global package sources are scanned:
+  - `/library/package/`
+  - `/apps/`
+  - `/users/*/package/`
+- each discovered `.epk` is validated and mounted with PackageFS, then attached by role in namespace:
+  - `/library/package/<package-name>`
+  - `/apps/<package-name>`
+  - `/users/<user-name>/package/<package-name>`
+
+Process-view hooks:
+- `PackageNamespaceBindCurrentProcessPackageView(...)` mounts one package view at `/package`.
+- the same helper maps `/user-data` to `/users/<current-user>/<package-name>/data` on the active filesystem.
 
 #### Runtime access paths
 

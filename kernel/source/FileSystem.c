@@ -29,6 +29,7 @@
 #include "File.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "package/PackageNamespace.h"
 #include "CoreString.h"
 #include "SystemFS.h"
 #include "utils/Helpers.h"
@@ -1222,6 +1223,7 @@ void InitializeFileSystems(void) {
     MountSystemFS();
     ReadKernelConfiguration();
     MountUserNodes();
+    PackageNamespaceInitialize();
 }
 
 /***************************************************************************/
