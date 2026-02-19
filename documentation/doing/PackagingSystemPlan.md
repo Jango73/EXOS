@@ -93,7 +93,7 @@
 
 ## Step 8 --- Atomic activation and rollback
 
-**Goal**: make install, remove, update, and rollback state transitions atomic.
+**Goal**: make package activation, removal, update, and rollback state transitions atomic.
 
 - [ ] Persist active package hashes in `/system/data/package/active.list`.
 - [ ] Add transaction flow: stage, validate, commit.
