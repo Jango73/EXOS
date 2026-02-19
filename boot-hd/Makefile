@@ -134,6 +134,7 @@ FS_TEST_NTFS_IMG= $(BUILD_DIR)/boot-hd/fs-test-ntfs.img
 NVME_IMG        = $(FS_TEST_EXT2_IMG)
 NVME_UNSUPPORTED_IMG = $(FS_TEST_NTFS_IMG)
 CYCLE_BIN       = $(CORE_BUILD_DIR)/tools/cycle
+EPK_PACK_BIN    = $(CORE_BUILD_DIR)/tools/epk-pack
 KERNEL_BIN      = $(CORE_BUILD_DIR)/kernel/exos.bin
 PORTAL_ELF      = $(CORE_BUILD_DIR)/system/portal/portal
 NETGET_ELF      = $(CORE_BUILD_DIR)/system/netget/netget
@@ -143,6 +144,10 @@ TERMTACTICS_ELF	= $(CORE_BUILD_DIR)/system/terminal-tactics/terminal-tactics
 MOUSEINFO_ELF   = $(CORE_BUILD_DIR)/system/mouse-info/mouse-info
 MASTER_ELF      = $(CORE_BUILD_DIR)/system/test/master/master
 SLAVE_ELF       = $(CORE_BUILD_DIR)/system/test/slave/slave
+SYSTEM_TEST_EPK_STAGING_DIR = $(BUILD_DIR)/boot-hd/system-test-epk-root
+SYSTEM_TEST_EPK = $(BUILD_DIR)/boot-hd/test.epk
+EXOS_VERSION_MAJOR = $(shell awk '/#define EXOS_VERSION_MAJOR/ {print $$3; exit}' ../kernel/include/User.h)
+EXOS_VERSION_MINOR = $(shell awk '/#define EXOS_VERSION_MINOR/ {print $$3; exit}' ../kernel/include/User.h)
 TEST_E0_SCRIPT  = ../system/scripts/test.e0
 EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/ext2-root
 USB3_STAGING_DIR= $(BUILD_DIR)/boot-hd/usb-3-root
@@ -463,10 +468,33 @@ $(KERNEL_CFG_EXT2): $(FINAL_IMG)
 
 update: $(UPDATE_TARGET)
 
+$(EPK_PACK_BIN):
+	@echo "Building epk-pack tool..."
+	@+$(MAKE) -C ../tools ARCH=$(ARCH) BUILD_CORE_NAME=$(BUILD_CORE_NAME) $(EPK_PACK_BIN)
+
+$(SYSTEM_TEST_EPK): $(EPK_PACK_BIN) $(MASTER_ELF) $(SLAVE_ELF)
+	@echo "Building system test package: $(SYSTEM_TEST_EPK)"
+	@rm -rf $(SYSTEM_TEST_EPK_STAGING_DIR)
+	@mkdir -p $(SYSTEM_TEST_EPK_STAGING_DIR)/binary
+	@cp $(MASTER_ELF) $(SYSTEM_TEST_EPK_STAGING_DIR)/binary/master
+	@cp $(SLAVE_ELF) $(SYSTEM_TEST_EPK_STAGING_DIR)/binary/slave
+	@printf '%s\n' \
+		'name = "system.test"' \
+		'version = "1.0.0"' \
+		'arch = "$(ARCH)"' \
+		'kernel_api = "$(EXOS_VERSION_MAJOR).$(EXOS_VERSION_MINOR)"' \
+		'entry = "/binary/master"' \
+		'' \
+		'[commands]' \
+		'master = "/binary/master"' \
+		'slave = "/binary/slave"' \
+		> $(SYSTEM_TEST_EPK_STAGING_DIR)/manifest.toml
+	@$(EPK_PACK_BIN) pack --input $(SYSTEM_TEST_EPK_STAGING_DIR) --output $(SYSTEM_TEST_EPK)
+
 update-test-image: check_payload_size $(FINAL_IMG)
 	@echo "Skipping filesystem staging for test payload build."
 
-update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32)
+update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32) $(SYSTEM_TEST_EPK)
 	$(call MTOOLS_OPERATION,$(FINAL_IMG),Injecting files using mtools,\
 		$(call MCOPY_IF_NEEDED,$(KERNEL_BIN),z:/EXOS.BIN) \
 		$(call MCOPY_IF_NEEDED,$(KERNEL_CFG_FAT32),z:/$(CONFIG_TOML_NAME)) \
@@ -474,7 +502,6 @@ update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32)
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/KEYBOARD || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/USERS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS || true; \
-		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/APPS/TEST || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/SCRIPTS || true; \
 		MTOOLSRC=$(MTOOLS_CONF) mmd -o z:/EXOS/TEMP || true; \
 		for f in $(KEYBOARD_LAYOUTS); do \
@@ -489,17 +516,19 @@ update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32)
 		$(call MCOPY_IF_NEEDED,$(TICTACTOE_ELF),z:/EXOS/APPS/tictactoe)\
 		$(call MCOPY_IF_NEEDED,$(TERMTACTICS_ELF),z:/EXOS/APPS/terminal-tactics)\
 		$(call MCOPY_IF_NEEDED,$(MOUSEINFO_ELF),z:/EXOS/APPS/mouse-info)\
-		$(call MCOPY_IF_NEEDED,$(MASTER_ELF),z:/EXOS/APPS/TEST/MASTER)\
-		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE)\
+		MTOOLSRC=$(MTOOLS_CONF) mdel z:/EXOS/APPS/TEST/MASTER >/dev/null 2>&1 || true; \
+		MTOOLSRC=$(MTOOLS_CONF) mdel z:/EXOS/APPS/TEST/SLAVE >/dev/null 2>&1 || true; \
+		MTOOLSRC=$(MTOOLS_CONF) mdel z:/EXOS/APPS/TEST/MASTER.EPK >/dev/null 2>&1 || true; \
+		$(call MCOPY_IF_NEEDED,$(SYSTEM_TEST_EPK),z:/EXOS/APPS/TEST.EPK)\
 		$(call MCOPY_IF_NEEDED,$(TEST_E0_SCRIPT),z:/EXOS/SCRIPTS/TEST.E0),\
 		All files injected into image.)
 
-update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2)
+update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2) $(SYSTEM_TEST_EPK)
 	@echo "Preparing EXT2 staging directory at $(EXT2_STAGING_DIR)"
 	@rm -rf $(EXT2_STAGING_DIR)
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/data
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/users
-	@mkdir -p $(EXT2_STAGING_DIR)/exos/apps/test
+	@mkdir -p $(EXT2_STAGING_DIR)/exos/apps
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/keyboard
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/scripts
 	@mkdir -p $(EXT2_STAGING_DIR)/exos/temp
@@ -517,8 +546,7 @@ update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2)
 	@cp $(TICTACTOE_ELF) $(EXT2_STAGING_DIR)/exos/apps/tictactoe
 	@cp $(TERMTACTICS_ELF) $(EXT2_STAGING_DIR)/exos/apps/terminal-tactics
 	@cp $(MOUSEINFO_ELF) $(EXT2_STAGING_DIR)/exos/apps/mouse-info
-	@cp $(MASTER_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/master
-	@cp $(SLAVE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/slave
+	@cp $(SYSTEM_TEST_EPK) $(EXT2_STAGING_DIR)/exos/apps/test.epk
 	@cp $(TEST_E0_SCRIPT) $(EXT2_STAGING_DIR)/exos/scripts/test.e0
 	$(call POPULATE_EXT2_IMAGE,$(FINAL_IMG),$(EXT2_STAGING_DIR))
 
