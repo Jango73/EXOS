@@ -35,6 +35,12 @@
 
 /***************************************************************************/
 
+#define PACKAGE_NAMESPACE_ROLE_LIBRARY TEXT("pkg.library")
+#define PACKAGE_NAMESPACE_ROLE_APPLICATION TEXT("pkg.app")
+#define PACKAGE_NAMESPACE_ROLE_USER TEXT("pkg.user")
+
+/***************************************************************************/
+
 typedef struct tag_PACKAGENAMESPACE_PATHS {
     STR LibraryRoot[MAX_PATH_NAME];
     STR AppsRoot[MAX_PATH_NAME];
@@ -268,14 +274,16 @@ static BOOL PackageNamespaceIsDotEntry(LPCSTR Name) {
  */
 static BOOL PackageNamespaceHasEpkExtension(LPCSTR Name) {
     U32 NameLength;
+    U32 ExtensionLength;
     LPCSTR Extension;
 
     if (Name == NULL) return FALSE;
+    ExtensionLength = StringLength(KERNEL_FILE_EXTENSION_PACKAGE);
     NameLength = StringLength(Name);
-    if (NameLength <= 4) return FALSE;
+    if (NameLength <= ExtensionLength) return FALSE;
 
-    Extension = Name + (NameLength - 4);
-    return StringCompareNC(Extension, TEXT(".epk")) == 0;
+    Extension = Name + (NameLength - ExtensionLength);
+    return StringCompareNC(Extension, KERNEL_FILE_EXTENSION_PACKAGE) == 0;
 }
 
 /***************************************************************************/
@@ -289,12 +297,14 @@ static BOOL PackageNamespaceHasEpkExtension(LPCSTR Name) {
 static BOOL PackageNamespaceExtractPackageName(LPCSTR FileName, STR OutName[MAX_FILE_NAME]) {
     U32 Length;
     U32 CopyLength;
+    U32 ExtensionLength;
 
     if (FileName == NULL || OutName == NULL) return FALSE;
     if (!PackageNamespaceHasEpkExtension(FileName)) return FALSE;
 
+    ExtensionLength = StringLength(KERNEL_FILE_EXTENSION_PACKAGE);
     Length = StringLength(FileName);
-    CopyLength = Length - 4;
+    CopyLength = Length - ExtensionLength;
     if (CopyLength == 0 || CopyLength >= MAX_FILE_NAME) return FALSE;
 
     StringCopyNum(OutName, FileName, CopyLength);
@@ -504,12 +514,15 @@ static void PackageNamespaceScanUserPackageFolders(void) {
         if (PackageNamespaceIsDotEntry(UserEntry->Name)) continue;
 
         PackageNamespaceBuildChildPath(PackageNamespacePaths.UsersRoot, UserEntry->Name, UserPackageFolder);
-        PackageNamespaceBuildChildPath(UserPackageFolder, TEXT("package"), UserPackageFolder);
+        PackageNamespaceBuildChildPath(
+            UserPackageFolder, KERNEL_PATH_LEAF_USER_PACKAGE_ROOT, UserPackageFolder);
 
         PackageNamespaceBuildChildPath(PackageNamespacePaths.UsersRoot, UserEntry->Name, UserMountRoot);
-        PackageNamespaceBuildChildPath(UserMountRoot, TEXT("package"), UserMountRoot);
+        PackageNamespaceBuildChildPath(
+            UserMountRoot, KERNEL_PATH_LEAF_USER_PACKAGE_ROOT, UserMountRoot);
 
-        PackageNamespaceScanPackageFolder(UserPackageFolder, UserMountRoot, TEXT("pkg.user"), UserEntry->Name);
+        PackageNamespaceScanPackageFolder(
+            UserPackageFolder, UserMountRoot, PACKAGE_NAMESPACE_ROLE_USER, UserEntry->Name);
     } while (GetSystemFS()->Driver->Command(DF_FS_OPENNEXT, (UINT)UserEntry) == DF_RETURN_SUCCESS);
 
     GetSystemFS()->Driver->Command(DF_FS_CLOSEFILE, (UINT)UserEntry);
@@ -537,18 +550,18 @@ BOOL PackageNamespaceInitialize(void) {
 
     PackageNamespaceScanPackageFolder(PackageNamespacePaths.LibraryRoot,
         PackageNamespacePaths.LibraryRoot,
-        TEXT("pkg.library"),
+        PACKAGE_NAMESPACE_ROLE_LIBRARY,
         NULL);
     PackageNamespaceScanPackageFolder(PackageNamespacePaths.AppsRoot,
         PackageNamespacePaths.AppsRoot,
-        TEXT("pkg.app"),
+        PACKAGE_NAMESPACE_ROLE_APPLICATION,
         NULL);
     PackageNamespaceScanUserPackageFolders();
 
     if (CurrentUser != NULL) {
         PackageNamespaceBindCurrentUserAlias(CurrentUser->UserName);
     } else {
-        PackageNamespaceBindCurrentUserAlias(TEXT("root"));
+        PackageNamespaceBindCurrentUserAlias(KERNEL_PATH_DEFAULT_ROOT_USER_NAME);
     }
 
     return TRUE;
@@ -581,7 +594,7 @@ BOOL PackageNamespaceBindCurrentProcessPackageView(LPFILESYSTEM PackageFileSyste
     UserDataSourcePath[0] = STR_NULL;
     PackageNamespaceBuildChildPath(PackageNamespacePaths.UsersRoot, CurrentUser->UserName, UserDataSourcePath);
     PackageNamespaceBuildChildPath(UserDataSourcePath, PackageName, UserDataSourcePath);
-    PackageNamespaceBuildChildPath(UserDataSourcePath, TEXT("data"), UserDataSourcePath);
+    PackageNamespaceBuildChildPath(UserDataSourcePath, KERNEL_PATH_LEAF_PRIVATE_USER_DATA, UserDataSourcePath);
 
     if (!PackageNamespacePathExists(UserDataSourcePath)) {
         return FALSE;

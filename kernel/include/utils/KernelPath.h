@@ -49,6 +49,10 @@
 #define KERNEL_PATH_DEFAULT_CURRENT_USER_ALIAS TEXT("/current-user")
 #define KERNEL_PATH_DEFAULT_PRIVATE_PACKAGE_ALIAS TEXT("/package")
 #define KERNEL_PATH_DEFAULT_PRIVATE_USER_DATA_ALIAS TEXT("/user-data")
+#define KERNEL_PATH_DEFAULT_ROOT_USER_NAME TEXT("root")
+#define KERNEL_PATH_LEAF_USER_PACKAGE_ROOT TEXT("package")
+#define KERNEL_PATH_LEAF_PRIVATE_USER_DATA TEXT("data")
+#define KERNEL_FILE_EXTENSION_PACKAGE TEXT(".epk")
 #define KERNEL_FILE_EXTENSION_KEYBOARD_LAYOUT TEXT(".ekm1")
 
 /***************************************************************************/
