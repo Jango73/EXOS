@@ -34,6 +34,7 @@
 typedef struct {
     LPCSTR Name;        // Test name for logging
     TestFunction Func;  // Test function pointer
+    BOOL RunOnBoot;     // Include in RunAllTests at boot time
 } TESTENTRY;
 
 /************************************************************************/
@@ -42,21 +43,21 @@ typedef struct {
 
 // Test registry - add new tests here
 static TESTENTRY TestRegistry[] = {
-    {TEXT("TestCopyStack"), TestCopyStack},
-    {TEXT("TestCircularBuffer"), TestCircularBuffer},
-    {TEXT("TestBlockList"), TestBlockList},
-    {TEXT("TestRadixTree"), TestRadixTree},
-    {TEXT("TestRegex"), TestRegex},
-    {TEXT("TestX86_32Disassembler"), TestX86_32Disassembler},
-    {TEXT("TestBcrypt"), TestBcrypt},
-    {TEXT("TestIPv4"), TestIPv4},
-    {TEXT("TestMacros"), TestMacros},
-    {TEXT("TestPackageManifest"), TestPackageManifest},
-    {TEXT("TestTCP"), TestTCP},
-    {TEXT("TestScript"), TestScript},
+    {TEXT("TestCopyStack"), TestCopyStack, FALSE},
+    {TEXT("TestCircularBuffer"), TestCircularBuffer, TRUE},
+    {TEXT("TestBlockList"), TestBlockList, TRUE},
+    {TEXT("TestRadixTree"), TestRadixTree, TRUE},
+    {TEXT("TestRegex"), TestRegex, TRUE},
+    {TEXT("TestX86_32Disassembler"), TestX86_32Disassembler, TRUE},
+    {TEXT("TestBcrypt"), TestBcrypt, TRUE},
+    {TEXT("TestIPv4"), TestIPv4, TRUE},
+    {TEXT("TestMacros"), TestMacros, TRUE},
+    {TEXT("TestPackageManifest"), TestPackageManifest, TRUE},
+    {TEXT("TestTCP"), TestTCP, TRUE},
+    {TEXT("TestScript"), TestScript, TRUE},
     // Add new tests here following the same pattern
     // { TEXT("TestName"), TestFunctionName },
-    {NULL, NULL}  // End marker
+    {NULL, NULL, FALSE}  // End marker
 };
 
 /************************************************************************/
@@ -130,6 +131,9 @@ BOOL RunAllTests(void) {
 
     // Run each test in the registry
     for (Index = 0; TestRegistry[Index].Name != NULL; Index++) {
+        if (TestRegistry[Index].RunOnBoot == FALSE) {
+            continue;
+        }
         RunSingleTest(&TestRegistry[Index], &OverallResults);
     }
 

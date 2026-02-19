@@ -966,9 +966,10 @@ PHYSICAL AllocUserPageDirectory(void) {
             /*Global*/ 0,
             /*Fixed*/ 1));
 
-    // Mirror all present low-directory mappings from the active CR3 into the
-    // new user directory. This keeps bootstrap low-memory helpers available
-    // even when they span multiple 2MB directory entries.
+    // Mirror only the seeded low-memory entries from the active CR3 into the
+    // new user directory. Copying the full low directory would leak user-space
+    // mappings from the current process and may block VMA_USER allocations in
+    // child processes.
     U64 CurrentLowPdptEntry = ReadPageDirectoryEntryValue(CurrentPml4, LowPml4Index);
 
     if ((CurrentLowPdptEntry & PAGE_FLAG_PRESENT) != 0) {
@@ -985,7 +986,12 @@ PHYSICAL AllocUserPageDirectory(void) {
                 LPPAGE_DIRECTORY NewLowDirectory = (LPPAGE_DIRECTORY)MapTemporaryPhysicalPage5(LowRegion.DirectoryPhysical);
 
                 if (CurrentLowDirectory != NULL && NewLowDirectory != NULL) {
-                    for (UINT Index = 0; Index < PAGE_TABLE_NUM_ENTRIES; Index++) {
+                    UINT MaxSeededEntries = USERLAND_SEEDED_TABLES;
+                    if (MaxSeededEntries > PAGE_TABLE_NUM_ENTRIES) {
+                        MaxSeededEntries = PAGE_TABLE_NUM_ENTRIES;
+                    }
+
+                    for (UINT Index = 0; Index < MaxSeededEntries; Index++) {
                         U64 EntryValue = ReadPageDirectoryEntryValue(CurrentLowDirectory, Index);
                         if ((EntryValue & PAGE_FLAG_PRESENT) != 0) {
                             WritePageDirectoryEntryValue(NewLowDirectory, Index, EntryValue);

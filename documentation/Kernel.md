@@ -317,6 +317,14 @@ Both the x86-32 and x86-64 context-switch helpers (`SetupStackForKernelMode` and
 
 The minimum sizes for task and system stacks are driven by the configuration keys `Task.MinimumTaskStackSize` and `Task.MinimumSystemStackSize` in `kernel/configuration/exos.ref.toml`. At boot the task manager reads those values, but it clamps them to the architecture defaults (`64 KiB`/`16 KiB` on x86-32 and `128 KiB`/`32 KiB` on x86-64) to prevent under-provisioned stacks. Increasing the values in the configuration grows every newly created task and keeps the auto stack growing logic operating on the larger baseline.
 
+Stack growth also enforces compile-time caps defined in `kernel/include/Stack.h` (`STACK_MAXIMUM_TASK_STACK_SIZE`, `STACK_MAXIMUM_SYSTEM_STACK_SIZE`). The kernel does not rely on runtime configuration for these hard limits.
+
+When an in-place resize fails (for example because the next virtual range is occupied), `GrowCurrentStack` relocates the active stack to a new region, switches the live stack pointer to the new top, updates the task stack descriptor, then releases the old region. This keeps kernel stack growth functional even when neighboring mappings block contiguous expansion.
+
+On x86-64, task setup allocates IST1 with an explicit guard gap above the system stack, so emergency fault stack placement does not sit immediately adjacent to the regular system stack.
+
+The stack autotest module (`TestCopyStack`) is registered for on-demand execution only. It is excluded from the boot-time `RunAllTests` path and can be triggered manually from the shell with `autotest stack`.
+
 #### IRQ scheduling
 
 ##### IRQ 0 path

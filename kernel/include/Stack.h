@@ -34,6 +34,14 @@
 #define STACK_GROW_MIN_INCREMENT N_16KB
 #define STACK_GROW_EXTRA_HEADROOM N_16KB
 
+#if defined(__EXOS_ARCH_X86_32__)
+#define STACK_MAXIMUM_TASK_STACK_SIZE N_1MB
+#define STACK_MAXIMUM_SYSTEM_STACK_SIZE N_256KB
+#else
+#define STACK_MAXIMUM_TASK_STACK_SIZE N_2MB
+#define STACK_MAXIMUM_SYSTEM_STACK_SIZE N_512KB
+#endif
+
 /************************************************************************/
 
 // Copy stack content from source to destination and adjust frame pointers

@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "shell/Shell-Shared.h"
+#include "Autotest.h"
 #include "package/PackageFS.h"
 #include "package/PackageManifest.h"
 #include "package/PackageNamespace.h"
@@ -64,6 +65,7 @@ static U32 CMD_logout(LPSHELLCONTEXT);
 static U32 CMD_whoami(LPSHELLCONTEXT);
 static U32 CMD_passwd(LPSHELLCONTEXT);
 static U32 CMD_prof(LPSHELLCONTEXT);
+static U32 CMD_autotest(LPSHELLCONTEXT);
 static U32 CMD_usb(LPSHELLCONTEXT);
 static U32 CMD_nvme(LPSHELLCONTEXT);
 static U32 CMD_dataview(LPSHELLCONTEXT);
@@ -114,6 +116,7 @@ SHELL_COMMAND_ENTRY COMMANDS[] = {
     {"who_am_i", "who", "", CMD_whoami},
     {"passwd", "set_password", "", CMD_passwd},
     {"prof", "profiling", "", CMD_prof},
+    {"autotest", "autotest", "stack", CMD_autotest},
     {"usb", "usb", "ports|devices|tree|drives|probe", CMD_usb},
     {"nvme", "nvme", "list", CMD_nvme},
     {"data", "data_view", "", CMD_dataview},
@@ -2031,6 +2034,38 @@ static U32 CMD_prof(LPSHELLCONTEXT Context) {
     UNUSED(Context);
     ProfileDump();
     return 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Run one on-demand autotest module.
+ * @param Context Shell context.
+ * @return DF_RETURN_SUCCESS.
+ */
+static U32 CMD_autotest(LPSHELLCONTEXT Context) {
+    BOOL PreviousErrorConsoleEnabled;
+    BOOL Result = FALSE;
+
+    ParseNextCommandLineComponent(Context);
+
+    if (StringLength(Context->Command) == 0 || StringCompareNC(Context->Command, TEXT("stack")) != 0) {
+        ConsolePrint(TEXT("Usage: autotest stack\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    PreviousErrorConsoleEnabled = KernelLogGetErrorConsoleEnabled();
+    KernelLogSetErrorConsoleEnabled(FALSE);
+    Result = RunSingleTestByName(TEXT("TestCopyStack"));
+    KernelLogSetErrorConsoleEnabled(PreviousErrorConsoleEnabled);
+
+    if (Result) {
+        ConsolePrint(TEXT("autotest stack: passed\n"));
+    } else {
+        ConsolePrint(TEXT("autotest stack: failed\n"));
+    }
+
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
