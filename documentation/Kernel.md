@@ -974,6 +974,8 @@ Shell package command:
 - `package run <package-name> [command-name] [args...]` resolves package file from `KernelPath.SystemAppsRoot`,
 - if `command-name` matches `manifest.commands.<name>`, that target is launched,
 - otherwise launch falls back to `manifest.entry` and keeps the token as the first application argument.
+- `package list <package-name|path.epk>` validates/mounts one package and lists manifest metadata plus package tree content.
+- `package add <package-name|path.epk>` validates source package and copies it to `KernelPath.SystemAppsRoot` under `<manifest.name>.epk`.
 
 #### Runtime access paths
 

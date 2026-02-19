@@ -106,8 +106,8 @@
 **Goal**: expose basic package operations to users and automation.
 
 - [ ] Keep `tools/` as the primary package creation path while native EXOS package management matures.
-- [ ] Implement `package list <package-name|path.epk>` command (lists package internal content).
-- [ ] Implement `package add <package-name|path.epk>` command.
+- [x] Implement `package list <package-name|path.epk>` command (lists package internal content).
+- [x] Implement `package add <package-name|path.epk>` command.
 - [ ] Implement `package remove <package-name|path.epk>` command.
 - [ ] Implement `package verify <package-name|path.epk>` command.
 - [ ] Implement package command index for `run <command-name>` resolution without package name.

@@ -83,6 +83,8 @@ static BOOL ShellParseRawToken(LPCSTR Text, UINT* InOutIndex, STR OutToken[MAX_P
 static BOOL ShellResolvePackageFilePath(LPSHELLCONTEXT Context,
                                         LPCSTR PackageName,
                                         STR OutQualifiedPackage[MAX_PATH_NAME]);
+static U32 ShellPackageList(LPSHELLCONTEXT Context, LPCSTR PackageNameOrPath);
+static U32 ShellPackageAdd(LPSHELLCONTEXT Context, LPCSTR PackageNameOrPath);
 static BOOL ShellIsPackageFileName(LPCSTR FileName);
 static BOOL ShellLaunchPackage(LPSHELLCONTEXT Context,
                                LPCSTR QualifiedCommandLine,
@@ -104,7 +106,7 @@ SHELL_COMMAND_ENTRY COMMANDS[] = {
     {"cd", "cd", "Name", CMD_cd},
     {"mkdir", "md", "Name", CMD_md},
     {"run", "launch", "Name [-b|--background]", CMD_run},
-    {"package", "package", "run <package-name> [command-name] [args...]", CMD_package},
+    {"package", "package", "run|list|add ...", CMD_package},
     {"quit", "exit", "", CMD_exit},
     {"sys", "sys_info", "", CMD_sysinfo},
     {"kill", "kill_task", "Number", CMD_killtask},
@@ -1133,15 +1135,9 @@ static U32 CMD_run(LPSHELLCONTEXT Context) {
  */
 static U32 CMD_package(LPSHELLCONTEXT Context) {
     UINT Index;
-    UINT RemainderIndex;
     STR SubCommand[MAX_PATH_NAME];
     STR PackageName[MAX_PATH_NAME];
-    STR FirstArgumentToken[MAX_PATH_NAME];
-    STR QualifiedPackage[MAX_PATH_NAME];
-    STR QualifiedCommandLine[MAX_PATH_NAME];
-    LPCSTR RemainderArguments;
-    LPCSTR CommandArguments;
-    BOOL HasFirstArgumentToken;
+    STR UsageText[MAX_PATH_NAME];
 
     if (Context == NULL) {
         return DF_RETURN_BAD_PARAMETER;
@@ -1149,52 +1145,76 @@ static U32 CMD_package(LPSHELLCONTEXT Context) {
 
     Index = Context->CommandChar;
     if (!ShellParseRawToken(Context->Input.CommandLine, &Index, SubCommand)) {
-        ConsolePrint(TEXT("Usage: package run <package-name> [command-name] [args...]\n"));
-        return DF_RETURN_SUCCESS;
-    }
-
-    if (StringCompareNC(SubCommand, TEXT("run")) != 0) {
-        ConsolePrint(TEXT("Usage: package run <package-name> [command-name] [args...]\n"));
+        ConsolePrint(TEXT("Usage: package run|list|add ...\n"));
         return DF_RETURN_SUCCESS;
     }
 
     if (!ShellParseRawToken(Context->Input.CommandLine, &Index, PackageName)) {
-        ConsolePrint(TEXT("Usage: package run <package-name> [command-name] [args...]\n"));
+        if (StringCompareNC(SubCommand, TEXT("run")) == 0) {
+            StringCopy(UsageText, TEXT("Usage: package run <package-name> [command-name] [args...]\n"));
+        } else if (StringCompareNC(SubCommand, TEXT("list")) == 0) {
+            StringCopy(UsageText, TEXT("Usage: package list <package-name|path.epk>\n"));
+        } else if (StringCompareNC(SubCommand, TEXT("add")) == 0) {
+            StringCopy(UsageText, TEXT("Usage: package add <package-name|path.epk>\n"));
+        } else {
+            StringCopy(UsageText, TEXT("Usage: package run|list|add ...\n"));
+        }
+        ConsolePrint(UsageText);
         return DF_RETURN_SUCCESS;
     }
 
-    if (!ShellResolvePackageFilePath(Context, PackageName, QualifiedPackage)) {
-        ConsolePrint(TEXT("Invalid package name: %s\n"), PackageName);
+    if (StringCompareNC(SubCommand, TEXT("run")) == 0) {
+        UINT RemainderIndex;
+        STR FirstArgumentToken[MAX_PATH_NAME];
+        STR QualifiedPackage[MAX_PATH_NAME];
+        STR QualifiedCommandLine[MAX_PATH_NAME];
+        LPCSTR RemainderArguments;
+        LPCSTR CommandArguments;
+        BOOL HasFirstArgumentToken;
+
+        if (!ShellResolvePackageFilePath(Context, PackageName, QualifiedPackage)) {
+            ConsolePrint(TEXT("Invalid package name: %s\n"), PackageName);
+            return DF_RETURN_SUCCESS;
+        }
+
+        StringCopy(QualifiedCommandLine, QualifiedPackage);
+        RemainderArguments = Context->Input.CommandLine + Index;
+        while (*RemainderArguments != STR_NULL && *RemainderArguments <= STR_SPACE) {
+            RemainderArguments++;
+        }
+
+        if (!STRING_EMPTY(RemainderArguments)) {
+            StringConcat(QualifiedCommandLine, TEXT(" "));
+            StringConcat(QualifiedCommandLine, RemainderArguments);
+        }
+
+        RemainderIndex = 0;
+        HasFirstArgumentToken = ShellParseRawToken(RemainderArguments, &RemainderIndex, FirstArgumentToken);
+        CommandArguments = RemainderArguments + RemainderIndex;
+        while (*CommandArguments != STR_NULL && *CommandArguments <= STR_SPACE) {
+            CommandArguments++;
+        }
+
+        if (!ShellLaunchPackage(Context,
+                QualifiedCommandLine,
+                QualifiedPackage,
+                HasFirstArgumentToken ? FirstArgumentToken : NULL,
+                HasFirstArgumentToken ? CommandArguments : NULL,
+                FALSE)) {
+            ConsolePrint(TEXT("Package run failed: %s\n"), QualifiedPackage);
+        }
         return DF_RETURN_SUCCESS;
     }
 
-    StringCopy(QualifiedCommandLine, QualifiedPackage);
-    RemainderArguments = Context->Input.CommandLine + Index;
-    while (*RemainderArguments != STR_NULL && *RemainderArguments <= STR_SPACE) {
-        RemainderArguments++;
+    if (StringCompareNC(SubCommand, TEXT("list")) == 0) {
+        return ShellPackageList(Context, PackageName);
     }
 
-    if (!STRING_EMPTY(RemainderArguments)) {
-        StringConcat(QualifiedCommandLine, TEXT(" "));
-        StringConcat(QualifiedCommandLine, RemainderArguments);
+    if (StringCompareNC(SubCommand, TEXT("add")) == 0) {
+        return ShellPackageAdd(Context, PackageName);
     }
 
-    RemainderIndex = 0;
-    HasFirstArgumentToken = ShellParseRawToken(RemainderArguments, &RemainderIndex, FirstArgumentToken);
-    CommandArguments = RemainderArguments + RemainderIndex;
-    while (*CommandArguments != STR_NULL && *CommandArguments <= STR_SPACE) {
-        CommandArguments++;
-    }
-
-    if (!ShellLaunchPackage(Context,
-            QualifiedCommandLine,
-            QualifiedPackage,
-            HasFirstArgumentToken ? FirstArgumentToken : NULL,
-            HasFirstArgumentToken ? CommandArguments : NULL,
-            FALSE)) {
-        ConsolePrint(TEXT("Package run failed: %s\n"), QualifiedPackage);
-    }
-
+    ConsolePrint(TEXT("Usage: package run|list|add ...\n"));
     return DF_RETURN_SUCCESS;
 }
 
@@ -1444,17 +1464,11 @@ static U32 CMD_cat(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 static U32 CMD_copy(LPSHELLCONTEXT Context) {
-    U8 Buffer[1024];
-    FILEOPENINFO FileOpenInfo;
-    FILEOPERATION FileOperation;
     STR SrcName[MAX_PATH_NAME];
     STR DstName[MAX_PATH_NAME];
-    HANDLE SrcFile;
-    HANDLE DstFile;
-    U32 FileSize;
-    U32 ByteCount;
-    U32 Index;
-    U32 TotalCopied = 0;
+    LPVOID SourceBytes = NULL;
+    UINT FileSize = 0;
+    UINT TotalCopied = 0;
     BOOL Success = FALSE;
 
     ParseNextCommandLineComponent(Context);
@@ -1465,71 +1479,14 @@ static U32 CMD_copy(LPSHELLCONTEXT Context) {
 
     ConsolePrint(TEXT("%s %s\n"), SrcName, DstName);
 
-    FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
-    FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
-    FileOpenInfo.Header.Flags = 0;
-    FileOpenInfo.Name = SrcName;
-    FileOpenInfo.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
-    SrcFile = DoSystemCall(SYSCALL_OpenFile, SYSCALL_PARAM(&FileOpenInfo));
-    if (SrcFile == NULL) {
-        TEST(TEXT("[CMD_copy] copy %s %s : KO"), SrcName, DstName);
-        return DF_RETURN_SUCCESS;
-    }
-
-    FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
-    FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
-    FileOpenInfo.Header.Flags = 0;
-    FileOpenInfo.Name = DstName;
-    FileOpenInfo.Flags = FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
-    DstFile = DoSystemCall(SYSCALL_OpenFile, SYSCALL_PARAM(&FileOpenInfo));
-    if (DstFile == NULL) {
-        DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(SrcFile));
-        TEST(TEXT("[CMD_copy] copy %s %s : KO"), SrcName, DstName);
-        return DF_RETURN_SUCCESS;
-    }
-
-    FileSize = DoSystemCall(SYSCALL_GetFileSize, SYSCALL_PARAM(SrcFile));
-    if (FileSize != 0) {
-        for (Index = 0; Index < FileSize; Index += 1024) {
-            U32 ReadResult;
-            U32 WriteResult;
-            ByteCount = 1024;
-            if (Index + 1024 > FileSize) ByteCount = FileSize - Index;
-
-            FileOperation.Header.Size = sizeof(FILEOPERATION);
-            FileOperation.Header.Version = EXOS_ABI_VERSION;
-            FileOperation.Header.Flags = 0;
-            FileOperation.File = SrcFile;
-            FileOperation.NumBytes = ByteCount;
-            FileOperation.Buffer = Buffer;
-
-            ReadResult = DoSystemCall(SYSCALL_ReadFile, SYSCALL_PARAM(&FileOperation));
-            if (ReadResult != ByteCount) {
-                DEBUG(TEXT("[CMD_copy] Read failed at %u (expected %u got %u)"), Index, ByteCount, ReadResult);
-                break;
-            }
-
-            FileOperation.Header.Size = sizeof(FILEOPERATION);
-            FileOperation.Header.Version = EXOS_ABI_VERSION;
-            FileOperation.Header.Flags = 0;
-            FileOperation.File = DstFile;
-            FileOperation.NumBytes = ByteCount;
-            FileOperation.Buffer = Buffer;
-
-            WriteResult = DoSystemCall(SYSCALL_WriteFile, SYSCALL_PARAM(&FileOperation));
-            if (WriteResult != ByteCount) {
-                DEBUG(TEXT("[CMD_copy] Write failed at %u (expected %u got %u)"), Index, ByteCount, WriteResult);
-                break;
-            }
-            TotalCopied += ByteCount;
-        }
+    SourceBytes = FileReadAll(SrcName, &FileSize);
+    if (SourceBytes != NULL) {
+        TotalCopied = FileWriteAll(DstName, SourceBytes, FileSize);
+        KernelHeapFree(SourceBytes);
     }
 
     Success = (TotalCopied == FileSize);
     DEBUG(TEXT("[CMD_copy] TotalCopied=%u FileSize=%u"), TotalCopied, FileSize);
-
-    DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(SrcFile));
-    DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(DstFile));
 
     if (Success) {
         TEST(TEXT("[CMD_copy] copy %s %s : OK"), SrcName, DstName);
@@ -2525,6 +2482,209 @@ static BOOL ShellResolvePackageFilePath(LPSHELLCONTEXT Context,
         KERNEL_FILE_EXTENSION_PACKAGE,
         OutQualifiedPackage,
         MAX_PATH_NAME);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief List internal content of one package file.
+ * @param Context Shell context.
+ * @param PackageNameOrPath Package name or path token.
+ * @return Command status.
+ */
+static U32 ShellPackageList(LPSHELLCONTEXT Context, LPCSTR PackageNameOrPath) {
+    UINT PackageSize = 0;
+    U8* PackageBytes = NULL;
+    PACKAGE_MANIFEST Manifest;
+    U32 Status;
+    LPFILESYSTEM PackageFileSystem = NULL;
+    STR QualifiedPackage[MAX_PATH_NAME];
+    STR MountName[MAX_FILE_NAME];
+    STR PrivatePackageAlias[MAX_PATH_NAME];
+    U32 NumListed = 0;
+    BOOL CleanupBound = FALSE;
+    BOOL Success = FALSE;
+
+    if (Context == NULL || STRING_EMPTY(PackageNameOrPath)) {
+        ConsolePrint(TEXT("Usage: package list <package-name|path.epk>\n"));
+        TEST(TEXT("[CMD_package] package list : KO"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (!ShellResolvePackageFilePath(Context, PackageNameOrPath, QualifiedPackage)) {
+        ConsolePrint(TEXT("Invalid package target: %s\n"), PackageNameOrPath);
+        TEST(TEXT("[CMD_package] package list %s : KO"), PackageNameOrPath);
+        return DF_RETURN_SUCCESS;
+    }
+
+    PackageBytes = (U8*)FileReadAll(QualifiedPackage, &PackageSize);
+    if (PackageBytes == NULL || PackageSize == 0) {
+        ConsolePrint(TEXT("Cannot read package file: %s\n"), QualifiedPackage);
+        TEST(TEXT("[CMD_package] package list %s : KO"), QualifiedPackage);
+        return DF_RETURN_SUCCESS;
+    }
+
+    Status = PackageManifestParseFromPackageBuffer(PackageBytes, PackageSize, &Manifest);
+    if (Status != PACKAGE_MANIFEST_STATUS_OK) {
+        ConsolePrint(TEXT("Package manifest error: %s (%u)\n"),
+            PackageManifestStatusToString(Status),
+            Status);
+        TEST(TEXT("[CMD_package] package list %s : KO"), QualifiedPackage);
+        KernelHeapFree(PackageBytes);
+        return DF_RETURN_SUCCESS;
+    }
+
+    StringPrintFormat(MountName, TEXT("pkg-list-%s-%u"), Manifest.Name, GetSystemTime());
+    Status = PackageFSMountFromBuffer(PackageBytes, PackageSize, MountName, NULL, &PackageFileSystem);
+    if (Status != DF_RETURN_SUCCESS || PackageFileSystem == NULL) {
+        ConsolePrint(TEXT("Package mount failed: %u\n"), Status);
+        TEST(TEXT("[CMD_package] package list %s : KO"), QualifiedPackage);
+        PackageManifestRelease(&Manifest);
+        KernelHeapFree(PackageBytes);
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (!PackageNamespaceBindCurrentProcessPackageView(PackageFileSystem, Manifest.Name)) {
+        ConsolePrint(TEXT("Package namespace bind failed\n"));
+        TEST(TEXT("[CMD_package] package list %s : KO"), QualifiedPackage);
+        PackageFSUnmount(PackageFileSystem);
+        PackageManifestRelease(&Manifest);
+        KernelHeapFree(PackageBytes);
+        return DF_RETURN_SUCCESS;
+    }
+    CleanupBound = TRUE;
+
+    if (!KernelPathResolve(
+            KERNEL_PATH_KEY_PRIVATE_PACKAGE_ALIAS,
+            KERNEL_PATH_DEFAULT_PRIVATE_PACKAGE_ALIAS,
+            PrivatePackageAlias,
+            MAX_PATH_NAME)) {
+        ConsolePrint(TEXT("Package path resolution failed\n"));
+        goto Exit;
+    }
+
+    ConsolePrint(TEXT("Package: %s (%s) arch=%s kernel_api=%s\n"),
+        Manifest.Name,
+        Manifest.Version,
+        Manifest.Arch,
+        Manifest.KernelApi);
+    ConsolePrint(TEXT("Default entry: %s\n"), Manifest.Entry);
+    if (Manifest.CommandCount > 0) {
+        ConsolePrint(TEXT("Commands:\n"));
+        for (UINT Index = 0; Index < Manifest.CommandCount; Index++) {
+            ConsolePrint(TEXT("  %s -> %s\n"),
+                Manifest.Commands[Index].Name,
+                Manifest.Commands[Index].Target);
+        }
+    }
+    ConsolePrint(TEXT("Content:\n"));
+    ListDirectory(Context, PrivatePackageAlias, 0, FALSE, TRUE, &NumListed);
+    Success = TRUE;
+
+Exit:
+    if (CleanupBound) {
+        PackageNamespaceUnbindCurrentProcessPackageView();
+    }
+    if (PackageFileSystem != NULL) {
+        PackageFSUnmount(PackageFileSystem);
+    }
+    PackageManifestRelease(&Manifest);
+    KernelHeapFree(PackageBytes);
+    if (Success) {
+        TEST(TEXT("[CMD_package] package list %s : OK"), QualifiedPackage);
+    } else {
+        TEST(TEXT("[CMD_package] package list %s : KO"), QualifiedPackage);
+    }
+    return DF_RETURN_SUCCESS;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Add one package file into configured system applications folder.
+ * @param Context Shell context.
+ * @param PackageNameOrPath Source package name or path token.
+ * @return Command status.
+ */
+static U32 ShellPackageAdd(LPSHELLCONTEXT Context, LPCSTR PackageNameOrPath) {
+    UINT PackageSize = 0;
+    U8* PackageBytes = NULL;
+    PACKAGE_MANIFEST Manifest;
+    U32 Status;
+    STR SourcePackagePath[MAX_PATH_NAME];
+    STR DestinationPackagePath[MAX_PATH_NAME];
+    BOOL Success = FALSE;
+
+    if (Context == NULL || STRING_EMPTY(PackageNameOrPath)) {
+        ConsolePrint(TEXT("Usage: package add <package-name|path.epk>\n"));
+        TEST(TEXT("[CMD_package] package add : KO"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (!ShellResolvePackageFilePath(Context, PackageNameOrPath, SourcePackagePath)) {
+        ConsolePrint(TEXT("Invalid package target: %s\n"), PackageNameOrPath);
+        TEST(TEXT("[CMD_package] package add %s : KO"), PackageNameOrPath);
+        return DF_RETURN_SUCCESS;
+    }
+
+    PackageBytes = (U8*)FileReadAll(SourcePackagePath, &PackageSize);
+    if (PackageBytes == NULL || PackageSize == 0) {
+        ConsolePrint(TEXT("Cannot read package file: %s\n"), SourcePackagePath);
+        TEST(TEXT("[CMD_package] package add %s : KO"), SourcePackagePath);
+        return DF_RETURN_SUCCESS;
+    }
+
+    Status = PackageManifestParseFromPackageBuffer(PackageBytes, PackageSize, &Manifest);
+    if (Status != PACKAGE_MANIFEST_STATUS_OK) {
+        ConsolePrint(TEXT("Package manifest error: %s (%u)\n"),
+            PackageManifestStatusToString(Status),
+            Status);
+        TEST(TEXT("[CMD_package] package add %s : KO"), SourcePackagePath);
+        KernelHeapFree(PackageBytes);
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (!KernelPathBuildFile(
+            KERNEL_PATH_KEY_SYSTEM_APPS_ROOT,
+            KERNEL_PATH_DEFAULT_SYSTEM_APPS_ROOT,
+            Manifest.Name,
+            KERNEL_FILE_EXTENSION_PACKAGE,
+            DestinationPackagePath,
+            MAX_PATH_NAME)) {
+        ConsolePrint(TEXT("Destination path build failed for package %s\n"), Manifest.Name);
+        TEST(TEXT("[CMD_package] package add %s : KO"), SourcePackagePath);
+        PackageManifestRelease(&Manifest);
+        KernelHeapFree(PackageBytes);
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (StringCompare(SourcePackagePath, DestinationPackagePath) == 0) {
+        ConsolePrint(TEXT("Package already installed: %s\n"), DestinationPackagePath);
+        TEST(TEXT("[CMD_package] package add %s : OK"), DestinationPackagePath);
+        PackageManifestRelease(&Manifest);
+        KernelHeapFree(PackageBytes);
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (FileWriteAll(DestinationPackagePath, PackageBytes, PackageSize) != PackageSize) {
+        ConsolePrint(TEXT("Package add failed while writing: %s\n"), DestinationPackagePath);
+        TEST(TEXT("[CMD_package] package add %s : KO"), SourcePackagePath);
+        PackageManifestRelease(&Manifest);
+        KernelHeapFree(PackageBytes);
+        return DF_RETURN_SUCCESS;
+    }
+
+    ConsolePrint(TEXT("Package added: %s -> %s\n"), SourcePackagePath, DestinationPackagePath);
+    Success = TRUE;
+
+    PackageManifestRelease(&Manifest);
+    KernelHeapFree(PackageBytes);
+    if (Success) {
+        TEST(TEXT("[CMD_package] package add %s : OK"), DestinationPackagePath);
+    } else {
+        TEST(TEXT("[CMD_package] package add %s : KO"), SourcePackagePath);
+    }
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
