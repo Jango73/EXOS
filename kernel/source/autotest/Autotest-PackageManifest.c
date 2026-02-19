@@ -86,7 +86,7 @@ static LPCSTR TestPackageManifestOtherArch(void) {
  * @param Results Test aggregate result.
  */
 static void TestPackageManifestTopLevelAndCompatibility(TEST_RESULTS* Results) {
-    STR ManifestText[512];
+    STR ManifestText[768];
     PACKAGE_MANIFEST Manifest;
     U32 Status;
 
@@ -96,7 +96,10 @@ static void TestPackageManifestTopLevelAndCompatibility(TEST_RESULTS* Results) {
              "version = \"1.2.3\"\n"
              "arch = \"%s\"\n"
              "kernel_api = \"%u.%u\"\n"
-             "entry = \"/binary/shell.elf\"\n"),
+             "entry = \"/binary/shell.elf\"\n"
+             "[commands]\n"
+             "shell = \"/binary/shell.elf\"\n"
+             "mesh-view = \"/binary/mesh-view.elf\"\n"),
         TestPackageManifestCurrentArch(),
         EXOS_VERSION_MAJOR,
         EXOS_VERSION_MINOR);
@@ -108,6 +111,12 @@ static void TestPackageManifestTopLevelAndCompatibility(TEST_RESULTS* Results) {
         PackageManifestAssert(StringCompare(Manifest.Name, TEXT("shell")) == 0, Results, TEXT("name"));
         PackageManifestAssert(StringCompare(Manifest.Version, TEXT("1.2.3")) == 0, Results, TEXT("version"));
         PackageManifestAssert(StringCompare(Manifest.Entry, TEXT("/binary/shell.elf")) == 0, Results, TEXT("entry"));
+        PackageManifestAssert(Manifest.CommandCount == 2, Results, TEXT("command count"));
+        PackageManifestAssert(StringCompare(Manifest.Commands[0].Name, TEXT("shell")) == 0, Results, TEXT("command[0] name"));
+        PackageManifestAssert(
+            StringCompare(Manifest.Commands[1].Target, TEXT("/binary/mesh-view.elf")) == 0,
+            Results,
+            TEXT("command[1] target"));
 
         Status = PackageManifestCheckCompatibility(&Manifest);
         PackageManifestAssert(Status == PACKAGE_MANIFEST_STATUS_OK, Results, TEXT("compatibility status"));
@@ -123,7 +132,7 @@ static void TestPackageManifestTopLevelAndCompatibility(TEST_RESULTS* Results) {
  * @param Results Test aggregate result.
  */
 static void TestPackageManifestPackageSection(TEST_RESULTS* Results) {
-    STR ManifestText[512];
+    STR ManifestText[768];
     PACKAGE_MANIFEST Manifest;
     U32 Status;
 
@@ -134,7 +143,9 @@ static void TestPackageManifestPackageSection(TEST_RESULTS* Results) {
              "version = \"0.9.0\"\n"
              "arch = \"%s\"\n"
              "kernel_api = \"%u.%u\"\n"
-             "entry = \"/binary/netget.elf\"\n"),
+             "entry = \"/binary/netget.elf\"\n"
+             "[package.commands]\n"
+             "netget = \"/binary/netget.elf\"\n"),
         TestPackageManifestCurrentArch(),
         EXOS_VERSION_MAJOR,
         EXOS_VERSION_MINOR);
@@ -143,6 +154,7 @@ static void TestPackageManifestPackageSection(TEST_RESULTS* Results) {
     PackageManifestAssert(Status == PACKAGE_MANIFEST_STATUS_OK, Results, TEXT("section parse status"));
     if (Status == PACKAGE_MANIFEST_STATUS_OK) {
         PackageManifestAssert(StringCompare(Manifest.Name, TEXT("netget")) == 0, Results, TEXT("section name"));
+        PackageManifestAssert(Manifest.CommandCount == 1, Results, TEXT("section command count"));
     }
 
     PackageManifestRelease(&Manifest);
@@ -230,6 +242,59 @@ static void TestPackageManifestForbiddenDependencyGraph(TEST_RESULTS* Results) {
 /***************************************************************************/
 
 /**
+ * @brief Validate manifest entry and command map path policy.
+ * @param Results Test aggregate result.
+ */
+static void TestPackageManifestPathPolicy(TEST_RESULTS* Results) {
+    static const STR InvalidEntryPath[] =
+        "name = \"pkg\"\n"
+        "version = \"1.0\"\n"
+        "arch = \"x86-32\"\n"
+        "kernel_api = \"0.5\"\n"
+        "entry = \"/package/binary/app.elf\"\n";
+    static const STR InvalidCommandTarget[] =
+        "name = \"pkg\"\n"
+        "version = \"1.0\"\n"
+        "arch = \"x86-32\"\n"
+        "kernel_api = \"0.5\"\n"
+        "entry = \"/binary/app.elf\"\n"
+        "[commands]\n"
+        "bad = \"/binary/../escape.elf\"\n";
+    static const STR DuplicateCommands[] =
+        "name = \"pkg\"\n"
+        "version = \"1.0\"\n"
+        "arch = \"x86-32\"\n"
+        "kernel_api = \"0.5\"\n"
+        "entry = \"/binary/app.elf\"\n"
+        "[commands]\n"
+        "tool = \"/binary/tool-a.elf\"\n"
+        "[package.commands]\n"
+        "tool = \"/binary/tool-b.elf\"\n";
+    PACKAGE_MANIFEST Manifest;
+    U32 Status;
+
+    Status = PackageManifestParseText((LPCSTR)InvalidEntryPath, &Manifest);
+    PackageManifestAssert(Status == PACKAGE_MANIFEST_STATUS_INVALID_ENTRY_PATH, Results, TEXT("invalid entry path"));
+    PackageManifestRelease(&Manifest);
+
+    Status = PackageManifestParseText((LPCSTR)InvalidCommandTarget, &Manifest);
+    PackageManifestAssert(
+        Status == PACKAGE_MANIFEST_STATUS_INVALID_COMMAND_MAP,
+        Results,
+        TEXT("invalid command target"));
+    PackageManifestRelease(&Manifest);
+
+    Status = PackageManifestParseText((LPCSTR)DuplicateCommands, &Manifest);
+    PackageManifestAssert(
+        Status == PACKAGE_MANIFEST_STATUS_DUPLICATE_COMMAND_NAME,
+        Results,
+        TEXT("duplicate command names"));
+    PackageManifestRelease(&Manifest);
+}
+
+/***************************************************************************/
+
+/**
  * @brief Validate deterministic compatibility failures.
  * @param Results Test aggregate result.
  */
@@ -287,5 +352,6 @@ void TestPackageManifest(TEST_RESULTS* Results) {
     TestPackageManifestPackageSection(Results);
     TestPackageManifestMissingFields(Results);
     TestPackageManifestForbiddenDependencyGraph(Results);
+    TestPackageManifestPathPolicy(Results);
     TestPackageManifestCompatibilityFailures(Results);
 }

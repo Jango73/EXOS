@@ -46,6 +46,16 @@
 #define PACKAGE_MANIFEST_STATUS_INVALID_KERNEL_API 13
 #define PACKAGE_MANIFEST_STATUS_INCOMPATIBLE_ARCH 14
 #define PACKAGE_MANIFEST_STATUS_INCOMPATIBLE_KERNEL_API 15
+#define PACKAGE_MANIFEST_STATUS_INVALID_ENTRY_PATH 16
+#define PACKAGE_MANIFEST_STATUS_INVALID_COMMAND_MAP 17
+#define PACKAGE_MANIFEST_STATUS_DUPLICATE_COMMAND_NAME 18
+
+/***************************************************************************/
+
+typedef struct tag_PACKAGE_MANIFEST_COMMAND {
+    STR Name[64];
+    STR Target[MAX_PATH_NAME];
+} PACKAGE_MANIFEST_COMMAND, *LPPACKAGE_MANIFEST_COMMAND;
 
 /***************************************************************************/
 
@@ -55,6 +65,8 @@ typedef struct tag_PACKAGE_MANIFEST {
     STR Arch[16];
     STR KernelApi[32];
     STR Entry[MAX_PATH_NAME];
+    UINT CommandCount;
+    LPPACKAGE_MANIFEST_COMMAND Commands;
 } PACKAGE_MANIFEST, *LPPACKAGE_MANIFEST;
 
 /***************************************************************************/

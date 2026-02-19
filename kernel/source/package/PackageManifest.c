@@ -44,6 +44,34 @@ static void PackageManifestReset(LPPACKAGE_MANIFEST Manifest) {
     MemorySet(Manifest->Arch, 0, sizeof(Manifest->Arch));
     MemorySet(Manifest->KernelApi, 0, sizeof(Manifest->KernelApi));
     MemorySet(Manifest->Entry, 0, sizeof(Manifest->Entry));
+    Manifest->CommandCount = 0;
+    Manifest->Commands = NULL;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Check whether one string starts with one prefix.
+ * @param Text Source string.
+ * @param Prefix Prefix to match.
+ * @return TRUE when Prefix is at start of Text.
+ */
+static BOOL PackageManifestStartsWith(LPCSTR Text, LPCSTR Prefix) {
+    UINT Index = 0;
+
+    if (Text == NULL || Prefix == NULL) {
+        return FALSE;
+    }
+
+    while (Prefix[Index] != STR_NULL) {
+        if (Text[Index] != Prefix[Index]) {
+            return FALSE;
+        }
+
+        Index++;
+    }
+
+    return TRUE;
 }
 
 /***************************************************************************/
@@ -168,6 +196,201 @@ static BOOL PackageManifestIsSupportedManifestArch(LPCSTR Arch) {
 /***************************************************************************/
 
 /**
+ * @brief Validate one package-relative path.
+ * @param Path Path string.
+ * @return TRUE when path follows package-relative policy.
+ */
+static BOOL PackageManifestIsValidPackageRelativePath(LPCSTR Path) {
+    LPCSTR SegmentStart;
+    LPCSTR Cursor;
+
+    if (STRING_EMPTY(Path)) {
+        return FALSE;
+    }
+
+    if (Path[0] != PATH_SEP || Path[1] == STR_NULL) {
+        return FALSE;
+    }
+
+    if (PackageManifestStartsWith(Path, TEXT("/package"))) {
+        if (Path[8] == STR_NULL || Path[8] == PATH_SEP) {
+            return FALSE;
+        }
+    }
+
+    SegmentStart = Path + 1;
+    Cursor = SegmentStart;
+
+    FOREVER {
+        BOOL AtSeparator = (*Cursor == PATH_SEP);
+        BOOL AtEnd = (*Cursor == STR_NULL);
+
+        if (AtSeparator || AtEnd) {
+            UINT SegmentLength = (UINT)(Cursor - SegmentStart);
+
+            if (SegmentLength == 0) {
+                return FALSE;
+            }
+
+            if (SegmentLength == 1 && SegmentStart[0] == '.') {
+                return FALSE;
+            }
+
+            if (SegmentLength == 2 && SegmentStart[0] == '.' && SegmentStart[1] == '.') {
+                return FALSE;
+            }
+
+            if (AtEnd) {
+                break;
+            }
+
+            SegmentStart = Cursor + 1;
+        }
+
+        Cursor++;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Validate one command name token.
+ * @param Name Command name.
+ * @return TRUE when syntax is accepted.
+ */
+static BOOL PackageManifestIsValidCommandName(LPCSTR Name) {
+    UINT Index = 0;
+
+    if (STRING_EMPTY(Name)) {
+        return FALSE;
+    }
+
+    for (Index = 0; Name[Index] != STR_NULL; Index++) {
+        STR Character = Name[Index];
+        BOOL IsNameCharacter =
+            IsAlphaNumeric(Character) || Character == '-' || Character == '_' || Character == '.';
+
+        if (!IsNameCharacter) {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve command name pointer from one TOML key.
+ * @param Key TOML key.
+ * @return Command name suffix when key belongs to command table.
+ */
+static LPCSTR PackageManifestGetCommandNameFromTomlKey(LPCSTR Key) {
+    static const STR CommandsPrefix[] = "commands.";
+    static const STR PackageCommandsPrefix[] = "package.commands.";
+
+    if (STRING_EMPTY(Key)) {
+        return NULL;
+    }
+
+    if (PackageManifestStartsWith(Key, CommandsPrefix)) {
+        return Key + sizeof(CommandsPrefix) - 1;
+    }
+
+    if (PackageManifestStartsWith(Key, PackageCommandsPrefix)) {
+        return Key + sizeof(PackageCommandsPrefix) - 1;
+    }
+
+    return NULL;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Parse optional manifest command map.
+ * @param Toml Parsed TOML object.
+ * @param OutManifest Manifest output.
+ * @return PACKAGE_MANIFEST_STATUS_* result.
+ */
+static U32 PackageManifestParseCommands(LPTOML Toml, LPPACKAGE_MANIFEST OutManifest) {
+    LPTOMLITEM Item;
+    UINT CommandCount = 0;
+    UINT CommandIndex = 0;
+
+    if (Toml == NULL || OutManifest == NULL) {
+        return PACKAGE_MANIFEST_STATUS_INVALID_ARGUMENT;
+    }
+
+    for (Item = Toml->First; Item != NULL; Item = Item->Next) {
+        LPCSTR CommandName = PackageManifestGetCommandNameFromTomlKey(Item->Key);
+
+        if (CommandName != NULL) {
+            if (CommandName[0] == STR_NULL) {
+                return PACKAGE_MANIFEST_STATUS_INVALID_COMMAND_MAP;
+            }
+
+            CommandCount++;
+        }
+    }
+
+    if (CommandCount == 0) {
+        return PACKAGE_MANIFEST_STATUS_OK;
+    }
+
+    OutManifest->Commands =
+        (LPPACKAGE_MANIFEST_COMMAND)KernelHeapAlloc(sizeof(PACKAGE_MANIFEST_COMMAND) * CommandCount);
+    if (OutManifest->Commands == NULL) {
+        return PACKAGE_MANIFEST_STATUS_OUT_OF_MEMORY;
+    }
+
+    MemorySet(OutManifest->Commands, 0, sizeof(PACKAGE_MANIFEST_COMMAND) * CommandCount);
+
+    for (Item = Toml->First; Item != NULL; Item = Item->Next) {
+        LPCSTR CommandName = PackageManifestGetCommandNameFromTomlKey(Item->Key);
+        UINT ExistingIndex;
+
+        if (CommandName == NULL) {
+            continue;
+        }
+
+        if (!PackageManifestIsValidCommandName(CommandName)) {
+            ERROR(TEXT("[PackageManifestParseCommands] Invalid command name=%s"), CommandName);
+            return PACKAGE_MANIFEST_STATUS_INVALID_COMMAND_MAP;
+        }
+
+        if (!PackageManifestIsValidPackageRelativePath(Item->Value)) {
+            ERROR(TEXT("[PackageManifestParseCommands] Invalid command target name=%s target=%s"),
+                CommandName,
+                Item->Value);
+            return PACKAGE_MANIFEST_STATUS_INVALID_COMMAND_MAP;
+        }
+
+        for (ExistingIndex = 0; ExistingIndex < CommandIndex; ExistingIndex++) {
+            if (StringCompare(OutManifest->Commands[ExistingIndex].Name, CommandName) == 0) {
+                ERROR(TEXT("[PackageManifestParseCommands] Duplicate command name=%s"), CommandName);
+                return PACKAGE_MANIFEST_STATUS_DUPLICATE_COMMAND_NAME;
+            }
+        }
+
+        StringCopyLimit(OutManifest->Commands[CommandIndex].Name,
+            CommandName,
+            sizeof(OutManifest->Commands[CommandIndex].Name) - 1);
+        StringCopyLimit(OutManifest->Commands[CommandIndex].Target,
+            Item->Value,
+            sizeof(OutManifest->Commands[CommandIndex].Target) - 1);
+
+        CommandIndex++;
+    }
+
+    OutManifest->CommandCount = CommandIndex;
+    return PACKAGE_MANIFEST_STATUS_OK;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Parse manifest TOML text into model.
  * @param ManifestText Null-terminated manifest text.
  * @param OutManifest Receives parsed manifest model.
@@ -182,6 +405,7 @@ U32 PackageManifestParseText(LPCSTR ManifestText, LPPACKAGE_MANIFEST OutManifest
     LPCSTR Entry;
     LPCSTR Provides;
     LPCSTR Requires;
+    U32 Status;
 
     if (ManifestText == NULL || OutManifest == NULL) {
         return PACKAGE_MANIFEST_STATUS_INVALID_ARGUMENT;
@@ -224,6 +448,12 @@ U32 PackageManifestParseText(LPCSTR ManifestText, LPPACKAGE_MANIFEST OutManifest
         return PACKAGE_MANIFEST_STATUS_MISSING_ENTRY;
     }
 
+    if (!PackageManifestIsValidPackageRelativePath(Entry)) {
+        ERROR(TEXT("[PackageManifestParseText] Invalid entry path=%s"), Entry);
+        TomlFree(Toml);
+        return PACKAGE_MANIFEST_STATUS_INVALID_ENTRY_PATH;
+    }
+
     Provides = PackageManifestGetKey(Toml, TEXT("provides"));
     Requires = PackageManifestGetKey(Toml, TEXT("requires"));
     if (!STRING_EMPTY(Provides) || !STRING_EMPTY(Requires)) {
@@ -237,8 +467,14 @@ U32 PackageManifestParseText(LPCSTR ManifestText, LPPACKAGE_MANIFEST OutManifest
     StringCopyLimit(OutManifest->KernelApi, KernelApi, sizeof(OutManifest->KernelApi) - 1);
     StringCopyLimit(OutManifest->Entry, Entry, sizeof(OutManifest->Entry) - 1);
 
+    Status = PackageManifestParseCommands(Toml, OutManifest);
     TomlFree(Toml);
-    return PACKAGE_MANIFEST_STATUS_OK;
+
+    if (Status != PACKAGE_MANIFEST_STATUS_OK) {
+        PackageManifestRelease(OutManifest);
+    }
+
+    return Status;
 }
 
 /***************************************************************************/
@@ -387,6 +623,12 @@ LPCSTR PackageManifestStatusToString(U32 Status) {
             return TEXT("incompatible_arch");
         case PACKAGE_MANIFEST_STATUS_INCOMPATIBLE_KERNEL_API:
             return TEXT("incompatible_kernel_api");
+        case PACKAGE_MANIFEST_STATUS_INVALID_ENTRY_PATH:
+            return TEXT("invalid_entry_path");
+        case PACKAGE_MANIFEST_STATUS_INVALID_COMMAND_MAP:
+            return TEXT("invalid_command_map");
+        case PACKAGE_MANIFEST_STATUS_DUPLICATE_COMMAND_NAME:
+            return TEXT("duplicate_command_name");
         default:
             return TEXT("unknown_status");
     }
@@ -399,5 +641,11 @@ LPCSTR PackageManifestStatusToString(U32 Status) {
  * @param Manifest Manifest model.
  */
 void PackageManifestRelease(LPPACKAGE_MANIFEST Manifest) {
+    if (Manifest == NULL) return;
+
+    if (Manifest->Commands != NULL) {
+        KernelHeapFree(Manifest->Commands);
+    }
+
     PackageManifestReset(Manifest);
 }
