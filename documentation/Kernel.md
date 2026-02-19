@@ -923,6 +923,19 @@ Process-view hooks:
   - `KernelPath.PrivatePackageAlias`
   - `KernelPath.PrivateUserDataAlias`
 
+#### Package manifest and dependency resolution
+
+Step-7 manifest resolution is implemented by:
+- `kernel/include/package/PackageManifest.h`
+- `kernel/source/package/PackageManifest.c`
+
+Namespace activation flow (`PackageNamespaceScanPackageFolder`) includes:
+- parse and validate embedded `manifest.toml` (`name`, `version`, `provides`, `requires`) before mount activation,
+- deterministic package processing order by sorted package name,
+- global provider index built from successfully mounted global package manifests (`/library/package`, `/apps`),
+- `requires` contract validation before `PackageFSMountFromBuffer(...)`,
+- deterministic diagnostics for missing contracts through one warning per unsatisfied `requires` entry.
+
 #### Runtime access paths
 
 `OpenFile()` takes two routing paths:

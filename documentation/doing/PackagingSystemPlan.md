@@ -84,10 +84,10 @@
 
 **Goal**: resolve package dependencies by provided API contracts.
 
-- [ ] Parse `manifest.toml` model (`name`, `version`, `provides`, `requires`).
-- [ ] Build provider index from mounted global packages.
-- [ ] Validate all `requires` entries before activating package mount.
-- [ ] Produce deterministic dependency failure diagnostics.
+- [x] Parse `manifest.toml` model (`name`, `version`, `provides`, `requires`).
+- [x] Build provider index from mounted global packages.
+- [x] Validate all `requires` entries before activating package mount.
+- [x] Produce deterministic dependency failure diagnostics.
 
 **Success**: missing or incompatible system dependencies block activation with clear reasons.
 

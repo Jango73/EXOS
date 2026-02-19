@@ -51,6 +51,7 @@ static TESTENTRY TestRegistry[] = {
     {TEXT("TestBcrypt"), TestBcrypt},
     {TEXT("TestIPv4"), TestIPv4},
     {TEXT("TestMacros"), TestMacros},
+    {TEXT("TestPackageManifest"), TestPackageManifest},
     {TEXT("TestTCP"), TestTCP},
     {TEXT("TestScript"), TestScript},
     // Add new tests here following the same pattern

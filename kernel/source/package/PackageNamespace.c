@@ -30,6 +30,7 @@
 #include "Log.h"
 #include "SystemFS.h"
 #include "package/PackageFS.h"
+#include "package/PackageManifest.h"
 #include "utils/Helpers.h"
 #include "utils/KernelPath.h"
 
@@ -50,6 +51,25 @@ typedef struct tag_PACKAGENAMESPACE_PATHS {
     STR PrivateUserDataAlias[MAX_PATH_NAME];
     BOOL Loaded;
 } PACKAGENAMESPACE_PATHS;
+
+typedef struct tag_PACKAGENAMESPACE_PROVIDER_INDEX {
+    LPSTR* Contracts;
+    UINT Count;
+    UINT Capacity;
+} PACKAGENAMESPACE_PROVIDER_INDEX, *LPPACKAGENAMESPACE_PROVIDER_INDEX;
+
+typedef struct tag_PACKAGENAMESPACE_SCAN_ENTRY {
+    STR PackageFilePath[MAX_PATH_NAME];
+    STR TargetPath[MAX_PATH_NAME];
+    STR PackageName[MAX_FILE_NAME];
+    STR UserName[MAX_FILE_NAME];
+} PACKAGENAMESPACE_SCAN_ENTRY, *LPPACKAGENAMESPACE_SCAN_ENTRY;
+
+typedef struct tag_PACKAGENAMESPACE_SCAN_LIST {
+    LPPACKAGENAMESPACE_SCAN_ENTRY Entries;
+    UINT Count;
+    UINT Capacity;
+} PACKAGENAMESPACE_SCAN_LIST, *LPPACKAGENAMESPACE_SCAN_LIST;
 
 static PACKAGENAMESPACE_PATHS PackageNamespacePaths = {
     .LibraryRoot = "",
@@ -342,46 +362,322 @@ static void PackageNamespaceBuildVolumeName(LPCSTR RolePrefix,
 /***************************************************************************/
 
 /**
- * @brief Mount one package file and attach it to one target namespace path.
- * @param PackageFilePath Absolute package file path.
- * @param TargetPath Absolute mount target.
+ * @brief Initialize provider index storage.
+ * @param Index Provider index object.
+ * @return TRUE on success.
+ */
+static BOOL PackageNamespaceProviderIndexInit(LPPACKAGENAMESPACE_PROVIDER_INDEX Index) {
+    if (Index == NULL) return FALSE;
+    Index->Contracts = NULL;
+    Index->Count = 0;
+    Index->Capacity = 0;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Release provider index storage.
+ * @param Index Provider index object.
+ */
+static void PackageNamespaceProviderIndexDeinit(LPPACKAGENAMESPACE_PROVIDER_INDEX Index) {
+    UINT ItemIndex;
+
+    if (Index == NULL) return;
+
+    if (Index->Contracts != NULL) {
+        for (ItemIndex = 0; ItemIndex < Index->Count; ItemIndex++) {
+            if (Index->Contracts[ItemIndex] != NULL) {
+                KernelHeapFree(Index->Contracts[ItemIndex]);
+            }
+        }
+        KernelHeapFree(Index->Contracts);
+    }
+
+    Index->Contracts = NULL;
+    Index->Count = 0;
+    Index->Capacity = 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Check whether one contract exists in provider index.
+ * @param Index Provider index.
+ * @param Contract Contract string.
+ * @return TRUE when present.
+ */
+static BOOL PackageNamespaceProviderIndexHas(LPPACKAGENAMESPACE_PROVIDER_INDEX Index, LPCSTR Contract) {
+    UINT ItemIndex;
+
+    if (Index == NULL || Contract == NULL || Contract[0] == STR_NULL) return FALSE;
+
+    for (ItemIndex = 0; ItemIndex < Index->Count; ItemIndex++) {
+        if (StringCompare(Index->Contracts[ItemIndex], Contract) == 0) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Add one contract to provider index if missing.
+ * @param Index Provider index.
+ * @param Contract Contract string.
+ * @return TRUE on success.
+ */
+static BOOL PackageNamespaceProviderIndexAdd(LPPACKAGENAMESPACE_PROVIDER_INDEX Index, LPCSTR Contract) {
+    LPSTR* NewContracts;
+    LPSTR ContractCopy;
+    UINT NewCapacity;
+    UINT CopySize;
+
+    if (Index == NULL || Contract == NULL || Contract[0] == STR_NULL) return FALSE;
+    if (PackageNamespaceProviderIndexHas(Index, Contract)) return TRUE;
+
+    if (Index->Count == Index->Capacity) {
+        NewCapacity = Index->Capacity == 0 ? 16 : Index->Capacity * 2;
+        CopySize = sizeof(LPSTR) * NewCapacity;
+        NewContracts = (LPSTR*)KernelHeapAlloc(CopySize);
+        if (NewContracts == NULL) return FALSE;
+        MemorySet(NewContracts, 0, CopySize);
+
+        if (Index->Contracts != NULL) {
+            MemoryCopy(NewContracts, Index->Contracts, sizeof(LPSTR) * Index->Count);
+            KernelHeapFree(Index->Contracts);
+        }
+
+        Index->Contracts = NewContracts;
+        Index->Capacity = NewCapacity;
+    }
+
+    ContractCopy = (LPSTR)KernelHeapAlloc(StringLength(Contract) + 1);
+    if (ContractCopy == NULL) return FALSE;
+    StringCopy(ContractCopy, Contract);
+
+    Index->Contracts[Index->Count] = ContractCopy;
+    Index->Count++;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Initialize scan list.
+ * @param List Scan list object.
+ */
+static void PackageNamespaceScanListInit(LPPACKAGENAMESPACE_SCAN_LIST List) {
+    if (List == NULL) return;
+    List->Entries = NULL;
+    List->Count = 0;
+    List->Capacity = 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Release scan list storage.
+ * @param List Scan list object.
+ */
+static void PackageNamespaceScanListDeinit(LPPACKAGENAMESPACE_SCAN_LIST List) {
+    if (List == NULL) return;
+    if (List->Entries != NULL) {
+        KernelHeapFree(List->Entries);
+    }
+    List->Entries = NULL;
+    List->Count = 0;
+    List->Capacity = 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Add one scan entry.
+ * @param List Scan list object.
+ * @param FilePath Package file path.
+ * @param TargetPath Namespace mount path.
+ * @param PackageName Package logical name.
+ * @param UserName Optional user scope.
+ * @return TRUE on success.
+ */
+static BOOL PackageNamespaceScanListPush(LPPACKAGENAMESPACE_SCAN_LIST List,
+                                         LPCSTR FilePath,
+                                         LPCSTR TargetPath,
+                                         LPCSTR PackageName,
+                                         LPCSTR UserName) {
+    LPPACKAGENAMESPACE_SCAN_ENTRY NewEntries;
+    UINT NewCapacity;
+    UINT CopySize;
+    LPPACKAGENAMESPACE_SCAN_ENTRY Entry;
+
+    if (List == NULL || FilePath == NULL || TargetPath == NULL || PackageName == NULL) return FALSE;
+
+    if (List->Count == List->Capacity) {
+        NewCapacity = List->Capacity == 0 ? 8 : List->Capacity * 2;
+        CopySize = sizeof(PACKAGENAMESPACE_SCAN_ENTRY) * NewCapacity;
+        NewEntries = (LPPACKAGENAMESPACE_SCAN_ENTRY)KernelHeapAlloc(CopySize);
+        if (NewEntries == NULL) return FALSE;
+        MemorySet(NewEntries, 0, CopySize);
+
+        if (List->Entries != NULL) {
+            MemoryCopy(NewEntries, List->Entries, sizeof(PACKAGENAMESPACE_SCAN_ENTRY) * List->Count);
+            KernelHeapFree(List->Entries);
+        }
+
+        List->Entries = NewEntries;
+        List->Capacity = NewCapacity;
+    }
+
+    Entry = &List->Entries[List->Count];
+    MemorySet(Entry, 0, sizeof(PACKAGENAMESPACE_SCAN_ENTRY));
+    StringCopy(Entry->PackageFilePath, FilePath);
+    StringCopy(Entry->TargetPath, TargetPath);
+    StringCopy(Entry->PackageName, PackageName);
+    if (UserName != NULL) {
+        StringCopy(Entry->UserName, UserName);
+    } else {
+        Entry->UserName[0] = STR_NULL;
+    }
+    List->Count++;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Sort scan list by package name then file path.
+ * @param List Scan list object.
+ */
+static void PackageNamespaceScanListSort(LPPACKAGENAMESPACE_SCAN_LIST List) {
+    UINT Outer;
+    UINT Inner;
+
+    if (List == NULL || List->Count < 2) return;
+
+    for (Outer = 0; Outer < List->Count; Outer++) {
+        for (Inner = Outer + 1; Inner < List->Count; Inner++) {
+            LPPACKAGENAMESPACE_SCAN_ENTRY Left = &List->Entries[Outer];
+            LPPACKAGENAMESPACE_SCAN_ENTRY Right = &List->Entries[Inner];
+            BOOL Swap = FALSE;
+            I32 Compare = StringCompare(Left->PackageName, Right->PackageName);
+
+            if (Compare > 0) {
+                Swap = TRUE;
+            } else if (Compare == 0 && StringCompare(Left->PackageFilePath, Right->PackageFilePath) > 0) {
+                Swap = TRUE;
+            }
+
+            if (Swap) {
+                PACKAGENAMESPACE_SCAN_ENTRY Temp = *Left;
+                *Left = *Right;
+                *Right = Temp;
+            }
+        }
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Mount one package from memory and attach to namespace target.
+ * @param PackageBytes Package byte buffer.
+ * @param PackageSize Package byte size.
+ * @param TargetPath Namespace mount target.
  * @param RolePrefix Volume role prefix.
  * @param PackageName Package logical name.
  * @param UserName Optional user name.
+ * @return TRUE when mount succeeds.
  */
-static void PackageNamespaceMountOnePackage(LPCSTR PackageFilePath,
-                                            LPCSTR TargetPath,
-                                            LPCSTR RolePrefix,
-                                            LPCSTR PackageName,
-                                            LPCSTR UserName) {
+static BOOL PackageNamespaceMountOnePackageBuffer(LPCVOID PackageBytes,
+                                                  UINT PackageSize,
+                                                  LPCSTR TargetPath,
+                                                  LPCSTR RolePrefix,
+                                                  LPCSTR PackageName,
+                                                  LPCSTR UserName) {
     STR VolumeName[MAX_FS_LOGICAL_NAME];
-    LPVOID PackageBytes;
-    UINT PackageSize = 0;
     LPFILESYSTEM Mounted = NULL;
     U32 MountStatus;
 
-    if (PackageFilePath == NULL || TargetPath == NULL) return;
-    if (PackageNamespacePathExists(TargetPath)) return;
-
-    PackageBytes = FileReadAll(PackageFilePath, &PackageSize);
-    if (PackageBytes == NULL || PackageSize == 0) {
-        WARNING(TEXT("[PackageNamespaceMountOnePackage] Cannot read package file %s"), PackageFilePath);
-        return;
+    if (PackageBytes == NULL || PackageSize == 0 || TargetPath == NULL || RolePrefix == NULL ||
+        PackageName == NULL) {
+        return FALSE;
     }
+    if (PackageNamespacePathExists(TargetPath)) return TRUE;
 
     PackageNamespaceBuildVolumeName(RolePrefix, PackageName, UserName, VolumeName);
     MountStatus = PackageFSMountFromBuffer(PackageBytes, (U32)PackageSize, VolumeName, NULL, &Mounted);
-    KernelHeapFree(PackageBytes);
-
     if (MountStatus != DF_RETURN_SUCCESS || Mounted == NULL) {
-        WARNING(TEXT("[PackageNamespaceMountOnePackage] Package mount failed file=%s status=%u"),
-            PackageFilePath,
+        WARNING(TEXT("[PackageNamespaceMountOnePackageBuffer] Package mount failed package=%s status=%u"),
+            PackageName,
             MountStatus);
-        return;
+        return FALSE;
     }
 
     if (!PackageNamespaceMountPath(Mounted, TargetPath, NULL)) {
-        WARNING(TEXT("[PackageNamespaceMountOnePackage] Namespace mount failed path=%s"), TargetPath);
+        WARNING(TEXT("[PackageNamespaceMountOnePackageBuffer] Namespace mount failed path=%s"), TargetPath);
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Validate manifest requires contracts against provider index.
+ * @param PackageName Package logical name.
+ * @param Manifest Parsed package manifest.
+ * @param ProviderIndex Provider contracts index.
+ * @return TRUE when all requires are satisfied.
+ */
+static BOOL PackageNamespaceValidateRequires(LPCSTR PackageName,
+                                             LPPACKAGE_MANIFEST Manifest,
+                                             LPPACKAGENAMESPACE_PROVIDER_INDEX ProviderIndex) {
+    UINT RequireIndex;
+    BOOL AllSatisfied = TRUE;
+
+    if (Manifest == NULL || ProviderIndex == NULL) return FALSE;
+
+    for (RequireIndex = 0; RequireIndex < Manifest->RequiresCount; RequireIndex++) {
+        LPCSTR Requirement = Manifest->Requires[RequireIndex];
+        if (Requirement == NULL || Requirement[0] == STR_NULL) {
+            continue;
+        }
+
+        if (!PackageNamespaceProviderIndexHas(ProviderIndex, Requirement)) {
+            WARNING(TEXT("[PackageNamespaceValidateRequires] Missing dependency package=%s requires=%s"),
+                PackageName,
+                Requirement);
+            AllSatisfied = FALSE;
+        }
+    }
+
+    return AllSatisfied;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Add provided contracts from one manifest into provider index.
+ * @param Manifest Parsed manifest.
+ * @param ProviderIndex Provider index.
+ */
+static void PackageNamespaceAddManifestProviders(LPPACKAGE_MANIFEST Manifest,
+                                                 LPPACKAGENAMESPACE_PROVIDER_INDEX ProviderIndex) {
+    UINT ProvideIndex;
+
+    if (Manifest == NULL || ProviderIndex == NULL) return;
+
+    PackageNamespaceProviderIndexAdd(ProviderIndex, Manifest->Name);
+
+    for (ProvideIndex = 0; ProvideIndex < Manifest->ProvidesCount; ProvideIndex++) {
+        if (Manifest->Provides[ProvideIndex] == NULL || Manifest->Provides[ProvideIndex][0] == STR_NULL) {
+            continue;
+        }
+        PackageNamespaceProviderIndexAdd(ProviderIndex, Manifest->Provides[ProvideIndex]);
     }
 }
 
@@ -393,19 +689,26 @@ static void PackageNamespaceMountOnePackage(LPCSTR PackageFilePath,
  * @param MountRoot Base mount root for mounted package volumes.
  * @param RolePrefix Volume role prefix.
  * @param UserName Optional user name (user package role only).
+ * @param IsGlobalProvider TRUE when mounted package contracts become global providers.
+ * @param ProviderIndex Provider index used for dependency checks.
  */
 static void PackageNamespaceScanPackageFolder(LPCSTR PackageFolder,
                                               LPCSTR MountRoot,
                                               LPCSTR RolePrefix,
-                                              LPCSTR UserName) {
+                                              LPCSTR UserName,
+                                              BOOL IsGlobalProvider,
+                                              LPPACKAGENAMESPACE_PROVIDER_INDEX ProviderIndex) {
     FILEINFO Find;
     LPFILE Entry;
     STR Pattern[MAX_PATH_NAME];
+    PACKAGENAMESPACE_SCAN_LIST ScanList;
+    UINT ScanIndex;
 
-    if (PackageFolder == NULL || MountRoot == NULL || RolePrefix == NULL) return;
+    if (PackageFolder == NULL || MountRoot == NULL || RolePrefix == NULL || ProviderIndex == NULL) return;
     if (!PackageNamespacePathExists(PackageFolder)) return;
     if (!PackageNamespaceEnsureFolder(MountRoot)) return;
 
+    PackageNamespaceScanListInit(&ScanList);
     PackageNamespaceBuildEnumeratePattern(PackageFolder, Pattern);
 
     Find.Size = sizeof(FILEINFO);
@@ -430,10 +733,76 @@ static void PackageNamespaceScanPackageFolder(LPCSTR PackageFolder,
 
         PackageNamespaceBuildChildPath(PackageFolder, Entry->Name, FilePath);
         PackageNamespaceBuildChildPath(MountRoot, PackageName, TargetPath);
-        PackageNamespaceMountOnePackage(FilePath, TargetPath, RolePrefix, PackageName, UserName);
+
+        if (!PackageNamespaceScanListPush(&ScanList, FilePath, TargetPath, PackageName, UserName)) {
+            WARNING(TEXT("[PackageNamespaceScanPackageFolder] Scan list allocation failed for %s"), FilePath);
+        }
     } while (GetSystemFS()->Driver->Command(DF_FS_OPENNEXT, (UINT)Entry) == DF_RETURN_SUCCESS);
 
     GetSystemFS()->Driver->Command(DF_FS_CLOSEFILE, (UINT)Entry);
+
+    PackageNamespaceScanListSort(&ScanList);
+
+    for (ScanIndex = 0; ScanIndex < ScanList.Count; ScanIndex++) {
+        LPPACKAGENAMESPACE_SCAN_ENTRY Candidate = &ScanList.Entries[ScanIndex];
+        LPVOID PackageBytes;
+        UINT PackageSize = 0;
+        PACKAGE_MANIFEST Manifest;
+        U32 ManifestStatus;
+        BOOL Mounted;
+
+        if (PackageNamespacePathExists(Candidate->TargetPath)) {
+            continue;
+        }
+
+        PackageBytes = FileReadAll(Candidate->PackageFilePath, &PackageSize);
+        if (PackageBytes == NULL || PackageSize == 0) {
+            WARNING(TEXT("[PackageNamespaceScanPackageFolder] Cannot read package file %s"),
+                Candidate->PackageFilePath);
+            continue;
+        }
+
+        ManifestStatus =
+            PackageManifestParseFromPackageBuffer(PackageBytes, (U32)PackageSize, &Manifest);
+        if (ManifestStatus != PACKAGE_MANIFEST_STATUS_OK) {
+            WARNING(TEXT("[PackageNamespaceScanPackageFolder] Manifest parse failed file=%s status=%u"),
+                Candidate->PackageFilePath,
+                ManifestStatus);
+            KernelHeapFree(PackageBytes);
+            continue;
+        }
+
+        if (Manifest.Name[0] != STR_NULL && StringCompare(Manifest.Name, Candidate->PackageName) != 0) {
+            WARNING(TEXT("[PackageNamespaceScanPackageFolder] Manifest name mismatch file=%s manifest=%s filename=%s"),
+                Candidate->PackageFilePath,
+                Manifest.Name,
+                Candidate->PackageName);
+        }
+
+        if (!PackageNamespaceValidateRequires(Candidate->PackageName, &Manifest, ProviderIndex)) {
+            WARNING(TEXT("[PackageNamespaceScanPackageFolder] Dependency resolution failed package=%s"),
+                Candidate->PackageName);
+            PackageManifestRelease(&Manifest);
+            KernelHeapFree(PackageBytes);
+            continue;
+        }
+
+        Mounted = PackageNamespaceMountOnePackageBuffer(PackageBytes,
+            PackageSize,
+            Candidate->TargetPath,
+            RolePrefix,
+            Candidate->PackageName,
+            Candidate->UserName[0] == STR_NULL ? NULL : Candidate->UserName);
+
+        if (Mounted && IsGlobalProvider) {
+            PackageNamespaceAddManifestProviders(&Manifest, ProviderIndex);
+        }
+
+        PackageManifestRelease(&Manifest);
+        KernelHeapFree(PackageBytes);
+    }
+
+    PackageNamespaceScanListDeinit(&ScanList);
 }
 
 /***************************************************************************/
@@ -486,8 +855,9 @@ static BOOL PackageNamespaceBindCurrentUserAlias(LPCSTR UserName) {
 
 /**
  * @brief Scan user package folders and mount per-user package files.
+ * @param ProviderIndex Provider index for dependency checks.
  */
-static void PackageNamespaceScanUserPackageFolders(void) {
+static void PackageNamespaceScanUserPackageFolders(LPPACKAGENAMESPACE_PROVIDER_INDEX ProviderIndex) {
     FILEINFO Find;
     LPFILE UserEntry;
     STR Pattern[MAX_PATH_NAME];
@@ -521,8 +891,12 @@ static void PackageNamespaceScanUserPackageFolders(void) {
         PackageNamespaceBuildChildPath(
             UserMountRoot, KERNEL_PATH_LEAF_USER_PACKAGE_ROOT, UserMountRoot);
 
-        PackageNamespaceScanPackageFolder(
-            UserPackageFolder, UserMountRoot, PACKAGE_NAMESPACE_ROLE_USER, UserEntry->Name);
+        PackageNamespaceScanPackageFolder(UserPackageFolder,
+            UserMountRoot,
+            PACKAGE_NAMESPACE_ROLE_USER,
+            UserEntry->Name,
+            FALSE,
+            ProviderIndex);
     } while (GetSystemFS()->Driver->Command(DF_FS_OPENNEXT, (UINT)UserEntry) == DF_RETURN_SUCCESS);
 
     GetSystemFS()->Driver->Command(DF_FS_CLOSEFILE, (UINT)UserEntry);
@@ -536,6 +910,7 @@ static void PackageNamespaceScanUserPackageFolders(void) {
  */
 BOOL PackageNamespaceInitialize(void) {
     LPUSERACCOUNT CurrentUser = GetCurrentUser();
+    PACKAGENAMESPACE_PROVIDER_INDEX ProviderIndex;
 
     if (!FileSystemReady()) {
         return FALSE;
@@ -548,15 +923,23 @@ BOOL PackageNamespaceInitialize(void) {
     PackageNamespaceEnsureFolder(PackageNamespacePaths.AppsRoot);
     PackageNamespaceEnsureFolder(PackageNamespacePaths.UsersRoot);
 
+    PackageNamespaceProviderIndexInit(&ProviderIndex);
+
     PackageNamespaceScanPackageFolder(PackageNamespacePaths.LibraryRoot,
         PackageNamespacePaths.LibraryRoot,
         PACKAGE_NAMESPACE_ROLE_LIBRARY,
-        NULL);
+        NULL,
+        TRUE,
+        &ProviderIndex);
     PackageNamespaceScanPackageFolder(PackageNamespacePaths.AppsRoot,
         PackageNamespacePaths.AppsRoot,
         PACKAGE_NAMESPACE_ROLE_APPLICATION,
-        NULL);
-    PackageNamespaceScanUserPackageFolders();
+        NULL,
+        TRUE,
+        &ProviderIndex);
+    PackageNamespaceScanUserPackageFolders(&ProviderIndex);
+
+    PackageNamespaceProviderIndexDeinit(&ProviderIndex);
 
     if (CurrentUser != NULL) {
         PackageNamespaceBindCurrentUserAlias(CurrentUser->UserName);
