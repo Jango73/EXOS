@@ -616,7 +616,7 @@ static BYTE_BUFFER BuildTocBuffer(const TOC_LIST *TocEntries) {
     return Buffer;
 }
 
-static BYTE_BUFFER BuildBlockTableBuffer(const BLOCK_LIST *Blocks) {
+static BYTE_BUFFER BuildBlockTableBuffer(const BLOCK_LIST *Blocks, uint64_t DataOffset) {
     BYTE_BUFFER Buffer;
     ByteBufferInit(&Buffer);
 
@@ -625,7 +625,7 @@ static BYTE_BUFFER BuildBlockTableBuffer(const BLOCK_LIST *Blocks) {
         uint8_t Bytes[EPK_BLOCK_ENTRY_SIZE];
         memset(Bytes, 0, sizeof(Bytes));
 
-        WriteU64LE(Bytes, 0, Block->CompressedOffset);
+        WriteU64LE(Bytes, 0, DataOffset + Block->CompressedOffset);
         WriteU32LE(Bytes, 8, Block->CompressedSize);
         WriteU32LE(Bytes, 12, Block->UncompressedSize);
         Bytes[16] = Block->CompressionMethod;
@@ -646,16 +646,16 @@ static BYTE_BUFFER BuildPackageBuffer(const TOC_LIST *TocEntries,
                                       size_t SignatureSize,
                                       uint64_t *OutSignatureOffset) {
     BYTE_BUFFER Toc = BuildTocBuffer(TocEntries);
-    BYTE_BUFFER BlockTable = BuildBlockTableBuffer(Blocks);
 
     uint64_t TocOffset = EPK_HEADER_SIZE;
     uint64_t TocSize = Toc.Size;
     uint64_t BlockTableOffset = TocOffset + TocSize;
-    uint64_t BlockTableSize = BlockTable.Size;
+    uint64_t BlockTableSize = (uint64_t)Blocks->Count * EPK_BLOCK_ENTRY_SIZE;
     uint64_t DataOffset = BlockTableOffset + BlockTableSize;
     uint64_t DataSize = DataRegion->Size;
     uint64_t ManifestOffset = DataOffset + DataSize;
     uint64_t SignatureOffset = SignatureSize > 0 ? (ManifestOffset + ManifestSize) : 0;
+    BYTE_BUFFER BlockTable = BuildBlockTableBuffer(Blocks, DataOffset);
 
     BYTE_BUFFER Package;
     ByteBufferInit(&Package);

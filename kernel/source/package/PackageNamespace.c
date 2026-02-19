@@ -345,6 +345,7 @@ BOOL PackageNamespaceInitialize(void) {
 BOOL PackageNamespaceBindCurrentProcessPackageView(LPFILESYSTEM PackageFileSystem, LPCSTR PackageName) {
     LPUSERACCOUNT CurrentUser = GetCurrentUser();
     LPFILESYSTEM ActiveFileSystem = NULL;
+    LPCSTR UserName = NULL;
     STR UserDataSourcePath[MAX_PATH_NAME];
 
     if (PackageFileSystem == NULL || STRING_EMPTY(PackageName)) return FALSE;
@@ -354,22 +355,36 @@ BOOL PackageNamespaceBindCurrentProcessPackageView(LPFILESYSTEM PackageFileSyste
         return FALSE;
     }
 
-    if (CurrentUser == NULL) return FALSE;
+    if (CurrentUser != NULL) {
+        UserName = CurrentUser->UserName;
+    } else {
+        UserName = KERNEL_PATH_DEFAULT_ROOT_USER_NAME;
+    }
+
     ActiveFileSystem = PackageNamespaceGetActiveFileSystem();
-    if (ActiveFileSystem == NULL) return FALSE;
+    if (ActiveFileSystem == NULL) {
+        WARNING(TEXT("[PackageNamespaceBindCurrentProcessPackageView] No active filesystem for user-data alias"));
+        return TRUE;
+    }
 
     UserDataSourcePath[0] = STR_NULL;
-    PackageNamespaceBuildChildPath(PackageNamespacePaths.UsersRoot, CurrentUser->UserName, UserDataSourcePath);
+    PackageNamespaceBuildChildPath(PackageNamespacePaths.UsersRoot, UserName, UserDataSourcePath);
     PackageNamespaceBuildChildPath(UserDataSourcePath, PackageName, UserDataSourcePath);
     PackageNamespaceBuildChildPath(UserDataSourcePath, KERNEL_PATH_LEAF_PRIVATE_USER_DATA, UserDataSourcePath);
 
     if (!PackageNamespaceEnsureFolderChain(UserDataSourcePath)) {
         WARNING(TEXT("[PackageNamespaceBindCurrentProcessPackageView] Cannot ensure user-data path=%s"),
             UserDataSourcePath);
-        return FALSE;
+        return TRUE;
     }
 
-    return PackageNamespaceMountPath(ActiveFileSystem, PackageNamespacePaths.PrivateUserDataAlias, UserDataSourcePath);
+    if (!PackageNamespaceMountPath(ActiveFileSystem, PackageNamespacePaths.PrivateUserDataAlias, UserDataSourcePath)) {
+        WARNING(TEXT("[PackageNamespaceBindCurrentProcessPackageView] Cannot mount user-data alias=%s source=%s"),
+            PackageNamespacePaths.PrivateUserDataAlias,
+            UserDataSourcePath);
+    }
+
+    return TRUE;
 }
 
 /***************************************************************************/
