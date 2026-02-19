@@ -28,6 +28,7 @@
 #include "package/PackageManifest.h"
 #include "package/PackageNamespace.h"
 #include "utils/KernelPath.h"
+#include "utils/SizeFormat.h"
 
 /************************************************************************/
 
@@ -638,6 +639,35 @@ static void MakeFolder(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
+/**
+ * @brief Convert a sector count (512-byte sectors) to bytes.
+ * @param SectorCount Number of sectors.
+ * @return Byte count.
+ */
+static U64 ShellSectorCountToBytes(U32 SectorCount) {
+#ifdef __EXOS_32__
+    return U64_Make(SectorCount >> 23, SectorCount << 9);
+#else
+    return ((U64)SectorCount << 9);
+#endif
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Print one shell line with an auto-scaled byte size.
+ * @param Label Left column label.
+ * @param ByteCount Size in bytes.
+ */
+static void ShellPrintByteSizeLine(LPCSTR Label, U64 ByteCount) {
+    STR SizeText[32];
+
+    SizeFormatBytesText(ByteCount, SizeText);
+    ConsolePrint(TEXT("%s: %s\n"), Label, SizeText);
+}
+
+/***************************************************************************/
+
 static void ListFile(LPFILE File, U32 Indent) {
     STR Name[MAX_FILE_NAME];
     U32 MaxWidth = Console.Width;
@@ -675,7 +705,9 @@ static void ListFile(LPFILE File, U32 Indent) {
     if (File->Attributes & FS_ATTR_FOLDER) {
         ConsolePrint(TEXT("%12s"), TEXT("<Folder>"));
     } else {
-        ConsolePrint(TEXT("%12d"), File->SizeLow);
+        STR SizeText[32];
+        SizeFormatBytesText(U64_Make(File->SizeHigh, File->SizeLow), SizeText);
+        ConsolePrint(TEXT("%12s"), SizeText);
     }
 
     ConsolePrint(
@@ -1042,7 +1074,9 @@ BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName) {
 
     Buffer = (U8*)HeapAlloc(FileSize + 1);
     if (Buffer == NULL) {
-        ConsolePrint(TEXT("Unable to allocate script buffer: %u bytes\n"), FileSize + 1);
+        STR SizeText[32];
+        SizeFormatBytesText(U64_FromUINT(FileSize + 1), SizeText);
+        ConsolePrint(TEXT("Unable to allocate script buffer: %s\n"), SizeText);
         goto Out;
     }
 
@@ -1227,27 +1261,6 @@ static U32 CMD_exit(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
-/**
- * @brief Convert a byte count to kilobytes for console display.
- * @param Value Byte count in 64-bit representation.
- * @return Kilobytes clipped to UINT range.
- */
-static UINT BytesToKiloBytesForDisplay(U64 Value) {
-#ifdef __EXOS_32__
-    U64 Shifted = Value;
-
-    for (UINT Index = 0; Index < 10; Index++) {
-        Shifted = U64_ShiftRight1(Shifted);
-    }
-
-    return U64_ToU32_Clip(Shifted);
-#else
-    return (UINT)(Value >> 10);
-#endif
-}
-
-/***************************************************************************/
-
 static U32 CMD_sysinfo(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
@@ -1258,14 +1271,14 @@ static U32 CMD_sysinfo(LPSHELLCONTEXT Context) {
     Info.Header.Flags = 0;
     DoSystemCall(SYSCALL_GetSystemInfo, SYSCALL_PARAM(&Info));
 
-    ConsolePrint(TEXT("Total physical memory     : %u KB\n"), BytesToKiloBytesForDisplay(Info.TotalPhysicalMemory));
-    ConsolePrint(TEXT("Physical memory used      : %u KB\n"), BytesToKiloBytesForDisplay(Info.PhysicalMemoryUsed));
-    ConsolePrint(TEXT("Physical memory available : %u KB\n"), BytesToKiloBytesForDisplay(Info.PhysicalMemoryAvail));
-    ConsolePrint(TEXT("Total swap memory         : %u KB\n"), BytesToKiloBytesForDisplay(Info.TotalSwapMemory));
-    ConsolePrint(TEXT("Swap memory used          : %u KB\n"), BytesToKiloBytesForDisplay(Info.SwapMemoryUsed));
-    ConsolePrint(TEXT("Swap memory available     : %u KB\n"), BytesToKiloBytesForDisplay(Info.SwapMemoryAvail));
-    ConsolePrint(TEXT("Total memory available    : %u KB\n"), BytesToKiloBytesForDisplay(Info.TotalMemoryAvail));
-    ConsolePrint(TEXT("Processor page size       : %u bytes\n"), Info.PageSize);
+    ShellPrintByteSizeLine(TEXT("Total physical memory     "), Info.TotalPhysicalMemory);
+    ShellPrintByteSizeLine(TEXT("Physical memory used      "), Info.PhysicalMemoryUsed);
+    ShellPrintByteSizeLine(TEXT("Physical memory available "), Info.PhysicalMemoryAvail);
+    ShellPrintByteSizeLine(TEXT("Total swap memory         "), Info.TotalSwapMemory);
+    ShellPrintByteSizeLine(TEXT("Swap memory used          "), Info.SwapMemoryUsed);
+    ShellPrintByteSizeLine(TEXT("Swap memory available     "), Info.SwapMemoryAvail);
+    ShellPrintByteSizeLine(TEXT("Total memory available    "), Info.TotalMemoryAvail);
+    ShellPrintByteSizeLine(TEXT("Processor page size       "), U64_FromUINT(Info.PageSize));
     ConsolePrint(TEXT("Total physical pages      : %u pages\n"), Info.TotalPhysicalPages);
     ConsolePrint(TEXT("Minimum linear address    : %x\n"), Info.MinimumLinearAddress);
     ConsolePrint(TEXT("Maximum linear address    : %x\n"), Info.MaximumLinearAddress);
@@ -1348,18 +1361,20 @@ static U32 CMD_memorymap(LPSHELLCONTEXT Context) {
 
     while (Descriptor != NULL) {
         LPCSTR Tag = (Descriptor->Tag[0] == STR_NULL) ? TEXT("???") : Descriptor->Tag;
+        STR SizeText[32];
+        SizeFormatBytesText(U64_FromUINT(Descriptor->Size), SizeText);
         if (Descriptor->PhysicalBase == 0) {
-            ConsolePrint(TEXT("%u: tag=%s base=%p size=%u phys=???\n"),
+            ConsolePrint(TEXT("%u: tag=%s base=%p size=%s phys=???\n"),
                 Index,
                 Tag,
                 (LPVOID)Descriptor->CanonicalBase,
-                Descriptor->Size);
+                SizeText);
         } else {
-            ConsolePrint(TEXT("%u: tag=%s base=%p size=%u phys=%p\n"),
+            ConsolePrint(TEXT("%u: tag=%s base=%p size=%s phys=%p\n"),
                 Index,
                 Tag,
                 (LPVOID)Descriptor->CanonicalBase,
-                Descriptor->Size,
+                SizeText,
                 (LPVOID)Descriptor->PhysicalBase);
         }
         Descriptor = (LPMEMORY_REGION_DESCRIPTOR)Descriptor->Next;
@@ -1544,14 +1559,16 @@ static U32 CMD_disk(LPSHELLCONTEXT Context) {
 
     LPLIST DiskList = GetDiskList();
     for (Node = DiskList != NULL ? DiskList->First : NULL; Node; Node = Node->Next) {
+        STR SizeText[32];
         Disk = (LPSTORAGE_UNIT)Node;
 
         DiskInfo.Disk = Disk;
         Disk->Driver->Command(DF_DISK_GETINFO, (UINT)&DiskInfo);
+        SizeFormatBytesText(U64_FromUINT(DiskInfo.BytesPerSector), SizeText);
 
         ConsolePrint(TEXT("Manufacturer : %s\n"), Disk->Driver->Manufacturer);
         ConsolePrint(TEXT("Product      : %s\n"), Disk->Driver->Product);
-        ConsolePrint(TEXT("Sector size  : %u\n"), DiskInfo.BytesPerSector);
+        ConsolePrint(TEXT("Sector size  : %s\n"), SizeText);
         ConsolePrint(TEXT("Sectors      : %x%08x\n"),
                      (U32)U64_High32(DiskInfo.NumSectors),
                      (U32)U64_Low32(DiskInfo.NumSectors));
@@ -1602,11 +1619,13 @@ static U32 CMD_filesystem(LPSHELLCONTEXT Context) {
             DISKINFO DiskInfo;
             BOOL DiskInfoValid = FALSE;
             LPSTORAGE_UNIT StorageUnit;
-            U32 PartitionSizeMiB;
+            U64 PartitionSizeBytes;
+            STR PartitionSizeText[32];
 
             FileSystem = (LPFILESYSTEM)Node;
             StorageUnit = FileSystemGetStorageUnit(FileSystem);
-            PartitionSizeMiB = FileSystem->Partition.NumSectors / 2048;
+            PartitionSizeBytes = ShellSectorCountToBytes(FileSystem->Partition.NumSectors);
+            SizeFormatBytesText(PartitionSizeBytes, PartitionSizeText);
 
             if (FileSystem->Mounted == FALSE) {
                 UnmountedCount++;
@@ -1619,11 +1638,11 @@ static U32 CMD_filesystem(LPSHELLCONTEXT Context) {
                     StringConcat(DisplayName, TEXT("*"));
                 }
 
-                ConsolePrint(TEXT("%-12s %-12s %-10s %7u MiB\n"),
+                ConsolePrint(TEXT("%-12s %-12s %-10s %11s\n"),
                     DisplayName,
                     FileSystemGetPartitionTypeName(&FileSystem->Partition),
                     FileSystemGetPartitionFormatName(FileSystem->Partition.Format),
-                    PartitionSizeMiB);
+                    PartitionSizeText);
                 continue;
             }
 
@@ -1641,10 +1660,15 @@ static U32 CMD_filesystem(LPSHELLCONTEXT Context) {
                 NTFS_VOLUME_GEOMETRY Geometry;
                 MemorySet(&Geometry, 0, sizeof(NTFS_VOLUME_GEOMETRY));
                 if (NtfsGetVolumeGeometry(FileSystem, &Geometry)) {
-                    ConsolePrint(TEXT("NTFS bytes/sector   : %u\n"), Geometry.BytesPerSector);
+                    STR GeometrySizeText[32];
+
+                    SizeFormatBytesText(U64_FromUINT(Geometry.BytesPerSector), GeometrySizeText);
+                    ConsolePrint(TEXT("NTFS bytes/sector   : %s\n"), GeometrySizeText);
                     ConsolePrint(TEXT("NTFS sectors/cluster: %u\n"), Geometry.SectorsPerCluster);
-                    ConsolePrint(TEXT("NTFS bytes/cluster  : %u\n"), Geometry.BytesPerCluster);
-                    ConsolePrint(TEXT("NTFS record size    : %u\n"), Geometry.FileRecordSize);
+                    SizeFormatBytesText(U64_FromUINT(Geometry.BytesPerCluster), GeometrySizeText);
+                    ConsolePrint(TEXT("NTFS bytes/cluster  : %s\n"), GeometrySizeText);
+                    SizeFormatBytesText(U64_FromUINT(Geometry.FileRecordSize), GeometrySizeText);
+                    ConsolePrint(TEXT("NTFS record size    : %s\n"), GeometrySizeText);
                     ConsolePrint(TEXT("NTFS MFT LCN : %x, %x\n"),
                         (U32)U64_High32(Geometry.MftStartCluster),
                         (U32)U64_Low32(Geometry.MftStartCluster));
@@ -1657,8 +1681,8 @@ static U32 CMD_filesystem(LPSHELLCONTEXT Context) {
             }
             ConsolePrint(TEXT("Index        : %u\n"), FileSystem->Partition.Index);
             ConsolePrint(TEXT("Start sector : %u\n"), FileSystem->Partition.StartSector);
-            ConsolePrint(TEXT("Size         : %u sectors (%u MiB)\n"),
-                FileSystem->Partition.NumSectors, PartitionSizeMiB);
+            ConsolePrint(TEXT("Size         : %u sectors (%s)\n"),
+                FileSystem->Partition.NumSectors, PartitionSizeText);
             ConsolePrint(TEXT("Active       : %s\n"),
                 (FileSystem->Partition.Flags & PARTITION_FLAG_ACTIVE) ? TEXT("YES") : TEXT("NO"));
 
@@ -2159,18 +2183,20 @@ static U32 CMD_usb(LPSHELLCONTEXT Context) {
 
         UINT Index = 0;
         for (LPLISTNODE Node = UsbStorageList->First; Node; Node = Node->Next) {
+            STR BlockSizeText[32];
             LPUSB_STORAGE_ENTRY Entry = (LPUSB_STORAGE_ENTRY)Node;
             if (Entry == NULL) {
                 continue;
             }
 
-            ConsolePrint(TEXT("usb%u: addr=%x vid=%x pid=%x blocks=%u block_size=%u state=%s\n"),
+            SizeFormatBytesText(U64_FromUINT(Entry->BlockSize), BlockSizeText);
+            ConsolePrint(TEXT("usb%u: addr=%x vid=%x pid=%x blocks=%u block_size=%s state=%s\n"),
                          Index,
                          (U32)Entry->Address,
                          (U32)Entry->VendorId,
                          (U32)Entry->ProductId,
                          Entry->BlockCount,
-                         Entry->BlockSize,
+                         BlockSizeText,
                          Entry->Present ? TEXT("online") : TEXT("offline"));
             Index++;
         }

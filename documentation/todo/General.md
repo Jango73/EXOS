@@ -3,6 +3,7 @@
 ## Memory
 
 - Later: align x86-32 page directory creation (`AllocPageDirectory` and `AllocUserPageDirectory`) with the modular x86-64 region-based approach (low region, kernel region, task runner, recursive slot) while preserving current behavior. Execute this refactor in small validated steps to limit boot and paging regression risk.
+- Implement a memory sanity checker that scans memory to check how fragmented memory is.
 
 ## Problems
 
