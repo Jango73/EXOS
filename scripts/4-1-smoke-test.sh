@@ -30,6 +30,8 @@ FAULT_PATTERN="#PF|#GP|#UD|#SS|#NP|#TS|#DE|#DF|#MF|#AC|#MC"
 TEST_KO_PATTERN="TEST > .* : KO"
 ERROR_PATTERN="ERROR >"
 NON_FATAL_ERROR_PATTERN="ERROR > \\[NVMeAttach\\] Failed to allocate admin queues"
+AUTOTEST_ERROR_SCOPE_BEGIN="AUTOTEST_ERROR_SCOPE_BEGIN"
+AUTOTEST_ERROR_SCOPE_END="AUTOTEST_ERROR_SCOPE_END"
 
 RG_BIN="$(command -v rg || true)"
 GREP_BIN="$(command -v grep || true)"
@@ -312,6 +314,34 @@ function TailFromOffset() {
     fi
 }
 
+function TailFromOffsetForErrorCheck() {
+    # Ignore ERROR lines emitted while autotests are running.
+    local Offset="$1"
+    TailFromOffset "$Offset" | awk \
+        -v ScopeBegin="$AUTOTEST_ERROR_SCOPE_BEGIN" \
+        -v ScopeEnd="$AUTOTEST_ERROR_SCOPE_END" \
+        -v ErrorPrefix="$ERROR_PATTERN" '
+        {
+            if (index($0, ScopeBegin) > 0) {
+                InAutotestScope = 1;
+                print $0;
+                next;
+            }
+
+            if (index($0, ScopeEnd) > 0) {
+                InAutotestScope = 0;
+                print $0;
+                next;
+            }
+
+            if (InAutotestScope == 1 && index($0, ErrorPrefix) > 0) {
+                next;
+            }
+
+            print $0;
+        }'
+}
+
 function MonitorCommand() {
     # Send one command to QEMU monitor (telnet) with retry/backoff.
     # Uses a short-lived socket per command for robustness.
@@ -434,8 +464,8 @@ function WaitForExpectedLog() {
             return 1
         fi
 
-        if TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" >/dev/null; then
-            ErrorLines="$(TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" || true)"
+        if TailFromOffsetForErrorCheck "$Offset" | SearchFixed "$ERROR_PATTERN" >/dev/null; then
+            ErrorLines="$(TailFromOffsetForErrorCheck "$Offset" | SearchFixed "$ERROR_PATTERN" || true)"
             FatalErrorLines="$(echo "$ErrorLines" | "$GREP_BIN" -E -v "$NON_FATAL_ERROR_PATTERN" || true)"
 
             if [ -n "$FatalErrorLines" ]; then
@@ -474,8 +504,8 @@ function AssertNoFailures() {
         return 1
     fi
 
-    if TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" >/dev/null; then
-        ErrorLines="$(TailFromOffset "$Offset" | SearchFixed "$ERROR_PATTERN" || true)"
+    if TailFromOffsetForErrorCheck "$Offset" | SearchFixed "$ERROR_PATTERN" >/dev/null; then
+        ErrorLines="$(TailFromOffsetForErrorCheck "$Offset" | SearchFixed "$ERROR_PATTERN" || true)"
         FatalErrorLines="$(echo "$ErrorLines" | "$GREP_BIN" -E -v "$NON_FATAL_ERROR_PATTERN" || true)"
 
         if [ -n "$FatalErrorLines" ]; then

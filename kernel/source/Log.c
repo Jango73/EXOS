@@ -46,6 +46,7 @@
 
 static CSTR KernelLogDefaultTagFilter[] = KERNEL_LOG_DEFAULT_TAG_FILTER;
 static STR DATA_SECTION KernelLogTagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
+static BOOL KernelLogErrorConsoleEnabled = TRUE;
 
 static UINT KernelLogDriverCommands(UINT Function, UINT Parameter);
 static BOOL KernelLogIsTagSeparator(STR Char);
@@ -125,6 +126,46 @@ void KernelLogSetTagFilter(LPCSTR TagFilter) {
  */
 LPCSTR KernelLogGetTagFilter(void) {
     return KernelLogTagFilter;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Enable or disable console mirror for LOG_ERROR messages.
+ * @param Enabled TRUE to print error logs to console, FALSE to keep serial-only.
+ */
+void KernelLogSetErrorConsoleEnabled(BOOL Enabled) {
+    U32 Flags;
+
+    SaveFlags(&Flags);
+    FreezeScheduler();
+    DisableInterrupts();
+
+    KernelLogErrorConsoleEnabled = Enabled;
+
+    UnfreezeScheduler();
+    RestoreFlags(&Flags);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Return current console mirror state for LOG_ERROR messages.
+ * @return TRUE when LOG_ERROR is mirrored to console.
+ */
+BOOL KernelLogGetErrorConsoleEnabled(void) {
+    BOOL Enabled;
+    U32 Flags;
+
+    SaveFlags(&Flags);
+    FreezeScheduler();
+    DisableInterrupts();
+
+    Enabled = KernelLogErrorConsoleEnabled;
+
+    UnfreezeScheduler();
+    RestoreFlags(&Flags);
+    return Enabled;
 }
 
 /************************************************************************/
@@ -379,8 +420,10 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
             KernelPrintString(TEXT("ERROR > "));
             KernelPrintString(TextBuffer);
             KernelPrintString(Text_NewLine);
-            ConsolePrint(TextBuffer);
-            ConsolePrint(Text_NewLine);
+            if (KernelLogErrorConsoleEnabled) {
+                ConsolePrint(TextBuffer);
+                ConsolePrint(Text_NewLine);
+            }
         } break;
     }
 
