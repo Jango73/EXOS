@@ -901,40 +901,35 @@ Step-6 namespace integration is implemented by:
 - `kernel/include/package/PackageNamespace.h`
 - `kernel/source/package/PackageNamespace.c`
 
-Boot-time integration:
-- `InitializeFileSystems()` calls `PackageNamespaceInitialize()` after `MountSystemFS()`, configuration load, and configured user mounts.
-- global package sources are scanned:
-  - `/library/package/`
-  - `/apps/`
-  - `/users/*/package/`
-- each discovered `.epk` is validated and mounted with PackageFS, then attached by role in namespace:
-  - `/library/package/<package-name>`
-  - `/apps/<package-name>`
-  - `/users/<user-name>/package/<package-name>`
+Package integration targets per-process launch behavior:
+- packaged application receives a private `/package` mount,
+- packaged application receives `/user-data` alias to `/users/<current-user>/<package-name>/data`,
+- no global application package mount graph is required for launch.
 
 Process-view hooks:
 - `PackageNamespaceBindCurrentProcessPackageView(...)` mounts one package view at `/package`.
 - the same helper maps `/user-data` to `/users/<current-user>/<package-name>/data` on the active filesystem.
 - package namespace roots and aliases are resolved through `utils/KernelPath` keys:
-  - `KernelPath.PackagesLibrary`
-  - `KernelPath.PackagesApps`
   - `KernelPath.UsersRoot`
   - `KernelPath.CurrentUserAlias`
   - `KernelPath.PrivatePackageAlias`
   - `KernelPath.PrivateUserDataAlias`
 
-#### Package manifest and dependency resolution
+#### Package manifest compatibility checks
 
 Step-7 manifest resolution is implemented by:
 - `kernel/include/package/PackageManifest.h`
 - `kernel/source/package/PackageManifest.c`
 
-Namespace activation flow (`PackageNamespaceScanPackageFolder`) includes:
-- parse and validate embedded `manifest.toml` (`name`, `version`, `provides`, `requires`) before mount activation,
-- deterministic package processing order by sorted package name,
-- global provider index built from successfully mounted global package manifests (`/library/package`, `/apps`),
-- `requires` contract validation before `PackageFSMountFromBuffer(...)`,
-- deterministic diagnostics for missing contracts through one warning per unsatisfied `requires` entry.
+Launch validation flow includes:
+- parse and validate embedded `manifest.toml` (identity + compatibility fields),
+- enforce architecture and kernel compatibility policy before mount activation,
+- reject incompatible packages with deterministic diagnostics.
+
+No dependency solver behavior is part of this model:
+- no provider graph,
+- no transitive dependency resolution,
+- no global package activation transaction state for application launches.
 
 #### Runtime access paths
 
