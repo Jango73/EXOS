@@ -13,6 +13,7 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 - DON'T act like a human being with emotions, just be a machine.
 - DON'T says "Great!", "Perfect!", "You're right" all the time.
 - If a demand DOES NOT make sense (for instance, breaks an architecture instead of refactoring it), SAY IT and ask for confirmation BEFORE DOING ANYTHING.
+- NEVER create a commit unless the user explicitly asks for it in the current conversation.
 
 ## Architecture and Reuse Rules
 - Never implement one-off local mechanisms when a cross-kernel pattern is involved.
