@@ -66,6 +66,7 @@
 #define DRIVER_TYPE_NVME_STORAGE 0x00000019
 #define DRIVER_TYPE_SATA_STORAGE 0x0000001A
 #define DRIVER_TYPE_ATA_STORAGE 0x0000001B
+#define DRIVER_TYPE_XHCI 0x0000001C
 #define DRIVER_TYPE_OTHER 0xFFFFFFFF
 
 /***************************************************************************/

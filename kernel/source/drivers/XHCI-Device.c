@@ -28,6 +28,205 @@
 
 /************************************************************************/
 
+#define XHCI_ENUM_FAILURE_LOG_IMMEDIATE_BUDGET 1
+#define XHCI_ENUM_FAILURE_LOG_INTERVAL_MS 2000
+#define XHCI_ENABLE_SLOT_TIMEOUT_LOG_IMMEDIATE_BUDGET 1
+#define XHCI_ENABLE_SLOT_TIMEOUT_LOG_INTERVAL_MS 2000
+
+/************************************************************************/
+
+/**
+ * @brief Emit rate-limited root port enumeration diagnostics.
+ * @param UsbDevice Root port USB device.
+ * @param Step Failing enumeration step.
+ * @param PortStatus Current port status register value.
+ */
+static void XHCI_LogProbeFailure(LPXHCI_USB_DEVICE UsbDevice, LPCSTR Step, U32 PortStatus) {
+    U32 Suppressed = 0;
+    U32 UsbCommand = 0;
+    U32 UsbStatus = 0;
+    LPXHCI_DEVICE Device = NULL;
+
+    if (UsbDevice == NULL || !UsbDevice->IsRootPort) {
+        return;
+    }
+
+    if (!RateLimiterShouldTrigger(&UsbDevice->EnumFailureLogLimiter, GetSystemTime(), &Suppressed)) {
+        return;
+    }
+
+    Device = UsbDevice->Controller;
+    XHCI_LogHseTransitionIfNeeded(Device, TEXT("ProbeFailure"));
+    if (Device != NULL && Device->OpBase != 0) {
+        UsbCommand = XHCI_Read32(Device->OpBase, XHCI_OP_USBCMD);
+        UsbStatus = XHCI_Read32(Device->OpBase, XHCI_OP_USBSTS);
+    }
+
+    WARNING(TEXT("[XHCI_LogProbeFailure] Port %u step=%s err=%x completion=%x raw=%x USBCMD=%x USBSTS=%x suppressed=%u"),
+            (U32)UsbDevice->PortNumber,
+            (Step != NULL) ? Step : TEXT("?"),
+            (U32)UsbDevice->LastEnumError,
+            (U32)UsbDevice->LastEnumCompletion,
+            PortStatus,
+            UsbCommand,
+            UsbStatus,
+            Suppressed);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Count active slots attached to one controller.
+ * @param Device xHCI controller.
+ * @return Number of active slot identifiers.
+ */
+static U32 XHCI_CountActiveSlots(LPXHCI_DEVICE Device) {
+    U8 SlotSeen[256];
+    U32 ActiveCount = 0;
+    LPLIST UsbDeviceList;
+
+    if (Device == NULL) {
+        return 0;
+    }
+
+    MemorySet(SlotSeen, 0, sizeof(SlotSeen));
+
+    UsbDeviceList = GetUsbDeviceList();
+    if (UsbDeviceList == NULL) {
+        return 0;
+    }
+
+    for (LPLISTNODE Node = UsbDeviceList->First; Node != NULL; Node = Node->Next) {
+        LPXHCI_USB_DEVICE UsbDevice = (LPXHCI_USB_DEVICE)Node;
+        if (UsbDevice->Controller != Device) {
+            continue;
+        }
+        if (!UsbDevice->Present || UsbDevice->SlotId == 0) {
+            continue;
+        }
+        if (SlotSeen[UsbDevice->SlotId] != 0) {
+            continue;
+        }
+
+        SlotSeen[UsbDevice->SlotId] = 1;
+        ActiveCount++;
+    }
+
+    return ActiveCount;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Emit one rate-limited state snapshot for EnableSlot timeout.
+ * @param Device xHCI controller.
+ */
+static void XHCI_LogEnableSlotTimeoutState(LPXHCI_DEVICE Device) {
+    static RATE_LIMITER DATA_SECTION EnableSlotTimeoutLimiter = {0};
+    static BOOL DATA_SECTION EnableSlotTimeoutLimiterInitAttempted = FALSE;
+    U32 Suppressed = 0;
+    LINEAR InterrupterBase;
+    U32 UsbStatus;
+    U32 UsbCommand;
+    U32 CrcrLow;
+    U32 CrcrHigh;
+    U32 Iman;
+    U32 ErdpLow;
+    U32 ErdpHigh;
+    U32 ActiveSlots;
+    U32 EventDword0 = 0;
+    U32 EventDword1 = 0;
+    U32 EventDword2 = 0;
+    U32 EventDword3 = 0;
+    U32 EventCycle = 0;
+    U32 ExpectedCycle = 0;
+    U16 PciCommand = 0;
+    U16 PciStatus = 0;
+
+    if (Device == NULL) {
+        return;
+    }
+
+    if (EnableSlotTimeoutLimiter.Initialized == FALSE && EnableSlotTimeoutLimiterInitAttempted == FALSE) {
+        EnableSlotTimeoutLimiterInitAttempted = TRUE;
+        if (RateLimiterInit(&EnableSlotTimeoutLimiter,
+                            XHCI_ENABLE_SLOT_TIMEOUT_LOG_IMMEDIATE_BUDGET,
+                            XHCI_ENABLE_SLOT_TIMEOUT_LOG_INTERVAL_MS) == FALSE) {
+            return;
+        }
+    }
+
+    if (!RateLimiterShouldTrigger(&EnableSlotTimeoutLimiter, GetSystemTime(), &Suppressed)) {
+        return;
+    }
+
+    XHCI_LogHseTransitionIfNeeded(Device, TEXT("EnableSlotTimeout"));
+    InterrupterBase = Device->RuntimeBase + XHCI_RT_INTERRUPTER_BASE;
+    UsbCommand = XHCI_Read32(Device->OpBase, XHCI_OP_USBCMD);
+    UsbStatus = XHCI_Read32(Device->OpBase, XHCI_OP_USBSTS);
+    CrcrLow = XHCI_Read32(Device->OpBase, XHCI_OP_CRCR);
+    CrcrHigh = XHCI_Read32(Device->OpBase, (U32)(XHCI_OP_CRCR + 4));
+    Iman = XHCI_Read32(InterrupterBase, XHCI_IMAN);
+    ErdpLow = XHCI_Read32(InterrupterBase, XHCI_ERDP);
+    ErdpHigh = XHCI_Read32(InterrupterBase, (U32)(XHCI_ERDP + 4));
+    ActiveSlots = XHCI_CountActiveSlots(Device);
+    PciCommand = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_COMMAND);
+    PciStatus = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_STATUS);
+
+    if (Device->EventRingLinear != 0) {
+        LPXHCI_TRB EventRing = (LPXHCI_TRB)Device->EventRingLinear;
+        U32 EventIndex = Device->EventRingDequeueIndex;
+        XHCI_TRB Event = EventRing[EventIndex];
+        EventDword0 = Event.Dword0;
+        EventDword1 = Event.Dword1;
+        EventDword2 = Event.Dword2;
+        EventDword3 = Event.Dword3;
+        EventCycle = (Event.Dword3 & XHCI_TRB_CYCLE) ? 1U : 0U;
+        ExpectedCycle = Device->EventRingCycleState ? 1U : 0U;
+    }
+
+    WARNING(TEXT("[XHCI_LogEnableSlotTimeoutState] USBCMD=%x USBSTS=%x PCICMD=%x PCISTS=%x CRCR=%x:%x IMAN=%x ERDP=%x:%x Slots=%u/%u CQ=%u Event=%x:%x:%x:%x Cy=%u/%u suppressed=%u"),
+            UsbCommand,
+            UsbStatus,
+            (U32)PciCommand,
+            (U32)PciStatus,
+            CrcrHigh,
+            CrcrLow,
+            Iman,
+            ErdpHigh,
+            ErdpLow,
+            ActiveSlots,
+            (U32)Device->MaxSlots,
+            Device->CompletionCount,
+            EventDword3,
+            EventDword2,
+            EventDword1,
+            EventDword0,
+            EventCycle,
+            ExpectedCycle,
+            Suppressed);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read current root port status for one USB device.
+ * @param Device xHCI controller.
+ * @param UsbDevice USB device state.
+ * @return PORTSC raw value, 0 when unavailable.
+ */
+static U32 XHCI_ReadRootPortStatusSafe(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
+    if (Device == NULL || UsbDevice == NULL) {
+        return 0;
+    }
+    if (!UsbDevice->IsRootPort || UsbDevice->PortNumber == 0) {
+        return 0;
+    }
+    return XHCI_ReadPortStatus(Device, (U32)UsbDevice->PortNumber - 1);
+}
+
+/************************************************************************/
+
 /**
  * @brief Initialize USB device object fields for xHCI.
  *
@@ -44,6 +243,9 @@ void XHCI_InitUsbDeviceObject(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice)
     UsbDevice->Controller = Device;
     UsbDevice->LastEnumError = XHCI_ENUM_ERROR_NONE;
     UsbDevice->LastEnumCompletion = 0;
+    (void)RateLimiterInit(&UsbDevice->EnumFailureLogLimiter,
+                          XHCI_ENUM_FAILURE_LOG_IMMEDIATE_BUDGET,
+                          XHCI_ENUM_FAILURE_LOG_INTERVAL_MS);
 
     InitMutex(&UsbDevice->Mutex);
     UsbDevice->Contexts.First = NULL;
@@ -233,6 +435,7 @@ static void XHCI_FreeUsbDeviceResources(LPXHCI_USB_DEVICE UsbDevice) {
     UsbDevice->Depth = 0;
     UsbDevice->RouteString = 0;
     UsbDevice->Controller = NULL;
+    RateLimiterReset(&UsbDevice->EnumFailureLogLimiter);
 }
 
 /************************************************************************/
@@ -1440,6 +1643,7 @@ static BOOL XHCI_EnableSlot(LPXHCI_DEVICE Device, U8* SlotIdOut, U32* Completion
         if (CompletionOut != NULL) {
             *CompletionOut = XHCI_ENUM_COMPLETION_TIMEOUT;
         }
+        XHCI_LogEnableSlotTimeoutState(Device);
         return FALSE;
     }
 
@@ -1937,16 +2141,19 @@ BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
 
     UsbDevice->LastEnumError = XHCI_ENUM_ERROR_NONE;
     UsbDevice->LastEnumCompletion = 0;
+    RateLimiterReset(&UsbDevice->EnumFailureLogLimiter);
     UsbDevice->MaxPacketSize0 = XHCI_GetDefaultMaxPacketSize0(UsbDevice->SpeedId);
 
     if (!XHCI_InitUsbDeviceState(Device, UsbDevice)) {
         UsbDevice->LastEnumError = XHCI_ENUM_ERROR_INIT_STATE;
+        XHCI_LogProbeFailure(UsbDevice, TEXT("InitializeDeviceState"), XHCI_ReadRootPortStatusSafe(Device, UsbDevice));
         return FALSE;
     }
 
     if (!XHCI_EnableSlot(Device, &UsbDevice->SlotId, &Completion)) {
         UsbDevice->LastEnumError = XHCI_ENUM_ERROR_ENABLE_SLOT;
         UsbDevice->LastEnumCompletion = (U16)Completion;
+        XHCI_LogProbeFailure(UsbDevice, TEXT("EnableSlot"), XHCI_ReadRootPortStatusSafe(Device, UsbDevice));
         return FALSE;
     }
 
@@ -1955,6 +2162,7 @@ BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
     XHCI_BuildInputContextForAddress(Device, UsbDevice);
     if (!XHCI_AddressDevice(Device, UsbDevice)) {
         UsbDevice->LastEnumError = XHCI_ENUM_ERROR_ADDRESS_DEVICE;
+        XHCI_LogProbeFailure(UsbDevice, TEXT("AddressDevice"), XHCI_ReadRootPortStatusSafe(Device, UsbDevice));
         return FALSE;
     }
 
@@ -1962,6 +2170,7 @@ BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
 
     if (!XHCI_GetDeviceDescriptor(Device, UsbDevice)) {
         UsbDevice->LastEnumError = XHCI_ENUM_ERROR_DEVICE_DESC;
+        XHCI_LogProbeFailure(UsbDevice, TEXT("GetDeviceDescriptor"), XHCI_ReadRootPortStatusSafe(Device, UsbDevice));
         return FALSE;
     }
 
@@ -1977,6 +2186,7 @@ BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
 
     if (!XHCI_ReadConfigDescriptor(Device, UsbDevice, &ConfigPhysical, &ConfigLinear, &ConfigLength)) {
         UsbDevice->LastEnumError = XHCI_ENUM_ERROR_CONFIG_DESC;
+        XHCI_LogProbeFailure(UsbDevice, TEXT("ReadConfigDescriptor"), XHCI_ReadRootPortStatusSafe(Device, UsbDevice));
         return FALSE;
     }
 
@@ -1984,6 +2194,7 @@ BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
         FreeRegion(ConfigLinear, PAGE_SIZE);
         FreePhysicalPage(ConfigPhysical);
         UsbDevice->LastEnumError = XHCI_ENUM_ERROR_CONFIG_PARSE;
+        XHCI_LogProbeFailure(UsbDevice, TEXT("ParseConfigDescriptor"), XHCI_ReadRootPortStatusSafe(Device, UsbDevice));
         return FALSE;
     }
 
@@ -2003,6 +2214,7 @@ BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
 
         if (!XHCI_ControlTransfer(Device, UsbDevice, &Setup, 0, NULL, 0, FALSE)) {
             UsbDevice->LastEnumError = XHCI_ENUM_ERROR_SET_CONFIG;
+            XHCI_LogProbeFailure(UsbDevice, TEXT("SetConfiguration"), XHCI_ReadRootPortStatusSafe(Device, UsbDevice));
             return FALSE;
         }
 
@@ -2011,6 +2223,7 @@ BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
 
     UsbDevice->IsHub = XHCI_IsHubDevice(UsbDevice);
     UsbDevice->Present = TRUE;
+    RateLimiterReset(&UsbDevice->EnumFailureLogLimiter);
     XHCI_AddDeviceToList(Device, UsbDevice);
     return TRUE;
 }
@@ -2030,6 +2243,8 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
     if ((PortStatus & XHCI_PORTSC_CCS) == 0) {
         UsbDevice->Present = FALSE;
         UsbDevice->LastEnumError = XHCI_ENUM_ERROR_NONE;
+        UsbDevice->LastEnumCompletion = 0;
+        RateLimiterReset(&UsbDevice->EnumFailureLogLimiter);
         return FALSE;
     }
 
@@ -2037,6 +2252,7 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
         WARNING(TEXT("[XHCI_ProbePort] Port %u still referenced, delaying re-enumeration"),
                 PortIndex + 1);
         UsbDevice->LastEnumError = XHCI_ENUM_ERROR_BUSY;
+        XHCI_LogProbeFailure(UsbDevice, TEXT("DestroyPending"), PortStatus);
         return FALSE;
     }
 
@@ -2064,6 +2280,7 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
             U32 RetrySpeed = (RetryStatus & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
             if (!(RetryConnected && RetryEnabled && RetrySpeed != 0u)) {
                 UsbDevice->LastEnumError = XHCI_ENUM_ERROR_RESET_TIMEOUT;
+                XHCI_LogProbeFailure(UsbDevice, TEXT("ResetPort"), RetryStatus);
                 return FALSE;
             }
             PortStatus = RetryStatus;
@@ -2079,11 +2296,13 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
     if (UsbDevice->SpeedId == 0) {
         WARNING(TEXT("[XHCI_ProbePort] Port %u invalid speed after reset"), PortIndex + 1);
         UsbDevice->LastEnumError = XHCI_ENUM_ERROR_INVALID_SPEED;
+        XHCI_LogProbeFailure(UsbDevice, TEXT("ReadSpeed"), PortStatus);
         return FALSE;
     }
 
     if (!XHCI_EnumerateDevice(Device, UsbDevice)) {
         WARNING(TEXT("[XHCI_ProbePort] Port %u enumerate failed"), PortIndex + 1);
+        XHCI_LogProbeFailure(UsbDevice, TEXT("EnumerateDevice"), PortStatus);
         return FALSE;
     }
 

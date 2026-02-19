@@ -29,6 +29,7 @@
 #include "drivers/Keyboard.h"
 #include "drivers/LocalAPIC.h"
 #include "drivers/PCI.h"
+#include "drivers/XHCI-Internal.h"
 #include "KernelData.h"
 #include "process/Task.h"
 #include "System.h"
@@ -61,6 +62,7 @@
 #define SYSTEM_DATA_VIEW_PCI_SUBCLASS_USB 0x03
 #define SYSTEM_DATA_VIEW_PCI_PROGRAMMING_INTERFACE_EHCI 0x20
 #define SYSTEM_DATA_VIEW_PCI_PROGRAMMING_INTERFACE_XHCI 0x30
+#define SYSTEM_DATA_VIEW_XHCI_PLS_SHIFT 5
 
 #define SYSTEM_DATA_VIEW_PCI_VENDOR_INTEL 0x8086
 #define SYSTEM_DATA_VIEW_PCI_CLASS_BRIDGE 0x06
@@ -930,18 +932,335 @@ static void SystemDataViewDrawPageEhci(LPSYSTEM_DATA_VIEW_CONTEXT Context, U8 Pa
 /************************************************************************/
 
 /**
+ * @brief Convert xHCI root port enumeration error to text.
+ *
+ * @param ErrorCode Enumeration error code.
+ * @return Error text.
+ */
+static LPCSTR SystemDataViewXhciEnumErrorToString(U8 ErrorCode) {
+    switch (ErrorCode) {
+        case XHCI_ENUM_ERROR_NONE:
+            return TEXT("OK");
+        case XHCI_ENUM_ERROR_BUSY:
+            return TEXT("BUSY");
+        case XHCI_ENUM_ERROR_RESET_TIMEOUT:
+            return TEXT("RESET");
+        case XHCI_ENUM_ERROR_INVALID_SPEED:
+            return TEXT("SPEED");
+        case XHCI_ENUM_ERROR_INIT_STATE:
+            return TEXT("STATE");
+        case XHCI_ENUM_ERROR_ENABLE_SLOT:
+            return TEXT("SLOT");
+        case XHCI_ENUM_ERROR_ADDRESS_DEVICE:
+            return TEXT("ADDRESS");
+        case XHCI_ENUM_ERROR_DEVICE_DESC:
+            return TEXT("DEVICE");
+        case XHCI_ENUM_ERROR_CONFIG_DESC:
+            return TEXT("CONFIG");
+        case XHCI_ENUM_ERROR_CONFIG_PARSE:
+            return TEXT("PARSE");
+        case XHCI_ENUM_ERROR_SET_CONFIG:
+            return TEXT("SETCONFIG");
+        case XHCI_ENUM_ERROR_HUB_INIT:
+            return TEXT("HUB");
+        default:
+            return TEXT("UNKNOWN");
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Count active xHCI slots attached to one controller.
+ *
+ * @param Device xHCI controller.
+ * @return Active slot count.
+ */
+static U32 SystemDataViewCountActiveXhciSlots(LPXHCI_DEVICE Device) {
+    U8 SlotSeen[256];
+    U32 ActiveCount = 0;
+    LPLIST UsbDeviceList = GetUsbDeviceList();
+
+    if (Device == NULL || UsbDeviceList == NULL) {
+        return 0;
+    }
+
+    MemorySet(SlotSeen, 0, sizeof(SlotSeen));
+
+    for (LPLISTNODE Node = UsbDeviceList->First; Node != NULL; Node = Node->Next) {
+        LPXHCI_USB_DEVICE UsbDevice = (LPXHCI_USB_DEVICE)Node;
+        SAFE_USE_VALID_ID(UsbDevice, KOID_USBDEVICE) {
+            if (UsbDevice->Controller != Device || !UsbDevice->Present || UsbDevice->SlotId == 0) {
+                continue;
+            }
+            if (SlotSeen[UsbDevice->SlotId] != 0) {
+                continue;
+            }
+            SlotSeen[UsbDevice->SlotId] = 1;
+            ActiveCount++;
+        }
+    }
+
+    return ActiveCount;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Draw detailed xHCI controller and port state.
+ *
+ * @param Context Output context.
+ * @param Device xHCI controller.
+ */
+static void SystemDataViewDrawXhciDetails(LPSYSTEM_DATA_VIEW_CONTEXT Context, LPXHCI_DEVICE Device) {
+    U32 Usbcmd = 0;
+    U32 Usbsts = 0;
+    U32 Config = 0;
+    U32 CrcrLow = 0;
+    U32 CrcrHigh = 0;
+    U32 DcbaapLow = 0;
+    U32 DcbaapHigh = 0;
+    U32 DcbaaEntry0Low = 0;
+    U32 DcbaaEntry0High = 0;
+    U32 Iman = 0;
+    U32 Imod = 0;
+    U32 Erstsz = 0;
+    U32 ErdpLow = 0;
+    U32 ErdpHigh = 0;
+    U32 ErstbaLow = 0;
+    U32 ErstbaHigh = 0;
+    U16 PciCommand = 0;
+    U16 PciStatus = 0;
+    U32 ConnectedPorts = 0;
+    U32 EnabledPorts = 0;
+    U32 ErrorPorts = 0;
+    U32 ActiveSlots = 0;
+
+    if (Context == NULL || Device == NULL) {
+        return;
+    }
+
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Driver Attached"), TEXT("Yes\n"));
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("MMIO Base/Size"),
+        TEXT("%p / %u\n"),
+        (LPVOID)Device->MmioBase,
+        Device->MmioSize);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("OP/RT/DB Base"),
+        TEXT("%p / %p / %p\n"),
+        (LPVOID)Device->OpBase,
+        (LPVOID)Device->RuntimeBase,
+        (LPVOID)Device->DoorbellBase);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("HCI Version"),
+        TEXT("%x\n"), (U32)Device->HciVersion);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Cap Length"),
+        TEXT("%u\n"), (U32)Device->CapLength);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Ports/Slots/Context"),
+        TEXT("%u / %u / %u\n"),
+        (U32)Device->MaxPorts,
+        (U32)Device->MaxSlots,
+        (U32)Device->ContextSize);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("HCSPARAMS2/Scratchpads"),
+        TEXT("%x / %u\n"),
+        Device->HcsParams2,
+        (U32)Device->MaxScratchpadBuffers);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Interrupt"),
+        TEXT("Reg=%u En=%u Count=%u Slot=%u\n"),
+        Device->InterruptRegistered ? 1U : 0U,
+        Device->InterruptEnabled ? 1U : 0U,
+        Device->InterruptCount,
+        (U32)Device->InterruptSlot);
+    PciCommand = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_COMMAND);
+    PciStatus = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_STATUS);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("PCI Command/Status"),
+        TEXT("%x / %x\n"),
+        (U32)PciCommand,
+        (U32)PciStatus);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("PCI Status Decode"),
+        TEXT("DetPar=%u SERR#=%u MA=%u TARecv=%u TASent=%u MDP=%u DEVSEL=%u INT=%u\n"),
+        (PciStatus & 0x8000) ? 1U : 0U,
+        (PciStatus & 0x4000) ? 1U : 0U,
+        (PciStatus & 0x2000) ? 1U : 0U,
+        (PciStatus & 0x1000) ? 1U : 0U,
+        (PciStatus & 0x0800) ? 1U : 0U,
+        (PciStatus & 0x0100) ? 1U : 0U,
+        (U32)((PciStatus >> 9) & 0x3),
+        (PciStatus & 0x0008) ? 1U : 0U);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Ring Indexes"),
+        TEXT("Cmd=%u/%u Event=%u/%u\n"),
+        Device->CommandRingEnqueueIndex,
+        Device->CommandRingCycleState,
+        Device->EventRingDequeueIndex,
+        Device->EventRingCycleState);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Completion Queue"),
+        TEXT("%u\n"), Device->CompletionCount);
+
+    if (Device->OpBase != 0) {
+        Usbcmd = XHCI_Read32(Device->OpBase, XHCI_OP_USBCMD);
+        Usbsts = XHCI_Read32(Device->OpBase, XHCI_OP_USBSTS);
+        Config = XHCI_Read32(Device->OpBase, XHCI_OP_CONFIG);
+        CrcrLow = XHCI_Read32(Device->OpBase, XHCI_OP_CRCR);
+        CrcrHigh = XHCI_Read32(Device->OpBase, (U32)(XHCI_OP_CRCR + 4));
+        DcbaapLow = XHCI_Read32(Device->OpBase, XHCI_OP_DCBAAP);
+        DcbaapHigh = XHCI_Read32(Device->OpBase, (U32)(XHCI_OP_DCBAAP + 4));
+    }
+    if (Device->DcbaaLinear != 0) {
+        U64 DcbaaEntry0 = ((volatile U64*)Device->DcbaaLinear)[0];
+        DcbaaEntry0Low = U64_Low32(DcbaaEntry0);
+        DcbaaEntry0High = U64_High32(DcbaaEntry0);
+    }
+
+    if (Device->RuntimeBase != 0) {
+        LINEAR InterrupterBase = Device->RuntimeBase + XHCI_RT_INTERRUPTER_BASE;
+        Iman = XHCI_Read32(InterrupterBase, XHCI_IMAN);
+        Imod = XHCI_Read32(InterrupterBase, XHCI_IMOD);
+        Erstsz = XHCI_Read32(InterrupterBase, XHCI_ERSTSZ);
+        ErdpLow = XHCI_Read32(InterrupterBase, XHCI_ERDP);
+        ErdpHigh = XHCI_Read32(InterrupterBase, (U32)(XHCI_ERDP + 4));
+        ErstbaLow = XHCI_Read32(InterrupterBase, XHCI_ERSTBA);
+        ErstbaHigh = XHCI_Read32(InterrupterBase, (U32)(XHCI_ERSTBA + 4));
+    }
+
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("USBCMD/USBSTS/CONFIG"),
+        TEXT("%x / %x / %x\n"), Usbcmd, Usbsts, Config);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Status Decode"),
+        TEXT("Run=%u Halted=%u HSE=%u CNR=%u EINT=%u PCD=%u\n"),
+        (Usbcmd & XHCI_USBCMD_RS) ? 1U : 0U,
+        (Usbsts & XHCI_USBSTS_HCH) ? 1U : 0U,
+        (Usbsts & 0x00000004) ? 1U : 0U,
+        (Usbsts & XHCI_USBSTS_CNR) ? 1U : 0U,
+        (Usbsts & 0x00000008) ? 1U : 0U,
+        (Usbsts & 0x00000010) ? 1U : 0U);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("CRCR"),
+        TEXT("%x:%x\n"), CrcrHigh, CrcrLow);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("DCBAAP"),
+        TEXT("%x:%x\n"), DcbaapHigh, DcbaapLow);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("DCBAA[0]"),
+        TEXT("%x:%x\n"), DcbaaEntry0High, DcbaaEntry0Low);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("IMAN/IMOD/ERSTSZ"),
+        TEXT("%x / %x / %x\n"), Iman, Imod, Erstsz);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("ERSTBA"),
+        TEXT("%x:%x\n"), ErstbaHigh, ErstbaLow);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("ERDP"),
+        TEXT("%x:%x\n"), ErdpHigh, ErdpLow);
+
+    ActiveSlots = SystemDataViewCountActiveXhciSlots(Device);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Active Slots"),
+        TEXT("%u/%u\n"), ActiveSlots, (U32)Device->MaxSlots);
+
+    if (Device->UsbDevices == NULL) {
+        SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Root Port Objects"),
+            TEXT("Unavailable\n"));
+        return;
+    }
+
+    for (U32 PortIndex = 0; PortIndex < Device->MaxPorts; PortIndex++) {
+        U32 PortStatus = XHCI_ReadPortStatus(Device, PortIndex);
+        U32 SpeedId = (PortStatus & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
+        U32 LinkState = (PortStatus & XHCI_PORTSC_PLS_MASK) >> SYSTEM_DATA_VIEW_XHCI_PLS_SHIFT;
+        BOOL Connected = (PortStatus & XHCI_PORTSC_CCS) != 0;
+        BOOL Enabled = (PortStatus & XHCI_PORTSC_PED) != 0;
+        BOOL Reset = (PortStatus & XHCI_PORTSC_PR) != 0;
+        LPXHCI_USB_DEVICE UsbDevice = Device->UsbDevices[PortIndex];
+        U8 EnumError = XHCI_ENUM_ERROR_NONE;
+        U16 EnumCompletion = 0;
+        U32 Present = 0;
+        U32 SlotId = 0;
+        STR Label[32];
+
+        if (Connected) {
+            ConnectedPorts++;
+        }
+        if (Enabled) {
+            EnabledPorts++;
+        }
+
+        if (UsbDevice != NULL) {
+            EnumError = UsbDevice->LastEnumError;
+            EnumCompletion = UsbDevice->LastEnumCompletion;
+            Present = UsbDevice->Present ? 1U : 0U;
+            SlotId = (U32)UsbDevice->SlotId;
+        }
+
+        if (EnumError != XHCI_ENUM_ERROR_NONE) {
+            ErrorPorts++;
+        }
+
+        StringPrintFormat(Label, TEXT("Port %u"), PortIndex + 1);
+        SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, Label,
+            TEXT("CCS=%u PED=%u PR=%u PP=%u Speed=%x PLS=%x Raw=%x Err=%s C=%x Present=%u Slot=%u\n"),
+            Connected ? 1U : 0U,
+            Enabled ? 1U : 0U,
+            Reset ? 1U : 0U,
+            (PortStatus & XHCI_PORTSC_PP) ? 1U : 0U,
+            SpeedId,
+            LinkState,
+            PortStatus,
+            SystemDataViewXhciEnumErrorToString(EnumError),
+            (U32)EnumCompletion,
+            Present,
+            SlotId);
+    }
+
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Port Summary"),
+        TEXT("Connected=%u Enabled=%u Error=%u\n"),
+        ConnectedPorts,
+        EnabledPorts,
+        ErrorPorts);
+}
+
+/************************************************************************/
+
+/**
  * @brief Draw the xHCI page for System Data View.
  *
  * @param Context Output context.
  * @param PageIndex Page index.
  */
 static void SystemDataViewDrawPageXhci(LPSYSTEM_DATA_VIEW_CONTEXT Context, U8 PageIndex) {
-    SystemDataViewDrawPciControllerPage(Context,
-        TEXT("xHCI"),
-        SYSTEM_DATA_VIEW_PCI_CLASS_SERIAL_BUS,
+    LPPCI_DEVICE Controller = NULL;
+    UINT ControllerCount = 0;
+    BOOL Found = SystemDataViewFindPciController(SYSTEM_DATA_VIEW_PCI_CLASS_SERIAL_BUS,
         SYSTEM_DATA_VIEW_PCI_SUBCLASS_USB,
         SYSTEM_DATA_VIEW_PCI_PROGRAMMING_INTERFACE_XHCI,
-        PageIndex);
+        &Controller,
+        &ControllerCount);
+
+    SystemDataViewDrawPageHeader(Context, TEXT("xHCI"), PageIndex);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Controllers Found"),
+        TEXT("%u\n"), (U32)ControllerCount);
+
+    if (Found == FALSE || Controller == NULL) {
+        SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("First Controller"),
+            TEXT("Not Found\n"));
+        SystemDataViewDrawFooter(Context);
+        return;
+    }
+
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Bus/Device/Function"),
+        TEXT("%u/%u/%u\n"),
+        (U32)Controller->Info.Bus,
+        (U32)Controller->Info.Dev,
+        (U32)Controller->Info.Func);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Vendor Identifier"),
+        TEXT("%x\n"), (U32)Controller->Info.VendorID);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Device Identifier"),
+        TEXT("%x\n"), (U32)Controller->Info.DeviceID);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Revision"),
+        TEXT("%x\n"), (U32)Controller->Info.Revision);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("IRQ Line/Pin"),
+        TEXT("%u / %u\n"), (U32)Controller->Info.IRQLine, (U32)Controller->Info.IRQLegacyPin);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("BAR0/BAR1 Raw"),
+        TEXT("%x / %x\n"), Controller->Info.BAR[0], Controller->Info.BAR[1]);
+
+    if (Controller->Driver != (LPDRIVER)&XHCIDriver) {
+        SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Driver Attached"),
+            TEXT("No\n"));
+        SystemDataViewDrawFooter(Context);
+        return;
+    }
+
+    SystemDataViewDrawXhciDetails(Context, (LPXHCI_DEVICE)Controller);
+    SystemDataViewDrawFooter(Context);
 }
 
 /************************************************************************/

@@ -323,8 +323,12 @@ void ClearConsole(void) {
 
     ConsoleHideFramebufferCursor();
 
-    for (Index = 0; Index < Console.RegionCount; Index++) {
-        ConsoleClearRegion(Index);
+    if (ConsoleIsDebugSplitEnabled() != FALSE) {
+        ConsoleClearRegion(0);
+    } else {
+        for (Index = 0; Index < Console.RegionCount; Index++) {
+            ConsoleClearRegion(Index);
+        }
     }
 
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);

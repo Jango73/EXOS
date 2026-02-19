@@ -127,6 +127,202 @@ static LINEAR XHCI_GetInterrupterBase(LPXHCI_DEVICE Device) {
 /************************************************************************/
 
 /**
+ * @brief Log key xHCI init register programming and immediate readback.
+ * @param Device xHCI device.
+ * @param Step Init step label.
+ * @param ProgrammedDcbaap Programmed DCBAAP value.
+ * @param ProgrammedCrcr Programmed CRCR value.
+ * @param ProgrammedErstba Programmed ERSTBA value.
+ * @param ProgrammedErdp Programmed ERDP value.
+ */
+static void XHCI_LogInitReadback(LPXHCI_DEVICE Device,
+    LPCSTR Step,
+    U64 ProgrammedDcbaap,
+    U64 ProgrammedCrcr,
+    U64 ProgrammedErstba,
+    U64 ProgrammedErdp) {
+    U32 Usbcmd = 0;
+    U32 Usbsts = 0;
+    U32 Config = 0;
+    U32 CrcrLow = 0;
+    U32 CrcrHigh = 0;
+    U32 DcbaapLow = 0;
+    U32 DcbaapHigh = 0;
+    U32 Imod = 0;
+    U32 Iman = 0;
+    U32 Erstsz = 0;
+    U32 ErdpLow = 0;
+    U32 ErdpHigh = 0;
+    U32 DcbaaEntry0Low = 0;
+    U32 DcbaaEntry0High = 0;
+    U32 ErstbaLow = 0;
+    U32 ErstbaHigh = 0;
+    U16 PciCommand = 0;
+    U16 PciStatus = 0;
+    LINEAR InterrupterBase;
+
+    if (Device == NULL || Device->OpBase == 0 || Device->RuntimeBase == 0) {
+        return;
+    }
+
+    InterrupterBase = XHCI_GetInterrupterBase(Device);
+
+    Usbcmd = XHCI_Read32(Device->OpBase, XHCI_OP_USBCMD);
+    Usbsts = XHCI_Read32(Device->OpBase, XHCI_OP_USBSTS);
+    Config = XHCI_Read32(Device->OpBase, XHCI_OP_CONFIG);
+    CrcrLow = XHCI_Read32(Device->OpBase, XHCI_OP_CRCR);
+    CrcrHigh = XHCI_Read32(Device->OpBase, (U32)(XHCI_OP_CRCR + 4));
+    DcbaapLow = XHCI_Read32(Device->OpBase, XHCI_OP_DCBAAP);
+    DcbaapHigh = XHCI_Read32(Device->OpBase, (U32)(XHCI_OP_DCBAAP + 4));
+
+    Iman = XHCI_Read32(InterrupterBase, XHCI_IMAN);
+    Imod = XHCI_Read32(InterrupterBase, XHCI_IMOD);
+    Erstsz = XHCI_Read32(InterrupterBase, XHCI_ERSTSZ);
+    ErstbaLow = XHCI_Read32(InterrupterBase, XHCI_ERSTBA);
+    ErstbaHigh = XHCI_Read32(InterrupterBase, (U32)(XHCI_ERSTBA + 4));
+    ErdpLow = XHCI_Read32(InterrupterBase, XHCI_ERDP);
+    ErdpHigh = XHCI_Read32(InterrupterBase, (U32)(XHCI_ERDP + 4));
+    if (Device->DcbaaLinear != 0) {
+        U64 DcbaaEntry0 = ((volatile U64*)Device->DcbaaLinear)[0];
+        DcbaaEntry0Low = U64_Low32(DcbaaEntry0);
+        DcbaaEntry0High = U64_High32(DcbaaEntry0);
+    }
+
+    PciCommand = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_COMMAND);
+    PciStatus = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_STATUS);
+
+    WARNING(TEXT("[XHCI_LogInitReadback] step=%s USBCMD=%x USBSTS=%x CONFIG=%x PCICMD=%x PCISTS=%x Scratch=%u DCBAA0=%x:%x DCBAAP=%x:%x/%x:%x CRCR=%x:%x/%x:%x ERSTBA=%x:%x/%x:%x ERDP=%x:%x/%x:%x IMAN=%x IMOD=%x ERSTSZ=%x"),
+            (Step != NULL) ? Step : TEXT("?"),
+            Usbcmd,
+            Usbsts,
+            Config,
+            (U32)PciCommand,
+            (U32)PciStatus,
+            (U32)Device->MaxScratchpadBuffers,
+            DcbaaEntry0High,
+            DcbaaEntry0Low,
+            U64_High32(ProgrammedDcbaap),
+            U64_Low32(ProgrammedDcbaap),
+            DcbaapHigh,
+            DcbaapLow,
+            U64_High32(ProgrammedCrcr),
+            U64_Low32(ProgrammedCrcr),
+            CrcrHigh,
+            CrcrLow,
+            U64_High32(ProgrammedErstba),
+            U64_Low32(ProgrammedErstba),
+            ErstbaHigh,
+            ErstbaLow,
+            U64_High32(ProgrammedErdp),
+            U64_Low32(ProgrammedErdp),
+            ErdpHigh,
+            ErdpLow,
+            Iman,
+            Imod,
+            Erstsz);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Log the first observed transition to controller host-system error.
+ * @param Device xHCI device.
+ * @param Source Source label for the observation point.
+ */
+void XHCI_LogHseTransitionIfNeeded(LPXHCI_DEVICE Device, LPCSTR Source) {
+    U32 Usbsts = 0;
+    U32 Previous = 0;
+    U32 Usbcmd = 0;
+    U32 Config = 0;
+    U32 CrcrLow = 0;
+    U32 CrcrHigh = 0;
+    U32 DcbaapLow = 0;
+    U32 DcbaapHigh = 0;
+    U32 Iman = 0;
+    U32 Imod = 0;
+    U32 Erstsz = 0;
+    U32 ErstbaLow = 0;
+    U32 ErstbaHigh = 0;
+    U32 ErdpLow = 0;
+    U32 ErdpHigh = 0;
+    U32 DcbaaEntry0Low = 0;
+    U32 DcbaaEntry0High = 0;
+    U16 PciCommand = 0;
+    U16 PciStatus = 0;
+    LINEAR InterrupterBase;
+
+    if (Device == NULL || Device->OpBase == 0) {
+        return;
+    }
+
+    Previous = Device->LastObservedUsbStatus;
+    Usbsts = XHCI_Read32(Device->OpBase, XHCI_OP_USBSTS);
+    Device->LastObservedUsbStatus = Usbsts;
+
+    if ((Usbsts & 0x00000004) == 0) {
+        return;
+    }
+    if ((Previous & 0x00000004) != 0) {
+        return;
+    }
+    if (Device->HseTransitionLogged != FALSE) {
+        return;
+    }
+
+    Device->HseTransitionLogged = TRUE;
+    Usbcmd = XHCI_Read32(Device->OpBase, XHCI_OP_USBCMD);
+    Config = XHCI_Read32(Device->OpBase, XHCI_OP_CONFIG);
+    CrcrLow = XHCI_Read32(Device->OpBase, XHCI_OP_CRCR);
+    CrcrHigh = XHCI_Read32(Device->OpBase, (U32)(XHCI_OP_CRCR + 4));
+    DcbaapLow = XHCI_Read32(Device->OpBase, XHCI_OP_DCBAAP);
+    DcbaapHigh = XHCI_Read32(Device->OpBase, (U32)(XHCI_OP_DCBAAP + 4));
+
+    if (Device->RuntimeBase != 0) {
+        InterrupterBase = XHCI_GetInterrupterBase(Device);
+        Iman = XHCI_Read32(InterrupterBase, XHCI_IMAN);
+        Imod = XHCI_Read32(InterrupterBase, XHCI_IMOD);
+        Erstsz = XHCI_Read32(InterrupterBase, XHCI_ERSTSZ);
+        ErstbaLow = XHCI_Read32(InterrupterBase, XHCI_ERSTBA);
+        ErstbaHigh = XHCI_Read32(InterrupterBase, (U32)(XHCI_ERSTBA + 4));
+        ErdpLow = XHCI_Read32(InterrupterBase, XHCI_ERDP);
+        ErdpHigh = XHCI_Read32(InterrupterBase, (U32)(XHCI_ERDP + 4));
+    }
+    if (Device->DcbaaLinear != 0) {
+        U64 DcbaaEntry0 = ((volatile U64*)Device->DcbaaLinear)[0];
+        DcbaaEntry0Low = U64_Low32(DcbaaEntry0);
+        DcbaaEntry0High = U64_High32(DcbaaEntry0);
+    }
+
+    PciCommand = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_COMMAND);
+    PciStatus = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_STATUS);
+
+    WARNING(TEXT("[XHCI_LogHseTransition] source=%s PrevUSBSTS=%x USBCMD=%x USBSTS=%x CONFIG=%x PCICMD=%x PCISTS=%x Scratch=%u DCBAA0=%x:%x CRCR=%x:%x DCBAAP=%x:%x ERSTBA=%x:%x ERDP=%x:%x IMAN=%x IMOD=%x ERSTSZ=%x"),
+            (Source != NULL) ? Source : TEXT("?"),
+            Previous,
+            Usbcmd,
+            Usbsts,
+            Config,
+            (U32)PciCommand,
+            (U32)PciStatus,
+            (U32)Device->MaxScratchpadBuffers,
+            DcbaaEntry0High,
+            DcbaaEntry0Low,
+            CrcrHigh,
+            CrcrLow,
+            DcbaapHigh,
+            DcbaapLow,
+            ErstbaHigh,
+            ErstbaLow,
+            ErdpHigh,
+            ErdpLow,
+            Iman,
+            Imod,
+            Erstsz);
+}
+
+/************************************************************************/
+
+/**
  * @brief Clear pending interrupt status.
  * @param Device xHCI device.
  */
@@ -513,6 +709,7 @@ BOOL XHCI_DequeueEvent(LPXHCI_DEVICE Device, XHCI_TRB* EventOut) {
     {
         LINEAR InterrupterBase = Device->RuntimeBase + XHCI_RT_INTERRUPTER_BASE;
         U64 Erdp = U64_FromUINT(Device->EventRingPhysical + (Index * sizeof(XHCI_TRB)));
+        Erdp = U64_Add(Erdp, U64_FromU32(XHCI_ERDP_EHB));
         XHCI_Write64(InterrupterBase, XHCI_ERDP, Erdp);
     }
 
@@ -527,6 +724,7 @@ BOOL XHCI_DequeueEvent(LPXHCI_DEVICE Device, XHCI_TRB* EventOut) {
  */
 void XHCI_PollCompletions(LPXHCI_DEVICE Device) {
     XHCI_TRB Event;
+    XHCI_LogHseTransitionIfNeeded(Device, TEXT("PollCompletions"));
     while (XHCI_DequeueEvent(Device, &Event)) {
         XHCI_PushCompletion(Device, &Event);
     }
@@ -624,6 +822,117 @@ BOOL XHCI_AllocPage(LPCSTR Tag, PHYSICAL *PhysicalOut, LINEAR *LinearOut) {
 /************************************************************************/
 
 /**
+ * @brief Release all scratchpad-related allocations.
+ * @param Device xHCI device.
+ */
+static void XHCI_FreeScratchpadBuffers(LPXHCI_DEVICE Device) {
+    UINT Index;
+
+    if (Device == NULL) {
+        return;
+    }
+
+    if (Device->ScratchpadPages != NULL) {
+        for (Index = 0; Index < Device->MaxScratchpadBuffers; Index++) {
+            PHYSICAL ScratchpadPhysical = Device->ScratchpadPages[Index];
+            if (ScratchpadPhysical != 0) {
+                FreePhysicalPage(ScratchpadPhysical);
+                Device->ScratchpadPages[Index] = 0;
+            }
+        }
+        KernelHeapFree(Device->ScratchpadPages);
+        Device->ScratchpadPages = NULL;
+    }
+
+    if (Device->ScratchpadArrayLinear != 0) {
+        FreeRegion(Device->ScratchpadArrayLinear, PAGE_SIZE);
+        Device->ScratchpadArrayLinear = 0;
+    }
+    if (Device->ScratchpadArrayPhysical != 0) {
+        FreePhysicalPage(Device->ScratchpadArrayPhysical);
+        Device->ScratchpadArrayPhysical = 0;
+    }
+
+    if (Device->DcbaaLinear != 0) {
+        ((volatile U64*)Device->DcbaaLinear)[0] = U64_FromU32(0);
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Allocate scratchpad buffers and program DCBAA[0] when required.
+ * @param Device xHCI device.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_InitScratchpadBuffers(LPXHCI_DEVICE Device) {
+    UINT Index;
+    volatile U64* Dcbaa;
+    volatile U64* ScratchpadArray;
+
+    if (Device == NULL || Device->DcbaaLinear == 0) {
+        return FALSE;
+    }
+
+    Dcbaa = (volatile U64*)Device->DcbaaLinear;
+    Dcbaa[0] = U64_FromU32(0);
+
+    if (Device->MaxScratchpadBuffers == 0) {
+        return TRUE;
+    }
+
+    if (Device->MaxScratchpadBuffers > (PAGE_SIZE / sizeof(U64))) {
+        ERROR(TEXT("[XHCI_InitScratchpadBuffers] Unsupported scratchpad count %u"),
+              (U32)Device->MaxScratchpadBuffers);
+        return FALSE;
+    }
+
+    Device->ScratchpadPages =
+        (PHYSICAL*)KernelHeapAlloc(sizeof(PHYSICAL) * (UINT)Device->MaxScratchpadBuffers);
+    if (Device->ScratchpadPages == NULL) {
+        ERROR(TEXT("[XHCI_InitScratchpadBuffers] Scratchpad list allocation failed"));
+        return FALSE;
+    }
+    MemorySet(Device->ScratchpadPages, 0, sizeof(PHYSICAL) * (UINT)Device->MaxScratchpadBuffers);
+
+    if (!XHCI_AllocPage(TEXT("XHCI_ScratchpadArray"),
+                        &Device->ScratchpadArrayPhysical,
+                        &Device->ScratchpadArrayLinear)) {
+        ERROR(TEXT("[XHCI_InitScratchpadBuffers] Scratchpad array allocation failed"));
+        XHCI_FreeScratchpadBuffers(Device);
+        return FALSE;
+    }
+
+    ScratchpadArray = (volatile U64*)Device->ScratchpadArrayLinear;
+    MemorySet((LPVOID)Device->ScratchpadArrayLinear, 0, PAGE_SIZE);
+
+    for (Index = 0; Index < Device->MaxScratchpadBuffers; Index++) {
+        PHYSICAL ScratchpadPhysical = AllocPhysicalPage();
+        if (ScratchpadPhysical == 0) {
+            ERROR(TEXT("[XHCI_InitScratchpadBuffers] Scratchpad page allocation failed at %u"),
+                  (U32)Index);
+            XHCI_FreeScratchpadBuffers(Device);
+            return FALSE;
+        }
+
+        Device->ScratchpadPages[Index] = ScratchpadPhysical;
+        ScratchpadArray[Index] = U64_FromUINT(ScratchpadPhysical);
+
+        {
+            LINEAR ScratchpadLinear = MapTemporaryPhysicalPage1(ScratchpadPhysical);
+            if (ScratchpadLinear != 0) {
+                MemorySet((LPVOID)ScratchpadLinear, 0, PAGE_SIZE);
+            }
+        }
+    }
+
+    Dcbaa[0] = U64_FromUINT(Device->ScratchpadArrayPhysical);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Free xHCI allocations and MMIO mapping.
  * @param Device xHCI device.
  */
@@ -670,6 +979,7 @@ void XHCI_FreeResources(LPXHCI_DEVICE Device) {
             FreePhysicalPage(Device->CommandRingPhysical);
             Device->CommandRingPhysical = 0;
         }
+        XHCI_FreeScratchpadBuffers(Device);
         if (Device->DcbaaLinear) {
             FreeRegion(Device->DcbaaLinear, PAGE_SIZE);
             Device->DcbaaLinear = 0;
@@ -727,8 +1037,6 @@ static void XHCI_PowerPort(LPXHCI_DEVICE Device, U32 PortIndex) {
     WriteValue &= ~XHCI_PORTSC_W1C_MASK;
     XHCI_Write32(Device->OpBase, Offset, WriteValue);
 }
-
-/************************************************************************/
 
 /**
  * @brief Initialize the command ring.
@@ -788,6 +1096,13 @@ static BOOL XHCI_InitEventRing(LPXHCI_DEVICE Device) {
     XHCI_Write64(InterrupterBase, XHCI_ERSTBA, U64_FromUINT(Device->EventRingTablePhysical));
     XHCI_Write64(InterrupterBase, XHCI_ERDP, U64_FromUINT(Device->EventRingPhysical));
 
+    XHCI_LogInitReadback(Device,
+        TEXT("InitEventRing"),
+        U64_FromUINT(Device->DcbaaPhysical),
+        U64_FromUINT(Device->CommandRingPhysical),
+        U64_FromUINT(Device->EventRingTablePhysical),
+        U64_FromUINT(Device->EventRingPhysical));
+
     Device->EventRingDequeueIndex = 0;
     Device->EventRingCycleState = 1;
 
@@ -805,6 +1120,7 @@ static BOOL XHCI_ResetAndStart(LPXHCI_DEVICE Device) {
     U32 Command = XHCI_Read32(Device->OpBase, XHCI_OP_USBCMD);
     Command &= ~XHCI_USBCMD_RS;
     XHCI_Write32(Device->OpBase, XHCI_OP_USBCMD, Command);
+    XHCI_LogHseTransitionIfNeeded(Device, TEXT("ResetAndStart-AfterStop"));
 
     if (!XHCI_WaitForRegister(Device->OpBase,
                               XHCI_OP_USBSTS,
@@ -812,12 +1128,14 @@ static BOOL XHCI_ResetAndStart(LPXHCI_DEVICE Device) {
                               XHCI_USBSTS_HCH,
                               XHCI_HALT_TIMEOUT,
                               TEXT("Controller halt"))) {
+        XHCI_LogHseTransitionIfNeeded(Device, TEXT("ResetAndStart-HaltTimeout"));
         ERROR(TEXT("[XHCI_ResetAndStart] Halt timeout"));
         return FALSE;
     }
 
     Command |= XHCI_USBCMD_HCRST;
     XHCI_Write32(Device->OpBase, XHCI_OP_USBCMD, Command);
+    XHCI_LogHseTransitionIfNeeded(Device, TEXT("ResetAndStart-AfterResetRequest"));
 
     if (!XHCI_WaitForRegister(Device->OpBase,
                               XHCI_OP_USBCMD,
@@ -825,6 +1143,7 @@ static BOOL XHCI_ResetAndStart(LPXHCI_DEVICE Device) {
                               0,
                               XHCI_RESET_TIMEOUT,
                               TEXT("Controller reset"))) {
+        XHCI_LogHseTransitionIfNeeded(Device, TEXT("ResetAndStart-ResetTimeout"));
         ERROR(TEXT("[XHCI_ResetAndStart] Reset bit timeout"));
         return FALSE;
     }
@@ -835,6 +1154,7 @@ static BOOL XHCI_ResetAndStart(LPXHCI_DEVICE Device) {
                               0,
                               XHCI_RESET_TIMEOUT,
                               TEXT("Controller ready"))) {
+        XHCI_LogHseTransitionIfNeeded(Device, TEXT("ResetAndStart-ReadyTimeout"));
         ERROR(TEXT("[XHCI_ResetAndStart] Controller not ready"));
         return FALSE;
     }
@@ -852,6 +1172,10 @@ static BOOL XHCI_ResetAndStart(LPXHCI_DEVICE Device) {
         return FALSE;
     }
 
+    if (!XHCI_InitScratchpadBuffers(Device)) {
+        return FALSE;
+    }
+
     XHCI_Write64(Device->OpBase, XHCI_OP_DCBAAP, U64_FromUINT(Device->DcbaaPhysical));
 
     {
@@ -863,10 +1187,17 @@ static BOOL XHCI_ResetAndStart(LPXHCI_DEVICE Device) {
     }
 
     XHCI_Write32(Device->OpBase, XHCI_OP_CONFIG, Device->MaxSlots);
+    XHCI_LogInitReadback(Device,
+        TEXT("ProgramCoreRegisters"),
+        U64_FromUINT(Device->DcbaaPhysical),
+        U64_Add(U64_FromUINT(Device->CommandRingPhysical), U64_FromU32(XHCI_TRB_CYCLE)),
+        U64_FromUINT(Device->EventRingTablePhysical),
+        U64_FromUINT(Device->EventRingPhysical));
 
     Command = XHCI_Read32(Device->OpBase, XHCI_OP_USBCMD);
     Command |= XHCI_USBCMD_RS;
     XHCI_Write32(Device->OpBase, XHCI_OP_USBCMD, Command);
+    XHCI_LogHseTransitionIfNeeded(Device, TEXT("ResetAndStart-AfterRunRequest"));
 
     if (!XHCI_WaitForRegister(Device->OpBase,
                               XHCI_OP_USBSTS,
@@ -874,9 +1205,17 @@ static BOOL XHCI_ResetAndStart(LPXHCI_DEVICE Device) {
                               0,
                               XHCI_RUN_TIMEOUT,
                               TEXT("Controller run"))) {
+        XHCI_LogHseTransitionIfNeeded(Device, TEXT("ResetAndStart-RunTimeout"));
         ERROR(TEXT("[XHCI_ResetAndStart] Run timeout"));
         return FALSE;
     }
+
+    XHCI_LogInitReadback(Device,
+        TEXT("ControllerRunning"),
+        U64_FromUINT(Device->DcbaaPhysical),
+        U64_Add(U64_FromUINT(Device->CommandRingPhysical), U64_FromU32(XHCI_TRB_CYCLE)),
+        U64_FromUINT(Device->EventRingTablePhysical),
+        U64_FromUINT(Device->EventRingPhysical));
 
     return TRUE;
 }
@@ -890,13 +1229,23 @@ static BOOL XHCI_ResetAndStart(LPXHCI_DEVICE Device) {
  */
 static BOOL XHCI_InitController(LPXHCI_DEVICE Device) {
     U32 CapLengthReg = XHCI_Read32(Device->MmioBase, XHCI_CAPLENGTH);
+    U32 HcsParams2;
+    U32 ScratchpadLow;
+    U32 ScratchpadHigh;
     Device->CapLength = (U8)(CapLengthReg & MAX_U8);
     Device->HciVersion = (U16)((CapLengthReg >> 16) & 0xFFFF);
 
     U32 HcsParams1 = XHCI_Read32(Device->MmioBase, XHCI_HCSPARAMS1);
+    HcsParams2 = XHCI_Read32(Device->MmioBase, XHCI_HCSPARAMS2);
     Device->MaxSlots = (U8)(HcsParams1 & XHCI_HCSPARAMS1_MAXSLOTS_MASK);
     Device->MaxInterrupters = (U16)((HcsParams1 & XHCI_HCSPARAMS1_MAXINTRS_MASK) >> XHCI_HCSPARAMS1_MAXINTRS_SHIFT);
     Device->MaxPorts = (U8)((HcsParams1 & XHCI_HCSPARAMS1_MAXPORTS_MASK) >> XHCI_HCSPARAMS1_MAXPORTS_SHIFT);
+    ScratchpadLow =
+        (HcsParams2 & XHCI_HCSPARAMS2_SCRATCHPAD_LOW_MASK) >> XHCI_HCSPARAMS2_SCRATCHPAD_LOW_SHIFT;
+    ScratchpadHigh =
+        (HcsParams2 & XHCI_HCSPARAMS2_SCRATCHPAD_HIGH_MASK) >> XHCI_HCSPARAMS2_SCRATCHPAD_HIGH_SHIFT;
+    Device->MaxScratchpadBuffers = (U16)(ScratchpadLow | (ScratchpadHigh << 5));
+    Device->HcsParams2 = HcsParams2;
     Device->HccParams1 = XHCI_Read32(Device->MmioBase, XHCI_HCCPARAMS1);
     Device->ContextSize = ((Device->HccParams1 & XHCI_HCCPARAMS1_CSZ) != 0) ? 64 : 32;
 
@@ -1132,7 +1481,7 @@ PCI_DRIVER DATA_SECTION XHCIDriver = {
     .References = 1,
     .Next = NULL,
     .Prev = NULL,
-    .Type = DRIVER_TYPE_OTHER,
+    .Type = DRIVER_TYPE_XHCI,
     .VersionMajor = 1,
     .VersionMinor = 0,
     .Designer = "Jango73",
