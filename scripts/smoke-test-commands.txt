@@ -16,5 +16,5 @@ command: "type /fs/n1p0/write.txt" | log: "TEST > [CMD_type] type /fs/n1p0/write
 command: "type /fs/n2p0/read.txt" | log: "TEST > [CMD_type] type /fs/n2p0/read.txt : OK"
 command: "scripts/test.e0" | log: "TEST > [CMD_script] Script return value: 832040"
 command: "/system/apps/netget --smoke-local /temp/index.html" | log: "TEST > [Spawn] Executable finished normally : /system/apps/netget" | file-size-compare: "scripts/net/www/index.html" "/exos/temp/index.html"
-command: "/system/apps/test.epk" | log: "TEST > [Spawn] Executable finished normally : /package/binary/master"
+command: "package run test" | log: "TEST > [Spawn] Executable finished normally : /package/binary/master"
 command: "shutdown"

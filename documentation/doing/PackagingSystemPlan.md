@@ -97,7 +97,7 @@
 - [x] Avoid persistent global activation sets (`active/staged/rollback`).
 - [x] Keep failure behavior fail-fast with no partial mounted leftovers.
 - [x] Ensure explicit unmount/release on launch failure and process exit.
-- [ ] Support `package run <package-name> [command-name]` where omitted command falls back to `entry`.
+- [x] Support `package run <package-name> [command-name]` where omitted command falls back to `entry`.
 
 **Success**: package launch is deterministic and stateless at system level.
 

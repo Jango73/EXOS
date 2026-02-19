@@ -585,6 +585,30 @@ U32 PackageManifestCheckCompatibility(const PACKAGE_MANIFEST* Manifest) {
 /***************************************************************************/
 
 /**
+ * @brief Find one command target path by command name.
+ * @param Manifest Parsed manifest model.
+ * @param CommandName Command key to resolve.
+ * @return Package-relative executable path or NULL when not found.
+ */
+LPCSTR PackageManifestFindCommandTarget(const PACKAGE_MANIFEST* Manifest, LPCSTR CommandName) {
+    UINT Index;
+
+    if (Manifest == NULL || STRING_EMPTY(CommandName)) {
+        return NULL;
+    }
+
+    for (Index = 0; Index < Manifest->CommandCount; Index++) {
+        if (StringCompare(Manifest->Commands[Index].Name, CommandName) == 0) {
+            return Manifest->Commands[Index].Target;
+        }
+    }
+
+    return NULL;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Return one deterministic message for manifest status code.
  * @param Status Manifest status value.
  * @return Static status string.

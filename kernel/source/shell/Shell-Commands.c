@@ -27,6 +27,7 @@
 #include "package/PackageFS.h"
 #include "package/PackageManifest.h"
 #include "package/PackageNamespace.h"
+#include "utils/KernelPath.h"
 
 /************************************************************************/
 
@@ -39,6 +40,7 @@ static U32 CMD_dir(LPSHELLCONTEXT);
 static U32 CMD_cd(LPSHELLCONTEXT);
 static U32 CMD_md(LPSHELLCONTEXT);
 static U32 CMD_run(LPSHELLCONTEXT);
+static U32 CMD_package(LPSHELLCONTEXT);
 static U32 CMD_exit(LPSHELLCONTEXT);
 static U32 CMD_sysinfo(LPSHELLCONTEXT);
 static U32 CMD_killtask(LPSHELLCONTEXT);
@@ -76,6 +78,18 @@ static BOOL ShellCommandLineCompletion(
     U32 OutputSize);
 static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context);
 static void ListDirectory(LPSHELLCONTEXT, LPCSTR, U32, BOOL, BOOL, U32*);
+static void ShellSkipSpaces(LPCSTR Text, UINT* InOutIndex);
+static BOOL ShellParseRawToken(LPCSTR Text, UINT* InOutIndex, STR OutToken[MAX_PATH_NAME]);
+static BOOL ShellResolvePackageFilePath(LPSHELLCONTEXT Context,
+                                        LPCSTR PackageName,
+                                        STR OutQualifiedPackage[MAX_PATH_NAME]);
+static BOOL ShellIsPackageFileName(LPCSTR FileName);
+static BOOL ShellLaunchPackage(LPSHELLCONTEXT Context,
+                               LPCSTR QualifiedCommandLine,
+                               LPCSTR QualifiedCommand,
+                               LPCSTR PreferredCommandName,
+                               LPCSTR PreferredCommandArguments,
+                               BOOL Background);
 
 /************************************************************************/
 // The shell command table
@@ -90,6 +104,7 @@ SHELL_COMMAND_ENTRY COMMANDS[] = {
     {"cd", "cd", "Name", CMD_cd},
     {"mkdir", "md", "Name", CMD_md},
     {"run", "launch", "Name [-b|--background]", CMD_run},
+    {"package", "package", "run <package-name> [command-name] [args...]", CMD_package},
     {"quit", "exit", "", CMD_exit},
     {"sys", "sys_info", "", CMD_sysinfo},
     {"kill", "kill_task", "Number", CMD_killtask},
@@ -1101,6 +1116,83 @@ static U32 CMD_run(LPSHELLCONTEXT Context) {
 
         Background = HasOption(Context, TEXT("b"), TEXT("background"));
         SpawnExecutable(Context, TargetName, Background);
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Run one package by name with optional manifest command selector.
+ *
+ * Syntax: package run <package-name> [command-name] [args...]
+ *
+ * @param Context Shell context containing command line text.
+ * @return Command status.
+ */
+static U32 CMD_package(LPSHELLCONTEXT Context) {
+    UINT Index;
+    UINT RemainderIndex;
+    STR SubCommand[MAX_PATH_NAME];
+    STR PackageName[MAX_PATH_NAME];
+    STR FirstArgumentToken[MAX_PATH_NAME];
+    STR QualifiedPackage[MAX_PATH_NAME];
+    STR QualifiedCommandLine[MAX_PATH_NAME];
+    LPCSTR RemainderArguments;
+    LPCSTR CommandArguments;
+    BOOL HasFirstArgumentToken;
+
+    if (Context == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    Index = Context->CommandChar;
+    if (!ShellParseRawToken(Context->Input.CommandLine, &Index, SubCommand)) {
+        ConsolePrint(TEXT("Usage: package run <package-name> [command-name] [args...]\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (StringCompareNC(SubCommand, TEXT("run")) != 0) {
+        ConsolePrint(TEXT("Usage: package run <package-name> [command-name] [args...]\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (!ShellParseRawToken(Context->Input.CommandLine, &Index, PackageName)) {
+        ConsolePrint(TEXT("Usage: package run <package-name> [command-name] [args...]\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (!ShellResolvePackageFilePath(Context, PackageName, QualifiedPackage)) {
+        ConsolePrint(TEXT("Invalid package name: %s\n"), PackageName);
+        return DF_RETURN_SUCCESS;
+    }
+
+    StringCopy(QualifiedCommandLine, QualifiedPackage);
+    RemainderArguments = Context->Input.CommandLine + Index;
+    while (*RemainderArguments != STR_NULL && *RemainderArguments <= STR_SPACE) {
+        RemainderArguments++;
+    }
+
+    if (!STRING_EMPTY(RemainderArguments)) {
+        StringConcat(QualifiedCommandLine, TEXT(" "));
+        StringConcat(QualifiedCommandLine, RemainderArguments);
+    }
+
+    RemainderIndex = 0;
+    HasFirstArgumentToken = ShellParseRawToken(RemainderArguments, &RemainderIndex, FirstArgumentToken);
+    CommandArguments = RemainderArguments + RemainderIndex;
+    while (*CommandArguments != STR_NULL && *CommandArguments <= STR_SPACE) {
+        CommandArguments++;
+    }
+
+    if (!ShellLaunchPackage(Context,
+            QualifiedCommandLine,
+            QualifiedPackage,
+            HasFirstArgumentToken ? FirstArgumentToken : NULL,
+            HasFirstArgumentToken ? CommandArguments : NULL,
+            FALSE)) {
+        ConsolePrint(TEXT("Package run failed: %s\n"), QualifiedPackage);
     }
 
     return DF_RETURN_SUCCESS;
@@ -2308,6 +2400,136 @@ static U32 CMD_nvme(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 /**
+ * @brief Skip spaces inside one command line text.
+ * @param Text Source command line.
+ * @param InOutIndex Index cursor to advance.
+ */
+static void ShellSkipSpaces(LPCSTR Text, UINT* InOutIndex) {
+    if (Text == NULL || InOutIndex == NULL) {
+        return;
+    }
+
+    while (Text[*InOutIndex] != STR_NULL && Text[*InOutIndex] <= STR_SPACE) {
+        (*InOutIndex)++;
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Parse one raw token without option stripping.
+ * @param Text Source command line.
+ * @param InOutIndex Index cursor to advance.
+ * @param OutToken Destination token buffer.
+ * @return TRUE when one token is parsed.
+ */
+static BOOL ShellParseRawToken(LPCSTR Text, UINT* InOutIndex, STR OutToken[MAX_PATH_NAME]) {
+    UINT SourceIndex = 0;
+    BOOL InQuotes = FALSE;
+
+    if (Text == NULL || InOutIndex == NULL || OutToken == NULL) {
+        return FALSE;
+    }
+
+    OutToken[0] = STR_NULL;
+    ShellSkipSpaces(Text, InOutIndex);
+    if (Text[*InOutIndex] == STR_NULL) {
+        return FALSE;
+    }
+
+    if (Text[*InOutIndex] == STR_QUOTE) {
+        InQuotes = TRUE;
+        (*InOutIndex)++;
+    }
+
+    while (Text[*InOutIndex] != STR_NULL) {
+        STR Character = Text[*InOutIndex];
+
+        if (InQuotes) {
+            if (Character == STR_QUOTE) {
+                (*InOutIndex)++;
+                break;
+            }
+        } else if (Character <= STR_SPACE) {
+            break;
+        }
+
+        if (SourceIndex + 1 < MAX_PATH_NAME) {
+            OutToken[SourceIndex++] = Character;
+        }
+
+        (*InOutIndex)++;
+    }
+
+    OutToken[SourceIndex] = STR_NULL;
+    ShellSkipSpaces(Text, InOutIndex);
+    return (SourceIndex > 0);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve one package run token to an absolute package file path.
+ * @param Context Shell context.
+ * @param PackageName Package name or path token.
+ * @param OutQualifiedPackage Receives absolute package file path.
+ * @return TRUE on success.
+ */
+static BOOL ShellResolvePackageFilePath(LPSHELLCONTEXT Context,
+                                        LPCSTR PackageName,
+                                        STR OutQualifiedPackage[MAX_PATH_NAME]) {
+    STR AppsRoot[MAX_PATH_NAME];
+    STR LocalToken[MAX_PATH_NAME];
+
+    if (Context == NULL || STRING_EMPTY(PackageName) || OutQualifiedPackage == NULL) {
+        return FALSE;
+    }
+
+    if (!KernelPathResolve(
+            KERNEL_PATH_KEY_SYSTEM_APPS_ROOT,
+            KERNEL_PATH_DEFAULT_SYSTEM_APPS_ROOT,
+            AppsRoot,
+            MAX_PATH_NAME)) {
+        return FALSE;
+    }
+
+    if (StringFindChar(PackageName, PATH_SEP) != NULL) {
+        if (!QualifyFileName(Context, PackageName, OutQualifiedPackage)) {
+            return FALSE;
+        }
+
+        if (!ShellIsPackageFileName(OutQualifiedPackage)) {
+            if (StringLength(OutQualifiedPackage) + StringLength(KERNEL_FILE_EXTENSION_PACKAGE) >= MAX_PATH_NAME) {
+                return FALSE;
+            }
+            StringConcat(OutQualifiedPackage, KERNEL_FILE_EXTENSION_PACKAGE);
+        }
+        return TRUE;
+    }
+
+    StringCopy(LocalToken, PackageName);
+    if (ShellIsPackageFileName(LocalToken)) {
+        return KernelPathBuildFile(
+            KERNEL_PATH_KEY_SYSTEM_APPS_ROOT,
+            KERNEL_PATH_DEFAULT_SYSTEM_APPS_ROOT,
+            LocalToken,
+            NULL,
+            OutQualifiedPackage,
+            MAX_PATH_NAME);
+    }
+
+    return KernelPathBuildFile(
+        KERNEL_PATH_KEY_SYSTEM_APPS_ROOT,
+        KERNEL_PATH_DEFAULT_SYSTEM_APPS_ROOT,
+        LocalToken,
+        KERNEL_FILE_EXTENSION_PACKAGE,
+        OutQualifiedPackage,
+        MAX_PATH_NAME);
+}
+
+/***************************************************************************/
+
+/**
  * @brief Check whether one command path targets an EPK package file.
  * @param FileName Qualified executable or package file path.
  * @return TRUE when extension is ".epk".
@@ -2419,6 +2641,8 @@ static BOOL ShellLaunchCommandLine(LPSHELLCONTEXT Context,
 static BOOL ShellLaunchPackage(LPSHELLCONTEXT Context,
                                LPCSTR QualifiedCommandLine,
                                LPCSTR QualifiedCommand,
+                               LPCSTR PreferredCommandName,
+                               LPCSTR PreferredCommandArguments,
                                BOOL Background) {
     UINT PackageSize = 0;
     U8* PackageBytes = NULL;
@@ -2427,7 +2651,9 @@ static BOOL ShellLaunchPackage(LPSHELLCONTEXT Context,
     LPFILESYSTEM PackageFileSystem = NULL;
     STR MountName[MAX_FILE_NAME];
     STR LaunchCommandLine[MAX_PATH_NAME];
+    STR FallbackArguments[MAX_PATH_NAME];
     LPCSTR Arguments;
+    LPCSTR LaunchTarget;
     BOOL LaunchResult;
     LPPROCESS Process = NULL;
     BOOL KeepMountedForBackground = FALSE;
@@ -2481,7 +2707,26 @@ static BOOL ShellLaunchPackage(LPSHELLCONTEXT Context,
     Arguments = QualifiedCommandLine + StringLength(QualifiedCommand);
     while (*Arguments == STR_SPACE) Arguments++;
 
-    if (!ShellBuildPackageLaunchCommandLine(Manifest.Entry, Arguments, LaunchCommandLine)) {
+    LaunchTarget = Manifest.Entry;
+    if (!STRING_EMPTY(PreferredCommandName)) {
+        LPCSTR CommandTarget = PackageManifestFindCommandTarget(&Manifest, PreferredCommandName);
+
+        if (!STRING_EMPTY(CommandTarget)) {
+            LaunchTarget = CommandTarget;
+            Arguments = PreferredCommandArguments != NULL ? PreferredCommandArguments : TEXT("");
+        } else {
+            if (!STRING_EMPTY(PreferredCommandArguments)) {
+                StringCopy(FallbackArguments, PreferredCommandName);
+                StringConcat(FallbackArguments, TEXT(" "));
+                StringConcat(FallbackArguments, PreferredCommandArguments);
+                Arguments = FallbackArguments;
+            } else {
+                Arguments = PreferredCommandName;
+            }
+        }
+    }
+
+    if (!ShellBuildPackageLaunchCommandLine(LaunchTarget, Arguments, LaunchCommandLine)) {
         ConsolePrint(TEXT("Package launch command build failed\n"));
         PackageNamespaceUnbindCurrentProcessPackageView();
         PackageFSUnmount(PackageFileSystem);
@@ -2548,7 +2793,7 @@ BOOL SpawnExecutable(LPSHELLCONTEXT Context, LPCSTR CommandName, BOOL Background
         }
 
         if (ShellIsPackageFileName(QualifiedCommand)) {
-            return ShellLaunchPackage(Context, QualifiedCommandLine, QualifiedCommand, Background);
+            return ShellLaunchPackage(Context, QualifiedCommandLine, QualifiedCommand, NULL, NULL, Background);
         }
 
         return ShellLaunchCommandLine(Context, QualifiedCommandLine, Background, NULL);

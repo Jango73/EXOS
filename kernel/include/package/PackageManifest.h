@@ -74,6 +74,7 @@ typedef struct tag_PACKAGE_MANIFEST {
 U32 PackageManifestParseText(LPCSTR ManifestText, LPPACKAGE_MANIFEST OutManifest);
 U32 PackageManifestParseFromPackageBuffer(LPCVOID PackageBytes, U32 PackageSize, LPPACKAGE_MANIFEST OutManifest);
 U32 PackageManifestCheckCompatibility(const PACKAGE_MANIFEST* Manifest);
+LPCSTR PackageManifestFindCommandTarget(const PACKAGE_MANIFEST* Manifest, LPCSTR CommandName);
 LPCSTR PackageManifestStatusToString(U32 Status);
 void PackageManifestRelease(LPPACKAGE_MANIFEST Manifest);
 

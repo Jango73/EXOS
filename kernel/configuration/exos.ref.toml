@@ -42,6 +42,7 @@ UsersRoot="/users"
 CurrentUserAlias="/current-user"
 PrivatePackageAlias="/package"
 PrivateUserDataAlias="/user-data"
+SystemAppsRoot="/system/apps"
 
 [[SystemFS.Mount]]
 FileSystem="active"

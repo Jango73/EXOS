@@ -825,6 +825,7 @@ Each `FILESYSTEM` object carries runtime fields (`Driver`, `StorageUnit`, `Mount
 Logical kernel path keys are consumed through `utils/KernelPath`:
 - `KernelPath.UsersDatabase`: absolute VFS file path used by user account persistence.
 - `KernelPath.KeyboardLayouts`: absolute VFS folder path used to load keyboard layout files (`<layout>.ekm1`).
+- `KernelPath.SystemAppsRoot`: absolute VFS folder path used by shell package-name resolution (`package run <name>`).
 
 `MountDiskPartitions()` handles MBR and switches to GPT parsing when a protective MBR entry (`0xEE`) is detected. Supported formats are mounted through dedicated drivers (FAT16/FAT32/NTFS/EXFS/EXT2 path); partition metadata is written with `SetFileSystemPartitionInfo()`. Non-mounted partitions are still materialized through `RegisterUnusedFileSystem()` so diagnostics and shell tooling can inspect them.
 
@@ -968,6 +969,11 @@ Step-8 launch activation is wired in shell launch path (`SpawnExecutable`):
 - manifest `entry` is executed from `/package/...`,
 - launch failures trigger explicit unbind/unmount cleanup with no partial mounted leftovers,
 - background launches keep mounted package filesystem attached to process state and release it during process teardown.
+
+Shell package command:
+- `package run <package-name> [command-name] [args...]` resolves package file from `KernelPath.SystemAppsRoot`,
+- if `command-name` matches `manifest.commands.<name>`, that target is launched,
+- otherwise launch falls back to `manifest.entry` and keeps the token as the first application argument.
 
 #### Runtime access paths
 
