@@ -106,10 +106,10 @@
 **Goal**: expose basic package operations to users and automation.
 
 - [ ] Keep `tools/` as the primary package creation path while native EXOS package management matures.
-- [ ] Implement `package list` command (file-based view).
-- [ ] Implement `package add <file.epk>` command.
-- [ ] Implement `package remove <package-name>` command.
-- [ ] Implement `package verify` command.
+- [ ] Implement `package list <package-name|path.epk>` command (lists package internal content).
+- [ ] Implement `package add <package-name|path.epk>` command.
+- [ ] Implement `package remove <package-name|path.epk>` command.
+- [ ] Implement `package verify <package-name|path.epk>` command.
 - [ ] Implement package command index for `run <command-name>` resolution without package name.
 - [ ] Enforce deterministic ambiguity handling for command-name collisions.
 - [ ] Report validation, compatibility, and launch status in machine-readable and human-readable output.
