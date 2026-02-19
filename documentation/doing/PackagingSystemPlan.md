@@ -81,7 +81,7 @@
 
 **Goal**: validate launch compatibility without dependency resolution.
 
-- [x] Parse `manifest.toml` model (`name`, `version`, `arch`, `kernel_api`, `entry`).
+- [x] Parse `manifest.toml` model (`name`, `version`, `arch`, `kernel_api`, `entry`, optional `[commands]`).
 - [x] Validate architecture compatibility.
 - [x] Validate kernel API compatibility policy.
 - [x] Enforce policy: no `provides/requires` dependency graph behavior.
@@ -97,6 +97,7 @@
 - [ ] Avoid persistent global activation sets (`active/staged/rollback`).
 - [ ] Keep failure behavior fail-fast with no partial mounted leftovers.
 - [ ] Ensure explicit unmount/release on launch failure and process exit.
+- [ ] Support `package run <package-name> [command-name]` where omitted command falls back to `entry`.
 
 **Success**: package launch is deterministic and stateless at system level.
 
@@ -109,6 +110,8 @@
 - [ ] Implement `package add <file.epk>` command.
 - [ ] Implement `package remove <package-name>` command.
 - [ ] Implement `package verify` command.
+- [ ] Implement package command index for `run <command-name>` resolution without package name.
+- [ ] Enforce deterministic ambiguity handling for command-name collisions.
 - [ ] Report validation, compatibility, and launch status in machine-readable and human-readable output.
 
 **Success**: package lifecycle operations are scriptable and predictable.

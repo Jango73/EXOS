@@ -49,6 +49,10 @@ Conceptually, package management is a **mount-and-run** workflow, not an install
    - host-side package creation tools (`tools/`),
    - optional remote fetch tooling (distribution only).
 
+7. **Command-first launch UX**
+   Users can launch packaged commands without always naming the package.
+   Resolution remains deterministic and explicit on conflicts.
+
 ---
 
 ## 3. Package Structure
@@ -115,7 +119,7 @@ Detached signature over `PackageHash`.
    Kernel validates header, bounds, checksums, and optional signature.
 
 3. **Compatibility checks**
-   Kernel validates manifest constraints (`arch`, `kernel.api`, policy fields).
+   Kernel validates manifest constraints (`arch`, `kernel_api`, policy fields).
 
 4. **Private mount**
    Package is mounted in a private process view at `/package`.
@@ -123,7 +127,10 @@ Detached signature over `PackageHash`.
 5. **User data alias**
    `/user-data` is mapped to `/current-user/<package-name>/data`.
 
-6. **Execution**
+6. **Entry resolution**
+   Launcher resolves target executable from package `entry` or manifest command map.
+
+7. **Execution**
    Loader streams executable and private libraries directly from package blocks.
 
 ---
@@ -168,8 +175,13 @@ Example `manifest.toml`:
 name = "app.video-editor"
 version = "2.4.1"
 arch = "x86-64"
-kernel_api = ">=1.0"
-entry = "/package/binary/video-editor"
+kernel_api = "0.5"
+entry = "/binary/video-editor.elf"
+
+[commands]
+video-editor = "/binary/video-editor.elf"
+mesh-view = "/binary/mesh-view.elf"
+shader-compile = "/binary/shader-compile.elf"
 ```
 
 Manifest goals:
@@ -181,7 +193,16 @@ Validation rules:
 - `arch` must match target runtime architecture,
 - `kernel_api` must satisfy kernel compatibility policy,
 - manifest must be structurally valid and bounded,
-- no `requires/provides` dependency graph behavior.
+- no `requires/provides` dependency graph behavior,
+- `commands` is optional, command names must be unique in a package, command targets must stay inside the package tree.
+
+`kernel_api` compatibility policy:
+- `required.major == kernel.major`
+- `required.minor <= kernel.minor`
+
+Launch defaults:
+- `entry` is the default executable path when no command name is provided.
+- `commands.<name>` provides named executable entry points for multi-binary packages.
 
 ---
 
@@ -222,6 +243,27 @@ Remote repositories are a distribution mechanism, not a dependency-resolution me
 - **Update**: replace `.epk` file with a new one.
 
 No global package activation state is required for application launch semantics.
+
+### 7.1 Command Resolution Without Package Name
+
+To launch a packaged executable without providing a package name, EXOS resolves commands with explicit priority and deterministic conflict handling.
+
+Primary shell flows:
+- `package run <package-name> [command-name] [args...]`
+- `run <command-name> [args...]`
+
+Resolution rules:
+1. If the requested token contains `/`, treat it as a path and execute directly.
+2. Else, try user command aliases first (`/users/<user-name>/commands/<command-name>`).
+3. Else, try system command aliases (`/system/commands/<command-name>`).
+4. Else, resolve through package command index (`commands.<name>`).
+5. If exactly one package match exists, launch it.
+6. If more than one package match exists, fail with an explicit ambiguity report listing candidates.
+
+Determinism rules:
+- no implicit "best guess" on collisions,
+- no dependency graph lookup,
+- no background fetch or auto-install.
 
 ---
 

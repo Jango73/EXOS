@@ -928,6 +928,7 @@ Launch validation flow includes:
 
 Manifest model is strict and dependency-free:
 - required keys: `name`, `version`, `arch`, `kernel_api`, `entry`,
+- optional table: `[commands]` (`command-name -> package-relative executable path`),
 - accepted architecture values: `x86-32`, `x86-64`,
 - `kernel_api` compatibility policy: `required.major == kernel.major` and `required.minor <= kernel.minor`,
 - `provides` and `requires` keys are rejected.
@@ -936,6 +937,18 @@ No dependency solver behavior is part of this model:
 - no provider graph,
 - no transitive dependency resolution,
 - no global package activation transaction state for application launches.
+
+Launch target rules:
+- `entry` is the default launch target for the package.
+- `commands.<name>` exposes additional named launch targets for multi-binary packages.
+- command-name collisions do not use implicit priority; ambiguous matches fail with explicit diagnostics.
+
+Command resolution without package name is deterministic:
+1. path token (contains `/`) runs as direct path,
+2. user alias namespace (`/users/<user>/commands/<name>`),
+3. system alias namespace (`/system/commands/<name>`),
+4. package command index (`commands.<name>` across known packages),
+5. on multiple package matches, launch is rejected as ambiguous.
 
 #### Runtime access paths
 
