@@ -595,7 +595,11 @@ static BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical,
     }
 
     while (Timeout > 0) {
-        XHCI_PollCompletions(Device);
+        if (XHCI_PollForCompletion(Device, XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT, TrbPhysical, SlotIdOut, CompletionOut)) {
+            UnlockMutex(&(Device->Mutex));
+            return TRUE;
+        }
+
         if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT, TrbPhysical, SlotIdOut, CompletionOut)) {
             UnlockMutex(&(Device->Mutex));
             return TRUE;
@@ -640,7 +644,11 @@ static BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical
     }
 
     while (Timeout > 0) {
-        XHCI_PollCompletions(Device);
+        if (XHCI_PollForCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut)) {
+            UnlockMutex(&(Device->Mutex));
+            return TRUE;
+        }
+
         if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut)) {
             UnlockMutex(&(Device->Mutex));
             return TRUE;
@@ -950,6 +958,57 @@ static U8 XHCI_GetEndpointDci(U8 EndpointAddress) {
     U8 EndpointNumber = EndpointAddress & 0x0F;
     U8 DirectionIn = (EndpointAddress & 0x80) != 0 ? 1U : 0U;
     return (U8)((EndpointNumber * 2U) + DirectionIn);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Return TRUE when one endpoint context is already configured.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device.
+ * @param Dci Endpoint DCI.
+ * @return TRUE when endpoint state is not disabled.
+ */
+static BOOL XHCI_IsEndpointConfigured(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U8 Dci) {
+    LPXHCI_CONTEXT_32 EndpointContext;
+    U32 EndpointState;
+
+    if (Device == NULL || UsbDevice == NULL || UsbDevice->DeviceContextLinear == 0 || Dci == 0) {
+        return FALSE;
+    }
+
+    // Device Context layout has slot context at index 0, then endpoint contexts at DCI index.
+    EndpointContext = XHCI_GetContextPointer(UsbDevice->DeviceContextLinear, Device->ContextSize, (U32)Dci);
+    EndpointState = EndpointContext->Dword0 & 0x7U;
+    return (EndpointState != 0U) ? TRUE : FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Update slot Context Entries with the maximum between current and requested DCI.
+ * @param SlotContext Slot context in the input context.
+ * @param Dci Endpoint DCI to cover.
+ */
+static void XHCI_SetSlotContextEntriesForDci(LPXHCI_CONTEXT_32 SlotContext, U8 Dci) {
+    U32 CurrentEntries;
+    U32 TargetEntries;
+
+    if (SlotContext == NULL || Dci == 0) {
+        return;
+    }
+
+    CurrentEntries = (SlotContext->Dword0 >> XHCI_SLOT_CTX_CONTEXT_ENTRIES_SHIFT) & 0x1FU;
+    TargetEntries = (U32)Dci;
+    if (TargetEntries < CurrentEntries) {
+        TargetEntries = CurrentEntries;
+    }
+    if (TargetEntries == 0) {
+        TargetEntries = 1;
+    }
+
+    SlotContext->Dword0 &= ~(0x1FU << XHCI_SLOT_CTX_CONTEXT_ENTRIES_SHIFT);
+    SlotContext->Dword0 |= ((TargetEntries & 0x1FU) << XHCI_SLOT_CTX_CONTEXT_ENTRIES_SHIFT);
 }
 
 /************************************************************************/
@@ -1762,6 +1821,10 @@ static BOOL XHCI_ConfigureEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDe
     XHCI_RingDoorbell(Device, 0, 0);
 
     if (!XHCI_WaitForCommandCompletion(Device, TrbPhysical, NULL, &Completion)) {
+        WARNING(TEXT("[XHCI_ConfigureEndpoint] Timeout Slot=%x USBCMD=%x USBSTS=%x"),
+                (U32)UsbDevice->SlotId,
+                XHCI_Read32(Device->OpBase, XHCI_OP_USBCMD),
+                XHCI_Read32(Device->OpBase, XHCI_OP_USBSTS));
         return FALSE;
     }
 
@@ -1805,9 +1868,7 @@ BOOL XHCI_AddInterruptEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice
 
     {
         LPXHCI_CONTEXT_32 Slot = (LPXHCI_CONTEXT_32)SlotOut;
-        U32 ContextEntries = (U32)Endpoint->Dci + 1U;
-        Slot->Dword0 &= ~(0x1FU << XHCI_SLOT_CTX_CONTEXT_ENTRIES_SHIFT);
-        Slot->Dword0 |= ((ContextEntries & 0x1FU) << XHCI_SLOT_CTX_CONTEXT_ENTRIES_SHIFT);
+        XHCI_SetSlotContextEntriesForDci(Slot, Endpoint->Dci);
     }
 
     LPXHCI_CONTEXT_32 EpCtx = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, (U32)Endpoint->Dci + 1U);
@@ -1865,6 +1926,9 @@ BOOL XHCI_AddBulkEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, LPX
     }
 
     Endpoint->Dci = XHCI_GetEndpointDci(Endpoint->Address);
+    if (XHCI_IsEndpointConfigured(Device, UsbDevice, Endpoint->Dci)) {
+        return TRUE;
+    }
 
     MemorySet((LPVOID)UsbDevice->InputContextLinear, 0, PAGE_SIZE);
     LPXHCI_CONTEXT_32 Control = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, 0);
@@ -1876,9 +1940,7 @@ BOOL XHCI_AddBulkEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, LPX
 
     {
         LPXHCI_CONTEXT_32 Slot = (LPXHCI_CONTEXT_32)SlotOut;
-        U32 ContextEntries = (U32)Endpoint->Dci + 1U;
-        Slot->Dword0 &= ~(0x1FU << XHCI_SLOT_CTX_CONTEXT_ENTRIES_SHIFT);
-        Slot->Dword0 |= ((ContextEntries & 0x1FU) << XHCI_SLOT_CTX_CONTEXT_ENTRIES_SHIFT);
+        XHCI_SetSlotContextEntriesForDci(Slot, Endpoint->Dci);
     }
 
     LPXHCI_CONTEXT_32 EpCtx = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, (U32)Endpoint->Dci + 1U);
@@ -1896,7 +1958,19 @@ BOOL XHCI_AddBulkEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, LPX
         EpCtx->Dword4 = MaximumPacketSize;
     }
 
-    return XHCI_ConfigureEndpoint(Device, UsbDevice);
+    if (!XHCI_ConfigureEndpoint(Device, UsbDevice)) {
+        if (XHCI_IsEndpointConfigured(Device, UsbDevice, Endpoint->Dci)) {
+            return TRUE;
+        }
+        WARNING(TEXT("[XHCI_AddBulkEndpoint] Configure failed Slot=%x DCI=%x EP=%x MPS=%u"),
+                (U32)UsbDevice->SlotId,
+                (U32)Endpoint->Dci,
+                (U32)Endpoint->Address,
+                (U32)Endpoint->MaxPacketSize);
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 /************************************************************************/

@@ -103,6 +103,22 @@ static U32 XHCI_GetCompletionCode(U32 Dword2) {
 /************************************************************************/
 
 /**
+ * @brief Compare two TRB pointers while ignoring reserved low bits.
+ * @param Left Left pointer.
+ * @param Right Right pointer.
+ * @return TRUE when pointers reference the same TRB.
+ */
+static BOOL XHCI_IsSameTrbPointer(U64 Left, U64 Right) {
+    if (U64_High32(Left) != U64_High32(Right)) {
+        return FALSE;
+    }
+
+    return ((U64_Low32(Left) & ~0x0F) == (U64_Low32(Right) & ~0x0F)) ? TRUE : FALSE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Ring an xHCI doorbell.
  * @param Device xHCI device.
  * @param DoorbellIndex Doorbell index (slot ID).
@@ -541,7 +557,7 @@ BOOL XHCI_PopCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* Slot
         if (Entry->Type != Type) {
             continue;
         }
-        if (!U64_EQUAL(Entry->TrbPhysical, TrbPhysical)) {
+        if (!XHCI_IsSameTrbPointer(Entry->TrbPhysical, TrbPhysical)) {
             continue;
         }
 
@@ -557,6 +573,47 @@ BOOL XHCI_PopCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* Slot
         }
         Device->CompletionCount--;
         return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Drain events until one targeted completion is found.
+ * @param Device xHCI device.
+ * @param Type Expected completion type.
+ * @param TrbPhysical Target TRB physical address.
+ * @param SlotIdOut Receives slot ID when provided.
+ * @param CompletionOut Receives completion code when provided.
+ * @return TRUE when the target completion is found while draining events.
+ */
+BOOL XHCI_PollForCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* SlotIdOut, U32* CompletionOut) {
+    XHCI_TRB Event;
+
+    if (Device == NULL) {
+        return FALSE;
+    }
+
+    XHCI_LogHseTransitionIfNeeded(Device, TEXT("PollForCompletion"));
+    while (XHCI_DequeueEvent(Device, &Event)) {
+        U8 EventType = (U8)XHCI_GetTrbType(Event.Dword3);
+        if (EventType == XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT ||
+            EventType == XHCI_TRB_TYPE_TRANSFER_EVENT) {
+            U64 Pointer = U64_Make(Event.Dword1, Event.Dword0);
+            if (EventType == Type && XHCI_IsSameTrbPointer(Pointer, TrbPhysical)) {
+                if (SlotIdOut != NULL) {
+                    *SlotIdOut = (U8)((Event.Dword3 >> 24) & 0xFF);
+                }
+                if (CompletionOut != NULL) {
+                    *CompletionOut = XHCI_GetCompletionCode(Event.Dword2);
+                }
+                return TRUE;
+            }
+        }
+
+        XHCI_PushCompletion(Device, &Event);
     }
 
     return FALSE;

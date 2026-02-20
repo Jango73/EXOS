@@ -24,6 +24,7 @@
 
 #include "drivers/USBMassStorage.h"
 
+#include "Clock.h"
 #include "DeferredWork.h"
 #include "CoreString.h"
 #include "Disk.h"
@@ -37,6 +38,7 @@
 #include "drivers/XHCI-Internal.h"
 #include "process/Task-Messaging.h"
 #include "utils/Helpers.h"
+#include "utils/RateLimiter.h"
 
 /************************************************************************/
 
@@ -45,6 +47,7 @@
 
 #define USB_MASS_STORAGE_SUBCLASS_SCSI 0x06
 #define USB_MASS_STORAGE_PROTOCOL_BOT 0x50
+#define USB_MASS_STORAGE_PROTOCOL_UAS 0x62
 
 #define USB_MASS_STORAGE_COMMAND_BLOCK_SIGNATURE 0x43425355
 #define USB_MASS_STORAGE_COMMAND_STATUS_SIGNATURE 0x53425355
@@ -57,6 +60,8 @@
 
 #define USB_MASS_STORAGE_BULK_TIMEOUT_MILLISECONDS 1000
 #define USB_MASS_STORAGE_BULK_RETRIES 3
+#define USB_MASS_STORAGE_SCAN_LOG_IMMEDIATE_BUDGET 1
+#define USB_MASS_STORAGE_SCAN_LOG_INTERVAL_MS 2000
 
 #define DF_RETURN_HARDWARE 0x00001001
 #define DF_RETURN_TIMEOUT 0x00001002
@@ -102,6 +107,7 @@ typedef struct tag_USB_MASS_STORAGE_DEVICE {
     PHYSICAL InputOutputBufferPhysical;
     LINEAR InputOutputBufferLinear;
     BOOL Ready;
+    BOOL MountPending;
     BOOL ReferencesHeld;
     LPUSB_STORAGE_ENTRY ListEntry;
 } USB_MASS_STORAGE_DEVICE, *LPUSB_MASS_STORAGE_DEVICE;
@@ -110,6 +116,7 @@ typedef struct tag_USB_MASS_STORAGE_STATE {
     BOOL Initialized;
     U32 PollHandle;
     UINT RetryDelay;
+    RATE_LIMITER ScanLogLimiter;
 } USB_MASS_STORAGE_STATE, *LPUSB_MASS_STORAGE_STATE;
 
 typedef struct tag_USB_MASS_STORAGE_DRIVER {
@@ -139,9 +146,40 @@ static USB_MASS_STORAGE_DRIVER DATA_SECTION USBMassStorageDriverState = {
     .State = {
         .Initialized = FALSE,
         .PollHandle = DEFERRED_WORK_INVALID_HANDLE,
-        .RetryDelay = 0
+        .RetryDelay = 0,
+        .ScanLogLimiter = {0}
     }
 };
+
+/************************************************************************/
+
+/**
+ * @brief Emit rate-limited scan diagnostics for unsupported mass-storage interfaces.
+ * @param UsbDevice USB device.
+ * @param Interface Interface descriptor.
+ * @param Reason Short reason label.
+ */
+static void USBMassStorageLogScan(LPXHCI_USB_DEVICE UsbDevice, LPXHCI_USB_INTERFACE Interface, LPCSTR Reason) {
+    U32 Suppressed = 0;
+
+    if (UsbDevice == NULL || Interface == NULL) {
+        return;
+    }
+
+    if (!RateLimiterShouldTrigger(&USBMassStorageDriverState.State.ScanLogLimiter, GetSystemTime(), &Suppressed)) {
+        return;
+    }
+
+    WARNING(TEXT("[USBMassStorageScan] Port=%u Addr=%u If=%u Class=%x/%x/%x reason=%s suppressed=%u"),
+            (U32)UsbDevice->PortNumber,
+            (U32)UsbDevice->Address,
+            (U32)Interface->Number,
+            (U32)Interface->InterfaceClass,
+            (U32)Interface->InterfaceSubClass,
+            (U32)Interface->InterfaceProtocol,
+            (Reason != NULL) ? Reason : TEXT("?"),
+            Suppressed);
+}
 
 /************************************************************************/
 
@@ -167,6 +205,46 @@ static UINT USBMassStorageReportMounts(LPUSB_MASS_STORAGE_DEVICE Device, LPLISTN
         }
 
         MountedCount++;
+    }
+
+    return MountedCount;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Attempt partition mounting for one USB storage device when possible.
+ * @param Device USB storage device.
+ * @return Number of newly mounted filesystems.
+ */
+static UINT USBMassStorageTryMountPending(LPUSB_MASS_STORAGE_DEVICE Device) {
+    LPLIST FileSystemList = NULL;
+    LPLISTNODE PreviousLast = NULL;
+    UINT MountedCount = 0;
+
+    if (Device == NULL || Device->Ready == FALSE || Device->MountPending == FALSE) {
+        return 0;
+    }
+    if (!FileSystemReady()) {
+        return 0;
+    }
+
+    FileSystemList = GetFileSystemList();
+    PreviousLast = (FileSystemList != NULL) ? FileSystemList->Last : NULL;
+
+    if (!MountDiskPartitions((LPSTORAGE_UNIT)Device, NULL, 0)) {
+        WARNING(TEXT("[USBMassStorageTryMountPending] Partition mount failed"));
+        return 0;
+    }
+
+    MountedCount = USBMassStorageReportMounts(Device, PreviousLast);
+    if (MountedCount != 0) {
+        Device->MountPending = FALSE;
+        if (Device->ListEntry != NULL) {
+            BroadcastProcessMessage(ETM_USB_MASS_STORAGE_MOUNTED,
+                                    (U32)Device->ListEntry->Address,
+                                    Device->BlockCount);
+        }
     }
 
     return MountedCount;
@@ -1005,6 +1083,7 @@ static BOOL USBMassStorageStartDevice(LPXHCI_DEVICE Controller,
           Device->BlockSize);
 
     Device->Ready = TRUE;
+    Device->MountPending = TRUE;
 
     LPUSB_STORAGE_ENTRY Entry =
         (LPUSB_STORAGE_ENTRY)CreateKernelObject(sizeof(USB_STORAGE_ENTRY), KOID_USBSTORAGE);
@@ -1041,20 +1120,8 @@ static BOOL USBMassStorageStartDevice(LPXHCI_DEVICE Controller,
     }
 
     if (FileSystemReady()) {
-        LPLIST FileSystemList = GetFileSystemList();
-        LPLISTNODE PreviousLast = FileSystemList != NULL ? FileSystemList->Last : NULL;
-
         DEBUG(TEXT("[USBMassStorageStartDevice] Mounting disk partitions"));
-        if (!MountDiskPartitions((LPSTORAGE_UNIT)Device, NULL, 0)) {
-            WARNING(TEXT("[USBMassStorageStartDevice] Partition mount failed"));
-        }
-
-        UINT MountedCount = USBMassStorageReportMounts(Device, PreviousLast);
-        if (MountedCount > 0) {
-            BroadcastProcessMessage(ETM_USB_MASS_STORAGE_MOUNTED,
-                                    (U32)UsbDevice->Address,
-                                    Device->BlockCount);
-        }
+        (void)USBMassStorageTryMountPending(Device);
     } else {
         DEBUG(TEXT("[USBMassStorageStartDevice] Deferred partition mount (filesystem not ready)"));
     }
@@ -1159,21 +1226,36 @@ static void USBMassStorageScanControllers(void) {
                     if (Interface->ConfigurationValue != Config->ConfigurationValue) {
                         continue;
                     }
+                    if (Interface->InterfaceClass != USB_CLASS_MASS_STORAGE) {
+                        continue;
+                    }
+                    if (Interface->InterfaceSubClass != USB_MASS_STORAGE_SUBCLASS_SCSI) {
+                        USBMassStorageLogScan(UsbDevice, Interface, TEXT("UnsupportedSubclass"));
+                        continue;
+                    }
+                    if (Interface->InterfaceProtocol == USB_MASS_STORAGE_PROTOCOL_UAS) {
+                        USBMassStorageLogScan(UsbDevice, Interface, TEXT("UASNotSupported"));
+                        continue;
+                    }
                     if (!USBMassStorageIsMassStorageInterface(Interface)) {
+                        USBMassStorageLogScan(UsbDevice, Interface, TEXT("UnsupportedProtocol"));
                         continue;
                     }
 
                     LPXHCI_USB_ENDPOINT BulkIn = NULL;
                     LPXHCI_USB_ENDPOINT BulkOut = NULL;
                     if (!USBMassStorageFindBulkEndpoints(Interface, &BulkIn, &BulkOut)) {
+                        USBMassStorageLogScan(UsbDevice, Interface, TEXT("MissingBulkEndpoints"));
                         continue;
                     }
 
                     if (!USBMassStorageStartDevice(Controller, UsbDevice, Interface, BulkIn, BulkOut)) {
+                        USBMassStorageLogScan(UsbDevice, Interface, TEXT("StartDeviceFailed"));
                         USBMassStorageDriverState.State.RetryDelay = 50;
                         continue;
                     }
 
+                    USBMassStorageLogScan(UsbDevice, Interface, TEXT("Attached"));
                     break;
                 }
             }
@@ -1201,6 +1283,26 @@ static void USBMassStoragePoll(LPVOID Context) {
 
     USBMassStorageUpdatePresence();
     USBMassStorageScanControllers();
+
+    LPLIST UsbStorageList = GetUsbStorageList();
+    if (UsbStorageList == NULL) {
+        return;
+    }
+
+    for (LPLISTNODE Node = UsbStorageList->First; Node != NULL; Node = Node->Next) {
+        LPUSB_STORAGE_ENTRY Entry = (LPUSB_STORAGE_ENTRY)Node;
+        LPUSB_MASS_STORAGE_DEVICE Device = NULL;
+        if (Entry == NULL || Entry->Device == NULL || Entry->Present == FALSE) {
+            continue;
+        }
+
+        Device = (LPUSB_MASS_STORAGE_DEVICE)Entry->Device;
+        if (Device->MountPending == FALSE) {
+            continue;
+        }
+
+        (void)USBMassStorageTryMountPending(Device);
+    }
 }
 
 /************************************************************************/
@@ -1381,6 +1483,10 @@ UINT USBMassStorageCommands(UINT Function, UINT Parameter) {
             if ((USBMassStorageDriverState.Driver.Flags & DRIVER_FLAG_READY) != 0) {
                 return DF_RETURN_SUCCESS;
             }
+
+            (void)RateLimiterInit(&USBMassStorageDriverState.State.ScanLogLimiter,
+                                  USB_MASS_STORAGE_SCAN_LOG_IMMEDIATE_BUDGET,
+                                  USB_MASS_STORAGE_SCAN_LOG_INTERVAL_MS);
 
             if (USBMassStorageDriverState.State.PollHandle == DEFERRED_WORK_INVALID_HANDLE) {
                 USBMassStorageDriverState.State.PollHandle =

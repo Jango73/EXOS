@@ -24,11 +24,13 @@
 #include "Arch.h"
 #include "Console.h"
 #include "CoreString.h"
+#include "DriverGetters.h"
 #include "drivers/ACPI.h"
 #include "drivers/IOAPIC.h"
 #include "drivers/Keyboard.h"
 #include "drivers/LocalAPIC.h"
 #include "drivers/PCI.h"
+#include "drivers/USBMassStorage.h"
 #include "drivers/XHCI-Internal.h"
 #include "KernelData.h"
 #include "process/Task.h"
@@ -63,6 +65,9 @@
 #define SYSTEM_DATA_VIEW_PCI_PROGRAMMING_INTERFACE_EHCI 0x20
 #define SYSTEM_DATA_VIEW_PCI_PROGRAMMING_INTERFACE_XHCI 0x30
 #define SYSTEM_DATA_VIEW_XHCI_PLS_SHIFT 5
+#define SYSTEM_DATA_VIEW_USB_MASS_STORAGE_SUBCLASS_SCSI 0x06
+#define SYSTEM_DATA_VIEW_USB_MASS_STORAGE_PROTOCOL_BOT 0x50
+#define SYSTEM_DATA_VIEW_USB_MASS_STORAGE_PROTOCOL_UAS 0x62
 
 #define SYSTEM_DATA_VIEW_PCI_VENDOR_INTEL 0x8086
 #define SYSTEM_DATA_VIEW_PCI_CLASS_BRIDGE 0x06
@@ -1007,6 +1012,89 @@ static U32 SystemDataViewCountActiveXhciSlots(LPXHCI_DEVICE Device) {
 /************************************************************************/
 
 /**
+ * @brief Count present and total USB mass storage entries.
+ *
+ * @param PresentOut Receives present entry count.
+ * @param TotalOut Receives total entry count.
+ */
+static void SystemDataViewCountUsbStorage(UINT* PresentOut, UINT* TotalOut) {
+    UINT Present = 0;
+    UINT Total = 0;
+    LPLIST UsbStorageList = GetUsbStorageList();
+
+    if (UsbStorageList != NULL) {
+        for (LPLISTNODE Node = UsbStorageList->First; Node != NULL; Node = Node->Next) {
+            LPUSB_STORAGE_ENTRY Entry = (LPUSB_STORAGE_ENTRY)Node;
+            Total++;
+            if (Entry != NULL && Entry->Present != FALSE) {
+                Present++;
+            }
+        }
+    }
+
+    if (PresentOut != NULL) {
+        *PresentOut = Present;
+    }
+    if (TotalOut != NULL) {
+        *TotalOut = Total;
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Build a short mass-storage hint for one USB device.
+ *
+ * @param UsbDevice USB device.
+ * @return Hint string.
+ */
+static LPCSTR SystemDataViewXhciMassStorageHint(LPXHCI_USB_DEVICE UsbDevice) {
+    LPXHCI_USB_CONFIGURATION Config;
+    LPLIST InterfaceList;
+
+    if (UsbDevice == NULL || !UsbDevice->Present) {
+        return TEXT("-");
+    }
+
+    Config = XHCI_GetSelectedConfig(UsbDevice);
+    if (Config == NULL) {
+        return TEXT("NoCfg");
+    }
+
+    InterfaceList = GetUsbInterfaceList();
+    if (InterfaceList == NULL) {
+        return TEXT("NoIf");
+    }
+
+    for (LPLISTNODE IfNode = InterfaceList->First; IfNode != NULL; IfNode = IfNode->Next) {
+        LPXHCI_USB_INTERFACE Interface = (LPXHCI_USB_INTERFACE)IfNode;
+        if (Interface->Parent != (LPLISTNODE)UsbDevice) {
+            continue;
+        }
+        if (Interface->ConfigurationValue != Config->ConfigurationValue) {
+            continue;
+        }
+        if (Interface->InterfaceClass != USB_CLASS_MASS_STORAGE) {
+            continue;
+        }
+        if (Interface->InterfaceSubClass != SYSTEM_DATA_VIEW_USB_MASS_STORAGE_SUBCLASS_SCSI) {
+            return TEXT("MS-Sub");
+        }
+        if (Interface->InterfaceProtocol == SYSTEM_DATA_VIEW_USB_MASS_STORAGE_PROTOCOL_BOT) {
+            return TEXT("MS-BOT");
+        }
+        if (Interface->InterfaceProtocol == SYSTEM_DATA_VIEW_USB_MASS_STORAGE_PROTOCOL_UAS) {
+            return TEXT("MS-UAS");
+        }
+        return TEXT("MS-Proto");
+    }
+
+    return TEXT("NoMS");
+}
+
+/************************************************************************/
+
+/**
  * @brief Draw detailed xHCI controller and port state.
  *
  * @param Context Output context.
@@ -1035,6 +1123,9 @@ static void SystemDataViewDrawXhciDetails(LPSYSTEM_DATA_VIEW_CONTEXT Context, LP
     U32 EnabledPorts = 0;
     U32 ErrorPorts = 0;
     U32 ActiveSlots = 0;
+    UINT UsbStoragePresent = 0;
+    UINT UsbStorageTotal = 0;
+    LPDRIVER UsbMassStorageDriver = USBMassStorageGetDriver();
 
     if (Context == NULL || Device == NULL) {
         return;
@@ -1093,6 +1184,14 @@ static void SystemDataViewDrawXhciDetails(LPSYSTEM_DATA_VIEW_CONTEXT Context, LP
         Device->EventRingCycleState);
     SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Completion Queue"),
         TEXT("%u\n"), Device->CompletionCount);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("USBMassStorage Driver"),
+        TEXT("Ready=%u\n"),
+        (UsbMassStorageDriver != NULL && (UsbMassStorageDriver->Flags & DRIVER_FLAG_READY) != 0) ? 1U : 0U);
+    SystemDataViewCountUsbStorage(&UsbStoragePresent, &UsbStorageTotal);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("USB Storage Entries"),
+        TEXT("%u/%u\n"),
+        (U32)UsbStoragePresent,
+        (U32)UsbStorageTotal);
 
     if (Device->OpBase != 0) {
         Usbcmd = XHCI_Read32(Device->OpBase, XHCI_OP_USBCMD);
@@ -1165,6 +1264,7 @@ static void SystemDataViewDrawXhciDetails(LPSYSTEM_DATA_VIEW_CONTEXT Context, LP
         U16 EnumCompletion = 0;
         U32 Present = 0;
         U32 SlotId = 0;
+        LPCSTR MassStorageHint = TEXT("-");
         STR Label[32];
 
         if (Connected) {
@@ -1179,6 +1279,7 @@ static void SystemDataViewDrawXhciDetails(LPSYSTEM_DATA_VIEW_CONTEXT Context, LP
             EnumCompletion = UsbDevice->LastEnumCompletion;
             Present = UsbDevice->Present ? 1U : 0U;
             SlotId = (U32)UsbDevice->SlotId;
+            MassStorageHint = SystemDataViewXhciMassStorageHint(UsbDevice);
         }
 
         if (EnumError != XHCI_ENUM_ERROR_NONE) {
@@ -1187,7 +1288,7 @@ static void SystemDataViewDrawXhciDetails(LPSYSTEM_DATA_VIEW_CONTEXT Context, LP
 
         StringPrintFormat(Label, TEXT("Port %u"), PortIndex + 1);
         SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, Label,
-            TEXT("CCS=%u PED=%u PR=%u PP=%u Speed=%x PLS=%x Raw=%x Err=%s C=%x Present=%u Slot=%u\n"),
+            TEXT("CCS=%u PED=%u PR=%u PP=%u Speed=%x PLS=%x Raw=%x Err=%s C=%x Present=%u Slot=%u MS=%s\n"),
             Connected ? 1U : 0U,
             Enabled ? 1U : 0U,
             Reset ? 1U : 0U,
@@ -1198,7 +1299,8 @@ static void SystemDataViewDrawXhciDetails(LPSYSTEM_DATA_VIEW_CONTEXT Context, LP
             SystemDataViewXhciEnumErrorToString(EnumError),
             (U32)EnumCompletion,
             Present,
-            SlotId);
+            SlotId,
+            MassStorageHint);
     }
 
     SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Port Summary"),
