@@ -26,7 +26,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "process/Process.h"
-#include "process/TaskMessaging.h"
+#include "process/Task-Messaging.h"
 #include "CoreString.h"
 #include "utils/Helpers.h"
 

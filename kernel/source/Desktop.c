@@ -28,7 +28,7 @@
 #include "Log.h"
 #include "Mouse.h"
 #include "process/Process.h"
-#include "process/TaskMessaging.h"
+#include "process/Task-Messaging.h"
 
 /***************************************************************************/
 

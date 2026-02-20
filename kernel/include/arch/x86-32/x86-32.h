@@ -32,7 +32,7 @@
 #include "drivers/DeviceInterrupt.h"
 #include "arch/intel/x86-Common.h"
 #include "arch/x86-32/x86-32-Memory.h"
-#include "process/TaskStack.h"
+#include "process/Task-Stack.h"
 
 /************************************************************************/
 // #define declarations
