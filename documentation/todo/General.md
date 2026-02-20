@@ -28,6 +28,10 @@
 
 - Use __func__ to automatically include function name
 
+## Session
+
+- Lock session on inactivity (console & graphics display)
+
 ## Errors
 
 - Functions returning U32 MUST return DF_RETURN_XXXX codes : meaning 0 on success, an error otherwise.
@@ -36,6 +40,8 @@
 ## Shell kernel objects exposure
 
 ## Scripting
+
+- Reserve dedicated memory region for scripting heap
 
 ## Console
 
