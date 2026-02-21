@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # Script to find structures that don't follow the tag_SCREAMING_SNAKE_CASE format
-# Usage: ./scripts/check_struct_naming.sh
 
 echo "Checking struct naming conventions in .h and .c files..."
 echo "Expected format: tag_SCREAMING_SNAKE_CASE"

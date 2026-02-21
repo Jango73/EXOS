@@ -1,7 +1,7 @@
 
 /************************************************************************\
 
-    EXOS Kernel
+    <Domain name>
     Copyright (c) 1999-2025 Jango73
 
     This program is free software: you can redistribute it and/or modify
@@ -18,31 +18,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Kernel event primitive used to bridge interrupts and tasks
+    <Module name>
 
 \************************************************************************/
-
-#ifndef KERNELEVENT_H_INCLUDED
-#define KERNELEVENT_H_INCLUDED
-
-#include "List.h"
-#include "ID.h"
-
-/************************************************************************/
-
-typedef struct tag_KERNEL_EVENT {
-    LISTNODE_FIELDS
-    volatile BOOL Signaled;
-    volatile U32 SignalCount;
-} KERNEL_EVENT, *LPKERNEL_EVENT;
-
-/************************************************************************/
-
-LPKERNEL_EVENT CreateKernelEvent(void);
-BOOL DeleteKernelEvent(LPKERNEL_EVENT Event);
-void SignalKernelEvent(LPKERNEL_EVENT Event);
-void ResetKernelEvent(LPKERNEL_EVENT Event);
-BOOL KernelEventIsSignaled(LPKERNEL_EVENT Event);
-U32 KernelEventGetSignalCount(LPKERNEL_EVENT Event);
-
-#endif // KERNELEVENT_H_INCLUDED
