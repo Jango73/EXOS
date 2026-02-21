@@ -45,6 +45,8 @@ typedef struct tag_TASK TASK, *LPTASK;
 #define USER_STATUS_ACTIVE 0x00000001
 #define USER_STATUS_SUSPENDED 0x00000002
 #define USER_STATUS_LOCKED 0x00000004
+#define USER_SESSION_LOCK_REASON_TIMEOUT 1
+#define USER_SESSION_LOCK_REASON_MANUAL 2
 
 /************************************************************************/
 
@@ -67,6 +69,11 @@ typedef struct tag_USERSESSION {
     U64 UserID;             // Logged in user
     DATETIME LoginTime;     // Login time
     DATETIME LastActivity;  // Last activity
+    U32 LastActivityMs;     // Last activity uptime in milliseconds
+    BOOL IsLocked;          // Session lock state
+    U32 LockReason;         // USER_SESSION_LOCK_REASON_*
+    DATETIME LockTime;      // Lock time
+    U32 FailedUnlockCount;  // Failed unlock attempts
     HANDLE ShellTask;       // Associated shell task (HANDLE to TASK)
 } USERSESSION, *LPUSERSESSION;
 
@@ -95,6 +102,12 @@ void DestroyUserSession(LPUSERSESSION Session);
 void TimeoutInactiveSessions(void);
 LPUSERSESSION GetCurrentSession(void);
 BOOL SetCurrentSession(LPUSERSESSION Session);
+BOOL IsUserSessionTimedOut(LPUSERSESSION Session);
+BOOL IsUserSessionLocked(LPUSERSESSION Session);
+BOOL LockUserSession(LPUSERSESSION Session, U32 Reason);
+BOOL UnlockUserSession(LPUSERSESSION Session);
+BOOL VerifySessionUnlockPassword(LPUSERSESSION Session, LPCSTR Password);
+BOOL SessionUserRequiresPassword(LPUSERSESSION Session);
 
 /************************************************************************/
 

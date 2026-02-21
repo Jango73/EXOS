@@ -48,11 +48,17 @@ typedef BOOL (*COMMANDLINEEDITOR_COMPLETION_CALLBACK)(
 
 /***************************************************************************/
 
+typedef BOOL (*COMMANDLINEEDITOR_IDLE_CALLBACK)(LPVOID);
+
+/***************************************************************************/
+
 typedef struct tag_COMMANDLINEEDITOR {
     STRINGARRAY History;
     U32 HistoryCapacity;
     COMMANDLINEEDITOR_COMPLETION_CALLBACK CompletionCallback;
     LPVOID CompletionUserData;
+    COMMANDLINEEDITOR_IDLE_CALLBACK IdleCallback;
+    LPVOID IdleUserData;
 } COMMANDLINEEDITOR, *LPCOMMANDLINEEDITOR;
 
 /***************************************************************************/
@@ -62,6 +68,10 @@ void CommandLineEditorDeinit(LPCOMMANDLINEEDITOR Editor);
 void CommandLineEditorSetCompletionCallback(
     LPCOMMANDLINEEDITOR Editor,
     COMMANDLINEEDITOR_COMPLETION_CALLBACK Callback,
+    LPVOID UserData);
+void CommandLineEditorSetIdleCallback(
+    LPCOMMANDLINEEDITOR Editor,
+    COMMANDLINEEDITOR_IDLE_CALLBACK Callback,
     LPVOID UserData);
 BOOL CommandLineEditorReadLine(
     LPCOMMANDLINEEDITOR Editor,

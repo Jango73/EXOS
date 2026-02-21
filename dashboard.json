@@ -4,53 +4,48 @@
     ],
     "scriptsDir": "scripts",
     "keyBindings": {
-        "f9": { "label": "Setup Dependencies", "script": "1-1-setup-deps.sh" },
-        "f10": { "label": "Format Code", "script": "3-1-format-all-code.sh" },
-        "f11": { "label": "Build help", "script": "3-2-generate-kernel-docs.sh" },
-        "f12": { "label": "Start server", "script": "net/start-server.sh" },
+        "C-w": { "label": "Setup Dependencies", "script": "1-1-setup-deps.sh" },
+        "C-x": { "label": "Format Code", "script": "3-1-format-all-code.sh" },
+        "C-c": { "label": "Build help", "script": "3-2-generate-kernel-docs.sh" },
+        "C-v": { "label": "Start server", "script": "net/start-server.sh" },
 
-        "x86-32-----------------": "",
+        "x86-32 build--------": "",
 
-        "C-z": { "label": "Build 32 MBR Release", "script": "scripts/build --arch x86-32 --fs ext2 --release --clean" },
-        "C-e": { "label": "Build 32 MBR Debug", "script": "scripts/build --arch x86-32 --fs ext2 --debug --clean" },
-        "C-r": { "label": "Build 32 MBR Debug Split", "script": "scripts/build --arch x86-32 --fs ext2 --debug --split --clean" },
+        "C-a": { "label": "Build 32 MBR Release", "script": "scripts/build --arch x86-32 --fs ext2 --release --clean" },
+        "C-z": { "label": "Build 32 MBR Debug", "script": "scripts/build --arch x86-32 --fs ext2 --debug --clean" },
+        "C-e": { "label": "Build 32 MBR Debug Split", "script": "scripts/build --arch x86-32 --fs ext2 --debug --split --clean" },
 
-        "C-w": { "label": "Build 32 System Data View", "script": "scripts/build --arch x86-32 --fs ext2 --system-data-view --clean" },
-        "C-x": { "label": "Build 32 VESA Test Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/vesa-test.c ARCH=x86-32 install-vbr-payload" },
-        "C-c": { "label": "Build 32 Dumper Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/dumper*.c ARCH=x86-32 install-vbr-payload" },
-        "C-v": { "label": "Build 32 BIOS Keyboard Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/bios-keyboard.c ARCH=x86-32 install-vbr-payload" },
+        "C-r": { "label": "Build 32 System Data View", "script": "scripts/build --arch x86-32 --fs ext2 --system-data-view --clean" },
+        "C-t": { "label": "Build 32 VESA Test Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/vesa-test.c ARCH=x86-32 install-vbr-payload" },
+        "C-y": { "label": "Build 32 Dumper Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/dumper*.c ARCH=x86-32 install-vbr-payload" },
+        "C-u": { "label": "Build 32 BIOS Keyboard Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/bios-keyboard.c ARCH=x86-32 install-vbr-payload" },
+
+        "x86-32 run----------": "",
 
         "f1": { "label": "Start 32 QEMU MBR Release", "script": "scripts/run --arch x86-32 --fs ext2 --release" },
         "f2": { "label": "Start 32 QEMU MBR Debug", "script": "scripts/run --arch x86-32 --fs ext2 --debug" },
 
-        "x86-64---------------": "",
+        "x86-64 build--------": "",
 
-        "C-s": { "label": "Build 64 MBR Release", "script": "scripts/build --arch x86-64 --fs ext2 --release --clean" },
-        "C-d": { "label": "Build 64 MBR Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug --clean" },
-        "C-f": { "label": "Build 64 MBR Debug Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split --clean" },
+        "C-q": { "label": "Build 64 MBR Release", "script": "scripts/build --arch x86-64 --fs ext2 --release --clean" },
+        "C-s": { "label": "Build 64 MBR Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug --clean" },
+        "C-d": { "label": "Build 64 MBR Rel Split", "script": "scripts/build --arch x86-64 --fs ext2 --release --split --clean" },
+        "C-f": { "label": "Build 64 MBR Deb Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split --clean" },
         "C-g": { "label": "Build 64 UEFI Release", "script": "scripts/build --arch x86-64 --fs ext2 --release --uefi --clean" },
-        "C-g": { "label": "Build 64 UEFI Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug --uefi --clean" },
-        "C-j": { "label": "Build 64 UEFI Debug Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split --uefi --boot-stage-markers --clean" },
+        "C-h": { "label": "Build 64 UEFI Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug --uefi --clean" },
+        "C-j": { "label": "Build 64 UEFI Release Split", "script": "scripts/build --arch x86-64 --fs ext2 --release --split --uefi --clean" },
+        "C-k": { "label": "Build 64 UEFI Debug Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split --uefi --boot-stage-markers --clean" },
 
-        "f4": { "label": "Start 64 QEMU MBR Release", "script": "scripts/run --arch x86-64 --fs ext2 --release" },
-        "f5": { "label": "Start 64 QEMU MBR Debug", "script": "scripts/run --arch x86-64 --fs ext2 --debug" },
-        "f6": { "label": "Start 64 QEMU MBR Debug Split", "script": "scripts/run --arch x86-64 --fs ext2 --debug --split" },
-        "f7": { "label": "Start 64 QEMU UEFI Debug", "script": "scripts/run --arch x86-64 --fs ext2 --debug --uefi" },
-        "f8": { "label": "Start 64 QEMU UEFI Debug Split", "script": "scripts/run --arch x86-64 --fs ext2 --debug --uefi --split" },
+        "x86-64 run----------": "",
 
-        "3--------------------": "",
-
-        "p": { "label": "Git Pull", "script": "git pull" },
-        "S-p": { "label": "Git Push", "script": "git push" },
-        "s": { "label": "Git Status", "script": "git status" },
-        "S-s": { "label": "Git Diff Staged", "script": "git diff --staged" },
-
-        "4--------------------": "",
-
-        "n": { "label": "Netboot Setup Dry Run (x86-64)", "script": "scripts/net/setup-local-netboot.sh --arch x86-64 --dry-run" },
-        "S-n": { "label": "Netboot Setup (x86-64)", "script": "sudo scripts/net/setup-local-netboot.sh --arch x86-64" },
-        "m": { "label": "Netboot Deploy Latest + Rotate (x86-64)", "script": "sudo scripts/net/deploy-local-netboot.sh --arch x86-64 --slot latest --rotate" },
-        "S-m": { "label": "Netboot Deploy Safe (x86-64)", "script": "sudo scripts/net/deploy-local-netboot.sh --arch x86-64 --slot safe" }
+        "f5": { "label": "Start 64 QEMU MBR Release", "script": "scripts/run --arch x86-64 --fs ext2 --release" },
+        "f6": { "label": "Start 64 QEMU MBR Debug", "script": "scripts/run --arch x86-64 --fs ext2 --debug" },
+        "f7": { "label": "Start 64 QEMU MBR Rel Split", "script": "scripts/run --arch x86-64 --fs ext2 --release --split" },
+        "f8": { "label": "Start 64 QEMU MBR Deb Split", "script": "scripts/run --arch x86-64 --fs ext2 --debug --split" },
+        "f9": { "label": "Start 64 QEMU UEFI Rel", "script": "scripts/run --arch x86-64 --fs ext2 --release --uefi" },
+        "f10": { "label": "Start 64 QEMU UEFI Deb", "script": "scripts/run --arch x86-64 --fs ext2 --debug --uefi" },
+        "f11": { "label": "Start 64 QEMU UEFI Rel Split", "script": "scripts/run --arch x86-64 --fs ext2 --release --uefi --split" },
+        "f12": { "label": "Start 64 QEMU UEFI Deb Split", "script": "scripts/run --arch x86-64 --fs ext2 --debug --uefi --split" }
     },
     "settings": {
         "enableCommandHistory": true,

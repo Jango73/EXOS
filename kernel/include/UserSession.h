@@ -52,6 +52,12 @@ void TimeoutInactiveSessions(void);
 LPUSERSESSION FindSessionByTask(HANDLE Task);
 LPUSERSESSION GetCurrentSession(void);
 void UpdateSessionActivity(LPUSERSESSION Session);
+BOOL IsUserSessionTimedOut(LPUSERSESSION Session);
+BOOL IsUserSessionLocked(LPUSERSESSION Session);
+BOOL LockUserSession(LPUSERSESSION Session, U32 Reason);
+BOOL UnlockUserSession(LPUSERSESSION Session);
+BOOL VerifySessionUnlockPassword(LPUSERSESSION Session, LPCSTR Password);
+BOOL SessionUserRequiresPassword(LPUSERSESSION Session);
 
 /************************************************************************/
 

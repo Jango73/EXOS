@@ -25,6 +25,7 @@
 #include "UserSession.h"
 
 #include "Clock.h"
+#include "CoreString.h"
 #include "Heap.h"
 #include "utils/Helpers.h"
 #include "Kernel.h"
@@ -35,6 +36,50 @@
 #include "process/Schedule.h"
 #include "process/Task.h"
 #include "UserAccount.h"
+
+/************************************************************************/
+
+/**
+ * @brief Resolve configured inactivity timeout in milliseconds.
+ * @return Timeout in milliseconds.
+ */
+static U32 GetSessionTimeoutMilliseconds(void) {
+    LPCSTR TimeoutSecondsText = GetConfigurationValue(TEXT(CONFIG_SESSION_TIMEOUT_SECONDS));
+    LPCSTR TimeoutMinutesText = GetConfigurationValue(TEXT(CONFIG_SESSION_TIMEOUT_MINUTES));
+    U32 TimeoutMs = SESSION_TIMEOUT_MS;
+
+    if (!STRING_EMPTY(TimeoutSecondsText)) {
+        U32 ParsedSeconds = StringToU32(TimeoutSecondsText);
+        if (ParsedSeconds > 0) {
+            TimeoutMs = ParsedSeconds * 1000;
+        }
+    } else if (!STRING_EMPTY(TimeoutMinutesText)) {
+        U32 ParsedMinutes = StringToU32(TimeoutMinutesText);
+        if (ParsedMinutes > 0) {
+            TimeoutMs = ParsedMinutes * 60 * 1000;
+        }
+    }
+
+    return TimeoutMs;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Test if a user account has a defined non-empty password.
+ * @param Account User account to test.
+ * @return TRUE when a non-empty password is configured.
+ */
+static BOOL AccountHasDefinedPassword(LPUSERACCOUNT Account) {
+    SAFE_USE(Account) {
+        if (VerifyPassword(TEXT(""), Account->PasswordHash)) {
+            return FALSE;
+        }
+        return TRUE;
+    }
+
+    return FALSE;
+}
 
 /************************************************************************/
 
@@ -118,9 +163,14 @@ LPUSERSESSION CreateUserSession(U64 UserID, HANDLE ShellTask) {
     NewSession->SessionID = GenerateSessionID();
     NewSession->UserID = UserID;
     NewSession->ShellTask = ShellTask;
+    NewSession->IsLocked = FALSE;
+    NewSession->LockReason = 0;
+    NewSession->FailedUnlockCount = 0;
 
     GetLocalTime(&NewSession->LoginTime);
     NewSession->LastActivity = NewSession->LoginTime;
+    NewSession->LastActivityMs = GetSystemTime();
+    NewSession->LockTime = NewSession->LoginTime;
 
     // Add to list
     if (ListAddTail(SessionList, NewSession) == 0) {
@@ -149,23 +199,11 @@ LPUSERSESSION CreateUserSession(U64 UserID, HANDLE ShellTask) {
  * @return TRUE if session is valid, FALSE otherwise.
  */
 BOOL ValidateUserSession(LPUSERSESSION Session) {
-    if (Session == NULL || Session->TypeID != KOID_USERSESSION) {
+    if (Session == NULL || Session->TypeID != KOID_USERSESSION || Session->IsLocked) {
         return FALSE;
     }
 
-    DATETIME CurrentTime;
-    GetLocalTime(&CurrentTime);
-
-    // Check if session has timed out
-    U32 CurrentTimeMs =
-        CurrentTime.Hour * 3600000 + CurrentTime.Minute * 60000 + CurrentTime.Second * 1000 + CurrentTime.Milli;
-
-    U32 LastActivityMs = Session->LastActivity.Hour * 3600000 + Session->LastActivity.Minute * 60000 +
-                         Session->LastActivity.Second * 1000 + Session->LastActivity.Milli;
-
-    // Simple timeout check (simplified for now)
-    // TODO: Implement proper time comparison handling day/month/year changes
-    if (CurrentTime.Day == Session->LastActivity.Day && CurrentTimeMs > LastActivityMs + SESSION_TIMEOUT_MS) {
+    if (IsUserSessionTimedOut(Session)) {
         return FALSE;
     }
 
@@ -191,17 +229,145 @@ void DestroyUserSession(LPUSERSESSION Session) {
 
     UnlockMutex(MUTEX_SESSION);
 
-        U32 UserIdHigh = U64_High32(Session->UserID);
-        U32 UserIdLow = U64_Low32(Session->UserID);
-        DEBUG(TEXT("Destroyed session for user ID: %08X%08X"), UserIdHigh, UserIdLow);
-        UNUSED(UserIdHigh);
-        UNUSED(UserIdLow);
+    U32 UserIdHigh = U64_High32(Session->UserID);
+    U32 UserIdLow = U64_Low32(Session->UserID);
+    DEBUG(TEXT("[DestroyUserSession] Destroyed session for user ID: %08X%08X"), UserIdHigh, UserIdLow);
+    UNUSED(UserIdHigh);
+    UNUSED(UserIdLow);
 }
 
 /************************************************************************/
 
 /**
- * @brief Clean up inactive sessions.
+ * @brief Check whether a session inactivity timeout is reached.
+ * @param Session Session to test.
+ * @return TRUE when inactivity timeout is reached.
+ */
+BOOL IsUserSessionTimedOut(LPUSERSESSION Session) {
+    U32 TimeoutMs;
+    U32 CurrentMs;
+    U32 ElapsedMs;
+
+    SAFE_USE_VALID_ID(Session, KOID_USERSESSION) {
+        TimeoutMs = GetSessionTimeoutMilliseconds();
+        CurrentMs = GetSystemTime();
+        ElapsedMs = (U32)(CurrentMs - Session->LastActivityMs);
+        return (ElapsedMs >= TimeoutMs);
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Query session lock state.
+ * @param Session Session to inspect.
+ * @return TRUE when locked.
+ */
+BOOL IsUserSessionLocked(LPUSERSESSION Session) {
+    SAFE_USE_VALID_ID(Session, KOID_USERSESSION) {
+        return Session->IsLocked ? TRUE : FALSE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Lock one user session.
+ * @param Session Session to lock.
+ * @param Reason Lock reason code.
+ * @return TRUE on success, FALSE on failure.
+ */
+BOOL LockUserSession(LPUSERSESSION Session, U32 Reason) {
+    SAFE_USE_VALID_ID(Session, KOID_USERSESSION) {
+        if (Session->IsLocked) {
+            return TRUE;
+        }
+
+        Session->IsLocked = TRUE;
+        Session->LockReason = Reason;
+        Session->FailedUnlockCount = 0;
+        GetLocalTime(&Session->LockTime);
+
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Unlock one user session.
+ * @param Session Session to unlock.
+ * @return TRUE on success, FALSE on failure.
+ */
+BOOL UnlockUserSession(LPUSERSESSION Session) {
+    SAFE_USE_VALID_ID(Session, KOID_USERSESSION) {
+        Session->IsLocked = FALSE;
+        Session->LockReason = 0;
+        Session->FailedUnlockCount = 0;
+        UpdateSessionActivity(Session);
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Verify one password attempt for unlocking a session.
+ * @param Session Locked session.
+ * @param Password Password text.
+ * @return TRUE when password is valid.
+ */
+BOOL VerifySessionUnlockPassword(LPUSERSESSION Session, LPCSTR Password) {
+    LPUSERACCOUNT Account;
+
+    SAFE_USE_VALID_ID(Session, KOID_USERSESSION) {
+        if (Password == NULL) {
+            return FALSE;
+        }
+
+        Account = FindUserAccountByID(Session->UserID);
+        SAFE_USE_VALID_ID(Account, KOID_USERACCOUNT) {
+            if (VerifyPassword(Password, Account->PasswordHash)) {
+                return TRUE;
+            }
+        }
+
+        Session->FailedUnlockCount++;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Check whether the session owner has a defined password.
+ * @param Session Session to inspect.
+ * @return TRUE when lock should require a password.
+ */
+BOOL SessionUserRequiresPassword(LPUSERSESSION Session) {
+    LPUSERACCOUNT Account;
+
+    SAFE_USE_VALID_ID(Session, KOID_USERSESSION) {
+        Account = FindUserAccountByID(Session->UserID);
+        return AccountHasDefinedPassword(Account);
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Lock inactive sessions instead of deleting them.
  */
 void TimeoutInactiveSessions(void) {
     LPLIST SessionList = GetUserSessionList();
@@ -214,16 +380,19 @@ void TimeoutInactiveSessions(void) {
     U32 Count = ListGetSize(SessionList);
     for (U32 i = 0; i < Count; i++) {
         LPUSERSESSION Session = (LPUSERSESSION)ListGetItem(SessionList, i);
-        if (Session != NULL && !ValidateUserSession(Session)) {
+        if (Session != NULL && Session->IsLocked == FALSE && IsUserSessionTimedOut(Session)) {
+            if (!SessionUserRequiresPassword(Session)) {
+                UpdateSessionActivity(Session);
+                continue;
+            }
+
             U32 UserIdHigh = U64_High32(Session->UserID);
             U32 UserIdLow = U64_Low32(Session->UserID);
-            DEBUG(TEXT("Timing out session for user ID: %08X%08X"), UserIdHigh, UserIdLow);
+            DEBUG(TEXT("[TimeoutInactiveSessions] Locking session for user ID: %08X%08X"), UserIdHigh, UserIdLow);
             UNUSED(UserIdHigh);
             UNUSED(UserIdLow);
 
-            ListErase(SessionList, Session);
-            i--;  // Adjust index since list size changed
-            Count--;
+            LockUserSession(Session, USER_SESSION_LOCK_REASON_TIMEOUT);
         }
     }
 
@@ -265,23 +434,15 @@ LPUSERSESSION FindSessionByTask(HANDLE Task) {
  * @return Pointer to current session or NULL if none.
  */
 LPUSERSESSION GetCurrentSession(void) {
-    LPUSERACCOUNT CurrentUser = GetCurrentUser();
-    LPLIST SessionList = GetUserSessionList();
-    if (CurrentUser == NULL || SessionList == NULL) {
+    LPPROCESS CurrentProcess = GetCurrentProcess();
+    if (CurrentProcess == NULL) {
         return NULL;
     }
 
-    // Find the session for the current user
-    LockMutex(MUTEX_SESSION, INFINITY);
-    U32 Count = ListGetSize(SessionList);
-    for (U32 i = 0; i < Count; i++) {
-        LPUSERSESSION Session = (LPUSERSESSION)ListGetItem(SessionList, i);
-        if (Session != NULL && U64_Cmp(Session->UserID, CurrentUser->UserID) == 0) {
-            UnlockMutex(MUTEX_SESSION);
-            return Session;
-        }
+    SAFE_USE_VALID_ID(CurrentProcess->Session, KOID_USERSESSION) {
+        return CurrentProcess->Session;
     }
-    UnlockMutex(MUTEX_SESSION);
+
     return NULL;
 }
 
@@ -292,13 +453,14 @@ LPUSERSESSION GetCurrentSession(void) {
  * @param Session Session to update.
  */
 void UpdateSessionActivity(LPUSERSESSION Session) {
-    if (Session == NULL) {
-        return;
+    SAFE_USE_VALID_ID(Session, KOID_USERSESSION) {
+        if (Session->IsLocked) {
+            return;
+        }
+
+        GetLocalTime(&Session->LastActivity);
+        Session->LastActivityMs = GetSystemTime();
     }
-
-    GetLocalTime(&Session->LastActivity);
-
-    // CurrentUser is now obtained through GetCurrentUser() via process->session
 }
 
 /************************************************************************/

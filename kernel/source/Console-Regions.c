@@ -22,10 +22,230 @@
 \************************************************************************/
 
 #include "Console-Internal.h"
+#include "Heap.h"
 #include "Kernel.h"
+#include "Memory.h"
+#include "Mutex.h"
 #include "drivers/Keyboard.h"
 #include "VKey.h"
 #include "System.h"
+
+/***************************************************************************/
+
+typedef struct tag_CONSOLE_ACTIVE_REGION_SNAPSHOT {
+    BOOL IsValid;
+    BOOL IsFramebuffer;
+    U32 RegionX;
+    U32 RegionY;
+    U32 RegionWidth;
+    U32 RegionHeight;
+    U32 CursorX;
+    U32 CursorY;
+    U32 ForeColor;
+    U32 BackColor;
+    U32 Blink;
+    U32 TextCellCount;
+    U16* TextBuffer;
+    U32 FramebufferSize;
+    U32 FramebufferRowBytes;
+    U32 FramebufferPixelX;
+    U32 FramebufferPixelY;
+    U32 FramebufferPixelHeight;
+    U8* FramebufferBuffer;
+} CONSOLE_ACTIVE_REGION_SNAPSHOT, *LPCONSOLE_ACTIVE_REGION_SNAPSHOT;
+
+/***************************************************************************/
+
+/**
+ * @brief Capture the active console region as a reusable snapshot.
+ * @param OutSnapshot Receives an opaque snapshot pointer.
+ * @return TRUE on success.
+ */
+BOOL ConsoleCaptureActiveRegionSnapshot(LPVOID* OutSnapshot) {
+    LPCONSOLE_ACTIVE_REGION_SNAPSHOT Snapshot;
+    U32 CellCount;
+    U32 CellBytes;
+    U32 CellBytesPerRow;
+    U32 RegionOffset;
+    U32 CellWidth;
+    U32 CellHeight;
+    U32 BytesPerPixel;
+    U32 FramebufferOffset;
+
+    if (OutSnapshot == NULL) {
+        return FALSE;
+    }
+
+    *OutSnapshot = NULL;
+
+    Snapshot = (LPCONSOLE_ACTIVE_REGION_SNAPSHOT)KernelHeapAlloc(sizeof(CONSOLE_ACTIVE_REGION_SNAPSHOT));
+    if (Snapshot == NULL) {
+        return FALSE;
+    }
+
+    MemorySet(Snapshot, 0, sizeof(CONSOLE_ACTIVE_REGION_SNAPSHOT));
+
+    LockMutex(MUTEX_CONSOLE, INFINITY);
+
+    Snapshot->CursorX = Console.CursorX;
+    Snapshot->CursorY = Console.CursorY;
+    Snapshot->ForeColor = Console.ForeColor;
+    Snapshot->BackColor = Console.BackColor;
+    Snapshot->Blink = Console.Blink;
+    Snapshot->IsFramebuffer = Console.UseFramebuffer ? TRUE : FALSE;
+    Snapshot->RegionX = Console.Regions[0].X;
+    Snapshot->RegionY = Console.Regions[0].Y;
+    Snapshot->RegionWidth = Console.Regions[0].Width;
+    Snapshot->RegionHeight = Console.Regions[0].Height;
+
+    if (Snapshot->IsFramebuffer == FALSE) {
+        CellCount = Snapshot->RegionWidth * Snapshot->RegionHeight;
+        CellBytes = CellCount * sizeof(U16);
+        CellBytesPerRow = Snapshot->RegionWidth * sizeof(U16);
+        Snapshot->TextBuffer = (U16*)KernelHeapAlloc(CellBytes);
+        if (Snapshot->TextBuffer != NULL) {
+            for (U32 Row = 0; Row < Snapshot->RegionHeight; Row++) {
+                RegionOffset = ((Snapshot->RegionY + Row) * Console.ScreenWidth) + Snapshot->RegionX;
+                MemoryCopy(
+                    Snapshot->TextBuffer + (Row * Snapshot->RegionWidth),
+                    Console.Memory + RegionOffset,
+                    CellBytesPerRow);
+            }
+            Snapshot->TextCellCount = CellCount;
+            Snapshot->IsValid = TRUE;
+        }
+    } else {
+        if (ConsoleEnsureFramebufferMapped() == TRUE) {
+            CellWidth = ConsoleGetCellWidth();
+            CellHeight = ConsoleGetCellHeight();
+            BytesPerPixel = Console.FramebufferBytesPerPixel;
+
+            if (CellWidth > 0 && CellHeight > 0 && BytesPerPixel > 0) {
+                Snapshot->FramebufferPixelX = Snapshot->RegionX * CellWidth;
+                Snapshot->FramebufferPixelY = Snapshot->RegionY * CellHeight;
+                Snapshot->FramebufferPixelHeight = Snapshot->RegionHeight * CellHeight;
+                Snapshot->FramebufferRowBytes =
+                    (Snapshot->RegionWidth * CellWidth) * BytesPerPixel;
+                Snapshot->FramebufferSize =
+                    Snapshot->FramebufferRowBytes * Snapshot->FramebufferPixelHeight;
+                Snapshot->FramebufferBuffer = (U8*)KernelHeapAlloc(Snapshot->FramebufferSize);
+
+                if (Snapshot->FramebufferBuffer != NULL) {
+                    for (U32 Row = 0; Row < Snapshot->FramebufferPixelHeight; Row++) {
+                        FramebufferOffset =
+                            ((Snapshot->FramebufferPixelY + Row) * Console.FramebufferPitch) +
+                            (Snapshot->FramebufferPixelX * BytesPerPixel);
+                        MemoryCopy(
+                            Snapshot->FramebufferBuffer + (Row * Snapshot->FramebufferRowBytes),
+                            Console.FramebufferLinear + FramebufferOffset,
+                            Snapshot->FramebufferRowBytes);
+                    }
+                    Snapshot->IsValid = TRUE;
+                }
+            }
+        }
+    }
+
+    UnlockMutex(MUTEX_CONSOLE);
+
+    if (Snapshot->IsValid == FALSE) {
+        SAFE_USE(Snapshot->TextBuffer) { KernelHeapFree(Snapshot->TextBuffer); }
+        SAFE_USE(Snapshot->FramebufferBuffer) { KernelHeapFree(Snapshot->FramebufferBuffer); }
+        KernelHeapFree(Snapshot);
+        return FALSE;
+    }
+
+    *OutSnapshot = Snapshot;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Restore a previously captured active console region snapshot.
+ * @param Snapshot Opaque snapshot pointer.
+ * @return TRUE on success.
+ */
+BOOL ConsoleRestoreActiveRegionSnapshot(LPVOID Snapshot) {
+    LPCONSOLE_ACTIVE_REGION_SNAPSHOT State = (LPCONSOLE_ACTIVE_REGION_SNAPSHOT)Snapshot;
+    U32 CellBytesPerRow;
+    U32 RegionOffset;
+    U32 BytesPerPixel;
+    U32 FramebufferOffset;
+
+    if (State == NULL || State->IsValid == FALSE) {
+        return FALSE;
+    }
+
+    LockMutex(MUTEX_CONSOLE, INFINITY);
+
+    if (State->IsFramebuffer == FALSE) {
+        if (State->TextBuffer == NULL || State->TextCellCount == 0) {
+            UnlockMutex(MUTEX_CONSOLE);
+            return FALSE;
+        }
+
+        CellBytesPerRow = State->RegionWidth * sizeof(U16);
+        for (U32 Row = 0; Row < State->RegionHeight; Row++) {
+            RegionOffset = ((State->RegionY + Row) * Console.ScreenWidth) + State->RegionX;
+            MemoryCopy(
+                Console.Memory + RegionOffset,
+                State->TextBuffer + (Row * State->RegionWidth),
+                CellBytesPerRow);
+        }
+    } else {
+        if (ConsoleEnsureFramebufferMapped() == FALSE) {
+            UnlockMutex(MUTEX_CONSOLE);
+            return FALSE;
+        }
+
+        BytesPerPixel = Console.FramebufferBytesPerPixel;
+        if (State->FramebufferBuffer == NULL ||
+            State->FramebufferRowBytes == 0 ||
+            State->FramebufferPixelHeight == 0 ||
+            BytesPerPixel == 0) {
+            UnlockMutex(MUTEX_CONSOLE);
+            return FALSE;
+        }
+
+        for (U32 Row = 0; Row < State->FramebufferPixelHeight; Row++) {
+            FramebufferOffset =
+                ((State->FramebufferPixelY + Row) * Console.FramebufferPitch) +
+                (State->FramebufferPixelX * BytesPerPixel);
+            MemoryCopy(
+                Console.FramebufferLinear + FramebufferOffset,
+                State->FramebufferBuffer + (Row * State->FramebufferRowBytes),
+                State->FramebufferRowBytes);
+        }
+    }
+
+    Console.ForeColor = State->ForeColor;
+    Console.BackColor = State->BackColor;
+    Console.Blink = State->Blink;
+
+    UnlockMutex(MUTEX_CONSOLE);
+
+    SetConsoleCursorPosition(State->CursorX, State->CursorY);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Release a snapshot created by ConsoleCaptureActiveRegionSnapshot.
+ * @param Snapshot Opaque snapshot pointer.
+ */
+void ConsoleReleaseActiveRegionSnapshot(LPVOID Snapshot) {
+    LPCONSOLE_ACTIVE_REGION_SNAPSHOT State = (LPCONSOLE_ACTIVE_REGION_SNAPSHOT)Snapshot;
+
+    if (State == NULL) {
+        return;
+    }
+
+    SAFE_USE(State->TextBuffer) { KernelHeapFree(State->TextBuffer); }
+    SAFE_USE(State->FramebufferBuffer) { KernelHeapFree(State->FramebufferBuffer); }
+    KernelHeapFree(State);
+}
 
 /***************************************************************************/
 
