@@ -144,6 +144,11 @@ typedef struct tag_TOC_LIST {
     size_t Capacity;
 } TOC_LIST;
 
+/**
+ * @brief Prints the command-line usage and supported options to stdout.
+ *
+ * This is invoked for --help / -h and when arguments are missing.
+ */
 static void Usage(void) {
     printf("Usage:\n");
     printf("  epk-pack pack --input <folder> --output <file.epk> [options]\n\n");
@@ -157,16 +162,40 @@ static void Usage(void) {
     printf("  --signature-output <raw|hex>\n");
 }
 
+/**
+ * @brief Prints a fatal error message and terminates the process.
+ *
+ * This function does not return.
+ *
+ * @param Message Human-readable error message (no formatting).
+ */
 static void Fail(const char *Message) {
     fprintf(stderr, "error: %s\n", Message);
     exit(1);
 }
 
+/**
+ * @brief Prints a fatal error message including strerror(errno) and terminates the process.
+ *
+ * This function does not return.
+ *
+ * @param Prefix Context prefix describing the failing operation (e.g. "cannot open file").
+ * @param Path Path associated with the failing operation.
+ */
 static void FailErrno(const char *Prefix, const char *Path) {
     fprintf(stderr, "error: %s '%s': %s\n", Prefix, Path, strerror(errno));
     exit(1);
 }
 
+/**
+ * @brief Duplicates a NUL-terminated string using malloc().
+ *
+ * On allocation failure the process terminates via Fail().
+ *
+ * @param Value Source NUL-terminated string.
+ *
+ * @return Newly allocated string copy. The caller must free().
+ */
 static char *DupString(const char *Value) {
     size_t Length = strlen(Value);
     char *Copy = (char *)malloc(Length + 1);
@@ -177,10 +206,25 @@ static char *DupString(const char *Value) {
     return Copy;
 }
 
+/**
+ * @brief Initializes a BYTE_BUFFER to the empty state.
+ *
+ * Sets Data/Size/Capacity to zero.
+ *
+ * @param Buffer Buffer to initialize.
+ */
 static void ByteBufferInit(BYTE_BUFFER *Buffer) {
     memset(Buffer, 0, sizeof(*Buffer));
 }
 
+/**
+ * @brief Ensures a BYTE_BUFFER has at least the requested capacity.
+ *
+ * Capacity grows by doubling (starting at 4096 bytes). Terminates on overflow or OOM.
+ *
+ * @param Buffer Target buffer to grow.
+ * @param Needed Minimum capacity in bytes (not size).
+ */
 static void ByteBufferReserve(BYTE_BUFFER *Buffer, size_t Needed) {
     if (Needed <= Buffer->Capacity) {
         return;
@@ -200,6 +244,15 @@ static void ByteBufferReserve(BYTE_BUFFER *Buffer, size_t Needed) {
     Buffer->Capacity = NewCapacity;
 }
 
+/**
+ * @brief Appends bytes to a BYTE_BUFFER.
+ *
+ * Grows the buffer if needed and copies Size bytes from Data.
+ *
+ * @param Buffer Destination buffer.
+ * @param Data Source bytes to append.
+ * @param Size Number of bytes to append.
+ */
 static void ByteBufferAppend(BYTE_BUFFER *Buffer, const void *Data, size_t Size) {
     size_t NewSize = Buffer->Size + Size;
     if (NewSize < Buffer->Size) {
@@ -210,6 +263,14 @@ static void ByteBufferAppend(BYTE_BUFFER *Buffer, const void *Data, size_t Size)
     Buffer->Size = NewSize;
 }
 
+/**
+ * @brief Appends zero-initialized bytes to a BYTE_BUFFER.
+ *
+ * Grows the buffer if needed and writes Size bytes of 0x00.
+ *
+ * @param Buffer Destination buffer.
+ * @param Size Number of zero bytes to append.
+ */
 static void ByteBufferAppendZeros(BYTE_BUFFER *Buffer, size_t Size) {
     size_t NewSize = Buffer->Size + Size;
     if (NewSize < Buffer->Size) {
@@ -220,11 +281,26 @@ static void ByteBufferAppendZeros(BYTE_BUFFER *Buffer, size_t Size) {
     Buffer->Size = NewSize;
 }
 
+/**
+ * @brief Releases the storage owned by a BYTE_BUFFER and resets it.
+ *
+ * Safe to call on an already-empty buffer.
+ *
+ * @param Buffer Buffer to free/reset.
+ */
 static void ByteBufferFree(BYTE_BUFFER *Buffer) {
     free(Buffer->Data);
     memset(Buffer, 0, sizeof(*Buffer));
 }
 
+/**
+ * @brief Appends a string pointer to a TEXT_LIST (growing the list if needed).
+ *
+ * The list stores the pointer as-is (no duplication).
+ *
+ * @param List Target list.
+ * @param Item String pointer to store in the list.
+ */
 static void TextListPush(TEXT_LIST *List, char *Item) {
     if (List->Count == List->Capacity) {
         size_t NewCapacity = List->Capacity == 0 ? 16 : List->Capacity * 2;
@@ -238,6 +314,14 @@ static void TextListPush(TEXT_LIST *List, char *Item) {
     List->Items[List->Count++] = Item;
 }
 
+/**
+ * @brief Appends a FILE_ENTRY to a FILE_LIST (growing the list if needed).
+ *
+ * The entry is copied by value; ownership of any heap pointers inside remains with the caller's convention.
+ *
+ * @param List Target list.
+ * @param Entry File entry to append.
+ */
 static void FileListPush(FILE_LIST *List, FILE_ENTRY Entry) {
     if (List->Count == List->Capacity) {
         size_t NewCapacity = List->Capacity == 0 ? 16 : List->Capacity * 2;
@@ -251,6 +335,12 @@ static void FileListPush(FILE_LIST *List, FILE_ENTRY Entry) {
     List->Items[List->Count++] = Entry;
 }
 
+/**
+ * @brief Appends a BLOCK_ENTRY to a BLOCK_LIST (growing the list if needed).
+ *
+ * @param List Target list.
+ * @param Entry Block metadata to append.
+ */
 static void BlockListPush(BLOCK_LIST *List, BLOCK_ENTRY Entry) {
     if (List->Count == List->Capacity) {
         size_t NewCapacity = List->Capacity == 0 ? 64 : List->Capacity * 2;
@@ -264,6 +354,12 @@ static void BlockListPush(BLOCK_LIST *List, BLOCK_ENTRY Entry) {
     List->Items[List->Count++] = Entry;
 }
 
+/**
+ * @brief Appends a TOC_ENTRY to a TOC_LIST (growing the list if needed).
+ *
+ * @param List Target list.
+ * @param Entry TOC entry to append.
+ */
 static void TocListPush(TOC_LIST *List, TOC_ENTRY Entry) {
     if (List->Count == List->Capacity) {
         size_t NewCapacity = List->Capacity == 0 ? 64 : List->Capacity * 2;
@@ -277,24 +373,57 @@ static void TocListPush(TOC_LIST *List, TOC_ENTRY Entry) {
     List->Items[List->Count++] = Entry;
 }
 
+/**
+ * @brief qsort() comparator for an array of (char*).
+ *
+ * Compares the pointed-to strings with strcmp().
+ *
+ * @param A Pointer to a (char*) element.
+ * @param B Pointer to a (char*) element.
+ *
+ * @return Negative/zero/positive as in strcmp().
+ */
 static int CompareCStrings(const void *A, const void *B) {
     const char *Left = *(const char *const *)A;
     const char *Right = *(const char *const *)B;
     return strcmp(Left, Right);
 }
 
+/**
+ * @brief qsort() comparator for FILE_ENTRY items by RelativePath.
+ *
+ * @param A Pointer to a FILE_ENTRY.
+ * @param B Pointer to a FILE_ENTRY.
+ *
+ * @return Negative/zero/positive as in strcmp().
+ */
 static int CompareFileEntries(const void *A, const void *B) {
     const FILE_ENTRY *Left = (const FILE_ENTRY *)A;
     const FILE_ENTRY *Right = (const FILE_ENTRY *)B;
     return strcmp(Left->RelativePath, Right->RelativePath);
 }
 
+/**
+ * @brief qsort() comparator for TOC_ENTRY items by Path.
+ *
+ * @param A Pointer to a TOC_ENTRY.
+ * @param B Pointer to a TOC_ENTRY.
+ *
+ * @return Negative/zero/positive as in strcmp().
+ */
 static int CompareTocEntries(const void *A, const void *B) {
     const TOC_ENTRY *Left = (const TOC_ENTRY *)A;
     const TOC_ENTRY *Right = (const TOC_ENTRY *)B;
     return strcmp(Left->Path, Right->Path);
 }
 
+/**
+ * @brief Normalizes path separators in-place.
+ *
+ * Replaces '\\' characters with '/'.
+ *
+ * @param PathText Path string to normalize (modified in-place).
+ */
 static void NormalizeSlashes(char *PathText) {
     for (char *Cursor = PathText; *Cursor != '\0'; Cursor++) {
         if (*Cursor == '\\') {
@@ -303,6 +432,16 @@ static void NormalizeSlashes(char *PathText) {
     }
 }
 
+/**
+ * @brief Joins two path components with a '/' separator when needed.
+ *
+ * Allocates a new string via malloc(). The caller must free().
+ *
+ * @param Left Left path component.
+ * @param Right Right path component.
+ *
+ * @return Newly allocated joined path.
+ */
 static char *JoinPath(const char *Left, const char *Right) {
     size_t LeftLength = strlen(Left);
     size_t RightLength = strlen(Right);
@@ -322,6 +461,16 @@ static char *JoinPath(const char *Left, const char *Right) {
     return Result;
 }
 
+/**
+ * @brief Builds a normalized relative path from an absolute path inside a root folder.
+ *
+ * Fails if AbsolutePath does not start with RootPath (prevents escaping the package root).
+ *
+ * @param RootPath Absolute package root path.
+ * @param AbsolutePath Absolute path under RootPath.
+ *
+ * @return Newly allocated relative path (normalized to forward slashes).
+ */
 static char *RelativePathFromRoot(const char *RootPath, const char *AbsolutePath) {
     size_t RootLength = strlen(RootPath);
     if (strncmp(RootPath, AbsolutePath, RootLength) != 0) {
@@ -336,10 +485,28 @@ static char *RelativePathFromRoot(const char *RootPath, const char *AbsolutePath
     return Relative;
 }
 
+/**
+ * @brief Checks whether a directory entry name is "." or "..".
+ *
+ * @param Name Directory entry name.
+ *
+ * @return Non-zero if Name is "." or "..", otherwise 0.
+ */
 static int IsDotOrDotDot(const char *Name) {
     return (strcmp(Name, ".") == 0 || strcmp(Name, "..") == 0);
 }
 
+/**
+ * @brief Recursively walks the input folder and collects folders and files to be packaged.
+ *
+ * Traversal is made deterministic by sorting directory entries. Symbolic links are rejected. The manifest file itself is excluded from the file list.
+ *
+ * @param RootPath Resolved absolute root input folder.
+ * @param CurrentPath Current folder being visited (absolute).
+ * @param ManifestPath Resolved absolute manifest path to exclude from Files.
+ * @param Folders Output list of relative folder paths (heap strings).
+ * @param Files Output list of file entries with absolute/relative paths and stat() data.
+ */
 static void WalkInputTree(const char *RootPath,
                           const char *CurrentPath,
                           const char *ManifestPath,
@@ -410,6 +577,15 @@ static void WalkInputTree(const char *RootPath,
     free(Names.Items);
 }
 
+/**
+ * @brief Computes SHA-256 over an in-memory byte buffer.
+ *
+ * Uses BearSSL's SHA-256 implementation.
+ *
+ * @param Data Input bytes.
+ * @param Size Input size in bytes.
+ * @param Out Output 32-byte hash.
+ */
 static void Sha256Bytes(const uint8_t *Data, size_t Size, uint8_t Out[32]) {
     br_sha256_context Context;
     br_sha256_init(&Context);
@@ -417,6 +593,16 @@ static void Sha256Bytes(const uint8_t *Data, size_t Size, uint8_t Out[32]) {
     br_sha256_out(&Context, Out);
 }
 
+/**
+ * @brief Encodes a file modification time into a 64-bit packed timestamp.
+ *
+ * If Policy is MTIME_POLICY_ZERO, returns 0. Otherwise converts st_mtime to UTC with gmtime_r() and packs fields into a custom bit layout.
+ *
+ * @param St stat() structure for the file.
+ * @param Policy Timestamp policy (zero or source).
+ *
+ * @return Packed timestamp value (or 0 on policy/failed conversion).
+ */
 static uint64_t PackDateTime(const struct stat *St, MTIME_POLICY Policy) {
     if (Policy == MTIME_POLICY_ZERO) {
         return 0;
@@ -438,6 +624,13 @@ static uint64_t PackDateTime(const struct stat *St, MTIME_POLICY Policy) {
     return (Year) | (Month << 26) | (Day << 30) | (Hour << 36) | (Minute << 42) | (Second << 48) | (Milli << 54);
 }
 
+/**
+ * @brief Writes a 32-bit value to a byte buffer in little-endian order.
+ *
+ * @param Target Destination byte buffer.
+ * @param Offset Byte offset to write at.
+ * @param Value Value to encode.
+ */
 static void WriteU32LE(uint8_t *Target, size_t Offset, uint32_t Value) {
     Target[Offset + 0] = (uint8_t)(Value & 0xFF);
     Target[Offset + 1] = (uint8_t)((Value >> 8) & 0xFF);
@@ -445,12 +638,29 @@ static void WriteU32LE(uint8_t *Target, size_t Offset, uint32_t Value) {
     Target[Offset + 3] = (uint8_t)((Value >> 24) & 0xFF);
 }
 
+/**
+ * @brief Writes a 64-bit value to a byte buffer in little-endian order.
+ *
+ * @param Target Destination byte buffer.
+ * @param Offset Byte offset to write at.
+ * @param Value Value to encode.
+ */
 static void WriteU64LE(uint8_t *Target, size_t Offset, uint64_t Value) {
     for (size_t Index = 0; Index < 8; Index++) {
         Target[Offset + Index] = (uint8_t)((Value >> (Index * 8)) & 0xFF);
     }
 }
 
+/**
+ * @brief Reads an entire file into a newly allocated memory buffer.
+ *
+ * Returns a malloc()'d buffer; for empty files, a 1-byte allocation may be used internally but OutSize will be 0.
+ *
+ * @param Path Path to read.
+ * @param OutSize Receives the file size in bytes.
+ *
+ * @return Allocated file data buffer. The caller must free().
+ */
 static uint8_t *ReadWholeFile(const char *Path, size_t *OutSize) {
     FILE *File = fopen(Path, "rb");
     if (File == NULL) {
@@ -493,6 +703,19 @@ static uint8_t *ReadWholeFile(const char *Path, size_t *OutSize) {
     return Data;
 }
 
+/**
+ * @brief Compresses a file chunk according to the selected compression mode.
+ *
+ * In COMPRESSION_MODE_NONE, returns an allocated copy and marks method as NONE. In COMPRESSION_MODE_ZLIB, always returns zlib-compressed data. In COMPRESSION_MODE_AUTO, uses zlib but falls back to storing uncompressed when compression is not beneficial.
+ *
+ * @param Chunk Input chunk bytes.
+ * @param ChunkSize Input chunk size in bytes.
+ * @param CompressionMode Compression policy (zlib/none/auto).
+ * @param CompressionLevel zlib compression level (0..9).
+ * @param OutData Receives a malloc()'d buffer holding the output bytes (caller must free()).
+ * @param OutSize Receives the output size in bytes.
+ * @param OutMethod Receives the method id written in the package (NONE or ZLIB).
+ */
 static void CompressChunk(const uint8_t *Chunk,
                           size_t ChunkSize,
                           COMPRESSION_MODE CompressionMode,
@@ -547,6 +770,20 @@ static void CompressChunk(const uint8_t *Chunk,
     *OutMethod = EPK_COMPRESSION_METHOD_ZLIB;
 }
 
+/**
+ * @brief Splits a file into chunks, optionally compresses each chunk, and appends block data to the data region.
+ *
+ * Computes the file SHA-256 into OutFileHash. For each chunk, computes a per-chunk hash, fills a BLOCK_ENTRY, appends it to Blocks, and appends the (compressed or raw) bytes to DataRegion.
+ *
+ * @param FileBytes Whole file contents.
+ * @param FileSize File size in bytes.
+ * @param Options Packaging options (chunk size, compression settings).
+ * @param Blocks Output block metadata list (appended).
+ * @param DataRegion Output data region buffer receiving block payloads.
+ * @param OutBlockIndexStart Receives the starting block index for this file in Blocks.
+ * @param OutBlockCount Receives the number of blocks generated for this file.
+ * @param OutFileHash Receives the file SHA-256 (32 bytes).
+ */
 static void AppendFileBlocks(const uint8_t *FileBytes,
                              size_t FileSize,
                              const OPTIONS *Options,
@@ -603,6 +840,15 @@ static void AppendFileBlocks(const uint8_t *FileBytes,
     *OutBlockCount = BlockCount;
 }
 
+/**
+ * @brief Serializes the TOC (table of contents) into the on-disk binary format.
+ *
+ * Writes a TOC header containing entry count, then writes each TOC entry header followed by the path bytes.
+ *
+ * @param TocEntries Sorted list of TOC entries to serialize.
+ *
+ * @return Serialized TOC buffer. Caller must ByteBufferFree() it.
+ */
 static BYTE_BUFFER BuildTocBuffer(const TOC_LIST *TocEntries) {
     BYTE_BUFFER Buffer;
     ByteBufferInit(&Buffer);
@@ -640,6 +886,16 @@ static BYTE_BUFFER BuildTocBuffer(const TOC_LIST *TocEntries) {
     return Buffer;
 }
 
+/**
+ * @brief Serializes the block table into the on-disk binary format.
+ *
+ * Each entry stores absolute compressed offset (DataOffset + CompressedOffset), sizes, method and chunk hash.
+ *
+ * @param Blocks Block list to serialize.
+ * @param DataOffset Absolute file offset where the data region begins.
+ *
+ * @return Serialized block table buffer. Caller must ByteBufferFree() it.
+ */
 static BYTE_BUFFER BuildBlockTableBuffer(const BLOCK_LIST *Blocks, uint64_t DataOffset) {
     BYTE_BUFFER Buffer;
     ByteBufferInit(&Buffer);
@@ -661,6 +917,22 @@ static BYTE_BUFFER BuildBlockTableBuffer(const BLOCK_LIST *Blocks, uint64_t Data
     return Buffer;
 }
 
+/**
+ * @brief Builds the complete .epk image in memory (header + TOC + block table + data + manifest + optional signature).
+ *
+ * The header is initially zero-filled, then populated with magic/version/flags and region offsets. OutSignatureOffset receives the absolute signature offset (or 0 when absent).
+ *
+ * @param TocEntries TOC entries to include (typically sorted).
+ * @param Blocks Block metadata list.
+ * @param DataRegion Concatenated block payload bytes.
+ * @param ManifestData Manifest contents bytes (appended after data region).
+ * @param ManifestSize Manifest size in bytes.
+ * @param SignatureData Signature bytes to append (may be NULL when SignatureSize is 0).
+ * @param SignatureSize Signature size in bytes (0 to omit).
+ * @param OutSignatureOffset Receives the absolute signature file offset (0 if omitted).
+ *
+ * @return In-memory package buffer. Caller must ByteBufferFree() it.
+ */
 static BYTE_BUFFER BuildPackageBuffer(const TOC_LIST *TocEntries,
                                       const BLOCK_LIST *Blocks,
                                       const BYTE_BUFFER *DataRegion,
@@ -723,6 +995,16 @@ static BYTE_BUFFER BuildPackageBuffer(const TOC_LIST *TocEntries,
     return Package;
 }
 
+/**
+ * @brief Computes the package SHA-256 hash, optionally excluding the signature region.
+ *
+ * The header hash field is temporarily zeroed before hashing. When a signature is present, the signature byte range is excluded from the hash.
+ *
+ * @param Package Full in-memory package image.
+ * @param SignatureOffset Absolute offset of the signature region within Package (0 if none).
+ * @param SignatureSize Size of the signature region in bytes (0 if none).
+ * @param OutHash Receives the computed SHA-256 hash (32 bytes).
+ */
 static void ComputePackageHash(const BYTE_BUFFER *Package,
                                uint64_t SignatureOffset,
                                uint64_t SignatureSize,
@@ -755,6 +1037,15 @@ static void ComputePackageHash(const BYTE_BUFFER *Package,
     memcpy(Package->Data + HEADER_HASH_OFFSET, Backup, 32);
 }
 
+/**
+ * @brief Encodes bytes as lowercase hexadecimal.
+ *
+ * Out must provide at least (Size * 2 + 1) bytes for the NUL terminator.
+ *
+ * @param Data Input bytes.
+ * @param Size Input size in bytes.
+ * @param Out Output NUL-terminated hex string.
+ */
 static void BytesToHex(const uint8_t *Data, size_t Size, char *Out) {
     static const char *Digits = "0123456789abcdef";
     for (size_t Index = 0; Index < Size; Index++) {
@@ -764,6 +1055,16 @@ static void BytesToHex(const uint8_t *Data, size_t Size, char *Out) {
     Out[Size * 2] = '\0';
 }
 
+/**
+ * @brief Builds the signature command line from a template and the package hash.
+ *
+ * If the template contains the placeholder "{hash}", it is replaced in-place. Otherwise the hash is appended as an extra argument.
+ *
+ * @param Template Command template.
+ * @param HashHex Lowercase hex SHA-256 hash string.
+ *
+ * @return Newly allocated command line string. Caller must free().
+ */
 static char *BuildSignatureCommandLine(const char *Template, const char *HashHex) {
     const char *Placeholder = "{hash}";
     const char *At = strstr(Template, Placeholder);
@@ -793,6 +1094,15 @@ static char *BuildSignatureCommandLine(const char *Template, const char *HashHex
     return Line;
 }
 
+/**
+ * @brief Runs a shell command and captures its stdout into a BYTE_BUFFER.
+ *
+ * Uses popen()/pclose(). Fails if the command cannot start, read fails, or returns non-zero status.
+ *
+ * @param CommandLine Command line passed to popen().
+ *
+ * @return Captured stdout bytes. Caller must ByteBufferFree() it.
+ */
 static BYTE_BUFFER RunCommandCapture(const char *CommandLine) {
     FILE *Pipe = popen(CommandLine, "r");
     if (Pipe == NULL) {
@@ -824,6 +1134,13 @@ static BYTE_BUFFER RunCommandCapture(const char *CommandLine) {
     return Output;
 }
 
+/**
+ * @brief Converts a single hexadecimal character to its numeric value.
+ *
+ * @param Value Input character.
+ *
+ * @return Nibble value 0..15, or 0xFF if the character is not valid hex.
+ */
 static uint8_t HexNibble(char Value) {
     if (Value >= '0' && Value <= '9') return (uint8_t)(Value - '0');
     if (Value >= 'a' && Value <= 'f') return (uint8_t)(Value - 'a' + 10);
@@ -831,6 +1148,15 @@ static uint8_t HexNibble(char Value) {
     return 0xFF;
 }
 
+/**
+ * @brief Decodes a whitespace-tolerant hex buffer into raw bytes.
+ *
+ * Whitespace is removed before decoding; fails if the remaining length is zero or odd or contains invalid hex.
+ *
+ * @param Input Input buffer containing ASCII hex (may include whitespace).
+ *
+ * @return Decoded bytes. Caller must ByteBufferFree() it.
+ */
 static BYTE_BUFFER DecodeHexBuffer(const BYTE_BUFFER *Input) {
     BYTE_BUFFER Filtered;
     ByteBufferInit(&Filtered);
@@ -866,6 +1192,17 @@ static BYTE_BUFFER DecodeHexBuffer(const BYTE_BUFFER *Input) {
     return Decoded;
 }
 
+/**
+ * @brief Executes the external signature command and returns the produced signature bytes.
+ *
+ * The command receives the package hash. Output can be treated as raw bytes or as ASCII hex (decoded) depending on OutputMode.
+ *
+ * @param CommandTemplate Signature command template (may contain "{hash}" placeholder).
+ * @param OutputMode How to interpret the command stdout (raw or hex).
+ * @param Hash Package hash (32 bytes) to pass to the signer.
+ *
+ * @return Signature bytes. Caller must ByteBufferFree() it.
+ */
 static BYTE_BUFFER ExecuteSignatureHook(const char *CommandTemplate,
                                         SIGNATURE_OUTPUT OutputMode,
                                         const uint8_t Hash[32]) {
@@ -893,6 +1230,13 @@ static BYTE_BUFFER ExecuteSignatureHook(const char *CommandTemplate,
     return Decoded;
 }
 
+/**
+ * @brief Ensures the parent folder of an output file path exists.
+ *
+ * Uses `mkdir -p` via system() on the path's parent directory (based on the last '/').
+ *
+ * @param OutputPath Destination file path whose parent directory must exist.
+ */
 static void EnsureFolderExistsForFile(const char *OutputPath) {
     char *Copy = DupString(OutputPath);
     char *Slash = strrchr(Copy, '/');
@@ -910,6 +1254,14 @@ static void EnsureFolderExistsForFile(const char *OutputPath) {
     free(Copy);
 }
 
+/**
+ * @brief Writes an in-memory buffer to disk.
+ *
+ * Creates the output folder when needed and writes Buffer->Data to Path.
+ *
+ * @param Path Destination path.
+ * @param Buffer Buffer to write.
+ */
 static void SaveBufferToFile(const char *Path, const BYTE_BUFFER *Buffer) {
     EnsureFolderExistsForFile(Path);
     FILE *File = fopen(Path, "wb");
@@ -928,6 +1280,15 @@ static void SaveBufferToFile(const char *Path, const BYTE_BUFFER *Buffer) {
     fclose(File);
 }
 
+/**
+ * @brief Parses command-line arguments into an OPTIONS structure.
+ *
+ * Supports the `pack` command. Applies defaults and validates required options.
+ *
+ * @param Argc Argument count.
+ * @param Argv Argument vector.
+ * @param Options Output options structure.
+ */
 static void ParseOptions(int Argc, char **Argv, OPTIONS *Options) {
     memset(Options, 0, sizeof(*Options));
     Options->ChunkSize = 65536;
@@ -988,6 +1349,16 @@ static void ParseOptions(int Argc, char **Argv, OPTIONS *Options) {
     if (Options->OutputPath == NULL) Fail("--output is required");
 }
 
+/**
+ * @brief Program entry point: builds an .epk package from an input folder.
+ *
+ * Resolves input/manifest paths, walks the input tree, builds TOC and block data, optionally runs a signature hook, computes the final package hash and writes the output file.
+ *
+ * @param Argc Argument count.
+ * @param Argv Argument vector.
+ *
+ * @return Process exit code (0 on success).
+ */
 int main(int Argc, char **Argv) {
     OPTIONS Options;
     ParseOptions(Argc, Argv, &Options);
