@@ -2,6 +2,7 @@
 
 ## Memory
 
+- FileReadAll() : use HeapAlloc, NOT KernelHeapAlloc
 - Later: align x86-32 page directory creation (`AllocPageDirectory` and `AllocUserPageDirectory`) with the modular x86-64 region-based approach (low region, kernel region, task runner, recursive slot) while preserving current behavior. Execute this refactor in small validated steps to limit boot and paging regression risk.
 - Implement a memory sanity checker that scans memory to check how fragmented memory is.
 
@@ -30,7 +31,7 @@
 
 ## Session
 
-- Lock session on inactivity (console & graphics display)
+- Lock session on inactivity in graphics display
 
 ## Errors
 
@@ -41,7 +42,7 @@
 
 ## Scripting
 
-- Reserve dedicated memory region for scripting heap
+- Reserve dedicated memory region for kernel shell task
 
 ## Console
 

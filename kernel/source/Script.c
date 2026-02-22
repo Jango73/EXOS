@@ -18,7 +18,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Script Engine - Phase 1: Variables and Expressions
+    Script Engine
 
 \************************************************************************/
 
@@ -28,7 +28,6 @@
 #include "Log.h"
 #include "CoreString.h"
 #include "Script.h"
-#include "User.h"
 
 /************************************************************************/
 
