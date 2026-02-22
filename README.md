@@ -58,17 +58,17 @@ Compiled files in kernel: bcrypt.c, blowfish.c.
 bcrypt is copyright (c) 2002 Johnny Shelley <jshelley@cahaus.com>
 
 ### BearSSL
-Used for SHA-256 hashing bridge in kernel crypt utilities. Sources in `third/bearssl` (MIT license, see `third/bearssl/LICENSE.txt` and `third/bearssl/README.txt`).
+Used for SHA-256 hashing in kernel crypt utilities. Sources in `third/bearssl` (MIT license, see `third/bearssl/LICENSE.txt` and `third/bearssl/README.txt`).
 Integrated SHA-256 sources: `third/bearssl/src/hash/sha2small.c`, `third/bearssl/src/codec/dec32be.c`, `third/bearssl/src/codec/enc32be.c`.
 BearSSL is copyright (c) 2016 Thomas Pornin <pornin@bolet.org>.
 
 ### miniz
-Used for DEFLATE/zlib compression bridge in kernel compression utilities. Sources in `third/miniz` (MIT license, see `third/miniz/LICENSE` and `third/miniz/readme.md`).
+Used for DEFLATE/zlib compression in kernel compression utilities. Sources in `third/miniz` (MIT license, see `third/miniz/LICENSE` and `third/miniz/readme.md`).
 Integrated kernel backend source: `third/miniz/miniz.c`.
 miniz is copyright (c) Rich Geldreich, RAD Game Tools, and Valve Software.
 
 ### Monocypher
-Used for detached signature verification (Ed25519) bridge in kernel signature utilities. Sources in `third/monocypher` (BSD-2-Clause OR CC0-1.0, see `third/monocypher/LICENCE.md` and `third/monocypher/README.md`).
+Used for detached signature verification (Ed25519) in kernel signature utilities. Sources in `third/monocypher` (BSD-2-Clause OR CC0-1.0, see `third/monocypher/LICENCE.md` and `third/monocypher/README.md`).
 Integrated signature backend sources: `third/monocypher/src/monocypher.c` and `third/monocypher/src/optional/monocypher-ed25519.c`.
 For kernel freestanding compatibility, Monocypher Argon2 is disabled in x86-32 builds.
 Monocypher is copyright (c) 2017-2019 Loup Vaillant.
