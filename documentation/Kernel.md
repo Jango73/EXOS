@@ -1200,6 +1200,11 @@ The shared cluster cache helper is implemented in `kernel/source/drivers/filesys
 
 #### EXT2
 
+The EXT2 driver implementation is split into focused units under
+`kernel/source/drivers/filesystems/`:
+`EXT2-Base.c`, `EXT2-Allocation.c`, `EXT2-Storage.c`, and
+`EXT2-FileOps.c`.
+
 ```
                 ┌──────────────────────────────────────┐
                 │               INODE                  │
