@@ -28,7 +28,7 @@
 #include "CoreString.h"
 #include "List.h"
 #include "Memory.h"
-#include "Script.h"
+#include "script/Script.h"
 
 /************************************************************************/
 

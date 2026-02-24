@@ -1337,6 +1337,8 @@ Timestamp conversion from NTFS 100ns units to kernel `DATETIME` is implemented b
 
 This gives a stable interpreter state across commands and keeps callback wiring centralized in one place (`kernel/source/shell/Shell-Commands.c`).
 
+The script engine implementation is split into dedicated modules under `kernel/source/script/` (`Script-Core.c`, `Script-Parser-Expression.c`, `Script-Parser-Statements.c`, `Script-Eval.c`, `Script-Collections.c`, `Script-Scope.c`) with public and internal headers under `kernel/include/script/`.
+
 #### Execution paths
 
 Shell command lines are executed through `ExecuteCommandLine()`, which calls `ScriptExecute()` directly on the entered text. Errors are reported through `ScriptGetErrorMessage()`.

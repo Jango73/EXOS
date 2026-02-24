@@ -44,7 +44,7 @@
 #include "network/NetworkManager.h"
 #include "process/Process.h"
 #include "Profile.h"
-#include "Script.h"
+#include "script/Script.h"
 #include "UserAccount.h"
 #include "UserSession.h"
 #include "utils/CommandLineEditor.h"
