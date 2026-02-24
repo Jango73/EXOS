@@ -204,8 +204,9 @@ Security in EXOS is implemented as a layered architecture. The effective access 
 #### Layer 3: Identity and session model
 
 - Identity is session-centric: `GetCurrentUser()` resolves the current process session to a user account (`kernel/source/utils/Helpers.c`).
-- `USERACCOUNT` stores `UserID`, privilege (`EXOS_PRIVILEGE_USER` or `EXOS_PRIVILEGE_ADMIN`), status, and password hash; `USERSESSION` stores `SessionID`, `UserID`, login/activity timestamps, and shell task binding (`kernel/include/UserAccount.h`).
-- Session lifecycle is managed by `CreateUserSession`, `SetCurrentSession`, `GetCurrentSession`, and timeout validation in `UserSession.c`.
+- `USERACCOUNT` stores `UserID`, privilege (`EXOS_PRIVILEGE_USER` or `EXOS_PRIVILEGE_ADMIN`), status, and password hash; `USERSESSION` stores `SessionID`, `UserID`, login/activity timestamps, lock state, and shell task binding (`kernel/include/UserAccount.h`).
+- Session lifecycle is managed by `CreateUserSession`, `SetCurrentSession`, `GetCurrentSession`, timeout validation, and lock/unlock helpers in `UserSession.c`.
+- Session inactivity timeout is configurable with `Session.TimeoutSeconds` in kernel configuration, with a compile fallback to `SESSION_TIMEOUT_MS`. Key `Session.TimeoutMinutes` is also accepted when `Session.TimeoutSeconds` is absent.
 - Child process creation inherits the parent session (`Process->Session`), preserving identity continuity across spawned processes (`kernel/source/process/Process.c`).
 
 #### Layer 4: Syscall privilege gate
@@ -558,7 +559,7 @@ exos-runtime-c.c : malloc() (or any other function)
 
 `USE_SYSCALL` is a project-level build flag (`./scripts/build --arch x86-64 --fs ext2 --debug --use-syscall`) that selects between the legacy interrupt gate and the SYSCALL/SYSRET pair on x86-64. The flag has no effect on x86-32 builds.
 
-`SYSTEM_DATA_VIEW` is a project-level build flag (`./scripts/build --arch x86-32 --fs ext2 --system-data-view`) that enables the System Data View mode before task creation. The mode shows the system data pages, uses the kernel keyboard input for navigation (left/right to change page, up/down to scroll), and exits on `Esc` to continue boot.
+`SYSTEM_DATA_VIEW` is a project-level build flag (`./scripts/build --arch x86-32 --fs ext2 --system-data-view`) that enables the System Data View mode before task creation. The mode shows the system data pages, uses the kernel keyboard input for navigation (left/right to change page, up/down to scroll), and exits on `Esc` to continue boot. The xHCI page reports PCI identity, decoded PCI status error flags, scratchpad capability/state (`HCSPARAMS2`, `MaxScratchpadBuffers`, `DCBAA[0]`), controller runtime registers (`USBCMD`, `USBSTS`, `CRCR`, `DCBAAP`, interrupter state), slot usage, and per-root-port enumeration diagnostics (raw `PORTSC`, speed/link state, last enumeration error/completion, present/slot state).
 
 
 ### Task and window message delivery
@@ -577,11 +578,11 @@ Message retrieval:
 
 ### Command line editing
 
-Interactive editing of shell command lines is implemented in `kernel/source/utils/CommandLineEditor.c`. The module processes keyboard input via the classic buffered path (`PeekChar`/`GetKeyCode`), maintains an in-memory history, refreshes the console display, and relies on callbacks to retrieve completion suggestions. The shell owns an input state structure that embeds the editor instance and provides the shell-specific completion callback so the component remains agnostic of higher level shell logic. While reading input, the editor adjusts for console scrolling so the display does not re-trigger scrolling on each key press, and console paging prompts are suspended until the line is submitted.
+Interactive editing of shell command lines is implemented in `kernel/source/utils/CommandLineEditor.c`. The module processes keyboard input via the classic buffered path (`PeekChar`/`GetKeyCode`), maintains an in-memory history, refreshes the console display, and relies on callbacks to retrieve completion suggestions. The shell owns an input state structure that embeds the editor instance and provides shell-specific callbacks for completion and idle processing so the component remains agnostic of higher level shell logic. While reading input, the editor adjusts for console scrolling so the display does not re-trigger scrolling on each key press, console paging prompts are suspended until the line is submitted, and successful key interactions update session activity timestamps.
 
 Keyboard input keeps two distinct paths for compatibility. The legacy PS/2 pipeline continues to use scan code -> KEYTRANS tables, while a separate HID path uses usage page 0x07 indexed KEY_LAYOUT_HID layouts. The HID layout file format is UTF-8 text with an "EKM1" header and directives: code, levels, map, dead, and compose. The kernel keeps an embedded en-US fallback (KEY_LAYOUT_FALLBACK_CODE) used when HID layout loading fails. The HID layout loader parses EKM1 files with a tolerant UTF-8 decoder, logs replacement counts, and rejects malformed directives or out-of-range entries. USB HID keyboard support lives in `kernel/source/drivers/Keyboard-USB.c` and feeds boot protocol reports into the same HID usage pipeline as PS/2. Keyboard initialization is mediated by a selector driver (`kernel/source/drivers/Keyboard-Selector.c`) that probes for a USB HID keyboard after PCI/xHCI enumeration and otherwise falls back to PS/2 detection, ensuring only one keyboard driver is active at a time.
 
-All reusable helpers -such as the command line editor, adaptive delay, string containers, CRC/SHA-256 utilities, compression utilities, chunk cache utilities, detached signature utilities, notifications, path helpers, TOML parsing, UUID support, regex, hysteresis control, cooldown timing, rate limiting, and network checksum helpers— live under `kernel/source/utils` with their public headers in `kernel/include/utils`. SHA-256 is exposed through `utils/Crypt` and bridged to the vendored BearSSL hash implementation under `third/bearssl`. Compression is exposed through `utils/Compression` and bridged to the vendored miniz backend under `third/miniz`. Detached signature verification is exposed through `utils/Signature` with a backend-swappable API surface, and Ed25519 verification is wired to vendored Monocypher sources under `third/monocypher`. This keeps generic infrastructure separated from core subsystems and makes it easier to share common code across the kernel.
+All reusable helpers -such as the command line editor, adaptive delay, string containers, byte-size formatting helpers (`utils/SizeFormat`), CRC/SHA-256 utilities, compression utilities, chunk cache utilities, detached signature utilities, notifications, path helpers, TOML parsing, UUID support, regex, hysteresis control, cooldown timing, rate limiting, and network checksum helpers— live under `kernel/source/utils` with their public headers in `kernel/include/utils`. SHA-256 is exposed through `utils/Crypt` and bridged to the vendored BearSSL hash implementation under `third/bearssl`. Compression is exposed through `utils/Compression` and bridged to the vendored miniz backend under `third/miniz`. Detached signature verification is exposed through `utils/Signature` with a backend-swappable API surface, and Ed25519 verification is wired to vendored Monocypher sources under `third/monocypher`. This keeps generic infrastructure separated from core subsystems and makes it easier to share common code across the kernel.
 
 
 ### Exposed objects in shell
@@ -719,7 +720,7 @@ Keyboard selection is handled by the keyboard selector driver, keeping one activ
 
 USB foundations are defined in `kernel/include/drivers/USB.h`, including shared type definitions (speed tiers, endpoint kinds, addressing) and standard descriptor layouts used by host controller and class drivers.
 
-The xHCI host stack (`kernel/source/drivers/XHCI-Core.c`, `kernel/source/drivers/XHCI-Device.c`, `kernel/source/drivers/XHCI-Hub.c`, `kernel/source/drivers/XHCI-Enum.c`) is attached by the PCI subsystem and performs:
+The xHCI host stack (`kernel/source/drivers/XHCI-Core.c`, `kernel/source/drivers/XHCI-Device-Lifecycle.c`, `kernel/source/drivers/XHCI-Device-Transfer.c`, `kernel/source/drivers/XHCI-Device-Enum.c`, `kernel/source/drivers/XHCI-Hub.c`, `kernel/source/drivers/XHCI-Enum.c`) is attached by the PCI subsystem and performs:
 
 - controller halt/reset/run sequencing,
 - MMIO mapping and ring allocation (DCBAA, command ring, event ring),
@@ -745,6 +746,7 @@ The console supports direct linear framebuffer rendering when Multiboot framebuf
 
 - BIOS/MBR path uses VGA text buffer `0xB8000` with text framebuffer metadata.
 - UEFI path uses GOP-provided framebuffer base, pitch, resolution, and RGB layout, with glyph rendering into GOP memory.
+- In framebuffer mode, a software cursor is rendered by inverting the active text cell and restored on each cursor move, so command-line editing keeps a visible caret position.
 
 The default font is an in-tree ASCII 8x16 EXOS font and can be replaced through the font API.
 
@@ -1170,7 +1172,7 @@ Fractional part = unusable space.
 
 ### Filesystem Cluster cache
 
-The shared cluster cache helper is implemented in `kernel/source/drivers/ClusterCache.c` with its public interface in `kernel/include/drivers/ClusterCache.h`. It reuses the generic `utils/Cache` engine (TTL, cleanup, eviction) and adds cluster-oriented keys (`owner + cluster index + size`) so multiple filesystem drivers can share one non-duplicated cache pattern. The generic cache supports `CACHE_WRITE_POLICY_READ_ONLY`, `CACHE_WRITE_POLICY_WRITE_THROUGH`, and `CACHE_WRITE_POLICY_WRITE_BACK`, with optional flush callbacks for dirty entry persistence.
+The shared cluster cache helper is implemented in `kernel/source/drivers/filesystems/ClusterCache.c` with its public interface in `kernel/include/drivers/filesystems/ClusterCache.h`. It reuses the generic `utils/Cache` engine (TTL, cleanup, eviction) and adds cluster-oriented keys (`owner + cluster index + size`) so multiple filesystem drivers can share one non-duplicated cache pattern. The generic cache supports `CACHE_WRITE_POLICY_READ_ONLY`, `CACHE_WRITE_POLICY_WRITE_THROUGH`, and `CACHE_WRITE_POLICY_WRITE_BACK`, with optional flush callbacks for dirty entry persistence.
 
 
 ### Foreign File systems
@@ -1197,6 +1199,11 @@ The shared cluster cache helper is implemented in `kernel/source/drivers/Cluster
 | **NTFS** | MFT, resident/non-resident attrs, bitmap, journal | 7 | 9 | Compression, sparse, ACLs, USN; very rich design. |
 
 #### EXT2
+
+The EXT2 driver implementation is split into focused units under
+`kernel/source/drivers/filesystems/`:
+`EXT2-Base.c`, `EXT2-Allocation.c`, `EXT2-Storage.c`, and
+`EXT2-FileOps.c`.
 
 ```
                 ┌──────────────────────────────────────┐
@@ -1334,6 +1341,8 @@ Timestamp conversion from NTFS 100ns units to kernel `DATETIME` is implemented b
 `InitShellContext()` creates one `SCRIPT_CONTEXT` per shell context with callbacks for output, command execution, variable resolution, and function calls. The same context is reused for command-line execution, startup commands, and `.e0` file execution until `DeinitShellContext()` destroys it.
 
 This gives a stable interpreter state across commands and keeps callback wiring centralized in one place (`kernel/source/shell/Shell-Commands.c`).
+
+The script engine implementation is split into dedicated modules under `kernel/source/script/` (`Script-Core.c`, `Script-Parser-Expression.c`, `Script-Parser-Statements.c`, `Script-Eval.c`, `Script-Collections.c`, `Script-Scope.c`) with public and internal headers under `kernel/include/script/`.
 
 #### Execution paths
 

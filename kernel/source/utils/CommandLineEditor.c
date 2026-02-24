@@ -29,7 +29,9 @@
 #include "drivers/Keyboard.h"
 #include "Log.h"
 #include "CoreString.h"
+#include "process/Schedule.h"
 #include "process/Task.h"
+#include "UserSession.h"
 #include "VKey.h"
 
 /***************************************************************************/
@@ -118,6 +120,21 @@ static void RefreshInputDisplay(
 
 /***************************************************************************/
 
+/**
+ * @brief Record input activity for the current process session.
+ */
+static void MarkCurrentSessionActivity(void) {
+    LPPROCESS Process = GetCurrentProcess();
+    LPUSERSESSION Session;
+
+    SAFE_USE(Process) {
+        Session = Process->Session;
+        SAFE_USE(Session) { UpdateSessionActivity(Session); }
+    }
+}
+
+/***************************************************************************/
+
 void CommandLineEditorInit(LPCOMMANDLINEEDITOR Editor, U32 HistoryCapacity) {
     MemorySet(Editor, 0, sizeof(COMMANDLINEEDITOR));
 
@@ -125,6 +142,8 @@ void CommandLineEditorInit(LPCOMMANDLINEEDITOR Editor, U32 HistoryCapacity) {
     StringArrayInit(&Editor->History, HistoryCapacity);
     Editor->CompletionCallback = NULL;
     Editor->CompletionUserData = NULL;
+    Editor->IdleCallback = NULL;
+    Editor->IdleUserData = NULL;
 }
 
 /***************************************************************************/
@@ -144,6 +163,16 @@ void CommandLineEditorSetCompletionCallback(
     LPVOID UserData) {
     Editor->CompletionCallback = Callback;
     Editor->CompletionUserData = UserData;
+}
+
+/***************************************************************************/
+
+void CommandLineEditorSetIdleCallback(
+    LPCOMMANDLINEEDITOR Editor,
+    COMMANDLINEEDITOR_IDLE_CALLBACK Callback,
+    LPVOID UserData) {
+    Editor->IdleCallback = Callback;
+    Editor->IdleUserData = UserData;
 }
 
 /***************************************************************************/
@@ -172,6 +201,9 @@ BOOL CommandLineEditorReadLine(
 
     FOREVER {
         if (PeekChar() == FALSE) {
+            if (Editor->IdleCallback != NULL) {
+                Editor->IdleCallback(Editor->IdleUserData);
+            }
             Sleep(10);
             continue;
         }
@@ -185,6 +217,7 @@ BOOL CommandLineEditorReadLine(
             RefreshInputDisplay(
                 Buffer, StartX, &StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
             DisplayedLength = Length;
+            MarkCurrentSessionActivity();
         } else if (KeyCode.VirtualKey == VK_BACKSPACE) {
             if (CursorPos > 0) {
                 MemoryMove(Buffer + CursorPos - 1, Buffer + CursorPos, (Length - CursorPos) + 1);
@@ -193,6 +226,7 @@ BOOL CommandLineEditorReadLine(
                 RefreshInputDisplay(
                     Buffer, StartX, &StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
                 DisplayedLength = Length;
+                MarkCurrentSessionActivity();
             }
         } else if (KeyCode.VirtualKey == VK_DELETE) {
             if (CursorPos < Length) {
@@ -202,26 +236,32 @@ BOOL CommandLineEditorReadLine(
                 RefreshInputDisplay(
                     Buffer, StartX, &StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
                 DisplayedLength = Length;
+                MarkCurrentSessionActivity();
             }
         } else if (KeyCode.VirtualKey == VK_LEFT) {
             if (CursorPos > 0) {
                 CursorPos--;
                 UpdateInputCursor(StartX, StartY, CursorPos);
+                MarkCurrentSessionActivity();
             }
         } else if (KeyCode.VirtualKey == VK_RIGHT) {
             if (CursorPos < Length) {
                 CursorPos++;
                 UpdateInputCursor(StartX, StartY, CursorPos);
+                MarkCurrentSessionActivity();
             }
         } else if (KeyCode.VirtualKey == VK_HOME) {
             CursorPos = 0;
             UpdateInputCursor(StartX, StartY, CursorPos);
+            MarkCurrentSessionActivity();
         } else if (KeyCode.VirtualKey == VK_END) {
             CursorPos = Length;
             UpdateInputCursor(StartX, StartY, CursorPos);
+            MarkCurrentSessionActivity();
         } else if (KeyCode.VirtualKey == VK_ENTER) {
             ConsolePrintChar(STR_NEWLINE);
             Buffer[Length] = STR_NULL;
+            MarkCurrentSessionActivity();
             break;
         } else if (KeyCode.VirtualKey == VK_UP) {
             if (HistoryPos > 0) {
@@ -232,6 +272,7 @@ BOOL CommandLineEditorReadLine(
                 RefreshInputDisplay(
                     Buffer, StartX, &StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
                 DisplayedLength = Length;
+                MarkCurrentSessionActivity();
             }
         } else if (KeyCode.VirtualKey == VK_DOWN) {
             if (HistoryPos < Editor->History.Count) HistoryPos++;
@@ -247,6 +288,7 @@ BOOL CommandLineEditorReadLine(
             RefreshInputDisplay(
                 Buffer, StartX, &StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
             DisplayedLength = Length;
+            MarkCurrentSessionActivity();
         } else if (KeyCode.VirtualKey == VK_TAB) {
             if (Editor->CompletionCallback) {
                 STR Replacement[MAX_PATH_NAME];
@@ -291,6 +333,7 @@ BOOL CommandLineEditorReadLine(
                             CursorPos,
                             MaskCharacters);
                         DisplayedLength = Length;
+                        MarkCurrentSessionActivity();
                     }
                 }
             }
@@ -304,6 +347,7 @@ BOOL CommandLineEditorReadLine(
                 RefreshInputDisplay(
                     Buffer, StartX, &StartY, Length, DisplayedLength, CursorPos, MaskCharacters);
                 DisplayedLength = Length;
+                MarkCurrentSessionActivity();
             }
         }
     }

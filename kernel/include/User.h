@@ -751,9 +751,8 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 #define ETM_CREATE 0x00000002
 #define ETM_DELETE 0x00000003
 #define ETM_PAUSE 0x00000004
-#define ETM_USER 0x20000000
-#define ETM_USB_MASS_STORAGE_MOUNTED (ETM_USER + 0x00000001)
-#define ETM_USB_MASS_STORAGE_UNMOUNTED (ETM_USER + 0x00000002)
+#define ETM_USB_MASS_STORAGE_MOUNTED 0x00000005
+#define ETM_USB_MASS_STORAGE_UNMOUNTED 0x00000006
 
 #define EWM_NONE 0x40000000
 #define EWM_CREATE 0x40000001
@@ -774,6 +773,8 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 #define EWM_NOTIFY 0x40000010
 #define EWM_GOTFOCUS 0x40000011
 #define EWM_LOSTFOCUS 0x40000012
+
+// Task messages define by userland apps begin here
 #define EM_USER 0x60000000
 
 /************************************************************************/

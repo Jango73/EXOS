@@ -28,6 +28,13 @@
 # Enable or disable login sequence (1=enable, 0=disable)
 # DoLogin=1
 
+[Session]
+# Inactivity timeout before session lock (in seconds)
+# Session is locked only when a user session exists and the user has a password
+# TimeoutSeconds=120
+# Optional alias in minutes (used when TimeoutSeconds is not set)
+# TimeoutMinutes=30
+
 [Task]
 # Specify minimum size for a task's stack
 MinimumTaskStackSize=65536

@@ -2,7 +2,9 @@
 
 ## Memory
 
+- FileReadAll() : use HeapAlloc, NOT KernelHeapAlloc
 - Later: align x86-32 page directory creation (`AllocPageDirectory` and `AllocUserPageDirectory`) with the modular x86-64 region-based approach (low region, kernel region, task runner, recursive slot) while preserving current behavior. Execute this refactor in small validated steps to limit boot and paging regression risk.
+- Implement a memory sanity checker that scans memory to check how fragmented memory is.
 
 ## Problems
 
@@ -27,6 +29,10 @@
 
 - Use __func__ to automatically include function name
 
+## Session
+
+- Lock session on inactivity in graphics display
+
 ## Errors
 
 - Functions returning U32 MUST return DF_RETURN_XXXX codes : meaning 0 on success, an error otherwise.
@@ -36,9 +42,9 @@
 
 ## Scripting
 
-## Console
+- Reserve dedicated memory region for kernel shell task
 
-- Add a cursor in kernel managed console
+## Console
 
 ## Shared modules
 

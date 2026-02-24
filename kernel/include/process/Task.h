@@ -32,7 +32,7 @@
 /************************************************************************/
 
 #include "Base.h"
-#include "process/TaskStack.h"
+#include "process/Task-Stack.h"
 #include "Arch.h"
 #include "List.h"
 #include "Mutex.h"
@@ -102,6 +102,6 @@ void DumpTask(LPTASK);
 
 #pragma pack(pop)
 
-#include "process/TaskMessaging.h"
+#include "process/Task-Messaging.h"
 
 #endif  // TASK_H_INCLUDED

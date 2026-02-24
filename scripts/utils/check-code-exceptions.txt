@@ -1,0 +1,5 @@
+# Format:
+# <path> [all|header|line-limit]
+# If scope is omitted, "all" is used.
+
+kernel/source/font/FontData-ASCII.c header

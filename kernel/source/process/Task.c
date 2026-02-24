@@ -31,7 +31,7 @@
 #include "package/PackageNamespace.h"
 #include "process/Process.h"
 #include "process/Schedule.h"
-#include "process/TaskMessaging.h"
+#include "process/Task-Messaging.h"
 #include "CoreString.h"
 #include "utils/Helpers.h"
 

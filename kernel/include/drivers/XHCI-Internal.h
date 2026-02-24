@@ -1,5 +1,5 @@
 
-/************************************************************************\\
+/************************************************************************\
 
     EXOS Kernel
     Copyright (c) 1999-2025 Jango73
@@ -20,7 +20,7 @@
 
     xHCI (internal)
 
-\\************************************************************************/
+\************************************************************************/
 
 #ifndef XHCI_INTERNAL_H_INCLUDED
 #define XHCI_INTERNAL_H_INCLUDED
@@ -37,6 +37,7 @@
 #include "User.h"
 #include "drivers/DeviceInterrupt.h"
 #include "drivers/USB.h"
+#include "utils/RateLimiter.h"
 
 /************************************************************************/
 
@@ -60,6 +61,10 @@
 #define XHCI_HCSPARAMS1_MAXPORTS_MASK 0xFF000000
 #define XHCI_HCSPARAMS1_MAXPORTS_SHIFT 24
 #define XHCI_HCSPARAMS1_PPC 0x00000010
+#define XHCI_HCSPARAMS2_SCRATCHPAD_LOW_MASK 0xF8000000
+#define XHCI_HCSPARAMS2_SCRATCHPAD_LOW_SHIFT 27
+#define XHCI_HCSPARAMS2_SCRATCHPAD_HIGH_MASK 0x03E00000
+#define XHCI_HCSPARAMS2_SCRATCHPAD_HIGH_SHIFT 21
 
 #define XHCI_HCCPARAMS1_AC64 0x00000001
 #define XHCI_HCCPARAMS1_CSZ 0x00000004
@@ -121,6 +126,7 @@
 #define XHCI_ERSTSZ 0x08
 #define XHCI_ERSTBA 0x10
 #define XHCI_ERDP 0x18
+#define XHCI_ERDP_EHB 0x00000008
 
 #define XHCI_IMAN_IP 0x00000001
 #define XHCI_IMAN_IE 0x00000002
@@ -269,6 +275,7 @@ typedef struct tag_XHCI_USB_DEVICE {
     BOOL DestroyPending;
     U8 LastEnumError;
     U16 LastEnumCompletion;
+    RATE_LIMITER EnumFailureLogLimiter;
     U8 PortNumber;
     U8 RootPortNumber;
     U8 Depth;
@@ -318,7 +325,9 @@ struct tag_XHCI_DEVICE {
     U8 MaxSlots;
     U8 MaxPorts;
     U16 MaxInterrupters;
+    U16 MaxScratchpadBuffers;
     U32 HccParams1;
+    U32 HcsParams2;
     U32 ContextSize;
 
     LINEAR OpBase;
@@ -327,6 +336,9 @@ struct tag_XHCI_DEVICE {
 
     PHYSICAL DcbaaPhysical;
     LINEAR DcbaaLinear;
+    PHYSICAL ScratchpadArrayPhysical;
+    LINEAR ScratchpadArrayLinear;
+    PHYSICAL* ScratchpadPages;
 
     PHYSICAL CommandRingPhysical;
     LINEAR CommandRingLinear;
@@ -351,6 +363,8 @@ struct tag_XHCI_DEVICE {
     BOOL InterruptRegistered;
     BOOL InterruptEnabled;
     U32 InterruptCount;
+    U32 LastObservedUsbStatus;
+    BOOL HseTransitionLogged;
 };
 
 /************************************************************************/
@@ -367,12 +381,14 @@ LPXHCI_CONTEXT_32 XHCI_GetContextPointer(LINEAR Base, U32 ContextSize, U32 Index
 void XHCI_RingDoorbell(LPXHCI_DEVICE Device, U32 DoorbellIndex, U32 Target);
 void XHCI_InitUsbDeviceObject(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice);
 BOOL XHCI_PopCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* SlotIdOut, U32* CompletionOut);
+BOOL XHCI_PollForCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* SlotIdOut, U32* CompletionOut);
 BOOL XHCI_CommandRingEnqueue(LPXHCI_DEVICE Device, const XHCI_TRB* Trb, U64* PhysicalOut);
 BOOL XHCI_TransferRingEnqueue(LPXHCI_USB_DEVICE UsbDevice, const XHCI_TRB* Trb, U64* PhysicalOut);
 BOOL XHCI_RingEnqueue(LINEAR RingLinear, PHYSICAL RingPhysical, U32* EnqueueIndex, U32* CycleState,
                       U32 RingTrbs, const XHCI_TRB* Trb, U64* PhysicalOut);
 BOOL XHCI_DequeueEvent(LPXHCI_DEVICE Device, XHCI_TRB* EventOut);
 void XHCI_PollCompletions(LPXHCI_DEVICE Device);
+void XHCI_LogHseTransitionIfNeeded(LPXHCI_DEVICE Device, LPCSTR Source);
 BOOL XHCI_WaitForRegister(LINEAR Base, U32 Offset, U32 Mask, U32 Value, U32 Timeout, LPCSTR Name);
 BOOL XHCI_AllocPage(LPCSTR Tag, PHYSICAL *PhysicalOut, LINEAR *LinearOut);
 U32 XHCI_ReadPortStatus(LPXHCI_DEVICE Device, U32 PortIndex);

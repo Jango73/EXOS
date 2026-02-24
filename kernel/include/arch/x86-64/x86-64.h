@@ -32,7 +32,7 @@
 #include "Driver.h"
 #include "arch/intel/x86-Common.h"
 #include "arch/x86-64/x86-64-Memory.h"
-#include "process/TaskStack.h"
+#include "process/Task-Stack.h"
 
 /***************************************************************************/
 

@@ -51,7 +51,7 @@ LPDRIVER PCIGetDriver(void);
 LPDRIVER ATADiskGetDriver(void);
 LPDRIVER SATADiskGetDriver(void);
 LPDRIVER RAMDiskGetDriver(void);
-LPDRIVER USBMassStorageGetDriver(void);
+LPDRIVER USBStorageGetDriver(void);
 LPDRIVER FileSystemGetDriver(void);
 LPDRIVER NetworkManagerGetDriver(void);
 LPDRIVER UserAccountGetDriver(void);

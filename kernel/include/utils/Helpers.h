@@ -41,6 +41,8 @@
 #define CONFIG_GENERAL_DEFERRED_WORK_WAIT_TIMEOUT_MS    "General.DeferredWorkWaitTimeoutMS"
 #define CONFIG_GENERAL_DEFERRED_WORK_POLL_DELAY_MS      "General.DeferredWorkPollDelayMS"
 #define CONFIG_GENERAL_DEVICE_INTERRUPT_SLOTS           "General.DeviceInterruptSlots"
+#define CONFIG_SESSION_TIMEOUT_SECONDS                  "Session.TimeoutSeconds"
+#define CONFIG_SESSION_TIMEOUT_MINUTES                  "Session.TimeoutMinutes"
 #define CONFIG_NETWORK_LOCAL_IP                         "Network.LocalIP"
 #define CONFIG_NETWORK_NETMASK                          "Network.Netmask"
 #define CONFIG_NETWORK_GATEWAY                          "Network.Gateway"

@@ -20,19 +20,6 @@
 
     System FS
 
-    /                               System root
-    \-- system                      OS folder - mounted from main config file
-    \-- users                       User accounts - mounted from main config file
-        \-- user1                   user1 folder
-            \-- settings            User specific settings for apps
-        \-- user2                   user2 folder
-            \-- settings            User specific settings for apps
-    \-- current                     Current user folder - links to one of user folders above
-        \-- settings                User specific settings for apps
-    \-- apps                        Application folder
-        \-- app1                    An application
-        \-- app2                    An application
-
 \************************************************************************/
 
 #include "SystemFS.h"

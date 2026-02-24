@@ -25,7 +25,7 @@
 #include "Autotest.h"
 #include "Base.h"
 #include "Log.h"
-#include "Script.h"
+#include "script/Script.h"
 #include "CoreString.h"
 
 /************************************************************************/
