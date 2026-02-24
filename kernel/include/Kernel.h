@@ -87,7 +87,7 @@ void PrintMemory(U32, U32);
 void MemoryEditor(U32);
 
 /************************************************************************/
-// Functions in Edit.c
+// Functions in Edit-Main.c
 
 U32 Edit(U32, LPCSTR*, BOOL);
 
