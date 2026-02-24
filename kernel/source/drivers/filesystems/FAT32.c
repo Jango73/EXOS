@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "drivers/FAT.h"
+#include "drivers/filesystems/FAT.h"
 #include "FileSystem.h"
 #include "Kernel.h"
 #include "Log.h"

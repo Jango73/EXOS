@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "drivers/EXT2.h"
+#include "drivers/filesystems/EXT2.h"
 
 #include "Kernel.h"
 #include "Log.h"

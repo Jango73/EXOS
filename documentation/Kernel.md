@@ -1172,7 +1172,7 @@ Fractional part = unusable space.
 
 ### Filesystem Cluster cache
 
-The shared cluster cache helper is implemented in `kernel/source/drivers/ClusterCache.c` with its public interface in `kernel/include/drivers/ClusterCache.h`. It reuses the generic `utils/Cache` engine (TTL, cleanup, eviction) and adds cluster-oriented keys (`owner + cluster index + size`) so multiple filesystem drivers can share one non-duplicated cache pattern. The generic cache supports `CACHE_WRITE_POLICY_READ_ONLY`, `CACHE_WRITE_POLICY_WRITE_THROUGH`, and `CACHE_WRITE_POLICY_WRITE_BACK`, with optional flush callbacks for dirty entry persistence.
+The shared cluster cache helper is implemented in `kernel/source/drivers/filesystems/ClusterCache.c` with its public interface in `kernel/include/drivers/filesystems/ClusterCache.h`. It reuses the generic `utils/Cache` engine (TTL, cleanup, eviction) and adds cluster-oriented keys (`owner + cluster index + size`) so multiple filesystem drivers can share one non-duplicated cache pattern. The generic cache supports `CACHE_WRITE_POLICY_READ_ONLY`, `CACHE_WRITE_POLICY_WRITE_THROUGH`, and `CACHE_WRITE_POLICY_WRITE_BACK`, with optional flush callbacks for dirty entry persistence.
 
 
 ### Foreign File systems

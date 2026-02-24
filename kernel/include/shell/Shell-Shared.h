@@ -28,7 +28,7 @@
 #include "Clock.h"
 #include "Console.h"
 #include "drivers/Keyboard.h"
-#include "drivers/NTFS.h"
+#include "drivers/filesystems/NTFS.h"
 #include "drivers/NVMe-Core.h"
 #include "drivers/USBMassStorage.h"
 #include "drivers/XHCI.h"

@@ -26,7 +26,7 @@
 
 /***************************************************************************/
 
-#include "drivers/NTFS.h"
+#include "drivers/filesystems/NTFS.h"
 #include "CoreString.h"
 #include "Kernel.h"
 #include "Log.h"

@@ -21,7 +21,7 @@
     EXFS
 
 \************************************************************************/
-#include "drivers/EXFS.h"
+#include "drivers/filesystems/EXFS.h"
 
 #include "FileSystem.h"
 #include "Kernel.h"

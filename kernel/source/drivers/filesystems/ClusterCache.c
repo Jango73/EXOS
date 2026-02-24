@@ -21,7 +21,7 @@
 
 \************************************************************************/
 
-#include "drivers/ClusterCache.h"
+#include "drivers/filesystems/ClusterCache.h"
 #include "Clock.h"
 #include "CoreString.h"
 #include "Heap.h"
