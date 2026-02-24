@@ -30,7 +30,7 @@
 #include "drivers/Keyboard.h"
 #include "drivers/filesystems/NTFS.h"
 #include "drivers/NVMe-Core.h"
-#include "drivers/USBMassStorage.h"
+#include "drivers/USBStorage.h"
 #include "drivers/XHCI.h"
 #include "DriverEnum.h"
 #include "Endianness.h"

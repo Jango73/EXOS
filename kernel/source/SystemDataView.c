@@ -30,7 +30,7 @@
 #include "drivers/Keyboard.h"
 #include "drivers/LocalAPIC.h"
 #include "drivers/PCI.h"
-#include "drivers/USBMassStorage.h"
+#include "drivers/USBStorage.h"
 #include "drivers/XHCI-Internal.h"
 #include "KernelData.h"
 #include "process/Task.h"
@@ -1125,7 +1125,7 @@ static void SystemDataViewDrawXhciDetails(LPSYSTEM_DATA_VIEW_CONTEXT Context, LP
     U32 ActiveSlots = 0;
     UINT UsbStoragePresent = 0;
     UINT UsbStorageTotal = 0;
-    LPDRIVER UsbMassStorageDriver = USBMassStorageGetDriver();
+    LPDRIVER UsbMassStorageDriver = USBStorageGetDriver();
 
     if (Context == NULL || Device == NULL) {
         return;
@@ -1184,7 +1184,7 @@ static void SystemDataViewDrawXhciDetails(LPSYSTEM_DATA_VIEW_CONTEXT Context, LP
         Device->EventRingCycleState);
     SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Completion Queue"),
         TEXT("%u\n"), Device->CompletionCount);
-    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("USBMassStorage Driver"),
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("USBStorage Driver"),
         TEXT("Ready=%u\n"),
         (UsbMassStorageDriver != NULL && (UsbMassStorageDriver->Flags & DRIVER_FLAG_READY) != 0) ? 1U : 0U);
     SystemDataViewCountUsbStorage(&UsbStoragePresent, &UsbStorageTotal);

@@ -339,7 +339,7 @@ void InitializeDriverList(void) {
     ListAddTail(Kernel.Drivers, PCIGetDriver());
     ListAddTail(Kernel.Drivers, KeyboardSelectorGetDriver());
     ListAddTail(Kernel.Drivers, USBMouseGetDriver());
-    ListAddTail(Kernel.Drivers, USBMassStorageGetDriver());
+    ListAddTail(Kernel.Drivers, USBStorageGetDriver());
     ListAddTail(Kernel.Drivers, ATADiskGetDriver());
     ListAddTail(Kernel.Drivers, SATADiskGetDriver());
     ListAddTail(Kernel.Drivers, RAMDiskGetDriver());

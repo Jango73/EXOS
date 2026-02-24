@@ -18,12 +18,12 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    USB Mass Storage
+    USB Storage
 
 \************************************************************************/
 
-#ifndef USBMASSSTORAGE_H_INCLUDED
-#define USBMASSSTORAGE_H_INCLUDED
+#ifndef USB_STORAGE_H_INCLUDED
+#define USB_STORAGE_H_INCLUDED
 
 /************************************************************************/
 
@@ -52,11 +52,11 @@ typedef struct tag_USB_STORAGE_ENTRY {
 
 /************************************************************************/
 
-LPDRIVER USBMassStorageGetDriver(void);
+LPDRIVER USBStorageGetDriver(void);
 LPCSTR UsbEnumErrorToString(U8 Code);
 
 /************************************************************************/
 
 #pragma pack(pop)
 
-#endif  // USBMASSSTORAGE_H_INCLUDED
+#endif  // USB_STORAGE_H_INCLUDED
