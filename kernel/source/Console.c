@@ -170,6 +170,12 @@ void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
     if (Console.UseFramebuffer != FALSE) {
+        if (Console.CursorX == CursorX && Console.CursorY == CursorY) {
+            UnlockMutex(MUTEX_CONSOLE);
+            ProfileStop(&Scope);
+            return;
+        }
+
         ConsoleHideFramebufferCursor();
         Console.CursorX = CursorX;
         Console.CursorY = CursorY;
@@ -273,7 +279,6 @@ void SetConsoleCharacter(STR Char) {
     if (ConsoleResolveRegionState(0, &State) == TRUE) {
         if (Console.UseFramebuffer != FALSE) {
             if (ConsoleEnsureFramebufferMapped() == TRUE) {
-                ConsoleHideFramebufferCursor();
                 U32 PixelX = (State.X + Console.CursorX) * ConsoleGetCellWidth();
                 U32 PixelY = (State.Y + Console.CursorY) * ConsoleGetCellHeight();
                 ConsoleDrawGlyph(PixelX, PixelY, Char);

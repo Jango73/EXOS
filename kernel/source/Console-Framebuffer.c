@@ -483,6 +483,12 @@ void ConsoleShowFramebufferCursor(void) {
         return;
     }
 
+    if (ConsoleFramebufferCursorVisible != FALSE &&
+        ConsoleFramebufferCursorX == Console.CursorX &&
+        ConsoleFramebufferCursorY == Console.CursorY) {
+        return;
+    }
+
     if (ConsoleBackupFramebufferCellAbsolute(AbsoluteX, AbsoluteY) == FALSE) {
         ConsoleFramebufferCursorVisible = FALSE;
         return;
