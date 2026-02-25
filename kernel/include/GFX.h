@@ -47,6 +47,14 @@
 #define DF_GFX_LINE (DF_FIRST_FUNCTION + 8)
 #define DF_GFX_RECTANGLE (DF_FIRST_FUNCTION + 9)
 #define DF_GFX_ELLIPSE (DF_FIRST_FUNCTION + 10)
+#define DF_GFX_GETCAPABILITIES (DF_FIRST_FUNCTION + 11)
+#define DF_GFX_ENUMOUTPUTS (DF_FIRST_FUNCTION + 12)
+#define DF_GFX_GETOUTPUTINFO (DF_FIRST_FUNCTION + 13)
+#define DF_GFX_PRESENT (DF_FIRST_FUNCTION + 14)
+#define DF_GFX_WAITVBLANK (DF_FIRST_FUNCTION + 15)
+#define DF_GFX_ALLOCSURFACE (DF_FIRST_FUNCTION + 16)
+#define DF_GFX_FREESURFACE (DF_FIRST_FUNCTION + 17)
+#define DF_GFX_SETSCANOUT (DF_FIRST_FUNCTION + 18)
 
 /***************************************************************************/
 
@@ -62,6 +70,34 @@ typedef U32 (*GFXENUMMODESFUNC)(void);
 #define ROP_AND 0x0002
 #define ROP_OR 0x0003
 #define ROP_XOR 0x0004
+
+/***************************************************************************/
+
+// Graphics output types
+
+#define GFX_OUTPUT_TYPE_UNKNOWN 0x0000
+#define GFX_OUTPUT_TYPE_EDP 0x0001
+#define GFX_OUTPUT_TYPE_HDMI 0x0002
+#define GFX_OUTPUT_TYPE_DISPLAYPORT 0x0003
+#define GFX_OUTPUT_TYPE_VGA 0x0004
+
+/***************************************************************************/
+
+// Graphics pixel formats
+
+#define GFX_FORMAT_UNKNOWN 0x0000
+#define GFX_FORMAT_XRGB8888 0x0001
+#define GFX_FORMAT_ARGB8888 0x0002
+#define GFX_FORMAT_RGB565 0x0003
+#define GFX_FORMAT_RGB888 0x0004
+
+/***************************************************************************/
+
+// Surface and present flags
+
+#define GFX_SURFACE_FLAG_SCANOUT 0x0001
+#define GFX_SURFACE_FLAG_CPU_VISIBLE 0x0002
+#define GFX_PRESENT_FLAG_WAIT_VBLANK 0x0001
 
 /***************************************************************************/
 
@@ -118,6 +154,83 @@ typedef struct tag_GRAPHICSCONTEXT {
     LPFONT Font;
     LPBITMAP Bitmap;
 } GRAPHICSCONTEXT, *LPGRAPHICSCONTEXT;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_CAPABILITIES {
+    ABI_HEADER Header;
+    BOOL HasHardwareModeset;
+    BOOL HasPageFlip;
+    BOOL HasVBlankInterrupt;
+    BOOL HasCursorPlane;
+    BOOL SupportsTiledSurface;
+    U32 MaxWidth;
+    U32 MaxHeight;
+    U32 PreferredFormat;
+} GFX_CAPABILITIES, *LPGFX_CAPABILITIES;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_OUTPUT_QUERY {
+    ABI_HEADER Header;
+    U32 Index;
+    U32 OutputId;
+} GFX_OUTPUT_QUERY, *LPGFX_OUTPUT_QUERY;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_OUTPUT_INFO {
+    ABI_HEADER Header;
+    U32 OutputId;
+    U32 Type;
+    BOOL IsConnected;
+    U32 NativeWidth;
+    U32 NativeHeight;
+    U32 RefreshRate;
+} GFX_OUTPUT_INFO, *LPGFX_OUTPUT_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_SURFACE_INFO {
+    ABI_HEADER Header;
+    U32 SurfaceId;
+    U32 Width;
+    U32 Height;
+    U32 Format;
+    U32 Pitch;
+    U8* MemoryBase;
+    U32 Flags;
+} GFX_SURFACE_INFO, *LPGFX_SURFACE_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_PRESENT_INFO {
+    ABI_HEADER Header;
+    HANDLE GC;
+    U32 SurfaceId;
+    RECT DirtyRect;
+    U32 Flags;
+} GFX_PRESENT_INFO, *LPGFX_PRESENT_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_VBLANK_INFO {
+    ABI_HEADER Header;
+    U32 TimeoutMilliseconds;
+    U32 FrameSequence;
+} GFX_VBLANK_INFO, *LPGFX_VBLANK_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_SCANOUT_INFO {
+    ABI_HEADER Header;
+    U32 OutputId;
+    U32 SurfaceId;
+    U32 Width;
+    U32 Height;
+    U32 Format;
+    U32 Flags;
+} GFX_SCANOUT_INFO, *LPGFX_SCANOUT_INFO;
 
 /***************************************************************************/
 

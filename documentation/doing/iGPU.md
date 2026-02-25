@@ -30,19 +30,19 @@ Deliverable:
 ## Step 1 - Evolve `GFX.h` into a stable backend interface
 The existing API is enough for software drawing, but too poor for clean native scanout management.
 
-- [ ] Add capability and output query commands:
+- [x] Add capability and output query commands:
   - `DF_GFX_GETCAPABILITIES`
   - `DF_GFX_ENUMOUTPUTS`
   - `DF_GFX_GETOUTPUTINFO`
-- [ ] Add present/synchronization commands:
+- [x] Add present/synchronization commands:
   - `DF_GFX_PRESENT`
   - `DF_GFX_WAITVBLANK`
-- [ ] Add optional page-flip support:
+- [x] Add optional page-flip support:
   - `DF_GFX_ALLOCSURFACE`
   - `DF_GFX_FREESURFACE`
   - `DF_GFX_SETSCANOUT`
-- [ ] Keep existing commands (`SETPIXEL`, `LINE`, `RECTANGLE`) for compatibility.
-- [ ] Require legacy drivers (VESA) to return `DF_RETURN_NOT_IMPLEMENTED` for new optional commands.
+- [x] Keep existing commands (`SETPIXEL`, `LINE`, `RECTANGLE`) for compatibility.
+- [x] Require legacy drivers (VESA) to return `DF_RETURN_NOT_IMPLEMENTED` for new optional commands.
 
 Suggested new structures:
 - `GFX_CAPABILITIES`
@@ -63,6 +63,7 @@ Suggested new structures:
 
 Deliverable:
 - `GFX.h` update proposal that stays backward-compatible with VESA.
+- Implemented in `kernel/include/GFX.h` and `kernel/source/drivers/graphics/VESA.c`.
 
 ## Step 2 - Intel driver skeleton and PCI attach
 Create a dedicated Intel graphics driver module.

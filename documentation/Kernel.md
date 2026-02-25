@@ -742,6 +742,8 @@ USB mass storage (`kernel/source/drivers/USBMassStorage.c`, BOT read-only path) 
 
 The VESA driver requests VBE modes in linear frame buffer mode (INT 10h 4F02h, bit 14), validates LFB capability, and maps `PhysBasePtr` through `MapIOMemory`. Rendering writes directly to mapped VRAM, avoiding BIOS bank-switch calls.
 
+`kernel/include/GFX.h` defines a backend-facing graphics command contract. Legacy drawing commands (`SETMODE`, `GETMODEINFO`, `SETPIXEL`, `GETPIXEL`, `LINE`, `RECTANGLE`) stay unchanged for compatibility. The same header also defines optional backend commands for capabilities/outputs/present/surfaces (`GETCAPABILITIES`, `ENUMOUTPUTS`, `GETOUTPUTINFO`, `PRESENT`, `WAITVBLANK`, `ALLOCSURFACE`, `FREESURFACE`, `SETSCANOUT`). Legacy backends that do not implement those optional commands return `DF_RETURN_NOT_IMPLEMENTED`.
+
 The console supports direct linear framebuffer rendering when Multiboot framebuffer metadata is available:
 
 - BIOS/MBR path uses VGA text buffer `0xB8000` with text framebuffer metadata.

@@ -1604,6 +1604,15 @@ UINT VESACommands(UINT Function, UINT Param) {
             return VESA_Line((LPLINEINFO)Param);
         case DF_GFX_RECTANGLE:
             return VESA_Rectangle((LPRECTINFO)Param);
+        case DF_GFX_GETCAPABILITIES:
+        case DF_GFX_ENUMOUTPUTS:
+        case DF_GFX_GETOUTPUTINFO:
+        case DF_GFX_PRESENT:
+        case DF_GFX_WAITVBLANK:
+        case DF_GFX_ALLOCSURFACE:
+        case DF_GFX_FREESURFACE:
+        case DF_GFX_SETSCANOUT:
+            return DF_RETURN_NOT_IMPLEMENTED;
     }
 
     return DF_RETURN_NOT_IMPLEMENTED;
