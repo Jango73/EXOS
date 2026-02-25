@@ -25,7 +25,7 @@
 #include "Base.h"
 #include "Arch.h"
 #include "GFX.h"
-#include "InterruptController.h"
+#include "drivers/interrupts/InterruptController.h"
 #include "Log.h"
 #include "input/Mouse.h"
 #include "input/MouseCommon.h"

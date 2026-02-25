@@ -24,7 +24,7 @@
 
 #include "drivers/interrupts/DeviceInterrupt.h"
 
-#include "InterruptController.h"
+#include "drivers/interrupts/InterruptController.h"
 #include "Log.h"
 #include "Memory.h"
 #include "CoreString.h"

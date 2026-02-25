@@ -25,7 +25,7 @@
 #include "Base.h"
 #include "Kernel.h"
 #include "drivers/platform/ACPI.h"
-#include "InterruptController.h"
+#include "drivers/interrupts/InterruptController.h"
 #include "drivers/interrupts/IOAPIC.h"
 #include "drivers/interrupts/LocalAPIC.h"
 #include "User.h"

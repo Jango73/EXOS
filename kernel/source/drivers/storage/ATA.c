@@ -27,7 +27,7 @@
 #include "Clock.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "InterruptController.h"
+#include "drivers/interrupts/InterruptController.h"
 #include "System.h"
 #include "DriverEnum.h"
 #include "utils/Cache.h"

@@ -26,7 +26,7 @@
 #include "Kernel.h"
 #include "Arch.h"
 #include "SYSCall.h"
-#include "InterruptController.h"
+#include "drivers/interrupts/InterruptController.h"
 #include "System.h"
 
 /************************************************************************/
