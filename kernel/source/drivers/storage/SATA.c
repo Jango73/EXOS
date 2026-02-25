@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "drivers/SATA.h"
+#include "drivers/storage/SATA.h"
 
 #include "Clock.h"
 #include "drivers/DeviceInterrupt.h"

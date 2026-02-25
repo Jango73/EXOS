@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "drivers/USBStorage-Private.h"
+#include "drivers/storage/USBStorage-Private.h"
 
 #include "Endianness.h"
 #include "Kernel.h"

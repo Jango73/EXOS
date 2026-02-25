@@ -30,7 +30,7 @@
 #include "drivers/Keyboard.h"
 #include "drivers/LocalAPIC.h"
 #include "drivers/PCI.h"
-#include "drivers/USBStorage.h"
+#include "drivers/storage/USBStorage.h"
 #include "drivers/XHCI-Internal.h"
 #include "KernelData.h"
 #include "process/Task.h"

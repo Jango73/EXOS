@@ -21,7 +21,7 @@
 
 \************************************************************************/
 
-#include "drivers/NVMe-Internal.h"
+#include "drivers/storage/NVMe-Internal.h"
 
 #include "CoreString.h"
 #include "FileSystem.h"

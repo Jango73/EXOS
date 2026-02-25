@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "drivers/USBStorage.h"
+#include "drivers/storage/USBStorage.h"
 
 #include "Clock.h"
 #include "DeferredWork.h"
