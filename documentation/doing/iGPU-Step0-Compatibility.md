@@ -1,96 +1,148 @@
 # Intel iGPU Step 0 Compatibility Note
 
-## 1) Effective `DF_GFX_*` usage map
+## Scope
 
-### Desktop (`kernel/source/Desktop.c`)
-- Direct driver calls:
-  - `DF_GFX_SETMODE` in `ShowDesktop`.
-  - `DF_GFX_SETPIXEL` in `SetPixel`.
-  - `DF_GFX_GETPIXEL` in `GetPixel`.
-  - `DF_GFX_LINE` in `Line`.
-  - `DF_GFX_RECTANGLE` in `Rectangle`.
+This Step 0 note freezes the graphics contract needed to make Desktop and Console backend-agnostic, with:
+- graphics driver ownership of glyph/text-cell rendering,
+- Console as text logic only,
+- one emergency fallback path: direct `B800` text console.
 
-### Console (`kernel/source/Console.c`)
-- Effective graphics driver command usage:
-  - `DF_GFX_SETMODE` via `ConsoleSetMode`.
-- Console driver command handler exposes:
-  - `DF_GFX_GETMODEINFO`
-  - `DF_GFX_SETMODE`
-  - other `DF_GFX_*` return `DF_RETURN_NOT_IMPLEMENTED`.
+This document records the verified current usage, then defines the target contract.
 
-### System calls (`kernel/source/SYSCall.c`)
-- No direct `Driver->Command(DF_GFX_...)` call.
-- Indirect usage through Desktop graphics helpers:
-  - `SysCall_SetPixel` -> `SetPixel` -> `DF_GFX_SETPIXEL`
-  - `SysCall_GetPixel` -> `GetPixel` -> `DF_GFX_GETPIXEL`
-  - `SysCall_Line` -> `Line` -> `DF_GFX_LINE`
-  - `SysCall_Rectangle` -> `Rectangle` -> `DF_GFX_RECTANGLE`
-  - `SysCall_ConsoleSetMode` -> `ConsoleSetMode` -> `DF_GFX_SETMODE`
+## 1) Verified current `DF_GFX_*` usage map
 
-## 2) What `VESA.c` guarantees
+### Desktop path (`kernel/source/Desktop.c`)
+- `ShowDesktop`:
+  - uses `GetGraphicsDriver()`
+  - calls `DF_GFX_SETMODE`
+- `GetWindowGC`:
+  - calls `DF_GFX_CREATECONTEXT`
+- drawing helpers:
+  - `SetPixel` -> `DF_GFX_SETPIXEL`
+  - `GetPixel` -> `DF_GFX_GETPIXEL`
+  - `Line` -> `DF_GFX_LINE`
+  - `Rectangle` -> `DF_GFX_RECTANGLE`
 
-### Implemented commands
-- `DF_LOAD` / `DF_UNLOAD` / `DF_GET_VERSION`
+### Console path (`kernel/source/Console.c`)
+- Console mode changes are handled by console driver command dispatch:
+  - `ConsoleSetMode` -> `ConsoleDriverCommands(DF_GFX_SETMODE, ...)`
+- Console does not call selected graphics backend (`GetGraphicsDriver`) for glyph rendering.
+- Console graphics-oriented commands other than mode/getmode return `DF_RETURN_NOT_IMPLEMENTED`.
+
+### System call path (`kernel/source/SYSCall.c`)
+- Graphics syscalls are routed to Desktop/windowing primitives, which then call backend `DF_GFX_*`.
+- `SysCall_ConsoleSetMode` routes to `ConsoleSetMode`, not to selected graphics backend.
+
+### Backend selection (`kernel/source/drivers/graphics/Graphics-Selector.c`)
+- Active backend candidates today:
+  - `IntelGfx`
+  - `VESA`
+- Selector forwards all known `DF_GFX_*` to the most capable active backend with fallback attempts.
+
+## 2) Verified backend guarantees (baseline)
+
+### VESA (`kernel/source/drivers/graphics/VESA.c`)
+- Implemented:
+  - `DF_LOAD`, `DF_UNLOAD`, `DF_GET_VERSION`
+  - `DF_GFX_GETMODEINFO`, `DF_GFX_SETMODE`, `DF_GFX_CREATECONTEXT`
+  - `DF_GFX_CREATEBRUSH`, `DF_GFX_CREATEPEN`
+  - `DF_GFX_SETPIXEL`, `DF_GFX_GETPIXEL`, `DF_GFX_LINE`, `DF_GFX_RECTANGLE`
+- Optional modern commands (`GETCAPABILITIES`, output/present/surface family) return `DF_RETURN_NOT_IMPLEMENTED`.
+
+### Intel (`kernel/source/drivers/graphics/IntelGfx.c`)
+- Implemented:
+  - `DF_LOAD`, `DF_UNLOAD`, `DF_GET_VERSION`
+  - `DF_GFX_CREATECONTEXT`
+  - `DF_GFX_GETMODEINFO`, `DF_GFX_SETMODE`
+  - `DF_GFX_GETCAPABILITIES`
+  - `DF_GFX_SETPIXEL`, `DF_GFX_GETPIXEL`, `DF_GFX_LINE`, `DF_GFX_RECTANGLE`
+  - `DF_GFX_PRESENT` (takeover path)
+- Remaining optional commands return `DF_RETURN_NOT_IMPLEMENTED`.
+
+## 3) Architecture gap identified in Step 0
+
+Current split:
+- Desktop rendering goes through selected graphics backend.
+- Console rendering/mode ownership remains in a separate console-specific path.
+
+Required direction:
+- Console must no longer own graphics behavior.
+- Graphics drivers must own text-cell/glyph rendering operations.
+- Console becomes a pure text operation producer.
+
+## 4) Frozen target contract (Step 0 output)
+
+Two contracts are required.
+
+### A) Desktop/windowing primitives contract
+
+Mandatory:
+- `DF_GFX_CREATECONTEXT`
 - `DF_GFX_GETMODEINFO`
 - `DF_GFX_SETMODE`
-- `DF_GFX_CREATEBRUSH`
-- `DF_GFX_CREATEPEN`
 - `DF_GFX_SETPIXEL`
 - `DF_GFX_GETPIXEL`
 - `DF_GFX_LINE`
 - `DF_GFX_RECTANGLE`
 
-Any other command returns `DF_RETURN_NOT_IMPLEMENTED`.
+Optional:
+- `DF_GFX_GETCAPABILITIES`
+- `DF_GFX_ENUMOUTPUTS`
+- `DF_GFX_GETOUTPUTINFO`
+- `DF_GFX_PRESENT`
+- `DF_GFX_WAITVBLANK`
+- `DF_GFX_ALLOCSURFACE`
+- `DF_GFX_FREESURFACE`
+- `DF_GFX_SETSCANOUT`
 
-### Mode set and framebuffer guarantees
-- `DF_GFX_SETMODE` selects a mode from the internal `VESAModeSpecs` table.
-- The mode path requires linear framebuffer support (`Attributes & 0x80`).
-- Physical framebuffer is mapped with `MapIOMemory`, then exposed through `GRAPHICSCONTEXT.MemoryBase`.
-- On success, context fields are updated:
-  - `Width`, `Height`, `BitsPerPixel`, `BytesPerScanLine`, `MemoryBase`
-  - clip rectangle (`LoClip`, `HiClip`)
-- Old mappings are released before remapping (`UnMapIOMemory`).
+Rule:
+- Unimplemented optional commands return `DF_RETURN_NOT_IMPLEMENTED`.
 
-### Drawing behavior guarantees
-- Pixel primitives are implemented for 8/16/24 bits per pixel.
-- `LINE` and `RECTANGLE` are implemented for 16/24 bits per pixel.
-- 8 bits per pixel line/rectangle paths are stubs (no rendering guarantee).
-- `SETPIXEL`, `GETPIXEL`, `RECTANGLE` use context mutex protection.
-- `LINE` path has no active mutex lock in `VESA.c`.
+### B) Console text-rendering contract (driver-owned text path)
 
-## 3) Minimal backend contract for the window manager
+New command family to add in `GFX.h`:
+- `DF_GFX_TEXT_PUTCELL`
+- `DF_GFX_TEXT_CLEAR_REGION`
+- `DF_GFX_TEXT_SCROLL_REGION`
+- `DF_GFX_TEXT_SET_CURSOR`
+- `DF_GFX_TEXT_SET_CURSOR_VISIBLE`
 
-To run the existing window manager path without backend-specific code, each graphics backend must provide:
+Semantics:
+- Driver receives text cell operations (character + attributes + region/cursor).
+- Driver performs glyph rasterization and final framebuffer writes.
+- Console does not manipulate pixels, contexts, pens, brushes, or framebuffers.
 
-### Required commands
-- `DF_GFX_SETMODE`
-- `DF_GFX_GETMODEINFO`
-- `DF_GFX_SETPIXEL`
-- `DF_GFX_GETPIXEL`
-- `DF_GFX_LINE`
-- `DF_GFX_RECTANGLE`
+Rule:
+- A backend that does not implement text commands cannot own console rendering.
 
-### Required command semantics
-- `DF_GFX_SETMODE`:
-  - validates requested mode.
-  - activates scanout/framebuffer.
-  - updates the active `GRAPHICSCONTEXT` fields used by Desktop.
-- `DF_GFX_GETMODEINFO`:
-  - returns the active mode values matching the context.
-- Drawing commands:
-  - accept `PIXELINFO`, `LINEINFO`, `RECTINFO`.
-  - use the `GC` handle in payload.
-  - render into the active framebuffer referenced by the context.
-  - tolerate coordinates after Desktop-origin translation.
+## 5) Fallback policy freeze
 
-### Required context invariants
+Only one emergency fallback is accepted:
+- direct `B800` text console path.
+
+It is used only if:
+- no active graphics backend can satisfy required text contract, or
+- backend text command dispatch fails in critical path.
+
+No other console graphics fallback path is part of target design.
+
+## 6) Required invariants
+
+### Backend/context invariants
 - `GRAPHICSCONTEXT.TypeID == KOID_GRAPHICSCONTEXT`
-- `GRAPHICSCONTEXT.Driver` points to the backend driver.
-- `MemoryBase != NULL` after successful graphics mode set.
-- `BytesPerScanLine` is consistent with active scanout format.
-- `LoClip/HiClip` bound valid drawable range.
+- context fields (`Width`, `Height`, `BitsPerPixel`, `BytesPerScanLine`, `MemoryBase`) match active mode
+- draw commands operate on active scanout/surface consistently
 
-## 4) Architecture coupling to remove for backend-agnostic design
+### Front-end ownership invariants
+- one active graphics backend at a time
+- explicit front-end switch (`ConsoleFrontEnd` / `DesktopFrontEnd`)
+- display switch does not require backend unload/reload to work
 
-`GetWindowGC` in `Desktop.c` binds directly to `VESAContext`, and `GetGraphicsDriver` returns `VESAGetDriver()` unconditionally.  
-For true backend-agnostic behavior, context acquisition must be routed through the selected graphics backend rather than hardcoded VESA symbols.
+## 7) Step 0 deliverable status
+
+Done:
+- verified current usage map (Desktop, Console, SYSCall, selector)
+- documented baseline guarantees of active backends (Intel, VESA)
+- froze minimal and extended contracts for backend-agnostic Desktop + driver-owned Console text rendering
+- froze emergency fallback policy to `B800` only
+
