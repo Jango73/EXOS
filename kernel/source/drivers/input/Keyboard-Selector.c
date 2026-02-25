@@ -22,10 +22,10 @@
 
 \************************************************************************/
 
-#include "drivers/Keyboard.h"
-#include "drivers/KeyboardDrivers.h"
-#include "drivers/PCI.h"
-#include "drivers/XHCI-Internal.h"
+#include "drivers/input/Keyboard.h"
+#include "drivers/input/KeyboardDrivers.h"
+#include "drivers/bus/PCI.h"
+#include "drivers/usb/XHCI-Internal.h"
 
 #include "DriverGetters.h"
 #include "KernelData.h"

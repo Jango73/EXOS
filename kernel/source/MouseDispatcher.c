@@ -31,7 +31,7 @@
 #include "process/Process.h"
 #include "process/Task.h"
 #include "User.h"
-#include "drivers/VGA.h"
+#include "drivers/graphics/VGA.h"
 #include "utils/Cooldown.h"
 
 /************************************************************************/

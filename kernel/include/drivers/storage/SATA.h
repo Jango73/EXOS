@@ -29,7 +29,7 @@
 
 #include "Base.h"
 #include "Disk.h"
-#include "drivers/PCI.h"
+#include "drivers/bus/PCI.h"
 
 /***************************************************************************/
 

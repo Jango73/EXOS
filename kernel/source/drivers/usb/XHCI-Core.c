@@ -22,8 +22,8 @@
 
 \************************************************************************/
 
-#include "drivers/USBKeyboard.h"
-#include "drivers/XHCI-Internal.h"
+#include "drivers/input/USBKeyboard.h"
+#include "drivers/usb/XHCI-Internal.h"
 #include "Clock.h"
 #include "utils/ThresholdLatch.h"
 

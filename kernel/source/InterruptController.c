@@ -24,10 +24,10 @@
 
 #include "Base.h"
 #include "Kernel.h"
-#include "drivers/ACPI.h"
+#include "drivers/platform/ACPI.h"
 #include "InterruptController.h"
-#include "drivers/IOAPIC.h"
-#include "drivers/LocalAPIC.h"
+#include "drivers/interrupts/IOAPIC.h"
+#include "drivers/interrupts/LocalAPIC.h"
 #include "User.h"
 #include "Log.h"
 #include "System.h"

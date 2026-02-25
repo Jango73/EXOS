@@ -22,10 +22,10 @@
 
 \************************************************************************/
 
-#include "drivers/ACPI.h"
+#include "drivers/platform/ACPI.h"
 #include "Base.h"
 #include "arch/intel/x86-Common.h"
-#include "drivers/LocalAPIC.h"
+#include "drivers/interrupts/LocalAPIC.h"
 #include "Log.h"
 #include "Memory.h"
 #include "User.h"

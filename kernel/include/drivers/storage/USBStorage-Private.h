@@ -28,7 +28,7 @@
 
 #include "Disk.h"
 #include "drivers/storage/USBStorage.h"
-#include "drivers/XHCI-Internal.h"
+#include "drivers/usb/XHCI-Internal.h"
 #include "utils/RateLimiter.h"
 
 /************************************************************************/

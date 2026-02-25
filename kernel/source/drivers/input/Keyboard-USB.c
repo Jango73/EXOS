@@ -22,8 +22,8 @@
 
 \************************************************************************/
 
-#include "drivers/Keyboard.h"
-#include "drivers/XHCI-Internal.h"
+#include "drivers/input/Keyboard.h"
+#include "drivers/usb/XHCI-Internal.h"
 
 #include "Base.h"
 #include "Console.h"

@@ -25,12 +25,12 @@
 #include "drivers/storage/SATA.h"
 
 #include "Clock.h"
-#include "drivers/DeviceInterrupt.h"
+#include "drivers/interrupts/DeviceInterrupt.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
 #include "DriverEnum.h"
-#include "drivers/PCI.h"
+#include "drivers/bus/PCI.h"
 #include "User.h"
 #include "utils/Cache.h"
 

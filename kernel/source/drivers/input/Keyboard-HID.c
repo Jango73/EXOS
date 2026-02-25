@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "drivers/Keyboard.h"
+#include "drivers/input/Keyboard.h"
 
 #include "CoreString.h"
 #include "File.h"

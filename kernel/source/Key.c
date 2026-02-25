@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "Base.h"
-#include "drivers/Keyboard.h"
+#include "drivers/input/Keyboard.h"
 
 #include "Clock.h"
 #include "CoreString.h"

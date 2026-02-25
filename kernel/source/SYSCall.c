@@ -31,7 +31,7 @@
 #include "utils/Helpers.h"
 #include "ID.h"
 #include "Kernel.h"
-#include "drivers/Keyboard.h"
+#include "drivers/input/Keyboard.h"
 #include "Log.h"
 #include "Memory.h"
 #include "Mouse.h"

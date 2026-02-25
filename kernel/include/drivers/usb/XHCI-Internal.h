@@ -25,7 +25,7 @@
 #ifndef XHCI_INTERNAL_H_INCLUDED
 #define XHCI_INTERNAL_H_INCLUDED
 
-#include "drivers/XHCI.h"
+#include "drivers/usb/XHCI.h"
 #include "Base.h"
 #include "CoreString.h"
 #include "DeferredWork.h"
@@ -35,8 +35,8 @@
 #include "Log.h"
 #include "Memory.h"
 #include "User.h"
-#include "drivers/DeviceInterrupt.h"
-#include "drivers/USB.h"
+#include "drivers/interrupts/DeviceInterrupt.h"
+#include "drivers/usb/USB.h"
 #include "utils/RateLimiter.h"
 
 /************************************************************************/

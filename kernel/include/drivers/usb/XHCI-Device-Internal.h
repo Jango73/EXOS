@@ -1,7 +1,7 @@
 #ifndef XHCI_DEVICE_INTERNAL_H_INCLUDED
 #define XHCI_DEVICE_INTERNAL_H_INCLUDED
 
-#include "drivers/XHCI-Internal.h"
+#include "drivers/usb/XHCI-Internal.h"
 
 /************************************************************************/
 

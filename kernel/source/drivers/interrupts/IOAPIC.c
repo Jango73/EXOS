@@ -23,9 +23,9 @@
 \************************************************************************/
 
 #include "Base.h"
-#include "drivers/IOAPIC.h"
-#include "drivers/LocalAPIC.h"
-#include "drivers/ACPI.h"
+#include "drivers/interrupts/IOAPIC.h"
+#include "drivers/interrupts/LocalAPIC.h"
+#include "drivers/platform/ACPI.h"
 #include "User.h"
 #include "InterruptController.h"
 #include "Memory.h"

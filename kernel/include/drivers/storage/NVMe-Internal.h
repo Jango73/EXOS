@@ -33,9 +33,9 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
-#include "drivers/DeviceInterrupt.h"
-#include "drivers/LocalAPIC.h"
-#include "drivers/PCI.h"
+#include "drivers/interrupts/DeviceInterrupt.h"
+#include "drivers/interrupts/LocalAPIC.h"
+#include "drivers/bus/PCI.h"
 
 /************************************************************************/
 // Macros

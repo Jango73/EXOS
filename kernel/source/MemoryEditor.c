@@ -25,7 +25,7 @@
 #include "Base.h"
 #include "Console.h"
 #include "Kernel.h"
-#include "drivers/Keyboard.h"
+#include "drivers/input/Keyboard.h"
 #include "CoreString.h"
 #include "VKey.h"
 

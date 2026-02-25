@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "drivers/ACPI.h"
+#include "drivers/platform/ACPI.h"
 
 #include "Base.h"
 #include "Console.h"

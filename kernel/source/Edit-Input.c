@@ -29,7 +29,7 @@
 #include "Log.h"
 #include "Mutex.h"
 #include "User.h"
-#include "drivers/Keyboard.h"
+#include "drivers/input/Keyboard.h"
 #include "process/Task.h"
 
 /***************************************************************************/

@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "drivers/DeviceInterrupt.h"
+#include "drivers/interrupts/DeviceInterrupt.h"
 
 #include "InterruptController.h"
 #include "Log.h"
