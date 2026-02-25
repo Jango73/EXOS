@@ -68,14 +68,15 @@ Deliverable:
 ## Step 2 - Intel driver skeleton and PCI attach
 Create a dedicated Intel graphics driver module.
 
-- [ ] Add `kernel/source/drivers/graphics/IntelGfx.c` as entry/dispatch.
-- [ ] Detect Intel GPU on PCI (`VendorId = 0x8086`, display class).
-- [ ] Enable MMIO + bus master on PCI command register.
-- [ ] Read BARs and map the MMIO BAR with `MapIOMemory`.
-- [ ] Validate MMIO access through a harmless identity register read.
+- [x] Add `kernel/source/drivers/graphics/IntelGfx.c` as entry/dispatch.
+- [x] Detect Intel GPU on PCI (`VendorId = 0x8086`, display class).
+- [x] Enable MMIO + bus master on PCI command register.
+- [x] Read BARs and map the MMIO BAR with `MapIOMemory`.
+- [x] Validate MMIO access through a harmless identity register read.
 
 Deliverable:
 - Driver loads, identifies Intel GPU, maps MMIO, prints concise identification logs.
+- Delivered by `IntelGfx.c`, with backend selection/fallback managed by `Graphics-Selector.c`.
 
 ## Step 3 - Capability model by generation
 Avoid branching everywhere by centralizing capabilities.

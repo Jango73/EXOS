@@ -32,8 +32,6 @@
 
 /***************************************************************************/
 
-extern DRIVER VESADriver;
-extern GRAPHICSCONTEXT VESAContext;
 extern DRIVER ConsoleDriver;
 
 /***************************************************************************/
@@ -1164,7 +1162,9 @@ Out:
  */
 HANDLE GetWindowGC(HANDLE Handle) {
     LPWINDOW This = (LPWINDOW)Handle;
+    LPDRIVER GraphicsDriver;
     LPGRAPHICSCONTEXT Context;
+    UINT ContextPointer;
 
     //-------------------------------------
     // Check validity of parameters
@@ -1172,7 +1172,14 @@ HANDLE GetWindowGC(HANDLE Handle) {
     if (This == NULL) return NULL;
     if (This->TypeID != KOID_WINDOW) return NULL;
 
-    Context = &VESAContext;
+    GraphicsDriver = GetGraphicsDriver();
+    if (GraphicsDriver == NULL || GraphicsDriver->Command == NULL) return NULL;
+
+    ContextPointer = GraphicsDriver->Command(DF_GFX_CREATECONTEXT, 0);
+    if (ContextPointer == 0) return NULL;
+
+    Context = (LPGRAPHICSCONTEXT)(LPVOID)ContextPointer;
+    if (Context->TypeID != KOID_GRAPHICSCONTEXT) return NULL;
 
     ResetGraphicsContext(Context);
 

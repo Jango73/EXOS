@@ -744,6 +744,10 @@ The VESA driver requests VBE modes in linear frame buffer mode (INT 10h 4F02h, b
 
 `kernel/include/GFX.h` defines a backend-facing graphics command contract. Legacy drawing commands (`SETMODE`, `GETMODEINFO`, `SETPIXEL`, `GETPIXEL`, `LINE`, `RECTANGLE`) stay unchanged for compatibility. The same header also defines optional backend commands for capabilities/outputs/present/surfaces (`GETCAPABILITIES`, `ENUMOUTPUTS`, `GETOUTPUTINFO`, `PRESENT`, `WAITVBLANK`, `ALLOCSURFACE`, `FREESURFACE`, `SETSCANOUT`). Legacy backends that do not implement those optional commands return `DF_RETURN_NOT_IMPLEMENTED`.
 
+Graphics backend selection is handled by `kernel/source/drivers/graphics/Graphics-Selector.c`. The selector loads graphics backends, keeps only active/usable ones, scores their capabilities, and forwards `DF_GFX_*` calls to the selected backend. This provides deterministic fallback behavior without hardcoding a single backend in desktop code.
+
+`kernel/source/drivers/graphics/IntelGfx.c` provides the Intel native skeleton path: Intel PCI display detection (`VID 0x8086`), BAR0 MMIO mapping via `MapIOMemory`, PCI bus-master enable, and a minimal MMIO probe read for bring-up diagnostics.
+
 The console supports direct linear framebuffer rendering when Multiboot framebuffer metadata is available:
 
 - BIOS/MBR path uses VGA text buffer `0xB8000` with text framebuffer metadata.

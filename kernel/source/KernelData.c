@@ -346,7 +346,7 @@ void InitializeDriverList(void) {
     ListAddTail(Kernel.Drivers, FileSystemGetDriver());
     ListAddTail(Kernel.Drivers, NetworkManagerGetDriver());
     ListAddTail(Kernel.Drivers, UserAccountGetDriver());
-    ListAddTail(Kernel.Drivers, VESAGetDriver());
+    ListAddTail(Kernel.Drivers, GraphicsSelectorGetDriver());
 }
 
 /************************************************************************/
@@ -925,7 +925,7 @@ LPDRIVER GetMouseDriver(void) {
  * @return Pointer to the graphics driver.
  */
 LPDRIVER GetGraphicsDriver(void) {
-    return VESAGetDriver();
+    return GraphicsSelectorGetDriver();
 }
 
 /************************************************************************/
