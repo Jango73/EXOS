@@ -464,11 +464,6 @@ BOOL KillTask(LPTASK Task) {
             return FALSE;
         }
 
-        UINT FirstMessage = 0;
-        SAFE_USE_2(Task->MessageQueue.Messages, Task->MessageQueue.Messages->First) {
-            FirstMessage = ((LPMESSAGE)Task->MessageQueue.Messages->First)->Message;
-        }
-
         // Lock access to kernel data
         LockMutex(MUTEX_KERNEL, INFINITY);
 

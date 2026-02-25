@@ -462,6 +462,7 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
         CodeSelector = SELECTOR_USER_CODE;
         DataSelector = SELECTOR_USER_DATA;
     }
+    UNUSED(BaseVMA);
 
     Task->Arch.Stack.Size = Info->StackSize;
     Task->Arch.SystemStack.Size = TASK_MINIMUM_SYSTEM_STACK_SIZE;

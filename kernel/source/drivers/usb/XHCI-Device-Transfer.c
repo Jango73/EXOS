@@ -171,13 +171,6 @@ static void XHCI_LogEnableSlotTimeoutState(LPXHCI_DEVICE Device) {
 /************************************************************************/
 
 /**
- * @brief Read current root port status for one USB device.
- * @param Device xHCI controller.
- * @param UsbDevice USB device state.
- * @return PORTSC raw value, 0 when unavailable.
-/************************************************************************/
-
-/**
  * @brief Convert endpoint address to xHCI DCI.
  * @param EndpointAddress USB endpoint address.
  * @return DCI index.
@@ -271,6 +264,7 @@ LPXHCI_USB_CONFIGURATION XHCI_GetSelectedConfig(LPXHCI_USB_DEVICE UsbDevice) {
  * @param UsbDevice USB device state.
  * @return TRUE when the device exposes the hub class.
  */
+/*
 static BOOL XHCI_IsHubDevice(LPXHCI_USB_DEVICE UsbDevice) {
     if (UsbDevice == NULL) {
         return FALSE;
@@ -305,6 +299,7 @@ static BOOL XHCI_IsHubDevice(LPXHCI_USB_DEVICE UsbDevice) {
 
     return FALSE;
 }
+*/
 
 /************************************************************************/
 

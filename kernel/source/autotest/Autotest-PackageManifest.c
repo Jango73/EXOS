@@ -37,6 +37,7 @@
  * @param Message Failure message.
  */
 static void PackageManifestAssert(BOOL Condition, TEST_RESULTS* Results, LPCSTR Message) {
+    UNUSED(Message);
     if (Results == NULL) return;
 
     Results->TestsRun++;

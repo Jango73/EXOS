@@ -235,6 +235,15 @@ static LPPCI_DEVICE NVMeAttach(LPPCI_DEVICE PciDevice) {
     U32 AsqHigh = Regs[(NVME_REG_ASQ / 4) + 1];
     U32 AcqLow = Regs[NVME_REG_ACQ / 4];
     U32 AcqHigh = Regs[(NVME_REG_ACQ / 4) + 1];
+    UNUSED(CapLow);
+    UNUSED(Version);
+    UNUSED(Cc);
+    UNUSED(Csts);
+    UNUSED(Aqa);
+    UNUSED(AsqLow);
+    UNUSED(AsqHigh);
+    UNUSED(AcqLow);
+    UNUSED(AcqHigh);
 
     DEBUG(TEXT("[NVMeAttach] BAR0=%p size=%u CAP=%x/%x VS=%x CC=%x CSTS=%x AQA=%x"),
           (LPVOID)(LINEAR)Bar0Physical,

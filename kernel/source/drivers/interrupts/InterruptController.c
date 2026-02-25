@@ -264,6 +264,8 @@ static void InitializePIC8259(void) {
     WritePICMask(1, 0xFF);
     WritePICMask(2, 0xFF);
 
+    UNUSED(Mask1);
+    UNUSED(Mask2);
     DEBUG(TEXT("[InitializePIC8259] Remapped PIC (0x20/0x28), masks %x/%x"),
           Mask1, Mask2);
 }

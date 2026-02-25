@@ -746,6 +746,8 @@ BOOL NVMeReadTest(LPNVME_DEVICE Device) {
         U8* Data = (U8*)Buffer;
         U32 SigLow = (U32)Data[510];
         U32 SigHigh = (U32)Data[511];
+        UNUSED(SigLow);
+        UNUSED(SigHigh);
         DEBUG(TEXT("[NVMeReadTest] MBR signature=%x %x"),
               SigLow,
               SigHigh);

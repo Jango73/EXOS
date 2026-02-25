@@ -125,6 +125,8 @@ BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
 
     if (File == NULL) return FALSE;
     if (Info == NULL) return FALSE;
+    UNUSED(Ehdr64);
+    UNUSED(Phdr64);
 
     /* Initialize operation header */
     FileOperation.Header.Size = sizeof(FILEOPERATION);

@@ -134,15 +134,15 @@ void MoveCursorToAbsolute(LPEDITFILE File, I32 Column, I32 Line) {
 
     if (Line < File->Top) {
         File->Top = Line;
-    } else if (Line >= (File->Top + MAX_LINES)) {
-        File->Top = Line - (MAX_LINES - 1);
+    } else if (Line >= (File->Top + (I32)MAX_LINES)) {
+        File->Top = Line - ((I32)MAX_LINES - 1);
         if (File->Top < 0) File->Top = 0;
     }
 
     if (Column < File->Left) {
         File->Left = Column;
-    } else if (Column >= (File->Left + MAX_COLUMNS)) {
-        File->Left = Column - (MAX_COLUMNS - 1);
+    } else if (Column >= (File->Left + (I32)MAX_COLUMNS)) {
+        File->Left = Column - ((I32)MAX_COLUMNS - 1);
         if (File->Left < 0) File->Left = 0;
     }
 

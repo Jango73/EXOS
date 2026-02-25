@@ -630,6 +630,7 @@ BOOL GrowCurrentStack(UINT AdditionalBytes) {
                 CurrentSP,
                 UsedBytes,
                 DesiredSize);
+            UNUSED(UsedBytes);
 
             if (ResizeRegion(Base, 0, OldSize, DesiredSize, Flags) == FALSE) {
                 WARNING(TEXT("[GrowCurrentStack] ResizeRegion failed for base=%p size=%u -> %u, trying relocation"),
@@ -673,6 +674,7 @@ BOOL GrowCurrentStack(UINT AdditionalBytes) {
                 ActiveStack->Size,
                 RemainingBytes,
                 UpdatedSP);
+            UNUSED(RemainingBytes);
 
             Success = TRUE;
         } while (0);

@@ -145,7 +145,6 @@ static BOOL XHCI_ForEachDescriptor(const U8* Buffer, U16 Length, XHCI_DESC_CALLB
 
     while ((Offset + 2) <= Length) {
         U8 DescLength = Buffer[Offset];
-        U8 DescType = Buffer[Offset + 1];
         const U8* Desc = &Buffer[Offset];
 
         if (DescLength < 2 || (Offset + DescLength) > Length) {

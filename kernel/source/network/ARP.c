@@ -292,6 +292,7 @@ static int ArpSendRequest(LPARP_CONTEXT Context, U32 TargetIPv4_Be) {
     }
 
     U32 TargetIPHost = Ntohl(TargetIPv4_Be);
+    UNUSED(TargetIPHost);
     DEBUG(TEXT("[ArpSendRequest] Sending ARP request for %u.%u.%u.%u"),
           (TargetIPHost >> 24) & 0xFF, (TargetIPHost >> 16) & 0xFF,
           (TargetIPHost >> 8) & 0xFF, TargetIPHost & 0xFF);
@@ -610,6 +611,7 @@ void ARP_SetLocalAddress(LPDEVICE Device, U32 LocalIPv4_Be) {
     Context->LocalIPv4_Be = LocalIPv4_Be;
 
     U32 IpHost = Ntohl(LocalIPv4_Be);
+    UNUSED(IpHost);
     DEBUG(TEXT("[ARP_SetLocalAddress] Local IPv4 updated to %u.%u.%u.%u"),
           (IpHost >> 24) & 0xFF,
           (IpHost >> 16) & 0xFF,
@@ -836,6 +838,7 @@ void ARP_DumpCache(LPDEVICE Device) {
         if (!Entry->IsValid) continue;
 
         U32 HostOrder = Ntohl(Entry->IPv4_Be);
+        UNUSED(HostOrder);
         DEBUG(TEXT("[ARP] %u.%u.%u.%u -> %x:%x:%x:%x:%x:%x ttl=%u"), (U32)((HostOrder >> 24) & 0xFF),
             (U32)((HostOrder >> 16) & 0xFF), (U32)((HostOrder >> 8) & 0xFF), (U32)((HostOrder >> 0) & 0xFF),
             (U32)Entry->MacAddress[0], (U32)Entry->MacAddress[1], (U32)Entry->MacAddress[2], (U32)Entry->MacAddress[3],

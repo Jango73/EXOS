@@ -320,8 +320,8 @@ void Render(LPEDITCONTEXT Context) {
                 I32 End = Line->NumChars;
 
                 Visible = End - Start;
-                if (Visible > MAX_COLUMNS) {
-                    Visible = MAX_COLUMNS;
+                if (Visible > (I32)MAX_COLUMNS) {
+                    Visible = (I32)MAX_COLUMNS;
                 }
 
                 I32 MaxVisible = (I32)Width - (I32)TextColumnOffset;
@@ -482,9 +482,9 @@ void Render(LPEDITCONTEXT Context) {
 
     RenderMenu(MenuForeColor, MenuBackColor, Width);
 
-    Console.CursorX = (I32)TextColumnOffset + File->Cursor.X;
-    if (Console.CursorX >= (I32)Width) {
-        Console.CursorX = (I32)Width - 1;
+    Console.CursorX = (U32)((I32)TextColumnOffset + File->Cursor.X);
+    if (Console.CursorX >= Width) {
+        Console.CursorX = Width - 1;
     }
     Console.CursorY = EDIT_TITLE_HEIGHT + File->Cursor.Y;
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);

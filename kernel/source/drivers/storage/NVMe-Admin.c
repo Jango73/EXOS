@@ -668,6 +668,8 @@ BOOL NVMeSetNumberOfQueues(LPNVME_DEVICE Device, U16 QueueCount) {
     U32 Result = Completion.Result;
     U16 MaxSq = (U16)(Result & 0xFFFF);
     U16 MaxCq = (U16)((Result >> 16) & 0xFFFF);
+    UNUSED(MaxSq);
+    UNUSED(MaxCq);
     DEBUG(TEXT("[NVMeSetNumberOfQueues] MaxSQ=%x MaxCQ=%x"),
           (U32)MaxSq,
           (U32)MaxCq);

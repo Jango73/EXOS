@@ -994,10 +994,10 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
                 // No data available - show RX register state every 100 polls
                 static U32 DATA_SECTION PollCount = 0;
                 if ((PollCount++ % 100) == 0) {
-                    U32 RDH = E1000_ReadReg32(Device->MmioBase, E1000_REG_RDH);
-                    U32 RDT = E1000_ReadReg32(Device->MmioBase, E1000_REG_RDT);
-                    U32 RCTL = E1000_ReadReg32(Device->MmioBase, E1000_REG_RCTL);
-                    DEBUG(TEXT("[E1000_ReceivePoll] RDH=%x RDT=%x RCTL=%x"), RDH, RDT, RCTL);
+                    DEBUG(TEXT("[E1000_ReceivePoll] RDH=%x RDT=%x RCTL=%x"),
+                          E1000_ReadReg32(Device->MmioBase, E1000_REG_RDH),
+                          E1000_ReadReg32(Device->MmioBase, E1000_REG_RDT),
+                          E1000_ReadReg32(Device->MmioBase, E1000_REG_RCTL));
                 }
                 break;
             }

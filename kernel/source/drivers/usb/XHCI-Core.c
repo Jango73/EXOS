@@ -678,6 +678,7 @@ BOOL XHCI_RingEnqueue(LINEAR RingLinear, PHYSICAL RingPhysical, U32* EnqueueInde
  * @param PhysicalOut Receives physical address of the enqueued TRB.
  * @return TRUE on success.
  */
+/*
 static LPCSTR XHCI_GetCommandTypeName(U32 Type) {
     switch (Type) {
         case XHCI_TRB_TYPE_ENABLE_SLOT:
@@ -698,6 +699,7 @@ static LPCSTR XHCI_GetCommandTypeName(U32 Type) {
             return TEXT("Unknown command");
     }
 }
+*/
 
 /************************************************************************/
 
