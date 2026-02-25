@@ -748,6 +748,8 @@ Graphics backend selection is handled by `kernel/source/drivers/graphics/Graphic
 
 `kernel/source/drivers/graphics/IntelGfx.c` provides the Intel native skeleton path: Intel PCI display detection (`VID 0x8086`), BAR0 MMIO mapping via `MapIOMemory`, PCI bus-master enable, and a minimal MMIO probe read for bring-up diagnostics.
 
+Intel capability handling is centralized in an internal `INTEL_GFX_CAPS` object populated from a PCI device-id family table and refined with bounded MMIO register probes (display version, pipe presence, port mask). Generic `GFX_CAPABILITIES` values exposed through `DF_GFX_GETCAPABILITIES` are projected from this single capability object.
+
 The console supports direct linear framebuffer rendering when Multiboot framebuffer metadata is available:
 
 - BIOS/MBR path uses VGA text buffer `0xB8000` with text framebuffer metadata.

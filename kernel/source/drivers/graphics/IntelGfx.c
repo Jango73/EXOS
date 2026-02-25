@@ -35,6 +35,131 @@
 #define INTEL_VENDOR_ID 0x8086
 #define INTEL_MMIO_PROBE_REGISTER 0x0000
 
+#define INTEL_PORT_A (1 << 0)
+#define INTEL_PORT_B (1 << 1)
+#define INTEL_PORT_C (1 << 2)
+#define INTEL_PORT_D (1 << 3)
+#define INTEL_PORT_E (1 << 4)
+
+#define INTEL_REG_GMD_ID 0x51000
+#define INTEL_REG_PIPE_A_CONF 0x70008
+#define INTEL_REG_PIPE_B_CONF 0x71008
+#define INTEL_REG_PIPE_C_CONF 0x72008
+#define INTEL_REG_DDI_BUF_CTL_A 0x64000
+#define INTEL_REG_DDI_BUF_CTL_B 0x64100
+#define INTEL_REG_DDI_BUF_CTL_C 0x64200
+#define INTEL_REG_DDI_BUF_CTL_D 0x64300
+#define INTEL_REG_DDI_BUF_CTL_E 0x64400
+
+/************************************************************************/
+
+typedef struct tag_INTEL_GFX_CAPS {
+    U32 Generation;
+    U32 DisplayVersion;
+    U32 PipeCount;
+    U32 TranscoderCount;
+    U32 PortMask;
+    BOOL SupportsFBC;
+    BOOL SupportsPSR;
+    BOOL SupportsAsyncFlip;
+    U32 MaxWidth;
+    U32 MaxHeight;
+} INTEL_GFX_CAPS, *LPINTEL_GFX_CAPS;
+
+/************************************************************************/
+
+typedef struct tag_INTEL_GFX_FAMILY_ENTRY {
+    U16 DeviceId;
+    U16 DeviceIdMask;
+    U32 Generation;
+    U32 DisplayVersion;
+    U32 PipeCount;
+    U32 TranscoderCount;
+    U32 PortMask;
+    BOOL SupportsFBC;
+    BOOL SupportsPSR;
+    BOOL SupportsAsyncFlip;
+    U32 MaxWidth;
+    U32 MaxHeight;
+} INTEL_GFX_FAMILY_ENTRY, *LPINTEL_GFX_FAMILY_ENTRY;
+
+/************************************************************************/
+
+static const INTEL_GFX_FAMILY_ENTRY IntelGfxFamilyTable[] = {
+    {.DeviceId = 0x0100,
+        .DeviceIdMask = 0xFF00,
+        .Generation = 6,
+        .DisplayVersion = 6,
+        .PipeCount = 2,
+        .TranscoderCount = 2,
+        .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C,
+        .SupportsFBC = TRUE,
+        .SupportsPSR = FALSE,
+        .SupportsAsyncFlip = FALSE,
+        .MaxWidth = 4096,
+        .MaxHeight = 4096},
+    {.DeviceId = 0x1600,
+        .DeviceIdMask = 0xFF00,
+        .Generation = 8,
+        .DisplayVersion = 8,
+        .PipeCount = 3,
+        .TranscoderCount = 3,
+        .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C | INTEL_PORT_D,
+        .SupportsFBC = TRUE,
+        .SupportsPSR = TRUE,
+        .SupportsAsyncFlip = FALSE,
+        .MaxWidth = 5120,
+        .MaxHeight = 3200},
+    {.DeviceId = 0x1900,
+        .DeviceIdMask = 0xFF00,
+        .Generation = 9,
+        .DisplayVersion = 9,
+        .PipeCount = 3,
+        .TranscoderCount = 3,
+        .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C | INTEL_PORT_D,
+        .SupportsFBC = TRUE,
+        .SupportsPSR = TRUE,
+        .SupportsAsyncFlip = FALSE,
+        .MaxWidth = 5120,
+        .MaxHeight = 3200},
+    {.DeviceId = 0x3E00,
+        .DeviceIdMask = 0xFF00,
+        .Generation = 9,
+        .DisplayVersion = 10,
+        .PipeCount = 3,
+        .TranscoderCount = 3,
+        .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C | INTEL_PORT_D,
+        .SupportsFBC = TRUE,
+        .SupportsPSR = TRUE,
+        .SupportsAsyncFlip = TRUE,
+        .MaxWidth = 8192,
+        .MaxHeight = 8192},
+    {.DeviceId = 0x8A00,
+        .DeviceIdMask = 0xFF00,
+        .Generation = 11,
+        .DisplayVersion = 11,
+        .PipeCount = 3,
+        .TranscoderCount = 4,
+        .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C | INTEL_PORT_D | INTEL_PORT_E,
+        .SupportsFBC = TRUE,
+        .SupportsPSR = TRUE,
+        .SupportsAsyncFlip = TRUE,
+        .MaxWidth = 8192,
+        .MaxHeight = 8192},
+    {.DeviceId = 0x9A00,
+        .DeviceIdMask = 0xFF00,
+        .Generation = 12,
+        .DisplayVersion = 12,
+        .PipeCount = 4,
+        .TranscoderCount = 4,
+        .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C | INTEL_PORT_D | INTEL_PORT_E,
+        .SupportsFBC = TRUE,
+        .SupportsPSR = TRUE,
+        .SupportsAsyncFlip = TRUE,
+        .MaxWidth = 8192,
+        .MaxHeight = 8192}
+};
+
 /************************************************************************/
 
 typedef struct tag_INTEL_GFX_STATE {
@@ -42,6 +167,7 @@ typedef struct tag_INTEL_GFX_STATE {
     LINEAR MmioBase;
     U32 MmioSize;
     GRAPHICSCONTEXT Context;
+    INTEL_GFX_CAPS IntelCapabilities;
     GFX_CAPABILITIES Capabilities;
 } INTEL_GFX_STATE, *LPINTEL_GFX_STATE;
 
@@ -108,26 +234,179 @@ static LPPCI_DEVICE IntelGfxFindDisplayDevice(void) {
 
 /************************************************************************/
 
+/************************************************************************/
+
 /**
- * @brief Initialize static capabilities for the Intel skeleton driver.
- * @param State Driver state to initialize.
+ * @brief Read a 32-bit MMIO register from Intel graphics BAR.
+ * @param Offset Register offset.
+ * @param ValueOut Receives register value.
+ * @return TRUE on success, FALSE otherwise.
  */
-static void IntelGfxInitializeCapabilities(LPINTEL_GFX_STATE State) {
-    if (State == NULL) {
+static BOOL IntelGfxReadMmio32(U32 Offset, U32* ValueOut) {
+    if (ValueOut == NULL) {
+        return FALSE;
+    }
+
+    if (IntelGfxState.MmioBase == 0 || IntelGfxState.MmioSize < sizeof(U32)) {
+        return FALSE;
+    }
+
+    if (Offset > IntelGfxState.MmioSize - sizeof(U32)) {
+        return FALSE;
+    }
+
+    *ValueOut = *((volatile U32*)((U8*)(LINEAR)IntelGfxState.MmioBase + Offset));
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve Intel capability defaults from PCI device id family table.
+ * @param DeviceId Intel PCI device id.
+ * @param CapsOut Receives capability defaults.
+ */
+static void IntelGfxResolveCapabilitiesFromDevice(U16 DeviceId, LPINTEL_GFX_CAPS CapsOut) {
+    UINT Index = 0;
+
+    if (CapsOut == NULL) {
         return;
     }
 
-    State->Capabilities = (GFX_CAPABILITIES){
+    *CapsOut = (INTEL_GFX_CAPS){
+        .Generation = 9,
+        .DisplayVersion = 9,
+        .PipeCount = 3,
+        .TranscoderCount = 3,
+        .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C,
+        .SupportsFBC = FALSE,
+        .SupportsPSR = FALSE,
+        .SupportsAsyncFlip = FALSE,
+        .MaxWidth = 4096,
+        .MaxHeight = 4096
+    };
+
+    for (Index = 0; Index < sizeof(IntelGfxFamilyTable) / sizeof(IntelGfxFamilyTable[0]); Index++) {
+        const INTEL_GFX_FAMILY_ENTRY* Entry = &IntelGfxFamilyTable[Index];
+        if ((DeviceId & Entry->DeviceIdMask) == Entry->DeviceId) {
+            *CapsOut = (INTEL_GFX_CAPS){
+                .Generation = Entry->Generation,
+                .DisplayVersion = Entry->DisplayVersion,
+                .PipeCount = Entry->PipeCount,
+                .TranscoderCount = Entry->TranscoderCount,
+                .PortMask = Entry->PortMask,
+                .SupportsFBC = Entry->SupportsFBC,
+                .SupportsPSR = Entry->SupportsPSR,
+                .SupportsAsyncFlip = Entry->SupportsAsyncFlip,
+                .MaxWidth = Entry->MaxWidth,
+                .MaxHeight = Entry->MaxHeight
+            };
+            return;
+        }
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Probe display-related MMIO registers to refine capabilities.
+ * @param CapsInOut Capability object updated in place.
+ */
+static void IntelGfxProbeCapabilities(LPINTEL_GFX_CAPS CapsInOut) {
+    U32 Value = 0;
+    U32 PipeCount = 0;
+    U32 PortMask = 0;
+
+    if (CapsInOut == NULL) {
+        return;
+    }
+
+    if (IntelGfxReadMmio32(INTEL_REG_GMD_ID, &Value)) {
+        U32 DisplayVersionMajor = (Value >> 4) & 0x0F;
+        if (DisplayVersionMajor != 0 && DisplayVersionMajor != 0x0F) {
+            CapsInOut->DisplayVersion = DisplayVersionMajor;
+        }
+    }
+
+    if (IntelGfxReadMmio32(INTEL_REG_PIPE_A_CONF, &Value) && Value != 0xFFFFFFFF) {
+        PipeCount++;
+    }
+    if (IntelGfxReadMmio32(INTEL_REG_PIPE_B_CONF, &Value) && Value != 0xFFFFFFFF) {
+        PipeCount++;
+    }
+    if (IntelGfxReadMmio32(INTEL_REG_PIPE_C_CONF, &Value) && Value != 0xFFFFFFFF) {
+        PipeCount++;
+    }
+
+    if (PipeCount != 0) {
+        CapsInOut->PipeCount = PipeCount;
+        if (CapsInOut->TranscoderCount < PipeCount) {
+            CapsInOut->TranscoderCount = PipeCount;
+        }
+    }
+
+    if (IntelGfxReadMmio32(INTEL_REG_DDI_BUF_CTL_A, &Value) && Value != 0xFFFFFFFF) PortMask |= INTEL_PORT_A;
+    if (IntelGfxReadMmio32(INTEL_REG_DDI_BUF_CTL_B, &Value) && Value != 0xFFFFFFFF) PortMask |= INTEL_PORT_B;
+    if (IntelGfxReadMmio32(INTEL_REG_DDI_BUF_CTL_C, &Value) && Value != 0xFFFFFFFF) PortMask |= INTEL_PORT_C;
+    if (IntelGfxReadMmio32(INTEL_REG_DDI_BUF_CTL_D, &Value) && Value != 0xFFFFFFFF) PortMask |= INTEL_PORT_D;
+    if (IntelGfxReadMmio32(INTEL_REG_DDI_BUF_CTL_E, &Value) && Value != 0xFFFFFFFF) PortMask |= INTEL_PORT_E;
+
+    if (PortMask != 0) {
+        CapsInOut->PortMask = PortMask;
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Project Intel capability object to generic graphics capabilities.
+ * @param IntelCaps Intel capability object.
+ * @param GenericCaps Output generic capabilities.
+ */
+static void IntelGfxProjectCapabilities(const INTEL_GFX_CAPS* IntelCaps, LPGFX_CAPABILITIES GenericCaps) {
+    if (IntelCaps == NULL || GenericCaps == NULL) {
+        return;
+    }
+
+    *GenericCaps = (GFX_CAPABILITIES){
         .Header = {.Size = sizeof(GFX_CAPABILITIES), .Version = EXOS_ABI_VERSION, .Flags = 0},
         .HasHardwareModeset = TRUE,
-        .HasPageFlip = FALSE,
-        .HasVBlankInterrupt = FALSE,
-        .HasCursorPlane = FALSE,
-        .SupportsTiledSurface = FALSE,
-        .MaxWidth = 8192,
-        .MaxHeight = 8192,
+        .HasPageFlip = IntelCaps->SupportsAsyncFlip ? TRUE : FALSE,
+        .HasVBlankInterrupt = (IntelCaps->PipeCount > 0) ? TRUE : FALSE,
+        .HasCursorPlane = (IntelCaps->Generation >= 5) ? TRUE : FALSE,
+        .SupportsTiledSurface = (IntelCaps->Generation >= 5) ? TRUE : FALSE,
+        .MaxWidth = IntelCaps->MaxWidth,
+        .MaxHeight = IntelCaps->MaxHeight,
         .PreferredFormat = GFX_FORMAT_XRGB8888
     };
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve and cache Intel capability object from PCI+MMIO probes.
+ * @param Device Active Intel PCI device.
+ */
+static void IntelGfxInitializeCapabilities(LPPCI_DEVICE Device) {
+    if (Device == NULL) {
+        return;
+    }
+
+    IntelGfxResolveCapabilitiesFromDevice(Device->Info.DeviceID, &IntelGfxState.IntelCapabilities);
+    IntelGfxProbeCapabilities(&IntelGfxState.IntelCapabilities);
+    IntelGfxProjectCapabilities(&IntelGfxState.IntelCapabilities, &IntelGfxState.Capabilities);
+
+    DEBUG(TEXT("[IntelGfxInitializeCapabilities] Gen=%u Dv=%u Pipes=%u Transcoders=%u Ports=%x FBC=%u PSR=%u AsyncFlip=%u Max=%ux%u"),
+        IntelGfxState.IntelCapabilities.Generation,
+        IntelGfxState.IntelCapabilities.DisplayVersion,
+        IntelGfxState.IntelCapabilities.PipeCount,
+        IntelGfxState.IntelCapabilities.TranscoderCount,
+        IntelGfxState.IntelCapabilities.PortMask,
+        IntelGfxState.IntelCapabilities.SupportsFBC ? 1 : 0,
+        IntelGfxState.IntelCapabilities.SupportsPSR ? 1 : 0,
+        IntelGfxState.IntelCapabilities.SupportsAsyncFlip ? 1 : 0,
+        IntelGfxState.IntelCapabilities.MaxWidth,
+        IntelGfxState.IntelCapabilities.MaxHeight);
 }
 
 /************************************************************************/
@@ -191,7 +470,7 @@ static UINT IntelGfxLoad(void) {
         .RasterOperation = ROP_SET
     };
 
-    IntelGfxInitializeCapabilities(&IntelGfxState);
+    IntelGfxInitializeCapabilities(Device);
 
     IntelGfxDriver.Flags |= DRIVER_FLAG_READY;
     return DF_RETURN_SUCCESS;

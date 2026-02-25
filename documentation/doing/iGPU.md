@@ -81,10 +81,10 @@ Deliverable:
 ## Step 3 - Capability model by generation
 Avoid branching everywhere by centralizing capabilities.
 
-- [ ] Add `INTEL_GFX_CAPS` and fill it at init from:
+- [x] Add `INTEL_GFX_CAPS` and fill it at init from:
   - PCI device id family table.
   - Key register probes (display version, pipe/port presence).
-- [ ] Expose normalized values to generic layer through `DF_GFX_GETCAPABILITIES`.
+- [x] Expose normalized values to generic layer through `DF_GFX_GETCAPABILITIES`.
 
 Example capability fields:
 - `Generation`
@@ -98,6 +98,7 @@ Example capability fields:
 
 Deliverable:
 - One capability object that drives all later code paths.
+- Implemented in `kernel/source/drivers/graphics/IntelGfx.c` with table-based defaults + MMIO probes.
 
 ## Step 4 - Mode takeover path (first usable milestone)
 First milestone should avoid full native modesetting complexity.
