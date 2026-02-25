@@ -29,7 +29,7 @@
 #include "Log.h"
 #include "CoreString.h"
 #include "DriverEnum.h"
-#include "drivers/E1000.h"
+#include "drivers/network/E1000.h"
 #include "drivers/XHCI.h"
 #include "User.h"
 
