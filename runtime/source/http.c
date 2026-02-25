@@ -667,7 +667,7 @@ int HTTP_SendRequest(HTTP_CONNECTION* Connection, const char* Method, const char
     int sent;
 
     debug("[HTTP_SendRequest] Method=%s, Path=%s", Method, Path);
-    debug("[HTTP_SendRequest] Connection=%x, RemoteIP=%x, RemotePort=%d", (unsigned int)Connection, Connection->RemoteIP, Connection->RemotePort);
+    debug("[HTTP_SendRequest] Connection=%p, RemoteIP=%x, RemotePort=%d", Connection, Connection->RemoteIP, Connection->RemotePort);
     HTTP_SetLastErrorMessage("Success");
 
     if (!Connection || !Connection->Connected || !Method || !Path) {

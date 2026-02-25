@@ -390,7 +390,7 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             }
 
             if (DeviceContext == NULL) {
-                ERROR(TEXT("[NetworkManager_InitializeDevice] Device %X not found in network device list!"), (U32)Device);
+                ERROR(TEXT("[NetworkManager_InitializeDevice] Device %p not found in network device list!"), (LPVOID)Device);
                 return;
             }
 

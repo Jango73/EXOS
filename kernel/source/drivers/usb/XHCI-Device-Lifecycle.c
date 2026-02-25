@@ -418,7 +418,7 @@ BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U8* Sl
             WARNING(TEXT("[XHCI_WaitForCommandCompletion] %s exceeded %u ms (TRB=%p)"),
                     Latch.Name ? Latch.Name : TEXT("?"),
                     Latch.ThresholdMS,
-                    (LPVOID)U64_Low32(TrbPhysical));
+                    (LPVOID)(UINT)U64_Low32(TrbPhysical));
         }
 
         Sleep(1);
@@ -426,7 +426,7 @@ BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U8* Sl
     }
 
     UnlockMutex(&(Device->Mutex));
-    WARNING(TEXT("[XHCI_WaitForCommandCompletion] Timeout %u ms (TRB=%p)"), XHCI_EVENT_TIMEOUT_MS, (LPVOID)U64_Low32(TrbPhysical));
+    WARNING(TEXT("[XHCI_WaitForCommandCompletion] Timeout %u ms (TRB=%p)"), XHCI_EVENT_TIMEOUT_MS, (LPVOID)(UINT)U64_Low32(TrbPhysical));
     return FALSE;
 }
 
@@ -467,7 +467,7 @@ BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* 
             WARNING(TEXT("[XHCI_WaitForTransferCompletion] %s exceeded %u ms (TRB=%p)"),
                     Latch.Name ? Latch.Name : TEXT("?"),
                     Latch.ThresholdMS,
-                    (LPVOID)U64_Low32(TrbPhysical));
+                    (LPVOID)(UINT)U64_Low32(TrbPhysical));
         }
 
         Sleep(1);
@@ -475,7 +475,7 @@ BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* 
     }
 
     UnlockMutex(&(Device->Mutex));
-    WARNING(TEXT("[XHCI_WaitForTransferCompletion] Timeout %u ms (TRB=%p)"), XHCI_EVENT_TIMEOUT_MS, (LPVOID)U64_Low32(TrbPhysical));
+    WARNING(TEXT("[XHCI_WaitForTransferCompletion] Timeout %u ms (TRB=%p)"), XHCI_EVENT_TIMEOUT_MS, (LPVOID)(UINT)U64_Low32(TrbPhysical));
     return FALSE;
 }
 

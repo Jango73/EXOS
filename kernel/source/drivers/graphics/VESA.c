@@ -363,7 +363,7 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
             BOOL ModeListed = FALSE;
             BOOL ModeListValid = TRUE;
 
-            ModePtr = (U16*)MKLINPTR(VESAContext.VESAInfo.ModePointer);
+            ModePtr = (U16*)(UINT)MKLINPTR(VESAContext.VESAInfo.ModePointer);
 
             DEBUG(TEXT("[SetVideoMode] Mode res = %ux%ux%u"), VESAModeSpecs[Index].Width,
                 VESAModeSpecs[Index].Height, VESAModeSpecs[Index].BitsPerPixel);

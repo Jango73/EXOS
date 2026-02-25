@@ -796,6 +796,7 @@ PHYSICAL AllocPageDirectory(void) {
     UINT KernelPml4Index = GetPml4Entry((U64)VMA_KERNEL);
     UINT TaskRunnerPml4Index = GetPml4Entry((U64)VMA_TASK_RUNNER);
     UINT TaskRunnerTableIndex = GetTableEntry((U64)VMA_TASK_RUNNER);
+    UNUSED(KernelPml4Index);
 
     UINT KernelCoverageBytes = ComputeKernelCoverageBytes();
     UINT KernelTableCount = KernelCoverageBytes >> PAGE_TABLE_CAPACITY_MUL;
@@ -928,6 +929,7 @@ PHYSICAL AllocUserPageDirectory(void) {
     UINT KernelPml4Index = GetPml4Entry((U64)VMA_KERNEL);
     UINT TaskRunnerPml4Index = GetPml4Entry((U64)VMA_TASK_RUNNER);
     UINT TaskRunnerTableIndex = GetTableEntry((U64)VMA_TASK_RUNNER);
+    UNUSED(KernelPml4Index);
 
     if (SetupLowRegion(&LowRegion, USERLAND_SEEDED_TABLES) == FALSE) goto Out;
 
@@ -1051,6 +1053,8 @@ PHYSICAL AllocUserPageDirectory(void) {
             U64 TaskDirectoryEntry =
                 ReadPageDirectoryEntryValue((LPPAGE_DIRECTORY)TaskRunnerDirectoryLinear, TaskRunnerDirectoryIndex);
             U64 TaskTableEntry = ReadPageTableEntryValue((LPPAGE_TABLE)TaskRunnerTableLinear, TaskRunnerTableIndex);
+            UNUSED(TaskDirectoryEntry);
+            UNUSED(TaskTableEntry);
 
         } else {
             ERROR(TEXT("[AllocUserPageDirectory] Unable to map TaskRunner directory/table snapshot"));

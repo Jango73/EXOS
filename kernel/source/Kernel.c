@@ -294,8 +294,9 @@ U32 ClockTestTask(LPVOID Param) {
     TRACED_FUNCTION;
 
     STR Text[64];
-    U32 X = ((U32)Param & 0xFFFF0000) >> 16;
-    U32 Y = ((U32)Param & 0x0000FFFF) >> 0;
+    UINT EncodedParam = (UINT)Param;
+    U32 X = (U32)((EncodedParam & 0xFFFF0000) >> 16);
+    U32 Y = (U32)(EncodedParam & 0x0000FFFF);
     U32 OldX = 0;
     U32 OldY = 0;
 

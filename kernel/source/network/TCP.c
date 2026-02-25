@@ -1302,7 +1302,7 @@ void TCP_Update(void) {
 
         // Safety check: if in TIME_WAIT state but timer is invalid, force close
         if (CurrentState == TCP_STATE_TIME_WAIT && Conn->TimeWaitTimer == 0) {
-            WARNING(TEXT("[TCP_Update] TIME_WAIT state with invalid timer, forcing close for connection %X"), (U32)Conn);
+            WARNING(TEXT("[TCP_Update] TIME_WAIT state with invalid timer, forcing close for connection %p"), (LPVOID)Conn);
             SM_ProcessEvent(&Conn->StateMachine, TCP_EVENT_TIMEOUT, NULL);
         }
 
@@ -1371,10 +1371,10 @@ U32 TCP_RegisterCallback(LPTCP_CONNECTION Connection, U32 Event, NOTIFICATION_CA
 
     U32 Result = Notification_Register(Connection->NotificationContext, Event, Callback, UserData);
     if (Result != 0) {
-        DEBUG(TEXT("[TCP_RegisterCallback] Registered callback for event %u on connection %X"), Event, (U32)Connection);
+        DEBUG(TEXT("[TCP_RegisterCallback] Registered callback for event %u on connection %p"), Event, (LPVOID)Connection);
         return 0; // Success
     } else {
-        ERROR(TEXT("[TCP_RegisterCallback] Failed to register callback for event %u on connection %X"), Event, (U32)Connection);
+        ERROR(TEXT("[TCP_RegisterCallback] Failed to register callback for event %u on connection %p"), Event, (LPVOID)Connection);
         return 1; // Error
     }
 }
