@@ -26,6 +26,41 @@
 #include "Autotest.h"
 #include "utils/SizeFormat.h"
 
+/***************************************************************************/
+
+/**
+ * @brief Restore text console after graphics smoke rendering.
+ */
+static void RestoreConsoleAfterGraphicsSmoke(void) {
+    GRAPHICSMODEINFO ModeInfo;
+    UINT Result;
+    LPDRIVER GraphicsDriver;
+
+    ModeInfo.Header.Size = sizeof(ModeInfo);
+    ModeInfo.Header.Version = EXOS_ABI_VERSION;
+    ModeInfo.Header.Flags = 0;
+    ModeInfo.Width = (Console.Width != 0) ? Console.Width : 80;
+    ModeInfo.Height = (Console.Height != 0) ? Console.Height : 25;
+    ModeInfo.BitsPerPixel = 0;
+
+    Result = ConsoleSetMode(&ModeInfo);
+    if (Result == DF_RETURN_SUCCESS) {
+        return;
+    }
+
+    WARNING(TEXT("[RestoreConsoleAfterGraphicsSmoke] ConsoleSetMode failed (%u), forcing graphics unload"), Result);
+
+    GraphicsDriver = GetGraphicsDriver();
+    if (GraphicsDriver != NULL && GraphicsDriver->Command != NULL) {
+        (void)GraphicsDriver->Command(DF_UNLOAD, 0);
+    }
+
+    Result = ConsoleSetMode(&ModeInfo);
+    if (Result != DF_RETURN_SUCCESS) {
+        ERROR(TEXT("[RestoreConsoleAfterGraphicsSmoke] Console restore failed (%u)"), Result);
+    }
+}
+
 U32 CMD_killtask(LPSHELLCONTEXT Context) {
     U32 TaskNum = 0;
     LPTASK Task = NULL;
@@ -217,6 +252,118 @@ U32 CMD_pic(LPSHELLCONTEXT Context) {
     ConsolePrint(TEXT("8259-2 RM mask : %08b\n"), KernelStartup.IRQMask_A1_RM);
     ConsolePrint(TEXT("8259-1 PM mask : %08b\n"), KernelStartup.IRQMask_21_PM);
     ConsolePrint(TEXT("8259-2 PM mask : %08b\n"), KernelStartup.IRQMask_A1_PM);
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Draw a temporary desktop/window and return to text console.
+ * @param Context Shell context.
+ * @return DF_RETURN_SUCCESS on completion.
+ */
+U32 CMD_gfxsmoke(LPSHELLCONTEXT Context) {
+    U32 DurationMilliseconds = 1200;
+    LPDESKTOP Desktop = NULL;
+    LPWINDOW Window = NULL;
+    HANDLE GraphicsContext = NULL;
+    WINDOWINFO WindowInfo;
+    RECTINFO RectangleInfo;
+    LINEINFO LineInfo;
+
+    ParseNextCommandLineComponent(Context);
+    if (StringLength(Context->Command) != 0) {
+        DurationMilliseconds = StringToU32(Context->Command);
+        if (DurationMilliseconds == 0) {
+            ConsolePrint(TEXT("Usage: gfx_smoke [DurationMilliseconds]\n"));
+            return DF_RETURN_SUCCESS;
+        }
+    }
+
+    Desktop = CreateDesktop();
+    if (Desktop == NULL) {
+        ConsolePrint(TEXT("gfx_smoke: desktop creation failed\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (ShowDesktop(Desktop) == FALSE) {
+        ConsolePrint(TEXT("gfx_smoke: desktop show failed\n"));
+        DeleteDesktop(Desktop);
+        return DF_RETURN_SUCCESS;
+    }
+
+    WindowInfo.Header.Size = sizeof(WindowInfo);
+    WindowInfo.Header.Version = EXOS_ABI_VERSION;
+    WindowInfo.Header.Flags = 0;
+    WindowInfo.Window = NULL;
+    WindowInfo.Parent = (HANDLE)Desktop->Window;
+    WindowInfo.Function = DefWindowFunc;
+    WindowInfo.Style = EWS_VISIBLE;
+    WindowInfo.ID = 0;
+    WindowInfo.WindowPosition.X = 120;
+    WindowInfo.WindowPosition.Y = 80;
+    WindowInfo.WindowSize.X = 560;
+    WindowInfo.WindowSize.Y = 320;
+    WindowInfo.ShowHide = TRUE;
+
+    Window = CreateWindow(&WindowInfo);
+    if (Window == NULL) {
+        ConsolePrint(TEXT("gfx_smoke: window creation failed\n"));
+        RestoreConsoleAfterGraphicsSmoke();
+        DeleteDesktop(Desktop);
+        return DF_RETURN_SUCCESS;
+    }
+
+    GraphicsContext = BeginWindowDraw((HANDLE)Window);
+    if (GraphicsContext != NULL) {
+        RectangleInfo.Header.Size = sizeof(RectangleInfo);
+        RectangleInfo.Header.Version = EXOS_ABI_VERSION;
+        RectangleInfo.Header.Flags = 0;
+        RectangleInfo.GC = GraphicsContext;
+
+        LineInfo.Header.Size = sizeof(LineInfo);
+        LineInfo.Header.Version = EXOS_ABI_VERSION;
+        LineInfo.Header.Flags = 0;
+        LineInfo.GC = GraphicsContext;
+
+        (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_HIGHLIGHT));
+        (void)SelectBrush(GraphicsContext, GetSystemBrush(SM_COLOR_TITLE_BAR));
+        RectangleInfo.X1 = 0;
+        RectangleInfo.Y1 = 0;
+        RectangleInfo.X2 = 559;
+        RectangleInfo.Y2 = 32;
+        (void)Rectangle(&RectangleInfo);
+
+        (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_DARK_SHADOW));
+        (void)SelectBrush(GraphicsContext, GetSystemBrush(SM_COLOR_CLIENT));
+        RectangleInfo.X1 = 0;
+        RectangleInfo.Y1 = 33;
+        RectangleInfo.X2 = 559;
+        RectangleInfo.Y2 = 319;
+        (void)Rectangle(&RectangleInfo);
+
+        (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_SELECTION));
+        LineInfo.X1 = 12;
+        LineInfo.Y1 = 48;
+        LineInfo.X2 = 540;
+        LineInfo.Y2 = 300;
+        (void)Line(&LineInfo);
+
+        LineInfo.X1 = 540;
+        LineInfo.Y1 = 48;
+        LineInfo.X2 = 12;
+        LineInfo.Y2 = 300;
+        (void)Line(&LineInfo);
+
+        (void)EndWindowDraw((HANDLE)Window);
+    }
+
+    Sleep(DurationMilliseconds);
+
+    RestoreConsoleAfterGraphicsSmoke();
+    DeleteDesktop(Desktop);
+    ConsolePrint(TEXT("gfx_smoke: done\n"));
 
     return DF_RETURN_SUCCESS;
 }
