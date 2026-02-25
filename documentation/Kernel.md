@@ -754,6 +754,8 @@ Intel capability handling is centralized in an internal `INTEL_GFX_CAPS` object 
 
 The Intel backend takeover path reads active pipe/plane state from display registers, maps the active scanout buffer through the aperture BAR, builds a `GRAPHICSCONTEXT` from that mode, and serves window-manager drawing through CPU primitives (`SETPIXEL`, `GETPIXEL`, `LINE`, `RECTANGLE`) writing directly to the active scanout memory.
 
+Display ownership state is tracked through `kernel/source/DisplaySession.c` (`DISPLAY_SESSION` stored in `KERNELDATA`). This records active frontend (`console` or `desktop`), active desktop pointer, selected graphics driver, and active mode so mode transitions are represented as explicit kernel state.
+
 The console supports direct linear framebuffer rendering when Multiboot framebuffer metadata is available:
 
 - BIOS/MBR path uses VGA text buffer `0xB8000` with text framebuffer metadata.

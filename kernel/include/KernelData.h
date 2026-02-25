@@ -43,6 +43,7 @@
 #include "User.h"
 #include "UserAccount.h"
 #include "SystemFS.h"
+#include "DisplaySession.h"
 #include "process/Process.h"
 #include "process/Task.h"
 
@@ -135,6 +136,7 @@ typedef struct tag_KERNELDATA {
     LPLIST Drivers;                 // Driver list in initialization order
     LPLIST UserSessions;            // List of active user sessions
     LPLIST UserAccount;             // List of user accounts
+    DISPLAY_SESSION DisplaySession; // Active display ownership state
     LPDESKTOP FocusedDesktop;       // Desktop with input focus
     CACHE ObjectTerminationCache;   // Cache for terminated object states with TTL
     FILESYSTEM_GLOBAL_INFO FileSystemInfo;
@@ -175,6 +177,7 @@ LPLIST GetDesktopList(void);
 LPLIST GetDiskList(void);
 BOOL GetDoLogin(void);
 LPDRIVER GetDefaultFileSystemDriver(void);
+LPDISPLAY_SESSION GetDisplaySession(void);
 LPLIST GetDriverList(void);
 LPLIST GetEventList(void);
 LPLIST GetFileList(void);

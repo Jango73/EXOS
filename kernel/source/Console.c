@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "Console-Internal.h"
+#include "DisplaySession.h"
 #include "Font.h"
 #include "GFX.h"
 #include "Kernel.h"
@@ -902,6 +903,7 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
                 Console.CursorY = 0;
                 ClearConsole();
                 UpdateConsoleDesktopState(Console.Width, Console.Height);
+                (void)DisplaySessionSetConsoleMode(Info);
 
                 return DF_RETURN_SUCCESS;
             }

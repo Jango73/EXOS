@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "Console.h"
+#include "DisplaySession.h"
 #include "GFX.h"
 #include "Kernel.h"
 #include "Log.h"
@@ -314,6 +315,7 @@ BOOL DeleteDesktop(LPDESKTOP This) {
  */
 BOOL ShowDesktop(LPDESKTOP This) {
     GRAPHICSMODEINFO ModeInfo;
+    UINT ModeSetResult;
     LPDESKTOP Desktop;
     LPLISTNODE Node;
     I32 Order;
@@ -356,7 +358,12 @@ BOOL ShowDesktop(LPDESKTOP This) {
     This->Graphics = GetGraphicsDriver();
     This->Mode = DESKTOP_MODE_GRAPHICS;
 
-    This->Graphics->Command(DF_GFX_SETMODE, (UINT)&ModeInfo);
+    ModeSetResult = This->Graphics->Command(DF_GFX_SETMODE, (UINT)&ModeInfo);
+    if (ModeSetResult != DF_RETURN_SUCCESS) {
+        WARNING(TEXT("[ShowDesktop] DF_GFX_SETMODE failed (%u)"), ModeSetResult);
+    } else {
+        (void)DisplaySessionSetDesktopMode(This, This->Graphics, &ModeInfo);
+    }
     UpdateDesktopWindowRect(This, (I32)ModeInfo.Width, (I32)ModeInfo.Height);
 
     // PostMessage((HANDLE) This->Window, EWM_DRAW, 0, 0);

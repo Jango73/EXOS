@@ -937,3 +937,13 @@ LPDRIVER GetGraphicsDriver(void) {
 LPDRIVER GetDefaultFileSystemDriver(void) {
     return EXFSGetDriver();
 }
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the active display session state.
+ * @return Pointer to display session data.
+ */
+LPDISPLAY_SESSION GetDisplaySession(void) {
+    return &Kernel.DisplaySession;
+}
