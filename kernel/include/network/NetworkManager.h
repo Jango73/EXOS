@@ -33,7 +33,7 @@
 
 #include "Base.h"
 #include "Driver.h"
-#include "drivers/PCI.h"
+#include "drivers/bus/PCI.h"
 #include "network/Network.h"
 
 /************************************************************************/

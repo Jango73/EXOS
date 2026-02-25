@@ -26,13 +26,13 @@
 
 #include "Console.h"
 #include "Heap.h"
-#include "drivers/Keyboard.h"
+#include "drivers/input/Keyboard.h"
 #include "Log.h"
 #include "CoreString.h"
 #include "process/Schedule.h"
 #include "process/Task.h"
 #include "UserSession.h"
-#include "VKey.h"
+#include "input/VKey.h"
 
 /***************************************************************************/
 

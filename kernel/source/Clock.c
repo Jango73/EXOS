@@ -25,7 +25,7 @@
 #include "Clock.h"
 
 #include "Arch.h"
-#include "InterruptController.h"
+#include "drivers/interrupts/InterruptController.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "process/Schedule.h"

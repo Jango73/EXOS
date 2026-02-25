@@ -54,6 +54,7 @@ static void FillPattern(U8* Buffer, U32 Length, U32* State) {
 /************************************************************************/
 
 static BOOL CheckCanaries(const U32* Front, const U32* Back, LPCSTR Context) {
+    UNUSED(Context);
     if (!Front || !Back) {
         return FALSE;
     }

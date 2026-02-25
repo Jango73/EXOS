@@ -131,6 +131,7 @@ static BOOL DHCP_ApplyStaticFallback(LPDHCP_CONTEXT Context) {
         NetCtx->IsReady = TRUE;
 
         U32 IP = Ntohl(LocalIPv4_Be);
+        UNUSED(IP);
         DEBUG(TEXT("[DHCP_ApplyStaticFallback] Applied static fallback IP %u.%u.%u.%u"),
               (IP >> 24) & 0xFF,
               (IP >> 16) & 0xFF,
@@ -271,6 +272,7 @@ static int DHCP_ParseOptions(LPDHCP_CONTEXT Context, const U8* Options, U32 Opti
                     if (Length == 4) {
                         MemoryCopy(&Context->SubnetMask_Be, Options + Index, 4);
                         U32 Mask = Ntohl(Context->SubnetMask_Be);
+                        UNUSED(Mask);
                         DEBUG(TEXT("[DHCP_ParseOptions] Subnet Mask: %u.%u.%u.%u"),
                               (Mask >> 24) & 0xFF, (Mask >> 16) & 0xFF, (Mask >> 8) & 0xFF, Mask & 0xFF);
                     }
@@ -280,6 +282,7 @@ static int DHCP_ParseOptions(LPDHCP_CONTEXT Context, const U8* Options, U32 Opti
                     if (Length >= 4) {
                         MemoryCopy(&Context->Gateway_Be, Options + Index, 4);
                         U32 GW = Ntohl(Context->Gateway_Be);
+                        UNUSED(GW);
                         DEBUG(TEXT("[DHCP_ParseOptions] Gateway: %u.%u.%u.%u"),
                               (GW >> 24) & 0xFF, (GW >> 16) & 0xFF, (GW >> 8) & 0xFF, GW & 0xFF);
                     }
@@ -289,6 +292,7 @@ static int DHCP_ParseOptions(LPDHCP_CONTEXT Context, const U8* Options, U32 Opti
                     if (Length >= 4) {
                         MemoryCopy(&Context->DNSServer_Be, Options + Index, 4);
                         U32 DNS = Ntohl(Context->DNSServer_Be);
+                        UNUSED(DNS);
                         DEBUG(TEXT("[DHCP_ParseOptions] DNS Server: %u.%u.%u.%u"),
                               (DNS >> 24) & 0xFF, (DNS >> 16) & 0xFF, (DNS >> 8) & 0xFF, DNS & 0xFF);
                     }
@@ -325,6 +329,7 @@ static int DHCP_ParseOptions(LPDHCP_CONTEXT Context, const U8* Options, U32 Opti
                     if (Length == 4) {
                         MemoryCopy(&Context->ServerID_Be, Options + Index, 4);
                         U32 SID = Ntohl(Context->ServerID_Be);
+                        UNUSED(SID);
                         DEBUG(TEXT("[DHCP_ParseOptions] Server ID: %u.%u.%u.%u"),
                               (SID >> 24) & 0xFF, (SID >> 16) & 0xFF, (SID >> 8) & 0xFF, SID & 0xFF);
                     }
@@ -506,6 +511,7 @@ static BOOL DHCP_SendRequest(LPDEVICE Device, U32 TargetState) {
         Message.Options[OptionsOffset++] = DHCP_OPTION_END;
 
         DestinationHostOrder = Ntohl(DestinationIP_Be);
+        UNUSED(DestinationHostOrder);
         DEBUG(TEXT("[DHCP_SendRequest] Sending DHCP REQUEST (state %u) to %u.%u.%u.%u"),
               TargetState,
               (DestinationHostOrder >> 24) & 0xFF,
@@ -597,6 +603,7 @@ static void DHCP_SendRelease(LPDEVICE Device) {
         Message.Options[OptionsOffset++] = DHCP_OPTION_END;
 
         DestinationHostOrder = Ntohl(DestinationIP_Be);
+        UNUSED(DestinationHostOrder);
         DEBUG(TEXT("[DHCP_SendRelease] Sending DHCP RELEASE to %u.%u.%u.%u"),
               (DestinationHostOrder >> 24) & 0xFF,
               (DestinationHostOrder >> 16) & 0xFF,
@@ -647,6 +654,7 @@ static void DHCP_ApplyAck(LPDHCP_CONTEXT Context, LPDHCP_MESSAGE Message) {
 
     Context->OfferedIP_Be = AssignedIP_Be;
     AssignedIP = Ntohl(Context->OfferedIP_Be);
+    UNUSED(AssignedIP);
 
     DEBUG(TEXT("[DHCP_ApplyAck] Applying ACK: %u.%u.%u.%u"),
           (AssignedIP >> 24) & 0xFF,
@@ -703,6 +711,7 @@ static void DHCP_ApplyAck(LPDHCP_CONTEXT Context, LPDHCP_MESSAGE Message) {
               AssignedIP & 0xFF);
         if (DNSChanged) {
             U32 DNSHost = Ntohl(Context->DNSServer_Be);
+            UNUSED(DNSHost);
             DEBUG(TEXT("[DHCP_ApplyAck] DNS server set to %u.%u.%u.%u"),
                   (DNSHost >> 24) & 0xFF,
                   (DNSHost >> 16) & 0xFF,
@@ -809,6 +818,7 @@ void DHCP_OnUDPPacket(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U
                         }
 
                         U32 OfferedIP = Ntohl(Context->OfferedIP_Be);
+                        UNUSED(OfferedIP);
                         DEBUG(TEXT("[DHCP_OnUDPPacket] Received OFFER: %u.%u.%u.%u"),
                               (OfferedIP >> 24) & 0xFF, (OfferedIP >> 16) & 0xFF,
                               (OfferedIP >> 8) & 0xFF, OfferedIP & 0xFF);
@@ -823,6 +833,7 @@ void DHCP_OnUDPPacket(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U
                     if (MessageType == DHCP_ACK) {
                         U32 AckIP = Message->YIAddr != 0 ? Message->YIAddr : Context->OfferedIP_Be;
                         U32 AckHostOrder = Ntohl(AckIP);
+                        UNUSED(AckHostOrder);
                         DEBUG(TEXT("[DHCP_OnUDPPacket] Received ACK: %u.%u.%u.%u"),
                               (AckHostOrder >> 24) & 0xFF,
                               (AckHostOrder >> 16) & 0xFF,

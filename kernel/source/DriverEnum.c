@@ -25,7 +25,7 @@
 
 #include "Driver.h"
 #include "KernelData.h"
-#include "drivers/PCI.h"
+#include "drivers/bus/PCI.h"
 
 /************************************************************************/
 

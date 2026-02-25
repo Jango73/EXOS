@@ -144,6 +144,8 @@ static void IPv4_HandlePacket(LPIPV4_CONTEXT Context, const IPV4_HEADER* Packet,
     // Debug: Log ALL incoming IPv4 packets
     U32 SrcIP = Ntohl(Packet->SourceAddress);
     U32 DstIP = Ntohl(Packet->DestinationAddress);
+    UNUSED(SrcIP);
+    UNUSED(DstIP);
     DEBUG(TEXT("[IPv4_HandlePacket] Received: Src=%u.%u.%u.%u Dst=%u.%u.%u.%u Proto=%u Len=%u"),
                  (SrcIP >> 24) & 0xFF, (SrcIP >> 16) & 0xFF, (SrcIP >> 8) & 0xFF, SrcIP & 0xFF,
                  (DstIP >> 24) & 0xFF, (DstIP >> 16) & 0xFF, (DstIP >> 8) & 0xFF, DstIP & 0xFF,
@@ -169,7 +171,7 @@ static void IPv4_HandlePacket(LPIPV4_CONTEXT Context, const IPV4_HEADER* Packet,
     }
 
     // Validate checksum
-    if (!IPv4_ValidateChecksum(Packet)) {
+    if (!IPv4_ValidateChecksum((IPV4_HEADER*)Packet)) {
         DEBUG(TEXT("[IPv4_HandlePacket] Invalid checksum"));
         return;
     }
@@ -186,6 +188,7 @@ static void IPv4_HandlePacket(LPIPV4_CONTEXT Context, const IPV4_HEADER* Packet,
         Packet->DestinationAddress != Htonl(0xFFFFFFFF)) {
         // Not for us, drop (could implement forwarding here)
         U32 DstIP = Ntohl(Packet->DestinationAddress);
+        UNUSED(DstIP);
         DEBUG(TEXT("[IPv4_HandlePacket] Packet not for us: %u.%u.%u.%u"),
                      (DstIP >> 24) & 0xFF, (DstIP >> 16) & 0xFF,
                      (DstIP >> 8) & 0xFF, DstIP & 0xFF);
@@ -248,6 +251,7 @@ void IPv4_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
     UnlockMutex(&(Device->Mutex));
 
     U32 IP = Ntohl(LocalIPv4_Be);
+    UNUSED(IP);
     DEBUG(TEXT("[IPv4_Initialize] Initialized for %u.%u.%u.%u"),
                  (IP >> 24) & 0xFF, (IP >> 16) & 0xFF,
                  (IP >> 8) & 0xFF, IP & 0xFF);
@@ -288,6 +292,7 @@ void IPv4_SetLocalAddress(LPDEVICE Device, U32 LocalIPv4_Be) {
     Context->LocalIPv4_Be = LocalIPv4_Be;
 
     U32 IP = Ntohl(LocalIPv4_Be);
+    UNUSED(IP);
     DEBUG(TEXT("[IPv4_SetLocalAddress] Local address set to %u.%u.%u.%u"),
                  (IP >> 24) & 0xFF, (IP >> 16) & 0xFF,
                  (IP >> 8) & 0xFF, IP & 0xFF);
@@ -312,6 +317,9 @@ void IPv4_SetNetworkConfig(LPDEVICE Device, U32 LocalIPv4_Be, U32 NetmaskBe, U32
     U32 IP = Ntohl(LocalIPv4_Be);
     U32 Mask = Ntohl(NetmaskBe);
     U32 Gateway = Ntohl(DefaultGatewayBe);
+    UNUSED(IP);
+    UNUSED(Mask);
+    UNUSED(Gateway);
     DEBUG(TEXT("[IPv4_SetNetworkConfig] IP=%u.%u.%u.%u Mask=%u.%u.%u.%u Gateway=%u.%u.%u.%u"),
                  (IP >> 24) & 0xFF, (IP >> 16) & 0xFF, (IP >> 8) & 0xFF, IP & 0xFF,
                  (Mask >> 24) & 0xFF, (Mask >> 16) & 0xFF, (Mask >> 8) & 0xFF, Mask & 0xFF,
@@ -399,6 +407,8 @@ int IPv4_Send(LPDEVICE Device, U32 DestinationIP, U8 Protocol, const U8* Payload
         // ARP resolution pending - queue the packet for later transmission
         U32 DstIP = Ntohl(DestinationIP);
         U32 NextHopIPHost = Ntohl(NextHopIP);
+        UNUSED(DstIP);
+        UNUSED(NextHopIPHost);
         DEBUG(TEXT("[IPv4_Send] ARP resolution pending for destination %u.%u.%u.%u (NextHop %u.%u.%u.%u) - queuing packet"),
                      (DstIP >> 24) & 0xFF, (DstIP >> 16) & 0xFF, (DstIP >> 8) & 0xFF, DstIP & 0xFF,
                      (NextHopIPHost >> 24) & 0xFF, (NextHopIPHost >> 16) & 0xFF, (NextHopIPHost >> 8) & 0xFF, NextHopIPHost & 0xFF);

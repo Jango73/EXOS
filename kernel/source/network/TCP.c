@@ -110,7 +110,7 @@ static void TCP_ActionSendSyn(STATE_MACHINE* SM, LPVOID EventData);
 static void TCP_ActionSendSynAck(STATE_MACHINE* SM, LPVOID EventData);
 static void TCP_ActionSendAck(STATE_MACHINE* SM, LPVOID EventData);
 static void TCP_ActionSendFin(STATE_MACHINE* SM, LPVOID EventData);
-static void TCP_ActionSendRst(STATE_MACHINE* SM, LPVOID EventData);
+// static void TCP_ActionSendRst(STATE_MACHINE* SM, LPVOID EventData);
 static void TCP_IPv4PacketSentCallback(LPNOTIFICATION_DATA NotificationData, LPVOID UserData);
 static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData);
 static void TCP_ActionAbortConnection(STATE_MACHINE* SM, LPVOID EventData);
@@ -291,6 +291,7 @@ static int TCP_SendPacket(LPTCP_CONNECTION Conn, U8 Flags, const U8* Payload, U3
 
     // Debug: Show the actual TCP header being sent (convert from network to host order for display)
     LPTCP_HEADER TcpHdr = (LPTCP_HEADER)Packet;
+    UNUSED(TcpHdr);
 
     DEBUG(TEXT("[TCP_SendPacket] TCP Header: SrcPort=%d DestPort=%d Seq=%u Ack=%u Flags=%x Window=%d Checksum=%x HeaderLen=%d"),
           Ntohs(TcpHdr->SourcePort), Ntohs(TcpHdr->DestinationPort),
@@ -481,12 +482,14 @@ static void TCP_ActionSendFin(STATE_MACHINE* SM, LPVOID EventData) {
 
 /************************************************************************/
 
+/*
 static void TCP_ActionSendRst(STATE_MACHINE* SM, LPVOID EventData) {
     (void)EventData;
     LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)SM_GetContext(SM);
     DEBUG(TEXT("[TCP_ActionSendRst] Sending RST"));
     TCP_SendPacket(Conn, TCP_FLAG_RST, NULL, 0);
 }
+*/
 
 /************************************************************************/
 
@@ -852,6 +855,8 @@ int TCP_ValidateChecksum(TCP_HEADER* Header, const U8* Payload, U32 PayloadLengt
 
     U32 SrcIPHost = Ntohl(SourceIP);
     U32 DstIPHost = Ntohl(DestinationIP);
+    UNUSED(SrcIPHost);
+    UNUSED(DstIPHost);
 
     DEBUG(TEXT("[TCP_ValidateChecksum] Validating TCP checksum"));
     DEBUG(TEXT("[TCP_ValidateChecksum] Src=%u.%u.%u.%u:%u Dst=%u.%u.%u.%u:%u"),
@@ -880,6 +885,7 @@ int TCP_ValidateChecksum(TCP_HEADER* Header, const U8* Payload, U32 PayloadLengt
 
 /************************************************************************/
 
+/*
 static void TCP_SendRstToUnknownConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPort, U32 RemoteIP, U16 RemotePort, U32 AckNumber) {
     TCP_HEADER Header;
     U8 Packet[sizeof(TCP_HEADER)];
@@ -913,8 +919,10 @@ static void TCP_SendRstToUnknownConnection(LPDEVICE Device, U32 LocalIP, U16 Loc
     IPv4_Send(Device, RemoteIP, IPV4_PROTOCOL_TCP, Packet, sizeof(TCP_HEADER));
     UnlockMutex(&(Device->Mutex));
 }
+*/
 
 /************************************************************************/
+
 // Public API implementation
 
 void TCP_Initialize(void) {
@@ -1013,6 +1021,8 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
     // Convert to host byte order for debug display
     U32 LocalIPHost = Ntohl(LocalIP);
     U32 RemoteIPHost = Ntohl(RemoteIP);
+    UNUSED(LocalIPHost);
+    UNUSED(RemoteIPHost);
     DEBUG(TEXT("[TCP_CreateConnection] Created connection %X (%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d)"),
         (U32)Conn,
         (LocalIPHost >> 24) & 0xFF, (LocalIPHost >> 16) & 0xFF, (LocalIPHost >> 8) & 0xFF, LocalIPHost & 0xFF, Ntohs(Conn->LocalPort),
@@ -1218,6 +1228,7 @@ void TCP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
             if (Header->Flags & (TCP_FLAG_SYN | TCP_FLAG_FIN)) {
                 AckNum++;
             }
+            UNUSED(AckNum);
             // TODO: TCP_SendRstToUnknownConnection needs device parameter
             // TCP_SendRstToUnknownConnection(Device, DestinationIP, Header->DestinationPort,
             //                              SourceIP, Header->SourcePort, AckNum);
@@ -1265,6 +1276,7 @@ void TCP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
 
     DEBUG(TEXT("[TCP_OnIPv4Packet] Processing event (%d bytes)"), DataLength);
     ProcessResult = SM_ProcessEvent(&Conn->StateMachine, EventType, &Event);
+    UNUSED(ProcessResult);
 
     DEBUG(TEXT("[TCP_OnIPv4Packet] State machine processing result: %s"), ProcessResult ? "SUCCESS" : "FAILED");
 }
@@ -1290,7 +1302,7 @@ void TCP_Update(void) {
 
         // Safety check: if in TIME_WAIT state but timer is invalid, force close
         if (CurrentState == TCP_STATE_TIME_WAIT && Conn->TimeWaitTimer == 0) {
-            WARNING(TEXT("[TCP_Update] TIME_WAIT state with invalid timer, forcing close for connection %X"), (U32)Conn);
+            WARNING(TEXT("[TCP_Update] TIME_WAIT state with invalid timer, forcing close for connection %p"), (LPVOID)Conn);
             SM_ProcessEvent(&Conn->StateMachine, TCP_EVENT_TIMEOUT, NULL);
         }
 
@@ -1359,10 +1371,10 @@ U32 TCP_RegisterCallback(LPTCP_CONNECTION Connection, U32 Event, NOTIFICATION_CA
 
     U32 Result = Notification_Register(Connection->NotificationContext, Event, Callback, UserData);
     if (Result != 0) {
-        DEBUG(TEXT("[TCP_RegisterCallback] Registered callback for event %u on connection %X"), Event, (U32)Connection);
+        DEBUG(TEXT("[TCP_RegisterCallback] Registered callback for event %u on connection %p"), Event, (LPVOID)Connection);
         return 0; // Success
     } else {
-        ERROR(TEXT("[TCP_RegisterCallback] Failed to register callback for event %u on connection %X"), Event, (U32)Connection);
+        ERROR(TEXT("[TCP_RegisterCallback] Failed to register callback for event %u on connection %p"), Event, (LPVOID)Connection);
         return 1; // Error
     }
 }
@@ -1399,6 +1411,7 @@ void TCP_InitSlidingWindow(LPTCP_CONNECTION Connection) {
  * @param DataConsumed Amount of data consumed by application
  */
 void TCP_ProcessDataConsumption(LPTCP_CONNECTION Connection, U32 DataConsumed) {
+    UNUSED(DataConsumed);
     SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         // NOTE: RecvBufferUsed is already updated by caller, just calculate window
         UINT AvailableSpace = (Connection->RecvBufferCapacity > Connection->RecvBufferUsed)
@@ -1415,9 +1428,8 @@ void TCP_ProcessDataConsumption(LPTCP_CONNECTION Connection, U32 DataConsumed) {
               DataConsumed, Connection->RecvBufferUsed, NewWindow, StateChanged);
 
         if (StateChanged) {
-            BOOL NewState = Hysteresis_GetState(&Connection->WindowHysteresis);
             DEBUG(TEXT("[TCP_ProcessDataConsumption] Window state transition to %s"),
-                  NewState ? TEXT("HIGH") : TEXT("LOW"));
+                  Hysteresis_GetState(&Connection->WindowHysteresis) ? TEXT("HIGH") : TEXT("LOW"));
         }
     }
 }
@@ -1434,11 +1446,9 @@ BOOL TCP_ShouldSendWindowUpdate(LPTCP_CONNECTION Connection) {
         BOOL ShouldSend = Hysteresis_IsTransitionPending(&Connection->WindowHysteresis);
 
         if (ShouldSend) {
-            BOOL CurrentState = Hysteresis_GetState(&Connection->WindowHysteresis);
-            U32 CurrentWindow = Hysteresis_GetValue(&Connection->WindowHysteresis);
-
             DEBUG(TEXT("[TCP_ShouldSendWindowUpdate] Window update needed: state=%s, window=%u"),
-                  CurrentState ? TEXT("HIGH") : TEXT("LOW"), CurrentWindow);
+                  Hysteresis_GetState(&Connection->WindowHysteresis) ? TEXT("HIGH") : TEXT("LOW"),
+                  Hysteresis_GetValue(&Connection->WindowHysteresis));
 
             // Clear the transition flag since we're about to send the update
             Hysteresis_ClearTransition(&Connection->WindowHysteresis);

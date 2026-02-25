@@ -99,6 +99,7 @@ LPINTERRUPT_FRAME BuildInterruptFrame(U32 InterruptNumber, U32 HasErrorCode, UIN
     MemorySet(Frame, 0, sizeof(INTERRUPT_FRAME));
 
     UserMode = (Stack[INCOMING_CS_INDEX + HasErrorCode] & SELECTOR_RPL_MASK) != 0;
+    UNUSED(UserMode);
 
     Frame->Registers.SS = (U16)(Stack[INCOMING_USER_SS_INDEX + HasErrorCode] & MAX_U16);
     Frame->Registers.RSP = Stack[INCOMING_USER_RSP_INDEX + HasErrorCode];

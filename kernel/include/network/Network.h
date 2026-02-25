@@ -27,7 +27,7 @@
 
 /************************************************************************/
 
-#include "drivers/PCI.h"
+#include "drivers/bus/PCI.h"
 #include "Device.h"
 #include "User.h"
 

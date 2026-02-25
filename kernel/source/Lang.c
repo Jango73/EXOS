@@ -25,7 +25,7 @@
 #include "Lang.h"
 
 #include "Kernel.h"
-#include "drivers/Keyboard.h"
+#include "drivers/input/Keyboard.h"
 #include "Log.h"
 #include "CoreString.h"
 

@@ -31,7 +31,7 @@
 #include "network/DHCP.h"
 #include "network/TCP.h"
 #include "Kernel.h"
-#include "drivers/DeviceInterrupt.h"
+#include "drivers/interrupts/DeviceInterrupt.h"
 #include "Log.h"
 #include "Memory.h"
 #include "network/Network.h"
@@ -390,7 +390,7 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             }
 
             if (DeviceContext == NULL) {
-                ERROR(TEXT("[NetworkManager_InitializeDevice] Device %X not found in network device list!"), (U32)Device);
+                ERROR(TEXT("[NetworkManager_InitializeDevice] Device %p not found in network device list!"), (LPVOID)Device);
                 return;
             }
 
@@ -459,6 +459,7 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             NETWORKSETRXCB SetRxCb = {.Device = Device, .Callback = NetworkManager_RxCallback, .UserData = (LPVOID)DeviceContext};
             DEBUG(TEXT("[NetworkManager_InitializeDevice] Installing RX callback %X with UserData %X"), (U32)NetworkManager_RxCallback, (U32)DeviceContext);
             U32 Result = Device->Driver->Command(DF_NT_SETRXCB, (UINT)(LPVOID)&SetRxCb);
+            UNUSED(Result);
             DEBUG(TEXT("[NetworkManager_InitializeDevice] RX callback installation result: %u"), Result);
 
             // Mark device as initialized

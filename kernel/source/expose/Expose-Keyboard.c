@@ -25,7 +25,7 @@
 
 #include "DriverGetters.h"
 #include "KernelData.h"
-#include "drivers/KeyboardDrivers.h"
+#include "drivers/input/KeyboardDrivers.h"
 
 /************************************************************************/
 

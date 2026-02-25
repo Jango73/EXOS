@@ -440,13 +440,15 @@ int HTTP_ParseURL(const char* URLString, URL* ParsedURL) {
         // Find query string
         queryStart = strstr(pathStart, "?");
         if (queryStart) {
+            UINT PathLength = (UINT)(queryStart - pathStart);
+
             // Extract path without query
-            if ((queryStart - pathStart) >= sizeof(ParsedURL->Path)) {
+            if (PathLength >= sizeof(ParsedURL->Path)) {
                 HTTP_SetLastErrorMessage("URL path component is too long");
                 return 0;
             }
-            memcpy(ParsedURL->Path, pathStart, queryStart - pathStart);
-            ParsedURL->Path[queryStart - pathStart] = '\0';
+            memcpy(ParsedURL->Path, pathStart, PathLength);
+            ParsedURL->Path[PathLength] = '\0';
 
             // Extract query string
             queryStart++; // Skip '?'
@@ -665,7 +667,7 @@ int HTTP_SendRequest(HTTP_CONNECTION* Connection, const char* Method, const char
     int sent;
 
     debug("[HTTP_SendRequest] Method=%s, Path=%s", Method, Path);
-    debug("[HTTP_SendRequest] Connection=%x, RemoteIP=%x, RemotePort=%d", (unsigned int)Connection, Connection->RemoteIP, Connection->RemotePort);
+    debug("[HTTP_SendRequest] Connection=%p, RemoteIP=%x, RemotePort=%d", Connection, Connection->RemoteIP, Connection->RemotePort);
     HTTP_SetLastErrorMessage("Success");
 
     if (!Connection || !Connection->Connected || !Method || !Path) {

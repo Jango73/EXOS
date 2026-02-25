@@ -783,7 +783,7 @@ U32 CMD_keyboard(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    if (HasOption(Context, "l", "layout")) {
+    if (HasOption(Context, TEXT("l"), TEXT("layout"))) {
         SelectKeyboard(Context->Command);
         ConsolePrint(TEXT("Keyboard layout set to %s\n"), GetKeyboardCode());
         TEST(TEXT("[CMD_keyboard] keyboard : OK"));

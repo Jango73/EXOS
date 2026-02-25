@@ -30,7 +30,11 @@
 // CRC64 implementation for EXOS
 // CRC64-ECMA polynomial (used by Redis, PostgreSQL...)
 
-static const U64 CRC64_Poly = {0xD7870F42, 0xC96C5795};  // 0xC96C5795D7870F42ULL
+#ifdef __EXOS_32__
+static const U64 CRC64_Poly = {0xD7870F42, 0xC96C5795};
+#else
+static const U64 CRC64_Poly = ((U64)0xC96C5795 << 32) | (U64)0xD7870F42;
+#endif
 static U64 DATA_SECTION CRC64_Table[256];
 static BOOL DATA_SECTION CRC64_TableInitialized = FALSE;
 

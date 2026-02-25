@@ -46,6 +46,7 @@ KERNELSTARTUPINFO KernelStartup = {
 
 /************************************************************************/
 
+#if BOOT_STAGE_MARKERS == 1
 static U32 KernelBootMarkerScaleColor(U32 Value, U32 MaskSize) {
     if (MaskSize == 0u) {
         return 0u;
@@ -72,6 +73,7 @@ static U32 KernelBootMarkerComposePixel(const multiboot_info_t* MultibootInfo, U
     Pixel |= KernelBootMarkerScaleColor(Blue, MultibootInfo->color_info[5]) << MultibootInfo->color_info[4];
     return Pixel;
 }
+#endif
 
 /************************************************************************/
 

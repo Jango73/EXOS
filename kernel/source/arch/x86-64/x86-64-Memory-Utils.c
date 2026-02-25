@@ -294,7 +294,7 @@ void MapOnePage(
  * @brief Unmap a single page from the current address space.
  * @param Linear Linear address to unmap.
  */
-inline void UnmapOnePage(LINEAR Linear) {
+static inline void UnmapOnePage(LINEAR Linear) {
     LPPAGE_TABLE Table = GetPageTableVAFor(Linear);
     UINT tab = GetTableEntry(Linear);
     ClearPageTableEntry(Table, tab);
@@ -563,6 +563,7 @@ BOOL TryGetPageTableForIterator(
     }
 
     LINEAR Linear = (LINEAR)MemoryPageIteratorGetLinear(Iterator);
+    UNUSED(Linear);
     UINT Pml4Index = MemoryPageIteratorGetPml4Index(Iterator);
     UINT PdptIndex = MemoryPageIteratorGetPdptIndex(Iterator);
     UINT DirEntry = MemoryPageIteratorGetDirectoryIndex(Iterator);

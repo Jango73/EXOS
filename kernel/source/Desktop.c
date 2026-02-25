@@ -26,7 +26,7 @@
 #include "GFX.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "Mouse.h"
+#include "input/Mouse.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
 

@@ -25,7 +25,7 @@
 
 #include "../../kernel/include/arch/x86-32/x86-32.h"
 #include "../../kernel/include/CoreString.h"
-#include "../../kernel/include/drivers/LocalAPIC.h"
+#include "../../kernel/include/drivers/interrupts/LocalAPIC.h"
 #include "../include/vbr-realmode-utils.h"
 #include "dumper.h"
 

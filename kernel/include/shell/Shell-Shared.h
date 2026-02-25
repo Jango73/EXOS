@@ -27,11 +27,11 @@
 #include "arch/Disassemble.h"
 #include "Clock.h"
 #include "Console.h"
-#include "drivers/Keyboard.h"
+#include "drivers/input/Keyboard.h"
 #include "drivers/filesystems/NTFS.h"
-#include "drivers/NVMe-Core.h"
-#include "drivers/USBStorage.h"
-#include "drivers/XHCI.h"
+#include "drivers/storage/NVMe-Core.h"
+#include "drivers/storage/USBStorage.h"
+#include "drivers/usb/XHCI.h"
 #include "DriverEnum.h"
 #include "Endianness.h"
 #include "Exposed.h"
@@ -51,7 +51,7 @@
 #include "utils/Helpers.h"
 #include "utils/Path.h"
 #include "utils/StringArray.h"
-#include "VKey.h"
+#include "input/VKey.h"
 
 /************************************************************************/
 

@@ -25,9 +25,9 @@
 #include "Base.h"
 #include "Console.h"
 #include "Kernel.h"
-#include "drivers/Keyboard.h"
+#include "drivers/input/Keyboard.h"
 #include "CoreString.h"
-#include "VKey.h"
+#include "input/VKey.h"
 
 /***************************************************************************/
 
@@ -42,7 +42,7 @@ static void PrintMemoryLine(U32 Base) {
     STR Addr[16];
     STR Hexa[64];
     STR ASCII[64];
-    U8* Pointer = (U8*)Base;
+    U8* Pointer = (U8*)(UINT)Base;
     U8 Data = 0;
     U32 Index = 0;
 

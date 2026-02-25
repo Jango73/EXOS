@@ -81,7 +81,7 @@ void LogFrameBuffer(U32 LogType, LPCSTR Prefix, const U8* Buffer, U32 Length) {
         Counter++;
         Space = !Space;
 
-        if (Counter > 15 | Pointer >= Buffer + Length) {
+        if (Counter > 15 || Pointer >= Buffer + Length) {
             Counter = 0;
             KernelLogText(LogType, TEXT("%s %s"), Prefix, LineBuffer);
             LineBuffer[0] = 0;
@@ -178,6 +178,8 @@ void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 Size) {
         RawLow = (U32)(Raw & 0xFFFFFFFFu);
         RawHigh = (U32)(Raw >> 32);
 #endif
+        UNUSED(RawLow);
+        UNUSED(RawHigh);
 
         if (U64_EQUAL(Raw, NullDescriptor)) {
             DEBUG(TEXT("[LogGlobalDescriptorTable] Entry %u: raw[63:32]=%x raw[31:0]=%x (null)"),
@@ -205,6 +207,8 @@ void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 Size) {
             U32 Base = (U32)SystemDescriptor->Base_00_15
                 | ((U32)SystemDescriptor->Base_16_23 << 16)
                 | ((U32)SystemDescriptor->Base_24_31 << 24);
+            UNUSED(Limit);
+            UNUSED(Base);
 
             DEBUG(TEXT("[LogGlobalDescriptorTable]   Type=%u Privilege=%u Present=%u"),
                 (U32)SystemDescriptor->Type,
@@ -228,6 +232,9 @@ void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 Size) {
             | ((U32)Descriptor->CanWrite << 1u)
             | ((U32)Descriptor->ConformExpand << 2u)
             | ((U32)Descriptor->Type << 3u);
+        UNUSED(Limit);
+        UNUSED(Base);
+        UNUSED(TypeBits);
 
         DEBUG(TEXT("[LogGlobalDescriptorTable]   Accessed=%u CanWrite=%u ConformExpand=%u Type=%u Segment=%u"),
             (U32)Descriptor->Accessed,
@@ -301,6 +308,8 @@ void LogPageDirectory(PHYSICAL DirectoryPhysical) {
         if (Directory[DirEntry].Present) {
             LINEAR VirtualAddress = DirEntry << 22;
             PHYSICAL PhysicalAddress = Directory[DirEntry].Address << 12;
+            UNUSED(VirtualAddress);
+            UNUSED(PhysicalAddress);
 
             DEBUG(TEXT("[LogPageDirectory] PDE[%03u]: VA=%x-%x -> PT_PA=%x Present=%u RW=%u Priv=%u"), DirEntry,
                 VirtualAddress, VirtualAddress + 0x3FFFFF, PhysicalAddress, Directory[DirEntry].Present,
@@ -319,14 +328,14 @@ void LogPageDirectory(PHYSICAL DirectoryPhysical) {
                     if (MappedCount <= 3 || MappedCount >= 1021) {
                         VirtualAddress = (DirEntry << 22) + (TabEntry << 12);
                         PhysicalAddress = Table[TabEntry].Address << 12;
+                        UNUSED(PhysicalAddress);
 
                         DEBUG(TEXT("[LogPageDirectory]   PTE[%u]: VA=%x -> PA=%x Present=%u RW=%u Priv=%u Dirty=%u Fixed=%u"),
                             TabEntry, VirtualAddress, PhysicalAddress, Table[TabEntry].Present, Table[TabEntry].ReadWrite,
                             Table[TabEntry].Privilege, Table[TabEntry].Dirty, Table[TabEntry].Fixed);
 
-                        U8* Memory = (U8*)MapTemporaryPhysicalPage3(PhysicalAddress);
-
 #if DEBUG_OUTPUT == 1
+                        U8* Memory = (U8*)MapTemporaryPhysicalPage3(PhysicalAddress);
                         LogMemoryLine16B(LOG_DEBUG, (LPCSTR)"[LogPageDirectory]     RAM: ", Memory);
 #endif
                     } else if (MappedCount == 4) {

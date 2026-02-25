@@ -829,7 +829,7 @@ U32 InternetAddressFromString(LPCSTR IPString) {
     if (octet_count == 3) {
         result = (result << 8) | octet;
 
-        debug(TEXT("[InternetAddressFromString] %x"), result);
+        debug("[InternetAddressFromString] %x", result);
         return result;
     }
 

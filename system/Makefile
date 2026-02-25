@@ -23,9 +23,9 @@ SUBMAKE = $(MAKE) ARCH=$(ARCH) BUILD_CORE_NAME=$(BUILD_CORE_NAME) BUILD_IMAGE_NA
 
 ################################################################################
 
-.PHONY: all clean hello portal tictactoe terminal_tactics netget mouse-info master slave
+.PHONY: all clean hello portal tictactoe terminal_tactics netget input-info master slave
 
-all: hello portal tictactoe terminal_tactics netget mouse-info master slave
+all: hello portal tictactoe terminal_tactics netget input-info master slave
 
 ################################################################################
 # Hello program
@@ -78,14 +78,14 @@ netget_clean:
 	+$(SUBMAKE) -C netget clean
 
 ################################################################################
-# Mouse info program
+# Input info program
 
-mouse-info:
-	@echo "[ Building mouse-info ]"
-	+$(SUBMAKE) -C mouse-info all
+input-info:
+	@echo "[ Building input-info ]"
+	+$(SUBMAKE) -C input-info all
 
-mouse-info_clean:
-	+$(SUBMAKE) -C mouse-info clean
+input-info_clean:
+	+$(SUBMAKE) -C input-info clean
 
 ################################################################################
 # Master test program
@@ -109,5 +109,5 @@ slave_clean:
 
 ################################################################################
 
-clean: hello_clean portal_clean tictactoe_clean terminal_tactics_clean netget_clean mouse-info_clean master_clean slave_clean
+clean: hello_clean portal_clean tictactoe_clean terminal_tactics_clean netget_clean input-info_clean master_clean slave_clean
 	@echo "[ Cleaning system programs ]"

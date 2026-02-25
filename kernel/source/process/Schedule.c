@@ -720,7 +720,7 @@ U32 Wait(LPWAITINFO WaitInfo) {
 
         UINT CurrentTime = GetSystemTime();
 
-        if (WaitInfo->MilliSeconds != INFINITY) {
+        if (WaitInfo->MilliSeconds != MAX_U32) {
             if (CurrentTime - StartTime >= WaitInfo->MilliSeconds) {
                 return WAIT_TIMEOUT;
             }

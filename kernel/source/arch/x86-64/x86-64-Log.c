@@ -70,6 +70,7 @@ void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 EntryCount) {
             RawHigh = RawEntries[Index + 1u];
             IsSystemDescriptor = TRUE;
         }
+        UNUSED(RawHigh);
 
         DEBUG(TEXT("[LogGlobalDescriptorTable] Entry %u: raw[63:0]=%p raw[127:64]=%p"), Index, (LPVOID)RawLow, (LPVOID)RawHigh);
 
@@ -80,6 +81,8 @@ void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 EntryCount) {
                 | ((U64)SystemDescriptor->Base_16_23 << 16)
                 | ((U64)SystemDescriptor->Base_24_31 << 24)
                 | ((U64)SystemDescriptor->Base_32_63 << 32);
+            UNUSED(Limit);
+            UNUSED(Base);
 
             DEBUG(TEXT("[LogGlobalDescriptorTable]   Limit_00_15=%x Limit_16_19=%x"),
                 (U32)SystemDescriptor->Limit_00_15,
@@ -114,6 +117,8 @@ void LogGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table, U32 EntryCount) {
         U32 Base = (U32)Descriptor->Base_00_15
             | ((U32)Descriptor->Base_16_23 << 16)
             | ((U32)Descriptor->Base_24_31 << 24);
+        UNUSED(Limit);
+        UNUSED(Base);
 
         DEBUG(TEXT("[LogGlobalDescriptorTable]   Limit_00_15=%x Limit_16_19=%x"),
             (U32)Descriptor->Limit_00_15,
@@ -270,6 +275,7 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
         U64 LinearBase = BuildLinearAddress(Pml4Index, 0, 0, 0, 0);
         U64 LinearEnd = BuildRangeEnd(LinearBase, (U64)1 << 39);
         PHYSICAL PdptPhysical = (PHYSICAL)(Pml4Entry->Address << 12);
+        UNUSED(LinearEnd);
 
         DEBUG(TEXT("[LogPageDirectory64] PML4E[%u]: VA=%p-%p -> PDPT_PA=%p Present=%u RW=%u Priv=%u NX=%u"),
             Pml4Index,
@@ -298,9 +304,11 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
 
             U64 PdptBase = BuildLinearAddress(Pml4Index, PdptIndex, 0, 0, 0);
             U64 PdptEnd = BuildRangeEnd(PdptBase, (U64)1 << 30);
+            UNUSED(PdptEnd);
 
             if (PdptEntry->PageSize) {
                 PHYSICAL HugePhysical = (PHYSICAL)(PdptEntry->Address << 12);
+                UNUSED(HugePhysical);
 
                 DEBUG(TEXT("[LogPageDirectory64]   PDPTE[%u]: VA=%p-%p -> 1GB page PA=%p Present=%u RW=%u Priv=%u NX=%u"),
                     PdptIndex,
@@ -343,9 +351,11 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
 
                 U64 DirectoryBase = BuildLinearAddress(Pml4Index, PdptIndex, DirectoryIndex, 0, 0);
                 U64 DirectoryEnd = BuildRangeEnd(DirectoryBase, (U64)1 << 21);
+                UNUSED(DirectoryEnd);
 
                 if (DirectoryEntry->PageSize) {
                     PHYSICAL LargePhysical = (PHYSICAL)(DirectoryEntry->Address << 12);
+                    UNUSED(LargePhysical);
 
                     DEBUG(TEXT("[LogPageDirectory64]     PDE[%u]: VA=%p-%p -> 2MB page PA=%p Present=%u RW=%u Priv=%u Global=%u NX=%u"),
                         DirectoryIndex,
@@ -411,6 +421,8 @@ void LogPageDirectory64(PHYSICAL Pml4Physical) {
                     if (MappedCount <= 3u || MappedCount >= PAGE_TABLE_NUM_ENTRIES - 2u) {
                         U64 TableVirtual = BuildLinearAddress(Pml4Index, PdptIndex, DirectoryIndex, TableIndex, 0);
                         PHYSICAL PagePhysical = (PHYSICAL)(TableEntry->Address << 12);
+                        UNUSED(TableVirtual);
+                        UNUSED(PagePhysical);
 
                         DEBUG(TEXT("[LogPageDirectory64]       PTE[%u]: VA=%p -> PA=%p Present=%u RW=%u Priv=%u Dirty=%u Global=%u NX=%u"),
                             TableIndex,
@@ -470,7 +482,7 @@ void LogFrame(LPINTERRUPT_FRAME Frame) {
     LPTASK Task = GetCurrentTask();
     LPPROCESS Process = GetCurrentProcess();
 
-    KernelLogText(LOG_VERBOSE, TEXT("Task : %p (%s @ %s)"), Task, Task ? Task->Name : "?", Process ? Process->FileName : "?");
+    KernelLogText(LOG_VERBOSE, TEXT("Task : %p (%s @ %s)"), Task, Task ? Task->Name : TEXT("?"), Process ? Process->FileName : TEXT("?"));
     KernelLogText(LOG_VERBOSE, TEXT("Registers :"));
     LogRegisters64(&(Frame->Registers));
 }

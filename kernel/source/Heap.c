@@ -170,7 +170,7 @@ void HeapInit(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize) {
  */
 static BOOL TryExpandHeap(LPHEAPCONTROLBLOCK ControlBlock, UINT RequiredSize) {
     if (ControlBlock == NULL || ControlBlock->Owner == NULL) {
-        ERROR("[TryExpandHeap] Heap owner is undefined");
+        ERROR(TEXT("[TryExpandHeap] Heap owner is undefined"));
         return FALSE;
     }
 
@@ -198,7 +198,7 @@ static BOOL TryExpandHeap(LPHEAPCONTROLBLOCK ControlBlock, UINT RequiredSize) {
     }
 
     if (DesiredSize <= CurrentSize) {
-        ERROR("[TryExpandHeap] Heap limit reached (Current=%x Limit=%x)", CurrentSize, Limit);
+        ERROR(TEXT("[TryExpandHeap] Heap limit reached (Current=%x Limit=%x)"), CurrentSize, Limit);
         return FALSE;
     }
 
@@ -208,7 +208,7 @@ static BOOL TryExpandHeap(LPHEAPCONTROLBLOCK ControlBlock, UINT RequiredSize) {
     }
 
     if (ResizeRegion(Process->HeapBase, 0, CurrentSize, DesiredSize, Flags) == FALSE) {
-        ERROR("[TryExpandHeap] ResizeRegion failed for heap at %x (from %x to %x)", Process->HeapBase, CurrentSize,
+        ERROR(TEXT("[TryExpandHeap] ResizeRegion failed for heap at %x (from %x to %x)"), Process->HeapBase, CurrentSize,
             DesiredSize);
         return FALSE;
     }
@@ -392,7 +392,7 @@ LPVOID HeapRealloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, LPVOI
     // Get the block header
     LPHEAPBLOCKHEADER Block = (LPHEAPBLOCKHEADER)((LINEAR)Pointer - sizeof(HEAPBLOCKHEADER));
     if (Block->TypeID != KOID_HEAP) {
-        ERROR("[HeapRealloc_HBHS] Invalid block header ID");
+        ERROR(TEXT("[HeapRealloc_HBHS] Invalid block header ID"));
         return NULL;
     }
 
@@ -443,7 +443,7 @@ void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer) {
     // Get the block header
     Block = (LPHEAPBLOCKHEADER)((LINEAR)Pointer - sizeof(HEAPBLOCKHEADER));
     if (Block->TypeID != KOID_HEAP) {
-        ERROR("[HeapFree_HBHS] Invalid block header ID");
+        ERROR(TEXT("[HeapFree_HBHS] Invalid block header ID"));
         return;
     }
 

@@ -16,14 +16,16 @@
         "C-e": { "label": "Build 32 MBR Debug Split", "script": "scripts/build --arch x86-32 --fs ext2 --debug --split --clean" },
 
         "C-r": { "label": "Build 32 System Data View", "script": "scripts/build --arch x86-32 --fs ext2 --system-data-view --clean" },
-        "C-t": { "label": "Build 32 VESA Test Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/vesa-test.c ARCH=x86-32 install-vbr-payload" },
-        "C-y": { "label": "Build 32 Dumper Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/dumper*.c ARCH=x86-32 install-vbr-payload" },
-        "C-u": { "label": "Build 32 BIOS Keyboard Payload", "script": "make -C boot-hd PAYLOAD_SOURCE=test-payloads/bios-keyboard.c ARCH=x86-32 install-vbr-payload" },
+        "C-t": { "label": "Build 32 VESA Test Payload", "script": "make -C boot-hd BUILD_CORE_NAME=x86-32-mbr-debug BUILD_IMAGE_NAME=x86-32-mbr-debug-ext2 PAYLOAD_SOURCE=test-payloads/vesa-test.c ARCH=x86-32 clean install-vbr-payload" },
+        "C-y": { "label": "Build 32 Dumper Payload", "script": "make -C boot-hd BUILD_CORE_NAME=x86-32-mbr-debug BUILD_IMAGE_NAME=x86-32-mbr-debug-ext2 PAYLOAD_SOURCE=test-payloads/dumper*.c ARCH=x86-32 clean install-vbr-payload" },
+        "C-u": { "label": "Build 32 BIOS Keyboard Payload", "script": "make -C boot-hd BUILD_CORE_NAME=x86-32-mbr-debug BUILD_IMAGE_NAME=x86-32-mbr-debug-ext2 PAYLOAD_SOURCE=test-payloads/bios-keyboard.c ARCH=x86-32 install-vbr-payload" },
 
         "x86-32 run----------": "",
 
         "f1": { "label": "Start 32 QEMU MBR Release", "script": "scripts/run --arch x86-32 --fs ext2 --release" },
         "f2": { "label": "Start 32 QEMU MBR Debug", "script": "scripts/run --arch x86-32 --fs ext2 --debug" },
+        "f3": { "label": "Start 32 QEMU VESA Test", "script": "scripts/run --arch x86-32 --build-core-name x86-32-mbr-debug --build-image-name x86-32-mbr-debug-ext2 --debug --no-nvme --no-usb3" },
+        "f4": { "label": "Start 32 QEMU Dumper Test", "script": "scripts/run --arch x86-32 --build-core-name x86-32-mbr-debug --build-image-name x86-32-mbr-debug-ext2 --debug --no-nvme --no-usb3" },
 
         "x86-64 build--------": "",
 

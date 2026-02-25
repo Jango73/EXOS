@@ -65,6 +65,7 @@ void LogCPUState(LPINTERRUPT_FRAME Frame) {
             }
 
             Value = *((LINEAR*)EntryAddress);
+            UNUSED(Value);
             DEBUG(TEXT("[LogCPUState] Stack[%u] @ %p = %p"), Index, (LPVOID)EntryAddress, (LPVOID)Value);
         }
     }

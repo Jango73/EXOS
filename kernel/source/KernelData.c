@@ -23,14 +23,14 @@
 \************************************************************************/
 
 #include "Kernel.h"
-#include "Mouse.h"
+#include "input/Mouse.h"
 #include "Socket.h"
 #include "DriverGetters.h"
-#include "drivers/KeyboardDrivers.h"
-#include "drivers/MouseDrivers.h"
+#include "drivers/input/KeyboardDrivers.h"
+#include "drivers/input/MouseDrivers.h"
 #include "utils/Helpers.h"
 #include "process/Process.h"
-#include "drivers/Keyboard.h"
+#include "drivers/input/Keyboard.h"
 #include "Log.h"
 
 /************************************************************************/

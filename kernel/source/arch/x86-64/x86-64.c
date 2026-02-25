@@ -169,6 +169,7 @@ extern void Interrupt_SystemCall(void);
  * @param Msr Model-specific register index to read.
  * @return Combined 64-bit value of the MSR contents.
  */
+/*
 static U64 ReadMSR64Local(U32 Msr) {
     U32 Low;
     U32 High;
@@ -177,6 +178,7 @@ static U64 ReadMSR64Local(U32 Msr) {
 
     return (((U64)High) << 32) | (U64)Low;
 }
+*/
 
 /************************************************************************/
 
@@ -349,6 +351,7 @@ void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
  */
 BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info) {
     LINEAR BaseVMA = VMA_KERNEL;
+    UNUSED(BaseVMA);
     SELECTOR CodeSelector = SELECTOR_KERNEL_CODE;
     SELECTOR DataSelector = SELECTOR_KERNEL_DATA;
     LINEAR StackTop;
@@ -638,6 +641,7 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
     LINEAR StackPointer;
     LINEAR SavedRbxValue;
     LINEAR ReturnAddress;
+    UNUSED(FunctionId);
 
     if (SaveArea == (LINEAR)0) {
         DEBUG(TEXT("[DebugLogSyscallFrame] SaveArea missing for Function=%u"), FunctionId);
@@ -648,6 +652,9 @@ void DebugLogSyscallFrame(LINEAR SaveArea, UINT FunctionId) {
     StackPointer = (LINEAR)(SaveArea + (LINEAR)SYSCALL_SAVE_AREA_SIZE);
     SavedRbxValue = *((LINEAR*)(SavePtr + SYSCALL_SAVE_AREA_SIZE));
     ReturnAddress = *((LINEAR*)(SavePtr + SYSCALL_SAVE_AREA_SIZE + sizeof(LINEAR)));
+    UNUSED(StackPointer);
+    UNUSED(SavedRbxValue);
+    UNUSED(ReturnAddress);
 
     DEBUG(TEXT("[DebugLogSyscallFrame] Function=%u SaveArea=%p StackPtr=%p SavedRBX=%p Return=%p"),
           FunctionId, (LPVOID)SaveArea, (LPVOID)StackPointer, (LPVOID)SavedRbxValue, (LPVOID)ReturnAddress);

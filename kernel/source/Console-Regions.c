@@ -26,8 +26,8 @@
 #include "Kernel.h"
 #include "Memory.h"
 #include "Mutex.h"
-#include "drivers/Keyboard.h"
-#include "VKey.h"
+#include "drivers/input/Keyboard.h"
+#include "input/VKey.h"
 #include "System.h"
 
 /***************************************************************************/

@@ -147,6 +147,7 @@ static void SetLongModeEntry(LPX86_64_PAGING_ENTRY Entry, U64 Physical, U32 Flag
 
 /************************************************************************/
 
+#if 0
 /**
  * @brief Convert a 64-bit physical address into a register-sized integer.
  *
@@ -183,6 +184,7 @@ static U64 VbrEntryToPhysical(const X86_64_PAGING_ENTRY* Entry) {
 
     return U64_Make(PhysicalHigh, PhysicalLow);
 }
+#endif
 
 static void SetSegmentDescriptorX8664(
     LPSEGMENT_DESCRIPTOR Descriptor,

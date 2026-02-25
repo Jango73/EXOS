@@ -192,8 +192,8 @@ typedef struct PACKED tag_U128 {
 #endif
 
 #ifdef __EXOS_64__
-    #define MAX_U64 0xFFFFFFFFFFFFFFFF
-    #define MAX_UINT MAX_U64
+    #define MAX_U64 ((U64)0xFFFFFFFFFFFFFFFF)
+    #define MAX_UINT ((UINT)-1)
 #endif
 
 /************************************************************************/
@@ -248,7 +248,7 @@ typedef UINT BOOL;
 /************************************************************************/
 // Time values
 
-#define INFINITY MAX_UINT
+#define INFINITY MAX_U32
 
 /************************************************************************/
 // Handles - Replace pointers in userland to protect kernel

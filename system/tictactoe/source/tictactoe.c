@@ -24,7 +24,7 @@
 
 #include "../../../runtime/include/exos-runtime.h"
 #include "../../../runtime/include/exos.h"
-#include "../../../kernel/include/VKey.h"
+#include "../../../kernel/include/input/VKey.h"
 
 /************************************************************************/
 

@@ -324,6 +324,8 @@ void UDP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
 
         SrcIP = Ntohl(SourceIP);
         DstIP = Ntohl(DestinationIP);
+        UNUSED(SrcIP);
+        UNUSED(DstIP);
 
         DEBUG(TEXT("[UDP_OnIPv4Packet] Received UDP packet: %u.%u.%u.%u:%u -> %u.%u.%u.%u:%u Length=%u"),
               (SrcIP >> 24) & 0xFF, (SrcIP >> 16) & 0xFF, (SrcIP >> 8) & 0xFF, SrcIP & 0xFF, SourcePort,
