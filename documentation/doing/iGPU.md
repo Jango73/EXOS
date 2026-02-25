@@ -19,12 +19,13 @@
 - Keep logs actionable and rate-limited for polling paths.
 
 ## Step 0 - Baseline and contract freeze
-- [ ] Record exactly which `DF_GFX_*` commands are used by Desktop/Console/SYSCall.
-- [ ] Document what `VESA.c` already guarantees (mode set, linear memory access, pixel ops).
-- [ ] Define the minimal contract required by your window manager to be backend-agnostic.
+- [x] Record exactly which `DF_GFX_*` commands are used by Desktop/Console/SYSCall.
+- [x] Document what `VESA.c` already guarantees (mode set, linear memory access, pixel ops).
+- [x] Define the minimal contract required by your window manager to be backend-agnostic.
 
 Deliverable:
 - A short compatibility note: "what every graphics driver must provide to run the window manager".
+- Delivered in `documentation/doing/iGPU-Step0-Compatibility.md`.
 
 ## Step 1 - Evolve `GFX.h` into a stable backend interface
 The existing API is enough for software drawing, but too poor for clean native scanout management.
