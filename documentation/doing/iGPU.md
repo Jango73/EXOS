@@ -103,10 +103,10 @@ Deliverable:
 ## Step 4 - Mode takeover path (first usable milestone)
 First milestone should avoid full native modesetting complexity.
 
-- [ ] Read active scanout state from Intel display registers (pipe, plane, stride, base).
-- [ ] Build a `GRAPHICSCONTEXT` from the active mode.
-- [ ] Map the active framebuffer memory and expose it as `MemoryBase`.
-- [ ] Present through CPU blit to active scanout buffer.
+- [x] Read active scanout state from Intel display registers (pipe, plane, stride, base).
+- [x] Build a `GRAPHICSCONTEXT` from the active mode.
+- [x] Map the active framebuffer memory and expose it as `MemoryBase`.
+- [x] Present through CPU blit to active scanout buffer.
 
 Why this step:
 - Produces a native Intel backend with minimal risk.
@@ -114,6 +114,7 @@ Why this step:
 
 Deliverable:
 - Desktop can draw through Intel backend using existing graphics API.
+- Implemented in `kernel/source/drivers/graphics/IntelGfx.c` through active-mode takeover and CPU primitives.
 
 ## Step 5 - Native modeset (controlled expansion)
 After takeover works, add explicit mode programming.

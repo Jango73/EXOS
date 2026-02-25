@@ -750,6 +750,8 @@ Graphics backend selection is handled by `kernel/source/drivers/graphics/Graphic
 
 Intel capability handling is centralized in an internal `INTEL_GFX_CAPS` object populated from a PCI device-id family table and refined with bounded MMIO register probes (display version, pipe presence, port mask). Generic `GFX_CAPABILITIES` values exposed through `DF_GFX_GETCAPABILITIES` are projected from this single capability object.
 
+The Intel backend takeover path reads active pipe/plane state from display registers, maps the active scanout buffer through the aperture BAR, builds a `GRAPHICSCONTEXT` from that mode, and serves window-manager drawing through CPU primitives (`SETPIXEL`, `GETPIXEL`, `LINE`, `RECTANGLE`) writing directly to the active scanout memory.
+
 The console supports direct linear framebuffer rendering when Multiboot framebuffer metadata is available:
 
 - BIOS/MBR path uses VGA text buffer `0xB8000` with text framebuffer metadata.
