@@ -36,6 +36,7 @@
 typedef struct tag_GRAPHICS_SELECTOR_STATE {
     LPDRIVER Backends[4];
     UINT Scores[4];
+    UINT Priorities[4];
     UINT BackendCount;
     UINT ActiveIndex;
 } GRAPHICS_SELECTOR_STATE, *LPGRAPHICS_SELECTOR_STATE;
@@ -43,6 +44,7 @@ typedef struct tag_GRAPHICS_SELECTOR_STATE {
 /************************************************************************/
 
 static UINT GraphicsSelectorCommands(UINT Function, UINT Parameter);
+static UINT GraphicsSelectorBackendPriority(LPDRIVER Driver);
 
 static DRIVER DATA_SECTION GraphicsSelectorDriver = {
     .TypeID = KOID_DRIVER,
@@ -112,6 +114,29 @@ static UINT GraphicsSelectorScoreDriver(LPDRIVER Driver) {
 /************************************************************************/
 
 /**
+ * @brief Return deterministic backend priority for tie-breaking.
+ * @param Driver Candidate backend.
+ * @return Priority value. Higher value wins on equal score.
+ */
+static UINT GraphicsSelectorBackendPriority(LPDRIVER Driver) {
+    if (Driver == IntelGfxGetDriver()) {
+        return 300;
+    }
+
+    if (Driver == GOPGetDriver()) {
+        return 200;
+    }
+
+    if (Driver == VESAGetDriver()) {
+        return 100;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
  * @brief Load candidate graphics backends and select the most capable active one.
  * @return DF_RETURN_SUCCESS on success, DF_RETURN_UNEXPECTED otherwise.
  */
@@ -132,22 +157,32 @@ static UINT GraphicsSelectorLoad(void) {
 
     for (Index = 0; Index < CandidateCount; Index++) {
         LPDRIVER Driver = Candidates[Index];
+        UINT LoadResult = 0;
         UINT Score = 0;
+        UINT Priority = 0;
         UINT InsertIndex = 0;
 
         if (Driver == NULL || Driver->Command == NULL) {
             continue;
         }
 
-        (void)Driver->Command(DF_LOAD, 0);
+        LoadResult = Driver->Command(DF_LOAD, 0);
+        DEBUG(TEXT("[GraphicsSelectorLoad] Probe backend %s load_result=%u ready=%u"),
+            Driver->Product,
+            LoadResult,
+            (Driver->Flags & DRIVER_FLAG_READY) != 0 ? 1 : 0);
 
         if ((Driver->Flags & DRIVER_FLAG_READY) == 0) {
-            DEBUG(TEXT("[GraphicsSelectorLoad] Skipping backend %s (not active)"), Driver->Product);
+            WARNING(TEXT("[GraphicsSelectorLoad] Rejecting backend %s (load_result=%u, ready=0)"),
+                Driver->Product,
+                LoadResult);
             continue;
         }
 
         Score = GraphicsSelectorScoreDriver(Driver);
-        DEBUG(TEXT("[GraphicsSelectorLoad] Active backend %s score=%u"), Driver->Product, Score);
+        Priority = GraphicsSelectorBackendPriority(Driver);
+        DEBUG(TEXT("[GraphicsSelectorLoad] Candidate backend %s score=%u priority=%u"),
+            Driver->Product, Score, Priority);
 
         if (GraphicsSelectorState.BackendCount >= sizeof(GraphicsSelectorState.Backends) / sizeof(GraphicsSelectorState.Backends[0])) {
             WARNING(TEXT("[GraphicsSelectorLoad] Backend table full, skipping %s"), Driver->Product);
@@ -155,14 +190,19 @@ static UINT GraphicsSelectorLoad(void) {
         }
 
         InsertIndex = GraphicsSelectorState.BackendCount;
-        while (InsertIndex > 0 && Score > GraphicsSelectorState.Scores[InsertIndex - 1]) {
+        while (InsertIndex > 0 &&
+               (Score > GraphicsSelectorState.Scores[InsertIndex - 1] ||
+                (Score == GraphicsSelectorState.Scores[InsertIndex - 1] &&
+                 Priority > GraphicsSelectorState.Priorities[InsertIndex - 1]))) {
             GraphicsSelectorState.Backends[InsertIndex] = GraphicsSelectorState.Backends[InsertIndex - 1];
             GraphicsSelectorState.Scores[InsertIndex] = GraphicsSelectorState.Scores[InsertIndex - 1];
+            GraphicsSelectorState.Priorities[InsertIndex] = GraphicsSelectorState.Priorities[InsertIndex - 1];
             InsertIndex--;
         }
 
         GraphicsSelectorState.Backends[InsertIndex] = Driver;
         GraphicsSelectorState.Scores[InsertIndex] = Score;
+        GraphicsSelectorState.Priorities[InsertIndex] = Priority;
         GraphicsSelectorState.BackendCount++;
     }
 
@@ -178,6 +218,12 @@ static UINT GraphicsSelectorLoad(void) {
 
     DEBUG(TEXT("[GraphicsSelectorLoad] Selected backend: %s (score=%u)"),
         GraphicsSelectorState.Backends[0]->Product, GraphicsSelectorState.Scores[0]);
+    for (Index = 1; Index < GraphicsSelectorState.BackendCount; Index++) {
+        DEBUG(TEXT("[GraphicsSelectorLoad] Fallback backend[%u]: %s (score=%u)"),
+            Index,
+            GraphicsSelectorState.Backends[Index]->Product,
+            GraphicsSelectorState.Scores[Index]);
+    }
 
     return DF_RETURN_SUCCESS;
 }
