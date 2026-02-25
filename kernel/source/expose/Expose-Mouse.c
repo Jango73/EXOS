@@ -25,7 +25,7 @@
 
 #include "Driver.h"
 #include "KernelData.h"
-#include "MouseDispatcher.h"
+#include "input/MouseDispatcher.h"
 
 /************************************************************************/
 

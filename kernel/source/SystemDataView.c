@@ -35,7 +35,7 @@
 #include "KernelData.h"
 #include "process/Task.h"
 #include "System.h"
-#include "VKey.h"
+#include "input/VKey.h"
 
 /************************************************************************/
 

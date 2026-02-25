@@ -29,7 +29,7 @@
 
 #include "Base.h"
 #include "Mutex.h"
-#include "Mouse.h"
+#include "input/Mouse.h"
 
 /************************************************************************/
 // Typedefs

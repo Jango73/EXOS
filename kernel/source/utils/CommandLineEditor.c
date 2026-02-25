@@ -32,7 +32,7 @@
 #include "process/Schedule.h"
 #include "process/Task.h"
 #include "UserSession.h"
-#include "VKey.h"
+#include "input/VKey.h"
 
 /***************************************************************************/
 

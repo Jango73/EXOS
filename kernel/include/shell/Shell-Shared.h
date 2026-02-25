@@ -51,7 +51,7 @@
 #include "utils/Helpers.h"
 #include "utils/Path.h"
 #include "utils/StringArray.h"
-#include "VKey.h"
+#include "input/VKey.h"
 
 /************************************************************************/
 

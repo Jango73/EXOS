@@ -30,7 +30,7 @@
 #include "InterruptController.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "VKey.h"
+#include "input/VKey.h"
 #include "User.h"
 
 /***************************************************************************/

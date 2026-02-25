@@ -4,7 +4,7 @@
 #include "Base.h"
 #include "Console.h"
 #include "List.h"
-#include "VKey.h"
+#include "input/VKey.h"
 
 #define MAX_COLUMNS (Console.Width - 10)
 #define MAX_LINES (Console.Height - EDIT_MENU_HEIGHT - EDIT_TITLE_HEIGHT)

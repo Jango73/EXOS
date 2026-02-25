@@ -28,7 +28,7 @@
 #include "Clock.h"
 #include "CoreString.h"
 #include "Log.h"
-#include "VKey.h"
+#include "input/VKey.h"
 #include "utils/KernelPath.h"
 
 /************************************************************************/

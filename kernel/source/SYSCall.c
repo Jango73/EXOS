@@ -34,7 +34,7 @@
 #include "drivers/input/Keyboard.h"
 #include "Log.h"
 #include "Memory.h"
-#include "Mouse.h"
+#include "input/Mouse.h"
 #include "process/Process.h"
 #include "process/Schedule.h"
 #include "User.h"

@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "Kernel.h"
-#include "Mouse.h"
+#include "input/Mouse.h"
 #include "Socket.h"
 #include "DriverGetters.h"
 #include "drivers/input/KeyboardDrivers.h"

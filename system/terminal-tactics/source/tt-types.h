@@ -28,7 +28,7 @@
 #include "../../../runtime/include/exos-runtime.h"
 #include "../../../runtime/include/exos.h"
 #include "../../../kernel/include/User.h"
-#include "../../../kernel/include/VKey.h"
+#include "../../../kernel/include/input/VKey.h"
 
 #define MAX_SCREEN_WIDTH             160
 #define MAX_SCREEN_HEIGHT            60

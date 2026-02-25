@@ -36,7 +36,7 @@
 #include "CoreString.h"
 #include "System.h"
 #include "DriverGetters.h"
-#include "VKey.h"
+#include "input/VKey.h"
 #include "VarArg.h"
 #include "Profile.h"
 #include "SerialPort.h"

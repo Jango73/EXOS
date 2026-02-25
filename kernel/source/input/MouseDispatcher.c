@@ -21,13 +21,13 @@
 
 \************************************************************************/
 
-#include "MouseDispatcher.h"
+#include "input/MouseDispatcher.h"
 
 #include "Arch.h"
 #include "Clock.h"
 #include "Console.h"
 #include "KernelData.h"
-#include "Mouse.h"
+#include "input/Mouse.h"
 #include "process/Process.h"
 #include "process/Task.h"
 #include "User.h"
