@@ -26,7 +26,9 @@
 
 /************************************************************************/
 
+#if DEBUG_OUTPUT
 void BootDebugPrint(LPCSTR Format, ...);
+#endif
 
 /************************************************************************/
 
@@ -177,6 +179,7 @@ U32 BootBuildMultibootInfo(
         MultibootInfo->color_info[5] = (U8)FramebufferInfo->BlueMaskSize;
     }
 
+#if DEBUG_OUTPUT
     BootDebugPrint(
         TEXT("[BootBuildMultibootInfo] Multiboot info at %p\r\n"),
         MultibootInfo);
@@ -200,6 +203,7 @@ U32 BootBuildMultibootInfo(
             TEXT("[BootBuildMultibootInfo] rsdp=%x\r\n"),
             RsdpPhysical);
     }
+#endif
 
     return (U32)(UINT)MultibootInfo;
 }

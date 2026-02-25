@@ -2,7 +2,7 @@
 set -e
 
 function Usage() {
-    echo "Usage: $0 --arch <x86-32|x86-64> [--fs <ext2|fat32>] [--debug|--release] [--split] [--build-core-name <name>] [--build-image-name <name>] [--gdb] [--usb3|--no-usb3] [--uefi] [--nvme] [--ntfs-live]"
+    echo "Usage: $0 --arch <x86-32|x86-64> [--fs <ext2|fat32>] [--debug|--release] [--split] [--build-core-name <name>] [--build-image-name <name>] [--gdb] [--usb3|--no-usb3] [--uefi] [--nvme|--no-nvme] [--ntfs-live]"
 }
 
 ARCH="x86-32"
@@ -113,6 +113,9 @@ while [ $# -gt 0 ]; do
             ;;
         --nvme)
             NVME_ENABLED=1
+            ;;
+        --no-nvme)
+            NVME_ENABLED=0
             ;;
         --ntfs-live)
             NTFS_LIVE_ENABLED=1
