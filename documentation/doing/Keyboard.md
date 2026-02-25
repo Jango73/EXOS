@@ -36,7 +36,7 @@
 - Document HID report parsing (boot protocol first).
 - Ensure PS/2 and USB coexist (shared normalized path).
 
-## [ ] Step 5 - Media Keys (Consumer Control)
+## [x] Step 5 - Media Keys (Consumer Control)
 
 - Add VK_MEDIA_* values and names for common media/system keys.
 - Map: play, pause, play/pause, stop, next, prev, mute, volume up, volume down, brightness up, brightness down, sleep, eject.

@@ -70,7 +70,23 @@ static KEYNAME KeyNames[] = {{VK_NONE, TEXT("NONE")},   {VK_F1, TEXT("F1")},    
                              {VK_END, TEXT("END")},     {VK_PAGEUP, TEXT("PGUP")},  {VK_PAGEDOWN, TEXT("PGDN")},
                              {VK_UP, TEXT("UP")},       {VK_DOWN, TEXT("DOWN")},    {VK_LEFT, TEXT("LEFT")},
                              {VK_RIGHT, TEXT("RIGHT")}, {VK_NUM, TEXT("NUM")},      {VK_CAPS, TEXT("CAPS")},
-                             {VK_SCROLL, TEXT("SCRL")}, {VK_PAUSE, TEXT("PAUS")}};
+                             {VK_SCROLL, TEXT("SCRL")}, {VK_PAUSE, TEXT("PAUS")},
+                             {VK_MEDIA_PLAY, TEXT("MPLAY")},
+                             {VK_MEDIA_PAUSE, TEXT("MPAUS")},
+                             {VK_MEDIA_PLAY_PAUSE, TEXT("MPLPA")},
+                             {VK_MEDIA_STOP, TEXT("MSTOP")},
+                             {VK_MEDIA_NEXT, TEXT("MNEXT")},
+                             {VK_MEDIA_PREV, TEXT("MPREV")},
+                             {VK_MEDIA_MUTE, TEXT("MMUTE")},
+                             {VK_MEDIA_VOLUME_UP, TEXT("MVUP")},
+                             {VK_MEDIA_VOLUME_DOWN, TEXT("MVDN")},
+                             {VK_MEDIA_BRIGHTNESS_UP, TEXT("MBRUP")},
+                             {VK_MEDIA_BRIGHTNESS_DOWN, TEXT("MBRDN")},
+                             {VK_MEDIA_SLEEP, TEXT("MSLP")},
+                             {VK_MEDIA_EJECT, TEXT("MEJCT")},
+                             {VK_CUT, TEXT("CUT")},
+                             {VK_COPY, TEXT("COPY")},
+                             {VK_PASTE, TEXT("PASTE")}};
 
 /***************************************************************************/
 
@@ -302,6 +318,13 @@ static BOOL GetFallbackKeyCodeBase(KEY_USAGE Usage, LPKEYCODE KeyCode) {
         case 0x55: *KeyCode = (KEYCODE){VK_STAR, '*', 0}; return TRUE;
         case 0x56: *KeyCode = (KEYCODE){VK_MINUS, '-', 0}; return TRUE;
         case 0x57: *KeyCode = (KEYCODE){VK_PLUS, '+', 0}; return TRUE;
+        case 0x78: *KeyCode = (KEYCODE){VK_MEDIA_STOP, 0, 0}; return TRUE;
+        case 0x7B: *KeyCode = (KEYCODE){VK_COPY, 0, 0}; return TRUE;
+        case 0x7C: *KeyCode = (KEYCODE){VK_PASTE, 0, 0}; return TRUE;
+        case 0x7D: *KeyCode = (KEYCODE){VK_CUT, 0, 0}; return TRUE;
+        case 0x7F: *KeyCode = (KEYCODE){VK_MEDIA_MUTE, 0, 0}; return TRUE;
+        case 0x80: *KeyCode = (KEYCODE){VK_MEDIA_VOLUME_UP, 0, 0}; return TRUE;
+        case 0x81: *KeyCode = (KEYCODE){VK_MEDIA_VOLUME_DOWN, 0, 0}; return TRUE;
         case KEY_USAGE_KEYPAD_ENTER: *KeyCode = (KEYCODE){VK_ENTER, STR_NEWLINE, 0}; return TRUE;
         case KEY_USAGE_KEYPAD_1: *KeyCode = (KEYCODE){VK_1, '1', 0}; return TRUE;
         case KEY_USAGE_KEYPAD_2: *KeyCode = (KEYCODE){VK_2, '2', 0}; return TRUE;
@@ -561,12 +584,20 @@ void HandleKeyboardUsage(KEY_USAGE Usage, BOOL Pressed) {
     if (Usage == 0 || Usage > KEY_USAGE_MAX) return;
 
     if (Pressed == FALSE) {
+        U8 VirtualKey = Keyboard.UsageVirtualKey[Usage];
+
         Keyboard.UsageStatus[Usage] = 0;
+        Keyboard.UsageVirtualKey[Usage] = 0;
         if (Keyboard.SoftwareRepeat && Keyboard.RepeatUsage == Usage) {
             Keyboard.RepeatUsage = 0;
             Keyboard.RepeatStartTick = 0;
             Keyboard.RepeatLastTick = 0;
         }
+
+        if (VirtualKey != 0) {
+            RouteKeyUp(VirtualKey);
+        }
+
         return;
     }
 
@@ -586,6 +617,7 @@ void HandleKeyboardUsage(KEY_USAGE Usage, BOOL Pressed) {
     Level = GetLayoutLevel();
     if (GetKeyCodeForUsage(Usage, Level, &KeyCode) == FALSE) return;
     if (IsKeyCodeEmpty(&KeyCode)) return;
+    Keyboard.UsageVirtualKey[Usage] = KeyCode.VirtualKey;
 
     CodePoint = GetKeyCodePoint(&KeyCode);
     if (CodePoint == 0) {
@@ -627,6 +659,27 @@ void HandleKeyboardUsage(KEY_USAGE Usage, BOOL Pressed) {
         return;
     }
 
+    RouteKeyCode(&KeyCode);
+}
+
+/***************************************************************************/
+
+void HandleKeyboardVirtualKey(U8 VirtualKey, BOOL Pressed) {
+    KEYCODE KeyCode;
+
+    if (VirtualKey == VK_NONE) {
+        return;
+    }
+
+    Keyboard.VirtualKeyStatus[VirtualKey] = Pressed ? 1 : 0;
+    if (!Pressed) {
+        RouteKeyUp(VirtualKey);
+        return;
+    }
+
+    KeyCode.VirtualKey = VirtualKey;
+    KeyCode.ASCIICode = 0;
+    KeyCode.Unicode = 0;
     RouteKeyCode(&KeyCode);
 }
 
@@ -677,6 +730,10 @@ BOOL GetKeyCodeDown(KEYCODE KeyCode) {
             return Keyboard.UsageStatus[KEY_USAGE_RIGHT_ALT] != 0;
         default:
             break;
+    }
+
+    if (Keyboard.VirtualKeyStatus[KeyCode.VirtualKey] != 0) {
+        return TRUE;
     }
 
     for (Usage = 0; Usage <= KEY_USAGE_MAX; Usage++) {

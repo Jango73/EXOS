@@ -141,7 +141,7 @@ NETGET_ELF      = $(CORE_BUILD_DIR)/system/netget/netget
 HELLO_ELF       = $(CORE_BUILD_DIR)/system/hello/hello
 TICTACTOE_ELF	= $(CORE_BUILD_DIR)/system/tictactoe/tictactoe
 TERMTACTICS_ELF	= $(CORE_BUILD_DIR)/system/terminal-tactics/terminal-tactics
-MOUSEINFO_ELF   = $(CORE_BUILD_DIR)/system/mouse-info/mouse-info
+INPUTINFO_ELF   = $(CORE_BUILD_DIR)/system/input-info/input-info
 MASTER_ELF      = $(CORE_BUILD_DIR)/system/test/master/master
 SLAVE_ELF       = $(CORE_BUILD_DIR)/system/test/slave/slave
 SYSTEM_TEST_EPK_STAGING_DIR = $(BUILD_DIR)/boot-hd/system-test-epk-root
@@ -380,7 +380,7 @@ $(CYCLE_BIN):
 
 # Create image only if it does not exist
 FINAL_IMG_DEPS_COMMON = check_tools $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN)
-FINAL_IMG_DEPS_FULL = $(FINAL_IMG_DEPS_COMMON) $(KERNEL_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(MOUSEINFO_ELF) $(MASTER_ELF) $(SLAVE_ELF) $(TEST_E0_SCRIPT)
+FINAL_IMG_DEPS_FULL = $(FINAL_IMG_DEPS_COMMON) $(KERNEL_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(INPUTINFO_ELF) $(MASTER_ELF) $(SLAVE_ELF) $(TEST_E0_SCRIPT)
 
 ifeq ($(TEST_PAYLOAD),1)
 FINAL_IMG_DEPS = $(FINAL_IMG_DEPS_COMMON)
@@ -516,7 +516,7 @@ update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32) $(SYSTEM_TEST_
 		$(call MCOPY_IF_NEEDED,$(HELLO_ELF),z:/EXOS/APPS/HELLO)\
 		$(call MCOPY_IF_NEEDED,$(TICTACTOE_ELF),z:/EXOS/APPS/tictactoe)\
 		$(call MCOPY_IF_NEEDED,$(TERMTACTICS_ELF),z:/EXOS/APPS/terminal-tactics)\
-		$(call MCOPY_IF_NEEDED,$(MOUSEINFO_ELF),z:/EXOS/APPS/mouse-info)\
+		$(call MCOPY_IF_NEEDED,$(INPUTINFO_ELF),z:/EXOS/APPS/input-info)\
 		$(call MCOPY_IF_NEEDED,$(MASTER_ELF),z:/EXOS/APPS/TEST/MASTER)\
 		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE)\
 		$(call MCOPY_IF_NEEDED,$(SYSTEM_TEST_EPK),z:/EXOS/APPS/TEST.EPK)\
@@ -546,7 +546,7 @@ update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2) $(SYSTEM_TEST_EP
 	@cp $(HELLO_ELF) $(EXT2_STAGING_DIR)/exos/apps/hello
 	@cp $(TICTACTOE_ELF) $(EXT2_STAGING_DIR)/exos/apps/tictactoe
 	@cp $(TERMTACTICS_ELF) $(EXT2_STAGING_DIR)/exos/apps/terminal-tactics
-	@cp $(MOUSEINFO_ELF) $(EXT2_STAGING_DIR)/exos/apps/mouse-info
+	@cp $(INPUTINFO_ELF) $(EXT2_STAGING_DIR)/exos/apps/input-info
 	@cp $(MASTER_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/master
 	@cp $(SLAVE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/slave
 	@cp $(SYSTEM_TEST_EPK) $(EXT2_STAGING_DIR)/exos/apps/test.epk

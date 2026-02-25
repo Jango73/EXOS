@@ -159,6 +159,8 @@ typedef struct tag_KEYBOARDSTRUCT {
     U32 PendingDeadKey;
     U32 PendingComposeKey;
     U8 UsageStatus[KEYTABSIZE];
+    U8 UsageVirtualKey[KEYTABSIZE];
+    U8 VirtualKeyStatus[0x100];
     BOOL SoftwareRepeat;
     KEY_USAGE RepeatUsage;
     UINT RepeatStartTick;
@@ -173,7 +175,9 @@ extern KEYBOARDSTRUCT Keyboard;
 /***************************************************************************/
 
 void RouteKeyCode(LPKEYCODE KeyCode);
+void RouteKeyUp(U8 VirtualKey);
 void HandleKeyboardUsage(KEY_USAGE Usage, BOOL Pressed);
+void HandleKeyboardVirtualKey(U8 VirtualKey, BOOL Pressed);
 void KeyboardCommonInitialize(void);
 BOOL PeekChar(void);
 STR GetChar(void);

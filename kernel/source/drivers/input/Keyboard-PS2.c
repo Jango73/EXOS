@@ -125,6 +125,15 @@ LPDRIVER StdKeyboardGetDriver(void) {
 #define SCAN_PAGEDOWN 0x51
 #define SCAN_INSERT 0x52
 #define SCAN_DELETE 0x53
+#define SCAN_MEDIA_PREV 0x10
+#define SCAN_MEDIA_NEXT 0x19
+#define SCAN_MEDIA_PLAY_PAUSE 0x22
+#define SCAN_MEDIA_STOP 0x24
+#define SCAN_MEDIA_MUTE 0x20
+#define SCAN_MEDIA_VOLUME_UP 0x30
+#define SCAN_MEDIA_VOLUME_DOWN 0x2E
+#define SCAN_MEDIA_SLEEP 0x5F
+#define SCAN_MEDIA_EJECT 0x64
 
 /***************************************************************************/
 // Extended scan codes
@@ -273,6 +282,33 @@ static KEY_USAGE ScanCodeToUsage_E1(U32 ScanCode) {
 
 /***************************************************************************/
 
+static U8 ScanCodeToVirtualKey_E0(U32 ScanCode) {
+    switch (ScanCode) {
+        case SCAN_MEDIA_PREV:
+            return VK_MEDIA_PREV;
+        case SCAN_MEDIA_NEXT:
+            return VK_MEDIA_NEXT;
+        case SCAN_MEDIA_PLAY_PAUSE:
+            return VK_MEDIA_PLAY_PAUSE;
+        case SCAN_MEDIA_STOP:
+            return VK_MEDIA_STOP;
+        case SCAN_MEDIA_MUTE:
+            return VK_MEDIA_MUTE;
+        case SCAN_MEDIA_VOLUME_UP:
+            return VK_MEDIA_VOLUME_UP;
+        case SCAN_MEDIA_VOLUME_DOWN:
+            return VK_MEDIA_VOLUME_DOWN;
+        case SCAN_MEDIA_SLEEP:
+            return VK_MEDIA_SLEEP;
+        case SCAN_MEDIA_EJECT:
+            return VK_MEDIA_EJECT;
+    }
+
+    return VK_NONE;
+}
+
+/***************************************************************************/
+
 static void UpdateKeyboardLEDs(void) {
     U32 LED = 0;
 
@@ -335,12 +371,19 @@ static void HandleScanCode(U32 ScanCode) {
     // the scan code to an ASCII code
 
     if (PreviousCode == 0xE0) {
+        U8 VirtualKey = VK_NONE;
+
         PreviousCode = 0;
 
         Pressed = (ScanCode & 0x80) == 0;
         Usage = ScanCodeToUsage_E0(ScanCode & 0x7F);
         if (Usage != 0) {
             HandleKeyboardUsage(Usage, Pressed);
+        } else {
+            VirtualKey = ScanCodeToVirtualKey_E0(ScanCode & 0x7F);
+            if (VirtualKey != VK_NONE) {
+                HandleKeyboardVirtualKey(VirtualKey, Pressed);
+            }
         }
     } else if (PreviousCode == 0xE1) {
         PreviousCode = 0;

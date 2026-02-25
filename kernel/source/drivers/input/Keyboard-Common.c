@@ -26,6 +26,7 @@
 
 #include "Clock.h"
 #include "Console.h"
+#include "CoreString.h"
 #include "DeferredWork.h"
 #include "Log.h"
 #include "Memory.h"
@@ -50,6 +51,8 @@ KEYBOARDSTRUCT Keyboard = {
     .PendingDeadKey = 0,
     .PendingComposeKey = 0,
     .UsageStatus = {0},
+    .UsageVirtualKey = {0},
+    .VirtualKeyStatus = {0},
     .SoftwareRepeat = FALSE,
     .RepeatUsage = 0,
     .RepeatStartTick = 0,
@@ -144,10 +147,23 @@ static BOOL DispatchKeyMessage(LPKEYCODE KeyCode) {
 
 /***************************************************************************/
 
+static BOOL DispatchKeyUpMessage(U8 VirtualKey) {
+    if (VirtualKey == 0) return FALSE;
+    return EnqueueInputMessage(EWM_KEYUP, VirtualKey, 0);
+}
+
+/***************************************************************************/
+
 void RouteKeyCode(LPKEYCODE KeyCode) {
     if (DispatchKeyMessage(KeyCode) == FALSE) {
         SendKeyCodeToBuffer(KeyCode);
     }
+}
+
+/***************************************************************************/
+
+void RouteKeyUp(U8 VirtualKey) {
+    (void)DispatchKeyUpMessage(VirtualKey);
 }
 
 /***************************************************************************/
@@ -338,6 +354,9 @@ void ClearKeyboardBuffer(void) {
 
     Keyboard.PendingDeadKey = 0;
     Keyboard.PendingComposeKey = 0;
+    MemorySet(Keyboard.UsageStatus, 0, sizeof(Keyboard.UsageStatus));
+    MemorySet(Keyboard.UsageVirtualKey, 0, sizeof(Keyboard.UsageVirtualKey));
+    MemorySet(Keyboard.VirtualKeyStatus, 0, sizeof(Keyboard.VirtualKeyStatus));
 
     UnlockMutex(&(Keyboard.Mutex));
 }

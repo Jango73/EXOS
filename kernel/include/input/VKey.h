@@ -126,6 +126,23 @@
 #define VK_SCROLL 0x82
 #define VK_PAUSE 0x83
 
+#define VK_MEDIA_PLAY 0x90
+#define VK_MEDIA_PAUSE 0x91
+#define VK_MEDIA_PLAY_PAUSE 0x92
+#define VK_MEDIA_STOP 0x93
+#define VK_MEDIA_NEXT 0x94
+#define VK_MEDIA_PREV 0x95
+#define VK_MEDIA_MUTE 0x96
+#define VK_MEDIA_VOLUME_UP 0x97
+#define VK_MEDIA_VOLUME_DOWN 0x98
+#define VK_MEDIA_BRIGHTNESS_UP 0x99
+#define VK_MEDIA_BRIGHTNESS_DOWN 0x9A
+#define VK_MEDIA_SLEEP 0x9B
+#define VK_MEDIA_EJECT 0x9C
+#define VK_CUT 0x9D
+#define VK_COPY 0x9E
+#define VK_PASTE 0x9F
+
 /************************************************************************/
 
 #endif  // VKEY_H_INCLUDED
