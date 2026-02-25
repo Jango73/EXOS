@@ -22,7 +22,9 @@
 \************************************************************************/
 
 #include "Console-Internal.h"
+#include "DisplaySession.h"
 #include "Font.h"
+#include "GFX.h"
 #include "Kernel.h"
 #include "Memory.h"
 #include "Log.h"
@@ -65,6 +67,167 @@ static U32 ConsoleScaleColor(U32 Value, U32 MaskSize) {
 
     U32 MaxValue = (1u << MaskSize) - 1u;
     return (Value * MaxValue) / 255u;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Try to draw one text cell through the active graphics driver.
+ * @param PixelX Cell origin X in pixels.
+ * @param PixelY Cell origin Y in pixels.
+ * @param Char Character to render.
+ * @return TRUE when driver text command handled the operation.
+ */
+static BOOL ConsoleTryDriverTextPutCell(U32 PixelX, U32 PixelY, STR Char) {
+    LPDRIVER Driver = NULL;
+    UINT ContextPointer = 0;
+    LPGRAPHICSCONTEXT Context = NULL;
+    GFX_TEXT_CELL_INFO Info;
+    U32 CellWidth = ConsoleGetCellWidth();
+    U32 CellHeight = ConsoleGetCellHeight();
+
+    if (DisplaySessionGetActiveFrontEnd() != DISPLAY_FRONTEND_CONSOLE) {
+        return FALSE;
+    }
+
+    Driver = DisplaySessionGetActiveGraphicsDriver();
+    if (Driver == NULL || Driver->Command == NULL || Driver == ConsoleGetDriver()) {
+        return FALSE;
+    }
+
+    if (CellWidth == 0 || CellHeight == 0) {
+        return FALSE;
+    }
+
+    ContextPointer = Driver->Command(DF_GFX_CREATECONTEXT, 0);
+    if (ContextPointer == 0) {
+        return FALSE;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)(LPVOID)ContextPointer;
+    if (Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return FALSE;
+    }
+
+    Info = (GFX_TEXT_CELL_INFO){
+        .Header = {.Size = sizeof(GFX_TEXT_CELL_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+        .GC = (HANDLE)Context,
+        .CellX = PixelX / CellWidth,
+        .CellY = PixelY / CellHeight,
+        .CellWidth = CellWidth,
+        .CellHeight = CellHeight,
+        .Character = Char,
+        .ForegroundColorIndex = Console.ForeColor,
+        .BackgroundColorIndex = Console.BackColor
+    };
+
+    return Driver->Command(DF_GFX_TEXT_PUTCELL, (UINT)(LPVOID)&Info) != 0 ? TRUE : FALSE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Try to clear one console region through active graphics driver.
+ * @param RegionIndex Console region index.
+ * @return TRUE when driver text command handled the operation.
+ */
+static BOOL ConsoleTryDriverTextClearRegion(U32 RegionIndex) {
+    LPDRIVER Driver = NULL;
+    UINT ContextPointer = 0;
+    LPGRAPHICSCONTEXT Context = NULL;
+    GFX_TEXT_REGION_INFO Info;
+    CONSOLE_REGION_STATE State;
+
+    if (DisplaySessionGetActiveFrontEnd() != DISPLAY_FRONTEND_CONSOLE) {
+        return FALSE;
+    }
+
+    Driver = DisplaySessionGetActiveGraphicsDriver();
+    if (Driver == NULL || Driver->Command == NULL || Driver == ConsoleGetDriver()) {
+        return FALSE;
+    }
+
+    if (ConsoleResolveRegionState(RegionIndex, &State) == FALSE) {
+        return FALSE;
+    }
+
+    ContextPointer = Driver->Command(DF_GFX_CREATECONTEXT, 0);
+    if (ContextPointer == 0) {
+        return FALSE;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)(LPVOID)ContextPointer;
+    if (Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return FALSE;
+    }
+
+    Info = (GFX_TEXT_REGION_INFO){
+        .Header = {.Size = sizeof(GFX_TEXT_REGION_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+        .GC = (HANDLE)Context,
+        .CellX = State.X,
+        .CellY = State.Y,
+        .RegionCellWidth = State.Width,
+        .RegionCellHeight = State.Height,
+        .GlyphCellWidth = ConsoleGetCellWidth(),
+        .GlyphCellHeight = ConsoleGetCellHeight(),
+        .ForegroundColorIndex = Console.ForeColor,
+        .BackgroundColorIndex = Console.BackColor
+    };
+
+    return Driver->Command(DF_GFX_TEXT_CLEAR_REGION, (UINT)(LPVOID)&Info) != 0 ? TRUE : FALSE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Try to scroll one console region through active graphics driver.
+ * @param RegionIndex Console region index.
+ * @return TRUE when driver text command handled the operation.
+ */
+static BOOL ConsoleTryDriverTextScrollRegion(U32 RegionIndex) {
+    LPDRIVER Driver = NULL;
+    UINT ContextPointer = 0;
+    LPGRAPHICSCONTEXT Context = NULL;
+    GFX_TEXT_REGION_INFO Info;
+    CONSOLE_REGION_STATE State;
+
+    if (DisplaySessionGetActiveFrontEnd() != DISPLAY_FRONTEND_CONSOLE) {
+        return FALSE;
+    }
+
+    Driver = DisplaySessionGetActiveGraphicsDriver();
+    if (Driver == NULL || Driver->Command == NULL || Driver == ConsoleGetDriver()) {
+        return FALSE;
+    }
+
+    if (ConsoleResolveRegionState(RegionIndex, &State) == FALSE) {
+        return FALSE;
+    }
+
+    ContextPointer = Driver->Command(DF_GFX_CREATECONTEXT, 0);
+    if (ContextPointer == 0) {
+        return FALSE;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)(LPVOID)ContextPointer;
+    if (Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return FALSE;
+    }
+
+    Info = (GFX_TEXT_REGION_INFO){
+        .Header = {.Size = sizeof(GFX_TEXT_REGION_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+        .GC = (HANDLE)Context,
+        .CellX = State.X,
+        .CellY = State.Y,
+        .RegionCellWidth = State.Width,
+        .RegionCellHeight = State.Height,
+        .GlyphCellWidth = ConsoleGetCellWidth(),
+        .GlyphCellHeight = ConsoleGetCellHeight(),
+        .ForegroundColorIndex = Console.ForeColor,
+        .BackgroundColorIndex = Console.BackColor
+    };
+
+    return Driver->Command(DF_GFX_TEXT_SCROLL_REGION, (UINT)(LPVOID)&Info) != 0 ? TRUE : FALSE;
 }
 
 /***************************************************************************/
@@ -403,6 +566,10 @@ static void ConsoleDrawFramebufferCursorAbsolute(U32 AbsoluteX, U32 AbsoluteY) {
 /***************************************************************************/
 
 void ConsoleDrawGlyph(U32 X, U32 Y, STR Char) {
+    if (ConsoleTryDriverTextPutCell(X, Y, Char) != FALSE) {
+        return;
+    }
+
     const FONT_GLYPH_SET* Font = FontGetDefault();
     if (Font == NULL || Font->GlyphData == NULL) {
         return;
@@ -518,6 +685,10 @@ void ConsoleResetFramebufferCursorState(void) {
 /***************************************************************************/
 
 void ConsoleClearRegionFramebuffer(U32 RegionIndex) {
+    if (ConsoleTryDriverTextClearRegion(RegionIndex) != FALSE) {
+        return;
+    }
+
     if (ConsoleEnsureFramebufferMapped() == FALSE) {
         return;
     }
@@ -545,6 +716,10 @@ void ConsoleClearRegionFramebuffer(U32 RegionIndex) {
 /***************************************************************************/
 
 void ConsoleScrollRegionFramebuffer(U32 RegionIndex) {
+    if (ConsoleTryDriverTextScrollRegion(RegionIndex) != FALSE) {
+        return;
+    }
+
     if (ConsoleEnsureFramebufferMapped() == FALSE) {
         return;
     }

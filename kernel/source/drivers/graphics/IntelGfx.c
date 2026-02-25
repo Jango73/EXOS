@@ -25,6 +25,7 @@
 #include "KernelData.h"
 #include "Log.h"
 #include "Memory.h"
+#include "drivers/graphics/GfxTextRenderer.h"
 #include "drivers/bus/PCI.h"
 
 /************************************************************************/
@@ -1055,6 +1056,136 @@ static UINT IntelGfxRectangle(LPRECTINFO Info) {
 /************************************************************************/
 
 /**
+ * @brief Draw one text cell in active Intel scanout.
+ * @param Info Text cell descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static UINT IntelGfxTextPutCell(LPGFX_TEXT_CELL_INFO Info) {
+    LPGRAPHICSCONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)Info->GC;
+    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Mutex), INFINITY);
+    Result = GfxTextPutCell(Context, Info);
+    UnlockMutex(&(Context->Mutex));
+    return Result ? 1 : 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Clear one text region in active Intel scanout.
+ * @param Info Text region descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static UINT IntelGfxTextClearRegion(LPGFX_TEXT_REGION_INFO Info) {
+    LPGRAPHICSCONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)Info->GC;
+    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Mutex), INFINITY);
+    Result = GfxTextClearRegion(Context, Info);
+    UnlockMutex(&(Context->Mutex));
+    return Result ? 1 : 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Scroll one text region in active Intel scanout.
+ * @param Info Text region descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static UINT IntelGfxTextScrollRegion(LPGFX_TEXT_REGION_INFO Info) {
+    LPGRAPHICSCONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)Info->GC;
+    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Mutex), INFINITY);
+    Result = GfxTextScrollRegion(Context, Info);
+    UnlockMutex(&(Context->Mutex));
+    return Result ? 1 : 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Draw cursor in active Intel scanout.
+ * @param Info Cursor descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static UINT IntelGfxTextSetCursor(LPGFX_TEXT_CURSOR_INFO Info) {
+    LPGRAPHICSCONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)Info->GC;
+    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Mutex), INFINITY);
+    Result = GfxTextSetCursor(Context, Info);
+    UnlockMutex(&(Context->Mutex));
+    return Result ? 1 : 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Set cursor visibility in Intel backend.
+ * @param Info Cursor visibility descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static UINT IntelGfxTextSetCursorVisible(LPGFX_TEXT_CURSOR_VISIBLE_INFO Info) {
+    LPGRAPHICSCONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)Info->GC;
+    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Mutex), INFINITY);
+    Result = GfxTextSetCursorVisible(Context, Info);
+    UnlockMutex(&(Context->Mutex));
+    return Result ? 1 : 0;
+}
+
+/************************************************************************/
+
+/**
  * @brief Present path for takeover mode (CPU draw directly to scanout).
  * @param Info Present descriptor.
  * @return DF_RETURN_SUCCESS when scanout buffer is active.
@@ -1105,6 +1236,16 @@ static UINT IntelGfxCommands(UINT Function, UINT Param) {
             return IntelGfxLine((LPLINEINFO)Param);
         case DF_GFX_RECTANGLE:
             return IntelGfxRectangle((LPRECTINFO)Param);
+        case DF_GFX_TEXT_PUTCELL:
+            return IntelGfxTextPutCell((LPGFX_TEXT_CELL_INFO)Param);
+        case DF_GFX_TEXT_CLEAR_REGION:
+            return IntelGfxTextClearRegion((LPGFX_TEXT_REGION_INFO)Param);
+        case DF_GFX_TEXT_SCROLL_REGION:
+            return IntelGfxTextScrollRegion((LPGFX_TEXT_REGION_INFO)Param);
+        case DF_GFX_TEXT_SET_CURSOR:
+            return IntelGfxTextSetCursor((LPGFX_TEXT_CURSOR_INFO)Param);
+        case DF_GFX_TEXT_SET_CURSOR_VISIBLE:
+            return IntelGfxTextSetCursorVisible((LPGFX_TEXT_CURSOR_VISIBLE_INFO)Param);
         case DF_GFX_PRESENT:
             return IntelGfxPresent((LPGFX_PRESENT_INFO)Param);
 

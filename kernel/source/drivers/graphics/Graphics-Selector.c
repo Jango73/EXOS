@@ -338,6 +338,11 @@ static UINT GraphicsSelectorCommands(UINT Function, UINT Parameter) {
         case DF_GFX_ALLOCSURFACE:
         case DF_GFX_FREESURFACE:
         case DF_GFX_SETSCANOUT:
+        case DF_GFX_TEXT_PUTCELL:
+        case DF_GFX_TEXT_CLEAR_REGION:
+        case DF_GFX_TEXT_SCROLL_REGION:
+        case DF_GFX_TEXT_SET_CURSOR:
+        case DF_GFX_TEXT_SET_CURSOR_VISIBLE:
             return GraphicsSelectorForward(Function, Parameter);
     }
 

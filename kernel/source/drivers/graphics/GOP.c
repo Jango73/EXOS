@@ -25,6 +25,7 @@
 #include "Console.h"
 #include "Log.h"
 #include "Memory.h"
+#include "drivers/graphics/GfxTextRenderer.h"
 #include "vbr-multiboot.h"
 
 /************************************************************************/
@@ -607,6 +608,141 @@ static UINT GOPGfxRectangle(LPRECTINFO Info) {
 /************************************************************************/
 
 /**
+ * @brief Draw one text cell in GOP framebuffer.
+ * @param Info Text cell descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static UINT GOPGfxTextPutCell(LPGFX_TEXT_CELL_INFO Info) {
+    LPGRAPHICSCONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)Info->GC;
+    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Mutex), INFINITY);
+    Result = GfxTextPutCell(Context, Info);
+    UnlockMutex(&(Context->Mutex));
+
+    return Result ? 1 : 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Clear one text region in GOP framebuffer.
+ * @param Info Text region descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static UINT GOPGfxTextClearRegion(LPGFX_TEXT_REGION_INFO Info) {
+    LPGRAPHICSCONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)Info->GC;
+    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Mutex), INFINITY);
+    Result = GfxTextClearRegion(Context, Info);
+    UnlockMutex(&(Context->Mutex));
+
+    return Result ? 1 : 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Scroll one text region in GOP framebuffer.
+ * @param Info Text region descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static UINT GOPGfxTextScrollRegion(LPGFX_TEXT_REGION_INFO Info) {
+    LPGRAPHICSCONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)Info->GC;
+    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Mutex), INFINITY);
+    Result = GfxTextScrollRegion(Context, Info);
+    UnlockMutex(&(Context->Mutex));
+
+    return Result ? 1 : 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Update cursor rendering in GOP framebuffer.
+ * @param Info Cursor descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static UINT GOPGfxTextSetCursor(LPGFX_TEXT_CURSOR_INFO Info) {
+    LPGRAPHICSCONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)Info->GC;
+    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Mutex), INFINITY);
+    Result = GfxTextSetCursor(Context, Info);
+    UnlockMutex(&(Context->Mutex));
+
+    return Result ? 1 : 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Update cursor visibility in GOP backend.
+ * @param Info Cursor visibility descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static UINT GOPGfxTextSetCursorVisible(LPGFX_TEXT_CURSOR_VISIBLE_INFO Info) {
+    LPGRAPHICSCONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)Info->GC;
+    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Mutex), INFINITY);
+    Result = GfxTextSetCursorVisible(Context, Info);
+    UnlockMutex(&(Context->Mutex));
+
+    return Result ? 1 : 0;
+}
+
+/************************************************************************/
+
+/**
  * @brief GOP graphics command dispatcher.
  * @param Function Driver function code.
  * @param Param Driver parameter.
@@ -640,6 +776,16 @@ static UINT GOPGfxCommands(UINT Function, UINT Param) {
             return GOPGfxLine((LPLINEINFO)Param);
         case DF_GFX_RECTANGLE:
             return GOPGfxRectangle((LPRECTINFO)Param);
+        case DF_GFX_TEXT_PUTCELL:
+            return GOPGfxTextPutCell((LPGFX_TEXT_CELL_INFO)Param);
+        case DF_GFX_TEXT_CLEAR_REGION:
+            return GOPGfxTextClearRegion((LPGFX_TEXT_REGION_INFO)Param);
+        case DF_GFX_TEXT_SCROLL_REGION:
+            return GOPGfxTextScrollRegion((LPGFX_TEXT_REGION_INFO)Param);
+        case DF_GFX_TEXT_SET_CURSOR:
+            return GOPGfxTextSetCursor((LPGFX_TEXT_CURSOR_INFO)Param);
+        case DF_GFX_TEXT_SET_CURSOR_VISIBLE:
+            return GOPGfxTextSetCursorVisible((LPGFX_TEXT_CURSOR_VISIBLE_INFO)Param);
 
         case DF_GFX_ENUMMODES:
         case DF_GFX_CREATEBRUSH:

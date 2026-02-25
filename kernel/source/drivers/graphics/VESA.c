@@ -27,6 +27,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
+#include "drivers/graphics/GfxTextRenderer.h"
 
 /************************************************************************/
 
@@ -1549,6 +1550,136 @@ static U32 VESA_Rectangle(LPRECTINFO Info) {
 /***************************************************************************/
 
 /**
+ * @brief Draw one text cell in VESA framebuffer.
+ * @param Info Text cell descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VESA_TextPutCell(LPGFX_TEXT_CELL_INFO Info) {
+    LPVESA_CONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPVESA_CONTEXT)Info->GC;
+    if (Context == NULL || Context->Header.TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Header.Mutex), INFINITY);
+    Result = GfxTextPutCell((LPGRAPHICSCONTEXT)&Context->Header, Info);
+    UnlockMutex(&(Context->Header.Mutex));
+    return Result ? 1 : 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Clear one text region in VESA framebuffer.
+ * @param Info Text region descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VESA_TextClearRegion(LPGFX_TEXT_REGION_INFO Info) {
+    LPVESA_CONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPVESA_CONTEXT)Info->GC;
+    if (Context == NULL || Context->Header.TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Header.Mutex), INFINITY);
+    Result = GfxTextClearRegion((LPGRAPHICSCONTEXT)&Context->Header, Info);
+    UnlockMutex(&(Context->Header.Mutex));
+    return Result ? 1 : 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Scroll one text region in VESA framebuffer.
+ * @param Info Text region descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VESA_TextScrollRegion(LPGFX_TEXT_REGION_INFO Info) {
+    LPVESA_CONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPVESA_CONTEXT)Info->GC;
+    if (Context == NULL || Context->Header.TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Header.Mutex), INFINITY);
+    Result = GfxTextScrollRegion((LPGRAPHICSCONTEXT)&Context->Header, Info);
+    UnlockMutex(&(Context->Header.Mutex));
+    return Result ? 1 : 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Draw cursor in VESA framebuffer.
+ * @param Info Cursor descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VESA_TextSetCursor(LPGFX_TEXT_CURSOR_INFO Info) {
+    LPVESA_CONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPVESA_CONTEXT)Info->GC;
+    if (Context == NULL || Context->Header.TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Header.Mutex), INFINITY);
+    Result = GfxTextSetCursor((LPGRAPHICSCONTEXT)&Context->Header, Info);
+    UnlockMutex(&(Context->Header.Mutex));
+    return Result ? 1 : 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Set cursor visibility in VESA backend.
+ * @param Info Cursor visibility descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VESA_TextSetCursorVisible(LPGFX_TEXT_CURSOR_VISIBLE_INFO Info) {
+    LPVESA_CONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPVESA_CONTEXT)Info->GC;
+    if (Context == NULL || Context->Header.TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Header.Mutex), INFINITY);
+    Result = GfxTextSetCursorVisible((LPGRAPHICSCONTEXT)&Context->Header, Info);
+    UnlockMutex(&(Context->Header.Mutex));
+    return Result ? 1 : 0;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Driver command dispatcher for VESA graphics.
  *
  * Handles load/unload, mode setting, drawing primitives, and resource creation.
@@ -1606,6 +1737,16 @@ UINT VESACommands(UINT Function, UINT Param) {
             return VESA_Line((LPLINEINFO)Param);
         case DF_GFX_RECTANGLE:
             return VESA_Rectangle((LPRECTINFO)Param);
+        case DF_GFX_TEXT_PUTCELL:
+            return VESA_TextPutCell((LPGFX_TEXT_CELL_INFO)Param);
+        case DF_GFX_TEXT_CLEAR_REGION:
+            return VESA_TextClearRegion((LPGFX_TEXT_REGION_INFO)Param);
+        case DF_GFX_TEXT_SCROLL_REGION:
+            return VESA_TextScrollRegion((LPGFX_TEXT_REGION_INFO)Param);
+        case DF_GFX_TEXT_SET_CURSOR:
+            return VESA_TextSetCursor((LPGFX_TEXT_CURSOR_INFO)Param);
+        case DF_GFX_TEXT_SET_CURSOR_VISIBLE:
+            return VESA_TextSetCursorVisible((LPGFX_TEXT_CURSOR_VISIBLE_INFO)Param);
         case DF_GFX_GETCAPABILITIES:
         case DF_GFX_ENUMOUTPUTS:
         case DF_GFX_GETOUTPUTINFO:

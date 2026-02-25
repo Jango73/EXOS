@@ -55,6 +55,11 @@
 #define DF_GFX_ALLOCSURFACE (DF_FIRST_FUNCTION + 16)
 #define DF_GFX_FREESURFACE (DF_FIRST_FUNCTION + 17)
 #define DF_GFX_SETSCANOUT (DF_FIRST_FUNCTION + 18)
+#define DF_GFX_TEXT_PUTCELL (DF_FIRST_FUNCTION + 19)
+#define DF_GFX_TEXT_CLEAR_REGION (DF_FIRST_FUNCTION + 20)
+#define DF_GFX_TEXT_SCROLL_REGION (DF_FIRST_FUNCTION + 21)
+#define DF_GFX_TEXT_SET_CURSOR (DF_FIRST_FUNCTION + 22)
+#define DF_GFX_TEXT_SET_CURSOR_VISIBLE (DF_FIRST_FUNCTION + 23)
 
 /***************************************************************************/
 
@@ -231,6 +236,55 @@ typedef struct tag_GFX_SCANOUT_INFO {
     U32 Format;
     U32 Flags;
 } GFX_SCANOUT_INFO, *LPGFX_SCANOUT_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_TEXT_CELL_INFO {
+    ABI_HEADER Header;
+    HANDLE GC;
+    U32 CellX;
+    U32 CellY;
+    U32 CellWidth;
+    U32 CellHeight;
+    STR Character;
+    U32 ForegroundColorIndex;
+    U32 BackgroundColorIndex;
+} GFX_TEXT_CELL_INFO, *LPGFX_TEXT_CELL_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_TEXT_REGION_INFO {
+    ABI_HEADER Header;
+    HANDLE GC;
+    U32 CellX;
+    U32 CellY;
+    U32 RegionCellWidth;
+    U32 RegionCellHeight;
+    U32 GlyphCellWidth;
+    U32 GlyphCellHeight;
+    U32 ForegroundColorIndex;
+    U32 BackgroundColorIndex;
+} GFX_TEXT_REGION_INFO, *LPGFX_TEXT_REGION_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_TEXT_CURSOR_INFO {
+    ABI_HEADER Header;
+    HANDLE GC;
+    U32 CellX;
+    U32 CellY;
+    U32 CellWidth;
+    U32 CellHeight;
+    U32 ForegroundColorIndex;
+} GFX_TEXT_CURSOR_INFO, *LPGFX_TEXT_CURSOR_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_TEXT_CURSOR_VISIBLE_INFO {
+    ABI_HEADER Header;
+    HANDLE GC;
+    BOOL IsVisible;
+} GFX_TEXT_CURSOR_VISIBLE_INFO, *LPGFX_TEXT_CURSOR_VISIBLE_INFO;
 
 /***************************************************************************/
 
