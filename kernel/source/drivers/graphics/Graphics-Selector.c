@@ -116,7 +116,7 @@ static UINT GraphicsSelectorScoreDriver(LPDRIVER Driver) {
  * @return DF_RETURN_SUCCESS on success, DF_RETURN_UNEXPECTED otherwise.
  */
 static UINT GraphicsSelectorLoad(void) {
-    LPDRIVER Candidates[2];
+    LPDRIVER Candidates[3];
     UINT Index = 0;
     UINT CandidateCount = sizeof(Candidates) / sizeof(Candidates[0]);
 
@@ -127,7 +127,8 @@ static UINT GraphicsSelectorLoad(void) {
     GraphicsSelectorState = (GRAPHICS_SELECTOR_STATE){0};
 
     Candidates[0] = IntelGfxGetDriver();
-    Candidates[1] = VESAGetDriver();
+    Candidates[1] = GOPGetDriver();
+    Candidates[2] = VESAGetDriver();
 
     for (Index = 0; Index < CandidateCount; Index++) {
         LPDRIVER Driver = Candidates[Index];
@@ -188,11 +189,12 @@ static UINT GraphicsSelectorLoad(void) {
  * @return DF_RETURN_SUCCESS always.
  */
 static UINT GraphicsSelectorUnload(void) {
-    LPDRIVER Candidates[2];
+    LPDRIVER Candidates[3];
     UINT Index = 0;
 
     Candidates[0] = IntelGfxGetDriver();
-    Candidates[1] = VESAGetDriver();
+    Candidates[1] = GOPGetDriver();
+    Candidates[2] = VESAGetDriver();
 
     for (Index = 0; Index < sizeof(Candidates) / sizeof(Candidates[0]); Index++) {
         LPDRIVER Driver = Candidates[Index];

@@ -56,6 +56,7 @@ LPDRIVER FileSystemGetDriver(void);
 LPDRIVER NetworkManagerGetDriver(void);
 LPDRIVER UserAccountGetDriver(void);
 LPDRIVER GraphicsSelectorGetDriver(void);
+LPDRIVER GOPGetDriver(void);
 LPDRIVER IntelGfxGetDriver(void);
 LPDRIVER VESAGetDriver(void);
 LPDRIVER EXFSGetDriver(void);
