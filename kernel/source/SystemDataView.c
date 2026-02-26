@@ -42,7 +42,7 @@
 /************************************************************************/
 // Macros
 
-#define SYSTEM_DATA_VIEW_PAGE_COUNT 12
+#define SYSTEM_DATA_VIEW_PAGE_COUNT 13
 #define SYSTEM_DATA_VIEW_OUTPUT_BUFFER_SIZE 32768
 #define SYSTEM_DATA_VIEW_OUTPUT_MAX_LINES 1024
 #define SYSTEM_DATA_VIEW_VALUE_COLUMN 20
@@ -70,6 +70,8 @@
 #define SYSTEM_DATA_VIEW_USB_MASS_STORAGE_PROTOCOL_UAS 0x62
 
 #define SYSTEM_DATA_VIEW_PCI_VENDOR_INTEL 0x8086
+#define SYSTEM_DATA_VIEW_PCI_VENDOR_AMD 0x1002
+#define SYSTEM_DATA_VIEW_PCI_VENDOR_NVIDIA 0x10DE
 #define SYSTEM_DATA_VIEW_PCI_CLASS_BRIDGE 0x06
 
 /************************************************************************/
@@ -116,6 +118,12 @@ typedef struct tag_SYSTEM_DATA_VIEW_PCI_VMD_STATE {
     UINT Index;
     UINT Count;
 } SYSTEM_DATA_VIEW_PCI_VMD_STATE, *LPSYSTEM_DATA_VIEW_PCI_VMD_STATE;
+
+typedef struct tag_SYSTEM_DATA_VIEW_PCI_GRAPHICS_STATE {
+    UINT Index;
+    UINT Count;
+    UINT AttachedCount;
+} SYSTEM_DATA_VIEW_PCI_GRAPHICS_STATE, *LPSYSTEM_DATA_VIEW_PCI_GRAPHICS_STATE;
 
 /************************************************************************/
 
@@ -1609,6 +1617,173 @@ static BOOL SystemDataViewPciVmdVisitor(LPSYSTEM_DATA_VIEW_CONTEXT Context,
 /************************************************************************/
 
 /**
+ * @brief Return a short vendor name for common graphics vendors.
+ *
+ * @param VendorId PCI vendor identifier.
+ * @return Vendor name.
+ */
+static LPCSTR SystemDataViewGraphicsVendorName(U16 VendorId) {
+    switch (VendorId) {
+        case SYSTEM_DATA_VIEW_PCI_VENDOR_INTEL:
+            return TEXT("Intel");
+        case SYSTEM_DATA_VIEW_PCI_VENDOR_NVIDIA:
+            return TEXT("NVIDIA");
+        case SYSTEM_DATA_VIEW_PCI_VENDOR_AMD:
+            return TEXT("AMD");
+    }
+
+    return TEXT("Other");
+}
+
+/************************************************************************/
+
+/**
+ * @brief Return a short display subclass name.
+ *
+ * @param SubClass PCI display subclass.
+ * @return Subclass name.
+ */
+static LPCSTR SystemDataViewGraphicsSubclassName(U8 SubClass) {
+    switch (SubClass) {
+        case 0x00:
+            return TEXT("VGA");
+        case 0x01:
+            return TEXT("XGA");
+        case 0x02:
+            return TEXT("3D");
+        case 0x80:
+            return TEXT("Other");
+    }
+
+    return TEXT("Unknown");
+}
+
+/************************************************************************/
+
+/**
+ * @brief Check whether one PCI BDF exists in the kernel attached PCI list.
+ *
+ * @param Bus PCI bus.
+ * @param Device PCI device.
+ * @param Function PCI function.
+ * @return TRUE when present in GetPCIDeviceList.
+ */
+static BOOL SystemDataViewIsAttachedPciDevice(U8 Bus, U8 Device, U8 Function) {
+    LPLIST DeviceList = GetPCIDeviceList();
+
+    if (DeviceList == NULL) {
+        return FALSE;
+    }
+
+    for (LPLISTNODE Node = DeviceList->First; Node != NULL; Node = Node->Next) {
+        LPPCI_DEVICE PciDevice = (LPPCI_DEVICE)Node;
+        SAFE_USE_VALID_ID(PciDevice, KOID_PCIDEVICE) {
+            if (PciDevice->Info.Bus == Bus &&
+                PciDevice->Info.Dev == Device &&
+                PciDevice->Info.Func == Function) {
+                return TRUE;
+            }
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Graphics controller visitor for the System Data View.
+ *
+ * @param Context Output context.
+ * @param Info PCI function info.
+ * @param UserData User data pointer.
+ * @return TRUE to continue.
+ */
+static BOOL SystemDataViewPciGraphicsVisitor(LPSYSTEM_DATA_VIEW_CONTEXT Context,
+    const SYSTEM_DATA_VIEW_PCI_INFO* Info,
+    LPVOID UserData) {
+    STR Label[32];
+    BOOL Attached = FALSE;
+    LPSYSTEM_DATA_VIEW_PCI_GRAPHICS_STATE State = (LPSYSTEM_DATA_VIEW_PCI_GRAPHICS_STATE)UserData;
+
+    if (Context == NULL || Info == NULL || State == NULL) {
+        return FALSE;
+    }
+
+    if (Info->BaseClass != PCI_CLASS_DISPLAY) {
+        return TRUE;
+    }
+
+    State->Count++;
+    State->Index++;
+    Attached = SystemDataViewIsAttachedPciDevice(Info->Bus, Info->Dev, Info->Func);
+    if (Attached) {
+        State->AttachedCount++;
+    }
+
+    StringPrintFormat(Label, TEXT("Graphics %u"), (U32)State->Index);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, Label,
+        TEXT("Bus=%u Dev=%u Fn=%u\n"),
+        (U32)Info->Bus,
+        (U32)Info->Dev,
+        (U32)Info->Func);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Vendor"),
+        TEXT("%s (%x)\n"),
+        SystemDataViewGraphicsVendorName(Info->VendorID),
+        (U32)Info->VendorID);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Device Identifier"),
+        TEXT("%x rev=%x\n"),
+        (U32)Info->DeviceID,
+        (U32)Info->Revision);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Display Type"),
+        TEXT("%s (sub=%x if=%x)\n"),
+        SystemDataViewGraphicsSubclassName(Info->SubClass),
+        (U32)Info->SubClass,
+        (U32)Info->ProgIF);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("IRQ Line/Pin"),
+        TEXT("%u / %u\n"),
+        (U32)Info->IRQLine,
+        (U32)Info->IRQLegacyPin);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("BAR0/BAR2"),
+        TEXT("%x / %x\n"),
+        Info->BAR[0],
+        Info->BAR[2]);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Kernel PCI Link"),
+        TEXT("%s\n"),
+        Attached ? TEXT("Attached") : TEXT("Not attached"));
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Draw the graphics controller summary page.
+ *
+ * @param Context Output context.
+ * @param PageIndex Page index.
+ */
+static void SystemDataViewDrawPageGraphicsDevices(LPSYSTEM_DATA_VIEW_CONTEXT Context, U8 PageIndex) {
+    SYSTEM_DATA_VIEW_PCI_GRAPHICS_STATE State;
+
+    SystemDataViewDrawPageHeader(Context, TEXT("Graphics Devices (PCI)"), PageIndex);
+    MemorySet(&State, 0, sizeof(State));
+    SystemDataViewPciEnumerate(Context, SystemDataViewPciGraphicsVisitor, &State, NULL);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Graphics Found"),
+        TEXT("%u\n"), (U32)State.Count);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Kernel PCI Attached"),
+        TEXT("%u\n"), (U32)State.AttachedCount);
+    if (State.Count == 0) {
+        SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Graphics"),
+            TEXT("No PCI display controller found\n"));
+    }
+
+    SystemDataViewDrawFooter(Context);
+}
+
+/************************************************************************/
+
+/**
  * @brief Draw the PCI device list page.
  *
  * @param Context Output context.
@@ -1789,18 +1964,21 @@ static void SystemDataViewDrawPage(LPSYSTEM_DATA_VIEW_CONTEXT Context, U8 PageIn
             SystemDataViewDrawPageXhci(Context, PageIndex);
             break;
         case 7:
-            SystemDataViewDrawPagePciList(Context, PageIndex);
+            SystemDataViewDrawPageGraphicsDevices(Context, PageIndex);
             break;
         case 8:
-            SystemDataViewDrawPageVmd(Context, PageIndex);
+            SystemDataViewDrawPagePciList(Context, PageIndex);
             break;
         case 9:
-            SystemDataViewDrawPageStorageControllers(Context, PageIndex);
+            SystemDataViewDrawPageVmd(Context, PageIndex);
             break;
         case 10:
-            SystemDataViewDrawPageIdt(Context, PageIndex);
+            SystemDataViewDrawPageStorageControllers(Context, PageIndex);
             break;
         case 11:
+            SystemDataViewDrawPageIdt(Context, PageIndex);
+            break;
+        case 12:
         default:
             SystemDataViewDrawPageGdt(Context, PageIndex);
             break;
