@@ -40,6 +40,79 @@ static void RestoreConsoleAfterGraphicsSmoke(void) {
     ERROR(TEXT("[RestoreConsoleAfterGraphicsSmoke] Console restore failed"));
 }
 
+/***************************************************************************/
+
+/**
+ * @brief Window procedure for gfx_smoke window rendering.
+ * @param Window Target window handle.
+ * @param Message Window message identifier.
+ * @param Param1 First message parameter.
+ * @param Param2 Second message parameter.
+ * @return Message-specific result.
+ */
+static U32 GfxSmokeWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
+    static const I32 GfxSmokeWindowWidth = 560;
+    static const I32 GfxSmokeWindowHeight = 320;
+
+    switch (Message) {
+        case EWM_DRAW: {
+            HANDLE GraphicsContext = NULL;
+            RECTINFO RectangleInfo;
+            LINEINFO LineInfo;
+
+            GraphicsContext = GetWindowGC(Window);
+            if (GraphicsContext == NULL) {
+                return 0;
+            }
+
+            RectangleInfo.Header.Size = sizeof(RectangleInfo);
+            RectangleInfo.Header.Version = EXOS_ABI_VERSION;
+            RectangleInfo.Header.Flags = 0;
+            RectangleInfo.GC = GraphicsContext;
+
+            LineInfo.Header.Size = sizeof(LineInfo);
+            LineInfo.Header.Version = EXOS_ABI_VERSION;
+            LineInfo.Header.Flags = 0;
+            LineInfo.GC = GraphicsContext;
+
+            (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_HIGHLIGHT));
+            (void)SelectBrush(GraphicsContext, GetSystemBrush(SM_COLOR_TITLE_BAR));
+            RectangleInfo.X1 = 0;
+            RectangleInfo.Y1 = 0;
+            RectangleInfo.X2 = GfxSmokeWindowWidth - 1;
+            RectangleInfo.Y2 = 32;
+            (void)Rectangle(&RectangleInfo);
+
+            (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_DARK_SHADOW));
+            (void)SelectBrush(GraphicsContext, GetSystemBrush(SM_COLOR_CLIENT));
+            RectangleInfo.X1 = 0;
+            RectangleInfo.Y1 = 33;
+            RectangleInfo.X2 = GfxSmokeWindowWidth - 1;
+            RectangleInfo.Y2 = GfxSmokeWindowHeight - 1;
+            (void)Rectangle(&RectangleInfo);
+
+            (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_SELECTION));
+            LineInfo.X1 = 12;
+            LineInfo.Y1 = 48;
+            LineInfo.X2 = GfxSmokeWindowWidth - 20;
+            LineInfo.Y2 = GfxSmokeWindowHeight - 19;
+            (void)Line(&LineInfo);
+
+            LineInfo.X1 = GfxSmokeWindowWidth - 20;
+            LineInfo.Y1 = 48;
+            LineInfo.X2 = 12;
+            LineInfo.Y2 = GfxSmokeWindowHeight - 19;
+            (void)Line(&LineInfo);
+
+            (void)EndWindowDraw(Window);
+            return 0;
+        }
+
+        default:
+            return DefWindowFunc(Window, Message, Param1, Param2);
+    }
+}
+
 U32 CMD_killtask(LPSHELLCONTEXT Context) {
     U32 TaskNum = 0;
     LPTASK Task = NULL;
@@ -243,13 +316,10 @@ U32 CMD_pic(LPSHELLCONTEXT Context) {
  * @return DF_RETURN_SUCCESS on completion.
  */
 U32 CMD_gfxsmoke(LPSHELLCONTEXT Context) {
-    U32 DurationMilliseconds = 1200;
+    U32 DurationMilliseconds = 5000;
     LPDESKTOP Desktop = NULL;
     LPWINDOW Window = NULL;
-    HANDLE GraphicsContext = NULL;
     WINDOWINFO WindowInfo;
-    RECTINFO RectangleInfo;
-    LINEINFO LineInfo;
 
     ParseNextCommandLineComponent(Context);
     if (StringLength(Context->Command) != 0) {
@@ -277,7 +347,7 @@ U32 CMD_gfxsmoke(LPSHELLCONTEXT Context) {
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;
     WindowInfo.Parent = (HANDLE)Desktop->Window;
-    WindowInfo.Function = DefWindowFunc;
+    WindowInfo.Function = GfxSmokeWindowFunc;
     WindowInfo.Style = EWS_VISIBLE;
     WindowInfo.ID = 0;
     WindowInfo.WindowPosition.X = 120;
@@ -294,49 +364,7 @@ U32 CMD_gfxsmoke(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    GraphicsContext = BeginWindowDraw((HANDLE)Window);
-    if (GraphicsContext != NULL) {
-        RectangleInfo.Header.Size = sizeof(RectangleInfo);
-        RectangleInfo.Header.Version = EXOS_ABI_VERSION;
-        RectangleInfo.Header.Flags = 0;
-        RectangleInfo.GC = GraphicsContext;
-
-        LineInfo.Header.Size = sizeof(LineInfo);
-        LineInfo.Header.Version = EXOS_ABI_VERSION;
-        LineInfo.Header.Flags = 0;
-        LineInfo.GC = GraphicsContext;
-
-        (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_HIGHLIGHT));
-        (void)SelectBrush(GraphicsContext, GetSystemBrush(SM_COLOR_TITLE_BAR));
-        RectangleInfo.X1 = 0;
-        RectangleInfo.Y1 = 0;
-        RectangleInfo.X2 = 559;
-        RectangleInfo.Y2 = 32;
-        (void)Rectangle(&RectangleInfo);
-
-        (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_DARK_SHADOW));
-        (void)SelectBrush(GraphicsContext, GetSystemBrush(SM_COLOR_CLIENT));
-        RectangleInfo.X1 = 0;
-        RectangleInfo.Y1 = 33;
-        RectangleInfo.X2 = 559;
-        RectangleInfo.Y2 = 319;
-        (void)Rectangle(&RectangleInfo);
-
-        (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_SELECTION));
-        LineInfo.X1 = 12;
-        LineInfo.Y1 = 48;
-        LineInfo.X2 = 540;
-        LineInfo.Y2 = 300;
-        (void)Line(&LineInfo);
-
-        LineInfo.X1 = 540;
-        LineInfo.Y1 = 48;
-        LineInfo.X2 = 12;
-        LineInfo.Y2 = 300;
-        (void)Line(&LineInfo);
-
-        (void)EndWindowDraw((HANDLE)Window);
-    }
+    (void)SendMessage((HANDLE)Window, EWM_DRAW, 0, 0);
 
     Sleep(DurationMilliseconds);
 
