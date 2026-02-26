@@ -196,6 +196,7 @@ PCI_DRIVER DATA_SECTION E1000Driver = {
     .Designer = "Jango73",
     .Manufacturer = "Intel",
     .Product = "E1000 (82540EM)",
+    .Alias = "e1000",
     .Command = E1000Commands,
     .Matches = E1000_MatchTable,
     .MatchCount = sizeof(E1000_MatchTable) / sizeof(E1000_MatchTable[0]),

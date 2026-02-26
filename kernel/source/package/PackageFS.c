@@ -43,6 +43,7 @@ DRIVER PackageFSDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "EXOS PackageFS",
+    .Alias = "packagefs",
     .Command = PackageFSCommands};
 
 /************************************************************************/

@@ -60,6 +60,7 @@ DRIVER DATA_SECTION NetworkManagerDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "NetworkManager",
+    .Alias = "network",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = NetworkManagerDriverCommands};
 

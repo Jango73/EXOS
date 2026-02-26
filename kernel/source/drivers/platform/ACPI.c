@@ -50,6 +50,7 @@ DRIVER DATA_SECTION ACPIDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "ACPI",
+    .Alias = "acpi",
     .Flags = 0,
     .Command = ACPIDriverCommands};
 

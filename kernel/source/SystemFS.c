@@ -52,6 +52,7 @@ DRIVER SystemFSDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "Virtual Computer File System",
+    .Alias = "system_fs",
     .Command = SystemFSCommands};
 
 /************************************************************************/

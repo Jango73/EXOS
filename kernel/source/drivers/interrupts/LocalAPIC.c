@@ -50,6 +50,7 @@ DRIVER DATA_SECTION LocalAPICDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "LocalAPIC",
+    .Alias = "local_apic",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = LocalAPICDriverCommands};
 

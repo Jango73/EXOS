@@ -84,6 +84,7 @@ DRIVER DATA_SECTION DeferredWorkDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "DeferredWork",
+    .Alias = "deferred_work",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = DeferredWorkDriverCommands};
 

@@ -60,6 +60,7 @@ DRIVER DATA_SECTION UserAccountDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "UserSystem",
+    .Alias = "user_account",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = UserAccountDriverCommands};
 

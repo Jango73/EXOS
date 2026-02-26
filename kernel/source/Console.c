@@ -61,6 +61,7 @@ DRIVER DATA_SECTION ConsoleDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "Console",
+    .Alias = "console",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = ConsoleDriverCommands};
 

@@ -45,6 +45,7 @@ DRIVER DATA_SECTION RAMDiskDriver = {
     .Designer = "Jango73",
     .Manufacturer = "IBM PC and compatibles",
     .Product = "RAM Disk Controller",
+    .Alias = "ramdisk",
     .Flags = 0,
     .Command = RAMDiskCommands};
 

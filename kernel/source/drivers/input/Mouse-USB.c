@@ -82,6 +82,7 @@ static USB_MOUSE_DRIVER DATA_SECTION USBMouseDriverState = {
         .Designer = "Jango73",
         .Manufacturer = "USB-IF",
         .Product = "USB HID Mouse",
+        .Alias = "usb_mouse",
         .Flags = 0,
         .Command = USBMouseCommands
     },

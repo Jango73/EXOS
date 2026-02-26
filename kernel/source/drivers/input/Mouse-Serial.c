@@ -58,6 +58,7 @@ static SERIAL_MOUSE_DRIVER DATA_SECTION SerialMouseDriverState = {
         .Designer = "Jango73",
         .Manufacturer = "Not applicable",
         .Product = "Standard Serial Mouse",
+        .Alias = "serial_mouse",
         .Flags = 0,
         .Command = SerialMouseCommands
     },

@@ -82,6 +82,7 @@ DRIVER DATA_SECTION KernelProcessDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "KernelProcess",
+    .Alias = "kernel_process",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = KernelProcessDriverCommands};
 

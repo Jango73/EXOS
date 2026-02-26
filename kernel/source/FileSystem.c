@@ -91,6 +91,7 @@ DRIVER DATA_SECTION FileSystemDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "FileSystems",
+    .Alias = "filesystems",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = FileSystemDriverCommands};
 

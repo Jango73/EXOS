@@ -1546,6 +1546,7 @@ PCI_DRIVER DATA_SECTION XHCIDriver = {
     .Designer = "Jango73",
     .Manufacturer = "USB-IF",
     .Product = "xHCI",
+    .Alias = "xhci",
     .Command = XHCI_Commands,
     .EnumDomainCount = 3,
     .EnumDomains = {ENUM_DOMAIN_XHCI_PORT, ENUM_DOMAIN_USB_DEVICE, ENUM_DOMAIN_USB_NODE},

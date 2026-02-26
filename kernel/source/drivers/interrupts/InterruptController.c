@@ -50,6 +50,7 @@ DRIVER DATA_SECTION InterruptControllerDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "InterruptController",
+    .Alias = "interrupt_controller",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = InterruptControllerDriverCommands};
 

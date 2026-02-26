@@ -123,6 +123,7 @@ static USB_KEYBOARD_DRIVER DATA_SECTION USBKeyboardDriverState = {
         .Designer = "Jango73",
         .Manufacturer = "USB-IF",
         .Product = "USB HID Keyboard",
+        .Alias = "usb_keyboard",
         .Flags = 0,
         .Command = USBKeyboardCommands
     },

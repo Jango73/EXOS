@@ -36,6 +36,7 @@ DRIVER DATA_SECTION FAT32Driver = {
     .Designer = "Jango73",
     .Manufacturer = "Microsoft Corporation",
     .Product = "Fat 32 File System",
+    .Alias = "fat32",
     .Command = FAT32Commands};
 
 /**

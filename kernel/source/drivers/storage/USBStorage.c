@@ -153,6 +153,7 @@ static USB_MASS_STORAGE_DRIVER DATA_SECTION USBStorageDriverState = {
         .Designer = "Jango73",
         .Manufacturer = "USB-IF",
         .Product = "USB Mass Storage",
+        .Alias = "usb_storage",
         .Flags = 0,
         .Command = USBStorageCommands
     },

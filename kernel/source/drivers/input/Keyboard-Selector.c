@@ -58,6 +58,7 @@ static DRIVER DATA_SECTION KeyboardSelectorDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "Keyboard selector",
+    .Alias = "keyboard_selector",
     .Flags = 0,
     .Command = KeyboardSelectorCommands
 };

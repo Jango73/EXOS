@@ -54,6 +54,7 @@ PCI_DRIVER DATA_SECTION NVMePCIDriver = {
     .Designer = "Jango73",
     .Manufacturer = "NVMe",
     .Product = "NVMe Controller",
+    .Alias = "nvme",
     .Command = NVMeCommands,
     .Matches = NVMeMatchTable,
     .MatchCount = sizeof(NVMeMatchTable) / sizeof(NVMeMatchTable[0]),

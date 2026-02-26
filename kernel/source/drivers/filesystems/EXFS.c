@@ -46,6 +46,7 @@ DRIVER DATA_SECTION EXFSDriver = {
     .Designer = "Jango73",
     .Manufacturer = "Jango73",
     .Product = "EXOS File System",
+    .Alias = "exfs",
     .Command = EXFSCommands};
 
 /************************************************************************/

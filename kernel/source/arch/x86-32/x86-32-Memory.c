@@ -224,6 +224,7 @@ DRIVER DATA_SECTION MemoryManagerDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "MemoryManager",
+    .Alias = "memory_manager",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = MemoryManagerCommands};
 

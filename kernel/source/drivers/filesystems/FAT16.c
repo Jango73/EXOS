@@ -45,6 +45,7 @@ DRIVER DATA_SECTION FAT16Driver = {
     .Designer = "Jango73",
     .Manufacturer = "Microsoft Corporation",
     .Product = "Fat 16 File System",
+    .Alias = "fat16",
     .Command = FAT16Commands};
 
 /***************************************************************************/

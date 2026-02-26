@@ -52,6 +52,7 @@ DRIVER DATA_SECTION StdKeyboardDriver = {
     .Designer = "Jango73",
     .Manufacturer = "IBM PC and compatibles",
     .Product = "Standard IBM PC Keyboard - 102 keys",
+    .Alias = "ps2_keyboard",
     .Flags = 0,
     .Command = StdKeyboardCommands};
 

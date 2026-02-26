@@ -870,6 +870,7 @@ DRIVER DATA_SECTION EXT2Driver = {
     .Designer = "Jango73",
     .Manufacturer = "Jango73",
     .Product = "EXT2 File System",
+    .Alias = "ext2",
     .Command = EXT2Commands};
 
 /************************************************************************/

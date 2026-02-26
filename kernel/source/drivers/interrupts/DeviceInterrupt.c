@@ -92,6 +92,7 @@ DRIVER DeviceInterruptDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "DeviceInterrupts",
+    .Alias = "device_interrupt",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = DeviceInterruptDriverCommands};
 

@@ -54,6 +54,7 @@ DRIVER DATA_SECTION ATADiskDriver = {
     .Designer = "Jango73",
     .Manufacturer = "IBM PC and compatibles",
     .Product = "ATA Disk Controller",
+    .Alias = "ata",
     .Flags = 0,
     .Command = ATADiskCommands,
     .EnumDomainCount = 1,

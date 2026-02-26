@@ -51,6 +51,7 @@ DRIVER DATA_SECTION ClockDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "Clock",
+    .Alias = "clock",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = ClockDriverCommands};
 

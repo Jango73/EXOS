@@ -67,6 +67,7 @@ DRIVER DATA_SECTION KernelLogDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "KernelLog",
+    .Alias = "kernel_log",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = KernelLogDriverCommands};
 
