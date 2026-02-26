@@ -282,6 +282,12 @@ static BOOL ConsoleTextRefreshCursor(void) {
     LPGRAPHICSCONTEXT Context = NULL;
     GFX_TEXT_CURSOR_INFO CursorInfo;
     GFX_TEXT_CURSOR_VISIBLE_INFO VisibleInfo;
+    U32 CellWidth = 0;
+    U32 CellHeight = 0;
+
+    if (ConsoleTextResolveCellSize(&CellWidth, &CellHeight) == FALSE) {
+        return FALSE;
+    }
 
     if (ConsoleTextAcquireContext(&Driver, &Context) == FALSE) {
         return FALSE;
@@ -291,7 +297,10 @@ static BOOL ConsoleTextRefreshCursor(void) {
         .Header = {.Size = sizeof(GFX_TEXT_CURSOR_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
         .GC = (HANDLE)Context,
         .CellX = ConsoleTextCursorCellX,
-        .CellY = ConsoleTextCursorCellY
+        .CellY = ConsoleTextCursorCellY,
+        .CellWidth = CellWidth,
+        .CellHeight = CellHeight,
+        .ForegroundColorIndex = Console.ForeColor
     };
 
     VisibleInfo = (GFX_TEXT_CURSOR_VISIBLE_INFO){

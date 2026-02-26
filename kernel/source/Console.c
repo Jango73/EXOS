@@ -142,12 +142,6 @@ void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
     if (Console.UseFramebuffer != FALSE) {
-        if (Console.CursorX == CursorX && Console.CursorY == CursorY) {
-            UnlockMutex(MUTEX_CONSOLE);
-            ProfileStop(&Scope);
-            return;
-        }
-
         ConsoleHideFramebufferCursor();
         Console.CursorX = CursorX;
         Console.CursorY = CursorY;

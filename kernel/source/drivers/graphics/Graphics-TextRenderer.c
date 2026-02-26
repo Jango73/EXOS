@@ -25,6 +25,7 @@
 
 #include "CoreString.h"
 #include "Font.h"
+#include "Memory.h"
 
 /************************************************************************/
 
@@ -34,6 +35,186 @@ static const U32 GfxTextPalette[16] = {
     0x555555, 0x5555FF, 0x55FF55, 0x55FFFF,
     0xFF5555, 0xFF55FF, 0xFFFF55, 0xFFFFFF
 };
+
+/************************************************************************/
+
+#define GFX_TEXT_CURSOR_STATE_MAX_CONTEXTS 8
+#define GFX_TEXT_CURSOR_STATE_MAX_SAVED_BYTES 2048
+
+/************************************************************************/
+
+typedef struct tag_GFX_TEXT_CURSOR_STATE {
+    LPGRAPHICSCONTEXT Context;
+    BOOL HasPosition;
+    BOOL IsVisible;
+    I32 PixelX;
+    I32 PixelY;
+    I32 PixelWidth;
+    I32 CursorHeight;
+    U32 ForegroundColorIndex;
+    U32 SavedBytes;
+    U8 SavedPixels[GFX_TEXT_CURSOR_STATE_MAX_SAVED_BYTES];
+} GFX_TEXT_CURSOR_STATE, *LPGFX_TEXT_CURSOR_STATE;
+
+/************************************************************************/
+
+static GFX_TEXT_CURSOR_STATE GfxTextCursorStates[GFX_TEXT_CURSOR_STATE_MAX_CONTEXTS] = {0};
+
+/************************************************************************/
+
+static LPGFX_TEXT_CURSOR_STATE GfxTextGetCursorState(LPGRAPHICSCONTEXT Context) {
+    UINT Index = 0;
+    UINT FreeIndex = MAX_UINT;
+
+    if (Context == NULL) {
+        return NULL;
+    }
+
+    for (Index = 0; Index < ARRAY_COUNT(GfxTextCursorStates); Index++) {
+        if (GfxTextCursorStates[Index].Context == Context) {
+            return &GfxTextCursorStates[Index];
+        }
+
+        if (FreeIndex == MAX_UINT && GfxTextCursorStates[Index].Context == NULL) {
+            FreeIndex = Index;
+        }
+    }
+
+    if (FreeIndex == MAX_UINT) {
+        return NULL;
+    }
+
+    GfxTextCursorStates[FreeIndex] = (GFX_TEXT_CURSOR_STATE){0};
+    GfxTextCursorStates[FreeIndex].Context = Context;
+    return &GfxTextCursorStates[FreeIndex];
+}
+
+/************************************************************************/
+
+static BOOL GfxTextCursorComputeArea(LPGRAPHICSCONTEXT Context,
+                                     LPGFX_TEXT_CURSOR_INFO Info,
+                                     I32* PixelXOut,
+                                     I32* PixelYOut,
+                                     I32* PixelWidthOut,
+                                     I32* CursorHeightOut,
+                                     U32* SavedBytesOut) {
+    I32 PixelX = 0;
+    I32 PixelY = 0;
+    I32 PixelWidth = 0;
+    I32 CursorHeight = 0;
+    U32 BytesPerPixel = 0;
+    U32 SavedBytes = 0;
+
+    if (Context == NULL || Info == NULL || PixelXOut == NULL || PixelYOut == NULL ||
+        PixelWidthOut == NULL || CursorHeightOut == NULL || SavedBytesOut == NULL) {
+        return FALSE;
+    }
+
+    if (Info->CellWidth == 0 || Info->CellHeight == 0) {
+        return FALSE;
+    }
+
+    if (Context->BitsPerPixel != 16 && Context->BitsPerPixel != 24 && Context->BitsPerPixel != 32) {
+        return FALSE;
+    }
+
+    BytesPerPixel = Context->BitsPerPixel / 8;
+    CursorHeight = (Info->CellHeight >= 4) ? 2 : 1;
+    PixelWidth = (I32)Info->CellWidth;
+
+    PixelX = (I32)(Info->CellX * Info->CellWidth);
+    PixelY = (I32)(Info->CellY * Info->CellHeight) + (I32)Info->CellHeight - CursorHeight;
+
+    if (PixelX < 0 || PixelY < 0 || PixelWidth <= 0 || CursorHeight <= 0) {
+        return FALSE;
+    }
+
+    if (PixelX >= Context->Width || PixelY >= Context->Height) {
+        return FALSE;
+    }
+
+    if (PixelX + PixelWidth > Context->Width) {
+        PixelWidth = Context->Width - PixelX;
+    }
+
+    if (PixelY + CursorHeight > Context->Height) {
+        CursorHeight = Context->Height - PixelY;
+    }
+
+    if (PixelWidth <= 0 || CursorHeight <= 0) {
+        return FALSE;
+    }
+
+    SavedBytes = (U32)PixelWidth * (U32)CursorHeight * BytesPerPixel;
+    if (SavedBytes == 0 || SavedBytes > GFX_TEXT_CURSOR_STATE_MAX_SAVED_BYTES) {
+        return FALSE;
+    }
+
+    *PixelXOut = PixelX;
+    *PixelYOut = PixelY;
+    *PixelWidthOut = PixelWidth;
+    *CursorHeightOut = CursorHeight;
+    *SavedBytesOut = SavedBytes;
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL GfxTextCursorSavePixels(LPGFX_TEXT_CURSOR_STATE State, LPGRAPHICSCONTEXT Context) {
+    U32 BytesPerPixel = 0;
+    U32 RowBytes = 0;
+    U32 CopyOffset = 0;
+    I32 Row = 0;
+
+    SAFE_USE_2(State, Context) {
+        BytesPerPixel = Context->BitsPerPixel / 8;
+        RowBytes = (U32)State->PixelWidth * BytesPerPixel;
+        CopyOffset = 0;
+
+        for (Row = 0; Row < State->CursorHeight; Row++) {
+            U8* Source = Context->MemoryBase +
+                         ((State->PixelY + Row) * (I32)Context->BytesPerScanLine) +
+                         (State->PixelX * (I32)BytesPerPixel);
+            MemoryCopy(&State->SavedPixels[CopyOffset], Source, RowBytes);
+            CopyOffset += RowBytes;
+        }
+
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+static BOOL GfxTextCursorRestorePixels(LPGFX_TEXT_CURSOR_STATE State, LPGRAPHICSCONTEXT Context) {
+    U32 BytesPerPixel = 0;
+    U32 RowBytes = 0;
+    U32 CopyOffset = 0;
+    I32 Row = 0;
+
+    SAFE_USE_2(State, Context) {
+        if (State->HasPosition == FALSE || State->SavedBytes == 0) {
+            return TRUE;
+        }
+
+        BytesPerPixel = Context->BitsPerPixel / 8;
+        RowBytes = (U32)State->PixelWidth * BytesPerPixel;
+        CopyOffset = 0;
+
+        for (Row = 0; Row < State->CursorHeight; Row++) {
+            U8* Destination = Context->MemoryBase +
+                              ((State->PixelY + Row) * (I32)Context->BytesPerScanLine) +
+                              (State->PixelX * (I32)BytesPerPixel);
+            MemoryCopy(Destination, &State->SavedPixels[CopyOffset], RowBytes);
+            CopyOffset += RowBytes;
+        }
+
+        return TRUE;
+    }
+
+    return FALSE;
+}
 
 /************************************************************************/
 
@@ -317,30 +498,65 @@ BOOL GfxTextScrollRegion(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_REGION_INFO Info)
  * @return TRUE on success.
  */
 BOOL GfxTextSetCursor(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_CURSOR_INFO Info) {
+    LPGFX_TEXT_CURSOR_STATE State = NULL;
+    BOOL WasVisible = FALSE;
     I32 PixelX = 0;
     I32 PixelY = 0;
+    I32 PixelWidth = 0;
     I32 CursorHeight = 0;
+    U32 SavedBytes = 0;
     U32 Foreground = 0;
 
     if (Context == NULL || Info == NULL || Context->MemoryBase == NULL) {
         return FALSE;
     }
 
-    if (Info->CellWidth == 0 || Info->CellHeight == 0) {
+    State = GfxTextGetCursorState(Context);
+    if (State == NULL) {
         return FALSE;
     }
 
-    PixelX = (I32)(Info->CellX * Info->CellWidth);
-    PixelY = (I32)(Info->CellY * Info->CellHeight);
-    CursorHeight = (Info->CellHeight >= 4) ? 2 : 1;
-    Foreground = GfxTextPackColor(Context, Info->ForegroundColorIndex);
+    WasVisible = State->IsVisible;
+    if (State->IsVisible != FALSE) {
+        (void)GfxTextCursorRestorePixels(State, Context);
+        State->IsVisible = FALSE;
+    }
+
+    if (!GfxTextCursorComputeArea(Context, Info, &PixelX, &PixelY, &PixelWidth, &CursorHeight, &SavedBytes)) {
+        State->HasPosition = FALSE;
+        State->SavedBytes = 0;
+        return FALSE;
+    }
+
+    State->PixelX = PixelX;
+    State->PixelY = PixelY;
+    State->PixelWidth = PixelWidth;
+    State->CursorHeight = CursorHeight;
+    State->ForegroundColorIndex = Info->ForegroundColorIndex;
+    State->SavedBytes = SavedBytes;
+    State->HasPosition = TRUE;
+
+    if (Info->ForegroundColorIndex > 15) {
+        State->ForegroundColorIndex = 15;
+    }
+
+    if (WasVisible == FALSE) {
+        return TRUE;
+    }
+
+    if (!GfxTextCursorSavePixels(State, Context)) {
+        return FALSE;
+    }
+
+    Foreground = GfxTextPackColor(Context, State->ForegroundColorIndex);
 
     GfxTextFillRect(Context,
-                    PixelX,
-                    PixelY + (I32)Info->CellHeight - CursorHeight,
-                    PixelX + (I32)Info->CellWidth - 1,
-                    PixelY + (I32)Info->CellHeight - 1,
+                    State->PixelX,
+                    State->PixelY,
+                    State->PixelX + State->PixelWidth - 1,
+                    State->PixelY + State->CursorHeight - 1,
                     Foreground);
+    State->IsVisible = TRUE;
     return TRUE;
 }
 
@@ -353,8 +569,44 @@ BOOL GfxTextSetCursor(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_CURSOR_INFO Info) {
  * @return TRUE on success.
  */
 BOOL GfxTextSetCursorVisible(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_CURSOR_VISIBLE_INFO Info) {
-    UNUSED(Context);
-    UNUSED(Info);
+    LPGFX_TEXT_CURSOR_STATE State = NULL;
+    U32 Foreground = 0;
+
+    if (Context == NULL || Info == NULL || Context->MemoryBase == NULL) {
+        return FALSE;
+    }
+
+    State = GfxTextGetCursorState(Context);
+    if (State == NULL) {
+        return FALSE;
+    }
+
+    if (Info->IsVisible != FALSE) {
+        if (State->HasPosition == FALSE || State->IsVisible != FALSE) {
+            return TRUE;
+        }
+
+        if (!GfxTextCursorSavePixels(State, Context)) {
+            return FALSE;
+        }
+
+        Foreground = GfxTextPackColor(Context, State->ForegroundColorIndex);
+        GfxTextFillRect(Context,
+                        State->PixelX,
+                        State->PixelY,
+                        State->PixelX + State->PixelWidth - 1,
+                        State->PixelY + State->CursorHeight - 1,
+                        Foreground);
+        State->IsVisible = TRUE;
+        return TRUE;
+    }
+
+    if (State->IsVisible == FALSE) {
+        return TRUE;
+    }
+
+    (void)GfxTextCursorRestorePixels(State, Context);
+    State->IsVisible = FALSE;
     return TRUE;
 }
 
