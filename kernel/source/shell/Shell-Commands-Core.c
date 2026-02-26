@@ -684,7 +684,11 @@ U32 CMD_commands(LPSHELLCONTEXT Context) {
     U32 Index;
 
     for (Index = 0; COMMANDS[Index].Command != NULL; Index++) {
-        ConsolePrint(TEXT("%s %s\n"), COMMANDS[Index].Name, COMMANDS[Index].Usage);
+        ConsolePrint(TEXT("%s (%s) %s - %s\n"),
+            COMMANDS[Index].Name,
+            COMMANDS[Index].AltName,
+            COMMANDS[Index].Usage,
+            COMMANDS[Index].Description);
     }
 
     return DF_RETURN_SUCCESS;

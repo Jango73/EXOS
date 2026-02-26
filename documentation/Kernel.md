@@ -1397,6 +1397,8 @@ At evaluation time, this node calls the `ExecuteCommand` callback (`ShellScriptE
 - built-in shell commands from `COMMANDS[]`;
 - executable launch via `SpawnExecutable()` when no built-in matches.
 
+Each `SHELL_COMMAND_ENTRY` stores the primary name, alternate name, usage text, and a short description so the `commands` command can print a single-line summary per entry.
+
 This keeps command execution policy inside shell code while the script engine stays generic.
 
 #### Return value behavior

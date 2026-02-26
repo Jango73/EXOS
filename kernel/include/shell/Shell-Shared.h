@@ -86,6 +86,7 @@ typedef struct tag_SHELL_COMMAND_ENTRY {
     STR Name[MAX_COMMAND_NAME];
     STR AltName[MAX_COMMAND_NAME];
     STR Usage[MAX_COMMAND_NAME];
+    STR Description[MAX_COMMAND_NAME];
     SHELLCOMMAND Command;
 } SHELL_COMMAND_ENTRY;
 
