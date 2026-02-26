@@ -37,7 +37,11 @@ print_warnings() {
     while IFS= read -r Line; do
         printf '[%s] %s\n' "$Arch" "$Line"
         Found=1
-    done < <(grep -Ei "warning|avertissement" "$NormalizedLog" || true)
+    done < <(
+        grep -Ei "warning|avertissement" "$NormalizedLog" \
+            | grep -Eiv '(^|[[:space:]])(\.\./)?third/' \
+            || true
+    )
 
     if [ "$Found" -eq 0 ]; then
         if grep -qi "A build is already running" "$NormalizedLog"; then
