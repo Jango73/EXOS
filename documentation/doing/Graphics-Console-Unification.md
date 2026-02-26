@@ -35,7 +35,7 @@ This split creates fragile mode transitions and makes return-to-console behavior
    - `DesktopFrontEnd` active
    - both front-ends share the same backend and present model
 5. Keep one strict emergency fallback:
-   - if no graphics backend can expose a valid context, switch to direct `B800` text console.
+   - if no graphics backend can expose a valid context, switch to direct VGA text console.
 
 ## Step-by-Step Implementation
 
@@ -51,7 +51,7 @@ This split creates fragile mode transitions and makes return-to-console behavior
   - show/hide/move cursor
 - Define a fallback policy for drivers that do not implement text rendering:
   - selector rejects them for console ownership and keeps currently active backend, or
-  - system enters emergency `B800` text console mode.
+  - system enters emergency VGA text console mode.
 - Console must not import or use graphics context structures.
 
 Define a minimal shared contract used by both Desktop and Console orchestration:
@@ -144,9 +144,9 @@ Deliverable:
 Deliverable:
 - Commands like `gfx_smoke` can enter desktop mode and return to console without backend teardown.
 
-## Step 6 - Keep emergency `B800` fallback without leaking graphics concerns into Console
+## Step 6 - Keep emergency VGA text fallback without leaking graphics concerns into Console
 
-- Keep direct `B800` text mode support isolated in one fallback module.
+- Keep direct VGA text mode support isolated in one fallback module.
 - Use it only when:
   - no graphics backend with text contract is active
   - text command dispatch fails during early bring-up
@@ -173,7 +173,7 @@ Deliverable:
 Acceptance criteria:
 - No fault/panic in logs during switch loops.
 - Console remains readable and interactive after each Desktop return.
-- Selector always reports one active path (graphics or explicit `B800` emergency fallback).
+- Selector always reports one active path (graphics or explicit VGA text emergency fallback).
 
 ## Suggested File Split
 
@@ -182,7 +182,7 @@ Acceptance criteria:
 - `kernel/source/display/DisplaySession.c` (new shared ownership layer)
 - `kernel/source/drivers/graphics/*` (text command implementations per backend)
 - `kernel/source/console/Console-TextOps.c` (text operation emission only, no pixel logic)
-- `kernel/source/console/Console-B800Fallback.c` (emergency text-only fallback path)
+- `kernel/source/Console-VGATextFallback.c` (emergency text-only fallback path)
 
 ## Documentation updates required during implementation
 

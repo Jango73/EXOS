@@ -5,7 +5,7 @@
 This Step 0 note freezes the graphics contract needed to make Desktop and Console backend-agnostic, with:
 - graphics driver ownership of glyph/text-cell rendering,
 - Console as text logic only,
-- one emergency fallback path: direct `B800` text console.
+- one emergency fallback path: direct VGA text console.
 
 This document records the verified current usage, then defines the target contract.
 
@@ -118,7 +118,7 @@ Rule:
 ## 5) Fallback policy freeze
 
 Only one emergency fallback is accepted:
-- direct `B800` text console path.
+- direct VGA text console path.
 
 It is used only if:
 - no active graphics backend can satisfy required text contract, or
@@ -144,5 +144,4 @@ Done:
 - verified current usage map (Desktop, Console, SYSCall, selector)
 - documented baseline guarantees of active backends (Intel, VESA)
 - froze minimal and extended contracts for backend-agnostic Desktop + driver-owned Console text rendering
-- froze emergency fallback policy to `B800` only
-
+- froze emergency fallback policy to VGA text only

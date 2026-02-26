@@ -24,6 +24,7 @@
 #include "DisplaySession.h"
 
 #include "Console.h"
+#include "Console-VGATextFallback.h"
 #include "DriverGetters.h"
 #include "GFX.h"
 #include "KernelData.h"
@@ -225,6 +226,14 @@ BOOL DisplaySwitchToConsole(void) {
             DisplaySessionSetMainDesktopState(GraphicsDriver, &ModeInfo);
             return TRUE;
         }
+    }
+
+    WARNING(TEXT("[DisplaySwitchToConsole] Entering emergency VGA text fallback"));
+    if (ConsoleVGATextFallbackActivate(80, 25, &ModeInfo) != FALSE) {
+        WARNING(TEXT("[DisplaySwitchToConsole] Emergency VGA text fallback active (%ux%u)"),
+                ModeInfo.Width,
+                ModeInfo.Height);
+        return TRUE;
     }
 
     WARNING(TEXT("[DisplaySwitchToConsole] Unable to activate console mode (%u)"), Result);

@@ -758,6 +758,7 @@ The Intel backend takeover path reads active pipe/plane state from display regis
 
 Display ownership state is tracked through `kernel/source/DisplaySession.c` (`DISPLAY_SESSION` stored in `KERNELDATA`). This records active frontend (`console` or `desktop`), active desktop pointer, selected graphics driver, and active mode so mode transitions are represented as explicit kernel state.
 Frontend transitions are executed through `DisplaySwitchToConsole()` and `DisplaySwitchToDesktop()`, which keep backend ownership active and avoid using `DF_UNLOAD` as a display switching path.
+Emergency text fallback is isolated in `kernel/source/Console-VGATextFallback.c` and is only entered when console front-end activation cannot be completed through the active graphics backend path.
 
 The console supports direct linear framebuffer rendering when Multiboot framebuffer metadata is available:
 

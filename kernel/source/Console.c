@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "Console-Internal.h"
+#include "Console-VGATextFallback.h"
 #include "DisplaySession.h"
 #include "Font.h"
 #include "GFX.h"
@@ -48,7 +49,6 @@
 #define CONSOLE_VER_MINOR 0
 
 static UINT ConsoleDriverCommands(UINT Function, UINT Parameter);
-static void UpdateConsoleDesktopState(U32 Columns, U32 Rows);
 
 DRIVER DATA_SECTION ConsoleDriver = {
     .TypeID = KOID_DRIVER,
@@ -121,35 +121,6 @@ CONSOLE_STRUCT Console = {
 
 /***************************************************************************/
 
-
-static void UpdateConsoleDesktopState(U32 Columns, U32 Rows) {
-    RECT Rect;
-
-    if (Columns == 0 || Rows == 0) return;
-
-    Rect.X1 = 0;
-    Rect.Y1 = 0;
-    Rect.X2 = (I32)Columns - 1;
-    Rect.Y2 = (I32)Rows - 1;
-
-    SAFE_USE_VALID_ID(&MainDesktop, KOID_DESKTOP) {
-        LockMutex(&(MainDesktop.Mutex), INFINITY);
-        MainDesktop.Graphics = &ConsoleDriver;
-        MainDesktop.Mode = DESKTOP_MODE_CONSOLE;
-
-        SAFE_USE_VALID_ID(MainDesktop.Window, KOID_WINDOW) {
-            LockMutex(&(MainDesktop.Window->Mutex), INFINITY);
-            MainDesktop.Window->Rect = Rect;
-            MainDesktop.Window->ScreenRect = Rect;
-            MainDesktop.Window->InvalidRect = Rect;
-            UnlockMutex(&(MainDesktop.Window->Mutex));
-        }
-
-        UnlockMutex(&(MainDesktop.Mutex));
-    }
-}
-
-/***************************************************************************/
 
 /**
  * @brief Move the hardware and logical console cursor.
@@ -886,26 +857,8 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
         case DF_GFX_SETMODE: {
             LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Parameter;
             SAFE_USE(Info) {
-                U32 ModeIndex;
-
-                if (VGAFindTextMode(Info->Width, Info->Height, &ModeIndex) == FALSE) {
-                    return DF_GFX_ERROR_MODEUNAVAIL;
-                }
-
-                if (VGASetMode(ModeIndex) == FALSE) {
-                    return DF_RETURN_GENERIC;
-                }
-
-                Console.ScreenWidth = Info->Width;
-                Console.ScreenHeight = Info->Height;
-                ConsoleApplyLayout();
-                Console.CursorX = 0;
-                Console.CursorY = 0;
-                ClearConsole();
-                UpdateConsoleDesktopState(Console.Width, Console.Height);
-                (void)DisplaySessionSetConsoleMode(Info);
-
-                return DF_RETURN_SUCCESS;
+                return ConsoleVGATextFallbackActivate(Info->Width, Info->Height, NULL) != FALSE ? DF_RETURN_SUCCESS
+                                                                                                : DF_GFX_ERROR_MODEUNAVAIL;
             }
             return DF_RETURN_GENERIC;
         }
