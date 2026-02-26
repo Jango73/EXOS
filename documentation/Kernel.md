@@ -750,6 +750,8 @@ Text rendering commands are also part of the graphics contract (`TEXT_PUTCELL`, 
 
 Graphics backend selection is handled by `kernel/source/drivers/graphics/Graphics-Selector.c`. The selector loads graphics backends, keeps only active/usable ones, scores their capabilities, and forwards `DF_GFX_*` calls to the selected backend. This provides deterministic fallback behavior without hardcoding a single backend in desktop code.
 
+`kernel/source/drivers/graphics/VGA-Main.c` exposes a dedicated VGA text driver (`alias: vga`) implementing mode enumeration and text mode set through the same `DF_GFX_*` contract (`ENUMMODES`, `GETMODEINFO`, `SETMODE`).
+
 `kernel/source/drivers/graphics/IntelGfx.c` provides the Intel native skeleton path: Intel PCI display detection (`VID 0x8086`), BAR0 MMIO mapping via `MapIOMemory`, PCI bus-master enable, and a minimal MMIO probe read for bring-up diagnostics.
 
 Intel capability handling is centralized in an internal `INTEL_GFX_CAPS` object populated from a PCI device-id family table and refined with bounded MMIO register probes (display version, pipe presence, port mask). Generic `GFX_CAPABILITIES` values exposed through `DF_GFX_GETCAPABILITIES` are projected from this single capability object.
@@ -758,7 +760,7 @@ The Intel backend takeover path reads active pipe/plane state from display regis
 
 Display ownership state is tracked through `kernel/source/DisplaySession.c` (`DISPLAY_SESSION` stored in `KERNELDATA`). This records active frontend (`console` or `desktop`), active desktop pointer, selected graphics driver, and active mode so mode transitions are represented as explicit kernel state.
 Frontend transitions are executed through `DisplaySwitchToConsole()` and `DisplaySwitchToDesktop()`, which keep backend ownership active and avoid using `DF_UNLOAD` as a display switching path.
-Emergency text fallback is isolated in `kernel/source/Console-VGATextFallback.c` and is only entered when console front-end activation cannot be completed through the active graphics backend path.
+Emergency text fallback is isolated in `kernel/source/Console-VGATextFallback.c` and is only entered when console front-end activation cannot be completed through the active graphics backend path. The fallback requests VGA text mode through the VGA driver command interface, instead of direct register programming calls from console code.
 
 Console text output uses backend-dispatched text commands (`kernel/source/Console-TextOps.c`), which route glyph, region, and cursor operations through `DF_GFX_TEXT_*` on the active graphics backend.
 The console text dispatch path exposes an acquisition-in-progress state through `ConsoleIsFramebufferMappingInProgress()` so debug-split log mirroring can avoid recursive console writes while a graphics context is being acquired.

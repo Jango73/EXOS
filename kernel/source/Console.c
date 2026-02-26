@@ -792,7 +792,15 @@ UINT ConsoleSetMode(LPGRAPHICSMODEINFO Info) { return ConsoleDriverCommands(DF_G
  * @brief Return the number of available VGA console modes.
  * @return Number of console modes.
  */
-UINT ConsoleGetModeCount(void) { return VGAGetModeCount(); }
+UINT ConsoleGetModeCount(void) {
+    LPDRIVER VGADriver = VGAGetDriver();
+
+    if (VGADriver == NULL || VGADriver->Command == NULL) {
+        return 0;
+    }
+
+    return VGADriver->Command(DF_GFX_ENUMMODES, 0);
+}
 
 /***************************************************************************/
 

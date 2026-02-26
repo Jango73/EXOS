@@ -28,6 +28,7 @@
 /***************************************************************************/
 
 #include "Base.h"
+#include "Driver.h"
 
 /***************************************************************************/
 
@@ -54,6 +55,7 @@ extern const U32 VGAModeRegsCount;
 
 /***************************************************************************/
 
+LPDRIVER VGAGetDriver(void);
 U32 VGAGetModeCount(void);
 BOOL VGAGetModeInfo(U32 ModeIndex, LPVGAMODEINFO Info);
 BOOL VGAFindTextMode(U32 Columns, U32 Rows, U32* ModeIndex);

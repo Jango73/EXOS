@@ -58,6 +58,7 @@ LPDRIVER UserAccountGetDriver(void);
 LPDRIVER GraphicsSelectorGetDriver(void);
 BOOL GraphicsSelectorForceBackendByName(LPCSTR Name);
 LPCSTR GraphicsSelectorGetActiveBackendName(void);
+LPDRIVER VGAGetDriver(void);
 LPDRIVER GOPGetDriver(void);
 LPDRIVER IntelGfxGetDriver(void);
 LPDRIVER VESAGetDriver(void);

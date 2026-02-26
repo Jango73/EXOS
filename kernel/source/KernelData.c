@@ -346,6 +346,7 @@ void InitializeDriverList(void) {
     ListAddTail(Kernel.Drivers, FileSystemGetDriver());
     ListAddTail(Kernel.Drivers, NetworkManagerGetDriver());
     ListAddTail(Kernel.Drivers, UserAccountGetDriver());
+    ListAddTail(Kernel.Drivers, VGAGetDriver());
     ListAddTail(Kernel.Drivers, GraphicsSelectorGetDriver());
 }
 
