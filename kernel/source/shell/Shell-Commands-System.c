@@ -25,6 +25,8 @@
 #include "shell/Shell-Commands-Private.h"
 #include "Autotest.h"
 #include "DisplaySession.h"
+#include "DriverGetters.h"
+#include "GFX.h"
 #include "utils/SizeFormat.h"
 
 /***************************************************************************/
@@ -304,6 +306,165 @@ U32 CMD_pic(LPSHELLCONTEXT Context) {
     ConsolePrint(TEXT("8259-2 RM mask : %08b\n"), KernelStartup.IRQMask_A1_RM);
     ConsolePrint(TEXT("8259-1 PM mask : %08b\n"), KernelStartup.IRQMask_21_PM);
     ConsolePrint(TEXT("8259-2 PM mask : %08b\n"), KernelStartup.IRQMask_A1_PM);
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Parse one unsigned decimal component from a mode token.
+ * @param Text Mode token text.
+ * @param InOutIndex Parse cursor.
+ * @param ValueOut Parsed value.
+ * @return TRUE on success.
+ */
+static BOOL ParseGraphicsModeComponent(LPCSTR Text, UINT* InOutIndex, U32* ValueOut) {
+    UINT Index = 0;
+    U32 Value = 0;
+    BOOL HasDigit = FALSE;
+
+    if (Text == NULL || InOutIndex == NULL || ValueOut == NULL) {
+        return FALSE;
+    }
+
+    Index = *InOutIndex;
+    while (Text[Index] >= '0' && Text[Index] <= '9') {
+        HasDigit = TRUE;
+        Value = (Value * 10) + (U32)(Text[Index] - '0');
+        Index++;
+    }
+
+    if (!HasDigit) {
+        return FALSE;
+    }
+
+    *InOutIndex = Index;
+    *ValueOut = Value;
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Parse one graphics mode token formatted as WidthxHeightxBitsPerPixel.
+ * @param Token Mode token string.
+ * @param InfoOut Parsed mode info.
+ * @return TRUE on success.
+ */
+static BOOL ParseGraphicsModeToken(LPCSTR Token, LPGRAPHICSMODEINFO InfoOut) {
+    UINT Index = 0;
+    U32 Width = 0;
+    U32 Height = 0;
+    U32 BitsPerPixel = 0;
+
+    if (Token == NULL || InfoOut == NULL || StringLength(Token) == 0) {
+        return FALSE;
+    }
+
+    if (!ParseGraphicsModeComponent(Token, &Index, &Width)) {
+        return FALSE;
+    }
+
+    if (Token[Index] != 'x' && Token[Index] != 'X') {
+        return FALSE;
+    }
+    Index++;
+
+    if (!ParseGraphicsModeComponent(Token, &Index, &Height)) {
+        return FALSE;
+    }
+
+    if (Token[Index] != 'x' && Token[Index] != 'X') {
+        return FALSE;
+    }
+    Index++;
+
+    if (!ParseGraphicsModeComponent(Token, &Index, &BitsPerPixel)) {
+        return FALSE;
+    }
+
+    if (Token[Index] != STR_NULL) {
+        return FALSE;
+    }
+
+    if (Width == 0 || Height == 0 || BitsPerPixel == 0) {
+        return FALSE;
+    }
+
+    InfoOut->Header.Size = sizeof(GRAPHICSMODEINFO);
+    InfoOut->Header.Version = EXOS_ABI_VERSION;
+    InfoOut->Header.Flags = 0;
+    InfoOut->Width = Width;
+    InfoOut->Height = Height;
+    InfoOut->BitsPerPixel = BitsPerPixel;
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Force one graphics backend and apply one graphics mode.
+ * @param Context Shell context.
+ * @return DF_RETURN_SUCCESS on completion.
+ */
+U32 CMD_gfx(LPSHELLCONTEXT Context) {
+    STR DriverName[64];
+    GRAPHICSMODEINFO ModeInfo;
+    LPDRIVER GraphicsDriver = NULL;
+    UINT ModeSetResult = 0;
+    LPDESKTOP ActiveDesktop = NULL;
+    LPCSTR ActiveBackendName = NULL;
+
+    ParseNextCommandLineComponent(Context);
+    StringCopy(DriverName, Context->Command);
+    ParseNextCommandLineComponent(Context);
+
+    if (StringLength(DriverName) == 0 || StringLength(Context->Command) == 0) {
+        ConsolePrint(TEXT("Usage: gfx driver WidthxHeightxBitsPerPixel\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (!ParseGraphicsModeToken(Context->Command, &ModeInfo)) {
+        ConsolePrint(TEXT("Usage: gfx driver WidthxHeightxBitsPerPixel\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (!GraphicsSelectorForceBackendByName(DriverName)) {
+        ConsolePrint(TEXT("gfx: backend '%s' unavailable (supported: igpu|intel|gop|vesa)\n"), DriverName);
+        return DF_RETURN_SUCCESS;
+    }
+
+    GraphicsDriver = GetGraphicsDriver();
+    if (GraphicsDriver == NULL || GraphicsDriver->Command == NULL) {
+        ConsolePrint(TEXT("gfx: no graphics driver available\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    ModeSetResult = GraphicsDriver->Command(DF_GFX_SETMODE, (UINT)(LPVOID)&ModeInfo);
+    if (ModeSetResult != DF_RETURN_SUCCESS) {
+        ConsolePrint(TEXT("gfx: mode set failed (%u)\n"), ModeSetResult);
+        return DF_RETURN_SUCCESS;
+    }
+
+    ActiveDesktop = DisplaySessionGetActiveDesktop();
+    if (ActiveDesktop != NULL) {
+        (void)DisplaySessionSetDesktopMode(ActiveDesktop, GraphicsDriver, &ModeInfo);
+    }
+
+    ActiveBackendName = GraphicsSelectorGetActiveBackendName();
+    if (ActiveBackendName != NULL && StringLength(ActiveBackendName) != 0) {
+        ConsolePrint(TEXT("gfx: backend=%s mode=%ux%ux%u\n"),
+            ActiveBackendName,
+            ModeInfo.Width,
+            ModeInfo.Height,
+            ModeInfo.BitsPerPixel);
+    } else {
+        ConsolePrint(TEXT("gfx: mode=%ux%ux%u\n"),
+            ModeInfo.Width,
+            ModeInfo.Height,
+            ModeInfo.BitsPerPixel);
+    }
 
     return DF_RETURN_SUCCESS;
 }

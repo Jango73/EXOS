@@ -23,6 +23,7 @@
 
 #include "GFX.h"
 
+#include "CoreString.h"
 #include "DriverGetters.h"
 #include "Log.h"
 
@@ -45,6 +46,7 @@ typedef struct tag_GRAPHICS_SELECTOR_STATE {
 
 static UINT GraphicsSelectorCommands(UINT Function, UINT Parameter);
 static UINT GraphicsSelectorBackendPriority(LPDRIVER Driver);
+static UINT GraphicsSelectorLoad(void);
 
 static DRIVER DATA_SECTION GraphicsSelectorDriver = {
     .TypeID = KOID_DRIVER,
@@ -91,6 +93,104 @@ static BOOL GraphicsSelectorIsBooleanTextCommand(UINT Function) {
  */
 LPDRIVER GraphicsSelectorGetDriver(void) {
     return &GraphicsSelectorDriver;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Match one backend against a shell-facing backend selector name.
+ * @param Driver Candidate backend.
+ * @param Name Requested backend name.
+ * @return TRUE if this backend matches the requested name.
+ */
+static BOOL GraphicsSelectorBackendMatchesName(LPDRIVER Driver, LPCSTR Name) {
+    if (Driver == NULL || Name == NULL || StringLength(Name) == 0) {
+        return FALSE;
+    }
+
+    if (Driver == IntelGfxGetDriver()) {
+        if (StringCompareNC(Name, TEXT("igpu")) == 0 ||
+            StringCompareNC(Name, TEXT("intel")) == 0) {
+            return TRUE;
+        }
+    }
+
+    if (Driver == GOPGetDriver()) {
+        if (StringCompareNC(Name, TEXT("gop")) == 0) {
+            return TRUE;
+        }
+    }
+
+    if (Driver == VESAGetDriver()) {
+        if (StringCompareNC(Name, TEXT("vesa")) == 0) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Force active backend by name among loaded selector candidates.
+ * @param Name Backend selector name (`igpu`, `intel`, `gop`, `vesa`).
+ * @return TRUE when backend exists and becomes active.
+ */
+BOOL GraphicsSelectorForceBackendByName(LPCSTR Name) {
+    UINT Index = 0;
+
+    if (Name == NULL || StringLength(Name) == 0) {
+        return FALSE;
+    }
+
+    if ((GraphicsSelectorDriver.Flags & DRIVER_FLAG_READY) == 0) {
+        if (GraphicsSelectorLoad() != DF_RETURN_SUCCESS) {
+            return FALSE;
+        }
+    }
+
+    for (Index = 0; Index < GraphicsSelectorState.BackendCount; Index++) {
+        LPDRIVER Driver = GraphicsSelectorState.Backends[Index];
+
+        if (!GraphicsSelectorBackendMatchesName(Driver, Name)) {
+            continue;
+        }
+
+        GraphicsSelectorState.ActiveIndex = Index;
+        DEBUG(TEXT("[GraphicsSelectorForceBackendByName] Active backend forced to %s (index=%u)"),
+            Driver->Product,
+            Index);
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Return active backend product name.
+ * @return Active backend product name, or empty string if unavailable.
+ */
+LPCSTR GraphicsSelectorGetActiveBackendName(void) {
+    if ((GraphicsSelectorDriver.Flags & DRIVER_FLAG_READY) == 0) {
+        return TEXT("");
+    }
+
+    if (GraphicsSelectorState.BackendCount == 0) {
+        return TEXT("");
+    }
+
+    if (GraphicsSelectorState.ActiveIndex >= GraphicsSelectorState.BackendCount) {
+        return TEXT("");
+    }
+
+    SAFE_USE(GraphicsSelectorState.Backends[GraphicsSelectorState.ActiveIndex]) {
+        return GraphicsSelectorState.Backends[GraphicsSelectorState.ActiveIndex]->Product;
+    }
+
+    return TEXT("");
 }
 
 /************************************************************************/

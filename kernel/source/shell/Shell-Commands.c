@@ -51,6 +51,7 @@ SHELL_COMMAND_ENTRY COMMANDS[] = {
     {"fs", "file_system", "[--long]", CMD_filesystem},
     {"net", "network", "devices", CMD_network},
     {"pic", "pic", "", CMD_pic},
+    {"gfx", "gfx", "driver WidthxHeightxBitsPerPixel", CMD_gfx},
     {"gfx_smoke", "gfx_smoke", "[DurationMilliseconds]", CMD_gfxsmoke},
     {"outp", "outp", "", CMD_outp},
     {"inp", "inp", "", CMD_inp},
