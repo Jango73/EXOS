@@ -176,3 +176,51 @@
   - Leverage existing TCP/IP implementation
   - Support for HTTP redirects and error responses
   - Resume capability for interrupted downloads
+
+## IPv6
+- [ ] IPv6 base layer
+  - Parse and validate IPv6 fixed header (version, payload length, next header, hop limit)
+  - Add per-device IPv6 context (link-local, global, prefix, default router, DNS)
+  - Add IPv6 protocol registration and dispatch (`58 = ICMPv6`, `6 = TCP`, `17 = UDP`)
+  - Add MTU-aware send path and enforce minimum link MTU rules
+- [ ] IPv6 extension headers
+  - Parse Hop-by-Hop Options, Routing, Fragment, and Destination Options headers
+  - Validate extension-header chain length and reject malformed loops
+  - Ignore unsupported options safely according to action bits
+- [ ] Neighbor Discovery (ICMPv6)
+  - Implement Neighbor Solicitation and Neighbor Advertisement
+  - Implement Router Solicitation and Router Advertisement processing
+  - Maintain neighbor cache with reachability states and expiration
+  - Implement Duplicate Address Detection for assigned addresses
+  - Implement Neighbor Unreachability Detection probes
+- [ ] IPv6 address configuration
+  - Generate link-local address (`fe80::/64`) from interface identifier
+  - Stateless Address Autoconfiguration from Router Advertisement prefixes
+  - Default router selection and on-link prefix table management
+  - Support static IPv6 configuration from configuration file
+- [ ] DHCPv6 client (stateful mode)
+  - SOLICIT, ADVERTISE, REQUEST, REPLY flow
+  - Renew/Rebind timers and lease tracking
+  - DNS server option handling
+- [ ] ICMPv6 core
+  - Echo Request and Echo Reply (ping)
+  - Packet Too Big handling to support path MTU discovery
+  - Time Exceeded and Parameter Problem error processing
+  - Mandatory ICMPv6 checksum validation
+- [ ] UDP and TCP over IPv6
+  - IPv6 pseudo-header checksum support in UDP and TCP
+  - Dual-stack protocol handlers (separate IPv4 and IPv6 receive paths)
+  - Fragment reassembly support for upper-layer delivery
+- [ ] Socket API and userland integration
+  - `AF_INET6` support in kernel socket layer and runtime wrappers
+  - `sockaddr_in6`, bind/connect/sendto/recvfrom, getpeername/getsockname
+  - IPv6-only and dual-stack socket behavior controls
+  - Text IPv6 parsing/formatting in shell and system utilities
+- [ ] Security and filtering
+  - IPv6 input validation and basic anti-spoof checks
+  - Rate limiting for Neighbor Discovery and ICMPv6 control traffic
+  - Packet filtering hooks for IPv6 paths
+- [ ] IPv6 tests and smoke coverage
+  - Unit tests for header parsing, checksums, and extension header decoding
+  - Autotests for Neighbor Discovery, Router Advertisement, and Stateless Address Autoconfiguration
+  - End-to-end smoke test with ping, UDP datagrams, TCP connection, and HTTP download over IPv6
