@@ -750,6 +750,7 @@ The VESA driver requests VBE modes in linear frame buffer mode (INT 10h 4F02h, b
 Text rendering commands are also part of the graphics contract (`TEXT_PUTCELL`, `TEXT_CLEAR_REGION`, `TEXT_SCROLL_REGION`, `TEXT_SET_CURSOR`, `TEXT_SET_CURSOR_VISIBLE`). This path allows console text operations to be dispatched through the active graphics backend.
 
 Graphics backend selection is handled by `kernel/source/drivers/graphics/Graphics-Selector.c`. The selector loads graphics backends, keeps only active/usable ones, scores their capabilities, and forwards `DF_GFX_*` calls to the selected backend. This provides deterministic fallback behavior without hardcoding a single backend in desktop code.
+Display-class PCI fallback attach logic is implemented in `kernel/source/drivers/graphics/Graphics-PCI.c`; the PCI bus layer registers this graphics-provided attach driver during PCI initialization so generic display controllers remain visible in the PCI device list.
 
 `kernel/source/drivers/graphics/VGA-Main.c` exposes a dedicated VGA text driver (`alias: vga`) implementing mode enumeration and text mode set through the same `DF_GFX_*` contract (`ENUMMODES`, `GETMODEINFO`, `SETMODE`).
 

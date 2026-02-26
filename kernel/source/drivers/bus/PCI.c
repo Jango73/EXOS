@@ -29,6 +29,7 @@
 #include "Log.h"
 #include "CoreString.h"
 #include "DriverEnum.h"
+#include "drivers/graphics/Graphics-PCI.h"
 #include "drivers/network/E1000.h"
 #include "drivers/usb/XHCI.h"
 #include "User.h"
@@ -52,8 +53,6 @@ static void PciFillFunctionInfo(U8 Bus, U8 Device, U8 Function, PCI_INFO* PciInf
 static void PciDecodeBARs(const PCI_INFO* PciInfo, PCI_DEVICE* PciDevice);
 static U32 PCI_EnumNext(LPDRIVER_ENUM_NEXT Next);
 static U32 PCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty);
-static UINT PCIDisplayAttachProbe(UINT Function, UINT Parameter);
-static LPPCI_DEVICE PCIDisplayAttach(LPPCI_DEVICE PciDevice);
 
 /***************************************************************************/
 // Registered PCI drivers
@@ -62,29 +61,6 @@ static LPPCI_DEVICE PCIDisplayAttach(LPPCI_DEVICE PciDevice);
 
 static LPPCI_DRIVER DATA_SECTION PciDriverTable[PCI_MAX_REGISTERED_DRIVERS];
 static U32 DATA_SECTION PciDriverCount = 0;
-
-static const DRIVER_MATCH PCIDisplayAttachMatches[] = {
-    {PCI_ANY_ID, PCI_ANY_ID, PCI_CLASS_DISPLAY, PCI_ANY_CLASS, PCI_ANY_CLASS}
-};
-
-static PCI_DRIVER DATA_SECTION PCIDisplayAttachDriver = {
-    .TypeID = KOID_DRIVER,
-    .References = 1,
-    .Next = NULL,
-    .Prev = NULL,
-    .Type = DRIVER_TYPE_INIT,
-    .VersionMajor = 1,
-    .VersionMinor = 0,
-    .Designer = "Jango73",
-    .Manufacturer = "EXOS",
-    .Product = "PCI Display Attach",
-    .Alias = "pci_display_attach",
-    .Flags = 0,
-    .Command = PCIDisplayAttachProbe,
-    .Matches = PCIDisplayAttachMatches,
-    .MatchCount = sizeof(PCIDisplayAttachMatches) / sizeof(PCIDisplayAttachMatches[0]),
-    .Attach = PCIDisplayAttach
-};
 
 /***************************************************************************/
 
@@ -669,7 +645,7 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
             PCI_RegisterDriver(&AHCIPCIDriver);
             PCI_RegisterDriver(&NVMePCIDriver);
             PCI_RegisterDriver(&XHCIDriver);
-            PCI_RegisterDriver(&PCIDisplayAttachDriver);
+            PCI_RegisterDriver(GraphicsPCIGetDisplayAttachDriver());
             PCI_ScanBus();
 
             PCIDriver.Flags |= DRIVER_FLAG_READY;
@@ -694,66 +670,6 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
 
     return DF_RETURN_NOT_IMPLEMENTED;
 }
-
-/************************************************************************/
-
-/**
- * @brief Probe callback used to attach generic PCI display devices.
- *
- * @param Function Driver callback function identifier.
- * @param Parameter Optional probe parameter.
- * @return DF_RETURN_SUCCESS for display-class devices, DF_RETURN_NOT_IMPLEMENTED otherwise.
- */
-static UINT PCIDisplayAttachProbe(UINT Function, UINT Parameter) {
-    LPPCI_INFO PciInfo = NULL;
-
-    if (Function != DF_PROBE) {
-        return DF_RETURN_NOT_IMPLEMENTED;
-    }
-
-    PciInfo = (LPPCI_INFO)(LPVOID)Parameter;
-    SAFE_USE(PciInfo) {
-        if (PciInfo->BaseClass == PCI_CLASS_DISPLAY) {
-            return DF_RETURN_SUCCESS;
-        }
-    }
-
-    return DF_RETURN_NOT_IMPLEMENTED;
-}
-
-/************************************************************************/
-
-/**
- * @brief Attach callback for generic PCI display devices.
- *
- * Keeps display controllers visible in the kernel PCI device list so
- * graphics backends can discover them.
- *
- * @param PciDevice Stack-built PCI device descriptor from bus scan.
- * @return Heap-allocated PCI device descriptor or NULL on allocation failure.
- */
-static LPPCI_DEVICE PCIDisplayAttach(LPPCI_DEVICE PciDevice) {
-    LPPCI_DEVICE Device = NULL;
-
-    if (PciDevice == NULL) {
-        return NULL;
-    }
-
-    Device = (LPPCI_DEVICE)KernelHeapAlloc(sizeof(PCI_DEVICE));
-    if (Device == NULL) {
-        return NULL;
-    }
-
-    MemoryCopy(Device, PciDevice, sizeof(PCI_DEVICE));
-    Device->TypeID = KOID_PCIDEVICE;
-    Device->References = 1;
-    Device->Next = NULL;
-    Device->Prev = NULL;
-
-    return Device;
-}
-
-/************************************************************************/
 
 /**
  * @brief Top-level PCI interrupt handler.
