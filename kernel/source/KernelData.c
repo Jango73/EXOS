@@ -463,6 +463,10 @@ void InitializeDriverList(void) {
     RegisterDriver(VGAGetDriver(), TRUE);
     RegisterDriver(GraphicsSelectorGetDriver(), TRUE);
 
+    RegisterDriver(E1000GetDriver(), FALSE);
+    RegisterDriver(AHCIPCIGetDriver(), FALSE);
+    RegisterDriver(NVMeGetDriver(), FALSE);
+    RegisterDriver(XHCIGetDriver(), FALSE);
     RegisterDriver(IntelGfxGetDriver(), FALSE);
     RegisterDriver(GOPGetDriver(), FALSE);
     RegisterDriver(VESAGetDriver(), FALSE);

@@ -203,6 +203,16 @@ PCI_DRIVER DATA_SECTION E1000Driver = {
     .Attach = E1000_Attach};
 
 /************************************************************************/
+
+/**
+ * @brief Retrieves the E1000 PCI driver descriptor.
+ * @return Pointer to the E1000 PCI driver.
+ */
+LPDRIVER E1000GetDriver(void) {
+    return (LPDRIVER)&E1000Driver;
+}
+
+/************************************************************************/
 // Small busy wait
 
 /**

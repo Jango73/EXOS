@@ -171,6 +171,16 @@ PCI_DRIVER DATA_SECTION AHCIPCIDriver = {
 /***************************************************************************/
 
 /**
+ * @brief Retrieves the AHCI PCI driver descriptor.
+ * @return Pointer to the AHCI PCI driver.
+ */
+LPDRIVER AHCIPCIGetDriver(void) {
+    return (LPDRIVER)&AHCIPCIDriver;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Retrieves the SATA disk driver descriptor.
  * @return Pointer to the SATA disk driver.
  */

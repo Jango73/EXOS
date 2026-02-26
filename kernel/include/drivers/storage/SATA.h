@@ -438,6 +438,11 @@ typedef struct tag_AHCI_FIS {
 
 /***************************************************************************/
 
+LPDRIVER AHCIPCIGetDriver(void);
+LPDRIVER SATADiskGetDriver(void);
+
+/***************************************************************************/
+
 #pragma pack(pop)
 
 #endif  // SATA_H_INCLUDED

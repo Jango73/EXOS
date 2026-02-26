@@ -34,7 +34,7 @@ static const DRIVER_MATCH GraphicsPCIDisplayAttachMatches[] = {
     {PCI_ANY_ID, PCI_ANY_ID, PCI_CLASS_DISPLAY, PCI_ANY_CLASS, PCI_ANY_CLASS}
 };
 
-static PCI_DRIVER DATA_SECTION GraphicsPCIDisplayAttachDriver = {
+static PCI_DRIVER DATA_SECTION GraphicsPCIDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
     .Next = NULL,
@@ -60,7 +60,7 @@ static PCI_DRIVER DATA_SECTION GraphicsPCIDisplayAttachDriver = {
  * @return PCI attach driver used to surface generic display devices.
  */
 LPPCI_DRIVER GraphicsPCIGetDisplayAttachDriver(void) {
-    return &GraphicsPCIDisplayAttachDriver;
+    return &GraphicsPCIDriver;
 }
 
 /************************************************************************/

@@ -1554,3 +1554,13 @@ PCI_DRIVER DATA_SECTION XHCIDriver = {
     .MatchCount = sizeof(XHCI_MatchTable) / sizeof(XHCI_MatchTable[0]),
     .Attach = XHCI_Attach
 };
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the xHCI driver descriptor.
+ * @return Pointer to xHCI driver descriptor.
+ */
+LPDRIVER XHCIGetDriver(void) {
+    return (LPDRIVER)&XHCIDriver;
+}

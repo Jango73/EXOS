@@ -64,6 +64,16 @@ PCI_DRIVER DATA_SECTION NVMePCIDriver = {
 /************************************************************************/
 
 /**
+ * @brief Retrieves the NVMe PCI driver descriptor.
+ * @return Pointer to the NVMe PCI driver.
+ */
+LPDRIVER NVMeGetDriver(void) {
+    return (LPDRIVER)&NVMePCIDriver;
+}
+
+/************************************************************************/
+
+/**
  * @brief Driver command handler.
  * @param Function Function identifier.
  * @param Param Function parameter.
