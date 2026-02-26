@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "GFX.h"
+#include "Clock.h"
 #include "KernelData.h"
 #include "Log.h"
 #include "Memory.h"
@@ -49,6 +50,24 @@
 #define INTEL_REG_PIPE_A_SRC 0x6001C
 #define INTEL_REG_PIPE_B_SRC 0x6101C
 #define INTEL_REG_PIPE_C_SRC 0x6201C
+#define INTEL_REG_PIPE_A_HTOTAL 0x60000
+#define INTEL_REG_PIPE_B_HTOTAL 0x61000
+#define INTEL_REG_PIPE_C_HTOTAL 0x62000
+#define INTEL_REG_PIPE_A_HBLANK 0x60004
+#define INTEL_REG_PIPE_B_HBLANK 0x61004
+#define INTEL_REG_PIPE_C_HBLANK 0x62004
+#define INTEL_REG_PIPE_A_HSYNC 0x60008
+#define INTEL_REG_PIPE_B_HSYNC 0x61008
+#define INTEL_REG_PIPE_C_HSYNC 0x62008
+#define INTEL_REG_PIPE_A_VTOTAL 0x6000C
+#define INTEL_REG_PIPE_B_VTOTAL 0x6100C
+#define INTEL_REG_PIPE_C_VTOTAL 0x6200C
+#define INTEL_REG_PIPE_A_VBLANK 0x60010
+#define INTEL_REG_PIPE_B_VBLANK 0x61010
+#define INTEL_REG_PIPE_C_VBLANK 0x62010
+#define INTEL_REG_PIPE_A_VSYNC 0x60014
+#define INTEL_REG_PIPE_B_VSYNC 0x61014
+#define INTEL_REG_PIPE_C_VSYNC 0x62014
 #define INTEL_REG_PLANE_A_CTL 0x70180
 #define INTEL_REG_PLANE_B_CTL 0x71180
 #define INTEL_REG_PLANE_C_CTL 0x72180
@@ -68,6 +87,10 @@
 #define INTEL_PLANE_CTL_ENABLE (1 << 31)
 #define INTEL_PLANE_CTL_FORMAT_MASK (0x0F << 24)
 #define INTEL_SURFACE_ALIGN_MASK 0xFFFFF000
+#define INTEL_PLANE_CTL_FORMAT_XRGB8888 (0x04 << 24)
+#define INTEL_MODESET_LOOP_LIMIT 50000
+#define INTEL_MODESET_TIMEOUT_MILLISECONDS 50
+#define INTEL_DEFAULT_REFRESH_RATE 60
 
 /************************************************************************/
 
@@ -200,6 +223,41 @@ typedef struct tag_INTEL_GFX_STATE {
 
 /************************************************************************/
 
+typedef struct tag_INTEL_GFX_MODE_PROGRAM {
+    U32 PipeIndex;
+    U32 Width;
+    U32 Height;
+    U32 BitsPerPixel;
+    U32 RefreshRate;
+    U32 PipeConf;
+    U32 PipeSource;
+    U32 PipeHTotal;
+    U32 PipeHBlank;
+    U32 PipeHSync;
+    U32 PipeVTotal;
+    U32 PipeVBlank;
+    U32 PipeVSync;
+    U32 PlaneControl;
+    U32 PlaneStride;
+    U32 PlaneSurface;
+} INTEL_GFX_MODE_PROGRAM, *LPINTEL_GFX_MODE_PROGRAM;
+
+/************************************************************************/
+
+static const U32 IntelPipeConfRegisters[] = {INTEL_REG_PIPE_A_CONF, INTEL_REG_PIPE_B_CONF, INTEL_REG_PIPE_C_CONF};
+static const U32 IntelPipeSourceRegisters[] = {INTEL_REG_PIPE_A_SRC, INTEL_REG_PIPE_B_SRC, INTEL_REG_PIPE_C_SRC};
+static const U32 IntelPipeHTotalRegisters[] = {INTEL_REG_PIPE_A_HTOTAL, INTEL_REG_PIPE_B_HTOTAL, INTEL_REG_PIPE_C_HTOTAL};
+static const U32 IntelPipeHBlankRegisters[] = {INTEL_REG_PIPE_A_HBLANK, INTEL_REG_PIPE_B_HBLANK, INTEL_REG_PIPE_C_HBLANK};
+static const U32 IntelPipeHSyncRegisters[] = {INTEL_REG_PIPE_A_HSYNC, INTEL_REG_PIPE_B_HSYNC, INTEL_REG_PIPE_C_HSYNC};
+static const U32 IntelPipeVTotalRegisters[] = {INTEL_REG_PIPE_A_VTOTAL, INTEL_REG_PIPE_B_VTOTAL, INTEL_REG_PIPE_C_VTOTAL};
+static const U32 IntelPipeVBlankRegisters[] = {INTEL_REG_PIPE_A_VBLANK, INTEL_REG_PIPE_B_VBLANK, INTEL_REG_PIPE_C_VBLANK};
+static const U32 IntelPipeVSyncRegisters[] = {INTEL_REG_PIPE_A_VSYNC, INTEL_REG_PIPE_B_VSYNC, INTEL_REG_PIPE_C_VSYNC};
+static const U32 IntelPlaneControlRegisters[] = {INTEL_REG_PLANE_A_CTL, INTEL_REG_PLANE_B_CTL, INTEL_REG_PLANE_C_CTL};
+static const U32 IntelPlaneStrideRegisters[] = {INTEL_REG_PLANE_A_STRIDE, INTEL_REG_PLANE_B_STRIDE, INTEL_REG_PLANE_C_STRIDE};
+static const U32 IntelPlaneSurfaceRegisters[] = {INTEL_REG_PLANE_A_SURF, INTEL_REG_PLANE_B_SURF, INTEL_REG_PLANE_C_SURF};
+
+/************************************************************************/
+
 static UINT IntelGfxCommands(UINT Function, UINT Param);
 
 static DRIVER DATA_SECTION IntelGfxDriver = {
@@ -283,6 +341,27 @@ static BOOL IntelGfxReadMmio32(U32 Offset, U32* ValueOut) {
     }
 
     *ValueOut = *((volatile U32*)((U8*)(LINEAR)IntelGfxState.MmioBase + Offset));
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Write a 32-bit MMIO register in Intel graphics BAR.
+ * @param Offset Register offset.
+ * @param Value Register value.
+ * @return TRUE on success, FALSE otherwise.
+ */
+static BOOL IntelGfxWriteMmio32(U32 Offset, U32 Value) {
+    if (IntelGfxState.MmioBase == 0 || IntelGfxState.MmioSize < sizeof(U32)) {
+        return FALSE;
+    }
+
+    if (Offset > IntelGfxState.MmioSize - sizeof(U32)) {
+        return FALSE;
+    }
+
+    *((volatile U32*)((U8*)(LINEAR)IntelGfxState.MmioBase + Offset)) = Value;
     return TRUE;
 }
 
@@ -465,14 +544,9 @@ static U32 IntelGfxResolveBitsPerPixel(U32 PlaneControlValue) {
  * @return TRUE when an active pipe/plane was found and parsed.
  */
 static BOOL IntelGfxReadActiveScanoutState(void) {
-    static const U32 PipeConfRegisters[] = {INTEL_REG_PIPE_A_CONF, INTEL_REG_PIPE_B_CONF, INTEL_REG_PIPE_C_CONF};
-    static const U32 PipeSrcRegisters[] = {INTEL_REG_PIPE_A_SRC, INTEL_REG_PIPE_B_SRC, INTEL_REG_PIPE_C_SRC};
-    static const U32 PlaneControlRegisters[] = {INTEL_REG_PLANE_A_CTL, INTEL_REG_PLANE_B_CTL, INTEL_REG_PLANE_C_CTL};
-    static const U32 PlaneStrideRegisters[] = {INTEL_REG_PLANE_A_STRIDE, INTEL_REG_PLANE_B_STRIDE, INTEL_REG_PLANE_C_STRIDE};
-    static const U32 PlaneSurfaceRegisters[] = {INTEL_REG_PLANE_A_SURF, INTEL_REG_PLANE_B_SURF, INTEL_REG_PLANE_C_SURF};
     U32 Index = 0;
 
-    for (Index = 0; Index < sizeof(PipeConfRegisters) / sizeof(PipeConfRegisters[0]); Index++) {
+    for (Index = 0; Index < sizeof(IntelPipeConfRegisters) / sizeof(IntelPipeConfRegisters[0]); Index++) {
         U32 PipeConf = 0;
         U32 PipeSrc = 0;
         U32 PlaneControl = 0;
@@ -483,15 +557,15 @@ static BOOL IntelGfxReadActiveScanoutState(void) {
         U32 BitsPerPixel = 0;
         U32 Stride = 0;
 
-        if (!IntelGfxReadMmio32(PipeConfRegisters[Index], &PipeConf)) continue;
+        if (!IntelGfxReadMmio32(IntelPipeConfRegisters[Index], &PipeConf)) continue;
         if ((PipeConf & INTEL_PIPE_CONF_ENABLE) == 0) continue;
 
-        if (!IntelGfxReadMmio32(PlaneControlRegisters[Index], &PlaneControl)) continue;
+        if (!IntelGfxReadMmio32(IntelPlaneControlRegisters[Index], &PlaneControl)) continue;
         if ((PlaneControl & INTEL_PLANE_CTL_ENABLE) == 0) continue;
 
-        if (!IntelGfxReadMmio32(PipeSrcRegisters[Index], &PipeSrc)) continue;
-        if (!IntelGfxReadMmio32(PlaneStrideRegisters[Index], &PlaneStride)) continue;
-        if (!IntelGfxReadMmio32(PlaneSurfaceRegisters[Index], &PlaneSurface)) continue;
+        if (!IntelGfxReadMmio32(IntelPipeSourceRegisters[Index], &PipeSrc)) continue;
+        if (!IntelGfxReadMmio32(IntelPlaneStrideRegisters[Index], &PlaneStride)) continue;
+        if (!IntelGfxReadMmio32(IntelPlaneSurfaceRegisters[Index], &PlaneSurface)) continue;
 
         Width = (PipeSrc & 0x1FFF) + 1;
         Height = ((PipeSrc >> 16) & 0x1FFF) + 1;
@@ -515,6 +589,264 @@ static BOOL IntelGfxReadActiveScanoutState(void) {
     }
 
     return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read conservative mode programming values for one pipe.
+ * @param PipeIndex Pipe index (A/B/C mapped to 0/1/2).
+ * @param ProgramOut Receives mode programming values.
+ * @return TRUE on success, FALSE otherwise.
+ */
+static BOOL IntelGfxReadModeProgram(U32 PipeIndex, LPINTEL_GFX_MODE_PROGRAM ProgramOut) {
+    if (ProgramOut == NULL || PipeIndex >= sizeof(IntelPipeConfRegisters) / sizeof(IntelPipeConfRegisters[0])) {
+        return FALSE;
+    }
+
+    ProgramOut->PipeIndex = PipeIndex;
+    ProgramOut->Width = IntelGfxState.ActiveWidth;
+    ProgramOut->Height = IntelGfxState.ActiveHeight;
+    ProgramOut->BitsPerPixel = IntelGfxState.ActiveBitsPerPixel;
+    ProgramOut->RefreshRate = INTEL_DEFAULT_REFRESH_RATE;
+
+    return IntelGfxReadMmio32(IntelPipeConfRegisters[PipeIndex], &ProgramOut->PipeConf) &&
+           IntelGfxReadMmio32(IntelPipeSourceRegisters[PipeIndex], &ProgramOut->PipeSource) &&
+           IntelGfxReadMmio32(IntelPipeHTotalRegisters[PipeIndex], &ProgramOut->PipeHTotal) &&
+           IntelGfxReadMmio32(IntelPipeHBlankRegisters[PipeIndex], &ProgramOut->PipeHBlank) &&
+           IntelGfxReadMmio32(IntelPipeHSyncRegisters[PipeIndex], &ProgramOut->PipeHSync) &&
+           IntelGfxReadMmio32(IntelPipeVTotalRegisters[PipeIndex], &ProgramOut->PipeVTotal) &&
+           IntelGfxReadMmio32(IntelPipeVBlankRegisters[PipeIndex], &ProgramOut->PipeVBlank) &&
+           IntelGfxReadMmio32(IntelPipeVSyncRegisters[PipeIndex], &ProgramOut->PipeVSync) &&
+           IntelGfxReadMmio32(IntelPlaneControlRegisters[PipeIndex], &ProgramOut->PlaneControl) &&
+           IntelGfxReadMmio32(IntelPlaneStrideRegisters[PipeIndex], &ProgramOut->PlaneStride) &&
+           IntelGfxReadMmio32(IntelPlaneSurfaceRegisters[PipeIndex], &ProgramOut->PlaneSurface);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Wait for pipe enable state change completion.
+ * @param PipeIndex Target pipe.
+ * @param EnabledExpected Expected enable state.
+ * @return TRUE if expected state observed, FALSE on timeout/read error.
+ */
+static BOOL IntelGfxWaitPipeState(U32 PipeIndex, BOOL EnabledExpected) {
+    UINT StartTime = GetSystemTime();
+    UINT Loop = 0;
+
+    if (PipeIndex >= sizeof(IntelPipeConfRegisters) / sizeof(IntelPipeConfRegisters[0])) {
+        return FALSE;
+    }
+
+    for (Loop = 0; HasOperationTimedOut(StartTime, Loop, INTEL_MODESET_LOOP_LIMIT, INTEL_MODESET_TIMEOUT_MILLISECONDS) == FALSE; Loop++) {
+        U32 PipeConf = 0;
+        BOOL Enabled = FALSE;
+
+        if (!IntelGfxReadMmio32(IntelPipeConfRegisters[PipeIndex], &PipeConf)) {
+            return FALSE;
+        }
+
+        Enabled = (PipeConf & INTEL_PIPE_CONF_ENABLE) ? TRUE : FALSE;
+        if (Enabled == EnabledExpected) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Disable active plane and pipe before reprogramming.
+ * @param PipeIndex Target pipe index.
+ * @return DF_RETURN_SUCCESS on success.
+ */
+static UINT IntelGfxDisablePipe(U32 PipeIndex) {
+    U32 PlaneControl = 0;
+    U32 PipeConf = 0;
+
+    if (PipeIndex >= sizeof(IntelPipeConfRegisters) / sizeof(IntelPipeConfRegisters[0])) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    if (!IntelGfxReadMmio32(IntelPlaneControlRegisters[PipeIndex], &PlaneControl)) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    PlaneControl &= ~INTEL_PLANE_CTL_ENABLE;
+    if (!IntelGfxWriteMmio32(IntelPlaneControlRegisters[PipeIndex], PlaneControl)) {
+        return DF_RETURN_UNEXPECTED;
+    }
+    (void)IntelGfxReadMmio32(IntelPlaneControlRegisters[PipeIndex], &PlaneControl);
+
+    if (!IntelGfxReadMmio32(IntelPipeConfRegisters[PipeIndex], &PipeConf)) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    PipeConf &= ~INTEL_PIPE_CONF_ENABLE;
+    if (!IntelGfxWriteMmio32(IntelPipeConfRegisters[PipeIndex], PipeConf)) {
+        return DF_RETURN_UNEXPECTED;
+    }
+    (void)IntelGfxReadMmio32(IntelPipeConfRegisters[PipeIndex], &PipeConf);
+
+    if (!IntelGfxWaitPipeState(PipeIndex, FALSE)) {
+        ERROR(TEXT("[IntelGfxDisablePipe] Pipe=%u disable timeout"), PipeIndex);
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Program one conservative native mode and re-enable pipe.
+ * @param Program Program description.
+ * @return DF_RETURN_SUCCESS on success.
+ */
+static UINT IntelGfxEnablePipe(LPINTEL_GFX_MODE_PROGRAM Program) {
+    U32 PipeConf = 0;
+    U32 PlaneControl = 0;
+    U32 PipeIndex = 0;
+
+    if (Program == NULL) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    PipeIndex = Program->PipeIndex;
+    if (PipeIndex >= sizeof(IntelPipeConfRegisters) / sizeof(IntelPipeConfRegisters[0])) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    if (!IntelGfxWriteMmio32(IntelPipeHTotalRegisters[PipeIndex], Program->PipeHTotal) ||
+        !IntelGfxWriteMmio32(IntelPipeHBlankRegisters[PipeIndex], Program->PipeHBlank) ||
+        !IntelGfxWriteMmio32(IntelPipeHSyncRegisters[PipeIndex], Program->PipeHSync) ||
+        !IntelGfxWriteMmio32(IntelPipeVTotalRegisters[PipeIndex], Program->PipeVTotal) ||
+        !IntelGfxWriteMmio32(IntelPipeVBlankRegisters[PipeIndex], Program->PipeVBlank) ||
+        !IntelGfxWriteMmio32(IntelPipeVSyncRegisters[PipeIndex], Program->PipeVSync) ||
+        !IntelGfxWriteMmio32(IntelPipeSourceRegisters[PipeIndex], Program->PipeSource) ||
+        !IntelGfxWriteMmio32(IntelPlaneStrideRegisters[PipeIndex], Program->PlaneStride) ||
+        !IntelGfxWriteMmio32(IntelPlaneSurfaceRegisters[PipeIndex], Program->PlaneSurface)) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    PipeConf = Program->PipeConf | INTEL_PIPE_CONF_ENABLE;
+    if (!IntelGfxWriteMmio32(IntelPipeConfRegisters[PipeIndex], PipeConf)) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    PlaneControl = Program->PlaneControl;
+    PlaneControl &= ~INTEL_PLANE_CTL_FORMAT_MASK;
+    PlaneControl |= INTEL_PLANE_CTL_FORMAT_XRGB8888;
+    PlaneControl |= INTEL_PLANE_CTL_ENABLE;
+    if (!IntelGfxWriteMmio32(IntelPlaneControlRegisters[PipeIndex], PlaneControl)) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    if (!IntelGfxWaitPipeState(PipeIndex, TRUE)) {
+        ERROR(TEXT("[IntelGfxEnablePipe] Pipe=%u enable timeout"), PipeIndex);
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Validate one conservative SETMODE request against Intel capabilities.
+ * @param Info Requested mode description.
+ * @param ProgramOut Receives programmed values.
+ * @return DF_RETURN_SUCCESS on success, otherwise a graphics error code.
+ */
+static UINT IntelGfxBuildModeProgram(LPGRAPHICSMODEINFO Info, LPINTEL_GFX_MODE_PROGRAM ProgramOut) {
+    U32 RequestedWidth = 0;
+    U32 RequestedHeight = 0;
+    U32 RequestedBitsPerPixel = 0;
+
+    if (Info == NULL || ProgramOut == NULL) {
+        return DF_RETURN_GENERIC;
+    }
+
+    RequestedWidth = Info->Width ? Info->Width : IntelGfxState.ActiveWidth;
+    RequestedHeight = Info->Height ? Info->Height : IntelGfxState.ActiveHeight;
+    RequestedBitsPerPixel = Info->BitsPerPixel ? Info->BitsPerPixel : 32;
+
+    if (RequestedWidth == 0 || RequestedHeight == 0) {
+        return DF_GFX_ERROR_MODEUNAVAIL;
+    }
+
+    if (RequestedWidth > IntelGfxState.Capabilities.MaxWidth || RequestedHeight > IntelGfxState.Capabilities.MaxHeight) {
+        WARNING(TEXT("[IntelGfxBuildModeProgram] Requested mode outside capabilities (%ux%u max=%ux%u)"),
+            RequestedWidth,
+            RequestedHeight,
+            IntelGfxState.Capabilities.MaxWidth,
+            IntelGfxState.Capabilities.MaxHeight);
+        return DF_GFX_ERROR_MODEUNAVAIL;
+    }
+
+    if (RequestedBitsPerPixel != 32) {
+        WARNING(TEXT("[IntelGfxBuildModeProgram] Unsupported pixel format bpp=%u"), RequestedBitsPerPixel);
+        return DF_GFX_ERROR_MODEUNAVAIL;
+    }
+
+    if (RequestedWidth != IntelGfxState.ActiveWidth || RequestedHeight != IntelGfxState.ActiveHeight) {
+        WARNING(TEXT("[IntelGfxBuildModeProgram] Conservative path supports active mode only (%ux%u requested=%ux%u)"),
+            IntelGfxState.ActiveWidth,
+            IntelGfxState.ActiveHeight,
+            RequestedWidth,
+            RequestedHeight);
+        return DF_GFX_ERROR_MODEUNAVAIL;
+    }
+
+    if (!IntelGfxReadModeProgram(IntelGfxState.ActivePipeIndex, ProgramOut)) {
+        ERROR(TEXT("[IntelGfxBuildModeProgram] Failed to read active pipe programming"));
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    ProgramOut->Width = RequestedWidth;
+    ProgramOut->Height = RequestedHeight;
+    ProgramOut->BitsPerPixel = RequestedBitsPerPixel;
+    ProgramOut->RefreshRate = INTEL_DEFAULT_REFRESH_RATE;
+    ProgramOut->PipeSource = ((RequestedHeight - 1) << 16) | (RequestedWidth - 1);
+    ProgramOut->PlaneStride = IntelGfxState.ActiveStride;
+    ProgramOut->PlaneSurface = IntelGfxState.ActiveSurfaceOffset & INTEL_SURFACE_ALIGN_MASK;
+    ProgramOut->PlaneControl &= ~INTEL_PLANE_CTL_FORMAT_MASK;
+    ProgramOut->PlaneControl |= INTEL_PLANE_CTL_FORMAT_XRGB8888;
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Apply native conservative modeset on active pipe.
+ * @param Program Program description.
+ * @return DF_RETURN_SUCCESS on success.
+ */
+static UINT IntelGfxProgramMode(LPINTEL_GFX_MODE_PROGRAM Program) {
+    UINT Result = DF_RETURN_SUCCESS;
+
+    Result = IntelGfxDisablePipe(Program->PipeIndex);
+    if (Result != DF_RETURN_SUCCESS) {
+        return Result;
+    }
+
+    Result = IntelGfxEnablePipe(Program);
+    if (Result != DF_RETURN_SUCCESS) {
+        return Result;
+    }
+
+    DEBUG(TEXT("[IntelGfxProgramMode] Pipe=%u Mode=%ux%u bpp=%u refresh=%u"),
+        Program->PipeIndex,
+        Program->Width,
+        Program->Height,
+        Program->BitsPerPixel,
+        Program->RefreshRate);
+
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -890,10 +1222,21 @@ static UINT IntelGfxGetModeInfo(LPGRAPHICSMODEINFO Info) {
  * @return DF_RETURN_SUCCESS on takeover success.
  */
 static UINT IntelGfxSetMode(LPGRAPHICSMODEINFO Info) {
+    INTEL_GFX_MODE_PROGRAM Program;
     UINT Result = 0;
 
     if ((IntelGfxDriver.Flags & DRIVER_FLAG_READY) == 0) {
         return DF_RETURN_UNEXPECTED;
+    }
+
+    Result = IntelGfxBuildModeProgram(Info, &Program);
+    if (Result != DF_RETURN_SUCCESS) {
+        return Result;
+    }
+
+    Result = IntelGfxProgramMode(&Program);
+    if (Result != DF_RETURN_SUCCESS) {
+        return Result;
     }
 
     if (IntelGfxState.FrameBufferLinear != 0 && IntelGfxState.FrameBufferSize != 0) {

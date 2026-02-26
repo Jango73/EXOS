@@ -121,14 +121,18 @@ Deliverable:
 ## Step 5 - Native modeset (controlled expansion)
 After takeover works, add explicit mode programming.
 
-- [ ] Implement mode validation (`width/height/format/refresh` against capabilities).
-- [ ] Implement pipe disable/enable sequence.
-- [ ] Program timings, stride, surface base, pixel format.
+- [x] Implement mode validation (`width/height/format/refresh` against capabilities).
+- [x] Implement pipe disable/enable sequence.
+- [x] Program timings, stride, surface base, pixel format.
 - [ ] Bring panel/backlight handling only where needed for internal panel stability.
-- [ ] Keep one conservative mode path first (for example: one pipe, one output).
+- [x] Keep one conservative mode path first (for example: one pipe, one output).
 
 Deliverable:
 - `DF_GFX_SETMODE` programs Intel display pipeline without firmware fallback.
+
+Status note:
+- Conservative native modeset is implemented in `kernel/source/drivers/graphics/IntelGfx.c` on one active pipe/output.
+- Validation enforces XRGB8888 path and active-mode dimensions while API lacks explicit refresh/format fields in `GRAPHICSMODEINFO`.
 
 ## Step 6 - Buffer management and present model
 Introduce a clean surface model for future growth.
