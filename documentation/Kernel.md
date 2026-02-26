@@ -760,11 +760,11 @@ Display ownership state is tracked through `kernel/source/DisplaySession.c` (`DI
 Frontend transitions are executed through `DisplaySwitchToConsole()` and `DisplaySwitchToDesktop()`, which keep backend ownership active and avoid using `DF_UNLOAD` as a display switching path.
 Emergency text fallback is isolated in `kernel/source/Console-VGATextFallback.c` and is only entered when console front-end activation cannot be completed through the active graphics backend path.
 
-The console supports direct linear framebuffer rendering when Multiboot framebuffer metadata is available:
+Console text output uses backend-dispatched text commands (`kernel/source/Console-TextOps.c`), which route glyph, region, and cursor operations through `DF_GFX_TEXT_*` on the active graphics backend.
 
-- BIOS/MBR path uses VGA text buffer `0xB8000` with text framebuffer metadata.
-- UEFI path uses GOP-provided framebuffer base, pitch, resolution, and RGB layout, with glyph rendering into GOP memory.
-- In framebuffer mode, a software cursor is rendered by inverting the active text cell and restored on each cursor move, so command-line editing keeps a visible caret position.
+- BIOS/MBR path uses VGA text memory metadata for text mode operation.
+- UEFI path uses GOP-provided framebuffer metadata through the selected graphics backend.
+- Emergency fallback remains isolated to `kernel/source/Console-VGATextFallback.c`.
 
 The default font is an in-tree ASCII 8x16 EXOS font and can be replaced through the font API.
 

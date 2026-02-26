@@ -67,10 +67,6 @@ BOOL ConsoleCaptureActiveRegionSnapshot(LPVOID* OutSnapshot) {
     U32 CellBytes;
     U32 CellBytesPerRow;
     U32 RegionOffset;
-    U32 CellWidth;
-    U32 CellHeight;
-    U32 BytesPerPixel;
-    U32 FramebufferOffset;
 
     if (OutSnapshot == NULL) {
         return FALSE;
@@ -115,35 +111,8 @@ BOOL ConsoleCaptureActiveRegionSnapshot(LPVOID* OutSnapshot) {
             Snapshot->IsValid = TRUE;
         }
     } else {
-        if (ConsoleEnsureFramebufferMapped() == TRUE) {
-            CellWidth = ConsoleGetCellWidth();
-            CellHeight = ConsoleGetCellHeight();
-            BytesPerPixel = Console.FramebufferBytesPerPixel;
-
-            if (CellWidth > 0 && CellHeight > 0 && BytesPerPixel > 0) {
-                Snapshot->FramebufferPixelX = Snapshot->RegionX * CellWidth;
-                Snapshot->FramebufferPixelY = Snapshot->RegionY * CellHeight;
-                Snapshot->FramebufferPixelHeight = Snapshot->RegionHeight * CellHeight;
-                Snapshot->FramebufferRowBytes =
-                    (Snapshot->RegionWidth * CellWidth) * BytesPerPixel;
-                Snapshot->FramebufferSize =
-                    Snapshot->FramebufferRowBytes * Snapshot->FramebufferPixelHeight;
-                Snapshot->FramebufferBuffer = (U8*)KernelHeapAlloc(Snapshot->FramebufferSize);
-
-                if (Snapshot->FramebufferBuffer != NULL) {
-                    for (U32 Row = 0; Row < Snapshot->FramebufferPixelHeight; Row++) {
-                        FramebufferOffset =
-                            ((Snapshot->FramebufferPixelY + Row) * Console.FramebufferPitch) +
-                            (Snapshot->FramebufferPixelX * BytesPerPixel);
-                        MemoryCopy(
-                            Snapshot->FramebufferBuffer + (Row * Snapshot->FramebufferRowBytes),
-                            Console.FramebufferLinear + FramebufferOffset,
-                            Snapshot->FramebufferRowBytes);
-                    }
-                    Snapshot->IsValid = TRUE;
-                }
-            }
-        }
+        // Backend text mode has no direct console-owned framebuffer snapshot.
+        Snapshot->IsValid = FALSE;
     }
 
     UnlockMutex(MUTEX_CONSOLE);
@@ -170,8 +139,6 @@ BOOL ConsoleRestoreActiveRegionSnapshot(LPVOID Snapshot) {
     LPCONSOLE_ACTIVE_REGION_SNAPSHOT State = (LPCONSOLE_ACTIVE_REGION_SNAPSHOT)Snapshot;
     U32 CellBytesPerRow;
     U32 RegionOffset;
-    U32 BytesPerPixel;
-    U32 FramebufferOffset;
 
     if (State == NULL || State->IsValid == FALSE) {
         return FALSE;
@@ -194,29 +161,8 @@ BOOL ConsoleRestoreActiveRegionSnapshot(LPVOID Snapshot) {
                 CellBytesPerRow);
         }
     } else {
-        if (ConsoleEnsureFramebufferMapped() == FALSE) {
-            UnlockMutex(MUTEX_CONSOLE);
-            return FALSE;
-        }
-
-        BytesPerPixel = Console.FramebufferBytesPerPixel;
-        if (State->FramebufferBuffer == NULL ||
-            State->FramebufferRowBytes == 0 ||
-            State->FramebufferPixelHeight == 0 ||
-            BytesPerPixel == 0) {
-            UnlockMutex(MUTEX_CONSOLE);
-            return FALSE;
-        }
-
-        for (U32 Row = 0; Row < State->FramebufferPixelHeight; Row++) {
-            FramebufferOffset =
-                ((State->FramebufferPixelY + Row) * Console.FramebufferPitch) +
-                (State->FramebufferPixelX * BytesPerPixel);
-            MemoryCopy(
-                Console.FramebufferLinear + FramebufferOffset,
-                State->FramebufferBuffer + (Row * State->FramebufferRowBytes),
-                State->FramebufferRowBytes);
-        }
+        UnlockMutex(MUTEX_CONSOLE);
+        return FALSE;
     }
 
     Console.ForeColor = State->ForeColor;
