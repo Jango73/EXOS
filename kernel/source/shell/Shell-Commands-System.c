@@ -34,7 +34,7 @@ static void PrintKnownDriverAliases(void) {
     LPLIST DriverList = GetDriverList();
 
     if (DriverList == NULL) {
-        ConsolePrint(TEXT("none"));
+        ConsolePrint(TEXT("none\n"));
         return;
     }
 
@@ -46,7 +46,11 @@ static void PrintKnownDriverAliases(void) {
             }
 
             if (PrintedCount != 0) {
-                ConsolePrint(TEXT("|"));
+                if ((PrintedCount % 4) == 0) {
+                    ConsolePrint(TEXT("\n"));
+                } else {
+                    ConsolePrint(TEXT("  "));
+                }
             }
 
             ConsolePrint(TEXT("%s"), Driver->Alias);
@@ -55,8 +59,11 @@ static void PrintKnownDriverAliases(void) {
     }
 
     if (PrintedCount == 0) {
-        ConsolePrint(TEXT("none"));
+        ConsolePrint(TEXT("none\n"));
+        return;
     }
+
+    ConsolePrint(TEXT("\n"));
 }
 
 /***************************************************************************/
@@ -166,9 +173,9 @@ U32 CMD_driver(LPSHELLCONTEXT Context) {
     }
 
     if (!Found) {
-        ConsolePrint(TEXT("driver: alias '%s' not found (known: "), Context->Command);
+        ConsolePrint(TEXT("driver: alias '%s' not found\n"), Context->Command);
+        ConsolePrint(TEXT("known aliases:\n"));
         PrintKnownDriverAliases();
-        ConsolePrint(TEXT(")\n"));
         return DF_RETURN_SUCCESS;
     }
 
