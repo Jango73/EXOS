@@ -23,6 +23,7 @@
 
 #include "GFX.h"
 #include "Clock.h"
+#include "Heap.h"
 #include "KernelData.h"
 #include "Log.h"
 #include "Memory.h"
@@ -91,6 +92,8 @@
 #define INTEL_MODESET_LOOP_LIMIT 50000
 #define INTEL_MODESET_TIMEOUT_MILLISECONDS 50
 #define INTEL_DEFAULT_REFRESH_RATE 60
+#define INTEL_GFX_MAX_SURFACES 8
+#define INTEL_GFX_SURFACE_FIRST_ID 1
 
 /************************************************************************/
 
@@ -219,7 +222,24 @@ typedef struct tag_INTEL_GFX_STATE {
     GRAPHICSCONTEXT Context;
     INTEL_GFX_CAPS IntelCapabilities;
     GFX_CAPABILITIES Capabilities;
+    U32 NextSurfaceId;
+    U32 ScanoutSurfaceId;
+    U32 PresentBlitCount;
 } INTEL_GFX_STATE, *LPINTEL_GFX_STATE;
+
+/************************************************************************/
+
+typedef struct tag_INTEL_GFX_SURFACE {
+    BOOL InUse;
+    U32 SurfaceId;
+    U32 Width;
+    U32 Height;
+    U32 Format;
+    U32 Pitch;
+    U32 Flags;
+    U32 SizeBytes;
+    U8* MemoryBase;
+} INTEL_GFX_SURFACE, *LPINTEL_GFX_SURFACE;
 
 /************************************************************************/
 
@@ -255,6 +275,7 @@ static const U32 IntelPipeVSyncRegisters[] = {INTEL_REG_PIPE_A_VSYNC, INTEL_REG_
 static const U32 IntelPlaneControlRegisters[] = {INTEL_REG_PLANE_A_CTL, INTEL_REG_PLANE_B_CTL, INTEL_REG_PLANE_C_CTL};
 static const U32 IntelPlaneStrideRegisters[] = {INTEL_REG_PLANE_A_STRIDE, INTEL_REG_PLANE_B_STRIDE, INTEL_REG_PLANE_C_STRIDE};
 static const U32 IntelPlaneSurfaceRegisters[] = {INTEL_REG_PLANE_A_SURF, INTEL_REG_PLANE_B_SURF, INTEL_REG_PLANE_C_SURF};
+static INTEL_GFX_SURFACE IntelGfxSurfaces[INTEL_GFX_MAX_SURFACES] = {0};
 
 /************************************************************************/
 
@@ -1107,6 +1128,377 @@ static void IntelGfxDrawRectangle(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32
 /************************************************************************/
 
 /**
+ * @brief Resolve bytes per pixel for a supported surface format.
+ * @param Format Surface pixel format.
+ * @return Bytes per pixel, or 0 for unsupported format.
+ */
+static U32 IntelGfxGetSurfaceBytesPerPixel(U32 Format) {
+    switch (Format) {
+        case GFX_FORMAT_UNKNOWN:
+        case GFX_FORMAT_XRGB8888:
+        case GFX_FORMAT_ARGB8888:
+            return 4;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Look up one allocated surface by identifier.
+ * @param SurfaceId Surface identifier.
+ * @return Surface pointer, or NULL when not found.
+ */
+static LPINTEL_GFX_SURFACE IntelGfxFindSurface(U32 SurfaceId) {
+    UINT Index = 0;
+
+    if (SurfaceId == 0) {
+        return NULL;
+    }
+
+    for (Index = 0; Index < INTEL_GFX_MAX_SURFACES; Index++) {
+        if (IntelGfxSurfaces[Index].InUse && IntelGfxSurfaces[Index].SurfaceId == SurfaceId) {
+            return &IntelGfxSurfaces[Index];
+        }
+    }
+
+    return NULL;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Allocate a free surface descriptor slot.
+ * @return Surface slot pointer, or NULL if all slots are used.
+ */
+static LPINTEL_GFX_SURFACE IntelGfxAllocateSurfaceSlot(void) {
+    UINT Index = 0;
+
+    for (Index = 0; Index < INTEL_GFX_MAX_SURFACES; Index++) {
+        if (!IntelGfxSurfaces[Index].InUse) {
+            return &IntelGfxSurfaces[Index];
+        }
+    }
+
+    return NULL;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Generate a non-zero unique surface identifier.
+ * @return New surface id, or 0 when namespace is exhausted.
+ */
+static U32 IntelGfxGenerateSurfaceId(void) {
+    U32 Candidate = 0;
+    UINT Attempt = 0;
+
+    if (IntelGfxState.NextSurfaceId < INTEL_GFX_SURFACE_FIRST_ID) {
+        IntelGfxState.NextSurfaceId = INTEL_GFX_SURFACE_FIRST_ID;
+    }
+
+    for (Attempt = 0; Attempt < MAX_U32; Attempt++) {
+        Candidate = IntelGfxState.NextSurfaceId++;
+        if (Candidate < INTEL_GFX_SURFACE_FIRST_ID) {
+            IntelGfxState.NextSurfaceId = INTEL_GFX_SURFACE_FIRST_ID;
+            Candidate = IntelGfxState.NextSurfaceId++;
+        }
+
+        if (IntelGfxFindSurface(Candidate) == NULL) {
+            return Candidate;
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Release one allocated surface and clear its descriptor.
+ * @param Surface Surface descriptor pointer.
+ */
+static void IntelGfxReleaseSurface(LPINTEL_GFX_SURFACE Surface) {
+    if (Surface == NULL || !Surface->InUse) {
+        return;
+    }
+
+    if (Surface->MemoryBase != NULL) {
+        KernelHeapFree(Surface->MemoryBase);
+    }
+
+    *Surface = (INTEL_GFX_SURFACE){0};
+}
+
+/************************************************************************/
+
+/**
+ * @brief Release every allocated software surface.
+ */
+static void IntelGfxReleaseAllSurfaces(void) {
+    UINT Index = 0;
+
+    for (Index = 0; Index < INTEL_GFX_MAX_SURFACES; Index++) {
+        IntelGfxReleaseSurface(&IntelGfxSurfaces[Index]);
+    }
+
+    IntelGfxState.ScanoutSurfaceId = 0;
+    IntelGfxState.NextSurfaceId = INTEL_GFX_SURFACE_FIRST_ID;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Normalize and clip present dirty rectangle to one surface.
+ * @param Info Present info.
+ * @param Surface Source surface.
+ * @param X Output left.
+ * @param Y Output top.
+ * @param Width Output width.
+ * @param Height Output height.
+ * @return TRUE when a non-empty region is produced.
+ */
+static BOOL IntelGfxResolveDirtyRegion(LPRECT DirtyRect, LPINTEL_GFX_SURFACE Surface, U32* X, U32* Y, U32* Width, U32* Height) {
+    I32 X1 = 0;
+    I32 Y1 = 0;
+    I32 X2 = 0;
+    I32 Y2 = 0;
+
+    if (Surface == NULL || X == NULL || Y == NULL || Width == NULL || Height == NULL) {
+        return FALSE;
+    }
+
+    if (DirtyRect != NULL) {
+        X1 = DirtyRect->X1;
+        Y1 = DirtyRect->Y1;
+        X2 = DirtyRect->X2;
+        Y2 = DirtyRect->Y2;
+    }
+
+    if (DirtyRect == NULL || X2 < X1 || Y2 < Y1) {
+        X1 = 0;
+        Y1 = 0;
+        X2 = (I32)Surface->Width - 1;
+        Y2 = (I32)Surface->Height - 1;
+    }
+
+    if (X1 < 0) X1 = 0;
+    if (Y1 < 0) Y1 = 0;
+    if (X2 >= (I32)Surface->Width) X2 = (I32)Surface->Width - 1;
+    if (Y2 >= (I32)Surface->Height) Y2 = (I32)Surface->Height - 1;
+    if (X2 < X1 || Y2 < Y1) {
+        return FALSE;
+    }
+
+    *X = (U32)X1;
+    *Y = (U32)Y1;
+    *Width = (U32)(X2 - X1 + 1);
+    *Height = (U32)(Y2 - Y1 + 1);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Copy one dirty rectangle from software surface to scanout buffer.
+ * @param Surface Source surface.
+ * @param X Left.
+ * @param Y Top.
+ * @param Width Width in pixels.
+ * @param Height Height in pixels.
+ * @return DF_RETURN_SUCCESS on success.
+ */
+static UINT IntelGfxBlitSurfaceRegionToScanout(LPINTEL_GFX_SURFACE Surface, U32 X, U32 Y, U32 Width, U32 Height) {
+    U32 Row = 0;
+    U32 CopyBytes = 0;
+
+    if (Surface == NULL || Surface->MemoryBase == NULL || Width == 0 || Height == 0) {
+        return DF_RETURN_GENERIC;
+    }
+
+    if (IntelGfxState.FrameBufferLinear == 0 || IntelGfxState.FrameBufferSize == 0) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    if (X + Width > IntelGfxState.ActiveWidth || Y + Height > IntelGfxState.ActiveHeight ||
+        X + Width > Surface->Width || Y + Height > Surface->Height) {
+        return DF_RETURN_GENERIC;
+    }
+
+    CopyBytes = Width << 2;
+    for (Row = 0; Row < Height; Row++) {
+        U32 SourceOffset = (Y + Row) * Surface->Pitch + (X << 2);
+        U32 DestinationOffset = (Y + Row) * IntelGfxState.ActiveStride + (X << 2);
+        U8* Source = Surface->MemoryBase + SourceOffset;
+        U8* Destination = (U8*)(LINEAR)IntelGfxState.FrameBufferLinear + DestinationOffset;
+        MemoryCopy(Destination, Source, CopyBytes);
+    }
+
+    IntelGfxState.PresentBlitCount++;
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Allocate one software surface for Intel graphics present path.
+ * @param Info In/out surface description.
+ * @return DF_RETURN_SUCCESS on success.
+ */
+static UINT IntelGfxAllocateSurface(LPGFX_SURFACE_INFO Info) {
+    LPINTEL_GFX_SURFACE Surface = NULL;
+    U32 BytesPerPixel = 0;
+    U32 Format = 0;
+    U32 Width = 0;
+    U32 Height = 0;
+    U32 Pitch = 0;
+    U32 SizeBytes = 0;
+    U32 Flags = 0;
+    U8* Memory = NULL;
+    U32 SurfaceId = 0;
+
+    if ((IntelGfxDriver.Flags & DRIVER_FLAG_READY) == 0) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    SAFE_USE(Info) {
+        Width = Info->Width;
+        Height = Info->Height;
+        Format = (Info->Format == GFX_FORMAT_UNKNOWN) ? GFX_FORMAT_XRGB8888 : Info->Format;
+        Flags = Info->Flags;
+    }
+
+    if (Width == 0 || Height == 0) {
+        return DF_RETURN_GENERIC;
+    }
+
+    if (Width > IntelGfxState.Capabilities.MaxWidth || Height > IntelGfxState.Capabilities.MaxHeight ||
+        Width > IntelGfxState.ActiveWidth || Height > IntelGfxState.ActiveHeight) {
+        return DF_GFX_ERROR_MODEUNAVAIL;
+    }
+
+    BytesPerPixel = IntelGfxGetSurfaceBytesPerPixel(Format);
+    if (BytesPerPixel == 0) {
+        return DF_GFX_ERROR_MODEUNAVAIL;
+    }
+
+    if (Width > MAX_U32 / BytesPerPixel) {
+        return DF_RETURN_GENERIC;
+    }
+
+    Pitch = Width * BytesPerPixel;
+    if (Height > MAX_U32 / Pitch) {
+        return DF_RETURN_GENERIC;
+    }
+    SizeBytes = Pitch * Height;
+
+    Surface = IntelGfxAllocateSurfaceSlot();
+    if (Surface == NULL) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    SurfaceId = IntelGfxGenerateSurfaceId();
+    if (SurfaceId == 0) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    Memory = (U8*)KernelHeapAlloc(SizeBytes);
+    if (Memory == NULL) {
+        return DF_RETURN_UNEXPECTED;
+    }
+    MemorySet(Memory, 0, SizeBytes);
+
+    *Surface = (INTEL_GFX_SURFACE){
+        .InUse = TRUE,
+        .SurfaceId = SurfaceId,
+        .Width = Width,
+        .Height = Height,
+        .Format = Format,
+        .Pitch = Pitch,
+        .Flags = Flags | GFX_SURFACE_FLAG_CPU_VISIBLE,
+        .SizeBytes = SizeBytes,
+        .MemoryBase = Memory
+    };
+
+    SAFE_USE(Info) {
+        Info->SurfaceId = Surface->SurfaceId;
+        Info->Format = Surface->Format;
+        Info->Pitch = Surface->Pitch;
+        Info->MemoryBase = Surface->MemoryBase;
+        Info->Flags = Surface->Flags;
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Free one previously allocated software surface.
+ * @param Info Surface descriptor with valid SurfaceId.
+ * @return DF_RETURN_SUCCESS on success.
+ */
+static UINT IntelGfxFreeSurface(LPGFX_SURFACE_INFO Info) {
+    U32 SurfaceId = 0;
+    LPINTEL_GFX_SURFACE Surface = NULL;
+
+    SAFE_USE(Info) { SurfaceId = Info->SurfaceId; }
+    if (SurfaceId == 0) {
+        return DF_RETURN_GENERIC;
+    }
+
+    Surface = IntelGfxFindSurface(SurfaceId);
+    if (Surface == NULL) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    if (IntelGfxState.ScanoutSurfaceId == SurfaceId) {
+        IntelGfxState.ScanoutSurfaceId = 0;
+    }
+
+    IntelGfxReleaseSurface(Surface);
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Select one software surface as scanout source for present.
+ * @param Info Scanout request.
+ * @return DF_RETURN_SUCCESS on success.
+ */
+static UINT IntelGfxSetScanout(LPGFX_SCANOUT_INFO Info) {
+    LPINTEL_GFX_SURFACE Surface = NULL;
+
+    SAFE_USE(Info) { Surface = IntelGfxFindSurface(Info->SurfaceId); }
+    if (Surface == NULL) {
+        return DF_RETURN_GENERIC;
+    }
+
+    if (Surface->Width != IntelGfxState.ActiveWidth || Surface->Height != IntelGfxState.ActiveHeight) {
+        WARNING(TEXT("[IntelGfxSetScanout] Surface dimensions mismatch (%ux%u expected=%ux%u)"),
+            Surface->Width,
+            Surface->Height,
+            IntelGfxState.ActiveWidth,
+            IntelGfxState.ActiveHeight);
+        return DF_GFX_ERROR_MODEUNAVAIL;
+    }
+
+    IntelGfxState.ScanoutSurfaceId = Surface->SurfaceId;
+
+    SAFE_USE(Info) {
+        Info->Width = Surface->Width;
+        Info->Height = Surface->Height;
+        Info->Format = Surface->Format;
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
  * @brief Load Intel graphics driver and map MMIO BAR.
  * @return DF_RETURN_SUCCESS on success, DF_RETURN_UNEXPECTED otherwise.
  */
@@ -1146,6 +1538,10 @@ static UINT IntelGfxLoad(void) {
 
     IntelGfxState.MmioSize = Bar0Size;
     IntelGfxState.Device = Device;
+    IntelGfxState.NextSurfaceId = INTEL_GFX_SURFACE_FIRST_ID;
+    IntelGfxState.ScanoutSurfaceId = 0;
+    IntelGfxState.PresentBlitCount = 0;
+    MemorySet(IntelGfxSurfaces, 0, sizeof(IntelGfxSurfaces));
 
     (void)PCI_EnableBusMaster(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, TRUE);
 
@@ -1163,6 +1559,7 @@ static UINT IntelGfxLoad(void) {
         if (IntelGfxState.MmioBase != 0 && IntelGfxState.MmioSize != 0) {
             UnMapIOMemory(IntelGfxState.MmioBase, IntelGfxState.MmioSize);
         }
+        IntelGfxReleaseAllSurfaces();
         IntelGfxState = (INTEL_GFX_STATE){0};
         return DF_RETURN_UNEXPECTED;
     }
@@ -1178,6 +1575,8 @@ static UINT IntelGfxLoad(void) {
  * @return DF_RETURN_SUCCESS always.
  */
 static UINT IntelGfxUnload(void) {
+    IntelGfxReleaseAllSurfaces();
+
     if (IntelGfxState.FrameBufferLinear != 0 && IntelGfxState.FrameBufferSize != 0) {
         UnMapIOMemory(IntelGfxState.FrameBufferLinear, IntelGfxState.FrameBufferSize);
     }
@@ -1238,6 +1637,9 @@ static UINT IntelGfxSetMode(LPGRAPHICSMODEINFO Info) {
     if (Result != DF_RETURN_SUCCESS) {
         return Result;
     }
+
+    IntelGfxReleaseAllSurfaces();
+    IntelGfxState.PresentBlitCount = 0;
 
     if (IntelGfxState.FrameBufferLinear != 0 && IntelGfxState.FrameBufferSize != 0) {
         UnMapIOMemory(IntelGfxState.FrameBufferLinear, IntelGfxState.FrameBufferSize);
@@ -1534,13 +1936,48 @@ static UINT IntelGfxTextSetCursorVisible(LPGFX_TEXT_CURSOR_VISIBLE_INFO Info) {
  * @return DF_RETURN_SUCCESS when scanout buffer is active.
  */
 static UINT IntelGfxPresent(LPGFX_PRESENT_INFO Info) {
-    UNUSED(Info);
+    LPINTEL_GFX_SURFACE Surface = NULL;
+    RECT DirtyRect = {0};
+    U32 SourceSurfaceId = 0;
+    U32 X = 0;
+    U32 Y = 0;
+    U32 Width = 0;
+    U32 Height = 0;
+    UINT Result = DF_RETURN_SUCCESS;
 
     if (IntelGfxState.FrameBufferLinear == 0 || IntelGfxState.FrameBufferSize == 0) {
         return DF_RETURN_UNEXPECTED;
     }
 
-    return DF_RETURN_SUCCESS;
+    if (Info == NULL) {
+        return DF_RETURN_GENERIC;
+    }
+
+    SourceSurfaceId = Info->SurfaceId;
+    DirtyRect = Info->DirtyRect;
+
+    if (SourceSurfaceId == 0) {
+        SourceSurfaceId = IntelGfxState.ScanoutSurfaceId;
+    }
+
+    if (SourceSurfaceId == 0) {
+        // No explicit source surface means legacy direct-scanout drawing path.
+        return DF_RETURN_SUCCESS;
+    }
+
+    Surface = IntelGfxFindSurface(SourceSurfaceId);
+    if (Surface == NULL || Surface->MemoryBase == NULL) {
+        return DF_RETURN_GENERIC;
+    }
+
+    if (!IntelGfxResolveDirtyRegion(&DirtyRect, Surface, &X, &Y, &Width, &Height)) {
+        return DF_RETURN_SUCCESS;
+    }
+
+    LockMutex(&(IntelGfxState.Context.Mutex), INFINITY);
+    Result = IntelGfxBlitSurfaceRegionToScanout(Surface, X, Y, Width, Height);
+    UnlockMutex(&(IntelGfxState.Context.Mutex));
+    return Result;
 }
 
 /************************************************************************/
@@ -1591,6 +2028,12 @@ static UINT IntelGfxCommands(UINT Function, UINT Param) {
             return IntelGfxTextSetCursorVisible((LPGFX_TEXT_CURSOR_VISIBLE_INFO)Param);
         case DF_GFX_PRESENT:
             return IntelGfxPresent((LPGFX_PRESENT_INFO)Param);
+        case DF_GFX_ALLOCSURFACE:
+            return IntelGfxAllocateSurface((LPGFX_SURFACE_INFO)Param);
+        case DF_GFX_FREESURFACE:
+            return IntelGfxFreeSurface((LPGFX_SURFACE_INFO)Param);
+        case DF_GFX_SETSCANOUT:
+            return IntelGfxSetScanout((LPGFX_SCANOUT_INFO)Param);
 
         case DF_GFX_CREATEBRUSH:
         case DF_GFX_CREATEPEN:
@@ -1598,9 +2041,6 @@ static UINT IntelGfxCommands(UINT Function, UINT Param) {
         case DF_GFX_ENUMOUTPUTS:
         case DF_GFX_GETOUTPUTINFO:
         case DF_GFX_WAITVBLANK:
-        case DF_GFX_ALLOCSURFACE:
-        case DF_GFX_FREESURFACE:
-        case DF_GFX_SETSCANOUT:
             return DF_RETURN_NOT_IMPLEMENTED;
     }
 

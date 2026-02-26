@@ -137,14 +137,19 @@ Status note:
 ## Step 6 - Buffer management and present model
 Introduce a clean surface model for future growth.
 
-- [ ] Implement software front/back surface allocation in driver-controlled memory.
-- [ ] Add `DF_GFX_PRESENT` semantics:
+- [x] Implement software front/back surface allocation in driver-controlled memory.
+- [x] Add `DF_GFX_PRESENT` semantics:
   - If page flip supported: flip.
   - Else: blit dirty regions.
-- [ ] Keep a generic dirty-rectangle input path for the window manager.
+- [x] Keep a generic dirty-rectangle input path for the window manager.
 
 Deliverable:
 - Flicker-free present path with clear fallback behavior.
+
+Status note:
+- `IntelGfx.c` now implements `DF_GFX_ALLOCSURFACE`, `DF_GFX_FREESURFACE`, `DF_GFX_SETSCANOUT` with software surfaces in kernel heap.
+- `DF_GFX_PRESENT` uses dirty-rectangle blit from selected surface to active scanout as conservative fallback path.
+- Hardware page-flip path is intentionally deferred; `PRESENT` uses blit semantics for stability on this milestone.
 
 ## Step 7 - VBlank and synchronization
 - [ ] Add optional vblank interrupt handling.
