@@ -119,13 +119,6 @@ typedef struct tag_USB_MASS_STORAGE_STATE {
     RATE_LIMITER ScanLogLimiter;
 } USB_MASS_STORAGE_STATE, *LPUSB_MASS_STORAGE_STATE;
 
-typedef struct tag_USB_MASS_STORAGE_DRIVER {
-    DRIVER Driver;
-    USB_MASS_STORAGE_STATE State;
-} USB_MASS_STORAGE_DRIVER, *LPUSB_MASS_STORAGE_DRIVER;
-
-/************************************************************************/
-
 UINT USBStorageCommands(UINT Function, UINT Parameter);
 BOOL USBStorageIsMassStorageInterface(LPXHCI_USB_INTERFACE Interface);
 BOOL USBStorageFindBulkEndpoints(LPXHCI_USB_INTERFACE Interface,
@@ -141,28 +134,28 @@ BOOL USBStorageReadBlocks(LPUSB_MASS_STORAGE_DEVICE Device,
                           UINT TransferBlocks,
                           LPVOID Output);
 
-static USB_MASS_STORAGE_DRIVER DATA_SECTION USBStorageDriverState = {
-    .Driver = {
-        .TypeID = KOID_DRIVER,
-        .References = 1,
-        .Next = NULL,
-        .Prev = NULL,
-        .Type = DRIVER_TYPE_USB_STORAGE,
-        .VersionMajor = USB_MASS_STORAGE_VER_MAJOR,
-        .VersionMinor = USB_MASS_STORAGE_VER_MINOR,
-        .Designer = "Jango73",
-        .Manufacturer = "USB-IF",
-        .Product = "USB Mass Storage",
-        .Alias = "usb_storage",
-        .Flags = 0,
-        .Command = USBStorageCommands
-    },
-    .State = {
-        .Initialized = FALSE,
-        .PollHandle = DEFERRED_WORK_INVALID_HANDLE,
-        .RetryDelay = 0,
-        .ScanLogLimiter = {0}
-    }
+static USB_MASS_STORAGE_STATE DATA_SECTION USBStorageState = {
+    .Initialized = FALSE,
+    .PollHandle = DEFERRED_WORK_INVALID_HANDLE,
+    .RetryDelay = 0,
+    .ScanLogLimiter = {0}
+};
+
+static DRIVER DATA_SECTION USBStorageDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_USB_STORAGE,
+    .VersionMajor = USB_MASS_STORAGE_VER_MAJOR,
+    .VersionMinor = USB_MASS_STORAGE_VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "USB-IF",
+    .Product = "USB Mass Storage",
+    .Alias = "usb_storage",
+    .Flags = 0,
+    .Command = USBStorageCommands,
+    .CustomData = &USBStorageState
 };
 
 /************************************************************************/
@@ -180,7 +173,7 @@ static void USBStorageLogScan(LPXHCI_USB_DEVICE UsbDevice, LPXHCI_USB_INTERFACE 
         return;
     }
 
-    if (!RateLimiterShouldTrigger(&USBStorageDriverState.State.ScanLogLimiter, GetSystemTime(), &Suppressed)) {
+    if (!RateLimiterShouldTrigger(&USBStorageState.ScanLogLimiter, GetSystemTime(), &Suppressed)) {
         return;
     }
 
@@ -361,7 +354,7 @@ static void USBStorageDetachDevice(LPUSB_MASS_STORAGE_DEVICE Device) {
  * @return Pointer to the USB mass storage driver.
  */
 LPDRIVER USBStorageGetDriver(void) {
-    return &USBStorageDriverState.Driver;
+    return &USBStorageDriver;
 }
 
 /************************************************************************/
@@ -383,7 +376,7 @@ static LPUSB_MASS_STORAGE_DEVICE USBStorageAllocateDevice(void) {
     Device->Disk.References = 1;
     Device->Disk.Next = NULL;
     Device->Disk.Prev = NULL;
-    Device->Disk.Driver = &USBStorageDriverState.Driver;
+    Device->Disk.Driver = &USBStorageDriver;
     Device->Access = DISK_ACCESS_READONLY;
     Device->Tag = 1;
     Device->Ready = FALSE;
@@ -704,7 +697,7 @@ static void USBStorageScanControllers(void) {
 
                     if (!USBStorageStartDevice(Controller, UsbDevice, Interface, BulkIn, BulkOut)) {
                         USBStorageLogScan(UsbDevice, Interface, TEXT("StartDeviceFailed"));
-                        USBStorageDriverState.State.RetryDelay = 50;
+                        USBStorageState.RetryDelay = 50;
                         continue;
                     }
 
@@ -725,12 +718,12 @@ static void USBStorageScanControllers(void) {
 static void USBStoragePoll(LPVOID Context) {
     UNUSED(Context);
 
-    if (USBStorageDriverState.State.Initialized == FALSE) {
+    if (USBStorageState.Initialized == FALSE) {
         return;
     }
 
-    if (USBStorageDriverState.State.RetryDelay != 0) {
-        USBStorageDriverState.State.RetryDelay--;
+    if (USBStorageState.RetryDelay != 0) {
+        USBStorageState.RetryDelay--;
         return;
     }
 
@@ -933,38 +926,38 @@ static U32 USBStorageReset(LPUSB_MASS_STORAGE_DEVICE Device) {
 UINT USBStorageCommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
-            if ((USBStorageDriverState.Driver.Flags & DRIVER_FLAG_READY) != 0) {
+            if ((USBStorageDriver.Flags & DRIVER_FLAG_READY) != 0) {
                 return DF_RETURN_SUCCESS;
             }
 
-            (void)RateLimiterInit(&USBStorageDriverState.State.ScanLogLimiter,
+            (void)RateLimiterInit(&USBStorageState.ScanLogLimiter,
                                   USB_MASS_STORAGE_SCAN_LOG_IMMEDIATE_BUDGET,
                                   USB_MASS_STORAGE_SCAN_LOG_INTERVAL_MS);
 
-            if (USBStorageDriverState.State.PollHandle == DEFERRED_WORK_INVALID_HANDLE) {
-                USBStorageDriverState.State.PollHandle =
+            if (USBStorageState.PollHandle == DEFERRED_WORK_INVALID_HANDLE) {
+                USBStorageState.PollHandle =
                     DeferredWorkRegisterPollOnly(USBStoragePoll, NULL, TEXT("USBStorage"));
-                if (USBStorageDriverState.State.PollHandle == DEFERRED_WORK_INVALID_HANDLE) {
+                if (USBStorageState.PollHandle == DEFERRED_WORK_INVALID_HANDLE) {
                     return DF_RETURN_UNEXPECTED;
                 }
             }
 
-            USBStorageDriverState.State.Initialized = TRUE;
-            USBStorageDriverState.Driver.Flags |= DRIVER_FLAG_READY;
+            USBStorageState.Initialized = TRUE;
+            USBStorageDriver.Flags |= DRIVER_FLAG_READY;
             return DF_RETURN_SUCCESS;
 
         case DF_UNLOAD:
-            if ((USBStorageDriverState.Driver.Flags & DRIVER_FLAG_READY) == 0) {
+            if ((USBStorageDriver.Flags & DRIVER_FLAG_READY) == 0) {
                 return DF_RETURN_SUCCESS;
             }
 
-            if (USBStorageDriverState.State.PollHandle != DEFERRED_WORK_INVALID_HANDLE) {
-                DeferredWorkUnregister(USBStorageDriverState.State.PollHandle);
-                USBStorageDriverState.State.PollHandle = DEFERRED_WORK_INVALID_HANDLE;
+            if (USBStorageState.PollHandle != DEFERRED_WORK_INVALID_HANDLE) {
+                DeferredWorkUnregister(USBStorageState.PollHandle);
+                USBStorageState.PollHandle = DEFERRED_WORK_INVALID_HANDLE;
             }
 
-            USBStorageDriverState.State.Initialized = FALSE;
-            USBStorageDriverState.Driver.Flags &= ~DRIVER_FLAG_READY;
+            USBStorageState.Initialized = FALSE;
+            USBStorageDriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RETURN_SUCCESS;
 
         case DF_GET_VERSION:

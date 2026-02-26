@@ -90,6 +90,7 @@ typedef UINT (*DRVFUNC)(UINT Function, UINT Parameter);
     STR Alias[MAX_NAME];                \
     U32 Flags;                          \
     DRVFUNC Command;                    \
+    LPVOID CustomData;                  \
     UINT EnumDomainCount;               \
     UINT EnumDomains[DRIVER_ENUM_MAX_DOMAINS];
 

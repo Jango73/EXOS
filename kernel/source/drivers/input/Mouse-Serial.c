@@ -39,29 +39,13 @@
 #define VER_MAJOR 1
 #define VER_MINOR 0
 
-typedef struct tag_SERIAL_MOUSE_DRIVER {
-    DRIVER Driver;
+typedef struct tag_SERIAL_MOUSE_CUSTOM_DATA {
     MOUSE_COMMON_CONTEXT Common;
-} SERIAL_MOUSE_DRIVER, *LPSERIAL_MOUSE_DRIVER;
+} SERIAL_MOUSE_CUSTOM_DATA, *LPSERIAL_MOUSE_CUSTOM_DATA;
 
 UINT SerialMouseCommands(UINT, UINT);
 
-static SERIAL_MOUSE_DRIVER DATA_SECTION SerialMouseDriverState = {
-    .Driver = {
-        .TypeID = KOID_DRIVER,
-        .References = 1,
-        .Next = NULL,
-        .Prev = NULL,
-        .Type = DRIVER_TYPE_MOUSE,
-        .VersionMajor = VER_MAJOR,
-        .VersionMinor = VER_MINOR,
-        .Designer = "Jango73",
-        .Manufacturer = "Not applicable",
-        .Product = "Standard Serial Mouse",
-        .Alias = "serial_mouse",
-        .Flags = 0,
-        .Command = SerialMouseCommands
-    },
+static SERIAL_MOUSE_CUSTOM_DATA DATA_SECTION SerialMouseCustomData = {
     .Common = {
         .Initialized = FALSE,
         .Mutex = EMPTY_MUTEX,
@@ -71,6 +55,23 @@ static SERIAL_MOUSE_DRIVER DATA_SECTION SerialMouseDriverState = {
         .Packet = {.DeltaX = 0, .DeltaY = 0, .Buttons = 0, .Pending = FALSE},
         .DeferredHandle = DEFERRED_WORK_INVALID_HANDLE
     }
+};
+
+static DRIVER DATA_SECTION SerialMouseDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_MOUSE,
+    .VersionMajor = VER_MAJOR,
+    .VersionMinor = VER_MINOR,
+    .Designer = "Jango73",
+    .Manufacturer = "",
+    .Product = "Standard Serial Mouse",
+    .Alias = "serial_mouse",
+    .Flags = 0,
+    .Command = SerialMouseCommands,
+    .CustomData = &SerialMouseCustomData
 };
 
 /***************************************************************************/
@@ -189,7 +190,7 @@ static void SendBreak(void) {
  * @return Pointer to the serial mouse driver.
  */
 LPDRIVER SerialMouseGetDriver(void) {
-    return &SerialMouseDriverState.Driver;
+    return &SerialMouseDriver;
 }
 
 /***************************************************************************/
@@ -350,7 +351,7 @@ static BOOL InitializeMouse(void) {
 
     EnableInterrupt(IRQ_MOUSE);
 
-    return MouseCommonInitialize(&SerialMouseDriverState.Common);
+    return MouseCommonInitialize(&SerialMouseCustomData.Common);
 }
 
 /***************************************************************************/
@@ -531,7 +532,7 @@ void MouseHandler(void) {
         return;
     }
 
-    MouseCommonQueuePacket(&SerialMouseDriverState.Common, DeltaX, DeltaY, Buttons);
+    MouseCommonQueuePacket(&SerialMouseCustomData.Common, DeltaX, DeltaY, Buttons);
 }
 
 /***************************************************************************/
@@ -550,35 +551,35 @@ UINT SerialMouseCommands(UINT Function, UINT Parameter) {
 
     switch (Function) {
         case DF_LOAD:
-            if ((SerialMouseDriverState.Driver.Flags & DRIVER_FLAG_READY) != 0) {
+            if ((SerialMouseDriver.Flags & DRIVER_FLAG_READY) != 0) {
                 return DF_RETURN_SUCCESS;
             }
 
             if (InitializeMouse()) {
-                SerialMouseDriverState.Driver.Flags |= DRIVER_FLAG_READY;
+                SerialMouseDriver.Flags |= DRIVER_FLAG_READY;
                 return DF_RETURN_SUCCESS;
             }
 
             return DF_RETURN_UNEXPECTED;
         case DF_UNLOAD:
-            if ((SerialMouseDriverState.Driver.Flags & DRIVER_FLAG_READY) == 0) {
+            if ((SerialMouseDriver.Flags & DRIVER_FLAG_READY) == 0) {
                 return DF_RETURN_SUCCESS;
             }
 
-            SerialMouseDriverState.Driver.Flags &= ~DRIVER_FLAG_READY;
+            SerialMouseDriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RETURN_SUCCESS;
         case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_MOUSE_RESET:
             return DF_RETURN_NOT_IMPLEMENTED;
         case DF_MOUSE_GETDELTAX:
-            return (UINT)MouseCommonGetDeltaX(&SerialMouseDriverState.Common);
+            return (UINT)MouseCommonGetDeltaX(&SerialMouseCustomData.Common);
         case DF_MOUSE_GETDELTAY:
-            return (UINT)MouseCommonGetDeltaY(&SerialMouseDriverState.Common);
+            return (UINT)MouseCommonGetDeltaY(&SerialMouseCustomData.Common);
         case DF_MOUSE_GETBUTTONS:
-            return (UINT)MouseCommonGetButtons(&SerialMouseDriverState.Common);
+            return (UINT)MouseCommonGetButtons(&SerialMouseCustomData.Common);
         case DF_MOUSE_HAS_DEVICE:
-            return ((SerialMouseDriverState.Driver.Flags & DRIVER_FLAG_READY) != 0) ? 1U : 0U;
+            return ((SerialMouseDriver.Flags & DRIVER_FLAG_READY) != 0) ? 1U : 0U;
     }
 
     return DF_RETURN_NOT_IMPLEMENTED;
