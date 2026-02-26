@@ -119,6 +119,7 @@ DRIVER DATA_SECTION IntelGfxDriver = {
     .Designer = "Jango73",
     .Manufacturer = "Intel",
     .Product = "Intel Integrated Graphics",
+    .Alias = "igpu",
     .Flags = 0,
     .Command = IntelGfxCommands
 };

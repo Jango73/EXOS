@@ -59,6 +59,7 @@ static DRIVER DATA_SECTION GraphicsSelectorDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "Graphics selector",
+    .Alias = "graphics_selector",
     .Flags = 0,
     .Command = GraphicsSelectorCommands
 };
@@ -108,33 +109,18 @@ static BOOL GraphicsSelectorBackendMatchesName(LPDRIVER Driver, LPCSTR Name) {
         return FALSE;
     }
 
-    if (Driver == IntelGfxGetDriver()) {
-        if (StringCompareNC(Name, TEXT("igpu")) == 0 ||
-            StringCompareNC(Name, TEXT("intel")) == 0) {
-            return TRUE;
-        }
+    if (StringLength(Driver->Alias) == 0) {
+        return FALSE;
     }
 
-    if (Driver == GOPGetDriver()) {
-        if (StringCompareNC(Name, TEXT("gop")) == 0) {
-            return TRUE;
-        }
-    }
-
-    if (Driver == VESAGetDriver()) {
-        if (StringCompareNC(Name, TEXT("vesa")) == 0) {
-            return TRUE;
-        }
-    }
-
-    return FALSE;
+    return StringCompareNC(Name, Driver->Alias) == 0;
 }
 
 /************************************************************************/
 
 /**
  * @brief Force active backend by name among loaded selector candidates.
- * @param Name Backend selector name (`igpu`, `intel`, `gop`, `vesa`).
+ * @param Name Backend selector name matching one graphics driver alias.
  * @return TRUE when backend exists and becomes active.
  */
 BOOL GraphicsSelectorForceBackendByName(LPCSTR Name) {

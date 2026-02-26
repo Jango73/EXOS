@@ -87,6 +87,7 @@ typedef UINT (*DRVFUNC)(UINT Function, UINT Parameter);
     STR Designer[MAX_NAME];             \
     STR Manufacturer[MAX_NAME];         \
     STR Product[MAX_NAME];              \
+    STR Alias[MAX_NAME];                \
     U32 Flags;                          \
     DRVFUNC Command;                    \
     UINT EnumDomainCount;               \

@@ -64,6 +64,7 @@ DRIVER DATA_SECTION VESADriver = {
     .Designer = "Jango73",
     .Manufacturer = "Video Electronics Standard Association",
     .Product = "VESA Compatible Graphics Card",
+    .Alias = "vesa",
     .Flags = 0,
     .Command = VESACommands};
 

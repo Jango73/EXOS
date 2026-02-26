@@ -58,6 +58,7 @@ static DRIVER DATA_SECTION GOPGfxDriver = {
     .Designer = "Jango73",
     .Manufacturer = "UEFI",
     .Product = "Graphics Output Protocol",
+    .Alias = "gop",
     .Flags = 0,
     .Command = GOPGfxCommands
 };

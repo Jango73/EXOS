@@ -404,6 +404,44 @@ static BOOL ParseGraphicsModeToken(LPCSTR Token, LPGRAPHICSMODEINFO InfoOut) {
 /************************************************************************/
 
 /**
+ * @brief Print supported shell aliases for graphics backend selection.
+ */
+static void PrintSupportedGraphicsBackendAliases(void) {
+    UINT PrintedCount = 0;
+    LPLIST DriverList = GetDriverList();
+
+    if (DriverList == NULL) {
+        ConsolePrint(TEXT("none"));
+        return;
+    }
+
+    for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
+        LPDRIVER Driver = (LPDRIVER)Node;
+
+        if (Driver->Type != DRIVER_TYPE_GRAPHICS || Driver == GraphicsSelectorGetDriver()) {
+            continue;
+        }
+
+        if (StringLength(Driver->Alias) == 0) {
+            continue;
+        }
+
+        if (PrintedCount != 0) {
+            ConsolePrint(TEXT("|"));
+        }
+
+        ConsolePrint(TEXT("%s"), Driver->Alias);
+        PrintedCount++;
+    }
+
+    if (PrintedCount == 0) {
+        ConsolePrint(TEXT("none"));
+    }
+}
+
+/************************************************************************/
+
+/**
  * @brief Force one graphics backend and apply one graphics mode.
  * @param Context Shell context.
  * @return DF_RETURN_SUCCESS on completion.
@@ -431,7 +469,9 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
     }
 
     if (!GraphicsSelectorForceBackendByName(DriverName)) {
-        ConsolePrint(TEXT("gfx: backend '%s' unavailable (supported: igpu|intel|gop|vesa)\n"), DriverName);
+        ConsolePrint(TEXT("gfx: backend '%s' unavailable (supported: "), DriverName);
+        PrintSupportedGraphicsBackendAliases();
+        ConsolePrint(TEXT(")\n"));
         return DF_RETURN_SUCCESS;
     }
 
