@@ -116,7 +116,7 @@ U32 AdaptiveDelay_GetNextDelay(LPADAPTIVE_DELAY_STATE State) {
  * @return TRUE if more attempts are allowed, FALSE otherwise.
  */
 BOOL AdaptiveDelay_ShouldContinue(LPADAPTIVE_DELAY_STATE State) {
-    DEBUG("[AdaptiveDelay_ShouldContinue] State = %x", State);
+    DEBUG(TEXT("[AdaptiveDelay_ShouldContinue] State = %x"), State);
 
     SAFE_USE(State) {
         BOOL ShouldContinue = (State->AttemptCount < State->MaxAttempts);

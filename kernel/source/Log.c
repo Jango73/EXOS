@@ -47,7 +47,9 @@
 static CSTR KernelLogDefaultTagFilter[] = KERNEL_LOG_DEFAULT_TAG_FILTER;
 static STR DATA_SECTION KernelLogTagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
 static BOOL KernelLogErrorConsoleEnabled = TRUE;
+#if DEBUG_SPLIT == 1
 static U32 DATA_SECTION KernelConsolePrintDepth = 0;
+#endif
 
 static UINT KernelLogDriverCommands(UINT Function, UINT Parameter);
 static BOOL KernelLogIsTagSeparator(STR Char);

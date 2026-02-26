@@ -28,6 +28,7 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 - **Freestanding**: The kernel **MUST NOT** rely on **ANY** external library/module (unless specified otherwise). **NO** stdlib, stdio, whatever. Everything the kernel needs is built in the compiler and in the codebase.
 - **Debugging**: Debug output is logged with DEBUG(). Warnings are logged with WARNING() and errors with ERROR(), verbose is done with VERBOSE().
 - **Logging**: A log string **ALWAYS** begins with "[FunctionName]" where FunctionName is the name of the function where the logging is done. Use "%p" for pointers and addresses, "%x" for values except for sizes which use "%u". Do not hide errors by removing warnings. Reduce flood with rate limiting while preserving diagnostic signal (`suppressed` count or equivalent).
+- **TEXT literals (mandatory)**: In kernel C code, every string literal passed to APIs/macros expecting `LPCSTR` (for example `DEBUG`, `WARNING`, `ERROR`, `VERBOSE`, `KernelLogText`, `ConsolePrint`, and ternary literal fallbacks) **MUST** be wrapped with `TEXT("...")`. Never pass raw `"..."` to those paths.
 - **Declaration order**: Group declarations by type. 1: macros / 2: type definitions / 3: inline functions / 4: external functions / 5: other
 - **Function order**: DO NOT OVERUSE forward declarations. Define functions before they are used.
 - **I18n**: Write comments, console output and technical doc in english.
