@@ -26,6 +26,157 @@
 #include "Autotest.h"
 #include "utils/SizeFormat.h"
 
+/**
+ * @brief Print known non-empty driver aliases.
+ */
+static void PrintKnownDriverAliases(void) {
+    UINT PrintedCount = 0;
+    LPLIST DriverList = GetDriverList();
+
+    if (DriverList == NULL) {
+        ConsolePrint(TEXT("none"));
+        return;
+    }
+
+    for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
+        LPDRIVER Driver = (LPDRIVER)Node;
+
+        SAFE_USE_VALID_ID(Driver, KOID_DRIVER) {
+            if (StringLength(Driver->Alias) == 0) {
+                continue;
+            }
+
+            if (PrintedCount != 0) {
+                ConsolePrint(TEXT("|"));
+            }
+
+            ConsolePrint(TEXT("%s"), Driver->Alias);
+            PrintedCount++;
+        }
+    }
+
+    if (PrintedCount == 0) {
+        ConsolePrint(TEXT("none"));
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Print detailed information for one driver.
+ * @param Driver Driver descriptor.
+ */
+static void PrintDriverDetails(LPDRIVER Driver) {
+    UINT VersionFromCommand = 0;
+    UINT CapsFromCommand = 0;
+    UINT LastFunctionFromCommand = 0;
+    U16 VersionMajorFromCommand = 0;
+    U16 VersionMinorFromCommand = 0;
+    UINT DomainCount = 0;
+    UINT Flags = 0;
+    BOOL IsReady = FALSE;
+    BOOL IsCritical = FALSE;
+
+    Flags = Driver->Flags;
+    IsReady = (Flags & DRIVER_FLAG_READY) != 0;
+    IsCritical = (Flags & DRIVER_FLAG_CRITICAL) != 0;
+
+    if (Driver->Command != NULL) {
+        VersionFromCommand = Driver->Command(DF_GET_VERSION, 0);
+        CapsFromCommand = Driver->Command(DF_GET_CAPS, 0);
+        LastFunctionFromCommand = Driver->Command(DF_GET_LAST_FUNCTION, 0);
+        VersionMajorFromCommand = (U16)((VersionFromCommand >> 16) & 0xFFFF);
+        VersionMinorFromCommand = (U16)(VersionFromCommand & 0xFFFF);
+    }
+
+    ConsolePrint(TEXT("Address            : %p\n"), (LPVOID)Driver);
+    ConsolePrint(TEXT("Alias              : %s\n"),
+                 StringLength(Driver->Alias) != 0 ? Driver->Alias : TEXT("<none>"));
+    ConsolePrint(TEXT("Type               : %s (%x)\n"), DriverTypeToText(Driver->Type), Driver->Type);
+    ConsolePrint(TEXT("Version fields     : %u.%u\n"), Driver->VersionMajor, Driver->VersionMinor);
+    ConsolePrint(TEXT("Version command    : %u.%u (raw=%x)\n"),
+                 (U32)VersionMajorFromCommand,
+                 (U32)VersionMinorFromCommand,
+                 VersionFromCommand);
+    ConsolePrint(TEXT("Designer           : %s\n"), Driver->Designer);
+    ConsolePrint(TEXT("Manufacturer       : %s\n"), Driver->Manufacturer);
+    ConsolePrint(TEXT("Product            : %s\n"), Driver->Product);
+    ConsolePrint(TEXT("Flags              : %x\n"), Flags);
+    ConsolePrint(TEXT("Ready              : %s\n"), IsReady ? TEXT("yes") : TEXT("no"));
+    ConsolePrint(TEXT("Critical           : %s\n"), IsCritical ? TEXT("yes") : TEXT("no"));
+    ConsolePrint(TEXT("Command            : %p\n"), (LPVOID)Driver->Command);
+    ConsolePrint(TEXT("Caps command       : %x\n"), CapsFromCommand);
+    ConsolePrint(TEXT("Last function      : %x\n"), LastFunctionFromCommand);
+
+    DomainCount = Driver->EnumDomainCount;
+    if (DomainCount > DRIVER_ENUM_MAX_DOMAINS) {
+        DomainCount = DRIVER_ENUM_MAX_DOMAINS;
+    }
+
+    ConsolePrint(TEXT("Enum domains       : %u\n"), Driver->EnumDomainCount);
+    if (DomainCount == 0) {
+        ConsolePrint(TEXT("  <none>\n"));
+    } else {
+        for (UINT Index = 0; Index < DomainCount; Index++) {
+            UINT Domain = Driver->EnumDomains[Index];
+            ConsolePrint(TEXT("  %u: %s (%x)\n"), Index, DriverDomainToText(Domain), Domain);
+        }
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Print one driver detail view selected by alias.
+ * @param Context Shell context.
+ * @return DF_RETURN_SUCCESS on completion.
+ */
+U32 CMD_driver(LPSHELLCONTEXT Context) {
+    BOOL Found = FALSE;
+    LPLIST DriverList = NULL;
+
+    ParseNextCommandLineComponent(Context);
+
+    if (StringLength(Context->Command) == 0) {
+        ConsolePrint(TEXT("Usage: driver Alias\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    DriverList = GetDriverList();
+    if (DriverList == NULL || DriverList->First == NULL) {
+        ConsolePrint(TEXT("No driver detected\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
+        LPDRIVER Driver = (LPDRIVER)Node;
+
+        SAFE_USE_VALID_ID(Driver, KOID_DRIVER) {
+            if (StringLength(Driver->Alias) == 0) {
+                continue;
+            }
+
+            if (StringCompareNC(Driver->Alias, Context->Command) != 0) {
+                continue;
+            }
+
+            PrintDriverDetails(Driver);
+            Found = TRUE;
+            break;
+        }
+    }
+
+    if (!Found) {
+        ConsolePrint(TEXT("driver: alias '%s' not found (known: "), Context->Command);
+        PrintKnownDriverAliases();
+        ConsolePrint(TEXT(")\n"));
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/***************************************************************************/
+
 U32 CMD_killtask(LPSHELLCONTEXT Context) {
     U32 TaskNum = 0;
     LPTASK Task = NULL;
@@ -550,11 +701,3 @@ U32 CMD_nvme(LPSHELLCONTEXT Context) {
 
     return DF_RETURN_SUCCESS;
 }
-
-/***************************************************************************/
-
-/**
- * @brief Skip spaces inside one command line text.
- * @param Text Source command line.
- * @param InOutIndex Index cursor to advance.
- */

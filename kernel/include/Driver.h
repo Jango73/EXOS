@@ -99,6 +99,12 @@ typedef struct tag_DRIVER {
 } DRIVER, *LPDRIVER;
 
 /***************************************************************************/
+// Driver naming helpers
+
+LPCSTR DriverTypeToText(UINT DriverType);
+LPCSTR DriverDomainToText(UINT Domain);
+
+/***************************************************************************/
 // Structure to retrieve driver capabilities
 
 #define DRIVER_CAPS1_CREATEFOLDERS 0x00000001
