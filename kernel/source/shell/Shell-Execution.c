@@ -27,6 +27,29 @@
 /***************************************************************************/
 
 /**
+ * @brief Check if a script text already contains a line break.
+ * @param Text Text to inspect.
+ * @return TRUE when the text contains '\r' or '\n', FALSE otherwise.
+ */
+static BOOL ShellScriptContainsLineBreak(LPCSTR Text) {
+    if (Text == NULL) {
+        return FALSE;
+    }
+
+    if (StringFindChar(Text, '\n') != NULL) {
+        return TRUE;
+    }
+
+    if (StringFindChar(Text, '\r') != NULL) {
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Launch executables listed in the kernel configuration.
  *
  * Each [[Run]] item of exos.toml is checked and the command is executed
@@ -226,7 +249,14 @@ U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData) {
         U32 Result = ShellScriptExecuteCommand(Argument, Context);
         return Result;
     } else if (STRINGS_EQUAL(FuncName, TEXT("print"))) {
-        ConsolePrint(Argument);
+        if (Argument == NULL) {
+            return DF_RETURN_BAD_PARAMETER;
+        }
+
+        ConsolePrint(TEXT("%s"), Argument);
+        if (!ShellScriptContainsLineBreak(Argument)) {
+            ConsolePrint(TEXT("\r\n"));
+        }
         return 0;
     }
 
