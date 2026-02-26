@@ -113,6 +113,15 @@ typedef struct tag_OBJECT_TERMINATION_STATE {
     UINT ExitCode;
 } OBJECT_TERMINATION_STATE, *LPOBJECT_TERMINATION_STATE;
 
+/************************************************************************/
+
+typedef struct tag_STARTUP_DRIVER_ENTRY {
+    LISTNODE_FIELDS
+    LPDRIVER Driver;
+} STARTUP_DRIVER_ENTRY, *LPSTARTUP_DRIVER_ENTRY;
+
+/************************************************************************/
+
 typedef struct tag_KERNELDATA {
     // NOTE: This structure has no global assembly mirror.
     // Assembly code must not rely on hardcoded offsets into this struct.
@@ -133,7 +142,8 @@ typedef struct tag_KERNELDATA {
     LPLIST File;
     LPLIST TCPConnection;
     LPLIST Socket;
-    LPLIST Drivers;                 // Driver list in initialization order
+    LPLIST StartupDrivers;          // Driver list in initialization order
+    LPLIST Drivers;                 // List of all known drivers
     LPLIST UserSessions;            // List of active user sessions
     LPLIST UserAccount;             // List of user accounts
     DISPLAY_SESSION DisplaySession; // Active display ownership state
@@ -179,6 +189,7 @@ BOOL GetDoLogin(void);
 LPDRIVER GetDefaultFileSystemDriver(void);
 LPDISPLAY_SESSION GetDisplaySession(void);
 LPLIST GetDriverList(void);
+LPLIST GetStartupDriverList(void);
 LPLIST GetEventList(void);
 LPLIST GetFileList(void);
 FILESYSTEM_GLOBAL_INFO* GetFileSystemGlobalInfo(void);

@@ -23,8 +23,6 @@
 
 #include "Driver.h"
 
-/***************************************************************************/
-
 /**
  * @brief Convert one driver type identifier to display text.
  * @param DriverType Driver type constant.

@@ -44,6 +44,22 @@ typedef struct tag_CPUIDREGISTERS {
 
 /************************************************************************/
 
+static STARTUP_DRIVER_ENTRY StartupDriverEntries[64];
+static UINT StartupDriverEntryCount = 0;
+
+/************************************************************************/
+
+static LIST StartupDriverList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
+
+/************************************************************************/
+
 static LIST DriverList = {
     .First = NULL,
     .Last = NULL,
@@ -254,6 +270,7 @@ static LIST UserAccountList = {
 /************************************************************************/
 
 static KERNELDATA DATA_SECTION Kernel = {
+    .StartupDrivers = &StartupDriverList,
     .Drivers = &DriverList,
     .Desktop = &DesktopList,
     .Process = &ProcessList,
@@ -315,39 +332,140 @@ static KERNELDATA DATA_SECTION Kernel = {
 /************************************************************************/
 
 /**
- * @brief Populates the kernel driver list in initialization order.
+ * @brief Checks whether one driver is already present in one list.
+ * @param List Target list.
+ * @param Driver Driver pointer to find.
+ * @return TRUE if found.
  */
-void InitializeDriverList(void) {
-    if (Kernel.Drivers == NULL || Kernel.Drivers->NumItems != 0) {
+static BOOL DriverListContains(LPLIST List, LPDRIVER Driver) {
+    if (List == NULL || Driver == NULL) {
+        return FALSE;
+    }
+
+    for (LPLISTNODE Node = List->First; Node; Node = Node->Next) {
+        if ((LPDRIVER)Node == Driver) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Checks whether one startup entry already references one driver.
+ * @param List Startup list.
+ * @param Driver Driver pointer to find.
+ * @return TRUE if found.
+ */
+static BOOL StartupDriverListContains(LPLIST List, LPDRIVER Driver) {
+    if (List == NULL || Driver == NULL) {
+        return FALSE;
+    }
+
+    for (LPLISTNODE Node = List->First; Node; Node = Node->Next) {
+        LPSTARTUP_DRIVER_ENTRY Entry = (LPSTARTUP_DRIVER_ENTRY)Node;
+        if (Entry->Driver == Driver) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Registers one startup driver reference.
+ * @param Driver Driver descriptor.
+ */
+static void RegisterStartupDriver(LPDRIVER Driver) {
+    LPSTARTUP_DRIVER_ENTRY Entry = NULL;
+
+    if (Driver == NULL) {
         return;
     }
 
-    ListAddTail(Kernel.Drivers, ConsoleGetDriver());
-    ListAddTail(Kernel.Drivers, KernelLogGetDriver());
-    ListAddTail(Kernel.Drivers, MemoryManagerGetDriver());
-    ListAddTail(Kernel.Drivers, TaskSegmentsGetDriver());
-    ListAddTail(Kernel.Drivers, InterruptsGetDriver());
-    ListAddTail(Kernel.Drivers, KernelProcessGetDriver());
-    ListAddTail(Kernel.Drivers, ACPIGetDriver());
-    ListAddTail(Kernel.Drivers, LocalAPICGetDriver());
-    ListAddTail(Kernel.Drivers, IOAPICGetDriver());
-    ListAddTail(Kernel.Drivers, InterruptControllerGetDriver());
-    ListAddTail(Kernel.Drivers, DeviceInterruptGetDriver());
-    ListAddTail(Kernel.Drivers, DeferredWorkGetDriver());
-    ListAddTail(Kernel.Drivers, SerialMouseGetDriver());
-    ListAddTail(Kernel.Drivers, ClockGetDriver());
-    ListAddTail(Kernel.Drivers, PCIGetDriver());
-    ListAddTail(Kernel.Drivers, KeyboardSelectorGetDriver());
-    ListAddTail(Kernel.Drivers, USBMouseGetDriver());
-    ListAddTail(Kernel.Drivers, USBStorageGetDriver());
-    ListAddTail(Kernel.Drivers, ATADiskGetDriver());
-    ListAddTail(Kernel.Drivers, SATADiskGetDriver());
-    ListAddTail(Kernel.Drivers, RAMDiskGetDriver());
-    ListAddTail(Kernel.Drivers, FileSystemGetDriver());
-    ListAddTail(Kernel.Drivers, NetworkManagerGetDriver());
-    ListAddTail(Kernel.Drivers, UserAccountGetDriver());
-    ListAddTail(Kernel.Drivers, VGAGetDriver());
-    ListAddTail(Kernel.Drivers, GraphicsSelectorGetDriver());
+    if (StartupDriverListContains(Kernel.StartupDrivers, Driver)) {
+        return;
+    }
+
+    if (StartupDriverEntryCount >= ARRAY_COUNT(StartupDriverEntries)) {
+        WARNING(TEXT("[RegisterStartupDriver] Startup driver entry table full"));
+        return;
+    }
+
+    Entry = &StartupDriverEntries[StartupDriverEntryCount++];
+    *Entry = (STARTUP_DRIVER_ENTRY){0};
+    Entry->Driver = Driver;
+
+    ListAddTail(Kernel.StartupDrivers, Entry);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Registers one driver into known list and optional startup list.
+ * @param Driver Driver descriptor.
+ * @param AddToStartup TRUE to include in startup load order.
+ */
+static void RegisterDriver(LPDRIVER Driver, BOOL AddToStartup) {
+    if (Driver == NULL) {
+        return;
+    }
+
+    if (!DriverListContains(Kernel.Drivers, Driver)) {
+        ListAddTail(Kernel.Drivers, Driver);
+    }
+
+    if (AddToStartup) {
+        RegisterStartupDriver(Driver);
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Populates startup and known driver lists.
+ */
+void InitializeDriverList(void) {
+    if (Kernel.StartupDrivers == NULL || Kernel.Drivers == NULL || Kernel.StartupDrivers->NumItems != 0 ||
+        Kernel.Drivers->NumItems != 0) {
+        return;
+    }
+    StartupDriverEntryCount = 0;
+
+    RegisterDriver(ConsoleGetDriver(), TRUE);
+    RegisterDriver(KernelLogGetDriver(), TRUE);
+    RegisterDriver(MemoryManagerGetDriver(), TRUE);
+    RegisterDriver(TaskSegmentsGetDriver(), TRUE);
+    RegisterDriver(InterruptsGetDriver(), TRUE);
+    RegisterDriver(KernelProcessGetDriver(), TRUE);
+    RegisterDriver(ACPIGetDriver(), TRUE);
+    RegisterDriver(LocalAPICGetDriver(), TRUE);
+    RegisterDriver(IOAPICGetDriver(), TRUE);
+    RegisterDriver(InterruptControllerGetDriver(), TRUE);
+    RegisterDriver(DeviceInterruptGetDriver(), TRUE);
+    RegisterDriver(DeferredWorkGetDriver(), TRUE);
+    RegisterDriver(SerialMouseGetDriver(), TRUE);
+    RegisterDriver(ClockGetDriver(), TRUE);
+    RegisterDriver(PCIGetDriver(), TRUE);
+    RegisterDriver(KeyboardSelectorGetDriver(), TRUE);
+    RegisterDriver(USBMouseGetDriver(), TRUE);
+    RegisterDriver(USBStorageGetDriver(), TRUE);
+    RegisterDriver(ATADiskGetDriver(), TRUE);
+    RegisterDriver(SATADiskGetDriver(), TRUE);
+    RegisterDriver(RAMDiskGetDriver(), TRUE);
+    RegisterDriver(FileSystemGetDriver(), TRUE);
+    RegisterDriver(NetworkManagerGetDriver(), TRUE);
+    RegisterDriver(UserAccountGetDriver(), TRUE);
+    RegisterDriver(VGAGetDriver(), TRUE);
+    RegisterDriver(GraphicsSelectorGetDriver(), TRUE);
+
+    RegisterDriver(IntelGfxGetDriver(), FALSE);
+    RegisterDriver(GOPGetDriver(), FALSE);
+    RegisterDriver(VESAGetDriver(), FALSE);
 }
 
 /************************************************************************/
@@ -358,6 +476,16 @@ void InitializeDriverList(void) {
  */
 LPLIST GetDriverList(void) {
     return Kernel.Drivers;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the startup driver list.
+ * @return Pointer to the startup driver list.
+ */
+LPLIST GetStartupDriverList(void) {
+    return Kernel.StartupDrivers;
 }
 
 /************************************************************************/

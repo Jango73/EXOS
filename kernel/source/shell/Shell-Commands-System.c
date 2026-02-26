@@ -40,7 +40,6 @@ static void PrintKnownDriverAliases(void) {
 
     for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
         LPDRIVER Driver = (LPDRIVER)Node;
-
         SAFE_USE_VALID_ID(Driver, KOID_DRIVER) {
             if (StringLength(Driver->Alias) == 0) {
                 continue;
@@ -170,6 +169,7 @@ U32 CMD_driver(LPSHELLCONTEXT Context) {
         ConsolePrint(TEXT("driver: alias '%s' not found (known: "), Context->Command);
         PrintKnownDriverAliases();
         ConsolePrint(TEXT(")\n"));
+        return DF_RETURN_SUCCESS;
     }
 
     return DF_RETURN_SUCCESS;
