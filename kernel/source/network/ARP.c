@@ -198,7 +198,7 @@ static void ArpCacheUpdate(LPARP_CONTEXT Context, U32 IPv4_Be, const U8 MacAddre
     U8 WasProbing = 0;
     U8 MacChanged = 0;
 
-    DEBUG(TEXT("[ArpCacheUpdate] Entry for IP %x, Context=%x"), Ntohl(IPv4_Be), (U32)Context);
+    DEBUG(TEXT("[ArpCacheUpdate] Entry for IP %x, Context=%p"), Ntohl(IPv4_Be), (LPVOID)Context);
     if (Context == NULL) {
         DEBUG(TEXT("[ArpCacheUpdate] Context is NULL, returning"));
         return;
@@ -224,14 +224,14 @@ static void ArpCacheUpdate(LPARP_CONTEXT Context, U32 IPv4_Be, const U8 MacAddre
 
     SAFE_USE(Entry) {
         WasProbing = Entry->IsProbing;
-        DEBUG(TEXT("[ArpCacheUpdate] Entry=%x, WasProbing=%u MacChanged=%u before update"), (U32)Entry, WasProbing, MacChanged);
+        DEBUG(TEXT("[ArpCacheUpdate] Entry=%p, WasProbing=%u MacChanged=%u before update"), (LPVOID)Entry, WasProbing, MacChanged);
         MacCopy(Entry->MacAddress, MacAddress);
         Entry->IsValid = 1;
         Entry->IsProbing = 0;
         Entry->TimeToLive = ARP_ENTRY_TTL_TICKS;
 
         // Send notification if this was a pending resolution OR if MAC changed
-        DEBUG(TEXT("[ArpCacheUpdate] WasProbing=%u MacChanged=%u, NotificationContext=%x"), WasProbing, MacChanged, (U32)Context->NotificationContext);
+        DEBUG(TEXT("[ArpCacheUpdate] WasProbing=%u MacChanged=%u, NotificationContext=%p"), WasProbing, MacChanged, (LPVOID)Context->NotificationContext);
         if ((WasProbing || MacChanged) && Context->NotificationContext) {
             ARP_RESOLVED_DATA ResolvedData;
             ResolvedData.IPv4_Be = IPv4_Be;
@@ -240,8 +240,8 @@ static void ArpCacheUpdate(LPARP_CONTEXT Context, U32 IPv4_Be, const U8 MacAddre
             DEBUG(TEXT("[ArpCacheUpdate] Sending ARP resolved notification for IP %x"), Ntohl(IPv4_Be));
             Notification_Send(Context->NotificationContext, NOTIF_EVENT_ARP_RESOLVED, &ResolvedData, sizeof(ResolvedData));
         } else {
-            DEBUG(TEXT("[ArpCacheUpdate] No notification sent: WasProbing=%u MacChanged=%u, NotificationContext=%x"),
-                  WasProbing, MacChanged, (U32)Context->NotificationContext);
+            DEBUG(TEXT("[ArpCacheUpdate] No notification sent: WasProbing=%u MacChanged=%u, NotificationContext=%p"),
+                  WasProbing, MacChanged, (LPVOID)Context->NotificationContext);
         }
 
         // Signal success to adaptive delay if this was probing
@@ -442,10 +442,10 @@ static void ArpHandlePacket(LPARP_CONTEXT Context, const ARP_PACKET* Packet) {
 void ARP_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length) {
     LPARP_CONTEXT Context;
 
-    DEBUG(TEXT("[ARP_OnEthernetFrame] Entry called Device=%x Frame=%x Length=%u"), (U32)Device, (U32)Frame, Length);
+    DEBUG(TEXT("[ARP_OnEthernetFrame] Entry called Device=%p Frame=%p Length=%u"), (LPVOID)Device, (LPVOID)Frame, Length);
 
     if (Device == NULL || Frame == NULL) {
-        DEBUG(TEXT("[ARP_OnEthernetFrame] NULL parameter: Device=%x Frame=%x"), (U32)Device, (U32)Frame);
+        DEBUG(TEXT("[ARP_OnEthernetFrame] NULL parameter: Device=%p Frame=%p"), (LPVOID)Device, (LPVOID)Frame);
         return;
     }
     if (Length < sizeof(ETHERNET_HEADER)) {
@@ -455,7 +455,7 @@ void ARP_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length) {
 
     Context = ARP_GetContext(Device);
     if (Context == NULL) {
-        DEBUG(TEXT("[ARP_OnEthernetFrame] No ARP context for device %x"), (U32)Device);
+        DEBUG(TEXT("[ARP_OnEthernetFrame] No ARP context for device %p"), (LPVOID)Device);
         return;
     }
 
@@ -792,7 +792,7 @@ int ARP_Resolve(LPDEVICE Device, U32 TargetIPv4_Be, U8 OutMacAddress[6]) {
         ArpSendRequest(Context, TargetIPv4_Be);
         Entry->IsProbing = 1;
         Entry->TimeToLive = ARP_PROBE_INTERVAL_TICKS;
-        DEBUG(TEXT("[ARP_Resolve] Set Entry=%x IsProbing=1"), (U32)Entry);
+        DEBUG(TEXT("[ARP_Resolve] Set Entry=%p IsProbing=1"), (LPVOID)Entry);
         AdaptiveDelay_GetNextDelay(&Entry->DelayState); // Initialize delay state
     } else if (Entry && Entry->IsProbing) {
         // Check if we should retry based on adaptive delay

@@ -164,7 +164,7 @@ static void NetworkManager_RxCallback(const U8 *Frame, U32 Length, LPVOID UserDa
     LPNETWORK_DEVICE_CONTEXT Context = (LPNETWORK_DEVICE_CONTEXT)UserData;
     LPDEVICE Device = NULL;
 
-    DEBUG(TEXT("[NetworkManager_RxCallback] Entry Context=%X Frame=%X Length=%u"), (U32)Context, (U32)Frame, Length);
+    DEBUG(TEXT("[NetworkManager_RxCallback] Entry Context=%p Frame=%p Length=%u"), (LPVOID)Context, (LPVOID)Frame, Length);
 
     SAFE_USE_VALID_ID(Context, KOID_NETWORKDEVICE) {
         Device = (LPDEVICE)Context->Device;
@@ -175,7 +175,7 @@ static void NetworkManager_RxCallback(const U8 *Frame, U32 Length, LPVOID UserDa
         return;
     }
 
-    DEBUG(TEXT("[NetworkManager_RxCallback] Device=%X"), (U32)Device);
+    DEBUG(TEXT("[NetworkManager_RxCallback] Device=%p"), (LPVOID)Device);
 
     U16 EthType = (U16)((Frame[12] << 8) | Frame[13]);
     DEBUG(TEXT("[NetworkManager_RxCallback] Frame len=%u, ethType=%X"), Length, EthType);
@@ -457,7 +457,7 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
 
             // Install RX callback with device context as UserData
             NETWORKSETRXCB SetRxCb = {.Device = Device, .Callback = NetworkManager_RxCallback, .UserData = (LPVOID)DeviceContext};
-            DEBUG(TEXT("[NetworkManager_InitializeDevice] Installing RX callback %X with UserData %X"), (U32)NetworkManager_RxCallback, (U32)DeviceContext);
+            DEBUG(TEXT("[NetworkManager_InitializeDevice] Installing RX callback %p with UserData %p"), (LPVOID)NetworkManager_RxCallback, (LPVOID)DeviceContext);
             U32 Result = Device->Driver->Command(DF_NT_SETRXCB, (UINT)(LPVOID)&SetRxCb);
             UNUSED(Result);
             DEBUG(TEXT("[NetworkManager_InitializeDevice] RX callback installation result: %u"), Result);
@@ -495,7 +495,7 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
 
             // Register TCP protocol handler now that device is initialized
             IPv4_RegisterProtocolHandler((LPDEVICE)Device, IPV4_PROTOCOL_TCP, TCP_OnIPv4Packet);
-            DEBUG(TEXT("[NetworkManager_InitializeDevice] TCP handler registered for protocol %d on device %x"), IPV4_PROTOCOL_TCP, (U32)Device);
+            DEBUG(TEXT("[NetworkManager_InitializeDevice] TCP handler registered for protocol %d on device %p"), IPV4_PROTOCOL_TCP, (LPVOID)Device);
 
             DEBUG(TEXT("[NetworkManager_InitializeDevice] Network stack initialized for device %s"),
                   Device->Driver->Product);

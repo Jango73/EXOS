@@ -998,7 +998,7 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
         KernelHeapFree(Conn);
         return NULL;
     }
-    DEBUG(TEXT("[TCP_CreateConnection] Created notification context %X for connection %X"), (U32)Conn->NotificationContext, (U32)Conn);
+    DEBUG(TEXT("[TCP_CreateConnection] Created notification context %p for connection %p"), (LPVOID)Conn->NotificationContext, (LPVOID)Conn);
 
     // Register for IPv4 packet sent events on the connection's network device
     LockMutex(&(Conn->Device->Mutex), INFINITY);
@@ -1023,8 +1023,8 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
     U32 RemoteIPHost = Ntohl(RemoteIP);
     UNUSED(LocalIPHost);
     UNUSED(RemoteIPHost);
-    DEBUG(TEXT("[TCP_CreateConnection] Created connection %X (%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d)"),
-        (U32)Conn,
+    DEBUG(TEXT("[TCP_CreateConnection] Created connection %p (%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d)"),
+        (LPVOID)Conn,
         (LocalIPHost >> 24) & 0xFF, (LocalIPHost >> 16) & 0xFF, (LocalIPHost >> 8) & 0xFF, LocalIPHost & 0xFF, Ntohs(Conn->LocalPort),
         (RemoteIPHost >> 24) & 0xFF, (RemoteIPHost >> 16) & 0xFF, (RemoteIPHost >> 8) & 0xFF, RemoteIPHost & 0xFF, Ntohs(RemotePort));
 
@@ -1041,7 +1041,7 @@ void TCP_DestroyConnection(LPTCP_CONNECTION Connection) {
         SAFE_USE (Connection->NotificationContext) {
             Notification_DestroyContext(Connection->NotificationContext);
             Connection->NotificationContext = NULL;
-            DEBUG(TEXT("[TCP_DestroyConnection] Destroyed notification context for connection %X"), (U32)Connection);
+            DEBUG(TEXT("[TCP_DestroyConnection] Destroyed notification context for connection %p"), (LPVOID)Connection);
         }
 
         // Remove from connections list
@@ -1054,7 +1054,7 @@ void TCP_DestroyConnection(LPTCP_CONNECTION Connection) {
         // Free the connection memory
         KernelHeapFree(Connection);
 
-        DEBUG(TEXT("[TCP_DestroyConnection] Destroyed connection %X"), (U32)Connection);
+        DEBUG(TEXT("[TCP_DestroyConnection] Destroyed connection %p"), (LPVOID)Connection);
     }
 }
 
@@ -1141,13 +1141,13 @@ int TCP_Receive(LPTCP_CONNECTION Connection, U8* Buffer, U32 BufferSize) {
 
 int TCP_Close(LPTCP_CONNECTION Connection) {
     SAFE_USE_VALID_ID(Connection, KOID_TCP) {
-        DEBUG(TEXT("[TCP_Close] Closing connection %X, current state=%d"), (U32)Connection, SM_GetCurrentState(&Connection->StateMachine));
+        DEBUG(TEXT("[TCP_Close] Closing connection %p, current state=%d"), (LPVOID)Connection, SM_GetCurrentState(&Connection->StateMachine));
         BOOL result = SM_ProcessEvent(&Connection->StateMachine, TCP_EVENT_CLOSE, NULL);
         DEBUG(TEXT("[TCP_Close] Close event processed, result=%d, new state=%d"), result, SM_GetCurrentState(&Connection->StateMachine));
 
         return result ? 0 : -1;
     }
-    DEBUG(TEXT("[TCP_Close] Invalid connection %X"), (U32)Connection);
+    DEBUG(TEXT("[TCP_Close] Invalid connection %p"), (LPVOID)Connection);
     return -1;
 }
 
@@ -1213,7 +1213,7 @@ void TCP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
             Current->RemoteIP == SourceIP &&
             Current->LocalIP == DestinationIP) {
             Conn = Current;
-            DEBUG(TEXT("[TCP_OnIPv4Packet] Found matching connection %X"), (U32)Conn);
+            DEBUG(TEXT("[TCP_OnIPv4Packet] Found matching connection %p"), (LPVOID)Conn);
             break;
         }
         Current = (LPTCP_CONNECTION)Current->Next;
@@ -1296,7 +1296,7 @@ void TCP_Update(void) {
         if (CurrentState == TCP_STATE_TIME_WAIT &&
             Conn->TimeWaitTimer > 0 &&
             CurrentTime >= Conn->TimeWaitTimer) {
-            DEBUG(TEXT("[TCP_Update] TIME_WAIT timeout reached for connection %X"), (U32)Conn);
+            DEBUG(TEXT("[TCP_Update] TIME_WAIT timeout reached for connection %p"), (LPVOID)Conn);
             SM_ProcessEvent(&Conn->StateMachine, TCP_EVENT_TIMEOUT, NULL);
         }
 
@@ -1357,7 +1357,7 @@ void TCP_Update(void) {
 void TCP_SetNotificationContext(LPTCP_CONNECTION Connection, LPNOTIFICATION_CONTEXT Context) {
     SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         Connection->NotificationContext = Context;
-        DEBUG(TEXT("[TCP_SetNotificationContext] Set notification context %X for connection %X"), (U32)Context, (U32)Connection);
+        DEBUG(TEXT("[TCP_SetNotificationContext] Set notification context %p for connection %p"), (LPVOID)Context, (LPVOID)Connection);
     }
 }
 
@@ -1398,8 +1398,8 @@ void TCP_InitSlidingWindow(LPTCP_CONNECTION Connection) {
 
         Hysteresis_Initialize(&Connection->WindowHysteresis, LowThreshold, HighThreshold, MaxWindow);
 
-        DEBUG(TEXT("[TCP_InitSlidingWindow] Initialized hysteresis: max=%u, low=%u, high=%u for connection %X"),
-              MaxWindow, LowThreshold, HighThreshold, (U32)Connection);
+        DEBUG(TEXT("[TCP_InitSlidingWindow] Initialized hysteresis: max=%u, low=%u, high=%u for connection %p"),
+              MaxWindow, LowThreshold, HighThreshold, (LPVOID)Connection);
     }
 }
 

@@ -43,7 +43,7 @@ LPNOTIFICATION_CONTEXT Notification_CreateContext(void) {
             KernelHeapFree(Context);
             return NULL;
         }
-        DEBUG(TEXT("[Notification_CreateContext] Created context at %x"), (U32)Context);
+        DEBUG(TEXT("[Notification_CreateContext] Created context at %p"), (LPVOID)Context);
     }
     return Context;
 }
@@ -57,7 +57,7 @@ LPNOTIFICATION_CONTEXT Notification_CreateContext(void) {
 void Notification_DestroyContext(LPNOTIFICATION_CONTEXT Context) {
     if (!Context) return;
 
-    DEBUG(TEXT("[Notification_DestroyContext] Destroying context at %x"), (U32)Context);
+    DEBUG(TEXT("[Notification_DestroyContext] Destroying context at %p"), (LPVOID)Context);
 
     if (Context->NotificationList) {
         DeleteList(Context->NotificationList);
@@ -105,7 +105,7 @@ U32 Notification_Register(LPNOTIFICATION_CONTEXT Context, U32 EventID, NOTIFICAT
         return 0;
     }
 
-    DEBUG(TEXT("[Notification_Register] Registered callback %x for event %x"), (U32)Callback, EventID);
+    DEBUG(TEXT("[Notification_Register] Registered callback %p for event %x"), (LPVOID)Callback, EventID);
     return 1;
 }
 
@@ -133,12 +133,12 @@ U32 Notification_Unregister(LPNOTIFICATION_CONTEXT Context, U32 EventID, NOTIFIC
         Current = (LPNOTIFICATION_ENTRY)ListGetItem(Context->NotificationList, Index);
         if (Current && Current->EventID == EventID && Current->Callback == Callback && Current->UserData == UserData) {
             ListErase(Context->NotificationList, Current);
-            DEBUG(TEXT("[Notification_Unregister] Unregistered callback %x for event %x"), (U32)Callback, EventID);
+            DEBUG(TEXT("[Notification_Unregister] Unregistered callback %p for event %x"), (LPVOID)Callback, EventID);
             return 1;
         }
     }
 
-    DEBUG(TEXT("[Notification_Unregister] Callback %x for event %x not found"), (U32)Callback, EventID);
+    DEBUG(TEXT("[Notification_Unregister] Callback %p for event %x not found"), (LPVOID)Callback, EventID);
     return 0;
 }
 
@@ -172,7 +172,7 @@ void Notification_Send(LPNOTIFICATION_CONTEXT Context, U32 EventID, LPVOID Data,
     for (Index = 0; Index < Size; Index++) {
         Current = (LPNOTIFICATION_ENTRY)ListGetItem(Context->NotificationList, Index);
         if (Current && Current->EventID == EventID) {
-            DEBUG(TEXT("[Notification_Send] Calling callback %x for event %x"), (U32)Current->Callback, EventID);
+            DEBUG(TEXT("[Notification_Send] Calling callback %p for event %x"), (LPVOID)Current->Callback, EventID);
             Current->Callback(&NotificationData, Current->UserData);
             CallbackCount++;
         }

@@ -186,9 +186,9 @@ void PageFaultHandler(LPINTERRUPT_FRAME Frame) {
 
     __asm__ __volatile__("mov %%cr2, %0" : "=r"(FaultAddress));
 
-    DEBUG(TEXT("[PageFaultHandler] CR2=%p Err=%p RIP=%p RSP=%p"),
+    DEBUG(TEXT("[PageFaultHandler] CR2=%p Err=%x RIP=%p RSP=%p"),
           (LPVOID)FaultAddress,
-          (LPVOID)Frame->ErrCode,
+          (UINT)Frame->ErrCode,
           (LPVOID)Frame->Registers.RIP,
           (LPVOID)Frame->Registers.RSP);
 
@@ -198,7 +198,7 @@ void PageFaultHandler(LPINTERRUPT_FRAME Frame) {
     }
 
     ERROR(TEXT("[PageFaultHandler] Page fault at %p"), (LINEAR)FaultAddress);
-    ERROR(TEXT("[PageFaultHandler] Error code = %p"), (LINEAR)Frame->ErrCode);
+    ERROR(TEXT("[PageFaultHandler] Error code = %x"), (UINT)Frame->ErrCode);
     LogCPUState(Frame);
     Die();
 }

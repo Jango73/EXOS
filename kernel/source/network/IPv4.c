@@ -643,7 +643,7 @@ Out:
 void IPv4_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length) {
     LPIPV4_CONTEXT Context;
 
-    DEBUG(TEXT("[IPv4_OnEthernetFrame] Entry Device=%x Frame=%x Length=%u"), (U32)Device, (U32)Frame, Length);
+    DEBUG(TEXT("[IPv4_OnEthernetFrame] Entry Device=%p Frame=%p Length=%u"), (LPVOID)Device, (LPVOID)Frame, Length);
 
     if (Device == NULL || Frame == NULL) {
         DEBUG(TEXT("[IPv4_OnEthernetFrame] NULL parameters"));
@@ -682,10 +682,10 @@ void IPv4_ARPResolvedCallback(LPNOTIFICATION_DATA NotificationData, LPVOID UserD
     LPIPV4_CONTEXT Context = (LPIPV4_CONTEXT)UserData;
     LPARP_RESOLVED_DATA ResolvedData;
 
-    DEBUG(TEXT("[IPv4_ARPResolvedCallback] Entry: Context=%x NotificationData=%x"), (U32)Context, (U32)NotificationData);
+    DEBUG(TEXT("[IPv4_ARPResolvedCallback] Entry: Context=%p NotificationData=%p"), (LPVOID)Context, (LPVOID)NotificationData);
 
     if (Context == NULL || NotificationData == NULL) {
-        DEBUG(TEXT("[IPv4_ARPResolvedCallback] NULL parameter: Context=%x NotificationData=%x"), (U32)Context, (U32)NotificationData);
+        DEBUG(TEXT("[IPv4_ARPResolvedCallback] NULL parameter: Context=%p NotificationData=%p"), (LPVOID)Context, (LPVOID)NotificationData);
         return;
     }
     if (NotificationData->EventID != NOTIF_EVENT_ARP_RESOLVED) {
