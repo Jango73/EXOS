@@ -247,7 +247,9 @@ void SetConsoleCharacter(STR Char) {
             if (ConsoleEnsureFramebufferMapped() == TRUE) {
                 U32 PixelX = (State.X + Console.CursorX) * ConsoleGetCellWidth();
                 U32 PixelY = (State.Y + Console.CursorY) * ConsoleGetCellHeight();
+                ConsoleHideFramebufferCursor();
                 ConsoleDrawGlyph(PixelX, PixelY, Char);
+                ConsoleShowFramebufferCursor();
             }
         } else {
             Offset = ((State.Y + Console.CursorY) * Console.ScreenWidth) + (State.X + Console.CursorX);
