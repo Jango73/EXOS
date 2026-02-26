@@ -25,7 +25,7 @@
 #include "Console.h"
 #include "Log.h"
 #include "Memory.h"
-#include "drivers/graphics/GfxTextRenderer.h"
+#include "drivers/graphics/Graphics-TextRenderer.h"
 #include "vbr-multiboot.h"
 
 /************************************************************************/
