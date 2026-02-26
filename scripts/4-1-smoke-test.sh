@@ -23,6 +23,7 @@ KEY_DELAY_SECONDS=0.12
 COMMAND_DELAY_SECONDS=0.25
 BOOT_INPUT_DELAY_SECONDS=1.0
 TEST_KEYBOARD_LAYOUT="en-US"
+PATCH_KEYBOARD_LAYOUT=1
 LOCAL_HTTP_SERVER_PID=""
 BOOT_READY_PATTERN="[InitializeKernel] Shell task created"
 
@@ -39,11 +40,16 @@ RUN_X86_32=1
 RUN_X86_64=1
 RUN_X86_64_UEFI=1
 SKIP_BUILD=0
+STOP_AFTER_SHELL_READY=0
 CURRENT_IMAGE_PATH=""
 CURRENT_FS_OFFSET=0
+CURRENT_ARCHIVE_NAME=""
+CURRENT_KERNEL_LOG_PATH=""
+CURRENT_COM1_LOG_PATH=""
+CURRENT_LOGS_ARCHIVED=0
 
 function Usage() {
-    echo "Usage: $0 [--only <x86-32|x86-64|x86-64-uefi>] [--commands-file <path>] [--no-build] [--key-delay <seconds>] [--command-delay <seconds>] [--boot-input-delay <seconds>] [--help]"
+    echo "Usage: $0 [--only <x86-32|x86-64|x86-64-uefi>] [--commands-file <path>] [--no-build] [--stop-after-shell] [--no-keyboard-layout-patch] [--key-delay <seconds>] [--command-delay <seconds>] [--boot-input-delay <seconds>] [--help]"
 }
 
 while [ $# -gt 0 ]; do
@@ -111,6 +117,12 @@ while [ $# -gt 0 ]; do
             ;;
         --no-build)
             SKIP_BUILD=1
+            ;;
+        --stop-after-shell)
+            STOP_AFTER_SHELL_READY=1
+            ;;
+        --no-keyboard-layout-patch)
+            PATCH_KEYBOARD_LAYOUT=0
             ;;
         *)
             echo "Unknown option: $1"
@@ -297,6 +309,48 @@ function StopLocalHttpServer() {
     if [ -n "$LOCAL_HTTP_SERVER_PID" ] && kill -0 "$LOCAL_HTTP_SERVER_PID" 2>/dev/null; then
         kill "$LOCAL_HTTP_SERVER_PID" || true
     fi
+}
+
+function ArchiveCurrentRunLogs() {
+    local Status="$1"
+    local Timestamp=""
+    local ArchiveDir=""
+    local SafeName=""
+    local KernelArchivePath=""
+    local Com1ArchivePath=""
+
+    if [ "$CURRENT_LOGS_ARCHIVED" -eq 1 ]; then
+        return 0
+    fi
+    if [ -z "$CURRENT_ARCHIVE_NAME" ] || [ -z "$CURRENT_KERNEL_LOG_PATH" ]; then
+        return 0
+    fi
+
+    Timestamp="$(date +%Y%m%d-%H%M%S)"
+    ArchiveDir="$ROOT_DIR/log/archive"
+    SafeName="$(echo "$CURRENT_ARCHIVE_NAME" | tr ' ' '-')"
+    mkdir -p "$ArchiveDir"
+
+    if [ -f "$CURRENT_KERNEL_LOG_PATH" ]; then
+        KernelArchivePath="$ArchiveDir/${Timestamp}-${SafeName}-${Status}-kernel.log"
+        cp "$CURRENT_KERNEL_LOG_PATH" "$KernelArchivePath"
+        echo "Archived kernel log: $KernelArchivePath"
+    fi
+    if [ -n "$CURRENT_COM1_LOG_PATH" ] && [ -f "$CURRENT_COM1_LOG_PATH" ]; then
+        Com1ArchivePath="$ArchiveDir/${Timestamp}-${SafeName}-${Status}-com1.log"
+        cp "$CURRENT_COM1_LOG_PATH" "$Com1ArchivePath"
+        echo "Archived com1 log: $Com1ArchivePath"
+    fi
+
+    CURRENT_LOGS_ARCHIVED=1
+}
+
+function OnScriptExit() {
+    local ExitCode="$1"
+    if [ "$ExitCode" -ne 0 ]; then
+        ArchiveCurrentRunLogs "fail"
+    fi
+    StopLocalHttpServer
 }
 
 function GetLogSize() {
@@ -695,7 +749,13 @@ function RunArchitecture() {
     LOG_FILE="$ROOT_DIR/$KernelLogRelativePath"
     CURRENT_IMAGE_PATH="$ROOT_DIR/$ImageRelativePath"
     CURRENT_FS_OFFSET="$FileSystemOffset"
-    SetImageKeyboardLayout "$CURRENT_IMAGE_PATH" "$CURRENT_FS_OFFSET" "$TEST_KEYBOARD_LAYOUT"
+    CURRENT_ARCHIVE_NAME="$Name"
+    CURRENT_KERNEL_LOG_PATH="$ROOT_DIR/$KernelLogRelativePath"
+    CURRENT_COM1_LOG_PATH="$ROOT_DIR/${KernelLogRelativePath/log\/kernel-/log\/debug-com1-}"
+    CURRENT_LOGS_ARCHIVED=0
+    if [ "$PATCH_KEYBOARD_LAYOUT" -eq 1 ]; then
+        SetImageKeyboardLayout "$CURRENT_IMAGE_PATH" "$CURRENT_FS_OFFSET" "$TEST_KEYBOARD_LAYOUT"
+    fi
     : > "$LOG_FILE"
 
     local ShutdownWaitStart
@@ -715,6 +775,22 @@ function RunArchitecture() {
     sleep "$BOOT_INPUT_DELAY_SECONDS"
     AssertNoFailures 0
     WaitForExpectedLog "$BOOT_READY_PATTERN" 0 "$BOOT_READY_TIMEOUT_SECONDS"
+    if [ "$STOP_AFTER_SHELL_READY" -eq 1 ]; then
+        echo "Shell ready detected, stopping early (--stop-after-shell)."
+        StopQemu
+        ShutdownWaitStart="$SECONDS"
+        while kill -0 "$QemuPid" 2>/dev/null; do
+            if [ $((SECONDS - ShutdownWaitStart)) -ge "$ShutdownWaitTimeout" ]; then
+                echo "Timed out waiting for QEMU shutdown after shell-ready stop."
+                kill "$QemuPid" || true
+                exit 1
+            fi
+            sleep 0.2
+        done
+        wait "$QemuPid" || true
+        ArchiveCurrentRunLogs "pass"
+        return 0
+    fi
     RunCommandList
     AssertNoFailures 0
 
@@ -729,9 +805,10 @@ function RunArchitecture() {
     done
 
     wait "$QemuPid" || true
+    ArchiveCurrentRunLogs "pass"
 }
 
-trap 'StopLocalHttpServer' EXIT
+trap 'OnScriptExit $?' EXIT
 EnsureLocalHttpServer
 
 if [ "$RUN_X86_32" -eq 1 ]; then
