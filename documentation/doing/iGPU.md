@@ -19,6 +19,10 @@ codex resume 019c9567-fca4-7b63-a9ea-858d0afc28dd
 - Keep source files split by responsibility (under 1000 lines each).
 - Every unimplemented driver command returns `DF_RETURN_NOT_IMPLEMENTED`.
 - Keep logs actionable and rate-limited for polling paths.
+- MVP may target one known platform (for example PCI device id `0x3e9b`), but implementation must stay multi-family ready:
+  - keep per-family behavior in capability tables / family helpers,
+  - do not hardwire one device id in core flow control,
+  - keep extension path explicit for additional Intel generations.
 
 ## Step 0 - Baseline and contract freeze
 - [x] Record exactly which `DF_GFX_*` commands are used by Desktop/Console/SYSCall.
