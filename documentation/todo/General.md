@@ -1,5 +1,13 @@
 # General TODO list
 
+## API return contract (mandatory, system-wide)
+
+- Target contract for kernel APIs, drivers, and syscalls: functions return only `DF_RETURN_*` status codes (`DF_RETURN_SUCCESS` on success, error code otherwise).
+- Functional values are returned through explicit output parameters (input/output structures or output pointers), not through the function return value.
+- New or refactored code must follow this contract immediately.
+- Existing modules are migrated progressively as work advances, until full convergence is reached across the system.
+- Compatibility shims are temporary and must be removed once migrated callers and providers are updated.
+
 ## Memory
 
 - FileReadAll() : use HeapAlloc, NOT KernelHeapAlloc
@@ -33,11 +41,6 @@
 ## Session
 
 - Lock session on inactivity in graphics display
-
-## Errors
-
-- Functions returning U32 MUST return DF_RETURN_XXXX codes : meaning 0 on success, an error otherwise.
-- If they are meant to return 0 or 1, they must use BOOL.
 
 ## Shell kernel objects exposure
 
