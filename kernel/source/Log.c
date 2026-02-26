@@ -47,6 +47,7 @@
 static CSTR KernelLogDefaultTagFilter[] = KERNEL_LOG_DEFAULT_TAG_FILTER;
 static STR DATA_SECTION KernelLogTagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
 static BOOL KernelLogErrorConsoleEnabled = TRUE;
+static U32 DATA_SECTION KernelConsolePrintDepth = 0;
 
 static UINT KernelLogDriverCommands(UINT Function, UINT Parameter);
 static BOOL KernelLogIsTagSeparator(STR Char);
@@ -288,8 +289,11 @@ static BOOL KernelLogShouldEmit(LPCSTR Text) {
 static void KernelPrintChar(STR Char) {
 #if DEBUG_SPLIT == 1
     if (ConsoleIsDebugSplitEnabled() == TRUE &&
-        ConsoleIsFramebufferMappingInProgress() == FALSE) {
+        ConsoleIsFramebufferMappingInProgress() == FALSE &&
+        KernelConsolePrintDepth == 0) {
+        KernelConsolePrintDepth++;
         ConsolePrintDebugChar(Char);
+        KernelConsolePrintDepth--;
         SerialOut(LOG_COM_INDEX, Char);
         return;
     }

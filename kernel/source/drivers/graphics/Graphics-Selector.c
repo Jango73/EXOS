@@ -66,6 +66,26 @@ static GRAPHICS_SELECTOR_STATE DATA_SECTION GraphicsSelectorState = {0};
 /************************************************************************/
 
 /**
+ * @brief Check whether one graphics command uses boolean return semantics.
+ * @param Function Driver command identifier.
+ * @return TRUE for text helper commands returning 0/1.
+ */
+static BOOL GraphicsSelectorIsBooleanTextCommand(UINT Function) {
+    switch (Function) {
+        case DF_GFX_TEXT_PUTCELL:
+        case DF_GFX_TEXT_CLEAR_REGION:
+        case DF_GFX_TEXT_SCROLL_REGION:
+        case DF_GFX_TEXT_SET_CURSOR:
+        case DF_GFX_TEXT_SET_CURSOR_VISIBLE:
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Retrieve graphics selector driver descriptor.
  * @return Pointer to graphics selector driver.
  */
@@ -265,10 +285,13 @@ static UINT GraphicsSelectorUnload(void) {
  */
 static UINT GraphicsSelectorForward(UINT Function, UINT Parameter) {
     UINT Index = 0;
+    BOOL IsBooleanTextCommand = FALSE;
 
     if (GraphicsSelectorState.BackendCount == 0) {
         return DF_RETURN_NOT_IMPLEMENTED;
     }
+
+    IsBooleanTextCommand = GraphicsSelectorIsBooleanTextCommand(Function);
 
     for (Index = GraphicsSelectorState.ActiveIndex; Index < GraphicsSelectorState.BackendCount; Index++) {
         LPDRIVER Driver = GraphicsSelectorState.Backends[Index];
@@ -281,18 +304,22 @@ static UINT GraphicsSelectorForward(UINT Function, UINT Parameter) {
         Result = Driver->Command(Function, Parameter);
 
         if (Function == DF_GFX_CREATECONTEXT) {
+            if (Result >= VMA_KERNEL) {
+                GraphicsSelectorState.ActiveIndex = Index;
+                return Result;
+            }
+            continue;
+        }
+
+        if (IsBooleanTextCommand != FALSE) {
             if (Result != 0) {
                 GraphicsSelectorState.ActiveIndex = Index;
                 return Result;
             }
-
-            WARNING(TEXT("[GraphicsSelectorForward] Backend %s has no context, trying fallback"), Driver->Product);
             continue;
         }
 
         if (Result == DF_RETURN_NOT_IMPLEMENTED || Result == DF_RETURN_UNEXPECTED) {
-            WARNING(TEXT("[GraphicsSelectorForward] Backend %s cannot handle function %x, trying fallback"),
-                Driver->Product, Function);
             continue;
         }
 

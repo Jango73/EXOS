@@ -761,6 +761,7 @@ Frontend transitions are executed through `DisplaySwitchToConsole()` and `Displa
 Emergency text fallback is isolated in `kernel/source/Console-VGATextFallback.c` and is only entered when console front-end activation cannot be completed through the active graphics backend path.
 
 Console text output uses backend-dispatched text commands (`kernel/source/Console-TextOps.c`), which route glyph, region, and cursor operations through `DF_GFX_TEXT_*` on the active graphics backend.
+The console text dispatch path exposes an acquisition-in-progress state through `ConsoleIsFramebufferMappingInProgress()` so debug-split log mirroring can avoid recursive console writes while a graphics context is being acquired.
 
 - BIOS/MBR path uses VGA text memory metadata for text mode operation.
 - UEFI path uses GOP-provided framebuffer metadata through the selected graphics backend.

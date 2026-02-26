@@ -34,6 +34,7 @@
 static BOOL DATA_SECTION ConsoleTextCursorVisible = FALSE;
 static U32 DATA_SECTION ConsoleTextCursorCellX = 0;
 static U32 DATA_SECTION ConsoleTextCursorCellY = 0;
+static U32 DATA_SECTION ConsoleTextAcquireDepth = 0;
 
 /************************************************************************/
 
@@ -88,9 +89,16 @@ static BOOL ConsoleTextAcquireContext(LPDRIVER* DriverOut, LPGRAPHICSCONTEXT* Co
     LPDRIVER Driver = NULL;
     UINT ContextPointer = 0;
     LPGRAPHICSCONTEXT Context = NULL;
+    BOOL Success = FALSE;
+
+    if (ConsoleTextAcquireDepth != 0) {
+        return FALSE;
+    }
+
+    ConsoleTextAcquireDepth++;
 
     if (DisplaySessionGetActiveFrontEnd() != DISPLAY_FRONTEND_CONSOLE) {
-        return FALSE;
+        goto Done;
     }
 
     Driver = DisplaySessionGetActiveGraphicsDriver();
@@ -99,29 +107,39 @@ static BOOL ConsoleTextAcquireContext(LPDRIVER* DriverOut, LPGRAPHICSCONTEXT* Co
     }
 
     if (Driver == NULL || Driver->Command == NULL || Driver == ConsoleGetDriver()) {
-        return FALSE;
+        goto Done;
     }
 
     if ((Driver->Flags & DRIVER_FLAG_READY) == 0) {
         (void)Driver->Command(DF_LOAD, 0);
+        if ((Driver->Flags & DRIVER_FLAG_READY) == 0) {
+            goto Done;
+        }
     }
 
     ContextPointer = Driver->Command(DF_GFX_CREATECONTEXT, 0);
     if (ContextPointer == 0) {
-        return FALSE;
+        goto Done;
+    }
+
+    if (ContextPointer < VMA_KERNEL) {
+        goto Done;
     }
 
     Context = (LPGRAPHICSCONTEXT)(LPVOID)ContextPointer;
     if (Context->TypeID != KOID_GRAPHICSCONTEXT) {
-        return FALSE;
+        goto Done;
     }
 
     SAFE_USE_2(DriverOut, ContextOut) {
         *DriverOut = Driver;
         *ContextOut = Context;
     }
+    Success = TRUE;
 
-    return TRUE;
+Done:
+    ConsoleTextAcquireDepth--;
+    return Success;
 }
 
 /************************************************************************/
@@ -160,7 +178,11 @@ static BOOL ConsoleTextPutCell(U32 PixelX, U32 PixelY, STR Character) {
         .BackgroundColorIndex = Console.BackColor
     };
 
-    return Driver->Command(DF_GFX_TEXT_PUTCELL, (UINT)(LPVOID)&Info) != 0 ? TRUE : FALSE;
+    if (Driver->Command(DF_GFX_TEXT_PUTCELL, (UINT)(LPVOID)&Info) == 0) {
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 /************************************************************************/
@@ -305,7 +327,7 @@ BOOL ConsoleEnsureFramebufferMapped(void) {
  * @return Always FALSE in backend-dispatch mode.
  */
 BOOL ConsoleIsFramebufferMappingInProgress(void) {
-    return FALSE;
+    return (ConsoleTextAcquireDepth != 0) ? TRUE : FALSE;
 }
 
 /************************************************************************/

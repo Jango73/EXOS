@@ -26,6 +26,7 @@
 #include "Kernel.h"
 #include "Memory.h"
 #include "Mutex.h"
+#include "CoreString.h"
 #include "drivers/input/Keyboard.h"
 #include "input/VKey.h"
 #include "System.h"
@@ -493,12 +494,9 @@ static void ConsoleSetCharacterRegion(U32 RegionIndex, STR Char) {
     if ((*State.CursorX) >= State.Width || (*State.CursorY) >= State.Height) return;
 
     if (Console.UseFramebuffer != FALSE) {
-        if (ConsoleEnsureFramebufferMapped() == FALSE) {
-            return;
-        }
-
         U32 PixelX = (State.X + (*State.CursorX)) * ConsoleGetCellWidth();
         U32 PixelY = (State.Y + (*State.CursorY)) * ConsoleGetCellHeight();
+
         ConsoleDrawGlyph(PixelX, PixelY, Char);
         return;
     }
@@ -599,6 +597,7 @@ void ConsolePrintCharRegion(U32 RegionIndex, STR Char) {
 
     if (ConsoleResolveRegionState(RegionIndex, &State) == FALSE) return;
     if (State.Width == 0 || State.Height == 0) return;
+    if (Console.UseFramebuffer != FALSE && ConsoleEnsureFramebufferMapped() == FALSE) return;
 
     if (Char == STR_NEWLINE) {
         (*State.CursorX) = 0;

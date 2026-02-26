@@ -626,7 +626,9 @@ static UINT GOPGfxTextPutCell(LPGFX_TEXT_CELL_INFO Info) {
     }
 
     LockMutex(&(Context->Mutex), INFINITY);
+
     Result = GfxTextPutCell(Context, Info);
+
     UnlockMutex(&(Context->Mutex));
 
     return Result ? 1 : 0;

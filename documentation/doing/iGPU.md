@@ -1,3 +1,5 @@
+codex resume 019c9567-fca4-7b63-a9ea-858d0afc28dd
+
 # Intel iGPU Driver Roadmap (native, windowing-focused)
 
 ## Scope

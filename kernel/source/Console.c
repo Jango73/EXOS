@@ -325,6 +325,12 @@ void ConsolePrintChar(STR Char) {
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
+    if (Console.UseFramebuffer != FALSE && ConsoleEnsureFramebufferMapped() == FALSE) {
+        UnlockMutex(MUTEX_CONSOLE);
+        ProfileStop(&Scope);
+        return;
+    }
+
     if (Char == STR_NEWLINE) {
         Console.CursorX = 0;
         Console.CursorY++;
