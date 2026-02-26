@@ -244,6 +244,43 @@ static void PrintSupportedGraphicsBackendAliases(void) {
 /************************************************************************/
 
 /**
+ * @brief Find one graphics backend driver by alias.
+ * @param Alias Driver alias.
+ * @return Driver pointer or NULL when not found.
+ */
+static LPDRIVER FindGraphicsBackendByAlias(LPCSTR Alias) {
+    LPLIST DriverList = GetDriverList();
+
+    if (Alias == NULL || StringLength(Alias) == 0 || DriverList == NULL) {
+        return NULL;
+    }
+
+    for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
+        LPDRIVER Driver = (LPDRIVER)Node;
+
+        if (Driver == NULL || Driver == GraphicsSelectorGetDriver()) {
+            continue;
+        }
+
+        if (Driver->Type != DRIVER_TYPE_GRAPHICS || Driver->Command == NULL) {
+            continue;
+        }
+
+        if (StringLength(Driver->Alias) == 0) {
+            continue;
+        }
+
+        if (StringCompareNC(Driver->Alias, Alias) == 0) {
+            return Driver;
+        }
+    }
+
+    return NULL;
+}
+
+/************************************************************************/
+
+/**
  * @brief Draw a temporary desktop/window and return to text console.
  * @param DurationMilliseconds Display duration.
  * @return DF_RETURN_SUCCESS on completion.
@@ -314,6 +351,8 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
     LPDESKTOP ActiveDesktop = NULL;
     LPCSTR ActiveBackendName = NULL;
     U32 DurationMilliseconds = 5000;
+    LPDRIVER RequestedBackend = NULL;
+    UINT RequestedBackendLoadResult = DF_RETURN_SUCCESS;
 
     ParseNextCommandLineComponent(Context);
     StringCopy(Mode, Context->Command);
@@ -357,10 +396,28 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
+    RequestedBackend = FindGraphicsBackendByAlias(DriverName);
+    if (RequestedBackend != NULL && (RequestedBackend->Flags & DRIVER_FLAG_READY) == 0) {
+        RequestedBackendLoadResult = RequestedBackend->Command(DF_LOAD, 0);
+    }
+
+    if (GraphicsSelectorGetDriver() != NULL && GraphicsSelectorGetDriver()->Command != NULL) {
+        (void)GraphicsSelectorGetDriver()->Command(DF_UNLOAD, 0);
+    }
+
     if (!GraphicsSelectorForceBackendByName(DriverName)) {
         ConsolePrint(TEXT("gfx: backend '%s' unavailable (supported: "), DriverName);
         PrintSupportedGraphicsBackendAliases();
         ConsolePrint(TEXT(")\n"));
+        if (RequestedBackend != NULL) {
+            ConsolePrint(TEXT("gfx: backend '%s' load_result=%u ready=%u\n"),
+                DriverName,
+                RequestedBackendLoadResult,
+                (RequestedBackend->Flags & DRIVER_FLAG_READY) != 0 ? 1 : 0);
+            if (StringCompareNC(DriverName, TEXT("igpu")) == 0) {
+                ConsolePrint(TEXT("gfx: check logs [IntelGfxLoad] and [IntelGfxTakeoverActiveMode]\n"));
+            }
+        }
         return DF_RETURN_SUCCESS;
     }
 

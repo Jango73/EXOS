@@ -126,6 +126,11 @@ After takeover works, add explicit mode programming.
 - [x] Program timings, stride, surface base, pixel format.
 - [ ] Bring panel/backlight handling only where needed for internal panel stability.
 - [x] Keep one conservative mode path first (for example: one pipe, one output).
+- [ ] Add explicit transcoder routing policy for the selected pipe/output pair.
+- [ ] Add clock programming steps (DPLL / clock source selection) required by each targeted generation.
+- [ ] Add connector link configuration and training path (eDP/DP first, then HDMI).
+- [ ] Add atomic-style programming order checks (disable, program, enable, verify) per stage.
+- [ ] Add failure rollback sequence for partial modeset programming.
 
 Deliverable:
 - `DF_GFX_SETMODE` programs Intel display pipeline without firmware fallback.
@@ -163,6 +168,9 @@ Deliverable:
 - [ ] Implement `ENUMOUTPUTS` and `GETOUTPUTINFO`.
 - [ ] Start with one active output policy; keep data model ready for many outputs.
 - [ ] Add connector hotplug detection only after single-output stability.
+- [ ] Define connector-to-pipe/transcoder policy (priority, allowed combinations, fallback order).
+- [ ] Track per-output requirements (clock limits, lane count, link rate, color format limits).
+- [ ] Add explicit internal-panel-first policy for hybrid laptop targets.
 
 Deliverable:
 - Output enumeration API stable even before full multi-monitor policy is enabled.
@@ -171,6 +179,8 @@ Deliverable:
 - [ ] Keep VESA as fallback backend.
 - [ ] Ensure Desktop chooses backend by capability/priority policy.
 - [ ] Add a boot option or kernel config key to force one backend for debugging.
+- [ ] Define backend failover contract: conditions that trigger fallback and when to stay on Intel path.
+- [ ] Keep last failure reason exposed through diagnostics to avoid silent fallback loops.
 
 Deliverable:
 - Safe fallback path and deterministic backend selection.
@@ -179,8 +189,11 @@ Deliverable:
 - [ ] Add concise commands (or debug paths) to print:
   - GPU identification and capabilities
   - Active pipe/plane/output
+  - Active transcoder/connector/link state
+  - Clock source / PLL selection summary
   - Current mode and stride
   - Present path stats (flip/blit counters, suppressed warnings)
+  - Last modeset failure stage + return code
 - [ ] Use shared rate limiting in polling loops.
 
 Deliverable:
@@ -193,6 +206,8 @@ Minimum gates before considering the driver stable:
 - [ ] Desktop starts and draws correctly.
 - [ ] 15-second stress loop of window moves/invalidations without fault.
 - [ ] Mode set success and rollback behavior validated.
+- [ ] Cold modeset validated on at least one hybrid laptop profile where takeover is unavailable.
+- [ ] Fallback policy validated when Intel path fails mid-sequence.
 - [ ] Suspend/resume not required for first stable release unless explicitly targeted.
 
 ## Suggested code split

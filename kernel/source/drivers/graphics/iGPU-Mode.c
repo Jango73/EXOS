@@ -425,15 +425,15 @@ static BOOL IntelGfxBuildTakeoverContext(void) {
 UINT IntelGfxTakeoverActiveMode(void) {
     if (!IntelGfxReadActiveScanoutState()) {
         ERROR(TEXT("[IntelGfxTakeoverActiveMode] No active Intel scanout state found"));
-        return DF_RETURN_UNEXPECTED;
+        return DF_RETURN_IGFX_NO_ACTIVE_SCANOUT;
     }
 
     if (!IntelGfxMapActiveFrameBuffer()) {
-        return DF_RETURN_UNEXPECTED;
+        return DF_RETURN_IGFX_MAP_FRAMEBUFFER_FAILED;
     }
 
     if (!IntelGfxBuildTakeoverContext()) {
-        return DF_RETURN_UNEXPECTED;
+        return DF_RETURN_IGFX_BUILD_CONTEXT_FAILED;
     }
 
     return DF_RETURN_SUCCESS;

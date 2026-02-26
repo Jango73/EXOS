@@ -324,6 +324,7 @@ static UINT IntelGfxLoad(void) {
     U32 Bar0Base = 0;
     U32 Bar0Size = 0;
     U32 ProbeValue = 0;
+    UINT TakeoverResult = DF_RETURN_SUCCESS;
 
     if ((IntelGfxDriver.Flags & DRIVER_FLAG_READY) != 0) {
         return DF_RETURN_SUCCESS;
@@ -332,25 +333,25 @@ static UINT IntelGfxLoad(void) {
     Device = IntelGfxFindDisplayDevice();
     if (Device == NULL) {
         WARNING(TEXT("[IntelGfxLoad] No Intel display PCI device found"));
-        return DF_RETURN_UNEXPECTED;
+        return DF_RETURN_IGFX_NO_DISPLAY_DEVICE;
     }
 
     if (PCI_BAR_IS_IO(Device->Info.BAR[0])) {
         ERROR(TEXT("[IntelGfxLoad] BAR0 is I/O, expected MMIO (bar0=%x)"), Device->Info.BAR[0]);
-        return DF_RETURN_UNEXPECTED;
+        return DF_RETURN_IGFX_INVALID_BAR0;
     }
 
     Bar0Base = PCI_GetBARBase(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 0);
     Bar0Size = PCI_GetBARSize(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, 0);
     if (Bar0Base == 0 || Bar0Size == 0) {
         ERROR(TEXT("[IntelGfxLoad] Invalid BAR0 base=%x size=%u"), Bar0Base, Bar0Size);
-        return DF_RETURN_UNEXPECTED;
+        return DF_RETURN_IGFX_INVALID_BAR0;
     }
 
     IntelGfxState.MmioBase = MapIOMemory((PHYSICAL)Bar0Base, Bar0Size);
     if (IntelGfxState.MmioBase == 0) {
         ERROR(TEXT("[IntelGfxLoad] MapIOMemory failed for base=%p size=%u"), (LPVOID)(LINEAR)Bar0Base, Bar0Size);
-        return DF_RETURN_UNEXPECTED;
+        return DF_RETURN_IGFX_MAP_MMIO_FAILED;
     }
 
     IntelGfxState.MmioSize = Bar0Size;
@@ -368,7 +369,9 @@ static UINT IntelGfxLoad(void) {
 
     IntelGfxInitializeCapabilities(Device);
 
-    if (IntelGfxTakeoverActiveMode() != DF_RETURN_SUCCESS) {
+    TakeoverResult = IntelGfxTakeoverActiveMode();
+    if (TakeoverResult != DF_RETURN_SUCCESS) {
+        ERROR(TEXT("[IntelGfxLoad] Active mode takeover failed (%u)"), TakeoverResult);
         if (IntelGfxState.FrameBufferLinear != 0 && IntelGfxState.FrameBufferSize != 0) {
             UnMapIOMemory(IntelGfxState.FrameBufferLinear, IntelGfxState.FrameBufferSize);
         }
@@ -377,7 +380,7 @@ static UINT IntelGfxLoad(void) {
         }
         IntelGfxReleaseAllSurfaces();
         IntelGfxState = (INTEL_GFX_STATE){0};
-        return DF_RETURN_UNEXPECTED;
+        return TakeoverResult;
     }
 
     IntelGfxDriver.Flags |= DRIVER_FLAG_READY;
