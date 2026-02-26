@@ -28,6 +28,7 @@
 #include "Base.h"
 #include "Clock.h"
 #include "Console.h"
+#include "DisplaySession.h"
 #include "DeferredWork.h"
 #include "Kernel.h"
 #include "Log.h"
@@ -662,7 +663,7 @@ static void USBKeyboardHandleSpecialUsage(U8 Usage) {
     }
 
     if (Keyboard.UsageStatus[KEY_USAGE_LEFT_CTRL] || Keyboard.UsageStatus[KEY_USAGE_RIGHT_CTRL]) {
-        GetGraphicsDriver()->Command(DF_UNLOAD, 0);
+        (void)DisplaySwitchToConsole();
     } else {
         TASKINFO TaskInfo;
         TaskInfo.Header.Size = sizeof(TASKINFO);

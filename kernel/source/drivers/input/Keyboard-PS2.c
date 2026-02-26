@@ -28,6 +28,7 @@
 #include "Arch.h"
 #include "Console.h"
 #include "drivers/interrupts/InterruptController.h"
+#include "DisplaySession.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "input/VKey.h"
@@ -436,7 +437,7 @@ static void HandleScanCode(U32 ScanCode) {
 
                 if (Usage == 0x42) {
                     if (Keyboard.UsageStatus[KEY_USAGE_LEFT_CTRL] || Keyboard.UsageStatus[KEY_USAGE_RIGHT_CTRL]) {
-                        GetGraphicsDriver()->Command(DF_UNLOAD, 0);
+                        (void)DisplaySwitchToConsole();
                     } else {
                         TASKINFO TaskInfo;
                         TaskInfo.Header.Size = sizeof(TASKINFO);

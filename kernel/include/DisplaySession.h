@@ -52,6 +52,8 @@ typedef struct tag_DISPLAY_SESSION {
 void DisplaySessionInitialize(void);
 BOOL DisplaySessionSetConsoleMode(LPGRAPHICSMODEINFO ModeInfo);
 BOOL DisplaySessionSetDesktopMode(LPDESKTOP Desktop, LPDRIVER GraphicsDriver, LPGRAPHICSMODEINFO ModeInfo);
+BOOL DisplaySwitchToConsole(void);
+BOOL DisplaySwitchToDesktop(LPDESKTOP Desktop);
 BOOL DisplaySessionGetActiveMode(LPGRAPHICSMODEINFO ModeInfoOut);
 U32 DisplaySessionGetActiveFrontEnd(void);
 LPDRIVER DisplaySessionGetActiveGraphicsDriver(void);

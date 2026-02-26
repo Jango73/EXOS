@@ -23,9 +23,83 @@
 
 #include "DisplaySession.h"
 
+#include "Console.h"
 #include "DriverGetters.h"
+#include "GFX.h"
 #include "KernelData.h"
 #include "Log.h"
+#include "Mutex.h"
+
+/************************************************************************/
+
+static BOOL DisplaySessionQueryGraphicsMode(LPDRIVER Driver, LPGRAPHICSMODEINFO ModeInfo);
+static void DisplaySessionSetMainDesktopState(LPDRIVER GraphicsDriver, LPGRAPHICSMODEINFO ModeInfo);
+
+/************************************************************************/
+
+/**
+ * @brief Query active mode information from a graphics backend.
+ * @param Driver Graphics driver to query.
+ * @param ModeInfo Output mode information.
+ * @return TRUE when mode information is valid.
+ */
+static BOOL DisplaySessionQueryGraphicsMode(LPDRIVER Driver, LPGRAPHICSMODEINFO ModeInfo) {
+    UINT Result;
+
+    if (Driver == NULL || Driver->Command == NULL || ModeInfo == NULL) {
+        return FALSE;
+    }
+
+    ModeInfo->Header.Size = sizeof(GRAPHICSMODEINFO);
+    ModeInfo->Header.Version = EXOS_ABI_VERSION;
+    ModeInfo->Header.Flags = 0;
+    ModeInfo->Width = 0;
+    ModeInfo->Height = 0;
+    ModeInfo->BitsPerPixel = 0;
+
+    Result = Driver->Command(DF_GFX_GETMODEINFO, (UINT)(LPVOID)ModeInfo);
+    if (Result != DF_RETURN_SUCCESS || ModeInfo->Width == 0 || ModeInfo->Height == 0) {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Keep main desktop metadata coherent with active front-end.
+ * @param GraphicsDriver Driver used by the active front-end.
+ * @param ModeInfo Active mode info used for root window bounds.
+ */
+static void DisplaySessionSetMainDesktopState(LPDRIVER GraphicsDriver, LPGRAPHICSMODEINFO ModeInfo) {
+    RECT Rect;
+
+    if (GraphicsDriver == NULL || ModeInfo == NULL || ModeInfo->Width == 0 || ModeInfo->Height == 0) {
+        return;
+    }
+
+    Rect.X1 = 0;
+    Rect.Y1 = 0;
+    Rect.X2 = (I32)ModeInfo->Width - 1;
+    Rect.Y2 = (I32)ModeInfo->Height - 1;
+
+    SAFE_USE_VALID_ID(&MainDesktop, KOID_DESKTOP) {
+        LockMutex(&(MainDesktop.Mutex), INFINITY);
+        MainDesktop.Graphics = GraphicsDriver;
+        MainDesktop.Mode = DESKTOP_MODE_CONSOLE;
+
+        SAFE_USE_VALID_ID(MainDesktop.Window, KOID_WINDOW) {
+            LockMutex(&(MainDesktop.Window->Mutex), INFINITY);
+            MainDesktop.Window->Rect = Rect;
+            MainDesktop.Window->ScreenRect = Rect;
+            MainDesktop.Window->InvalidRect = Rect;
+            UnlockMutex(&(MainDesktop.Window->Mutex));
+        }
+
+        UnlockMutex(&(MainDesktop.Mutex));
+    }
+}
 
 /************************************************************************/
 
@@ -107,6 +181,69 @@ BOOL DisplaySessionSetDesktopMode(LPDESKTOP Desktop, LPDRIVER GraphicsDriver, LP
     }
 
     return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Switch display ownership to console front-end.
+ * @return TRUE on success.
+ */
+BOOL DisplaySwitchToConsole(void) {
+    GRAPHICSMODEINFO ModeInfo;
+    UINT Result;
+    LPDRIVER GraphicsDriver;
+    LPDISPLAY_SESSION Session;
+
+    ModeInfo.Header.Size = sizeof(ModeInfo);
+    ModeInfo.Header.Version = EXOS_ABI_VERSION;
+    ModeInfo.Header.Flags = 0;
+    ModeInfo.Width = (Console.Width != 0) ? Console.Width : 80;
+    ModeInfo.Height = (Console.Height != 0) ? Console.Height : 25;
+    ModeInfo.BitsPerPixel = 0;
+
+    Result = ConsoleSetMode(&ModeInfo);
+    if (Result == DF_RETURN_SUCCESS) {
+        return TRUE;
+    }
+
+    GraphicsDriver = GetGraphicsDriver();
+    if (GraphicsDriver != NULL && GraphicsDriver != ConsoleGetDriver() &&
+        DisplaySessionQueryGraphicsMode(GraphicsDriver, &ModeInfo) != FALSE) {
+        Session = GetDisplaySession();
+
+        SAFE_USE(Session) {
+            if (Session->IsInitialized == FALSE) {
+                DisplaySessionInitialize();
+            }
+
+            Session->GraphicsDriver = GraphicsDriver;
+            Session->ActiveDesktop = &MainDesktop;
+            Session->ActiveMode = ModeInfo;
+            Session->ActiveFrontEnd = DISPLAY_FRONTEND_CONSOLE;
+            Session->HasValidMode = TRUE;
+            DisplaySessionSetMainDesktopState(GraphicsDriver, &ModeInfo);
+            return TRUE;
+        }
+    }
+
+    WARNING(TEXT("[DisplaySwitchToConsole] Unable to activate console mode (%u)"), Result);
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Switch display ownership to desktop front-end.
+ * @param Desktop Desktop to activate.
+ * @return TRUE on success.
+ */
+BOOL DisplaySwitchToDesktop(LPDESKTOP Desktop) {
+    if (Desktop == NULL) {
+        return FALSE;
+    }
+
+    return ShowDesktop(Desktop);
 }
 
 /************************************************************************/

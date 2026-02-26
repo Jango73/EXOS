@@ -24,6 +24,7 @@
 
 #include "shell/Shell-Commands-Private.h"
 #include "Autotest.h"
+#include "DisplaySession.h"
 #include "utils/SizeFormat.h"
 
 /***************************************************************************/
@@ -32,33 +33,11 @@
  * @brief Restore text console after graphics smoke rendering.
  */
 static void RestoreConsoleAfterGraphicsSmoke(void) {
-    GRAPHICSMODEINFO ModeInfo;
-    UINT Result;
-    LPDRIVER GraphicsDriver;
-
-    ModeInfo.Header.Size = sizeof(ModeInfo);
-    ModeInfo.Header.Version = EXOS_ABI_VERSION;
-    ModeInfo.Header.Flags = 0;
-    ModeInfo.Width = (Console.Width != 0) ? Console.Width : 80;
-    ModeInfo.Height = (Console.Height != 0) ? Console.Height : 25;
-    ModeInfo.BitsPerPixel = 0;
-
-    Result = ConsoleSetMode(&ModeInfo);
-    if (Result == DF_RETURN_SUCCESS) {
+    if (DisplaySwitchToConsole() != FALSE) {
         return;
     }
 
-    WARNING(TEXT("[RestoreConsoleAfterGraphicsSmoke] ConsoleSetMode failed (%u), forcing graphics unload"), Result);
-
-    GraphicsDriver = GetGraphicsDriver();
-    if (GraphicsDriver != NULL && GraphicsDriver->Command != NULL) {
-        (void)GraphicsDriver->Command(DF_UNLOAD, 0);
-    }
-
-    Result = ConsoleSetMode(&ModeInfo);
-    if (Result != DF_RETURN_SUCCESS) {
-        ERROR(TEXT("[RestoreConsoleAfterGraphicsSmoke] Console restore failed (%u)"), Result);
-    }
+    ERROR(TEXT("[RestoreConsoleAfterGraphicsSmoke] Console restore failed"));
 }
 
 U32 CMD_killtask(LPSHELLCONTEXT Context) {
@@ -287,7 +266,7 @@ U32 CMD_gfxsmoke(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    if (ShowDesktop(Desktop) == FALSE) {
+    if (DisplaySwitchToDesktop(Desktop) == FALSE) {
         ConsolePrint(TEXT("gfx_smoke: desktop show failed\n"));
         DeleteDesktop(Desktop);
         return DF_RETURN_SUCCESS;
