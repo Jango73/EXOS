@@ -49,7 +49,15 @@
 ## UDP
 - [X] Simple header: source port, destination port, length, checksum  
   - Can start with `checksum = 0` (disabled)  
-- [ ] Basic UDP socket interface  
+- [X] Basic UDP socket interface  
+- [ ] UDP socket routing refinement
+  - Validate destination local IPv4 on receive path before socket dispatch
+  - Filter datagrams by connected peer when socket has a remote endpoint
+  - Allow multiple sockets on the same local port with `SO_REUSEADDR` policy
+- [ ] UDP socket robustness
+  - Return explicit truncation status/code when payload exceeds user buffer
+  - Add stress tests for high-rate datagram loss/overflow behavior
+  - Add end-to-end sendto/recvfrom tests in smoke/autotest suite
 
 ## TCP
 - [X] State machine using StateMachine.c framework

@@ -1426,7 +1426,7 @@ Access control is enforced in exposure helpers through shared macros and checks 
 
 ### Network Stack
 
-EXOS implements a modern layered network stack with per-device context isolation and support for Ethernet, ARP, IPv4, and TCP protocols. The implementation follows standard networking principles with clear separation between layers and full support for multiple network devices.
+EXOS implements a modern layered network stack with per-device context isolation and support for Ethernet, ARP, IPv4, UDP, and TCP protocols. The implementation follows standard networking principles with clear separation between layers and full support for multiple network devices.
 
 #### Architecture Overview
 
@@ -1436,9 +1436,9 @@ The network stack is organized in five main layers with per-device context manag
 ┌─────────────────────────────────────┐
 │            Applications             │
 ├─────────────────────────────────────┤
-│         Socket Layer (TCP)          │
-│    (Connection management, state    │
-│     machine, send/receive buffers)  │
+│     Socket Layer (TCP and UDP)      │
+│   (Connection and datagram APIs,    │
+│    state machine, send/recv paths)  │
 ├─────────────────────────────────────┤
 │          IPv4 Protocol Layer        │
 │    (ICMP, UDP, TCP protocols)       │
@@ -1514,7 +1514,7 @@ The Network Manager provides centralized network device discovery, initializatio
 
 **Key Features:**
 - Automatic PCI network device discovery (up to 8 devices)
-- Per-device network stack initialization (ARP, IPv4, TCP)
+- Per-device network stack initialization (ARP, IPv4, UDP, TCP)
 - Unified frame reception callback routing
 - Integration with the deferred work dispatcher for interrupt-driven receive paths with polling fallback
 - Primary device selection for global protocols
@@ -1528,7 +1528,8 @@ void InitializeNetworkManager(void) {
     //    b. Initialize ARP context
     //    c. Initialize IPv4 context
     //    d. Install device-specific RX callback
-    //    e. Initialize TCP (once globally)
+    //    e. Initialize UDP for the device
+    //    f. Initialize TCP (once globally)
 }
 ```
 
@@ -1661,6 +1662,29 @@ typedef struct IPv4HeaderTag {
 - `IPv4_Send(Device, DestinationIP, Protocol, Payload, Length)`: Send IPv4 packet
 - `IPv4_OnEthernetFrame(Device, Frame, Length)`: Process incoming IPv4 packets
 
+#### UDP (User Datagram Protocol)
+
+**Location:** `kernel/source/network/UDP.c`, `kernel/include/network/UDP.h`
+
+UDP provides connectionless datagram delivery with IPv4 integration and per-port handlers.
+
+**Key Features:**
+- UDP header build/parse with source port, destination port, length, and checksum
+- Pseudo-header checksum generation and validation
+- Per-device port handler registration (`UDP_RegisterPortHandler`)
+- Socket datagram operations through `SocketSendTo` and `SocketReceiveFrom`
+
+**API Functions:**
+- `UDP_Initialize(Device)`: Initialize UDP context for a device
+- `UDP_Destroy(Device)`: Cleanup UDP context
+- `UDP_Send(Device, DestinationIP, SourcePort, DestinationPort, Payload, Length)`: Send UDP datagram
+- `UDP_OnIPv4Packet()`: Process incoming UDP datagrams from IPv4
+
+**Known Limits:**
+- Socket receive dispatch is local-port based and does not yet enforce additional per-socket remote endpoint filtering.
+- Datagram truncation reports payload truncation through logs, but no dedicated API-level truncation flag is exposed yet.
+- Shared-local-port behavior for multiple UDP sockets is not fully policy-driven (`SO_REUSEADDR` style fan-out is pending).
+
 #### TCP (Transmission Control Protocol)
 
 **Location:** `kernel/source/network/TCP.c`, `kernel/include/network/TCP.h`
@@ -1760,7 +1784,8 @@ InitializeNetworkManager();
 // 2. For each device, Network Manager automatically:
 //    a. Calls ARP_Initialize(Device, DEFAULT_LOCAL_IP_BE, CachedInfo)
 //    b. Calls IPv4_Initialize(Device, DEFAULT_LOCAL_IP_BE)
-//    c. Calls TCP_Initialize() (once globally)
+    //    c. Calls UDP_Initialize(Device)
+    //    d. Calls TCP_Initialize() (once globally)
 
 // 3. Application registers protocol handlers per device:
 IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_ICMP, ICMPHandler);
