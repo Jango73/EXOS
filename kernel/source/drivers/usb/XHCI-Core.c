@@ -28,6 +28,37 @@
 #include "utils/ThresholdLatch.h"
 
 /************************************************************************/
+
+static UINT XHCI_Commands(UINT Function, UINT Param);
+static LPPCI_DEVICE XHCI_Attach(LPPCI_DEVICE PciDevice);
+
+/************************************************************************/
+
+static DRIVER_MATCH XHCI_MatchTable[] = {
+    {PCI_ANY_ID, PCI_ANY_ID, XHCI_CLASS_SERIAL_BUS, XHCI_SUBCLASS_USB, XHCI_PROGIF_XHCI}
+};
+
+PCI_DRIVER DATA_SECTION XHCIDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_XHCI,
+    .VersionMajor = 1,
+    .VersionMinor = 0,
+    .Designer = "Jango73",
+    .Manufacturer = "USB-IF",
+    .Product = "xHCI",
+    .Alias = "xhci",
+    .Command = XHCI_Commands,
+    .EnumDomainCount = 3,
+    .EnumDomains = {ENUM_DOMAIN_XHCI_PORT, ENUM_DOMAIN_USB_DEVICE, ENUM_DOMAIN_USB_NODE},
+    .Matches = XHCI_MatchTable,
+    .MatchCount = sizeof(XHCI_MatchTable) / sizeof(XHCI_MatchTable[0]),
+    .Attach = XHCI_Attach
+};
+
+/************************************************************************/
 // MMIO access
 
 /**
@@ -1528,32 +1559,6 @@ static LPPCI_DEVICE XHCI_Attach(LPPCI_DEVICE PciDevice) {
 
     return (LPPCI_DEVICE)Device;
 }
-
-/************************************************************************/
-
-static DRIVER_MATCH XHCI_MatchTable[] = {
-    {PCI_ANY_ID, PCI_ANY_ID, XHCI_CLASS_SERIAL_BUS, XHCI_SUBCLASS_USB, XHCI_PROGIF_XHCI}
-};
-
-PCI_DRIVER DATA_SECTION XHCIDriver = {
-    .TypeID = KOID_DRIVER,
-    .References = 1,
-    .Next = NULL,
-    .Prev = NULL,
-    .Type = DRIVER_TYPE_XHCI,
-    .VersionMajor = 1,
-    .VersionMinor = 0,
-    .Designer = "Jango73",
-    .Manufacturer = "USB-IF",
-    .Product = "xHCI",
-    .Alias = "xhci",
-    .Command = XHCI_Commands,
-    .EnumDomainCount = 3,
-    .EnumDomains = {ENUM_DOMAIN_XHCI_PORT, ENUM_DOMAIN_USB_DEVICE, ENUM_DOMAIN_USB_NODE},
-    .Matches = XHCI_MatchTable,
-    .MatchCount = sizeof(XHCI_MatchTable) / sizeof(XHCI_MatchTable[0]),
-    .Attach = XHCI_Attach
-};
 
 /************************************************************************/
 
