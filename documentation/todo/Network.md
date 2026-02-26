@@ -12,11 +12,11 @@
 - [X] Reply to incoming ARP requests for local IP
 
 ## DHCP
-- [ ] DHCP client implementation
+- [X] DHCP client implementation
   - DISCOVER, OFFER, REQUEST, ACK sequence
   - Automatic IP address acquisition
   - Subnet mask, gateway, DNS server configuration
-- [ ] Lease management
+- [X] Lease management
   - Lease expiration tracking
   - Automatic renewal (T1/T2 timers)
   - DHCP RELEASE on shutdown
@@ -27,7 +27,7 @@
   - Option 51: IP address lease time
   - Option 53: DHCP message type
   - Option 54: DHCP server identifier
-- [ ] Basic error handling
+- [X] Basic error handling
   - Retransmission on timeout
   - Fallback to static IP if DHCP fails
   - Handle DHCP NAK responses
@@ -47,7 +47,7 @@
 - [ ] Validates IPv4 (checksum, send/receive)  
 
 ## UDP
-- [ ] Simple header: source port, destination port, length, checksum  
+- [X] Simple header: source port, destination port, length, checksum  
   - Can start with `checksum = 0` (disabled)  
 - [ ] Basic UDP socket interface  
 
