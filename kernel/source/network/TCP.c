@@ -90,6 +90,15 @@ typedef struct tag_TCP_GLOBAL_STATE {
 TCP_GLOBAL_STATE DATA_SECTION GlobalTCP;
 
 /************************************************************************/
+// Retransmission/cwnd configuration
+
+#define TCP_CONGESTION_INITIAL_WINDOW       TCP_MAX_RETRANSMIT_PAYLOAD
+#define TCP_CONGESTION_INITIAL_SSTHRESH     (TCP_MAX_RETRANSMIT_PAYLOAD * 8)
+#define TCP_RETRANSMIT_TIMEOUT_MIN          500
+#define TCP_RETRANSMIT_TIMEOUT_MAX          60000
+#define TCP_DUPLICATE_ACK_THRESHOLD         3
+
+/************************************************************************/
 // State machine definitions
 
 // Forward declarations of state handlers
@@ -118,6 +127,19 @@ static void TCP_ActionAbortConnection(STATE_MACHINE* SM, LPVOID EventData);
 // Forward declarations of transition conditions
 static BOOL TCP_ConditionValidAck(STATE_MACHINE* SM, LPVOID EventData);
 static BOOL TCP_ConditionValidSyn(STATE_MACHINE* SM, LPVOID EventData);
+static int TCP_SendPacket(LPTCP_CONNECTION Conn, U8 Flags, const U8* Payload, U32 PayloadLength);
+
+// Forward declarations of retransmission helpers
+static U32 TCP_GetSegmentSequenceLength(U8 Flags, U32 PayloadLength);
+static BOOL TCP_ShouldTrackRetransmission(U8 Flags, U32 PayloadLength);
+static void TCP_ClearRetransmissionState(LPTCP_CONNECTION Conn);
+static void TCP_OnCongestionNewAck(LPTCP_CONNECTION Conn);
+static void TCP_OnCongestionTimeoutLoss(LPTCP_CONNECTION Conn);
+static void TCP_OnCongestionFastLoss(LPTCP_CONNECTION Conn);
+static void TCP_StartTrackedRetransmission(LPTCP_CONNECTION Conn, U8 Flags, const U8* Payload, U32 PayloadLength, U32 SequenceStart);
+static BOOL TCP_RetransmitTrackedSegment(LPTCP_CONNECTION Conn, BOOL FastRetransmit);
+static void TCP_HandleAcknowledgement(LPTCP_CONNECTION Conn, LPTCP_PACKET_EVENT Event);
+static U32 TCP_GetAllowedSendBytes(LPTCP_CONNECTION Conn);
 
 // State definitions
 static SM_STATE_DEFINITION TCP_States[] = {
@@ -242,6 +264,331 @@ static U16 TCP_GetNextEphemeralPort(U32 localIP) {
 
 /************************************************************************/
 
+/**
+ * @brief Returns the sequence-space length consumed by a segment.
+ * @param Flags TCP segment flags.
+ * @param PayloadLength Segment payload length.
+ * @return Number of sequence values consumed.
+ */
+static U32 TCP_GetSegmentSequenceLength(U8 Flags, U32 PayloadLength) {
+    U32 SequenceLength = PayloadLength;
+
+    if ((Flags & TCP_FLAG_SYN) != 0) {
+        SequenceLength++;
+    }
+
+    if ((Flags & TCP_FLAG_FIN) != 0) {
+        SequenceLength++;
+    }
+
+    return SequenceLength;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Determines if a segment must be tracked for retransmission.
+ * @param Flags TCP segment flags.
+ * @param PayloadLength Segment payload length.
+ * @return TRUE if retransmission tracking is required.
+ */
+static BOOL TCP_ShouldTrackRetransmission(U8 Flags, U32 PayloadLength) {
+    if (PayloadLength > 0) {
+        return TRUE;
+    }
+
+    if ((Flags & (TCP_FLAG_SYN | TCP_FLAG_FIN)) != 0) {
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Clears tracked retransmission metadata for a connection.
+ * @param Conn Target TCP connection.
+ */
+static void TCP_ClearRetransmissionState(LPTCP_CONNECTION Conn) {
+    SAFE_USE_VALID_ID(Conn, KOID_TCP) {
+        Conn->RetransmitPending = FALSE;
+        Conn->RetransmitPayloadLength = 0;
+        Conn->RetransmitFlags = 0;
+        Conn->RetransmitSequenceStart = 0;
+        Conn->RetransmitSequenceEnd = 0;
+        Conn->RetransmitTimestamp = 0;
+        Conn->RetransmitTimer = 0;
+        Conn->RetransmitCount = 0;
+        Conn->RetransmitWasRetried = FALSE;
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Applies slow-start / congestion-avoidance on a new ACK.
+ * @param Conn Target TCP connection.
+ */
+static void TCP_OnCongestionNewAck(LPTCP_CONNECTION Conn) {
+    SAFE_USE_VALID_ID(Conn, KOID_TCP) {
+        U32 CongestionWindow = Conn->CongestionWindow;
+
+        if (CongestionWindow == 0) {
+            CongestionWindow = TCP_CONGESTION_INITIAL_WINDOW;
+        }
+
+        if (CongestionWindow < Conn->SlowStartThreshold) {
+            CongestionWindow += TCP_MAX_RETRANSMIT_PAYLOAD;
+        } else {
+            U32 Increment = (TCP_MAX_RETRANSMIT_PAYLOAD * TCP_MAX_RETRANSMIT_PAYLOAD) / CongestionWindow;
+            if (Increment == 0) {
+                Increment = 1;
+            }
+            CongestionWindow += Increment;
+        }
+
+        if (CongestionWindow > Conn->SendBufferCapacity) {
+            CongestionWindow = Conn->SendBufferCapacity;
+        }
+
+        Conn->CongestionWindow = CongestionWindow;
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Applies congestion state transition for timeout loss.
+ * @param Conn Target TCP connection.
+ */
+static void TCP_OnCongestionTimeoutLoss(LPTCP_CONNECTION Conn) {
+    SAFE_USE_VALID_ID(Conn, KOID_TCP) {
+        U32 HalfWindow = Conn->CongestionWindow / 2;
+        U32 MinimumThreshold = TCP_MAX_RETRANSMIT_PAYLOAD * 2;
+
+        if (HalfWindow < MinimumThreshold) {
+            HalfWindow = MinimumThreshold;
+        }
+
+        Conn->SlowStartThreshold = HalfWindow;
+        Conn->CongestionWindow = TCP_CONGESTION_INITIAL_WINDOW;
+        Conn->InFastRecovery = FALSE;
+        Conn->FastRecoverySequence = 0;
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Applies congestion state transition for fast retransmit loss.
+ * @param Conn Target TCP connection.
+ */
+static void TCP_OnCongestionFastLoss(LPTCP_CONNECTION Conn) {
+    SAFE_USE_VALID_ID(Conn, KOID_TCP) {
+        U32 HalfWindow = Conn->CongestionWindow / 2;
+        U32 MinimumThreshold = TCP_MAX_RETRANSMIT_PAYLOAD * 2;
+
+        if (HalfWindow < MinimumThreshold) {
+            HalfWindow = MinimumThreshold;
+        }
+
+        Conn->SlowStartThreshold = HalfWindow;
+        Conn->CongestionWindow = HalfWindow + (TCP_DUPLICATE_ACK_THRESHOLD * TCP_MAX_RETRANSMIT_PAYLOAD);
+        Conn->InFastRecovery = TRUE;
+        Conn->FastRecoverySequence = Conn->SendNext;
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Starts retransmission tracking for a freshly transmitted segment.
+ * @param Conn Target TCP connection.
+ * @param Flags Segment flags.
+ * @param Payload Segment payload pointer.
+ * @param PayloadLength Segment payload length.
+ * @param SequenceStart Segment sequence start number.
+ */
+static void TCP_StartTrackedRetransmission(LPTCP_CONNECTION Conn, U8 Flags, const U8* Payload, U32 PayloadLength, U32 SequenceStart) {
+    SAFE_USE_VALID_ID(Conn, KOID_TCP) {
+        U32 TrackedLength = PayloadLength;
+        U32 SequenceLength = TCP_GetSegmentSequenceLength(Flags, PayloadLength);
+
+        if (TrackedLength > TCP_MAX_RETRANSMIT_PAYLOAD) {
+            TrackedLength = TCP_MAX_RETRANSMIT_PAYLOAD;
+        }
+
+        Conn->RetransmitFlags = Flags;
+        Conn->RetransmitPayloadLength = TrackedLength;
+        Conn->RetransmitSequenceStart = SequenceStart;
+        Conn->RetransmitSequenceEnd = SequenceStart + SequenceLength;
+        Conn->RetransmitTimestamp = GetSystemTime();
+        Conn->RetransmitTimer = Conn->RetransmitTimestamp + Conn->RetransmitCurrentTimeout;
+        Conn->RetransmitCount = 0;
+        Conn->RetransmitPending = TRUE;
+        Conn->RetransmitWasRetried = FALSE;
+
+        if (TrackedLength > 0 && Payload != NULL) {
+            MemoryCopy(Conn->RetransmitPayload, Payload, TrackedLength);
+        }
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retransmits the tracked segment.
+ * @param Conn Target TCP connection.
+ * @param FastRetransmit Indicates a duplicate-ACK-triggered retransmit.
+ * @return TRUE if retransmission succeeded.
+ */
+static BOOL TCP_RetransmitTrackedSegment(LPTCP_CONNECTION Conn, BOOL FastRetransmit) {
+    SAFE_USE_VALID_ID(Conn, KOID_TCP) {
+        if (Conn->RetransmitPending == FALSE) {
+            return FALSE;
+        }
+
+        U32 PreviousSendNext = Conn->SendNext;
+        U32 PreviousSendUnacked = Conn->SendUnacked;
+        U32 PreviousSequenceStart = Conn->RetransmitSequenceStart;
+        U32 PreviousRetransmitCount = Conn->RetransmitCount;
+        U32 PreviousRetransmitTimeout = Conn->RetransmitCurrentTimeout;
+        U32 PayloadLength = Conn->RetransmitPayloadLength;
+        U8 Flags = Conn->RetransmitFlags;
+        const U8* Payload = (PayloadLength > 0) ? Conn->RetransmitPayload : NULL;
+
+        Conn->SendNext = PreviousSequenceStart;
+        I32 SendResult = TCP_SendPacket(Conn, Flags, Payload, PayloadLength);
+        Conn->SendNext = PreviousSendNext;
+        Conn->SendUnacked = PreviousSendUnacked;
+
+        if (SendResult < 0) {
+            return FALSE;
+        }
+
+        Conn->RetransmitWasRetried = TRUE;
+        Conn->RetransmitCount = PreviousRetransmitCount;
+        Conn->RetransmitCurrentTimeout = PreviousRetransmitTimeout;
+        Conn->RetransmitTimestamp = GetSystemTime();
+
+        if (FastRetransmit) {
+            Conn->RetransmitTimer = Conn->RetransmitTimestamp + Conn->RetransmitCurrentTimeout;
+        } else {
+            Conn->RetransmitCount++;
+
+            if (Conn->RetransmitCurrentTimeout < TCP_RETRANSMIT_TIMEOUT_MAX) {
+                U32 NextTimeout = Conn->RetransmitCurrentTimeout << 1;
+                if (NextTimeout < Conn->RetransmitCurrentTimeout || NextTimeout > TCP_RETRANSMIT_TIMEOUT_MAX) {
+                    NextTimeout = TCP_RETRANSMIT_TIMEOUT_MAX;
+                }
+                Conn->RetransmitCurrentTimeout = NextTimeout;
+            }
+
+            Conn->RetransmitTimer = Conn->RetransmitTimestamp + Conn->RetransmitCurrentTimeout;
+        }
+
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Processes ACK progression for retransmission and congestion control.
+ * @param Conn Target TCP connection.
+ * @param Event Packet event carrying ACK information.
+ */
+static void TCP_HandleAcknowledgement(LPTCP_CONNECTION Conn, LPTCP_PACKET_EVENT Event) {
+    SAFE_USE_VALID_ID(Conn, KOID_TCP) {
+        if (Event == NULL || Event->Header == NULL) {
+            return;
+        }
+
+        U32 AckNum = Ntohl(Event->Header->AckNumber);
+        U32 Now = GetSystemTime();
+        BOOL IsDuplicateAck = FALSE;
+        BOOL HasNoPayload = (Event->PayloadLength == 0);
+
+        if (AckNum == Conn->LastAckNumber && HasNoPayload) {
+            IsDuplicateAck = TRUE;
+        }
+
+        if (AckNum > Conn->SendUnacked) {
+            Conn->SendUnacked = AckNum;
+        }
+
+        if (IsDuplicateAck) {
+            Conn->DuplicateAckCount++;
+            if (Conn->DuplicateAckCount >= TCP_DUPLICATE_ACK_THRESHOLD &&
+                Conn->RetransmitPending &&
+                AckNum == Conn->RetransmitSequenceStart) {
+                TCP_OnCongestionFastLoss(Conn);
+                if (TCP_RetransmitTrackedSegment(Conn, TRUE) == TRUE) {
+                    DEBUG(TEXT("[TCP_HandleAcknowledgement] Fast retransmit triggered for sequence %u"), AckNum);
+                }
+            }
+            return;
+        }
+
+        Conn->DuplicateAckCount = 0;
+        Conn->LastAckNumber = AckNum;
+
+        if (Conn->InFastRecovery && AckNum >= Conn->FastRecoverySequence) {
+            Conn->InFastRecovery = FALSE;
+            Conn->CongestionWindow = Conn->SlowStartThreshold;
+        }
+
+        if (Conn->RetransmitPending && AckNum >= Conn->RetransmitSequenceEnd) {
+            if (Conn->RetransmitWasRetried == FALSE && Conn->RetransmitTimestamp > 0 && Now >= Conn->RetransmitTimestamp) {
+                U32 SampleRTT = Now - Conn->RetransmitTimestamp;
+                U32 Smoothed = ((Conn->RetransmitBaseTimeout * 7) + SampleRTT) / 8;
+
+                if (Smoothed < TCP_RETRANSMIT_TIMEOUT_MIN) {
+                    Smoothed = TCP_RETRANSMIT_TIMEOUT_MIN;
+                } else if (Smoothed > TCP_RETRANSMIT_TIMEOUT_MAX) {
+                    Smoothed = TCP_RETRANSMIT_TIMEOUT_MAX;
+                }
+
+                Conn->RetransmitBaseTimeout = Smoothed;
+            }
+
+            Conn->RetransmitCurrentTimeout = Conn->RetransmitBaseTimeout;
+            TCP_ClearRetransmissionState(Conn);
+            TCP_OnCongestionNewAck(Conn);
+        }
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Returns the allowed send bytes according to congestion state.
+ * @param Conn Target TCP connection.
+ * @return Number of bytes allowed to be sent immediately.
+ */
+static U32 TCP_GetAllowedSendBytes(LPTCP_CONNECTION Conn) {
+    SAFE_USE_VALID_ID(Conn, KOID_TCP) {
+        if (Conn->RetransmitPending && Conn->SendNext > Conn->SendUnacked) {
+            return 0;
+        }
+
+        U32 InFlight = Conn->SendNext - Conn->SendUnacked;
+
+        if (Conn->CongestionWindow <= InFlight) {
+            return 0;
+        }
+
+        return Conn->CongestionWindow - InFlight;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
 static int TCP_SendPacket(LPTCP_CONNECTION Conn, U8 Flags, const U8* Payload, U32 PayloadLength) {
     TCP_HEADER Header;
     U8 Options[4] = {0}; // MSS option: 4 bytes
@@ -299,7 +646,9 @@ static int TCP_SendPacket(LPTCP_CONNECTION Conn, U8 Flags, const U8* Payload, U3
           TcpHdr->Flags, Ntohs(TcpHdr->WindowSize), Ntohs(TcpHdr->Checksum), HeaderLength);
 
     // Send via IPv4 through connection's network device
-    int SendResult = 0;
+    I32 SendResult = 0;
+    U32 SequenceStart = Conn->SendNext;
+    U32 SequenceLength = TCP_GetSegmentSequenceLength(Flags, PayloadLength);
     LPDEVICE Device = Conn->Device;
 
     if (Device == NULL) {
@@ -310,12 +659,21 @@ static int TCP_SendPacket(LPTCP_CONNECTION Conn, U8 Flags, const U8* Payload, U3
     SendResult = IPv4_Send(Device, Conn->RemoteIP, IPV4_PROTOCOL_TCP, Packet, HeaderLength + PayloadLength);
     UnlockMutex(&(Device->Mutex));
 
-    // Update sequence number if data was sent
-    if (PayloadLength > 0 || (Flags & (TCP_FLAG_SYN | TCP_FLAG_FIN))) {
-        Conn->SendNext += PayloadLength;
-        if (Flags & (TCP_FLAG_SYN | TCP_FLAG_FIN)) {
-            Conn->SendNext++;
+    if (SendResult < 0) {
+        return SendResult;
+    }
+
+    // Track retransmission only for sequence-bearing segments
+    if (TCP_ShouldTrackRetransmission(Flags, PayloadLength)) {
+        TCP_StartTrackedRetransmission(Conn, Flags, Payload, PayloadLength, SequenceStart);
+        if (Conn->SendUnacked == 0 || Conn->SendUnacked > SequenceStart) {
+            Conn->SendUnacked = SequenceStart;
         }
+    }
+
+    // Update sequence number if data was sent
+    if (SequenceLength > 0) {
+        Conn->SendNext += SequenceLength;
     }
 
     return SendResult;
@@ -329,9 +687,10 @@ static void TCP_OnEnterClosed(STATE_MACHINE* SM) {
     DEBUG(TEXT("TCP: Connection entered CLOSED state"));
 
     // Clear all timers and counters to prevent zombie retransmissions
-    Conn->RetransmitTimer = 0;
-    Conn->RetransmitCount = 0;
+    TCP_ClearRetransmissionState(Conn);
+    Conn->DuplicateAckCount = 0;
     Conn->TimeWaitTimer = 0;
+    Conn->InFastRecovery = FALSE;
 
     // Note: We don't need to unregister from global IPv4 notifications
     // as the callback will check the connection state
@@ -405,22 +764,14 @@ static void TCP_ActionSendSyn(STATE_MACHINE* SM, LPVOID EventData) {
     DEBUG(TEXT("[TCP_ActionSendSyn] Sending SYN"));
 
     Conn->SendNext = 1000; // Initial sequence number
+    Conn->SendUnacked = Conn->SendNext;
+    Conn->LastAckNumber = Conn->SendUnacked;
     Conn->RetransmitCount = 0;
+    Conn->DuplicateAckCount = 0;
 
-    // Send packet and only start timer if actually sent (not queued)
-    int SendResult = TCP_SendPacket(Conn, TCP_FLAG_SYN, NULL, 0);
-    if (SendResult == IPV4_SEND_IMMEDIATE) {
-        // Packet was actually sent immediately (ARP resolved)
-        Conn->RetransmitTimer = GetSystemTime() + TCP_RETRANSMIT_TIMEOUT;
-        DEBUG(TEXT("[TCP_ActionSendSyn] SYN sent immediately, timer set to %u"), Conn->RetransmitTimer);
-    } else if (SendResult == IPV4_SEND_PENDING) {
-        // Packet queued for later (ARP pending) - timer will be set via notification
-        Conn->RetransmitTimer = 0;
-        DEBUG(TEXT("[TCP_ActionSendSyn] SYN queued for ARP resolution, timer will be set when packet is sent"));
-    } else {
-        // Failed to send
-        Conn->RetransmitTimer = 0;
-        DEBUG(TEXT("[TCP_ActionSendSyn] SYN send failed"));
+    I32 SendResult = TCP_SendPacket(Conn, TCP_FLAG_SYN, NULL, 0);
+    if (SendResult < 0) {
+        ERROR(TEXT("[TCP_ActionSendSyn] SYN send failed"));
     }
 }
 
@@ -601,9 +952,9 @@ static void TCP_ActionAbortConnection(STATE_MACHINE* SM, LPVOID EventData) {
     LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)SM_GetContext(SM);
     DEBUG(TEXT("[TCP_ActionAbortConnection] Aborting connection - clearing timers"));
 
-    // Immediately clear all retransmit timers to stop sending packets
-    Conn->RetransmitTimer = 0;
-    Conn->RetransmitCount = 0;
+    // Immediately clear all retransmission tracking to stop sending packets
+    TCP_ClearRetransmissionState(Conn);
+    Conn->DuplicateAckCount = 0;
     Conn->TimeWaitTimer = 0;
 }
 
@@ -624,10 +975,10 @@ static void TCP_IPv4PacketSentCallback(LPNOTIFICATION_DATA NotificationData, LPV
 
     // Check if this packet is for our connection
     if (PacketData->DestinationIP == Conn->RemoteIP && PacketData->Protocol == IPV4_PROTOCOL_TCP) {
-        // This is a TCP packet to our destination - start retransmit timer if not set
-        if (Conn->RetransmitTimer == 0 && Conn->StateMachine.CurrentState == TCP_STATE_SYN_SENT) {
-            Conn->RetransmitTimer = GetSystemTime() + TCP_RETRANSMIT_TIMEOUT;
-            DEBUG(TEXT("[TCP_IPv4PacketSentCallback] SYN packet sent, timer set to %u"), Conn->RetransmitTimer);
+        if (Conn->RetransmitPending) {
+            U32 Now = GetSystemTime();
+            Conn->RetransmitTimestamp = Now;
+            Conn->RetransmitTimer = Now + Conn->RetransmitCurrentTimeout;
         }
     }
 }
@@ -662,10 +1013,16 @@ static BOOL TCP_ConditionValidAck(STATE_MACHINE* SM, LPVOID EventData) {
     U32 SeqNum = Ntohl(Event->Header->SequenceNumber);
     U8 Flags = Event->Header->Flags;
 
-    DEBUG(TEXT("[TCP_ConditionValidAck] Received ACK %u, expected %u, SeqNum %u, Flags 0x%x"), AckNum, Conn->SendNext, SeqNum, Flags);
+    DEBUG(TEXT("[TCP_ConditionValidAck] Received ACK %u, unacked=%u, send_next=%u, SeqNum %u, Flags 0x%x"),
+          AckNum, Conn->SendUnacked, Conn->SendNext, SeqNum, Flags);
 
-    // Validate ACK number
-    BOOL ValidAck = (AckNum == Conn->SendNext);
+    // Validate ACK number with cumulative ACK support
+    BOOL ValidAck = FALSE;
+    if (Conn->SendUnacked == 0 && Conn->SendNext == 0) {
+        ValidAck = (AckNum == 0);
+    } else if (AckNum >= Conn->SendUnacked && AckNum <= Conn->SendNext) {
+        ValidAck = TRUE;
+    }
 
     // For SYN+ACK, accept any sequence number and update RecvNext
     BOOL ValidSeq;
@@ -685,10 +1042,8 @@ static BOOL TCP_ConditionValidAck(STATE_MACHINE* SM, LPVOID EventData) {
     BOOL Valid = ValidAck && ValidSeq;
 
     if (Valid) {
-        // Clear retransmit timer on valid ACK
-        Conn->RetransmitTimer = 0;
-        Conn->RetransmitCount = 0;
-        DEBUG(TEXT("[TCP_ConditionValidAck] Valid ACK received, cleared timer"));
+        TCP_HandleAcknowledgement(Conn, Event);
+        DEBUG(TEXT("[TCP_ConditionValidAck] Valid ACK received"));
     }
 
     return Valid;
@@ -987,6 +1342,16 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
     Conn->RecvWindow = (Conn->RecvBufferCapacity > 0xFFFFU) ? 0xFFFFU : (U16)Conn->RecvBufferCapacity;
     Conn->RetransmitTimer = 0;
     Conn->RetransmitCount = 0;
+    Conn->RetransmitBaseTimeout = TCP_RETRANSMIT_TIMEOUT;
+    Conn->RetransmitCurrentTimeout = TCP_RETRANSMIT_TIMEOUT;
+    Conn->RetransmitPending = FALSE;
+    Conn->RetransmitWasRetried = FALSE;
+    Conn->DuplicateAckCount = 0;
+    Conn->LastAckNumber = 0;
+    Conn->InFastRecovery = FALSE;
+    Conn->FastRecoverySequence = 0;
+    Conn->CongestionWindow = TCP_CONGESTION_INITIAL_WINDOW;
+    Conn->SlowStartThreshold = TCP_CONGESTION_INITIAL_SSTHRESH;
 
     // Initialize sliding window with hysteresis
     TCP_InitSlidingWindow(Conn);
@@ -1088,27 +1453,44 @@ int TCP_Send(LPTCP_CONNECTION Connection, const U8* Data, U32 Length) {
         }
 
         UINT Capacity = Connection->SendBufferCapacity;
-        U32 MaxChunk = (Capacity > (UINT)MAX_U32) ? MAX_U32 : (U32)Capacity;
+        U32 MaxChunk = TCP_MAX_RETRANSMIT_PAYLOAD;
+        if (Capacity > 0 && Capacity < MaxChunk) {
+            MaxChunk = (U32)Capacity;
+        }
         if (MaxChunk == 0) {
-            MaxChunk = TCP_SEND_BUFFER_SIZE;
+            MaxChunk = TCP_MAX_RETRANSMIT_PAYLOAD;
         }
 
         const U8* CurrentData = Data;
         U32 Remaining = Length;
+        U32 TotalSent = 0;
 
         while (Remaining > 0) {
+            U32 Allowed = TCP_GetAllowedSendBytes(Connection);
+            if (Allowed == 0) {
+                break;
+            }
+
             U32 ChunkSize = (Remaining > MaxChunk) ? MaxChunk : Remaining;
-            int SendResult = TCP_SendPacket(Connection, TCP_FLAG_PSH | TCP_FLAG_ACK, CurrentData, ChunkSize);
+            if (ChunkSize > Allowed) {
+                ChunkSize = Allowed;
+            }
+            if (ChunkSize == 0) {
+                break;
+            }
+
+            I32 SendResult = TCP_SendPacket(Connection, TCP_FLAG_PSH | TCP_FLAG_ACK, CurrentData, ChunkSize);
             if (SendResult < 0) {
                 ERROR(TEXT("[TCP_Send] Failed to send %u bytes chunk"), ChunkSize);
-                return -1;
+                return (TotalSent > 0) ? (I32)TotalSent : -1;
             }
 
             CurrentData += ChunkSize;
             Remaining -= ChunkSize;
+            TotalSent += ChunkSize;
         }
 
-        return (int)Length;
+        return (I32)TotalSent;
     }
     return -1;
 }
@@ -1306,41 +1688,22 @@ void TCP_Update(void) {
             SM_ProcessEvent(&Conn->StateMachine, TCP_EVENT_TIMEOUT, NULL);
         }
 
-        // Check retransmit timeout for SYN_SENT state
-        // Only retransmit if we're still in SYN_SENT and haven't been closed
-        if (CurrentState == TCP_STATE_SYN_SENT &&
+        if (Conn->RetransmitPending &&
             Conn->RetransmitTimer > 0 &&
             CurrentTime >= Conn->RetransmitTimer) {
-
             if (Conn->RetransmitCount < TCP_MAX_RETRANSMITS) {
-                DEBUG(TEXT("[TCP_Update] Retransmitting SYN (attempt %u)"), Conn->RetransmitCount + 1);
-
-                // Retransmit SYN and check if it was actually sent
-                int SendResult = TCP_SendPacket(Conn, TCP_FLAG_SYN, NULL, 0);
-
-                if (SendResult >= 0) {
-                    // Packet was sent or queued successfully
-                    Conn->RetransmitCount++;
-                    Conn->RetransmitTimer = CurrentTime + TCP_RETRANSMIT_TIMEOUT;
-                    DEBUG(TEXT("[TCP_Update] SYN retransmitted successfully"));
-                } else {
-                    // Failed to send - try again later
-                    Conn->RetransmitTimer = CurrentTime + TCP_RETRANSMIT_TIMEOUT;
-                    DEBUG(TEXT("[TCP_Update] SYN retransmit failed, will retry"));
+                TCP_OnCongestionTimeoutLoss(Conn);
+                if (TCP_RetransmitTrackedSegment(Conn, FALSE) == FALSE) {
+                    Conn->RetransmitTimer = CurrentTime + Conn->RetransmitCurrentTimeout;
                 }
             } else {
                 DEBUG(TEXT("[TCP_Update] Maximum retransmits reached, connection failed"));
+                TCP_ClearRetransmissionState(Conn);
 
-                // Clear retransmit timer to stop further attempts
-                Conn->RetransmitTimer = 0;
-                Conn->RetransmitCount = 0;
-
-                // Notify upper layers of connection failure
                 SAFE_USE(Conn->NotificationContext) {
                     Notification_Send(Conn->NotificationContext, NOTIF_EVENT_TCP_FAILED, NULL, 0);
                 }
 
-                // Transition to CLOSED state
                 SM_ProcessEvent(&Conn->StateMachine, TCP_EVENT_RCV_RST, NULL);
             }
         }

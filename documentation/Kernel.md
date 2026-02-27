@@ -1698,6 +1698,9 @@ TCP provides reliable connection-oriented communication using a state machine-ba
 - Configurable buffer sizes through `TCP.SendBufferSize` and `TCP.ReceiveBufferSize`
 - Sequence number management
 - Timer-based retransmission and TIME_WAIT handling
+- Bounded exponential backoff for retransmission timeout
+- Duplicate ACK detection with fast retransmit and fast recovery
+- Reno-style congestion baseline (slow start and congestion avoidance)
 - Checksum validation with IPv4 pseudo-header
 
 **Connection Structure:**
@@ -1732,6 +1735,19 @@ typedef struct TCPConnectionTag {
     // Timers
     U32 RetransmitTimer;
     U32 TimeWaitTimer;
+    U32 RetransmitBaseTimeout;
+    U32 RetransmitCurrentTimeout;
+
+    // Retransmission and recovery
+    U32 RetransmitSequenceStart;
+    U32 RetransmitSequenceEnd;
+    U32 DuplicateAckCount;
+    BOOL RetransmitPending;
+    BOOL InFastRecovery;
+
+    // Congestion control
+    U32 CongestionWindow;
+    U32 SlowStartThreshold;
 } TCPConnection;
 ```
 
@@ -1748,6 +1764,7 @@ typedef struct TCPConnectionTag {
 - `TCP_OnIPv4Packet()`: Handle incoming TCP packets (IPv4 protocol handler)
 
 The buffer capacities default to 32768 bytes each when the configuration entries are absent.
+The retransmission tracker keeps one outstanding MSS-sized segment for fast retransmit.
 
 #### Layer Interactions
 

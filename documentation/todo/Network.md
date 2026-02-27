@@ -94,10 +94,13 @@
   - Window size negotiation
   - Flow control mechanisms
   - Receive window management
-- [ ] Advanced retransmissions
-  - Exponential backoff
-  - Fast retransmit and fast recovery
-  - Congestion control (Tahoe/Reno algorithms)
+- [X] Advanced retransmissions
+  - Exponential backoff on retransmission timeout (bounded RTO)
+  - Fast retransmit on duplicate ACK threshold and fast recovery exit on recovery ACK
+  - Reno-style congestion control baseline (slow start + congestion avoidance + multiplicative decrease)
+  - Limits:
+    - Retransmission tracking is single outstanding segment (MSS-sized chunk), not a full SACK/scoreboard implementation
+    - Congestion window is applied at send chunk level and does not implement byte-precise flight scheduling queueing
 - [ ] Performance optimizations
   - Nagle algorithm implementation
   - Delayed ACK support
