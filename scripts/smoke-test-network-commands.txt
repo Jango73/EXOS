@@ -9,5 +9,5 @@
 # TODO 8: UDP send/receive minimal smoke
 
 command: "/system/apps/netget http://10.0.2.2:8081/smoke-large.txt /temp/smoke-large.txt" | log: "TEST > [Spawn] Executable finished normally : /system/apps/netget" | file-size-compare: "scripts/net/www/smoke-large.txt" "/exos/temp/smoke-large.txt"
-command: "/system/apps/netget http://10.0.2.2:8081/this-file-does-not-exist.txt /temp/should-not-exist.txt" | log: "Download failed"
+command: "/system/apps/netget http://10.0.2.2:8081/missing /temp/missing" | log: "DEBUG > [Spawn] Process completed successfully, exit code: 1"
 command: "shutdown"

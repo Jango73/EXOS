@@ -193,6 +193,7 @@ void Hysteresis_ClearTransition(LPHYSTERESIS This) {
             DEBUG(TEXT("[Hysteresis_ClearTransition] Clearing transition flag"));
         }
         This->TransitionPending = FALSE;
+        return;
     }
 
     ERROR(TEXT("[Hysteresis_ClearTransition] Object NULL"));

@@ -24,7 +24,8 @@ MONITOR_PORT="${MONITOR_PORT:-4444}"
 MONITOR_CONNECT_MAX_ATTEMPTS=50
 DEFAULT_TIMEOUT_SECONDS=15
 BOOT_READY_TIMEOUT_SECONDS=45
-KEY_DELAY_SECONDS=0.12
+COMMAND_FORMATION_TIMEOUT_SECONDS=45
+KEY_DELAY_SECONDS=0.16
 COMMAND_DELAY_SECONDS=0.25
 BOOT_INPUT_DELAY_SECONDS=1.0
 TEST_KEYBOARD_LAYOUT="en-US"
@@ -177,6 +178,14 @@ function SearchFixed() {
 
 function Trim() {
     local Value="$1"
+    Value="${Value#"${Value%%[![:space:]]*}"}"
+    Value="${Value%"${Value##*[![:space:]]}"}"
+    echo "$Value"
+}
+
+function NormalizeSpaces() {
+    local Value="$1"
+    Value="$(echo "$Value" | tr '\t' ' ' | tr -s ' ')"
     Value="${Value#"${Value%%[![:space:]]*}"}"
     Value="${Value%"${Value##*[![:space:]]}"}"
     echo "$Value"
@@ -552,6 +561,40 @@ function WaitForExpectedLog() {
     return 1
 }
 
+function VerifySpawnCommandLine() {
+    # Ensure the command sent through monitor is actually the command launched.
+    local ExpectedCommand="$1"
+    local Offset="$2"
+    local TimeoutSeconds="${3:-$COMMAND_FORMATION_TIMEOUT_SECONDS}"
+    local StartTime="$SECONDS"
+    local LaunchLine=""
+    local LaunchCommand=""
+    local ExpectedNormalized=""
+    local LaunchNormalized=""
+
+    ExpectedNormalized="$(NormalizeSpaces "$ExpectedCommand")"
+
+    while [ $((SECONDS - StartTime)) -lt "$TimeoutSeconds" ]; do
+        LaunchLine="$(TailFromOffset "$Offset" | SearchFixed "[Spawn] Launching :" | head -n 1 || true)"
+        if [ -n "$LaunchLine" ]; then
+            LaunchCommand="$(echo "$LaunchLine" | sed -n 's/^.*\[Spawn\] Launching : //p' | head -n 1)"
+            LaunchNormalized="$(NormalizeSpaces "$LaunchCommand")"
+            if [ "$LaunchNormalized" = "$ExpectedNormalized" ]; then
+                return 0
+            fi
+
+            echo "Command launch mismatch detected."
+            echo "Expected: $ExpectedNormalized"
+            echo "Actual:   $LaunchNormalized"
+            return 1
+        fi
+        sleep 0.1
+    done
+
+    echo "Timed out waiting for spawn launch log for command: $ExpectedCommand"
+    return 1
+}
+
 function AssertNoFailures() {
     # Validate there is no fault/KO/fatal error in the selected log slice.
     local Offset="$1"
@@ -664,6 +707,9 @@ function RunCommandSpec() {
     echo "Running command: $CommandText"
     Offset="$(GetLogSize)"
     SendCommand "$CommandText"
+    if [[ "$CommandText" == /* ]]; then
+        VerifySpawnCommandLine "$CommandText" "$Offset"
+    fi
     if [ -n "$ExpectedText" ]; then
         WaitForExpectedLog "$ExpectedText" "$Offset" "$TimeoutSeconds"
     else
