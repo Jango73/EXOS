@@ -39,12 +39,14 @@
 #define HEAP_NUM_SIZE_CLASSES 8
 #define HEAP_MIN_BLOCK_SIZE 16
 #define HEAP_MAX_SMALL_BLOCK_SIZE 2048
+#define HEAP_BLOCK_FLAG_FREE 0x1
 
 /***************************************************************************/
 
 typedef struct tag_HEAPBLOCKHEADER {
     UINT TypeID;
     UINT Size;
+    UINT Flags;
     struct tag_HEAPBLOCKHEADER* Next;
     struct tag_HEAPBLOCKHEADER* Prev;
 } HEAPBLOCKHEADER, *LPHEAPBLOCKHEADER;

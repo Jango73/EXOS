@@ -1581,6 +1581,22 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
 /************************************************************************/
 
 /**
+ * @brief Compute a preferred base address for the kernel heap.
+ * @param HeapSize Requested heap size in bytes.
+ * @return Preferred linear base address in kernel space.
+ */
+LINEAR GetKernelHeapPreferredBase(UINT HeapSize) {
+    UNUSED(HeapSize);
+
+    UINT MaxLinearAddress = MAX_U32;
+    UINT Midpoint = VMA_KERNEL + ((MaxLinearAddress - VMA_KERNEL) / 2);
+
+    return Midpoint & PAGE_MASK;
+}
+
+/************************************************************************/
+
+/**
  * @brief Allocate a kernel region - wrapper around AllocRegion with VMA_KERNEL and AT_OR_OVER.
  * @param Target Physical base address (0 for any).
  * @param Size Size in bytes.

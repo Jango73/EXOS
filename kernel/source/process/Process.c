@@ -118,11 +118,14 @@ void InitializeKernelProcess(void) {
     DEBUG(TEXT("[InitializeKernelProcess] Memory : %u"), KernelStartup.MemorySize);
     DEBUG(TEXT("[InitializeKernelProcess] Pages : %u"), KernelStartup.PageCount);
 
-    LINEAR HeapBase = AllocKernelRegion(0,
-                                        KernelProcess.HeapSize,
-                                        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE,
-                                        TEXT("KernelHeap"));
+    LINEAR HeapPreferredBase = GetKernelHeapPreferredBase(KernelProcess.HeapSize);
+    LINEAR HeapBase = AllocRegion(HeapPreferredBase,
+                                  0,
+                                  KernelProcess.HeapSize,
+                                  ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER,
+                                  TEXT("KernelHeap"));
 
+    DEBUG(TEXT("[InitializeKernelProcess] HeapPreferredBase : %p"), (LINEAR)HeapPreferredBase);
     DEBUG(TEXT("[InitializeKernelProcess] HeapBase : %p"), (LINEAR)HeapBase);
 
     if (HeapBase == NULL) {

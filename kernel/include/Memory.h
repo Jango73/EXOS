@@ -133,6 +133,9 @@ LINEAR AllocKernelRegion(PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag);
 // Kernel region resize wrapper - automatically uses VMA_KERNEL and AT_OR_OVER
 LINEAR ResizeKernelRegion(LINEAR Base, UINT Size, UINT NewSize, U32 Flags);
 
+// Returns the preferred base address for the kernel heap for the running architecture
+LINEAR GetKernelHeapPreferredBase(UINT HeapSize);
+
 /************************************************************************/
 
 #endif  // MEMORY_H_INCLUDED
