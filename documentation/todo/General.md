@@ -14,6 +14,19 @@
 - Later: align x86-32 page directory creation (`AllocPageDirectory` and `AllocUserPageDirectory`) with the modular x86-64 region-based approach (low region, kernel region, task runner, recursive slot) while preserving current behavior. Execute this refactor in small validated steps to limit boot and paging regression risk.
 - Implement a memory sanity checker that scans memory to check how fragmented memory is.
 
+### Kernel heap growth failure during large network transfer
+
+- Reproduced in x86-32 network smoke test with `netget` on a 2 MiB payload (`smoke-very-large.txt`).
+- Evidence from `log/kernel-x86-32-mbr-debug.log`:
+  - `ERROR > [TryExpandHeap] ResizeRegion failed for heap at 0xc0404000 (from 0x200000 to 0x400000)`
+  - `ERROR > [KernelHeapAlloc] Allocation failed`
+  - `DEBUG > [HTTP_WriteBodyData] Failed to write 1024 bytes (only 0 written)`
+- Impact: large HTTP transfers abort because kernel memory growth fails under load.
+- Required resolution:
+  - fix kernel heap expansion reliability under network pressure,
+  - guarantee bounded/fallback behavior when expansion cannot proceed,
+  - keep transfer path stable for payloads >= 2 MiB in smoke tests.
+
 ## Problems
 
 - Opening a file in a userland program without an absolute path should do the same as using getcwd().
