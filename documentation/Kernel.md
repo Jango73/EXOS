@@ -1840,6 +1840,7 @@ The repository provides `scripts/4-1-smoke-test.sh` to run an automated debug va
 - clean build + image generation,
 - QEMU boot,
 - shell command injection (`sys_info`, `dir`, `/system/apps/hello`),
+- cross-filesystem storage checks including RAM disk folder creation and copy (`/fs/n0p0` to `/fs/r0p0`),
 - kernel log pattern checks.
 
 The script supports selecting one target with `--only x86-32`, `--only x86-64`, or `--only x86-64-uefi`.  

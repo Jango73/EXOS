@@ -798,6 +798,7 @@ function RunArchitecture() {
     if [ "$SKIP_BUILD" -eq 0 ]; then
         echo "Building $Name..."
         bash -c "cd \"$ROOT_DIR\" && $BuildScript"
+        sleep 2
     else
         echo "Skipping build for $Name (--no-build)"
     fi

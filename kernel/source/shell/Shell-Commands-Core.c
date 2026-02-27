@@ -499,20 +499,21 @@ static void ChangeFolder(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
-static void MakeFolder(LPSHELLCONTEXT Context) {
+static BOOL MakeFolder(LPSHELLCONTEXT Context, LPSTR QualifiedName) {
     LPFILESYSTEM FileSystem;
     FILEINFO FileInfo;
     STR FileName[MAX_PATH_NAME];
+    UINT Result;
 
     ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command) == 0) {
         ConsolePrint(TEXT("Missing argument\n"));
-        return;
+        return FALSE;
     }
 
     FileSystem = GetSystemFS();
-    if (FileSystem == NULL) return;
+    if (FileSystem == NULL) return FALSE;
 
     if (QualifyFileName(Context, Context->Command, FileName)) {
         FileInfo.Size = sizeof(FILEINFO);
@@ -520,8 +521,14 @@ static void MakeFolder(LPSHELLCONTEXT Context) {
         FileInfo.Attributes = MAX_U32;
         FileInfo.Flags = 0;
         StringCopy(FileInfo.Name, FileName);
-        FileSystem->Driver->Command(DF_FS_CREATEFOLDER, (UINT)&FileInfo);
+        Result = FileSystem->Driver->Command(DF_FS_CREATEFOLDER, (UINT)&FileInfo);
+        if (QualifiedName != NULL) {
+            StringCopy(QualifiedName, FileName);
+        }
+        return (Result == DF_RETURN_SUCCESS);
     }
+
+    return FALSE;
 }
 
 static void ListFile(LPFILE File, U32 Indent) {
@@ -883,7 +890,16 @@ U32 CMD_cd(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 U32 CMD_md(LPSHELLCONTEXT Context) {
-    MakeFolder(Context);
+    STR FolderName[MAX_PATH_NAME];
+
+    FolderName[0] = STR_NULL;
+
+    if (MakeFolder(Context, FolderName)) {
+        TEST(TEXT("[CMD_md] md %s : OK"), FolderName);
+    } else {
+        TEST(TEXT("[CMD_md] md %s : KO"), FolderName);
+    }
+
     return DF_RETURN_SUCCESS;
 }
 
