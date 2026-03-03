@@ -618,6 +618,7 @@ static int TCP_SendPacket(LPTCP_CONNECTION Conn, U8 Flags, const U8* Payload, U3
                           : 0;
     U16 ActualWindow = (AvailableSpace > 0xFFFFU) ? 0xFFFFU : (U16)AvailableSpace;
     Header.WindowSize = Htons(ActualWindow);
+    Conn->LastAdvertisedWindow = ActualWindow;
     Header.UrgentPointer = 0;
     Header.Checksum = 0;
 
@@ -1271,6 +1272,7 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
     Conn->RecvBufferCapacity = GlobalTCP.ReceiveBufferSize;
     Conn->SendWindow = (Conn->SendBufferCapacity > 0xFFFFU) ? 0xFFFFU : (U16)Conn->SendBufferCapacity;
     Conn->RecvWindow = (Conn->RecvBufferCapacity > 0xFFFFU) ? 0xFFFFU : (U16)Conn->RecvBufferCapacity;
+    Conn->LastAdvertisedWindow = Conn->RecvWindow;
     Conn->RetransmitTimer = 0;
     Conn->RetransmitCount = 0;
     Conn->RetransmitBaseTimeout = TCP_RETRANSMIT_TIMEOUT;
@@ -1733,6 +1735,16 @@ void TCP_HandleApplicationRead(LPTCP_CONNECTION Connection, U32 BytesConsumed) {
         TCP_ProcessDataConsumption(Connection, BytesConsumed);
 
         BOOL ShouldSend = TCP_ShouldSendWindowUpdate(Connection);
+        UINT AvailableSpace = (Connection->RecvBufferCapacity > Connection->RecvBufferUsed)
+                              ? (Connection->RecvBufferCapacity - Connection->RecvBufferUsed)
+                              : 0;
+        U16 NewWindow = (AvailableSpace > 0xFFFFU) ? 0xFFFFU : (U16)AvailableSpace;
+        if (!ShouldSend && NewWindow > Connection->LastAdvertisedWindow) {
+            U16 Delta = (U16)(NewWindow - Connection->LastAdvertisedWindow);
+            if (Connection->LastAdvertisedWindow == 0 || Delta >= TCP_MAX_RETRANSMIT_PAYLOAD) {
+                ShouldSend = TRUE;
+            }
+        }
         if (!ShouldSend && PreviousUsed == Connection->RecvBufferCapacity &&
             Connection->RecvBufferUsed < Connection->RecvBufferCapacity) {
             ShouldSend = TRUE;

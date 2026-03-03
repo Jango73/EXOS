@@ -256,6 +256,7 @@ SOCKET_HANDLE SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
     // Initialize buffers
     CircularBuffer_Initialize(&Socket->ReceiveBuffer, Socket->ReceiveBufferData, SOCKET_BUFFER_SIZE, SOCKET_MAXIMUM_BUFFER_SIZE);
     CircularBuffer_Initialize(&Socket->SendBuffer, Socket->SendBufferData, SOCKET_BUFFER_SIZE, SOCKET_MAXIMUM_BUFFER_SIZE);
+    (void)RateLimiterInit(&Socket->ReceiveLogLimiter, 4, 1000);
     Socket->ReceiveOverflow = FALSE;
 
     // Add to socket list
@@ -858,6 +859,33 @@ I32 SocketSend(SOCKET_HANDLE SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags
 /************************************************************************/
 
 /**
+ * @brief Emit a rate-limited receive diagnostic for a socket.
+ * @param Socket Socket instance.
+ * @param Reason Diagnostic reason.
+ * @param ErrorCode Socket error code.
+ */
+static void SocketReceiveLogRateLimited(LPSOCKET Socket, LPCSTR Reason, I32 ErrorCode) {
+    U32 Suppressed = 0;
+
+    if (Socket == NULL || Reason == NULL) {
+        return;
+    }
+
+    if (!RateLimiterShouldTrigger(&Socket->ReceiveLogLimiter, GetSystemTime(), &Suppressed)) {
+        return;
+    }
+
+    WARNING(TEXT("[SocketReceive] %s socket=%p state=%u error=%x suppressed=%u"),
+            Reason,
+            (LPVOID)Socket,
+            Socket->State,
+            (U32)ErrorCode,
+            Suppressed);
+}
+
+/************************************************************************/
+
+/**
  * @brief Receive data from a connected socket
  *
  * This function receives data from a connected socket. For TCP sockets,
@@ -919,6 +947,7 @@ I32 SocketReceive(SOCKET_HANDLE SocketHandle, LPVOID Buffer, U32 Length, U32 Fla
                     // Check if timeout exceeded
                     if ((CurrentTime - Socket->ReceiveTimeoutStartTime) >= Socket->ReceiveTimeout) {
                         Socket->ReceiveTimeoutStartTime = 0; // Reset for next operation
+                        SocketReceiveLogRateLimited(Socket, TEXT("receive time out"), SOCKET_ERROR_TIMEOUT);
                         return SOCKET_ERROR_TIMEOUT;
                     }
                 }

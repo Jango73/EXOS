@@ -7,6 +7,7 @@ set -euo pipefail
 # 3) Inject deterministic keyboard input through QEMU monitor
 # 4) Validate expected logs and fail on faults/KO/fatal errors
 # 5) Optionally compare downloaded file size against host source file
+# 6) Optionally compare downloaded file hash against host source file
 
 ROOT_DIR="${SMOKE_TEST_ROOT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 LOG_FILE="$ROOT_DIR/log/kernel.log"
@@ -50,6 +51,7 @@ RUN_X86_64=1
 RUN_X86_64_UEFI=1
 SKIP_BUILD=0
 STOP_AFTER_SHELL_READY=0
+ENABLE_HASH_COMPARE=0
 CURRENT_IMAGE_PATH=""
 CURRENT_FS_OFFSET=0
 CURRENT_ARCHIVE_NAME=""
@@ -59,7 +61,7 @@ CURRENT_LOGS_ARCHIVED=0
 SCRIPT_DISPLAY_NAME="${SMOKE_TEST_SCRIPT_NAME:-$0}"
 
 function Usage() {
-    echo "Usage: $SCRIPT_DISPLAY_NAME [--only <x86-32|x86-64|x86-64-uefi>] [--commands-file <path>] [--no-build] [--stop-after-shell] [--no-keyboard-layout-patch] [--key-delay <seconds>] [--command-delay <seconds>] [--boot-input-delay <seconds>] [--help]"
+    echo "Usage: $SCRIPT_DISPLAY_NAME [--only <x86-32|x86-64|x86-64-uefi>] [--commands-file <path>] [--no-build] [--stop-after-shell] [--no-keyboard-layout-patch] [--hash-compare] [--key-delay <seconds>] [--command-delay <seconds>] [--boot-input-delay <seconds>] [--help]"
 }
 
 function ParseArguments() {
@@ -128,6 +130,9 @@ function ParseArguments() {
                 ;;
             --no-build)
                 SKIP_BUILD=1
+                ;;
+            --hash-compare)
+                ENABLE_HASH_COMPARE=1
                 ;;
             --stop-after-shell)
                 STOP_AFTER_SHELL_READY=1
@@ -726,6 +731,87 @@ function AssertDownloadedFileSize() {
     fi
 }
 
+function ComputeSha256() {
+    local TargetPath="$1"
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$TargetPath" | awk '{print $1}'
+        return 0
+    fi
+    if command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$TargetPath" | awk '{print $1}'
+        return 0
+    fi
+    echo "Missing sha256 tool (sha256sum or shasum)."
+    return 1
+}
+
+function AssertDownloadedFileHash() {
+    # Read guest file from the disk image and compare SHA-256 with host source.
+    local Offset="$1"
+    local SourcePath="$2"
+    local DownloadedName="$3"
+    local ResolvedSourcePath
+    local DownloadedPath
+    local PartitionImage
+    local FsOffset
+    local GuestTemp
+    local SourceHash
+    local GuestHash
+
+    if [[ "$SourcePath" = /* ]]; then
+        ResolvedSourcePath="$SourcePath"
+    else
+        ResolvedSourcePath="$ROOT_DIR/$SourcePath"
+    fi
+
+    if [ ! -f "$ResolvedSourcePath" ]; then
+        echo "Source file not found for hash compare: $ResolvedSourcePath"
+        return 1
+    fi
+
+    if [ -z "$CURRENT_IMAGE_PATH" ] || [ ! -f "$CURRENT_IMAGE_PATH" ]; then
+        echo "Guest disk image not available for hash compare: $CURRENT_IMAGE_PATH"
+        return 1
+    fi
+    if [ -z "$DownloadedName" ]; then
+        echo "Missing downloaded file name in hash compare."
+        return 1
+    fi
+
+    if [[ "$DownloadedName" = /* ]]; then
+        DownloadedPath="$DownloadedName"
+    else
+        DownloadedPath="/$DownloadedName"
+    fi
+
+    FsOffset="$CURRENT_FS_OFFSET"
+    PartitionImage="$(mktemp)"
+    if ! dd if="$CURRENT_IMAGE_PATH" of="$PartitionImage" iflag=skip_bytes skip="$FsOffset" bs=1M status=none 2>/dev/null; then
+        dd if="$CURRENT_IMAGE_PATH" of="$PartitionImage" bs=1 skip="$FsOffset" status=none
+    fi
+
+    GuestTemp="$(mktemp)"
+    if ! debugfs -R "dump $DownloadedPath $GuestTemp" "$PartitionImage" >/dev/null 2>&1; then
+        rm -f "$PartitionImage" "$GuestTemp"
+        echo "Could not extract downloaded file from guest image: $DownloadedPath"
+        return 1
+    fi
+
+    SourceHash="$(ComputeSha256 "$ResolvedSourcePath")"
+    GuestHash="$(ComputeSha256 "$GuestTemp")"
+    rm -f "$PartitionImage" "$GuestTemp"
+
+    if [ -z "$SourceHash" ] || [ -z "$GuestHash" ]; then
+        echo "Hash calculation failed for $DownloadedName"
+        return 1
+    fi
+
+    if [ "$SourceHash" != "$GuestHash" ]; then
+        echo "Downloaded hash mismatch for $DownloadedName: expected $SourceHash got $GuestHash"
+        return 1
+    fi
+}
+
 function RunCommandSpec() {
     # Execute one command specification line:
     # command + expected log + optional file-size-compare check.
@@ -756,6 +842,9 @@ function RunCommandSpec() {
     AssertNoFailures "$Offset"
     if [ -n "$CompareSource" ] || [ -n "$CompareDownloaded" ]; then
         AssertDownloadedFileSize "$Offset" "$CompareSource" "$CompareDownloaded"
+        if [ "$ENABLE_HASH_COMPARE" -eq 1 ]; then
+            AssertDownloadedFileHash "$Offset" "$CompareSource" "$CompareDownloaded"
+        fi
     fi
 }
 

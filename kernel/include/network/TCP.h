@@ -123,6 +123,7 @@ typedef struct tag_TCP_CONNECTION {
     U16 SendWindow;         // Send window size
     U16 RecvWindow;         // Receive window size
     HYSTERESIS WindowHysteresis;  // Hysteresis for window updates
+    U16 LastAdvertisedWindow;     // Last window size sent to the peer
 
     // Buffers
     U8 SendBuffer[TCP_SEND_BUFFER_SIZE];

@@ -31,6 +31,7 @@
 #include "network/TCP.h"
 #include "ID.h"
 #include "utils/CircularBuffer.h"
+#include "utils/RateLimiter.h"
 
 /************************************************************************/
 // Socket Address Family
@@ -127,6 +128,7 @@ typedef struct tag_SOCKET {
     U8 SendBufferData[SOCKET_BUFFER_SIZE];
 
     BOOL ReceiveOverflow;
+    RATE_LIMITER ReceiveLogLimiter;
 
     // Socket options
     BOOL ReuseAddress;
