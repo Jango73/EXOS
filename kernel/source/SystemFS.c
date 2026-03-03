@@ -432,8 +432,26 @@ static U32 CreateFolder(LPFILEINFO Info) {
     LPPATHNODE Part = NULL;
     LPSYSTEMFSFILE Parent;
     LPSYSTEMFSFILE Child;
+    LPSYSTEMFSFILE MountedNode;
+    STR Remaining[MAX_PATH_NAME];
+    FILEINFO Local;
+    UINT Result;
 
     if (Info == NULL) return DF_RETURN_BAD_PARAMETER;
+
+    if (ResolvePath(Info->Name, &MountedNode, Remaining)) {
+        if (Remaining[0] != STR_NULL) {
+            if (MountedNode != NULL && MountedNode->Mounted != NULL) {
+                Local = *Info;
+                Local.FileSystem = MountedNode->Mounted;
+                StringCopy(Local.Name, Remaining);
+                Result = MountedNode->Mounted->Driver->Command(DF_FS_CREATEFOLDER, (UINT)&Local);
+                return Result;
+            }
+            return DF_RETURN_GENERIC;
+        }
+        return DF_RETURN_GENERIC;
+    }
 
     Parts = DecomposePath(Info->Name);
     if (Parts == NULL) return DF_RETURN_BAD_PARAMETER;

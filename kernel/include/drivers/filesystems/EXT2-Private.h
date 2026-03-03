@@ -163,6 +163,7 @@ BOOL EnsureParentDirectory(
 U32 CreateNode(LPFILEINFO Info, BOOL Directory);
 
 BOOL MountPartition_EXT2(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex);
+U32 Ext2CreatePartition(LPPARTITION_CREATION Create);
 UINT EXT2Commands(UINT Function, UINT Parameter);
 
 #endif  // EXT2_PRIVATE_H_INCLUDED

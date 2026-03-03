@@ -625,6 +625,8 @@ UINT EXT2Commands(UINT Function, UINT Parameter) {
             return ReadFile((LPEXT2FILE)Parameter);
         case DF_FS_WRITE:
             return WriteFile((LPEXT2FILE)Parameter);
+        case DF_FS_CREATEPARTITION:
+            return Ext2CreatePartition((LPPARTITION_CREATION)Parameter);
         default:
             break;
     }

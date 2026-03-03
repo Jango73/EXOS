@@ -28,6 +28,9 @@ COMMAND_FORMATION_TIMEOUT_SECONDS=45
 KEY_DELAY_SECONDS=0.16
 COMMAND_DELAY_SECONDS=0.25
 BOOT_INPUT_DELAY_SECONDS=1.0
+IMAGE_READY_TIMEOUT_SECONDS=15
+IMAGE_READY_POLL_SECONDS=0.5
+IMAGE_READY_STABLE_POLLS=3
 TEST_KEYBOARD_LAYOUT="en-US"
 PATCH_KEYBOARD_LAYOUT=1
 LOCAL_HTTP_SERVER_PID=""
@@ -189,6 +192,40 @@ function NormalizeSpaces() {
     Value="${Value#"${Value%%[![:space:]]*}"}"
     Value="${Value%"${Value##*[![:space:]]}"}"
     echo "$Value"
+}
+
+function WaitForImageReady() {
+    local ImagePath="$1"
+    local StartTime
+    local StableCount=0
+    local LastSize=""
+    local LastMTime=""
+    local CurrentSize=""
+    local CurrentMTime=""
+
+    StartTime="$SECONDS"
+    while [ $((SECONDS - StartTime)) -lt "$IMAGE_READY_TIMEOUT_SECONDS" ]; do
+        if [ -f "$ImagePath" ]; then
+            CurrentSize="$(stat -c "%s" "$ImagePath" 2>/dev/null || echo "")"
+            CurrentMTime="$(stat -c "%Y" "$ImagePath" 2>/dev/null || echo "")"
+            if [ -n "$CurrentSize" ] && [ -n "$CurrentMTime" ]; then
+                if [ "$CurrentSize" = "$LastSize" ] && [ "$CurrentMTime" = "$LastMTime" ]; then
+                    StableCount=$((StableCount + 1))
+                else
+                    StableCount=0
+                fi
+                LastSize="$CurrentSize"
+                LastMTime="$CurrentMTime"
+                if [ "$StableCount" -ge "$IMAGE_READY_STABLE_POLLS" ]; then
+                    return 0
+                fi
+            fi
+        fi
+        sleep "$IMAGE_READY_POLL_SECONDS"
+    done
+
+    echo "Timed out waiting for image to finish writing: $ImagePath"
+    return 1
 }
 
 function SetImageKeyboardLayout() {
@@ -816,6 +853,7 @@ function RunArchitecture() {
     CURRENT_KERNEL_LOG_PATH="$ROOT_DIR/$KernelLogRelativePath"
     CURRENT_COM1_LOG_PATH="$ROOT_DIR/${KernelLogRelativePath/log\/kernel-/log\/debug-com1-}"
     CURRENT_LOGS_ARCHIVED=0
+    WaitForImageReady "$CURRENT_IMAGE_PATH"
     if [ "$PATCH_KEYBOARD_LAYOUT" -eq 1 ]; then
         SetImageKeyboardLayout "$CURRENT_IMAGE_PATH" "$CURRENT_FS_OFFSET" "$TEST_KEYBOARD_LAYOUT"
     fi

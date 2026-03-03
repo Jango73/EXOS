@@ -876,6 +876,16 @@ DRIVER DATA_SECTION EXT2Driver = {
 /************************************************************************/
 
 /**
+ * @brief Retrieves the EXT2 driver descriptor.
+ * @return Pointer to the EXT2 driver.
+ */
+LPDRIVER EXT2GetDriver(void) {
+    return &EXT2Driver;
+}
+
+/************************************************************************/
+
+/**
  * @brief Reads raw sectors relative to the partition start.
  * @param FileSystem Pointer to the EXT2 file system instance.
  * @param Sector Sector index relative to the partition start.

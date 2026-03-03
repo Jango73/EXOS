@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "drivers/filesystems/FAT.h"
+#include "drivers/filesystems/EXT2.h"
 #include "Clock.h"
 #include "Kernel.h"
 #include "Log.h"
@@ -476,7 +477,7 @@ static U32 RAMDiskInitialize(void) {
     Partition->StartCHS.Head = 0;
     Partition->StartCHS.Cylinder = 0;
     Partition->StartCHS.Sector = 0;
-    Partition->Type = FSID_EXOS;
+    Partition->Type = FSID_LINUX_EXT2;
     Partition->EndCHS.Head = 0;
     Partition->EndCHS.Cylinder = 0;
     Partition->EndCHS.Sector = 0;
@@ -492,14 +493,14 @@ static U32 RAMDiskInitialize(void) {
     Create.Disk = (LPSTORAGE_UNIT)Disk;
     Create.PartitionStartSector = 2;
     Create.PartitionNumSectors = Partition->Size;
-    Create.SectorsPerCluster = 8;
+    Create.SectorsPerCluster = 2;
     Create.Flags = 0;
 
     StringCopy(Create.VolumeName, TEXT("RamDisk"));
 
-    GetDefaultFileSystemDriver()->Command(DF_FS_CREATEPARTITION, (UINT)&Create);
+    EXT2GetDriver()->Command(DF_FS_CREATEPARTITION, (UINT)&Create);
 
-    DEBUG(TEXT("[RAMDiskInitialize] Partition formated in EXFS"));
+    DEBUG(TEXT("[RAMDiskInitialize] Partition formated in EXT2"));
 
     //-------------------------------------
 
