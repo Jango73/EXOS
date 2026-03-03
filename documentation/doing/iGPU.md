@@ -143,6 +143,7 @@ Status note:
 - Conservative native modeset is implemented in `kernel/source/drivers/graphics/iGPU-Mode.c` on one active pipe/output.
 - Validation enforces XRGB8888 path and active-mode dimensions while API lacks explicit refresh/format fields in `GRAPHICSMODEINFO`.
 - Stage-ordered native modeset now applies explicit pipe/output/transcoder policy, conservative clock-source programming (`DPLL_CTRL1` reuse), connector-link enable, internal panel stabilization, and rollback to captured hardware state on partial failure in `kernel/source/drivers/graphics/iGPU-Mode.c`.
+- Cold modeset bootstrap is implemented for the `no active Intel scanout` path: load keeps the Intel backend available, `SETMODE` builds conservative timings from the requested mode, programs pipe/output/link, and rebuilds context from the programmed state when takeover readback is unavailable.
 
 ## Step 6 - Buffer management and present model
 Introduce a clean surface model for future growth.

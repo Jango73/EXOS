@@ -35,6 +35,12 @@
 #define INTEL_MODESET_STAGE_CONFIGURE_LINK (1 << 3)
 #define INTEL_MODESET_STAGE_ENABLE_PIPE (1 << 4)
 #define INTEL_MODESET_STAGE_PANEL_STABILITY (1 << 5)
+#define INTEL_MODESET_HBLANK_EXTRA 160
+#define INTEL_MODESET_HSYNC_START_OFFSET 48
+#define INTEL_MODESET_HSYNC_PULSE_WIDTH 32
+#define INTEL_MODESET_VBLANK_EXTRA 30
+#define INTEL_MODESET_VSYNC_START_OFFSET 3
+#define INTEL_MODESET_VSYNC_PULSE_WIDTH 5
 
 /************************************************************************/
 
@@ -241,6 +247,7 @@ static BOOL IntelGfxReadActiveScanoutState(void) {
         IntelGfxState.ActiveSurfaceOffset = PlaneSurface & INTEL_SURFACE_ALIGN_MASK;
         IntelGfxState.ActiveOutputPortMask = ActivePortMask;
         IntelGfxState.ActiveTranscoderIndex = Index;
+        IntelGfxState.HasActiveMode = TRUE;
 
         DEBUG(TEXT("[IntelGfxReadActiveScanoutState] Pipe=%u Width=%u Height=%u Bpp=%u Stride=%u Surface=%x Port=%x"),
             Index,
@@ -799,6 +806,7 @@ static UINT IntelGfxBuildModeProgram(LPGRAPHICSMODEINFO Info, LPINTEL_GFX_MODE_P
     U32 RequestedWidth = 0;
     U32 RequestedHeight = 0;
     U32 RequestedBitsPerPixel = 0;
+    BOOL HasActiveMode = FALSE;
 
     if (Info == NULL || ProgramOut == NULL) {
         return DF_RETURN_GENERIC;
@@ -807,6 +815,7 @@ static UINT IntelGfxBuildModeProgram(LPGRAPHICSMODEINFO Info, LPINTEL_GFX_MODE_P
     RequestedWidth = Info->Width ? Info->Width : IntelGfxState.ActiveWidth;
     RequestedHeight = Info->Height ? Info->Height : IntelGfxState.ActiveHeight;
     RequestedBitsPerPixel = Info->BitsPerPixel ? Info->BitsPerPixel : 32;
+    HasActiveMode = IntelGfxState.HasActiveMode;
 
     if (RequestedWidth == 0 || RequestedHeight == 0) {
         return DF_GFX_ERROR_MODEUNAVAIL;
@@ -826,7 +835,7 @@ static UINT IntelGfxBuildModeProgram(LPGRAPHICSMODEINFO Info, LPINTEL_GFX_MODE_P
         return DF_GFX_ERROR_MODEUNAVAIL;
     }
 
-    if (RequestedWidth != IntelGfxState.ActiveWidth || RequestedHeight != IntelGfxState.ActiveHeight) {
+    if (HasActiveMode != FALSE && (RequestedWidth != IntelGfxState.ActiveWidth || RequestedHeight != IntelGfxState.ActiveHeight)) {
         WARNING(TEXT("[IntelGfxBuildModeProgram] Conservative path supports active mode only (%ux%u requested=%ux%u)"),
             IntelGfxState.ActiveWidth,
             IntelGfxState.ActiveHeight,
@@ -835,9 +844,62 @@ static UINT IntelGfxBuildModeProgram(LPGRAPHICSMODEINFO Info, LPINTEL_GFX_MODE_P
         return DF_GFX_ERROR_MODEUNAVAIL;
     }
 
-    if (!IntelGfxReadModeProgram(IntelGfxState.ActivePipeIndex, ProgramOut)) {
-        ERROR(TEXT("[IntelGfxBuildModeProgram] Failed to read active pipe programming"));
-        return DF_RETURN_UNEXPECTED;
+    if (HasActiveMode != FALSE) {
+        if (!IntelGfxReadModeProgram(IntelGfxState.ActivePipeIndex, ProgramOut)) {
+            ERROR(TEXT("[IntelGfxBuildModeProgram] Failed to read active pipe programming"));
+            return DF_RETURN_UNEXPECTED;
+        }
+    } else {
+        U32 PipeIndex = 0;
+        U32 HorizontalTotal = 0;
+        U32 HorizontalBlankStart = 0;
+        U32 HorizontalSyncStart = 0;
+        U32 HorizontalSyncEnd = 0;
+        U32 VerticalTotal = 0;
+        U32 VerticalBlankStart = 0;
+        U32 VerticalSyncStart = 0;
+        U32 VerticalSyncEnd = 0;
+
+        ProgramOut->PipeIndex = 0;
+        if (IntelGfxState.IntelCapabilities.PipeCount != 0 && ProgramOut->PipeIndex >= IntelGfxState.IntelCapabilities.PipeCount) {
+            ProgramOut->PipeIndex = IntelGfxState.IntelCapabilities.PipeCount - 1;
+        }
+
+        PipeIndex = ProgramOut->PipeIndex;
+        if (PipeIndex >= sizeof(IntelPipeConfRegisters) / sizeof(IntelPipeConfRegisters[0])) {
+            return DF_RETURN_UNEXPECTED;
+        }
+
+        ProgramOut->PipeConf = 0;
+        ProgramOut->PipeSource = ((RequestedHeight - 1) << 16) | (RequestedWidth - 1);
+        ProgramOut->PlaneControl = INTEL_PLANE_CTL_FORMAT_XRGB8888;
+        ProgramOut->PlaneStride = RequestedWidth << 2;
+        ProgramOut->PlaneSurface = 0;
+        ProgramOut->OutputPortMask = IntelGfxFindFirstPortFromMask(IntelGfxState.IntelCapabilities.PortMask);
+        ProgramOut->OutputType = IntelGfxResolveOutputTypeFromPort(ProgramOut->OutputPortMask);
+        ProgramOut->TranscoderIndex = 0;
+
+        HorizontalTotal = RequestedWidth + INTEL_MODESET_HBLANK_EXTRA;
+        HorizontalBlankStart = RequestedWidth;
+        HorizontalSyncStart = HorizontalBlankStart + INTEL_MODESET_HSYNC_START_OFFSET;
+        HorizontalSyncEnd = HorizontalSyncStart + INTEL_MODESET_HSYNC_PULSE_WIDTH;
+        VerticalTotal = RequestedHeight + INTEL_MODESET_VBLANK_EXTRA;
+        VerticalBlankStart = RequestedHeight;
+        VerticalSyncStart = VerticalBlankStart + INTEL_MODESET_VSYNC_START_OFFSET;
+        VerticalSyncEnd = VerticalSyncStart + INTEL_MODESET_VSYNC_PULSE_WIDTH;
+
+        ProgramOut->PipeHTotal = ((HorizontalTotal - 1) << 16) | (RequestedWidth - 1);
+        ProgramOut->PipeHBlank = ((HorizontalTotal - 1) << 16) | (HorizontalBlankStart - 1);
+        ProgramOut->PipeHSync = ((HorizontalSyncEnd - 1) << 16) | (HorizontalSyncStart - 1);
+        ProgramOut->PipeVTotal = ((VerticalTotal - 1) << 16) | (RequestedHeight - 1);
+        ProgramOut->PipeVBlank = ((VerticalTotal - 1) << 16) | (VerticalBlankStart - 1);
+        ProgramOut->PipeVSync = ((VerticalSyncEnd - 1) << 16) | (VerticalSyncStart - 1);
+
+        DEBUG(TEXT("[IntelGfxBuildModeProgram] Cold modeset bootstrap prepared (%ux%u pipe=%u port=%x)"),
+            RequestedWidth,
+            RequestedHeight,
+            ProgramOut->PipeIndex,
+            ProgramOut->OutputPortMask);
     }
 
     ProgramOut->Width = RequestedWidth;
@@ -845,8 +907,10 @@ static UINT IntelGfxBuildModeProgram(LPGRAPHICSMODEINFO Info, LPINTEL_GFX_MODE_P
     ProgramOut->BitsPerPixel = RequestedBitsPerPixel;
     ProgramOut->RefreshRate = INTEL_DEFAULT_REFRESH_RATE;
     ProgramOut->PipeSource = ((RequestedHeight - 1) << 16) | (RequestedWidth - 1);
-    ProgramOut->PlaneStride = IntelGfxState.ActiveStride;
-    ProgramOut->PlaneSurface = IntelGfxState.ActiveSurfaceOffset & INTEL_SURFACE_ALIGN_MASK;
+    if (HasActiveMode != FALSE) {
+        ProgramOut->PlaneStride = IntelGfxState.ActiveStride;
+        ProgramOut->PlaneSurface = IntelGfxState.ActiveSurfaceOffset & INTEL_SURFACE_ALIGN_MASK;
+    }
     ProgramOut->PlaneControl &= ~INTEL_PLANE_CTL_FORMAT_MASK;
     ProgramOut->PlaneControl |= INTEL_PLANE_CTL_FORMAT_XRGB8888;
 
@@ -859,6 +923,7 @@ static UINT IntelGfxProgramMode(LPINTEL_GFX_MODE_PROGRAM Program) {
     INTEL_GFX_MODE_SNAPSHOT Snapshot;
     UINT CompletedStages = 0;
     UINT Result = DF_RETURN_SUCCESS;
+    BOOL HasSnapshot = FALSE;
 
     if (Program == NULL) {
         return DF_RETURN_UNEXPECTED;
@@ -866,8 +931,14 @@ static UINT IntelGfxProgramMode(LPINTEL_GFX_MODE_PROGRAM Program) {
 
     Result = IntelGfxCaptureModeSnapshot(Program->PipeIndex, &Snapshot);
     if (Result != DF_RETURN_SUCCESS) {
-        ERROR(TEXT("[IntelGfxProgramMode] Snapshot capture failed"));
-        return Result;
+        if (IntelGfxState.HasActiveMode != FALSE) {
+            ERROR(TEXT("[IntelGfxProgramMode] Snapshot capture failed"));
+            return Result;
+        }
+
+        WARNING(TEXT("[IntelGfxProgramMode] Snapshot capture unavailable, continuing without rollback baseline"));
+    } else {
+        HasSnapshot = TRUE;
     }
 
     Result = IntelGfxSelectPipeOutputRouting(Program);
@@ -934,7 +1005,7 @@ static UINT IntelGfxProgramMode(LPINTEL_GFX_MODE_PROGRAM Program) {
     return DF_RETURN_SUCCESS;
 
 rollback:
-    if (CompletedStages != 0) {
+    if (CompletedStages != 0 && HasSnapshot != FALSE) {
         UINT RollbackResult = IntelGfxRestoreModeSnapshot(&Snapshot);
         if (RollbackResult != DF_RETURN_SUCCESS) {
             ERROR(TEXT("[IntelGfxProgramMode] Rollback failed stageMask=%x result=%u"), CompletedStages, RollbackResult);
@@ -1035,20 +1106,41 @@ static BOOL IntelGfxBuildTakeoverContext(void) {
 
 /************************************************************************/
 
+static void IntelGfxApplyProgramAsActiveState(const INTEL_GFX_MODE_PROGRAM* Program) {
+    if (Program == NULL) {
+        return;
+    }
+
+    IntelGfxState.ActivePipeIndex = Program->PipeIndex;
+    IntelGfxState.ActiveWidth = Program->Width;
+    IntelGfxState.ActiveHeight = Program->Height;
+    IntelGfxState.ActiveBitsPerPixel = Program->BitsPerPixel;
+    IntelGfxState.ActiveStride = Program->PlaneStride;
+    IntelGfxState.ActiveSurfaceOffset = Program->PlaneSurface & INTEL_SURFACE_ALIGN_MASK;
+    IntelGfxState.ActiveOutputPortMask = Program->OutputPortMask;
+    IntelGfxState.ActiveTranscoderIndex = Program->TranscoderIndex;
+}
+
+/************************************************************************/
+
 UINT IntelGfxTakeoverActiveMode(void) {
     if (!IntelGfxReadActiveScanoutState()) {
         ERROR(TEXT("[IntelGfxTakeoverActiveMode] No active Intel scanout state found"));
+        IntelGfxState.HasActiveMode = FALSE;
         return DF_RETURN_IGFX_NO_ACTIVE_SCANOUT;
     }
 
     if (!IntelGfxMapActiveFrameBuffer()) {
+        IntelGfxState.HasActiveMode = FALSE;
         return DF_RETURN_IGFX_MAP_FRAMEBUFFER_FAILED;
     }
 
     if (!IntelGfxBuildTakeoverContext()) {
+        IntelGfxState.HasActiveMode = FALSE;
         return DF_RETURN_IGFX_BUILD_CONTEXT_FAILED;
     }
 
+    IntelGfxState.HasActiveMode = TRUE;
     return DF_RETURN_SUCCESS;
 }
 
@@ -1084,7 +1176,22 @@ UINT IntelGfxSetMode(LPGRAPHICSMODEINFO Info) {
 
     Result = IntelGfxTakeoverActiveMode();
     if (Result != DF_RETURN_SUCCESS) {
-        return Result;
+        IntelGfxApplyProgramAsActiveState(&Program);
+
+        Result = IntelGfxMapActiveFrameBuffer() ? DF_RETURN_SUCCESS : DF_RETURN_IGFX_MAP_FRAMEBUFFER_FAILED;
+        if (Result != DF_RETURN_SUCCESS) {
+            IntelGfxState.HasActiveMode = FALSE;
+            return Result;
+        }
+
+        Result = IntelGfxBuildTakeoverContext() ? DF_RETURN_SUCCESS : DF_RETURN_IGFX_BUILD_CONTEXT_FAILED;
+        if (Result != DF_RETURN_SUCCESS) {
+            IntelGfxState.HasActiveMode = FALSE;
+            return Result;
+        }
+
+        IntelGfxState.HasActiveMode = TRUE;
+        WARNING(TEXT("[IntelGfxSetMode] Takeover refresh unavailable, context rebuilt from programmed cold mode"));
     }
 
     SAFE_USE(Info) {

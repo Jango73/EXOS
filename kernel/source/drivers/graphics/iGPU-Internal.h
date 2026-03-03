@@ -159,6 +159,7 @@ typedef struct tag_INTEL_GFX_STATE {
     U32 ActiveSurfaceOffset;
     U32 ActiveOutputPortMask;
     U32 ActiveTranscoderIndex;
+    BOOL HasActiveMode;
     PHYSICAL FrameBufferPhysical;
     LINEAR FrameBufferLinear;
     U32 FrameBufferSize;

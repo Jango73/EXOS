@@ -371,16 +371,7 @@ static UINT IntelGfxLoad(void) {
 
     TakeoverResult = IntelGfxTakeoverActiveMode();
     if (TakeoverResult != DF_RETURN_SUCCESS) {
-        ERROR(TEXT("[IntelGfxLoad] Active mode takeover failed (%u)"), TakeoverResult);
-        if (IntelGfxState.FrameBufferLinear != 0 && IntelGfxState.FrameBufferSize != 0) {
-            UnMapIOMemory(IntelGfxState.FrameBufferLinear, IntelGfxState.FrameBufferSize);
-        }
-        if (IntelGfxState.MmioBase != 0 && IntelGfxState.MmioSize != 0) {
-            UnMapIOMemory(IntelGfxState.MmioBase, IntelGfxState.MmioSize);
-        }
-        IntelGfxReleaseAllSurfaces();
-        IntelGfxState = (INTEL_GFX_STATE){0};
-        return TakeoverResult;
+        WARNING(TEXT("[IntelGfxLoad] Active mode takeover failed (%u), cold modeset path only"), TakeoverResult);
     }
 
     IntelGfxDriver.Flags |= DRIVER_FLAG_READY;
@@ -413,7 +404,8 @@ static UINT IntelGfxGetModeInfo(LPGRAPHICSMODEINFO Info) {
             return DF_GFX_ERROR_MODEUNAVAIL;
         }
 
-        if (IntelGfxState.Context.Width <= 0 || IntelGfxState.Context.Height <= 0 || IntelGfxState.Context.BitsPerPixel == 0) {
+        if (IntelGfxState.HasActiveMode == FALSE || IntelGfxState.Context.Width <= 0 || IntelGfxState.Context.Height <= 0 ||
+            IntelGfxState.Context.BitsPerPixel == 0) {
             return DF_RETURN_UNEXPECTED;
         }
 
@@ -433,7 +425,8 @@ static U32 IntelGfxGetModeCount(void) {
         return 0;
     }
 
-    if (IntelGfxState.Context.Width <= 0 || IntelGfxState.Context.Height <= 0 || IntelGfxState.Context.BitsPerPixel == 0) {
+    if (IntelGfxState.HasActiveMode == FALSE || IntelGfxState.Context.Width <= 0 || IntelGfxState.Context.Height <= 0 ||
+        IntelGfxState.Context.BitsPerPixel == 0) {
         return 0;
     }
 
@@ -464,6 +457,9 @@ static UINT IntelGfxCommands(UINT Function, UINT Param) {
 
         case DF_GFX_CREATECONTEXT:
             if ((IntelGfxDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return 0;
+            }
+            if (IntelGfxState.Context.TypeID != KOID_GRAPHICSCONTEXT || IntelGfxState.HasActiveMode == FALSE) {
                 return 0;
             }
             return (UINT)(LPVOID)&IntelGfxState.Context;
