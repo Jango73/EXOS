@@ -432,7 +432,7 @@ static UINT GraphicsSelectorCommands(UINT Function, UINT Parameter) {
             return GraphicsSelectorUnload();
         case DF_GET_VERSION:
             return MAKE_VERSION(GRAPHICS_SELECTOR_VER_MAJOR, GRAPHICS_SELECTOR_VER_MINOR);
-        case DF_GFX_ENUMMODES:
+        case DF_GFX_GETMODECOUNT:
         case DF_GFX_GETMODEINFO:
         case DF_GFX_SETMODE:
         case DF_GFX_CREATECONTEXT:

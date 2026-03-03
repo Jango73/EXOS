@@ -54,6 +54,7 @@ static BOOL DisplaySessionQueryGraphicsMode(LPDRIVER Driver, LPGRAPHICSMODEINFO 
     ModeInfo->Header.Size = sizeof(GRAPHICSMODEINFO);
     ModeInfo->Header.Version = EXOS_ABI_VERSION;
     ModeInfo->Header.Flags = 0;
+    ModeInfo->ModeIndex = INFINITY;
     ModeInfo->Width = 0;
     ModeInfo->Height = 0;
     ModeInfo->BitsPerPixel = 0;
@@ -199,6 +200,7 @@ BOOL DisplaySwitchToConsole(void) {
     ModeInfo.Header.Size = sizeof(ModeInfo);
     ModeInfo.Header.Version = EXOS_ABI_VERSION;
     ModeInfo.Header.Flags = 0;
+    ModeInfo.ModeIndex = INFINITY;
     ModeInfo.Width = (Console.Width != 0) ? Console.Width : 80;
     ModeInfo.Height = (Console.Height != 0) ? Console.Height : 25;
     ModeInfo.BitsPerPixel = 0;

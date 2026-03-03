@@ -311,7 +311,7 @@ static UINT VGACommands(UINT Function, UINT Parameter) {
         case DF_GET_VERSION:
             return MAKE_VERSION(VGA_VER_MAJOR, VGA_VER_MINOR);
 
-        case DF_GFX_ENUMMODES:
+        case DF_GFX_GETMODECOUNT:
             return VGAGetModeCount();
 
         case DF_GFX_GETMODEINFO: {
@@ -319,10 +319,16 @@ static UINT VGACommands(UINT Function, UINT Parameter) {
             VGAMODEINFO ModeInfo;
 
             SAFE_USE(Info) {
-                if (VGAReadCurrentTextModeInfo(&ModeInfo) == FALSE) {
-                    if (VGAGetModeInfo(0, &ModeInfo) == FALSE) {
-                        ModeInfo.Columns = 80;
-                        ModeInfo.Rows = 25;
+                if (Info->ModeIndex == INFINITY) {
+                    if (VGAReadCurrentTextModeInfo(&ModeInfo) == FALSE) {
+                        if (VGAGetModeInfo(0, &ModeInfo) == FALSE) {
+                            ModeInfo.Columns = 80;
+                            ModeInfo.Rows = 25;
+                        }
+                    }
+                } else {
+                    if (VGAGetModeInfo(Info->ModeIndex, &ModeInfo) == FALSE) {
+                        return DF_GFX_ERROR_MODEUNAVAIL;
                     }
                 }
 

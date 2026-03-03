@@ -197,6 +197,7 @@ static BOOL ParseGraphicsModeToken(LPCSTR Token, LPGRAPHICSMODEINFO InfoOut) {
     InfoOut->Header.Size = sizeof(GRAPHICSMODEINFO);
     InfoOut->Header.Version = EXOS_ABI_VERSION;
     InfoOut->Header.Flags = 0;
+    InfoOut->ModeIndex = INFINITY;
     InfoOut->Width = Width;
     InfoOut->Height = Height;
     InfoOut->BitsPerPixel = BitsPerPixel;

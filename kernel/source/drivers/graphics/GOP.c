@@ -415,6 +415,10 @@ static UINT GOPGfxUnload(void) {
  */
 static UINT GOPGfxGetModeInfo(LPGRAPHICSMODEINFO Info) {
     SAFE_USE(Info) {
+        if (Info->ModeIndex != INFINITY && Info->ModeIndex != 0) {
+            return DF_GFX_ERROR_MODEUNAVAIL;
+        }
+
         if (GOPGfxState.Context.Width <= 0 || GOPGfxState.Context.Height <= 0 || GOPGfxState.Context.BitsPerPixel == 0) {
             return DF_RETURN_UNEXPECTED;
         }
@@ -765,6 +769,16 @@ static UINT GOPGfxCommands(UINT Function, UINT Param) {
                 return 0;
             }
             return (UINT)(LPVOID)&GOPGfxState.Context;
+        case DF_GFX_GETMODECOUNT:
+            if ((GOPGfxDriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return 0;
+            }
+
+            if (GOPGfxState.Context.Width <= 0 || GOPGfxState.Context.Height <= 0 || GOPGfxState.Context.BitsPerPixel == 0) {
+                return 0;
+            }
+
+            return 1;
         case DF_GFX_GETMODEINFO:
             return GOPGfxGetModeInfo((LPGRAPHICSMODEINFO)Param);
         case DF_GFX_SETMODE:
@@ -790,7 +804,6 @@ static UINT GOPGfxCommands(UINT Function, UINT Param) {
         case DF_GFX_TEXT_SET_CURSOR_VISIBLE:
             return GOPGfxTextSetCursorVisible((LPGFX_TEXT_CURSOR_VISIBLE_INFO)Param);
 
-        case DF_GFX_ENUMMODES:
         case DF_GFX_CREATEBRUSH:
         case DF_GFX_CREATEPEN:
         case DF_GFX_ELLIPSE:

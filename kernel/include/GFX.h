@@ -36,7 +36,7 @@
 
 // Functions supplied by a graphics driver
 
-#define DF_GFX_ENUMMODES (DF_FIRST_FUNCTION + 0)
+#define DF_GFX_GETMODECOUNT (DF_FIRST_FUNCTION + 0)
 #define DF_GFX_GETMODEINFO (DF_FIRST_FUNCTION + 1)
 #define DF_GFX_SETMODE (DF_FIRST_FUNCTION + 2)
 #define DF_GFX_CREATECONTEXT (DF_FIRST_FUNCTION + 3)
@@ -69,7 +69,7 @@
 
 /***************************************************************************/
 
-typedef U32 (*GFXENUMMODESFUNC)(void);
+typedef U32 (*GFXGETMODECOUNTFUNC)(void);
 
 #define ROP_SET 0x0001
 #define ROP_AND 0x0002

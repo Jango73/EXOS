@@ -424,6 +424,7 @@ typedef struct PACKED tag_FILEOPENINFO {
 
 typedef struct PACKED tag_GRAPHICSMODEINFO {
     ABI_HEADER Header;
+    U32 ModeIndex;
     U32 Width;
     U32 Height;
     U32 BitsPerPixel;

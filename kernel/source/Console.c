@@ -796,7 +796,7 @@ UINT ConsoleGetModeCount(void) {
         return 0;
     }
 
-    return VGADriver->Command(DF_GFX_ENUMMODES, 0);
+    return VGADriver->Command(DF_GFX_GETMODECOUNT, 0);
 }
 
 /***************************************************************************/

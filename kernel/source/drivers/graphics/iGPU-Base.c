@@ -409,6 +409,10 @@ static UINT IntelGfxUnload(void) {
 
 static UINT IntelGfxGetModeInfo(LPGRAPHICSMODEINFO Info) {
     SAFE_USE(Info) {
+        if (Info->ModeIndex != INFINITY && Info->ModeIndex != 0) {
+            return DF_GFX_ERROR_MODEUNAVAIL;
+        }
+
         if (IntelGfxState.Context.Width <= 0 || IntelGfxState.Context.Height <= 0 || IntelGfxState.Context.BitsPerPixel == 0) {
             return DF_RETURN_UNEXPECTED;
         }
@@ -420,6 +424,20 @@ static UINT IntelGfxGetModeInfo(LPGRAPHICSMODEINFO Info) {
     }
 
     return DF_RETURN_GENERIC;
+}
+
+/************************************************************************/
+
+static U32 IntelGfxGetModeCount(void) {
+    if ((IntelGfxDriver.Flags & DRIVER_FLAG_READY) == 0) {
+        return 0;
+    }
+
+    if (IntelGfxState.Context.Width <= 0 || IntelGfxState.Context.Height <= 0 || IntelGfxState.Context.BitsPerPixel == 0) {
+        return 0;
+    }
+
+    return 1;
 }
 
 /************************************************************************/
@@ -449,6 +467,8 @@ static UINT IntelGfxCommands(UINT Function, UINT Param) {
                 return 0;
             }
             return (UINT)(LPVOID)&IntelGfxState.Context;
+        case DF_GFX_GETMODECOUNT:
+            return IntelGfxGetModeCount();
         case DF_GFX_GETMODEINFO:
             return IntelGfxGetModeInfo((LPGRAPHICSMODEINFO)Param);
         case DF_GFX_GETCAPABILITIES:

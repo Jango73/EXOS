@@ -857,9 +857,14 @@ UINT VESACommands(UINT Function, UINT Param) {
             return DF_RETURN_SUCCESS;
         case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
+        case DF_GFX_GETMODECOUNT:
+            return 0;
         case DF_GFX_GETMODEINFO: {
             LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Param;
             SAFE_USE(Info) {
+                if (Info->ModeIndex != INFINITY && Info->ModeIndex != 0) {
+                    return DF_GFX_ERROR_MODEUNAVAIL;
+                }
                 Info->Width = VESAContext.Header.Width;
                 Info->Height = VESAContext.Header.Height;
                 Info->BitsPerPixel = VESAContext.Header.BitsPerPixel;

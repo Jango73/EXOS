@@ -103,6 +103,7 @@ BOOL ConsoleVGATextFallbackActivate(U32 Columns, U32 Rows, LPGRAPHICSMODEINFO Ap
     RequestedMode.Header.Size = sizeof(RequestedMode);
     RequestedMode.Header.Version = EXOS_ABI_VERSION;
     RequestedMode.Header.Flags = 0;
+    RequestedMode.ModeIndex = INFINITY;
     RequestedMode.Width = RequestedColumns;
     RequestedMode.Height = RequestedRows;
     RequestedMode.BitsPerPixel = 0;
@@ -143,6 +144,7 @@ BOOL ConsoleVGATextFallbackActivate(U32 Columns, U32 Rows, LPGRAPHICSMODEINFO Ap
     ModeInfo.Header.Size = sizeof(ModeInfo);
     ModeInfo.Header.Version = EXOS_ABI_VERSION;
     ModeInfo.Header.Flags = 0;
+    ModeInfo.ModeIndex = INFINITY;
     ModeInfo.Width = Console.Width;
     ModeInfo.Height = Console.Height;
     ModeInfo.BitsPerPixel = 0;

@@ -349,6 +349,7 @@ BOOL ShowDesktop(LPDESKTOP This) {
     ModeInfo.Header.Size = sizeof(ModeInfo);
     ModeInfo.Header.Version = EXOS_ABI_VERSION;
     ModeInfo.Header.Flags = 0;
+    ModeInfo.ModeIndex = INFINITY;
     ModeInfo.Width = 1024;
     ModeInfo.Height = 768;
     ModeInfo.BitsPerPixel = 24;

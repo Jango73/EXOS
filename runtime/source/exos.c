@@ -549,6 +549,7 @@ U32 ConsoleSetMode(U32 Columns, U32 Rows) {
     Info.Header.Size = sizeof Info;
     Info.Header.Version = EXOS_ABI_VERSION;
     Info.Header.Flags = 0;
+    Info.ModeIndex = INFINITY;
     Info.Width = Columns;
     Info.Height = Rows;
     Info.BitsPerPixel = 0;
