@@ -41,7 +41,7 @@ SHELL_COMMAND_ENTRY COMMANDS[] = {
     {"drv", "driver", "Alias", "Show driver details", CMD_driver},
     {"edit", "edit", "Name", "Open text editor", CMD_edit},
     {"fs", "file_system", "[--long]", "Show file system information", CMD_filesystem},
-    {"gfx", "graphics", "backend Driver Mode|smoke_test [DurationMs]", "Control graphics mode", CMD_gfx},
+    {"gfx", "graphics", "backend Driver Mode|info|smoke_test [DurationMs]", "Control graphics mode", CMD_gfx},
     {"inp", "inp", "", "Read I/O port value", CMD_inp},
     {"keyboard", "keyboard", "--layout Code", "Change keyboard layout", CMD_keyboard},
     {"kill", "kill_task", "Number", "Terminate task by number", CMD_killtask},

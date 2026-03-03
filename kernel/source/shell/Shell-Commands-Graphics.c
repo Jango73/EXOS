@@ -359,9 +359,7 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
     StringCopy(Mode, Context->Command);
 
     if (StringLength(Mode) == 0) {
-        ConsolePrint(TEXT("Usage: gfx backend Driver WidthxHeightxBitsPerPixel\n"));
-        ConsolePrint(TEXT("       gfx smoke_test [DurationMilliseconds]\n"));
-        return DF_RETURN_SUCCESS;
+        StringCopy(Mode, TEXT("info"));
     }
 
     if (StringCompareNC(Mode, TEXT("smoke_test")) == 0) {
@@ -377,8 +375,47 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
         return RunGraphicsSmokeTest(DurationMilliseconds);
     }
 
+    if (StringCompareNC(Mode, TEXT("info")) == 0) {
+        GraphicsDriver = GetGraphicsDriver();
+        if (GraphicsDriver == NULL || GraphicsDriver->Command == NULL) {
+            ConsolePrint(TEXT("gfx: no graphics driver available\n"));
+            return DF_RETURN_SUCCESS;
+        }
+
+        ModeInfo.Header.Size = sizeof(ModeInfo);
+        ModeInfo.Header.Version = EXOS_ABI_VERSION;
+        ModeInfo.Header.Flags = 0;
+        ModeInfo.ModeIndex = INFINITY;
+        ModeInfo.Width = 0;
+        ModeInfo.Height = 0;
+        ModeInfo.BitsPerPixel = 0;
+
+        ModeSetResult = GraphicsDriver->Command(DF_GFX_GETMODEINFO, (UINT)(LPVOID)&ModeInfo);
+        if (ModeSetResult != DF_RETURN_SUCCESS) {
+            ConsolePrint(TEXT("gfx: mode query failed (%u)\n"), ModeSetResult);
+            return DF_RETURN_SUCCESS;
+        }
+
+        ActiveBackendName = GraphicsSelectorGetActiveBackendName();
+        if (ActiveBackendName != NULL && StringLength(ActiveBackendName) != 0) {
+            ConsolePrint(TEXT("gfx: backend=%s mode=%ux%ux%u\n"),
+                ActiveBackendName,
+                ModeInfo.Width,
+                ModeInfo.Height,
+                ModeInfo.BitsPerPixel);
+        } else {
+            ConsolePrint(TEXT("gfx: mode=%ux%ux%u\n"),
+                ModeInfo.Width,
+                ModeInfo.Height,
+                ModeInfo.BitsPerPixel);
+        }
+
+        return DF_RETURN_SUCCESS;
+    }
+
     if (StringCompareNC(Mode, TEXT("backend")) != 0) {
         ConsolePrint(TEXT("Usage: gfx backend Driver WidthxHeightxBitsPerPixel\n"));
+        ConsolePrint(TEXT("       gfx info\n"));
         ConsolePrint(TEXT("       gfx smoke_test [DurationMilliseconds]\n"));
         return DF_RETURN_SUCCESS;
     }
