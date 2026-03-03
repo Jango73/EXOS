@@ -756,11 +756,13 @@ Display-class PCI fallback attach logic is implemented in `kernel/source/drivers
 
 `kernel/source/drivers/graphics/VGA-Main.c` exposes a dedicated VGA text driver (`alias: vga`) implementing mode enumeration and text mode set through the same `DF_GFX_*` contract (`ENUMMODES`, `GETMODEINFO`, `SETMODE`).
 
-`kernel/source/drivers/graphics/IntelGfx.c` provides the Intel native skeleton path: Intel PCI display detection (`VID 0x8086`), BAR0 MMIO mapping via `MapIOMemory`, PCI bus-master enable, and a minimal MMIO probe read for bring-up diagnostics.
+The Intel native backend is split into `kernel/source/drivers/graphics/iGPU-Base.c` (load/dispatch and PCI attach), `kernel/source/drivers/graphics/iGPU-Mode.c` (takeover and native modeset flow), and `kernel/source/drivers/graphics/iGPU-Present.c` (CPU drawing, surfaces, and present).
 
 Intel capability handling is centralized in an internal `INTEL_GFX_CAPS` object populated from a PCI device-id family table and refined with bounded MMIO register probes (display version, pipe presence, port mask). Generic `GFX_CAPABILITIES` values exposed through `DF_GFX_GETCAPABILITIES` are projected from this single capability object.
 
 The Intel backend takeover path reads active pipe/plane state from display registers, maps the active scanout buffer through the aperture BAR, builds a `GRAPHICSCONTEXT` from that mode, and serves window-manager drawing through CPU primitives (`SETPIXEL`, `GETPIXEL`, `LINE`, `RECTANGLE`) writing directly to the active scanout memory.
+
+The native `DF_GFX_SETMODE` path in `kernel/source/drivers/graphics/iGPU-Mode.c` uses a stage-ordered sequence (disable, route, clock, link, enable, verify), explicit pipe/output/transcoder routing policy, conservative generation-aware clock-source handling, eDP panel/backlight stabilization hooks, and rollback to a captured hardware snapshot when a partial modeset stage fails.
 
 Display ownership state is tracked through `kernel/source/DisplaySession.c` (`DISPLAY_SESSION` stored in `KERNELDATA`). This records active frontend (`console` or `desktop`), active desktop pointer, selected graphics driver, and active mode so mode transitions are represented as explicit kernel state.
 Frontend transitions are executed through `DisplaySwitchToConsole()` and `DisplaySwitchToDesktop()`, which keep backend ownership active and avoid using `DF_UNLOAD` as a display switching path.

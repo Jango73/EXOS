@@ -82,10 +82,22 @@
 #define INTEL_REG_DDI_BUF_CTL_C 0x64200
 #define INTEL_REG_DDI_BUF_CTL_D 0x64300
 #define INTEL_REG_DDI_BUF_CTL_E 0x64400
+#define INTEL_REG_TRANS_DDI_FUNC_CTL_A 0x60400
+#define INTEL_REG_TRANS_DDI_FUNC_CTL_B 0x61400
+#define INTEL_REG_TRANS_DDI_FUNC_CTL_C 0x62400
+#define INTEL_REG_DPLL_CTRL1 0x6C058
+#define INTEL_REG_PP_CONTROL 0xC7204
+#define INTEL_REG_BLC_PWM_CTL2 0xC8250
 
 #define INTEL_PIPE_CONF_ENABLE (1 << 31)
 #define INTEL_PLANE_CTL_ENABLE (1 << 31)
 #define INTEL_PLANE_CTL_FORMAT_MASK (0x0F << 24)
+#define INTEL_DDI_BUF_CTL_ENABLE (1 << 31)
+#define INTEL_TRANS_DDI_FUNC_ENABLE (1 << 31)
+#define INTEL_TRANS_DDI_FUNC_PORT_SHIFT 28
+#define INTEL_TRANS_DDI_FUNC_PORT_MASK (0x07 << INTEL_TRANS_DDI_FUNC_PORT_SHIFT)
+#define INTEL_PANEL_POWER_TARGET_ON (1 << 0)
+#define INTEL_BACKLIGHT_PWM_ENABLE (1 << 31)
 #define INTEL_SURFACE_ALIGN_MASK 0xFFFFF000
 #define INTEL_PLANE_CTL_FORMAT_XRGB8888 (0x04 << 24)
 #define INTEL_MODESET_LOOP_LIMIT 50000
@@ -145,6 +157,8 @@ typedef struct tag_INTEL_GFX_STATE {
     U32 ActiveBitsPerPixel;
     U32 ActiveStride;
     U32 ActiveSurfaceOffset;
+    U32 ActiveOutputPortMask;
+    U32 ActiveTranscoderIndex;
     PHYSICAL FrameBufferPhysical;
     LINEAR FrameBufferLinear;
     U32 FrameBufferSize;
@@ -189,7 +203,45 @@ typedef struct tag_INTEL_GFX_MODE_PROGRAM {
     U32 PlaneControl;
     U32 PlaneStride;
     U32 PlaneSurface;
+    U32 OutputPortMask;
+    U32 OutputType;
+    U32 TranscoderIndex;
+    U32 TranscoderControl;
+    U32 ClockControlRegister;
+    U32 ClockControlValue;
+    U32 LinkControlRegister;
+    U32 LinkControlValue;
+    U32 PanelPowerRegister;
+    U32 PanelPowerValue;
+    U32 BacklightRegister;
+    U32 BacklightValue;
 } INTEL_GFX_MODE_PROGRAM, *LPINTEL_GFX_MODE_PROGRAM;
+
+/************************************************************************/
+
+typedef struct tag_INTEL_GFX_MODE_SNAPSHOT {
+    U32 PipeIndex;
+    U32 PipeConf;
+    U32 PipeSource;
+    U32 PipeHTotal;
+    U32 PipeHBlank;
+    U32 PipeHSync;
+    U32 PipeVTotal;
+    U32 PipeVBlank;
+    U32 PipeVSync;
+    U32 PlaneControl;
+    U32 PlaneStride;
+    U32 PlaneSurface;
+    U32 OutputPortMask;
+    U32 LinkControlValue;
+    U32 TranscoderControl;
+    U32 ClockControlRegister;
+    U32 ClockControlValue;
+    U32 PanelPowerRegister;
+    U32 PanelPowerValue;
+    U32 BacklightRegister;
+    U32 BacklightValue;
+} INTEL_GFX_MODE_SNAPSHOT, *LPINTEL_GFX_MODE_SNAPSHOT;
 
 /************************************************************************/
 

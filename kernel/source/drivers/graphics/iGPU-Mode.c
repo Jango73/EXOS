@@ -29,6 +29,15 @@
 
 /************************************************************************/
 
+#define INTEL_MODESET_STAGE_DISABLE_PIPE (1 << 0)
+#define INTEL_MODESET_STAGE_ROUTE_TRANSCODER (1 << 1)
+#define INTEL_MODESET_STAGE_PROGRAM_CLOCK (1 << 2)
+#define INTEL_MODESET_STAGE_CONFIGURE_LINK (1 << 3)
+#define INTEL_MODESET_STAGE_ENABLE_PIPE (1 << 4)
+#define INTEL_MODESET_STAGE_PANEL_STABILITY (1 << 5)
+
+/************************************************************************/
+
 static const U32 IntelPipeConfRegisters[] = {INTEL_REG_PIPE_A_CONF, INTEL_REG_PIPE_B_CONF, INTEL_REG_PIPE_C_CONF};
 static const U32 IntelPipeSourceRegisters[] = {INTEL_REG_PIPE_A_SRC, INTEL_REG_PIPE_B_SRC, INTEL_REG_PIPE_C_SRC};
 static const U32 IntelPipeHTotalRegisters[] = {INTEL_REG_PIPE_A_HTOTAL, INTEL_REG_PIPE_B_HTOTAL, INTEL_REG_PIPE_C_HTOTAL};
@@ -40,6 +49,15 @@ static const U32 IntelPipeVSyncRegisters[] = {INTEL_REG_PIPE_A_VSYNC, INTEL_REG_
 static const U32 IntelPlaneControlRegisters[] = {INTEL_REG_PLANE_A_CTL, INTEL_REG_PLANE_B_CTL, INTEL_REG_PLANE_C_CTL};
 static const U32 IntelPlaneStrideRegisters[] = {INTEL_REG_PLANE_A_STRIDE, INTEL_REG_PLANE_B_STRIDE, INTEL_REG_PLANE_C_STRIDE};
 static const U32 IntelPlaneSurfaceRegisters[] = {INTEL_REG_PLANE_A_SURF, INTEL_REG_PLANE_B_SURF, INTEL_REG_PLANE_C_SURF};
+static const U32 IntelDdiBufferControlRegisters[] = {
+    INTEL_REG_DDI_BUF_CTL_A,
+    INTEL_REG_DDI_BUF_CTL_B,
+    INTEL_REG_DDI_BUF_CTL_C,
+    INTEL_REG_DDI_BUF_CTL_D,
+    INTEL_REG_DDI_BUF_CTL_E
+};
+static const U32 IntelTranscoderDdiRegisters[] = {INTEL_REG_TRANS_DDI_FUNC_CTL_A, INTEL_REG_TRANS_DDI_FUNC_CTL_B, INTEL_REG_TRANS_DDI_FUNC_CTL_C};
+static const U32 IntelPortMaskByIndex[] = {INTEL_PORT_A, INTEL_PORT_B, INTEL_PORT_C, INTEL_PORT_D, INTEL_PORT_E};
 
 /************************************************************************/
 
@@ -60,6 +78,123 @@ static U32 IntelGfxResolveBitsPerPixel(U32 PlaneControlValue) {
 
 /************************************************************************/
 
+static BOOL IntelGfxReadRegister32Safe(U32 RegisterOffset, U32* ValueOut) {
+    if (ValueOut == NULL || RegisterOffset == 0) {
+        return FALSE;
+    }
+
+    if (!IntelGfxReadMmio32(RegisterOffset, ValueOut)) {
+        return FALSE;
+    }
+
+    return (*ValueOut != 0xFFFFFFFF) ? TRUE : FALSE;
+}
+
+/************************************************************************/
+
+static BOOL IntelGfxWriteVerifyRegister32(U32 RegisterOffset, U32 Value, U32 Mask) {
+    U32 ReadBack = 0;
+
+    if (RegisterOffset == 0) {
+        return TRUE;
+    }
+
+    if (!IntelGfxWriteMmio32(RegisterOffset, Value)) {
+        return FALSE;
+    }
+
+    if (!IntelGfxReadMmio32(RegisterOffset, &ReadBack)) {
+        return FALSE;
+    }
+
+    return ((ReadBack & Mask) == (Value & Mask)) ? TRUE : FALSE;
+}
+
+/************************************************************************/
+
+static U32 IntelGfxPortMaskFromIndex(U32 PortIndex) {
+    if (PortIndex >= sizeof(IntelPortMaskByIndex) / sizeof(IntelPortMaskByIndex[0])) {
+        return 0;
+    }
+
+    return IntelPortMaskByIndex[PortIndex];
+}
+
+/************************************************************************/
+
+static BOOL IntelGfxPortIndexFromMask(U32 PortMask, U32* PortIndexOut) {
+    U32 Index = 0;
+
+    if (PortIndexOut == NULL || PortMask == 0) {
+        return FALSE;
+    }
+
+    for (Index = 0; Index < sizeof(IntelPortMaskByIndex) / sizeof(IntelPortMaskByIndex[0]); Index++) {
+        if (IntelPortMaskByIndex[Index] == PortMask) {
+            *PortIndexOut = Index;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+static U32 IntelGfxFindFirstPortFromMask(U32 PortMask) {
+    U32 Index = 0;
+
+    for (Index = 0; Index < sizeof(IntelPortMaskByIndex) / sizeof(IntelPortMaskByIndex[0]); Index++) {
+        if ((PortMask & IntelPortMaskByIndex[Index]) != 0) {
+            return IntelPortMaskByIndex[Index];
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+static U32 IntelGfxResolveOutputTypeFromPort(U32 PortMask) {
+    if (PortMask == INTEL_PORT_A) {
+        return GFX_OUTPUT_TYPE_EDP;
+    }
+
+    if (PortMask == INTEL_PORT_B || PortMask == INTEL_PORT_C || PortMask == INTEL_PORT_D) {
+        return GFX_OUTPUT_TYPE_DISPLAYPORT;
+    }
+
+    if (PortMask == INTEL_PORT_E) {
+        return GFX_OUTPUT_TYPE_HDMI;
+    }
+
+    return GFX_OUTPUT_TYPE_UNKNOWN;
+}
+
+/************************************************************************/
+
+static U32 IntelGfxFindActiveOutputPortMask(void) {
+    U32 Index = 0;
+
+    for (Index = 0; Index < sizeof(IntelDdiBufferControlRegisters) / sizeof(IntelDdiBufferControlRegisters[0]); Index++) {
+        U32 Value = 0;
+
+        if (!IntelGfxReadRegister32Safe(IntelDdiBufferControlRegisters[Index], &Value)) {
+            continue;
+        }
+
+        if ((Value & INTEL_DDI_BUF_CTL_ENABLE) == 0) {
+            continue;
+        }
+
+        return IntelGfxPortMaskFromIndex(Index);
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
 static BOOL IntelGfxReadActiveScanoutState(void) {
     U32 Index = 0;
 
@@ -73,6 +208,7 @@ static BOOL IntelGfxReadActiveScanoutState(void) {
         U32 Height = 0;
         U32 BitsPerPixel = 0;
         U32 Stride = 0;
+        U32 ActivePortMask = 0;
 
         if (!IntelGfxReadMmio32(IntelPipeConfRegisters[Index], &PipeConf)) continue;
         if ((PipeConf & INTEL_PIPE_CONF_ENABLE) == 0) continue;
@@ -92,15 +228,28 @@ static BOOL IntelGfxReadActiveScanoutState(void) {
             Stride = Width * (BitsPerPixel >> 3);
         }
 
+        ActivePortMask = IntelGfxFindActiveOutputPortMask();
+        if (ActivePortMask == 0) {
+            ActivePortMask = IntelGfxFindFirstPortFromMask(IntelGfxState.IntelCapabilities.PortMask);
+        }
+
         IntelGfxState.ActivePipeIndex = Index;
         IntelGfxState.ActiveWidth = Width;
         IntelGfxState.ActiveHeight = Height;
         IntelGfxState.ActiveBitsPerPixel = BitsPerPixel;
         IntelGfxState.ActiveStride = Stride;
         IntelGfxState.ActiveSurfaceOffset = PlaneSurface & INTEL_SURFACE_ALIGN_MASK;
+        IntelGfxState.ActiveOutputPortMask = ActivePortMask;
+        IntelGfxState.ActiveTranscoderIndex = Index;
 
-        DEBUG(TEXT("[IntelGfxReadActiveScanoutState] Pipe=%u Width=%u Height=%u Bpp=%u Stride=%u Surface=%x"),
-            Index, Width, Height, BitsPerPixel, Stride, IntelGfxState.ActiveSurfaceOffset);
+        DEBUG(TEXT("[IntelGfxReadActiveScanoutState] Pipe=%u Width=%u Height=%u Bpp=%u Stride=%u Surface=%x Port=%x"),
+            Index,
+            Width,
+            Height,
+            BitsPerPixel,
+            Stride,
+            IntelGfxState.ActiveSurfaceOffset,
+            ActivePortMask);
 
         return TRUE;
     }
@@ -111,6 +260,8 @@ static BOOL IntelGfxReadActiveScanoutState(void) {
 /************************************************************************/
 
 static BOOL IntelGfxReadModeProgram(U32 PipeIndex, LPINTEL_GFX_MODE_PROGRAM ProgramOut) {
+    U32 OutputPortMask = 0;
+
     if (ProgramOut == NULL || PipeIndex >= sizeof(IntelPipeConfRegisters) / sizeof(IntelPipeConfRegisters[0])) {
         return FALSE;
     }
@@ -121,17 +272,30 @@ static BOOL IntelGfxReadModeProgram(U32 PipeIndex, LPINTEL_GFX_MODE_PROGRAM Prog
     ProgramOut->BitsPerPixel = IntelGfxState.ActiveBitsPerPixel;
     ProgramOut->RefreshRate = INTEL_DEFAULT_REFRESH_RATE;
 
-    return IntelGfxReadMmio32(IntelPipeConfRegisters[PipeIndex], &ProgramOut->PipeConf) &&
-           IntelGfxReadMmio32(IntelPipeSourceRegisters[PipeIndex], &ProgramOut->PipeSource) &&
-           IntelGfxReadMmio32(IntelPipeHTotalRegisters[PipeIndex], &ProgramOut->PipeHTotal) &&
-           IntelGfxReadMmio32(IntelPipeHBlankRegisters[PipeIndex], &ProgramOut->PipeHBlank) &&
-           IntelGfxReadMmio32(IntelPipeHSyncRegisters[PipeIndex], &ProgramOut->PipeHSync) &&
-           IntelGfxReadMmio32(IntelPipeVTotalRegisters[PipeIndex], &ProgramOut->PipeVTotal) &&
-           IntelGfxReadMmio32(IntelPipeVBlankRegisters[PipeIndex], &ProgramOut->PipeVBlank) &&
-           IntelGfxReadMmio32(IntelPipeVSyncRegisters[PipeIndex], &ProgramOut->PipeVSync) &&
-           IntelGfxReadMmio32(IntelPlaneControlRegisters[PipeIndex], &ProgramOut->PlaneControl) &&
-           IntelGfxReadMmio32(IntelPlaneStrideRegisters[PipeIndex], &ProgramOut->PlaneStride) &&
-           IntelGfxReadMmio32(IntelPlaneSurfaceRegisters[PipeIndex], &ProgramOut->PlaneSurface);
+    if (!(IntelGfxReadMmio32(IntelPipeConfRegisters[PipeIndex], &ProgramOut->PipeConf) &&
+            IntelGfxReadMmio32(IntelPipeSourceRegisters[PipeIndex], &ProgramOut->PipeSource) &&
+            IntelGfxReadMmio32(IntelPipeHTotalRegisters[PipeIndex], &ProgramOut->PipeHTotal) &&
+            IntelGfxReadMmio32(IntelPipeHBlankRegisters[PipeIndex], &ProgramOut->PipeHBlank) &&
+            IntelGfxReadMmio32(IntelPipeHSyncRegisters[PipeIndex], &ProgramOut->PipeHSync) &&
+            IntelGfxReadMmio32(IntelPipeVTotalRegisters[PipeIndex], &ProgramOut->PipeVTotal) &&
+            IntelGfxReadMmio32(IntelPipeVBlankRegisters[PipeIndex], &ProgramOut->PipeVBlank) &&
+            IntelGfxReadMmio32(IntelPipeVSyncRegisters[PipeIndex], &ProgramOut->PipeVSync) &&
+            IntelGfxReadMmio32(IntelPlaneControlRegisters[PipeIndex], &ProgramOut->PlaneControl) &&
+            IntelGfxReadMmio32(IntelPlaneStrideRegisters[PipeIndex], &ProgramOut->PlaneStride) &&
+            IntelGfxReadMmio32(IntelPlaneSurfaceRegisters[PipeIndex], &ProgramOut->PlaneSurface))) {
+        return FALSE;
+    }
+
+    OutputPortMask = IntelGfxFindActiveOutputPortMask();
+    if (OutputPortMask == 0) {
+        OutputPortMask = IntelGfxFindFirstPortFromMask(IntelGfxState.IntelCapabilities.PortMask);
+    }
+
+    ProgramOut->OutputPortMask = OutputPortMask;
+    ProgramOut->OutputType = IntelGfxResolveOutputTypeFromPort(OutputPortMask);
+    ProgramOut->TranscoderIndex = (PipeIndex < IntelGfxState.IntelCapabilities.TranscoderCount) ? PipeIndex : 0;
+
+    return TRUE;
 }
 
 /************************************************************************/
@@ -159,6 +323,32 @@ static BOOL IntelGfxWaitPipeState(U32 PipeIndex, BOOL EnabledExpected) {
     }
 
     return FALSE;
+}
+
+/************************************************************************/
+
+static BOOL IntelGfxVerifyPipeEnabledState(U32 PipeIndex, BOOL ExpectedPipeEnabled, BOOL ExpectedPlaneEnabled) {
+    U32 PipeConf = 0;
+    U32 PlaneControl = 0;
+    BOOL PipeEnabled = FALSE;
+    BOOL PlaneEnabled = FALSE;
+
+    if (PipeIndex >= sizeof(IntelPipeConfRegisters) / sizeof(IntelPipeConfRegisters[0])) {
+        return FALSE;
+    }
+
+    if (!IntelGfxReadMmio32(IntelPipeConfRegisters[PipeIndex], &PipeConf)) {
+        return FALSE;
+    }
+
+    if (!IntelGfxReadMmio32(IntelPlaneControlRegisters[PipeIndex], &PlaneControl)) {
+        return FALSE;
+    }
+
+    PipeEnabled = (PipeConf & INTEL_PIPE_CONF_ENABLE) ? TRUE : FALSE;
+    PlaneEnabled = (PlaneControl & INTEL_PLANE_CTL_ENABLE) ? TRUE : FALSE;
+
+    return (PipeEnabled == ExpectedPipeEnabled && PlaneEnabled == ExpectedPlaneEnabled) ? TRUE : FALSE;
 }
 
 /************************************************************************/
@@ -196,6 +386,168 @@ static UINT IntelGfxDisablePipe(U32 PipeIndex) {
         return DF_RETURN_UNEXPECTED;
     }
 
+    if (!IntelGfxVerifyPipeEnabledState(PipeIndex, FALSE, FALSE)) {
+        ERROR(TEXT("[IntelGfxDisablePipe] Pipe=%u disable verification failed"), PipeIndex);
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+static UINT IntelGfxProgramTranscoderRoute(LPINTEL_GFX_MODE_PROGRAM Program) {
+    U32 PortIndex = 0;
+    U32 TranscoderControl = 0;
+    U32 RegisterOffset = 0;
+
+    if (Program == NULL) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    if (IntelGfxState.IntelCapabilities.DisplayVersion < 9) {
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (Program->TranscoderIndex >= sizeof(IntelTranscoderDdiRegisters) / sizeof(IntelTranscoderDdiRegisters[0])) {
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (!IntelGfxPortIndexFromMask(Program->OutputPortMask, &PortIndex)) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    RegisterOffset = IntelTranscoderDdiRegisters[Program->TranscoderIndex];
+    if (!IntelGfxReadRegister32Safe(RegisterOffset, &TranscoderControl)) {
+        WARNING(TEXT("[IntelGfxProgramTranscoderRoute] Transcoder register unavailable (transcoder=%u)"), Program->TranscoderIndex);
+        return DF_RETURN_SUCCESS;
+    }
+
+    TranscoderControl &= ~INTEL_TRANS_DDI_FUNC_PORT_MASK;
+    TranscoderControl |= (PortIndex << INTEL_TRANS_DDI_FUNC_PORT_SHIFT);
+    TranscoderControl |= INTEL_TRANS_DDI_FUNC_ENABLE;
+
+    if (!IntelGfxWriteVerifyRegister32(RegisterOffset, TranscoderControl, INTEL_TRANS_DDI_FUNC_PORT_MASK | INTEL_TRANS_DDI_FUNC_ENABLE)) {
+        ERROR(TEXT("[IntelGfxProgramTranscoderRoute] Transcoder route write failed (transcoder=%u port=%x)"),
+            Program->TranscoderIndex,
+            Program->OutputPortMask);
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    Program->TranscoderControl = TranscoderControl;
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+static UINT IntelGfxProgramClockSource(LPINTEL_GFX_MODE_PROGRAM Program) {
+    U32 ClockControl = 0;
+
+    if (Program == NULL) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    Program->ClockControlRegister = 0;
+    Program->ClockControlValue = 0;
+
+    if (IntelGfxState.IntelCapabilities.DisplayVersion < 9) {
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (!IntelGfxReadRegister32Safe(INTEL_REG_DPLL_CTRL1, &ClockControl)) {
+        WARNING(TEXT("[IntelGfxProgramClockSource] DPLL control register unavailable"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    Program->ClockControlRegister = INTEL_REG_DPLL_CTRL1;
+    Program->ClockControlValue = ClockControl;
+
+    // Conservative multi-family path: preserve active DPLL source selection.
+    if (!IntelGfxWriteVerifyRegister32(Program->ClockControlRegister, Program->ClockControlValue, MAX_U32)) {
+        ERROR(TEXT("[IntelGfxProgramClockSource] DPLL programming failed"));
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+static UINT IntelGfxConfigureConnectorLink(LPINTEL_GFX_MODE_PROGRAM Program) {
+    U32 PortIndex = 0;
+    U32 LinkControl = 0;
+
+    if (Program == NULL) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    if (IntelGfxState.IntelCapabilities.DisplayVersion < 9) {
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (!IntelGfxPortIndexFromMask(Program->OutputPortMask, &PortIndex)) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    if (PortIndex >= sizeof(IntelDdiBufferControlRegisters) / sizeof(IntelDdiBufferControlRegisters[0])) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    Program->LinkControlRegister = IntelDdiBufferControlRegisters[PortIndex];
+    if (!IntelGfxReadRegister32Safe(Program->LinkControlRegister, &LinkControl)) {
+        ERROR(TEXT("[IntelGfxConfigureConnectorLink] DDI link register unavailable for port=%x"), Program->OutputPortMask);
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    LinkControl |= INTEL_DDI_BUF_CTL_ENABLE;
+
+    if (!IntelGfxWriteVerifyRegister32(Program->LinkControlRegister, LinkControl, INTEL_DDI_BUF_CTL_ENABLE)) {
+        ERROR(TEXT("[IntelGfxConfigureConnectorLink] Link enable failed for port=%x"), Program->OutputPortMask);
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    Program->LinkControlValue = LinkControl;
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+static UINT IntelGfxProgramPanelStability(LPINTEL_GFX_MODE_PROGRAM Program) {
+    U32 Value = 0;
+
+    if (Program == NULL) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    Program->PanelPowerRegister = 0;
+    Program->PanelPowerValue = 0;
+    Program->BacklightRegister = 0;
+    Program->BacklightValue = 0;
+
+    if (Program->OutputType != GFX_OUTPUT_TYPE_EDP) {
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (IntelGfxReadRegister32Safe(INTEL_REG_PP_CONTROL, &Value)) {
+        Program->PanelPowerRegister = INTEL_REG_PP_CONTROL;
+        Program->PanelPowerValue = Value | INTEL_PANEL_POWER_TARGET_ON;
+
+        if (!IntelGfxWriteVerifyRegister32(Program->PanelPowerRegister, Program->PanelPowerValue, INTEL_PANEL_POWER_TARGET_ON)) {
+            ERROR(TEXT("[IntelGfxProgramPanelStability] Panel power target programming failed"));
+            return DF_RETURN_UNEXPECTED;
+        }
+    }
+
+    if (IntelGfxReadRegister32Safe(INTEL_REG_BLC_PWM_CTL2, &Value)) {
+        Program->BacklightRegister = INTEL_REG_BLC_PWM_CTL2;
+        Program->BacklightValue = Value | INTEL_BACKLIGHT_PWM_ENABLE;
+
+        if (!IntelGfxWriteVerifyRegister32(Program->BacklightRegister, Program->BacklightValue, INTEL_BACKLIGHT_PWM_ENABLE)) {
+            ERROR(TEXT("[IntelGfxProgramPanelStability] Backlight programming failed"));
+            return DF_RETURN_UNEXPECTED;
+        }
+    }
+
     return DF_RETURN_SUCCESS;
 }
 
@@ -215,20 +567,20 @@ static UINT IntelGfxEnablePipe(LPINTEL_GFX_MODE_PROGRAM Program) {
         return DF_RETURN_UNEXPECTED;
     }
 
-    if (!IntelGfxWriteMmio32(IntelPipeHTotalRegisters[PipeIndex], Program->PipeHTotal) ||
-        !IntelGfxWriteMmio32(IntelPipeHBlankRegisters[PipeIndex], Program->PipeHBlank) ||
-        !IntelGfxWriteMmio32(IntelPipeHSyncRegisters[PipeIndex], Program->PipeHSync) ||
-        !IntelGfxWriteMmio32(IntelPipeVTotalRegisters[PipeIndex], Program->PipeVTotal) ||
-        !IntelGfxWriteMmio32(IntelPipeVBlankRegisters[PipeIndex], Program->PipeVBlank) ||
-        !IntelGfxWriteMmio32(IntelPipeVSyncRegisters[PipeIndex], Program->PipeVSync) ||
-        !IntelGfxWriteMmio32(IntelPipeSourceRegisters[PipeIndex], Program->PipeSource) ||
-        !IntelGfxWriteMmio32(IntelPlaneStrideRegisters[PipeIndex], Program->PlaneStride) ||
-        !IntelGfxWriteMmio32(IntelPlaneSurfaceRegisters[PipeIndex], Program->PlaneSurface)) {
+    if (!IntelGfxWriteVerifyRegister32(IntelPipeHTotalRegisters[PipeIndex], Program->PipeHTotal, MAX_U32) ||
+        !IntelGfxWriteVerifyRegister32(IntelPipeHBlankRegisters[PipeIndex], Program->PipeHBlank, MAX_U32) ||
+        !IntelGfxWriteVerifyRegister32(IntelPipeHSyncRegisters[PipeIndex], Program->PipeHSync, MAX_U32) ||
+        !IntelGfxWriteVerifyRegister32(IntelPipeVTotalRegisters[PipeIndex], Program->PipeVTotal, MAX_U32) ||
+        !IntelGfxWriteVerifyRegister32(IntelPipeVBlankRegisters[PipeIndex], Program->PipeVBlank, MAX_U32) ||
+        !IntelGfxWriteVerifyRegister32(IntelPipeVSyncRegisters[PipeIndex], Program->PipeVSync, MAX_U32) ||
+        !IntelGfxWriteVerifyRegister32(IntelPipeSourceRegisters[PipeIndex], Program->PipeSource, MAX_U32) ||
+        !IntelGfxWriteVerifyRegister32(IntelPlaneStrideRegisters[PipeIndex], Program->PlaneStride, MAX_U32) ||
+        !IntelGfxWriteVerifyRegister32(IntelPlaneSurfaceRegisters[PipeIndex], Program->PlaneSurface, INTEL_SURFACE_ALIGN_MASK)) {
         return DF_RETURN_UNEXPECTED;
     }
 
     PipeConf = Program->PipeConf | INTEL_PIPE_CONF_ENABLE;
-    if (!IntelGfxWriteMmio32(IntelPipeConfRegisters[PipeIndex], PipeConf)) {
+    if (!IntelGfxWriteVerifyRegister32(IntelPipeConfRegisters[PipeIndex], PipeConf, INTEL_PIPE_CONF_ENABLE)) {
         return DF_RETURN_UNEXPECTED;
     }
 
@@ -236,12 +588,205 @@ static UINT IntelGfxEnablePipe(LPINTEL_GFX_MODE_PROGRAM Program) {
     PlaneControl &= ~INTEL_PLANE_CTL_FORMAT_MASK;
     PlaneControl |= INTEL_PLANE_CTL_FORMAT_XRGB8888;
     PlaneControl |= INTEL_PLANE_CTL_ENABLE;
-    if (!IntelGfxWriteMmio32(IntelPlaneControlRegisters[PipeIndex], PlaneControl)) {
+    if (!IntelGfxWriteVerifyRegister32(
+            IntelPlaneControlRegisters[PipeIndex], PlaneControl, INTEL_PLANE_CTL_ENABLE | INTEL_PLANE_CTL_FORMAT_MASK)) {
         return DF_RETURN_UNEXPECTED;
     }
 
     if (!IntelGfxWaitPipeState(PipeIndex, TRUE)) {
         ERROR(TEXT("[IntelGfxEnablePipe] Pipe=%u enable timeout"), PipeIndex);
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    if (!IntelGfxVerifyPipeEnabledState(PipeIndex, TRUE, TRUE)) {
+        ERROR(TEXT("[IntelGfxEnablePipe] Pipe=%u enable verification failed"), PipeIndex);
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+static UINT IntelGfxSelectPipeOutputRouting(LPINTEL_GFX_MODE_PROGRAM Program) {
+    U32 AvailablePortMask = 0;
+
+    if (Program == NULL) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    AvailablePortMask = IntelGfxState.IntelCapabilities.PortMask;
+
+    if (IntelGfxState.ActiveOutputPortMask != 0 && (IntelGfxState.ActiveOutputPortMask & AvailablePortMask) != 0) {
+        Program->OutputPortMask = IntelGfxState.ActiveOutputPortMask;
+    } else if ((INTEL_PORT_A & AvailablePortMask) != 0) {
+        Program->OutputPortMask = INTEL_PORT_A;
+    } else if ((INTEL_PORT_B & AvailablePortMask) != 0) {
+        Program->OutputPortMask = INTEL_PORT_B;
+    } else if ((INTEL_PORT_C & AvailablePortMask) != 0) {
+        Program->OutputPortMask = INTEL_PORT_C;
+    } else if ((INTEL_PORT_D & AvailablePortMask) != 0) {
+        Program->OutputPortMask = INTEL_PORT_D;
+    } else if ((INTEL_PORT_E & AvailablePortMask) != 0) {
+        Program->OutputPortMask = INTEL_PORT_E;
+    } else {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    Program->OutputType = IntelGfxResolveOutputTypeFromPort(Program->OutputPortMask);
+    Program->TranscoderIndex = Program->PipeIndex;
+    if (Program->TranscoderIndex >= IntelGfxState.IntelCapabilities.TranscoderCount) {
+        Program->TranscoderIndex = IntelGfxState.IntelCapabilities.TranscoderCount ? (IntelGfxState.IntelCapabilities.TranscoderCount - 1) : 0;
+    }
+
+    DEBUG(TEXT("[IntelGfxSelectPipeOutputRouting] Pipe=%u OutputPort=%x OutputType=%u Transcoder=%u"),
+        Program->PipeIndex,
+        Program->OutputPortMask,
+        Program->OutputType,
+        Program->TranscoderIndex);
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+static UINT IntelGfxCaptureModeSnapshot(U32 PipeIndex, LPINTEL_GFX_MODE_SNAPSHOT SnapshotOut) {
+    U32 PortIndex = 0;
+
+    if (SnapshotOut == NULL || PipeIndex >= sizeof(IntelPipeConfRegisters) / sizeof(IntelPipeConfRegisters[0])) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    *SnapshotOut = (INTEL_GFX_MODE_SNAPSHOT){0};
+    SnapshotOut->PipeIndex = PipeIndex;
+
+    if (!(IntelGfxReadMmio32(IntelPipeConfRegisters[PipeIndex], &SnapshotOut->PipeConf) &&
+            IntelGfxReadMmio32(IntelPipeSourceRegisters[PipeIndex], &SnapshotOut->PipeSource) &&
+            IntelGfxReadMmio32(IntelPipeHTotalRegisters[PipeIndex], &SnapshotOut->PipeHTotal) &&
+            IntelGfxReadMmio32(IntelPipeHBlankRegisters[PipeIndex], &SnapshotOut->PipeHBlank) &&
+            IntelGfxReadMmio32(IntelPipeHSyncRegisters[PipeIndex], &SnapshotOut->PipeHSync) &&
+            IntelGfxReadMmio32(IntelPipeVTotalRegisters[PipeIndex], &SnapshotOut->PipeVTotal) &&
+            IntelGfxReadMmio32(IntelPipeVBlankRegisters[PipeIndex], &SnapshotOut->PipeVBlank) &&
+            IntelGfxReadMmio32(IntelPipeVSyncRegisters[PipeIndex], &SnapshotOut->PipeVSync) &&
+            IntelGfxReadMmio32(IntelPlaneControlRegisters[PipeIndex], &SnapshotOut->PlaneControl) &&
+            IntelGfxReadMmio32(IntelPlaneStrideRegisters[PipeIndex], &SnapshotOut->PlaneStride) &&
+            IntelGfxReadMmio32(IntelPlaneSurfaceRegisters[PipeIndex], &SnapshotOut->PlaneSurface))) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    SnapshotOut->OutputPortMask = IntelGfxState.ActiveOutputPortMask;
+    if (SnapshotOut->OutputPortMask != 0 && IntelGfxPortIndexFromMask(SnapshotOut->OutputPortMask, &PortIndex)) {
+        if (PortIndex < sizeof(IntelDdiBufferControlRegisters) / sizeof(IntelDdiBufferControlRegisters[0])) {
+            if (IntelGfxReadRegister32Safe(IntelDdiBufferControlRegisters[PortIndex], &SnapshotOut->LinkControlValue)) {
+                // Captured for rollback.
+            }
+        }
+    }
+
+    if (IntelGfxState.ActiveTranscoderIndex < sizeof(IntelTranscoderDdiRegisters) / sizeof(IntelTranscoderDdiRegisters[0])) {
+        (void)IntelGfxReadRegister32Safe(
+            IntelTranscoderDdiRegisters[IntelGfxState.ActiveTranscoderIndex], &SnapshotOut->TranscoderControl);
+    }
+
+    if (IntelGfxReadRegister32Safe(INTEL_REG_DPLL_CTRL1, &SnapshotOut->ClockControlValue)) {
+        SnapshotOut->ClockControlRegister = INTEL_REG_DPLL_CTRL1;
+    }
+
+    if (IntelGfxReadRegister32Safe(INTEL_REG_PP_CONTROL, &SnapshotOut->PanelPowerValue)) {
+        SnapshotOut->PanelPowerRegister = INTEL_REG_PP_CONTROL;
+    }
+
+    if (IntelGfxReadRegister32Safe(INTEL_REG_BLC_PWM_CTL2, &SnapshotOut->BacklightValue)) {
+        SnapshotOut->BacklightRegister = INTEL_REG_BLC_PWM_CTL2;
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+static UINT IntelGfxRestoreModeSnapshot(LPINTEL_GFX_MODE_SNAPSHOT Snapshot) {
+    U32 PipeIndex = 0;
+    U32 PortIndex = 0;
+    BOOL ExpectedEnabled = FALSE;
+
+    if (Snapshot == NULL) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    PipeIndex = Snapshot->PipeIndex;
+    if (PipeIndex >= sizeof(IntelPipeConfRegisters) / sizeof(IntelPipeConfRegisters[0])) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    (void)IntelGfxDisablePipe(PipeIndex);
+
+    if (!IntelGfxWriteVerifyRegister32(IntelPipeHTotalRegisters[PipeIndex], Snapshot->PipeHTotal, MAX_U32) ||
+        !IntelGfxWriteVerifyRegister32(IntelPipeHBlankRegisters[PipeIndex], Snapshot->PipeHBlank, MAX_U32) ||
+        !IntelGfxWriteVerifyRegister32(IntelPipeHSyncRegisters[PipeIndex], Snapshot->PipeHSync, MAX_U32) ||
+        !IntelGfxWriteVerifyRegister32(IntelPipeVTotalRegisters[PipeIndex], Snapshot->PipeVTotal, MAX_U32) ||
+        !IntelGfxWriteVerifyRegister32(IntelPipeVBlankRegisters[PipeIndex], Snapshot->PipeVBlank, MAX_U32) ||
+        !IntelGfxWriteVerifyRegister32(IntelPipeVSyncRegisters[PipeIndex], Snapshot->PipeVSync, MAX_U32) ||
+        !IntelGfxWriteVerifyRegister32(IntelPipeSourceRegisters[PipeIndex], Snapshot->PipeSource, MAX_U32) ||
+        !IntelGfxWriteVerifyRegister32(IntelPlaneStrideRegisters[PipeIndex], Snapshot->PlaneStride, MAX_U32) ||
+        !IntelGfxWriteVerifyRegister32(IntelPlaneSurfaceRegisters[PipeIndex], Snapshot->PlaneSurface, INTEL_SURFACE_ALIGN_MASK)) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    if (Snapshot->OutputPortMask != 0 && IntelGfxPortIndexFromMask(Snapshot->OutputPortMask, &PortIndex) &&
+        PortIndex < sizeof(IntelDdiBufferControlRegisters) / sizeof(IntelDdiBufferControlRegisters[0])) {
+        U32 LinkValue = 0;
+        if (IntelGfxReadRegister32Safe(IntelDdiBufferControlRegisters[PortIndex], &LinkValue)) {
+            if (!IntelGfxWriteVerifyRegister32(
+                    IntelDdiBufferControlRegisters[PortIndex], Snapshot->LinkControlValue, INTEL_DDI_BUF_CTL_ENABLE)) {
+                return DF_RETURN_UNEXPECTED;
+            }
+        }
+    }
+
+    if (IntelGfxState.ActiveTranscoderIndex < sizeof(IntelTranscoderDdiRegisters) / sizeof(IntelTranscoderDdiRegisters[0]) &&
+        Snapshot->TranscoderControl != 0) {
+        if (!IntelGfxWriteVerifyRegister32(
+                IntelTranscoderDdiRegisters[IntelGfxState.ActiveTranscoderIndex],
+                Snapshot->TranscoderControl,
+                INTEL_TRANS_DDI_FUNC_ENABLE | INTEL_TRANS_DDI_FUNC_PORT_MASK)) {
+            return DF_RETURN_UNEXPECTED;
+        }
+    }
+
+    if (Snapshot->ClockControlRegister != 0 && Snapshot->ClockControlValue != 0) {
+        if (!IntelGfxWriteVerifyRegister32(Snapshot->ClockControlRegister, Snapshot->ClockControlValue, MAX_U32)) {
+            return DF_RETURN_UNEXPECTED;
+        }
+    }
+
+    if (Snapshot->PanelPowerRegister != 0 && Snapshot->PanelPowerValue != 0) {
+        if (!IntelGfxWriteVerifyRegister32(
+                Snapshot->PanelPowerRegister, Snapshot->PanelPowerValue, INTEL_PANEL_POWER_TARGET_ON)) {
+            return DF_RETURN_UNEXPECTED;
+        }
+    }
+
+    if (Snapshot->BacklightRegister != 0 && Snapshot->BacklightValue != 0) {
+        if (!IntelGfxWriteVerifyRegister32(
+                Snapshot->BacklightRegister, Snapshot->BacklightValue, INTEL_BACKLIGHT_PWM_ENABLE)) {
+            return DF_RETURN_UNEXPECTED;
+        }
+    }
+
+    if (!IntelGfxWriteVerifyRegister32(IntelPipeConfRegisters[PipeIndex], Snapshot->PipeConf, INTEL_PIPE_CONF_ENABLE)) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    if (!IntelGfxWriteVerifyRegister32(
+            IntelPlaneControlRegisters[PipeIndex],
+            Snapshot->PlaneControl,
+            INTEL_PLANE_CTL_ENABLE | INTEL_PLANE_CTL_FORMAT_MASK)) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    ExpectedEnabled = (Snapshot->PipeConf & INTEL_PIPE_CONF_ENABLE) ? TRUE : FALSE;
+    if (!IntelGfxWaitPipeState(PipeIndex, ExpectedEnabled)) {
         return DF_RETURN_UNEXPECTED;
     }
 
@@ -311,26 +856,94 @@ static UINT IntelGfxBuildModeProgram(LPGRAPHICSMODEINFO Info, LPINTEL_GFX_MODE_P
 /************************************************************************/
 
 static UINT IntelGfxProgramMode(LPINTEL_GFX_MODE_PROGRAM Program) {
+    INTEL_GFX_MODE_SNAPSHOT Snapshot;
+    UINT CompletedStages = 0;
     UINT Result = DF_RETURN_SUCCESS;
+
+    if (Program == NULL) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    Result = IntelGfxCaptureModeSnapshot(Program->PipeIndex, &Snapshot);
+    if (Result != DF_RETURN_SUCCESS) {
+        ERROR(TEXT("[IntelGfxProgramMode] Snapshot capture failed"));
+        return Result;
+    }
+
+    Result = IntelGfxSelectPipeOutputRouting(Program);
+    if (Result != DF_RETURN_SUCCESS) {
+        ERROR(TEXT("[IntelGfxProgramMode] Routing policy failed"));
+        return Result;
+    }
 
     Result = IntelGfxDisablePipe(Program->PipeIndex);
     if (Result != DF_RETURN_SUCCESS) {
-        return Result;
+        ERROR(TEXT("[IntelGfxProgramMode] Stage disable failed"));
+        goto rollback;
     }
+    CompletedStages |= INTEL_MODESET_STAGE_DISABLE_PIPE;
+
+    Result = IntelGfxProgramTranscoderRoute(Program);
+    if (Result != DF_RETURN_SUCCESS) {
+        ERROR(TEXT("[IntelGfxProgramMode] Stage transcoder routing failed"));
+        goto rollback;
+    }
+    CompletedStages |= INTEL_MODESET_STAGE_ROUTE_TRANSCODER;
+
+    Result = IntelGfxProgramClockSource(Program);
+    if (Result != DF_RETURN_SUCCESS) {
+        ERROR(TEXT("[IntelGfxProgramMode] Stage clock programming failed"));
+        goto rollback;
+    }
+    CompletedStages |= INTEL_MODESET_STAGE_PROGRAM_CLOCK;
+
+    Result = IntelGfxConfigureConnectorLink(Program);
+    if (Result != DF_RETURN_SUCCESS) {
+        ERROR(TEXT("[IntelGfxProgramMode] Stage link configuration failed"));
+        goto rollback;
+    }
+    CompletedStages |= INTEL_MODESET_STAGE_CONFIGURE_LINK;
 
     Result = IntelGfxEnablePipe(Program);
     if (Result != DF_RETURN_SUCCESS) {
-        return Result;
+        ERROR(TEXT("[IntelGfxProgramMode] Stage pipe enable failed"));
+        goto rollback;
     }
+    CompletedStages |= INTEL_MODESET_STAGE_ENABLE_PIPE;
 
-    DEBUG(TEXT("[IntelGfxProgramMode] Pipe=%u Mode=%ux%u bpp=%u refresh=%u"),
+    Result = IntelGfxProgramPanelStability(Program);
+    if (Result != DF_RETURN_SUCCESS) {
+        ERROR(TEXT("[IntelGfxProgramMode] Stage panel stabilization failed"));
+        goto rollback;
+    }
+    CompletedStages |= INTEL_MODESET_STAGE_PANEL_STABILITY;
+
+    IntelGfxState.ActiveOutputPortMask = Program->OutputPortMask;
+    IntelGfxState.ActiveTranscoderIndex = Program->TranscoderIndex;
+
+    DEBUG(TEXT("[IntelGfxProgramMode] Pipe=%u Mode=%ux%u bpp=%u refresh=%u Port=%x Transcoder=%u Stages=%x"),
         Program->PipeIndex,
         Program->Width,
         Program->Height,
         Program->BitsPerPixel,
-        Program->RefreshRate);
+        Program->RefreshRate,
+        Program->OutputPortMask,
+        Program->TranscoderIndex,
+        CompletedStages);
 
     return DF_RETURN_SUCCESS;
+
+rollback:
+    if (CompletedStages != 0) {
+        UINT RollbackResult = IntelGfxRestoreModeSnapshot(&Snapshot);
+        if (RollbackResult != DF_RETURN_SUCCESS) {
+            ERROR(TEXT("[IntelGfxProgramMode] Rollback failed stageMask=%x result=%u"), CompletedStages, RollbackResult);
+        } else {
+            WARNING(TEXT("[IntelGfxProgramMode] Rollback completed stageMask=%x"), CompletedStages);
+        }
+    }
+
+    return Result;
 }
 
 /************************************************************************/

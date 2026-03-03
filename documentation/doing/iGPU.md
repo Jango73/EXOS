@@ -128,20 +128,21 @@ After takeover works, add explicit mode programming.
 - [x] Implement mode validation (`width/height/format/refresh` against capabilities).
 - [x] Implement pipe disable/enable sequence.
 - [x] Program timings, stride, surface base, pixel format.
-- [ ] Bring panel/backlight handling only where needed for internal panel stability.
+- [x] Bring panel/backlight handling only where needed for internal panel stability.
 - [x] Keep one conservative mode path first (for example: one pipe, one output).
-- [ ] Add explicit transcoder routing policy for the selected pipe/output pair.
-- [ ] Add clock programming steps (DPLL / clock source selection) required by each targeted generation.
-- [ ] Add connector link configuration and training path (eDP/DP first, then HDMI).
-- [ ] Add atomic-style programming order checks (disable, program, enable, verify) per stage.
-- [ ] Add failure rollback sequence for partial modeset programming.
+- [x] Add explicit transcoder routing policy for the selected pipe/output pair.
+- [x] Add clock programming steps (DPLL / clock source selection) required by each targeted generation.
+- [x] Add connector link configuration and training path (eDP/DP first, then HDMI).
+- [x] Add atomic-style programming order checks (disable, program, enable, verify) per stage.
+- [x] Add failure rollback sequence for partial modeset programming.
 
 Deliverable:
 - `DF_GFX_SETMODE` programs Intel display pipeline without firmware fallback.
 
 Status note:
-- Conservative native modeset is implemented in `kernel/source/drivers/graphics/IntelGfx.c` on one active pipe/output.
+- Conservative native modeset is implemented in `kernel/source/drivers/graphics/iGPU-Mode.c` on one active pipe/output.
 - Validation enforces XRGB8888 path and active-mode dimensions while API lacks explicit refresh/format fields in `GRAPHICSMODEINFO`.
+- Stage-ordered native modeset now applies explicit pipe/output/transcoder policy, conservative clock-source programming (`DPLL_CTRL1` reuse), connector-link enable, internal panel stabilization, and rollback to captured hardware state on partial failure in `kernel/source/drivers/graphics/iGPU-Mode.c`.
 
 ## Step 6 - Buffer management and present model
 Introduce a clean surface model for future growth.
