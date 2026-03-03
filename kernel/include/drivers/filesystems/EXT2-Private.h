@@ -31,6 +31,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "CoreString.h"
+#include "utils/BufferPool.h"
 
 /************************************************************************/
 
@@ -54,6 +55,10 @@
 #define EXT2_MODE_GROUP_EXECUTE 0x0008
 #define EXT2_MODE_OTHER_EXECUTE 0x0001
 
+#define EXT2_BLOCK_BUFFER_OBJECTS_PER_SLAB 8
+#define EXT2_BLOCK_BUFFER_INITIAL_SLABS 1
+#define EXT2_BLOCK_BUFFER_MIN_FREE 8
+
 /************************************************************************/
 
 typedef struct tag_EXT2FILESYSTEM {
@@ -69,6 +74,7 @@ typedef struct tag_EXT2FILESYSTEM {
     U32 InodeSize;
     U32 InodesPerBlock;
     MUTEX FilesMutex;
+    BUFFER_POOL BlockBufferPool;
     U8* IOBuffer;
 } EXT2FILESYSTEM, *LPEXT2FILESYSTEM;
 
@@ -99,6 +105,10 @@ BOOL ReadSectors(LPEXT2FILESYSTEM FileSystem, U32 Sector, U32 Count, LPVOID Buff
 BOOL ReadBlock(LPEXT2FILESYSTEM FileSystem, U32 Block, LPVOID Buffer);
 BOOL WriteSectors(LPEXT2FILESYSTEM FileSystem, U32 Sector, U32 Count, LPCVOID Buffer);
 BOOL WriteBlock(LPEXT2FILESYSTEM FileSystem, U32 Block, LPCVOID Buffer);
+BOOL Ext2BufferPoolInit(LPEXT2FILESYSTEM FileSystem);
+void Ext2BufferPoolDeinit(LPEXT2FILESYSTEM FileSystem);
+LPVOID Ext2AcquireBlockBuffer(LPEXT2FILESYSTEM FileSystem);
+void Ext2ReleaseBlockBuffer(LPEXT2FILESYSTEM FileSystem, LPVOID Buffer);
 BOOL LoadGroupDescriptors(LPEXT2FILESYSTEM FileSystem);
 BOOL ReadInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode);
 BOOL WriteInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode);

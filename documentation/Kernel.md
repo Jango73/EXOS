@@ -1229,6 +1229,10 @@ The EXT2 driver implementation is split into focused units under
 `EXT2-Base.c`, `EXT2-Allocation.c`, `EXT2-Storage.c`, and
 `EXT2-FileOps.c`.
 
+EXT2 block I/O uses a per-filesystem block buffer pool via
+`utils/BufferPool` (backed by `BlockList`) to reuse block-sized buffers
+and reduce heap churn in metadata and data block paths.
+
 ```
                 ┌──────────────────────────────────────┐
                 │               INODE                  │

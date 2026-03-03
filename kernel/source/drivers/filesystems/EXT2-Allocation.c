@@ -34,7 +34,7 @@ BOOL AllocateBlock(LPEXT2FILESYSTEM FileSystem, U32* BlockNumber) {
     if (FileSystem->BlockSize == 0) return FALSE;
     if (FileSystem->Groups == NULL) return FALSE;
 
-    Bitmap = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+    Bitmap = (U8*)Ext2AcquireBlockBuffer(FileSystem);
     if (Bitmap == NULL) return FALSE;
 
     BitsPerBlock = FileSystem->BlockSize * 8;
@@ -57,7 +57,7 @@ BOOL AllocateBlock(LPEXT2FILESYSTEM FileSystem, U32* BlockNumber) {
             Bitmap[ByteIndex] |= Mask;
 
             if (WriteBlock(FileSystem, Group->BlockBitmap, Bitmap) == FALSE) {
-                KernelHeapFree(Bitmap);
+                Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
                 return FALSE;
             }
 
@@ -65,12 +65,12 @@ BOOL AllocateBlock(LPEXT2FILESYSTEM FileSystem, U32* BlockNumber) {
             FileSystem->Super.FreeBlocksCount--;
 
             if (FlushGroupDescriptor(FileSystem, GroupIndex) == FALSE) {
-                KernelHeapFree(Bitmap);
+                Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
                 return FALSE;
             }
 
             if (FlushSuperBlock(FileSystem) == FALSE) {
-                KernelHeapFree(Bitmap);
+                Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
                 return FALSE;
             }
 
@@ -81,31 +81,31 @@ BOOL AllocateBlock(LPEXT2FILESYSTEM FileSystem, U32* BlockNumber) {
                 AbsoluteBlock = FileSystem->Super.FirstDataBlock +
                     (GroupIndex * FileSystem->Super.BlocksPerGroup) + BitIndex;
 
-                Zero = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+                Zero = (U8*)Ext2AcquireBlockBuffer(FileSystem);
                 if (Zero == NULL) {
-                    KernelHeapFree(Bitmap);
+                    Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
                     return FALSE;
                 }
 
                 MemorySet(Zero, 0, FileSystem->BlockSize);
 
                 if (WriteBlock(FileSystem, AbsoluteBlock, Zero) == FALSE) {
-                    KernelHeapFree(Zero);
-                    KernelHeapFree(Bitmap);
+                    Ext2ReleaseBlockBuffer(FileSystem, Zero);
+                    Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
                     FreeBlock(FileSystem, AbsoluteBlock);
                     return FALSE;
                 }
 
-                KernelHeapFree(Zero);
+                Ext2ReleaseBlockBuffer(FileSystem, Zero);
 
                 *BlockNumber = AbsoluteBlock;
-                KernelHeapFree(Bitmap);
+                Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
                 return TRUE;
             }
         }
     }
 
-    KernelHeapFree(Bitmap);
+    Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
 
     return FALSE;
 }
@@ -136,11 +136,11 @@ BOOL FreeBlock(LPEXT2FILESYSTEM FileSystem, U32 BlockNumber) {
 
     BitIndex = RelativeBlock % FileSystem->Super.BlocksPerGroup;
 
-    Bitmap = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+    Bitmap = (U8*)Ext2AcquireBlockBuffer(FileSystem);
     if (Bitmap == NULL) return FALSE;
 
     if (ReadBlock(FileSystem, FileSystem->Groups[GroupIndex].BlockBitmap, Bitmap) == FALSE) {
-        KernelHeapFree(Bitmap);
+        Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
         return FALSE;
     }
 
@@ -149,7 +149,7 @@ BOOL FreeBlock(LPEXT2FILESYSTEM FileSystem, U32 BlockNumber) {
         U8 Mask = 1 << (BitIndex % 8);
 
         if ((Bitmap[ByteIndex] & Mask) == 0) {
-            KernelHeapFree(Bitmap);
+            Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
             return TRUE;
         }
 
@@ -157,11 +157,11 @@ BOOL FreeBlock(LPEXT2FILESYSTEM FileSystem, U32 BlockNumber) {
     }
 
     if (WriteBlock(FileSystem, FileSystem->Groups[GroupIndex].BlockBitmap, Bitmap) == FALSE) {
-        KernelHeapFree(Bitmap);
+        Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
         return FALSE;
     }
 
-    KernelHeapFree(Bitmap);
+    Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
 
     FileSystem->Groups[GroupIndex].FreeBlocksCount++;
     FileSystem->Super.FreeBlocksCount++;
@@ -193,7 +193,7 @@ BOOL AllocateInode(
     if (FileSystem->BlockSize == 0) return FALSE;
     if (FileSystem->Groups == NULL) return FALSE;
 
-    Bitmap = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+    Bitmap = (U8*)Ext2AcquireBlockBuffer(FileSystem);
     if (Bitmap == NULL) return FALSE;
 
     BitsPerBitmap = FileSystem->BlockSize * 8;
@@ -216,7 +216,7 @@ BOOL AllocateInode(
             Bitmap[ByteIndex] |= Mask;
 
             if (WriteBlock(FileSystem, Group->InodeBitmap, Bitmap) == FALSE) {
-                KernelHeapFree(Bitmap);
+                Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
                 return FALSE;
             }
 
@@ -228,12 +228,12 @@ BOOL AllocateInode(
             FileSystem->Super.FreeInodesCount--;
 
             if (FlushGroupDescriptor(FileSystem, GroupIndex) == FALSE) {
-                KernelHeapFree(Bitmap);
+                Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
                 return FALSE;
             }
 
             if (FlushSuperBlock(FileSystem) == FALSE) {
-                KernelHeapFree(Bitmap);
+                Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
                 return FALSE;
             }
 
@@ -246,12 +246,12 @@ BOOL AllocateInode(
             Inode->Mode = Directory ? (EXT2_MODE_DIRECTORY | 0x01ED) : (EXT2_MODE_REGULAR | 0x01A4);
             Inode->LinksCount = Directory ? 2 : 1;
 
-            KernelHeapFree(Bitmap);
+            Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
             return TRUE;
         }
     }
 
-    KernelHeapFree(Bitmap);
+    Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
 
     return FALSE;
 }
@@ -274,19 +274,19 @@ BOOL FreeInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, BOOL Directory) {
     if (InodeIndex == 0) return FALSE;
     if (FileSystem->Groups == NULL) return FALSE;
 
-    Bitmap = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+    Bitmap = (U8*)Ext2AcquireBlockBuffer(FileSystem);
     if (Bitmap == NULL) return FALSE;
 
     GroupIndex = (InodeIndex - 1) / FileSystem->Super.InodesPerGroup;
     if (GroupIndex >= FileSystem->GroupCount) {
-        KernelHeapFree(Bitmap);
+        Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
         return FALSE;
     }
 
     BitIndex = (InodeIndex - 1) % FileSystem->Super.InodesPerGroup;
 
     if (ReadBlock(FileSystem, FileSystem->Groups[GroupIndex].InodeBitmap, Bitmap) == FALSE) {
-        KernelHeapFree(Bitmap);
+        Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
         return FALSE;
     }
 
@@ -295,7 +295,7 @@ BOOL FreeInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, BOOL Directory) {
         U8 Mask = 1 << (BitIndex % 8);
 
         if ((Bitmap[ByteIndex] & Mask) == 0) {
-            KernelHeapFree(Bitmap);
+            Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
             return TRUE;
         }
 
@@ -303,11 +303,11 @@ BOOL FreeInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, BOOL Directory) {
     }
 
     if (WriteBlock(FileSystem, FileSystem->Groups[GroupIndex].InodeBitmap, Bitmap) == FALSE) {
-        KernelHeapFree(Bitmap);
+        Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
         return FALSE;
     }
 
-    KernelHeapFree(Bitmap);
+    Ext2ReleaseBlockBuffer(FileSystem, Bitmap);
 
     FileSystem->Groups[GroupIndex].FreeInodesCount++;
     if (Directory && FileSystem->Groups[GroupIndex].UsedDirsCount > 0) {
@@ -385,11 +385,11 @@ BOOL FreeIndirectTree(LPEXT2FILESYSTEM FileSystem, U32 BlockNumber, U32 Depth) {
     EntriesPerBlock = FileSystem->BlockSize / sizeof(U32);
     if (EntriesPerBlock == 0) return FALSE;
 
-    Buffer = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
+    Buffer = (U32*)Ext2AcquireBlockBuffer(FileSystem);
     if (Buffer == NULL) return FALSE;
 
     if (ReadBlock(FileSystem, BlockNumber, Buffer) == FALSE) {
-        KernelHeapFree(Buffer);
+        Ext2ReleaseBlockBuffer(FileSystem, Buffer);
         return FALSE;
     }
 
@@ -407,7 +407,7 @@ BOOL FreeIndirectTree(LPEXT2FILESYSTEM FileSystem, U32 BlockNumber, U32 Depth) {
         }
     }
 
-    KernelHeapFree(Buffer);
+    Ext2ReleaseBlockBuffer(FileSystem, Buffer);
     FreeBlock(FileSystem, BlockNumber);
 
     return TRUE;
@@ -462,7 +462,7 @@ BOOL AddDirectoryEntry(
             Directory->Size = (BlockIndex + 1) * FileSystem->BlockSize;
             Directory->Blocks += FileSystem->BlockSize / 512;
 
-            BlockBuffer = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+            BlockBuffer = (U8*)Ext2AcquireBlockBuffer(FileSystem);
             if (BlockBuffer == NULL) return FALSE;
 
             MemorySet(BlockBuffer, 0, FileSystem->BlockSize);
@@ -477,20 +477,20 @@ BOOL AddDirectoryEntry(
             }
 
             if (WriteBlock(FileSystem, BlockNumber, BlockBuffer) == FALSE) {
-                KernelHeapFree(BlockBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
                 return FALSE;
             }
 
-            KernelHeapFree(BlockBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
 
             return WriteInode(FileSystem, DirectoryIndex, Directory);
         }
 
-        BlockBuffer = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+        BlockBuffer = (U8*)Ext2AcquireBlockBuffer(FileSystem);
         if (BlockBuffer == NULL) return FALSE;
 
         if (ReadBlock(FileSystem, BlockNumber, BlockBuffer) == FALSE) {
-            KernelHeapFree(BlockBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
             return FALSE;
         }
 
@@ -515,11 +515,11 @@ BOOL AddDirectoryEntry(
                     MemoryCopy(Entry->Name, Name, NameLength);
 
                     if (WriteBlock(FileSystem, BlockNumber, BlockBuffer) == FALSE) {
-                        KernelHeapFree(BlockBuffer);
+                        Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
                         return FALSE;
                     }
 
-                    KernelHeapFree(BlockBuffer);
+                    Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
 
                     return WriteInode(FileSystem, DirectoryIndex, Directory);
                 }
@@ -543,11 +543,11 @@ BOOL AddDirectoryEntry(
                     MemoryCopy(NewEntry->Name, Name, NameLength);
 
                     if (WriteBlock(FileSystem, BlockNumber, BlockBuffer) == FALSE) {
-                        KernelHeapFree(BlockBuffer);
+                        Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
                         return FALSE;
                     }
 
-                    KernelHeapFree(BlockBuffer);
+                    Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
 
                     return WriteInode(FileSystem, DirectoryIndex, Directory);
                 }
@@ -556,7 +556,7 @@ BOOL AddDirectoryEntry(
             Offset += Entry->RecordLength;
         }
 
-        KernelHeapFree(BlockBuffer);
+        Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
     }
 
     return FALSE;
@@ -595,7 +595,7 @@ BOOL CreateDirectoryInternal(
         return FALSE;
     }
 
-    BlockBuffer = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+    BlockBuffer = (U8*)Ext2AcquireBlockBuffer(FileSystem);
     if (BlockBuffer == NULL) {
         FreeBlock(FileSystem, BlockNumber);
         FreeInode(FileSystem, InodeIndex, TRUE);
@@ -626,13 +626,13 @@ BOOL CreateDirectoryInternal(
     }
 
     if (WriteBlock(FileSystem, BlockNumber, BlockBuffer) == FALSE) {
-        KernelHeapFree(BlockBuffer);
+        Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
         FreeBlock(FileSystem, BlockNumber);
         FreeInode(FileSystem, InodeIndex, TRUE);
         return FALSE;
     }
 
-    KernelHeapFree(BlockBuffer);
+    Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
 
     DirectoryInode.Block[0] = BlockNumber;
     DirectoryInode.Size = FileSystem->BlockSize;

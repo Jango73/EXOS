@@ -570,7 +570,13 @@ BOOL MountPartition_EXT2(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
         return FALSE;
     }
 
+    if (Ext2BufferPoolInit(FileSystem) == FALSE) {
+        KernelHeapFree(FileSystem);
+        return FALSE;
+    }
+
     if (LoadGroupDescriptors(FileSystem) == FALSE) {
+        Ext2BufferPoolDeinit(FileSystem);
         KernelHeapFree(FileSystem);
         return FALSE;
     }
@@ -578,6 +584,7 @@ BOOL MountPartition_EXT2(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
     FileSystem->IOBuffer = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
     if (FileSystem->IOBuffer == NULL) {
         KernelHeapFree(FileSystem->Groups);
+        Ext2BufferPoolDeinit(FileSystem);
         KernelHeapFree(FileSystem);
         return FALSE;
     }
