@@ -189,6 +189,11 @@ static LPHEAPBLOCKHEADER FindPreviousPhysicalBlock(LPHEAPCONTROLBLOCK ControlBlo
  * Large blocks (>2048 bytes) are added to the separate large block freelist.
  */
 static void AddToFreeList(LPHEAPCONTROLBLOCK ControlBlock, LPHEAPBLOCKHEADER Block, UINT SizeClass) {
+    if (IsBlockFree(Block)) {
+        ERROR(TEXT("[AddToFreeList] Block already marked free"));
+        return;
+    }
+
     Block->Flags |= HEAP_BLOCK_FLAG_FREE;
 
     if (SizeClass == 0xFF) {
@@ -375,8 +380,6 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
 
     TotalSize = ActualSize + sizeof(HEAPBLOCKHEADER);
 
-    // DEBUG("[HeapAlloc_HBHS] Size class: %x, actual size: %x, total size: %x", SizeClass, ActualSize, TotalSize);
-
     // Try to find a block in the appropriate freelist
     if (SizeClass != 0xFF) {
         // Small block - check exact size class first
@@ -434,7 +437,8 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
                         SplitBlock->Next = NULL;
                         SplitBlock->Prev = NULL;
 
-                        AddToFreeList(ControlBlock, SplitBlock, 0xFF);
+                        UINT SplitSizeClass = GetSizeClass(RemainingSize - sizeof(HEAPBLOCKHEADER));
+                        AddToFreeList(ControlBlock, SplitBlock, SplitSizeClass);
 
                         Block->Size = TotalSize;
                     }

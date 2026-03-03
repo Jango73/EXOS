@@ -110,7 +110,10 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
     if (Info == NULL || STRING_EMPTY(Info->Name)) return NULL;
 
     FileSystem = (LPEXT2FILESYSTEM)Info->FileSystem;
-    if (FileSystem == NULL) return NULL;
+    if (FileSystem == NULL) {
+        ERROR(TEXT("[OpenFile] EXT2 missing filesystem"));
+        return NULL;
+    }
 
     LockMutex(&(FileSystem->FilesMutex), INFINITY);
 
@@ -135,12 +138,14 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
         }
 
         if (LoadDirectoryInode(FileSystem, DirectoryPath, &DirectoryInode, &DirectoryIndex) == FALSE) {
+            WARNING(TEXT("[OpenFile] EXT2 load folder inode failed path=%s"), DirectoryPath);
             UnlockMutex(&(FileSystem->FilesMutex));
             return NULL;
         }
 
         File = NewEXT2File(FileSystem);
         if (File == NULL) {
+            ERROR(TEXT("[OpenFile] EXT2 allocation failed for file handle"));
             UnlockMutex(&(FileSystem->FilesMutex));
             return NULL;
         }
@@ -168,16 +173,19 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
                 UnlockMutex(&(FileSystem->FilesMutex));
 
                 if (CreateNode(Info, FALSE) != DF_RETURN_SUCCESS) {
+                    WARNING(TEXT("[OpenFile] EXT2 create failed name=%s"), Info->Name);
                     return NULL;
                 }
 
                 LockMutex(&(FileSystem->FilesMutex), INFINITY);
 
                 if (ResolvePath(FileSystem, Info->Name, &Inode, &InodeIndex) == FALSE) {
+                    WARNING(TEXT("[OpenFile] EXT2 resolve after create failed name=%s"), Info->Name);
                     UnlockMutex(&(FileSystem->FilesMutex));
                     return NULL;
                 }
             } else {
+                WARNING(TEXT("[OpenFile] EXT2 resolve failed name=%s"), Info->Name);
                 UnlockMutex(&(FileSystem->FilesMutex));
                 return NULL;
             }
@@ -185,6 +193,7 @@ static LPEXT2FILE OpenFile(LPFILEINFO Info) {
 
         File = NewEXT2File(FileSystem);
         if (File == NULL) {
+            ERROR(TEXT("[OpenFile] EXT2 allocation failed for file handle"));
             UnlockMutex(&(FileSystem->FilesMutex));
             return NULL;
         }

@@ -778,7 +778,10 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         Remaining[0] != STR_NULL ? Remaining : TEXT("<none>"));
 
     if (Remaining[0] != STR_NULL) {
-        if (Node->Mounted == NULL) return NULL;
+        if (Node->Mounted == NULL) {
+            WARNING(TEXT("[OpenFile] No mount for path=%s remaining=%s"), Path, Remaining);
+            return NULL;
+        }
 
         Local = *Find;
         Local.FileSystem = Node->Mounted;
@@ -822,10 +825,16 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
             return WrapMountedFile(Node, Mounted, Find->Flags);
         } else {
             LPSYSTEMFSFILE Child = (Node->Children) ? (LPSYSTEMFSFILE)Node->Children->First : NULL;
-            if (Child == NULL) return NULL;
+            if (Child == NULL) {
+                WARNING(TEXT("[OpenFile] No children for wildcard path=%s"), Path);
+                return NULL;
+            }
 
             LPSYSFSFILE File = (LPSYSFSFILE)KernelHeapAlloc(sizeof(SYSFSFILE));
-            if (File == NULL) return NULL;
+            if (File == NULL) {
+                ERROR(TEXT("[OpenFile] Allocation failed for SYSFSFILE"));
+                return NULL;
+            }
 
             *File = (SYSFSFILE){0};
             File->Header.TypeID = KOID_FILE;
@@ -861,7 +870,10 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
 
     {
         LPSYSFSFILE File = (LPSYSFSFILE)KernelHeapAlloc(sizeof(SYSFSFILE));
-        if (File == NULL) return NULL;
+        if (File == NULL) {
+            ERROR(TEXT("[OpenFile] Allocation failed for SYSFSFILE"));
+            return NULL;
+        }
 
         *File = (SYSFSFILE){0};
         File->Header.TypeID = KOID_FILE;

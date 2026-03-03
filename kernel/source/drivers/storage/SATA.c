@@ -675,6 +675,7 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
         timeout--;
     }
     if (timeout == 0) {
+        ERROR(TEXT("[AHCICommand] Port ready timeout tfd=%x"), Port->tfd);
         if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
         return DF_RETURN_TIMEOUT;
     }
@@ -710,6 +711,7 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
     // Set up PRDT entry
     PHYSICAL bufferPhys = MapLinearToPhysical((LINEAR)EffectiveBuffer);
     if (bufferPhys == 0) {
+        ERROR(TEXT("[AHCICommand] MapLinearToPhysical failed buffer=%p"), EffectiveBuffer);
         if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
         return DF_RETURN_HARDWARE;
     }
@@ -722,7 +724,6 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
     cmdtbl->prdt_entry[0].dbc = (SectorCount * 512) - 1; // Byte count - 1
     cmdtbl->prdt_entry[0].i = 0; // No interrupt on completion for this entry
 
-
     // Issue command
     Port->ci = 1; // Issue command slot 0
 
@@ -730,6 +731,7 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
     timeout = 1000000;
     while ((Port->ci & 1) && timeout > 0) {
         if (Port->is & AHCI_PORT_IS_TFES) {
+            ERROR(TEXT("[AHCICommand] Task file error ci=%x is=%x tfd=%x"), Port->ci, Port->is, Port->tfd);
             if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
             return DF_RETURN_HARDWARE;
         }
@@ -737,12 +739,14 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
     }
 
     if (timeout == 0) {
+        ERROR(TEXT("[AHCICommand] Completion timeout ci=%x is=%x tfd=%x"), Port->ci, Port->is, Port->tfd);
         if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
         return DF_RETURN_TIMEOUT;
     }
 
     // Check for errors
     if (Port->is & AHCI_PORT_IS_TFES) {
+        ERROR(TEXT("[AHCICommand] Task file error after completion ci=%x is=%x tfd=%x"), Port->ci, Port->is, Port->tfd);
         if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
         return DF_RETURN_HARDWARE;
     }

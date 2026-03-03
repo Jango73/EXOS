@@ -121,7 +121,10 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     //-------------------------------------
     // Resolve the requested name against the process working directory
 
-    if (!BuildQualifiedFileName(Info->Name, QualifiedName)) return NULL;
+    if (!BuildQualifiedFileName(Info->Name, QualifiedName)) {
+        ERROR(TEXT("[OpenFile] BuildQualifiedFileName failed name=%s flags=%x"), Info->Name, Info->Flags);
+        return NULL;
+    }
 
     DEBUG(TEXT("[OpenFile] Name=%s, Flags=%x"), Info->Name, Info->Flags);
     {
@@ -191,6 +194,9 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
             ListAddItem(FileList, File);
 
             UnlockMutex(MUTEX_FILE);
+        }
+        if (File == NULL) {
+            WARNING(TEXT("[OpenFile] SystemFS open failed path=%s flags=%x"), Find.Name, Find.Flags);
         }
 
         goto Out;
