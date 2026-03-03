@@ -153,7 +153,6 @@ static void HeapLogAlloc(UINT RequestedSize, LPHEAPBLOCKHEADER Block) {
     }
 
     LPVOID Pointer = (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
-    DEBUG(TEXT("[HeapAlloc_HBHS] Alloc req=%u actual=%u ptr=%p"), RequestedSize, UserSize, Pointer);
 }
 
 /************************************************************************/
@@ -172,8 +171,6 @@ static void HeapLogFree(LPVOID Pointer, LPHEAPBLOCKHEADER Block) {
     if (Block->Size >= sizeof(HEAPBLOCKHEADER)) {
         UserSize = Block->Size - sizeof(HEAPBLOCKHEADER);
     }
-
-    DEBUG(TEXT("[HeapFree_HBHS] Free ptr=%p size=%u"), Pointer, UserSize);
 }
 
 /************************************************************************/
@@ -411,8 +408,6 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
     if (ControlBlock->TypeID != KOID_HEAP) return NULL;
     if (Size == 0) return NULL;
 
-    // DEBUG("[HeapAlloc_HBHS] Allocating size %x", Size);
-
     // Determine size class and actual allocation size
     SizeClass = GetSizeClass(Size);
     if (SizeClass != 0xFF) {
@@ -430,7 +425,6 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
         Block = ControlBlock->FreeLists[SizeClass];
         if (Block != NULL && Block->TypeID == KOID_HEAP && Block->Size >= TotalSize) {
             RemoveFromFreeList(ControlBlock, Block, SizeClass);
-            // DEBUG("[HeapAlloc_HBHS] Found block in size class %x at %x", SizeClass, Block);
             HeapLogAlloc(Size, Block);
             return (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
         }
@@ -459,7 +453,6 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
                     }
                 }
 
-                // DEBUG("[HeapAlloc_HBHS] Found larger block in size class %x at %x", i, Block);
                 HeapLogAlloc(Size, Block);
                 return (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
             }
@@ -490,7 +483,6 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
                     }
                 }
 
-                // DEBUG("[HeapAlloc_HBHS] Found large block at %x", Block);
                 HeapLogAlloc(Size, Block);
                 return (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
             }
@@ -520,8 +512,6 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
     Block->Prev = NULL;
 
     ControlBlock->FirstUnallocated = (LPVOID)(NewBlockAddr + TotalSize);
-
-    // DEBUG("[HeapAlloc_HBHS] Allocated new block at %x, next unallocated: %x", Block, ControlBlock->FirstUnallocated);
 
     HeapLogAlloc(Size, Block);
     return (LPVOID)(NewBlockAddr + sizeof(HEAPBLOCKHEADER));
