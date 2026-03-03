@@ -724,13 +724,14 @@ function RunCommandSpec() {
 
 function RunCommandList() {
     # Command file grammar (one spec per line):
-    # command: "..." | [log: "..."] | [file-size-compare: "host/path" "/guest/path"]
+    # command: "..." | [log: "..."] | [file-size-compare: "host/path" "/guest/path"] | [timeout: N]
     local Line
     local Part
     local CommandText=""
     local ExpectedText=""
     local CompareSource=""
     local CompareDownloaded=""
+    local TimeoutSeconds=""
 
     local ResolvedCommandsFile="$COMMANDS_FILE"
 
@@ -755,6 +756,7 @@ function RunCommandList() {
         ExpectedText=""
         CompareSource=""
         CompareDownloaded=""
+        TimeoutSeconds=""
 
         while IFS= read -r Part; do
             Part="$(Trim "$Part")"
@@ -765,6 +767,8 @@ function RunCommandList() {
             elif [[ "$Part" =~ ^file-size-compare:[[:space:]]*\"([^\"]*)\"[[:space:]]+\"([^\"]*)\"$ ]]; then
                 CompareSource="${BASH_REMATCH[1]}"
                 CompareDownloaded="${BASH_REMATCH[2]}"
+            elif [[ "$Part" =~ ^timeout:[[:space:]]*([0-9]+)$ ]]; then
+                TimeoutSeconds="${BASH_REMATCH[1]}"
             else
                 echo "Invalid command spec segment: $Part"
                 exit 1
@@ -776,7 +780,7 @@ function RunCommandList() {
             exit 1
         fi
 
-        RunCommandSpec "$CommandText" "$ExpectedText" "$CompareSource" "$CompareDownloaded"
+        RunCommandSpec "$CommandText" "$ExpectedText" "$CompareSource" "$CompareDownloaded" "$TimeoutSeconds"
     done < "$ResolvedCommandsFile"
 }
 

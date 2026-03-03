@@ -118,7 +118,7 @@ scripts\remote\x86-64\4-5-build-debug-ext2-ssh.bat
 ```
 Configure SSH and the remote repo root once in `scripts/remote/ssh-config.bat`. The remote build runs in the same repository (same path, same branch/commit) as the Windows workspace (shared folder).
 
-**Don't wait more than 15 seconds when testing, the system boots in less than 2 seconds and auto-run executable should finish under 15 seconds**
+**Don't wait more than 15 seconds when testing interactively; this limit does not apply to repository scripts, where timeouts may be adjusted as needed. The system boots in less than 2 seconds and auto-run executable should finish under 15 seconds.**
 
 ## Debug output
 
