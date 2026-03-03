@@ -335,6 +335,9 @@ static BOOL TryExpandHeap(LPHEAPCONTROLBLOCK ControlBlock, UINT RequiredSize) {
     ControlBlock->HeapSize = DesiredSize;
     Process->HeapSize = DesiredSize;
 
+    DEBUG(TEXT("[TryExpandHeap] Expanded heap from %u to %u (required %u)"),
+          CurrentSize, DesiredSize, RequiredSize);
+
     return TRUE;
 }
 
