@@ -238,7 +238,7 @@ static void XHCI_LogInitReadback(LPXHCI_DEVICE Device,
     PciCommand = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_COMMAND);
     PciStatus = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_STATUS);
 
-    WARNING(TEXT("[XHCI_LogInitReadback] step=%s USBCMD=%x USBSTS=%x CONFIG=%x PCICMD=%x PCISTS=%x Scratch=%u DCBAA0=%x:%x DCBAAP=%x:%x/%x:%x CRCR=%x:%x/%x:%x ERSTBA=%x:%x/%x:%x ERDP=%x:%x/%x:%x IMAN=%x IMOD=%x ERSTSZ=%x"),
+    DEBUG(TEXT("[XHCI_LogInitReadback] step=%s USBCMD=%x USBSTS=%x CONFIG=%x PCICMD=%x PCISTS=%x Scratch=%u DCBAA0=%x:%x DCBAAP=%x:%x/%x:%x CRCR=%x:%x/%x:%x ERSTBA=%x:%x/%x:%x ERDP=%x:%x/%x:%x IMAN=%x IMOD=%x ERSTSZ=%x"),
             (Step != NULL) ? Step : TEXT("?"),
             Usbcmd,
             Usbsts,
