@@ -258,7 +258,6 @@ static U16 TCP_GetNextEphemeralPort(U32 localIP) {
     }
 
     // If we get here, all ports are in use (very unlikely)
-    DEBUG(TEXT("[TCP_GetNextEphemeralPort] All ephemeral ports exhausted!"));
     return startPort; // Return start port as fallback
 }
 
@@ -527,7 +526,6 @@ static void TCP_HandleAcknowledgement(LPTCP_CONNECTION Conn, LPTCP_PACKET_EVENT 
                 AckNum == Conn->RetransmitSequenceStart) {
                 TCP_OnCongestionFastLoss(Conn);
                 if (TCP_RetransmitTrackedSegment(Conn, TRUE) == TRUE) {
-                    DEBUG(TEXT("[TCP_HandleAcknowledgement] Fast retransmit triggered for sequence %u"), AckNum);
                 }
             }
             return;
@@ -640,10 +638,6 @@ static int TCP_SendPacket(LPTCP_CONNECTION Conn, U8 Flags, const U8* Payload, U3
     LPTCP_HEADER TcpHdr = (LPTCP_HEADER)Packet;
     UNUSED(TcpHdr);
 
-    DEBUG(TEXT("[TCP_SendPacket] TCP Header: SrcPort=%d DestPort=%d Seq=%u Ack=%u Flags=%x Window=%d Checksum=%x HeaderLen=%d"),
-          Ntohs(TcpHdr->SourcePort), Ntohs(TcpHdr->DestinationPort),
-          Ntohl(TcpHdr->SequenceNumber), Ntohl(TcpHdr->AckNumber),
-          TcpHdr->Flags, Ntohs(TcpHdr->WindowSize), Ntohs(TcpHdr->Checksum), HeaderLength);
 
     // Send via IPv4 through connection's network device
     I32 SendResult = 0;
@@ -684,7 +678,6 @@ static int TCP_SendPacket(LPTCP_CONNECTION Conn, U8 Flags, const U8* Payload, U3
 
 static void TCP_OnEnterClosed(STATE_MACHINE* SM) {
     LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)SM_GetContext(SM);
-    DEBUG(TEXT("TCP: Connection entered CLOSED state"));
 
     // Clear all timers and counters to prevent zombie retransmissions
     TCP_ClearRetransmissionState(Conn);
@@ -698,59 +691,48 @@ static void TCP_OnEnterClosed(STATE_MACHINE* SM) {
 
 static void TCP_OnEnterListen(STATE_MACHINE* SM) {
     (void)SM;
-    DEBUG(TEXT("TCP: Connection entered LISTEN state"));
 }
 
 static void TCP_OnEnterSynSent(STATE_MACHINE* SM) {
     (void)SM;
-    DEBUG(TEXT("TCP: Connection entered SYN_SENT state"));
 }
 
 static void TCP_OnEnterSynReceived(STATE_MACHINE* SM) {
     (void)SM;
-    DEBUG(TEXT("TCP: Connection entered SYN_RECEIVED state"));
 }
 
 static void TCP_OnEnterEstablished(STATE_MACHINE* SM) {
     LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)SM_GetContext(SM);
-    DEBUG(TEXT("[TCP_OnEnterEstablished] Connection established"));
 
     // Notify upper layers that connection is established
     // Only send notification if we're coming from another state (not a re-entry)
     if (Conn->NotificationContext != NULL && SM->PreviousState != TCP_STATE_ESTABLISHED) {
         Notification_Send(Conn->NotificationContext, NOTIF_EVENT_TCP_CONNECTED, NULL, 0);
-        DEBUG(TEXT("[TCP_OnEnterEstablished] Sent TCP_CONNECTED notification"));
     }
 }
 
 static void TCP_OnEnterFinWait1(STATE_MACHINE* SM) {
     (void)SM;
-    DEBUG(TEXT("TCP: Connection entered FIN_WAIT_1 state"));
 }
 
 static void TCP_OnEnterFinWait2(STATE_MACHINE* SM) {
     (void)SM;
-    DEBUG(TEXT("TCP: Connection entered FIN_WAIT_2 state"));
 }
 
 static void TCP_OnEnterCloseWait(STATE_MACHINE* SM) {
     (void)SM;
-    DEBUG(TEXT("TCP: Connection entered CLOSE_WAIT state"));
 }
 
 static void TCP_OnEnterClosing(STATE_MACHINE* SM) {
     (void)SM;
-    DEBUG(TEXT("TCP: Connection entered CLOSING state"));
 }
 
 static void TCP_OnEnterLastAck(STATE_MACHINE* SM) {
     (void)SM;
-    DEBUG(TEXT("TCP: Connection entered LAST_ACK state"));
 }
 
 static void TCP_OnEnterTimeWait(STATE_MACHINE* SM) {
     LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)SM_GetContext(SM);
-    DEBUG(TEXT("TCP: Connection entered TIME_WAIT state"));
     Conn->TimeWaitTimer = GetSystemTime() + TCP_TIME_WAIT_TIMEOUT;
 }
 
@@ -761,7 +743,6 @@ static void TCP_ActionSendSyn(STATE_MACHINE* SM, LPVOID EventData) {
     (void)EventData;
     LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)SM_GetContext(SM);
 
-    DEBUG(TEXT("[TCP_ActionSendSyn] Sending SYN"));
 
     Conn->SendNext = 1000; // Initial sequence number
     Conn->SendUnacked = Conn->SendNext;
@@ -781,7 +762,6 @@ static void TCP_ActionSendSynAck(STATE_MACHINE* SM, LPVOID EventData) {
     LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)SM_GetContext(SM);
     LPTCP_PACKET_EVENT Event = (LPTCP_PACKET_EVENT)EventData;
 
-    DEBUG(TEXT("[TCP_ActionSendSynAck] Sending SYN+ACK"));
     Conn->SendNext = 2000; // Initial sequence number
     Conn->RecvNext = Ntohl(Event->Header->SequenceNumber) + 1;
 
@@ -798,7 +778,6 @@ static void TCP_ActionSendAck(STATE_MACHINE* SM, LPVOID EventData) {
     LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)SM_GetContext(SM);
     LPTCP_PACKET_EVENT Event = (LPTCP_PACKET_EVENT)EventData;
 
-    DEBUG(TEXT("[TCP_ActionSendAck] Sending ACK"));
     if (Event && Event->Header) {
         U32 SeqNum = Ntohl(Event->Header->SequenceNumber);
         U8 Flags = Event->Header->Flags;
@@ -822,7 +801,6 @@ static void TCP_ActionSendAck(STATE_MACHINE* SM, LPVOID EventData) {
 static void TCP_ActionSendFin(STATE_MACHINE* SM, LPVOID EventData) {
     (void)EventData;
     LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)SM_GetContext(SM);
-    DEBUG(TEXT("[TCP_ActionSendFin] Sending FIN"));
 
     int SendResult = TCP_SendPacket(Conn, TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0);
     if (SendResult < 0) {
@@ -837,7 +815,6 @@ static void TCP_ActionSendFin(STATE_MACHINE* SM, LPVOID EventData) {
 static void TCP_ActionSendRst(STATE_MACHINE* SM, LPVOID EventData) {
     (void)EventData;
     LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)SM_GetContext(SM);
-    DEBUG(TEXT("[TCP_ActionSendRst] Sending RST"));
     TCP_SendPacket(Conn, TCP_FLAG_RST, NULL, 0);
 }
 */
@@ -863,7 +840,6 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
         if (SeqNum < Conn->RecvNext) {
             U32 AlreadyAcked = Conn->RecvNext - SeqNum;
             if (AlreadyAcked >= PayloadLength) {
-                DEBUG(TEXT("[TCP_ActionProcessData] Duplicate payload ignored (Seq=%u, Length=%u)"), SeqNum, PayloadLength);
 
                 int SendResult = TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
                 if (SendResult < 0) {
@@ -879,7 +855,6 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
         }
 
         if (SeqNum > Conn->RecvNext) {
-            DEBUG(TEXT("[TCP_ActionProcessData] Out-of-order segment received (expected=%u, got=%u)"), Conn->RecvNext, SeqNum);
 
             int SendResult = TCP_SendPacket(Conn, TCP_FLAG_ACK, NULL, 0);
             if (SendResult < 0) {
@@ -889,7 +864,6 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
             return;
         }
 
-        DEBUG(TEXT("[TCP_ActionProcessData] Processing %u bytes of in-order data"), PayloadLength);
 
         if (Conn->RecvBufferUsed >= Conn->RecvBufferCapacity) {
             WARNING(TEXT("[TCP_ActionProcessData] Receive buffer full, advertising zero window"));
@@ -917,7 +891,6 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
         }
 
         if (BytesAccepted == 0) {
-            DEBUG(TEXT("[TCP_ActionProcessData] No payload accepted from current segment"));
         }
     }
 
@@ -950,7 +923,6 @@ static void TCP_ActionProcessData(STATE_MACHINE* SM, LPVOID EventData) {
 static void TCP_ActionAbortConnection(STATE_MACHINE* SM, LPVOID EventData) {
     (void)EventData;
     LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)SM_GetContext(SM);
-    DEBUG(TEXT("[TCP_ActionAbortConnection] Aborting connection - clearing timers"));
 
     // Immediately clear all retransmission tracking to stop sending packets
     TCP_ClearRetransmissionState(Conn);
@@ -1013,8 +985,6 @@ static BOOL TCP_ConditionValidAck(STATE_MACHINE* SM, LPVOID EventData) {
     U32 SeqNum = Ntohl(Event->Header->SequenceNumber);
     U8 Flags = Event->Header->Flags;
 
-    DEBUG(TEXT("[TCP_ConditionValidAck] Received ACK %u, unacked=%u, send_next=%u, SeqNum %u, Flags 0x%x"),
-          AckNum, Conn->SendUnacked, Conn->SendNext, SeqNum, Flags);
 
     // Validate ACK number with cumulative ACK support
     BOOL ValidAck = FALSE;
@@ -1029,13 +999,10 @@ static BOOL TCP_ConditionValidAck(STATE_MACHINE* SM, LPVOID EventData) {
     if ((Flags & (TCP_FLAG_SYN | TCP_FLAG_ACK)) == (TCP_FLAG_SYN | TCP_FLAG_ACK)) {
         ValidSeq = TRUE;
         Conn->RecvNext = SeqNum + 1;
-        DEBUG(TEXT("[TCP_ConditionValidAck] SYN+ACK: Updated RecvNext to %u"), Conn->RecvNext);
     } else {
         // Regular ACK - validate sequence number is within receive window
         ValidSeq = TCP_IsSequenceInWindow(SeqNum, Conn->RecvNext, Conn->RecvWindow);
         if (!ValidSeq) {
-            DEBUG(TEXT("[TCP_ConditionValidAck] Sequence number %u outside receive window [%u, %u)"),
-                  SeqNum, Conn->RecvNext, Conn->RecvNext + Conn->RecvWindow);
         }
     }
 
@@ -1043,7 +1010,6 @@ static BOOL TCP_ConditionValidAck(STATE_MACHINE* SM, LPVOID EventData) {
 
     if (Valid) {
         TCP_HandleAcknowledgement(Conn, Event);
-        DEBUG(TEXT("[TCP_ConditionValidAck] Valid ACK received"));
     }
 
     return Valid;
@@ -1066,7 +1032,6 @@ static BOOL TCP_ConditionValidSyn(STATE_MACHINE* SM, LPVOID EventData) {
 
     // In LISTEN state, we accept any valid SYN
     if (SM_GetCurrentState(&Conn->StateMachine) == TCP_STATE_LISTEN) {
-        DEBUG(TEXT("[TCP_ConditionValidSyn] Valid SYN received in LISTEN state, SeqNum %u"), SeqNum);
         return TRUE;
     }
 
@@ -1074,8 +1039,6 @@ static BOOL TCP_ConditionValidSyn(STATE_MACHINE* SM, LPVOID EventData) {
     BOOL ValidSeq = TCP_IsSequenceInWindow(SeqNum, Conn->RecvNext, Conn->RecvWindow);
 
     if (!ValidSeq) {
-        DEBUG(TEXT("[TCP_ConditionValidSyn] SYN sequence number %u outside receive window [%u, %u)"),
-              SeqNum, Conn->RecvNext, Conn->RecvNext + Conn->RecvWindow);
     }
 
     return ValidSeq;
@@ -1114,13 +1077,11 @@ static void TCP_ParseOptions(const U8* OptionsData, U32 OptionsLength, LPTCP_OPT
 
         // All other options have a length field
         if (Offset + 1 >= OptionsLength) {
-            DEBUG(TEXT("[TCP_ParseOptions] Truncated option at offset %u"), Offset);
             break;
         }
 
         U8 OptionLength = OptionsData[Offset + 1];
         if (OptionLength < 2 || Offset + OptionLength > OptionsLength) {
-            DEBUG(TEXT("[TCP_ParseOptions] Invalid option length %u at offset %u"), OptionLength, Offset);
             break;
         }
 
@@ -1129,7 +1090,6 @@ static void TCP_ParseOptions(const U8* OptionsData, U32 OptionsLength, LPTCP_OPT
                 if (OptionLength == 4 && Offset + 4 <= OptionsLength) {
                     ParsedOptions->HasMSS = TRUE;
                     ParsedOptions->MSS = (OptionsData[Offset + 2] << 8) | OptionsData[Offset + 3];
-                    DEBUG(TEXT("[TCP_ParseOptions] MSS option: %u"), ParsedOptions->MSS);
                 }
                 break;
 
@@ -1137,7 +1097,6 @@ static void TCP_ParseOptions(const U8* OptionsData, U32 OptionsLength, LPTCP_OPT
                 if (OptionLength == 3 && Offset + 3 <= OptionsLength) {
                     ParsedOptions->HasWindowScale = TRUE;
                     ParsedOptions->WindowScale = OptionsData[Offset + 2];
-                    DEBUG(TEXT("[TCP_ParseOptions] Window scale option: %u"), ParsedOptions->WindowScale);
                 }
                 break;
 
@@ -1152,13 +1111,10 @@ static void TCP_ParseOptions(const U8* OptionsData, U32 OptionsLength, LPTCP_OPT
                                          (OptionsData[Offset + 7] << 16) |
                                          (OptionsData[Offset + 8] << 8) |
                                          OptionsData[Offset + 9];
-                    DEBUG(TEXT("[TCP_ParseOptions] Timestamp option: TSVal=%u TSEcr=%u"),
-                          ParsedOptions->TSVal, ParsedOptions->TSEcr);
                 }
                 break;
 
             default:
-                DEBUG(TEXT("[TCP_ParseOptions] Unknown option type %u"), OptionType);
                 break;
         }
 
@@ -1213,27 +1169,11 @@ int TCP_ValidateChecksum(TCP_HEADER* Header, const U8* Payload, U32 PayloadLengt
     UNUSED(SrcIPHost);
     UNUSED(DstIPHost);
 
-    DEBUG(TEXT("[TCP_ValidateChecksum] Validating TCP checksum"));
-    DEBUG(TEXT("[TCP_ValidateChecksum] Src=%u.%u.%u.%u:%u Dst=%u.%u.%u.%u:%u"),
-          (SrcIPHost >> 24) & 0xFF, (SrcIPHost >> 16) & 0xFF, (SrcIPHost >> 8) & 0xFF, SrcIPHost & 0xFF,
-          Ntohs(Header->SourcePort),
-          (DstIPHost >> 24) & 0xFF, (DstIPHost >> 16) & 0xFF, (DstIPHost >> 8) & 0xFF, DstIPHost & 0xFF,
-          Ntohs(Header->DestinationPort));
-    DEBUG(TEXT("[TCP_ValidateChecksum] Received checksum: 0x%04X"), ReceivedChecksum);
-
     // Calculate expected checksum using the proper TCP checksum function
     U16 CalculatedChecksum = TCP_CalculateChecksum(Header, Payload, PayloadLength, SourceIP, DestinationIP);
     CalculatedChecksum = Ntohs(CalculatedChecksum);
 
     BOOL IsValid = (CalculatedChecksum == ReceivedChecksum);
-
-    DEBUG(TEXT("[TCP_ValidateChecksum] Calculated checksum: 0x%04X, valid: %s"),
-          CalculatedChecksum, IsValid ? "YES" : "NO");
-
-    if (!IsValid) {
-        DEBUG(TEXT("[TCP_ValidateChecksum] CHECKSUM MISMATCH - packet may be corrupted"));
-        DEBUG(TEXT("[TCP_ValidateChecksum] Expected: 0x%04X, Received: 0x%04X"), CalculatedChecksum, ReceivedChecksum);
-    }
 
     return IsValid ? 1 : 0;
 }
@@ -1245,7 +1185,6 @@ static void TCP_SendRstToUnknownConnection(LPDEVICE Device, U32 LocalIP, U16 Loc
     TCP_HEADER Header;
     U8 Packet[sizeof(TCP_HEADER)];
 
-    DEBUG(TEXT("[TCP_SendRstToUnknownConnection] Sending RST to unknown connection"));
 
     // Fill TCP header for RST response
     Header.SourcePort = LocalPort;       // Already in network byte order
@@ -1293,21 +1232,17 @@ void TCP_Initialize(void) {
 
     // TCP protocol handler will be registered later when devices are initialized
 
-    DEBUG(TEXT("[TCP_Initialize] Done (send buffer=%lu bytes, receive buffer=%lu bytes, next ephemeral port=%u)"),
-          GlobalTCP.SendBufferSize, GlobalTCP.ReceiveBufferSize, GlobalTCP.NextEphemeralPort);
 }
 
 /************************************************************************/
 
 LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPort, U32 RemoteIP, U16 RemotePort) {
     if (Device == NULL) {
-        DEBUG(TEXT("[TCP_CreateConnection] Device is NULL"));
         return NULL;
     }
 
     LPTCP_CONNECTION Conn = (LPTCP_CONNECTION)CreateKernelObject(sizeof(TCP_CONNECTION), KOID_TCP);
     if (Conn == NULL) {
-        DEBUG(TEXT("[TCP_CreateConnection] Failed to allocate TCP connection"));
         return NULL;
     }
 
@@ -1323,12 +1258,8 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
 
         SAFE_USE(IPv4Context) {
             Conn->LocalIP = IPv4Context->LocalIPv4_Be;
-            DEBUG(TEXT("[TCP_CreateConnection] Using device IP for LocalIP=0: %d.%d.%d.%d"),
-                  (Ntohl(Conn->LocalIP) >> 24) & 0xFF, (Ntohl(Conn->LocalIP) >> 16) & 0xFF,
-                  (Ntohl(Conn->LocalIP) >> 8) & 0xFF, Ntohl(Conn->LocalIP) & 0xFF);
         } else {
             Conn->LocalIP = 0;
-            DEBUG(TEXT("[TCP_CreateConnection] Warning: No IPv4 context found for device"));
         }
     } else {
         Conn->LocalIP = LocalIP;
@@ -1363,7 +1294,6 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
         KernelHeapFree(Conn);
         return NULL;
     }
-    DEBUG(TEXT("[TCP_CreateConnection] Created notification context %p for connection %p"), (LPVOID)Conn->NotificationContext, (LPVOID)Conn);
 
     // Register for IPv4 packet sent events on the connection's network device
     LockMutex(&(Conn->Device->Mutex), INFINITY);
@@ -1388,10 +1318,6 @@ LPTCP_CONNECTION TCP_CreateConnection(LPDEVICE Device, U32 LocalIP, U16 LocalPor
     U32 RemoteIPHost = Ntohl(RemoteIP);
     UNUSED(LocalIPHost);
     UNUSED(RemoteIPHost);
-    DEBUG(TEXT("[TCP_CreateConnection] Created connection %p (%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d)"),
-        (LPVOID)Conn,
-        (LocalIPHost >> 24) & 0xFF, (LocalIPHost >> 16) & 0xFF, (LocalIPHost >> 8) & 0xFF, LocalIPHost & 0xFF, Ntohs(Conn->LocalPort),
-        (RemoteIPHost >> 24) & 0xFF, (RemoteIPHost >> 16) & 0xFF, (RemoteIPHost >> 8) & 0xFF, RemoteIPHost & 0xFF, Ntohs(RemotePort));
 
     return Conn;
 }
@@ -1406,7 +1332,6 @@ void TCP_DestroyConnection(LPTCP_CONNECTION Connection) {
         SAFE_USE (Connection->NotificationContext) {
             Notification_DestroyContext(Connection->NotificationContext);
             Connection->NotificationContext = NULL;
-            DEBUG(TEXT("[TCP_DestroyConnection] Destroyed notification context for connection %p"), (LPVOID)Connection);
         }
 
         // Remove from connections list
@@ -1419,7 +1344,6 @@ void TCP_DestroyConnection(LPTCP_CONNECTION Connection) {
         // Free the connection memory
         KernelHeapFree(Connection);
 
-        DEBUG(TEXT("[TCP_DestroyConnection] Destroyed connection %p"), (LPVOID)Connection);
     }
 }
 
@@ -1448,7 +1372,6 @@ int TCP_Send(LPTCP_CONNECTION Connection, const U8* Data, U32 Length) {
 
     SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         if (SM_GetCurrentState(&Connection->StateMachine) != TCP_STATE_ESTABLISHED) {
-            DEBUG(TEXT("[TCP_Send] Cannot send data, connection not established"));
             return -1;
         }
 
@@ -1523,13 +1446,10 @@ int TCP_Receive(LPTCP_CONNECTION Connection, U8* Buffer, U32 BufferSize) {
 
 int TCP_Close(LPTCP_CONNECTION Connection) {
     SAFE_USE_VALID_ID(Connection, KOID_TCP) {
-        DEBUG(TEXT("[TCP_Close] Closing connection %p, current state=%d"), (LPVOID)Connection, SM_GetCurrentState(&Connection->StateMachine));
         BOOL result = SM_ProcessEvent(&Connection->StateMachine, TCP_EVENT_CLOSE, NULL);
-        DEBUG(TEXT("[TCP_Close] Close event processed, result=%d, new state=%d"), result, SM_GetCurrentState(&Connection->StateMachine));
 
         return result ? 0 : -1;
     }
-    DEBUG(TEXT("[TCP_Close] Invalid connection %p"), (LPVOID)Connection);
     return -1;
 }
 
@@ -1546,7 +1466,6 @@ SM_STATE TCP_GetState(LPTCP_CONNECTION Connection) {
 
 void TCP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 DestinationIP) {
     if (PayloadLength < sizeof(TCP_HEADER)) {
-        DEBUG(TEXT("[TCP_OnIPv4Packet] Packet too small (%u bytes)"), PayloadLength);
         return;
     }
 
@@ -1555,7 +1474,6 @@ void TCP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
 
     // Validate header length
     if (HeaderLength < sizeof(TCP_HEADER) || HeaderLength > PayloadLength) {
-        DEBUG(TEXT("[TCP_OnIPv4Packet] Invalid header length %u"), HeaderLength);
         return;
     }
 
@@ -1568,19 +1486,13 @@ void TCP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
         U32 OptionsLength = HeaderLength - sizeof(TCP_HEADER);
         const U8* OptionsData = Payload + sizeof(TCP_HEADER);
         TCP_ParseOptions(OptionsData, OptionsLength, &ParsedOptions);
-        DEBUG(TEXT("[TCP_OnIPv4Packet] Parsed %u bytes of TCP options"), OptionsLength);
     } else {
         MemorySet(&ParsedOptions, 0, sizeof(TCP_OPTIONS));
     }
 
-    DEBUG(TEXT("[TCP_OnIPv4Packet] Received packet: Src=%d.%d.%d.%d:%d Dst=%d.%d.%d.%d:%d Flags=0x%02X Seq=%u Ack=%u"),
-        (SourceIP >> 24) & 0xFF, (SourceIP >> 16) & 0xFF, (SourceIP >> 8) & 0xFF, SourceIP & 0xFF, Ntohs(Header->SourcePort),
-        (DestinationIP >> 24) & 0xFF, (DestinationIP >> 16) & 0xFF, (DestinationIP >> 8) & 0xFF, DestinationIP & 0xFF, Ntohs(Header->DestinationPort),
-        Header->Flags, Ntohl(Header->SequenceNumber), Ntohl(Header->AckNumber));
 
     // Validate checksum
     if (!TCP_ValidateChecksum((TCP_HEADER*)Header, Data, DataLength, SourceIP, DestinationIP)) {
-        DEBUG(TEXT("[TCP_OnIPv4Packet] Invalid checksum"));
         return;
     }
 
@@ -1595,14 +1507,12 @@ void TCP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
             Current->RemoteIP == SourceIP &&
             Current->LocalIP == DestinationIP) {
             Conn = Current;
-            DEBUG(TEXT("[TCP_OnIPv4Packet] Found matching connection %p"), (LPVOID)Conn);
             break;
         }
         Current = (LPTCP_CONNECTION)Current->Next;
     }
 
     if (Conn == NULL) {
-        DEBUG(TEXT("[TCP_OnIPv4Packet] No matching connection found for port %d->%d"), Ntohs(Header->SourcePort), Ntohs(Header->DestinationPort));
 
         // Send RST for packets received on unknown connections (except RST packets)
         if (!(Header->Flags & TCP_FLAG_RST)) {
@@ -1634,33 +1544,24 @@ void TCP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
     if (DataLength > 0) {
         // Process data
         EventType = TCP_EVENT_RCV_DATA;
-        DEBUG(TEXT("[TCP_OnIPv4Packet] Processing DATA event (%d bytes)"), DataLength);
         ProcessResult = SM_ProcessEvent(&Conn->StateMachine, EventType, &Event);
-        DEBUG(TEXT("[TCP_OnIPv4Packet] State machine DATA processing result: %s"), ProcessResult ? "SUCCESS" : "FAILED");
     }
 
     if (Flags & TCP_FLAG_RST) {
         EventType = TCP_EVENT_RCV_RST;
-        DEBUG(TEXT("[TCP_OnIPv4Packet] Processing RST event"));
     } else if ((Flags & (TCP_FLAG_SYN | TCP_FLAG_ACK)) == (TCP_FLAG_SYN | TCP_FLAG_ACK)) {
         EventType = TCP_EVENT_RCV_ACK;
-        DEBUG(TEXT("[TCP_OnIPv4Packet] Processing SYN+ACK event"));
     } else if (Flags & TCP_FLAG_SYN) {
         EventType = TCP_EVENT_RCV_SYN;
-        DEBUG(TEXT("[TCP_OnIPv4Packet] Processing SYN event"));
     } else if (Flags & TCP_FLAG_FIN) {
         EventType = TCP_EVENT_RCV_FIN;
-        DEBUG(TEXT("[TCP_OnIPv4Packet] Processing FIN event"));
     } else if (Flags & TCP_FLAG_ACK) {
         EventType = TCP_EVENT_RCV_ACK;
-        DEBUG(TEXT("[TCP_OnIPv4Packet] Processing ACK event"));
     }
 
-    DEBUG(TEXT("[TCP_OnIPv4Packet] Processing event (%d bytes)"), DataLength);
     ProcessResult = SM_ProcessEvent(&Conn->StateMachine, EventType, &Event);
     UNUSED(ProcessResult);
 
-    DEBUG(TEXT("[TCP_OnIPv4Packet] State machine processing result: %s"), ProcessResult ? "SUCCESS" : "FAILED");
 }
 
 /************************************************************************/
@@ -1678,7 +1579,6 @@ void TCP_Update(void) {
         if (CurrentState == TCP_STATE_TIME_WAIT &&
             Conn->TimeWaitTimer > 0 &&
             CurrentTime >= Conn->TimeWaitTimer) {
-            DEBUG(TEXT("[TCP_Update] TIME_WAIT timeout reached for connection %p"), (LPVOID)Conn);
             SM_ProcessEvent(&Conn->StateMachine, TCP_EVENT_TIMEOUT, NULL);
         }
 
@@ -1697,7 +1597,6 @@ void TCP_Update(void) {
                     Conn->RetransmitTimer = CurrentTime + Conn->RetransmitCurrentTimeout;
                 }
             } else {
-                DEBUG(TEXT("[TCP_Update] Maximum retransmits reached, connection failed"));
                 TCP_ClearRetransmissionState(Conn);
 
                 SAFE_USE(Conn->NotificationContext) {
@@ -1720,7 +1619,6 @@ void TCP_Update(void) {
 void TCP_SetNotificationContext(LPTCP_CONNECTION Connection, LPNOTIFICATION_CONTEXT Context) {
     SAFE_USE_VALID_ID(Connection, KOID_TCP) {
         Connection->NotificationContext = Context;
-        DEBUG(TEXT("[TCP_SetNotificationContext] Set notification context %p for connection %p"), (LPVOID)Context, (LPVOID)Connection);
     }
 }
 
@@ -1734,7 +1632,6 @@ U32 TCP_RegisterCallback(LPTCP_CONNECTION Connection, U32 Event, NOTIFICATION_CA
 
     U32 Result = Notification_Register(Connection->NotificationContext, Event, Callback, UserData);
     if (Result != 0) {
-        DEBUG(TEXT("[TCP_RegisterCallback] Registered callback for event %u on connection %p"), Event, (LPVOID)Connection);
         return 0; // Success
     } else {
         ERROR(TEXT("[TCP_RegisterCallback] Failed to register callback for event %u on connection %p"), Event, (LPVOID)Connection);
@@ -1761,8 +1658,6 @@ void TCP_InitSlidingWindow(LPTCP_CONNECTION Connection) {
 
         Hysteresis_Initialize(&Connection->WindowHysteresis, LowThreshold, HighThreshold, MaxWindow);
 
-        DEBUG(TEXT("[TCP_InitSlidingWindow] Initialized hysteresis: max=%u, low=%u, high=%u for connection %p"),
-              MaxWindow, LowThreshold, HighThreshold, (LPVOID)Connection);
     }
 }
 
@@ -1787,12 +1682,8 @@ void TCP_ProcessDataConsumption(LPTCP_CONNECTION Connection, U32 DataConsumed) {
 
         // Note: RecvWindow is no longer used - window is calculated dynamically in TCP_SendPacket
 
-        DEBUG(TEXT("[TCP_ProcessDataConsumption] DataConsumed=%u, BufferUsed=%lu, Window=%u, StateChanged=%d"),
-              DataConsumed, Connection->RecvBufferUsed, NewWindow, StateChanged);
 
         if (StateChanged) {
-            DEBUG(TEXT("[TCP_ProcessDataConsumption] Window state transition to %s"),
-                  Hysteresis_GetState(&Connection->WindowHysteresis) ? TEXT("HIGH") : TEXT("LOW"));
         }
     }
 }
@@ -1809,9 +1700,6 @@ BOOL TCP_ShouldSendWindowUpdate(LPTCP_CONNECTION Connection) {
         BOOL ShouldSend = Hysteresis_IsTransitionPending(&Connection->WindowHysteresis);
 
         if (ShouldSend) {
-            DEBUG(TEXT("[TCP_ShouldSendWindowUpdate] Window update needed: state=%s, window=%u"),
-                  Hysteresis_GetState(&Connection->WindowHysteresis) ? TEXT("HIGH") : TEXT("LOW"),
-                  Hysteresis_GetValue(&Connection->WindowHysteresis));
 
             // Clear the transition flag since we're about to send the update
             Hysteresis_ClearTransition(&Connection->WindowHysteresis);
@@ -1851,7 +1739,6 @@ void TCP_HandleApplicationRead(LPTCP_CONNECTION Connection, U32 BytesConsumed) {
         }
 
         if (ShouldSend) {
-            DEBUG(TEXT("[TCP_HandleApplicationRead] Sending window update ACK after consuming %u bytes"), BytesConsumed);
             if (TCP_SendPacket(Connection, TCP_FLAG_ACK, NULL, 0) < 0) {
                 ERROR(TEXT("[TCP_HandleApplicationRead] Failed to transmit window update ACK"));
             }

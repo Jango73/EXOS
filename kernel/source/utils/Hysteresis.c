@@ -60,8 +60,6 @@ void Hysteresis_Initialize(LPHYSTERESIS This, U32 LowThreshold, U32 HighThreshol
         This->State = (InitialValue >= HighThreshold);
         This->TransitionPending = FALSE;
 
-        DEBUG(TEXT("[Hysteresis_Initialize] Low=%u, High=%u, Initial=%u, State=%d"),
-              LowThreshold, HighThreshold, InitialValue, This->State);
     } else {
         ERROR(TEXT("[Hysteresis_Initialize] Object NULL"));
     }
@@ -99,7 +97,6 @@ BOOL Hysteresis_Update(LPHYSTERESIS This, U32 NewValue) {
                 This->State = TRUE;
                 This->TransitionPending = TRUE;
                 StateChanged = TRUE;
-                DEBUG(TEXT("[Hysteresis_Update] Transition LOW->HIGH: %u >= %u"), NewValue, This->HighThreshold);
             }
         } else {
             // Currently in high state, check if we drop below low threshold
@@ -107,12 +104,10 @@ BOOL Hysteresis_Update(LPHYSTERESIS This, U32 NewValue) {
                 This->State = FALSE;
                 This->TransitionPending = TRUE;
                 StateChanged = TRUE;
-                DEBUG(TEXT("[Hysteresis_Update] Transition HIGH->LOW: %u < %u"), NewValue, This->LowThreshold);
             }
         }
 
         if (!StateChanged) {
-            DEBUG(TEXT("[Hysteresis_Update] Value=%u, State=%d (no change)"), NewValue, This->State);
         }
 
         return StateChanged;
@@ -190,7 +185,6 @@ BOOL Hysteresis_IsTransitionPending(LPHYSTERESIS This) {
 void Hysteresis_ClearTransition(LPHYSTERESIS This) {
     SAFE_USE(This) {
         if (This->TransitionPending) {
-            DEBUG(TEXT("[Hysteresis_ClearTransition] Clearing transition flag"));
         }
         This->TransitionPending = FALSE;
         return;
@@ -246,7 +240,6 @@ void Hysteresis_Reset(LPHYSTERESIS This, U32 NewValue) {
         This->State = (NewValue >= This->HighThreshold);
         This->TransitionPending = FALSE;
 
-        DEBUG(TEXT("[Hysteresis_Reset] Reset to value=%u, state=%d"), NewValue, This->State);
         return;
     }
 

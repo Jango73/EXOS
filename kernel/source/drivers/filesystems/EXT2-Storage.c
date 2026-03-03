@@ -61,9 +61,7 @@ BOOL ReadBlock(LPEXT2FILESYSTEM FileSystem, U32 Block, LPVOID Buffer) {
     if (Buffer == NULL) return FALSE;
     if (FileSystem->SectorsPerBlock == 0) return FALSE;
 
-    DEBUG(TEXT("[ReadBlock] begin block=%u sectors_per_block=%u"), Block, FileSystem->SectorsPerBlock);
     Result = ReadSectors(FileSystem, Block * FileSystem->SectorsPerBlock, FileSystem->SectorsPerBlock, Buffer);
-    DEBUG(TEXT("[ReadBlock] end block=%u result=%u"), Block, Result ? 1 : 0);
 
     return Result;
 }

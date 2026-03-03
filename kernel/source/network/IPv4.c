@@ -92,18 +92,11 @@ int IPv4_ValidateChecksum(IPV4_HEADER* Header) {
     U16 ReceivedChecksum = Header->HeaderChecksum;
     Header->HeaderChecksum = 0;
 
-    DEBUG(TEXT("[IPv4_ValidateChecksum] Validating IPv4 header checksum"));
-    DEBUG(TEXT("[IPv4_ValidateChecksum] Header length: %u bytes, received checksum: %x"),
-          HeaderLength, Ntohs(ReceivedChecksum));
-
     // Calculate checksum of entire header (including checksum field)
     U16 CalculatedChecksum = NetworkChecksum_Calculate((const U8*)Header, HeaderLength);
 
     // Compare calculated checksum with received checksum
     BOOL IsValid = (CalculatedChecksum == ReceivedChecksum);
-
-    DEBUG(TEXT("[IPv4_ValidateChecksum] Calculated checksum: %x, valid: %s"),
-          Ntohs(CalculatedChecksum), IsValid ? "YES" : "NO");
 
     Header->HeaderChecksum = ReceivedChecksum;
 
@@ -146,39 +139,28 @@ static void IPv4_HandlePacket(LPIPV4_CONTEXT Context, const IPV4_HEADER* Packet,
     U32 DstIP = Ntohl(Packet->DestinationAddress);
     UNUSED(SrcIP);
     UNUSED(DstIP);
-    DEBUG(TEXT("[IPv4_HandlePacket] Received: Src=%u.%u.%u.%u Dst=%u.%u.%u.%u Proto=%u Len=%u"),
-                 (SrcIP >> 24) & 0xFF, (SrcIP >> 16) & 0xFF, (SrcIP >> 8) & 0xFF, SrcIP & 0xFF,
-                 (DstIP >> 24) & 0xFF, (DstIP >> 16) & 0xFF, (DstIP >> 8) & 0xFF, DstIP & 0xFF,
-                 Packet->Protocol, PacketLength);
-
     // Validate version
     if (Version != 4) {
-        DEBUG(TEXT("[IPv4_HandlePacket] Invalid version: %u"), (U32)Version);
         return;
     }
 
     // Validate header length
     if (IHL < 5 || HeaderLength > TotalLength) {
-        DEBUG(TEXT("[IPv4_HandlePacket] Invalid header length: IHL=%u"), (U32)IHL);
         return;
     }
 
     // Validate total length
     if (PacketLength > TotalLength || PacketLength < HeaderLength) {
-        DEBUG(TEXT("[IPv4_HandlePacket] Invalid packet length: %u (frame=%u, hdr=%u)"),
-                     (U32)PacketLength, TotalLength, HeaderLength);
         return;
     }
 
     // Validate checksum
     if (!IPv4_ValidateChecksum((IPV4_HEADER*)Packet)) {
-        DEBUG(TEXT("[IPv4_HandlePacket] Invalid checksum"));
         return;
     }
 
     // Decrement and check TTL
     if (Packet->TimeToLive <= 1) {
-        DEBUG(TEXT("[IPv4_HandlePacket] TTL expired (TTL=%u)"), (U32)Packet->TimeToLive);
         return;
     }
 
@@ -189,16 +171,12 @@ static void IPv4_HandlePacket(LPIPV4_CONTEXT Context, const IPV4_HEADER* Packet,
         // Not for us, drop (could implement forwarding here)
         U32 DstIP = Ntohl(Packet->DestinationAddress);
         UNUSED(DstIP);
-        DEBUG(TEXT("[IPv4_HandlePacket] Packet not for us: %u.%u.%u.%u"),
-                     (DstIP >> 24) & 0xFF, (DstIP >> 16) & 0xFF,
-                     (DstIP >> 8) & 0xFF, DstIP & 0xFF);
         return;
     }
 
     // Handle fragments (for now, only accept non-fragmented packets)
     if ((FlagsFragOffset & IPV4_FRAGMENT_OFFSET_MASK) != 0 ||
         (FlagsFragOffset & IPV4_FLAG_MORE_FRAGMENTS) != 0) {
-        DEBUG(TEXT("[IPv4_HandlePacket] Fragmented packets not supported"));
         return;
     }
 
@@ -211,7 +189,6 @@ static void IPv4_HandlePacket(LPIPV4_CONTEXT Context, const IPV4_HEADER* Packet,
     if (Handler) {
         Handler(Payload, PayloadLength, Packet->SourceAddress, Packet->DestinationAddress);
     } else {
-        DEBUG(TEXT("[IPv4_HandlePacket] No handler for protocol %u"), (U32)Packet->Protocol);
     }
 }
 
@@ -252,9 +229,6 @@ void IPv4_Initialize(LPDEVICE Device, U32 LocalIPv4_Be) {
 
     U32 IP = Ntohl(LocalIPv4_Be);
     UNUSED(IP);
-    DEBUG(TEXT("[IPv4_Initialize] Initialized for %u.%u.%u.%u"),
-                 (IP >> 24) & 0xFF, (IP >> 16) & 0xFF,
-                 (IP >> 8) & 0xFF, IP & 0xFF);
 }
 
 /************************************************************************/
@@ -293,9 +267,6 @@ void IPv4_SetLocalAddress(LPDEVICE Device, U32 LocalIPv4_Be) {
 
     U32 IP = Ntohl(LocalIPv4_Be);
     UNUSED(IP);
-    DEBUG(TEXT("[IPv4_SetLocalAddress] Local address set to %u.%u.%u.%u"),
-                 (IP >> 24) & 0xFF, (IP >> 16) & 0xFF,
-                 (IP >> 8) & 0xFF, IP & 0xFF);
 }
 
 /************************************************************************/
@@ -320,10 +291,6 @@ void IPv4_SetNetworkConfig(LPDEVICE Device, U32 LocalIPv4_Be, U32 NetmaskBe, U32
     UNUSED(IP);
     UNUSED(Mask);
     UNUSED(Gateway);
-    DEBUG(TEXT("[IPv4_SetNetworkConfig] IP=%u.%u.%u.%u Mask=%u.%u.%u.%u Gateway=%u.%u.%u.%u"),
-                 (IP >> 24) & 0xFF, (IP >> 16) & 0xFF, (IP >> 8) & 0xFF, IP & 0xFF,
-                 (Mask >> 24) & 0xFF, (Mask >> 16) & 0xFF, (Mask >> 8) & 0xFF, Mask & 0xFF,
-                 (Gateway >> 24) & 0xFF, (Gateway >> 16) & 0xFF, (Gateway >> 8) & 0xFF, Gateway & 0xFF);
 }
 
 /************************************************************************/
@@ -349,7 +316,6 @@ void IPv4_ClearPendingPackets(LPDEVICE Device) {
         Context->PendingPackets[Index].IsValid = 0;
     }
 
-    DEBUG(TEXT("[IPv4_ClearPendingPackets] Pending packet queue cleared"));
 }
 
 /************************************************************************/
@@ -363,7 +329,6 @@ void IPv4_RegisterProtocolHandler(LPDEVICE Device, U8 Protocol, IPv4_ProtocolHan
     if (Context == NULL) return;
 
     Context->ProtocolHandlers[Protocol] = Handler;
-    DEBUG(TEXT("[IPv4_RegisterProtocolHandler] Registered handler for protocol %u"), (U32)Protocol);
 }
 
 /************************************************************************/
@@ -390,29 +355,20 @@ int IPv4_Send(LPDEVICE Device, U32 DestinationIP, U8 Protocol, const U8* Payload
     if (Context->DefaultGatewayBe != 0 && Context->NetmaskBe != 0) {
         U32 LocalNetwork = Context->LocalIPv4_Be & Context->NetmaskBe;
         U32 DestNetwork = DestinationIP & Context->NetmaskBe;
-        DEBUG(TEXT("[IPv4_Send] Routing check: LocalNetwork=%x, DestNetwork=%x, Gateway=%x"),
-              Ntohl(LocalNetwork), Ntohl(DestNetwork), Ntohl(Context->DefaultGatewayBe));
         if (DestNetwork != LocalNetwork) {
             NextHopIP = Context->DefaultGatewayBe;
-            DEBUG(TEXT("[IPv4_Send] Using gateway: NextHopIP=%x"), Ntohl(NextHopIP));
         } else {
-            DEBUG(TEXT("[IPv4_Send] Using direct route: NextHopIP=%x"), Ntohl(NextHopIP));
         }
     }
 
     // Try immediate ARP resolution (non-blocking)
     if (ARP_Resolve(Device, NextHopIP, DestinationMAC)) {
-        DEBUG(TEXT("[IPv4_Send] ARP resolved immediately, sending packet"));
     } else {
         // ARP resolution pending - queue the packet for later transmission
         U32 DstIP = Ntohl(DestinationIP);
         U32 NextHopIPHost = Ntohl(NextHopIP);
         UNUSED(DstIP);
         UNUSED(NextHopIPHost);
-        DEBUG(TEXT("[IPv4_Send] ARP resolution pending for destination %u.%u.%u.%u (NextHop %u.%u.%u.%u) - queuing packet"),
-                     (DstIP >> 24) & 0xFF, (DstIP >> 16) & 0xFF, (DstIP >> 8) & 0xFF, DstIP & 0xFF,
-                     (NextHopIPHost >> 24) & 0xFF, (NextHopIPHost >> 16) & 0xFF, (NextHopIPHost >> 8) & 0xFF, NextHopIPHost & 0xFF);
-
         return IPv4_AddPendingPacket(Context, DestinationIP, NextHopIP, Protocol, Payload, PayloadLength) ? IPV4_SEND_PENDING : IPV4_SEND_FAILED;
     }
 
@@ -424,7 +380,6 @@ int IPv4_Send(LPDEVICE Device, U32 DestinationIP, U8 Protocol, const U8* Payload
     // Allocate frame buffer (on stack for small packets)
     U8 FrameBuffer[1514]; // Typical Ethernet MTU
     if (TotalFrameSize > sizeof(FrameBuffer)) {
-        DEBUG(TEXT("[IPv4_Send] Packet too large: %u bytes"), TotalFrameSize);
         return 0;
     }
 
@@ -446,16 +401,13 @@ int IPv4_Send(LPDEVICE Device, U32 DestinationIP, U8 Protocol, const U8* Payload
     SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
         SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
             if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) != DF_RETURN_SUCCESS) {
-                DEBUG(TEXT("[IPv4_Send] Failed to get network info"));
                 goto Out;
             }
             MacRetrieved = TRUE;
         } else {
-            DEBUG(TEXT("[IPv4_Send] Invalid network device driver"));
             goto Out;
         }
     } else {
-        DEBUG(TEXT("[IPv4_Send] Invalid network device"));
         goto Out;
     }
 
@@ -469,13 +421,6 @@ Out:
     EthHeader->EthType = Htons(ETHTYPE_IPV4);
 
     // Debug: Show Ethernet header
-    DEBUG(TEXT("[IPv4_Send] Ethernet Header: Dest=%02X:%02X:%02X:%02X:%02X:%02X Src=%02X:%02X:%02X:%02X:%02X:%02X EthType=0x%04X"),
-          EthHeader->Destination[0], EthHeader->Destination[1], EthHeader->Destination[2],
-          EthHeader->Destination[3], EthHeader->Destination[4], EthHeader->Destination[5],
-          EthHeader->Source[0], EthHeader->Source[1], EthHeader->Source[2],
-          EthHeader->Source[3], EthHeader->Source[4], EthHeader->Source[5],
-          Ntohs(EthHeader->EthType));
-
     // Build IPv4 header
     IPV4_HEADER* IPv4Hdr = (IPV4_HEADER*)(FrameBuffer + ETHERNET_HEADERSize);
     MemorySet(IPv4Hdr, 0, sizeof(IPV4_HEADER));
@@ -495,18 +440,6 @@ Out:
     // Calculate and set checksum
     IPv4Hdr->HeaderChecksum = IPv4_CalculateChecksum(IPv4Hdr);
 
-    DEBUG(TEXT("[IPv4_Send] IPv4 Header: Src=%d.%d.%d.%d Dst=%d.%d.%d.%d Proto=%u Len=%u TTL=%u ID=%u Checksum=0x%04X"),
-          (Ntohl(IPv4Hdr->SourceAddress) >> 24) & 0xFF, (Ntohl(IPv4Hdr->SourceAddress) >> 16) & 0xFF,
-          (Ntohl(IPv4Hdr->SourceAddress) >> 8) & 0xFF, Ntohl(IPv4Hdr->SourceAddress) & 0xFF,
-          (Ntohl(IPv4Hdr->DestinationAddress) >> 24) & 0xFF, (Ntohl(IPv4Hdr->DestinationAddress) >> 16) & 0xFF,
-          (Ntohl(IPv4Hdr->DestinationAddress) >> 8) & 0xFF, Ntohl(IPv4Hdr->DestinationAddress) & 0xFF,
-          IPv4Hdr->Protocol, Ntohs(IPv4Hdr->TotalLength), IPv4Hdr->TimeToLive,
-          Ntohs(IPv4Hdr->Identification), Ntohs(IPv4Hdr->HeaderChecksum));
-
-    DEBUG(TEXT("[IPv4_Send] Sending IPv4 packet: Src=%x Dst=%x Proto=%u Len=%u"),
-          Ntohl(IPv4Hdr->SourceAddress), Ntohl(IPv4Hdr->DestinationAddress),
-          IPv4Hdr->Protocol, Ntohs(IPv4Hdr->TotalLength));
-
     // Copy payload
     if (PayloadLength > 0) {
         MemoryCopy(FrameBuffer + ETHERNET_HEADERSize + IPv4HeaderSize, Payload, PayloadLength);
@@ -514,7 +447,6 @@ Out:
 
     // Send frame
     U32 Result = IPv4_SendEthernetFrame(Context, FrameBuffer, TotalFrameSize);
-    DEBUG(TEXT("[IPv4_Send] Frame send result: %u (TotalSize=%u)"), Result, TotalFrameSize);
     return Result > 0 ? IPV4_SEND_IMMEDIATE : IPV4_SEND_FAILED;
 }
 
@@ -542,7 +474,6 @@ static int IPv4_SendDirect(LPIPV4_CONTEXT Context, U32 DestinationIP, U32 NextHo
 
     // Resolve NextHop MAC address (should be in cache now)
     if (!ARP_Resolve(Device, NextHopIP, DestinationMAC)) {
-        DEBUG(TEXT("[IPv4_SendDirect] ARP resolution failed for NextHop %x"), Ntohl(NextHopIP));
         return 0;
     }
 
@@ -554,7 +485,6 @@ static int IPv4_SendDirect(LPIPV4_CONTEXT Context, U32 DestinationIP, U32 NextHo
     // Allocate frame buffer (on stack for small packets)
     U8 FrameBuffer[1514]; // Typical Ethernet MTU
     if (TotalFrameSize > sizeof(FrameBuffer)) {
-        DEBUG(TEXT("[IPv4_SendDirect] Packet too large: %u bytes"), TotalFrameSize);
         return 0;
     }
 
@@ -576,16 +506,13 @@ static int IPv4_SendDirect(LPIPV4_CONTEXT Context, U32 DestinationIP, U32 NextHo
     SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
         SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
             if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) != DF_RETURN_SUCCESS) {
-                DEBUG(TEXT("[IPv4_SendDirect] Failed to get network info"));
                 goto Out;
             }
             MacRetrieved = TRUE;
         } else {
-            DEBUG(TEXT("[IPv4_SendDirect] Invalid network device driver"));
             goto Out;
         }
     } else {
-        DEBUG(TEXT("[IPv4_SendDirect] Invalid network device"));
         goto Out;
     }
 
@@ -617,10 +544,6 @@ Out:
     // Calculate and set checksum
     IPv4Hdr->HeaderChecksum = IPv4_CalculateChecksum(IPv4Hdr);
 
-    DEBUG(TEXT("[IPv4_SendDirect] Sending IPv4 packet: Src=%x Dst=%x Proto=%u Len=%u"),
-          Ntohl(IPv4Hdr->SourceAddress), Ntohl(IPv4Hdr->DestinationAddress),
-          IPv4Hdr->Protocol, Ntohs(IPv4Hdr->TotalLength));
-
     // Copy payload
     if (PayloadLength > 0) {
         MemoryCopy(FrameBuffer + ETHERNET_HEADERSize + IPv4HeaderSize, Payload, PayloadLength);
@@ -628,7 +551,6 @@ Out:
 
     // Send frame
     U32 Result = IPv4_SendEthernetFrame(Context, FrameBuffer, TotalFrameSize);
-    DEBUG(TEXT("[IPv4_SendDirect] Frame send result: %u (TotalSize=%u)"), Result, TotalFrameSize);
     return Result;
 }
 
@@ -643,21 +565,16 @@ Out:
 void IPv4_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length) {
     LPIPV4_CONTEXT Context;
 
-    DEBUG(TEXT("[IPv4_OnEthernetFrame] Entry Device=%p Frame=%p Length=%u"), (LPVOID)Device, (LPVOID)Frame, Length);
-
     if (Device == NULL || Frame == NULL) {
-        DEBUG(TEXT("[IPv4_OnEthernetFrame] NULL parameters"));
         return;
     }
 
     Context = IPv4_GetContext(Device);
     if (Context == NULL) {
-        DEBUG(TEXT("[IPv4_OnEthernetFrame] No IPv4 context for device"));
         return;
     }
 
     if (Length < sizeof(ETHERNET_HEADER)) {
-        DEBUG(TEXT("[IPv4_OnEthernetFrame] Frame too short: %u"), Length);
         return;
     }
 
@@ -682,25 +599,18 @@ void IPv4_ARPResolvedCallback(LPNOTIFICATION_DATA NotificationData, LPVOID UserD
     LPIPV4_CONTEXT Context = (LPIPV4_CONTEXT)UserData;
     LPARP_RESOLVED_DATA ResolvedData;
 
-    DEBUG(TEXT("[IPv4_ARPResolvedCallback] Entry: Context=%p NotificationData=%p"), (LPVOID)Context, (LPVOID)NotificationData);
-
     if (Context == NULL || NotificationData == NULL) {
-        DEBUG(TEXT("[IPv4_ARPResolvedCallback] NULL parameter: Context=%p NotificationData=%p"), (LPVOID)Context, (LPVOID)NotificationData);
         return;
     }
     if (NotificationData->EventID != NOTIF_EVENT_ARP_RESOLVED) {
-        DEBUG(TEXT("[IPv4_ARPResolvedCallback] Wrong event ID: %x"), NotificationData->EventID);
         return;
     }
     if (NotificationData->Data == NULL) {
-        DEBUG(TEXT("[IPv4_ARPResolvedCallback] NULL data"));
         return;
     }
 
     ResolvedData = (LPARP_RESOLVED_DATA)NotificationData->Data;
     U32 ResolvedIP = ResolvedData->IPv4_Be;
-    DEBUG(TEXT("[IPv4_ARPResolvedCallback] ARP resolved for IP %x, processing pending packets"), Ntohl(ResolvedIP));
-
     IPv4_ProcessPendingPackets(Context, ResolvedIP);
 }
 
@@ -713,7 +623,6 @@ int IPv4_AddPendingPacket(LPIPV4_CONTEXT Context, U32 DestinationIP, U32 NextHop
     U32 i;
 
     if (Context == NULL || Payload == NULL || PayloadLength == 0 || PayloadLength > 1500 || PayloadLength > (65535 - sizeof(IPV4_HEADER))) {
-        DEBUG(TEXT("[IPv4_AddPendingPacket] Invalid parameters: PayloadLength=%u"), PayloadLength);
         return 0;
     }
 
@@ -721,9 +630,7 @@ int IPv4_AddPendingPacket(LPIPV4_CONTEXT Context, U32 DestinationIP, U32 NextHop
     if (!Context->ARPCallbackRegistered) {
         if (ARP_RegisterNotification(Context->Device, NOTIF_EVENT_ARP_RESOLVED, IPv4_ARPResolvedCallback, Context)) {
             Context->ARPCallbackRegistered = 1;
-            DEBUG(TEXT("[IPv4_AddPendingPacket] Registered ARP callback"));
         } else {
-            DEBUG(TEXT("[IPv4_AddPendingPacket] Failed to register ARP callback"));
             return 0;
         }
     }
@@ -737,14 +644,10 @@ int IPv4_AddPendingPacket(LPIPV4_CONTEXT Context, U32 DestinationIP, U32 NextHop
             Context->PendingPackets[i].PayloadLength = PayloadLength;
             MemoryCopy(Context->PendingPackets[i].Payload, Payload, PayloadLength);
             Context->PendingPackets[i].IsValid = 1;
-
-            DEBUG(TEXT("[IPv4_AddPendingPacket] Added pending packet %u: Dst=%x NextHop=%x Proto=%u Len=%u"),
-                  i, Ntohl(DestinationIP), Ntohl(NextHopIP), Protocol, PayloadLength);
             return 1;
         }
     }
 
-    DEBUG(TEXT("[IPv4_AddPendingPacket] No free slots for pending packet"));
     return 0;
 }
 
@@ -761,27 +664,18 @@ void IPv4_ProcessPendingPackets(LPIPV4_CONTEXT Context, U32 ResolvedIP) {
 
     for (i = 0; i < IPV4_MAX_PENDING_PACKETS; i++) {
         if (Context->PendingPackets[i].IsValid && Context->PendingPackets[i].NextHopIP == ResolvedIP) {
-            DEBUG(TEXT("[IPv4_ProcessPendingPackets] Sending pending packet %u: Dst=%x Proto=%u Len=%u"),
-                  i, Ntohl(Context->PendingPackets[i].DestinationIP),
-                  Context->PendingPackets[i].Protocol, Context->PendingPackets[i].PayloadLength);
-
             // Verify ARP is still available before sending
             U8 VerifyMAC[6];
             if (!ARP_Resolve(Context->Device, Context->PendingPackets[i].NextHopIP, VerifyMAC)) {
-                DEBUG(TEXT("[IPv4_ProcessPendingPackets] ARP expired for NextHop %x, keeping packet pending"),
-                      Ntohl(Context->PendingPackets[i].NextHopIP));
                 continue;
             }
 
             // Send the packet directly since ARP is verified
-            DEBUG(TEXT("[IPv4_ProcessPendingPackets] Calling IPv4_SendDirect for pending packet"));
             int Result = IPv4_SendDirect(Context, Context->PendingPackets[i].DestinationIP,
                                         Context->PendingPackets[i].NextHopIP,
                                         Context->PendingPackets[i].Protocol,
                                         Context->PendingPackets[i].Payload,
                                         Context->PendingPackets[i].PayloadLength);
-
-            DEBUG(TEXT("[IPv4_ProcessPendingPackets] Packet %u send result: %d"), i, Result);
 
             // Send notification only if packet was actually sent (not pending)
             if (Result == IPV4_SEND_IMMEDIATE && Context->NotificationContext) {
@@ -800,7 +694,6 @@ void IPv4_ProcessPendingPackets(LPIPV4_CONTEXT Context, U32 ResolvedIP) {
         }
     }
 
-    DEBUG(TEXT("[IPv4_ProcessPendingPackets] Processed %u pending packets for IP %x"), ProcessedCount, Ntohl(ResolvedIP));
 }
 
 /************************************************************************/
