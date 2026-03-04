@@ -242,3 +242,10 @@ Keep one file per concern:
 When implementation starts (not only planning), update:
 - `documentation/Kernel.md` with the Intel graphics backend architecture.
 - Doxygen pages for new driver modules and exported `GFX.h` structures.
+
+## Mandatory implementation direction
+- Native modeset implementation must stay multi-family by construction.
+- Do not implement machine-specific paths (for example one laptop profile only).
+- Introduce explicit per-family operations (`INTEL_DISPLAY_FAMILY_OPS`) for routing, clock programming, link configuration/training, plane/pipe programming, stride/tile encoding, and stage verification.
+- Keep one shared atomic-style pipeline (`detect family -> validate -> disable -> program -> enable -> verify -> commit/rollback`) and delegate hardware details only to family operations.
+- If one family path is incomplete, fail explicitly with diagnostic stage/family details; do not silently fallback to heuristic programming.

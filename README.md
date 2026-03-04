@@ -82,29 +82,50 @@ Bm437_IBM_VGA_8x16.otb from the Ultimate Oldschool PC Font Pack by VileR, licens
 ## Things it does
 
 - Multi-architecture : x86-32, x86-64
-- Virtual memory management (paging) with a buddy allocator for physical pages
+- Multi-threaded : software context switching
+- Virtual memory management (CPU & DMA mapping) (buddy allocator for physical pages)
 - Heap management (free lists)
-- Process spawning, task spawning, scheduling
+- Process spawning (kernel and userland), task spawning, scheduling
 - Security at kernel object level
-- File system management : FAT16, FAT32, EXT2, NTFS, EXFS (EXOS file system)
-- I/O APIC & Local APIC management
-- PCI device management
+- File system drivers : FAT16, FAT32, EXT2, NTFS ~
+- I/O APIC & Local APIC driver
+- PCI device driver
 - ATA, SATA/AHCI & NVMe storage drivers
 - xHCI driver (USB 3)
 - ACPI shutdown/reboot
 - Console management
 - PS/2 keyboard and mouse drivers
 - USB keyboard (HID) and mouse drivers
-- USB mass storage device driver
+- USB mass storage device driver ~
 - Primitive graphics using VESA standard (broken)
 - Virtual file system with mount points
 - Scripted shell with kernel object exposure
 - Configuration with TOML format
-- E1000 network driver
-- ARP/IPv4/DHCP/UDP/TCP network layers
-- Minimal HTTP client
+- E1000 network driver ~
+- ARP/IPv4/DHCP/UDP/TCP network layers ~
+- Minimal HTTP client ~
 - Kernel pointer masking, handles in userland
 - A few test apps
+
+(~ means working in emulator (QEMU), not tested or not yet working on bare metal)
+
+## Things it will do
+
+- IPC (shared memory through page mapping)
+- Multi-core (SMP)
+- Full security
+- Full network stack
+- Full Unicode
+- Realtek r8169
+- PCIe driver
+- VMD (Volume Management Device - Intel)
+- Native C compiler (TinyCC port)
+- HDA audio (Intel HD Audio)
+- NVIDIA GeForce driver
+- AMD Radeon driver
+- Larger test apps
+- ACPI Energy sensor drivers
+- Lots of other things
 
 ## Historical background
 
