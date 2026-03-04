@@ -24,7 +24,6 @@
 #include "iGPU-Internal.h"
 
 #include "CoreString.h"
-#include "Heap.h"
 #include "Log.h"
 #include "Memory.h"
 #include "drivers/graphics/Graphics-TextRenderer.h"
@@ -32,6 +31,47 @@
 /************************************************************************/
 
 static INTEL_GFX_SURFACE IntelGfxSurfaces[INTEL_GFX_MAX_SURFACES] = {0};
+
+/************************************************************************/
+
+static UINT IntelGfxFlushContextRegionToScanout(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, U32 Width, U32 Height) {
+    U32 BytesPerPixel = 0;
+    U32 CopyBytes = 0;
+    U32 Row = 0;
+
+    if (Context == NULL || Context->MemoryBase == NULL || Width == 0 || Height == 0) {
+        return DF_RETURN_GENERIC;
+    }
+
+    if (IntelGfxState.FrameBufferLinear == 0 || IntelGfxState.FrameBufferSize == 0) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    if (X < 0 || Y < 0) {
+        return DF_RETURN_GENERIC;
+    }
+
+    if ((U32)X + Width > IntelGfxState.ActiveWidth || (U32)Y + Height > IntelGfxState.ActiveHeight) {
+        return DF_RETURN_GENERIC;
+    }
+
+    BytesPerPixel = Context->BitsPerPixel / 8;
+    if (BytesPerPixel == 0) {
+        return DF_RETURN_GENERIC;
+    }
+
+    CopyBytes = Width * BytesPerPixel;
+    for (Row = 0; Row < Height; Row++) {
+        U32 SourceOffset = ((U32)Y + Row) * (U32)Context->BytesPerScanLine + ((U32)X * BytesPerPixel);
+        U32 DestinationOffset = ((U32)Y + Row) * IntelGfxState.ActiveStride + ((U32)X * BytesPerPixel);
+        U8* Source = Context->MemoryBase + SourceOffset;
+        U8* Destination = (U8*)(LINEAR)IntelGfxState.FrameBufferLinear + DestinationOffset;
+        MemoryCopy(Destination, Source, CopyBytes);
+    }
+
+    IntelGfxState.PresentBlitCount++;
+    return DF_RETURN_SUCCESS;
+}
 
 /************************************************************************/
 
@@ -227,7 +267,7 @@ static void IntelGfxReleaseSurface(LPINTEL_GFX_SURFACE Surface) {
     }
 
     if (Surface->MemoryBase != NULL) {
-        KernelHeapFree(Surface->MemoryBase);
+        FreeRegion((LINEAR)Surface->MemoryBase, Surface->SizeBytes);
     }
 
     *Surface = (INTEL_GFX_SURFACE){0};
@@ -330,6 +370,7 @@ UINT IntelGfxAllocateSurface(LPGFX_SURFACE_INFO Info) {
     U32 Pitch = 0;
     U32 SizeBytes = 0;
     U32 Flags = 0;
+    LINEAR MemoryLinear = 0;
     U8* Memory = NULL;
     U32 SurfaceId = 0;
 
@@ -378,10 +419,15 @@ UINT IntelGfxAllocateSurface(LPGFX_SURFACE_INFO Info) {
         return DF_RETURN_UNEXPECTED;
     }
 
-    Memory = (U8*)KernelHeapAlloc(SizeBytes);
-    if (Memory == NULL) {
+    MemoryLinear = AllocRegion(VMA_KERNEL,
+                               0,
+                               SizeBytes,
+                               ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER,
+                               TEXT("IntelGfxSurface"));
+    if (MemoryLinear == 0) {
         return DF_RETURN_UNEXPECTED;
     }
+    Memory = (U8*)(LINEAR)MemoryLinear;
     MemorySet(Memory, 0, SizeBytes);
 
     *Surface = (INTEL_GFX_SURFACE){
@@ -483,6 +529,7 @@ UINT IntelGfxSetPixel(LPPIXELINFO Info) {
         UnlockMutex(&(Context->Mutex));
         return 0;
     }
+    (void)IntelGfxFlushContextRegionToScanout(Context, Info->X, Info->Y, 1, 1);
     UnlockMutex(&(Context->Mutex));
     Info->Color = PixelColor;
     return 1;
@@ -523,6 +570,11 @@ UINT IntelGfxGetPixel(LPPIXELINFO Info) {
 
 UINT IntelGfxLine(LPLINEINFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
+    I32 X1 = 0;
+    I32 Y1 = 0;
+    I32 X2 = 0;
+    I32 Y2 = 0;
+    I32 Temp = 0;
 
     if (Info == NULL) {
         return 0;
@@ -535,6 +587,27 @@ UINT IntelGfxLine(LPLINEINFO Info) {
 
     LockMutex(&(Context->Mutex), INFINITY);
     IntelGfxDrawLineInternal(Context, Info->X1, Info->Y1, Info->X2, Info->Y2);
+    X1 = Info->X1;
+    Y1 = Info->Y1;
+    X2 = Info->X2;
+    Y2 = Info->Y2;
+    if (X1 > X2) {
+        Temp = X1;
+        X1 = X2;
+        X2 = Temp;
+    }
+    if (Y1 > Y2) {
+        Temp = Y1;
+        Y1 = Y2;
+        Y2 = Temp;
+    }
+    if (X1 < 0) X1 = 0;
+    if (Y1 < 0) Y1 = 0;
+    if (X2 >= Context->Width) X2 = Context->Width - 1;
+    if (Y2 >= Context->Height) Y2 = Context->Height - 1;
+    if (X2 >= X1 && Y2 >= Y1) {
+        (void)IntelGfxFlushContextRegionToScanout(Context, X1, Y1, (U32)(X2 - X1 + 1), (U32)(Y2 - Y1 + 1));
+    }
     UnlockMutex(&(Context->Mutex));
 
     return 1;
@@ -544,6 +617,11 @@ UINT IntelGfxLine(LPLINEINFO Info) {
 
 UINT IntelGfxRectangle(LPRECTINFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
+    I32 X1 = 0;
+    I32 Y1 = 0;
+    I32 X2 = 0;
+    I32 Y2 = 0;
+    I32 Temp = 0;
 
     if (Info == NULL) {
         return 0;
@@ -556,6 +634,27 @@ UINT IntelGfxRectangle(LPRECTINFO Info) {
 
     LockMutex(&(Context->Mutex), INFINITY);
     IntelGfxDrawRectangleInternal(Context, Info->X1, Info->Y1, Info->X2, Info->Y2);
+    X1 = Info->X1;
+    Y1 = Info->Y1;
+    X2 = Info->X2;
+    Y2 = Info->Y2;
+    if (X1 > X2) {
+        Temp = X1;
+        X1 = X2;
+        X2 = Temp;
+    }
+    if (Y1 > Y2) {
+        Temp = Y1;
+        Y1 = Y2;
+        Y2 = Temp;
+    }
+    if (X1 < 0) X1 = 0;
+    if (Y1 < 0) Y1 = 0;
+    if (X2 >= Context->Width) X2 = Context->Width - 1;
+    if (Y2 >= Context->Height) Y2 = Context->Height - 1;
+    if (X2 >= X1 && Y2 >= Y1) {
+        (void)IntelGfxFlushContextRegionToScanout(Context, X1, Y1, (U32)(X2 - X1 + 1), (U32)(Y2 - Y1 + 1));
+    }
     UnlockMutex(&(Context->Mutex));
 
     return 1;
@@ -566,6 +665,8 @@ UINT IntelGfxRectangle(LPRECTINFO Info) {
 UINT IntelGfxTextPutCell(LPGFX_TEXT_CELL_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     BOOL Result = FALSE;
+    I32 PixelX = 0;
+    I32 PixelY = 0;
 
     if (Info == NULL) {
         return 0;
@@ -578,6 +679,11 @@ UINT IntelGfxTextPutCell(LPGFX_TEXT_CELL_INFO Info) {
 
     LockMutex(&(Context->Mutex), INFINITY);
     Result = GfxTextPutCell(Context, Info);
+    if (Result) {
+        PixelX = (I32)(Info->CellX * Info->CellWidth);
+        PixelY = (I32)(Info->CellY * Info->CellHeight);
+        (void)IntelGfxFlushContextRegionToScanout(Context, PixelX, PixelY, Info->CellWidth, Info->CellHeight);
+    }
     UnlockMutex(&(Context->Mutex));
     return Result ? 1 : 0;
 }
@@ -587,6 +693,10 @@ UINT IntelGfxTextPutCell(LPGFX_TEXT_CELL_INFO Info) {
 UINT IntelGfxTextClearRegion(LPGFX_TEXT_REGION_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     BOOL Result = FALSE;
+    I32 PixelX = 0;
+    I32 PixelY = 0;
+    U32 PixelWidth = 0;
+    U32 PixelHeight = 0;
 
     if (Info == NULL) {
         return 0;
@@ -599,6 +709,13 @@ UINT IntelGfxTextClearRegion(LPGFX_TEXT_REGION_INFO Info) {
 
     LockMutex(&(Context->Mutex), INFINITY);
     Result = GfxTextClearRegion(Context, Info);
+    if (Result) {
+        PixelX = (I32)(Info->CellX * Info->GlyphCellWidth);
+        PixelY = (I32)(Info->CellY * Info->GlyphCellHeight);
+        PixelWidth = Info->RegionCellWidth * Info->GlyphCellWidth;
+        PixelHeight = Info->RegionCellHeight * Info->GlyphCellHeight;
+        (void)IntelGfxFlushContextRegionToScanout(Context, PixelX, PixelY, PixelWidth, PixelHeight);
+    }
     UnlockMutex(&(Context->Mutex));
     return Result ? 1 : 0;
 }
@@ -608,6 +725,10 @@ UINT IntelGfxTextClearRegion(LPGFX_TEXT_REGION_INFO Info) {
 UINT IntelGfxTextScrollRegion(LPGFX_TEXT_REGION_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     BOOL Result = FALSE;
+    I32 PixelX = 0;
+    I32 PixelY = 0;
+    U32 PixelWidth = 0;
+    U32 PixelHeight = 0;
 
     if (Info == NULL) {
         return 0;
@@ -620,6 +741,13 @@ UINT IntelGfxTextScrollRegion(LPGFX_TEXT_REGION_INFO Info) {
 
     LockMutex(&(Context->Mutex), INFINITY);
     Result = GfxTextScrollRegion(Context, Info);
+    if (Result) {
+        PixelX = (I32)(Info->CellX * Info->GlyphCellWidth);
+        PixelY = (I32)(Info->CellY * Info->GlyphCellHeight);
+        PixelWidth = Info->RegionCellWidth * Info->GlyphCellWidth;
+        PixelHeight = Info->RegionCellHeight * Info->GlyphCellHeight;
+        (void)IntelGfxFlushContextRegionToScanout(Context, PixelX, PixelY, PixelWidth, PixelHeight);
+    }
     UnlockMutex(&(Context->Mutex));
     return Result ? 1 : 0;
 }
@@ -629,6 +757,8 @@ UINT IntelGfxTextScrollRegion(LPGFX_TEXT_REGION_INFO Info) {
 UINT IntelGfxTextSetCursor(LPGFX_TEXT_CURSOR_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     BOOL Result = FALSE;
+    I32 PixelX = 0;
+    I32 PixelY = 0;
 
     if (Info == NULL) {
         return 0;
@@ -641,6 +771,12 @@ UINT IntelGfxTextSetCursor(LPGFX_TEXT_CURSOR_INFO Info) {
 
     LockMutex(&(Context->Mutex), INFINITY);
     Result = GfxTextSetCursor(Context, Info);
+    if (Result) {
+        U32 CursorHeight = (Info->CellHeight >= 4) ? 2 : 1;
+        PixelX = (I32)(Info->CellX * Info->CellWidth);
+        PixelY = (I32)(Info->CellY * Info->CellHeight) + (I32)Info->CellHeight - (I32)CursorHeight;
+        (void)IntelGfxFlushContextRegionToScanout(Context, PixelX, PixelY, Info->CellWidth, CursorHeight);
+    }
     UnlockMutex(&(Context->Mutex));
     return Result ? 1 : 0;
 }
@@ -662,6 +798,9 @@ UINT IntelGfxTextSetCursorVisible(LPGFX_TEXT_CURSOR_VISIBLE_INFO Info) {
 
     LockMutex(&(Context->Mutex), INFINITY);
     Result = GfxTextSetCursorVisible(Context, Info);
+    if (Result) {
+        (void)IntelGfxFlushContextRegionToScanout(Context, 0, 0, IntelGfxState.ActiveWidth, IntelGfxState.ActiveHeight);
+    }
     UnlockMutex(&(Context->Mutex));
     return Result ? 1 : 0;
 }

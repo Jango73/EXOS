@@ -185,6 +185,8 @@ typedef struct tag_INTEL_GFX_STATE {
     PHYSICAL FrameBufferPhysical;
     LINEAR FrameBufferLinear;
     U32 FrameBufferSize;
+    LINEAR ShadowFrameBufferLinear;
+    UINT ShadowFrameBufferSize;
     GRAPHICSCONTEXT Context;
     INTEL_GFX_CAPS IntelCapabilities;
     GFX_CAPABILITIES Capabilities;

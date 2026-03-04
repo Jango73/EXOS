@@ -383,6 +383,10 @@ static UINT IntelGfxLoad(void) {
 static UINT IntelGfxUnload(void) {
     IntelGfxReleaseAllSurfaces();
 
+    if (IntelGfxState.ShadowFrameBufferLinear != 0 && IntelGfxState.ShadowFrameBufferSize != 0) {
+        FreeRegion(IntelGfxState.ShadowFrameBufferLinear, IntelGfxState.ShadowFrameBufferSize);
+    }
+
     if (IntelGfxState.FrameBufferLinear != 0 && IntelGfxState.FrameBufferSize != 0) {
         UnMapIOMemory(IntelGfxState.FrameBufferLinear, IntelGfxState.FrameBufferSize);
     }
