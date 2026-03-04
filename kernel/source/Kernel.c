@@ -743,6 +743,8 @@ void LoadDriver(LPDRIVER Driver) {
             TEST(TEXT("[LoadDriver] %s.Load : KO"), TEXT(Driver->Product));
             if ((Driver->Flags & DRIVER_FLAG_CRITICAL)) {
                 ConsolePanic(TEXT("Critical driver %s failed to load"), TEXT(Driver->Product));
+            } else if (Result == DF_RETURN_HARDWARE_ABSENT) {
+                WARNING(TEXT("[LoadDriver] %s driver not loaded: hardware absent"), TEXT(Driver->Product));
             } else {
                 ERROR(TEXT("[LoadDriver] : Failed to load %s driver (code = %x)"), TEXT(Driver->Product), Result);
             }

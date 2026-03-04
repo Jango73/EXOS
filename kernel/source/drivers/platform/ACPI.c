@@ -957,7 +957,7 @@ static UINT ACPIDriverCommands(UINT Function, UINT Parameter) {
                 return DF_RETURN_SUCCESS;
             }
 
-            return DF_RETURN_UNEXPECTED;
+            return DF_RETURN_HARDWARE_ABSENT;
 
         case DF_UNLOAD:
             if ((ACPIDriver.Flags & DRIVER_FLAG_READY) == 0) {

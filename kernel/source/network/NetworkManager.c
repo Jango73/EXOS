@@ -248,10 +248,10 @@ static U32 NetworkManager_FindNetworkDevices(void) {
                 }
             }
         } else {
-            ERROR(TEXT("[NetworkManager_FindNetworkDevices] Kernel.PCIDevice->First is NULL"));
+            WARNING(TEXT("[NetworkManager_FindNetworkDevices] No PCI devices available"));
         }
     } else {
-        ERROR(TEXT("[NetworkManager_FindNetworkDevices] Kernel.PCIDevice is NULL"));
+        WARNING(TEXT("[NetworkManager_FindNetworkDevices] PCI device list is unavailable"));
     }
 
     return NetworkDeviceList != NULL ? NetworkDeviceList->NumItems : 0;
