@@ -1847,7 +1847,7 @@ The `ThresholdLatch` utility supports one-shot logging when a time threshold is 
 
 ### Automated debug validation script
 
-The repository provides `scripts/4-1-smoke-test.sh` to run an automated debug validation flow:
+The repository provides `scripts/4-1-smoke-test-global.sh` to run an automated debug validation flow:
 
 - clean build + image generation,
 - QEMU boot,

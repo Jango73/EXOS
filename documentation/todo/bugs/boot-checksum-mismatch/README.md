@@ -5,7 +5,7 @@ This folder collects artifacts for the intermittent `CHECKSUM MISMATCH` symptom 
 
 ## What was observed
 - During repeated runs of:
-  - `bash scripts/4-1-smoke-test.sh --only x86-64 --stop-after-shell --no-build`
+  - `bash scripts/4-1-smoke-test-global.sh --only x86-64 --stop-after-shell --no-build`
 - The kernel log contains:
   - `DEBUG > [TCP_ValidateChecksum] CHECKSUM MISMATCH - packet may be corrupted`
 

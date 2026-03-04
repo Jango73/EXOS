@@ -64,7 +64,7 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 ## Common Build Commands
 
 ## Tool Execution Policy
-- When running repository scripts that may require elevated permissions, always invoke them with the `bash scripts/...` form (example: `bash scripts/4-1-smoke-test.sh`).
+- When running repository scripts that may require elevated permissions, always invoke them with the `bash scripts/...` form (example: `bash scripts/4-1-smoke-test-global.sh`).
 - Keep this invocation form consistent so persistent elevation approval can be reused on the same command prefix.
 - NEVER run two `./scripts/build` commands in parallel: this repository enforces a build lock and the second build will fail with \"A build is already running\". Always run build commands sequentially.
 
@@ -91,10 +91,10 @@ Replace `x86-32` with `x86-64` when targeting the x86-64 architecture.
 
 **Automated build + smoke tests (dashboard-driven):**
 ```bash
-./scripts/4-1-smoke-test.sh
-./scripts/4-1-smoke-test.sh --only x86-32
-./scripts/4-1-smoke-test.sh --only x86-64
-./scripts/4-1-smoke-test.sh --only x86-64-uefi
+./scripts/4-1-smoke-test-global.sh
+./scripts/4-1-smoke-test-global.sh --only x86-32
+./scripts/4-1-smoke-test-global.sh --only x86-64
+./scripts/4-1-smoke-test-global.sh --only x86-64-uefi
 ```
 This script runs build + boot + shell command checks (`sysinfo`, `dir`, `/system/apps/hello`) and supports selecting a single target with `--only`.
 

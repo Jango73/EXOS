@@ -6,8 +6,8 @@ It is based on terminal outputs observed at run time.
 No post-run log file evidence is available for this report.
 
 ## Context
-- Test command used for full smoke: `bash scripts/4-1-smoke-test.sh`
-- Test command used for x86-64-only smoke: `bash scripts/4-1-smoke-test.sh --only x86-64`
+- Test command used for full smoke: `bash scripts/4-1-smoke-test-global.sh`
+- Test command used for x86-64-only smoke: `bash scripts/4-1-smoke-test-global.sh --only x86-64`
 - Build mode used by smoke script: debug, ext2
 - Target architectures exercised: x86-32 and x86-64
 
@@ -37,7 +37,7 @@ No post-run log file evidence is available for this report.
 - During that same stuck period, kernel/debug log files queried from terminal returned no usable output in that snapshot.
 
 ## Second Attempt (x86-64 Only)
-1. A new run was started with `bash scripts/4-1-smoke-test.sh --only x86-64`.
+1. A new run was started with `bash scripts/4-1-smoke-test-global.sh --only x86-64`.
 2. x86-64 build and image generation completed.
 3. x86-64 reached QEMU execution.
 4. Smoke commands started and visible output confirmed at least:
@@ -62,7 +62,7 @@ This section is inference from observed behavior, not direct proof.
 
 ## Reproduction Notes
 - Re-run command repeatedly:
-  - `bash scripts/4-1-smoke-test.sh --only x86-64`
+  - `bash scripts/4-1-smoke-test-global.sh --only x86-64`
 - Watch for divergence between:
   - normal progression into smoke commands
   - timeout before `[InitializeKernel] Shell task created`
