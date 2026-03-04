@@ -23,13 +23,10 @@
 
 #include "iGPU-Internal.h"
 
-#include "Clock.h"
 #include "CoreString.h"
-#include "DeferredWork.h"
 #include "Log.h"
 #include "Memory.h"
 #include "drivers/graphics/Graphics-TextRenderer.h"
-#include "utils/Cooldown.h"
 
 /************************************************************************/
 
@@ -37,109 +34,11 @@ static INTEL_GFX_SURFACE IntelGfxSurfaces[INTEL_GFX_MAX_SURFACES] = {0};
 
 /************************************************************************/
 
-#define INTEL_GFX_CURSOR_SHOW_DELAY_MS 250
+#define INTEL_GFX_WAIT_VBLANK_DEFAULT_TIMEOUT_MS 40
 
 /************************************************************************/
 
-typedef struct tag_INTEL_GFX_CURSOR_RUNTIME {
-    COOLDOWN ShowCooldown;
-    U32 DeferredHandle;
-    BOOL PendingShow;
-} INTEL_GFX_CURSOR_RUNTIME, *LPINTEL_GFX_CURSOR_RUNTIME;
-
-/************************************************************************/
-
-static INTEL_GFX_CURSOR_RUNTIME IntelGfxCursorRuntime = {.DeferredHandle = DEFERRED_WORK_INVALID_HANDLE};
-
-/************************************************************************/
-
-static void IntelGfxCursorDeferredPoll(LPVOID Context) {
-    GFX_TEXT_CURSOR_VISIBLE_INFO CursorVisibleInfo;
-    U32 Now = 0;
-
-    UNUSED(Context);
-
-    if ((IntelGfxDriver.Flags & DRIVER_FLAG_READY) == 0 || IntelGfxState.HasActiveMode == FALSE) {
-        return;
-    }
-
-    if (IntelGfxCursorRuntime.PendingShow == FALSE) {
-        return;
-    }
-
-    if (IntelGfxCursorRuntime.ShowCooldown.Initialized == FALSE) {
-        return;
-    }
-
-    Now = GetSystemTime();
-    if (!CooldownReady(&IntelGfxCursorRuntime.ShowCooldown, Now)) {
-        return;
-    }
-
-    CursorVisibleInfo = (GFX_TEXT_CURSOR_VISIBLE_INFO){.IsVisible = TRUE};
-
-    LockMutex(&(IntelGfxState.Context.Mutex), INFINITY);
-    if (GfxTextSetCursorVisible(&IntelGfxState.Context, &CursorVisibleInfo)) {
-        IntelGfxCursorRuntime.PendingShow = FALSE;
-    }
-    UnlockMutex(&(IntelGfxState.Context.Mutex));
-}
-
-/************************************************************************/
-
-static void IntelGfxEnsureCursorDeferredRegistration(void) {
-    if (IntelGfxCursorRuntime.DeferredHandle != DEFERRED_WORK_INVALID_HANDLE) {
-        return;
-    }
-
-    IntelGfxCursorRuntime.DeferredHandle =
-        DeferredWorkRegisterPollOnly(IntelGfxCursorDeferredPoll, NULL, TEXT("IntelGfxCursor"));
-
-    if (IntelGfxCursorRuntime.DeferredHandle == DEFERRED_WORK_INVALID_HANDLE) {
-        WARNING(TEXT("[IntelGfxEnsureCursorDeferredRegistration] DeferredWork registration failed"));
-    }
-}
-
-/************************************************************************/
-
-static void IntelGfxArmCursorShowCooldown(void) {
-    U32 Now = 0;
-
-    if (IntelGfxCursorRuntime.ShowCooldown.Initialized == FALSE) {
-        if (!CooldownInit(&IntelGfxCursorRuntime.ShowCooldown, INTEL_GFX_CURSOR_SHOW_DELAY_MS)) {
-            return;
-        }
-    } else {
-        CooldownSetInterval(&IntelGfxCursorRuntime.ShowCooldown, INTEL_GFX_CURSOR_SHOW_DELAY_MS);
-    }
-
-    Now = GetSystemTime();
-    IntelGfxCursorRuntime.ShowCooldown.NextAllowedTick = Now + INTEL_GFX_CURSOR_SHOW_DELAY_MS;
-    IntelGfxCursorRuntime.PendingShow = TRUE;
-
-    if (IntelGfxCursorRuntime.DeferredHandle != DEFERRED_WORK_INVALID_HANDLE) {
-        DeferredWorkSignal(IntelGfxCursorRuntime.DeferredHandle);
-    }
-}
-
-/************************************************************************/
-
-static void IntelGfxHandleTextWriteActivity(LPGRAPHICSCONTEXT Context) {
-    GFX_TEXT_CURSOR_VISIBLE_INFO CursorVisibleInfo;
-
-    if (Context == NULL) {
-        return;
-    }
-
-    IntelGfxEnsureCursorDeferredRegistration();
-    CursorVisibleInfo = (GFX_TEXT_CURSOR_VISIBLE_INFO){.IsVisible = FALSE};
-    (void)GfxTextSetCursorVisible(Context, &CursorVisibleInfo);
-    IntelGfxArmCursorShowCooldown();
-}
-
-/************************************************************************/
-
-static UINT IntelGfxFlushContextRegionToScanout(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, U32 Width, U32 Height) {
+UINT IntelGfxFlushContextRegionToScanout(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, U32 Width, U32 Height) {
     U32 BytesPerPixel = 0;
     U32 CopyBytes = 0;
     U32 Row = 0;
@@ -178,7 +77,7 @@ static UINT IntelGfxFlushContextRegionToScanout(LPGRAPHICSCONTEXT Context, I32 X
         MemoryCopy(Destination, Source, CopyBytes);
     }
 
-    IntelGfxState.PresentBlitCount++;
+    IntelGfxNotePresentBlit();
     return DF_RETURN_SUCCESS;
 }
 
@@ -214,7 +113,7 @@ static BOOL IntelGfxEnsureShadowFrameBufferSize(UINT RequiredSize) {
 
 /************************************************************************/
 
-static UINT IntelGfxScrollRegionViaShadow(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_REGION_INFO Info) {
+UINT IntelGfxScrollRegionViaShadow(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_REGION_INFO Info) {
     GRAPHICSCONTEXT ShadowContext;
     I32 PixelX = 0;
     I32 PixelY = 0;
@@ -281,7 +180,7 @@ static UINT IntelGfxScrollRegionViaShadow(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_
         MemoryCopy(FrameBuffer + Offset, ShadowBuffer + Offset, RowBytes);
     }
 
-    IntelGfxState.PresentBlitCount++;
+    IntelGfxNotePresentBlit();
     return DF_RETURN_SUCCESS;
 }
 
@@ -497,10 +396,7 @@ void IntelGfxReleaseAllSurfaces(void) {
     IntelGfxState.ScanoutSurfaceId = 0;
     IntelGfxState.NextSurfaceId = INTEL_GFX_SURFACE_FIRST_ID;
 
-    if (IntelGfxCursorRuntime.DeferredHandle != DEFERRED_WORK_INVALID_HANDLE) {
-        DeferredWorkUnregister(IntelGfxCursorRuntime.DeferredHandle);
-    }
-    IntelGfxCursorRuntime = (INTEL_GFX_CURSOR_RUNTIME){.DeferredHandle = DEFERRED_WORK_INVALID_HANDLE};
+    IntelGfxTextShutdownRuntime();
 }
 
 /************************************************************************/
@@ -572,7 +468,7 @@ static UINT IntelGfxBlitSurfaceRegionToScanout(LPINTEL_GFX_SURFACE Surface, U32 
         MemoryCopy(Destination, Source, CopyBytes);
     }
 
-    IntelGfxState.PresentBlitCount++;
+    IntelGfxNotePresentBlit();
     return DF_RETURN_SUCCESS;
 }
 
@@ -879,137 +775,6 @@ UINT IntelGfxRectangle(LPRECTINFO Info) {
 
 /************************************************************************/
 
-UINT IntelGfxTextPutCell(LPGFX_TEXT_CELL_INFO Info) {
-    LPGRAPHICSCONTEXT Context = NULL;
-    BOOL Result = FALSE;
-
-    if (Info == NULL) {
-        return 0;
-    }
-
-    Context = (LPGRAPHICSCONTEXT)Info->GC;
-    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
-        return 0;
-    }
-
-    LockMutex(&(Context->Mutex), INFINITY);
-    IntelGfxHandleTextWriteActivity(Context);
-    Result = GfxTextPutCell(Context, Info);
-    UnlockMutex(&(Context->Mutex));
-    return Result ? 1 : 0;
-}
-
-/************************************************************************/
-
-UINT IntelGfxTextClearRegion(LPGFX_TEXT_REGION_INFO Info) {
-    LPGRAPHICSCONTEXT Context = NULL;
-    BOOL Result = FALSE;
-
-    if (Info == NULL) {
-        return 0;
-    }
-
-    Context = (LPGRAPHICSCONTEXT)Info->GC;
-    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
-        return 0;
-    }
-
-    LockMutex(&(Context->Mutex), INFINITY);
-    IntelGfxHandleTextWriteActivity(Context);
-    Result = GfxTextClearRegion(Context, Info);
-    UnlockMutex(&(Context->Mutex));
-    return Result ? 1 : 0;
-}
-
-/************************************************************************/
-
-UINT IntelGfxTextScrollRegion(LPGFX_TEXT_REGION_INFO Info) {
-    LPGRAPHICSCONTEXT Context = NULL;
-    UINT Result = DF_RETURN_GENERIC;
-
-    if (Info == NULL) {
-        return 0;
-    }
-
-    Context = (LPGRAPHICSCONTEXT)Info->GC;
-    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
-        return 0;
-    }
-
-    LockMutex(&(Context->Mutex), INFINITY);
-    IntelGfxHandleTextWriteActivity(Context);
-    Result = IntelGfxScrollRegionViaShadow(Context, Info);
-    UnlockMutex(&(Context->Mutex));
-    return (Result == DF_RETURN_SUCCESS) ? 1 : 0;
-}
-
-/************************************************************************/
-
-UINT IntelGfxTextSetCursor(LPGFX_TEXT_CURSOR_INFO Info) {
-    LPGRAPHICSCONTEXT Context = NULL;
-    BOOL Result = FALSE;
-    I32 PixelX = 0;
-    I32 PixelY = 0;
-
-    if (Info == NULL) {
-        return 0;
-    }
-
-    Context = (LPGRAPHICSCONTEXT)Info->GC;
-    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
-        return 0;
-    }
-
-    LockMutex(&(Context->Mutex), INFINITY);
-    Result = GfxTextSetCursor(Context, Info);
-    if (Result) {
-        U32 CursorHeight = (Info->CellHeight >= 4) ? 2 : 1;
-        PixelX = (I32)(Info->CellX * Info->CellWidth);
-        PixelY = (I32)(Info->CellY * Info->CellHeight) + (I32)Info->CellHeight - (I32)CursorHeight;
-        (void)IntelGfxFlushContextRegionToScanout(Context, PixelX, PixelY, Info->CellWidth, CursorHeight);
-    }
-    UnlockMutex(&(Context->Mutex));
-    return Result ? 1 : 0;
-}
-
-/************************************************************************/
-
-UINT IntelGfxTextSetCursorVisible(LPGFX_TEXT_CURSOR_VISIBLE_INFO Info) {
-    LPGRAPHICSCONTEXT Context = NULL;
-    GFX_TEXT_CURSOR_VISIBLE_INFO CursorVisibleInfo;
-    BOOL Result = FALSE;
-
-    if (Info == NULL) {
-        return 0;
-    }
-
-    Context = (LPGRAPHICSCONTEXT)Info->GC;
-    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
-        return 0;
-    }
-
-    LockMutex(&(Context->Mutex), INFINITY);
-    IntelGfxEnsureCursorDeferredRegistration();
-    if (IntelGfxCursorRuntime.DeferredHandle == DEFERRED_WORK_INVALID_HANDLE) {
-        Result = GfxTextSetCursorVisible(Context, Info);
-        UnlockMutex(&(Context->Mutex));
-        return Result ? 1 : 0;
-    }
-
-    if (Info->IsVisible == FALSE) {
-        CursorVisibleInfo = (GFX_TEXT_CURSOR_VISIBLE_INFO){.IsVisible = FALSE};
-        (void)GfxTextSetCursorVisible(Context, &CursorVisibleInfo);
-        IntelGfxArmCursorShowCooldown();
-        UnlockMutex(&(Context->Mutex));
-        return 1;
-    }
-
-    IntelGfxArmCursorShowCooldown();
-    UnlockMutex(&(Context->Mutex));
-    return 1;
-}
-
-/************************************************************************/
 
 UINT IntelGfxPresent(LPGFX_PRESENT_INFO Info) {
     LPINTEL_GFX_SURFACE Surface = NULL;
@@ -1019,6 +784,7 @@ UINT IntelGfxPresent(LPGFX_PRESENT_INFO Info) {
     U32 Y = 0;
     U32 Width = 0;
     U32 Height = 0;
+    U32 PresentFlags = 0;
     UINT Result = DF_RETURN_SUCCESS;
 
     if (IntelGfxState.FrameBufferLinear == 0 || IntelGfxState.FrameBufferSize == 0) {
@@ -1031,6 +797,7 @@ UINT IntelGfxPresent(LPGFX_PRESENT_INFO Info) {
 
     SourceSurfaceId = Info->SurfaceId;
     DirtyRect = Info->DirtyRect;
+    PresentFlags = Info->Flags;
 
     if (SourceSurfaceId == 0) {
         SourceSurfaceId = IntelGfxState.ScanoutSurfaceId;
@@ -1047,6 +814,13 @@ UINT IntelGfxPresent(LPGFX_PRESENT_INFO Info) {
 
     if (!IntelGfxResolveDirtyRegion(&DirtyRect, Surface, &X, &Y, &Width, &Height)) {
         return DF_RETURN_SUCCESS;
+    }
+
+    if ((PresentFlags & GFX_PRESENT_FLAG_WAIT_VBLANK) != 0) {
+        Result = IntelGfxWaitForNextVBlank(INTEL_GFX_WAIT_VBLANK_DEFAULT_TIMEOUT_MS, NULL);
+        if (Result != DF_RETURN_SUCCESS) {
+            return Result;
+        }
     }
 
     LockMutex(&(IntelGfxState.Context.Mutex), INFINITY);

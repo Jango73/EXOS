@@ -163,12 +163,17 @@ Status note:
 - Hardware page-flip path is intentionally deferred; `PRESENT` uses blit semantics for stability on this milestone.
 
 ## Step 7 - VBlank and synchronization
-- [ ] Add optional vblank interrupt handling.
-- [ ] Implement `DF_GFX_WAITVBLANK` with timeout safety.
-- [ ] Protect present path with lightweight locking + frame sequence counters.
+- [x] Add optional vblank interrupt handling.
+- [x] Implement `DF_GFX_WAITVBLANK` with timeout safety.
+- [x] Protect present path with lightweight locking + frame sequence counters.
 
 Deliverable:
 - Stable frame pacing and reduced tearing on supported configurations.
+
+Status note:
+- `iGPU-Interrupt.c` adds optional vblank interrupt-status handling (`PIPESTAT`) with automatic scanline polling fallback when interrupt status is unavailable.
+- `DF_GFX_WAITVBLANK` is implemented with bounded wait (`HasOperationTimedOut`) and timeout diagnostics protected by shared `RateLimiter`.
+- Present and vblank sequencing are protected by a dedicated lightweight mutex in `INTEL_GFX_STATE` (`PresentMutex`) with frame counters (`PresentFrameSequence`, `VBlankFrameSequence`).
 
 ## Step 8 - Output management (multi-output ready)
 - [ ] Implement `ENUMOUTPUTS` and `GETOUTPUTINFO`.

@@ -47,6 +47,12 @@
 #define INTEL_REG_PIPE_A_CONF 0x70008
 #define INTEL_REG_PIPE_B_CONF 0x71008
 #define INTEL_REG_PIPE_C_CONF 0x72008
+#define INTEL_REG_PIPE_A_SCANLINE 0x70000
+#define INTEL_REG_PIPE_B_SCANLINE 0x71000
+#define INTEL_REG_PIPE_C_SCANLINE 0x72000
+#define INTEL_REG_PIPE_A_STATUS 0x70024
+#define INTEL_REG_PIPE_B_STATUS 0x71024
+#define INTEL_REG_PIPE_C_STATUS 0x72024
 #define INTEL_REG_PIPE_A_SRC 0x6001C
 #define INTEL_REG_PIPE_B_SRC 0x6101C
 #define INTEL_REG_PIPE_C_SRC 0x6201C
@@ -101,6 +107,9 @@
 #define INTEL_TRANS_DDI_FUNC_PORT_MASK (0x07 << INTEL_TRANS_DDI_FUNC_PORT_SHIFT)
 #define INTEL_PANEL_POWER_TARGET_ON (1 << 0)
 #define INTEL_BACKLIGHT_PWM_ENABLE (1 << 31)
+#define INTEL_PIPE_STATUS_VBLANK_INTERRUPT (1 << 1)
+#define INTEL_PIPE_STATUS_VBLANK_INTERRUPT_ENABLE (1 << 17)
+#define INTEL_SCANLINE_MASK 0x1FFF
 #define INTEL_SURFACE_ALIGN_MASK 0xFFFFF000
 #define INTEL_PLANE_CTL_FORMAT_XRGB8888 (0x04 << 24)
 #define INTEL_MODESET_LOOP_LIMIT 50000
@@ -192,7 +201,14 @@ typedef struct tag_INTEL_GFX_STATE {
     GFX_CAPABILITIES Capabilities;
     U32 NextSurfaceId;
     U32 ScanoutSurfaceId;
+    MUTEX PresentMutex;
     U32 PresentBlitCount;
+    U32 PresentFrameSequence;
+    U32 VBlankFrameSequence;
+    U32 VBlankInterruptCount;
+    U32 VBlankPollCount;
+    U32 LastVBlankScanline;
+    BOOL VBlankInterruptEnabled;
     INTEL_GFX_MODESET_STAGE LastModesetFailureStage;
     U32 LastModesetFailureCode;
 } INTEL_GFX_STATE, *LPINTEL_GFX_STATE;
@@ -323,15 +339,22 @@ UINT IntelGfxSetPixel(LPPIXELINFO Info);
 UINT IntelGfxGetPixel(LPPIXELINFO Info);
 UINT IntelGfxLine(LPLINEINFO Info);
 UINT IntelGfxRectangle(LPRECTINFO Info);
+UINT IntelGfxFlushContextRegionToScanout(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, U32 Width, U32 Height);
+UINT IntelGfxScrollRegionViaShadow(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_REGION_INFO Info);
+void IntelGfxTextShutdownRuntime(void);
 UINT IntelGfxTextPutCell(LPGFX_TEXT_CELL_INFO Info);
 UINT IntelGfxTextClearRegion(LPGFX_TEXT_REGION_INFO Info);
 UINT IntelGfxTextScrollRegion(LPGFX_TEXT_REGION_INFO Info);
 UINT IntelGfxTextSetCursor(LPGFX_TEXT_CURSOR_INFO Info);
 UINT IntelGfxTextSetCursorVisible(LPGFX_TEXT_CURSOR_VISIBLE_INFO Info);
+void IntelGfxNotePresentBlit(void);
+UINT IntelGfxWaitForNextVBlank(U32 TimeoutMilliseconds, U32* SequenceOut);
 UINT IntelGfxPresent(LPGFX_PRESENT_INFO Info);
+UINT IntelGfxWaitVBlank(LPGFX_VBLANK_INFO Info);
 UINT IntelGfxAllocateSurface(LPGFX_SURFACE_INFO Info);
 UINT IntelGfxFreeSurface(LPGFX_SURFACE_INFO Info);
 UINT IntelGfxSetScanout(LPGFX_SCANOUT_INFO Info);
+void IntelGfxOnModeActivated(void);
 
 /************************************************************************/
 

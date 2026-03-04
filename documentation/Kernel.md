@@ -756,7 +756,7 @@ Display-class PCI fallback attach logic is implemented in `kernel/source/drivers
 
 `kernel/source/drivers/graphics/VGA-Main.c` exposes a dedicated VGA text driver (`alias: vga`) implementing mode enumeration and text mode set through the same `DF_GFX_*` contract (`ENUMMODES`, `GETMODEINFO`, `SETMODE`).
 
-The Intel native backend is split into `kernel/source/drivers/graphics/iGPU-Base.c` (load/dispatch and PCI attach), `kernel/source/drivers/graphics/iGPU-Mode.c` (takeover and native modeset flow), and `kernel/source/drivers/graphics/iGPU-Present.c` (CPU drawing, surfaces, and present).
+The Intel native backend is split into `kernel/source/drivers/graphics/iGPU-Base.c` (load/dispatch and PCI attach), `kernel/source/drivers/graphics/iGPU-Mode.c` (takeover and native modeset flow), `kernel/source/drivers/graphics/iGPU-Present.c` (CPU drawing and surfaces), `kernel/source/drivers/graphics/iGPU-Text.c` (text/cursor operations), and `kernel/source/drivers/graphics/iGPU-Interrupt.c` (vblank synchronization and frame pacing).
 
 Intel capability handling is centralized in an internal `INTEL_GFX_CAPS` object populated from a PCI device-id family table and refined with bounded MMIO register probes (display version, pipe presence, port mask). Generic `GFX_CAPABILITIES` values exposed through `DF_GFX_GETCAPABILITIES` are projected from this single capability object.
 
@@ -766,6 +766,7 @@ The native `DF_GFX_SETMODE` path in `kernel/source/drivers/graphics/iGPU-Mode.c`
 When active scanout takeover is unavailable on hybrid platforms, Intel backend load remains available for explicit backend forcing, and the same `DF_GFX_SETMODE` path performs a conservative cold modeset bootstrap (requested mode timings, pipe/output/link programming, then context rebuild from programmed state).
 The modeset core resolves explicit `INTEL_DISPLAY_FAMILY_OPS` descriptors from display version so stride encoding/decoding, plane tiling policy, and cold-modeset support remain per-family and extension-ready for additional Intel generations without hardwired device-id flow control.
 Modeset diagnostics keep explicit failure state in `INTEL_GFX_STATE` (`LastModesetFailureStage`, `LastModesetFailureCode`) to avoid silent fallback behavior during native bring-up.
+VBlank synchronization is implemented in `kernel/source/drivers/graphics/iGPU-Interrupt.c`: `DF_GFX_WAITVBLANK` performs bounded waits (`HasOperationTimedOut`) with rate-limited timeout diagnostics, present serialization uses a dedicated `PresentMutex`, and frame pacing state is tracked through `PresentFrameSequence` and `VBlankFrameSequence` with optional PIPESTAT vblank status handling plus scanline polling fallback.
 
 Display ownership state is tracked through `kernel/source/DisplaySession.c` (`DISPLAY_SESSION` stored in `KERNELDATA`). This records active frontend (`console` or `desktop`), active desktop pointer, selected graphics driver, and active mode so mode transitions are represented as explicit kernel state.
 Frontend transitions are executed through `DisplaySwitchToConsole()` and `DisplaySwitchToDesktop()`, which keep backend ownership active and avoid using `DF_UNLOAD` as a display switching path.

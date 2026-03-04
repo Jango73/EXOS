@@ -1509,6 +1509,7 @@ UINT IntelGfxTakeoverActiveMode(void) {
     }
 
     IntelGfxState.HasActiveMode = TRUE;
+    IntelGfxOnModeActivated();
     return DF_RETURN_SUCCESS;
 }
 
