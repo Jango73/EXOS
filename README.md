@@ -3,13 +3,14 @@
 ## TL;DR
 
 Multi-threaded operating system for x86-32 and x86-64.
+
 Tested on QEMU, Bochs, ACER Predator.
+
+**NOT READY** for production regarding disk IO (not all code paths tested on real hardware).
 
 ## What it is
 
-This is an ongoing operating system project that was abandoned in late 1999.
-Back then, it was 32 bit only and compiled with gcc and nasm, and linked with jloc.
-Build was recently ported to i686-elf-gcc/nasm/i686-elf-ld, then ported to x86-64.
+This is an ongoing operating system project that was abandoned in late 1999. Back then, it was 32 bit only and compiled with gcc and nasm, and linked with jloc. Build was recently ported to i686-elf-gcc/nasm/i686-elf-ld, then ported to x86-64.
 
 ## Disclaimer
 
@@ -48,6 +49,54 @@ EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/con
 ( add --gdb to debug with gdb )
 ( or ./scripts/(arch)/5-5-start-bochs.sh to use Bochs )
 
+## Things it does
+
+- Multi-architecture : x86-32, x86-64
+- Multi-threaded : software context switching
+- Virtual memory management (CPU & DMA mapping) (buddy allocator for physical pages)
+- Heap management (free lists)
+- Process spawning (kernel and userland), task spawning, scheduling
+- Security at kernel object level, with user account/session and permissions
+- File system drivers : FAT16, FAT32, EXT2, NTFS ~
+- I/O APIC & Local APIC driver
+- PCI device driver
+- ATA, SATA/AHCI & NVMe storage drivers
+- xHCI driver (USB 3)
+- ACPI shutdown/reboot
+- Console management
+- PS/2 keyboard and mouse drivers
+- USB keyboard (HID) and mouse drivers
+- USB mass storage device driver ~
+- Primitive graphics using VESA standard (broken)
+- Virtual file system with mount points
+- Scripted shell with kernel object exposure
+- Configuration with TOML format
+- E1000 network driver ~
+- ARP/IPv4/DHCP/UDP/TCP network layers ~
+- Minimal HTTP client ~
+- Kernel pointer masking, handles in userland
+- A few test apps
+
+(~ means working in emulator - QEMU, but not tested or not yet working on bare metal)
+
+## Things it will do
+
+- IPC (shared memory through page mapping)
+- Multi-core (SMP)
+- Full security
+- Full network stack
+- Full Unicode
+- Realtek r8169 driver
+- PCIe driver
+- VMD (Volume Management Device - Intel)
+- Native C compiler (TinyCC port)
+- HDA audio (Intel HD Audio)
+- NVIDIA GeForce driver
+- AMD Radeon driver
+- Larger test apps
+- ACPI Energy sensor drivers
+- Lots of other things
+
 ## Dependencies
 
 ### C language (no headers)
@@ -79,53 +128,21 @@ Used for UTF-8 decoding in layout parsing. Sources in third/utf8-hoehrmann (MIT 
 ### Fonts
 Bm437_IBM_VGA_8x16.otb from the Ultimate Oldschool PC Font Pack by VileR, licensed under CC BY-SA 4.0. See third/fonts/oldschool_pc_font_pack/ATTRIBUTION.txt and third/fonts/oldschool_pc_font_pack/LICENSE.TXT.
 
-## Things it does
+## Metrics (cloc)
 
-- Multi-architecture : x86-32, x86-64
-- Multi-threaded : software context switching
-- Virtual memory management (CPU & DMA mapping) (buddy allocator for physical pages)
-- Heap management (free lists)
-- Process spawning (kernel and userland), task spawning, scheduling
-- Security at kernel object level
-- File system drivers : FAT16, FAT32, EXT2, NTFS ~
-- I/O APIC & Local APIC driver
-- PCI device driver
-- ATA, SATA/AHCI & NVMe storage drivers
-- xHCI driver (USB 3)
-- ACPI shutdown/reboot
-- Console management
-- PS/2 keyboard and mouse drivers
-- USB keyboard (HID) and mouse drivers
-- USB mass storage device driver ~
-- Primitive graphics using VESA standard (broken)
-- Virtual file system with mount points
-- Scripted shell with kernel object exposure
-- Configuration with TOML format
-- E1000 network driver ~
-- ARP/IPv4/DHCP/UDP/TCP network layers ~
-- Minimal HTTP client ~
-- Kernel pointer masking, handles in userland
-- A few test apps
+Lines of code this project, excluding third party software.
 
-(~ means working in emulator (QEMU), not tested or not yet working on bare metal)
-
-## Things it will do
-
-- IPC (shared memory through page mapping)
-- Multi-core (SMP)
-- Full security
-- Full network stack
-- Full Unicode
-- Realtek r8169
-- PCIe driver
-- VMD (Volume Management Device - Intel)
-- Native C compiler (TinyCC port)
-- HDA audio (Intel HD Audio)
-- NVIDIA GeForce driver
-- AMD Radeon driver
-- Larger test apps
-- ACPI Energy sensor drivers
-- Lots of other things
+```
+-------------------------------------------------------------------------------
+Language                     files          blank        comment           code
+-------------------------------------------------------------------------------
+C                              269          26713          27908          90878
+C/C++ Header                   190           5193           5644          13123
+Assembly                        20           1861           1214           5750
+-------------------------------------------------------------------------------
+SUM:                           479          33767          34766         109751
+-------------------------------------------------------------------------------
+```
 
 ## Historical background
 
@@ -135,19 +152,3 @@ It was a year-long solo project, developed the hard way:
 - On a Pentium, in DOS environment, without any debugger or VM
 - Relying on endless console print statements to trace bugs
 - Learning everything on the fly as the project grew
-
-## Metrics (cloc)
-
-Lines of code this project, excluding third party software.
-
-```
--------------------------------------------------------------------------------
-Language                     files          blank        comment           code
--------------------------------------------------------------------------------
-C                              253          25123          26698          85478
-C/C++ Header                   182           4993           5406          12607
-Assembly                        20           1861           1214           5750
--------------------------------------------------------------------------------
-SUM:                           455          31977          33318         103835
--------------------------------------------------------------------------------
-```
