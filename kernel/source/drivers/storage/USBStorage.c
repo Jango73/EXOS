@@ -33,7 +33,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "User.h"
 #include "drivers/usb/XHCI-Internal.h"
 #include "process/Task-Messaging.h"

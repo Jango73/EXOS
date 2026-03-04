@@ -28,7 +28,7 @@
 
 #include "Memory.h"
 #include "Memory-Descriptors.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "CoreString.h"
 #include "Kernel.h"
 #include "process/Process.h"

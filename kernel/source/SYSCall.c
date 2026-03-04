@@ -24,7 +24,7 @@
 
 #include "Base.h"
 #include "Clock.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "GFX.h"
 #include "File.h"
 #include "Heap.h"

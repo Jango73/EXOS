@@ -24,7 +24,7 @@
 
 #include "utils/CommandLineEditor.h"
 
-#include "Console.h"
+#include "console/Console.h"
 #include "Heap.h"
 #include "drivers/input/Keyboard.h"
 #include "Log.h"

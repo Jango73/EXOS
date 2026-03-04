@@ -25,7 +25,7 @@
 #include "Log.h"
 
 #include "Clock.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "Driver.h"
 #include "Memory.h"
 #include "process/Process.h"

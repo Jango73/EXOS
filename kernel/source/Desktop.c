@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "Console.h"
+#include "console/Console.h"
 #include "DisplaySession.h"
 #include "GFX.h"
 #include "Kernel.h"

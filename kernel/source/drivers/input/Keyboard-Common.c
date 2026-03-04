@@ -25,7 +25,7 @@
 #include "drivers/input/Keyboard.h"
 
 #include "Clock.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "CoreString.h"
 #include "DeferredWork.h"
 #include "Log.h"

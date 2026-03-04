@@ -24,7 +24,7 @@
 
 #include "FileSystem.h"
 
-#include "Console.h"
+#include "console/Console.h"
 #include "drivers/filesystems/NTFS.h"
 #include "File.h"
 #include "Kernel.h"

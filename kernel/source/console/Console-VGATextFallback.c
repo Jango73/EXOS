@@ -21,7 +21,7 @@
 
 \************************************************************************/
 
-#include "Console-VGATextFallback.h"
+#include "console/Console-VGATextFallback.h"
 
 #include "Console-Internal.h"
 #include "DisplaySession.h"

@@ -23,8 +23,8 @@
 
 #include "DisplaySession.h"
 
-#include "Console.h"
-#include "Console-VGATextFallback.h"
+#include "console/Console.h"
+#include "console/Console-VGATextFallback.h"
 #include "DriverGetters.h"
 #include "GFX.h"
 #include "KernelData.h"

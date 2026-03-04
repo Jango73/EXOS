@@ -26,7 +26,7 @@
 
 #include "Log.h"
 #include "Memory.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "process/Process.h"
 #include "arch/x86-32/x86-32-Log.h"
 #include "Stack.h"

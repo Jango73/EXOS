@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "Arch.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"

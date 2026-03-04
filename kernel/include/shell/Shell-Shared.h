@@ -26,7 +26,7 @@
 
 #include "arch/Disassemble.h"
 #include "Clock.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "drivers/input/Keyboard.h"
 #include "drivers/filesystems/NTFS.h"
 #include "drivers/storage/NVMe-Core.h"

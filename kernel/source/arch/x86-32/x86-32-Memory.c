@@ -26,7 +26,7 @@
 
 #include "Base.h"
 #include "BuddyAllocator.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory-Descriptors.h"

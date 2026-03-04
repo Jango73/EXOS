@@ -24,7 +24,7 @@
 
 #include "process/Process.h"
 
-#include "Console.h"
+#include "console/Console.h"
 #include "Driver.h"
 #include "Executable.h"
 #include "File.h"

@@ -24,7 +24,7 @@
 #ifndef CONSOLE_INTERNAL_H_INCLUDED
 #define CONSOLE_INTERNAL_H_INCLUDED
 
-#include "Console.h"
+#include "console/Console.h"
 
 /***************************************************************************/
 

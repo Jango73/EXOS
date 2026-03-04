@@ -27,7 +27,7 @@
 #include "Autotest.h"
 #include "BuddyAllocator.h"
 #include "Clock.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "DisplaySession.h"
 #include "drivers/platform/ACPI.h"
 #include "drivers/input/Keyboard.h"

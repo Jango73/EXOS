@@ -26,7 +26,7 @@
 
 #include "Base.h"
 #include "Arch.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "drivers/interrupts/InterruptController.h"
 #include "DisplaySession.h"
 #include "Kernel.h"

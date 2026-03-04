@@ -27,7 +27,7 @@
 #include "utils/CircularBuffer.h"
 #include "CoreString.h"
 #include "Log.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "System.h"
 
 #if PROFILING

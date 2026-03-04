@@ -25,7 +25,7 @@
 #include "drivers/platform/ACPI.h"
 
 #include "Base.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"

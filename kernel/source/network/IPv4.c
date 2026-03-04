@@ -24,7 +24,7 @@
 
 #include "network/IPv4.h"
 #include "ARPContext.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "Device.h"
 #include "Heap.h"
 #include "ID.h"

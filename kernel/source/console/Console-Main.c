@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "Console-Internal.h"
-#include "Console-VGATextFallback.h"
+#include "console/Console-VGATextFallback.h"
 #include "DisplaySession.h"
 #include "Font.h"
 #include "GFX.h"

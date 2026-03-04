@@ -27,7 +27,7 @@
 
 #include "Base.h"
 #include "Clock.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "DisplaySession.h"
 #include "DeferredWork.h"
 #include "Kernel.h"

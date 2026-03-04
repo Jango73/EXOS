@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "Clock.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "Arch.h"
 #include "Kernel.h"
 #include "Log.h"

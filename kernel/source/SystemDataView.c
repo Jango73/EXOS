@@ -22,7 +22,7 @@
 \************************************************************************/
 
 #include "Arch.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "CoreString.h"
 #include "DriverGetters.h"
 #include "drivers/platform/ACPI.h"

@@ -21,7 +21,7 @@
 
 \************************************************************************/
 
-#include "EarlyBootConsole.h"
+#include "console/EarlyBootConsole.h"
 
 #include "Font.h"
 #include "Memory.h"

@@ -24,7 +24,7 @@
 #include "arch/x86-64/x86-64.h"
 
 #include "CoreString.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "Driver.h"
 #include "Kernel.h"
 #include "Log.h"

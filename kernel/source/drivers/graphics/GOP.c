@@ -22,7 +22,7 @@
 \************************************************************************/
 
 #include "GFX.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "Log.h"
 #include "Memory.h"
 #include "drivers/graphics/Graphics-TextRenderer.h"

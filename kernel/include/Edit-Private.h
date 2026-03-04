@@ -2,7 +2,7 @@
 #define EDIT_PRIVATE_H
 
 #include "Base.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "List.h"
 #include "input/VKey.h"
 
