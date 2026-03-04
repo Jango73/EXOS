@@ -21,6 +21,11 @@ function spawnWithScriptsDirFallback(scriptsDir, scriptFile, spawnImpl) {
  *   "logs": [ "<path>", ... ],
  *   "scriptsDir": "<relative path to scripts>",
  *   "keyBindings": { "<key>": "<script file>", ... },
+ *   "commands": [
+ *     "<script file>",
+ *     { "label": "<display label>", "script": "<script file>", "key": "<optional key>" },
+ *     ...
+ *   ],
  *   "settings": { ... },
  *   "events": {
  *     "onDashboardStart": [
@@ -262,24 +267,70 @@ function resolveLatest(p) {
     }
 }
 
-// Load package.json scripts from current working directory
-// CHANGED: now load from config.keyBindings instead of package.json
-function loadScripts() {
+function resolveBindingLabel(binding) {
+    if (typeof binding === 'object' && binding && typeof binding.label === 'string' && binding.label.trim() !== '') {
+        return binding.label;
+    }
+    if (typeof binding === 'object' && binding && typeof binding.script === 'string' && binding.script.trim() !== '') {
+        return binding.script;
+    }
+    if (typeof binding === 'string' && binding.trim() !== '') {
+        return binding;
+    }
+    return '';
+}
+
+function resolveBindingScript(binding) {
+    if (typeof binding === 'object' && binding && typeof binding.script === 'string') {
+        const trimmed = binding.script.trim();
+        return trimmed === '' ? '' : trimmed;
+    }
+    if (typeof binding === 'string') {
+        const trimmed = binding.trim();
+        return trimmed === '' ? '' : trimmed;
+    }
+    return '';
+}
+
+function normalizeSidebarEntries() {
+    const entries = [];
+
+    for (const [keyName, binding] of Object.entries(config.keyBindings ?? {})) {
+        const displayLabel = resolveBindingLabel(binding);
+        const script = resolveBindingScript(binding);
+        const normalizedKey = String(keyName || '').trim();
+        const keyText = normalizedKey === '' ? '' : normalizedKey.toUpperCase();
+        const content = displayLabel !== '' ? displayLabel : normalizedKey;
+        entries.push({
+            text: keyText !== '' ? `${keyText} - ${content}` : content,
+            script,
+            keyName: normalizedKey,
+            selectable: script !== ''
+        });
+    }
+
+    for (const command of (Array.isArray(config.commands) ? config.commands : [])) {
+        const displayLabel = resolveBindingLabel(command);
+        const script = resolveBindingScript(command);
+        const keyName = (typeof command === 'object' && command && typeof command.key === 'string')
+            ? command.key.trim()
+            : '';
+        const keyText = keyName === '' ? '' : keyName.toUpperCase();
+        const fallbackLabel = script !== '' ? script : '(no command)';
+        entries.push({
+            text: keyText !== '' ? `${keyText} - ${displayLabel || fallbackLabel}` : `${displayLabel || fallbackLabel}`,
+            script,
+            keyName,
+            selectable: script !== ''
+        });
+    }
+
+    return entries;
+}
+
+function loadScripts(sidebarEntries) {
     try {
-        if (config.keyBindings) {
-            return Object.entries(config.keyBindings).map(([key, binding]) => {
-                // Support both new object format { label, script } and legacy string format
-                if (typeof binding === 'object' && binding.label && binding.script) {
-                    return `${key.toUpperCase()} - ${binding.label}`;
-                } else if (typeof binding === 'string') {
-                    return `${key.toUpperCase()} - ${binding}`;
-                } else if (typeof binding === 'object' && binding.script) {
-                    return `${key.toUpperCase()} - ${binding.script}`;
-                }
-                return `${key.toUpperCase()} - ${binding}`;
-            });
-        }
-        return [];
+        return sidebarEntries.map((entry) => entry.text);
     } catch {
         return [];
     }
@@ -312,12 +363,28 @@ function startTail(file, box) {
 }
 
 const config = loadConfig();
-const scripts = loadScripts();
+const sidebarEntries = normalizeSidebarEntries();
+const scripts = loadScripts(sidebarEntries);
+
+const dashboardTheme = {
+    background: '#1a2f4d',
+    panel: '#22436b',
+    panelAlt: '#1f3a5d',
+    text: '#e3edf9',
+    border: '#7ea2cd',
+    focus: '#c9ddf3',
+    selected: '#4f7fb2',
+    hover: '#3f6c9d'
+};
 
 // Initialize blessed screen
 screen = blessed.screen({
     smartCSR: true,
-    title: 'Dashboard'
+    title: 'Dashboard',
+    style: {
+        bg: dashboardTheme.background,
+        fg: dashboardTheme.text
+    }
 });
 
 const SIDEBAR_WIDTH_RATIO = 0.2;
@@ -328,13 +395,22 @@ const sidebar = blessed.box({
     width: currentSettings.sidebarMinWidth ?? defaultSettings.sidebarMinWidth,
     height: '100%',
     label: 'Scripts',
-    border: 'line'
+    border: 'line',
+    style: {
+        bg: dashboardTheme.panel,
+        fg: dashboardTheme.text,
+        border: { fg: dashboardTheme.border }
+    }
 });
 const rightContainer = blessed.box({
     top: 0,
     left: currentSettings.sidebarMinWidth ?? defaultSettings.sidebarMinWidth,
     width: '100%',
     height: '100%',
+    style: {
+        bg: dashboardTheme.panelAlt,
+        fg: dashboardTheme.text
+    }
 });
 
 const logsContainer = blessed.box({
@@ -343,21 +419,34 @@ const logsContainer = blessed.box({
     height: '60%',
     width: '100%',
     label: 'Logs',
-    border: 'line'
+    border: 'line',
+    style: {
+        bg: dashboardTheme.panelAlt,
+        fg: dashboardTheme.text,
+        border: { fg: dashboardTheme.border }
+    }
 });
 
 const bottomContainer = blessed.box({
     parent: rightContainer,
     bottom: 0,
     height: '40%',
-    width: '100%'
+    width: '100%',
+    style: {
+        bg: dashboardTheme.panelAlt,
+        fg: dashboardTheme.text
+    }
 });
 
 const buttonBar = blessed.box({
     parent: bottomContainer,
     top: 0,
     height: 3,
-    width: '100%'
+    width: '100%',
+    style: {
+        bg: dashboardTheme.panel,
+        fg: dashboardTheme.text
+    }
 });
 
 const STOP_BUTTON_WIDTH = 12;
@@ -380,9 +469,12 @@ const stopButton = blessed.button({
     content: 'Stop',
     border: 'line',
     style: {
+        bg: dashboardTheme.panel,
+        fg: dashboardTheme.text,
+        border: { fg: dashboardTheme.border },
         focus: {
-            bg: 'cyan',
-            fg: 'white',
+            bg: dashboardTheme.focus,
+            fg: 'black',
             bold: true
         }
     }
@@ -397,8 +489,11 @@ const inputBox = blessed.textbox({
     border: 'line',
     label: ' Custom Command ',
     style: {
+        bg: dashboardTheme.panel,
+        fg: dashboardTheme.text,
+        border: { fg: dashboardTheme.border },
         focus: {
-            border: { fg: 'cyan' }
+            border: { fg: dashboardTheme.focus }
         }
     }
 });
@@ -412,8 +507,11 @@ const filterBox = blessed.textbox({
     border: 'line',
     label: ' Output Filter ',
     style: {
+        bg: dashboardTheme.panel,
+        fg: dashboardTheme.text,
+        border: { fg: dashboardTheme.border },
         focus: {
-            border: { fg: 'cyan' }
+            border: { fg: dashboardTheme.focus }
         }
     }
 });
@@ -433,9 +531,11 @@ const output = blessed.log({
         style: { inverse: true }
     },
     style: {
-        border: { fg: 'grey' },
+        bg: dashboardTheme.panel,
+        fg: dashboardTheme.text,
+        border: { fg: dashboardTheme.border },
         focus: {
-            border: { fg: 'cyan' }
+            border: { fg: dashboardTheme.focus }
         }
     }
 });
@@ -524,8 +624,11 @@ const list = blessed.list({
     mouse: true,
     items: scripts,
     style: {
-        selected: { bg: 'blue' },
-        item: { hover: { bg: 'green' } }
+        bg: dashboardTheme.panel,
+        fg: dashboardTheme.text,
+        border: { fg: dashboardTheme.border },
+        selected: { bg: dashboardTheme.selected, fg: dashboardTheme.text },
+        item: { hover: { bg: dashboardTheme.hover, fg: dashboardTheme.text } }
     }
 });
 
@@ -566,9 +669,11 @@ const logWatchers = [];
             style: { inverse: true }
         },
         style: {
-            border: { fg: 'grey' },
+            bg: dashboardTheme.panel,
+            fg: dashboardTheme.text,
+            border: { fg: dashboardTheme.border },
             focus: {
-                border: { fg: 'cyan' }
+                border: { fg: dashboardTheme.focus }
             }
         }
     });
@@ -607,15 +712,15 @@ screen.key('tab', () => {
     screen.render(); // Keep immediate render for UI interactions
 });
 
-// Bind keys from config.keyBindings (NEW)
-if (config.keyBindings) {
-    for (const [keyName, binding] of Object.entries(config.keyBindings)) {
-        screen.key(keyName, () => {
-            // Support both new object format { label, script } and legacy string format
-            const scriptFile = typeof binding === 'object' && binding.script ? binding.script : binding;
-            runScriptFile(scriptFile);
-        });
+const registeredKeys = new Set();
+for (const entry of sidebarEntries) {
+    if (!entry.selectable || entry.keyName === '' || registeredKeys.has(entry.keyName)) {
+        continue;
     }
+    registeredKeys.add(entry.keyName);
+    screen.key(entry.keyName, () => {
+        runScriptFile(entry.script);
+    });
 }
 
 screen.key(['q', 'C-c'], () => {
@@ -653,12 +758,9 @@ focusables.forEach(el => {
 });
 
 list.on('select', (_, index) => {
-    const key = Object.keys(config.keyBindings ?? {})[index];
-    const binding = config.keyBindings?.[key];
-    if (binding) {
-        // Support both new object format { label, script } and legacy string format
-        const scriptFile = typeof binding === 'object' && binding.script ? binding.script : binding;
-        runScriptFile(scriptFile);
+    const entry = sidebarEntries[index];
+    if (entry?.selectable && entry.script !== '') {
+        runScriptFile(entry.script);
     }
 });
 
