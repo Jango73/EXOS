@@ -66,6 +66,7 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 ## Tool Execution Policy
 - When running repository scripts that may require elevated permissions, always invoke them with the `bash scripts/...` form (example: `bash scripts/4-1-smoke-test.sh`).
 - Keep this invocation form consistent so persistent elevation approval can be reused on the same command prefix.
+- NEVER run two `./scripts/build` commands in parallel: this repository enforces a build lock and the second build will fail with \"A build is already running\". Always run build commands sequentially.
 
 **Build (ext2):**
 ```bash

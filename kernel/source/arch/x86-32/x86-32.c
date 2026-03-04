@@ -29,7 +29,7 @@
 #include "console/Console.h"
 #include "process/Process.h"
 #include "arch/x86-32/x86-32-Log.h"
-#include "Stack.h"
+#include "process/Stack.h"
 #include "CoreString.h"
 #include "System.h"
 #include "process/Task.h"

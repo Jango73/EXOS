@@ -34,7 +34,7 @@
 #include "process/Process.h"
 #include "process/Schedule.h"
 #include "Log.h"
-#include "Stack.h"
+#include "process/Stack.h"
 #include "System.h"
 #include "Text.h"
 #include "arch/x86-64/x86-64.h"

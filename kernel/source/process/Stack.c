@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "Base.h"
-#include "Stack.h"
+#include "process/Stack.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
