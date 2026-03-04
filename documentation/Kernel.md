@@ -231,7 +231,7 @@ Security in EXOS is implemented as a layered architecture. The effective access 
 
 - `SECURITY` objects provide owner and per-user permission fields (`READ`, `WRITE`, `EXECUTE`) with default permissions (`kernel/include/Security.h`).
 - Process structures embed a `SECURITY` instance initialized by `InitSecurity()` during process creation (`kernel/source/process/Process.c`).
-- This data model is present and initialized, while policy enforcement is currently concentrated in syscall handlers and expose-layer checks.
+- This data model is present and initialized, while policy enforcement is concentrated in syscall handlers and expose-layer checks.
 
 #### Architectural properties and current boundaries
 
@@ -764,6 +764,8 @@ The Intel backend takeover path reads active pipe/plane state from display regis
 
 The native `DF_GFX_SETMODE` path in `kernel/source/drivers/graphics/iGPU-Mode.c` uses a stage-ordered sequence (disable, route, clock, link, enable, verify), explicit pipe/output/transcoder routing policy, conservative generation-aware clock-source handling, eDP panel/backlight stabilization hooks, and rollback to a captured hardware snapshot when a partial modeset stage fails.
 When active scanout takeover is unavailable on hybrid platforms, Intel backend load remains available for explicit backend forcing, and the same `DF_GFX_SETMODE` path performs a conservative cold modeset bootstrap (requested mode timings, pipe/output/link programming, then context rebuild from programmed state).
+The modeset core resolves explicit `INTEL_DISPLAY_FAMILY_OPS` descriptors from display version so stride encoding/decoding, plane tiling policy, and cold-modeset support remain per-family and extension-ready for additional Intel generations without hardwired device-id flow control.
+Modeset diagnostics keep explicit failure state in `INTEL_GFX_STATE` (`LastModesetFailureStage`, `LastModesetFailureCode`) to avoid silent fallback behavior during native bring-up.
 
 Display ownership state is tracked through `kernel/source/DisplaySession.c` (`DISPLAY_SESSION` stored in `KERNELDATA`). This records active frontend (`console` or `desktop`), active desktop pointer, selected graphics driver, and active mode so mode transitions are represented as explicit kernel state.
 Frontend transitions are executed through `DisplaySwitchToConsole()` and `DisplaySwitchToDesktop()`, which keep backend ownership active and avoid using `DF_UNLOAD` as a display switching path.

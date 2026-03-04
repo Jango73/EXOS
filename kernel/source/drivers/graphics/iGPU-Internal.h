@@ -114,6 +114,23 @@
 #define DF_RETURN_IGFX_NO_ACTIVE_SCANOUT (DF_RETURN_FIRST + 0x303)
 #define DF_RETURN_IGFX_MAP_FRAMEBUFFER_FAILED (DF_RETURN_FIRST + 0x304)
 #define DF_RETURN_IGFX_BUILD_CONTEXT_FAILED (DF_RETURN_FIRST + 0x305)
+#define DF_RETURN_IGFX_UNSUPPORTED_FAMILY (DF_RETURN_FIRST + 0x306)
+
+/************************************************************************/
+
+typedef enum tag_INTEL_GFX_MODESET_STAGE {
+    INTEL_GFX_MODESET_STAGE_NONE = 0,
+    INTEL_GFX_MODESET_STAGE_VALIDATE = 1,
+    INTEL_GFX_MODESET_STAGE_DISABLE = 2,
+    INTEL_GFX_MODESET_STAGE_ROUTE = 3,
+    INTEL_GFX_MODESET_STAGE_CLOCK = 4,
+    INTEL_GFX_MODESET_STAGE_LINK = 5,
+    INTEL_GFX_MODESET_STAGE_ENABLE = 6,
+    INTEL_GFX_MODESET_STAGE_PANEL = 7,
+    INTEL_GFX_MODESET_STAGE_VERIFY = 8,
+    INTEL_GFX_MODESET_STAGE_COMMIT = 9,
+    INTEL_GFX_MODESET_STAGE_ROLLBACK = 10
+} INTEL_GFX_MODESET_STAGE;
 
 /************************************************************************/
 
@@ -171,6 +188,8 @@ typedef struct tag_INTEL_GFX_STATE {
     U32 NextSurfaceId;
     U32 ScanoutSurfaceId;
     U32 PresentBlitCount;
+    INTEL_GFX_MODESET_STAGE LastModesetFailureStage;
+    U32 LastModesetFailureCode;
 } INTEL_GFX_STATE, *LPINTEL_GFX_STATE;
 
 /************************************************************************/
@@ -245,6 +264,21 @@ typedef struct tag_INTEL_GFX_MODE_SNAPSHOT {
     U32 BacklightRegister;
     U32 BacklightValue;
 } INTEL_GFX_MODE_SNAPSHOT, *LPINTEL_GFX_MODE_SNAPSHOT;
+
+/************************************************************************/
+
+typedef struct tag_INTEL_DISPLAY_FAMILY_OPS {
+    U32 DisplayVersionMin;
+    U32 DisplayVersionMax;
+    LPCSTR Name;
+    U32 StrideWriteMask;
+    U32 StrideReadMask;
+    U32 StrideAlignment;
+    U32 StrideReadMultiplierPrimary;
+    U32 StrideReadMultiplierSecondary;
+    BOOL ForceLinearPlaneTiling;
+    BOOL SupportsColdModeset;
+} INTEL_DISPLAY_FAMILY_OPS, *LPINTEL_DISPLAY_FAMILY_OPS;
 
 /************************************************************************/
 

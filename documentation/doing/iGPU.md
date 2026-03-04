@@ -142,7 +142,7 @@ Deliverable:
 Status note:
 - Conservative native modeset is implemented in `kernel/source/drivers/graphics/iGPU-Mode.c` on one active pipe/output.
 - Validation enforces XRGB8888 path and active-mode dimensions while API lacks explicit refresh/format fields in `GRAPHICSMODEINFO`.
-- Stage-ordered native modeset now applies explicit pipe/output/transcoder policy, conservative clock-source programming (`DPLL_CTRL1` reuse), connector-link enable, internal panel stabilization, and rollback to captured hardware state on partial failure in `kernel/source/drivers/graphics/iGPU-Mode.c`.
+- Stage-ordered native modeset applies explicit pipe/output/transcoder policy, conservative clock-source programming (`DPLL_CTRL1` reuse), connector-link enable, internal panel stabilization, and rollback to captured hardware state on partial failure in `kernel/source/drivers/graphics/iGPU-Mode.c`.
 - Cold modeset bootstrap is implemented for the `no active Intel scanout` path: load keeps the Intel backend available, `SETMODE` builds conservative timings from the requested mode, programs pipe/output/link, and rebuilds context from the programmed state when takeover readback is unavailable.
 
 ## Step 6 - Buffer management and present model
@@ -158,7 +158,7 @@ Deliverable:
 - Flicker-free present path with clear fallback behavior.
 
 Status note:
-- `IntelGfx.c` now implements `DF_GFX_ALLOCSURFACE`, `DF_GFX_FREESURFACE`, `DF_GFX_SETSCANOUT` with software surfaces in kernel heap.
+- `IntelGfx.c` implements `DF_GFX_ALLOCSURFACE`, `DF_GFX_FREESURFACE`, `DF_GFX_SETSCANOUT` with software surfaces in kernel heap.
 - `DF_GFX_PRESENT` uses dirty-rectangle blit from selected surface to active scanout as conservative fallback path.
 - Hardware page-flip path is intentionally deferred; `PRESENT` uses blit semantics for stability on this milestone.
 
@@ -249,3 +249,8 @@ When implementation starts (not only planning), update:
 - Introduce explicit per-family operations (`INTEL_DISPLAY_FAMILY_OPS`) for routing, clock programming, link configuration/training, plane/pipe programming, stride/tile encoding, and stage verification.
 - Keep one shared atomic-style pipeline (`detect family -> validate -> disable -> program -> enable -> verify -> commit/rollback`) and delegate hardware details only to family operations.
 - If one family path is incomplete, fail explicitly with diagnostic stage/family details; do not silently fallback to heuristic programming.
+
+Implementation status:
+- `iGPU-Mode.c` resolves one explicit family operations entry from display version and refuses unsupported families with explicit failure code (`DF_RETURN_IGFX_UNSUPPORTED_FAMILY`).
+- Native modeset records failure stage/code in `INTEL_GFX_STATE` (`LastModesetFailureStage`, `LastModesetFailureCode`) and emits stage-scoped diagnostics for rollback and verification.
+- Stride/plane behavior is driven by per-family descriptors (read/write mask, alignment, tiling policy) instead of one global hardcoded path.
