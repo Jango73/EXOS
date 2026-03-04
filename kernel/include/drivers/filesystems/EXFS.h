@@ -28,27 +28,11 @@
 
 #include "FSID.h"
 #include "FileSystem.h"
+#include "utils/ExosMbr.h"
 
 /***************************************************************************/
 
 #pragma pack(push, 1)
-
-/***************************************************************************/
-// EXFS Master Boot Record
-
-typedef struct tag_EXFSMBR {
-    U8 Jump[4];          // Jump to code and 2 NOPs
-    U8 OEMName[8];       // "EXOS    "
-    U8 MediaDescriptor;  // 0xF8 for Hard Disks
-    U8 LogicalDriveNumber;
-    U16 Cylinders;
-    U16 Heads;
-    U16 SectorsPerTrack;
-    U16 BytesPerSector;
-    U16 SectorsPerCluster;
-    U8 Code[486];
-    U16 BIOSMark;  // 0xAA55
-} EXFSMBR, *LPEXFSMBR;
 
 /***************************************************************************/
 // EXFS Super Block

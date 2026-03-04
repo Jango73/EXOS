@@ -25,11 +25,11 @@
 #include "arch/x86-64/x86-64.h"
 #include "arch/x86-64/x86-64-Log.h"
 
-#include "Console.h"
+#include "console/Console.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
-#include "Stack.h"
+#include "process/Stack.h"
 #include "CoreString.h"
 #include "System.h"
 #include "Text.h"
@@ -55,6 +55,7 @@ DRIVER DATA_SECTION InterruptsDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "Interrupts",
+    .Alias = "interrupts",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = InterruptsDriverCommands};
 

@@ -17,34 +17,21 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Early boot console
+    Console VGA text emergency fallback
 
 \************************************************************************/
 
-#ifndef EARLY_BOOT_CONSOLE_H_INCLUDED
-#define EARLY_BOOT_CONSOLE_H_INCLUDED
-
-#include "Base.h"
+#ifndef CONSOLE_VGA_TEXT_FALLBACK_H_INCLUDED
+#define CONSOLE_VGA_TEXT_FALLBACK_H_INCLUDED
 
 /************************************************************************/
 
-void EarlyBootConsoleInitialize(
-    PHYSICAL FramebufferPhysical,
-    U32 Width,
-    U32 Height,
-    U32 Pitch,
-    U32 BitsPerPixel,
-    U32 Type,
-    U32 RedPosition,
-    U32 RedMaskSize,
-    U32 GreenPosition,
-    U32 GreenMaskSize,
-    U32 BluePosition,
-    U32 BlueMaskSize);
-void EarlyBootConsoleWrite(LPCSTR Text);
-void EarlyBootConsoleWriteLine(LPCSTR Text);
-BOOL EarlyBootConsoleIsInitialized(void);
+#include "console/Console.h"
 
 /************************************************************************/
 
-#endif
+BOOL ConsoleVGATextFallbackActivate(U32 Columns, U32 Rows, LPGRAPHICSMODEINFO AppliedMode);
+
+/************************************************************************/
+
+#endif  // CONSOLE_VGA_TEXT_FALLBACK_H_INCLUDED

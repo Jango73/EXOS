@@ -106,13 +106,6 @@ typedef struct tag_USB_MASS_STORAGE_STATE {
     RATE_LIMITER ScanLogLimiter;
 } USB_MASS_STORAGE_STATE, *LPUSB_MASS_STORAGE_STATE;
 
-typedef struct tag_USB_MASS_STORAGE_DRIVER {
-    DRIVER Driver;
-    USB_MASS_STORAGE_STATE State;
-} USB_MASS_STORAGE_DRIVER, *LPUSB_MASS_STORAGE_DRIVER;
-
-/************************************************************************/
-
 BOOL USBStorageResetRecovery(LPUSB_MASS_STORAGE_DEVICE Device);
 BOOL USBStorageInquiry(LPUSB_MASS_STORAGE_DEVICE Device);
 BOOL USBStorageReadCapacity(LPUSB_MASS_STORAGE_DEVICE Device);

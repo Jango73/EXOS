@@ -44,6 +44,7 @@ DRIVER DATA_SECTION MemoryManagerDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "MemoryManager",
+    .Alias = "memory_manager",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = MemoryManagerCommands};
 
@@ -1903,6 +1904,24 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
 
     // Just unmap; FreeRegion will skip allocator page release if PTE.Fixed was set
     return FreeRegion(CanonicalizeLinearAddress(LinearBase), Size);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Compute a preferred base address for the kernel heap.
+ * @param HeapSize Requested heap size in bytes.
+ * @return Preferred linear base address in kernel space.
+ */
+LINEAR GetKernelHeapPreferredBase(UINT HeapSize) {
+    UNUSED(HeapSize);
+
+    U64 MaxLinearAddressPlusOne = GetMaxLinearAddressPlusOne();
+    U64 CanonicalHighStart = ~((MaxLinearAddressPlusOne >> 1) - (U64)1);
+    U64 CanonicalHighEnd = ~((U64)0);
+    U64 Midpoint = (U64)VMA_KERNEL + ((CanonicalHighEnd - (U64)VMA_KERNEL) / (U64)2);
+
+    return (LINEAR)(Midpoint & PAGE_MASK);
 }
 
 /************************************************************************/

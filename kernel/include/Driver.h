@@ -87,8 +87,10 @@ typedef UINT (*DRVFUNC)(UINT Function, UINT Parameter);
     STR Designer[MAX_NAME];             \
     STR Manufacturer[MAX_NAME];         \
     STR Product[MAX_NAME];              \
+    STR Alias[MAX_NAME];                \
     U32 Flags;                          \
     DRVFUNC Command;                    \
+    LPVOID CustomData;                  \
     UINT EnumDomainCount;               \
     UINT EnumDomains[DRIVER_ENUM_MAX_DOMAINS];
 
@@ -96,6 +98,12 @@ typedef struct tag_DRIVER {
     LISTNODE_FIELDS
     DRIVER_FIELDS
 } DRIVER, *LPDRIVER;
+
+/***************************************************************************/
+// Driver naming helpers
+
+LPCSTR DriverTypeToText(UINT DriverType);
+LPCSTR DriverDomainToText(UINT Domain);
 
 /***************************************************************************/
 // Structure to retrieve driver capabilities

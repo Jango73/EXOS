@@ -52,6 +52,7 @@ DRIVER SystemFSDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "Virtual Computer File System",
+    .Alias = "system_fs",
     .Command = SystemFSCommands};
 
 /************************************************************************/
@@ -431,8 +432,26 @@ static U32 CreateFolder(LPFILEINFO Info) {
     LPPATHNODE Part = NULL;
     LPSYSTEMFSFILE Parent;
     LPSYSTEMFSFILE Child;
+    LPSYSTEMFSFILE MountedNode;
+    STR Remaining[MAX_PATH_NAME];
+    FILEINFO Local;
+    UINT Result;
 
     if (Info == NULL) return DF_RETURN_BAD_PARAMETER;
+
+    if (ResolvePath(Info->Name, &MountedNode, Remaining)) {
+        if (Remaining[0] != STR_NULL) {
+            if (MountedNode != NULL && MountedNode->Mounted != NULL) {
+                Local = *Info;
+                Local.FileSystem = MountedNode->Mounted;
+                StringCopy(Local.Name, Remaining);
+                Result = MountedNode->Mounted->Driver->Command(DF_FS_CREATEFOLDER, (UINT)&Local);
+                return Result;
+            }
+            return DF_RETURN_GENERIC;
+        }
+        return DF_RETURN_GENERIC;
+    }
 
     Parts = DecomposePath(Info->Name);
     if (Parts == NULL) return DF_RETURN_BAD_PARAMETER;
@@ -777,7 +796,10 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         Remaining[0] != STR_NULL ? Remaining : TEXT("<none>"));
 
     if (Remaining[0] != STR_NULL) {
-        if (Node->Mounted == NULL) return NULL;
+        if (Node->Mounted == NULL) {
+            WARNING(TEXT("[OpenFile] No mount for path=%s remaining=%s"), Path, Remaining);
+            return NULL;
+        }
 
         Local = *Find;
         Local.FileSystem = Node->Mounted;
@@ -821,10 +843,16 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
             return WrapMountedFile(Node, Mounted, Find->Flags);
         } else {
             LPSYSTEMFSFILE Child = (Node->Children) ? (LPSYSTEMFSFILE)Node->Children->First : NULL;
-            if (Child == NULL) return NULL;
+            if (Child == NULL) {
+                WARNING(TEXT("[OpenFile] No children for wildcard path=%s"), Path);
+                return NULL;
+            }
 
             LPSYSFSFILE File = (LPSYSFSFILE)KernelHeapAlloc(sizeof(SYSFSFILE));
-            if (File == NULL) return NULL;
+            if (File == NULL) {
+                ERROR(TEXT("[OpenFile] Allocation failed for SYSFSFILE"));
+                return NULL;
+            }
 
             *File = (SYSFSFILE){0};
             File->Header.TypeID = KOID_FILE;
@@ -860,7 +888,10 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
 
     {
         LPSYSFSFILE File = (LPSYSFSFILE)KernelHeapAlloc(sizeof(SYSFSFILE));
-        if (File == NULL) return NULL;
+        if (File == NULL) {
+            ERROR(TEXT("[OpenFile] Allocation failed for SYSFSFILE"));
+            return NULL;
+        }
 
         *File = (SYSFSFILE){0};
         File->Header.TypeID = KOID_FILE;

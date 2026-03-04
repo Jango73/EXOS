@@ -1,25 +1,29 @@
 ENTRY(__start__)
 
+PHDRS
+{
+    text PT_LOAD FLAGS(5); /* R | X */
+    data PT_LOAD FLAGS(6); /* R | W */
+}
+
 SECTIONS
 {
-    /* Kernel - high memory, physically after stub (0x1000 offset) */
+    /* User program image base */
     . = 0x00400000;
     .text : {
-        *(.text)
-        *(.rodata)
-    }
+        *(.text .text.*)
+        *(.rodata .rodata.*)
+    } :text
 
-    /* Data */
-    . = ALIGN(0x10);
+    /* Keep writable content in a separate LOAD segment */
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
     .data : {
-        *(.data)
-    }
+        *(.data .data.*)
+    } :data
 
-    /* BSS */
-    . = ALIGN(0x10);
-    .bss : {
+    .bss (NOLOAD) : {
         *(global)
-        *(.bss)
+        *(.bss .bss.*)
         *(COMMON)
-    }
+    } :data
 }

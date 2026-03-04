@@ -51,6 +51,11 @@
 #define TCP_FLAG_CWR 0x80
 
 /************************************************************************/
+// TCP Retransmission/Congestion constants
+
+#define TCP_MAX_RETRANSMIT_PAYLOAD 1460
+
+/************************************************************************/
 // TCP States (using state machine framework)
 
 #define TCP_STATE_CLOSED        0
@@ -118,6 +123,7 @@ typedef struct tag_TCP_CONNECTION {
     U16 SendWindow;         // Send window size
     U16 RecvWindow;         // Receive window size
     HYSTERESIS WindowHysteresis;  // Hysteresis for window updates
+    U16 LastAdvertisedWindow;     // Last window size sent to the peer
 
     // Buffers
     U8 SendBuffer[TCP_SEND_BUFFER_SIZE];
@@ -134,6 +140,28 @@ typedef struct tag_TCP_CONNECTION {
     U32 RetransmitTimer;
     U32 TimeWaitTimer;
     U32 RetransmitCount;
+    U32 RetransmitBaseTimeout;
+    U32 RetransmitCurrentTimeout;
+
+    // Retransmission tracking
+    U32 RetransmitSequenceStart;
+    U32 RetransmitSequenceEnd;
+    U32 RetransmitTimestamp;
+    U32 RetransmitPayloadLength;
+    U8 RetransmitFlags;
+    BOOL RetransmitPending;
+    BOOL RetransmitWasRetried;
+    U8 RetransmitPayload[TCP_MAX_RETRANSMIT_PAYLOAD];
+
+    // ACK/recovery tracking
+    U32 DuplicateAckCount;
+    U32 LastAckNumber;
+    U32 FastRecoverySequence;
+    BOOL InFastRecovery;
+
+    // Congestion control
+    U32 CongestionWindow;
+    U32 SlowStartThreshold;
 
     // Notification context for this connection
     LPNOTIFICATION_CONTEXT NotificationContext;

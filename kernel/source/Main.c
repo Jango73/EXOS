@@ -22,10 +22,10 @@
 
 \************************************************************************/
 
-#include "Console.h"
+#include "console/Console.h"
 #include "Kernel.h"
 #include "Arch.h"
-#include "EarlyBootConsole.h"
+#include "console/Console-EarlyBoot.h"
 #include "Log.h"
 #include "System.h"
 #include "vbr-multiboot.h"

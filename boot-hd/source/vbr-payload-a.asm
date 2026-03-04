@@ -190,6 +190,7 @@ BiosReadSectors:
     mov         dl, al
     mov         eax, [ebp+12]
     mov         [DAP_Start_LBA_Low], eax
+    mov         dword [DAP_Start_LBA_High], 0
     mov         eax, [ebp+16]
     mov         [DAP_NumSectors], ax
 
@@ -229,11 +230,45 @@ BiosReadSectors_16:
     push        cs
     pop         ds
 
+    mov         cx, [DAP_NumSectors]
+    cmp         cx, 0
+    je          .done
+
+.loop:
+    push        cx
+    mov         word [DAP_NumSectors], 1
     xor         ax, ax
     mov         ah, 0x42                    ; Extended Read (LBA)
     mov         si, DAP                     ; DAP address
     int         0x13                        ; BIOS disk operation
+    jnc         .read_ok
+    pop         cx
+    jmp         .error
 
+.read_ok:
+    pop         cx
+
+    add         dword [DAP_Start_LBA_Low], 1
+    adc         dword [DAP_Start_LBA_High], 0
+
+    mov         ax, [DAP_Buffer_Offset]
+    add         ax, 512
+    mov         [DAP_Buffer_Offset], ax
+    jnc         .next
+    add         word [DAP_Buffer_Segment], 0x1000
+
+.next:
+    dec         cx
+    jnz         .loop
+
+.done:
+    clc
+    jmp         .return
+
+.error:
+    stc
+
+.return:
     pop         es
     pop         ds
     pop         di

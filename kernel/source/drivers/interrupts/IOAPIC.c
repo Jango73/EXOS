@@ -54,6 +54,7 @@ DRIVER DATA_SECTION IOAPICDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "IOAPIC",
+    .Alias = "io_apic",
     .Flags = 0,
     .Command = IOAPICDriverCommands};
 
@@ -181,7 +182,7 @@ static UINT IOAPICDriverCommands(UINT Function, UINT Parameter) {
                 return DF_RETURN_SUCCESS;
             }
 
-            return DF_RETURN_UNEXPECTED;
+            return DF_RETURN_HARDWARE_ABSENT;
 
         case DF_UNLOAD:
             if ((IOAPICDriver.Flags & DRIVER_FLAG_READY) == 0) {

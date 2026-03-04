@@ -30,6 +30,23 @@ static unsigned int HTTPDefaultReceiveTimeoutMs = 10000; // 10 seconds by defaul
 static char HTTP_LastErrorMessage[128] = "Success";
 
 /***************************************************************************/
+#define HTTP_RECEIVE_BUFFER_DEFAULT_SIZE 16384
+#define HTTP_DOWNLOAD_BUFFER_MAXIMUM_SIZE 65536
+
+static unsigned int HTTP_SelectDownloadBufferSize(unsigned int ContentLength) {
+    unsigned int Size = HTTP_RECEIVE_BUFFER_DEFAULT_SIZE;
+
+    if (ContentLength > 0) {
+        Size = ContentLength;
+        if (Size > HTTP_DOWNLOAD_BUFFER_MAXIMUM_SIZE) {
+            Size = HTTP_DOWNLOAD_BUFFER_MAXIMUM_SIZE;
+        }
+    }
+
+    return Size;
+}
+
+/***************************************************************************/
 static void HTTP_SetLastErrorMessage(const char* Message) {
     unsigned int Index = 0;
 
@@ -124,7 +141,6 @@ static int HTTP_WriteBodyData(FILE* File, const unsigned char* Data, unsigned in
 
     Written = fwrite(Data, 1, Length, File);
     if (Written != Length) {
-        debug("[HTTP_WriteBodyData] Failed to write %u bytes (only %u written)", Length, (unsigned int)Written);
         return HTTP_ERROR_MEMORY_ERROR;
     }
 
@@ -158,7 +174,6 @@ static int HTTP_ChunkParserProcess(HTTP_CHUNK_PARSER* Parser, const unsigned cha
                     Parser->SizeBuffer[Parser->SizeBufferUsed] = '\0';
 
                     if (Parser->SizeBufferUsed == 0) {
-                        debug("[HTTP_ChunkParserProcess] Empty chunk size line");
                         return HTTP_ERROR_PROTOCOL_ERROR;
                     }
 
@@ -180,7 +195,6 @@ static int HTTP_ChunkParserProcess(HTTP_CHUNK_PARSER* Parser, const unsigned cha
                     }
                 } else {
                     if (Parser->SizeBufferUsed >= sizeof(Parser->SizeBuffer) - 1U) {
-                        debug("[HTTP_ChunkParserProcess] Chunk size line too long");
                         return HTTP_ERROR_PROTOCOL_ERROR;
                     }
                     Parser->SizeBuffer[Parser->SizeBufferUsed++] = (char)Character;
@@ -220,7 +234,6 @@ static int HTTP_ChunkParserProcess(HTTP_CHUNK_PARSER* Parser, const unsigned cha
 
                 if ((Parser->CrLfBytesNeeded == 2U && Character != '\r') ||
                     (Parser->CrLfBytesNeeded == 1U && Character != '\n')) {
-                    debug("[HTTP_ChunkParserProcess] Invalid chunk delimiter");
                     return HTTP_ERROR_PROTOCOL_ERROR;
                 }
 
@@ -236,7 +249,6 @@ static int HTTP_ChunkParserProcess(HTTP_CHUNK_PARSER* Parser, const unsigned cha
 
                 if (Parser->PendingCR) {
                     if (Character != '\n') {
-                        debug("[HTTP_ChunkParserProcess] Invalid trailer line ending");
                         return HTTP_ERROR_PROTOCOL_ERROR;
                     }
 
@@ -334,7 +346,6 @@ static int HTTP_HeaderValueContainsToken(const char* Value, const char* Token) {
 
 void HTTP_SetDefaultReceiveTimeout(unsigned int TimeoutMs) {
     HTTPDefaultReceiveTimeoutMs = TimeoutMs;
-    debug("[HTTP_SetDefaultReceiveTimeout] Timeout set to %u ms", HTTPDefaultReceiveTimeoutMs);
 }
 
 /***************************************************************************/
@@ -361,7 +372,6 @@ int HTTP_ParseURL(const char* URLString, URL* ParsedURL) {
     unsigned int portValue;
 
     if (!URLString || !ParsedURL) {
-        debug("[HTTP_ParseURL] At least one input parameters is NULL");
         HTTP_SetLastErrorMessage("URL parser received invalid parameters");
         return 0;
     }
@@ -379,7 +389,6 @@ int HTTP_ParseURL(const char* URLString, URL* ParsedURL) {
     // Find scheme (e.g., "http://")
     schemeEnd = strstr(current, "://");
     if (!schemeEnd) {
-        debug("[HTTP_ParseURL] Could not find scheme end");
         HTTP_SetLastErrorMessage("URL missing scheme separator");
         return 0;
     }
@@ -500,11 +509,9 @@ HTTP_CONNECTION* HTTP_CreateConnection(const char* Host, unsigned short Port) {
     struct sockaddr_in serverAddr;
     int result;
 
-    debug("[HTTP_CreateConnection] Host=%s, Port=%d", Host, Port);
     HTTP_SetLastErrorMessage("Success");
 
     if (!Host || Port == 0) {
-        debug("[HTTP_CreateConnection] Invalid parameters");
         HTTP_SetLastErrorMessage("Connection parameters are invalid");
         return NULL;
     }
@@ -515,8 +522,6 @@ HTTP_CONNECTION* HTTP_CreateConnection(const char* Host, unsigned short Port) {
         HTTP_SetLastErrorMessage("Out of memory while creating connection");
         return NULL;
     }
-
-    debug("[HTTP_CreateConnection] connection = %x", connection);
 
     // Initialize connection
     memset(connection, 0, sizeof(HTTP_CONNECTION));
@@ -550,14 +555,11 @@ HTTP_CONNECTION* HTTP_CreateConnection(const char* Host, unsigned short Port) {
     */
 
     if (connection->RemoteIP == 0) {
-        debug("[HTTP_CreateConnection] Failed to parse IP address");
         // For now, we don't support hostname resolution
         free(connection);
         HTTP_SetLastErrorMessage("Failed to parse remote IP address");
         return NULL;
     }
-
-    debug("[HTTP_CreateConnection] IP parsed successfully, RemoteIP=%x, RemotePort=%d", connection->RemoteIP, connection->RemotePort);
 
     // Setup server address
     memset(&serverAddr, 0, sizeof(serverAddr));
@@ -569,26 +571,18 @@ HTTP_CONNECTION* HTTP_CreateConnection(const char* Host, unsigned short Port) {
     unsigned int timeoutMs = HTTPDefaultReceiveTimeoutMs;
     if (timeoutMs > 0) {
         if (setsockopt(connection->SocketHandle, SOL_SOCKET, SO_RCVTIMEO, &timeoutMs, sizeof(timeoutMs)) != 0) {
-            debug("[HTTP_CreateConnection] Failed to set receive timeout");
-        } else {
-            debug("[HTTP_CreateConnection] Receive timeout set to %u ms", timeoutMs);
         }
-    } else {
-        debug("[HTTP_CreateConnection] Receive timeout disabled");
     }
 
     // Connect to server
     result = connect(connection->SocketHandle, (struct sockaddr*)&serverAddr, sizeof(serverAddr));
 
     if (result != 0) {
-        debug("[HTTP_CreateConnection] connect failed");
         shutdown(connection->SocketHandle, SOCKET_SHUTDOWN_BOTH);
         free(connection);
         HTTP_SetLastErrorMessage("connect() failed to initiate handshake");
         return NULL;
     }
-
-    debug("[HTTP_CreateConnection] connect initiated, waiting for establishment...");
 
     // Wait for connection to be established using adaptive delay
     // In EXOS, connect() is non-blocking, so we need to wait for TCP handshake
@@ -605,7 +599,6 @@ HTTP_CONNECTION* HTTP_CreateConnection(const char* Host, unsigned short Port) {
 
         // Try to get peer address - this succeeds only if connection is established
         if (getpeername(connection->SocketHandle, (struct sockaddr*)&peerAddr, &peerAddrLen) == 0) {
-            debug("[HTTP_CreateConnection] connection established after %d attempts", connection->DelayState.AttemptCount);
             connection->Connected = 1;
             AdaptiveDelay_OnSuccess(&(connection->DelayState));
             HTTP_SetLastErrorMessage("Success");
@@ -615,13 +608,11 @@ HTTP_CONNECTION* HTTP_CreateConnection(const char* Host, unsigned short Port) {
         // Get next delay and sleep
         U32 delayTicks = AdaptiveDelay_GetNextDelay(&connection->DelayState);
         if (delayTicks > 0) {
-            debug("[HTTP_CreateConnection] attempt %d failed, waiting %d ticks", connection->DelayState.AttemptCount, delayTicks);
             sleep(delayTicks);
             AdaptiveDelay_OnFailure(&(connection->DelayState));
         }
     }
 
-    debug("[HTTP_CreateConnection] connection timeout after %d attempts", connection->DelayState.AttemptCount);
     shutdown(connection->SocketHandle, SOCKET_SHUTDOWN_BOTH);
     free(connection);
     HTTP_SetLastErrorMessage("Timed out waiting for TCP handshake");
@@ -666,19 +657,14 @@ int HTTP_SendRequest(HTTP_CONNECTION* Connection, const char* Method, const char
     int requestLen;
     int sent;
 
-    debug("[HTTP_SendRequest] Method=%s, Path=%s", Method, Path);
-    debug("[HTTP_SendRequest] Connection=%p, RemoteIP=%x, RemotePort=%d", Connection, Connection->RemoteIP, Connection->RemotePort);
     HTTP_SetLastErrorMessage("Success");
 
     if (!Connection || !Connection->Connected || !Method || !Path) {
-        debug("[HTTP_SendRequest] Invalid parameters");
         HTTP_SetLastErrorMessage("HTTP_SendRequest received invalid parameters");
         return HTTP_ERROR_INVALID_URL;
     }
 
     // Build HTTP request
-    debug("[HTTP_SendRequest] RemoteIP=%x, RemotePort=%d", Connection->RemoteIP, Connection->RemotePort);
-
     if (Body && BodyLength > 0) {
         requestLen = sprintf(request,
             "%s %s HTTP/1.1\r\n"
@@ -710,14 +696,11 @@ int HTTP_SendRequest(HTTP_CONNECTION* Connection, const char* Method, const char
     }
 
     // Send request headers
-    debug("[HTTP_SendRequest] Sending %d", requestLen, requestLen > 100 ? 100 : requestLen);
     sent = send(Connection->SocketHandle, request, requestLen, 0);
     if (sent != requestLen) {
-        debug("[HTTP_SendRequest] Send failed: sent=%d, expected=%d", sent, requestLen);
         HTTP_SetLastErrorMessage("Failed to transmit HTTP request headers");
         return HTTP_ERROR_CONNECTION_FAILED;
     }
-    debug("[HTTP_SendRequest] Headers sent successfully");
 
     // Send body if present
     if (Body && BodyLength > 0) {
@@ -735,7 +718,7 @@ int HTTP_SendRequest(HTTP_CONNECTION* Connection, const char* Method, const char
 /***************************************************************************/
 
 int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
-    char buffer[1024];
+    char buffer[HTTP_RECEIVE_BUFFER_DEFAULT_SIZE];
     int received;
     int totalReceived = 0;
     char* headerEnd;
@@ -745,7 +728,6 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
     const int maxRetries = 50; // Allow up to 50 attempts with small delays
     const int maxTimeoutsBeforeStateCheck = 3;
 
-    debug("[HTTP_ReceiveResponse] Starting to receive response");
     char* contentLengthStr;
     unsigned int contentLength = 0;
     int headersParsed = 0;
@@ -757,7 +739,6 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
     unsigned int allDataCapacity = 4096;
 
     if (!Connection || !Response) {
-        debug("[HTTP_ReceiveResponse] Invalid parameters");
         return HTTP_ERROR_INVALID_RESPONSE;
     }
 
@@ -770,7 +751,6 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
     // Allocate initial buffer for all data
     allData = (unsigned char*)malloc(allDataCapacity);
     if (!allData) {
-        debug("[HTTP_ReceiveResponse] Failed to allocate buffer");
         return HTTP_ERROR_MEMORY_ERROR;
     }
 
@@ -778,15 +758,11 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
     Connection->ReceiveBufferUsed = 0;
 
     // Receive response with retry logic
-    debug("[HTTP_ReceiveResponse] Starting receive loop");
-
     FOREVER {  // Continue until we have complete response
         received = recv(Connection->SocketHandle, buffer, sizeof(buffer), 0);
-        debug("[HTTP_ReceiveResponse] recv() returned %d bytes", received);
 
         if (received >= 0) {
             if (received == 0) {
-                debug("[HTTP_ReceiveResponse] recv() returned 0 - connection closed by server after %d bytes", totalReceived);
                 break;
             }
 
@@ -795,46 +771,37 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
             timeoutCount = 0;
 
         } else if (received == SOCKET_ERROR_OVERFLOW) {
-            debug("[HTTP_ReceiveResponse] recv() overflow reported after %d bytes", totalReceived);
             free(allData);
             HTTP_SetLastErrorMessage("Socket receive buffer overflow detected");
             return HTTP_ERROR_SOCKET_OVERFLOW;
         } else if (received == SOCKET_ERROR_WOULDBLOCK) {
             retryCount++;
             if (retryCount >= maxRetries) {
-                debug("[HTTP_ReceiveResponse] recv() would block after %d retries", retryCount);
                 break;
             }
 
-            debug("[HTTP_ReceiveResponse] recv() would block, retry %d/%d", retryCount, maxRetries);
             sleep(1);
             continue;
 
         } else if (received == SOCKET_ERROR_TIMEOUT) {
             retryCount++;
             timeoutCount++;
-            debug("[HTTP_ReceiveResponse] recv() timeout %d (retry %d/%d)", timeoutCount, retryCount, maxRetries);
-
             if (timeoutCount >= maxTimeoutsBeforeStateCheck) {
                 struct sockaddr_in peerAddr;
                 socklen_t peerAddrLen = sizeof(peerAddr);
                 int peerStatus = getpeername(Connection->SocketHandle, (struct sockaddr*)&peerAddr, &peerAddrLen);
 
                 if (peerStatus == 0) {
-                    debug("[HTTP_ReceiveResponse] Connection alive after %d timeouts, continuing", timeoutCount);
                     timeoutCount = 0;
                 } else if (peerStatus == SOCKET_ERROR_NOTCONNECTED) {
-                    debug("[HTTP_ReceiveResponse] Connection lost while waiting for data");
                     received = 0;
                     break;
                 } else {
-                    debug("[HTTP_ReceiveResponse] Failed to verify connection state (%d)", peerStatus);
                     break;
                 }
             }
 
             if (retryCount >= maxRetries) {
-                debug("[HTTP_ReceiveResponse] Maximum retries reached after timeout");
                 break;
             }
 
@@ -842,7 +809,6 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
             continue;
 
         } else {
-            debug("[HTTP_ReceiveResponse] recv() error: %d", received);
             break;
         }
 
@@ -852,10 +818,8 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
             if (allDataSize + received > allDataCapacity) {
                 allDataCapacity = allDataSize + received + 1024;
             }
-            debug("[HTTP_ReceiveResponse] Expanding buffer to %d bytes", allDataCapacity);
             unsigned char* newBuffer = (unsigned char*)malloc(allDataCapacity);
             if (!newBuffer) {
-                debug("[HTTP_ReceiveResponse] Failed to expand buffer");
                 free(allData);
                 return HTTP_ERROR_MEMORY_ERROR;
             }
@@ -881,8 +845,6 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
             headerEnd = strstr((char*)allData, "\r\n\r\n");
             if (headerEnd) {
                 headersParsed = 1;
-                debug("[HTTP_ReceiveResponse] Headers parsed, received %d bytes total", totalReceived);
-
                 // Parse Content-Length from headers and save header length
                 savedHeaderLength = (headerEnd + 4) - (char*)allData;
                 char tempHeaders[4096];
@@ -898,7 +860,6 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
                             contentLength = contentLength * 10 + (*numStart - '0');
                             numStart++;
                         }
-                        debug("[HTTP_ReceiveResponse] Content-Length: %d, headerLength: %d", contentLength, savedHeaderLength);
                     }
                 }
             }
@@ -907,18 +868,13 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
         // Show progress for debugging but don't stop on Content-Length (servers can lie)
         if (headersParsed && contentLength > 0 && savedHeaderLength > 0) {
             unsigned int currentBody = allDataSize - savedHeaderLength;
-            debug("[HTTP_ReceiveResponse] Progress: headers: %d, body: %d (server claims: %d)",
-                  savedHeaderLength, currentBody, contentLength);
         }
     }
 
     if (totalReceived == 0) {
-        debug("[HTTP_ReceiveResponse] No data received after %d retries", retryCount);
         free(allData);
         return HTTP_ERROR_CONNECTION_FAILED;
     }
-
-    debug("[HTTP_ReceiveResponse] Total received: %d bytes, allDataSize: %d bytes", totalReceived, allDataSize);
 
     // Null-terminate allData for string operations
     allData[allDataSize] = '\0';
@@ -995,21 +951,15 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
     unsigned char* bodyStart = (unsigned char*)(headerEnd + 4);
     unsigned int bodyLength = allDataSize - (bodyStart - allData);
 
-    debug("[HTTP_ReceiveResponse] Header ends at offset %d, body starts at offset %d, body length: %d",
-          (int)(headerEnd + 4 - (char*)allData), (int)(bodyStart - allData), bodyLength);
-
     if (bodyLength > 0) {
         Response->Body = (unsigned char*)malloc(bodyLength + 1);
         if (Response->Body) {
             memcpy(Response->Body, bodyStart, bodyLength);
             Response->Body[bodyLength] = '\0';
             Response->BodyLength = bodyLength;
-            debug("[HTTP_ReceiveResponse] Successfully copied %d bytes to Response->Body", bodyLength);
         } else {
-            debug("[HTTP_ReceiveResponse] Failed to allocate %d bytes for Response->Body", bodyLength + 1);
         }
     } else {
-        debug("[HTTP_ReceiveResponse] No body data to extract (bodyLength = %d)", bodyLength);
     }
 
     free(allData);
@@ -1028,16 +978,12 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
 int HTTP_Get(HTTP_CONNECTION* Connection, const char* Path, HTTP_RESPONSE* Response) {
     int result;
 
-    debug("[HTTP_Get] Sending GET request for path: %s", Path);
     result = HTTP_SendRequest(Connection, "GET", Path, NULL, 0);
     if (result != HTTP_SUCCESS) {
-        debug("[HTTP_Get] HTTP_SendRequest failed with result: %d", result);
         return result;
     }
 
-    debug("[HTTP_Get] Request sent successfully, receiving response");
     result = HTTP_ReceiveResponse(Connection, Response);
-    debug("[HTTP_Get] HTTP_ReceiveResponse returned: %d", result);
     return result;
 }
 
@@ -1069,7 +1015,8 @@ int HTTP_Post(HTTP_CONNECTION* Connection, const char* Path, const unsigned char
 int HTTP_DownloadToFile(HTTP_CONNECTION* Connection, const char* Filename,
                         HTTP_RESPONSE* ResponseMetadata, unsigned int* BytesWritten,
                         const HTTP_PROGRESS_CALLBACKS* ProgressCallbacks) {
-    char buffer[1024];
+    unsigned char* receiveBuffer = NULL;
+    unsigned int receiveBufferSize = 0;
     int received;
     char* headerEnd;
     char* statusLine;
@@ -1114,6 +1061,12 @@ int HTTP_DownloadToFile(HTTP_CONNECTION* Connection, const char* Filename,
 
     HTTP_SetLastErrorMessage("Success");
 
+    receiveBufferSize = HTTP_SelectDownloadBufferSize(0);
+    receiveBuffer = (unsigned char*)malloc(receiveBufferSize);
+    if (!receiveBuffer) {
+        HTTP_SetLastErrorMessage("Failed to allocate receive buffer");
+        return HTTP_ERROR_MEMORY_ERROR;
+    }
     receiveTimeoutMs = HTTP_GetDefaultReceiveTimeout();
     if (receiveTimeoutMs == 0U) {
         receiveTimeoutMs = 10000U;
@@ -1125,7 +1078,22 @@ int HTTP_DownloadToFile(HTTP_CONNECTION* Connection, const char* Filename,
     Connection->ReceiveBufferUsed = 0;
 
     while (!responseComplete) {
-        received = recv(Connection->SocketHandle, buffer, sizeof(buffer), 0);
+        unsigned int receiveLength = receiveBufferSize;
+
+        if (!headersParsed) {
+            unsigned int headerSpace = (sizeof(headerBuffer) - 1) - headerBufferUsed;
+            if (headerSpace == 0) {
+                result = HTTP_ERROR_INVALID_RESPONSE;
+                HTTP_SetLastErrorMessage("HTTP headers exceed internal buffer size");
+                goto cleanup;
+            }
+
+            if (receiveLength > headerSpace) {
+                receiveLength = headerSpace;
+            }
+        }
+
+        received = recv(Connection->SocketHandle, receiveBuffer, receiveLength, 0);
 
         if (received < 0) {
             if (received == SOCKET_ERROR_OVERFLOW) {
@@ -1182,7 +1150,7 @@ int HTTP_DownloadToFile(HTTP_CONNECTION* Connection, const char* Filename,
                 goto cleanup;
             }
 
-            memcpy(headerBuffer + headerBufferUsed, buffer, receivedUnsigned);
+            memcpy(headerBuffer + headerBufferUsed, receiveBuffer, receivedUnsigned);
             headerBufferUsed += receivedUnsigned;
             headerBuffer[headerBufferUsed] = '\0';
 
@@ -1283,9 +1251,20 @@ int HTTP_DownloadToFile(HTTP_CONNECTION* Connection, const char* Filename,
                 }
             }
 
+            if (contentLength > 0) {
+                unsigned int targetBufferSize = HTTP_SelectDownloadBufferSize(contentLength);
+                if (targetBufferSize != receiveBufferSize) {
+                    unsigned char* resizedBuffer = (unsigned char*)malloc(targetBufferSize);
+                    if (resizedBuffer) {
+                        free(receiveBuffer);
+                        receiveBuffer = resizedBuffer;
+                        receiveBufferSize = targetBufferSize;
+                    }
+                }
+            }
+
             metadataOut->ContentLength = contentLength;
             metadataOut->ChunkedEncoding = isChunked;
-
             if (!statusCallbackInvoked) {
                 statusCallbackInvoked = 1;
                 if (ProgressCallbacks && ProgressCallbacks->OnStatusLine) {
@@ -1349,7 +1328,7 @@ int HTTP_DownloadToFile(HTTP_CONNECTION* Connection, const char* Filename,
 
         if (isChunked) {
             unsigned int chunkBytesWritten = 0U;
-            result = HTTP_ChunkParserProcess(&chunkParser, (const unsigned char*)buffer,
+            result = HTTP_ChunkParserProcess(&chunkParser, (const unsigned char*)receiveBuffer,
                                              (unsigned int)received, file, &chunkBytesWritten);
             if (result != HTTP_SUCCESS) {
                 HTTP_SetLastErrorMessage("Chunk decoder reported an error while processing response data");
@@ -1364,7 +1343,7 @@ int HTTP_DownloadToFile(HTTP_CONNECTION* Connection, const char* Filename,
                 responseComplete = 1;
             }
         } else {
-            result = HTTP_WriteBodyData(file, (const unsigned char*)buffer, (unsigned int)received);
+            result = HTTP_WriteBodyData(file, (const unsigned char*)receiveBuffer, (unsigned int)received);
             if (result != HTTP_SUCCESS) {
                 HTTP_SetLastErrorMessage("Failed to write response body to file");
                 goto cleanup;
@@ -1409,6 +1388,10 @@ int HTTP_DownloadToFile(HTTP_CONNECTION* Connection, const char* Filename,
 cleanup:
     if (file) {
         fclose(file);
+    }
+
+    if (receiveBuffer) {
+        free(receiveBuffer);
     }
 
     if (result == HTTP_SUCCESS) {

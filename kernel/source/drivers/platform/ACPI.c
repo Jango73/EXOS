@@ -25,7 +25,7 @@
 #include "drivers/platform/ACPI.h"
 
 #include "Base.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
@@ -50,6 +50,7 @@ DRIVER DATA_SECTION ACPIDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "ACPI",
+    .Alias = "acpi",
     .Flags = 0,
     .Command = ACPIDriverCommands};
 
@@ -956,7 +957,7 @@ static UINT ACPIDriverCommands(UINT Function, UINT Parameter) {
                 return DF_RETURN_SUCCESS;
             }
 
-            return DF_RETURN_UNEXPECTED;
+            return DF_RETURN_HARDWARE_ABSENT;
 
         case DF_UNLOAD:
             if ((ACPIDriver.Flags & DRIVER_FLAG_READY) == 0) {

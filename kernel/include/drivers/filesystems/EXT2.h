@@ -133,4 +133,10 @@ typedef struct tag_EXT2DIRECTORYENTRY {
 
 #pragma pack(pop)
 
+/***************************************************************************/
+
+LPDRIVER EXT2GetDriver(void);
+
+/***************************************************************************/
+
 #endif  // EXT2_H_INCLUDED

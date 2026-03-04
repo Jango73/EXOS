@@ -23,6 +23,8 @@
 \************************************************************************/
 
 #include "Console-Internal.h"
+#include "console/Console-VGATextFallback.h"
+#include "DisplaySession.h"
 #include "Font.h"
 #include "GFX.h"
 #include "Kernel.h"
@@ -47,7 +49,6 @@
 #define CONSOLE_VER_MINOR 0
 
 static UINT ConsoleDriverCommands(UINT Function, UINT Parameter);
-static void UpdateConsoleDesktopState(U32 Columns, U32 Rows);
 
 DRIVER DATA_SECTION ConsoleDriver = {
     .TypeID = KOID_DRIVER,
@@ -60,6 +61,7 @@ DRIVER DATA_SECTION ConsoleDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "Console",
+    .Alias = "console",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = ConsoleDriverCommands};
 
@@ -121,35 +123,6 @@ CONSOLE_STRUCT Console = {
 /***************************************************************************/
 
 
-static void UpdateConsoleDesktopState(U32 Columns, U32 Rows) {
-    RECT Rect;
-
-    if (Columns == 0 || Rows == 0) return;
-
-    Rect.X1 = 0;
-    Rect.Y1 = 0;
-    Rect.X2 = (I32)Columns - 1;
-    Rect.Y2 = (I32)Rows - 1;
-
-    SAFE_USE_VALID_ID(&MainDesktop, KOID_DESKTOP) {
-        LockMutex(&(MainDesktop.Mutex), INFINITY);
-        MainDesktop.Graphics = &ConsoleDriver;
-        MainDesktop.Mode = DESKTOP_MODE_CONSOLE;
-
-        SAFE_USE_VALID_ID(MainDesktop.Window, KOID_WINDOW) {
-            LockMutex(&(MainDesktop.Window->Mutex), INFINITY);
-            MainDesktop.Window->Rect = Rect;
-            MainDesktop.Window->ScreenRect = Rect;
-            MainDesktop.Window->InvalidRect = Rect;
-            UnlockMutex(&(MainDesktop.Window->Mutex));
-        }
-
-        UnlockMutex(&(MainDesktop.Mutex));
-    }
-}
-
-/***************************************************************************/
-
 /**
  * @brief Move the hardware and logical console cursor.
  * @param CursorX X coordinate of the cursor.
@@ -170,12 +143,6 @@ void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
     LockMutex(MUTEX_CONSOLE, INFINITY);
 
     if (Console.UseFramebuffer != FALSE) {
-        if (Console.CursorX == CursorX && Console.CursorY == CursorY) {
-            UnlockMutex(MUTEX_CONSOLE);
-            ProfileStop(&Scope);
-            return;
-        }
-
         ConsoleHideFramebufferCursor();
         Console.CursorX = CursorX;
         Console.CursorY = CursorY;
@@ -281,7 +248,9 @@ void SetConsoleCharacter(STR Char) {
             if (ConsoleEnsureFramebufferMapped() == TRUE) {
                 U32 PixelX = (State.X + Console.CursorX) * ConsoleGetCellWidth();
                 U32 PixelY = (State.Y + Console.CursorY) * ConsoleGetCellHeight();
+                ConsoleHideFramebufferCursor();
                 ConsoleDrawGlyph(PixelX, PixelY, Char);
+                ConsoleShowFramebufferCursor();
             }
         } else {
             Offset = ((State.Y + Console.CursorY) * Console.ScreenWidth) + (State.X + Console.CursorX);
@@ -352,6 +321,12 @@ void ConsolePrintChar(STR Char) {
     ProfileStart(&Scope, TEXT("ConsolePrintChar"));
 
     LockMutex(MUTEX_CONSOLE, INFINITY);
+
+    if (Console.UseFramebuffer != FALSE && ConsoleEnsureFramebufferMapped() == FALSE) {
+        UnlockMutex(MUTEX_CONSOLE);
+        ProfileStop(&Scope);
+        return;
+    }
 
     if (Char == STR_NEWLINE) {
         Console.CursorX = 0;
@@ -787,16 +762,23 @@ void ConsoleSetPagingActive(BOOL Active) {
  * @brief Reset console paging state for the next command.
  */
 void ConsoleResetPaging(void) {
+    U32 Remaining;
+
     if (Console.PagingEnabled == FALSE || Console.PagingActive == FALSE) {
         Console.PagingRemaining = 0;
         return;
     }
 
-    if (Console.Height > 0) {
-        Console.PagingRemaining = Console.Height - 1;
-    } else {
-        Console.PagingRemaining = 0;
+    Remaining = 0;
+    if (Console.Height > 1) {
+        if (Console.CursorY > 0) {
+            Remaining = Console.CursorY - 1;
+        } else {
+            Remaining = 0;
+        }
     }
+
+    Console.PagingRemaining = Remaining;
 }
 
 /***************************************************************************/
@@ -814,7 +796,15 @@ UINT ConsoleSetMode(LPGRAPHICSMODEINFO Info) { return ConsoleDriverCommands(DF_G
  * @brief Return the number of available VGA console modes.
  * @return Number of console modes.
  */
-UINT ConsoleGetModeCount(void) { return VGAGetModeCount(); }
+UINT ConsoleGetModeCount(void) {
+    LPDRIVER VGADriver = VGAGetDriver();
+
+    if (VGADriver == NULL || VGADriver->Command == NULL) {
+        return 0;
+    }
+
+    return VGADriver->Command(DF_GFX_GETMODECOUNT, 0);
+}
 
 /***************************************************************************/
 
@@ -885,25 +875,8 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
         case DF_GFX_SETMODE: {
             LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Parameter;
             SAFE_USE(Info) {
-                U32 ModeIndex;
-
-                if (VGAFindTextMode(Info->Width, Info->Height, &ModeIndex) == FALSE) {
-                    return DF_GFX_ERROR_MODEUNAVAIL;
-                }
-
-                if (VGASetMode(ModeIndex) == FALSE) {
-                    return DF_RETURN_GENERIC;
-                }
-
-                Console.ScreenWidth = Info->Width;
-                Console.ScreenHeight = Info->Height;
-                ConsoleApplyLayout();
-                Console.CursorX = 0;
-                Console.CursorY = 0;
-                ClearConsole();
-                UpdateConsoleDesktopState(Console.Width, Console.Height);
-
-                return DF_RETURN_SUCCESS;
+                return ConsoleVGATextFallbackActivate(Info->Width, Info->Height, NULL) != FALSE ? DF_RETURN_SUCCESS
+                                                                                                : DF_GFX_ERROR_MODEUNAVAIL;
             }
             return DF_RETURN_GENERIC;
         }

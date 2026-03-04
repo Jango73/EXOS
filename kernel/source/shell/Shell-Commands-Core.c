@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "shell/Shell-Commands-Private.h"
+#include "process/Process-Control.h"
 #include "utils/SizeFormat.h"
 
 static BOOL ShellCommandLineCompletion(
@@ -499,20 +500,21 @@ static void ChangeFolder(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
-static void MakeFolder(LPSHELLCONTEXT Context) {
+static BOOL MakeFolder(LPSHELLCONTEXT Context, LPSTR QualifiedName) {
     LPFILESYSTEM FileSystem;
     FILEINFO FileInfo;
     STR FileName[MAX_PATH_NAME];
+    UINT Result;
 
     ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command) == 0) {
         ConsolePrint(TEXT("Missing argument\n"));
-        return;
+        return FALSE;
     }
 
     FileSystem = GetSystemFS();
-    if (FileSystem == NULL) return;
+    if (FileSystem == NULL) return FALSE;
 
     if (QualifyFileName(Context, Context->Command, FileName)) {
         FileInfo.Size = sizeof(FILEINFO);
@@ -520,8 +522,14 @@ static void MakeFolder(LPSHELLCONTEXT Context) {
         FileInfo.Attributes = MAX_U32;
         FileInfo.Flags = 0;
         StringCopy(FileInfo.Name, FileName);
-        FileSystem->Driver->Command(DF_FS_CREATEFOLDER, (UINT)&FileInfo);
+        Result = FileSystem->Driver->Command(DF_FS_CREATEFOLDER, (UINT)&FileInfo);
+        if (QualifiedName != NULL) {
+            StringCopy(QualifiedName, FileName);
+        }
+        return (Result == DF_RETURN_SUCCESS);
     }
+
+    return FALSE;
 }
 
 static void ListFile(LPFILE File, U32 Indent) {
@@ -598,6 +606,7 @@ void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL Pause, 
     FILEINFO Find;
     LPFILESYSTEM FileSystem;
     LPFILE File;
+    LPPROCESS CurrentProcess = GetCurrentProcess();
     FS_PATHCHECK PathCheck;
     STR DiskName[MAX_FILE_NAME];
     LPCSTR Reason = TEXT("unknown");
@@ -605,6 +614,10 @@ void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL Pause, 
     STR Sep[2] = {PATH_SEP, STR_NULL};
 
     UNUSED(Context);
+    if (ProcessControlIsInterruptRequested(CurrentProcess)) {
+        return;
+    }
+
     FileSystem = GetSystemFS();
 
     Find.Size = sizeof(FILEINFO);
@@ -654,6 +667,10 @@ void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL Pause, 
     }
 
     do {
+        if (ProcessControlIsInterruptRequested(CurrentProcess)) {
+            break;
+        }
+
         ListFile(File, Indent);
         if (Recurse && (File->Attributes & FS_ATTR_FOLDER)) {
             if (StringCompare(File->Name, TEXT(".")) != 0 && StringCompare(File->Name, TEXT("..")) != 0) {
@@ -662,6 +679,9 @@ void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL Pause, 
                 if (NewBase[StringLength(NewBase) - 1] != PATH_SEP) StringConcat(NewBase, Sep);
                 StringConcat(NewBase, File->Name);
                 ListDirectory(Context, NewBase, Indent + 2, Pause, Recurse, NumListed);
+                if (ProcessControlIsInterruptRequested(CurrentProcess)) {
+                    break;
+                }
             }
         }
         if (Pause) {
@@ -684,7 +704,11 @@ U32 CMD_commands(LPSHELLCONTEXT Context) {
     U32 Index;
 
     for (Index = 0; COMMANDS[Index].Command != NULL; Index++) {
-        ConsolePrint(TEXT("%s %s\n"), COMMANDS[Index].Name, COMMANDS[Index].Usage);
+        ConsolePrint(TEXT("%s (%s) %s - %s\n"),
+            COMMANDS[Index].Name,
+            COMMANDS[Index].AltName,
+            COMMANDS[Index].Usage,
+            COMMANDS[Index].Description);
     }
 
     return DF_RETURN_SUCCESS;
@@ -753,6 +777,7 @@ U32 CMD_conmode(LPSHELLCONTEXT Context) {
     Info.Header.Size = sizeof Info;
     Info.Header.Version = EXOS_ABI_VERSION;
     Info.Header.Flags = 0;
+    Info.ModeIndex = INFINITY;
     Info.Width = Columns;
     Info.Height = Rows;
     Info.BitsPerPixel = 0;
@@ -827,6 +852,7 @@ U32 CMD_dir(LPSHELLCONTEXT Context) {
     STR Target[MAX_PATH_NAME];
     STR Base[MAX_PATH_NAME];
     LPFILESYSTEM FileSystem = NULL;
+    LPPROCESS CurrentProcess = GetCurrentProcess();
     BOOL Pause;
     BOOL Recurse;
     U32 NumListed = 0;
@@ -862,7 +888,11 @@ U32 CMD_dir(LPSHELLCONTEXT Context) {
         StringCopy(Base, Target);
     }
 
+    ProcessControlConsumeInterrupt(CurrentProcess);
     ListDirectory(Context, Base, 0, Pause, Recurse, &NumListed);
+    if (ProcessControlCheckpoint(CurrentProcess)) {
+        ConsolePrint(TEXT("Command interrupted\n"));
+    }
 
     TEST(TEXT("[CMD_dir] dir : OK"));
 
@@ -879,7 +909,16 @@ U32 CMD_cd(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 U32 CMD_md(LPSHELLCONTEXT Context) {
-    MakeFolder(Context);
+    STR FolderName[MAX_PATH_NAME];
+
+    FolderName[0] = STR_NULL;
+
+    if (MakeFolder(Context, FolderName)) {
+        TEST(TEXT("[CMD_md] md %s : OK"), FolderName);
+    } else {
+        TEST(TEXT("[CMD_md] md %s : KO"), FolderName);
+    }
+
     return DF_RETURN_SUCCESS;
 }
 

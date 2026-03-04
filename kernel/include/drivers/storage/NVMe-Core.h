@@ -152,4 +152,8 @@ typedef struct tag_NVME_DEVICE {
 
 /************************************************************************/
 
+LPDRIVER NVMeGetDriver(void);
+
+/************************************************************************/
+
 #endif  // DRIVERS_NVME_CORE_H_INCLUDED

@@ -361,7 +361,7 @@ function RunStandardQemu() {
     -serial stdio \
     -vga std \
     -no-reboot \
-    2>&1 | "$CYCLE_BIN" -o "${LOG_KERNEL}" -s 200000
+    2>&1 | "$CYCLE_BIN" -o "${LOG_KERNEL}" -s 4000000
 }
 
 function RunGdbQemu() {

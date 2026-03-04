@@ -25,11 +25,13 @@
 #include "drivers/input/Keyboard.h"
 
 #include "Clock.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "CoreString.h"
 #include "DeferredWork.h"
 #include "Log.h"
 #include "Memory.h"
+#include "input/Hotkey.h"
+#include "input/VKey.h"
 #include "process/Process.h"
 #include "process/Task.h"
 #include "User.h"
@@ -154,7 +156,12 @@ static BOOL DispatchKeyUpMessage(U8 VirtualKey) {
 
 /***************************************************************************/
 
-void RouteKeyCode(LPKEYCODE KeyCode) {
+void RouteKeyCode(LPKEYCODE KeyCode, BOOL Repeat) {
+    if (KeyCode != NULL && KeyCode->VirtualKey != VK_NONE &&
+        HotkeyHandleKeyDown(KeyCode->VirtualKey, GetKeyModifiers(), Repeat) == TRUE) {
+        return;
+    }
+
     if (DispatchKeyMessage(KeyCode) == FALSE) {
         SendKeyCodeToBuffer(KeyCode);
     }

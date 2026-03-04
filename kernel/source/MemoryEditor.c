@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "Base.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "Kernel.h"
 #include "drivers/input/Keyboard.h"
 #include "CoreString.h"

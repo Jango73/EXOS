@@ -2,7 +2,7 @@
 
 ## Current Kernel Hooks (Observed)
 
-- Console output is a VGA text driver in `kernel/source/Console.c` writing to 0xB8000 and exported through `ConsolePrint`, `ConsolePrintLine`, `SetConsoleCursorPosition`, and syscalls (`SYSCALL_Console*` in `kernel/source/SYSCall.c`).
+- Console output is a VGA text driver in `kernel/source/Console-Main.c` writing to 0xB8000 and exported through `ConsolePrint`, `ConsolePrintLine`, `SetConsoleCursorPosition`, and syscalls (`SYSCALL_Console*` in `kernel/source/SYSCall.c`).
 - Keyboard input is handled by `kernel/source/drivers/Keyboard-PS2.c` which translates scancodes to `KEYCODE` and routes to:
   - `EnqueueInputMessage` (focused window/process message queue in `kernel/source/process/TaskMessaging.c`), or
   - the legacy keyboard buffer (`Keyboard.Buffer`) when no message queue is available.
@@ -43,7 +43,7 @@
 
 ## [ ] Step 2 - Console Backend Adapter
 
-- Wrap the existing VGA text console (`kernel/source/Console.c`) behind a small interface:
+- Wrap the existing VGA text console (`kernel/source/Console-Main.c`) behind a small interface:
   - `TTYConsolePutChar`, `TTYConsolePutRun`, `TTYConsoleSetCursor`, `TTYConsoleClear`.
 - Create `TTY0` during boot and bind it to the VGA text backend.
 - For compatibility, map `ConsolePrint*` and `ConsoleBlitBuffer` to TTY0 output internally.

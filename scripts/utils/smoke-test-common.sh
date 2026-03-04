@@ -7,22 +7,33 @@ set -euo pipefail
 # 3) Inject deterministic keyboard input through QEMU monitor
 # 4) Validate expected logs and fail on faults/KO/fatal errors
 # 5) Optionally compare downloaded file size against host source file
+# 6) Optionally compare downloaded file hash against host source file
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT_DIR="${SMOKE_TEST_ROOT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 LOG_FILE="$ROOT_DIR/log/kernel.log"
-COMMANDS_FILE="$ROOT_DIR/scripts/smoke-test-commands.txt"
-LOCAL_HTTP_SERVER_SCRIPT="$ROOT_DIR/scripts/net/start-server.sh"
+COMMANDS_FILE="${SMOKE_TEST_DEFAULT_COMMANDS_FILE:-$ROOT_DIR/scripts/smoke-test-global-commands.txt}"
+LOCAL_HTTP_SERVER_SCRIPT="${SMOKE_TEST_LOCAL_HTTP_SERVER_SCRIPT:-$ROOT_DIR/scripts/net/start-server.sh}"
 LOCAL_HTTP_SERVER_PORT="${LOCAL_HTTP_SERVER_PORT:-8081}"
-SKIP_LOCAL_HTTP_SERVER="${SKIP_LOCAL_HTTP_SERVER:-0}"
+SMOKE_TEST_REQUIRE_LOCAL_HTTP_SERVER="${SMOKE_TEST_REQUIRE_LOCAL_HTTP_SERVER:-0}"
+if [ "$SMOKE_TEST_REQUIRE_LOCAL_HTTP_SERVER" = "1" ]; then
+    SKIP_LOCAL_HTTP_SERVER="${SKIP_LOCAL_HTTP_SERVER:-0}"
+else
+    SKIP_LOCAL_HTTP_SERVER="${SKIP_LOCAL_HTTP_SERVER:-1}"
+fi
 MONITOR_HOST="127.0.0.1"
 MONITOR_PORT="${MONITOR_PORT:-4444}"
 MONITOR_CONNECT_MAX_ATTEMPTS=50
 DEFAULT_TIMEOUT_SECONDS=15
 BOOT_READY_TIMEOUT_SECONDS=45
-KEY_DELAY_SECONDS=0.12
+COMMAND_FORMATION_TIMEOUT_SECONDS=45
+KEY_DELAY_SECONDS=0.16
 COMMAND_DELAY_SECONDS=0.25
 BOOT_INPUT_DELAY_SECONDS=1.0
+IMAGE_READY_TIMEOUT_SECONDS=15
+IMAGE_READY_POLL_SECONDS=0.5
+IMAGE_READY_STABLE_POLLS=3
 TEST_KEYBOARD_LAYOUT="en-US"
+PATCH_KEYBOARD_LAYOUT=1
 LOCAL_HTTP_SERVER_PID=""
 BOOT_READY_PATTERN="[InitializeKernel] Shell task created"
 
@@ -39,100 +50,122 @@ RUN_X86_32=1
 RUN_X86_64=1
 RUN_X86_64_UEFI=1
 SKIP_BUILD=0
+STOP_AFTER_SHELL_READY=0
+ENABLE_HASH_COMPARE=0
 CURRENT_IMAGE_PATH=""
 CURRENT_FS_OFFSET=0
+CURRENT_ARCHIVE_NAME=""
+CURRENT_KERNEL_LOG_PATH=""
+CURRENT_COM1_LOG_PATH=""
+CURRENT_LOGS_ARCHIVED=0
+SCRIPT_DISPLAY_NAME="${SMOKE_TEST_SCRIPT_NAME:-$0}"
 
 function Usage() {
-    echo "Usage: $0 [--only <x86-32|x86-64|x86-64-uefi>] [--commands-file <path>] [--no-build] [--key-delay <seconds>] [--command-delay <seconds>] [--boot-input-delay <seconds>] [--help]"
+    echo "Usage: $SCRIPT_DISPLAY_NAME [--only <x86-32|x86-64|x86-64-uefi>] [--commands-file <path>] [--no-build] [--stop-after-shell] [--no-keyboard-layout-patch] [--hash-compare] [--key-delay <seconds>] [--command-delay <seconds>] [--boot-input-delay <seconds>] [--help]"
 }
 
-while [ $# -gt 0 ]; do
-    case "$1" in
-        --only)
-            shift
-            if [ $# -eq 0 ]; then
-                echo "Missing value for --only"
-                Usage
-                exit 1
-            fi
-            RUN_X86_32=0
-            RUN_X86_64=0
-            RUN_X86_64_UEFI=0
-            case "$1" in
-                x86-32) RUN_X86_32=1 ;;
-                x86-64) RUN_X86_64=1 ;;
-                x86-64-uefi) RUN_X86_64_UEFI=1 ;;
-                *)
-                    echo "Invalid --only target: $1"
+function ParseArguments() {
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --only)
+                shift
+                if [ $# -eq 0 ]; then
+                    echo "Missing value for --only"
                     Usage
                     exit 1
-                    ;;
-            esac
-            ;;
-        --help|-h)
-            Usage
-            exit 0
-            ;;
-        --commands-file)
-            shift
-            if [ $# -eq 0 ]; then
-                echo "Missing value for --commands-file"
+                fi
+                RUN_X86_32=0
+                RUN_X86_64=0
+                RUN_X86_64_UEFI=0
+                case "$1" in
+                    x86-32) RUN_X86_32=1 ;;
+                    x86-64) RUN_X86_64=1 ;;
+                    x86-64-uefi) RUN_X86_64_UEFI=1 ;;
+                    *)
+                        echo "Invalid --only target: $1"
+                        Usage
+                        exit 1
+                        ;;
+                esac
+                ;;
+            --help|-h)
+                Usage
+                return 2
+                ;;
+            --commands-file)
+                shift
+                if [ $# -eq 0 ]; then
+                    echo "Missing value for --commands-file"
+                    Usage
+                    exit 1
+                fi
+                COMMANDS_FILE="$1"
+                ;;
+            --key-delay)
+                shift
+                if [ $# -eq 0 ]; then
+                    echo "Missing value for --key-delay"
+                    Usage
+                    exit 1
+                fi
+                KEY_DELAY_SECONDS="$1"
+                ;;
+            --command-delay)
+                shift
+                if [ $# -eq 0 ]; then
+                    echo "Missing value for --command-delay"
+                    Usage
+                    exit 1
+                fi
+                COMMAND_DELAY_SECONDS="$1"
+                ;;
+            --boot-input-delay)
+                shift
+                if [ $# -eq 0 ]; then
+                    echo "Missing value for --boot-input-delay"
+                    Usage
+                    exit 1
+                fi
+                BOOT_INPUT_DELAY_SECONDS="$1"
+                ;;
+            --no-build)
+                SKIP_BUILD=1
+                ;;
+            --hash-compare)
+                ENABLE_HASH_COMPARE=1
+                ;;
+            --stop-after-shell)
+                STOP_AFTER_SHELL_READY=1
+                ;;
+            --no-keyboard-layout-patch)
+                PATCH_KEYBOARD_LAYOUT=0
+                ;;
+            *)
+                echo "Unknown option: $1"
                 Usage
                 exit 1
-            fi
-            COMMANDS_FILE="$1"
-            ;;
-        --key-delay)
-            shift
-            if [ $# -eq 0 ]; then
-                echo "Missing value for --key-delay"
-                Usage
-                exit 1
-            fi
-            KEY_DELAY_SECONDS="$1"
-            ;;
-        --command-delay)
-            shift
-            if [ $# -eq 0 ]; then
-                echo "Missing value for --command-delay"
-                Usage
-                exit 1
-            fi
-            COMMAND_DELAY_SECONDS="$1"
-            ;;
-        --boot-input-delay)
-            shift
-            if [ $# -eq 0 ]; then
-                echo "Missing value for --boot-input-delay"
-                Usage
-                exit 1
-            fi
-            BOOT_INPUT_DELAY_SECONDS="$1"
-            ;;
-        --no-build)
-            SKIP_BUILD=1
-            ;;
-        *)
-            echo "Unknown option: $1"
-            Usage
-            exit 1
-            ;;
-    esac
-    shift
-done
+                ;;
+        esac
+        shift
+    done
 
-if [ -z "$GREP_BIN" ]; then
-    echo "Missing grep. Aborting."
-    exit 1
-fi
-if ! command -v debugfs >/dev/null 2>&1; then
-    echo "Missing debugfs. Aborting."
-    exit 1
-fi
-if ! command -v mdir >/dev/null 2>&1; then
-    echo "Missing mtools (mdir). Aborting."
-    exit 1
-fi
+    return 0
+}
+
+function ValidatePrerequisites() {
+    if [ -z "$GREP_BIN" ]; then
+        echo "Missing grep. Aborting."
+        exit 1
+    fi
+    if ! command -v debugfs >/dev/null 2>&1; then
+        echo "Missing debugfs. Aborting."
+        exit 1
+    fi
+    if ! command -v mdir >/dev/null 2>&1; then
+        echo "Missing mtools (mdir). Aborting."
+        exit 1
+    fi
+}
 
 function SearchRegex() {
     # Prefer ripgrep when available for speed and clearer output.
@@ -156,6 +189,48 @@ function Trim() {
     Value="${Value#"${Value%%[![:space:]]*}"}"
     Value="${Value%"${Value##*[![:space:]]}"}"
     echo "$Value"
+}
+
+function NormalizeSpaces() {
+    local Value="$1"
+    Value="$(echo "$Value" | tr '\t' ' ' | tr -s ' ')"
+    Value="${Value#"${Value%%[![:space:]]*}"}"
+    Value="${Value%"${Value##*[![:space:]]}"}"
+    echo "$Value"
+}
+
+function WaitForImageReady() {
+    local ImagePath="$1"
+    local StartTime
+    local StableCount=0
+    local LastSize=""
+    local LastMTime=""
+    local CurrentSize=""
+    local CurrentMTime=""
+
+    StartTime="$SECONDS"
+    while [ $((SECONDS - StartTime)) -lt "$IMAGE_READY_TIMEOUT_SECONDS" ]; do
+        if [ -f "$ImagePath" ]; then
+            CurrentSize="$(stat -c "%s" "$ImagePath" 2>/dev/null || echo "")"
+            CurrentMTime="$(stat -c "%Y" "$ImagePath" 2>/dev/null || echo "")"
+            if [ -n "$CurrentSize" ] && [ -n "$CurrentMTime" ]; then
+                if [ "$CurrentSize" = "$LastSize" ] && [ "$CurrentMTime" = "$LastMTime" ]; then
+                    StableCount=$((StableCount + 1))
+                else
+                    StableCount=0
+                fi
+                LastSize="$CurrentSize"
+                LastMTime="$CurrentMTime"
+                if [ "$StableCount" -ge "$IMAGE_READY_STABLE_POLLS" ]; then
+                    return 0
+                fi
+            fi
+        fi
+        sleep "$IMAGE_READY_POLL_SECONDS"
+    done
+
+    echo "Timed out waiting for image to finish writing: $ImagePath"
+    return 1
 }
 
 function SetImageKeyboardLayout() {
@@ -297,6 +372,48 @@ function StopLocalHttpServer() {
     if [ -n "$LOCAL_HTTP_SERVER_PID" ] && kill -0 "$LOCAL_HTTP_SERVER_PID" 2>/dev/null; then
         kill "$LOCAL_HTTP_SERVER_PID" || true
     fi
+}
+
+function ArchiveCurrentRunLogs() {
+    local Status="$1"
+    local Timestamp=""
+    local ArchiveDir=""
+    local SafeName=""
+    local KernelArchivePath=""
+    local Com1ArchivePath=""
+
+    if [ "$CURRENT_LOGS_ARCHIVED" -eq 1 ]; then
+        return 0
+    fi
+    if [ -z "$CURRENT_ARCHIVE_NAME" ] || [ -z "$CURRENT_KERNEL_LOG_PATH" ]; then
+        return 0
+    fi
+
+    Timestamp="$(date +%Y%m%d-%H%M%S)"
+    ArchiveDir="$ROOT_DIR/log/archive"
+    SafeName="$(echo "$CURRENT_ARCHIVE_NAME" | tr ' ' '-')"
+    mkdir -p "$ArchiveDir"
+
+    if [ -f "$CURRENT_KERNEL_LOG_PATH" ]; then
+        KernelArchivePath="$ArchiveDir/${Timestamp}-${SafeName}-${Status}-kernel.log"
+        cp "$CURRENT_KERNEL_LOG_PATH" "$KernelArchivePath"
+        echo "Archived kernel log: $KernelArchivePath"
+    fi
+    if [ -n "$CURRENT_COM1_LOG_PATH" ] && [ -f "$CURRENT_COM1_LOG_PATH" ]; then
+        Com1ArchivePath="$ArchiveDir/${Timestamp}-${SafeName}-${Status}-com1.log"
+        cp "$CURRENT_COM1_LOG_PATH" "$Com1ArchivePath"
+        echo "Archived com1 log: $Com1ArchivePath"
+    fi
+
+    CURRENT_LOGS_ARCHIVED=1
+}
+
+function OnScriptExit() {
+    local ExitCode="$1"
+    if [ "$ExitCode" -ne 0 ]; then
+        ArchiveCurrentRunLogs "fail"
+    fi
+    StopLocalHttpServer
 }
 
 function GetLogSize() {
@@ -486,6 +603,40 @@ function WaitForExpectedLog() {
     return 1
 }
 
+function VerifySpawnCommandLine() {
+    # Ensure the command sent through monitor is actually the command launched.
+    local ExpectedCommand="$1"
+    local Offset="$2"
+    local TimeoutSeconds="${3:-$COMMAND_FORMATION_TIMEOUT_SECONDS}"
+    local StartTime="$SECONDS"
+    local LaunchLine=""
+    local LaunchCommand=""
+    local ExpectedNormalized=""
+    local LaunchNormalized=""
+
+    ExpectedNormalized="$(NormalizeSpaces "$ExpectedCommand")"
+
+    while [ $((SECONDS - StartTime)) -lt "$TimeoutSeconds" ]; do
+        LaunchLine="$(TailFromOffset "$Offset" | SearchFixed "[Spawn] Launching :" | head -n 1 || true)"
+        if [ -n "$LaunchLine" ]; then
+            LaunchCommand="$(echo "$LaunchLine" | sed -n 's/^.*\[Spawn\] Launching : //p' | head -n 1)"
+            LaunchNormalized="$(NormalizeSpaces "$LaunchCommand")"
+            if [ "$LaunchNormalized" = "$ExpectedNormalized" ]; then
+                return 0
+            fi
+
+            echo "Command launch mismatch detected."
+            echo "Expected: $ExpectedNormalized"
+            echo "Actual:   $LaunchNormalized"
+            return 1
+        fi
+        sleep 0.1
+    done
+
+    echo "Timed out waiting for spawn launch log for command: $ExpectedCommand"
+    return 1
+}
+
 function AssertNoFailures() {
     # Validate there is no fault/KO/fatal error in the selected log slice.
     local Offset="$1"
@@ -580,6 +731,87 @@ function AssertDownloadedFileSize() {
     fi
 }
 
+function ComputeSha256() {
+    local TargetPath="$1"
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$TargetPath" | awk '{print $1}'
+        return 0
+    fi
+    if command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$TargetPath" | awk '{print $1}'
+        return 0
+    fi
+    echo "Missing sha256 tool (sha256sum or shasum)."
+    return 1
+}
+
+function AssertDownloadedFileHash() {
+    # Read guest file from the disk image and compare SHA-256 with host source.
+    local Offset="$1"
+    local SourcePath="$2"
+    local DownloadedName="$3"
+    local ResolvedSourcePath
+    local DownloadedPath
+    local PartitionImage
+    local FsOffset
+    local GuestTemp
+    local SourceHash
+    local GuestHash
+
+    if [[ "$SourcePath" = /* ]]; then
+        ResolvedSourcePath="$SourcePath"
+    else
+        ResolvedSourcePath="$ROOT_DIR/$SourcePath"
+    fi
+
+    if [ ! -f "$ResolvedSourcePath" ]; then
+        echo "Source file not found for hash compare: $ResolvedSourcePath"
+        return 1
+    fi
+
+    if [ -z "$CURRENT_IMAGE_PATH" ] || [ ! -f "$CURRENT_IMAGE_PATH" ]; then
+        echo "Guest disk image not available for hash compare: $CURRENT_IMAGE_PATH"
+        return 1
+    fi
+    if [ -z "$DownloadedName" ]; then
+        echo "Missing downloaded file name in hash compare."
+        return 1
+    fi
+
+    if [[ "$DownloadedName" = /* ]]; then
+        DownloadedPath="$DownloadedName"
+    else
+        DownloadedPath="/$DownloadedName"
+    fi
+
+    FsOffset="$CURRENT_FS_OFFSET"
+    PartitionImage="$(mktemp)"
+    if ! dd if="$CURRENT_IMAGE_PATH" of="$PartitionImage" iflag=skip_bytes skip="$FsOffset" bs=1M status=none 2>/dev/null; then
+        dd if="$CURRENT_IMAGE_PATH" of="$PartitionImage" bs=1 skip="$FsOffset" status=none
+    fi
+
+    GuestTemp="$(mktemp)"
+    if ! debugfs -R "dump $DownloadedPath $GuestTemp" "$PartitionImage" >/dev/null 2>&1; then
+        rm -f "$PartitionImage" "$GuestTemp"
+        echo "Could not extract downloaded file from guest image: $DownloadedPath"
+        return 1
+    fi
+
+    SourceHash="$(ComputeSha256 "$ResolvedSourcePath")"
+    GuestHash="$(ComputeSha256 "$GuestTemp")"
+    rm -f "$PartitionImage" "$GuestTemp"
+
+    if [ -z "$SourceHash" ] || [ -z "$GuestHash" ]; then
+        echo "Hash calculation failed for $DownloadedName"
+        return 1
+    fi
+
+    if [ "$SourceHash" != "$GuestHash" ]; then
+        echo "Downloaded hash mismatch for $DownloadedName: expected $SourceHash got $GuestHash"
+        return 1
+    fi
+}
+
 function RunCommandSpec() {
     # Execute one command specification line:
     # command + expected log + optional file-size-compare check.
@@ -598,6 +830,9 @@ function RunCommandSpec() {
     echo "Running command: $CommandText"
     Offset="$(GetLogSize)"
     SendCommand "$CommandText"
+    if [[ "$CommandText" == /* ]]; then
+        VerifySpawnCommandLine "$CommandText" "$Offset"
+    fi
     if [ -n "$ExpectedText" ]; then
         WaitForExpectedLog "$ExpectedText" "$Offset" "$TimeoutSeconds"
     else
@@ -607,18 +842,22 @@ function RunCommandSpec() {
     AssertNoFailures "$Offset"
     if [ -n "$CompareSource" ] || [ -n "$CompareDownloaded" ]; then
         AssertDownloadedFileSize "$Offset" "$CompareSource" "$CompareDownloaded"
+        if [ "$ENABLE_HASH_COMPARE" -eq 1 ]; then
+            AssertDownloadedFileHash "$Offset" "$CompareSource" "$CompareDownloaded"
+        fi
     fi
 }
 
 function RunCommandList() {
     # Command file grammar (one spec per line):
-    # command: "..." | [log: "..."] | [file-size-compare: "host/path" "/guest/path"]
+    # command: "..." | [log: "..."] | [file-size-compare: "host/path" "/guest/path"] | [timeout: N]
     local Line
     local Part
     local CommandText=""
     local ExpectedText=""
     local CompareSource=""
     local CompareDownloaded=""
+    local TimeoutSeconds=""
 
     local ResolvedCommandsFile="$COMMANDS_FILE"
 
@@ -643,6 +882,7 @@ function RunCommandList() {
         ExpectedText=""
         CompareSource=""
         CompareDownloaded=""
+        TimeoutSeconds=""
 
         while IFS= read -r Part; do
             Part="$(Trim "$Part")"
@@ -653,6 +893,8 @@ function RunCommandList() {
             elif [[ "$Part" =~ ^file-size-compare:[[:space:]]*\"([^\"]*)\"[[:space:]]+\"([^\"]*)\"$ ]]; then
                 CompareSource="${BASH_REMATCH[1]}"
                 CompareDownloaded="${BASH_REMATCH[2]}"
+            elif [[ "$Part" =~ ^timeout:[[:space:]]*([0-9]+)$ ]]; then
+                TimeoutSeconds="${BASH_REMATCH[1]}"
             else
                 echo "Invalid command spec segment: $Part"
                 exit 1
@@ -664,7 +906,7 @@ function RunCommandList() {
             exit 1
         fi
 
-        RunCommandSpec "$CommandText" "$ExpectedText" "$CompareSource" "$CompareDownloaded"
+        RunCommandSpec "$CommandText" "$ExpectedText" "$CompareSource" "$CompareDownloaded" "$TimeoutSeconds"
     done < "$ResolvedCommandsFile"
 }
 
@@ -686,6 +928,7 @@ function RunArchitecture() {
     if [ "$SKIP_BUILD" -eq 0 ]; then
         echo "Building $Name..."
         bash -c "cd \"$ROOT_DIR\" && $BuildScript"
+        sleep 2
     else
         echo "Skipping build for $Name (--no-build)"
     fi
@@ -695,7 +938,14 @@ function RunArchitecture() {
     LOG_FILE="$ROOT_DIR/$KernelLogRelativePath"
     CURRENT_IMAGE_PATH="$ROOT_DIR/$ImageRelativePath"
     CURRENT_FS_OFFSET="$FileSystemOffset"
-    SetImageKeyboardLayout "$CURRENT_IMAGE_PATH" "$CURRENT_FS_OFFSET" "$TEST_KEYBOARD_LAYOUT"
+    CURRENT_ARCHIVE_NAME="$Name"
+    CURRENT_KERNEL_LOG_PATH="$ROOT_DIR/$KernelLogRelativePath"
+    CURRENT_COM1_LOG_PATH="$ROOT_DIR/${KernelLogRelativePath/log\/kernel-/log\/debug-com1-}"
+    CURRENT_LOGS_ARCHIVED=0
+    WaitForImageReady "$CURRENT_IMAGE_PATH"
+    if [ "$PATCH_KEYBOARD_LAYOUT" -eq 1 ]; then
+        SetImageKeyboardLayout "$CURRENT_IMAGE_PATH" "$CURRENT_FS_OFFSET" "$TEST_KEYBOARD_LAYOUT"
+    fi
     : > "$LOG_FILE"
 
     local ShutdownWaitStart
@@ -703,7 +953,7 @@ function RunArchitecture() {
 
     bash -c "cd \"$ROOT_DIR\" && $QemuScript" &
     local QemuPid=$!
-    trap 'if kill -0 "$QemuPid" 2>/dev/null; then kill "$QemuPid" || true; fi' RETURN
+    trap 'if [ -n "${QemuPid:-}" ] && kill -0 "${QemuPid}" 2>/dev/null; then kill "${QemuPid}" || true; fi' RETURN
 
     if ! WaitForMonitor; then
         echo "QEMU monitor did not start."
@@ -715,6 +965,22 @@ function RunArchitecture() {
     sleep "$BOOT_INPUT_DELAY_SECONDS"
     AssertNoFailures 0
     WaitForExpectedLog "$BOOT_READY_PATTERN" 0 "$BOOT_READY_TIMEOUT_SECONDS"
+    if [ "$STOP_AFTER_SHELL_READY" -eq 1 ]; then
+        echo "Shell ready detected, stopping early (--stop-after-shell)."
+        StopQemu
+        ShutdownWaitStart="$SECONDS"
+        while kill -0 "$QemuPid" 2>/dev/null; do
+            if [ $((SECONDS - ShutdownWaitStart)) -ge "$ShutdownWaitTimeout" ]; then
+                echo "Timed out waiting for QEMU shutdown after shell-ready stop."
+                kill "$QemuPid" || true
+                exit 1
+            fi
+            sleep 0.2
+        done
+        wait "$QemuPid" || true
+        ArchiveCurrentRunLogs "pass"
+        return 0
+    fi
     RunCommandList
     AssertNoFailures 0
 
@@ -729,17 +995,30 @@ function RunArchitecture() {
     done
 
     wait "$QemuPid" || true
+    ArchiveCurrentRunLogs "pass"
 }
 
-trap 'StopLocalHttpServer' EXIT
-EnsureLocalHttpServer
+function SmokeTestMain() {
+    ParseArguments "$@" || {
+        if [ $? -eq 2 ]; then
+            return 0
+        fi
+        return 1
+    }
 
-if [ "$RUN_X86_32" -eq 1 ]; then
-    RunArchitecture "x86-32" "scripts/build.sh --arch x86-32 --fs ext2 --debug --clean --kernel-log-tag-filter ''" "scripts/run.sh --arch x86-32 --fs ext2 --debug" "log/kernel-x86-32-mbr-debug.log" "build/image/x86-32-mbr-debug-ext2/boot-hd/exos.img" "1048576"
-fi
-if [ "$RUN_X86_64" -eq 1 ]; then
-    RunArchitecture "x86-64" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean --kernel-log-tag-filter ''" "scripts/run.sh --arch x86-64 --fs ext2 --debug" "log/kernel-x86-64-mbr-debug.log" "build/image/x86-64-mbr-debug-ext2/boot-hd/exos.img" "1048576"
-fi
-if [ "$RUN_X86_64_UEFI" -eq 1 ]; then
-    RunArchitecture "x86-64 UEFI" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean --uefi --kernel-log-tag-filter ''" "scripts/run.sh --arch x86-64 --fs ext2 --debug --uefi" "log/kernel-x86-64-uefi-debug.log" "build/image/x86-64-uefi-debug-ext2/boot-uefi/exos-uefi.img" "4194304"
-fi
+    ValidatePrerequisites
+    trap 'OnScriptExit $?' EXIT
+    EnsureLocalHttpServer
+
+    if [ "$RUN_X86_32" -eq 1 ]; then
+        RunArchitecture "x86-32" "scripts/build.sh --arch x86-32 --fs ext2 --debug --clean --kernel-log-tag-filter ''" "scripts/run.sh --arch x86-32 --fs ext2 --debug" "log/kernel-x86-32-mbr-debug.log" "build/image/x86-32-mbr-debug-ext2/boot-hd/exos.img" "1048576"
+    fi
+    if [ "$RUN_X86_64" -eq 1 ]; then
+        RunArchitecture "x86-64" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean --kernel-log-tag-filter ''" "scripts/run.sh --arch x86-64 --fs ext2 --debug" "log/kernel-x86-64-mbr-debug.log" "build/image/x86-64-mbr-debug-ext2/boot-hd/exos.img" "1048576"
+    fi
+    if [ "$RUN_X86_64_UEFI" -eq 1 ]; then
+        RunArchitecture "x86-64 UEFI" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean --uefi --kernel-log-tag-filter ''" "scripts/run.sh --arch x86-64 --fs ext2 --debug --uefi" "log/kernel-x86-64-uefi-debug.log" "build/image/x86-64-uefi-debug-ext2/boot-uefi/exos-uefi.img" "4194304"
+    fi
+
+    return 0
+}

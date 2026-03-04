@@ -28,6 +28,7 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 - **Freestanding**: The kernel **MUST NOT** rely on **ANY** external library/module (unless specified otherwise). **NO** stdlib, stdio, whatever. Everything the kernel needs is built in the compiler and in the codebase.
 - **Debugging**: Debug output is logged with DEBUG(). Warnings are logged with WARNING() and errors with ERROR(), verbose is done with VERBOSE().
 - **Logging**: A log string **ALWAYS** begins with "[FunctionName]" where FunctionName is the name of the function where the logging is done. Use "%p" for pointers and addresses, "%x" for values except for sizes which use "%u". Do not hide errors by removing warnings. Reduce flood with rate limiting while preserving diagnostic signal (`suppressed` count or equivalent).
+- **TEXT literals (mandatory)**: In kernel C code, every string literal passed to APIs/macros expecting `LPCSTR` (for example `DEBUG`, `WARNING`, `ERROR`, `VERBOSE`, `KernelLogText`, `ConsolePrint`, and ternary literal fallbacks) **MUST** be wrapped with `TEXT("...")`. Never pass raw `"..."` to those paths.
 - **Declaration order**: Group declarations by type. 1: macros / 2: type definitions / 3: inline functions / 4: external functions / 5: other
 - **Function order**: DO NOT OVERUSE forward declarations. Define functions before they are used.
 - **I18n**: Write comments, console output and technical doc in english.
@@ -63,8 +64,9 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 ## Common Build Commands
 
 ## Tool Execution Policy
-- When running repository scripts that may require elevated permissions, always invoke them with the `bash scripts/...` form (example: `bash scripts/4-1-smoke-test.sh`).
+- When running repository scripts that may require elevated permissions, always invoke them with the `bash scripts/...` form (example: `bash scripts/4-1-smoke-test-global.sh`).
 - Keep this invocation form consistent so persistent elevation approval can be reused on the same command prefix.
+- NEVER run two `./scripts/build` commands in parallel: this repository enforces a build lock and the second build will fail with \"A build is already running\". Always run build commands sequentially.
 
 **Build (ext2):**
 ```bash
@@ -89,10 +91,10 @@ Replace `x86-32` with `x86-64` when targeting the x86-64 architecture.
 
 **Automated build + smoke tests (dashboard-driven):**
 ```bash
-./scripts/4-1-smoke-test.sh
-./scripts/4-1-smoke-test.sh --only x86-32
-./scripts/4-1-smoke-test.sh --only x86-64
-./scripts/4-1-smoke-test.sh --only x86-64-uefi
+./scripts/4-1-smoke-test-global.sh
+./scripts/4-1-smoke-test-global.sh --only x86-32
+./scripts/4-1-smoke-test-global.sh --only x86-64
+./scripts/4-1-smoke-test-global.sh --only x86-64-uefi
 ```
 This script runs build + boot + shell command checks (`sysinfo`, `dir`, `/system/apps/hello`) and supports selecting a single target with `--only`.
 
@@ -117,7 +119,7 @@ scripts\remote\x86-64\4-5-build-debug-ext2-ssh.bat
 ```
 Configure SSH and the remote repo root once in `scripts/remote/ssh-config.bat`. The remote build runs in the same repository (same path, same branch/commit) as the Windows workspace (shared folder).
 
-**Don't wait more than 15 seconds when testing, the system boots in less than 2 seconds and auto-run executable should finish under 15 seconds**
+**Don't wait more than 15 seconds when testing interactively; this limit does not apply to repository scripts, where timeouts may be adjusted as needed. The system boots in less than 2 seconds and auto-run executable should finish under 15 seconds.**
 
 ## Debug output
 

@@ -231,7 +231,7 @@ Security in EXOS is implemented as a layered architecture. The effective access 
 
 - `SECURITY` objects provide owner and per-user permission fields (`READ`, `WRITE`, `EXECUTE`) with default permissions (`kernel/include/Security.h`).
 - Process structures embed a `SECURITY` instance initialized by `InitSecurity()` during process creation (`kernel/source/process/Process.c`).
-- This data model is present and initialized, while policy enforcement is currently concentrated in syscall handlers and expose-layer checks.
+- This data model is present and initialized, while policy enforcement is concentrated in syscall handlers and expose-layer checks.
 
 #### Architectural properties and current boundaries
 
@@ -580,6 +580,10 @@ Message retrieval:
 
 Interactive editing of shell command lines is implemented in `kernel/source/utils/CommandLineEditor.c`. The module processes keyboard input via the classic buffered path (`PeekChar`/`GetKeyCode`), maintains an in-memory history, refreshes the console display, and relies on callbacks to retrieve completion suggestions. The shell owns an input state structure that embeds the editor instance and provides shell-specific callbacks for completion and idle processing so the component remains agnostic of higher level shell logic. While reading input, the editor adjusts for console scrolling so the display does not re-trigger scrolling on each key press, console paging prompts are suspended until the line is submitted, and successful key interactions update session activity timestamps.
 
+Shell graphics commands are implemented in `kernel/source/shell/Shell-Commands-Graphics.c`. The `gfx backend <driver> <WidthxHeightxBitsPerPixel>` mode selects backend and mode, and `gfx smoke_test [DurationMilliseconds]` creates a temporary desktop, renders a basic window using kernel graphics primitives, waits for the requested duration, then restores text console mode.
+Graphics drivers expose mode enumeration through `DF_GFX_GETMODECOUNT` and `DF_GFX_GETMODEINFO`; `GRAPHICSMODEINFO.ModeIndex` selects a mode and `INFINITY` targets the active mode.
+The `driver <alias>` shell command prints one detailed driver report (identity fields, type, flags, command pointers, command-reported version/capabilities, and enum domains).
+
 Keyboard input keeps two distinct paths for compatibility. The legacy PS/2 pipeline continues to use scan code -> KEYTRANS tables, while a separate HID path uses usage page 0x07 indexed KEY_LAYOUT_HID layouts. The HID layout file format is UTF-8 text with an "EKM1" header and directives: code, levels, map, dead, and compose. The kernel keeps an embedded en-US fallback (KEY_LAYOUT_FALLBACK_CODE) used when HID layout loading fails. The HID layout loader parses EKM1 files with a tolerant UTF-8 decoder, logs replacement counts, and rejects malformed directives or out-of-range entries. USB HID keyboard support lives in `kernel/source/drivers/input/Keyboard-USB.c`; keyboard reports are processed in boot protocol on the primary keyboard interface, and consumer/media usages (usage page 0x0C) are decoded from an optional secondary HID consumer interface into the common key event path with keydown/keyup transitions. HID report descriptor decoding is implemented by the reusable helper `utils/HIDReport` (`kernel/include/utils/HIDReport.h`, `kernel/source/utils/HIDReport.c`). Keyboard initialization is mediated by a selector driver (`kernel/source/drivers/input/Keyboard-Selector.c`) that probes for a USB HID keyboard after PCI/xHCI enumeration and otherwise falls back to PS/2 detection, ensuring only one keyboard driver is active at a time.
 
 All reusable helpers -such as the command line editor, adaptive delay, string containers, byte-size formatting helpers (`utils/SizeFormat`), CRC/SHA-256 utilities, compression utilities, chunk cache utilities, detached signature utilities, notifications, path helpers, TOML parsing, UUID support, regex, hysteresis control, cooldown timing, rate limiting, and network checksum helpers— live under `kernel/source/utils` with their public headers in `kernel/include/utils`. SHA-256 is exposed through `utils/Crypt` and bridged to the vendored BearSSL hash implementation under `third/bearssl`. Compression is exposed through `utils/Compression` and bridged to the vendored miniz backend under `third/miniz`. Detached signature verification is exposed through `utils/Signature` with a backend-swappable API surface, and Ed25519 verification is wired to vendored Monocypher sources under `third/monocypher`. This keeps generic infrastructure separated from core subsystems and makes it easier to share common code across the kernel.
@@ -704,7 +708,8 @@ All reusable helpers -such as the command line editor, adaptive delay, string co
 
 Hardware-facing components are grouped under `kernel/source/drivers` with public headers in `kernel/include/drivers`. This area contains keyboard, serial mouse, interrupt controller (I/O APIC), PCI bus, network (`E1000`), storage (`ATA`, `SATA`, `NVMe`), graphics (`VGA`, `VESA`, mode tables), and file system backends (`FAT16`, `FAT32`, `EXFS`).
 
-Kernel-side registration follows a deterministic list-driven flow in `KernelData.c`: `InitializeDriverList()` appends static driver descriptors, then `LoadAllDrivers()` walks the list in order.
+Kernel-side registration follows a deterministic list-driven flow in `KernelData.c`: `InitializeDriverList()` populates `StartupDrivers` (load order) and `Drivers` (all known descriptors), then `LoadAllDrivers()` walks `StartupDrivers` in order.
+PCI-backed class drivers such as `e1000`, `ahci`, `nvme`, and `xhci` are also inserted in the global known-driver list (`Drivers`) for shell and diagnostics visibility, while their effective load/attach lifecycle remains driven by PCI enumeration.
 
 The NVMe driver initializes admin queues first, then I/O queues, configures completion interrupts through MSI-X when available, enumerates namespaces, and registers each namespace as a disk so `MountDiskPartitions` can attach file systems.
 
@@ -742,18 +747,43 @@ USB mass storage (`kernel/source/drivers/USBMassStorage.c`, BOT read-only path) 
 
 The VESA driver requests VBE modes in linear frame buffer mode (INT 10h 4F02h, bit 14), validates LFB capability, and maps `PhysBasePtr` through `MapIOMemory`. Rendering writes directly to mapped VRAM, avoiding BIOS bank-switch calls.
 
-The console supports direct linear framebuffer rendering when Multiboot framebuffer metadata is available:
+`kernel/include/GFX.h` defines a backend-facing graphics command contract. Legacy drawing commands (`SETMODE`, `GETMODEINFO`, `SETPIXEL`, `GETPIXEL`, `LINE`, `RECTANGLE`) stay unchanged for compatibility. The same header also defines optional backend commands for capabilities/outputs/present/surfaces (`GETCAPABILITIES`, `ENUMOUTPUTS`, `GETOUTPUTINFO`, `PRESENT`, `WAITVBLANK`, `ALLOCSURFACE`, `FREESURFACE`, `SETSCANOUT`). Legacy backends that do not implement those optional commands return `DF_RETURN_NOT_IMPLEMENTED`.
 
-- BIOS/MBR path uses VGA text buffer `0xB8000` with text framebuffer metadata.
-- UEFI path uses GOP-provided framebuffer base, pitch, resolution, and RGB layout, with glyph rendering into GOP memory.
-- In framebuffer mode, a software cursor is rendered by inverting the active text cell and restored on each cursor move, so command-line editing keeps a visible caret position.
+Text rendering commands are also part of the graphics contract (`TEXT_PUTCELL`, `TEXT_CLEAR_REGION`, `TEXT_SCROLL_REGION`, `TEXT_SET_CURSOR`, `TEXT_SET_CURSOR_VISIBLE`). This path allows console text operations to be dispatched through the active graphics backend.
+
+Graphics backend selection is handled by `kernel/source/drivers/graphics/Graphics-Selector.c`. The selector loads graphics backends, keeps only active/usable ones, scores their capabilities, and forwards `DF_GFX_*` calls to the selected backend. This provides deterministic fallback behavior without hardcoding a single backend in desktop code.
+Display-class PCI fallback attach logic is implemented in `kernel/source/drivers/graphics/Graphics-PCI.c`; the PCI bus layer registers this graphics-provided attach driver during PCI initialization so generic display controllers remain visible in the PCI device list.
+
+`kernel/source/drivers/graphics/VGA-Main.c` exposes a dedicated VGA text driver (`alias: vga`) implementing mode enumeration and text mode set through the same `DF_GFX_*` contract (`ENUMMODES`, `GETMODEINFO`, `SETMODE`).
+
+The Intel native backend is split into `kernel/source/drivers/graphics/iGPU-Base.c` (load/dispatch and PCI attach), `kernel/source/drivers/graphics/iGPU-Mode.c` (takeover and native modeset flow), and `kernel/source/drivers/graphics/iGPU-Present.c` (CPU drawing, surfaces, and present).
+
+Intel capability handling is centralized in an internal `INTEL_GFX_CAPS` object populated from a PCI device-id family table and refined with bounded MMIO register probes (display version, pipe presence, port mask). Generic `GFX_CAPABILITIES` values exposed through `DF_GFX_GETCAPABILITIES` are projected from this single capability object.
+
+The Intel backend takeover path reads active pipe/plane state from display registers, maps the active scanout buffer through the aperture BAR, builds a `GRAPHICSCONTEXT` from that mode, and serves window-manager drawing through CPU primitives (`SETPIXEL`, `GETPIXEL`, `LINE`, `RECTANGLE`) writing directly to the active scanout memory.
+
+The native `DF_GFX_SETMODE` path in `kernel/source/drivers/graphics/iGPU-Mode.c` uses a stage-ordered sequence (disable, route, clock, link, enable, verify), explicit pipe/output/transcoder routing policy, conservative generation-aware clock-source handling, eDP panel/backlight stabilization hooks, and rollback to a captured hardware snapshot when a partial modeset stage fails.
+When active scanout takeover is unavailable on hybrid platforms, Intel backend load remains available for explicit backend forcing, and the same `DF_GFX_SETMODE` path performs a conservative cold modeset bootstrap (requested mode timings, pipe/output/link programming, then context rebuild from programmed state).
+The modeset core resolves explicit `INTEL_DISPLAY_FAMILY_OPS` descriptors from display version so stride encoding/decoding, plane tiling policy, and cold-modeset support remain per-family and extension-ready for additional Intel generations without hardwired device-id flow control.
+Modeset diagnostics keep explicit failure state in `INTEL_GFX_STATE` (`LastModesetFailureStage`, `LastModesetFailureCode`) to avoid silent fallback behavior during native bring-up.
+
+Display ownership state is tracked through `kernel/source/DisplaySession.c` (`DISPLAY_SESSION` stored in `KERNELDATA`). This records active frontend (`console` or `desktop`), active desktop pointer, selected graphics driver, and active mode so mode transitions are represented as explicit kernel state.
+Frontend transitions are executed through `DisplaySwitchToConsole()` and `DisplaySwitchToDesktop()`, which keep backend ownership active and avoid using `DF_UNLOAD` as a display switching path.
+Emergency text fallback is isolated in `kernel/source/Console-VGATextFallback.c` and is only entered when console front-end activation cannot be completed through the active graphics backend path. The fallback requests VGA text mode through the VGA driver command interface, instead of direct register programming calls from console code.
+
+Console text output uses backend-dispatched text commands (`kernel/source/Console-TextOps.c`), which route glyph, region, and cursor operations through `DF_GFX_TEXT_*` on the active graphics backend.
+The console text dispatch path exposes an acquisition-in-progress state through `ConsoleIsFramebufferMappingInProgress()` so debug-split log mirroring can avoid recursive console writes while a graphics context is being acquired.
+
+- BIOS/MBR path uses VGA text memory metadata for text mode operation.
+- UEFI path uses GOP-provided framebuffer metadata through the selected graphics backend.
+- Emergency fallback remains isolated to `kernel/source/Console-VGATextFallback.c`.
 
 The default font is an in-tree ASCII 8x16 EXOS font and can be replaced through the font API.
 
 
 ### Early boot console path
 
-`kernel/source/EarlyBootConsole.c` provides a minimal framebuffer text path independent from normal console initialization. It writes glyphs through physical framebuffer mappings and is used for early boot and memory-initialization checkpoints.
+`kernel/source/console/Console-EarlyBoot.c` provides a minimal framebuffer text path independent from normal console initialization. It writes glyphs through physical framebuffer mappings and is used for early boot and memory-initialization checkpoints.
 
 
 ### ACPI services
@@ -832,6 +862,8 @@ Logical kernel path keys are consumed through `utils/KernelPath`:
 `MountDiskPartitions()` handles MBR and switches to GPT parsing when a protective MBR entry (`0xEE`) is detected. Supported formats are mounted through dedicated drivers (FAT16/FAT32/NTFS/EXFS/EXT2 path); partition metadata is written with `SetFileSystemPartitionInfo()`. Non-mounted partitions are still materialized through `RegisterUnusedFileSystem()` so diagnostics and shell tooling can inspect them.
 
 When SystemFS is ready (`FileSystemReady()`), newly mounted filesystems are attached into SystemFS under `/fs/<volume>` through `SystemFSMountFileSystem()`.
+
+The RAM disk driver initializes a small in-memory disk and formats it with EXT2 through the filesystem `DF_FS_CREATEPARTITION` command. EXT2 formatting populates a minimal superblock, group descriptor, bitmaps, inode table, and root directory.
 
 #### Mounted volume naming
 
@@ -1205,6 +1237,10 @@ The EXT2 driver implementation is split into focused units under
 `EXT2-Base.c`, `EXT2-Allocation.c`, `EXT2-Storage.c`, and
 `EXT2-FileOps.c`.
 
+EXT2 block I/O uses a per-filesystem block buffer pool via
+`utils/BufferPool` (backed by `BlockList`) to reuse block-sized buffers
+and reduce heap churn in metadata and data block paths.
+
 ```
                 ┌──────────────────────────────────────┐
                 │               INODE                  │
@@ -1375,6 +1411,8 @@ At evaluation time, this node calls the `ExecuteCommand` callback (`ShellScriptE
 - built-in shell commands from `COMMANDS[]`;
 - executable launch via `SpawnExecutable()` when no built-in matches.
 
+Each `SHELL_COMMAND_ENTRY` stores the primary name, alternate name, usage text, and a short description so the `commands` command can print a single-line summary per entry.
+
 This keeps command execution policy inside shell code while the script engine stays generic.
 
 #### Return value behavior
@@ -1400,7 +1438,7 @@ Access control is enforced in exposure helpers through shared macros and checks 
 
 ### Network Stack
 
-EXOS implements a modern layered network stack with per-device context isolation and support for Ethernet, ARP, IPv4, and TCP protocols. The implementation follows standard networking principles with clear separation between layers and full support for multiple network devices.
+EXOS implements a modern layered network stack with per-device context isolation and support for Ethernet, ARP, IPv4, UDP, and TCP protocols. The implementation follows standard networking principles with clear separation between layers and full support for multiple network devices.
 
 #### Architecture Overview
 
@@ -1410,9 +1448,9 @@ The network stack is organized in five main layers with per-device context manag
 ┌─────────────────────────────────────┐
 │            Applications             │
 ├─────────────────────────────────────┤
-│         Socket Layer (TCP)          │
-│    (Connection management, state    │
-│     machine, send/receive buffers)  │
+│     Socket Layer (TCP and UDP)      │
+│   (Connection and datagram APIs,    │
+│    state machine, send/recv paths)  │
 ├─────────────────────────────────────┤
 │          IPv4 Protocol Layer        │
 │    (ICMP, UDP, TCP protocols)       │
@@ -1488,7 +1526,7 @@ The Network Manager provides centralized network device discovery, initializatio
 
 **Key Features:**
 - Automatic PCI network device discovery (up to 8 devices)
-- Per-device network stack initialization (ARP, IPv4, TCP)
+- Per-device network stack initialization (ARP, IPv4, UDP, TCP)
 - Unified frame reception callback routing
 - Integration with the deferred work dispatcher for interrupt-driven receive paths with polling fallback
 - Primary device selection for global protocols
@@ -1502,7 +1540,8 @@ void InitializeNetworkManager(void) {
     //    b. Initialize ARP context
     //    c. Initialize IPv4 context
     //    d. Install device-specific RX callback
-    //    e. Initialize TCP (once globally)
+    //    e. Initialize UDP for the device
+    //    f. Initialize TCP (once globally)
 }
 ```
 
@@ -1635,6 +1674,29 @@ typedef struct IPv4HeaderTag {
 - `IPv4_Send(Device, DestinationIP, Protocol, Payload, Length)`: Send IPv4 packet
 - `IPv4_OnEthernetFrame(Device, Frame, Length)`: Process incoming IPv4 packets
 
+#### UDP (User Datagram Protocol)
+
+**Location:** `kernel/source/network/UDP.c`, `kernel/include/network/UDP.h`
+
+UDP provides connectionless datagram delivery with IPv4 integration and per-port handlers.
+
+**Key Features:**
+- UDP header build/parse with source port, destination port, length, and checksum
+- Pseudo-header checksum generation and validation
+- Per-device port handler registration (`UDP_RegisterPortHandler`)
+- Socket datagram operations through `SocketSendTo` and `SocketReceiveFrom`
+
+**API Functions:**
+- `UDP_Initialize(Device)`: Initialize UDP context for a device
+- `UDP_Destroy(Device)`: Cleanup UDP context
+- `UDP_Send(Device, DestinationIP, SourcePort, DestinationPort, Payload, Length)`: Send UDP datagram
+- `UDP_OnIPv4Packet()`: Process incoming UDP datagrams from IPv4
+
+**Known Limits:**
+- Socket receive dispatch is local-port based and does not yet enforce additional per-socket remote endpoint filtering.
+- Datagram truncation reports payload truncation through logs, but no dedicated API-level truncation flag is exposed yet.
+- Shared-local-port behavior for multiple UDP sockets is not fully policy-driven (`SO_REUSEADDR` style fan-out is pending).
+
 #### TCP (Transmission Control Protocol)
 
 **Location:** `kernel/source/network/TCP.c`, `kernel/include/network/TCP.h`
@@ -1648,6 +1710,9 @@ TCP provides reliable connection-oriented communication using a state machine-ba
 - Configurable buffer sizes through `TCP.SendBufferSize` and `TCP.ReceiveBufferSize`
 - Sequence number management
 - Timer-based retransmission and TIME_WAIT handling
+- Bounded exponential backoff for retransmission timeout
+- Duplicate ACK detection with fast retransmit and fast recovery
+- Reno-style congestion baseline (slow start and congestion avoidance)
 - Checksum validation with IPv4 pseudo-header
 
 **Connection Structure:**
@@ -1682,6 +1747,19 @@ typedef struct TCPConnectionTag {
     // Timers
     U32 RetransmitTimer;
     U32 TimeWaitTimer;
+    U32 RetransmitBaseTimeout;
+    U32 RetransmitCurrentTimeout;
+
+    // Retransmission and recovery
+    U32 RetransmitSequenceStart;
+    U32 RetransmitSequenceEnd;
+    U32 DuplicateAckCount;
+    BOOL RetransmitPending;
+    BOOL InFastRecovery;
+
+    // Congestion control
+    U32 CongestionWindow;
+    U32 SlowStartThreshold;
 } TCPConnection;
 ```
 
@@ -1698,6 +1776,7 @@ typedef struct TCPConnectionTag {
 - `TCP_OnIPv4Packet()`: Handle incoming TCP packets (IPv4 protocol handler)
 
 The buffer capacities default to 32768 bytes each when the configuration entries are absent.
+The retransmission tracker keeps one outstanding MSS-sized segment for fast retransmit.
 
 #### Layer Interactions
 
@@ -1734,7 +1813,8 @@ InitializeNetworkManager();
 // 2. For each device, Network Manager automatically:
 //    a. Calls ARP_Initialize(Device, DEFAULT_LOCAL_IP_BE, CachedInfo)
 //    b. Calls IPv4_Initialize(Device, DEFAULT_LOCAL_IP_BE)
-//    c. Calls TCP_Initialize() (once globally)
+    //    c. Calls UDP_Initialize(Device)
+    //    d. Calls TCP_Initialize() (once globally)
 
 // 3. Application registers protocol handlers per device:
 IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_ICMP, ICMPHandler);
@@ -1767,11 +1847,12 @@ The `ThresholdLatch` utility supports one-shot logging when a time threshold is 
 
 ### Automated debug validation script
 
-The repository provides `scripts/4-1-smoke-test.sh` to run an automated debug validation flow:
+The repository provides `scripts/4-1-smoke-test-global.sh` to run an automated debug validation flow:
 
 - clean build + image generation,
 - QEMU boot,
 - shell command injection (`sys_info`, `dir`, `/system/apps/hello`),
+- cross-filesystem storage checks including RAM disk folder creation and copy (`/fs/n0p0` to `/fs/r0p0`),
 - kernel log pattern checks.
 
 The script supports selecting one target with `--only x86-32`, `--only x86-64`, or `--only x86-64-uefi`.  
@@ -1850,6 +1931,52 @@ code en-US
 levels 2
 map 0x04 0 0x30 0x61 0x0061
 map 0x04 1 0x30 0x41 0x0041
+```
+
+### Process control hotkeys
+
+Hotkeys are configured from `exos.toml` with indexed TOML array entries:
+- `Hotkey.<index>.Key`: key expression (`control+c`, `shift+z`, `f5`, ...).
+- `Hotkey.<index>.Action`: action name.
+
+The key expression parser supports:
+- Modifiers: `control`/`ctrl`, `shift`, `alt`.
+- One non-modifier key token: `a`..`z`, `0`..`9`, `f1`..`f12`, arrows, insert/delete/home/end/pageup/pagedown, `space`, `enter`, `esc`, `tab`, `backspace`.
+
+Keyboard handling evaluates hotkeys on key-down only, before normal input routing to the focused process queue. Repeated key-down events are ignored by hotkey matching.
+When configuration does not define any `Hotkey` entries, the kernel synthesizes one implicit entry equivalent to:
+- `control+c` -> `kill_process`
+
+Supported actions:
+- `kill_process`: targets the focused process.
+  - If focused process is kernel process, it does not kill it and requests cooperative command interruption.
+  - Otherwise it triggers process kill through process control messaging.
+- `pause_process`: toggles pause for the focused process.
+  - Kernel process is ignored.
+  - Non-kernel process tasks are skipped by scheduler while paused.
+
+Process control messages are intercepted in task messaging before queue insertion:
+- `ETM_INTERRUPT`
+- `ETM_PROCESS_KILL`
+- `ETM_PROCESS_TOGGLE_PAUSE`
+
+Cooperative interruption API:
+- `ProcessControlRequestInterrupt(Process)`
+- `ProcessControlIsInterruptRequested(Process)`
+- `ProcessControlConsumeInterrupt(Process)`
+- `ProcessControlCheckpoint(Process)`
+
+Long command loops can place interruption checkpoints; `dir` integrates this behavior and aborts listing when an interruption request is pending.
+
+Configuration example:
+```toml
+[[Hotkey]]
+Key = "control+c"
+Action = "kill_process"
+
+[[Hotkey]]
+Key = "shift+z"
+Action = "pause_process"
 ```
 
 

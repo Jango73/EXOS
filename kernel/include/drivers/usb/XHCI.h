@@ -60,6 +60,7 @@ typedef struct tag_XHCI_DEVICE XHCI_DEVICE, *LPXHCI_DEVICE;
 // External symbols
 
 extern PCI_DRIVER XHCIDriver;
+LPDRIVER XHCIGetDriver(void);
 void XHCI_EnsureUsbDevices(LPXHCI_DEVICE Device);
 
 /***************************************************************************/

@@ -27,9 +27,11 @@
 #include "Clock.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "Memory.h"
 #include "drivers/interrupts/InterruptController.h"
 #include "System.h"
 #include "DriverEnum.h"
+#include "utils/BufferPool.h"
 #include "utils/Cache.h"
 
 /***************************************************************************/
@@ -37,6 +39,14 @@
 
 #define VER_MAJOR 1
 #define VER_MINOR 0
+
+/***************************************************************************/
+// Buffer pool configuration
+
+#define ATA_POOL_ALLOC_FLAGS (ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE)
+#define ATA_SECTOR_BUFFER_OBJECTS_PER_SLAB NUM_BUFFERS
+#define ATA_SECTOR_BUFFER_INITIAL_SLABS 1
+#define ATA_SECTOR_BUFFER_MIN_FREE NUM_BUFFERS
 
 /***************************************************************************/
 
@@ -54,6 +64,7 @@ DRIVER DATA_SECTION ATADiskDriver = {
     .Designer = "Jango73",
     .Manufacturer = "IBM PC and compatibles",
     .Product = "ATA Disk Controller",
+    .Alias = "ata",
     .Flags = 0,
     .Command = ATADiskCommands,
     .EnumDomainCount = 1,
@@ -81,6 +92,7 @@ typedef struct tag_ATADISK {
     U32 IRQ;     // 0x0E
     U32 Drive;   // 0 or 1
     CACHE SectorCache;
+    BUFFER_POOL SectorBufferPool;
 } ATADISK, *LPATADISK;
 
 /***************************************************************************/
@@ -101,6 +113,32 @@ static BOOL SectorCacheMatcher(LPVOID Data, LPVOID Context) {
     }
 
     return Buffer->SectorLow == Match->SectorLow && Buffer->SectorHigh == Match->SectorHigh;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Release callback for ATA sector cache entries.
+ *
+ * @param Data Cache entry payload (LPSECTORBUFFER).
+ * @param Dirty Dirty flag from cache entry.
+ * @param Context Buffer pool context pointer.
+ */
+static void ATACacheRelease(LPVOID Data, BOOL Dirty, LPVOID Context) {
+    LPBUFFER_POOL Pool = (LPBUFFER_POOL)Context;
+
+    UNUSED(Dirty);
+
+    if (Data == NULL) {
+        return;
+    }
+
+    if (Pool == NULL) {
+        KernelHeapFree(Data);
+        return;
+    }
+
+    BufferPoolRelease(Pool, Data);
 }
 
 /***************************************************************************/
@@ -223,12 +261,31 @@ static BOOL InitializeATA(void) {
                 Disk->IOPort = RealPort;
                 Disk->IRQ = IRQ_ATA;
                 Disk->Drive = Drive;
-                CacheInit(&Disk->SectorCache, NUM_BUFFERS);
-
-                if (Disk->SectorCache.Entries == NULL) {
+                if (!BufferPoolInit(&Disk->SectorBufferPool,
+                                    (UINT)sizeof(SECTORBUFFER),
+                                    ATA_SECTOR_BUFFER_OBJECTS_PER_SLAB,
+                                    ATA_SECTOR_BUFFER_INITIAL_SLABS,
+                                    ATA_POOL_ALLOC_FLAGS)) {
                     KernelHeapFree(Disk);
                     continue;
                 }
+
+                if (!BufferPoolReserve(&Disk->SectorBufferPool, ATA_SECTOR_BUFFER_MIN_FREE)) {
+                    BufferPoolDeinit(&Disk->SectorBufferPool);
+                    KernelHeapFree(Disk);
+                    continue;
+                }
+
+                CacheInit(&Disk->SectorCache, NUM_BUFFERS);
+
+                if (Disk->SectorCache.Entries == NULL) {
+                    BufferPoolDeinit(&Disk->SectorBufferPool);
+                    KernelHeapFree(Disk);
+                    continue;
+                }
+
+                CacheSetWritePolicy(
+                    &Disk->SectorCache, CACHE_WRITE_POLICY_READ_ONLY, NULL, ATACacheRelease, &Disk->SectorBufferPool);
 
                 ListAddItem(GetDiskList(), Disk);
                 DisksFound++;
@@ -379,7 +436,7 @@ static U32 Read(LPIOCONTROL Control) {
         LPSECTORBUFFER Buffer = (LPSECTORBUFFER)CacheFind(&Disk->SectorCache, SectorCacheMatcher, &Context);
 
         if (Buffer == NULL) {
-            Buffer = (LPSECTORBUFFER)KernelHeapAlloc(sizeof(SECTORBUFFER));
+            Buffer = (LPSECTORBUFFER)BufferPoolAcquire(&Disk->SectorBufferPool);
 
             if (Buffer == NULL) return DF_RETURN_UNEXPECTED;
 
@@ -401,7 +458,7 @@ static U32 Read(LPIOCONTROL Control) {
             EnableInterrupt(Disk->IRQ);
 
             if (!CacheAdd(&Disk->SectorCache, Buffer, DISK_CACHE_TTL_MS)) {
-                KernelHeapFree(Buffer);
+                BufferPoolRelease(&Disk->SectorBufferPool, Buffer);
                 return DF_RETURN_UNEXPECTED;
             }
         }
@@ -450,7 +507,7 @@ static U32 Write(LPIOCONTROL Control) {
         BOOL AddedToCache = FALSE;
 
         if (Buffer == NULL) {
-            Buffer = (LPSECTORBUFFER)KernelHeapAlloc(sizeof(SECTORBUFFER));
+            Buffer = (LPSECTORBUFFER)BufferPoolAcquire(&Disk->SectorBufferPool);
 
             if (Buffer == NULL) return DF_RETURN_UNEXPECTED;
 
@@ -479,7 +536,7 @@ static U32 Write(LPIOCONTROL Control) {
 
         if (AddedToCache) {
             if (!CacheAdd(&Disk->SectorCache, Buffer, DISK_CACHE_TTL_MS)) {
-                KernelHeapFree(Buffer);
+                BufferPoolRelease(&Disk->SectorBufferPool, Buffer);
                 return DF_RETURN_UNEXPECTED;
             }
         }

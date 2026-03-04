@@ -29,6 +29,7 @@
 #include "Log.h"
 #include "CoreString.h"
 #include "DriverEnum.h"
+#include "drivers/graphics/Graphics-PCI.h"
 #include "drivers/network/E1000.h"
 #include "drivers/usb/XHCI.h"
 #include "User.h"
@@ -79,6 +80,7 @@ DRIVER DATA_SECTION PCIDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "PCI",
+    .Alias = "pci",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = PCIDriverCommands,
     .EnumDomainCount = 1,
@@ -643,6 +645,7 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
             PCI_RegisterDriver(&AHCIPCIDriver);
             PCI_RegisterDriver(&NVMePCIDriver);
             PCI_RegisterDriver(&XHCIDriver);
+            PCI_RegisterDriver(GraphicsPCIGetDisplayAttachDriver());
             PCI_ScanBus();
 
             PCIDriver.Flags |= DRIVER_FLAG_READY;
@@ -667,8 +670,6 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
 
     return DF_RETURN_NOT_IMPLEMENTED;
 }
-
-/************************************************************************/
 
 /**
  * @brief Top-level PCI interrupt handler.

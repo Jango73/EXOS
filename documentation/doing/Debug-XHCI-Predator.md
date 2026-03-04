@@ -26,7 +26,7 @@
 ### 1) Console split clear behavior
 - `ClearConsole()` changed to clear only region 0 when debug split is enabled.
 - Effect: `data`/System Data View no longer wipes the log pane in split mode.
-- File: `kernel/source/Console.c`
+- File: `kernel/source/Console-Main.c`
 
 ### 2) xHCI event ring EHB handling
 - ERDP update now sets EHB bit during event dequeue.

@@ -25,7 +25,7 @@
 #include "Log.h"
 
 #include "Clock.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "Driver.h"
 #include "Memory.h"
 #include "process/Process.h"
@@ -47,6 +47,9 @@
 static CSTR KernelLogDefaultTagFilter[] = KERNEL_LOG_DEFAULT_TAG_FILTER;
 static STR DATA_SECTION KernelLogTagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
 static BOOL KernelLogErrorConsoleEnabled = TRUE;
+#if DEBUG_SPLIT == 1
+static U32 DATA_SECTION KernelConsolePrintDepth = 0;
+#endif
 
 static UINT KernelLogDriverCommands(UINT Function, UINT Parameter);
 static BOOL KernelLogIsTagSeparator(STR Char);
@@ -64,6 +67,7 @@ DRIVER DATA_SECTION KernelLogDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "KernelLog",
+    .Alias = "kernel_log",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = KernelLogDriverCommands};
 
@@ -288,8 +292,11 @@ static BOOL KernelLogShouldEmit(LPCSTR Text) {
 static void KernelPrintChar(STR Char) {
 #if DEBUG_SPLIT == 1
     if (ConsoleIsDebugSplitEnabled() == TRUE &&
-        ConsoleIsFramebufferMappingInProgress() == FALSE) {
+        ConsoleIsFramebufferMappingInProgress() == FALSE &&
+        KernelConsolePrintDepth == 0) {
+        KernelConsolePrintDepth++;
         ConsolePrintDebugChar(Char);
+        KernelConsolePrintDepth--;
         SerialOut(LOG_COM_INDEX, Char);
         return;
     }

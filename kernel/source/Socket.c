@@ -34,10 +34,139 @@
 #include "network/NetworkManager.h"
 #include "System.h"
 #include "network/TCP.h"
+#include "network/UDP.h"
 #include "utils/CircularBuffer.h"
 
 /************************************************************************/
 // Global socket management
+
+typedef struct tag_SOCKET_UDP_DATAGRAM_HEADER {
+    SOCKET_ADDRESS_INET SourceAddress;
+    U32 PayloadLength;
+} SOCKET_UDP_DATAGRAM_HEADER, *LPSOCKET_UDP_DATAGRAM_HEADER;
+
+/************************************************************************/
+
+static BOOL Socket_IsUDPPortInUseByAnotherSocket(LPSOCKET ExcludedSocket, U16 PortBe) {
+    LPLIST SocketList = GetSocketList();
+    LPSOCKET Current = (LPSOCKET)(SocketList != NULL ? SocketList->First : NULL);
+
+    while (Current) {
+        SAFE_USE(Current) {
+            if (Current != ExcludedSocket &&
+                Current->SocketType == SOCKET_TYPE_DGRAM &&
+                Current->State >= SOCKET_STATE_BOUND &&
+                Current->State != SOCKET_STATE_CLOSED &&
+                Current->LocalAddress.Port == PortBe) {
+                return TRUE;
+            }
+
+            Current = (LPSOCKET)Current->Next;
+        } else {
+            break;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+static U16 Socket_AllocateEphemeralPort(void) {
+    U32 Port;
+
+    for (Port = 49152; Port <= 65535; Port++) {
+        if (!Socket_IsUDPPortInUseByAnotherSocket(NULL, Htons((U16)Port))) {
+            return (U16)Port;
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+static BOOL Socket_QueueUDPDatagram(LPSOCKET Socket, U32 SourceIP_Be, U16 SourcePort, const U8* Payload, U32 PayloadLength) {
+    SOCKET_UDP_DATAGRAM_HEADER Header;
+    U8* DatagramData;
+    U32 DatagramLength;
+    U32 AvailableSpace;
+    U32 WrittenLength;
+
+    SAFE_USE_2(Socket, Payload) {
+        Header.SourceAddress.AddressFamily = SOCKET_AF_INET;
+        Header.SourceAddress.Port = Htons(SourcePort);
+        Header.SourceAddress.Address = SourceIP_Be;
+        MemorySet(Header.SourceAddress.Zero, 0, sizeof(Header.SourceAddress.Zero));
+        Header.PayloadLength = PayloadLength;
+
+        DatagramLength = (U32)sizeof(SOCKET_UDP_DATAGRAM_HEADER) + PayloadLength;
+        AvailableSpace = CircularBuffer_GetAvailableSpace(&Socket->ReceiveBuffer);
+
+        if (AvailableSpace < DatagramLength) {
+            Socket->ReceiveOverflow = TRUE;
+            WARNING(TEXT("[Socket_QueueUDPDatagram] Dropping UDP datagram on socket %p (need %u, available %u)"),
+                    Socket, DatagramLength, AvailableSpace);
+            return FALSE;
+        }
+
+        DatagramData = (U8*)KernelHeapAlloc(DatagramLength);
+        if (DatagramData == NULL) {
+            Socket->ReceiveOverflow = TRUE;
+            ERROR(TEXT("[Socket_QueueUDPDatagram] Failed to allocate datagram buffer (%u bytes)"), DatagramLength);
+            return FALSE;
+        }
+
+        MemoryCopy(DatagramData, (const U8*)&Header, sizeof(SOCKET_UDP_DATAGRAM_HEADER));
+        if (PayloadLength > 0) {
+            MemoryCopy(DatagramData + sizeof(SOCKET_UDP_DATAGRAM_HEADER), Payload, PayloadLength);
+        }
+
+        WrittenLength = CircularBuffer_Write(&Socket->ReceiveBuffer, DatagramData, DatagramLength);
+        KernelHeapFree(DatagramData);
+
+        if (WrittenLength != DatagramLength) {
+            Socket->ReceiveOverflow = TRUE;
+            WARNING(TEXT("[Socket_QueueUDPDatagram] Partial UDP datagram queue on socket %p (%u/%u)"),
+                    Socket, WrittenLength, DatagramLength);
+            return FALSE;
+        }
+
+        Socket->PacketsReceived++;
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+static void Socket_UDPPortHandler(U32 SourceIP, U16 SourcePort, U16 DestinationPort, const U8* Payload, U32 PayloadLength) {
+    LPLIST SocketList = GetSocketList();
+    LPSOCKET Socket = (LPSOCKET)(SocketList != NULL ? SocketList->First : NULL);
+
+    while (Socket) {
+        SAFE_USE(Socket) {
+            if (Socket->SocketType == SOCKET_TYPE_DGRAM &&
+                Socket->State >= SOCKET_STATE_BOUND &&
+                Socket->State != SOCKET_STATE_CLOSED &&
+                Ntohs(Socket->LocalAddress.Port) == DestinationPort) {
+                if (!Socket_QueueUDPDatagram(Socket, SourceIP, SourcePort, Payload, PayloadLength)) {
+                    WARNING(TEXT("[Socket_UDPPortHandler] UDP datagram dropped for socket %p on port %u"),
+                            Socket, DestinationPort);
+                }
+                return;
+            }
+
+            Socket = (LPSOCKET)Socket->Next;
+        } else {
+            return;
+        }
+    }
+
+}
+
+/************************************************************************/
 
 /**
  * @brief Destructor function for socket control blocks
@@ -90,7 +219,6 @@ void SocketDestructor(LPVOID Item) {
  * @return Socket descriptor on success, or negative error code on failure
  */
 SOCKET_HANDLE SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
-    DEBUG(TEXT("[SocketCreate] Creating socket: AF=%d, Type=%d, Protocol=%d"), AddressFamily, SocketType, Protocol);
 
     // Validate parameters
     if (AddressFamily != SOCKET_AF_INET) {
@@ -128,6 +256,7 @@ SOCKET_HANDLE SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
     // Initialize buffers
     CircularBuffer_Initialize(&Socket->ReceiveBuffer, Socket->ReceiveBufferData, SOCKET_BUFFER_SIZE, SOCKET_MAXIMUM_BUFFER_SIZE);
     CircularBuffer_Initialize(&Socket->SendBuffer, Socket->SendBufferData, SOCKET_BUFFER_SIZE, SOCKET_MAXIMUM_BUFFER_SIZE);
+    (void)RateLimiterInit(&Socket->ReceiveLogLimiter, 4, 1000);
     Socket->ReceiveOverflow = FALSE;
 
     // Add to socket list
@@ -138,7 +267,6 @@ SOCKET_HANDLE SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
         return (SOCKET_HANDLE)SOCKET_ERROR_NOMEM;
     }
 
-    DEBUG(TEXT("[SocketCreate] Socket created at %p"), Socket);
     return (SOCKET_HANDLE)Socket;
 }
 
@@ -154,11 +282,21 @@ SOCKET_HANDLE SocketCreate(U16 AddressFamily, U16 SocketType, U16 Protocol) {
  * @return SOCKET_ERROR_NONE on success, or error code on failure
  */
 U32 SocketClose(SOCKET_HANDLE SocketHandle) {
-    DEBUG(TEXT("[SocketClose] Closing socket %p"), (LPVOID)SocketHandle);
 
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
+    LPDEVICE NetworkDevice;
 
     SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
+        if (Socket->SocketType == SOCKET_TYPE_DGRAM &&
+            Socket->State >= SOCKET_STATE_BOUND &&
+            Socket->LocalAddress.Port != 0 &&
+            !Socket_IsUDPPortInUseByAnotherSocket(Socket, Socket->LocalAddress.Port)) {
+            NetworkDevice = (LPDEVICE)NetworkManager_GetPrimaryDevice();
+            SAFE_USE(NetworkDevice) {
+                UDP_UnregisterPortHandler(NetworkDevice, Ntohs(Socket->LocalAddress.Port));
+            }
+        }
+
         // Close TCP connection if exists
         SAFE_USE_VALID_ID(Socket->TCPConnection, KOID_TCP) {
             if (Socket->SocketType == SOCKET_TYPE_STREAM) {
@@ -173,7 +311,6 @@ U32 SocketClose(SOCKET_HANDLE SocketHandle) {
         LPLIST SocketList = GetSocketList();
         ListErase(SocketList, Socket);
 
-        DEBUG(TEXT("[SocketClose] Socket %p closed"), (LPVOID)SocketHandle);
         return SOCKET_ERROR_NONE;
     }
 
@@ -194,12 +331,10 @@ U32 SocketClose(SOCKET_HANDLE SocketHandle) {
  */
 U32 SocketShutdown(SOCKET_HANDLE SocketHandle, U32 How) {
     UNUSED(How);
-    DEBUG(TEXT("[SocketShutdown] Shutting down socket %p, how=%u"), (LPVOID)SocketHandle, How);
 
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
 
     SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
-        DEBUG(TEXT("[SocketShutdown] Socket state=%u, type=%u, TCPConnection=%p"), Socket->State, Socket->SocketType, Socket->TCPConnection);
 
         // Allow shutdown on connecting sockets too (not just connected ones)
         if (Socket->State == SOCKET_STATE_CLOSED) {
@@ -209,12 +344,9 @@ U32 SocketShutdown(SOCKET_HANDLE SocketHandle, U32 How) {
 
         // For TCP sockets, gracefully close the connection
         if (Socket->SocketType == SOCKET_TYPE_STREAM && Socket->TCPConnection != NULL) {
-            DEBUG(TEXT("[SocketShutdown] Calling TCP_Close for connection %p"), Socket->TCPConnection);
             TCP_Close(Socket->TCPConnection);
             Socket->State = SOCKET_STATE_CLOSING;
-            DEBUG(TEXT("[SocketShutdown] Socket state changed to CLOSING"));
         } else {
-            DEBUG(TEXT("[SocketShutdown] Not calling TCP_Close - type=%u, TCPConnection=%p"), Socket->SocketType, Socket->TCPConnection);
         }
 
         return SOCKET_ERROR_NONE;
@@ -324,7 +456,6 @@ void SocketUpdate(void) {
                     case TCP_STATE_CLOSED:
                         if (Socket->State != SOCKET_STATE_CLOSED) {
                             Socket->State = SOCKET_STATE_CLOSED;
-                            DEBUG(TEXT("[SocketUpdate] Socket %p closed"), Socket);
                         }
                         break;
                 }
@@ -349,9 +480,10 @@ void SocketUpdate(void) {
  * @return SOCKET_ERROR_NONE on success, or error code on failure
  */
 U32 SocketBind(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
-    DEBUG(TEXT("[SocketBind] Binding socket %p"), (LPVOID)SocketHandle);
 
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
+    U16 EphemeralPort;
+    LPDEVICE NetworkDevice;
 
     if (!Address || AddressLength < sizeof(SOCKET_ADDRESS_INET)) {
         ERROR(TEXT("[SocketBind] Invalid address or length"));
@@ -369,6 +501,15 @@ U32 SocketBind(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 Address
         if (SocketAddressGenericToInet(Address, &InetAddress) != SOCKET_ERROR_NONE) {
             ERROR(TEXT("[SocketBind] Failed to convert address"));
             return SOCKET_ERROR_INVALID;
+        }
+
+        if (Socket->SocketType == SOCKET_TYPE_DGRAM && InetAddress.Port == 0) {
+            EphemeralPort = Socket_AllocateEphemeralPort();
+            if (EphemeralPort == 0) {
+                ERROR(TEXT("[SocketBind] No ephemeral UDP port available"));
+                return SOCKET_ERROR_INUSE;
+            }
+            InetAddress.Port = Htons(EphemeralPort);
         }
 
         // Check if address is already in use (simple check)
@@ -398,13 +539,18 @@ U32 SocketBind(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 Address
         MemoryCopy(&Socket->LocalAddress, &InetAddress, sizeof(SOCKET_ADDRESS_INET));
         Socket->State = SOCKET_STATE_BOUND;
 
-        DEBUG(TEXT("[SocketBind] Socket %p bound to %d.%d.%d.%d:%d"),
-              (LPVOID)SocketHandle,
-              (InetAddress.Address >> 0) & 0xFF,
-              (InetAddress.Address >> 8) & 0xFF,
-              (InetAddress.Address >> 16) & 0xFF,
-              (InetAddress.Address >> 24) & 0xFF,
-              Htons(InetAddress.Port));
+        if (Socket->SocketType == SOCKET_TYPE_DGRAM) {
+            NetworkDevice = (LPDEVICE)NetworkManager_GetPrimaryDevice();
+            if (NetworkDevice == NULL) {
+                ERROR(TEXT("[SocketBind] No network device available for UDP bind"));
+                Socket->State = SOCKET_STATE_CREATED;
+                MemorySet(&Socket->LocalAddress, 0, sizeof(SOCKET_ADDRESS_INET));
+                return SOCKET_ERROR_INVALID;
+            }
+
+            UDP_RegisterPortHandler(NetworkDevice, Ntohs(InetAddress.Port), Socket_UDPPortHandler);
+        }
+
 
         return SOCKET_ERROR_NONE;
     }
@@ -425,7 +571,6 @@ U32 SocketBind(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 Address
  * @return SOCKET_ERROR_NONE on success, or error code on failure
  */
 U32 SocketListen(SOCKET_HANDLE SocketHandle, U32 Backlog) {
-    DEBUG(TEXT("[SocketListen] Setting socket %p to listen with backlog %u"), (LPVOID)SocketHandle, Backlog);
 
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
 
@@ -472,7 +617,6 @@ U32 SocketListen(SOCKET_HANDLE SocketHandle, U32 Backlog) {
         Socket->ListenBacklog = Backlog;
         Socket->State = SOCKET_STATE_LISTENING;
 
-        DEBUG(TEXT("[SocketListen] Socket %p now listening"), (LPVOID)SocketHandle);
         return SOCKET_ERROR_NONE;
     }
 
@@ -493,7 +637,6 @@ U32 SocketListen(SOCKET_HANDLE SocketHandle, U32 Backlog) {
  * @return New socket descriptor for the accepted connection, or error code on failure
  */
 SOCKET_HANDLE SocketAccept(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32* AddressLength) {
-    DEBUG(TEXT("[SocketAccept] Accepting connection on socket %p"), (LPVOID)SocketHandle);
 
     LPSOCKET ListenSocket = (LPSOCKET)SocketHandle;
 
@@ -506,7 +649,6 @@ SOCKET_HANDLE SocketAccept(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address,
         // Check for pending connections
         if (!ListenSocket->PendingConnections || ListenSocket->PendingConnections->NumItems == 0) {
             // No pending connections, would block
-            DEBUG(TEXT("[SocketAccept] No pending connections on socket %p"), (LPVOID)SocketHandle);
             return (SOCKET_HANDLE)SOCKET_ERROR_WOULDBLOCK;
         }
 
@@ -545,7 +687,6 @@ SOCKET_HANDLE SocketAccept(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address,
 
             KernelHeapFree(PendingSocket);
 
-            DEBUG(TEXT("[SocketAccept] Connection accepted on socket %p, new socket %p"), (LPVOID)SocketHandle, NewSocket);
             return NewSocketDescriptor;
         } else {
             // SAFE_USE_VALID_ID failed, cleanup and return error
@@ -573,7 +714,6 @@ SOCKET_HANDLE SocketAccept(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address,
  * @return SOCKET_ERROR_NONE on success, or error code on failure
  */
 U32 SocketConnect(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 AddressLength) {
-    DEBUG(TEXT("[SocketConnect] Connecting socket %p"), (LPVOID)SocketHandle);
 
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
 
@@ -629,7 +769,6 @@ U32 SocketConnect(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 Addr
                 return SOCKET_ERROR_TIMEOUT;
             }
 
-            DEBUG(TEXT("[SocketConnect] Waiting for network to be ready..."));
             DoSystemCall(SYSCALL_Sleep, SYSCALL_PARAM(1000));
         }
 
@@ -650,7 +789,6 @@ U32 SocketConnect(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 Addr
         if (TCP_RegisterCallback(Socket->TCPConnection, NOTIF_EVENT_TCP_CONNECTED, SocketTCPNotificationCallback, Socket) != 0) {
             ERROR(TEXT("[SocketConnect] Failed to register TCP notification"));
         } else {
-            DEBUG(TEXT("[SocketConnect] Registered TCP notification callback for socket %p"), Socket);
         }
 
         // Initiate TCP connection
@@ -665,13 +803,6 @@ U32 SocketConnect(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32 Addr
 
         Socket->State = SOCKET_STATE_CONNECTING;
 
-        DEBUG(TEXT("[SocketConnect] Socket %p connecting to %d.%d.%d.%d:%d"),
-              (LPVOID)SocketHandle,
-              (RemoteAddress.Address >> 0) & 0xFF,
-              (RemoteAddress.Address >> 8) & 0xFF,
-              (RemoteAddress.Address >> 16) & 0xFF,
-              (RemoteAddress.Address >> 24) & 0xFF,
-              Htons(RemoteAddress.Port));
 
         return SOCKET_ERROR_NONE;
     }
@@ -714,7 +845,6 @@ I32 SocketSend(SOCKET_HANDLE SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags
             if (Result > 0) {
                 Socket->BytesSent += Result;
                 Socket->PacketsSent++;
-                DEBUG(TEXT("[SocketSend] Sent %d bytes on socket %p"), Result, (LPVOID)SocketHandle);
             }
             return Result;
         } else {
@@ -724,6 +854,33 @@ I32 SocketSend(SOCKET_HANDLE SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags
     }
 
     return SOCKET_ERROR_INVALID;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Emit a rate-limited receive diagnostic for a socket.
+ * @param Socket Socket instance.
+ * @param Reason Diagnostic reason.
+ * @param ErrorCode Socket error code.
+ */
+static void SocketReceiveLogRateLimited(LPSOCKET Socket, LPCSTR Reason, I32 ErrorCode) {
+    U32 Suppressed = 0;
+
+    if (Socket == NULL || Reason == NULL) {
+        return;
+    }
+
+    if (!RateLimiterShouldTrigger(&Socket->ReceiveLogLimiter, GetSystemTime(), &Suppressed)) {
+        return;
+    }
+
+    WARNING(TEXT("[SocketReceive] %s socket=%p state=%u error=%x suppressed=%u"),
+            Reason,
+            (LPVOID)Socket,
+            Socket->State,
+            (U32)ErrorCode,
+            Suppressed);
 }
 
 /************************************************************************/
@@ -776,7 +933,6 @@ I32 SocketReceive(SOCKET_HANDLE SocketHandle, LPVOID Buffer, U32 Length, U32 Fla
                     TCP_HandleApplicationRead(Socket->TCPConnection, BytesToCopy);
                 }
 
-                DEBUG(TEXT("[SocketReceive] Received %d bytes from socket %p"), BytesToCopy, (LPVOID)SocketHandle);
                 return BytesToCopy;
             } else {
                 // No data available - check timeout
@@ -791,16 +947,13 @@ I32 SocketReceive(SOCKET_HANDLE SocketHandle, LPVOID Buffer, U32 Length, U32 Fla
                     // Check if timeout exceeded
                     if ((CurrentTime - Socket->ReceiveTimeoutStartTime) >= Socket->ReceiveTimeout) {
                         Socket->ReceiveTimeoutStartTime = 0; // Reset for next operation
-                        DEBUG(TEXT("[SocketReceive] Receive timeout (%u ms) exceeded for socket %p"),
-                              Socket->ReceiveTimeout, (LPVOID)SocketHandle);
-                        DEBUG(TEXT("[SocketReceive] User space may retry if the connection is still alive"));
+                        SocketReceiveLogRateLimited(Socket, TEXT("receive time out"), SOCKET_ERROR_TIMEOUT);
                         return SOCKET_ERROR_TIMEOUT;
                     }
                 }
 
                 // No data available - check if connection is closed
                 if (Socket->State == SOCKET_STATE_CLOSED) {
-                    DEBUG(TEXT("[SocketReceive] Connection closed, returning EOF"));
                     return 0; // EOF
                 }
 
@@ -834,14 +987,81 @@ I32 SocketReceive(SOCKET_HANDLE SocketHandle, LPVOID Buffer, U32 Length, U32 Fla
  */
 I32 SocketSendTo(SOCKET_HANDLE SocketHandle, LPCVOID Buffer, U32 Length, U32 Flags,
                  LPSOCKET_ADDRESS DestinationAddress, U32 AddressLength) {
-    UNUSED(SocketHandle);
-    UNUSED(Buffer);
-    UNUSED(Length);
     UNUSED(Flags);
-    UNUSED(DestinationAddress);
-    UNUSED(AddressLength);
-    // TODO: Implement UDP sendto
-    ERROR(TEXT("[SocketSendTo] SocketSendTo not implemented yet"));
+    LPSOCKET Socket = (LPSOCKET)SocketHandle;
+    SOCKET_ADDRESS_INET DestinationInetAddress;
+    SOCKET_ADDRESS_INET LocalInetAddress;
+    LPDEVICE NetworkDevice;
+    const U8* PayloadData = (const U8*)Buffer;
+    U8 EmptyPayload = 0;
+    U16 SourcePort;
+    U16 DestinationPort;
+    int SendResult;
+
+    if ((Buffer == NULL && Length > 0) || DestinationAddress == NULL || AddressLength < sizeof(SOCKET_ADDRESS_INET)) {
+        ERROR(TEXT("[SocketSendTo] Invalid parameters"));
+        return SOCKET_ERROR_INVALID;
+    }
+
+    SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
+        if (Socket->SocketType != SOCKET_TYPE_DGRAM) {
+            ERROR(TEXT("[SocketSendTo] Socket %p is not datagram"), (LPVOID)SocketHandle);
+            return SOCKET_ERROR_INVALID;
+        }
+
+        if (SocketAddressGenericToInet(DestinationAddress, &DestinationInetAddress) != SOCKET_ERROR_NONE) {
+            ERROR(TEXT("[SocketSendTo] Invalid destination address"));
+            return SOCKET_ERROR_INVALID;
+        }
+
+        if (DestinationInetAddress.Port == 0) {
+            ERROR(TEXT("[SocketSendTo] Destination port is zero"));
+            return SOCKET_ERROR_INVALID;
+        }
+
+        if (Socket->State == SOCKET_STATE_CREATED) {
+            SocketAddressInetMake(0, 0, &LocalInetAddress);
+            if (SocketBind(SocketHandle, (LPSOCKET_ADDRESS)&LocalInetAddress, sizeof(SOCKET_ADDRESS_INET)) != SOCKET_ERROR_NONE) {
+                ERROR(TEXT("[SocketSendTo] Failed to auto-bind UDP socket"));
+                return SOCKET_ERROR_INVALID;
+            }
+        }
+
+        if (Socket->State < SOCKET_STATE_BOUND) {
+            ERROR(TEXT("[SocketSendTo] UDP socket %p not bound"), (LPVOID)SocketHandle);
+            return SOCKET_ERROR_NOTBOUND;
+        }
+
+        NetworkDevice = (LPDEVICE)NetworkManager_GetPrimaryDevice();
+        if (NetworkDevice == NULL) {
+            ERROR(TEXT("[SocketSendTo] No network device available"));
+            return SOCKET_ERROR_INVALID;
+        }
+
+        if (!NetworkManager_IsDeviceReady(NetworkDevice)) {
+            return SOCKET_ERROR_WOULDBLOCK;
+        }
+
+        if (Length == 0) {
+            PayloadData = &EmptyPayload;
+        }
+
+        SourcePort = Ntohs(Socket->LocalAddress.Port);
+        DestinationPort = Ntohs(DestinationInetAddress.Port);
+
+        SendResult = UDP_Send(NetworkDevice, DestinationInetAddress.Address, SourcePort, DestinationPort, PayloadData, Length);
+        if (SendResult == 0) {
+            ERROR(TEXT("[SocketSendTo] UDP_Send failed"));
+            return SOCKET_ERROR_INVALID;
+        }
+
+        Socket->BytesSent += Length;
+        Socket->PacketsSent++;
+        MemoryCopy(&Socket->RemoteAddress, &DestinationInetAddress, sizeof(SOCKET_ADDRESS_INET));
+
+        return (I32)Length;
+    }
+
     return SOCKET_ERROR_INVALID;
 }
 
@@ -863,14 +1083,109 @@ I32 SocketSendTo(SOCKET_HANDLE SocketHandle, LPCVOID Buffer, U32 Length, U32 Fla
  */
 I32 SocketReceiveFrom(SOCKET_HANDLE SocketHandle, LPVOID Buffer, U32 Length, U32 Flags,
                       LPSOCKET_ADDRESS SourceAddress, U32* AddressLength) {
-    UNUSED(SocketHandle);
-    UNUSED(Buffer);
-    UNUSED(Length);
     UNUSED(Flags);
-    UNUSED(SourceAddress);
-    UNUSED(AddressLength);
-    // TODO: Implement UDP recvfrom
-    ERROR(TEXT("[SocketReceiveFrom] SocketReceiveFrom not implemented yet"));
+    LPSOCKET Socket = (LPSOCKET)SocketHandle;
+    SOCKET_UDP_DATAGRAM_HEADER DatagramHeader;
+    U32 AvailableData;
+    U32 SourceAddressLengthRequired = sizeof(SOCKET_ADDRESS_INET);
+    U32 BytesToCopy;
+    U32 RemainingBytes;
+    U8 DiscardBuffer[64];
+
+    if (Buffer == NULL || Length == 0) {
+        ERROR(TEXT("[SocketReceiveFrom] Invalid buffer or length"));
+        return SOCKET_ERROR_INVALID;
+    }
+
+    SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
+        if (Socket->SocketType != SOCKET_TYPE_DGRAM) {
+            ERROR(TEXT("[SocketReceiveFrom] Socket %p is not datagram"), (LPVOID)SocketHandle);
+            return SOCKET_ERROR_INVALID;
+        }
+
+        if (Socket->State < SOCKET_STATE_BOUND || Socket->State == SOCKET_STATE_CLOSED) {
+            ERROR(TEXT("[SocketReceiveFrom] UDP socket %p not bound"), (LPVOID)SocketHandle);
+            return SOCKET_ERROR_NOTBOUND;
+        }
+
+        if (Socket->ReceiveOverflow || Socket->ReceiveBuffer.Overflowed) {
+            if (Socket->ReceiveOverflow) {
+                WARNING(TEXT("[SocketReceiveFrom] Receive buffer overflow detected on socket %p"), (LPVOID)SocketHandle);
+                Socket->ReceiveOverflow = FALSE;
+            }
+            return SOCKET_ERROR_OVERFLOW;
+        }
+
+        AvailableData = CircularBuffer_GetAvailableData(&Socket->ReceiveBuffer);
+        if (AvailableData < sizeof(SOCKET_UDP_DATAGRAM_HEADER)) {
+            if (AvailableData > 0) {
+                ERROR(TEXT("[SocketReceiveFrom] Invalid UDP datagram queue state, resetting buffer"));
+                CircularBuffer_Reset(&Socket->ReceiveBuffer);
+                return SOCKET_ERROR_INVALID;
+            }
+
+            if (Socket->ReceiveTimeout > 0) {
+                UINT CurrentTime = GetSystemTime();
+                if (Socket->ReceiveTimeoutStartTime == 0) {
+                    Socket->ReceiveTimeoutStartTime = CurrentTime;
+                }
+
+                if ((CurrentTime - Socket->ReceiveTimeoutStartTime) >= Socket->ReceiveTimeout) {
+                    Socket->ReceiveTimeoutStartTime = 0;
+                    return SOCKET_ERROR_TIMEOUT;
+                }
+            }
+
+            return SOCKET_ERROR_WOULDBLOCK;
+        }
+
+        if (CircularBuffer_Read(&Socket->ReceiveBuffer, (U8*)&DatagramHeader, sizeof(SOCKET_UDP_DATAGRAM_HEADER)) !=
+            sizeof(SOCKET_UDP_DATAGRAM_HEADER)) {
+            ERROR(TEXT("[SocketReceiveFrom] Failed to read UDP datagram header"));
+            CircularBuffer_Reset(&Socket->ReceiveBuffer);
+            return SOCKET_ERROR_INVALID;
+        }
+
+        AvailableData = CircularBuffer_GetAvailableData(&Socket->ReceiveBuffer);
+        if (DatagramHeader.PayloadLength > AvailableData) {
+            ERROR(TEXT("[SocketReceiveFrom] Corrupted UDP datagram queue (%u > %u)"),
+                  DatagramHeader.PayloadLength, AvailableData);
+            CircularBuffer_Reset(&Socket->ReceiveBuffer);
+            return SOCKET_ERROR_INVALID;
+        }
+
+        if (AddressLength != NULL) {
+            if (SourceAddress == NULL || *AddressLength < SourceAddressLengthRequired) {
+                *AddressLength = SourceAddressLengthRequired;
+            } else {
+                SocketAddressInetToGeneric(&DatagramHeader.SourceAddress, SourceAddress);
+                *AddressLength = SourceAddressLengthRequired;
+            }
+        }
+
+        BytesToCopy = (Length < DatagramHeader.PayloadLength) ? Length : DatagramHeader.PayloadLength;
+        if (BytesToCopy > 0) {
+            CircularBuffer_Read(&Socket->ReceiveBuffer, (U8*)Buffer, BytesToCopy);
+        }
+
+        RemainingBytes = DatagramHeader.PayloadLength - BytesToCopy;
+        while (RemainingBytes > 0) {
+            U32 ChunkLength = (RemainingBytes > sizeof(DiscardBuffer)) ? sizeof(DiscardBuffer) : RemainingBytes;
+            CircularBuffer_Read(&Socket->ReceiveBuffer, DiscardBuffer, ChunkLength);
+            RemainingBytes -= ChunkLength;
+        }
+
+        Socket->BytesReceived += BytesToCopy;
+        Socket->ReceiveTimeoutStartTime = 0;
+
+        if (BytesToCopy < DatagramHeader.PayloadLength) {
+            WARNING(TEXT("[SocketReceiveFrom] Datagram truncated on socket %p (%u/%u bytes)"),
+                    (LPVOID)SocketHandle, BytesToCopy, DatagramHeader.PayloadLength);
+        }
+
+        return (I32)BytesToCopy;
+    }
+
     return SOCKET_ERROR_INVALID;
 }
 
@@ -891,10 +1206,8 @@ void SocketTCPNotificationCallback(LPNOTIFICATION_DATA NotificationData, LPVOID 
 
     if (!Socket || !NotificationData) return;
 
-    DEBUG(TEXT("[SocketTCPNotificationCallback] Socket %p received TCP event %u"), Socket, NotificationData->EventID);
 
     if (NotificationData->EventID == NOTIF_EVENT_TCP_CONNECTED) {
-        DEBUG(TEXT("[SocketTCPNotificationCallback] TCP connection established, updating socket state"));
         Socket->State = SOCKET_STATE_CONNECTED;
     }
 }
@@ -914,7 +1227,6 @@ U32 SocketTCPReceiveCallback(LPTCP_CONNECTION TCPConnection, const U8* Data, U32
 
                 if (BytesToCopy > 0) {
                     Socket->PacketsReceived++;
-                    DEBUG(TEXT("[SocketTCPReceiveCallback] Buffered %d bytes for socket %p"), BytesToCopy, Socket);
                 }
 
                 if (BytesToCopy < DataLength) {
@@ -1010,7 +1322,6 @@ U32 SocketSetOption(SOCKET_HANDLE SocketHandle, U32 Level, U32 OptionName, LPCVO
                     }
                     U32 timeoutMs = *(const U32*)OptionValue;
                     Socket->ReceiveTimeout = timeoutMs;
-                    DEBUG(TEXT("[SocketSetOption] Set SO_RCVTIMEO to %u ms for socket %p"), timeoutMs, (LPVOID)SocketHandle);
                     return SOCKET_ERROR_NONE;
                 }
                 default:
@@ -1043,18 +1354,15 @@ U32 SocketGetPeerName(SOCKET_HANDLE SocketHandle, LPSOCKET_ADDRESS Address, U32*
     LPSOCKET Socket = (LPSOCKET)SocketHandle;
 
     if (!Address || !AddressLength) {
-        DEBUG(TEXT("[SocketGetPeerName] Invalid address or length pointers"));
         return SOCKET_ERROR_INVALID;
     }
 
     SAFE_USE_VALID_ID(Socket, KOID_SOCKET) {
         if (Socket->State != SOCKET_STATE_CONNECTED) {
-            DEBUG(TEXT("[SocketGetPeerName] Socket %p not connected"), (LPVOID)SocketHandle);
             return SOCKET_ERROR_NOTCONNECTED;
         }
 
         if (*AddressLength < sizeof(SOCKET_ADDRESS_INET)) {
-            DEBUG(TEXT("[SocketGetPeerName] Address length too small"));
             return SOCKET_ERROR_INVALID;
         }
 

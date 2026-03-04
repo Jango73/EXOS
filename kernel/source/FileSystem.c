@@ -24,7 +24,7 @@
 
 #include "FileSystem.h"
 
-#include "Console.h"
+#include "console/Console.h"
 #include "drivers/filesystems/NTFS.h"
 #include "File.h"
 #include "Kernel.h"
@@ -91,6 +91,7 @@ DRIVER DATA_SECTION FileSystemDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "FileSystems",
+    .Alias = "filesystems",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = FileSystemDriverCommands};
 

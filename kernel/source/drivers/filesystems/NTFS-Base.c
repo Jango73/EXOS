@@ -707,6 +707,7 @@ DRIVER DATA_SECTION NTFSDriver = {
     .Designer = "Microsoft Corporation",
     .Manufacturer = "Microsoft Corporation",
     .Product = "NTFS File System",
+    .Alias = "ntfs",
     .Command = NTFSCommands};
 
 /***************************************************************************/

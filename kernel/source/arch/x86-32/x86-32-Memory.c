@@ -26,7 +26,7 @@
 
 #include "Base.h"
 #include "BuddyAllocator.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory-Descriptors.h"
@@ -224,6 +224,7 @@ DRIVER DATA_SECTION MemoryManagerDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "MemoryManager",
+    .Alias = "memory_manager",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = MemoryManagerCommands};
 
@@ -1575,6 +1576,22 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
 
     // Just unmap; FreeRegion will skip allocator page release if PTE.Fixed was set
     return FreeRegion(LinearBase, Size);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Compute a preferred base address for the kernel heap.
+ * @param HeapSize Requested heap size in bytes.
+ * @return Preferred linear base address in kernel space.
+ */
+LINEAR GetKernelHeapPreferredBase(UINT HeapSize) {
+    UNUSED(HeapSize);
+
+    UINT MaxLinearAddress = MAX_U32;
+    UINT Midpoint = VMA_KERNEL + ((MaxLinearAddress - VMA_KERNEL) / 2);
+
+    return Midpoint & PAGE_MASK;
 }
 
 /************************************************************************/

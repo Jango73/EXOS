@@ -39,9 +39,12 @@ static void PrintUsage(void) {
 
 /************************************************************************/
 
+#define NETGET_PROGRESS_DOT_BYTES 16384U
+
 typedef struct tag_NETGET_PROGRESS_STATE {
     int StatusPrinted;
     int BodyChunksPrinted;
+    unsigned int BytesSinceProgress;
 } NETGET_PROGRESS_STATE;
 
 /************************************************************************/
@@ -84,7 +87,12 @@ static void NetGetBodyCallback(unsigned int Bytes, void* Context) {
     }
 
     State->BodyChunksPrinted++;
-    printf(".");
+    State->BytesSinceProgress += Bytes;
+
+    while (State->BytesSinceProgress >= NETGET_PROGRESS_DOT_BYTES) {
+        printf(".");
+        State->BytesSinceProgress -= NETGET_PROGRESS_DOT_BYTES;
+    }
 }
 
 /************************************************************************/

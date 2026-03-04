@@ -88,10 +88,18 @@ void ExtractBaseName(LPCSTR Path, LPSTR Name) {
  * @param File Directory handle whose cached resources must be freed.
  */
 void ReleaseDirectoryResources(LPEXT2FILE File) {
+    LPEXT2FILESYSTEM FileSystem;
+
     if (File == NULL) return;
 
+    FileSystem = (LPEXT2FILESYSTEM)File->Header.FileSystem;
+
     if (File->DirectoryBlock != NULL) {
-        KernelHeapFree(File->DirectoryBlock);
+        if (FileSystem != NULL) {
+            Ext2ReleaseBlockBuffer(FileSystem, File->DirectoryBlock);
+        } else {
+            KernelHeapFree(File->DirectoryBlock);
+        }
         File->DirectoryBlock = NULL;
     }
 
@@ -260,7 +268,7 @@ BOOL SetupDirectoryHandle(
     if (Enumerate) {
         if (FileSystem->BlockSize == 0) return FALSE;
 
-        File->DirectoryBlock = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+        File->DirectoryBlock = (U8*)Ext2AcquireBlockBuffer(FileSystem);
         if (File->DirectoryBlock == NULL) return FALSE;
 
         if (LoadNextDirectoryEntry(File) == FALSE) {
@@ -427,22 +435,22 @@ BOOL FlushGroupDescriptor(LPEXT2FILESYSTEM FileSystem, U32 GroupIndex) {
     TargetBlock = FileSystem->Super.FirstDataBlock + 1 + (GroupIndex / DescriptorsPerBlock);
     OffsetInBlock = (GroupIndex % DescriptorsPerBlock) * sizeof(EXT2BLOCKGROUP);
 
-    Buffer = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+    Buffer = (U8*)Ext2AcquireBlockBuffer(FileSystem);
     if (Buffer == NULL) return FALSE;
 
     if (ReadBlock(FileSystem, TargetBlock, Buffer) == FALSE) {
-        KernelHeapFree(Buffer);
+        Ext2ReleaseBlockBuffer(FileSystem, Buffer);
         return FALSE;
     }
 
     MemoryCopy(Buffer + OffsetInBlock, &(FileSystem->Groups[GroupIndex]), sizeof(EXT2BLOCKGROUP));
 
     if (WriteBlock(FileSystem, TargetBlock, Buffer) == FALSE) {
-        KernelHeapFree(Buffer);
+        Ext2ReleaseBlockBuffer(FileSystem, Buffer);
         return FALSE;
     }
 
-    KernelHeapFree(Buffer);
+    Ext2ReleaseBlockBuffer(FileSystem, Buffer);
 
     return TRUE;
 }
@@ -480,11 +488,11 @@ BOOL WriteInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode) 
     BlockOffset = IndexInGroup / FileSystem->InodesPerBlock;
     OffsetInBlock = (IndexInGroup % FileSystem->InodesPerBlock) * FileSystem->InodeSize;
 
-    BlockBuffer = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+    BlockBuffer = (U8*)Ext2AcquireBlockBuffer(FileSystem);
     if (BlockBuffer == NULL) return FALSE;
 
     if (ReadBlock(FileSystem, Group->InodeTable + BlockOffset, BlockBuffer) == FALSE) {
-        KernelHeapFree(BlockBuffer);
+        Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
         return FALSE;
     }
 
@@ -496,11 +504,11 @@ BOOL WriteInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode) 
     MemoryCopy(BlockBuffer + OffsetInBlock, Inode, CopySize);
 
     if (WriteBlock(FileSystem, Group->InodeTable + BlockOffset, BlockBuffer) == FALSE) {
-        KernelHeapFree(BlockBuffer);
+        Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
         return FALSE;
     }
 
-    KernelHeapFree(BlockBuffer);
+    Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
 
     return TRUE;
 }

@@ -915,7 +915,7 @@ TaskRunner :
     call        ebx                         ; Call task function
     add         esp, U32_SIZE               ; Adjust stack
 
-.exit :
+.exit:
 
     mov         ebx, eax                    ; Task exit code in ebx
     mov         eax, 0x33                   ; SYSCALL_Exit
@@ -924,7 +924,7 @@ TaskRunner :
     ;--------------------------------------
     ; Do an infinite loop, task will be removed by scheduler
 
-.sleep
+.sleep:
     mov         ebx, MAX_UINT
     mov         eax, 0x0F                   ; SYSCALL_Sleep
     int         EXOS_USER_CALL

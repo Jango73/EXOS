@@ -138,7 +138,8 @@ void LogFrame(LPINTERRUPT_FRAME Frame) {
     LPTASK Task = GetCurrentTask();
     LPPROCESS Process = GetCurrentProcess();
 
-    KernelLogText(LOG_VERBOSE, TEXT("Task : %p (%s @ %s)"), Task, Task ? Task->Name : "?", Process ? Process->FileName : "?");
+    KernelLogText(LOG_VERBOSE, TEXT("Task : %p (%s @ %s)"), Task, Task ? Task->Name : TEXT("?"),
+                  Process ? Process->FileName : TEXT("?"));
     KernelLogText(LOG_VERBOSE, TEXT("Registers :"));
     LogRegisters32(&(Frame->Registers));
 }

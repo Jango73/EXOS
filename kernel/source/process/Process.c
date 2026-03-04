@@ -24,7 +24,7 @@
 
 #include "process/Process.h"
 
-#include "Console.h"
+#include "console/Console.h"
 #include "Driver.h"
 #include "Executable.h"
 #include "File.h"
@@ -51,6 +51,7 @@ PROCESS DATA_SECTION KernelProcess = {
     .Privilege = CPU_PRIVILEGE_KERNEL,  // Privilege
     .Status = PROCESS_STATUS_ALIVE, // Status
     .Flags = PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH, // Flags
+    .ControlFlags = 0,             // Process control flags
     .PageDirectory = 0,             // Page directory
     .RegionListHead = NULL,
     .RegionListTail = NULL,
@@ -82,6 +83,7 @@ DRIVER DATA_SECTION KernelProcessDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "KernelProcess",
+    .Alias = "kernel_process",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = KernelProcessDriverCommands};
 
@@ -117,11 +119,14 @@ void InitializeKernelProcess(void) {
     DEBUG(TEXT("[InitializeKernelProcess] Memory : %u"), KernelStartup.MemorySize);
     DEBUG(TEXT("[InitializeKernelProcess] Pages : %u"), KernelStartup.PageCount);
 
-    LINEAR HeapBase = AllocKernelRegion(0,
-                                        KernelProcess.HeapSize,
-                                        ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE,
-                                        TEXT("KernelHeap"));
+    LINEAR HeapPreferredBase = GetKernelHeapPreferredBase(KernelProcess.HeapSize);
+    LINEAR HeapBase = AllocRegion(HeapPreferredBase,
+                                  0,
+                                  KernelProcess.HeapSize,
+                                  ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER,
+                                  TEXT("KernelHeap"));
 
+    DEBUG(TEXT("[InitializeKernelProcess] HeapPreferredBase : %p"), (LINEAR)HeapPreferredBase);
     DEBUG(TEXT("[InitializeKernelProcess] HeapBase : %p"), (LINEAR)HeapBase);
 
     if (HeapBase == NULL) {
@@ -232,6 +237,7 @@ LPPROCESS NewProcess(void) {
     This->Privilege = CPU_PRIVILEGE_USER;
     This->Status = PROCESS_STATUS_ALIVE;
     This->Flags = 0; // Will be set by CreateProcess
+    This->ControlFlags = 0;
     This->MaximumAllocatedMemory = N_HalfMemory;
     This->TaskCount = 0;
     This->Session = NULL;

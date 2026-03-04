@@ -25,6 +25,8 @@
 #include "Arch.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "Desktop.h"
+#include "process/Process-Control.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
 #include "CoreString.h"
@@ -35,6 +37,7 @@
 static BOOL AddTaskMessage(LPTASK Task, LPMESSAGE Message);
 static BOOL CopyMessageFromQueueLocked(LPMESSAGEQUEUE Queue, LPMESSAGEINFO Message, BOOL Remove);
 static BOOL AddProcessMessage(LPPROCESS Process, LPMESSAGE Message);
+static BOOL InterceptProcessControlMessage(LPPROCESS Process, LPMESSAGE Message);
 static BOOL FetchProcessMessage(LPPROCESS Process, LPMESSAGEINFO Message, BOOL Remove);
 static BOOL FetchTaskMessage(LPTASK Task, LPMESSAGEINFO Message, BOOL Remove);
 
@@ -315,6 +318,10 @@ static BOOL AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
         return FALSE;
     }
 
+    if (InterceptProcessControlMessage(Task->Process, Message)) {
+        return TRUE;
+    }
+
     if (Task->MessageQueue.Messages == NULL) {
         DeleteMessage(Message);
         return FALSE;
@@ -350,6 +357,10 @@ static BOOL AddProcessMessage(LPPROCESS Process, LPMESSAGE Message) {
     if (Process == NULL || Process->TypeID != KOID_PROCESS) {
         DeleteMessage(Message);
         return FALSE;
+    }
+
+    if (InterceptProcessControlMessage(Process, Message)) {
+        return TRUE;
     }
 
     if (Process->MessageQueue.Messages == NULL) {
@@ -458,6 +469,39 @@ BOOL EnqueueInputMessage(U32 Msg, U32 Param1, U32 Param2) {
 
     DeleteMessage(Message);
     return FALSE;
+}
+
+/************************************************************************/
+
+static BOOL InterceptProcessControlMessage(LPPROCESS Process, LPMESSAGE Message) {
+    if (Process == NULL || Process->TypeID != KOID_PROCESS || Message == NULL) {
+        return FALSE;
+    }
+
+    if (ProcessControlHandleMessage(Process, Message->Message, Message->Param1, Message->Param2) == FALSE) {
+        return FALSE;
+    }
+
+    DeleteMessage(Message);
+    return TRUE;
+}
+
+/************************************************************************/
+
+BOOL PostProcessMessage(LPPROCESS Process, U32 Msg, U32 Param1, U32 Param2) {
+    LPMESSAGE Message = NewMessage();
+
+    if (Message == NULL) {
+        return FALSE;
+    }
+
+    GetLocalTime(&(Message->Time));
+    Message->Target = NULL;
+    Message->Message = Msg;
+    Message->Param1 = Param1;
+    Message->Param2 = Param2;
+
+    return AddProcessMessage(Process, Message);
 }
 
 /************************************************************************/

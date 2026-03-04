@@ -52,13 +52,24 @@ PCI_DRIVER DATA_SECTION NVMePCIDriver = {
     .VersionMajor = NVME_VER_MAJOR,
     .VersionMinor = NVME_VER_MINOR,
     .Designer = "Jango73",
-    .Manufacturer = "NVMe",
+    .Manufacturer = "",
     .Product = "NVMe Controller",
+    .Alias = "nvme",
     .Command = NVMeCommands,
     .Matches = NVMeMatchTable,
     .MatchCount = sizeof(NVMeMatchTable) / sizeof(NVMeMatchTable[0]),
     .Attach = NVMeAttach
 };
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the NVMe PCI driver descriptor.
+ * @return Pointer to the NVMe PCI driver.
+ */
+LPDRIVER NVMeGetDriver(void) {
+    return (LPDRIVER)&NVMePCIDriver;
+}
 
 /************************************************************************/
 

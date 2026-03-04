@@ -46,6 +46,7 @@ DRIVER DATA_SECTION EXFSDriver = {
     .Designer = "Jango73",
     .Manufacturer = "Jango73",
     .Product = "EXOS File System",
+    .Alias = "exfs",
     .Command = EXFSCommands};
 
 /************************************************************************/
@@ -544,22 +545,7 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     //-------------------------------------
     // Fill the master boot record
 
-    Master->OEMName[0] = 'E';
-    Master->OEMName[1] = 'X';
-    Master->OEMName[2] = 'O';
-    Master->OEMName[3] = 'S';
-    Master->OEMName[4] = ' ';
-    Master->OEMName[5] = ' ';
-    Master->OEMName[6] = ' ';
-    Master->OEMName[7] = ' ';
-    Master->MediaDescriptor = 0xF8;
-    Master->LogicalDriveNumber = 0;
-    Master->Cylinders = 0;
-    Master->Heads = 0;
-    Master->SectorsPerTrack = 0;
-    Master->BytesPerSector = SECTOR_SIZE;
-    Master->SectorsPerCluster = Create->SectorsPerCluster;
-    Master->BIOSMark = 0xAA55;
+    ExosMbrFill(Master, (U16)Create->SectorsPerCluster);
 
     if (WriteSectors(Create->Disk, CurrentSector, 2, Master) == FALSE) {
         return DF_RETURN_FS_CANT_WRITE_SECTOR;

@@ -26,8 +26,9 @@
 
 #include "Base.h"
 #include "Arch.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "drivers/interrupts/InterruptController.h"
+#include "DisplaySession.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "input/VKey.h"
@@ -51,6 +52,7 @@ DRIVER DATA_SECTION StdKeyboardDriver = {
     .Designer = "Jango73",
     .Manufacturer = "IBM PC and compatibles",
     .Product = "Standard IBM PC Keyboard - 102 keys",
+    .Alias = "ps2_keyboard",
     .Flags = 0,
     .Command = StdKeyboardCommands};
 
@@ -436,7 +438,7 @@ static void HandleScanCode(U32 ScanCode) {
 
                 if (Usage == 0x42) {
                     if (Keyboard.UsageStatus[KEY_USAGE_LEFT_CTRL] || Keyboard.UsageStatus[KEY_USAGE_RIGHT_CTRL]) {
-                        GetGraphicsDriver()->Command(DF_UNLOAD, 0);
+                        (void)DisplaySwitchToConsole();
                     } else {
                         TASKINFO TaskInfo;
                         TaskInfo.Header.Size = sizeof(TASKINFO);

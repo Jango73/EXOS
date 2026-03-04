@@ -28,6 +28,37 @@
 #include "utils/ThresholdLatch.h"
 
 /************************************************************************/
+
+static UINT XHCI_Commands(UINT Function, UINT Param);
+static LPPCI_DEVICE XHCI_Attach(LPPCI_DEVICE PciDevice);
+
+/************************************************************************/
+
+static DRIVER_MATCH XHCI_MatchTable[] = {
+    {PCI_ANY_ID, PCI_ANY_ID, XHCI_CLASS_SERIAL_BUS, XHCI_SUBCLASS_USB, XHCI_PROGIF_XHCI}
+};
+
+PCI_DRIVER DATA_SECTION XHCIDriver = {
+    .TypeID = KOID_DRIVER,
+    .References = 1,
+    .Next = NULL,
+    .Prev = NULL,
+    .Type = DRIVER_TYPE_XHCI,
+    .VersionMajor = 1,
+    .VersionMinor = 0,
+    .Designer = "Jango73",
+    .Manufacturer = "USB-IF",
+    .Product = "xHCI",
+    .Alias = "xhci",
+    .Command = XHCI_Commands,
+    .EnumDomainCount = 3,
+    .EnumDomains = {ENUM_DOMAIN_XHCI_PORT, ENUM_DOMAIN_USB_DEVICE, ENUM_DOMAIN_USB_NODE},
+    .Matches = XHCI_MatchTable,
+    .MatchCount = sizeof(XHCI_MatchTable) / sizeof(XHCI_MatchTable[0]),
+    .Attach = XHCI_Attach
+};
+
+/************************************************************************/
 // MMIO access
 
 /**
@@ -207,7 +238,7 @@ static void XHCI_LogInitReadback(LPXHCI_DEVICE Device,
     PciCommand = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_COMMAND);
     PciStatus = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_STATUS);
 
-    WARNING(TEXT("[XHCI_LogInitReadback] step=%s USBCMD=%x USBSTS=%x CONFIG=%x PCICMD=%x PCISTS=%x Scratch=%u DCBAA0=%x:%x DCBAAP=%x:%x/%x:%x CRCR=%x:%x/%x:%x ERSTBA=%x:%x/%x:%x ERDP=%x:%x/%x:%x IMAN=%x IMOD=%x ERSTSZ=%x"),
+    DEBUG(TEXT("[XHCI_LogInitReadback] step=%s USBCMD=%x USBSTS=%x CONFIG=%x PCICMD=%x PCISTS=%x Scratch=%u DCBAA0=%x:%x DCBAAP=%x:%x/%x:%x CRCR=%x:%x/%x:%x ERSTBA=%x:%x/%x:%x ERDP=%x:%x/%x:%x IMAN=%x IMOD=%x ERSTSZ=%x"),
             (Step != NULL) ? Step : TEXT("?"),
             Usbcmd,
             Usbsts,
@@ -1531,25 +1562,10 @@ static LPPCI_DEVICE XHCI_Attach(LPPCI_DEVICE PciDevice) {
 
 /************************************************************************/
 
-static DRIVER_MATCH XHCI_MatchTable[] = {
-    {PCI_ANY_ID, PCI_ANY_ID, XHCI_CLASS_SERIAL_BUS, XHCI_SUBCLASS_USB, XHCI_PROGIF_XHCI}
-};
-
-PCI_DRIVER DATA_SECTION XHCIDriver = {
-    .TypeID = KOID_DRIVER,
-    .References = 1,
-    .Next = NULL,
-    .Prev = NULL,
-    .Type = DRIVER_TYPE_XHCI,
-    .VersionMajor = 1,
-    .VersionMinor = 0,
-    .Designer = "Jango73",
-    .Manufacturer = "USB-IF",
-    .Product = "xHCI",
-    .Command = XHCI_Commands,
-    .EnumDomainCount = 3,
-    .EnumDomains = {ENUM_DOMAIN_XHCI_PORT, ENUM_DOMAIN_USB_DEVICE, ENUM_DOMAIN_USB_NODE},
-    .Matches = XHCI_MatchTable,
-    .MatchCount = sizeof(XHCI_MatchTable) / sizeof(XHCI_MatchTable[0]),
-    .Attach = XHCI_Attach
-};
+/**
+ * @brief Retrieve the xHCI driver descriptor.
+ * @return Pointer to xHCI driver descriptor.
+ */
+LPDRIVER XHCIGetDriver(void) {
+    return (LPDRIVER)&XHCIDriver;
+}

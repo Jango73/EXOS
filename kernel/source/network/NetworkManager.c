@@ -60,6 +60,7 @@ DRIVER DATA_SECTION NetworkManagerDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "NetworkManager",
+    .Alias = "network",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = NetworkManagerDriverCommands};
 
@@ -127,7 +128,6 @@ static U32 NetworkManager_GetDeviceConfigIP(LPCSTR deviceName, LPCSTR configKey,
             if (STRING_EMPTY(configValue) == FALSE) {
                 U32 parsedIP = ParseIPAddress(configValue);
                 if (parsedIP != 0) {
-                    DEBUG(TEXT("[NetworkManager_GetDeviceConfigIP] Device %s: %s = %s"), deviceName, configKey, configValue);
                     return parsedIP;
                 }
             }
@@ -140,11 +140,9 @@ static U32 NetworkManager_GetDeviceConfigIP(LPCSTR deviceName, LPCSTR configKey,
     // Fall back to global configuration
     SAFE_USE(fallbackGlobalKey) {
         U32 globalIP = NetworkManager_GetConfigIP(fallbackGlobalKey, fallbackValue);
-        DEBUG(TEXT("[NetworkManager_GetDeviceConfigIP] Device %s: %s = global"), deviceName, configKey);
         return globalIP;
     }
 
-    DEBUG(TEXT("[NetworkManager_GetDeviceConfigIP] Device %s: Using fallback value for %s"), deviceName, configKey);
     return fallbackValue;
 }
 
@@ -164,42 +162,25 @@ static void NetworkManager_RxCallback(const U8 *Frame, U32 Length, LPVOID UserDa
     LPNETWORK_DEVICE_CONTEXT Context = (LPNETWORK_DEVICE_CONTEXT)UserData;
     LPDEVICE Device = NULL;
 
-    DEBUG(TEXT("[NetworkManager_RxCallback] Entry Context=%X Frame=%X Length=%u"), (U32)Context, (U32)Frame, Length);
-
     SAFE_USE_VALID_ID(Context, KOID_NETWORKDEVICE) {
         Device = (LPDEVICE)Context->Device;
     }
 
     if (!Device || !Frame || Length < 14U) {
-        DEBUG(TEXT("[NetworkManager_RxCallback] Bad parameters or frame too short"));
         return;
     }
 
-    DEBUG(TEXT("[NetworkManager_RxCallback] Device=%X"), (U32)Device);
-
     U16 EthType = (U16)((Frame[12] << 8) | Frame[13]);
-    DEBUG(TEXT("[NetworkManager_RxCallback] Frame len=%u, ethType=%X"), Length, EthType);
-
-    // Debug: Show first few bytes of all received frames
-    if (Length >= 20) {
-        DEBUG(TEXT("[NetworkManager_RxCallback] Frame bytes: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X"),
-              Frame[0], Frame[1], Frame[2], Frame[3], Frame[4], Frame[5],
-              Frame[6], Frame[7], Frame[8], Frame[9], Frame[10], Frame[11], Frame[12], Frame[13]);
-    }
 
     // Dispatch to protocol layers
-    DEBUG(TEXT("[NetworkManager_RxCallback] About to switch on EthType=%X (ARP=%X IPV4=%X)"), EthType, ETHTYPE_ARP, ETHTYPE_IPV4);
     switch (EthType) {
         case ETHTYPE_ARP:
-            DEBUG(TEXT("[NetworkManager_RxCallback] Dispatching ARP frame"));
             ARP_OnEthernetFrame(Device, Frame, Length);
             break;
         case ETHTYPE_IPV4:
-            DEBUG(TEXT("[NetworkManager_RxCallback] Dispatching IPv4 frame"));
             IPv4_OnEthernetFrame(Device, Frame, Length);
             break;
         default:
-            DEBUG(TEXT("[NetworkManager_RxCallback] Unknown EthType: %X"), EthType);
             break;
     }
 }
@@ -216,8 +197,6 @@ static U32 NetworkManager_FindNetworkDevices(void) {
     U32 Count = 0;
     LPLIST PciDeviceList = GetPCIDeviceList();
     LPLIST NetworkDeviceList = GetNetworkDeviceList();
-
-    DEBUG(TEXT("[NetworkManager_FindNetworkDevices] Enter"));
 
     SAFE_USE(PciDeviceList) {
         SAFE_USE_VALID_ID(PciDeviceList->First, KOID_PCIDEVICE) {
@@ -261,7 +240,6 @@ static U32 NetworkManager_FindNetworkDevices(void) {
                                 UnlockMutex(MUTEX_KERNEL);
 
                                 Count++;
-                                DEBUG(TEXT("[NetworkManager_FindNetworkDevices] Found network device %u: %s with IP fallback base+%u"), Count-1, Device->Driver->Product, Count-1);
                             } else {
                                 ERROR(TEXT("[NetworkManager_FindNetworkDevices] Failed to allocate network device context"));
                             }
@@ -270,14 +248,12 @@ static U32 NetworkManager_FindNetworkDevices(void) {
                 }
             }
         } else {
-            ERROR(TEXT("[NetworkManager_FindNetworkDevices] Kernel.PCIDevice->First is NULL"));
+            WARNING(TEXT("[NetworkManager_FindNetworkDevices] No PCI devices available"));
         }
     } else {
-        ERROR(TEXT("[NetworkManager_FindNetworkDevices] Kernel.PCIDevice is NULL"));
+        WARNING(TEXT("[NetworkManager_FindNetworkDevices] PCI device list is unavailable"));
     }
 
-    DEBUG(TEXT("[NetworkManager_FindNetworkDevices] Found %u network devices"),
-          NetworkDeviceList != NULL ? NetworkDeviceList->NumItems : 0);
     return NetworkDeviceList != NULL ? NetworkDeviceList->NumItems : 0;
 }
 
@@ -290,8 +266,6 @@ static U32 NetworkManager_FindNetworkDevices(void) {
  * one device exists.
  */
 void InitializeNetwork(void) {
-    DEBUG(TEXT("[InitializeNetwork] Enter"));
-
     // Find all network devices
     LPLIST NetworkDeviceList = GetNetworkDeviceList();
 
@@ -312,8 +286,6 @@ void InitializeNetwork(void) {
         }
     }
 
-    DEBUG(TEXT("[InitializeNetwork] Initialized %u network devices"),
-          NetworkDeviceList->NumItems);
 }
 
 /************************************************************************/
@@ -365,8 +337,6 @@ static UINT NetworkManagerDriverCommands(UINT Function, UINT Parameter) {
  * @param LocalIPv4_Be Local IPv4 address in big-endian order
  */
 void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
-    DEBUG(TEXT("[NetworkManager_InitializeDevice] Enter for device %s"), Device->Driver->Product);
-
     SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
         SAFE_USE_VALID_ID(Device->Driver, KOID_DRIVER) {
             if (Device->Driver->Type != DRIVER_TYPE_NETWORK) {
@@ -404,34 +374,22 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             NETWORKGETINFO GetInfo = {.Device = Device, .Info = &Info};
             Device->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo);
 
-            DEBUG(TEXT("[NetworkManager_InitializeDevice] MAC=%x:%x:%x:%x:%x:%x Link=%s Speed=%u Duplex=%s MTU=%u"),
-                  (U32)Info.MAC[0], (U32)Info.MAC[1], (U32)Info.MAC[2],
-                  (U32)Info.MAC[3], (U32)Info.MAC[4], (U32)Info.MAC[5],
-                  Info.LinkUp ? "UP" : "DOWN", Info.SpeedMbps,
-                  Info.DuplexFull ? "FULL" : "HALF", Info.MTU);
-
             // Initialize ARP subsystem for this device
-            DEBUG(TEXT("[NetworkManager_InitializeDevice] Initializing ARP layer"));
             ARP_Initialize((LPDEVICE)Device, LocalIPv4_Be, &Info);
 
             // Initialize IPv4 subsystem for this device
-            DEBUG(TEXT("[NetworkManager_InitializeDevice] Initializing IPv4 layer"));
             IPv4_Initialize((LPDEVICE)Device, LocalIPv4_Be);
 
             // Initialize UDP subsystem for this device
-            DEBUG(TEXT("[NetworkManager_InitializeDevice] Initializing UDP layer"));
             UDP_Initialize((LPDEVICE)Device);
 
             // Initialize DHCP subsystem if enabled in configuration
             LPCSTR UseDHCP = GetConfigurationValue(TEXT(CONFIG_NETWORK_USE_DHCP));
             if (UseDHCP != NULL && STRINGS_EQUAL(UseDHCP, TEXT("1"))) {
-                DEBUG(TEXT("[NetworkManager_InitializeDevice] Initializing DHCP layer"));
                 DHCP_Initialize((LPDEVICE)Device);
                 DHCP_Start((LPDEVICE)Device);
-                DEBUG(TEXT("[NetworkManager_InitializeDevice] DHCP started for device %s"), Device->Driver->Product);
                 // Network will be marked ready when DHCP completes
             } else {
-                DEBUG(TEXT("[NetworkManager_InitializeDevice] DHCP disabled, using static IP configuration"));
                 // Mark network as ready immediately for static configuration
                 DeviceContext->IsReady = TRUE;
             }
@@ -450,17 +408,14 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             // Initialize TCP subsystem (global for all devices)
             static BOOL DATA_SECTION TCPInitialized = FALSE;
             if (!TCPInitialized) {
-                DEBUG(TEXT("[NetworkManager_InitializeDevice] Initializing TCP layer"));
                 TCP_Initialize();
                 TCPInitialized = TRUE;
             }
 
             // Install RX callback with device context as UserData
             NETWORKSETRXCB SetRxCb = {.Device = Device, .Callback = NetworkManager_RxCallback, .UserData = (LPVOID)DeviceContext};
-            DEBUG(TEXT("[NetworkManager_InitializeDevice] Installing RX callback %X with UserData %X"), (U32)NetworkManager_RxCallback, (U32)DeviceContext);
             U32 Result = Device->Driver->Command(DF_NT_SETRXCB, (UINT)(LPVOID)&SetRxCb);
             UNUSED(Result);
-            DEBUG(TEXT("[NetworkManager_InitializeDevice] RX callback installation result: %u"), Result);
 
             // Mark device as initialized
             DeviceContext->IsInitialized = TRUE;
@@ -477,11 +432,7 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             if (InterruptResult == DF_RETURN_SUCCESS && InterruptConfig.VectorSlot != DEVICE_INTERRUPT_INVALID_SLOT) {
                 DeviceContext->InterruptSlot = InterruptConfig.VectorSlot;
                 DeviceContext->InterruptsEnabled = InterruptConfig.InterruptEnabled;
-                if (DeviceContext->InterruptsEnabled) {
-                    DEBUG(TEXT("[NetworkManager_InitializeDevice] Interrupts enabled: IRQ=%u Slot=%u"),
-                          InterruptConfig.LegacyIRQ,
-                          DeviceContext->InterruptSlot);
-                } else {
+                if (!DeviceContext->InterruptsEnabled) {
                     WARNING(TEXT("[NetworkManager_InitializeDevice] Hardware interrupts unavailable, using polling on slot %u"),
                             DeviceContext->InterruptSlot);
                 }
@@ -495,10 +446,6 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
 
             // Register TCP protocol handler now that device is initialized
             IPv4_RegisterProtocolHandler((LPDEVICE)Device, IPV4_PROTOCOL_TCP, TCP_OnIPv4Packet);
-            DEBUG(TEXT("[NetworkManager_InitializeDevice] TCP handler registered for protocol %d on device %x"), IPV4_PROTOCOL_TCP, (U32)Device);
-
-            DEBUG(TEXT("[NetworkManager_InitializeDevice] Network stack initialized for device %s"),
-                  Device->Driver->Product);
         }
     }
 }

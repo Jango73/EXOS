@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "Console.h"
+#include "console/Console.h"
 #include "Heap.h"
 #include "arch/Disassemble.h"
 #include "arch/x86-32/x86-32.h"

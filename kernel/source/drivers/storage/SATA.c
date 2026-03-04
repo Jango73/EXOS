@@ -32,6 +32,7 @@
 #include "DriverEnum.h"
 #include "drivers/bus/PCI.h"
 #include "User.h"
+#include "utils/BufferPool.h"
 #include "utils/Cache.h"
 
 /***************************************************************************/
@@ -57,6 +58,18 @@
 #define AHCI_MAX_PRDT 8          // Max PRDT entries per command
 
 /***************************************************************************/
+// Buffer pool configuration
+
+#define SATA_POOL_ALLOC_FLAGS (ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE)
+#define SATA_SECTOR_BUFFER_OBJECTS_PER_SLAB NUM_BUFFERS
+#define SATA_SECTOR_BUFFER_INITIAL_SLABS 1
+#define SATA_SECTOR_BUFFER_MIN_FREE NUM_BUFFERS
+#define SATA_BOUNCE_BUFFER_BYTES (N_4KB + N_4KB)
+#define SATA_BOUNCE_BUFFER_OBJECTS_PER_SLAB 8
+#define SATA_BOUNCE_BUFFER_INITIAL_SLABS 1
+#define SATA_BOUNCE_BUFFER_MIN_FREE 8
+
+/***************************************************************************/
 // AHCI Port Structure
 
 typedef struct tag_AHCI_PORT {
@@ -74,6 +87,8 @@ typedef struct tag_AHCI_PORT {
 
     // Buffer management
     CACHE SectorCache;
+    BUFFER_POOL SectorBufferPool;
+    BUFFER_POOL BounceBufferPool;
 
     volatile U32 PendingInterrupts;
 } AHCI_PORT, *LPAHCI_PORT;
@@ -140,8 +155,9 @@ DRIVER DATA_SECTION SATADiskDriver = {
     .VersionMajor = VER_MAJOR,
     .VersionMinor = VER_MINOR,
     .Designer = "Jango73",
-    .Manufacturer = "AHCI Controllers",
+    .Manufacturer = "SATA-IO",
     .Product = "AHCI SATA Controller",
+    .Alias = "sata",
     .Flags = 0,
     .Command = SATADiskCommands,
     .EnumDomainCount = 1,
@@ -158,13 +174,24 @@ PCI_DRIVER DATA_SECTION AHCIPCIDriver = {
     .VersionMajor = VER_MAJOR,
     .VersionMinor = VER_MINOR,
     .Designer = "Jango73",
-    .Manufacturer = "AHCI Controllers",
+    .Manufacturer = "",
     .Product = "AHCI SATA Controller",
+    .Alias = "sata",
     .Command = AHCIProbe,
     .Matches = AHCIMatches,
     .MatchCount = 1,
     .Attach = AHCIAttach
 };
+
+/***************************************************************************/
+
+/**
+ * @brief Retrieves the AHCI PCI driver descriptor.
+ * @return Pointer to the AHCI PCI driver.
+ */
+LPDRIVER AHCIPCIGetDriver(void) {
+    return (LPDRIVER)&AHCIPCIDriver;
+}
 
 /***************************************************************************/
 
@@ -194,6 +221,32 @@ static BOOL SATACacheMatcher(LPVOID Data, LPVOID Context) {
     }
 
     return Buffer->SectorLow == Match->SectorLow && Buffer->SectorHigh == Match->SectorHigh;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Release callback for SATA sector cache entries.
+ *
+ * @param Data Cache entry payload (LPSECTORBUFFER).
+ * @param Dirty Dirty flag from cache entry.
+ * @param Context Buffer pool context pointer.
+ */
+static void SATACacheRelease(LPVOID Data, BOOL Dirty, LPVOID Context) {
+    LPBUFFER_POOL Pool = (LPBUFFER_POOL)Context;
+
+    UNUSED(Dirty);
+
+    if (Data == NULL) {
+        return;
+    }
+
+    if (Pool == NULL) {
+        KernelHeapFree(Data);
+        return;
+    }
+
+    BufferPoolRelease(Pool, Data);
 }
 
 /***************************************************************************/
@@ -391,10 +444,39 @@ static BOOL InitializeAHCIPort(LPAHCI_PORT AHCIPort, U32 PortNum) {
     }
     MemorySet(AHCIPort->CommandTable, 0, AHCI_CMD_TBL_SIZE);
 
+    if (!BufferPoolInit(&AHCIPort->SectorBufferPool,
+                        (UINT)sizeof(SECTORBUFFER),
+                        SATA_SECTOR_BUFFER_OBJECTS_PER_SLAB,
+                        SATA_SECTOR_BUFFER_INITIAL_SLABS,
+                        SATA_POOL_ALLOC_FLAGS)) {
+        return FALSE;
+    }
+
+    if (!BufferPoolReserve(&AHCIPort->SectorBufferPool, SATA_SECTOR_BUFFER_MIN_FREE)) {
+        BufferPoolDeinit(&AHCIPort->SectorBufferPool);
+        return FALSE;
+    }
+
+    if (!BufferPoolInit(&AHCIPort->BounceBufferPool,
+                        SATA_BOUNCE_BUFFER_BYTES,
+                        SATA_BOUNCE_BUFFER_OBJECTS_PER_SLAB,
+                        SATA_BOUNCE_BUFFER_INITIAL_SLABS,
+                        SATA_POOL_ALLOC_FLAGS)) {
+        return FALSE;
+    }
+
+    if (!BufferPoolReserve(&AHCIPort->BounceBufferPool, SATA_BOUNCE_BUFFER_MIN_FREE)) {
+        BufferPoolDeinit(&AHCIPort->BounceBufferPool);
+        return FALSE;
+    }
+
     CacheInit(&AHCIPort->SectorCache, NUM_BUFFERS);
     if (AHCIPort->SectorCache.Entries == NULL) {
         return FALSE;
     }
+
+    CacheSetWritePolicy(
+        &AHCIPort->SectorCache, CACHE_WRITE_POLICY_READ_ONLY, NULL, SATACacheRelease, &AHCIPort->SectorBufferPool);
 
     // Set up port registers with physical addresses for DMA
     PHYSICAL CommandListPhys = MapLinearToPhysical((LINEAR)AHCIPort->CommandList);
@@ -635,7 +717,11 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
 
     if (TransferBytes <= N_4KB) {
         BounceSize = TransferBytes + N_4KB;
-        BounceRaw = KernelHeapAlloc(BounceSize);
+        if (BounceSize > SATA_BOUNCE_BUFFER_BYTES) {
+            return DF_RETURN_UNEXPECTED;
+        }
+
+        BounceRaw = BufferPoolAcquire(&AHCIPort->BounceBufferPool);
         if (BounceRaw == NULL) {
             return DF_RETURN_UNEXPECTED;
         }
@@ -653,7 +739,7 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
 
     LPAHCI_HBA_PORT Port = AHCIPort->HBAPort;
     if (Port == NULL) {
-        if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
+        if (BounceRaw != NULL) BufferPoolRelease(&AHCIPort->BounceBufferPool, BounceRaw);
         return DF_RETURN_HARDWARE;
     }
 
@@ -663,7 +749,8 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
         timeout--;
     }
     if (timeout == 0) {
-        if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
+        ERROR(TEXT("[AHCICommand] Port ready timeout tfd=%x"), Port->tfd);
+        if (BounceRaw != NULL) BufferPoolRelease(&AHCIPort->BounceBufferPool, BounceRaw);
         return DF_RETURN_TIMEOUT;
     }
 
@@ -698,7 +785,8 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
     // Set up PRDT entry
     PHYSICAL bufferPhys = MapLinearToPhysical((LINEAR)EffectiveBuffer);
     if (bufferPhys == 0) {
-        if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
+        ERROR(TEXT("[AHCICommand] MapLinearToPhysical failed buffer=%p"), EffectiveBuffer);
+        if (BounceRaw != NULL) BufferPoolRelease(&AHCIPort->BounceBufferPool, BounceRaw);
         return DF_RETURN_HARDWARE;
     }
 
@@ -710,7 +798,6 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
     cmdtbl->prdt_entry[0].dbc = (SectorCount * 512) - 1; // Byte count - 1
     cmdtbl->prdt_entry[0].i = 0; // No interrupt on completion for this entry
 
-
     // Issue command
     Port->ci = 1; // Issue command slot 0
 
@@ -718,20 +805,23 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
     timeout = 1000000;
     while ((Port->ci & 1) && timeout > 0) {
         if (Port->is & AHCI_PORT_IS_TFES) {
-            if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
+            ERROR(TEXT("[AHCICommand] Task file error ci=%x is=%x tfd=%x"), Port->ci, Port->is, Port->tfd);
+            if (BounceRaw != NULL) BufferPoolRelease(&AHCIPort->BounceBufferPool, BounceRaw);
             return DF_RETURN_HARDWARE;
         }
         timeout--;
     }
 
     if (timeout == 0) {
-        if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
+        ERROR(TEXT("[AHCICommand] Completion timeout ci=%x is=%x tfd=%x"), Port->ci, Port->is, Port->tfd);
+        if (BounceRaw != NULL) BufferPoolRelease(&AHCIPort->BounceBufferPool, BounceRaw);
         return DF_RETURN_TIMEOUT;
     }
 
     // Check for errors
     if (Port->is & AHCI_PORT_IS_TFES) {
-        if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
+        ERROR(TEXT("[AHCICommand] Task file error after completion ci=%x is=%x tfd=%x"), Port->ci, Port->is, Port->tfd);
+        if (BounceRaw != NULL) BufferPoolRelease(&AHCIPort->BounceBufferPool, BounceRaw);
         return DF_RETURN_HARDWARE;
     }
 
@@ -739,7 +829,7 @@ static U32 AHCICommand(LPAHCI_PORT AHCIPort, U8 Command, U32 LBA, U16 SectorCoun
         MemoryCopy(Buffer, EffectiveBuffer, TransferBytes);
     }
 
-    if (BounceRaw != NULL) KernelHeapFree(BounceRaw);
+    if (BounceRaw != NULL) BufferPoolRelease(&AHCIPort->BounceBufferPool, BounceRaw);
 
     return DF_RETURN_SUCCESS;
 }
@@ -774,7 +864,7 @@ static U32 Read(LPIOCONTROL Control) {
         LPSECTORBUFFER Buffer = (LPSECTORBUFFER)CacheFind(&AHCIPort->SectorCache, SATACacheMatcher, &Context);
 
         if (Buffer == NULL) {
-            Buffer = (LPSECTORBUFFER)KernelHeapAlloc(sizeof(SECTORBUFFER));
+            Buffer = (LPSECTORBUFFER)BufferPoolAcquire(&AHCIPort->SectorBufferPool);
 
             if (Buffer == NULL) return DF_RETURN_UNEXPECTED;
 
@@ -786,12 +876,12 @@ static U32 Read(LPIOCONTROL Control) {
                 AHCIPort, ATA_CMD_READ_DMA_EXT, Context.SectorLow, 1, Buffer->Data, FALSE);
 
             if (Result != DF_RETURN_SUCCESS) {
-                KernelHeapFree(Buffer);
+                BufferPoolRelease(&AHCIPort->SectorBufferPool, Buffer);
                 return Result;
             }
 
             if (!CacheAdd(&AHCIPort->SectorCache, Buffer, DISK_CACHE_TTL_MS)) {
-                KernelHeapFree(Buffer);
+                BufferPoolRelease(&AHCIPort->SectorBufferPool, Buffer);
                 return DF_RETURN_UNEXPECTED;
             }
         }
@@ -836,7 +926,7 @@ static U32 Write(LPIOCONTROL Control) {
         BOOL AddedToCache = FALSE;
 
         if (Buffer == NULL) {
-            Buffer = (LPSECTORBUFFER)KernelHeapAlloc(sizeof(SECTORBUFFER));
+            Buffer = (LPSECTORBUFFER)BufferPoolAcquire(&AHCIPort->SectorBufferPool);
 
             if (Buffer == NULL) return DF_RETURN_UNEXPECTED;
 
@@ -854,7 +944,7 @@ static U32 Write(LPIOCONTROL Control) {
 
         if (Result != DF_RETURN_SUCCESS) {
             if (AddedToCache) {
-                KernelHeapFree(Buffer);
+                BufferPoolRelease(&AHCIPort->SectorBufferPool, Buffer);
             }
             return Result;
         }
@@ -863,7 +953,7 @@ static U32 Write(LPIOCONTROL Control) {
 
         if (AddedToCache) {
             if (!CacheAdd(&AHCIPort->SectorCache, Buffer, DISK_CACHE_TTL_MS)) {
-                KernelHeapFree(Buffer);
+                BufferPoolRelease(&AHCIPort->SectorBufferPool, Buffer);
                 return DF_RETURN_UNEXPECTED;
             }
         }

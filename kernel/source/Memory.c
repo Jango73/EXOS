@@ -27,7 +27,7 @@
 #include "Base.h"
 #include "BuddyAllocator.h"
 #include "CoreString.h"
-#include "EarlyBootConsole.h"
+#include "console/Console-EarlyBoot.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "System.h"

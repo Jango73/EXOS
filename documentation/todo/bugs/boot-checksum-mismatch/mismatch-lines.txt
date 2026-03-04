@@ -1,0 +1,3 @@
+documentation/Boot-Checksum-Mismatch/20260226-122320-x86-64-pass-kernel.log:576:T0> DEBUG > [TCP_ValidateChecksum] CHECKSUM MISMATCH - packet may be corrupted
+documentation/Boot-Checksum-Mismatch/20260226-122311-x86-64-pass-kernel.log:576:T0> DEBUG > [TCP_ValidateChecksum] CHECKSUM MISMATCH - packet may be corrupted
+documentation/Boot-Checksum-Mismatch/20260226-122316-x86-64-pass-kernel.log:576:T0> DEBUG > [TCP_ValidateChecksum] CHECKSUM MISMATCH - packet may be corrupted

@@ -27,6 +27,7 @@
 
 BOOL ReadSectors(LPEXT2FILESYSTEM FileSystem, U32 Sector, U32 Count, LPVOID Buffer) {
     IOCONTROL Control;
+    U32 Result;
 
     if (FileSystem == NULL || FileSystem->Disk == NULL) return FALSE;
     if (Buffer == NULL || Count == 0) return FALSE;
@@ -39,7 +40,9 @@ BOOL ReadSectors(LPEXT2FILESYSTEM FileSystem, U32 Sector, U32 Count, LPVOID Buff
     Control.Buffer = Buffer;
     Control.BufferSize = Count * SECTOR_SIZE;
 
-    return FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control) == DF_RETURN_SUCCESS;
+    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
+
+    return Result == DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -52,11 +55,15 @@ BOOL ReadSectors(LPEXT2FILESYSTEM FileSystem, U32 Sector, U32 Count, LPVOID Buff
  * @return TRUE on success, FALSE otherwise.
  */
 BOOL ReadBlock(LPEXT2FILESYSTEM FileSystem, U32 Block, LPVOID Buffer) {
+    BOOL Result;
+
     if (FileSystem == NULL) return FALSE;
     if (Buffer == NULL) return FALSE;
     if (FileSystem->SectorsPerBlock == 0) return FALSE;
 
-    return ReadSectors(FileSystem, Block * FileSystem->SectorsPerBlock, FileSystem->SectorsPerBlock, Buffer);
+    Result = ReadSectors(FileSystem, Block * FileSystem->SectorsPerBlock, FileSystem->SectorsPerBlock, Buffer);
+
+    return Result;
 }
 
 /************************************************************************/
@@ -203,11 +210,11 @@ BOOL ReadInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode) {
     BlockOffset = IndexInGroup / FileSystem->InodesPerBlock;
     OffsetInBlock = (IndexInGroup % FileSystem->InodesPerBlock) * FileSystem->InodeSize;
 
-    BlockBuffer = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
+    BlockBuffer = (U8*)Ext2AcquireBlockBuffer(FileSystem);
     if (BlockBuffer == NULL) return FALSE;
 
     if (ReadBlock(FileSystem, Group->InodeTable + BlockOffset, BlockBuffer) == FALSE) {
-        KernelHeapFree(BlockBuffer);
+        Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
         return FALSE;
     }
 
@@ -220,7 +227,7 @@ BOOL ReadInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode) {
 
     MemoryCopy(Inode, BlockBuffer + OffsetInBlock, CopySize);
 
-    KernelHeapFree(BlockBuffer);
+    Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
 
     return TRUE;
 }
@@ -305,11 +312,11 @@ BOOL ResolveInodeBlock(
             if (WriteBlock(FileSystem, IndirectBlock, FileSystem->IOBuffer) == FALSE) return FALSE;
         }
 
-        Buffer = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
+        Buffer = (U32*)Ext2AcquireBlockBuffer(FileSystem);
         if (Buffer == NULL) return FALSE;
 
         if (ReadBlock(FileSystem, IndirectBlock, Buffer) == FALSE) {
-            KernelHeapFree(Buffer);
+            Ext2ReleaseBlockBuffer(FileSystem, Buffer);
             return FALSE;
         }
 
@@ -317,7 +324,7 @@ BOOL ResolveInodeBlock(
             U32 NewBlock = 0;
 
             if (AllocateBlock(FileSystem, &NewBlock) == FALSE) {
-                KernelHeapFree(Buffer);
+                Ext2ReleaseBlockBuffer(FileSystem, Buffer);
                 return FALSE;
             }
 
@@ -325,19 +332,19 @@ BOOL ResolveInodeBlock(
             Buffer[LogicalIndex] = NewBlock;
 
             if (WriteBlock(FileSystem, IndirectBlock, Buffer) == FALSE) {
-                KernelHeapFree(Buffer);
+                Ext2ReleaseBlockBuffer(FileSystem, Buffer);
                 return FALSE;
             }
 
             MemorySet(FileSystem->IOBuffer, 0, FileSystem->BlockSize);
             if (WriteBlock(FileSystem, NewBlock, FileSystem->IOBuffer) == FALSE) {
-                KernelHeapFree(Buffer);
+                Ext2ReleaseBlockBuffer(FileSystem, Buffer);
                 return FALSE;
             }
         }
 
         *BlockNumber = Buffer[LogicalIndex];
-        KernelHeapFree(Buffer);
+        Ext2ReleaseBlockBuffer(FileSystem, Buffer);
         return TRUE;
     }
 
@@ -365,11 +372,11 @@ BOOL ResolveInodeBlock(
             if (WriteBlock(FileSystem, DoubleBlock, FileSystem->IOBuffer) == FALSE) return FALSE;
         }
 
-        DoubleBuffer = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
+        DoubleBuffer = (U32*)Ext2AcquireBlockBuffer(FileSystem);
         if (DoubleBuffer == NULL) return FALSE;
 
         if (ReadBlock(FileSystem, DoubleBlock, DoubleBuffer) == FALSE) {
-            KernelHeapFree(DoubleBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
             return FALSE;
         }
 
@@ -377,7 +384,7 @@ BOOL ResolveInodeBlock(
         SingleIndex = (U32)(LogicalIndex % SingleSpan);
 
         if (DoubleIndex >= EntriesPerBlock) {
-            KernelHeapFree(DoubleBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
             return FALSE;
         }
 
@@ -386,38 +393,38 @@ BOOL ResolveInodeBlock(
         if (SingleBlock == 0) {
             if (Allocate == FALSE) {
                 *BlockNumber = 0;
-                KernelHeapFree(DoubleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
                 return TRUE;
             }
 
             if (AllocateBlock(FileSystem, &SingleBlock) == FALSE) {
-                KernelHeapFree(DoubleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
                 return FALSE;
             }
 
             Inode->Blocks += BlocksPerEntry;
             MemorySet(FileSystem->IOBuffer, 0, FileSystem->BlockSize);
             if (WriteBlock(FileSystem, SingleBlock, FileSystem->IOBuffer) == FALSE) {
-                KernelHeapFree(DoubleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
                 return FALSE;
             }
 
             DoubleBuffer[DoubleIndex] = SingleBlock;
             if (WriteBlock(FileSystem, DoubleBlock, DoubleBuffer) == FALSE) {
-                KernelHeapFree(DoubleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
                 return FALSE;
             }
         }
 
-        SingleBuffer = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
+        SingleBuffer = (U32*)Ext2AcquireBlockBuffer(FileSystem);
         if (SingleBuffer == NULL) {
-            KernelHeapFree(DoubleBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
             return FALSE;
         }
 
         if (ReadBlock(FileSystem, SingleBlock, SingleBuffer) == FALSE) {
-            KernelHeapFree(SingleBuffer);
-            KernelHeapFree(DoubleBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, SingleBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
             return FALSE;
         }
 
@@ -425,8 +432,8 @@ BOOL ResolveInodeBlock(
             U32 NewBlock = 0;
 
             if (AllocateBlock(FileSystem, &NewBlock) == FALSE) {
-                KernelHeapFree(SingleBuffer);
-                KernelHeapFree(DoubleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, SingleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
                 return FALSE;
             }
 
@@ -434,22 +441,22 @@ BOOL ResolveInodeBlock(
             SingleBuffer[SingleIndex] = NewBlock;
 
             if (WriteBlock(FileSystem, SingleBlock, SingleBuffer) == FALSE) {
-                KernelHeapFree(SingleBuffer);
-                KernelHeapFree(DoubleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, SingleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
                 return FALSE;
             }
 
             MemorySet(FileSystem->IOBuffer, 0, FileSystem->BlockSize);
             if (WriteBlock(FileSystem, NewBlock, FileSystem->IOBuffer) == FALSE) {
-                KernelHeapFree(SingleBuffer);
-                KernelHeapFree(DoubleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, SingleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
                 return FALSE;
             }
         }
 
         *BlockNumber = SingleBuffer[SingleIndex];
-        KernelHeapFree(SingleBuffer);
-        KernelHeapFree(DoubleBuffer);
+        Ext2ReleaseBlockBuffer(FileSystem, SingleBuffer);
+        Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
         return TRUE;
     }
 
@@ -480,11 +487,11 @@ BOOL ResolveInodeBlock(
             if (WriteBlock(FileSystem, TripleBlock, FileSystem->IOBuffer) == FALSE) return FALSE;
         }
 
-        TripleBuffer = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
+        TripleBuffer = (U32*)Ext2AcquireBlockBuffer(FileSystem);
         if (TripleBuffer == NULL) return FALSE;
 
         if (ReadBlock(FileSystem, TripleBlock, TripleBuffer) == FALSE) {
-            KernelHeapFree(TripleBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
             return FALSE;
         }
 
@@ -492,7 +499,7 @@ BOOL ResolveInodeBlock(
         LogicalIndex %= DoubleSpan;
 
         if (TripleIndex >= EntriesPerBlock) {
-            KernelHeapFree(TripleBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
             return FALSE;
         }
 
@@ -501,38 +508,38 @@ BOOL ResolveInodeBlock(
         if (DoubleBlock == 0) {
             if (Allocate == FALSE) {
                 *BlockNumber = 0;
-                KernelHeapFree(TripleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
                 return TRUE;
             }
 
             if (AllocateBlock(FileSystem, &DoubleBlock) == FALSE) {
-                KernelHeapFree(TripleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
                 return FALSE;
             }
 
             Inode->Blocks += BlocksPerEntry;
             MemorySet(FileSystem->IOBuffer, 0, FileSystem->BlockSize);
             if (WriteBlock(FileSystem, DoubleBlock, FileSystem->IOBuffer) == FALSE) {
-                KernelHeapFree(TripleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
                 return FALSE;
             }
 
             TripleBuffer[TripleIndex] = DoubleBlock;
             if (WriteBlock(FileSystem, TripleBlock, TripleBuffer) == FALSE) {
-                KernelHeapFree(TripleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
                 return FALSE;
             }
         }
 
-        DoubleBuffer = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
+        DoubleBuffer = (U32*)Ext2AcquireBlockBuffer(FileSystem);
         if (DoubleBuffer == NULL) {
-            KernelHeapFree(TripleBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
             return FALSE;
         }
 
         if (ReadBlock(FileSystem, DoubleBlock, DoubleBuffer) == FALSE) {
-            KernelHeapFree(DoubleBuffer);
-            KernelHeapFree(TripleBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
             return FALSE;
         }
 
@@ -540,8 +547,8 @@ BOOL ResolveInodeBlock(
         SingleIndex = (U32)(LogicalIndex % SingleSpan);
 
         if (DoubleIndex >= EntriesPerBlock) {
-            KernelHeapFree(DoubleBuffer);
-            KernelHeapFree(TripleBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
             return FALSE;
         }
 
@@ -550,44 +557,44 @@ BOOL ResolveInodeBlock(
         if (SingleBlock == 0) {
             if (Allocate == FALSE) {
                 *BlockNumber = 0;
-                KernelHeapFree(DoubleBuffer);
-                KernelHeapFree(TripleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
                 return TRUE;
             }
 
             if (AllocateBlock(FileSystem, &SingleBlock) == FALSE) {
-                KernelHeapFree(DoubleBuffer);
-                KernelHeapFree(TripleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
                 return FALSE;
             }
 
             Inode->Blocks += BlocksPerEntry;
             MemorySet(FileSystem->IOBuffer, 0, FileSystem->BlockSize);
             if (WriteBlock(FileSystem, SingleBlock, FileSystem->IOBuffer) == FALSE) {
-                KernelHeapFree(DoubleBuffer);
-                KernelHeapFree(TripleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
                 return FALSE;
             }
 
             DoubleBuffer[DoubleIndex] = SingleBlock;
             if (WriteBlock(FileSystem, DoubleBlock, DoubleBuffer) == FALSE) {
-                KernelHeapFree(DoubleBuffer);
-                KernelHeapFree(TripleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
                 return FALSE;
             }
         }
 
-        SingleBuffer = (U32*)KernelHeapAlloc(FileSystem->BlockSize);
+        SingleBuffer = (U32*)Ext2AcquireBlockBuffer(FileSystem);
         if (SingleBuffer == NULL) {
-            KernelHeapFree(DoubleBuffer);
-            KernelHeapFree(TripleBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
             return FALSE;
         }
 
         if (ReadBlock(FileSystem, SingleBlock, SingleBuffer) == FALSE) {
-            KernelHeapFree(SingleBuffer);
-            KernelHeapFree(DoubleBuffer);
-            KernelHeapFree(TripleBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, SingleBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
+            Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
             return FALSE;
         }
 
@@ -595,9 +602,9 @@ BOOL ResolveInodeBlock(
             U32 NewBlock = 0;
 
             if (AllocateBlock(FileSystem, &NewBlock) == FALSE) {
-                KernelHeapFree(SingleBuffer);
-                KernelHeapFree(DoubleBuffer);
-                KernelHeapFree(TripleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, SingleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
                 return FALSE;
             }
 
@@ -605,25 +612,25 @@ BOOL ResolveInodeBlock(
             SingleBuffer[SingleIndex] = NewBlock;
 
             if (WriteBlock(FileSystem, SingleBlock, SingleBuffer) == FALSE) {
-                KernelHeapFree(SingleBuffer);
-                KernelHeapFree(DoubleBuffer);
-                KernelHeapFree(TripleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, SingleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
                 return FALSE;
             }
 
             MemorySet(FileSystem->IOBuffer, 0, FileSystem->BlockSize);
             if (WriteBlock(FileSystem, NewBlock, FileSystem->IOBuffer) == FALSE) {
-                KernelHeapFree(SingleBuffer);
-                KernelHeapFree(DoubleBuffer);
-                KernelHeapFree(TripleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, SingleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
+                Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
                 return FALSE;
             }
         }
 
         *BlockNumber = SingleBuffer[SingleIndex];
-        KernelHeapFree(SingleBuffer);
-        KernelHeapFree(DoubleBuffer);
-        KernelHeapFree(TripleBuffer);
+        Ext2ReleaseBlockBuffer(FileSystem, SingleBuffer);
+        Ext2ReleaseBlockBuffer(FileSystem, DoubleBuffer);
+        Ext2ReleaseBlockBuffer(FileSystem, TripleBuffer);
         return TRUE;
     }
 
@@ -664,16 +671,25 @@ BOOL FindInodeInDirectory(
         BlockCount = (Directory->Size + FileSystem->BlockSize - 1) / FileSystem->BlockSize;
     }
 
-    BlockBuffer = (U8*)KernelHeapAlloc(FileSystem->BlockSize);
-    if (BlockBuffer == NULL) return FALSE;
+    BlockBuffer = (U8*)Ext2AcquireBlockBuffer(FileSystem);
+    if (BlockBuffer == NULL) {
+        ERROR(TEXT("[FindInodeInDirectory] Allocation failed size=%u"), FileSystem->BlockSize);
+        return FALSE;
+    }
 
     for (BlockIndex = 0; BlockIndex < BlockCount && Found == FALSE; BlockIndex++) {
         U32 BlockNumber;
 
-        if (GetInodeBlockNumber(FileSystem, Directory, BlockIndex, &BlockNumber) == FALSE) break;
+        if (GetInodeBlockNumber(FileSystem, Directory, BlockIndex, &BlockNumber) == FALSE) {
+            WARNING(TEXT("[FindInodeInDirectory] GetInodeBlockNumber failed index=%u"), BlockIndex);
+            break;
+        }
         if (BlockNumber == 0) continue;
 
-        if (ReadBlock(FileSystem, BlockNumber, BlockBuffer) == FALSE) break;
+        if (ReadBlock(FileSystem, BlockNumber, BlockBuffer) == FALSE) {
+            WARNING(TEXT("[FindInodeInDirectory] ReadBlock failed block=%u"), BlockNumber);
+            break;
+        }
 
         U32 Offset = 0;
         while (Offset + sizeof(EXT2DIRECTORYENTRY) <= FileSystem->BlockSize) {
@@ -699,6 +715,7 @@ BOOL FindInodeInDirectory(
                 if (StringCompare(EntryName, Name) == 0) {
                     *InodeIndex = Entry->Inode;
                     Found = TRUE;
+                    DEBUG(TEXT("[FindInodeInDirectory] Found name=%s inode=%u"), Name, Entry->Inode);
                     break;
                 }
             }
@@ -707,7 +724,7 @@ BOOL FindInodeInDirectory(
         }
     }
 
-    KernelHeapFree(BlockBuffer);
+    Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
 
     return Found;
 }
@@ -731,7 +748,10 @@ BOOL ResolvePath(
 
     if (FileSystem == NULL || STRING_EMPTY(Path) || Inode == NULL || InodeIndex == NULL) return FALSE;
 
-    if (ReadInode(FileSystem, EXT2_ROOT_INODE, &CurrentInode) == FALSE) return FALSE;
+    if (ReadInode(FileSystem, EXT2_ROOT_INODE, &CurrentInode) == FALSE) {
+        WARNING(TEXT("[ResolvePath] ReadInode root failed"));
+        return FALSE;
+    }
     CurrentIndex = EXT2_ROOT_INODE;
 
     Length = StringLength(Path);
@@ -752,16 +772,23 @@ BOOL ResolvePath(
             ComponentLength++;
         }
 
-        if (ComponentLength == 0 || ComponentLength >= MAX_FILE_NAME) return FALSE;
+        if (ComponentLength == 0 || ComponentLength >= MAX_FILE_NAME) {
+            WARNING(TEXT("[ResolvePath] Invalid component length=%u"), ComponentLength);
+            return FALSE;
+        }
 
         MemorySet(Component, 0, sizeof(Component));
         MemoryCopy(Component, Path + Offset, ComponentLength);
 
         if (FindInodeInDirectory(FileSystem, &CurrentInode, Component, &CurrentIndex) == FALSE) {
+            WARNING(TEXT("[ResolvePath] Component not found component=%s"), Component);
             return FALSE;
         }
 
-        if (ReadInode(FileSystem, CurrentIndex, &CurrentInode) == FALSE) return FALSE;
+        if (ReadInode(FileSystem, CurrentIndex, &CurrentInode) == FALSE) {
+            WARNING(TEXT("[ResolvePath] ReadInode failed index=%u component=%s"), CurrentIndex, Component);
+            return FALSE;
+        }
 
         Offset += ComponentLength;
     }

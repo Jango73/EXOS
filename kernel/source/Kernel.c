@@ -27,7 +27,8 @@
 #include "Autotest.h"
 #include "BuddyAllocator.h"
 #include "Clock.h"
-#include "Console.h"
+#include "console/Console.h"
+#include "DisplaySession.h"
 #include "drivers/platform/ACPI.h"
 #include "drivers/input/Keyboard.h"
 #include "File.h"
@@ -251,6 +252,8 @@ static void InitializeFocusState(void) {
             GetFocusedDesktop()->FocusedProcess = &KernelProcess;
         }
     }
+
+    DisplaySessionInitialize();
 }
 
 /************************************************************************/
@@ -740,6 +743,8 @@ void LoadDriver(LPDRIVER Driver) {
             TEST(TEXT("[LoadDriver] %s.Load : KO"), TEXT(Driver->Product));
             if ((Driver->Flags & DRIVER_FLAG_CRITICAL)) {
                 ConsolePanic(TEXT("Critical driver %s failed to load"), TEXT(Driver->Product));
+            } else if (Result == DF_RETURN_HARDWARE_ABSENT) {
+                WARNING(TEXT("[LoadDriver] %s driver not loaded: hardware absent"), TEXT(Driver->Product));
             } else {
                 ERROR(TEXT("[LoadDriver] : Failed to load %s driver (code = %x)"), TEXT(Driver->Product), Result);
             }
@@ -784,7 +789,7 @@ void LoadAllDrivers(void) {
     DEBUG(TEXT("[LoadAllDrivers] Driver list initialized"));
 
 
-    LPLIST DriverList = GetDriverList();
+    LPLIST DriverList = GetStartupDriverList();
     if (DriverList == NULL || DriverList->First == NULL) {
         DEBUG(TEXT("[LoadAllDrivers] No drivers to load"));
         return;
@@ -792,7 +797,7 @@ void LoadAllDrivers(void) {
 
     U32 DriverIndex = 0;
     for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next, DriverIndex++) {
-        LPDRIVER Driver = (LPDRIVER)Node;
+        LPDRIVER Driver = ((LPSTARTUP_DRIVER_ENTRY)Node)->Driver;
         SAFE_USE(Driver) { DEBUG(TEXT("[LoadAllDrivers] Driver[%u] loading %s @ %p"), DriverIndex, Driver->Product, Driver); }
         LoadDriver(Driver);
         SAFE_USE(Driver) { DEBUG(TEXT("[LoadAllDrivers] Driver[%u] load done flags=%x"), DriverIndex, Driver->Flags); }
@@ -810,13 +815,13 @@ void LoadAllDrivers(void) {
  * each registered driver.
  */
 void UnloadAllDrivers(void) {
-    LPLIST DriverList = GetDriverList();
+    LPLIST DriverList = GetStartupDriverList();
     if (DriverList == NULL || DriverList->Last == NULL) {
         return;
     }
 
     for (LPLISTNODE Node = DriverList->Last; Node; Node = Node->Prev) {
-        UnloadDriver((LPDRIVER)Node);
+        UnloadDriver(((LPSTARTUP_DRIVER_ENTRY)Node)->Driver);
     }
 }
 

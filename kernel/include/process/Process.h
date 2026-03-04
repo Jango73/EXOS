@@ -72,6 +72,7 @@ struct tag_PROCESS {
     U32 Privilege;                  // This process' privilege level
     U32 Status;                     // (alive/dead)
     U32 Flags;                      // Process creation flags
+    U32 ControlFlags;               // Process control state (pause/interrupt)
     PHYSICAL PageDirectory;         // This process' page directory
     LINEAR HeapBase;
     UINT HeapSize;
@@ -229,40 +230,6 @@ BOOL CreateProcess(LPPROCESSINFO);
 UINT Spawn(LPCSTR, LPCSTR);
 void SetProcessStatus(LPPROCESS Process, U32 Status);
 LINEAR GetProcessHeap(LPPROCESS);
-
-/************************************************************************/
-// Functions in Desktop.c
-
-LPDESKTOP CreateDesktop(void);
-BOOL DeleteDesktop(LPDESKTOP);
-BOOL ShowDesktop(LPDESKTOP);
-LPWINDOW CreateWindow(LPWINDOWINFO);
-BOOL DeleteWindow(LPWINDOW);
-LPWINDOW FindWindow(LPWINDOW, LPWINDOW);
-LPDESKTOP GetWindowDesktop(LPWINDOW);
-BOOL InvalidateWindowRect(HANDLE, LPRECT);
-BOOL ShowWindow(HANDLE, BOOL);
-BOOL GetWindowRect(HANDLE, LPRECT);
-BOOL MoveWindow(HANDLE, LPPOINT);
-BOOL SizeWindow(HANDLE, LPPOINT);
-HANDLE GetWindowParent(HANDLE);
-BOOL GetDesktopScreenRect(LPDESKTOP, LPRECT);
-U32 SetWindowProp(HANDLE, LPCSTR, U32);
-U32 GetWindowProp(HANDLE, LPCSTR);
-HANDLE GetWindowGC(HANDLE);
-HANDLE BeginWindowDraw(HANDLE);
-BOOL EndWindowDraw(HANDLE);
-HANDLE GetSystemBrush(U32);
-HANDLE GetSystemPen(U32);
-HANDLE SelectBrush(HANDLE, HANDLE);
-HANDLE SelectPen(HANDLE, HANDLE);
-HANDLE CreateBrush(LPBRUSHINFO);
-HANDLE CreatePen(LPPENINFO);
-BOOL SetPixel(LPPIXELINFO);
-BOOL GetPixel(LPPIXELINFO);
-BOOL Line(LPLINEINFO);
-BOOL Rectangle(LPRECTINFO);
-U32 DefWindowFunc(HANDLE, U32, U32, U32);
 
 /***************************************************************************/
 

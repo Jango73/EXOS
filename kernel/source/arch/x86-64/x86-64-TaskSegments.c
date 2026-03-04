@@ -24,7 +24,7 @@
 #include "arch/x86-64/x86-64.h"
 
 #include "CoreString.h"
-#include "Console.h"
+#include "console/Console.h"
 #include "Driver.h"
 #include "Kernel.h"
 #include "Log.h"
@@ -50,6 +50,7 @@ DRIVER DATA_SECTION TaskSegmentsDriver = {
     .Designer = "Jango73",
     .Manufacturer = "EXOS",
     .Product = "TaskSegments",
+    .Alias = "task_segments",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = TaskSegmentsDriverCommands};
 
