@@ -23,7 +23,7 @@ This document records the verified current usage, then defines the target contra
   - `Line` -> `DF_GFX_LINE`
   - `Rectangle` -> `DF_GFX_RECTANGLE`
 
-### Console path (`kernel/source/Console.c`)
+### Console path (`kernel/source/Console-Main.c`)
 - Console mode changes are handled by console driver command dispatch:
   - `ConsoleSetMode` -> `ConsoleDriverCommands(DF_GFX_SETMODE, ...)`
 - Console does not call selected graphics backend (`GetGraphicsDriver`) for glyph rendering.
