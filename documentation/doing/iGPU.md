@@ -182,8 +182,8 @@ Deliverable:
 - Output enumeration API stable even before full multi-monitor policy is enabled.
 
 ## Step 9 - Integration with existing VESA backend
-- [ ] Keep VESA as fallback backend.
-- [ ] Ensure Desktop chooses backend by capability/priority policy.
+- [x] Keep VESA as fallback backend.
+- [x] Ensure Desktop chooses backend by capability/priority policy.
 - [ ] Add a boot option or kernel config key to force one backend for debugging.
 - [ ] Define backend failover contract: conditions that trigger fallback and when to stay on Intel path.
 - [ ] Keep last failure reason exposed through diagnostics to avoid silent fallback loops.
