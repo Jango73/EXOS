@@ -128,151 +128,6 @@ static BOOL IntelGfxWriteVerifyRegister32(U32 RegisterOffset, U32 Value, U32 Mas
 
 /************************************************************************/
 
-static const INTEL_DISPLAY_FAMILY_OPS IntelGfxFamilyOpsTable[] = {
-    {.DisplayVersionMin = 0,
-        .DisplayVersionMax = 6,
-        .Name = TEXT("IntelDisplayV6"),
-        .StrideWriteMask = 0x0001FFFC,
-        .StrideReadMask = 0x0001FFFC,
-        .StrideAlignment = 64,
-        .StrideReadMultiplierPrimary = 1,
-        .StrideReadMultiplierSecondary = 1,
-        .ForceLinearPlaneTiling = FALSE,
-        .SupportsColdModeset = TRUE},
-    {.DisplayVersionMin = 7,
-        .DisplayVersionMax = 8,
-        .Name = TEXT("IntelDisplayV8"),
-        .StrideWriteMask = 0x0001FFFC,
-        .StrideReadMask = 0x0001FFFC,
-        .StrideAlignment = 64,
-        .StrideReadMultiplierPrimary = 1,
-        .StrideReadMultiplierSecondary = 1,
-        .ForceLinearPlaneTiling = FALSE,
-        .SupportsColdModeset = TRUE},
-    {.DisplayVersionMin = 9,
-        .DisplayVersionMax = 10,
-        .Name = TEXT("IntelDisplayV9_10"),
-        .StrideWriteMask = 0x0001FFFC,
-        .StrideReadMask = 0x0001FFFC,
-        .StrideAlignment = 64,
-        .StrideReadMultiplierPrimary = 1,
-        .StrideReadMultiplierSecondary = 16,
-        .ForceLinearPlaneTiling = TRUE,
-        .SupportsColdModeset = TRUE},
-    {.DisplayVersionMin = 11,
-        .DisplayVersionMax = 11,
-        .Name = TEXT("IntelDisplayV11"),
-        .StrideWriteMask = 0x0001FFFC,
-        .StrideReadMask = 0x0001FFFC,
-        .StrideAlignment = 64,
-        .StrideReadMultiplierPrimary = 1,
-        .StrideReadMultiplierSecondary = 16,
-        .ForceLinearPlaneTiling = TRUE,
-        .SupportsColdModeset = TRUE},
-    {.DisplayVersionMin = 12,
-        .DisplayVersionMax = MAX_U32,
-        .Name = TEXT("IntelDisplayV12Plus"),
-        .StrideWriteMask = 0x0001FFFC,
-        .StrideReadMask = 0x0001FFFC,
-        .StrideAlignment = 64,
-        .StrideReadMultiplierPrimary = 1,
-        .StrideReadMultiplierSecondary = 16,
-        .ForceLinearPlaneTiling = TRUE,
-        .SupportsColdModeset = TRUE}
-};
-
-/************************************************************************/
-
-static U32 IntelGfxAlignUp(U32 Value, U32 Alignment) {
-    U32 Mask = 0;
-
-    if (Alignment <= 1) {
-        return Value;
-    }
-
-    Mask = Alignment - 1;
-    return (Value + Mask) & ~Mask;
-}
-
-/************************************************************************/
-
-static const INTEL_DISPLAY_FAMILY_OPS* IntelGfxGetFamilyProgramming(void) {
-    U32 DisplayVersion = IntelGfxState.IntelCapabilities.DisplayVersion;
-    UINT Index = 0;
-
-    for (Index = 0; Index < sizeof(IntelGfxFamilyOpsTable) / sizeof(IntelGfxFamilyOpsTable[0]); Index++) {
-        const INTEL_DISPLAY_FAMILY_OPS* Family = &IntelGfxFamilyOpsTable[Index];
-        if (DisplayVersion >= Family->DisplayVersionMin && DisplayVersion <= Family->DisplayVersionMax) {
-            return Family;
-        }
-    }
-
-    return NULL;
-}
-
-/************************************************************************/
-
-static U32 IntelGfxResolveStrideFromReadback(U32 ReadBackStride, U32 Width, U32 BitsPerPixel) {
-    const INTEL_DISPLAY_FAMILY_OPS* Family = IntelGfxGetFamilyProgramming();
-    U32 MinimumStride = 0;
-    U32 Candidate = 0;
-
-    if (Width == 0 || BitsPerPixel == 0) {
-        return 0;
-    }
-
-    MinimumStride = Width * (BitsPerPixel >> 3);
-    Candidate = (ReadBackStride & Family->StrideReadMask) * Family->StrideReadMultiplierPrimary;
-    if (Candidate >= MinimumStride) {
-        return IntelGfxAlignUp(Candidate, Family->StrideAlignment);
-    }
-
-    if (Family->StrideReadMultiplierSecondary > 1) {
-        Candidate = (ReadBackStride & Family->StrideReadMask) * Family->StrideReadMultiplierSecondary;
-        if (Candidate >= MinimumStride) {
-            return IntelGfxAlignUp(Candidate, Family->StrideAlignment);
-        }
-    }
-
-    return IntelGfxAlignUp(MinimumStride, Family->StrideAlignment);
-}
-
-/************************************************************************/
-
-static U32 IntelGfxBuildProgramStride(U32 Width, U32 BitsPerPixel) {
-    const INTEL_DISPLAY_FAMILY_OPS* Family = IntelGfxGetFamilyProgramming();
-    U32 MinimumStride = 0;
-
-    if (Family == NULL || Width == 0 || BitsPerPixel == 0) {
-        return 0;
-    }
-
-    MinimumStride = Width * (BitsPerPixel >> 3);
-    return IntelGfxAlignUp(MinimumStride, Family->StrideAlignment);
-}
-
-/************************************************************************/
-
-static U32 IntelGfxBuildPlaneControl(U32 PlaneControlBase) {
-    const INTEL_DISPLAY_FAMILY_OPS* Family = IntelGfxGetFamilyProgramming();
-
-    if (Family == NULL) {
-        return PlaneControlBase;
-    }
-
-    PlaneControlBase &= ~INTEL_PLANE_CTL_FORMAT_MASK;
-    PlaneControlBase |= INTEL_PLANE_CTL_FORMAT_XRGB8888;
-
-    if (Family->ForceLinearPlaneTiling != FALSE) {
-        PlaneControlBase &= ~INTEL_PLANE_CTL_TILING_MASK;
-        PlaneControlBase |= INTEL_PLANE_CTL_TILING_LINEAR;
-    }
-
-    return PlaneControlBase;
-}
-
-/************************************************************************/
-
 static U32 IntelGfxPortMaskFromIndex(U32 PortIndex) {
     if (PortIndex >= sizeof(IntelPortMaskByIndex) / sizeof(IntelPortMaskByIndex[0])) {
         return 0;
@@ -781,6 +636,7 @@ static UINT IntelGfxEnablePipe(LPINTEL_GFX_MODE_PROGRAM Program) {
     U32 PipeConf = 0;
     U32 PlaneControl = 0;
     U32 PipeIndex = 0;
+    U32 EncodedStride = 0;
     U32 ProgrammedStride = 0;
 
     if (Program == NULL) {
@@ -808,7 +664,13 @@ static UINT IntelGfxEnablePipe(LPINTEL_GFX_MODE_PROGRAM Program) {
         return DF_RETURN_UNEXPECTED;
     }
 
-    if (!IntelGfxWriteVerifyRegister32(IntelPlaneStrideRegisters[PipeIndex], Program->PlaneStride, Family->StrideWriteMask)) {
+    EncodedStride = IntelGfxEncodeProgramStride(Program->PlaneStride);
+    if (EncodedStride == 0) {
+        ERROR(TEXT("[IntelGfxEnablePipe] Invalid encoded stride pipe=%u strideBytes=%u"), PipeIndex, Program->PlaneStride);
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    if (!IntelGfxWriteVerifyRegister32(IntelPlaneStrideRegisters[PipeIndex], EncodedStride, Family->StrideWriteMask)) {
         if (IntelGfxState.HasActiveMode == FALSE) {
             if (!IntelGfxReadMmio32(IntelPlaneStrideRegisters[PipeIndex], &ProgrammedStride)) {
                 ERROR(TEXT("[IntelGfxEnablePipe] Cold stride fallback read failed pipe=%u"), PipeIndex);
@@ -1294,8 +1156,21 @@ static UINT IntelGfxProgramMode(LPINTEL_GFX_MODE_PROGRAM Program) {
     }
     CompletedStages |= INTEL_MODESET_STAGE_PANEL_STABILITY;
 
-    IntelGfxState.ActiveOutputPortMask = Program->OutputPortMask;
-    IntelGfxState.ActiveTranscoderIndex = Program->TranscoderIndex;
+    Result = IntelGfxVerifyProgramMode(Program);
+    if (Result != DF_RETURN_SUCCESS) {
+        ERROR(TEXT("[IntelGfxProgramMode] Stage verify failed"));
+        IntelGfxState.LastModesetFailureStage = INTEL_GFX_MODESET_STAGE_VERIFY;
+        IntelGfxState.LastModesetFailureCode = Result;
+        goto rollback;
+    }
+
+    Result = IntelGfxCommitProgramMode(Program);
+    if (Result != DF_RETURN_SUCCESS) {
+        ERROR(TEXT("[IntelGfxProgramMode] Stage commit failed"));
+        IntelGfxState.LastModesetFailureStage = INTEL_GFX_MODESET_STAGE_COMMIT;
+        IntelGfxState.LastModesetFailureCode = Result;
+        goto rollback;
+    }
 
     DEBUG(TEXT("[IntelGfxProgramMode] Pipe=%u Mode=%ux%u bpp=%u refresh=%u Port=%x Transcoder=%u Stages=%x"),
         Program->PipeIndex,
@@ -1416,23 +1291,6 @@ static BOOL IntelGfxBuildTakeoverContext(void) {
 
 /************************************************************************/
 
-static void IntelGfxApplyProgramAsActiveState(const INTEL_GFX_MODE_PROGRAM* Program) {
-    if (Program == NULL) {
-        return;
-    }
-
-    IntelGfxState.ActivePipeIndex = Program->PipeIndex;
-    IntelGfxState.ActiveWidth = Program->Width;
-    IntelGfxState.ActiveHeight = Program->Height;
-    IntelGfxState.ActiveBitsPerPixel = Program->BitsPerPixel;
-    IntelGfxState.ActiveStride = Program->PlaneStride;
-    IntelGfxState.ActiveSurfaceOffset = Program->PlaneSurface & INTEL_SURFACE_ALIGN_MASK;
-    IntelGfxState.ActiveOutputPortMask = Program->OutputPortMask;
-    IntelGfxState.ActiveTranscoderIndex = Program->TranscoderIndex;
-}
-
-/************************************************************************/
-
 UINT IntelGfxTakeoverActiveMode(void) {
     if (!IntelGfxReadActiveScanoutState()) {
         ERROR(TEXT("[IntelGfxTakeoverActiveMode] No active Intel scanout state found"));
@@ -1488,7 +1346,13 @@ UINT IntelGfxSetMode(LPGRAPHICSMODEINFO Info) {
 
     Result = IntelGfxTakeoverActiveMode();
     if (Result != DF_RETURN_SUCCESS) {
-        IntelGfxApplyProgramAsActiveState(&Program);
+        Result = IntelGfxCommitProgramMode(&Program);
+        if (Result != DF_RETURN_SUCCESS) {
+            IntelGfxState.HasActiveMode = FALSE;
+            IntelGfxState.LastModesetFailureStage = INTEL_GFX_MODESET_STAGE_COMMIT;
+            IntelGfxState.LastModesetFailureCode = Result;
+            return Result;
+        }
 
         Result = IntelGfxMapActiveFrameBuffer() ? DF_RETURN_SUCCESS : DF_RETURN_IGFX_MAP_FRAMEBUFFER_FAILED;
         if (Result != DF_RETURN_SUCCESS) {

@@ -274,6 +274,7 @@ typedef struct tag_INTEL_DISPLAY_FAMILY_OPS {
     U32 StrideWriteMask;
     U32 StrideReadMask;
     U32 StrideAlignment;
+    U32 StrideEncodeDivisor;
     U32 StrideReadMultiplierPrimary;
     U32 StrideReadMultiplierSecondary;
     BOOL ForceLinearPlaneTiling;
@@ -291,6 +292,13 @@ LPDRIVER IntelGfxGetDriver(void);
 
 BOOL IntelGfxReadMmio32(U32 Offset, U32* ValueOut);
 BOOL IntelGfxWriteMmio32(U32 Offset, U32 Value);
+const INTEL_DISPLAY_FAMILY_OPS* IntelGfxGetFamilyProgramming(void);
+U32 IntelGfxResolveStrideFromReadback(U32 ReadBackStride, U32 Width, U32 BitsPerPixel);
+U32 IntelGfxBuildProgramStride(U32 Width, U32 BitsPerPixel);
+U32 IntelGfxEncodeProgramStride(U32 StrideBytes);
+U32 IntelGfxBuildPlaneControl(U32 PlaneControlBase);
+UINT IntelGfxVerifyProgramMode(const INTEL_GFX_MODE_PROGRAM* Program);
+UINT IntelGfxCommitProgramMode(const INTEL_GFX_MODE_PROGRAM* Program);
 
 UINT IntelGfxTakeoverActiveMode(void);
 UINT IntelGfxSetMode(LPGRAPHICSMODEINFO Info);
