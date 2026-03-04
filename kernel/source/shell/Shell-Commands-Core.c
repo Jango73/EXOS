@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "shell/Shell-Commands-Private.h"
+#include "process/Process-Control.h"
 #include "utils/SizeFormat.h"
 
 static BOOL ShellCommandLineCompletion(
@@ -605,6 +606,7 @@ void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL Pause, 
     FILEINFO Find;
     LPFILESYSTEM FileSystem;
     LPFILE File;
+    LPPROCESS CurrentProcess = GetCurrentProcess();
     FS_PATHCHECK PathCheck;
     STR DiskName[MAX_FILE_NAME];
     LPCSTR Reason = TEXT("unknown");
@@ -612,6 +614,10 @@ void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL Pause, 
     STR Sep[2] = {PATH_SEP, STR_NULL};
 
     UNUSED(Context);
+    if (ProcessControlIsInterruptRequested(CurrentProcess)) {
+        return;
+    }
+
     FileSystem = GetSystemFS();
 
     Find.Size = sizeof(FILEINFO);
@@ -661,6 +667,10 @@ void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL Pause, 
     }
 
     do {
+        if (ProcessControlIsInterruptRequested(CurrentProcess)) {
+            break;
+        }
+
         ListFile(File, Indent);
         if (Recurse && (File->Attributes & FS_ATTR_FOLDER)) {
             if (StringCompare(File->Name, TEXT(".")) != 0 && StringCompare(File->Name, TEXT("..")) != 0) {
@@ -669,6 +679,9 @@ void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL Pause, 
                 if (NewBase[StringLength(NewBase) - 1] != PATH_SEP) StringConcat(NewBase, Sep);
                 StringConcat(NewBase, File->Name);
                 ListDirectory(Context, NewBase, Indent + 2, Pause, Recurse, NumListed);
+                if (ProcessControlIsInterruptRequested(CurrentProcess)) {
+                    break;
+                }
             }
         }
         if (Pause) {
@@ -839,6 +852,7 @@ U32 CMD_dir(LPSHELLCONTEXT Context) {
     STR Target[MAX_PATH_NAME];
     STR Base[MAX_PATH_NAME];
     LPFILESYSTEM FileSystem = NULL;
+    LPPROCESS CurrentProcess = GetCurrentProcess();
     BOOL Pause;
     BOOL Recurse;
     U32 NumListed = 0;
@@ -874,7 +888,11 @@ U32 CMD_dir(LPSHELLCONTEXT Context) {
         StringCopy(Base, Target);
     }
 
+    ProcessControlConsumeInterrupt(CurrentProcess);
     ListDirectory(Context, Base, 0, Pause, Recurse, &NumListed);
+    if (ProcessControlCheckpoint(CurrentProcess)) {
+        ConsolePrint(TEXT("Command interrupted\n"));
+    }
 
     TEST(TEXT("[CMD_dir] dir : OK"));
 

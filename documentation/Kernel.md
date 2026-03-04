@@ -1933,6 +1933,52 @@ map 0x04 0 0x30 0x61 0x0061
 map 0x04 1 0x30 0x41 0x0041
 ```
 
+### Process control hotkeys
+
+Hotkeys are configured from `exos.toml` with indexed TOML array entries:
+- `Hotkey.<index>.Key`: key expression (`control+c`, `shift+z`, `f5`, ...).
+- `Hotkey.<index>.Action`: action name.
+
+The key expression parser supports:
+- Modifiers: `control`/`ctrl`, `shift`, `alt`.
+- One non-modifier key token: `a`..`z`, `0`..`9`, `f1`..`f12`, arrows, insert/delete/home/end/pageup/pagedown, `space`, `enter`, `esc`, `tab`, `backspace`.
+
+Keyboard handling evaluates hotkeys on key-down only, before normal input routing to the focused process queue. Repeated key-down events are ignored by hotkey matching.
+When configuration does not define any `Hotkey` entries, the kernel synthesizes one implicit entry equivalent to:
+- `control+c` -> `kill_process`
+
+Supported actions:
+- `kill_process`: targets the focused process.
+  - If focused process is kernel process, it does not kill it and requests cooperative command interruption.
+  - Otherwise it triggers process kill through process control messaging.
+- `pause_process`: toggles pause for the focused process.
+  - Kernel process is ignored.
+  - Non-kernel process tasks are skipped by scheduler while paused.
+
+Process control messages are intercepted in task messaging before queue insertion:
+- `ETM_INTERRUPT`
+- `ETM_PROCESS_KILL`
+- `ETM_PROCESS_TOGGLE_PAUSE`
+
+Cooperative interruption API:
+- `ProcessControlRequestInterrupt(Process)`
+- `ProcessControlIsInterruptRequested(Process)`
+- `ProcessControlConsumeInterrupt(Process)`
+- `ProcessControlCheckpoint(Process)`
+
+Long command loops can place interruption checkpoints; `dir` integrates this behavior and aborts listing when an interruption request is pending.
+
+Configuration example:
+```toml
+[[Hotkey]]
+Key = "control+c"
+Action = "kill_process"
+
+[[Hotkey]]
+Key = "shift+z"
+Action = "pause_process"
+```
+
 
 ### QEMU network graph
 

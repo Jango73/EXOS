@@ -72,6 +72,7 @@ struct tag_PROCESS {
     U32 Privilege;                  // This process' privilege level
     U32 Status;                     // (alive/dead)
     U32 Flags;                      // Process creation flags
+    U32 ControlFlags;               // Process control state (pause/interrupt)
     PHYSICAL PageDirectory;         // This process' page directory
     LINEAR HeapBase;
     UINT HeapSize;

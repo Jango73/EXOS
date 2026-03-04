@@ -17,33 +17,40 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Task messaging
+    Process control
 
 \************************************************************************/
 
-#ifndef TASK_MESSAGING_H_INCLUDED
-#define TASK_MESSAGING_H_INCLUDED
+#ifndef PROCESS_CONTROL_H_INCLUDED
+#define PROCESS_CONTROL_H_INCLUDED
 
 /************************************************************************/
 
-#include "process/Task.h"
+#include "process/Process.h"
 
 /************************************************************************/
 
-BOOL InitMessageQueue(LPMESSAGEQUEUE Queue);
-void DeleteMessageQueue(LPMESSAGEQUEUE Queue);
-BOOL EnsureTaskMessageQueue(LPTASK Task, BOOL CreateIfMissing);
-BOOL EnsureProcessMessageQueue(LPPROCESS Process, BOOL CreateIfMissing);
-BOOL EnsureAllMessageQueues(LPTASK Task, BOOL CreateIfMissing);
-BOOL EnqueueInputMessage(U32 Msg, U32 Param1, U32 Param2);
-BOOL PostProcessMessage(LPPROCESS Process, U32 Msg, U32 Param1, U32 Param2);
-BOOL BroadcastProcessMessage(U32 Msg, U32 Param1, U32 Param2);
-BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2);
-U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2);
-BOOL PeekMessage(LPMESSAGEINFO Message);
-BOOL GetMessage(LPMESSAGEINFO Message);
-BOOL DispatchMessage(LPMESSAGEINFO Message);
+#define ETM_INTERRUPT 0x20000001
+#define ETM_PROCESS_KILL 0x20000002
+#define ETM_PROCESS_TOGGLE_PAUSE 0x20000003
+
+#define PROCESS_CONTROL_FLAG_INTERRUPT_PENDING 0x00000001
+#define PROCESS_CONTROL_FLAG_PAUSED 0x00000002
 
 /************************************************************************/
 
-#endif  // TASK_MESSAGING_H_INCLUDED
+BOOL ProcessControlIsMessage(U32 Message);
+BOOL ProcessControlHandleMessage(LPPROCESS Process, U32 Message, U32 Param1, U32 Param2);
+
+void ProcessControlRequestInterrupt(LPPROCESS Process);
+BOOL ProcessControlIsInterruptRequested(LPPROCESS Process);
+BOOL ProcessControlConsumeInterrupt(LPPROCESS Process);
+BOOL ProcessControlCheckpoint(LPPROCESS Process);
+
+BOOL ProcessControlSetPaused(LPPROCESS Process, BOOL Paused);
+BOOL ProcessControlTogglePaused(LPPROCESS Process);
+BOOL ProcessControlIsProcessPaused(LPPROCESS Process);
+
+/************************************************************************/
+
+#endif

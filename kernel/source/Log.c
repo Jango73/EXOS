@@ -41,7 +41,7 @@
 #define KERNEL_LOG_TAG_FILTER_MAX_LENGTH 512
 
 #ifndef KERNEL_LOG_DEFAULT_TAG_FILTER
-#define KERNEL_LOG_DEFAULT_TAG_FILTER "[IntelGfxLoad],[IntelGfxTakeoverActiveMode],[IntelGfxBuildModeProgram],[IntelGfxProgramMode],[IntelGfxSetMode],[IntelGfxEnablePipe],[IntelGfxWriteVerifyRegister32],[IntelGfxWaitPipeState],[IntelGfxDumpPipeRegisters]"
+#define KERNEL_LOG_DEFAULT_TAG_FILTER ""
 #endif
 
 static CSTR KernelLogDefaultTagFilter[] = KERNEL_LOG_DEFAULT_TAG_FILTER;

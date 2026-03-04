@@ -51,6 +51,7 @@ PROCESS DATA_SECTION KernelProcess = {
     .Privilege = CPU_PRIVILEGE_KERNEL,  // Privilege
     .Status = PROCESS_STATUS_ALIVE, // Status
     .Flags = PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH, // Flags
+    .ControlFlags = 0,             // Process control flags
     .PageDirectory = 0,             // Page directory
     .RegionListHead = NULL,
     .RegionListTail = NULL,
@@ -236,6 +237,7 @@ LPPROCESS NewProcess(void) {
     This->Privilege = CPU_PRIVILEGE_USER;
     This->Status = PROCESS_STATUS_ALIVE;
     This->Flags = 0; // Will be set by CreateProcess
+    This->ControlFlags = 0;
     This->MaximumAllocatedMemory = N_HalfMemory;
     This->TaskCount = 0;
     This->Session = NULL;

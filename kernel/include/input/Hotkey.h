@@ -17,33 +17,21 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Task messaging
+    Hotkey
 
 \************************************************************************/
 
-#ifndef TASK_MESSAGING_H_INCLUDED
-#define TASK_MESSAGING_H_INCLUDED
+#ifndef HOTKEY_H_INCLUDED
+#define HOTKEY_H_INCLUDED
 
 /************************************************************************/
 
-#include "process/Task.h"
+#include "Base.h"
 
 /************************************************************************/
 
-BOOL InitMessageQueue(LPMESSAGEQUEUE Queue);
-void DeleteMessageQueue(LPMESSAGEQUEUE Queue);
-BOOL EnsureTaskMessageQueue(LPTASK Task, BOOL CreateIfMissing);
-BOOL EnsureProcessMessageQueue(LPPROCESS Process, BOOL CreateIfMissing);
-BOOL EnsureAllMessageQueues(LPTASK Task, BOOL CreateIfMissing);
-BOOL EnqueueInputMessage(U32 Msg, U32 Param1, U32 Param2);
-BOOL PostProcessMessage(LPPROCESS Process, U32 Msg, U32 Param1, U32 Param2);
-BOOL BroadcastProcessMessage(U32 Msg, U32 Param1, U32 Param2);
-BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2);
-U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2);
-BOOL PeekMessage(LPMESSAGEINFO Message);
-BOOL GetMessage(LPMESSAGEINFO Message);
-BOOL DispatchMessage(LPMESSAGEINFO Message);
+BOOL HotkeyHandleKeyDown(U8 VirtualKey, U32 Modifiers, BOOL Repeat);
 
 /************************************************************************/
 
-#endif  // TASK_MESSAGING_H_INCLUDED
+#endif

@@ -30,6 +30,7 @@
 #include "List.h"
 #include "Log.h"
 #include "Memory.h"
+#include "process/Process-Control.h"
 #include "process/Process.h"
 #include "Stack.h"
 #include "System.h"
@@ -127,9 +128,10 @@ static UINT CountRunnableTasks(void) {
 
     for (UINT Index = 0; Index < TaskList.NumTasks; Index++) {
         LPTASK Task = TaskList.Tasks[Index];
+        BOOL ProcessPaused = ProcessControlIsProcessPaused(Task->Process);
 
         U32 Status = GetTaskStatus(Task);
-        if (Status == TASK_STATUS_READY || Status == TASK_STATUS_RUNNING) {
+        if ((Status == TASK_STATUS_READY || Status == TASK_STATUS_RUNNING) && ProcessPaused == FALSE) {
             RunnableCount++;
         }
     }
@@ -152,10 +154,11 @@ UINT FindNextRunnableTask(UINT StartIndex) {
     for (UINT Attempts = 0; Attempts < TaskList.NumTasks; Attempts++) {
         UINT Index = (StartIndex + Attempts) % TaskList.NumTasks;
         LPTASK Task = TaskList.Tasks[Index];
+        BOOL ProcessPaused = ProcessControlIsProcessPaused(Task->Process);
 
         // Skip dead tasks - they will be removed during context switch
         U32 Status = GetTaskStatus(Task);
-        if (Status == TASK_STATUS_READY || Status == TASK_STATUS_RUNNING) {
+        if ((Status == TASK_STATUS_READY || Status == TASK_STATUS_RUNNING) && ProcessPaused == FALSE) {
             return Index;
         }
     }
@@ -541,7 +544,8 @@ void Scheduler(void) {
     }
 
     // If current task is still running and quantum not expired, keep it
-    if (CurrentTask && CurrentTask->Status == TASK_STATUS_RUNNING && !QuantumExpired) {
+    if (CurrentTask && CurrentTask->Status == TASK_STATUS_RUNNING && !QuantumExpired &&
+        ProcessControlIsProcessPaused(CurrentTask->Process) == FALSE) {
         FINE_DEBUG(TEXT("[Scheduler] Current task continues"));
 
         return;

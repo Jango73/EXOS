@@ -174,7 +174,7 @@ extern KEYBOARDSTRUCT Keyboard;
 
 /***************************************************************************/
 
-void RouteKeyCode(LPKEYCODE KeyCode);
+void RouteKeyCode(LPKEYCODE KeyCode, BOOL Repeat);
 void RouteKeyUp(U8 VirtualKey);
 void HandleKeyboardUsage(KEY_USAGE Usage, BOOL Pressed);
 void HandleKeyboardVirtualKey(U8 VirtualKey, BOOL Pressed);

@@ -530,7 +530,7 @@ static void EmitCodePoint(U32 CodePoint) {
 
     SetKeyCodeFromCodePoint(CodePoint, &KeyCode);
     if (IsKeyCodeEmpty(&KeyCode)) return;
-    RouteKeyCode(&KeyCode);
+    RouteKeyCode(&KeyCode, FALSE);
 }
 
 /***************************************************************************/
@@ -595,6 +595,7 @@ void HandleKeyboardUsage(KEY_USAGE Usage, BOOL Pressed) {
         }
 
         if (VirtualKey != 0) {
+            Keyboard.VirtualKeyStatus[VirtualKey] = 0;
             RouteKeyUp(VirtualKey);
         }
 
@@ -618,10 +619,13 @@ void HandleKeyboardUsage(KEY_USAGE Usage, BOOL Pressed) {
     if (GetKeyCodeForUsage(Usage, Level, &KeyCode) == FALSE) return;
     if (IsKeyCodeEmpty(&KeyCode)) return;
     Keyboard.UsageVirtualKey[Usage] = KeyCode.VirtualKey;
+    if (KeyCode.VirtualKey != VK_NONE) {
+        Keyboard.VirtualKeyStatus[KeyCode.VirtualKey] = 1;
+    }
 
     CodePoint = GetKeyCodePoint(&KeyCode);
     if (CodePoint == 0) {
-        RouteKeyCode(&KeyCode);
+        RouteKeyCode(&KeyCode, WasDown);
         return;
     }
 
@@ -659,18 +663,20 @@ void HandleKeyboardUsage(KEY_USAGE Usage, BOOL Pressed) {
         return;
     }
 
-    RouteKeyCode(&KeyCode);
+    RouteKeyCode(&KeyCode, WasDown);
 }
 
 /***************************************************************************/
 
 void HandleKeyboardVirtualKey(U8 VirtualKey, BOOL Pressed) {
     KEYCODE KeyCode;
+    BOOL WasDown;
 
     if (VirtualKey == VK_NONE) {
         return;
     }
 
+    WasDown = (Keyboard.VirtualKeyStatus[VirtualKey] != 0);
     Keyboard.VirtualKeyStatus[VirtualKey] = Pressed ? 1 : 0;
     if (!Pressed) {
         RouteKeyUp(VirtualKey);
@@ -680,7 +686,7 @@ void HandleKeyboardVirtualKey(U8 VirtualKey, BOOL Pressed) {
     KeyCode.VirtualKey = VirtualKey;
     KeyCode.ASCIICode = 0;
     KeyCode.Unicode = 0;
-    RouteKeyCode(&KeyCode);
+    RouteKeyCode(&KeyCode, WasDown);
 }
 
 /***************************************************************************/
