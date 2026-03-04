@@ -28,6 +28,7 @@
 #include "Console.h"
 #include "KernelData.h"
 #include "input/Mouse.h"
+#include "Desktop.h"
 #include "process/Process.h"
 #include "process/Task.h"
 #include "User.h"

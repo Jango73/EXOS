@@ -30,6 +30,7 @@
 #include "KernelData.h"
 #include "Log.h"
 #include "Mutex.h"
+#include "Desktop.h"
 
 /************************************************************************/
 

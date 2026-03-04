@@ -25,6 +25,7 @@
 #include "DisplaySession.h"
 #include "DriverGetters.h"
 #include "GFX.h"
+#include "Desktop.h"
 
 /***************************************************************************/
 

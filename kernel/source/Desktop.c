@@ -28,6 +28,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "input/Mouse.h"
+#include "Desktop.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
 

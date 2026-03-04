@@ -25,6 +25,7 @@
 #include "Arch.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "Desktop.h"
 #include "process/Process-Control.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
