@@ -2,15 +2,15 @@
 
 ## TL;DR
 
-Multi-threaded operating system for x86-32 and x86-64.
-
-Tested on QEMU, Bochs, ACER Predator.
-
+Multi-threaded operating system for x86-32 and x86-64.<br>
+Tested on QEMU, Bochs, ACER Predator.<br>
 **NOT READY** for production regarding disk IO (not all code paths tested on real hardware).
 
 ## What it is
 
-This is an ongoing operating system project that was abandoned in late 1999. Back then, it was 32 bit only and compiled with gcc and nasm, and linked with jloc. Build was recently ported to i686-elf-gcc/nasm/i686-elf-ld, then ported to x86-64.
+This is an ongoing operating system project that was abandoned in late 1999.<br>
+Back then, it was 32 bit only and compiled with gcc and nasm, and linked with jloc.<br>
+In 2025, I ported the project to i686-elf-gcc/nasm/i686-elf-ld, then ported to x86-64.
 
 ## Disclaimer
 
@@ -64,10 +64,12 @@ EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/con
 - xHCI driver (USB 3)
 - ACPI shutdown/reboot
 - Console management
+- VGA driver
+- VESA driver (broken)
+- Intel Graphics (iGPU) driver
 - PS/2 keyboard and mouse drivers
 - USB keyboard (HID) and mouse drivers
 - USB mass storage device driver ~
-- Primitive graphics using VESA standard (broken)
 - Virtual file system with mount points
 - Scripted shell with kernel object exposure
 - Configuration with TOML format
@@ -136,11 +138,11 @@ Lines of code this project, excluding third party software.
 -------------------------------------------------------------------------------
 Language                     files          blank        comment           code
 -------------------------------------------------------------------------------
-C                              269          26713          27908          90878
-C/C++ Header                   190           5193           5644          13123
+C                              271          26795          27950          91218
+C/C++ Header                   190           5193           5644          13143
 Assembly                        20           1861           1214           5750
 -------------------------------------------------------------------------------
-SUM:                           479          33767          34766         109751
+SUM:                           481          33849          34808         110111
 -------------------------------------------------------------------------------
 ```
 
