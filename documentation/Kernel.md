@@ -783,7 +783,7 @@ The default font is an in-tree ASCII 8x16 EXOS font and can be replaced through 
 
 ### Early boot console path
 
-`kernel/source/EarlyBootConsole.c` provides a minimal framebuffer text path independent from normal console initialization. It writes glyphs through physical framebuffer mappings and is used for early boot and memory-initialization checkpoints.
+`kernel/source/console/Console-EarlyBoot.c` provides a minimal framebuffer text path independent from normal console initialization. It writes glyphs through physical framebuffer mappings and is used for early boot and memory-initialization checkpoints.
 
 
 ### ACPI services

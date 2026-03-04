@@ -21,8 +21,8 @@
 
 \************************************************************************/
 
-#ifndef EARLY_BOOT_CONSOLE_H_INCLUDED
-#define EARLY_BOOT_CONSOLE_H_INCLUDED
+#ifndef CONSOLE_EARLY_BOOT_H_INCLUDED
+#define CONSOLE_EARLY_BOOT_H_INCLUDED
 
 #include "Base.h"
 
@@ -47,4 +47,4 @@ BOOL EarlyBootConsoleIsInitialized(void);
 
 /************************************************************************/
 
-#endif
+#endif  // CONSOLE_EARLY_BOOT_H_INCLUDED
