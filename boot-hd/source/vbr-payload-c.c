@@ -59,7 +59,7 @@ static const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
 /************************************************************************/
 
 static void InitDebug(void) {
-#if DEBUG_OUTPUT == 2
+#if DEBUG_OUTPUT != 0
     SerialReset(0);
 #endif
 }
@@ -68,6 +68,15 @@ static void InitDebug(void) {
 
 static void OutputChar(U8 Char) {
 #if DEBUG_OUTPUT == 2
+    SerialOut(0, Char);
+#elif DEBUG_OUTPUT == 1
+    __asm__ __volatile__(
+        "mov   $0x0E, %%ah\n\t"
+        "mov   %0, %%al\n\t"
+        "int   $0x10\n\t"
+        :
+        : "r"(Char)
+        : "ah", "al");
     SerialOut(0, Char);
 #else
     __asm__ __volatile__(
