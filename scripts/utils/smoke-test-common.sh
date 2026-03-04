@@ -953,7 +953,7 @@ function RunArchitecture() {
 
     bash -c "cd \"$ROOT_DIR\" && $QemuScript" &
     local QemuPid=$!
-    trap 'if kill -0 "$QemuPid" 2>/dev/null; then kill "$QemuPid" || true; fi' RETURN
+    trap 'if [ -n "${QemuPid:-}" ] && kill -0 "${QemuPid}" 2>/dev/null; then kill "${QemuPid}" || true; fi' RETURN
 
     if ! WaitForMonitor; then
         echo "QEMU monitor did not start."
@@ -1019,4 +1019,6 @@ function SmokeTestMain() {
     if [ "$RUN_X86_64_UEFI" -eq 1 ]; then
         RunArchitecture "x86-64 UEFI" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean --uefi --kernel-log-tag-filter ''" "scripts/run.sh --arch x86-64 --fs ext2 --debug --uefi" "log/kernel-x86-64-uefi-debug.log" "build/image/x86-64-uefi-debug-ext2/boot-uefi/exos-uefi.img" "4194304"
     fi
+
+    return 0
 }
