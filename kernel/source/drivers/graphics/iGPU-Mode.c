@@ -1465,46 +1465,8 @@ static BOOL IntelGfxMapActiveFrameBuffer(void) {
 
 /************************************************************************/
 
-static BOOL IntelGfxPrepareShadowFrameBuffer(void) {
-    UINT RequiredSize = 0;
-
-    if (IntelGfxState.FrameBufferSize == 0) {
-        return FALSE;
-    }
-
-    RequiredSize = IntelGfxState.FrameBufferSize;
-
-    if (IntelGfxState.ShadowFrameBufferLinear != 0 && IntelGfxState.ShadowFrameBufferSize != RequiredSize) {
-        FreeRegion(IntelGfxState.ShadowFrameBufferLinear, IntelGfxState.ShadowFrameBufferSize);
-        IntelGfxState.ShadowFrameBufferLinear = 0;
-        IntelGfxState.ShadowFrameBufferSize = 0;
-    }
-
-    if (IntelGfxState.ShadowFrameBufferLinear == 0) {
-        IntelGfxState.ShadowFrameBufferLinear = AllocRegion(VMA_KERNEL,
-                                                            0,
-                                                            RequiredSize,
-                                                            ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER,
-                                                            TEXT("IntelGfxShadowFrameBuffer"));
-        if (IntelGfxState.ShadowFrameBufferLinear == 0) {
-            ERROR(TEXT("[IntelGfxPrepareShadowFrameBuffer] AllocRegion failed size=%u"), RequiredSize);
-            return FALSE;
-        }
-        IntelGfxState.ShadowFrameBufferSize = RequiredSize;
-    }
-
-    MemorySet((LPVOID)(LINEAR)IntelGfxState.ShadowFrameBufferLinear, 0, RequiredSize);
-    return TRUE;
-}
-
-/************************************************************************/
-
 static BOOL IntelGfxBuildTakeoverContext(void) {
     if (IntelGfxState.FrameBufferLinear == 0 || IntelGfxState.ActiveWidth == 0 || IntelGfxState.ActiveHeight == 0) {
-        return FALSE;
-    }
-
-    if (!IntelGfxPrepareShadowFrameBuffer()) {
         return FALSE;
     }
 
@@ -1517,7 +1479,7 @@ static BOOL IntelGfxBuildTakeoverContext(void) {
         .Height = (I32)IntelGfxState.ActiveHeight,
         .BitsPerPixel = IntelGfxState.ActiveBitsPerPixel,
         .BytesPerScanLine = IntelGfxState.ActiveStride,
-        .MemoryBase = (U8*)(LINEAR)IntelGfxState.ShadowFrameBufferLinear,
+        .MemoryBase = (U8*)(LINEAR)IntelGfxState.FrameBufferLinear,
         .LoClip = {.X = 0, .Y = 0},
         .HiClip = {.X = (I32)IntelGfxState.ActiveWidth - 1, .Y = (I32)IntelGfxState.ActiveHeight - 1},
         .Origin = {.X = 0, .Y = 0},
