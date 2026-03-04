@@ -762,16 +762,23 @@ void ConsoleSetPagingActive(BOOL Active) {
  * @brief Reset console paging state for the next command.
  */
 void ConsoleResetPaging(void) {
+    U32 Remaining;
+
     if (Console.PagingEnabled == FALSE || Console.PagingActive == FALSE) {
         Console.PagingRemaining = 0;
         return;
     }
 
-    if (Console.Height > 0) {
-        Console.PagingRemaining = Console.Height - 1;
-    } else {
-        Console.PagingRemaining = 0;
+    Remaining = 0;
+    if (Console.Height > 1) {
+        if (Console.CursorY > 0) {
+            Remaining = Console.CursorY - 1;
+        } else {
+            Remaining = 0;
+        }
     }
+
+    Console.PagingRemaining = Remaining;
 }
 
 /***************************************************************************/

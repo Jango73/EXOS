@@ -29,6 +29,8 @@
 #include "CoreString.h"
 #include "drivers/input/Keyboard.h"
 #include "input/VKey.h"
+#include "process/Process-Control.h"
+#include "process/Process.h"
 #include "System.h"
 
 /***************************************************************************/
@@ -399,7 +401,10 @@ BOOL ConsoleIsDebugSplitEnabled(void) {
  */
 static void ConsolePagerWaitLockedRegion(U32 RegionIndex) {
     CONSOLE_REGION_STATE State;
+    LPPROCESS CurrentProcess;
     KEYCODE KeyCode;
+    U32 WaitLoops;
+    BOOL ExitByInterrupt;
     U32 Row;
     U32 Column;
     U32 Offset;
@@ -455,26 +460,48 @@ static void ConsolePagerWaitLockedRegion(U32 RegionIndex) {
     SetConsoleCursorPosition(0, Row);
 
 WaitForKey:
+    CurrentProcess = GetCurrentProcess();
+    WaitLoops = 0;
+    ExitByInterrupt = FALSE;
+
     while (TRUE) {
+        if (CurrentProcess != NULL && ProcessControlIsInterruptRequested(CurrentProcess)) {
+            (*State.PagingRemaining) = (State.Height > 0) ? (State.Height - 1) : 0;
+            ExitByInterrupt = TRUE;
+            break;
+        }
+
         if (PeekChar()) {
             GetKeyCode(&KeyCode);
-            if (KeyCode.VirtualKey == VK_SPACE || KeyCode.VirtualKey == VK_ENTER) {
-                (*State.PagingRemaining) = State.Height - 1;
-                break;
-            }
+
             if (KeyCode.VirtualKey == VK_ESCAPE) {
                 (*State.PagingRemaining) = State.Height - 1;
                 break;
             }
+
+            (*State.PagingRemaining) = State.Height - 1;
+            break;
         }
 
         Sleep(10);
+        WaitLoops++;
     }
 
-    for (Column = 0; Column < State.Width; Column++) {
-        Offset = ((State.Y + Row) * Console.ScreenWidth) + (State.X + Column);
-        Console.Memory[Offset] = (U16)STR_SPACE | Attribute;
+    if (Console.UseFramebuffer != FALSE) {
+        for (Column = 0; Column < State.Width; Column++) {
+            U32 PixelX = (State.X + Column) * ConsoleGetCellWidth();
+            U32 PixelY = (State.Y + Row) * ConsoleGetCellHeight();
+            ConsoleDrawGlyph(PixelX, PixelY, STR_SPACE);
+        }
+    } else {
+        for (Column = 0; Column < State.Width; Column++) {
+            Offset = ((State.Y + Row) * Console.ScreenWidth) + (State.X + Column);
+            Console.Memory[Offset] = (U16)STR_SPACE | Attribute;
+        }
     }
+
+    UNUSED(ExitByInterrupt);
+    UNUSED(WaitLoops);
 }
 
 /***************************************************************************/
@@ -525,8 +552,7 @@ void ConsoleScrollRegion(U32 RegionIndex) {
 
     if ((*State.PagingRemaining) == 0) {
         ConsolePagerWaitLockedRegion(RegionIndex);
-    }
-    if ((*State.PagingRemaining) > 0) {
+    } else {
         (*State.PagingRemaining)--;
     }
 
