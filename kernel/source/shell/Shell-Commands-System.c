@@ -379,31 +379,6 @@ U32 CMD_pic(LPSHELLCONTEXT Context) {
     return DF_RETURN_SUCCESS;
 }
 
-U32 CMD_outp(LPSHELLCONTEXT Context) {
-    U32 Port, Data;
-    ParseNextCommandLineComponent(Context);
-    Port = StringToU32(Context->Command);
-    ParseNextCommandLineComponent(Context);
-    Data = StringToU32(Context->Command);
-    OutPortByte(Port, Data);
-
-    return DF_RETURN_SUCCESS;
-}
-
-/************************************************************************/
-
-U32 CMD_inp(LPSHELLCONTEXT Context) {
-    U32 Port, Data;
-    ParseNextCommandLineComponent(Context);
-    Port = StringToU32(Context->Command);
-    Data = InPortByte(Port);
-    ConsolePrint(TEXT("Port %X = %X\n"), Port, Data);
-
-    return DF_RETURN_SUCCESS;
-}
-
-/************************************************************************/
-
 U32 CMD_reboot(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 

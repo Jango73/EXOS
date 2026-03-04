@@ -80,7 +80,7 @@ U32 CMD_sysinfo(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
-U32 CMD_cat(LPSHELLCONTEXT Context) {
+U32 CMD_type(LPSHELLCONTEXT Context) {
     FILEOPENINFO FileOpenInfo;
     FILEOPERATION FileOperation;
     STR FileName[MAX_PATH_NAME];
