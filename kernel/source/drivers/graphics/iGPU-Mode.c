@@ -24,6 +24,7 @@
 #include "iGPU-Internal.h"
 
 #include "Clock.h"
+#include "CoreString.h"
 #include "Log.h"
 #include "Memory.h"
 
@@ -33,8 +34,10 @@
 #define INTEL_MODESET_STAGE_ROUTE_TRANSCODER (1 << 1)
 #define INTEL_MODESET_STAGE_PROGRAM_CLOCK (1 << 2)
 #define INTEL_MODESET_STAGE_CONFIGURE_LINK (1 << 3)
-#define INTEL_MODESET_STAGE_ENABLE_PIPE (1 << 4)
-#define INTEL_MODESET_STAGE_PANEL_STABILITY (1 << 5)
+#define INTEL_MODESET_STAGE_SCANOUT_MEMORY (1 << 4)
+#define INTEL_MODESET_STAGE_DISABLE_COMPRESSION (1 << 5)
+#define INTEL_MODESET_STAGE_ENABLE_PIPE (1 << 6)
+#define INTEL_MODESET_STAGE_PANEL_STABILITY (1 << 7)
 #define INTEL_MODESET_HBLANK_EXTRA 160
 #define INTEL_MODESET_HSYNC_START_OFFSET 48
 #define INTEL_MODESET_HSYNC_PULSE_WIDTH 32
@@ -124,6 +127,159 @@ static BOOL IntelGfxWriteVerifyRegister32(U32 RegisterOffset, U32 Value, U32 Mas
     }
 
     return TRUE;
+}
+
+/************************************************************************/
+
+static U32 IntelGfxAlignUp(U32 Value, U32 Alignment) {
+    U32 Mask = 0;
+
+    if (Alignment <= 1) {
+        return Value;
+    }
+
+    Mask = Alignment - 1;
+    return (Value + Mask) & ~Mask;
+}
+
+/************************************************************************/
+
+static void IntelGfxPrimeScanoutPattern(LINEAR FrameBuffer, U32 Width, U32 Height, U32 Stride) {
+    U32 Y = 0;
+    U32 X = 0;
+
+    if (FrameBuffer == 0 || Width == 0 || Height == 0 || Stride < Width * 4) {
+        return;
+    }
+
+    for (Y = 0; Y < Height; Y++) {
+        U32* Row = (U32*)(LINEAR)(FrameBuffer + ((LINEAR)Y * Stride));
+        for (X = 0; X < Width; X++) {
+            U32 Red = ((X >> 3) & 0x1F) << 16;
+            U32 Green = ((Y >> 2) & 0x3F) << 8;
+            U32 Blue = ((X + Y) >> 4) & 0x1F;
+            Row[X] = 0xFF000000 | Red | Green | Blue;
+        }
+    }
+}
+
+/************************************************************************/
+
+static UINT IntelGfxPrepareScanoutMemory(LPINTEL_GFX_MODE_PROGRAM Program) {
+    const INTEL_DISPLAY_FAMILY_OPS* Family = IntelGfxGetFamilyProgramming();
+    U32 Bar2Raw = 0;
+    U32 Bar2Base = 0;
+    U32 Bar2Size = 0;
+    U32 RequiredSize = 0;
+    U32 SurfaceOffset = 0;
+    U32 SurfaceAlignment = 0;
+    PHYSICAL SurfacePhysical = 0;
+    LINEAR SurfaceLinear = 0;
+
+    if (Program == NULL || IntelGfxState.Device == NULL || Family == NULL) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    RequiredSize = Program->PlaneStride * Program->Height;
+    if (RequiredSize == 0) {
+        ERROR(TEXT("[IntelGfxPrepareScanoutMemory] Invalid scanout size stride=%u height=%u"),
+            Program->PlaneStride,
+            Program->Height);
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    Bar2Raw = IntelGfxState.Device->Info.BAR[2];
+    if (PCI_BAR_IS_IO(Bar2Raw)) {
+        ERROR(TEXT("[IntelGfxPrepareScanoutMemory] BAR2 is I/O (bar2=%x)"), Bar2Raw);
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    Bar2Base = PCI_GetBARBase(IntelGfxState.Device->Info.Bus, IntelGfxState.Device->Info.Dev, IntelGfxState.Device->Info.Func, 2);
+    Bar2Size = PCI_GetBARSize(IntelGfxState.Device->Info.Bus, IntelGfxState.Device->Info.Dev, IntelGfxState.Device->Info.Func, 2);
+    if (Bar2Base == 0 || Bar2Size == 0) {
+        ERROR(TEXT("[IntelGfxPrepareScanoutMemory] Invalid BAR2 base=%x size=%u"), Bar2Base, Bar2Size);
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    SurfaceAlignment = Family->SurfaceAlignment ? Family->SurfaceAlignment : 0x1000;
+
+    if (IntelGfxState.HasActiveMode != FALSE && IntelGfxState.ActiveSurfaceOffset < Bar2Size) {
+        SurfaceOffset = IntelGfxState.ActiveSurfaceOffset;
+    } else {
+        SurfaceOffset = Family->ColdSurfaceOffset;
+    }
+
+    SurfaceOffset = IntelGfxAlignUp(SurfaceOffset, SurfaceAlignment);
+    if (SurfaceOffset >= Bar2Size || RequiredSize > (Bar2Size - SurfaceOffset)) {
+        ERROR(TEXT("[IntelGfxPrepareScanoutMemory] Surface window invalid offset=%x size=%u required=%u"),
+            SurfaceOffset,
+            Bar2Size,
+            RequiredSize);
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    Program->PlaneSurface = SurfaceOffset & INTEL_SURFACE_ALIGN_MASK;
+    SurfacePhysical = (PHYSICAL)(Bar2Base + Program->PlaneSurface);
+    SurfaceLinear = MapIOMemory(SurfacePhysical, RequiredSize);
+    if (SurfaceLinear == 0) {
+        ERROR(TEXT("[IntelGfxPrepareScanoutMemory] MapIOMemory failed base=%p size=%u"),
+            (LPVOID)(LINEAR)SurfacePhysical,
+            RequiredSize);
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    MemorySet((LPVOID)(LINEAR)SurfaceLinear, 0, RequiredSize);
+#if DEBUG_OUTPUT == 1
+    IntelGfxPrimeScanoutPattern(SurfaceLinear, Program->Width, Program->Height, Program->PlaneStride);
+#endif
+    UnMapIOMemory(SurfaceLinear, RequiredSize);
+
+    DEBUG(TEXT("[IntelGfxPrepareScanoutMemory] Scanout prepared offset=%x size=%u"), Program->PlaneSurface, RequiredSize);
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+static UINT IntelGfxDisableCompressionBlocks(LPINTEL_GFX_MODE_PROGRAM Program) {
+    const INTEL_DISPLAY_FAMILY_OPS* Family = IntelGfxGetFamilyProgramming();
+    U32 CurrentValue = 0;
+    U32 NewValue = 0;
+
+    if (Program == NULL || Family == NULL) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    Program->CompressionControlRegister = 0;
+    Program->CompressionControlValue = 0;
+
+    if (Family->RequireCompressionDisable == FALSE) {
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (Family->CompressionControlRegister == 0 || Family->CompressionControlEnableMask == 0) {
+        WARNING(TEXT("[IntelGfxDisableCompressionBlocks] Compression disable metadata missing for family=%s"), Family->Name);
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (!IntelGfxReadRegister32Safe(Family->CompressionControlRegister, &CurrentValue)) {
+        WARNING(TEXT("[IntelGfxDisableCompressionBlocks] Compression register unavailable reg=%x"),
+            Family->CompressionControlRegister);
+        return DF_RETURN_SUCCESS;
+    }
+
+    NewValue = CurrentValue & ~Family->CompressionControlEnableMask;
+    if (!IntelGfxWriteVerifyRegister32(
+            Family->CompressionControlRegister,
+            NewValue,
+            Family->CompressionControlEnableMask)) {
+        ERROR(TEXT("[IntelGfxDisableCompressionBlocks] Compression disable failed reg=%x"),
+            Family->CompressionControlRegister);
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    Program->CompressionControlRegister = Family->CompressionControlRegister;
+    Program->CompressionControlValue = NewValue;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -669,6 +825,7 @@ static UINT IntelGfxEnablePipe(LPINTEL_GFX_MODE_PROGRAM Program) {
         ERROR(TEXT("[IntelGfxEnablePipe] Invalid encoded stride pipe=%u strideBytes=%u"), PipeIndex, Program->PlaneStride);
         return DF_RETURN_UNEXPECTED;
     }
+    DEBUG(TEXT("[IntelGfxEnablePipe] Stride encode pipe=%u bytes=%u encoded=%x"), PipeIndex, Program->PlaneStride, EncodedStride);
 
     if (!IntelGfxWriteVerifyRegister32(IntelPlaneStrideRegisters[PipeIndex], EncodedStride, Family->StrideWriteMask)) {
         if (IntelGfxState.HasActiveMode == FALSE) {
@@ -816,6 +973,17 @@ static UINT IntelGfxCaptureModeSnapshot(U32 PipeIndex, LPINTEL_GFX_MODE_SNAPSHOT
         SnapshotOut->ClockControlRegister = INTEL_REG_DPLL_CTRL1;
     }
 
+    {
+        const INTEL_DISPLAY_FAMILY_OPS* Family = IntelGfxGetFamilyProgramming();
+        if (Family != NULL && Family->CompressionControlRegister != 0) {
+            U32 CompressionValue = 0;
+            if (IntelGfxReadRegister32Safe(Family->CompressionControlRegister, &CompressionValue)) {
+                SnapshotOut->CompressionControlRegister = Family->CompressionControlRegister;
+                SnapshotOut->CompressionControlValue = CompressionValue;
+            }
+        }
+    }
+
     if (IntelGfxReadRegister32Safe(INTEL_REG_PP_CONTROL, &SnapshotOut->PanelPowerValue)) {
         SnapshotOut->PanelPowerRegister = INTEL_REG_PP_CONTROL;
     }
@@ -888,6 +1056,18 @@ static UINT IntelGfxRestoreModeSnapshot(LPINTEL_GFX_MODE_SNAPSHOT Snapshot) {
         }
     }
 
+    if (Snapshot->CompressionControlRegister != 0) {
+        const INTEL_DISPLAY_FAMILY_OPS* Family = IntelGfxGetFamilyProgramming();
+        U32 CompressionMask = (Family != NULL) ? Family->CompressionControlEnableMask : MAX_U32;
+
+        if (!IntelGfxWriteVerifyRegister32(
+                Snapshot->CompressionControlRegister,
+                Snapshot->CompressionControlValue,
+                CompressionMask)) {
+            return DF_RETURN_UNEXPECTED;
+        }
+    }
+
     if (Snapshot->PanelPowerRegister != 0 && Snapshot->PanelPowerValue != 0) {
         if (!IntelGfxWriteVerifyRegister32(
                 Snapshot->PanelPowerRegister, Snapshot->PanelPowerValue, INTEL_PANEL_POWER_TARGET_ON)) {
@@ -933,6 +1113,8 @@ static UINT IntelGfxBuildModeProgram(LPGRAPHICSMODEINFO Info, LPINTEL_GFX_MODE_P
     if (Info == NULL || ProgramOut == NULL) {
         return DF_RETURN_GENERIC;
     }
+
+    *ProgramOut = (INTEL_GFX_MODE_PROGRAM){0};
 
     if (Family == NULL) {
         ERROR(TEXT("[IntelGfxBuildModeProgram] Unsupported display family (displayVersion=%u)"),
@@ -1007,7 +1189,7 @@ static UINT IntelGfxBuildModeProgram(LPGRAPHICSMODEINFO Info, LPINTEL_GFX_MODE_P
         ProgramOut->PipeSource = ((RequestedHeight - 1) << 16) | (RequestedWidth - 1);
         ProgramOut->PlaneControl = IntelGfxBuildPlaneControl(0);
         ProgramOut->PlaneStride = IntelGfxBuildProgramStride(RequestedWidth, RequestedBitsPerPixel);
-        ProgramOut->PlaneSurface = 0;
+        ProgramOut->PlaneSurface = Family->ColdSurfaceOffset & INTEL_SURFACE_ALIGN_MASK;
         ProgramOut->OutputPortMask = IntelGfxFindFirstPortFromMask(IntelGfxState.IntelCapabilities.PortMask);
         ProgramOut->OutputType = IntelGfxResolveOutputTypeFromPort(ProgramOut->OutputPortMask);
         ProgramOut->TranscoderIndex = 0;
@@ -1136,6 +1318,24 @@ static UINT IntelGfxProgramMode(LPINTEL_GFX_MODE_PROGRAM Program) {
         goto rollback;
     }
     CompletedStages |= INTEL_MODESET_STAGE_CONFIGURE_LINK;
+
+    Result = IntelGfxPrepareScanoutMemory(Program);
+    if (Result != DF_RETURN_SUCCESS) {
+        ERROR(TEXT("[IntelGfxProgramMode] Stage scanout memory preparation failed"));
+        IntelGfxState.LastModesetFailureStage = INTEL_GFX_MODESET_STAGE_SCANOUT;
+        IntelGfxState.LastModesetFailureCode = Result;
+        goto rollback;
+    }
+    CompletedStages |= INTEL_MODESET_STAGE_SCANOUT_MEMORY;
+
+    Result = IntelGfxDisableCompressionBlocks(Program);
+    if (Result != DF_RETURN_SUCCESS) {
+        ERROR(TEXT("[IntelGfxProgramMode] Stage compression disable failed"));
+        IntelGfxState.LastModesetFailureStage = INTEL_GFX_MODESET_STAGE_COMPRESSION;
+        IntelGfxState.LastModesetFailureCode = Result;
+        goto rollback;
+    }
+    CompletedStages |= INTEL_MODESET_STAGE_DISABLE_COMPRESSION;
 
     Result = IntelGfxEnablePipe(Program);
     if (Result != DF_RETURN_SUCCESS) {

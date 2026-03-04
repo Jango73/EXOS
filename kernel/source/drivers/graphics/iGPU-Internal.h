@@ -88,6 +88,7 @@
 #define INTEL_REG_DPLL_CTRL1 0x6C058
 #define INTEL_REG_PP_CONTROL 0xC7204
 #define INTEL_REG_BLC_PWM_CTL2 0xC8250
+#define INTEL_REG_FBC_CONTROL 0x43208
 
 #define INTEL_PIPE_CONF_ENABLE (1 << 31)
 #define INTEL_PLANE_CTL_ENABLE (1 << 31)
@@ -125,11 +126,13 @@ typedef enum tag_INTEL_GFX_MODESET_STAGE {
     INTEL_GFX_MODESET_STAGE_ROUTE = 3,
     INTEL_GFX_MODESET_STAGE_CLOCK = 4,
     INTEL_GFX_MODESET_STAGE_LINK = 5,
-    INTEL_GFX_MODESET_STAGE_ENABLE = 6,
-    INTEL_GFX_MODESET_STAGE_PANEL = 7,
-    INTEL_GFX_MODESET_STAGE_VERIFY = 8,
-    INTEL_GFX_MODESET_STAGE_COMMIT = 9,
-    INTEL_GFX_MODESET_STAGE_ROLLBACK = 10
+    INTEL_GFX_MODESET_STAGE_SCANOUT = 6,
+    INTEL_GFX_MODESET_STAGE_COMPRESSION = 7,
+    INTEL_GFX_MODESET_STAGE_ENABLE = 8,
+    INTEL_GFX_MODESET_STAGE_PANEL = 9,
+    INTEL_GFX_MODESET_STAGE_VERIFY = 10,
+    INTEL_GFX_MODESET_STAGE_COMMIT = 11,
+    INTEL_GFX_MODESET_STAGE_ROLLBACK = 12
 } INTEL_GFX_MODESET_STAGE;
 
 /************************************************************************/
@@ -233,6 +236,8 @@ typedef struct tag_INTEL_GFX_MODE_PROGRAM {
     U32 ClockControlValue;
     U32 LinkControlRegister;
     U32 LinkControlValue;
+    U32 CompressionControlRegister;
+    U32 CompressionControlValue;
     U32 PanelPowerRegister;
     U32 PanelPowerValue;
     U32 BacklightRegister;
@@ -259,6 +264,8 @@ typedef struct tag_INTEL_GFX_MODE_SNAPSHOT {
     U32 TranscoderControl;
     U32 ClockControlRegister;
     U32 ClockControlValue;
+    U32 CompressionControlRegister;
+    U32 CompressionControlValue;
     U32 PanelPowerRegister;
     U32 PanelPowerValue;
     U32 BacklightRegister;
@@ -277,6 +284,11 @@ typedef struct tag_INTEL_DISPLAY_FAMILY_OPS {
     U32 StrideEncodeDivisor;
     U32 StrideReadMultiplierPrimary;
     U32 StrideReadMultiplierSecondary;
+    U32 SurfaceAlignment;
+    U32 ColdSurfaceOffset;
+    U32 CompressionControlRegister;
+    U32 CompressionControlEnableMask;
+    BOOL RequireCompressionDisable;
     BOOL ForceLinearPlaneTiling;
     BOOL SupportsColdModeset;
 } INTEL_DISPLAY_FAMILY_OPS, *LPINTEL_DISPLAY_FAMILY_OPS;

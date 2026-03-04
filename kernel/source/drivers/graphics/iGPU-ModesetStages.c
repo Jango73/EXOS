@@ -73,6 +73,7 @@ UINT IntelGfxVerifyProgramMode(const INTEL_GFX_MODE_PROGRAM* Program) {
     U32 PlaneSurface = 0;
     U32 ExpectedPlaneControl = 0;
     U32 DecodedPlaneStride = 0;
+    U32 CompressionValue = 0;
     U32 PipeIndex = 0;
 
     if (Program == NULL || Family == NULL) {
@@ -142,6 +143,19 @@ UINT IntelGfxVerifyProgramMode(const INTEL_GFX_MODE_PROGRAM* Program) {
             ExpectedPlaneControl,
             PlaneControl);
         return DF_RETURN_UNEXPECTED;
+    }
+
+    if (Family->RequireCompressionDisable != FALSE && Family->CompressionControlRegister != 0 &&
+        Family->CompressionControlEnableMask != 0) {
+        if (IntelGfxReadMmio32(Family->CompressionControlRegister, &CompressionValue)) {
+            if ((CompressionValue & Family->CompressionControlEnableMask) != 0) {
+                ERROR(TEXT("[IntelGfxVerifyProgramMode] Compression still enabled reg=%x value=%x mask=%x"),
+                    Family->CompressionControlRegister,
+                    CompressionValue,
+                    Family->CompressionControlEnableMask);
+                return DF_RETURN_UNEXPECTED;
+            }
+        }
     }
 
     return DF_RETURN_SUCCESS;
