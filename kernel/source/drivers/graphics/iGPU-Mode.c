@@ -110,10 +110,140 @@ static BOOL IntelGfxWriteVerifyRegister32(U32 RegisterOffset, U32 Value, U32 Mas
     }
 
     if (!IntelGfxReadMmio32(RegisterOffset, &ReadBack)) {
+        ERROR(TEXT("[IntelGfxWriteVerifyRegister32] Readback failed reg=%x"), RegisterOffset);
         return FALSE;
     }
 
-    return ((ReadBack & Mask) == (Value & Mask)) ? TRUE : FALSE;
+    if ((ReadBack & Mask) != (Value & Mask)) {
+        ERROR(TEXT("[IntelGfxWriteVerifyRegister32] Verify failed reg=%x write=%x read=%x mask=%x"),
+            RegisterOffset,
+            Value,
+            ReadBack,
+            Mask);
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+typedef struct tag_INTEL_GFX_FAMILY_PROGRAMMING {
+    U32 DisplayVersionMin;
+    U32 DisplayVersionMax;
+    U32 StrideWriteMask;
+    U32 StrideReadMask;
+    U32 PrimaryStrideDecodeMultiplier;
+    U32 SecondaryStrideDecodeMultiplier;
+    U32 StrideAlignment;
+    BOOL ForceLinearPlaneTiling;
+} INTEL_GFX_FAMILY_PROGRAMMING, *LPINTEL_GFX_FAMILY_PROGRAMMING;
+
+/************************************************************************/
+
+static const INTEL_GFX_FAMILY_PROGRAMMING IntelGfxFamilyProgrammingTable[] = {
+    {.DisplayVersionMin = 0,
+        .DisplayVersionMax = 8,
+        .StrideWriteMask = 0x0001FFFC,
+        .StrideReadMask = 0x0001FFFC,
+        .PrimaryStrideDecodeMultiplier = 1,
+        .SecondaryStrideDecodeMultiplier = 1,
+        .StrideAlignment = 4,
+        .ForceLinearPlaneTiling = FALSE},
+    {.DisplayVersionMin = 9,
+        .DisplayVersionMax = MAX_U32,
+        .StrideWriteMask = 0x0001FFFC,
+        .StrideReadMask = 0x0001FFFC,
+        .PrimaryStrideDecodeMultiplier = 1,
+        .SecondaryStrideDecodeMultiplier = 16,
+        .StrideAlignment = 64,
+        .ForceLinearPlaneTiling = TRUE}
+};
+
+/************************************************************************/
+
+static U32 IntelGfxAlignUp(U32 Value, U32 Alignment) {
+    U32 Mask = 0;
+
+    if (Alignment <= 1) {
+        return Value;
+    }
+
+    Mask = Alignment - 1;
+    return (Value + Mask) & ~Mask;
+}
+
+/************************************************************************/
+
+static const INTEL_GFX_FAMILY_PROGRAMMING* IntelGfxGetFamilyProgramming(void) {
+    U32 DisplayVersion = IntelGfxState.IntelCapabilities.DisplayVersion;
+    UINT Index = 0;
+
+    for (Index = 0; Index < sizeof(IntelGfxFamilyProgrammingTable) / sizeof(IntelGfxFamilyProgrammingTable[0]); Index++) {
+        const INTEL_GFX_FAMILY_PROGRAMMING* Family = &IntelGfxFamilyProgrammingTable[Index];
+        if (DisplayVersion >= Family->DisplayVersionMin && DisplayVersion <= Family->DisplayVersionMax) {
+            return Family;
+        }
+    }
+
+    return &IntelGfxFamilyProgrammingTable[0];
+}
+
+/************************************************************************/
+
+static U32 IntelGfxResolveStrideFromReadback(U32 ReadBackStride, U32 Width, U32 BitsPerPixel) {
+    const INTEL_GFX_FAMILY_PROGRAMMING* Family = IntelGfxGetFamilyProgramming();
+    U32 MinimumStride = 0;
+    U32 Candidate = 0;
+
+    if (Width == 0 || BitsPerPixel == 0) {
+        return 0;
+    }
+
+    MinimumStride = Width * (BitsPerPixel >> 3);
+    Candidate = (ReadBackStride & Family->StrideReadMask) * Family->PrimaryStrideDecodeMultiplier;
+    if (Candidate >= MinimumStride) {
+        return IntelGfxAlignUp(Candidate, Family->StrideAlignment);
+    }
+
+    if (Family->SecondaryStrideDecodeMultiplier > 1) {
+        Candidate = (ReadBackStride & Family->StrideReadMask) * Family->SecondaryStrideDecodeMultiplier;
+        if (Candidate >= MinimumStride) {
+            return IntelGfxAlignUp(Candidate, Family->StrideAlignment);
+        }
+    }
+
+    return IntelGfxAlignUp(MinimumStride, Family->StrideAlignment);
+}
+
+/************************************************************************/
+
+static U32 IntelGfxBuildProgramStride(U32 Width, U32 BitsPerPixel) {
+    const INTEL_GFX_FAMILY_PROGRAMMING* Family = IntelGfxGetFamilyProgramming();
+    U32 MinimumStride = 0;
+
+    if (Width == 0 || BitsPerPixel == 0) {
+        return 0;
+    }
+
+    MinimumStride = Width * (BitsPerPixel >> 3);
+    return IntelGfxAlignUp(MinimumStride, Family->StrideAlignment);
+}
+
+/************************************************************************/
+
+static U32 IntelGfxBuildPlaneControl(U32 PlaneControlBase) {
+    const INTEL_GFX_FAMILY_PROGRAMMING* Family = IntelGfxGetFamilyProgramming();
+
+    PlaneControlBase &= ~INTEL_PLANE_CTL_FORMAT_MASK;
+    PlaneControlBase |= INTEL_PLANE_CTL_FORMAT_XRGB8888;
+
+    if (Family->ForceLinearPlaneTiling != FALSE) {
+        PlaneControlBase &= ~INTEL_PLANE_CTL_TILING_MASK;
+        PlaneControlBase |= INTEL_PLANE_CTL_TILING_LINEAR;
+    }
+
+    return PlaneControlBase;
 }
 
 /************************************************************************/
@@ -229,10 +359,7 @@ static BOOL IntelGfxReadActiveScanoutState(void) {
         Width = (PipeSrc & 0x1FFF) + 1;
         Height = ((PipeSrc >> 16) & 0x1FFF) + 1;
         BitsPerPixel = IntelGfxResolveBitsPerPixel(PlaneControl);
-        Stride = PlaneStride & 0x0001FFFC;
-        if (Stride == 0) {
-            Stride = Width * (BitsPerPixel >> 3);
-        }
+        Stride = IntelGfxResolveStrideFromReadback(PlaneStride, Width, BitsPerPixel);
 
         ActivePortMask = IntelGfxFindActiveOutputPortMask();
         if (ActivePortMask == 0) {
@@ -329,7 +456,71 @@ static BOOL IntelGfxWaitPipeState(U32 PipeIndex, BOOL EnabledExpected) {
         }
     }
 
+    if (PipeIndex < sizeof(IntelPipeConfRegisters) / sizeof(IntelPipeConfRegisters[0])) {
+        U32 PipeConf = 0;
+        if (IntelGfxReadMmio32(IntelPipeConfRegisters[PipeIndex], &PipeConf)) {
+            WARNING(TEXT("[IntelGfxWaitPipeState] Timeout pipe=%u expected=%u conf=%x loops=%u"),
+                PipeIndex,
+                EnabledExpected ? 1 : 0,
+                PipeConf,
+                Loop);
+        }
+    }
+
     return FALSE;
+}
+
+/************************************************************************/
+
+static void IntelGfxDumpPipeRegisters(U32 PipeIndex, LPCSTR PrefixTag) {
+    U32 PipeConf = 0;
+    U32 PlaneControl = 0;
+    U32 PipeSource = 0;
+    U32 PipeHTotal = 0;
+    U32 PipeHBlank = 0;
+    U32 PipeHSync = 0;
+    U32 PipeVTotal = 0;
+    U32 PipeVBlank = 0;
+    U32 PipeVSync = 0;
+    U32 PlaneStride = 0;
+    U32 PlaneSurface = 0;
+
+    if (PipeIndex >= sizeof(IntelPipeConfRegisters) / sizeof(IntelPipeConfRegisters[0])) {
+        return;
+    }
+
+    if (!IntelGfxReadMmio32(IntelPipeConfRegisters[PipeIndex], &PipeConf) ||
+        !IntelGfxReadMmio32(IntelPlaneControlRegisters[PipeIndex], &PlaneControl) ||
+        !IntelGfxReadMmio32(IntelPipeSourceRegisters[PipeIndex], &PipeSource) ||
+        !IntelGfxReadMmio32(IntelPipeHTotalRegisters[PipeIndex], &PipeHTotal) ||
+        !IntelGfxReadMmio32(IntelPipeHBlankRegisters[PipeIndex], &PipeHBlank) ||
+        !IntelGfxReadMmio32(IntelPipeHSyncRegisters[PipeIndex], &PipeHSync) ||
+        !IntelGfxReadMmio32(IntelPipeVTotalRegisters[PipeIndex], &PipeVTotal) ||
+        !IntelGfxReadMmio32(IntelPipeVBlankRegisters[PipeIndex], &PipeVBlank) ||
+        !IntelGfxReadMmio32(IntelPipeVSyncRegisters[PipeIndex], &PipeVSync) ||
+        !IntelGfxReadMmio32(IntelPlaneStrideRegisters[PipeIndex], &PlaneStride) ||
+        !IntelGfxReadMmio32(IntelPlaneSurfaceRegisters[PipeIndex], &PlaneSurface)) {
+        WARNING(TEXT("[IntelGfxDumpPipeRegisters] %s pipe=%u dump failed"), PrefixTag, PipeIndex);
+        return;
+    }
+
+    WARNING(TEXT("[IntelGfxDumpPipeRegisters] %s pipe=%u conf=%x ctl=%x src=%x stride=%x surf=%x"),
+        PrefixTag,
+        PipeIndex,
+        PipeConf,
+        PlaneControl,
+        PipeSource,
+        PlaneStride,
+        PlaneSurface);
+    WARNING(TEXT("[IntelGfxDumpPipeRegisters] %s pipe=%u htotal=%x hblank=%x hsync=%x vtotal=%x vblank=%x vsync=%x"),
+        PrefixTag,
+        PipeIndex,
+        PipeHTotal,
+        PipeHBlank,
+        PipeHSync,
+        PipeVTotal,
+        PipeVBlank,
+        PipeVSync);
 }
 
 /************************************************************************/
@@ -561,9 +752,11 @@ static UINT IntelGfxProgramPanelStability(LPINTEL_GFX_MODE_PROGRAM Program) {
 /************************************************************************/
 
 static UINT IntelGfxEnablePipe(LPINTEL_GFX_MODE_PROGRAM Program) {
+    const INTEL_GFX_FAMILY_PROGRAMMING* Family = IntelGfxGetFamilyProgramming();
     U32 PipeConf = 0;
     U32 PlaneControl = 0;
     U32 PipeIndex = 0;
+    U32 ProgrammedStride = 0;
 
     if (Program == NULL) {
         return DF_RETURN_UNEXPECTED;
@@ -581,32 +774,66 @@ static UINT IntelGfxEnablePipe(LPINTEL_GFX_MODE_PROGRAM Program) {
         !IntelGfxWriteVerifyRegister32(IntelPipeVBlankRegisters[PipeIndex], Program->PipeVBlank, MAX_U32) ||
         !IntelGfxWriteVerifyRegister32(IntelPipeVSyncRegisters[PipeIndex], Program->PipeVSync, MAX_U32) ||
         !IntelGfxWriteVerifyRegister32(IntelPipeSourceRegisters[PipeIndex], Program->PipeSource, MAX_U32) ||
-        !IntelGfxWriteVerifyRegister32(IntelPlaneStrideRegisters[PipeIndex], Program->PlaneStride, MAX_U32) ||
         !IntelGfxWriteVerifyRegister32(IntelPlaneSurfaceRegisters[PipeIndex], Program->PlaneSurface, INTEL_SURFACE_ALIGN_MASK)) {
+        ERROR(TEXT("[IntelGfxEnablePipe] Timing or plane programming failed pipe=%u"), PipeIndex);
+        IntelGfxDumpPipeRegisters(PipeIndex, TEXT("EnablePipe-program"));
         return DF_RETURN_UNEXPECTED;
+    }
+
+    if (!IntelGfxWriteVerifyRegister32(IntelPlaneStrideRegisters[PipeIndex], Program->PlaneStride, Family->StrideWriteMask)) {
+        if (IntelGfxState.HasActiveMode == FALSE) {
+            if (!IntelGfxReadMmio32(IntelPlaneStrideRegisters[PipeIndex], &ProgrammedStride)) {
+                ERROR(TEXT("[IntelGfxEnablePipe] Cold stride fallback read failed pipe=%u"), PipeIndex);
+                IntelGfxDumpPipeRegisters(PipeIndex, TEXT("EnablePipe-stride-fallback-read"));
+                return DF_RETURN_UNEXPECTED;
+            }
+
+            ProgrammedStride = IntelGfxResolveStrideFromReadback(ProgrammedStride, Program->Width, Program->BitsPerPixel);
+            WARNING(TEXT("[IntelGfxEnablePipe] Cold stride fallback pipe=%u requested=%x programmed=%x"),
+                PipeIndex,
+                Program->PlaneStride,
+                ProgrammedStride);
+
+            if (ProgrammedStride == 0) {
+                return DF_RETURN_UNEXPECTED;
+            }
+
+            Program->PlaneStride = ProgrammedStride;
+        } else {
+            ERROR(TEXT("[IntelGfxEnablePipe] Stride programming failed pipe=%u"), PipeIndex);
+            IntelGfxDumpPipeRegisters(PipeIndex, TEXT("EnablePipe-stride"));
+            return DF_RETURN_UNEXPECTED;
+        }
     }
 
     PipeConf = Program->PipeConf | INTEL_PIPE_CONF_ENABLE;
     if (!IntelGfxWriteVerifyRegister32(IntelPipeConfRegisters[PipeIndex], PipeConf, INTEL_PIPE_CONF_ENABLE)) {
+        ERROR(TEXT("[IntelGfxEnablePipe] PipeConf enable write failed pipe=%u value=%x"), PipeIndex, PipeConf);
+        IntelGfxDumpPipeRegisters(PipeIndex, TEXT("EnablePipe-pipeconf"));
         return DF_RETURN_UNEXPECTED;
     }
 
     PlaneControl = Program->PlaneControl;
-    PlaneControl &= ~INTEL_PLANE_CTL_FORMAT_MASK;
-    PlaneControl |= INTEL_PLANE_CTL_FORMAT_XRGB8888;
+    PlaneControl = IntelGfxBuildPlaneControl(PlaneControl);
     PlaneControl |= INTEL_PLANE_CTL_ENABLE;
     if (!IntelGfxWriteVerifyRegister32(
-            IntelPlaneControlRegisters[PipeIndex], PlaneControl, INTEL_PLANE_CTL_ENABLE | INTEL_PLANE_CTL_FORMAT_MASK)) {
+            IntelPlaneControlRegisters[PipeIndex],
+            PlaneControl,
+            INTEL_PLANE_CTL_ENABLE | INTEL_PLANE_CTL_FORMAT_MASK | INTEL_PLANE_CTL_TILING_MASK)) {
+        ERROR(TEXT("[IntelGfxEnablePipe] Plane enable write failed pipe=%u value=%x"), PipeIndex, PlaneControl);
+        IntelGfxDumpPipeRegisters(PipeIndex, TEXT("EnablePipe-planectl"));
         return DF_RETURN_UNEXPECTED;
     }
 
     if (!IntelGfxWaitPipeState(PipeIndex, TRUE)) {
         ERROR(TEXT("[IntelGfxEnablePipe] Pipe=%u enable timeout"), PipeIndex);
+        IntelGfxDumpPipeRegisters(PipeIndex, TEXT("EnablePipe-timeout"));
         return DF_RETURN_UNEXPECTED;
     }
 
     if (!IntelGfxVerifyPipeEnabledState(PipeIndex, TRUE, TRUE)) {
         ERROR(TEXT("[IntelGfxEnablePipe] Pipe=%u enable verification failed"), PipeIndex);
+        IntelGfxDumpPipeRegisters(PipeIndex, TEXT("EnablePipe-verify"));
         return DF_RETURN_UNEXPECTED;
     }
 
@@ -713,6 +940,7 @@ static UINT IntelGfxCaptureModeSnapshot(U32 PipeIndex, LPINTEL_GFX_MODE_SNAPSHOT
 /************************************************************************/
 
 static UINT IntelGfxRestoreModeSnapshot(LPINTEL_GFX_MODE_SNAPSHOT Snapshot) {
+    const INTEL_GFX_FAMILY_PROGRAMMING* Family = IntelGfxGetFamilyProgramming();
     U32 PipeIndex = 0;
     U32 PortIndex = 0;
     BOOL ExpectedEnabled = FALSE;
@@ -735,7 +963,7 @@ static UINT IntelGfxRestoreModeSnapshot(LPINTEL_GFX_MODE_SNAPSHOT Snapshot) {
         !IntelGfxWriteVerifyRegister32(IntelPipeVBlankRegisters[PipeIndex], Snapshot->PipeVBlank, MAX_U32) ||
         !IntelGfxWriteVerifyRegister32(IntelPipeVSyncRegisters[PipeIndex], Snapshot->PipeVSync, MAX_U32) ||
         !IntelGfxWriteVerifyRegister32(IntelPipeSourceRegisters[PipeIndex], Snapshot->PipeSource, MAX_U32) ||
-        !IntelGfxWriteVerifyRegister32(IntelPlaneStrideRegisters[PipeIndex], Snapshot->PlaneStride, MAX_U32) ||
+        !IntelGfxWriteVerifyRegister32(IntelPlaneStrideRegisters[PipeIndex], Snapshot->PlaneStride, Family->StrideWriteMask) ||
         !IntelGfxWriteVerifyRegister32(IntelPlaneSurfaceRegisters[PipeIndex], Snapshot->PlaneSurface, INTEL_SURFACE_ALIGN_MASK)) {
         return DF_RETURN_UNEXPECTED;
     }
@@ -788,7 +1016,7 @@ static UINT IntelGfxRestoreModeSnapshot(LPINTEL_GFX_MODE_SNAPSHOT Snapshot) {
     if (!IntelGfxWriteVerifyRegister32(
             IntelPlaneControlRegisters[PipeIndex],
             Snapshot->PlaneControl,
-            INTEL_PLANE_CTL_ENABLE | INTEL_PLANE_CTL_FORMAT_MASK)) {
+            INTEL_PLANE_CTL_ENABLE | INTEL_PLANE_CTL_FORMAT_MASK | INTEL_PLANE_CTL_TILING_MASK)) {
         return DF_RETURN_UNEXPECTED;
     }
 
@@ -872,8 +1100,8 @@ static UINT IntelGfxBuildModeProgram(LPGRAPHICSMODEINFO Info, LPINTEL_GFX_MODE_P
 
         ProgramOut->PipeConf = 0;
         ProgramOut->PipeSource = ((RequestedHeight - 1) << 16) | (RequestedWidth - 1);
-        ProgramOut->PlaneControl = INTEL_PLANE_CTL_FORMAT_XRGB8888;
-        ProgramOut->PlaneStride = RequestedWidth << 2;
+        ProgramOut->PlaneControl = IntelGfxBuildPlaneControl(0);
+        ProgramOut->PlaneStride = IntelGfxBuildProgramStride(RequestedWidth, RequestedBitsPerPixel);
         ProgramOut->PlaneSurface = 0;
         ProgramOut->OutputPortMask = IntelGfxFindFirstPortFromMask(IntelGfxState.IntelCapabilities.PortMask);
         ProgramOut->OutputType = IntelGfxResolveOutputTypeFromPort(ProgramOut->OutputPortMask);
@@ -908,11 +1136,10 @@ static UINT IntelGfxBuildModeProgram(LPGRAPHICSMODEINFO Info, LPINTEL_GFX_MODE_P
     ProgramOut->RefreshRate = INTEL_DEFAULT_REFRESH_RATE;
     ProgramOut->PipeSource = ((RequestedHeight - 1) << 16) | (RequestedWidth - 1);
     if (HasActiveMode != FALSE) {
-        ProgramOut->PlaneStride = IntelGfxState.ActiveStride;
+        ProgramOut->PlaneStride = IntelGfxBuildProgramStride(RequestedWidth, RequestedBitsPerPixel);
         ProgramOut->PlaneSurface = IntelGfxState.ActiveSurfaceOffset & INTEL_SURFACE_ALIGN_MASK;
     }
-    ProgramOut->PlaneControl &= ~INTEL_PLANE_CTL_FORMAT_MASK;
-    ProgramOut->PlaneControl |= INTEL_PLANE_CTL_FORMAT_XRGB8888;
+    ProgramOut->PlaneControl = IntelGfxBuildPlaneControl(ProgramOut->PlaneControl);
 
     return DF_RETURN_SUCCESS;
 }
@@ -978,6 +1205,7 @@ static UINT IntelGfxProgramMode(LPINTEL_GFX_MODE_PROGRAM Program) {
     Result = IntelGfxEnablePipe(Program);
     if (Result != DF_RETURN_SUCCESS) {
         ERROR(TEXT("[IntelGfxProgramMode] Stage pipe enable failed"));
+        IntelGfxDumpPipeRegisters(Program->PipeIndex, TEXT("ProgramMode-enable-failed"));
         goto rollback;
     }
     CompletedStages |= INTEL_MODESET_STAGE_ENABLE_PIPE;
@@ -1013,6 +1241,7 @@ rollback:
             WARNING(TEXT("[IntelGfxProgramMode] Rollback completed stageMask=%x"), CompletedStages);
         }
     }
+    IntelGfxDumpPipeRegisters(Program->PipeIndex, TEXT("ProgramMode-after-rollback"));
 
     return Result;
 }
