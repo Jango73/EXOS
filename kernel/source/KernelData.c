@@ -106,9 +106,9 @@ static LIST TaskList = {
 
 static LIST MutexList = {
     .First = (LPLISTNODE)&KernelMutex,
-    .Last = (LPLISTNODE)&ConsoleMutex,
+    .Last = (LPLISTNODE)&SessionMutex,
     .Current = (LPLISTNODE)&KernelMutex,
-    .NumItems = 12,
+    .NumItems = 13,
     .MemAllocFunc = KernelHeapAlloc,
     .MemFreeFunc = KernelHeapFree,
     .Destructor = NULL};

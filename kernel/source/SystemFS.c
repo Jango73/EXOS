@@ -623,11 +623,9 @@ BOOL SystemFSMountFileSystem(LPFILESYSTEM FileSystem) {
     StringCopy(Check.CurrentFolder, TEXT("/"));
     StringCopy(Check.SubFolder, Path);
     if (GetSystemFS()->Driver->Command(DF_FS_PATHEXISTS, (UINT)&Check)) {
-        DEBUG(TEXT("[SystemFSMountFileSystem] Already mounted %s at %s"), Volume.Name, Path);
         return TRUE;
     }
 
-    DEBUG(TEXT("[SystemFSMountFileSystem] Mounting %s at %s (fs=%p)"), Volume.Name, Path, FileSystem);
     StringCopy(Control.Path, Path);
     Control.Node = (LPLISTNODE)FileSystem;
     Control.SourcePath[0] = STR_NULL;
@@ -678,11 +676,9 @@ BOOL SystemFSUnmountFileSystem(LPFILESYSTEM FileSystem) {
     StringCopy(Check.CurrentFolder, TEXT("/"));
     StringCopy(Check.SubFolder, Path);
     if (!GetSystemFS()->Driver->Command(DF_FS_PATHEXISTS, (UINT)&Check)) {
-        DEBUG(TEXT("[SystemFSUnmountFileSystem] Already unmounted %s at %s"), Volume.Name, Path);
         return TRUE;
     }
 
-    DEBUG(TEXT("[SystemFSUnmountFileSystem] Unmounting %s at %s (fs=%p)"), Volume.Name, Path, FileSystem);
     StringCopy(Control.Path, Path);
     Control.Node = (LPLISTNODE)FileSystem;
     Control.SourcePath[0] = STR_NULL;
@@ -709,7 +705,6 @@ BOOL MountSystemFS(void) {
     LPSYSTEMFSFILESYSTEM SystemFS = GetSystemFSData();
     LPLIST FileSystemList = GetFileSystemList();
 
-    DEBUG(TEXT("[MountSystemFS] Mounting system FileSystem"));
 
     SystemFS->Root = NewSystemFileRoot();
     if (SystemFS->Root == NULL) return FALSE;
@@ -787,13 +782,6 @@ static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
         return NULL;
     }
 
-    DEBUG(TEXT("[OpenFile] path=%s wildcard=%u node=%s mounted=%p mount_path=%s remaining=%s"),
-        Path,
-        Wildcard ? 1 : 0,
-        Node != NULL ? Node->Name : TEXT("<null>"),
-        Node != NULL ? Node->Mounted : NULL,
-        (Node != NULL && Node->MountPath[0] != STR_NULL) ? Node->MountPath : TEXT("<root>"),
-        Remaining[0] != STR_NULL ? Remaining : TEXT("<none>"));
 
     if (Remaining[0] != STR_NULL) {
         if (Node->Mounted == NULL) {

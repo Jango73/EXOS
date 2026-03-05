@@ -63,6 +63,7 @@ typedef struct tag_FAT16FILESYSTEM {
     U32 SectorsInRoot;
     U32 BytesPerCluster;
     U8* IOBuffer;
+    U32 IOBufferGeneration;
 } FAT16FILESYSTEM, *LPFAT16FILESYSTEM;
 
 /***************************************************************************/
@@ -70,6 +71,9 @@ typedef struct tag_FAT16FILESYSTEM {
 typedef struct tag_FATFILE {
     FILE Header;
     FATFILELOC Location;
+    U32 DirectoryBufferCluster;
+    U32 DirectoryBufferGeneration;
+    BOOL DirectoryBufferValid;
 } FATFILE, *LPFATFILE;
 
 /***************************************************************************/
@@ -100,6 +104,7 @@ static LPFAT16FILESYSTEM NewFAT16FileSystem(LPSTORAGE_UNIT Disk) {
     This->DataStart = 0;
     This->BytesPerCluster = 0;
     This->IOBuffer = NULL;
+    This->IOBufferGeneration = 0;
 
     InitMutex(&(This->Header.Mutex));
 
@@ -133,6 +138,9 @@ static LPFATFILE NewFATFile(LPFAT16FILESYSTEM FileSystem, LPFATFILELOC FileLoc) 
     This->Location.FileCluster = FileLoc->FileCluster;
     This->Location.DataCluster = FileLoc->DataCluster;
     This->Location.Offset = FileLoc->Offset;
+    This->DirectoryBufferCluster = 0;
+    This->DirectoryBufferGeneration = 0;
+    This->DirectoryBufferValid = FALSE;
 
     InitMutex(&(This->Header.Mutex));
     InitSecurity(&(This->Header.Security));
@@ -256,6 +264,8 @@ static BOOL ReadCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Bu
 
     if (Result != DF_RETURN_SUCCESS) return FALSE;
 
+    FileSystem->IOBufferGeneration++;
+
     return TRUE;
 }
 
@@ -307,6 +317,8 @@ static BOOL WriteCluster(LPFAT16FILESYSTEM FileSystem, CLUSTER Cluster,
     Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control);
 
     if (Result != DF_RETURN_SUCCESS) return FALSE;
+
+    FileSystem->IOBufferGeneration++;
 
     return TRUE;
 }
@@ -572,6 +584,10 @@ static LPFATFILE OpenFile(LPFILEINFO Find) {
         File = NewFATFile(FileSystem, &FileLoc);
         if (File == NULL) return NULL;
 
+        File->DirectoryBufferCluster = FileLoc.FileCluster;
+        File->DirectoryBufferGeneration = FileSystem->IOBufferGeneration;
+        File->DirectoryBufferValid = TRUE;
+
         DecodeFileName(DirEntry, File->Header.Name);
         TranslateFileInfo(DirEntry, File);
     }
@@ -602,10 +618,10 @@ static U32 OpenNext(LPFATFILE File) {
 
     FileSystem = (LPFAT16FILESYSTEM)File->Header.FileSystem;
 
-    //-------------------------------------
-    // Read the cluster containing the file
-
-    if (ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) return DF_RETURN_INPUT_OUTPUT;
+    if (!File->DirectoryBufferValid || File->DirectoryBufferCluster != File->Location.FileCluster ||
+        File->DirectoryBufferGeneration != FileSystem->IOBufferGeneration) {
+        if (ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) return DF_RETURN_INPUT_OUTPUT;
+    }
 
     FOREVER {
         File->Location.Offset += sizeof(FATDIRENTRY);
@@ -627,6 +643,9 @@ static U32 OpenNext(LPFATFILE File) {
             File->Location.DataCluster = DirEntry->Cluster;
             DecodeFileName(DirEntry, File->Header.Name);
             TranslateFileInfo(DirEntry, File);
+            File->DirectoryBufferCluster = File->Location.FileCluster;
+            File->DirectoryBufferGeneration = FileSystem->IOBufferGeneration;
+            File->DirectoryBufferValid = TRUE;
             break;
         }
     }

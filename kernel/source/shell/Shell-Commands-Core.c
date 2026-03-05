@@ -26,10 +26,86 @@
 #include "process/Process-Control.h"
 #include "utils/SizeFormat.h"
 
+#define DIR_RECURSIVE_STRESS_ENTRY_COUNT 1200
+
 static BOOL ShellCommandLineCompletion(
     const COMMANDLINE_COMPLETION_CONTEXT* CompletionContext,
     LPSTR Output,
     U32 OutputSize);
+
+static U32 DirStressNext(U32* State) {
+    if (State == NULL) return 0;
+
+    *State = (*State * 1664525) + 1013904223;
+    return *State;
+}
+
+static void DirStressListRecursive(LPSHELLCONTEXT Context, LPCSTR BasePath) {
+    U32 Seed = 0x6D2B79F5;
+    U32 Index;
+    LPPROCESS CurrentProcess = GetCurrentProcess();
+    STR Name[MAX_FILE_NAME];
+    STR SizeText[32];
+    U32 Month;
+    U32 Day;
+    U32 Year;
+    U32 Hour;
+    U32 Minute;
+    U32 AttrMask;
+
+    UNUSED(Context);
+
+    if (ProcessControlIsInterruptRequested(CurrentProcess)) {
+        return;
+    }
+
+    ConsolePrint(TEXT("Stress listing (temporary): %u synthetic entries under %s\n"),
+        DIR_RECURSIVE_STRESS_ENTRY_COUNT,
+        BasePath != NULL ? BasePath : TEXT("/"));
+
+    for (Index = 0; Index < DIR_RECURSIVE_STRESS_ENTRY_COUNT; Index++) {
+        U32 RandomA = DirStressNext(&Seed);
+        U32 RandomB = DirStressNext(&Seed);
+        U32 RandomC = DirStressNext(&Seed);
+        U32 EntrySize = 512 + (RandomA % (8 * N_1MB));
+        BOOL IsFolder = (RandomB & 0x7) == 0;
+
+        StringPrintFormat(
+            Name,
+            TEXT("%s%sentry_%04u_%08x"),
+            BasePath != NULL ? BasePath : TEXT("/"),
+            ((Index % 6) == 0) ? TEXT("sub/") : TEXT(""),
+            Index,
+            RandomA);
+
+        SizeFormatBytesText(U64_FromUINT(EntrySize), SizeText);
+
+        Month = 1 + (RandomC % 12);
+        Day = 1 + ((RandomC >> 4) % 28);
+        Year = 2018 + ((RandomC >> 9) % 9);
+        Hour = (RandomC >> 13) % 24;
+        Minute = (RandomC >> 18) % 60;
+        AttrMask = (RandomC >> 24) & 0xF;
+
+        ConsolePrint(TEXT("%s %-12s %u-%u-%u %u:%u "),
+            Name,
+            IsFolder ? TEXT("<Folder>") : SizeText,
+            Day,
+            Month,
+            Year,
+            Hour,
+            Minute);
+        ConsolePrint(TEXT("%s%s%s%s\n"),
+            (AttrMask & 1) ? TEXT("R") : TEXT("-"),
+            (AttrMask & 2) ? TEXT("H") : TEXT("-"),
+            (AttrMask & 4) ? TEXT("S") : TEXT("-"),
+            (AttrMask & 8) ? TEXT("X") : TEXT("-"));
+
+        if (ProcessControlIsInterruptRequested(CurrentProcess)) {
+            break;
+        }
+    }
+}
 
 static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context) {
 
@@ -855,6 +931,7 @@ U32 CMD_dir(LPSHELLCONTEXT Context) {
     LPPROCESS CurrentProcess = GetCurrentProcess();
     BOOL Pause;
     BOOL Recurse;
+    BOOL Stress;
     U32 NumListed = 0;
 
     Target[0] = STR_NULL;
@@ -873,6 +950,21 @@ U32 CMD_dir(LPSHELLCONTEXT Context) {
     // Now check for options after all parsing is complete
     Pause = HasOption(Context, TEXT("p"), TEXT("pause"));
     Recurse = HasOption(Context, TEXT("r"), TEXT("recursive"));
+    Stress = HasOption(Context, TEXT("s"), TEXT("stress"));
+
+    if (Stress) {
+        if (StringLength(Target) == 0) {
+            StringCopy(Base, Context->CurrentFolder);
+        } else {
+            StringCopy(Base, Target);
+        }
+        ProcessControlConsumeInterrupt(CurrentProcess);
+        DirStressListRecursive(Context, Base);
+        if (ProcessControlCheckpoint(CurrentProcess)) {
+            ConsolePrint(TEXT("Command interrupted\n"));
+        }
+        return DF_RETURN_SUCCESS;
+    }
 
     FileSystem = GetSystemFS();
 

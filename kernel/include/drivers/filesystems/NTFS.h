@@ -331,4 +331,28 @@ BOOL NtfsEnumerateFolderByIndex(
 
 /***************************************************************************/
 
+/**
+ * @brief Enumerate one NTFS folder window by file-record index.
+ *
+ * This variant starts at StartEntryIndex and stores at most MaxEntries entries.
+ * Enumeration stops as soon as the output window is filled or end-of-folder is reached.
+ *
+ * @param FileSystem Mounted NTFS file system.
+ * @param FolderIndex Folder file-record index.
+ * @param StartEntryIndex First enumerated entry index to expose.
+ * @param Entries Output buffer for folder entries.
+ * @param MaxEntries Maximum number of entries that can be stored in Entries.
+ * @param EntryCountOut Output number of stored entries.
+ * @return TRUE on success, FALSE on malformed metadata or read failure.
+ */
+BOOL NtfsEnumerateFolderByIndexWindow(
+    LPFILESYSTEM FileSystem,
+    U32 FolderIndex,
+    U32 StartEntryIndex,
+    LPNTFS_FOLDER_ENTRY_INFO Entries,
+    U32 MaxEntries,
+    U32* EntryCountOut);
+
+/***************************************************************************/
+
 #endif  // NTFS_H_INCLUDED

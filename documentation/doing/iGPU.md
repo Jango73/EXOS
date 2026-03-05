@@ -31,7 +31,6 @@ codex resume 019c9567-fca4-7b63-a9ea-858d0afc28dd
 
 Deliverable:
 - A short compatibility note: "what every graphics driver must provide to run the window manager".
-- Delivered in `documentation/doing/iGPU-Step0-Compatibility.md`.
 
 ## Step 1 - Evolve `GFX.h` into a stable backend interface
 The existing API is enough for software drawing, but too poor for clean native scanout management.
@@ -163,12 +162,17 @@ Status note:
 - Hardware page-flip path is intentionally deferred; `PRESENT` uses blit semantics for stability on this milestone.
 
 ## Step 7 - VBlank and synchronization
-- [ ] Add optional vblank interrupt handling.
-- [ ] Implement `DF_GFX_WAITVBLANK` with timeout safety.
-- [ ] Protect present path with lightweight locking + frame sequence counters.
+- [x] Add optional vblank interrupt handling.
+- [x] Implement `DF_GFX_WAITVBLANK` with timeout safety.
+- [x] Protect present path with lightweight locking + frame sequence counters.
 
 Deliverable:
 - Stable frame pacing and reduced tearing on supported configurations.
+
+Status note:
+- `iGPU-Interrupt.c` adds optional vblank interrupt-status handling (`PIPESTAT`) with automatic scanline polling fallback when interrupt status is unavailable.
+- `DF_GFX_WAITVBLANK` is implemented with bounded wait (`HasOperationTimedOut`) and timeout diagnostics protected by shared `RateLimiter`.
+- Present and vblank sequencing are protected by a dedicated lightweight mutex in `INTEL_GFX_STATE` (`PresentMutex`) with frame counters (`PresentFrameSequence`, `VBlankFrameSequence`).
 
 ## Step 8 - Output management (multi-output ready)
 - [ ] Implement `ENUMOUTPUTS` and `GETOUTPUTINFO`.
@@ -182,8 +186,8 @@ Deliverable:
 - Output enumeration API stable even before full multi-monitor policy is enabled.
 
 ## Step 9 - Integration with existing VESA backend
-- [ ] Keep VESA as fallback backend.
-- [ ] Ensure Desktop chooses backend by capability/priority policy.
+- [x] Keep VESA as fallback backend.
+- [x] Ensure Desktop chooses backend by capability/priority policy.
 - [ ] Add a boot option or kernel config key to force one backend for debugging.
 - [ ] Define backend failover contract: conditions that trigger fallback and when to stay on Intel path.
 - [ ] Keep last failure reason exposed through diagnostics to avoid silent fallback loops.

@@ -44,8 +44,6 @@ INT Network_SendRawFrame(LPDEVICE Device, const U8 *Data, U32 Length) {
     if (Device == NULL) return 0;
 
     if (Data == NULL || Length == 0) {
-        DEBUG(TEXT("[Network_SendRawFrame] Invalid Data or Length: Data=%x Length=%u"), (UINT)(LPVOID)Data,
-              Length);
         return 0;
     }
 

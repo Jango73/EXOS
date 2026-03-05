@@ -83,13 +83,13 @@ void Die(void) {
     SAFE_USE(Task) {
         LockMutex(MUTEX_KERNEL, INFINITY);
         LockMutex(MUTEX_MEMORY, INFINITY);
-        LockMutex(MUTEX_CONSOLE, INFINITY);
+        LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
 
         FreezeScheduler();
 
         KillTask(Task);
 
-        UnlockMutex(MUTEX_CONSOLE);
+        UnlockMutex(MUTEX_CONSOLE_STATE);
         UnlockMutex(MUTEX_MEMORY);
         UnlockMutex(MUTEX_KERNEL);
 

@@ -198,7 +198,7 @@ Security in EXOS is implemented as a layered architecture. The effective access 
 #### Layer 2: Virtual memory isolation
 
 - Per-process address spaces are built with separate kernel and user privilege page mappings.
-- Kernel mappings are created with kernel page privilege; user seed tables and task runner mappings are created with user page privilege (`kernel/source/arch/x86-32/x86-32-Memory.c`, `kernel/source/arch/x86-64/x86-64-Memory-HighLevel.c`).
+- Kernel mappings are created with kernel page privilege; user seed tables and task runner mappings are created with user page privilege (`kernel/source/arch/x86-32/x86-32-Memory.c`, `kernel/source/arch/x86-64/x86-64-Memory.c`).
 - User pointers received from syscalls are validated through `SAFE_USE_VALID`, `SAFE_USE_INPUT_POINTER`, and `IsValidMemory` checks before dereference (`kernel/source/SYSCall.c`).
 
 #### Layer 3: Identity and session model
@@ -752,11 +752,12 @@ The VESA driver requests VBE modes in linear frame buffer mode (INT 10h 4F02h, b
 Text rendering commands are also part of the graphics contract (`TEXT_PUTCELL`, `TEXT_CLEAR_REGION`, `TEXT_SCROLL_REGION`, `TEXT_SET_CURSOR`, `TEXT_SET_CURSOR_VISIBLE`). This path allows console text operations to be dispatched through the active graphics backend.
 
 Graphics backend selection is handled by `kernel/source/drivers/graphics/Graphics-Selector.c`. The selector loads graphics backends, keeps only active/usable ones, scores their capabilities, and forwards `DF_GFX_*` calls to the selected backend. This provides deterministic fallback behavior without hardcoding a single backend in desktop code.
+Explicit backend forcing through `gfx backend <alias> <mode>` uses a strict selector path: only the requested backend is loaded into selector state, and command forwarding does not fall back to other backends while forced mode is active.
 Display-class PCI fallback attach logic is implemented in `kernel/source/drivers/graphics/Graphics-PCI.c`; the PCI bus layer registers this graphics-provided attach driver during PCI initialization so generic display controllers remain visible in the PCI device list.
 
 `kernel/source/drivers/graphics/VGA-Main.c` exposes a dedicated VGA text driver (`alias: vga`) implementing mode enumeration and text mode set through the same `DF_GFX_*` contract (`ENUMMODES`, `GETMODEINFO`, `SETMODE`).
 
-The Intel native backend is split into `kernel/source/drivers/graphics/iGPU-Base.c` (load/dispatch and PCI attach), `kernel/source/drivers/graphics/iGPU-Mode.c` (takeover and native modeset flow), and `kernel/source/drivers/graphics/iGPU-Present.c` (CPU drawing, surfaces, and present).
+The Intel native backend is split into `kernel/source/drivers/graphics/iGPU-Base.c` (load/dispatch and PCI attach), `kernel/source/drivers/graphics/iGPU-Mode.c` (takeover and native modeset flow), `kernel/source/drivers/graphics/iGPU-Present.c` (CPU drawing and surfaces), `kernel/source/drivers/graphics/iGPU-Text.c` (text/cursor operations), and `kernel/source/drivers/graphics/iGPU-Interrupt.c` (vblank synchronization and frame pacing).
 
 Intel capability handling is centralized in an internal `INTEL_GFX_CAPS` object populated from a PCI device-id family table and refined with bounded MMIO register probes (display version, pipe presence, port mask). Generic `GFX_CAPABILITIES` values exposed through `DF_GFX_GETCAPABILITIES` are projected from this single capability object.
 
@@ -766,6 +767,7 @@ The native `DF_GFX_SETMODE` path in `kernel/source/drivers/graphics/iGPU-Mode.c`
 When active scanout takeover is unavailable on hybrid platforms, Intel backend load remains available for explicit backend forcing, and the same `DF_GFX_SETMODE` path performs a conservative cold modeset bootstrap (requested mode timings, pipe/output/link programming, then context rebuild from programmed state).
 The modeset core resolves explicit `INTEL_DISPLAY_FAMILY_OPS` descriptors from display version so stride encoding/decoding, plane tiling policy, and cold-modeset support remain per-family and extension-ready for additional Intel generations without hardwired device-id flow control.
 Modeset diagnostics keep explicit failure state in `INTEL_GFX_STATE` (`LastModesetFailureStage`, `LastModesetFailureCode`) to avoid silent fallback behavior during native bring-up.
+VBlank synchronization is implemented in `kernel/source/drivers/graphics/iGPU-Interrupt.c`: `DF_GFX_WAITVBLANK` performs bounded waits (`HasOperationTimedOut`) with rate-limited timeout diagnostics, present serialization uses a dedicated `PresentMutex`, and frame pacing state is tracked through `PresentFrameSequence` and `VBlankFrameSequence` with optional PIPESTAT vblank status handling plus scanline polling fallback.
 
 Display ownership state is tracked through `kernel/source/DisplaySession.c` (`DISPLAY_SESSION` stored in `KERNELDATA`). This records active frontend (`console` or `desktop`), active desktop pointer, selected graphics driver, and active mode so mode transitions are represented as explicit kernel state.
 Frontend transitions are executed through `DisplaySwitchToConsole()` and `DisplaySwitchToDesktop()`, which keep backend ownership active and avoid using `DF_UNLOAD` as a display switching path.
@@ -773,6 +775,8 @@ Emergency text fallback is isolated in `kernel/source/Console-VGATextFallback.c`
 
 Console text output uses backend-dispatched text commands (`kernel/source/Console-TextOps.c`), which route glyph, region, and cursor operations through `DF_GFX_TEXT_*` on the active graphics backend.
 The console text dispatch path exposes an acquisition-in-progress state through `ConsoleIsFramebufferMappingInProgress()` so debug-split log mirroring can avoid recursive console writes while a graphics context is being acquired.
+Console synchronization uses dedicated lock domains in addition to the legacy compatibility lock: `MUTEX_CONSOLE_STATE` protects mutable console state (cursor, regions, paging state), and `MUTEX_CONSOLE_RENDER` is reserved for backend rendering critical sections. When both are required, acquisition order is state first, render second.
+Console paging input wait paths must run without any console mutex held to prevent lock amplification and input-driven stalls in split and non-split console flows.
 
 - BIOS/MBR path uses VGA text memory metadata for text mode operation.
 - UEFI path uses GOP-provided framebuffer metadata through the selected graphics backend.
@@ -1017,7 +1021,7 @@ Shell package command:
 - absolute path (`/...`): delegated to SystemFS (`DF_FS_OPENFILE`), which can traverse mounted nodes and forward to backing filesystems;
 - non-absolute path: probes mounted filesystems in `Kernel.FileSystem` until one resolves the file.
 
-The file layer is synchronized with `MUTEX_FILESYSTEM`, and open handles are tracked in `Kernel.File` with per-file ownership and reference management (`OwnerTask`, `OpenFlags`, refcount).
+The file layer synchronizes filesystem list access with `MUTEX_FILESYSTEM`, but `DF_FS_OPENFILE` probes run outside that global lock using retained filesystem references from a short-lived snapshot. Open handles are tracked in `Kernel.File` with per-file ownership and reference management (`OwnerTask`, `OpenFlags`, refcount).
 
 #### Removable storage behavior
 
@@ -1966,7 +1970,10 @@ Cooperative interruption API:
 - `ProcessControlConsumeInterrupt(Process)`
 - `ProcessControlCheckpoint(Process)`
 
-Long command loops can place interruption checkpoints; `dir` integrates this behavior and aborts listing when an interruption request is pending.
+Console paging (`-- Press a key --`) integrates with cooperative interruption:
+- When paging wait detects `Control+C` (virtual combination or ASCII `0x03`), it requests interruption for the current process instead of consuming the key as paging continuation.
+
+Long command loops can place interruption checkpoints; `dir` and `dir --stress` integrate this behavior and abort listing when an interruption request is pending.
 
 Configuration example:
 ```toml

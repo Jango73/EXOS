@@ -221,22 +221,50 @@ static BOOL NtfsLoadCurrentEnumerationEntry(LPNTFSFILE File) {
     if (!File->Enumerate) return FALSE;
     if (File->EnumerationEntries == NULL) return FALSE;
 
-    while (File->EnumerationIndex < File->EnumerationCount) {
-        LPNTFS_FOLDER_ENTRY_INFO Entry = File->EnumerationEntries + File->EnumerationIndex;
-
-        MemorySet(&RecordInfo, 0, sizeof(NTFS_FILE_RECORD_INFO));
-        if (!NtfsReadFileRecord(File->Header.FileSystem, Entry->FileRecordIndex, &RecordInfo)) {
+    while (TRUE) {
+        while (File->EnumerationIndex < File->EnumerationCount) {
+            LPNTFS_FOLDER_ENTRY_INFO Entry = File->EnumerationEntries + File->EnumerationIndex;
             File->EnumerationIndex++;
-            continue;
+
+            if (!NtfsMatchPattern(Entry->Name, File->EnumerationPattern)) {
+                continue;
+            }
+
+            MemorySet(&RecordInfo, 0, sizeof(NTFS_FILE_RECORD_INFO));
+            if (!NtfsReadFileRecord(File->Header.FileSystem, Entry->FileRecordIndex, &RecordInfo)) {
+                continue;
+            }
+
+            NtfsFillFileHeader(File, Entry->Name, &RecordInfo);
+            File->FileRecordIndex = Entry->FileRecordIndex;
+            File->IsFolder = (RecordInfo.Flags & NTFS_FR_FLAG_FOLDER) != 0;
+            return TRUE;
         }
 
-        NtfsFillFileHeader(File, Entry->Name, &RecordInfo);
-        File->FileRecordIndex = Entry->FileRecordIndex;
-        File->IsFolder = (RecordInfo.Flags & NTFS_FR_FLAG_FOLDER) != 0;
-        return TRUE;
-    }
+        if (File->EnumerationReachedEnd) {
+            return FALSE;
+        }
 
-    return FALSE;
+        File->EnumerationCount = 0;
+        File->EnumerationIndex = 0;
+        if (!NtfsEnumerateFolderByIndexWindow(
+                File->Header.FileSystem,
+                File->EnumerationFolderIndex,
+                File->EnumerationNextStartIndex,
+                File->EnumerationEntries,
+                NTFS_ENUMERATION_WINDOW_SIZE,
+                &File->EnumerationCount)) {
+            return FALSE;
+        }
+
+        File->EnumerationNextStartIndex += File->EnumerationCount;
+        if (File->EnumerationCount < NTFS_ENUMERATION_WINDOW_SIZE) {
+            File->EnumerationReachedEnd = TRUE;
+        }
+        if (File->EnumerationCount == 0) {
+            return FALSE;
+        }
+    }
 }
 
 /***************************************************************************/
@@ -273,6 +301,10 @@ static LPNTFSFILE NtfsCreateFileHandle(LPFILESYSTEM FileSystem) {
     File->FileRecordIndex = 0;
     File->IsFolder = FALSE;
     File->Enumerate = FALSE;
+    File->EnumerationFolderIndex = 0;
+    File->EnumerationNextStartIndex = 0;
+    File->EnumerationReachedEnd = FALSE;
+    File->EnumerationPattern[0] = STR_NULL;
     File->EnumerationIndex = 0;
     File->EnumerationCount = 0;
     File->EnumerationEntries = NULL;
@@ -307,11 +339,6 @@ LPFILE NtfsOpenFile(LPFILEINFO Info) {
         STR Pattern[MAX_FILE_NAME];
         U32 FolderIndex;
         BOOL FolderIsFolder;
-        U32 TotalEntries;
-        U32 StoredEntries;
-        U32 MatchCount;
-        U32 Index;
-        LPNTFS_FOLDER_ENTRY_INFO Entries;
 
         NtfsSplitWildcardPath(Info->Name, FolderPath, Pattern);
         if (!NtfsResolvePathToIndex(Info->FileSystem, FolderPath, &FolderIndex, &FolderIsFolder)) {
@@ -319,55 +346,31 @@ LPFILE NtfsOpenFile(LPFILEINFO Info) {
         }
         if (!FolderIsFolder) return NULL;
 
-        TotalEntries = 0;
-        if (!NtfsEnumerateFolderByIndex(Info->FileSystem, FolderIndex, NULL, 0, NULL, &TotalEntries)) {
-            return NULL;
-        }
-        if (TotalEntries == 0) return NULL;
-        if (TotalEntries > (0xFFFFFFFF / sizeof(NTFS_FOLDER_ENTRY_INFO))) return NULL;
-
-        Entries = (LPNTFS_FOLDER_ENTRY_INFO)KernelHeapAlloc(TotalEntries * sizeof(NTFS_FOLDER_ENTRY_INFO));
-        if (Entries == NULL) return NULL;
-
-        StoredEntries = 0;
-        if (!NtfsEnumerateFolderByIndex(
-                Info->FileSystem,
-                FolderIndex,
-                Entries,
-                TotalEntries,
-                &StoredEntries,
-                &TotalEntries)) {
-            KernelHeapFree(Entries);
-            return NULL;
-        }
-
-        MatchCount = 0;
-        for (Index = 0; Index < StoredEntries; Index++) {
-            if (!NtfsMatchPattern(Entries[Index].Name, Pattern)) continue;
-            Entries[MatchCount] = Entries[Index];
-            MatchCount++;
-        }
-
-        if (MatchCount == 0) {
-            KernelHeapFree(Entries);
-            return NULL;
-        }
-
         File = NtfsCreateFileHandle(Info->FileSystem);
         if (File == NULL) {
-            KernelHeapFree(Entries);
+            return NULL;
+        }
+
+        File->EnumerationEntries =
+            (LPNTFS_FOLDER_ENTRY_INFO)KernelHeapAlloc(NTFS_ENUMERATION_WINDOW_SIZE * sizeof(NTFS_FOLDER_ENTRY_INFO));
+        if (File->EnumerationEntries == NULL) {
+            ReleaseKernelObject(File);
             return NULL;
         }
 
         File->Header.OpenFlags = Info->Flags;
         File->IsFolder = TRUE;
         File->Enumerate = TRUE;
-        File->EnumerationEntries = Entries;
-        File->EnumerationCount = MatchCount;
+        File->EnumerationFolderIndex = FolderIndex;
+        File->EnumerationNextStartIndex = 0;
+        File->EnumerationReachedEnd = FALSE;
+        StringCopy(File->EnumerationPattern, Pattern);
         File->EnumerationIndex = 0;
+        File->EnumerationCount = 0;
 
         if (!NtfsLoadCurrentEnumerationEntry(File)) {
-            KernelHeapFree(Entries);
+            KernelHeapFree(File->EnumerationEntries);
+            File->EnumerationEntries = NULL;
             ReleaseKernelObject(File);
             return NULL;
         }
@@ -425,9 +428,6 @@ U32 NtfsOpenNext(LPNTFSFILE File) {
 
     if (!File->Enumerate) return DF_RETURN_GENERIC;
     if (File->EnumerationEntries == NULL) return DF_RETURN_GENERIC;
-
-    File->EnumerationIndex++;
-    if (File->EnumerationIndex >= File->EnumerationCount) return DF_RETURN_GENERIC;
 
     if (!NtfsLoadCurrentEnumerationEntry(File)) {
         return DF_RETURN_GENERIC;

@@ -27,7 +27,6 @@
 #include "Heap.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "Mutex.h"
 #include "User.h"
 #include "drivers/input/Keyboard.h"
 #include "process/Task.h"
@@ -256,6 +255,8 @@ void Render(LPEDITCONTEXT Context) {
     U32 LineNumberBackColor = CONSOLE_WHITE;
     U32 SelectionForeColor;
     U32 SelectionBackColor;
+    U32 CursorX;
+    U32 CursorY;
 
     if (Context == NULL) return;
 
@@ -274,9 +275,9 @@ void Render(LPEDITCONTEXT Context) {
         Index++;
     }
 
-    Width = Console.Width;
-    DefaultForeColor = Console.ForeColor;
-    DefaultBackColor = Console.BackColor;
+    Width = GetConsoleWidth();
+    DefaultForeColor = GetConsoleForeColor();
+    DefaultBackColor = GetConsoleBackColor();
     SelectionForeColor = DefaultBackColor;
     SelectionBackColor = DefaultForeColor;
 
@@ -284,8 +285,6 @@ void Render(LPEDITCONTEXT Context) {
     if (HasSelection) {
         NormalizeSelection(File, &SelectionStart, &SelectionEnd);
     }
-
-    LockMutex(MUTEX_CONSOLE, INFINITY);
 
     RenderTitleBar(File, TitleForeColor, TitleBackColor, Width);
 
@@ -482,17 +481,15 @@ void Render(LPEDITCONTEXT Context) {
 
     RenderMenu(MenuForeColor, MenuBackColor, Width);
 
-    Console.CursorX = (U32)((I32)TextColumnOffset + File->Cursor.X);
-    if (Console.CursorX >= Width) {
-        Console.CursorX = Width - 1;
+    CursorX = (U32)((I32)TextColumnOffset + File->Cursor.X);
+    if (CursorX >= Width) {
+        CursorX = Width - 1;
     }
-    Console.CursorY = EDIT_TITLE_HEIGHT + File->Cursor.Y;
-    SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
+    CursorY = EDIT_TITLE_HEIGHT + File->Cursor.Y;
+    SetConsoleCursorPosition(CursorX, CursorY);
 
     SetConsoleForeColor(DefaultForeColor);
     SetConsoleBackColor(DefaultBackColor);
-
-    UnlockMutex(MUTEX_CONSOLE);
 }
 
 /***************************************************************************/

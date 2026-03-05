@@ -279,10 +279,9 @@ static BOOL NtfsLookupChildByName(
     LPCSTR Name,
     U32* ChildFileRecordIndexOut,
     BOOL* ChildIsFolderOut) {
-    U32 TotalEntries;
-    U32 StoredEntries;
     LPNTFS_FOLDER_ENTRY_INFO Entries;
-    U32 EntryIndex;
+    U32 StartEntryIndex;
+    U32 StoredEntries;
     BOOL Found;
 
     if (ChildFileRecordIndexOut != NULL) *ChildFileRecordIndexOut = 0;
@@ -298,49 +297,56 @@ static BOOL NtfsLookupChildByName(
         return TRUE;
     }
 
-    TotalEntries = 0;
-    if (!NtfsEnumerateFolderByIndex((LPFILESYSTEM)FileSystem, ParentFolderIndex, NULL, 0, NULL, &TotalEntries)) {
-        WARNING(TEXT("[NtfsLookupChildByName] Unable to enumerate parent=%u name=%s (count pass)"),
-            ParentFolderIndex,
-            Name);
-        return FALSE;
-    }
-    if (TotalEntries == 0) return FALSE;
-    if (TotalEntries > (0xFFFFFFFF / sizeof(NTFS_FOLDER_ENTRY_INFO))) {
-        WARNING(TEXT("[NtfsLookupChildByName] Folder entry count too large=%u"), TotalEntries);
-        return FALSE;
-    }
-
-    Entries = (LPNTFS_FOLDER_ENTRY_INFO)KernelHeapAlloc(TotalEntries * sizeof(NTFS_FOLDER_ENTRY_INFO));
+    Entries = (LPNTFS_FOLDER_ENTRY_INFO)KernelHeapAlloc(NTFS_ENUMERATION_WINDOW_SIZE * sizeof(NTFS_FOLDER_ENTRY_INFO));
     if (Entries == NULL) {
-        ERROR(TEXT("[NtfsLookupChildByName] Unable to allocate folder entry list"));
-        return FALSE;
-    }
-
-    StoredEntries = 0;
-    if (!NtfsEnumerateFolderByIndex(
-            (LPFILESYSTEM)FileSystem,
-            ParentFolderIndex,
-            Entries,
-            TotalEntries,
-            &StoredEntries,
-            &TotalEntries)) {
-        WARNING(TEXT("[NtfsLookupChildByName] Unable to enumerate parent=%u name=%s (list pass)"),
-            ParentFolderIndex,
-            Name);
-        KernelHeapFree(Entries);
+        ERROR(TEXT("[NtfsLookupChildByName] Unable to allocate folder entry window"));
         return FALSE;
     }
 
     Found = FALSE;
-    for (EntryIndex = 0; EntryIndex < StoredEntries; EntryIndex++) {
-        LPNTFS_FOLDER_ENTRY_INFO Entry = Entries + EntryIndex;
-        if (!NtfsCompareNameCaseInsensitive(Entry->Name, Name)) continue;
+    StartEntryIndex = 0;
 
-        *ChildFileRecordIndexOut = Entry->FileRecordIndex;
-        *ChildIsFolderOut = Entry->IsFolder;
-        Found = TRUE;
-        break;
+    while (TRUE) {
+        U32 EntryIndex;
+
+        StoredEntries = 0;
+        if (!NtfsEnumerateFolderByIndexWindow(
+                (LPFILESYSTEM)FileSystem,
+                ParentFolderIndex,
+                StartEntryIndex,
+                Entries,
+                NTFS_ENUMERATION_WINDOW_SIZE,
+                &StoredEntries)) {
+            WARNING(TEXT("[NtfsLookupChildByName] Unable to enumerate parent=%u name=%s start=%u"),
+                ParentFolderIndex,
+                Name,
+                StartEntryIndex);
+            KernelHeapFree(Entries);
+            return FALSE;
+        }
+
+        if (StoredEntries == 0) {
+            break;
+        }
+
+        for (EntryIndex = 0; EntryIndex < StoredEntries; EntryIndex++) {
+            LPNTFS_FOLDER_ENTRY_INFO Entry = Entries + EntryIndex;
+            if (!NtfsCompareNameCaseInsensitive(Entry->Name, Name)) continue;
+
+            *ChildFileRecordIndexOut = Entry->FileRecordIndex;
+            *ChildIsFolderOut = Entry->IsFolder;
+            Found = TRUE;
+            break;
+        }
+
+        if (Found) {
+            break;
+        }
+
+        StartEntryIndex += StoredEntries;
+        if (StoredEntries < NTFS_ENUMERATION_WINDOW_SIZE) {
+            break;
+        }
     }
 
     if (Found) {

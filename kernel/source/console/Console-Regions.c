@@ -31,6 +31,7 @@
 #include "input/VKey.h"
 #include "process/Process-Control.h"
 #include "process/Process.h"
+#include "process/Task.h"
 #include "System.h"
 
 /***************************************************************************/
@@ -84,7 +85,7 @@ BOOL ConsoleCaptureActiveRegionSnapshot(LPVOID* OutSnapshot) {
 
     MemorySet(Snapshot, 0, sizeof(CONSOLE_ACTIVE_REGION_SNAPSHOT));
 
-    LockMutex(MUTEX_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
 
     Snapshot->CursorX = Console.CursorX;
     Snapshot->CursorY = Console.CursorY;
@@ -118,7 +119,7 @@ BOOL ConsoleCaptureActiveRegionSnapshot(LPVOID* OutSnapshot) {
         Snapshot->IsValid = FALSE;
     }
 
-    UnlockMutex(MUTEX_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE_STATE);
 
     if (Snapshot->IsValid == FALSE) {
         SAFE_USE(Snapshot->TextBuffer) { KernelHeapFree(Snapshot->TextBuffer); }
@@ -147,11 +148,11 @@ BOOL ConsoleRestoreActiveRegionSnapshot(LPVOID Snapshot) {
         return FALSE;
     }
 
-    LockMutex(MUTEX_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
 
     if (State->IsFramebuffer == FALSE) {
         if (State->TextBuffer == NULL || State->TextCellCount == 0) {
-            UnlockMutex(MUTEX_CONSOLE);
+            UnlockMutex(MUTEX_CONSOLE_STATE);
             return FALSE;
         }
 
@@ -164,7 +165,7 @@ BOOL ConsoleRestoreActiveRegionSnapshot(LPVOID Snapshot) {
                 CellBytesPerRow);
         }
     } else {
-        UnlockMutex(MUTEX_CONSOLE);
+        UnlockMutex(MUTEX_CONSOLE_STATE);
         return FALSE;
     }
 
@@ -172,7 +173,7 @@ BOOL ConsoleRestoreActiveRegionSnapshot(LPVOID Snapshot) {
     Console.BackColor = State->BackColor;
     Console.Blink = State->Blink;
 
-    UnlockMutex(MUTEX_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE_STATE);
 
     SetConsoleCursorPosition(State->CursorX, State->CursorY);
     return TRUE;
@@ -396,14 +397,43 @@ BOOL ConsoleIsDebugSplitEnabled(void) {
 /***************************************************************************/
 
 /**
+ * @brief Determine whether a keycode requests cooperative interruption.
+ *
+ * @param KeyCode Keycode to evaluate.
+ * @return TRUE when keycode corresponds to Control+C, FALSE otherwise.
+ */
+static BOOL ConsoleIsInterruptKey(LPKEYCODE KeyCode) {
+    U32 Modifiers;
+
+    if (KeyCode == NULL) {
+        return FALSE;
+    }
+
+    if ((U8)KeyCode->ASCIICode == 0x03) {
+        return TRUE;
+    }
+
+    if (KeyCode->VirtualKey != VK_C) {
+        return FALSE;
+    }
+
+    Modifiers = GetKeyModifiers();
+    return (Modifiers & KEYMOD_CONTROL) != 0;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Show the console paging prompt for a specific region.
  * @param RegionIndex Region index.
  */
 static void ConsolePagerWaitLockedRegion(U32 RegionIndex) {
     CONSOLE_REGION_STATE State;
     LPPROCESS CurrentProcess;
+    LPTASK CurrentTask;
     KEYCODE KeyCode;
     U32 WaitLoops;
+    U32 ReleasedConsoleLocks;
     BOOL ExitByInterrupt;
     U32 Row;
     U32 Column;
@@ -461,8 +491,19 @@ static void ConsolePagerWaitLockedRegion(U32 RegionIndex) {
 
 WaitForKey:
     CurrentProcess = GetCurrentProcess();
+    CurrentTask = GetCurrentTask();
     WaitLoops = 0;
+    ReleasedConsoleLocks = 0;
     ExitByInterrupt = FALSE;
+
+    // Release all recursive console mutex holds while waiting for input.
+    while (CurrentTask != NULL && ConsoleStateMutex.Task == CurrentTask && ConsoleStateMutex.Lock > 0) {
+        if (UnlockMutex(MUTEX_CONSOLE_STATE) == FALSE) {
+            break;
+        }
+
+        ReleasedConsoleLocks++;
+    }
 
     while (TRUE) {
         if (CurrentProcess != NULL && ProcessControlIsInterruptRequested(CurrentProcess)) {
@@ -479,12 +520,29 @@ WaitForKey:
                 break;
             }
 
+            if (ConsoleIsInterruptKey(&KeyCode)) {
+                if (CurrentProcess != NULL) {
+                    ProcessControlRequestInterrupt(CurrentProcess);
+                }
+                (*State.PagingRemaining) = (State.Height > 0) ? (State.Height - 1) : 0;
+                ExitByInterrupt = TRUE;
+                break;
+            }
+
             (*State.PagingRemaining) = State.Height - 1;
             break;
         }
 
         Sleep(10);
         WaitLoops++;
+    }
+
+    if (ReleasedConsoleLocks == 0) {
+        LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+    } else {
+        for (U32 LockIndex = 0; LockIndex < ReleasedConsoleLocks; LockIndex++) {
+            LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+        }
     }
 
     if (Console.UseFramebuffer != FALSE) {

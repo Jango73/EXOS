@@ -26,6 +26,13 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "process/Process.h"
+#include "utils/ThresholdLatch.h"
+
+/***************************************************************************/
+
+#define MUTEX_WAIT_SLEEP_INTERVAL_MS 20
+#define MUTEX_REENTRANT_ERROR_TIMEOUT_MS 2000
+#define MUTEX_REENTRANT_FORCE_UNLOCK_TIMEOUT_MS 5000
 
 /***************************************************************************/
 
@@ -39,9 +46,10 @@ MUTEX DesktopMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE
 MUTEX ProcessMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&TaskMutex, .Prev = (LPLISTNODE)&DesktopMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
 MUTEX TaskMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileSystemMutex, .Prev = (LPLISTNODE)&ProcessMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
 MUTEX FileSystemMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileMutex, .Prev = (LPLISTNODE)&TaskMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX FileMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ConsoleMutex, .Prev = (LPLISTNODE)&FileSystemMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX ConsoleMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&UserAccountMutex, .Prev = (LPLISTNODE)&FileMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX UserAccountMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&SessionMutex, .Prev = (LPLISTNODE)&ConsoleMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX FileMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ConsoleStateMutex, .Prev = (LPLISTNODE)&FileSystemMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX ConsoleStateMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ConsoleRenderMutex, .Prev = (LPLISTNODE)&FileMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX ConsoleRenderMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&UserAccountMutex, .Prev = (LPLISTNODE)&ConsoleStateMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX UserAccountMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&SessionMutex, .Prev = (LPLISTNODE)&ConsoleRenderMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
 MUTEX SessionMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = NULL, .Prev = (LPLISTNODE)&UserAccountMutex, .Owner = NULL, .Process = NULL, NULL, .Lock = 0};
 
 /***************************************************************************/
@@ -158,6 +166,17 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
 
                         UINT StartWaitTime = GetSystemTime();
                         UINT LastDebugTime = StartWaitTime;
+                        THRESHOLD_LATCH ReentrantErrorLatch;
+                        THRESHOLD_LATCH ReentrantForceUnlockLatch;
+
+                        ThresholdLatchInit(&ReentrantErrorLatch,
+                                           TEXT("Mutex reentrant wait error"),
+                                           MUTEX_REENTRANT_ERROR_TIMEOUT_MS,
+                                           StartWaitTime);
+                        ThresholdLatchInit(&ReentrantForceUnlockLatch,
+                                           TEXT("Mutex reentrant force unlock"),
+                                           MUTEX_REENTRANT_FORCE_UNLOCK_TIMEOUT_MS,
+                                           StartWaitTime);
 
                         FOREVER {
                             //-------------------------------------
@@ -176,6 +195,34 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                             }
 
                             //-------------------------------------
+                            // Detect prolonged recursive ownership and force recovery
+
+                            if (Mutex->Lock > 1) {
+                                UINT Now = GetSystemTime();
+                                if (ThresholdLatchCheck(&ReentrantErrorLatch, Now)) {
+                                    ERROR(TEXT("[LockMutex] Reentrant mutex hold timeout mutex=%p owner_task=%p waiter_task=%p lock=%u elapsed=%u ms"),
+                                          Mutex,
+                                          Mutex->Task,
+                                          Task,
+                                          Mutex->Lock,
+                                          (U32)(Now - StartWaitTime));
+                                }
+
+                                if (ThresholdLatchCheck(&ReentrantForceUnlockLatch, Now)) {
+                                    ERROR(TEXT("[LockMutex] Force unlock after reentrant hold timeout mutex=%p owner_task=%p waiter_task=%p lock=%u elapsed=%u ms"),
+                                          Mutex,
+                                          Mutex->Task,
+                                          Task,
+                                          Mutex->Lock,
+                                          (U32)(Now - StartWaitTime));
+                                    Mutex->Lock = 0;
+                                    Mutex->Process = NULL;
+                                    Mutex->Task = NULL;
+                                    break;
+                                }
+                            }
+
+                            //-------------------------------------
                             // Periodic debug output every 2 seconds
 
                             UINT CurrentTime = GetSystemTime();
@@ -191,7 +238,7 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                             // Sleep with proper interrupt handling
 
                             SetTaskStatusDirect(Task, TASK_STATUS_SLEEPING);
-                            Task->WakeUpTime = GetSystemTime() + 20;
+                            Task->WakeUpTime = GetSystemTime() + MUTEX_WAIT_SLEEP_INTERVAL_MS;
 
                             // Keep interrupts disabled during critical section
                             while (Task->Status == TASK_STATUS_SLEEPING) {

@@ -358,7 +358,14 @@ static UINT IntelGfxLoad(void) {
     IntelGfxState.Device = Device;
     IntelGfxState.NextSurfaceId = INTEL_GFX_SURFACE_FIRST_ID;
     IntelGfxState.ScanoutSurfaceId = 0;
+    IntelGfxState.PresentMutex = (MUTEX)EMPTY_MUTEX;
     IntelGfxState.PresentBlitCount = 0;
+    IntelGfxState.PresentFrameSequence = 0;
+    IntelGfxState.VBlankFrameSequence = 0;
+    IntelGfxState.VBlankInterruptCount = 0;
+    IntelGfxState.VBlankPollCount = 0;
+    IntelGfxState.LastVBlankScanline = MAX_U32;
+    IntelGfxState.VBlankInterruptEnabled = FALSE;
 
     (void)PCI_EnableBusMaster(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, TRUE);
 
@@ -495,6 +502,8 @@ static UINT IntelGfxCommands(UINT Function, UINT Param) {
             return IntelGfxTextSetCursorVisible((LPGFX_TEXT_CURSOR_VISIBLE_INFO)Param);
         case DF_GFX_PRESENT:
             return IntelGfxPresent((LPGFX_PRESENT_INFO)Param);
+        case DF_GFX_WAITVBLANK:
+            return IntelGfxWaitVBlank((LPGFX_VBLANK_INFO)Param);
         case DF_GFX_ALLOCSURFACE:
             return IntelGfxAllocateSurface((LPGFX_SURFACE_INFO)Param);
         case DF_GFX_FREESURFACE:
@@ -507,7 +516,6 @@ static UINT IntelGfxCommands(UINT Function, UINT Param) {
         case DF_GFX_ELLIPSE:
         case DF_GFX_ENUMOUTPUTS:
         case DF_GFX_GETOUTPUTINFO:
-        case DF_GFX_WAITVBLANK:
             return DF_RETURN_NOT_IMPLEMENTED;
     }
 

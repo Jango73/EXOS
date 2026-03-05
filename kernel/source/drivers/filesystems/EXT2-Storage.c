@@ -715,7 +715,6 @@ BOOL FindInodeInDirectory(
                 if (StringCompare(EntryName, Name) == 0) {
                     *InodeIndex = Entry->Inode;
                     Found = TRUE;
-                    DEBUG(TEXT("[FindInodeInDirectory] Found name=%s inode=%u"), Name, Entry->Inode);
                     break;
                 }
             }

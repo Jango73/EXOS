@@ -122,33 +122,24 @@ CONSOLE_STRUCT Console = {
 
 /***************************************************************************/
 
-
 /**
- * @brief Move the hardware and logical console cursor.
+ * @brief Move the hardware and logical console cursor under held state mutex.
  * @param CursorX X coordinate of the cursor.
  * @param CursorY Y coordinate of the cursor.
  */
-void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
-    PROFILE_SCOPE Scope;
-    ProfileStart(&Scope, TEXT("SetConsoleCursorPosition"));
-
+static void SetConsoleCursorPositionLocked(U32 CursorX, U32 CursorY) {
     CONSOLE_REGION_STATE State;
     U32 Position;
 
     if (ConsoleResolveRegionState(0, &State) == FALSE) {
-        ProfileStop(&Scope);
         return;
     }
-
-    LockMutex(MUTEX_CONSOLE, INFINITY);
 
     if (Console.UseFramebuffer != FALSE) {
         ConsoleHideFramebufferCursor();
         Console.CursorX = CursorX;
         Console.CursorY = CursorY;
         ConsoleShowFramebufferCursor();
-        UnlockMutex(MUTEX_CONSOLE);
-        ProfileStop(&Scope);
         return;
     }
 
@@ -161,8 +152,126 @@ void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
     OutPortByte(Console.Port + CGA_DATA, (Position >> 8) & 0xFF);
     OutPortByte(Console.Port + CGA_REGISTER, 15);
     OutPortByte(Console.Port + CGA_DATA, (Position >> 0) & 0xFF);
+}
 
-    UnlockMutex(MUTEX_CONSOLE);
+/***************************************************************************/
+
+/**
+ * @brief Place one character under held state mutex.
+ * @param Char Character to display.
+ */
+static void SetConsoleCharacterLocked(STR Char) {
+    U32 Offset = 0;
+    CONSOLE_REGION_STATE State;
+
+    if (ConsoleResolveRegionState(0, &State) == FALSE) {
+        return;
+    }
+
+    if (Console.UseFramebuffer != FALSE) {
+        if (ConsoleEnsureFramebufferMapped() == TRUE) {
+            U32 PixelX = (State.X + Console.CursorX) * ConsoleGetCellWidth();
+            U32 PixelY = (State.Y + Console.CursorY) * ConsoleGetCellHeight();
+            ConsoleHideFramebufferCursor();
+            ConsoleDrawGlyph(PixelX, PixelY, Char);
+            ConsoleShowFramebufferCursor();
+        }
+        return;
+    }
+
+    Offset = ((State.Y + Console.CursorY) * Console.ScreenWidth) + (State.X + Console.CursorX);
+    Console.Memory[Offset] = Char | (CHARATTR << 0x08);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Scroll main console region under held state mutex.
+ */
+static void ScrollConsoleLocked(void) {
+    while (Keyboard.ScrollLock) {
+    }
+
+    ConsoleHideFramebufferCursor();
+    ConsoleScrollRegion(0);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Print one character under held state mutex.
+ * @param Char Character to print.
+ */
+static void ConsolePrintCharLocked(STR Char) {
+    if (Console.UseFramebuffer != FALSE && ConsoleEnsureFramebufferMapped() == FALSE) {
+        return;
+    }
+
+    if (Char == STR_NEWLINE) {
+        Console.CursorX = 0;
+        Console.CursorY++;
+        if (Console.CursorY >= Console.Height) {
+            ScrollConsoleLocked();
+            Console.CursorY = Console.Height - 1;
+        }
+    } else if (Char == STR_RETURN) {
+    } else if (Char == STR_TAB) {
+        Console.CursorX += 4;
+        if (Console.CursorX >= Console.Width) {
+            Console.CursorX = 0;
+            Console.CursorY++;
+            if (Console.CursorY >= Console.Height) {
+                ScrollConsoleLocked();
+                Console.CursorY = Console.Height - 1;
+            }
+        }
+    } else {
+        SetConsoleCharacterLocked(Char);
+        Console.CursorX++;
+        if (Console.CursorX >= Console.Width) {
+            Console.CursorX = 0;
+            Console.CursorY++;
+            if (Console.CursorY >= Console.Height) {
+                ScrollConsoleLocked();
+                Console.CursorY = Console.Height - 1;
+            }
+        }
+    }
+
+    SetConsoleCursorPositionLocked(Console.CursorX, Console.CursorY);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Print a null-terminated string under held state mutex.
+ * @param Text String to print.
+ */
+static void ConsolePrintStringLocked(LPCSTR Text) {
+    U32 Index = 0;
+
+    SAFE_USE(Text) {
+        for (Index = 0; Index < MAX_STRING_BUFFER; Index++) {
+            if (Text[Index] == STR_NULL) break;
+            ConsolePrintCharLocked(Text[Index]);
+        }
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Move the hardware and logical console cursor.
+ * @param CursorX X coordinate of the cursor.
+ * @param CursorY Y coordinate of the cursor.
+ */
+void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
+    PROFILE_SCOPE Scope;
+    ProfileStart(&Scope, TEXT("SetConsoleCursorPosition"));
+
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+    SetConsoleCursorPositionLocked(CursorX, CursorY);
+    UnlockMutex(MUTEX_CONSOLE_STATE);
 
     ProfileStop(&Scope);
 }
@@ -181,14 +290,14 @@ void GetConsoleCursorPosition(U32* CursorX, U32* CursorY) {
     U32 AbsoluteX;
     U32 AbsoluteY;
 
-    LockMutex(MUTEX_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
 
     if (Console.UseFramebuffer != FALSE) {
         SAFE_USE_2(CursorX, CursorY) {
             *CursorX = Console.CursorX;
             *CursorY = Console.CursorY;
         }
-        UnlockMutex(MUTEX_CONSOLE);
+        UnlockMutex(MUTEX_CONSOLE_STATE);
         return;
     }
 
@@ -204,7 +313,7 @@ void GetConsoleCursorPosition(U32* CursorX, U32* CursorY) {
             *CursorX = 0;
             *CursorY = 0;
         }
-        UnlockMutex(MUTEX_CONSOLE);
+        UnlockMutex(MUTEX_CONSOLE_STATE);
         return;
     }
 
@@ -225,7 +334,55 @@ void GetConsoleCursorPosition(U32* CursorX, U32* CursorY) {
         }
     }
 
-    UnlockMutex(MUTEX_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE_STATE);
+}
+
+/***************************************************************************/
+
+U32 GetConsoleWidth(void) {
+    U32 Width;
+
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+    Width = Console.Width;
+    UnlockMutex(MUTEX_CONSOLE_STATE);
+
+    return Width;
+}
+
+/***************************************************************************/
+
+U32 GetConsoleHeight(void) {
+    U32 Height;
+
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+    Height = Console.Height;
+    UnlockMutex(MUTEX_CONSOLE_STATE);
+
+    return Height;
+}
+
+/***************************************************************************/
+
+U32 GetConsoleForeColor(void) {
+    U32 Color;
+
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+    Color = Console.ForeColor;
+    UnlockMutex(MUTEX_CONSOLE_STATE);
+
+    return Color;
+}
+
+/***************************************************************************/
+
+U32 GetConsoleBackColor(void) {
+    U32 Color;
+
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+    Color = Console.BackColor;
+    UnlockMutex(MUTEX_CONSOLE_STATE);
+
+    return Color;
 }
 
 /***************************************************************************/
@@ -238,27 +395,9 @@ void SetConsoleCharacter(STR Char) {
     PROFILE_SCOPE Scope;
     ProfileStart(&Scope, TEXT("SetConsoleCharacter"));
 
-    U32 Offset = 0;
-    CONSOLE_REGION_STATE State;
-
-    LockMutex(MUTEX_CONSOLE, INFINITY);
-
-    if (ConsoleResolveRegionState(0, &State) == TRUE) {
-        if (Console.UseFramebuffer != FALSE) {
-            if (ConsoleEnsureFramebufferMapped() == TRUE) {
-                U32 PixelX = (State.X + Console.CursorX) * ConsoleGetCellWidth();
-                U32 PixelY = (State.Y + Console.CursorY) * ConsoleGetCellHeight();
-                ConsoleHideFramebufferCursor();
-                ConsoleDrawGlyph(PixelX, PixelY, Char);
-                ConsoleShowFramebufferCursor();
-            }
-        } else {
-            Offset = ((State.Y + Console.CursorY) * Console.ScreenWidth) + (State.X + Console.CursorX);
-            Console.Memory[Offset] = Char | (CHARATTR << 0x08);
-        }
-    }
-
-    UnlockMutex(MUTEX_CONSOLE);
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+    SetConsoleCharacterLocked(Char);
+    UnlockMutex(MUTEX_CONSOLE_STATE);
 
     ProfileStop(&Scope);
 }
@@ -272,15 +411,9 @@ void ScrollConsole(void) {
     PROFILE_SCOPE Scope;
     ProfileStart(&Scope, TEXT("ScrollConsole"));
 
-    LockMutex(MUTEX_CONSOLE, INFINITY);
-
-    while (Keyboard.ScrollLock) {
-    }
-
-    ConsoleHideFramebufferCursor();
-    ConsoleScrollRegion(0);
-
-    UnlockMutex(MUTEX_CONSOLE);
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+    ScrollConsoleLocked();
+    UnlockMutex(MUTEX_CONSOLE_STATE);
 
     ProfileStop(&Scope);
 }
@@ -293,7 +426,7 @@ void ScrollConsole(void) {
 void ClearConsole(void) {
     U32 Index;
 
-    LockMutex(MUTEX_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
 
     ConsoleHideFramebufferCursor();
 
@@ -305,9 +438,9 @@ void ClearConsole(void) {
         }
     }
 
-    SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
+    SetConsoleCursorPositionLocked(Console.CursorX, Console.CursorY);
 
-    UnlockMutex(MUTEX_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE_STATE);
 }
 
 /***************************************************************************/
@@ -320,48 +453,9 @@ void ConsolePrintChar(STR Char) {
     PROFILE_SCOPE Scope;
     ProfileStart(&Scope, TEXT("ConsolePrintChar"));
 
-    LockMutex(MUTEX_CONSOLE, INFINITY);
-
-    if (Console.UseFramebuffer != FALSE && ConsoleEnsureFramebufferMapped() == FALSE) {
-        UnlockMutex(MUTEX_CONSOLE);
-        ProfileStop(&Scope);
-        return;
-    }
-
-    if (Char == STR_NEWLINE) {
-        Console.CursorX = 0;
-        Console.CursorY++;
-        if (Console.CursorY >= Console.Height) {
-            ScrollConsole();
-            Console.CursorY = Console.Height - 1;
-        }
-    } else if (Char == STR_RETURN) {
-    } else if (Char == STR_TAB) {
-        Console.CursorX += 4;
-        if (Console.CursorX >= Console.Width) {
-            Console.CursorX = 0;
-            Console.CursorY++;
-            if (Console.CursorY >= Console.Height) {
-                ScrollConsole();
-                Console.CursorY = Console.Height - 1;
-            }
-        }
-    } else {
-        SetConsoleCharacter(Char);
-        Console.CursorX++;
-        if (Console.CursorX >= Console.Width) {
-            Console.CursorX = 0;
-            Console.CursorY++;
-            if (Console.CursorY >= Console.Height) {
-                ScrollConsole();
-                Console.CursorY = Console.Height - 1;
-            }
-        }
-    }
-
-    SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
-
-    UnlockMutex(MUTEX_CONSOLE);
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+    ConsolePrintCharLocked(Char);
+    UnlockMutex(MUTEX_CONSOLE_STATE);
 
     ProfileStop(&Scope);
 }
@@ -375,9 +469,9 @@ void ConsolePrintChar(STR Char) {
 void ConsolePrintDebugChar(STR Char) {
     if (ConsoleIsDebugSplitEnabled() == FALSE) return;
 
-    LockMutex(MUTEX_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
     ConsolePrintCharRegion(Console.DebugRegion, Char);
-    UnlockMutex(MUTEX_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE_STATE);
 }
 
 /***************************************************************************/
@@ -391,7 +485,7 @@ void ConsoleBackSpace(void) {
 
     if (ConsoleResolveRegionState(0, &State) == FALSE) return;
 
-    LockMutex(MUTEX_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
 
     if (Console.CursorX == 0 && Console.CursorY == 0) goto Out;
 
@@ -416,9 +510,9 @@ void ConsoleBackSpace(void) {
 
 Out:
 
-    SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
+    SetConsoleCursorPositionLocked(Console.CursorX, Console.CursorY);
 
-    UnlockMutex(MUTEX_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE_STATE);
 }
 
 /***************************************************************************/
@@ -431,18 +525,9 @@ static void ConsolePrintString(LPCSTR Text) {
     PROFILE_SCOPE Scope;
     ProfileStart(&Scope, TEXT("ConsolePrintString"));
 
-    U32 Index = 0;
-
-    LockMutex(MUTEX_CONSOLE, INFINITY);
-
-    SAFE_USE(Text) {
-        for (Index = 0; Index < MAX_STRING_BUFFER; Index++) {
-            if (Text[Index] == STR_NULL) break;
-            ConsolePrintChar(Text[Index]);
-        }
-    }
-
-    UnlockMutex(MUTEX_CONSOLE);
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+    ConsolePrintStringLocked(Text);
+    UnlockMutex(MUTEX_CONSOLE_STATE);
 
     ProfileStop(&Scope);
 }
@@ -458,15 +543,15 @@ void ConsolePrint(LPCSTR Format, ...) {
     STR Text[MAX_STRING_BUFFER];
     VarArgList Args;
 
-    LockMutex(MUTEX_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
 
     VarArgStart(Args, Format);
     StringPrintFormatArgs(Text, Format, Args);
     VarArgEnd(Args);
 
-    ConsolePrintString(Text);
+    ConsolePrintStringLocked(Text);
 
-    UnlockMutex(MUTEX_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE_STATE);
 }
 
 /***************************************************************************/

@@ -511,7 +511,6 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     U32 RootCluster = 0;
     U32 CurrentSector = Create->PartitionStartSector;
 
-    DEBUG(TEXT("[EXFS.CreatePartition] Enter"));
 
     //-------------------------------------
     // Check validity of parameters
@@ -526,7 +525,6 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
     MemorySet(Buffer2, 0, SECTOR_SIZE * 2);
     MemorySet(Buffer3, 0, SECTOR_SIZE * 2);
 
-    DEBUG(TEXT("[EXFS.CreatePartition] Buffers cleared"));
 
     //-------------------------------------
     // Compute size in clusters of bitmap
@@ -553,7 +551,6 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
     CurrentSector += 2;
 
-    DEBUG(TEXT("[EXFS.CreatePartition] MBR written"));
 
     //-------------------------------------
     // Fill the superblock
@@ -584,7 +581,6 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
     CurrentSector += 2;
 
-    DEBUG(TEXT("[EXFS.CreatePartition] Superblock written"));
 
     //-------------------------------------
     // Cluster 0 is empty because 0 is not a valid
@@ -609,7 +605,6 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
 
     CurrentSector += Create->SectorsPerCluster;
 
-    DEBUG(TEXT("[EXFS.CreatePartition] Root cluster page written"));
 
     //-------------------------------------
     // Write the first file record
@@ -622,7 +617,6 @@ static U32 CreatePartition(LPPARTITION_CREATION Create) {
         return DF_RETURN_FS_CANT_WRITE_SECTOR;
     }
 
-    DEBUG(TEXT("[EXFS.CreatePartition] First file record written"));
 
     //-------------------------------------
 
@@ -725,7 +719,6 @@ static LPEXFSFILE OpenFile(LPFILEINFO Find) {
         // TODO: Implement file creation in EXFS
         // For now, this is a placeholder to handle FILE_OPEN_CREATE_ALWAYS
         // The actual file creation functionality needs to be implemented
-        DEBUG(TEXT("[EXFS] FILE_OPEN_CREATE_ALWAYS requested for %s - not yet implemented"), Find->Name);
         return NULL;
     }
 

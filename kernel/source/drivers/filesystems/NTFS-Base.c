@@ -819,21 +819,9 @@ BOOL MountPartition_NTFS(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
 
     ListAddItem(GetFileSystemList(), FileSystem);
 
-    DEBUG(TEXT("[MountPartition_NTFS] Mounted %s bytes_per_sector=%u sectors_per_cluster=%u record_size=%u mft_cluster=%x%08x"),
-        FileSystem->Header.Name,
-        FileSystem->BytesPerSector,
-        FileSystem->SectorsPerCluster,
-        FileSystem->FileRecordSize,
-        (U32)U64_High32(FileSystem->MftStartCluster),
-        (U32)U64_Low32(FileSystem->MftStartCluster));
 
     MemorySet(&RecordInfo, 0, sizeof(NTFS_FILE_RECORD_INFO));
     if (NtfsReadFileRecord((LPFILESYSTEM)FileSystem, 0, &RecordInfo)) {
-        DEBUG(TEXT("[MountPartition_NTFS] MFT[0] flags=%x attrs=%u used=%u name=%s"),
-            RecordInfo.Flags,
-            RecordInfo.SequenceOfAttributesOffset,
-            RecordInfo.UsedSize,
-            RecordInfo.HasPrimaryFileName ? RecordInfo.PrimaryFileName : TEXT("<none>"));
     } else {
         WARNING(TEXT("[MountPartition_NTFS] MFT[0] read failed"));
     }
