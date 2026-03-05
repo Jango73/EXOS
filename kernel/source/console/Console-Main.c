@@ -339,6 +339,54 @@ void GetConsoleCursorPosition(U32* CursorX, U32* CursorY) {
 
 /***************************************************************************/
 
+U32 GetConsoleWidth(void) {
+    U32 Width;
+
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+    Width = Console.Width;
+    UnlockMutex(MUTEX_CONSOLE_STATE);
+
+    return Width;
+}
+
+/***************************************************************************/
+
+U32 GetConsoleHeight(void) {
+    U32 Height;
+
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+    Height = Console.Height;
+    UnlockMutex(MUTEX_CONSOLE_STATE);
+
+    return Height;
+}
+
+/***************************************************************************/
+
+U32 GetConsoleForeColor(void) {
+    U32 Color;
+
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+    Color = Console.ForeColor;
+    UnlockMutex(MUTEX_CONSOLE_STATE);
+
+    return Color;
+}
+
+/***************************************************************************/
+
+U32 GetConsoleBackColor(void) {
+    U32 Color;
+
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+    Color = Console.BackColor;
+    UnlockMutex(MUTEX_CONSOLE_STATE);
+
+    return Color;
+}
+
+/***************************************************************************/
+
 /**
  * @brief Place a character at the current cursor position.
  * @param Char Character to display.
