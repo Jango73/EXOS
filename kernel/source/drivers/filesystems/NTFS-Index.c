@@ -851,10 +851,20 @@ static BOOL NtfsAddFolderEntryFromIndexKey(
 
     if (NtfsFolderEntryAlreadyPresent(Context, &EntryInfo)) return TRUE;
 
+    U32 EntryOrdinal = Context->TotalEntries;
     Context->TotalEntries++;
+
+    if (EntryOrdinal < Context->StartEntryIndex) {
+        return TRUE;
+    }
+
     if (Context->Entries != NULL && Context->EntryCount < Context->MaxEntries) {
         MemoryCopy(Context->Entries + Context->EntryCount, &EntryInfo, sizeof(NTFS_FOLDER_ENTRY_INFO));
         Context->EntryCount++;
+
+        if (Context->StopWhenWindowFilled && Context->EntryCount >= Context->MaxEntries) {
+            Context->StopRequested = TRUE;
+        }
     }
 
     return TRUE;
@@ -1086,7 +1096,9 @@ static BOOL NtfsTraverseIndexHeader(
                 0);
         }
 
-        while (Context->DiagTraverseErrorCode == NTFS_TRAVERSE_ERROR_NONE && Cursor + 16 <= EntrySize) {
+        while (!Context->StopRequested &&
+               Context->DiagTraverseErrorCode == NTFS_TRAVERSE_ERROR_NONE &&
+               Cursor + 16 <= EntrySize) {
             const U8* Entry = ((const U8*)Header) + EntryOffset + Cursor;
             U16 Length = NtfsLoadU16(Entry + 8);
             U16 KeyLength = NtfsLoadU16(Entry + 10);
@@ -1147,7 +1159,9 @@ static BOOL NtfsTraverseIndexHeader(
                     break;
                 }
 
-                if (PendingVcns != NULL && *PendingCountInOut < PendingCapacity) {
+                if (!Context->StopRequested &&
+                    PendingVcns != NULL &&
+                    *PendingCountInOut < PendingCapacity) {
                     PendingVcns[*PendingCountInOut] = U64_Low32(Vcn64);
                     (*PendingCountInOut)++;
                 }
@@ -1269,13 +1283,15 @@ static BOOL NtfsPrepareIndexAllocationRecords(LPNTFS_FOLDER_ENUM_CONTEXT Context
  * @param TotalEntriesOut Optional output total number of enumerated entries.
  * @return TRUE on success, FALSE on malformed metadata or read failure.
  */
-BOOL NtfsEnumerateFolderByIndex(
+static BOOL NtfsEnumerateFolderByIndexInternal(
     LPFILESYSTEM FileSystem,
     U32 FolderIndex,
+    U32 StartEntryIndex,
     LPNTFS_FOLDER_ENTRY_INFO Entries,
     U32 MaxEntries,
     U32* EntryCountOut,
-    U32* TotalEntriesOut) {
+    U32* TotalEntriesOut,
+    BOOL StopWhenWindowFilled) {
     LPNTFSFILESYSTEM NtfsFileSystem;
     U8* IndexRootValue;
     U32 IndexRootValueSize;
@@ -1295,6 +1311,7 @@ BOOL NtfsEnumerateFolderByIndex(
     if (TotalEntriesOut != NULL) *TotalEntriesOut = 0;
     if (FileSystem == NULL) return FALSE;
     if (Entries == NULL && MaxEntries != 0) return FALSE;
+    if (StopWhenWindowFilled && (Entries == NULL || EntryCountOut == NULL)) return FALSE;
 
     SAFE_USE_VALID_ID(FileSystem, KOID_FILESYSTEM) {
         if (FileSystem->Driver != &NTFSDriver) return FALSE;
@@ -1354,6 +1371,9 @@ BOOL NtfsEnumerateFolderByIndex(
         Context.FileSystem = NtfsFileSystem;
         Context.Entries = Entries;
         Context.MaxEntries = MaxEntries;
+        Context.StartEntryIndex = StartEntryIndex;
+        Context.StopWhenWindowFilled = StopWhenWindowFilled;
+        Context.StopRequested = FALSE;
         Context.EntryCount = 0;
         Context.TotalEntries = 0;
         Context.IndexAllocation = IndexAllocationData;
@@ -1430,7 +1450,7 @@ BOOL NtfsEnumerateFolderByIndex(
             MaxVcnRecords);
         HadNodeTraversalFailure = FALSE;
 
-        while (Result && PendingCount > 0) {
+        while (Result && PendingCount > 0 && !Context.StopRequested) {
             U32 Vcn;
             U32 RecordOffset;
             U8* RecordBufferNode;
@@ -1499,4 +1519,44 @@ BOOL NtfsEnumerateFolderByIndex(
     }
 
     return FALSE;
+}
+
+/***************************************************************************/
+
+BOOL NtfsEnumerateFolderByIndex(
+    LPFILESYSTEM FileSystem,
+    U32 FolderIndex,
+    LPNTFS_FOLDER_ENTRY_INFO Entries,
+    U32 MaxEntries,
+    U32* EntryCountOut,
+    U32* TotalEntriesOut) {
+    return NtfsEnumerateFolderByIndexInternal(
+        FileSystem,
+        FolderIndex,
+        0,
+        Entries,
+        MaxEntries,
+        EntryCountOut,
+        TotalEntriesOut,
+        FALSE);
+}
+
+/***************************************************************************/
+
+BOOL NtfsEnumerateFolderByIndexWindow(
+    LPFILESYSTEM FileSystem,
+    U32 FolderIndex,
+    U32 StartEntryIndex,
+    LPNTFS_FOLDER_ENTRY_INFO Entries,
+    U32 MaxEntries,
+    U32* EntryCountOut) {
+    return NtfsEnumerateFolderByIndexInternal(
+        FileSystem,
+        FolderIndex,
+        StartEntryIndex,
+        Entries,
+        MaxEntries,
+        EntryCountOut,
+        NULL,
+        TRUE);
 }

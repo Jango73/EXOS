@@ -61,6 +61,7 @@
 #define NTFS_FILE_NAME_NAMESPACE_WIN32_DOS 3
 #define NTFS_ROOT_FILE_RECORD_INDEX 5
 #define NTFS_PATH_LOOKUP_CACHE_SIZE 32
+#define NTFS_ENUMERATION_WINDOW_SIZE 256
 
 /***************************************************************************/
 
@@ -98,6 +99,10 @@ typedef struct tag_NTFSFILE {
     U32 FileRecordIndex;
     BOOL IsFolder;
     BOOL Enumerate;
+    U32 EnumerationFolderIndex;
+    U32 EnumerationNextStartIndex;
+    BOOL EnumerationReachedEnd;
+    STR EnumerationPattern[MAX_FILE_NAME];
     U32 EnumerationIndex;
     U32 EnumerationCount;
     LPNTFS_FOLDER_ENTRY_INFO EnumerationEntries;
@@ -159,6 +164,9 @@ typedef struct tag_NTFS_FOLDER_ENUM_CONTEXT {
     LPNTFSFILESYSTEM FileSystem;
     LPNTFS_FOLDER_ENTRY_INFO Entries;
     U32 MaxEntries;
+    U32 StartEntryIndex;
+    BOOL StopWhenWindowFilled;
+    BOOL StopRequested;
     U32 EntryCount;
     U32 TotalEntries;
     const U8* IndexAllocation;
