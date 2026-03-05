@@ -63,6 +63,7 @@
 - Add a cluster cache to FAT16 and FAT32
 
 ## Network
+- Create a NetworkHeapAlloc/Free and dedicated memory region for the network heap (AllocRegion).
 - Optimize/evolve the network stack
 
 ## Keyboard
