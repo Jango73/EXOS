@@ -285,7 +285,7 @@ void Render(LPEDITCONTEXT Context) {
         NormalizeSelection(File, &SelectionStart, &SelectionEnd);
     }
 
-    LockMutex(MUTEX_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
 
     RenderTitleBar(File, TitleForeColor, TitleBackColor, Width);
 
@@ -492,7 +492,7 @@ void Render(LPEDITCONTEXT Context) {
     SetConsoleForeColor(DefaultForeColor);
     SetConsoleBackColor(DefaultBackColor);
 
-    UnlockMutex(MUTEX_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE_STATE);
 }
 
 /***************************************************************************/

@@ -71,7 +71,6 @@ typedef struct tag_MUTEX MUTEX, *LPMUTEX;
 #define MUTEX_TASK (&TaskMutex)
 #define MUTEX_FILESYSTEM (&FileSystemMutex)
 #define MUTEX_FILE (&FileMutex)
-#define MUTEX_CONSOLE (&ConsoleMutex)
 #define MUTEX_CONSOLE_STATE (&ConsoleStateMutex)
 #define MUTEX_CONSOLE_RENDER (&ConsoleRenderMutex)
 #define MUTEX_ACCOUNTS (&UserAccountMutex)
@@ -89,7 +88,6 @@ extern MUTEX ProcessMutex;
 extern MUTEX TaskMutex;
 extern MUTEX FileSystemMutex;
 extern MUTEX FileMutex;
-extern MUTEX ConsoleMutex;
 extern MUTEX ConsoleStateMutex;
 extern MUTEX ConsoleRenderMutex;
 extern MUTEX UserAccountMutex;

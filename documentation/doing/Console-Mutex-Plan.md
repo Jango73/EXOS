@@ -137,4 +137,4 @@ For each completed step:
 - 2026-03-05: Step 2 applied on console paths by moving console lock usage to `MUTEX_CONSOLE_STATE` and keeping pager wait outside lock ownership windows.
 - 2026-03-05: Step 3 completed in `Console-Main.c` using internal `*Locked` helpers to avoid nested recursive lock amplification on print/scroll/cursor core path.
 - 2026-03-05: Step 4 completed by binding backend text/cursor/region framebuffer operations to `MUTEX_CONSOLE_RENDER` in `Console-TextOps.c` while preserving state->render lock order.
-- 2026-03-05: Step 5 completed for converted console modules; legacy `MUTEX_CONSOLE` remains as compatibility lock for non-converted consumers outside this plan scope.
+- 2026-03-05: Compatibility phase finalized by migrating remaining users (`Edit-Main`, x86 fault paths) to `MUTEX_CONSOLE_STATE` and removing `MUTEX_CONSOLE`/`ConsoleMutex` from synchronization primitives.
