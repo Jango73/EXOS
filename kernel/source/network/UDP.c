@@ -126,7 +126,6 @@ void UDP_Initialize(LPDEVICE Device) {
     // Register UDP as IPv4 protocol handler
     IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_UDP, UDP_OnIPv4Packet);
 
-    DEBUG(TEXT("[UDP_Initialize] UDP initialized for device"));
 }
 
 /************************************************************************/
@@ -146,7 +145,6 @@ void UDP_Destroy(LPDEVICE Device) {
     SAFE_USE(Context) {
         KernelHeapFree(Context);
         SetDeviceContext(Device, KOID_UDP, NULL);
-        DEBUG(TEXT("[UDP_Destroy] UDP context destroyed"));
     }
 }
 
@@ -183,7 +181,6 @@ void UDP_RegisterPortHandler(LPDEVICE Device, U16 Port, UDP_PortHandler Handler)
                 Context->PortBindings[Index].Port = Port;
                 Context->PortBindings[Index].Handler = Handler;
                 Context->PortBindings[Index].IsValid = 1;
-                DEBUG(TEXT("[UDP_RegisterPortHandler] Port %u registered"), Port);
                 return;
             }
         }
@@ -212,7 +209,6 @@ void UDP_UnregisterPortHandler(LPDEVICE Device, U16 Port) {
         for (Index = 0; Index < UDP_MAX_PORTS; Index++) {
             if (Context->PortBindings[Index].IsValid && Context->PortBindings[Index].Port == Port) {
                 Context->PortBindings[Index].IsValid = 0;
-                DEBUG(TEXT("[UDP_UnregisterPortHandler] Port %u unregistered"), Port);
                 return;
             }
         }
@@ -273,7 +269,6 @@ int UDP_Send(LPDEVICE Device, U32 DestinationIP, U16 SourcePort, U16 Destination
             // Calculate checksum
             UDPHeader->Checksum = UDP_CalculateChecksum(LocalIPv4_Be, DestinationIP, UDPHeader, Payload, PayloadLength);
 
-            DEBUG(TEXT("[UDP_Send] Sending UDP packet: SrcPort=%u DstPort=%u Length=%u"), SourcePort, DestinationPort, UDPLength);
 
             // Send via IPv4
             Result = IPv4_Send(Device, DestinationIP, IPV4_PROTOCOL_UDP, Packet, UDPLength);
@@ -327,10 +322,6 @@ void UDP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
         UNUSED(SrcIP);
         UNUSED(DstIP);
 
-        DEBUG(TEXT("[UDP_OnIPv4Packet] Received UDP packet: %u.%u.%u.%u:%u -> %u.%u.%u.%u:%u Length=%u"),
-              (SrcIP >> 24) & 0xFF, (SrcIP >> 16) & 0xFF, (SrcIP >> 8) & 0xFF, SrcIP & 0xFF, SourcePort,
-              (DstIP >> 24) & 0xFF, (DstIP >> 16) & 0xFF, (DstIP >> 8) & 0xFF, DstIP & 0xFF, DestinationPort,
-              Length);
 
         // Validate length
         if (Length < sizeof(UDP_HEADER) || Length > PayloadLength) {
@@ -359,14 +350,12 @@ void UDP_OnIPv4Packet(const U8* Payload, U32 PayloadLength, U32 SourceIP, U32 De
         for (Index = 0; Index < UDP_MAX_PORTS; Index++) {
             if (Context->PortBindings[Index].IsValid &&
                 Context->PortBindings[Index].Port == DestinationPort) {
-                DEBUG(TEXT("[UDP_OnIPv4Packet] Delivering to port handler %u"), DestinationPort);
                 Context->PortBindings[Index].Handler(SourceIP, SourcePort, DestinationPort,
                                                      UDPPayload, UDPPayloadLength);
                 return;
             }
         }
 
-        DEBUG(TEXT("[UDP_OnIPv4Packet] No handler registered for port %u"), DestinationPort);
     }
 }
 

@@ -48,8 +48,6 @@ LPTOML TomlParse(LPCSTR Source) {
     U32 SectionIndex = 0;
     U32 Index = 0;
 
-    DEBUG(TEXT("[TomlParse] Enter"));
-
     // Allocate main TOML structure
     Toml = (LPTOML)KernelHeapAlloc(sizeof(TOML));
     if (Toml == NULL) return NULL;
@@ -202,8 +200,6 @@ LPTOML TomlParse(LPCSTR Source) {
         Last = Item;
     }
 
-    DEBUG(TEXT("[TomlParse] Exit"));
-
     return Toml;
 }
 
@@ -233,6 +229,7 @@ LPCSTR TomlGet(LPTOML Toml, LPCSTR Path) {
         }
     }
 
+    WARNING(TEXT("[TomlGet] Key not found: %s"), Path);
     return NULL;
 }
 
@@ -249,8 +246,6 @@ LPCSTR TomlGet(LPTOML Toml, LPCSTR Path) {
 void TomlFree(LPTOML Toml) {
     LPTOMLITEM Item = NULL;
     LPTOMLITEM Next = NULL;
-
-    DEBUG(TEXT("[TomlFree] Enter"));
 
     if (Toml == NULL) return;
 
@@ -269,6 +264,4 @@ void TomlFree(LPTOML Toml) {
     // Free the main TOML structure
     KernelHeapFree(Toml);
 
-    DEBUG(TEXT("[TomlFree] Exit"));
 }
-

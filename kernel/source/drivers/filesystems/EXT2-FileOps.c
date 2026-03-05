@@ -536,7 +536,6 @@ BOOL MountPartition_EXT2(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
     Super = (LPEXT2SUPER)Buffer;
 
     if (Super->Magic != EXT2_SUPER_MAGIC) {
-        DEBUG(TEXT("[MountPartition_EXT2] Invalid superblock magic: %04X"), Super->Magic);
         return FALSE;
     }
 
@@ -593,8 +592,6 @@ BOOL MountPartition_EXT2(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
 
     ListAddItem(GetFileSystemList(), FileSystem);
 
-    DEBUG(TEXT("[MountPartition_EXT2] Mounted EXT2 volume %s (block size %u)"),
-        FileSystem->Header.Name, FileSystem->BlockSize);
 
     return TRUE;
 }
