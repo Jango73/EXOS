@@ -43,7 +43,7 @@ SHELL_COMMAND_ENTRY COMMANDS[] = {
     {"gfx", "graphics", "backend Driver Mode|info|smoke_test [DurationMs]", "Control graphics mode", CMD_gfx},
     {"keyboard", "keyboard", "--layout Code", "Change keyboard layout", CMD_keyboard},
     {"kill", "kill_task", "Number", "Terminate task by number", CMD_killtask},
-    {"list", "dir", "[Name] [-p] [-r]", "List folder entries", CMD_dir},
+    {"list", "dir", "[Name] [-p] [-r] [-s|--stress]", "List folder entries", CMD_dir},
     {"login", "login", "", "Authenticate user session", CMD_login},
     {"logout", "logout", "", "End current user session", CMD_logout},
     {"mem", "mem_edit", "Address", "Edit memory at address", CMD_memedit},
