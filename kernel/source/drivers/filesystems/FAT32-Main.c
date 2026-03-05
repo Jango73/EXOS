@@ -64,6 +64,7 @@ static LPFAT32FILESYSTEM NewFATFileSystem(LPSTORAGE_UNIT Disk) {
     This->DataStart = 0;
     This->BytesPerCluster = 0;
     This->IOBuffer = NULL;
+    This->IOBufferGeneration = 0;
 
     InitMutex(&(This->Header.Mutex));
 
@@ -96,6 +97,9 @@ LPFATFILE NewFATFile(LPFAT32FILESYSTEM FileSystem, LPFATFILELOC FileLoc) {
     This->Location.FileCluster = FileLoc->FileCluster;
     This->Location.DataCluster = FileLoc->DataCluster;
     This->Location.Offset = FileLoc->Offset;
+    This->DirectoryBufferCluster = 0;
+    This->DirectoryBufferGeneration = 0;
+    This->DirectoryBufferValid = FALSE;
 
     InitMutex(&(This->Header.Mutex));
     InitSecurity(&(This->Header.Security));
@@ -231,6 +235,8 @@ BOOL ReadCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer) {
 
     if (Result != DF_RETURN_SUCCESS) return FALSE;
 
+    FileSystem->IOBufferGeneration++;
+
     return TRUE;
 }
 
@@ -266,6 +272,8 @@ BOOL WriteCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer) 
     Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control);
 
     if (Result != DF_RETURN_SUCCESS) return FALSE;
+
+    FileSystem->IOBufferGeneration++;
 
     return TRUE;
 }

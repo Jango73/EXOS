@@ -27,6 +27,7 @@ typedef struct tag_FAT32FILESYSTEM {
     SECTOR DataStart;
     U32 BytesPerCluster;
     U8* IOBuffer;
+    U32 IOBufferGeneration;
 } FAT32FILESYSTEM, *LPFAT32FILESYSTEM;
 
 /***************************************************************************/
@@ -34,6 +35,9 @@ typedef struct tag_FAT32FILESYSTEM {
 typedef struct tag_FATFILE {
     FILE Header;
     FATFILELOC Location;
+    U32 DirectoryBufferCluster;
+    U32 DirectoryBufferGeneration;
+    BOOL DirectoryBufferValid;
 } FATFILE, *LPFATFILE;
 
 /***************************************************************************/

@@ -505,6 +505,10 @@ static LPFATFILE OpenFile(LPFILEINFO Find) {
         File = NewFATFile(FileSystem, &FileLoc);
         if (File == NULL) return NULL;
 
+        File->DirectoryBufferCluster = FileLoc.FileCluster;
+        File->DirectoryBufferGeneration = FileSystem->IOBufferGeneration;
+        File->DirectoryBufferValid = TRUE;
+
         DecodeFileName(DirEntry, File->Header.Name);
         TranslateFileInfo(DirEntry, File);
 
@@ -561,6 +565,10 @@ static LPFATFILE OpenFile(LPFILEINFO Find) {
             return NULL;
         }
 
+        File->DirectoryBufferCluster = FileLoc.FileCluster;
+        File->DirectoryBufferGeneration = FileSystem->IOBufferGeneration;
+        File->DirectoryBufferValid = TRUE;
+
         DecodeFileName(DirEntry, File->Header.Name);
         TranslateFileInfo(DirEntry, File);
 
@@ -591,10 +599,10 @@ static U32 OpenNext(LPFATFILE File) {
 
     FileSystem = (LPFAT32FILESYSTEM)File->Header.FileSystem;
 
-    //-------------------------------------
-    // Read the cluster containing the file
-
-    if (ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) return DF_RETURN_INPUT_OUTPUT;
+    if (!File->DirectoryBufferValid || File->DirectoryBufferCluster != File->Location.FileCluster ||
+        File->DirectoryBufferGeneration != FileSystem->IOBufferGeneration) {
+        if (ReadCluster(FileSystem, File->Location.FileCluster, FileSystem->IOBuffer) == FALSE) return DF_RETURN_INPUT_OUTPUT;
+    }
 
     FOREVER {
         File->Location.Offset += sizeof(FATDIRENTRY_EXT);
@@ -618,6 +626,9 @@ static U32 OpenNext(LPFATFILE File) {
 
             DecodeFileName(DirEntry, File->Header.Name);
             TranslateFileInfo(DirEntry, File);
+            File->DirectoryBufferCluster = File->Location.FileCluster;
+            File->DirectoryBufferGeneration = FileSystem->IOBufferGeneration;
+            File->DirectoryBufferValid = TRUE;
             break;
         }
     }

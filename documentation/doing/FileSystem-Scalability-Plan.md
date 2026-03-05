@@ -19,7 +19,7 @@
 - [x] Verified incremental enumeration (no full-folder preallocation).
 - [x] Identified high per-entry inode metadata cost.
 
-### FAT32 / FAT16 / EXFS
+### FAT32 / FAT16
 
 - [x] Verified no full-folder preallocation pattern.
 - [x] Identified repeated directory cluster/page rereads in `OpenNext()`.
@@ -47,10 +47,10 @@
 - [x] Reduce `MUTEX_FILESYSTEM` hold scope in `File.c` during slow FS open paths.
 - [x] Document lock contract in `documentation/Kernel.md`.
 
-## Phase 3 - FAT/EXFS enumeration efficiency
+## Phase 3 - FAT enumeration efficiency
 
-- [ ] Add per-handle directory state cache to avoid unconditional reread in `OpenNext()`.
-- [ ] Validate behavior compatibility.
+- [x] Add per-handle directory state cache to avoid unconditional reread in `OpenNext()`.
+- [x] Validate behavior compatibility (build validation).
 
 ## Phase 4 - EXT2 optimization
 
@@ -59,7 +59,7 @@
 
 ## Validation Matrix
 
-For each FS (`NTFS`, `EXT2`, `FAT32`, `FAT16`, `EXFS`, `PackageFS`, `SystemFS` wrapper paths):
+For each FS (`NTFS`, `EXT2`, `FAT32`, `FAT16`, `PackageFS`, `SystemFS` wrapper paths):
 
 - [ ] `dir`
 - [ ] `dir -r`
