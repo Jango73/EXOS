@@ -397,6 +397,33 @@ BOOL ConsoleIsDebugSplitEnabled(void) {
 /***************************************************************************/
 
 /**
+ * @brief Determine whether a keycode requests cooperative interruption.
+ *
+ * @param KeyCode Keycode to evaluate.
+ * @return TRUE when keycode corresponds to Control+C, FALSE otherwise.
+ */
+static BOOL ConsoleIsInterruptKey(LPKEYCODE KeyCode) {
+    U32 Modifiers;
+
+    if (KeyCode == NULL) {
+        return FALSE;
+    }
+
+    if ((U8)KeyCode->ASCIICode == 0x03) {
+        return TRUE;
+    }
+
+    if (KeyCode->VirtualKey != VK_C) {
+        return FALSE;
+    }
+
+    Modifiers = GetKeyModifiers();
+    return (Modifiers & KEYMOD_CONTROL) != 0;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Show the console paging prompt for a specific region.
  * @param RegionIndex Region index.
  */
@@ -490,6 +517,15 @@ WaitForKey:
 
             if (KeyCode.VirtualKey == VK_ESCAPE) {
                 (*State.PagingRemaining) = State.Height - 1;
+                break;
+            }
+
+            if (ConsoleIsInterruptKey(&KeyCode)) {
+                if (CurrentProcess != NULL) {
+                    ProcessControlRequestInterrupt(CurrentProcess);
+                }
+                (*State.PagingRemaining) = (State.Height > 0) ? (State.Height - 1) : 0;
+                ExitByInterrupt = TRUE;
                 break;
             }
 

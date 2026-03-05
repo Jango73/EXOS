@@ -1970,7 +1970,10 @@ Cooperative interruption API:
 - `ProcessControlConsumeInterrupt(Process)`
 - `ProcessControlCheckpoint(Process)`
 
-Long command loops can place interruption checkpoints; `dir` integrates this behavior and aborts listing when an interruption request is pending.
+Console paging (`-- Press a key --`) integrates with cooperative interruption:
+- When paging wait detects `Control+C` (virtual combination or ASCII `0x03`), it requests interruption for the current process instead of consuming the key as paging continuation.
+
+Long command loops can place interruption checkpoints; `dir` and `dir --stress` integrate this behavior and abort listing when an interruption request is pending.
 
 Configuration example:
 ```toml

@@ -43,6 +43,7 @@ static U32 DirStressNext(U32* State) {
 static void DirStressListRecursive(LPSHELLCONTEXT Context, LPCSTR BasePath) {
     U32 Seed = 0x6D2B79F5;
     U32 Index;
+    LPPROCESS CurrentProcess = GetCurrentProcess();
     STR Name[MAX_FILE_NAME];
     STR SizeText[32];
     U32 Month;
@@ -53,6 +54,10 @@ static void DirStressListRecursive(LPSHELLCONTEXT Context, LPCSTR BasePath) {
     U32 AttrMask;
 
     UNUSED(Context);
+
+    if (ProcessControlIsInterruptRequested(CurrentProcess)) {
+        return;
+    }
 
     ConsolePrint(TEXT("Stress listing (temporary): %u synthetic entries under %s\n"),
         DIR_RECURSIVE_STRESS_ENTRY_COUNT,
@@ -95,6 +100,10 @@ static void DirStressListRecursive(LPSHELLCONTEXT Context, LPCSTR BasePath) {
             (AttrMask & 2) ? TEXT("H") : TEXT("-"),
             (AttrMask & 4) ? TEXT("S") : TEXT("-"),
             (AttrMask & 8) ? TEXT("X") : TEXT("-"));
+
+        if (ProcessControlIsInterruptRequested(CurrentProcess)) {
+            break;
+        }
     }
 }
 
@@ -949,7 +958,11 @@ U32 CMD_dir(LPSHELLCONTEXT Context) {
         } else {
             StringCopy(Base, Target);
         }
+        ProcessControlConsumeInterrupt(CurrentProcess);
         DirStressListRecursive(Context, Base);
+        if (ProcessControlCheckpoint(CurrentProcess)) {
+            ConsolePrint(TEXT("Command interrupted\n"));
+        }
         return DF_RETURN_SUCCESS;
     }
 
