@@ -198,7 +198,7 @@ Security in EXOS is implemented as a layered architecture. The effective access 
 #### Layer 2: Virtual memory isolation
 
 - Per-process address spaces are built with separate kernel and user privilege page mappings.
-- Kernel mappings are created with kernel page privilege; user seed tables and task runner mappings are created with user page privilege (`kernel/source/arch/x86-32/x86-32-Memory.c`, `kernel/source/arch/x86-64/x86-64-Memory-HighLevel.c`).
+- Kernel mappings are created with kernel page privilege; user seed tables and task runner mappings are created with user page privilege (`kernel/source/arch/x86-32/x86-32-Memory.c`, `kernel/source/arch/x86-64/x86-64-Memory.c`).
 - User pointers received from syscalls are validated through `SAFE_USE_VALID`, `SAFE_USE_INPUT_POINTER`, and `IsValidMemory` checks before dereference (`kernel/source/SYSCall.c`).
 
 #### Layer 3: Identity and session model
