@@ -100,6 +100,79 @@ static BOOL BuildQualifiedFileName(LPCSTR Name, LPSTR QualifiedName) {
 /***************************************************************************/
 
 /**
+ * @brief Build one retained snapshot of mounted filesystems for probing.
+ *
+ * Each returned filesystem has its reference count incremented and must be
+ * released with ReleaseKernelObject by the caller.
+ *
+ * @param SnapshotOut Output pointer to allocated filesystem pointer array.
+ * @param CountOut Output number of valid entries in SnapshotOut.
+ * @return TRUE on success, FALSE on allocation failure.
+ */
+static BOOL BuildFileSystemProbeSnapshot(LPFILESYSTEM** SnapshotOut, U32* CountOut) {
+    LPFILESYSTEM* Snapshot = NULL;
+    U32 Capacity = 0;
+    U32 Count = 0;
+
+    if (SnapshotOut == NULL || CountOut == NULL) return FALSE;
+
+    *SnapshotOut = NULL;
+    *CountOut = 0;
+
+    LockMutex(MUTEX_FILESYSTEM, INFINITY);
+
+    LPLIST FileSystemList = GetFileSystemList();
+    Capacity = (FileSystemList != NULL) ? FileSystemList->NumItems : 0;
+
+    if (Capacity != 0) {
+        Snapshot = (LPFILESYSTEM*)KernelHeapAlloc(Capacity * sizeof(LPFILESYSTEM));
+        if (Snapshot == NULL) {
+            UnlockMutex(MUTEX_FILESYSTEM);
+            return FALSE;
+        }
+
+        for (LPLISTNODE Node = FileSystemList->First; Node != NULL; Node = Node->Next) {
+            LPFILESYSTEM FileSystem = (LPFILESYSTEM)Node;
+            if (FileSystem == NULL) continue;
+
+            FileSystem->References++;
+            Snapshot[Count] = FileSystem;
+            Count++;
+        }
+    }
+
+    UnlockMutex(MUTEX_FILESYSTEM);
+
+    *SnapshotOut = Snapshot;
+    *CountOut = Count;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Release one retained filesystem snapshot returned by BuildFileSystemProbeSnapshot.
+ *
+ * @param Snapshot Filesystem pointer array.
+ * @param Count Number of valid entries.
+ */
+static void ReleaseFileSystemProbeSnapshot(LPFILESYSTEM* Snapshot, U32 Count) {
+    U32 Index;
+
+    if (Snapshot == NULL) return;
+
+    for (Index = 0; Index < Count; Index++) {
+        if (Snapshot[Index] != NULL) {
+            ReleaseKernelObject(Snapshot[Index]);
+        }
+    }
+
+    KernelHeapFree(Snapshot);
+}
+
+/***************************************************************************/
+
+/**
  * @brief Opens a file based on provided information
  * @param Info Pointer to file open information structure
  * @return Pointer to opened file structure, or NULL on failure
@@ -110,6 +183,8 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     LPLISTNODE Node = NULL;
     LPFILE File = NULL;
     LPFILE AlreadyOpen = NULL;
+    LPFILESYSTEM* FileSystemSnapshot = NULL;
+    U32 FileSystemSnapshotCount = 0;
     STR QualifiedName[MAX_PATH_NAME];
     LPCSTR RequestedName;
 
@@ -138,11 +213,6 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     DEBUG(TEXT("[OpenFile] QualifiedName=%s"), RequestedName);
 
     //-------------------------------------
-    // Lock access to file systems
-
-    LockMutex(MUTEX_FILESYSTEM, INFINITY);
-
-    //-------------------------------------
     // Check if the file is already open
 
     LockMutex(MUTEX_FILE, INFINITY);
@@ -161,7 +231,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
                     UnlockMutex(&(AlreadyOpen->Mutex));
                     UnlockMutex(MUTEX_FILE);
-                    goto Out;
+                    return File;
                 }
             }
         }
@@ -175,15 +245,30 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
     // Use SystemFS if an absolute path is provided
 
     if (RequestedName[0] == PATH_SEP) {
+        LPFILESYSTEM SystemFileSystem = NULL;
+
+        LockMutex(MUTEX_FILESYSTEM, INFINITY);
+        SystemFileSystem = GetSystemFS();
+        if (SystemFileSystem != NULL) {
+            SystemFileSystem->References++;
+        }
+        UnlockMutex(MUTEX_FILESYSTEM);
+
+        if (SystemFileSystem == NULL) {
+            WARNING(TEXT("[OpenFile] SystemFS unavailable path=%s"), RequestedName);
+            return NULL;
+        }
+
         Find.Size = sizeof Find;
-        Find.FileSystem = GetSystemFS();
+        Find.FileSystem = SystemFileSystem;
         Find.Attributes = MAX_U32;
         Find.Flags = Info->Flags;
         StringCopy(Find.Name, RequestedName);
 
         DEBUG(TEXT("[OpenFile] Using SystemFS, path=%s"), Find.Name);
 
-        File = (LPFILE)GetSystemFS()->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
+        File = (LPFILE)SystemFileSystem->Driver->Command(DF_FS_OPENFILE, (UINT)&Find);
+        ReleaseKernelObject(SystemFileSystem);
 
         SAFE_USE(File) {
             LockMutex(MUTEX_FILE, INFINITY);
@@ -199,7 +284,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
             WARNING(TEXT("[OpenFile] SystemFS open failed path=%s flags=%x"), Find.Name, Find.Flags);
         }
 
-        goto Out;
+        return File;
     }
 
     //-------------------------------------
@@ -208,9 +293,14 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
 
     DEBUG(TEXT("[OpenFile] Searching for %s in file systems"), RequestedName);
 
-    LPLIST FileSystemList = GetFileSystemList();
-    for (Node = FileSystemList != NULL ? FileSystemList->First : NULL; Node; Node = Node->Next) {
-        FileSystem = (LPFILESYSTEM)Node;
+    if (!BuildFileSystemProbeSnapshot(&FileSystemSnapshot, &FileSystemSnapshotCount)) {
+        ERROR(TEXT("[OpenFile] Unable to build filesystem probe snapshot"));
+        return NULL;
+    }
+
+    for (U32 Index = 0; Index < FileSystemSnapshotCount; Index++) {
+        FileSystem = FileSystemSnapshot[Index];
+        if (FileSystem == NULL || FileSystem->Driver == NULL) continue;
 
         Find.Size = sizeof Find;
         Find.FileSystem = FileSystem;
@@ -237,9 +327,7 @@ LPFILE OpenFile(LPFILEOPENINFO Info) {
         }
     }
 
-Out:
-
-    UnlockMutex(MUTEX_FILESYSTEM);
+    ReleaseFileSystemProbeSnapshot(FileSystemSnapshot, FileSystemSnapshotCount);
 
     return File;
 }

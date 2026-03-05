@@ -1021,7 +1021,7 @@ Shell package command:
 - absolute path (`/...`): delegated to SystemFS (`DF_FS_OPENFILE`), which can traverse mounted nodes and forward to backing filesystems;
 - non-absolute path: probes mounted filesystems in `Kernel.FileSystem` until one resolves the file.
 
-The file layer is synchronized with `MUTEX_FILESYSTEM`, and open handles are tracked in `Kernel.File` with per-file ownership and reference management (`OwnerTask`, `OpenFlags`, refcount).
+The file layer synchronizes filesystem list access with `MUTEX_FILESYSTEM`, but `DF_FS_OPENFILE` probes run outside that global lock using retained filesystem references from a short-lived snapshot. Open handles are tracked in `Kernel.File` with per-file ownership and reference management (`OwnerTask`, `OpenFlags`, refcount).
 
 #### Removable storage behavior
 

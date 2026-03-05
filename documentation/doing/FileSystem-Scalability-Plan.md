@@ -44,8 +44,8 @@
 
 ## Phase 2 - Global lock containment
 
-- [ ] Reduce `MUTEX_FILESYSTEM` hold scope in `File.c` during slow FS open paths.
-- [ ] Document lock contract in `documentation/Kernel.md`.
+- [x] Reduce `MUTEX_FILESYSTEM` hold scope in `File.c` during slow FS open paths.
+- [x] Document lock contract in `documentation/Kernel.md`.
 
 ## Phase 3 - FAT/EXFS enumeration efficiency
 
