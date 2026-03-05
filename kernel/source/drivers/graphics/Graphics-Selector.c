@@ -46,7 +46,9 @@ typedef struct tag_GRAPHICS_SELECTOR_STATE {
 
 static UINT GraphicsSelectorCommands(UINT Function, UINT Parameter);
 static UINT GraphicsSelectorBackendPriority(LPDRIVER Driver);
+static UINT GraphicsSelectorScoreDriver(LPDRIVER Driver);
 static UINT GraphicsSelectorLoad(void);
+static UINT GraphicsSelectorUnload(void);
 
 static DRIVER DATA_SECTION GraphicsSelectorDriver = {
     .TypeID = KOID_DRIVER,
@@ -119,38 +121,85 @@ static BOOL GraphicsSelectorBackendMatchesName(LPDRIVER Driver, LPCSTR Name) {
 /************************************************************************/
 
 /**
+ * @brief Find a graphics backend candidate by alias.
+ * @param Name Requested backend alias.
+ * @return Candidate backend driver or NULL when missing.
+ */
+static LPDRIVER GraphicsSelectorFindCandidateByName(LPCSTR Name) {
+    LPDRIVER Candidates[3];
+    UINT Index = 0;
+
+    if (Name == NULL || StringLength(Name) == 0) {
+        return NULL;
+    }
+
+    Candidates[0] = IntelGfxGetDriver();
+    Candidates[1] = GOPGetDriver();
+    Candidates[2] = VESAGetDriver();
+
+    for (Index = 0; Index < sizeof(Candidates) / sizeof(Candidates[0]); Index++) {
+        LPDRIVER Driver = Candidates[Index];
+        if (!GraphicsSelectorBackendMatchesName(Driver, Name)) {
+            continue;
+        }
+
+        return Driver;
+    }
+
+    return NULL;
+}
+
+/************************************************************************/
+
+/**
  * @brief Force active backend by name among loaded selector candidates.
  * @param Name Backend selector name matching one graphics driver alias.
  * @return TRUE when backend exists and becomes active.
  */
 BOOL GraphicsSelectorForceBackendByName(LPCSTR Name) {
-    UINT Index = 0;
+    LPDRIVER Driver = NULL;
+    UINT LoadResult = 0;
+    UINT Score = 0;
+    UINT Priority = 0;
 
     if (Name == NULL || StringLength(Name) == 0) {
         return FALSE;
     }
 
-    if ((GraphicsSelectorDriver.Flags & DRIVER_FLAG_READY) == 0) {
-        if (GraphicsSelectorLoad() != DF_RETURN_SUCCESS) {
-            return FALSE;
-        }
+    Driver = GraphicsSelectorFindCandidateByName(Name);
+    if (Driver == NULL || Driver->Command == NULL) {
+        return FALSE;
     }
 
-    for (Index = 0; Index < GraphicsSelectorState.BackendCount; Index++) {
-        LPDRIVER Driver = GraphicsSelectorState.Backends[Index];
+    if ((GraphicsSelectorDriver.Flags & DRIVER_FLAG_READY) != 0) {
+        (void)GraphicsSelectorUnload();
+    }
 
-        if (!GraphicsSelectorBackendMatchesName(Driver, Name)) {
-            continue;
-        }
+    GraphicsSelectorState = (GRAPHICS_SELECTOR_STATE){0};
 
-        GraphicsSelectorState.ActiveIndex = Index;
-        DEBUG(TEXT("[GraphicsSelectorForceBackendByName] Active backend forced to %s (index=%u)"),
+    LoadResult = Driver->Command(DF_LOAD, 0);
+    if ((Driver->Flags & DRIVER_FLAG_READY) == 0) {
+        WARNING(TEXT("[GraphicsSelectorForceBackendByName] Rejecting forced backend %s (load_result=%u, ready=0)"),
             Driver->Product,
-            Index);
-        return TRUE;
+            LoadResult);
+        return FALSE;
     }
 
-    return FALSE;
+    Score = GraphicsSelectorScoreDriver(Driver);
+    Priority = GraphicsSelectorBackendPriority(Driver);
+
+    GraphicsSelectorState.Backends[0] = Driver;
+    GraphicsSelectorState.Scores[0] = Score;
+    GraphicsSelectorState.Priorities[0] = Priority;
+    GraphicsSelectorState.BackendCount = 1;
+    GraphicsSelectorState.ActiveIndex = 0;
+    GraphicsSelectorDriver.Flags |= DRIVER_FLAG_READY;
+
+    DEBUG(TEXT("[GraphicsSelectorForceBackendByName] Forced backend %s loaded (score=%u priority=%u)"),
+        Driver->Product,
+        Score,
+        Priority);
+    return TRUE;
 }
 
 /************************************************************************/
