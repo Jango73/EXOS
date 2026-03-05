@@ -66,9 +66,9 @@ Acceptance:
 - keyboard remains responsive while pager is visible.
 
 ### Step 3 - Convert core print/scroll path
-- [ ] Convert `ConsolePrint`, `ConsolePrintString`, `ConsolePrintChar`, `ScrollConsole`, `SetConsoleCursorPosition` to new lock domains.
-- [ ] Remove nested lock amplification from the main print path.
-- [ ] Keep lock ordering checks in code comments and review notes.
+- [x] Convert `ConsolePrint`, `ConsolePrintString`, `ConsolePrintChar`, `ScrollConsole`, `SetConsoleCursorPosition` to new lock domains.
+- [x] Remove nested lock amplification from the main print path.
+- [x] Keep lock ordering checks in code comments and review notes.
 
 Acceptance:
 - no regression in console output correctness.
@@ -127,7 +127,7 @@ For each completed step:
 ### Step Progress
 - Step 1: `completed`
 - Step 2: `completed`
-- Step 3: `pending`
+- Step 3: `completed`
 - Step 4: `pending`
 - Step 5: `pending`
 
@@ -135,3 +135,4 @@ For each completed step:
 - Use this section to add dated implementation notes and decisions.
 - 2026-03-05: Step 1 implemented in kernel synchronization primitives (`Mutex.h`, `Mutex.c`) and global mutex list metadata (`KernelData.c`). Legacy `MUTEX_CONSOLE` kept as compatibility alias.
 - 2026-03-05: Step 2 applied on console paths by moving console lock usage to `MUTEX_CONSOLE_STATE` and keeping pager wait outside lock ownership windows.
+- 2026-03-05: Step 3 completed in `Console-Main.c` using internal `*Locked` helpers to avoid nested recursive lock amplification on print/scroll/cursor core path.
