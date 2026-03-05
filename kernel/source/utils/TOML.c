@@ -229,7 +229,6 @@ LPCSTR TomlGet(LPTOML Toml, LPCSTR Path) {
         }
     }
 
-    WARNING(TEXT("[TomlGet] Key not found: %s"), Path);
     return NULL;
 }
 
