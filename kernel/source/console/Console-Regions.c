@@ -85,7 +85,7 @@ BOOL ConsoleCaptureActiveRegionSnapshot(LPVOID* OutSnapshot) {
 
     MemorySet(Snapshot, 0, sizeof(CONSOLE_ACTIVE_REGION_SNAPSHOT));
 
-    LockMutex(MUTEX_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
 
     Snapshot->CursorX = Console.CursorX;
     Snapshot->CursorY = Console.CursorY;
@@ -119,7 +119,7 @@ BOOL ConsoleCaptureActiveRegionSnapshot(LPVOID* OutSnapshot) {
         Snapshot->IsValid = FALSE;
     }
 
-    UnlockMutex(MUTEX_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE_STATE);
 
     if (Snapshot->IsValid == FALSE) {
         SAFE_USE(Snapshot->TextBuffer) { KernelHeapFree(Snapshot->TextBuffer); }
@@ -148,11 +148,11 @@ BOOL ConsoleRestoreActiveRegionSnapshot(LPVOID Snapshot) {
         return FALSE;
     }
 
-    LockMutex(MUTEX_CONSOLE, INFINITY);
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
 
     if (State->IsFramebuffer == FALSE) {
         if (State->TextBuffer == NULL || State->TextCellCount == 0) {
-            UnlockMutex(MUTEX_CONSOLE);
+            UnlockMutex(MUTEX_CONSOLE_STATE);
             return FALSE;
         }
 
@@ -165,7 +165,7 @@ BOOL ConsoleRestoreActiveRegionSnapshot(LPVOID Snapshot) {
                 CellBytesPerRow);
         }
     } else {
-        UnlockMutex(MUTEX_CONSOLE);
+        UnlockMutex(MUTEX_CONSOLE_STATE);
         return FALSE;
     }
 
@@ -173,7 +173,7 @@ BOOL ConsoleRestoreActiveRegionSnapshot(LPVOID Snapshot) {
     Console.BackColor = State->BackColor;
     Console.Blink = State->Blink;
 
-    UnlockMutex(MUTEX_CONSOLE);
+    UnlockMutex(MUTEX_CONSOLE_STATE);
 
     SetConsoleCursorPosition(State->CursorX, State->CursorY);
     return TRUE;
@@ -470,8 +470,8 @@ WaitForKey:
     ExitByInterrupt = FALSE;
 
     // Release all recursive console mutex holds while waiting for input.
-    while (CurrentTask != NULL && ConsoleMutex.Task == CurrentTask && ConsoleMutex.Lock > 0) {
-        if (UnlockMutex(MUTEX_CONSOLE) == FALSE) {
+    while (CurrentTask != NULL && ConsoleStateMutex.Task == CurrentTask && ConsoleStateMutex.Lock > 0) {
+        if (UnlockMutex(MUTEX_CONSOLE_STATE) == FALSE) {
             break;
         }
 
@@ -502,10 +502,10 @@ WaitForKey:
     }
 
     if (ReleasedConsoleLocks == 0) {
-        LockMutex(MUTEX_CONSOLE, INFINITY);
+        LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
     } else {
         for (U32 LockIndex = 0; LockIndex < ReleasedConsoleLocks; LockIndex++) {
-            LockMutex(MUTEX_CONSOLE, INFINITY);
+            LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
         }
     }
 

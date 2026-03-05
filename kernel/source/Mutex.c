@@ -47,8 +47,10 @@ MUTEX ProcessMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE
 MUTEX TaskMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileSystemMutex, .Prev = (LPLISTNODE)&ProcessMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
 MUTEX FileSystemMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileMutex, .Prev = (LPLISTNODE)&TaskMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
 MUTEX FileMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ConsoleMutex, .Prev = (LPLISTNODE)&FileSystemMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX ConsoleMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&UserAccountMutex, .Prev = (LPLISTNODE)&FileMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX UserAccountMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&SessionMutex, .Prev = (LPLISTNODE)&ConsoleMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX ConsoleMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ConsoleStateMutex, .Prev = (LPLISTNODE)&FileMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX ConsoleStateMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ConsoleRenderMutex, .Prev = (LPLISTNODE)&ConsoleMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX ConsoleRenderMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&UserAccountMutex, .Prev = (LPLISTNODE)&ConsoleStateMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
+MUTEX UserAccountMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&SessionMutex, .Prev = (LPLISTNODE)&ConsoleRenderMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
 MUTEX SessionMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = NULL, .Prev = (LPLISTNODE)&UserAccountMutex, .Owner = NULL, .Process = NULL, NULL, .Lock = 0};
 
 /***************************************************************************/

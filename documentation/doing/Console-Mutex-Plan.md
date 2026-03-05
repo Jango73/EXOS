@@ -44,22 +44,22 @@ Hard rule:
 ## Migration Steps
 
 ### Step 1 - Introduce split mutexes
-- [ ] Add `ConsoleStateMutex` and `ConsoleRenderMutex`.
-- [ ] Add aliases `MUTEX_CONSOLE_STATE` and `MUTEX_CONSOLE_RENDER`.
-- [ ] Keep `MUTEX_CONSOLE` available temporarily for compatibility paths.
-- [ ] Add comments documenting lock ownership rules and lock order.
+- [x] Add `ConsoleStateMutex` and `ConsoleRenderMutex`.
+- [x] Add aliases `MUTEX_CONSOLE_STATE` and `MUTEX_CONSOLE_RENDER`.
+- [x] Keep `MUTEX_CONSOLE` available temporarily for compatibility paths.
+- [x] Add comments documenting lock ownership rules and lock order.
 
 Acceptance:
 - build passes x86-32 and x86-64 debug.
 - no behavior change in non-split and split modes.
 
 ### Step 2 - Pager path first (critical)
-- [ ] Refactor pager wait flow to:
+- [x] Refactor pager wait flow to:
   - prepare prompt/state under lock,
   - release lock(s),
   - wait for input with no console lock held,
   - re-acquire state lock and apply paging result.
-- [ ] Keep lock hold windows short and explicit.
+- [x] Keep lock hold windows short and explicit.
 
 Acceptance:
 - no freeze during `dir -r` paging in split mode under stress.
@@ -125,11 +125,13 @@ For each completed step:
 - Global status: `in progress`
 
 ### Step Progress
-- Step 1: `pending`
-- Step 2: `pending`
+- Step 1: `completed`
+- Step 2: `completed`
 - Step 3: `pending`
 - Step 4: `pending`
 - Step 5: `pending`
 
 ### Notes
 - Use this section to add dated implementation notes and decisions.
+- 2026-03-05: Step 1 implemented in kernel synchronization primitives (`Mutex.h`, `Mutex.c`) and global mutex list metadata (`KernelData.c`). Legacy `MUTEX_CONSOLE` kept as compatibility alias.
+- 2026-03-05: Step 2 applied on console paths by moving console lock usage to `MUTEX_CONSOLE_STATE` and keeping pager wait outside lock ownership windows.
