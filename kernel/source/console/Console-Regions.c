@@ -31,6 +31,7 @@
 #include "input/VKey.h"
 #include "process/Process-Control.h"
 #include "process/Process.h"
+#include "process/Task.h"
 #include "System.h"
 
 /***************************************************************************/
@@ -402,8 +403,10 @@ BOOL ConsoleIsDebugSplitEnabled(void) {
 static void ConsolePagerWaitLockedRegion(U32 RegionIndex) {
     CONSOLE_REGION_STATE State;
     LPPROCESS CurrentProcess;
+    LPTASK CurrentTask;
     KEYCODE KeyCode;
     U32 WaitLoops;
+    U32 ReleasedConsoleLocks;
     BOOL ExitByInterrupt;
     U32 Row;
     U32 Column;
@@ -461,8 +464,19 @@ static void ConsolePagerWaitLockedRegion(U32 RegionIndex) {
 
 WaitForKey:
     CurrentProcess = GetCurrentProcess();
+    CurrentTask = GetCurrentTask();
     WaitLoops = 0;
+    ReleasedConsoleLocks = 0;
     ExitByInterrupt = FALSE;
+
+    // Release all recursive console mutex holds while waiting for input.
+    while (CurrentTask != NULL && ConsoleMutex.Task == CurrentTask && ConsoleMutex.Lock > 0) {
+        if (UnlockMutex(MUTEX_CONSOLE) == FALSE) {
+            break;
+        }
+
+        ReleasedConsoleLocks++;
+    }
 
     while (TRUE) {
         if (CurrentProcess != NULL && ProcessControlIsInterruptRequested(CurrentProcess)) {
@@ -485,6 +499,14 @@ WaitForKey:
 
         Sleep(10);
         WaitLoops++;
+    }
+
+    if (ReleasedConsoleLocks == 0) {
+        LockMutex(MUTEX_CONSOLE, INFINITY);
+    } else {
+        for (U32 LockIndex = 0; LockIndex < ReleasedConsoleLocks; LockIndex++) {
+            LockMutex(MUTEX_CONSOLE, INFINITY);
+        }
     }
 
     if (Console.UseFramebuffer != FALSE) {
