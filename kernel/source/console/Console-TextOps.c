@@ -325,8 +325,13 @@ static BOOL ConsoleTextRefreshCursor(void) {
 BOOL ConsoleEnsureFramebufferMapped(void) {
     LPDRIVER Driver = NULL;
     LPGRAPHICSCONTEXT Context = NULL;
+    BOOL IsAvailable = FALSE;
 
-    return ConsoleTextAcquireContext(&Driver, &Context);
+    LockMutex(MUTEX_CONSOLE_RENDER, INFINITY);
+    IsAvailable = ConsoleTextAcquireContext(&Driver, &Context);
+    UnlockMutex(MUTEX_CONSOLE_RENDER);
+
+    return IsAvailable;
 }
 
 /************************************************************************/
@@ -387,7 +392,9 @@ U32 ConsoleGetCellHeight(void) {
  * @param Char Character to draw.
  */
 void ConsoleDrawGlyph(U32 X, U32 Y, STR Char) {
+    LockMutex(MUTEX_CONSOLE_RENDER, INFINITY);
     (void)ConsoleTextPutCell(X, Y, Char);
+    UnlockMutex(MUTEX_CONSOLE_RENDER);
 }
 
 /************************************************************************/
@@ -396,8 +403,10 @@ void ConsoleDrawGlyph(U32 X, U32 Y, STR Char) {
  * @brief Hide software cursor in backend text path.
  */
 void ConsoleHideFramebufferCursor(void) {
+    LockMutex(MUTEX_CONSOLE_RENDER, INFINITY);
     ConsoleTextCursorVisible = FALSE;
     (void)ConsoleTextRefreshCursor();
+    UnlockMutex(MUTEX_CONSOLE_RENDER);
 }
 
 /************************************************************************/
@@ -412,10 +421,12 @@ void ConsoleShowFramebufferCursor(void) {
         return;
     }
 
+    LockMutex(MUTEX_CONSOLE_RENDER, INFINITY);
     ConsoleTextCursorCellX = State.X + Console.CursorX;
     ConsoleTextCursorCellY = State.Y + Console.CursorY;
     ConsoleTextCursorVisible = TRUE;
     (void)ConsoleTextRefreshCursor();
+    UnlockMutex(MUTEX_CONSOLE_RENDER);
 }
 
 /************************************************************************/
@@ -436,7 +447,9 @@ void ConsoleResetFramebufferCursorState(void) {
  * @param RegionIndex Console region index.
  */
 void ConsoleClearRegionFramebuffer(U32 RegionIndex) {
+    LockMutex(MUTEX_CONSOLE_RENDER, INFINITY);
     (void)ConsoleTextClearRegion(RegionIndex);
+    UnlockMutex(MUTEX_CONSOLE_RENDER);
 }
 
 /************************************************************************/
@@ -446,7 +459,9 @@ void ConsoleClearRegionFramebuffer(U32 RegionIndex) {
  * @param RegionIndex Console region index.
  */
 void ConsoleScrollRegionFramebuffer(U32 RegionIndex) {
+    LockMutex(MUTEX_CONSOLE_RENDER, INFINITY);
     (void)ConsoleTextScrollRegion(RegionIndex);
+    UnlockMutex(MUTEX_CONSOLE_RENDER);
 }
 
 /************************************************************************/

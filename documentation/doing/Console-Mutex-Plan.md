@@ -75,18 +75,18 @@ Acceptance:
 - no deadlock in recursive print scenarios.
 
 ### Step 4 - Convert remaining console helpers
-- [ ] Region clear/scroll helpers.
-- [ ] Framebuffer cursor helpers.
-- [ ] Debug region output path.
+- [x] Region clear/scroll helpers.
+- [x] Framebuffer cursor helpers.
+- [x] Debug region output path.
 
 Acceptance:
 - split and non-split rendering correctness unchanged.
 - no lock inversion found in review.
 
 ### Step 5 - Compatibility cleanup
-- [ ] Remove temporary uses of `MUTEX_CONSOLE` in converted paths.
-- [ ] Keep only required compatibility wrappers, or remove `MUTEX_CONSOLE` entirely if no longer needed.
-- [ ] Update kernel documentation for final lock model.
+- [x] Remove temporary uses of `MUTEX_CONSOLE` in converted paths.
+- [x] Keep only required compatibility wrappers, or remove `MUTEX_CONSOLE` entirely if no longer needed.
+- [x] Update kernel documentation for final lock model.
 
 Acceptance:
 - no reference to legacy shared console lock in converted modules.
@@ -128,11 +128,13 @@ For each completed step:
 - Step 1: `completed`
 - Step 2: `completed`
 - Step 3: `completed`
-- Step 4: `pending`
-- Step 5: `pending`
+- Step 4: `completed`
+- Step 5: `completed`
 
 ### Notes
 - Use this section to add dated implementation notes and decisions.
 - 2026-03-05: Step 1 implemented in kernel synchronization primitives (`Mutex.h`, `Mutex.c`) and global mutex list metadata (`KernelData.c`). Legacy `MUTEX_CONSOLE` kept as compatibility alias.
 - 2026-03-05: Step 2 applied on console paths by moving console lock usage to `MUTEX_CONSOLE_STATE` and keeping pager wait outside lock ownership windows.
 - 2026-03-05: Step 3 completed in `Console-Main.c` using internal `*Locked` helpers to avoid nested recursive lock amplification on print/scroll/cursor core path.
+- 2026-03-05: Step 4 completed by binding backend text/cursor/region framebuffer operations to `MUTEX_CONSOLE_RENDER` in `Console-TextOps.c` while preserving state->render lock order.
+- 2026-03-05: Step 5 completed for converted console modules; legacy `MUTEX_CONSOLE` remains as compatibility lock for non-converted consumers outside this plan scope.
