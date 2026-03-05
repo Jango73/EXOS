@@ -1916,8 +1916,6 @@ BOOL UnMapIOMemory(LINEAR LinearBase, UINT Size) {
 LINEAR GetKernelHeapPreferredBase(UINT HeapSize) {
     UNUSED(HeapSize);
 
-    U64 MaxLinearAddressPlusOne = GetMaxLinearAddressPlusOne();
-    U64 CanonicalHighStart = ~((MaxLinearAddressPlusOne >> 1) - (U64)1);
     U64 CanonicalHighEnd = ~((U64)0);
     U64 Midpoint = (U64)VMA_KERNEL + ((CanonicalHighEnd - (U64)VMA_KERNEL) / (U64)2);
 

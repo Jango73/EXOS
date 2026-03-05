@@ -138,44 +138,6 @@ static BOOL IsBlockInHeap(LPHEAPCONTROLBLOCK ControlBlock, LPHEAPBLOCKHEADER Blo
 /************************************************************************/
 
 /**
- * @brief Logs heap allocations for diagnostics.
- * @param RequestedSize Allocation size requested by the caller.
- * @param Block Heap block header.
- */
-static void HeapLogAlloc(UINT RequestedSize, LPHEAPBLOCKHEADER Block) {
-    if (Block == NULL) {
-        return;
-    }
-
-    UINT UserSize = 0;
-    if (Block->Size >= sizeof(HEAPBLOCKHEADER)) {
-        UserSize = Block->Size - sizeof(HEAPBLOCKHEADER);
-    }
-
-    LPVOID Pointer = (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
-}
-
-/************************************************************************/
-
-/**
- * @brief Logs heap frees for diagnostics.
- * @param Pointer Heap pointer to free.
- * @param Block Heap block header.
- */
-static void HeapLogFree(LPVOID Pointer, LPHEAPBLOCKHEADER Block) {
-    if (Pointer == NULL || Block == NULL) {
-        return;
-    }
-
-    UINT UserSize = 0;
-    if (Block->Size >= sizeof(HEAPBLOCKHEADER)) {
-        UserSize = Block->Size - sizeof(HEAPBLOCKHEADER);
-    }
-}
-
-/************************************************************************/
-
-/**
  * @brief Finds the physical predecessor block of a target block.
  * @param ControlBlock Heap control block.
  * @param Target Target block.
@@ -425,7 +387,6 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
         Block = ControlBlock->FreeLists[SizeClass];
         if (Block != NULL && Block->TypeID == KOID_HEAP && Block->Size >= TotalSize) {
             RemoveFromFreeList(ControlBlock, Block, SizeClass);
-            HeapLogAlloc(Size, Block);
             return (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
         }
 
@@ -453,7 +414,6 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
                     }
                 }
 
-                HeapLogAlloc(Size, Block);
                 return (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
             }
         }
@@ -483,7 +443,6 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
                     }
                 }
 
-                HeapLogAlloc(Size, Block);
                 return (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
             }
             Block = Block->Next;
@@ -513,7 +472,6 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
 
     ControlBlock->FirstUnallocated = (LPVOID)(NewBlockAddr + TotalSize);
 
-    HeapLogAlloc(Size, Block);
     return (LPVOID)(NewBlockAddr + sizeof(HEAPBLOCKHEADER));
 }
 
@@ -618,8 +576,6 @@ void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer) {
         ERROR(TEXT("[HeapFree_HBHS] Double free detected"));
         return;
     }
-
-    HeapLogFree(Pointer, Block);
 
     // DEBUG("[HeapFree_HBHS] Freeing block at %x, size %x", Block, Block->Size);
 

@@ -865,10 +865,6 @@ int HTTP_ReceiveResponse(HTTP_CONNECTION* Connection, HTTP_RESPONSE* Response) {
             }
         }
 
-        // Show progress for debugging but don't stop on Content-Length (servers can lie)
-        if (headersParsed && contentLength > 0 && savedHeaderLength > 0) {
-            unsigned int currentBody = allDataSize - savedHeaderLength;
-        }
     }
 
     if (totalReceived == 0) {
