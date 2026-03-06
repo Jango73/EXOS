@@ -314,11 +314,11 @@ Compatibility first, then extension.
 - [x] Ensure token resolution is bypassed for `ClientDecorated` windows where non-client is disabled.
 
 ### Step 3: Define TOML Theme Schema
-- [ ] Freeze top-level sections: `theme`, `tokens`, `elements`, `recipes`, `bindings`.
-- [ ] Freeze canonical element identifiers (`desktop.root`, `window.frame`, etc.).
-- [ ] Freeze state identifiers and state fallback order.
-- [ ] Define allowed property names and value types per element family.
-- [ ] Define parser limits (file size, token count, recipe count, primitive count).
+- [x] Freeze top-level sections: `theme`, `tokens`, `elements`, `recipes`, `bindings`.
+- [x] Freeze canonical element identifiers (`desktop.root`, `window.frame`, etc.).
+- [x] Freeze state identifiers and state fallback order.
+- [x] Define allowed property names and value types per element family.
+- [x] Define parser limits (file size, token count, recipe count, primitive count).
 
 ### Step 4: Implement Kernel Theme Parser
 - [ ] Parse TOML in strict mode.
