@@ -147,6 +147,34 @@ Doxygen documentation is in `documentation/kernel/*`
 2. Monitor `log/kernel-x86-32.log` and `kernel-x86-64.log` for exceptions and page faults
 3. **To assert that the systems runs, the emulator must be running and there must be no fault in the logs, in all architectures**
 
+### Reusable x86-64 debug launcher
+Use `bash scripts/x86-64/6-3-debug-vesa-int10.sh` as the default one-shot launcher for interactive x86-64 debug sessions requiring:
+- QEMU start with gdb stub (`-s -S`) and monitor telnet
+- deterministic keyboard layout patch in the image for monitor `sendkey`
+- optional automatic shell command injection
+- automatic gdb attach with configurable breakpoints
+
+Default usage:
+```bash
+bash scripts/x86-64/6-3-debug-vesa-int10.sh
+```
+
+Send a command automatically:
+```bash
+bash scripts/x86-64/6-3-debug-vesa-int10.sh "gfx backend vesa 1024x768x16"
+```
+
+Send a command and validate it through a kernel log pattern:
+```bash
+bash scripts/x86-64/6-3-debug-vesa-int10.sh "gfx backend vesa 1024x768x16" "[GraphicsSelectorForceBackendByName] Forced backend"
+```
+
+Key environment overrides:
+- `GDB_BREAKPOINTS` (semicolon-separated, example: `SetVideoMode;RealModeCall`)
+- `GDB_DISABLE_INDEXES` (space-separated gdb breakpoint indexes to disable after creation)
+- `KEYBOARD_LAYOUT` (default: `en-US`)
+- `MONITOR_PORT` and `GDB_PORT`
+
 **Disassembly Analysis:**
 - `./scripts/utils/show-x86-32.sh <address> [context_lines]` (x86-32 build)
 - `./scripts/utils/show-x86-64.sh <address> [context_lines]` (x86-64 build)
