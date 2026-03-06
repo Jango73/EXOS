@@ -744,6 +744,10 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 
 #define EWS_VISIBLE 0x0001
 #define EWS_ALWAYS_IN_FRONT 0x0002
+#define EWS_SYSTEM_DECORATED 0x0004
+#define EWS_CLIENT_DECORATED 0x0008
+#define EWS_BARE_SURFACE 0x0010
+#define EWS_DECORATION_MASK (EWS_SYSTEM_DECORATED | EWS_CLIENT_DECORATED | EWS_BARE_SURFACE)
 
 /************************************************************************/
 // Task and window messages

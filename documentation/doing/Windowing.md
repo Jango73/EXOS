@@ -301,11 +301,11 @@ Compatibility first, then extension.
 
 ## Implementation Steps
 ### Step 1: Extract Non-Client Rendering
-- [ ] Create a dedicated non-client renderer module in kernel windowing code.
-- [ ] Move frame/title/button/border drawing out of the default window function.
-- [ ] Keep the same visuals as today to avoid regressions.
+- [x] Create a dedicated non-client renderer module in kernel windowing code.
+- [x] Move frame/title/button/border drawing out of the default window function.
+- [x] Keep the same visuals as today to avoid regressions.
 - [ ] Verify non-client hit-test behavior is unchanged.
-- [ ] Make non-client rendering path conditional by window decoration mode.
+- [x] Make non-client rendering path conditional by window decoration mode.
 
 ### Step 2: Introduce Default Theme Tokens
 - [ ] Define built-in default tokens for existing system colors and metrics.

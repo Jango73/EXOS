@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "Desktop-Private.h"
+#include "Desktop-NonClient.h"
 #include "Kernel.h"
 #include "Desktop.h"
 #include "input/Mouse.h"
@@ -788,25 +789,17 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
         case EWM_DRAW: {
             HANDLE GC;
-            RECTINFO RectInfo;
             RECT Rect;
+            LPWINDOW This = (LPWINDOW)Window;
 
             GC = BeginWindowDraw(Window);
 
             if (GC) {
                 GetWindowRect(Window, &Rect);
 
-                RectInfo.Header.Size = sizeof(RectInfo);
-                RectInfo.Header.Version = EXOS_ABI_VERSION;
-                RectInfo.Header.Flags = 0;
-                RectInfo.GC = GC;
-                RectInfo.X1 = Rect.X1;
-                RectInfo.Y1 = Rect.Y1;
-                RectInfo.X2 = Rect.X2;
-                RectInfo.Y2 = Rect.Y2;
-
-                SelectBrush(GC, GetSystemBrush(SM_COLOR_NORMAL));
-                Rectangle(&RectInfo);
+                if (ShouldDrawWindowNonClient(This)) {
+                    DrawWindowNonClient(Window, GC, &Rect);
+                }
 
                 EndWindowDraw(Window);
             }
