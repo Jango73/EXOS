@@ -1,7 +1,7 @@
 # Windowing Architecture Roadmap
 
 ## Purpose
-Define a kernel-driven windowing architecture that stays simple, evolves safely, and supports advanced visual customization through theme files loaded from the packaging system.
+Define a kernel-driven windowing architecture that stays simple, evolves safely, and supports advanced visual customization through theme files.
 
 ## Goals
 - Keep window lifecycle, input routing, composition, clipping, invalidation, and Z-order in the kernel.
@@ -47,8 +47,7 @@ Define a kernel-driven windowing architecture that stays simple, evolves safely,
 - Resolves decoration recipes for `(element, state)`.
 - Exposes typed values with fallback to default theme.
 
-5. Theme Storage and Loader
-- Theme files are packaged in the existing packaging system.
+5. Theme Loader
 - Kernel loads TOML theme files directly from logical paths.
 - No mandatory external theme compiler step.
 
@@ -58,7 +57,7 @@ Windowing must be testable before storage access is available.
 Boot-time behavior:
 - A built-in default theme is always available in kernel memory.
 - Desktop/windowing can start with no filesystem/theme file access.
-- Packaged TOML themes are optional runtime overrides, not boot prerequisites.
+- TOML themes are optional runtime overrides, not boot prerequisites.
 
 Operational model:
 1. Early phase (diskless):
@@ -66,7 +65,7 @@ Operational model:
 - Allow desktop start from the EXOS console shell.
 
 2. Late phase (storage ready):
-- Load packaged TOML theme if requested.
+- Load TOML theme if requested.
 - If load/validate/activate fails, keep current built-in/default active theme.
 
 ## Window Decoration Modes
@@ -285,7 +284,7 @@ Compatibility first, then extension.
 
 7. EXOS shell control path (console shell integration):
 - Add command to start desktop/windowing from console shell (for diskless testing).
-- Add command to load/activate a packaged theme when storage is available.
+- Add command to load/activate a theme when storage is available.
 - Add command to report current desktop/theme state and fallback status.
 
 ## Message and Rendering Flow
@@ -321,13 +320,11 @@ Compatibility first, then extension.
 - [ ] Define allowed property names and value types per element family.
 - [ ] Define parser limits (file size, token count, recipe count, primitive count).
 
-### Step 4: Implement Kernel Theme Loader (From Packaging)
-- [ ] Add theme discovery and load from packaged logical paths.
+### Step 4: Implement Kernel Theme Parser
 - [ ] Parse TOML in strict mode.
 - [ ] Validate all references (token references, recipe bindings, property types).
 - [ ] Build in-memory runtime tables for fast lookup.
 - [ ] Implement atomic activation and fallback to built-in default on failure.
-- [ ] Keep loader optional so desktop works fully without storage.
 
 ### Step 5: Implement Level 1 Resolver (Properties)
 - [ ] Implement `(element, state) -> property value` resolver.
@@ -351,8 +348,8 @@ Compatibility first, then extension.
 
 ### Step 8: Diskless Desktop Bootstrap From EXOS Shell
 - [ ] Add shell command `desktop start` to launch desktop/windowing using built-in theme.
-- [ ] Add shell command `desktop status` to report active desktop mode and active theme source (`built-in` or `packaged`).
-- [ ] Add shell command `desktop theme <path-or-name>` to load/activate packaged theme.
+- [ ] Add shell command `desktop status` to report active desktop mode and active theme source (`built-in` or `loaded`).
+- [ ] Add shell command `desktop theme <path-or-name>` to load/activate a theme.
 - [ ] Ensure `desktop start` succeeds when no storage is mounted.
 - [ ] Ensure theme load failure never prevents desktop startup.
 
@@ -375,7 +372,7 @@ Compatibility first, then extension.
 - [ ] Add compatibility tests for legacy `SM_COLOR_*` consumers.
 - [ ] Add compatibility tests for `ClientDecorated` windows (no kernel non-client draw).
 - [ ] Add diskless boot tests where desktop starts with built-in theme only.
-- [ ] Add post-mount theme switch tests (`built-in -> packaged -> fallback on error`).
+- [ ] Add post-mount theme switch tests (`built-in -> loaded -> fallback on error`).
 - [ ] Add malformed TOML and reference-error tests.
 - [ ] Add boundary tests for parser/runtime limits.
 
@@ -427,6 +424,6 @@ Compatibility first, then extension.
 ## Global Completion Checklist
 - [ ] All implementation steps completed.
 - [ ] Default theme renders equivalently to pre-theme behavior.
-- [ ] At least one alternate packaged theme is loadable at runtime.
+- [ ] At least one alternate theme is loadable at runtime.
 - [ ] No kernel fault on invalid theme input.
 - [ ] Architecture and API fully documented.
