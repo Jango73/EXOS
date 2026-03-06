@@ -22,6 +22,9 @@
 \************************************************************************/
 
 #include "Desktop-NonClient.h"
+#include "Desktop-ThemeResolver.h"
+#include "GFX.h"
+#include "Kernel.h"
 
 /***************************************************************************/
 
@@ -74,6 +77,9 @@ BOOL ShouldDrawWindowNonClient(LPWINDOW Window) {
  */
 BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect) {
     RECTINFO RectInfo;
+    BRUSH Brush;
+    COLOR Background;
+    BOOL HasBackground = FALSE;
 
     if (Window == NULL) return FALSE;
     if (GC == NULL) return FALSE;
@@ -88,8 +94,18 @@ BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect) {
     RectInfo.X2 = Rect->X2;
     RectInfo.Y2 = Rect->Y2;
 
-    // Keep visuals identical to existing default window rendering.
-    SelectBrush(GC, GetSystemBrush(SM_COLOR_NORMAL));
+    HasBackground = DesktopThemeResolveLevel1Color(TEXT("window.frame"), TEXT("normal"), TEXT("background"), &Background);
+    if (HasBackground) {
+        MemorySet(&Brush, 0, sizeof(Brush));
+        Brush.TypeID = KOID_BRUSH;
+        Brush.References = 1;
+        Brush.Color = Background;
+        Brush.Pattern = MAX_U32;
+        SelectBrush(GC, (HANDLE)&Brush);
+    } else {
+        SelectBrush(GC, GetSystemBrush(SM_COLOR_NORMAL));
+    }
+
     Rectangle(&RectInfo);
 
     return TRUE;

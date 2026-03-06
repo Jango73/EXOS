@@ -327,10 +327,10 @@ Compatibility first, then extension.
 - [x] Implement atomic activation and fallback to built-in default on failure.
 
 ### Step 5: Implement Level 1 Resolver (Properties)
-- [ ] Implement `(element, state) -> property value` resolver.
-- [ ] Implement state fallback (`exact -> partial -> normal`).
-- [ ] Integrate resolver into non-client renderer.
-- [ ] Ensure desktop root and standard window decorations use Level 1 values.
+- [x] Implement `(element, state) -> property value` resolver.
+- [x] Implement state fallback (`exact -> partial -> normal`).
+- [x] Integrate resolver into non-client renderer.
+- [x] Ensure desktop root and standard window decorations use Level 1 values.
 
 ### Step 6: Implement Level 2 Resolver (Recipes)
 - [ ] Implement recipe lookup from `bindings`.

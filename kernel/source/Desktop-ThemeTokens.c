@@ -30,11 +30,13 @@
 
 typedef struct tag_THEME_COLOR_TOKEN_ENTRY {
     U32 TokenID;
+    LPCSTR Name;
     COLOR Value;
 } THEME_COLOR_TOKEN_ENTRY, *LPTHEME_COLOR_TOKEN_ENTRY;
 
 typedef struct tag_THEME_METRIC_TOKEN_ENTRY {
     U32 TokenID;
+    LPCSTR Name;
     U32 Value;
 } THEME_METRIC_TOKEN_ENTRY, *LPTHEME_METRIC_TOKEN_ENTRY;
 
@@ -49,26 +51,30 @@ typedef struct tag_SYSTEM_COLOR_BINDING {
 // Other declarations
 
 static const THEME_COLOR_TOKEN_ENTRY BuiltinColorTokens[] = {
-    {THEME_TOKEN_COLOR_DESKTOP_BACKGROUND, COLOR_DARK_CYAN},
-    {THEME_TOKEN_COLOR_HIGHLIGHT, 0x00FFFFFF},
-    {THEME_TOKEN_COLOR_NORMAL, 0x00A0A0A0},
-    {THEME_TOKEN_COLOR_LIGHT_SHADOW, 0x00404040},
-    {THEME_TOKEN_COLOR_DARK_SHADOW, 0x00000000},
-    {THEME_TOKEN_COLOR_CLIENT_BACKGROUND, COLOR_WHITE},
-    {THEME_TOKEN_COLOR_TEXT_NORMAL, COLOR_BLACK},
-    {THEME_TOKEN_COLOR_TEXT_SELECTED, COLOR_WHITE},
-    {THEME_TOKEN_COLOR_SELECTION, COLOR_DARK_BLUE},
-    {THEME_TOKEN_COLOR_TITLE_BAR, COLOR_DARK_BLUE},
-    {THEME_TOKEN_COLOR_TITLE_BAR_2, COLOR_CYAN},
-    {THEME_TOKEN_COLOR_TITLE_TEXT, COLOR_WHITE},
+    {THEME_TOKEN_COLOR_DESKTOP_BACKGROUND, TEXT("color.desktop.background"), COLOR_DARK_CYAN},
+    {THEME_TOKEN_COLOR_HIGHLIGHT, TEXT("color.highlight"), 0x00FFFFFF},
+    {THEME_TOKEN_COLOR_NORMAL, TEXT("color.normal"), 0x00A0A0A0},
+    {THEME_TOKEN_COLOR_LIGHT_SHADOW, TEXT("color.light_shadow"), 0x00404040},
+    {THEME_TOKEN_COLOR_DARK_SHADOW, TEXT("color.dark_shadow"), 0x00000000},
+    {THEME_TOKEN_COLOR_CLIENT_BACKGROUND, TEXT("color.client.background"), COLOR_WHITE},
+    {THEME_TOKEN_COLOR_TEXT_NORMAL, TEXT("color.text.normal"), COLOR_BLACK},
+    {THEME_TOKEN_COLOR_TEXT_SELECTED, TEXT("color.text.selected"), COLOR_WHITE},
+    {THEME_TOKEN_COLOR_SELECTION, TEXT("color.selection"), COLOR_DARK_BLUE},
+    {THEME_TOKEN_COLOR_TITLE_BAR, TEXT("color.title_bar"), COLOR_DARK_BLUE},
+    {THEME_TOKEN_COLOR_TITLE_BAR_2, TEXT("color.title_bar_2"), COLOR_CYAN},
+    {THEME_TOKEN_COLOR_TITLE_TEXT, TEXT("color.title_text"), COLOR_WHITE},
+    {THEME_TOKEN_COLOR_NORMAL, TEXT("color.window.frame"), 0x00A0A0A0},
+    {THEME_TOKEN_COLOR_TITLE_BAR, TEXT("color.window.title.active.start"), COLOR_DARK_BLUE},
+    {THEME_TOKEN_COLOR_TITLE_BAR_2, TEXT("color.window.title.active.end"), COLOR_CYAN},
+    {THEME_TOKEN_COLOR_TITLE_TEXT, TEXT("color.window.text"), COLOR_WHITE},
 };
 
 static const THEME_METRIC_TOKEN_ENTRY BuiltinMetricTokens[] = {
-    {THEME_TOKEN_METRIC_MINIMUM_WINDOW_WIDTH, 32},
-    {THEME_TOKEN_METRIC_MINIMUM_WINDOW_HEIGHT, 16},
-    {THEME_TOKEN_METRIC_MAXIMUM_WINDOW_WIDTH, 4096},
-    {THEME_TOKEN_METRIC_MAXIMUM_WINDOW_HEIGHT, 2160},
-    {THEME_TOKEN_METRIC_TITLE_BAR_HEIGHT, 22},
+    {THEME_TOKEN_METRIC_MINIMUM_WINDOW_WIDTH, TEXT("metric.window.minimum_width"), 32},
+    {THEME_TOKEN_METRIC_MINIMUM_WINDOW_HEIGHT, TEXT("metric.window.minimum_height"), 16},
+    {THEME_TOKEN_METRIC_MAXIMUM_WINDOW_WIDTH, TEXT("metric.window.maximum_width"), 4096},
+    {THEME_TOKEN_METRIC_MAXIMUM_WINDOW_HEIGHT, TEXT("metric.window.maximum_height"), 2160},
+    {THEME_TOKEN_METRIC_TITLE_BAR_HEIGHT, TEXT("metric.window.title_height"), 22},
 };
 
 static SYSTEM_COLOR_BINDING BuiltinSystemColorBindings[] = {
@@ -203,6 +209,40 @@ BOOL DesktopThemeResolveSystemMetric(U32 SystemMetricIndex, U32* Value) {
 
     if (ResolveSystemMetricTokenID(SystemMetricIndex, &TokenID) == FALSE) return FALSE;
     return ResolveBuiltinMetricToken(TokenID, Value);
+}
+
+/***************************************************************************/
+
+BOOL DesktopThemeResolveTokenColorByName(LPCSTR TokenName, COLOR* Color) {
+    UINT Index;
+
+    if (TokenName == NULL || Color == NULL) return FALSE;
+
+    for (Index = 0; Index < (sizeof(BuiltinColorTokens) / sizeof(BuiltinColorTokens[0])); Index++) {
+        if (StringCompareNC(BuiltinColorTokens[Index].Name, TokenName) == 0) {
+            *Color = BuiltinColorTokens[Index].Value;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+BOOL DesktopThemeResolveTokenMetricByName(LPCSTR TokenName, U32* Value) {
+    UINT Index;
+
+    if (TokenName == NULL || Value == NULL) return FALSE;
+
+    for (Index = 0; Index < (sizeof(BuiltinMetricTokens) / sizeof(BuiltinMetricTokens[0])); Index++) {
+        if (StringCompareNC(BuiltinMetricTokens[Index].Name, TokenName) == 0) {
+            *Value = BuiltinMetricTokens[Index].Value;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
 }
 
 /***************************************************************************/

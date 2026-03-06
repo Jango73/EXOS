@@ -23,6 +23,7 @@
 
 #include "Desktop-Private.h"
 #include "Desktop-NonClient.h"
+#include "Desktop-ThemeResolver.h"
 #include "Desktop-ThemeTokens.h"
 #include "Kernel.h"
 #include "Desktop.h"
@@ -928,6 +929,9 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             HANDLE GC;
             RECTINFO RectInfo;
             RECT Rect;
+            BRUSH Brush;
+            COLOR Background;
+            BOOL HasBackground;
 
             GC = BeginWindowDraw(Window);
 
@@ -944,7 +948,18 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 RectInfo.Y2 = Rect.Y2;
 
                 SelectPen(GC, NULL);
-                SelectBrush(GC, GetSystemBrush(SM_COLOR_DESKTOP));
+
+                HasBackground = DesktopThemeResolveLevel1Color(TEXT("desktop.root"), TEXT("normal"), TEXT("background"), &Background);
+                if (HasBackground) {
+                    MemorySet(&Brush, 0, sizeof(Brush));
+                    Brush.TypeID = KOID_BRUSH;
+                    Brush.References = 1;
+                    Brush.Color = Background;
+                    Brush.Pattern = MAX_U32;
+                    SelectBrush(GC, (HANDLE)&Brush);
+                } else {
+                    SelectBrush(GC, GetSystemBrush(SM_COLOR_DESKTOP));
+                }
 
                 Rectangle(&RectInfo);
 

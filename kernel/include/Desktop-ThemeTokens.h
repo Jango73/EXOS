@@ -57,6 +57,8 @@
 
 BOOL DesktopThemeResolveSystemColor(U32 SystemColorIndex, COLOR* Color);
 BOOL DesktopThemeResolveSystemMetric(U32 SystemMetricIndex, U32* Value);
+BOOL DesktopThemeResolveTokenColorByName(LPCSTR TokenName, COLOR* Color);
+BOOL DesktopThemeResolveTokenMetricByName(LPCSTR TokenName, U32* Value);
 void DesktopThemeSyncSystemObjects(void);
 
 /************************************************************************/
