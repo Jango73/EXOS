@@ -308,11 +308,11 @@ Compatibility first, then extension.
 - [x] Make non-client rendering path conditional by window decoration mode.
 
 ### Step 2: Introduce Default Theme Tokens
-- [ ] Define built-in default tokens for existing system colors and metrics.
-- [ ] Replace hardcoded brush/pen constants with token lookups.
-- [ ] Map existing `SM_COLOR_*` values to token-backed properties.
+- [x] Define built-in default tokens for existing system colors and metrics.
+- [x] Replace hardcoded brush/pen constants with token lookups.
+- [x] Map existing `SM_COLOR_*` values to token-backed properties.
 - [ ] Verify legacy applications still render correctly with `GetSystemBrush`/`GetSystemPen`.
-- [ ] Ensure token resolution is bypassed for `ClientDecorated` windows where non-client is disabled.
+- [x] Ensure token resolution is bypassed for `ClientDecorated` windows where non-client is disabled.
 
 ### Step 3: Define TOML Theme Schema
 - [ ] Freeze top-level sections: `theme`, `tokens`, `elements`, `recipes`, `bindings`.

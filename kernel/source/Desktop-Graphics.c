@@ -23,10 +23,64 @@
 
 #include "Desktop-Private.h"
 #include "Desktop-NonClient.h"
+#include "Desktop-ThemeTokens.h"
 #include "Kernel.h"
 #include "Desktop.h"
 #include "input/Mouse.h"
 #include "process/Task-Messaging.h"
+
+/***************************************************************************/
+
+typedef struct tag_SYSTEM_DRAW_OBJECT_ENTRY {
+    U32 SystemColor;
+    LPBRUSH Brush;
+    LPPEN Pen;
+} SYSTEM_DRAW_OBJECT_ENTRY, *LPSYSTEM_DRAW_OBJECT_ENTRY;
+
+/***************************************************************************/
+
+static SYSTEM_DRAW_OBJECT_ENTRY SystemDrawObjects[] = {
+    {SM_COLOR_DESKTOP, &Brush_Desktop, &Pen_Desktop},
+    {SM_COLOR_HIGHLIGHT, &Brush_High, &Pen_High},
+    {SM_COLOR_NORMAL, &Brush_Normal, &Pen_Normal},
+    {SM_COLOR_LIGHT_SHADOW, &Brush_HiShadow, &Pen_HiShadow},
+    {SM_COLOR_DARK_SHADOW, &Brush_LoShadow, &Pen_LoShadow},
+    {SM_COLOR_CLIENT, &Brush_Client, &Pen_Client},
+    {SM_COLOR_TEXT_NORMAL, &Brush_Text_Normal, &Pen_Text_Normal},
+    {SM_COLOR_TEXT_SELECTED, &Brush_Text_Select, &Pen_Text_Select},
+    {SM_COLOR_SELECTION, &Brush_Selection, &Pen_Selection},
+    {SM_COLOR_TITLE_BAR, &Brush_Title_Bar, &Pen_Title_Bar},
+    {SM_COLOR_TITLE_BAR_2, &Brush_Title_Bar_2, &Pen_Title_Bar_2},
+    {SM_COLOR_TITLE_TEXT, &Brush_Title_Text, &Pen_Title_Text},
+};
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve shared brush and pen objects for a system color index.
+ * @param Index SM_COLOR_* identifier.
+ * @param Brush Receives brush object pointer.
+ * @param Pen Receives pen object pointer.
+ * @return TRUE when mapping exists.
+ */
+static BOOL ResolveSystemDrawObjects(U32 Index, LPBRUSH* Brush, LPPEN* Pen) {
+    UINT EntryIndex;
+
+    if (Brush == NULL || Pen == NULL) return FALSE;
+
+    *Brush = NULL;
+    *Pen = NULL;
+
+    for (EntryIndex = 0; EntryIndex < (sizeof(SystemDrawObjects) / sizeof(SystemDrawObjects[0])); EntryIndex++) {
+        if (SystemDrawObjects[EntryIndex].SystemColor == Index) {
+            *Brush = SystemDrawObjects[EntryIndex].Brush;
+            *Pen = SystemDrawObjects[EntryIndex].Pen;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
 
 /***************************************************************************/
 
@@ -416,34 +470,18 @@ BOOL EndWindowDraw(HANDLE Handle) {
  * @return Handle to the brush.
  */
 HANDLE GetSystemBrush(U32 Index) {
-    switch (Index) {
-        case SM_COLOR_DESKTOP:
-            return (HANDLE)&Brush_Desktop;
-        case SM_COLOR_HIGHLIGHT:
-            return (HANDLE)&Brush_High;
-        case SM_COLOR_NORMAL:
-            return (HANDLE)&Brush_Normal;
-        case SM_COLOR_LIGHT_SHADOW:
-            return (HANDLE)&Brush_HiShadow;
-        case SM_COLOR_DARK_SHADOW:
-            return (HANDLE)&Brush_LoShadow;
-        case SM_COLOR_CLIENT:
-            return (HANDLE)&Brush_Client;
-        case SM_COLOR_TEXT_NORMAL:
-            return (HANDLE)&Brush_Text_Normal;
-        case SM_COLOR_TEXT_SELECTED:
-            return (HANDLE)&Brush_Text_Select;
-        case SM_COLOR_SELECTION:
-            return (HANDLE)&Brush_Selection;
-        case SM_COLOR_TITLE_BAR:
-            return (HANDLE)&Brush_Title_Bar;
-        case SM_COLOR_TITLE_BAR_2:
-            return (HANDLE)&Brush_Title_Bar_2;
-        case SM_COLOR_TITLE_TEXT:
-            return (HANDLE)&Brush_Title_Text;
+    LPBRUSH Brush;
+    LPPEN Pen;
+    COLOR Color;
+
+    if (ResolveSystemDrawObjects(Index, &Brush, &Pen) == FALSE) return NULL;
+
+    if (DesktopThemeResolveSystemColor(Index, &Color)) {
+        SAFE_USE_VALID_ID(Brush, KOID_BRUSH) { Brush->Color = Color; }
+        SAFE_USE_VALID_ID(Pen, KOID_PEN) { Pen->Color = Color; }
     }
 
-    return NULL;
+    return (HANDLE)Brush;
 }
 
 /***************************************************************************/
@@ -454,34 +492,18 @@ HANDLE GetSystemBrush(U32 Index) {
  * @return Handle to the pen.
  */
 HANDLE GetSystemPen(U32 Index) {
-    switch (Index) {
-        case SM_COLOR_DESKTOP:
-            return (HANDLE)&Pen_Desktop;
-        case SM_COLOR_HIGHLIGHT:
-            return (HANDLE)&Pen_High;
-        case SM_COLOR_NORMAL:
-            return (HANDLE)&Pen_Normal;
-        case SM_COLOR_LIGHT_SHADOW:
-            return (HANDLE)&Pen_HiShadow;
-        case SM_COLOR_DARK_SHADOW:
-            return (HANDLE)&Pen_LoShadow;
-        case SM_COLOR_CLIENT:
-            return (HANDLE)&Pen_Client;
-        case SM_COLOR_TEXT_NORMAL:
-            return (HANDLE)&Pen_Text_Normal;
-        case SM_COLOR_TEXT_SELECTED:
-            return (HANDLE)&Pen_Text_Select;
-        case SM_COLOR_SELECTION:
-            return (HANDLE)&Pen_Selection;
-        case SM_COLOR_TITLE_BAR:
-            return (HANDLE)&Pen_Title_Bar;
-        case SM_COLOR_TITLE_BAR_2:
-            return (HANDLE)&Pen_Title_Bar_2;
-        case SM_COLOR_TITLE_TEXT:
-            return (HANDLE)&Pen_Title_Text;
+    LPBRUSH Brush;
+    LPPEN Pen;
+    COLOR Color;
+
+    if (ResolveSystemDrawObjects(Index, &Brush, &Pen) == FALSE) return NULL;
+
+    if (DesktopThemeResolveSystemColor(Index, &Color)) {
+        SAFE_USE_VALID_ID(Brush, KOID_BRUSH) { Brush->Color = Color; }
+        SAFE_USE_VALID_ID(Pen, KOID_PEN) { Pen->Color = Color; }
     }
 
-    return NULL;
+    return (HANDLE)Pen;
 }
 
 /***************************************************************************/
