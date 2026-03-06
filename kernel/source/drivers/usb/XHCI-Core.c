@@ -34,6 +34,11 @@ static LPPCI_DEVICE XHCI_Attach(LPPCI_DEVICE PciDevice);
 
 /************************************************************************/
 
+#define XHCI_EVENT_TRACE_LOG_IMMEDIATE_BUDGET 1
+#define XHCI_EVENT_TRACE_LOG_INTERVAL_MS 1500
+
+/************************************************************************/
+
 static DRIVER_MATCH XHCI_MatchTable[] = {
     {PCI_ANY_ID, PCI_ANY_ID, XHCI_CLASS_SERIAL_BUS, XHCI_SUBCLASS_USB, XHCI_PROGIF_XHCI}
 };
@@ -156,7 +161,25 @@ static BOOL XHCI_IsSameTrbPointer(U64 Left, U64 Right) {
  * @param Target Target endpoint.
  */
 void XHCI_RingDoorbell(LPXHCI_DEVICE Device, U32 DoorbellIndex, U32 Target) {
+    static RATE_LIMITER DATA_SECTION DoorbellTraceLimiter = {0};
+    static BOOL DATA_SECTION DoorbellTraceLimiterInitAttempted = FALSE;
+    U32 Suppressed = 0;
     U32 Value = Target & XHCI_DOORBELL_TARGET_MASK;
+    if (DoorbellTraceLimiter.Initialized == FALSE && DoorbellTraceLimiterInitAttempted == FALSE) {
+        DoorbellTraceLimiterInitAttempted = TRUE;
+        (void)RateLimiterInit(&DoorbellTraceLimiter,
+                              XHCI_EVENT_TRACE_LOG_IMMEDIATE_BUDGET,
+                              XHCI_EVENT_TRACE_LOG_INTERVAL_MS);
+    }
+    if (DoorbellTraceLimiter.Initialized &&
+        RateLimiterShouldTrigger(&DoorbellTraceLimiter, GetSystemTime(), &Suppressed)) {
+        DEBUG(TEXT("[XHCI_RingDoorbell] Doorbell=%u Target=%u Value=%x Base=%p suppressed=%u"),
+              DoorbellIndex,
+              Target,
+              Value,
+              (LPVOID)Device->DoorbellBase,
+              Suppressed);
+    }
     XHCI_Write32(Device->DoorbellBase, DoorbellIndex * sizeof(U32), Value);
 }
 
@@ -546,6 +569,9 @@ static void XHCI_UnregisterInterrupts(LPXHCI_DEVICE Device) {
  * @param Event Event TRB.
  */
 static void XHCI_PushCompletion(LPXHCI_DEVICE Device, const XHCI_TRB* Event) {
+    static RATE_LIMITER DATA_SECTION CompletionTraceLimiter = {0};
+    static BOOL DATA_SECTION CompletionTraceLimiterInitAttempted = FALSE;
+    U32 Suppressed = 0;
     if (Device == NULL || Event == NULL) {
         return;
     }
@@ -559,6 +585,27 @@ static void XHCI_PushCompletion(LPXHCI_DEVICE Device, const XHCI_TRB* Event) {
     U64 Pointer = U64_Make(Event->Dword1, Event->Dword0);
     U32 Completion = XHCI_GetCompletionCode(Event->Dword2);
     U8 SlotId = (U8)((Event->Dword3 >> 24) & 0xFF);
+    U8 EndpointId = (U8)((Event->Dword3 >> 16) & 0x1F);
+
+    if (CompletionTraceLimiter.Initialized == FALSE && CompletionTraceLimiterInitAttempted == FALSE) {
+        CompletionTraceLimiterInitAttempted = TRUE;
+        (void)RateLimiterInit(&CompletionTraceLimiter,
+                              XHCI_EVENT_TRACE_LOG_IMMEDIATE_BUDGET,
+                              XHCI_EVENT_TRACE_LOG_INTERVAL_MS);
+    }
+
+    if (CompletionTraceLimiter.Initialized &&
+        RateLimiterShouldTrigger(&CompletionTraceLimiter, GetSystemTime(), &Suppressed)) {
+        DEBUG(TEXT("[XHCI_PushCompletion] Type=%x Slot=%x Endpoint=%x Completion=%x Ptr=%x:%x Count=%u suppressed=%u"),
+              (U32)Type,
+              (U32)SlotId,
+              (U32)EndpointId,
+              Completion,
+              U64_High32(Pointer),
+              U64_Low32(Pointer),
+              Device->CompletionCount,
+              Suppressed);
+    }
 
     if (Device->CompletionCount >= XHCI_COMPLETION_QUEUE_MAX) {
         for (U32 Index = 1; Index < Device->CompletionCount; Index++) {
@@ -779,6 +826,9 @@ BOOL XHCI_TransferRingEnqueue(LPXHCI_USB_DEVICE UsbDevice, const XHCI_TRB* Trb, 
  * @return TRUE if an event was dequeued.
  */
 BOOL XHCI_DequeueEvent(LPXHCI_DEVICE Device, XHCI_TRB* EventOut) {
+    static RATE_LIMITER DATA_SECTION EventTraceLimiter = {0};
+    static BOOL DATA_SECTION EventTraceLimiterInitAttempted = FALSE;
+    U32 Suppressed = 0;
     if (Device == NULL || EventOut == NULL) {
         return FALSE;
     }
@@ -801,6 +851,32 @@ BOOL XHCI_DequeueEvent(LPXHCI_DEVICE Device, XHCI_TRB* EventOut) {
 
     Device->EventRingDequeueIndex = Index;
 
+    if (EventTraceLimiter.Initialized == FALSE && EventTraceLimiterInitAttempted == FALSE) {
+        EventTraceLimiterInitAttempted = TRUE;
+        (void)RateLimiterInit(&EventTraceLimiter,
+                              XHCI_EVENT_TRACE_LOG_IMMEDIATE_BUDGET,
+                              XHCI_EVENT_TRACE_LOG_INTERVAL_MS);
+    }
+
+    if (EventTraceLimiter.Initialized &&
+        RateLimiterShouldTrigger(&EventTraceLimiter, GetSystemTime(), &Suppressed)) {
+        DEBUG(TEXT("[XHCI_DequeueEvent] Index=%u Next=%u Cycle=%u EventType=%x Slot=%x Endpoint=%x Completion=%x Ptr=%x:%x Event=%x:%x:%x:%x suppressed=%u"),
+              Device->EventRingDequeueIndex,
+              Index,
+              Device->EventRingCycleState,
+              (U32)XHCI_GetTrbType(Event.Dword3),
+              (U32)((Event.Dword3 >> 24) & 0xFF),
+              (U32)((Event.Dword3 >> 16) & 0x1F),
+              XHCI_GetCompletionCode(Event.Dword2),
+              Event.Dword1,
+              Event.Dword0,
+              Event.Dword3,
+              Event.Dword2,
+              Event.Dword1,
+              Event.Dword0,
+              Suppressed);
+    }
+
     {
         LINEAR InterrupterBase = Device->RuntimeBase + XHCI_RT_INTERRUPTER_BASE;
         U64 Erdp = U64_FromUINT(Device->EventRingPhysical + (Index * sizeof(XHCI_TRB)));
@@ -818,10 +894,30 @@ BOOL XHCI_DequeueEvent(LPXHCI_DEVICE Device, XHCI_TRB* EventOut) {
  * @param Device xHCI device.
  */
 void XHCI_PollCompletions(LPXHCI_DEVICE Device) {
+    static RATE_LIMITER DATA_SECTION PollCompletionsLimiter = {0};
+    static BOOL DATA_SECTION PollCompletionsLimiterInitAttempted = FALSE;
+    U32 Suppressed = 0;
     XHCI_TRB Event;
+    U32 Polled = 0;
     XHCI_LogHseTransitionIfNeeded(Device, TEXT("PollCompletions"));
     while (XHCI_DequeueEvent(Device, &Event)) {
+        Polled++;
         XHCI_PushCompletion(Device, &Event);
+    }
+    if (Polled != 0) {
+        if (PollCompletionsLimiter.Initialized == FALSE && PollCompletionsLimiterInitAttempted == FALSE) {
+            PollCompletionsLimiterInitAttempted = TRUE;
+            (void)RateLimiterInit(&PollCompletionsLimiter,
+                                  XHCI_EVENT_TRACE_LOG_IMMEDIATE_BUDGET,
+                                  XHCI_EVENT_TRACE_LOG_INTERVAL_MS);
+        }
+        if (PollCompletionsLimiter.Initialized &&
+            RateLimiterShouldTrigger(&PollCompletionsLimiter, GetSystemTime(), &Suppressed)) {
+            DEBUG(TEXT("[XHCI_PollCompletions] Polled=%u CompletionCount=%u suppressed=%u"),
+                  Polled,
+                  Device->CompletionCount,
+                  Suppressed);
+        }
     }
 }
 
