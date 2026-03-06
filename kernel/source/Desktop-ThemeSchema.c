@@ -35,7 +35,7 @@ typedef struct tag_THEME_SCHEMA_NAME_ID_ENTRY {
 typedef struct tag_THEME_SCHEMA_PROPERTY_ENTRY {
     LPCSTR Name;
     U32 Type;
-    U64 FamilyMask;
+    U32 FamilyMask;
 } THEME_SCHEMA_PROPERTY_ENTRY, *LPTHEME_SCHEMA_PROPERTY_ENTRY;
 
 /***************************************************************************/
@@ -127,7 +127,7 @@ static const THEME_SCHEMA_PROPERTY_ENTRY Properties[] = {
  * @param FamilyID One DESKTOP_THEME_FAMILY_* value.
  * @return Matching family mask bit or 0 when unknown.
  */
-static U64 GetFamilyMask(U32 FamilyID) {
+static U32 GetFamilyMask(U32 FamilyID) {
     switch (FamilyID) {
         case DESKTOP_THEME_FAMILY_DESKTOP_ROOT:
             return DESKTOP_THEME_FAMILY_MASK_DESKTOP_ROOT;
@@ -254,7 +254,7 @@ BOOL DesktopThemeSchemaIsStateID(LPCSTR Name) {
  * @return TRUE when property is allowed for family.
  */
 BOOL DesktopThemeSchemaGetPropertyType(U32 FamilyID, LPCSTR PropertyName, U32* PropertyType) {
-    U64 FamilyMask;
+    U32 FamilyMask;
     UINT Index;
 
     if (PropertyName == NULL || PropertyType == NULL) return FALSE;
