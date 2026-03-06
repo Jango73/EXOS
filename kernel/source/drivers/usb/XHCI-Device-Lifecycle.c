@@ -151,7 +151,7 @@ static void XHCI_LogCommandTimeoutState(LPXHCI_DEVICE Device, U64 TrbPhysical, L
         }
     }
 
-    WARNING(TEXT("[XHCI_LogCommandTimeoutState] stage=%s TRB=%p CmdType=%x CmdSlot=%x SlotPort=%u SlotAddr=%x SlotPresent=%u ProbePort=%u CmdIdx=%x CmdEnq=%u CmdCycle=%u Cmd=%x:%x:%x:%x USBCMD=%x USBSTS=%x PCICMD=%x PCISTS=%x CRCR=%x:%x IMAN=%x ERDP=%x:%x CQ=%u Event=%x:%x:%x:%x Cy=%u/%u suppressed=%u"),
+    WARNING(TEXT("[XHCI_LogCommandTimeoutState] stage=%s TRB=%p CmdType=%x CmdSlot=%x SlotPort=%u SlotAddr=%x SlotPresent=%u CmdIdx=%x CmdEnq=%u CmdCycle=%u Cmd=%x:%x:%x:%x USBCMD=%x USBSTS=%x PCICMD=%x PCISTS=%x CRCR=%x:%x IMAN=%x ERDP=%x:%x CQ=%u Event=%x:%x:%x:%x Cy=%u/%u suppressed=%u"),
             (Stage != NULL) ? Stage : TEXT("?"),
             (LPVOID)(UINT)U64_Low32(TrbPhysical),
             CommandType,
@@ -159,7 +159,6 @@ static void XHCI_LogCommandTimeoutState(LPXHCI_DEVICE Device, U64 TrbPhysical, L
             SlotPort,
             SlotAddress,
             SlotPresent,
-            (U32)Device->ActiveProbePort,
             CommandIndex,
             Device->CommandRingEnqueueIndex,
             Device->CommandRingCycleState,
@@ -196,24 +195,8 @@ static void XHCI_LogCommandTimeoutState(LPXHCI_DEVICE Device, U64 TrbPhysical, L
  * @param UsbDevice USB device state.
  */
 void XHCI_InitUsbDeviceObject(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
-    U32 BackoffFailuresBeforeArm = XHCI_DEFAULT_PROBE_BACKOFF_FAILURES_BEFORE_ARM;
-    U32 BackoffStepMS = XHCI_DEFAULT_PROBE_BACKOFF_STEP_MS;
-    U32 BackoffMaxMS = XHCI_DEFAULT_PROBE_BACKOFF_MAX_MS;
-
     if (UsbDevice == NULL) {
         return;
-    }
-
-    if (Device != NULL) {
-        if (Device->ProbeBackoffFailuresBeforeArm != 0) {
-            BackoffFailuresBeforeArm = Device->ProbeBackoffFailuresBeforeArm;
-        }
-        if (Device->ProbeBackoffStepMS != 0) {
-            BackoffStepMS = Device->ProbeBackoffStepMS;
-        }
-        if (Device->ProbeBackoffMaxMS != 0) {
-            BackoffMaxMS = Device->ProbeBackoffMaxMS;
-        }
     }
 
     MemorySet(&UsbDevice->Mutex, 0, sizeof(XHCI_USB_DEVICE) - sizeof(LISTNODE));
@@ -223,10 +206,6 @@ void XHCI_InitUsbDeviceObject(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice)
     (void)RateLimiterInit(&UsbDevice->EnumFailureLogLimiter,
                           XHCI_ENUM_FAILURE_LOG_IMMEDIATE_BUDGET,
                           XHCI_ENUM_FAILURE_LOG_INTERVAL_MS);
-    (void)FailureBackoffInit(&UsbDevice->ProbeBackoff,
-                             BackoffFailuresBeforeArm,
-                             BackoffStepMS,
-                             BackoffMaxMS);
 
     InitMutex(&UsbDevice->Mutex);
     UsbDevice->Contexts.First = NULL;
@@ -417,7 +396,6 @@ static void XHCI_FreeUsbDeviceResources(LPXHCI_USB_DEVICE UsbDevice) {
     UsbDevice->RouteString = 0;
     UsbDevice->Controller = NULL;
     RateLimiterReset(&UsbDevice->EnumFailureLogLimiter);
-    FailureBackoffReset(&UsbDevice->ProbeBackoff);
 }
 
 /************************************************************************/

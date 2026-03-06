@@ -98,37 +98,6 @@ static void XHCI_LogProbeFailure(LPXHCI_USB_DEVICE UsbDevice, LPCSTR Step, U32 P
             Suppressed);
 }
 
-/************************************************************************/
-
-/**
- * @brief Emit rate-limited probe cooldown diagnostics.
- * @param UsbDevice Root port USB device.
- * @param RemainingMS Remaining cooldown in milliseconds.
- * @param AppliedMS Cooldown interval armed after a failure.
- * @param Step Reason label.
- */
-static void XHCI_LogProbeBackoff(LPXHCI_USB_DEVICE UsbDevice, U32 RemainingMS, U32 AppliedMS, LPCSTR Step) {
-    U32 Suppressed = 0;
-
-    if (UsbDevice == NULL || !UsbDevice->IsRootPort) {
-        return;
-    }
-
-    if (!RateLimiterShouldTrigger(&UsbDevice->EnumFailureLogLimiter, GetSystemTime(), &Suppressed)) {
-        return;
-    }
-
-    WARNING(TEXT("[XHCI_ProbePortBackoff] Port=%u Step=%s Failures=%u Applied=%u Remaining=%u suppressed=%u"),
-            (U32)UsbDevice->PortNumber,
-            (Step != NULL) ? Step : TEXT("?"),
-            UsbDevice->ProbeBackoff.ConsecutiveFailures,
-            AppliedMS,
-            RemainingMS,
-            Suppressed);
-}
-
-/************************************************************************/
-
 static U32 XHCI_ReadRootPortStatusSafe(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
     if (Device == NULL || UsbDevice == NULL) {
         return 0;
@@ -807,9 +776,6 @@ BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
  * @return TRUE on success.
  */
 static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U32 PortIndex) {
-    U32 Now = GetSystemTime();
-    U32 BackoffRemainingMS = 0;
-    U32 BackoffAppliedMS = 0;
     U32 PortStatus = XHCI_ReadPortStatus(Device, PortIndex);
     U32 SpeedId = (PortStatus & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
 
@@ -844,12 +810,6 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
         return TRUE;
     }
 
-    if (!FailureBackoffCanAttempt(&UsbDevice->ProbeBackoff, Now, &BackoffRemainingMS)) {
-        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_BUSY;
-        XHCI_LogProbeBackoff(UsbDevice, BackoffRemainingMS, 0, TEXT("Cooldown"));
-        return FALSE;
-    }
-
     BOOL PortEnabled = (PortStatus & XHCI_PORTSC_PED) != 0;
     if (!PortEnabled) {
         if (!XHCI_ResetPort(Device, PortIndex)) {
@@ -860,8 +820,6 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
             if (!(RetryConnected && RetryEnabled && RetrySpeed != 0)) {
                 UsbDevice->LastEnumError = XHCI_ENUM_ERROR_RESET_TIMEOUT;
                 XHCI_LogProbeFailure(UsbDevice, TEXT("ResetPort"), RetryStatus);
-                FailureBackoffOnFailure(&UsbDevice->ProbeBackoff, GetSystemTime(), &BackoffAppliedMS);
-                XHCI_LogProbeBackoff(UsbDevice, BackoffAppliedMS, BackoffAppliedMS, TEXT("ResetPort"));
                 return FALSE;
             }
             PortStatus = RetryStatus;
@@ -878,23 +836,14 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
         WARNING(TEXT("[XHCI_ProbePort] Port %u invalid speed after reset"), PortIndex + 1);
         UsbDevice->LastEnumError = XHCI_ENUM_ERROR_INVALID_SPEED;
         XHCI_LogProbeFailure(UsbDevice, TEXT("ReadSpeed"), PortStatus);
-        FailureBackoffOnFailure(&UsbDevice->ProbeBackoff, GetSystemTime(), &BackoffAppliedMS);
-        XHCI_LogProbeBackoff(UsbDevice, BackoffAppliedMS, BackoffAppliedMS, TEXT("ReadSpeed"));
         return FALSE;
     }
 
-    Device->ActiveProbePort = UsbDevice->PortNumber;
     if (!XHCI_EnumerateDevice(Device, UsbDevice)) {
-        Device->ActiveProbePort = 0;
         WARNING(TEXT("[XHCI_ProbePort] Port %u enumerate failed"), PortIndex + 1);
         XHCI_LogProbeFailure(UsbDevice, TEXT("EnumerateDevice"), PortStatus);
-        FailureBackoffOnFailure(&UsbDevice->ProbeBackoff, GetSystemTime(), &BackoffAppliedMS);
-        XHCI_LogProbeBackoff(UsbDevice, BackoffAppliedMS, BackoffAppliedMS, TEXT("EnumerateDevice"));
         return FALSE;
     }
-    Device->ActiveProbePort = 0;
-
-    FailureBackoffReset(&UsbDevice->ProbeBackoff);
 
     if (UsbDevice->IsHub) {
         if (!XHCI_InitHub(Device, UsbDevice)) {

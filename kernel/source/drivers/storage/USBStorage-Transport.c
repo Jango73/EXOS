@@ -249,38 +249,16 @@ BOOL USBStorageResetRecovery(LPUSB_MASS_STORAGE_DEVICE Device) {
  * @return TRUE on completion, FALSE on timeout.
  */
 static BOOL USBStorageWaitCompletion(LPXHCI_DEVICE Device,
-                                         LPXHCI_USB_DEVICE UsbDevice,
-                                         LPXHCI_USB_ENDPOINT Endpoint,
-                                         U64 TrbPhysical,
-                                         UINT TimeoutMilliseconds,
-                                         U32* CompletionOut) {
-    UINT Remaining = TimeoutMilliseconds / 5;
-    U64 ObservedTrbPhysical = U64_0;
+                                     U64 TrbPhysical,
+                                     UINT TimeoutMilliseconds,
+                                     U32* CompletionOut) {
+    UINT Remaining = TimeoutMilliseconds;
 
     while (Remaining > 0) {
         if (XHCI_CheckTransferCompletion(Device, TrbPhysical, CompletionOut)) {
             return TRUE;
         }
-        if (XHCI_CheckTransferCompletionForEndpoint(Device,
-                                                    UsbDevice->SlotId,
-                                                    Endpoint->Dci,
-                                                    CompletionOut,
-                                                    &ObservedTrbPhysical)) {
-            if (U64_High32(TrbPhysical) != U64_High32(ObservedTrbPhysical) ||
-                ((U64_Low32(TrbPhysical) & ~0x0F) != (U64_Low32(ObservedTrbPhysical) & ~0x0F))) {
-                WARNING(TEXT("[USBStorageWaitCompletion] Transfer event TRB pointer mismatch Slot=%x Dci=%u Expected=%x:%x Observed=%x:%x Completion=%x"),
-                        (U32)UsbDevice->SlotId,
-                        (U32)Endpoint->Dci,
-                        U64_High32(TrbPhysical),
-                        U64_Low32(TrbPhysical),
-                        U64_High32(ObservedTrbPhysical),
-                        U64_Low32(ObservedTrbPhysical),
-                        (CompletionOut != NULL) ? *CompletionOut : 0);
-            }
-            return TRUE;
-        }
-
-        Sleep(5);
+        Sleep(1);
         Remaining--;
     }
 
@@ -343,7 +321,7 @@ static BOOL USBStorageBulkTransferOnce(LPXHCI_DEVICE Device,
 
     XHCI_RingDoorbell(Device, UsbDevice->SlotId, Endpoint->Dci);
 
-    if (!USBStorageWaitCompletion(Device, UsbDevice, Endpoint, TrbPhysical, TimeoutMilliseconds, CompletionOut)) {
+    if (!USBStorageWaitCompletion(Device, TrbPhysical, TimeoutMilliseconds, CompletionOut)) {
         WARNING(TEXT("[USBStorageBulkTransferOnce] Timeout Slot=%x Port=%u Addr=%u Ep=%x Dci=%u DirIn=%u Len=%u Trb=%p"),
                 (U32)UsbDevice->SlotId,
                 (U32)UsbDevice->PortNumber,
@@ -481,7 +459,6 @@ static BOOL USBStorageBotCommand(LPUSB_MASS_STORAGE_DEVICE Device,
     MemoryCopy(CommandBlockWrapper->CommandBlock, CommandBlock, CommandBlockLength);
     Device->LastScsiOpCode = CommandBlock[0];
     Device->LastBotStage = 1;
-    Device->LastBotCompletion = 0;
     Device->LastCswStatus = 0xFF;
     Device->LastCswResidue = 0;
 

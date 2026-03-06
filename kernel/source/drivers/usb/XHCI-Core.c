@@ -25,21 +25,12 @@
 #include "drivers/input/USBKeyboard.h"
 #include "drivers/usb/XHCI-Internal.h"
 #include "Clock.h"
-#include "utils/HardwareQuirk.h"
 #include "utils/ThresholdLatch.h"
 
 /************************************************************************/
 
 static UINT XHCI_Commands(UINT Function, UINT Param);
 static LPPCI_DEVICE XHCI_Attach(LPPCI_DEVICE PciDevice);
-
-/************************************************************************/
-
-#define XHCI_QUIRK_PARAM_COMMAND_TIMEOUT_MS 0
-#define XHCI_QUIRK_PARAM_TRANSFER_TIMEOUT_MS 1
-#define XHCI_QUIRK_PARAM_PROBE_BACKOFF_FAILURES 2
-#define XHCI_QUIRK_PARAM_PROBE_BACKOFF_STEP_MS 3
-#define XHCI_QUIRK_PARAM_PROBE_BACKOFF_MAX_MS 4
 
 /************************************************************************/
 
@@ -568,10 +559,6 @@ static void XHCI_PushCompletion(LPXHCI_DEVICE Device, const XHCI_TRB* Event) {
     U64 Pointer = U64_Make(Event->Dword1, Event->Dword0);
     U32 Completion = XHCI_GetCompletionCode(Event->Dword2);
     U8 SlotId = (U8)((Event->Dword3 >> 24) & 0xFF);
-    U8 EndpointId = 0;
-    if (Type == XHCI_TRB_TYPE_TRANSFER_EVENT) {
-        EndpointId = (U8)((Event->Dword3 >> 16) & 0x1F);
-    }
 
     if (Device->CompletionCount >= XHCI_COMPLETION_QUEUE_MAX) {
         for (U32 Index = 1; Index < Device->CompletionCount; Index++) {
@@ -585,7 +572,6 @@ static void XHCI_PushCompletion(LPXHCI_DEVICE Device, const XHCI_TRB* Event) {
     Entry->Completion = Completion;
     Entry->Type = Type;
     Entry->SlotId = SlotId;
-    Entry->EndpointId = EndpointId;
 }
 
 /************************************************************************/
@@ -629,54 +615,6 @@ BOOL XHCI_PopCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* Slot
 
     return FALSE;
 }
-
-/************************************************************************/
-
-/**
- * @brief Pop a transfer completion by SlotId and EndpointId.
- * @param Device xHCI device.
- * @param SlotId Slot identifier.
- * @param EndpointId Endpoint identifier (DCI).
- * @param CompletionOut Receives completion code when provided.
- * @param TrbPhysicalOut Receives event TRB pointer when provided.
- * @return TRUE when a matching transfer completion is found.
- */
-BOOL XHCI_PopTransferCompletionByEndpoint(LPXHCI_DEVICE Device,
-                                          U8 SlotId,
-                                          U8 EndpointId,
-                                          U32* CompletionOut,
-                                          U64* TrbPhysicalOut) {
-    if (Device == NULL || SlotId == 0 || EndpointId == 0) {
-        return FALSE;
-    }
-
-    for (U32 Index = 0; Index < Device->CompletionCount; Index++) {
-        XHCI_COMPLETION* Entry = &Device->CompletionQueue[Index];
-        if (Entry->Type != XHCI_TRB_TYPE_TRANSFER_EVENT) {
-            continue;
-        }
-        if (Entry->SlotId != SlotId || Entry->EndpointId != EndpointId) {
-            continue;
-        }
-
-        if (CompletionOut != NULL) {
-            *CompletionOut = Entry->Completion;
-        }
-        if (TrbPhysicalOut != NULL) {
-            *TrbPhysicalOut = Entry->TrbPhysical;
-        }
-
-        for (U32 Shift = Index + 1; Shift < Device->CompletionCount; Shift++) {
-            Device->CompletionQueue[Shift - 1] = Device->CompletionQueue[Shift];
-        }
-        Device->CompletionCount--;
-        return TRUE;
-    }
-
-    return FALSE;
-}
-
-/************************************************************************/
 
 /**
  * @brief Drain events until one targeted completion is found.
@@ -1469,76 +1407,6 @@ static U32 XHCI_OnGetCaps(void) { return 0; }
  */
 static U32 XHCI_OnGetLastFunc(void) { return DF_PROBE; }
 
-/************************************************************************/
-
-/**
- * @brief Apply controller-specific quirks from the generic PCI quirk table.
- * @param Device xHCI device.
- */
-static void XHCI_ApplyQuirks(LPXHCI_DEVICE Device) {
-    HARDWARE_QUIRK_PCI_RESULT MatchResult;
-    const HARDWARE_QUIRK_PCI_RULE QuirkRules[] = {
-        {
-            .VendorID = 0x8086,
-            .DeviceID = 0xA36D,
-            .BaseClass = XHCI_CLASS_SERIAL_BUS,
-            .SubClass = XHCI_SUBCLASS_USB,
-            .ProgIF = XHCI_PROGIF_XHCI,
-            .RevisionMin = HARDWARE_QUIRK_ANY_REVISION,
-            .RevisionMax = HARDWARE_QUIRK_ANY_REVISION,
-            .Reserved = 0,
-            .QuirkFlags = XHCI_QUIRK_TUNED_TIMEOUTS | XHCI_QUIRK_TUNED_PROBE_BACKOFF,
-            .ParameterMask = HARDWARE_QUIRK_PARAM_0 | HARDWARE_QUIRK_PARAM_1 | HARDWARE_QUIRK_PARAM_2 |
-                             HARDWARE_QUIRK_PARAM_3 | HARDWARE_QUIRK_PARAM_4,
-            .Parameters = {400, 400, 1, 30000, 180000, 0}
-        }
-    };
-
-    if (Device == NULL) {
-        return;
-    }
-
-    HardwareQuirkPciResultReset(&MatchResult);
-    if (!HardwareQuirkResolvePci(&Device->Info,
-                                 QuirkRules,
-                                 sizeof(QuirkRules) / sizeof(QuirkRules[0]),
-                                 &MatchResult)) {
-        return;
-    }
-
-    Device->QuirkFlags |= MatchResult.QuirkFlags;
-
-    if (MatchResult.ParameterMask & HARDWARE_QUIRK_PARAM_0) {
-        Device->CommandTimeoutMS = MatchResult.Parameters[XHCI_QUIRK_PARAM_COMMAND_TIMEOUT_MS];
-    }
-    if (MatchResult.ParameterMask & HARDWARE_QUIRK_PARAM_1) {
-        Device->TransferTimeoutMS = MatchResult.Parameters[XHCI_QUIRK_PARAM_TRANSFER_TIMEOUT_MS];
-    }
-    if (MatchResult.ParameterMask & HARDWARE_QUIRK_PARAM_2) {
-        Device->ProbeBackoffFailuresBeforeArm = MatchResult.Parameters[XHCI_QUIRK_PARAM_PROBE_BACKOFF_FAILURES];
-    }
-    if (MatchResult.ParameterMask & HARDWARE_QUIRK_PARAM_3) {
-        Device->ProbeBackoffStepMS = MatchResult.Parameters[XHCI_QUIRK_PARAM_PROBE_BACKOFF_STEP_MS];
-    }
-    if (MatchResult.ParameterMask & HARDWARE_QUIRK_PARAM_4) {
-        Device->ProbeBackoffMaxMS = MatchResult.Parameters[XHCI_QUIRK_PARAM_PROBE_BACKOFF_MAX_MS];
-    }
-
-    WARNING(TEXT("[XHCI_ApplyQuirks] Vid=%x Did=%x Rev=%x Matches=%u Flags=%x CmdTimeout=%u TransferTimeout=%u BackoffFailures=%u BackoffStep=%u BackoffMax=%u"),
-            (U32)Device->Info.VendorID,
-            (U32)Device->Info.DeviceID,
-            (U32)Device->Info.Revision,
-            MatchResult.MatchCount,
-            Device->QuirkFlags,
-            Device->CommandTimeoutMS,
-            Device->TransferTimeoutMS,
-            Device->ProbeBackoffFailuresBeforeArm,
-            Device->ProbeBackoffStepMS,
-            Device->ProbeBackoffMaxMS);
-}
-
-/************************************************************************/
-
 /**
  * @brief Driver command handler.
  * @param Function Function identifier.
@@ -1593,10 +1461,6 @@ static LPPCI_DEVICE XHCI_Attach(LPPCI_DEVICE PciDevice) {
     Device->HubPollHandle = DEFERRED_WORK_INVALID_HANDLE;
     Device->CommandTimeoutMS = XHCI_DEFAULT_EVENT_TIMEOUT_MS;
     Device->TransferTimeoutMS = XHCI_DEFAULT_TRANSFER_TIMEOUT_MS;
-    Device->ProbeBackoffFailuresBeforeArm = XHCI_DEFAULT_PROBE_BACKOFF_FAILURES_BEFORE_ARM;
-    Device->ProbeBackoffStepMS = XHCI_DEFAULT_PROBE_BACKOFF_STEP_MS;
-    Device->ProbeBackoffMaxMS = XHCI_DEFAULT_PROBE_BACKOFF_MAX_MS;
-    XHCI_ApplyQuirks(Device);
 
     U32 Bar0Raw = Device->Info.BAR[0];
     U32 Bar1Raw = Device->Info.BAR[1];

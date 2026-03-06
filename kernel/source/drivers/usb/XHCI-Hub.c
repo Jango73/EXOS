@@ -275,36 +275,6 @@ BOOL XHCI_CheckTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* Co
     return Found;
 }
 
-/************************************************************************/
-
-/**
- * @brief Check for one transfer completion by slot/endpoint without TRB pointer matching.
- * @param Device xHCI device.
- * @param SlotId Slot identifier.
- * @param EndpointId Endpoint identifier (DCI).
- * @param CompletionOut Receives completion code.
- * @param TrbPhysicalOut Receives event TRB pointer.
- * @return TRUE when completion was found.
- */
-BOOL XHCI_CheckTransferCompletionForEndpoint(LPXHCI_DEVICE Device,
-                                             U8 SlotId,
-                                             U8 EndpointId,
-                                             U32* CompletionOut,
-                                             U64* TrbPhysicalOut) {
-    if (Device == NULL || SlotId == 0 || EndpointId == 0) {
-        return FALSE;
-    }
-
-    BOOL Found = FALSE;
-    LockMutex(&(Device->Mutex), INFINITY);
-    XHCI_PollCompletions(Device);
-    Found = XHCI_PopTransferCompletionByEndpoint(Device, SlotId, EndpointId, CompletionOut, TrbPhysicalOut);
-    UnlockMutex(&(Device->Mutex));
-    return Found;
-}
-
-/************************************************************************/
-
 /**
  * @brief Allocate and initialize a child USB device.
  * @param Device xHCI device.

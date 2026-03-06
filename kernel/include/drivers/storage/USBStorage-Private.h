@@ -101,7 +101,6 @@ typedef struct tag_USB_MASS_STORAGE_DEVICE {
     LPUSB_STORAGE_ENTRY ListEntry;
     U8 LastScsiOpCode;
     U8 LastBotStage;
-    U32 LastBotCompletion;
     U8 LastCswStatus;
     U32 LastCswResidue;
 } USB_MASS_STORAGE_DEVICE, *LPUSB_MASS_STORAGE_DEVICE;
