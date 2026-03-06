@@ -26,6 +26,7 @@
 #include "Desktop-ThemeResolver.h"
 #include "Desktop-ThemeTokens.h"
 #include "Kernel.h"
+#include "Log.h"
 #include "Desktop.h"
 #include "input/Mouse.h"
 #include "process/Task-Messaging.h"
@@ -54,6 +55,12 @@ static SYSTEM_DRAW_OBJECT_ENTRY SystemDrawObjects[] = {
     {SM_COLOR_TITLE_BAR_2, &Brush_Title_Bar_2, &Pen_Title_Bar_2},
     {SM_COLOR_TITLE_TEXT, &Brush_Title_Text, &Pen_Title_Text},
 };
+
+/***************************************************************************/
+
+static U32 DATA_SECTION BeginWindowDrawLogCount = 0;
+static U32 DATA_SECTION DefWindowDrawLogCount = 0;
+static U32 DATA_SECTION DesktopRootDrawLogCount = 0;
 
 /***************************************************************************/
 
@@ -425,6 +432,14 @@ HANDLE BeginWindowDraw(HANDLE Handle) {
     LockMutex(&(This->Mutex), INFINITY);
 
     GC = GetWindowGC(Handle);
+    if (GC == NULL && BeginWindowDrawLogCount < 64) {
+        DEBUG(TEXT("[BeginWindowDraw] GetWindowGC returned NULL window=%p id=%x style=%x status=%x"),
+            This,
+            This->WindowID,
+            This->Style,
+            This->Status);
+        BeginWindowDrawLogCount++;
+    }
 
     //-------------------------------------
     // Unlock access to resources
@@ -815,10 +830,29 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             RECT Rect;
             LPWINDOW This = (LPWINDOW)Window;
 
+            if (DefWindowDrawLogCount < 128) {
+                DEBUG(TEXT("[DefWindowFunc] EWM_DRAW window=%p id=%x style=%x status=%x"),
+                    This,
+                    This != NULL ? This->WindowID : 0,
+                    This != NULL ? This->Style : 0,
+                    This != NULL ? This->Status : 0);
+                DefWindowDrawLogCount++;
+            }
+
             GC = BeginWindowDraw(Window);
 
             if (GC) {
                 GetWindowRect(Window, &Rect);
+
+                if (DefWindowDrawLogCount < 128) {
+                    DEBUG(TEXT("[DefWindowFunc] Draw rect id=%x local_rect=(%u,%u)-(%u,%u)"),
+                        This != NULL ? This->WindowID : 0,
+                        UNSIGNED(Rect.X1),
+                        UNSIGNED(Rect.Y1),
+                        UNSIGNED(Rect.X2),
+                        UNSIGNED(Rect.Y2));
+                    DefWindowDrawLogCount++;
+                }
 
                 if (ShouldDrawWindowNonClient(This)) {
                     DrawWindowNonClient(Window, GC, &Rect);
@@ -937,6 +971,16 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
             if (GC) {
                 GetWindowRect(Window, &Rect);
+
+                if (DesktopRootDrawLogCount < 64) {
+                    DEBUG(TEXT("[DesktopWindowFunc] EWM_DRAW root id=%x rect=(%u,%u)-(%u,%u)"),
+                        ((LPWINDOW)Window)->WindowID,
+                        UNSIGNED(Rect.X1),
+                        UNSIGNED(Rect.Y1),
+                        UNSIGNED(Rect.X2),
+                        UNSIGNED(Rect.Y2));
+                    DesktopRootDrawLogCount++;
+                }
 
                 RectInfo.Header.Size = sizeof(RectInfo);
                 RectInfo.Header.Version = EXOS_ABI_VERSION;

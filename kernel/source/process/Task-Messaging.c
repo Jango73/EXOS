@@ -987,9 +987,17 @@ static BOOL DispatchMessageToWindow(LPMESSAGEINFO Message, LPWINDOW Window) {
         SAFE_USE(Window->Function) {
             // Call the window function with the parameters
 
-            HANDLE WindowParam = EnsureHandle((LINEAR)Window);
+            HANDLE TargetHandle = EnsureHandle((LINEAR)Window);
 
-            Window->Function(WindowParam, Message->Message, Message->Param1, Message->Param2);
+            SAFE_USE_VALID_ID(Window->Task, KOID_TASK) {
+                SAFE_USE_VALID_ID(Window->Task->Process, KOID_PROCESS) {
+                    if (Window->Task->Process->Privilege == CPU_PRIVILEGE_KERNEL) {
+                        TargetHandle = (HANDLE)Window;
+                    }
+                }
+            }
+
+            Window->Function(TargetHandle, Message->Message, Message->Param1, Message->Param2);
 
             Result = TRUE;
         }

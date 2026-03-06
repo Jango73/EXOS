@@ -29,6 +29,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "input/Mouse.h"
+#include "Desktop-Dispatcher.h"
 #include "Desktop.h"
 #include "Desktop-ModeSelector.h"
 #include "Desktop-ThemeTokens.h"
@@ -341,6 +342,8 @@ BOOL ShowDesktop(LPDESKTOP This) {
     if (This == NULL) return FALSE;
     if (This->TypeID != KOID_DESKTOP) return FALSE;
 
+    (void)DesktopEnsureDispatcherTask(This);
+
     //-------------------------------------
     // Lock access to resources
 
@@ -633,6 +636,7 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     LPWINDOW Win;
     LPWINDOW Parent;
     LPDESKTOP Desktop;
+    LPTASK OwnerTask;
 
     //-------------------------------------
     // Check validity of parameters
@@ -658,12 +662,13 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
 
     if (This == NULL) return NULL;
 
-    This->Task = GetCurrentTask();
+    OwnerTask = DesktopResolveWindowTask(Desktop, GetCurrentTask());
+    This->Task = OwnerTask;
     This->ParentWindow = Parent;
     This->Function = Info->Function;
     This->WindowID = Info->ID;
     This->Style = Info->Style;
-    if (EnsureAllMessageQueues(This->Task, TRUE) == FALSE) {
+    if (EnsureAllMessageQueues(OwnerTask, TRUE) == FALSE) {
         KernelHeapFree(This);
         return NULL;
     }

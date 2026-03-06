@@ -42,6 +42,24 @@
  * @return Message-specific result.
  */
 static U32 DesktopInternalTestWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
+    LPWINDOW This;
+
+    This = (LPWINDOW)Window;
+
+    SAFE_USE_VALID_ID(This, KOID_WINDOW) {
+        if (Message == EWM_CREATE) {
+            DEBUG(TEXT("[DesktopInternalTestWindowFunc] EWM_CREATE id=%x style=%x status=%x"),
+                This->WindowID,
+                This->Style,
+                This->Status);
+        } else if (Message == EWM_DRAW) {
+            DEBUG(TEXT("[DesktopInternalTestWindowFunc] EWM_DRAW id=%x style=%x status=%x"),
+                This->WindowID,
+                This->Style,
+                This->Status);
+        }
+    }
+
     return DefWindowFunc(Window, Message, Param1, Param2);
 }
 
