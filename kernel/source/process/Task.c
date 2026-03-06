@@ -688,38 +688,6 @@ void Sleep(U32 MilliSeconds) {
 /************************************************************************/
 
 /**
- * @brief Suspends the current task even when the scheduler is frozen.
- *
- * Uses a timed idle loop when task switching is disabled.
- *
- * @param MilliSeconds Number of milliseconds to sleep
- */
-void SleepWithSchedulerFrozenSupport(U32 MilliSeconds) {
-    if (MilliSeconds == 0) {
-        return;
-    }
-
-    if (IsSystemTimeOperational() == FALSE) {
-        BusyWaitMilliseconds(MilliSeconds);
-        return;
-    }
-
-    if (IsSchedulerFrozen()) {
-        UINT StartTime = GetSystemTime();
-
-        while ((UINT)(GetSystemTime() - StartTime) < MilliSeconds) {
-            IdleCPU();
-        }
-
-        return;
-    }
-
-    Sleep(MilliSeconds);
-}
-
-/************************************************************************/
-
-/**
  * @brief Retrieves the current status of a task.
  *
  * @param Task Pointer to task to query

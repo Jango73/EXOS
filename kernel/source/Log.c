@@ -41,7 +41,7 @@
 #define KERNEL_LOG_TAG_FILTER_MAX_LENGTH 512
 
 #ifndef KERNEL_LOG_DEFAULT_TAG_FILTER
-#define KERNEL_LOG_DEFAULT_TAG_FILTER ""
+#define KERNEL_LOG_DEFAULT_TAG_FILTER "XHCI_ApplyQuirks XHCI_LogCommandTimeoutState XHCI_ConfigureEndpoint XHCI_AddBulkEndpoint XHCI_AddBulkEndpointPair XHCI_LogBulkEndpointContextState XHCI_LogProbeFailure XHCI_ProbePortBackoff XHCI_LogEnableSlotTimeoutState USBStorageStartDevice USBStorageScan USBStorageTryMountPending USBStorageBotCommand USBStorageBulkTransfer USBStorageBulkTransferOnce USBStorageWaitCompletion USBStorageRequestSense"
 #endif
 
 static CSTR KernelLogDefaultTagFilter[] = KERNEL_LOG_DEFAULT_TAG_FILTER;

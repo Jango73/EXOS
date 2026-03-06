@@ -618,7 +618,7 @@ static BOOL USBKeyboardSubmitInterruptReport(LPXHCI_DEVICE Device,
     Trb.Dword0 = U64_Low32(U64_FromUINT(ReportPhysical));
     Trb.Dword1 = U64_High32(U64_FromUINT(ReportPhysical));
     Trb.Dword2 = ReportLength;
-    Trb.Dword3 = (XHCI_TRB_TYPE_NORMAL << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_IOC | XHCI_TRB_DIR_IN;
+    Trb.Dword3 = (XHCI_TRB_TYPE_NORMAL << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_IOC;
 
     if (!XHCI_RingEnqueue(Endpoint->TransferRingLinear,
                           Endpoint->TransferRingPhysical,

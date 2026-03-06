@@ -1,123 +1,193 @@
-# Predator xHCI Debug Handover
+# Predator xHCI Debug
 
-## Context
-- Platform: Predator physical machine (split console view only).
-- Main issue reported: repeated xHCI timeouts and no USB key visible in filesystem list after boot.
+## Scope
+- Target: Predator bare metal machine.
+- Problem: USB mass storage enumeration reaches BOT, then fails on bulk IN data stage, so USB key does not become usable in `fs`.
+- Constraint: no config file loaded from USB during failure path; behavior uses internal default values.
 
-## Initial Symptoms
-- Repeating failures on the same root ports: `1`, `4`, `5`, `14`.
-- Frequent messages:
-  - `XHCI_WaitForCommandCompletion Timeout 200 ms`
-  - `XHCI_ProbePort Port X enumerate failed`
-- `usb devices` initially showed no USB device in some runs.
-- `fs` showed only internal/NVMe partitions.
+## Confirmed From Predator Screenshots
+- xHCI controller is detected and ports are visible.
+- `usb devices` shows:
+  - `Port 1 Addr 1 VID=0x5e3 PID=0x736 Speed=HS`
+  - `Port 4 Addr 2 VID=0x1017 PID=0x900a Speed=FS`
+  - `Port 5 Addr 3 VID=0x408 PID=0xa060 Speed=HS`
+- `fs` shows internal entries and one 1 GB NTFS partition (`n0p3*`), but no mounted USB letter (`u`) is available.
+- Port 14 remains noisy with repeated probe backoff logs.
 
-## Confirmed Facts From Diagnostics
-- BIOS/UEFI boot from USB works, but kernel xHCI path fails later (firmware driver vs kernel driver handoff).
-- At failure time, controller state was observed as:
-  - `USBCMD=0x0`
-  - `USBSTS=0x1d` (`Halted=1`, `HSE=1`)
-- PCI status showed bus error bits (`MA=1` observed in decoded status).
-- `CRCR` looked invalid during fault episodes (`...:0x8`), indicating command processing breakdown after fault.
-- The same ports recurring does not imply random noise; they are stable hardware topology entries.
+## BOT Failure Sequence (Observed)
+- `USBStorageStartDevice` starts on `Port=1 Addr=1 Slot=0x1`, class `0x08/0x06/0x50`, endpoints:
+  - Bulk OUT `0x02`, Attr `0x02`, MPS `512`
+  - Bulk IN `0x81`, Attr `0x02`, MPS `512`
+- `USBStorageBotCommand`:
+  - `Op=0x12` (INQUIRY) is issued.
+  - `Op=0x25` (READ CAPACITY 10) is issued.
+- Failure occurs on READ CAPACITY data stage:
+  - repeated `USBStorageBulkTransferOnce Timeout ... Ep=0x81 DirIn=1 Len=8`
+  - retries `Attempt=2/3`, `Attempt=3/3`
+  - `USBStorageBotCommand Data stage failed Op=0x25`
+  - `USBStorageStartDevice READ CAPACITY failed, attempting reset`
+- Recovery path also fails on IN data:
+  - `USBStorageBotCommand Op=0x03` (REQUEST SENSE), `DataLen=18`, then bulk IN timeouts on `Ep=0x81`.
 
-## Major Changes Implemented
+## Implemented Changes (Code)
 
-### 1) Console split clear behavior
-- `ClearConsole()` changed to clear only region 0 when debug split is enabled.
-- Effect: `data`/System Data View no longer wipes the log pane in split mode.
-- File: `kernel/source/Console-Main.c`
+### xHCI transfer direction handling
+- Removed `XHCI_TRB_DIR_IN` from `TRB_TYPE_NORMAL` submissions (direction must come from endpoint context for normal TRBs):
+  - `kernel/source/drivers/storage/USBStorage-Transport.c`
+  - `kernel/source/drivers/usb/XHCI-Hub.c`
+  - `kernel/source/drivers/input/Keyboard-USB.c`
+  - `kernel/source/drivers/input/Mouse-USB.c`
+- `XHCI_TRB_DIR_IN` remains used for control transfer data/status TRBs where required by transfer type.
 
-### 2) xHCI event ring EHB handling
-- ERDP update now sets EHB bit during event dequeue.
-- Files:
-  - `kernel/include/drivers/XHCI-Internal.h`
-  - `kernel/source/drivers/XHCI-Core.c`
+### xHCI wait loops
+- Replaced xHCI polling loops based on arbitrary iteration counters by millisecond loops using `Sleep(1)`:
+  - `XHCI_WaitForRegister`
+  - `XHCI_WaitForCommandCompletion`
+  - `XHCI_WaitForTransferCompletion`
 
-### 3) Focused xHCI logging and filter-driven diagnostics
-- Added rate-limited probe failure log:
-  - tag: `[XHCI_LogProbeFailure]`
-- Added rate-limited enable-slot timeout state snapshot:
-  - tag: `[XHCI_LogEnableSlotTimeoutState]`
-- Added init register programming/readback log:
-  - tag: `[XHCI_LogInitReadback]`
-- Added one-shot first HSE transition log:
-  - tag: `[XHCI_LogHseTransition]`
-- Files:
-  - `kernel/source/drivers/XHCI-Device.c`
-  - `kernel/source/drivers/XHCI-Core.c`
-  - `kernel/include/drivers/XHCI-Internal.h`
+### Early boot delay behavior
+- Added fallback busy-wait path before first interrupt enable:
+  - `BusyWaitMilliseconds` + CPU-frequency-based calibration.
+  - `Sleep` uses busy wait while system time is not operational.
+- This avoids dependence on `GetSystemTime` before the first `EnableInterrupts`.
 
-### 4) System Data View xHCI page expansion
-- Added deep xHCI page fields:
-  - PCI identity, MMIO bases, runtime register sets, ring indexes, queue depth
-  - `USBCMD/USBSTS/CONFIG`, `CRCR`, `DCBAAP`, `ERSTBA`, `ERDP`
-  - decoded PCI status flags
-  - per-port enum result + mass-storage hint (`MS-BOT`, `MS-UAS`, etc.)
-  - USB mass storage driver status and USB storage entry counters
-- File: `kernel/source/SystemDataView.c`
+### USB storage robustness fix
+- Fixed READ(10) command block builder to take explicit buffer length and validate it:
+  - introduced `USB_SCSI_READ_10_COMMAND_BLOCK_LENGTH`.
+  - `USBStorageBuildRead10` checks `CommandBlockLength >= 10`.
+  - files:
+    - `kernel/include/drivers/storage/USBStorage-Private.h`
+    - `kernel/source/drivers/storage/USBStorage-Transport.c`
 
-### 5) Scratchpad support (critical)
-- Added scratchpad count extraction from `HCSPARAMS2`.
-- Allocates scratchpad pages and scratchpad pointer array.
-- Programs `DCBAA[0]` correctly.
-- Frees scratchpad resources on teardown.
-- Files:
-  - `kernel/include/drivers/XHCI-Internal.h`
-  - `kernel/source/drivers/XHCI-Core.c`
+### xHCI transfer completion matching fallback
+- Added completion fallback for BOT transfers using `(SlotId, EndpointId)` when transfer-event TRB pointer does not match the enqueued TRB pointer:
+  - logs expected vs observed event TRB pointer.
+  - keeps pointer-based matching as first path.
+  - files:
+    - `kernel/source/drivers/usb/XHCI-Core.c`
+    - `kernel/source/drivers/usb/XHCI-Hub.c`
+    - `kernel/source/drivers/storage/USBStorage-Transport.c`
 
-### 6) Driver typing cleanup
-- Added `DRIVER_TYPE_XHCI` and assigned xHCI driver to it.
-- Files:
-  - `kernel/include/Driver.h`
-  - `kernel/source/drivers/XHCI-Core.c`
+### xHCI completion queue concurrency fix
+- Fixed concurrent completion queue/event ring access between wait paths and interrupt bottom-half:
+  - `XHCI_InterruptBottomHalf` now takes `Device->Mutex` while polling/compressing event completions.
+  - this aligns interrupt-side completion ingestion with command/transfer wait paths already using the same mutex.
+  - file:
+    - `kernel/source/drivers/usb/XHCI-Core.c`
 
-### 7) USB mass storage diagnostics + deferred mount retry
-- Added scan logs for storage attach decisions:
-  - tag: `[USBMassStorageScan]`
-- Added deferred partition mount retry path (`MountPending`) in poll loop.
-- File: `kernel/source/drivers/USBMassStorage.c`
+### BOT transfer recovery hardening (xHCI side)
+- Added xHCI endpoint recovery for BOT bulk endpoints on timeout/stall:
+  - run `STOP_ENDPOINT` + `RESET_ENDPOINT` on the target DCI.
+  - reset software transfer ring state before retry.
+  - keep USB `CLEAR_FEATURE(ENDPOINT_HALT)` as protocol-level recovery step.
+  - files:
+    - `kernel/source/drivers/usb/XHCI-Device-Lifecycle.c`
+    - `kernel/source/drivers/storage/USBStorage-Transport.c`
 
-### 8) Current targeted fix for attach failure
-- Latest observed blocker:
-  - `[USBMassStorageStartDevice] Bulk OUT endpoint setup failed`
-- Implemented idempotent handling in `XHCI_AddBulkEndpoint()`:
-  - if endpoint already configured, return success
-  - if configure command fails but endpoint is already configured, accept success
-- File: `kernel/source/drivers/XHCI-Device.c`
+## External Driver Cross-Check
+- Linux xHCI behavior was used as reference for normal TRB direction semantics.
+- No Predator-specific mandatory quirk for `Intel 8086:a36d` was identified from that check for this exact symptom.
+- Working hypothesis remains implementation gap in EXOS xHCI/BOT path, not a proven required hardware quirk.
 
-## Key Observations From Latest Predator Capture
-- `USBMassStorage Driver Ready=1`
-- Port 1 reports `MS=MS-BOT` (device is recognized as BOT-capable mass storage).
-- Still failing at:
-  - `[USBMassStorageStartDevice] Bulk OUT endpoint setup failed`
-- Port 14 continues to show enumeration failure but is not the primary blocker for USB key on port 1.
+## Status
+- Bulk OUT path reaches device.
+- Bulk IN completion for BOT data stage (`Ep=0x81`) times out on Predator during READ CAPACITY and REQUEST SENSE.
+- xHCI stack is partially functional (device visible, BOT init started) but storage attach remains blocked on bulk IN transfer completion.
 
-## Additional Observations From New Predator Capture (after latest xHCI fixes)
-- Bulk endpoint setup still fails on port 1 with the new tags enabled:
-  - `[XHCI_ConfigureEndpoint] Timeout Slot=0x1 USBCMD=0x1 USBSTS=0x18`
-  - `[XHCI_AddBulkEndpoint] Configure failed Slot=0x1 DCI=0x4 EP=0x2 MPS=512`
-  - `[USBMassStorageStartDevice] Bulk OUT endpoint setup failed`
-- The timeout-state snapshot is now emitted during this failure path:
-  - `[XHCI_LogEnableSlotTimeoutState] ... USBCMD=0x1 USBSTS=0x18 ... PCICMD=0x6 PCISTS=0x290 ...`
-- Parallel noise on port 14 is still present and now reaches enable-slot timeout class:
-  - `[XHCI_LogProbeFailure] Port 14 step=EnableSlot err=0x5 completion=0xfff raw=0x220603 ...`
-  - `[XHCI_LogProbeFailure] Port 14 step=EnumerateDevice err=0x5 completion=0xfff raw=0x220603 ...`
-- Practical conclusion from this capture:
-  - The controller is not in the same halted/HSE state as earlier captures (`USBSTS=0x18` here), but the `Configure Endpoint` command for BOT OUT endpoint (`DCI=0x4`, `EP=0x2`) still does not complete on Predator.
+## Next Debug Focus
+- Instrument transfer event matching for `Ep=0x81`:
+  - verify transfer event pointer/correlation against enqueued TRB physical address.
+  - verify completion code and transfer length fields from event TRB when timeout path triggers.
+- Verify endpoint context fields for DCI of bulk IN after `Configure Endpoint`:
+  - endpoint state, dequeue pointer, MPS, endpoint type.
+- Keep log filter focused on xHCI + USB storage tags to preserve screenshot readability.
 
-## Logging Filter Notes
-- User requirement: set default log filter in `scripts/build.sh` (not in `kernel/Makefile`).
-- Final preference during session:
-  - keep `kernel/Makefile` neutral defaults
-  - put xHCI/USB storage debug tags in `scripts/build.sh` default filter.
+## xHCI Specification Compliance Audit
 
-## Open Problem (At Handover)
-- USB key is detected at xHCI level (`MS-BOT`) but fails during BOT attach due to bulk OUT endpoint setup path.
-- Filesystem list still does not expose USB disk partitions.
+### Specification reference used
+- Intel xHCI Requirements Specification for USB, Revision 1.2 (May 2019):
+  - https://www.intel.cn/content/dam/www/public/us/en/documents/technical-specifications/extensible-host-controler-interface-usb-xhci.pdf
 
-## Suggested Next Steps
-1. Instrument `XHCI_AddBulkEndpoint()` to log completion code from configure endpoint path specifically for BOT endpoints.
-2. Verify DCI/state for both BOT endpoints (OUT then IN) against current device context before and after configure.
-3. If required, switch BOT setup to configure both bulk endpoints in one configure transaction for the same input context.
-4. Keep log filtering constrained to xHCI + USBMassStorage tags for Predator screen readability.
+### Findings and status
+- Setup Stage TRB `TRT` field not set before fix:
+  - Spec reference: section 6.4.1.2 (Setup Stage TRB), `TRT` bits `[17:16]` and Table 4-7 control transfer stage flow.
+  - Requirement: `TRT` must encode `No Data`, `OUT Data`, or `IN Data`.
+  - Previous code left `TRT=0` for all requests.
+  - Status: fixed in `XHCI_ControlTransfer`.
+
+- Endpoint Context `CErr` encoding not compliant before fix:
+  - Spec reference: section 6.2.3 (Endpoint Context, DW1 field layout) and section 4.8.2 (context initialization values).
+  - Requirement: `CErr` uses bits `[2:1]`, bit `0` is reserved, and non-isochronous endpoints should use `CErr=3`.
+  - Previous code encoded `3` in low bits directly, setting a reserved bit and not placing `CErr` correctly.
+  - Status: fixed for EP0, bulk, and interrupt endpoint context builders.
+
+- `USBCMD.INTE` not managed before fix:
+  - Spec reference: section 5.4.1 (`USBCMD` register, `INTE`) and section 4.2 initialization sequence.
+  - Requirement: host controller interrupt enable uses both interrupter state and `USBCMD.INTE`.
+  - Previous code configured `IMAN.IE` but did not set/clear `USBCMD.INTE`.
+  - Status: fixed in `XHCI_SetInterruptEnabled`.
+
+- SuperSpeed endpoint companion parameters:
+  - Spec reference: section 4.8.2.3 / 4.8.2.4 (`bMaxBurst`, `Mult`, streams fields).
+  - Requirement: SS endpoint context parameters must be derived from SS companion descriptors.
+  - Parsing/storage for SS endpoint companion descriptors is implemented and `bMaxBurst` + interrupt `Mult` are propagated to endpoint contexts.
+  - Status: partially fixed (stream-context programming for bulk streams remains open).
+
+- Endpoint recovery sequence was not xHCI-compliant before fix:
+  - Spec reference: section 4.6.9 (Reset Endpoint Command) and section 4.6.10 (Set TR Dequeue Pointer Command).
+  - Requirement:
+    - `RESET_ENDPOINT` is valid for halted endpoint recovery (stall path).
+    - non-halted timeout recovery must stop endpoint and reprogram dequeue pointer; software-only ring reset is insufficient.
+  - Previous behavior:
+    - always issued `STOP_ENDPOINT` + `RESET_ENDPOINT`, including timeout path.
+    - reset software ring state without `SET_TR_DEQUEUE_POINTER`.
+    - this can produce context-state command errors (`Completion=0xb`) and leave controller dequeue unsynchronized.
+  - Status: fixed:
+    - timeout path: `STOP_ENDPOINT` + software ring reset + `SET_TR_DEQUEUE_POINTER`.
+    - stall path: `RESET_ENDPOINT` + software ring reset + `SET_TR_DEQUEUE_POINTER`.
+
+### Last run log
+
+```
+T14900> WARNING > [XHCI_ProbePortBackoff] Port=14 Step=Cooldown Failures=1 Applied=0 Remaining=15100 suppressed=2
+T14900> DEBUG > [USBStorageStartDevice] Begin Port=1 Addr=1 Slot=0x1 If=0 Class=0x8/0x6/0x50 Vid=0x5e3 Pid=0x736 BulkOut=0x2 Attr=0x2 MPS=512 BulkIn=0x81 Attr=0x2 MPS=512
+T14940> DEBUG > [USBStorageBotCommand] Op=0x12 CbLen=6 DataLen=36 DirIn=1 Tag=0x1 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T15020> DEBUG > [USBStorageBotCommand] Op=0x25 CbLen=10 DataLen=8 DirIn=1 Tag=0x2 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T15410> WARNING > [USBStorageBulkTransfer] xHCI endpoint reset failed after stall Slot=0x1 Dci=3 Ep=0x81
+T17810> WARNING > [USBStorageBulkTransferOnce] Timeout Slot=0x1 Port=1 Addr=1 Ep=0x81 Dci=3 DirIn=1 Len=8 Trb=0000000000618000
+T23840> WARNING > [USBStorageBulkTransfer] Attempt=2/3 failed Slot=0x1 Port=1 Addr=1 Ep=0x81 DirIn=1
+T23920> WARNING > [USBStorageBulkTransfer] xHCI endpoint reset failed Slot=0x1 Dci=3 Ep=0x81
+T23960> WARNING > [USBStorageWaitCompletion] Transfer event TRB pointer mismatch Slot=0x1 Dci=3 Expected=0x0:0x618000 Observed=0x0:0x618030 Completion=0x1
+T23960> WARNING > [USBStorageBulkTransfer] Completion=0x1 Attempt=3/3 Slot=0x1 Port=1 Addr=1 Ep=0x81 DirIn=1 Len=8
+T23960> ERROR > [USBStorageBotCommand] Data stage failed Op=0x25 Tag=0x2 DirIn=1 Len=8
+T23960> WARNING > [USBStorageStartDevice] READ CAPACITY failed, attempting reset
+T23960> DEBUG > [USBStorageBotCommand] Op=0x3 CbLen=6 DataLen=18 DirIn=1 Tag=0x3 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T32380> WARNING > [USBStorageBulkTransferOnce] Timeout Slot=0x1 Port=1 Addr=1 Ep=0x81 Dci=3 DirIn=1 Len=18 Trb=0000000000618020
+T32380> WARNING > [USBStorageBulkTransfer] Attempt=1/3 failed Slot=0x1 Port=1 Addr=1 Ep=0x81 DirIn=1
+T32500> WARNING > [USBStorageBulkTransfer] xHCI endpoint reset failed Slot=0x1 Dci=3 Ep=0x81
+T32500> WARNING > [USBStorageWaitCompletion] Transfer event TRB pointer mismatch Slot=0x1 Dci=3 Expected=0x0:0x618000 Observed=0x0:0x618030 Completion=0x1
+T32500> WARNING > [USBStorageBulkTransfer] Completion=0x1 Attempt=2/3 Slot=0x1 Port=1 Addr=1 Ep=0x81 DirIn=1 Len=18
+T32500> ERROR > [USBStorageBotCommand] Data stage failed Op=0x3 Tag=0x3 DirIn=1 Len=18
+T32600> WARNING > [USBStorageRequestSense] REQUEST SENSE failed LastOp=0x3 Stage=4 LastCSW=0xff Residue=0
+T32620> DEBUG > [USBStorageBotCommand] Op=0x25 CbLen=10 DataLen=8 DirIn=1 Tag=0x4 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T41020> WARNING > [USBStorageBulkTransferOnce] Timeout Slot=0x1 Port=1 Addr=1 Ep=0x81 Dci=3 DirIn=1 Len=8 Trb=0000000000618010
+T41020> WARNING > [USBStorageBulkTransfer] Attempt=1/3 failed Slot=0x1 Port=1 Addr=1 Ep=0x81 DirIn=1
+T41140> WARNING > [USBStorageBulkTransfer] xHCI endpoint reset failed Slot=0x1 Dci=3 Ep=0x81
+T41140> WARNING > [USBStorageWaitCompletion] Transfer event TRB pointer mismatch Slot=0x1 Dci=3 Expected=0x0:0x618000 Observed=0x0:0x618030 Completion=0x1
+T41140> WARNING > [USBStorageBulkTransfer] Completion=0x1 Attempt=2/3 Slot=0x1 Port=1 Addr=1 Ep=0x81 DirIn=1 Len=8
+T41140> ERROR > [USBStorageBotCommand] Data stage failed Op=0x25 Tag=0x4 DirIn=1 Len=8
+T41140> DEBUG > [USBStorageBotCommand] Op=0x3 CbLen=6 DataLen=18 DirIn=1 Tag=0x5 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T49620> WARNING > [USBStorageBulkTransferOnce] Timeout Slot=0x1 Port=1 Addr=1 Ep=0x81 Dci=3 DirIn=1 Len=18 Trb=0000000000618010
+T49620> WARNING > [USBStorageBulkTransfer] Attempt=1/3 failed Slot=0x1 Port=1 Addr=1 Ep=0x81 DirIn=1
+T49680> WARNING > [USBStorageBulkTransfer] xHCI endpoint reset failed Slot=0x1 Dci=3 Ep=0x81
+T49620> WARNING > [USBStorageWaitCompletion] Transfer event TRB pointer mismatch Slot=0x1 Dci=3 Expected=0x0:0x618000 Observed=0x0:0x618030 Completion=0x1
+T49620> WARNING > [USBStorageBulkTransfer] Completion=0x1 Attempt=2/3 Slot=0x1 Port=1 Addr=1 Ep=0x81 DirIn=1 Len=18
+T49620> ERROR > [USBStorageBotCommand] Data stage failed Op=0x3 Tag=0x5 DirIn=1 Len=18
+T49620> WARNING > [USBStorageRequestSense] REQUEST SENSE failed LastOp=0x3 Stage=4 LastCSW=0xff Residue=0
+T49620>
+T49620> WARNING > [USBStorageScan] Port=1 Addr=1 If=0 Class=0x8/0x6/0x50 Reason=StartDeviceFailed
+T52780> WARNING > [XHCI_LogProbeFailure] Port=14 Step=AddressDevice Err=0x6 Completion=0x0 Raw=0x220603 CCS=1 PED=1 PR=0 PLS=0 Speed=0x1 Slot=0x5 Addr=0x0 Present=0 Hub=0 Uid=0x0 Pid=0x0 Class=0x0/0x0/0x0 MPS0=8 USBCMD=0x1 USBSTS=0x18 suppressed=0
+T52780> WARNING > [XHCI_LogProbeFailure] Port=14 Step=EnumerateDevice Err=0x0 Completion=0x0 Raw=0x220603 CCS=1 PED=1 PR=0 PLS=0 Speed=0x1 Slot=0x5 Addr=0x0 Present=0 Hub=0 Uid=0x0 Pid=0x0 Class=0x0/0x0/0x0 MPS0=8 USBCMD=0x1 USBSTS=0x18 suppressed=0
+T52780> DEBUG > [USBStorageStartDevice] Begin Port=1 Addr=1 Slot=0x1 If=0 Class=0x8/0x6/0x50 Vid=0x5e3 Pid=0x736 BulkOut=0x2 Attr=0x2 MPS=512 BulkIn=0x81 Attr=0x2 MPS=512
+T52900> DEBUG > [USBStorageBotCommand] Op=0x12 CbLen=6 DataLen=36 DirIn=1 Tag=0x1 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+```

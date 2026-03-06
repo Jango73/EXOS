@@ -33,10 +33,10 @@
         { "key": "C-s", "label": "Build 64 MBR Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug --clean" },
         { "key": "C-d", "label": "Build 64 MBR Rel Split", "script": "scripts/build --arch x86-64 --fs ext2 --release --split --clean" },
         { "key": "C-f", "label": "Build 64 MBR Deb Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split --clean" },
-        { "key": "C-g", "label": "Build 64 UEFI Release", "script": "scripts/build --arch x86-64 --fs ext2 --release --uefi --clean" },
-        { "key": "C-h", "label": "Build 64 UEFI Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug --uefi --clean" },
-        { "key": "C-j", "label": "Build 64 UEFI Release Split", "script": "scripts/build --arch x86-64 --fs ext2 --release --split --uefi --clean" },
-        { "key": "C-k", "label": "Build 64 UEFI Debug Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split --uefi --boot-stage-markers --clean" },
+        { "key": "C-g", "label": "Build 64 UEFI Release", "script": "scripts/build --arch x86-64 --fs ext2 --release --uefi --bare-metal --clean" },
+        { "key": "C-h", "label": "Build 64 UEFI Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug --uefi --bare-metal --clean" },
+        { "key": "C-j", "label": "Build 64 UEFI Release Split", "script": "scripts/build --arch x86-64 --fs ext2 --release --split --uefi --bare-metal --clean" },
+        { "key": "C-k", "label": "Build 64 UEFI Debug Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split --uefi --boot-stage-markers --bare-metal --clean" },
 
         { "label": "x86-64 run----------" },
 

@@ -184,6 +184,22 @@ static U8 XHCI_GetEndpointDci(U8 EndpointAddress) {
 /************************************************************************/
 
 /**
+ * @brief Build endpoint context DW1 for non-isochronous endpoints.
+ * @param EndpointType Endpoint type value for xHCI context.
+ * @param MaximumBurst Endpoint maximum burst value.
+ * @param MaximumPacketSize Endpoint maximum packet size.
+ * @return Encoded DW1 value.
+ */
+static U32 XHCI_BuildEndpointContextDword1(U32 EndpointType, U32 MaximumBurst, U32 MaximumPacketSize) {
+    return (3U << 1) |
+           ((EndpointType & 0x7U) << 3) |
+           ((MaximumBurst & 0xFFU) << 8) |
+           ((MaximumPacketSize & 0xFFFFU) << 16);
+}
+
+/************************************************************************/
+
+/**
  * @brief Return TRUE when one endpoint context is already configured.
  * @param Device xHCI device.
  * @param UsbDevice USB device.
@@ -202,6 +218,100 @@ static BOOL XHCI_IsEndpointConfigured(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Us
     EndpointContext = XHCI_GetContextPointer(UsbDevice->DeviceContextLinear, Device->ContextSize, (U32)Dci);
     EndpointState = EndpointContext->Dword0 & 0x7U;
     return (EndpointState != 0U) ? TRUE : FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Emit one snapshot of bulk endpoint context state around configure failure.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device state.
+ * @param Endpoint Endpoint descriptor.
+ * @param Completion Configure Endpoint completion code.
+ * @param TimedOut TRUE when command completion timed out.
+ * @param DeviceEndpointStateBefore Endpoint state observed in device context before configure.
+ */
+static void XHCI_LogBulkEndpointContextState(LPXHCI_DEVICE Device,
+                                             LPXHCI_USB_DEVICE UsbDevice,
+                                             LPXHCI_USB_ENDPOINT Endpoint,
+                                             U32 Completion,
+                                             BOOL TimedOut,
+                                             U32 DeviceEndpointStateBefore) {
+    LPXHCI_CONTEXT_32 InputControl;
+    LPXHCI_CONTEXT_32 InputSlot;
+    LPXHCI_CONTEXT_32 InputEndpoint;
+    LPXHCI_CONTEXT_32 DeviceSlot;
+    LPXHCI_CONTEXT_32 DeviceEndpoint;
+    U32 InputAddFlags = 0;
+    U32 InputDropFlags = 0;
+    U32 InputSlotEntries = 0;
+    U32 DeviceSlotEntries = 0;
+    U32 InputEndpointState = 0;
+    U32 DeviceEndpointStateAfter = 0;
+    U32 InputEpDword1 = 0;
+    U32 InputEpDword2 = 0;
+    U32 InputEpDword3 = 0;
+    U32 InputEpDword4 = 0;
+    U32 DeviceEpDword1 = 0;
+    U32 DeviceEpDword2 = 0;
+    U32 DeviceEpDword3 = 0;
+    U32 DeviceEpDword4 = 0;
+
+    if (Device == NULL || UsbDevice == NULL || Endpoint == NULL || Endpoint->Dci == 0) {
+        return;
+    }
+
+    if (UsbDevice->InputContextLinear != 0) {
+        InputControl = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, 0);
+        InputSlot = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, 1);
+        InputEndpoint =
+                XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, (U32)Endpoint->Dci + 1);
+
+        InputAddFlags = InputControl->Dword1;
+        InputDropFlags = InputControl->Dword0;
+        InputSlotEntries = (InputSlot->Dword0 >> XHCI_SLOT_CTX_CONTEXT_ENTRIES_SHIFT) & 0x1F;
+        InputEndpointState = InputEndpoint->Dword0 & 0x7;
+        InputEpDword1 = InputEndpoint->Dword1;
+        InputEpDword2 = InputEndpoint->Dword2;
+        InputEpDword3 = InputEndpoint->Dword3;
+        InputEpDword4 = InputEndpoint->Dword4;
+    }
+
+    if (UsbDevice->DeviceContextLinear != 0) {
+        DeviceSlot = XHCI_GetContextPointer(UsbDevice->DeviceContextLinear, Device->ContextSize, 0);
+        DeviceEndpoint = XHCI_GetContextPointer(UsbDevice->DeviceContextLinear, Device->ContextSize, (U32)Endpoint->Dci);
+
+        DeviceSlotEntries = (DeviceSlot->Dword0 >> XHCI_SLOT_CTX_CONTEXT_ENTRIES_SHIFT) & 0x1F;
+        DeviceEndpointStateAfter = DeviceEndpoint->Dword0 & 0x7;
+        DeviceEpDword1 = DeviceEndpoint->Dword1;
+        DeviceEpDword2 = DeviceEndpoint->Dword2;
+        DeviceEpDword3 = DeviceEndpoint->Dword3;
+        DeviceEpDword4 = DeviceEndpoint->Dword4;
+    }
+
+    WARNING(TEXT("[XHCI_LogBulkEndpointContextState] Slot=%x DCI=%x EP=%x Attr=%x MPS=%u Completion=%u TimedOut=%u Add=%x Drop=%x InEntries=%u DevEntries=%u InEpState=%x DevEpState=%x->%x InEp=%x:%x:%x:%x DevEp=%x:%x:%x:%x"),
+            (U32)UsbDevice->SlotId,
+            (U32)Endpoint->Dci,
+            (U32)Endpoint->Address,
+            (U32)Endpoint->Attributes,
+            (U32)Endpoint->MaxPacketSize,
+            Completion,
+            TimedOut ? 1 : 0,
+            InputAddFlags,
+            InputDropFlags,
+            InputSlotEntries,
+            DeviceSlotEntries,
+            InputEndpointState,
+            DeviceEndpointStateBefore,
+            DeviceEndpointStateAfter,
+            InputEpDword1,
+            InputEpDword2,
+            InputEpDword3,
+            InputEpDword4,
+            DeviceEpDword1,
+            DeviceEpDword2,
+            DeviceEpDword3,
+            DeviceEpDword4);
 }
 
 /************************************************************************/
@@ -471,7 +581,7 @@ void XHCI_BuildInputContextForAddress(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Us
     }
 
     LPXHCI_CONTEXT_32 Ep0 = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, 2);
-    Ep0->Dword1 = (4U << 3) | ((U32)UsbDevice->MaxPacketSize0 << 16);
+    Ep0->Dword1 = XHCI_BuildEndpointContextDword1(4, 0, (U32)UsbDevice->MaxPacketSize0);
 
     {
         U64 Dequeue = U64_FromUINT(UsbDevice->TransferRingPhysical);
@@ -496,7 +606,7 @@ void XHCI_BuildInputContextForEp0(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDev
     Control->Dword1 = (1U << 1);
 
     LPXHCI_CONTEXT_32 Ep0 = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, 2);
-    Ep0->Dword1 = (4U << 3) | ((U32)UsbDevice->MaxPacketSize0 << 16);
+    Ep0->Dword1 = XHCI_BuildEndpointContextDword1(4, 0, (U32)UsbDevice->MaxPacketSize0);
 
     {
         U64 Dequeue = U64_FromUINT(UsbDevice->TransferRingPhysical);
@@ -636,10 +746,20 @@ BOOL XHCI_EvaluateContext(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
  * @param UsbDevice USB device state.
  * @return TRUE on success.
  */
-static BOOL XHCI_ConfigureEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
+static BOOL XHCI_ConfigureEndpoint(LPXHCI_DEVICE Device,
+                                   LPXHCI_USB_DEVICE UsbDevice,
+                                   U32* CompletionOut,
+                                   BOOL* TimedOutOut) {
     XHCI_TRB Trb;
     U64 TrbPhysical = U64_0;
     U32 Completion = 0;
+
+    if (CompletionOut != NULL) {
+        *CompletionOut = 0;
+    }
+    if (TimedOutOut != NULL) {
+        *TimedOutOut = FALSE;
+    }
 
     MemorySet(&Trb, 0, sizeof(Trb));
     Trb.Dword0 = U64_Low32(U64_FromUINT(UsbDevice->InputContextPhysical));
@@ -653,6 +773,9 @@ static BOOL XHCI_ConfigureEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDe
     XHCI_RingDoorbell(Device, 0, 0);
 
     if (!XHCI_WaitForCommandCompletion(Device, TrbPhysical, NULL, &Completion)) {
+        if (TimedOutOut != NULL) {
+            *TimedOutOut = TRUE;
+        }
         WARNING(TEXT("[XHCI_ConfigureEndpoint] Timeout Slot=%x USBCMD=%x USBSTS=%x"),
                 (U32)UsbDevice->SlotId,
                 XHCI_Read32(Device->OpBase, XHCI_OP_USBCMD),
@@ -660,8 +783,12 @@ static BOOL XHCI_ConfigureEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDe
         return FALSE;
     }
 
+    if (CompletionOut != NULL) {
+        *CompletionOut = Completion;
+    }
+
     if (Completion != XHCI_COMPLETION_SUCCESS) {
-        ERROR(TEXT("[XHCI_ConfigureEndpoint] Completion code %u"), Completion);
+        ERROR(TEXT("[XHCI_ConfigureEndpoint] Completion code %u Slot=%x"), Completion, (U32)UsbDevice->SlotId);
         return FALSE;
     }
 
@@ -709,6 +836,7 @@ BOOL XHCI_AddInterruptEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice
         EpType = ((Endpoint->Address & 0x80) != 0) ? 7U : 3U;
     }
     U32 IntervalField = Endpoint->Interval;
+    U32 Mult = 0;
     if (IntervalField == 0) {
         IntervalField = 1;
     }
@@ -720,11 +848,14 @@ BOOL XHCI_AddInterruptEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice
     if (IntervalField > 255) {
         IntervalField = 255;
     }
+    if (UsbDevice->SpeedId == USB_SPEED_SS && Endpoint->HasSuperSpeedCompanion) {
+        Mult = (U32)(Endpoint->CompanionAttributes & 0x03);
+    }
 
     U32 MaxPacket = ((U32)Endpoint->MaxPacketSize & 0x7FFU);
 
-    EpCtx->Dword0 = (IntervalField << 16);
-    EpCtx->Dword1 = (3U) | ((EpType << 3) | (MaxPacket << 16));
+    EpCtx->Dword0 = (Mult << 8) | (IntervalField << 16);
+    EpCtx->Dword1 = XHCI_BuildEndpointContextDword1(EpType, (U32)Endpoint->MaximumBurst, MaxPacket);
 
     {
         U64 Dequeue = U64_FromUINT(Endpoint->TransferRingPhysical);
@@ -734,7 +865,35 @@ BOOL XHCI_AddInterruptEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice
         EpCtx->Dword4 = MaxPacket;
     }
 
-    return XHCI_ConfigureEndpoint(Device, UsbDevice);
+    return XHCI_ConfigureEndpoint(Device, UsbDevice, NULL, NULL);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Build one bulk endpoint context in input context.
+ * @param EpCtx Endpoint context output pointer.
+ * @param Endpoint USB endpoint descriptor.
+ */
+static void XHCI_BuildBulkEndpointContext(LPXHCI_CONTEXT_32 EpCtx, LPXHCI_USB_ENDPOINT Endpoint) {
+    U32 EpType;
+    U32 MaximumPacketSize;
+    U64 Dequeue;
+
+    if (EpCtx == NULL || Endpoint == NULL) {
+        return;
+    }
+
+    EpType = ((Endpoint->Address & 0x80) != 0) ? 6U : 2U;
+    MaximumPacketSize = ((U32)Endpoint->MaxPacketSize & 0x7FFU);
+    Dequeue = U64_FromUINT(Endpoint->TransferRingPhysical);
+
+    EpCtx->Dword0 = 0;
+    EpCtx->Dword1 = XHCI_BuildEndpointContextDword1(EpType, (U32)Endpoint->MaximumBurst, MaximumPacketSize);
+    EpCtx->Dword2 = (U32)(U64_Low32(Dequeue) & ~0xFU);
+    EpCtx->Dword2 |= (Endpoint->TransferRingCycleState ? 1U : 0U);
+    EpCtx->Dword3 = U64_High32(Dequeue);
+    EpCtx->Dword4 = MaximumPacketSize;
 }
 
 /************************************************************************/
@@ -747,6 +906,10 @@ BOOL XHCI_AddInterruptEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice
  * @return TRUE on success.
  */
 BOOL XHCI_AddBulkEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, LPXHCI_USB_ENDPOINT Endpoint) {
+    U32 ConfigureCompletion = 0;
+    BOOL ConfigureTimedOut = FALSE;
+    U32 DeviceEndpointStateBefore = 0;
+
     if (Device == NULL || UsbDevice == NULL || Endpoint == NULL) {
         return FALSE;
     }
@@ -762,6 +925,12 @@ BOOL XHCI_AddBulkEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, LPX
         return TRUE;
     }
 
+    if (UsbDevice->DeviceContextLinear != 0 && Endpoint->Dci != 0) {
+        LPXHCI_CONTEXT_32 DeviceEndpoint =
+                XHCI_GetContextPointer(UsbDevice->DeviceContextLinear, Device->ContextSize, (U32)Endpoint->Dci);
+        DeviceEndpointStateBefore = DeviceEndpoint->Dword0 & 0x7;
+    }
+
     MemorySet((LPVOID)UsbDevice->InputContextLinear, 0, PAGE_SIZE);
     LPXHCI_CONTEXT_32 Control = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, 0);
     Control->Dword1 = (1U << 0) | (1U << Endpoint->Dci);
@@ -775,30 +944,173 @@ BOOL XHCI_AddBulkEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, LPX
         XHCI_SetSlotContextEntriesForDci(Slot, Endpoint->Dci);
     }
 
-    LPXHCI_CONTEXT_32 EpCtx = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, (U32)Endpoint->Dci + 1U);
-    U32 EpType = ((Endpoint->Address & 0x80) != 0) ? 6U : 2U;
-    U32 MaximumPacketSize = ((U32)Endpoint->MaxPacketSize & 0x7FFU);
+    LPXHCI_CONTEXT_32 EpCtx =
+            XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, (U32)Endpoint->Dci + 1U);
+    XHCI_BuildBulkEndpointContext(EpCtx, Endpoint);
 
-    EpCtx->Dword0 = 0;
-    EpCtx->Dword1 = (3U) | ((EpType << 3) | (MaximumPacketSize << 16));
-
-    {
-        U64 Dequeue = U64_FromUINT(Endpoint->TransferRingPhysical);
-        EpCtx->Dword2 = (U32)(U64_Low32(Dequeue) & ~0xFU);
-        EpCtx->Dword2 |= (Endpoint->TransferRingCycleState ? 1U : 0U);
-        EpCtx->Dword3 = U64_High32(Dequeue);
-        EpCtx->Dword4 = MaximumPacketSize;
-    }
-
-    if (!XHCI_ConfigureEndpoint(Device, UsbDevice)) {
+    if (!XHCI_ConfigureEndpoint(Device, UsbDevice, &ConfigureCompletion, &ConfigureTimedOut)) {
         if (XHCI_IsEndpointConfigured(Device, UsbDevice, Endpoint->Dci)) {
             return TRUE;
         }
-        WARNING(TEXT("[XHCI_AddBulkEndpoint] Configure failed Slot=%x DCI=%x EP=%x MPS=%u"),
+        XHCI_LogBulkEndpointContextState(Device,
+                                         UsbDevice,
+                                         Endpoint,
+                                         ConfigureCompletion,
+                                         ConfigureTimedOut,
+                                         DeviceEndpointStateBefore);
+        WARNING(TEXT("[XHCI_AddBulkEndpoint] Configure failed Slot=%x DCI=%x EP=%x MPS=%u Completion=%u TimedOut=%u"),
                 (U32)UsbDevice->SlotId,
                 (U32)Endpoint->Dci,
                 (U32)Endpoint->Address,
-                (U32)Endpoint->MaxPacketSize);
+                (U32)Endpoint->MaxPacketSize,
+                ConfigureCompletion,
+                ConfigureTimedOut ? 1 : 0);
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Add BOT bulk OUT and IN endpoints in one configure transaction.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device state.
+ * @param BulkOutEndpoint Bulk OUT endpoint descriptor.
+ * @param BulkInEndpoint Bulk IN endpoint descriptor.
+ * @return TRUE on success.
+ */
+BOOL XHCI_AddBulkEndpointPair(LPXHCI_DEVICE Device,
+                              LPXHCI_USB_DEVICE UsbDevice,
+                              LPXHCI_USB_ENDPOINT BulkOutEndpoint,
+                              LPXHCI_USB_ENDPOINT BulkInEndpoint) {
+    U32 ConfigureCompletion = 0;
+    BOOL ConfigureTimedOut = FALSE;
+    BOOL NeedOut;
+    BOOL NeedIn;
+    U32 DeviceOutStateBefore = 0;
+    U32 DeviceInStateBefore = 0;
+    LPXHCI_CONTEXT_32 Control;
+    LPVOID SlotIn;
+    LPVOID SlotOut;
+    LPXHCI_CONTEXT_32 Slot;
+
+    if (Device == NULL || UsbDevice == NULL || BulkOutEndpoint == NULL || BulkInEndpoint == NULL) {
+        return FALSE;
+    }
+
+    if ((BulkOutEndpoint->Address & 0x80) != 0 || (BulkInEndpoint->Address & 0x80) == 0) {
+        WARNING(TEXT("[XHCI_AddBulkEndpointPair] Invalid endpoint directions Out=%x In=%x"),
+                (U32)BulkOutEndpoint->Address,
+                (U32)BulkInEndpoint->Address);
+        return FALSE;
+    }
+
+    if ((BulkOutEndpoint->Attributes & 0x03) != USB_ENDPOINT_TYPE_BULK ||
+        (BulkInEndpoint->Attributes & 0x03) != USB_ENDPOINT_TYPE_BULK) {
+        WARNING(TEXT("[XHCI_AddBulkEndpointPair] Invalid endpoint type OutAttr=%x InAttr=%x"),
+                (U32)BulkOutEndpoint->Attributes,
+                (U32)BulkInEndpoint->Attributes);
+        return FALSE;
+    }
+
+    if (BulkOutEndpoint->TransferRingLinear == 0 || BulkOutEndpoint->TransferRingPhysical == 0) {
+        if (!XHCI_InitEndpointRing(BulkOutEndpoint, TEXT("XHCI_EpRing"))) {
+            return FALSE;
+        }
+    }
+    if (BulkInEndpoint->TransferRingLinear == 0 || BulkInEndpoint->TransferRingPhysical == 0) {
+        if (!XHCI_InitEndpointRing(BulkInEndpoint, TEXT("XHCI_EpRing"))) {
+            return FALSE;
+        }
+    }
+
+    BulkOutEndpoint->Dci = XHCI_GetEndpointDci(BulkOutEndpoint->Address);
+    BulkInEndpoint->Dci = XHCI_GetEndpointDci(BulkInEndpoint->Address);
+    NeedOut = !XHCI_IsEndpointConfigured(Device, UsbDevice, BulkOutEndpoint->Dci);
+    NeedIn = !XHCI_IsEndpointConfigured(Device, UsbDevice, BulkInEndpoint->Dci);
+    if (!NeedOut && !NeedIn) {
+        return TRUE;
+    }
+
+    if (UsbDevice->DeviceContextLinear != 0) {
+        LPXHCI_CONTEXT_32 DeviceOutContext =
+                XHCI_GetContextPointer(UsbDevice->DeviceContextLinear, Device->ContextSize, (U32)BulkOutEndpoint->Dci);
+        LPXHCI_CONTEXT_32 DeviceInContext =
+                XHCI_GetContextPointer(UsbDevice->DeviceContextLinear, Device->ContextSize, (U32)BulkInEndpoint->Dci);
+        DeviceOutStateBefore = DeviceOutContext->Dword0 & 0x7;
+        DeviceInStateBefore = DeviceInContext->Dword0 & 0x7;
+    }
+
+    MemorySet((LPVOID)UsbDevice->InputContextLinear, 0, PAGE_SIZE);
+    Control = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, 0);
+    Control->Dword1 = (1U << 0);
+    if (NeedOut) {
+        Control->Dword1 |= (1U << BulkOutEndpoint->Dci);
+    }
+    if (NeedIn) {
+        Control->Dword1 |= (1U << BulkInEndpoint->Dci);
+    }
+
+    SlotIn = (LPVOID)XHCI_GetContextPointer(UsbDevice->DeviceContextLinear, Device->ContextSize, 0);
+    SlotOut = (LPVOID)XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, 1);
+    MemoryCopy(SlotOut, SlotIn, Device->ContextSize);
+    Slot = (LPXHCI_CONTEXT_32)SlotOut;
+    if (NeedOut) {
+        XHCI_SetSlotContextEntriesForDci(Slot, BulkOutEndpoint->Dci);
+    }
+    if (NeedIn) {
+        XHCI_SetSlotContextEntriesForDci(Slot, BulkInEndpoint->Dci);
+    }
+
+    if (NeedOut) {
+        LPXHCI_CONTEXT_32 OutContext = XHCI_GetContextPointer(UsbDevice->InputContextLinear,
+                                                              Device->ContextSize,
+                                                              (U32)BulkOutEndpoint->Dci + 1U);
+        XHCI_BuildBulkEndpointContext(OutContext, BulkOutEndpoint);
+    }
+    if (NeedIn) {
+        LPXHCI_CONTEXT_32 InContext = XHCI_GetContextPointer(UsbDevice->InputContextLinear,
+                                                             Device->ContextSize,
+                                                             (U32)BulkInEndpoint->Dci + 1U);
+        XHCI_BuildBulkEndpointContext(InContext, BulkInEndpoint);
+    }
+
+    if (!XHCI_ConfigureEndpoint(Device, UsbDevice, &ConfigureCompletion, &ConfigureTimedOut)) {
+        BOOL OutConfigured = XHCI_IsEndpointConfigured(Device, UsbDevice, BulkOutEndpoint->Dci);
+        BOOL InConfigured = XHCI_IsEndpointConfigured(Device, UsbDevice, BulkInEndpoint->Dci);
+        if ((!NeedOut || OutConfigured) && (!NeedIn || InConfigured)) {
+            return TRUE;
+        }
+
+        if (NeedOut) {
+            XHCI_LogBulkEndpointContextState(Device,
+                                             UsbDevice,
+                                             BulkOutEndpoint,
+                                             ConfigureCompletion,
+                                             ConfigureTimedOut,
+                                             DeviceOutStateBefore);
+        }
+        if (NeedIn) {
+            XHCI_LogBulkEndpointContextState(Device,
+                                             UsbDevice,
+                                             BulkInEndpoint,
+                                             ConfigureCompletion,
+                                             ConfigureTimedOut,
+                                             DeviceInStateBefore);
+        }
+
+        WARNING(TEXT("[XHCI_AddBulkEndpointPair] Configure failed Slot=%x OutDci=%x InDci=%x OutEp=%x InEp=%x Completion=%u TimedOut=%u NeedOut=%u NeedIn=%u"),
+                (U32)UsbDevice->SlotId,
+                (U32)BulkOutEndpoint->Dci,
+                (U32)BulkInEndpoint->Dci,
+                (U32)BulkOutEndpoint->Address,
+                (U32)BulkInEndpoint->Address,
+                ConfigureCompletion,
+                ConfigureTimedOut ? 1 : 0,
+                NeedOut ? 1U : 0U,
+                NeedIn ? 1U : 0U);
         return FALSE;
     }
 
@@ -852,6 +1164,7 @@ BOOL XHCI_ControlTransfer(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, con
     XHCI_TRB StatusTrb;
     U64 StatusPhysical = U64_0;
     U32 Completion = 0;
+    U32 TransferType = XHCI_TRB_TRT_NO_DATA;
 
     if (Setup == NULL || UsbDevice == NULL) {
         return FALSE;
@@ -860,7 +1173,12 @@ BOOL XHCI_ControlTransfer(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, con
     MemorySet(&SetupTrb, 0, sizeof(SetupTrb));
     MemoryCopy(&SetupTrb.Dword0, Setup, sizeof(USB_SETUP_PACKET));
     SetupTrb.Dword2 = 8;
-    SetupTrb.Dword3 = (XHCI_TRB_TYPE_SETUP_STAGE << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_IDT;
+    if (Length > 0) {
+        TransferType = DirectionIn ? XHCI_TRB_TRT_IN_DATA : XHCI_TRB_TRT_OUT_DATA;
+    }
+    SetupTrb.Dword3 = (XHCI_TRB_TYPE_SETUP_STAGE << XHCI_TRB_TYPE_SHIFT) |
+                      XHCI_TRB_IDT |
+                      (TransferType << XHCI_TRB_TRT_SHIFT);
 
     if (!XHCI_TransferRingEnqueue(UsbDevice, &SetupTrb, NULL)) {
         return FALSE;

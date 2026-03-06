@@ -37,6 +37,7 @@
 #include "User.h"
 #include "drivers/interrupts/DeviceInterrupt.h"
 #include "drivers/usb/USB.h"
+#include "utils/FailureBackoff.h"
 #include "utils/RateLimiter.h"
 
 /************************************************************************/
@@ -82,6 +83,7 @@
 
 #define XHCI_USBCMD_RS 0x00000001
 #define XHCI_USBCMD_HCRST 0x00000002
+#define XHCI_USBCMD_INTE 0x00000004
 
 #define XHCI_USBSTS_HCH 0x00000001
 #define XHCI_USBSTS_CNR 0x00000800
@@ -142,9 +144,14 @@
 #define XHCI_TRB_TYPE_SHIFT 10
 #define XHCI_TRB_TYPE_LINK 6
 #define XHCI_TRB_TYPE_MASK 0x3F
+#define XHCI_TRB_TRT_SHIFT 16
+#define XHCI_TRB_TRT_NO_DATA 0
+#define XHCI_TRB_TRT_OUT_DATA 2
+#define XHCI_TRB_TRT_IN_DATA 3
 
 #define XHCI_TRB_CYCLE 0x00000001
 #define XHCI_TRB_TOGGLE_CYCLE 0x00000002
+#define XHCI_TRB_ISP 0x00000004
 #define XHCI_TRB_IOC 0x00000020
 #define XHCI_TRB_IDT 0x00000040
 #define XHCI_TRB_DIR_IN 0x00010000
@@ -160,6 +167,7 @@
 #define XHCI_TRB_TYPE_EVALUATE_CONTEXT 13
 #define XHCI_TRB_TYPE_RESET_ENDPOINT 0x0E
 #define XHCI_TRB_TYPE_STOP_ENDPOINT 0x0F
+#define XHCI_TRB_TYPE_SET_TR_DEQUEUE_POINTER 0x10
 #define XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT 33
 #define XHCI_TRB_TYPE_TRANSFER_EVENT 32
 
@@ -179,7 +187,14 @@
 #define XHCI_HALT_TIMEOUT 1000000
 #define XHCI_RUN_TIMEOUT 1000000
 #define XHCI_PORT_RESET_TIMEOUT 50000
-#define XHCI_EVENT_TIMEOUT_MS 200
+#define XHCI_DEFAULT_EVENT_TIMEOUT_MS 200
+#define XHCI_DEFAULT_TRANSFER_TIMEOUT_MS 200
+#define XHCI_DEFAULT_PROBE_BACKOFF_FAILURES_BEFORE_ARM 1
+#define XHCI_DEFAULT_PROBE_BACKOFF_STEP_MS 60000
+#define XHCI_DEFAULT_PROBE_BACKOFF_MAX_MS 600000
+
+#define XHCI_QUIRK_TUNED_TIMEOUTS 0x00000001
+#define XHCI_QUIRK_TUNED_PROBE_BACKOFF 0x00000002
 
 #define XHCI_COMPLETION_QUEUE_MAX 64
 
@@ -232,6 +247,10 @@ typedef struct tag_XHCI_USB_ENDPOINT {
     U8 Attributes;
     U16 MaxPacketSize;
     U8 Interval;
+    U8 MaximumBurst;
+    U8 CompanionAttributes;
+    U16 CompanionBytesPerInterval;
+    BOOL HasSuperSpeedCompanion;
     U8 Dci;
     PHYSICAL TransferRingPhysical;
     LINEAR TransferRingLinear;
@@ -276,6 +295,7 @@ typedef struct tag_XHCI_USB_DEVICE {
     U8 LastEnumError;
     U16 LastEnumCompletion;
     RATE_LIMITER EnumFailureLogLimiter;
+    FAILURE_BACKOFF ProbeBackoff;
     U8 PortNumber;
     U8 RootPortNumber;
     U8 Depth;
@@ -312,6 +332,7 @@ typedef struct tag_XHCI_COMPLETION {
     U32 Completion;
     U8 Type;
     U8 SlotId;
+    U8 EndpointId;
 } XHCI_COMPLETION, *LPXHCI_COMPLETION;
 
 struct tag_XHCI_DEVICE {
@@ -354,10 +375,17 @@ struct tag_XHCI_DEVICE {
     U32 EventRingCycleState;
 
     LPXHCI_USB_DEVICE* UsbDevices;
+    U32 QuirkFlags;
+    U32 CommandTimeoutMS;
+    U32 TransferTimeoutMS;
+    U32 ProbeBackoffFailuresBeforeArm;
+    U32 ProbeBackoffStepMS;
+    U32 ProbeBackoffMaxMS;
 
     XHCI_COMPLETION CompletionQueue[XHCI_COMPLETION_QUEUE_MAX];
     U32 CompletionCount;
     U32 HubPollHandle;
+    U8 ActiveProbePort;
 
     U8 InterruptSlot;
     BOOL InterruptRegistered;
@@ -381,6 +409,11 @@ LPXHCI_CONTEXT_32 XHCI_GetContextPointer(LINEAR Base, U32 ContextSize, U32 Index
 void XHCI_RingDoorbell(LPXHCI_DEVICE Device, U32 DoorbellIndex, U32 Target);
 void XHCI_InitUsbDeviceObject(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice);
 BOOL XHCI_PopCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* SlotIdOut, U32* CompletionOut);
+BOOL XHCI_PopTransferCompletionByEndpoint(LPXHCI_DEVICE Device,
+                                          U8 SlotId,
+                                          U8 EndpointId,
+                                          U32* CompletionOut,
+                                          U64* TrbPhysicalOut);
 BOOL XHCI_PollForCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* SlotIdOut, U32* CompletionOut);
 BOOL XHCI_CommandRingEnqueue(LPXHCI_DEVICE Device, const XHCI_TRB* Trb, U64* PhysicalOut);
 BOOL XHCI_TransferRingEnqueue(LPXHCI_USB_DEVICE UsbDevice, const XHCI_TRB* Trb, U64* PhysicalOut);
@@ -406,9 +439,17 @@ LPXHCI_USB_ENDPOINT XHCI_FindHubInterruptEndpoint(LPXHCI_USB_DEVICE UsbDevice);
 LPXHCI_USB_ENDPOINT XHCI_FindInterfaceEndpoint(LPXHCI_USB_INTERFACE Interface, U8 EndpointType, BOOL DirectionIn);
 BOOL XHCI_AddInterruptEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, LPXHCI_USB_ENDPOINT Endpoint);
 BOOL XHCI_AddBulkEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, LPXHCI_USB_ENDPOINT Endpoint);
+BOOL XHCI_AddBulkEndpointPair(LPXHCI_DEVICE Device,
+                              LPXHCI_USB_DEVICE UsbDevice,
+                              LPXHCI_USB_ENDPOINT BulkOutEndpoint,
+                              LPXHCI_USB_ENDPOINT BulkInEndpoint);
 BOOL XHCI_UpdateHubSlotContext(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice);
 BOOL XHCI_ControlTransfer(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, const USB_SETUP_PACKET* Setup,
                          PHYSICAL Physical, LPVOID Linear, U16 Length, BOOL DirectionIn);
+BOOL XHCI_ResetTransferEndpoint(LPXHCI_DEVICE Device,
+                                LPXHCI_USB_DEVICE UsbDevice,
+                                LPXHCI_USB_ENDPOINT Endpoint,
+                                BOOL EndpointHalted);
 LPXHCI_USB_CONFIGURATION XHCI_GetSelectedConfig(LPXHCI_USB_DEVICE UsbDevice);
 BOOL XHCI_EnumerateDevice(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice);
 void XHCI_EnsureUsbDevices(LPXHCI_DEVICE Device);
@@ -416,6 +457,11 @@ void XHCI_EnsureUsbDevices(LPXHCI_DEVICE Device);
 BOOL XHCI_InitHub(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub);
 void XHCI_RegisterHubPoll(LPXHCI_DEVICE Device);
 BOOL XHCI_CheckTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* CompletionOut);
+BOOL XHCI_CheckTransferCompletionForEndpoint(LPXHCI_DEVICE Device,
+                                             U8 SlotId,
+                                             U8 EndpointId,
+                                             U32* CompletionOut,
+                                             U64* TrbPhysicalOut);
 
 U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next);
 U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty);

@@ -90,7 +90,6 @@ BOOL SetTaskExitCode(LPTASK Task, UINT Code);
 void DeleteDeadTasksAndProcesses(void);
 U32 SetTaskPriority(LPTASK, U32);
 void Sleep(U32);
-void SleepWithSchedulerFrozenSupport(U32);
 U32 GetTaskStatus(LPTASK Task);
 void SetTaskStatus(LPTASK Task, U32 Status);
 void SetTaskStatusDirect(LPTASK Task, U32 Status);

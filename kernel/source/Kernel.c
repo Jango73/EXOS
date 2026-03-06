@@ -269,9 +269,9 @@ static void InitializeFocusState(void) {
 void InitializeQuantumTime(void) {
     // Set base quantum time based on environment
 #if BARE_METAL == 1
-    SetMinimumQuantum(10);  // Shorter quantum for bare-metal
+    SetMinimumQuantum(2);  // Shorter quantum for bare-metal
 #else
-    SetMinimumQuantum(50);  // Longer quantum for emulation/virtualization
+    SetMinimumQuantum(10);  // Longer quantum for emulation/virtualization
 #endif
 
     if (SCHEDULING_DEBUG_OUTPUT == 1) {
