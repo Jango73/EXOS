@@ -225,6 +225,20 @@ Deliverable:
 Deliverable:
 - Safe fallback path and deterministic backend selection.
 
+## Step 9.5 - Centralized mode selection policy (outside drivers)
+- [ ] Move mode selection policy out of backend-specific `DF_GFX_SETMODE` implementations.
+- [ ] Define one kernel-side selector that chooses the best mode using:
+  - `DF_GFX_GETCAPABILITIES`,
+  - `DF_GFX_GETMODECOUNT`,
+  - `DF_GFX_GETMODEINFO`.
+- [ ] Keep `DF_GFX_SETMODE` backend role limited to applying an explicit requested mode.
+- [ ] Keep backend auto-select behavior only as a legacy fallback path while all drivers are migrated.
+- [ ] Define deterministic tie-break rules (resolution, color depth/format, refresh preference, backend constraints).
+- [ ] Expose selected-mode decision diagnostics (requested mode, selected mode, rejection reasons for candidates).
+
+Deliverable:
+- Desktop mode selection is backend-agnostic, deterministic, and capability-driven.
+
 ## Step 10 - Diagnostics and shell tooling
 - [ ] Add concise commands (or debug paths) to print:
   - GPU identification and capabilities
