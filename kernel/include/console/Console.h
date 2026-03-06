@@ -144,6 +144,7 @@ UINT ConsoleGetModeInfo(LPCONSOLEMODEINFO Info);
 void ConsoleSetPagingEnabled(BOOL Enabled);
 BOOL ConsoleGetPagingEnabled(void);
 void ConsoleSetPagingActive(BOOL Active);
+BOOL ConsoleGetPagingActive(void);
 void ConsoleResetPaging(void);
 
 // Functions in shell/Shell-Main.c

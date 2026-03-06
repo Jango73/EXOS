@@ -1975,6 +1975,7 @@ Cooperative interruption API:
 
 Console paging (`-- Press a key --`) integrates with cooperative interruption:
 - When paging wait detects `Control+C` (virtual combination or ASCII `0x03`), it requests interruption for the current process instead of consuming the key as paging continuation.
+- Fault dump paths (`LogCPUState` in x86-32/x86-64 fault handlers) force paging inactive while diagnostics are emitted, then restore the previous state.
 
 Long command loops can place interruption checkpoints; `dir` and `dir --stress` integrate this behavior and abort listing when an interruption request is pending.
 

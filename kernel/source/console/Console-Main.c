@@ -915,6 +915,16 @@ void ConsoleSetPagingActive(BOOL Active) {
 /***************************************************************************/
 
 /**
+ * @brief Query whether console paging is active.
+ * @return TRUE if paging prompts are active, FALSE otherwise.
+ */
+BOOL ConsoleGetPagingActive(void) {
+    return Console.PagingActive ? TRUE : FALSE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Reset console paging state for the next command.
  */
 void ConsoleResetPaging(void) {

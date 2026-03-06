@@ -61,11 +61,18 @@ static BOOL IsFramePointerSane(U32 CurEbp, U32 PrevEbp, U32 StackLow, U32 StackH
 /************************************************************************/
 
 void LogCPUState(LPINTERRUPT_FRAME Frame) {
+    BOOL PreviousPagingActive = ConsoleGetPagingActive();
+
+    // Fault dumps must never block on console pager prompts.
+    ConsoleSetPagingActive(FALSE);
+
     STR DisasmBuffer[MAX_STRING_BUFFER];
     LogFrame(Frame);
     Disassemble(DisasmBuffer, Frame->Registers.EIP, 5, 32);
     ERROR(TEXT("Code at EIP:\n%s"), DisasmBuffer);
     BacktraceFrom(Frame->Registers.EBP, 10);
+
+    ConsoleSetPagingActive(PreviousPagingActive);
 }
 
 /************************************************************************/

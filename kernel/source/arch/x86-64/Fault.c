@@ -44,8 +44,14 @@
 /************************************************************************/
 
 void LogCPUState(LPINTERRUPT_FRAME Frame) {
+    BOOL PreviousPagingActive = ConsoleGetPagingActive();
+
+    // Fault dumps must never block on console pager prompts.
+    ConsoleSetPagingActive(FALSE);
+
     if (Frame == NULL) {
         ERROR(TEXT("[LogCPUState] No interrupt frame available"));
+        ConsoleSetPagingActive(PreviousPagingActive);
         return;
     }
 
@@ -71,6 +77,8 @@ void LogCPUState(LPINTERRUPT_FRAME Frame) {
     }
 
     BacktraceFrom(Frame->Registers.RBP, 10);
+
+    ConsoleSetPagingActive(PreviousPagingActive);
 }
 
 /************************************************************************/

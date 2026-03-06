@@ -196,7 +196,7 @@ BOOL CommandLineEditorReadLine(
     Buffer[0] = STR_NULL;
     GetConsoleCursorPosition(&StartX, &StartY);
 
-    PreviousPagingActive = Console.PagingActive ? TRUE : FALSE;
+    PreviousPagingActive = ConsoleGetPagingActive();
     ConsoleSetPagingActive(FALSE);
 
     FOREVER {
