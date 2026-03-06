@@ -26,6 +26,7 @@
 #include "DriverGetters.h"
 #include "GFX.h"
 #include "Desktop.h"
+#include "Desktop-InternalTest.h"
 
 /***************************************************************************/
 
@@ -464,6 +465,10 @@ static U32 ShowMainDesktopFromShell(void) {
         } else {
             ConsolePrint(TEXT("desktop show: theme config failed, keeping current theme (%s)\n"), ConfiguredThemePath);
         }
+    }
+
+    if (DesktopInternalTestEnsureWindowsVisible(Desktop) == FALSE) {
+        ConsolePrint(TEXT("desktop show: internal test windows unavailable\n"));
     }
 
     return DF_RETURN_SUCCESS;

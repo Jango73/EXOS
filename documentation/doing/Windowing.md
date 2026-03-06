@@ -355,10 +355,10 @@ Compatibility first, then extension.
 - [x] Ensure theme load failure never prevents desktop startup.
 
 ### Step 8.5: Kernel Internal Desktop Test Module
-- [ ] Add one internal kernel windowing test module (portal-like purpose, kernel-side implementation).
-- [ ] Make the test module create two test windows with different sizes.
-- [ ] Set arbitrary titles on both test windows for visual identification.
-- [ ] Ensure both test windows are visible after `desktop show`.
+- [x] Add one internal kernel windowing test module (portal-like purpose, kernel-side implementation).
+- [x] Make the test module create two test windows with different sizes.
+- [x] Set arbitrary titles on both test windows for visual identification.
+- [x] Ensure both test windows are visible after `desktop show`.
 
 ### Step 9: Client-Decorated Framework Support
 - [ ] Add decoration mode flag to window creation ABI/runtime API.
