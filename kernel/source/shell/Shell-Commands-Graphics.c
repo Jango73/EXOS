@@ -340,6 +340,229 @@ static U32 RunGraphicsSmokeTest(U32 DurationMilliseconds) {
 /************************************************************************/
 
 /**
+ * @brief Convert display front-end identifier to text.
+ * @param FrontEnd Display front-end value.
+ * @return Constant text description.
+ */
+static LPCSTR DesktopFrontEndToText(U32 FrontEnd) {
+    switch (FrontEnd) {
+        case DISPLAY_FRONTEND_CONSOLE:
+            return TEXT("console");
+        case DISPLAY_FRONTEND_DESKTOP:
+            return TEXT("desktop");
+        default:
+            return TEXT("none");
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Convert desktop mode identifier to text.
+ * @param Mode Desktop mode value.
+ * @return Constant text description.
+ */
+static LPCSTR DesktopModeToText(U32 Mode) {
+    switch (Mode) {
+        case DESKTOP_MODE_GRAPHICS:
+            return TEXT("graphics");
+        case DESKTOP_MODE_CONSOLE:
+            return TEXT("console");
+        default:
+            return TEXT("unknown");
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Convert theme fallback reason identifier to text.
+ * @param Reason Theme fallback reason.
+ * @return Constant text description.
+ */
+static LPCSTR ThemeFallbackReasonToText(U32 Reason) {
+    switch (Reason) {
+        case DESKTOP_THEME_FALLBACK_REASON_NONE:
+            return TEXT("none");
+        case DESKTOP_THEME_FALLBACK_REASON_FILE_READ_FAILED:
+            return TEXT("file_read_failed");
+        case DESKTOP_THEME_FALLBACK_REASON_PARSE_FAILED:
+            return TEXT("parse_failed");
+        case DESKTOP_THEME_FALLBACK_REASON_ACTIVATION_FAILED:
+            return TEXT("activation_failed");
+        case DESKTOP_THEME_FALLBACK_REASON_NO_STAGED_THEME:
+            return TEXT("no_staged_theme");
+        case DESKTOP_THEME_FALLBACK_REASON_RESET_TO_DEFAULT:
+            return TEXT("reset_to_default");
+        default:
+            return TEXT("unknown");
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Print desktop/theme runtime status.
+ */
+static void PrintDesktopStatus(void) {
+    U32 FrontEnd;
+    LPDESKTOP ActiveDesktop;
+    DESKTOP_THEME_RUNTIME_INFO ThemeInfo;
+
+    FrontEnd = DisplaySessionGetActiveFrontEnd();
+    ActiveDesktop = DisplaySessionGetActiveDesktop();
+
+    ConsolePrint(TEXT("desktop: front_end=%s\n"), DesktopFrontEndToText(FrontEnd));
+
+    if (ActiveDesktop != NULL) {
+        ConsolePrint(TEXT("desktop: mode=%s\n"), DesktopModeToText(ActiveDesktop->Mode));
+    } else {
+        ConsolePrint(TEXT("desktop: mode=unknown\n"));
+    }
+
+    if (GetActiveThemeInfo(&ThemeInfo) == FALSE) {
+        ConsolePrint(TEXT("desktop: theme=unavailable\n"));
+        return;
+    }
+
+    ConsolePrint(TEXT("desktop: theme_source=%s\n"), ThemeInfo.IsLoadedActive ? TEXT("loaded") : TEXT("built-in"));
+    if (ThemeInfo.ActiveThemePath[0] != STR_NULL) {
+        ConsolePrint(TEXT("desktop: active_theme=%s\n"), ThemeInfo.ActiveThemePath);
+    }
+    if (ThemeInfo.HasStagedTheme != FALSE && ThemeInfo.StagedThemePath[0] != STR_NULL) {
+        ConsolePrint(TEXT("desktop: staged_theme=%s\n"), ThemeInfo.StagedThemePath);
+    }
+    ConsolePrint(TEXT("desktop: theme_last_status=%x fallback_reason=%s\n"),
+        ThemeInfo.LastStatus,
+        ThemeFallbackReasonToText(ThemeInfo.LastFallbackReason));
+}
+
+/************************************************************************/
+
+/**
+ * @brief Start desktop mode from shell and optionally apply config-selected theme.
+ * @return DF_RETURN_SUCCESS on completion.
+ */
+static U32 StartDesktopFromShell(void) {
+    LPPROCESS Process;
+    LPDESKTOP Desktop;
+    BOOL CreatedDesktop = FALSE;
+    LPCSTR ConfiguredThemePath;
+
+    Process = GetCurrentProcess();
+    Desktop = (Process != NULL) ? Process->Desktop : NULL;
+
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP || Desktop == &MainDesktop) {
+        Desktop = CreateDesktop();
+        if (Desktop == NULL) {
+            ConsolePrint(TEXT("desktop start: desktop creation failed\n"));
+            return DF_RETURN_SUCCESS;
+        }
+        CreatedDesktop = TRUE;
+    }
+
+    if (DisplaySwitchToDesktop(Desktop) == FALSE) {
+        ConsolePrint(TEXT("desktop start: unable to switch to desktop mode\n"));
+        if (CreatedDesktop) {
+            (void)DeleteDesktop(Desktop);
+        }
+        return DF_RETURN_SUCCESS;
+    }
+
+    ConsolePrint(TEXT("desktop start: desktop active\n"));
+
+    // A configured theme path is optional and must never block desktop startup.
+    ConfiguredThemePath = GetConfigurationValue(TEXT("Desktop.ThemePath"));
+    if (ConfiguredThemePath != NULL && StringLength(ConfiguredThemePath) != 0) {
+        if (LoadTheme(ConfiguredThemePath) && ActivateTheme(TEXT("staged"))) {
+            ConsolePrint(TEXT("desktop start: theme activated from config (%s)\n"), ConfiguredThemePath);
+        } else {
+            ConsolePrint(TEXT("desktop start: theme config failed, keeping current theme (%s)\n"), ConfiguredThemePath);
+        }
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Apply one theme command target.
+ * @param Target Path or name provided by shell.
+ * @return DF_RETURN_SUCCESS on completion.
+ */
+static U32 ApplyDesktopThemeTarget(LPCSTR Target) {
+    if (Target == NULL || StringLength(Target) == 0) {
+        ConsolePrint(TEXT("Usage: desktop theme <path-or-name>\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (StringCompareNC(Target, TEXT("default")) == 0 ||
+        StringCompareNC(Target, TEXT("builtin")) == 0 ||
+        StringCompareNC(Target, TEXT("built-in")) == 0) {
+        if (ResetThemeToDefault()) {
+            ConsolePrint(TEXT("desktop theme: built-in theme activated\n"));
+        } else {
+            ConsolePrint(TEXT("desktop theme: unable to activate built-in theme\n"));
+        }
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (ActivateTheme(Target)) {
+        ConsolePrint(TEXT("desktop theme: activated %s\n"), Target);
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (LoadTheme(Target) == FALSE) {
+        ConsolePrint(TEXT("desktop theme: unable to load %s\n"), Target);
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (ActivateTheme(TEXT("staged")) == FALSE) {
+        ConsolePrint(TEXT("desktop theme: load succeeded but activation failed (%s)\n"), Target);
+        return DF_RETURN_SUCCESS;
+    }
+
+    ConsolePrint(TEXT("desktop theme: loaded and activated %s\n"), Target);
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Desktop command dispatcher.
+ * @param Context Shell context.
+ * @return DF_RETURN_SUCCESS on completion.
+ */
+U32 CMD_desktop(LPSHELLCONTEXT Context) {
+    STR Action[64];
+
+    ParseNextCommandLineComponent(Context);
+    StringCopy(Action, Context->Command);
+
+    if (StringLength(Action) == 0 || StringCompareNC(Action, TEXT("status")) == 0) {
+        PrintDesktopStatus();
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (StringCompareNC(Action, TEXT("start")) == 0) {
+        return StartDesktopFromShell();
+    }
+
+    if (StringCompareNC(Action, TEXT("theme")) == 0) {
+        ParseNextCommandLineComponent(Context);
+        return ApplyDesktopThemeTarget(Context->Command);
+    }
+
+    ConsolePrint(TEXT("Usage: desktop start\n"));
+    ConsolePrint(TEXT("       desktop status\n"));
+    ConsolePrint(TEXT("       desktop theme <path-or-name>\n"));
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
  * @brief Graphics command dispatcher.
  * @param Context Shell context.
  * @return DF_RETURN_SUCCESS on completion.
