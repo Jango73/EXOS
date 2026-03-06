@@ -350,6 +350,7 @@ Compatibility first, then extension.
 - [ ] Add shell command `desktop start` to launch desktop/windowing using built-in theme.
 - [ ] Add shell command `desktop status` to report active desktop mode and active theme source (`built-in` or `loaded`).
 - [ ] Add shell command `desktop theme <path-or-name>` to load/activate a theme.
+- [ ] Add `Desktop.ThemePath` config support in `exos.*.toml` to select the theme file at desktop startup.
 - [ ] Ensure `desktop start` succeeds when no storage is mounted.
 - [ ] Ensure theme load failure never prevents desktop startup.
 
