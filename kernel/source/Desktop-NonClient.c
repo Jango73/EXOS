@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "Desktop-NonClient.h"
+#include "Desktop-ThemeRecipes.h"
 #include "Desktop-ThemeResolver.h"
 #include "GFX.h"
 #include "Kernel.h"
@@ -93,6 +94,10 @@ BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect) {
     RectInfo.Y1 = Rect->Y1;
     RectInfo.X2 = Rect->X2;
     RectInfo.Y2 = Rect->Y2;
+
+    if (DesktopThemeDrawRecipeForElementState(Window, GC, Rect, TEXT("window.frame"), TEXT("normal"))) {
+        return TRUE;
+    }
 
     HasBackground = DesktopThemeResolveLevel1Color(TEXT("window.frame"), TEXT("normal"), TEXT("background"), &Background);
     if (HasBackground) {

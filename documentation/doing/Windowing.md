@@ -333,11 +333,11 @@ Compatibility first, then extension.
 - [x] Ensure desktop root and standard window decorations use Level 1 values.
 
 ### Step 6: Implement Level 2 Resolver (Recipes)
-- [ ] Implement recipe lookup from `bindings`.
-- [ ] Implement primitive interpreter for initial primitive set.
-- [ ] Support token references inside primitive fields.
-- [ ] Apply recipe rendering to selected non-client elements.
-- [ ] Keep deterministic execution and bounded primitive count.
+- [x] Implement recipe lookup from `bindings`.
+- [x] Implement primitive interpreter for initial primitive set.
+- [x] Support token references inside primitive fields.
+- [x] Apply recipe rendering to selected non-client elements.
+- [x] Keep deterministic execution and bounded primitive count.
 
 ### Step 7: Theme Runtime API
 - [ ] Implement theme runtime API for load/activate/info/reset.
