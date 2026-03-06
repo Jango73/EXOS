@@ -33,6 +33,7 @@
 #include "process/Schedule.h"
 #include "process/Task-Messaging.h"
 #include "CoreString.h"
+#include "utils/BusyWait.h"
 #include "utils/Helpers.h"
 
 /************************************************************************/
@@ -627,6 +628,15 @@ U32 SetTaskPriority(LPTASK Task, U32 Priority) {
  * @param MilliSeconds Number of milliseconds to sleep
  */
 void Sleep(U32 MilliSeconds) {
+    if (MilliSeconds == 0) {
+        return;
+    }
+
+    if (IsSystemTimeOperational() == FALSE) {
+        BusyWaitMilliseconds(MilliSeconds);
+        return;
+    }
+
     LPTASK Task;
 
     U32 Flags;
@@ -686,6 +696,11 @@ void Sleep(U32 MilliSeconds) {
  */
 void SleepWithSchedulerFrozenSupport(U32 MilliSeconds) {
     if (MilliSeconds == 0) {
+        return;
+    }
+
+    if (IsSystemTimeOperational() == FALSE) {
+        BusyWaitMilliseconds(MilliSeconds);
         return;
     }
 

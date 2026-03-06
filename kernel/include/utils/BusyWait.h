@@ -1,4 +1,3 @@
-
 /************************************************************************\
 
     EXOS Kernel
@@ -18,28 +17,24 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Clock
+    Busy-wait helper
 
 \************************************************************************/
-#ifndef CLOCK_H_INCLUDED
-#define CLOCK_H_INCLUDED
 
-/***************************************************************************/
+#ifndef BUSY_WAIT_H_INCLUDED
+#define BUSY_WAIT_H_INCLUDED
+
+/************************************************************************/
 
 #include "Base.h"
-#include "Driver.h"
 
-/***************************************************************************/
+/************************************************************************/
 
-void InitializeClock(void);
-UINT GetSystemTime(void);
-void MarkSystemTimeOperational(void);
-BOOL IsSystemTimeOperational(void);
-BOOL HasOperationTimedOut(UINT StartTime, UINT LoopCount, UINT LoopLimit, UINT TimeoutMilliseconds);
-void MilliSecondsToHMS(UINT, LPSTR);
-BOOL GetLocalTime(LPDATETIME);
-BOOL SetLocalTime(LPDATETIME);
+void BusyWaitSetFrequencyMHz(U32 FrequencyMHz);
+void BusyWaitSetLoopsPerMillisecond(UINT LoopsPerMillisecond);
+UINT BusyWaitGetLoopsPerMillisecond(void);
+void BusyWaitMilliseconds(UINT Milliseconds);
 
-/***************************************************************************/
+/************************************************************************/
 
-#endif
+#endif  // BUSY_WAIT_H_INCLUDED

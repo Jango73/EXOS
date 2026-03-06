@@ -318,7 +318,7 @@ static KERNELDATA DATA_SECTION Kernel = {
         .Root = NULL
     },
     .HandleMap = {0},
-    .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0},
+    .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0, .BaseFrequencyMHz = 0},
     .Configuration = NULL,
     .MinimumQuantum = 10,
     .MaximumQuantum = 50,
@@ -1000,6 +1000,77 @@ void SetFocusedProcess(LPPROCESS Process) {
 
 /************************************************************************/
 
+static void ReadCPUIDLeaf(U32 Leaf, U32 SubLeaf, LPCPUIDREGISTERS Registers) {
+    if (Registers == NULL) {
+        return;
+    }
+
+#if defined(__EXOS_ARCH_X86_32__) || defined(__EXOS_ARCH_X86_64__)
+    U32 EAXValue;
+    U32 EBXValue;
+    U32 ECXValue;
+    U32 EDXValue;
+
+    __asm__ __volatile__("cpuid"
+                         : "=a"(EAXValue), "=b"(EBXValue), "=c"(ECXValue), "=d"(EDXValue)
+                         : "a"(Leaf), "c"(SubLeaf));
+
+    Registers->reg_EAX = EAXValue;
+    Registers->reg_EBX = EBXValue;
+    Registers->reg_ECX = ECXValue;
+    Registers->reg_EDX = EDXValue;
+#else
+    UNUSED(Leaf);
+    UNUSED(SubLeaf);
+
+    Registers->reg_EAX = 0;
+    Registers->reg_EBX = 0;
+    Registers->reg_ECX = 0;
+    Registers->reg_EDX = 0;
+#endif
+}
+
+/************************************************************************/
+
+static U32 DetectCPUBaseFrequencyMHz(void) {
+    CPUIDREGISTERS Leaf0;
+    CPUIDREGISTERS Leaf15;
+    CPUIDREGISTERS Leaf16;
+    U32 MaximumBasicLeaf;
+
+    MemorySet(&Leaf0, 0, sizeof(Leaf0));
+    MemorySet(&Leaf15, 0, sizeof(Leaf15));
+    MemorySet(&Leaf16, 0, sizeof(Leaf16));
+
+    ReadCPUIDLeaf(0, 0, &Leaf0);
+    MaximumBasicLeaf = Leaf0.reg_EAX;
+
+    if (MaximumBasicLeaf >= 0x16) {
+        ReadCPUIDLeaf(0x16, 0, &Leaf16);
+        if (Leaf16.reg_EAX != 0) {
+            return Leaf16.reg_EAX;
+        }
+    }
+
+    if (MaximumBasicLeaf >= 0x15) {
+        ReadCPUIDLeaf(0x15, 0, &Leaf15);
+        if (Leaf15.reg_EAX != 0 && Leaf15.reg_EBX != 0 && Leaf15.reg_ECX != 0) {
+            U64 FrequencyHz = U64_DIV_U32(U64_MUL_U32(Leaf15.reg_ECX, Leaf15.reg_EBX), Leaf15.reg_EAX, NULL);
+            U64 FrequencyMHz = U64_DIV_U32(FrequencyHz, 1000000, NULL);
+
+            if (U64_Cmp(FrequencyMHz, U64_FromU32(MAX_U32)) > 0) {
+                return MAX_U32;
+            }
+
+            return U64_ToU32_Clip(FrequencyMHz);
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
 /**
  * @brief Retrieves basic CPU identification data.
  *
@@ -1032,6 +1103,7 @@ BOOL GetCPUInformation(LPCPUINFORMATION Info) {
     Info->Model = (Regs[1].reg_EAX & INTEL_CPU_MASK_MODEL) >> INTEL_CPU_SHFT_MODEL;
     Info->Stepping = (Regs[1].reg_EAX & INTEL_CPU_MASK_STEPPING) >> INTEL_CPU_SHFT_STEPPING;
     Info->Features = Regs[1].reg_EDX;
+    Info->BaseFrequencyMHz = DetectCPUBaseFrequencyMHz();
 
     return TRUE;
 }

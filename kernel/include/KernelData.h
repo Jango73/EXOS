@@ -70,6 +70,7 @@ typedef struct tag_CPUINFORMATION {
     U32 Model;
     U32 Stepping;
     U32 Features;
+    U32 BaseFrequencyMHz;
 } CPUINFORMATION, *LPCPUINFORMATION;
 
 /************************************************************************/

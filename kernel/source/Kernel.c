@@ -37,6 +37,7 @@
 #include "process/Process.h"
 #include "process/Task.h"
 #include "SerialPort.h"
+#include "utils/BusyWait.h"
 #include "utils/Helpers.h"
 #include "utils/TOML.h"
 #include "utils/UUID.h"
@@ -975,6 +976,10 @@ void InitializeKernel(void) {
 
     GetCPUInformation(GetKernelCPUInfo());
     DEBUG(TEXT("[InitializeKernel] CPU information captured"));
+    BusyWaitSetFrequencyMHz(GetKernelCPUInfo()->BaseFrequencyMHz);
+    DEBUG(TEXT("[InitializeKernel] BusyWait profile base_mhz=%u loops_per_ms=%u"),
+          GetKernelCPUInfo()->BaseFrequencyMHz,
+          BusyWaitGetLoopsPerMillisecond());
     PreInitializeKernel();
     DEBUG(TEXT("[InitializeKernel] Architecture pre-initialization complete"));
     //-------------------------------------
@@ -1020,6 +1025,7 @@ void InitializeKernel(void) {
     // Enable interrupts
 
     EnableInterrupts();
+    MarkSystemTimeOperational();
     DEBUG(TEXT("[InitializeKernel] Interrupts enabled"));
 
     // Load keyboard layout only after interrupts are active.
