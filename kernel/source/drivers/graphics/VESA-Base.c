@@ -321,10 +321,56 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
     U32 Found = 0;
     U32 Index = 0;
     U32 Mode = 0;
+    U32 RequestedWidth;
+    U32 RequestedHeight;
+    U32 RequestedBitsPerPixel;
+    BOOL AutoSelect;
+    U32 SelectedModeIndex;
+    U32 BestArea;
+    U32 BestBitsPerPixel;
     UINT FrameBufferSize = 0;
     LINEAR LinearBase = 0;
 
-    DEBUG(TEXT("[SetVideoMode] GFX mode request : %ux%u"), Info->Width, Info->Height);
+    DEBUG(TEXT("[SetVideoMode] GFX mode request : %ux%ux%u"), Info->Width, Info->Height, Info->BitsPerPixel);
+
+    RequestedWidth = Info->Width;
+    RequestedHeight = Info->Height;
+    RequestedBitsPerPixel = Info->BitsPerPixel;
+    AutoSelect = (RequestedWidth == 0 && RequestedHeight == 0 && RequestedBitsPerPixel == 0);
+
+    if (AutoSelect != FALSE) {
+        SelectedModeIndex = INFINITY;
+        BestArea = 0;
+        BestBitsPerPixel = 0;
+
+        for (Index = 0;; Index++) {
+            if (VESAModeSpecs[Index].Mode == 0) {
+                break;
+            }
+
+            if (VESAModeSpecs[Index].Width * VESAModeSpecs[Index].Height > BestArea ||
+                (VESAModeSpecs[Index].Width * VESAModeSpecs[Index].Height == BestArea &&
+                    VESAModeSpecs[Index].BitsPerPixel > BestBitsPerPixel)) {
+                SelectedModeIndex = Index;
+                BestArea = VESAModeSpecs[Index].Width * VESAModeSpecs[Index].Height;
+                BestBitsPerPixel = VESAModeSpecs[Index].BitsPerPixel;
+            }
+        }
+
+        if (SelectedModeIndex == INFINITY) {
+            WARNING(TEXT("[SetVideoMode] Auto-select failed: no mode candidate"));
+            return DF_RETURN_GENERIC;
+        }
+
+        RequestedWidth = VESAModeSpecs[SelectedModeIndex].Width;
+        RequestedHeight = VESAModeSpecs[SelectedModeIndex].Height;
+        RequestedBitsPerPixel = VESAModeSpecs[SelectedModeIndex].BitsPerPixel;
+
+        DEBUG(TEXT("[SetVideoMode] Auto-select chose %ux%ux%u"),
+            RequestedWidth,
+            RequestedHeight,
+            RequestedBitsPerPixel);
+    }
 
     if (VESAContext.LinearFrameBufferEnabled != FALSE && VESAContext.FrameBufferLinear != 0 &&
         VESAContext.FrameBufferSize != 0) {
@@ -341,8 +387,8 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
 
         DEBUG(TEXT("[SetVideoMode] Checking mode %x"), VESAModeSpecs[Index].Mode);
 
-        if (VESAModeSpecs[Index].Width == Info->Width && VESAModeSpecs[Index].Height == Info->Height &&
-            VESAModeSpecs[Index].BitsPerPixel == Info->BitsPerPixel) {
+        if (VESAModeSpecs[Index].Width == RequestedWidth && VESAModeSpecs[Index].Height == RequestedHeight &&
+            VESAModeSpecs[Index].BitsPerPixel == RequestedBitsPerPixel) {
             BOOL ModeListed = FALSE;
             BOOL ModeListValid = TRUE;
 
