@@ -321,10 +321,10 @@ Compatibility first, then extension.
 - [x] Define parser limits (file size, token count, recipe count, primitive count).
 
 ### Step 4: Implement Kernel Theme Parser
-- [ ] Parse TOML in strict mode.
-- [ ] Validate all references (token references, recipe bindings, property types).
-- [ ] Build in-memory runtime tables for fast lookup.
-- [ ] Implement atomic activation and fallback to built-in default on failure.
+- [x] Parse TOML in strict mode.
+- [x] Validate all references (token references, recipe bindings, property types).
+- [x] Build in-memory runtime tables for fast lookup.
+- [x] Implement atomic activation and fallback to built-in default on failure.
 
 ### Step 5: Implement Level 1 Resolver (Properties)
 - [ ] Implement `(element, state) -> property value` resolver.
