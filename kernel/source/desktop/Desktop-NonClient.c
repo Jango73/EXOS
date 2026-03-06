@@ -24,6 +24,7 @@
 #include "Desktop-NonClient.h"
 #include "Desktop-ThemeRecipes.h"
 #include "Desktop-ThemeResolver.h"
+#include "Desktop-ThemeTokens.h"
 #include "GFX.h"
 #include "Kernel.h"
 
@@ -75,6 +76,113 @@ static BOOL DrawSolidRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color
 /***************************************************************************/
 
 /**
+ * @brief Draw one vertical gradient rectangle.
+ * @param GC Graphics context.
+ * @param X1 Left.
+ * @param Y1 Top.
+ * @param X2 Right.
+ * @param Y2 Bottom.
+ * @param StartColor Gradient start color (top).
+ * @param EndColor Gradient end color (bottom).
+ * @return TRUE on success.
+ */
+static BOOL DrawVerticalGradientRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR StartColor, COLOR EndColor) {
+    LINEINFO BaseLineInfo;
+    LINEINFO LineInfo;
+    PEN Pen;
+    HANDLE OldPen;
+    I32 Height;
+    I32 Offset;
+    U32 Numerator;
+    U32 Denominator;
+    U32 StartA;
+    U32 StartR;
+    U32 StartG;
+    U32 StartB;
+    U32 EndA;
+    U32 EndR;
+    U32 EndG;
+    U32 EndB;
+    COLOR RowColor;
+
+    if (GC == NULL) return FALSE;
+    if (X1 > X2 || Y1 > Y2) return FALSE;
+
+    Height = Y2 - Y1 + 1;
+    if (Height <= 1) {
+        return DrawSolidRect(GC, X1, Y1, X2, Y2, StartColor);
+    }
+
+    StartA = (StartColor >> 24) & 0xFF;
+    StartR = (StartColor >> 16) & 0xFF;
+    StartG = (StartColor >> 8) & 0xFF;
+    StartB = StartColor & 0xFF;
+    EndA = (EndColor >> 24) & 0xFF;
+    EndR = (EndColor >> 16) & 0xFF;
+    EndG = (EndColor >> 8) & 0xFF;
+    EndB = EndColor & 0xFF;
+
+    MemorySet(&Pen, 0, sizeof(Pen));
+    Pen.TypeID = KOID_PEN;
+    Pen.References = 1;
+    Pen.Pattern = MAX_U32;
+
+    BaseLineInfo.Header.Size = sizeof(BaseLineInfo);
+    BaseLineInfo.Header.Version = EXOS_ABI_VERSION;
+    BaseLineInfo.Header.Flags = 0;
+    BaseLineInfo.GC = GC;
+    BaseLineInfo.X1 = X1;
+    BaseLineInfo.X2 = X2;
+
+    OldPen = SelectPen(GC, (HANDLE)&Pen);
+    Denominator = (U32)(Height - 1);
+
+    for (Offset = 0; Offset < Height; Offset++) {
+        Numerator = (U32)Offset;
+
+        RowColor =
+            ((((StartA + (((I32)EndA - (I32)StartA) * Numerator) / Denominator) & 0xFF) << 24)) |
+            ((((StartR + (((I32)EndR - (I32)StartR) * Numerator) / Denominator) & 0xFF) << 16)) |
+            ((((StartG + (((I32)EndG - (I32)StartG) * Numerator) / Denominator) & 0xFF) << 8)) |
+            (((StartB + (((I32)EndB - (I32)StartB) * Numerator) / Denominator) & 0xFF));
+
+        Pen.Color = RowColor;
+        LineInfo = BaseLineInfo;
+        LineInfo.Y1 = Y1 + Offset;
+        LineInfo.Y2 = Y1 + Offset;
+        (void)Line(&LineInfo);
+    }
+
+    (void)SelectPen(GC, OldPen);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve themed border thickness for window frame rendering.
+ * @param ThicknessOut Receives thickness in pixels.
+ * @return TRUE on success.
+ */
+static BOOL ResolveWindowBorderThickness(U32* ThicknessOut) {
+    U32 BorderThickness;
+
+    if (ThicknessOut == NULL) return FALSE;
+
+    if (!DesktopThemeResolveLevel1Metric(TEXT("window.border"), TEXT("normal"), TEXT("border_thickness"), &BorderThickness)) {
+        if (!DesktopThemeResolveLevel1Metric(TEXT("window.frame"), TEXT("normal"), TEXT("border_thickness"), &BorderThickness)) {
+            BorderThickness = 2;
+        }
+    }
+
+    if (BorderThickness == 0) BorderThickness = 1;
+    *ThicknessOut = BorderThickness;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Draw themed window borders around a window rectangle.
  * @param GC Graphics context.
  * @param Rect Target window-local rectangle.
@@ -89,11 +197,7 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
 
     if (GC == NULL || Rect == NULL) return;
 
-    if (!DesktopThemeResolveLevel1Metric(TEXT("window.border"), TEXT("normal"), TEXT("border_thickness"), &BorderThickness)) {
-        if (!DesktopThemeResolveLevel1Metric(TEXT("window.frame"), TEXT("normal"), TEXT("border_thickness"), &BorderThickness)) {
-            BorderThickness = 2;
-        }
-    }
+    (void)ResolveWindowBorderThickness(&BorderThickness);
 
     if (!DesktopThemeResolveLevel1Color(TEXT("window.border"), TEXT("normal"), TEXT("border_color"), &BorderColor)) {
         if (!DesktopThemeResolveLevel1Color(TEXT("window.frame"), TEXT("normal"), TEXT("border_color"), &BorderColor)) {
@@ -124,6 +228,92 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
     (void)DrawSolidRect(GC, Rect->X1, Rect->Y1 + Thickness, Rect->X1 + Thickness - 1, Rect->Y2 - Thickness, BorderColor);
     // Right border
     (void)DrawSolidRect(GC, Rect->X2 - Thickness + 1, Rect->Y1 + Thickness, Rect->X2, Rect->Y2 - Thickness, BorderColor);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Draw a themed title bar in the non-client frame area.
+ * @param GC Graphics context.
+ * @param Rect Window-local rectangle.
+ * @return TRUE when title bar was drawn.
+ */
+static BOOL DrawWindowTitleBarFromTheme(HANDLE GC, LPRECT Rect) {
+    HANDLE TitleBrush;
+    HANDLE TitleBrush2;
+    LPBRUSH TitleBrushPtr;
+    LPBRUSH TitleBrush2Ptr;
+    COLOR Background = 0;
+    COLOR Background2 = 0;
+    U32 BorderThickness;
+    U32 TitleHeight = 22;
+    I32 InnerX1;
+    I32 InnerX2;
+    I32 InnerY1;
+    I32 InnerY2;
+    I32 MaxTitleHeight;
+    I32 BottomLineY;
+    COLOR SeparatorColor = 0;
+
+    if (GC == NULL || Rect == NULL) return FALSE;
+    if (ResolveWindowBorderThickness(&BorderThickness) == FALSE) return FALSE;
+
+    if (!DesktopThemeResolveLevel1Metric(TEXT("window.titlebar"), TEXT("normal"), TEXT("title_height"), &TitleHeight)) {
+        if (!DesktopThemeResolveTokenMetricByName(TEXT("metric.window.title_height"), &TitleHeight)) {
+            TitleHeight = 22;
+        }
+    }
+    if (TitleHeight == 0) return FALSE;
+
+    InnerX1 = Rect->X1 + (I32)BorderThickness;
+    InnerX2 = Rect->X2 - (I32)BorderThickness;
+    InnerY1 = Rect->Y1 + (I32)BorderThickness;
+    if (InnerX1 > InnerX2 || InnerY1 > Rect->Y2) return FALSE;
+
+    MaxTitleHeight = Rect->Y2 - InnerY1 + 1;
+    if (MaxTitleHeight <= 0) return FALSE;
+    if ((I32)TitleHeight > MaxTitleHeight) TitleHeight = (U32)MaxTitleHeight;
+    InnerY2 = InnerY1 + (I32)TitleHeight - 1;
+
+    if (!DesktopThemeResolveLevel1Color(TEXT("window.titlebar"), TEXT("normal"), TEXT("background"), &Background)) {
+        TitleBrush = GetSystemBrush(SM_COLOR_TITLE_BAR);
+        SAFE_USE_VALID_ID((LPBRUSH)TitleBrush, KOID_BRUSH) {
+            TitleBrushPtr = (LPBRUSH)TitleBrush;
+            Background = TitleBrushPtr->Color;
+        }
+    }
+
+    if (!DesktopThemeResolveLevel1Color(TEXT("window.titlebar"), TEXT("normal"), TEXT("background2"), &Background2)) {
+        TitleBrush2 = GetSystemBrush(SM_COLOR_TITLE_BAR_2);
+        SAFE_USE_VALID_ID((LPBRUSH)TitleBrush2, KOID_BRUSH) {
+            TitleBrush2Ptr = (LPBRUSH)TitleBrush2;
+            Background2 = TitleBrush2Ptr->Color;
+        }
+    }
+
+    if (Background != 0 || Background2 != 0) {
+        if (Background2 != 0 && Background2 != Background) {
+            (void)DrawVerticalGradientRect(GC, InnerX1, InnerY1, InnerX2, InnerY2, Background, Background2);
+        } else {
+            (void)DrawSolidRect(GC, InnerX1, InnerY1, InnerX2, InnerY2, Background);
+        }
+    }
+
+    if (!DesktopThemeResolveLevel1Color(TEXT("window.border"), TEXT("normal"), TEXT("border_color"), &SeparatorColor)) {
+        if (!DesktopThemeResolveLevel1Color(TEXT("window.frame"), TEXT("normal"), TEXT("border_color"), &SeparatorColor)) {
+            HANDLE Pen = GetSystemPen(SM_COLOR_DARK_SHADOW);
+            SAFE_USE_VALID_ID((LPPEN)Pen, KOID_PEN) {
+                SeparatorColor = ((LPPEN)Pen)->Color;
+            }
+        }
+    }
+
+    BottomLineY = InnerY2;
+    if (BottomLineY >= Rect->Y1 && BottomLineY <= Rect->Y2) {
+        (void)DrawSolidRect(GC, InnerX1, BottomLineY, InnerX2, BottomLineY, SeparatorColor);
+    }
+
+    return TRUE;
 }
 
 /***************************************************************************/
@@ -195,6 +385,7 @@ BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect) {
     RectInfo.Y2 = Rect->Y2;
 
     if (DesktopThemeDrawRecipeForElementState(Window, GC, Rect, TEXT("window.frame"), TEXT("normal"))) {
+        (void)DrawWindowTitleBarFromTheme(GC, Rect);
         DrawWindowBorderFromTheme(GC, Rect);
         return TRUE;
     }
@@ -212,6 +403,7 @@ BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect) {
     }
 
     Rectangle(&RectInfo);
+    (void)DrawWindowTitleBarFromTheme(GC, Rect);
     DrawWindowBorderFromTheme(GC, Rect);
 
     return TRUE;

@@ -62,12 +62,12 @@ static const THEME_COLOR_TOKEN_ENTRY BuiltinColorTokens[] = {
     {THEME_TOKEN_COLOR_TEXT_NORMAL, TEXT("color.text.normal"), COLOR_BLACK},
     {THEME_TOKEN_COLOR_TEXT_SELECTED, TEXT("color.text.selected"), COLOR_WHITE},
     {THEME_TOKEN_COLOR_SELECTION, TEXT("color.selection"), COLOR_DARK_BLUE},
-    {THEME_TOKEN_COLOR_TITLE_BAR, TEXT("color.title_bar"), COLOR_DARK_BLUE},
-    {THEME_TOKEN_COLOR_TITLE_BAR_2, TEXT("color.title_bar_2"), COLOR_CYAN},
+    {THEME_TOKEN_COLOR_TITLE_BAR, TEXT("color.title_bar"), 0x00606060},
+    {THEME_TOKEN_COLOR_TITLE_BAR_2, TEXT("color.title_bar_2"), 0x00D8D8D8},
     {THEME_TOKEN_COLOR_TITLE_TEXT, TEXT("color.title_text"), COLOR_WHITE},
     {THEME_TOKEN_COLOR_NORMAL, TEXT("color.window.frame"), 0x00A0A0A0},
-    {THEME_TOKEN_COLOR_TITLE_BAR, TEXT("color.window.title.active.start"), COLOR_DARK_BLUE},
-    {THEME_TOKEN_COLOR_TITLE_BAR_2, TEXT("color.window.title.active.end"), COLOR_CYAN},
+    {THEME_TOKEN_COLOR_TITLE_BAR, TEXT("color.window.title.active.start"), 0x00606060},
+    {THEME_TOKEN_COLOR_TITLE_BAR_2, TEXT("color.window.title.active.end"), 0x00D8D8D8},
     {THEME_TOKEN_COLOR_TITLE_TEXT, TEXT("color.window.text"), COLOR_WHITE},
 };
 
