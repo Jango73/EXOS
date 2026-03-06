@@ -62,7 +62,7 @@ Boot-time behavior:
 Operational model:
 1. Early phase (diskless):
 - Use built-in default theme only.
-- Allow desktop start from the EXOS console shell.
+- Allow main desktop activation from the EXOS console shell (`desktop show`).
 
 2. Late phase (storage ready):
 - Load TOML theme if requested.
@@ -347,18 +347,18 @@ Compatibility first, then extension.
 - [x] Ensure theme activation does not affect `ClientDecorated` non-client rendering (none is rendered).
 
 ### Step 8: Diskless Desktop Bootstrap From EXOS Shell
-- [x] Add shell command `desktop start` to launch desktop/windowing using built-in theme.
+- [x] Add shell command `desktop show` to activate `MainDesktop` and launch desktop/windowing using built-in theme.
 - [x] Add shell command `desktop status` to report active desktop mode and active theme source (`built-in` or `loaded`).
 - [x] Add shell command `desktop theme <path-or-name>` to load/activate a theme.
 - [x] Add `Desktop.ThemePath` config support in `exos.*.toml` to select the theme file at desktop startup.
-- [x] Ensure `desktop start` succeeds when no storage is mounted.
+- [x] Ensure `desktop show` succeeds when no storage is mounted.
 - [x] Ensure theme load failure never prevents desktop startup.
 
 ### Step 8.5: Kernel Internal Desktop Test Module
 - [ ] Add one internal kernel windowing test module (portal-like purpose, kernel-side implementation).
 - [ ] Make the test module create two test windows with different sizes.
 - [ ] Set arbitrary titles on both test windows for visual identification.
-- [ ] Ensure both test windows are visible after `desktop start`.
+- [ ] Ensure both test windows are visible after `desktop show`.
 
 ### Step 9: Client-Decorated Framework Support
 - [ ] Add decoration mode flag to window creation ABI/runtime API.
@@ -378,7 +378,7 @@ Compatibility first, then extension.
 - [ ] Add state-transition rendering tests (`normal`, `hover`, `pressed`, `focused`, `disabled`).
 - [ ] Add compatibility tests for legacy `SM_COLOR_*` consumers.
 - [ ] Add compatibility tests for `ClientDecorated` windows (no kernel non-client draw).
-- [ ] Add diskless boot tests where desktop starts with built-in theme only.
+- [ ] Add diskless boot tests where `desktop show` activates `MainDesktop` with built-in theme only.
 - [ ] Add post-mount theme switch tests (`built-in -> loaded -> fallback on error`).
 - [ ] Add malformed TOML and reference-error tests.
 - [ ] Add boundary tests for parser/runtime limits.

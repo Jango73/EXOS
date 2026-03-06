@@ -440,44 +440,29 @@ static void PrintDesktopStatus(void) {
 /************************************************************************/
 
 /**
- * @brief Start desktop mode from shell and optionally apply config-selected theme.
+ * @brief Show main desktop from shell and optionally apply config-selected theme.
  * @return DF_RETURN_SUCCESS on completion.
  */
-static U32 StartDesktopFromShell(void) {
-    LPPROCESS Process;
+static U32 ShowMainDesktopFromShell(void) {
     LPDESKTOP Desktop;
-    BOOL CreatedDesktop = FALSE;
     LPCSTR ConfiguredThemePath;
 
-    Process = GetCurrentProcess();
-    Desktop = (Process != NULL) ? Process->Desktop : NULL;
-
-    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP || Desktop == &MainDesktop) {
-        Desktop = CreateDesktop();
-        if (Desktop == NULL) {
-            ConsolePrint(TEXT("desktop start: desktop creation failed\n"));
-            return DF_RETURN_SUCCESS;
-        }
-        CreatedDesktop = TRUE;
-    }
+    Desktop = &MainDesktop;
 
     if (DisplaySwitchToDesktop(Desktop) == FALSE) {
-        ConsolePrint(TEXT("desktop start: unable to switch to desktop mode\n"));
-        if (CreatedDesktop) {
-            (void)DeleteDesktop(Desktop);
-        }
+        ConsolePrint(TEXT("desktop show: unable to switch to main desktop\n"));
         return DF_RETURN_SUCCESS;
     }
 
-    ConsolePrint(TEXT("desktop start: desktop active\n"));
+    ConsolePrint(TEXT("desktop show: main desktop active\n"));
 
-    // A configured theme path is optional and must never block desktop startup.
+    // A configured theme path is optional and must never block desktop activation.
     ConfiguredThemePath = GetConfigurationValue(TEXT("Desktop.ThemePath"));
     if (ConfiguredThemePath != NULL && StringLength(ConfiguredThemePath) != 0) {
         if (LoadTheme(ConfiguredThemePath) && ActivateTheme(TEXT("staged"))) {
-            ConsolePrint(TEXT("desktop start: theme activated from config (%s)\n"), ConfiguredThemePath);
+            ConsolePrint(TEXT("desktop show: theme activated from config (%s)\n"), ConfiguredThemePath);
         } else {
-            ConsolePrint(TEXT("desktop start: theme config failed, keeping current theme (%s)\n"), ConfiguredThemePath);
+            ConsolePrint(TEXT("desktop show: theme config failed, keeping current theme (%s)\n"), ConfiguredThemePath);
         }
     }
 
@@ -545,8 +530,8 @@ U32 CMD_desktop(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    if (StringCompareNC(Action, TEXT("start")) == 0) {
-        return StartDesktopFromShell();
+    if (StringCompareNC(Action, TEXT("show")) == 0) {
+        return ShowMainDesktopFromShell();
     }
 
     if (StringCompareNC(Action, TEXT("theme")) == 0) {
@@ -554,7 +539,7 @@ U32 CMD_desktop(LPSHELLCONTEXT Context) {
         return ApplyDesktopThemeTarget(Context->Command);
     }
 
-    ConsolePrint(TEXT("Usage: desktop start\n"));
+    ConsolePrint(TEXT("Usage: desktop show\n"));
     ConsolePrint(TEXT("       desktop status\n"));
     ConsolePrint(TEXT("       desktop theme <path-or-name>\n"));
     return DF_RETURN_SUCCESS;
