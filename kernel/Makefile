@@ -51,7 +51,7 @@ CFLAGS          = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
                   -DBARE_METAL=$(BARE_METAL) -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DDEBUG_SPLIT=$(DEBUG_SPLIT) -DFORCE_PIC=$(FORCE_PIC) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DTRACE_STACK_USAGE=$(TRACE_STACK_USAGE) -DPROFILING=$(PROFILING) -DUSE_SYSCALL=$(USE_SYSCALL) -DSYSTEM_DATA_VIEW=$(SYSTEM_DATA_VIEW) \
                   -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) \
                   -DKERNEL_CONFIG_NAME=\"$(CONFIG_TOML_NAME)\" -DKERNEL_CONFIG_NAME_UPPER=\"$(CONFIG_TOML_NAME_UPPER)\" \
-                  -Iinclude -I../third -I../third/include -I../runtime/include -I../third/bearssl/inc -I../third/bearssl/src -I../third/miniz -I../third/monocypher/src -I../third/monocypher/src/optional
+                  -Iinclude -Iinclude/desktop -I../third -I../third/include -I../runtime/include -I../third/bearssl/inc -I../third/bearssl/src -I../third/miniz -I../third/monocypher/src -I../third/monocypher/src/optional
 CFLAGS         += $(ARCH_CFLAGS)
 ifeq ($(KERNEL_LOG_DEFAULT_TAG_FILTER_SET),1)
 CFLAGS         += -DKERNEL_LOG_DEFAULT_TAG_FILTER=\"$(KERNEL_LOG_DEFAULT_TAG_FILTER)\"
@@ -74,6 +74,7 @@ LDFLAGS_ELF     = -T $(LINKER_SCRIPT) -static -nostdlib -no-pie --no-dynamic-lin
 KERNEL_ELF      = $(BUILD_DIR)/kernel/exos.elf
 
 SRC_C  = $(wildcard source/*.c) \
+         $(wildcard source/desktop/*.c) \
          $(wildcard source/console/*.c) \
          $(wildcard source/input/*.c) \
          $(wildcard source/script/*.c) \
