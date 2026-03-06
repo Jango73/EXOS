@@ -354,6 +354,12 @@ Compatibility first, then extension.
 - [x] Ensure `desktop start` succeeds when no storage is mounted.
 - [x] Ensure theme load failure never prevents desktop startup.
 
+### Step 8.5: Kernel Internal Desktop Test Module
+- [ ] Add one internal kernel windowing test module (portal-like purpose, kernel-side implementation).
+- [ ] Make the test module create two test windows with different sizes.
+- [ ] Set arbitrary titles on both test windows for visual identification.
+- [ ] Ensure both test windows are visible after `desktop start`.
+
 ### Step 9: Client-Decorated Framework Support
 - [ ] Add decoration mode flag to window creation ABI/runtime API.
 - [ ] Implement no-chrome kernel path for `ClientDecorated` windows.
