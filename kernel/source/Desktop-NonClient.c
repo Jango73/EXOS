@@ -30,6 +30,105 @@
 /***************************************************************************/
 
 /**
+ * @brief Draw one filled rectangle using an explicit color.
+ * @param GC Graphics context.
+ * @param X1 Left.
+ * @param Y1 Top.
+ * @param X2 Right.
+ * @param Y2 Bottom.
+ * @param Color Fill color.
+ * @return TRUE on success.
+ */
+static BOOL DrawSolidRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color) {
+    RECTINFO RectInfo;
+    BRUSH Brush;
+    HANDLE OldPen;
+    HANDLE OldBrush;
+
+    if (GC == NULL) return FALSE;
+    if (X1 > X2 || Y1 > Y2) return FALSE;
+
+    MemorySet(&Brush, 0, sizeof(Brush));
+    Brush.TypeID = KOID_BRUSH;
+    Brush.References = 1;
+    Brush.Color = Color;
+    Brush.Pattern = MAX_U32;
+
+    RectInfo.Header.Size = sizeof(RectInfo);
+    RectInfo.Header.Version = EXOS_ABI_VERSION;
+    RectInfo.Header.Flags = 0;
+    RectInfo.GC = GC;
+    RectInfo.X1 = X1;
+    RectInfo.Y1 = Y1;
+    RectInfo.X2 = X2;
+    RectInfo.Y2 = Y2;
+
+    OldPen = SelectPen(GC, NULL);
+    OldBrush = SelectBrush(GC, (HANDLE)&Brush);
+    (void)Rectangle(&RectInfo);
+    (void)SelectBrush(GC, OldBrush);
+    (void)SelectPen(GC, OldPen);
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Draw themed window borders around a window rectangle.
+ * @param GC Graphics context.
+ * @param Rect Target window-local rectangle.
+ */
+static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
+    U32 BorderThickness = 2;
+    COLOR BorderColor = 0;
+    I32 Width;
+    I32 Height;
+    I32 MaxThickness;
+    I32 Thickness;
+
+    if (GC == NULL || Rect == NULL) return;
+
+    if (!DesktopThemeResolveLevel1Metric(TEXT("window.border"), TEXT("normal"), TEXT("border_thickness"), &BorderThickness)) {
+        if (!DesktopThemeResolveLevel1Metric(TEXT("window.frame"), TEXT("normal"), TEXT("border_thickness"), &BorderThickness)) {
+            BorderThickness = 2;
+        }
+    }
+
+    if (!DesktopThemeResolveLevel1Color(TEXT("window.border"), TEXT("normal"), TEXT("border_color"), &BorderColor)) {
+        if (!DesktopThemeResolveLevel1Color(TEXT("window.frame"), TEXT("normal"), TEXT("border_color"), &BorderColor)) {
+            HANDLE Pen = GetSystemPen(SM_COLOR_DARK_SHADOW);
+            SAFE_USE_VALID_ID((LPPEN)Pen, KOID_PEN) {
+                BorderColor = ((LPPEN)Pen)->Color;
+            }
+        }
+    }
+
+    Width = Rect->X2 - Rect->X1 + 1;
+    Height = Rect->Y2 - Rect->Y1 + 1;
+    if (Width <= 0 || Height <= 0) return;
+
+    MaxThickness = Width < Height ? Width : Height;
+    MaxThickness /= 2;
+    if (MaxThickness <= 0) return;
+
+    Thickness = (I32)BorderThickness;
+    if (Thickness <= 0) return;
+    if (Thickness > MaxThickness) Thickness = MaxThickness;
+
+    // Top border
+    (void)DrawSolidRect(GC, Rect->X1, Rect->Y1, Rect->X2, Rect->Y1 + Thickness - 1, BorderColor);
+    // Bottom border
+    (void)DrawSolidRect(GC, Rect->X1, Rect->Y2 - Thickness + 1, Rect->X2, Rect->Y2, BorderColor);
+    // Left border
+    (void)DrawSolidRect(GC, Rect->X1, Rect->Y1 + Thickness, Rect->X1 + Thickness - 1, Rect->Y2 - Thickness, BorderColor);
+    // Right border
+    (void)DrawSolidRect(GC, Rect->X2 - Thickness + 1, Rect->Y1 + Thickness, Rect->X2, Rect->Y2 - Thickness, BorderColor);
+}
+
+/***************************************************************************/
+
+/**
  * @brief Resolve decoration mode from a window style bitfield.
  * @param Style Window style bitfield.
  * @return One of WINDOW_DECORATION_MODE_* values.
@@ -96,6 +195,7 @@ BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect) {
     RectInfo.Y2 = Rect->Y2;
 
     if (DesktopThemeDrawRecipeForElementState(Window, GC, Rect, TEXT("window.frame"), TEXT("normal"))) {
+        DrawWindowBorderFromTheme(GC, Rect);
         return TRUE;
     }
 
@@ -112,6 +212,7 @@ BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect) {
     }
 
     Rectangle(&RectInfo);
+    DrawWindowBorderFromTheme(GC, Rect);
 
     return TRUE;
 }

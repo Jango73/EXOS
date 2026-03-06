@@ -44,6 +44,18 @@ static const LEVEL1_PROPERTY_ENTRY BuiltinLevel1Properties[] = {
     {TEXT("window.frame"), TEXT("normal"), TEXT("background"), TEXT("token:color.window.frame")},
     {TEXT("window.frame"), TEXT("active"), TEXT("background"), TEXT("token:color.window.frame")},
     {TEXT("window.frame"), TEXT("focused"), TEXT("background"), TEXT("token:color.window.frame")},
+    {TEXT("window.frame"), TEXT("normal"), TEXT("border_color"), TEXT("token:color.dark_shadow")},
+    {TEXT("window.frame"), TEXT("active"), TEXT("border_color"), TEXT("token:color.dark_shadow")},
+    {TEXT("window.frame"), TEXT("focused"), TEXT("border_color"), TEXT("token:color.dark_shadow")},
+    {TEXT("window.frame"), TEXT("normal"), TEXT("border_thickness"), TEXT("2")},
+    {TEXT("window.frame"), TEXT("active"), TEXT("border_thickness"), TEXT("2")},
+    {TEXT("window.frame"), TEXT("focused"), TEXT("border_thickness"), TEXT("2")},
+    {TEXT("window.border"), TEXT("normal"), TEXT("border_color"), TEXT("token:color.dark_shadow")},
+    {TEXT("window.border"), TEXT("active"), TEXT("border_color"), TEXT("token:color.dark_shadow")},
+    {TEXT("window.border"), TEXT("focused"), TEXT("border_color"), TEXT("token:color.dark_shadow")},
+    {TEXT("window.border"), TEXT("normal"), TEXT("border_thickness"), TEXT("2")},
+    {TEXT("window.border"), TEXT("active"), TEXT("border_thickness"), TEXT("2")},
+    {TEXT("window.border"), TEXT("focused"), TEXT("border_thickness"), TEXT("2")},
 };
 
 /***************************************************************************/
