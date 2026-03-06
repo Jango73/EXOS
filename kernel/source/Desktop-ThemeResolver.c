@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "Desktop-ThemeResolver.h"
+#include "Desktop-ThemeRuntime.h"
 #include "Desktop-ThemeTokens.h"
 #include "CoreString.h"
 
@@ -157,6 +158,58 @@ static BOOL IsMatchingPropertyEntry(
 
 /***************************************************************************/
 
+/**
+ * @brief Try resolving one runtime level 1 value for element/state/property.
+ * @param ElementID Element identifier.
+ * @param StateID State identifier.
+ * @param PropertyName Property name.
+ * @param Value Receives textual property value.
+ * @param ValueBufferSize Output buffer size.
+ * @return TRUE when runtime contains the requested key.
+ */
+static BOOL ResolveRuntimeLevel1Text(
+    LPCSTR ElementID,
+    LPCSTR StateID,
+    LPCSTR PropertyName,
+    LPSTR Value,
+    UINT ValueBufferSize
+) {
+    STR Key[256];
+    LPCSTR RuntimeValue = NULL;
+    UINT ValueLength;
+
+    if (ElementID == NULL || StateID == NULL || PropertyName == NULL || Value == NULL) return FALSE;
+
+    Key[0] = STR_NULL;
+
+    if (StringCompareNC(StateID, TEXT("normal")) == 0) {
+        StringCopy(Key, ElementID);
+        StringConcat(Key, TEXT("."));
+        StringConcat(Key, PropertyName);
+        if (DesktopThemeLookupElementPropertyValue(NULL, Key, &RuntimeValue)) {
+            ValueLength = StringLength(RuntimeValue);
+            if (ValueLength + 1 > ValueBufferSize) return FALSE;
+            StringCopy(Value, RuntimeValue);
+            return TRUE;
+        }
+    }
+
+    StringCopy(Key, ElementID);
+    StringConcat(Key, TEXT(".states."));
+    StringConcat(Key, StateID);
+    StringConcat(Key, TEXT("."));
+    StringConcat(Key, PropertyName);
+
+    if (DesktopThemeLookupElementPropertyValue(NULL, Key, &RuntimeValue) == FALSE) return FALSE;
+
+    ValueLength = StringLength(RuntimeValue);
+    if (ValueLength + 1 > ValueBufferSize) return FALSE;
+    StringCopy(Value, RuntimeValue);
+    return TRUE;
+}
+
+/***************************************************************************/
+
 BOOL DesktopThemeResolveLevel1Text(
     LPCSTR ElementID,
     LPCSTR StateID,
@@ -173,6 +226,10 @@ BOOL DesktopThemeResolveLevel1Text(
     if (ElementID == NULL || PropertyName == NULL || Value == NULL || ValueBufferSize == 0) return FALSE;
 
     BuildStateFallbackChain(StateID, State1, State2, State3);
+
+    if (ResolveRuntimeLevel1Text(ElementID, State1, PropertyName, Value, ValueBufferSize)) return TRUE;
+    if (ResolveRuntimeLevel1Text(ElementID, State2, PropertyName, Value, ValueBufferSize)) return TRUE;
+    if (ResolveRuntimeLevel1Text(ElementID, State3, PropertyName, Value, ValueBufferSize)) return TRUE;
 
     for (Index = 0; Index < (sizeof(BuiltinLevel1Properties) / sizeof(BuiltinLevel1Properties[0])); Index++) {
         if (IsMatchingPropertyEntry(&BuiltinLevel1Properties[Index], ElementID, State1, PropertyName) ||

@@ -209,6 +209,14 @@ struct tag_DESKTOP {
     LPPROCESS FocusedProcess; // Process with input focus on this desktop
     U32 Mode;
     I32 Order;
+    LPVOID BuiltinThemeRuntime;
+    LPVOID ActiveThemeRuntime;
+    LPVOID StagedThemeRuntime;
+    STR ActiveThemePath[MAX_FILE_NAME];
+    STR StagedThemePath[MAX_FILE_NAME];
+    U32 ThemeLastStatus;
+    U32 ThemeLastFallbackReason;
+    BOOL ThemeActiveFromFile;
 };
 
 /************************************************************************/

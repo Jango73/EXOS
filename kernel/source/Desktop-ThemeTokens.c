@@ -23,6 +23,8 @@
 
 #include "Desktop-ThemeTokens.h"
 #include "Desktop-Private.h"
+#include "Desktop-ThemeRuntime.h"
+#include "CoreString.h"
 #include "Kernel.h"
 
 /***************************************************************************/
@@ -95,6 +97,76 @@ static SYSTEM_COLOR_BINDING BuiltinSystemColorBindings[] = {
 /***************************************************************************/
 
 /**
+ * @brief Compare start of one string with one prefix.
+ * @param Text Input text.
+ * @param Prefix Prefix text.
+ * @return TRUE when text starts with prefix.
+ */
+static BOOL ThemeStartsWith(LPCSTR Text, LPCSTR Prefix) {
+    UINT Index;
+
+    if (Text == NULL || Prefix == NULL) return FALSE;
+
+    for (Index = 0; Prefix[Index] != STR_NULL; Index++) {
+        if (Text[Index] != Prefix[Index]) return FALSE;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Parse one color literal.
+ * @param Value Color value text.
+ * @param Color Receives parsed color.
+ * @return TRUE on success.
+ */
+static BOOL ParseColorLiteral(LPCSTR Value, COLOR* Color) {
+    STR HexBuffer[16];
+    UINT Index;
+    UINT Length;
+
+    if (Value == NULL || Color == NULL) return FALSE;
+
+    if (ThemeStartsWith(Value, TEXT("0x")) || ThemeStartsWith(Value, TEXT("0X"))) {
+        *Color = StringToU32(Value);
+        return TRUE;
+    }
+
+    if (Value[0] != '#') return FALSE;
+
+    Length = StringLength(Value);
+    if (Length != 7 && Length != 9) return FALSE;
+
+    HexBuffer[0] = '0';
+    HexBuffer[1] = 'x';
+    for (Index = 1; Index < Length; Index++) {
+        HexBuffer[Index + 1] = Value[Index];
+    }
+    HexBuffer[Length + 1] = STR_NULL;
+    *Color = StringToU32(HexBuffer);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Parse one metric literal.
+ * @param Value Metric value text.
+ * @param Metric Receives parsed metric.
+ * @return TRUE on success.
+ */
+static BOOL ParseMetricLiteral(LPCSTR Value, U32* Metric) {
+    if (Value == NULL || Metric == NULL) return FALSE;
+
+    *Metric = StringToU32(Value);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Resolve a built-in color token identifier.
  * @param TokenID Built-in THEME_TOKEN_COLOR_* identifier.
  * @param Color Receives the token value.
@@ -136,6 +208,134 @@ static BOOL ResolveBuiltinMetricToken(U32 TokenID, U32* Value) {
     }
 
     return FALSE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve a built-in color token name from token identifier.
+ * @param TokenID Built-in color token identifier.
+ * @param TokenName Receives canonical token name.
+ * @return TRUE on success.
+ */
+static BOOL ResolveBuiltinColorTokenName(U32 TokenID, LPCSTR* TokenName) {
+    UINT Index;
+
+    if (TokenName == NULL) return FALSE;
+
+    for (Index = 0; Index < (sizeof(BuiltinColorTokens) / sizeof(BuiltinColorTokens[0])); Index++) {
+        if (BuiltinColorTokens[Index].TokenID != TokenID) continue;
+        *TokenName = BuiltinColorTokens[Index].Name;
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve one built-in color token by token name.
+ * @param TokenName Token name.
+ * @param Color Receives color value.
+ * @return TRUE on success.
+ */
+static BOOL ResolveBuiltinColorTokenByName(LPCSTR TokenName, COLOR* Color) {
+    UINT Index;
+
+    if (TokenName == NULL || Color == NULL) return FALSE;
+
+    for (Index = 0; Index < (sizeof(BuiltinColorTokens) / sizeof(BuiltinColorTokens[0])); Index++) {
+        if (StringCompareNC(BuiltinColorTokens[Index].Name, TokenName) == 0) {
+            *Color = BuiltinColorTokens[Index].Value;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve one built-in metric token by token name.
+ * @param TokenName Token name.
+ * @param Value Receives metric value.
+ * @return TRUE on success.
+ */
+static BOOL ResolveBuiltinMetricTokenByName(LPCSTR TokenName, U32* Value) {
+    UINT Index;
+
+    if (TokenName == NULL || Value == NULL) return FALSE;
+
+    for (Index = 0; Index < (sizeof(BuiltinMetricTokens) / sizeof(BuiltinMetricTokens[0])); Index++) {
+        if (StringCompareNC(BuiltinMetricTokens[Index].Name, TokenName) == 0) {
+            *Value = BuiltinMetricTokens[Index].Value;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve token color from active runtime with bounded recursion.
+ * @param TokenName Token name.
+ * @param Color Receives token color.
+ * @param Depth Recursion depth.
+ * @return TRUE on success.
+ */
+static BOOL ResolveRuntimeTokenColorRecursive(LPCSTR TokenName, COLOR* Color, U32 Depth) {
+    LPCSTR Value = NULL;
+
+    if (TokenName == NULL || Color == NULL) return FALSE;
+    if (Depth > 8) return FALSE;
+
+    if (DesktopThemeLookupTokenValue(NULL, TokenName, &Value) == FALSE) {
+        return ResolveBuiltinColorTokenByName(TokenName, Color);
+    }
+    if (Value == NULL || Value[0] == STR_NULL) {
+        return ResolveBuiltinColorTokenByName(TokenName, Color);
+    }
+
+    if (ThemeStartsWith(Value, TEXT("token:"))) {
+        return ResolveRuntimeTokenColorRecursive(Value + 6, Color, Depth + 1);
+    }
+
+    if (ParseColorLiteral(Value, Color)) return TRUE;
+    return ResolveBuiltinColorTokenByName(TokenName, Color);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve token metric from active runtime with bounded recursion.
+ * @param TokenName Token name.
+ * @param Metric Receives token metric.
+ * @param Depth Recursion depth.
+ * @return TRUE on success.
+ */
+static BOOL ResolveRuntimeTokenMetricRecursive(LPCSTR TokenName, U32* Metric, U32 Depth) {
+    LPCSTR Value = NULL;
+
+    if (TokenName == NULL || Metric == NULL) return FALSE;
+    if (Depth > 8) return FALSE;
+
+    if (DesktopThemeLookupTokenValue(NULL, TokenName, &Value) == FALSE) {
+        return ResolveBuiltinMetricTokenByName(TokenName, Metric);
+    }
+    if (Value == NULL || Value[0] == STR_NULL) {
+        return ResolveBuiltinMetricTokenByName(TokenName, Metric);
+    }
+
+    if (ThemeStartsWith(Value, TEXT("token:"))) {
+        return ResolveRuntimeTokenMetricRecursive(Value + 6, Metric, Depth + 1);
+    }
+
+    if (ParseMetricLiteral(Value, Metric)) return TRUE;
+    return ResolveBuiltinMetricTokenByName(TokenName, Metric);
 }
 
 /***************************************************************************/
@@ -197,8 +397,15 @@ static BOOL ResolveSystemMetricTokenID(U32 SystemMetricIndex, U32* TokenID) {
 
 BOOL DesktopThemeResolveSystemColor(U32 SystemColorIndex, COLOR* Color) {
     U32 TokenID;
+    LPCSTR TokenName = NULL;
 
+    if (Color == NULL) return FALSE;
     if (ResolveSystemColorTokenID(SystemColorIndex, &TokenID) == FALSE) return FALSE;
+
+    if (ResolveBuiltinColorTokenName(TokenID, &TokenName)) {
+        if (DesktopThemeResolveTokenColorByName(TokenName, Color)) return TRUE;
+    }
+
     return ResolveBuiltinColorToken(TokenID, Color);
 }
 
@@ -206,43 +413,41 @@ BOOL DesktopThemeResolveSystemColor(U32 SystemColorIndex, COLOR* Color) {
 
 BOOL DesktopThemeResolveSystemMetric(U32 SystemMetricIndex, U32* Value) {
     U32 TokenID;
+    UINT Index;
+    LPCSTR TokenName = NULL;
 
+    if (Value == NULL) return FALSE;
     if (ResolveSystemMetricTokenID(SystemMetricIndex, &TokenID) == FALSE) return FALSE;
+
+    for (Index = 0; Index < (sizeof(BuiltinMetricTokens) / sizeof(BuiltinMetricTokens[0])); Index++) {
+        if (BuiltinMetricTokens[Index].TokenID != TokenID) continue;
+        TokenName = BuiltinMetricTokens[Index].Name;
+        break;
+    }
+
+    if (TokenName != NULL && DesktopThemeResolveTokenMetricByName(TokenName, Value)) return TRUE;
+
     return ResolveBuiltinMetricToken(TokenID, Value);
 }
 
 /***************************************************************************/
 
 BOOL DesktopThemeResolveTokenColorByName(LPCSTR TokenName, COLOR* Color) {
-    UINT Index;
-
     if (TokenName == NULL || Color == NULL) return FALSE;
 
-    for (Index = 0; Index < (sizeof(BuiltinColorTokens) / sizeof(BuiltinColorTokens[0])); Index++) {
-        if (StringCompareNC(BuiltinColorTokens[Index].Name, TokenName) == 0) {
-            *Color = BuiltinColorTokens[Index].Value;
-            return TRUE;
-        }
-    }
+    if (ResolveRuntimeTokenColorRecursive(TokenName, Color, 0)) return TRUE;
 
-    return FALSE;
+    return ResolveBuiltinColorTokenByName(TokenName, Color);
 }
 
 /***************************************************************************/
 
 BOOL DesktopThemeResolveTokenMetricByName(LPCSTR TokenName, U32* Value) {
-    UINT Index;
-
     if (TokenName == NULL || Value == NULL) return FALSE;
 
-    for (Index = 0; Index < (sizeof(BuiltinMetricTokens) / sizeof(BuiltinMetricTokens[0])); Index++) {
-        if (StringCompareNC(BuiltinMetricTokens[Index].Name, TokenName) == 0) {
-            *Value = BuiltinMetricTokens[Index].Value;
-            return TRUE;
-        }
-    }
+    if (ResolveRuntimeTokenMetricRecursive(TokenName, Value, 0)) return TRUE;
 
-    return FALSE;
+    return ResolveBuiltinMetricTokenByName(TokenName, Value);
 }
 
 /***************************************************************************/
@@ -252,7 +457,7 @@ void DesktopThemeSyncSystemObjects(void) {
     COLOR Color;
 
     for (Index = 0; Index < (sizeof(BuiltinSystemColorBindings) / sizeof(BuiltinSystemColorBindings[0])); Index++) {
-        if (ResolveBuiltinColorToken(BuiltinSystemColorBindings[Index].TokenID, &Color) == FALSE) continue;
+        if (DesktopThemeResolveSystemColor(BuiltinSystemColorBindings[Index].SystemColor, &Color) == FALSE) continue;
 
         SAFE_USE_VALID_ID(BuiltinSystemColorBindings[Index].Brush, KOID_BRUSH) { BuiltinSystemColorBindings[Index].Brush->Color = Color; }
         SAFE_USE_VALID_ID(BuiltinSystemColorBindings[Index].Pen, KOID_PEN) { BuiltinSystemColorBindings[Index].Pen->Color = Color; }

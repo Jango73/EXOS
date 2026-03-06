@@ -340,11 +340,11 @@ Compatibility first, then extension.
 - [x] Keep deterministic execution and bounded primitive count.
 
 ### Step 7: Theme Runtime API
-- [ ] Implement theme runtime API for load/activate/info/reset.
-- [ ] Ensure activation invalidates desktop/windows for full redraw.
-- [ ] Keep compatibility behavior for existing applications.
-- [ ] Add diagnostics for invalid themes and fallback reason.
-- [ ] Ensure theme activation does not affect `ClientDecorated` non-client rendering (none is rendered).
+- [x] Implement theme runtime API for load/activate/info/reset.
+- [x] Ensure activation invalidates desktop/windows for full redraw.
+- [x] Keep compatibility behavior for existing applications.
+- [x] Add diagnostics for invalid themes and fallback reason.
+- [x] Ensure theme activation does not affect `ClientDecorated` non-client rendering (none is rendered).
 
 ### Step 8: Diskless Desktop Bootstrap From EXOS Shell
 - [ ] Add shell command `desktop start` to launch desktop/windowing using built-in theme.

@@ -27,6 +27,7 @@
 /************************************************************************/
 
 #include "process/Process.h"
+#include "Desktop-ThemeRuntime.h"
 
 /************************************************************************/
 // Functions in Desktop.c
@@ -61,6 +62,10 @@ BOOL GetPixel(LPPIXELINFO);
 BOOL Line(LPLINEINFO);
 BOOL Rectangle(LPRECTINFO);
 U32 DefWindowFunc(HANDLE, U32, U32, U32);
+BOOL LoadTheme(LPCSTR Path);
+BOOL ActivateTheme(LPCSTR NameOrHandle);
+BOOL GetActiveThemeInfo(LPDESKTOP_THEME_RUNTIME_INFO Info);
+BOOL ResetThemeToDefault(void);
 
 /************************************************************************/
 
