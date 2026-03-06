@@ -401,7 +401,7 @@ bits 16
     ;--------------------------------------
     ; Setup the stack
 
-    mov     sp, LOW_MEMORY_PAGE_5
+    mov     sp, LOW_MEMORY_PAGE_7
 
     ;--------------------------------------
     ; Save our base address
