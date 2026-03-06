@@ -30,6 +30,7 @@
 #include "Log.h"
 #include "input/Mouse.h"
 #include "Desktop.h"
+#include "Desktop-ModeSelector.h"
 #include "Desktop-ThemeTokens.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
@@ -322,6 +323,8 @@ BOOL ShowDesktop(LPDESKTOP This) {
     GRAPHICSMODEINFO ModeInfo;
     GRAPHICSMODEINFO QueriedModeInfo;
     GRAPHICSMODEINFO ActiveModeInfo;
+    GRAPHICSMODEINFO SelectedModeInfo;
+    GRAPHICSMODEINFO RequestedModeInfo;
     UINT ModeSetResult;
     LPDESKTOP Desktop;
     LPLISTNODE Node;
@@ -329,6 +332,8 @@ BOOL ShowDesktop(LPDESKTOP This) {
     BOOL HasActiveMode;
     LPDRIVER ActiveGraphicsDriver;
     BOOL ModeReady;
+    BOOL HasSelectedMode;
+    BOOL UsedLegacyAutoSelect;
 
     //-------------------------------------
     // Check validity of parameters
@@ -372,46 +377,70 @@ BOOL ShowDesktop(LPDESKTOP This) {
         ModeInfo = ActiveModeInfo;
         DEBUG(TEXT("[ShowDesktop] Reusing active graphics mode %ux%ux%u"), ModeInfo.Width, ModeInfo.Height, ModeInfo.BitsPerPixel);
     } else {
-        ModeInfo.Header.Size = sizeof(ModeInfo);
-        ModeInfo.Header.Version = EXOS_ABI_VERSION;
-        ModeInfo.Header.Flags = 0;
-        ModeInfo.ModeIndex = INFINITY;
-        ModeInfo.Width = 0;
-        ModeInfo.Height = 0;
-        ModeInfo.BitsPerPixel = 0;
+        HasSelectedMode = DesktopSelectGraphicsMode(This->Graphics, &SelectedModeInfo);
+        UsedLegacyAutoSelect = FALSE;
 
-        // Let the backend select its preferred mode when no active graphics mode is reusable.
-        ModeSetResult = This->Graphics->Command(DF_GFX_SETMODE, (UINT)&ModeInfo);
-        if (ModeSetResult != DF_RETURN_SUCCESS) {
-            WARNING(TEXT("[ShowDesktop] DF_GFX_SETMODE auto-select failed (%u)"), ModeSetResult);
+        if (HasSelectedMode != FALSE) {
+            RequestedModeInfo = SelectedModeInfo;
+            ModeSetResult = This->Graphics->Command(DF_GFX_SETMODE, (UINT)&RequestedModeInfo);
+            if (ModeSetResult == DF_RETURN_SUCCESS) {
+                ModeInfo = RequestedModeInfo;
+                DEBUG(TEXT("[ShowDesktop] Applied selected mode %ux%ux%u"),
+                    ModeInfo.Width,
+                    ModeInfo.Height,
+                    ModeInfo.BitsPerPixel);
+            } else {
+                WARNING(TEXT("[ShowDesktop] DF_GFX_SETMODE selected mode failed (%u)"), ModeSetResult);
+            }
+        }
+
+        if (HasSelectedMode == FALSE || ModeSetResult != DF_RETURN_SUCCESS) {
+            // Legacy fallback while all backends migrate to full mode enumeration.
+            DesktopInitializeGraphicsModeInfo(&RequestedModeInfo, INFINITY, 0, 0, 0);
+            ModeSetResult = This->Graphics->Command(DF_GFX_SETMODE, (UINT)&RequestedModeInfo);
+            if (ModeSetResult != DF_RETURN_SUCCESS) {
+                WARNING(TEXT("[ShowDesktop] DF_GFX_SETMODE legacy auto-select failed (%u)"), ModeSetResult);
+            } else {
+                ModeInfo = RequestedModeInfo;
+                UsedLegacyAutoSelect = TRUE;
+            }
+        }
+
+        if (UsedLegacyAutoSelect != FALSE) {
+            DEBUG(TEXT("[ShowDesktop] Legacy auto-select mode fallback applied"));
         }
     }
 
-    QueriedModeInfo.Header.Size = sizeof(QueriedModeInfo);
-    QueriedModeInfo.Header.Version = EXOS_ABI_VERSION;
-    QueriedModeInfo.Header.Flags = 0;
-    QueriedModeInfo.ModeIndex = INFINITY;
-    QueriedModeInfo.Width = 0;
-    QueriedModeInfo.Height = 0;
-    QueriedModeInfo.BitsPerPixel = 0;
+    DesktopInitializeGraphicsModeInfo(&QueriedModeInfo, INFINITY, 0, 0, 0);
 
     if (This->Graphics->Command(DF_GFX_GETMODEINFO, (UINT)&QueriedModeInfo) == DF_RETURN_SUCCESS &&
         QueriedModeInfo.Width != 0 && QueriedModeInfo.Height != 0) {
         ModeInfo = QueriedModeInfo;
     }
 
-    ModeReady = (ModeInfo.Width != 0 && ModeInfo.Height != 0);
+    ModeReady = DesktopIsValidGraphicsModeInfo(&ModeInfo);
     if (ModeReady == FALSE && HasActiveMode && ActiveModeInfo.Width != 0 && ActiveModeInfo.Height != 0) {
         ModeInfo = ActiveModeInfo;
         ModeReady = TRUE;
     }
 
-    This->Mode = DESKTOP_MODE_GRAPHICS;
-    if (ModeReady) {
-        (void)DisplaySessionSetDesktopMode(This, This->Graphics, &ModeInfo);
-    } else {
+    if (ModeReady == FALSE) {
         WARNING(TEXT("[ShowDesktop] No valid graphics mode available after selection"));
+        This->Mode = DESKTOP_MODE_CONSOLE;
+        UnlockMutex(&(This->Mutex));
+        UnlockMutex(MUTEX_KERNEL);
+        return FALSE;
     }
+
+    if (DisplaySessionSetDesktopMode(This, This->Graphics, &ModeInfo) == FALSE) {
+        WARNING(TEXT("[ShowDesktop] Unable to activate desktop display session"));
+        This->Mode = DESKTOP_MODE_CONSOLE;
+        UnlockMutex(&(This->Mutex));
+        UnlockMutex(MUTEX_KERNEL);
+        return FALSE;
+    }
+
+    This->Mode = DESKTOP_MODE_GRAPHICS;
     UpdateDesktopWindowRect(This, (I32)ModeInfo.Width, (I32)ModeInfo.Height);
 
     // PostMessage((HANDLE) This->Window, EWM_DRAW, 0, 0);
