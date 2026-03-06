@@ -149,6 +149,12 @@ typedef struct tag_GRAPHICSCONTEXT {
     I32 Height;
     U32 BitsPerPixel;
     U32 BytesPerScanLine;
+    U32 RedPosition;
+    U32 RedMaskSize;
+    U32 GreenPosition;
+    U32 GreenMaskSize;
+    U32 BluePosition;
+    U32 BlueMaskSize;
     U8* MemoryBase;
     POINT LoClip;
     POINT HiClip;

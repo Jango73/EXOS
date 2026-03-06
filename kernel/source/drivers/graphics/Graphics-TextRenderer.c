@@ -62,6 +62,73 @@ static GFX_TEXT_CURSOR_STATE GfxTextCursorStates[GFX_TEXT_CURSOR_STATE_MAX_CONTE
 
 /************************************************************************/
 
+/**
+ * @brief Resolve color channel layout used by one graphics context.
+ * @param Context Graphics context.
+ * @param RedPositionOut Red bit position output.
+ * @param RedMaskSizeOut Red mask size output.
+ * @param GreenPositionOut Green bit position output.
+ * @param GreenMaskSizeOut Green mask size output.
+ * @param BluePositionOut Blue bit position output.
+ * @param BlueMaskSizeOut Blue mask size output.
+ */
+static void GfxTextResolveChannelLayout(
+    LPGRAPHICSCONTEXT Context,
+    U32* RedPositionOut,
+    U32* RedMaskSizeOut,
+    U32* GreenPositionOut,
+    U32* GreenMaskSizeOut,
+    U32* BluePositionOut,
+    U32* BlueMaskSizeOut) {
+    U32 RedPosition = 0;
+    U32 RedMaskSize = 0;
+    U32 GreenPosition = 0;
+    U32 GreenMaskSize = 0;
+    U32 BluePosition = 0;
+    U32 BlueMaskSize = 0;
+
+    SAFE_USE(Context) {
+        RedPosition = Context->RedPosition;
+        RedMaskSize = Context->RedMaskSize;
+        GreenPosition = Context->GreenPosition;
+        GreenMaskSize = Context->GreenMaskSize;
+        BluePosition = Context->BluePosition;
+        BlueMaskSize = Context->BlueMaskSize;
+    }
+
+    if (RedMaskSize == 0 || GreenMaskSize == 0 || BlueMaskSize == 0) {
+        if (Context != NULL && Context->BitsPerPixel == 16) {
+            RedPosition = 11;
+            RedMaskSize = 5;
+            GreenPosition = 5;
+            GreenMaskSize = 6;
+            BluePosition = 0;
+            BlueMaskSize = 5;
+        } else {
+            RedPosition = 16;
+            RedMaskSize = 8;
+            GreenPosition = 8;
+            GreenMaskSize = 8;
+            BluePosition = 0;
+            BlueMaskSize = 8;
+        }
+    }
+
+    SAFE_USE_3(RedPositionOut, RedMaskSizeOut, GreenPositionOut) {
+        *RedPositionOut = RedPosition;
+        *RedMaskSizeOut = RedMaskSize;
+        *GreenPositionOut = GreenPosition;
+    }
+
+    SAFE_USE_3(GreenMaskSizeOut, BluePositionOut, BlueMaskSizeOut) {
+        *GreenMaskSizeOut = GreenMaskSize;
+        *BluePositionOut = BluePosition;
+        *BlueMaskSizeOut = BlueMaskSize;
+    }
+}
+
+/************************************************************************/
+
 static LPGFX_TEXT_CURSOR_STATE GfxTextGetCursorState(LPGRAPHICSCONTEXT Context) {
     UINT Index = 0;
     UINT FreeIndex = MAX_UINT;
@@ -250,21 +317,27 @@ static U32 GfxTextPackColor(LPGRAPHICSCONTEXT Context, U32 ColorIndex) {
     U32 Red = (Color >> 16) & 0xFF;
     U32 Green = (Color >> 8) & 0xFF;
     U32 Blue = Color & 0xFF;
+    U32 RedPosition = 0;
+    U32 RedMaskSize = 0;
+    U32 GreenPosition = 0;
+    U32 GreenMaskSize = 0;
+    U32 BluePosition = 0;
+    U32 BlueMaskSize = 0;
+    U32 PackedColor = 0;
 
-    UNUSED(Context);
+    GfxTextResolveChannelLayout(
+        Context,
+        &RedPosition,
+        &RedMaskSize,
+        &GreenPosition,
+        &GreenMaskSize,
+        &BluePosition,
+        &BlueMaskSize);
 
-    if (Context->BitsPerPixel == 16) {
-        U32 R = GfxTextScaleColor(Red, 5);
-        U32 G = GfxTextScaleColor(Green, 6);
-        U32 B = GfxTextScaleColor(Blue, 5);
-        return (R << 11) | (G << 5) | B;
-    }
-
-    if (Context->BitsPerPixel == 24) {
-        return (Blue << 16) | (Green << 8) | Red;
-    }
-
-    return (Blue << 16) | (Green << 8) | Red;
+    PackedColor |= GfxTextScaleColor(Red, RedMaskSize) << RedPosition;
+    PackedColor |= GfxTextScaleColor(Green, GreenMaskSize) << GreenPosition;
+    PackedColor |= GfxTextScaleColor(Blue, BlueMaskSize) << BluePosition;
+    return PackedColor;
 }
 
 /************************************************************************/

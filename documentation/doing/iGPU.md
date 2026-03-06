@@ -144,6 +144,36 @@ Status note:
 - Stage-ordered native modeset applies explicit pipe/output/transcoder policy, conservative clock-source programming (`DPLL_CTRL1` reuse), connector-link enable, internal panel stabilization, and rollback to captured hardware state on partial failure in `kernel/source/drivers/graphics/iGPU-Mode.c`.
 - Cold modeset bootstrap is implemented for the `no active Intel scanout` path: load keeps the Intel backend available, `SETMODE` builds conservative timings from the requested mode, programs pipe/output/link, and rebuilds context from the programmed state when takeover readback is unavailable.
 
+### Step 5.b - Spec alignment for all iGPU display modes
+Objective: remove single-format assumptions and make iGPU modeset path spec-compliant for all declared pixel formats/modes.
+
+- [ ] Define explicit supported mode matrix in code and documentation:
+  - resolution constraints (`MinWidth/MinHeight`, `MaxWidth/MaxHeight`, alignment requirements),
+  - pixel formats (`RGB565`, `RGB888/BGR888`, `XRGB8888/ARGB8888` if supported),
+  - refresh and link constraints per output/family.
+- [ ] Replace implicit "32 bpp only" policy with explicit format validation and deterministic error reporting.
+- [ ] Extend mode programming path to map requested format -> hardware plane format bits per family.
+- [ ] Propagate real channel layout (bit position/mask) from programmed/readback format to `GRAPHICSCONTEXT` for all iGPU modes.
+- [ ] Ensure text and 2D primitives use context channel layout, never hardcoded color packing assumptions.
+- [ ] Add per-family format capability flags in `INTEL_GFX_CAPS` and keep selection capability-driven.
+- [ ] Add strict fallback rules when requested format is unsupported:
+  - either reject with actionable code (`DF_RETURN_IGFX_UNSUPPORTED_FORMAT`),
+  - or convert through a documented compatibility mode with explicit warning.
+- [ ] Add one canonical "mode normalization" helper:
+  - resolve aliases and incomplete requests,
+  - enforce alignment/pitch constraints,
+  - produce one fully specified internal mode descriptor.
+- [ ] Expose diagnostics for format/mode decisions:
+  - requested mode,
+  - normalized mode,
+  - programmed hardware format,
+  - effective context channel masks.
+
+Deliverable:
+- `DF_GFX_SETMODE` supports the full declared iGPU mode matrix without hidden fixed-format assumptions.
+- `DF_GFX_GETMODEINFO` returns effective mode/format consistent with actual hardware programming.
+- Console and windowing rendering remain color-correct across every supported iGPU format.
+
 ## Step 6 - Buffer management and present model
 Introduce a clean surface model for future growth.
 

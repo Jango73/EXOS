@@ -157,6 +157,42 @@ BOOL DisplaySessionSetConsoleMode(LPGRAPHICSMODEINFO ModeInfo) {
 /************************************************************************/
 
 /**
+ * @brief Update console front-end state to render text through a graphics backend.
+ * @param GraphicsDriver Active graphics backend.
+ * @param ModeInfo Active graphics mode.
+ * @return TRUE on success.
+ */
+BOOL DisplaySessionSetConsoleGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICSMODEINFO ModeInfo) {
+    LPDISPLAY_SESSION Session = GetDisplaySession();
+
+    if (GraphicsDriver == NULL || ModeInfo == NULL) {
+        return FALSE;
+    }
+
+    if (ConsoleSetGraphicsTextMode(ModeInfo) == FALSE) {
+        return FALSE;
+    }
+
+    SAFE_USE(Session) {
+        if (Session->IsInitialized == FALSE) {
+            DisplaySessionInitialize();
+        }
+
+        Session->GraphicsDriver = GraphicsDriver;
+        Session->ActiveDesktop = &MainDesktop;
+        Session->ActiveMode = *ModeInfo;
+        Session->ActiveFrontEnd = DISPLAY_FRONTEND_CONSOLE;
+        Session->HasValidMode = TRUE;
+        DisplaySessionSetMainDesktopState(GraphicsDriver, ModeInfo);
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Update display session state for desktop ownership.
  * @param Desktop Active desktop.
  * @param GraphicsDriver Selected graphics backend.

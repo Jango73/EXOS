@@ -472,9 +472,11 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    ActiveDesktop = DisplaySessionGetActiveDesktop();
-    if (ActiveDesktop != NULL) {
-        (void)DisplaySessionSetDesktopMode(ActiveDesktop, GraphicsDriver, &ModeInfo);
+    if (DisplaySessionSetConsoleGraphicsMode(GraphicsDriver, &ModeInfo) == FALSE) {
+        ActiveDesktop = DisplaySessionGetActiveDesktop();
+        if (ActiveDesktop != NULL) {
+            (void)DisplaySessionSetDesktopMode(ActiveDesktop, GraphicsDriver, &ModeInfo);
+        }
     }
 
     ActiveBackendName = GraphicsSelectorGetActiveBackendName();

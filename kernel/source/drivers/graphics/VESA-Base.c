@@ -448,6 +448,12 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
     if (VESAContext.Header.BytesPerScanLine == 0) {
         VESAContext.Header.BytesPerScanLine = VESAContext.Header.Width * VESAContext.PixelSize;
     }
+    VESAContext.Header.RedPosition = VESAContext.ModeInfo.RedFieldPosition;
+    VESAContext.Header.RedMaskSize = VESAContext.ModeInfo.RedMaskSize;
+    VESAContext.Header.GreenPosition = VESAContext.ModeInfo.GreenFieldPosition;
+    VESAContext.Header.GreenMaskSize = VESAContext.ModeInfo.GreenMaskSize;
+    VESAContext.Header.BluePosition = VESAContext.ModeInfo.BlueFieldPosition;
+    VESAContext.Header.BlueMaskSize = VESAContext.ModeInfo.BlueMaskSize;
 
     FrameBufferSize = VESAContext.Header.BytesPerScanLine * VESAContext.Header.Height;
     if (FrameBufferSize == 0) {

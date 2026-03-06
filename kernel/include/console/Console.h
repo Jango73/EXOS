@@ -137,6 +137,7 @@ void ConsoleSetFramebufferInfo(
     U32 GreenMaskSize,
     U32 BluePosition,
     U32 BlueMaskSize);
+BOOL ConsoleSetGraphicsTextMode(LPGRAPHICSMODEINFO ModeInfo);
 UINT ConsoleSetMode(LPGRAPHICSMODEINFO Info);
 UINT ConsoleGetModeCount(void);
 UINT ConsoleGetModeInfo(LPCONSOLEMODEINFO Info);
