@@ -27,9 +27,9 @@ Define an incremental implementation plan for dirty-rectangle tracking and clip-
 - [x] Add bounded capacity and deterministic fallback behavior when limits are exceeded.
 
 ### Step 3: Replace Single Invalid Rectangle with Dirty Region
-- [ ] Replace single `InvalidRect` accumulation semantics with region-based dirty tracking.
-- [ ] Keep `InvalidateWindowRect` API behavior compatible for existing callers.
-- [ ] Ensure draw message coalescing still works with region accumulation.
+- [x] Replace single `InvalidRect` accumulation semantics with region-based dirty tracking.
+- [x] Keep `InvalidateWindowRect` API behavior compatible for existing callers.
+- [x] Ensure draw message coalescing still works with region accumulation.
 
 ### Step 4: Clip-Driven Redraw Pipeline
 - [ ] Build a per-frame compiled clip region from accumulated dirty rectangles.

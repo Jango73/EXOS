@@ -70,6 +70,24 @@ static void WindowRectToScreenRectLocked(LPWINDOW This, LPRECT Src, LPRECT Dst) 
 /***************************************************************************/
 
 /**
+ * @brief Ensure dirty region storage is initialized for one window.
+ * @param This Target window.
+ * @return TRUE on success.
+ */
+static BOOL EnsureWindowDirtyRegionInitialized(LPWINDOW This) {
+    if (This == NULL) return FALSE;
+    if (This->TypeID != KOID_WINDOW) return FALSE;
+
+    if (This->DirtyRegion.Storage == This->DirtyRects && This->DirtyRegion.Capacity == WINDOW_DIRTY_REGION_CAPACITY) {
+        return TRUE;
+    }
+
+    return RectRegionInit(&This->DirtyRegion, This->DirtyRects, WINDOW_DIRTY_REGION_CAPACITY);
+}
+
+/***************************************************************************/
+
+/**
  * @brief Emit one rate-limited invalidation trace for redraw diagnostics.
  * @param This Target window.
  * @param SourceRect Source rectangle in window coordinates.
@@ -83,6 +101,7 @@ static void LogInvalidateWindowRectRateLimited(LPWINDOW This, LPRECT SourceRect,
     U32 Now = GetSystemTime();
     RECT Source = {0, 0, 0, 0};
     U32 WindowID = 0;
+    U32 DirtyCount = 0;
     RECT Invalid = {0, 0, 0, 0};
 
     if (InvalidateLimiterReady == FALSE) {
@@ -99,13 +118,14 @@ static void LogInvalidateWindowRectRateLimited(LPWINDOW This, LPRECT SourceRect,
     SAFE_USE_VALID_ID(This, KOID_WINDOW) {
         WindowID = This->WindowID;
         Invalid = This->InvalidRect;
+        DirtyCount = RectRegionGetCount(&This->DirtyRegion);
     }
 
     if (RateLimiterShouldTrigger(&InvalidateLimiter, Now, &Suppressed) == FALSE) {
         return;
     }
 
-    DEBUG(TEXT("[InvalidateWindowRect] id=%x full=%x src=(%u,%u)-(%u,%u) screen=(%u,%u)-(%u,%u) invalid=(%u,%u)-(%u,%u) suppressed=%u"),
+    DEBUG(TEXT("[InvalidateWindowRect] id=%x full=%x src=(%u,%u)-(%u,%u) screen=(%u,%u)-(%u,%u) invalid=(%u,%u)-(%u,%u) dirty=%u suppressed=%u"),
         WindowID,
         FullWindow ? 1 : 0,
         UNSIGNED(Source.X1),
@@ -120,6 +140,7 @@ static void LogInvalidateWindowRectRateLimited(LPWINDOW This, LPRECT SourceRect,
         UNSIGNED(Invalid.Y1),
         UNSIGNED(Invalid.X2),
         UNSIGNED(Invalid.Y2),
+        DirtyCount,
         Suppressed);
 }
 
@@ -190,6 +211,10 @@ static void UpdateDesktopWindowRect(LPDESKTOP Desktop, I32 Width, I32 Height) {
             Desktop->Window->Rect = Rect;
             Desktop->Window->ScreenRect = Rect;
             Desktop->Window->InvalidRect = Rect;
+            if (EnsureWindowDirtyRegionInitialized(Desktop->Window)) {
+                RectRegionReset(&Desktop->Window->DirtyRegion);
+                (void)RectRegionAddRect(&Desktop->Window->DirtyRegion, &Rect);
+            }
             UnlockMutex(&(Desktop->Window->Mutex));
         }
     }
@@ -594,6 +619,7 @@ LPWINDOW NewWindow(void) {
     This->References = 1;
     This->Properties = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
     This->Children = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
+    (void)RectRegionInit(&This->DirtyRegion, This->DirtyRects, WINDOW_DIRTY_REGION_CAPACITY);
 
     return This;
 }
@@ -751,6 +777,8 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     This->Rect.Y2 = Info->WindowPosition.Y + (Info->WindowSize.Y - 1);
     This->ScreenRect = This->Rect;
     This->InvalidRect = This->Rect;
+    RectRegionReset(&This->DirtyRegion);
+    (void)RectRegionAddRect(&This->DirtyRegion, &This->InvalidRect);
 
     if (This->ParentWindow == NULL) {
         SAFE_USE(Desktop) {
@@ -774,6 +802,8 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
         This->InvalidRect.Y1 = This->ParentWindow->ScreenRect.Y1 + This->Rect.Y1;
         This->InvalidRect.X2 = This->ParentWindow->ScreenRect.X1 + This->Rect.X2;
         This->InvalidRect.Y2 = This->ParentWindow->ScreenRect.Y1 + This->Rect.Y2;
+        RectRegionReset(&This->DirtyRegion);
+        (void)RectRegionAddRect(&This->DirtyRegion, &This->InvalidRect);
 
         ListAddHead(This->ParentWindow->Children, This);
 
@@ -974,8 +1004,14 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
 
     LockMutex(&(This->Mutex), INFINITY);
 
+    if (EnsureWindowDirtyRegionInitialized(This) == FALSE) {
+        UnlockMutex(&(This->Mutex));
+        return FALSE;
+    }
+
     SAFE_USE(Src) {
         WindowRectToScreenRectLocked(This, Src, &Rect);
+        (void)RectRegionAddRect(&This->DirtyRegion, &Rect);
 
         if (Rect.X1 < This->InvalidRect.X1) This->InvalidRect.X1 = Rect.X1;
         if (Rect.Y1 < This->InvalidRect.Y1) This->InvalidRect.Y1 = Rect.Y1;
@@ -989,6 +1025,8 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
         This->InvalidRect.Y2 = This->ScreenRect.Y2;
 
         Rect = This->InvalidRect;
+        RectRegionReset(&This->DirtyRegion);
+        (void)RectRegionAddRect(&This->DirtyRegion, &Rect);
     }
 
     LogInvalidateWindowRectRateLimited(This, Src, &Rect, FullWindow);
@@ -1028,6 +1066,8 @@ BOOL BringWindowToFront(HANDLE Handle) {
 
     LockMutex(&(This->Mutex), INFINITY);
 
+    if (EnsureWindowDirtyRegionInitialized(This) == FALSE) goto Out;
+
     if (This->ParentWindow == NULL) goto Out;
 
     //-------------------------------------
@@ -1038,6 +1078,7 @@ BOOL BringWindowToFront(HANDLE Handle) {
         if (RectInRect(&(This->ScreenRect), &(That->ScreenRect))) {
             ScreenRectToWindowRect((HANDLE)That, &(That->ScreenRect), &Rect);
             WindowRectToScreenRectLocked(This, &Rect, &HiddenRect);
+            (void)RectRegionAddRect(&This->DirtyRegion, &HiddenRect);
 
             if (HiddenRect.X1 < This->InvalidRect.X1) This->InvalidRect.X1 = HiddenRect.X1;
             if (HiddenRect.Y1 < This->InvalidRect.Y1) This->InvalidRect.Y1 = HiddenRect.Y1;

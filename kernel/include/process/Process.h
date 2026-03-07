@@ -37,6 +37,7 @@
 #include "Security.h"
 #include "System.h"
 #include "process/Task.h"
+#include "utils/RectRegion.h"
 #include "User.h"
 #include "UserAccount.h"
 #include "UserSession.h"
@@ -163,6 +164,8 @@ UINT TaskGetMinimumSystemStackSize(void);
 /************************************************************************/
 // The window structure
 
+#define WINDOW_DIRTY_REGION_CAPACITY 32
+
 struct tag_WINDOW {
     LISTNODE_FIELDS       // Standard EXOS object fields
         MUTEX Mutex;      // This window's mutex
@@ -174,6 +177,8 @@ struct tag_WINDOW {
     RECT Rect;            // The rectangle of this window
     RECT ScreenRect;
     RECT InvalidRect;
+    RECT DirtyRects[WINDOW_DIRTY_REGION_CAPACITY];
+    RECT_REGION DirtyRegion;
     U32 WindowID;
     U32 Style;
     U32 Status;
