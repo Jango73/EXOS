@@ -69,8 +69,8 @@ static void DesktopCursorBuildRect(LPDESKTOP Desktop, I32 X, I32 Y, LPRECT RectO
     U32 CursorHeight = DESKTOP_CURSOR_DEFAULT_HEIGHT;
 
     if (Desktop != NULL && Desktop->TypeID == KOID_DESKTOP) {
-        if (Desktop->CursorWidth >= DESKTOP_CURSOR_MIN_SIZE) CursorWidth = Desktop->CursorWidth;
-        if (Desktop->CursorHeight >= DESKTOP_CURSOR_MIN_SIZE) CursorHeight = Desktop->CursorHeight;
+        if (Desktop->Cursor.Width >= DESKTOP_CURSOR_MIN_SIZE) CursorWidth = Desktop->Cursor.Width;
+        if (Desktop->Cursor.Height >= DESKTOP_CURSOR_MIN_SIZE) CursorHeight = Desktop->Cursor.Height;
     }
 
     if (RectOut == NULL) return;
@@ -354,13 +354,13 @@ static void DesktopCursorSetPathState(LPDESKTOP Desktop, U32 Path, U32 Reason, U
 
     LockMutex(&(Desktop->Mutex), INFINITY);
 
-    if (Desktop->CursorRenderPath == Path && Desktop->CursorFallbackReason == Reason) {
+    if (Desktop->Cursor.RenderPath == Path && Desktop->Cursor.FallbackReason == Reason) {
         UnlockMutex(&(Desktop->Mutex));
         return;
     }
 
-    Desktop->CursorRenderPath = Path;
-    Desktop->CursorFallbackReason = Reason;
+    Desktop->Cursor.RenderPath = Path;
+    Desktop->Cursor.FallbackReason = Reason;
 
     UnlockMutex(&(Desktop->Mutex));
 
@@ -465,7 +465,7 @@ static void DesktopCursorRequestSoftwareRedraw(LPDESKTOP Desktop, I32 OldX, I32 
     if (Desktop->Window == NULL || Desktop->Window->TypeID != KOID_WINDOW) return;
 
     LockMutex(&(Desktop->Mutex), INFINITY);
-    ClipRect = Desktop->CursorClipRect;
+    ClipRect = Desktop->Cursor.ClipRect;
     UnlockMutex(&(Desktop->Mutex));
 
     DesktopCursorBuildRect(Desktop, OldX, OldY, &OldRect);
@@ -556,8 +556,8 @@ static void DesktopCursorResolveConfiguredSize(LPDESKTOP Desktop) {
     Height = DesktopCursorClampSize(Height, DESKTOP_CURSOR_DEFAULT_HEIGHT);
 
     LockMutex(&(Desktop->Mutex), INFINITY);
-    Desktop->CursorWidth = Width;
-    Desktop->CursorHeight = Height;
+    Desktop->Cursor.Width = Width;
+    Desktop->Cursor.Height = Height;
     UnlockMutex(&(Desktop->Mutex));
 }
 
@@ -602,8 +602,8 @@ static BOOL DesktopCursorTryEnableHardware(LPDESKTOP Desktop, LPDRIVER GraphicsD
     }
 
     LockMutex(&(Desktop->Mutex), INFINITY);
-    CursorWidth = Desktop->CursorWidth;
-    CursorHeight = Desktop->CursorHeight;
+    CursorWidth = Desktop->Cursor.Width;
+    CursorHeight = Desktop->Cursor.Height;
     UnlockMutex(&(Desktop->Mutex));
 
     CursorWidth = DesktopCursorClampSize(CursorWidth, DESKTOP_CURSOR_DEFAULT_WIDTH);
@@ -634,8 +634,8 @@ static BOOL DesktopCursorTryEnableHardware(LPDESKTOP Desktop, LPDRIVER GraphicsD
 
     MemorySet(&PositionInfo, 0, sizeof(PositionInfo));
     DesktopCursorInitializeHeader(&(PositionInfo.Header), sizeof(PositionInfo));
-    PositionInfo.X = Desktop->CursorX;
-    PositionInfo.Y = Desktop->CursorY;
+    PositionInfo.X = Desktop->Cursor.X;
+    PositionInfo.Y = Desktop->Cursor.Y;
 
     Status = GraphicsDriver->Command(DF_GFX_CURSOR_SET_POSITION, (UINT)(LPVOID)&PositionInfo);
     if (Status != DF_RETURN_SUCCESS) {
@@ -645,7 +645,7 @@ static BOOL DesktopCursorTryEnableHardware(LPDESKTOP Desktop, LPDRIVER GraphicsD
 
     MemorySet(&VisibleInfo, 0, sizeof(VisibleInfo));
     DesktopCursorInitializeHeader(&(VisibleInfo.Header), sizeof(VisibleInfo));
-    VisibleInfo.IsVisible = Desktop->CursorVisible;
+    VisibleInfo.IsVisible = Desktop->Cursor.Visible;
 
     Status = GraphicsDriver->Command(DF_GFX_CURSOR_SET_VISIBLE, (UINT)(LPVOID)&VisibleInfo);
     if (Status != DF_RETURN_SUCCESS) {
@@ -671,9 +671,9 @@ static void DesktopCursorRefreshClipAndPosition(LPDESKTOP Desktop) {
 
     LockMutex(&(Desktop->Mutex), INFINITY);
 
-    Desktop->CursorClipRect = ScreenRect;
-    Desktop->CursorX = ClampI32(Desktop->CursorX, ScreenRect.X1, ScreenRect.X2);
-    Desktop->CursorY = ClampI32(Desktop->CursorY, ScreenRect.Y1, ScreenRect.Y2);
+    Desktop->Cursor.ClipRect = ScreenRect;
+    Desktop->Cursor.X = ClampI32(Desktop->Cursor.X, ScreenRect.X1, ScreenRect.X2);
+    Desktop->Cursor.Y = ClampI32(Desktop->Cursor.Y, ScreenRect.Y1, ScreenRect.Y2);
 
     UnlockMutex(&(Desktop->Mutex));
 }
@@ -721,22 +721,22 @@ void DesktopCursorOnDesktopActivated(LPDESKTOP Desktop) {
 
     LockMutex(&(Desktop->Mutex), INFINITY);
 
-    Desktop->CursorVisible = TRUE;
+    Desktop->Cursor.Visible = TRUE;
     if (GetMousePosition(&CurrentX, &CurrentY) == TRUE) {
-        Desktop->CursorX = CurrentX;
-        Desktop->CursorY = CurrentY;
+        Desktop->Cursor.X = CurrentX;
+        Desktop->Cursor.Y = CurrentY;
     }
-    Desktop->CursorPendingX = Desktop->CursorX;
-    Desktop->CursorPendingY = Desktop->CursorY;
-    Desktop->CursorSoftwareDirty = FALSE;
+    Desktop->Cursor.PendingX = Desktop->Cursor.X;
+    Desktop->Cursor.PendingY = Desktop->Cursor.Y;
+    Desktop->Cursor.SoftwareDirty = FALSE;
 
     UnlockMutex(&(Desktop->Mutex));
 
     DesktopCursorRefreshClipAndPosition(Desktop);
 
     LockMutex(&(Desktop->Mutex), INFINITY);
-    CursorX = Desktop->CursorX;
-    CursorY = Desktop->CursorY;
+    CursorX = Desktop->Cursor.X;
+    CursorY = Desktop->Cursor.Y;
     UnlockMutex(&(Desktop->Mutex));
 
     if (Desktop->Mode != DESKTOP_MODE_GRAPHICS) {
@@ -780,19 +780,19 @@ void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, 
 
     LockMutex(&(Desktop->Mutex), INFINITY);
 
-    ClipRect = Desktop->CursorClipRect;
+    ClipRect = Desktop->Cursor.ClipRect;
     NewX = ClampI32(NewX, ClipRect.X1, ClipRect.X2);
     NewY = ClampI32(NewY, ClipRect.Y1, ClipRect.Y2);
     ClampedOldX = ClampI32(OldX, ClipRect.X1, ClipRect.X2);
     ClampedOldY = ClampI32(OldY, ClipRect.Y1, ClipRect.Y2);
 
-    Desktop->CursorX = NewX;
-    Desktop->CursorY = NewY;
-    Desktop->CursorPendingX = NewX;
-    Desktop->CursorPendingY = NewY;
-    Desktop->CursorSoftwareDirty = FALSE;
-    IsVisible = Desktop->CursorVisible;
-    CursorPath = Desktop->CursorRenderPath;
+    Desktop->Cursor.X = NewX;
+    Desktop->Cursor.Y = NewY;
+    Desktop->Cursor.PendingX = NewX;
+    Desktop->Cursor.PendingY = NewY;
+    Desktop->Cursor.SoftwareDirty = FALSE;
+    IsVisible = Desktop->Cursor.Visible;
+    CursorPath = Desktop->Cursor.RenderPath;
 
     UnlockMutex(&(Desktop->Mutex));
 
@@ -846,11 +846,11 @@ void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, 
             DesktopCursorRequestSoftwareRedraw(Desktop, ClampedOldX, ClampedOldY, NewX, NewY);
         } else {
             LockMutex(&(Desktop->Mutex), INFINITY);
-            Desktop->CursorX = NewX;
-            Desktop->CursorY = NewY;
-            Desktop->CursorPendingX = NewX;
-            Desktop->CursorPendingY = NewY;
-            Desktop->CursorSoftwareDirty = FALSE;
+            Desktop->Cursor.X = NewX;
+            Desktop->Cursor.Y = NewY;
+            Desktop->Cursor.PendingX = NewX;
+            Desktop->Cursor.PendingY = NewY;
+            Desktop->Cursor.SoftwareDirty = FALSE;
             UnlockMutex(&(Desktop->Mutex));
         }
 
@@ -900,13 +900,13 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
 
     LockMutex(&(Desktop->Mutex), INFINITY);
 
-    CursorX = Desktop->CursorX;
-    CursorY = Desktop->CursorY;
-    CursorWidth = Desktop->CursorWidth;
-    CursorHeight = Desktop->CursorHeight;
-    ClipRect = Desktop->CursorClipRect;
-    IsVisible = Desktop->CursorVisible;
-    CursorPath = Desktop->CursorRenderPath;
+    CursorX = Desktop->Cursor.X;
+    CursorY = Desktop->Cursor.Y;
+    CursorWidth = Desktop->Cursor.Width;
+    CursorHeight = Desktop->Cursor.Height;
+    ClipRect = Desktop->Cursor.ClipRect;
+    IsVisible = Desktop->Cursor.Visible;
+    CursorPath = Desktop->Cursor.RenderPath;
 
     UnlockMutex(&(Desktop->Mutex));
 
@@ -984,8 +984,8 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
     if (CursorOverlayLimiterReady != FALSE && RateLimiterShouldTrigger(&CursorOverlayLimiter, Now, &Suppressed) != FALSE) {
         DEBUG(TEXT("[DesktopCursorRenderSoftwareOverlayOnWindow] id=%x cursor=(%u,%u) window=(%u,%u)-(%u,%u) intersection=(%u,%u)-(%u,%u) suppressed=%u"),
             Window->WindowID,
-            UNSIGNED(Desktop->CursorX),
-            UNSIGNED(Desktop->CursorY),
+            UNSIGNED(Desktop->Cursor.X),
+            UNSIGNED(Desktop->Cursor.Y),
             UNSIGNED(WindowRect.X1),
             UNSIGNED(WindowRect.Y1),
             UNSIGNED(WindowRect.X2),

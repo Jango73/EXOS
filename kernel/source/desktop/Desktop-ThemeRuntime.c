@@ -64,27 +64,27 @@ static BOOL ThemeEnsureRuntimeState(LPDESKTOP Desktop) {
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
 
-    BuiltinRuntime = (LPDESKTOP_THEME_RUNTIME)Desktop->BuiltinThemeRuntime;
+    BuiltinRuntime = (LPDESKTOP_THEME_RUNTIME)Desktop->Theme.Builtin;
 
     if (BuiltinRuntime == NULL) {
         BuiltinRuntime = DesktopThemeCreateBuiltinRuntime();
         if (BuiltinRuntime == NULL) {
-            Desktop->ThemeLastStatus = DESKTOP_THEME_STATUS_NO_MEMORY;
-            Desktop->ThemeLastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_ACTIVATION_FAILED;
+            Desktop->Theme.LastStatus = DESKTOP_THEME_STATUS_NO_MEMORY;
+            Desktop->Theme.LastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_ACTIVATION_FAILED;
             return FALSE;
         }
-        Desktop->BuiltinThemeRuntime = BuiltinRuntime;
+        Desktop->Theme.Builtin = BuiltinRuntime;
     }
 
-    if (Desktop->ActiveThemeRuntime == NULL) {
-        Desktop->ActiveThemeRuntime = BuiltinRuntime;
-        Desktop->ThemeActiveFromFile = FALSE;
-        Desktop->ActiveThemePath[0] = STR_NULL;
+    if (Desktop->Theme.Active == NULL) {
+        Desktop->Theme.Active = BuiltinRuntime;
+        Desktop->Theme.ActiveFromFile = FALSE;
+        Desktop->Theme.ActivePath[0] = STR_NULL;
     }
 
-    if (Desktop->ThemeLastStatus == 0) {
-        Desktop->ThemeLastStatus = DESKTOP_THEME_STATUS_SUCCESS;
-        Desktop->ThemeLastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_NONE;
+    if (Desktop->Theme.LastStatus == 0) {
+        Desktop->Theme.LastStatus = DESKTOP_THEME_STATUS_SUCCESS;
+        Desktop->Theme.LastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_NONE;
     }
 
     return TRUE;
@@ -174,40 +174,40 @@ BOOL LoadTheme(LPCSTR Path) {
     if (ThemeEnsureRuntimeState(Desktop) == FALSE) return FALSE;
 
     if (Path == NULL || Path[0] == STR_NULL) {
-        Desktop->ThemeLastStatus = DESKTOP_THEME_STATUS_BAD_PARAMETER;
-        Desktop->ThemeLastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_FILE_READ_FAILED;
+        Desktop->Theme.LastStatus = DESKTOP_THEME_STATUS_BAD_PARAMETER;
+        Desktop->Theme.LastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_FILE_READ_FAILED;
         WARNING(TEXT("[LoadTheme] Invalid theme path"));
         return FALSE;
     }
 
     Source = (LPSTR)FileReadAll(Path, &SourceSize);
     if (Source == NULL || SourceSize == 0) {
-        Desktop->ThemeLastStatus = DESKTOP_THEME_STATUS_INVALID_TOML;
-        Desktop->ThemeLastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_FILE_READ_FAILED;
+        Desktop->Theme.LastStatus = DESKTOP_THEME_STATUS_INVALID_TOML;
+        Desktop->Theme.LastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_FILE_READ_FAILED;
         WARNING(TEXT("[LoadTheme] Cannot read theme file %s"), Path);
         if (Source != NULL) KernelHeapFree(Source);
         return FALSE;
     }
 
     if (DesktopThemeParseStrict(Source, &Candidate, &Status) == FALSE) {
-        Desktop->ThemeLastStatus = Status;
-        Desktop->ThemeLastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_PARSE_FAILED;
+        Desktop->Theme.LastStatus = Status;
+        Desktop->Theme.LastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_PARSE_FAILED;
         WARNING(TEXT("[LoadTheme] Parse failed status=%x path=%s"), Status, Path);
         KernelHeapFree(Source);
         return FALSE;
     }
 
-    PreviousStaged = (LPDESKTOP_THEME_RUNTIME)Desktop->StagedThemeRuntime;
+    PreviousStaged = (LPDESKTOP_THEME_RUNTIME)Desktop->Theme.Staged;
     if (PreviousStaged != NULL &&
-        PreviousStaged != (LPDESKTOP_THEME_RUNTIME)Desktop->ActiveThemeRuntime &&
-        PreviousStaged != (LPDESKTOP_THEME_RUNTIME)Desktop->BuiltinThemeRuntime) {
+        PreviousStaged != (LPDESKTOP_THEME_RUNTIME)Desktop->Theme.Active &&
+        PreviousStaged != (LPDESKTOP_THEME_RUNTIME)Desktop->Theme.Builtin) {
         DesktopThemeFreeRuntime(PreviousStaged);
     }
 
-    Desktop->StagedThemeRuntime = Candidate;
-    StringCopy(Desktop->StagedThemePath, Path);
-    Desktop->ThemeLastStatus = DESKTOP_THEME_STATUS_SUCCESS;
-    Desktop->ThemeLastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_NONE;
+    Desktop->Theme.Staged = Candidate;
+    StringCopy(Desktop->Theme.StagedPath, Path);
+    Desktop->Theme.LastStatus = DESKTOP_THEME_STATUS_SUCCESS;
+    Desktop->Theme.LastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_NONE;
 
     DEBUG(TEXT("[LoadTheme] Theme loaded and staged path=%s"), Path);
 
@@ -229,54 +229,54 @@ BOOL ActivateTheme(LPCSTR NameOrHandle) {
     if (ThemeEnsureRuntimeState(Desktop) == FALSE) return FALSE;
 
     if (NameOrHandle != NULL && NameOrHandle[0] != STR_NULL) {
-        BOOL MatchesPath = (StringCompareNC(NameOrHandle, Desktop->StagedThemePath) == 0);
+        BOOL MatchesPath = (StringCompareNC(NameOrHandle, Desktop->Theme.StagedPath) == 0);
         BOOL MatchesAlias = (StringCompareNC(NameOrHandle, TEXT("staged")) == 0 || StringCompareNC(NameOrHandle, TEXT("loaded")) == 0);
         if (MatchesPath == FALSE && MatchesAlias == FALSE) {
-            Desktop->ThemeLastStatus = DESKTOP_THEME_STATUS_BAD_PARAMETER;
-            Desktop->ThemeLastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_NO_STAGED_THEME;
+            Desktop->Theme.LastStatus = DESKTOP_THEME_STATUS_BAD_PARAMETER;
+            Desktop->Theme.LastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_NO_STAGED_THEME;
             WARNING(TEXT("[ActivateTheme] Unknown theme handle %s"), NameOrHandle);
             return FALSE;
         }
     }
 
-    StagedRuntime = (LPDESKTOP_THEME_RUNTIME)Desktop->StagedThemeRuntime;
+    StagedRuntime = (LPDESKTOP_THEME_RUNTIME)Desktop->Theme.Staged;
     if (StagedRuntime == NULL) {
-        Desktop->ThemeLastStatus = DESKTOP_THEME_STATUS_BAD_PARAMETER;
-        Desktop->ThemeLastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_NO_STAGED_THEME;
+        Desktop->Theme.LastStatus = DESKTOP_THEME_STATUS_BAD_PARAMETER;
+        Desktop->Theme.LastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_NO_STAGED_THEME;
         WARNING(TEXT("[ActivateTheme] No staged theme available"));
         return FALSE;
     }
 
-    StringCopy(PathToActivate, Desktop->StagedThemePath);
+    StringCopy(PathToActivate, Desktop->Theme.StagedPath);
 
-    BuiltinRuntime = (LPDESKTOP_THEME_RUNTIME)Desktop->BuiltinThemeRuntime;
-    ActiveRuntime = (LPDESKTOP_THEME_RUNTIME)Desktop->ActiveThemeRuntime;
+    BuiltinRuntime = (LPDESKTOP_THEME_RUNTIME)Desktop->Theme.Builtin;
+    ActiveRuntime = (LPDESKTOP_THEME_RUNTIME)Desktop->Theme.Active;
 
     if (DesktopThemeActivateParsed(StagedRuntime, BuiltinRuntime, &ActiveRuntime) == FALSE) {
-        Desktop->ThemeLastStatus = DESKTOP_THEME_STATUS_NO_MEMORY;
-        Desktop->ThemeLastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_ACTIVATION_FAILED;
+        Desktop->Theme.LastStatus = DESKTOP_THEME_STATUS_NO_MEMORY;
+        Desktop->Theme.LastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_ACTIVATION_FAILED;
         WARNING(TEXT("[ActivateTheme] Activation failed"));
         return FALSE;
     }
 
-    Desktop->ActiveThemeRuntime = ActiveRuntime;
-    Desktop->StagedThemeRuntime = NULL;
-    Desktop->StagedThemePath[0] = STR_NULL;
-    Desktop->ThemeLastStatus = DESKTOP_THEME_STATUS_SUCCESS;
-    Desktop->ThemeLastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_NONE;
+    Desktop->Theme.Active = ActiveRuntime;
+    Desktop->Theme.Staged = NULL;
+    Desktop->Theme.StagedPath[0] = STR_NULL;
+    Desktop->Theme.LastStatus = DESKTOP_THEME_STATUS_SUCCESS;
+    Desktop->Theme.LastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_NONE;
 
     if (ActiveRuntime == BuiltinRuntime) {
-        Desktop->ThemeActiveFromFile = FALSE;
-        Desktop->ActiveThemePath[0] = STR_NULL;
+        Desktop->Theme.ActiveFromFile = FALSE;
+        Desktop->Theme.ActivePath[0] = STR_NULL;
     } else {
-        Desktop->ThemeActiveFromFile = TRUE;
-        StringCopy(Desktop->ActiveThemePath, PathToActivate);
+        Desktop->Theme.ActiveFromFile = TRUE;
+        StringCopy(Desktop->Theme.ActivePath, PathToActivate);
     }
 
     DesktopThemeSyncSystemObjects();
     ThemeInvalidateDesktopWindows(Desktop);
 
-    DEBUG(TEXT("[ActivateTheme] Theme activated path=%s"), Desktop->ThemeActiveFromFile ? Desktop->ActiveThemePath : TEXT("<built-in>"));
+    DEBUG(TEXT("[ActivateTheme] Theme activated path=%s"), Desktop->Theme.ActiveFromFile ? Desktop->Theme.ActivePath : TEXT("<built-in>"));
     return TRUE;
 }
 
@@ -295,16 +295,16 @@ BOOL GetActiveThemeInfo(LPDESKTOP_THEME_RUNTIME_INFO Info) {
 
     MemorySet(Info, 0, sizeof(DESKTOP_THEME_RUNTIME_INFO));
 
-    ActiveRuntime = (LPDESKTOP_THEME_RUNTIME)Desktop->ActiveThemeRuntime;
-    BuiltinRuntime = (LPDESKTOP_THEME_RUNTIME)Desktop->BuiltinThemeRuntime;
+    ActiveRuntime = (LPDESKTOP_THEME_RUNTIME)Desktop->Theme.Active;
+    BuiltinRuntime = (LPDESKTOP_THEME_RUNTIME)Desktop->Theme.Builtin;
 
     Info->IsBuiltinActive = (ActiveRuntime == BuiltinRuntime);
-    Info->IsLoadedActive = Desktop->ThemeActiveFromFile;
-    Info->HasStagedTheme = (Desktop->StagedThemeRuntime != NULL);
-    StringCopy(Info->ActiveThemePath, Desktop->ActiveThemePath);
-    StringCopy(Info->StagedThemePath, Desktop->StagedThemePath);
-    Info->LastStatus = Desktop->ThemeLastStatus;
-    Info->LastFallbackReason = Desktop->ThemeLastFallbackReason;
+    Info->IsLoadedActive = Desktop->Theme.ActiveFromFile;
+    Info->HasStagedTheme = (Desktop->Theme.Staged != NULL);
+    StringCopy(Info->ActiveThemePath, Desktop->Theme.ActivePath);
+    StringCopy(Info->StagedThemePath, Desktop->Theme.StagedPath);
+    Info->LastStatus = Desktop->Theme.LastStatus;
+    Info->LastFallbackReason = Desktop->Theme.LastFallbackReason;
 
     if (ActiveRuntime != NULL) {
         Info->ActiveTokenCount = ActiveRuntime->TokenCount;
@@ -327,21 +327,21 @@ BOOL ResetThemeToDefault(void) {
     if (Desktop == NULL) return FALSE;
     if (ThemeEnsureRuntimeState(Desktop) == FALSE) return FALSE;
 
-    BuiltinRuntime = (LPDESKTOP_THEME_RUNTIME)Desktop->BuiltinThemeRuntime;
-    ActiveRuntime = (LPDESKTOP_THEME_RUNTIME)Desktop->ActiveThemeRuntime;
+    BuiltinRuntime = (LPDESKTOP_THEME_RUNTIME)Desktop->Theme.Builtin;
+    ActiveRuntime = (LPDESKTOP_THEME_RUNTIME)Desktop->Theme.Active;
 
     if (DesktopThemeActivateParsed(NULL, BuiltinRuntime, &ActiveRuntime) == FALSE) {
-        Desktop->ThemeLastStatus = DESKTOP_THEME_STATUS_NO_MEMORY;
-        Desktop->ThemeLastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_ACTIVATION_FAILED;
+        Desktop->Theme.LastStatus = DESKTOP_THEME_STATUS_NO_MEMORY;
+        Desktop->Theme.LastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_ACTIVATION_FAILED;
         WARNING(TEXT("[ResetThemeToDefault] Reset failed"));
         return FALSE;
     }
 
-    Desktop->ActiveThemeRuntime = ActiveRuntime;
-    Desktop->ThemeActiveFromFile = FALSE;
-    Desktop->ActiveThemePath[0] = STR_NULL;
-    Desktop->ThemeLastStatus = DESKTOP_THEME_STATUS_SUCCESS;
-    Desktop->ThemeLastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_RESET_TO_DEFAULT;
+    Desktop->Theme.Active = ActiveRuntime;
+    Desktop->Theme.ActiveFromFile = FALSE;
+    Desktop->Theme.ActivePath[0] = STR_NULL;
+    Desktop->Theme.LastStatus = DESKTOP_THEME_STATUS_SUCCESS;
+    Desktop->Theme.LastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_RESET_TO_DEFAULT;
 
     DesktopThemeSyncSystemObjects();
     ThemeInvalidateDesktopWindows(Desktop);
@@ -357,7 +357,7 @@ LPDESKTOP_THEME_RUNTIME DesktopThemeGetActiveRuntime(LPDESKTOP Desktop) {
     if (Desktop == NULL) return NULL;
     if (ThemeEnsureRuntimeState(Desktop) == FALSE) return NULL;
 
-    return (LPDESKTOP_THEME_RUNTIME)Desktop->ActiveThemeRuntime;
+    return (LPDESKTOP_THEME_RUNTIME)Desktop->Theme.Active;
 }
 
 /***************************************************************************/

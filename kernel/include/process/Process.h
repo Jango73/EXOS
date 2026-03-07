@@ -27,20 +27,20 @@
 
 /************************************************************************/
 
+#include "Arch.h"
 #include "Base.h"
 #include "Driver.h"
-#include "Arch.h"
 #include "ID.h"
 #include "List.h"
 #include "Mutex.h"
-#include "process/Schedule.h"
 #include "Security.h"
 #include "System.h"
-#include "process/Task.h"
-#include "utils/RectRegion.h"
 #include "User.h"
 #include "UserAccount.h"
 #include "UserSession.h"
+#include "process/Schedule.h"
+#include "process/Task.h"
+#include "utils/RectRegion.h"
 
 /***************************************************************************/
 
@@ -54,56 +54,6 @@ typedef struct tag_WINDOW WINDOW, *LPWINDOW;
 typedef struct tag_DESKTOP DESKTOP, *LPDESKTOP;
 typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
 struct tag_MEMORY_REGION_DESCRIPTOR;
-
-/************************************************************************\
-
-  The process structure
-
-  For kernel process, the heap base should be somewhere above 0xC0000000.
-  For a user process, it should be between 0x00400000 and 0x40000000.
-
-\************************************************************************/
-
-struct tag_PROCESS {
-    LISTNODE_FIELDS                 // Standard EXOS object fields
-        MUTEX Mutex;                // This structure's mutex
-    MUTEX HeapMutex;                // This structure's mutex for heap allocation
-    SECURITY Security;              // Security attributes
-    LPDESKTOP Desktop;              // This process' desktop
-    U32 Privilege;                  // This process' privilege level
-    U32 Status;                     // (alive/dead)
-    U32 Flags;                      // Process creation flags
-    U32 ControlFlags;               // Process control state (pause/interrupt)
-    PHYSICAL PageDirectory;         // This process' page directory
-    LINEAR HeapBase;
-    UINT HeapSize;
-    UINT MaximumAllocatedMemory;
-    UINT ExitCode;                  // This process' exit code
-    STR FileName[MAX_PATH_NAME];
-    STR CommandLine[MAX_PATH_NAME];
-    STR WorkFolder[MAX_PATH_NAME];
-    UINT TaskCount;                 // Number of active tasks in this process
-    MESSAGEQUEUE MessageQueue;      // Process-level message queue (input, etc.)
-    U64 UserID;                     // Owner user
-    LPUSERSESSION Session;          // User session
-    LPFILESYSTEM PackageFileSystem; // Mounted package filesystem tied to this process
-
-    struct tag_MEMORY_REGION_DESCRIPTOR* RegionListHead;
-    struct tag_MEMORY_REGION_DESCRIPTOR* RegionListTail;
-    UINT RegionCount;
-};
-
-/************************************************************************/
-// The Message structure
-
-struct tag_MESSAGE {
-    LISTNODE_FIELDS
-    HANDLE Target;
-    U32 Message;
-    DATETIME Time;
-    U32 Param1;
-    U32 Param2;
-};
 
 /************************************************************************/
 // Task status values
@@ -180,19 +130,70 @@ UINT TaskGetMinimumSystemStackSize(void);
 #define DESKTOP_CURSOR_FALLBACK_SET_VISIBLE_FAILED 0x00000006
 
 /************************************************************************/
-// The window structure
+// Window status bit values
+
+#define WINDOW_STATUS_VISIBLE 0x0001
+#define WINDOW_STATUS_NEED_DRAW 0x0002
+
+/************************************************************************/
+// Other window values
 
 #define WINDOW_DIRTY_REGION_CAPACITY 32
 
+/************************************************************************/
+
+struct tag_PROCESS {
+    LISTNODE_FIELDS          // Standard EXOS object fields
+        MUTEX Mutex;         // This structure's mutex
+    MUTEX HeapMutex;         // This structure's mutex for heap allocation
+    SECURITY Security;       // Security attributes
+    LPDESKTOP Desktop;       // This process' desktop
+    U32 Privilege;           // This process' privilege level
+    U32 Status;              // (alive/dead)
+    U32 Flags;               // Process creation flags
+    U32 ControlFlags;        // Process control state (pause/interrupt)
+    PHYSICAL PageDirectory;  // This process' page directory
+    LINEAR HeapBase;
+    UINT HeapSize;
+    UINT MaximumAllocatedMemory;
+    UINT ExitCode;  // This process' exit code
+    STR FileName[MAX_PATH_NAME];
+    STR CommandLine[MAX_PATH_NAME];
+    STR WorkFolder[MAX_PATH_NAME];
+    UINT TaskCount;                  // Number of active tasks in this process
+    MESSAGEQUEUE MessageQueue;       // Process-level message queue (input, etc.)
+    U64 UserID;                      // Owner user
+    LPUSERSESSION Session;           // User session
+    LPFILESYSTEM PackageFileSystem;  // Mounted package filesystem tied to this process
+    struct tag_MEMORY_REGION_DESCRIPTOR* RegionListHead;
+    struct tag_MEMORY_REGION_DESCRIPTOR* RegionListTail;
+    UINT RegionCount;
+};
+
+struct tag_MESSAGE {
+    LISTNODE_FIELDS
+    HANDLE Target;
+    U32 Message;
+    DATETIME Time;
+    U32 Param1;
+    U32 Param2;
+};
+
+typedef struct tag_PROPERTY {
+    LISTNODE_FIELDS
+    STR Name[32];
+    U32 Value;
+} PROPERTY, *LPPROPERTY;
+
 struct tag_WINDOW {
-    LISTNODE_FIELDS       // Standard EXOS object fields
-        MUTEX Mutex;      // This window's mutex
-    LPTASK Task;          // The task that created this window
-    WINDOWFUNC Function;  // The function that manages this window
-    LPWINDOW ParentWindow;      // The parent of this window
-    LPLIST Children;      // The children of this window
-    LPLIST Properties;    // The user-defined properties of this window
-    RECT Rect;            // The rectangle of this window
+    LISTNODE_FIELDS         // Standard EXOS object fields
+        MUTEX Mutex;        // This window's mutex
+    LPTASK Task;            // The task that created this window
+    WINDOWFUNC Function;    // The function that manages this window
+    LPWINDOW ParentWindow;  // The parent of this window
+    LPLIST Children;        // The children of this window
+    LPLIST Properties;      // The user-defined properties of this window
+    RECT Rect;              // The rectangle of this window
     RECT ScreenRect;
     RECT DirtyRects[WINDOW_DIRTY_REGION_CAPACITY];
     RECT_REGION DirtyRegion;
@@ -203,53 +204,44 @@ struct tag_WINDOW {
     I32 Order;
 };
 
-// Status bit values
+typedef struct tag_DESKTOP_THEME {
+    LPVOID Builtin;
+    LPVOID Active;
+    LPVOID Staged;
+    STR ActivePath[MAX_FILE_NAME];
+    STR StagedPath[MAX_FILE_NAME];
+    U32 LastStatus;
+    U32 LastFallbackReason;
+    BOOL ActiveFromFile;
+} DESKTOP_THEME, *LPDESKTOP_THEME;
 
-#define WINDOW_STATUS_VISIBLE 0x0001
-#define WINDOW_STATUS_NEED_DRAW 0x0002
-
-/************************************************************************/
-// The property structure
-
-typedef struct tag_PROPERTY {
-    LISTNODE_FIELDS
-    STR Name[32];
-    U32 Value;
-} PROPERTY, *LPPROPERTY;
-
-/************************************************************************/
-// The desktop structure
+typedef struct tag_MOUSE_CURSOR {
+    I32 X;
+    I32 Y;
+    U32 Width;
+    U32 Height;
+    BOOL Visible;
+    RECT ClipRect;
+    U32 RenderPath;
+    U32 FallbackReason;
+    I32 PendingX;
+    I32 PendingY;
+    BOOL SoftwareDirty;
+} MOUSE_CURSOR, *LPMOUSE_CURSOR;
 
 struct tag_DESKTOP {
-    LISTNODE_FIELDS     // Standard EXOS object fields
-    MUTEX Mutex;    // This structure's mutex
-    LPTASK Task;        // The task that created this desktop
-    LPDRIVER Graphics;  // This desktop's graphics driver
-    LPWINDOW Window;    // Window of the desktop
-    LPWINDOW Capture;   // Window that captured mouse
-    LPWINDOW Focus;     // Window that has focus
-    LPPROCESS FocusedProcess; // Process with input focus on this desktop
+    LISTNODE_FIELDS            // Standard EXOS object fields
+        MUTEX Mutex;           // This structure's mutex
+    LPTASK Task;               // The task that created this desktop
+    LPDRIVER Graphics;         // This desktop's graphics driver
+    LPWINDOW Window;           // Window of the desktop
+    LPWINDOW Capture;          // Window that captured mouse
+    LPWINDOW Focus;            // Window that has focus
+    LPPROCESS FocusedProcess;  // Process with input focus on this desktop
     U32 Mode;
     I32 Order;
-    LPVOID BuiltinThemeRuntime;
-    LPVOID ActiveThemeRuntime;
-    LPVOID StagedThemeRuntime;
-    STR ActiveThemePath[MAX_FILE_NAME];
-    STR StagedThemePath[MAX_FILE_NAME];
-    U32 ThemeLastStatus;
-    U32 ThemeLastFallbackReason;
-    BOOL ThemeActiveFromFile;
-    I32 CursorX;
-    I32 CursorY;
-    U32 CursorWidth;
-    U32 CursorHeight;
-    BOOL CursorVisible;
-    RECT CursorClipRect;
-    U32 CursorRenderPath;
-    U32 CursorFallbackReason;
-    I32 CursorPendingX;
-    I32 CursorPendingY;
-    BOOL CursorSoftwareDirty;
+    DESKTOP_THEME Theme;
+    MOUSE_CURSOR Cursor;
 };
 
 /************************************************************************/

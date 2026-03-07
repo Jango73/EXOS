@@ -464,15 +464,15 @@ static void PrintDesktopStatus(void) {
     if (ActiveDesktop != NULL) {
         ConsolePrint(TEXT("desktop: mode=%s\n"), DesktopModeToText(ActiveDesktop->Mode));
         ConsolePrint(TEXT("desktop: cursor_path=%s visible=%u pos=(%x,%x)\n"),
-            CursorPathToText(ActiveDesktop->CursorRenderPath),
-            ActiveDesktop->CursorVisible ? 1 : 0,
-            UNSIGNED(ActiveDesktop->CursorX),
-            UNSIGNED(ActiveDesktop->CursorY));
+            CursorPathToText(ActiveDesktop->Cursor.RenderPath),
+            ActiveDesktop->Cursor.Visible ? 1 : 0,
+            UNSIGNED(ActiveDesktop->Cursor.X),
+            UNSIGNED(ActiveDesktop->Cursor.Y));
         ConsolePrint(TEXT("desktop: cursor_size=%ux%u\n"),
-            ActiveDesktop->CursorWidth,
-            ActiveDesktop->CursorHeight);
+            ActiveDesktop->Cursor.Width,
+            ActiveDesktop->Cursor.Height);
         ConsolePrint(TEXT("desktop: cursor_fallback=%s\n"),
-            CursorFallbackReasonToText(ActiveDesktop->CursorFallbackReason));
+            CursorFallbackReasonToText(ActiveDesktop->Cursor.FallbackReason));
     } else {
         ConsolePrint(TEXT("desktop: mode=unknown\n"));
     }
