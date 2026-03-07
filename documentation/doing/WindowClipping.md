@@ -22,9 +22,9 @@ Define an incremental implementation plan for dirty-rectangle tracking and clip-
 - [x] Add focused debug counters/log points for redraw diagnostics (rate-limited).
 
 ### Step 2: Add Reusable Rect Region Utility
-- [ ] Create a generic region module in `kernel/include/utils` + `kernel/source/utils`.
-- [ ] Implement rectangle-region primitives: init, reset, add, union, intersect, iterate.
-- [ ] Add bounded capacity and deterministic fallback behavior when limits are exceeded.
+- [x] Create a generic region module in `kernel/include/utils` + `kernel/source/utils`.
+- [x] Implement rectangle-region primitives: init, reset, add, union, intersect, iterate.
+- [x] Add bounded capacity and deterministic fallback behavior when limits are exceeded.
 
 ### Step 3: Replace Single Invalid Rectangle with Dirty Region
 - [ ] Replace single `InvalidRect` accumulation semantics with region-based dirty tracking.
