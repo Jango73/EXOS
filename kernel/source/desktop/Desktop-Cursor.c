@@ -70,22 +70,6 @@ static void DesktopCursorBuildRect(I32 X, I32 Y, LPRECT RectOut) {
 /************************************************************************/
 
 /**
- * @brief Check whether two rectangles overlap.
- * @param Left First rectangle.
- * @param Right Second rectangle.
- * @return TRUE when overlap exists.
- */
-static BOOL DesktopCursorRectIntersects(LPRECT Left, LPRECT Right) {
-    if (Left == NULL || Right == NULL) return FALSE;
-
-    if (Left->X2 < Right->X1 || Right->X2 < Left->X1) return FALSE;
-    if (Left->Y2 < Right->Y1 || Right->Y2 < Left->Y1) return FALSE;
-    return TRUE;
-}
-
-/************************************************************************/
-
-/**
  * @brief Intersect two rectangles.
  * @param Left First rectangle.
  * @param Right Second rectangle.
@@ -188,50 +172,11 @@ static void DesktopCursorSetPathState(LPDESKTOP Desktop, U32 Path, U32 Reason, U
  * @param Desktop Target desktop.
  * @param CursorRectScreen Cursor rectangle in screen coordinates.
  */
-static void DesktopCursorInvalidateScreenRect(LPDESKTOP Desktop, LPRECT CursorRectScreen) {
-    RECT WindowRect;
-    RECT LocalRect;
-
+static void DesktopCursorRequestFullDesktopRedraw(LPDESKTOP Desktop) {
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return;
-    if (CursorRectScreen == NULL) return;
+    if (Desktop->Window == NULL || Desktop->Window->TypeID != KOID_WINDOW) return;
 
-    if (Desktop->Window != NULL && Desktop->Window->TypeID == KOID_WINDOW) {
-        LockMutex(&(Desktop->Window->Mutex), INFINITY);
-        WindowRect = Desktop->Window->ScreenRect;
-        UnlockMutex(&(Desktop->Window->Mutex));
-
-        if (DesktopCursorRectIntersects(CursorRectScreen, &WindowRect) == FALSE) {
-            return;
-        }
-
-        LocalRect.X1 = CursorRectScreen->X1 - WindowRect.X1;
-        LocalRect.Y1 = CursorRectScreen->Y1 - WindowRect.Y1;
-        LocalRect.X2 = CursorRectScreen->X2 - WindowRect.X1;
-        LocalRect.Y2 = CursorRectScreen->Y2 - WindowRect.Y1;
-
-        (void)InvalidateWindowRect((HANDLE)Desktop->Window, &LocalRect);
-    }
-}
-
-/************************************************************************/
-
-/**
- * @brief Invalidate old and new software cursor regions.
- * @param Desktop Target desktop.
- * @param OldX Old cursor X.
- * @param OldY Old cursor Y.
- * @param NewX New cursor X.
- * @param NewY New cursor Y.
- */
-static void DesktopCursorInvalidateMove(LPDESKTOP Desktop, I32 OldX, I32 OldY, I32 NewX, I32 NewY) {
-    RECT OldRect;
-    RECT NewRect;
-
-    DesktopCursorBuildRect(OldX, OldY, &OldRect);
-    DesktopCursorBuildRect(NewX, NewY, &NewRect);
-
-    DesktopCursorInvalidateScreenRect(Desktop, &OldRect);
-    DesktopCursorInvalidateScreenRect(Desktop, &NewRect);
+    (void)BroadcastMessageToWindow(Desktop->Window, EWM_DRAW, 0, 0);
 }
 
 /************************************************************************/
@@ -375,7 +320,6 @@ void DesktopCursorOnDesktopActivated(LPDESKTOP Desktop) {
     I32 CurrentX = 0;
     I32 CurrentY = 0;
     LPDRIVER GraphicsDriver;
-    RECT CursorRect;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return;
 
@@ -398,13 +342,7 @@ void DesktopCursorOnDesktopActivated(LPDESKTOP Desktop) {
 
     GraphicsDriver = DisplaySessionGetActiveGraphicsDriver();
     if (DesktopCursorTryEnableHardware(Desktop, GraphicsDriver) == FALSE) {
-        LockMutex(&(Desktop->Mutex), INFINITY);
-        CurrentX = Desktop->CursorX;
-        CurrentY = Desktop->CursorY;
-        UnlockMutex(&(Desktop->Mutex));
-
-        DesktopCursorBuildRect(CurrentX, CurrentY, &CursorRect);
-        DesktopCursorInvalidateScreenRect(Desktop, &CursorRect);
+        DesktopCursorRequestFullDesktopRedraw(Desktop);
     }
 }
 
@@ -443,6 +381,9 @@ void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, 
 
     UnlockMutex(&(Desktop->Mutex));
 
+    UNUSED(OldX);
+    UNUSED(OldY);
+
     if (Desktop->Mode != DESKTOP_MODE_GRAPHICS || IsVisible == FALSE) {
         return;
     }
@@ -451,7 +392,7 @@ void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, 
         GraphicsDriver = DisplaySessionGetActiveGraphicsDriver();
         if (GraphicsDriver == NULL || GraphicsDriver->Command == NULL) {
             DesktopCursorSetPathState(Desktop, DESKTOP_CURSOR_PATH_SOFTWARE, DESKTOP_CURSOR_FALLBACK_SET_POSITION_FAILED, DF_RETURN_GENERIC);
-            DesktopCursorInvalidateMove(Desktop, OldX, OldY, NewX, NewY);
+            DesktopCursorRequestFullDesktopRedraw(Desktop);
             return;
         }
 
@@ -463,13 +404,13 @@ void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, 
         Status = GraphicsDriver->Command(DF_GFX_CURSOR_SET_POSITION, (UINT)(LPVOID)&PositionInfo);
         if (Status != DF_RETURN_SUCCESS) {
             DesktopCursorSetPathState(Desktop, DESKTOP_CURSOR_PATH_SOFTWARE, DESKTOP_CURSOR_FALLBACK_SET_POSITION_FAILED, Status);
-            DesktopCursorInvalidateMove(Desktop, OldX, OldY, NewX, NewY);
+            DesktopCursorRequestFullDesktopRedraw(Desktop);
         }
 
         return;
     }
 
-    DesktopCursorInvalidateMove(Desktop, OldX, OldY, NewX, NewY);
+    DesktopCursorRequestFullDesktopRedraw(Desktop);
 }
 
 /************************************************************************/
