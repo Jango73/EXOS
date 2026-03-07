@@ -225,7 +225,7 @@ Deliverable:
 Deliverable:
 - Safe fallback path and deterministic backend selection.
 
-## Step 9.5 - Centralized mode selection policy (outside drivers)
+## Step 10 - Centralized mode selection policy (outside drivers)
 - [x] Move mode selection policy out of backend-specific `DF_GFX_SETMODE` implementations.
 - [x] Define one kernel-side selector that chooses the best mode using:
   - `DF_GFX_GETCAPABILITIES`,
@@ -239,7 +239,15 @@ Deliverable:
 Deliverable:
 - Desktop mode selection is backend-agnostic, deterministic, and capability-driven.
 
-## Step 10 - Diagnostics and shell tooling
+## Step 11 - iGPU hardware cursor support
+- [ ] Add explicit iGPU capability exposure for hardware cursor plane support through `DF_GFX_GETCAPABILITIES`.
+- [ ] Define one backend contract for cursor operations (set shape/format, set position, show/hide) without coupling cursor ownership to userland.
+- [ ] Implement Intel hardware cursor plane programming path for supported generations and active output/pipe routing.
+- [ ] Validate cursor clipping, hotspot handling, and deterministic behavior across mode changes and backend reinitialization.
+- [ ] Add safe fallback signaling so compositor can switch to software cursor overlay when hardware cursor is unavailable or fails.
+- [ ] Add concise diagnostics for active cursor path and cursor-plane failure reason.
+
+## Step 12 - Diagnostics and shell tooling
 - [ ] Add concise commands (or debug paths) to print:
   - GPU identification and capabilities
   - Active pipe/plane/output
@@ -253,7 +261,7 @@ Deliverable:
 Deliverable:
 - Repeatable diagnostics for bring-up and regression tracking.
 
-## Step 11 - Test matrix and acceptance gates
+## Step 13 - Test matrix and acceptance gates
 Minimum gates before considering the driver stable:
 
 - [ ] Boot x86-32 and x86-64 with Intel backend enabled.

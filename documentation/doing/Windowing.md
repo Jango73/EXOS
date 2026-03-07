@@ -354,26 +354,34 @@ Compatibility first, then extension.
 - [x] Ensure `desktop show` succeeds when no storage is mounted.
 - [x] Ensure theme load failure never prevents desktop startup.
 
-### Step 8.5: Kernel Internal Desktop Test Module
+### Step 9: Kernel Internal Desktop Test Module
 - [x] Add one internal kernel windowing test module (portal-like purpose, kernel-side implementation).
 - [x] Make the test module create two test windows with different sizes.
 - [x] Set arbitrary titles on both test windows for visual identification.
 - [x] Ensure both test windows are visible after `desktop show`.
 
-### Step 9: Client-Decorated Framework Support
+### Step 10: Mouse Cursor Ownership and Rendering
+- [ ] Define cursor ownership: cursor state, position, visibility, and clipping policy are managed by kernel desktop/compositor code.
+- [ ] Define backend contract: graphics drivers expose optional hardware-cursor capabilities; compositor uses them when available.
+- [ ] Implement deterministic fallback: when hardware cursor is unavailable, compositor draws a software cursor overlay as the final pass.
+- [ ] Ensure cursor rendering remains independent from userland window content and decoration modes (`SystemDecorated`, `ClientDecorated`, `BareSurface`).
+- [ ] Ensure `desktop show` always displays a visible pointer in graphics mode (hardware or software fallback).
+- [ ] Add diagnostics to report active cursor path (`hardware` or `software`) and fallback reason.
+
+### Step 11: Client-Decorated Framework Support
 - [ ] Add decoration mode flag to window creation ABI/runtime API.
 - [ ] Implement no-chrome kernel path for `ClientDecorated` windows.
 - [ ] Verify input/focus/capture/resize semantics for client-rendered chrome.
 - [ ] Add dirty-rectangle present path validation for framework rendering.
 - [ ] Validate minimal requirements for Qt-like platform plugins.
 
-### Step 10: Portal/Userland Alignment
+### Step 12: Portal/Userland Alignment
 - [ ] Update `portal` to stop drawing standard non-client frame visuals.
 - [ ] Keep `portal` focused on client-area content and behavior.
 - [ ] Validate button and control rendering against canonical element definitions.
 - [ ] Verify behavior in both x86-32 and x86-64 configurations.
 
-### Step 11: Testing and Hardening
+### Step 13: Testing and Hardening
 - [ ] Add functional tests for create/show/hide/destroy/focus/capture.
 - [ ] Add state-transition rendering tests (`normal`, `hover`, `pressed`, `focused`, `disabled`).
 - [ ] Add compatibility tests for legacy `SM_COLOR_*` consumers.
@@ -383,7 +391,7 @@ Compatibility first, then extension.
 - [ ] Add malformed TOML and reference-error tests.
 - [ ] Add boundary tests for parser/runtime limits.
 
-### Step 12: Documentation Finalization
+### Step 14: Documentation Finalization
 - [ ] Update `documentation/Kernel.md` with final architecture.
 - [ ] Document TOML schema contract and canonical element/state registry.
 - [ ] Document theme API and fallback semantics.
