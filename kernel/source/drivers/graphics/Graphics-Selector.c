@@ -26,6 +26,8 @@
 #include "CoreString.h"
 #include "DriverGetters.h"
 #include "Log.h"
+#include "Clock.h"
+#include "utils/RateLimiter.h"
 
 /************************************************************************/
 
@@ -82,6 +84,24 @@ static BOOL GraphicsSelectorIsBooleanTextCommand(UINT Function) {
         case DF_GFX_TEXT_SCROLL_REGION:
         case DF_GFX_TEXT_SET_CURSOR:
         case DF_GFX_TEXT_SET_CURSOR_VISIBLE:
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Check whether one graphics command is related to cursor management.
+ * @param Function Driver command identifier.
+ * @return TRUE for cursor shape/position/visibility commands.
+ */
+static BOOL GraphicsSelectorIsCursorCommand(UINT Function) {
+    switch (Function) {
+        case DF_GFX_CURSOR_SET_SHAPE:
+        case DF_GFX_CURSOR_SET_POSITION:
+        case DF_GFX_CURSOR_SET_VISIBLE:
             return TRUE;
     }
 
@@ -419,14 +439,26 @@ static UINT GraphicsSelectorUnload(void) {
  * @return Result from selected backend.
  */
 static UINT GraphicsSelectorForward(UINT Function, UINT Parameter) {
+    static RATE_LIMITER CursorForwardLimiter;
+    static BOOL CursorForwardLimiterReady = FALSE;
     UINT Index = 0;
     BOOL IsBooleanTextCommand = FALSE;
+    BOOL IsCursorCommand = FALSE;
+    U32 Suppressed = 0;
+    U32 Now = GetSystemTime();
 
     if (GraphicsSelectorState.BackendCount == 0) {
         return DF_RETURN_NOT_IMPLEMENTED;
     }
 
     IsBooleanTextCommand = GraphicsSelectorIsBooleanTextCommand(Function);
+    IsCursorCommand = GraphicsSelectorIsCursorCommand(Function);
+
+    if (IsCursorCommand != FALSE && CursorForwardLimiterReady == FALSE) {
+        if (RateLimiterInit(&CursorForwardLimiter, 24, 1000) != FALSE) {
+            CursorForwardLimiterReady = TRUE;
+        }
+    }
 
     for (Index = GraphicsSelectorState.ActiveIndex; Index < GraphicsSelectorState.BackendCount; Index++) {
         LPDRIVER Driver = GraphicsSelectorState.Backends[Index];
@@ -437,6 +469,18 @@ static UINT GraphicsSelectorForward(UINT Function, UINT Parameter) {
         }
 
         Result = Driver->Command(Function, Parameter);
+
+        if (IsCursorCommand != FALSE &&
+            CursorForwardLimiterReady != FALSE &&
+            RateLimiterShouldTrigger(&CursorForwardLimiter, Now, &Suppressed) != FALSE) {
+            DEBUG(TEXT("[GraphicsSelectorForward] cursor fn=%u backend=%s index=%u result=%u active=%u suppressed=%u"),
+                Function,
+                Driver->Product,
+                Index,
+                Result,
+                GraphicsSelectorState.ActiveIndex,
+                Suppressed);
+        }
 
         if (Function == DF_GFX_CREATECONTEXT) {
             if (Result >= VMA_KERNEL) {

@@ -106,6 +106,10 @@ BOOL DesktopEnsureDispatcherTask(LPDESKTOP Desktop) {
 
     SAFE_USE_VALID_ID(Desktop->Task, KOID_TASK) {
         if (IsDesktopDispatcherTask(Desktop->Task) != FALSE) {
+            if (EnsureAllMessageQueues(Desktop->Task, TRUE) == FALSE) {
+                WARNING(TEXT("[DesktopEnsureDispatcherTask] Unable to initialize dispatcher message queues"));
+                return FALSE;
+            }
             return TRUE;
         }
     }
@@ -124,6 +128,11 @@ BOOL DesktopEnsureDispatcherTask(LPDESKTOP Desktop) {
     DispatcherTask = CreateTask(&KernelProcess, &TaskInfo);
     if (DispatcherTask == NULL) {
         WARNING(TEXT("[DesktopEnsureDispatcherTask] Unable to create desktop dispatcher"));
+        return FALSE;
+    }
+
+    if (EnsureAllMessageQueues(DispatcherTask, TRUE) == FALSE) {
+        WARNING(TEXT("[DesktopEnsureDispatcherTask] Unable to initialize dispatcher message queues"));
         return FALSE;
     }
 
@@ -157,4 +166,3 @@ LPTASK DesktopResolveWindowTask(LPDESKTOP Desktop, LPTASK FallbackTask) {
 
     return FallbackTask;
 }
-

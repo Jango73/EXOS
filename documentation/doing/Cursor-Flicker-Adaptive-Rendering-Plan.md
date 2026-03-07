@@ -43,9 +43,9 @@ Notes:
 
 ## Implementation Steps
 ### Step 1: Cursor Render Stabilization
-- [ ] Remove full desktop broadcast redraw trigger from mouse movement path.
-- [ ] Keep one cursor dirty state with pending target position.
-- [ ] Ensure software cursor draw/erase touches only bounded cursor regions.
+- [x] Remove full desktop broadcast redraw trigger from mouse movement path.
+- [x] Keep one cursor dirty state with pending target position.
+- [x] Ensure software cursor draw/erase touches only bounded cursor regions.
 - [ ] Verify no window overdraw regression while cursor moves.
 
 Step gate:
@@ -105,9 +105,9 @@ Step gate:
 - [ ] Document diagnostic fields exposed by `desktop status`.
 
 ## Completion Checklist
-- [ ] Software cursor movement no longer causes full desktop redraw per input event.
+- [x] Software cursor movement no longer causes full desktop redraw per input event.
 - [ ] Flicker is removed in software cursor path under continuous movement.
 - [ ] Adaptive cooldown is driven by continuously updated smoothed metrics.
 - [ ] Minimum target FPS handling is implemented and observable.
 - [ ] Runtime diagnostics explain pacing behavior and fallback reasons.
-- [ ] x86-32 and x86-64 debug builds pass.
+- [x] x86-32 and x86-64 debug builds pass.

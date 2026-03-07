@@ -247,6 +247,9 @@ struct tag_DESKTOP {
     RECT CursorClipRect;
     U32 CursorRenderPath;
     U32 CursorFallbackReason;
+    I32 CursorPendingX;
+    I32 CursorPendingY;
+    BOOL CursorSoftwareDirty;
 };
 
 /************************************************************************/
