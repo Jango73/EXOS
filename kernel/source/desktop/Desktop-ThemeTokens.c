@@ -53,21 +53,21 @@ typedef struct tag_SYSTEM_COLOR_BINDING {
 // Other declarations
 
 static const THEME_COLOR_TOKEN_ENTRY BuiltinColorTokens[] = {
-    {THEME_TOKEN_COLOR_DESKTOP_BACKGROUND, TEXT("color.desktop.background"), COLOR_DARK_CYAN},
-    {THEME_TOKEN_COLOR_HIGHLIGHT, TEXT("color.highlight"), 0x00FFFFFF},
-    {THEME_TOKEN_COLOR_NORMAL, TEXT("color.normal"), 0x00A0A0A0},
+    {THEME_TOKEN_COLOR_DESKTOP_BACKGROUND, TEXT("color.desktop.background"), COLOR_GRAY25},
+    {THEME_TOKEN_COLOR_HIGHLIGHT, TEXT("color.highlight"), COLOR_GRAY90},
+    {THEME_TOKEN_COLOR_NORMAL, TEXT("color.normal"), COLOR_GRAY50},
     {THEME_TOKEN_COLOR_LIGHT_SHADOW, TEXT("color.light_shadow"), 0x00404040},
     {THEME_TOKEN_COLOR_DARK_SHADOW, TEXT("color.dark_shadow"), 0x00000000},
     {THEME_TOKEN_COLOR_CLIENT_BACKGROUND, TEXT("color.client.background"), COLOR_WHITE},
     {THEME_TOKEN_COLOR_TEXT_NORMAL, TEXT("color.text.normal"), COLOR_BLACK},
     {THEME_TOKEN_COLOR_TEXT_SELECTED, TEXT("color.text.selected"), COLOR_WHITE},
     {THEME_TOKEN_COLOR_SELECTION, TEXT("color.selection"), COLOR_DARK_BLUE},
-    {THEME_TOKEN_COLOR_TITLE_BAR, TEXT("color.title_bar"), 0x00606060},
-    {THEME_TOKEN_COLOR_TITLE_BAR_2, TEXT("color.title_bar_2"), 0x00D8D8D8},
+    {THEME_TOKEN_COLOR_TITLE_BAR, TEXT("color.title_bar"), COLOR_GRAY35},
+    {THEME_TOKEN_COLOR_TITLE_BAR_2, TEXT("color.title_bar_2"), COLOR_GRAY25},
     {THEME_TOKEN_COLOR_TITLE_TEXT, TEXT("color.title_text"), COLOR_WHITE},
     {THEME_TOKEN_COLOR_NORMAL, TEXT("color.window.frame"), 0x00A0A0A0},
-    {THEME_TOKEN_COLOR_TITLE_BAR, TEXT("color.window.title.active.start"), 0x00606060},
-    {THEME_TOKEN_COLOR_TITLE_BAR_2, TEXT("color.window.title.active.end"), 0x00D8D8D8},
+    {THEME_TOKEN_COLOR_TITLE_BAR, TEXT("color.window.title.active.start"), COLOR_GRAY50},
+    {THEME_TOKEN_COLOR_TITLE_BAR_2, TEXT("color.window.title.active.end"), COLOR_GRAY40},
     {THEME_TOKEN_COLOR_TITLE_TEXT, TEXT("color.window.text"), COLOR_WHITE},
 };
 
