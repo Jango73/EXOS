@@ -162,6 +162,24 @@ UINT TaskGetMinimumSystemStackSize(void);
 #define DESKTOP_MODE_GRAPHICS 0x00000001
 
 /************************************************************************/
+// Desktop cursor rendering path
+
+#define DESKTOP_CURSOR_PATH_UNSET 0x00000000
+#define DESKTOP_CURSOR_PATH_HARDWARE 0x00000001
+#define DESKTOP_CURSOR_PATH_SOFTWARE 0x00000002
+
+/************************************************************************/
+// Desktop cursor fallback reason
+
+#define DESKTOP_CURSOR_FALLBACK_NONE 0x00000000
+#define DESKTOP_CURSOR_FALLBACK_NOT_GRAPHICS 0x00000001
+#define DESKTOP_CURSOR_FALLBACK_NO_CAPABILITIES 0x00000002
+#define DESKTOP_CURSOR_FALLBACK_NO_CURSOR_PLANE 0x00000003
+#define DESKTOP_CURSOR_FALLBACK_SET_SHAPE_FAILED 0x00000004
+#define DESKTOP_CURSOR_FALLBACK_SET_POSITION_FAILED 0x00000005
+#define DESKTOP_CURSOR_FALLBACK_SET_VISIBLE_FAILED 0x00000006
+
+/************************************************************************/
 // The window structure
 
 #define WINDOW_DIRTY_REGION_CAPACITY 32
@@ -221,6 +239,12 @@ struct tag_DESKTOP {
     U32 ThemeLastStatus;
     U32 ThemeLastFallbackReason;
     BOOL ThemeActiveFromFile;
+    I32 CursorX;
+    I32 CursorY;
+    BOOL CursorVisible;
+    RECT CursorClipRect;
+    U32 CursorRenderPath;
+    U32 CursorFallbackReason;
 };
 
 /************************************************************************/

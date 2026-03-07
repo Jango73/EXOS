@@ -403,6 +403,52 @@ static LPCSTR ThemeFallbackReasonToText(U32 Reason) {
 /************************************************************************/
 
 /**
+ * @brief Convert desktop cursor path identifier to text.
+ * @param Path Cursor path value.
+ * @return Constant text description.
+ */
+static LPCSTR CursorPathToText(U32 Path) {
+    switch (Path) {
+        case DESKTOP_CURSOR_PATH_HARDWARE:
+            return TEXT("hardware");
+        case DESKTOP_CURSOR_PATH_SOFTWARE:
+            return TEXT("software");
+        default:
+            return TEXT("unset");
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Convert desktop cursor fallback reason to text.
+ * @param Reason Cursor fallback reason.
+ * @return Constant text description.
+ */
+static LPCSTR CursorFallbackReasonToText(U32 Reason) {
+    switch (Reason) {
+        case DESKTOP_CURSOR_FALLBACK_NONE:
+            return TEXT("none");
+        case DESKTOP_CURSOR_FALLBACK_NOT_GRAPHICS:
+            return TEXT("not_graphics");
+        case DESKTOP_CURSOR_FALLBACK_NO_CAPABILITIES:
+            return TEXT("no_capabilities");
+        case DESKTOP_CURSOR_FALLBACK_NO_CURSOR_PLANE:
+            return TEXT("no_cursor_plane");
+        case DESKTOP_CURSOR_FALLBACK_SET_SHAPE_FAILED:
+            return TEXT("set_shape_failed");
+        case DESKTOP_CURSOR_FALLBACK_SET_POSITION_FAILED:
+            return TEXT("set_position_failed");
+        case DESKTOP_CURSOR_FALLBACK_SET_VISIBLE_FAILED:
+            return TEXT("set_visible_failed");
+        default:
+            return TEXT("unknown");
+    }
+}
+
+/************************************************************************/
+
+/**
  * @brief Print desktop/theme runtime status.
  */
 static void PrintDesktopStatus(void) {
@@ -417,6 +463,13 @@ static void PrintDesktopStatus(void) {
 
     if (ActiveDesktop != NULL) {
         ConsolePrint(TEXT("desktop: mode=%s\n"), DesktopModeToText(ActiveDesktop->Mode));
+        ConsolePrint(TEXT("desktop: cursor_path=%s visible=%u pos=(%x,%x)\n"),
+            CursorPathToText(ActiveDesktop->CursorRenderPath),
+            ActiveDesktop->CursorVisible ? 1 : 0,
+            UNSIGNED(ActiveDesktop->CursorX),
+            UNSIGNED(ActiveDesktop->CursorY));
+        ConsolePrint(TEXT("desktop: cursor_fallback=%s\n"),
+            CursorFallbackReasonToText(ActiveDesktop->CursorFallbackReason));
     } else {
         ConsolePrint(TEXT("desktop: mode=unknown\n"));
     }

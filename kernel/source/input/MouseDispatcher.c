@@ -29,6 +29,7 @@
 #include "KernelData.h"
 #include "input/Mouse.h"
 #include "Desktop.h"
+#include "Desktop-Cursor.h"
 #include "process/Process.h"
 #include "process/Task.h"
 #include "User.h"
@@ -201,6 +202,12 @@ void MouseDispatcherOnInput(I32 DeltaX, I32 DeltaY, U32 Buttons) {
     U32 UpButtons = 0;
     BOOL SendMove = FALSE;
     U32 Now = GetSystemTime();
+    I32 OldPosX = 0;
+    I32 OldPosY = 0;
+    I32 NewPosX = 0;
+    I32 NewPosY = 0;
+    BOOL PositionChanged = FALSE;
+    LPDESKTOP FocusedDesktop = NULL;
 
     {
         LPDESKTOP Desktop = GetFocusedDesktop();
@@ -212,6 +219,9 @@ void MouseDispatcherOnInput(I32 DeltaX, I32 DeltaY, U32 Buttons) {
 
     SaveFlags(&Flags);
     DisableInterrupts();
+
+    OldPosX = g_MouseDispatch.PosX;
+    OldPosY = g_MouseDispatch.PosY;
 
     if (ConsoleMode) {
         I32 ScaleX;
@@ -243,6 +253,11 @@ void MouseDispatcherOnInput(I32 DeltaX, I32 DeltaY, U32 Buttons) {
         PosY = g_MouseDispatch.PosY;
     }
 
+    PositionChanged = (OldPosX != g_MouseDispatch.PosX || OldPosY != g_MouseDispatch.PosY);
+    NewPosX = g_MouseDispatch.PosX;
+    NewPosY = g_MouseDispatch.PosY;
+    FocusedDesktop = GetFocusedDesktop();
+
     RestoreFlags(&Flags);
 
     if (DownButtons) {
@@ -255,6 +270,10 @@ void MouseDispatcherOnInput(I32 DeltaX, I32 DeltaY, U32 Buttons) {
 
     if (SendMove) {
         EnqueueInputMessage(EWM_MOUSEMOVE, UNSIGNED(PosX), UNSIGNED(PosY));
+    }
+
+    if (PositionChanged != FALSE) {
+        DesktopCursorOnMousePositionChanged(FocusedDesktop, OldPosX, OldPosY, NewPosX, NewPosY);
     }
 }
 

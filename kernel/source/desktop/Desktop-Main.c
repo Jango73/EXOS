@@ -30,6 +30,7 @@
 #include "Log.h"
 #include "input/Mouse.h"
 #include "Desktop-Dispatcher.h"
+#include "Desktop-Cursor.h"
 #include "Desktop.h"
 #include "Desktop-ModeSelector.h"
 #include "Desktop-ThemeTokens.h"
@@ -565,6 +566,8 @@ BOOL ShowDesktop(LPDESKTOP This) {
 
     UnlockMutex(&(This->Mutex));
     UnlockMutex(MUTEX_KERNEL);
+
+    DesktopCursorOnDesktopActivated(This);
 
     //-------------------------------------
     // Force the desktop root window to repaint

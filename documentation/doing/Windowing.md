@@ -361,12 +361,12 @@ Compatibility first, then extension.
 - [x] Ensure both test windows are visible after `desktop show`.
 
 ### Step 10: Mouse Cursor Ownership and Rendering
-- [ ] Define cursor ownership: cursor state, position, visibility, and clipping policy are managed by kernel desktop/compositor code.
-- [ ] Define backend contract: graphics drivers expose optional hardware-cursor capabilities; compositor uses them when available.
-- [ ] Implement deterministic fallback: when hardware cursor is unavailable, compositor draws a software cursor overlay as the final pass.
-- [ ] Ensure cursor rendering remains independent from userland window content and decoration modes (`SystemDecorated`, `ClientDecorated`, `BareSurface`).
-- [ ] Ensure `desktop show` always displays a visible pointer in graphics mode (hardware or software fallback).
-- [ ] Add diagnostics to report active cursor path (`hardware` or `software`) and fallback reason.
+- [x] Define cursor ownership: cursor state, position, visibility, and clipping policy are managed by kernel desktop/compositor code.
+- [x] Define backend contract: graphics drivers expose optional hardware-cursor capabilities; compositor uses them when available.
+- [x] Implement deterministic fallback: when hardware cursor is unavailable, compositor draws a software cursor overlay as the final pass.
+- [x] Ensure cursor rendering remains independent from userland window content and decoration modes (`SystemDecorated`, `ClientDecorated`, `BareSurface`).
+- [x] Ensure `desktop show` always displays a visible pointer in graphics mode (hardware or software fallback).
+- [x] Add diagnostics to report active cursor path (`hardware` or `software`) and fallback reason.
 
 ### Step 11: Client-Decorated Framework Support
 - [ ] Add decoration mode flag to window creation ABI/runtime API.

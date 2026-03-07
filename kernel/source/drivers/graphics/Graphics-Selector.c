@@ -505,6 +505,9 @@ static UINT GraphicsSelectorCommands(UINT Function, UINT Parameter) {
         case DF_GFX_TEXT_SCROLL_REGION:
         case DF_GFX_TEXT_SET_CURSOR:
         case DF_GFX_TEXT_SET_CURSOR_VISIBLE:
+        case DF_GFX_CURSOR_SET_SHAPE:
+        case DF_GFX_CURSOR_SET_POSITION:
+        case DF_GFX_CURSOR_SET_VISIBLE:
             return GraphicsSelectorForward(Function, Parameter);
     }
 

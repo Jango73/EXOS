@@ -50,6 +50,7 @@ BOOL GetDesktopScreenRect(LPDESKTOP, LPRECT);
 U32 SetWindowProp(HANDLE, LPCSTR, U32);
 U32 GetWindowProp(HANDLE, LPCSTR);
 HANDLE GetWindowGC(HANDLE);
+BOOL ReleaseWindowGC(HANDLE);
 HANDLE BeginWindowDraw(HANDLE);
 BOOL EndWindowDraw(HANDLE);
 HANDLE GetSystemBrush(U32);

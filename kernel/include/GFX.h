@@ -60,6 +60,9 @@
 #define DF_GFX_TEXT_SCROLL_REGION (DF_FIRST_FUNCTION + 21)
 #define DF_GFX_TEXT_SET_CURSOR (DF_FIRST_FUNCTION + 22)
 #define DF_GFX_TEXT_SET_CURSOR_VISIBLE (DF_FIRST_FUNCTION + 23)
+#define DF_GFX_CURSOR_SET_SHAPE (DF_FIRST_FUNCTION + 24)
+#define DF_GFX_CURSOR_SET_POSITION (DF_FIRST_FUNCTION + 25)
+#define DF_GFX_CURSOR_SET_VISIBLE (DF_FIRST_FUNCTION + 26)
 
 /***************************************************************************/
 
@@ -103,6 +106,12 @@ typedef U32 (*GFXGETMODECOUNTFUNC)(void);
 #define GFX_SURFACE_FLAG_SCANOUT 0x0001
 #define GFX_SURFACE_FLAG_CPU_VISIBLE 0x0002
 #define GFX_PRESENT_FLAG_WAIT_VBLANK 0x0001
+
+/***************************************************************************/
+
+// Cursor formats
+
+#define GFX_CURSOR_FORMAT_ARGB8888 0x0001
 
 /***************************************************************************/
 
@@ -291,6 +300,34 @@ typedef struct tag_GFX_TEXT_CURSOR_VISIBLE_INFO {
     HANDLE GC;
     BOOL IsVisible;
 } GFX_TEXT_CURSOR_VISIBLE_INFO, *LPGFX_TEXT_CURSOR_VISIBLE_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_CURSOR_SHAPE_INFO {
+    ABI_HEADER Header;
+    U32 Width;
+    U32 Height;
+    U32 HotspotX;
+    U32 HotspotY;
+    U32 Format;
+    U32 Pitch;
+    LPCVOID Pixels;
+} GFX_CURSOR_SHAPE_INFO, *LPGFX_CURSOR_SHAPE_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_CURSOR_POSITION_INFO {
+    ABI_HEADER Header;
+    I32 X;
+    I32 Y;
+} GFX_CURSOR_POSITION_INFO, *LPGFX_CURSOR_POSITION_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_CURSOR_VISIBLE_INFO {
+    ABI_HEADER Header;
+    BOOL IsVisible;
+} GFX_CURSOR_VISIBLE_INFO, *LPGFX_CURSOR_VISIBLE_INFO;
 
 /***************************************************************************/
 

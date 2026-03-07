@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "Desktop-Private.h"
+#include "Desktop-Cursor.h"
 #include "Desktop-NonClient.h"
 #include "Desktop-ThemeResolver.h"
 #include "Desktop-ThemeTokens.h"
@@ -680,6 +681,8 @@ BOOL EndWindowDraw(HANDLE Handle) {
     // Unlock access to resources
 
     UnlockMutex(&(This->Mutex));
+
+    DesktopCursorRenderSoftwareOverlayOnWindow(This);
 
     return TRUE;
 }
