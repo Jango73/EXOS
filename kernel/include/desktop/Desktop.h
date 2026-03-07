@@ -39,6 +39,7 @@ LPWINDOW CreateWindow(LPWINDOWINFO);
 BOOL DeleteWindow(LPWINDOW);
 LPWINDOW FindWindow(LPWINDOW, LPWINDOW);
 LPDESKTOP GetWindowDesktop(LPWINDOW);
+BOOL UpdateWindowScreenRectAndDirtyRegion(LPWINDOW Window, LPRECT Rect);
 BOOL InvalidateWindowRect(HANDLE, LPRECT);
 BOOL ShowWindow(HANDLE, BOOL);
 BOOL GetWindowRect(HANDLE, LPRECT);

@@ -176,7 +176,6 @@ struct tag_WINDOW {
     LPLIST Properties;    // The user-defined properties of this window
     RECT Rect;            // The rectangle of this window
     RECT ScreenRect;
-    RECT InvalidRect;
     RECT DirtyRects[WINDOW_DIRTY_REGION_CAPACITY];
     RECT_REGION DirtyRegion;
     U32 WindowID;

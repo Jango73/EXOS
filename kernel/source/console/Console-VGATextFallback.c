@@ -30,6 +30,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Mutex.h"
+#include "Desktop.h"
 #include "process/Process.h"
 
 /************************************************************************/
@@ -61,11 +62,7 @@ static void ConsoleVGATextFallbackUpdateDesktopState(U32 Columns, U32 Rows) {
         MainDesktop.Mode = DESKTOP_MODE_CONSOLE;
 
         SAFE_USE_VALID_ID(MainDesktop.Window, KOID_WINDOW) {
-            LockMutex(&(MainDesktop.Window->Mutex), INFINITY);
-            MainDesktop.Window->Rect = Rect;
-            MainDesktop.Window->ScreenRect = Rect;
-            MainDesktop.Window->InvalidRect = Rect;
-            UnlockMutex(&(MainDesktop.Window->Mutex));
+            (void)UpdateWindowScreenRectAndDirtyRegion(MainDesktop.Window, &Rect);
         }
 
         UnlockMutex(&(MainDesktop.Mutex));

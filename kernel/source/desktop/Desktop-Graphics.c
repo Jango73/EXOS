@@ -61,6 +61,110 @@ static SYSTEM_DRAW_OBJECT_ENTRY SystemDrawObjects[] = {
 static U32 DATA_SECTION BeginWindowDrawLogCount = 0;
 static U32 DATA_SECTION DefWindowDrawLogCount = 0;
 static U32 DATA_SECTION DesktopRootDrawLogCount = 0;
+static U32 DATA_SECTION ClipRegionFallbackLogCount = 0;
+
+/***************************************************************************/
+
+/**
+ * @brief Set one graphics-context clip rectangle in screen coordinates.
+ * @param GC Graphics context handle.
+ * @param ClipRect Clip rectangle in screen coordinates.
+ * @return TRUE on success.
+ */
+static BOOL SetGraphicsContextClipScreenRect(HANDLE GC, LPRECT ClipRect) {
+    LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)GC;
+
+    if (Context == NULL || ClipRect == NULL) return FALSE;
+    if (Context->TypeID != KOID_GRAPHICSCONTEXT) return FALSE;
+    if (ClipRect->X1 > ClipRect->X2 || ClipRect->Y1 > ClipRect->Y2) return FALSE;
+
+    LockMutex(&(Context->Mutex), INFINITY);
+    Context->LoClip.X = ClipRect->X1;
+    Context->LoClip.Y = ClipRect->Y1;
+    Context->HiClip.X = ClipRect->X2;
+    Context->HiClip.Y = ClipRect->Y2;
+    UnlockMutex(&(Context->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Build and consume one window clip region from accumulated dirty rectangles.
+ * @param This Window whose dirty region is consumed.
+ * @param ClipRegion Destination clip region.
+ * @param ClipStorage Backing storage for destination clip region.
+ * @param ClipCapacity Clip storage capacity.
+ * @param UsedFallback Receives TRUE when fallback full redraw was used.
+ * @return TRUE on success.
+ */
+static BOOL BuildWindowDrawClipRegion(
+    LPWINDOW This,
+    LPRECT_REGION ClipRegion,
+    LPRECT ClipStorage,
+    UINT ClipCapacity,
+    BOOL* UsedFallback
+) {
+    RECT WindowScreenRect;
+    RECT DirtyRect;
+    UINT DirtyCount;
+    UINT DirtyIndex;
+    BOOL Fallback = FALSE;
+
+    if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
+    if (ClipRegion == NULL) return FALSE;
+    if (UsedFallback == NULL) return FALSE;
+
+    *UsedFallback = FALSE;
+
+    if (RectRegionInit(ClipRegion, ClipStorage, ClipCapacity) == FALSE) return FALSE;
+    RectRegionReset(ClipRegion);
+
+    LockMutex(&(This->Mutex), INFINITY);
+
+    WindowScreenRect = This->ScreenRect;
+
+    if (This->DirtyRegion.Storage != This->DirtyRects || This->DirtyRegion.Capacity != WINDOW_DIRTY_REGION_CAPACITY) {
+        (void)RectRegionInit(&This->DirtyRegion, This->DirtyRects, WINDOW_DIRTY_REGION_CAPACITY);
+    }
+
+    DirtyCount = RectRegionGetCount(&This->DirtyRegion);
+    if (DirtyCount == 0) {
+        (void)RectRegionAddRect(ClipRegion, &WindowScreenRect);
+        Fallback = TRUE;
+    } else {
+        for (DirtyIndex = 0; DirtyIndex < DirtyCount; DirtyIndex++) {
+            if (RectRegionGetRect(&This->DirtyRegion, DirtyIndex, &DirtyRect) == FALSE) continue;
+
+            if (DirtyRect.X1 < WindowScreenRect.X1) DirtyRect.X1 = WindowScreenRect.X1;
+            if (DirtyRect.Y1 < WindowScreenRect.Y1) DirtyRect.Y1 = WindowScreenRect.Y1;
+            if (DirtyRect.X2 > WindowScreenRect.X2) DirtyRect.X2 = WindowScreenRect.X2;
+            if (DirtyRect.Y2 > WindowScreenRect.Y2) DirtyRect.Y2 = WindowScreenRect.Y2;
+            if (DirtyRect.X1 > DirtyRect.X2 || DirtyRect.Y1 > DirtyRect.Y2) continue;
+
+            (void)RectRegionAddRect(ClipRegion, &DirtyRect);
+        }
+    }
+
+    if (RectRegionIsOverflowed(&This->DirtyRegion) || RectRegionIsOverflowed(ClipRegion)) {
+        RectRegionReset(ClipRegion);
+        (void)RectRegionAddRect(ClipRegion, &WindowScreenRect);
+        Fallback = TRUE;
+    }
+
+    if (RectRegionGetCount(ClipRegion) == 0) {
+        (void)RectRegionAddRect(ClipRegion, &WindowScreenRect);
+        Fallback = TRUE;
+    }
+
+    RectRegionReset(&This->DirtyRegion);
+
+    UnlockMutex(&(This->Mutex));
+
+    *UsedFallback = Fallback;
+    return TRUE;
+}
 
 /***************************************************************************/
 
@@ -828,6 +932,11 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
         case EWM_DRAW: {
             HANDLE GC;
             RECT Rect;
+            RECT ClipStorage[WINDOW_DIRTY_REGION_CAPACITY];
+            RECT_REGION ClipRegion;
+            RECT ClipRect;
+            UINT ClipIndex;
+            BOOL UsedFallback = FALSE;
             LPWINDOW This = (LPWINDOW)Window;
 
             if (DefWindowDrawLogCount < 128) {
@@ -837,6 +946,10 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                     This != NULL ? This->Style : 0,
                     This != NULL ? This->Status : 0);
                 DefWindowDrawLogCount++;
+            }
+
+            if (BuildWindowDrawClipRegion(This, &ClipRegion, ClipStorage, WINDOW_DIRTY_REGION_CAPACITY, &UsedFallback) == FALSE) {
+                break;
             }
 
             GC = BeginWindowDraw(Window);
@@ -855,7 +968,18 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 }
 
                 if (ShouldDrawWindowNonClient(This)) {
-                    DrawWindowNonClient(Window, GC, &Rect);
+                    for (ClipIndex = 0; ClipIndex < RectRegionGetCount(&ClipRegion); ClipIndex++) {
+                        if (RectRegionGetRect(&ClipRegion, ClipIndex, &ClipRect) == FALSE) continue;
+                        (void)SetGraphicsContextClipScreenRect(GC, &ClipRect);
+                        DrawWindowNonClient(Window, GC, &Rect);
+                    }
+                }
+
+                if (UsedFallback && ClipRegionFallbackLogCount < 64) {
+                    DEBUG(TEXT("[DefWindowFunc] Clip fallback id=%x clip_count=%u"),
+                        This != NULL ? This->WindowID : 0,
+                        RectRegionGetCount(&ClipRegion));
+                    ClipRegionFallbackLogCount++;
                 }
 
                 EndWindowDraw(Window);
@@ -963,9 +1087,18 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             HANDLE GC;
             RECTINFO RectInfo;
             RECT Rect;
+            RECT ClipStorage[WINDOW_DIRTY_REGION_CAPACITY];
+            RECT_REGION ClipRegion;
+            RECT ClipRect;
+            UINT ClipIndex;
             BRUSH Brush;
             COLOR Background;
             BOOL HasBackground;
+            BOOL UsedFallback = FALSE;
+
+            if (BuildWindowDrawClipRegion((LPWINDOW)Window, &ClipRegion, ClipStorage, WINDOW_DIRTY_REGION_CAPACITY, &UsedFallback) == FALSE) {
+                break;
+            }
 
             GC = BeginWindowDraw(Window);
 
@@ -1005,7 +1138,18 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                     SelectBrush(GC, GetSystemBrush(SM_COLOR_DESKTOP));
                 }
 
-                Rectangle(&RectInfo);
+                for (ClipIndex = 0; ClipIndex < RectRegionGetCount(&ClipRegion); ClipIndex++) {
+                    if (RectRegionGetRect(&ClipRegion, ClipIndex, &ClipRect) == FALSE) continue;
+                    (void)SetGraphicsContextClipScreenRect(GC, &ClipRect);
+                    Rectangle(&RectInfo);
+                }
+
+                if (UsedFallback && ClipRegionFallbackLogCount < 64) {
+                    DEBUG(TEXT("[DesktopWindowFunc] Clip fallback id=%x clip_count=%u"),
+                        ((LPWINDOW)Window)->WindowID,
+                        RectRegionGetCount(&ClipRegion));
+                    ClipRegionFallbackLogCount++;
+                }
 
                 EndWindowDraw(Window);
             }

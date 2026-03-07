@@ -93,11 +93,7 @@ static void DisplaySessionSetMainDesktopState(LPDRIVER GraphicsDriver, LPGRAPHIC
         MainDesktop.Mode = DESKTOP_MODE_CONSOLE;
 
         SAFE_USE_VALID_ID(MainDesktop.Window, KOID_WINDOW) {
-            LockMutex(&(MainDesktop.Window->Mutex), INFINITY);
-            MainDesktop.Window->Rect = Rect;
-            MainDesktop.Window->ScreenRect = Rect;
-            MainDesktop.Window->InvalidRect = Rect;
-            UnlockMutex(&(MainDesktop.Window->Mutex));
+            (void)UpdateWindowScreenRectAndDirtyRegion(MainDesktop.Window, &Rect);
         }
 
         UnlockMutex(&(MainDesktop.Mutex));

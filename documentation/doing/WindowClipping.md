@@ -32,12 +32,12 @@ Define an incremental implementation plan for dirty-rectangle tracking and clip-
 - [x] Ensure draw message coalescing still works with region accumulation.
 
 ### Step 4: Clip-Driven Redraw Pipeline
-- [ ] Build a per-frame compiled clip region from accumulated dirty rectangles.
-- [ ] Apply rectangle merge/coalescing rules to keep clip complexity bounded.
-- [ ] Define fallback path to full redraw when clip fragmentation exceeds limits.
-- [ ] Update redraw path to iterate clip rectangles and paint only intersected areas.
-- [ ] Drive drawing through existing `GRAPHICSCONTEXT` clip fields (`LoClip`, `HiClip`) per clip rectangle.
-- [ ] Keep primitive rendering backend-agnostic (VESA, GOP, iGPU).
+- [x] Build a per-frame compiled clip region from accumulated dirty rectangles.
+- [x] Apply rectangle merge/coalescing rules to keep clip complexity bounded.
+- [x] Define fallback path to full redraw when clip fragmentation exceeds limits.
+- [x] Update redraw path to iterate clip rectangles and paint only intersected areas.
+- [x] Drive drawing through existing `GRAPHICSCONTEXT` clip fields (`LoClip`, `HiClip`) per clip rectangle.
+- [x] Keep primitive rendering backend-agnostic (VESA, GOP, iGPU).
 
 ### Step 5: Implement Window Move Damage in Default Procedure
 - [ ] Extend `DefWindowFunc` to handle move-related default behavior.
