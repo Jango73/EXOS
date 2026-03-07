@@ -35,6 +35,8 @@
 #include "Desktop-ThemeTokens.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
+#include "Clock.h"
+#include "utils/RateLimiter.h"
 
 /***************************************************************************/
 
@@ -49,6 +51,77 @@ U32 DesktopWindowFunc(HANDLE, U32, U32, U32);
 /***************************************************************************/
 
 static LIST MainDesktopChildren = {NULL, NULL, NULL, 0, KernelHeapAlloc, KernelHeapFree, NULL};
+
+/***************************************************************************/
+
+/**
+ * @brief Convert a window-relative rectangle to screen coordinates while the window is already locked.
+ * @param This Locked window instance.
+ * @param Src Source rectangle in window coordinates.
+ * @param Dst Destination rectangle in screen coordinates.
+ */
+static void WindowRectToScreenRectLocked(LPWINDOW This, LPRECT Src, LPRECT Dst) {
+    Dst->X1 = This->ScreenRect.X1 + Src->X1;
+    Dst->Y1 = This->ScreenRect.Y1 + Src->Y1;
+    Dst->X2 = This->ScreenRect.X1 + Src->X2;
+    Dst->Y2 = This->ScreenRect.Y1 + Src->Y2;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Emit one rate-limited invalidation trace for redraw diagnostics.
+ * @param This Target window.
+ * @param SourceRect Source rectangle in window coordinates.
+ * @param ScreenRect Converted invalidated rectangle in screen coordinates.
+ * @param FullWindow TRUE when the full window was invalidated.
+ */
+static void LogInvalidateWindowRectRateLimited(LPWINDOW This, LPRECT SourceRect, LPRECT ScreenRect, BOOL FullWindow) {
+    static RATE_LIMITER InvalidateLimiter;
+    static BOOL InvalidateLimiterReady = FALSE;
+    U32 Suppressed = 0;
+    U32 Now = GetSystemTime();
+    RECT Source = {0, 0, 0, 0};
+    U32 WindowID = 0;
+    RECT Invalid = {0, 0, 0, 0};
+
+    if (InvalidateLimiterReady == FALSE) {
+        if (RateLimiterInit(&InvalidateLimiter, 16, 1000) == FALSE) {
+            return;
+        }
+        InvalidateLimiterReady = TRUE;
+    }
+
+    if (SourceRect != NULL) {
+        Source = *SourceRect;
+    }
+
+    SAFE_USE_VALID_ID(This, KOID_WINDOW) {
+        WindowID = This->WindowID;
+        Invalid = This->InvalidRect;
+    }
+
+    if (RateLimiterShouldTrigger(&InvalidateLimiter, Now, &Suppressed) == FALSE) {
+        return;
+    }
+
+    DEBUG(TEXT("[InvalidateWindowRect] id=%x full=%x src=(%u,%u)-(%u,%u) screen=(%u,%u)-(%u,%u) invalid=(%u,%u)-(%u,%u) suppressed=%u"),
+        WindowID,
+        FullWindow ? 1 : 0,
+        UNSIGNED(Source.X1),
+        UNSIGNED(Source.Y1),
+        UNSIGNED(Source.X2),
+        UNSIGNED(Source.Y2),
+        UNSIGNED(ScreenRect->X1),
+        UNSIGNED(ScreenRect->Y1),
+        UNSIGNED(ScreenRect->X2),
+        UNSIGNED(ScreenRect->Y2),
+        UNSIGNED(Invalid.X1),
+        UNSIGNED(Invalid.Y1),
+        UNSIGNED(Invalid.X2),
+        UNSIGNED(Invalid.Y2),
+        Suppressed);
+}
 
 /***************************************************************************/
 
@@ -843,10 +916,7 @@ BOOL WindowRectToScreenRect(HANDLE Handle, LPRECT Src, LPRECT Dst) {
 
     LockMutex(&(This->Mutex), INFINITY);
 
-    Dst->X1 = This->ScreenRect.X1 + Src->X1;
-    Dst->Y1 = This->ScreenRect.Y1 + Src->Y1;
-    Dst->X2 = This->ScreenRect.X1 + Src->X2;
-    Dst->Y2 = This->ScreenRect.Y1 + Src->Y2;
+    WindowRectToScreenRectLocked(This, Src, Dst);
 
     UnlockMutex(&(This->Mutex));
 
@@ -894,6 +964,7 @@ BOOL ScreenRectToWindowRect(HANDLE Handle, LPRECT Src, LPRECT Dst) {
 BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
     LPWINDOW This = (LPWINDOW)Handle;
     RECT Rect;
+    BOOL FullWindow = FALSE;
 
     if (This == NULL) return FALSE;
     if (This->TypeID != KOID_WINDOW) return FALSE;
@@ -904,18 +975,23 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
     LockMutex(&(This->Mutex), INFINITY);
 
     SAFE_USE(Src) {
-        WindowRectToScreenRect(Handle, Src, &Rect);
+        WindowRectToScreenRectLocked(This, Src, &Rect);
 
         if (Rect.X1 < This->InvalidRect.X1) This->InvalidRect.X1 = Rect.X1;
         if (Rect.Y1 < This->InvalidRect.Y1) This->InvalidRect.Y1 = Rect.Y1;
         if (Rect.X2 > This->InvalidRect.X2) This->InvalidRect.X2 = Rect.X2;
         if (Rect.Y2 > This->InvalidRect.Y2) This->InvalidRect.Y2 = Rect.Y2;
     } else {
+        FullWindow = TRUE;
         This->InvalidRect.X1 = This->ScreenRect.X1;
         This->InvalidRect.Y1 = This->ScreenRect.Y1;
         This->InvalidRect.X2 = This->ScreenRect.X2;
         This->InvalidRect.Y2 = This->ScreenRect.Y2;
+
+        Rect = This->InvalidRect;
     }
+
+    LogInvalidateWindowRectRateLimited(This, Src, &Rect, FullWindow);
 
     //-------------------------------------
     // Unlock access to resources
@@ -938,6 +1014,7 @@ BOOL BringWindowToFront(HANDLE Handle) {
     LPWINDOW That;
     LPLISTNODE Node;
     RECT Rect;
+    RECT HiddenRect;
     I32 Order;
 
     //-------------------------------------
@@ -960,7 +1037,12 @@ BOOL BringWindowToFront(HANDLE Handle) {
         That = (LPWINDOW)Node;
         if (RectInRect(&(This->ScreenRect), &(That->ScreenRect))) {
             ScreenRectToWindowRect((HANDLE)That, &(That->ScreenRect), &Rect);
-            InvalidateWindowRect((HANDLE)This, &Rect);
+            WindowRectToScreenRectLocked(This, &Rect, &HiddenRect);
+
+            if (HiddenRect.X1 < This->InvalidRect.X1) This->InvalidRect.X1 = HiddenRect.X1;
+            if (HiddenRect.Y1 < This->InvalidRect.Y1) This->InvalidRect.Y1 = HiddenRect.Y1;
+            if (HiddenRect.X2 > This->InvalidRect.X2) This->InvalidRect.X2 = HiddenRect.X2;
+            if (HiddenRect.Y2 > This->InvalidRect.Y2) This->InvalidRect.Y2 = HiddenRect.Y2;
         }
     }
 

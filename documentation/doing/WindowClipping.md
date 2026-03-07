@@ -9,11 +9,17 @@ Define an incremental implementation plan for dirty-rectangle tracking and clip-
 - Clip usage through existing graphics context fields (`LoClip` / `HiClip`).
 - No ABI break for userland window procedures.
 
+## Baseline Notes (Step 1)
+- `InvalidateWindowRect` updates a single per-window `InvalidRect` and posts `EWM_DRAW`.
+- `DefWindowFunc` handles default redraw path (`EWM_DRAW`) and non-client painting.
+- Primitive drawing goes through graphics contexts, and backends already honor `LoClip` / `HiClip`.
+- `MoveWindow` default behavior is still a stub and is addressed in a later step.
+
 ## Implementation Steps
 ### Step 1: Baseline and Safety Fixes
-- [ ] Audit and document current redraw flow (`InvalidateWindowRect`, `EWM_DRAW`, `DefWindowFunc`, graphics primitives).
-- [ ] Fix lock/re-entrancy risks in invalidation helpers before extending the pipeline.
-- [ ] Add focused debug counters/log points for redraw diagnostics (rate-limited).
+- [x] Audit and document current redraw flow (`InvalidateWindowRect`, `EWM_DRAW`, `DefWindowFunc`, graphics primitives).
+- [x] Fix lock/re-entrancy risks in invalidation helpers before extending the pipeline.
+- [x] Add focused debug counters/log points for redraw diagnostics (rate-limited).
 
 ### Step 2: Add Reusable Rect Region Utility
 - [ ] Create a generic region module in `kernel/include/utils` + `kernel/source/utils`.
