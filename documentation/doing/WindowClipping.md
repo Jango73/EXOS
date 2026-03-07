@@ -44,7 +44,17 @@ Define an incremental implementation plan for dirty-rectangle tracking and clip-
 - [x] On move, invalidate old window bounds and new window bounds.
 - [x] Trigger redraw through dirty region pipeline without forcing full-screen redraw.
 
-### Step 6: Compatibility and Validation
+### Step 6: Tile-Indexed Clip Traversal for Glyph-Heavy Workloads
+- [ ] Add a reusable tile grid helper to index clip/damage rectangles by screen-space cells.
+- [ ] Map compiled dirty/clip rectangles into touched cells with bounded storage and deterministic overflow fallback.
+- [ ] Use preallocated bounded storage for tile-cell index entries (no per-entry `KernelHeapAlloc` in redraw paths), with reset-per-frame reuse.
+- [ ] Add fast lookup helpers so render paths query only rectangles attached to current tile(s) instead of scanning the full region.
+- [ ] Integrate tile-indexed lookups in glyph/text-heavy draw paths while preserving existing clip correctness.
+- [ ] Add `exos.*.toml` configuration keys for tile size and dirty-rectangle count threshold that switches redraw to tile-indexed traversal, with strict parsing and safe defaults.
+- [ ] Resolve tile-index settings at desktop activation and apply them without ABI changes.
+- [ ] Keep non-tile fallback path active for low-complexity scenes and overflow cases.
+
+### Step 7: Compatibility and Validation
 - [ ] Keep explicit `DefWindowFunc` fallback model unchanged (window procedure decides).
 - [ ] Preserve syscall/runtime behavior and existing windowing ABI.
 - [ ] Validate that userland and kernel windows use the same clipping/invalidation semantics.
