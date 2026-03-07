@@ -40,9 +40,9 @@ Define an incremental implementation plan for dirty-rectangle tracking and clip-
 - [x] Keep primitive rendering backend-agnostic (VESA, GOP, iGPU).
 
 ### Step 5: Implement Window Move Damage in Default Procedure
-- [ ] Extend `DefWindowFunc` to handle move-related default behavior.
-- [ ] On move, invalidate old window bounds and new window bounds.
-- [ ] Trigger redraw through dirty region pipeline without forcing full-screen redraw.
+- [x] Extend `DefWindowFunc` to handle move-related default behavior.
+- [x] On move, invalidate old window bounds and new window bounds.
+- [x] Trigger redraw through dirty region pipeline without forcing full-screen redraw.
 
 ### Step 6: Compatibility and Validation
 - [ ] Keep explicit `DefWindowFunc` fallback model unchanged (window procedure decides).

@@ -66,6 +66,99 @@ static U32 DATA_SECTION ClipRegionFallbackLogCount = 0;
 /***************************************************************************/
 
 /**
+ * @brief Convert one screen rectangle into coordinates relative to one window.
+ * @param Window Window used as origin.
+ * @param ScreenRect Rectangle in screen coordinates.
+ * @param RelativeRect Receives rectangle in window-relative coordinates.
+ * @return TRUE on success.
+ */
+static BOOL ScreenRectToWindowLocalRect(LPWINDOW Window, LPRECT ScreenRect, LPRECT RelativeRect) {
+    RECT WindowScreenRect;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (ScreenRect == NULL || RelativeRect == NULL) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    WindowScreenRect = Window->ScreenRect;
+    UnlockMutex(&(Window->Mutex));
+
+    RelativeRect->X1 = ScreenRect->X1 - WindowScreenRect.X1;
+    RelativeRect->Y1 = ScreenRect->Y1 - WindowScreenRect.Y1;
+    RelativeRect->X2 = ScreenRect->X2 - WindowScreenRect.X1;
+    RelativeRect->Y2 = ScreenRect->Y2 - WindowScreenRect.Y1;
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Apply default move behavior and enqueue bounded damage.
+ * @param Window Target window.
+ * @param Position New window position relative to parent.
+ * @return TRUE on success.
+ */
+static BOOL DefaultMoveWindow(LPWINDOW Window, LPPOINT Position) {
+    LPWINDOW Parent;
+    RECT OldScreenRect;
+    RECT NewScreenRect;
+    RECT ParentOldRect;
+    RECT ParentNewRect;
+    I32 Width;
+    I32 Height;
+    I32 DeltaX;
+    I32 DeltaY;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (Position == NULL) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+
+    Parent = Window->ParentWindow;
+    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) {
+        UnlockMutex(&(Window->Mutex));
+        return FALSE;
+    }
+
+    OldScreenRect = Window->ScreenRect;
+    Width = Window->Rect.X2 - Window->Rect.X1;
+    Height = Window->Rect.Y2 - Window->Rect.Y1;
+    DeltaX = Position->X - Window->Rect.X1;
+    DeltaY = Position->Y - Window->Rect.Y1;
+    if (DeltaX == 0 && DeltaY == 0) {
+        UnlockMutex(&(Window->Mutex));
+        return TRUE;
+    }
+
+    Window->Rect.X1 = Position->X;
+    Window->Rect.Y1 = Position->Y;
+    Window->Rect.X2 = Position->X + Width;
+    Window->Rect.Y2 = Position->Y + Height;
+
+    Window->ScreenRect.X1 += DeltaX;
+    Window->ScreenRect.Y1 += DeltaY;
+    Window->ScreenRect.X2 += DeltaX;
+    Window->ScreenRect.Y2 += DeltaY;
+
+    NewScreenRect = Window->ScreenRect;
+
+    UnlockMutex(&(Window->Mutex));
+
+    if (ScreenRectToWindowLocalRect(Parent, &OldScreenRect, &ParentOldRect)) {
+        (void)InvalidateWindowRect((HANDLE)Parent, &ParentOldRect);
+    }
+
+    if (ScreenRectToWindowLocalRect(Parent, &NewScreenRect, &ParentNewRect)) {
+        (void)InvalidateWindowRect((HANDLE)Parent, &ParentNewRect);
+    }
+
+    (void)InvalidateWindowRect((HANDLE)Window, NULL);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Set one graphics-context clip rectangle in screen coordinates.
  * @param GC Graphics context handle.
  * @param ClipRect Clip rectangle in screen coordinates.
@@ -289,6 +382,9 @@ BOOL GetWindowRect(HANDLE Handle, LPRECT Rect) {
  */
 BOOL MoveWindow(HANDLE Handle, LPPOINT Position) {
     LPWINDOW This = (LPWINDOW)Handle;
+    I32 X;
+    I32 Y;
+    U32 MoveResult;
 
     //-------------------------------------
     // Check validity of parameters
@@ -298,6 +394,12 @@ BOOL MoveWindow(HANDLE Handle, LPPOINT Position) {
 
     if (Position == NULL) return FALSE;
 
+    X = Position->X;
+    Y = Position->Y;
+
+    (void)SendMessage(Handle, EWM_MOVING, (U32)X, (U32)Y);
+    MoveResult = SendMessage(Handle, EWM_MOVE, (U32)X, (U32)Y);
+    UNUSED(MoveResult);
     return TRUE;
 }
 
@@ -919,14 +1021,23 @@ Out:
  * @return Message-specific result.
  */
 U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
-    UNUSED(Param1);
-    UNUSED(Param2);
-
     switch (Message) {
         case EWM_CREATE: {
         } break;
 
         case EWM_DELETE: {
+        } break;
+
+        case EWM_MOVE: {
+            LPWINDOW This = (LPWINDOW)Window;
+            POINT Position;
+
+            Position.X = SIGNED(Param1);
+            Position.Y = SIGNED(Param2);
+
+            if (DefaultMoveWindow(This, &Position)) {
+                return 1;
+            }
         } break;
 
         case EWM_DRAW: {
