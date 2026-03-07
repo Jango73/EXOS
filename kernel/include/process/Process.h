@@ -241,6 +241,8 @@ struct tag_DESKTOP {
     BOOL ThemeActiveFromFile;
     I32 CursorX;
     I32 CursorY;
+    U32 CursorWidth;
+    U32 CursorHeight;
     BOOL CursorVisible;
     RECT CursorClipRect;
     U32 CursorRenderPath;

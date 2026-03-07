@@ -468,6 +468,9 @@ static void PrintDesktopStatus(void) {
             ActiveDesktop->CursorVisible ? 1 : 0,
             UNSIGNED(ActiveDesktop->CursorX),
             UNSIGNED(ActiveDesktop->CursorY));
+        ConsolePrint(TEXT("desktop: cursor_size=%ux%u\n"),
+            ActiveDesktop->CursorWidth,
+            ActiveDesktop->CursorHeight);
         ConsolePrint(TEXT("desktop: cursor_fallback=%s\n"),
             CursorFallbackReasonToText(ActiveDesktop->CursorFallbackReason));
     } else {

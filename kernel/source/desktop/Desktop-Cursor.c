@@ -24,16 +24,20 @@
 #include "Desktop-Cursor.h"
 
 #include "Desktop.h"
+#include "CoreString.h"
 #include "DisplaySession.h"
 #include "GFX.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "input/MouseDispatcher.h"
+#include "utils/Helpers.h"
 
 /************************************************************************/
 
-#define DESKTOP_CURSOR_WIDTH 10
-#define DESKTOP_CURSOR_HEIGHT 10
+#define DESKTOP_CURSOR_MIN_SIZE 4
+#define DESKTOP_CURSOR_DEFAULT_WIDTH 10
+#define DESKTOP_CURSOR_DEFAULT_HEIGHT 10
+#define DESKTOP_CURSOR_MAX_SIZE 64
 
 /************************************************************************/
 
@@ -58,13 +62,21 @@ static I32 ClampI32(I32 Value, I32 Minimum, I32 Maximum) {
  * @param Y Cursor Y position.
  * @param RectOut Output rectangle.
  */
-static void DesktopCursorBuildRect(I32 X, I32 Y, LPRECT RectOut) {
+static void DesktopCursorBuildRect(LPDESKTOP Desktop, I32 X, I32 Y, LPRECT RectOut) {
+    U32 CursorWidth = DESKTOP_CURSOR_DEFAULT_WIDTH;
+    U32 CursorHeight = DESKTOP_CURSOR_DEFAULT_HEIGHT;
+
+    if (Desktop != NULL && Desktop->TypeID == KOID_DESKTOP) {
+        if (Desktop->CursorWidth >= DESKTOP_CURSOR_MIN_SIZE) CursorWidth = Desktop->CursorWidth;
+        if (Desktop->CursorHeight >= DESKTOP_CURSOR_MIN_SIZE) CursorHeight = Desktop->CursorHeight;
+    }
+
     if (RectOut == NULL) return;
 
     RectOut->X1 = X;
     RectOut->Y1 = Y;
-    RectOut->X2 = X + DESKTOP_CURSOR_WIDTH - 1;
-    RectOut->Y2 = Y + DESKTOP_CURSOR_HEIGHT - 1;
+    RectOut->X2 = X + (I32)CursorWidth - 1;
+    RectOut->Y2 = Y + (I32)CursorHeight - 1;
 }
 
 /************************************************************************/
@@ -182,6 +194,55 @@ static void DesktopCursorRequestFullDesktopRedraw(LPDESKTOP Desktop) {
 /************************************************************************/
 
 /**
+ * @brief Clamp one cursor size value to accepted bounds.
+ * @param Value Requested value.
+ * @param DefaultValue Fallback value when requested value is invalid.
+ * @return Clamped size value.
+ */
+static U32 DesktopCursorClampSize(U32 Value, U32 DefaultValue) {
+    if (Value == 0) Value = DefaultValue;
+    if (Value < DESKTOP_CURSOR_MIN_SIZE) Value = DESKTOP_CURSOR_MIN_SIZE;
+    if (Value > DESKTOP_CURSOR_MAX_SIZE) Value = DESKTOP_CURSOR_MAX_SIZE;
+    return Value;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve cursor size from configuration.
+ * @param Desktop Target desktop.
+ */
+static void DesktopCursorResolveConfiguredSize(LPDESKTOP Desktop) {
+    LPCSTR WidthText;
+    LPCSTR HeightText;
+    U32 Width = DESKTOP_CURSOR_DEFAULT_WIDTH;
+    U32 Height = DESKTOP_CURSOR_DEFAULT_HEIGHT;
+
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return;
+
+    WidthText = GetConfigurationValue(TEXT("Desktop.CursorWidth"));
+    HeightText = GetConfigurationValue(TEXT("Desktop.CursorHeight"));
+
+    if (WidthText != NULL && StringLength(WidthText) != 0) {
+        Width = StringToU32(WidthText);
+    }
+
+    if (HeightText != NULL && StringLength(HeightText) != 0) {
+        Height = StringToU32(HeightText);
+    }
+
+    Width = DesktopCursorClampSize(Width, DESKTOP_CURSOR_DEFAULT_WIDTH);
+    Height = DesktopCursorClampSize(Height, DESKTOP_CURSOR_DEFAULT_HEIGHT);
+
+    LockMutex(&(Desktop->Mutex), INFINITY);
+    Desktop->CursorWidth = Width;
+    Desktop->CursorHeight = Height;
+    UnlockMutex(&(Desktop->Mutex));
+}
+
+/************************************************************************/
+
+/**
  * @brief Try to enable hardware cursor path on one graphics backend.
  * @param Desktop Target desktop.
  * @param GraphicsDriver Active graphics driver.
@@ -193,7 +254,9 @@ static BOOL DesktopCursorTryEnableHardware(LPDESKTOP Desktop, LPDRIVER GraphicsD
     GFX_CURSOR_POSITION_INFO PositionInfo;
     GFX_CURSOR_VISIBLE_INFO VisibleInfo;
     UINT Status;
-    U32 Pixels[DESKTOP_CURSOR_WIDTH * DESKTOP_CURSOR_HEIGHT];
+    U32 Pixels[DESKTOP_CURSOR_MAX_SIZE * DESKTOP_CURSOR_MAX_SIZE];
+    U32 CursorWidth;
+    U32 CursorHeight;
     U32 X;
     U32 Y;
 
@@ -217,21 +280,29 @@ static BOOL DesktopCursorTryEnableHardware(LPDESKTOP Desktop, LPDRIVER GraphicsD
         return FALSE;
     }
 
-    for (Y = 0; Y < DESKTOP_CURSOR_HEIGHT; Y++) {
-        for (X = 0; X < DESKTOP_CURSOR_WIDTH; X++) {
-            BOOL IsBorder = (X == 0 || Y == 0 || X == DESKTOP_CURSOR_WIDTH - 1 || Y == DESKTOP_CURSOR_HEIGHT - 1);
-            Pixels[(Y * DESKTOP_CURSOR_WIDTH) + X] = IsBorder ? 0xFF000000 : 0xFFFFFFFF;
+    LockMutex(&(Desktop->Mutex), INFINITY);
+    CursorWidth = Desktop->CursorWidth;
+    CursorHeight = Desktop->CursorHeight;
+    UnlockMutex(&(Desktop->Mutex));
+
+    CursorWidth = DesktopCursorClampSize(CursorWidth, DESKTOP_CURSOR_DEFAULT_WIDTH);
+    CursorHeight = DesktopCursorClampSize(CursorHeight, DESKTOP_CURSOR_DEFAULT_HEIGHT);
+
+    for (Y = 0; Y < CursorHeight; Y++) {
+        for (X = 0; X < CursorWidth; X++) {
+            BOOL IsBorder = (X == 0 || Y == 0 || X == CursorWidth - 1 || Y == CursorHeight - 1);
+            Pixels[(Y * CursorWidth) + X] = IsBorder ? 0xFF000000 : 0xFFFFFFFF;
         }
     }
 
     MemorySet(&ShapeInfo, 0, sizeof(ShapeInfo));
     DesktopCursorInitializeHeader(&(ShapeInfo.Header), sizeof(ShapeInfo));
-    ShapeInfo.Width = DESKTOP_CURSOR_WIDTH;
-    ShapeInfo.Height = DESKTOP_CURSOR_HEIGHT;
+    ShapeInfo.Width = CursorWidth;
+    ShapeInfo.Height = CursorHeight;
     ShapeInfo.HotspotX = 0;
     ShapeInfo.HotspotY = 0;
     ShapeInfo.Format = GFX_CURSOR_FORMAT_ARGB8888;
-    ShapeInfo.Pitch = DESKTOP_CURSOR_WIDTH * sizeof(U32);
+    ShapeInfo.Pitch = CursorWidth * sizeof(U32);
     ShapeInfo.Pixels = Pixels;
 
     Status = GraphicsDriver->Command(DF_GFX_CURSOR_SET_SHAPE, (UINT)(LPVOID)&ShapeInfo);
@@ -322,6 +393,8 @@ void DesktopCursorOnDesktopActivated(LPDESKTOP Desktop) {
     LPDRIVER GraphicsDriver;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return;
+
+    DesktopCursorResolveConfiguredSize(Desktop);
 
     LockMutex(&(Desktop->Mutex), INFINITY);
 
@@ -427,8 +500,12 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
     RECT Intersection;
     I32 CursorX;
     I32 CursorY;
+    U32 CursorWidth;
+    U32 CursorHeight;
     BOOL IsVisible;
     U32 CursorPath;
+    I32 DiagonalLength;
+    I32 HorizontalLength;
     HANDLE GC;
     HANDLE OldPen;
 
@@ -441,6 +518,8 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
 
     CursorX = Desktop->CursorX;
     CursorY = Desktop->CursorY;
+    CursorWidth = Desktop->CursorWidth;
+    CursorHeight = Desktop->CursorHeight;
     ClipRect = Desktop->CursorClipRect;
     IsVisible = Desktop->CursorVisible;
     CursorPath = Desktop->CursorRenderPath;
@@ -451,7 +530,10 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
     if (IsVisible == FALSE) return;
     if (CursorPath != DESKTOP_CURSOR_PATH_SOFTWARE) return;
 
-    DesktopCursorBuildRect(CursorX, CursorY, &CursorRect);
+    CursorWidth = DesktopCursorClampSize(CursorWidth, DESKTOP_CURSOR_DEFAULT_WIDTH);
+    CursorHeight = DesktopCursorClampSize(CursorHeight, DESKTOP_CURSOR_DEFAULT_HEIGHT);
+
+    DesktopCursorBuildRect(Desktop, CursorX, CursorY, &CursorRect);
     if (DesktopCursorIntersectRect(&CursorRect, &ClipRect, &CursorRect) == FALSE) {
         return;
     }
@@ -479,14 +561,19 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
     CursorX -= WindowRect.X1;
     CursorY -= WindowRect.Y1;
 
+    DiagonalLength = (I32)(CursorWidth < CursorHeight ? CursorWidth : CursorHeight);
+    HorizontalLength = (I32)((CursorWidth * 2) / 3);
+    if (DiagonalLength < 2) DiagonalLength = 2;
+    if (HorizontalLength < 2) HorizontalLength = 2;
+
     OldPen = SelectPen(GC, GetSystemPen(SM_COLOR_TEXT_NORMAL));
-    DesktopCursorDrawLine(GC, CursorX, CursorY, CursorX, CursorY + 9);
-    DesktopCursorDrawLine(GC, CursorX, CursorY, CursorX + 6, CursorY);
-    DesktopCursorDrawLine(GC, CursorX + 1, CursorY + 1, CursorX + 7, CursorY + 7);
+    DesktopCursorDrawLine(GC, CursorX, CursorY, CursorX, CursorY + (I32)CursorHeight - 1);
+    DesktopCursorDrawLine(GC, CursorX, CursorY, CursorX + HorizontalLength - 1, CursorY);
+    DesktopCursorDrawLine(GC, CursorX + 1, CursorY + 1, CursorX + DiagonalLength - 1, CursorY + DiagonalLength - 1);
 
     (void)SelectPen(GC, GetSystemPen(SM_COLOR_TEXT_SELECTED));
-    DesktopCursorDrawLine(GC, CursorX + 1, CursorY + 2, CursorX + 1, CursorY + 8);
-    DesktopCursorDrawLine(GC, CursorX + 2, CursorY + 1, CursorX + 5, CursorY + 1);
+    DesktopCursorDrawLine(GC, CursorX + 1, CursorY + 2, CursorX + 1, CursorY + (I32)CursorHeight - 2);
+    DesktopCursorDrawLine(GC, CursorX + 2, CursorY + 1, CursorX + HorizontalLength - 2, CursorY + 1);
 
     (void)SelectPen(GC, OldPen);
 
