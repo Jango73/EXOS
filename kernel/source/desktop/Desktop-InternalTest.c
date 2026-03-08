@@ -23,6 +23,7 @@
 
 #include "Desktop-InternalTest.h"
 #include "Desktop-ClockWidget.h"
+#include "Clock.h"
 #include "Kernel.h"
 #include "Log.h"
 
@@ -31,6 +32,94 @@
 
 #define DESKTOP_INTERNAL_TEST_WINDOW_ID_A 0x000085A1
 #define DESKTOP_INTERNAL_TEST_WINDOW_ID_B 0x000085A2
+
+/***************************************************************************/
+
+/**
+ * @brief Generate one deterministic pseudo-random value for stress drag motion.
+ * @param State In-out generator state.
+ * @return Next pseudo-random value.
+ */
+static U32 DesktopInternalStressNextRandom(U32* State) {
+    if (State == NULL) return 0;
+    *State = (*State * 1664525) + 1013904223;
+    return *State;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Move one window progressively toward one X target with variable steps.
+ * @param Window Target window.
+ * @param Position In-out current target position.
+ * @param TargetX Destination X coordinate.
+ * @param StartY Nominal Y anchor.
+ * @param MinY Minimum allowed Y.
+ * @param MaxY Maximum allowed Y.
+ * @param CurrentY In-out current Y.
+ * @param TargetY In-out smoothed Y target.
+ * @param RandomState In-out pseudo-random state.
+ * @return TRUE on success.
+ */
+static BOOL DesktopInternalStressMoveTowardX(
+    LPWINDOW Window,
+    LPPOINT Position,
+    I32 TargetX,
+    I32 StartY,
+    I32 MinY,
+    I32 MaxY,
+    I32* CurrentY,
+    I32* TargetY,
+    U32* RandomState
+) {
+    I32 StepX;
+    I32 YOffset;
+    U32 RandomValue;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (Position == NULL || CurrentY == NULL || TargetY == NULL || RandomState == NULL) return FALSE;
+
+    while (Position->X != TargetX) {
+        RandomValue = DesktopInternalStressNextRandom(RandomState);
+
+        if ((RandomValue & 7) == 0) {
+            YOffset = (I32)(DesktopInternalStressNextRandom(RandomState) & 0x1FF) - 220;
+            *TargetY = StartY + YOffset;
+            if (*TargetY < MinY) *TargetY = MinY;
+            if (*TargetY > MaxY) *TargetY = MaxY;
+        }
+
+        if (*CurrentY < *TargetY)
+            *CurrentY += 2;
+        else if (*CurrentY > *TargetY)
+            *CurrentY -= 2;
+
+        if (*CurrentY < MinY) *CurrentY = MinY;
+        if (*CurrentY > MaxY) *CurrentY = MaxY;
+
+        StepX = 2 + (I32)(RandomValue & 0x07);
+        if ((RandomValue & 0x10) != 0) {
+            StepX += 6 + (I32)((RandomValue >> 5) & 0x0F);
+        }
+        if ((RandomValue & 0x200) != 0) {
+            StepX += 18 + (I32)((RandomValue >> 11) & 0x1F);
+        }
+
+        if (Position->X < TargetX) {
+            Position->X += StepX;
+            if (Position->X > TargetX) Position->X = TargetX;
+        } else {
+            Position->X -= StepX;
+            if (Position->X < TargetX) Position->X = TargetX;
+        }
+
+        Position->Y = *CurrentY;
+        (void)MoveWindow((HANDLE)Window, Position);
+        Sleep(20);
+    }
+
+    return TRUE;
+}
 
 /***************************************************************************/
 
@@ -186,6 +275,134 @@ BOOL DesktopInternalTestEnsureWindowsVisible(LPDESKTOP Desktop) {
         320);
 
     return (FirstCreated && SecondCreated);
+}
+
+/***************************************************************************/
+
+BOOL DesktopInternalRunStressDrag(LPDESKTOP Desktop, U32 Cycles) {
+    LPWINDOW FirstWindow;
+    LPWINDOW RootWindow;
+    POINT Position;
+    I32 CurrentY;
+    I32 TargetY;
+    I32 MinY;
+    I32 MaxY;
+    I32 StartY;
+    I32 DesktopWidth;
+    I32 DesktopHeight;
+    I32 LeftOffscreenX;
+    I32 RightOffscreenX;
+    I32 TargetLeftX;
+    I32 TargetRightX;
+    I32 RightBaseOffscreen;
+    I32 LeftBaseOffscreen;
+    I32 ExtraRightAmplitude;
+    I32 ExtraLeftAmplitude;
+    U32 CycleIndex;
+    U32 RandomState;
+    const I32 StartX = 48;
+    const I32 BaseStartY = 56;
+
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+
+    if (Cycles == 0) {
+        Cycles = 12;
+    }
+
+    if (DesktopInternalTestEnsureWindowsVisible(Desktop) == FALSE) {
+        WARNING(TEXT("[DesktopInternalRunStressDrag] Test windows unavailable"));
+        return FALSE;
+    }
+
+    FirstWindow = DesktopInternalFindTestWindow(Desktop, DESKTOP_INTERNAL_TEST_WINDOW_ID_A);
+    if (FirstWindow == NULL || FirstWindow->TypeID != KOID_WINDOW) {
+        WARNING(TEXT("[DesktopInternalRunStressDrag] Missing test window id=%x"), DESKTOP_INTERNAL_TEST_WINDOW_ID_A);
+        return FALSE;
+    }
+
+    (void)BringWindowToFront((HANDLE)FirstWindow);
+
+    RootWindow = Desktop->Window;
+    DesktopWidth = 1280;
+    DesktopHeight = 1024;
+    SAFE_USE_VALID_ID(RootWindow, KOID_WINDOW) {
+        LockMutex(&(RootWindow->Mutex), INFINITY);
+        DesktopWidth = RootWindow->ScreenRect.X2 - RootWindow->ScreenRect.X1 + 1;
+        DesktopHeight = RootWindow->ScreenRect.Y2 - RootWindow->ScreenRect.Y1 + 1;
+        UnlockMutex(&(RootWindow->Mutex));
+    }
+
+    if (DesktopWidth < 640) DesktopWidth = 640;
+    if (DesktopHeight < 480) DesktopHeight = 480;
+
+    StartY = BaseStartY;
+    LeftOffscreenX = -260;
+    RightOffscreenX = DesktopWidth - 40;
+    MinY = -180;
+    MaxY = DesktopHeight - 40;
+
+    Position.Y = StartY;
+    Position.X = StartX;
+    (void)MoveWindow((HANDLE)FirstWindow, &Position);
+    Sleep(40);
+
+    CurrentY = StartY;
+    TargetY = StartY;
+    RandomState = GetSystemTime() ^ (Cycles << 8);
+    if (RandomState == 0) RandomState = 0xA5A5A5A5;
+
+    ExtraRightAmplitude = DesktopWidth / 2;
+    if (ExtraRightAmplitude < 120) ExtraRightAmplitude = 120;
+    ExtraLeftAmplitude = DesktopWidth / 2;
+    if (ExtraLeftAmplitude < 120) ExtraLeftAmplitude = 120;
+
+    RightBaseOffscreen = RightOffscreenX + 120;
+    LeftBaseOffscreen = LeftOffscreenX - 120;
+
+    DEBUG(TEXT("[DesktopInternalRunStressDrag] Begin cycles=%u start_x=%x left_x=%x right_x=%x min_y=%x max_y=%x"),
+        Cycles,
+        StartX,
+        LeftOffscreenX,
+        RightOffscreenX,
+        MinY,
+        MaxY);
+
+    for (CycleIndex = 0; CycleIndex < Cycles; CycleIndex++) {
+        TargetRightX =
+            RightBaseOffscreen + (I32)(DesktopInternalStressNextRandom(&RandomState) % (U32)ExtraRightAmplitude);
+        TargetLeftX =
+            LeftBaseOffscreen - (I32)(DesktopInternalStressNextRandom(&RandomState) % (U32)ExtraLeftAmplitude);
+
+        (void)DesktopInternalStressMoveTowardX(
+            FirstWindow,
+            &Position,
+            TargetRightX,
+            StartY,
+            MinY,
+            MaxY,
+            &CurrentY,
+            &TargetY,
+            &RandomState);
+        Sleep(130);
+
+        (void)DesktopInternalStressMoveTowardX(
+            FirstWindow,
+            &Position,
+            TargetLeftX,
+            StartY,
+            MinY,
+            MaxY,
+            &CurrentY,
+            &TargetY,
+            &RandomState);
+        Sleep(160);
+    }
+
+    Position.X = StartX;
+    Position.Y = StartY;
+    (void)MoveWindow((HANDLE)FirstWindow, &Position);
+    DEBUG(TEXT("[DesktopInternalRunStressDrag] Completed cycles=%u"), Cycles);
+    return TRUE;
 }
 
 /***************************************************************************/

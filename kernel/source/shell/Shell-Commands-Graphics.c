@@ -600,9 +600,33 @@ U32 CMD_desktop(LPSHELLCONTEXT Context) {
         return ApplyDesktopThemeTarget(Context->Command);
     }
 
+    if (StringCompareNC(Action, TEXT("stressdrag")) == 0) {
+        U32 Cycles = 12;
+        BOOL Result;
+
+        ParseNextCommandLineComponent(Context);
+        if (StringLength(Context->Command) != 0) {
+            Cycles = StringToU32(Context->Command);
+            if (Cycles == 0) {
+                ConsolePrint(TEXT("Usage: desktop stressdrag [cycles]\n"));
+                return DF_RETURN_SUCCESS;
+            }
+        }
+
+        Result = DesktopInternalRunStressDrag(&MainDesktop, Cycles);
+        if (Result == FALSE) {
+            ConsolePrint(TEXT("desktop stressdrag: failed\n"));
+            return DF_RETURN_SUCCESS;
+        }
+
+        ConsolePrint(TEXT("desktop stressdrag: completed (%u cycles)\n"), Cycles);
+        return DF_RETURN_SUCCESS;
+    }
+
     ConsolePrint(TEXT("Usage: desktop show\n"));
     ConsolePrint(TEXT("       desktop status\n"));
     ConsolePrint(TEXT("       desktop theme <path-or-name>\n"));
+    ConsolePrint(TEXT("       desktop stressdrag [cycles]\n"));
     return DF_RETURN_SUCCESS;
 }
 

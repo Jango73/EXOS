@@ -31,6 +31,7 @@
 /************************************************************************/
 
 BOOL DesktopInternalTestEnsureWindowsVisible(LPDESKTOP Desktop);
+BOOL DesktopInternalRunStressDrag(LPDESKTOP Desktop, U32 Cycles);
 
 /************************************************************************/
 
