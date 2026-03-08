@@ -190,10 +190,14 @@ static BOOL ResolveWindowBorderThickness(U32* ThicknessOut) {
 static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
     U32 BorderThickness = 2;
     COLOR BorderColor = 0;
+    LINEINFO LineInfo;
+    PEN Pen;
+    HANDLE OldPen;
     I32 Width;
     I32 Height;
     I32 MaxThickness;
     I32 Thickness;
+    I32 Offset;
 
     if (GC == NULL || Rect == NULL) return;
 
@@ -220,14 +224,56 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
     if (Thickness <= 0) return;
     if (Thickness > MaxThickness) Thickness = MaxThickness;
 
-    // Top border
-    (void)DrawSolidRect(GC, Rect->X1, Rect->Y1, Rect->X2, Rect->Y1 + Thickness - 1, BorderColor);
-    // Bottom border
-    (void)DrawSolidRect(GC, Rect->X1, Rect->Y2 - Thickness + 1, Rect->X2, Rect->Y2, BorderColor);
-    // Left border
-    (void)DrawSolidRect(GC, Rect->X1, Rect->Y1 + Thickness, Rect->X1 + Thickness - 1, Rect->Y2 - Thickness, BorderColor);
-    // Right border
-    (void)DrawSolidRect(GC, Rect->X2 - Thickness + 1, Rect->Y1 + Thickness, Rect->X2, Rect->Y2 - Thickness, BorderColor);
+    MemorySet(&Pen, 0, sizeof(Pen));
+    Pen.TypeID = KOID_PEN;
+    Pen.References = 1;
+    Pen.Color = BorderColor;
+    Pen.Pattern = MAX_U32;
+
+    LineInfo.Header.Size = sizeof(LineInfo);
+    LineInfo.Header.Version = EXOS_ABI_VERSION;
+    LineInfo.Header.Flags = 0;
+    LineInfo.GC = GC;
+
+    OldPen = SelectPen(GC, (HANDLE)&Pen);
+
+    // Top border lines
+    for (Offset = 0; Offset < Thickness; Offset++) {
+        LineInfo.X1 = Rect->X1;
+        LineInfo.Y1 = Rect->Y1 + Offset;
+        LineInfo.X2 = Rect->X2;
+        LineInfo.Y2 = Rect->Y1 + Offset;
+        (void)Line(&LineInfo);
+    }
+
+    // Bottom border lines
+    for (Offset = 0; Offset < Thickness; Offset++) {
+        LineInfo.X1 = Rect->X1;
+        LineInfo.Y1 = Rect->Y2 - Offset;
+        LineInfo.X2 = Rect->X2;
+        LineInfo.Y2 = Rect->Y2 - Offset;
+        (void)Line(&LineInfo);
+    }
+
+    // Left border lines
+    for (Offset = 0; Offset < Thickness; Offset++) {
+        LineInfo.X1 = Rect->X1 + Offset;
+        LineInfo.Y1 = Rect->Y1 + Thickness;
+        LineInfo.X2 = Rect->X1 + Offset;
+        LineInfo.Y2 = Rect->Y2 - Thickness;
+        if (LineInfo.Y1 <= LineInfo.Y2) (void)Line(&LineInfo);
+    }
+
+    // Right border lines
+    for (Offset = 0; Offset < Thickness; Offset++) {
+        LineInfo.X1 = Rect->X2 - Offset;
+        LineInfo.Y1 = Rect->Y1 + Thickness;
+        LineInfo.X2 = Rect->X2 - Offset;
+        LineInfo.Y2 = Rect->Y2 - Thickness;
+        if (LineInfo.Y1 <= LineInfo.Y2) (void)Line(&LineInfo);
+    }
+
+    (void)SelectPen(GC, OldPen);
 }
 
 /***************************************************************************/
@@ -477,44 +523,15 @@ BOOL GetWindowClientRect(LPWINDOW Window, LPRECT WindowRect, LPRECT ClientRect) 
  * @return TRUE when drawing was performed.
  */
 BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect) {
-    RECTINFO RectInfo;
-    BRUSH Brush;
-    COLOR Background;
-    BOOL HasBackground = FALSE;
-
     if (Window == NULL) return FALSE;
     if (GC == NULL) return FALSE;
     if (Rect == NULL) return FALSE;
-
-    RectInfo.Header.Size = sizeof(RectInfo);
-    RectInfo.Header.Version = EXOS_ABI_VERSION;
-    RectInfo.Header.Flags = 0;
-    RectInfo.GC = GC;
-    RectInfo.X1 = Rect->X1;
-    RectInfo.Y1 = Rect->Y1;
-    RectInfo.X2 = Rect->X2;
-    RectInfo.Y2 = Rect->Y2;
 
     if (DesktopThemeDrawRecipeForElementState(Window, GC, Rect, TEXT("window.frame"), TEXT("normal"))) {
         (void)DrawWindowTitleBarFromTheme(GC, Rect);
         DrawWindowBorderFromTheme(GC, Rect);
         return TRUE;
     }
-
-    HasBackground = DesktopThemeResolveLevel1Color(TEXT("window.frame"), TEXT("normal"), TEXT("background"), &Background);
-    if (HasBackground) {
-        MemorySet(&Brush, 0, sizeof(Brush));
-        Brush.TypeID = KOID_BRUSH;
-        Brush.References = 1;
-        Brush.Color = Background;
-        Brush.Pattern = MAX_U32;
-        SelectBrush(GC, (HANDLE)&Brush);
-    } else {
-        SelectBrush(GC, GetSystemBrush(SM_COLOR_NORMAL));
-    }
-
-    SelectPen(GC, NULL);
-    Rectangle(&RectInfo);
     (void)DrawWindowTitleBarFromTheme(GC, Rect);
     DrawWindowBorderFromTheme(GC, Rect);
 
