@@ -86,11 +86,11 @@ A path that needs a lock earlier in the order must release later locks first.
 
 For `BringWindowToFront` and move paths:
 
-- [ ] Phase A (under `DesktopTreeMutex` + local window locks as needed):
+- [x] Phase A (under `DesktopTreeMutex` + local window locks as needed):
   - mutate z-order,
   - compute impacted rectangles,
   - snapshot targets to notify.
-- [ ] Phase B (outside structural locks):
+- [x] Phase B (outside structural locks):
   - enqueue invalidations/draw requests.
 
 ### Step 5: Broadcast and Tree Walks

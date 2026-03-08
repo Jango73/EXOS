@@ -1032,6 +1032,44 @@ BOOL RequestWindowDraw(HANDLE Handle) {
 /***************************************************************************/
 
 /**
+ * @brief Snapshot one parent child list into a temporary array.
+ * @param Parent Parent window whose children are snapshotted.
+ * @param Windows Receives allocated array of children.
+ * @param Count Receives number of children in snapshot.
+ * @return TRUE on success.
+ */
+static BOOL SnapshotWindowChildrenLocked(LPWINDOW Parent, LPWINDOW** Windows, UINT* Count) {
+    LPLISTNODE Node;
+    LPWINDOW* Snapshot;
+    UINT Index = 0;
+    UINT SnapshotCount = 0;
+
+    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return FALSE;
+    if (Windows == NULL || Count == NULL) return FALSE;
+
+    *Windows = NULL;
+    *Count = 0;
+
+    if (Parent->Children == NULL || Parent->Children->NumItems == 0) {
+        return TRUE;
+    }
+
+    SnapshotCount = Parent->Children->NumItems;
+    Snapshot = (LPWINDOW*)KernelHeapAlloc(sizeof(LPWINDOW) * SnapshotCount);
+    if (Snapshot == NULL) return FALSE;
+
+    for (Node = Parent->Children->First; Node && Index < SnapshotCount; Node = Node->Next) {
+        Snapshot[Index++] = (LPWINDOW)Node;
+    }
+
+    *Windows = Snapshot;
+    *Count = Index;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Raise a window to the front of the Z order.
  * @param Handle Window handle.
  * @return TRUE on success.
@@ -1039,66 +1077,53 @@ BOOL RequestWindowDraw(HANDLE Handle) {
 BOOL BringWindowToFront(HANDLE Handle) {
     LPWINDOW This = (LPWINDOW)Handle;
     LPWINDOW That;
+    LPWINDOW Parent;
+    LPWINDOW* AffectedWindows = NULL;
+    UINT AffectedWindowCount = 0;
+    UINT Index;
     LPLISTNODE Node;
-    RECT Rect;
-    RECT HiddenRect;
     I32 Order;
-    BOOL ShouldBroadcast = FALSE;
+    BOOL IsChild = FALSE;
+    BOOL Reordered = FALSE;
 
     //-------------------------------------
     // Check validity of parameters
 
     if (This == NULL) return FALSE;
     if (This->TypeID != KOID_WINDOW) return FALSE;
+    if (This->ParentWindow == NULL) return FALSE;
 
-    //-------------------------------------
-    // Lock access to resources
+    Parent = This->ParentWindow;
+    if (Parent->TypeID != KOID_WINDOW) return FALSE;
 
-    LockMutex(&(This->Mutex), INFINITY);
+    LockMutex(&(Parent->Mutex), INFINITY);
 
-    if (EnsureWindowDirtyRegionInitialized(This) == FALSE) goto Out;
-
-    if (This->ParentWindow == NULL) goto Out;
-
-    //-------------------------------------
-    // Invalidate hidden regions
-
-    for (Node = This->Prev; Node; Node = Node->Prev) {
+    for (Node = Parent->Children->First, Order = 1; Node; Node = Node->Next) {
         That = (LPWINDOW)Node;
-        if (RectInRect(&(This->ScreenRect), &(That->ScreenRect))) {
-            ScreenRectToWindowRect((HANDLE)That, &(That->ScreenRect), &Rect);
-            WindowRectToScreenRectLocked(This, &Rect, &HiddenRect);
-            (void)RectRegionAddRect(&This->DirtyRegion, &HiddenRect);
+        if (That == This) {
+            IsChild = TRUE;
+            That->Order = 0;
+        } else {
+            That->Order = Order++;
         }
     }
 
-    //-------------------------------------
-    // Reorder the windows
-
-    for (Node = This->ParentWindow->Children->First, Order = 1; Node; Node = Node->Next) {
-        That = (LPWINDOW)Node;
-        if (That == This)
-            That->Order = 0;
-        else
-            That->Order = Order++;
+    if (IsChild != FALSE) {
+        ListSort(Parent->Children, SortWindows_Order);
+        Reordered = TRUE;
+        (void)SnapshotWindowChildrenLocked(Parent, &AffectedWindows, &AffectedWindowCount);
     }
 
-    ListSort(This->ParentWindow->Children, SortWindows_Order);
+    UnlockMutex(&(Parent->Mutex));
 
-    //-------------------------------------
-    // Tell the window it needs redraw
+    if (Reordered == FALSE) return FALSE;
 
-    ShouldBroadcast = TRUE;
+    for (Index = 0; Index < AffectedWindowCount; Index++) {
+        (void)InvalidateWindowRect((HANDLE)AffectedWindows[Index], NULL);
+    }
 
-Out:
-
-    //-------------------------------------
-    // Unlock access to resources
-
-    UnlockMutex(&(This->Mutex));
-
-    if (ShouldBroadcast != FALSE) {
-        BroadcastMessageToWindow(This, EWM_DRAW, 0, 0);
+    if (AffectedWindows != NULL) {
+        KernelHeapFree(AffectedWindows);
     }
 
     return TRUE;
