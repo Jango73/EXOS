@@ -359,6 +359,54 @@ BOOL ShouldDrawWindowNonClient(LPWINDOW Window) {
 /***************************************************************************/
 
 /**
+ * @brief Tell whether one screen point lies in one window title bar.
+ * @param Window Target window.
+ * @param ScreenPoint Point in screen coordinates.
+ * @return TRUE when the point is inside the window title bar area.
+ */
+BOOL IsPointInWindowTitleBar(LPWINDOW Window, LPPOINT ScreenPoint) {
+    RECT ScreenRect;
+    U32 BorderThickness;
+    U32 TitleHeight = 22;
+    I32 InnerX1;
+    I32 InnerX2;
+    I32 InnerY1;
+    I32 InnerY2;
+    I32 MaxTitleHeight;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (ScreenPoint == NULL) return FALSE;
+    if (ShouldDrawWindowNonClient(Window) == FALSE) return FALSE;
+    if (ResolveWindowBorderThickness(&BorderThickness) == FALSE) return FALSE;
+
+    if (!DesktopThemeResolveLevel1Metric(TEXT("window.titlebar"), TEXT("normal"), TEXT("title_height"), &TitleHeight)) {
+        if (!DesktopThemeResolveTokenMetricByName(TEXT("metric.window.title_height"), &TitleHeight)) {
+            TitleHeight = 22;
+        }
+    }
+    if (TitleHeight == 0) return FALSE;
+
+    ScreenRect = Window->ScreenRect;
+
+    InnerX1 = ScreenRect.X1 + (I32)BorderThickness;
+    InnerX2 = ScreenRect.X2 - (I32)BorderThickness;
+    InnerY1 = ScreenRect.Y1 + (I32)BorderThickness;
+    if (InnerX1 > InnerX2 || InnerY1 > ScreenRect.Y2) return FALSE;
+
+    MaxTitleHeight = ScreenRect.Y2 - InnerY1 + 1;
+    if (MaxTitleHeight <= 0) return FALSE;
+    if ((I32)TitleHeight > MaxTitleHeight) TitleHeight = (U32)MaxTitleHeight;
+    InnerY2 = InnerY1 + (I32)TitleHeight - 1;
+
+    if (ScreenPoint->X < InnerX1 || ScreenPoint->X > InnerX2) return FALSE;
+    if (ScreenPoint->Y < InnerY1 || ScreenPoint->Y > InnerY2) return FALSE;
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Draw the default non-client visuals for a window.
  * @param Window Window handle.
  * @param GC Graphics context handle.

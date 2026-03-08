@@ -1142,6 +1142,12 @@ Out:
 
 /***************************************************************************/
 
+static BOOL GetWindowScreenRectSnapshot(LPWINDOW Window, LPRECT Rect);
+static BOOL GetDesktopCaptureState(LPWINDOW Window, LPWINDOW* CaptureWindow, I32* OffsetX, I32* OffsetY);
+static BOOL SetDesktopCaptureState(LPWINDOW Window, LPWINDOW CaptureWindow, I32 OffsetX, I32 OffsetY);
+
+/***************************************************************************/
+
 /**
  * @brief Default window procedure for unhandled messages.
  * @param Window Window handle.
@@ -1156,6 +1162,72 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
         } break;
 
         case EWM_DELETE: {
+        } break;
+
+        case EWM_MOUSEDOWN: {
+            LPWINDOW This = (LPWINDOW)Window;
+            POINT MousePosition;
+            I32 MouseX;
+            I32 MouseY;
+            RECT ScreenRect;
+
+            if ((Param1 & MB_LEFT) == 0) break;
+            if (This == NULL || This->TypeID != KOID_WINDOW) break;
+            if (GetMousePosition(&MouseX, &MouseY) == FALSE) break;
+
+            MousePosition.X = MouseX;
+            MousePosition.Y = MouseY;
+
+            if (IsPointInWindowTitleBar(This, &MousePosition) == FALSE) break;
+
+            ScreenRect = This->ScreenRect;
+            (void)SetDesktopCaptureState(This, This, MousePosition.X - ScreenRect.X1, MousePosition.Y - ScreenRect.Y1);
+        } break;
+
+        case EWM_MOUSEMOVE: {
+            LPWINDOW This = (LPWINDOW)Window;
+            LPWINDOW CaptureWindow = NULL;
+            RECT ParentScreenRect;
+            POINT NewPosition;
+            U32 Buttons;
+            I32 OffsetX = 0;
+            I32 OffsetY = 0;
+            BOOL ParentHasRect = FALSE;
+
+            if (This == NULL || This->TypeID != KOID_WINDOW) break;
+            if (GetDesktopCaptureState(This, &CaptureWindow, &OffsetX, &OffsetY) == FALSE) break;
+            if (CaptureWindow != This) break;
+
+            Buttons = GetMouseDriver()->Command(DF_MOUSE_GETBUTTONS, 0);
+            if ((Buttons & MB_LEFT) == 0) {
+                (void)SetDesktopCaptureState(This, NULL, 0, 0);
+                break;
+            }
+
+            NewPosition.X = SIGNED(Param1) - OffsetX;
+            NewPosition.Y = SIGNED(Param2) - OffsetY;
+
+            SAFE_USE_VALID_ID(This->ParentWindow, KOID_WINDOW) {
+                ParentHasRect = GetWindowScreenRectSnapshot(This->ParentWindow, &ParentScreenRect);
+            }
+
+            if (ParentHasRect != FALSE) {
+                NewPosition.X -= ParentScreenRect.X1;
+                NewPosition.Y -= ParentScreenRect.Y1;
+            }
+
+            (void)MoveWindow(Window, &NewPosition);
+        } break;
+
+        case EWM_MOUSEUP: {
+            LPWINDOW This = (LPWINDOW)Window;
+            LPWINDOW CaptureWindow = NULL;
+
+            if (This == NULL || This->TypeID != KOID_WINDOW) break;
+            if (GetDesktopCaptureState(This, &CaptureWindow, NULL, NULL) == FALSE) break;
+            if (CaptureWindow != This) break;
+
+            (void)SetDesktopCaptureState(This, NULL, 0, 0);
         } break;
 
         case EWM_MOVE: {
@@ -1226,8 +1298,76 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
 /***************************************************************************/
 
-static STR Prop_MouseX[] = "MOUSEX";
-static STR Prop_MouseY[] = "MOUSEY";
+/**
+ * @brief Copy one window screen rectangle under mutex.
+ * @param Window Source window.
+ * @param Rect Receives screen rectangle.
+ * @return TRUE on success.
+ */
+static BOOL GetWindowScreenRectSnapshot(LPWINDOW Window, LPRECT Rect) {
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (Rect == NULL) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    *Rect = Window->ScreenRect;
+    UnlockMutex(&(Window->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Get desktop capture state for one window desktop.
+ * @param Window Any window on the target desktop.
+ * @param CaptureWindow Receives captured window (optional).
+ * @param OffsetX Receives drag offset X (optional).
+ * @param OffsetY Receives drag offset Y (optional).
+ * @return TRUE on success.
+ */
+static BOOL GetDesktopCaptureState(LPWINDOW Window, LPWINDOW* CaptureWindow, I32* OffsetX, I32* OffsetY) {
+    LPDESKTOP Desktop;
+
+    if (CaptureWindow != NULL) *CaptureWindow = NULL;
+    if (OffsetX != NULL) *OffsetX = 0;
+    if (OffsetY != NULL) *OffsetY = 0;
+
+    Desktop = GetWindowDesktop(Window);
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+
+    LockMutex(&(Desktop->Mutex), INFINITY);
+    if (CaptureWindow != NULL) *CaptureWindow = Desktop->Capture;
+    if (OffsetX != NULL) *OffsetX = Desktop->CaptureOffsetX;
+    if (OffsetY != NULL) *OffsetY = Desktop->CaptureOffsetY;
+    UnlockMutex(&(Desktop->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Set desktop capture state for one window desktop.
+ * @param Window Any window on the target desktop.
+ * @param CaptureWindow Captured window or NULL.
+ * @param OffsetX Drag offset X in captured window coordinates.
+ * @param OffsetY Drag offset Y in captured window coordinates.
+ * @return TRUE on success.
+ */
+static BOOL SetDesktopCaptureState(LPWINDOW Window, LPWINDOW CaptureWindow, I32 OffsetX, I32 OffsetY) {
+    LPDESKTOP Desktop;
+
+    Desktop = GetWindowDesktop(Window);
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+
+    LockMutex(&(Desktop->Mutex), INFINITY);
+    Desktop->Capture = CaptureWindow;
+    Desktop->CaptureOffsetX = OffsetX;
+    Desktop->CaptureOffsetY = OffsetY;
+    UnlockMutex(&(Desktop->Mutex));
+
+    return TRUE;
+}
 
 /***************************************************************************/
 
@@ -1313,8 +1453,6 @@ static U32 DrawButtons(HANDLE GC) {
 U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     switch (Message) {
         case EWM_CREATE: {
-            SetWindowProp(Window, Prop_MouseX, 0);
-            SetWindowProp(Window, Prop_MouseY, 0);
         } break;
 
         case EWM_DRAW: {
@@ -1409,54 +1547,71 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
         } break;
 
         case EWM_MOUSEMOVE: {
-            // U32 OldMouseX = GetWindowProp(Window, Prop_MouseX);
-            // U32 OldMouseY = GetWindowProp(Window, Prop_MouseY);
-            // I32 MouseX = SIGNED(Param1);
-            // I32 MouseY = SIGNED(Param2);
-            // LPWINDOW Target;
-            // POINT Position;
-            HANDLE GC = GC = GetWindowGC(Window);
+            POINT Position;
+            LPWINDOW Target;
+            LPWINDOW CaptureWindow = NULL;
 
-            SAFE_USE(GC) {
-                // DrawMouseCursor(GC, SIGNED(OldMouseX), SIGNED(OldMouseY),
-                // FALSE); DrawMouseCursor(GC, MouseX, MouseY, TRUE);
-                ReleaseWindowGC(GC);
+            Position.X = SIGNED(Param1);
+            Position.Y = SIGNED(Param2);
+
+            if (GetDesktopCaptureState((LPWINDOW)Window, &CaptureWindow, NULL, NULL) != FALSE) {
+                SAFE_USE_VALID_ID(CaptureWindow, KOID_WINDOW) {
+                    if (CaptureWindow != (LPWINDOW)Window) {
+                        (void)PostMessage((HANDLE)CaptureWindow, EWM_MOUSEMOVE, Param1, Param2);
+                        break;
+                    }
+                }
             }
 
-            /*
-              SetWindowProp(Window, Prop_MouseX, Param1);
-              SetWindowProp(Window, Prop_MouseY, Param2);
-
-              Target = (LPWINDOW) WindowHitTest(Window, &Position);
-
-              SAFE_USE(Target)
-              {
-                Position.X = SIGNED(Param1) - Target->ScreenRect.X1;
-                Position.Y = SIGNED(Param2) - Target->ScreenRect.Y1;
-
-                PostMessage
-                (
-                  (HANDLE) Target,
-                  EWM_MOUSEMOVE,
-                  UNSIGNED(Position.X),
-                  UNSIGNED(Position.Y)
-                );
-              }
-            */
+            Target = (LPWINDOW)WindowHitTest(Window, &Position);
+            if (Target != NULL && Target != (LPWINDOW)Window) {
+                (void)PostMessage((HANDLE)Target, EWM_MOUSEMOVE, Param1, Param2);
+            }
         } break;
 
         case EWM_MOUSEDOWN: {
             POINT Position;
             LPWINDOW Target;
+            I32 MouseX;
+            I32 MouseY;
 
-            if (GetMousePosition(&(Position.X), &(Position.Y)) == FALSE) {
+            if (GetMousePosition(&MouseX, &MouseY) == FALSE) {
                 break;
             }
 
+            Position.X = MouseX;
+            Position.Y = MouseY;
             Target = (LPWINDOW)WindowHitTest(Window, &Position);
-
             if (Target != NULL && Target != (LPWINDOW)Window) {
                 (void)PostMessage((HANDLE)Target, EWM_MOUSEDOWN, Param1, Param2);
+            }
+        } break;
+
+        case EWM_MOUSEUP: {
+            POINT Position;
+            LPWINDOW Target;
+            LPWINDOW CaptureWindow = NULL;
+            I32 MouseX;
+            I32 MouseY;
+
+            if (GetDesktopCaptureState((LPWINDOW)Window, &CaptureWindow, NULL, NULL) != FALSE) {
+                SAFE_USE_VALID_ID(CaptureWindow, KOID_WINDOW) {
+                    if (CaptureWindow != (LPWINDOW)Window) {
+                        (void)PostMessage((HANDLE)CaptureWindow, EWM_MOUSEUP, Param1, Param2);
+                        break;
+                    }
+                }
+            }
+
+            if (GetMousePosition(&MouseX, &MouseY) == FALSE) {
+                break;
+            }
+
+            Position.X = MouseX;
+            Position.Y = MouseY;
+            Target = (LPWINDOW)WindowHitTest(Window, &Position);
+            if (Target != NULL && Target != (LPWINDOW)Window) {
+                (void)PostMessage((HANDLE)Target, EWM_MOUSEUP, Param1, Param2);
             }
         } break;
 

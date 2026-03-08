@@ -237,6 +237,8 @@ struct tag_DESKTOP {
     LPDRIVER Graphics;         // This desktop's graphics driver
     LPWINDOW Window;           // Window of the desktop
     LPWINDOW Capture;          // Window that captured mouse
+    I32 CaptureOffsetX;        // Mouse offset X in captured window on drag start
+    I32 CaptureOffsetY;        // Mouse offset Y in captured window on drag start
     LPWINDOW Focus;            // Window that has focus
     LPPROCESS FocusedProcess;  // Process with input focus on this desktop
     U32 Mode;
