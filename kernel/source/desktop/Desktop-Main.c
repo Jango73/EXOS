@@ -688,7 +688,6 @@ LPWINDOW FindWindow(LPWINDOW Start, LPWINDOW Target) {
     if (Start == Target) return Start;
 
     LockMutex(&(Start->Mutex), INFINITY);
-    LockMutex(&(Target->Mutex), INFINITY);
 
     for (Node = Start->Children->First; Node; Node = Node->Next) {
         Child = (LPWINDOW)Node;
@@ -698,7 +697,6 @@ LPWINDOW FindWindow(LPWINDOW Start, LPWINDOW Target) {
 
 Out:
 
-    UnlockMutex(&(Target->Mutex));
     UnlockMutex(&(Start->Mutex));
 
     return Current;
