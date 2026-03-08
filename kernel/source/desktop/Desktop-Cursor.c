@@ -38,10 +38,14 @@
 
 /************************************************************************/
 
-#define DESKTOP_CURSOR_MIN_SIZE 4
-#define DESKTOP_CURSOR_DEFAULT_WIDTH 10
-#define DESKTOP_CURSOR_DEFAULT_HEIGHT 10
+#define DESKTOP_CURSOR_MIN_SIZE 16
+#define DESKTOP_CURSOR_DEFAULT_WIDTH 16
+#define DESKTOP_CURSOR_DEFAULT_HEIGHT 16
 #define DESKTOP_CURSOR_MAX_SIZE 64
+
+/************************************************************************/
+
+static void DesktopCursorInitializeHeader(ABI_HEADER* Header, U32 Size);
 
 /************************************************************************/
 
@@ -56,6 +60,115 @@ static I32 ClampI32(I32 Value, I32 Minimum, I32 Maximum) {
     if (Value < Minimum) return Minimum;
     if (Value > Maximum) return Maximum;
     return Value;
+}
+
+/************************************************************************/
+
+static CONST char DesktopCursorArrowTemplate[16][17] = {
+    "BTTTTTTTTTTTTTTT",
+    "BBWTTTTTTTTTTTTT",
+    "BWWBTTTTTTTTTTTT",
+    "BWWWBTTTTTTTTTTT",
+    "BWWWWBTTTTTTTTTT",
+    "BWWWWWBTTTTTTTTT",
+    "BWWWWWWBTTTTTTTT",
+    "BWWWWWWWBTTTTTTT",
+    "BWWWWWWWWBTTTTTT",
+    "BWWWWWWWWWBTTTTT",
+    "BWWWWWWWWWWBTTTT",
+    "BWWWWBBBBBBBTTTT",
+    "BWWBWWBTTTTTTTTT",
+    "BBWTTWWBTTTTTTTT",
+    "BTTTTTWWBTTTTTTT",
+    "TTTTTTTBBTTTTTTT"
+};
+
+/************************************************************************/
+
+/**
+ * @brief Sample one cursor template pixel for one destination cursor size.
+ * @param X Destination X.
+ * @param Y Destination Y.
+ * @param Width Destination width.
+ * @param Height Destination height.
+ * @return Template token ('B','W','T').
+ */
+static char DesktopCursorSampleTemplate(U32 X, U32 Y, U32 Width, U32 Height) {
+    U32 SourceX;
+    U32 SourceY;
+
+    if (Width == 0 || Height == 0) return 'T';
+
+    SourceX = (X * 16) / Width;
+    SourceY = (Y * 16) / Height;
+
+    if (SourceX > 15) SourceX = 15;
+    if (SourceY > 15) SourceY = 15;
+
+    return DesktopCursorArrowTemplate[SourceY][SourceX];
+}
+
+/************************************************************************/
+
+/**
+ * @brief Build one ARGB cursor bitmap from template.
+ * @param Pixels Destination pixel buffer.
+ * @param Width Cursor width.
+ * @param Height Cursor height.
+ */
+static void DesktopCursorBuildArrowPixels(U32* Pixels, U32 Width, U32 Height) {
+    U32 X;
+    U32 Y;
+    char TemplateToken;
+
+    if (Pixels == NULL || Width == 0 || Height == 0) return;
+
+    for (Y = 0; Y < Height; Y++) {
+        for (X = 0; X < Width; X++) {
+            TemplateToken = DesktopCursorSampleTemplate(X, Y, Width, Height);
+
+            if (TemplateToken == 'B') {
+                Pixels[(Y * Width) + X] = 0xFF000000;
+            } else if (TemplateToken == 'W') {
+                Pixels[(Y * Width) + X] = 0xFFFFFFFF;
+            } else {
+                Pixels[(Y * Width) + X] = 0x00000000;
+            }
+        }
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Draw one cursor template on one graphics context.
+ * @param GC Target graphics context.
+ * @param OriginX Cursor origin X in window coordinates.
+ * @param OriginY Cursor origin Y in window coordinates.
+ * @param Width Cursor width.
+ * @param Height Cursor height.
+ */
+static void DesktopCursorDrawTemplate(HANDLE GC, I32 OriginX, I32 OriginY, U32 Width, U32 Height) {
+    PIXELINFO PixelInfo;
+    U32 X;
+    U32 Y;
+    char TemplateToken;
+
+    MemorySet(&PixelInfo, 0, sizeof(PixelInfo));
+    DesktopCursorInitializeHeader(&(PixelInfo.Header), sizeof(PixelInfo));
+    PixelInfo.GC = GC;
+
+    for (Y = 0; Y < Height; Y++) {
+        for (X = 0; X < Width; X++) {
+            TemplateToken = DesktopCursorSampleTemplate(X, Y, Width, Height);
+            if (TemplateToken == 'T') continue;
+
+            PixelInfo.X = OriginX + (I32)X;
+            PixelInfo.Y = OriginY + (I32)Y;
+            PixelInfo.Color = (TemplateToken == 'B') ? 0xFF000000 : 0xFFFFFFFF;
+            (void)SetPixel(&PixelInfo);
+        }
+    }
 }
 
 /************************************************************************/
@@ -494,9 +607,6 @@ static BOOL DesktopCursorTryEnableHardware(LPDESKTOP Desktop, LPDRIVER GraphicsD
     U32 Pixels[DESKTOP_CURSOR_MAX_SIZE * DESKTOP_CURSOR_MAX_SIZE];
     U32 CursorWidth;
     U32 CursorHeight;
-    U32 X;
-    U32 Y;
-
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
     if (GraphicsDriver == NULL || GraphicsDriver->Command == NULL) {
         DesktopCursorSetPathState(Desktop, DESKTOP_CURSOR_PATH_SOFTWARE, DESKTOP_CURSOR_FALLBACK_NO_CAPABILITIES, DF_RETURN_GENERIC);
@@ -525,12 +635,7 @@ static BOOL DesktopCursorTryEnableHardware(LPDESKTOP Desktop, LPDRIVER GraphicsD
     CursorWidth = DesktopCursorClampSize(CursorWidth, DESKTOP_CURSOR_DEFAULT_WIDTH);
     CursorHeight = DesktopCursorClampSize(CursorHeight, DESKTOP_CURSOR_DEFAULT_HEIGHT);
 
-    for (Y = 0; Y < CursorHeight; Y++) {
-        for (X = 0; X < CursorWidth; X++) {
-            BOOL IsBorder = (X == 0 || Y == 0 || X == CursorWidth - 1 || Y == CursorHeight - 1);
-            Pixels[(Y * CursorWidth) + X] = IsBorder ? 0xFF000000 : 0xFFFFFFFF;
-        }
-    }
+    DesktopCursorBuildArrowPixels(Pixels, CursorWidth, CursorHeight);
 
     MemorySet(&ShapeInfo, 0, sizeof(ShapeInfo));
     DesktopCursorInitializeHeader(&(ShapeInfo.Header), sizeof(ShapeInfo));
@@ -592,30 +697,6 @@ static void DesktopCursorRefreshClipAndPosition(LPDESKTOP Desktop) {
     Desktop->Cursor.Y = ClampI32(Desktop->Cursor.Y, ScreenRect.Y1, ScreenRect.Y2);
 
     UnlockMutex(&(Desktop->Mutex));
-}
-
-/************************************************************************/
-
-/**
- * @brief Draw one line in window coordinates.
- * @param GC Graphics context.
- * @param X1 Start X.
- * @param Y1 Start Y.
- * @param X2 End X.
- * @param Y2 End Y.
- */
-static void DesktopCursorDrawLine(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2) {
-    LINEINFO LineInfo;
-
-    MemorySet(&LineInfo, 0, sizeof(LineInfo));
-    DesktopCursorInitializeHeader(&(LineInfo.Header), sizeof(LineInfo));
-    LineInfo.GC = GC;
-    LineInfo.X1 = X1;
-    LineInfo.Y1 = Y1;
-    LineInfo.X2 = X2;
-    LineInfo.Y2 = Y2;
-
-    (void)Line(&LineInfo);
 }
 
 /************************************************************************/
@@ -766,12 +847,9 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
     U32 CursorHeight;
     BOOL IsVisible;
     U32 CursorPath;
-    I32 DiagonalLength;
-    I32 HorizontalLength;
     I32 LocalCursorX;
     I32 LocalCursorY;
     HANDLE GC;
-    HANDLE OldPen;
     UINT ClipIndex;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
@@ -824,12 +902,6 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
     LocalCursorX = CursorX - WindowRect.X1;
     LocalCursorY = CursorY - WindowRect.Y1;
 
-    DiagonalLength = (I32)(CursorWidth < CursorHeight ? CursorWidth : CursorHeight);
-    HorizontalLength = (I32)((CursorWidth * 2) / 3);
-    if (DiagonalLength < 2) DiagonalLength = 2;
-    if (HorizontalLength < 2) HorizontalLength = 2;
-
-    OldPen = SelectPen(GC, GetSystemPen(SM_COLOR_TEXT_NORMAL));
     for (ClipIndex = 0; ClipIndex < RectRegionGetCount(&DrawClipRegion); ClipIndex++) {
         if (RectRegionGetRect(&DrawClipRegion, ClipIndex, &DrawClipRect) == FALSE) continue;
 
@@ -841,18 +913,8 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
             ((LPGRAPHICSCONTEXT)GC)->HiClip.Y = DrawClipRect.Y2;
             UnlockMutex(&(((LPGRAPHICSCONTEXT)GC)->Mutex));
         }
-
-        DesktopCursorDrawLine(GC, LocalCursorX, LocalCursorY, LocalCursorX, LocalCursorY + (I32)CursorHeight - 1);
-        DesktopCursorDrawLine(GC, LocalCursorX, LocalCursorY, LocalCursorX + HorizontalLength - 1, LocalCursorY);
-        DesktopCursorDrawLine(GC, LocalCursorX + 1, LocalCursorY + 1, LocalCursorX + DiagonalLength - 1, LocalCursorY + DiagonalLength - 1);
-
-        (void)SelectPen(GC, GetSystemPen(SM_COLOR_TEXT_SELECTED));
-        DesktopCursorDrawLine(GC, LocalCursorX + 1, LocalCursorY + 2, LocalCursorX + 1, LocalCursorY + (I32)CursorHeight - 2);
-        DesktopCursorDrawLine(GC, LocalCursorX + 2, LocalCursorY + 1, LocalCursorX + HorizontalLength - 2, LocalCursorY + 1);
-        (void)SelectPen(GC, GetSystemPen(SM_COLOR_TEXT_NORMAL));
+        DesktopCursorDrawTemplate(GC, LocalCursorX, LocalCursorY, CursorWidth, CursorHeight);
     }
-
-    (void)SelectPen(GC, OldPen);
 
     (void)ReleaseWindowGC(GC);
 }
