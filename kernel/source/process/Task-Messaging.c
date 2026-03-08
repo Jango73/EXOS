@@ -31,6 +31,28 @@
 #include "process/Task-Messaging.h"
 #include "CoreString.h"
 #include "utils/Helpers.h"
+#include "utils/LockOrderDebug.h"
+
+/************************************************************************/
+
+#define LOCK_WITH_ROLE(Mutex, Role, Name)       \
+    do {                                         \
+        AcquireLockRole((Role), TEXT(Name));     \
+        LockMutex((Mutex), INFINITY);            \
+    } while (0)
+
+#define UNLOCK_WITH_ROLE(Mutex, Role, Name)      \
+    do {                                         \
+        UnlockMutex((Mutex));                    \
+        ReleaseLockRole((Role), TEXT(Name));     \
+    } while (0)
+
+#define LOCK_TASK_MESSAGE(Mutex, Name) LOCK_WITH_ROLE((Mutex), DESKTOP_LOCK_ROLE_TASK_MESSAGE, (Name))
+#define UNLOCK_TASK_MESSAGE(Mutex, Name) UNLOCK_WITH_ROLE((Mutex), DESKTOP_LOCK_ROLE_TASK_MESSAGE, (Name))
+#define LOCK_TREE(Mutex, Name) LOCK_WITH_ROLE((Mutex), DESKTOP_LOCK_ROLE_TREE, (Name))
+#define UNLOCK_TREE(Mutex, Name) UNLOCK_WITH_ROLE((Mutex), DESKTOP_LOCK_ROLE_TREE, (Name))
+#define LOCK_WINDOW(Mutex, Name) LOCK_WITH_ROLE((Mutex), DESKTOP_LOCK_ROLE_WINDOW, (Name))
+#define UNLOCK_WINDOW(Mutex, Name) UNLOCK_WITH_ROLE((Mutex), DESKTOP_LOCK_ROLE_WINDOW, (Name))
 
 /************************************************************************/
 
@@ -189,11 +211,11 @@ static BOOL FetchProcessMessage(LPPROCESS Process, LPMESSAGEINFO Message, BOOL R
         return FALSE;
     }
 
-    LockMutex(&(Process->MessageQueue.Mutex), INFINITY);
+    LOCK_TASK_MESSAGE(&(Process->MessageQueue.Mutex), "ProcessMessageQueue");
 
     BOOL Result = CopyMessageFromQueueLocked(&(Process->MessageQueue), Message, Remove);
 
-    UnlockMutex(&(Process->MessageQueue.Mutex));
+    UNLOCK_TASK_MESSAGE(&(Process->MessageQueue.Mutex), "ProcessMessageQueue");
 
     return Result;
 }
@@ -205,13 +227,13 @@ static BOOL FetchTaskMessage(LPTASK Task, LPMESSAGEINFO Message, BOOL Remove) {
         return FALSE;
     }
 
-    LockMutex(&(Task->Mutex), INFINITY);
-    LockMutex(&(Task->MessageQueue.Mutex), INFINITY);
+    LOCK_TASK_MESSAGE(&(Task->Mutex), "Task");
+    LOCK_TASK_MESSAGE(&(Task->MessageQueue.Mutex), "TaskMessageQueue");
 
     BOOL Result = CopyMessageFromQueueLocked(&(Task->MessageQueue), Message, Remove);
 
-    UnlockMutex(&(Task->MessageQueue.Mutex));
-    UnlockMutex(&(Task->Mutex));
+    UNLOCK_TASK_MESSAGE(&(Task->MessageQueue.Mutex), "TaskMessageQueue");
+    UNLOCK_TASK_MESSAGE(&(Task->Mutex), "Task");
 
     return Result;
 }
@@ -327,13 +349,13 @@ static BOOL AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
         return FALSE;
     }
 
-    LockMutex(&(Task->Mutex), INFINITY);
-    LockMutex(&(Task->MessageQueue.Mutex), INFINITY);
+    LOCK_TASK_MESSAGE(&(Task->Mutex), "Task");
+    LOCK_TASK_MESSAGE(&(Task->MessageQueue.Mutex), "TaskMessageQueue");
 
     if (Task->MessageQueue.Messages->NumItems >= TASK_MESSAGE_QUEUE_MAX_MESSAGES) {
         WARNING(TEXT("[AddTaskMessage] Queue full for task %p, dropping message %u"), Task, Message->Message);
-        UnlockMutex(&(Task->MessageQueue.Mutex));
-        UnlockMutex(&(Task->Mutex));
+        UNLOCK_TASK_MESSAGE(&(Task->MessageQueue.Mutex), "TaskMessageQueue");
+        UNLOCK_TASK_MESSAGE(&(Task->Mutex), "Task");
         DeleteMessage(Message);
         return FALSE;
     }
@@ -345,8 +367,8 @@ static BOOL AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
         SetTaskStatus(Task, TASK_STATUS_RUNNING);
     }
 
-    UnlockMutex(&(Task->MessageQueue.Mutex));
-    UnlockMutex(&(Task->Mutex));
+    UNLOCK_TASK_MESSAGE(&(Task->MessageQueue.Mutex), "TaskMessageQueue");
+    UNLOCK_TASK_MESSAGE(&(Task->Mutex), "Task");
 
     return TRUE;
 }
@@ -368,23 +390,23 @@ static BOOL AddProcessMessage(LPPROCESS Process, LPMESSAGE Message) {
         return FALSE;
     }
 
-    LockMutex(&(Process->Mutex), INFINITY);
-    LockMutex(&(Process->MessageQueue.Mutex), INFINITY);
+    LOCK_TASK_MESSAGE(&(Process->Mutex), "Process");
+    LOCK_TASK_MESSAGE(&(Process->MessageQueue.Mutex), "ProcessMessageQueue");
 
     if (Process->MessageQueue.Messages->NumItems >= TASK_MESSAGE_QUEUE_MAX_MESSAGES) {
         WARNING(TEXT("[AddProcessMessage] Queue full for process %p, dropping message %u"), Process, Message->Message);
-        UnlockMutex(&(Process->MessageQueue.Mutex));
-        UnlockMutex(&(Process->Mutex));
+        UNLOCK_TASK_MESSAGE(&(Process->MessageQueue.Mutex), "ProcessMessageQueue");
+        UNLOCK_TASK_MESSAGE(&(Process->Mutex), "Process");
         DeleteMessage(Message);
         return FALSE;
     }
 
     ListAddItem(Process->MessageQueue.Messages, Message);
 
-    UnlockMutex(&(Process->MessageQueue.Mutex));
-    UnlockMutex(&(Process->Mutex));
+    UNLOCK_TASK_MESSAGE(&(Process->MessageQueue.Mutex), "ProcessMessageQueue");
+    UNLOCK_TASK_MESSAGE(&(Process->Mutex), "Process");
 
-    LockMutex(MUTEX_TASK, INFINITY);
+    LOCK_TASK_MESSAGE(MUTEX_TASK, "GlobalTask");
     LPLIST TaskList = GetTaskList();
     for (LPLISTNODE Node = TaskList != NULL ? TaskList->First : NULL; Node; Node = Node->Next) {
         LPTASK Task = (LPTASK)Node;
@@ -395,7 +417,7 @@ static BOOL AddProcessMessage(LPPROCESS Process, LPMESSAGE Message) {
             }
         }
     }
-    UnlockMutex(MUTEX_TASK);
+    UNLOCK_TASK_MESSAGE(MUTEX_TASK, "GlobalTask");
 
     return TRUE;
 }
@@ -534,7 +556,7 @@ BOOL BroadcastProcessMessage(U32 Msg, U32 Param1, U32 Param2) {
 
     if (ProcessList == NULL) return FALSE;
 
-    LockMutex(MUTEX_TASK, INFINITY);
+    LOCK_TASK_MESSAGE(MUTEX_TASK, "GlobalTask");
 
     for (LPLISTNODE Node = ProcessList->First; Node; Node = Node->Next) {
         LPPROCESS Process = (LPPROCESS)Node;
@@ -565,7 +587,7 @@ BOOL BroadcastProcessMessage(U32 Msg, U32 Param1, U32 Param2) {
         }
     }
 
-    UnlockMutex(MUTEX_TASK);
+    UNLOCK_TASK_MESSAGE(MUTEX_TASK, "GlobalTask");
 
     return Sent;
 }
@@ -602,8 +624,8 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     //-------------------------------------
     // Lock access to resources
 
-    LockMutex(MUTEX_TASK, INFINITY);
-    LockMutex(MUTEX_DESKTOP, INFINITY);
+    LOCK_TASK_MESSAGE(MUTEX_TASK, "GlobalTask");
+    LOCK_TREE(MUTEX_DESKTOP, "GlobalDesktop");
 
     //-------------------------------------
     // Null target means current task
@@ -724,9 +746,9 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     }
 
     SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
-        LockMutex(&(Desktop->Mutex), INFINITY);
+        LOCK_TREE(&(Desktop->Mutex), "Desktop");
         Win = FindWindow(Desktop->Window, (LPWINDOW)Target);
-        UnlockMutex(&(Desktop->Mutex));
+        UNLOCK_TREE(&(Desktop->Mutex), "Desktop");
     } else {
         Win = NULL;
     }
@@ -742,8 +764,8 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
         // one at the end of the queue
 
         if (Msg == EWM_DRAW) {
-            LockMutex(&(Win->Task->Mutex), INFINITY);
-            LockMutex(&(Win->Task->MessageQueue.Mutex), INFINITY);
+            LOCK_TASK_MESSAGE(&(Win->Task->Mutex), "WindowTask");
+            LOCK_TASK_MESSAGE(&(Win->Task->MessageQueue.Mutex), "WindowTaskMessageQueue");
 
             for (Node = Win->Task->MessageQueue.Messages->First; Node; Node = Node->Next) {
                 Message = (LPMESSAGE)Node;
@@ -757,15 +779,15 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
 
                     ListAddItem(Win->Task->MessageQueue.Messages, Message);
 
-                    UnlockMutex(&(Win->Task->MessageQueue.Mutex));
-                    UnlockMutex(&(Win->Task->Mutex));
+                    UNLOCK_TASK_MESSAGE(&(Win->Task->MessageQueue.Mutex), "WindowTaskMessageQueue");
+                    UNLOCK_TASK_MESSAGE(&(Win->Task->Mutex), "WindowTask");
 
                     goto Out_Success;
                 }
             }
 
-            UnlockMutex(&(Win->Task->MessageQueue.Mutex));
-            UnlockMutex(&(Win->Task->Mutex));
+            UNLOCK_TASK_MESSAGE(&(Win->Task->MessageQueue.Mutex), "WindowTaskMessageQueue");
+            UNLOCK_TASK_MESSAGE(&(Win->Task->Mutex), "WindowTask");
         }
 
         //-------------------------------------
@@ -796,14 +818,14 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
 
 Out_Error:
 
-    UnlockMutex(MUTEX_DESKTOP);
-    UnlockMutex(MUTEX_TASK);
+    UNLOCK_TREE(MUTEX_DESKTOP, "GlobalDesktop");
+    UNLOCK_TASK_MESSAGE(MUTEX_TASK, "GlobalTask");
     return FALSE;
 
 Out_Success:
 
-    UnlockMutex(MUTEX_DESKTOP);
-    UnlockMutex(MUTEX_TASK);
+    UNLOCK_TREE(MUTEX_DESKTOP, "GlobalDesktop");
+    UNLOCK_TASK_MESSAGE(MUTEX_TASK, "GlobalTask");
     return TRUE;
 }
 
@@ -841,7 +863,7 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     //-------------------------------------
     // Lock access to the desktop
 
-    LockMutex(&(Desktop->Mutex), INFINITY);
+    LOCK_TREE(&(Desktop->Mutex), "Desktop");
 
     //-------------------------------------
     // Find the window in the desktop
@@ -851,16 +873,16 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     //-------------------------------------
     // Unlock access to the desktop
 
-    UnlockMutex(&(Desktop->Mutex));
+    UNLOCK_TREE(&(Desktop->Mutex), "Desktop");
 
     //-------------------------------------
     // Send message to window if found
 
     if (Window != NULL && Window->TypeID == KOID_WINDOW) {
         SAFE_USE(Window->Function) {
-            LockMutex(&(Window->Mutex), INFINITY);
+            LOCK_WINDOW(&(Window->Mutex), "Window");
             Result = Window->Function(Target, Msg, Param1, Param2);
-            UnlockMutex(&(Window->Mutex));
+            UNLOCK_WINDOW(&(Window->Mutex), "Window");
         }
     }
 
@@ -902,16 +924,16 @@ void WaitForMessage(LPTASK Task) {
     while (GetTaskStatus(Task) == TASK_STATUS_WAITMESSAGE) {
         SAFE_USE_VALID_ID(Task->Process, KOID_PROCESS) {
             if (EnsureProcessMessageQueue(Task->Process, TRUE) == TRUE) {
-                LockMutex(&(Task->Process->MessageQueue.Mutex), INFINITY);
+                LOCK_TASK_MESSAGE(&(Task->Process->MessageQueue.Mutex), "ProcessMessageQueue");
 
                 if (Task->Process->MessageQueue.Messages != NULL &&
                     Task->Process->MessageQueue.Messages->NumItems > 0) {
-                    UnlockMutex(&(Task->Process->MessageQueue.Mutex));
+                    UNLOCK_TASK_MESSAGE(&(Task->Process->MessageQueue.Mutex), "ProcessMessageQueue");
                     SetTaskStatus(Task, TASK_STATUS_RUNNING);
                     break;
                 }
 
-                UnlockMutex(&(Task->Process->MessageQueue.Mutex));
+                UNLOCK_TASK_MESSAGE(&(Task->Process->MessageQueue.Mutex), "ProcessMessageQueue");
             }
         }
 
@@ -966,75 +988,6 @@ BOOL GetMessage(LPMESSAGEINFO Message) {
 /************************************************************************/
 
 /**
- * @brief Dispatches a message to a specific window or its children.
- *
- * Attempts to deliver a message to the specified window. If the window handle
- * matches the message target, the window's message handler is called directly.
- * Otherwise, the function recursively searches through the window's children
- * to find the correct target window.
- *
- * @param Message Pointer to the message information structure
- * @param Window Pointer to the window to check (and its children)
- * @return TRUE if message was delivered successfully, FALSE otherwise
- *
- * @note This function locks the window mutex during message delivery
- * @note Recursively searches child windows if target doesn't match
- */
-static BOOL DispatchMessageToWindow(LPMESSAGEINFO Message, LPWINDOW Window) {
-    LPLISTNODE Node = NULL;
-    BOOL Result = FALSE;
-
-    //-------------------------------------
-    // Check validity of parameters
-
-    if (Message == NULL) return FALSE;
-    if (Message->Target == 0) return FALSE;
-
-    if (Window == NULL) return FALSE;
-    if (Window->TypeID != KOID_WINDOW) return FALSE;
-
-    //-------------------------------------
-    // Lock access to the window
-
-    LockMutex(&(Window->Mutex), INFINITY);
-
-    if (EnsureKernelPointer((LINEAR)Message->Target) == (LINEAR)Window) {
-        SAFE_USE(Window->Function) {
-            // Call the window function with the parameters
-
-            HANDLE TargetHandle = EnsureHandle((LINEAR)Window);
-
-            SAFE_USE_VALID_ID(Window->Task, KOID_TASK) {
-                SAFE_USE_VALID_ID(Window->Task->Process, KOID_PROCESS) {
-                    if (Window->Task->Process->Privilege == CPU_PRIVILEGE_KERNEL) {
-                        TargetHandle = (HANDLE)Window;
-                    }
-                }
-            }
-
-            Window->Function(TargetHandle, Message->Message, Message->Param1, Message->Param2);
-
-            Result = TRUE;
-        }
-    } else {
-        for (Node = Window->Children->First; Node; Node = Node->Next) {
-            Result = DispatchMessageToWindow(Message, (LPWINDOW)Node);
-
-            if (Result == TRUE) break;
-        }
-    }
-
-    //-------------------------------------
-    // Unlock access to the window
-
-    UnlockMutex(&(Window->Mutex));
-
-    return Result;
-}
-
-/************************************************************************/
-
-/**
  * @brief Dispatches a message to its target window within the current desktop.
  *
  * Routes a message to the appropriate window in the current process's desktop.
@@ -1046,12 +999,14 @@ static BOOL DispatchMessageToWindow(LPMESSAGEINFO Message, LPWINDOW Window) {
  *                target handle and message parameters
  * @return TRUE if message was dispatched successfully, FALSE on error
  *
- * @note This function locks MUTEX_TASK and the desktop mutex during operation
+ * @note Resolves the target under desktop tree lock, then invokes callback under window lock only
  * @note Only works within the context of the current process's desktop
  */
 BOOL DispatchMessage(LPMESSAGEINFO Message) {
     LPPROCESS Process = NULL;
     LPDESKTOP Desktop = NULL;
+    LPWINDOW Window = NULL;
+    HANDLE TargetHandle;
     BOOL Result = FALSE;
 
     //-------------------------------------
@@ -1060,44 +1015,36 @@ BOOL DispatchMessage(LPMESSAGEINFO Message) {
     if (Message == NULL) return FALSE;
     if (Message->Target == NULL) return FALSE;
 
-    //-------------------------------------
-    // Lock access to resources
-
-    LockMutex(MUTEX_TASK, INFINITY);
-
-    //-------------------------------------
-    // Check if the target is a task
-
-    /*
-      LPLIST TaskList = GetTaskList();
-      for (Node = TaskList != NULL ? TaskList->First : NULL; Node; Node = Node->Next)
-      {
-      }
-    */
-
-    //-------------------------------------
-    // Check if the target is a window
-
     Process = GetCurrentProcess();
-    if (Process == NULL) goto Out;
-    if (Process->TypeID != KOID_PROCESS) goto Out;
+    if (Process == NULL) return FALSE;
+    if (Process->TypeID != KOID_PROCESS) return FALSE;
 
     Desktop = Process->Desktop;
-    if (Desktop == NULL) goto Out;
-    if (Desktop->TypeID != KOID_DESKTOP) goto Out;
+    if (Desktop == NULL) return FALSE;
+    if (Desktop->TypeID != KOID_DESKTOP) return FALSE;
 
-    LockMutex(&(Desktop->Mutex), INFINITY);
+    LOCK_TREE(&(Desktop->Mutex), "Desktop");
+    Window = FindWindow(Desktop->Window, (LPWINDOW)Message->Target);
+    UNLOCK_TREE(&(Desktop->Mutex), "Desktop");
 
-    Result = DispatchMessageToWindow(Message, Desktop->Window);
+    SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+        SAFE_USE(Window->Function) {
+            TargetHandle = EnsureHandle((LINEAR)Window);
 
-    UnlockMutex(&(Desktop->Mutex));
+            SAFE_USE_VALID_ID(Window->Task, KOID_TASK) {
+                SAFE_USE_VALID_ID(Window->Task->Process, KOID_PROCESS) {
+                    if (Window->Task->Process->Privilege == CPU_PRIVILEGE_KERNEL) {
+                        TargetHandle = (HANDLE)Window;
+                    }
+                }
+            }
 
-Out:
-
-    //-------------------------------------
-    // Unlock access to resources
-
-    UnlockMutex(MUTEX_TASK);
+            LOCK_WINDOW(&(Window->Mutex), "Window");
+            Window->Function(TargetHandle, Message->Message, Message->Param1, Message->Param2);
+            UNLOCK_WINDOW(&(Window->Mutex), "Window");
+            Result = TRUE;
+        }
+    }
 
     return Result;
 }

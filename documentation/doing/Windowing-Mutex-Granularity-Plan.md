@@ -64,16 +64,16 @@ A path that needs a lock earlier in the order must release later locks first.
 
 - [x] Introduce explicit lock-role naming in desktop code (`Tree`, `State`, `Timer`).
 - [x] Document lock order contract in desktop headers and implementation comments.
-- [ ] Add debug-only lock order assertions (`AcquireLockRole`, `ReleaseLockRole`) to fail fast on inversion.
+- [x] Add debug-only lock order assertions (`AcquireLockRole`, `ReleaseLockRole`) to fail fast on inversion.
 
 ### Step 2: Safe Message Dispatch Path
 
-- [ ] Convert dispatch to direct-target routing:
+- [x] Convert dispatch to direct-target routing:
   - Resolve and validate target window under tree lock.
   - Release tree lock.
   - Lock only target `WindowMutex`.
   - Invoke callback.
-- [ ] Remove recursive dispatch traversal over mutable child lists.
+- [x] Remove recursive dispatch traversal over mutable child lists.
 
 ### Step 3: Safe Post Path
 
