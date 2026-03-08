@@ -29,15 +29,8 @@
 
 /************************************************************************/
 
-#define XHCI_ENUM_FAILURE_LOG_IMMEDIATE_BUDGET 1
-#define XHCI_ENUM_FAILURE_LOG_INTERVAL_MS 2000
-#define XHCI_ENABLE_SLOT_TIMEOUT_LOG_IMMEDIATE_BUDGET 1
-#define XHCI_ENABLE_SLOT_TIMEOUT_LOG_INTERVAL_MS 2000
 #define XHCI_COMMAND_TIMEOUT_LOG_IMMEDIATE_BUDGET 2
 #define XHCI_COMMAND_TIMEOUT_LOG_INTERVAL_MS 1000
-#define XHCI_RECOVERY_TRACE_LOG_IMMEDIATE_BUDGET 12
-#define XHCI_RECOVERY_TRACE_LOG_INTERVAL_MS 1500
-
 /************************************************************************/
 
 /**
@@ -148,7 +141,7 @@ static void XHCI_LogCommandTimeoutState(LPXHCI_DEVICE Device, U64 TrbPhysical, L
 
             SlotPort = (U32)UsbDevice->PortNumber;
             SlotAddress = (U32)UsbDevice->Address;
-            SlotPresent = UsbDevice->Present ? 1U : 0U;
+            SlotPresent = UsbDevice->Present ? 1 : 0;
             break;
         }
     }
@@ -190,70 +183,6 @@ static void XHCI_LogCommandTimeoutState(LPXHCI_DEVICE Device, U64 TrbPhysical, L
 /************************************************************************/
 
 /**
- * @brief Check whether one recovery trace log should be emitted.
- * @param SuppressedOut Receives suppressed count.
- * @return TRUE when caller can emit one log line.
- */
-static BOOL XHCI_ShouldTraceRecovery(U32* SuppressedOut) {
-    static RATE_LIMITER DATA_SECTION RecoveryTraceLimiter = {0};
-    static BOOL DATA_SECTION RecoveryTraceLimiterInitAttempted = FALSE;
-
-    if (SuppressedOut == NULL) {
-        return FALSE;
-    }
-
-    if (RecoveryTraceLimiter.Initialized == FALSE && RecoveryTraceLimiterInitAttempted == FALSE) {
-        RecoveryTraceLimiterInitAttempted = TRUE;
-        if (RateLimiterInit(&RecoveryTraceLimiter,
-                            XHCI_RECOVERY_TRACE_LOG_IMMEDIATE_BUDGET,
-                            XHCI_RECOVERY_TRACE_LOG_INTERVAL_MS) == FALSE) {
-            return FALSE;
-        }
-    }
-
-    return RateLimiterShouldTrigger(&RecoveryTraceLimiter, GetSystemTime(), SuppressedOut);
-}
-
-/************************************************************************/
-
-/**
- * @brief Read endpoint context state and dequeue pointer from output context.
- * @param Device xHCI controller.
- * @param UsbDevice USB device.
- * @param Endpoint endpoint descriptor.
- * @param StateOut Receives endpoint state.
- * @param DequeueOut Receives endpoint dequeue pointer raw value.
- */
-static void XHCI_ReadEndpointContextSnapshot(LPXHCI_DEVICE Device,
-                                             LPXHCI_USB_DEVICE UsbDevice,
-                                             LPXHCI_USB_ENDPOINT Endpoint,
-                                             U32* StateOut,
-                                             U64* DequeueOut) {
-    LPXHCI_CONTEXT_32 EndpointContext;
-
-    if (StateOut == NULL || DequeueOut == NULL) {
-        return;
-    }
-
-    *StateOut = 0;
-    *DequeueOut = (U64)U64_0;
-
-    if (Device == NULL || UsbDevice == NULL || Endpoint == NULL || Endpoint->Dci == 0 || UsbDevice->DeviceContextLinear == 0) {
-        return;
-    }
-
-    EndpointContext = XHCI_GetContextPointer(UsbDevice->DeviceContextLinear, Device->ContextSize, (U32)Endpoint->Dci);
-    if (EndpointContext == NULL) {
-        return;
-    }
-
-    *StateOut = EndpointContext->Dword0 & 0x7;
-    *DequeueOut = U64_Make(EndpointContext->Dword3, EndpointContext->Dword2);
-}
-
-/************************************************************************/
-
-/**
  * @brief Initialize USB device object fields for xHCI.
  *
  * LISTNODE_FIELDS are expected to be initialized by CreateKernelObject.
@@ -269,9 +198,6 @@ void XHCI_InitUsbDeviceObject(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice)
     UsbDevice->Controller = Device;
     UsbDevice->LastEnumError = XHCI_ENUM_ERROR_NONE;
     UsbDevice->LastEnumCompletion = 0;
-    (void)RateLimiterInit(&UsbDevice->EnumFailureLogLimiter,
-                          XHCI_ENUM_FAILURE_LOG_IMMEDIATE_BUDGET,
-                          XHCI_ENUM_FAILURE_LOG_INTERVAL_MS);
 
     InitMutex(&UsbDevice->Mutex);
     UsbDevice->Contexts.First = NULL;
@@ -461,7 +387,6 @@ static void XHCI_FreeUsbDeviceResources(LPXHCI_USB_DEVICE UsbDevice) {
     UsbDevice->Depth = 0;
     UsbDevice->RouteString = 0;
     UsbDevice->Controller = NULL;
-    RateLimiterReset(&UsbDevice->EnumFailureLogLimiter);
 }
 
 /************************************************************************/
@@ -696,7 +621,6 @@ BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* 
     }
 
     UnlockMutex(&(Device->Mutex));
-    DEBUG(TEXT("[XHCI_WaitForTransferCompletion] Timeout %u ms (TRB=%p)"), RequestedTimeout, (LPVOID)(UINT)U64_Low32(TrbPhysical));
     return FALSE;
 }
 
@@ -710,7 +634,6 @@ BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* 
  * @return TRUE on success.
  */
 static BOOL XHCI_StopEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U8 Dci, U32* CompletionOut) {
-    U32 Suppressed = 0;
     if (Device == NULL || UsbDevice == NULL || UsbDevice->SlotId == 0 || Dci == 0) {
         return FALSE;
     }
@@ -734,30 +657,11 @@ static BOOL XHCI_StopEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice,
         if (CompletionOut != NULL) {
             *CompletionOut = 0;
         }
-        if (XHCI_ShouldTraceRecovery(&Suppressed)) {
-            DEBUG(TEXT("[XHCI_StopEndpoint] Slot=%x DCI=%x Completion=%x Trb=%x:%x suppressed=%u"),
-                  (U32)UsbDevice->SlotId,
-                  (U32)Dci,
-                  Completion,
-                  U64_High32(TrbPhysical),
-                  U64_Low32(TrbPhysical),
-                  Suppressed);
-        }
         return FALSE;
     }
 
     if (CompletionOut != NULL) {
         *CompletionOut = Completion;
-    }
-
-    if (XHCI_ShouldTraceRecovery(&Suppressed)) {
-        DEBUG(TEXT("[XHCI_StopEndpoint] Slot=%x DCI=%x Completion=%x Trb=%x:%x suppressed=%u"),
-              (U32)UsbDevice->SlotId,
-              (U32)Dci,
-              Completion,
-              U64_High32(TrbPhysical),
-              U64_Low32(TrbPhysical),
-              Suppressed);
     }
 
     if (Completion != XHCI_COMPLETION_SUCCESS) {
@@ -825,7 +729,6 @@ static BOOL XHCI_SetTransferRingDequeuePointer(LPXHCI_DEVICE Device,
                                                LPXHCI_USB_ENDPOINT Endpoint,
                                                U64* ProgrammedDequeueOut,
                                                U32* CompletionOut) {
-    U32 Suppressed = 0;
     if (Device == NULL || UsbDevice == NULL || Endpoint == NULL || Endpoint->Dci == 0 || Endpoint->TransferRingPhysical == 0) {
         return FALSE;
     }
@@ -861,34 +764,11 @@ static BOOL XHCI_SetTransferRingDequeuePointer(LPXHCI_DEVICE Device,
         if (CompletionOut != NULL) {
             *CompletionOut = 0;
         }
-        if (XHCI_ShouldTraceRecovery(&Suppressed)) {
-            DEBUG(TEXT("[XHCI_SetTransferRingDequeuePointer] Slot=%x DCI=%x Completion=%x Dequeue=%x:%x Trb=%x:%x suppressed=%u"),
-                  (U32)UsbDevice->SlotId,
-                  (U32)Endpoint->Dci,
-                  Completion,
-                  U64_High32(DequeuePointer),
-                  U64_Low32(DequeuePointer),
-                  U64_High32(TrbPhysical),
-                  U64_Low32(TrbPhysical),
-                  Suppressed);
-        }
         return FALSE;
     }
 
     if (CompletionOut != NULL) {
         *CompletionOut = Completion;
-    }
-
-    if (XHCI_ShouldTraceRecovery(&Suppressed)) {
-        DEBUG(TEXT("[XHCI_SetTransferRingDequeuePointer] Slot=%x DCI=%x Completion=%x Dequeue=%x:%x Trb=%x:%x suppressed=%u"),
-              (U32)UsbDevice->SlotId,
-              (U32)Endpoint->Dci,
-              Completion,
-              U64_High32(DequeuePointer),
-              U64_Low32(DequeuePointer),
-              U64_High32(TrbPhysical),
-              U64_Low32(TrbPhysical),
-              Suppressed);
     }
 
     if (Completion != XHCI_COMPLETION_SUCCESS) {
@@ -912,78 +792,16 @@ BOOL XHCI_ResetTransferEndpoint(LPXHCI_DEVICE Device,
                                 LPXHCI_USB_DEVICE UsbDevice,
                                 LPXHCI_USB_ENDPOINT Endpoint,
                                 BOOL EndpointHalted) {
-    U32 Suppressed = 0;
-    U32 StopCompletion = 0;
-    U32 SetCompletion = 0;
-    U32 ContextStateBefore = 0;
-    U32 ContextStateAfter = 0;
-    U64 ContextDequeueBefore = U64_0;
-    U64 ContextDequeueAfter = U64_0;
-    U64 ProgrammedDequeue = U64_0;
-    BOOL Success = FALSE;
-
     if (Device == NULL || UsbDevice == NULL || Endpoint == NULL || Endpoint->Dci == 0) {
         return FALSE;
     }
 
-    XHCI_ReadEndpointContextSnapshot(Device, UsbDevice, Endpoint, &ContextStateBefore, &ContextDequeueBefore);
-    if (XHCI_ShouldTraceRecovery(&Suppressed)) {
-        DEBUG(TEXT("[XHCI_ResetTransferEndpoint] Begin Slot=%x DCI=%x Ep=%x Halted=%u CtxState=%x CtxDequeue=%x:%x Ring=%p RingPhys=%p Cycle=%u Enqueue=%u suppressed=%u"),
-              (U32)UsbDevice->SlotId,
-              (U32)Endpoint->Dci,
-              (U32)Endpoint->Address,
-              EndpointHalted ? 1U : 0U,
-              ContextStateBefore,
-              U64_High32(ContextDequeueBefore),
-              U64_Low32(ContextDequeueBefore),
-              (LPVOID)Endpoint->TransferRingLinear,
-              (LPVOID)(UINT)Endpoint->TransferRingPhysical,
-              Endpoint->TransferRingCycleState,
-              Endpoint->TransferRingEnqueueIndex,
-              Suppressed);
-    }
-
     if (EndpointHalted) {
         if (!XHCI_ResetEndpoint(Device, UsbDevice, Endpoint->Dci)) {
-            XHCI_ReadEndpointContextSnapshot(Device, UsbDevice, Endpoint, &ContextStateAfter, &ContextDequeueAfter);
-            if (XHCI_ShouldTraceRecovery(&Suppressed)) {
-                DEBUG(TEXT("[XHCI_ResetTransferEndpoint] End Slot=%x DCI=%x Success=%u StopCompletion=%x SetCompletion=%x ProgrammedDequeue=%x:%x CtxState=%x CtxDequeue=%x:%x Cycle=%u Enqueue=%u suppressed=%u"),
-                      (U32)UsbDevice->SlotId,
-                      (U32)Endpoint->Dci,
-                      0,
-                      StopCompletion,
-                      SetCompletion,
-                      U64_High32(ProgrammedDequeue),
-                      U64_Low32(ProgrammedDequeue),
-                      ContextStateAfter,
-                      U64_High32(ContextDequeueAfter),
-                      U64_Low32(ContextDequeueAfter),
-                      Endpoint->TransferRingCycleState,
-                      Endpoint->TransferRingEnqueueIndex,
-                      Suppressed);
-            }
             return FALSE;
         }
     } else {
-        if (!XHCI_StopEndpoint(Device, UsbDevice, Endpoint->Dci, &StopCompletion)) {
-            Success = FALSE;
-            XHCI_ReadEndpointContextSnapshot(Device, UsbDevice, Endpoint, &ContextStateAfter, &ContextDequeueAfter);
-            if (XHCI_ShouldTraceRecovery(&Suppressed)) {
-                DEBUG(TEXT("[XHCI_ResetTransferEndpoint] End Slot=%x DCI=%x Success=%u StopCompletion=%x SetCompletion=%x ProgrammedDequeue=%x:%x CtxState=%x CtxDequeue=%x:%x Cycle=%u Enqueue=%u suppressed=%u"),
-                      (U32)UsbDevice->SlotId,
-                      (U32)Endpoint->Dci,
-                      0,
-                      StopCompletion,
-                      SetCompletion,
-                      U64_High32(ProgrammedDequeue),
-                      U64_Low32(ProgrammedDequeue),
-                      ContextStateAfter,
-                      U64_High32(ContextDequeueAfter),
-                      U64_Low32(ContextDequeueAfter),
-                      Endpoint->TransferRingCycleState,
-                      Endpoint->TransferRingEnqueueIndex,
-                      Suppressed);
-            }
+        if (!XHCI_StopEndpoint(Device, UsbDevice, Endpoint->Dci, NULL)) {
             return FALSE;
         }
     }
@@ -993,44 +811,8 @@ BOOL XHCI_ResetTransferEndpoint(LPXHCI_DEVICE Device,
                                 &Endpoint->TransferRingCycleState,
                                 &Endpoint->TransferRingEnqueueIndex);
 
-    if (!XHCI_SetTransferRingDequeuePointer(Device, UsbDevice, Endpoint, &ProgrammedDequeue, &SetCompletion)) {
-        XHCI_ReadEndpointContextSnapshot(Device, UsbDevice, Endpoint, &ContextStateAfter, &ContextDequeueAfter);
-        if (XHCI_ShouldTraceRecovery(&Suppressed)) {
-            DEBUG(TEXT("[XHCI_ResetTransferEndpoint] End Slot=%x DCI=%x Success=%u StopCompletion=%x SetCompletion=%x ProgrammedDequeue=%x:%x CtxState=%x CtxDequeue=%x:%x Cycle=%u Enqueue=%u suppressed=%u"),
-                  (U32)UsbDevice->SlotId,
-                  (U32)Endpoint->Dci,
-                  0,
-                  StopCompletion,
-                  SetCompletion,
-                  U64_High32(ProgrammedDequeue),
-                  U64_Low32(ProgrammedDequeue),
-                  ContextStateAfter,
-                  U64_High32(ContextDequeueAfter),
-                  U64_Low32(ContextDequeueAfter),
-                  Endpoint->TransferRingCycleState,
-                  Endpoint->TransferRingEnqueueIndex,
-                  Suppressed);
-        }
+    if (!XHCI_SetTransferRingDequeuePointer(Device, UsbDevice, Endpoint, NULL, NULL)) {
         return FALSE;
-    }
-
-    Success = TRUE;
-    XHCI_ReadEndpointContextSnapshot(Device, UsbDevice, Endpoint, &ContextStateAfter, &ContextDequeueAfter);
-    if (XHCI_ShouldTraceRecovery(&Suppressed)) {
-        DEBUG(TEXT("[XHCI_ResetTransferEndpoint] End Slot=%x DCI=%x Success=%u StopCompletion=%x SetCompletion=%x ProgrammedDequeue=%x:%x CtxState=%x CtxDequeue=%x:%x Cycle=%u Enqueue=%u suppressed=%u"),
-              (U32)UsbDevice->SlotId,
-              (U32)Endpoint->Dci,
-              Success ? 1U : 0U,
-              StopCompletion,
-              SetCompletion,
-              U64_High32(ProgrammedDequeue),
-              U64_Low32(ProgrammedDequeue),
-              ContextStateAfter,
-              U64_High32(ContextDequeueAfter),
-              U64_Low32(ContextDequeueAfter),
-              Endpoint->TransferRingCycleState,
-              Endpoint->TransferRingEnqueueIndex,
-              Suppressed);
     }
 
     return TRUE;

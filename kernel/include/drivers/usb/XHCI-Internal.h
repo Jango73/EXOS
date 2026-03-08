@@ -286,7 +286,6 @@ typedef struct tag_XHCI_USB_DEVICE {
     BOOL DestroyPending;
     U8 LastEnumError;
     U16 LastEnumCompletion;
-    RATE_LIMITER EnumFailureLogLimiter;
     U8 PortNumber;
     U8 RootPortNumber;
     U8 Depth;

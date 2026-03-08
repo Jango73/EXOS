@@ -357,10 +357,6 @@ static BOOL XHCI_ProbeHubPort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub, U8 Po
 
     Hub->HubChildren[Port - 1] = Child;
     Hub->HubPortStatus[Port - 1] = Status.Status;
-    DEBUG(TEXT("[XHCI_ProbeHubPort] Hub port %u child addr=%x speed=%s"),
-          Port,
-          Child->Address,
-          XHCI_SpeedToString(Child->SpeedId));
     return TRUE;
 }
 
@@ -473,7 +469,6 @@ BOOL XHCI_InitHub(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub) {
         }
     }
 
-    DEBUG(TEXT("[XHCI_InitHub] Hub ports=%u"), PortCount);
     return TRUE;
 }
 
