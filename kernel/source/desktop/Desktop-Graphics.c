@@ -176,6 +176,8 @@ static BOOL SetGraphicsContextClipScreenRect(HANDLE GC, LPRECT ClipRect) {
 
 /***************************************************************************/
 
+static void RootClipSubtractVisibleWindowTree(LPWINDOW Window, LPRECT_REGION Region);
+
 /**
  * @brief Build and consume one window clip region from accumulated dirty rectangles.
  * @param This Window whose dirty region is consumed.
@@ -194,6 +196,8 @@ static BOOL BuildWindowDrawClipRegion(
     RECT DirtyRect;
     UINT DirtyCount;
     UINT DirtyIndex;
+    LPWINDOW ParentWindow = NULL;
+    LPLISTNODE Node;
 
     if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
     if (ClipRegion == NULL) return FALSE;
@@ -235,8 +239,22 @@ static BOOL BuildWindowDrawClipRegion(
     }
 
     RectRegionReset(&This->DirtyRegion);
+    ParentWindow = This->ParentWindow;
 
     UnlockMutex(&(This->Mutex));
+
+    SAFE_USE_VALID_ID(ParentWindow, KOID_WINDOW) {
+        LockMutex(&(ParentWindow->Mutex), INFINITY);
+
+        for (Node = ParentWindow->Children != NULL ? ParentWindow->Children->First : NULL; Node != NULL; Node = Node->Next) {
+            if (Node == (LPLISTNODE)This) break;
+
+            RootClipSubtractVisibleWindowTree((LPWINDOW)Node, ClipRegion);
+            if (RectRegionGetCount(ClipRegion) == 0) break;
+        }
+
+        UnlockMutex(&(ParentWindow->Mutex));
+    }
 
     return TRUE;
 }
@@ -1233,6 +1251,7 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             if (IsPointInWindowTitleBar(This, &MousePosition) == FALSE) break;
 
             ScreenRect = This->ScreenRect;
+            (void)BringWindowToFront(Window);
             (void)SetDesktopCaptureState(This, This, MousePosition.X - ScreenRect.X1, MousePosition.Y - ScreenRect.Y1);
         } break;
 

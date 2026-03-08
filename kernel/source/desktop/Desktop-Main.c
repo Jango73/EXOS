@@ -1045,6 +1045,7 @@ BOOL BringWindowToFront(HANDLE Handle) {
     RECT Rect;
     RECT HiddenRect;
     I32 Order;
+    BOOL ShouldBroadcast = FALSE;
 
     //-------------------------------------
     // Check validity of parameters
@@ -1089,7 +1090,7 @@ BOOL BringWindowToFront(HANDLE Handle) {
     //-------------------------------------
     // Tell the window it needs redraw
 
-    BroadcastMessageToWindow(This, EWM_DRAW, 0, 0);
+    ShouldBroadcast = TRUE;
 
 Out:
 
@@ -1097,6 +1098,10 @@ Out:
     // Unlock access to resources
 
     UnlockMutex(&(This->Mutex));
+
+    if (ShouldBroadcast != FALSE) {
+        BroadcastMessageToWindow(This, EWM_DRAW, 0, 0);
+    }
 
     return TRUE;
 }

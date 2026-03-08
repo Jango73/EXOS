@@ -44,6 +44,7 @@ BOOL UpdateWindowScreenRectAndDirtyRegion(LPWINDOW Window, LPRECT Rect);
 BOOL InvalidateWindowRect(HANDLE, LPRECT);
 BOOL RequestWindowDraw(HANDLE Handle);
 BOOL ShowWindow(HANDLE, BOOL);
+BOOL BringWindowToFront(HANDLE);
 BOOL GetWindowRect(HANDLE, LPRECT);
 BOOL MoveWindow(HANDLE, LPPOINT);
 BOOL SizeWindow(HANDLE, LPPOINT);
