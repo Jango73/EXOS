@@ -327,7 +327,7 @@ static U32 RunGraphicsSmokeTest(U32 DurationMilliseconds) {
         return DF_RETURN_SUCCESS;
     }
 
-    (void)SendMessage((HANDLE)Window, EWM_DRAW, 0, 0);
+    (void)PostMessage((HANDLE)Window, EWM_DRAW, 0, 0);
 
     Sleep(DurationMilliseconds);
 

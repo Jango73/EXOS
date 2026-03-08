@@ -517,30 +517,28 @@ UINT SysCall_PostMessage(UINT Parameter) {
 /************************************************************************/
 
 /**
- * @brief Send a synchronous message to a task or window handle.
- *
- * Resolves the target handle to its kernel pointer and dispatches the
- * message via SendMessage.
+ * @brief SendMessage syscall stub.
  *
  * @param Parameter Pointer to MESSAGEINFO supplied by userland.
- * @return UINT Non-zero on success, zero on failure.
+ * @return UINT DF_RETURN_NOT_IMPLEMENTED.
  */
 UINT SysCall_SendMessage(UINT Parameter) {
-    LPMESSAGEINFO Message = (LPMESSAGEINFO)Parameter;
+    UNUSED(Parameter);
 
-    SAFE_USE_INPUT_POINTER(Message, MESSAGEINFO) {
-        LINEAR TargetPointer = HandleToPointer(Message->Target);
+    // Legacy synchronous path kept for reference:
+    // LPMESSAGEINFO Message = (LPMESSAGEINFO)Parameter;
+    // SAFE_USE_INPUT_POINTER(Message, MESSAGEINFO) {
+    //     LINEAR TargetPointer = HandleToPointer(Message->Target);
+    //     if (Message->Target == 0) {
+    //         return (UINT)SendMessage(NULL, Message->Message, Message->Param1, Message->Param2);
+    //     }
+    //     SAFE_USE_VALID((LPVOID)TargetPointer) {
+    //         return (UINT)SendMessage((HANDLE)TargetPointer, Message->Message, Message->Param1, Message->Param2);
+    //     }
+    // }
+    // return 0;
 
-        if (Message->Target == 0) {
-            return (UINT)SendMessage(NULL, Message->Message, Message->Param1, Message->Param2);
-        }
-
-        SAFE_USE_VALID((LPVOID)TargetPointer) {
-            return (UINT)SendMessage((HANDLE)TargetPointer, Message->Message, Message->Param1, Message->Param2);
-        }
-    }
-
-    return 0;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /************************************************************************/

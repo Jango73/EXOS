@@ -763,10 +763,10 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
                     goto Out_Success;
                 }
             }
-        }
 
-        UnlockMutex(&(Win->Task->MessageQueue.Mutex));
-        UnlockMutex(&(Win->Task->Mutex));
+            UnlockMutex(&(Win->Task->MessageQueue.Mutex));
+            UnlockMutex(&(Win->Task->Mutex));
+        }
 
         //-------------------------------------
         // Add the message to the task's queue

@@ -30,6 +30,7 @@
 #include "Log.h"
 #include "Desktop.h"
 #include "input/Mouse.h"
+#include "input/MouseDispatcher.h"
 #include "process/Task-Messaging.h"
 #include "utils/Graphics-Utils.h"
 
@@ -532,7 +533,6 @@ BOOL MoveWindow(HANDLE Handle, LPPOINT Position) {
     LPWINDOW This = (LPWINDOW)Handle;
     I32 X;
     I32 Y;
-    U32 MoveResult;
 
     //-------------------------------------
     // Check validity of parameters
@@ -545,10 +545,8 @@ BOOL MoveWindow(HANDLE Handle, LPPOINT Position) {
     X = Position->X;
     Y = Position->Y;
 
-    (void)SendMessage(Handle, EWM_MOVING, (U32)X, (U32)Y);
-    MoveResult = SendMessage(Handle, EWM_MOVE, (U32)X, (U32)Y);
-    UNUSED(MoveResult);
-    return TRUE;
+    if (PostMessage(Handle, EWM_MOVING, (U32)X, (U32)Y) == FALSE) return FALSE;
+    return PostMessage(Handle, EWM_MOVE, (U32)X, (U32)Y);
 }
 
 /***************************************************************************/
@@ -1450,18 +1448,15 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
         case EWM_MOUSEDOWN: {
             POINT Position;
             LPWINDOW Target;
-            I32 X, Y;
 
-            X = GetMouseDriver()->Command(DF_MOUSE_GETDELTAX, 0);
-            Y = GetMouseDriver()->Command(DF_MOUSE_GETDELTAY, 0);
-
-            Position.X = SIGNED(X);
-            Position.Y = SIGNED(Y);
+            if (GetMousePosition(&(Position.X), &(Position.Y)) == FALSE) {
+                break;
+            }
 
             Target = (LPWINDOW)WindowHitTest(Window, &Position);
 
-            if (Target) {
-                PostMessage((HANDLE)Target, EWM_MOUSEDOWN, Param1, Param2);
+            if (Target != NULL && Target != (LPWINDOW)Window) {
+                (void)PostMessage((HANDLE)Target, EWM_MOUSEDOWN, Param1, Param2);
             }
         } break;
 
