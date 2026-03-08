@@ -37,6 +37,7 @@
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
 #include "Clock.h"
+#include "utils/Graphics-Utils.h"
 #include "utils/RateLimiter.h"
 
 /***************************************************************************/
@@ -62,10 +63,7 @@ static LIST MainDesktopChildren = {NULL, NULL, NULL, 0, KernelHeapAlloc, KernelH
  * @param Dst Destination rectangle in screen coordinates.
  */
 static void WindowRectToScreenRectLocked(LPWINDOW This, LPRECT Src, LPRECT Dst) {
-    Dst->X1 = This->ScreenRect.X1 + Src->X1;
-    Dst->Y1 = This->ScreenRect.Y1 + Src->Y1;
-    Dst->X2 = This->ScreenRect.X1 + Src->X2;
-    Dst->Y2 = This->ScreenRect.Y1 + Src->Y2;
+    WindowLocalRectToScreenRect(&(This->ScreenRect), Src, Dst);
 }
 
 /***************************************************************************/
@@ -809,10 +807,7 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     SAFE_USE(This->ParentWindow) {
         LockMutex(&(This->ParentWindow->Mutex), INFINITY);
 
-        This->ScreenRect.X1 = This->ParentWindow->ScreenRect.X1 + This->Rect.X1;
-        This->ScreenRect.Y1 = This->ParentWindow->ScreenRect.Y1 + This->Rect.Y1;
-        This->ScreenRect.X2 = This->ParentWindow->ScreenRect.X1 + This->Rect.X2;
-        This->ScreenRect.Y2 = This->ParentWindow->ScreenRect.Y1 + This->Rect.Y2;
+        WindowLocalRectToScreenRect(&(This->ParentWindow->ScreenRect), &(This->Rect), &(This->ScreenRect));
 
         RectRegionReset(&This->DirtyRegion);
         (void)RectRegionAddRect(&This->DirtyRegion, &This->ScreenRect);
@@ -985,10 +980,7 @@ BOOL ScreenRectToWindowRect(HANDLE Handle, LPRECT Src, LPRECT Dst) {
 
     LockMutex(&(This->Mutex), INFINITY);
 
-    Dst->X1 = Src->X1 - This->ScreenRect.X1;
-    Dst->Y1 = Src->Y1 - This->ScreenRect.Y1;
-    Dst->X2 = Src->X2 - This->ScreenRect.X1;
-    Dst->Y2 = Src->Y2 - This->ScreenRect.Y1;
+    ScreenRectToWindowLocalRect(&(This->ScreenRect), Src, Dst);
 
     UnlockMutex(&(This->Mutex));
 

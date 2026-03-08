@@ -31,6 +31,7 @@
 #include "Desktop.h"
 #include "input/Mouse.h"
 #include "process/Task-Messaging.h"
+#include "utils/Graphics-Utils.h"
 
 /***************************************************************************/
 
@@ -73,7 +74,7 @@ static U32 DATA_SECTION ClipRegionFallbackLogCount = 0;
  * @param RelativeRect Receives rectangle in window-relative coordinates.
  * @return TRUE on success.
  */
-static BOOL ScreenRectToWindowLocalRect(LPWINDOW Window, LPRECT ScreenRect, LPRECT RelativeRect) {
+static BOOL ConvertScreenRectToWindowLocalRect(LPWINDOW Window, LPRECT ScreenRect, LPRECT RelativeRect) {
     RECT WindowScreenRect;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
@@ -83,10 +84,7 @@ static BOOL ScreenRectToWindowLocalRect(LPWINDOW Window, LPRECT ScreenRect, LPRE
     WindowScreenRect = Window->ScreenRect;
     UnlockMutex(&(Window->Mutex));
 
-    RelativeRect->X1 = ScreenRect->X1 - WindowScreenRect.X1;
-    RelativeRect->Y1 = ScreenRect->Y1 - WindowScreenRect.Y1;
-    RelativeRect->X2 = ScreenRect->X2 - WindowScreenRect.X1;
-    RelativeRect->Y2 = ScreenRect->Y2 - WindowScreenRect.Y1;
+    ScreenRectToWindowLocalRect(&WindowScreenRect, ScreenRect, RelativeRect);
 
     return TRUE;
 }
@@ -145,11 +143,11 @@ static BOOL DefaultMoveWindow(LPWINDOW Window, LPPOINT Position) {
 
     UnlockMutex(&(Window->Mutex));
 
-    if (ScreenRectToWindowLocalRect(Parent, &OldScreenRect, &ParentOldRect)) {
+    if (ConvertScreenRectToWindowLocalRect(Parent, &OldScreenRect, &ParentOldRect)) {
         (void)InvalidateWindowRect((HANDLE)Parent, &ParentOldRect);
     }
 
-    if (ScreenRectToWindowLocalRect(Parent, &NewScreenRect, &ParentNewRect)) {
+    if (ConvertScreenRectToWindowLocalRect(Parent, &NewScreenRect, &ParentNewRect)) {
         (void)InvalidateWindowRect((HANDLE)Parent, &ParentNewRect);
     }
 
@@ -263,26 +261,6 @@ static BOOL BuildWindowDrawClipRegion(
 /***************************************************************************/
 
 /**
- * @brief Intersect two screen-space rectangles.
- * @param Left First rectangle.
- * @param Right Second rectangle.
- * @param Result Output intersection.
- * @return TRUE on non-empty intersection.
- */
-static BOOL IntersectScreenRect(LPRECT Left, LPRECT Right, LPRECT Result) {
-    if (Left == NULL || Right == NULL || Result == NULL) return FALSE;
-
-    Result->X1 = Left->X1 > Right->X1 ? Left->X1 : Right->X1;
-    Result->Y1 = Left->Y1 > Right->Y1 ? Left->Y1 : Right->Y1;
-    Result->X2 = Left->X2 < Right->X2 ? Left->X2 : Right->X2;
-    Result->Y2 = Left->Y2 < Right->Y2 ? Left->Y2 : Right->Y2;
-
-    return Result->X1 <= Result->X2 && Result->Y1 <= Result->Y2;
-}
-
-/***************************************************************************/
-
-/**
  * @brief Append one rectangle to a region when bounds are valid.
  * @param Region Destination region.
  * @param Rect Rectangle candidate.
@@ -309,7 +287,7 @@ static BOOL RegionSubtractRectFromRect(LPRECT_REGION Region, LPRECT Source, LPRE
 
     if (Region == NULL || Source == NULL || Occluder == NULL) return FALSE;
 
-    if (IntersectScreenRect(Source, Occluder, &Inter) == FALSE) {
+    if (IntersectRect(Source, Occluder, &Inter) == FALSE) {
         return RegionAppendRectIfValid(Region, Source);
     }
 
@@ -858,16 +836,6 @@ BOOL EndWindowDraw(HANDLE Handle) {
 
     if (This == NULL) return NULL;
     if (This->TypeID != KOID_WINDOW) return NULL;
-
-    //-------------------------------------
-    // Lock access to resources
-
-    LockMutex(&(This->Mutex), INFINITY);
-
-    //-------------------------------------
-    // Unlock access to resources
-
-    UnlockMutex(&(This->Mutex));
 
     DesktopCursorRenderSoftwareOverlayOnWindow(This);
 

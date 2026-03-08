@@ -24,6 +24,7 @@
 #include "Desktop-Cursor.h"
 
 #include "Desktop.h"
+#include "Desktop-OverlayInvalidation.h"
 #include "CoreString.h"
 #include "DisplaySession.h"
 #include "GFX.h"
@@ -32,6 +33,7 @@
 #include "Clock.h"
 #include "input/MouseDispatcher.h"
 #include "utils/Helpers.h"
+#include "utils/Graphics-Utils.h"
 #include "utils/RateLimiter.h"
 
 /************************************************************************/
@@ -84,21 +86,18 @@ static void DesktopCursorBuildRect(LPDESKTOP Desktop, I32 X, I32 Y, LPRECT RectO
 /************************************************************************/
 
 /**
- * @brief Intersect two rectangles.
+ * @brief Build the bounding rectangle of two rectangles.
  * @param Left First rectangle.
  * @param Right Second rectangle.
- * @param Result Output intersection.
- * @return TRUE on non-empty intersection.
+ * @param Result Output bounding rectangle.
  */
-static BOOL DesktopCursorIntersectRect(LPRECT Left, LPRECT Right, LPRECT Result) {
-    if (Left == NULL || Right == NULL || Result == NULL) return FALSE;
+static void DesktopCursorUnionRect(LPRECT Left, LPRECT Right, LPRECT Result) {
+    if (Left == NULL || Right == NULL || Result == NULL) return;
 
-    Result->X1 = Left->X1 > Right->X1 ? Left->X1 : Right->X1;
-    Result->Y1 = Left->Y1 > Right->Y1 ? Left->Y1 : Right->Y1;
-    Result->X2 = Left->X2 < Right->X2 ? Left->X2 : Right->X2;
-    Result->Y2 = Left->Y2 < Right->Y2 ? Left->Y2 : Right->Y2;
-
-    return Result->X1 <= Result->X2 && Result->Y1 <= Result->Y2;
+    Result->X1 = Left->X1 < Right->X1 ? Left->X1 : Right->X1;
+    Result->Y1 = Left->Y1 < Right->Y1 ? Left->Y1 : Right->Y1;
+    Result->X2 = Left->X2 > Right->X2 ? Left->X2 : Right->X2;
+    Result->Y2 = Left->Y2 > Right->Y2 ? Left->Y2 : Right->Y2;
 }
 
 /************************************************************************/
@@ -130,7 +129,7 @@ static BOOL DesktopCursorRegionSubtractRectFromRect(LPRECT_REGION Region, LPRECT
 
     if (Region == NULL || Source == NULL || Occluder == NULL) return FALSE;
 
-    if (DesktopCursorIntersectRect(Source, Occluder, &Inter) == FALSE) {
+    if (IntersectRect(Source, Occluder, &Inter) == FALSE) {
         return DesktopCursorRegionAppendRectIfValid(Region, Source);
     }
 
@@ -378,71 +377,6 @@ static void DesktopCursorSetPathState(LPDESKTOP Desktop, U32 Path, U32 Reason, U
 /************************************************************************/
 
 /**
- * @brief Convert one screen-space rectangle to one window-local rectangle.
- * @param WindowScreenRect Window rectangle in screen coordinates.
- * @param ScreenRect Source rectangle in screen coordinates.
- * @param WindowRect Output rectangle in window coordinates.
- */
-static void DesktopCursorScreenRectToWindowRect(LPRECT WindowScreenRect, LPRECT ScreenRect, LPRECT WindowRect) {
-    if (WindowScreenRect == NULL || ScreenRect == NULL || WindowRect == NULL) return;
-
-    WindowRect->X1 = ScreenRect->X1 - WindowScreenRect->X1;
-    WindowRect->Y1 = ScreenRect->Y1 - WindowScreenRect->Y1;
-    WindowRect->X2 = ScreenRect->X2 - WindowScreenRect->X1;
-    WindowRect->Y2 = ScreenRect->Y2 - WindowScreenRect->Y1;
-}
-
-/************************************************************************/
-
-/**
- * @brief Invalidate one rectangle on all visible windows intersecting it.
- * @param Window Window tree root.
- * @param ScreenRect Rectangle to invalidate in screen coordinates.
- */
-static void DesktopCursorInvalidateWindowTreeRect(LPWINDOW Window, LPRECT ScreenRect) {
-    LPLISTNODE Node;
-    LPWINDOW Child;
-    RECT WindowScreenRect;
-    RECT Intersection;
-    RECT WindowRect;
-    BOOL IsVisible;
-    BOOL HasIntersection = FALSE;
-
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
-    if (ScreenRect == NULL) return;
-
-    LockMutex(&(Window->Mutex), INFINITY);
-
-    IsVisible = ((Window->Status & WINDOW_STATUS_VISIBLE) != 0);
-    WindowScreenRect = Window->ScreenRect;
-
-    if (IsVisible != FALSE) {
-        if (DesktopCursorIntersectRect(&WindowScreenRect, ScreenRect, &Intersection) != FALSE) {
-            DesktopCursorScreenRectToWindowRect(&WindowScreenRect, &Intersection, &WindowRect);
-            HasIntersection = TRUE;
-        }
-    }
-
-    UnlockMutex(&(Window->Mutex));
-
-    if (HasIntersection != FALSE) {
-        (void)InvalidateWindowRect((HANDLE)Window, &WindowRect);
-    }
-
-    LockMutex(&(Window->Mutex), INFINITY);
-
-    for (Node = Window->Children != NULL ? Window->Children->First : NULL; Node != NULL; Node = Node->Next) {
-        Child = (LPWINDOW)Node;
-        if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
-        DesktopCursorInvalidateWindowTreeRect(Child, ScreenRect);
-    }
-
-    UnlockMutex(&(Window->Mutex));
-}
-
-/************************************************************************/
-
-/**
  * @brief Request bounded software cursor redraw for old and new cursor rectangles.
  * @param Desktop Target desktop.
  * @param OldX Previous rendered X.
@@ -455,9 +389,11 @@ static void DesktopCursorRequestSoftwareRedraw(LPDESKTOP Desktop, I32 OldX, I32 
     static BOOL CursorRedrawLimiterReady = FALSE;
     RECT OldRect;
     RECT NewRect;
+    RECT DamageRect = {0};
     RECT ClipRect;
     BOOL HasOldRect = FALSE;
     BOOL HasNewRect = FALSE;
+    BOOL HasDamageRect = FALSE;
     U32 Suppressed = 0;
     U32 Now = GetSystemTime();
 
@@ -471,15 +407,25 @@ static void DesktopCursorRequestSoftwareRedraw(LPDESKTOP Desktop, I32 OldX, I32 
     DesktopCursorBuildRect(Desktop, OldX, OldY, &OldRect);
     DesktopCursorBuildRect(Desktop, NewX, NewY, &NewRect);
 
-    HasOldRect = DesktopCursorIntersectRect(&OldRect, &ClipRect, &OldRect);
-    HasNewRect = DesktopCursorIntersectRect(&NewRect, &ClipRect, &NewRect);
+    HasOldRect = IntersectRect(&OldRect, &ClipRect, &OldRect);
+    HasNewRect = IntersectRect(&NewRect, &ClipRect, &NewRect);
 
     if (HasOldRect != FALSE) {
-        DesktopCursorInvalidateWindowTreeRect(Desktop->Window, &OldRect);
+        DamageRect = OldRect;
+        HasDamageRect = TRUE;
     }
 
     if (HasNewRect != FALSE) {
-        DesktopCursorInvalidateWindowTreeRect(Desktop->Window, &NewRect);
+        if (HasDamageRect == FALSE) {
+            DamageRect = NewRect;
+            HasDamageRect = TRUE;
+        } else {
+            DesktopCursorUnionRect(&DamageRect, &NewRect, &DamageRect);
+        }
+    }
+
+    if (HasDamageRect != FALSE) {
+        DesktopOverlayInvalidateWindowTreeThenRootRect(Desktop->Window, &DamageRect);
     }
 
     if (CursorRedrawLimiterReady == FALSE) {
@@ -489,13 +435,17 @@ static void DesktopCursorRequestSoftwareRedraw(LPDESKTOP Desktop, I32 OldX, I32 
     }
 
     if (CursorRedrawLimiterReady != FALSE && RateLimiterShouldTrigger(&CursorRedrawLimiter, Now, &Suppressed) != FALSE) {
-        DEBUG(TEXT("[DesktopCursorRequestSoftwareRedraw] old=(%u,%u) new=(%u,%u) has_old=%x has_new=%x old_rect=(%u,%u)-(%u,%u) new_rect=(%u,%u)-(%u,%u) clip=(%u,%u)-(%u,%u) suppressed=%u"),
+        DEBUG(TEXT("[DesktopCursorRequestSoftwareRedraw] old=(%u,%u) new=(%u,%u) has_old=%x has_new=%x damage=(%u,%u)-(%u,%u) old_rect=(%u,%u)-(%u,%u) new_rect=(%u,%u)-(%u,%u) clip=(%u,%u)-(%u,%u) suppressed=%u"),
             UNSIGNED(OldX),
             UNSIGNED(OldY),
             UNSIGNED(NewX),
             UNSIGNED(NewY),
             HasOldRect ? 1 : 0,
             HasNewRect ? 1 : 0,
+            UNSIGNED(DamageRect.X1),
+            UNSIGNED(DamageRect.Y1),
+            UNSIGNED(DamageRect.X2),
+            UNSIGNED(DamageRect.Y2),
             UNSIGNED(OldRect.X1),
             UNSIGNED(OldRect.Y1),
             UNSIGNED(OldRect.X2),
@@ -918,7 +868,7 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
     CursorHeight = DesktopCursorClampSize(CursorHeight, DESKTOP_CURSOR_DEFAULT_HEIGHT);
 
     DesktopCursorBuildRect(Desktop, CursorX, CursorY, &CursorRect);
-    if (DesktopCursorIntersectRect(&CursorRect, &ClipRect, &CursorRect) == FALSE) {
+    if (IntersectRect(&CursorRect, &ClipRect, &CursorRect) == FALSE) {
         return;
     }
 
@@ -926,7 +876,7 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
     WindowRect = Window->ScreenRect;
     UnlockMutex(&(Window->Mutex));
 
-    if (DesktopCursorIntersectRect(&CursorRect, &WindowRect, &Intersection) == FALSE) {
+    if (IntersectRect(&CursorRect, &WindowRect, &Intersection) == FALSE) {
         return;
     }
 
