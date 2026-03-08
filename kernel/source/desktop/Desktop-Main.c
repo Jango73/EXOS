@@ -840,6 +840,84 @@ LPDESKTOP GetWindowDesktop(LPWINDOW This) {
 /***************************************************************************/
 
 /**
+ * @brief Append one window pointer to a dynamic array.
+ * @param Windows Pointer to dynamic array pointer.
+ * @param Count Number of valid entries.
+ * @param Capacity Allocated capacity.
+ * @param Window Window to append.
+ * @return TRUE on success.
+ */
+static BOOL AppendWindowPointer(LPWINDOW** Windows, UINT* Count, UINT* Capacity, LPWINDOW Window) {
+    UINT NewCapacity;
+    LPWINDOW* NewWindows;
+
+    if (Windows == NULL || Count == NULL || Capacity == NULL) return FALSE;
+
+    if (*Count >= *Capacity) {
+        NewCapacity = (*Capacity == 0) ? 8 : (*Capacity * 2);
+        NewWindows = (LPWINDOW*)KernelHeapRealloc(*Windows, sizeof(LPWINDOW) * NewCapacity);
+        if (NewWindows == NULL) return FALSE;
+        *Windows = NewWindows;
+        *Capacity = NewCapacity;
+    }
+
+    (*Windows)[*Count] = Window;
+    (*Count)++;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Snapshot direct children of one window.
+ * @param Parent Parent window.
+ * @param Children Receives allocated child pointer array.
+ * @param ChildCount Receives number of children.
+ * @return TRUE on success.
+ */
+static BOOL SnapshotWindowChildren(LPWINDOW Parent, LPWINDOW** Children, UINT* ChildCount) {
+    LPLISTNODE Node;
+    LPWINDOW* Snapshot;
+    UINT Index = 0;
+    UINT Count = 0;
+
+    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return FALSE;
+    if (Children == NULL || ChildCount == NULL) return FALSE;
+
+    *Children = NULL;
+    *ChildCount = 0;
+
+    LockMutex(&(Parent->Mutex), INFINITY);
+
+    if (Parent->Children != NULL) {
+        Count = Parent->Children->NumItems;
+    }
+
+    if (Count == 0) {
+        UnlockMutex(&(Parent->Mutex));
+        return TRUE;
+    }
+
+    Snapshot = (LPWINDOW*)KernelHeapAlloc(sizeof(LPWINDOW) * Count);
+    if (Snapshot == NULL) {
+        UnlockMutex(&(Parent->Mutex));
+        return FALSE;
+    }
+
+    for (Node = Parent->Children->First; Node != NULL && Index < Count; Node = Node->Next) {
+        Snapshot[Index++] = (LPWINDOW)Node;
+    }
+
+    UnlockMutex(&(Parent->Mutex));
+
+    *Children = Snapshot;
+    *ChildCount = Index;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Post a message to a window and all of its children.
  * @param This Starting window for broadcast.
  * @param Msg Message identifier.
@@ -848,26 +926,76 @@ LPDESKTOP GetWindowDesktop(LPWINDOW This) {
  * @return TRUE on success.
  */
 BOOL BroadcastMessageToWindow(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2) {
-    LPLISTNODE Node;
+    LPWINDOW* Pending = NULL;
+    UINT PendingCount = 0;
+    UINT PendingCapacity = 0;
+    LPWINDOW* Recipients = NULL;
+    UINT RecipientCount = 0;
+    UINT RecipientCapacity = 0;
+    LPWINDOW Window;
+    LPWINDOW* Children = NULL;
+    UINT ChildCount = 0;
+    UINT Index;
+    BOOL Success = TRUE;
 
-    if (This == NULL) return NULL;
-    if (This->TypeID != KOID_WINDOW) return NULL;
+    if (This == NULL) return FALSE;
+    if (This->TypeID != KOID_WINDOW) return FALSE;
 
-    LockMutex(&(This->Mutex), INFINITY);
-
-    if (Msg == EWM_DRAW) {
-        (void)RequestWindowDraw((HANDLE)This);
-    } else {
-        PostMessage((HANDLE)This, Msg, Param1, Param2);
+    if (AppendWindowPointer(&Pending, &PendingCount, &PendingCapacity, This) == FALSE) {
+        return FALSE;
     }
 
-    for (Node = This->Children->First; Node; Node = Node->Next) {
-        BroadcastMessageToWindow((LPWINDOW)Node, Msg, Param1, Param2);
+    while (PendingCount > 0) {
+        PendingCount--;
+        Window = Pending[PendingCount];
+
+        if (Window == NULL || Window->TypeID != KOID_WINDOW) continue;
+
+        if (AppendWindowPointer(&Recipients, &RecipientCount, &RecipientCapacity, Window) == FALSE) {
+            Success = FALSE;
+            break;
+        }
+
+        if (SnapshotWindowChildren(Window, &Children, &ChildCount) == FALSE) {
+            Success = FALSE;
+            break;
+        }
+
+        for (Index = 0; Index < ChildCount; Index++) {
+            if (AppendWindowPointer(&Pending, &PendingCount, &PendingCapacity, Children[Index]) == FALSE) {
+                Success = FALSE;
+                break;
+            }
+        }
+
+        if (Children != NULL) {
+            KernelHeapFree(Children);
+            Children = NULL;
+        }
+        ChildCount = 0;
+
+        if (Success == FALSE) {
+            break;
+        }
     }
 
-    UnlockMutex(&(This->Mutex));
+    if (Success != FALSE) {
+        for (Index = 0; Index < RecipientCount; Index++) {
+            Window = Recipients[Index];
 
-    return TRUE;
+            if (Msg == EWM_DRAW) {
+                (void)RequestWindowDraw((HANDLE)Window);
+            } else {
+                (void)PostMessage((HANDLE)Window, Msg, Param1, Param2);
+            }
+        }
+    }
+
+    if (Children != NULL) KernelHeapFree(Children);
+    if (Pending != NULL) KernelHeapFree(Pending);
+    if (Recipients != NULL) KernelHeapFree(Recipients);
+
+    return Success;
 }
 
 /***************************************************************************/

@@ -95,7 +95,7 @@ For `BringWindowToFront` and move paths:
 
 ### Step 5: Broadcast and Tree Walks
 
-- [ ] Replace recursive in-lock broadcast with two-phase snapshot traversal:
+- [x] Replace recursive in-lock broadcast with two-phase snapshot traversal:
   - collect recipients under tree lock,
   - unlock,
   - post/request draw for each recipient.
