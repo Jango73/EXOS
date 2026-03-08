@@ -77,10 +77,10 @@ A path that needs a lock earlier in the order must release later locks first.
 
 ### Step 3: Safe Post Path
 
-- [ ] Keep post routing independent from deep tree traversal where possible.
-- [ ] Resolve owner task/window identity under minimal lock scope.
-- [ ] Release structural locks before queue operations when lock order requires it.
-- [ ] Keep queue coalescing local to queue locks only.
+- [x] Keep post routing independent from deep tree traversal where possible.
+- [x] Resolve owner task/window identity under minimal lock scope.
+- [x] Release structural locks before queue operations when lock order requires it.
+- [x] Keep queue coalescing local to queue locks only.
 
 ### Step 4: Drag and Z-Order Mutations
 

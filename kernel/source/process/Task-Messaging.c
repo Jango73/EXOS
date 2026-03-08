@@ -608,225 +608,113 @@ BOOL BroadcastProcessMessage(U32 Msg, U32 Param1, U32 Param2) {
  * @param Param2 Second message parameter
  * @return TRUE if message was posted successfully, FALSE on error
  *
- * @note This function locks MUTEX_TASK and MUTEX_DESKTOP during operation
  * @note For EWM_DRAW messages, duplicates are consolidated to prevent flooding
+ * @note Structural locks are held only for target resolution, never across queue operations
  */
 BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
+    LPTASK Task = NULL;
+    LPWINDOW Window = NULL;
+    LPMESSAGE Message = NULL;
     LPLISTNODE Node;
-    LPMESSAGE Message;
-    LPTASK Task;
-    LPDESKTOP Desktop;
-    LPWINDOW Win;
-
-    //-------------------------------------
-    // Check validity of parameters
-
-    //-------------------------------------
-    // Lock access to resources
-
-    LOCK_TASK_MESSAGE(MUTEX_TASK, "GlobalTask");
-    LOCK_TREE(MUTEX_DESKTOP, "GlobalDesktop");
-
-    //-------------------------------------
-    // Null target means current task
+    LPDESKTOP Desktop = NULL;
+    HANDLE MessageTarget = Target;
 
     if (Target == NULL) {
         Task = GetCurrentTask();
-
-        SAFE_USE_VALID_ID(Task, KOID_TASK) {
-            if (Task->MessageQueue.Messages == NULL) {
-                goto Out_Error;
-            }
-
-            Message = NewMessage();
-            if (Message == NULL) goto Out_Error;
-
-            GetLocalTime(&(Message->Time));
-
-            Message->Target = Target;
-            Message->Message = Msg;
-            Message->Param1 = Param1;
-            Message->Param2 = Param2;
-
-            if (AddTaskMessage(Task, Message) == FALSE) goto Out_Error;
-
-            if (GetTaskStatus(Task) == TASK_STATUS_WAITMESSAGE) {
-                SetTaskStatus(Task, TASK_STATUS_RUNNING);
-            }
-
-            goto Out_Success;
-        }
-
-        goto Out_Error;
-    }
-
-    //-------------------------------------
-    // Check if the target is a task
-
-    LPLIST TaskList = GetTaskList();
-    for (Node = TaskList != NULL ? TaskList->First : NULL; Node; Node = Node->Next) {
-        Task = (LPTASK)Node;
-
-        if (Task == (LPTASK)Target) {
-            if (Task->MessageQueue.Messages == NULL) {
-                goto Out_Error;
-            }
-
-            Message = NewMessage();
-            if (Message == NULL) goto Out_Error;
-
-            GetLocalTime(&(Message->Time));
-
-            Message->Target = Target;
-            Message->Message = Msg;
-            Message->Param1 = Param1;
-            Message->Param2 = Param2;
-
-            if (AddTaskMessage(Task, Message) == FALSE) goto Out_Error;
-
-            //-------------------------------------
-            // Notify the task if it is waiting for messages
-
-            if (GetTaskStatus(Task) == TASK_STATUS_WAITMESSAGE) {
-                SetTaskStatus(Task, TASK_STATUS_RUNNING);
-            }
-
-            goto Out_Success;
-        }
-    }
-
-    //-------------------------------------
-    // Check if the target is a desktop
-
-    /*
-      LPLIST DesktopList = GetDesktopList();
-      for (Node = DesktopList != NULL ? DesktopList->First : NULL; Node; Node = Node->Next)
-      {
-    Desktop = (LPDESKTOP) Node;
-
-    if (Desktop == (LPDESKTOP) Target)
-    {
-      Message = NewMessage();
-      if (Message == NULL) goto Out_Error;
-
-      GetLocalTime(&(Message->Time));
-
-      Message->Target  = Target;
-      Message->Message = Msg;
-      Message->Param1  = Param1;
-      Message->Param2  = Param2;
-
-      AddTaskMessage(Desktop->Task, Message);
-
-      //-------------------------------------
-      // Notify the task if it is waiting for messages
-
-      if (GetTaskStatus(Desktop->Task) == TASK_STATUS_WAITMESSAGE)
-      {
-        SetTaskStatus(Desktop->Task, TASK_STATUS_RUNNING);
-      }
-
-      goto Out_Success;
-    }
-      }
-    */
-
-    //-------------------------------------
-    // Check if the target is a window
-
-    Desktop = NULL;
-    Win = (LPWINDOW)Target;
-
-    SAFE_USE_VALID_ID(Win, KOID_WINDOW) {
-        SAFE_USE_VALID_ID(Win->Task, KOID_TASK) {
-            SAFE_USE_VALID_ID(Win->Task->Process, KOID_PROCESS) {
-                Desktop = Win->Task->Process->Desktop;
-            }
-        }
-    }
-
-    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
-        LOCK_TREE(&(Desktop->Mutex), "Desktop");
-        Win = FindWindow(Desktop->Window, (LPWINDOW)Target);
-        UNLOCK_TREE(&(Desktop->Mutex), "Desktop");
     } else {
-        Win = NULL;
-    }
+        LPLIST TaskList;
 
-    SAFE_USE_VALID_ID(Win, KOID_WINDOW) {
-        if (Win->Task->MessageQueue.Messages == NULL) {
-            goto Out_Error;
+        LOCK_TASK_MESSAGE(MUTEX_TASK, "GlobalTask");
+        TaskList = GetTaskList();
+        for (Node = TaskList != NULL ? TaskList->First : NULL; Node; Node = Node->Next) {
+            if ((HANDLE)Node == Target) {
+                Task = (LPTASK)Node;
+                break;
+            }
         }
+        UNLOCK_TASK_MESSAGE(MUTEX_TASK, "GlobalTask");
 
-        //-------------------------------------
-        // If the message is EWM_DRAW, do not post it if
-        // window already has one. Instead, put the existing
-        // one at the end of the queue
-
-        if (Msg == EWM_DRAW) {
-            LOCK_TASK_MESSAGE(&(Win->Task->Mutex), "WindowTask");
-            LOCK_TASK_MESSAGE(&(Win->Task->MessageQueue.Mutex), "WindowTaskMessageQueue");
-
-            for (Node = Win->Task->MessageQueue.Messages->First; Node; Node = Node->Next) {
-                Message = (LPMESSAGE)Node;
-                if (Message->Target == (HANDLE)Win && Message->Message == Msg) {
-                    ListRemove(Win->Task->MessageQueue.Messages, Message);
-
-                    GetLocalTime(&(Message->Time));
-
-                    Message->Param1 = Param1;
-                    Message->Param2 = Param2;
-
-                    ListAddItem(Win->Task->MessageQueue.Messages, Message);
-
-                    UNLOCK_TASK_MESSAGE(&(Win->Task->MessageQueue.Mutex), "WindowTaskMessageQueue");
-                    UNLOCK_TASK_MESSAGE(&(Win->Task->Mutex), "WindowTask");
-
-                    goto Out_Success;
+        if (Task == NULL) {
+            Window = (LPWINDOW)Target;
+            SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+                SAFE_USE_VALID_ID(Window->Task, KOID_TASK) {
+                    SAFE_USE_VALID_ID(Window->Task->Process, KOID_PROCESS) {
+                        Desktop = Window->Task->Process->Desktop;
+                    }
                 }
             }
 
-            UNLOCK_TASK_MESSAGE(&(Win->Task->MessageQueue.Mutex), "WindowTaskMessageQueue");
-            UNLOCK_TASK_MESSAGE(&(Win->Task->Mutex), "WindowTask");
+            SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+                LOCK_TREE(&(Desktop->Mutex), "Desktop");
+                Window = FindWindow(Desktop->Window, (LPWINDOW)Target);
+                UNLOCK_TREE(&(Desktop->Mutex), "Desktop");
+            } else {
+                Window = NULL;
+            }
+
+            SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+                Task = Window->Task;
+                MessageTarget = (HANDLE)Window;
+            }
+        }
+    }
+
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        if (Task->MessageQueue.Messages == NULL) {
+            return FALSE;
         }
 
-        //-------------------------------------
-        // Add the message to the task's queue
+        if (Msg == EWM_DRAW && Window != NULL) {
+            LOCK_TASK_MESSAGE(&(Task->Mutex), "WindowTask");
+            LOCK_TASK_MESSAGE(&(Task->MessageQueue.Mutex), "WindowTaskMessageQueue");
+
+            for (Node = Task->MessageQueue.Messages->First; Node; Node = Node->Next) {
+                Message = (LPMESSAGE)Node;
+                if (Message->Target == (HANDLE)Window && Message->Message == Msg) {
+                    ListRemove(Task->MessageQueue.Messages, Message);
+                    GetLocalTime(&(Message->Time));
+                    Message->Param1 = Param1;
+                    Message->Param2 = Param2;
+                    ListAddItem(Task->MessageQueue.Messages, Message);
+
+                    UNLOCK_TASK_MESSAGE(&(Task->MessageQueue.Mutex), "WindowTaskMessageQueue");
+                    UNLOCK_TASK_MESSAGE(&(Task->Mutex), "WindowTask");
+
+                    if (GetTaskStatus(Task) == TASK_STATUS_WAITMESSAGE) {
+                        SetTaskStatus(Task, TASK_STATUS_RUNNING);
+                    }
+
+                    return TRUE;
+                }
+            }
+
+            UNLOCK_TASK_MESSAGE(&(Task->MessageQueue.Mutex), "WindowTaskMessageQueue");
+            UNLOCK_TASK_MESSAGE(&(Task->Mutex), "WindowTask");
+        }
 
         Message = NewMessage();
-        if (Message == NULL) goto Out_Error;
+        if (Message == NULL) {
+            return FALSE;
+        }
 
         GetLocalTime(&(Message->Time));
-
-        Message->Target = Target;
+        Message->Target = MessageTarget;
         Message->Message = Msg;
         Message->Param1 = Param1;
         Message->Param2 = Param2;
 
-        if (AddTaskMessage(Win->Task, Message) == FALSE) goto Out_Error;
-
-
-        //-------------------------------------
-        // Notify the task if it is waiting for messages
-
-        if (GetTaskStatus(Win->Task) == TASK_STATUS_WAITMESSAGE) {
-            SetTaskStatus(Win->Task, TASK_STATUS_RUNNING);
+        if (AddTaskMessage(Task, Message) == FALSE) {
+            return FALSE;
         }
 
-        goto Out_Success;
+        if (GetTaskStatus(Task) == TASK_STATUS_WAITMESSAGE) {
+            SetTaskStatus(Task, TASK_STATUS_RUNNING);
+        }
+
+        return TRUE;
     }
 
-Out_Error:
-
-    UNLOCK_TREE(MUTEX_DESKTOP, "GlobalDesktop");
-    UNLOCK_TASK_MESSAGE(MUTEX_TASK, "GlobalTask");
     return FALSE;
-
-Out_Success:
-
-    UNLOCK_TREE(MUTEX_DESKTOP, "GlobalDesktop");
-    UNLOCK_TASK_MESSAGE(MUTEX_TASK, "GlobalTask");
-    return TRUE;
 }
 
 /************************************************************************/
