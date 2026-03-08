@@ -22,6 +22,7 @@ sudo apt install -y \
     make \
     mtools \
     nasm \
+    npm \
     parted \
     qemu-system-x86 \
     sed \
@@ -30,6 +31,9 @@ sudo apt install -y \
     xxd
 
 echo "All required dependencies for EXOS installed."
+
+echo "Installing jscpd..."
+sudo npm install -g jscpd
 
 TOOLCHAIN_URL=$(wget -qO- "https://api.github.com/repos/lordmilko/i686-elf-tools/releases/latest" | grep "browser_download_url" | grep linux | cut -d '"' -f 4 | head -1)
 INSTALL_DIR="/opt/i686-elf-toolchain"
