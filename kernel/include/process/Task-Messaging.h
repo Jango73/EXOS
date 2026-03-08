@@ -29,6 +29,12 @@
 #include "process/Task.h"
 
 /************************************************************************/
+// Messaging lock contract with desktop/windowing:
+//
+// - Message queue operations are allowed under TaskMessageMutex.
+// - Window tree/state lookups must use minimal desktop lock scope.
+// - PostMessage and DispatchMessage must not execute window callbacks while
+//   holding TaskMessageMutex.
 
 BOOL InitMessageQueue(LPMESSAGEQUEUE Queue);
 void DeleteMessageQueue(LPMESSAGEQUEUE Queue);
