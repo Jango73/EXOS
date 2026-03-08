@@ -552,6 +552,8 @@ static UINT GraphicsSelectorCommands(UINT Function, UINT Parameter) {
         case DF_GFX_CURSOR_SET_SHAPE:
         case DF_GFX_CURSOR_SET_POSITION:
         case DF_GFX_CURSOR_SET_VISIBLE:
+        case DF_GFX_ARC:
+        case DF_GFX_TRIANGLE:
             return GraphicsSelectorForward(Function, Parameter);
     }
 

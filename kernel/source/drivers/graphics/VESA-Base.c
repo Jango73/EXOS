@@ -748,6 +748,52 @@ static U32 VESA_Rectangle(LPRECTINFO Info) {
 /***************************************************************************/
 
 /**
+ * @brief Draw an arc via driver interface.
+ * @param Info Arc descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VESA_Arc(LPARCINFO Info) {
+    LPVESA_CONTEXT Context;
+
+    if (Info == NULL) return 0;
+
+    Context = (LPVESA_CONTEXT)Info->GC;
+    if (Context == NULL) return 0;
+    if (Context->Header.TypeID != KOID_GRAPHICSCONTEXT) return 0;
+
+    LockMutex(&(Context->Header.Mutex), INFINITY);
+    VESAArcPrimitive(Context, Info);
+    UnlockMutex(&(Context->Header.Mutex));
+
+    return 1;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Draw a triangle via driver interface.
+ * @param Info Triangle descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VESA_Triangle(LPTRIANGLEINFO Info) {
+    LPVESA_CONTEXT Context;
+
+    if (Info == NULL) return 0;
+
+    Context = (LPVESA_CONTEXT)Info->GC;
+    if (Context == NULL) return 0;
+    if (Context->Header.TypeID != KOID_GRAPHICSCONTEXT) return 0;
+
+    LockMutex(&(Context->Header.Mutex), INFINITY);
+    VESATrianglePrimitive(Context, Info);
+    UnlockMutex(&(Context->Header.Mutex));
+
+    return 1;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Draw one text cell in VESA framebuffer.
  * @param Info Text cell descriptor.
  * @return 1 on success, 0 on failure.
@@ -940,6 +986,10 @@ UINT VESACommands(UINT Function, UINT Param) {
             return VESA_Line((LPLINEINFO)Param);
         case DF_GFX_RECTANGLE:
             return VESA_Rectangle((LPRECTINFO)Param);
+        case DF_GFX_ARC:
+            return VESA_Arc((LPARCINFO)Param);
+        case DF_GFX_TRIANGLE:
+            return VESA_Triangle((LPTRIANGLEINFO)Param);
         case DF_GFX_TEXT_PUTCELL:
             return VESA_TextPutCell((LPGFX_TEXT_CELL_INFO)Param);
         case DF_GFX_TEXT_CLEAR_REGION:

@@ -239,6 +239,9 @@ struct tag_DESKTOP {
     LPWINDOW Capture;          // Window that captured mouse
     I32 CaptureOffsetX;        // Mouse offset X in captured window on drag start
     I32 CaptureOffsetY;        // Mouse offset Y in captured window on drag start
+    MUTEX TimerMutex;          // Protect desktop timers
+    LPLIST Timers;             // Per-desktop timer entries
+    LPTASK TimerTask;          // Per-desktop timer worker task
     LPWINDOW Focus;            // Window that has focus
     LPPROCESS FocusedProcess;  // Process with input focus on this desktop
     U32 Mode;

@@ -548,6 +548,16 @@ typedef struct PACKED tag_RECTINFO {
     I32 Y2;
 } RECTINFO, *LPRECTINFO;
 
+typedef struct PACKED tag_ARCINFO {
+    ABI_HEADER Header;
+    HANDLE GC;
+    I32 CenterX;
+    I32 CenterY;
+    I32 Radius;
+    I32 StartAngle;
+    I32 EndAngle;
+} ARCINFO, *LPARCINFO;
+
 typedef struct PACKED tag_TRIANGLEINFO {
     ABI_HEADER Header;
     HANDLE GC;
@@ -779,6 +789,7 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 #define EWM_NOTIFY 0x40000010
 #define EWM_GOTFOCUS 0x40000011
 #define EWM_LOSTFOCUS 0x40000012
+#define EWM_TIMER 0x40000013
 
 // Task messages define by userland apps begin here
 #define EM_USER 0x60000000

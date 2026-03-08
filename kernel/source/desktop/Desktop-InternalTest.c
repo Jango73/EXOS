@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "Desktop-InternalTest.h"
+#include "Desktop-ClockWidget.h"
 #include "Kernel.h"
 #include "Log.h"
 
@@ -113,6 +114,7 @@ static BOOL DesktopInternalEnsureSingleWindow(
     LPDESKTOP Desktop,
     U32 WindowID,
     LPCSTR Title,
+    WINDOWFUNC WindowFunc,
     I32 X,
     I32 Y,
     I32 Width,
@@ -135,7 +137,7 @@ static BOOL DesktopInternalEnsureSingleWindow(
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;
     WindowInfo.Parent = (HANDLE)Desktop->Window;
-    WindowInfo.Function = DesktopInternalTestWindowFunc;
+    WindowInfo.Function = WindowFunc;
     WindowInfo.Style = EWS_VISIBLE | EWS_SYSTEM_DECORATED;
     WindowInfo.ID = WindowID;
     WindowInfo.WindowPosition.X = X;
@@ -167,6 +169,7 @@ BOOL DesktopInternalTestEnsureWindowsVisible(LPDESKTOP Desktop) {
         Desktop,
         DESKTOP_INTERNAL_TEST_WINDOW_ID_A,
         TEXT("Kernel Test Alpha"),
+        DesktopInternalTestWindowFunc,
         48,
         56,
         360,
@@ -175,7 +178,8 @@ BOOL DesktopInternalTestEnsureWindowsVisible(LPDESKTOP Desktop) {
     SecondCreated = DesktopInternalEnsureSingleWindow(
         Desktop,
         DESKTOP_INTERNAL_TEST_WINDOW_ID_B,
-        TEXT("Kernel Test Beta"),
+        TEXT("Kernel Clock Widget"),
+        DesktopClockWidgetWindowFunc,
         460,
         140,
         500,

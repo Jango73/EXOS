@@ -919,6 +919,144 @@ U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
 /***************************************************************************/
 
+static I32 TriangleEdgeFunction(I32 Ax, I32 Ay, I32 Bx, I32 By, I32 Px, I32 Py) {
+    return (Px - Ax) * (By - Ay) - (Py - Ay) * (Bx - Ax);
+}
+
+/***************************************************************************/
+
+U32 VESATrianglePrimitive(LPVESA_CONTEXT Context, LPTRIANGLEINFO Info) {
+    I32 MinX;
+    I32 MaxX;
+    I32 MinY;
+    I32 MaxY;
+    I32 X;
+    I32 Y;
+    I32 Area;
+    I32 W0;
+    I32 W1;
+    I32 W2;
+    COLOR FillColor = 0;
+    BOOL HasFill = FALSE;
+    BOOL HasStroke = FALSE;
+
+    if (Context == NULL || Info == NULL) return 0;
+
+    HasFill = (Context->Header.Brush != NULL && Context->Header.Brush->TypeID == KOID_BRUSH);
+    HasStroke = (Context->Header.Pen != NULL && Context->Header.Pen->TypeID == KOID_PEN);
+    if (HasFill == FALSE && HasStroke == FALSE) return 1;
+
+    if (HasFill != FALSE) {
+        FillColor = Context->Header.Brush->Color;
+    }
+
+    MinX = Info->P1.X;
+    if (Info->P2.X < MinX) MinX = Info->P2.X;
+    if (Info->P3.X < MinX) MinX = Info->P3.X;
+    MaxX = Info->P1.X;
+    if (Info->P2.X > MaxX) MaxX = Info->P2.X;
+    if (Info->P3.X > MaxX) MaxX = Info->P3.X;
+
+    MinY = Info->P1.Y;
+    if (Info->P2.Y < MinY) MinY = Info->P2.Y;
+    if (Info->P3.Y < MinY) MinY = Info->P3.Y;
+    MaxY = Info->P1.Y;
+    if (Info->P2.Y > MaxY) MaxY = Info->P2.Y;
+    if (Info->P3.Y > MaxY) MaxY = Info->P3.Y;
+
+    if (MinX < Context->Header.LoClip.X) MinX = Context->Header.LoClip.X;
+    if (MinY < Context->Header.LoClip.Y) MinY = Context->Header.LoClip.Y;
+    if (MaxX > Context->Header.HiClip.X) MaxX = Context->Header.HiClip.X;
+    if (MaxY > Context->Header.HiClip.Y) MaxY = Context->Header.HiClip.Y;
+    if (MinX > MaxX || MinY > MaxY) return 1;
+
+    Area = TriangleEdgeFunction(Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
+    if (Area == 0) {
+        if (HasStroke != FALSE) {
+            Context->ModeSpecs.Line(Context, Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y);
+            Context->ModeSpecs.Line(Context, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
+            Context->ModeSpecs.Line(Context, Info->P3.X, Info->P3.Y, Info->P1.X, Info->P1.Y);
+        }
+        return 1;
+    }
+
+    if (HasFill != FALSE) {
+        for (Y = MinY; Y <= MaxY; Y++) {
+            for (X = MinX; X <= MaxX; X++) {
+                W0 = TriangleEdgeFunction(Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y, X, Y);
+                W1 = TriangleEdgeFunction(Info->P3.X, Info->P3.Y, Info->P1.X, Info->P1.Y, X, Y);
+                W2 = TriangleEdgeFunction(Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y, X, Y);
+
+                if (Area > 0) {
+                    if (W0 < 0 || W1 < 0 || W2 < 0) continue;
+                } else {
+                    if (W0 > 0 || W1 > 0 || W2 > 0) continue;
+                }
+
+                Context->ModeSpecs.SetPixel(Context, X, Y, FillColor);
+            }
+        }
+    }
+
+    if (HasStroke != FALSE) {
+        Context->ModeSpecs.Line(Context, Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y);
+        Context->ModeSpecs.Line(Context, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
+        Context->ModeSpecs.Line(Context, Info->P3.X, Info->P3.Y, Info->P1.X, Info->P1.Y);
+    }
+
+    return 1;
+}
+
+/***************************************************************************/
+
+U32 VESAArcPrimitive(LPVESA_CONTEXT Context, LPARCINFO Info) {
+    I32 X;
+    I32 Y;
+    I32 Error;
+    I32 Radius;
+    I32 CenterX;
+    I32 CenterY;
+    COLOR StrokeColor;
+
+    if (Context == NULL || Info == NULL) return 0;
+    if (Context->Header.Pen == NULL || Context->Header.Pen->TypeID != KOID_PEN) return 1;
+    if (Info->Radius <= 0) return 1;
+
+    Radius = Info->Radius;
+    CenterX = Info->CenterX;
+    CenterY = Info->CenterY;
+    StrokeColor = Context->Header.Pen->Color;
+
+    // Midpoint circle rasterization. Start/end angles are intentionally ignored
+    // for now; current clock widget usage draws full circles.
+    X = Radius;
+    Y = 0;
+    Error = 1 - Radius;
+
+    while (X >= Y) {
+        Context->ModeSpecs.SetPixel(Context, CenterX + X, CenterY + Y, StrokeColor);
+        Context->ModeSpecs.SetPixel(Context, CenterX + Y, CenterY + X, StrokeColor);
+        Context->ModeSpecs.SetPixel(Context, CenterX - Y, CenterY + X, StrokeColor);
+        Context->ModeSpecs.SetPixel(Context, CenterX - X, CenterY + Y, StrokeColor);
+        Context->ModeSpecs.SetPixel(Context, CenterX - X, CenterY - Y, StrokeColor);
+        Context->ModeSpecs.SetPixel(Context, CenterX - Y, CenterY - X, StrokeColor);
+        Context->ModeSpecs.SetPixel(Context, CenterX + Y, CenterY - X, StrokeColor);
+        Context->ModeSpecs.SetPixel(Context, CenterX + X, CenterY - Y, StrokeColor);
+
+        Y++;
+        if (Error < 0) {
+            Error += (2 * Y) + 1;
+        } else {
+            X--;
+            Error += 2 * (Y - X) + 1;
+        }
+    }
+
+    return 1;
+}
+
+/***************************************************************************/
+
 /**
  * @brief Draw a simple self-test pattern for sanity checks.
  *

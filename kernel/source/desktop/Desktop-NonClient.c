@@ -407,6 +407,69 @@ BOOL IsPointInWindowTitleBar(LPWINDOW Window, LPPOINT ScreenPoint) {
 /***************************************************************************/
 
 /**
+ * @brief Compute the client rectangle from a window-local rectangle.
+ * @param Window Target window.
+ * @param WindowRect Full window-local rectangle.
+ * @param ClientRect Receives window-local client rectangle.
+ * @return TRUE when a valid client area was produced.
+ */
+BOOL GetWindowClientRect(LPWINDOW Window, LPRECT WindowRect, LPRECT ClientRect) {
+    U32 BorderThickness;
+    U32 TitleHeight = 22;
+    I32 Left;
+    I32 Top;
+    I32 Right;
+    I32 Bottom;
+    I32 MaxTitleHeight;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (WindowRect == NULL || ClientRect == NULL) return FALSE;
+
+    Left = WindowRect->X1;
+    Top = WindowRect->Y1;
+    Right = WindowRect->X2;
+    Bottom = WindowRect->Y2;
+
+    if (Left > Right || Top > Bottom) return FALSE;
+
+    if (ShouldDrawWindowNonClient(Window) == FALSE) {
+        *ClientRect = *WindowRect;
+        return TRUE;
+    }
+
+    if (ResolveWindowBorderThickness(&BorderThickness) == FALSE) return FALSE;
+
+    if (!DesktopThemeResolveLevel1Metric(TEXT("window.titlebar"), TEXT("normal"), TEXT("title_height"), &TitleHeight)) {
+        if (!DesktopThemeResolveTokenMetricByName(TEXT("metric.window.title_height"), &TitleHeight)) {
+            TitleHeight = 22;
+        }
+    }
+
+    Left += (I32)BorderThickness;
+    Right -= (I32)BorderThickness;
+    Top += (I32)BorderThickness;
+    Bottom -= (I32)BorderThickness;
+
+    if (Left > Right || Top > Bottom) return FALSE;
+
+    MaxTitleHeight = Bottom - Top + 1;
+    if (MaxTitleHeight <= 0) return FALSE;
+    if ((I32)TitleHeight > MaxTitleHeight) TitleHeight = (U32)MaxTitleHeight;
+    Top += (I32)TitleHeight;
+
+    if (Top > Bottom) return FALSE;
+
+    ClientRect->X1 = Left;
+    ClientRect->Y1 = Top;
+    ClientRect->X2 = Right;
+    ClientRect->Y2 = Bottom;
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Draw the default non-client visuals for a window.
  * @param Window Window handle.
  * @param GC Graphics context handle.

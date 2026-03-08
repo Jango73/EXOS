@@ -31,6 +31,7 @@
 #include "input/Mouse.h"
 #include "Desktop-Dispatcher.h"
 #include "Desktop-Cursor.h"
+#include "Desktop-Timer.h"
 #include "Desktop.h"
 #include "Desktop-ModeSelector.h"
 #include "Desktop-ThemeTokens.h"
@@ -151,6 +152,9 @@ DESKTOP MainDesktop = {
     .Capture = NULL,
     .CaptureOffsetX = 0,
     .CaptureOffsetY = 0,
+    .TimerMutex = EMPTY_MUTEX,
+    .Timers = NULL,
+    .TimerTask = NULL,
     .Focus = NULL,
     .FocusedProcess = &KernelProcess,
     .Mode = DESKTOP_MODE_CONSOLE,
@@ -302,11 +306,18 @@ LPDESKTOP CreateDesktop(void) {
     MemorySet(This, 0, sizeof(DESKTOP));
 
     InitMutex(&(This->Mutex));
+    InitMutex(&(This->TimerMutex));
+    This->Timers = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
+    if (This->Timers == NULL) {
+        KernelHeapFree(This);
+        return NULL;
+    }
 
     This->TypeID = KOID_DESKTOP;
     This->References = KOID_DESKTOP;
     This->Task = GetCurrentTask();
     if (EnsureAllMessageQueues(This->Task, TRUE) == FALSE) {
+        DeleteList(This->Timers);
         KernelHeapFree(This);
         return NULL;
     }
@@ -363,6 +374,11 @@ BOOL DeleteDesktop(LPDESKTOP This) {
     if (This == NULL) return FALSE;
 
     LockMutex(&(This->Mutex), INFINITY);
+
+    SAFE_USE(This->Timers) {
+        DeleteList(This->Timers);
+        This->Timers = NULL;
+    }
 
     SAFE_USE_VALID_ID(This->Window, KOID_WINDOW) {
         DeleteWindow(This->Window);
@@ -618,6 +634,7 @@ BOOL DeleteWindow(LPWINDOW This) {
 
     LockMutex(&(Desktop->Mutex), INFINITY);
 
+    DesktopTimerRemoveWindowTimers(Desktop, This);
     if (Desktop->Capture == This) Desktop->Capture = NULL;
     if (Desktop->Focus == This) Desktop->Focus = NULL;
 

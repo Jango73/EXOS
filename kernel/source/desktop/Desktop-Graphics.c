@@ -1089,6 +1089,58 @@ BOOL Rectangle(LPRECTINFO RectInfo) {
 /***************************************************************************/
 
 /**
+ * @brief Draw an arc using current pen.
+ * @param ArcInfo Arc parameters.
+ * @return TRUE on success.
+ */
+BOOL Arc(LPARCINFO ArcInfo) {
+    LPGRAPHICSCONTEXT Context;
+
+    if (ArcInfo == NULL) return FALSE;
+    if (ArcInfo->Header.Size < sizeof(ARCINFO)) return FALSE;
+
+    Context = (LPGRAPHICSCONTEXT)ArcInfo->GC;
+    if (Context == NULL) return FALSE;
+    if (Context->TypeID != KOID_GRAPHICSCONTEXT) return FALSE;
+
+    ArcInfo->CenterX = Context->Origin.X + ArcInfo->CenterX;
+    ArcInfo->CenterY = Context->Origin.Y + ArcInfo->CenterY;
+
+    Context->Driver->Command(DF_GFX_ARC, (UINT)ArcInfo);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Draw a triangle using current pen and brush.
+ * @param TriangleInfo Triangle parameters.
+ * @return TRUE on success.
+ */
+BOOL Triangle(LPTRIANGLEINFO TriangleInfo) {
+    LPGRAPHICSCONTEXT Context;
+
+    if (TriangleInfo == NULL) return FALSE;
+    if (TriangleInfo->Header.Size < sizeof(TRIANGLEINFO)) return FALSE;
+
+    Context = (LPGRAPHICSCONTEXT)TriangleInfo->GC;
+    if (Context == NULL) return FALSE;
+    if (Context->TypeID != KOID_GRAPHICSCONTEXT) return FALSE;
+
+    TriangleInfo->P1.X = Context->Origin.X + TriangleInfo->P1.X;
+    TriangleInfo->P1.Y = Context->Origin.Y + TriangleInfo->P1.Y;
+    TriangleInfo->P2.X = Context->Origin.X + TriangleInfo->P2.X;
+    TriangleInfo->P2.Y = Context->Origin.Y + TriangleInfo->P2.Y;
+    TriangleInfo->P3.X = Context->Origin.X + TriangleInfo->P3.X;
+    TriangleInfo->P3.Y = Context->Origin.Y + TriangleInfo->P3.Y;
+
+    Context->Driver->Command(DF_GFX_TRIANGLE, (UINT)TriangleInfo);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Determine which window is under a given screen position.
  * @param Handle Starting window handle.
  * @param Position Screen coordinates to test.
