@@ -597,7 +597,7 @@ static void DesktopCursorRefreshClipAndPosition(LPDESKTOP Desktop) {
 /************************************************************************/
 
 /**
- * @brief Draw one line in local window coordinates.
+ * @brief Draw one line in window coordinates.
  * @param GC Graphics context.
  * @param X1 Start X.
  * @param Y1 Start Y.

@@ -185,7 +185,7 @@ static BOOL ResolveWindowBorderThickness(U32* ThicknessOut) {
 /**
  * @brief Draw themed window borders around a window rectangle.
  * @param GC Graphics context.
- * @param Rect Target window-local rectangle.
+ * @param Rect Target window rectangle in window coordinates.
  */
 static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
     U32 BorderThickness = 2;
@@ -407,10 +407,10 @@ BOOL IsPointInWindowTitleBar(LPWINDOW Window, LPPOINT ScreenPoint) {
 /***************************************************************************/
 
 /**
- * @brief Compute the client rectangle from a window-local rectangle.
+ * @brief Compute the client rectangle from a window-rectangle.
  * @param Window Target window.
- * @param WindowRect Full window-local rectangle.
- * @param ClientRect Receives window-local client rectangle.
+ * @param WindowRect Full window rectangle (window coordinates).
+ * @param ClientRect Receives client rectangle (window coordinates).
  * @return TRUE when a valid client area was produced.
  */
 BOOL GetWindowClientRect(LPWINDOW Window, LPRECT WindowRect, LPRECT ClientRect) {

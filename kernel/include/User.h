@@ -234,6 +234,7 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_SetWindowProp 0x00000050
 #define SYSCALL_GetWindowProp 0x00000051
 #define SYSCALL_GetWindowRect 0x00000052
+#define SYSCALL_GetWindowClientRect 0x0000007C
 #define SYSCALL_InvalidateWindowRect 0x00000053
 #define SYSCALL_GetWindowGC 0x00000054
 #define SYSCALL_ReleaseWindowGC 0x00000055
@@ -275,7 +276,7 @@ typedef struct PACKED tag_ABI_HEADER {
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x0000007C
+#define SYSCALL_Last 0x0000007D
 
 /************************************************************************/
 // Structure limits

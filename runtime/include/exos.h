@@ -82,6 +82,7 @@ BOOL ReleaseWindowGC(HANDLE);
 HANDLE BeginWindowDraw(HANDLE);
 BOOL EndWindowDraw(HANDLE);
 BOOL GetWindowRect(HANDLE, LPRECT);
+BOOL GetWindowClientRect(HANDLE, LPRECT);
 HANDLE GetSystemBrush(U32);
 HANDLE GetSystemPen(U32);
 HANDLE CreateBrush(COLOR, U32);

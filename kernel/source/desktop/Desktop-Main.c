@@ -63,8 +63,8 @@ static LIST MainDesktopChildren = {NULL, NULL, NULL, 0, KernelHeapAlloc, KernelH
  * @param Src Source rectangle in window coordinates.
  * @param Dst Destination rectangle in screen coordinates.
  */
-static void WindowRectToScreenRectLocked(LPWINDOW This, LPRECT Src, LPRECT Dst) {
-    WindowLocalRectToScreenRect(&(This->ScreenRect), Src, Dst);
+static void WindowRectToScreenRectLocked(LPWINDOW This, LPRECT WindowRect, LPRECT ScreenRect) {
+    GraphicsWindowRectToScreenRect(&(This->ScreenRect), WindowRect, ScreenRect);
 }
 
 /***************************************************************************/
@@ -773,7 +773,7 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     SAFE_USE(This->ParentWindow) {
         LockMutex(&(This->ParentWindow->Mutex), INFINITY);
 
-        WindowLocalRectToScreenRect(&(This->ParentWindow->ScreenRect), &(This->Rect), &(This->ScreenRect));
+        GraphicsWindowRectToScreenRect(&(This->ParentWindow->ScreenRect), &(This->Rect), &(This->ScreenRect));
 
         RectRegionReset(&This->DirtyRegion);
         (void)RectRegionAddRect(&This->DirtyRegion, &This->ScreenRect);
@@ -911,18 +911,18 @@ BOOL RectInRect(LPRECT Src, LPRECT Dst) {
  * @param Dst Destination rectangle in screen coordinates.
  * @return TRUE on success.
  */
-BOOL WindowRectToScreenRect(HANDLE Handle, LPRECT Src, LPRECT Dst) {
+BOOL WindowRectToScreenRect(HANDLE Handle, LPRECT WindowRect, LPRECT ScreenRect) {
     LPWINDOW This = (LPWINDOW)Handle;
 
     if (This == NULL) return FALSE;
     if (This->TypeID != KOID_WINDOW) return FALSE;
 
-    if (Src == NULL) return FALSE;
-    if (Dst == NULL) return FALSE;
+    if (WindowRect == NULL) return FALSE;
+    if (ScreenRect == NULL) return FALSE;
 
     LockMutex(&(This->Mutex), INFINITY);
 
-    WindowRectToScreenRectLocked(This, Src, Dst);
+    WindowRectToScreenRectLocked(This, WindowRect, ScreenRect);
 
     UnlockMutex(&(This->Mutex));
 
@@ -938,18 +938,18 @@ BOOL WindowRectToScreenRect(HANDLE Handle, LPRECT Src, LPRECT Dst) {
  * @param Dst Destination window rectangle.
  * @return TRUE on success.
  */
-BOOL ScreenRectToWindowRect(HANDLE Handle, LPRECT Src, LPRECT Dst) {
+BOOL ScreenRectToWindowRect(HANDLE Handle, LPRECT ScreenRect, LPRECT WindowRect) {
     LPWINDOW This = (LPWINDOW)Handle;
 
     if (This == NULL) return FALSE;
     if (This->TypeID != KOID_WINDOW) return FALSE;
 
-    if (Src == NULL) return FALSE;
-    if (Dst == NULL) return FALSE;
+    if (ScreenRect == NULL) return FALSE;
+    if (WindowRect == NULL) return FALSE;
 
     LockMutex(&(This->Mutex), INFINITY);
 
-    ScreenRectToWindowLocalRect(&(This->ScreenRect), Src, Dst);
+    GraphicsScreenRectToWindowRect(&(This->ScreenRect), ScreenRect, WindowRect);
 
     UnlockMutex(&(This->Mutex));
 

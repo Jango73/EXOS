@@ -36,6 +36,7 @@
 #include "Memory.h"
 #include "input/Mouse.h"
 #include "Desktop.h"
+#include "desktop/Desktop-NonClient.h"
 #include "process/Process.h"
 #include "process/Schedule.h"
 #include "User.h"
@@ -1736,7 +1737,7 @@ UINT SysCall_GetWindowProp(UINT Parameter) {
 /************************************************************************/
 
 /**
- * @brief Retrieve the client rectangle for a window.
+ * @brief Retrieve the screen rectangle for a window.
  *
  * @param Parameter Pointer to WINDOWRECT containing the window handle.
  * @return UINT TRUE on success.
@@ -1747,6 +1748,25 @@ UINT SysCall_GetWindowRect(UINT Parameter) {
     SAFE_USE_INPUT_POINTER(WindowRect, WINDOWRECT) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
         SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)GetWindowRect((HANDLE)Window, &(WindowRect->Rect)); }
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the client rectangle for a window.
+ *
+ * @param Parameter Pointer to WINDOWRECT containing the window handle.
+ * @return UINT TRUE on success.
+ */
+UINT SysCall_GetWindowClientRect(UINT Parameter) {
+    LPWINDOWRECT WindowRect = (LPWINDOWRECT)Parameter;
+
+    SAFE_USE_INPUT_POINTER(WindowRect, WINDOWRECT) {
+        LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)GetWindowClientRect(Window, &(Window->Rect), &(WindowRect->Rect)); }
     }
 
     return 0;

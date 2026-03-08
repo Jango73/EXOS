@@ -117,6 +117,7 @@ UINT SysCall_GetWindowStyle(UINT Parameter);
 UINT SysCall_SetWindowProp(UINT Parameter);
 UINT SysCall_GetWindowProp(UINT Parameter);
 UINT SysCall_GetWindowRect(UINT Parameter);
+UINT SysCall_GetWindowClientRect(UINT Parameter);
 UINT SysCall_InvalidateWindowRect(UINT Parameter);
 UINT SysCall_GetWindowGC(UINT Parameter);
 UINT SysCall_ReleaseWindowGC(UINT Parameter);

@@ -65,20 +65,20 @@ static SYSTEM_DRAW_OBJECT_ENTRY SystemDrawObjects[] = {
  * @brief Convert one screen rectangle into coordinates relative to one window.
  * @param Window Window used as origin.
  * @param ScreenRect Rectangle in screen coordinates.
- * @param RelativeRect Receives rectangle in window-relative coordinates.
+ * @param WindowRect Receives rectangle in window coordinates.
  * @return TRUE on success.
  */
-static BOOL ConvertScreenRectToWindowLocalRect(LPWINDOW Window, LPRECT ScreenRect, LPRECT RelativeRect) {
+static BOOL ConvertScreenRectToWindowRect(LPWINDOW Window, LPRECT ScreenRect, LPRECT WindowRect) {
     RECT WindowScreenRect;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
-    if (ScreenRect == NULL || RelativeRect == NULL) return FALSE;
+    if (ScreenRect == NULL || WindowRect == NULL) return FALSE;
 
     LockMutex(&(Window->Mutex), INFINITY);
     WindowScreenRect = Window->ScreenRect;
     UnlockMutex(&(Window->Mutex));
 
-    ScreenRectToWindowLocalRect(&WindowScreenRect, ScreenRect, RelativeRect);
+    GraphicsScreenRectToWindowRect(&WindowScreenRect, ScreenRect, WindowRect);
 
     return TRUE;
 }
@@ -137,11 +137,11 @@ static BOOL DefaultMoveWindow(LPWINDOW Window, LPPOINT Position) {
 
     UnlockMutex(&(Window->Mutex));
 
-    if (ConvertScreenRectToWindowLocalRect(Parent, &OldScreenRect, &ParentOldRect)) {
+    if (ConvertScreenRectToWindowRect(Parent, &OldScreenRect, &ParentOldRect)) {
         (void)InvalidateWindowRect((HANDLE)Parent, &ParentOldRect);
     }
 
-    if (ConvertScreenRectToWindowLocalRect(Parent, &NewScreenRect, &ParentNewRect)) {
+    if (ConvertScreenRectToWindowRect(Parent, &NewScreenRect, &ParentNewRect)) {
         (void)InvalidateWindowRect((HANDLE)Parent, &ParentNewRect);
     }
 

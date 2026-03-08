@@ -59,7 +59,7 @@ static void DesktopOverlayInvalidateWindowTreeRectInternal(LPWINDOW Window, LPRE
 
     if (SkipCurrent == FALSE && IsVisible != FALSE) {
         if (IntersectRect(&WindowScreenRect, ScreenRect, &Intersection) != FALSE) {
-            ScreenRectToWindowLocalRect(&WindowScreenRect, &Intersection, &WindowRect);
+            GraphicsScreenRectToWindowRect(&WindowScreenRect, &Intersection, &WindowRect);
             HasIntersection = TRUE;
         }
     }
@@ -135,7 +135,7 @@ static BOOL DesktopOverlayInvalidateRootVisibleRemainderRect(LPWINDOW RootWindow
 
     for (RemainingIndex = 0; RemainingIndex < RectRegionGetCount(&RemainderRegion); RemainingIndex++) {
         if (RectRegionGetRect(&RemainderRegion, RemainingIndex, &RemainingRect) == FALSE) continue;
-        ScreenRectToWindowLocalRect(&RootScreenRect, &RemainingRect, &RootWindowRect);
+        GraphicsScreenRectToWindowRect(&RootScreenRect, &RemainingRect, &RootWindowRect);
         if (InvalidateWindowRect((HANDLE)RootWindow, &RootWindowRect) != FALSE) {
             InvalidatedAny = TRUE;
         }
@@ -169,7 +169,7 @@ BOOL DesktopOverlayInvalidateRootRect(LPWINDOW RootWindow, LPRECT ScreenRect) {
 
     if (IsVisible != FALSE) {
         if (IntersectRect(&RootScreenRect, ScreenRect, &Intersection) != FALSE) {
-            ScreenRectToWindowLocalRect(&RootScreenRect, &Intersection, &RootWindowRect);
+            GraphicsScreenRectToWindowRect(&RootScreenRect, &Intersection, &RootWindowRect);
             HasIntersection = TRUE;
         }
     }

@@ -119,7 +119,7 @@ BOOL SubtractRectFromRegion(LPRECT_REGION Region, LPRECT Occluder, LPRECT TempSt
 
 /************************************************************************/
 
-void ScreenRectToWindowLocalRect(LPRECT WindowScreenRect, LPRECT ScreenRect, LPRECT WindowRect) {
+void GraphicsScreenRectToWindowRect(LPRECT WindowScreenRect, LPRECT ScreenRect, LPRECT WindowRect) {
     if (WindowScreenRect == NULL || ScreenRect == NULL || WindowRect == NULL) return;
 
     WindowRect->X1 = ScreenRect->X1 - WindowScreenRect->X1;
@@ -130,7 +130,7 @@ void ScreenRectToWindowLocalRect(LPRECT WindowScreenRect, LPRECT ScreenRect, LPR
 
 /************************************************************************/
 
-void WindowLocalRectToScreenRect(LPRECT WindowScreenRect, LPRECT WindowRect, LPRECT ScreenRect) {
+void GraphicsWindowRectToScreenRect(LPRECT WindowScreenRect, LPRECT WindowRect, LPRECT ScreenRect) {
     if (WindowScreenRect == NULL || WindowRect == NULL || ScreenRect == NULL) return;
 
     ScreenRect->X1 = WindowScreenRect->X1 + WindowRect->X1;
@@ -141,7 +141,7 @@ void WindowLocalRectToScreenRect(LPRECT WindowScreenRect, LPRECT WindowRect, LPR
 
 /************************************************************************/
 
-void ScreenPointToWindowLocalPoint(LPRECT WindowScreenRect, LPPOINT ScreenPoint, LPPOINT WindowPoint) {
+void GraphicsScreenPointToWindowPoint(LPRECT WindowScreenRect, LPPOINT ScreenPoint, LPPOINT WindowPoint) {
     if (WindowScreenRect == NULL || ScreenPoint == NULL || WindowPoint == NULL) return;
 
     WindowPoint->X = ScreenPoint->X - WindowScreenRect->X1;
@@ -150,7 +150,7 @@ void ScreenPointToWindowLocalPoint(LPRECT WindowScreenRect, LPPOINT ScreenPoint,
 
 /************************************************************************/
 
-void WindowLocalPointToScreenPoint(LPRECT WindowScreenRect, LPPOINT WindowPoint, LPPOINT ScreenPoint) {
+void GraphicsWindowPointToScreenPoint(LPRECT WindowScreenRect, LPPOINT WindowPoint, LPPOINT ScreenPoint) {
     if (WindowScreenRect == NULL || WindowPoint == NULL || ScreenPoint == NULL) return;
 
     ScreenPoint->X = WindowScreenRect->X1 + WindowPoint->X;

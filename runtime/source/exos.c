@@ -336,7 +336,34 @@ BOOL GetWindowRect(HANDLE Window, LPRECT Rect) {
     WindowRect.Rect.X2 = 0;
     WindowRect.Rect.Y2 = 0;
 
-    exoscall(SYSCALL_GetWindowRect, EXOS_PARAM(&WindowRect));
+    if (exoscall(SYSCALL_GetWindowRect, EXOS_PARAM(&WindowRect)) == FALSE) return FALSE;
+
+    Rect->X1 = WindowRect.Rect.X1;
+    Rect->Y1 = WindowRect.Rect.Y1;
+    Rect->X2 = WindowRect.Rect.X2;
+    Rect->Y2 = WindowRect.Rect.Y2;
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+BOOL GetWindowClientRect(HANDLE Window, LPRECT Rect) {
+    WINDOWRECT WindowRect;
+
+    if (Window == NULL) return FALSE;
+    if (Rect == NULL) return FALSE;
+
+    WindowRect.Header.Size = sizeof WindowRect;
+    WindowRect.Header.Version = EXOS_ABI_VERSION;
+    WindowRect.Header.Flags = 0;
+    WindowRect.Window = Window;
+    WindowRect.Rect.X1 = 0;
+    WindowRect.Rect.Y1 = 0;
+    WindowRect.Rect.X2 = 0;
+    WindowRect.Rect.Y2 = 0;
+
+    if (exoscall(SYSCALL_GetWindowClientRect, EXOS_PARAM(&WindowRect)) == FALSE) return FALSE;
 
     Rect->X1 = WindowRect.Rect.X1;
     Rect->Y1 = WindowRect.Rect.Y1;
