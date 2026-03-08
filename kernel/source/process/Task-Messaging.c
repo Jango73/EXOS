@@ -432,6 +432,21 @@ BOOL EnqueueInputMessage(U32 Msg, U32 Param1, U32 Param2) {
         }
     }
 
+    // Mouse input must always target one desktop window task when available,
+    // otherwise dispatcher receives thread messages with NULL target.
+    if (TargetTask == NULL && (Msg == EWM_MOUSEMOVE || Msg == EWM_MOUSEDOWN || Msg == EWM_MOUSEUP)) {
+        SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+            SAFE_USE_VALID_ID(Desktop->Window, KOID_WINDOW) {
+                SAFE_USE_VALID_ID(Desktop->Window->Task, KOID_TASK) {
+                    if (Desktop->Window->Task->Process == Process) {
+                        FocusedWindow = Desktop->Window;
+                        TargetTask = Desktop->Window->Task;
+                    }
+                }
+            }
+        }
+    }
+
     LPMESSAGE Message = NewMessage();
     if (Message == NULL) {
         return FALSE;

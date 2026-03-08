@@ -60,13 +60,6 @@ static SYSTEM_DRAW_OBJECT_ENTRY SystemDrawObjects[] = {
 
 /***************************************************************************/
 
-static U32 DATA_SECTION BeginWindowDrawLogCount = 0;
-static U32 DATA_SECTION DefWindowDrawLogCount = 0;
-static U32 DATA_SECTION DesktopRootDrawLogCount = 0;
-static U32 DATA_SECTION ClipRegionFallbackLogCount = 0;
-
-/***************************************************************************/
-
 /**
  * @brief Convert one screen rectangle into coordinates relative to one window.
  * @param Window Window used as origin.
@@ -188,28 +181,21 @@ static BOOL SetGraphicsContextClipScreenRect(HANDLE GC, LPRECT ClipRect) {
  * @param ClipRegion Destination clip region.
  * @param ClipStorage Backing storage for destination clip region.
  * @param ClipCapacity Clip storage capacity.
- * @param UsedFallback Receives TRUE when fallback full redraw was used.
  * @return TRUE on success.
  */
 static BOOL BuildWindowDrawClipRegion(
     LPWINDOW This,
     LPRECT_REGION ClipRegion,
     LPRECT ClipStorage,
-    UINT ClipCapacity,
-    BOOL* UsedFallback
+    UINT ClipCapacity
 ) {
     RECT WindowScreenRect;
     RECT DirtyRect;
     UINT DirtyCount;
     UINT DirtyIndex;
-    BOOL Fallback = FALSE;
 
     if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
     if (ClipRegion == NULL) return FALSE;
-    if (UsedFallback == NULL) return FALSE;
-
-    *UsedFallback = FALSE;
-
     if (RectRegionInit(ClipRegion, ClipStorage, ClipCapacity) == FALSE) return FALSE;
     RectRegionReset(ClipRegion);
 
@@ -224,7 +210,6 @@ static BOOL BuildWindowDrawClipRegion(
     DirtyCount = RectRegionGetCount(&This->DirtyRegion);
     if (DirtyCount == 0) {
         (void)RectRegionAddRect(ClipRegion, &WindowScreenRect);
-        Fallback = TRUE;
     } else {
         for (DirtyIndex = 0; DirtyIndex < DirtyCount; DirtyIndex++) {
             if (RectRegionGetRect(&This->DirtyRegion, DirtyIndex, &DirtyRect) == FALSE) continue;
@@ -242,19 +227,16 @@ static BOOL BuildWindowDrawClipRegion(
     if (RectRegionIsOverflowed(&This->DirtyRegion) || RectRegionIsOverflowed(ClipRegion)) {
         RectRegionReset(ClipRegion);
         (void)RectRegionAddRect(ClipRegion, &WindowScreenRect);
-        Fallback = TRUE;
     }
 
     if (RectRegionGetCount(ClipRegion) == 0) {
         (void)RectRegionAddRect(ClipRegion, &WindowScreenRect);
-        Fallback = TRUE;
     }
 
     RectRegionReset(&This->DirtyRegion);
 
     UnlockMutex(&(This->Mutex));
 
-    *UsedFallback = Fallback;
     return TRUE;
 }
 
@@ -479,7 +461,7 @@ BOOL ShowWindow(HANDLE Handle, BOOL ShowHide) {
     This->Status |= WINDOW_STATUS_VISIBLE;
 
     PostMessage(Handle, EWM_SHOW, 0, 0);
-    PostMessage(Handle, EWM_DRAW, 0, 0);
+    (void)RequestWindowDraw(Handle);
 
     //-------------------------------------
     // Lock access to resources
@@ -804,14 +786,6 @@ HANDLE BeginWindowDraw(HANDLE Handle) {
     LockMutex(&(This->Mutex), INFINITY);
 
     GC = GetWindowGC(Handle);
-    if (GC == NULL && BeginWindowDrawLogCount < 64) {
-        DEBUG(TEXT("[BeginWindowDraw] GetWindowGC returned NULL window=%p id=%x style=%x status=%x"),
-            This,
-            This->WindowID,
-            This->Style,
-            This->Status);
-        BeginWindowDrawLogCount++;
-    }
 
     //-------------------------------------
     // Unlock access to resources
@@ -1205,19 +1179,23 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             RECT_REGION ClipRegion;
             RECT ClipRect;
             UINT ClipIndex;
-            BOOL UsedFallback = FALSE;
             LPWINDOW This = (LPWINDOW)Window;
+            BOOL DrawingMarked = FALSE;
 
-            if (DefWindowDrawLogCount < 128) {
-                DEBUG(TEXT("[DefWindowFunc] EWM_DRAW window=%p id=%x style=%x status=%x"),
-                    This,
-                    This != NULL ? This->WindowID : 0,
-                    This != NULL ? This->Style : 0,
-                    This != NULL ? This->Status : 0);
-                DefWindowDrawLogCount++;
+            if (This != NULL && This->TypeID == KOID_WINDOW) {
+                LockMutex(&(This->Mutex), INFINITY);
+                This->Status &= ~WINDOW_STATUS_NEED_DRAW;
+                This->Status |= WINDOW_STATUS_DRAWING;
+                DrawingMarked = TRUE;
+                UnlockMutex(&(This->Mutex));
             }
 
-            if (BuildWindowDrawClipRegion(This, &ClipRegion, ClipStorage, WINDOW_DIRTY_REGION_CAPACITY, &UsedFallback) == FALSE) {
+            if (BuildWindowDrawClipRegion(This, &ClipRegion, ClipStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) {
+                if (DrawingMarked != FALSE) {
+                    LockMutex(&(This->Mutex), INFINITY);
+                    This->Status &= ~WINDOW_STATUS_DRAWING;
+                    UnlockMutex(&(This->Mutex));
+                }
                 break;
             }
 
@@ -1225,16 +1203,6 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
             if (GC) {
                 GetWindowRect(Window, &Rect);
-
-                if (DefWindowDrawLogCount < 128) {
-                    DEBUG(TEXT("[DefWindowFunc] Draw rect id=%x local_rect=(%u,%u)-(%u,%u)"),
-                        This != NULL ? This->WindowID : 0,
-                        UNSIGNED(Rect.X1),
-                        UNSIGNED(Rect.Y1),
-                        UNSIGNED(Rect.X2),
-                        UNSIGNED(Rect.Y2));
-                    DefWindowDrawLogCount++;
-                }
 
                 if (ShouldDrawWindowNonClient(This)) {
                     for (ClipIndex = 0; ClipIndex < RectRegionGetCount(&ClipRegion); ClipIndex++) {
@@ -1244,14 +1212,13 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                     }
                 }
 
-                if (UsedFallback && ClipRegionFallbackLogCount < 64) {
-                    DEBUG(TEXT("[DefWindowFunc] Clip fallback id=%x clip_count=%u"),
-                        This != NULL ? This->WindowID : 0,
-                        RectRegionGetCount(&ClipRegion));
-                    ClipRegionFallbackLogCount++;
-                }
-
                 EndWindowDraw(Window);
+            }
+
+            if (DrawingMarked != FALSE) {
+                LockMutex(&(This->Mutex), INFINITY);
+                This->Status &= ~WINDOW_STATUS_DRAWING;
+                UnlockMutex(&(This->Mutex));
             }
         } break;
     }
@@ -1367,9 +1334,24 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             BRUSH Brush;
             COLOR Background;
             BOOL HasBackground;
-            BOOL UsedFallback = FALSE;
+            BOOL DrawingMarked = FALSE;
 
-            if (BuildWindowDrawClipRegion((LPWINDOW)Window, &ClipRegion, ClipStorage, WINDOW_DIRTY_REGION_CAPACITY, &UsedFallback) == FALSE) {
+            SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
+                LockMutex(&(((LPWINDOW)Window)->Mutex), INFINITY);
+                ((LPWINDOW)Window)->Status &= ~WINDOW_STATUS_NEED_DRAW;
+                ((LPWINDOW)Window)->Status |= WINDOW_STATUS_DRAWING;
+                DrawingMarked = TRUE;
+                UnlockMutex(&(((LPWINDOW)Window)->Mutex));
+            }
+
+            if (BuildWindowDrawClipRegion((LPWINDOW)Window, &ClipRegion, ClipStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) {
+                if (DrawingMarked != FALSE) {
+                    SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
+                        LockMutex(&(((LPWINDOW)Window)->Mutex), INFINITY);
+                        ((LPWINDOW)Window)->Status &= ~WINDOW_STATUS_DRAWING;
+                        UnlockMutex(&(((LPWINDOW)Window)->Mutex));
+                    }
+                }
                 break;
             }
 
@@ -1377,16 +1359,6 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
             if (GC) {
                 GetWindowRect(Window, &Rect);
-
-                if (DesktopRootDrawLogCount < 64) {
-                    DEBUG(TEXT("[DesktopWindowFunc] EWM_DRAW root id=%x rect=(%u,%u)-(%u,%u)"),
-                        ((LPWINDOW)Window)->WindowID,
-                        UNSIGNED(Rect.X1),
-                        UNSIGNED(Rect.Y1),
-                        UNSIGNED(Rect.X2),
-                        UNSIGNED(Rect.Y2));
-                    DesktopRootDrawLogCount++;
-                }
 
                 RectInfo.Header.Size = sizeof(RectInfo);
                 RectInfo.Header.Version = EXOS_ABI_VERSION;
@@ -1426,14 +1398,15 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                     }
                 }
 
-                if (UsedFallback && ClipRegionFallbackLogCount < 64) {
-                    DEBUG(TEXT("[DesktopWindowFunc] Clip fallback id=%x clip_count=%u"),
-                        ((LPWINDOW)Window)->WindowID,
-                        RectRegionGetCount(&ClipRegion));
-                    ClipRegionFallbackLogCount++;
-                }
-
                 EndWindowDraw(Window);
+            }
+
+            if (DrawingMarked != FALSE) {
+                SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
+                    LockMutex(&(((LPWINDOW)Window)->Mutex), INFINITY);
+                    ((LPWINDOW)Window)->Status &= ~WINDOW_STATUS_DRAWING;
+                    UnlockMutex(&(((LPWINDOW)Window)->Mutex));
+                }
             }
         } break;
 

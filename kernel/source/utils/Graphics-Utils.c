@@ -38,6 +38,87 @@ BOOL IntersectRect(LPRECT Left, LPRECT Right, LPRECT Result) {
 
 /************************************************************************/
 
+/**
+ * @brief Append one rectangle to a region when it is valid.
+ * @param Region Destination region.
+ * @param Rect Candidate rectangle.
+ * @return TRUE on success.
+ */
+static BOOL GraphicsRegionAppendRectIfValid(LPRECT_REGION Region, LPRECT Rect) {
+    if (Region == NULL || Rect == NULL) return FALSE;
+    if (Rect->X1 > Rect->X2 || Rect->Y1 > Rect->Y2) return TRUE;
+    return RectRegionAddRect(Region, Rect);
+}
+
+/************************************************************************/
+
+BOOL SubtractRectFromRect(LPRECT Source, LPRECT Occluder, LPRECT_REGION Region) {
+    RECT Intersection;
+    RECT Piece;
+
+    if (Source == NULL || Occluder == NULL || Region == NULL) return FALSE;
+
+    if (IntersectRect(Source, Occluder, &Intersection) == FALSE) {
+        return GraphicsRegionAppendRectIfValid(Region, Source);
+    }
+
+    Piece.X1 = Source->X1;
+    Piece.Y1 = Source->Y1;
+    Piece.X2 = Source->X2;
+    Piece.Y2 = Intersection.Y1 - 1;
+    if (GraphicsRegionAppendRectIfValid(Region, &Piece) == FALSE) return FALSE;
+
+    Piece.X1 = Source->X1;
+    Piece.Y1 = Intersection.Y2 + 1;
+    Piece.X2 = Source->X2;
+    Piece.Y2 = Source->Y2;
+    if (GraphicsRegionAppendRectIfValid(Region, &Piece) == FALSE) return FALSE;
+
+    Piece.X1 = Source->X1;
+    Piece.Y1 = Intersection.Y1;
+    Piece.X2 = Intersection.X1 - 1;
+    Piece.Y2 = Intersection.Y2;
+    if (GraphicsRegionAppendRectIfValid(Region, &Piece) == FALSE) return FALSE;
+
+    Piece.X1 = Intersection.X2 + 1;
+    Piece.Y1 = Intersection.Y1;
+    Piece.X2 = Source->X2;
+    Piece.Y2 = Intersection.Y2;
+    if (GraphicsRegionAppendRectIfValid(Region, &Piece) == FALSE) return FALSE;
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+BOOL SubtractRectFromRegion(LPRECT_REGION Region, LPRECT Occluder, LPRECT TempStorage, UINT TempCapacity) {
+    RECT_REGION TempRegion;
+    RECT Current;
+    UINT Count;
+    UINT Index;
+
+    if (Region == NULL || Occluder == NULL) return FALSE;
+    if (RectRegionInit(&TempRegion, TempStorage, TempCapacity) == FALSE) return FALSE;
+    RectRegionReset(&TempRegion);
+
+    Count = RectRegionGetCount(Region);
+    for (Index = 0; Index < Count; Index++) {
+        if (RectRegionGetRect(Region, Index, &Current) == FALSE) return FALSE;
+        if (SubtractRectFromRect(&Current, Occluder, &TempRegion) == FALSE) return FALSE;
+    }
+
+    RectRegionReset(Region);
+    Count = RectRegionGetCount(&TempRegion);
+    for (Index = 0; Index < Count; Index++) {
+        if (RectRegionGetRect(&TempRegion, Index, &Current) == FALSE) return FALSE;
+        if (RectRegionAddRect(Region, &Current) == FALSE) return FALSE;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
 void ScreenRectToWindowLocalRect(LPRECT WindowScreenRect, LPRECT ScreenRect, LPRECT WindowRect) {
     if (WindowScreenRect == NULL || ScreenRect == NULL || WindowRect == NULL) return;
 

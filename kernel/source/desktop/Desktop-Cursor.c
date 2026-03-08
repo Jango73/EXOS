@@ -364,14 +364,11 @@ static void DesktopCursorSetPathState(LPDESKTOP Desktop, U32 Path, U32 Reason, U
     UnlockMutex(&(Desktop->Mutex));
 
     if (Path == DESKTOP_CURSOR_PATH_HARDWARE) {
-        DEBUG(TEXT("[DesktopCursorSetPathState] Cursor path=hardware"));
     } else {
         WARNING(TEXT("[DesktopCursorSetPathState] Cursor path=software reason=%s"),
             DesktopCursorFallbackReasonToText(Reason));
-        DEBUG(TEXT("[DesktopCursorSetPathState] Software fallback detail reason=%s status=%u"),
-            DesktopCursorFallbackReasonToText(Reason),
-            DriverStatus);
     }
+    UNUSED(DriverStatus);
 }
 
 /************************************************************************/
@@ -385,8 +382,6 @@ static void DesktopCursorSetPathState(LPDESKTOP Desktop, U32 Path, U32 Reason, U
  * @param NewY Pending Y.
  */
 static void DesktopCursorRequestSoftwareRedraw(LPDESKTOP Desktop, I32 OldX, I32 OldY, I32 NewX, I32 NewY) {
-    static RATE_LIMITER CursorRedrawLimiter;
-    static BOOL CursorRedrawLimiterReady = FALSE;
     RECT OldRect;
     RECT NewRect;
     RECT DamageRect = {0};
@@ -394,8 +389,6 @@ static void DesktopCursorRequestSoftwareRedraw(LPDESKTOP Desktop, I32 OldX, I32 
     BOOL HasOldRect = FALSE;
     BOOL HasNewRect = FALSE;
     BOOL HasDamageRect = FALSE;
-    U32 Suppressed = 0;
-    U32 Now = GetSystemTime();
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return;
     if (Desktop->Window == NULL || Desktop->Window->TypeID != KOID_WINDOW) return;
@@ -428,38 +421,11 @@ static void DesktopCursorRequestSoftwareRedraw(LPDESKTOP Desktop, I32 OldX, I32 
         DesktopOverlayInvalidateWindowTreeThenRootRect(Desktop->Window, &DamageRect);
     }
 
-    if (CursorRedrawLimiterReady == FALSE) {
-        if (RateLimiterInit(&CursorRedrawLimiter, 24, 1000) != FALSE) {
-            CursorRedrawLimiterReady = TRUE;
-        }
-    }
-
-    if (CursorRedrawLimiterReady != FALSE && RateLimiterShouldTrigger(&CursorRedrawLimiter, Now, &Suppressed) != FALSE) {
-        DEBUG(TEXT("[DesktopCursorRequestSoftwareRedraw] old=(%u,%u) new=(%u,%u) has_old=%x has_new=%x damage=(%u,%u)-(%u,%u) old_rect=(%u,%u)-(%u,%u) new_rect=(%u,%u)-(%u,%u) clip=(%u,%u)-(%u,%u) suppressed=%u"),
-            UNSIGNED(OldX),
-            UNSIGNED(OldY),
-            UNSIGNED(NewX),
-            UNSIGNED(NewY),
-            HasOldRect ? 1 : 0,
-            HasNewRect ? 1 : 0,
-            UNSIGNED(DamageRect.X1),
-            UNSIGNED(DamageRect.Y1),
-            UNSIGNED(DamageRect.X2),
-            UNSIGNED(DamageRect.Y2),
-            UNSIGNED(OldRect.X1),
-            UNSIGNED(OldRect.Y1),
-            UNSIGNED(OldRect.X2),
-            UNSIGNED(OldRect.Y2),
-            UNSIGNED(NewRect.X1),
-            UNSIGNED(NewRect.Y1),
-            UNSIGNED(NewRect.X2),
-            UNSIGNED(NewRect.Y2),
-            UNSIGNED(ClipRect.X1),
-            UNSIGNED(ClipRect.Y1),
-            UNSIGNED(ClipRect.X2),
-            UNSIGNED(ClipRect.Y2),
-            Suppressed);
-    }
+    LockMutex(&(Desktop->Mutex), INFINITY);
+    Desktop->Cursor.PendingX = OldX;
+    Desktop->Cursor.PendingY = OldY;
+    Desktop->Cursor.SoftwareDirty = (HasOldRect != FALSE);
+    UnlockMutex(&(Desktop->Mutex));
 }
 
 /************************************************************************/
@@ -711,8 +677,6 @@ void DesktopCursorOnDesktopActivated(LPDESKTOP Desktop) {
  * @param NewY New Y position.
  */
 void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, I32 NewX, I32 NewY) {
-    static RATE_LIMITER CursorMoveLimiter;
-    static BOOL CursorMoveLimiterReady = FALSE;
     LPDRIVER GraphicsDriver;
     GFX_CURSOR_POSITION_INFO PositionInfo;
     UINT Status;
@@ -721,8 +685,6 @@ void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, 
     U32 CursorPath;
     I32 ClampedOldX;
     I32 ClampedOldY;
-    U32 Suppressed = 0;
-    U32 Now = GetSystemTime();
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return;
 
@@ -746,27 +708,6 @@ void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, 
 
     UnlockMutex(&(Desktop->Mutex));
 
-    if (CursorMoveLimiterReady == FALSE) {
-        if (RateLimiterInit(&CursorMoveLimiter, 24, 1000) != FALSE) {
-            CursorMoveLimiterReady = TRUE;
-        }
-    }
-
-    if (CursorMoveLimiterReady != FALSE && RateLimiterShouldTrigger(&CursorMoveLimiter, Now, &Suppressed) != FALSE) {
-        DEBUG(TEXT("[DesktopCursorOnMousePositionChanged] path=%x visible=%x old=(%u,%u) new=(%u,%u) clamped_old=(%u,%u) clamped_new=(%u,%u) suppressed=%u"),
-            CursorPath,
-            IsVisible ? 1 : 0,
-            UNSIGNED(OldX),
-            UNSIGNED(OldY),
-            UNSIGNED(NewX),
-            UNSIGNED(NewY),
-            UNSIGNED(ClampedOldX),
-            UNSIGNED(ClampedOldY),
-            UNSIGNED(NewX),
-            UNSIGNED(NewY),
-            Suppressed);
-    }
-
     if (Desktop->Mode != DESKTOP_MODE_GRAPHICS || IsVisible == FALSE) {
         return;
     }
@@ -786,12 +727,6 @@ void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, 
 
         Status = GraphicsDriver->Command(DF_GFX_CURSOR_SET_POSITION, (UINT)(LPVOID)&PositionInfo);
         if (Status != DF_RETURN_SUCCESS) {
-            DEBUG(TEXT("[DesktopCursorOnMousePositionChanged] hardware set-position failed status=%u old=(%u,%u) new=(%u,%u)"),
-                Status,
-                UNSIGNED(ClampedOldX),
-                UNSIGNED(ClampedOldY),
-                UNSIGNED(NewX),
-                UNSIGNED(NewY));
             DesktopCursorSetPathState(Desktop, DESKTOP_CURSOR_PATH_SOFTWARE, DESKTOP_CURSOR_FALLBACK_SET_POSITION_FAILED, Status);
             DesktopCursorRequestSoftwareRedraw(Desktop, ClampedOldX, ClampedOldY, NewX, NewY);
         } else {
@@ -817,8 +752,6 @@ void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, 
  * @param Window Target window.
  */
 void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
-    static RATE_LIMITER CursorOverlayLimiter;
-    static BOOL CursorOverlayLimiterReady = FALSE;
     LPDESKTOP Desktop;
     RECT WindowRect;
     RECT CursorRect;
@@ -840,8 +773,6 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
     HANDLE GC;
     HANDLE OldPen;
     UINT ClipIndex;
-    U32 Suppressed = 0;
-    U32 Now = GetSystemTime();
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
 
@@ -924,28 +855,6 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
     (void)SelectPen(GC, OldPen);
 
     (void)ReleaseWindowGC(GC);
-
-    if (CursorOverlayLimiterReady == FALSE) {
-        if (RateLimiterInit(&CursorOverlayLimiter, 24, 1000) != FALSE) {
-            CursorOverlayLimiterReady = TRUE;
-        }
-    }
-
-    if (CursorOverlayLimiterReady != FALSE && RateLimiterShouldTrigger(&CursorOverlayLimiter, Now, &Suppressed) != FALSE) {
-        DEBUG(TEXT("[DesktopCursorRenderSoftwareOverlayOnWindow] id=%x cursor=(%u,%u) window=(%u,%u)-(%u,%u) intersection=(%u,%u)-(%u,%u) suppressed=%u"),
-            Window->WindowID,
-            UNSIGNED(Desktop->Cursor.X),
-            UNSIGNED(Desktop->Cursor.Y),
-            UNSIGNED(WindowRect.X1),
-            UNSIGNED(WindowRect.Y1),
-            UNSIGNED(WindowRect.X2),
-            UNSIGNED(WindowRect.Y2),
-            UNSIGNED(Intersection.X1),
-            UNSIGNED(Intersection.Y1),
-            UNSIGNED(Intersection.X2),
-            UNSIGNED(Intersection.Y2),
-            Suppressed);
-    }
 }
 
 /************************************************************************/

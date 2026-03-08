@@ -27,10 +27,13 @@
 /************************************************************************/
 
 #include "GFX.h"
+#include "utils/RectRegion.h"
 
 /************************************************************************/
 
 BOOL IntersectRect(LPRECT Left, LPRECT Right, LPRECT Result);
+BOOL SubtractRectFromRect(LPRECT Source, LPRECT Occluder, LPRECT_REGION Region);
+BOOL SubtractRectFromRegion(LPRECT_REGION Region, LPRECT Occluder, LPRECT TempStorage, UINT TempCapacity);
 void ScreenRectToWindowLocalRect(LPRECT WindowScreenRect, LPRECT ScreenRect, LPRECT WindowRect);
 void WindowLocalRectToScreenRect(LPRECT WindowScreenRect, LPRECT WindowRect, LPRECT ScreenRect);
 void ScreenPointToWindowLocalPoint(LPRECT WindowScreenRect, LPPOINT ScreenPoint, LPPOINT WindowPoint);

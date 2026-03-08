@@ -28,6 +28,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "drivers/graphics/VESA-Shared.h"
+#include "utils/Graphics-Utils.h"
 
 /************************************************************************/
 
@@ -760,6 +761,9 @@ U32 Rect16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     I32 X, Y;
     U32 Temp;
     U32 Color;
+    RECT SourceRect;
+    RECT ClipRect;
+    RECT DrawRect;
 
     if (X1 > X2) {
         Temp = X1;
@@ -772,11 +776,23 @@ U32 Rect16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
         Y2 = Temp;
     }
 
+    SourceRect.X1 = X1;
+    SourceRect.Y1 = Y1;
+    SourceRect.X2 = X2;
+    SourceRect.Y2 = Y2;
+    ClipRect.X1 = Context->Header.LoClip.X;
+    ClipRect.Y1 = Context->Header.LoClip.Y;
+    ClipRect.X2 = Context->Header.HiClip.X;
+    ClipRect.Y2 = Context->Header.HiClip.Y;
+    if (IntersectRect(&SourceRect, &ClipRect, &DrawRect) == FALSE) {
+        return 0;
+    }
+
     if (Context->Header.Brush != NULL && Context->Header.Brush->TypeID == KOID_BRUSH) {
         Color = Context->Header.Brush->Color;
 
-        for (Y = Y1; Y <= Y2; Y++) {
-            for (X = X1; X <= X2; X++) {
+        for (Y = DrawRect.Y1; Y <= DrawRect.Y2; Y++) {
+            for (X = DrawRect.X1; X <= DrawRect.X2; X++) {
                 Context->ModeSpecs.SetPixel(Context, X, Y, Color);
             }
         }
@@ -815,6 +831,9 @@ U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     U8 G = 0;
     U8 B = 0;
     UINT Pitch;
+    RECT SourceRect;
+    RECT ClipRect;
+    RECT DrawRect;
 
     if (X1 > X2) {
         Temp = X1;
@@ -828,6 +847,18 @@ U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     }
 
     Pitch = Context->Header.BytesPerScanLine;
+    SourceRect.X1 = X1;
+    SourceRect.Y1 = Y1;
+    SourceRect.X2 = X2;
+    SourceRect.Y2 = Y2;
+    ClipRect.X1 = Context->Header.LoClip.X;
+    ClipRect.Y1 = Context->Header.LoClip.Y;
+    ClipRect.X2 = Context->Header.HiClip.X;
+    ClipRect.Y2 = Context->Header.HiClip.Y;
+
+    if (IntersectRect(&SourceRect, &ClipRect, &DrawRect) == FALSE) {
+        return 0;
+    }
 
     if (Context->Header.Brush != NULL && Context->Header.Brush->TypeID == KOID_BRUSH) {
         ConvertedColor = 0;
@@ -839,19 +870,10 @@ U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
         G = (U8)((ConvertedColor >> 8) & 0xFF);
         B = (U8)((ConvertedColor >> 16) & 0xFF);
 
-        if (X1 < Context->Header.LoClip.X) X1 = Context->Header.LoClip.X;
-        if (X1 > Context->Header.HiClip.X) X1 = Context->Header.HiClip.X;
-        if (X2 < Context->Header.LoClip.X) X2 = Context->Header.LoClip.X;
-        if (X2 > Context->Header.HiClip.X) X2 = Context->Header.HiClip.X;
-        if (Y1 < Context->Header.LoClip.Y) Y1 = Context->Header.LoClip.Y;
-        if (Y1 > Context->Header.HiClip.Y) Y1 = Context->Header.HiClip.Y;
-        if (Y2 < Context->Header.LoClip.Y) Y2 = Context->Header.LoClip.Y;
-        if (Y2 > Context->Header.HiClip.Y) Y2 = Context->Header.HiClip.Y;
+        for (Y = DrawRect.Y1; Y <= DrawRect.Y2; Y++) {
+            U8* Pixel = Context->Header.MemoryBase + (Y * Pitch) + (DrawRect.X1 * 3);
 
-        for (Y = Y1; Y <= Y2; Y++) {
-            U8* Pixel = Context->Header.MemoryBase + (Y * Pitch) + (X1 * 3);
-
-            for (X = X1; X <= X2; X++) {
+            for (X = DrawRect.X1; X <= DrawRect.X2; X++) {
                 switch (Context->Header.RasterOperation) {
                     case ROP_SET: {
                         Pixel[0] = R;

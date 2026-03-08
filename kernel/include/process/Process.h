@@ -134,6 +134,7 @@ UINT TaskGetMinimumSystemStackSize(void);
 
 #define WINDOW_STATUS_VISIBLE 0x0001
 #define WINDOW_STATUS_NEED_DRAW 0x0002
+#define WINDOW_STATUS_DRAWING 0x0004
 
 /************************************************************************/
 // Other window values

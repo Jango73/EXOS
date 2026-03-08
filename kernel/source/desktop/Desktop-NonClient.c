@@ -402,6 +402,7 @@ BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect) {
         SelectBrush(GC, GetSystemBrush(SM_COLOR_NORMAL));
     }
 
+    SelectPen(GC, NULL);
     Rectangle(&RectInfo);
     (void)DrawWindowTitleBarFromTheme(GC, Rect);
     DrawWindowBorderFromTheme(GC, Rect);

@@ -115,59 +115,6 @@ BOOL UpdateWindowScreenRectAndDirtyRegion(LPWINDOW Window, LPRECT Rect) {
 
 /***************************************************************************/
 
-/**
- * @brief Emit one rate-limited invalidation trace for redraw diagnostics.
- * @param This Target window.
- * @param SourceRect Source rectangle in window coordinates.
- * @param ScreenRect Converted invalidated rectangle in screen coordinates.
- * @param FullWindow TRUE when the full window was invalidated.
- */
-static void LogInvalidateWindowRectRateLimited(LPWINDOW This, LPRECT SourceRect, LPRECT ScreenRect, BOOL FullWindow) {
-    static RATE_LIMITER InvalidateLimiter;
-    static BOOL InvalidateLimiterReady = FALSE;
-    U32 Suppressed = 0;
-    U32 Now = GetSystemTime();
-    RECT Source = {0, 0, 0, 0};
-    U32 WindowID = 0;
-    U32 DirtyCount = 0;
-
-    if (InvalidateLimiterReady == FALSE) {
-        if (RateLimiterInit(&InvalidateLimiter, 16, 1000) == FALSE) {
-            return;
-        }
-        InvalidateLimiterReady = TRUE;
-    }
-
-    if (SourceRect != NULL) {
-        Source = *SourceRect;
-    }
-
-    SAFE_USE_VALID_ID(This, KOID_WINDOW) {
-        WindowID = This->WindowID;
-        DirtyCount = RectRegionGetCount(&This->DirtyRegion);
-    }
-
-    if (RateLimiterShouldTrigger(&InvalidateLimiter, Now, &Suppressed) == FALSE) {
-        return;
-    }
-
-    DEBUG(TEXT("[InvalidateWindowRect] id=%x full=%x src=(%u,%u)-(%u,%u) screen=(%u,%u)-(%u,%u) dirty=%u suppressed=%u"),
-        WindowID,
-        FullWindow ? 1 : 0,
-        UNSIGNED(Source.X1),
-        UNSIGNED(Source.Y1),
-        UNSIGNED(Source.X2),
-        UNSIGNED(Source.Y2),
-        UNSIGNED(ScreenRect->X1),
-        UNSIGNED(ScreenRect->Y1),
-        UNSIGNED(ScreenRect->X2),
-        UNSIGNED(ScreenRect->Y2),
-        DirtyCount,
-        Suppressed);
-}
-
-/***************************************************************************/
-
 WINDOW MainDesktopWindow = {
     .TypeID = KOID_WINDOW,
     .References = 1,
@@ -831,7 +778,6 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     // Ensure the freshly created window gets a draw request
 
     InvalidateWindowRect((HANDLE)This, NULL);
-    PostMessage((HANDLE)This, EWM_DRAW, 0, 0);
 
     return This;
 }
@@ -892,7 +838,11 @@ BOOL BroadcastMessageToWindow(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2) {
 
     LockMutex(&(This->Mutex), INFINITY);
 
-    PostMessage((HANDLE)This, Msg, Param1, Param2);
+    if (Msg == EWM_DRAW) {
+        (void)RequestWindowDraw((HANDLE)This);
+    } else {
+        PostMessage((HANDLE)This, Msg, Param1, Param2);
+    }
 
     for (Node = This->Children->First; Node; Node = Node->Next) {
         BroadcastMessageToWindow((LPWINDOW)Node, Msg, Param1, Param2);
@@ -1023,14 +973,42 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
         (void)RectRegionAddRect(&This->DirtyRegion, &Rect);
     }
 
-    LogInvalidateWindowRectRateLimited(This, Src, &Rect, FullWindow);
-
     //-------------------------------------
     // Unlock access to resources
 
     UnlockMutex(&(This->Mutex));
+    UNUSED(FullWindow);
 
-    PostMessage(Handle, EWM_DRAW, 0, 0);
+    return RequestWindowDraw(Handle);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Request one coalesced draw message for a window.
+ * @param Handle Window handle.
+ * @return TRUE on success.
+ */
+BOOL RequestWindowDraw(HANDLE Handle) {
+    LPWINDOW This = (LPWINDOW)Handle;
+    BOOL ShouldPost = FALSE;
+
+    if (This == NULL) return FALSE;
+    if (This->TypeID != KOID_WINDOW) return FALSE;
+
+    LockMutex(&(This->Mutex), INFINITY);
+
+    if ((This->Status & WINDOW_STATUS_NEED_DRAW) == 0) {
+        This->Status |= WINDOW_STATUS_NEED_DRAW;
+        ShouldPost = TRUE;
+    }
+
+    UnlockMutex(&(This->Mutex));
+
+    if (ShouldPost) {
+        PostMessage(Handle, EWM_DRAW, 0, 0);
+    }
+
     return TRUE;
 }
 

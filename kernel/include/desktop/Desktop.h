@@ -42,6 +42,7 @@ LPDESKTOP GetWindowDesktop(LPWINDOW);
 BOOL BroadcastMessageToWindow(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2);
 BOOL UpdateWindowScreenRectAndDirtyRegion(LPWINDOW Window, LPRECT Rect);
 BOOL InvalidateWindowRect(HANDLE, LPRECT);
+BOOL RequestWindowDraw(HANDLE Handle);
 BOOL ShowWindow(HANDLE, BOOL);
 BOOL GetWindowRect(HANDLE, LPRECT);
 BOOL MoveWindow(HANDLE, LPPOINT);

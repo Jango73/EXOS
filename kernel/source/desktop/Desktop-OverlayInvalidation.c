@@ -73,6 +73,79 @@ static void DesktopOverlayInvalidateWindowTreeRectInternal(LPWINDOW Window, LPRE
 
 /************************************************************************/
 
+/**
+ * @brief Invalidate root window only on parts visible from desktop background.
+ * @param RootWindow Desktop root window.
+ * @param ScreenRect Damage rectangle in screen coordinates.
+ * @return TRUE when at least one root rectangle was invalidated.
+ */
+static BOOL DesktopOverlayInvalidateRootVisibleRemainderRect(LPWINDOW RootWindow, LPRECT ScreenRect) {
+    RECT RootScreenRect;
+    RECT RootIntersection;
+    RECT RemainderStorage[WINDOW_DIRTY_REGION_CAPACITY];
+    RECT TempStorage[WINDOW_DIRTY_REGION_CAPACITY];
+    RECT_REGION RemainderRegion;
+    RECT ChildRect;
+    RECT RemainingRect;
+    RECT RootWindowRect;
+    LPLISTNODE ChildNode;
+    LPWINDOW Child;
+    UINT RemainingIndex;
+    BOOL IsVisible = FALSE;
+    BOOL HasIntersection = FALSE;
+    BOOL InvalidatedAny = FALSE;
+
+    if (RootWindow == NULL || RootWindow->TypeID != KOID_WINDOW) return FALSE;
+    if (ScreenRect == NULL) return FALSE;
+    if (RectRegionInit(&RemainderRegion, RemainderStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) return FALSE;
+    RectRegionReset(&RemainderRegion);
+
+    LockMutex(&(RootWindow->Mutex), INFINITY);
+
+    IsVisible = ((RootWindow->Status & WINDOW_STATUS_VISIBLE) != 0);
+    RootScreenRect = RootWindow->ScreenRect;
+    if (IsVisible != FALSE) {
+        if (IntersectRect(&RootScreenRect, ScreenRect, &RootIntersection) != FALSE) {
+            HasIntersection = TRUE;
+            (void)RectRegionAddRect(&RemainderRegion, &RootIntersection);
+        }
+    }
+
+    if (HasIntersection != FALSE) {
+        for (ChildNode = RootWindow->Children != NULL ? RootWindow->Children->First : NULL; ChildNode != NULL; ChildNode = ChildNode->Next) {
+            Child = (LPWINDOW)ChildNode;
+            if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
+            if ((Child->Status & WINDOW_STATUS_VISIBLE) == 0) continue;
+
+            ChildRect = Child->ScreenRect;
+            if (SubtractRectFromRegion(&RemainderRegion, &ChildRect, TempStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) {
+                RectRegionReset(&RemainderRegion);
+                break;
+            }
+
+            if (RectRegionGetCount(&RemainderRegion) == 0) {
+                break;
+            }
+        }
+    }
+
+    UnlockMutex(&(RootWindow->Mutex));
+
+    if (HasIntersection == FALSE) return FALSE;
+
+    for (RemainingIndex = 0; RemainingIndex < RectRegionGetCount(&RemainderRegion); RemainingIndex++) {
+        if (RectRegionGetRect(&RemainderRegion, RemainingIndex, &RemainingRect) == FALSE) continue;
+        ScreenRectToWindowLocalRect(&RootScreenRect, &RemainingRect, &RootWindowRect);
+        if (InvalidateWindowRect((HANDLE)RootWindow, &RootWindowRect) != FALSE) {
+            InvalidatedAny = TRUE;
+        }
+    }
+
+    return InvalidatedAny;
+}
+
+/************************************************************************/
+
 void DesktopOverlayInvalidateWindowTreeRect(LPWINDOW Window, LPRECT ScreenRect, BOOL SkipCurrent) {
     DesktopOverlayInvalidateWindowTreeRectInternal(Window, ScreenRect, SkipCurrent);
 }
@@ -117,7 +190,7 @@ void DesktopOverlayInvalidateWindowTreeThenRootRect(LPWINDOW RootWindow, LPRECT 
     if (ScreenRect == NULL) return;
 
     DesktopOverlayInvalidateWindowTreeRect(RootWindow, ScreenRect, TRUE);
-    (void)DesktopOverlayInvalidateRootRect(RootWindow, ScreenRect);
+    (void)DesktopOverlayInvalidateRootVisibleRemainderRect(RootWindow, ScreenRect);
 }
 
 /************************************************************************/
