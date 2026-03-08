@@ -102,10 +102,10 @@ For `BringWindowToFront` and move paths:
 
 ### Step 6: Timer Delivery Isolation
 
-- [ ] Under `DesktopTimerMutex`:
+- [x] Under `DesktopTimerMutex`:
   - collect due timers,
   - update next due ticks.
-- [ ] Outside lock:
+- [x] Outside lock:
   - post `EWM_TIMER` messages.
 
 ## Data Ownership Notes

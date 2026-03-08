@@ -46,6 +46,13 @@ typedef struct tag_DESKTOP_WINDOW_TIMER {
 
 /***************************************************************************/
 
+typedef struct tag_DESKTOP_TIMER_DUE_ENTRY {
+    HANDLE Window;
+    U32 TimerID;
+} DESKTOP_TIMER_DUE_ENTRY, *LPDESKTOP_TIMER_DUE_ENTRY;
+
+/***************************************************************************/
+
 static void DesktopWindowTimerDestructor(LPVOID Item) {
     SAFE_USE(Item) {
         KernelHeapFree(Item);
@@ -83,6 +90,10 @@ static U32 DesktopTimerTask(LPVOID Parameter) {
     LPLIST Timers;
     LPLISTNODE Node;
     LPDESKTOP_WINDOW_TIMER Timer;
+    LPDESKTOP_TIMER_DUE_ENTRY DueEntries = NULL;
+    UINT DueCapacity = 0;
+    UINT DueCount = 0;
+    UINT Index;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
         return 0;
@@ -98,6 +109,21 @@ static U32 DesktopTimerTask(LPVOID Parameter) {
         Now = GetSystemTime();
 
         LockMutex(&(Desktop->TimerMutex), INFINITY);
+        Timers = Desktop->Timers;
+        DueCapacity = (Timers != NULL) ? Timers->NumItems : 0;
+        UnlockMutex(&(Desktop->TimerMutex));
+
+        if (DueCapacity > 0) {
+            DueEntries = (LPDESKTOP_TIMER_DUE_ENTRY)KernelHeapAlloc(sizeof(DESKTOP_TIMER_DUE_ENTRY) * DueCapacity);
+            if (DueEntries == NULL) {
+                Sleep(DESKTOP_TIMER_POLL_MS);
+                continue;
+            }
+        }
+
+        DueCount = 0;
+
+        LockMutex(&(Desktop->TimerMutex), INFINITY);
 
         Timers = Desktop->Timers;
         for (Node = Timers != NULL ? Timers->First : NULL; Node != NULL; Node = Node->Next) {
@@ -108,10 +134,23 @@ static U32 DesktopTimerTask(LPVOID Parameter) {
             if (IsTimerDue(Now, Timer->NextTick) == FALSE) continue;
 
             Timer->NextTick = Now + Timer->IntervalMilliseconds;
-            (void)PostMessage((HANDLE)Timer->Window, EWM_TIMER, Timer->TimerID, 0);
+            if (DueEntries != NULL && DueCount < DueCapacity) {
+                DueEntries[DueCount].Window = (HANDLE)Timer->Window;
+                DueEntries[DueCount].TimerID = Timer->TimerID;
+                DueCount++;
+            }
         }
 
         UnlockMutex(&(Desktop->TimerMutex));
+
+        for (Index = 0; Index < DueCount; Index++) {
+            (void)PostMessage(DueEntries[Index].Window, EWM_TIMER, DueEntries[Index].TimerID, 0);
+        }
+
+        if (DueEntries != NULL) {
+            KernelHeapFree(DueEntries);
+            DueEntries = NULL;
+        }
 
         Sleep(DESKTOP_TIMER_POLL_MS);
     }
@@ -277,4 +316,3 @@ void DesktopTimerRemoveWindowTimers(LPDESKTOP Desktop, LPWINDOW Window) {
 }
 
 /***************************************************************************/
-
