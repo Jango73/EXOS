@@ -182,24 +182,24 @@ Deliverable:
 Deliverable:
 - Desktop can host generic dockables through a dedicated integration bridge.
 
-## Step 7 - Window bridge layer
-- [ ] Add window-level bridge support so any window client area can own a `DockHost`.
+## Step 7 - Window host integration (class inheritance + props)
+- [ ] Add window-level docking host support so any window client area can own a `DockHost`.
 - [ ] Ensure nested hosts are supported (window containing docked sub-panels).
 - [ ] Keep ownership/lifetime tied to window lifecycle (`EWM_CREATE`/`EWM_DELETE`).
 - [ ] Recompute host rect on move/size events and apply relayout.
-- [ ] Add helper methods for window components to register/unregister dockables.
+- [ ] Expose registration/unregistration through window class behavior and window properties, without dedicated bridge API layer.
 
 Deliverable:
 - Generic docking is usable inside normal windows, including multiple dockables on one edge.
 
 ## Step 8 - DesktopShellBar component
-- [ ] Add component files:
+- [x] Add component files:
   - `kernel/include/desktop/components/Desktop-ShellBar.h`
   - `kernel/source/desktop/components/Desktop-ShellBar.c`
-- [ ] Implement `DesktopShellBar` as a dockable consumer of generic APIs.
+- [x] Implement `DesktopShellBar` as a dockable consumer of generic APIs.
 - [ ] Support all four edges through dock state updates.
-- [ ] Keep `DesktopShellBar` behavior-focused; all visual look is resolved from theme tokens.
-- [ ] Keep visual/render logic isolated from docking logic and driven by theme runtime values only.
+- [x] Keep `DesktopShellBar` behavior-focused; all visual look is resolved from theme tokens.
+- [x] Keep visual/render logic isolated from docking logic and driven by theme runtime values only.
 - [ ] Reserve extension points for task list, launcher, tray, and clock zones.
 - [ ] Implement shell bar content slots as pluggable components.
 - [ ] Keep process/window icons managed by the dynamic task list source, not by static config entries.
