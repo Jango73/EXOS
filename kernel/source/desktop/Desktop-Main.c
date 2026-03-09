@@ -40,7 +40,7 @@
 #include "desktop/components/Desktop-ShellBar.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
-#include "ui/layout/WindowDockHost.h"
+#include "desktop/components/WindowDockHost.h"
 #include "Clock.h"
 #include "utils/Graphics-Utils.h"
 #include "utils/RateLimiter.h"

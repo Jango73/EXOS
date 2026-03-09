@@ -27,7 +27,7 @@
 /************************************************************************/
 
 #include "desktop/Desktop.h"
-#include "ui/layout/WindowDockHost.h"
+#include "desktop/components/WindowDockHost.h"
 
 /************************************************************************/
 

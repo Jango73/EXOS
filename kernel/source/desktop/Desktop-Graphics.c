@@ -32,7 +32,8 @@
 #include "input/Mouse.h"
 #include "input/MouseDispatcher.h"
 #include "process/Task-Messaging.h"
-#include "ui/layout/WindowDockHost.h"
+#include "desktop/components/WindowDockable.h"
+#include "desktop/components/WindowDockHost.h"
 #include "utils/Graphics-Utils.h"
 
 /***************************************************************************/
@@ -781,6 +782,10 @@ Out:
     // Unlock access to resources
 
     UnlockMutex(&(This->Mutex));
+
+    if (WindowDockHostIsDockPropertyName(Name) != FALSE) {
+        WindowDockableHandlePropertyChanged(Handle);
+    }
 
     return OldValue;
 }

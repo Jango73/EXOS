@@ -21,7 +21,26 @@
 
 \************************************************************************/
 
-#include "ui/layout/WindowDockHost.h"
+#include "desktop/components/WindowDockHost.h"
+#include "CoreString.h"
+
+/************************************************************************/
+
+BOOL WindowDockHostIsDockPropertyName(LPCSTR Name) {
+    if (Name == NULL) return FALSE;
+
+    if (StringCompareNC(Name, WINDOW_DOCK_PROP_ENABLED) == 0) return TRUE;
+    if (StringCompareNC(Name, WINDOW_DOCK_PROP_EDGE) == 0) return TRUE;
+    if (StringCompareNC(Name, WINDOW_DOCK_PROP_PRIORITY) == 0) return TRUE;
+    if (StringCompareNC(Name, WINDOW_DOCK_PROP_ORDER) == 0) return TRUE;
+    if (StringCompareNC(Name, WINDOW_DOCK_PROP_SIZE_POLICY) == 0) return TRUE;
+    if (StringCompareNC(Name, WINDOW_DOCK_PROP_SIZE_PREFERRED) == 0) return TRUE;
+    if (StringCompareNC(Name, WINDOW_DOCK_PROP_SIZE_MINIMUM) == 0) return TRUE;
+    if (StringCompareNC(Name, WINDOW_DOCK_PROP_SIZE_MAXIMUM) == 0) return TRUE;
+    if (StringCompareNC(Name, WINDOW_DOCK_PROP_SIZE_WEIGHT) == 0) return TRUE;
+
+    return FALSE;
+}
 
 /************************************************************************/
 

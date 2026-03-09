@@ -1,0 +1,69 @@
+/************************************************************************\
+
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+    Window docking host class helpers
+
+\************************************************************************/
+
+#ifndef WINDOW_DOCK_HOST_H_INCLUDED
+#define WINDOW_DOCK_HOST_H_INCLUDED
+
+/************************************************************************/
+
+#include "desktop/Desktop-WindowClass.h"
+#include "ui/layout/DockHost.h"
+
+/************************************************************************/
+
+#define WINDOW_DOCK_HOST_CLASS_NAME TEXT("WindowDockHostClass")
+#define WINDOW_DOCK_PROP_ENABLED TEXT("dock.enabled")
+#define WINDOW_DOCK_PROP_EDGE TEXT("dock.edge")
+#define WINDOW_DOCK_PROP_PRIORITY TEXT("dock.priority")
+#define WINDOW_DOCK_PROP_ORDER TEXT("dock.order")
+#define WINDOW_DOCK_PROP_SIZE_POLICY TEXT("dock.size.policy")
+#define WINDOW_DOCK_PROP_SIZE_PREFERRED TEXT("dock.size.preferred")
+#define WINDOW_DOCK_PROP_SIZE_MINIMUM TEXT("dock.size.minimum")
+#define WINDOW_DOCK_PROP_SIZE_MAXIMUM TEXT("dock.size.maximum")
+#define WINDOW_DOCK_PROP_SIZE_WEIGHT TEXT("dock.size.weight")
+
+/************************************************************************/
+
+typedef struct tag_WINDOW_DOCK_HOST_CLASS_DATA {
+    DOCK_HOST DockHost;
+    BOOL DockHostInitialized;
+} WINDOW_DOCK_HOST_CLASS_DATA, *LPWINDOW_DOCK_HOST_CLASS_DATA;
+
+/************************************************************************/
+
+BOOL WindowDockHostClassEnsureRegistered(void);
+BOOL WindowDockHostClassEnsureDerivedRegistered(LPCSTR ClassName, WINDOWFUNC WindowFunction);
+BOOL WindowDockHostWindowInheritsDockHostClass(LPWINDOW Window);
+BOOL WindowDockHostIsDockPropertyName(LPCSTR Name);
+LPWINDOW_DOCK_HOST_CLASS_DATA WindowDockHostClassGetData(LPWINDOW Window);
+void WindowDockHostShutdownWindow(HANDLE Window);
+U32 WindowDockHostAttachDockable(HANDLE Window, LPDOCKABLE Dockable);
+U32 WindowDockHostDetachDockable(HANDLE Window, LPDOCKABLE Dockable);
+U32 WindowDockHostMarkDirty(HANDLE Window, U32 Reason);
+U32 WindowDockHostHandleWindowRectChanged(HANDLE Window);
+U32 WindowDockHostRelayout(HANDLE Window);
+U32 WindowDockHostGetWorkRect(HANDLE Window, LPRECT WorkRect);
+
+/************************************************************************/
+
+#endif

@@ -17,42 +17,38 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Window docking host class helpers
+    Window dockable class helpers
 
 \************************************************************************/
 
-#ifndef WINDOW_DOCK_HOST_H_INCLUDED
-#define WINDOW_DOCK_HOST_H_INCLUDED
+#ifndef WINDOW_DOCKABLE_H_INCLUDED
+#define WINDOW_DOCKABLE_H_INCLUDED
 
 /************************************************************************/
 
-#include "desktop/Desktop-WindowClass.h"
-#include "ui/layout/DockHost.h"
+#include "desktop/components/WindowDockHost.h"
 
 /************************************************************************/
 
-#define WINDOW_DOCK_HOST_CLASS_NAME TEXT("WindowDockHostClass")
+#define WINDOW_DOCKABLE_CLASS_NAME TEXT("WindowDockableClass")
 
 /************************************************************************/
 
-typedef struct tag_WINDOW_DOCK_HOST_CLASS_DATA {
-    DOCK_HOST DockHost;
-    BOOL DockHostInitialized;
-} WINDOW_DOCK_HOST_CLASS_DATA, *LPWINDOW_DOCK_HOST_CLASS_DATA;
+typedef struct tag_WINDOW_DOCKABLE_CLASS_DATA {
+    DOCKABLE Dockable;
+    BOOL DockableInitialized;
+    BOOL DockableAttached;
+    STR Identifier[32];
+} WINDOW_DOCKABLE_CLASS_DATA, *LPWINDOW_DOCKABLE_CLASS_DATA;
 
 /************************************************************************/
 
-BOOL WindowDockHostClassEnsureRegistered(void);
-BOOL WindowDockHostClassEnsureDerivedRegistered(LPCSTR ClassName, WINDOWFUNC WindowFunction);
-BOOL WindowDockHostWindowInheritsDockHostClass(LPWINDOW Window);
-LPWINDOW_DOCK_HOST_CLASS_DATA WindowDockHostClassGetData(LPWINDOW Window);
-void WindowDockHostShutdownWindow(HANDLE Window);
-U32 WindowDockHostAttachDockable(HANDLE Window, LPDOCKABLE Dockable);
-U32 WindowDockHostDetachDockable(HANDLE Window, LPDOCKABLE Dockable);
-U32 WindowDockHostMarkDirty(HANDLE Window, U32 Reason);
-U32 WindowDockHostHandleWindowRectChanged(HANDLE Window);
-U32 WindowDockHostRelayout(HANDLE Window);
-U32 WindowDockHostGetWorkRect(HANDLE Window, LPRECT WorkRect);
+BOOL WindowDockableClassEnsureRegistered(void);
+BOOL WindowDockableClassEnsureDerivedRegistered(LPCSTR ClassName, WINDOWFUNC WindowFunction);
+BOOL WindowDockableWindowInheritsDockableClass(LPWINDOW Window);
+LPWINDOW_DOCKABLE_CLASS_DATA WindowDockableClassGetData(LPWINDOW Window);
+void WindowDockableHandlePropertyChanged(HANDLE Window);
+U32 WindowDockableWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
 
 /************************************************************************/
 
