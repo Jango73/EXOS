@@ -136,6 +136,10 @@ void InitializeKernelProcess(void) {
 
     KernelProcess.HeapBase = (LINEAR)HeapBase;
     HeapInit(&KernelProcess, KernelProcess.HeapBase, KernelProcess.HeapSize);
+    if (ProcessArenaInitializeKernel(&KernelProcess) == FALSE) {
+        ERROR(TEXT("[InitializeKernelProcess] Could not initialize kernel process arenas"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
 
     MemorySet(&(KernelProcess.MessageQueue), 0, sizeof(MESSAGEQUEUE));
     InitMessageQueue(&(KernelProcess.MessageQueue));
@@ -244,6 +248,7 @@ LPPROCESS NewProcess(void) {
     This->MaximumAllocatedMemory = N_HalfMemory;
     This->TaskCount = 0;
     This->Session = NULL;
+    ProcessArenaReset(This);
 
     // Inherit session from parent process
     SAFE_USE_VALID_ID(This->OwnerProcess, KOID_PROCESS) {
@@ -724,6 +729,14 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     Process->HeapBase = HeapBase;
     Process->HeapSize = HeapSize;
+
+    if (ProcessArenaInitializeUser(Process, CodeBase, CodeSize + DataSize, HeapBase, HeapSize) == FALSE) {
+        ERROR(TEXT("[CreateProcess] Failed to initialize process address space arenas"));
+        FreeRegion(VMA_USER, TotalSize);
+        LoadPageDirectory(PageDirectory);
+        UnfreezeScheduler();
+        goto Out;
+    }
 
     HeapInit(Process, Process->HeapBase, Process->HeapSize);
 

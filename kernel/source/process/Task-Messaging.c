@@ -144,11 +144,10 @@ BOOL EnsureProcessMessageQueue(LPPROCESS Process, BOOL CreateIfMissing) {
             }
 
             UINT MessageBufferSize = TASK_MESSAGE_QUEUE_MAX_MESSAGES * sizeof(MESSAGE);
-            LINEAR MessageBufferBase = AllocRegion(0,
-                                                   0,
-                                                   MessageBufferSize,
-                                                   ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE,
-                                                   TEXT("ProcessMessageBuffer"));
+            LINEAR MessageBufferBase = ProcessArenaAllocateSystem(Process,
+                                                                   MessageBufferSize,
+                                                                   ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE,
+                                                                   TEXT("ProcessMessageBuffer"));
             if (MessageBufferBase == 0) {
                 ERROR(TEXT("[EnsureProcessMessageQueue] Failed to allocate queue for process %p"), Process);
                 return FALSE;

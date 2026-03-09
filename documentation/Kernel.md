@@ -173,6 +173,15 @@ On x86-32 bootstrap, the page directory maps the TaskRunner page with write acce
 
 On x86-64, `AllocPageDirectory` builds fresh paging structures (low-memory region, kernel region, recursive slot, task-runner window) instead of cloning loader tables. `AllocUserPageDirectory` reuses these helpers and pre-installs a userland seed table so user mappings can be populated immediately. The default x86-64 kernel virtual base (`VMA_KERNEL`) is `0xFFFFFFFFC0000000`.
 
+User process virtual space is partitioned through `PROCESS_ADDRESS_SPACE` arenas (`kernel/include/process/Process-Arena.h`, `kernel/source/process/Process-Arena.c`):
+- `Image`: executable image span loaded at `VMA_USER`.
+- `Heap`: process heap growth lane (same initial base/size as before).
+- `Stack`: downward-growing user task stacks.
+- `System`: process-owned fixed mappings (for example message queue backing storage).
+- `Mmio`: process MMIO/DMA-oriented mappings.
+
+This keeps non-heap fixed allocations out of the heap expansion lane and prevents heap growth failures caused by unrelated `AllocRegion(0, ...)` placements.
+
 #### Region descriptor tracking
 
 Both x86-32 and x86-64 track successful virtual region operations with `MEMORY_REGION_DESCRIPTOR` records linked from `PROCESS.RegionListHead`. Allocation uses `RegionTrackAlloc`, release uses `RegionTrackFree`, and growth/shrink uses `RegionTrackResize`.
@@ -566,7 +575,7 @@ exos-runtime-c.c : malloc() (or any other function)
 
 ### Task and window message delivery
 
-Tasks and processes own fixed-size message queues (`MESSAGEQUEUE` in `kernel/source/process/Task-Messaging.c`) backed by dedicated virtual memory regions and operated through `utils/MessageQueue`. Task queues are allocated at task creation (`TaskInitializeMessageBuffer` in `kernel/source/process/Task.c`), while process queues are allocated on demand (`EnsureProcessMessageQueue`). Queue operations do not allocate or free entries during message posting/retrieval. If a target queue does not exist, posted messages are dropped and keyboard input continues down the classic buffered path for `getkey()` (used by the shell). When a process message queue exists, the keyboard helpers (`PeekChar`, `GetChar`, `GetKeyCode`) consume key events from that queue by discarding `EWM_KEYUP` messages and returning the first `EWM_KEYDOWN`, then fall back to the classic buffer when no queue exists. Each queue is capped to 100 pending messages and guarded by a per-queue mutex plus a waiting flag. `WaitForMessage` marks the task queue as waiting and sleeps the task; `AddTaskMessage` wakes the task when a new message arrives and clears the waiting flag.
+Tasks and processes own fixed-size message queues (`MESSAGEQUEUE` in `kernel/source/process/Task-Messaging.c`) backed by dedicated virtual memory regions and operated through `utils/MessageQueue`. Task queues are allocated at task creation (`TaskInitializeMessageBuffer` in `kernel/source/process/Task.c`), while process queues are allocated on demand (`EnsureProcessMessageQueue`). Both use the process `System` arena (`ProcessArenaAllocateSystem`) so queue storage does not consume heap expansion space. Queue operations do not allocate or free entries during message posting/retrieval. If a target queue does not exist, posted messages are dropped and keyboard input continues down the classic buffered path for `getkey()` (used by the shell). When a process message queue exists, the keyboard helpers (`PeekChar`, `GetChar`, `GetKeyCode`) consume key events from that queue by discarding `EWM_KEYUP` messages and returning the first `EWM_KEYDOWN`, then fall back to the classic buffer when no queue exists. Each queue is capped to 100 pending messages and guarded by a per-queue mutex plus a waiting flag. `WaitForMessage` marks the task queue as waiting and sleeps the task; `AddTaskMessage` wakes the task when a new message arrives and clears the waiting flag.
 
 Message posting:
 - `PostMessage` accepts NULL targets (current task), task handles, and window handles; window targets enqueue into the owning task queue. Keyboard drivers and the mouse dispatcher push input events into the global input queue using `EnqueueInputMessage` so only the focused process sees them.

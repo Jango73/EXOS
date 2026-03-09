@@ -89,11 +89,14 @@ static BOOL TaskInitializeMessageBuffer(LPTASK Task) {
         return FALSE;
     }
 
-    MessageBufferBase = AllocRegion(0,
-                                    0,
-                                    MessageBufferSize,
-                                    ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE,
-                                    TEXT("TaskMessageBuffer"));
+    if (Task->Process == NULL) {
+        return FALSE;
+    }
+
+    MessageBufferBase = ProcessArenaAllocateSystem(Task->Process,
+                                                   MessageBufferSize,
+                                                   ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE,
+                                                   TEXT("TaskMessageBuffer"));
     if (MessageBufferBase == NULL) {
         ERROR(TEXT("[TaskInitializeMessageBuffer] Could not allocate message buffer for task %p"), Task);
         return FALSE;

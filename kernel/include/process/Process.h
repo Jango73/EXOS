@@ -39,6 +39,7 @@
 #include "UserAccount.h"
 #include "UserSession.h"
 #include "process/Message.h"
+#include "process/Process-Arena.h"
 #include "process/Schedule.h"
 #include "process/Task.h"
 #include "utils/RectRegion.h"
@@ -169,6 +170,7 @@ struct tag_PROCESS {
     struct tag_MEMORY_REGION_DESCRIPTOR* RegionListHead;
     struct tag_MEMORY_REGION_DESCRIPTOR* RegionListTail;
     UINT RegionCount;
+    PROCESS_ADDRESS_SPACE AddressSpace;
 };
 
 typedef struct tag_PROPERTY {

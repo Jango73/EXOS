@@ -470,7 +470,9 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
 
     /* Place user stack just below TaskRunner to keep distance from the heap. */
     Task->Arch.Stack.Base = 0;
-    {
+    if (Process->Privilege == CPU_PRIVILEGE_USER) {
+        Task->Arch.Stack.Base = ProcessArenaAllocateUserStack(Process, Task->Arch.Stack.Size);
+    } else {
         LINEAR Candidate = VMA_TASK_RUNNER - Task->Arch.Stack.Size;
         while (Candidate >= VMA_USER && Task->Arch.Stack.Base == 0) {
             Task->Arch.Stack.Base = AllocRegion(Candidate,
