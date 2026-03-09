@@ -93,25 +93,40 @@ Deliverable:
 - Missing shell bar composition config loads a deterministic default component set.
 
 ## Step 1 - Generic API and type model
-- [ ] Add public generic headers:
+- [x] Add public generic headers:
   - `kernel/include/ui/layout/Dockable.h`
   - `kernel/include/ui/layout/DockHost.h`
-- [ ] Add central enums and structs:
+- [x] Add central enums and structs:
   - `DOCK_EDGE`
   - `DOCK_LAYOUT_POLICY`
   - `DOCK_SIZE_REQUEST`
   - `DOCK_LAYOUT_RESULT`
-- [ ] Define callback signatures:
+- [x] Define callback signatures:
   - `Measure`
   - `ApplyRect`
   - `OnDockChanged`
   - `OnHostWorkRectChanged`
-- [ ] Define explicit return/error codes for layout acceptance/rejection.
-- [ ] Keep API ABI-safe and compatible with existing kernel type conventions.
-- [ ] Keep core API behavior-only; no visual/render style fields in generic docking structures.
+- [x] Define explicit return/error codes for layout acceptance/rejection.
+- [x] Keep API ABI-safe and compatible with existing kernel type conventions.
+- [x] Keep core API behavior-only; no visual/render style fields in generic docking structures.
 
 Deliverable:
 - Header-level docking interface ready for desktop and window modules.
+
+### Step 1 Output - API Header Surface
+- Public headers created:
+  - `kernel/include/ui/layout/Dockable.h`
+  - `kernel/include/ui/layout/DockHost.h`
+- Generic type model frozen for implementation phase:
+  - neutral enums (`DOCK_EDGE`, `DOCK_AXIS`, `DOCK_LAYOUT_POLICY`),
+  - explicit status codes (`DOCK_LAYOUT_STATUS_*`),
+  - behavior contracts (`DOCK_SIZE_REQUEST`, `DOCK_LAYOUT_RESULT`).
+- Callback contracts frozen:
+  - `Measure`,
+  - `ApplyRect`,
+  - `OnDockChanged`,
+  - `OnHostWorkRectChanged`.
+- No visual style fields are part of the generic API; theme-driven look remains outside core docking headers.
 
 ## Step 2 - Core Dockable implementation
 - [ ] Implement `Dockable.c` in `kernel/source/ui/layout`.
