@@ -995,6 +995,7 @@ HANDLE CreatePen(LPPENINFO PenInfo) {
  */
 BOOL SetPixel(LPPIXELINFO PixelInfo) {
     LPGRAPHICSCONTEXT Context;
+    PIXELINFO Pixel;
 
     //-------------------------------------
     // Check validity of parameters
@@ -1006,10 +1007,11 @@ BOOL SetPixel(LPPIXELINFO PixelInfo) {
     if (Context == NULL) return FALSE;
     if (Context->TypeID != KOID_GRAPHICSCONTEXT) return FALSE;
 
-    PixelInfo->X = Context->Origin.X + PixelInfo->X;
-    PixelInfo->Y = Context->Origin.Y + PixelInfo->Y;
+    Pixel = *PixelInfo;
+    Pixel.X = Context->Origin.X + Pixel.X;
+    Pixel.Y = Context->Origin.Y + Pixel.Y;
 
-    Context->Driver->Command(DF_GFX_SETPIXEL, (UINT)PixelInfo);
+    Context->Driver->Command(DF_GFX_SETPIXEL, (UINT)&Pixel);
 
     return TRUE;
 }
@@ -1023,6 +1025,7 @@ BOOL SetPixel(LPPIXELINFO PixelInfo) {
  */
 BOOL GetPixel(LPPIXELINFO PixelInfo) {
     LPGRAPHICSCONTEXT Context;
+    PIXELINFO Pixel;
 
     //-------------------------------------
     // Check validity of parameters
@@ -1034,10 +1037,12 @@ BOOL GetPixel(LPPIXELINFO PixelInfo) {
     if (Context == NULL) return FALSE;
     if (Context->TypeID != KOID_GRAPHICSCONTEXT) return FALSE;
 
-    PixelInfo->X = Context->Origin.X + PixelInfo->X;
-    PixelInfo->Y = Context->Origin.Y + PixelInfo->Y;
+    Pixel = *PixelInfo;
+    Pixel.X = Context->Origin.X + Pixel.X;
+    Pixel.Y = Context->Origin.Y + Pixel.Y;
 
-    Context->Driver->Command(DF_GFX_GETPIXEL, (UINT)PixelInfo);
+    Context->Driver->Command(DF_GFX_GETPIXEL, (UINT)&Pixel);
+    PixelInfo->Color = Pixel.Color;
 
     return TRUE;
 }
@@ -1051,6 +1056,7 @@ BOOL GetPixel(LPPIXELINFO PixelInfo) {
  */
 BOOL Line(LPLINEINFO LineInfo) {
     LPGRAPHICSCONTEXT Context;
+    LINEINFO Line;
 
     //-------------------------------------
     // Check validity of parameters
@@ -1063,12 +1069,13 @@ BOOL Line(LPLINEINFO LineInfo) {
     if (Context == NULL) return FALSE;
     if (Context->TypeID != KOID_GRAPHICSCONTEXT) return FALSE;
 
-    LineInfo->X1 = Context->Origin.X + LineInfo->X1;
-    LineInfo->Y1 = Context->Origin.Y + LineInfo->Y1;
-    LineInfo->X2 = Context->Origin.X + LineInfo->X2;
-    LineInfo->Y2 = Context->Origin.Y + LineInfo->Y2;
+    Line = *LineInfo;
+    Line.X1 = Context->Origin.X + Line.X1;
+    Line.Y1 = Context->Origin.Y + Line.Y1;
+    Line.X2 = Context->Origin.X + Line.X2;
+    Line.Y2 = Context->Origin.Y + Line.Y2;
 
-    Context->Driver->Command(DF_GFX_LINE, (UINT)LineInfo);
+    Context->Driver->Command(DF_GFX_LINE, (UINT)&Line);
 
     return TRUE;
 }
@@ -1082,6 +1089,7 @@ BOOL Line(LPLINEINFO LineInfo) {
  */
 BOOL Rectangle(LPRECTINFO RectInfo) {
     LPGRAPHICSCONTEXT Context;
+    RECTINFO RectangleInfo;
 
     //-------------------------------------
     // Check validity of parameters
@@ -1094,12 +1102,13 @@ BOOL Rectangle(LPRECTINFO RectInfo) {
     if (Context == NULL) return FALSE;
     if (Context->TypeID != KOID_GRAPHICSCONTEXT) return FALSE;
 
-    RectInfo->X1 = Context->Origin.X + RectInfo->X1;
-    RectInfo->Y1 = Context->Origin.Y + RectInfo->Y1;
-    RectInfo->X2 = Context->Origin.X + RectInfo->X2;
-    RectInfo->Y2 = Context->Origin.Y + RectInfo->Y2;
+    RectangleInfo = *RectInfo;
+    RectangleInfo.X1 = Context->Origin.X + RectangleInfo.X1;
+    RectangleInfo.Y1 = Context->Origin.Y + RectangleInfo.Y1;
+    RectangleInfo.X2 = Context->Origin.X + RectangleInfo.X2;
+    RectangleInfo.Y2 = Context->Origin.Y + RectangleInfo.Y2;
 
-    Context->Driver->Command(DF_GFX_RECTANGLE, (UINT)RectInfo);
+    Context->Driver->Command(DF_GFX_RECTANGLE, (UINT)&RectangleInfo);
 
     return TRUE;
 }
@@ -1113,6 +1122,7 @@ BOOL Rectangle(LPRECTINFO RectInfo) {
  */
 BOOL Arc(LPARCINFO ArcInfo) {
     LPGRAPHICSCONTEXT Context;
+    ARCINFO Arc;
 
     if (ArcInfo == NULL) return FALSE;
     if (ArcInfo->Header.Size < sizeof(ARCINFO)) return FALSE;
@@ -1121,10 +1131,11 @@ BOOL Arc(LPARCINFO ArcInfo) {
     if (Context == NULL) return FALSE;
     if (Context->TypeID != KOID_GRAPHICSCONTEXT) return FALSE;
 
-    ArcInfo->CenterX = Context->Origin.X + ArcInfo->CenterX;
-    ArcInfo->CenterY = Context->Origin.Y + ArcInfo->CenterY;
+    Arc = *ArcInfo;
+    Arc.CenterX = Context->Origin.X + Arc.CenterX;
+    Arc.CenterY = Context->Origin.Y + Arc.CenterY;
 
-    Context->Driver->Command(DF_GFX_ARC, (UINT)ArcInfo);
+    Context->Driver->Command(DF_GFX_ARC, (UINT)&Arc);
     return TRUE;
 }
 
@@ -1137,6 +1148,7 @@ BOOL Arc(LPARCINFO ArcInfo) {
  */
 BOOL Triangle(LPTRIANGLEINFO TriangleInfo) {
     LPGRAPHICSCONTEXT Context;
+    TRIANGLEINFO Triangle;
 
     if (TriangleInfo == NULL) return FALSE;
     if (TriangleInfo->Header.Size < sizeof(TRIANGLEINFO)) return FALSE;
@@ -1145,14 +1157,15 @@ BOOL Triangle(LPTRIANGLEINFO TriangleInfo) {
     if (Context == NULL) return FALSE;
     if (Context->TypeID != KOID_GRAPHICSCONTEXT) return FALSE;
 
-    TriangleInfo->P1.X = Context->Origin.X + TriangleInfo->P1.X;
-    TriangleInfo->P1.Y = Context->Origin.Y + TriangleInfo->P1.Y;
-    TriangleInfo->P2.X = Context->Origin.X + TriangleInfo->P2.X;
-    TriangleInfo->P2.Y = Context->Origin.Y + TriangleInfo->P2.Y;
-    TriangleInfo->P3.X = Context->Origin.X + TriangleInfo->P3.X;
-    TriangleInfo->P3.Y = Context->Origin.Y + TriangleInfo->P3.Y;
+    Triangle = *TriangleInfo;
+    Triangle.P1.X = Context->Origin.X + Triangle.P1.X;
+    Triangle.P1.Y = Context->Origin.Y + Triangle.P1.Y;
+    Triangle.P2.X = Context->Origin.X + Triangle.P2.X;
+    Triangle.P2.Y = Context->Origin.Y + Triangle.P2.Y;
+    Triangle.P3.X = Context->Origin.X + Triangle.P3.X;
+    Triangle.P3.Y = Context->Origin.Y + Triangle.P3.Y;
 
-    Context->Driver->Command(DF_GFX_TRIANGLE, (UINT)TriangleInfo);
+    Context->Driver->Command(DF_GFX_TRIANGLE, (UINT)&Triangle);
     return TRUE;
 }
 

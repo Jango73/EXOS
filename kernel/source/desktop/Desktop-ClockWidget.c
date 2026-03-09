@@ -27,6 +27,7 @@
 #include "Clock.h"
 #include "GFX.h"
 #include "Kernel.h"
+#include "utils/Graphics-Utils.h"
 
 /***************************************************************************/
 
@@ -107,6 +108,7 @@ static BOOL DrawClockHandTriangle(HANDLE GC, I32 CenterX, I32 CenterY, U32 Slot6
 
 U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     RECT Rect;
+    RECT WindowRect;
     RECT ClientRect;
     HANDLE GC;
     ARCINFO ArcInfo;
@@ -116,6 +118,7 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
     I32 CenterX;
     I32 CenterY;
     I32 Radius;
+    I32 MaxRadius;
     U32 HourSlot;
     U32 MinuteSlot;
     U32 SecondSlot;
@@ -134,7 +137,8 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
             if (Param1 == CLOCK_WIDGET_TIMER_ID) {
                 if (GetWindowRect(Window, &Rect) != FALSE &&
                     GetWindowClientRect((LPWINDOW)Window, &Rect, &ClientRect) != FALSE) {
-                    (void)InvalidateWindowRect(Window, &ClientRect);
+                    GraphicsScreenRectToWindowRect(&Rect, &ClientRect, &WindowRect);
+                    (void)InvalidateWindowRect(Window, &WindowRect);
                 }
             }
             return 1;
@@ -150,7 +154,9 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
                 return 1;
             }
 
-            if (GetWindowClientRect((LPWINDOW)Window, &Rect, &ClientRect) == FALSE) {
+            GraphicsScreenRectToWindowRect(&Rect, &Rect, &WindowRect);
+
+            if (GetWindowClientRect((LPWINDOW)Window, &WindowRect, &ClientRect) == FALSE) {
                 EndWindowDraw(Window);
                 return 1;
             }
@@ -164,9 +170,17 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
 
             CenterX = ClientRect.X1 + (ClientWidth / 2);
             CenterY = ClientRect.Y1 + (ClientHeight / 2);
+            MaxRadius = (ClientWidth - 1) / 2;
+            if (((ClientHeight - 1) / 2) < MaxRadius) MaxRadius = (ClientHeight - 1) / 2;
+            if (MaxRadius < 1) {
+                EndWindowDraw(Window);
+                return 1;
+            }
+
             Radius = ClientWidth < ClientHeight ? ClientWidth : ClientHeight;
             Radius = (Radius / 2) - CLOCK_CIRCLE_MARGIN;
             if (Radius < 8) Radius = 8;
+            if (Radius > MaxRadius) Radius = MaxRadius;
 
             ArcInfo.Header.Size = sizeof(ArcInfo);
             ArcInfo.Header.Version = EXOS_ABI_VERSION;
