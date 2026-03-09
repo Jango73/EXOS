@@ -174,22 +174,39 @@ Deliverable:
 - Host notifies dockables of work-rect updates through `OnHostWorkRectChanged` callback.
 
 ## Step 4 - Layout policies and edge behavior
-- [ ] Define edge-specific placement policy:
+- [x] Define edge-specific placement policy:
   - top/bottom: primary axis left-to-right,
   - left/right: primary axis top-to-bottom.
-- [ ] Define overflow behavior:
+- [x] Define overflow behavior:
   - clip,
   - shrink with minimum size,
   - reject with explicit error.
-- [ ] Define fill policy support (`Auto`, `Fixed`, `Weighted`).
-- [ ] Define margins, spacing, and host padding handling.
-- [ ] Route margins/spacing/padding values through theme tokens in desktop/window bridge layers.
-- [ ] Keep generic `DockHost` independent from theme parser/runtime (host receives resolved numeric values only).
-- [ ] Ensure visual interpretation of spacing values is owned by theme contract, not by docking logic.
-- [ ] Keep policy extension path explicit for future advanced modes.
+- [x] Define fill policy support (`Auto`, `Fixed`, `Weighted`).
+- [x] Define margins, spacing, and host padding handling.
+- [x] Route margins/spacing/padding values through theme tokens in desktop/window bridge layers.
+- [x] Keep generic `DockHost` independent from theme parser/runtime (host receives resolved numeric values only).
+- [x] Ensure visual interpretation of spacing values is owned by theme contract, not by docking logic.
+- [x] Keep policy extension path explicit for future advanced modes.
 
 Deliverable:
 - Formal policy behavior document and implementation aligned with API contract.
+
+### Step 4 Output - Policy Engine
+- `DockHost` layout now enforces edge policy semantics:
+  - top/bottom use horizontal primary axis,
+  - left/right use vertical primary axis.
+- Overflow policy behavior implemented in layout path:
+  - `DOCK_OVERFLOW_POLICY_REJECT`: deterministic rejection with explicit status,
+  - `DOCK_OVERFLOW_POLICY_SHRINK`: spacing and item allocation shrink to fit,
+  - `DOCK_OVERFLOW_POLICY_CLIP`: item rectangles are clipped by remaining axis bounds.
+- Fill policy behavior is applied from dockable requests:
+  - `DOCK_LAYOUT_POLICY_FIXED`: fixed requested primary allocation,
+  - `DOCK_LAYOUT_POLICY_WEIGHTED`: weighted distribution from remaining space,
+  - `DOCK_LAYOUT_POLICY_AUTO`: equal-share distribution fallback.
+- Margins, spacing, and host padding are applied numerically via `DOCK_HOST_LAYOUT_POLICY`.
+- Generic core remains theme-agnostic by design:
+  - no dependency on theme parser/runtime in `DockHost`,
+  - theme systems are expected to resolve numeric policy inputs in bridge layers.
 
 ## Step 5 - Concurrency and message integration
 - [ ] Define lock usage rules for docking operations within existing desktop/window mutex contract.

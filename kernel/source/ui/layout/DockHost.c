@@ -182,30 +182,188 @@ static void DockHostBuildBucket(LPDOCK_HOST Host, U32 Edge, LPDOCK_EDGE_BUCKET B
 /************************************************************************/
 
 /**
+ * @brief Validate one dock size request.
+ * @param Request Candidate request.
+ * @return TRUE when valid.
+ */
+static BOOL DockHostValidateSizeRequest(LPDOCK_SIZE_REQUEST Request) {
+    if (Request == NULL) return FALSE;
+    if (Request->Policy != DOCK_LAYOUT_POLICY_AUTO &&
+        Request->Policy != DOCK_LAYOUT_POLICY_FIXED &&
+        Request->Policy != DOCK_LAYOUT_POLICY_WEIGHTED) {
+        return FALSE;
+    }
+    if (Request->PreferredPrimarySize < 0) return FALSE;
+    if (Request->MinimumPrimarySize < 0) return FALSE;
+    if (Request->MaximumPrimarySize < 0) return FALSE;
+    if (Request->MaximumPrimarySize > 0 && Request->MinimumPrimarySize > Request->MaximumPrimarySize) return FALSE;
+    if (Request->PreferredPrimarySize > 0 && Request->PreferredPrimarySize < Request->MinimumPrimarySize) return FALSE;
+    if (Request->MaximumPrimarySize > 0 && Request->PreferredPrimarySize > Request->MaximumPrimarySize) return FALSE;
+    if (Request->Policy == DOCK_LAYOUT_POLICY_WEIGHTED && Request->Weight == 0) return FALSE;
+    if (Request->Policy == DOCK_LAYOUT_POLICY_FIXED && Request->PreferredPrimarySize <= 0) return FALSE;
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve one dockable size request, optionally through its measure callback.
+ * @param Dockable Source dockable.
+ * @param Host Source host.
+ * @param HostRect Host rectangle snapshot.
+ * @param RequestOut Resolved request output.
+ * @return Docking status code.
+ */
+static U32 DockHostResolveSizeRequest(
+    LPDOCKABLE Dockable,
+    LPDOCK_HOST Host,
+    LPRECT HostRect,
+    LPDOCK_SIZE_REQUEST RequestOut
+) {
+    U32 Status;
+
+    if (Dockable == NULL || Host == NULL || HostRect == NULL || RequestOut == NULL) {
+        return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
+    }
+
+    *RequestOut = Dockable->SizeRequest;
+
+    if (Dockable->Callbacks.Measure != NULL) {
+        Status = Dockable->Callbacks.Measure(Dockable, Host, HostRect, RequestOut);
+        if (Status != DOCK_LAYOUT_STATUS_SUCCESS) return Status;
+    }
+
+    if (DockHostValidateSizeRequest(RequestOut) == FALSE) {
+        return DOCK_LAYOUT_STATUS_INVALID_SIZE;
+    }
+
+    return DOCK_LAYOUT_STATUS_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve one requested size value from one request.
+ * @param Request Source request.
+ * @return Requested size value.
+ */
+static I32 DockHostResolveRequestedSize(LPDOCK_SIZE_REQUEST Request) {
+    I32 Size;
+
+    Size = Request->PreferredPrimarySize;
+    if (Size < Request->MinimumPrimarySize) Size = Request->MinimumPrimarySize;
+    if (Request->MaximumPrimarySize > 0 && Size > Request->MaximumPrimarySize) Size = Request->MaximumPrimarySize;
+    if (Size <= 0) Size = 1;
+    return Size;
+}
+
+/************************************************************************/
+
+/**
  * @brief Resolve requested edge thickness for one bucket.
- * @param Bucket Edge bucket.
+ * @param Requests Per-dockable resolved requests.
+ * @param Count Request count.
  * @return Thickness in pixels.
  */
-static I32 DockHostResolveEdgeThickness(LPDOCK_EDGE_BUCKET Bucket) {
+static I32 DockHostResolveEdgeThickness(LPDOCK_SIZE_REQUEST Requests, UINT Count) {
     UINT Index;
-    DOCK_SIZE_REQUEST Request;
     I32 Thickness = 0;
     I32 Candidate;
 
-    if (Bucket == NULL || Bucket->Count == 0) return 0;
+    if (Requests == NULL || Count == 0) return 0;
 
-    for (Index = 0; Index < Bucket->Count; Index++) {
-        Request = Bucket->Items[Index]->SizeRequest;
-        Candidate = Request.PreferredPrimarySize;
-        if (Candidate < Request.MinimumPrimarySize) Candidate = Request.MinimumPrimarySize;
-        if (Request.MaximumPrimarySize > 0 && Candidate > Request.MaximumPrimarySize) {
-            Candidate = Request.MaximumPrimarySize;
-        }
+    for (Index = 0; Index < Count; Index++) {
+        Candidate = DockHostResolveRequestedSize(&(Requests[Index]));
         if (Candidate > Thickness) Thickness = Candidate;
     }
 
     if (Thickness <= 0) Thickness = 1;
     return Thickness;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Fill per-item primary sizes based on request policies and available space.
+ * @param Requests Resolved requests.
+ * @param Count Item count.
+ * @param Policy Overflow policy.
+ * @param ContentAvailable Available primary size excluding spacing.
+ * @param SizesOut Output per-item size array.
+ * @return Docking status code.
+ */
+static U32 DockHostResolvePrimarySizes(
+    LPDOCK_SIZE_REQUEST Requests,
+    UINT Count,
+    U32 Policy,
+    I32 ContentAvailable,
+    I32* SizesOut
+) {
+    UINT Index;
+    I32 SumFixed = 0;
+    U32 WeightTotal = 0;
+    I32 Remaining;
+    I32 Share;
+    I32 Remainder;
+
+    if (Requests == NULL || SizesOut == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
+    if (Count == 0) return DOCK_LAYOUT_STATUS_SUCCESS;
+
+    if (ContentAvailable <= 0) {
+        if (Policy == DOCK_OVERFLOW_POLICY_REJECT) return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
+        for (Index = 0; Index < Count; Index++) SizesOut[Index] = 0;
+        return DOCK_LAYOUT_STATUS_SUCCESS;
+    }
+
+    for (Index = 0; Index < Count; Index++) {
+        if (Requests[Index].Policy == DOCK_LAYOUT_POLICY_FIXED) {
+            SizesOut[Index] = DockHostResolveRequestedSize(&(Requests[Index]));
+            SumFixed += SizesOut[Index];
+        } else {
+            SizesOut[Index] = 0;
+            WeightTotal += Requests[Index].Policy == DOCK_LAYOUT_POLICY_WEIGHTED ? Requests[Index].Weight : 1;
+        }
+    }
+
+    if (SumFixed > ContentAvailable) {
+        if (Policy == DOCK_OVERFLOW_POLICY_REJECT) return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
+
+        if (Policy == DOCK_OVERFLOW_POLICY_CLIP) {
+            for (Index = 0; Index < Count; Index++) {
+                if (Requests[Index].Policy != DOCK_LAYOUT_POLICY_FIXED) SizesOut[Index] = 0;
+            }
+            return DOCK_LAYOUT_STATUS_SUCCESS;
+        }
+
+        SumFixed = 0;
+        WeightTotal = Count;
+        for (Index = 0; Index < Count; Index++) {
+            SizesOut[Index] = 0;
+        }
+    }
+
+    Remaining = ContentAvailable - SumFixed;
+    if (Remaining < 0) Remaining = 0;
+
+    if (WeightTotal > 0 && Remaining > 0) {
+        for (Index = 0; Index < Count; Index++) {
+            if (Requests[Index].Policy == DOCK_LAYOUT_POLICY_FIXED) continue;
+
+            Share = Requests[Index].Policy == DOCK_LAYOUT_POLICY_WEIGHTED ? Requests[Index].Weight : 1;
+            SizesOut[Index] = (Remaining * Share) / (I32)WeightTotal;
+        }
+
+        Remainder = Remaining;
+        for (Index = 0; Index < Count; Index++) Remainder -= SizesOut[Index];
+        for (Index = 0; Remainder > 0 && Index < Count; Index++) {
+            if (Requests[Index].Policy == DOCK_LAYOUT_POLICY_FIXED) continue;
+            SizesOut[Index]++;
+            Remainder--;
+            if (Index + 1 == Count && Remainder > 0) Index = (UINT)-1;
+        }
+    }
+
+    return DOCK_LAYOUT_STATUS_SUCCESS;
 }
 
 /************************************************************************/
@@ -292,13 +450,16 @@ static U32 DockHostApplyEdgeBucket(
     LPDOCK_LAYOUT_RESULT Result
 ) {
     LPDOCK_EDGE_LAYOUT_POLICY EdgePolicy;
+    DOCK_SIZE_REQUEST Requests[DOCK_HOST_MAX_ITEMS];
+    I32 PrimarySizes[DOCK_HOST_MAX_ITEMS];
     I32 Thickness;
     I32 PrimaryStart;
     I32 PrimaryEnd;
     I32 PrimaryAvailable;
+    I32 EffectiveSpacing;
+    I32 SpacingTotal;
+    I32 ContentAvailable;
     I32 Cursor;
-    I32 Segment;
-    I32 RemainingItems;
     I32 ItemStart;
     I32 ItemEnd;
     RECT AssignedRect;
@@ -310,16 +471,24 @@ static U32 DockHostApplyEdgeBucket(
     EdgePolicy = DockHostGetEdgePolicy(Host, Edge);
     if (EdgePolicy == NULL) return DOCK_LAYOUT_STATUS_INVALID_EDGE;
 
-    Thickness = DockHostResolveEdgeThickness(Bucket);
+    for (Index = 0; Index < Bucket->Count; Index++) {
+        Status = DockHostResolveSizeRequest(Bucket->Items[Index], Host, WorkRect, &(Requests[Index]));
+        if (Status != DOCK_LAYOUT_STATUS_SUCCESS) {
+            Result->RejectedCount++;
+            if (Result->Status == DOCK_LAYOUT_STATUS_SUCCESS) Result->Status = Status;
+            if (EdgePolicy->OverflowPolicy == DOCK_OVERFLOW_POLICY_REJECT) return Status;
+            Requests[Index] = Bucket->Items[Index]->SizeRequest;
+        }
+    }
+
+    Thickness = DockHostResolveEdgeThickness(Requests, Bucket->Count);
     if (Edge == DOCK_EDGE_TOP || Edge == DOCK_EDGE_BOTTOM) {
         if ((WorkRect->Y2 - WorkRect->Y1 + 1) < Thickness) {
             if (EdgePolicy->OverflowPolicy == DOCK_OVERFLOW_POLICY_REJECT) {
                 Result->RejectedCount += Bucket->Count;
                 return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
             }
-            if (EdgePolicy->OverflowPolicy == DOCK_OVERFLOW_POLICY_SHRINK) {
-                Thickness = WorkRect->Y2 - WorkRect->Y1 + 1;
-            }
+            Thickness = WorkRect->Y2 - WorkRect->Y1 + 1;
         }
 
         PrimaryStart = WorkRect->X1 + EdgePolicy->MarginStart;
@@ -330,9 +499,7 @@ static U32 DockHostApplyEdgeBucket(
                 Result->RejectedCount += Bucket->Count;
                 return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
             }
-            if (EdgePolicy->OverflowPolicy == DOCK_OVERFLOW_POLICY_SHRINK) {
-                Thickness = WorkRect->X2 - WorkRect->X1 + 1;
-            }
+            Thickness = WorkRect->X2 - WorkRect->X1 + 1;
         }
 
         PrimaryStart = WorkRect->Y1 + EdgePolicy->MarginStart;
@@ -345,16 +512,41 @@ static U32 DockHostApplyEdgeBucket(
     }
 
     PrimaryAvailable = PrimaryEnd - PrimaryStart + 1;
+    EffectiveSpacing = EdgePolicy->Spacing;
+    if (Bucket->Count <= 1) EffectiveSpacing = 0;
+
+    SpacingTotal = EffectiveSpacing * ((I32)Bucket->Count - 1);
+    if (SpacingTotal >= PrimaryAvailable) {
+        if (EdgePolicy->OverflowPolicy == DOCK_OVERFLOW_POLICY_REJECT) {
+            Result->RejectedCount += Bucket->Count;
+            return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
+        }
+        if (EdgePolicy->OverflowPolicy == DOCK_OVERFLOW_POLICY_SHRINK) {
+            EffectiveSpacing = 0;
+            SpacingTotal = 0;
+        }
+    }
+
+    ContentAvailable = PrimaryAvailable - SpacingTotal;
+    Status = DockHostResolvePrimarySizes(
+        Requests,
+        Bucket->Count,
+        EdgePolicy->OverflowPolicy,
+        ContentAvailable,
+        PrimarySizes
+    );
+    if (Status != DOCK_LAYOUT_STATUS_SUCCESS) {
+        Result->RejectedCount += Bucket->Count;
+        if (Result->Status == DOCK_LAYOUT_STATUS_SUCCESS) Result->Status = Status;
+        return Status;
+    }
+
     Cursor = PrimaryStart;
 
     for (Index = 0; Index < Bucket->Count; Index++) {
-        RemainingItems = (I32)Bucket->Count - (I32)Index;
-        Segment = (PrimaryEnd - Cursor + 1) / RemainingItems;
-        if (Segment < 1) Segment = 1;
-
         ItemStart = Cursor;
-        ItemEnd = ItemStart + Segment - 1;
-        if (Index + 1 == Bucket->Count) ItemEnd = PrimaryEnd;
+        ItemEnd = ItemStart + PrimarySizes[Index] - 1;
+        if (ItemEnd > PrimaryEnd) ItemEnd = PrimaryEnd;
 
         if (Edge == DOCK_EDGE_TOP) {
             AssignedRect.X1 = ItemStart;
@@ -378,6 +570,14 @@ static U32 DockHostApplyEdgeBucket(
             AssignedRect.X1 = WorkRect->X2 - Thickness + 1;
         }
 
+        if (ItemEnd < ItemStart) {
+            Result->RejectedCount++;
+            Result->Status = DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
+            if (EdgePolicy->OverflowPolicy == DOCK_OVERFLOW_POLICY_REJECT) return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
+            Cursor += PrimarySizes[Index] + EffectiveSpacing;
+            continue;
+        }
+
         if (Bucket->Items[Index]->Callbacks.ApplyRect != NULL) {
             Status = Bucket->Items[Index]->Callbacks.ApplyRect(
                 Bucket->Items[Index],
@@ -396,7 +596,7 @@ static U32 DockHostApplyEdgeBucket(
             Result->AppliedCount++;
         }
 
-        Cursor = ItemEnd + 1 + EdgePolicy->Spacing;
+        Cursor += PrimarySizes[Index] + EffectiveSpacing;
     }
 
     if (Edge == DOCK_EDGE_TOP) {
