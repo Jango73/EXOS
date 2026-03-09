@@ -241,6 +241,7 @@ struct tag_DESKTOP {
     I32 Order;
     DESKTOP_THEME Theme;
     MOUSE_CURSOR Cursor;
+    LPVOID DockingBridge;
 };
 
 /************************************************************************/

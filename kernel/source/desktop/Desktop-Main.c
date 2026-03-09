@@ -35,6 +35,7 @@
 #include "Desktop.h"
 #include "Desktop-ModeSelector.h"
 #include "Desktop-ThemeTokens.h"
+#include "desktop/components/Desktop-DockingBridge.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
 #include "Clock.h"
@@ -184,6 +185,8 @@ static void UpdateDesktopWindowRect(LPDESKTOP Desktop, I32 Width, I32 Height) {
             (void)UpdateWindowScreenRectAndDirtyRegion(Desktop->Window, &Rect);
         }
     }
+
+    (void)DesktopDockingBridgeHandleDesktopRectChanged(Desktop, &Rect);
 }
 
 /***************************************************************************/
@@ -383,6 +386,8 @@ BOOL DeleteDesktop(LPDESKTOP This) {
     SAFE_USE_VALID_ID(This->Window, KOID_WINDOW) {
         DeleteWindow(This->Window);
     }
+
+    DesktopDockingBridgeShutdown(This);
 
     ReleaseKernelObject(This);
 

@@ -171,13 +171,13 @@ Deliverable:
 - Deadlock-safe docking integration strategy consistent with desktop lock ordering rules.
 
 ## Step 6 - Desktop bridge layer
-- [ ] Add desktop-specific bridge module:
+- [x] Add desktop-specific bridge module:
   - `kernel/include/desktop/components/Desktop-DockingBridge.h`
   - `kernel/source/desktop/components/Desktop-DockingBridge.c`
-- [ ] Bind one `DockHost` instance to desktop root window.
-- [ ] Trigger relayout on desktop mode/size changes.
-- [ ] Expose helper API for desktop components to register as dockables.
-- [ ] Keep bridge code thin and free of generic layout logic duplication.
+- [x] Bind one `DockHost` instance to desktop root window.
+- [x] Trigger relayout on desktop mode/size changes.
+- [x] Expose helper API for desktop components to register as dockables.
+- [x] Keep bridge code thin and free of generic layout logic duplication.
 
 Deliverable:
 - Desktop can host generic dockables through a dedicated integration bridge.

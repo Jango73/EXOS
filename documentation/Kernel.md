@@ -1898,6 +1898,13 @@ Userland can query both rectangle spaces through `GetWindowRect` and `GetWindowC
 Per-window timer delivery is implemented in `kernel/source/desktop/Desktop-Timer.c` (`kernel/include/desktop/Desktop-Timer.h`) with `SetWindowTimer`, `KillWindowTimer`, and asynchronous `EWM_TIMER` dispatch.
 The desktop clock widget (`kernel/source/desktop/Desktop-ClockWidget.c`, `kernel/include/desktop/Desktop-ClockWidget.h`) uses this timer path to request redraw once per second.
 
+#### Desktop docking bridge
+
+Desktop docking integration is centralized in `kernel/source/desktop/components/Desktop-DockingBridge.c` (`kernel/include/desktop/components/Desktop-DockingBridge.h`).
+The bridge owns one generic `DockHost` instance per desktop and exposes registration helpers (`AttachDockable`, `DetachDockable`, `MarkDirty`, `Relayout`, `GetWorkRect`) for desktop components.
+Desktop size changes propagate through `UpdateDesktopWindowRect`, which forwards the new root rectangle to the bridge and triggers relayout.
+The bridge uses the two-phase docking flow (`BuildLayoutFrame` then `ApplyLayoutFrame`) so structural layout can be computed separately from callback execution.
+
 #### Theme architecture
 
 Token resolution for desktop colors and metrics is implemented in `kernel/source/desktop/Desktop-ThemeTokens.c` (`kernel/include/desktop/Desktop-ThemeTokens.h`).
