@@ -531,7 +531,8 @@ static void DesktopCursorRequestSoftwareRedraw(LPDESKTOP Desktop, I32 OldX, I32 
     }
 
     if (HasDamageRect != FALSE) {
-        DesktopOverlayInvalidateWindowTreeThenRootRect(Desktop->Window, &DamageRect);
+        DesktopOverlayInvalidateWindowTreeFullWindowRect(Desktop->Window, &DamageRect, TRUE);
+        (void)DesktopOverlayInvalidateRootRect(Desktop->Window, &DamageRect);
     }
 
     LockMutex(&(Desktop->Mutex), INFINITY);

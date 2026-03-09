@@ -54,6 +54,31 @@ static BOOL IsDesktopDispatcherTask(LPTASK Task) {
 /***************************************************************************/
 
 /**
+ * @brief Recursively assign one owner task to a window subtree.
+ * @param Window Subtree root window.
+ * @param Task Target owner task.
+ */
+static void DesktopAssignWindowTaskRecursive(LPWINDOW Window, LPTASK Task) {
+    LPLISTNODE Node;
+    LPWINDOW Child;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
+    if (Task == NULL || Task->TypeID != KOID_TASK) return;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    Window->Task = Task;
+
+    for (Node = Window->Children != NULL ? Window->Children->First : NULL; Node != NULL; Node = Node->Next) {
+        Child = (LPWINDOW)Node;
+        DesktopAssignWindowTaskRecursive(Child, Task);
+    }
+
+    UnlockMutex(&(Window->Mutex));
+}
+
+/***************************************************************************/
+
+/**
  * @brief Dedicated desktop message loop task.
  * @param Parameter Desktop pointer.
  * @return Unused.
@@ -110,6 +135,9 @@ BOOL DesktopEnsureDispatcherTask(LPDESKTOP Desktop) {
                 WARNING(TEXT("[DesktopEnsureDispatcherTask] Unable to initialize dispatcher message queues"));
                 return FALSE;
             }
+            SAFE_USE_VALID_ID(Desktop->Window, KOID_WINDOW) {
+                DesktopAssignWindowTaskRecursive(Desktop->Window, Desktop->Task);
+            }
             return TRUE;
         }
     }
@@ -139,7 +167,7 @@ BOOL DesktopEnsureDispatcherTask(LPDESKTOP Desktop) {
     Desktop->Task = DispatcherTask;
 
     SAFE_USE_VALID_ID(Desktop->Window, KOID_WINDOW) {
-        Desktop->Window->Task = DispatcherTask;
+        DesktopAssignWindowTaskRecursive(Desktop->Window, DispatcherTask);
     }
 
     DEBUG(TEXT("[DesktopEnsureDispatcherTask] Dispatcher task ready desktop=%p task=%p"),

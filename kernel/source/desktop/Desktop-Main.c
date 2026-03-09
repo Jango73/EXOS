@@ -247,6 +247,30 @@ I32 SortWindows_Order(LPCVOID Item1, LPCVOID Item2) {
 /***************************************************************************/
 
 /**
+ * @brief Insert one child window at the front of its parent z-order.
+ * @param Parent Parent window already locked.
+ * @param Window Child window to order.
+ */
+static void AddChildWindowToFrontLocked(LPWINDOW Parent, LPWINDOW Window) {
+    LPLISTNODE Node;
+    LPWINDOW Sibling;
+
+    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return;
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
+
+    for (Node = Parent->Children != NULL ? Parent->Children->First : NULL; Node != NULL; Node = Node->Next) {
+        Sibling = (LPWINDOW)Node;
+        if (Sibling == NULL || Sibling->TypeID != KOID_WINDOW) continue;
+        Sibling->Order++;
+    }
+
+    Window->Order = 0;
+    ListAddHead(Parent->Children, Window);
+}
+
+/***************************************************************************/
+
+/**
  * @brief Create a new desktop and its main window.
  * @return Pointer to the created desktop or NULL on failure.
  */
@@ -278,6 +302,12 @@ LPDESKTOP CreateDesktop(void) {
     }
     This->Graphics = &ConsoleDriver;
     This->Mode = DESKTOP_MODE_CONSOLE;
+
+    if (DesktopEnsureDispatcherTask(This) == FALSE) {
+        DeleteList(This->Timers);
+        KernelHeapFree(This);
+        return NULL;
+    }
 
     WindowInfo.Header.Size = sizeof(WINDOWINFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
@@ -487,7 +517,6 @@ BOOL ShowDesktop(LPDESKTOP This) {
 
     This->Mode = DESKTOP_MODE_GRAPHICS;
     UpdateDesktopWindowRect(This, (I32)ModeInfo.Width, (I32)ModeInfo.Height);
-
     // PostMessage((HANDLE) This->Window, EWM_DRAW, 0, 0);
 
     //-------------------------------------
@@ -785,7 +814,7 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
         RectRegionReset(&This->DirtyRegion);
         (void)RectRegionAddRect(&This->DirtyRegion, &This->ScreenRect);
 
-        ListAddHead(This->ParentWindow->Children, This);
+        AddChildWindowToFrontLocked(This->ParentWindow, This);
 
         //-------------------------------------
         // Compute the level of the window
@@ -804,6 +833,10 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     // Ensure the freshly created window gets a draw request
 
     InvalidateWindowRect((HANDLE)This, NULL);
+
+    if (Info->ShowHide != FALSE || (This->Style & EWS_VISIBLE) != 0) {
+        (void)ShowWindow((HANDLE)This, TRUE);
+    }
 
     return This;
 }

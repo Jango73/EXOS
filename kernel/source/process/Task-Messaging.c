@@ -77,6 +77,8 @@ static void PopWindowDispatchContext(
     LPVOID PreviousWindow,
     LPVOID PreviousClass,
     WINDOWFUNC PreviousFunction);
+static void BeginWindowDrawDispatchState(LPWINDOW Window, U32 Message);
+static void EndWindowDrawDispatchState(LPWINDOW Window, U32 Message);
 
 /************************************************************************/
 
@@ -131,6 +133,35 @@ static void PopWindowDispatchContext(
     if (Task->WindowDispatchDepth > 0) {
         Task->WindowDispatchDepth--;
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Mark one window as processing one draw dispatch.
+ * @param Window Target window.
+ * @param Message Message being dispatched.
+ */
+static void BeginWindowDrawDispatchState(LPWINDOW Window, U32 Message) {
+    if (Message != EWM_DRAW) return;
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
+
+    Window->Status &= ~WINDOW_STATUS_NEED_DRAW;
+    Window->Status |= WINDOW_STATUS_DRAWING;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Clear one window draw-dispatch state after callback return.
+ * @param Window Target window.
+ * @param Message Message being dispatched.
+ */
+static void EndWindowDrawDispatchState(LPWINDOW Window, U32 Message) {
+    if (Message != EWM_DRAW) return;
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
+
+    Window->Status &= ~WINDOW_STATUS_DRAWING;
 }
 
 /************************************************************************/
@@ -839,7 +870,9 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
             }
 
             LOCK_WINDOW(&(Window->Mutex), "Window");
+            BeginWindowDrawDispatchState(Window, Msg);
             Result = Window->Function(Target, Msg, Param1, Param2);
+            EndWindowDrawDispatchState(Window, Msg);
             UNLOCK_WINDOW(&(Window->Mutex), "Window");
 
             SAFE_USE_VALID_ID(Window->Task, KOID_TASK) {
@@ -1016,7 +1049,9 @@ BOOL DispatchMessage(LPMESSAGEINFO Message) {
             }
 
             LOCK_WINDOW(&(Window->Mutex), "Window");
+            BeginWindowDrawDispatchState(Window, Message->Message);
             Window->Function(TargetHandle, Message->Message, Message->Param1, Message->Param2);
+            EndWindowDrawDispatchState(Window, Message->Message);
             UNLOCK_WINDOW(&(Window->Mutex), "Window");
 
             SAFE_USE_VALID_ID(Window->Task, KOID_TASK) {

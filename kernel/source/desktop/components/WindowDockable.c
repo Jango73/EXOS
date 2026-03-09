@@ -122,9 +122,6 @@ static U32 WindowDockableApplyRect(LPDOCKABLE Dockable, LPDOCK_HOST Host, LPRECT
     LPWINDOW Window;
     RECT Rect;
 
-    UNUSED(Host);
-    UNUSED(WorkRect);
-
     if (Dockable == NULL || AssignedRect == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
     Window = (LPWINDOW)Dockable->Context;

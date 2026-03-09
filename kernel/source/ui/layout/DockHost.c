@@ -489,6 +489,7 @@ static U32 DockHostApplyEdgeBucket(
     I32 Cursor;
     I32 ItemStart;
     I32 ItemEnd;
+    I32 ConsumedPrimary;
     RECT AssignedRect;
     UINT Index;
     U32 Status;
@@ -510,27 +511,11 @@ static U32 DockHostApplyEdgeBucket(
 
     Thickness = DockHostResolveEdgeThickness(Requests, Bucket->Count);
     if (Edge == DOCK_EDGE_TOP || Edge == DOCK_EDGE_BOTTOM) {
-        if ((WorkRect->Y2 - WorkRect->Y1 + 1) < Thickness) {
-            if (EdgePolicy->OverflowPolicy == DOCK_OVERFLOW_POLICY_REJECT) {
-                Frame->RejectedCount += Bucket->Count;
-                return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
-            }
-            Thickness = WorkRect->Y2 - WorkRect->Y1 + 1;
-        }
-
-        PrimaryStart = WorkRect->X1 + EdgePolicy->MarginStart;
-        PrimaryEnd = WorkRect->X2 - EdgePolicy->MarginEnd;
-    } else {
-        if ((WorkRect->X2 - WorkRect->X1 + 1) < Thickness) {
-            if (EdgePolicy->OverflowPolicy == DOCK_OVERFLOW_POLICY_REJECT) {
-                Frame->RejectedCount += Bucket->Count;
-                return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
-            }
-            Thickness = WorkRect->X2 - WorkRect->X1 + 1;
-        }
-
         PrimaryStart = WorkRect->Y1 + EdgePolicy->MarginStart;
         PrimaryEnd = WorkRect->Y2 - EdgePolicy->MarginEnd;
+    } else {
+        PrimaryStart = WorkRect->X1 + EdgePolicy->MarginStart;
+        PrimaryEnd = WorkRect->X2 - EdgePolicy->MarginEnd;
     }
 
     if (PrimaryEnd < PrimaryStart) {
@@ -576,25 +561,25 @@ static U32 DockHostApplyEdgeBucket(
         if (ItemEnd > PrimaryEnd) ItemEnd = PrimaryEnd;
 
         if (Edge == DOCK_EDGE_TOP) {
-            AssignedRect.X1 = ItemStart;
-            AssignedRect.X2 = ItemEnd;
-            AssignedRect.Y1 = WorkRect->Y1;
-            AssignedRect.Y2 = WorkRect->Y1 + Thickness - 1;
-        } else if (Edge == DOCK_EDGE_BOTTOM) {
-            AssignedRect.X1 = ItemStart;
-            AssignedRect.X2 = ItemEnd;
-            AssignedRect.Y2 = WorkRect->Y2;
-            AssignedRect.Y1 = WorkRect->Y2 - Thickness + 1;
-        } else if (Edge == DOCK_EDGE_LEFT) {
-            AssignedRect.Y1 = ItemStart;
-            AssignedRect.Y2 = ItemEnd;
             AssignedRect.X1 = WorkRect->X1;
-            AssignedRect.X2 = WorkRect->X1 + Thickness - 1;
-        } else {
+            AssignedRect.X2 = WorkRect->X2;
             AssignedRect.Y1 = ItemStart;
             AssignedRect.Y2 = ItemEnd;
+        } else if (Edge == DOCK_EDGE_BOTTOM) {
+            AssignedRect.X1 = WorkRect->X1;
             AssignedRect.X2 = WorkRect->X2;
-            AssignedRect.X1 = WorkRect->X2 - Thickness + 1;
+            AssignedRect.Y2 = WorkRect->Y2 - (ItemStart - PrimaryStart);
+            AssignedRect.Y1 = AssignedRect.Y2 - (PrimarySizes[Index] - 1);
+        } else if (Edge == DOCK_EDGE_LEFT) {
+            AssignedRect.Y1 = WorkRect->Y1;
+            AssignedRect.Y2 = WorkRect->Y2;
+            AssignedRect.X1 = ItemStart;
+            AssignedRect.X2 = ItemEnd;
+        } else {
+            AssignedRect.Y1 = WorkRect->Y1;
+            AssignedRect.Y2 = WorkRect->Y2;
+            AssignedRect.X2 = WorkRect->X2 - (ItemStart - PrimaryStart);
+            AssignedRect.X1 = AssignedRect.X2 - (PrimarySizes[Index] - 1);
         }
 
         if (ItemEnd < ItemStart) {
@@ -616,14 +601,20 @@ static U32 DockHostApplyEdgeBucket(
         Cursor += PrimarySizes[Index] + EffectiveSpacing;
     }
 
+    ConsumedPrimary = Cursor - PrimaryStart;
+    if (Bucket->Count > 0 && EffectiveSpacing > 0) {
+        ConsumedPrimary -= EffectiveSpacing;
+    }
+    if (ConsumedPrimary < 0) ConsumedPrimary = 0;
+
     if (Edge == DOCK_EDGE_TOP) {
-        WorkRect->Y1 += Thickness;
+        WorkRect->Y1 += ConsumedPrimary;
     } else if (Edge == DOCK_EDGE_BOTTOM) {
-        WorkRect->Y2 -= Thickness;
+        WorkRect->Y2 -= ConsumedPrimary;
     } else if (Edge == DOCK_EDGE_LEFT) {
-        WorkRect->X1 += Thickness;
+        WorkRect->X1 += ConsumedPrimary;
     } else {
-        WorkRect->X2 -= Thickness;
+        WorkRect->X2 -= ConsumedPrimary;
     }
 
     if (WorkRect->X2 < WorkRect->X1) WorkRect->X2 = WorkRect->X1;

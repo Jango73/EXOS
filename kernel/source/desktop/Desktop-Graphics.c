@@ -188,6 +188,75 @@ static BOOL BuildWindowRectAtPosition(LPWINDOW Window, LPPOINT Position, LPRECT 
 /***************************************************************************/
 
 /**
+ * @brief Resolve whether one window is managed as a docked child.
+ * @param Window Target window.
+ * @return TRUE when the window is attached to one dock edge.
+ */
+static BOOL IsWindowDocked(LPWINDOW Window) {
+    U32 Edge;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (GetWindowProp((HANDLE)Window, WINDOW_DOCK_PROP_ENABLED) == 0) return FALSE;
+
+    Edge = GetWindowProp((HANDLE)Window, WINDOW_DOCK_PROP_EDGE);
+    return (Edge == DOCK_EDGE_TOP || Edge == DOCK_EDGE_BOTTOM || Edge == DOCK_EDGE_LEFT || Edge == DOCK_EDGE_RIGHT);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Clamp one window rectangle inside the parent dock work rectangle.
+ * @param Window Target window.
+ * @param Parent Parent window.
+ * @param WindowRect In-out candidate rectangle in parent coordinates.
+ */
+static void ClampWindowRectToParentWorkRect(LPWINDOW Window, LPWINDOW Parent, LPRECT WindowRect) {
+    RECT WorkRect;
+    I32 Width;
+    I32 Height;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
+    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return;
+    if (WindowRect == NULL) return;
+    if (IsWindowDocked(Window) != FALSE) return;
+    if (WindowDockHostGetWorkRect((HANDLE)Parent, &WorkRect) != DOCK_LAYOUT_STATUS_SUCCESS) return;
+
+    Width = WindowRect->X2 - WindowRect->X1 + 1;
+    Height = WindowRect->Y2 - WindowRect->Y1 + 1;
+    if (Width <= 0 || Height <= 0) return;
+
+    if (Width > (WorkRect.X2 - WorkRect.X1 + 1)) {
+        WindowRect->X1 = WorkRect.X1;
+        WindowRect->X2 = WorkRect.X2;
+    } else {
+        if (WindowRect->X1 < WorkRect.X1) {
+            WindowRect->X1 = WorkRect.X1;
+            WindowRect->X2 = WindowRect->X1 + Width - 1;
+        }
+        if (WindowRect->X2 > WorkRect.X2) {
+            WindowRect->X2 = WorkRect.X2;
+            WindowRect->X1 = WindowRect->X2 - Width + 1;
+        }
+    }
+
+    if (Height > (WorkRect.Y2 - WorkRect.Y1 + 1)) {
+        WindowRect->Y1 = WorkRect.Y1;
+        WindowRect->Y2 = WorkRect.Y2;
+    } else {
+        if (WindowRect->Y1 < WorkRect.Y1) {
+            WindowRect->Y1 = WorkRect.Y1;
+            WindowRect->Y2 = WindowRect->Y1 + Height - 1;
+        }
+        if (WindowRect->Y2 > WorkRect.Y2) {
+            WindowRect->Y2 = WorkRect.Y2;
+            WindowRect->Y1 = WindowRect->Y2 - Height + 1;
+        }
+    }
+}
+
+/***************************************************************************/
+
+/**
  * @brief Apply default move/resize behavior and enqueue bounded damage.
  * @param Window Target window.
  * @param WindowRect New window rectangle relative to parent.
@@ -220,6 +289,8 @@ static BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect) {
         UnlockMutex(&(Window->Mutex));
         return TRUE;
     }
+
+    ClampWindowRectToParentWorkRect(Window, Parent, WindowRect);
 
     Window->Rect = *WindowRect;
     GraphicsWindowRectToScreenRect(&(Parent->ScreenRect), &(Window->Rect), &(Window->ScreenRect));

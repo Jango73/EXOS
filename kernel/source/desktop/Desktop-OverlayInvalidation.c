@@ -33,8 +33,9 @@
  * @param Window Root window.
  * @param ScreenRect Rectangle in screen coordinates.
  * @param SkipCurrent TRUE to skip invalidating @p Window itself.
+ * @param FullWindow TRUE to invalidate the whole window when intersected.
  */
-static void DesktopOverlayInvalidateWindowTreeRectInternal(LPWINDOW Window, LPRECT ScreenRect, BOOL SkipCurrent) {
+static void DesktopOverlayInvalidateWindowTreeRectInternal(LPWINDOW Window, LPRECT ScreenRect, BOOL SkipCurrent, BOOL FullWindow) {
     LPLISTNODE ChildNode;
     LPWINDOW Child;
     RECT WindowScreenRect;
@@ -54,12 +55,19 @@ static void DesktopOverlayInvalidateWindowTreeRectInternal(LPWINDOW Window, LPRE
     for (ChildNode = Window->Children != NULL ? Window->Children->First : NULL; ChildNode != NULL; ChildNode = ChildNode->Next) {
         Child = (LPWINDOW)ChildNode;
         if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
-        DesktopOverlayInvalidateWindowTreeRectInternal(Child, ScreenRect, FALSE);
+        DesktopOverlayInvalidateWindowTreeRectInternal(Child, ScreenRect, FALSE, FullWindow);
     }
 
     if (SkipCurrent == FALSE && IsVisible != FALSE) {
         if (IntersectRect(&WindowScreenRect, ScreenRect, &Intersection) != FALSE) {
-            GraphicsScreenRectToWindowRect(&WindowScreenRect, &Intersection, &WindowRect);
+            if (FullWindow != FALSE) {
+                WindowRect.X1 = 0;
+                WindowRect.Y1 = 0;
+                WindowRect.X2 = WindowScreenRect.X2 - WindowScreenRect.X1;
+                WindowRect.Y2 = WindowScreenRect.Y2 - WindowScreenRect.Y1;
+            } else {
+                GraphicsScreenRectToWindowRect(&WindowScreenRect, &Intersection, &WindowRect);
+            }
             HasIntersection = TRUE;
         }
     }
@@ -147,7 +155,13 @@ static BOOL DesktopOverlayInvalidateRootVisibleRemainderRect(LPWINDOW RootWindow
 /************************************************************************/
 
 void DesktopOverlayInvalidateWindowTreeRect(LPWINDOW Window, LPRECT ScreenRect, BOOL SkipCurrent) {
-    DesktopOverlayInvalidateWindowTreeRectInternal(Window, ScreenRect, SkipCurrent);
+    DesktopOverlayInvalidateWindowTreeRectInternal(Window, ScreenRect, SkipCurrent, FALSE);
+}
+
+/************************************************************************/
+
+void DesktopOverlayInvalidateWindowTreeFullWindowRect(LPWINDOW Window, LPRECT ScreenRect, BOOL SkipCurrent) {
+    DesktopOverlayInvalidateWindowTreeRectInternal(Window, ScreenRect, SkipCurrent, TRUE);
 }
 
 /************************************************************************/
