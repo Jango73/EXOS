@@ -339,6 +339,8 @@ UINT IntelGfxSetPixel(LPPIXELINFO Info);
 UINT IntelGfxGetPixel(LPPIXELINFO Info);
 UINT IntelGfxLine(LPLINEINFO Info);
 UINT IntelGfxRectangle(LPRECTINFO Info);
+UINT IntelGfxArc(LPARCINFO Info);
+UINT IntelGfxTriangle(LPTRIANGLEINFO Info);
 UINT IntelGfxFlushContextRegionToScanout(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, U32 Width, U32 Height);
 UINT IntelGfxScrollRegionViaShadow(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_REGION_INFO Info);
 void IntelGfxTextShutdownRuntime(void);

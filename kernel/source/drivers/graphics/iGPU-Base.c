@@ -490,6 +490,10 @@ static UINT IntelGfxCommands(UINT Function, UINT Param) {
             return IntelGfxLine((LPLINEINFO)Param);
         case DF_GFX_RECTANGLE:
             return IntelGfxRectangle((LPRECTINFO)Param);
+        case DF_GFX_ARC:
+            return IntelGfxArc((LPARCINFO)Param);
+        case DF_GFX_TRIANGLE:
+            return IntelGfxTriangle((LPTRIANGLEINFO)Param);
         case DF_GFX_TEXT_PUTCELL:
             return IntelGfxTextPutCell((LPGFX_TEXT_CELL_INFO)Param);
         case DF_GFX_TEXT_CLEAR_REGION:
