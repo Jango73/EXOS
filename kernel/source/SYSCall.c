@@ -37,6 +37,7 @@
 #include "input/Mouse.h"
 #include "Desktop.h"
 #include "desktop/Desktop-NonClient.h"
+#include "desktop/Desktop-WindowClass.h"
 #include "process/Process.h"
 #include "process/Schedule.h"
 #include "User.h"
@@ -1770,6 +1771,62 @@ UINT SysCall_GetWindowClientRect(UINT Parameter) {
     }
 
     return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Register one userland window class.
+ *
+ * @param Parameter Pointer to WINDOWCLASSINFO.
+ * @return UINT Class identifier on success, 0 on failure.
+ */
+UINT SysCall_RegisterWindowClass(UINT Parameter) {
+    LPWINDOWCLASSINFO ClassInfo = (LPWINDOWCLASSINFO)Parameter;
+    LPWINDOW_CLASS WindowClass;
+    LPPROCESS Process;
+
+    SAFE_USE_INPUT_POINTER(ClassInfo, WINDOWCLASSINFO) {
+        Process = GetCurrentProcess();
+        if (Process == NULL || Process->TypeID != KOID_PROCESS) return 0;
+
+        WindowClass = WindowClassRegisterUserClass(
+            ClassInfo->ClassName,
+            (U32)ClassInfo->BaseClass,
+            ClassInfo->BaseClassName,
+            ClassInfo->Function,
+            ClassInfo->ClassDataSize,
+            Process);
+
+        if (WindowClass == NULL || WindowClass->TypeID != KOID_WINDOW_CLASS) return 0;
+
+        ClassInfo->WindowClass = (HANDLE)WindowClass->ClassID;
+        return (UINT)WindowClass->ClassID;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Unregister one userland window class.
+ *
+ * @param Parameter Pointer to WINDOWCLASSINFO.
+ * @return UINT TRUE on success, FALSE on failure.
+ */
+UINT SysCall_UnregisterWindowClass(UINT Parameter) {
+    LPWINDOWCLASSINFO ClassInfo = (LPWINDOWCLASSINFO)Parameter;
+    LPPROCESS Process;
+
+    SAFE_USE_INPUT_POINTER(ClassInfo, WINDOWCLASSINFO) {
+        Process = GetCurrentProcess();
+        if (Process == NULL || Process->TypeID != KOID_PROCESS) return FALSE;
+
+        return (UINT)WindowClassUnregisterUserClass((U32)ClassInfo->WindowClass, ClassInfo->ClassName, Process);
+    }
+
+    return FALSE;
 }
 
 /************************************************************************/

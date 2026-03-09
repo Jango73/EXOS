@@ -36,6 +36,14 @@
 
 BOOL WindowClassInitializeRegistry(void);
 LPWINDOW_CLASS WindowClassRegisterKernelClass(LPCSTR Name, LPWINDOW_CLASS BaseClass, WINDOWFUNC Function, U32 ClassDataSize);
+LPWINDOW_CLASS WindowClassRegisterUserClass(
+    LPCSTR Name,
+    U32 BaseClassID,
+    LPCSTR BaseClassName,
+    WINDOWFUNC Function,
+    U32 ClassDataSize,
+    LPPROCESS OwnerProcess);
+BOOL WindowClassUnregisterUserClass(U32 ClassID, LPCSTR Name, LPPROCESS OwnerProcess);
 LPWINDOW_CLASS WindowClassFindByName(LPCSTR Name);
 LPWINDOW_CLASS WindowClassFindByHandle(U32 ClassID);
 LPWINDOW_CLASS WindowClassGetDefault(void);

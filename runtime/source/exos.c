@@ -193,13 +193,62 @@ HANDLE GetCurrentDesktop(void) { return (HANDLE)exoscall(SYSCALL_GetCurrentDeskt
 
 /***************************************************************************/
 
-HANDLE CreateWindow(HANDLE Parent, WINDOWFUNC Func, U32 Style, U32 ID, I32 PosX, I32 PosY, I32 SizeX, I32 SizeY) {
+HANDLE RegisterWindowClass(LPCSTR ClassName, HANDLE BaseClass, LPCSTR BaseClassName, WINDOWFUNC Function, U32 ClassDataSize) {
+    WINDOWCLASSINFO ClassInfo;
+
+    ClassInfo.Header.Size = sizeof ClassInfo;
+    ClassInfo.Header.Version = EXOS_ABI_VERSION;
+    ClassInfo.Header.Flags = 0;
+    ClassInfo.WindowClass = 0;
+    ClassInfo.BaseClass = BaseClass;
+    ClassInfo.ClassName = ClassName;
+    ClassInfo.BaseClassName = BaseClassName;
+    ClassInfo.Function = Function;
+    ClassInfo.ClassDataSize = ClassDataSize;
+
+    return (HANDLE)exoscall(SYSCALL_RegisterWindowClass, EXOS_PARAM(&ClassInfo));
+}
+
+/***************************************************************************/
+
+BOOL UnregisterWindowClass(HANDLE WindowClass, LPCSTR ClassName) {
+    WINDOWCLASSINFO ClassInfo;
+
+    ClassInfo.Header.Size = sizeof ClassInfo;
+    ClassInfo.Header.Version = EXOS_ABI_VERSION;
+    ClassInfo.Header.Flags = 0;
+    ClassInfo.WindowClass = WindowClass;
+    ClassInfo.BaseClass = 0;
+    ClassInfo.ClassName = ClassName;
+    ClassInfo.BaseClassName = NULL;
+    ClassInfo.Function = NULL;
+    ClassInfo.ClassDataSize = 0;
+
+    return (BOOL)exoscall(SYSCALL_UnregisterWindowClass, EXOS_PARAM(&ClassInfo));
+}
+
+/***************************************************************************/
+
+HANDLE CreateWindowWithClass(
+    HANDLE Parent,
+    HANDLE WindowClass,
+    LPCSTR WindowClassName,
+    WINDOWFUNC Func,
+    U32 Style,
+    U32 ID,
+    I32 PosX,
+    I32 PosY,
+    I32 SizeX,
+    I32 SizeY) {
     WINDOWINFO WindowInfo;
 
     WindowInfo.Header.Size = sizeof WindowInfo;
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
     WindowInfo.Header.Flags = 0;
+    WindowInfo.Window = 0;
     WindowInfo.Parent = Parent;
+    WindowInfo.WindowClass = WindowClass;
+    WindowInfo.WindowClassName = WindowClassName;
     WindowInfo.Function = Func;
     WindowInfo.Style = Style;
     WindowInfo.ID = ID;
@@ -207,8 +256,15 @@ HANDLE CreateWindow(HANDLE Parent, WINDOWFUNC Func, U32 Style, U32 ID, I32 PosX,
     WindowInfo.WindowPosition.Y = PosY;
     WindowInfo.WindowSize.X = SizeX;
     WindowInfo.WindowSize.Y = SizeY;
+    WindowInfo.ShowHide = FALSE;
 
     return (HANDLE)exoscall(SYSCALL_CreateWindow, EXOS_PARAM(&WindowInfo));
+}
+
+/***************************************************************************/
+
+HANDLE CreateWindow(HANDLE Parent, WINDOWFUNC Func, U32 Style, U32 ID, I32 PosX, I32 PosY, I32 SizeX, I32 SizeY) {
+    return CreateWindowWithClass(Parent, 0, NULL, Func, Style, ID, PosX, PosY, SizeX, SizeY);
 }
 
 /***************************************************************************/

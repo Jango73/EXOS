@@ -310,6 +310,8 @@ static U32 RunGraphicsSmokeTest(U32 DurationMilliseconds) {
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;
     WindowInfo.Parent = (HANDLE)Desktop->Window;
+    WindowInfo.WindowClass = 0;
+    WindowInfo.WindowClassName = NULL;
     WindowInfo.Function = GfxSmokeWindowFunc;
     WindowInfo.Style = EWS_VISIBLE;
     WindowInfo.ID = 0;

@@ -235,6 +235,8 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_GetWindowProp 0x00000051
 #define SYSCALL_GetWindowRect 0x00000052
 #define SYSCALL_GetWindowClientRect 0x0000007C
+#define SYSCALL_RegisterWindowClass 0x0000007D
+#define SYSCALL_UnregisterWindowClass 0x0000007E
 #define SYSCALL_InvalidateWindowRect 0x00000053
 #define SYSCALL_GetWindowGC 0x00000054
 #define SYSCALL_ReleaseWindowGC 0x00000055
@@ -276,7 +278,7 @@ typedef struct PACKED tag_ABI_HEADER {
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x0000007D
+#define SYSCALL_Last 0x0000007F
 
 /************************************************************************/
 // Structure limits
@@ -482,6 +484,8 @@ typedef struct PACKED tag_WINDOWINFO {
     ABI_HEADER Header;
     HANDLE Window;
     HANDLE Parent;
+    HANDLE WindowClass;
+    LPCSTR WindowClassName;
     WINDOWFUNC Function;
     U32 Style;
     U32 ID;
@@ -489,6 +493,16 @@ typedef struct PACKED tag_WINDOWINFO {
     POINT WindowSize;
     BOOL ShowHide;
 } WINDOWINFO, *LPWINDOWINFO;
+
+typedef struct PACKED tag_WINDOWCLASSINFO {
+    ABI_HEADER Header;
+    HANDLE WindowClass;
+    HANDLE BaseClass;
+    LPCSTR ClassName;
+    LPCSTR BaseClassName;
+    WINDOWFUNC Function;
+    U32 ClassDataSize;
+} WINDOWCLASSINFO, *LPWINDOWCLASSINFO;
 
 typedef struct PACKED tag_PROPINFO {
     ABI_HEADER Header;

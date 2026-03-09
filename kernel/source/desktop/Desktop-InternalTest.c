@@ -250,6 +250,8 @@ static BOOL DesktopInternalEnsureSingleWindow(
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;
     WindowInfo.Parent = (HANDLE)Desktop->Window;
+    WindowInfo.WindowClass = 0;
+    WindowInfo.WindowClassName = NULL;
     WindowInfo.Function = WindowFunc;
     WindowInfo.Style = EWS_VISIBLE | EWS_SYSTEM_DECORATED;
     WindowInfo.ID = WindowID;

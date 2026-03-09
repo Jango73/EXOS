@@ -332,7 +332,10 @@ LPDESKTOP CreateDesktop(void) {
     WindowInfo.Header.Size = sizeof(WINDOWINFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
     WindowInfo.Header.Flags = 0;
+    WindowInfo.Window = NULL;
     WindowInfo.Parent = NULL;
+    WindowInfo.WindowClass = 0;
+    WindowInfo.WindowClassName = NULL;
     WindowInfo.Function = DesktopWindowFunc;
     WindowInfo.Style = 0;
     WindowInfo.ID = 0;
@@ -340,6 +343,7 @@ LPDESKTOP CreateDesktop(void) {
     WindowInfo.WindowPosition.Y = 0;
     WindowInfo.WindowSize.X = (I32)Console.Width;
     WindowInfo.WindowSize.Y = (I32)Console.Height;
+    WindowInfo.ShowHide = TRUE;
 
     PreviousDesktop = GetCurrentProcess()->Desktop;
     GetCurrentProcess()->Desktop = This;
@@ -763,7 +767,13 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
         return NULL;
     }
 
-    This->Class = WindowClassGetDefault();
+    if (Info->WindowClass != 0) {
+        This->Class = WindowClassFindByHandle((U32)Info->WindowClass);
+    } else if (Info->WindowClassName != NULL) {
+        This->Class = WindowClassFindByName(Info->WindowClassName);
+    } else {
+        This->Class = WindowClassGetDefault();
+    }
     if (This->Class == NULL) {
         KernelHeapFree(This);
         return NULL;

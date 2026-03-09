@@ -42,7 +42,7 @@ static LPWINDOW_CLASS WindowClassFindByNameUnlocked(LPLIST List, LPCSTR Name) {
 
     for (Node = List->First; Node != NULL; Node = Node->Next) {
         This = (LPWINDOW_CLASS)Node;
-        if (This == NULL) continue;
+        if (This == NULL || This->TypeID != KOID_WINDOW_CLASS) continue;
         if (StringCompare(This->Name, Name) == 0) return This;
     }
 
@@ -65,7 +65,7 @@ static LPWINDOW_CLASS WindowClassFindByHandleUnlocked(LPLIST List, U32 ClassID) 
 
     for (Node = List->First; Node != NULL; Node = Node->Next) {
         This = (LPWINDOW_CLASS)Node;
-        if (This == NULL) continue;
+        if (This == NULL || This->TypeID != KOID_WINDOW_CLASS) continue;
         if (This->ClassID == ClassID) return This;
     }
 
@@ -88,7 +88,7 @@ static U32 WindowClassResolveNextIDUnlocked(LPLIST List) {
 
     for (Node = List->First; Node != NULL; Node = Node->Next) {
         This = (LPWINDOW_CLASS)Node;
-        if (This == NULL) continue;
+        if (This == NULL || This->TypeID != KOID_WINDOW_CLASS) continue;
         if (This->ClassID > MaximumClassID) MaximumClassID = This->ClassID;
     }
 
@@ -97,14 +97,113 @@ static U32 WindowClassResolveNextIDUnlocked(LPLIST List) {
 
 /************************************************************************/
 
-BOOL WindowClassInitializeRegistry(void) {
-    if (WindowClassGetDefault() != NULL) return TRUE;
-    return WindowClassRegisterKernelClass(WINDOW_CLASS_DEFAULT_NAME, NULL, DefWindowFunc, 0) != NULL;
+/**
+ * @brief Check whether one class has registered derived classes.
+ * @param List Class list.
+ * @param BaseClass Base class to resolve.
+ * @return TRUE when at least one derived class exists.
+ */
+static BOOL WindowClassHasDerivedClassUnlocked(LPLIST List, LPWINDOW_CLASS BaseClass) {
+    LPLISTNODE Node;
+    LPWINDOW_CLASS This;
+
+    if (List == NULL || BaseClass == NULL) return FALSE;
+
+    for (Node = List->First; Node != NULL; Node = Node->Next) {
+        This = (LPWINDOW_CLASS)Node;
+        if (This == NULL || This->TypeID != KOID_WINDOW_CLASS) continue;
+        if (This == BaseClass) continue;
+        if (This->BaseClass == BaseClass) return TRUE;
+    }
+
+    return FALSE;
 }
 
 /************************************************************************/
 
-LPWINDOW_CLASS WindowClassRegisterKernelClass(LPCSTR Name, LPWINDOW_CLASS BaseClass, WINDOWFUNC Function, U32 ClassDataSize) {
+/**
+ * @brief Check whether one class is in use by one window tree.
+ * @param Window Root window.
+ * @param WindowClass Class to check.
+ * @return TRUE when one window uses the class.
+ */
+static BOOL WindowClassIsUsedByWindowTree(LPWINDOW Window, LPWINDOW_CLASS WindowClass) {
+    LPLISTNODE Node;
+    BOOL IsUsed = FALSE;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (WindowClass == NULL || WindowClass->TypeID != KOID_WINDOW_CLASS) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+
+    if (Window->Class == WindowClass) {
+        UnlockMutex(&(Window->Mutex));
+        return TRUE;
+    }
+
+    if (Window->Children != NULL) {
+        for (Node = Window->Children->First; Node != NULL; Node = Node->Next) {
+            if (WindowClassIsUsedByWindowTree((LPWINDOW)Node, WindowClass) != FALSE) {
+                IsUsed = TRUE;
+                break;
+            }
+        }
+    }
+
+    UnlockMutex(&(Window->Mutex));
+
+    return IsUsed;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Check whether one class is used by at least one active window.
+ * @param WindowClass Class to check.
+ * @return TRUE when at least one window uses the class.
+ */
+static BOOL WindowClassIsUsedByDesktopWindows(LPWINDOW_CLASS WindowClass) {
+    LPLIST DesktopList;
+    LPLISTNODE Node;
+    LPDESKTOP Desktop;
+    BOOL IsUsed = FALSE;
+
+    if (WindowClass == NULL || WindowClass->TypeID != KOID_WINDOW_CLASS) return FALSE;
+
+    DesktopList = GetDesktopList();
+    if (DesktopList == NULL) return FALSE;
+
+    for (Node = DesktopList->First; Node != NULL; Node = Node->Next) {
+        Desktop = (LPDESKTOP)Node;
+        if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) continue;
+
+        LockMutex(&(Desktop->Mutex), INFINITY);
+        IsUsed = WindowClassIsUsedByWindowTree(Desktop->Window, WindowClass);
+        UnlockMutex(&(Desktop->Mutex));
+
+        if (IsUsed != FALSE) return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Register one window class entry in the global registry.
+ * @param Name Unique class name.
+ * @param BaseClass Optional base class.
+ * @param Function Class window procedure.
+ * @param ClassDataSize Class-private allocation size.
+ * @param OwnerProcess Owner process for user classes, NULL for kernel classes.
+ * @return Registered class or NULL on failure.
+ */
+static LPWINDOW_CLASS WindowClassRegister(
+    LPCSTR Name,
+    LPWINDOW_CLASS BaseClass,
+    WINDOWFUNC Function,
+    U32 ClassDataSize,
+    LPPROCESS OwnerProcess) {
     LPLIST ClassList;
     LPWINDOW_CLASS This;
 
@@ -132,6 +231,9 @@ LPWINDOW_CLASS WindowClassRegisterKernelClass(LPCSTR Name, LPWINDOW_CLASS BaseCl
     }
 
     MemorySet(This, 0, sizeof(WINDOW_CLASS));
+    This->TypeID = KOID_WINDOW_CLASS;
+    This->References = 1;
+    This->OwnerProcess = OwnerProcess;
     StringCopy(This->Name, Name);
     This->BaseClass = BaseClass;
     This->Function = Function;
@@ -142,6 +244,98 @@ LPWINDOW_CLASS WindowClassRegisterKernelClass(LPCSTR Name, LPWINDOW_CLASS BaseCl
 
     UnlockMutex(MUTEX_KERNEL);
     return This;
+}
+
+/************************************************************************/
+
+BOOL WindowClassInitializeRegistry(void) {
+    if (WindowClassGetDefault() != NULL) return TRUE;
+    return WindowClassRegisterKernelClass(WINDOW_CLASS_DEFAULT_NAME, NULL, DefWindowFunc, 0) != NULL;
+}
+
+/************************************************************************/
+
+LPWINDOW_CLASS WindowClassRegisterKernelClass(LPCSTR Name, LPWINDOW_CLASS BaseClass, WINDOWFUNC Function, U32 ClassDataSize) {
+    return WindowClassRegister(Name, BaseClass, Function, ClassDataSize, NULL);
+}
+
+/************************************************************************/
+
+LPWINDOW_CLASS WindowClassRegisterUserClass(
+    LPCSTR Name,
+    U32 BaseClassID,
+    LPCSTR BaseClassName,
+    WINDOWFUNC Function,
+    U32 ClassDataSize,
+    LPPROCESS OwnerProcess) {
+    LPWINDOW_CLASS BaseClass = NULL;
+
+    if (OwnerProcess == NULL || OwnerProcess->TypeID != KOID_PROCESS) return NULL;
+    if (Name == NULL || Function == NULL) return NULL;
+
+    if (BaseClassID != 0) {
+        BaseClass = WindowClassFindByHandle(BaseClassID);
+    } else if (BaseClassName != NULL) {
+        BaseClass = WindowClassFindByName(BaseClassName);
+    }
+
+    return WindowClassRegister(Name, BaseClass, Function, ClassDataSize, OwnerProcess);
+}
+
+/************************************************************************/
+
+BOOL WindowClassUnregisterUserClass(U32 ClassID, LPCSTR Name, LPPROCESS OwnerProcess) {
+    LPLIST ClassList;
+    LPWINDOW_CLASS This;
+
+    if (OwnerProcess == NULL || OwnerProcess->TypeID != KOID_PROCESS) return FALSE;
+    if (ClassID == 0 && Name == NULL) return FALSE;
+
+    ClassList = GetWindowClassList();
+    if (ClassList == NULL) return FALSE;
+
+    LockMutex(MUTEX_KERNEL, INFINITY);
+
+    if (ClassID != 0) {
+        This = WindowClassFindByHandleUnlocked(ClassList, ClassID);
+    } else {
+        This = WindowClassFindByNameUnlocked(ClassList, Name);
+    }
+
+    if (This == NULL || This->TypeID != KOID_WINDOW_CLASS) {
+        UnlockMutex(MUTEX_KERNEL);
+        return FALSE;
+    }
+
+    if (This->OwnerProcess != OwnerProcess || StringCompare(This->Name, WINDOW_CLASS_DEFAULT_NAME) == 0 ||
+        WindowClassHasDerivedClassUnlocked(ClassList, This) != FALSE) {
+        UnlockMutex(MUTEX_KERNEL);
+        return FALSE;
+    }
+
+    UnlockMutex(MUTEX_KERNEL);
+
+    if (WindowClassIsUsedByDesktopWindows(This) != FALSE) return FALSE;
+
+    LockMutex(MUTEX_KERNEL, INFINITY);
+
+    if (ClassID != 0) {
+        This = WindowClassFindByHandleUnlocked(ClassList, ClassID);
+    } else {
+        This = WindowClassFindByNameUnlocked(ClassList, Name);
+    }
+
+    if (This == NULL || This->TypeID != KOID_WINDOW_CLASS || This->OwnerProcess != OwnerProcess ||
+        WindowClassHasDerivedClassUnlocked(ClassList, This) != FALSE) {
+        UnlockMutex(MUTEX_KERNEL);
+        return FALSE;
+    }
+
+    ListRemove(ClassList, This);
+    UnlockMutex(MUTEX_KERNEL);
+
+    KernelHeapFree(This);
+    return TRUE;
 }
 
 /************************************************************************/

@@ -48,6 +48,7 @@
 #define KOID_GRAPHICSCONTEXT 0x43584647   // "GFXC"
 #define KOID_DESKTOP 0x544B5344           // "DSKT"
 #define KOID_WINDOW 0x444E4957            // "WIND"
+#define KOID_WINDOW_CLASS 0x534C4357      // "WCLS"
 #define KOID_BRUSH 0x48535242             // "BRSH"
 #define KOID_PEN 0x5F4E4550               // "PEN_"
 #define KOID_FONT 0x544E4F46              // "FONT"

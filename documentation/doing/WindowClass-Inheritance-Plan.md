@@ -11,9 +11,9 @@
 - [x] Define dispatch contract with explicit `EWM_NOT_HANDLED` to continue to base class.
 
 ## Step 2 - Userland class API
-- [ ] Add userland/kernel API to register window classes (`RegisterWindowClass`).
-- [ ] Add userland/kernel API to unregister window classes (`UnregisterWindowClass`).
-- [ ] Extend window creation API so userland creates windows by class name/handle.
+- [x] Add userland/kernel API to register window classes (`RegisterWindowClass`).
+- [x] Add userland/kernel API to unregister window classes (`UnregisterWindowClass`).
+- [x] Extend window creation API so userland creates windows by class name/handle.
 
 ## Step 3 - `BaseWindowFunc` and compatibility migration
 - [ ] Add `BaseWindowFunc(...)` as the public API (superclass call).
