@@ -779,6 +779,7 @@ Shell graphics commands are implemented in `kernel/source/shell/Shell-Commands-G
 Graphics drivers expose mode enumeration through `DF_GFX_GETMODECOUNT` and `DF_GFX_GETMODEINFO`; `GRAPHICSMODEINFO.ModeIndex` selects a mode and `INFINITY` targets the active mode.
 
 Graphics backend selection is handled by `kernel/source/drivers/graphics/Graphics-Selector.c`. The selector loads graphics backends, keeps only active/usable ones, scores their capabilities, and forwards `DF_GFX_*` calls to the selected backend. This provides deterministic fallback behavior without hardcoding a single backend in desktop code.
+Boot-path capability gating is centralized in `utils/BootPath` (`kernel/include/utils/BootPath.h`, `kernel/source/utils/BootPath.c`). VESA probing is only attempted when the current multiboot boot path explicitly supports it; unsupported paths are rejected before backend load/forwarding.
 Explicit backend forcing through `gfx backend <alias> <mode>` uses a strict selector path: only the requested backend is loaded into selector state, and command forwarding does not fall back to other backends while forced mode is active.
 Display-class PCI fallback attach logic is implemented in `kernel/source/drivers/graphics/Graphics-PCI.c`; the PCI bus layer registers this graphics-provided attach driver during PCI initialization so generic display controllers remain visible in the PCI device list.
 

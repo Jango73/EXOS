@@ -27,6 +27,7 @@
 #include "DriverGetters.h"
 #include "Log.h"
 #include "Clock.h"
+#include "utils/BootPath.h"
 #include "utils/RateLimiter.h"
 
 /************************************************************************/
@@ -338,6 +339,10 @@ static UINT GraphicsSelectorLoad(void) {
         UINT InsertIndex = 0;
 
         if (Driver == NULL || Driver->Command == NULL) {
+            continue;
+        }
+
+        if (Driver == VESAGetDriver() && VesaIsSupportedOnCurrentBootPath() == FALSE) {
             continue;
         }
 

@@ -29,6 +29,7 @@
 #include "Memory.h"
 #include "drivers/graphics/VESA-Shared.h"
 #include "drivers/graphics/Graphics-TextRenderer.h"
+#include "utils/BootPath.h"
 
 /************************************************************************/
 
@@ -201,10 +202,10 @@ VESA_CONTEXT VESAContext = {
 static BOOL InitializeVESA(void) {
     INTEL_X86_REGISTERS Regs;
 
-    // TODO : Fix real mode call in x86-64
-#if defined(__EXOS_ARCH_X86_64__)
-    return TRUE;
-#endif
+    if (VesaIsSupportedOnCurrentBootPath() == FALSE) {
+        WARNING(TEXT("[InitializeVESA] Unsupported boot path for VESA (flags=%x)"), BootPathGetMultibootFlags());
+        return FALSE;
+    }
 
     DEBUG(TEXT("[InitializeVESA] Enter"));
 
@@ -944,6 +945,7 @@ UINT VESACommands(UINT Function, UINT Param) {
                 return DF_RETURN_SUCCESS;
             }
 
+            VESADriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RETURN_UNEXPECTED;
         case DF_UNLOAD:
             if ((VESADriver.Flags & DRIVER_FLAG_READY) == 0) {
@@ -959,10 +961,21 @@ UINT VESACommands(UINT Function, UINT Param) {
             return 0;
         case DF_GFX_GETMODEINFO: {
             LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Param;
+
+            if ((VESADriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_RETURN_UNEXPECTED;
+            }
+
             SAFE_USE(Info) {
                 if (Info->ModeIndex != INFINITY && Info->ModeIndex != 0) {
                     return DF_GFX_ERROR_MODEUNAVAIL;
                 }
+
+                if (VESAContext.Header.Width == 0 || VESAContext.Header.Height == 0 || VESAContext.Header.BitsPerPixel == 0) {
+                    WARNING(TEXT("[VESACommands] GETMODEINFO requested but no active VESA mode is available"));
+                    return DF_RETURN_UNEXPECTED;
+                }
+
                 Info->Width = VESAContext.Header.Width;
                 Info->Height = VESAContext.Header.Height;
                 Info->BitsPerPixel = VESAContext.Header.BitsPerPixel;

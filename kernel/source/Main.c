@@ -28,6 +28,7 @@
 #include "console/Console-EarlyBoot.h"
 #include "Log.h"
 #include "System.h"
+#include "utils/BootPath.h"
 #include "vbr-multiboot.h"
 
 /************************************************************************/
@@ -176,6 +177,7 @@ void KernelMain(void) {
 
     // Map the multiboot info structure to access it
     multiboot_info_t* MultibootInfo = (multiboot_info_t*)(UINT)MultibootInfoLinear;
+    BootPathSetMultibootFlags(MultibootInfo->flags);
 
     if ((MultibootInfo->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) != 0u) {
         PHYSICAL FramebufferPhysical = 0;
