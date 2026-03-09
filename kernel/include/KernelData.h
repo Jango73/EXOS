@@ -145,6 +145,7 @@ typedef struct tag_KERNELDATA {
     LPLIST Socket;
     LPLIST StartupDrivers;          // Driver list in initialization order
     LPLIST Drivers;                 // List of all known drivers
+    LPLIST WindowClass;             // List of registered window classes
     LPLIST UserSessions;            // List of active user sessions
     LPLIST UserAccount;             // List of user accounts
     DISPLAY_SESSION DisplaySession; // Active display ownership state
@@ -191,6 +192,7 @@ LPDRIVER GetDefaultFileSystemDriver(void);
 LPDISPLAY_SESSION GetDisplaySession(void);
 LPLIST GetDriverList(void);
 LPLIST GetStartupDriverList(void);
+LPLIST GetWindowClassList(void);
 LPLIST GetEventList(void);
 LPLIST GetFileList(void);
 FILESYSTEM_GLOBAL_INFO* GetFileSystemGlobalInfo(void);

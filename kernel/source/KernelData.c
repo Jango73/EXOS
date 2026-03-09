@@ -71,6 +71,17 @@ static LIST DriverList = {
 
 /************************************************************************/
 
+static LIST WindowClassList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
+
+/************************************************************************/
+
 static LIST DesktopList = {
     .First = NULL,
     .Last = NULL,
@@ -272,6 +283,7 @@ static LIST UserAccountList = {
 static KERNELDATA DATA_SECTION Kernel = {
     .StartupDrivers = &StartupDriverList,
     .Drivers = &DriverList,
+    .WindowClass = &WindowClassList,
     .Desktop = &DesktopList,
     .Process = &ProcessList,
     .Task = &TaskList,
@@ -490,6 +502,16 @@ LPLIST GetDriverList(void) {
  */
 LPLIST GetStartupDriverList(void) {
     return Kernel.StartupDrivers;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the registered window class list.
+ * @return Pointer to the window class list.
+ */
+LPLIST GetWindowClassList(void) {
+    return Kernel.WindowClass;
 }
 
 /************************************************************************/

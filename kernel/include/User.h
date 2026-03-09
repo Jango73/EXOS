@@ -792,6 +792,9 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 #define EWM_LOSTFOCUS 0x40000012
 #define EWM_TIMER 0x40000013
 
+// Window procedure result contract
+#define EWM_NOT_HANDLED 0xFFFFFFFF
+
 // Task messages define by userland apps begin here
 #define EM_USER 0x60000000
 

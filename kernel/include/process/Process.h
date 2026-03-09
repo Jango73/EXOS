@@ -52,6 +52,7 @@
 
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 typedef struct tag_WINDOW WINDOW, *LPWINDOW;
+typedef struct tag_WINDOW_CLASS WINDOW_CLASS, *LPWINDOW_CLASS;
 typedef struct tag_DESKTOP DESKTOP, *LPDESKTOP;
 typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
 struct tag_MEMORY_REGION_DESCRIPTOR;
@@ -187,6 +188,8 @@ struct tag_WINDOW {
     LPWINDOW ParentWindow;  // The parent of this window
     LPLIST Children;        // The children of this window
     LPLIST Properties;      // The user-defined properties of this window
+    LPWINDOW_CLASS Class;   // Window class metadata
+    LPVOID ClassData;       // Window class private data
     RECT Rect;              // The rectangle of this window
     RECT ScreenRect;
     RECT DirtyRects[WINDOW_DIRTY_REGION_CAPACITY];
@@ -197,6 +200,15 @@ struct tag_WINDOW {
     U32 Level;
     I32 Order;
 };
+
+typedef struct tag_WINDOW_CLASS {
+    LISTNODE_FIELDS                 // Standard EXOS object fields
+        STR Name[64];               // Unique class name
+    LPWINDOW_CLASS BaseClass;       // Base class in inheritance chain
+    WINDOWFUNC Function;            // Class window procedure
+    U32 ClassID;                    // Class identifier for handle-based lookup
+    U32 ClassDataSize;              // Optional class-private data size
+} WINDOW_CLASS, *LPWINDOW_CLASS;
 
 typedef struct tag_DESKTOP_THEME {
     LPVOID Builtin;

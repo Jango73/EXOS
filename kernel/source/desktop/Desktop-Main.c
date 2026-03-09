@@ -32,6 +32,7 @@
 #include "Desktop-Dispatcher.h"
 #include "Desktop-Cursor.h"
 #include "Desktop-Timer.h"
+#include "Desktop-WindowClass.h"
 #include "Desktop.h"
 #include "Desktop-ModeSelector.h"
 #include "Desktop-ThemeTokens.h"
@@ -657,6 +658,11 @@ BOOL DeleteWindow(LPWINDOW This) {
         DeleteWindow((LPWINDOW)Node);
     }
 
+    if (This->ClassData != NULL) {
+        KernelHeapFree(This->ClassData);
+        This->ClassData = NULL;
+    }
+
     //-------------------------------------
     // Remove window from it's parent's list
 
@@ -751,7 +757,36 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     This->Function = Info->Function;
     This->WindowID = Info->ID;
     This->Style = Info->Style;
+
+    if (WindowClassInitializeRegistry() == FALSE) {
+        KernelHeapFree(This);
+        return NULL;
+    }
+
+    This->Class = WindowClassGetDefault();
+    if (This->Class == NULL) {
+        KernelHeapFree(This);
+        return NULL;
+    }
+
+    if (This->Class->ClassDataSize > 0) {
+        This->ClassData = KernelHeapAlloc(This->Class->ClassDataSize);
+        if (This->ClassData == NULL) {
+            KernelHeapFree(This);
+            return NULL;
+        }
+        MemorySet(This->ClassData, 0, This->Class->ClassDataSize);
+    }
+
+    if (This->Function == NULL) {
+        This->Function = This->Class->Function;
+    }
+
     if (EnsureAllMessageQueues(OwnerTask, TRUE) == FALSE) {
+        if (This->ClassData != NULL) {
+            KernelHeapFree(This->ClassData);
+            This->ClassData = NULL;
+        }
         KernelHeapFree(This);
         return NULL;
     }

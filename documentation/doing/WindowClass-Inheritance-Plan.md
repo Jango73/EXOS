@@ -6,9 +6,9 @@
 - Keep docking/components built on class inheritance, not per-component syscalls.
 
 ## Step 1 - Core class model and dispatch contract
-- [ ] Add `WINDOW_CLASS` model (`Name`, `BaseClass`, `WindowFunc`, optional class data size).
-- [ ] Add one kernel class registry and class lookup by name/handle.
-- [ ] Define dispatch contract with explicit `EWM_NOT_HANDLED` to continue to base class.
+- [x] Add `WINDOW_CLASS` model (`Name`, `BaseClass`, `WindowFunc`, optional class data size).
+- [x] Add one kernel class registry and class lookup by name/handle.
+- [x] Define dispatch contract with explicit `EWM_NOT_HANDLED` to continue to base class.
 
 ## Step 2 - Userland class API
 - [ ] Add userland/kernel API to register window classes (`RegisterWindowClass`).
