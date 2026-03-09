@@ -172,8 +172,8 @@ Deliverable:
 
 ## Step 6 - Root host class integration
 - [x] Add generic window dock host module:
-  - `kernel/include/ui/layout/WindowDockHost.h`
-  - `kernel/source/ui/layout/WindowDockHost.c`
+  - `kernel/include/desktop/components/WindowDockHost.h`
+  - `kernel/source/desktop/components/WindowDockHost.c`
 - [x] Bind one `DockHost` instance to desktop root window through class inheritance.
 - [x] Trigger relayout on desktop mode/size changes.
 - [x] Expose helper API for components to register as dockables on any host window.
@@ -187,7 +187,7 @@ Deliverable:
 - [ ] Ensure nested hosts are supported (window containing docked sub-panels).
 - [x] Keep ownership/lifetime tied to window creation/deletion lifecycle.
 - [x] Recompute host rect on move/size events and apply relayout.
-- [ ] Expose registration/unregistration through window class behavior and window properties, without dedicated bridge API layer.
+- [x] Expose registration/unregistration through window class behavior and window properties, without dedicated bridge API layer.
 
 Deliverable:
 - Generic docking is usable inside normal windows, including multiple dockables on one edge.
@@ -200,7 +200,7 @@ Deliverable:
 - [ ] Support all four edges through dock state updates.
 - [x] Keep `ShellBar` behavior-focused; all visual look is resolved from theme tokens.
 - [x] Keep visual/render logic isolated from docking logic and driven by theme runtime values only.
-- [ ] Reserve extension points for task list, launcher, tray, and clock zones.
+- [ ] Reserve generic extension points for arbitrary shell bar component zones (no fixed component list).
 - [ ] Implement shell bar content slots as pluggable components.
 - [ ] Keep process/window icons managed by the dynamic task list source, not by static config entries.
 
