@@ -149,18 +149,29 @@ Deliverable:
 - Build integration updated so `source/ui/layout/*.c` is compiled by kernel build.
 
 ## Step 3 - Core DockHost implementation
-- [ ] Implement `DockHost.c` in `kernel/source/ui/layout`.
-- [ ] Support attach/detach operations for multiple dockables.
-- [ ] Maintain per-edge ordered collections with deterministic tie-break.
-- [ ] Implement full layout pass:
+- [x] Implement `DockHost.c` in `kernel/source/ui/layout`.
+- [x] Support attach/detach operations for multiple dockables.
+- [x] Maintain per-edge ordered collections with deterministic tie-break.
+- [x] Implement full layout pass:
   - consume edge bands,
   - place dockables on each edge,
   - compute final host work rect.
-- [ ] Support same-edge side-by-side placement policy.
-- [ ] Reject impossible placements cleanly with diagnostics.
+- [x] Support same-edge side-by-side placement policy.
+- [x] Reject impossible placements cleanly with diagnostics.
 
 Deliverable:
 - Generic host engine producing stable docked rectangles plus remaining work area.
+
+### Step 3 Output - DockHost Core
+- Implemented `kernel/source/ui/layout/DockHost.c` with:
+  - host lifecycle (`DockHostInit`, `DockHostReset`),
+  - attach/detach API with duplicate-pointer and duplicate-identifier rejection,
+  - per-edge bucket build + deterministic sort (`Priority`, `Order`, `InsertionIndex`),
+  - full relayout pipeline in fixed pass order (`TOP`, `BOTTOM`, `LEFT`, `RIGHT`),
+  - side-by-side assignment on each edge band,
+  - work-rectangle reduction and result reporting (`AppliedCount`, `RejectedCount`, `Status`).
+- Overflow behaviors are enforced through host edge policy (`CLIP`, `SHRINK`, `REJECT`).
+- Host notifies dockables of work-rect updates through `OnHostWorkRectChanged` callback.
 
 ## Step 4 - Layout policies and edge behavior
 - [ ] Define edge-specific placement policy:
