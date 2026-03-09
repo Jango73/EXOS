@@ -365,6 +365,41 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE GC, LPRECT Rect) {
 /***************************************************************************/
 
 /**
+ * @brief Draw themed client area inside the non-client frame.
+ * @param Window Window handle.
+ * @param GC Graphics context.
+ * @param Rect Full window rectangle in window coordinates.
+ * @return TRUE when a client area was drawn.
+ */
+static BOOL DrawWindowClientAreaFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
+    RECT ClientRect;
+    HANDLE ClientBrush;
+    LPBRUSH ClientBrushPtr;
+    COLOR ClientBackground = COLOR_WHITE;
+
+    if (Window == NULL || GC == NULL || Rect == NULL) return FALSE;
+    if (GetWindowClientRect((LPWINDOW)Window, Rect, &ClientRect) == FALSE) return FALSE;
+
+    if (DesktopThemeDrawRecipeForElementState(Window, GC, &ClientRect, TEXT("window.client"), TEXT("normal"))) {
+        return TRUE;
+    }
+
+    if (!DesktopThemeResolveLevel1Color(TEXT("window.client"), TEXT("normal"), TEXT("background"), &ClientBackground)) {
+        if (!DesktopThemeResolveTokenColorByName(TEXT("color.client.background"), &ClientBackground)) {
+            ClientBrush = GetSystemBrush(SM_COLOR_CLIENT);
+            SAFE_USE_VALID_ID((LPBRUSH)ClientBrush, KOID_BRUSH) {
+                ClientBrushPtr = (LPBRUSH)ClientBrush;
+                ClientBackground = ClientBrushPtr->Color;
+            }
+        }
+    }
+
+    return DrawSolidRect(GC, ClientRect.X1, ClientRect.Y1, ClientRect.X2, ClientRect.Y2, ClientBackground);
+}
+
+/***************************************************************************/
+
+/**
  * @brief Resolve decoration mode from a window style bitfield.
  * @param Style Window style bitfield.
  * @return One of WINDOW_DECORATION_MODE_* values.
@@ -526,6 +561,8 @@ BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect) {
     if (Window == NULL) return FALSE;
     if (GC == NULL) return FALSE;
     if (Rect == NULL) return FALSE;
+
+    (void)DrawWindowClientAreaFromTheme(Window, GC, Rect);
 
     if (DesktopThemeDrawRecipeForElementState(Window, GC, Rect, TEXT("window.frame"), TEXT("normal"))) {
         (void)DrawWindowTitleBarFromTheme(GC, Rect);

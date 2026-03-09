@@ -72,7 +72,6 @@ typedef struct tag_THEME_BINDING {
 // Other declarations
 
 static const THEME_RECIPE_STEP RecipeWindowFrameClassicSteps[] = {
-    {THEME_RECIPE_OP_FILL_RECT, TEXT("0"), TEXT("0"), TEXT("w-1"), TEXT("h-1"), NULL, TEXT("token:color.window.frame"), NULL, 0, NULL, NULL},
     {THEME_RECIPE_OP_STROKE_RECT, TEXT("0"), TEXT("0"), TEXT("w-1"), TEXT("h-1"), TEXT("0x00000000"), NULL, NULL, 1, NULL, NULL},
     {THEME_RECIPE_OP_STROKE_RECT, TEXT("1"), TEXT("1"), TEXT("w-2"), TEXT("h-2"), TEXT("0x00FFFFFF"), NULL, NULL, 1, NULL, NULL},
 };
