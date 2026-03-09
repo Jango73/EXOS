@@ -62,7 +62,7 @@ Boot-time behavior:
 Operational model:
 1. Early phase (diskless):
 - Use built-in default theme only.
-- Allow main desktop activation from the EXOS console shell (`desktop show`).
+- Allow shell desktop activation from the EXOS console shell (`desktop show`).
 
 2. Late phase (storage ready):
 - Load TOML theme if requested.
@@ -347,7 +347,7 @@ Compatibility first, then extension.
 - [x] Ensure theme activation does not affect `ClientDecorated` non-client rendering (none is rendered).
 
 ### Step 8: Diskless Desktop Bootstrap From EXOS Shell
-- [x] Add shell command `desktop show` to activate `MainDesktop` and launch desktop/windowing using built-in theme.
+- [x] Add shell command `desktop show` to create or reuse the shell desktop and launch desktop/windowing using built-in theme.
 - [x] Add shell command `desktop status` to report active desktop mode and active theme source (`built-in` or `loaded`).
 - [x] Add shell command `desktop theme <path-or-name>` to load/activate a theme.
 - [x] Add `Desktop.ThemePath` config support in `exos.*.toml` to select the theme file at desktop startup.
@@ -386,7 +386,7 @@ Compatibility first, then extension.
 - [ ] Add state-transition rendering tests (`normal`, `hover`, `pressed`, `focused`, `disabled`).
 - [ ] Add compatibility tests for legacy `SM_COLOR_*` consumers.
 - [ ] Add compatibility tests for `ClientDecorated` windows (no kernel non-client draw).
-- [ ] Add diskless boot tests where `desktop show` activates `MainDesktop` with built-in theme only.
+- [ ] Add diskless boot tests where `desktop show` activates the shell desktop with built-in theme only.
 - [ ] Add post-mount theme switch tests (`built-in -> loaded -> fallback on error`).
 - [ ] Add malformed TOML and reference-error tests.
 - [ ] Add boundary tests for parser/runtime limits.

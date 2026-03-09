@@ -516,7 +516,7 @@ static BOOL AddProcessMessage(LPPROCESS Process, LPMESSAGE Message) {
  * @return TRUE on success, FALSE if no queue is available.
  */
 BOOL EnqueueInputMessage(U32 Msg, U32 Param1, U32 Param2) {
-    LPDESKTOP Desktop = GetFocusedDesktop();
+    LPDESKTOP Desktop = GetActiveDesktop();
     LPPROCESS Process = GetFocusedProcess();
     LPWINDOW FocusedWindow = NULL;
     LPTASK TargetTask = NULL;

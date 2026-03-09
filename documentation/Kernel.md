@@ -597,7 +597,7 @@ Message posting:
 
 Message retrieval:
 - `GetMessage`/`PeekMessage` first check the global input queue when the caller’s process has focus (desktop focus + per-desktop `FocusedProcess`), then fall back to the task’s own queue. `GetMessage` blocks if neither queue holds messages; `PeekMessage` is non-blocking. Userland syscalls translate handles in `MESSAGEINFO` before dispatching to the kernel implementations.
-- Focus tracking lives in `Kernel.FocusedDesktop` and `Desktop.FocusedProcess`. When a process is created on the focused desktop it becomes the focused process; when a focused process dies its desktop falls back to the kernel process. The focus setters ensure a focused process always exists for the active desktop.
+- Focus tracking lives in `Kernel.ActiveDesktop` and `Kernel.FocusedProcess`. A process may exist without any desktop. When a focused process is associated with a desktop, focusing that process also makes its desktop active. When no active desktop exists, input falls back to the focused process, then to `KernelProcess`.
 
 
 ### Command line editing
@@ -1870,8 +1870,8 @@ The network stack successfully handles real network traffic across multiple devi
 
 ### Desktop shell entry points
 
-The `desktop` shell command exposes `desktop show`, `desktop status`, and `desktop theme <path-or-name>`. `desktop show` activates `MainDesktop` from shell even without mounted storage and optionally applies `Desktop.ThemePath` from `exos.*.toml`; theme load/activation failures are reported but never block desktop activation.
-An internal kernel test module (`kernel/source/desktop/Desktop-InternalTest.c`, `kernel/include/desktop/Desktop-InternalTest.h`) runs on `desktop show` and ensures a visible test window plus a clock widget window exist on `MainDesktop`, with deterministic placement for windowing validation.
+The `desktop` shell command exposes `desktop show`, `desktop status`, and `desktop theme <path-or-name>`. `desktop show` creates the kernel shell desktop on first use, reuses it on later calls, and optionally applies `Desktop.ThemePath` from `exos.*.toml`; theme load/activation failures are reported but never block desktop activation.
+An internal kernel test module (`kernel/source/desktop/Desktop-InternalTest.c`, `kernel/include/desktop/Desktop-InternalTest.h`) runs on `desktop show` and ensures a visible test window plus a clock widget window exist on the shell desktop, with deterministic placement for windowing validation.
 
 ### Windowing core paths
 

@@ -57,10 +57,6 @@ U32 DesktopWindowFunc(HANDLE, U32, U32, U32);
 
 /***************************************************************************/
 
-static LIST MainDesktopChildren = {NULL, NULL, NULL, 0, KernelHeapAlloc, KernelHeapFree, NULL};
-
-/***************************************************************************/
-
 /**
  * @brief Convert a window-relative rectangle to screen coordinates while the window is already locked.
  * @param This Locked window instance.
@@ -117,53 +113,6 @@ BOOL UpdateWindowScreenRectAndDirtyRegion(LPWINDOW Window, LPRECT Rect) {
     UnlockMutex(&(Window->Mutex));
     return TRUE;
 }
-
-/***************************************************************************/
-
-WINDOW MainDesktopWindow = {
-    .TypeID = KOID_WINDOW,
-    .References = 1,
-    .OwnerProcess = &KernelProcess,
-    .Next = NULL,
-    .Prev = NULL,
-    .Mutex = EMPTY_MUTEX,
-    .Task = NULL,
-    .Function = &DesktopWindowFunc,
-    .ParentWindow = NULL,
-    .Children = &MainDesktopChildren,
-    .Properties = NULL,
-    .Rect = {0, 0, 79, 24},
-    .ScreenRect = {0, 0, 79, 24},
-    .WindowID = 0,
-    .Style = 0,
-    .Status = WINDOW_STATUS_VISIBLE,
-    .Level = 0,
-    .Order = 0
-};
-
-/***************************************************************************/
-
-DESKTOP MainDesktop = {
-    .TypeID = KOID_DESKTOP,
-    .References = 1,
-    .OwnerProcess = &KernelProcess,
-    .Next = NULL,
-    .Prev = NULL,
-    .Mutex = EMPTY_MUTEX,
-    .Task = NULL,
-    .Graphics = &ConsoleDriver,
-    .Window = &MainDesktopWindow,
-    .Capture = NULL,
-    .CaptureOffsetX = 0,
-    .CaptureOffsetY = 0,
-    .TimerMutex = EMPTY_MUTEX,
-    .Timers = NULL,
-    .TimerTask = NULL,
-    .Focus = NULL,
-    .FocusedProcess = &KernelProcess,
-    .Mode = DESKTOP_MODE_CONSOLE,
-    .Order = 0
-};
 
 /***************************************************************************/
 
@@ -328,7 +277,6 @@ LPDESKTOP CreateDesktop(void) {
         return NULL;
     }
     This->Graphics = &ConsoleDriver;
-    This->FocusedProcess = GetCurrentProcess();
     This->Mode = DESKTOP_MODE_CONSOLE;
 
     WindowInfo.Header.Size = sizeof(WINDOWINFO);
@@ -548,6 +496,7 @@ BOOL ShowDesktop(LPDESKTOP This) {
     UnlockMutex(&(This->Mutex));
     UnlockMutex(MUTEX_KERNEL);
 
+    SetActiveDesktop(This);
     DesktopCursorOnDesktopActivated(This);
 
     //-------------------------------------

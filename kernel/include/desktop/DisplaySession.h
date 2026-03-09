@@ -40,7 +40,6 @@
 
 typedef struct tag_DISPLAY_SESSION {
     LPDRIVER GraphicsDriver;
-    LPDESKTOP ActiveDesktop;
     GRAPHICSMODEINFO ActiveMode;
     U32 ActiveFrontEnd;
     BOOL IsInitialized;
@@ -58,7 +57,6 @@ BOOL DisplaySwitchToDesktop(LPDESKTOP Desktop);
 BOOL DisplaySessionGetActiveMode(LPGRAPHICSMODEINFO ModeInfoOut);
 U32 DisplaySessionGetActiveFrontEnd(void);
 LPDRIVER DisplaySessionGetActiveGraphicsDriver(void);
-LPDESKTOP DisplaySessionGetActiveDesktop(void);
 
 /************************************************************************/
 

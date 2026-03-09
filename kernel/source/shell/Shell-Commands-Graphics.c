@@ -31,6 +31,25 @@
 /***************************************************************************/
 
 /**
+ * @brief Retrieve or create the kernel shell desktop instance.
+ * @return Desktop pointer or NULL on failure.
+ */
+static LPDESKTOP GetOrCreateShellDesktop(void) {
+    SAFE_USE_VALID_ID(KernelProcess.Desktop, KOID_DESKTOP) {
+        return KernelProcess.Desktop;
+    }
+
+    KernelProcess.Desktop = CreateDesktop();
+    SAFE_USE_VALID_ID(KernelProcess.Desktop, KOID_DESKTOP) {
+        return KernelProcess.Desktop;
+    }
+
+    return NULL;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Restore text console after graphics smoke rendering.
  */
 static void RestoreConsoleAfterGraphicsSmoke(void) {
@@ -459,7 +478,7 @@ static void PrintDesktopStatus(void) {
     DESKTOP_THEME_RUNTIME_INFO ThemeInfo;
 
     FrontEnd = DisplaySessionGetActiveFrontEnd();
-    ActiveDesktop = DisplaySessionGetActiveDesktop();
+    ActiveDesktop = GetActiveDesktop();
 
     ConsolePrint(TEXT("desktop: front_end=%s\n"), DesktopFrontEndToText(FrontEnd));
 
@@ -506,14 +525,18 @@ static U32 ShowMainDesktopFromShell(void) {
     LPDESKTOP Desktop;
     LPCSTR ConfiguredThemePath;
 
-    Desktop = &MainDesktop;
-
-    if (DisplaySwitchToDesktop(Desktop) == FALSE) {
-        ConsolePrint(TEXT("desktop show: unable to switch to main desktop\n"));
+    Desktop = GetOrCreateShellDesktop();
+    if (Desktop == NULL) {
+        ConsolePrint(TEXT("desktop show: desktop creation failed\n"));
         return DF_RETURN_SUCCESS;
     }
 
-    ConsolePrint(TEXT("desktop show: main desktop active\n"));
+    if (DisplaySwitchToDesktop(Desktop) == FALSE) {
+        ConsolePrint(TEXT("desktop show: unable to switch to desktop\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    ConsolePrint(TEXT("desktop show: desktop active\n"));
 
     // A configured theme path is optional and must never block desktop activation.
     ConfiguredThemePath = GetConfigurationValue(TEXT("Desktop.ThemePath"));
@@ -605,6 +628,7 @@ U32 CMD_desktop(LPSHELLCONTEXT Context) {
     if (StringCompareNC(Action, TEXT("stressdrag")) == 0) {
         U32 Cycles = 12;
         BOOL Result;
+        LPDESKTOP Desktop;
 
         ParseNextCommandLineComponent(Context);
         if (StringLength(Context->Command) != 0) {
@@ -615,7 +639,13 @@ U32 CMD_desktop(LPSHELLCONTEXT Context) {
             }
         }
 
-        Result = DesktopInternalRunStressDrag(&MainDesktop, Cycles);
+        Desktop = GetOrCreateShellDesktop();
+        if (Desktop == NULL) {
+            ConsolePrint(TEXT("desktop stressdrag: desktop creation failed\n"));
+            return DF_RETURN_SUCCESS;
+        }
+
+        Result = DesktopInternalRunStressDrag(Desktop, Cycles);
         if (Result == FALSE) {
             ConsolePrint(TEXT("desktop stressdrag: failed\n"));
             return DF_RETURN_SUCCESS;
@@ -768,7 +798,7 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
     }
 
     if (DisplaySessionSetConsoleGraphicsMode(GraphicsDriver, &ModeInfo) == FALSE) {
-        ActiveDesktop = DisplaySessionGetActiveDesktop();
+        ActiveDesktop = GetActiveDesktop();
         if (ActiveDesktop != NULL) {
             (void)DisplaySessionSetDesktopMode(ActiveDesktop, GraphicsDriver, &ModeInfo);
         }

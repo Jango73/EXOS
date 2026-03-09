@@ -248,10 +248,8 @@ struct tag_DESKTOP {
     LPLIST Timers;             // Per-desktop timer entries
     LPTASK TimerTask;          // Per-desktop timer worker task
     LPWINDOW Focus;            // Window that has focus
-    LPPROCESS FocusedProcess;  // Process with input focus on this desktop
     U32 Mode;                 // Active desktop display mode
     I32 Order;                // Desktop ordering key among active desktops
-    DESKTOP_THEME Theme;      // Desktop theme runtime state
     MOUSE_CURSOR Cursor;      // Desktop cursor runtime state
 };
 
@@ -259,8 +257,6 @@ struct tag_DESKTOP {
 // Global objects
 
 extern PROCESS KernelProcess;
-extern WINDOW MainDesktopWindow;
-extern DESKTOP MainDesktop;
 
 /************************************************************************/
 // Functions in Process.c

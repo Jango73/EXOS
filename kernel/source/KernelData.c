@@ -303,7 +303,8 @@ static KERNELDATA DATA_SECTION Kernel = {
     .Socket = &SocketList,
     .UserSessions = NULL,
     .UserAccount = &UserAccountList,
-    .FocusedDesktop = &MainDesktop,
+    .ActiveDesktop = NULL,
+    .FocusedProcess = &KernelProcess,
     .FileSystemInfo = {.ActivePartitionName = ""},
     .SystemFS = {
         .Header = {
@@ -935,34 +936,34 @@ void SetMaximumQuantum(UINT MaximumQuantum) {
 /************************************************************************/
 
 /**
- * @brief Retrieve the desktop currently holding input focus.
- * @return Focused desktop pointer or NULL if none is set.
+ * @brief Retrieve the current desktop.
+ * @return Active desktop pointer or NULL if none is set.
  */
-LPDESKTOP GetFocusedDesktop(void) {
-    return Kernel.FocusedDesktop;
+LPDESKTOP GetActiveDesktop(void) {
+    return Kernel.ActiveDesktop;
 }
 
 /************************************************************************/
 
 /**
- * @brief Set the desktop that holds input focus.
- * @param Desktop Desktop to focus, may be NULL to clear focus.
+ * @brief Set the current desktop.
+ * @param Desktop Desktop to activate, may be NULL to clear it.
  */
-void SetFocusedDesktop(LPDESKTOP Desktop) {
-    LPDESKTOP PreviousDesktop = Kernel.FocusedDesktop;
+void SetActiveDesktop(LPDESKTOP Desktop) {
+    LPDESKTOP PreviousDesktop = Kernel.ActiveDesktop;
+    LPPROCESS FocusedProcess = Kernel.FocusedProcess;
 
     SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
-        Kernel.FocusedDesktop = Desktop;
-
-        if (Desktop->FocusedProcess == NULL) {
-            Desktop->FocusedProcess = &KernelProcess;
-        }
+        Kernel.ActiveDesktop = Desktop;
     } else {
-        Kernel.FocusedDesktop = &MainDesktop;
-        MainDesktop.FocusedProcess = &KernelProcess;
+        Kernel.ActiveDesktop = NULL;
+        if (FocusedProcess == NULL || FocusedProcess->TypeID != KOID_PROCESS ||
+            FocusedProcess->Status == PROCESS_STATUS_DEAD) {
+            Kernel.FocusedProcess = &KernelProcess;
+        }
     }
 
-    if (Kernel.FocusedDesktop != PreviousDesktop) {
+    if (Kernel.ActiveDesktop != PreviousDesktop) {
         ClearKeyboardBuffer();
     }
 }
@@ -974,19 +975,21 @@ void SetFocusedDesktop(LPDESKTOP Desktop) {
  * @return Focused process pointer or NULL if none is set.
  */
 LPPROCESS GetFocusedProcess(void) {
-    LPDESKTOP Desktop = Kernel.FocusedDesktop;
-
-    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
-        SAFE_USE_VALID_ID(Desktop->FocusedProcess, KOID_PROCESS) {
-            if (Desktop->FocusedProcess->Status == PROCESS_STATUS_DEAD) {
-                Desktop->FocusedProcess = &KernelProcess;
-                return &KernelProcess;
-            }
-            return Desktop->FocusedProcess;
+    SAFE_USE_VALID_ID(Kernel.FocusedProcess, KOID_PROCESS) {
+        if (Kernel.FocusedProcess->Status == PROCESS_STATUS_DEAD) {
+            Kernel.FocusedProcess = &KernelProcess;
+            return &KernelProcess;
         }
+        return Kernel.FocusedProcess;
     }
 
     return &KernelProcess;
+}
+
+/************************************************************************/
+
+LPDESKTOP_THEME GetGlobalThemeState(void) {
+    return &Kernel.Theme;
 }
 
 /************************************************************************/
@@ -996,26 +999,26 @@ LPPROCESS GetFocusedProcess(void) {
  * @param Process Process to focus, may be NULL to clear focus.
  */
 void SetFocusedProcess(LPPROCESS Process) {
-    LPDESKTOP Desktop = Kernel.FocusedDesktop;
-    LPDESKTOP PreviousDesktop = Kernel.FocusedDesktop;
-    LPPROCESS PreviousProcess = NULL;
-
-    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) { PreviousProcess = Desktop->FocusedProcess; }
+    LPDESKTOP PreviousDesktop = Kernel.ActiveDesktop;
+    LPPROCESS PreviousProcess = Kernel.FocusedProcess;
 
     SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
-        if (Process->Desktop != NULL) {
-            Desktop = Process->Desktop;
-            Kernel.FocusedDesktop = Desktop;
+        Kernel.FocusedProcess = Process;
+        if (Process->Desktop != NULL && Process->Desktop->TypeID == KOID_DESKTOP) {
+            Kernel.ActiveDesktop = Process->Desktop;
+        } else {
+            Kernel.ActiveDesktop = NULL;
+        }
+    } else {
+        Kernel.FocusedProcess = &KernelProcess;
+        if (KernelProcess.Desktop != NULL && KernelProcess.Desktop->TypeID == KOID_DESKTOP) {
+            Kernel.ActiveDesktop = KernelProcess.Desktop;
+        } else {
+            Kernel.ActiveDesktop = NULL;
         }
     }
 
-    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
-        if (Desktop->FocusedProcess != Process) {
-            Desktop->FocusedProcess = Process;
-        }
-    }
-
-    if (Kernel.FocusedDesktop != PreviousDesktop || PreviousProcess != Process) {
+    if (Kernel.ActiveDesktop != PreviousDesktop || PreviousProcess != Process) {
         ClearKeyboardBuffer();
     }
 }

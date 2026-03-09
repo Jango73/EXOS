@@ -162,7 +162,7 @@ BOOL InitializeMouseDispatcher(void) {
 
     {
         RECT Rect;
-        LPDESKTOP Desktop = GetFocusedDesktop();
+        LPDESKTOP Desktop = GetActiveDesktop();
         if (GetDesktopScreenRect(Desktop, &Rect) == TRUE) {
             g_MouseDispatch.PosX = Rect.X1 + ((Rect.X2 - Rect.X1) / 2);
             g_MouseDispatch.PosY = Rect.Y1 + ((Rect.Y2 - Rect.Y1) / 2);
@@ -207,10 +207,10 @@ void MouseDispatcherOnInput(I32 DeltaX, I32 DeltaY, U32 Buttons) {
     I32 NewPosX = 0;
     I32 NewPosY = 0;
     BOOL PositionChanged = FALSE;
-    LPDESKTOP FocusedDesktop = NULL;
+    LPDESKTOP ActiveDesktop = NULL;
 
     {
-        LPDESKTOP Desktop = GetFocusedDesktop();
+        LPDESKTOP Desktop = GetActiveDesktop();
         HasRect = GetDesktopScreenRect(Desktop, &ScreenRect);
         SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
             ConsoleMode = (Desktop->Mode == DESKTOP_MODE_CONSOLE);
@@ -256,7 +256,7 @@ void MouseDispatcherOnInput(I32 DeltaX, I32 DeltaY, U32 Buttons) {
     PositionChanged = (OldPosX != g_MouseDispatch.PosX || OldPosY != g_MouseDispatch.PosY);
     NewPosX = g_MouseDispatch.PosX;
     NewPosY = g_MouseDispatch.PosY;
-    FocusedDesktop = GetFocusedDesktop();
+    ActiveDesktop = GetActiveDesktop();
 
     RestoreFlags(&Flags);
 
@@ -273,7 +273,7 @@ void MouseDispatcherOnInput(I32 DeltaX, I32 DeltaY, U32 Buttons) {
     }
 
     if (PositionChanged != FALSE) {
-        DesktopCursorOnMousePositionChanged(FocusedDesktop, OldPosX, OldPosY, NewPosX, NewPosY);
+        DesktopCursorOnMousePositionChanged(ActiveDesktop, OldPosX, OldPosY, NewPosX, NewPosY);
     }
 }
 

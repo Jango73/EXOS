@@ -47,7 +47,7 @@ PROCESS DATA_SECTION KernelProcess = {
     .Mutex = EMPTY_MUTEX,           // Mutex
     .HeapMutex = EMPTY_MUTEX,       // Heap mutex
     .Security = EMPTY_SECURITY,     // Security
-    .Desktop = &MainDesktop,                // Desktop
+    .Desktop = NULL,                // Desktop
     .Privilege = CPU_PRIVILEGE_KERNEL,  // Privilege
     .Status = PROCESS_STATUS_ALIVE, // Status
     .Flags = PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH, // Flags
@@ -170,8 +170,6 @@ void InitializeKernelProcess(void) {
     DEBUG(TEXT("Kernel main task = %p (%s)"), (LINEAR)KernelTask, KernelTask->Name);
 
     KernelTask->Type = TASK_TYPE_KERNEL_MAIN;
-    MainDesktopWindow.Task = KernelTask;
-    MainDesktop.Task = KernelTask;
 
     DEBUG(TEXT("[InitializeKernelProcess] Exit"));
 
@@ -239,7 +237,7 @@ LPPROCESS NewProcess(void) {
     if (DesktopList != NULL && DesktopList->First != NULL) {
         This->Desktop = (LPDESKTOP)DesktopList->First;
     } else {
-        This->Desktop = &MainDesktop;
+        This->Desktop = NULL;
     }
     This->Privilege = CPU_PRIVILEGE_USER;
     This->Status = PROCESS_STATUS_ALIVE;
@@ -291,10 +289,8 @@ void DeleteProcessCommit(LPPROCESS This) {
 
         DEBUG(TEXT("[DeleteProcessCommit] Deleting process %s (TaskCount=%u)"), This->FileName, This->TaskCount);
 
-        SAFE_USE_VALID_ID(This->Desktop, KOID_DESKTOP) {
-            if (This->Desktop->FocusedProcess == This) {
-                This->Desktop->FocusedProcess = &KernelProcess;
-            }
+        if (GetFocusedProcess() == This) {
+            SetFocusedProcess(&KernelProcess);
         }
 
         // Free page directory if allocated
@@ -773,7 +769,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     LPLIST ProcessList = GetProcessList();
     ListAddItem(ProcessList, Process);
 
-    if (GetFocusedDesktop() == Process->Desktop) {
+    if (GetActiveDesktop() == Process->Desktop) {
         SetFocusedProcess(Process);
     }
 

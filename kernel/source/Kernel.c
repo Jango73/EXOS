@@ -232,25 +232,11 @@ void ReleaseHandle(HANDLE Handle) {
 static void InitializeFocusState(void) {
     LPLIST DesktopList = GetDesktopList();
 
-    // Ensure the main desktop is registered in the kernel's desktop list
-    if (DesktopList != NULL && DesktopList->First == NULL) {
-        ListAddHead(DesktopList, &MainDesktop);
-    }
-
-    if (GetFocusedDesktop() == NULL) {
-        SetFocusedDesktop(&MainDesktop);
-    }
-
-    SetFocusedDesktop(GetFocusedDesktop());
     SetFocusedProcess(&KernelProcess);
 
     if (KernelProcess.Desktop == NULL) {
-        KernelProcess.Desktop = GetFocusedDesktop();
-    }
-
-    SAFE_USE_VALID_ID(GetFocusedDesktop(), KOID_DESKTOP) {
-        if (GetFocusedDesktop()->FocusedProcess == NULL) {
-            GetFocusedDesktop()->FocusedProcess = &KernelProcess;
+        if (DesktopList != NULL && DesktopList->First != NULL) {
+            KernelProcess.Desktop = (LPDESKTOP)DesktopList->First;
         }
     }
 

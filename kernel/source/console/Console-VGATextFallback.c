@@ -29,46 +29,6 @@
 #include "GFX.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "Mutex.h"
-#include "Desktop.h"
-#include "process/Process.h"
-
-/************************************************************************/
-
-static void ConsoleVGATextFallbackUpdateDesktopState(U32 Columns, U32 Rows);
-
-/************************************************************************/
-
-/**
- * @brief Keep main desktop metadata coherent for VGA text console mode.
- * @param Columns Console width in character cells.
- * @param Rows Console height in character cells.
- */
-static void ConsoleVGATextFallbackUpdateDesktopState(U32 Columns, U32 Rows) {
-    RECT Rect;
-
-    if (Columns == 0 || Rows == 0) {
-        return;
-    }
-
-    Rect.X1 = 0;
-    Rect.Y1 = 0;
-    Rect.X2 = (I32)Columns - 1;
-    Rect.Y2 = (I32)Rows - 1;
-
-    SAFE_USE_VALID_ID(&MainDesktop, KOID_DESKTOP) {
-        LockMutex(&(MainDesktop.Mutex), INFINITY);
-        MainDesktop.Graphics = ConsoleGetDriver();
-        MainDesktop.Mode = DESKTOP_MODE_CONSOLE;
-
-        SAFE_USE_VALID_ID(MainDesktop.Window, KOID_WINDOW) {
-            (void)UpdateWindowScreenRectAndDirtyRegion(MainDesktop.Window, &Rect);
-        }
-
-        UnlockMutex(&(MainDesktop.Mutex));
-    }
-}
-
 /************************************************************************/
 
 /**
@@ -135,8 +95,6 @@ BOOL ConsoleVGATextFallbackActivate(U32 Columns, U32 Rows, LPGRAPHICSMODEINFO Ap
     Console.CursorX = 0;
     Console.CursorY = 0;
     ClearConsole();
-
-    ConsoleVGATextFallbackUpdateDesktopState(Console.Width, Console.Height);
 
     ModeInfo.Header.Size = sizeof(ModeInfo);
     ModeInfo.Header.Version = EXOS_ABI_VERSION;
