@@ -207,36 +207,16 @@ static BOOL DockHostValidateSizeRequest(LPDOCK_SIZE_REQUEST Request) {
 /************************************************************************/
 
 /**
- * @brief Resolve one dockable size request, optionally through its measure callback.
+ * @brief Resolve one dockable size request from stored dockable state.
  * @param Dockable Source dockable.
- * @param Host Source host.
- * @param HostRect Host rectangle snapshot.
  * @param RequestOut Resolved request output.
  * @return Docking status code.
  */
-static U32 DockHostResolveSizeRequest(
-    LPDOCKABLE Dockable,
-    LPDOCK_HOST Host,
-    LPRECT HostRect,
-    LPDOCK_SIZE_REQUEST RequestOut
-) {
-    U32 Status;
-
-    if (Dockable == NULL || Host == NULL || HostRect == NULL || RequestOut == NULL) {
-        return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
-    }
+static U32 DockHostResolveSizeRequest(LPDOCKABLE Dockable, LPDOCK_SIZE_REQUEST RequestOut) {
+    if (Dockable == NULL || RequestOut == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
     *RequestOut = Dockable->SizeRequest;
-
-    if (Dockable->Callbacks.Measure != NULL) {
-        Status = Dockable->Callbacks.Measure(Dockable, Host, HostRect, RequestOut);
-        if (Status != DOCK_LAYOUT_STATUS_SUCCESS) return Status;
-    }
-
-    if (DockHostValidateSizeRequest(RequestOut) == FALSE) {
-        return DOCK_LAYOUT_STATUS_INVALID_SIZE;
-    }
-
+    if (DockHostValidateSizeRequest(RequestOut) == FALSE) return DOCK_LAYOUT_STATUS_INVALID_SIZE;
     return DOCK_LAYOUT_STATUS_SUCCESS;
 }
 
@@ -369,17 +349,64 @@ static U32 DockHostResolvePrimarySizes(
 /************************************************************************/
 
 /**
- * @brief Fill one layout result object with host baseline values.
+ * @brief Fill one layout frame object with host baseline values.
  * @param Host Source host.
- * @param Result Destination layout result.
+ * @param Frame Destination layout frame.
  */
-static void DockHostInitializeLayoutResult(LPDOCK_HOST Host, LPDOCK_LAYOUT_RESULT Result) {
-    Result->Status = DOCK_LAYOUT_STATUS_SUCCESS;
-    Result->HostRect = Host->HostRect;
-    Result->WorkRect = Host->WorkRect;
-    Result->DockableCount = Host->ItemCount;
-    Result->AppliedCount = 0;
-    Result->RejectedCount = 0;
+static void DockHostInitializeLayoutFrame(LPDOCK_HOST Host, LPDOCK_LAYOUT_FRAME Frame) {
+    Frame->Status = DOCK_LAYOUT_STATUS_SUCCESS;
+    Frame->HostRect = Host->HostRect;
+    Frame->WorkRect = Host->WorkRect;
+    Frame->DockableCount = Host->ItemCount;
+    Frame->AppliedCount = 0;
+    Frame->RejectedCount = 0;
+    Frame->AssignmentCount = 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Initialize one public layout result from one layout frame.
+ * @param Result Destination result.
+ * @param Frame Source frame.
+ */
+static void DockHostFillResultFromFrame(LPDOCK_LAYOUT_RESULT Result, LPDOCK_LAYOUT_FRAME Frame) {
+    if (Result == NULL || Frame == NULL) return;
+
+    Result->Status = Frame->Status;
+    Result->HostRect = Frame->HostRect;
+    Result->WorkRect = Frame->WorkRect;
+    Result->DockableCount = Frame->DockableCount;
+    Result->AppliedCount = Frame->AppliedCount;
+    Result->RejectedCount = Frame->RejectedCount;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Append one assignment to a frame.
+ * @param Frame Destination frame.
+ * @param Dockable Dockable reference.
+ * @param AssignedRect Assigned rectangle.
+ * @param Status Assignment status.
+ * @return TRUE on success.
+ */
+static BOOL DockHostAppendAssignment(
+    LPDOCK_LAYOUT_FRAME Frame,
+    LPDOCKABLE Dockable,
+    LPRECT AssignedRect,
+    U32 Status
+) {
+    LPDOCK_LAYOUT_ASSIGNMENT Assignment;
+
+    if (Frame == NULL || Dockable == NULL || AssignedRect == NULL) return FALSE;
+    if (Frame->AssignmentCount >= DOCK_LAYOUT_MAX_ASSIGNMENTS) return FALSE;
+
+    Assignment = &(Frame->Assignments[Frame->AssignmentCount++]);
+    Assignment->Dockable = Dockable;
+    Assignment->AssignedRect = *AssignedRect;
+    Assignment->Status = Status;
+    return TRUE;
 }
 
 /************************************************************************/
@@ -439,7 +466,7 @@ static LPDOCK_EDGE_LAYOUT_POLICY DockHostGetEdgePolicy(LPDOCK_HOST Host, U32 Edg
  * @param Edge Edge value.
  * @param Bucket Sorted edge bucket.
  * @param WorkRect In-out work rectangle.
- * @param Result In-out layout result.
+ * @param Frame In-out layout frame.
  * @return Docking status code.
  */
 static U32 DockHostApplyEdgeBucket(
@@ -447,7 +474,7 @@ static U32 DockHostApplyEdgeBucket(
     U32 Edge,
     LPDOCK_EDGE_BUCKET Bucket,
     LPRECT WorkRect,
-    LPDOCK_LAYOUT_RESULT Result
+    LPDOCK_LAYOUT_FRAME Frame
 ) {
     LPDOCK_EDGE_LAYOUT_POLICY EdgePolicy;
     DOCK_SIZE_REQUEST Requests[DOCK_HOST_MAX_ITEMS];
@@ -472,10 +499,10 @@ static U32 DockHostApplyEdgeBucket(
     if (EdgePolicy == NULL) return DOCK_LAYOUT_STATUS_INVALID_EDGE;
 
     for (Index = 0; Index < Bucket->Count; Index++) {
-        Status = DockHostResolveSizeRequest(Bucket->Items[Index], Host, WorkRect, &(Requests[Index]));
+        Status = DockHostResolveSizeRequest(Bucket->Items[Index], &(Requests[Index]));
         if (Status != DOCK_LAYOUT_STATUS_SUCCESS) {
-            Result->RejectedCount++;
-            if (Result->Status == DOCK_LAYOUT_STATUS_SUCCESS) Result->Status = Status;
+            Frame->RejectedCount++;
+            if (Frame->Status == DOCK_LAYOUT_STATUS_SUCCESS) Frame->Status = Status;
             if (EdgePolicy->OverflowPolicy == DOCK_OVERFLOW_POLICY_REJECT) return Status;
             Requests[Index] = Bucket->Items[Index]->SizeRequest;
         }
@@ -485,7 +512,7 @@ static U32 DockHostApplyEdgeBucket(
     if (Edge == DOCK_EDGE_TOP || Edge == DOCK_EDGE_BOTTOM) {
         if ((WorkRect->Y2 - WorkRect->Y1 + 1) < Thickness) {
             if (EdgePolicy->OverflowPolicy == DOCK_OVERFLOW_POLICY_REJECT) {
-                Result->RejectedCount += Bucket->Count;
+                Frame->RejectedCount += Bucket->Count;
                 return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
             }
             Thickness = WorkRect->Y2 - WorkRect->Y1 + 1;
@@ -496,7 +523,7 @@ static U32 DockHostApplyEdgeBucket(
     } else {
         if ((WorkRect->X2 - WorkRect->X1 + 1) < Thickness) {
             if (EdgePolicy->OverflowPolicy == DOCK_OVERFLOW_POLICY_REJECT) {
-                Result->RejectedCount += Bucket->Count;
+                Frame->RejectedCount += Bucket->Count;
                 return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
             }
             Thickness = WorkRect->X2 - WorkRect->X1 + 1;
@@ -507,7 +534,7 @@ static U32 DockHostApplyEdgeBucket(
     }
 
     if (PrimaryEnd < PrimaryStart) {
-        Result->RejectedCount += Bucket->Count;
+        Frame->RejectedCount += Bucket->Count;
         return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
     }
 
@@ -518,7 +545,7 @@ static U32 DockHostApplyEdgeBucket(
     SpacingTotal = EffectiveSpacing * ((I32)Bucket->Count - 1);
     if (SpacingTotal >= PrimaryAvailable) {
         if (EdgePolicy->OverflowPolicy == DOCK_OVERFLOW_POLICY_REJECT) {
-            Result->RejectedCount += Bucket->Count;
+            Frame->RejectedCount += Bucket->Count;
             return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
         }
         if (EdgePolicy->OverflowPolicy == DOCK_OVERFLOW_POLICY_SHRINK) {
@@ -536,8 +563,8 @@ static U32 DockHostApplyEdgeBucket(
         PrimarySizes
     );
     if (Status != DOCK_LAYOUT_STATUS_SUCCESS) {
-        Result->RejectedCount += Bucket->Count;
-        if (Result->Status == DOCK_LAYOUT_STATUS_SUCCESS) Result->Status = Status;
+        Frame->RejectedCount += Bucket->Count;
+        if (Frame->Status == DOCK_LAYOUT_STATUS_SUCCESS) Frame->Status = Status;
         return Status;
     }
 
@@ -571,30 +598,20 @@ static U32 DockHostApplyEdgeBucket(
         }
 
         if (ItemEnd < ItemStart) {
-            Result->RejectedCount++;
-            Result->Status = DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
+            Frame->RejectedCount++;
+            Frame->Status = DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
             if (EdgePolicy->OverflowPolicy == DOCK_OVERFLOW_POLICY_REJECT) return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
             Cursor += PrimarySizes[Index] + EffectiveSpacing;
             continue;
         }
 
-        if (Bucket->Items[Index]->Callbacks.ApplyRect != NULL) {
-            Status = Bucket->Items[Index]->Callbacks.ApplyRect(
-                Bucket->Items[Index],
-                Host,
-                &AssignedRect,
-                WorkRect
-            );
-            if (Status != DOCK_LAYOUT_STATUS_SUCCESS) {
-                Result->RejectedCount++;
-                Result->Status = DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
-                if (EdgePolicy->OverflowPolicy == DOCK_OVERFLOW_POLICY_REJECT) return Status;
-            } else {
-                Result->AppliedCount++;
-            }
-        } else {
-            Result->AppliedCount++;
+        if (DockHostAppendAssignment(Frame, Bucket->Items[Index], &AssignedRect, DOCK_LAYOUT_STATUS_SUCCESS) == FALSE) {
+            Frame->RejectedCount++;
+            if (Frame->Status == DOCK_LAYOUT_STATUS_SUCCESS) Frame->Status = DOCK_LAYOUT_STATUS_CAPACITY_EXCEEDED;
+            return DOCK_LAYOUT_STATUS_CAPACITY_EXCEEDED;
         }
+
+        Frame->AppliedCount++;
 
         Cursor += PrimarySizes[Index] + EffectiveSpacing;
     }
@@ -630,6 +647,7 @@ BOOL DockHostInit(LPDOCK_HOST Host, LPCSTR Identifier, LPVOID Context) {
     Host->WorkRect = Host->HostRect;
     Host->LayoutSequence = 0;
     Host->LayoutDirty = TRUE;
+    Host->LastDirtyReason = DOCK_DIRTY_REASON_NONE;
     Host->ItemCount = 0;
     Host->Capacity = DOCK_HOST_MAX_ITEMS;
 
@@ -644,6 +662,7 @@ BOOL DockHostReset(LPDOCK_HOST Host) {
     Host->ItemCount = 0;
     Host->WorkRect = Host->HostRect;
     Host->LayoutDirty = TRUE;
+    Host->LastDirtyReason = DOCK_DIRTY_REASON_NONE;
     return TRUE;
 }
 
@@ -656,6 +675,7 @@ U32 DockHostSetHostRect(LPDOCK_HOST Host, LPRECT HostRect) {
     Host->HostRect = *HostRect;
     Host->WorkRect = *HostRect;
     Host->LayoutDirty = TRUE;
+    Host->LastDirtyReason = DOCK_DIRTY_REASON_HOST_RECT_CHANGED;
     return DOCK_LAYOUT_STATUS_SUCCESS;
 }
 
@@ -667,6 +687,7 @@ U32 DockHostSetPolicy(LPDOCK_HOST Host, LPDOCK_HOST_LAYOUT_POLICY Policy) {
 
     Host->Policy = *Policy;
     Host->LayoutDirty = TRUE;
+    Host->LastDirtyReason = DOCK_DIRTY_REASON_POLICY_CHANGED;
     return DOCK_LAYOUT_STATUS_SUCCESS;
 }
 
@@ -694,6 +715,7 @@ U32 DockHostAttachDockable(LPDOCK_HOST Host, LPDOCKABLE Dockable) {
     Dockable->InsertionIndex = ++Host->LayoutSequence;
     Host->Items[Host->ItemCount++] = Dockable;
     Host->LayoutDirty = TRUE;
+    Host->LastDirtyReason = DOCK_DIRTY_REASON_ATTACH_DETACH;
     return DOCK_LAYOUT_STATUS_SUCCESS;
 }
 
@@ -713,6 +735,7 @@ U32 DockHostDetachDockable(LPDOCK_HOST Host, LPDOCKABLE Dockable) {
         Host->Items[Host->ItemCount - 1] = NULL;
         Host->ItemCount--;
         Host->LayoutDirty = TRUE;
+        Host->LastDirtyReason = DOCK_DIRTY_REASON_ATTACH_DETACH;
         return DOCK_LAYOUT_STATUS_SUCCESS;
     }
 
@@ -721,13 +744,30 @@ U32 DockHostDetachDockable(LPDOCK_HOST Host, LPDOCKABLE Dockable) {
 
 /************************************************************************/
 
-U32 DockHostRelayout(LPDOCK_HOST Host, LPDOCK_LAYOUT_RESULT Result) {
+U32 DockHostMarkDirty(LPDOCK_HOST Host, U32 Reason) {
+    if (Host == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
+    if (Reason == DOCK_DIRTY_REASON_NONE) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
+
+    Host->LayoutDirty = TRUE;
+    Host->LastDirtyReason = Reason;
+    return DOCK_LAYOUT_STATUS_SUCCESS;
+}
+
+/************************************************************************/
+
+BOOL DockHostIsRelayoutRequired(LPDOCK_HOST Host) {
+    if (Host == NULL) return FALSE;
+    return Host->LayoutDirty;
+}
+
+/************************************************************************/
+
+U32 DockHostBuildLayoutFrame(LPDOCK_HOST Host, LPDOCK_LAYOUT_FRAME Frame) {
     DOCK_EDGE_BUCKET Bucket;
     RECT WorkRect;
     U32 Status;
-    UINT Index;
 
-    if (Host == NULL || Result == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
+    if (Host == NULL || Frame == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
     if (DockHostIsValidRect(&(Host->HostRect)) == FALSE) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
     WorkRect = Host->HostRect;
@@ -740,27 +780,59 @@ U32 DockHostRelayout(LPDOCK_HOST Host, LPDOCK_LAYOUT_RESULT Result) {
     }
 
     Host->WorkRect = WorkRect;
-    DockHostInitializeLayoutResult(Host, Result);
+    DockHostInitializeLayoutFrame(Host, Frame);
 
     DockHostBuildBucket(Host, DOCK_EDGE_TOP, &Bucket);
-    Status = DockHostApplyEdgeBucket(Host, DOCK_EDGE_TOP, &Bucket, &WorkRect, Result);
-    if (Status != DOCK_LAYOUT_STATUS_SUCCESS && Result->Status == DOCK_LAYOUT_STATUS_SUCCESS) Result->Status = Status;
+    Status = DockHostApplyEdgeBucket(Host, DOCK_EDGE_TOP, &Bucket, &WorkRect, Frame);
+    if (Status != DOCK_LAYOUT_STATUS_SUCCESS && Frame->Status == DOCK_LAYOUT_STATUS_SUCCESS) Frame->Status = Status;
 
     DockHostBuildBucket(Host, DOCK_EDGE_BOTTOM, &Bucket);
-    Status = DockHostApplyEdgeBucket(Host, DOCK_EDGE_BOTTOM, &Bucket, &WorkRect, Result);
-    if (Status != DOCK_LAYOUT_STATUS_SUCCESS && Result->Status == DOCK_LAYOUT_STATUS_SUCCESS) Result->Status = Status;
+    Status = DockHostApplyEdgeBucket(Host, DOCK_EDGE_BOTTOM, &Bucket, &WorkRect, Frame);
+    if (Status != DOCK_LAYOUT_STATUS_SUCCESS && Frame->Status == DOCK_LAYOUT_STATUS_SUCCESS) Frame->Status = Status;
 
     DockHostBuildBucket(Host, DOCK_EDGE_LEFT, &Bucket);
-    Status = DockHostApplyEdgeBucket(Host, DOCK_EDGE_LEFT, &Bucket, &WorkRect, Result);
-    if (Status != DOCK_LAYOUT_STATUS_SUCCESS && Result->Status == DOCK_LAYOUT_STATUS_SUCCESS) Result->Status = Status;
+    Status = DockHostApplyEdgeBucket(Host, DOCK_EDGE_LEFT, &Bucket, &WorkRect, Frame);
+    if (Status != DOCK_LAYOUT_STATUS_SUCCESS && Frame->Status == DOCK_LAYOUT_STATUS_SUCCESS) Frame->Status = Status;
 
     DockHostBuildBucket(Host, DOCK_EDGE_RIGHT, &Bucket);
-    Status = DockHostApplyEdgeBucket(Host, DOCK_EDGE_RIGHT, &Bucket, &WorkRect, Result);
-    if (Status != DOCK_LAYOUT_STATUS_SUCCESS && Result->Status == DOCK_LAYOUT_STATUS_SUCCESS) Result->Status = Status;
+    Status = DockHostApplyEdgeBucket(Host, DOCK_EDGE_RIGHT, &Bucket, &WorkRect, Frame);
+    if (Status != DOCK_LAYOUT_STATUS_SUCCESS && Frame->Status == DOCK_LAYOUT_STATUS_SUCCESS) Frame->Status = Status;
 
-    Host->WorkRect = WorkRect;
-    Result->WorkRect = WorkRect;
+    Frame->WorkRect = WorkRect;
+    return Frame->Status;
+}
+
+/************************************************************************/
+
+U32 DockHostApplyLayoutFrame(LPDOCK_HOST Host, LPDOCK_LAYOUT_FRAME Frame, LPDOCK_LAYOUT_RESULT Result) {
+    UINT Index;
+    LPDOCK_LAYOUT_ASSIGNMENT Assignment;
+    U32 CallbackStatus;
+    U32 Status;
+
+    if (Host == NULL || Frame == NULL || Result == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
+
+    Status = Frame->Status;
+    for (Index = 0; Index < Frame->AssignmentCount; Index++) {
+        Assignment = &(Frame->Assignments[Index]);
+        if (Assignment->Dockable == NULL) continue;
+        if (Assignment->Dockable->Callbacks.ApplyRect == NULL) continue;
+
+        CallbackStatus = Assignment->Dockable->Callbacks.ApplyRect(
+            Assignment->Dockable,
+            Host,
+            &(Assignment->AssignedRect),
+            &(Frame->WorkRect)
+        );
+        if (CallbackStatus != DOCK_LAYOUT_STATUS_SUCCESS) {
+            Frame->RejectedCount++;
+            if (Status == DOCK_LAYOUT_STATUS_SUCCESS) Status = CallbackStatus;
+        }
+    }
+
+    Host->WorkRect = Frame->WorkRect;
     Host->LayoutDirty = FALSE;
+    Host->LastDirtyReason = DOCK_DIRTY_REASON_NONE;
 
     for (Index = 0; Index < Host->ItemCount; Index++) {
         if (Host->Items[Index] == NULL) continue;
@@ -772,7 +844,25 @@ U32 DockHostRelayout(LPDOCK_HOST Host, LPDOCK_LAYOUT_RESULT Result) {
         );
     }
 
-    return Result->Status;
+    Frame->Status = Status;
+    DockHostFillResultFromFrame(Result, Frame);
+    return Status;
+}
+
+/************************************************************************/
+
+U32 DockHostRelayout(LPDOCK_HOST Host, LPDOCK_LAYOUT_RESULT Result) {
+    DOCK_LAYOUT_FRAME Frame;
+    U32 Status;
+
+    if (Host == NULL || Result == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
+
+    Status = DockHostBuildLayoutFrame(Host, &Frame);
+    if (Status != DOCK_LAYOUT_STATUS_SUCCESS && Frame.Status == DOCK_LAYOUT_STATUS_SUCCESS) {
+        Frame.Status = Status;
+    }
+
+    return DockHostApplyLayoutFrame(Host, &Frame, Result);
 }
 
 /************************************************************************/

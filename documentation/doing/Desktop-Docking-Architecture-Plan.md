@@ -209,12 +209,12 @@ Deliverable:
   - theme systems are expected to resolve numeric policy inputs in bridge layers.
 
 ## Step 5 - Concurrency and message integration
-- [ ] Define lock usage rules for docking operations within existing desktop/window mutex contract.
-- [ ] Ensure no callback execution while holding structural locks that forbid callback/post operations.
-- [ ] Provide one safe two-phase flow:
+- [x] Define lock usage rules for docking operations within existing desktop/window mutex contract.
+- [x] Ensure no callback execution while holding structural locks that forbid callback/post operations.
+- [x] Provide one safe two-phase flow:
   - structural snapshot under lock,
   - callback application outside structural lock.
-- [ ] Define relayout trigger points:
+- [x] Define relayout trigger points:
   - host rect change,
   - dockable property change,
   - attach/detach,
@@ -222,6 +222,22 @@ Deliverable:
 
 Deliverable:
 - Deadlock-safe docking integration strategy consistent with desktop lock ordering rules.
+
+### Step 5 Output - Concurrency Surface
+- Added explicit two-phase `DockHost` API for lock-safe integration:
+  - `DockHostBuildLayoutFrame(...)` computes assignments without invoking dockable callbacks,
+  - `DockHostApplyLayoutFrame(...)` applies callbacks from a prepared frame.
+- Kept compatibility path:
+  - `DockHostRelayout(...)` now composes `BuildLayoutFrame` + `ApplyLayoutFrame`.
+- Added relayout dirty tracking and trigger reason plumbing:
+  - `DockHostMarkDirty(...)`,
+  - `DockHostIsRelayoutRequired(...)`,
+  - `DOCK_DIRTY_REASON_*` reason codes.
+- Defined trigger mapping in code:
+  - host rect change -> `DOCK_DIRTY_REASON_HOST_RECT_CHANGED`,
+  - host policy change -> `DOCK_DIRTY_REASON_POLICY_CHANGED`,
+  - attach/detach -> `DOCK_DIRTY_REASON_ATTACH_DETACH`,
+  - manual dockable/visibility updates -> `DockHostMarkDirty(...)` by bridge layer.
 
 ## Step 6 - Desktop bridge layer
 - [ ] Add desktop-specific bridge module:

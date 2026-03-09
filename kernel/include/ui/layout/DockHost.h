@@ -35,6 +35,16 @@
 /************************************************************************/
 
 #define DOCK_HOST_MAX_ITEMS 64
+#define DOCK_LAYOUT_MAX_ASSIGNMENTS DOCK_HOST_MAX_ITEMS
+
+typedef enum tag_DOCK_DIRTY_REASON {
+    DOCK_DIRTY_REASON_NONE = 0,
+    DOCK_DIRTY_REASON_HOST_RECT_CHANGED = 1,
+    DOCK_DIRTY_REASON_POLICY_CHANGED = 2,
+    DOCK_DIRTY_REASON_ATTACH_DETACH = 3,
+    DOCK_DIRTY_REASON_DOCKABLE_PROPERTY_CHANGED = 4,
+    DOCK_DIRTY_REASON_VISIBILITY_CHANGED = 5
+} DOCK_DIRTY_REASON, *LPDOCK_DIRTY_REASON;
 
 typedef enum tag_DOCK_OVERFLOW_POLICY {
     DOCK_OVERFLOW_POLICY_CLIP = 0,
@@ -69,6 +79,23 @@ typedef struct tag_DOCK_LAYOUT_RESULT {
     U32 RejectedCount;
 } DOCK_LAYOUT_RESULT, *LPDOCK_LAYOUT_RESULT;
 
+typedef struct tag_DOCK_LAYOUT_ASSIGNMENT {
+    LPDOCKABLE Dockable;
+    RECT AssignedRect;
+    U32 Status;
+} DOCK_LAYOUT_ASSIGNMENT, *LPDOCK_LAYOUT_ASSIGNMENT;
+
+typedef struct tag_DOCK_LAYOUT_FRAME {
+    U32 Status;
+    RECT HostRect;
+    RECT WorkRect;
+    U32 DockableCount;
+    U32 AppliedCount;
+    U32 RejectedCount;
+    U32 AssignmentCount;
+    DOCK_LAYOUT_ASSIGNMENT Assignments[DOCK_LAYOUT_MAX_ASSIGNMENTS];
+} DOCK_LAYOUT_FRAME, *LPDOCK_LAYOUT_FRAME;
+
 typedef struct tag_DOCK_HOST {
     LPCSTR Identifier;
     LPVOID Context;
@@ -76,6 +103,7 @@ typedef struct tag_DOCK_HOST {
     RECT WorkRect;
     U32 LayoutSequence;
     BOOL LayoutDirty;
+    U32 LastDirtyReason;
     U32 ItemCount;
     U32 Capacity;
     LPDOCKABLE Items[DOCK_HOST_MAX_ITEMS];
@@ -90,6 +118,10 @@ U32 DockHostSetHostRect(LPDOCK_HOST Host, LPRECT HostRect);
 U32 DockHostSetPolicy(LPDOCK_HOST Host, LPDOCK_HOST_LAYOUT_POLICY Policy);
 U32 DockHostAttachDockable(LPDOCK_HOST Host, LPDOCKABLE Dockable);
 U32 DockHostDetachDockable(LPDOCK_HOST Host, LPDOCKABLE Dockable);
+U32 DockHostMarkDirty(LPDOCK_HOST Host, U32 Reason);
+BOOL DockHostIsRelayoutRequired(LPDOCK_HOST Host);
+U32 DockHostBuildLayoutFrame(LPDOCK_HOST Host, LPDOCK_LAYOUT_FRAME Frame);
+U32 DockHostApplyLayoutFrame(LPDOCK_HOST Host, LPDOCK_LAYOUT_FRAME Frame, LPDOCK_LAYOUT_RESULT Result);
 U32 DockHostRelayout(LPDOCK_HOST Host, LPDOCK_LAYOUT_RESULT Result);
 U32 DockHostGetWorkRect(LPDOCK_HOST Host, LPRECT WorkRect);
 
