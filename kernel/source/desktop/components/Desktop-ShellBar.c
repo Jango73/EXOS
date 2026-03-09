@@ -24,7 +24,7 @@
 #include "desktop/components/Desktop-ShellBar.h"
 
 #include "desktop/Desktop-WindowClass.h"
-#include "desktop/components/Desktop-DockingBridge.h"
+#include "ui/layout/WindowDockHost.h"
 
 /************************************************************************/
 
@@ -160,7 +160,7 @@ BOOL DesktopShellBarCreate(LPDESKTOP Desktop) {
 
 U32 DesktopShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     LPWINDOW This = (LPWINDOW)Window;
-    LPDESKTOP Desktop;
+    LPWINDOW HostWindow;
     LPDESKTOP_SHELL_BAR_CLASS_DATA Data;
     DOCKABLE_CALLBACKS Callbacks;
     DOCK_SIZE_REQUEST Request;
@@ -193,13 +193,13 @@ U32 DesktopShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2
                 Data->DockableInitialized = TRUE;
             }
 
-            Desktop = GetWindowDesktop(This);
-            if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return 0;
+            HostWindow = This->ParentWindow;
+            if (HostWindow == NULL || HostWindow->TypeID != KOID_WINDOW) return 0;
 
-            if (DesktopDockingBridgeAttachDockable(Desktop, &(Data->Dockable)) != DOCK_LAYOUT_STATUS_SUCCESS) return 0;
+            if (WindowDockHostAttachDockable((HANDLE)HostWindow, &(Data->Dockable)) != DOCK_LAYOUT_STATUS_SUCCESS) return 0;
 
             Data->DockableAttached = TRUE;
-            (void)DesktopDockingBridgeRelayout(Desktop);
+            (void)WindowDockHostRelayout((HANDLE)HostWindow);
             return 1;
 
         case EWM_DELETE:
@@ -207,10 +207,10 @@ U32 DesktopShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2
             if (Data == NULL) return 1;
 
             if (Data->DockableAttached != FALSE) {
-                Desktop = GetWindowDesktop(This);
-                if (Desktop != NULL && Desktop->TypeID == KOID_DESKTOP) {
-                    (void)DesktopDockingBridgeDetachDockable(Desktop, &(Data->Dockable));
-                    (void)DesktopDockingBridgeRelayout(Desktop);
+                HostWindow = This->ParentWindow;
+                if (HostWindow != NULL && HostWindow->TypeID == KOID_WINDOW) {
+                    (void)WindowDockHostDetachDockable((HANDLE)HostWindow, &(Data->Dockable));
+                    (void)WindowDockHostRelayout((HANDLE)HostWindow);
                 }
                 Data->DockableAttached = FALSE;
             }

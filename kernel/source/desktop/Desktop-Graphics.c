@@ -32,6 +32,7 @@
 #include "input/Mouse.h"
 #include "input/MouseDispatcher.h"
 #include "process/Task-Messaging.h"
+#include "ui/layout/WindowDockHost.h"
 #include "utils/Graphics-Utils.h"
 
 /***************************************************************************/
@@ -237,6 +238,7 @@ static BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect) {
     }
 
     (void)InvalidateWindowRect((HANDLE)Window, NULL);
+    (void)WindowDockHostHandleWindowRectChanged((HANDLE)Window);
     return TRUE;
 }
 

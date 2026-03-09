@@ -17,31 +17,42 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Desktop root window class
+    Window docking host class helpers
 
 \************************************************************************/
 
-#ifndef DESKTOP_ROOT_WINDOW_CLASS_H_INCLUDED
-#define DESKTOP_ROOT_WINDOW_CLASS_H_INCLUDED
+#ifndef WINDOW_DOCK_HOST_H_INCLUDED
+#define WINDOW_DOCK_HOST_H_INCLUDED
 
 /************************************************************************/
 
-#include "desktop/Desktop.h"
-#include "ui/layout/WindowDockHost.h"
+#include "desktop/Desktop-WindowClass.h"
+#include "ui/layout/DockHost.h"
 
 /************************************************************************/
 
-#define DESKTOP_ROOT_WINDOW_CLASS_NAME TEXT("DesktopRootWindowClass")
+#define WINDOW_DOCK_HOST_CLASS_NAME TEXT("WindowDockHostClass")
 
 /************************************************************************/
 
-typedef WINDOW_DOCK_HOST_CLASS_DATA DESKTOP_ROOT_WINDOW_CLASS_DATA;
-typedef LPWINDOW_DOCK_HOST_CLASS_DATA LPDESKTOP_ROOT_WINDOW_CLASS_DATA;
+typedef struct tag_WINDOW_DOCK_HOST_CLASS_DATA {
+    DOCK_HOST DockHost;
+    BOOL DockHostInitialized;
+} WINDOW_DOCK_HOST_CLASS_DATA, *LPWINDOW_DOCK_HOST_CLASS_DATA;
 
 /************************************************************************/
 
-BOOL DesktopRootWindowClassEnsureRegistered(WINDOWFUNC WindowFunction);
-LPDESKTOP_ROOT_WINDOW_CLASS_DATA DesktopRootWindowClassGetData(LPDESKTOP Desktop);
+BOOL WindowDockHostClassEnsureRegistered(void);
+BOOL WindowDockHostClassEnsureDerivedRegistered(LPCSTR ClassName, WINDOWFUNC WindowFunction);
+BOOL WindowDockHostWindowInheritsDockHostClass(LPWINDOW Window);
+LPWINDOW_DOCK_HOST_CLASS_DATA WindowDockHostClassGetData(LPWINDOW Window);
+void WindowDockHostShutdownWindow(HANDLE Window);
+U32 WindowDockHostAttachDockable(HANDLE Window, LPDOCKABLE Dockable);
+U32 WindowDockHostDetachDockable(HANDLE Window, LPDOCKABLE Dockable);
+U32 WindowDockHostMarkDirty(HANDLE Window, U32 Reason);
+U32 WindowDockHostHandleWindowRectChanged(HANDLE Window);
+U32 WindowDockHostRelayout(HANDLE Window);
+U32 WindowDockHostGetWorkRect(HANDLE Window, LPRECT WorkRect);
 
 /************************************************************************/
 

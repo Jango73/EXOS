@@ -36,11 +36,11 @@
 #include "Desktop.h"
 #include "Desktop-ModeSelector.h"
 #include "Desktop-ThemeTokens.h"
-#include "desktop/components/Desktop-DockingBridge.h"
 #include "desktop/components/Desktop-RootWindowClass.h"
 #include "desktop/components/Desktop-ShellBar.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
+#include "ui/layout/WindowDockHost.h"
 #include "Clock.h"
 #include "utils/Graphics-Utils.h"
 #include "utils/RateLimiter.h"
@@ -189,7 +189,7 @@ static void UpdateDesktopWindowRect(LPDESKTOP Desktop, I32 Width, I32 Height) {
         }
     }
 
-    (void)DesktopDockingBridgeHandleDesktopRectChanged(Desktop, &Rect);
+    (void)WindowDockHostHandleWindowRectChanged((HANDLE)Desktop->Window);
 }
 
 /***************************************************************************/
@@ -401,8 +401,6 @@ BOOL DeleteDesktop(LPDESKTOP This) {
     SAFE_USE_VALID_ID(This->Window, KOID_WINDOW) {
         DeleteWindow(This->Window);
     }
-
-    DesktopDockingBridgeShutdown(This);
 
     ReleaseKernelObject(This);
 
@@ -671,6 +669,8 @@ BOOL DeleteWindow(LPWINDOW This) {
     for (Node = This->Children->First; Node; Node = Node->Next) {
         DeleteWindow((LPWINDOW)Node);
     }
+
+    WindowDockHostShutdownWindow((HANDLE)This);
 
     if (This->ClassData != NULL) {
         KernelHeapFree(This->ClassData);

@@ -170,23 +170,23 @@ Deliverable:
 Deliverable:
 - Deadlock-safe docking integration strategy consistent with desktop lock ordering rules.
 
-## Step 6 - Desktop bridge layer
-- [x] Add desktop-specific bridge module:
-  - `kernel/include/desktop/components/Desktop-DockingBridge.h`
-  - `kernel/source/desktop/components/Desktop-DockingBridge.c`
-- [x] Bind one `DockHost` instance to desktop root window.
+## Step 6 - Root host class integration
+- [x] Add generic window dock host module:
+  - `kernel/include/ui/layout/WindowDockHost.h`
+  - `kernel/source/ui/layout/WindowDockHost.c`
+- [x] Bind one `DockHost` instance to desktop root window through class inheritance.
 - [x] Trigger relayout on desktop mode/size changes.
-- [x] Expose helper API for desktop components to register as dockables.
-- [x] Keep bridge code thin and free of generic layout logic duplication.
+- [x] Expose helper API for components to register as dockables on any host window.
+- [x] Keep integration code thin and free of generic layout logic duplication.
 
 Deliverable:
-- Desktop can host generic dockables through a dedicated integration bridge.
+- Desktop host uses the same generic window docking host integration path as other windows.
 
 ## Step 7 - Window host integration (class inheritance + props)
-- [ ] Add window-level docking host support so any window client area can own a `DockHost`.
+- [x] Add window-level docking host support so any window client area can own a `DockHost`.
 - [ ] Ensure nested hosts are supported (window containing docked sub-panels).
-- [ ] Keep ownership/lifetime tied to window lifecycle (`EWM_CREATE`/`EWM_DELETE`).
-- [ ] Recompute host rect on move/size events and apply relayout.
+- [x] Keep ownership/lifetime tied to window creation/deletion lifecycle.
+- [x] Recompute host rect on move/size events and apply relayout.
 - [ ] Expose registration/unregistration through window class behavior and window properties, without dedicated bridge API layer.
 
 Deliverable:

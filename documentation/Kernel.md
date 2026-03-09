@@ -1898,12 +1898,13 @@ Userland can query both rectangle spaces through `GetWindowRect` and `GetWindowC
 Per-window timer delivery is implemented in `kernel/source/desktop/Desktop-Timer.c` (`kernel/include/desktop/Desktop-Timer.h`) with `SetWindowTimer`, `KillWindowTimer`, and asynchronous `EWM_TIMER` dispatch.
 The desktop clock widget (`kernel/source/desktop/Desktop-ClockWidget.c`, `kernel/include/desktop/Desktop-ClockWidget.h`) uses this timer path to request redraw once per second.
 
-#### Desktop docking bridge
+#### Window dock host integration
 
-Desktop docking integration is centralized in `kernel/source/desktop/components/Desktop-DockingBridge.c` (`kernel/include/desktop/components/Desktop-DockingBridge.h`).
-The bridge owns one generic `DockHost` instance per desktop and exposes registration helpers (`AttachDockable`, `DetachDockable`, `MarkDirty`, `Relayout`, `GetWorkRect`) for desktop components.
-Desktop size changes propagate through `UpdateDesktopWindowRect`, which forwards the new root rectangle to the bridge and triggers relayout.
-The bridge uses the two-phase docking flow (`BuildLayoutFrame` then `ApplyLayoutFrame`) so structural layout can be computed separately from callback execution.
+Docking host integration is centralized in `kernel/source/ui/layout/WindowDockHost.c` (`kernel/include/ui/layout/WindowDockHost.h`).
+`WindowDockHostClass` is a reusable base window class that provides one `DockHost` state per host window class data.
+Desktop root class registration derives from this base, so desktop and regular windows use the same docking host behavior path.
+Geometry changes call `WindowDockHostHandleWindowRectChanged`, which updates host rectangle and triggers relayout.
+Layout application uses the two-phase docking flow (`BuildLayoutFrame` then `ApplyLayoutFrame`) so structural layout computation stays separate from callback execution.
 
 #### Theme architecture
 
