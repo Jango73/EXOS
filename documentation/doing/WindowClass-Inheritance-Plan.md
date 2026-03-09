@@ -21,8 +21,8 @@
 - [x] Remove external `DefWindowFunc` compatibility path.
 
 ## Step 4 - Window creation and component integration
-- [ ] Migrate desktop/windowing components to class inheritance chain.
-- [ ] Implement docking components as inherited window classes.
+- [x] Migrate desktop/windowing components to class inheritance chain.
+- [x] Implement docking components as inherited window classes.
 
 ## Step 5 - Validation and documentation
 - [ ] Validate behavior on x86-32 and x86-64 (create, draw, input, move/size, delete).
