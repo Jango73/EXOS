@@ -22,15 +22,9 @@
 \************************************************************************/
 
 #include "desktop/components/Desktop-DockingBridge.h"
+#include "desktop/components/Desktop-RootWindowClass.h"
 
 #include "Kernel.h"
-
-/************************************************************************/
-
-typedef struct tag_DESKTOP_DOCKING_BRIDGE {
-    DOCK_HOST Host;
-    BOOL Initialized;
-} DESKTOP_DOCKING_BRIDGE, *LPDESKTOP_DOCKING_BRIDGE;
 
 /************************************************************************/
 
@@ -39,10 +33,8 @@ typedef struct tag_DESKTOP_DOCKING_BRIDGE {
  * @param Desktop Source desktop.
  * @return Bridge pointer or NULL.
  */
-static LPDESKTOP_DOCKING_BRIDGE DesktopDockingBridgeGetState(LPDESKTOP Desktop) {
-    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return NULL;
-    if (Desktop->DockingBridge == NULL) return NULL;
-    return (LPDESKTOP_DOCKING_BRIDGE)Desktop->DockingBridge;
+static LPDESKTOP_ROOT_WINDOW_CLASS_DATA DesktopDockingBridgeGetState(LPDESKTOP Desktop) {
+    return DesktopRootWindowClassGetData(Desktop);
 }
 
 /************************************************************************/
@@ -52,32 +44,24 @@ static LPDESKTOP_DOCKING_BRIDGE DesktopDockingBridgeGetState(LPDESKTOP Desktop) 
  * @param Desktop Target desktop.
  * @return Bridge pointer or NULL.
  */
-static LPDESKTOP_DOCKING_BRIDGE DesktopDockingBridgeEnsureState(LPDESKTOP Desktop) {
-    LPDESKTOP_DOCKING_BRIDGE Bridge;
+static LPDESKTOP_ROOT_WINDOW_CLASS_DATA DesktopDockingBridgeEnsureState(LPDESKTOP Desktop) {
+    LPDESKTOP_ROOT_WINDOW_CLASS_DATA State;
     RECT DesktopRect;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return NULL;
 
-    Bridge = DesktopDockingBridgeGetState(Desktop);
-    if (Bridge != NULL) return Bridge;
+    State = DesktopDockingBridgeGetState(Desktop);
+    if (State == NULL) return NULL;
+    if (State->DockHostInitialized != FALSE) return State;
 
-    Bridge = (LPDESKTOP_DOCKING_BRIDGE)KernelHeapAlloc(sizeof(DESKTOP_DOCKING_BRIDGE));
-    if (Bridge == NULL) return NULL;
-
-    MemorySet(Bridge, 0, sizeof(DESKTOP_DOCKING_BRIDGE));
-
-    if (DockHostInit(&(Bridge->Host), TEXT("DesktopDockHost"), Desktop) == FALSE) {
-        KernelHeapFree(Bridge);
-        return NULL;
-    }
+    if (DockHostInit(&(State->DockHost), TEXT("DesktopDockHost"), Desktop) == FALSE) return NULL;
 
     if (GetDesktopScreenRect(Desktop, &DesktopRect) != FALSE) {
-        (void)DockHostSetHostRect(&(Bridge->Host), &DesktopRect);
+        (void)DockHostSetHostRect(&(State->DockHost), &DesktopRect);
     }
 
-    Bridge->Initialized = TRUE;
-    Desktop->DockingBridge = Bridge;
-    return Bridge;
+    State->DockHostInitialized = TRUE;
+    return State;
 }
 
 /************************************************************************/
@@ -90,66 +74,66 @@ BOOL DesktopDockingBridgeInitialize(LPDESKTOP Desktop) {
 /************************************************************************/
 
 void DesktopDockingBridgeShutdown(LPDESKTOP Desktop) {
-    LPDESKTOP_DOCKING_BRIDGE Bridge;
+    LPDESKTOP_ROOT_WINDOW_CLASS_DATA State;
 
-    Bridge = DesktopDockingBridgeGetState(Desktop);
-    if (Bridge == NULL) return;
+    State = DesktopDockingBridgeGetState(Desktop);
+    if (State == NULL || State->DockHostInitialized == FALSE) return;
 
-    Desktop->DockingBridge = NULL;
-    KernelHeapFree(Bridge);
+    (void)DockHostReset(&(State->DockHost));
+    State->DockHostInitialized = FALSE;
 }
 
 /************************************************************************/
 
 U32 DesktopDockingBridgeAttachDockable(LPDESKTOP Desktop, LPDOCKABLE Dockable) {
-    LPDESKTOP_DOCKING_BRIDGE Bridge;
+    LPDESKTOP_ROOT_WINDOW_CLASS_DATA State;
 
     if (Desktop == NULL || Dockable == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
-    Bridge = DesktopDockingBridgeEnsureState(Desktop);
-    if (Bridge == NULL) return DOCK_LAYOUT_STATUS_OUT_OF_MEMORY;
+    State = DesktopDockingBridgeEnsureState(Desktop);
+    if (State == NULL) return DOCK_LAYOUT_STATUS_OUT_OF_MEMORY;
 
-    return DockHostAttachDockable(&(Bridge->Host), Dockable);
+    return DockHostAttachDockable(&(State->DockHost), Dockable);
 }
 
 /************************************************************************/
 
 U32 DesktopDockingBridgeDetachDockable(LPDESKTOP Desktop, LPDOCKABLE Dockable) {
-    LPDESKTOP_DOCKING_BRIDGE Bridge;
+    LPDESKTOP_ROOT_WINDOW_CLASS_DATA State;
 
     if (Desktop == NULL || Dockable == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
-    Bridge = DesktopDockingBridgeGetState(Desktop);
-    if (Bridge == NULL) return DOCK_LAYOUT_STATUS_NOT_ATTACHED;
+    State = DesktopDockingBridgeGetState(Desktop);
+    if (State == NULL || State->DockHostInitialized == FALSE) return DOCK_LAYOUT_STATUS_NOT_ATTACHED;
 
-    return DockHostDetachDockable(&(Bridge->Host), Dockable);
+    return DockHostDetachDockable(&(State->DockHost), Dockable);
 }
 
 /************************************************************************/
 
 U32 DesktopDockingBridgeMarkDirty(LPDESKTOP Desktop, U32 Reason) {
-    LPDESKTOP_DOCKING_BRIDGE Bridge;
+    LPDESKTOP_ROOT_WINDOW_CLASS_DATA State;
 
     if (Desktop == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
-    Bridge = DesktopDockingBridgeGetState(Desktop);
-    if (Bridge == NULL) return DOCK_LAYOUT_STATUS_NOT_ATTACHED;
+    State = DesktopDockingBridgeGetState(Desktop);
+    if (State == NULL || State->DockHostInitialized == FALSE) return DOCK_LAYOUT_STATUS_NOT_ATTACHED;
 
-    return DockHostMarkDirty(&(Bridge->Host), Reason);
+    return DockHostMarkDirty(&(State->DockHost), Reason);
 }
 
 /************************************************************************/
 
 U32 DesktopDockingBridgeHandleDesktopRectChanged(LPDESKTOP Desktop, LPRECT DesktopRect) {
-    LPDESKTOP_DOCKING_BRIDGE Bridge;
+    LPDESKTOP_ROOT_WINDOW_CLASS_DATA State;
     U32 Status;
 
     if (Desktop == NULL || DesktopRect == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
-    Bridge = DesktopDockingBridgeEnsureState(Desktop);
-    if (Bridge == NULL) return DOCK_LAYOUT_STATUS_OUT_OF_MEMORY;
+    State = DesktopDockingBridgeEnsureState(Desktop);
+    if (State == NULL) return DOCK_LAYOUT_STATUS_OUT_OF_MEMORY;
 
-    Status = DockHostSetHostRect(&(Bridge->Host), DesktopRect);
+    Status = DockHostSetHostRect(&(State->DockHost), DesktopRect);
     if (Status != DOCK_LAYOUT_STATUS_SUCCESS) return Status;
 
     return DesktopDockingBridgeRelayout(Desktop);
@@ -158,35 +142,35 @@ U32 DesktopDockingBridgeHandleDesktopRectChanged(LPDESKTOP Desktop, LPRECT Deskt
 /************************************************************************/
 
 U32 DesktopDockingBridgeRelayout(LPDESKTOP Desktop) {
-    LPDESKTOP_DOCKING_BRIDGE Bridge;
+    LPDESKTOP_ROOT_WINDOW_CLASS_DATA State;
     DOCK_LAYOUT_FRAME Frame;
     DOCK_LAYOUT_RESULT Result;
     U32 Status;
 
     if (Desktop == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
-    Bridge = DesktopDockingBridgeGetState(Desktop);
-    if (Bridge == NULL) return DOCK_LAYOUT_STATUS_NOT_ATTACHED;
+    State = DesktopDockingBridgeGetState(Desktop);
+    if (State == NULL || State->DockHostInitialized == FALSE) return DOCK_LAYOUT_STATUS_NOT_ATTACHED;
 
-    Status = DockHostBuildLayoutFrame(&(Bridge->Host), &Frame);
+    Status = DockHostBuildLayoutFrame(&(State->DockHost), &Frame);
     if (Status != DOCK_LAYOUT_STATUS_SUCCESS && Frame.Status == DOCK_LAYOUT_STATUS_SUCCESS) {
         Frame.Status = Status;
     }
 
-    return DockHostApplyLayoutFrame(&(Bridge->Host), &Frame, &Result);
+    return DockHostApplyLayoutFrame(&(State->DockHost), &Frame, &Result);
 }
 
 /************************************************************************/
 
 U32 DesktopDockingBridgeGetWorkRect(LPDESKTOP Desktop, LPRECT WorkRect) {
-    LPDESKTOP_DOCKING_BRIDGE Bridge;
+    LPDESKTOP_ROOT_WINDOW_CLASS_DATA State;
 
     if (Desktop == NULL || WorkRect == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
-    Bridge = DesktopDockingBridgeGetState(Desktop);
-    if (Bridge == NULL) return DOCK_LAYOUT_STATUS_NOT_ATTACHED;
+    State = DesktopDockingBridgeGetState(Desktop);
+    if (State == NULL || State->DockHostInitialized == FALSE) return DOCK_LAYOUT_STATUS_NOT_ATTACHED;
 
-    return DockHostGetWorkRect(&(Bridge->Host), WorkRect);
+    return DockHostGetWorkRect(&(State->DockHost), WorkRect);
 }
 
 /************************************************************************/

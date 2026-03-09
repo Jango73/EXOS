@@ -1,0 +1,67 @@
+/************************************************************************\
+
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+    Desktop root window class
+
+\************************************************************************/
+
+#include "desktop/components/Desktop-RootWindowClass.h"
+
+#include "desktop/Desktop-WindowClass.h"
+
+/************************************************************************/
+
+BOOL DesktopRootWindowClassEnsureRegistered(WINDOWFUNC WindowFunction) {
+    LPWINDOW_CLASS RootClass;
+
+    if (WindowFunction == NULL) return FALSE;
+
+    if (WindowClassInitializeRegistry() == FALSE) return FALSE;
+
+    RootClass = WindowClassFindByName(DESKTOP_ROOT_WINDOW_CLASS_NAME);
+    if (RootClass != NULL) return TRUE;
+
+    RootClass = WindowClassRegisterKernelClass(
+        DESKTOP_ROOT_WINDOW_CLASS_NAME,
+        WindowClassGetDefault(),
+        WindowFunction,
+        sizeof(DESKTOP_ROOT_WINDOW_CLASS_DATA));
+
+    return RootClass != NULL;
+}
+
+/************************************************************************/
+
+LPDESKTOP_ROOT_WINDOW_CLASS_DATA DesktopRootWindowClassGetData(LPDESKTOP Desktop) {
+    LPWINDOW Window;
+
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return NULL;
+
+    Window = Desktop->Window;
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return NULL;
+
+    if (Window->Class == NULL) return NULL;
+    if (Window->Class->ClassID == 0) return NULL;
+
+    if (WindowClassFindByName(DESKTOP_ROOT_WINDOW_CLASS_NAME) != Window->Class) return NULL;
+
+    return (LPDESKTOP_ROOT_WINDOW_CLASS_DATA)Window->ClassData;
+}
+
+/************************************************************************/

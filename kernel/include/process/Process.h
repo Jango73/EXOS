@@ -253,7 +253,6 @@ struct tag_DESKTOP {
     I32 Order;                // Desktop ordering key among active desktops
     DESKTOP_THEME Theme;      // Desktop theme runtime state
     MOUSE_CURSOR Cursor;      // Desktop cursor runtime state
-    LPVOID DockingBridge;     // Desktop docking bridge state
 };
 
 /************************************************************************/

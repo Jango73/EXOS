@@ -37,6 +37,7 @@
 #include "Desktop-ModeSelector.h"
 #include "Desktop-ThemeTokens.h"
 #include "desktop/components/Desktop-DockingBridge.h"
+#include "desktop/components/Desktop-RootWindowClass.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
 #include "Clock.h"
@@ -334,9 +335,15 @@ LPDESKTOP CreateDesktop(void) {
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;
     WindowInfo.Parent = NULL;
+    if (DesktopRootWindowClassEnsureRegistered(DesktopWindowFunc) == FALSE) {
+        DeleteList(This->Timers);
+        KernelHeapFree(This);
+        return NULL;
+    }
+
     WindowInfo.WindowClass = 0;
-    WindowInfo.WindowClassName = NULL;
-    WindowInfo.Function = DesktopWindowFunc;
+    WindowInfo.WindowClassName = DESKTOP_ROOT_WINDOW_CLASS_NAME;
+    WindowInfo.Function = NULL;
     WindowInfo.Style = 0;
     WindowInfo.ID = 0;
     WindowInfo.WindowPosition.X = 0;
