@@ -210,17 +210,17 @@ typedef struct tag_DESKTOP_THEME {
 } DESKTOP_THEME, *LPDESKTOP_THEME;
 
 typedef struct tag_MOUSE_CURSOR {
-    I32 X;
-    I32 Y;
-    U32 Width;
-    U32 Height;
-    BOOL Visible;
-    RECT ClipRect;
-    U32 RenderPath;
-    U32 FallbackReason;
-    I32 PendingX;
-    I32 PendingY;
-    BOOL SoftwareDirty;
+    I32 X;                // Cursor X position in screen coordinates
+    I32 Y;                // Cursor Y position in screen coordinates
+    U32 Width;            // Cursor width in pixels
+    U32 Height;           // Cursor height in pixels
+    BOOL Visible;         // Cursor visibility state
+    RECT ClipRect;        // Cursor clipping rectangle in screen coordinates
+    U32 RenderPath;       // Active cursor rendering path identifier
+    U32 FallbackReason;   // Last fallback reason for cursor rendering path
+    I32 PendingX;         // Pending cursor X target for deferred apply
+    I32 PendingY;         // Pending cursor Y target for deferred apply
+    BOOL SoftwareDirty;   // Software cursor overlay requires redraw
 } MOUSE_CURSOR, *LPMOUSE_CURSOR;
 
 struct tag_DESKTOP {
@@ -237,11 +237,11 @@ struct tag_DESKTOP {
     LPTASK TimerTask;          // Per-desktop timer worker task
     LPWINDOW Focus;            // Window that has focus
     LPPROCESS FocusedProcess;  // Process with input focus on this desktop
-    U32 Mode;
-    I32 Order;
-    DESKTOP_THEME Theme;
-    MOUSE_CURSOR Cursor;
-    LPVOID DockingBridge;
+    U32 Mode;                 // Active desktop display mode
+    I32 Order;                // Desktop ordering key among active desktops
+    DESKTOP_THEME Theme;      // Desktop theme runtime state
+    MOUSE_CURSOR Cursor;      // Desktop cursor runtime state
+    LPVOID DockingBridge;     // Desktop docking bridge state
 };
 
 /************************************************************************/
