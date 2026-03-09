@@ -57,6 +57,13 @@ extern PEN Pen_Title_Bar_2;
 extern PEN Pen_Title_Text;
 
 BOOL ResetGraphicsContext(LPGRAPHICSCONTEXT This);
+BOOL SetGraphicsContextClipScreenRect(HANDLE GC, LPRECT ClipRect);
+BOOL BuildWindowDrawClipRegion(
+    LPWINDOW This,
+    LPRECT_REGION ClipRegion,
+    LPRECT ClipStorage,
+    UINT ClipCapacity
+);
 
 /************************************************************************/
 

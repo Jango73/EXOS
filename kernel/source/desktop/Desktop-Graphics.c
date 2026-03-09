@@ -86,6 +86,70 @@ static BOOL ConvertScreenRectToWindowRect(LPWINDOW Window, LPRECT ScreenRect, LP
 /***************************************************************************/
 
 /**
+ * @brief Invalidate visible sibling windows intersecting one uncovered screen rectangle.
+ * @param Window Moved window.
+ * @param Parent Parent window containing sibling list.
+ * @param UncoveredRect Screen rectangle uncovered by the move.
+ */
+static void InvalidateSiblingWindowsOnUncoveredRect(LPWINDOW Window, LPWINDOW Parent, LPRECT UncoveredRect) {
+    LPWINDOW* Siblings;
+    LPLISTNODE Node;
+    RECT SiblingScreenRect;
+    RECT Intersection;
+    RECT SiblingLocalRect;
+    LPWINDOW Sibling;
+    UINT Count;
+    UINT Index;
+    BOOL IsVisible;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
+    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return;
+    if (UncoveredRect == NULL) return;
+
+    Count = 0;
+    Siblings = NULL;
+
+    LockMutex(&(Parent->Mutex), INFINITY);
+    if (Parent->Children != NULL && Parent->Children->NumItems > 0) {
+        Count = Parent->Children->NumItems;
+        Siblings = (LPWINDOW*)KernelHeapAlloc(sizeof(LPWINDOW) * Count);
+        if (Siblings != NULL) {
+            Index = 0;
+            for (Node = Parent->Children->First; Node != NULL && Index < Count; Node = Node->Next) {
+                Siblings[Index++] = (LPWINDOW)Node;
+            }
+            Count = Index;
+        } else {
+            Count = 0;
+        }
+    }
+    UnlockMutex(&(Parent->Mutex));
+
+    for (Index = 0; Index < Count; Index++) {
+        Sibling = Siblings[Index];
+
+        if (Sibling == NULL || Sibling->TypeID != KOID_WINDOW || Sibling == Window) continue;
+
+        LockMutex(&(Sibling->Mutex), INFINITY);
+        IsVisible = ((Sibling->Status & WINDOW_STATUS_VISIBLE) != 0);
+        SiblingScreenRect = Sibling->ScreenRect;
+        UnlockMutex(&(Sibling->Mutex));
+
+        if (IsVisible == FALSE) continue;
+        if (IntersectRect(&SiblingScreenRect, UncoveredRect, &Intersection) == FALSE) continue;
+
+        GraphicsScreenRectToWindowRect(&SiblingScreenRect, &Intersection, &SiblingLocalRect);
+        (void)InvalidateWindowRect((HANDLE)Sibling, &SiblingLocalRect);
+    }
+
+    if (Siblings != NULL) {
+        KernelHeapFree(Siblings);
+    }
+}
+
+/***************************************************************************/
+
+/**
  * @brief Apply default move behavior and enqueue bounded damage.
  * @param Window Target window.
  * @param Position New window position relative to parent.
@@ -141,6 +205,8 @@ static BOOL DefaultMoveWindow(LPWINDOW Window, LPPOINT Position) {
         (void)InvalidateWindowRect((HANDLE)Parent, &ParentOldRect);
     }
 
+    InvalidateSiblingWindowsOnUncoveredRect(Window, Parent, &OldScreenRect);
+
     if (ConvertScreenRectToWindowRect(Parent, &NewScreenRect, &ParentNewRect)) {
         (void)InvalidateWindowRect((HANDLE)Parent, &ParentNewRect);
     }
@@ -157,7 +223,7 @@ static BOOL DefaultMoveWindow(LPWINDOW Window, LPPOINT Position) {
  * @param ClipRect Clip rectangle in screen coordinates.
  * @return TRUE on success.
  */
-static BOOL SetGraphicsContextClipScreenRect(HANDLE GC, LPRECT ClipRect) {
+BOOL SetGraphicsContextClipScreenRect(HANDLE GC, LPRECT ClipRect) {
     LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)GC;
 
     if (Context == NULL || ClipRect == NULL) return FALSE;
@@ -186,7 +252,7 @@ static void RootClipSubtractVisibleWindowTree(LPWINDOW Window, LPRECT_REGION Reg
  * @param ClipCapacity Clip storage capacity.
  * @return TRUE on success.
  */
-static BOOL BuildWindowDrawClipRegion(
+BOOL BuildWindowDrawClipRegion(
     LPWINDOW This,
     LPRECT_REGION ClipRegion,
     LPRECT ClipStorage,
@@ -196,7 +262,9 @@ static BOOL BuildWindowDrawClipRegion(
     RECT DirtyRect;
     UINT DirtyCount;
     UINT DirtyIndex;
+    I32 ThisOrder;
     LPWINDOW ParentWindow = NULL;
+    LPWINDOW SiblingWindow;
     LPLISTNODE Node;
 
     if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
@@ -207,6 +275,7 @@ static BOOL BuildWindowDrawClipRegion(
     LockMutex(&(This->Mutex), INFINITY);
 
     WindowScreenRect = This->ScreenRect;
+    ThisOrder = This->Order;
 
     if (This->DirtyRegion.Storage != This->DirtyRects || This->DirtyRegion.Capacity != WINDOW_DIRTY_REGION_CAPACITY) {
         (void)RectRegionInit(&This->DirtyRegion, This->DirtyRects, WINDOW_DIRTY_REGION_CAPACITY);
@@ -247,9 +316,12 @@ static BOOL BuildWindowDrawClipRegion(
         LockMutex(&(ParentWindow->Mutex), INFINITY);
 
         for (Node = ParentWindow->Children != NULL ? ParentWindow->Children->First : NULL; Node != NULL; Node = Node->Next) {
-            if (Node == (LPLISTNODE)This) break;
+            SiblingWindow = (LPWINDOW)Node;
+            if (SiblingWindow == NULL || SiblingWindow->TypeID != KOID_WINDOW) continue;
+            if (SiblingWindow == This) continue;
+            if (SiblingWindow->Order >= ThisOrder) continue;
 
-            RootClipSubtractVisibleWindowTree((LPWINDOW)Node, ClipRegion);
+            RootClipSubtractVisibleWindowTree(SiblingWindow, ClipRegion);
             if (RectRegionGetCount(ClipRegion) == 0) break;
         }
 
