@@ -38,6 +38,7 @@
 #include "Desktop-ThemeTokens.h"
 #include "desktop/components/Desktop-DockingBridge.h"
 #include "desktop/components/Desktop-RootWindowClass.h"
+#include "desktop/components/Desktop-ShellBar.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
 #include "Clock.h"
@@ -362,6 +363,8 @@ LPDESKTOP CreateDesktop(void) {
         KernelHeapFree(This);
         return NULL;
     }
+
+    (void)DesktopShellBarCreate(This);
     UpdateDesktopWindowRect(This, (I32)Console.Width, (I32)Console.Height);
 
     //-------------------------------------

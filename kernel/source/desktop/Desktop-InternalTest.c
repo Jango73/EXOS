@@ -227,6 +227,7 @@ static BOOL DesktopInternalEnsureSingleWindow(
     LPDESKTOP Desktop,
     U32 WindowID,
     LPCSTR Title,
+    LPCSTR WindowClassName,
     WINDOWFUNC WindowFunc,
     I32 X,
     I32 Y,
@@ -251,7 +252,7 @@ static BOOL DesktopInternalEnsureSingleWindow(
     WindowInfo.Window = NULL;
     WindowInfo.Parent = (HANDLE)Desktop->Window;
     WindowInfo.WindowClass = 0;
-    WindowInfo.WindowClassName = NULL;
+    WindowInfo.WindowClassName = WindowClassName;
     WindowInfo.Function = WindowFunc;
     WindowInfo.Style = EWS_VISIBLE | EWS_SYSTEM_DECORATED;
     WindowInfo.ID = WindowID;
@@ -284,17 +285,21 @@ BOOL DesktopInternalTestEnsureWindowsVisible(LPDESKTOP Desktop) {
         Desktop,
         DESKTOP_INTERNAL_TEST_WINDOW_ID_A,
         TEXT("Kernel Test Alpha"),
+        NULL,
         DesktopInternalTestWindowFunc,
         48,
         56,
         360,
         220);
 
+    if (DesktopClockWidgetEnsureClassRegistered() == FALSE) return FALSE;
+
     SecondCreated = DesktopInternalEnsureSingleWindow(
         Desktop,
         DESKTOP_INTERNAL_TEST_WINDOW_ID_B,
         TEXT("Kernel Clock Widget"),
-        DesktopClockWidgetWindowFunc,
+        DESKTOP_CLOCK_WIDGET_WINDOW_CLASS_NAME,
+        NULL,
         460,
         140,
         500,

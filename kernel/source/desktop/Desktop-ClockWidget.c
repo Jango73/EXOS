@@ -24,6 +24,7 @@
 #include "Desktop-ClockWidget.h"
 #include "Desktop-NonClient.h"
 #include "Desktop-Private.h"
+#include "Desktop-WindowClass.h"
 
 #include "Clock.h"
 #include "GFX.h"
@@ -53,6 +54,25 @@ static const I32 ClockDirection60[60][2] = {
     {-887, -512},    {-828, -602},   {-761, -685},   {-685, -761},  {-602, -828},
     {-512, -887},    {-416, -935},   {-316, -974},   {-213, -1002}, {-107, -1018}
 };
+
+/***************************************************************************/
+
+BOOL DesktopClockWidgetEnsureClassRegistered(void) {
+    LPWINDOW_CLASS WindowClass;
+
+    if (WindowClassInitializeRegistry() == FALSE) return FALSE;
+
+    WindowClass = WindowClassFindByName(DESKTOP_CLOCK_WIDGET_WINDOW_CLASS_NAME);
+    if (WindowClass != NULL) return TRUE;
+
+    WindowClass = WindowClassRegisterKernelClass(
+        DESKTOP_CLOCK_WIDGET_WINDOW_CLASS_NAME,
+        WindowClassGetDefault(),
+        DesktopClockWidgetWindowFunc,
+        0);
+
+    return WindowClass != NULL;
+}
 
 /***************************************************************************/
 

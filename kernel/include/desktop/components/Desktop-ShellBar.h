@@ -17,26 +17,27 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Desktop clock widget
+    Desktop shell bar component
 
 \************************************************************************/
 
-#ifndef DESKTOP_CLOCK_WIDGET_H_INCLUDED
-#define DESKTOP_CLOCK_WIDGET_H_INCLUDED
+#ifndef DESKTOP_SHELL_BAR_H_INCLUDED
+#define DESKTOP_SHELL_BAR_H_INCLUDED
 
-/***************************************************************************/
+/************************************************************************/
 
-#include "Desktop.h"
+#include "desktop/Desktop.h"
 
-/***************************************************************************/
+/************************************************************************/
 
-#define DESKTOP_CLOCK_WIDGET_WINDOW_CLASS_NAME TEXT("DesktopClockWidgetWindowClass")
+#define DESKTOP_SHELL_BAR_WINDOW_CLASS_NAME TEXT("DesktopShellBarWindowClass")
 
-/***************************************************************************/
+/************************************************************************/
 
-BOOL DesktopClockWidgetEnsureClassRegistered(void);
-U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
+BOOL DesktopShellBarEnsureClassRegistered(void);
+BOOL DesktopShellBarCreate(LPDESKTOP Desktop);
+U32 DesktopShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
 
-/***************************************************************************/
+/************************************************************************/
 
 #endif
