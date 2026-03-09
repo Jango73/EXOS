@@ -230,16 +230,30 @@ static BOOL DefaultMoveWindow(LPWINDOW Window, LPPOINT Position) {
  */
 BOOL SetGraphicsContextClipScreenRect(HANDLE GC, LPRECT ClipRect) {
     LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)GC;
+    RECT ClampedClip;
+    I32 MaxX;
+    I32 MaxY;
 
     if (Context == NULL || ClipRect == NULL) return FALSE;
     if (Context->TypeID != KOID_GRAPHICSCONTEXT) return FALSE;
     if (ClipRect->X1 > ClipRect->X2 || ClipRect->Y1 > ClipRect->Y2) return FALSE;
 
+    MaxX = Context->Width - 1;
+    MaxY = Context->Height - 1;
+    if (MaxX < 0 || MaxY < 0) return FALSE;
+
+    ClampedClip = *ClipRect;
+    if (ClampedClip.X1 < 0) ClampedClip.X1 = 0;
+    if (ClampedClip.Y1 < 0) ClampedClip.Y1 = 0;
+    if (ClampedClip.X2 > MaxX) ClampedClip.X2 = MaxX;
+    if (ClampedClip.Y2 > MaxY) ClampedClip.Y2 = MaxY;
+    if (ClampedClip.X1 > ClampedClip.X2 || ClampedClip.Y1 > ClampedClip.Y2) return FALSE;
+
     LockMutex(&(Context->Mutex), INFINITY);
-    Context->LoClip.X = ClipRect->X1;
-    Context->LoClip.Y = ClipRect->Y1;
-    Context->HiClip.X = ClipRect->X2;
-    Context->HiClip.Y = ClipRect->Y2;
+    Context->LoClip.X = ClampedClip.X1;
+    Context->LoClip.Y = ClampedClip.Y1;
+    Context->HiClip.X = ClampedClip.X2;
+    Context->HiClip.Y = ClampedClip.Y2;
     UnlockMutex(&(Context->Mutex));
 
     return TRUE;
