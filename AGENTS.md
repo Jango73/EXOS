@@ -17,6 +17,7 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 
 ## Architecture and Reuse Rules
 - Never implement one-off local mechanisms when a cross-kernel pattern is involved.
+- Bidirectional coupling is **STRICTLY FORBIDDEN**, both when writing code from scratch and when delivering a fix. Keep dependencies unidirectional and break cycles instead of introducing or preserving them.
 - Any behavior likely to appear in multiple places (rate limit, retry, timeout policy, backoff, filtering, counters) MUST be implemented as a reusable module in `kernel/include/utils` + `kernel/source/utils`.
 - Before adding local logic in a driver/subsystem, check `kernel/include/utils` and `kernel/source/utils` first.
 - If no suitable module exists, create a generic one and use it from the caller.
