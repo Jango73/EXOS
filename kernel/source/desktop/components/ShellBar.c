@@ -24,6 +24,10 @@
 #include "desktop/components/ShellBar.h"
 
 #include "desktop/components/WindowDockable.h"
+#include "desktop/Desktop-ThemeResolver.h"
+#include "desktop/Desktop-ThemeTokens.h"
+#include "GFX.h"
+#include "Kernel.h"
 
 /************************************************************************/
 
@@ -53,7 +57,7 @@ BOOL ShellBarCreate(LPDESKTOP Desktop) {
     WindowInfo.WindowClass = 0;
     WindowInfo.WindowClassName = SHELL_BAR_WINDOW_CLASS_NAME;
     WindowInfo.Function = NULL;
-    WindowInfo.Style = EWS_VISIBLE | EWS_BARE_SURFACE;
+    WindowInfo.Style = EWS_VISIBLE | EWS_CLIENT_DECORATED;
     WindowInfo.ID = 0x53484252;
     WindowInfo.WindowPosition.X = 0;
     WindowInfo.WindowPosition.Y = 0;
@@ -68,10 +72,19 @@ BOOL ShellBarCreate(LPDESKTOP Desktop) {
 /************************************************************************/
 
 U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
+    HANDLE GC;
+    RECT Rect;
+    RECTINFO RectInfo;
+    BRUSH Brush;
+    COLOR Background;
+
+    UNUSED(Param1);
+    UNUSED(Param2);
+
     switch (Message) {
         case EWM_CREATE:
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_ENABLED, 1);
-            (void)SetWindowProp(Window, WINDOW_DOCK_PROP_EDGE, DOCK_EDGE_BOTTOM);
+            (void)SetWindowProp(Window, WINDOW_DOCK_PROP_EDGE, DOCK_EDGE_TOP);
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_PRIORITY, 0);
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_ORDER, 0);
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_SIZE_POLICY, DOCK_LAYOUT_POLICY_FIXED);
@@ -80,6 +93,41 @@ U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_SIZE_MAXIMUM, SHELL_BAR_HEIGHT);
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_SIZE_WEIGHT, 1);
             break;
+
+        case EWM_DRAW:
+            GC = BeginWindowDraw(Window);
+            if (GC == NULL) return 1;
+            if (GetWindowRect(Window, &Rect) == FALSE) {
+                EndWindowDraw(Window);
+                return 1;
+            }
+
+            RectInfo.Header.Size = sizeof(RECTINFO);
+            RectInfo.Header.Version = EXOS_ABI_VERSION;
+            RectInfo.Header.Flags = 0;
+            RectInfo.GC = GC;
+            RectInfo.X1 = Rect.X1;
+            RectInfo.Y1 = Rect.Y1;
+            RectInfo.X2 = Rect.X2;
+            RectInfo.Y2 = Rect.Y2;
+
+            SelectPen(GC, NULL);
+
+            if (DesktopThemeResolveLevel1Color(TEXT("window.client"), TEXT("normal"), TEXT("background"), &Background) ||
+                DesktopThemeResolveTokenColorByName(TEXT("color.client.background"), &Background)) {
+                MemorySet(&Brush, 0, sizeof(BRUSH));
+                Brush.TypeID = KOID_BRUSH;
+                Brush.References = 1;
+                Brush.Color = Background;
+                Brush.Pattern = MAX_U32;
+                SelectBrush(GC, (HANDLE)&Brush);
+            } else {
+                SelectBrush(GC, GetSystemBrush(SM_COLOR_CLIENT));
+            }
+
+            (void)Rectangle(&RectInfo);
+            EndWindowDraw(Window);
+            return 1;
     }
 
     return BaseWindowFunc(Window, Message, Param1, Param2);
