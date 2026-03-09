@@ -113,21 +113,6 @@ Deliverable:
 Deliverable:
 - Header-level docking interface ready for desktop and window modules.
 
-### Step 1 Output - API Header Surface
-- Public headers created:
-  - `kernel/include/ui/layout/Dockable.h`
-  - `kernel/include/ui/layout/DockHost.h`
-- Generic type model frozen for implementation phase:
-  - neutral enums (`DOCK_EDGE`, `DOCK_AXIS`, `DOCK_LAYOUT_POLICY`),
-  - explicit status codes (`DOCK_LAYOUT_STATUS_*`),
-  - behavior contracts (`DOCK_SIZE_REQUEST`, `DOCK_LAYOUT_RESULT`).
-- Callback contracts frozen:
-  - `Measure`,
-  - `ApplyRect`,
-  - `OnDockChanged`,
-  - `OnHostWorkRectChanged`.
-- No visual style fields are part of the generic API; theme-driven look remains outside core docking headers.
-
 ## Step 2 - Core Dockable implementation
 - [x] Implement `Dockable.c` in `kernel/source/ui/layout`.
 - [x] Add lifecycle helpers for init/reset without global state.
@@ -137,16 +122,6 @@ Deliverable:
 
 Deliverable:
 - Reusable dockable object with validated state transitions.
-
-### Step 2 Output - Dockable Core
-- Implemented `kernel/source/ui/layout/Dockable.c` with:
-  - deterministic mutable defaults (`Edge`, ordering fields, size request, callbacks),
-  - immutable identity model (`Identifier`, `Context`) preserved by reset path,
-  - validated updates for edge and size request before commit.
-- Added diagnostic snapshot API:
-  - `DOCKABLE_SNAPSHOT`
-  - `DockableGetSnapshot(...)`
-- Build integration updated so `source/ui/layout/*.c` is compiled by kernel build.
 
 ## Step 3 - Core DockHost implementation
 - [x] Implement `DockHost.c` in `kernel/source/ui/layout`.
@@ -161,17 +136,6 @@ Deliverable:
 
 Deliverable:
 - Generic host engine producing stable docked rectangles plus remaining work area.
-
-### Step 3 Output - DockHost Core
-- Implemented `kernel/source/ui/layout/DockHost.c` with:
-  - host lifecycle (`DockHostInit`, `DockHostReset`),
-  - attach/detach API with duplicate-pointer and duplicate-identifier rejection,
-  - per-edge bucket build + deterministic sort (`Priority`, `Order`, `InsertionIndex`),
-  - full relayout pipeline in fixed pass order (`TOP`, `BOTTOM`, `LEFT`, `RIGHT`),
-  - side-by-side assignment on each edge band,
-  - work-rectangle reduction and result reporting (`AppliedCount`, `RejectedCount`, `Status`).
-- Overflow behaviors are enforced through host edge policy (`CLIP`, `SHRINK`, `REJECT`).
-- Host notifies dockables of work-rect updates through `OnHostWorkRectChanged` callback.
 
 ## Step 4 - Layout policies and edge behavior
 - [x] Define edge-specific placement policy:
@@ -191,23 +155,6 @@ Deliverable:
 Deliverable:
 - Formal policy behavior document and implementation aligned with API contract.
 
-### Step 4 Output - Policy Engine
-- `DockHost` layout now enforces edge policy semantics:
-  - top/bottom use horizontal primary axis,
-  - left/right use vertical primary axis.
-- Overflow policy behavior implemented in layout path:
-  - `DOCK_OVERFLOW_POLICY_REJECT`: deterministic rejection with explicit status,
-  - `DOCK_OVERFLOW_POLICY_SHRINK`: spacing and item allocation shrink to fit,
-  - `DOCK_OVERFLOW_POLICY_CLIP`: item rectangles are clipped by remaining axis bounds.
-- Fill policy behavior is applied from dockable requests:
-  - `DOCK_LAYOUT_POLICY_FIXED`: fixed requested primary allocation,
-  - `DOCK_LAYOUT_POLICY_WEIGHTED`: weighted distribution from remaining space,
-  - `DOCK_LAYOUT_POLICY_AUTO`: equal-share distribution fallback.
-- Margins, spacing, and host padding are applied numerically via `DOCK_HOST_LAYOUT_POLICY`.
-- Generic core remains theme-agnostic by design:
-  - no dependency on theme parser/runtime in `DockHost`,
-  - theme systems are expected to resolve numeric policy inputs in bridge layers.
-
 ## Step 5 - Concurrency and message integration
 - [x] Define lock usage rules for docking operations within existing desktop/window mutex contract.
 - [x] Ensure no callback execution while holding structural locks that forbid callback/post operations.
@@ -222,22 +169,6 @@ Deliverable:
 
 Deliverable:
 - Deadlock-safe docking integration strategy consistent with desktop lock ordering rules.
-
-### Step 5 Output - Concurrency Surface
-- Added explicit two-phase `DockHost` API for lock-safe integration:
-  - `DockHostBuildLayoutFrame(...)` computes assignments without invoking dockable callbacks,
-  - `DockHostApplyLayoutFrame(...)` applies callbacks from a prepared frame.
-- Kept compatibility path:
-  - `DockHostRelayout(...)` now composes `BuildLayoutFrame` + `ApplyLayoutFrame`.
-- Added relayout dirty tracking and trigger reason plumbing:
-  - `DockHostMarkDirty(...)`,
-  - `DockHostIsRelayoutRequired(...)`,
-  - `DOCK_DIRTY_REASON_*` reason codes.
-- Defined trigger mapping in code:
-  - host rect change -> `DOCK_DIRTY_REASON_HOST_RECT_CHANGED`,
-  - host policy change -> `DOCK_DIRTY_REASON_POLICY_CHANGED`,
-  - attach/detach -> `DOCK_DIRTY_REASON_ATTACH_DETACH`,
-  - manual dockable/visibility updates -> `DockHostMarkDirty(...)` by bridge layer.
 
 ## Step 6 - Desktop bridge layer
 - [ ] Add desktop-specific bridge module:
