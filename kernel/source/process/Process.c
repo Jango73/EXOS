@@ -139,7 +139,10 @@ void InitializeKernelProcess(void) {
 
     MemorySet(&(KernelProcess.MessageQueue), 0, sizeof(MESSAGEQUEUE));
     InitMessageQueue(&(KernelProcess.MessageQueue));
-    KernelProcess.MessageQueue.Capacity = TASK_MESSAGE_QUEUE_MAX_MESSAGES;
+    if (EnsureProcessMessageQueue(&KernelProcess, TRUE) == FALSE) {
+        ERROR(TEXT("[InitializeKernelProcess] Could not initialize kernel process message queue"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
 
     StringCopy(KernelProcess.FileName, KernelStartup.CommandLine);
     StringCopy(KernelProcess.CommandLine, KernelStartup.CommandLine);
@@ -303,9 +306,12 @@ void DeleteProcessCommit(LPPROCESS This) {
             FreeRegion(This->HeapBase, This->HeapSize);
         }
 
-        if (This->MessageQueue.Messages != NULL) {
-            DeleteMessageQueue(&(This->MessageQueue));
+        if (This->MessageQueue.MessageBufferBase != 0 && This->MessageQueue.MessageBufferSize > 0) {
+            FreeRegion(This->MessageQueue.MessageBufferBase, This->MessageQueue.MessageBufferSize);
+            This->MessageQueue.MessageBufferBase = 0;
+            This->MessageQueue.MessageBufferSize = 0;
         }
+        DeleteMessageQueue(&(This->MessageQueue));
 
         ReleaseKernelObject(This);
 

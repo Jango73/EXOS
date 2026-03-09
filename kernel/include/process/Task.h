@@ -37,6 +37,7 @@
 #include "List.h"
 #include "Mutex.h"
 #include "User.h"
+#include "utils/MessageQueue.h"
 
 /************************************************************************/
 
@@ -53,10 +54,12 @@
 
 typedef struct tag_MESSAGEQUEUE {
     MUTEX Mutex;      // Queue mutex
-    LPLIST Messages;  // Underlying list of MESSAGE
     UINT Capacity;    // Optional max capacity (0 = unlimited)
     UINT Flags;       // Future flags
     BOOL Waiting;     // Indicates a waiter is sleeping on this queue
+    MESSAGE_QUEUE_BUFFER MessageBuffer;  // Optional fixed-size message buffer
+    LINEAR MessageBufferBase;            // Backing storage virtual base for task queue
+    UINT MessageBufferSize;              // Backing storage size in bytes
 } MESSAGEQUEUE, *LPMESSAGEQUEUE;
 
 /************************************************************************/

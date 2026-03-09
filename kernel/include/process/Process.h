@@ -38,6 +38,7 @@
 #include "User.h"
 #include "UserAccount.h"
 #include "UserSession.h"
+#include "process/Message.h"
 #include "process/Schedule.h"
 #include "process/Task.h"
 #include "utils/RectRegion.h"
@@ -49,7 +50,6 @@
 /************************************************************************/
 
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;
-typedef struct tag_MESSAGE MESSAGE, *LPMESSAGE;
 typedef struct tag_WINDOW WINDOW, *LPWINDOW;
 typedef struct tag_DESKTOP DESKTOP, *LPDESKTOP;
 typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
@@ -169,15 +169,6 @@ struct tag_PROCESS {
     struct tag_MEMORY_REGION_DESCRIPTOR* RegionListHead;
     struct tag_MEMORY_REGION_DESCRIPTOR* RegionListTail;
     UINT RegionCount;
-};
-
-struct tag_MESSAGE {
-    LISTNODE_FIELDS
-    HANDLE Target;
-    U32 Message;
-    DATETIME Time;
-    U32 Param1;
-    U32 Param2;
 };
 
 typedef struct tag_PROPERTY {

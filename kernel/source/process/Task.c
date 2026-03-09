@@ -80,6 +80,60 @@ static void TaskInitializeStackConfig(void) {
 
 /************************************************************************/
 
+static BOOL TaskInitializeMessageBuffer(LPTASK Task) {
+    UINT MessageBufferSize = TASK_MESSAGE_QUEUE_MAX_MESSAGES * sizeof(MESSAGE);
+    LINEAR MessageBufferBase;
+    LPMESSAGE MessageBufferStorage;
+
+    if (Task == NULL) {
+        return FALSE;
+    }
+
+    MessageBufferBase = AllocRegion(0,
+                                    0,
+                                    MessageBufferSize,
+                                    ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE,
+                                    TEXT("TaskMessageBuffer"));
+    if (MessageBufferBase == NULL) {
+        ERROR(TEXT("[TaskInitializeMessageBuffer] Could not allocate message buffer for task %p"), Task);
+        return FALSE;
+    }
+
+    MessageBufferStorage = (LPMESSAGE)MessageBufferBase;
+
+    Task->MessageQueue.MessageBufferBase = MessageBufferBase;
+    Task->MessageQueue.MessageBufferSize = MessageBufferSize;
+    InitMutex(&(Task->MessageQueue.Mutex));
+    Task->MessageQueue.Capacity = TASK_MESSAGE_QUEUE_MAX_MESSAGES;
+    Task->MessageQueue.Flags = 0;
+    Task->MessageQueue.Waiting = FALSE;
+    MessageQueueBufferInitialize(&(Task->MessageQueue.MessageBuffer),
+                                 MessageBufferStorage,
+                                 TASK_MESSAGE_QUEUE_MAX_MESSAGES);
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+static void TaskReleaseMessageBuffer(LPTASK Task) {
+    if (Task == NULL) {
+        return;
+    }
+
+    if (Task->MessageQueue.MessageBufferBase != 0 && Task->MessageQueue.MessageBufferSize > 0) {
+        FreeRegion(Task->MessageQueue.MessageBufferBase, Task->MessageQueue.MessageBufferSize);
+    }
+
+    Task->MessageQueue.MessageBufferBase = 0;
+    Task->MessageQueue.MessageBufferSize = 0;
+    MessageQueueBufferReset(&(Task->MessageQueue.MessageBuffer));
+    Task->MessageQueue.MessageBuffer.Entries = NULL;
+    Task->MessageQueue.MessageBuffer.Capacity = 0;
+}
+
+/************************************************************************/
+
 UINT TaskGetMinimumTaskStackSize(void) {
     TaskInitializeStackConfig();
 
@@ -203,7 +257,7 @@ void DeleteTask(LPTASK This) {
         //-------------------------------------
         // Delete the task's message queue
 
-
+        TaskReleaseMessageBuffer(This);
         DeleteMessageQueue(&(This->MessageQueue));
 
         //-------------------------------------
@@ -414,6 +468,13 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         Task = NULL;
 
         ERROR(TEXT("[CreateTask] Architecture-specific task setup failed"));
+        goto Out;
+    }
+
+    if (TaskInitializeMessageBuffer(Task) == FALSE) {
+        DeleteTask(Task);
+        Task = NULL;
+        ERROR(TEXT("[CreateTask] Task message buffer setup failed"));
         goto Out;
     }
 
@@ -845,11 +906,7 @@ void DumpTask(LPTASK Task) {
     VERBOSE(TEXT("IST1StackSize   : %u"), Task->Arch.Ist1Stack.Size);
 #endif
     VERBOSE(TEXT("WakeUpTime      : %u"), (U32)Task->WakeUpTime);
-    UINT PendingMessages = 0;
-
-    if (Task->MessageQueue.Messages != NULL) {
-        PendingMessages = Task->MessageQueue.Messages->NumItems;
-    }
+    UINT PendingMessages = MessageQueueBufferGetCount(&(Task->MessageQueue.MessageBuffer));
 
     VERBOSE(TEXT("Queued messages : %u"), PendingMessages);
 
