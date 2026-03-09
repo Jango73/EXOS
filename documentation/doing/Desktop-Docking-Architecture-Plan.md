@@ -35,15 +35,62 @@
 - Keep logs concise and actionable (`WARNING`/`ERROR`) and detailed traces in `DEBUG`.
 
 ## Step 0 - Contract freeze and vocabulary
-- [ ] Define and document neutral docking vocabulary for all UI layers.
-- [ ] Define exact edge semantics for horizontal and vertical docking.
-- [ ] Define the canonical coordinate rules for host rect, assigned rect, and remaining work rect.
-- [ ] Define deterministic ordering fields (`Priority`, `Order`, insertion index fallback).
-- [ ] Define constraints and rejection behavior for invalid docking requests.
-- [ ] Freeze shell bar content policy: config-driven component composition, runtime-driven process/window icon entries, deterministic default set when config is missing.
+- [x] Define and document neutral docking vocabulary for all UI layers.
+- [x] Define exact edge semantics for horizontal and vertical docking.
+- [x] Define the canonical coordinate rules for host rect, assigned rect, and remaining work rect.
+- [x] Define deterministic ordering fields (`Priority`, `Order`, insertion index fallback).
+- [x] Define constraints and rejection behavior for invalid docking requests.
+- [x] Freeze shell bar content policy: config-driven component composition, runtime-driven process/window icon entries, deterministic default set when config is missing.
 
 Deliverable:
 - A short contract note describing host/dockable terminology and geometry invariants used by all modules.
+
+### Step 0 Output - Docking Contract v1
+
+#### Vocabulary
+- `DockHost`: layout container that owns one host rectangle and computes dock placement.
+- `Dockable`: behavior object that requests docking on one edge and receives assigned rectangle.
+- `WorkRect`: remaining rectangle after all edge reservations are applied.
+- `HostRect`: full available rectangle given to one `DockHost`.
+- `AssignedRect`: final rectangle applied to one dockable.
+
+#### Edge semantics
+- `TOP` and `BOTTOM` reserve vertical bands from host top or bottom.
+- `LEFT` and `RIGHT` reserve horizontal bands from current work rectangle left or right.
+- Placement order across edges is fixed for determinism:
+  - pass 1: `TOP`, `BOTTOM`, `LEFT`, `RIGHT`.
+- Within one edge:
+  - `TOP`/`BOTTOM` dockables are laid out left-to-right.
+  - `LEFT`/`RIGHT` dockables are laid out top-to-bottom.
+
+#### Geometry invariants
+- All coordinates are inclusive rectangle coordinates (`X1`, `Y1`, `X2`, `Y2`).
+- `HostRect` is immutable during one layout pass.
+- `AssignedRect` must always be inside `HostRect`.
+- `WorkRect` monotically shrinks or remains unchanged during one layout pass.
+- Zero-or-negative requested size is invalid.
+- Margin, spacing, padding, and all visual look values are theme-resolved inputs; docking logic only consumes numeric behavior inputs.
+
+#### Ordering contract
+- Primary key: `Priority` ascending.
+- Secondary key: `Order` ascending.
+- Tertiary key: stable insertion index ascending.
+- Equal keys produce deterministic output due to insertion index fallback.
+
+#### Rejection and error behavior
+- Invalid edge value: reject update and preserve previous valid state.
+- Invalid size policy or size value: reject update and preserve previous valid state.
+- Attach duplicate dockable handle to same host: reject with explicit error code.
+- Overflow policy is explicit and host-configured:
+  - clip,
+  - shrink respecting minimum constraints,
+  - reject placement.
+- Rejections return explicit status codes and emit concise diagnostics.
+
+#### Shell bar content policy
+- Shell bar content composition is config-driven through `exos.*.toml`.
+- Process/window icon entries are runtime-driven from task/window source and are not static config entries.
+- Missing shell bar composition config loads a deterministic default component set.
 
 ## Step 1 - Generic API and type model
 - [ ] Add public generic headers:
