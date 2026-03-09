@@ -157,11 +157,12 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_ConsoleGetString 0x00000031
 #define SYSCALL_ConsoleGotoXY 0x00000032
 #define SYSCALL_ConsoleClear 0x00000034
+#define SYSCALL_ConsoleBlitBuffer 0x00000077
+#define SYSCALL_ConsoleGetKeyModifiers 0x00000078
 #define SYSCALL_ConsoleSetMode 0x00000079
 #define SYSCALL_ConsoleGetModeCount 0x0000007A
 #define SYSCALL_ConsoleGetModeInfo 0x0000007B
-#define SYSCALL_ConsoleBlitBuffer 0x00000077
-#define SYSCALL_ConsoleGetKeyModifiers 0x00000078
+#define SYSCALL_ConsoleGetCurrentMode 0x0000007F
 
 /************************************************************************/
 /* Console Colors                                                        */
@@ -278,7 +279,7 @@ typedef struct PACKED tag_ABI_HEADER {
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x0000007F
+#define SYSCALL_Last 0x00000080
 
 /************************************************************************/
 // Structure limits

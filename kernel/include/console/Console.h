@@ -103,6 +103,7 @@ void SetConsoleCursorPosition(U32 CursorX, U32 CursorY);
 void GetConsoleCursorPosition(U32* CursorX, U32* CursorY);
 U32 GetConsoleWidth(void);
 U32 GetConsoleHeight(void);
+U32 GetConsoleCharHeight(void);
 U32 GetConsoleForeColor(void);
 U32 GetConsoleBackColor(void);
 void SetConsoleCharacter(STR);

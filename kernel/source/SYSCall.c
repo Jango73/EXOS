@@ -1439,6 +1439,28 @@ UINT SysCall_ConsoleGetModeInfo(UINT Parameter) {
 /************************************************************************/
 
 /**
+ * @brief Retrieve the current console mode geometry.
+ *
+ * @param Parameter Linear address of CONSOLEMODEINFO.
+ * @return UINT TRUE on success.
+ */
+UINT SysCall_ConsoleGetCurrentMode(UINT Parameter) {
+    LPCONSOLEMODEINFO Info = (LPCONSOLEMODEINFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, CONSOLEMODEINFO) {
+        Info->Index = 0;
+        Info->Columns = GetConsoleWidth();
+        Info->Rows = GetConsoleHeight();
+        Info->CharHeight = GetConsoleCharHeight();
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Create a new desktop for the current process.
  *
  * @param Parameter Reserved.

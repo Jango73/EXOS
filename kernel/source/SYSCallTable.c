@@ -123,6 +123,7 @@ void InitializeSystemCallTable(void) {
     SysCallTable[SYSCALL_ConsoleSetMode] = (SYSCALLENTRY){SysCall_ConsoleSetMode, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_ConsoleGetModeCount] = (SYSCALLENTRY){SysCall_ConsoleGetModeCount, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_ConsoleGetModeInfo] = (SYSCALLENTRY){SysCall_ConsoleGetModeInfo, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_ConsoleGetCurrentMode] = (SYSCALLENTRY){SysCall_ConsoleGetCurrentMode, EXOS_PRIVILEGE_USER};
 
     // Authentication Services
     SysCallTable[SYSCALL_Login] = (SYSCALLENTRY){SysCall_Login, EXOS_PRIVILEGE_USER};

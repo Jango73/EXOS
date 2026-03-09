@@ -662,6 +662,22 @@ U32 ConsoleSetMode(U32 Columns, U32 Rows) {
 
 /***************************************************************************/
 
+BOOL ConsoleGetCurrentMode(LPCONSOLEMODEINFO Info) {
+    if (Info == NULL) return FALSE;
+
+    Info->Header.Size = sizeof *Info;
+    Info->Header.Version = EXOS_ABI_VERSION;
+    Info->Header.Flags = 0;
+    Info->Index = 0;
+    Info->Columns = 0;
+    Info->Rows = 0;
+    Info->CharHeight = 0;
+
+    return (BOOL)exoscall(SYSCALL_ConsoleGetCurrentMode, EXOS_PARAM(Info));
+}
+
+/***************************************************************************/
+
 BOOL DeleteObject(HANDLE Object) {
     return (BOOL)exoscall(SYSCALL_DeleteObject, EXOS_PARAM(Object));
 }

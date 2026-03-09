@@ -363,6 +363,18 @@ U32 GetConsoleHeight(void) {
 
 /***************************************************************************/
 
+U32 GetConsoleCharHeight(void) {
+    U32 CharHeight;
+
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+    CharHeight = Console.FontHeight;
+    UnlockMutex(MUTEX_CONSOLE_STATE);
+
+    return CharHeight;
+}
+
+/***************************************************************************/
+
 U32 GetConsoleForeColor(void) {
     U32 Color;
 

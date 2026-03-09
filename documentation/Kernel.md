@@ -585,6 +585,8 @@ exos-runtime-c.c : malloc() (or any other function)
 
 `SYSTEM_DATA_VIEW` is a project-level build flag (`./scripts/build --arch x86-32 --fs ext2 --system-data-view`) that enables the System Data View mode before task creation. The mode shows the system data pages, uses the kernel keyboard input for navigation (left/right to change page, up/down to scroll), and exits on `Esc` to continue boot. The xHCI page reports PCI identity, decoded PCI status error flags, scratchpad capability/state (`HCSPARAMS2`, `MaxScratchpadBuffers`, `DCBAA[0]`), controller runtime registers (`USBCMD`, `USBSTS`, `CRCR`, `DCBAAP`, interrupter state), slot usage, and per-root-port enumeration diagnostics (raw `PORTSC`, speed/link state, last enumeration error/completion, present/slot state).
 
+Console applications can query the active text geometry through `SYSCALL_ConsoleGetCurrentMode` and the runtime helper `ConsoleGetCurrentMode()`. This returns the console columns and rows without relying on any desktop or window handle.
+
 
 ### Task and window message delivery
 

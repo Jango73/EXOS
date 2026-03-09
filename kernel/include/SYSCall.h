@@ -70,6 +70,7 @@ UINT SysCall_DispatchMessage(UINT Parameter);
 UINT SysCall_ConsoleSetMode(UINT Parameter);
 UINT SysCall_ConsoleGetModeCount(UINT Parameter);
 UINT SysCall_ConsoleGetModeInfo(UINT Parameter);
+UINT SysCall_ConsoleGetCurrentMode(UINT Parameter);
 UINT SysCall_CreateMutex(UINT Parameter);
 UINT SysCall_DeleteMutex(UINT Parameter);
 UINT SysCall_LockMutex(UINT Parameter);
