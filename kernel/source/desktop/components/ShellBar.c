@@ -24,19 +24,244 @@
 #include "desktop/components/ShellBar.h"
 
 #include "desktop/components/WindowDockable.h"
-#include "desktop/Desktop-ThemeResolver.h"
-#include "desktop/Desktop-ThemeTokens.h"
-#include "GFX.h"
+#include "desktop/Desktop-NonClient.h"
 #include "Kernel.h"
 
 /************************************************************************/
 
-#define SHELL_BAR_HEIGHT 32
+#define SHELL_BAR_HEIGHT 56
+#define SHELL_BAR_WINDOW_ID 0x53484252
+#define SHELL_BAR_SLOT_WINDOW_CLASS_NAME TEXT("ShellBarSlotWindowClass")
+#define SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID 0x53424350
+#define SHELL_BAR_SLOT_LEFT_WIDTH 240
+#define SHELL_BAR_SLOT_COMPONENTS_WIDTH 168
 
 /************************************************************************/
 
 BOOL ShellBarEnsureClassRegistered(void) {
     return WindowDockableClassEnsureDerivedRegistered(SHELL_BAR_WINDOW_CLASS_NAME, ShellBarWindowFunc);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resize all direct children of one slot to its full client rectangle.
+ * @param SlotWindow Slot window.
+ */
+static void ShellBarSlotResizeChildrenToClient(LPWINDOW SlotWindow) {
+    RECT SlotRect;
+    RECT ClientRect;
+    LPLISTNODE Node;
+    LPWINDOW* Children;
+    UINT ChildCount;
+    UINT Index;
+
+    if (SlotWindow == NULL || SlotWindow->TypeID != KOID_WINDOW) return;
+    if (GetWindowRect((HANDLE)SlotWindow, &SlotRect) == FALSE) return;
+    if (GetWindowClientRect(SlotWindow, &SlotRect, &ClientRect) == FALSE) return;
+
+    Children = NULL;
+    ChildCount = 0;
+
+    LockMutex(&(SlotWindow->Mutex), INFINITY);
+
+    if (SlotWindow->Children != NULL && SlotWindow->Children->NumItems != 0) {
+        ChildCount = SlotWindow->Children->NumItems;
+        Children = (LPWINDOW*)KernelHeapAlloc(sizeof(LPWINDOW) * ChildCount);
+        if (Children != NULL) {
+            Index = 0;
+            for (Node = SlotWindow->Children->First; Node != NULL && Index < ChildCount; Node = Node->Next) {
+                Children[Index++] = (LPWINDOW)Node;
+            }
+            ChildCount = Index;
+        } else {
+            ChildCount = 0;
+        }
+    }
+
+    UnlockMutex(&(SlotWindow->Mutex));
+
+    for (Index = 0; Index < ChildCount; Index++) {
+        if (Children[Index] == NULL || Children[Index]->TypeID != KOID_WINDOW) continue;
+        (void)MoveWindow((HANDLE)Children[Index], &ClientRect);
+    }
+
+    if (Children != NULL) KernelHeapFree(Children);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve one direct child by window identifier.
+ * @param Parent Parent window.
+ * @param WindowID Window identifier.
+ * @return Direct child pointer or NULL.
+ */
+static LPWINDOW ShellBarFindDirectChildByID(LPWINDOW Parent, U32 WindowID) {
+    LPLISTNODE Node;
+    LPWINDOW Candidate;
+
+    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return NULL;
+
+    LockMutex(&(Parent->Mutex), INFINITY);
+
+    for (Node = Parent->Children != NULL ? Parent->Children->First : NULL; Node != NULL; Node = Node->Next) {
+        Candidate = (LPWINDOW)Node;
+        if (Candidate == NULL || Candidate->TypeID != KOID_WINDOW) continue;
+        if (Candidate->WindowID == WindowID) {
+            UnlockMutex(&(Parent->Mutex));
+            return Candidate;
+        }
+    }
+
+    UnlockMutex(&(Parent->Mutex));
+    return NULL;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Layout all shell bar slots in the shell bar client area.
+ * @param ShellBarWindow Shell bar window.
+ */
+static void ShellBarLayoutSlots(LPWINDOW ShellBarWindow) {
+    RECT ShellBarRect;
+    RECT ClientRect;
+    RECT ComponentsRect;
+    LPWINDOW ComponentsSlotWindow;
+    I32 ClientWidth;
+    I32 LeftWidth;
+    I32 ComponentsWidth;
+
+    if (ShellBarWindow == NULL || ShellBarWindow->TypeID != KOID_WINDOW) return;
+    if (GetWindowRect((HANDLE)ShellBarWindow, &ShellBarRect) == FALSE) return;
+    if (GetWindowClientRect(ShellBarWindow, &ShellBarRect, &ClientRect) == FALSE) return;
+
+    ClientWidth = ClientRect.X2 - ClientRect.X1 + 1;
+    if (ClientWidth <= 0) return;
+
+    LeftWidth = SHELL_BAR_SLOT_LEFT_WIDTH;
+    ComponentsWidth = SHELL_BAR_SLOT_COMPONENTS_WIDTH;
+    if (ComponentsWidth > ClientWidth) ComponentsWidth = ClientWidth;
+    if (LeftWidth > (ClientWidth - ComponentsWidth)) LeftWidth = ClientWidth - ComponentsWidth;
+    if (LeftWidth < 0) LeftWidth = 0;
+
+    ComponentsRect = ClientRect;
+    ComponentsRect.X1 = ClientRect.X1 + LeftWidth + (ClientWidth - LeftWidth - ComponentsWidth);
+    if (ComponentsWidth <= 0) {
+        ComponentsRect.X1 = ComponentsRect.X2;
+    }
+
+    ComponentsSlotWindow = ShellBarFindDirectChildByID(ShellBarWindow, SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID);
+
+    if (ComponentsSlotWindow != NULL) (void)MoveWindow((HANDLE)ComponentsSlotWindow, &ComponentsRect);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Create one shell bar content slot child window.
+ * @param ShellBarWindow Shell bar parent window.
+ * @param WindowID Slot window identifier.
+ * @return TRUE on success.
+ */
+static BOOL ShellBarCreateSlotWindow(LPWINDOW ShellBarWindow, U32 WindowID) {
+    WINDOWINFO WindowInfo;
+    LPWINDOW Window;
+
+    if (ShellBarWindow == NULL || ShellBarWindow->TypeID != KOID_WINDOW) return FALSE;
+
+    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Version = EXOS_ABI_VERSION;
+    WindowInfo.Header.Flags = 0;
+    WindowInfo.Window = NULL;
+    WindowInfo.Parent = (HANDLE)ShellBarWindow;
+    WindowInfo.WindowClass = 0;
+    WindowInfo.WindowClassName = SHELL_BAR_SLOT_WINDOW_CLASS_NAME;
+    WindowInfo.Function = NULL;
+    WindowInfo.Style = EWS_VISIBLE | EWS_CLIENT_DECORATED;
+    WindowInfo.ID = WindowID;
+    WindowInfo.WindowPosition.X = 0;
+    WindowInfo.WindowPosition.Y = 0;
+    WindowInfo.WindowSize.X = 1;
+    WindowInfo.WindowSize.Y = 1;
+    WindowInfo.ShowHide = TRUE;
+
+    Window = CreateWindow(&WindowInfo);
+    return Window != NULL;
+}
+
+/************************************************************************/
+
+static U32 ShellBarSlotWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
+    LPWINDOW ParentWindow;
+
+    UNUSED(Param2);
+
+    switch (Message) {
+        case EWM_CREATE:
+            ShellBarSlotResizeChildrenToClient((LPWINDOW)Window);
+            ParentWindow = ((LPWINDOW)Window)->ParentWindow;
+            if (ParentWindow != NULL && ParentWindow->TypeID == KOID_WINDOW) {
+                (void)PostMessage((HANDLE)ParentWindow, EWM_NOTIFY, SHELL_BAR_NOTIFY_COMPONENTS_SLOT_READY, SHELL_BAR_SLOT_COMPONENTS);
+            }
+            return 1;
+
+        case EWM_NOTIFY:
+            if (Param1 == EWN_WINDOW_RECT_CHANGED) {
+                ShellBarSlotResizeChildrenToClient((LPWINDOW)Window);
+                ParentWindow = ((LPWINDOW)Window)->ParentWindow;
+                if (ParentWindow != NULL && ParentWindow->TypeID == KOID_WINDOW) {
+                    (void)PostMessage((HANDLE)ParentWindow, EWM_NOTIFY, SHELL_BAR_NOTIFY_COMPONENTS_SLOT_READY, SHELL_BAR_SLOT_COMPONENTS);
+                }
+                return 1;
+            }
+            break;
+    }
+
+    return BaseWindowFunc(Window, Message, Param1, Param2);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Ensure slot window class registration.
+ * @return TRUE on success.
+ */
+static BOOL ShellBarEnsureSlotClassRegistered(void) {
+    LPWINDOW_CLASS WindowClass;
+
+    if (WindowClassInitializeRegistry() == FALSE) return FALSE;
+
+    WindowClass = WindowClassFindByName(SHELL_BAR_SLOT_WINDOW_CLASS_NAME);
+    if (WindowClass != NULL) return TRUE;
+
+    WindowClass = WindowClassRegisterKernelClass(
+        SHELL_BAR_SLOT_WINDOW_CLASS_NAME,
+        WindowClassGetDefault(),
+        ShellBarSlotWindowFunc,
+        0);
+
+    return WindowClass != NULL;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Ensure all default slot windows exist on the shell bar.
+ * @param ShellBarWindow Shell bar window.
+ * @return TRUE on success.
+ */
+static BOOL ShellBarEnsureSlotWindows(LPWINDOW ShellBarWindow) {
+    if (ShellBarWindow == NULL || ShellBarWindow->TypeID != KOID_WINDOW) return FALSE;
+    if (ShellBarEnsureSlotClassRegistered() == FALSE) return FALSE;
+
+    if (ShellBarFindDirectChildByID(ShellBarWindow, SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID) == NULL) {
+        if (ShellBarCreateSlotWindow(ShellBarWindow, SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID) == FALSE) return FALSE;
+    }
+
+    ShellBarLayoutSlots(ShellBarWindow);
+    return TRUE;
 }
 
 /************************************************************************/
@@ -58,7 +283,7 @@ BOOL ShellBarCreate(LPDESKTOP Desktop) {
     WindowInfo.WindowClassName = SHELL_BAR_WINDOW_CLASS_NAME;
     WindowInfo.Function = NULL;
     WindowInfo.Style = EWS_VISIBLE | EWS_CLIENT_DECORATED;
-    WindowInfo.ID = 0x53484252;
+    WindowInfo.ID = SHELL_BAR_WINDOW_ID;
     WindowInfo.WindowPosition.X = 0;
     WindowInfo.WindowPosition.Y = 0;
     WindowInfo.WindowSize.X = 1;
@@ -71,16 +296,44 @@ BOOL ShellBarCreate(LPDESKTOP Desktop) {
 
 /************************************************************************/
 
+LPWINDOW ShellBarGetWindow(LPDESKTOP Desktop) {
+    LPWINDOW RootWindow;
+    LPWINDOW ShellBarWindow;
+
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return NULL;
+
+    RootWindow = Desktop->Window;
+    if (RootWindow == NULL || RootWindow->TypeID != KOID_WINDOW) return NULL;
+
+    ShellBarWindow = ShellBarFindDirectChildByID(RootWindow, SHELL_BAR_WINDOW_ID);
+    if (ShellBarWindow == NULL || ShellBarWindow->TypeID != KOID_WINDOW) return NULL;
+
+    return ShellBarWindow;
+}
+
+/************************************************************************/
+
+LPWINDOW ShellBarGetSlotWindow(LPDESKTOP Desktop, U32 SlotID) {
+    LPWINDOW ShellBarWindow;
+    U32 WindowID;
+
+    ShellBarWindow = ShellBarGetWindow(Desktop);
+    if (ShellBarWindow == NULL || ShellBarWindow->TypeID != KOID_WINDOW) return NULL;
+
+    switch (SlotID) {
+        case SHELL_BAR_SLOT_COMPONENTS:
+            WindowID = SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID;
+            break;
+        default:
+            return NULL;
+    }
+
+    return ShellBarFindDirectChildByID(ShellBarWindow, WindowID);
+}
+
+/************************************************************************/
+
 U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
-    HANDLE GC;
-    RECT Rect;
-    RECTINFO RectInfo;
-    BRUSH Brush;
-    COLOR Background;
-
-    UNUSED(Param1);
-    UNUSED(Param2);
-
     switch (Message) {
         case EWM_CREATE:
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_ENABLED, 1);
@@ -92,41 +345,23 @@ U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_SIZE_MINIMUM, SHELL_BAR_HEIGHT);
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_SIZE_MAXIMUM, SHELL_BAR_HEIGHT);
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_SIZE_WEIGHT, 1);
-            break;
+            (void)ShellBarEnsureSlotWindows((LPWINDOW)Window);
+            return BaseWindowFunc(Window, Message, Param1, Param2);
 
-        case EWM_DRAW:
-            GC = BeginWindowDraw(Window);
-            if (GC == NULL) return 1;
-            if (GetWindowRect(Window, &Rect) == FALSE) {
-                EndWindowDraw(Window);
+        case EWM_NOTIFY:
+            if (Param1 == EWN_WINDOW_RECT_CHANGED) {
+                ShellBarLayoutSlots((LPWINDOW)Window);
+            } else if (Param1 == SHELL_BAR_NOTIFY_COMPONENTS_SLOT_READY) {
+                LPWINDOW ParentWindow = ((LPWINDOW)Window)->ParentWindow;
+                if (ParentWindow != NULL && ParentWindow->TypeID == KOID_WINDOW) {
+                    (void)PostMessage((HANDLE)ParentWindow, EWM_NOTIFY, SHELL_BAR_NOTIFY_COMPONENTS_SLOT_READY, Param2);
+                }
                 return 1;
             }
+            return BaseWindowFunc(Window, Message, Param1, Param2);
 
-            RectInfo.Header.Size = sizeof(RECTINFO);
-            RectInfo.Header.Version = EXOS_ABI_VERSION;
-            RectInfo.Header.Flags = 0;
-            RectInfo.GC = GC;
-            RectInfo.X1 = Rect.X1;
-            RectInfo.Y1 = Rect.Y1;
-            RectInfo.X2 = Rect.X2;
-            RectInfo.Y2 = Rect.Y2;
-
-            SelectPen(GC, NULL);
-
-            if (DesktopThemeResolveLevel1Color(TEXT("window.client"), TEXT("normal"), TEXT("background"), &Background) ||
-                DesktopThemeResolveTokenColorByName(TEXT("color.client.background"), &Background)) {
-                MemorySet(&Brush, 0, sizeof(BRUSH));
-                Brush.TypeID = KOID_BRUSH;
-                Brush.References = 1;
-                Brush.Color = Background;
-                Brush.Pattern = MAX_U32;
-                SelectBrush(GC, (HANDLE)&Brush);
-            } else {
-                SelectBrush(GC, GetSystemBrush(SM_COLOR_CLIENT));
-            }
-
-            (void)Rectangle(&RectInfo);
-            EndWindowDraw(Window);
+        case EWM_DRAW:
+            (void)BaseWindowFunc(Window, EWM_CLEAR, Param1, Param2);
             return 1;
     }
 

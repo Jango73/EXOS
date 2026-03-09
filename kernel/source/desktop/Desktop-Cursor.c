@@ -531,7 +531,8 @@ static void DesktopCursorRequestSoftwareRedraw(LPDESKTOP Desktop, I32 OldX, I32 
     }
 
     if (HasDamageRect != FALSE) {
-        DesktopOverlayInvalidateWindowTreeFullWindowRect(Desktop->Window, &DamageRect, TRUE);
+        // Cursor software damage must invalidate only the intersecting area.
+        DesktopOverlayInvalidateWindowTreeRect(Desktop->Window, &DamageRect, TRUE);
         (void)DesktopOverlayInvalidateRootRect(Desktop->Window, &DamageRect);
     }
 

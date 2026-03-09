@@ -31,11 +31,22 @@
 /************************************************************************/
 
 #define SHELL_BAR_WINDOW_CLASS_NAME TEXT("ShellBarWindowClass")
+#define SHELL_BAR_NOTIFY_COMPONENTS_SLOT_READY 0x53420101
+
+/************************************************************************/
+
+typedef enum tag_SHELL_BAR_SLOT_ID {
+    SHELL_BAR_SLOT_LEFT = 1,
+    SHELL_BAR_SLOT_CENTER = 2,
+    SHELL_BAR_SLOT_COMPONENTS = 3
+} SHELL_BAR_SLOT_ID, *LPSHELL_BAR_SLOT_ID;
 
 /************************************************************************/
 
 BOOL ShellBarEnsureClassRegistered(void);
 BOOL ShellBarCreate(LPDESKTOP Desktop);
+LPWINDOW ShellBarGetWindow(LPDESKTOP Desktop);
+LPWINDOW ShellBarGetSlotWindow(LPDESKTOP Desktop, U32 SlotID);
 U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
 
 /************************************************************************/

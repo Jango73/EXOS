@@ -22,7 +22,6 @@
 \************************************************************************/
 
 #include "Desktop-InternalTest.h"
-#include "Desktop-ClockWidget.h"
 #include "Clock.h"
 #include "Kernel.h"
 #include "Log.h"
@@ -31,7 +30,6 @@
 // Macros
 
 #define DESKTOP_INTERNAL_TEST_WINDOW_ID_A 0x000085A1
-#define DESKTOP_INTERNAL_TEST_WINDOW_ID_B 0x000085A2
 
 /***************************************************************************/
 
@@ -277,7 +275,6 @@ static BOOL DesktopInternalEnsureSingleWindow(
 
 BOOL DesktopInternalTestEnsureWindowsVisible(LPDESKTOP Desktop) {
     BOOL FirstCreated;
-    BOOL SecondCreated;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
 
@@ -292,20 +289,7 @@ BOOL DesktopInternalTestEnsureWindowsVisible(LPDESKTOP Desktop) {
         360,
         220);
 
-    if (DesktopClockWidgetEnsureClassRegistered() == FALSE) return FALSE;
-
-    SecondCreated = DesktopInternalEnsureSingleWindow(
-        Desktop,
-        DESKTOP_INTERNAL_TEST_WINDOW_ID_B,
-        TEXT("Kernel Clock Widget"),
-        DESKTOP_CLOCK_WIDGET_WINDOW_CLASS_NAME,
-        NULL,
-        460,
-        140,
-        500,
-        320);
-
-    return (FirstCreated && SecondCreated);
+    return FirstCreated;
 }
 
 /***************************************************************************/

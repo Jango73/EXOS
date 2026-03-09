@@ -26,6 +26,8 @@
 #include "Desktop-NonClient.h"
 #include "Desktop-ThemeResolver.h"
 #include "Desktop-ThemeTokens.h"
+#include "desktop/components/ShellBar.h"
+#include "Desktop-ClockWidget.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Desktop.h"
@@ -58,6 +60,93 @@ static SYSTEM_DRAW_OBJECT_ENTRY SystemDrawObjects[] = {
     {SM_COLOR_TITLE_BAR_2, &Brush_Title_Bar_2, &Pen_Title_Bar_2},
     {SM_COLOR_TITLE_TEXT, &Brush_Title_Text, &Pen_Title_Text},
 };
+
+/***************************************************************************/
+
+#define DESKTOP_SHELL_BAR_CLOCK_WINDOW_ID 0x5342434C
+
+/***************************************************************************/
+
+/**
+ * @brief Find one direct child window by identifier.
+ * @param Parent Parent window.
+ * @param WindowID Child identifier.
+ * @return Matching child or NULL.
+ */
+static LPWINDOW DesktopGraphicsFindDirectChildByID(LPWINDOW Parent, U32 WindowID) {
+    LPLISTNODE Node;
+    LPWINDOW Candidate;
+
+    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return NULL;
+
+    LockMutex(&(Parent->Mutex), INFINITY);
+    for (Node = Parent->Children != NULL ? Parent->Children->First : NULL; Node != NULL; Node = Node->Next) {
+        Candidate = (LPWINDOW)Node;
+        if (Candidate == NULL || Candidate->TypeID != KOID_WINDOW) continue;
+        if (Candidate->WindowID == WindowID) {
+            UnlockMutex(&(Parent->Mutex));
+            return Candidate;
+        }
+    }
+    UnlockMutex(&(Parent->Mutex));
+
+    return NULL;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Inject the desktop clock widget into shell bar components slot.
+ * @param Desktop Target desktop.
+ * @return TRUE on success.
+ */
+static BOOL DesktopGraphicsEnsureShellBarClock(LPDESKTOP Desktop) {
+    LPWINDOW ComponentsSlot;
+    LPWINDOW ExistingClockWindow;
+    LPWINDOW ClockWindow;
+    WINDOWINFO WindowInfo;
+    RECT SlotRect;
+
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+    if (DesktopClockWidgetEnsureClassRegistered() == FALSE) return FALSE;
+
+    ComponentsSlot = ShellBarGetSlotWindow(Desktop, SHELL_BAR_SLOT_COMPONENTS);
+    if (ComponentsSlot == NULL || ComponentsSlot->TypeID != KOID_WINDOW) return FALSE;
+
+    ExistingClockWindow = DesktopGraphicsFindDirectChildByID(ComponentsSlot, DESKTOP_SHELL_BAR_CLOCK_WINDOW_ID);
+    if (ExistingClockWindow != NULL && ExistingClockWindow->TypeID == KOID_WINDOW) {
+        if (GetWindowRect((HANDLE)ComponentsSlot, &SlotRect) != FALSE) {
+            (void)MoveWindow((HANDLE)ExistingClockWindow, &SlotRect);
+            (void)InvalidateWindowRect((HANDLE)ExistingClockWindow, NULL);
+        }
+        return TRUE;
+    }
+
+    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Version = EXOS_ABI_VERSION;
+    WindowInfo.Header.Flags = 0;
+    WindowInfo.Window = NULL;
+    WindowInfo.Parent = (HANDLE)ComponentsSlot;
+    WindowInfo.WindowClass = 0;
+    WindowInfo.WindowClassName = DESKTOP_CLOCK_WIDGET_WINDOW_CLASS_NAME;
+    WindowInfo.Function = NULL;
+    WindowInfo.Style = EWS_VISIBLE | EWS_CLIENT_DECORATED;
+    WindowInfo.ID = DESKTOP_SHELL_BAR_CLOCK_WINDOW_ID;
+    WindowInfo.WindowPosition.X = 0;
+    WindowInfo.WindowPosition.Y = 0;
+    WindowInfo.WindowSize.X = 1;
+    WindowInfo.WindowSize.Y = 1;
+    WindowInfo.ShowHide = TRUE;
+
+    ClockWindow = CreateWindow(&WindowInfo);
+    if (ClockWindow == NULL) return FALSE;
+
+    if (GetWindowRect((HANDLE)ComponentsSlot, &SlotRect) != FALSE) {
+        (void)MoveWindow((HANDLE)ClockWindow, &SlotRect);
+    }
+    (void)InvalidateWindowRect((HANDLE)ClockWindow, NULL);
+    return TRUE;
+}
 
 /***************************************************************************/
 
@@ -161,7 +250,7 @@ static void InvalidateSiblingWindowsOnUncoveredRect(LPWINDOW Window, LPWINDOW Pa
  * @param Rect Receives full window rectangle in parent coordinates.
  * @return TRUE on success.
  */
-static BOOL BuildWindowRectAtPosition(LPWINDOW Window, LPPOINT Position, LPRECT Rect) {
+BOOL BuildWindowRectAtPosition(LPWINDOW Window, LPPOINT Position, LPRECT Rect) {
     I32 Width;
     I32 Height;
 
@@ -256,7 +345,7 @@ static void ClampWindowRectToParentWorkRect(LPWINDOW Window, LPWINDOW Parent, LP
  * @param WindowRect New window rectangle relative to parent.
  * @return TRUE on success.
  */
-static BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect) {
+BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect) {
     LPWINDOW Parent;
     RECT OldScreenRect;
     RECT NewScreenRect;
@@ -1473,254 +1562,13 @@ Out:
 
 /***************************************************************************/
 
-static BOOL GetWindowScreenRectSnapshot(LPWINDOW Window, LPRECT Rect);
-static BOOL GetDesktopCaptureState(LPWINDOW Window, LPWINDOW* CaptureWindow, I32* OffsetX, I32* OffsetY);
-static BOOL SetDesktopCaptureState(LPWINDOW Window, LPWINDOW CaptureWindow, I32 OffsetX, I32 OffsetY);
-
-/***************************************************************************/
-
-/**
- * @brief Default window procedure for unhandled messages.
- * @param Window Window handle.
- * @param Message Message identifier.
- * @param Param1 First parameter.
- * @param Param2 Second parameter.
- * @return Message-specific result.
- */
-static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
-    switch (Message) {
-        case EWM_CREATE: {
-        } break;
-
-        case EWM_DELETE: {
-        } break;
-
-        case EWM_MOUSEDOWN: {
-            LPWINDOW This = (LPWINDOW)Window;
-            POINT MousePosition;
-            I32 MouseX;
-            I32 MouseY;
-            RECT ScreenRect;
-
-            if ((Param1 & MB_LEFT) == 0) break;
-            if (This == NULL || This->TypeID != KOID_WINDOW) break;
-            if (GetMousePosition(&MouseX, &MouseY) == FALSE) break;
-
-            MousePosition.X = MouseX;
-            MousePosition.Y = MouseY;
-
-            if (IsPointInWindowTitleBar(This, &MousePosition) == FALSE) break;
-
-            ScreenRect = This->ScreenRect;
-            (void)BringWindowToFront(Window);
-            (void)SetDesktopCaptureState(This, This, MousePosition.X - ScreenRect.X1, MousePosition.Y - ScreenRect.Y1);
-        } break;
-
-        case EWM_MOUSEMOVE: {
-            LPWINDOW This = (LPWINDOW)Window;
-            LPWINDOW CaptureWindow = NULL;
-            RECT ParentScreenRect;
-            POINT NewPosition;
-            U32 Buttons;
-            I32 OffsetX = 0;
-            I32 OffsetY = 0;
-            BOOL ParentHasRect = FALSE;
-
-            if (This == NULL || This->TypeID != KOID_WINDOW) break;
-            if (GetDesktopCaptureState(This, &CaptureWindow, &OffsetX, &OffsetY) == FALSE) break;
-            if (CaptureWindow != This) break;
-
-            Buttons = GetMouseDriver()->Command(DF_MOUSE_GETBUTTONS, 0);
-            if ((Buttons & MB_LEFT) == 0) {
-                (void)SetDesktopCaptureState(This, NULL, 0, 0);
-                break;
-            }
-
-            NewPosition.X = SIGNED(Param1) - OffsetX;
-            NewPosition.Y = SIGNED(Param2) - OffsetY;
-
-            SAFE_USE_VALID_ID(This->ParentWindow, KOID_WINDOW) {
-                ParentHasRect = GetWindowScreenRectSnapshot(This->ParentWindow, &ParentScreenRect);
-            }
-
-            if (ParentHasRect != FALSE) {
-                NewPosition.X -= ParentScreenRect.X1;
-                NewPosition.Y -= ParentScreenRect.Y1;
-            }
-
-            {
-                RECT WindowRect;
-                if (BuildWindowRectAtPosition(This, &NewPosition, &WindowRect) != FALSE) {
-                    (void)MoveWindow(Window, &WindowRect);
-                }
-            }
-        } break;
-
-        case EWM_MOUSEUP: {
-            LPWINDOW This = (LPWINDOW)Window;
-            LPWINDOW CaptureWindow = NULL;
-
-            if (This == NULL || This->TypeID != KOID_WINDOW) break;
-            if (GetDesktopCaptureState(This, &CaptureWindow, NULL, NULL) == FALSE) break;
-            if (CaptureWindow != This) break;
-
-            (void)SetDesktopCaptureState(This, NULL, 0, 0);
-        } break;
-
-        case EWM_MOVE: {
-            LPWINDOW This = (LPWINDOW)Window;
-            POINT Position;
-            RECT WindowRect;
-
-            Position.X = SIGNED(Param1);
-            Position.Y = SIGNED(Param2);
-
-            if (BuildWindowRectAtPosition(This, &Position, &WindowRect) != FALSE &&
-                DefaultSetWindowRect(This, &WindowRect)) {
-                return 1;
-            }
-        } break;
-
-        case EWM_DRAW: {
-            HANDLE GC;
-            RECT Rect;
-            RECT ClipStorage[WINDOW_DIRTY_REGION_CAPACITY];
-            RECT_REGION ClipRegion;
-            RECT ClipRect;
-            UINT ClipIndex;
-            LPWINDOW This = (LPWINDOW)Window;
-            BOOL DrawingMarked = FALSE;
-
-            if (This != NULL && This->TypeID == KOID_WINDOW) {
-                LockMutex(&(This->Mutex), INFINITY);
-                This->Status &= ~WINDOW_STATUS_NEED_DRAW;
-                This->Status |= WINDOW_STATUS_DRAWING;
-                DrawingMarked = TRUE;
-                UnlockMutex(&(This->Mutex));
-            }
-
-            if (BuildWindowDrawClipRegion(This, &ClipRegion, ClipStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) {
-                if (DrawingMarked != FALSE) {
-                    LockMutex(&(This->Mutex), INFINITY);
-                    This->Status &= ~WINDOW_STATUS_DRAWING;
-                    UnlockMutex(&(This->Mutex));
-                }
-                break;
-            }
-
-            GC = BeginWindowDraw(Window);
-
-            if (GC) {
-                GetWindowRect(Window, &Rect);
-
-                if (ShouldDrawWindowNonClient(This)) {
-                    for (ClipIndex = 0; ClipIndex < RectRegionGetCount(&ClipRegion); ClipIndex++) {
-                        if (RectRegionGetRect(&ClipRegion, ClipIndex, &ClipRect) == FALSE) continue;
-                        (void)SetGraphicsContextClipScreenRect(GC, &ClipRect);
-                        DrawWindowNonClient(Window, GC, &Rect);
-                    }
-                }
-
-                EndWindowDraw(Window);
-            }
-
-            if (DrawingMarked != FALSE) {
-                LockMutex(&(This->Mutex), INFINITY);
-                This->Status &= ~WINDOW_STATUS_DRAWING;
-                UnlockMutex(&(This->Mutex));
-            }
-        } break;
-    }
-
-    return 0;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Resolve one class pointer from one function in one inheritance chain.
- * @param WindowClass Root class.
- * @param Function Function to match.
- * @return Matched class or NULL.
- */
-static LPWINDOW_CLASS ResolveClassByFunction(LPWINDOW_CLASS WindowClass, WINDOWFUNC Function) {
-    LPWINDOW_CLASS This;
-
-    if (WindowClass == NULL || Function == NULL) return NULL;
-
-    for (This = WindowClass; This != NULL; This = This->BaseClass) {
-        if (This->Function == Function) return This;
-    }
-
-    return NULL;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Call the base class window function for one dispatch context.
- * @param Window Window handle.
- * @param Message Message identifier.
- * @param Param1 First parameter.
- * @param Param2 Second parameter.
- * @return Result from base class callback or default behavior.
- */
-U32 BaseWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
-    LPWINDOW This = (LPWINDOW)Window;
-    LPTASK Task = GetCurrentTask();
-    LPWINDOW_CLASS CurrentClass = NULL;
-    LPWINDOW_CLASS BaseClass = NULL;
-    LPVOID PreviousWindow = NULL;
-    LPVOID PreviousClass = NULL;
-    WINDOWFUNC PreviousFunction = NULL;
-    U32 Result;
-
-    SAFE_USE_VALID_ID(This, KOID_WINDOW) {
-        SAFE_USE_VALID_ID(Task, KOID_TASK) {
-            if (Task->WindowDispatchDepth > 0 && Task->WindowDispatchWindow == This) {
-                CurrentClass = (LPWINDOW_CLASS)Task->WindowDispatchClass;
-
-                if (CurrentClass == NULL || CurrentClass->TypeID != KOID_WINDOW_CLASS) {
-                    CurrentClass = ResolveClassByFunction(This->Class, Task->WindowDispatchFunction);
-                }
-
-                SAFE_USE_VALID_ID(CurrentClass, KOID_WINDOW_CLASS) { BaseClass = CurrentClass->BaseClass; }
-            }
-
-            if (BaseClass != NULL && BaseClass->TypeID == KOID_WINDOW_CLASS && BaseClass->Function != NULL) {
-                PreviousWindow = Task->WindowDispatchWindow;
-                PreviousClass = Task->WindowDispatchClass;
-                PreviousFunction = Task->WindowDispatchFunction;
-
-                Task->WindowDispatchWindow = This;
-                Task->WindowDispatchClass = BaseClass;
-                Task->WindowDispatchFunction = BaseClass->Function;
-                Task->WindowDispatchDepth++;
-
-                Result = BaseClass->Function(Window, Message, Param1, Param2);
-
-                Task->WindowDispatchWindow = PreviousWindow;
-                Task->WindowDispatchClass = PreviousClass;
-                Task->WindowDispatchFunction = PreviousFunction;
-                if (Task->WindowDispatchDepth > 0) Task->WindowDispatchDepth--;
-
-                return Result;
-            }
-        }
-    }
-
-    return DefaultWindowFunc(Window, Message, Param1, Param2);
-}
-
-/***************************************************************************/
-
 /**
  * @brief Copy one window screen rectangle under mutex.
  * @param Window Source window.
  * @param Rect Receives screen rectangle.
  * @return TRUE on success.
  */
-static BOOL GetWindowScreenRectSnapshot(LPWINDOW Window, LPRECT Rect) {
+BOOL GetWindowScreenRectSnapshot(LPWINDOW Window, LPRECT Rect) {
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (Rect == NULL) return FALSE;
 
@@ -1741,7 +1589,7 @@ static BOOL GetWindowScreenRectSnapshot(LPWINDOW Window, LPRECT Rect) {
  * @param OffsetY Receives drag offset Y (optional).
  * @return TRUE on success.
  */
-static BOOL GetDesktopCaptureState(LPWINDOW Window, LPWINDOW* CaptureWindow, I32* OffsetX, I32* OffsetY) {
+BOOL GetDesktopCaptureState(LPWINDOW Window, LPWINDOW* CaptureWindow, I32* OffsetX, I32* OffsetY) {
     LPDESKTOP Desktop;
 
     if (CaptureWindow != NULL) *CaptureWindow = NULL;
@@ -1770,7 +1618,7 @@ static BOOL GetDesktopCaptureState(LPWINDOW Window, LPWINDOW* CaptureWindow, I32
  * @param OffsetY Drag offset Y in captured window coordinates.
  * @return TRUE on success.
  */
-static BOOL SetDesktopCaptureState(LPWINDOW Window, LPWINDOW CaptureWindow, I32 OffsetX, I32 OffsetY) {
+BOOL SetDesktopCaptureState(LPWINDOW Window, LPWINDOW CaptureWindow, I32 OffsetX, I32 OffsetY) {
     LPDESKTOP Desktop;
 
     Desktop = GetWindowDesktop(Window);
@@ -1867,9 +1715,21 @@ static U32 DrawButtons(HANDLE GC) {
  * @return Message-specific result.
  */
 U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
+    LPDESKTOP Desktop;
+
     switch (Message) {
         case EWM_CREATE: {
         } break;
+
+        case EWM_NOTIFY:
+            if (Param1 == SHELL_BAR_NOTIFY_COMPONENTS_SLOT_READY && Param2 == SHELL_BAR_SLOT_COMPONENTS) {
+                Desktop = GetWindowDesktop((LPWINDOW)Window);
+                if (Desktop != NULL && Desktop->TypeID == KOID_DESKTOP) {
+                    (void)DesktopGraphicsEnsureShellBarClock(Desktop);
+                }
+                return 1;
+            }
+            break;
 
         case EWM_DRAW: {
             HANDLE GC;

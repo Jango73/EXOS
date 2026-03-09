@@ -822,6 +822,7 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 #define EWM_GOTFOCUS 0x40000011
 #define EWM_LOSTFOCUS 0x40000012
 #define EWM_TIMER 0x40000013
+#define EWM_CLEAR 0x40000014
 
 // Window procedure result contract
 #define EWM_NOT_HANDLED 0xFFFFFFFF

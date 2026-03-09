@@ -1873,7 +1873,7 @@ The network stack successfully handles real network traffic across multiple devi
 ### Desktop shell entry points
 
 The `desktop` shell command exposes `desktop show`, `desktop status`, and `desktop theme <path-or-name>`. `desktop show` creates the kernel shell desktop on first use, reuses it on later calls, and optionally applies `Desktop.ThemePath` from `exos.*.toml`; theme load/activation failures are reported but never block desktop activation.
-An internal kernel test module (`kernel/source/desktop/Desktop-InternalTest.c`, `kernel/include/desktop/Desktop-InternalTest.h`) runs on `desktop show` and ensures a visible test window plus a clock widget window exist on the shell desktop, with deterministic placement for windowing validation.
+An internal kernel test module (`kernel/source/desktop/Desktop-InternalTest.c`, `kernel/include/desktop/Desktop-InternalTest.h`) runs on `desktop show` and ensures one visible test window exists on the shell desktop, with deterministic placement for windowing validation.
 
 ### Windowing core paths
 
@@ -1907,6 +1907,8 @@ Docking host integration is implemented by window classes in `kernel/source/desk
 The windowing core remains dock-agnostic: it emits generic `EWM_NOTIFY` messages (`EWN_WINDOW_RECT_CHANGED`, `EWN_WINDOW_PROPERTY_CHANGED`) and does not read dock-specific window properties.
 Dock components subscribe to these notifications and update docking state (`WindowDockHostHandleWindowRectChanged`, relayout, attach/detach) in component code.
 Parent movement constraints use the generic window work rectangle API (`SetWindowWorkRect`, `GetWindowWorkRect`) so specialized layout components can publish host work areas without coupling core windowing paths to docking details.
+Shell bar content composition uses slot windows exposed by `kernel/source/desktop/components/ShellBar.c` (`left`, `center`, `components`) and the desktop injects concrete component windows into these slots.
+The shell bar does not reference concrete component types; it only manages slot geometry and keeps slot children fitted to slot client rectangles.
 
 #### Theme architecture
 

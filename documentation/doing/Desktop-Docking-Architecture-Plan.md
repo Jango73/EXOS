@@ -200,8 +200,8 @@ Deliverable:
 - [ ] Support all four edges through dock state updates.
 - [x] Keep `ShellBar` behavior-focused; all visual look is resolved from theme tokens.
 - [x] Keep visual/render logic isolated from docking logic and driven by theme runtime values only.
-- [ ] Reserve generic extension points for arbitrary shell bar component zones (no fixed component list).
-- [ ] Implement shell bar content slots as pluggable components.
+- [x] Reserve generic extension points for arbitrary shell bar component zones (no fixed component list).
+- [x] Implement shell bar content slots as pluggable components.
 - [ ] Keep process/window icons managed by the dynamic task list source, not by static config entries.
 
 Deliverable:

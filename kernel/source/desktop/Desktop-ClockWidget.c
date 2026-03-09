@@ -36,7 +36,7 @@
 #define CLOCK_WIDGET_TIMER_ID 1
 #define CLOCK_WIDGET_TIMER_INTERVAL_MS 1000
 #define CLOCK_UNIT_SCALE 1024
-#define CLOCK_CIRCLE_MARGIN 10
+#define CLOCK_CIRCLE_MARGIN 4
 
 /***************************************************************************/
 
@@ -170,6 +170,8 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
             return 1;
 
         case EWM_DRAW:
+            (void)BaseWindowFunc(Window, EWM_CLEAR, Param1, Param2);
+
             DrawingMarked = FALSE;
 
             SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {

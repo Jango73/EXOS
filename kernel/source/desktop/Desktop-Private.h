@@ -64,6 +64,11 @@ BOOL BuildWindowDrawClipRegion(
     LPRECT ClipStorage,
     UINT ClipCapacity
 );
+BOOL BuildWindowRectAtPosition(LPWINDOW Window, LPPOINT Position, LPRECT Rect);
+BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect);
+BOOL GetWindowScreenRectSnapshot(LPWINDOW Window, LPRECT Rect);
+BOOL GetDesktopCaptureState(LPWINDOW Window, LPWINDOW* CaptureWindow, I32* OffsetX, I32* OffsetY);
+BOOL SetDesktopCaptureState(LPWINDOW Window, LPWINDOW CaptureWindow, I32 OffsetX, I32 OffsetY);
 
 /************************************************************************/
 
