@@ -136,12 +136,28 @@ typedef struct tag_DOCKABLE {
 
 /************************************************************************/
 
+typedef struct tag_DOCKABLE_SNAPSHOT {
+    LPCSTR Identifier;
+    LPVOID Context;
+    U32 Edge;
+    I32 Priority;
+    I32 Order;
+    U32 Band;
+    U32 InsertionIndex;
+    BOOL Visible;
+    BOOL Enabled;
+    DOCK_SIZE_REQUEST SizeRequest;
+} DOCKABLE_SNAPSHOT, *LPDOCKABLE_SNAPSHOT;
+
+/************************************************************************/
+
 BOOL DockableInit(LPDOCKABLE Dockable, LPCSTR Identifier, LPVOID Context);
 BOOL DockableReset(LPDOCKABLE Dockable);
 U32 DockableSetEdge(LPDOCKABLE Dockable, U32 Edge);
 U32 DockableSetOrder(LPDOCKABLE Dockable, I32 Priority, I32 Order);
 U32 DockableSetSizeRequest(LPDOCKABLE Dockable, LPDOCK_SIZE_REQUEST Request);
 U32 DockableSetCallbacks(LPDOCKABLE Dockable, LPDOCKABLE_CALLBACKS Callbacks);
+BOOL DockableGetSnapshot(LPDOCKABLE Dockable, LPDOCKABLE_SNAPSHOT Snapshot);
 
 /************************************************************************/
 

@@ -129,14 +129,24 @@ Deliverable:
 - No visual style fields are part of the generic API; theme-driven look remains outside core docking headers.
 
 ## Step 2 - Core Dockable implementation
-- [ ] Implement `Dockable.c` in `kernel/source/ui/layout`.
-- [ ] Add lifecycle helpers for init/reset without global state.
-- [ ] Track immutable identity and mutable docking state separately.
-- [ ] Validate edge/size/order updates before committing state.
-- [ ] Expose one minimal diagnostic snapshot helper for debugging layout state.
+- [x] Implement `Dockable.c` in `kernel/source/ui/layout`.
+- [x] Add lifecycle helpers for init/reset without global state.
+- [x] Track immutable identity and mutable docking state separately.
+- [x] Validate edge/size/order updates before committing state.
+- [x] Expose one minimal diagnostic snapshot helper for debugging layout state.
 
 Deliverable:
 - Reusable dockable object with validated state transitions.
+
+### Step 2 Output - Dockable Core
+- Implemented `kernel/source/ui/layout/Dockable.c` with:
+  - deterministic mutable defaults (`Edge`, ordering fields, size request, callbacks),
+  - immutable identity model (`Identifier`, `Context`) preserved by reset path,
+  - validated updates for edge and size request before commit.
+- Added diagnostic snapshot API:
+  - `DOCKABLE_SNAPSHOT`
+  - `DockableGetSnapshot(...)`
+- Build integration updated so `source/ui/layout/*.c` is compiled by kernel build.
 
 ## Step 3 - Core DockHost implementation
 - [ ] Implement `DockHost.c` in `kernel/source/ui/layout`.
