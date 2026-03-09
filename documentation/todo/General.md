@@ -41,6 +41,10 @@
 
 - Use __func__ to automatically include function name
 
+## Process
+
+- Add full TLS pipeline (per-thread data)
+
 ## Session
 
 - Lock session on inactivity in graphics display
