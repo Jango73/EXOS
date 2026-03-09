@@ -167,7 +167,7 @@ void InitializeSystemCallTable(void) {
     SysCallTable[SYSCALL_GetWindowGC] = (SYSCALLENTRY){SysCall_GetWindowGC, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_ReleaseWindowGC] = (SYSCALLENTRY){SysCall_ReleaseWindowGC, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_EnumWindows] = (SYSCALLENTRY){SysCall_EnumWindows, EXOS_PRIVILEGE_USER};
-    SysCallTable[SYSCALL_DefWindowFunc] = (SYSCALLENTRY){SysCall_DefWindowFunc, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_BaseWindowFunc] = (SYSCALLENTRY){SysCall_BaseWindowFunc, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetSystemBrush] = (SYSCALLENTRY){SysCall_GetSystemBrush, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetSystemPen] = (SYSCALLENTRY){SysCall_GetSystemPen, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_CreateBrush] = (SYSCALLENTRY){SysCall_CreateBrush, EXOS_PRIVILEGE_USER};

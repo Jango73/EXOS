@@ -1914,12 +1914,12 @@ UINT SysCall_EnumWindows(UINT Parameter) {
 /************************************************************************/
 
 /**
- * @brief Invoke the default window procedure.
+ * @brief Invoke the base window procedure.
  *
  * @param Parameter Pointer to MESSAGEINFO structure.
- * @return UINT Result of DefWindowFunc on success, 0 on error.
+ * @return UINT Result of BaseWindowFunc on success, 0 on error.
  */
-UINT SysCall_DefWindowFunc(UINT Parameter) {
+UINT SysCall_BaseWindowFunc(UINT Parameter) {
     LPMESSAGEINFO Message = (LPMESSAGEINFO)Parameter;
 
     SAFE_USE_INPUT_POINTER(Message, MESSAGEINFO) {
@@ -1931,7 +1931,7 @@ UINT SysCall_DefWindowFunc(UINT Parameter) {
             return 0;
         }
 
-        UINT Result = (UINT)DefWindowFunc(Message->Target, Message->Message, Message->Param1, Message->Param2);
+        UINT Result = (UINT)BaseWindowFunc(Message->Target, Message->Message, Message->Param1, Message->Param2);
 
         Message->Target = Original;
         return Result;

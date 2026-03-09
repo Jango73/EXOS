@@ -124,7 +124,7 @@ UINT SysCall_InvalidateWindowRect(UINT Parameter);
 UINT SysCall_GetWindowGC(UINT Parameter);
 UINT SysCall_ReleaseWindowGC(UINT Parameter);
 UINT SysCall_EnumWindows(UINT Parameter);
-UINT SysCall_DefWindowFunc(UINT Parameter);
+UINT SysCall_BaseWindowFunc(UINT Parameter);
 UINT SysCall_GetSystemBrush(UINT Parameter);
 UINT SysCall_GetSystemPen(UINT Parameter);
 UINT SysCall_CreateBrush(UINT Parameter);

@@ -241,7 +241,7 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_GetWindowGC 0x00000054
 #define SYSCALL_ReleaseWindowGC 0x00000055
 #define SYSCALL_EnumWindows 0x00000056
-#define SYSCALL_DefWindowFunc 0x00000057
+#define SYSCALL_BaseWindowFunc 0x00000057
 #define SYSCALL_GetSystemBrush 0x00000058
 #define SYSCALL_GetSystemPen 0x00000059
 #define SYSCALL_CreateBrush 0x0000005A

@@ -174,7 +174,7 @@ static U32 DesktopInternalTestWindowFunc(HANDLE Window, U32 Message, U32 Param1,
         }
     }
 
-    return DefWindowFunc(Window, Message, Param1, Param2);
+    return BaseWindowFunc(Window, Message, Param1, Param2);
 }
 
 /***************************************************************************/

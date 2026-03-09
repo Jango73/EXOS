@@ -295,7 +295,7 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
             return 1;
     }
 
-    return DefWindowFunc(Window, Message, Param1, Param2);
+    return BaseWindowFunc(Window, Message, Param1, Param2);
 }
 
 /***************************************************************************/

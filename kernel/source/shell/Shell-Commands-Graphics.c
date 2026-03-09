@@ -110,7 +110,7 @@ static U32 GfxSmokeWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2
         }
 
         default:
-            return DefWindowFunc(Window, Message, Param1, Param2);
+            return BaseWindowFunc(Window, Message, Param1, Param2);
     }
 }
 

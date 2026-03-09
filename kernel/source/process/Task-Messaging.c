@@ -63,6 +63,75 @@ static BOOL InterceptProcessControlMessage(LPPROCESS Process, U32 Message, U32 P
 static BOOL FetchProcessMessage(LPPROCESS Process, LPMESSAGEINFO Message, BOOL Remove);
 static BOOL FetchTaskMessage(LPTASK Task, LPMESSAGEINFO Message, BOOL Remove);
 static BOOL FindTaskMessageOffset(LPMESSAGEQUEUE Queue, HANDLE Target, U32 Message, UINT* Offset);
+static LPWINDOW_CLASS ResolveWindowDispatchClass(LPWINDOW Window, WINDOWFUNC Function);
+static void PushWindowDispatchContext(
+    LPTASK Task,
+    LPWINDOW Window,
+    LPWINDOW_CLASS WindowClass,
+    WINDOWFUNC Function,
+    LPVOID* PreviousWindow,
+    LPVOID* PreviousClass,
+    WINDOWFUNC* PreviousFunction);
+static void PopWindowDispatchContext(
+    LPTASK Task,
+    LPVOID PreviousWindow,
+    LPVOID PreviousClass,
+    WINDOWFUNC PreviousFunction);
+
+/************************************************************************/
+
+static LPWINDOW_CLASS ResolveWindowDispatchClass(LPWINDOW Window, WINDOWFUNC Function) {
+    LPWINDOW_CLASS This;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return NULL;
+
+    for (This = Window->Class; This != NULL; This = This->BaseClass) {
+        if (This->Function == Function) return This;
+    }
+
+    return Window->Class;
+}
+
+/************************************************************************/
+
+static void PushWindowDispatchContext(
+    LPTASK Task,
+    LPWINDOW Window,
+    LPWINDOW_CLASS WindowClass,
+    WINDOWFUNC Function,
+    LPVOID* PreviousWindow,
+    LPVOID* PreviousClass,
+    WINDOWFUNC* PreviousFunction) {
+    if (Task == NULL || Task->TypeID != KOID_TASK) return;
+    if (PreviousWindow == NULL || PreviousClass == NULL || PreviousFunction == NULL) return;
+
+    *PreviousWindow = Task->WindowDispatchWindow;
+    *PreviousClass = Task->WindowDispatchClass;
+    *PreviousFunction = Task->WindowDispatchFunction;
+
+    Task->WindowDispatchWindow = Window;
+    Task->WindowDispatchClass = WindowClass;
+    Task->WindowDispatchFunction = Function;
+    Task->WindowDispatchDepth++;
+}
+
+/************************************************************************/
+
+static void PopWindowDispatchContext(
+    LPTASK Task,
+    LPVOID PreviousWindow,
+    LPVOID PreviousClass,
+    WINDOWFUNC PreviousFunction) {
+    if (Task == NULL || Task->TypeID != KOID_TASK) return;
+
+    Task->WindowDispatchWindow = PreviousWindow;
+    Task->WindowDispatchClass = PreviousClass;
+    Task->WindowDispatchFunction = PreviousFunction;
+
+    if (Task->WindowDispatchDepth > 0) {
+        Task->WindowDispatchDepth--;
+    }
+}
 
 /************************************************************************/
 
@@ -753,9 +822,29 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
 
     if (Window != NULL && Window->TypeID == KOID_WINDOW) {
         SAFE_USE(Window->Function) {
+            LPVOID PreviousWindow = NULL;
+            LPVOID PreviousClass = NULL;
+            WINDOWFUNC PreviousFunction = NULL;
+            LPWINDOW_CLASS DispatchClass = ResolveWindowDispatchClass(Window, Window->Function);
+
+            SAFE_USE_VALID_ID(Window->Task, KOID_TASK) {
+                PushWindowDispatchContext(
+                    Window->Task,
+                    Window,
+                    DispatchClass,
+                    Window->Function,
+                    &PreviousWindow,
+                    &PreviousClass,
+                    &PreviousFunction);
+            }
+
             LOCK_WINDOW(&(Window->Mutex), "Window");
             Result = Window->Function(Target, Msg, Param1, Param2);
             UNLOCK_WINDOW(&(Window->Mutex), "Window");
+
+            SAFE_USE_VALID_ID(Window->Task, KOID_TASK) {
+                PopWindowDispatchContext(Window->Task, PreviousWindow, PreviousClass, PreviousFunction);
+            }
         }
     }
 
@@ -902,6 +991,10 @@ BOOL DispatchMessage(LPMESSAGEINFO Message) {
     SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
         SAFE_USE(Window->Function) {
             TargetHandle = EnsureHandle((LINEAR)Window);
+            LPVOID PreviousWindow = NULL;
+            LPVOID PreviousClass = NULL;
+            WINDOWFUNC PreviousFunction = NULL;
+            LPWINDOW_CLASS DispatchClass = ResolveWindowDispatchClass(Window, Window->Function);
 
             SAFE_USE_VALID_ID(Window->Task, KOID_TASK) {
                 SAFE_USE_VALID_ID(Window->Task->Process, KOID_PROCESS) {
@@ -911,9 +1004,24 @@ BOOL DispatchMessage(LPMESSAGEINFO Message) {
                 }
             }
 
+            SAFE_USE_VALID_ID(Window->Task, KOID_TASK) {
+                PushWindowDispatchContext(
+                    Window->Task,
+                    Window,
+                    DispatchClass,
+                    Window->Function,
+                    &PreviousWindow,
+                    &PreviousClass,
+                    &PreviousFunction);
+            }
+
             LOCK_WINDOW(&(Window->Mutex), "Window");
             Window->Function(TargetHandle, Message->Message, Message->Param1, Message->Param2);
             UNLOCK_WINDOW(&(Window->Mutex), "Window");
+
+            SAFE_USE_VALID_ID(Window->Task, KOID_TASK) {
+                PopWindowDispatchContext(Window->Task, PreviousWindow, PreviousClass, PreviousFunction);
+            }
             Result = TRUE;
         }
     }

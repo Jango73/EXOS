@@ -515,7 +515,7 @@ HANDLE SelectPen(HANDLE GC, HANDLE Pen) {
 
 /***************************************************************************/
 
-U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
+U32 BaseWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     MESSAGEINFO MessageInfo;
 
     MessageInfo.Header.Size = sizeof MessageInfo;
@@ -526,7 +526,7 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     MessageInfo.Param1 = Param1;
     MessageInfo.Param2 = Param2;
 
-    return (U32)exoscall(SYSCALL_DefWindowFunc, EXOS_PARAM(&MessageInfo));
+    return (U32)exoscall(SYSCALL_BaseWindowFunc, EXOS_PARAM(&MessageInfo));
 }
 
 /***************************************************************************/

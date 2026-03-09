@@ -104,7 +104,7 @@ BOOL Arc(LPARCINFO);
 BOOL Triangle(LPTRIANGLEINFO);
 BOOL SetWindowTimer(HANDLE Window, U32 TimerID, U32 IntervalMilliseconds);
 BOOL KillWindowTimer(HANDLE Window, U32 TimerID);
-U32 DefWindowFunc(HANDLE, U32, U32, U32);
+U32 BaseWindowFunc(HANDLE, U32, U32, U32);
 HANDLE WindowHitTest(HANDLE, LPPOINT);
 BOOL LoadTheme(LPCSTR Path);
 BOOL ActivateTheme(LPCSTR NameOrHandle);

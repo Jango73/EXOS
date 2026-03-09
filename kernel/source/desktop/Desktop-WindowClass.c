@@ -250,7 +250,7 @@ static LPWINDOW_CLASS WindowClassRegister(
 
 BOOL WindowClassInitializeRegistry(void) {
     if (WindowClassGetDefault() != NULL) return TRUE;
-    return WindowClassRegisterKernelClass(WINDOW_CLASS_DEFAULT_NAME, NULL, DefWindowFunc, 0) != NULL;
+    return WindowClassRegisterKernelClass(WINDOW_CLASS_DEFAULT_NAME, NULL, BaseWindowFunc, 0) != NULL;
 }
 
 /************************************************************************/

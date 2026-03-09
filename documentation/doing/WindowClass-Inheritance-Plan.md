@@ -15,10 +15,10 @@
 - [x] Add userland/kernel API to unregister window classes (`UnregisterWindowClass`).
 - [x] Extend window creation API so userland creates windows by class name/handle.
 
-## Step 3 - `BaseWindowFunc` and compatibility migration
-- [ ] Add `BaseWindowFunc(...)` as the public API (superclass call).
-- [ ] Implement superclass resolution from current dispatch context.
-- [ ] Keep temporary compatibility path from `DefWindowFunc` to `BaseWindowFunc`, then remove.
+## Step 3 - `BaseWindowFunc` dispatch chain
+- [x] Add `BaseWindowFunc(...)` as the public API (superclass call).
+- [x] Implement superclass resolution from current dispatch context.
+- [x] Remove external `DefWindowFunc` compatibility path.
 
 ## Step 4 - Window creation and component integration
 - [ ] Migrate desktop/windowing components to class inheritance chain.

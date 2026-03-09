@@ -1358,7 +1358,7 @@ static BOOL SetDesktopCaptureState(LPWINDOW Window, LPWINDOW CaptureWindow, I32 
  * @param Param2 Second parameter.
  * @return Message-specific result.
  */
-U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
+static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     switch (Message) {
         case EWM_CREATE: {
         } break;
@@ -1504,6 +1504,83 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     }
 
     return 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve one class pointer from one function in one inheritance chain.
+ * @param WindowClass Root class.
+ * @param Function Function to match.
+ * @return Matched class or NULL.
+ */
+static LPWINDOW_CLASS ResolveClassByFunction(LPWINDOW_CLASS WindowClass, WINDOWFUNC Function) {
+    LPWINDOW_CLASS This;
+
+    if (WindowClass == NULL || Function == NULL) return NULL;
+
+    for (This = WindowClass; This != NULL; This = This->BaseClass) {
+        if (This->Function == Function) return This;
+    }
+
+    return NULL;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Call the base class window function for one dispatch context.
+ * @param Window Window handle.
+ * @param Message Message identifier.
+ * @param Param1 First parameter.
+ * @param Param2 Second parameter.
+ * @return Result from base class callback or default behavior.
+ */
+U32 BaseWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
+    LPWINDOW This = (LPWINDOW)Window;
+    LPTASK Task = GetCurrentTask();
+    LPWINDOW_CLASS CurrentClass = NULL;
+    LPWINDOW_CLASS BaseClass = NULL;
+    LPVOID PreviousWindow = NULL;
+    LPVOID PreviousClass = NULL;
+    WINDOWFUNC PreviousFunction = NULL;
+    U32 Result;
+
+    SAFE_USE_VALID_ID(This, KOID_WINDOW) {
+        SAFE_USE_VALID_ID(Task, KOID_TASK) {
+            if (Task->WindowDispatchDepth > 0 && Task->WindowDispatchWindow == This) {
+                CurrentClass = (LPWINDOW_CLASS)Task->WindowDispatchClass;
+
+                if (CurrentClass == NULL || CurrentClass->TypeID != KOID_WINDOW_CLASS) {
+                    CurrentClass = ResolveClassByFunction(This->Class, Task->WindowDispatchFunction);
+                }
+
+                SAFE_USE_VALID_ID(CurrentClass, KOID_WINDOW_CLASS) { BaseClass = CurrentClass->BaseClass; }
+            }
+
+            if (BaseClass != NULL && BaseClass->TypeID == KOID_WINDOW_CLASS && BaseClass->Function != NULL) {
+                PreviousWindow = Task->WindowDispatchWindow;
+                PreviousClass = Task->WindowDispatchClass;
+                PreviousFunction = Task->WindowDispatchFunction;
+
+                Task->WindowDispatchWindow = This;
+                Task->WindowDispatchClass = BaseClass;
+                Task->WindowDispatchFunction = BaseClass->Function;
+                Task->WindowDispatchDepth++;
+
+                Result = BaseClass->Function(Window, Message, Param1, Param2);
+
+                Task->WindowDispatchWindow = PreviousWindow;
+                Task->WindowDispatchClass = PreviousClass;
+                Task->WindowDispatchFunction = PreviousFunction;
+                if (Task->WindowDispatchDepth > 0) Task->WindowDispatchDepth--;
+
+                return Result;
+            }
+        }
+    }
+
+    return DefaultWindowFunc(Window, Message, Param1, Param2);
 }
 
 /***************************************************************************/
@@ -1826,7 +1903,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
         } break;
 
         default:
-            return DefWindowFunc(Window, Message, Param1, Param2);
+            return BaseWindowFunc(Window, Message, Param1, Param2);
     }
 
     return 0;

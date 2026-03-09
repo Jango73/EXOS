@@ -93,7 +93,7 @@ HANDLE CreateBrush(COLOR, U32);
 HANDLE CreatePen(COLOR, U32);
 HANDLE SelectBrush(HANDLE, HANDLE);
 HANDLE SelectPen(HANDLE, HANDLE);
-U32 DefWindowFunc(HANDLE, U32, U32, U32);
+U32 BaseWindowFunc(HANDLE, U32, U32, U32);
 U32 SetPixel(HANDLE, U32, U32);
 U32 GetPixel(HANDLE, U32, U32);
 void Line(HANDLE, U32, U32, U32, U32);

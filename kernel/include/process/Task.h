@@ -80,6 +80,10 @@ struct tag_TASK {
     ARCH_TASK_DATA Arch;      // Architecture-specific task data
     UINT WakeUpTime;          // System time at which to wake up the task
     MESSAGEQUEUE MessageQueue;  // Message queue for this task
+    LPVOID WindowDispatchWindow;          // Current window in nested window dispatch
+    LPVOID WindowDispatchClass;           // Current class in nested window dispatch
+    WINDOWFUNC WindowDispatchFunction;    // Current function in nested window dispatch
+    U32 WindowDispatchDepth;              // Current nested window dispatch depth
     U32 DebugLockOrderDepth;  // Lock order checker stack depth
     U32 DebugLockOrderStack[32];  // Lock order checker role stack
 };
