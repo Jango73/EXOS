@@ -32,8 +32,6 @@
 #include "input/Mouse.h"
 #include "input/MouseDispatcher.h"
 #include "process/Task-Messaging.h"
-#include "desktop/components/WindowDockable.h"
-#include "desktop/components/WindowDockHost.h"
 #include "utils/Graphics-Utils.h"
 
 /***************************************************************************/
@@ -188,24 +186,7 @@ static BOOL BuildWindowRectAtPosition(LPWINDOW Window, LPPOINT Position, LPRECT 
 /***************************************************************************/
 
 /**
- * @brief Resolve whether one window is managed as a docked child.
- * @param Window Target window.
- * @return TRUE when the window is attached to one dock edge.
- */
-static BOOL IsWindowDocked(LPWINDOW Window) {
-    U32 Edge;
-
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
-    if (GetWindowProp((HANDLE)Window, WINDOW_DOCK_PROP_ENABLED) == 0) return FALSE;
-
-    Edge = GetWindowProp((HANDLE)Window, WINDOW_DOCK_PROP_EDGE);
-    return (Edge == DOCK_EDGE_TOP || Edge == DOCK_EDGE_BOTTOM || Edge == DOCK_EDGE_LEFT || Edge == DOCK_EDGE_RIGHT);
-}
-
-/***************************************************************************/
-
-/**
- * @brief Clamp one window rectangle inside the parent dock work rectangle.
+ * @brief Clamp one window rectangle inside one parent work rectangle.
  * @param Window Target window.
  * @param Parent Parent window.
  * @param WindowRect In-out candidate rectangle in parent coordinates.
@@ -214,12 +195,25 @@ static void ClampWindowRectToParentWorkRect(LPWINDOW Window, LPWINDOW Parent, LP
     RECT WorkRect;
     I32 Width;
     I32 Height;
+    I32 ParentWidth;
+    I32 ParentHeight;
+    U32 ParentStatus;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
     if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return;
     if (WindowRect == NULL) return;
-    if (IsWindowDocked(Window) != FALSE) return;
-    if (WindowDockHostGetWorkRect((HANDLE)Parent, &WorkRect) != DOCK_LAYOUT_STATUS_SUCCESS) return;
+    if ((Window->Status & WINDOW_STATUS_BYPASS_PARENT_WORK_RECT) != 0) return;
+
+    LockMutex(&(Parent->Mutex), INFINITY);
+    ParentStatus = Parent->Status;
+    ParentWidth = Parent->Rect.X2 - Parent->Rect.X1 + 1;
+    ParentHeight = Parent->Rect.Y2 - Parent->Rect.Y1 + 1;
+    if ((ParentStatus & WINDOW_STATUS_HAS_WORK_RECT) != 0) {
+        WorkRect = Parent->WorkRect;
+    } else {
+        WorkRect = (RECT){0, 0, ParentWidth - 1, ParentHeight - 1};
+    }
+    UnlockMutex(&(Parent->Mutex));
 
     Width = WindowRect->X2 - WindowRect->X1 + 1;
     Height = WindowRect->Y2 - WindowRect->Y1 + 1;
@@ -310,7 +304,7 @@ static BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect) {
     }
 
     (void)InvalidateWindowRect((HANDLE)Window, NULL);
-    (void)WindowDockHostHandleWindowRectChanged((HANDLE)Window);
+    (void)PostMessage((HANDLE)Window, EWM_NOTIFY, EWN_WINDOW_RECT_CHANGED, 0);
     return TRUE;
 }
 
@@ -804,6 +798,66 @@ HANDLE GetWindowParent(HANDLE Handle) {
 /***************************************************************************/
 
 /**
+ * @brief Set one window work rectangle in parent coordinates.
+ * @param Handle Window handle.
+ * @param WorkRect Work rectangle to assign.
+ * @return TRUE on success.
+ */
+BOOL SetWindowWorkRect(HANDLE Handle, LPRECT WorkRect) {
+    LPWINDOW This = (LPWINDOW)Handle;
+    RECT Candidate;
+
+    if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
+    if (WorkRect == NULL) return FALSE;
+    if (WorkRect->X1 > WorkRect->X2 || WorkRect->Y1 > WorkRect->Y2) return FALSE;
+
+    LockMutex(&(This->Mutex), INFINITY);
+    Candidate = *WorkRect;
+    if (Candidate.X1 < 0) Candidate.X1 = 0;
+    if (Candidate.Y1 < 0) Candidate.Y1 = 0;
+    if (Candidate.X2 > (This->Rect.X2 - This->Rect.X1)) Candidate.X2 = This->Rect.X2 - This->Rect.X1;
+    if (Candidate.Y2 > (This->Rect.Y2 - This->Rect.Y1)) Candidate.Y2 = This->Rect.Y2 - This->Rect.Y1;
+    if (Candidate.X1 > Candidate.X2 || Candidate.Y1 > Candidate.Y2) {
+        UnlockMutex(&(This->Mutex));
+        return FALSE;
+    }
+
+    This->WorkRect = Candidate;
+    This->Status |= WINDOW_STATUS_HAS_WORK_RECT;
+    UnlockMutex(&(This->Mutex));
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Get one window work rectangle in parent coordinates.
+ * @param Handle Window handle.
+ * @param WorkRect Receives work rectangle.
+ * @return TRUE on success.
+ */
+BOOL GetWindowWorkRect(HANDLE Handle, LPRECT WorkRect) {
+    LPWINDOW This = (LPWINDOW)Handle;
+
+    if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
+    if (WorkRect == NULL) return FALSE;
+
+    LockMutex(&(This->Mutex), INFINITY);
+    if ((This->Status & WINDOW_STATUS_HAS_WORK_RECT) != 0) {
+        *WorkRect = This->WorkRect;
+    } else {
+        WorkRect->X1 = 0;
+        WorkRect->Y1 = 0;
+        WorkRect->X2 = This->Rect.X2 - This->Rect.X1;
+        WorkRect->Y2 = This->Rect.Y2 - This->Rect.Y1;
+    }
+    UnlockMutex(&(This->Mutex));
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Set a custom property on a window.
  * @param Handle Window handle.
  * @param Name Property name.
@@ -853,10 +907,7 @@ Out:
     // Unlock access to resources
 
     UnlockMutex(&(This->Mutex));
-
-    if (WindowDockHostIsDockPropertyName(Name) != FALSE) {
-        WindowDockableHandlePropertyChanged(Handle);
-    }
+    (void)PostMessage(Handle, EWM_NOTIFY, EWN_WINDOW_PROPERTY_CHANGED, 0);
 
     return OldValue;
 }

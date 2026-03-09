@@ -122,13 +122,29 @@ static U32 WindowDockableApplyRect(LPDOCKABLE Dockable, LPDOCK_HOST Host, LPRECT
     LPWINDOW Window;
     RECT Rect;
 
+    UNUSED(Host);
+    UNUSED(WorkRect);
+
     if (Dockable == NULL || AssignedRect == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
     Window = (LPWINDOW)Dockable->Context;
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
     Rect = *AssignedRect;
-    if (MoveWindow((HANDLE)Window, &Rect) == FALSE) return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
+    LockMutex(&(Window->Mutex), INFINITY);
+    Window->Status |= WINDOW_STATUS_BYPASS_PARENT_WORK_RECT;
+    UnlockMutex(&(Window->Mutex));
+
+    if (MoveWindow((HANDLE)Window, &Rect) == FALSE) {
+        LockMutex(&(Window->Mutex), INFINITY);
+        Window->Status &= ~WINDOW_STATUS_BYPASS_PARENT_WORK_RECT;
+        UnlockMutex(&(Window->Mutex));
+        return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
+    }
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    Window->Status &= ~WINDOW_STATUS_BYPASS_PARENT_WORK_RECT;
+    UnlockMutex(&(Window->Mutex));
     (void)InvalidateWindowRect((HANDLE)Window, NULL);
     return DOCK_LAYOUT_STATUS_SUCCESS;
 }
@@ -298,6 +314,13 @@ U32 WindowDockableWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
             }
 
             WindowDockableApplyProperties(This);
+            return BaseWindowFunc(Window, Message, Param1, Param2);
+
+        case EWM_NOTIFY:
+            if (Param1 == EWN_WINDOW_PROPERTY_CHANGED) {
+                WindowDockableApplyProperties(This);
+                return 1;
+            }
             return BaseWindowFunc(Window, Message, Param1, Param2);
 
         case EWM_DELETE:

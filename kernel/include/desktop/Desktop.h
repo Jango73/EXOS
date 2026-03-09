@@ -83,6 +83,8 @@ BOOL GetWindowRect(HANDLE, LPRECT);
 BOOL MoveWindow(HANDLE, LPRECT);
 BOOL SizeWindow(HANDLE, LPPOINT);
 HANDLE GetWindowParent(HANDLE);
+BOOL SetWindowWorkRect(HANDLE Handle, LPRECT WorkRect);
+BOOL GetWindowWorkRect(HANDLE Handle, LPRECT WorkRect);
 BOOL GetDesktopScreenRect(LPDESKTOP, LPRECT);
 U32 SetWindowProp(HANDLE, LPCSTR, U32);
 U32 GetWindowProp(HANDLE, LPCSTR);

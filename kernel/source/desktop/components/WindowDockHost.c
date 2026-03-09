@@ -118,7 +118,7 @@ BOOL WindowDockHostClassEnsureRegistered(void) {
     DockHostClass = WindowClassRegisterKernelClass(
         WINDOW_DOCK_HOST_CLASS_NAME,
         WindowClassGetDefault(),
-        BaseWindowFunc,
+        WindowDockHostWindowFunc,
         sizeof(WINDOW_DOCK_HOST_CLASS_DATA));
 
     return DockHostClass != NULL;
@@ -267,7 +267,14 @@ U32 WindowDockHostRelayout(HANDLE Window) {
         Frame.Status = Status;
     }
 
-    return DockHostApplyLayoutFrame(&(Data->DockHost), &Frame, &Result);
+    Status = DockHostApplyLayoutFrame(&(Data->DockHost), &Frame, &Result);
+    if (Status != DOCK_LAYOUT_STATUS_SUCCESS) return Status;
+
+    if (DockHostGetWorkRect(&(Data->DockHost), &(Result.WorkRect)) == DOCK_LAYOUT_STATUS_SUCCESS) {
+        (void)SetWindowWorkRect((HANDLE)This, &(Result.WorkRect));
+    }
+
+    return Status;
 }
 
 /************************************************************************/
@@ -283,6 +290,29 @@ U32 WindowDockHostGetWorkRect(HANDLE Window, LPRECT WorkRect) {
     if (Data == NULL || Data->DockHostInitialized == FALSE) return DOCK_LAYOUT_STATUS_NOT_ATTACHED;
 
     return DockHostGetWorkRect(&(Data->DockHost), WorkRect);
+}
+
+/************************************************************************/
+
+U32 WindowDockHostWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
+    switch (Message) {
+        case EWM_CREATE:
+            (void)WindowDockHostHandleWindowRectChanged(Window);
+            return BaseWindowFunc(Window, Message, Param1, Param2);
+
+        case EWM_NOTIFY:
+            if (Param1 == EWN_WINDOW_RECT_CHANGED) {
+                (void)WindowDockHostHandleWindowRectChanged(Window);
+                return 1;
+            }
+            return BaseWindowFunc(Window, Message, Param1, Param2);
+
+        case EWM_DELETE:
+            WindowDockHostShutdownWindow(Window);
+            return BaseWindowFunc(Window, Message, Param1, Param2);
+    }
+
+    return BaseWindowFunc(Window, Message, Param1, Param2);
 }
 
 /************************************************************************/

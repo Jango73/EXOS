@@ -510,6 +510,7 @@ static U32 DockHostApplyEdgeBucket(
     }
 
     Thickness = DockHostResolveEdgeThickness(Requests, Bucket->Count);
+    UNUSED(Thickness);
     if (Edge == DOCK_EDGE_TOP || Edge == DOCK_EDGE_BOTTOM) {
         PrimaryStart = WorkRect->Y1 + EdgePolicy->MarginStart;
         PrimaryEnd = WorkRect->Y2 - EdgePolicy->MarginEnd;

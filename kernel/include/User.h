@@ -826,6 +826,10 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 // Window procedure result contract
 #define EWM_NOT_HANDLED 0xFFFFFFFF
 
+// Window notify codes (Param1 when Message == EWM_NOTIFY)
+#define EWN_WINDOW_RECT_CHANGED 0x00000001
+#define EWN_WINDOW_PROPERTY_CHANGED 0x00000002
+
 // Task messages define by userland apps begin here
 #define EM_USER 0x60000000
 

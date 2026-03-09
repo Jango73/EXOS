@@ -40,7 +40,6 @@
 #include "desktop/components/ShellBar.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
-#include "desktop/components/WindowDockHost.h"
 #include "Clock.h"
 #include "utils/Graphics-Utils.h"
 #include "utils/RateLimiter.h"
@@ -111,6 +110,7 @@ BOOL UpdateWindowScreenRectAndDirtyRegion(LPWINDOW Window, LPRECT Rect) {
     (void)RectRegionAddRect(&Window->DirtyRegion, Rect);
 
     UnlockMutex(&(Window->Mutex));
+    (void)PostMessage((HANDLE)Window, EWM_NOTIFY, EWN_WINDOW_RECT_CHANGED, 0);
     return TRUE;
 }
 
@@ -138,7 +138,6 @@ static void UpdateDesktopWindowRect(LPDESKTOP Desktop, I32 Width, I32 Height) {
         }
     }
 
-    (void)WindowDockHostHandleWindowRectChanged((HANDLE)Desktop->Window);
 }
 
 /***************************************************************************/
@@ -635,6 +634,7 @@ BOOL DeleteWindow(LPWINDOW This) {
     if (Desktop->Focus == This) Desktop->Focus = NULL;
 
     UnlockMutex(&(Desktop->Mutex));
+    (void)SendMessage((HANDLE)This, EWM_DELETE, 0, 0);
 
     //-------------------------------------
     // Lock access to the window
@@ -647,8 +647,6 @@ BOOL DeleteWindow(LPWINDOW This) {
     for (Node = This->Children->First; Node; Node = Node->Next) {
         DeleteWindow((LPWINDOW)Node);
     }
-
-    WindowDockHostShutdownWindow((HANDLE)This);
 
     if (This->ClassData != NULL) {
         KernelHeapFree(This->ClassData);

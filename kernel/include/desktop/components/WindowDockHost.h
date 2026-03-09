@@ -48,6 +48,7 @@ U32 WindowDockHostMarkDirty(HANDLE Window, U32 Reason);
 U32 WindowDockHostHandleWindowRectChanged(HANDLE Window);
 U32 WindowDockHostRelayout(HANDLE Window);
 U32 WindowDockHostGetWorkRect(HANDLE Window, LPRECT WorkRect);
+U32 WindowDockHostWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
 
 /************************************************************************/
 

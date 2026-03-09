@@ -137,6 +137,8 @@ UINT TaskGetMinimumSystemStackSize(void);
 #define WINDOW_STATUS_VISIBLE 0x0001
 #define WINDOW_STATUS_NEED_DRAW 0x0002
 #define WINDOW_STATUS_DRAWING 0x0004
+#define WINDOW_STATUS_HAS_WORK_RECT 0x0008
+#define WINDOW_STATUS_BYPASS_PARENT_WORK_RECT 0x0010
 
 /************************************************************************/
 // Other window values
@@ -192,6 +194,7 @@ struct tag_WINDOW {
     LPVOID ClassData;       // Window class private data
     RECT Rect;              // The rectangle of this window
     RECT ScreenRect;
+    RECT WorkRect;
     RECT DirtyRects[WINDOW_DIRTY_REGION_CAPACITY];
     RECT_REGION DirtyRegion;
     U32 WindowID;

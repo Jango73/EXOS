@@ -1902,11 +1902,11 @@ The desktop clock widget (`kernel/source/desktop/Desktop-ClockWidget.c`, `kernel
 
 #### Window dock host integration
 
-Docking host integration is centralized in `kernel/source/ui/layout/WindowDockHost.c` (`kernel/include/ui/layout/WindowDockHost.h`).
-`WindowDockHostClass` is a reusable base window class that provides one `DockHost` state per host window class data.
-Desktop root class registration derives from this base, so desktop and regular windows use the same docking host behavior path.
-Geometry changes call `WindowDockHostHandleWindowRectChanged`, which updates host rectangle and triggers relayout.
-Layout application uses the two-phase docking flow (`BuildLayoutFrame` then `ApplyLayoutFrame`) so structural layout computation stays separate from callback execution.
+Docking host integration is implemented by window classes in `kernel/source/desktop/components/WindowDockHost.c` and `kernel/source/desktop/components/WindowDockable.c`.
+`WindowDockHostClass` provides one `DockHost` state per host window class data, and root window class registration derives from this base.
+The windowing core remains dock-agnostic: it emits generic `EWM_NOTIFY` messages (`EWN_WINDOW_RECT_CHANGED`, `EWN_WINDOW_PROPERTY_CHANGED`) and does not read dock-specific window properties.
+Dock components subscribe to these notifications and update docking state (`WindowDockHostHandleWindowRectChanged`, relayout, attach/detach) in component code.
+Parent movement constraints use the generic window work rectangle API (`SetWindowWorkRect`, `GetWindowWorkRect`) so specialized layout components can publish host work areas without coupling core windowing paths to docking details.
 
 #### Theme architecture
 
