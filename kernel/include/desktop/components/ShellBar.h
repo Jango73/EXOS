@@ -21,8 +21,8 @@
 
 \************************************************************************/
 
-#ifndef DESKTOP_SHELL_BAR_H_INCLUDED
-#define DESKTOP_SHELL_BAR_H_INCLUDED
+#ifndef SHELL_BAR_H_INCLUDED
+#define SHELL_BAR_H_INCLUDED
 
 /************************************************************************/
 
@@ -30,13 +30,13 @@
 
 /************************************************************************/
 
-#define DESKTOP_SHELL_BAR_WINDOW_CLASS_NAME TEXT("DesktopShellBarWindowClass")
+#define SHELL_BAR_WINDOW_CLASS_NAME TEXT("ShellBarWindowClass")
 
 /************************************************************************/
 
-BOOL DesktopShellBarEnsureClassRegistered(void);
-BOOL DesktopShellBarCreate(LPDESKTOP Desktop);
-U32 DesktopShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
+BOOL ShellBarEnsureClassRegistered(void);
+BOOL ShellBarCreate(LPDESKTOP Desktop);
+U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
 
 /************************************************************************/
 

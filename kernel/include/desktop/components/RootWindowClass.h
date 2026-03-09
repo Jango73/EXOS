@@ -21,25 +21,28 @@
 
 \************************************************************************/
 
-#include "desktop/components/Desktop-RootWindowClass.h"
+#ifndef ROOT_WINDOW_CLASS_H_INCLUDED
+#define ROOT_WINDOW_CLASS_H_INCLUDED
 
 /************************************************************************/
 
-BOOL DesktopRootWindowClassEnsureRegistered(WINDOWFUNC WindowFunction) {
-    return WindowDockHostClassEnsureDerivedRegistered(DESKTOP_ROOT_WINDOW_CLASS_NAME, WindowFunction);
-}
+#include "desktop/Desktop.h"
+#include "desktop/components/WindowDockHost.h"
 
 /************************************************************************/
 
-LPDESKTOP_ROOT_WINDOW_CLASS_DATA DesktopRootWindowClassGetData(LPDESKTOP Desktop) {
-    LPWINDOW Window;
-
-    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return NULL;
-
-    Window = Desktop->Window;
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return NULL;
-
-    return (LPDESKTOP_ROOT_WINDOW_CLASS_DATA)WindowDockHostClassGetData(Window);
-}
+#define ROOT_WINDOW_CLASS_NAME TEXT("RootWindowClass")
 
 /************************************************************************/
+
+typedef WINDOW_DOCK_HOST_CLASS_DATA ROOT_WINDOW_CLASS_DATA;
+typedef LPWINDOW_DOCK_HOST_CLASS_DATA LPROOT_WINDOW_CLASS_DATA;
+
+/************************************************************************/
+
+BOOL RootWindowClassEnsureRegistered(WINDOWFUNC WindowFunction);
+LPROOT_WINDOW_CLASS_DATA RootWindowClassGetData(LPDESKTOP Desktop);
+
+/************************************************************************/
+
+#endif

@@ -36,8 +36,8 @@
 #include "Desktop.h"
 #include "Desktop-ModeSelector.h"
 #include "Desktop-ThemeTokens.h"
-#include "desktop/components/Desktop-RootWindowClass.h"
-#include "desktop/components/Desktop-ShellBar.h"
+#include "desktop/components/RootWindowClass.h"
+#include "desktop/components/ShellBar.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
 #include "desktop/components/WindowDockHost.h"
@@ -336,14 +336,14 @@ LPDESKTOP CreateDesktop(void) {
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;
     WindowInfo.Parent = NULL;
-    if (DesktopRootWindowClassEnsureRegistered(DesktopWindowFunc) == FALSE) {
+    if (RootWindowClassEnsureRegistered(DesktopWindowFunc) == FALSE) {
         DeleteList(This->Timers);
         KernelHeapFree(This);
         return NULL;
     }
 
     WindowInfo.WindowClass = 0;
-    WindowInfo.WindowClassName = DESKTOP_ROOT_WINDOW_CLASS_NAME;
+    WindowInfo.WindowClassName = ROOT_WINDOW_CLASS_NAME;
     WindowInfo.Function = NULL;
     WindowInfo.Style = 0;
     WindowInfo.ID = 0;
@@ -364,7 +364,7 @@ LPDESKTOP CreateDesktop(void) {
         return NULL;
     }
 
-    (void)DesktopShellBarCreate(This);
+    (void)ShellBarCreate(This);
     UpdateDesktopWindowRect(This, (I32)Console.Width, (I32)Console.Height);
 
     //-------------------------------------

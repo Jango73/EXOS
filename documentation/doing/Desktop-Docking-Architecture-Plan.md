@@ -5,7 +5,7 @@
 - Provide deterministic docking on all host edges (`TOP`, `BOTTOM`, `LEFT`, `RIGHT`) with multi-item stacking on each edge.
 - Support side-by-side dockables on the same edge with stable ordering rules.
 - Keep docking mechanics independent from desktop-specific widgets such as taskbar, launcher, and notification area.
-- Deliver one first desktop component (`DesktopShellBar`) implemented on top of the generic docking engine.
+- Deliver one first desktop component (`ShellBar`) implemented on top of the generic docking engine.
 
 ## Non-goals
 - No hard dependency on a specific visual style or theme recipe.
@@ -192,13 +192,13 @@ Deliverable:
 Deliverable:
 - Generic docking is usable inside normal windows, including multiple dockables on one edge.
 
-## Step 8 - DesktopShellBar component
+## Step 8 - ShellBar component
 - [x] Add component files:
-  - `kernel/include/desktop/components/Desktop-ShellBar.h`
-  - `kernel/source/desktop/components/Desktop-ShellBar.c`
-- [x] Implement `DesktopShellBar` as a dockable consumer of generic APIs.
+  - `kernel/include/desktop/components/ShellBar.h`
+  - `kernel/source/desktop/components/ShellBar.c`
+- [x] Implement `ShellBar` as a dockable consumer of generic APIs.
 - [ ] Support all four edges through dock state updates.
-- [x] Keep `DesktopShellBar` behavior-focused; all visual look is resolved from theme tokens.
+- [x] Keep `ShellBar` behavior-focused; all visual look is resolved from theme tokens.
 - [x] Keep visual/render logic isolated from docking logic and driven by theme runtime values only.
 - [ ] Reserve extension points for task list, launcher, tray, and clock zones.
 - [ ] Implement shell bar content slots as pluggable components.

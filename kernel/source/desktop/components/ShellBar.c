@@ -21,29 +21,29 @@
 
 \************************************************************************/
 
-#include "desktop/components/Desktop-ShellBar.h"
+#include "desktop/components/ShellBar.h"
 
 #include "desktop/components/WindowDockable.h"
 
 /************************************************************************/
 
-#define DESKTOP_SHELL_BAR_HEIGHT 32
+#define SHELL_BAR_HEIGHT 32
 
 /************************************************************************/
 
-BOOL DesktopShellBarEnsureClassRegistered(void) {
-    return WindowDockableClassEnsureDerivedRegistered(DESKTOP_SHELL_BAR_WINDOW_CLASS_NAME, DesktopShellBarWindowFunc);
+BOOL ShellBarEnsureClassRegistered(void) {
+    return WindowDockableClassEnsureDerivedRegistered(SHELL_BAR_WINDOW_CLASS_NAME, ShellBarWindowFunc);
 }
 
 /************************************************************************/
 
-BOOL DesktopShellBarCreate(LPDESKTOP Desktop) {
+BOOL ShellBarCreate(LPDESKTOP Desktop) {
     WINDOWINFO WindowInfo;
     LPWINDOW Window;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
     if (Desktop->Window == NULL || Desktop->Window->TypeID != KOID_WINDOW) return FALSE;
-    if (DesktopShellBarEnsureClassRegistered() == FALSE) return FALSE;
+    if (ShellBarEnsureClassRegistered() == FALSE) return FALSE;
 
     WindowInfo.Header.Size = sizeof(WINDOWINFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
@@ -51,7 +51,7 @@ BOOL DesktopShellBarCreate(LPDESKTOP Desktop) {
     WindowInfo.Window = NULL;
     WindowInfo.Parent = (HANDLE)Desktop->Window;
     WindowInfo.WindowClass = 0;
-    WindowInfo.WindowClassName = DESKTOP_SHELL_BAR_WINDOW_CLASS_NAME;
+    WindowInfo.WindowClassName = SHELL_BAR_WINDOW_CLASS_NAME;
     WindowInfo.Function = NULL;
     WindowInfo.Style = EWS_VISIBLE | EWS_BARE_SURFACE;
     WindowInfo.ID = 0x53484252;
@@ -67,7 +67,7 @@ BOOL DesktopShellBarCreate(LPDESKTOP Desktop) {
 
 /************************************************************************/
 
-U32 DesktopShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
+U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     switch (Message) {
         case EWM_CREATE:
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_ENABLED, 1);
@@ -75,9 +75,9 @@ U32 DesktopShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_PRIORITY, 0);
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_ORDER, 0);
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_SIZE_POLICY, DOCK_LAYOUT_POLICY_FIXED);
-            (void)SetWindowProp(Window, WINDOW_DOCK_PROP_SIZE_PREFERRED, DESKTOP_SHELL_BAR_HEIGHT);
-            (void)SetWindowProp(Window, WINDOW_DOCK_PROP_SIZE_MINIMUM, DESKTOP_SHELL_BAR_HEIGHT);
-            (void)SetWindowProp(Window, WINDOW_DOCK_PROP_SIZE_MAXIMUM, DESKTOP_SHELL_BAR_HEIGHT);
+            (void)SetWindowProp(Window, WINDOW_DOCK_PROP_SIZE_PREFERRED, SHELL_BAR_HEIGHT);
+            (void)SetWindowProp(Window, WINDOW_DOCK_PROP_SIZE_MINIMUM, SHELL_BAR_HEIGHT);
+            (void)SetWindowProp(Window, WINDOW_DOCK_PROP_SIZE_MAXIMUM, SHELL_BAR_HEIGHT);
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_SIZE_WEIGHT, 1);
             break;
     }
