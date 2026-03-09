@@ -100,6 +100,8 @@ static void InvalidateSiblingWindowsOnUncoveredRect(LPWINDOW Window, LPWINDOW Pa
     LPWINDOW Sibling;
     UINT Count;
     UINT Index;
+    I32 WindowOrder;
+    I32 SiblingOrder;
     BOOL IsVisible;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
@@ -108,6 +110,7 @@ static void InvalidateSiblingWindowsOnUncoveredRect(LPWINDOW Window, LPWINDOW Pa
 
     Count = 0;
     Siblings = NULL;
+    WindowOrder = Window->Order;
 
     LockMutex(&(Parent->Mutex), INFINITY);
     if (Parent->Children != NULL && Parent->Children->NumItems > 0) {
@@ -132,10 +135,12 @@ static void InvalidateSiblingWindowsOnUncoveredRect(LPWINDOW Window, LPWINDOW Pa
 
         LockMutex(&(Sibling->Mutex), INFINITY);
         IsVisible = ((Sibling->Status & WINDOW_STATUS_VISIBLE) != 0);
+        SiblingOrder = Sibling->Order;
         SiblingScreenRect = Sibling->ScreenRect;
         UnlockMutex(&(Sibling->Mutex));
 
         if (IsVisible == FALSE) continue;
+        if (SiblingOrder <= WindowOrder) continue;
         if (IntersectRect(&SiblingScreenRect, UncoveredRect, &Intersection) == FALSE) continue;
 
         GraphicsScreenRectToWindowRect(&SiblingScreenRect, &Intersection, &SiblingLocalRect);
