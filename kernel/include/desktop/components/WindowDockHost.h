@@ -29,21 +29,6 @@
 #include "desktop/Desktop-WindowClass.h"
 #include "ui/layout/DockHost.h"
 
-/************************************************************************/
-
-#define WINDOW_DOCK_HOST_CLASS_NAME TEXT("WindowDockHostClass")
-#define WINDOW_DOCK_PROP_ENABLED TEXT("dock.enabled")
-#define WINDOW_DOCK_PROP_EDGE TEXT("dock.edge")
-#define WINDOW_DOCK_PROP_PRIORITY TEXT("dock.priority")
-#define WINDOW_DOCK_PROP_ORDER TEXT("dock.order")
-#define WINDOW_DOCK_PROP_SIZE_POLICY TEXT("dock.size.policy")
-#define WINDOW_DOCK_PROP_SIZE_PREFERRED TEXT("dock.size.preferred")
-#define WINDOW_DOCK_PROP_SIZE_MINIMUM TEXT("dock.size.minimum")
-#define WINDOW_DOCK_PROP_SIZE_MAXIMUM TEXT("dock.size.maximum")
-#define WINDOW_DOCK_PROP_SIZE_WEIGHT TEXT("dock.size.weight")
-
-/************************************************************************/
-
 typedef struct tag_WINDOW_DOCK_HOST_CLASS_DATA {
     DOCK_HOST DockHost;
     BOOL DockHostInitialized;

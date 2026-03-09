@@ -28,12 +28,6 @@
 
 #include "desktop/components/WindowDockHost.h"
 
-/************************************************************************/
-
-#define WINDOW_DOCKABLE_CLASS_NAME TEXT("WindowDockableClass")
-
-/************************************************************************/
-
 typedef struct tag_WINDOW_DOCKABLE_CLASS_DATA {
     DOCKABLE Dockable;
     BOOL DockableInitialized;

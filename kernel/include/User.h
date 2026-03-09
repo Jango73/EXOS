@@ -775,6 +775,22 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 #define EWS_DECORATION_MASK (EWS_SYSTEM_DECORATED | EWS_CLIENT_DECORATED | EWS_BARE_SURFACE)
 
 /************************************************************************/
+// Window docking
+
+#define WINDOW_DOCK_HOST_CLASS_NAME TEXT("WindowDockHostClass")
+#define WINDOW_DOCKABLE_CLASS_NAME TEXT("WindowDockableClass")
+
+#define WINDOW_DOCK_PROP_ENABLED TEXT("dock.enabled")
+#define WINDOW_DOCK_PROP_EDGE TEXT("dock.edge")
+#define WINDOW_DOCK_PROP_PRIORITY TEXT("dock.priority")
+#define WINDOW_DOCK_PROP_ORDER TEXT("dock.order")
+#define WINDOW_DOCK_PROP_SIZE_POLICY TEXT("dock.size.policy")
+#define WINDOW_DOCK_PROP_SIZE_PREFERRED TEXT("dock.size.preferred")
+#define WINDOW_DOCK_PROP_SIZE_MINIMUM TEXT("dock.size.minimum")
+#define WINDOW_DOCK_PROP_SIZE_MAXIMUM TEXT("dock.size.maximum")
+#define WINDOW_DOCK_PROP_SIZE_WEIGHT TEXT("dock.size.weight")
+
+/************************************************************************/
 // Task and window messages
 
 #define ETM_NONE 0x00000000
