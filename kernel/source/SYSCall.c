@@ -1601,17 +1601,17 @@ UINT SysCall_HideWindow(UINT Parameter) {
 /************************************************************************/
 
 /**
- * @brief Move a window to a new position.
+ * @brief Move and/or resize one window.
  *
- * @param Parameter Pointer to WINDOWINFO containing the target window and new position.
+ * @param Parameter Pointer to WINDOWRECT containing the target window and new rectangle.
  * @return UINT TRUE on success.
  */
 UINT SysCall_MoveWindow(UINT Parameter) {
-    LPWINDOWINFO WindowInfo = (LPWINDOWINFO)Parameter;
+    LPWINDOWRECT WindowRect = (LPWINDOWRECT)Parameter;
 
-    SAFE_USE_INPUT_POINTER(WindowInfo, WINDOWINFO) {
-        LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowInfo->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)MoveWindow((HANDLE)Window, &(WindowInfo->WindowPosition)); }
+    SAFE_USE_INPUT_POINTER(WindowRect, WINDOWRECT) {
+        LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)MoveWindow((HANDLE)Window, &(WindowRect->Rect)); }
     }
 
     return 0;

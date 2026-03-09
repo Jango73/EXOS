@@ -155,24 +155,53 @@ static void InvalidateSiblingWindowsOnUncoveredRect(LPWINDOW Window, LPWINDOW Pa
 /***************************************************************************/
 
 /**
- * @brief Apply default move behavior and enqueue bounded damage.
+ * @brief Build one window rectangle preserving current size at one position.
  * @param Window Target window.
- * @param Position New window position relative to parent.
+ * @param Position New top-left position relative to parent.
+ * @param Rect Receives full window rectangle in parent coordinates.
  * @return TRUE on success.
  */
-static BOOL DefaultMoveWindow(LPWINDOW Window, LPPOINT Position) {
+static BOOL BuildWindowRectAtPosition(LPWINDOW Window, LPPOINT Position, LPRECT Rect) {
+    I32 Width;
+    I32 Height;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (Position == NULL || Rect == NULL) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    Width = Window->Rect.X2 - Window->Rect.X1 + 1;
+    Height = Window->Rect.Y2 - Window->Rect.Y1 + 1;
+    UnlockMutex(&(Window->Mutex));
+
+    if (Width <= 0 || Height <= 0) return FALSE;
+
+    Rect->X1 = Position->X;
+    Rect->Y1 = Position->Y;
+    Rect->X2 = Position->X + Width - 1;
+    Rect->Y2 = Position->Y + Height - 1;
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Apply default move/resize behavior and enqueue bounded damage.
+ * @param Window Target window.
+ * @param WindowRect New window rectangle relative to parent.
+ * @return TRUE on success.
+ */
+static BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect) {
     LPWINDOW Parent;
     RECT OldScreenRect;
     RECT NewScreenRect;
     RECT ParentOldRect;
     RECT ParentNewRect;
-    I32 Width;
-    I32 Height;
-    I32 DeltaX;
-    I32 DeltaY;
+    RECT OldRect;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
-    if (Position == NULL) return FALSE;
+    if (WindowRect == NULL) return FALSE;
+    if (WindowRect->X1 > WindowRect->X2 || WindowRect->Y1 > WindowRect->Y2) return FALSE;
 
     LockMutex(&(Window->Mutex), INFINITY);
 
@@ -183,24 +212,15 @@ static BOOL DefaultMoveWindow(LPWINDOW Window, LPPOINT Position) {
     }
 
     OldScreenRect = Window->ScreenRect;
-    Width = Window->Rect.X2 - Window->Rect.X1;
-    Height = Window->Rect.Y2 - Window->Rect.Y1;
-    DeltaX = Position->X - Window->Rect.X1;
-    DeltaY = Position->Y - Window->Rect.Y1;
-    if (DeltaX == 0 && DeltaY == 0) {
+    OldRect = Window->Rect;
+    if (WindowRect->X1 == OldRect.X1 && WindowRect->Y1 == OldRect.Y1 && WindowRect->X2 == OldRect.X2 &&
+        WindowRect->Y2 == OldRect.Y2) {
         UnlockMutex(&(Window->Mutex));
         return TRUE;
     }
 
-    Window->Rect.X1 = Position->X;
-    Window->Rect.Y1 = Position->Y;
-    Window->Rect.X2 = Position->X + Width;
-    Window->Rect.Y2 = Position->Y + Height;
-
-    Window->ScreenRect.X1 += DeltaX;
-    Window->ScreenRect.Y1 += DeltaY;
-    Window->ScreenRect.X2 += DeltaX;
-    Window->ScreenRect.Y2 += DeltaY;
+    Window->Rect = *WindowRect;
+    GraphicsWindowRectToScreenRect(&(Parent->ScreenRect), &(Window->Rect), &(Window->ScreenRect));
 
     NewScreenRect = Window->ScreenRect;
 
@@ -633,15 +653,13 @@ BOOL GetWindowRect(HANDLE Handle, LPRECT Rect) {
 /***************************************************************************/
 
 /**
- * @brief Move a window to a new position.
+ * @brief Move and/or resize one window.
  * @param Handle Window handle.
- * @param Position New position.
+ * @param Rect New window rectangle in parent coordinates.
  * @return TRUE on success.
  */
-BOOL MoveWindow(HANDLE Handle, LPPOINT Position) {
+BOOL MoveWindow(HANDLE Handle, LPRECT Rect) {
     LPWINDOW This = (LPWINDOW)Handle;
-    I32 X;
-    I32 Y;
 
     //-------------------------------------
     // Check validity of parameters
@@ -649,13 +667,9 @@ BOOL MoveWindow(HANDLE Handle, LPPOINT Position) {
     if (This == NULL) return FALSE;
     if (This->TypeID != KOID_WINDOW) return FALSE;
 
-    if (Position == NULL) return FALSE;
+    if (Rect == NULL) return FALSE;
 
-    X = Position->X;
-    Y = Position->Y;
-
-    if (PostMessage(Handle, EWM_MOVING, (U32)X, (U32)Y) == FALSE) return FALSE;
-    return PostMessage(Handle, EWM_MOVE, (U32)X, (U32)Y);
+    return DefaultSetWindowRect(This, Rect);
 }
 
 /***************************************************************************/
@@ -668,6 +682,9 @@ BOOL MoveWindow(HANDLE Handle, LPPOINT Position) {
  */
 BOOL SizeWindow(HANDLE Handle, LPPOINT Size) {
     LPWINDOW This = (LPWINDOW)Handle;
+    RECT NewRect;
+    I32 Width;
+    I32 Height;
 
     //-------------------------------------
     // Check validity of parameters
@@ -676,8 +693,19 @@ BOOL SizeWindow(HANDLE Handle, LPPOINT Size) {
     if (This->TypeID != KOID_WINDOW) return FALSE;
 
     if (Size == NULL) return FALSE;
+    if (Size->X <= 0 || Size->Y <= 0) return FALSE;
 
-    return TRUE;
+    Width = Size->X;
+    Height = Size->Y;
+
+    LockMutex(&(This->Mutex), INFINITY);
+    NewRect.X1 = This->Rect.X1;
+    NewRect.Y1 = This->Rect.Y1;
+    NewRect.X2 = NewRect.X1 + Width - 1;
+    NewRect.Y2 = NewRect.Y1 + Height - 1;
+    UnlockMutex(&(This->Mutex));
+
+    return DefaultSetWindowRect(This, &NewRect);
 }
 
 /***************************************************************************/
@@ -1391,7 +1419,12 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 NewPosition.Y -= ParentScreenRect.Y1;
             }
 
-            (void)MoveWindow(Window, &NewPosition);
+            {
+                RECT WindowRect;
+                if (BuildWindowRectAtPosition(This, &NewPosition, &WindowRect) != FALSE) {
+                    (void)MoveWindow(Window, &WindowRect);
+                }
+            }
         } break;
 
         case EWM_MOUSEUP: {
@@ -1408,11 +1441,13 @@ U32 DefWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
         case EWM_MOVE: {
             LPWINDOW This = (LPWINDOW)Window;
             POINT Position;
+            RECT WindowRect;
 
             Position.X = SIGNED(Param1);
             Position.Y = SIGNED(Param2);
 
-            if (DefaultMoveWindow(This, &Position)) {
+            if (BuildWindowRectAtPosition(This, &Position, &WindowRect) != FALSE &&
+                DefaultSetWindowRect(This, &WindowRect)) {
                 return 1;
             }
         } break;

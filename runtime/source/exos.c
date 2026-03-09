@@ -375,6 +375,26 @@ BOOL GetWindowClientRect(HANDLE Window, LPRECT Rect) {
 
 /***************************************************************************/
 
+BOOL MoveWindow(HANDLE Window, LPRECT Rect) {
+    WINDOWRECT WindowRect;
+
+    if (Window == NULL) return FALSE;
+    if (Rect == NULL) return FALSE;
+
+    WindowRect.Header.Size = sizeof WindowRect;
+    WindowRect.Header.Version = EXOS_ABI_VERSION;
+    WindowRect.Header.Flags = 0;
+    WindowRect.Window = Window;
+    WindowRect.Rect.X1 = Rect->X1;
+    WindowRect.Rect.Y1 = Rect->Y1;
+    WindowRect.Rect.X2 = Rect->X2;
+    WindowRect.Rect.Y2 = Rect->Y2;
+
+    return (BOOL)exoscall(SYSCALL_MoveWindow, EXOS_PARAM(&WindowRect));
+}
+
+/***************************************************************************/
+
 HANDLE GetSystemBrush(U32 Index) { return exoscall(SYSCALL_GetSystemBrush, EXOS_PARAM(Index)); }
 
 /***************************************************************************/

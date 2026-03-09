@@ -49,6 +49,30 @@ static U32 DesktopInternalStressNextRandom(U32* State) {
 /***************************************************************************/
 
 /**
+ * @brief Move one window while preserving its current size.
+ * @param Window Target window.
+ * @param Position New top-left position in parent coordinates.
+ * @return TRUE on success.
+ */
+static BOOL DesktopInternalMoveWindowToPosition(LPWINDOW Window, LPPOINT Position) {
+    RECT CurrentRect;
+    RECT NewRect;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (Position == NULL) return FALSE;
+    if (GetWindowRect((HANDLE)Window, &CurrentRect) == FALSE) return FALSE;
+
+    NewRect.X1 = Position->X;
+    NewRect.Y1 = Position->Y;
+    NewRect.X2 = Position->X + (CurrentRect.X2 - CurrentRect.X1);
+    NewRect.Y2 = Position->Y + (CurrentRect.Y2 - CurrentRect.Y1);
+
+    return MoveWindow((HANDLE)Window, &NewRect);
+}
+
+/***************************************************************************/
+
+/**
  * @brief Move one window progressively toward one X target with variable steps.
  * @param Window Target window.
  * @param Position In-out current target position.
@@ -114,7 +138,7 @@ static BOOL DesktopInternalStressMoveTowardX(
         }
 
         Position->Y = *CurrentY;
-        (void)MoveWindow((HANDLE)Window, Position);
+        (void)DesktopInternalMoveWindowToPosition(Window, Position);
         Sleep(20);
     }
 
@@ -343,7 +367,7 @@ BOOL DesktopInternalRunStressDrag(LPDESKTOP Desktop, U32 Cycles) {
 
     Position.Y = StartY;
     Position.X = StartX;
-    (void)MoveWindow((HANDLE)FirstWindow, &Position);
+    (void)DesktopInternalMoveWindowToPosition(FirstWindow, &Position);
     Sleep(40);
 
     CurrentY = StartY;
@@ -400,7 +424,7 @@ BOOL DesktopInternalRunStressDrag(LPDESKTOP Desktop, U32 Cycles) {
 
     Position.X = StartX;
     Position.Y = StartY;
-    (void)MoveWindow((HANDLE)FirstWindow, &Position);
+    (void)DesktopInternalMoveWindowToPosition(FirstWindow, &Position);
     DEBUG(TEXT("[DesktopInternalRunStressDrag] Completed cycles=%u"), Cycles);
     return TRUE;
 }

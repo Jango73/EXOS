@@ -80,7 +80,7 @@ BOOL RequestWindowDraw(HANDLE Handle);
 BOOL ShowWindow(HANDLE, BOOL);
 BOOL BringWindowToFront(HANDLE);
 BOOL GetWindowRect(HANDLE, LPRECT);
-BOOL MoveWindow(HANDLE, LPPOINT);
+BOOL MoveWindow(HANDLE, LPRECT);
 BOOL SizeWindow(HANDLE, LPPOINT);
 HANDLE GetWindowParent(HANDLE);
 BOOL GetDesktopScreenRect(LPDESKTOP, LPRECT);
