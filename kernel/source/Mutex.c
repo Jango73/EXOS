@@ -115,7 +115,7 @@ LPMUTEX CreateMutex(void) {
  * @return TRUE on success, FALSE on failure.
  */
 BOOL DeleteMutex(LPMUTEX Mutex) {
-    SAFE_USE_VALID_ID(Mutex, KOID_MUTEX) {
+    if (Mutex != NULL && Mutex->TypeID == KOID_MUTEX) {
         ReleaseKernelObject(Mutex);
     }
 
@@ -154,10 +154,10 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
         SAFE_USE_ID_2(TaskList->First, TaskList->First->Next, KOID_TASK) {
             Task = GetCurrentTask();
 
-            SAFE_USE_VALID_ID(Task, KOID_TASK) {
+            if (Task != NULL && Task->TypeID == KOID_TASK) {
                 Process = Task->Process;
 
-                SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+                if (Process != NULL && Process->TypeID == KOID_PROCESS) {
                     if (Mutex->Task == Task) {
                         Mutex->Lock++;
                         Ret = Mutex->Lock;
