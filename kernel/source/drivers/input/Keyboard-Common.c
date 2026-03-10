@@ -175,25 +175,47 @@ void RouteKeyUp(U8 VirtualKey) {
 
 /***************************************************************************/
 
-static BOOL FetchKeyFromMessageQueue(BOOL RemoveKeyDown, BOOL PurgeKeyUp, LPKEYCODE KeyCode) {
+static LPPROCESS LockCurrentProcessMessageQueue(void) {
     LPTASK Task = GetCurrentTask();
     LPPROCESS Process = NULL;
+
+    SAFE_USE_VALID_ID(Task, KOID_TASK) { Process = Task->Process; }
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+        if (Process->MessageQueue.MessageBuffer.Entries == NULL ||
+            Process->MessageQueue.MessageBuffer.Capacity == 0) {
+            return NULL;
+        }
+    }
+
+    LockMutex(&(Process->Mutex), INFINITY);
+    LockMutex(&(Process->MessageQueue.Mutex), INFINITY);
+
+    return Process;
+}
+
+/***************************************************************************/
+
+static void UnlockCurrentProcessMessageQueue(LPPROCESS Process) {
+    if (Process == NULL) {
+        return;
+    }
+
+    UnlockMutex(&(Process->MessageQueue.Mutex));
+    UnlockMutex(&(Process->Mutex));
+}
+
+/***************************************************************************/
+
+static BOOL FetchKeyFromMessageQueue(BOOL RemoveKeyDown, BOOL PurgeKeyUp, LPKEYCODE KeyCode) {
+    LPPROCESS Process;
     BOOL Found = FALSE;
     MESSAGE CurrentMessage;
     UINT Offset = 0;
 
     if (KeyCode == NULL) return FALSE;
 
-    SAFE_USE_VALID_ID(Task, KOID_TASK) { Process = Task->Process; }
-    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
-        if (Process->MessageQueue.MessageBuffer.Entries == NULL ||
-            Process->MessageQueue.MessageBuffer.Capacity == 0) {
-            return FALSE;
-        }
-    }
-
-    LockMutex(&(Process->Mutex), INFINITY);
-    LockMutex(&(Process->MessageQueue.Mutex), INFINITY);
+    Process = LockCurrentProcessMessageQueue();
+    if (Process == NULL) return FALSE;
 
     while (Offset < MessageQueueBufferGetCount(&(Process->MessageQueue.MessageBuffer))) {
         if (MessageQueueBufferReadAt(&(Process->MessageQueue.MessageBuffer), Offset, &CurrentMessage) == FALSE) {
@@ -218,8 +240,7 @@ static BOOL FetchKeyFromMessageQueue(BOOL RemoveKeyDown, BOOL PurgeKeyUp, LPKEYC
         Offset++;
     }
 
-    UnlockMutex(&(Process->MessageQueue.Mutex));
-    UnlockMutex(&(Process->Mutex));
+    UnlockCurrentProcessMessageQueue(Process);
 
     return Found;
 }
@@ -227,24 +248,15 @@ static BOOL FetchKeyFromMessageQueue(BOOL RemoveKeyDown, BOOL PurgeKeyUp, LPKEYC
 /***************************************************************************/
 
 static BOOL PeekKeyInMessageQueue(LPKEYCODE KeyCode) {
-    LPTASK Task = GetCurrentTask();
-    LPPROCESS Process = NULL;
+    LPPROCESS Process;
     BOOL Found = FALSE;
     MESSAGE CurrentMessage;
     UINT Offset = 0;
 
     if (KeyCode == NULL) return FALSE;
 
-    SAFE_USE_VALID_ID(Task, KOID_TASK) { Process = Task->Process; }
-    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
-        if (Process->MessageQueue.MessageBuffer.Entries == NULL ||
-            Process->MessageQueue.MessageBuffer.Capacity == 0) {
-            return FALSE;
-        }
-    }
-
-    LockMutex(&(Process->Mutex), INFINITY);
-    LockMutex(&(Process->MessageQueue.Mutex), INFINITY);
+    Process = LockCurrentProcessMessageQueue();
+    if (Process == NULL) return FALSE;
 
     for (Offset = 0; Offset < MessageQueueBufferGetCount(&(Process->MessageQueue.MessageBuffer)); Offset++) {
         if (MessageQueueBufferReadAt(&(Process->MessageQueue.MessageBuffer), Offset, &CurrentMessage) == FALSE) {
@@ -259,8 +271,7 @@ static BOOL PeekKeyInMessageQueue(LPKEYCODE KeyCode) {
         }
     }
 
-    UnlockMutex(&(Process->MessageQueue.Mutex));
-    UnlockMutex(&(Process->Mutex));
+    UnlockCurrentProcessMessageQueue(Process);
 
     return Found;
 }
