@@ -131,20 +131,14 @@ static U32 WindowDockableApplyRect(LPDOCKABLE Dockable, LPDOCK_HOST Host, LPRECT
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
     Rect = *AssignedRect;
-    LockMutex(&(Window->Mutex), INFINITY);
-    Window->Status |= WINDOW_STATUS_BYPASS_PARENT_WORK_RECT;
-    UnlockMutex(&(Window->Mutex));
+    (void)SetWindowProp((HANDLE)Window, WINDOW_PROP_BYPASS_PARENT_WORK_RECT, 1);
 
     if (MoveWindow((HANDLE)Window, &Rect) == FALSE) {
-        LockMutex(&(Window->Mutex), INFINITY);
-        Window->Status &= ~WINDOW_STATUS_BYPASS_PARENT_WORK_RECT;
-        UnlockMutex(&(Window->Mutex));
+        (void)SetWindowProp((HANDLE)Window, WINDOW_PROP_BYPASS_PARENT_WORK_RECT, 0);
         return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
     }
 
-    LockMutex(&(Window->Mutex), INFINITY);
-    Window->Status &= ~WINDOW_STATUS_BYPASS_PARENT_WORK_RECT;
-    UnlockMutex(&(Window->Mutex));
+    (void)SetWindowProp((HANDLE)Window, WINDOW_PROP_BYPASS_PARENT_WORK_RECT, 0);
     (void)InvalidateWindowRect((HANDLE)Window, NULL);
     return DOCK_LAYOUT_STATUS_SUCCESS;
 }
@@ -166,7 +160,7 @@ static void WindowDockableApplyProperties(LPWINDOW Window) {
     Data = WindowDockableClassGetData(Window);
     if (Data == NULL || Data->DockableInitialized == FALSE) return;
 
-    HostWindow = Window->ParentWindow;
+    HostWindow = (LPWINDOW)GetWindowParent((HANDLE)Window);
     if (HostWindow == NULL || HostWindow->TypeID != KOID_WINDOW) return;
 
     Enabled = GetWindowProp((HANDLE)Window, WINDOW_DOCK_PROP_ENABLED);
@@ -326,7 +320,7 @@ U32 WindowDockableWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
         case EWM_DELETE:
             Data = WindowDockableClassGetData(This);
             if (Data != NULL && Data->DockableAttached != FALSE) {
-                HostWindow = This->ParentWindow;
+                HostWindow = (LPWINDOW)GetWindowParent(Window);
                 if (HostWindow != NULL && HostWindow->TypeID == KOID_WINDOW) {
                     (void)WindowDockHostDetachDockable((HANDLE)HostWindow, &(Data->Dockable));
                     (void)WindowDockHostRelayout((HANDLE)HostWindow);

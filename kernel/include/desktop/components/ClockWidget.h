@@ -21,8 +21,8 @@
 
 \************************************************************************/
 
-#ifndef DESKTOP_CLOCK_WIDGET_H_INCLUDED
-#define DESKTOP_CLOCK_WIDGET_H_INCLUDED
+#ifndef DESKTOP_COMPONENTS_CLOCK_WIDGET_H_INCLUDED
+#define DESKTOP_COMPONENTS_CLOCK_WIDGET_H_INCLUDED
 
 /***************************************************************************/
 

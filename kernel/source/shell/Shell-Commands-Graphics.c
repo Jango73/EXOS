@@ -80,7 +80,7 @@ static U32 GfxSmokeWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2
             RECTINFO RectangleInfo;
             LINEINFO LineInfo;
 
-            GraphicsContext = GetWindowGC(Window);
+            GraphicsContext = BeginWindowDraw(Window);
             if (GraphicsContext == NULL) {
                 return 0;
             }

@@ -94,8 +94,8 @@ Deliverable:
 
 ## Step 1 - Generic API and type model
 - [x] Add public generic headers:
-  - `kernel/include/ui/layout/Dockable.h`
-  - `kernel/include/ui/layout/DockHost.h`
+  - `kernel/include/desktop/components/Dockable.h`
+  - `kernel/include/desktop/components/DockHost.h`
 - [x] Add central enums and structs:
   - `DOCK_EDGE`
   - `DOCK_LAYOUT_POLICY`
@@ -114,7 +114,7 @@ Deliverable:
 - Header-level docking interface ready for desktop and window modules.
 
 ## Step 2 - Core Dockable implementation
-- [x] Implement `Dockable.c` in `kernel/source/ui/layout`.
+- [x] Implement `Dockable.c` in `kernel/source/desktop/components`.
 - [x] Add lifecycle helpers for init/reset without global state.
 - [x] Track immutable identity and mutable docking state separately.
 - [x] Validate edge/size/order updates before committing state.
@@ -124,7 +124,7 @@ Deliverable:
 - Reusable dockable object with validated state transitions.
 
 ## Step 3 - Core DockHost implementation
-- [x] Implement `DockHost.c` in `kernel/source/ui/layout`.
+- [x] Implement `DockHost.c` in `kernel/source/desktop/components`.
 - [x] Support attach/detach operations for multiple dockables.
 - [x] Maintain per-edge ordered collections with deterministic tie-break.
 - [x] Implement full layout pass:

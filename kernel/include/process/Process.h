@@ -144,6 +144,8 @@ UINT TaskGetMinimumSystemStackSize(void);
 // Other window values
 
 #define WINDOW_DIRTY_REGION_CAPACITY 32
+#define WINDOW_DRAW_CONTEXT_ACTIVE 0x00000001
+#define WINDOW_DRAW_CONTEXT_CLIENT_COORDINATES 0x00000002
 
 /************************************************************************/
 
@@ -197,6 +199,10 @@ struct tag_WINDOW {
     RECT WorkRect;
     RECT DirtyRects[WINDOW_DIRTY_REGION_CAPACITY];
     RECT_REGION DirtyRegion;
+    RECT DrawSurfaceRect;
+    RECT DrawClipRect;
+    POINT DrawOrigin;
+    U32 DrawContextFlags;
     U32 WindowID;
     U32 Style;
     U32 Status;

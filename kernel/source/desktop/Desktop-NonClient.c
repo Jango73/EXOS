@@ -371,7 +371,7 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE GC, LPRECT Rect) {
  * @param Rect Full window rectangle in window coordinates.
  * @return TRUE when a client area was drawn.
  */
-static BOOL DrawWindowClientAreaFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
+BOOL DrawWindowClientArea(HANDLE Window, HANDLE GC, LPRECT Rect) {
     RECT ClientRect;
     HANDLE ClientBrush;
     LPBRUSH ClientBrushPtr;
@@ -561,8 +561,6 @@ BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect) {
     if (Window == NULL) return FALSE;
     if (GC == NULL) return FALSE;
     if (Rect == NULL) return FALSE;
-
-    (void)DrawWindowClientAreaFromTheme(Window, GC, Rect);
 
     if (DesktopThemeDrawRecipeForElementState(Window, GC, Rect, TEXT("window.frame"), TEXT("normal"))) {
         (void)DrawWindowTitleBarFromTheme(GC, Rect);

@@ -26,6 +26,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Desktop.h"
+#include "../desktop/Desktop-Private.h"
 #include "process/Process-Control.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
@@ -871,7 +872,11 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
 
             LOCK_WINDOW(&(Window->Mutex), "Window");
             BeginWindowDrawDispatchState(Window, Msg);
-            Result = Window->Function(Target, Msg, Param1, Param2);
+            if (Msg == EWM_DRAW) {
+                Result = DesktopDispatchWindowDraw(Window, Target, Param1, Param2) != FALSE;
+            } else {
+                Result = Window->Function(Target, Msg, Param1, Param2);
+            }
             EndWindowDrawDispatchState(Window, Msg);
             UNLOCK_WINDOW(&(Window->Mutex), "Window");
 
@@ -1050,7 +1055,11 @@ BOOL DispatchMessage(LPMESSAGEINFO Message) {
 
             LOCK_WINDOW(&(Window->Mutex), "Window");
             BeginWindowDrawDispatchState(Window, Message->Message);
-            Window->Function(TargetHandle, Message->Message, Message->Param1, Message->Param2);
+            if (Message->Message == EWM_DRAW) {
+                (void)DesktopDispatchWindowDraw(Window, TargetHandle, Message->Param1, Message->Param2);
+            } else {
+                Window->Function(TargetHandle, Message->Message, Message->Param1, Message->Param2);
+            }
             EndWindowDrawDispatchState(Window, Message->Message);
             UNLOCK_WINDOW(&(Window->Mutex), "Window");
 

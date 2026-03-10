@@ -64,6 +64,9 @@ BOOL BuildWindowDrawClipRegion(
     LPRECT ClipStorage,
     UINT ClipCapacity
 );
+BOOL DesktopDispatchWindowDraw(LPWINDOW Window, HANDLE TargetHandle, U32 Param1, U32 Param2);
+BOOL DesktopGetWindowDrawSurfaceRect(LPWINDOW Window, LPRECT Rect);
+BOOL DesktopGetWindowDrawClipRect(LPWINDOW Window, LPRECT Rect);
 BOOL BuildWindowRectAtPosition(LPWINDOW Window, LPPOINT Position, LPRECT Rect);
 BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect);
 BOOL GetWindowScreenRectSnapshot(LPWINDOW Window, LPRECT Rect);

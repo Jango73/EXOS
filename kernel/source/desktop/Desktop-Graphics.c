@@ -27,7 +27,7 @@
 #include "Desktop-ThemeResolver.h"
 #include "Desktop-ThemeTokens.h"
 #include "desktop/components/ShellBar.h"
-#include "Desktop-ClockWidget.h"
+#include "desktop/components/ClockWidget.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Desktop.h"
@@ -40,6 +40,7 @@
 
 #define DESKTOP_SHELL_BAR_CLOCK_WINDOW_ID 0x5342434C
 #define DESKTOP_USE_TEMPORARY_FAST_ROOT_FILL 0
+#define DESKTOP_SHELL_BAR_CLOCK_PROP TEXT("desktop.shellbar.clock")
 
 /***************************************************************************/
 
@@ -69,27 +70,26 @@ static SYSTEM_DRAW_OBJECT_ENTRY SystemDrawObjects[] = {
 /***************************************************************************/
 
 /**
- * @brief Find one direct child window by identifier.
+ * @brief Find one direct child window by property value.
  * @param Parent Parent window.
- * @param WindowID Child identifier.
+ * @param Name Property name.
+ * @param Value Property value.
  * @return Matching child or NULL.
  */
-static LPWINDOW DesktopGraphicsFindDirectChildByID(LPWINDOW Parent, U32 WindowID) {
-    LPLISTNODE Node;
-    LPWINDOW Candidate;
+static LPWINDOW DesktopGraphicsFindDirectChildByProp(LPWINDOW Parent, LPCSTR Name, U32 Value) {
+    U32 ChildCount;
+    U32 ChildIndex;
+    HANDLE ChildWindow;
 
     if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return NULL;
+    if (Name == NULL) return NULL;
 
-    LockMutex(&(Parent->Mutex), INFINITY);
-    for (Node = Parent->Children != NULL ? Parent->Children->First : NULL; Node != NULL; Node = Node->Next) {
-        Candidate = (LPWINDOW)Node;
-        if (Candidate == NULL || Candidate->TypeID != KOID_WINDOW) continue;
-        if (Candidate->WindowID == WindowID) {
-            UnlockMutex(&(Parent->Mutex));
-            return Candidate;
-        }
+    ChildCount = GetWindowChildCount((HANDLE)Parent);
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        ChildWindow = GetWindowChild((HANDLE)Parent, ChildIndex);
+        if (ChildWindow == NULL) continue;
+        if (GetWindowProp(ChildWindow, Name) == Value) return (LPWINDOW)ChildWindow;
     }
-    UnlockMutex(&(Parent->Mutex));
 
     return NULL;
 }
@@ -114,7 +114,7 @@ static BOOL DesktopGraphicsEnsureShellBarClock(LPDESKTOP Desktop) {
     ComponentsSlot = ShellBarGetSlotWindow(Desktop, SHELL_BAR_SLOT_COMPONENTS);
     if (ComponentsSlot == NULL || ComponentsSlot->TypeID != KOID_WINDOW) return FALSE;
 
-    ExistingClockWindow = DesktopGraphicsFindDirectChildByID(ComponentsSlot, DESKTOP_SHELL_BAR_CLOCK_WINDOW_ID);
+    ExistingClockWindow = DesktopGraphicsFindDirectChildByProp(ComponentsSlot, DESKTOP_SHELL_BAR_CLOCK_PROP, 1);
     if (ExistingClockWindow != NULL && ExistingClockWindow->TypeID == KOID_WINDOW) {
         if (GetWindowRect((HANDLE)ComponentsSlot, &SlotRect) != FALSE) {
             (void)MoveWindow((HANDLE)ExistingClockWindow, &SlotRect);
@@ -141,6 +141,7 @@ static BOOL DesktopGraphicsEnsureShellBarClock(LPDESKTOP Desktop) {
 
     ClockWindow = CreateWindow(&WindowInfo);
     if (ClockWindow == NULL) return FALSE;
+    (void)SetWindowProp((HANDLE)ClockWindow, DESKTOP_SHELL_BAR_CLOCK_PROP, 1);
 
     if (GetWindowRect((HANDLE)ComponentsSlot, &SlotRect) != FALSE) {
         (void)MoveWindow((HANDLE)ClockWindow, &SlotRect);
@@ -292,7 +293,7 @@ static void ClampWindowRectToParentWorkRect(LPWINDOW Window, LPWINDOW Parent, LP
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
     if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return;
     if (WindowRect == NULL) return;
-    if ((Window->Status & WINDOW_STATUS_BYPASS_PARENT_WORK_RECT) != 0) return;
+    if (GetWindowProp((HANDLE)Window, WINDOW_PROP_BYPASS_PARENT_WORK_RECT) != 0) return;
 
     LockMutex(&(Parent->Mutex), INFINITY);
     ParentStatus = Parent->Status;
@@ -869,25 +870,6 @@ BOOL SizeWindow(HANDLE Handle, LPPOINT Size) {
 /***************************************************************************/
 
 /**
- * @brief Retrieve the parent of a window.
- * @param Handle Window handle.
- * @return Handle of the parent window.
- */
-HANDLE GetWindowParent(HANDLE Handle) {
-    LPWINDOW This = (LPWINDOW)Handle;
-
-    //-------------------------------------
-    // Check validity of parameters
-
-    if (This == NULL) return FALSE;
-    if (This->TypeID != KOID_WINDOW) return FALSE;
-
-    return (HANDLE)This->ParentWindow;
-}
-
-/***************************************************************************/
-
-/**
  * @brief Set one window work rectangle in parent coordinates.
  * @param Handle Window handle.
  * @param WorkRect Work rectangle to assign.
@@ -1085,6 +1067,15 @@ HANDLE GetWindowGC(HANDLE Handle) {
 
     Context->Origin.X = This->ScreenRect.X1;
     Context->Origin.Y = This->ScreenRect.Y1;
+
+    if ((This->DrawContextFlags & WINDOW_DRAW_CONTEXT_ACTIVE) != 0) {
+        Context->Origin.X = This->DrawOrigin.X;
+        Context->Origin.Y = This->DrawOrigin.Y;
+        Context->LoClip.X = This->DrawClipRect.X1;
+        Context->LoClip.Y = This->DrawClipRect.Y1;
+        Context->HiClip.X = This->DrawClipRect.X2;
+        Context->HiClip.Y = This->DrawClipRect.Y2;
+    }
 
     /*
       Context->LoClip.X = This->ScreenRect.X1;
@@ -1797,37 +1788,14 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             HANDLE GC;
             RECTINFO RectInfo;
             RECT Rect;
-            RECT ClipStorage[WINDOW_DIRTY_REGION_CAPACITY];
-            RECT_REGION ClipRegion;
-            RECT ClipRect;
             RECT RootVisibleStorage[WINDOW_DIRTY_REGION_CAPACITY];
             RECT_REGION RootVisibleRegion;
             RECT RootVisibleRect;
             UINT RootVisibleIndex;
-            UINT ClipIndex;
             BRUSH Brush;
             COLOR Background;
             BOOL HasBackground;
-            BOOL DrawingMarked = FALSE;
-
-            SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
-                LockMutex(&(((LPWINDOW)Window)->Mutex), INFINITY);
-                ((LPWINDOW)Window)->Status &= ~WINDOW_STATUS_NEED_DRAW;
-                ((LPWINDOW)Window)->Status |= WINDOW_STATUS_DRAWING;
-                DrawingMarked = TRUE;
-                UnlockMutex(&(((LPWINDOW)Window)->Mutex));
-            }
-
-            if (BuildWindowDrawClipRegion((LPWINDOW)Window, &ClipRegion, ClipStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) {
-                if (DrawingMarked != FALSE) {
-                    SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
-                        LockMutex(&(((LPWINDOW)Window)->Mutex), INFINITY);
-                        ((LPWINDOW)Window)->Status &= ~WINDOW_STATUS_DRAWING;
-                        UnlockMutex(&(((LPWINDOW)Window)->Mutex));
-                    }
-                }
-                break;
-            }
+            RECT ClipRect;
 
             GC = BeginWindowDraw(Window);
 
@@ -1857,14 +1825,9 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                     SelectBrush(GC, GetSystemBrush(SM_COLOR_DESKTOP));
                 }
 
-                for (ClipIndex = 0; ClipIndex < RectRegionGetCount(&ClipRegion); ClipIndex++) {
-                    if (RectRegionGetRect(&ClipRegion, ClipIndex, &ClipRect) == FALSE) continue;
-
-                    if (BuildDesktopRootVisibleClipRegion((LPWINDOW)Window, &ClipRect, &RootVisibleRegion, RootVisibleStorage, WINDOW_DIRTY_REGION_CAPACITY) ==
+                if (DesktopGetWindowDrawClipRect((LPWINDOW)Window, &ClipRect) != FALSE &&
+                    BuildDesktopRootVisibleClipRegion((LPWINDOW)Window, &ClipRect, &RootVisibleRegion, RootVisibleStorage, WINDOW_DIRTY_REGION_CAPACITY) !=
                         FALSE) {
-                        continue;
-                    }
-
                     for (RootVisibleIndex = 0; RootVisibleIndex < RectRegionGetCount(&RootVisibleRegion); RootVisibleIndex++) {
                         if (RectRegionGetRect(&RootVisibleRegion, RootVisibleIndex, &RootVisibleRect) == FALSE) continue;
                         (void)SetGraphicsContextClipScreenRect(GC, &RootVisibleRect);
@@ -1881,14 +1844,6 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 }
 
                 EndWindowDraw(Window);
-            }
-
-            if (DrawingMarked != FALSE) {
-                SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
-                    LockMutex(&(((LPWINDOW)Window)->Mutex), INFINITY);
-                    ((LPWINDOW)Window)->Status &= ~WINDOW_STATUS_DRAWING;
-                    UnlockMutex(&(((LPWINDOW)Window)->Mutex));
-                }
             }
         } break;
 

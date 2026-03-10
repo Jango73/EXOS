@@ -35,6 +35,9 @@
 #define SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID 0x53424350
 #define SHELL_BAR_SLOT_LEFT_WIDTH 240
 #define SHELL_BAR_SLOT_COMPONENTS_WIDTH 168
+#define SHELL_BAR_ROLE_PROP TEXT("shellbar.role")
+#define SHELL_BAR_SLOT_PROP TEXT("shellbar.slot")
+#define SHELL_BAR_ROLE_MAIN 1
 
 /************************************************************************/
 
@@ -51,42 +54,17 @@ BOOL ShellBarEnsureClassRegistered(void) {
 static void ShellBarSlotResizeChildrenToClient(LPWINDOW SlotWindow) {
     RECT SlotRect;
     RECT ClientRect;
-    LPLISTNODE Node;
-    LPWINDOW* Children;
-    UINT ChildCount;
-    UINT Index;
+    HANDLE ChildWindow;
+    HANDLE NextChildWindow;
 
     if (SlotWindow == NULL || SlotWindow->TypeID != KOID_WINDOW) return;
     if (GetWindowRect((HANDLE)SlotWindow, &SlotRect) == FALSE) return;
     if (GetWindowClientRect(SlotWindow, &SlotRect, &ClientRect) == FALSE) return;
 
-    Children = NULL;
-    ChildCount = 0;
-
-    LockMutex(&(SlotWindow->Mutex), INFINITY);
-
-    if (SlotWindow->Children != NULL && SlotWindow->Children->NumItems != 0) {
-        ChildCount = SlotWindow->Children->NumItems;
-        Children = (LPWINDOW*)KernelHeapAlloc(sizeof(LPWINDOW) * ChildCount);
-        if (Children != NULL) {
-            Index = 0;
-            for (Node = SlotWindow->Children->First; Node != NULL && Index < ChildCount; Node = Node->Next) {
-                Children[Index++] = (LPWINDOW)Node;
-            }
-            ChildCount = Index;
-        } else {
-            ChildCount = 0;
-        }
+    for (ChildWindow = GetWindowChild((HANDLE)SlotWindow, 0); ChildWindow != NULL; ChildWindow = NextChildWindow) {
+        NextChildWindow = GetNextWindowSibling(ChildWindow);
+        (void)MoveWindow(ChildWindow, &ClientRect);
     }
-
-    UnlockMutex(&(SlotWindow->Mutex));
-
-    for (Index = 0; Index < ChildCount; Index++) {
-        if (Children[Index] == NULL || Children[Index]->TypeID != KOID_WINDOW) continue;
-        (void)MoveWindow((HANDLE)Children[Index], &ClientRect);
-    }
-
-    if (Children != NULL) KernelHeapFree(Children);
 }
 
 /************************************************************************/
@@ -97,24 +75,21 @@ static void ShellBarSlotResizeChildrenToClient(LPWINDOW SlotWindow) {
  * @param WindowID Window identifier.
  * @return Direct child pointer or NULL.
  */
-static LPWINDOW ShellBarFindDirectChildByID(LPWINDOW Parent, U32 WindowID) {
-    LPLISTNODE Node;
-    LPWINDOW Candidate;
+static LPWINDOW ShellBarFindDirectChildByProp(LPWINDOW Parent, LPCSTR Name, U32 Value) {
+    U32 ChildCount;
+    U32 ChildIndex;
+    HANDLE ChildWindow;
 
     if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return NULL;
+    if (Name == NULL) return NULL;
 
-    LockMutex(&(Parent->Mutex), INFINITY);
-
-    for (Node = Parent->Children != NULL ? Parent->Children->First : NULL; Node != NULL; Node = Node->Next) {
-        Candidate = (LPWINDOW)Node;
-        if (Candidate == NULL || Candidate->TypeID != KOID_WINDOW) continue;
-        if (Candidate->WindowID == WindowID) {
-            UnlockMutex(&(Parent->Mutex));
-            return Candidate;
-        }
+    ChildCount = GetWindowChildCount((HANDLE)Parent);
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        ChildWindow = GetWindowChild((HANDLE)Parent, ChildIndex);
+        if (ChildWindow == NULL) continue;
+        if (GetWindowProp(ChildWindow, Name) == Value) return (LPWINDOW)ChildWindow;
     }
 
-    UnlockMutex(&(Parent->Mutex));
     return NULL;
 }
 
@@ -152,7 +127,7 @@ static void ShellBarLayoutSlots(LPWINDOW ShellBarWindow) {
         ComponentsRect.X1 = ComponentsRect.X2;
     }
 
-    ComponentsSlotWindow = ShellBarFindDirectChildByID(ShellBarWindow, SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID);
+    ComponentsSlotWindow = ShellBarFindDirectChildByProp(ShellBarWindow, SHELL_BAR_SLOT_PROP, SHELL_BAR_SLOT_COMPONENTS);
 
     if (ComponentsSlotWindow != NULL) (void)MoveWindow((HANDLE)ComponentsSlotWindow, &ComponentsRect);
 }
@@ -188,6 +163,12 @@ static BOOL ShellBarCreateSlotWindow(LPWINDOW ShellBarWindow, U32 WindowID) {
     WindowInfo.ShowHide = TRUE;
 
     Window = CreateWindow(&WindowInfo);
+    if (Window != NULL) {
+        U32 SlotID = 0;
+
+        if (WindowID == SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID) SlotID = SHELL_BAR_SLOT_COMPONENTS;
+        if (SlotID != 0) (void)SetWindowProp((HANDLE)Window, SHELL_BAR_SLOT_PROP, SlotID);
+    }
     return Window != NULL;
 }
 
@@ -201,7 +182,7 @@ static U32 ShellBarSlotWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Pa
     switch (Message) {
         case EWM_CREATE:
             ShellBarSlotResizeChildrenToClient((LPWINDOW)Window);
-            ParentWindow = ((LPWINDOW)Window)->ParentWindow;
+            ParentWindow = (LPWINDOW)GetWindowParent(Window);
             if (ParentWindow != NULL && ParentWindow->TypeID == KOID_WINDOW) {
                 (void)PostMessage((HANDLE)ParentWindow, EWM_NOTIFY, SHELL_BAR_NOTIFY_COMPONENTS_SLOT_READY, SHELL_BAR_SLOT_COMPONENTS);
             }
@@ -210,7 +191,7 @@ static U32 ShellBarSlotWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Pa
         case EWM_NOTIFY:
             if (Param1 == EWN_WINDOW_RECT_CHANGED) {
                 ShellBarSlotResizeChildrenToClient((LPWINDOW)Window);
-                ParentWindow = ((LPWINDOW)Window)->ParentWindow;
+                ParentWindow = (LPWINDOW)GetWindowParent(Window);
                 if (ParentWindow != NULL && ParentWindow->TypeID == KOID_WINDOW) {
                     (void)PostMessage((HANDLE)ParentWindow, EWM_NOTIFY, SHELL_BAR_NOTIFY_COMPONENTS_SLOT_READY, SHELL_BAR_SLOT_COMPONENTS);
                 }
@@ -256,7 +237,7 @@ static BOOL ShellBarEnsureSlotWindows(LPWINDOW ShellBarWindow) {
     if (ShellBarWindow == NULL || ShellBarWindow->TypeID != KOID_WINDOW) return FALSE;
     if (ShellBarEnsureSlotClassRegistered() == FALSE) return FALSE;
 
-    if (ShellBarFindDirectChildByID(ShellBarWindow, SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID) == NULL) {
+    if (ShellBarFindDirectChildByProp(ShellBarWindow, SHELL_BAR_SLOT_PROP, SHELL_BAR_SLOT_COMPONENTS) == NULL) {
         if (ShellBarCreateSlotWindow(ShellBarWindow, SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID) == FALSE) return FALSE;
     }
 
@@ -305,7 +286,7 @@ LPWINDOW ShellBarGetWindow(LPDESKTOP Desktop) {
     RootWindow = Desktop->Window;
     if (RootWindow == NULL || RootWindow->TypeID != KOID_WINDOW) return NULL;
 
-    ShellBarWindow = ShellBarFindDirectChildByID(RootWindow, SHELL_BAR_WINDOW_ID);
+    ShellBarWindow = ShellBarFindDirectChildByProp(RootWindow, SHELL_BAR_ROLE_PROP, SHELL_BAR_ROLE_MAIN);
     if (ShellBarWindow == NULL || ShellBarWindow->TypeID != KOID_WINDOW) return NULL;
 
     return ShellBarWindow;
@@ -315,20 +296,18 @@ LPWINDOW ShellBarGetWindow(LPDESKTOP Desktop) {
 
 LPWINDOW ShellBarGetSlotWindow(LPDESKTOP Desktop, U32 SlotID) {
     LPWINDOW ShellBarWindow;
-    U32 WindowID;
 
     ShellBarWindow = ShellBarGetWindow(Desktop);
     if (ShellBarWindow == NULL || ShellBarWindow->TypeID != KOID_WINDOW) return NULL;
 
     switch (SlotID) {
         case SHELL_BAR_SLOT_COMPONENTS:
-            WindowID = SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID;
             break;
         default:
             return NULL;
     }
 
-    return ShellBarFindDirectChildByID(ShellBarWindow, WindowID);
+    return ShellBarFindDirectChildByProp(ShellBarWindow, SHELL_BAR_SLOT_PROP, SlotID);
 }
 
 /************************************************************************/
@@ -336,6 +315,7 @@ LPWINDOW ShellBarGetSlotWindow(LPDESKTOP Desktop, U32 SlotID) {
 U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     switch (Message) {
         case EWM_CREATE:
+            (void)SetWindowProp(Window, SHELL_BAR_ROLE_PROP, SHELL_BAR_ROLE_MAIN);
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_ENABLED, 1);
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_EDGE, DOCK_EDGE_TOP);
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_PRIORITY, 0);
@@ -352,7 +332,7 @@ U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             if (Param1 == EWN_WINDOW_RECT_CHANGED) {
                 ShellBarLayoutSlots((LPWINDOW)Window);
             } else if (Param1 == SHELL_BAR_NOTIFY_COMPONENTS_SLOT_READY) {
-                LPWINDOW ParentWindow = ((LPWINDOW)Window)->ParentWindow;
+                LPWINDOW ParentWindow = (LPWINDOW)GetWindowParent(Window);
                 if (ParentWindow != NULL && ParentWindow->TypeID == KOID_WINDOW) {
                     (void)PostMessage((HANDLE)ParentWindow, EWM_NOTIFY, SHELL_BAR_NOTIFY_COMPONENTS_SLOT_READY, Param2);
                 }

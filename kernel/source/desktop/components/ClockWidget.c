@@ -21,9 +21,9 @@
 
 \************************************************************************/
 
-#include "Desktop-ClockWidget.h"
+#include "desktop/components/ClockWidget.h"
 #include "Desktop-NonClient.h"
-#include "Desktop-Private.h"
+#include "../Desktop-Private.h"
 #include "Desktop-WindowClass.h"
 
 #include "Clock.h"
@@ -129,9 +129,6 @@ static BOOL DrawClockHandTriangle(HANDLE GC, I32 CenterX, I32 CenterY, U32 Slot6
 
 U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     RECT Rect;
-    RECT ClipStorage[WINDOW_DIRTY_REGION_CAPACITY];
-    RECT_REGION ClipRegion;
-    RECT ClipRect;
     RECT WindowRect;
     RECT ClientRect;
     HANDLE GC;
@@ -147,8 +144,6 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
     U32 MinuteSlot;
     U32 SecondSlot;
     U32 Hour;
-    UINT ClipIndex;
-    BOOL DrawingMarked;
 
     switch (Message) {
         case EWM_CREATE:
@@ -172,62 +167,13 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
         case EWM_DRAW:
             (void)BaseWindowFunc(Window, EWM_CLEAR, Param1, Param2);
 
-            DrawingMarked = FALSE;
-
-            SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
-                LockMutex(&(((LPWINDOW)Window)->Mutex), INFINITY);
-                ((LPWINDOW)Window)->Status &= ~WINDOW_STATUS_NEED_DRAW;
-                ((LPWINDOW)Window)->Status |= WINDOW_STATUS_DRAWING;
-                DrawingMarked = TRUE;
-                UnlockMutex(&(((LPWINDOW)Window)->Mutex));
-            }
-
-            if (BuildWindowDrawClipRegion((LPWINDOW)Window, &ClipRegion, ClipStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) {
-                if (DrawingMarked != FALSE) {
-                    SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
-                        LockMutex(&(((LPWINDOW)Window)->Mutex), INFINITY);
-                        ((LPWINDOW)Window)->Status &= ~WINDOW_STATUS_DRAWING;
-                        UnlockMutex(&(((LPWINDOW)Window)->Mutex));
-                    }
-                }
-                return 1;
-            }
-
             GC = BeginWindowDraw(Window);
             if (GC == NULL) {
-                if (DrawingMarked != FALSE) {
-                    SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
-                        LockMutex(&(((LPWINDOW)Window)->Mutex), INFINITY);
-                        ((LPWINDOW)Window)->Status &= ~WINDOW_STATUS_DRAWING;
-                        UnlockMutex(&(((LPWINDOW)Window)->Mutex));
-                    }
-                }
                 return 1;
             }
 
-            if (GetWindowRect(Window, &Rect) == FALSE) {
+            if (DesktopGetWindowDrawSurfaceRect((LPWINDOW)Window, &ClientRect) == FALSE) {
                 EndWindowDraw(Window);
-                if (DrawingMarked != FALSE) {
-                    SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
-                        LockMutex(&(((LPWINDOW)Window)->Mutex), INFINITY);
-                        ((LPWINDOW)Window)->Status &= ~WINDOW_STATUS_DRAWING;
-                        UnlockMutex(&(((LPWINDOW)Window)->Mutex));
-                    }
-                }
-                return 1;
-            }
-
-            GraphicsScreenRectToWindowRect(&Rect, &Rect, &WindowRect);
-
-            if (GetWindowClientRect((LPWINDOW)Window, &WindowRect, &ClientRect) == FALSE) {
-                EndWindowDraw(Window);
-                if (DrawingMarked != FALSE) {
-                    SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
-                        LockMutex(&(((LPWINDOW)Window)->Mutex), INFINITY);
-                        ((LPWINDOW)Window)->Status &= ~WINDOW_STATUS_DRAWING;
-                        UnlockMutex(&(((LPWINDOW)Window)->Mutex));
-                    }
-                }
                 return 1;
             }
 
@@ -235,13 +181,6 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
             ClientHeight = ClientRect.Y2 - ClientRect.Y1 + 1;
             if (ClientWidth <= 0 || ClientHeight <= 0) {
                 EndWindowDraw(Window);
-                if (DrawingMarked != FALSE) {
-                    SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
-                        LockMutex(&(((LPWINDOW)Window)->Mutex), INFINITY);
-                        ((LPWINDOW)Window)->Status &= ~WINDOW_STATUS_DRAWING;
-                        UnlockMutex(&(((LPWINDOW)Window)->Mutex));
-                    }
-                }
                 return 1;
             }
 
@@ -251,13 +190,6 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
             if (((ClientHeight - 1) / 2) < MaxRadius) MaxRadius = (ClientHeight - 1) / 2;
             if (MaxRadius < 1) {
                 EndWindowDraw(Window);
-                if (DrawingMarked != FALSE) {
-                    SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
-                        LockMutex(&(((LPWINDOW)Window)->Mutex), INFINITY);
-                        ((LPWINDOW)Window)->Status &= ~WINDOW_STATUS_DRAWING;
-                        UnlockMutex(&(((LPWINDOW)Window)->Mutex));
-                    }
-                }
                 return 1;
             }
 
@@ -278,42 +210,22 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
             (void)SelectBrush(GC, NULL);
             (void)SelectPen(GC, GetSystemPen(SM_COLOR_TEXT_NORMAL));
 
-            if (ShouldDrawWindowNonClient((LPWINDOW)Window)) {
-                for (ClipIndex = 0; ClipIndex < RectRegionGetCount(&ClipRegion); ClipIndex++) {
-                    if (RectRegionGetRect(&ClipRegion, ClipIndex, &ClipRect) == FALSE) continue;
-                    (void)SetGraphicsContextClipScreenRect(GC, &ClipRect);
-                    DrawWindowNonClient(Window, GC, &WindowRect);
-                }
-            }
-
             GetLocalTime(&LocalTime);
             Hour = LocalTime.Hour % 12;
             HourSlot = (Hour * 5) + (LocalTime.Minute / 12);
             MinuteSlot = LocalTime.Minute % 60;
             SecondSlot = LocalTime.Second % 60;
 
-            for (ClipIndex = 0; ClipIndex < RectRegionGetCount(&ClipRegion); ClipIndex++) {
-                if (RectRegionGetRect(&ClipRegion, ClipIndex, &ClipRect) == FALSE) continue;
-                (void)SetGraphicsContextClipScreenRect(GC, &ClipRect);
+            ArcInfo.Radius = Radius;
+            (void)Arc(&ArcInfo);
+            ArcInfo.Radius = Radius - 1;
+            (void)Arc(&ArcInfo);
 
-                ArcInfo.Radius = Radius;
-                (void)Arc(&ArcInfo);
-                ArcInfo.Radius = Radius - 1;
-                (void)Arc(&ArcInfo);
-
-                (void)DrawClockHandTriangle(GC, CenterX, CenterY, HourSlot, (Radius * 50) / 100, 4, 8, COLOR_BLACK);
-                (void)DrawClockHandTriangle(GC, CenterX, CenterY, MinuteSlot, (Radius * 66) / 100, 3, 8, COLOR_BLACK);
-                (void)DrawClockHandTriangle(GC, CenterX, CenterY, SecondSlot, (Radius * 78) / 100, 2, 10, COLOR_BLACK);
-            }
+            (void)DrawClockHandTriangle(GC, CenterX, CenterY, HourSlot, (Radius * 50) / 100, 4, 8, COLOR_BLACK);
+            (void)DrawClockHandTriangle(GC, CenterX, CenterY, MinuteSlot, (Radius * 66) / 100, 3, 8, COLOR_BLACK);
+            (void)DrawClockHandTriangle(GC, CenterX, CenterY, SecondSlot, (Radius * 78) / 100, 2, 10, COLOR_BLACK);
 
             EndWindowDraw(Window);
-            if (DrawingMarked != FALSE) {
-                SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
-                    LockMutex(&(((LPWINDOW)Window)->Mutex), INFINITY);
-                    ((LPWINDOW)Window)->Status &= ~WINDOW_STATUS_DRAWING;
-                    UnlockMutex(&(((LPWINDOW)Window)->Mutex));
-                }
-            }
             return 1;
     }
 

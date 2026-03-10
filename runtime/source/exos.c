@@ -431,6 +431,36 @@ BOOL GetWindowClientRect(HANDLE Window, LPRECT Rect) {
 
 /***************************************************************************/
 
+HANDLE GetWindowParent(HANDLE Window) { return (HANDLE)exoscall(SYSCALL_GetWindowParent, EXOS_PARAM(Window)); }
+
+/***************************************************************************/
+
+U32 GetWindowChildCount(HANDLE Window) { return exoscall(SYSCALL_GetWindowChildCount, EXOS_PARAM(Window)); }
+
+/***************************************************************************/
+
+HANDLE GetWindowChild(HANDLE Window, U32 ChildIndex) {
+    WINDOWCHILDINFO WindowChildInfo;
+
+    WindowChildInfo.Header.Size = sizeof WindowChildInfo;
+    WindowChildInfo.Header.Version = EXOS_ABI_VERSION;
+    WindowChildInfo.Header.Flags = 0;
+    WindowChildInfo.Window = Window;
+    WindowChildInfo.ChildIndex = ChildIndex;
+
+    return (HANDLE)exoscall(SYSCALL_GetWindowChild, EXOS_PARAM(&WindowChildInfo));
+}
+
+/***************************************************************************/
+
+HANDLE GetNextWindowSibling(HANDLE Window) { return (HANDLE)exoscall(SYSCALL_GetNextWindowSibling, EXOS_PARAM(Window)); }
+
+/***************************************************************************/
+
+HANDLE GetPreviousWindowSibling(HANDLE Window) { return (HANDLE)exoscall(SYSCALL_GetPreviousWindowSibling, EXOS_PARAM(Window)); }
+
+/***************************************************************************/
+
 BOOL MoveWindow(HANDLE Window, LPRECT Rect) {
     WINDOWRECT WindowRect;
 

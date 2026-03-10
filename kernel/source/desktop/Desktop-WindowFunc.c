@@ -136,67 +136,24 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
         } break;
 
         case EWM_DRAW: {
-            HANDLE GC;
-            RECT Rect;
-            RECT ClipStorage[WINDOW_DIRTY_REGION_CAPACITY];
-            RECT_REGION ClipRegion;
-            RECT ClipRect;
-            UINT ClipIndex;
-            LPWINDOW This = (LPWINDOW)Window;
-            BOOL DrawingMarked = FALSE;
-
-            if (This != NULL && This->TypeID == KOID_WINDOW) {
-                LockMutex(&(This->Mutex), INFINITY);
-                This->Status &= ~WINDOW_STATUS_NEED_DRAW;
-                This->Status |= WINDOW_STATUS_DRAWING;
-                DrawingMarked = TRUE;
-                UnlockMutex(&(This->Mutex));
-            }
-
-            if (BuildWindowDrawClipRegion(This, &ClipRegion, ClipStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) {
-                if (DrawingMarked != FALSE) {
-                    LockMutex(&(This->Mutex), INFINITY);
-                    This->Status &= ~WINDOW_STATUS_DRAWING;
-                    UnlockMutex(&(This->Mutex));
-                }
-                break;
-            }
-
-            GC = BeginWindowDraw(Window);
-
-            if (GC) {
-                GetWindowRect(Window, &Rect);
-
-                if (ShouldDrawWindowNonClient(This)) {
-                    for (ClipIndex = 0; ClipIndex < RectRegionGetCount(&ClipRegion); ClipIndex++) {
-                        if (RectRegionGetRect(&ClipRegion, ClipIndex, &ClipRect) == FALSE) continue;
-                        (void)SetGraphicsContextClipScreenRect(GC, &ClipRect);
-                        DrawWindowNonClient(Window, GC, &Rect);
-                    }
-                }
-
-                EndWindowDraw(Window);
-            }
-
-            if (DrawingMarked != FALSE) {
-                LockMutex(&(This->Mutex), INFINITY);
-                This->Status &= ~WINDOW_STATUS_DRAWING;
-                UnlockMutex(&(This->Mutex));
-            }
-        } break;
+            return BaseWindowFunc(Window, EWM_CLEAR, Param1, Param2);
+        }
 
         case EWM_CLEAR: {
             HANDLE GC;
+            RECT SurfaceRect;
             RECT WindowRect;
-            RECT ClientRect;
             RECTINFO RectInfo;
             BRUSH Brush;
             COLOR Background;
             BOOL HasBackground;
+            LPWINDOW This = (LPWINDOW)Window;
 
-            if (GetWindowRect(Window, &WindowRect) == FALSE) break;
-            GraphicsScreenRectToWindowRect(&WindowRect, &WindowRect, &WindowRect);
-            if (GetWindowClientRect((LPWINDOW)Window, &WindowRect, &ClientRect) == FALSE) break;
+            if (DesktopGetWindowDrawSurfaceRect(This, &SurfaceRect) == FALSE) {
+                if (GetWindowRect(Window, &WindowRect) == FALSE) break;
+                GraphicsScreenRectToWindowRect(&WindowRect, &WindowRect, &WindowRect);
+                if (GetWindowClientRect(This, &WindowRect, &SurfaceRect) == FALSE) break;
+            }
 
             GC = BeginWindowDraw(Window);
             if (GC == NULL) break;
@@ -222,10 +179,10 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
             RectInfo.Header.Version = EXOS_ABI_VERSION;
             RectInfo.Header.Flags = 0;
             RectInfo.GC = GC;
-            RectInfo.X1 = ClientRect.X1;
-            RectInfo.Y1 = ClientRect.Y1;
-            RectInfo.X2 = ClientRect.X2;
-            RectInfo.Y2 = ClientRect.Y2;
+            RectInfo.X1 = SurfaceRect.X1;
+            RectInfo.Y1 = SurfaceRect.Y1;
+            RectInfo.X2 = SurfaceRect.X2;
+            RectInfo.Y2 = SurfaceRect.Y2;
             (void)Rectangle(&RectInfo);
 
             EndWindowDraw(Window);

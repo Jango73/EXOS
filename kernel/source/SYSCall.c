@@ -1798,6 +1798,101 @@ UINT SysCall_GetWindowClientRect(UINT Parameter) {
 /************************************************************************/
 
 /**
+ * @brief Retrieve the parent handle for one window.
+ *
+ * @param Parameter Window handle.
+ * @return UINT Parent handle or 0.
+ */
+UINT SysCall_GetWindowParent(UINT Parameter) {
+    LPWINDOW Window = (LPWINDOW)HandleToPointer(Parameter);
+
+    SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+        HANDLE ParentHandle = PointerToHandle((LINEAR)GetWindowParent((HANDLE)Window));
+        return ParentHandle;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the direct child count for one window.
+ *
+ * @param Parameter Window handle.
+ * @return UINT Number of direct children.
+ */
+UINT SysCall_GetWindowChildCount(UINT Parameter) {
+    LPWINDOW Window = (LPWINDOW)HandleToPointer(Parameter);
+
+    SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)GetWindowChildCount((HANDLE)Window); }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve one direct child handle by index.
+ *
+ * @param Parameter Pointer to WINDOWCHILDINFO.
+ * @return UINT Child handle or 0.
+ */
+UINT SysCall_GetWindowChild(UINT Parameter) {
+    LPWINDOWCHILDINFO WindowChildInfo = (LPWINDOWCHILDINFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(WindowChildInfo, WINDOWCHILDINFO) {
+        LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowChildInfo->Window);
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+            HANDLE ChildHandle = PointerToHandle((LINEAR)GetWindowChild((HANDLE)Window, WindowChildInfo->ChildIndex));
+            return ChildHandle;
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the next sibling handle for one window.
+ *
+ * @param Parameter Window handle.
+ * @return UINT Next sibling handle or 0.
+ */
+UINT SysCall_GetNextWindowSibling(UINT Parameter) {
+    LPWINDOW Window = (LPWINDOW)HandleToPointer(Parameter);
+
+    SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+        HANDLE SiblingHandle = PointerToHandle((LINEAR)GetNextWindowSibling((HANDLE)Window));
+        return SiblingHandle;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the previous sibling handle for one window.
+ *
+ * @param Parameter Window handle.
+ * @return UINT Previous sibling handle or 0.
+ */
+UINT SysCall_GetPreviousWindowSibling(UINT Parameter) {
+    LPWINDOW Window = (LPWINDOW)HandleToPointer(Parameter);
+
+    SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+        HANDLE SiblingHandle = PointerToHandle((LINEAR)GetPreviousWindowSibling((HANDLE)Window));
+        return SiblingHandle;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
  * @brief Register one userland window class.
  *
  * @param Parameter Pointer to WINDOWCLASSINFO.

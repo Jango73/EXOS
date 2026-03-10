@@ -21,12 +21,12 @@
 
 \************************************************************************/
 
-#ifndef UI_LAYOUT_DOCK_HOST_H_INCLUDED
-#define UI_LAYOUT_DOCK_HOST_H_INCLUDED
+#ifndef DESKTOP_COMPONENTS_DOCK_HOST_H_INCLUDED
+#define DESKTOP_COMPONENTS_DOCK_HOST_H_INCLUDED
 
 /************************************************************************/
 
-#include "ui/layout/Dockable.h"
+#include "desktop/components/Dockable.h"
 
 /************************************************************************/
 

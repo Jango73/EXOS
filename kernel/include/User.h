@@ -236,6 +236,11 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_GetWindowProp 0x00000051
 #define SYSCALL_GetWindowRect 0x00000052
 #define SYSCALL_GetWindowClientRect 0x0000007C
+#define SYSCALL_GetWindowParent 0x00000077
+#define SYSCALL_GetWindowChildCount 0x00000078
+#define SYSCALL_GetWindowChild 0x00000079
+#define SYSCALL_GetNextWindowSibling 0x0000007A
+#define SYSCALL_GetPreviousWindowSibling 0x0000007B
 #define SYSCALL_RegisterWindowClass 0x0000007D
 #define SYSCALL_UnregisterWindowClass 0x0000007E
 #define SYSCALL_InvalidateWindowRect 0x00000053
@@ -518,6 +523,12 @@ typedef struct PACKED tag_WINDOWRECT {
     RECT Rect;
 } WINDOWRECT, *LPWINDOWRECT;
 
+typedef struct PACKED tag_WINDOWCHILDINFO {
+    ABI_HEADER Header;
+    HANDLE Window;
+    U32 ChildIndex;
+} WINDOWCHILDINFO, *LPWINDOWCHILDINFO;
+
 typedef struct PACKED tag_GCSELECT {
     ABI_HEADER Header;
     HANDLE GC;
@@ -790,6 +801,7 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 #define WINDOW_DOCK_PROP_SIZE_MINIMUM TEXT("dock.size.minimum")
 #define WINDOW_DOCK_PROP_SIZE_MAXIMUM TEXT("dock.size.maximum")
 #define WINDOW_DOCK_PROP_SIZE_WEIGHT TEXT("dock.size.weight")
+#define WINDOW_PROP_BYPASS_PARENT_WORK_RECT TEXT("window.bypass.parent_work_rect")
 
 /************************************************************************/
 // Task and window messages

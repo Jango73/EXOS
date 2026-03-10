@@ -38,6 +38,7 @@
 
 U32 GetWindowDecorationMode(LPWINDOW Window);
 BOOL ShouldDrawWindowNonClient(LPWINDOW Window);
+BOOL DrawWindowClientArea(HANDLE Window, HANDLE GC, LPRECT Rect);
 BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect);
 BOOL IsPointInWindowTitleBar(LPWINDOW Window, LPPOINT ScreenPoint);
 BOOL GetWindowClientRect(LPWINDOW Window, LPRECT WindowRect, LPRECT ClientRect);

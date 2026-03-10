@@ -1881,7 +1881,11 @@ An internal kernel test module (`kernel/source/desktop/Desktop-InternalTest.c`, 
 #### Non-client rendering and decoration mode
 
 Default non-client rendering is implemented in `kernel/source/desktop/Desktop-NonClient.c`.
-`DefWindowFunc` uses this path only for system-decorated windows.
+Structured draw dispatch is centralized in `kernel/source/desktop/Desktop-Draw.c`.
+Desktop core owns system chrome there and prepares the effective draw surface before invoking the window procedure.
+For system-decorated windows, `EWM_DRAW` is dispatched in client coordinates only.
+For client-decorated and bare windows, `EWM_DRAW` keeps the full owned surface.
+`DefWindowFunc` does not need to redraw system chrome to preserve the frame.
 Decoration mode is resolved from `EWS_SYSTEM_DECORATED`, `EWS_CLIENT_DECORATED`, and `EWS_BARE_SURFACE`, with style `0` treated as system-decorated for compatibility.
 
 #### Window geometry and coordinate spaces
@@ -1895,11 +1899,12 @@ Coordinate naming is shared across kernel and runtime:
 
 Reusable geometry conversions are centralized in `kernel/source/utils/Graphics-Utils.c` (`kernel/include/utils/Graphics-Utils.h`).
 Userland can query both rectangle spaces through `GetWindowRect` and `GetWindowClientRect`.
+Window hierarchy traversal is centralized in `kernel/source/desktop/Desktop-WindowRelations.c`; parent and direct child/sibling discovery are exposed through `GetWindowParent`, `GetWindowChildCount`, `GetWindowChild`, `GetNextWindowSibling`, and `GetPreviousWindowSibling`.
 
 #### Timers and periodic redraw
 
 Per-window timer delivery is implemented in `kernel/source/desktop/Desktop-Timer.c` (`kernel/include/desktop/Desktop-Timer.h`) with `SetWindowTimer`, `KillWindowTimer`, and asynchronous `EWM_TIMER` dispatch.
-The desktop clock widget (`kernel/source/desktop/Desktop-ClockWidget.c`, `kernel/include/desktop/Desktop-ClockWidget.h`) uses this timer path to request redraw once per second.
+The desktop clock widget (`kernel/source/desktop/components/ClockWidget.c`, `kernel/include/desktop/components/ClockWidget.h`) uses this timer path to request redraw once per second.
 
 #### Window dock host integration
 
@@ -1908,6 +1913,7 @@ Docking host integration is implemented by window classes in `kernel/source/desk
 The windowing core remains dock-agnostic: it emits generic `EWM_NOTIFY` messages (`EWN_WINDOW_RECT_CHANGED`, `EWN_WINDOW_PROPERTY_CHANGED`) and does not read dock-specific window properties.
 Dock components subscribe to these notifications and update docking state (`WindowDockHostHandleWindowRectChanged`, relayout, attach/detach) in component code.
 Parent movement constraints use the generic window work rectangle API (`SetWindowWorkRect`, `GetWindowWorkRect`) so specialized layout components can publish host work areas without coupling core windowing paths to docking details.
+Docked windows bypass parent work-rectangle clamping only through the shared window property `WINDOW_PROP_BYPASS_PARENT_WORK_RECT`, not by mutating `WINDOW` state directly from component code.
 Shell bar content composition uses slot windows exposed by `kernel/source/desktop/components/ShellBar.c` (`left`, `center`, `components`) and the desktop injects concrete component windows into these slots.
 The shell bar does not reference concrete component types; it only manages slot geometry and keeps slot children fitted to slot client rectangles.
 

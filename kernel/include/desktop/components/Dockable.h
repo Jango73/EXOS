@@ -21,8 +21,8 @@
 
 \************************************************************************/
 
-#ifndef UI_LAYOUT_DOCKABLE_H_INCLUDED
-#define UI_LAYOUT_DOCKABLE_H_INCLUDED
+#ifndef DESKTOP_COMPONENTS_DOCKABLE_H_INCLUDED
+#define DESKTOP_COMPONENTS_DOCKABLE_H_INCLUDED
 
 /************************************************************************/
 
