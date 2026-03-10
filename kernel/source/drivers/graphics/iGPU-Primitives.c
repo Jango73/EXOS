@@ -103,9 +103,16 @@ static void IntelGfxDrawLineInternal(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, 
 /************************************************************************/
 
 static void IntelGfxDrawRectangleInternal(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
-    I32 X = 0;
     I32 Y = 0;
     I32 Temp = 0;
+    I32 DrawX1 = 0;
+    I32 DrawY1 = 0;
+    I32 DrawX2 = 0;
+    I32 DrawY2 = 0;
+    U32 FillWidth = 0;
+    U32 X = 0;
+    U32* Pixel = NULL;
+    COLOR FillColor = 0;
 
     if (Context == NULL) {
         return;
@@ -122,11 +129,32 @@ static void IntelGfxDrawRectangleInternal(LPGRAPHICSCONTEXT Context, I32 X1, I32
         Y2 = Temp;
     }
 
-    if (Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH) {
-        for (Y = Y1; Y <= Y2; Y++) {
-            for (X = X1; X <= X2; X++) {
-                COLOR FillColor = Context->Brush->Color;
-                (void)IntelGfxWritePixelInternal(Context, X, Y, &FillColor);
+    if (Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH && Context->MemoryBase != NULL &&
+        Context->BitsPerPixel == 32) {
+        DrawX1 = X1;
+        DrawY1 = Y1;
+        DrawX2 = X2;
+        DrawY2 = Y2;
+
+        if (DrawX1 < Context->LoClip.X) DrawX1 = Context->LoClip.X;
+        if (DrawY1 < Context->LoClip.Y) DrawY1 = Context->LoClip.Y;
+        if (DrawX2 > Context->HiClip.X) DrawX2 = Context->HiClip.X;
+        if (DrawY2 > Context->HiClip.Y) DrawY2 = Context->HiClip.Y;
+
+        if (DrawX1 < 0) DrawX1 = 0;
+        if (DrawY1 < 0) DrawY1 = 0;
+        if (DrawX2 >= Context->Width) DrawX2 = Context->Width - 1;
+        if (DrawY2 >= Context->Height) DrawY2 = Context->Height - 1;
+
+        if (DrawX2 >= DrawX1 && DrawY2 >= DrawY1) {
+            FillWidth = (U32)(DrawX2 - DrawX1 + 1);
+            FillColor = Context->Brush->Color;
+
+            for (Y = DrawY1; Y <= DrawY2; Y++) {
+                Pixel = (U32*)(Context->MemoryBase + (U32)(Y * (I32)Context->BytesPerScanLine) + ((U32)DrawX1 << 2));
+                for (X = 0; X < FillWidth; X++) {
+                    Pixel[X] = FillColor;
+                }
             }
         }
     }

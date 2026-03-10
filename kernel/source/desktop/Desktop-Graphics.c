@@ -38,6 +38,11 @@
 
 /***************************************************************************/
 
+#define DESKTOP_SHELL_BAR_CLOCK_WINDOW_ID 0x5342434C
+#define DESKTOP_USE_TEMPORARY_FAST_ROOT_FILL 0
+
+/***************************************************************************/
+
 typedef struct tag_SYSTEM_DRAW_OBJECT_ENTRY {
     U32 SystemColor;
     LPBRUSH Brush;
@@ -60,10 +65,6 @@ static SYSTEM_DRAW_OBJECT_ENTRY SystemDrawObjects[] = {
     {SM_COLOR_TITLE_BAR_2, &Brush_Title_Bar_2, &Pen_Title_Bar_2},
     {SM_COLOR_TITLE_TEXT, &Brush_Title_Text, &Pen_Title_Text},
 };
-
-/***************************************************************************/
-
-#define DESKTOP_SHELL_BAR_CLOCK_WINDOW_ID 0x5342434C
 
 /***************************************************************************/
 
@@ -1453,6 +1454,67 @@ BOOL Rectangle(LPRECTINFO RectInfo) {
 /***************************************************************************/
 
 /**
+ * @brief Temporary fast rectangle fill path for desktop root drawing.
+ * @param GC Graphics context handle.
+ * @param ScreenRect Rectangle in screen coordinates.
+ * @param FillColor Fill color.
+ * @return TRUE on success.
+ */
+static BOOL DesktopFillRectangleTemporaryFast(HANDLE GC, LPRECT ScreenRect, COLOR FillColor) {
+    LPGRAPHICSCONTEXT Context;
+    I32 DrawX1;
+    I32 DrawY1;
+    I32 DrawX2;
+    I32 DrawY2;
+    I32 Y;
+    U32 Width;
+    U32 X;
+    U32* Pixel;
+
+    if (GC == NULL || ScreenRect == NULL) return FALSE;
+
+    Context = (LPGRAPHICSCONTEXT)GC;
+    if (Context->TypeID != KOID_GRAPHICSCONTEXT) return FALSE;
+    if (Context->MemoryBase == NULL) return FALSE;
+    if (Context->BitsPerPixel != 32) return FALSE;
+
+    DrawX1 = ScreenRect->X1;
+    DrawY1 = ScreenRect->Y1;
+    DrawX2 = ScreenRect->X2;
+    DrawY2 = ScreenRect->Y2;
+
+    LockMutex(&(Context->Mutex), INFINITY);
+
+    if (DrawX1 < Context->LoClip.X) DrawX1 = Context->LoClip.X;
+    if (DrawY1 < Context->LoClip.Y) DrawY1 = Context->LoClip.Y;
+    if (DrawX2 > Context->HiClip.X) DrawX2 = Context->HiClip.X;
+    if (DrawY2 > Context->HiClip.Y) DrawY2 = Context->HiClip.Y;
+
+    if (DrawX1 < 0) DrawX1 = 0;
+    if (DrawY1 < 0) DrawY1 = 0;
+    if (DrawX2 >= Context->Width) DrawX2 = Context->Width - 1;
+    if (DrawY2 >= Context->Height) DrawY2 = Context->Height - 1;
+
+    if (DrawX2 < DrawX1 || DrawY2 < DrawY1) {
+        UnlockMutex(&(Context->Mutex));
+        return TRUE;
+    }
+
+    Width = (U32)(DrawX2 - DrawX1 + 1);
+    for (Y = DrawY1; Y <= DrawY2; Y++) {
+        Pixel = (U32*)(Context->MemoryBase + (U32)(Y * (I32)Context->BytesPerScanLine) + ((U32)DrawX1 << 2));
+        for (X = 0; X < Width; X++) {
+            Pixel[X] = FillColor;
+        }
+    }
+
+    UnlockMutex(&(Context->Mutex));
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Draw an arc using current pen.
  * @param ArcInfo Arc parameters.
  * @return TRUE on success.
@@ -1806,7 +1868,15 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                     for (RootVisibleIndex = 0; RootVisibleIndex < RectRegionGetCount(&RootVisibleRegion); RootVisibleIndex++) {
                         if (RectRegionGetRect(&RootVisibleRegion, RootVisibleIndex, &RootVisibleRect) == FALSE) continue;
                         (void)SetGraphicsContextClipScreenRect(GC, &RootVisibleRect);
+#if DESKTOP_USE_TEMPORARY_FAST_ROOT_FILL
+                        (void)DesktopFillRectangleTemporaryFast(
+                            GC,
+                            &RootVisibleRect,
+                            HasBackground ? Background : Brush_Desktop.Color
+                        );
+#else
                         Rectangle(&RectInfo);
+#endif
                     }
                 }
 
