@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "iGPU-Internal.h"
+#include "utils/LineRasterizer.h"
 
 /************************************************************************/
 
@@ -53,51 +54,25 @@ static BOOL IntelGfxWritePixelInternal(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, 
 
 /************************************************************************/
 
-static void IntelGfxDrawLineInternal(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
-    I32 Dx = 0;
-    I32 Sx = 0;
-    I32 Dy = 0;
-    I32 Sy = 0;
-    I32 Error = 0;
-    COLOR Color = 0;
-    U32 Pattern = 0;
-    U32 PatternBit = 0;
+static BOOL IntelGfxPlotLinePixel(LPVOID Context, I32 X, I32 Y, COLOR* Color) {
+    return IntelGfxWritePixelInternal((LPGRAPHICSCONTEXT)Context, X, Y, Color);
+}
 
+/************************************************************************/
+
+static void IntelGfxDrawLineInternal(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     if (Context == NULL || Context->Pen == NULL || Context->Pen->TypeID != KOID_PEN) {
         return;
     }
 
-    Color = Context->Pen->Color;
-    Pattern = Context->Pen->Pattern;
-    if (Pattern == 0) {
-        Pattern = MAX_U32;
-    }
-
-    Dx = (X2 >= X1) ? (X2 - X1) : (X1 - X2);
-    Sx = X1 < X2 ? 1 : -1;
-    Dy = -((Y2 >= Y1) ? (Y2 - Y1) : (Y1 - Y2));
-    Sy = Y1 < Y2 ? 1 : -1;
-    Error = Dx + Dy;
-
-    for (;;) {
-        if (((Pattern >> (PatternBit & 31)) & 1) != 0) {
-            COLOR PixelColor = Color;
-            (void)IntelGfxWritePixelInternal(Context, X1, Y1, &PixelColor);
-        }
-        PatternBit++;
-
-        if (X1 == X2 && Y1 == Y2) break;
-
-        I32 DoubleError = Error << 1;
-        if (DoubleError >= Dy) {
-            Error += Dy;
-            X1 += Sx;
-        }
-        if (DoubleError <= Dx) {
-            Error += Dx;
-            Y1 += Sy;
-        }
-    }
+    LineRasterizerDraw(Context,
+                       X1,
+                       Y1,
+                       X2,
+                       Y2,
+                       Context->Pen->Color,
+                       Context->Pen->Pattern,
+                       IntelGfxPlotLinePixel);
 }
 
 /************************************************************************/
