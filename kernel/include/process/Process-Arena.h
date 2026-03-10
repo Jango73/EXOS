@@ -65,6 +65,7 @@ BOOL ProcessArenaInitializeUser(LPPROCESS Process,
                                 UINT InitialHeapSize);
 LINEAR ProcessArenaAllocateSystem(LPPROCESS Process, UINT Size, U32 Flags, LPCSTR Tag);
 LINEAR ProcessArenaAllocateMmio(LPPROCESS Process, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag);
+LINEAR ProcessArenaAllocateTaskStack(LPPROCESS Process, UINT Size);
 LINEAR ProcessArenaAllocateUserStack(LPPROCESS Process, UINT Size);
 
 /************************************************************************/

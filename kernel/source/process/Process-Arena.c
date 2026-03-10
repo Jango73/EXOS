@@ -23,6 +23,7 @@
 
 #include "process/Process-Arena.h"
 
+#include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
 #include "CoreString.h"
@@ -298,6 +299,23 @@ LINEAR ProcessArenaAllocateMmio(LPPROCESS Process, PHYSICAL Target, UINT Size, U
 
         PROCESS_ARENA(Process, PROCESS_ARENA_MMIO)->NextLow = ProcessArenaAlignUp(Result + AlignedSize);
         return Result;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Allocate a task stack in the appropriate arena for the process.
+ */
+LINEAR ProcessArenaAllocateTaskStack(LPPROCESS Process, UINT Size) {
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+        if (Process->Privilege == CPU_PRIVILEGE_USER) {
+            return ProcessArenaAllocateUserStack(Process, Size);
+        }
+
+        return ProcessArenaAllocateSystem(Process, Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("TaskStack"));
     }
 
     return 0;

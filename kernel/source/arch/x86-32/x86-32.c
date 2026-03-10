@@ -468,25 +468,7 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     Task->Arch.Stack.Size = Info->StackSize;
     Task->Arch.SystemStack.Size = TASK_MINIMUM_SYSTEM_STACK_SIZE;
 
-    /* Place user stack just below TaskRunner to keep distance from the heap. */
-    Task->Arch.Stack.Base = 0;
-    if (Process->Privilege == CPU_PRIVILEGE_USER) {
-        Task->Arch.Stack.Base = ProcessArenaAllocateUserStack(Process, Task->Arch.Stack.Size);
-    } else {
-        LINEAR Candidate = VMA_TASK_RUNNER - Task->Arch.Stack.Size;
-        while (Candidate >= VMA_USER && Task->Arch.Stack.Base == 0) {
-            Task->Arch.Stack.Base = AllocRegion(Candidate,
-                                                0,
-                                                Task->Arch.Stack.Size,
-                                                ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE,
-                                                TEXT("TaskStack"));
-
-            if (Task->Arch.Stack.Base != 0) break;
-
-            if (Candidate < VMA_USER + Task->Arch.Stack.Size) break;
-            Candidate -= Task->Arch.Stack.Size;
-        }
-    }
+    Task->Arch.Stack.Base = ProcessArenaAllocateTaskStack(Process, Task->Arch.Stack.Size);
 
     Task->Arch.SystemStack.Base =
         AllocKernelRegion(0, Task->Arch.SystemStack.Size, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("SystemStack"));
