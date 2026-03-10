@@ -370,12 +370,14 @@ static BOOL DesktopCursorBuildVisibleRegionForWindow(
     LPWINDOW Parent;
     LPWINDOW* Windows = NULL;
     LPWINDOW Candidate;
-    BOOL FoundSelf = FALSE;
+    I32 WindowOrder;
+    I32 CandidateOrder;
     UINT Count = 0;
     UINT Index;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (BaseRect == NULL || Region == NULL || Storage == NULL || Capacity == 0) return FALSE;
+    if (GetWindowOrderSnapshot(Window, &WindowOrder) == FALSE) return FALSE;
 
     if (RectRegionInit(Region, Storage, Capacity) == FALSE) return FALSE;
     RectRegionReset(Region);
@@ -387,10 +389,9 @@ static BOOL DesktopCursorBuildVisibleRegionForWindow(
         for (Index = 0; Index < Count; Index++) {
             Candidate = Windows[Index];
             if (Candidate == NULL || Candidate->TypeID != KOID_WINDOW) continue;
-            if (Candidate == Window) {
-                FoundSelf = TRUE;
-                break;
-            }
+            if (Candidate == Window) continue;
+            if (GetWindowOrderSnapshot(Candidate, &CandidateOrder) == FALSE) continue;
+            if (CandidateOrder >= WindowOrder) continue;
             DesktopCursorSubtractVisibleWindowTreeFromRegion(Candidate, Region);
             if (RectRegionGetCount(Region) == 0) {
                 if (Windows != NULL) KernelHeapFree(Windows);
@@ -401,10 +402,6 @@ static BOOL DesktopCursorBuildVisibleRegionForWindow(
             KernelHeapFree(Windows);
             Windows = NULL;
         }
-    }
-
-    if (FoundSelf == FALSE && Parent != NULL) {
-        return TRUE;
     }
 
     Count = 0;

@@ -38,7 +38,6 @@
 #include "Desktop-ModeSelector.h"
 #include "Desktop-ThemeTokens.h"
 #include "desktop/components/RootWindowClass.h"
-#include "desktop/components/ShellBar.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
 #include "Clock.h"
@@ -318,7 +317,6 @@ LPDESKTOP CreateDesktop(void) {
         return NULL;
     }
 
-    (void)ShellBarCreate(This);
     UpdateDesktopWindowRect(This, (I32)Console.Width, (I32)Console.Height);
 
     //-------------------------------------

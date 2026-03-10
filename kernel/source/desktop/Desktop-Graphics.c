@@ -1099,8 +1099,6 @@ BOOL EndWindowDraw(HANDLE Handle) {
     if (This == NULL) return NULL;
     if (This->TypeID != KOID_WINDOW) return NULL;
 
-    DesktopCursorRenderSoftwareOverlayOnWindow(This);
-
     return TRUE;
 }
 

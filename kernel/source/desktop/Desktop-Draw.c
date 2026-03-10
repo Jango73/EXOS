@@ -300,6 +300,7 @@ BOOL DesktopDispatchWindowDraw(LPWINDOW Window, HANDLE TargetHandle, U32 Param1,
         return FALSE;
     }
 
+    DesktopCursorRenderSoftwareOverlayOnWindow(Window);
     ClearWindowDrawContext(Window);
     return TRUE;
 }
