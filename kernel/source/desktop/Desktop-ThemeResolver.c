@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "Desktop-ThemeResolver.h"
+#include "Desktop-ThemeCommon.h"
 #include "Desktop-ThemeRuntime.h"
 #include "Desktop-ThemeTokens.h"
 #include "CoreString.h"
@@ -80,43 +81,6 @@ static BOOL ThemeStartsWith(LPCSTR Text, LPCSTR Prefix) {
 
     return TRUE;
 }
-
-/***************************************************************************/
-
-/**
- * @brief Parse one hexadecimal color string.
- * @param Value Color text as "#RRGGBB", "#AARRGGBB", "0xRRGGBB", or "0xAARRGGBB".
- * @param Color Receives parsed color.
- * @return TRUE on success.
- */
-static BOOL ParseColorLiteral(LPCSTR Value, COLOR* Color) {
-    STR HexBuffer[16];
-    UINT Index;
-    UINT Length;
-
-    if (Value == NULL || Color == NULL) return FALSE;
-
-    if (ThemeStartsWith(Value, TEXT("0x")) || ThemeStartsWith(Value, TEXT("0X"))) {
-        *Color = StringToU32(Value);
-        return TRUE;
-    }
-
-    if (Value[0] != '#') return FALSE;
-
-    Length = StringLength(Value);
-    if (Length != 7 && Length != 9) return FALSE;
-
-    HexBuffer[0] = '0';
-    HexBuffer[1] = 'x';
-    for (Index = 1; Index < Length; Index++) {
-        HexBuffer[Index + 1] = Value[Index];
-    }
-    HexBuffer[Length + 1] = STR_NULL;
-    *Color = StringToU32(HexBuffer);
-    return TRUE;
-}
-
-/***************************************************************************/
 
 /**
  * @brief Build state fallback chain (exact -> partial -> normal).
@@ -272,7 +236,7 @@ BOOL DesktopThemeResolveLevel1Color(LPCSTR ElementID, LPCSTR StateID, LPCSTR Pro
         return DesktopThemeResolveTokenColorByName(Value + 6, Color);
     }
 
-    return ParseColorLiteral(Value, Color);
+    return DesktopThemeParseColorLiteral(Value, Color);
 }
 
 /***************************************************************************/
@@ -281,7 +245,7 @@ BOOL DesktopThemeResolveLevel1Metric(LPCSTR ElementID, LPCSTR StateID, LPCSTR Pr
     STR Value[128];
 
     if (Metric == NULL) return FALSE;
-    if (DesktopThemeResolveLevel1Text(ElementID, StateID, PropertyName, Value, sizeof(Value)) == FALSE) return FALSE;
+    if (!DesktopThemeResolveLevel1Text(ElementID, StateID, PropertyName, Value, sizeof(Value))) return FALSE;
 
     if (ThemeStartsWith(Value, TEXT("token:"))) {
         return DesktopThemeResolveTokenMetricByName(Value + 6, Metric);

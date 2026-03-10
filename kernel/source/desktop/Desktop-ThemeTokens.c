@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "Desktop-ThemeTokens.h"
+#include "Desktop-ThemeCommon.h"
 #include "Desktop-Private.h"
 #include "Desktop-ThemeRuntime.h"
 #include "CoreString.h"
@@ -113,43 +114,6 @@ static BOOL ThemeStartsWith(LPCSTR Text, LPCSTR Prefix) {
 
     return TRUE;
 }
-
-/***************************************************************************/
-
-/**
- * @brief Parse one color literal.
- * @param Value Color value text.
- * @param Color Receives parsed color.
- * @return TRUE on success.
- */
-static BOOL ParseColorLiteral(LPCSTR Value, COLOR* Color) {
-    STR HexBuffer[16];
-    UINT Index;
-    UINT Length;
-
-    if (Value == NULL || Color == NULL) return FALSE;
-
-    if (ThemeStartsWith(Value, TEXT("0x")) || ThemeStartsWith(Value, TEXT("0X"))) {
-        *Color = StringToU32(Value);
-        return TRUE;
-    }
-
-    if (Value[0] != '#') return FALSE;
-
-    Length = StringLength(Value);
-    if (Length != 7 && Length != 9) return FALSE;
-
-    HexBuffer[0] = '0';
-    HexBuffer[1] = 'x';
-    for (Index = 1; Index < Length; Index++) {
-        HexBuffer[Index + 1] = Value[Index];
-    }
-    HexBuffer[Length + 1] = STR_NULL;
-    *Color = StringToU32(HexBuffer);
-    return TRUE;
-}
-
-/***************************************************************************/
 
 /**
  * @brief Parse one metric literal.
@@ -304,7 +268,7 @@ static BOOL ResolveRuntimeTokenColorRecursive(LPCSTR TokenName, COLOR* Color, U3
         return ResolveRuntimeTokenColorRecursive(Value + 6, Color, Depth + 1);
     }
 
-    if (ParseColorLiteral(Value, Color)) return TRUE;
+    if (DesktopThemeParseColorLiteral(Value, Color)) return TRUE;
     return ResolveBuiltinColorTokenByName(TokenName, Color);
 }
 
