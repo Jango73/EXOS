@@ -882,7 +882,9 @@ BOOL ConsoleSetGraphicsTextMode(LPGRAPHICSMODEINFO ModeInfo) {
 
     UnlockMutex(MUTEX_CONSOLE_STATE);
 
+#if DEBUG_OUTPUT != 1
     ClearConsole();
+#endif
     return TRUE;
 }
 
