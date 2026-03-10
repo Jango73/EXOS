@@ -180,22 +180,23 @@ BOOL LoadGroupDescriptors(LPEXT2FILESYSTEM FileSystem) {
 /************************************************************************/
 
 /**
- * @brief Reads an inode from disk.
+ * @brief Resolve and read the inode table block containing one inode.
  * @param FileSystem Pointer to the EXT2 file system instance.
- * @param InodeIndex Index of the inode to read.
- * @param Inode Destination buffer for the inode data.
+ * @param InodeIndex Index of the inode to access.
+ * @param BlockBufferOut Receives an acquired block buffer.
+ * @param OffsetInBlockOut Receives the inode byte offset within the block.
+ * @param CopySizeOut Receives the inode copy size.
  * @return TRUE on success, FALSE otherwise.
  */
-BOOL ReadInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode) {
+BOOL PrepareInodeBlockAccess(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, U8** BlockBufferOut, U32* OffsetInBlockOut,
+                             U32* CopySizeOut) {
     LPEXT2BLOCKGROUP Group;
     U32 GroupIndex;
     U32 IndexInGroup;
     U32 BlockOffset;
-    U32 OffsetInBlock;
     U8* BlockBuffer;
-    U32 CopySize;
 
-    if (FileSystem == NULL || Inode == NULL) return FALSE;
+    if (FileSystem == NULL || BlockBufferOut == NULL || OffsetInBlockOut == NULL || CopySizeOut == NULL) return FALSE;
     if (InodeIndex == 0) return FALSE;
     if (FileSystem->InodesPerBlock == 0) return FALSE;
     if (FileSystem->GroupCount == 0 || FileSystem->Groups == NULL) return FALSE;
@@ -208,7 +209,7 @@ BOOL ReadInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode) {
 
     IndexInGroup = (InodeIndex - 1) % FileSystem->Super.InodesPerGroup;
     BlockOffset = IndexInGroup / FileSystem->InodesPerBlock;
-    OffsetInBlock = (IndexInGroup % FileSystem->InodesPerBlock) * FileSystem->InodeSize;
+    *OffsetInBlockOut = (IndexInGroup % FileSystem->InodesPerBlock) * FileSystem->InodeSize;
 
     BlockBuffer = (U8*)Ext2AcquireBlockBuffer(FileSystem);
     if (BlockBuffer == NULL) return FALSE;
@@ -218,13 +219,34 @@ BOOL ReadInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode) {
         return FALSE;
     }
 
-    MemorySet(Inode, 0, sizeof(EXT2INODE));
-
-    CopySize = FileSystem->InodeSize;
-    if (CopySize > sizeof(EXT2INODE)) {
-        CopySize = sizeof(EXT2INODE);
+    *CopySizeOut = FileSystem->InodeSize;
+    if (*CopySizeOut > sizeof(EXT2INODE)) {
+        *CopySizeOut = sizeof(EXT2INODE);
     }
 
+    *BlockBufferOut = BlockBuffer;
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Reads an inode from disk.
+ * @param FileSystem Pointer to the EXT2 file system instance.
+ * @param InodeIndex Index of the inode to read.
+ * @param Inode Destination buffer for the inode data.
+ * @return TRUE on success, FALSE otherwise.
+ */
+BOOL ReadInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode) {
+    U32 OffsetInBlock;
+    U8* BlockBuffer;
+    U32 CopySize;
+
+    if (FileSystem == NULL || Inode == NULL) return FALSE;
+    if (PrepareInodeBlockAccess(FileSystem, InodeIndex, &BlockBuffer, &OffsetInBlock, &CopySize) == FALSE) return FALSE;
+
+    MemorySet(Inode, 0, sizeof(EXT2INODE));
     MemoryCopy(Inode, BlockBuffer + OffsetInBlock, CopySize);
 
     Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
