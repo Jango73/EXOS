@@ -253,6 +253,13 @@ void DeleteTask(LPTASK This) {
         LockMutex(MUTEX_KERNEL, INFINITY);
 
         //-------------------------------------
+        // Remove task from scheduler queue before freeing task resources
+
+        if (RemoveTaskFromQueue(This) == FALSE) {
+            DEBUG(TEXT("[DeleteTask] Task %p not present in scheduler queue"), This);
+        }
+
+        //-------------------------------------
         // Unlock all mutexs locked by this task
 
         ReleaseTaskMutexes(This);
