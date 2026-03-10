@@ -375,7 +375,7 @@ static BOOL MatchOptional(CONST TOKEN* Toks, U32 AtomPos, U32 AfterPos, CONST U8
 /************************************************************************/
 
 static BOOL MatchHere(CONST TOKEN* Toks, U32 PosTok, CONST U8* Text) {
-    for (;;) {
+    FOREVER {
         CONST TOKEN* T = &Toks[PosTok];
 
         switch (T->Type) {

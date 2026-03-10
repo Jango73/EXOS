@@ -79,7 +79,7 @@ static void NotifyWindowChildAppended(LPWINDOW Window) {
 
     ChildWindowID = Window->WindowID;
     Current = Window;
-    for (;;) {
+    FOREVER {
         ParentWindow = GetWindowParent((HANDLE)Current);
         if (ParentWindow == NULL) break;
 
@@ -106,7 +106,7 @@ static void NotifyWindowChildRemoved(LPWINDOW Parent, U32 ChildWindowID) {
     if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return;
 
     Current = Parent;
-    for (;;) {
+    FOREVER {
         DEBUG(
             TEXT("[NotifyWindowChildRemoved] Parent=%p child_id=%x"),
             Current,
@@ -674,7 +674,7 @@ BOOL DeleteWindow(LPWINDOW This) {
     ChildWindowID = This->WindowID;
     UnlockMutex(&(This->Mutex));
 
-    for (;;) {
+    FOREVER {
         ChildWindow = (LPWINDOW)GetWindowChild((HANDLE)This, 0);
         if (ChildWindow == NULL || ChildWindow->TypeID != KOID_WINDOW) break;
         DeleteWindow(ChildWindow);

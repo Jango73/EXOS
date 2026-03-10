@@ -61,7 +61,7 @@ void LineRasterizerDraw(LPVOID Context, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Co
     Error = Dx + Dy;
     PatternBit = 0;
 
-    for (;;) {
+    FOREVER {
         if (((Pattern >> (PatternBit & 31)) & 1) != 0) {
             COLOR PixelColor = Color;
             (void)PlotCallback(Context, X1, Y1, &PixelColor);
