@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "drivers/filesystems/FAT32-Private.h"
+#include "utils/PartitionIO.h"
 
 DRIVER DATA_SECTION FAT32Driver = {
     .TypeID = KOID_DRIVER,
@@ -213,28 +214,21 @@ U32 GetNameChecksum(LPSTR Name) {
  * @return TRUE on success, FALSE on failure.
  */
 static BOOL FAT32TransferCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer, UINT Command) {
-    IOCONTROL Control;
     SECTOR Sector;
-    U32 Result;
 
     Sector =
         FileSystem->DataStart + ((Cluster - FileSystem->Master.RootCluster) * FileSystem->Master.SectorsPerCluster);
 
-    if (Sector < FileSystem->PartitionStart || Sector >= FileSystem->PartitionStart + FileSystem->PartitionSize) {
+    if (PartitionTransferSectors(FileSystem->Disk,
+                                 FileSystem->PartitionStart,
+                                 FileSystem->PartitionSize,
+                                 Sector,
+                                 FileSystem->Master.SectorsPerCluster,
+                                 Buffer,
+                                 FileSystem->Master.SectorsPerCluster * SECTOR_SIZE,
+                                 Command) == FALSE) {
         return FALSE;
     }
-
-    Control.TypeID = KOID_IOCONTROL;
-    Control.Disk = FileSystem->Disk;
-    Control.SectorLow = Sector;
-    Control.SectorHigh = 0;
-    Control.NumSectors = FileSystem->Master.SectorsPerCluster;
-    Control.Buffer = Buffer;
-    Control.BufferSize = FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
-
-    Result = FileSystem->Disk->Driver->Command(Command, (UINT)&Control);
-
-    if (Result != DF_RETURN_SUCCESS) return FALSE;
 
     FileSystem->IOBufferGeneration++;
 

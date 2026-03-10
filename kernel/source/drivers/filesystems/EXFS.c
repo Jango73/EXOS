@@ -26,6 +26,7 @@
 #include "FileSystem.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "utils/PartitionIO.h"
 #include "utils/Path.h"
 
 /************************************************************************/
@@ -265,29 +266,18 @@ BOOL MountPartition_EXFS(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
  * @return TRUE on success.
  */
 static BOOL ReadCluster(LPEXFSFILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer) {
-    IOCONTROL Control;
     SECTOR Sector;
-    U32 Result;
 
     Sector = FileSystem->DataStart + (Cluster * FileSystem->Master.SectorsPerCluster);
 
-    if (Sector < FileSystem->PartitionStart || Sector >= FileSystem->PartitionStart + FileSystem->PartitionSize) {
-        return FALSE;
-    }
-
-    Control.TypeID = KOID_IOCONTROL;
-    Control.Disk = FileSystem->Disk;
-    Control.SectorLow = Sector;
-    Control.SectorHigh = 0;
-    Control.NumSectors = FileSystem->Master.SectorsPerCluster;
-    Control.Buffer = Buffer;
-    Control.BufferSize = FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
-
-    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
-
-    if (Result != DF_RETURN_SUCCESS) return FALSE;
-
-    return TRUE;
+    return PartitionTransferSectors(FileSystem->Disk,
+                                    FileSystem->PartitionStart,
+                                    FileSystem->PartitionSize,
+                                    Sector,
+                                    FileSystem->Master.SectorsPerCluster,
+                                    Buffer,
+                                    FileSystem->Master.SectorsPerCluster * SECTOR_SIZE,
+                                    DF_DISK_READ);
 }
 
 /***************************************************************************/
