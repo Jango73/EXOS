@@ -387,10 +387,9 @@ static UINT GraphicsSelectorLoad(void) {
     }
 
     if (GraphicsSelectorState.BackendCount == 0) {
-        ERROR(TEXT("[GraphicsSelectorLoad] No active graphics backend"));
-        GraphicsSelectorDriver.Flags &= ~DRIVER_FLAG_READY;
-        GraphicsSelectorState = (GRAPHICS_SELECTOR_STATE){0};
-        return DF_RETURN_UNEXPECTED;
+        WARNING(TEXT("[GraphicsSelectorLoad] No active graphics backend"));
+        GraphicsSelectorDriver.Flags |= DRIVER_FLAG_READY;
+        return DF_RETURN_SUCCESS;
     }
 
     GraphicsSelectorState.ActiveIndex = 0;
