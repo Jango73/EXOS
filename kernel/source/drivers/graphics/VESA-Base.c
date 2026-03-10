@@ -203,7 +203,7 @@ static BOOL InitializeVESA(void) {
     INTEL_X86_REGISTERS Regs;
 
     if (VesaIsSupportedOnCurrentBootPath() == FALSE) {
-        WARNING(TEXT("[InitializeVESA] Unsupported boot path for VESA (flags=%x)"), BootPathGetMultibootFlags());
+        WARNING(TEXT("[InitializeVESA] Unsupported boot path for VESA"));
         return FALSE;
     }
 

@@ -30,12 +30,8 @@
 
 /************************************************************************/
 
-void BootPathSetMultibootFlags(U32 Flags);
-U32 BootPathGetMultibootFlags(void);
-BOOL BootPathHasVbeInfo(void);
 BOOL VesaIsSupportedOnCurrentBootPath(void);
 
 /************************************************************************/
 
 #endif  // BOOT_PATH_H_INCLUDED
-

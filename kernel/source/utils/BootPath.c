@@ -23,42 +23,6 @@
 
 #include "utils/BootPath.h"
 
-#include "vbr-multiboot.h"
-
-/************************************************************************/
-
-static U32 BootPathMultibootFlags = 0;
-
-/************************************************************************/
-
-/**
- * @brief Update cached multiboot flags used by boot capability helpers.
- * @param Flags Multiboot flags value from bootloader information block.
- */
-void BootPathSetMultibootFlags(U32 Flags) {
-    BootPathMultibootFlags = Flags;
-}
-
-/************************************************************************/
-
-/**
- * @brief Retrieve cached multiboot flags.
- * @return Cached multiboot flags.
- */
-U32 BootPathGetMultibootFlags(void) {
-    return BootPathMultibootFlags;
-}
-
-/************************************************************************/
-
-/**
- * @brief Check whether bootloader exported VBE information.
- * @return TRUE when MULTIBOOT_INFO_VBE_INFO is present.
- */
-BOOL BootPathHasVbeInfo(void) {
-    return (BootPathMultibootFlags & MULTIBOOT_INFO_VBE_INFO) != 0 ? TRUE : FALSE;
-}
-
 /************************************************************************/
 
 /**
@@ -69,7 +33,7 @@ BOOL VesaIsSupportedOnCurrentBootPath(void) {
 #if defined(__EXOS_ARCH_X86_64__)
     return FALSE;
 #else
-    return BootPathHasVbeInfo();
+    return TRUE;
 #endif
 }
 
