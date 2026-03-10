@@ -62,6 +62,7 @@ typedef struct tag_XHCI_DEVICE XHCI_DEVICE, *LPXHCI_DEVICE;
 extern PCI_DRIVER XHCIDriver;
 LPDRIVER XHCIGetDriver(void);
 void XHCI_EnsureUsbDevices(LPXHCI_DEVICE Device);
+LPCSTR XHCIEnumErrorToString(U8 Code);
 
 /***************************************************************************/
 

@@ -542,12 +542,12 @@ U32 CMD_usb(LPSHELLCONTEXT Context) {
                     if (Data->LastEnumError == XHCI_ENUM_ERROR_ENABLE_SLOT) {
                         ConsolePrint(TEXT("P%u Err=%s C=%u\n"),
                                      (U32)Data->PortNumber,
-                                     UsbEnumErrorToString(Data->LastEnumError),
+                                     XHCIEnumErrorToString(Data->LastEnumError),
                                      (U32)Data->LastEnumCompletion);
                     } else {
                         ConsolePrint(TEXT("P%u Err=%s\n"),
                                      (U32)Data->PortNumber,
-                                     UsbEnumErrorToString(Data->LastEnumError));
+                                     XHCIEnumErrorToString(Data->LastEnumError));
                     }
                 }
             }

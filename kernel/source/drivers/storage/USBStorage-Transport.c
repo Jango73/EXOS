@@ -63,46 +63,6 @@ static BOOL USBStorageShouldTraceTransfer(U32* SuppressedOut) {
     return RateLimiterShouldTrigger(&TransferTraceLimiter, GetSystemTime(), SuppressedOut);
 }
 
-/************************************************************************/
-
-/**
- * @brief Convert a USB enumeration error code to a short text label.
- * @param Code Enumeration error code.
- * @return Constant label for the code.
- */
-LPCSTR UsbEnumErrorToString(U8 Code) {
-    switch (Code) {
-        case XHCI_ENUM_ERROR_NONE:
-            return TEXT("OK");
-        case XHCI_ENUM_ERROR_BUSY:
-            return TEXT("BUSY");
-        case XHCI_ENUM_ERROR_RESET_TIMEOUT:
-            return TEXT("RESET");
-        case XHCI_ENUM_ERROR_INVALID_SPEED:
-            return TEXT("SPEED");
-        case XHCI_ENUM_ERROR_INIT_STATE:
-            return TEXT("STATE");
-        case XHCI_ENUM_ERROR_ENABLE_SLOT:
-            return TEXT("SLOT");
-        case XHCI_ENUM_ERROR_ADDRESS_DEVICE:
-            return TEXT("ADDRESS");
-        case XHCI_ENUM_ERROR_DEVICE_DESC:
-            return TEXT("DEVICE");
-        case XHCI_ENUM_ERROR_CONFIG_DESC:
-            return TEXT("CONFIG");
-        case XHCI_ENUM_ERROR_CONFIG_PARSE:
-            return TEXT("PARSE");
-        case XHCI_ENUM_ERROR_SET_CONFIG:
-            return TEXT("SETCONFIG");
-        case XHCI_ENUM_ERROR_HUB_INIT:
-            return TEXT("HUB");
-        default:
-            return TEXT("UNKNOWN");
-    }
-}
-
-/************************************************************************/
-
 /**
  * @brief Check whether an interface matches USB mass storage BOT.
  * @param Interface USB interface descriptor.

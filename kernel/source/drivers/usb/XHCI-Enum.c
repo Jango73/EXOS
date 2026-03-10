@@ -48,7 +48,12 @@ static LPCSTR XHCI_EndpointTypeToString(U8 Attributes) {
 
 /************************************************************************/
 
-static LPCSTR XHCI_EnumErrorToString(U8 Code) {
+/**
+ * @brief Convert an xHCI enumeration error code to a short text label.
+ * @param Code Enumeration error code.
+ * @return Constant label for the code.
+ */
+LPCSTR XHCIEnumErrorToString(U8 Code) {
     switch (Code) {
         case XHCI_ENUM_ERROR_NONE:
             return TEXT("OK");
@@ -361,7 +366,7 @@ U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty) {
                           Data->Enabled,
                           XHCI_SpeedToString(Data->SpeedId),
                           Data->PortStatus,
-                          XHCI_EnumErrorToString(Data->LastEnumError));
+                          XHCIEnumErrorToString(Data->LastEnumError));
         return DF_RETURN_SUCCESS;
     }
 

@@ -945,44 +945,6 @@ static void SystemDataViewDrawPageEhci(LPSYSTEM_DATA_VIEW_CONTEXT Context, U8 Pa
 /************************************************************************/
 
 /**
- * @brief Convert xHCI root port enumeration error to text.
- *
- * @param ErrorCode Enumeration error code.
- * @return Error text.
- */
-static LPCSTR SystemDataViewXhciEnumErrorToString(U8 ErrorCode) {
-    switch (ErrorCode) {
-        case XHCI_ENUM_ERROR_NONE:
-            return TEXT("OK");
-        case XHCI_ENUM_ERROR_BUSY:
-            return TEXT("BUSY");
-        case XHCI_ENUM_ERROR_RESET_TIMEOUT:
-            return TEXT("RESET");
-        case XHCI_ENUM_ERROR_INVALID_SPEED:
-            return TEXT("SPEED");
-        case XHCI_ENUM_ERROR_INIT_STATE:
-            return TEXT("STATE");
-        case XHCI_ENUM_ERROR_ENABLE_SLOT:
-            return TEXT("SLOT");
-        case XHCI_ENUM_ERROR_ADDRESS_DEVICE:
-            return TEXT("ADDRESS");
-        case XHCI_ENUM_ERROR_DEVICE_DESC:
-            return TEXT("DEVICE");
-        case XHCI_ENUM_ERROR_CONFIG_DESC:
-            return TEXT("CONFIG");
-        case XHCI_ENUM_ERROR_CONFIG_PARSE:
-            return TEXT("PARSE");
-        case XHCI_ENUM_ERROR_SET_CONFIG:
-            return TEXT("SETCONFIG");
-        case XHCI_ENUM_ERROR_HUB_INIT:
-            return TEXT("HUB");
-        default:
-            return TEXT("UNKNOWN");
-    }
-}
-
-/************************************************************************/
-
 /**
  * @brief Count active xHCI slots attached to one controller.
  *
@@ -1304,7 +1266,7 @@ static void SystemDataViewDrawXhciDetails(LPSYSTEM_DATA_VIEW_CONTEXT Context, LP
             SpeedId,
             LinkState,
             PortStatus,
-            SystemDataViewXhciEnumErrorToString(EnumError),
+            XHCIEnumErrorToString(EnumError),
             (U32)EnumCompletion,
             Present,
             SlotId,
