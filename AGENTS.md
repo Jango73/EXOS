@@ -23,6 +23,7 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 - If no suitable module exists, create a generic one and use it from the caller.
 - Driver code should only express policy/usage, not duplicate generic mechanics.
 - For log-flood control, use the shared `RateLimiter` helper; do not hardcode ad-hoc counters/cooldowns inside drivers.
+- **Mutex ownership**: this rule applies to the whole kernel. Never lock another object's mutex directly to inspect or mutate its internal state. Expose owner-side getters/setters/snapshot helpers, keep critical sections short, and never recurse or call callbacks/messages while holding structural object locks.
 
 ## Coding Conventions
 - **Types**: Use **LINEAR** for virtual addresses (when not using direct pointers), **PHYSICAL** for physical addresses, **UINT** for indexes, sizes and error values. In the kernel, it is **STRICTLY FORBIDDEN** to use a direct c type (int, unsigned long, long long, etc...) : **only types in Base.h are allowed.**

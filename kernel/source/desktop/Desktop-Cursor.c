@@ -23,6 +23,7 @@
 
 #include "Desktop-Cursor.h"
 
+#include "Desktop-Private.h"
 #include "Desktop.h"
 #include "Desktop-OverlayInvalidation.h"
 #include "CoreString.h"
@@ -317,24 +318,31 @@ static BOOL DesktopCursorRegionSubtractOccluder(LPRECT_REGION Region, LPRECT Occ
  * @param Region Region to clip.
  */
 static void DesktopCursorSubtractVisibleWindowTreeFromRegion(LPWINDOW Node, LPRECT_REGION Region) {
-    LPLISTNODE ChildNode;
+    LPWINDOW* Children = NULL;
     LPWINDOW Child;
     RECT NodeRect;
+    UINT ChildCount = 0;
+    UINT ChildIndex;
     BOOL IsVisible = FALSE;
+    WINDOW_STATE_SNAPSHOT Snapshot;
 
     if (Node == NULL || Node->TypeID != KOID_WINDOW) return;
     if (Region == NULL) return;
 
-    LockMutex(&(Node->Mutex), INFINITY);
-    IsVisible = ((Node->Status & WINDOW_STATUS_VISIBLE) != 0);
-    NodeRect = Node->ScreenRect;
+    if (GetWindowStateSnapshot(Node, &Snapshot) == FALSE) return;
+    IsVisible = ((Snapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
+    NodeRect = Snapshot.ScreenRect;
+    (void)DesktopSnapshotWindowChildren(Node, &Children, &ChildCount);
 
-    for (ChildNode = Node->Children != NULL ? Node->Children->First : NULL; ChildNode != NULL; ChildNode = ChildNode->Next) {
-        Child = (LPWINDOW)ChildNode;
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        Child = Children[ChildIndex];
         if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
         DesktopCursorSubtractVisibleWindowTreeFromRegion(Child, Region);
     }
-    UnlockMutex(&(Node->Mutex));
+
+    if (Children != NULL) {
+        KernelHeapFree(Children);
+    }
 
     if (IsVisible != FALSE) {
         (void)DesktopCursorRegionSubtractOccluder(Region, &NodeRect);
@@ -360,9 +368,11 @@ static BOOL DesktopCursorBuildVisibleRegionForWindow(
     UINT Capacity
 ) {
     LPWINDOW Parent;
-    LPLISTNODE Node;
+    LPWINDOW* Windows = NULL;
     LPWINDOW Candidate;
     BOOL FoundSelf = FALSE;
+    UINT Count = 0;
+    UINT Index;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (BaseRect == NULL || Region == NULL || Storage == NULL || Capacity == 0) return FALSE;
@@ -371,11 +381,11 @@ static BOOL DesktopCursorBuildVisibleRegionForWindow(
     RectRegionReset(Region);
     if (RectRegionAddRect(Region, BaseRect) == FALSE) return FALSE;
 
-    Parent = Window->ParentWindow;
+    Parent = (LPWINDOW)GetWindowParent((HANDLE)Window);
     if (Parent != NULL && Parent->TypeID == KOID_WINDOW) {
-        LockMutex(&(Parent->Mutex), INFINITY);
-        for (Node = Parent->Children != NULL ? Parent->Children->First : NULL; Node != NULL; Node = Node->Next) {
-            Candidate = (LPWINDOW)Node;
+        (void)DesktopSnapshotWindowChildren(Parent, &Windows, &Count);
+        for (Index = 0; Index < Count; Index++) {
+            Candidate = Windows[Index];
             if (Candidate == NULL || Candidate->TypeID != KOID_WINDOW) continue;
             if (Candidate == Window) {
                 FoundSelf = TRUE;
@@ -383,28 +393,34 @@ static BOOL DesktopCursorBuildVisibleRegionForWindow(
             }
             DesktopCursorSubtractVisibleWindowTreeFromRegion(Candidate, Region);
             if (RectRegionGetCount(Region) == 0) {
-                UnlockMutex(&(Parent->Mutex));
+                if (Windows != NULL) KernelHeapFree(Windows);
                 return TRUE;
             }
         }
-        UnlockMutex(&(Parent->Mutex));
+        if (Windows != NULL) {
+            KernelHeapFree(Windows);
+            Windows = NULL;
+        }
     }
 
-    if (FoundSelf == FALSE && Window->ParentWindow != NULL) {
+    if (FoundSelf == FALSE && Parent != NULL) {
         return TRUE;
     }
 
-    LockMutex(&(Window->Mutex), INFINITY);
-    for (Node = Window->Children != NULL ? Window->Children->First : NULL; Node != NULL; Node = Node->Next) {
-        Candidate = (LPWINDOW)Node;
+    Count = 0;
+    (void)DesktopSnapshotWindowChildren(Window, &Windows, &Count);
+    for (Index = 0; Index < Count; Index++) {
+        Candidate = Windows[Index];
         if (Candidate == NULL || Candidate->TypeID != KOID_WINDOW) continue;
         DesktopCursorSubtractVisibleWindowTreeFromRegion(Candidate, Region);
         if (RectRegionGetCount(Region) == 0) {
-            UnlockMutex(&(Window->Mutex));
+            if (Windows != NULL) KernelHeapFree(Windows);
             return TRUE;
         }
     }
-    UnlockMutex(&(Window->Mutex));
+    if (Windows != NULL) {
+        KernelHeapFree(Windows);
+    }
 
     return TRUE;
 }
@@ -883,9 +899,7 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
         return;
     }
 
-    LockMutex(&(Window->Mutex), INFINITY);
-    WindowRect = Window->ScreenRect;
-    UnlockMutex(&(Window->Mutex));
+    if (GetWindowScreenRectSnapshot(Window, &WindowRect) == FALSE) return;
 
     if (IntersectRect(&CursorRect, &WindowRect, &Intersection) == FALSE) {
         return;
@@ -906,15 +920,7 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
 
     for (ClipIndex = 0; ClipIndex < RectRegionGetCount(&DrawClipRegion); ClipIndex++) {
         if (RectRegionGetRect(&DrawClipRegion, ClipIndex, &DrawClipRect) == FALSE) continue;
-
-        SAFE_USE_VALID_ID((LPGRAPHICSCONTEXT)GC, KOID_GRAPHICSCONTEXT) {
-            LockMutex(&(((LPGRAPHICSCONTEXT)GC)->Mutex), INFINITY);
-            ((LPGRAPHICSCONTEXT)GC)->LoClip.X = DrawClipRect.X1;
-            ((LPGRAPHICSCONTEXT)GC)->LoClip.Y = DrawClipRect.Y1;
-            ((LPGRAPHICSCONTEXT)GC)->HiClip.X = DrawClipRect.X2;
-            ((LPGRAPHICSCONTEXT)GC)->HiClip.Y = DrawClipRect.Y2;
-            UnlockMutex(&(((LPGRAPHICSCONTEXT)GC)->Mutex));
-        }
+        (void)SetGraphicsContextClipScreenRect(GC, &DrawClipRect);
         DesktopCursorDrawTemplate(GC, LocalCursorX, LocalCursorY, CursorWidth, CursorHeight);
     }
 

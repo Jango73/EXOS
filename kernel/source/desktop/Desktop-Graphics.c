@@ -165,9 +165,7 @@ static BOOL ConvertScreenRectToWindowRect(LPWINDOW Window, LPRECT ScreenRect, LP
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (ScreenRect == NULL || WindowRect == NULL) return FALSE;
 
-    LockMutex(&(Window->Mutex), INFINITY);
-    WindowScreenRect = Window->ScreenRect;
-    UnlockMutex(&(Window->Mutex));
+    if (GetWindowScreenRectSnapshot(Window, &WindowScreenRect) == FALSE) return FALSE;
 
     GraphicsScreenRectToWindowRect(&WindowScreenRect, ScreenRect, WindowRect);
 
@@ -184,7 +182,6 @@ static BOOL ConvertScreenRectToWindowRect(LPWINDOW Window, LPRECT ScreenRect, LP
  */
 static void InvalidateSiblingWindowsOnUncoveredRect(LPWINDOW Window, LPWINDOW Parent, LPRECT UncoveredRect) {
     LPWINDOW* Siblings;
-    LPLISTNODE Node;
     RECT SiblingScreenRect;
     RECT Intersection;
     RECT SiblingLocalRect;
@@ -194,6 +191,7 @@ static void InvalidateSiblingWindowsOnUncoveredRect(LPWINDOW Window, LPWINDOW Pa
     I32 WindowOrder;
     I32 SiblingOrder;
     BOOL IsVisible;
+    WINDOW_STATE_SNAPSHOT SiblingSnapshot;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
     if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return;
@@ -201,34 +199,19 @@ static void InvalidateSiblingWindowsOnUncoveredRect(LPWINDOW Window, LPWINDOW Pa
 
     Count = 0;
     Siblings = NULL;
-    WindowOrder = Window->Order;
-
-    LockMutex(&(Parent->Mutex), INFINITY);
-    if (Parent->Children != NULL && Parent->Children->NumItems > 0) {
-        Count = Parent->Children->NumItems;
-        Siblings = (LPWINDOW*)KernelHeapAlloc(sizeof(LPWINDOW) * Count);
-        if (Siblings != NULL) {
-            Index = 0;
-            for (Node = Parent->Children->First; Node != NULL && Index < Count; Node = Node->Next) {
-                Siblings[Index++] = (LPWINDOW)Node;
-            }
-            Count = Index;
-        } else {
-            Count = 0;
-        }
-    }
-    UnlockMutex(&(Parent->Mutex));
+    WindowOrder = 0;
+    (void)GetWindowOrderSnapshot(Window, &WindowOrder);
+    (void)DesktopSnapshotWindowChildren(Parent, &Siblings, &Count);
 
     for (Index = 0; Index < Count; Index++) {
         Sibling = Siblings[Index];
 
         if (Sibling == NULL || Sibling->TypeID != KOID_WINDOW || Sibling == Window) continue;
 
-        LockMutex(&(Sibling->Mutex), INFINITY);
-        IsVisible = ((Sibling->Status & WINDOW_STATUS_VISIBLE) != 0);
-        SiblingOrder = Sibling->Order;
-        SiblingScreenRect = Sibling->ScreenRect;
-        UnlockMutex(&(Sibling->Mutex));
+        if (GetWindowStateSnapshot(Sibling, &SiblingSnapshot) == FALSE) continue;
+        IsVisible = ((SiblingSnapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
+        SiblingOrder = SiblingSnapshot.Order;
+        SiblingScreenRect = SiblingSnapshot.ScreenRect;
 
         if (IsVisible == FALSE) continue;
         if (SiblingOrder <= WindowOrder) continue;
@@ -255,14 +238,14 @@ static void InvalidateSiblingWindowsOnUncoveredRect(LPWINDOW Window, LPWINDOW Pa
 BOOL BuildWindowRectAtPosition(LPWINDOW Window, LPPOINT Position, LPRECT Rect) {
     I32 Width;
     I32 Height;
+    WINDOW_STATE_SNAPSHOT Snapshot;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (Position == NULL || Rect == NULL) return FALSE;
 
-    LockMutex(&(Window->Mutex), INFINITY);
-    Width = Window->Rect.X2 - Window->Rect.X1 + 1;
-    Height = Window->Rect.Y2 - Window->Rect.Y1 + 1;
-    UnlockMutex(&(Window->Mutex));
+    if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return FALSE;
+    Width = Snapshot.Rect.X2 - Snapshot.Rect.X1 + 1;
+    Height = Snapshot.Rect.Y2 - Snapshot.Rect.Y1 + 1;
 
     if (Width <= 0 || Height <= 0) return FALSE;
 
@@ -286,25 +269,12 @@ static void ClampWindowRectToParentWorkRect(LPWINDOW Window, LPWINDOW Parent, LP
     RECT WorkRect;
     I32 Width;
     I32 Height;
-    I32 ParentWidth;
-    I32 ParentHeight;
-    U32 ParentStatus;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
     if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return;
     if (WindowRect == NULL) return;
     if (GetWindowProp((HANDLE)Window, WINDOW_PROP_BYPASS_PARENT_WORK_RECT) != 0) return;
-
-    LockMutex(&(Parent->Mutex), INFINITY);
-    ParentStatus = Parent->Status;
-    ParentWidth = Parent->Rect.X2 - Parent->Rect.X1 + 1;
-    ParentHeight = Parent->Rect.Y2 - Parent->Rect.Y1 + 1;
-    if ((ParentStatus & WINDOW_STATUS_HAS_WORK_RECT) != 0) {
-        WorkRect = Parent->WorkRect;
-    } else {
-        WorkRect = (RECT){0, 0, ParentWidth - 1, ParentHeight - 1};
-    }
-    UnlockMutex(&(Parent->Mutex));
+    if (GetWindowEffectiveWorkRectSnapshot(Parent, &WorkRect) == FALSE) return;
 
     Width = WindowRect->X2 - WindowRect->X1 + 1;
     Height = WindowRect->Y2 - WindowRect->Y1 + 1;
@@ -354,34 +324,31 @@ BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect) {
     RECT ParentOldRect;
     RECT ParentNewRect;
     RECT OldRect;
+    RECT ParentScreenRect;
+    WINDOW_STATE_SNAPSHOT Snapshot;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (WindowRect == NULL) return FALSE;
     if (WindowRect->X1 > WindowRect->X2 || WindowRect->Y1 > WindowRect->Y2) return FALSE;
 
-    LockMutex(&(Window->Mutex), INFINITY);
+    if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return FALSE;
+    Parent = Snapshot.ParentWindow;
+    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return FALSE;
 
-    Parent = Window->ParentWindow;
-    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) {
-        UnlockMutex(&(Window->Mutex));
-        return FALSE;
-    }
-
-    OldScreenRect = Window->ScreenRect;
-    OldRect = Window->Rect;
+    OldScreenRect = Snapshot.ScreenRect;
+    OldRect = Snapshot.Rect;
     if (WindowRect->X1 == OldRect.X1 && WindowRect->Y1 == OldRect.Y1 && WindowRect->X2 == OldRect.X2 &&
         WindowRect->Y2 == OldRect.Y2) {
-        UnlockMutex(&(Window->Mutex));
         return TRUE;
     }
 
     ClampWindowRectToParentWorkRect(Window, Parent, WindowRect);
+    if (GetWindowScreenRectSnapshot(Parent, &ParentScreenRect) == FALSE) return FALSE;
 
+    LockMutex(&(Window->Mutex), INFINITY);
     Window->Rect = *WindowRect;
-    GraphicsWindowRectToScreenRect(&(Parent->ScreenRect), &(Window->Rect), &(Window->ScreenRect));
-
+    GraphicsWindowRectToScreenRect(&ParentScreenRect, &(Window->Rect), &(Window->ScreenRect));
     NewScreenRect = Window->ScreenRect;
-
     UnlockMutex(&(Window->Mutex));
 
     if (ConvertScreenRectToWindowRect(Parent, &OldScreenRect, &ParentOldRect)) {
@@ -457,73 +424,35 @@ BOOL BuildWindowDrawClipRegion(
     UINT ClipCapacity
 ) {
     RECT WindowScreenRect;
-    RECT DirtyRect;
-    UINT DirtyCount;
-    UINT DirtyIndex;
     I32 ThisOrder;
     LPWINDOW ParentWindow = NULL;
     LPWINDOW SiblingWindow;
-    LPLISTNODE Node;
+    LPWINDOW* Siblings = NULL;
+    UINT SiblingCount = 0;
+    UINT SiblingIndex;
+    I32 SiblingOrder;
 
     if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
     if (ClipRegion == NULL) return FALSE;
-    if (RectRegionInit(ClipRegion, ClipStorage, ClipCapacity) == FALSE) return FALSE;
-    RectRegionReset(ClipRegion);
-
-    LockMutex(&(This->Mutex), INFINITY);
-
-    WindowScreenRect = This->ScreenRect;
-    ThisOrder = This->Order;
-
-    if (This->DirtyRegion.Storage != This->DirtyRects || This->DirtyRegion.Capacity != WINDOW_DIRTY_REGION_CAPACITY) {
-        (void)RectRegionInit(&This->DirtyRegion, This->DirtyRects, WINDOW_DIRTY_REGION_CAPACITY);
+    if (DesktopConsumeWindowDirtyRegionSnapshot(
+            This, ClipRegion, ClipStorage, ClipCapacity, &WindowScreenRect, &ThisOrder, &ParentWindow) == FALSE) {
+        return FALSE;
     }
 
-    DirtyCount = RectRegionGetCount(&This->DirtyRegion);
-    if (DirtyCount == 0) {
-        (void)RectRegionAddRect(ClipRegion, &WindowScreenRect);
-    } else {
-        for (DirtyIndex = 0; DirtyIndex < DirtyCount; DirtyIndex++) {
-            if (RectRegionGetRect(&This->DirtyRegion, DirtyIndex, &DirtyRect) == FALSE) continue;
+    (void)DesktopSnapshotWindowChildren(ParentWindow, &Siblings, &SiblingCount);
+    for (SiblingIndex = 0; SiblingIndex < SiblingCount; SiblingIndex++) {
+        SiblingWindow = Siblings[SiblingIndex];
+        if (SiblingWindow == NULL || SiblingWindow->TypeID != KOID_WINDOW) continue;
+        if (SiblingWindow == This) continue;
+        if (GetWindowOrderSnapshot(SiblingWindow, &SiblingOrder) == FALSE) continue;
+        if (SiblingOrder >= ThisOrder) continue;
 
-            if (DirtyRect.X1 < WindowScreenRect.X1) DirtyRect.X1 = WindowScreenRect.X1;
-            if (DirtyRect.Y1 < WindowScreenRect.Y1) DirtyRect.Y1 = WindowScreenRect.Y1;
-            if (DirtyRect.X2 > WindowScreenRect.X2) DirtyRect.X2 = WindowScreenRect.X2;
-            if (DirtyRect.Y2 > WindowScreenRect.Y2) DirtyRect.Y2 = WindowScreenRect.Y2;
-            if (DirtyRect.X1 > DirtyRect.X2 || DirtyRect.Y1 > DirtyRect.Y2) continue;
-
-            (void)RectRegionAddRect(ClipRegion, &DirtyRect);
-        }
+        RootClipSubtractVisibleWindowTree(SiblingWindow, ClipRegion);
+        if (RectRegionGetCount(ClipRegion) == 0) break;
     }
 
-    if (RectRegionIsOverflowed(&This->DirtyRegion) || RectRegionIsOverflowed(ClipRegion)) {
-        RectRegionReset(ClipRegion);
-        (void)RectRegionAddRect(ClipRegion, &WindowScreenRect);
-    }
-
-    if (RectRegionGetCount(ClipRegion) == 0) {
-        (void)RectRegionAddRect(ClipRegion, &WindowScreenRect);
-    }
-
-    RectRegionReset(&This->DirtyRegion);
-    ParentWindow = This->ParentWindow;
-
-    UnlockMutex(&(This->Mutex));
-
-    SAFE_USE_VALID_ID(ParentWindow, KOID_WINDOW) {
-        LockMutex(&(ParentWindow->Mutex), INFINITY);
-
-        for (Node = ParentWindow->Children != NULL ? ParentWindow->Children->First : NULL; Node != NULL; Node = Node->Next) {
-            SiblingWindow = (LPWINDOW)Node;
-            if (SiblingWindow == NULL || SiblingWindow->TypeID != KOID_WINDOW) continue;
-            if (SiblingWindow == This) continue;
-            if (SiblingWindow->Order >= ThisOrder) continue;
-
-            RootClipSubtractVisibleWindowTree(SiblingWindow, ClipRegion);
-            if (RectRegionGetCount(ClipRegion) == 0) break;
-        }
-
-        UnlockMutex(&(ParentWindow->Mutex));
+    if (Siblings != NULL) {
+        KernelHeapFree(Siblings);
     }
 
     return TRUE;
@@ -630,23 +559,30 @@ static BOOL RegionSubtractOccluder(LPRECT_REGION Region, LPRECT Occluder) {
  * @param Region Region to clip.
  */
 static void RootClipSubtractVisibleWindowTree(LPWINDOW Window, LPRECT_REGION Region) {
-    LPLISTNODE Node;
+    LPWINDOW* Children = NULL;
     LPWINDOW Child;
     RECT WindowRect;
+    UINT ChildCount = 0;
+    UINT ChildIndex;
     BOOL IsVisible = FALSE;
+    WINDOW_STATE_SNAPSHOT Snapshot;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW || Region == NULL) return;
 
-    LockMutex(&(Window->Mutex), INFINITY);
-    IsVisible = ((Window->Status & WINDOW_STATUS_VISIBLE) != 0);
-    WindowRect = Window->ScreenRect;
+    if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return;
+    IsVisible = ((Snapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
+    WindowRect = Snapshot.ScreenRect;
+    (void)DesktopSnapshotWindowChildren(Window, &Children, &ChildCount);
 
-    for (Node = Window->Children != NULL ? Window->Children->First : NULL; Node != NULL; Node = Node->Next) {
-        Child = (LPWINDOW)Node;
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        Child = Children[ChildIndex];
         if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
         RootClipSubtractVisibleWindowTree(Child, Region);
     }
-    UnlockMutex(&(Window->Mutex));
+
+    if (Children != NULL) {
+        KernelHeapFree(Children);
+    }
 
     if (IsVisible != FALSE) {
         (void)RegionSubtractOccluder(Region, &WindowRect);
@@ -671,8 +607,10 @@ static BOOL BuildDesktopRootVisibleClipRegion(
     LPRECT Storage,
     UINT Capacity
 ) {
-    LPLISTNODE Node;
+    LPWINDOW* Children = NULL;
     LPWINDOW Child;
+    UINT ChildCount = 0;
+    UINT ChildIndex;
 
     if (RootWindow == NULL || RootWindow->TypeID != KOID_WINDOW) return FALSE;
     if (SourceRect == NULL || Region == NULL || Storage == NULL || Capacity == 0) return FALSE;
@@ -681,17 +619,17 @@ static BOOL BuildDesktopRootVisibleClipRegion(
     RectRegionReset(Region);
     if (RectRegionAddRect(Region, SourceRect) == FALSE) return FALSE;
 
-    LockMutex(&(RootWindow->Mutex), INFINITY);
-    for (Node = RootWindow->Children != NULL ? RootWindow->Children->First : NULL; Node != NULL; Node = Node->Next) {
-        Child = (LPWINDOW)Node;
+    (void)DesktopSnapshotWindowChildren(RootWindow, &Children, &ChildCount);
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        Child = Children[ChildIndex];
         if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
         RootClipSubtractVisibleWindowTree(Child, Region);
-        if (RectRegionGetCount(Region) == 0) {
-            UnlockMutex(&(RootWindow->Mutex));
-            return TRUE;
-        }
+        if (RectRegionGetCount(Region) == 0) break;
     }
-    UnlockMutex(&(RootWindow->Mutex));
+
+    if (Children != NULL) {
+        KernelHeapFree(Children);
+    }
 
     return TRUE;
 }
@@ -734,8 +672,10 @@ static BOOL ResolveSystemDrawObjects(U32 Index, LPBRUSH* Brush, LPPEN* Pen) {
  */
 BOOL ShowWindow(HANDLE Handle, BOOL ShowHide) {
     LPWINDOW This = (LPWINDOW)Handle;
+    LPWINDOW* Children = NULL;
     LPWINDOW Child;
-    LPLISTNODE Node;
+    UINT ChildCount = 0;
+    UINT ChildIndex;
 
     //-------------------------------------
     // Check validity of parameters
@@ -746,28 +686,25 @@ BOOL ShowWindow(HANDLE Handle, BOOL ShowHide) {
     //-------------------------------------
     // Send appropriate messages to the window
 
-    This->Style |= EWS_VISIBLE;
-    This->Status |= WINDOW_STATUS_VISIBLE;
+    (void)DesktopSetWindowVisibleState(This, ShowHide);
 
     PostMessage(Handle, EWM_SHOW, 0, 0);
     (void)RequestWindowDraw(Handle);
 
-    //-------------------------------------
-    // Lock access to resources
+    (void)DesktopSnapshotWindowChildren(This, &Children, &ChildCount);
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        WINDOW_STATE_SNAPSHOT ChildSnapshot;
 
-    LockMutex(&(This->Mutex), INFINITY);
-
-    for (Node = This->Children->First; Node; Node = Node->Next) {
-        Child = (LPWINDOW)Node;
-        if (Child->Style & EWS_VISIBLE) {
+        Child = Children[ChildIndex];
+        if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
+        if (GetWindowStateSnapshot(Child, &ChildSnapshot) == FALSE) continue;
+        if ((ChildSnapshot.Style & EWS_VISIBLE) != 0) {
             ShowWindow((HANDLE)Child, ShowHide);
         }
     }
-
-    //-------------------------------------
-    // Unlock access to resources
-
-    UnlockMutex(&(This->Mutex));
+    if (Children != NULL) {
+        KernelHeapFree(Children);
+    }
 
     return TRUE;
 }
@@ -1042,6 +979,8 @@ HANDLE GetWindowGC(HANDLE Handle) {
     LPDRIVER GraphicsDriver;
     LPGRAPHICSCONTEXT Context;
     UINT ContextPointer;
+    WINDOW_STATE_SNAPSHOT WindowSnapshot;
+    WINDOW_DRAW_CONTEXT_SNAPSHOT DrawSnapshot;
 
     //-------------------------------------
     // Check validity of parameters
@@ -1059,22 +998,26 @@ HANDLE GetWindowGC(HANDLE Handle) {
     if (Context->TypeID != KOID_GRAPHICSCONTEXT) return NULL;
 
     ResetGraphicsContext(Context);
+    if (GetWindowStateSnapshot(This, &WindowSnapshot) == FALSE) return NULL;
+    if (GetWindowDrawContextSnapshot(This, &DrawSnapshot) == FALSE) {
+        MemorySet(&DrawSnapshot, 0, sizeof(DrawSnapshot));
+    }
 
     //-------------------------------------
     // Set the origin of the context
 
     LockMutex(&(Context->Mutex), INFINITY);
 
-    Context->Origin.X = This->ScreenRect.X1;
-    Context->Origin.Y = This->ScreenRect.Y1;
+    Context->Origin.X = WindowSnapshot.ScreenRect.X1;
+    Context->Origin.Y = WindowSnapshot.ScreenRect.Y1;
 
-    if ((This->DrawContextFlags & WINDOW_DRAW_CONTEXT_ACTIVE) != 0) {
-        Context->Origin.X = This->DrawOrigin.X;
-        Context->Origin.Y = This->DrawOrigin.Y;
-        Context->LoClip.X = This->DrawClipRect.X1;
-        Context->LoClip.Y = This->DrawClipRect.Y1;
-        Context->HiClip.X = This->DrawClipRect.X2;
-        Context->HiClip.Y = This->DrawClipRect.Y2;
+    if ((DrawSnapshot.Flags & WINDOW_DRAW_CONTEXT_ACTIVE) != 0) {
+        Context->Origin.X = DrawSnapshot.Origin.X;
+        Context->Origin.Y = DrawSnapshot.Origin.Y;
+        Context->LoClip.X = DrawSnapshot.ClipRect.X1;
+        Context->LoClip.Y = DrawSnapshot.ClipRect.Y1;
+        Context->HiClip.X = DrawSnapshot.ClipRect.X2;
+        Context->HiClip.Y = DrawSnapshot.ClipRect.Y2;
     }
 
     /*
@@ -1570,7 +1513,10 @@ BOOL Triangle(LPTRIANGLEINFO TriangleInfo) {
 HANDLE WindowHitTest(HANDLE Handle, LPPOINT Position) {
     LPWINDOW This = (LPWINDOW)Handle;
     LPWINDOW Target = NULL;
-    LPLISTNODE Node = NULL;
+    LPWINDOW* Children = NULL;
+    UINT ChildCount = 0;
+    UINT ChildIndex;
+    WINDOW_STATE_SNAPSHOT Snapshot;
 
     //-------------------------------------
     // Check validity of parameters
@@ -1578,16 +1524,9 @@ HANDLE WindowHitTest(HANDLE Handle, LPPOINT Position) {
     if (This == NULL) return NULL;
     if (This->TypeID != KOID_WINDOW) return NULL;
 
-    //-------------------------------------
-    // Lock access to resources
-
-    LockMutex(&(This->Mutex), INFINITY);
-
-    //-------------------------------------
-    // Test if one child window passes hit test
-
-    for (Node = This->Children->First; Node; Node = Node->Next) {
-        Target = (LPWINDOW)WindowHitTest((HANDLE)Node, Position);
+    (void)DesktopSnapshotWindowChildren(This, &Children, &ChildCount);
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        Target = (LPWINDOW)WindowHitTest((HANDLE)Children[ChildIndex], Position);
         if (Target != NULL) goto Out;
     }
 
@@ -1596,19 +1535,18 @@ HANDLE WindowHitTest(HANDLE Handle, LPPOINT Position) {
 
     Target = NULL;
 
-    if ((This->Status & WINDOW_STATUS_VISIBLE) == 0) goto Out;
+    if (GetWindowStateSnapshot(This, &Snapshot) == FALSE) goto Out;
+    if ((Snapshot.Status & WINDOW_STATUS_VISIBLE) == 0) goto Out;
 
-    if (Position->X >= This->ScreenRect.X1 && Position->X <= This->ScreenRect.X2 &&
-        Position->Y >= This->ScreenRect.Y1 && Position->Y <= This->ScreenRect.Y2) {
+    if (Position->X >= Snapshot.ScreenRect.X1 && Position->X <= Snapshot.ScreenRect.X2 &&
+        Position->Y >= Snapshot.ScreenRect.Y1 && Position->Y <= Snapshot.ScreenRect.Y2) {
         Target = This;
     }
 
 Out:
-
-    //-------------------------------------
-    // Unlock access to resources
-
-    UnlockMutex(&(This->Mutex));
+    if (Children != NULL) {
+        KernelHeapFree(Children);
+    }
 
     return (HANDLE)Target;
 }

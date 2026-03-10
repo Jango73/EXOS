@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "Desktop-Dispatcher.h"
+#include "Desktop-Private.h"
 
 #include "CoreString.h"
 #include "Kernel.h"
@@ -59,21 +60,25 @@ static BOOL IsDesktopDispatcherTask(LPTASK Task) {
  * @param Task Target owner task.
  */
 static void DesktopAssignWindowTaskRecursive(LPWINDOW Window, LPTASK Task) {
-    LPLISTNODE Node;
+    LPWINDOW* Children = NULL;
     LPWINDOW Child;
+    UINT ChildCount = 0;
+    UINT ChildIndex;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
     if (Task == NULL || Task->TypeID != KOID_TASK) return;
 
-    LockMutex(&(Window->Mutex), INFINITY);
-    Window->Task = Task;
+    (void)DesktopSetWindowTask(Window, Task);
+    (void)DesktopSnapshotWindowChildren(Window, &Children, &ChildCount);
 
-    for (Node = Window->Children != NULL ? Window->Children->First : NULL; Node != NULL; Node = Node->Next) {
-        Child = (LPWINDOW)Node;
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        Child = Children[ChildIndex];
         DesktopAssignWindowTaskRecursive(Child, Task);
     }
 
-    UnlockMutex(&(Window->Mutex));
+    if (Children != NULL) {
+        KernelHeapFree(Children);
+    }
 }
 
 /***************************************************************************/

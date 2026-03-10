@@ -30,6 +30,29 @@
 
 /************************************************************************/
 
+typedef struct tag_WINDOW_STATE_SNAPSHOT {
+    RECT Rect;
+    RECT ScreenRect;
+    RECT WorkRect;
+    U32 Style;
+    U32 Status;
+    U32 Level;
+    I32 Order;
+    LPWINDOW ParentWindow;
+    LPTASK Task;
+    LPWINDOW_CLASS Class;
+    BOOL HasWorkRect;
+} WINDOW_STATE_SNAPSHOT, *LPWINDOW_STATE_SNAPSHOT;
+
+typedef struct tag_WINDOW_DRAW_CONTEXT_SNAPSHOT {
+    RECT SurfaceRect;
+    RECT ClipRect;
+    POINT Origin;
+    U32 Flags;
+} WINDOW_DRAW_CONTEXT_SNAPSHOT, *LPWINDOW_DRAW_CONTEXT_SNAPSHOT;
+
+/************************************************************************/
+
 extern BRUSH Brush_Desktop;
 extern BRUSH Brush_High;
 extern BRUSH Brush_Normal;
@@ -70,6 +93,26 @@ BOOL DesktopGetWindowDrawClipRect(LPWINDOW Window, LPRECT Rect);
 BOOL BuildWindowRectAtPosition(LPWINDOW Window, LPPOINT Position, LPRECT Rect);
 BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect);
 BOOL GetWindowScreenRectSnapshot(LPWINDOW Window, LPRECT Rect);
+BOOL GetWindowStateSnapshot(LPWINDOW Window, LPWINDOW_STATE_SNAPSHOT Snapshot);
+BOOL GetWindowOrderSnapshot(LPWINDOW Window, I32* Order);
+BOOL GetWindowLevelSnapshot(LPWINDOW Window, U32* Level);
+BOOL GetWindowEffectiveWorkRectSnapshot(LPWINDOW Window, LPRECT WorkRect);
+BOOL GetWindowDrawContextSnapshot(LPWINDOW Window, LPWINDOW_DRAW_CONTEXT_SNAPSHOT Snapshot);
+BOOL DesktopSnapshotWindowChildren(LPWINDOW Parent, LPWINDOW** Children, UINT* ChildCount);
+BOOL DesktopConsumeWindowDirtyRegionSnapshot(
+    LPWINDOW Window,
+    LPRECT_REGION ClipRegion,
+    LPRECT ClipStorage,
+    UINT ClipCapacity,
+    LPRECT ScreenRect,
+    I32* Order,
+    LPWINDOW* ParentWindow);
+BOOL DesktopAttachWindowChild(LPWINDOW Parent, LPWINDOW Child);
+BOOL DesktopDetachWindowChild(LPWINDOW Parent, LPWINDOW Child);
+BOOL DesktopSetWindowTask(LPWINDOW Window, LPTASK Task);
+BOOL DesktopSetWindowVisibleState(LPWINDOW Window, BOOL ShowHide);
+BOOL DesktopGetRootWindow(LPDESKTOP Desktop, LPWINDOW* RootWindow);
+BOOL DesktopClearWindowReferences(LPDESKTOP Desktop, LPWINDOW Window);
 BOOL GetDesktopCaptureState(LPWINDOW Window, LPWINDOW* CaptureWindow, I32* OffsetX, I32* OffsetY);
 BOOL SetDesktopCaptureState(LPWINDOW Window, LPWINDOW CaptureWindow, I32 OffsetX, I32 OffsetY);
 

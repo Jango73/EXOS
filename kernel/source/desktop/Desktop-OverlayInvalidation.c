@@ -23,7 +23,9 @@
 
 #include "Desktop-OverlayInvalidation.h"
 
+#include "Desktop-Private.h"
 #include "Desktop.h"
+#include "Kernel.h"
 #include "utils/Graphics-Utils.h"
 
 /************************************************************************/
@@ -36,24 +38,27 @@
  * @param FullWindow TRUE to invalidate the whole window when intersected.
  */
 static void DesktopOverlayInvalidateWindowTreeRectInternal(LPWINDOW Window, LPRECT ScreenRect, BOOL SkipCurrent, BOOL FullWindow) {
-    LPLISTNODE ChildNode;
+    LPWINDOW* Children = NULL;
     LPWINDOW Child;
     RECT WindowScreenRect;
     RECT Intersection;
     RECT WindowRect;
+    UINT ChildCount = 0;
+    UINT ChildIndex;
     BOOL IsVisible = FALSE;
     BOOL HasIntersection = FALSE;
+    WINDOW_STATE_SNAPSHOT Snapshot;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
     if (ScreenRect == NULL) return;
 
-    LockMutex(&(Window->Mutex), INFINITY);
+    if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return;
+    IsVisible = ((Snapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
+    WindowScreenRect = Snapshot.ScreenRect;
+    (void)DesktopSnapshotWindowChildren(Window, &Children, &ChildCount);
 
-    IsVisible = ((Window->Status & WINDOW_STATUS_VISIBLE) != 0);
-    WindowScreenRect = Window->ScreenRect;
-
-    for (ChildNode = Window->Children != NULL ? Window->Children->First : NULL; ChildNode != NULL; ChildNode = ChildNode->Next) {
-        Child = (LPWINDOW)ChildNode;
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        Child = Children[ChildIndex];
         if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
         DesktopOverlayInvalidateWindowTreeRectInternal(Child, ScreenRect, FALSE, FullWindow);
     }
@@ -72,7 +77,9 @@ static void DesktopOverlayInvalidateWindowTreeRectInternal(LPWINDOW Window, LPRE
         }
     }
 
-    UnlockMutex(&(Window->Mutex));
+    if (Children != NULL) {
+        KernelHeapFree(Children);
+    }
 
     if (HasIntersection != FALSE) {
         (void)InvalidateWindowRect((HANDLE)Window, &WindowRect);
@@ -96,22 +103,25 @@ static BOOL DesktopOverlayInvalidateRootVisibleRemainderRect(LPWINDOW RootWindow
     RECT ChildRect;
     RECT RemainingRect;
     RECT RootWindowRect;
-    LPLISTNODE ChildNode;
+    LPWINDOW* Children = NULL;
     LPWINDOW Child;
     UINT RemainingIndex;
+    UINT ChildCount = 0;
+    UINT ChildIndex;
     BOOL IsVisible = FALSE;
     BOOL HasIntersection = FALSE;
     BOOL InvalidatedAny = FALSE;
+    WINDOW_STATE_SNAPSHOT RootSnapshot;
+    WINDOW_STATE_SNAPSHOT ChildSnapshot;
 
     if (RootWindow == NULL || RootWindow->TypeID != KOID_WINDOW) return FALSE;
     if (ScreenRect == NULL) return FALSE;
     if (RectRegionInit(&RemainderRegion, RemainderStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) return FALSE;
     RectRegionReset(&RemainderRegion);
 
-    LockMutex(&(RootWindow->Mutex), INFINITY);
-
-    IsVisible = ((RootWindow->Status & WINDOW_STATUS_VISIBLE) != 0);
-    RootScreenRect = RootWindow->ScreenRect;
+    if (GetWindowStateSnapshot(RootWindow, &RootSnapshot) == FALSE) return FALSE;
+    IsVisible = ((RootSnapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
+    RootScreenRect = RootSnapshot.ScreenRect;
     if (IsVisible != FALSE) {
         if (IntersectRect(&RootScreenRect, ScreenRect, &RootIntersection) != FALSE) {
             HasIntersection = TRUE;
@@ -120,12 +130,14 @@ static BOOL DesktopOverlayInvalidateRootVisibleRemainderRect(LPWINDOW RootWindow
     }
 
     if (HasIntersection != FALSE) {
-        for (ChildNode = RootWindow->Children != NULL ? RootWindow->Children->First : NULL; ChildNode != NULL; ChildNode = ChildNode->Next) {
-            Child = (LPWINDOW)ChildNode;
+        (void)DesktopSnapshotWindowChildren(RootWindow, &Children, &ChildCount);
+        for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+            Child = Children[ChildIndex];
             if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
-            if ((Child->Status & WINDOW_STATUS_VISIBLE) == 0) continue;
+            if (GetWindowStateSnapshot(Child, &ChildSnapshot) == FALSE) continue;
+            if ((ChildSnapshot.Status & WINDOW_STATUS_VISIBLE) == 0) continue;
 
-            ChildRect = Child->ScreenRect;
+            ChildRect = ChildSnapshot.ScreenRect;
             if (SubtractRectFromRegion(&RemainderRegion, &ChildRect, TempStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) {
                 RectRegionReset(&RemainderRegion);
                 break;
@@ -136,8 +148,9 @@ static BOOL DesktopOverlayInvalidateRootVisibleRemainderRect(LPWINDOW RootWindow
             }
         }
     }
-
-    UnlockMutex(&(RootWindow->Mutex));
+    if (Children != NULL) {
+        KernelHeapFree(Children);
+    }
 
     if (HasIntersection == FALSE) return FALSE;
 
@@ -172,14 +185,14 @@ BOOL DesktopOverlayInvalidateRootRect(LPWINDOW RootWindow, LPRECT ScreenRect) {
     RECT RootWindowRect;
     BOOL IsVisible = FALSE;
     BOOL HasIntersection = FALSE;
+    WINDOW_STATE_SNAPSHOT Snapshot;
 
     if (RootWindow == NULL || RootWindow->TypeID != KOID_WINDOW) return FALSE;
     if (ScreenRect == NULL) return FALSE;
 
-    LockMutex(&(RootWindow->Mutex), INFINITY);
-
-    IsVisible = ((RootWindow->Status & WINDOW_STATUS_VISIBLE) != 0);
-    RootScreenRect = RootWindow->ScreenRect;
+    if (GetWindowStateSnapshot(RootWindow, &Snapshot) == FALSE) return FALSE;
+    IsVisible = ((Snapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
+    RootScreenRect = Snapshot.ScreenRect;
 
     if (IsVisible != FALSE) {
         if (IntersectRect(&RootScreenRect, ScreenRect, &Intersection) != FALSE) {
@@ -187,8 +200,6 @@ BOOL DesktopOverlayInvalidateRootRect(LPWINDOW RootWindow, LPRECT ScreenRect) {
             HasIntersection = TRUE;
         }
     }
-
-    UnlockMutex(&(RootWindow->Mutex));
 
     if (HasIntersection != FALSE) {
         return InvalidateWindowRect((HANDLE)RootWindow, &RootWindowRect);

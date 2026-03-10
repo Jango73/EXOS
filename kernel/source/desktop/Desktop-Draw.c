@@ -123,10 +123,12 @@ static void ActivateWindowDrawContext(
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
     if (SurfaceRect == NULL || ClipRect == NULL || Origin == NULL) return;
 
+    LockMutex(&(Window->Mutex), INFINITY);
     Window->DrawSurfaceRect = *SurfaceRect;
     Window->DrawClipRect = *ClipRect;
     Window->DrawOrigin = *Origin;
     Window->DrawContextFlags = WINDOW_DRAW_CONTEXT_ACTIVE | Flags;
+    UnlockMutex(&(Window->Mutex));
 }
 
 /***************************************************************************/
@@ -138,10 +140,12 @@ static void ActivateWindowDrawContext(
 static void ClearWindowDrawContext(LPWINDOW Window) {
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
 
+    LockMutex(&(Window->Mutex), INFINITY);
     MemorySet(&Window->DrawSurfaceRect, 0, sizeof(Window->DrawSurfaceRect));
     MemorySet(&Window->DrawClipRect, 0, sizeof(Window->DrawClipRect));
     MemorySet(&Window->DrawOrigin, 0, sizeof(Window->DrawOrigin));
     Window->DrawContextFlags = 0;
+    UnlockMutex(&(Window->Mutex));
 }
 
 /***************************************************************************/
@@ -153,11 +157,14 @@ static void ClearWindowDrawContext(LPWINDOW Window) {
  * @return TRUE when a prepared surface rectangle exists.
  */
 BOOL DesktopGetWindowDrawSurfaceRect(LPWINDOW Window, LPRECT Rect) {
+    WINDOW_DRAW_CONTEXT_SNAPSHOT Snapshot;
+
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (Rect == NULL) return FALSE;
-    if ((Window->DrawContextFlags & WINDOW_DRAW_CONTEXT_ACTIVE) == 0) return FALSE;
+    if (GetWindowDrawContextSnapshot(Window, &Snapshot) == FALSE) return FALSE;
+    if ((Snapshot.Flags & WINDOW_DRAW_CONTEXT_ACTIVE) == 0) return FALSE;
 
-    *Rect = Window->DrawSurfaceRect;
+    *Rect = Snapshot.SurfaceRect;
     return TRUE;
 }
 
@@ -170,11 +177,14 @@ BOOL DesktopGetWindowDrawSurfaceRect(LPWINDOW Window, LPRECT Rect) {
  * @return TRUE when a prepared clip rectangle exists.
  */
 BOOL DesktopGetWindowDrawClipRect(LPWINDOW Window, LPRECT Rect) {
+    WINDOW_DRAW_CONTEXT_SNAPSHOT Snapshot;
+
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (Rect == NULL) return FALSE;
-    if ((Window->DrawContextFlags & WINDOW_DRAW_CONTEXT_ACTIVE) == 0) return FALSE;
+    if (GetWindowDrawContextSnapshot(Window, &Snapshot) == FALSE) return FALSE;
+    if ((Snapshot.Flags & WINDOW_DRAW_CONTEXT_ACTIVE) == 0) return FALSE;
 
-    *Rect = Window->DrawClipRect;
+    *Rect = Snapshot.ClipRect;
     return TRUE;
 }
 

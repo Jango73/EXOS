@@ -33,6 +33,7 @@
 #include "Desktop-Cursor.h"
 #include "Desktop-Timer.h"
 #include "Desktop-WindowClass.h"
+#include "Desktop-Private.h"
 #include "Desktop.h"
 #include "Desktop-ModeSelector.h"
 #include "Desktop-ThemeTokens.h"
@@ -241,30 +242,6 @@ I32 SortWindows_Order(LPCVOID Item1, LPCVOID Item2) {
     LPWINDOW Win2 = *Ptr2;
 
     return (Win1->Order - Win2->Order);
-}
-
-/***************************************************************************/
-
-/**
- * @brief Insert one child window at the front of its parent z-order.
- * @param Parent Parent window already locked.
- * @param Window Child window to order.
- */
-static void AddChildWindowToFrontLocked(LPWINDOW Parent, LPWINDOW Window) {
-    LPLISTNODE Node;
-    LPWINDOW Sibling;
-
-    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return;
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
-
-    for (Node = Parent->Children != NULL ? Parent->Children->First : NULL; Node != NULL; Node = Node->Next) {
-        Sibling = (LPWINDOW)Node;
-        if (Sibling == NULL || Sibling->TypeID != KOID_WINDOW) continue;
-        Sibling->Order++;
-    }
-
-    Window->Order = 0;
-    ListAddHead(Parent->Children, Window);
 }
 
 /***************************************************************************/
@@ -544,7 +521,10 @@ BOOL ShowDesktop(LPDESKTOP This) {
  * @return TRUE if the rectangle is returned, FALSE otherwise.
  */
 BOOL GetDesktopScreenRect(LPDESKTOP Desktop, LPRECT Rect) {
+    LPWINDOW RootWindow;
+
     if (Rect == NULL) return FALSE;
+    if (DesktopGetRootWindow(Desktop, &RootWindow) == FALSE) return FALSE;
 
     SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
         LockMutex(&(Desktop->Mutex), INFINITY);
@@ -562,18 +542,10 @@ BOOL GetDesktopScreenRect(LPDESKTOP Desktop, LPRECT Rect) {
             return TRUE;
         }
 
-        SAFE_USE_VALID_ID(Desktop->Window, KOID_WINDOW) {
-            LockMutex(&(Desktop->Window->Mutex), INFINITY);
-            *Rect = Desktop->Window->ScreenRect;
-            UnlockMutex(&(Desktop->Window->Mutex));
-            UnlockMutex(&(Desktop->Mutex));
-            return TRUE;
-        }
-
         UnlockMutex(&(Desktop->Mutex));
     }
 
-    return FALSE;
+    return GetWindowScreenRectSnapshot(RootWindow, Rect);
 }
 
 /***************************************************************************/
@@ -609,7 +581,8 @@ BOOL DeleteWindow(LPWINDOW This) {
     LPPROCESS Process;
     LPTASK Task;
     LPDESKTOP Desktop;
-    LPLISTNODE Node;
+    LPWINDOW ParentWindow;
+    LPWINDOW ChildWindow;
 
     //-------------------------------------
     // Check validity of parameters
@@ -627,40 +600,29 @@ BOOL DeleteWindow(LPWINDOW This) {
     //-------------------------------------
     // Release desktop related resources
 
-    LockMutex(&(Desktop->Mutex), INFINITY);
-
     DesktopTimerRemoveWindowTimers(Desktop, This);
-    if (Desktop->Capture == This) Desktop->Capture = NULL;
-    if (Desktop->Focus == This) Desktop->Focus = NULL;
-
-    UnlockMutex(&(Desktop->Mutex));
+    (void)DesktopClearWindowReferences(Desktop, This);
     (void)SendMessage((HANDLE)This, EWM_DELETE, 0, 0);
 
-    //-------------------------------------
-    // Lock access to the window
+    LockMutex(&(This->Mutex), INFINITY);
+    ParentWindow = This->ParentWindow;
+    UnlockMutex(&(This->Mutex));
+
+    for (;;) {
+        ChildWindow = (LPWINDOW)GetWindowChild((HANDLE)This, 0);
+        if (ChildWindow == NULL || ChildWindow->TypeID != KOID_WINDOW) break;
+        DeleteWindow(ChildWindow);
+    }
 
     LockMutex(&(This->Mutex), INFINITY);
-
-    //-------------------------------------
-    // Delete children first
-
-    for (Node = This->Children->First; Node; Node = Node->Next) {
-        DeleteWindow((LPWINDOW)Node);
-    }
 
     if (This->ClassData != NULL) {
         KernelHeapFree(This->ClassData);
         This->ClassData = NULL;
     }
+    UnlockMutex(&(This->Mutex));
 
-    //-------------------------------------
-    // Remove window from it's parent's list
-
-    LockMutex(&(This->ParentWindow->Mutex), INFINITY);
-
-    ListRemove(This->ParentWindow->Children, This);
-
-    UnlockMutex(&(This->ParentWindow->Mutex));
+    (void)DesktopDetachWindowChild(ParentWindow, This);
 
     ReleaseKernelObject(This);
 
@@ -676,9 +638,10 @@ BOOL DeleteWindow(LPWINDOW This) {
  * @return Pointer to the found window or NULL.
  */
 LPWINDOW FindWindow(LPWINDOW Start, LPWINDOW Target) {
-    LPLISTNODE Node = NULL;
     LPWINDOW Current = NULL;
     LPWINDOW Child = NULL;
+    UINT ChildCount;
+    UINT Index;
 
     if (Start == NULL) return NULL;
     if (Start->TypeID != KOID_WINDOW) return NULL;
@@ -688,17 +651,13 @@ LPWINDOW FindWindow(LPWINDOW Start, LPWINDOW Target) {
 
     if (Start == Target) return Start;
 
-    LockMutex(&(Start->Mutex), INFINITY);
-
-    for (Node = Start->Children->First; Node; Node = Node->Next) {
-        Child = (LPWINDOW)Node;
+    ChildCount = GetWindowChildCount((HANDLE)Start);
+    for (Index = 0; Index < ChildCount; Index++) {
+        Child = (LPWINDOW)GetWindowChild((HANDLE)Start, Index);
+        if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
         Current = FindWindow(Child, Target);
-        if (Current != NULL) goto Out;
+        if (Current != NULL) return Current;
     }
-
-Out:
-
-    UnlockMutex(&(Start->Mutex));
 
     return Current;
 }
@@ -712,10 +671,11 @@ Out:
  */
 LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     LPWINDOW This;
-    LPWINDOW Win;
     LPWINDOW Parent;
     LPDESKTOP Desktop;
     LPTASK OwnerTask;
+    RECT ParentScreenRect;
+    U32 ParentLevel;
 
     //-------------------------------------
     // Check validity of parameters
@@ -805,21 +765,16 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     }
 
     SAFE_USE(This->ParentWindow) {
-        LockMutex(&(This->ParentWindow->Mutex), INFINITY);
+        if (GetWindowScreenRectSnapshot(This->ParentWindow, &ParentScreenRect) != FALSE) {
+            GraphicsWindowRectToScreenRect(&ParentScreenRect, &(This->Rect), &(This->ScreenRect));
+            RectRegionReset(&This->DirtyRegion);
+            (void)RectRegionAddRect(&This->DirtyRegion, &This->ScreenRect);
+        }
 
-        GraphicsWindowRectToScreenRect(&(This->ParentWindow->ScreenRect), &(This->Rect), &(This->ScreenRect));
-
-        RectRegionReset(&This->DirtyRegion);
-        (void)RectRegionAddRect(&This->DirtyRegion, &This->ScreenRect);
-
-        AddChildWindowToFrontLocked(This->ParentWindow, This);
-
-        //-------------------------------------
-        // Compute the level of the window
-
-        for (Win = This->ParentWindow; Win; Win = Win->ParentWindow) This->Level++;
-
-        UnlockMutex(&(This->ParentWindow->Mutex));
+        ParentLevel = 0;
+        (void)GetWindowLevelSnapshot(This->ParentWindow, &ParentLevel);
+        This->Level = ParentLevel + 1;
+        (void)DesktopAttachWindowChild(This->ParentWindow, This);
     }
 
     //-------------------------------------
@@ -915,48 +870,6 @@ static BOOL AppendWindowPointer(LPWINDOW** Windows, UINT* Count, UINT* Capacity,
  * @param ChildCount Receives number of children.
  * @return TRUE on success.
  */
-static BOOL SnapshotWindowChildren(LPWINDOW Parent, LPWINDOW** Children, UINT* ChildCount) {
-    LPLISTNODE Node;
-    LPWINDOW* Snapshot;
-    UINT Index = 0;
-    UINT Count = 0;
-
-    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return FALSE;
-    if (Children == NULL || ChildCount == NULL) return FALSE;
-
-    *Children = NULL;
-    *ChildCount = 0;
-
-    LockMutex(&(Parent->Mutex), INFINITY);
-
-    if (Parent->Children != NULL) {
-        Count = Parent->Children->NumItems;
-    }
-
-    if (Count == 0) {
-        UnlockMutex(&(Parent->Mutex));
-        return TRUE;
-    }
-
-    Snapshot = (LPWINDOW*)KernelHeapAlloc(sizeof(LPWINDOW) * Count);
-    if (Snapshot == NULL) {
-        UnlockMutex(&(Parent->Mutex));
-        return FALSE;
-    }
-
-    for (Node = Parent->Children->First; Node != NULL && Index < Count; Node = Node->Next) {
-        Snapshot[Index++] = (LPWINDOW)Node;
-    }
-
-    UnlockMutex(&(Parent->Mutex));
-
-    *Children = Snapshot;
-    *ChildCount = Index;
-    return TRUE;
-}
-
-/***************************************************************************/
-
 /**
  * @brief Post a message to a window and all of its children.
  * @param This Starting window for broadcast.
@@ -996,7 +909,7 @@ BOOL BroadcastMessageToWindow(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2) {
             break;
         }
 
-        if (SnapshotWindowChildren(Window, &Children, &ChildCount) == FALSE) {
+        if (DesktopSnapshotWindowChildren(Window, &Children, &ChildCount) == FALSE) {
             Success = FALSE;
             break;
         }

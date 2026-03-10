@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "Desktop-ThemeRuntime.h"
+#include "Desktop-Private.h"
 #include "CoreString.h"
 #include "Desktop.h"
 #include "Desktop-ThemeTokens.h"
@@ -127,23 +128,25 @@ static BOOL ThemeFindRuntimeEntry(
  * @param Window Root window of the invalidation traversal.
  */
 static void ThemeInvalidateWindowTree(LPWINDOW Window) {
-    LPLISTNODE Node;
+    LPWINDOW* Children = NULL;
     LPWINDOW Child;
+    UINT ChildCount = 0;
+    UINT ChildIndex;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
 
     (void)InvalidateWindowRect((HANDLE)Window, NULL);
+    (void)DesktopSnapshotWindowChildren(Window, &Children, &ChildCount);
 
-    LockMutex(&(Window->Mutex), INFINITY);
-
-    for (Node = Window->Children != NULL ? Window->Children->First : NULL; Node != NULL; Node = Node->Next) {
-        Child = (LPWINDOW)Node;
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        Child = Children[ChildIndex];
         if (Child != NULL && Child->TypeID == KOID_WINDOW) {
             ThemeInvalidateWindowTree(Child);
         }
     }
-
-    UnlockMutex(&(Window->Mutex));
+    if (Children != NULL) {
+        KernelHeapFree(Children);
+    }
 }
 
 /***************************************************************************/

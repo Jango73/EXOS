@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "Desktop-WindowClass.h"
+#include "Desktop-Private.h"
 
 #include "CoreString.h"
 #include "Kernel.h"
@@ -128,29 +129,30 @@ static BOOL WindowClassHasDerivedClassUnlocked(LPLIST List, LPWINDOW_CLASS BaseC
  * @return TRUE when one window uses the class.
  */
 static BOOL WindowClassIsUsedByWindowTree(LPWINDOW Window, LPWINDOW_CLASS WindowClass) {
-    LPLISTNODE Node;
+    LPWINDOW* Children = NULL;
     BOOL IsUsed = FALSE;
+    UINT ChildCount = 0;
+    UINT ChildIndex;
+    WINDOW_STATE_SNAPSHOT Snapshot;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (WindowClass == NULL || WindowClass->TypeID != KOID_WINDOW_CLASS) return FALSE;
 
-    LockMutex(&(Window->Mutex), INFINITY);
-
-    if (Window->Class == WindowClass) {
-        UnlockMutex(&(Window->Mutex));
+    if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return FALSE;
+    if (Snapshot.Class == WindowClass) {
         return TRUE;
     }
 
-    if (Window->Children != NULL) {
-        for (Node = Window->Children->First; Node != NULL; Node = Node->Next) {
-            if (WindowClassIsUsedByWindowTree((LPWINDOW)Node, WindowClass) != FALSE) {
-                IsUsed = TRUE;
-                break;
-            }
+    (void)DesktopSnapshotWindowChildren(Window, &Children, &ChildCount);
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        if (WindowClassIsUsedByWindowTree(Children[ChildIndex], WindowClass) != FALSE) {
+            IsUsed = TRUE;
+            break;
         }
     }
-
-    UnlockMutex(&(Window->Mutex));
+    if (Children != NULL) {
+        KernelHeapFree(Children);
+    }
 
     return IsUsed;
 }

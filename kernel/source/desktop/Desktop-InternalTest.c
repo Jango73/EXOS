@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "Desktop-InternalTest.h"
+#include "Desktop-Private.h"
 #include "Clock.h"
 #include "Kernel.h"
 #include "Log.h"
@@ -185,26 +186,24 @@ static U32 DesktopInternalTestWindowFunc(HANDLE Window, U32 Message, U32 Param1,
  */
 static LPWINDOW DesktopInternalFindTestWindow(LPDESKTOP Desktop, U32 WindowID) {
     LPWINDOW RootWindow;
-    LPLISTNODE Node;
     LPWINDOW Candidate;
     LPWINDOW Found = NULL;
+    UINT ChildCount;
+    UINT Index;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return NULL;
 
     RootWindow = Desktop->Window;
     if (RootWindow == NULL || RootWindow->TypeID != KOID_WINDOW) return NULL;
 
-    LockMutex(&(RootWindow->Mutex), INFINITY);
-
-    for (Node = RootWindow->Children != NULL ? RootWindow->Children->First : NULL; Node != NULL; Node = Node->Next) {
-        Candidate = (LPWINDOW)Node;
+    ChildCount = GetWindowChildCount((HANDLE)RootWindow);
+    for (Index = 0; Index < ChildCount; Index++) {
+        Candidate = (LPWINDOW)GetWindowChild((HANDLE)RootWindow, Index);
         if (Candidate == NULL || Candidate->TypeID != KOID_WINDOW) continue;
         if (Candidate->WindowID != WindowID) continue;
         Found = Candidate;
         break;
     }
-
-    UnlockMutex(&(RootWindow->Mutex));
     return Found;
 }
 
@@ -341,10 +340,11 @@ BOOL DesktopInternalRunStressDrag(LPDESKTOP Desktop, U32 Cycles) {
     DesktopWidth = 1280;
     DesktopHeight = 1024;
     SAFE_USE_VALID_ID(RootWindow, KOID_WINDOW) {
-        LockMutex(&(RootWindow->Mutex), INFINITY);
-        DesktopWidth = RootWindow->ScreenRect.X2 - RootWindow->ScreenRect.X1 + 1;
-        DesktopHeight = RootWindow->ScreenRect.Y2 - RootWindow->ScreenRect.Y1 + 1;
-        UnlockMutex(&(RootWindow->Mutex));
+        RECT RootRect;
+        if (GetWindowScreenRectSnapshot(RootWindow, &RootRect) != FALSE) {
+            DesktopWidth = RootRect.X2 - RootRect.X1 + 1;
+            DesktopHeight = RootRect.Y2 - RootRect.Y1 + 1;
+        }
     }
 
     if (DesktopWidth < 640) DesktopWidth = 640;

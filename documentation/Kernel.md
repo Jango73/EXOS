@@ -1942,6 +1942,27 @@ Windowing lock ordering is defined in `kernel/include/desktop/Desktop.h`:
 `TaskMessageMutex -> DesktopTreeMutex -> DesktopStateMutex -> WindowMutex -> GraphicsContextMutex`.
 `PostMessage` and window callbacks execute outside structural desktop locks to avoid reentrant deadlock cycles during drag, redraw, and timer delivery.
 
+#### Mutex ownership rules
+
+The whole kernel follows one strict ownership rule for mutexes:
+
+- one object mutex is taken only by code that owns that object's state,
+- foreign callers use owner-side getters, setters, or snapshot helpers,
+- structural locks remain short and cover only local get/set or list mutation,
+- tree walks use snapshots and continue outside the structural lock,
+- no message send, callback dispatch, or recursive traversal is allowed while
+  holding a desktop tree/state/window mutex.
+
+Desktop and windowing code follow this same kernel-wide rule. Typical examples:
+
+- desktop code reads one window rectangle through
+  `GetWindowScreenRectSnapshot(...)` instead of taking `Window->Mutex`
+  directly,
+- draw and overlay paths snapshot child lists first, then recurse without
+  holding the parent window lock,
+- graphics-context clip/origin mutation stays on graphics-context helpers
+  instead of direct caller-side `GC->Mutex` access.
+
 
 ## Tooling and References
 
