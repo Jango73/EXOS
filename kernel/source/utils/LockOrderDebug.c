@@ -70,7 +70,7 @@ void AcquireLockRole(U32 Role, LPCSTR RoleName) {
     if (Task->DebugLockOrderDepth > 0) {
         PreviousRole = Task->DebugLockOrderStack[Task->DebugLockOrderDepth - 1];
         if (Role < PreviousRole) {
-            ERROR(TEXT("[AcquireLockRole] Lock order inversion task=%p role=%u previous=%u name=%s"),
+            WARNING(TEXT("[AcquireLockRole] Lock order inversion task=%p role=%u previous=%u name=%s"),
                   Task,
                   Role,
                   PreviousRole,
@@ -79,7 +79,7 @@ void AcquireLockRole(U32 Role, LPCSTR RoleName) {
     }
 
     if (Task->DebugLockOrderDepth >= LOCK_ORDER_DEBUG_MAX_DEPTH) {
-        ERROR(TEXT("[AcquireLockRole] Lock depth overflow task=%p role=%u name=%s"),
+        WARNING(TEXT("[AcquireLockRole] Lock depth overflow task=%p role=%u name=%s"),
               Task,
               Role,
               RoleName != NULL ? RoleName : TEXT("unknown"));
