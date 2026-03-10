@@ -8,6 +8,7 @@
         { "key": "C-x", "label": "Format Code", "script": "3-1-format-all-code.sh" },
         { "key": "C-c", "label": "Build help", "script": "3-2-generate-kernel-docs.sh" },
         { "key": "C-v", "label": "Start server", "script": "net/start-server.sh" },
+        { "label": "Clean log & build", "script": "rimraf log build" },
 
         { "label": "x86-32 build--------" },
 
