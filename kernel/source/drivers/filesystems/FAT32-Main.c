@@ -205,13 +205,14 @@ U32 GetNameChecksum(LPSTR Name) {
 /***************************************************************************/
 
 /**
- * @brief Read a cluster from disk into memory.
+ * @brief Submit one FAT32 cluster transfer.
  * @param FileSystem Target file system.
- * @param Cluster Cluster number to read.
- * @param Buffer Destination buffer.
+ * @param Cluster Cluster number to transfer.
+ * @param Buffer Transfer buffer.
+ * @param Command Disk command to execute.
  * @return TRUE on success, FALSE on failure.
  */
-BOOL ReadCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer) {
+static BOOL FAT32TransferCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer, UINT Command) {
     IOCONTROL Control;
     SECTOR Sector;
     U32 Result;
@@ -231,13 +232,26 @@ BOOL ReadCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer) {
     Control.Buffer = Buffer;
     Control.BufferSize = FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
 
-    Result = FileSystem->Disk->Driver->Command(DF_DISK_READ, (UINT)&Control);
+    Result = FileSystem->Disk->Driver->Command(Command, (UINT)&Control);
 
     if (Result != DF_RETURN_SUCCESS) return FALSE;
 
     FileSystem->IOBufferGeneration++;
 
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Read a cluster from disk into memory.
+ * @param FileSystem Target file system.
+ * @param Cluster Cluster number to read.
+ * @param Buffer Destination buffer.
+ * @return TRUE on success, FALSE on failure.
+ */
+BOOL ReadCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer) {
+    return FAT32TransferCluster(FileSystem, Cluster, Buffer, DF_DISK_READ);
 }
 
 /***************************************************************************/
@@ -250,32 +264,7 @@ BOOL ReadCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer) {
  * @return TRUE on success, FALSE on failure.
  */
 BOOL WriteCluster(LPFAT32FILESYSTEM FileSystem, CLUSTER Cluster, LPVOID Buffer) {
-    IOCONTROL Control;
-    SECTOR Sector;
-    U32 Result;
-
-    Sector =
-        FileSystem->DataStart + ((Cluster - FileSystem->Master.RootCluster) * FileSystem->Master.SectorsPerCluster);
-
-    if (Sector < FileSystem->PartitionStart || Sector >= FileSystem->PartitionStart + FileSystem->PartitionSize) {
-        return FALSE;
-    }
-
-    Control.TypeID = KOID_IOCONTROL;
-    Control.Disk = FileSystem->Disk;
-    Control.SectorLow = Sector;
-    Control.SectorHigh = 0;
-    Control.NumSectors = FileSystem->Master.SectorsPerCluster;
-    Control.Buffer = Buffer;
-    Control.BufferSize = FileSystem->Master.SectorsPerCluster * SECTOR_SIZE;
-
-    Result = FileSystem->Disk->Driver->Command(DF_DISK_WRITE, (UINT)&Control);
-
-    if (Result != DF_RETURN_SUCCESS) return FALSE;
-
-    FileSystem->IOBufferGeneration++;
-
-    return TRUE;
+    return FAT32TransferCluster(FileSystem, Cluster, Buffer, DF_DISK_WRITE);
 }
 
 /***************************************************************************/
