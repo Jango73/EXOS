@@ -26,6 +26,7 @@
 #include "Desktop-Private.h"
 #include "Desktop.h"
 #include "Desktop-OverlayInvalidation.h"
+#include "desktop/components/ShellBar.h"
 #include "CoreString.h"
 #include "DisplaySession.h"
 #include "GFX.h"
@@ -512,6 +513,9 @@ static void DesktopCursorRequestSoftwareRedraw(LPDESKTOP Desktop, I32 OldX, I32 
     RECT NewRect;
     RECT DamageRect = {0};
     RECT ClipRect;
+    RECT ShellBarRect;
+    RECT ShellBarIntersection;
+    HANDLE ShellBarWindow = NULL;
     BOOL HasOldRect = FALSE;
     BOOL HasNewRect = FALSE;
     BOOL HasDamageRect = FALSE;
@@ -544,6 +548,22 @@ static void DesktopCursorRequestSoftwareRedraw(LPDESKTOP Desktop, I32 OldX, I32 
     }
 
     if (HasDamageRect != FALSE) {
+        ShellBarWindow = ShellBarGetWindow((HANDLE)Desktop->Window);
+        if (ShellBarWindow != NULL &&
+            GetWindowScreenRectSnapshot((LPWINDOW)ShellBarWindow, &ShellBarRect) != FALSE &&
+            IntersectRect(&DamageRect, &ShellBarRect, &ShellBarIntersection) != FALSE) {
+            DEBUG(
+                TEXT("[DesktopCursorRequestSoftwareRedraw] damage=(%x,%x)-(%x,%x) shellbar_intersection=(%x,%x)-(%x,%x)"),
+                DamageRect.X1,
+                DamageRect.Y1,
+                DamageRect.X2,
+                DamageRect.Y2,
+                ShellBarIntersection.X1,
+                ShellBarIntersection.Y1,
+                ShellBarIntersection.X2,
+                ShellBarIntersection.Y2);
+        }
+
         // Cursor software damage must invalidate only the intersecting area.
         DesktopOverlayInvalidateWindowTreeRect(Desktop->Window, &DamageRect, TRUE);
         (void)DesktopOverlayInvalidateRootRect(Desktop->Window, &DamageRect);

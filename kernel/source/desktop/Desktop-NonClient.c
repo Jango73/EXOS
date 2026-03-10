@@ -27,6 +27,12 @@
 #include "Desktop-ThemeTokens.h"
 #include "GFX.h"
 #include "Kernel.h"
+#include "Log.h"
+
+/***************************************************************************/
+
+#define DESKTOP_NON_CLIENT_TRACE_SHELLBAR_WINDOW_ID 0x53484252
+#define DESKTOP_NON_CLIENT_TRACE_TEST_WINDOW_ID 0x000085A1
 
 /***************************************************************************/
 
@@ -280,11 +286,13 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
 
 /**
  * @brief Draw a themed title bar in the non-client frame area.
+ * @param Window Window handle.
  * @param GC Graphics context.
  * @param Rect Window-local rectangle.
  * @return TRUE when title bar was drawn.
  */
-static BOOL DrawWindowTitleBarFromTheme(HANDLE GC, LPRECT Rect) {
+static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
+    LPWINDOW This = (LPWINDOW)Window;
     HANDLE TitleBrush;
     HANDLE TitleBrush2;
     LPBRUSH TitleBrushPtr;
@@ -321,6 +329,21 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE GC, LPRECT Rect) {
     if ((I32)TitleHeight > MaxTitleHeight) TitleHeight = (U32)MaxTitleHeight;
     InnerY2 = InnerY1 + (I32)TitleHeight - 1;
 
+    SAFE_USE_VALID_ID(This, KOID_WINDOW) {
+        DEBUG(
+            TEXT("[DrawWindowTitleBarFromTheme] window_id=%x style=%x title_rect=(%x,%x)-(%x,%x) full_rect=(%x,%x)-(%x,%x)"),
+            This->WindowID,
+            This->Style,
+            InnerX1,
+            InnerY1,
+            InnerX2,
+            InnerY2,
+            Rect->X1,
+            Rect->Y1,
+            Rect->X2,
+            Rect->Y2);
+    }
+
     if (!DesktopThemeResolveLevel1Color(TEXT("window.titlebar"), TEXT("normal"), TEXT("background"), &Background)) {
         TitleBrush = GetSystemBrush(SM_COLOR_TITLE_BAR);
         SAFE_USE_VALID_ID((LPBRUSH)TitleBrush, KOID_BRUSH) {
@@ -339,6 +362,14 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE GC, LPRECT Rect) {
 
     if (Background != 0 || Background2 != 0) {
         if (Background2 != 0 && Background2 != Background) {
+            DEBUG(
+                TEXT("[DrawWindowTitleBarFromTheme] gradient start=%x end=%x rect=(%x,%x)-(%x,%x)"),
+                Background,
+                Background2,
+                InnerX1,
+                InnerY1,
+                InnerX2,
+                InnerY2);
             (void)DrawVerticalGradientRect(GC, InnerX1, InnerY1, InnerX2, InnerY2, Background, Background2);
         } else {
             (void)DrawSolidRect(GC, InnerX1, InnerY1, InnerX2, InnerY2, Background);
@@ -378,7 +409,7 @@ BOOL DrawWindowClientArea(HANDLE Window, HANDLE GC, LPRECT Rect) {
     COLOR ClientBackground = COLOR_WHITE;
 
     if (Window == NULL || GC == NULL || Rect == NULL) return FALSE;
-    if (GetWindowClientRect((LPWINDOW)Window, Rect, &ClientRect) == FALSE) return FALSE;
+    if (GetWindowClientRectFromWindowRect((LPWINDOW)Window, Rect, &ClientRect) == FALSE) return FALSE;
 
     if (DesktopThemeDrawRecipeForElementState(Window, GC, &ClientRect, TEXT("window.client"), TEXT("normal"))) {
         return TRUE;
@@ -434,7 +465,24 @@ U32 GetWindowDecorationMode(LPWINDOW Window) {
  * @return TRUE when system decorations are enabled.
  */
 BOOL ShouldDrawWindowNonClient(LPWINDOW Window) {
-    return (GetWindowDecorationMode(Window) == WINDOW_DECORATION_MODE_SYSTEM);
+    U32 DecorationMode;
+    BOOL Result;
+
+    DecorationMode = GetWindowDecorationMode(Window);
+    Result = (DecorationMode == WINDOW_DECORATION_MODE_SYSTEM);
+
+    if (Window != NULL && Window->TypeID == KOID_WINDOW &&
+        (Window->WindowID == DESKTOP_NON_CLIENT_TRACE_SHELLBAR_WINDOW_ID ||
+         Window->WindowID == DESKTOP_NON_CLIENT_TRACE_TEST_WINDOW_ID)) {
+        DEBUG(
+            TEXT("[ShouldDrawWindowNonClient] window_id=%x style=%x decoration_mode=%x result=%x"),
+            Window->WindowID,
+            Window->Style,
+            DecorationMode,
+            Result);
+    }
+
+    return Result;
 }
 
 /***************************************************************************/
@@ -494,7 +542,7 @@ BOOL IsPointInWindowTitleBar(LPWINDOW Window, LPPOINT ScreenPoint) {
  * @param ClientRect Receives client rectangle (window coordinates).
  * @return TRUE when a valid client area was produced.
  */
-BOOL GetWindowClientRect(LPWINDOW Window, LPRECT WindowRect, LPRECT ClientRect) {
+BOOL GetWindowClientRectFromWindowRect(LPWINDOW Window, LPRECT WindowRect, LPRECT ClientRect) {
     U32 BorderThickness;
     U32 TitleHeight = 22;
     I32 Left;
@@ -550,6 +598,46 @@ BOOL GetWindowClientRect(LPWINDOW Window, LPRECT WindowRect, LPRECT ClientRect) 
 
 /***************************************************************************/
 
+BOOL GetWindowClientRect(HANDLE Handle, LPRECT ClientRect) {
+    RECT WindowRect;
+    LPWINDOW Window = (LPWINDOW)Handle;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (ClientRect == NULL) return FALSE;
+    if (GetWindowRect(Handle, &WindowRect) == FALSE) return FALSE;
+
+    return GetWindowClientRectFromWindowRect(Window, &WindowRect, ClientRect);
+}
+
+/***************************************************************************/
+
+BOOL GetWindowDrawableRectFromWindowRect(LPWINDOW Window, LPRECT WindowRect, LPRECT DrawableRect) {
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (WindowRect == NULL || DrawableRect == NULL) return FALSE;
+
+    if (ShouldDrawWindowNonClient(Window) == FALSE) {
+        *DrawableRect = *WindowRect;
+        return TRUE;
+    }
+
+    return GetWindowClientRectFromWindowRect(Window, WindowRect, DrawableRect);
+}
+
+/***************************************************************************/
+
+BOOL GetWindowDrawableRect(HANDLE Handle, LPRECT DrawableRect) {
+    RECT WindowRect;
+    LPWINDOW Window = (LPWINDOW)Handle;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (DrawableRect == NULL) return FALSE;
+    if (GetWindowRect(Handle, &WindowRect) == FALSE) return FALSE;
+
+    return GetWindowDrawableRectFromWindowRect(Window, &WindowRect, DrawableRect);
+}
+
+/***************************************************************************/
+
 /**
  * @brief Draw the default non-client visuals for a window.
  * @param Window Window handle.
@@ -558,16 +646,32 @@ BOOL GetWindowClientRect(LPWINDOW Window, LPRECT WindowRect, LPRECT ClientRect) 
  * @return TRUE when drawing was performed.
  */
 BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect) {
+    LPWINDOW This = (LPWINDOW)Window;
+
     if (Window == NULL) return FALSE;
     if (GC == NULL) return FALSE;
     if (Rect == NULL) return FALSE;
 
+    SAFE_USE_VALID_ID(This, KOID_WINDOW) {
+        if (This->WindowID == DESKTOP_NON_CLIENT_TRACE_SHELLBAR_WINDOW_ID ||
+            This->WindowID == DESKTOP_NON_CLIENT_TRACE_TEST_WINDOW_ID) {
+            DEBUG(
+                TEXT("[DrawWindowNonClient] window_id=%x style=%x rect=(%x,%x)-(%x,%x)"),
+                This->WindowID,
+                This->Style,
+                Rect->X1,
+                Rect->Y1,
+                Rect->X2,
+                Rect->Y2);
+        }
+    }
+
     if (DesktopThemeDrawRecipeForElementState(Window, GC, Rect, TEXT("window.frame"), TEXT("normal"))) {
-        (void)DrawWindowTitleBarFromTheme(GC, Rect);
+        (void)DrawWindowTitleBarFromTheme(Window, GC, Rect);
         DrawWindowBorderFromTheme(GC, Rect);
         return TRUE;
     }
-    (void)DrawWindowTitleBarFromTheme(GC, Rect);
+    (void)DrawWindowTitleBarFromTheme(Window, GC, Rect);
     DrawWindowBorderFromTheme(GC, Rect);
 
     return TRUE;

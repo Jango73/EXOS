@@ -25,7 +25,37 @@
 #include "Desktop-NonClient.h"
 #include "Desktop.h"
 #include "Kernel.h"
+#include "Log.h"
 #include "utils/Graphics-Utils.h"
+
+/***************************************************************************/
+
+#define DESKTOP_DRAW_TRACE_SHELLBAR_WINDOW_ID 0x53484252
+#define DESKTOP_DRAW_TRACE_TEST_WINDOW_ID 0x000085A1
+
+/***************************************************************************/
+
+/**
+ * @brief Tell whether one window is the shellbar.
+ * @param Window Target window.
+ * @return TRUE when the window identifier matches the shellbar.
+ */
+static BOOL DesktopDrawIsShellBarWindow(LPWINDOW Window) {
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    return (Window->WindowID == DESKTOP_DRAW_TRACE_SHELLBAR_WINDOW_ID);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Tell whether one window is the internal floating test window.
+ * @param Window Target window.
+ * @return TRUE when the window identifier matches the internal test window.
+ */
+static BOOL DesktopDrawIsTestWindow(LPWINDOW Window) {
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    return (Window->WindowID == DESKTOP_DRAW_TRACE_TEST_WINDOW_ID);
+}
 
 /***************************************************************************/
 
@@ -92,13 +122,11 @@ static BOOL GetWindowFullLocalRect(LPWINDOW Window, LPRECT WindowRect) {
  * @return TRUE when the rectangle was computed.
  */
 static BOOL GetWindowClientScreenRect(LPWINDOW Window, LPRECT ClientScreenRect) {
-    RECT WindowRect;
     RECT ClientRect;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (ClientScreenRect == NULL) return FALSE;
-    if (GetWindowFullLocalRect(Window, &WindowRect) == FALSE) return FALSE;
-    if (GetWindowClientRect(Window, &WindowRect, &ClientRect) == FALSE) return FALSE;
+    if (GetWindowClientRect((HANDLE)Window, &ClientRect) == FALSE) return FALSE;
 
     GraphicsWindowRectToScreenRect(&Window->ScreenRect, &ClientRect, ClientScreenRect);
     return TRUE;
@@ -170,6 +198,12 @@ BOOL DesktopGetWindowDrawSurfaceRect(LPWINDOW Window, LPRECT Rect) {
 
 /***************************************************************************/
 
+BOOL GetWindowDrawSurfaceRect(HANDLE Handle, LPRECT Rect) {
+    return DesktopGetWindowDrawSurfaceRect((LPWINDOW)Handle, Rect);
+}
+
+/***************************************************************************/
+
 /**
  * @brief Expose the current draw clip rectangle for one window dispatch.
  * @param Window Target window.
@@ -199,11 +233,28 @@ BOOL DesktopGetWindowDrawClipRect(LPWINDOW Window, LPRECT Rect) {
 static BOOL DrawWindowSystemChrome(LPWINDOW Window, LPRECT ClipRect) {
     HANDLE GC;
     RECT WindowRect;
+    BOOL DrawNonClient;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (ClipRect == NULL) return FALSE;
 
-    if (ShouldDrawWindowNonClient(Window) == FALSE) return TRUE;
+    DrawNonClient = ShouldDrawWindowNonClient(Window);
+    if (DesktopDrawIsShellBarWindow(Window) != FALSE || DesktopDrawIsTestWindow(Window) != FALSE) {
+        DEBUG(
+            TEXT("[DrawWindowSystemChrome] window_id=%x draw_non_client=%x style=%x clip=(%x,%x)-(%x,%x) rect=(%x,%x)-(%x,%x)"),
+            Window->WindowID,
+            DrawNonClient,
+            Window->Style,
+            ClipRect->X1,
+            ClipRect->Y1,
+            ClipRect->X2,
+            ClipRect->Y2,
+            Window->ScreenRect.X1,
+            Window->ScreenRect.Y1,
+            Window->ScreenRect.X2,
+            Window->ScreenRect.Y2);
+    }
+    if (DrawNonClient == FALSE) return TRUE;
     if (GetWindowFullLocalRect(Window, &WindowRect) == FALSE) return FALSE;
 
     GC = BeginWindowDraw((HANDLE)Window);
@@ -288,6 +339,23 @@ BOOL DesktopDispatchWindowDraw(LPWINDOW Window, HANDLE TargetHandle, U32 Param1,
 
     if (BuildWindowDispatchClipRect(Window, &ClipRect) == FALSE) {
         return FALSE;
+    }
+
+    if (DesktopDrawIsShellBarWindow(Window) != FALSE || DesktopDrawIsTestWindow(Window) != FALSE) {
+        DEBUG(
+            TEXT("[DesktopDispatchWindowDraw] window_id=%x clip=(%x,%x)-(%x,%x) style=%x rect=(%x,%x)-(%x,%x) param1=%x param2=%x"),
+            Window->WindowID,
+            ClipRect.X1,
+            ClipRect.Y1,
+            ClipRect.X2,
+            ClipRect.Y2,
+            Window->Style,
+            Window->ScreenRect.X1,
+            Window->ScreenRect.Y1,
+            Window->ScreenRect.X2,
+            Window->ScreenRect.Y2,
+            Param1,
+            Param2);
     }
 
     if (DrawWindowSystemChrome(Window, &ClipRect) == FALSE) {

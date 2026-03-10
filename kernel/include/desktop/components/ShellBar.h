@@ -31,6 +31,7 @@
 /************************************************************************/
 
 #define SHELL_BAR_WINDOW_CLASS_NAME TEXT("ShellBarWindowClass")
+#define SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID 0x53424350
 
 /************************************************************************/
 
@@ -43,9 +44,9 @@ typedef enum tag_SHELL_BAR_SLOT_ID {
 /************************************************************************/
 
 BOOL ShellBarEnsureClassRegistered(void);
-BOOL ShellBarCreate(LPDESKTOP Desktop);
-LPWINDOW ShellBarGetWindow(LPDESKTOP Desktop);
-LPWINDOW ShellBarGetSlotWindow(LPDESKTOP Desktop, U32 SlotID);
+BOOL ShellBarCreate(HANDLE ParentWindow);
+HANDLE ShellBarGetWindow(HANDLE ParentWindow);
+HANDLE ShellBarGetSlotWindow(HANDLE ShellBarWindow, U32 SlotID);
 U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
 
 /************************************************************************/

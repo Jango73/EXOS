@@ -1789,7 +1789,7 @@ UINT SysCall_GetWindowClientRect(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(WindowRect, WINDOWRECT) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)GetWindowClientRect(Window, &(Window->Rect), &(WindowRect->Rect)); }
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)GetWindowClientRect(Window, &(WindowRect->Rect)); }
     }
 
     return 0;

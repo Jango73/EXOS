@@ -26,10 +26,15 @@
 #include "Desktop-ThemeResolver.h"
 #include "Desktop-ThemeTokens.h"
 #include "Kernel.h"
+#include "Log.h"
 #include "Desktop.h"
 #include "input/Mouse.h"
 #include "input/MouseDispatcher.h"
 #include "utils/Graphics-Utils.h"
+
+/***************************************************************************/
+
+#define DESKTOP_WINDOW_FUNC_TRACE_SHELLBAR_WINDOW_ID 0x53484252
 
 /***************************************************************************/
 
@@ -142,17 +147,41 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
         case EWM_CLEAR: {
             HANDLE GC;
             RECT SurfaceRect;
+            RECT ClipScreenRect;
+            RECT ClipLocalRect;
+            RECT SurfaceScreenRect;
             RECT WindowRect;
             RECTINFO RectInfo;
             BRUSH Brush;
             COLOR Background;
             BOOL HasBackground;
             LPWINDOW This = (LPWINDOW)Window;
+            WINDOW_DRAW_CONTEXT_SNAPSHOT DrawContext;
 
             if (DesktopGetWindowDrawSurfaceRect(This, &SurfaceRect) == FALSE) {
-                if (GetWindowRect(Window, &WindowRect) == FALSE) break;
-                GraphicsScreenRectToWindowRect(&WindowRect, &WindowRect, &WindowRect);
-                if (GetWindowClientRect(This, &WindowRect, &SurfaceRect) == FALSE) break;
+                if (GetWindowDrawableRect(This, &SurfaceRect) == FALSE) break;
+            } else if (GetWindowDrawContextSnapshot(This, &DrawContext) != FALSE &&
+                       (DrawContext.Flags & WINDOW_DRAW_CONTEXT_ACTIVE) != 0 &&
+                       DesktopGetWindowDrawClipRect(This, &ClipScreenRect) != FALSE) {
+                SurfaceScreenRect.X1 = DrawContext.Origin.X + SurfaceRect.X1;
+                SurfaceScreenRect.Y1 = DrawContext.Origin.Y + SurfaceRect.Y1;
+                SurfaceScreenRect.X2 = DrawContext.Origin.X + SurfaceRect.X2;
+                SurfaceScreenRect.Y2 = DrawContext.Origin.Y + SurfaceRect.Y2;
+                GraphicsScreenRectToWindowRect(&SurfaceScreenRect, &ClipScreenRect, &ClipLocalRect);
+
+                if (IntersectRect(&SurfaceRect, &ClipLocalRect, &SurfaceRect) == FALSE) {
+                    return 1;
+                }
+            }
+
+            if (This != NULL && This->TypeID == KOID_WINDOW && This->WindowID == DESKTOP_WINDOW_FUNC_TRACE_SHELLBAR_WINDOW_ID) {
+                DEBUG(
+                    TEXT("[DefaultWindowFunc] shellbar EWM_CLEAR surface=(%x,%x)-(%x,%x) style=%x"),
+                    SurfaceRect.X1,
+                    SurfaceRect.Y1,
+                    SurfaceRect.X2,
+                    SurfaceRect.Y2,
+                    This->Style);
             }
 
             GC = BeginWindowDraw(Window);

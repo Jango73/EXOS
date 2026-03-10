@@ -55,13 +55,6 @@ static void DesktopOverlayInvalidateWindowTreeRectInternal(LPWINDOW Window, LPRE
     if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return;
     IsVisible = ((Snapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
     WindowScreenRect = Snapshot.ScreenRect;
-    (void)DesktopSnapshotWindowChildren(Window, &Children, &ChildCount);
-
-    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
-        Child = Children[ChildIndex];
-        if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
-        DesktopOverlayInvalidateWindowTreeRectInternal(Child, ScreenRect, FALSE, FullWindow);
-    }
 
     if (SkipCurrent == FALSE && IsVisible != FALSE) {
         if (IntersectRect(&WindowScreenRect, ScreenRect, &Intersection) != FALSE) {
@@ -77,12 +70,20 @@ static void DesktopOverlayInvalidateWindowTreeRectInternal(LPWINDOW Window, LPRE
         }
     }
 
-    if (Children != NULL) {
-        KernelHeapFree(Children);
-    }
-
     if (HasIntersection != FALSE) {
         (void)InvalidateWindowRect((HANDLE)Window, &WindowRect);
+    }
+
+    (void)DesktopSnapshotWindowChildren(Window, &Children, &ChildCount);
+
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        Child = Children[ChildIndex];
+        if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
+        DesktopOverlayInvalidateWindowTreeRectInternal(Child, ScreenRect, FALSE, FullWindow);
+    }
+
+    if (Children != NULL) {
+        KernelHeapFree(Children);
     }
 }
 

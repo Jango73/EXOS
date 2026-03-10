@@ -24,6 +24,7 @@
 #include "Desktop-Private.h"
 #include "Desktop-Cursor.h"
 #include "Desktop-NonClient.h"
+#include "Desktop-Components.h"
 #include "Desktop-ThemeResolver.h"
 #include "Desktop-ThemeTokens.h"
 #include "Kernel.h"
@@ -142,6 +143,27 @@ static void InvalidateSiblingWindowsOnUncoveredRect(LPWINDOW Window, LPWINDOW Pa
 /***************************************************************************/
 
 /**
+ * @brief Set whether one window bypasses its parent work rectangle clamp.
+ * @param Window Target window.
+ * @param Enabled TRUE to bypass parent work rect clamping.
+ * @return TRUE on success.
+ */
+BOOL DesktopSetWindowBypassParentWorkRectState(LPWINDOW Window, BOOL Enabled) {
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    if (Enabled != FALSE)
+        Window->Status |= WINDOW_STATUS_BYPASS_PARENT_WORK_RECT;
+    else
+        Window->Status &= ~WINDOW_STATUS_BYPASS_PARENT_WORK_RECT;
+    UnlockMutex(&(Window->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Build one window rectangle preserving current size at one position.
  * @param Window Target window.
  * @param Position New top-left position relative to parent.
@@ -182,11 +204,13 @@ static void ClampWindowRectToParentWorkRect(LPWINDOW Window, LPWINDOW Parent, LP
     RECT WorkRect;
     I32 Width;
     I32 Height;
+    WINDOW_STATE_SNAPSHOT Snapshot;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
     if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return;
     if (WindowRect == NULL) return;
-    if (GetWindowProp((HANDLE)Window, WINDOW_PROP_BYPASS_PARENT_WORK_RECT) != 0) return;
+    if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return;
+    if ((Snapshot.Status & WINDOW_STATUS_BYPASS_PARENT_WORK_RECT) != 0) return;
     if (GetWindowEffectiveWorkRectSnapshot(Parent, &WorkRect) == FALSE) return;
 
     Width = WindowRect->X2 - WindowRect->X1 + 1;
@@ -234,6 +258,7 @@ BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect) {
     LPWINDOW Parent;
     RECT OldScreenRect;
     RECT NewScreenRect;
+    RECT FullWindowRect;
     RECT ParentOldRect;
     RECT ParentNewRect;
     RECT OldRect;
@@ -264,6 +289,11 @@ BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect) {
     NewScreenRect = Window->ScreenRect;
     UnlockMutex(&(Window->Mutex));
 
+    FullWindowRect.X1 = 0;
+    FullWindowRect.Y1 = 0;
+    FullWindowRect.X2 = WindowRect->X2 - WindowRect->X1;
+    FullWindowRect.Y2 = WindowRect->Y2 - WindowRect->Y1;
+
     if (ConvertScreenRectToWindowRect(Parent, &OldScreenRect, &ParentOldRect)) {
         (void)InvalidateWindowRect((HANDLE)Parent, &ParentOldRect);
     }
@@ -274,7 +304,7 @@ BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect) {
         (void)InvalidateWindowRect((HANDLE)Parent, &ParentNewRect);
     }
 
-    (void)InvalidateWindowRect((HANDLE)Window, NULL);
+    (void)InvalidateWindowRect((HANDLE)Window, &FullWindowRect);
     (void)PostMessage((HANDLE)Window, EWM_NOTIFY, EWN_WINDOW_RECT_CHANGED, 0);
     return TRUE;
 }
@@ -1623,6 +1653,15 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
         case EWM_NOTIFY:
             break;
+
+        case EWM_CHILD_APPENDED: {
+            LPDESKTOP Desktop;
+
+            Desktop = GetWindowDesktop((LPWINDOW)Window);
+            if (Desktop != NULL && DesktopComponentsHandleChildAppended(Desktop, Param1) != FALSE) {
+                return 1;
+            }
+        } break;
 
         case EWM_DRAW: {
             HANDLE GC;

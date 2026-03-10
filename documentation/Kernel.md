@@ -1912,6 +1912,8 @@ Docking host integration is implemented by window classes in `kernel/source/desk
 `WindowDockHostClass` provides one `DockHost` state per host window class data, and root window class registration derives from this base.
 The windowing core remains dock-agnostic: it emits generic `EWM_NOTIFY` messages (`EWN_WINDOW_RECT_CHANGED`, `EWN_WINDOW_PROPERTY_CHANGED`) and does not read dock-specific window properties.
 Dock components subscribe to these notifications and update docking state (`WindowDockHostHandleWindowRectChanged`, relayout, attach/detach) in component code.
+When a window is attached into an existing subtree, the windowing core also posts `EWM_CHILD_APPENDED` to every ancestor up to the desktop root with the appended child `WindowID` in `Param1` so layout components can react to descendant injection without coupling to concrete component creation order.
+When a window is detached from an existing subtree, the windowing core also posts `EWM_CHILD_REMOVED` to the former parent and every ancestor up to the desktop root with the removed child `WindowID` in `Param1`.
 Parent movement constraints use the generic window work rectangle API (`SetWindowWorkRect`, `GetWindowWorkRect`) so specialized layout components can publish host work areas without coupling core windowing paths to docking details.
 Docked windows bypass parent work-rectangle clamping only through the shared window property `WINDOW_PROP_BYPASS_PARENT_WORK_RECT`, not by mutating `WINDOW` state directly from component code.
 Shell bar content composition uses slot windows exposed by `kernel/source/desktop/components/ShellBar.c` (`left`, `center`, `components`) and the desktop injects concrete component windows into these slots.

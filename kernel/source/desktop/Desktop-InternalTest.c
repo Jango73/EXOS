@@ -289,6 +289,8 @@ BOOL DesktopInternalTestEnsureWindowsVisible(LPDESKTOP Desktop) {
         220);
 
     return FirstCreated;
+
+//    return TRUE;
 }
 
 /***************************************************************************/

@@ -444,6 +444,8 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
         return NULL;
     }
 
+    MemorySet(Object, 0, Size);
+
     // Initialize LISTNODE_FIELDS
     UUID_Generate(Identifier);
     ObjectID = UUID_ToU64(Identifier);

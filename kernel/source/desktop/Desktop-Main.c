@@ -32,6 +32,8 @@
 #include "Desktop-Dispatcher.h"
 #include "Desktop-Components.h"
 #include "Desktop-Cursor.h"
+#include "Desktop-OverlayInvalidation.h"
+#include "Desktop-NonClient.h"
 #include "Desktop-Timer.h"
 #include "Desktop-WindowClass.h"
 #include "Desktop-Private.h"
@@ -51,9 +53,71 @@ extern DRIVER ConsoleDriver;
 
 /***************************************************************************/
 
+typedef struct tag_Z_ORDER_CHILD_SNAPSHOT {
+    LPWINDOW Window;
+    I32 Order;
+} Z_ORDER_CHILD_SNAPSHOT, *LPZ_ORDER_CHILD_SNAPSHOT;
+
+/***************************************************************************/
+
 LPWINDOW NewWindow(void);
 BOOL DeleteWindow(LPWINDOW);
 U32 DesktopWindowFunc(HANDLE, U32, U32, U32);
+
+/***************************************************************************/
+
+/**
+ * @brief Notify one window ancestry that one descendant was appended.
+ * @param Window Newly attached descendant window.
+ */
+static void NotifyWindowChildAppended(LPWINDOW Window) {
+    LPWINDOW Current;
+    HANDLE ParentWindow;
+    U32 ChildWindowID;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
+
+    ChildWindowID = Window->WindowID;
+    Current = Window;
+    for (;;) {
+        ParentWindow = GetWindowParent((HANDLE)Current);
+        if (ParentWindow == NULL) break;
+
+        DEBUG(
+            TEXT("[NotifyWindowChildAppended] Parent=%p child_id=%x"),
+            ParentWindow,
+            ChildWindowID);
+        (void)PostMessage(ParentWindow, EWM_CHILD_APPENDED, ChildWindowID, 0);
+        Current = (LPWINDOW)ParentWindow;
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Notify one window ancestry that one descendant was removed.
+ * @param Parent Parent from which the child was detached.
+ * @param ChildWindowID Removed child window identifier.
+ */
+static void NotifyWindowChildRemoved(LPWINDOW Parent, U32 ChildWindowID) {
+    LPWINDOW Current;
+    HANDLE ParentWindow;
+
+    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return;
+
+    Current = Parent;
+    for (;;) {
+        DEBUG(
+            TEXT("[NotifyWindowChildRemoved] Parent=%p child_id=%x"),
+            Current,
+            ChildWindowID);
+        (void)PostMessage((HANDLE)Current, EWM_CHILD_REMOVED, ChildWindowID, 0);
+
+        ParentWindow = GetWindowParent((HANDLE)Current);
+        if (ParentWindow == NULL) break;
+        Current = (LPWINDOW)ParentWindow;
+    }
+}
 
 /***************************************************************************/
 
@@ -299,7 +363,7 @@ LPDESKTOP CreateDesktop(void) {
     WindowInfo.WindowClass = 0;
     WindowInfo.WindowClassName = ROOT_WINDOW_CLASS_NAME;
     WindowInfo.Function = NULL;
-    WindowInfo.Style = 0;
+    WindowInfo.Style = EWS_BARE_SURFACE;
     WindowInfo.ID = 0;
     WindowInfo.WindowPosition.X = 0;
     WindowInfo.WindowPosition.Y = 0;
@@ -583,6 +647,7 @@ BOOL DeleteWindow(LPWINDOW This) {
     LPDESKTOP Desktop;
     LPWINDOW ParentWindow;
     LPWINDOW ChildWindow;
+    U32 ChildWindowID;
 
     //-------------------------------------
     // Check validity of parameters
@@ -606,6 +671,7 @@ BOOL DeleteWindow(LPWINDOW This) {
 
     LockMutex(&(This->Mutex), INFINITY);
     ParentWindow = This->ParentWindow;
+    ChildWindowID = This->WindowID;
     UnlockMutex(&(This->Mutex));
 
     for (;;) {
@@ -623,6 +689,7 @@ BOOL DeleteWindow(LPWINDOW This) {
     UnlockMutex(&(This->Mutex));
 
     (void)DesktopDetachWindowChild(ParentWindow, This);
+    NotifyWindowChildRemoved(ParentWindow, ChildWindowID);
 
     ReleaseKernelObject(This);
 
@@ -777,15 +844,25 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
         (void)DesktopAttachWindowChild(This->ParentWindow, This);
     }
 
+    NotifyWindowChildAppended(This);
+
     //-------------------------------------
     // Tell the window it is being created
 
     PostMessage((HANDLE)This, EWM_CREATE, 0, 0);
 
     //-------------------------------------
-    // Ensure the freshly created window gets a draw request
+    // Ensure the freshly created window gets a full local draw request
 
-    InvalidateWindowRect((HANDLE)This, NULL);
+    {
+        RECT FullWindowRect;
+
+        FullWindowRect.X1 = 0;
+        FullWindowRect.Y1 = 0;
+        FullWindowRect.X2 = This->Rect.X2 - This->Rect.X1;
+        FullWindowRect.Y2 = This->Rect.Y2 - This->Rect.Y1;
+        InvalidateWindowRect((HANDLE)This, &FullWindowRect);
+    }
 
     if (Info->ShowHide != FALSE || (This->Style & EWS_VISIBLE) != 0) {
         (void)ShowWindow((HANDLE)This, TRUE);
@@ -1046,6 +1123,8 @@ BOOL ScreenRectToWindowRect(HANDLE Handle, LPRECT ScreenRect, LPRECT WindowRect)
 BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
     LPWINDOW This = (LPWINDOW)Handle;
     RECT Rect;
+    RECT LocalRect;
+    RECT WindowRect;
     BOOL FullWindow = FALSE;
 
     if (This == NULL) return FALSE;
@@ -1065,8 +1144,18 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
         WindowRectToScreenRectLocked(This, Src, &Rect);
         (void)RectRegionAddRect(&This->DirtyRegion, &Rect);
     } else {
+        WindowRect.X1 = 0;
+        WindowRect.Y1 = 0;
+        WindowRect.X2 = This->Rect.X2 - This->Rect.X1;
+        WindowRect.Y2 = This->Rect.Y2 - This->Rect.Y1;
+
+        if (GetWindowDrawableRectFromWindowRect(This, &WindowRect, &LocalRect) == FALSE) {
+            UnlockMutex(&(This->Mutex));
+            return FALSE;
+        }
+
         FullWindow = TRUE;
-        Rect = This->ScreenRect;
+        WindowRectToScreenRectLocked(This, &LocalRect, &Rect);
         RectRegionReset(&This->DirtyRegion);
         (void)RectRegionAddRect(&This->DirtyRegion, &Rect);
     }
@@ -1076,6 +1165,16 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
 
     UnlockMutex(&(This->Mutex));
     UNUSED(FullWindow);
+
+    if (This->WindowID == 0x53484252) {
+        DEBUG(
+            TEXT("[InvalidateWindowRect] shellbar full=%x rect=(%x,%x)-(%x,%x)"),
+            FullWindow,
+            Rect.X1,
+            Rect.Y1,
+            Rect.X2,
+            Rect.Y2);
+    }
 
     return RequestWindowDraw(Handle);
 }
@@ -1113,38 +1212,68 @@ BOOL RequestWindowDraw(HANDLE Handle) {
 /***************************************************************************/
 
 /**
- * @brief Snapshot one parent child list into a temporary array.
+ * @brief Snapshot one parent child order list while the parent mutex is held.
  * @param Parent Parent window whose children are snapshotted.
- * @param Windows Receives allocated array of children.
- * @param Count Receives number of children in snapshot.
+ * @param Entries Receives allocated child snapshots.
+ * @param Count Receives number of child snapshots.
  * @return TRUE on success.
  */
-static BOOL SnapshotWindowChildrenLocked(LPWINDOW Parent, LPWINDOW** Windows, UINT* Count) {
+static BOOL SnapshotWindowChildOrderLocked(LPWINDOW Parent, LPZ_ORDER_CHILD_SNAPSHOT* Entries, UINT* Count) {
     LPLISTNODE Node;
-    LPWINDOW* Snapshot;
+    LPZ_ORDER_CHILD_SNAPSHOT Snapshot;
+    UINT Capacity = 0;
     UINT Index = 0;
-    UINT SnapshotCount = 0;
 
-    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return FALSE;
-    if (Windows == NULL || Count == NULL) return FALSE;
+    if (Entries == NULL || Count == NULL) return FALSE;
 
-    *Windows = NULL;
+    *Entries = NULL;
     *Count = 0;
 
-    if (Parent->Children == NULL || Parent->Children->NumItems == 0) {
-        return TRUE;
+    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return FALSE;
+    if (Parent->Children == NULL) return TRUE;
+
+    for (Node = Parent->Children->First; Node != NULL; Node = Node->Next) {
+        Capacity++;
     }
 
-    SnapshotCount = Parent->Children->NumItems;
-    Snapshot = (LPWINDOW*)KernelHeapAlloc(sizeof(LPWINDOW) * SnapshotCount);
+    if (Capacity == 0) return TRUE;
+
+    Snapshot = KernelHeapAlloc(sizeof(Z_ORDER_CHILD_SNAPSHOT) * Capacity);
     if (Snapshot == NULL) return FALSE;
 
-    for (Node = Parent->Children->First; Node && Index < SnapshotCount; Node = Node->Next) {
-        Snapshot[Index++] = (LPWINDOW)Node;
+    for (Node = Parent->Children->First; Node != NULL; Node = Node->Next) {
+        LPWINDOW Child = (LPWINDOW)Node;
+
+        if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
+
+        Snapshot[Index].Window = Child;
+        Snapshot[Index].Order = Child->Order;
+        Index++;
     }
 
-    *Windows = Snapshot;
+    *Entries = Snapshot;
     *Count = Index;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Invalidate one window subtree on the intersection with one screen rectangle.
+ * @param Window Window whose subtree is invalidated.
+ * @param ScreenRect Damage rectangle in screen coordinates.
+ * @return TRUE when one intersection was invalidated.
+ */
+static BOOL InvalidateWindowTreeOnScreenIntersection(LPWINDOW Window, LPRECT ScreenRect) {
+    RECT WindowScreenRect;
+    RECT Intersection;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (ScreenRect == NULL) return FALSE;
+    if (GetWindowScreenRectSnapshot(Window, &WindowScreenRect) == FALSE) return FALSE;
+    if (IntersectRect(&WindowScreenRect, ScreenRect, &Intersection) == FALSE) return FALSE;
+
+    DesktopOverlayInvalidateWindowTreeRect(Window, &Intersection, FALSE);
     return TRUE;
 }
 
@@ -1159,11 +1288,13 @@ BOOL BringWindowToFront(HANDLE Handle) {
     LPWINDOW This = (LPWINDOW)Handle;
     LPWINDOW That;
     LPWINDOW Parent;
-    LPWINDOW* AffectedWindows = NULL;
+    LPZ_ORDER_CHILD_SNAPSHOT AffectedWindows = NULL;
     UINT AffectedWindowCount = 0;
     UINT Index;
     LPLISTNODE Node;
     I32 Order;
+    I32 OldOrder;
+    RECT DamageScreenRect;
     BOOL IsChild = FALSE;
     BOOL Reordered = FALSE;
 
@@ -1176,8 +1307,16 @@ BOOL BringWindowToFront(HANDLE Handle) {
 
     Parent = This->ParentWindow;
     if (Parent->TypeID != KOID_WINDOW) return FALSE;
+    if (GetWindowOrderSnapshot(This, &OldOrder) == FALSE) return FALSE;
+    if (OldOrder == 0) return TRUE;
+    if (GetWindowScreenRectSnapshot(This, &DamageScreenRect) == FALSE) return FALSE;
 
     LockMutex(&(Parent->Mutex), INFINITY);
+
+    if (SnapshotWindowChildOrderLocked(Parent, &AffectedWindows, &AffectedWindowCount) == FALSE) {
+        UnlockMutex(&(Parent->Mutex));
+        return FALSE;
+    }
 
     for (Node = Parent->Children->First, Order = 1; Node; Node = Node->Next) {
         That = (LPWINDOW)Node;
@@ -1192,15 +1331,29 @@ BOOL BringWindowToFront(HANDLE Handle) {
     if (IsChild != FALSE) {
         ListSort(Parent->Children, SortWindows_Order);
         Reordered = TRUE;
-        (void)SnapshotWindowChildrenLocked(Parent, &AffectedWindows, &AffectedWindowCount);
     }
 
     UnlockMutex(&(Parent->Mutex));
 
-    if (Reordered == FALSE) return FALSE;
+    if (Reordered == FALSE) {
+        if (AffectedWindows != NULL) {
+            KernelHeapFree(AffectedWindows);
+        }
+        return FALSE;
+    }
 
     for (Index = 0; Index < AffectedWindowCount; Index++) {
-        (void)InvalidateWindowRect((HANDLE)AffectedWindows[Index], NULL);
+        LPWINDOW Window = AffectedWindows[Index].Window;
+
+        if (Window == NULL || Window->TypeID != KOID_WINDOW) continue;
+
+        if (Window == This) {
+            (void)InvalidateWindowTreeOnScreenIntersection(Window, &DamageScreenRect);
+            continue;
+        }
+
+        if (AffectedWindows[Index].Order >= OldOrder) continue;
+        (void)InvalidateWindowTreeOnScreenIntersection(Window, &DamageScreenRect);
     }
 
     if (AffectedWindows != NULL) {

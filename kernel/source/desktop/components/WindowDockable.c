@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "desktop/components/WindowDockable.h"
+#include "../Desktop-Private.h"
 #include "CoreString.h"
 
 /************************************************************************/
@@ -131,14 +132,14 @@ static U32 WindowDockableApplyRect(LPDOCKABLE Dockable, LPDOCK_HOST Host, LPRECT
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
     Rect = *AssignedRect;
-    (void)SetWindowProp((HANDLE)Window, WINDOW_PROP_BYPASS_PARENT_WORK_RECT, 1);
+    (void)DesktopSetWindowBypassParentWorkRectState(Window, TRUE);
 
     if (MoveWindow((HANDLE)Window, &Rect) == FALSE) {
-        (void)SetWindowProp((HANDLE)Window, WINDOW_PROP_BYPASS_PARENT_WORK_RECT, 0);
+        (void)DesktopSetWindowBypassParentWorkRectState(Window, FALSE);
         return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
     }
 
-    (void)SetWindowProp((HANDLE)Window, WINDOW_PROP_BYPASS_PARENT_WORK_RECT, 0);
+    (void)DesktopSetWindowBypassParentWorkRectState(Window, FALSE);
     (void)InvalidateWindowRect((HANDLE)Window, NULL);
     return DOCK_LAYOUT_STATUS_SUCCESS;
 }
