@@ -30,6 +30,7 @@
 #include "Log.h"
 #include "input/Mouse.h"
 #include "Desktop-Dispatcher.h"
+#include "Desktop-Components.h"
 #include "Desktop-Cursor.h"
 #include "Desktop-Timer.h"
 #include "Desktop-WindowClass.h"
@@ -317,6 +318,7 @@ LPDESKTOP CreateDesktop(void) {
         return NULL;
     }
 
+    (void)DesktopComponentsInitialize(This);
     UpdateDesktopWindowRect(This, (I32)Console.Width, (I32)Console.Height);
 
     //-------------------------------------

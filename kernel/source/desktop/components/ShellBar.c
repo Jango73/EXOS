@@ -128,7 +128,6 @@ static void ShellBarLayoutSlots(LPWINDOW ShellBarWindow) {
     }
 
     ComponentsSlotWindow = ShellBarFindDirectChildByProp(ShellBarWindow, SHELL_BAR_SLOT_PROP, SHELL_BAR_SLOT_COMPONENTS);
-
     if (ComponentsSlotWindow != NULL) (void)MoveWindow((HANDLE)ComponentsSlotWindow, &ComponentsRect);
 }
 
@@ -175,26 +174,16 @@ static BOOL ShellBarCreateSlotWindow(LPWINDOW ShellBarWindow, U32 WindowID) {
 /************************************************************************/
 
 static U32 ShellBarSlotWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
-    LPWINDOW ParentWindow;
-
     UNUSED(Param2);
 
     switch (Message) {
         case EWM_CREATE:
             ShellBarSlotResizeChildrenToClient((LPWINDOW)Window);
-            ParentWindow = (LPWINDOW)GetWindowParent(Window);
-            if (ParentWindow != NULL && ParentWindow->TypeID == KOID_WINDOW) {
-                (void)PostMessage((HANDLE)ParentWindow, EWM_NOTIFY, SHELL_BAR_NOTIFY_COMPONENTS_SLOT_READY, SHELL_BAR_SLOT_COMPONENTS);
-            }
             return 1;
 
         case EWM_NOTIFY:
             if (Param1 == EWN_WINDOW_RECT_CHANGED) {
                 ShellBarSlotResizeChildrenToClient((LPWINDOW)Window);
-                ParentWindow = (LPWINDOW)GetWindowParent(Window);
-                if (ParentWindow != NULL && ParentWindow->TypeID == KOID_WINDOW) {
-                    (void)PostMessage((HANDLE)ParentWindow, EWM_NOTIFY, SHELL_BAR_NOTIFY_COMPONENTS_SLOT_READY, SHELL_BAR_SLOT_COMPONENTS);
-                }
                 return 1;
             }
             break;
@@ -331,12 +320,6 @@ U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
         case EWM_NOTIFY:
             if (Param1 == EWN_WINDOW_RECT_CHANGED) {
                 ShellBarLayoutSlots((LPWINDOW)Window);
-            } else if (Param1 == SHELL_BAR_NOTIFY_COMPONENTS_SLOT_READY) {
-                LPWINDOW ParentWindow = (LPWINDOW)GetWindowParent(Window);
-                if (ParentWindow != NULL && ParentWindow->TypeID == KOID_WINDOW) {
-                    (void)PostMessage((HANDLE)ParentWindow, EWM_NOTIFY, SHELL_BAR_NOTIFY_COMPONENTS_SLOT_READY, Param2);
-                }
-                return 1;
             }
             return BaseWindowFunc(Window, Message, Param1, Param2);
 

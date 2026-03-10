@@ -31,7 +31,6 @@
 /************************************************************************/
 
 #define SHELL_BAR_WINDOW_CLASS_NAME TEXT("ShellBarWindowClass")
-#define SHELL_BAR_NOTIFY_COMPONENTS_SLOT_READY 0x53420101
 
 /************************************************************************/
 

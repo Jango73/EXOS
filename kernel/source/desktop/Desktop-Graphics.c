@@ -26,8 +26,6 @@
 #include "Desktop-NonClient.h"
 #include "Desktop-ThemeResolver.h"
 #include "Desktop-ThemeTokens.h"
-#include "desktop/components/ShellBar.h"
-#include "desktop/components/ClockWidget.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Desktop.h"
@@ -38,9 +36,7 @@
 
 /***************************************************************************/
 
-#define DESKTOP_SHELL_BAR_CLOCK_WINDOW_ID 0x5342434C
 #define DESKTOP_USE_TEMPORARY_FAST_ROOT_FILL 0
-#define DESKTOP_SHELL_BAR_CLOCK_PROP TEXT("desktop.shellbar.clock")
 
 /***************************************************************************/
 
@@ -66,89 +62,6 @@ static SYSTEM_DRAW_OBJECT_ENTRY SystemDrawObjects[] = {
     {SM_COLOR_TITLE_BAR_2, &Brush_Title_Bar_2, &Pen_Title_Bar_2},
     {SM_COLOR_TITLE_TEXT, &Brush_Title_Text, &Pen_Title_Text},
 };
-
-/***************************************************************************/
-
-/**
- * @brief Find one direct child window by property value.
- * @param Parent Parent window.
- * @param Name Property name.
- * @param Value Property value.
- * @return Matching child or NULL.
- */
-static LPWINDOW DesktopGraphicsFindDirectChildByProp(LPWINDOW Parent, LPCSTR Name, U32 Value) {
-    U32 ChildCount;
-    U32 ChildIndex;
-    HANDLE ChildWindow;
-
-    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return NULL;
-    if (Name == NULL) return NULL;
-
-    ChildCount = GetWindowChildCount((HANDLE)Parent);
-    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
-        ChildWindow = GetWindowChild((HANDLE)Parent, ChildIndex);
-        if (ChildWindow == NULL) continue;
-        if (GetWindowProp(ChildWindow, Name) == Value) return (LPWINDOW)ChildWindow;
-    }
-
-    return NULL;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Inject the desktop clock widget into shell bar components slot.
- * @param Desktop Target desktop.
- * @return TRUE on success.
- */
-static BOOL DesktopGraphicsEnsureShellBarClock(LPDESKTOP Desktop) {
-    LPWINDOW ComponentsSlot;
-    LPWINDOW ExistingClockWindow;
-    LPWINDOW ClockWindow;
-    WINDOWINFO WindowInfo;
-    RECT SlotRect;
-
-    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
-    if (DesktopClockWidgetEnsureClassRegistered() == FALSE) return FALSE;
-
-    ComponentsSlot = ShellBarGetSlotWindow(Desktop, SHELL_BAR_SLOT_COMPONENTS);
-    if (ComponentsSlot == NULL || ComponentsSlot->TypeID != KOID_WINDOW) return FALSE;
-
-    ExistingClockWindow = DesktopGraphicsFindDirectChildByProp(ComponentsSlot, DESKTOP_SHELL_BAR_CLOCK_PROP, 1);
-    if (ExistingClockWindow != NULL && ExistingClockWindow->TypeID == KOID_WINDOW) {
-        if (GetWindowRect((HANDLE)ComponentsSlot, &SlotRect) != FALSE) {
-            (void)MoveWindow((HANDLE)ExistingClockWindow, &SlotRect);
-            (void)InvalidateWindowRect((HANDLE)ExistingClockWindow, NULL);
-        }
-        return TRUE;
-    }
-
-    WindowInfo.Header.Size = sizeof(WINDOWINFO);
-    WindowInfo.Header.Version = EXOS_ABI_VERSION;
-    WindowInfo.Header.Flags = 0;
-    WindowInfo.Window = NULL;
-    WindowInfo.Parent = (HANDLE)ComponentsSlot;
-    WindowInfo.WindowClass = 0;
-    WindowInfo.WindowClassName = DESKTOP_CLOCK_WIDGET_WINDOW_CLASS_NAME;
-    WindowInfo.Function = NULL;
-    WindowInfo.Style = EWS_VISIBLE | EWS_CLIENT_DECORATED;
-    WindowInfo.ID = DESKTOP_SHELL_BAR_CLOCK_WINDOW_ID;
-    WindowInfo.WindowPosition.X = 0;
-    WindowInfo.WindowPosition.Y = 0;
-    WindowInfo.WindowSize.X = 1;
-    WindowInfo.WindowSize.Y = 1;
-    WindowInfo.ShowHide = TRUE;
-
-    ClockWindow = CreateWindow(&WindowInfo);
-    if (ClockWindow == NULL) return FALSE;
-    (void)SetWindowProp((HANDLE)ClockWindow, DESKTOP_SHELL_BAR_CLOCK_PROP, 1);
-
-    if (GetWindowRect((HANDLE)ComponentsSlot, &SlotRect) != FALSE) {
-        (void)MoveWindow((HANDLE)ClockWindow, &SlotRect);
-    }
-    (void)InvalidateWindowRect((HANDLE)ClockWindow, NULL);
-    return TRUE;
-}
 
 /***************************************************************************/
 
@@ -1704,20 +1617,11 @@ static U32 DrawButtons(HANDLE GC) {
  * @return Message-specific result.
  */
 U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
-    LPDESKTOP Desktop;
-
     switch (Message) {
         case EWM_CREATE: {
         } break;
 
         case EWM_NOTIFY:
-            if (Param1 == SHELL_BAR_NOTIFY_COMPONENTS_SLOT_READY && Param2 == SHELL_BAR_SLOT_COMPONENTS) {
-                Desktop = GetWindowDesktop((LPWINDOW)Window);
-                if (Desktop != NULL && Desktop->TypeID == KOID_DESKTOP) {
-                    (void)DesktopGraphicsEnsureShellBarClock(Desktop);
-                }
-                return 1;
-            }
             break;
 
         case EWM_DRAW: {
