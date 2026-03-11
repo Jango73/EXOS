@@ -29,6 +29,7 @@
 #include "Desktop-ThemeTokens.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "Profile.h"
 #include "Desktop.h"
 #include "input/Mouse.h"
 #include "input/MouseDispatcher.h"
@@ -1303,6 +1304,8 @@ BOOL Line(LPLINEINFO LineInfo) {
 BOOL Rectangle(LPRECTINFO RectInfo) {
     LPGRAPHICSCONTEXT Context;
     RECTINFO RectangleInfo;
+    PROFILE_SCOPE Scope;
+    PROFILE_SCOPE DispatchScope;
 
     //-------------------------------------
     // Check validity of parameters
@@ -1315,13 +1318,17 @@ BOOL Rectangle(LPRECTINFO RectInfo) {
     if (Context == NULL) return FALSE;
     if (Context->TypeID != KOID_GRAPHICSCONTEXT) return FALSE;
 
+    ProfileStart(&Scope, TEXT("Desktop.Rectangle"));
     RectangleInfo = *RectInfo;
     RectangleInfo.X1 = Context->Origin.X + RectangleInfo.X1;
     RectangleInfo.Y1 = Context->Origin.Y + RectangleInfo.Y1;
     RectangleInfo.X2 = Context->Origin.X + RectangleInfo.X2;
     RectangleInfo.Y2 = Context->Origin.Y + RectangleInfo.Y2;
 
+    ProfileStart(&DispatchScope, TEXT("Desktop.RectangleDispatch"));
     Context->Driver->Command(DF_GFX_RECTANGLE, (UINT)&RectangleInfo);
+    ProfileStop(&DispatchScope);
+    ProfileStop(&Scope);
 
     return TRUE;
 }
@@ -1722,6 +1729,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                     }
                 }
 
+                ProfileDump();
                 EndWindowDraw(Window);
             }
         } break;

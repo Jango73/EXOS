@@ -27,6 +27,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
+#include "Profile.h"
 #include "drivers/graphics/VESA-Shared.h"
 #include "utils/Graphics-Utils.h"
 
@@ -758,12 +759,12 @@ U32 Rect8(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
  * @return 0 on completion
  */
 U32 Rect16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
-    I32 X, Y;
     U32 Temp;
     U32 Color;
     RECT SourceRect;
     RECT ClipRect;
     RECT DrawRect;
+    PROFILE_SCOPE Scope;
 
     if (X1 > X2) {
         Temp = X1;
@@ -789,13 +790,10 @@ U32 Rect16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     }
 
     if (Context->Header.Brush != NULL && Context->Header.Brush->TypeID == KOID_BRUSH) {
+        ProfileStart(&Scope, TEXT("VESA.Rect16Fill"));
         Color = Context->Header.Brush->Color;
-
-        for (Y = DrawRect.Y1; Y <= DrawRect.Y2; Y++) {
-            for (X = DrawRect.X1; X <= DrawRect.X2; X++) {
-                Context->ModeSpecs.SetPixel(Context, X, Y, Color);
-            }
-        }
+        (void)GraphicsFillSolidRect((LPGRAPHICSCONTEXT)&(Context->Header), DrawRect.X1, DrawRect.Y1, DrawRect.X2, DrawRect.Y2, Color);
+        ProfileStop(&Scope);
     }
 
     if (Context->Header.Pen != NULL && Context->Header.Pen->TypeID == KOID_PEN) {
@@ -823,17 +821,11 @@ U32 Rect16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
  * @return 0 on completion
  */
 U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
-    I32 X;
-    I32 Y;
     U32 Temp;
-    U32 ConvertedColor;
-    U8 R = 0;
-    U8 G = 0;
-    U8 B = 0;
-    UINT Pitch;
     RECT SourceRect;
     RECT ClipRect;
     RECT DrawRect;
+    PROFILE_SCOPE Scope;
 
     if (X1 > X2) {
         Temp = X1;
@@ -846,7 +838,6 @@ U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
         Y2 = Temp;
     }
 
-    Pitch = Context->Header.BytesPerScanLine;
     SourceRect.X1 = X1;
     SourceRect.Y1 = Y1;
     SourceRect.X2 = X2;
@@ -861,48 +852,16 @@ U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     }
 
     if (Context->Header.Brush != NULL && Context->Header.Brush->TypeID == KOID_BRUSH) {
-        ConvertedColor = 0;
-        ConvertedColor |= (((Context->Header.Brush->Color >> 0) & 0xFF) << 16);
-        ConvertedColor |= (((Context->Header.Brush->Color >> 8) & 0xFF) << 8);
-        ConvertedColor |= (((Context->Header.Brush->Color >> 16) & 0xFF) << 0);
-
-        R = (U8)((ConvertedColor >> 0) & 0xFF);
-        G = (U8)((ConvertedColor >> 8) & 0xFF);
-        B = (U8)((ConvertedColor >> 16) & 0xFF);
-
-        for (Y = DrawRect.Y1; Y <= DrawRect.Y2; Y++) {
-            U8* Pixel = Context->Header.MemoryBase + (Y * Pitch) + (DrawRect.X1 * 3);
-
-            for (X = DrawRect.X1; X <= DrawRect.X2; X++) {
-                switch (Context->Header.RasterOperation) {
-                    case ROP_SET: {
-                        Pixel[0] = R;
-                        Pixel[1] = G;
-                        Pixel[2] = B;
-                    } break;
-
-                    case ROP_XOR: {
-                        Pixel[0] ^= R;
-                        Pixel[1] ^= G;
-                        Pixel[2] ^= B;
-                    } break;
-
-                    case ROP_OR: {
-                        Pixel[0] |= R;
-                        Pixel[1] |= G;
-                        Pixel[2] |= B;
-                    } break;
-
-                    case ROP_AND: {
-                        Pixel[0] &= R;
-                        Pixel[1] &= G;
-                        Pixel[2] &= B;
-                    } break;
-                }
-
-                Pixel += 3;
-            }
-        }
+        ProfileStart(&Scope, TEXT("VESA.Rect24Fill"));
+        (void)GraphicsFillSolidRect(
+            (LPGRAPHICSCONTEXT)&(Context->Header),
+            DrawRect.X1,
+            DrawRect.Y1,
+            DrawRect.X2,
+            DrawRect.Y2,
+            Context->Header.Brush->Color
+        );
+        ProfileStop(&Scope);
     }
 
     // Draw borders
@@ -930,15 +889,11 @@ U32 VESATrianglePrimitive(LPVESA_CONTEXT Context, LPTRIANGLEINFO Info) {
     I32 MaxX;
     I32 MinY;
     I32 MaxY;
-    I32 X;
-    I32 Y;
     I32 Area;
-    I32 W0;
-    I32 W1;
-    I32 W2;
     COLOR FillColor = 0;
     BOOL HasFill = FALSE;
     BOOL HasStroke = FALSE;
+    RECT FilledBounds;
 
     if (Context == NULL || Info == NULL) return 0;
 
@@ -981,21 +936,7 @@ U32 VESATrianglePrimitive(LPVESA_CONTEXT Context, LPTRIANGLEINFO Info) {
     }
 
     if (HasFill != FALSE) {
-        for (Y = MinY; Y <= MaxY; Y++) {
-            for (X = MinX; X <= MaxX; X++) {
-                W0 = TriangleEdgeFunction(Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y, X, Y);
-                W1 = TriangleEdgeFunction(Info->P3.X, Info->P3.Y, Info->P1.X, Info->P1.Y, X, Y);
-                W2 = TriangleEdgeFunction(Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y, X, Y);
-
-                if (Area > 0) {
-                    if (W0 < 0 || W1 < 0 || W2 < 0) continue;
-                } else {
-                    if (W0 > 0 || W1 > 0 || W2 > 0) continue;
-                }
-
-                Context->ModeSpecs.SetPixel(Context, X, Y, FillColor);
-            }
-        }
+        (void)GraphicsFillTriangleSpans((LPGRAPHICSCONTEXT)&(Context->Header), Info, FillColor, &FilledBounds);
     }
 
     if (HasStroke != FALSE) {

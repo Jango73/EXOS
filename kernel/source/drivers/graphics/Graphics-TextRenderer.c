@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "drivers/graphics/Graphics-TextRenderer.h"
+#include "utils/Graphics-Utils.h"
 
 #include "CoreString.h"
 #include "Font.h"
@@ -399,12 +400,7 @@ static void GfxTextFillRect(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I
     if (X1 > X2 || Y1 > Y2) {
         return;
     }
-
-    for (I32 Y = Y1; Y <= Y2; Y++) {
-        for (I32 X = X1; X <= X2; X++) {
-            GfxTextWritePixel(Context, X, Y, Color);
-        }
-    }
+    (void)GraphicsFillSolidRect(Context, X1, Y1, X2, Y2, Color);
 }
 
 /************************************************************************/

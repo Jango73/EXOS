@@ -27,6 +27,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
+#include "Profile.h"
 #include "drivers/graphics/VESA-Shared.h"
 #include "drivers/graphics/Graphics-TextRenderer.h"
 #include "utils/BootPath.h"
@@ -715,6 +716,7 @@ static U32 VESA_Line(LPLINEINFO Info) {
 static U32 VESA_Rectangle(LPRECTINFO Info) {
     LPVESA_CONTEXT Context;
     static U32 DATA_SECTION VESARectangleDebugCount = 0;
+    PROFILE_SCOPE Scope;
 
     if (Info == NULL) return 0;
 
@@ -737,11 +739,13 @@ static U32 VESA_Rectangle(LPRECTINFO Info) {
         VESARectangleDebugCount++;
     }
 
+    ProfileStart(&Scope, TEXT("VESA.Rectangle"));
     LockMutex(&(Context->Header.Mutex), INFINITY);
 
     Context->ModeSpecs.Rect(Context, Info->X1, Info->Y1, Info->X2, Info->Y2);
 
     UnlockMutex(&(Context->Header.Mutex));
+    ProfileStop(&Scope);
 
     return 1;
 }

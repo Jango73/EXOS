@@ -25,7 +25,9 @@
 #include "console/Console.h"
 #include "Log.h"
 #include "Memory.h"
+#include "Profile.h"
 #include "drivers/graphics/Graphics-TextRenderer.h"
+#include "utils/Graphics-Utils.h"
 #include "utils/LineRasterizer.h"
 #include "vbr-multiboot.h"
 
@@ -215,6 +217,16 @@ static BOOL GOPGfxPlotLinePixel(LPVOID Context, I32 X, I32 Y, COLOR* Color) {
 /************************************************************************/
 
 /**
+ * @brief Fill one clipped rectangle directly in GOP framebuffer memory.
+ * @param Context Active graphics context.
+ * @param X1 Left coordinate.
+ * @param Y1 Top coordinate.
+ * @param X2 Right coordinate.
+ * @param Y2 Bottom coordinate.
+ * @param FillColor Brush color already encoded for the active mode.
+ * @return TRUE on success, FALSE otherwise.
+ */
+/**
  * @brief Draw a line using current pen.
  * @param Context Active graphics context.
  * @param X1 Start X.
@@ -248,9 +260,8 @@ static void GOPGfxDrawLine(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I3
  * @param Y2 Bottom coordinate.
  */
 static void GOPGfxDrawRectangle(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
-    I32 X = 0;
-    I32 Y = 0;
     I32 Temp = 0;
+    PROFILE_SCOPE Scope;
 
     if (Context == NULL) {
         return;
@@ -268,12 +279,9 @@ static void GOPGfxDrawRectangle(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X
     }
 
     if (Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH) {
-        for (Y = Y1; Y <= Y2; Y++) {
-            for (X = X1; X <= X2; X++) {
-                COLOR FillColor = Context->Brush->Color;
-                (void)GOPGfxWritePixel(Context, X, Y, &FillColor);
-            }
-        }
+        ProfileStart(&Scope, TEXT("GOP.RectangleFill"));
+        (void)GraphicsFillSolidRect(Context, X1, Y1, X2, Y2, Context->Brush->Color);
+        ProfileStop(&Scope);
     }
 
     if (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN) {
@@ -580,6 +588,7 @@ static UINT GOPGfxLine(LPLINEINFO Info) {
  */
 static UINT GOPGfxRectangle(LPRECTINFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
+    PROFILE_SCOPE Scope;
 
     if (Info == NULL) {
         return 0;
@@ -590,9 +599,11 @@ static UINT GOPGfxRectangle(LPRECTINFO Info) {
         return 0;
     }
 
+    ProfileStart(&Scope, TEXT("GOP.Rectangle"));
     LockMutex(&(Context->Mutex), INFINITY);
     GOPGfxDrawRectangle(Context, Info->X1, Info->Y1, Info->X2, Info->Y2);
     UnlockMutex(&(Context->Mutex));
+    ProfileStop(&Scope);
 
     return 1;
 }

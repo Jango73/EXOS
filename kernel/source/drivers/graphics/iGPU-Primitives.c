@@ -22,6 +22,8 @@
 \************************************************************************/
 
 #include "iGPU-Internal.h"
+#include "Profile.h"
+#include "utils/Graphics-Utils.h"
 #include "utils/LineRasterizer.h"
 
 /************************************************************************/
@@ -78,16 +80,9 @@ static void IntelGfxDrawLineInternal(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, 
 /************************************************************************/
 
 static void IntelGfxDrawRectangleInternal(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
-    I32 Y = 0;
     I32 Temp = 0;
-    I32 DrawX1 = 0;
-    I32 DrawY1 = 0;
-    I32 DrawX2 = 0;
-    I32 DrawY2 = 0;
-    U32 FillWidth = 0;
-    U32 X = 0;
-    U32* Pixel = NULL;
     COLOR FillColor = 0;
+    PROFILE_SCOPE Scope;
 
     if (Context == NULL) {
         return;
@@ -106,32 +101,10 @@ static void IntelGfxDrawRectangleInternal(LPGRAPHICSCONTEXT Context, I32 X1, I32
 
     if (Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH && Context->MemoryBase != NULL &&
         Context->BitsPerPixel == 32) {
-        DrawX1 = X1;
-        DrawY1 = Y1;
-        DrawX2 = X2;
-        DrawY2 = Y2;
-
-        if (DrawX1 < Context->LoClip.X) DrawX1 = Context->LoClip.X;
-        if (DrawY1 < Context->LoClip.Y) DrawY1 = Context->LoClip.Y;
-        if (DrawX2 > Context->HiClip.X) DrawX2 = Context->HiClip.X;
-        if (DrawY2 > Context->HiClip.Y) DrawY2 = Context->HiClip.Y;
-
-        if (DrawX1 < 0) DrawX1 = 0;
-        if (DrawY1 < 0) DrawY1 = 0;
-        if (DrawX2 >= Context->Width) DrawX2 = Context->Width - 1;
-        if (DrawY2 >= Context->Height) DrawY2 = Context->Height - 1;
-
-        if (DrawX2 >= DrawX1 && DrawY2 >= DrawY1) {
-            FillWidth = (U32)(DrawX2 - DrawX1 + 1);
-            FillColor = Context->Brush->Color;
-
-            for (Y = DrawY1; Y <= DrawY2; Y++) {
-                Pixel = (U32*)(Context->MemoryBase + (U32)(Y * (I32)Context->BytesPerScanLine) + ((U32)DrawX1 << 2));
-                for (X = 0; X < FillWidth; X++) {
-                    Pixel[X] = FillColor;
-                }
-            }
-        }
+        ProfileStart(&Scope, TEXT("iGPU.RectangleFill"));
+        FillColor = Context->Brush->Color;
+        (void)GraphicsFillSolidRect(Context, X1, Y1, X2, Y2, FillColor);
+        ProfileStop(&Scope);
     }
 
     if (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN) {
@@ -292,6 +265,8 @@ UINT IntelGfxLine(LPLINEINFO Info) {
 UINT IntelGfxRectangle(LPRECTINFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     RECT Bounds = {0};
+    PROFILE_SCOPE Scope;
+    PROFILE_SCOPE FlushScope;
 
     if (Info == NULL) {
         return 0;
@@ -302,12 +277,16 @@ UINT IntelGfxRectangle(LPRECTINFO Info) {
         return 0;
     }
 
+    ProfileStart(&Scope, TEXT("iGPU.Rectangle"));
     LockMutex(&(Context->Mutex), INFINITY);
     IntelGfxDrawRectangleInternal(Context, Info->X1, Info->Y1, Info->X2, Info->Y2);
     if (IntelGfxNormalizeFlushBounds(Context, Info->X1, Info->Y1, Info->X2, Info->Y2, &Bounds)) {
+        ProfileStart(&FlushScope, TEXT("iGPU.RectangleFlush"));
         IntelGfxFlushBoundsToScanout(Context, &Bounds);
+        ProfileStop(&FlushScope);
     }
     UnlockMutex(&(Context->Mutex));
+    ProfileStop(&Scope);
 
     return 1;
 }
@@ -394,16 +373,12 @@ UINT IntelGfxTriangle(LPTRIANGLEINFO Info) {
     I32 MaxX = 0;
     I32 MinY = 0;
     I32 MaxY = 0;
-    I32 X = 0;
-    I32 Y = 0;
     I32 Area = 0;
-    I32 W0 = 0;
-    I32 W1 = 0;
-    I32 W2 = 0;
     COLOR FillColor = 0;
     BOOL HasFill = FALSE;
     BOOL HasStroke = FALSE;
     RECT Bounds = {0};
+    RECT FilledBounds = {0};
 
     if (Info == NULL) {
         return 0;
@@ -449,34 +424,7 @@ UINT IntelGfxTriangle(LPTRIANGLEINFO Info) {
         }
     } else {
         if (HasFill != FALSE) {
-            I32 FillMinX = MinX;
-            I32 FillMaxX = MaxX;
-            I32 FillMinY = MinY;
-            I32 FillMaxY = MaxY;
-
-            if (FillMinX < Context->LoClip.X) FillMinX = Context->LoClip.X;
-            if (FillMinY < Context->LoClip.Y) FillMinY = Context->LoClip.Y;
-            if (FillMaxX > Context->HiClip.X) FillMaxX = Context->HiClip.X;
-            if (FillMaxY > Context->HiClip.Y) FillMaxY = Context->HiClip.Y;
-
-            if (FillMinX <= FillMaxX && FillMinY <= FillMaxY) {
-                for (Y = FillMinY; Y <= FillMaxY; Y++) {
-                    for (X = FillMinX; X <= FillMaxX; X++) {
-                        COLOR PixelColor = FillColor;
-                        W0 = IntelGfxTriangleEdgeFunction(Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y, X, Y);
-                        W1 = IntelGfxTriangleEdgeFunction(Info->P3.X, Info->P3.Y, Info->P1.X, Info->P1.Y, X, Y);
-                        W2 = IntelGfxTriangleEdgeFunction(Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y, X, Y);
-
-                        if (Area > 0) {
-                            if (W0 < 0 || W1 < 0 || W2 < 0) continue;
-                        } else {
-                            if (W0 > 0 || W1 > 0 || W2 > 0) continue;
-                        }
-
-                        (void)IntelGfxWritePixelInternal(Context, X, Y, &PixelColor);
-                    }
-                }
-            }
+            (void)GraphicsFillTriangleSpans(Context, Info, FillColor, &FilledBounds);
         }
 
         if (HasStroke != FALSE) {

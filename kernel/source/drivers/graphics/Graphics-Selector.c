@@ -26,6 +26,7 @@
 #include "CoreString.h"
 #include "DriverGetters.h"
 #include "Log.h"
+#include "Profile.h"
 #include "Clock.h"
 #include "utils/BootPath.h"
 #include "utils/RateLimiter.h"
@@ -467,12 +468,19 @@ static UINT GraphicsSelectorForward(UINT Function, UINT Parameter) {
     for (Index = GraphicsSelectorState.ActiveIndex; Index < GraphicsSelectorState.BackendCount; Index++) {
         LPDRIVER Driver = GraphicsSelectorState.Backends[Index];
         UINT Result = 0;
+        PROFILE_SCOPE RectangleForwardScope;
 
         if (Driver == NULL || Driver->Command == NULL) {
             continue;
         }
 
+        if (Function == DF_GFX_RECTANGLE) {
+            ProfileStart(&RectangleForwardScope, TEXT("GraphicsSelector.RectangleForward"));
+        }
         Result = Driver->Command(Function, Parameter);
+        if (Function == DF_GFX_RECTANGLE) {
+            ProfileStop(&RectangleForwardScope);
+        }
 
         if (IsCursorCommand != FALSE &&
             CursorForwardLimiterReady != FALSE &&

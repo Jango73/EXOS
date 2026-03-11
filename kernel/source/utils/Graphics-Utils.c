@@ -119,6 +119,237 @@ BOOL SubtractRectFromRegion(LPRECT_REGION Region, LPRECT Occluder, LPRECT TempSt
 
 /************************************************************************/
 
+BOOL GraphicsFillSolidRect(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR FillColor) {
+    I32 DrawX1 = 0;
+    I32 DrawY1 = 0;
+    I32 DrawX2 = 0;
+    I32 DrawY2 = 0;
+    I32 Y = 0;
+    U32 Width = 0;
+    U32 X = 0;
+
+    if (Context == NULL || Context->MemoryBase == NULL) return FALSE;
+
+    DrawX1 = X1;
+    DrawY1 = Y1;
+    DrawX2 = X2;
+    DrawY2 = Y2;
+
+    if (DrawX1 < Context->LoClip.X) DrawX1 = Context->LoClip.X;
+    if (DrawY1 < Context->LoClip.Y) DrawY1 = Context->LoClip.Y;
+    if (DrawX2 > Context->HiClip.X) DrawX2 = Context->HiClip.X;
+    if (DrawY2 > Context->HiClip.Y) DrawY2 = Context->HiClip.Y;
+
+    if (DrawX1 < 0) DrawX1 = 0;
+    if (DrawY1 < 0) DrawY1 = 0;
+    if (DrawX2 >= Context->Width) DrawX2 = Context->Width - 1;
+    if (DrawY2 >= Context->Height) DrawY2 = Context->Height - 1;
+
+    if (DrawX2 < DrawX1 || DrawY2 < DrawY1) return TRUE;
+
+    Width = (U32)(DrawX2 - DrawX1 + 1);
+
+    switch (Context->BitsPerPixel) {
+        case 32:
+            for (Y = DrawY1; Y <= DrawY2; Y++) {
+                U32* Pixel = (U32*)(Context->MemoryBase + (U32)(Y * (I32)Context->BytesPerScanLine) + ((U32)DrawX1 << 2));
+
+                switch (Context->RasterOperation) {
+                    case ROP_SET:
+                        for (X = 0; X < Width; X++) Pixel[X] = FillColor;
+                        break;
+                    case ROP_XOR:
+                        for (X = 0; X < Width; X++) Pixel[X] ^= FillColor;
+                        break;
+                    case ROP_OR:
+                        for (X = 0; X < Width; X++) Pixel[X] |= FillColor;
+                        break;
+                    case ROP_AND:
+                        for (X = 0; X < Width; X++) Pixel[X] &= FillColor;
+                        break;
+                    default:
+                        return FALSE;
+                }
+            }
+            return TRUE;
+
+        case 24: {
+            U32 Converted = 0;
+            U8 Red = 0;
+            U8 Green = 0;
+            U8 Blue = 0;
+
+            Converted = (((FillColor >> 0) & 0xFF) << 16) | (((FillColor >> 8) & 0xFF) << 8) | (((FillColor >> 16) & 0xFF) << 0);
+            Red = (U8)((Converted >> 0) & 0xFF);
+            Green = (U8)((Converted >> 8) & 0xFF);
+            Blue = (U8)((Converted >> 16) & 0xFF);
+
+            for (Y = DrawY1; Y <= DrawY2; Y++) {
+                U8* Pixel = Context->MemoryBase + (U32)(Y * (I32)Context->BytesPerScanLine) + ((U32)DrawX1 * 3);
+
+                switch (Context->RasterOperation) {
+                    case ROP_SET:
+                        for (X = 0; X < Width; X++) {
+                            Pixel[0] = Red;
+                            Pixel[1] = Green;
+                            Pixel[2] = Blue;
+                            Pixel += 3;
+                        }
+                        break;
+                    case ROP_XOR:
+                        for (X = 0; X < Width; X++) {
+                            Pixel[0] ^= Red;
+                            Pixel[1] ^= Green;
+                            Pixel[2] ^= Blue;
+                            Pixel += 3;
+                        }
+                        break;
+                    case ROP_OR:
+                        for (X = 0; X < Width; X++) {
+                            Pixel[0] |= Red;
+                            Pixel[1] |= Green;
+                            Pixel[2] |= Blue;
+                            Pixel += 3;
+                        }
+                        break;
+                    case ROP_AND:
+                        for (X = 0; X < Width; X++) {
+                            Pixel[0] &= Red;
+                            Pixel[1] &= Green;
+                            Pixel[2] &= Blue;
+                            Pixel += 3;
+                        }
+                        break;
+                    default:
+                        return FALSE;
+                }
+            }
+            return TRUE;
+        }
+
+        case 16: {
+            U16 Fill16 = (U16)FillColor;
+
+            for (Y = DrawY1; Y <= DrawY2; Y++) {
+                U16* Pixel = (U16*)(Context->MemoryBase + (U32)(Y * (I32)Context->BytesPerScanLine) + ((U32)DrawX1 << 1));
+
+                switch (Context->RasterOperation) {
+                    case ROP_SET:
+                        for (X = 0; X < Width; X++) Pixel[X] = Fill16;
+                        break;
+                    case ROP_XOR:
+                        for (X = 0; X < Width; X++) Pixel[X] ^= Fill16;
+                        break;
+                    case ROP_OR:
+                        for (X = 0; X < Width; X++) Pixel[X] |= Fill16;
+                        break;
+                    case ROP_AND:
+                        for (X = 0; X < Width; X++) Pixel[X] &= Fill16;
+                        break;
+                    default:
+                        return FALSE;
+                }
+            }
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+static I32 GraphicsTriangleEdgeFunction(I32 Ax, I32 Ay, I32 Bx, I32 By, I32 Px, I32 Py) {
+    return (Px - Ax) * (By - Ay) - (Py - Ay) * (Bx - Ax);
+}
+
+/************************************************************************/
+
+BOOL GraphicsFillTriangleSpans(LPGRAPHICSCONTEXT Context, LPTRIANGLEINFO Info, COLOR FillColor, LPRECT FilledBounds) {
+    I32 MinX = 0;
+    I32 MaxX = 0;
+    I32 MinY = 0;
+    I32 MaxY = 0;
+    I32 Area = 0;
+    I32 Y = 0;
+    BOOL FilledAny = FALSE;
+
+    if (FilledBounds != NULL) {
+        *FilledBounds = (RECT){0};
+    }
+
+    if (Context == NULL || Info == NULL || Context->MemoryBase == NULL) return FALSE;
+
+    MinX = Info->P1.X;
+    if (Info->P2.X < MinX) MinX = Info->P2.X;
+    if (Info->P3.X < MinX) MinX = Info->P3.X;
+    MaxX = Info->P1.X;
+    if (Info->P2.X > MaxX) MaxX = Info->P2.X;
+    if (Info->P3.X > MaxX) MaxX = Info->P3.X;
+
+    MinY = Info->P1.Y;
+    if (Info->P2.Y < MinY) MinY = Info->P2.Y;
+    if (Info->P3.Y < MinY) MinY = Info->P3.Y;
+    MaxY = Info->P1.Y;
+    if (Info->P2.Y > MaxY) MaxY = Info->P2.Y;
+    if (Info->P3.Y > MaxY) MaxY = Info->P3.Y;
+
+    if (MinX < Context->LoClip.X) MinX = Context->LoClip.X;
+    if (MinY < Context->LoClip.Y) MinY = Context->LoClip.Y;
+    if (MaxX > Context->HiClip.X) MaxX = Context->HiClip.X;
+    if (MaxY > Context->HiClip.Y) MaxY = Context->HiClip.Y;
+    if (MinX > MaxX || MinY > MaxY) return FALSE;
+
+    Area = GraphicsTriangleEdgeFunction(Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
+    if (Area == 0) return FALSE;
+
+    for (Y = MinY; Y <= MaxY; Y++) {
+        I32 SpanStart = 0;
+        I32 SpanEnd = 0;
+        I32 X = 0;
+        BOOL SpanActive = FALSE;
+
+        for (X = MinX; X <= MaxX; X++) {
+            I32 W0 = GraphicsTriangleEdgeFunction(Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y, X, Y);
+            I32 W1 = GraphicsTriangleEdgeFunction(Info->P3.X, Info->P3.Y, Info->P1.X, Info->P1.Y, X, Y);
+            I32 W2 = GraphicsTriangleEdgeFunction(Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y, X, Y);
+
+            if (Area > 0) {
+                if (W0 < 0 || W1 < 0 || W2 < 0) continue;
+            } else {
+                if (W0 > 0 || W1 > 0 || W2 > 0) continue;
+            }
+
+            if (SpanActive == FALSE) {
+                SpanStart = X;
+                SpanActive = TRUE;
+            }
+            SpanEnd = X;
+        }
+
+        if (SpanActive == FALSE) continue;
+        if (GraphicsFillSolidRect(Context, SpanStart, Y, SpanEnd, Y, FillColor) == FALSE) return FALSE;
+
+        if (FilledAny == FALSE) {
+            if (FilledBounds != NULL) {
+                FilledBounds->X1 = SpanStart;
+                FilledBounds->Y1 = Y;
+                FilledBounds->X2 = SpanEnd;
+                FilledBounds->Y2 = Y;
+            }
+            FilledAny = TRUE;
+        } else if (FilledBounds != NULL) {
+            if (SpanStart < FilledBounds->X1) FilledBounds->X1 = SpanStart;
+            if (SpanEnd > FilledBounds->X2) FilledBounds->X2 = SpanEnd;
+            FilledBounds->Y2 = Y;
+        }
+    }
+
+    return FilledAny;
+}
+
+/************************************************************************/
+
 void GraphicsScreenRectToWindowRect(LPRECT WindowScreenRect, LPRECT ScreenRect, LPRECT WindowRect) {
     if (WindowScreenRect == NULL || ScreenRect == NULL || WindowRect == NULL) return;
 
