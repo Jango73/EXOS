@@ -59,13 +59,11 @@ BOOL DesktopClockWidgetEnsureClassRegistered(void) {
     LPWINDOW_CLASS WindowClass;
 
     if (WindowClassInitializeRegistry() == FALSE) {
-        DEBUG(TEXT("[DesktopClockWidgetEnsureClassRegistered] Registry initialization failed"));
         return FALSE;
     }
 
     WindowClass = WindowClassFindByName(DESKTOP_CLOCK_WIDGET_WINDOW_CLASS_NAME);
     if (WindowClass != NULL) {
-        DEBUG(TEXT("[DesktopClockWidgetEnsureClassRegistered] Existing class=%p"), WindowClass);
         return TRUE;
     }
 
@@ -75,7 +73,6 @@ BOOL DesktopClockWidgetEnsureClassRegistered(void) {
         DesktopClockWidgetWindowFunc,
         0);
 
-    DEBUG(TEXT("[DesktopClockWidgetEnsureClassRegistered] Registered class=%p"), WindowClass);
     return WindowClass != NULL;
 }
 
@@ -150,7 +147,6 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
 
     switch (Message) {
         case EWM_CREATE:
-            DEBUG(TEXT("[DesktopClockWidgetWindowFunc] Create window=%p"), Window);
             (void)SetWindowTimer(Window, CLOCK_WIDGET_TIMER_ID, CLOCK_WIDGET_TIMER_INTERVAL_MS);
             return 1;
 
@@ -173,7 +169,6 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
             }
 
             if (GetWindowClientRect(Window, &ClientRect) == FALSE) {
-                DEBUG(TEXT("[DesktopClockWidgetWindowFunc] No client rect window=%p"), Window);
                 EndWindowDraw(Window);
                 return 1;
             }
@@ -181,11 +176,6 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
             ClientWidth = ClientRect.X2 - ClientRect.X1 + 1;
             ClientHeight = ClientRect.Y2 - ClientRect.Y1 + 1;
             if (ClientWidth <= 0 || ClientHeight <= 0) {
-                DEBUG(
-                    TEXT("[DesktopClockWidgetWindowFunc] Empty client window=%p width=%u height=%u"),
-                    Window,
-                    (UINT)(ClientWidth > 0 ? ClientWidth : 0),
-                    (UINT)(ClientHeight > 0 ? ClientHeight : 0));
                 EndWindowDraw(Window);
                 return 1;
             }
@@ -195,12 +185,6 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
             MaxRadius = (ClientWidth - 1) / 2;
             if (((ClientHeight - 1) / 2) < MaxRadius) MaxRadius = (ClientHeight - 1) / 2;
             if (MaxRadius < 1) {
-                DEBUG(
-                    TEXT("[DesktopClockWidgetWindowFunc] Radius rejected window=%p width=%u height=%u max_radius=%x"),
-                    Window,
-                    (UINT)ClientWidth,
-                    (UINT)ClientHeight,
-                    (U32)MaxRadius);
                 EndWindowDraw(Window);
                 return 1;
             }
@@ -210,12 +194,6 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
             if (Radius < 8) Radius = 8;
             if (Radius > MaxRadius) Radius = MaxRadius;
 
-            DEBUG(
-                TEXT("[DesktopClockWidgetWindowFunc] Draw window=%p width=%u height=%u radius=%x"),
-                Window,
-                (UINT)ClientWidth,
-                (UINT)ClientHeight,
-                (U32)Radius);
 
             ArcInfo.Header.Size = sizeof(ArcInfo);
             ArcInfo.Header.Version = EXOS_ABI_VERSION;

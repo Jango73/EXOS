@@ -32,7 +32,7 @@
 #define LOG_VIEWER_TIMER_ID 1
 #define LOG_VIEWER_TIMER_INTERVAL_MS 500
 #define LOG_VIEWER_PADDING_X 8
-#define LOG_VIEWER_PADDING_Y 8
+#define LOG_VIEWER_PADDING_Y 4
 #define LOG_VIEWER_LINE_GAP 2
 #define LOG_VIEWER_DEFAULT_WIDTH 720
 #define LOG_VIEWER_DEFAULT_HEIGHT 360
@@ -60,13 +60,11 @@ BOOL LogViewerEnsureClassRegistered(void) {
     LPWINDOW_CLASS WindowClass;
 
     if (WindowClassInitializeRegistry() == FALSE) {
-        DEBUG(TEXT("[LogViewerEnsureClassRegistered] Registry initialization failed"));
         return FALSE;
     }
 
     WindowClass = WindowClassFindByName(DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME);
     if (WindowClass != NULL) {
-        DEBUG(TEXT("[LogViewerEnsureClassRegistered] Existing class=%p"), WindowClass);
         return TRUE;
     }
 
@@ -76,7 +74,6 @@ BOOL LogViewerEnsureClassRegistered(void) {
         LogViewerWindowFunc,
         0);
 
-    DEBUG(TEXT("[LogViewerEnsureClassRegistered] Registered class=%p"), WindowClass);
     return WindowClass != NULL;
 }
 
@@ -156,16 +153,15 @@ static BOOL LogViewerApplyParentLayout(HANDLE Window) {
     if (ParentWidth <= 0 || ParentHeight <= 0) return FALSE;
 
     WindowWidth = PreferredSize.X;
-    WindowHeight = PreferredSize.Y;
+    WindowHeight = ParentHeight;
     if (WindowWidth > ParentWidth) WindowWidth = ParentWidth;
-    if (WindowHeight > ParentHeight) WindowHeight = ParentHeight;
     if (WindowWidth < 1) WindowWidth = 1;
     if (WindowHeight < 1) WindowHeight = 1;
 
     WindowRect.X1 = ParentClientRect.X2 - WindowWidth + 1;
     WindowRect.Y1 = ParentClientRect.Y1;
     WindowRect.X2 = ParentClientRect.X2;
-    WindowRect.Y2 = ParentClientRect.Y1 + WindowHeight - 1;
+    WindowRect.Y2 = ParentClientRect.Y2;
 
     return MoveWindow(Window, &WindowRect);
 }

@@ -60,19 +60,9 @@ static void ShellBarSlotResizeChildrenToClient(HANDLE SlotWindow) {
     if (SlotWindow == NULL) return;
     if (GetWindowClientRect(SlotWindow, &ClientRect) == FALSE) return;
 
-    DEBUG(
-        TEXT("[ShellBarSlotResizeChildrenToClient] Slot=%p width=%u height=%u"),
-        SlotWindow,
-        (UINT)(ClientRect.X2 - ClientRect.X1 + 1),
-        (UINT)(ClientRect.Y2 - ClientRect.Y1 + 1));
 
     for (ChildWindow = GetWindowChild((HANDLE)SlotWindow, 0); ChildWindow != NULL; ChildWindow = NextChildWindow) {
         NextChildWindow = GetNextWindowSibling(ChildWindow);
-        DEBUG(
-            TEXT("[ShellBarSlotResizeChildrenToClient] Child=%p target_width=%u target_height=%u"),
-            ChildWindow,
-            (UINT)(ClientRect.X2 - ClientRect.X1 + 1),
-            (UINT)(ClientRect.Y2 - ClientRect.Y1 + 1));
         (void)MoveWindow(ChildWindow, &ClientRect);
     }
 }
@@ -189,7 +179,6 @@ static void ShellBarHandleChildAppended(HANDLE ShellBarWindow) {
 
     if (ShellBarWindow == NULL) return;
 
-    DEBUG(TEXT("[ShellBarHandleChildAppended] ShellBar=%p"), ShellBarWindow);
 
     ShellBarLayoutSlots(ShellBarWindow);
 
@@ -249,7 +238,6 @@ static U32 ShellBarSlotWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Pa
 
         case EWM_CHILD_APPENDED:
         case EWM_CHILD_REMOVED:
-            DEBUG(TEXT("[ShellBarSlotWindowFunc] Message=%x window=%p child_id=%x"), Message, Window, Param1);
             ShellBarSlotResizeChildrenToClient(Window);
             return 1;
 
