@@ -308,36 +308,58 @@ BOOL BuildWindowDrawClipRegion(
     LPRECT ClipStorage,
     UINT ClipCapacity
 ) {
+    RECT DirtyStorage[WINDOW_DIRTY_REGION_CAPACITY];
+    RECT VisibleStorage[WINDOW_DIRTY_REGION_CAPACITY];
+    RECT_REGION DirtyRegion;
+    RECT_REGION VisibleRegion;
+    RECT DirtyRect;
+    RECT VisibleRect;
     RECT WindowScreenRect;
     I32 ThisOrder;
     LPWINDOW ParentWindow = NULL;
-    LPWINDOW SiblingWindow;
-    LPWINDOW* Siblings = NULL;
-    UINT SiblingCount = 0;
-    UINT SiblingIndex;
-    I32 SiblingOrder;
+    UINT DirtyCount;
+    UINT DirtyIndex;
+    UINT VisibleCount;
+    UINT VisibleIndex;
 
     if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
-    if (ClipRegion == NULL) return FALSE;
+    if (ClipRegion == NULL || ClipStorage == NULL || ClipCapacity == 0) return FALSE;
+    if (RectRegionInit(ClipRegion, ClipStorage, ClipCapacity) == FALSE) return FALSE;
+    RectRegionReset(ClipRegion);
+    if (RectRegionInit(&DirtyRegion, DirtyStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) return FALSE;
+
     if (DesktopConsumeWindowDirtyRegionSnapshot(
-            This, ClipRegion, ClipStorage, ClipCapacity, &WindowScreenRect, &ThisOrder, &ParentWindow) == FALSE) {
+            This, &DirtyRegion, DirtyStorage, WINDOW_DIRTY_REGION_CAPACITY, &WindowScreenRect, &ThisOrder, &ParentWindow) ==
+        FALSE) {
         return FALSE;
     }
+    UNUSED(ThisOrder);
+    UNUSED(ParentWindow);
 
-    (void)DesktopSnapshotWindowChildren(ParentWindow, &Siblings, &SiblingCount);
-    for (SiblingIndex = 0; SiblingIndex < SiblingCount; SiblingIndex++) {
-        SiblingWindow = Siblings[SiblingIndex];
-        if (SiblingWindow == NULL || SiblingWindow->TypeID != KOID_WINDOW) continue;
-        if (SiblingWindow == This) continue;
-        if (GetWindowOrderSnapshot(SiblingWindow, &SiblingOrder) == FALSE) continue;
-        if (SiblingOrder >= ThisOrder) continue;
+    DirtyCount = RectRegionGetCount(&DirtyRegion);
+    for (DirtyIndex = 0; DirtyIndex < DirtyCount; DirtyIndex++) {
+        if (RectRegionGetRect(&DirtyRegion, DirtyIndex, &DirtyRect) == FALSE) continue;
+        if (DesktopBuildWindowVisibleRegion(
+                This, &DirtyRect, TRUE, &VisibleRegion, VisibleStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) {
+            RectRegionReset(ClipRegion);
+            (void)DesktopBuildWindowVisibleRegion(This, &WindowScreenRect, TRUE, ClipRegion, ClipStorage, ClipCapacity);
+            return TRUE;
+        }
 
-        DesktopVisibleRegionSubtractVisibleWindowTree(SiblingWindow, ClipRegion, ClipCapacity);
-        if (RectRegionGetCount(ClipRegion) == 0) break;
+        VisibleCount = RectRegionGetCount(&VisibleRegion);
+        for (VisibleIndex = 0; VisibleIndex < VisibleCount; VisibleIndex++) {
+            if (RectRegionGetRect(&VisibleRegion, VisibleIndex, &VisibleRect) == FALSE) continue;
+            if (RectRegionAddRect(ClipRegion, &VisibleRect) == FALSE) {
+                RectRegionReset(ClipRegion);
+                (void)DesktopBuildWindowVisibleRegion(This, &WindowScreenRect, TRUE, ClipRegion, ClipStorage, ClipCapacity);
+                return TRUE;
+            }
+        }
     }
 
-    if (Siblings != NULL) {
-        KernelHeapFree(Siblings);
+    if (RectRegionIsOverflowed(&DirtyRegion) || RectRegionIsOverflowed(ClipRegion)) {
+        RectRegionReset(ClipRegion);
+        (void)DesktopBuildWindowVisibleRegion(This, &WindowScreenRect, TRUE, ClipRegion, ClipStorage, ClipCapacity);
     }
 
     return TRUE;
