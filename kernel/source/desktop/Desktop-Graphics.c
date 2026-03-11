@@ -258,6 +258,27 @@ BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect) {
 /***************************************************************************/
 
 /**
+ * @brief Broadcast one rectangle-change notify to all direct desktop children.
+ * @param DesktopWindow Desktop root window.
+ */
+static void DesktopBroadcastRectChangedNotifyToDirectChildren(HANDLE DesktopWindow) {
+    UINT ChildCount;
+    UINT ChildIndex;
+    HANDLE ChildWindow;
+
+    if (DesktopWindow == NULL) return;
+
+    ChildCount = GetWindowChildCount(DesktopWindow);
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        ChildWindow = GetWindowChild(DesktopWindow, ChildIndex);
+        if (ChildWindow == NULL) continue;
+        (void)PostMessage(ChildWindow, EWM_NOTIFY, EWN_WINDOW_RECT_CHANGED, (U32)(UINT)(LINEAR)DesktopWindow);
+    }
+}
+
+/***************************************************************************/
+
+/**
  * @brief Set one graphics-context clip rectangle in screen coordinates.
  * @param GC Graphics context handle.
  * @param ClipRect Clip rectangle in screen coordinates.
@@ -1528,6 +1549,12 @@ static U32 DrawButtons(HANDLE GC) {
  */
 U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     switch (Message) {
+        case EWM_NOTIFY:
+            if (Param1 == EWN_WINDOW_RECT_CHANGED) {
+                DesktopBroadcastRectChangedNotifyToDirectChildren(Window);
+            }
+            return BaseWindowFunc(Window, Message, Param1, Param2);
+
         case EWM_DRAW: {
             HANDLE GC;
             RECTINFO RectInfo;

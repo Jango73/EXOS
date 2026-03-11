@@ -129,6 +129,49 @@ static void LogViewerDrawLines(HANDLE GraphicsContext, LPRECT ClientRect, I32 Li
 
 /***************************************************************************/
 
+/**
+ * @brief Reposition one log viewer window from its direct parent geometry.
+ * @param Window Log viewer window.
+ * @return TRUE on success.
+ */
+static BOOL LogViewerApplyParentLayout(HANDLE Window) {
+    HANDLE ParentWindow;
+    RECT ParentClientRect;
+    RECT WindowRect;
+    POINT PreferredSize;
+    I32 ParentWidth;
+    I32 ParentHeight;
+    I32 WindowWidth;
+    I32 WindowHeight;
+
+    if (Window == NULL) return FALSE;
+
+    ParentWindow = GetWindowParent(Window);
+    if (ParentWindow == NULL) return FALSE;
+    if (GetWindowClientRect(ParentWindow, &ParentClientRect) == FALSE) return FALSE;
+    if (LogViewerGetPreferredSize(&PreferredSize) == FALSE) return FALSE;
+
+    ParentWidth = ParentClientRect.X2 - ParentClientRect.X1 + 1;
+    ParentHeight = ParentClientRect.Y2 - ParentClientRect.Y1 + 1;
+    if (ParentWidth <= 0 || ParentHeight <= 0) return FALSE;
+
+    WindowWidth = PreferredSize.X;
+    WindowHeight = PreferredSize.Y;
+    if (WindowWidth > ParentWidth) WindowWidth = ParentWidth;
+    if (WindowHeight > ParentHeight) WindowHeight = ParentHeight;
+    if (WindowWidth < 1) WindowWidth = 1;
+    if (WindowHeight < 1) WindowHeight = 1;
+
+    WindowRect.X1 = ParentClientRect.X2 - WindowWidth + 1;
+    WindowRect.Y1 = ParentClientRect.Y1;
+    WindowRect.X2 = ParentClientRect.X2;
+    WindowRect.Y2 = ParentClientRect.Y1 + WindowHeight - 1;
+
+    return MoveWindow(Window, &WindowRect);
+}
+
+/***************************************************************************/
+
 U32 LogViewerWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     RECT ClientRect;
     HANDLE GraphicsContext;
@@ -160,6 +203,15 @@ U32 LogViewerWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 }
             }
             return 1;
+
+        case EWM_NOTIFY:
+            if (Param1 == EWN_WINDOW_RECT_CHANGED) {
+                if ((HANDLE)(UINT)Param2 == GetWindowParent(Window)) {
+                    (void)LogViewerApplyParentLayout(Window);
+                    return 1;
+                }
+            }
+            break;
 
         case EWM_DRAW:
             (void)BaseWindowFunc(Window, EWM_CLEAR, Param1, Param2);
