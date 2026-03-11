@@ -118,6 +118,117 @@ static INT IPv4_SendEthernetFrame(LPIPV4_CONTEXT Context, const U8* Data, U32 Le
 }
 
 /************************************************************************/
+
+/**
+ * @brief Read the source MAC address from the network device driver.
+ *
+ * @param Device Network device.
+ * @param SourceMAC Receives the device MAC address.
+ * @return TRUE on success.
+ */
+static BOOL IPv4_GetSourceMACAddress(LPDEVICE Device, U8 SourceMAC[6]) {
+    NETWORKGETINFO GetInfo;
+    NETWORKINFO NetInfo;
+    BOOL MacRetrieved = FALSE;
+
+    if (Device == NULL || SourceMAC == NULL) return FALSE;
+
+    MemorySet(&GetInfo, 0, sizeof(GetInfo));
+    MemorySet(&NetInfo, 0, sizeof(NetInfo));
+    GetInfo.Device = (LPPCI_DEVICE)Device;
+    GetInfo.Info = &NetInfo;
+
+    LockMutex(&(Device->Mutex), INFINITY);
+
+    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
+            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) != DF_RETURN_SUCCESS) {
+                goto Out;
+            }
+            MacRetrieved = TRUE;
+        } else {
+            goto Out;
+        }
+    } else {
+        goto Out;
+    }
+
+Out:
+    UnlockMutex(&(Device->Mutex));
+
+    if (!MacRetrieved) return FALSE;
+
+    MemoryCopy(SourceMAC, NetInfo.MAC, 6);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Build and send one IPv4 Ethernet frame.
+ *
+ * @param Context IPv4 context.
+ * @param DestinationIP Destination IPv4 address in big-endian.
+ * @param DestinationMAC Destination MAC address.
+ * @param Protocol IPv4 protocol number.
+ * @param Payload Payload buffer.
+ * @param PayloadLength Payload length in bytes.
+ * @return Raw frame send result.
+ */
+static INT IPv4_SendResolvedPacket(
+    LPIPV4_CONTEXT Context,
+    U32 DestinationIP,
+    const U8 DestinationMAC[6],
+    U8 Protocol,
+    const U8* Payload,
+    U32 PayloadLength
+) {
+    U32 IPv4HeaderSize;
+    U32 EthernetHeaderSize;
+    U32 TotalFrameSize;
+    U8 FrameBuffer[1514];
+    U8 SourceMAC[6];
+    ETHERNET_HEADER* EthernetHeader;
+    IPV4_HEADER* IPv4Header;
+
+    if (Context == NULL || DestinationMAC == NULL) return 0;
+    if (Context->Device == NULL) return 0;
+    if (Payload == NULL && PayloadLength > 0) return 0;
+
+    IPv4HeaderSize = sizeof(IPV4_HEADER);
+    EthernetHeaderSize = sizeof(ETHERNET_HEADER);
+    TotalFrameSize = EthernetHeaderSize + IPv4HeaderSize + PayloadLength;
+    if (TotalFrameSize > sizeof(FrameBuffer)) return 0;
+    if (!IPv4_GetSourceMACAddress(Context->Device, SourceMAC)) return 0;
+
+    EthernetHeader = (ETHERNET_HEADER*)FrameBuffer;
+    MemoryCopy(EthernetHeader->Destination, DestinationMAC, 6);
+    MemoryCopy(EthernetHeader->Source, SourceMAC, 6);
+    EthernetHeader->EthType = Htons(ETHTYPE_IPV4);
+
+    IPv4Header = (IPV4_HEADER*)(FrameBuffer + EthernetHeaderSize);
+    MemorySet(IPv4Header, 0, sizeof(IPV4_HEADER));
+    IPv4Header->VersionIHL = 0x45;
+    IPv4Header->TypeOfService = 0;
+    IPv4Header->TotalLength = Htons((U16)(IPv4HeaderSize + PayloadLength));
+    IPv4Header->Identification = Htons(NextID);
+    NextID = (NextID == 0xFFFF) ? 1 : NextID + 1;
+    IPv4Header->FlagsFragmentOffset = Htons(IPV4_FLAG_DONT_FRAGMENT);
+    IPv4Header->TimeToLive = IPV4_DEFAULT_TTL;
+    IPv4Header->Protocol = Protocol;
+    IPv4Header->HeaderChecksum = 0;
+    IPv4Header->SourceAddress = Context->LocalIPv4_Be;
+    IPv4Header->DestinationAddress = DestinationIP;
+    IPv4Header->HeaderChecksum = IPv4_CalculateChecksum(IPv4Header);
+
+    if (PayloadLength > 0) {
+        MemoryCopy(FrameBuffer + EthernetHeaderSize + IPv4HeaderSize, Payload, PayloadLength);
+    }
+
+    return IPv4_SendEthernetFrame(Context, FrameBuffer, TotalFrameSize);
+}
+
+/************************************************************************/
 // Packet processing
 
 /**
@@ -372,81 +483,7 @@ int IPv4_Send(LPDEVICE Device, U32 DestinationIP, U8 Protocol, const U8* Payload
         return IPv4_AddPendingPacket(Context, DestinationIP, NextHopIP, Protocol, Payload, PayloadLength) ? IPV4_SEND_PENDING : IPV4_SEND_FAILED;
     }
 
-    // Calculate total frame size
-    U32 IPv4HeaderSize = sizeof(IPV4_HEADER);
-    U32 ETHERNET_HEADERSize = sizeof(ETHERNET_HEADER);
-    U32 TotalFrameSize = ETHERNET_HEADERSize + IPv4HeaderSize + PayloadLength;
-
-    // Allocate frame buffer (on stack for small packets)
-    U8 FrameBuffer[1514]; // Typical Ethernet MTU
-    if (TotalFrameSize > sizeof(FrameBuffer)) {
-        return 0;
-    }
-
-    // Build Ethernet header
-    ETHERNET_HEADER* EthHeader = (ETHERNET_HEADER*)FrameBuffer;
-    MemoryCopy(EthHeader->Destination, DestinationMAC, 6);
-
-    // Get our MAC address from network device
-    NETWORKGETINFO GetInfo;
-    NETWORKINFO NetInfo;
-    BOOL MacRetrieved = FALSE;
-    MemorySet(&GetInfo, 0, sizeof(GetInfo));
-    MemorySet(&NetInfo, 0, sizeof(NetInfo));
-    GetInfo.Device = (LPPCI_DEVICE)Device;
-    GetInfo.Info = &NetInfo;
-
-    LockMutex(&(Device->Mutex), INFINITY);
-
-    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
-            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) != DF_RETURN_SUCCESS) {
-                goto Out;
-            }
-            MacRetrieved = TRUE;
-        } else {
-            goto Out;
-        }
-    } else {
-        goto Out;
-    }
-
-Out:
-    UnlockMutex(&(Device->Mutex));
-    if (!MacRetrieved) {
-        return 0;
-    }
-
-    MemoryCopy(EthHeader->Source, NetInfo.MAC, 6);
-    EthHeader->EthType = Htons(ETHTYPE_IPV4);
-
-    // Debug: Show Ethernet header
-    // Build IPv4 header
-    IPV4_HEADER* IPv4Hdr = (IPV4_HEADER*)(FrameBuffer + ETHERNET_HEADERSize);
-    MemorySet(IPv4Hdr, 0, sizeof(IPV4_HEADER));
-
-    IPv4Hdr->VersionIHL = 0x45; // Version 4, IHL 5 (20 bytes)
-    IPv4Hdr->TypeOfService = 0;
-    IPv4Hdr->TotalLength = Htons((U16)(IPv4HeaderSize + PayloadLength));
-    IPv4Hdr->Identification = Htons(NextID);
-    NextID = (NextID == 0xFFFF) ? 1 : NextID + 1;
-    IPv4Hdr->FlagsFragmentOffset = Htons(IPV4_FLAG_DONT_FRAGMENT); // Don't fragment
-    IPv4Hdr->TimeToLive = IPV4_DEFAULT_TTL;
-    IPv4Hdr->Protocol = Protocol;
-    IPv4Hdr->HeaderChecksum = 0; // Will be calculated below
-    IPv4Hdr->SourceAddress = Context->LocalIPv4_Be;
-    IPv4Hdr->DestinationAddress = DestinationIP;
-
-    // Calculate and set checksum
-    IPv4Hdr->HeaderChecksum = IPv4_CalculateChecksum(IPv4Hdr);
-
-    // Copy payload
-    if (PayloadLength > 0) {
-        MemoryCopy(FrameBuffer + ETHERNET_HEADERSize + IPv4HeaderSize, Payload, PayloadLength);
-    }
-
-    // Send frame
-    U32 Result = IPv4_SendEthernetFrame(Context, FrameBuffer, TotalFrameSize);
+    U32 Result = IPv4_SendResolvedPacket(Context, DestinationIP, DestinationMAC, Protocol, Payload, PayloadLength);
     return Result > 0 ? IPV4_SEND_IMMEDIATE : IPV4_SEND_FAILED;
 }
 
@@ -463,7 +500,6 @@ Out:
  * @return 1 on success, 0 on failure
  */
 static int IPv4_SendDirect(LPIPV4_CONTEXT Context, U32 DestinationIP, U32 NextHopIP, U8 Protocol, const U8* Payload, U32 PayloadLength) {
-    // NextID is now global static variable
     U8 DestinationMAC[6];
     LPDEVICE Device;
 
@@ -477,81 +513,7 @@ static int IPv4_SendDirect(LPIPV4_CONTEXT Context, U32 DestinationIP, U32 NextHo
         return 0;
     }
 
-    // Calculate total frame size
-    U32 IPv4HeaderSize = sizeof(IPV4_HEADER);
-    U32 ETHERNET_HEADERSize = sizeof(ETHERNET_HEADER);
-    U32 TotalFrameSize = ETHERNET_HEADERSize + IPv4HeaderSize + PayloadLength;
-
-    // Allocate frame buffer (on stack for small packets)
-    U8 FrameBuffer[1514]; // Typical Ethernet MTU
-    if (TotalFrameSize > sizeof(FrameBuffer)) {
-        return 0;
-    }
-
-    // Build Ethernet header
-    ETHERNET_HEADER* EthHeader = (ETHERNET_HEADER*)FrameBuffer;
-    MemoryCopy(EthHeader->Destination, DestinationMAC, 6);
-
-    // Get our MAC address from network device
-    NETWORKGETINFO GetInfo;
-    NETWORKINFO NetInfo;
-    BOOL MacRetrieved = FALSE;
-    MemorySet(&GetInfo, 0, sizeof(GetInfo));
-    MemorySet(&NetInfo, 0, sizeof(NetInfo));
-    GetInfo.Device = (LPPCI_DEVICE)Device;
-    GetInfo.Info = &NetInfo;
-
-    LockMutex(&(Device->Mutex), INFINITY);
-
-    SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
-        SAFE_USE_VALID_ID(((LPPCI_DEVICE)Device)->Driver, KOID_DRIVER) {
-            if (((LPPCI_DEVICE)Device)->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo) != DF_RETURN_SUCCESS) {
-                goto Out;
-            }
-            MacRetrieved = TRUE;
-        } else {
-            goto Out;
-        }
-    } else {
-        goto Out;
-    }
-
-Out:
-    UnlockMutex(&(Device->Mutex));
-    if (!MacRetrieved) {
-        return 0;
-    }
-
-    MemoryCopy(EthHeader->Source, NetInfo.MAC, 6);
-    EthHeader->EthType = Htons(ETHTYPE_IPV4);
-
-    // Build IPv4 header
-    IPV4_HEADER* IPv4Hdr = (IPV4_HEADER*)(FrameBuffer + ETHERNET_HEADERSize);
-    MemorySet(IPv4Hdr, 0, sizeof(IPV4_HEADER));
-
-    IPv4Hdr->VersionIHL = 0x45; // Version 4, IHL 5 (20 bytes)
-    IPv4Hdr->TypeOfService = 0;
-    IPv4Hdr->TotalLength = Htons((U16)(IPv4HeaderSize + PayloadLength));
-    IPv4Hdr->Identification = Htons(NextID);
-    NextID = (NextID == 0xFFFF) ? 1 : NextID + 1;
-    IPv4Hdr->FlagsFragmentOffset = Htons(IPV4_FLAG_DONT_FRAGMENT); // Don't fragment
-    IPv4Hdr->TimeToLive = IPV4_DEFAULT_TTL;
-    IPv4Hdr->Protocol = Protocol;
-    IPv4Hdr->HeaderChecksum = 0; // Will be calculated below
-    IPv4Hdr->SourceAddress = Context->LocalIPv4_Be;
-    IPv4Hdr->DestinationAddress = DestinationIP;
-
-    // Calculate and set checksum
-    IPv4Hdr->HeaderChecksum = IPv4_CalculateChecksum(IPv4Hdr);
-
-    // Copy payload
-    if (PayloadLength > 0) {
-        MemoryCopy(FrameBuffer + ETHERNET_HEADERSize + IPv4HeaderSize, Payload, PayloadLength);
-    }
-
-    // Send frame
-    U32 Result = IPv4_SendEthernetFrame(Context, FrameBuffer, TotalFrameSize);
-    return Result;
+    return IPv4_SendResolvedPacket(Context, DestinationIP, DestinationMAC, Protocol, Payload, PayloadLength);
 }
 
 /************************************************************************/

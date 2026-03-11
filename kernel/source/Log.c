@@ -39,14 +39,41 @@
 #define KERNEL_LOG_VER_MAJOR 1
 #define KERNEL_LOG_VER_MINOR 0
 #define KERNEL_LOG_TAG_FILTER_MAX_LENGTH 512
+#define KERNEL_LOG_RECENT_TEXT_BYTES (96 * 1024)
+#define KERNEL_LOG_RECENT_MAX_LINES 500
+#define KERNEL_LOG_ENTRY_BUFFER_SIZE (MAX_STRING_BUFFER + 160)
 
 #ifndef KERNEL_LOG_DEFAULT_TAG_FILTER
 #define KERNEL_LOG_DEFAULT_TAG_FILTER ""
 #endif
 
-static CSTR KernelLogDefaultTagFilter[] = KERNEL_LOG_DEFAULT_TAG_FILTER;
-static STR DATA_SECTION KernelLogTagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
-static BOOL KernelLogErrorConsoleEnabled = TRUE;
+typedef struct tag_KERNEL_LOG_RECENT_LINE {
+    U32 StartOffset;
+    U32 Length;
+} KERNEL_LOG_RECENT_LINE, *LPKERNEL_LOG_RECENT_LINE;
+
+typedef struct tag_KERNEL_LOG_STATE {
+    STR DefaultTagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
+    STR TagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
+    BOOL ErrorConsoleEnabled;
+    U32 RecentSequence;
+    U32 RecentWriteOffset;
+    UINT RecentUsedBytes;
+    UINT RecentLineHead;
+    UINT RecentLineCount;
+    U8 RecentText[KERNEL_LOG_RECENT_TEXT_BYTES];
+    KERNEL_LOG_RECENT_LINE RecentLines[KERNEL_LOG_RECENT_MAX_LINES];
+} KERNEL_LOG_STATE, *LPKERNEL_LOG_STATE;
+
+static KERNEL_LOG_STATE DATA_SECTION KernelLogState = {
+    .DefaultTagFilter = KERNEL_LOG_DEFAULT_TAG_FILTER,
+    .TagFilter = {0},
+    .ErrorConsoleEnabled = TRUE,
+    .RecentSequence = 0,
+    .RecentWriteOffset = 0,
+    .RecentUsedBytes = 0,
+    .RecentLineHead = 0,
+    .RecentLineCount = 0};
 #if DEBUG_SPLIT == 1
 static U32 DATA_SECTION KernelConsolePrintDepth = 0;
 #endif
@@ -55,6 +82,9 @@ static UINT KernelLogDriverCommands(UINT Function, UINT Parameter);
 static BOOL KernelLogIsTagSeparator(STR Char);
 static BOOL KernelLogFilterContainsTag(LPCSTR Tag, U32 TagLength);
 static BOOL KernelLogShouldEmit(LPCSTR Text);
+static void KernelLogDropOldestRecentLine(void);
+static void KernelLogAppendRecentLine(LPCSTR Text);
+static BOOL KernelLogCopyRecentLineText(U8* Destination, UINT DestinationSize, UINT* Cursor, U32 StartOffset, U32 Length);
 
 DRIVER DATA_SECTION KernelLogDriver = {
     .TypeID = KOID_DRIVER,
@@ -89,7 +119,7 @@ LPDRIVER KernelLogGetDriver(void) {
  */
 void InitKernelLog(void) {
     SerialReset(LOG_COM_INDEX);
-    KernelLogSetTagFilter(KernelLogDefaultTagFilter);
+    KernelLogSetTagFilter(KernelLogState.DefaultTagFilter);
 }
 
 /************************************************************************/
@@ -110,10 +140,10 @@ void KernelLogSetTagFilter(LPCSTR TagFilter) {
     DisableInterrupts();
 
     if (StringEmpty(TagFilter)) {
-        StringClear(KernelLogTagFilter);
+        StringClear(KernelLogState.TagFilter);
     } else {
         StringCopyLimit(
-            KernelLogTagFilter,
+            KernelLogState.TagFilter,
             TagFilter,
             KERNEL_LOG_TAG_FILTER_MAX_LENGTH);
     }
@@ -129,7 +159,7 @@ void KernelLogSetTagFilter(LPCSTR TagFilter) {
  * @return Active tag filter string (empty means no filter).
  */
 LPCSTR KernelLogGetTagFilter(void) {
-    return KernelLogTagFilter;
+    return KernelLogState.TagFilter;
 }
 
 /************************************************************************/
@@ -145,7 +175,7 @@ void KernelLogSetErrorConsoleEnabled(BOOL Enabled) {
     FreezeScheduler();
     DisableInterrupts();
 
-    KernelLogErrorConsoleEnabled = Enabled;
+    KernelLogState.ErrorConsoleEnabled = Enabled;
 
     UnfreezeScheduler();
     RestoreFlags(&Flags);
@@ -165,7 +195,7 @@ BOOL KernelLogGetErrorConsoleEnabled(void) {
     FreezeScheduler();
     DisableInterrupts();
 
-    Enabled = KernelLogErrorConsoleEnabled;
+    Enabled = KernelLogState.ErrorConsoleEnabled;
 
     UnfreezeScheduler();
     RestoreFlags(&Flags);
@@ -199,32 +229,32 @@ static BOOL KernelLogFilterContainsTag(LPCSTR Tag, U32 TagLength) {
         return FALSE;
     }
 
-    while (KernelLogTagFilter[Index] != STR_NULL) {
+    while (KernelLogState.TagFilter[Index] != STR_NULL) {
         U32 Start;
         U32 End;
         U32 TokenLength;
         U32 TokenIndex;
         BOOL Match;
 
-        while (KernelLogTagFilter[Index] != STR_NULL &&
-               KernelLogIsTagSeparator(KernelLogTagFilter[Index])) {
+        while (KernelLogState.TagFilter[Index] != STR_NULL &&
+               KernelLogIsTagSeparator(KernelLogState.TagFilter[Index])) {
             Index++;
         }
-        if (KernelLogTagFilter[Index] == STR_NULL) {
+        if (KernelLogState.TagFilter[Index] == STR_NULL) {
             break;
         }
 
         Start = Index;
-        while (KernelLogTagFilter[Index] != STR_NULL &&
-               !KernelLogIsTagSeparator(KernelLogTagFilter[Index])) {
+        while (KernelLogState.TagFilter[Index] != STR_NULL &&
+               !KernelLogIsTagSeparator(KernelLogState.TagFilter[Index])) {
             Index++;
         }
         End = Index;
 
-        if (KernelLogTagFilter[Start] == '[') {
+        if (KernelLogState.TagFilter[Start] == '[') {
             Start++;
         }
-        if (End > Start && KernelLogTagFilter[End - 1] == ']') {
+        if (End > Start && KernelLogState.TagFilter[End - 1] == ']') {
             End--;
         }
 
@@ -235,7 +265,7 @@ static BOOL KernelLogFilterContainsTag(LPCSTR Tag, U32 TagLength) {
 
         Match = TRUE;
         for (TokenIndex = 0; TokenIndex < TokenLength; TokenIndex++) {
-            if (KernelLogTagFilter[Start + TokenIndex] != Tag[TokenIndex]) {
+            if (KernelLogState.TagFilter[Start + TokenIndex] != Tag[TokenIndex]) {
                 Match = FALSE;
                 break;
             }
@@ -261,7 +291,7 @@ static BOOL KernelLogShouldEmit(LPCSTR Text) {
     LPSTR CloseBracket;
     U32 TagLength;
 
-    if (StringEmpty(KernelLogTagFilter)) {
+    if (StringEmpty(KernelLogState.TagFilter)) {
         return TRUE;
     }
 
@@ -319,6 +349,165 @@ static void KernelPrintString(LPCSTR Text) {
 /************************************************************************/
 
 /**
+ * @brief Remove the oldest retained recent log line.
+ */
+static void KernelLogDropOldestRecentLine(void) {
+    KERNEL_LOG_RECENT_LINE* Line;
+
+    if (KernelLogState.RecentLineCount == 0) return;
+
+    Line = &(KernelLogState.RecentLines[KernelLogState.RecentLineHead]);
+    if (KernelLogState.RecentUsedBytes >= Line->Length) {
+        KernelLogState.RecentUsedBytes -= Line->Length;
+    } else {
+        KernelLogState.RecentUsedBytes = 0;
+    }
+
+    KernelLogState.RecentLineHead = (KernelLogState.RecentLineHead + 1) % KERNEL_LOG_RECENT_MAX_LINES;
+    KernelLogState.RecentLineCount--;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Append one fully formatted line to the retained recent log view.
+ * @param Text Fully formatted line ending with newline.
+ */
+static void KernelLogAppendRecentLine(LPCSTR Text) {
+    UINT Length;
+    UINT TailIndex;
+    UINT FirstChunk;
+
+    if (StringEmpty(Text)) return;
+
+    Length = StringLength(Text);
+    if (Length == 0 || Length >= KERNEL_LOG_RECENT_TEXT_BYTES) return;
+
+    while (KernelLogState.RecentLineCount >= KERNEL_LOG_RECENT_MAX_LINES ||
+           (KernelLogState.RecentUsedBytes + Length) > KERNEL_LOG_RECENT_TEXT_BYTES) {
+        KernelLogDropOldestRecentLine();
+    }
+
+    TailIndex = (KernelLogState.RecentLineHead + KernelLogState.RecentLineCount) % KERNEL_LOG_RECENT_MAX_LINES;
+    KernelLogState.RecentLines[TailIndex].StartOffset = KernelLogState.RecentWriteOffset;
+    KernelLogState.RecentLines[TailIndex].Length = (U32)Length;
+
+    FirstChunk = KERNEL_LOG_RECENT_TEXT_BYTES - KernelLogState.RecentWriteOffset;
+    if (FirstChunk > Length) {
+        FirstChunk = Length;
+    }
+
+    MemoryCopy(&(KernelLogState.RecentText[KernelLogState.RecentWriteOffset]), Text, (U32)FirstChunk);
+    if (Length > FirstChunk) {
+        MemoryCopy(&(KernelLogState.RecentText[0]), ((const U8*)Text) + FirstChunk, (U32)(Length - FirstChunk));
+    }
+
+    KernelLogState.RecentWriteOffset = (KernelLogState.RecentWriteOffset + (U32)Length) % KERNEL_LOG_RECENT_TEXT_BYTES;
+    KernelLogState.RecentUsedBytes += Length;
+    KernelLogState.RecentLineCount++;
+    KernelLogState.RecentSequence++;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Copy one retained log line from circular storage to a linear buffer.
+ * @param Destination Output byte buffer.
+ * @param DestinationSize Output buffer size.
+ * @param Cursor Current output cursor and updated output cursor.
+ * @param StartOffset Circular buffer start offset.
+ * @param Length Number of bytes to copy.
+ * @return TRUE on success.
+ */
+static BOOL KernelLogCopyRecentLineText(U8* Destination, UINT DestinationSize, UINT* Cursor, U32 StartOffset, U32 Length) {
+    UINT FirstChunk;
+
+    if (Destination == NULL || Cursor == NULL) return FALSE;
+    if ((*Cursor + Length + 1) > DestinationSize) return FALSE;
+
+    FirstChunk = KERNEL_LOG_RECENT_TEXT_BYTES - StartOffset;
+    if (FirstChunk > Length) {
+        FirstChunk = Length;
+    }
+
+    MemoryCopy(Destination + *Cursor, &(KernelLogState.RecentText[StartOffset]), (U32)FirstChunk);
+    if (Length > FirstChunk) {
+        MemoryCopy(Destination + *Cursor + FirstChunk, &(KernelLogState.RecentText[0]), Length - FirstChunk);
+    }
+
+    *Cursor += Length;
+    Destination[*Cursor] = 0;
+    return TRUE;
+}
+
+/************************************************************************/
+
+U32 KernelLogGetRecentSequence(void) {
+    U32 Flags;
+    U32 Sequence;
+
+    SaveFlags(&Flags);
+    FreezeScheduler();
+    DisableInterrupts();
+
+    Sequence = KernelLogState.RecentSequence;
+
+    UnfreezeScheduler();
+    RestoreFlags(&Flags);
+    return Sequence;
+}
+
+/************************************************************************/
+
+BOOL KernelLogCaptureRecentLines(LPKERNEL_LOG_RECENT_VIEW View) {
+    U32 Flags;
+    UINT Cursor = 0;
+    UINT StartLine = 0;
+    UINT Index;
+
+    if (View == NULL || View->Text == NULL || View->TextBufferSize == 0) return FALSE;
+
+    View->Sequence = 0;
+    View->TotalLines = 0;
+    View->CopiedLines = 0;
+    View->Truncated = FALSE;
+    View->Text[0] = 0;
+
+    SaveFlags(&Flags);
+    FreezeScheduler();
+    DisableInterrupts();
+
+    View->Sequence = KernelLogState.RecentSequence;
+    View->TotalLines = KernelLogState.RecentLineCount;
+
+    if (View->MaxLines != 0 && KernelLogState.RecentLineCount > View->MaxLines) {
+        StartLine = KernelLogState.RecentLineCount - View->MaxLines;
+    }
+
+    for (Index = StartLine; Index < KernelLogState.RecentLineCount; Index++) {
+        UINT LineIndex = (KernelLogState.RecentLineHead + Index) % KERNEL_LOG_RECENT_MAX_LINES;
+        KERNEL_LOG_RECENT_LINE* Line = &(KernelLogState.RecentLines[LineIndex]);
+
+        if (!KernelLogCopyRecentLineText((U8*)View->Text, View->TextBufferSize, &Cursor, Line->StartOffset, Line->Length)) {
+            View->Truncated = TRUE;
+            break;
+        }
+
+        View->CopiedLines++;
+    }
+
+    if (View->CopiedLines < (KernelLogState.RecentLineCount - StartLine)) {
+        View->Truncated = TRUE;
+    }
+
+    UnfreezeScheduler();
+    RestoreFlags(&Flags);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Driver command handler for the kernel log subsystem.
  *
  * DF_LOAD initializes the kernel logger once; DF_UNLOAD only clears readiness.
@@ -368,6 +557,7 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
     if (StringEmpty(Format)) return;
 
     U32 Flags;
+    LPCSTR Prefix = TEXT("VERBOSE > ");
 
     SaveFlags(&Flags);
     FreezeScheduler();
@@ -375,6 +565,7 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
 
     STR TimeBuffer[128];
     STR TextBuffer[MAX_STRING_BUFFER];
+    STR EntryBuffer[KERNEL_LOG_ENTRY_BUFFER_SIZE];
     VarArgList Args;
 
     UINT Time = GetSystemTime();
@@ -392,47 +583,35 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
 
     switch (Type) {
         case LOG_DEBUG: {
-            KernelPrintString(TimeBuffer);
-            KernelPrintString(TEXT("DEBUG > "));
-            KernelPrintString(TextBuffer);
-            KernelPrintString(Text_NewLine);
+            Prefix = TEXT("DEBUG > ");
         } break;
 
         case LOG_TEST: {
-            KernelPrintString(TimeBuffer);
-            KernelPrintString(TEXT("TEST > "));
-            KernelPrintString(TextBuffer);
-            KernelPrintString(Text_NewLine);
+            Prefix = TEXT("TEST > ");
         } break;
 
         default:
         case LOG_VERBOSE: {
-            KernelPrintString(TimeBuffer);
-            KernelPrintString(TEXT("VERBOSE > "));
-            KernelPrintString(TextBuffer);
-            KernelPrintString(Text_NewLine);
             ConsolePrint(TextBuffer);
             ConsolePrint(Text_NewLine);
         } break;
 
         case LOG_WARNING: {
-            KernelPrintString(TimeBuffer);
-            KernelPrintString(TEXT("WARNING > "));
-            KernelPrintString(TextBuffer);
-            KernelPrintString(Text_NewLine);
+            Prefix = TEXT("WARNING > ");
         } break;
 
         case LOG_ERROR: {
-            KernelPrintString(TimeBuffer);
-            KernelPrintString(TEXT("ERROR > "));
-            KernelPrintString(TextBuffer);
-            KernelPrintString(Text_NewLine);
-            if (KernelLogErrorConsoleEnabled) {
+            Prefix = TEXT("ERROR > ");
+            if (KernelLogState.ErrorConsoleEnabled) {
                 ConsolePrint(TextBuffer);
                 ConsolePrint(Text_NewLine);
             }
         } break;
     }
+
+    StringPrintFormat(EntryBuffer, TEXT("%s%s%s\n"), TimeBuffer, Prefix, TextBuffer);
+    KernelPrintString(EntryBuffer);
+    KernelLogAppendRecentLine(EntryBuffer);
 
     UnfreezeScheduler();
     RestoreFlags(&Flags);

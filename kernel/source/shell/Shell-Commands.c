@@ -38,6 +38,7 @@ SHELL_COMMAND_ENTRY COMMANDS[] = {
     {"dis", "disasm", "Address InstructionCount", "Disassemble memory range", CMD_disasm},
     {"disk", "disk", "", "Show disk information", CMD_disk},
     {"drv", "driver", "Alias", "Show driver details", CMD_driver},
+    {"desktop", "desktop", "show|status|theme <path-or-name>|stressdrag [cycles]", "Control desktop and theme runtime", CMD_desktop},
     {"edit", "edit", "Name", "Open text editor", CMD_edit},
     {"fs", "file_system", "[--long]", "Show file system information", CMD_filesystem},
     {"gfx", "graphics", "backend Driver Mode|info|smoke_test [DurationMs]", "Control graphics mode", CMD_gfx},

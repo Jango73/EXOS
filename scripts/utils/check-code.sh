@@ -41,6 +41,7 @@ fi
 TOTAL_FILES=0
 EXCEEDED_COUNT=0
 HEADER_MISSING_COUNT=0
+JSCPD_STATUS=0
 EXCEEDED_LIST=$(mktemp)
 HEADER_MISSING_LIST=$(mktemp)
 
@@ -154,7 +155,8 @@ for FILE in $FILES; do
                 TemplateLineCount++;
                 TemplateLines[TemplateLineCount] = TemplateLine;
                 if (index(TemplateLine, "<Domain name>") > 0 ||
-                    index(TemplateLine, "<Module name>") > 0) {
+                    index(TemplateLine, "<Module name>") > 0 ||
+                    index(TemplateLine, "<CopyrightEndYear>") > 0) {
                     PlaceholderLines[TemplateLineCount] = 1;
                 }
             }
@@ -217,7 +219,17 @@ printf '\nScanned files: %s\n' "$TOTAL_FILES"
 printf 'Files above %s lines: %s\n' "$LIMIT" "$EXCEEDED_COUNT"
 printf 'Files with invalid/missing header: %s\n' "$HEADER_MISSING_COUNT"
 
-if [ "$EXCEEDED_COUNT" -gt 0 ] || [ "$HEADER_MISSING_COUNT" -gt 0 ]; then
+printf '\nRunning jscpd duplicate check on kernel...\n'
+if ! command -v jscpd >/dev/null 2>&1; then
+    echo "ERROR: jscpd is required but not installed."
+    JSCPD_STATUS=1
+else
+    if ! jscpd kernel -l 10 -k 100; then
+        JSCPD_STATUS=1
+    fi
+fi
+
+if [ "$EXCEEDED_COUNT" -gt 0 ] || [ "$HEADER_MISSING_COUNT" -gt 0 ] || [ "$JSCPD_STATUS" -ne 0 ]; then
     exit 1
 fi
 

@@ -76,6 +76,7 @@ LPDRIVER ClockGetDriver(void) {
 
 static UINT DATA_SECTION SystemUpTime = 0;
 static UINT DATA_SECTION SchedulerTime = 0;
+static BOOL DATA_SECTION SystemTimeOperational = FALSE;
 static DATETIME DATA_SECTION CurrentTime;
 static const U8 DaysInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
@@ -219,6 +220,26 @@ void ClockHandler(void) {
  * @return Number of milliseconds since startup.
  */
 UINT GetSystemTime(void) { return SystemUpTime; }
+
+/************************************************************************/
+
+/**
+ * @brief Mark time-based sleeping as operational after first interrupt enable.
+ */
+void MarkSystemTimeOperational(void) {
+    SystemTimeOperational = TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Check whether system time can be relied upon for delays.
+ *
+ * @return TRUE once first interrupt enable has been executed.
+ */
+BOOL IsSystemTimeOperational(void) {
+    return SystemTimeOperational;
+}
 
 /************************************************************************/
 

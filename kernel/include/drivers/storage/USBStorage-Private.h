@@ -46,8 +46,10 @@
 #define USB_MASS_STORAGE_COMMAND_STATUS_LENGTH 13
 
 #define USB_SCSI_INQUIRY 0x12
+#define USB_SCSI_REQUEST_SENSE 0x03
 #define USB_SCSI_READ_CAPACITY_10 0x25
 #define USB_SCSI_READ_10 0x28
+#define USB_SCSI_READ_10_COMMAND_BLOCK_LENGTH 10
 
 #define USB_MASS_STORAGE_BULK_TIMEOUT_MILLISECONDS 1000
 #define USB_MASS_STORAGE_BULK_RETRIES 3
@@ -97,6 +99,10 @@ typedef struct tag_USB_MASS_STORAGE_DEVICE {
     BOOL MountPending;
     BOOL ReferencesHeld;
     LPUSB_STORAGE_ENTRY ListEntry;
+    U8 LastScsiOpCode;
+    U8 LastBotStage;
+    U8 LastCswStatus;
+    U32 LastCswResidue;
 } USB_MASS_STORAGE_DEVICE, *LPUSB_MASS_STORAGE_DEVICE;
 
 typedef struct tag_USB_MASS_STORAGE_STATE {
@@ -108,6 +114,7 @@ typedef struct tag_USB_MASS_STORAGE_STATE {
 
 BOOL USBStorageResetRecovery(LPUSB_MASS_STORAGE_DEVICE Device);
 BOOL USBStorageInquiry(LPUSB_MASS_STORAGE_DEVICE Device);
+BOOL USBStorageRequestSense(LPUSB_MASS_STORAGE_DEVICE Device);
 BOOL USBStorageReadCapacity(LPUSB_MASS_STORAGE_DEVICE Device);
 BOOL USBStorageReadBlocks(LPUSB_MASS_STORAGE_DEVICE Device,
                           UINT LogicalBlockAddress,

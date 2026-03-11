@@ -465,45 +465,19 @@ BOOL FlushGroupDescriptor(LPEXT2FILESYSTEM FileSystem, U32 GroupIndex) {
  * @return TRUE on success, FALSE otherwise.
  */
 BOOL WriteInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode) {
-    LPEXT2BLOCKGROUP Group;
-    U32 GroupIndex;
-    U32 IndexInGroup;
-    U32 BlockOffset;
     U32 OffsetInBlock;
     U8* BlockBuffer;
     U32 CopySize;
 
     if (FileSystem == NULL || Inode == NULL) return FALSE;
-    if (InodeIndex == 0) return FALSE;
-    if (FileSystem->InodesPerBlock == 0) return FALSE;
-    if (FileSystem->Groups == NULL) return FALSE;
-
-    GroupIndex = (InodeIndex - 1) / FileSystem->Super.InodesPerGroup;
-    if (GroupIndex >= FileSystem->GroupCount) return FALSE;
-
-    Group = &(FileSystem->Groups[GroupIndex]);
-    if (Group->InodeTable == 0) return FALSE;
-
-    IndexInGroup = (InodeIndex - 1) % FileSystem->Super.InodesPerGroup;
-    BlockOffset = IndexInGroup / FileSystem->InodesPerBlock;
-    OffsetInBlock = (IndexInGroup % FileSystem->InodesPerBlock) * FileSystem->InodeSize;
-
-    BlockBuffer = (U8*)Ext2AcquireBlockBuffer(FileSystem);
-    if (BlockBuffer == NULL) return FALSE;
-
-    if (ReadBlock(FileSystem, Group->InodeTable + BlockOffset, BlockBuffer) == FALSE) {
-        Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
-        return FALSE;
-    }
-
-    CopySize = FileSystem->InodeSize;
-    if (CopySize > sizeof(EXT2INODE)) {
-        CopySize = sizeof(EXT2INODE);
-    }
+    if (PrepareInodeBlockAccess(FileSystem, InodeIndex, &BlockBuffer, &OffsetInBlock, &CopySize) == FALSE) return FALSE;
 
     MemoryCopy(BlockBuffer + OffsetInBlock, Inode, CopySize);
 
-    if (WriteBlock(FileSystem, Group->InodeTable + BlockOffset, BlockBuffer) == FALSE) {
+    if (WriteBlock(FileSystem,
+                   FileSystem->Groups[(InodeIndex - 1) / FileSystem->Super.InodesPerGroup].InodeTable +
+                       (((InodeIndex - 1) % FileSystem->Super.InodesPerGroup) / FileSystem->InodesPerBlock),
+                   BlockBuffer) == FALSE) {
         Ext2ReleaseBlockBuffer(FileSystem, BlockBuffer);
         return FALSE;
     }

@@ -47,7 +47,7 @@ PROCESS DATA_SECTION KernelProcess = {
     .Mutex = EMPTY_MUTEX,           // Mutex
     .HeapMutex = EMPTY_MUTEX,       // Heap mutex
     .Security = EMPTY_SECURITY,     // Security
-    .Desktop = &MainDesktop,                // Desktop
+    .Desktop = NULL,                // Desktop
     .Privilege = CPU_PRIVILEGE_KERNEL,  // Privilege
     .Status = PROCESS_STATUS_ALIVE, // Status
     .Flags = PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH, // Flags
@@ -136,10 +136,17 @@ void InitializeKernelProcess(void) {
 
     KernelProcess.HeapBase = (LINEAR)HeapBase;
     HeapInit(&KernelProcess, KernelProcess.HeapBase, KernelProcess.HeapSize);
+    if (ProcessArenaInitializeKernel(&KernelProcess) == FALSE) {
+        ERROR(TEXT("[InitializeKernelProcess] Could not initialize kernel process arenas"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
 
     MemorySet(&(KernelProcess.MessageQueue), 0, sizeof(MESSAGEQUEUE));
     InitMessageQueue(&(KernelProcess.MessageQueue));
-    KernelProcess.MessageQueue.Capacity = TASK_MESSAGE_QUEUE_MAX_MESSAGES;
+    if (EnsureProcessMessageQueue(&KernelProcess, TRUE) == FALSE) {
+        ERROR(TEXT("[InitializeKernelProcess] Could not initialize kernel process message queue"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
 
     StringCopy(KernelProcess.FileName, KernelStartup.CommandLine);
     StringCopy(KernelProcess.CommandLine, KernelStartup.CommandLine);
@@ -163,8 +170,6 @@ void InitializeKernelProcess(void) {
     DEBUG(TEXT("Kernel main task = %p (%s)"), (LINEAR)KernelTask, KernelTask->Name);
 
     KernelTask->Type = TASK_TYPE_KERNEL_MAIN;
-    MainDesktopWindow.Task = KernelTask;
-    MainDesktop.Task = KernelTask;
 
     DEBUG(TEXT("[InitializeKernelProcess] Exit"));
 
@@ -232,7 +237,7 @@ LPPROCESS NewProcess(void) {
     if (DesktopList != NULL && DesktopList->First != NULL) {
         This->Desktop = (LPDESKTOP)DesktopList->First;
     } else {
-        This->Desktop = &MainDesktop;
+        This->Desktop = NULL;
     }
     This->Privilege = CPU_PRIVILEGE_USER;
     This->Status = PROCESS_STATUS_ALIVE;
@@ -241,6 +246,7 @@ LPPROCESS NewProcess(void) {
     This->MaximumAllocatedMemory = N_HalfMemory;
     This->TaskCount = 0;
     This->Session = NULL;
+    ProcessArenaReset(This);
 
     // Inherit session from parent process
     SAFE_USE_VALID_ID(This->OwnerProcess, KOID_PROCESS) {
@@ -283,10 +289,8 @@ void DeleteProcessCommit(LPPROCESS This) {
 
         DEBUG(TEXT("[DeleteProcessCommit] Deleting process %s (TaskCount=%u)"), This->FileName, This->TaskCount);
 
-        SAFE_USE_VALID_ID(This->Desktop, KOID_DESKTOP) {
-            if (This->Desktop->FocusedProcess == This) {
-                This->Desktop->FocusedProcess = &KernelProcess;
-            }
+        if (GetFocusedProcess() == This) {
+            SetFocusedProcess(&KernelProcess);
         }
 
         // Free page directory if allocated
@@ -303,9 +307,12 @@ void DeleteProcessCommit(LPPROCESS This) {
             FreeRegion(This->HeapBase, This->HeapSize);
         }
 
-        if (This->MessageQueue.Messages != NULL) {
-            DeleteMessageQueue(&(This->MessageQueue));
+        if (This->MessageQueue.MessageBufferBase != 0 && This->MessageQueue.MessageBufferSize > 0) {
+            FreeRegion(This->MessageQueue.MessageBufferBase, This->MessageQueue.MessageBufferSize);
+            This->MessageQueue.MessageBufferBase = 0;
+            This->MessageQueue.MessageBufferSize = 0;
         }
+        DeleteMessageQueue(&(This->MessageQueue));
 
         ReleaseKernelObject(This);
 
@@ -719,6 +726,14 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     Process->HeapBase = HeapBase;
     Process->HeapSize = HeapSize;
 
+    if (ProcessArenaInitializeUser(Process, CodeBase, CodeSize + DataSize, HeapBase, HeapSize) == FALSE) {
+        ERROR(TEXT("[CreateProcess] Failed to initialize process address space arenas"));
+        FreeRegion(VMA_USER, TotalSize);
+        LoadPageDirectory(PageDirectory);
+        UnfreezeScheduler();
+        goto Out;
+    }
+
     HeapInit(Process, Process->HeapBase, Process->HeapSize);
 
     // HeapDump(KernelProcess.HeapBase, KernelProcess.HeapSize);
@@ -754,7 +769,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     LPLIST ProcessList = GetProcessList();
     ListAddItem(ProcessList, Process);
 
-    if (GetFocusedDesktop() == Process->Desktop) {
+    if (GetActiveDesktop() == Process->Desktop) {
         SetFocusedProcess(Process);
     }
 

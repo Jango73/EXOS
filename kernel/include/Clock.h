@@ -33,6 +33,8 @@
 
 void InitializeClock(void);
 UINT GetSystemTime(void);
+void MarkSystemTimeOperational(void);
+BOOL IsSystemTimeOperational(void);
 BOOL HasOperationTimedOut(UINT StartTime, UINT LoopCount, UINT LoopLimit, UINT TimeoutMilliseconds);
 void MilliSecondsToHMS(UINT, LPSTR);
 BOOL GetLocalTime(LPDATETIME);

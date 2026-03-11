@@ -60,12 +60,16 @@ static const char* GetAttitudeName(I32 attitude) {
 
 /************************************************************************/
 
-static BOOL QueryConsoleRect(RECT* Rect) {
-    HANDLE Desktop = GetCurrentDesktop();
-    if (Desktop == NULL) return FALSE;
-    HANDLE Window = GetDesktopWindow(Desktop);
-    if (Window == NULL) return FALSE;
-    return GetWindowRect(Window, Rect);
+static BOOL QueryConsoleSize(U32* Width, U32* Height) {
+    CONSOLEMODEINFO Info;
+
+    if (Width == NULL || Height == NULL) return FALSE;
+    if (!ConsoleGetCurrentMode(&Info)) return FALSE;
+    if (Info.Columns == 0 || Info.Rows == 0) return FALSE;
+
+    *Width = Info.Columns;
+    *Height = Info.Rows;
+    return TRUE;
 }
 
 /************************************************************************/
@@ -209,7 +213,6 @@ void ResetRenderCache(void) {
 /************************************************************************/
 
 void EnsureScreenMetrics(void) {
-    RECT Rect;
     U32 Width = App.Render.ScreenWidth;
     U32 Height = App.Render.ScreenHeight;
     U32 MapHeight;
@@ -217,12 +220,7 @@ void EnsureScreenMetrics(void) {
     U32 ViewportHeight;
     BOOL Changed = FALSE;
 
-    if (QueryConsoleRect(&Rect)) {
-        I32 NewWidth = Rect.X2 - Rect.X1 + 1;
-        I32 NewHeight = Rect.Y2 - Rect.Y1 + 1;
-        if (NewWidth > 0) Width = (U32)NewWidth;
-        if (NewHeight > 0) Height = (U32)NewHeight;
-    }
+    QueryConsoleSize(&Width, &Height);
 
     if (Width > MAX_SCREEN_WIDTH) Width = MAX_SCREEN_WIDTH;
     if (Height > MAX_SCREEN_HEIGHT) Height = MAX_SCREEN_HEIGHT;

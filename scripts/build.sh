@@ -120,6 +120,37 @@ function ReleaseBuildLock() {
     fi
 }
 
+function FlushPathToDisk() {
+    local TargetPath="$1"
+
+    if [ ! -e "$TargetPath" ]; then
+        return 0
+    fi
+
+    if sync -f "$TargetPath" 2>/dev/null; then
+        return 0
+    fi
+
+    if sync "$TargetPath" 2>/dev/null; then
+        return 0
+    fi
+
+    sync
+}
+
+function FlushImageArtifacts() {
+    local ImageBuildDir="build/image/$BUILD_IMAGE_NAME"
+    local ImagePath=""
+
+    while IFS= read -r -d '' ImagePath; do
+        FlushPathToDisk "$ImagePath"
+    done < <(find "$ImageBuildDir" -type f -name "*.img" -print0 2>/dev/null || true)
+
+    FlushPathToDisk "$ImageBuildDir/boot-hd"
+    FlushPathToDisk "$ImageBuildDir/boot-uefi"
+    FlushPathToDisk "$ImageBuildDir"
+}
+
 while [ $# -gt 0 ]; do
     case "$1" in
         --arch)
@@ -295,3 +326,5 @@ make ARCH="$ARCH" -j"$(nproc)"
 if [ "$BUILD_UEFI" -eq 1 ]; then
     make ARCH="$ARCH" -C boot-uefi
 fi
+
+FlushImageArtifacts

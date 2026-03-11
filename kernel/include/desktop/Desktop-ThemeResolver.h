@@ -17,47 +17,23 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Desktop private declarations
+    Desktop theme level 1 resolver
 
 \************************************************************************/
 
-#ifndef DESKTOP_PRIVATE_H_INCLUDED
-#define DESKTOP_PRIVATE_H_INCLUDED
+#ifndef DESKTOP_THEME_RESOLVER_H_INCLUDED
+#define DESKTOP_THEME_RESOLVER_H_INCLUDED
 
 /************************************************************************/
 
-#include "GFX.h"
+#include "Base.h"
 
 /************************************************************************/
 
-extern BRUSH Brush_Desktop;
-extern BRUSH Brush_High;
-extern BRUSH Brush_Normal;
-extern BRUSH Brush_HiShadow;
-extern BRUSH Brush_LoShadow;
-extern BRUSH Brush_Client;
-extern BRUSH Brush_Text_Normal;
-extern BRUSH Brush_Text_Select;
-extern BRUSH Brush_Selection;
-extern BRUSH Brush_Title_Bar;
-extern BRUSH Brush_Title_Bar_2;
-extern BRUSH Brush_Title_Text;
-
-extern PEN Pen_Desktop;
-extern PEN Pen_High;
-extern PEN Pen_Normal;
-extern PEN Pen_HiShadow;
-extern PEN Pen_LoShadow;
-extern PEN Pen_Client;
-extern PEN Pen_Text_Normal;
-extern PEN Pen_Text_Select;
-extern PEN Pen_Selection;
-extern PEN Pen_Title_Bar;
-extern PEN Pen_Title_Bar_2;
-extern PEN Pen_Title_Text;
-
-BOOL ResetGraphicsContext(LPGRAPHICSCONTEXT This);
+BOOL DesktopThemeResolveLevel1Text(LPCSTR ElementID, LPCSTR StateID, LPCSTR PropertyName, LPSTR Value, UINT ValueBufferSize);
+BOOL DesktopThemeResolveLevel1Color(LPCSTR ElementID, LPCSTR StateID, LPCSTR PropertyName, COLOR* Color);
+BOOL DesktopThemeResolveLevel1Metric(LPCSTR ElementID, LPCSTR StateID, LPCSTR PropertyName, U32* Metric);
 
 /************************************************************************/
 
-#endif  // DESKTOP_PRIVATE_H_INCLUDED
+#endif  // DESKTOP_THEME_RESOLVER_H_INCLUDED

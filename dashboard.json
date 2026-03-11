@@ -8,46 +8,56 @@
         { "key": "C-x", "label": "Format Code", "script": "3-1-format-all-code.sh" },
         { "key": "C-c", "label": "Build help", "script": "3-2-generate-kernel-docs.sh" },
         { "key": "C-v", "label": "Start server", "script": "net/start-server.sh" },
+        { "label": "Clean log & build", "script": "rimraf log build" },
 
         { "label": "x86-32 build--------" },
 
-        { "key": "C-a", "label": "Build 32 MBR Release", "script": "scripts/build --arch x86-32 --fs ext2 --release --clean" },
-        { "key": "C-z", "label": "Build 32 MBR Debug", "script": "scripts/build --arch x86-32 --fs ext2 --debug --clean" },
-        { "key": "C-e", "label": "Build 32 MBR Debug Split", "script": "scripts/build --arch x86-32 --fs ext2 --debug --split --clean" },
+        { "label": "Build 32 MBR Rel", "script": "scripts/build --arch x86-32 --fs ext2 --release --clean" },
+        { "label": "Build 32 MBR Rel ++", "script": "scripts/build --arch x86-32 --fs ext2 --release" },
+        { "label": "Build 32 MBR Deb", "script": "scripts/build --arch x86-32 --fs ext2 --debug --clean" },
+        { "label": "Build 32 MBR Deb ++", "script": "scripts/build --arch x86-32 --fs ext2 --debug" },
+        { "label": "Build 32 MBR Deb Split", "script": "scripts/build --arch x86-32 --fs ext2 --debug --split --clean" },
 
-        { "key": "C-r", "label": "Build 32 System Data View", "script": "scripts/build --arch x86-32 --fs ext2 --system-data-view --clean" },
-        { "key": "C-t", "label": "Build 32 VESA Test Payload", "script": "make -C boot-hd BUILD_CORE_NAME=x86-32-mbr-debug BUILD_IMAGE_NAME=x86-32-mbr-debug-ext2 PAYLOAD_SOURCE=test-payloads/vesa-test.c ARCH=x86-32 clean install-vbr-payload" },
-        { "key": "C-y", "label": "Build 32 Dumper Payload", "script": "make -C boot-hd BUILD_CORE_NAME=x86-32-mbr-debug BUILD_IMAGE_NAME=x86-32-mbr-debug-ext2 PAYLOAD_SOURCE=test-payloads/dumper*.c ARCH=x86-32 clean install-vbr-payload" },
-        { "key": "C-u", "label": "Build 32 BIOS Keyboard Payload", "script": "make -C boot-hd BUILD_CORE_NAME=x86-32-mbr-debug BUILD_IMAGE_NAME=x86-32-mbr-debug-ext2 PAYLOAD_SOURCE=test-payloads/bios-keyboard.c ARCH=x86-32 install-vbr-payload" },
+        { "label": "Build 32 System Data View", "script": "scripts/build --arch x86-32 --fs ext2 --system-data-view --clean" },
+        { "label": "Build 32 VESA Test Payload", "script": "make -C boot-hd BUILD_CORE_NAME=x86-32-mbr-debug BUILD_IMAGE_NAME=x86-32-mbr-debug-ext2 PAYLOAD_SOURCE=test-payloads/vesa-test.c ARCH=x86-32 clean install-vbr-payload" },
+        { "label": "Build 32 Dumper Payload", "script": "make -C boot-hd BUILD_CORE_NAME=x86-32-mbr-debug BUILD_IMAGE_NAME=x86-32-mbr-debug-ext2 PAYLOAD_SOURCE=test-payloads/dumper*.c ARCH=x86-32 clean install-vbr-payload" },
+        { "label": "Build 32 BIOS Keyboard Payload", "script": "make -C boot-hd BUILD_CORE_NAME=x86-32-mbr-debug BUILD_IMAGE_NAME=x86-32-mbr-debug-ext2 PAYLOAD_SOURCE=test-payloads/bios-keyboard.c ARCH=x86-32 install-vbr-payload" },
 
         { "label": "x86-32 run----------" },
 
-        { "key": "f1", "label": "Start 32 QEMU MBR Release", "script": "scripts/run --arch x86-32 --fs ext2 --release" },
-        { "key": "f2", "label": "Start 32 QEMU MBR Debug", "script": "scripts/run --arch x86-32 --fs ext2 --debug" },
-        { "key": "f3", "label": "Start 32 QEMU VESA Test", "script": "scripts/run --arch x86-32 --build-core-name x86-32-mbr-debug --build-image-name x86-32-mbr-debug-ext2 --debug --no-nvme --no-usb3" },
-        { "key": "f4", "label": "Start 32 QEMU Dumper Test", "script": "scripts/run --arch x86-32 --build-core-name x86-32-mbr-debug --build-image-name x86-32-mbr-debug-ext2 --debug --no-nvme --no-usb3" },
+        { "label": "Start 32 QEMU MBR Rel", "script": "scripts/run --arch x86-32 --fs ext2 --release" },
+        { "label": "Start 32 QEMU MBR Deb", "script": "scripts/run --arch x86-32 --fs ext2 --debug" },
+        { "label": "Start 32 QEMU VESA Test", "script": "scripts/run --arch x86-32 --build-core-name x86-32-mbr-debug --build-image-name x86-32-mbr-debug-ext2 --debug --no-nvme --no-usb3" },
+        { "label": "Start 32 QEMU Dumper Test", "script": "scripts/run --arch x86-32 --build-core-name x86-32-mbr-debug --build-image-name x86-32-mbr-debug-ext2 --debug --no-nvme --no-usb3" },
 
         { "label": "x86-64 build--------" },
 
-        { "key": "C-q", "label": "Build 64 MBR Release", "script": "scripts/build --arch x86-64 --fs ext2 --release --clean" },
-        { "key": "C-s", "label": "Build 64 MBR Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug --clean" },
-        { "key": "C-d", "label": "Build 64 MBR Rel Split", "script": "scripts/build --arch x86-64 --fs ext2 --release --split --clean" },
-        { "key": "C-f", "label": "Build 64 MBR Deb Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split --clean" },
-        { "key": "C-g", "label": "Build 64 UEFI Release", "script": "scripts/build --arch x86-64 --fs ext2 --release --uefi --clean" },
-        { "key": "C-h", "label": "Build 64 UEFI Debug", "script": "scripts/build --arch x86-64 --fs ext2 --debug --uefi --clean" },
-        { "key": "C-j", "label": "Build 64 UEFI Release Split", "script": "scripts/build --arch x86-64 --fs ext2 --release --split --uefi --clean" },
-        { "key": "C-k", "label": "Build 64 UEFI Debug Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split --uefi --boot-stage-markers --clean" },
+        { "label": "Build 64 MBR Rel", "script": "scripts/build --arch x86-64 --fs ext2 --release --clean" },
+        { "label": "Build 64 MBR Rel ++", "script": "scripts/build --arch x86-64 --fs ext2 --release" },
+        { "label": "Build 64 MBR Deb", "script": "scripts/build --arch x86-64 --fs ext2 --debug --clean" },
+        { "label": "Build 64 MBR Deb ++", "script": "scripts/build --arch x86-64 --fs ext2 --debug" },
+        { "label": "Build 64 MBR Rel Split", "script": "scripts/build --arch x86-64 --fs ext2 --release --split --clean" },
+        { "label": "Build 64 MBR Deb Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split --clean" },
+
+        { "label": "x86-64 UEFI build--------" },
+
+        { "label": "Build 64 UEFI Rel", "script": "scripts/build --arch x86-64 --fs ext2 --release --uefi --bare-metal --clean" },
+        { "label": "Build 64 UEFI Rel ++", "script": "scripts/build --arch x86-64 --fs ext2 --release --uefi --bare-metal" },
+        { "label": "Build 64 UEFI Deb", "script": "scripts/build --arch x86-64 --fs ext2 --debug --uefi --bare-metal --clean" },
+        { "label": "Build 64 UEFI Deb ++", "script": "scripts/build --arch x86-64 --fs ext2 --debug --uefi --bare-metal" },
+        { "label": "Build 64 UEFI Rel Split", "script": "scripts/build --arch x86-64 --fs ext2 --release --split --uefi --bare-metal --clean" },
+        { "label": "Build 64 UEFI Deb Split", "script": "scripts/build --arch x86-64 --fs ext2 --debug --split --uefi --boot-stage-markers --bare-metal --clean" },
 
         { "label": "x86-64 run----------" },
 
-        { "key": "f5", "label": "Start 64 QEMU MBR Release", "script": "scripts/run --arch x86-64 --fs ext2 --release" },
-        { "key": "f6", "label": "Start 64 QEMU MBR Debug", "script": "scripts/run --arch x86-64 --fs ext2 --debug" },
-        { "key": "f7", "label": "Start 64 QEMU MBR Rel Split", "script": "scripts/run --arch x86-64 --fs ext2 --release --split" },
-        { "key": "f8", "label": "Start 64 QEMU MBR Deb Split", "script": "scripts/run --arch x86-64 --fs ext2 --debug --split" },
-        { "key": "f9", "label": "Start 64 QEMU UEFI Rel", "script": "scripts/run --arch x86-64 --fs ext2 --release --uefi" },
-        { "key": "f10", "label": "Start 64 QEMU UEFI Deb", "script": "scripts/run --arch x86-64 --fs ext2 --debug --uefi" },
-        { "key": "f11", "label": "Start 64 QEMU UEFI Rel Split", "script": "scripts/run --arch x86-64 --fs ext2 --release --uefi --split" },
-        { "key": "f12", "label": "Start 64 QEMU UEFI Deb Split", "script": "scripts/run --arch x86-64 --fs ext2 --debug --uefi --split" },
+        { "label": "Start 64 QEMU MBR Rel", "script": "scripts/run --arch x86-64 --fs ext2 --release" },
+        { "label": "Start 64 QEMU MBR Deb", "script": "scripts/run --arch x86-64 --fs ext2 --debug" },
+        { "label": "Start 64 QEMU MBR Rel Split", "script": "scripts/run --arch x86-64 --fs ext2 --release --split" },
+        { "label": "Start 64 QEMU MBR Deb Split", "script": "scripts/run --arch x86-64 --fs ext2 --debug --split" },
+        { "label": "Start 64 QEMU UEFI Rel", "script": "scripts/run --arch x86-64 --fs ext2 --release --uefi" },
+        { "label": "Start 64 QEMU UEFI Deb", "script": "scripts/run --arch x86-64 --fs ext2 --debug --uefi" },
+        { "label": "Start 64 QEMU UEFI Rel Split", "script": "scripts/run --arch x86-64 --fs ext2 --release --uefi --split" },
+        { "label": "Start 64 QEMU UEFI Deb Split", "script": "scripts/run --arch x86-64 --fs ext2 --debug --uefi --split" },
 
         { "label": "smoke tests---------" },
 
@@ -62,7 +72,7 @@
         "notifyOnExit": true,
         "renderThrottleMs": 50,
         "maxLogLines": 1000,
-        "sidebarMinWidth": 25
+        "sidebarMinWidth": 32
     },
     "events": {
         "onDashboardStart": [

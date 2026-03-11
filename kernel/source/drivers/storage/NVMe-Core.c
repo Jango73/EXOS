@@ -74,6 +74,84 @@ LPDRIVER NVMeGetDriver(void) {
 /************************************************************************/
 
 /**
+ * @brief Free one queue buffer allocation.
+ *
+ * @param Queue Queue buffer descriptor.
+ */
+void NVMeFreeQueueBuffer(LPNVME_QUEUE_BUFFER Queue) {
+    if (Queue == NULL) {
+        return;
+    }
+
+    if (Queue->Raw != NULL) {
+        KernelHeapFree(Queue->Raw);
+    }
+
+    Queue->Raw = NULL;
+    Queue->Base = 0;
+    Queue->Physical = 0;
+    Queue->Size = 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Allocate one aligned queue buffer and validate physical contiguity.
+ *
+ * @param Queue Queue descriptor output.
+ * @param QueueSize Requested queue size in bytes.
+ * @param QueueAlignment Required queue alignment in bytes.
+ * @param QueueName Queue name used in logs.
+ * @return TRUE on success.
+ */
+BOOL NVMeAllocateQueueBuffer(LPNVME_QUEUE_BUFFER Queue, U32 QueueSize, UINT QueueAlignment, LPCSTR QueueName) {
+    if (Queue == NULL || QueueSize == 0 || QueueAlignment == 0) {
+        return FALSE;
+    }
+
+    UINT RawSize = (UINT)QueueSize + QueueAlignment;
+    Queue->Raw = KernelHeapAlloc(RawSize);
+    if (Queue->Raw == NULL) {
+        ERROR(TEXT("[NVMeAllocateQueueBuffer] KernelHeapAlloc failed for %s (raw_size=%u)"), QueueName, RawSize);
+        return FALSE;
+    }
+
+    LINEAR RawBase = (LINEAR)Queue->Raw;
+    Queue->Base = (LINEAR)((RawBase + (QueueAlignment - 1)) & ~(QueueAlignment - 1));
+    Queue->Size = QueueSize;
+    MemorySet((LPVOID)Queue->Base, 0, Queue->Size);
+
+    Queue->Physical = MapLinearToPhysical(Queue->Base);
+    if (Queue->Physical == 0) {
+        ERROR(TEXT("[NVMeAllocateQueueBuffer] MapLinearToPhysical failed for %s base=%p"),
+              QueueName,
+              (LPVOID)Queue->Base);
+        NVMeFreeQueueBuffer(Queue);
+        return FALSE;
+    }
+
+    for (UINT Offset = 0; Offset < Queue->Size; Offset += N_4KB) {
+        LINEAR Linear = Queue->Base + (LINEAR)Offset;
+        PHYSICAL Physical = MapLinearToPhysical(Linear);
+        PHYSICAL Expected = Queue->Physical + (PHYSICAL)Offset;
+        if (Physical != Expected) {
+            ERROR(TEXT("[NVMeAllocateQueueBuffer] Non contiguous %s (base_pa=%p offset=%u pa=%p expected=%p)"),
+                  QueueName,
+                  (LPVOID)(LINEAR)Queue->Physical,
+                  Offset,
+                  (LPVOID)(LINEAR)Physical,
+                  (LPVOID)(LINEAR)Expected);
+            NVMeFreeQueueBuffer(Queue);
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Driver command handler.
  * @param Function Function identifier.
  * @param Param Function parameter.

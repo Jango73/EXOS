@@ -40,81 +40,74 @@ static BOOL NVMeShouldEmitIoWarning(LPCOOLDOWN Cooldown) {
     return CooldownTryArm(Cooldown, GetSystemTime());
 }
 
-/************************************************************************/
-
 /**
- * @brief Free one queue buffer allocation.
+ * @brief Validate one I/O transfer buffer and resolve its physical base.
  *
- * @param Queue Queue buffer descriptor.
+ * @param Device NVMe device.
+ * @param SectorCount Number of sectors to transfer.
+ * @param Buffer Transfer buffer.
+ * @param BufferBytes Buffer size in bytes.
+ * @param FunctionName Caller function name for logs.
+ * @param TransferBytesOut Receives validated transfer size in bytes.
+ * @param BasePhysOut Receives contiguous physical base address.
+ * @return TRUE on success, FALSE on failure.
  */
-static void NVMeFreeQueueBuffer(LPNVME_QUEUE_BUFFER Queue) {
-    if (Queue == NULL) {
-        return;
-    }
+static BOOL NVMePrepareIoTransfer(LPNVME_DEVICE Device, U32 SectorCount, LPCVOID Buffer, U32 BufferBytes,
+                                  LPCSTR FunctionName, U32* TransferBytesOut, PHYSICAL* BasePhysOut) {
+    U32 BytesPerSector;
+    LINEAR BufferLinear;
+    PHYSICAL BasePhys;
 
-    if (Queue->Raw != NULL) {
-        KernelHeapFree(Queue->Raw);
-    }
-
-    Queue->Raw = NULL;
-    Queue->Base = 0;
-    Queue->Physical = 0;
-    Queue->Size = 0;
-}
-
-/************************************************************************/
-
-/**
- * @brief Allocate one aligned queue buffer and validate physical contiguity.
- *
- * @param Queue Queue descriptor output.
- * @param QueueSize Requested queue size in bytes.
- * @param QueueName Queue name used in logs.
- * @return TRUE on success.
- */
-static BOOL NVMeAllocateQueueBuffer(LPNVME_QUEUE_BUFFER Queue, U32 QueueSize, LPCSTR QueueName) {
-    if (Queue == NULL || QueueSize == 0) {
+    if (Device == NULL || Device->IoSq == NULL || Device->IoCq == NULL || Buffer == NULL ||
+        SectorCount == 0 || BufferBytes == 0 || TransferBytesOut == NULL || BasePhysOut == NULL) {
         return FALSE;
     }
 
-    U32 RawSize = QueueSize + NVME_IO_QUEUE_ALIGNMENT;
-    Queue->Raw = KernelHeapAlloc(RawSize);
-    if (Queue->Raw == NULL) {
-        ERROR(TEXT("[NVMeAllocateQueueBuffer] KernelHeapAlloc failed for %s (raw_size=%u)"), QueueName, RawSize);
+    BytesPerSector = Device->LogicalBlockSize;
+    if (BytesPerSector == 0) {
+        BytesPerSector = SECTOR_SIZE;
+    }
+
+    if (SectorCount > (0xFFFFFFFF / BytesPerSector)) {
         return FALSE;
     }
 
-    LINEAR RawBase = (LINEAR)Queue->Raw;
-    Queue->Base = (LINEAR)((RawBase + (NVME_IO_QUEUE_ALIGNMENT - 1)) &
-        ~(NVME_IO_QUEUE_ALIGNMENT - 1));
-    Queue->Size = QueueSize;
-    MemorySet((LPVOID)Queue->Base, 0, Queue->Size);
-
-    Queue->Physical = MapLinearToPhysical(Queue->Base);
-    if (Queue->Physical == 0) {
-        ERROR(TEXT("[NVMeAllocateQueueBuffer] MapLinearToPhysical failed for %s base=%p"),
-              QueueName,
-              (LPVOID)Queue->Base);
-        NVMeFreeQueueBuffer(Queue);
+    *TransferBytesOut = SectorCount * BytesPerSector;
+    if (BufferBytes < *TransferBytesOut) {
         return FALSE;
     }
 
-    for (UINT Offset = 0; Offset < Queue->Size; Offset += N_4KB) {
-        LINEAR Linear = Queue->Base + (LINEAR)Offset;
+    if (*TransferBytesOut > (2 * N_4KB)) {
+        WARNING(TEXT("[%s] Transfer too large for PRP1/PRP2 %u bytes"), FunctionName, (U32)*TransferBytesOut);
+        return FALSE;
+    }
+
+    if (SectorCount > 0x10000) {
+        WARNING(TEXT("[%s] Too many sectors %u"), FunctionName, (U32)SectorCount);
+        return FALSE;
+    }
+
+    BufferLinear = (LINEAR)Buffer;
+    if ((BufferLinear & (N_4KB - 1)) != 0) {
+        WARNING(TEXT("[%s] Buffer not 4 KiB aligned %p"), FunctionName, Buffer);
+        return FALSE;
+    }
+
+    BasePhys = MapLinearToPhysical(BufferLinear);
+    if (BasePhys == 0) {
+        return FALSE;
+    }
+
+    for (UINT Offset = 0; Offset < *TransferBytesOut; Offset += N_4KB) {
+        LINEAR Linear = BufferLinear + (LINEAR)Offset;
         PHYSICAL Physical = MapLinearToPhysical(Linear);
-        PHYSICAL Expected = Queue->Physical + (PHYSICAL)Offset;
-        if (Physical != Expected) {
-            ERROR(TEXT("[NVMeAllocateQueueBuffer] Non contiguous %s (base_pa=%p offset=%u pa=%p expected=%p)"),
-                  QueueName,
-                  (LPVOID)(LINEAR)Queue->Physical,
-                  Offset,
-                  (LPVOID)(LINEAR)Physical,
-                  (LPVOID)(LINEAR)Expected);
-            NVMeFreeQueueBuffer(Queue);
+        if (Physical != (BasePhys + (PHYSICAL)Offset)) {
+            WARNING(TEXT("[%s] Buffer not contiguous at %x"), FunctionName, (U32)Offset);
             return FALSE;
         }
     }
 
+    *BasePhysOut = BasePhys;
     return TRUE;
 }
 
@@ -174,12 +167,18 @@ static BOOL NVMeSetupIoQueues(LPNVME_DEVICE Device) {
     U32 IoSqSize = Device->IoSqEntries * NVME_IO_SQ_ENTRY_SIZE;
     U32 IoCqSize = Device->IoCqEntries * NVME_IO_CQ_ENTRY_SIZE;
 
-    if (NVMeAllocateQueueBuffer(&Device->IoSqBuffer, IoSqSize, TEXT("IOSQ")) == FALSE) {
+    if (NVMeAllocateQueueBuffer(&Device->IoSqBuffer,
+                                IoSqSize,
+                                NVME_IO_QUEUE_ALIGNMENT,
+                                TEXT("IOSQ")) == FALSE) {
         NVMeFreeIoQueues(Device);
         return FALSE;
     }
 
-    if (NVMeAllocateQueueBuffer(&Device->IoCqBuffer, IoCqSize, TEXT("IOCQ")) == FALSE) {
+    if (NVMeAllocateQueueBuffer(&Device->IoCqBuffer,
+                                IoCqSize,
+                                NVME_IO_QUEUE_ALIGNMENT,
+                                TEXT("IOCQ")) == FALSE) {
         NVMeFreeIoQueues(Device);
         return FALSE;
     }
@@ -455,6 +454,71 @@ static BOOL NVMeSubmitIoCommand(LPNVME_DEVICE Device, const NVME_COMMAND* Comman
 /************************************************************************/
 
 /**
+ * @brief Submit one read or write I/O command for a prepared transfer.
+ *
+ * @param Device NVMe device.
+ * @param Opcode I/O opcode.
+ * @param NamespaceId Namespace identifier.
+ * @param Lba Starting logical block address.
+ * @param SectorCount Number of sectors to transfer.
+ * @param TransferBytes Prepared transfer size in bytes.
+ * @param BasePhys Contiguous physical base address of the transfer buffer.
+ * @param FunctionName Caller function name for logs.
+ * @return TRUE on success, FALSE on failure.
+ */
+static BOOL NVMeSubmitReadWriteCommand(LPNVME_DEVICE Device, U8 Opcode, U32 NamespaceId, U64 Lba,
+                                       U32 SectorCount, U32 TransferBytes, PHYSICAL BasePhys,
+                                       LPCSTR FunctionName) {
+    NVME_COMMAND Command;
+    NVME_COMPLETION Completion;
+    U16 Status;
+
+    MemorySet(&Command, 0, sizeof(Command));
+    Command.Opcode = Opcode;
+    Command.NamespaceId = NamespaceId;
+    Command.Prp1Low = (U32)(BasePhys & 0xFFFFFFFF);
+    Command.Prp1High = 0;
+#ifdef __EXOS_64__
+    Command.Prp1High = (U32)((BasePhys >> 32) & 0xFFFFFFFF);
+#endif
+
+    if (TransferBytes > N_4KB) {
+        PHYSICAL SecondPage = BasePhys + N_4KB;
+        Command.Prp2Low = (U32)(SecondPage & 0xFFFFFFFF);
+        Command.Prp2High = 0;
+#ifdef __EXOS_64__
+        Command.Prp2High = (U32)((SecondPage >> 32) & 0xFFFFFFFF);
+#endif
+    }
+
+    Command.CommandDword10 = U64_Low32(Lba);
+    Command.CommandDword11 = U64_High32(Lba);
+    Command.CommandDword12 = (U32)((SectorCount - 1) & 0xFFFF);
+
+    if (!NVMeSubmitIoCommand(Device, &Command, &Completion)) {
+        return FALSE;
+    }
+
+    Status = (U16)(Completion.Status >> 1);
+    if (Status != 0) {
+        U16 Sc = (U16)(Status & 0xFF);
+        U16 Sct = (U16)((Status >> 8) & 0x7);
+        U16 Dnr = (U16)((Status >> 14) & 0x1);
+        WARNING(TEXT("[%s] Status=%x SCT=%x SC=%x DNR=%x"),
+                FunctionName,
+                (U32)Status,
+                (U32)Sct,
+                (U32)Sc,
+                (U32)Dnr);
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Submit an I/O NO-OP command and wait for completion.
  *
  * @param Device NVMe device.
@@ -507,98 +571,27 @@ BOOL NVMeSubmitIoNoop(LPNVME_DEVICE Device) {
  */
 BOOL NVMeReadSectors(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 SectorCount, LPVOID Buffer,
                      U32 BufferBytes) {
-    U32 BytesPerSector;
-    if (Device == NULL || Device->IoSq == NULL || Device->IoCq == NULL) {
-        return FALSE;
-    }
-    if (Buffer == NULL || SectorCount == 0 || BufferBytes == 0) {
-        return FALSE;
-    }
-    BytesPerSector = Device->LogicalBlockSize;
-    if (BytesPerSector == 0) {
-        BytesPerSector = SECTOR_SIZE;
-    }
+    U32 TransferBytes;
+    PHYSICAL BasePhys;
 
-    if (SectorCount > (0xFFFFFFFF / BytesPerSector)) {
+    if (!NVMePrepareIoTransfer(Device,
+                               SectorCount,
+                               Buffer,
+                               BufferBytes,
+                               TEXT("NVMeReadSectors"),
+                               &TransferBytes,
+                               &BasePhys)) {
         return FALSE;
     }
 
-    U32 TransferBytes = SectorCount * BytesPerSector;
-    if (BufferBytes < TransferBytes) {
-        return FALSE;
-    }
-    if (TransferBytes > (2 * N_4KB)) {
-        WARNING(TEXT("[NVMeReadSectors] Transfer too large for PRP1/PRP2 %u bytes"),
-                (U32)TransferBytes);
-        return FALSE;
-    }
-    if (SectorCount > 0x10000) {
-        WARNING(TEXT("[NVMeReadSectors] Too many sectors %u"), (U32)SectorCount);
-        return FALSE;
-    }
-
-    LINEAR BufferLinear = (LINEAR)Buffer;
-    if ((BufferLinear & (N_4KB - 1)) != 0) {
-        WARNING(TEXT("[NVMeReadSectors] Buffer not 4 KiB aligned %p"), Buffer);
-        return FALSE;
-    }
-
-    PHYSICAL BasePhys = MapLinearToPhysical(BufferLinear);
-    if (BasePhys == 0) {
-        return FALSE;
-    }
-
-    for (UINT Offset = 0; Offset < TransferBytes; Offset += N_4KB) {
-        LINEAR Linear = BufferLinear + (LINEAR)Offset;
-        PHYSICAL Physical = MapLinearToPhysical(Linear);
-        if (Physical != (BasePhys + (PHYSICAL)Offset)) {
-            WARNING(TEXT("[NVMeReadSectors] Buffer not contiguous at %x"), (U32)Offset);
-            return FALSE;
-        }
-    }
-
-    NVME_COMMAND Command;
-    MemorySet(&Command, 0, sizeof(Command));
-    Command.Opcode = NVME_IO_OP_READ;
-    Command.NamespaceId = NamespaceId;
-    Command.Prp1Low = (U32)(BasePhys & 0xFFFFFFFF);
-    Command.Prp1High = 0;
-#ifdef __EXOS_64__
-    Command.Prp1High = (U32)((BasePhys >> 32) & 0xFFFFFFFF);
-#endif
-
-    if (TransferBytes > N_4KB) {
-        PHYSICAL SecondPage = BasePhys + N_4KB;
-        Command.Prp2Low = (U32)(SecondPage & 0xFFFFFFFF);
-        Command.Prp2High = 0;
-#ifdef __EXOS_64__
-        Command.Prp2High = (U32)((SecondPage >> 32) & 0xFFFFFFFF);
-#endif
-    }
-
-    Command.CommandDword10 = U64_Low32(Lba);
-    Command.CommandDword11 = U64_High32(Lba);
-    Command.CommandDword12 = (U32)((SectorCount - 1) & 0xFFFF);
-
-    NVME_COMPLETION Completion;
-    if (!NVMeSubmitIoCommand(Device, &Command, &Completion)) {
-        return FALSE;
-    }
-
-    U16 Status = (U16)(Completion.Status >> 1);
-    if (Status != 0) {
-        U16 Sc = (U16)(Status & 0xFF);
-        U16 Sct = (U16)((Status >> 8) & 0x7);
-        U16 Dnr = (U16)((Status >> 14) & 0x1);
-        WARNING(TEXT("[NVMeReadSectors] Status=%x SCT=%x SC=%x DNR=%x"),
-                (U32)Status,
-                (U32)Sct,
-                (U32)Sc,
-                (U32)Dnr);
-        return FALSE;
-    }
-
-    return TRUE;
+    return NVMeSubmitReadWriteCommand(Device,
+                                      NVME_IO_OP_READ,
+                                      NamespaceId,
+                                      Lba,
+                                      SectorCount,
+                                      TransferBytes,
+                                      BasePhys,
+                                      TEXT("NVMeReadSectors"));
 }
 
 /************************************************************************/
@@ -616,98 +609,27 @@ BOOL NVMeReadSectors(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 SectorC
  */
 BOOL NVMeWriteSectors(LPNVME_DEVICE Device, U32 NamespaceId, U64 Lba, U32 SectorCount, LPCVOID Buffer,
                       U32 BufferBytes) {
-    U32 BytesPerSector;
-    if (Device == NULL || Device->IoSq == NULL || Device->IoCq == NULL) {
-        return FALSE;
-    }
-    if (Buffer == NULL || SectorCount == 0 || BufferBytes == 0) {
-        return FALSE;
-    }
-    BytesPerSector = Device->LogicalBlockSize;
-    if (BytesPerSector == 0) {
-        BytesPerSector = SECTOR_SIZE;
-    }
+    U32 TransferBytes;
+    PHYSICAL BasePhys;
 
-    if (SectorCount > (0xFFFFFFFF / BytesPerSector)) {
+    if (!NVMePrepareIoTransfer(Device,
+                               SectorCount,
+                               Buffer,
+                               BufferBytes,
+                               TEXT("NVMeWriteSectors"),
+                               &TransferBytes,
+                               &BasePhys)) {
         return FALSE;
     }
 
-    U32 TransferBytes = SectorCount * BytesPerSector;
-    if (BufferBytes < TransferBytes) {
-        return FALSE;
-    }
-    if (TransferBytes > (2 * N_4KB)) {
-        WARNING(TEXT("[NVMeWriteSectors] Transfer too large for PRP1/PRP2 %u bytes"),
-                (U32)TransferBytes);
-        return FALSE;
-    }
-    if (SectorCount > 0x10000) {
-        WARNING(TEXT("[NVMeWriteSectors] Too many sectors %u"), (U32)SectorCount);
-        return FALSE;
-    }
-
-    LINEAR BufferLinear = (LINEAR)Buffer;
-    if ((BufferLinear & (N_4KB - 1)) != 0) {
-        WARNING(TEXT("[NVMeWriteSectors] Buffer not 4 KiB aligned %p"), Buffer);
-        return FALSE;
-    }
-
-    PHYSICAL BasePhys = MapLinearToPhysical(BufferLinear);
-    if (BasePhys == 0) {
-        return FALSE;
-    }
-
-    for (UINT Offset = 0; Offset < TransferBytes; Offset += N_4KB) {
-        LINEAR Linear = BufferLinear + (LINEAR)Offset;
-        PHYSICAL Physical = MapLinearToPhysical(Linear);
-        if (Physical != (BasePhys + (PHYSICAL)Offset)) {
-            WARNING(TEXT("[NVMeWriteSectors] Buffer not contiguous at %x"), (U32)Offset);
-            return FALSE;
-        }
-    }
-
-    NVME_COMMAND Command;
-    MemorySet(&Command, 0, sizeof(Command));
-    Command.Opcode = NVME_IO_OP_WRITE;
-    Command.NamespaceId = NamespaceId;
-    Command.Prp1Low = (U32)(BasePhys & 0xFFFFFFFF);
-    Command.Prp1High = 0;
-#ifdef __EXOS_64__
-    Command.Prp1High = (U32)((BasePhys >> 32) & 0xFFFFFFFF);
-#endif
-
-    if (TransferBytes > N_4KB) {
-        PHYSICAL SecondPage = BasePhys + N_4KB;
-        Command.Prp2Low = (U32)(SecondPage & 0xFFFFFFFF);
-        Command.Prp2High = 0;
-#ifdef __EXOS_64__
-        Command.Prp2High = (U32)((SecondPage >> 32) & 0xFFFFFFFF);
-#endif
-    }
-
-    Command.CommandDword10 = U64_Low32(Lba);
-    Command.CommandDword11 = U64_High32(Lba);
-    Command.CommandDword12 = (U32)((SectorCount - 1) & 0xFFFF);
-
-    NVME_COMPLETION Completion;
-    if (!NVMeSubmitIoCommand(Device, &Command, &Completion)) {
-        return FALSE;
-    }
-
-    U16 Status = (U16)(Completion.Status >> 1);
-    if (Status != 0) {
-        U16 Sc = (U16)(Status & 0xFF);
-        U16 Sct = (U16)((Status >> 8) & 0x7);
-        U16 Dnr = (U16)((Status >> 14) & 0x1);
-        WARNING(TEXT("[NVMeWriteSectors] Status=%x SCT=%x SC=%x DNR=%x"),
-                (U32)Status,
-                (U32)Sct,
-                (U32)Sc,
-                (U32)Dnr);
-        return FALSE;
-    }
-
-    return TRUE;
+    return NVMeSubmitReadWriteCommand(Device,
+                                      NVME_IO_OP_WRITE,
+                                      NamespaceId,
+                                      Lba,
+                                      SectorCount,
+                                      TransferBytes,
+                                      BasePhys,
+                                      TEXT("NVMeWriteSectors"));
 }
 
 /************************************************************************/

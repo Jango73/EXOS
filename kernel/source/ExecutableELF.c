@@ -87,21 +87,514 @@ typedef struct __attribute__((packed)) tag_EXOS_ELF64_PHDR {
 } EXOS_ELF64_PHDR;
 
 /************************************************************************/
+// Type definitions
+
+typedef struct tag_ELF_FILE_HEADER {
+    UINT EntryPoint;
+    UINT ProgramHeaderOffset;
+    UINT ProgramHeaderEntrySize;
+    U16 ProgramHeaderCount;
+} ELF_FILE_HEADER, *LPELF_FILE_HEADER;
+
+typedef struct tag_ELF_PROGRAM_HEADER {
+    U32 Type;
+    U32 Flags;
+    UINT Offset;
+    UINT VirtualAddress;
+    UINT FileSize;
+    UINT MemorySize;
+} ELF_PROGRAM_HEADER, *LPELF_PROGRAM_HEADER;
+
+typedef struct tag_ELF_LAYOUT_INFO {
+    UINT CodeMin;
+    UINT CodeMax;
+    UINT DataMin;
+    UINT DataMax;
+    UINT BssMin;
+    UINT BssMax;
+    BOOL HasLoadable;
+    BOOL HasCode;
+    BOOL HasInterp;
+} ELF_LAYOUT_INFO, *LPELF_LAYOUT_INFO;
+
+/************************************************************************/
 // Local helpers
 
-static U32 ELFMakeSig(const U8 ident[EI_NIDENT]) {
-    return ((U32)ident[0]) | ((U32)ident[1] << 8) | ((U32)ident[2] << 16) | ((U32)ident[3] << 24);
+static U32 ELFMakeSig(const U8 Ident[EI_NIDENT]) {
+    return ((U32)Ident[0]) | ((U32)Ident[1] << 8) | ((U32)Ident[2] << 16) | ((U32)Ident[3] << 24);
 }
 
-static BOOL ELFIsCode(U32 flags) { return (flags & PF_X) != 0; }
-static BOOL ELFIsData(U32 flags) { return (flags & PF_W) != 0 || ((flags & PF_X) == 0); }
+/************************************************************************/
 
-/* Safe register-sized range addition: returns FALSE on overflow */
-static BOOL AddUIntOverflow(UINT a, UINT b, UINT* out) {
-    UINT r = a + b;
-    if (r < a) return FALSE;
-    if (out) *out = r;
+static BOOL ELFIsCode(U32 Flags) { return (Flags & PF_X) != 0; }
+
+/************************************************************************/
+
+static BOOL ELFIsData(U32 Flags) { return (Flags & PF_W) != 0 || ((Flags & PF_X) == 0); }
+
+/************************************************************************/
+
+/**
+ * @brief Safely add two register-sized values.
+ * @param Left First value.
+ * @param Right Second value.
+ * @param Out Receives the sum on success.
+ * @return FALSE on overflow.
+ */
+static BOOL AddUIntOverflow(UINT Left, UINT Right, UINT* Out) {
+    UINT Result = Left + Right;
+
+    if (Result < Left) return FALSE;
+    if (Out != NULL) *Out = Result;
     return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Initialize one file operation descriptor for ELF reads.
+ * @param File Source file.
+ * @param FileOperation Receives initialized operation state.
+ */
+static void ELFInitializeFileOperation(LPFILE File, LPFILEOPERATION FileOperation) {
+    FileOperation->Header.Size = sizeof(FILEOPERATION);
+    FileOperation->Header.Version = EXOS_ABI_VERSION;
+    FileOperation->Header.Flags = 0;
+    FileOperation->File = (HANDLE)File;
+    FileOperation->Buffer = NULL;
+    FileOperation->NumBytes = 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read bytes from one explicit file position.
+ * @param FileOperation File operation state.
+ * @param Offset File offset.
+ * @param Buffer Output buffer.
+ * @param Size Number of bytes to read.
+ * @return TRUE on success.
+ */
+static BOOL ELFReadBytes(LPFILEOPERATION FileOperation, UINT Offset, LPVOID Buffer, UINT Size) {
+    if (Offset > 0xFFFFFFFF) return FALSE;
+    if (Size > 0xFFFFFFFF) return FALSE;
+
+    FileOperation->NumBytes = (U32)Offset;
+    if (SetFilePosition(FileOperation) != DF_RETURN_SUCCESS) return FALSE;
+
+    FileOperation->Buffer = Buffer;
+    FileOperation->NumBytes = (U32)Size;
+    return ReadFile(FileOperation) == Size;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read and validate the ELF identification bytes.
+ * @param FileOperation File operation state.
+ * @param FileSize File size in bytes.
+ * @param Ident Receives EI_NIDENT bytes.
+ * @return TRUE when the file starts with a supported ELF signature.
+ */
+static BOOL ELFReadIdent(LPFILEOPERATION FileOperation, U32 FileSize, U8 Ident[EI_NIDENT]) {
+    if (FileSize < EI_NIDENT) return FALSE;
+    if (!ELFReadBytes(FileOperation, 0, Ident, EI_NIDENT)) return FALSE;
+    return ELFMakeSig(Ident) == ELF_SIGNATURE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read one ELF header into a normalized representation.
+ * @param FileOperation File operation state.
+ * @param FileSize File size in bytes.
+ * @param Class ELF class from EI_CLASS.
+ * @param Ident Already-read ELF identification.
+ * @param Header Receives normalized header values.
+ * @return TRUE on success.
+ */
+static BOOL ELFReadHeader(
+    LPFILEOPERATION FileOperation,
+    U32 FileSize,
+    U8 Class,
+    const U8 Ident[EI_NIDENT],
+    LPELF_FILE_HEADER Header
+) {
+    if (Header == NULL) return FALSE;
+
+    if (Class == ELFCLASS32) {
+        EXOS_ELF32_EHDR RawHeader;
+
+        if (FileSize < sizeof(RawHeader)) return FALSE;
+
+        MemoryCopy(RawHeader.e_ident, Ident, EI_NIDENT);
+        if (!ELFReadBytes(
+                FileOperation,
+                EI_NIDENT,
+                ((U8*)&RawHeader) + EI_NIDENT,
+                sizeof(RawHeader) - EI_NIDENT)) {
+            return FALSE;
+        }
+
+        if (RawHeader.e_ident[EI_DATA] != ELFDATA2LSB) return FALSE;
+        if (RawHeader.e_version != EV_CURRENT) return FALSE;
+        if (RawHeader.e_type != ET_EXEC) return FALSE;
+        if (RawHeader.e_machine != EM_386) return FALSE;
+        if (RawHeader.e_phnum == 0) return FALSE;
+        if (RawHeader.e_phentsize < sizeof(EXOS_ELF32_PHDR)) return FALSE;
+
+        Header->EntryPoint = (UINT)RawHeader.e_entry;
+        Header->ProgramHeaderOffset = (UINT)RawHeader.e_phoff;
+        Header->ProgramHeaderEntrySize = (UINT)RawHeader.e_phentsize;
+        Header->ProgramHeaderCount = RawHeader.e_phnum;
+        return TRUE;
+    }
+
+#if defined(__EXOS_ARCH_X86_64__)
+    if (Class == ELFCLASS64) {
+        EXOS_ELF64_EHDR RawHeader;
+
+        if (FileSize < sizeof(RawHeader)) return FALSE;
+
+        MemoryCopy(RawHeader.e_ident, Ident, EI_NIDENT);
+        if (!ELFReadBytes(
+                FileOperation,
+                EI_NIDENT,
+                ((U8*)&RawHeader) + EI_NIDENT,
+                sizeof(RawHeader) - EI_NIDENT)) {
+            return FALSE;
+        }
+
+        if (RawHeader.e_ident[EI_DATA] != ELFDATA2LSB) return FALSE;
+        if (RawHeader.e_version != EV_CURRENT) return FALSE;
+        if (RawHeader.e_type != ET_EXEC) return FALSE;
+        if (RawHeader.e_machine != EM_X86_64) return FALSE;
+        if (RawHeader.e_phnum == 0) return FALSE;
+        if (RawHeader.e_phentsize < sizeof(EXOS_ELF64_PHDR)) return FALSE;
+        if (RawHeader.e_phoff > 0xFFFFFFFF) return FALSE;
+        if (RawHeader.e_entry > 0xFFFFFFFF) return FALSE;
+
+        Header->EntryPoint = (UINT)RawHeader.e_entry;
+        Header->ProgramHeaderOffset = (UINT)RawHeader.e_phoff;
+        Header->ProgramHeaderEntrySize = (UINT)RawHeader.e_phentsize;
+        Header->ProgramHeaderCount = RawHeader.e_phnum;
+        return TRUE;
+    }
+#else
+    UNUSED(Ident);
+#endif
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Validate that the program header table lies inside the file.
+ * @param FileSize File size in bytes.
+ * @param Header Normalized ELF header.
+ * @return TRUE when the program header table is fully readable.
+ */
+static BOOL ELFValidateProgramHeaderTable(U32 FileSize, const ELF_FILE_HEADER* Header) {
+    UINT ProgramHeaderTableSize;
+    UINT ProgramHeaderTableEnd;
+
+    if (Header == NULL) return FALSE;
+
+    ProgramHeaderTableSize = (UINT)Header->ProgramHeaderCount * Header->ProgramHeaderEntrySize;
+    if (!AddUIntOverflow(Header->ProgramHeaderOffset, ProgramHeaderTableSize, &ProgramHeaderTableEnd)) return FALSE;
+    if (ProgramHeaderTableEnd > FileSize) return FALSE;
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read one ELF program header into a normalized representation.
+ * @param FileOperation File operation state.
+ * @param Header Normalized file header.
+ * @param Class ELF class from EI_CLASS.
+ * @param Index Program header index.
+ * @param ProgramHeader Receives normalized program header values.
+ * @return TRUE on success.
+ */
+static BOOL ELFReadProgramHeader(
+    LPFILEOPERATION FileOperation,
+    const ELF_FILE_HEADER* Header,
+    U8 Class,
+    U32 Index,
+    LPELF_PROGRAM_HEADER ProgramHeader
+) {
+    UINT ProgramHeaderOffset;
+
+    if (Header == NULL || ProgramHeader == NULL) return FALSE;
+    if (!AddUIntOverflow(
+            Header->ProgramHeaderOffset,
+            (UINT)Index * Header->ProgramHeaderEntrySize,
+            &ProgramHeaderOffset)) {
+        return FALSE;
+    }
+
+    if (Class == ELFCLASS32) {
+        EXOS_ELF32_PHDR RawHeader;
+
+        if (!ELFReadBytes(FileOperation, ProgramHeaderOffset, &RawHeader, sizeof(RawHeader))) return FALSE;
+
+        ProgramHeader->Type = RawHeader.p_type;
+        ProgramHeader->Flags = RawHeader.p_flags;
+        ProgramHeader->Offset = (UINT)RawHeader.p_offset;
+        ProgramHeader->VirtualAddress = (UINT)RawHeader.p_vaddr;
+        ProgramHeader->FileSize = (UINT)RawHeader.p_filesz;
+        ProgramHeader->MemorySize = (UINT)RawHeader.p_memsz;
+        return TRUE;
+    }
+
+#if defined(__EXOS_ARCH_X86_64__)
+    if (Class == ELFCLASS64) {
+        EXOS_ELF64_PHDR RawHeader;
+
+        if (!ELFReadBytes(FileOperation, ProgramHeaderOffset, &RawHeader, sizeof(RawHeader))) return FALSE;
+        if (RawHeader.p_offset > 0xFFFFFFFF) return FALSE;
+        if (RawHeader.p_vaddr > 0xFFFFFFFF) return FALSE;
+        if (RawHeader.p_filesz > 0xFFFFFFFF) return FALSE;
+        if (RawHeader.p_memsz > 0xFFFFFFFF) return FALSE;
+
+        ProgramHeader->Type = RawHeader.p_type;
+        ProgramHeader->Flags = RawHeader.p_flags;
+        ProgramHeader->Offset = (UINT)RawHeader.p_offset;
+        ProgramHeader->VirtualAddress = (UINT)RawHeader.p_vaddr;
+        ProgramHeader->FileSize = (UINT)RawHeader.p_filesz;
+        ProgramHeader->MemorySize = (UINT)RawHeader.p_memsz;
+        return TRUE;
+    }
+#endif
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Reset one layout accumulator before scanning PT_LOAD entries.
+ * @param Layout Receives the reset state.
+ */
+static void ELFResetLayout(LPELF_LAYOUT_INFO Layout) {
+    Layout->CodeMin = MAX_UINT;
+    Layout->CodeMax = 0;
+    Layout->DataMin = MAX_UINT;
+    Layout->DataMax = 0;
+    Layout->BssMin = MAX_UINT;
+    Layout->BssMax = 0;
+    Layout->HasLoadable = FALSE;
+    Layout->HasCode = FALSE;
+    Layout->HasInterp = FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Scan normalized program headers and compute executable layout.
+ * @param FileOperation File operation state.
+ * @param FileSize File size in bytes.
+ * @param Header Normalized file header.
+ * @param Class ELF class from EI_CLASS.
+ * @param Layout Receives computed ranges and flags.
+ * @return TRUE on success.
+ */
+static BOOL ELFAnalyzeLayout(
+    LPFILEOPERATION FileOperation,
+    U32 FileSize,
+    const ELF_FILE_HEADER* Header,
+    U8 Class,
+    LPELF_LAYOUT_INFO Layout
+) {
+    U32 Index;
+
+    if (Layout == NULL) return FALSE;
+
+    ELFResetLayout(Layout);
+
+    for (Index = 0; Index < (U32)Header->ProgramHeaderCount; ++Index) {
+        ELF_PROGRAM_HEADER ProgramHeader;
+        UINT VirtualEnd;
+        BOOL IsCode;
+        BOOL IsData;
+
+        if (!ELFReadProgramHeader(FileOperation, Header, Class, Index, &ProgramHeader)) return FALSE;
+
+        if (ProgramHeader.Type == PT_INTERP) {
+            Layout->HasInterp = TRUE;
+        }
+        if (ProgramHeader.Type != PT_LOAD) continue;
+
+        Layout->HasLoadable = TRUE;
+
+        if (!AddUIntOverflow(ProgramHeader.VirtualAddress, ProgramHeader.MemorySize, &VirtualEnd)) return FALSE;
+
+        {
+            UINT FileEnd;
+
+            if (!AddUIntOverflow(ProgramHeader.Offset, ProgramHeader.FileSize, &FileEnd)) return FALSE;
+            if (FileEnd > FileSize) return FALSE;
+        }
+
+        IsCode = ELFIsCode(ProgramHeader.Flags);
+        IsData = ELFIsData(ProgramHeader.Flags);
+
+        if (IsCode) {
+            Layout->HasCode = TRUE;
+            if (ProgramHeader.VirtualAddress < Layout->CodeMin) Layout->CodeMin = ProgramHeader.VirtualAddress;
+            if (VirtualEnd > Layout->CodeMax) Layout->CodeMax = VirtualEnd;
+        } else if (IsData) {
+            if (ProgramHeader.VirtualAddress < Layout->DataMin) Layout->DataMin = ProgramHeader.VirtualAddress;
+            if (VirtualEnd > Layout->DataMax) Layout->DataMax = VirtualEnd;
+        } else {
+            if (ProgramHeader.VirtualAddress < Layout->DataMin) Layout->DataMin = ProgramHeader.VirtualAddress;
+            if (VirtualEnd > Layout->DataMax) Layout->DataMax = VirtualEnd;
+        }
+
+        if (ProgramHeader.MemorySize > ProgramHeader.FileSize) {
+            UINT BssStart;
+            UINT BssEnd;
+
+            if (!AddUIntOverflow(ProgramHeader.VirtualAddress, ProgramHeader.FileSize, &BssStart)) return FALSE;
+            if (!AddUIntOverflow(ProgramHeader.VirtualAddress, ProgramHeader.MemorySize, &BssEnd)) return FALSE;
+
+            if (BssStart < Layout->BssMin) Layout->BssMin = BssStart;
+            if (BssEnd > Layout->BssMax) Layout->BssMax = BssEnd;
+        }
+    }
+
+    if (!Layout->HasLoadable) return FALSE;
+    if (!Layout->HasCode) return FALSE;
+    if (Layout->HasInterp) return FALSE;
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Copy computed layout ranges into one executable info structure.
+ * @param Header Normalized file header.
+ * @param Layout Computed layout ranges.
+ * @param Info Receives executable information.
+ */
+static void ELFStoreExecutableInfo(
+    const ELF_FILE_HEADER* Header,
+    const ELF_LAYOUT_INFO* Layout,
+    LPEXECUTABLEINFO Info
+) {
+    Info->EntryPoint = Header->EntryPoint;
+
+    if (Layout->CodeMin != MAX_UINT && Layout->CodeMax > Layout->CodeMin) {
+        Info->CodeBase = Layout->CodeMin;
+        Info->CodeSize = Layout->CodeMax - Layout->CodeMin;
+    } else {
+        Info->CodeBase = 0;
+        Info->CodeSize = 0;
+    }
+
+    if (Layout->DataMin != MAX_UINT && Layout->DataMax > Layout->DataMin) {
+        Info->DataBase = Layout->DataMin;
+        Info->DataSize = Layout->DataMax - Layout->DataMin;
+    } else {
+        Info->DataBase = 0;
+        Info->DataSize = 0;
+    }
+
+    if (Layout->BssMin != MAX_UINT && Layout->BssMax > Layout->BssMin) {
+        Info->BssBase = Layout->BssMin;
+        Info->BssSize = Layout->BssMax - Layout->BssMin;
+    } else {
+        Info->BssBase = 0;
+        Info->BssSize = 0;
+    }
+
+    Info->StackMinimum = 0;
+    Info->StackRequested = 0;
+    Info->HeapMinimum = 0;
+    Info->HeapRequested = 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Load PT_LOAD segments into the provided destination ranges.
+ * @param FileOperation File operation state.
+ * @param FileSize File size in bytes.
+ * @param Header Normalized file header.
+ * @param Layout Computed layout ranges.
+ * @param Class ELF class from EI_CLASS.
+ * @param Info Executable info containing source reference ranges.
+ * @param CodeBase Destination code base.
+ * @param DataBase Destination data base.
+ * @return TRUE on success.
+ */
+static BOOL ELFLoadSegments(
+    LPFILEOPERATION FileOperation,
+    U32 FileSize,
+    const ELF_FILE_HEADER* Header,
+    const ELF_LAYOUT_INFO* Layout,
+    U8 Class,
+    LPEXECUTABLEINFO Info,
+    LINEAR CodeBase,
+    LINEAR DataBase
+) {
+    U32 Index;
+    UINT CodeRef;
+    UINT DataRef;
+
+    CodeRef = Info->CodeBase;
+    DataRef = Info->DataBase;
+
+    for (Index = 0; Index < (U32)Header->ProgramHeaderCount; ++Index) {
+        ELF_PROGRAM_HEADER ProgramHeader;
+        LINEAR Base;
+        UINT ReferenceBase;
+        LINEAR Destination;
+        UINT FileEnd;
+        UINT ZeroSize;
+
+        if (!ELFReadProgramHeader(FileOperation, Header, Class, Index, &ProgramHeader)) return FALSE;
+        if (ProgramHeader.Type != PT_LOAD) continue;
+
+        if (ELFIsCode(ProgramHeader.Flags)) {
+            Base = CodeBase;
+            ReferenceBase = CodeRef;
+        } else {
+            Base = DataBase;
+            ReferenceBase = DataRef;
+        }
+
+        if (ProgramHeader.VirtualAddress < ReferenceBase) return FALSE;
+        Destination = Base + (ProgramHeader.VirtualAddress - ReferenceBase);
+
+        if (!AddUIntOverflow(ProgramHeader.Offset, ProgramHeader.FileSize, &FileEnd)) return FALSE;
+        if (FileEnd > FileSize) return FALSE;
+
+        if (ProgramHeader.FileSize > 0) {
+            if (!ELFReadBytes(FileOperation, ProgramHeader.Offset, (LPVOID)Destination, ProgramHeader.FileSize)) return FALSE;
+        }
+
+        ZeroSize = (ProgramHeader.MemorySize > ProgramHeader.FileSize)
+            ? (ProgramHeader.MemorySize - ProgramHeader.FileSize)
+            : 0;
+        if (ZeroSize > 0) {
+            MemorySet((LPVOID)(Destination + ProgramHeader.FileSize), 0, ZeroSize);
+        }
+    }
+
+    if (Header->EntryPoint >= Layout->CodeMin && Header->EntryPoint < Layout->CodeMax) {
+        Info->EntryPoint = (UINT)CodeBase + (Header->EntryPoint - CodeRef);
+        return TRUE;
+    }
+
+    if (Header->EntryPoint >= Layout->DataMin && Header->EntryPoint < Layout->DataMax) {
+        Info->EntryPoint = (UINT)DataBase + (Header->EntryPoint - DataRef);
+        return TRUE;
+    }
+
+    return FALSE;
 }
 
 /************************************************************************/
@@ -111,301 +604,34 @@ static BOOL AddUIntOverflow(UINT a, UINT b, UINT* out) {
 
 BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
     FILEOPERATION FileOperation;
-    EXOS_ELF32_EHDR Ehdr32;
-    EXOS_ELF32_PHDR Phdr32;
-    EXOS_ELF64_EHDR Ehdr64;
-    EXOS_ELF64_PHDR Phdr64;
+    ELF_FILE_HEADER Header;
+    ELF_LAYOUT_INFO Layout;
     U32 FileSize;
-    U32 Sig;
-    U32 i;
     U8 Ident[EI_NIDENT];
     U8 Class;
 
-    DEBUG(TEXT("Entering GetExecutableInfo_ELF"));
-
     if (File == NULL) return FALSE;
     if (Info == NULL) return FALSE;
-    UNUSED(Ehdr64);
-    UNUSED(Phdr64);
 
-    /* Initialize operation header */
-    FileOperation.Header.Size = sizeof(FILEOPERATION);
-    FileOperation.Header.Version = EXOS_ABI_VERSION;
-    FileOperation.Header.Flags = 0;
-    FileOperation.File = (HANDLE)File;
-    FileOperation.Buffer = NULL;
-    FileOperation.NumBytes = 0;
+    DEBUG(TEXT("[GetExecutableInfo_ELF] Enter"));
+
+    ELFInitializeFileOperation(File, &FileOperation);
 
     FileSize = GetFileSize(File);
-    if (FileSize < EI_NIDENT) goto Out_Error;
-
-    /* Read ELF identification */
-    FileOperation.NumBytes = 0;
-    if (SetFilePosition(&FileOperation) != DF_RETURN_SUCCESS) goto Out_Error;
-
-    FileOperation.Buffer = (LPVOID)Ident;
-    FileOperation.NumBytes = EI_NIDENT;
-    if (ReadFile(&FileOperation) != EI_NIDENT) goto Out_Error;
-
-    Sig = ELFMakeSig(Ident);
-    if (Sig != ELF_SIGNATURE) goto Out_Error;
+    if (!ELFReadIdent(&FileOperation, FileSize, Ident)) goto Out_Error;
 
     Class = Ident[EI_CLASS];
+    if (!ELFReadHeader(&FileOperation, FileSize, Class, Ident, &Header)) goto Out_Error;
+    if (!ELFValidateProgramHeaderTable(FileSize, &Header)) goto Out_Error;
+    if (!ELFAnalyzeLayout(&FileOperation, FileSize, &Header, Class, &Layout)) goto Out_Error;
 
-    if (Class == ELFCLASS32) {
-        UINT CodeMin = MAX_UINT, CodeMax = 0;
-        UINT DataMin = MAX_UINT, DataMax = 0;
-        UINT BssMin = MAX_UINT, BssMax = 0;
-        BOOL HasLoadable = FALSE;
-        BOOL HasCode = FALSE;
-        BOOL HasInterp = FALSE;
-        U32 HeaderRemaining;
+    ELFStoreExecutableInfo(&Header, &Layout, Info);
 
-        if (FileSize < sizeof(EXOS_ELF32_EHDR)) goto Out_Error;
-
-        MemoryCopy(Ehdr32.e_ident, Ident, EI_NIDENT);
-        HeaderRemaining = sizeof(EXOS_ELF32_EHDR) - EI_NIDENT;
-        FileOperation.Buffer = ((U8*)&Ehdr32) + EI_NIDENT;
-        FileOperation.NumBytes = HeaderRemaining;
-        if (ReadFile(&FileOperation) != HeaderRemaining) goto Out_Error;
-
-        if (Ehdr32.e_ident[EI_DATA] != ELFDATA2LSB) goto Out_Error;
-        if (Ehdr32.e_version != EV_CURRENT) goto Out_Error;
-        if (Ehdr32.e_type != ET_EXEC) goto Out_Error;
-        if (Ehdr32.e_machine != EM_386) goto Out_Error;
-
-        if (Ehdr32.e_phnum == 0) goto Out_Error;
-        if (Ehdr32.e_phentsize < sizeof(EXOS_ELF32_PHDR)) goto Out_Error;
-
-        {
-            UINT pht_end;
-            if (!AddUIntOverflow((UINT)Ehdr32.e_phoff, (UINT)Ehdr32.e_phnum * (UINT)Ehdr32.e_phentsize, &pht_end)) goto Out_Error;
-            if (pht_end > FileSize) goto Out_Error;
-        }
-
-        for (i = 0; i < (U32)Ehdr32.e_phnum; ++i) {
-            UINT phoff_i;
-            UINT vend;
-            BOOL IsCode;
-            BOOL IsData;
-
-            if (!AddUIntOverflow((UINT)Ehdr32.e_phoff, (UINT)i * (UINT)Ehdr32.e_phentsize, &phoff_i)) goto Out_Error;
-            if (phoff_i > 0xFFFFFFFFU) goto Out_Error;
-
-            FileOperation.NumBytes = (U32)phoff_i;
-            if (SetFilePosition(&FileOperation) != DF_RETURN_SUCCESS) goto Out_Error;
-
-            FileOperation.Buffer = (LPVOID)&Phdr32;
-            FileOperation.NumBytes = sizeof(EXOS_ELF32_PHDR);
-            if (ReadFile(&FileOperation) != sizeof(EXOS_ELF32_PHDR)) goto Out_Error;
-
-            if (Phdr32.p_type == PT_INTERP) {
-                HasInterp = TRUE;
-            }
-            if (Phdr32.p_type != PT_LOAD) continue;
-
-            HasLoadable = TRUE;
-
-            if (!AddUIntOverflow((UINT)Phdr32.p_vaddr, (UINT)Phdr32.p_memsz, &vend)) goto Out_Error;
-
-            {
-                UINT fend;
-                if (!AddUIntOverflow((UINT)Phdr32.p_offset, (UINT)Phdr32.p_filesz, &fend)) goto Out_Error;
-                if (fend > FileSize) goto Out_Error;
-            }
-
-            IsCode = ELFIsCode(Phdr32.p_flags);
-            IsData = ELFIsData(Phdr32.p_flags);
-
-            if (IsCode) {
-                HasCode = TRUE;
-                if ((UINT)Phdr32.p_vaddr < CodeMin) CodeMin = (UINT)Phdr32.p_vaddr;
-                if (vend > CodeMax) CodeMax = vend;
-            } else if (IsData) {
-                if ((UINT)Phdr32.p_vaddr < DataMin) DataMin = (UINT)Phdr32.p_vaddr;
-                if (vend > DataMax) DataMax = vend;
-            } else {
-                if ((UINT)Phdr32.p_vaddr < DataMin) DataMin = (UINT)Phdr32.p_vaddr;
-                if (vend > DataMax) DataMax = vend;
-            }
-
-            if (Phdr32.p_memsz > Phdr32.p_filesz) {
-                UINT bss_start, bss_end;
-                if (!AddUIntOverflow((UINT)Phdr32.p_vaddr, (UINT)Phdr32.p_filesz, &bss_start)) goto Out_Error;
-                if (!AddUIntOverflow((UINT)Phdr32.p_vaddr, (UINT)Phdr32.p_memsz, &bss_end)) goto Out_Error;
-                if (bss_start < BssMin) BssMin = bss_start;
-                if (bss_end > BssMax) BssMax = bss_end;
-            }
-        }
-
-        if (!HasLoadable) goto Out_Error;
-        if (!HasCode) goto Out_Error;
-        if (HasInterp) goto Out_Error;
-
-        Info->EntryPoint = (UINT)Ehdr32.e_entry;
-
-        if (CodeMin != MAX_UINT && CodeMax > CodeMin) {
-            Info->CodeBase = CodeMin;
-            Info->CodeSize = CodeMax - CodeMin;
-        } else {
-            Info->CodeBase = 0;
-            Info->CodeSize = 0;
-        }
-
-        if (DataMin != MAX_UINT && DataMax > DataMin) {
-            Info->DataBase = DataMin;
-            Info->DataSize = DataMax - DataMin;
-        } else {
-            Info->DataBase = 0;
-            Info->DataSize = 0;
-        }
-
-        if (BssMin != MAX_UINT && BssMax > BssMin) {
-            Info->BssBase = BssMin;
-            Info->BssSize = BssMax - BssMin;
-        } else {
-            Info->BssBase = 0;
-            Info->BssSize = 0;
-        }
-
-        Info->StackMinimum = 0;
-        Info->StackRequested = 0;
-        Info->HeapMinimum = 0;
-        Info->HeapRequested = 0;
-
-        DEBUG(TEXT("Exiting GetExecutableInfo_ELF (success)"));
-        return TRUE;
-
-#if defined(__EXOS_ARCH_X86_64__)
-    } else if (Class == ELFCLASS64) {
-        UINT CodeMin = MAX_UINT, CodeMax = 0;
-        UINT DataMin = MAX_UINT, DataMax = 0;
-        UINT BssMin = MAX_UINT, BssMax = 0;
-        BOOL HasLoadable = FALSE;
-        BOOL HasCode = FALSE;
-        BOOL HasInterp = FALSE;
-        U32 HeaderRemaining;
-
-        if (FileSize < sizeof(EXOS_ELF64_EHDR)) goto Out_Error;
-
-        MemoryCopy(Ehdr64.e_ident, Ident, EI_NIDENT);
-        HeaderRemaining = sizeof(EXOS_ELF64_EHDR) - EI_NIDENT;
-        FileOperation.Buffer = ((U8*)&Ehdr64) + EI_NIDENT;
-        FileOperation.NumBytes = HeaderRemaining;
-        if (ReadFile(&FileOperation) != HeaderRemaining) goto Out_Error;
-
-        if (Ehdr64.e_ident[EI_DATA] != ELFDATA2LSB) goto Out_Error;
-        if (Ehdr64.e_version != EV_CURRENT) goto Out_Error;
-        if (Ehdr64.e_type != ET_EXEC) goto Out_Error;
-        if (Ehdr64.e_machine != EM_X86_64) goto Out_Error;
-
-        if (Ehdr64.e_phnum == 0) goto Out_Error;
-        if (Ehdr64.e_phentsize < sizeof(EXOS_ELF64_PHDR)) goto Out_Error;
-
-        {
-            UINT pht_end;
-            if (!AddUIntOverflow((UINT)Ehdr64.e_phoff, (UINT)Ehdr64.e_phnum * (UINT)Ehdr64.e_phentsize, &pht_end)) goto Out_Error;
-            if (pht_end > FileSize) goto Out_Error;
-        }
-
-        for (i = 0; i < (U32)Ehdr64.e_phnum; ++i) {
-            UINT phoff_i;
-            UINT vend;
-            BOOL IsCode;
-            BOOL IsData;
-
-            if (!AddUIntOverflow((UINT)Ehdr64.e_phoff, (UINT)i * (UINT)Ehdr64.e_phentsize, &phoff_i)) goto Out_Error;
-            if (phoff_i > 0xFFFFFFFFU) goto Out_Error;
-
-            FileOperation.NumBytes = (U32)phoff_i;
-            if (SetFilePosition(&FileOperation) != DF_RETURN_SUCCESS) goto Out_Error;
-
-            FileOperation.Buffer = (LPVOID)&Phdr64;
-            FileOperation.NumBytes = sizeof(EXOS_ELF64_PHDR);
-            if (ReadFile(&FileOperation) != sizeof(EXOS_ELF64_PHDR)) goto Out_Error;
-
-            if (Phdr64.p_type == PT_INTERP) {
-                HasInterp = TRUE;
-            }
-            if (Phdr64.p_type != PT_LOAD) continue;
-
-            HasLoadable = TRUE;
-
-            if (!AddUIntOverflow((UINT)Phdr64.p_vaddr, (UINT)Phdr64.p_memsz, &vend)) goto Out_Error;
-
-            {
-                UINT fend;
-                if (!AddUIntOverflow((UINT)Phdr64.p_offset, (UINT)Phdr64.p_filesz, &fend)) goto Out_Error;
-                if (fend > FileSize) goto Out_Error;
-            }
-
-            IsCode = ELFIsCode(Phdr64.p_flags);
-            IsData = ELFIsData(Phdr64.p_flags);
-
-            if (IsCode) {
-                HasCode = TRUE;
-                if ((UINT)Phdr64.p_vaddr < CodeMin) CodeMin = (UINT)Phdr64.p_vaddr;
-                if (vend > CodeMax) CodeMax = vend;
-            } else if (IsData) {
-                if ((UINT)Phdr64.p_vaddr < DataMin) DataMin = (UINT)Phdr64.p_vaddr;
-                if (vend > DataMax) DataMax = vend;
-            } else {
-                if ((UINT)Phdr64.p_vaddr < DataMin) DataMin = (UINT)Phdr64.p_vaddr;
-                if (vend > DataMax) DataMax = vend;
-            }
-
-            if (Phdr64.p_memsz > Phdr64.p_filesz) {
-                UINT bss_start, bss_end;
-                if (!AddUIntOverflow((UINT)Phdr64.p_vaddr, (UINT)Phdr64.p_filesz, &bss_start)) goto Out_Error;
-                if (!AddUIntOverflow((UINT)Phdr64.p_vaddr, (UINT)Phdr64.p_memsz, &bss_end)) goto Out_Error;
-                if (bss_start < BssMin) BssMin = bss_start;
-                if (bss_end > BssMax) BssMax = bss_end;
-            }
-        }
-
-        if (!HasLoadable) goto Out_Error;
-        if (!HasCode) goto Out_Error;
-        if (HasInterp) goto Out_Error;
-
-        Info->EntryPoint = (UINT)Ehdr64.e_entry;
-
-        if (CodeMin != MAX_UINT && CodeMax > CodeMin) {
-            Info->CodeBase = CodeMin;
-            Info->CodeSize = CodeMax - CodeMin;
-        } else {
-            Info->CodeBase = 0;
-            Info->CodeSize = 0;
-        }
-
-        if (DataMin != MAX_UINT && DataMax > DataMin) {
-            Info->DataBase = DataMin;
-            Info->DataSize = DataMax - DataMin;
-        } else {
-            Info->DataBase = 0;
-            Info->DataSize = 0;
-        }
-
-        if (BssMin != MAX_UINT && BssMax > BssMin) {
-            Info->BssBase = BssMin;
-            Info->BssSize = BssMax - BssMin;
-        } else {
-            Info->BssBase = 0;
-            Info->BssSize = 0;
-        }
-
-        Info->StackMinimum = 0;
-        Info->StackRequested = 0;
-        Info->HeapMinimum = 0;
-        Info->HeapRequested = 0;
-
-        DEBUG(TEXT("Exiting GetExecutableInfo_ELF (success)"));
-        return TRUE;
-#endif
-
-    }
+    DEBUG(TEXT("[GetExecutableInfo_ELF] Exit (success)"));
+    return TRUE;
 
 Out_Error:
-    DEBUG(TEXT("Exiting GetExecutableInfo_ELF (error)"));
+    DEBUG(TEXT("[GetExecutableInfo_ELF] Exit (error)"));
     return FALSE;
 }
 
@@ -416,295 +642,33 @@ Out_Error:
 // COMMENTS & LOGS IN ENGLISH (per coding guideline)
 
 BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LINEAR DataBase, LINEAR BssBase) {
-    UNUSED(BssBase);
-
     FILEOPERATION FileOperation;
-    EXOS_ELF32_EHDR Ehdr32;
-    EXOS_ELF32_PHDR Phdr32;
-#if defined(__EXOS_ARCH_X86_64__)
-    EXOS_ELF64_EHDR Ehdr64;
-    EXOS_ELF64_PHDR Phdr64;
-#endif
+    ELF_FILE_HEADER Header;
+    ELF_LAYOUT_INFO Layout;
     U32 FileSize;
     U8 Ident[EI_NIDENT];
     U8 Class;
-    U32 i;
-
-    UINT CodeRef = 0, DataRef = 0;
-    UINT CodeMin = MAX_UINT, CodeMax = 0;
-    UINT DataMin = MAX_UINT, DataMax = 0;
-    BOOL HasCode = FALSE;
-
-    DEBUG(TEXT("[LoadExecutable_ELF] %s"), File->Name);
 
     if (File == NULL) return FALSE;
     if (Info == NULL) return FALSE;
 
-    /* Initialize operation header */
-    FileOperation.Header.Size = sizeof(FILEOPERATION);
-    FileOperation.Header.Version = EXOS_ABI_VERSION;
-    FileOperation.Header.Flags = 0;
-    FileOperation.File = (HANDLE)File;
-    FileOperation.Buffer = NULL;
-    FileOperation.NumBytes = 0;
+    UNUSED(BssBase);
+
+    DEBUG(TEXT("[LoadExecutable_ELF] %s"), File->Name);
+
+    ELFInitializeFileOperation(File, &FileOperation);
 
     FileSize = GetFileSize(File);
-    if (FileSize < EI_NIDENT) goto Out_Error;
-
-    /* Read ELF identification */
-    FileOperation.NumBytes = 0;
-    if (SetFilePosition(&FileOperation) != DF_RETURN_SUCCESS) goto Out_Error;
-
-    FileOperation.Buffer = (LPVOID)Ident;
-    FileOperation.NumBytes = EI_NIDENT;
-    if (ReadFile(&FileOperation) != EI_NIDENT) goto Out_Error;
-
-    if (ELFMakeSig(Ident) != ELF_SIGNATURE) goto Out_Error;
+    if (!ELFReadIdent(&FileOperation, FileSize, Ident)) goto Out_Error;
 
     Class = Ident[EI_CLASS];
+    if (!ELFReadHeader(&FileOperation, FileSize, Class, Ident, &Header)) goto Out_Error;
+    if (!ELFValidateProgramHeaderTable(FileSize, &Header)) goto Out_Error;
+    if (!ELFAnalyzeLayout(&FileOperation, FileSize, &Header, Class, &Layout)) goto Out_Error;
+    if (!ELFLoadSegments(&FileOperation, FileSize, &Header, &Layout, Class, Info, CodeBase, DataBase)) goto Out_Error;
 
-    if (Class == ELFCLASS32) {
-        U32 HeaderRemaining;
-
-        if (FileSize < sizeof(EXOS_ELF32_EHDR)) goto Out_Error;
-
-        MemoryCopy(Ehdr32.e_ident, Ident, EI_NIDENT);
-        HeaderRemaining = sizeof(EXOS_ELF32_EHDR) - EI_NIDENT;
-        FileOperation.Buffer = ((U8*)&Ehdr32) + EI_NIDENT;
-        FileOperation.NumBytes = HeaderRemaining;
-        if (ReadFile(&FileOperation) != HeaderRemaining) goto Out_Error;
-
-        if (Ehdr32.e_ident[EI_DATA] != ELFDATA2LSB) goto Out_Error;
-        if (Ehdr32.e_version != EV_CURRENT) goto Out_Error;
-        if (Ehdr32.e_type != ET_EXEC) goto Out_Error;
-        if (Ehdr32.e_machine != EM_386) goto Out_Error;
-        if (Ehdr32.e_phnum == 0) goto Out_Error;
-        if (Ehdr32.e_phentsize < sizeof(EXOS_ELF32_PHDR)) goto Out_Error;
-
-        CodeRef = Info->CodeBase;
-        DataRef = Info->DataBase;
-
-        CodeMin = MAX_UINT;
-        CodeMax = 0;
-        DataMin = MAX_UINT;
-        DataMax = 0;
-        HasCode = FALSE;
-
-        for (i = 0; i < (U32)Ehdr32.e_phnum; ++i) {
-            UINT phoff_i;
-            UINT vend;
-
-            if (!AddUIntOverflow((UINT)Ehdr32.e_phoff, (UINT)i * (UINT)Ehdr32.e_phentsize, &phoff_i)) goto Out_Error;
-            if (phoff_i > 0xFFFFFFFFU) goto Out_Error;
-
-            FileOperation.NumBytes = (U32)phoff_i;
-            if (SetFilePosition(&FileOperation) != DF_RETURN_SUCCESS) goto Out_Error;
-
-            FileOperation.Buffer = (LPVOID)&Phdr32;
-            FileOperation.NumBytes = sizeof(EXOS_ELF32_PHDR);
-            if (ReadFile(&FileOperation) != sizeof(EXOS_ELF32_PHDR)) goto Out_Error;
-
-            if (Phdr32.p_type != PT_LOAD) continue;
-
-            if (!AddUIntOverflow((UINT)Phdr32.p_vaddr, (UINT)Phdr32.p_memsz, &vend)) goto Out_Error;
-
-            if (ELFIsCode(Phdr32.p_flags)) {
-                HasCode = TRUE;
-                if ((UINT)Phdr32.p_vaddr < CodeMin) CodeMin = (UINT)Phdr32.p_vaddr;
-                if (vend > CodeMax) CodeMax = vend;
-            } else {
-                if ((UINT)Phdr32.p_vaddr < DataMin) DataMin = (UINT)Phdr32.p_vaddr;
-                if (vend > DataMax) DataMax = vend;
-            }
-        }
-        if (!HasCode) goto Out_Error;
-
-        for (i = 0; i < (U32)Ehdr32.e_phnum; ++i) {
-            UINT phoff_i;
-            LINEAR Base = 0;
-            UINT Ref = 0;
-            LINEAR Dest;
-            U32 CopySize;
-            U32 ZeroSize;
-
-            if (!AddUIntOverflow((UINT)Ehdr32.e_phoff, (UINT)i * (UINT)Ehdr32.e_phentsize, &phoff_i)) goto Out_Error;
-            if (phoff_i > 0xFFFFFFFFU) goto Out_Error;
-
-            FileOperation.NumBytes = (U32)phoff_i;
-            if (SetFilePosition(&FileOperation) != DF_RETURN_SUCCESS) goto Out_Error;
-
-            FileOperation.Buffer = (LPVOID)&Phdr32;
-            FileOperation.NumBytes = sizeof(EXOS_ELF32_PHDR);
-            if (ReadFile(&FileOperation) != sizeof(EXOS_ELF32_PHDR)) goto Out_Error;
-
-            if (Phdr32.p_type != PT_LOAD) continue;
-
-            if (ELFIsCode(Phdr32.p_flags)) {
-                Base = CodeBase;
-                Ref = CodeRef;
-            } else {
-                Base = DataBase;
-                Ref = DataRef;
-            }
-
-            if ((UINT)Phdr32.p_vaddr < Ref) goto Out_Error;
-            Dest = Base + ((UINT)Phdr32.p_vaddr - Ref);
-
-            CopySize = Phdr32.p_filesz;
-            ZeroSize = (Phdr32.p_memsz > Phdr32.p_filesz) ? (Phdr32.p_memsz - Phdr32.p_filesz) : 0;
-
-            if (CopySize > 0) {
-                UINT fend;
-                if (!AddUIntOverflow((UINT)Phdr32.p_offset, (UINT)CopySize, &fend)) goto Out_Error;
-                if (fend > FileSize) goto Out_Error;
-
-                FileOperation.NumBytes = Phdr32.p_offset;
-                if (SetFilePosition(&FileOperation) != DF_RETURN_SUCCESS) goto Out_Error;
-
-                FileOperation.Buffer = (LPVOID)Dest;
-                FileOperation.NumBytes = CopySize;
-                if (ReadFile(&FileOperation) != CopySize) goto Out_Error;
-            }
-
-            if (ZeroSize > 0) {
-                MemorySet((LPVOID)(Dest + CopySize), 0, ZeroSize);
-            }
-        }
-
-        if ((UINT)Ehdr32.e_entry >= CodeMin && (UINT)Ehdr32.e_entry < CodeMax) {
-            Info->EntryPoint = (UINT)CodeBase + ((UINT)Ehdr32.e_entry - CodeRef);
-        } else if ((UINT)Ehdr32.e_entry >= DataMin && (UINT)Ehdr32.e_entry < DataMax) {
-            Info->EntryPoint = (UINT)DataBase + ((UINT)Ehdr32.e_entry - DataRef);
-        } else {
-            goto Out_Error;
-        }
-
-        DEBUG(TEXT("[LoadExecutable_ELF] Exit (success)"));
-        return TRUE;
-#if defined(__EXOS_ARCH_X86_64__)
-    } else if (Class == ELFCLASS64) {
-        U32 HeaderRemaining;
-
-        if (FileSize < sizeof(EXOS_ELF64_EHDR)) goto Out_Error;
-
-        MemoryCopy(Ehdr64.e_ident, Ident, EI_NIDENT);
-        HeaderRemaining = sizeof(EXOS_ELF64_EHDR) - EI_NIDENT;
-        FileOperation.Buffer = ((U8*)&Ehdr64) + EI_NIDENT;
-        FileOperation.NumBytes = HeaderRemaining;
-        if (ReadFile(&FileOperation) != HeaderRemaining) goto Out_Error;
-
-        if (Ehdr64.e_ident[EI_DATA] != ELFDATA2LSB) goto Out_Error;
-        if (Ehdr64.e_version != EV_CURRENT) goto Out_Error;
-        if (Ehdr64.e_type != ET_EXEC) goto Out_Error;
-        if (Ehdr64.e_machine != EM_X86_64) goto Out_Error;
-        if (Ehdr64.e_phnum == 0) goto Out_Error;
-        if (Ehdr64.e_phentsize < sizeof(EXOS_ELF64_PHDR)) goto Out_Error;
-
-        CodeRef = Info->CodeBase;
-        DataRef = Info->DataBase;
-
-        CodeMin = MAX_UINT;
-        CodeMax = 0;
-        DataMin = MAX_UINT;
-        DataMax = 0;
-        HasCode = FALSE;
-
-        for (i = 0; i < (U32)Ehdr64.e_phnum; ++i) {
-            UINT phoff_i;
-            UINT vend;
-
-            if (!AddUIntOverflow((UINT)Ehdr64.e_phoff, (UINT)i * (UINT)Ehdr64.e_phentsize, &phoff_i)) goto Out_Error;
-            if (phoff_i > 0xFFFFFFFFU) goto Out_Error;
-
-            FileOperation.NumBytes = (U32)phoff_i;
-            if (SetFilePosition(&FileOperation) != DF_RETURN_SUCCESS) goto Out_Error;
-
-            FileOperation.Buffer = (LPVOID)&Phdr64;
-            FileOperation.NumBytes = sizeof(EXOS_ELF64_PHDR);
-            if (ReadFile(&FileOperation) != sizeof(EXOS_ELF64_PHDR)) goto Out_Error;
-
-            if (Phdr64.p_type != PT_LOAD) continue;
-
-            if (!AddUIntOverflow((UINT)Phdr64.p_vaddr, (UINT)Phdr64.p_memsz, &vend)) goto Out_Error;
-
-            if (ELFIsCode(Phdr64.p_flags)) {
-                HasCode = TRUE;
-                if ((UINT)Phdr64.p_vaddr < CodeMin) CodeMin = (UINT)Phdr64.p_vaddr;
-                if (vend > CodeMax) CodeMax = vend;
-            } else {
-                if ((UINT)Phdr64.p_vaddr < DataMin) DataMin = (UINT)Phdr64.p_vaddr;
-                if (vend > DataMax) DataMax = vend;
-            }
-        }
-        if (!HasCode) goto Out_Error;
-
-        for (i = 0; i < (U32)Ehdr64.e_phnum; ++i) {
-            UINT phoff_i;
-            LINEAR Base = 0;
-            UINT Ref = 0;
-            LINEAR Dest;
-            U32 CopySize;
-            UINT ZeroSize;
-
-            if (!AddUIntOverflow((UINT)Ehdr64.e_phoff, (UINT)i * (UINT)Ehdr64.e_phentsize, &phoff_i)) goto Out_Error;
-            if (phoff_i > 0xFFFFFFFFU) goto Out_Error;
-
-            FileOperation.NumBytes = (U32)phoff_i;
-            if (SetFilePosition(&FileOperation) != DF_RETURN_SUCCESS) goto Out_Error;
-
-            FileOperation.Buffer = (LPVOID)&Phdr64;
-            FileOperation.NumBytes = sizeof(EXOS_ELF64_PHDR);
-            if (ReadFile(&FileOperation) != sizeof(EXOS_ELF64_PHDR)) goto Out_Error;
-
-            if (Phdr64.p_type != PT_LOAD) continue;
-
-            if (ELFIsCode(Phdr64.p_flags)) {
-                Base = CodeBase;
-                Ref = CodeRef;
-            } else {
-                Base = DataBase;
-                Ref = DataRef;
-            }
-
-            if ((UINT)Phdr64.p_vaddr < Ref) goto Out_Error;
-            Dest = Base + ((UINT)Phdr64.p_vaddr - Ref);
-
-            if (Phdr64.p_filesz > 0xFFFFFFFFU) goto Out_Error;
-            if (Phdr64.p_offset > 0xFFFFFFFFU) goto Out_Error;
-
-            CopySize = (U32)Phdr64.p_filesz;
-            ZeroSize = (UINT)((Phdr64.p_memsz > Phdr64.p_filesz) ? (Phdr64.p_memsz - Phdr64.p_filesz) : 0);
-
-            if (CopySize > 0) {
-                UINT fend;
-                if (!AddUIntOverflow((UINT)Phdr64.p_offset, (UINT)CopySize, &fend)) goto Out_Error;
-                if (fend > FileSize) goto Out_Error;
-
-                FileOperation.NumBytes = (U32)Phdr64.p_offset;
-                if (SetFilePosition(&FileOperation) != DF_RETURN_SUCCESS) goto Out_Error;
-
-                FileOperation.Buffer = (LPVOID)Dest;
-                FileOperation.NumBytes = CopySize;
-                if (ReadFile(&FileOperation) != CopySize) goto Out_Error;
-            }
-
-            if (ZeroSize > 0) {
-                MemorySet((LPVOID)(Dest + (UINT)CopySize), 0, ZeroSize);
-            }
-        }
-
-        if ((UINT)Ehdr64.e_entry >= CodeMin && (UINT)Ehdr64.e_entry < CodeMax) {
-            Info->EntryPoint = (UINT)CodeBase + ((UINT)Ehdr64.e_entry - CodeRef);
-        } else if ((UINT)Ehdr64.e_entry >= DataMin && (UINT)Ehdr64.e_entry < DataMax) {
-            Info->EntryPoint = (UINT)DataBase + ((UINT)Ehdr64.e_entry - DataRef);
-        } else {
-            goto Out_Error;
-        }
-
-        DEBUG(TEXT("[LoadExecutable_ELF] Exit (success)"));
-        return TRUE;
-#endif
-    }
+    DEBUG(TEXT("[LoadExecutable_ELF] Exit (success)"));
+    return TRUE;
 
 Out_Error:
     DEBUG(TEXT("[LoadExecutable_ELF] Exit (error)"));

@@ -24,6 +24,7 @@
 
 #include "drivers/storage/USBStorage-Private.h"
 
+#include "Clock.h"
 #include "Endianness.h"
 #include "Kernel.h"
 #include "Log.h"
@@ -32,43 +33,35 @@
 
 /************************************************************************/
 
-/**
- * @brief Convert a USB enumeration error code to a short text label.
- * @param Code Enumeration error code.
- * @return Constant label for the code.
- */
-LPCSTR UsbEnumErrorToString(U8 Code) {
-    switch (Code) {
-        case XHCI_ENUM_ERROR_NONE:
-            return TEXT("OK");
-        case XHCI_ENUM_ERROR_BUSY:
-            return TEXT("BUSY");
-        case XHCI_ENUM_ERROR_RESET_TIMEOUT:
-            return TEXT("RESET");
-        case XHCI_ENUM_ERROR_INVALID_SPEED:
-            return TEXT("SPEED");
-        case XHCI_ENUM_ERROR_INIT_STATE:
-            return TEXT("STATE");
-        case XHCI_ENUM_ERROR_ENABLE_SLOT:
-            return TEXT("SLOT");
-        case XHCI_ENUM_ERROR_ADDRESS_DEVICE:
-            return TEXT("ADDRESS");
-        case XHCI_ENUM_ERROR_DEVICE_DESC:
-            return TEXT("DEVICE");
-        case XHCI_ENUM_ERROR_CONFIG_DESC:
-            return TEXT("CONFIG");
-        case XHCI_ENUM_ERROR_CONFIG_PARSE:
-            return TEXT("PARSE");
-        case XHCI_ENUM_ERROR_SET_CONFIG:
-            return TEXT("SETCONFIG");
-        case XHCI_ENUM_ERROR_HUB_INIT:
-            return TEXT("HUB");
-        default:
-            return TEXT("UNKNOWN");
-    }
-}
+#define USB_STORAGE_WAIT_LOG_IMMEDIATE_BUDGET 1
+#define USB_STORAGE_WAIT_LOG_INTERVAL_MS 1000
 
 /************************************************************************/
+
+/**
+ * @brief Check whether one BOT transfer trace line should be emitted.
+ * @param SuppressedOut Receives suppressed count.
+ * @return TRUE when one line can be emitted.
+ */
+static BOOL USBStorageShouldTraceTransfer(U32* SuppressedOut) {
+    static RATE_LIMITER DATA_SECTION TransferTraceLimiter = {0};
+    static BOOL DATA_SECTION TransferTraceLimiterInitAttempted = FALSE;
+
+    if (SuppressedOut == NULL) {
+        return FALSE;
+    }
+
+    if (TransferTraceLimiter.Initialized == FALSE && TransferTraceLimiterInitAttempted == FALSE) {
+        TransferTraceLimiterInitAttempted = TRUE;
+        if (RateLimiterInit(&TransferTraceLimiter,
+                            USB_STORAGE_WAIT_LOG_IMMEDIATE_BUDGET,
+                            USB_STORAGE_WAIT_LOG_INTERVAL_MS) == FALSE) {
+            return FALSE;
+        }
+    }
+
+    return RateLimiterShouldTrigger(&TransferTraceLimiter, GetSystemTime(), SuppressedOut);
+}
 
 /**
  * @brief Check whether an interface matches USB mass storage BOT.
@@ -249,20 +242,46 @@ BOOL USBStorageResetRecovery(LPUSB_MASS_STORAGE_DEVICE Device) {
  * @return TRUE on completion, FALSE on timeout.
  */
 static BOOL USBStorageWaitCompletion(LPXHCI_DEVICE Device,
-                                         U64 TrbPhysical,
-                                         UINT TimeoutMilliseconds,
-                                         U32* CompletionOut) {
+                                     U64 TrbPhysical,
+                                     UINT TimeoutMilliseconds,
+                                     U32* CompletionOut) {
     UINT Remaining = TimeoutMilliseconds;
+    UINT Elapsed = 0;
+    U32 Suppressed = 0;
+
+    if (USBStorageShouldTraceTransfer(&Suppressed)) {
+        DEBUG(TEXT("[USBStorageWaitCompletion] Begin Timeout=%u Trb=%x:%x suppressed=%u"),
+              TimeoutMilliseconds,
+              U64_High32(TrbPhysical),
+              U64_Low32(TrbPhysical),
+              Suppressed);
+    }
 
     while (Remaining > 0) {
         if (XHCI_CheckTransferCompletion(Device, TrbPhysical, CompletionOut)) {
+            if (USBStorageShouldTraceTransfer(&Suppressed)) {
+                DEBUG(TEXT("[USBStorageWaitCompletion] Completed Elapsed=%u Completion=%x Trb=%x:%x suppressed=%u"),
+                      Elapsed,
+                      (CompletionOut != NULL) ? *CompletionOut : 0,
+                      U64_High32(TrbPhysical),
+                      U64_Low32(TrbPhysical),
+                      Suppressed);
+            }
             return TRUE;
         }
 
-        SleepWithSchedulerFrozenSupport(1);
+        Sleep(1);
         Remaining--;
+        Elapsed++;
     }
 
+    if (USBStorageShouldTraceTransfer(&Suppressed)) {
+        DEBUG(TEXT("[USBStorageWaitCompletion] Timeout Elapsed=%u Trb=%x:%x suppressed=%u"),
+              Elapsed,
+              U64_High32(TrbPhysical),
+              U64_Low32(TrbPhysical),
+              Suppressed);
+    }
     return FALSE;
 }
 
@@ -289,6 +308,7 @@ static BOOL USBStorageBulkTransferOnce(LPXHCI_DEVICE Device,
                                            UINT Length,
                                            BOOL DirectionIn,
                                            UINT TimeoutMilliseconds,
+                                           U8 ScsiOpCode,
                                            U32* CompletionOut) {
     if (Device == NULL || UsbDevice == NULL || Endpoint == NULL || BufferPhysical == 0 || BufferLinear == 0) {
         return FALSE;
@@ -306,7 +326,8 @@ static BOOL USBStorageBulkTransferOnce(LPXHCI_DEVICE Device,
     Trb.Dword2 = (U32)Length;
     Trb.Dword3 = (XHCI_TRB_TYPE_NORMAL << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_IOC;
     if (DirectionIn) {
-        Trb.Dword3 |= XHCI_TRB_DIR_IN;
+        // Allow early completion event on short packet for BOT IN data stages.
+        Trb.Dword3 |= XHCI_TRB_ISP;
     }
 
     if (!XHCI_RingEnqueue(Endpoint->TransferRingLinear,
@@ -322,6 +343,16 @@ static BOOL USBStorageBulkTransferOnce(LPXHCI_DEVICE Device,
     XHCI_RingDoorbell(Device, UsbDevice->SlotId, Endpoint->Dci);
 
     if (!USBStorageWaitCompletion(Device, TrbPhysical, TimeoutMilliseconds, CompletionOut)) {
+        DEBUG(TEXT("[USBStorageBulkTransferOnce] Timeout Op=%x Slot=%x Port=%u Addr=%u Ep=%x Dci=%u DirIn=%u Len=%u Trb=%p"),
+              (U32)ScsiOpCode,
+              (U32)UsbDevice->SlotId,
+              (U32)UsbDevice->PortNumber,
+              (U32)UsbDevice->Address,
+              (U32)Endpoint->Address,
+              (U32)Endpoint->Dci,
+              (U32)(DirectionIn != FALSE),
+              Length,
+              (LPVOID)(UINT)U64_Low32(TrbPhysical));
         return FALSE;
     }
 
@@ -347,14 +378,50 @@ static BOOL USBStorageBulkTransfer(LPXHCI_DEVICE Device,
                                        PHYSICAL BufferPhysical,
                                        LINEAR BufferLinear,
                                        UINT Length,
-                                       BOOL DirectionIn) {
+                                       BOOL DirectionIn,
+                                       U8 ScsiOpCode) {
+    U32 Suppressed = 0;
     for (UINT Attempt = 0; Attempt < USB_MASS_STORAGE_BULK_RETRIES; Attempt++) {
         U32 Completion = 0;
+        if (ScsiOpCode == USB_SCSI_READ_CAPACITY_10 && USBStorageShouldTraceTransfer(&Suppressed)) {
+            DEBUG(TEXT("[USBStorageBulkTransfer] Op=%x Attempt=%u/%u Slot=%x Ep=%x Dci=%u DirIn=%u Len=%u suppressed=%u"),
+                  (U32)ScsiOpCode,
+                  Attempt + 1,
+                  USB_MASS_STORAGE_BULK_RETRIES,
+                  (U32)UsbDevice->SlotId,
+                  (U32)Endpoint->Address,
+                  (U32)Endpoint->Dci,
+                  (U32)(DirectionIn != FALSE),
+                  Length,
+                  Suppressed);
+        }
+
         if (!USBStorageBulkTransferOnce(Device, UsbDevice, Endpoint, BufferPhysical, BufferLinear,
                                             Length,
                                             DirectionIn,
                                             USB_MASS_STORAGE_BULK_TIMEOUT_MILLISECONDS,
+                                            ScsiOpCode,
                                             &Completion)) {
+            if (USBStorageShouldTraceTransfer(&Suppressed)) {
+                DEBUG(TEXT("[USBStorageBulkTransfer] Attempt=%u/%u failed Slot=%x Port=%u Addr=%u Ep=%x DirIn=%u suppressed=%u"),
+                      Attempt + 1,
+                      USB_MASS_STORAGE_BULK_RETRIES,
+                      (U32)UsbDevice->SlotId,
+                      (U32)UsbDevice->PortNumber,
+                      (U32)UsbDevice->Address,
+                      (U32)Endpoint->Address,
+                      (U32)(DirectionIn != FALSE),
+                      Suppressed);
+            }
+            if (!XHCI_ResetTransferEndpoint(Device, UsbDevice, Endpoint, FALSE)) {
+                if (USBStorageShouldTraceTransfer(&Suppressed)) {
+                    DEBUG(TEXT("[USBStorageBulkTransfer] xHCI endpoint reset failed Slot=%x Dci=%u Ep=%x suppressed=%u"),
+                          (U32)UsbDevice->SlotId,
+                          (U32)Endpoint->Dci,
+                          (U32)Endpoint->Address,
+                          Suppressed);
+                }
+            }
             (void)USBStorageClearEndpointHalt(Device, UsbDevice, Endpoint->Address);
             continue;
         }
@@ -364,11 +431,32 @@ static BOOL USBStorageBulkTransfer(LPXHCI_DEVICE Device,
         }
 
         if (Completion == XHCI_COMPLETION_STALL_ERROR) {
+            if (!XHCI_ResetTransferEndpoint(Device, UsbDevice, Endpoint, TRUE)) {
+                if (USBStorageShouldTraceTransfer(&Suppressed)) {
+                    DEBUG(TEXT("[USBStorageBulkTransfer] xHCI endpoint reset failed after stall Slot=%x Dci=%u Ep=%x suppressed=%u"),
+                          (U32)UsbDevice->SlotId,
+                          (U32)Endpoint->Dci,
+                          (U32)Endpoint->Address,
+                          Suppressed);
+                }
+            }
             (void)USBStorageClearEndpointHalt(Device, UsbDevice, Endpoint->Address);
             continue;
         }
 
-        WARNING(TEXT("[USBStorageBulkTransfer] Completion %x"), Completion);
+        if (USBStorageShouldTraceTransfer(&Suppressed)) {
+            DEBUG(TEXT("[USBStorageBulkTransfer] Completion=%x Attempt=%u/%u Slot=%x Port=%u Addr=%u Ep=%x DirIn=%u Len=%u suppressed=%u"),
+                  Completion,
+                  Attempt + 1,
+                  USB_MASS_STORAGE_BULK_RETRIES,
+                  (U32)UsbDevice->SlotId,
+                  (U32)UsbDevice->PortNumber,
+                  (U32)UsbDevice->Address,
+                  (U32)Endpoint->Address,
+                  (U32)(DirectionIn != FALSE),
+                  Length,
+                  Suppressed);
+        }
         return FALSE;
     }
 
@@ -419,20 +507,43 @@ static BOOL USBStorageBotCommand(LPUSB_MASS_STORAGE_DEVICE Device,
     CommandBlockWrapper->LogicalUnitNumber = 0;
     CommandBlockWrapper->CommandBlockLength = CommandBlockLength;
     MemoryCopy(CommandBlockWrapper->CommandBlock, CommandBlock, CommandBlockLength);
+    Device->LastScsiOpCode = CommandBlock[0];
+    Device->LastBotStage = 1;
+    Device->LastCswStatus = 0xFF;
+    Device->LastCswResidue = 0;
+
+    DEBUG(TEXT("[USBStorageBotCommand] Op=%x CdbLen=%u DataLen=%u DirIn=%u Tag=%x Slot=%x Port=%u Addr=%u OutEp=%x InEp=%x"),
+          (U32)CommandBlock[0],
+          (U32)CommandBlockLength,
+          DataLength,
+          (U32)(DirectionIn != FALSE),
+          (U32)CommandBlockWrapper->Tag,
+          (U32)Device->UsbDevice->SlotId,
+          (U32)Device->UsbDevice->PortNumber,
+          (U32)Device->UsbDevice->Address,
+          (U32)Device->BulkOutEndpoint->Address,
+          (U32)Device->BulkInEndpoint->Address);
 
     if (!USBStorageBulkTransfer(Device->Controller, Device->UsbDevice, Device->BulkOutEndpoint,
                                     Device->InputOutputBufferPhysical, Device->InputOutputBufferLinear,
-                                    USB_MASS_STORAGE_COMMAND_BLOCK_LENGTH, FALSE)) {
-        ERROR(TEXT("[USBStorageBotCommand] CBW send failed"));
+                                    USB_MASS_STORAGE_COMMAND_BLOCK_LENGTH, FALSE, CommandBlock[0])) {
+        Device->LastBotStage = 2;
+        ERROR(TEXT("[USBStorageBotCommand] CBW send failed Op=%x Tag=%x"), (U32)CommandBlock[0], (U32)CommandBlockWrapper->Tag);
         return FALSE;
     }
 
     if (DataLength > 0) {
+        Device->LastBotStage = 3;
         if (!USBStorageBulkTransfer(Device->Controller, Device->UsbDevice,
                                         DirectionIn ? Device->BulkInEndpoint : Device->BulkOutEndpoint,
                                         Device->InputOutputBufferPhysical, Device->InputOutputBufferLinear,
-                                        DataLength, DirectionIn)) {
-            ERROR(TEXT("[USBStorageBotCommand] Data stage failed"));
+                                        DataLength, DirectionIn, CommandBlock[0])) {
+            Device->LastBotStage = 4;
+            ERROR(TEXT("[USBStorageBotCommand] Data stage failed Op=%x Tag=%x DirIn=%u Len=%u"),
+                  (U32)CommandBlock[0],
+                  (U32)CommandBlockWrapper->Tag,
+                  (U32)(DirectionIn != FALSE),
+                  DataLength);
             return FALSE;
         }
 
@@ -443,27 +554,40 @@ static BOOL USBStorageBotCommand(LPUSB_MASS_STORAGE_DEVICE Device,
 
     USB_MASS_STORAGE_COMMAND_STATUS_WRAPPER* CommandStatusWrapper =
         (USB_MASS_STORAGE_COMMAND_STATUS_WRAPPER*)Device->InputOutputBufferLinear;
+    Device->LastBotStage = 5;
     if (!USBStorageBulkTransfer(Device->Controller, Device->UsbDevice, Device->BulkInEndpoint,
                                     Device->InputOutputBufferPhysical, Device->InputOutputBufferLinear,
-                                    USB_MASS_STORAGE_COMMAND_STATUS_LENGTH, TRUE)) {
-        ERROR(TEXT("[USBStorageBotCommand] CSW read failed"));
+                                    USB_MASS_STORAGE_COMMAND_STATUS_LENGTH, TRUE, CommandBlock[0])) {
+        Device->LastBotStage = 6;
+        ERROR(TEXT("[USBStorageBotCommand] CSW read failed Op=%x Tag=%x"), (U32)CommandBlock[0], (U32)CommandBlockWrapper->Tag);
         return FALSE;
     }
+    Device->LastBotStage = 7;
+    Device->LastCswStatus = CommandStatusWrapper->Status;
+    Device->LastCswResidue = CommandStatusWrapper->DataResidue;
 
     if (CommandStatusWrapper->Signature != USB_MASS_STORAGE_COMMAND_STATUS_SIGNATURE ||
         CommandStatusWrapper->Tag != CommandBlockWrapper->Tag) {
-        ERROR(TEXT("[USBStorageBotCommand] Invalid CSW sig=%x tag=%x"),
+        ERROR(TEXT("[USBStorageBotCommand] Invalid CSW Op=%x Sig=%x Tag=%x ExpectedTag=%x Status=%x Residue=%u"),
+              (U32)CommandBlock[0],
               (U32)CommandStatusWrapper->Signature,
-              (U32)CommandStatusWrapper->Tag);
+              (U32)CommandStatusWrapper->Tag,
+              (U32)CommandBlockWrapper->Tag,
+              (U32)CommandStatusWrapper->Status,
+              (U32)CommandStatusWrapper->DataResidue);
         return FALSE;
     }
 
     if (CommandStatusWrapper->Status != 0) {
-        WARNING(TEXT("[USBStorageBotCommand] CSW status=%x residue=%u"),
+        WARNING(TEXT("[USBStorageBotCommand] CSW status=%x residue=%u Op=%x Tag=%x"),
                 (U32)CommandStatusWrapper->Status,
-                (U32)CommandStatusWrapper->DataResidue);
+                (U32)CommandStatusWrapper->DataResidue,
+                (U32)CommandBlock[0],
+                (U32)CommandBlockWrapper->Tag);
         return FALSE;
     }
+
+    Device->LastBotStage = 8;
 
     return TRUE;
 }
@@ -496,6 +620,49 @@ BOOL USBStorageInquiry(LPUSB_MASS_STORAGE_DEVICE Device) {
     MemoryCopy(Product, &InquiryData[16], 16);
 
     DEBUG(TEXT("[USBStorageInquiry] Vendor=%s Product=%s"), Vendor, Product);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Run SCSI REQUEST SENSE and log sense data.
+ * @param Device USB mass storage device context.
+ * @return TRUE on success.
+ */
+BOOL USBStorageRequestSense(LPUSB_MASS_STORAGE_DEVICE Device) {
+    U8 CommandBlock[6];
+    U8 SenseData[18];
+    U8 ResponseCode;
+    U8 SenseKey;
+    U8 AdditionalSenseCode;
+    U8 AdditionalSenseCodeQualifier;
+
+    MemorySet(CommandBlock, 0, sizeof(CommandBlock));
+    CommandBlock[0] = USB_SCSI_REQUEST_SENSE;
+    CommandBlock[4] = (U8)sizeof(SenseData);
+
+    if (!USBStorageBotCommand(Device, CommandBlock, sizeof(CommandBlock),
+                              sizeof(SenseData), TRUE, SenseData)) {
+        WARNING(TEXT("[USBStorageRequestSense] REQUEST SENSE failed LastOp=%x Stage=%u LastCSW=%x Residue=%u"),
+                (U32)Device->LastScsiOpCode,
+                (U32)Device->LastBotStage,
+                (U32)Device->LastCswStatus,
+                Device->LastCswResidue);
+        return FALSE;
+    }
+
+    ResponseCode = (U8)(SenseData[0] & 0x7F);
+    SenseKey = (U8)(SenseData[2] & 0x0F);
+    AdditionalSenseCode = SenseData[12];
+    AdditionalSenseCodeQualifier = SenseData[13];
+
+    WARNING(TEXT("[USBStorageRequestSense] Response=%x SenseKey=%x ASC=%x ASCQ=%x LastOp=%x"),
+            (U32)ResponseCode,
+            (U32)SenseKey,
+            (U32)AdditionalSenseCode,
+            (U32)AdditionalSenseCodeQualifier,
+            (U32)Device->LastScsiOpCode);
     return TRUE;
 }
 
@@ -547,12 +714,21 @@ BOOL USBStorageReadCapacity(LPUSB_MASS_STORAGE_DEVICE Device) {
 
 /**
  * @brief Build a SCSI READ(10) command block.
- * @param CommandBlock Output command block buffer (10 bytes).
+ * @param CommandBlock Output command block buffer.
+ * @param CommandBlockLength Command block buffer length in bytes.
  * @param LogicalBlockAddress Starting logical block address.
  * @param TransferBlocks Block count to read.
+ * @return TRUE on success.
  */
-static void USBStorageBuildRead10(U8* CommandBlock, UINT LogicalBlockAddress, UINT TransferBlocks) {
-    MemorySet(CommandBlock, 0, sizeof(CommandBlock));
+static BOOL USBStorageBuildRead10(U8* CommandBlock,
+                                  UINT CommandBlockLength,
+                                  UINT LogicalBlockAddress,
+                                  UINT TransferBlocks) {
+    if (CommandBlock == NULL || CommandBlockLength < USB_SCSI_READ_10_COMMAND_BLOCK_LENGTH) {
+        return FALSE;
+    }
+
+    MemorySet(CommandBlock, 0, CommandBlockLength);
     CommandBlock[0] = USB_SCSI_READ_10;
     CommandBlock[2] = (U8)((LogicalBlockAddress >> 24) & 0xFF);
     CommandBlock[3] = (U8)((LogicalBlockAddress >> 16) & 0xFF);
@@ -560,6 +736,8 @@ static void USBStorageBuildRead10(U8* CommandBlock, UINT LogicalBlockAddress, UI
     CommandBlock[5] = (U8)(LogicalBlockAddress & 0xFF);
     CommandBlock[7] = (U8)((TransferBlocks >> 8) & 0xFF);
     CommandBlock[8] = (U8)(TransferBlocks & 0xFF);
+
+    return TRUE;
 }
 
 /************************************************************************/
@@ -576,7 +754,7 @@ BOOL USBStorageReadBlocks(LPUSB_MASS_STORAGE_DEVICE Device,
                                      UINT LogicalBlockAddress,
                                      UINT TransferBlocks,
                                      LPVOID Output) {
-    U8 CommandBlock[10];
+    U8 CommandBlock[USB_SCSI_READ_10_COMMAND_BLOCK_LENGTH];
     UINT Length = TransferBlocks * Device->BlockSize;
 
     if (Output == NULL || Length == 0 || Length > PAGE_SIZE) {
@@ -587,7 +765,12 @@ BOOL USBStorageReadBlocks(LPUSB_MASS_STORAGE_DEVICE Device,
         return FALSE;
     }
 
-    USBStorageBuildRead10(CommandBlock, LogicalBlockAddress, TransferBlocks);
+    if (!USBStorageBuildRead10(CommandBlock,
+                               sizeof(CommandBlock),
+                               LogicalBlockAddress,
+                               TransferBlocks)) {
+        return FALSE;
+    }
 
     return USBStorageBotCommand(Device, CommandBlock, sizeof(CommandBlock), Length, TRUE, Output);
 }

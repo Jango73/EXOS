@@ -32,6 +32,7 @@
 /************************************************************************/
 // External symbols
 
+LPDRIVER MouseSelectorGetDriver(void);
 LPDRIVER SerialMouseGetDriver(void);
 LPDRIVER USBMouseGetDriver(void);
 

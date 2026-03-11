@@ -24,8 +24,29 @@
 #include "shell/Shell-Commands-Private.h"
 #include "DisplaySession.h"
 #include "DriverGetters.h"
+#include "Font.h"
 #include "GFX.h"
 #include "Desktop.h"
+#include "Desktop-InternalTest.h"
+
+/***************************************************************************/
+
+/**
+ * @brief Retrieve or create the kernel shell desktop instance.
+ * @return Desktop pointer or NULL on failure.
+ */
+static LPDESKTOP GetOrCreateShellDesktop(void) {
+    SAFE_USE_VALID_ID(KernelProcess.Desktop, KOID_DESKTOP) {
+        return KernelProcess.Desktop;
+    }
+
+    KernelProcess.Desktop = CreateDesktop();
+    SAFE_USE_VALID_ID(KernelProcess.Desktop, KOID_DESKTOP) {
+        return KernelProcess.Desktop;
+    }
+
+    return NULL;
+}
 
 /***************************************************************************/
 
@@ -59,8 +80,11 @@ static U32 GfxSmokeWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2
             HANDLE GraphicsContext = NULL;
             RECTINFO RectangleInfo;
             LINEINFO LineInfo;
+            GFX_TEXT_MEASURE_INFO MeasureInfo;
+            GFX_TEXT_DRAW_INFO DrawInfo;
+            const FONT_FACE* Font = FontGetDefaultFace();
 
-            GraphicsContext = GetWindowGC(Window);
+            GraphicsContext = BeginWindowDraw(Window);
             if (GraphicsContext == NULL) {
                 return 0;
             }
@@ -104,12 +128,39 @@ static U32 GfxSmokeWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2
             LineInfo.Y2 = GfxSmokeWindowHeight - 19;
             (void)Line(&LineInfo);
 
+            MeasureInfo = (GFX_TEXT_MEASURE_INFO){
+                .Header = {.Size = sizeof(GFX_TEXT_MEASURE_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+                .Text = TEXT("Graphics smoke test"),
+                .Font = Font,
+                .Width = 0,
+                .Height = 0
+            };
+            (void)MeasureText(&MeasureInfo);
+
+            (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_TITLE_TEXT));
+            (void)SelectBrush(GraphicsContext, NULL);
+            DrawInfo = (GFX_TEXT_DRAW_INFO){
+                .Header = {.Size = sizeof(GFX_TEXT_DRAW_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+                .GC = GraphicsContext,
+                .X = (GfxSmokeWindowWidth - (I32)MeasureInfo.Width) / 2,
+                .Y = 8,
+                .Text = TEXT("Graphics smoke test"),
+                .Font = Font
+            };
+            (void)DrawText(&DrawInfo);
+
+            (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_TEXT_NORMAL));
+            DrawInfo.X = 24;
+            DrawInfo.Y = 72;
+            DrawInfo.Text = TEXT("Shared text API\nKernel window path");
+            (void)DrawText(&DrawInfo);
+
             (void)EndWindowDraw(Window);
             return 0;
         }
 
         default:
-            return DefWindowFunc(Window, Message, Param1, Param2);
+            return BaseWindowFunc(Window, Message, Param1, Param2);
     }
 }
 
@@ -309,6 +360,8 @@ static U32 RunGraphicsSmokeTest(U32 DurationMilliseconds) {
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;
     WindowInfo.Parent = (HANDLE)Desktop->Window;
+    WindowInfo.WindowClass = 0;
+    WindowInfo.WindowClassName = NULL;
     WindowInfo.Function = GfxSmokeWindowFunc;
     WindowInfo.Style = EWS_VISIBLE;
     WindowInfo.ID = 0;
@@ -326,7 +379,7 @@ static U32 RunGraphicsSmokeTest(U32 DurationMilliseconds) {
         return DF_RETURN_SUCCESS;
     }
 
-    (void)SendMessage((HANDLE)Window, EWM_DRAW, 0, 0);
+    (void)PostMessage((HANDLE)Window, EWM_DRAW, 0, 0);
 
     Sleep(DurationMilliseconds);
 
@@ -334,6 +387,305 @@ static U32 RunGraphicsSmokeTest(U32 DurationMilliseconds) {
     DeleteDesktop(Desktop);
     ConsolePrint(TEXT("gfx smoke_test: done\n"));
 
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Convert display front-end identifier to text.
+ * @param FrontEnd Display front-end value.
+ * @return Constant text description.
+ */
+static LPCSTR DesktopFrontEndToText(U32 FrontEnd) {
+    switch (FrontEnd) {
+        case DISPLAY_FRONTEND_CONSOLE:
+            return TEXT("console");
+        case DISPLAY_FRONTEND_DESKTOP:
+            return TEXT("desktop");
+        default:
+            return TEXT("none");
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Convert desktop mode identifier to text.
+ * @param Mode Desktop mode value.
+ * @return Constant text description.
+ */
+static LPCSTR DesktopModeToText(U32 Mode) {
+    switch (Mode) {
+        case DESKTOP_MODE_GRAPHICS:
+            return TEXT("graphics");
+        case DESKTOP_MODE_CONSOLE:
+            return TEXT("console");
+        default:
+            return TEXT("unknown");
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Convert theme fallback reason identifier to text.
+ * @param Reason Theme fallback reason.
+ * @return Constant text description.
+ */
+static LPCSTR ThemeFallbackReasonToText(U32 Reason) {
+    switch (Reason) {
+        case DESKTOP_THEME_FALLBACK_REASON_NONE:
+            return TEXT("none");
+        case DESKTOP_THEME_FALLBACK_REASON_FILE_READ_FAILED:
+            return TEXT("file_read_failed");
+        case DESKTOP_THEME_FALLBACK_REASON_PARSE_FAILED:
+            return TEXT("parse_failed");
+        case DESKTOP_THEME_FALLBACK_REASON_ACTIVATION_FAILED:
+            return TEXT("activation_failed");
+        case DESKTOP_THEME_FALLBACK_REASON_NO_STAGED_THEME:
+            return TEXT("no_staged_theme");
+        case DESKTOP_THEME_FALLBACK_REASON_RESET_TO_DEFAULT:
+            return TEXT("reset_to_default");
+        default:
+            return TEXT("unknown");
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Convert desktop cursor path identifier to text.
+ * @param Path Cursor path value.
+ * @return Constant text description.
+ */
+static LPCSTR CursorPathToText(U32 Path) {
+    switch (Path) {
+        case DESKTOP_CURSOR_PATH_HARDWARE:
+            return TEXT("hardware");
+        case DESKTOP_CURSOR_PATH_SOFTWARE:
+            return TEXT("software");
+        default:
+            return TEXT("unset");
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Convert desktop cursor fallback reason to text.
+ * @param Reason Cursor fallback reason.
+ * @return Constant text description.
+ */
+static LPCSTR CursorFallbackReasonToText(U32 Reason) {
+    switch (Reason) {
+        case DESKTOP_CURSOR_FALLBACK_NONE:
+            return TEXT("none");
+        case DESKTOP_CURSOR_FALLBACK_NOT_GRAPHICS:
+            return TEXT("not_graphics");
+        case DESKTOP_CURSOR_FALLBACK_NO_CAPABILITIES:
+            return TEXT("no_capabilities");
+        case DESKTOP_CURSOR_FALLBACK_NO_CURSOR_PLANE:
+            return TEXT("no_cursor_plane");
+        case DESKTOP_CURSOR_FALLBACK_SET_SHAPE_FAILED:
+            return TEXT("set_shape_failed");
+        case DESKTOP_CURSOR_FALLBACK_SET_POSITION_FAILED:
+            return TEXT("set_position_failed");
+        case DESKTOP_CURSOR_FALLBACK_SET_VISIBLE_FAILED:
+            return TEXT("set_visible_failed");
+        default:
+            return TEXT("unknown");
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Print desktop/theme runtime status.
+ */
+static void PrintDesktopStatus(void) {
+    U32 FrontEnd;
+    LPDESKTOP ActiveDesktop;
+    DESKTOP_THEME_RUNTIME_INFO ThemeInfo;
+
+    FrontEnd = DisplaySessionGetActiveFrontEnd();
+    ActiveDesktop = GetActiveDesktop();
+
+    ConsolePrint(TEXT("desktop: front_end=%s\n"), DesktopFrontEndToText(FrontEnd));
+
+    if (ActiveDesktop != NULL) {
+        ConsolePrint(TEXT("desktop: mode=%s\n"), DesktopModeToText(ActiveDesktop->Mode));
+        ConsolePrint(TEXT("desktop: cursor_path=%s visible=%u pos=(%x,%x)\n"),
+            CursorPathToText(ActiveDesktop->Cursor.RenderPath),
+            ActiveDesktop->Cursor.Visible ? 1 : 0,
+            UNSIGNED(ActiveDesktop->Cursor.X),
+            UNSIGNED(ActiveDesktop->Cursor.Y));
+        ConsolePrint(TEXT("desktop: cursor_size=%ux%u\n"),
+            ActiveDesktop->Cursor.Width,
+            ActiveDesktop->Cursor.Height);
+        ConsolePrint(TEXT("desktop: cursor_fallback=%s\n"),
+            CursorFallbackReasonToText(ActiveDesktop->Cursor.FallbackReason));
+    } else {
+        ConsolePrint(TEXT("desktop: mode=unknown\n"));
+    }
+
+    if (GetActiveThemeInfo(&ThemeInfo) == FALSE) {
+        ConsolePrint(TEXT("desktop: theme=unavailable\n"));
+        return;
+    }
+
+    ConsolePrint(TEXT("desktop: theme_source=%s\n"), ThemeInfo.IsLoadedActive ? TEXT("loaded") : TEXT("built-in"));
+    if (ThemeInfo.ActiveThemePath[0] != STR_NULL) {
+        ConsolePrint(TEXT("desktop: active_theme=%s\n"), ThemeInfo.ActiveThemePath);
+    }
+    if (ThemeInfo.HasStagedTheme != FALSE && ThemeInfo.StagedThemePath[0] != STR_NULL) {
+        ConsolePrint(TEXT("desktop: staged_theme=%s\n"), ThemeInfo.StagedThemePath);
+    }
+    ConsolePrint(TEXT("desktop: theme_last_status=%x fallback_reason=%s\n"),
+        ThemeInfo.LastStatus,
+        ThemeFallbackReasonToText(ThemeInfo.LastFallbackReason));
+}
+
+/************************************************************************/
+
+/**
+ * @brief Show main desktop from shell and optionally apply config-selected theme.
+ * @return DF_RETURN_SUCCESS on completion.
+ */
+static U32 ShowMainDesktopFromShell(void) {
+    LPDESKTOP Desktop;
+    LPCSTR ConfiguredThemePath;
+
+    Desktop = GetOrCreateShellDesktop();
+    if (Desktop == NULL) {
+        ConsolePrint(TEXT("desktop show: desktop creation failed\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (DisplaySwitchToDesktop(Desktop) == FALSE) {
+        ConsolePrint(TEXT("desktop show: unable to switch to desktop\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    ConsolePrint(TEXT("desktop show: desktop active\n"));
+
+    // A configured theme path is optional and must never block desktop activation.
+    ConfiguredThemePath = GetConfigurationValue(TEXT("Desktop.ThemePath"));
+    if (ConfiguredThemePath != NULL && StringLength(ConfiguredThemePath) != 0) {
+        if (LoadTheme(ConfiguredThemePath) && ActivateTheme(TEXT("staged"))) {
+            ConsolePrint(TEXT("desktop show: theme activated from config (%s)\n"), ConfiguredThemePath);
+        } else {
+            ConsolePrint(TEXT("desktop show: theme config failed, keeping current theme (%s)\n"), ConfiguredThemePath);
+        }
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Apply one theme command target.
+ * @param Target Path or name provided by shell.
+ * @return DF_RETURN_SUCCESS on completion.
+ */
+static U32 ApplyDesktopThemeTarget(LPCSTR Target) {
+    if (Target == NULL || StringLength(Target) == 0) {
+        ConsolePrint(TEXT("Usage: desktop theme <path-or-name>\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (StringCompareNC(Target, TEXT("default")) == 0 ||
+        StringCompareNC(Target, TEXT("builtin")) == 0 ||
+        StringCompareNC(Target, TEXT("built-in")) == 0) {
+        if (ResetThemeToDefault()) {
+            ConsolePrint(TEXT("desktop theme: built-in theme activated\n"));
+        } else {
+            ConsolePrint(TEXT("desktop theme: unable to activate built-in theme\n"));
+        }
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (ActivateTheme(Target)) {
+        ConsolePrint(TEXT("desktop theme: activated %s\n"), Target);
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (LoadTheme(Target) == FALSE) {
+        ConsolePrint(TEXT("desktop theme: unable to load %s\n"), Target);
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (ActivateTheme(TEXT("staged")) == FALSE) {
+        ConsolePrint(TEXT("desktop theme: load succeeded but activation failed (%s)\n"), Target);
+        return DF_RETURN_SUCCESS;
+    }
+
+    ConsolePrint(TEXT("desktop theme: loaded and activated %s\n"), Target);
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Desktop command dispatcher.
+ * @param Context Shell context.
+ * @return DF_RETURN_SUCCESS on completion.
+ */
+U32 CMD_desktop(LPSHELLCONTEXT Context) {
+    STR Action[64];
+
+    ParseNextCommandLineComponent(Context);
+    StringCopy(Action, Context->Command);
+
+    if (StringLength(Action) == 0 || StringCompareNC(Action, TEXT("status")) == 0) {
+        PrintDesktopStatus();
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (StringCompareNC(Action, TEXT("show")) == 0) {
+        return ShowMainDesktopFromShell();
+    }
+
+    if (StringCompareNC(Action, TEXT("theme")) == 0) {
+        ParseNextCommandLineComponent(Context);
+        return ApplyDesktopThemeTarget(Context->Command);
+    }
+
+    if (StringCompareNC(Action, TEXT("stressdrag")) == 0) {
+        U32 Cycles = 12;
+        BOOL Result;
+        LPDESKTOP Desktop;
+
+        ParseNextCommandLineComponent(Context);
+        if (StringLength(Context->Command) != 0) {
+            Cycles = StringToU32(Context->Command);
+            if (Cycles == 0) {
+                ConsolePrint(TEXT("Usage: desktop stressdrag [cycles]\n"));
+                return DF_RETURN_SUCCESS;
+            }
+        }
+
+        Desktop = GetOrCreateShellDesktop();
+        if (Desktop == NULL) {
+            ConsolePrint(TEXT("desktop stressdrag: desktop creation failed\n"));
+            return DF_RETURN_SUCCESS;
+        }
+
+        Result = DesktopInternalRunStressDrag(Desktop, Cycles);
+        if (Result == FALSE) {
+            ConsolePrint(TEXT("desktop stressdrag: failed\n"));
+            return DF_RETURN_SUCCESS;
+        }
+
+        ConsolePrint(TEXT("desktop stressdrag: completed (%u cycles)\n"), Cycles);
+        return DF_RETURN_SUCCESS;
+    }
+
+    ConsolePrint(TEXT("Usage: desktop show\n"));
+    ConsolePrint(TEXT("       desktop status\n"));
+    ConsolePrint(TEXT("       desktop theme <path-or-name>\n"));
+    ConsolePrint(TEXT("       desktop stressdrag [cycles]\n"));
     return DF_RETURN_SUCCESS;
 }
 
@@ -472,9 +824,11 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    ActiveDesktop = DisplaySessionGetActiveDesktop();
-    if (ActiveDesktop != NULL) {
-        (void)DisplaySessionSetDesktopMode(ActiveDesktop, GraphicsDriver, &ModeInfo);
+    if (DisplaySessionSetConsoleGraphicsMode(GraphicsDriver, &ModeInfo) == FALSE) {
+        ActiveDesktop = GetActiveDesktop();
+        if (ActiveDesktop != NULL) {
+            (void)DisplaySessionSetDesktopMode(ActiveDesktop, GraphicsDriver, &ModeInfo);
+        }
     }
 
     ActiveBackendName = GraphicsSelectorGetActiveBackendName();

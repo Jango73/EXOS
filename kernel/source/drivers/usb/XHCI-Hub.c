@@ -233,7 +233,7 @@ static BOOL XHCI_SubmitHubStatusTransfer(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE
     Trb.Dword0 = U64_Low32(U64_FromUINT(Hub->HubStatusPhysical));
     Trb.Dword1 = U64_High32(U64_FromUINT(Hub->HubStatusPhysical));
     Trb.Dword2 = Hub->HubInterruptLength;
-    Trb.Dword3 = (XHCI_TRB_TYPE_NORMAL << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_IOC | XHCI_TRB_DIR_IN;
+    Trb.Dword3 = (XHCI_TRB_TYPE_NORMAL << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_IOC;
 
     MemorySet((LPVOID)Hub->HubStatusLinear, 0, Hub->HubInterruptLength);
     Hub->HubStatusPending = FALSE;
@@ -274,8 +274,6 @@ BOOL XHCI_CheckTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* Co
     UnlockMutex(&(Device->Mutex));
     return Found;
 }
-
-/************************************************************************/
 
 /**
  * @brief Allocate and initialize a child USB device.
@@ -359,10 +357,6 @@ static BOOL XHCI_ProbeHubPort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub, U8 Po
 
     Hub->HubChildren[Port - 1] = Child;
     Hub->HubPortStatus[Port - 1] = Status.Status;
-    DEBUG(TEXT("[XHCI_ProbeHubPort] Hub port %u child addr=%x speed=%s"),
-          Port,
-          Child->Address,
-          XHCI_SpeedToString(Child->SpeedId));
     return TRUE;
 }
 
@@ -475,7 +469,6 @@ BOOL XHCI_InitHub(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub) {
         }
     }
 
-    DEBUG(TEXT("[XHCI_InitHub] Hub ports=%u"), PortCount);
     return TRUE;
 }
 

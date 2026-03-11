@@ -45,13 +45,14 @@ static U32 DATA_SECTION ConsoleTextAcquireDepth = 0;
  * @return TRUE when dimensions are valid.
  */
 static BOOL ConsoleTextResolveCellSize(U32* CellWidth, U32* CellHeight) {
-    const FONT_GLYPH_SET* Font = FontGetDefault();
+    const FONT_FACE* Font = FontGetDefaultFace();
+    FONT_METRICS Metrics;
     U32 ResolvedWidth = 0;
     U32 ResolvedHeight = 0;
 
-    if (Font != NULL) {
-        ResolvedWidth = Font->Width;
-        ResolvedHeight = Font->Height;
+    if (FontFaceGetMetrics(Font, &Metrics)) {
+        ResolvedWidth = Metrics.CellWidth;
+        ResolvedHeight = Metrics.CellHeight;
     }
 
     if (ResolvedWidth == 0) {

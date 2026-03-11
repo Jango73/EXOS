@@ -17,17 +17,21 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 
 ## Architecture and Reuse Rules
 - Never implement one-off local mechanisms when a cross-kernel pattern is involved.
+- Bidirectional coupling is **STRICTLY FORBIDDEN**, both when writing code from scratch and when delivering a fix. Keep dependencies unidirectional and break cycles instead of introducing or preserving them.
 - Any behavior likely to appear in multiple places (rate limit, retry, timeout policy, backoff, filtering, counters) MUST be implemented as a reusable module in `kernel/include/utils` + `kernel/source/utils`.
 - Before adding local logic in a driver/subsystem, check `kernel/include/utils` and `kernel/source/utils` first.
 - If no suitable module exists, create a generic one and use it from the caller.
 - Driver code should only express policy/usage, not duplicate generic mechanics.
 - For log-flood control, use the shared `RateLimiter` helper; do not hardcode ad-hoc counters/cooldowns inside drivers.
+- **Mutex ownership**: this rule applies to the whole kernel. Never lock another object's mutex directly to inspect or mutate its internal state. Expose owner-side getters/setters/snapshot helpers, keep critical sections short, and never recurse or call callbacks/messages while holding structural object locks.
 
 ## Coding Conventions
 - **Types**: Use **LINEAR** for virtual addresses (when not using direct pointers), **PHYSICAL** for physical addresses, **UINT** for indexes, sizes and error values. In the kernel, it is **STRICTLY FORBIDDEN** to use a direct c type (int, unsigned long, long long, etc...) : **only types in Base.h are allowed.**
 - **Freestanding**: The kernel **MUST NOT** rely on **ANY** external library/module (unless specified otherwise). **NO** stdlib, stdio, whatever. Everything the kernel needs is built in the compiler and in the codebase.
 - **Debugging**: Debug output is logged with DEBUG(). Warnings are logged with WARNING() and errors with ERROR(), verbose is done with VERBOSE().
 - **Logging**: A log string **ALWAYS** begins with "[FunctionName]" where FunctionName is the name of the function where the logging is done. Use "%p" for pointers and addresses, "%x" for values except for sizes which use "%u". Do not hide errors by removing warnings. Reduce flood with rate limiting while preserving diagnostic signal (`suppressed` count or equivalent).
+- **WARNING/ERROR semantics (mandatory)**: `WARNING()` and `ERROR()` are human-facing alerts. They MUST stay short, actionable, and understandable without deep protocol knowledge.
+- **Diagnostic dumps (mandatory)**: Detailed protocol diagnostics (raw register dumps, TRB dumps, retry traces, queue internals, step-by-step instrumentation) MUST use `DEBUG()` only, never `VERBOSE()`, `WARNING()`, or `ERROR()`.
 - **TEXT literals (mandatory)**: In kernel C code, every string literal passed to APIs/macros expecting `LPCSTR` (for example `DEBUG`, `WARNING`, `ERROR`, `VERBOSE`, `KernelLogText`, `ConsolePrint`, and ternary literal fallbacks) **MUST** be wrapped with `TEXT("...")`. Never pass raw `"..."` to those paths.
 - **Declaration order**: Group declarations by type. 1: macros / 2: type definitions / 3: inline functions / 4: external functions / 5: other
 - **Function order**: DO NOT OVERUSE forward declarations. Define functions before they are used.
@@ -144,6 +148,34 @@ Doxygen documentation is in `documentation/kernel/*`
 1. Use scheduling debug build when needing per-tick information, for scheduler or interrupt issues: `./scripts/build --arch x86-32 --fs ext2 --scheduling-debug` (or add `--clean` for a clean make) and the `x86-64` equivalent: `./scripts/build --arch x86-64 --fs ext2 --scheduling-debug`. GENERATES TONS OF LOG, USE WITH CARE.
 2. Monitor `log/kernel-x86-32.log` and `kernel-x86-64.log` for exceptions and page faults
 3. **To assert that the systems runs, the emulator must be running and there must be no fault in the logs, in all architectures**
+
+### Reusable x86-64 debug launcher
+Use `bash scripts/x86-64/6-3-debug-vesa-int10.sh` as the default one-shot launcher for interactive x86-64 debug sessions requiring:
+- QEMU start with gdb stub (`-s -S`) and monitor telnet
+- deterministic keyboard layout patch in the image for monitor `sendkey`
+- optional automatic shell command injection
+- automatic gdb attach with configurable breakpoints
+
+Default usage:
+```bash
+bash scripts/x86-64/6-3-debug-vesa-int10.sh
+```
+
+Send a command automatically:
+```bash
+bash scripts/x86-64/6-3-debug-vesa-int10.sh "gfx backend vesa 1024x768x16"
+```
+
+Send a command and validate it through a kernel log pattern:
+```bash
+bash scripts/x86-64/6-3-debug-vesa-int10.sh "gfx backend vesa 1024x768x16" "[GraphicsSelectorForceBackendByName] Forced backend"
+```
+
+Key environment overrides:
+- `GDB_BREAKPOINTS` (semicolon-separated, example: `SetVideoMode;RealModeCall`)
+- `GDB_DISABLE_INDEXES` (space-separated gdb breakpoint indexes to disable after creation)
+- `KEYBOARD_LAYOUT` (default: `en-US`)
+- `MONITOR_PORT` and `GDB_PORT`
 
 **Disassembly Analysis:**
 - `./scripts/utils/show-x86-32.sh <address> [context_lines]` (x86-32 build)

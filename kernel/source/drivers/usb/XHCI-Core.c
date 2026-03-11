@@ -238,35 +238,6 @@ static void XHCI_LogInitReadback(LPXHCI_DEVICE Device,
     PciCommand = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_COMMAND);
     PciStatus = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_STATUS);
 
-    DEBUG(TEXT("[XHCI_LogInitReadback] step=%s USBCMD=%x USBSTS=%x CONFIG=%x PCICMD=%x PCISTS=%x Scratch=%u DCBAA0=%x:%x DCBAAP=%x:%x/%x:%x CRCR=%x:%x/%x:%x ERSTBA=%x:%x/%x:%x ERDP=%x:%x/%x:%x IMAN=%x IMOD=%x ERSTSZ=%x"),
-            (Step != NULL) ? Step : TEXT("?"),
-            Usbcmd,
-            Usbsts,
-            Config,
-            (U32)PciCommand,
-            (U32)PciStatus,
-            (U32)Device->MaxScratchpadBuffers,
-            DcbaaEntry0High,
-            DcbaaEntry0Low,
-            U64_High32(ProgrammedDcbaap),
-            U64_Low32(ProgrammedDcbaap),
-            DcbaapHigh,
-            DcbaapLow,
-            U64_High32(ProgrammedCrcr),
-            U64_Low32(ProgrammedCrcr),
-            CrcrHigh,
-            CrcrLow,
-            U64_High32(ProgrammedErstba),
-            U64_Low32(ProgrammedErstba),
-            ErstbaHigh,
-            ErstbaLow,
-            U64_High32(ProgrammedErdp),
-            U64_Low32(ProgrammedErdp),
-            ErdpHigh,
-            ErdpLow,
-            Iman,
-            Imod,
-            Erstsz);
 }
 
 /************************************************************************/
@@ -390,12 +361,17 @@ static void XHCI_ClearInterruptPending(LPXHCI_DEVICE Device) {
 static void XHCI_SetInterruptEnabled(LPXHCI_DEVICE Device, BOOL Enabled) {
     LINEAR InterrupterBase = XHCI_GetInterrupterBase(Device);
     U32 Iman = XHCI_Read32(InterrupterBase, XHCI_IMAN);
+    U32 Command = XHCI_Read32(Device->OpBase, XHCI_OP_USBCMD);
     Iman &= ~XHCI_IMAN_IE;
     if (Enabled) {
         Iman |= XHCI_IMAN_IE;
+        Command |= XHCI_USBCMD_INTE;
+    } else {
+        Command &= ~XHCI_USBCMD_INTE;
     }
     Iman |= XHCI_IMAN_IP;
     XHCI_Write32(InterrupterBase, XHCI_IMAN, Iman);
+    XHCI_Write32(Device->OpBase, XHCI_OP_USBCMD, Command);
 }
 
 /************************************************************************/
@@ -442,7 +418,9 @@ static void XHCI_InterruptBottomHalf(LPDEVICE DevicePointer, LPVOID Context) {
 
     LPXHCI_DEVICE Device = (LPXHCI_DEVICE)Context;
     SAFE_USE_VALID_ID((LPLISTNODE)Device, KOID_PCIDEVICE) {
+        LockMutex(&(Device->Mutex), INFINITY);
         XHCI_PollCompletions(Device);
+        UnlockMutex(&(Device->Mutex));
         USBKeyboardOnXhciInterrupt(Device);
     }
 }
@@ -552,6 +530,7 @@ static void XHCI_PushCompletion(LPXHCI_DEVICE Device, const XHCI_TRB* Event) {
     U64 Pointer = U64_Make(Event->Dword1, Event->Dword0);
     U32 Completion = XHCI_GetCompletionCode(Event->Dword2);
     U8 SlotId = (U8)((Event->Dword3 >> 24) & 0xFF);
+    U8 EndpointId = (U8)((Event->Dword3 >> 16) & 0x1F);
 
     if (Device->CompletionCount >= XHCI_COMPLETION_QUEUE_MAX) {
         for (U32 Index = 1; Index < Device->CompletionCount; Index++) {
@@ -608,8 +587,6 @@ BOOL XHCI_PopCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* Slot
 
     return FALSE;
 }
-
-/************************************************************************/
 
 /**
  * @brief Drain events until one targeted completion is found.
@@ -828,52 +805,35 @@ void XHCI_PollCompletions(LPXHCI_DEVICE Device) {
  * @param Offset Register offset.
  * @param Mask Mask applied to register.
  * @param Value Expected value after masking.
- * @param Timeout Loop bound.
+ * @param Timeout Timeout in milliseconds.
  * @return TRUE on success, FALSE on timeout.
  */
 BOOL XHCI_WaitForRegister(LINEAR Base, U32 Offset, U32 Mask, U32 Value, U32 Timeout, LPCSTR Name) {
-    U32 Count = 0;
-    U32 StartTick = GetSystemTime();
-    U32 StartTickFallback = StartTick;
-    U32 StartCount = 0;
-    THRESHOLD_LATCH Latch;
+    U32 ElapsedMilliseconds = 0;
+    U32 NextWarningAt = 200;
 
-    ThresholdLatchInit(&Latch, Name, 200, StartTick);
-    while (Count < Timeout) {
+    while (ElapsedMilliseconds < Timeout) {
         if ((XHCI_Read32(Base, Offset) & Mask) == Value) {
             return TRUE;
         }
-        Count++;
-        if ((Count & 0x0FFF) == 0) {
-            U32 Now = GetSystemTime();
-            if (Now > StartTickFallback) {
-                if (ThresholdLatchCheck(&Latch, Now)) {
-                    WARNING(TEXT("[XHCI_WaitForRegister] %s exceeded %u ms (base=%p off=%x mask=%x value=%x)"),
-                            (Latch.Name != NULL) ? Latch.Name : TEXT("?"),
-                            Latch.ThresholdMS,
-                            (LPVOID)Base,
-                            Offset,
-                            Mask,
-                            Value);
-                }
-            } else if (StartCount == 0) {
-                StartCount = Count;
-                StartTickFallback = Now;
-            } else {
-                U32 ElapsedCounts = Count - StartCount;
-                if (ElapsedCounts >= 0x40000U) {
-                    WARNING(TEXT("[XHCI_WaitForRegister] %s exceeded %x spins (base=%p off=%x mask=%x value=%x)"),
-                            (Latch.Name != NULL) ? Latch.Name : TEXT("?"),
-                            ElapsedCounts,
-                            (LPVOID)Base,
-                            Offset,
-                            Mask,
-                            Value);
-                    StartCount = Count;
-                }
+
+        if (ElapsedMilliseconds >= NextWarningAt) {
+            WARNING(TEXT("[XHCI_WaitForRegister] %s exceeded %u ms (base=%p off=%x mask=%x value=%x)"),
+                    (Name != NULL) ? Name : TEXT("?"),
+                    ElapsedMilliseconds,
+                    (LPVOID)Base,
+                    Offset,
+                    Mask,
+                    Value);
+            if (NextWarningAt < MAX_U32 - 200) {
+                NextWarningAt += 200;
             }
         }
+
+        Sleep(1);
+        ElapsedMilliseconds++;
     }
+
     return FALSE;
 }
 
@@ -1419,8 +1379,6 @@ static U32 XHCI_OnGetCaps(void) { return 0; }
  */
 static U32 XHCI_OnGetLastFunc(void) { return DF_PROBE; }
 
-/************************************************************************/
-
 /**
  * @brief Driver command handler.
  * @param Function Function identifier.
@@ -1473,6 +1431,8 @@ static LPPCI_DEVICE XHCI_Attach(LPPCI_DEVICE PciDevice) {
     InitMutex(&(Device->Mutex));
     Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
     Device->HubPollHandle = DEFERRED_WORK_INVALID_HANDLE;
+    Device->CommandTimeoutMS = XHCI_DEFAULT_EVENT_TIMEOUT_MS;
+    Device->TransferTimeoutMS = XHCI_DEFAULT_TRANSFER_TIMEOUT_MS;
 
     U32 Bar0Raw = Device->Info.BAR[0];
     U32 Bar1Raw = Device->Info.BAR[1];

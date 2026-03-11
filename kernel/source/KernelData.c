@@ -71,6 +71,17 @@ static LIST DriverList = {
 
 /************************************************************************/
 
+static LIST WindowClassList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
+
+/************************************************************************/
+
 static LIST DesktopList = {
     .First = NULL,
     .Last = NULL,
@@ -272,6 +283,7 @@ static LIST UserAccountList = {
 static KERNELDATA DATA_SECTION Kernel = {
     .StartupDrivers = &StartupDriverList,
     .Drivers = &DriverList,
+    .WindowClass = &WindowClassList,
     .Desktop = &DesktopList,
     .Process = &ProcessList,
     .Task = &TaskList,
@@ -291,7 +303,8 @@ static KERNELDATA DATA_SECTION Kernel = {
     .Socket = &SocketList,
     .UserSessions = NULL,
     .UserAccount = &UserAccountList,
-    .FocusedDesktop = &MainDesktop,
+    .ActiveDesktop = NULL,
+    .FocusedProcess = &KernelProcess,
     .FileSystemInfo = {.ActivePartitionName = ""},
     .SystemFS = {
         .Header = {
@@ -318,7 +331,7 @@ static KERNELDATA DATA_SECTION Kernel = {
         .Root = NULL
     },
     .HandleMap = {0},
-    .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0},
+    .CPU = {.Name = "", .Type = 0, .Family = 0, .Model = 0, .Stepping = 0, .Features = 0, .BaseFrequencyMHz = 0},
     .Configuration = NULL,
     .MinimumQuantum = 10,
     .MaximumQuantum = 50,
@@ -452,6 +465,7 @@ void InitializeDriverList(void) {
     RegisterDriver(ClockGetDriver(), TRUE);
     RegisterDriver(PCIGetDriver(), TRUE);
     RegisterDriver(KeyboardSelectorGetDriver(), TRUE);
+    RegisterDriver(MouseSelectorGetDriver(), TRUE);
     RegisterDriver(USBMouseGetDriver(), TRUE);
     RegisterDriver(USBStorageGetDriver(), TRUE);
     RegisterDriver(ATADiskGetDriver(), TRUE);
@@ -490,6 +504,16 @@ LPLIST GetDriverList(void) {
  */
 LPLIST GetStartupDriverList(void) {
     return Kernel.StartupDrivers;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the registered window class list.
+ * @return Pointer to the window class list.
+ */
+LPLIST GetWindowClassList(void) {
+    return Kernel.WindowClass;
 }
 
 /************************************************************************/
@@ -913,34 +937,34 @@ void SetMaximumQuantum(UINT MaximumQuantum) {
 /************************************************************************/
 
 /**
- * @brief Retrieve the desktop currently holding input focus.
- * @return Focused desktop pointer or NULL if none is set.
+ * @brief Retrieve the current desktop.
+ * @return Active desktop pointer or NULL if none is set.
  */
-LPDESKTOP GetFocusedDesktop(void) {
-    return Kernel.FocusedDesktop;
+LPDESKTOP GetActiveDesktop(void) {
+    return Kernel.ActiveDesktop;
 }
 
 /************************************************************************/
 
 /**
- * @brief Set the desktop that holds input focus.
- * @param Desktop Desktop to focus, may be NULL to clear focus.
+ * @brief Set the current desktop.
+ * @param Desktop Desktop to activate, may be NULL to clear it.
  */
-void SetFocusedDesktop(LPDESKTOP Desktop) {
-    LPDESKTOP PreviousDesktop = Kernel.FocusedDesktop;
+void SetActiveDesktop(LPDESKTOP Desktop) {
+    LPDESKTOP PreviousDesktop = Kernel.ActiveDesktop;
+    LPPROCESS FocusedProcess = Kernel.FocusedProcess;
 
     SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
-        Kernel.FocusedDesktop = Desktop;
-
-        if (Desktop->FocusedProcess == NULL) {
-            Desktop->FocusedProcess = &KernelProcess;
-        }
+        Kernel.ActiveDesktop = Desktop;
     } else {
-        Kernel.FocusedDesktop = &MainDesktop;
-        MainDesktop.FocusedProcess = &KernelProcess;
+        Kernel.ActiveDesktop = NULL;
+        if (FocusedProcess == NULL || FocusedProcess->TypeID != KOID_PROCESS ||
+            FocusedProcess->Status == PROCESS_STATUS_DEAD) {
+            Kernel.FocusedProcess = &KernelProcess;
+        }
     }
 
-    if (Kernel.FocusedDesktop != PreviousDesktop) {
+    if (Kernel.ActiveDesktop != PreviousDesktop) {
         ClearKeyboardBuffer();
     }
 }
@@ -952,19 +976,21 @@ void SetFocusedDesktop(LPDESKTOP Desktop) {
  * @return Focused process pointer or NULL if none is set.
  */
 LPPROCESS GetFocusedProcess(void) {
-    LPDESKTOP Desktop = Kernel.FocusedDesktop;
-
-    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
-        SAFE_USE_VALID_ID(Desktop->FocusedProcess, KOID_PROCESS) {
-            if (Desktop->FocusedProcess->Status == PROCESS_STATUS_DEAD) {
-                Desktop->FocusedProcess = &KernelProcess;
-                return &KernelProcess;
-            }
-            return Desktop->FocusedProcess;
+    SAFE_USE_VALID_ID(Kernel.FocusedProcess, KOID_PROCESS) {
+        if (Kernel.FocusedProcess->Status == PROCESS_STATUS_DEAD) {
+            Kernel.FocusedProcess = &KernelProcess;
+            return &KernelProcess;
         }
+        return Kernel.FocusedProcess;
     }
 
     return &KernelProcess;
+}
+
+/************************************************************************/
+
+LPDESKTOP_THEME GetGlobalThemeState(void) {
+    return &Kernel.Theme;
 }
 
 /************************************************************************/
@@ -974,28 +1000,99 @@ LPPROCESS GetFocusedProcess(void) {
  * @param Process Process to focus, may be NULL to clear focus.
  */
 void SetFocusedProcess(LPPROCESS Process) {
-    LPDESKTOP Desktop = Kernel.FocusedDesktop;
-    LPDESKTOP PreviousDesktop = Kernel.FocusedDesktop;
-    LPPROCESS PreviousProcess = NULL;
-
-    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) { PreviousProcess = Desktop->FocusedProcess; }
+    LPDESKTOP PreviousDesktop = Kernel.ActiveDesktop;
+    LPPROCESS PreviousProcess = Kernel.FocusedProcess;
 
     SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
-        if (Process->Desktop != NULL) {
-            Desktop = Process->Desktop;
-            Kernel.FocusedDesktop = Desktop;
+        Kernel.FocusedProcess = Process;
+        if (Process->Desktop != NULL && Process->Desktop->TypeID == KOID_DESKTOP) {
+            Kernel.ActiveDesktop = Process->Desktop;
+        } else {
+            Kernel.ActiveDesktop = NULL;
+        }
+    } else {
+        Kernel.FocusedProcess = &KernelProcess;
+        if (KernelProcess.Desktop != NULL && KernelProcess.Desktop->TypeID == KOID_DESKTOP) {
+            Kernel.ActiveDesktop = KernelProcess.Desktop;
+        } else {
+            Kernel.ActiveDesktop = NULL;
         }
     }
 
-    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
-        if (Desktop->FocusedProcess != Process) {
-            Desktop->FocusedProcess = Process;
-        }
-    }
-
-    if (Kernel.FocusedDesktop != PreviousDesktop || PreviousProcess != Process) {
+    if (Kernel.ActiveDesktop != PreviousDesktop || PreviousProcess != Process) {
         ClearKeyboardBuffer();
     }
+}
+
+/************************************************************************/
+
+static void ReadCPUIDLeaf(U32 Leaf, U32 SubLeaf, LPCPUIDREGISTERS Registers) {
+    if (Registers == NULL) {
+        return;
+    }
+
+#if defined(__EXOS_ARCH_X86_32__) || defined(__EXOS_ARCH_X86_64__)
+    U32 EAXValue;
+    U32 EBXValue;
+    U32 ECXValue;
+    U32 EDXValue;
+
+    __asm__ __volatile__("cpuid"
+                         : "=a"(EAXValue), "=b"(EBXValue), "=c"(ECXValue), "=d"(EDXValue)
+                         : "a"(Leaf), "c"(SubLeaf));
+
+    Registers->reg_EAX = EAXValue;
+    Registers->reg_EBX = EBXValue;
+    Registers->reg_ECX = ECXValue;
+    Registers->reg_EDX = EDXValue;
+#else
+    UNUSED(Leaf);
+    UNUSED(SubLeaf);
+
+    Registers->reg_EAX = 0;
+    Registers->reg_EBX = 0;
+    Registers->reg_ECX = 0;
+    Registers->reg_EDX = 0;
+#endif
+}
+
+/************************************************************************/
+
+static U32 DetectCPUBaseFrequencyMHz(void) {
+    CPUIDREGISTERS Leaf0;
+    CPUIDREGISTERS Leaf15;
+    CPUIDREGISTERS Leaf16;
+    U32 MaximumBasicLeaf;
+
+    MemorySet(&Leaf0, 0, sizeof(Leaf0));
+    MemorySet(&Leaf15, 0, sizeof(Leaf15));
+    MemorySet(&Leaf16, 0, sizeof(Leaf16));
+
+    ReadCPUIDLeaf(0, 0, &Leaf0);
+    MaximumBasicLeaf = Leaf0.reg_EAX;
+
+    if (MaximumBasicLeaf >= 0x16) {
+        ReadCPUIDLeaf(0x16, 0, &Leaf16);
+        if (Leaf16.reg_EAX != 0) {
+            return Leaf16.reg_EAX;
+        }
+    }
+
+    if (MaximumBasicLeaf >= 0x15) {
+        ReadCPUIDLeaf(0x15, 0, &Leaf15);
+        if (Leaf15.reg_EAX != 0 && Leaf15.reg_EBX != 0 && Leaf15.reg_ECX != 0) {
+            U64 FrequencyHz = U64_DIV_U32(U64_MUL_U32(Leaf15.reg_ECX, Leaf15.reg_EBX), Leaf15.reg_EAX, NULL);
+            U64 FrequencyMHz = U64_DIV_U32(FrequencyHz, 1000000, NULL);
+
+            if (U64_Cmp(FrequencyMHz, U64_FromU32(MAX_U32)) > 0) {
+                return MAX_U32;
+            }
+
+            return U64_ToU32_Clip(FrequencyMHz);
+        }
+    }
+
+    return 0;
 }
 
 /************************************************************************/
@@ -1032,6 +1129,7 @@ BOOL GetCPUInformation(LPCPUINFORMATION Info) {
     Info->Model = (Regs[1].reg_EAX & INTEL_CPU_MASK_MODEL) >> INTEL_CPU_SHFT_MODEL;
     Info->Stepping = (Regs[1].reg_EAX & INTEL_CPU_MASK_STEPPING) >> INTEL_CPU_SHFT_STEPPING;
     Info->Features = Regs[1].reg_EDX;
+    Info->BaseFrequencyMHz = DetectCPUBaseFrequencyMHz();
 
     return TRUE;
 }
@@ -1043,12 +1141,7 @@ BOOL GetCPUInformation(LPCPUINFORMATION Info) {
  * @return Pointer to the mouse driver.
  */
 LPDRIVER GetMouseDriver(void) {
-    LPDRIVER UsbDriver = USBMouseGetDriver();
-    if (UsbDriver != NULL && UsbDriver->Command(DF_MOUSE_HAS_DEVICE, 0) == 1U) {
-        return UsbDriver;
-    }
-
-    return SerialMouseGetDriver();
+    return MouseSelectorGetDriver();
 }
 
 /************************************************************************/

@@ -17,51 +17,23 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Desktop
+    Desktop cursor ownership and rendering
 
 \************************************************************************/
 
-#ifndef DESKTOP_H_INCLUDED
-#define DESKTOP_H_INCLUDED
+#ifndef DESKTOP_CURSOR_H_INCLUDED
+#define DESKTOP_CURSOR_H_INCLUDED
 
 /************************************************************************/
 
 #include "process/Process.h"
 
 /************************************************************************/
-// Functions in Desktop.c
 
-LPDESKTOP CreateDesktop(void);
-BOOL DeleteDesktop(LPDESKTOP);
-BOOL ShowDesktop(LPDESKTOP);
-LPWINDOW CreateWindow(LPWINDOWINFO);
-BOOL DeleteWindow(LPWINDOW);
-LPWINDOW FindWindow(LPWINDOW, LPWINDOW);
-LPDESKTOP GetWindowDesktop(LPWINDOW);
-BOOL InvalidateWindowRect(HANDLE, LPRECT);
-BOOL ShowWindow(HANDLE, BOOL);
-BOOL GetWindowRect(HANDLE, LPRECT);
-BOOL MoveWindow(HANDLE, LPPOINT);
-BOOL SizeWindow(HANDLE, LPPOINT);
-HANDLE GetWindowParent(HANDLE);
-BOOL GetDesktopScreenRect(LPDESKTOP, LPRECT);
-U32 SetWindowProp(HANDLE, LPCSTR, U32);
-U32 GetWindowProp(HANDLE, LPCSTR);
-HANDLE GetWindowGC(HANDLE);
-HANDLE BeginWindowDraw(HANDLE);
-BOOL EndWindowDraw(HANDLE);
-HANDLE GetSystemBrush(U32);
-HANDLE GetSystemPen(U32);
-HANDLE SelectBrush(HANDLE, HANDLE);
-HANDLE SelectPen(HANDLE, HANDLE);
-HANDLE CreateBrush(LPBRUSHINFO);
-HANDLE CreatePen(LPPENINFO);
-BOOL SetPixel(LPPIXELINFO);
-BOOL GetPixel(LPPIXELINFO);
-BOOL Line(LPLINEINFO);
-BOOL Rectangle(LPRECTINFO);
-U32 DefWindowFunc(HANDLE, U32, U32, U32);
+void DesktopCursorOnDesktopActivated(LPDESKTOP Desktop);
+void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, I32 NewX, I32 NewY);
+void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window);
 
 /************************************************************************/
 
-#endif  // DESKTOP_H_INCLUDED
+#endif  // DESKTOP_CURSOR_H_INCLUDED

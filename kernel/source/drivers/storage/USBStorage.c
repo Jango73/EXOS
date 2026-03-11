@@ -128,6 +128,7 @@ BOOL USBStorageIsDevicePresent(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice
 BOOL USBStorageIsTracked(LPXHCI_USB_DEVICE UsbDevice);
 BOOL USBStorageResetRecovery(LPUSB_MASS_STORAGE_DEVICE Device);
 BOOL USBStorageInquiry(LPUSB_MASS_STORAGE_DEVICE Device);
+BOOL USBStorageRequestSense(LPUSB_MASS_STORAGE_DEVICE Device);
 BOOL USBStorageReadCapacity(LPUSB_MASS_STORAGE_DEVICE Device);
 BOOL USBStorageReadBlocks(LPUSB_MASS_STORAGE_DEVICE Device,
                           UINT LogicalBlockAddress,
@@ -486,14 +487,32 @@ static BOOL USBStorageStartDevice(LPXHCI_DEVICE Controller,
     Device->InterfaceNumber = Interface->Number;
     USBStorageAcquireReferences(Device);
 
-    if (!XHCI_AddBulkEndpoint(Controller, UsbDevice, BulkOutEndpoint)) {
-        ERROR(TEXT("[USBStorageStartDevice] Bulk OUT endpoint setup failed"));
-        USBStorageFreeDevice(Device);
-        return FALSE;
-    }
+    DEBUG(TEXT("[USBStorageStartDevice] Begin Port=%u Addr=%u Slot=%x If=%u Class=%x/%x/%x Vid=%x Pid=%x BulkOut=%x Attr=%x MPS=%u BulkIn=%x Attr=%x MPS=%u"),
+          (U32)UsbDevice->PortNumber,
+          (U32)UsbDevice->Address,
+          (U32)UsbDevice->SlotId,
+          (U32)Interface->Number,
+          (U32)Interface->InterfaceClass,
+          (U32)Interface->InterfaceSubClass,
+          (U32)Interface->InterfaceProtocol,
+          (U32)UsbDevice->DeviceDescriptor.VendorID,
+          (U32)UsbDevice->DeviceDescriptor.ProductID,
+          (U32)BulkOutEndpoint->Address,
+          (U32)BulkOutEndpoint->Attributes,
+          (U32)BulkOutEndpoint->MaxPacketSize,
+          (U32)BulkInEndpoint->Address,
+          (U32)BulkInEndpoint->Attributes,
+          (U32)BulkInEndpoint->MaxPacketSize);
 
-    if (!XHCI_AddBulkEndpoint(Controller, UsbDevice, BulkInEndpoint)) {
-        ERROR(TEXT("[USBStorageStartDevice] Bulk IN endpoint setup failed"));
+    if (!XHCI_AddBulkEndpointPair(Controller, UsbDevice, BulkOutEndpoint, BulkInEndpoint)) {
+        ERROR(TEXT("[USBStorageStartDevice] Bulk endpoint pair setup failed Port=%u Addr=%u Slot=%x OutEp=%x MPS=%u InEp=%x MPS=%u"),
+              (U32)UsbDevice->PortNumber,
+              (U32)UsbDevice->Address,
+              (U32)UsbDevice->SlotId,
+              (U32)BulkOutEndpoint->Address,
+              (U32)BulkOutEndpoint->MaxPacketSize,
+              (U32)BulkInEndpoint->Address,
+              (U32)BulkInEndpoint->MaxPacketSize);
         USBStorageFreeDevice(Device);
         return FALSE;
     }
@@ -517,7 +536,9 @@ static BOOL USBStorageStartDevice(LPXHCI_DEVICE Controller,
 
     if (!USBStorageReadCapacity(Device)) {
         WARNING(TEXT("[USBStorageStartDevice] READ CAPACITY failed, attempting reset"));
+        (void)USBStorageRequestSense(Device);
         if (!USBStorageResetRecovery(Device) || !USBStorageReadCapacity(Device)) {
+            (void)USBStorageRequestSense(Device);
             ERROR(TEXT("[USBStorageStartDevice] READ CAPACITY failed"));
             USBStorageFreeDevice(Device);
             return FALSE;

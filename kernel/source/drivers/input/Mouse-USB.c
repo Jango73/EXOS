@@ -127,6 +127,26 @@ LPDRIVER USBMouseGetDriver(void) {
 /***************************************************************************/
 
 /**
+ * @brief Return multi-line USB mouse debug information.
+ * @param Info Receives the formatted text.
+ * @return DF_RETURN_SUCCESS on success.
+ */
+static UINT USBMouseDebugInfo(LPDRIVER_DEBUG_INFO Info) {
+    SAFE_USE(Info) {
+        StringPrintFormat(
+            Info->Text,
+            TEXT("Mouse manufacturer: %s\nMouse product: %s"),
+            USBMouseDriver.Manufacturer,
+            USBMouseDriver.Product);
+        return DF_RETURN_SUCCESS;
+    }
+
+    return DF_RETURN_BAD_PARAMETER;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Check if an interface is a HID boot mouse.
  * @param Interface Interface descriptor.
  * @return TRUE when the interface matches a HID mouse.
@@ -366,7 +386,7 @@ static BOOL USBMouseSubmitReport(LPXHCI_DEVICE Device) {
     Trb.Dword0 = U64_Low32(U64_FromUINT(USBMouseCustomData.State.ReportPhysical));
     Trb.Dword1 = U64_High32(U64_FromUINT(USBMouseCustomData.State.ReportPhysical));
     Trb.Dword2 = USBMouseCustomData.State.ReportLength;
-    Trb.Dword3 = (XHCI_TRB_TYPE_NORMAL << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_IOC | XHCI_TRB_DIR_IN;
+    Trb.Dword3 = (XHCI_TRB_TYPE_NORMAL << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_IOC;
 
     if (!XHCI_RingEnqueue(USBMouseCustomData.State.Endpoint->TransferRingLinear,
                           USBMouseCustomData.State.Endpoint->TransferRingPhysical,
@@ -594,6 +614,8 @@ UINT USBMouseCommands(UINT Function, UINT Parameter) {
             return DF_RETURN_SUCCESS;
         case DF_GET_VERSION:
             return MAKE_VERSION(USB_MOUSE_VER_MAJOR, USB_MOUSE_VER_MINOR);
+        case DF_DEBUG_INFO:
+            return USBMouseDebugInfo((LPDRIVER_DEBUG_INFO)Parameter);
         case DF_MOUSE_RESET:
             return DF_RETURN_NOT_IMPLEMENTED;
         case DF_MOUSE_GETDELTAX:

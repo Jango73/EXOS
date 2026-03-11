@@ -40,6 +40,9 @@
 - [Interaction and Networking](#interaction-and-networking)
   - [Shell scripting](#shell-scripting)
   - [Network Stack](#network-stack)
+- [Windowing](#windowing)
+  - [Desktop shell entry points](#desktop-shell-entry-points)
+  - [Windowing core paths](#windowing-core-paths)
 - [Tooling and References](#tooling-and-references)
   - [Logging](#logging)
   - [Automated debug validation script](#automated-debug-validation-script)
@@ -167,11 +170,26 @@ This separates physical page management (buddy allocator) from virtual mapping b
 
 #### Virtual address space construction
 
-Virtual mappings are managed through region APIs (`AllocRegion`, `FreeRegion`, `ResizeRegion`) that populate page tables and then flush translation state.
+Virtual address space setup follows a dependency order.
 
-On x86-32 bootstrap, the page directory maps the TaskRunner page with write access so the kernel main stack can execute during early bring-up.
+1. Page-directory construction:
+- On x86-32 bootstrap, the page directory maps the `TaskRunner` page with write access so the kernel main stack can run during early bring-up.
+- On x86-64, `AllocPageDirectory` creates the paging root and foundational mappings (low memory, kernel span, recursive slot, task-runner window) instead of cloning loader tables.
+- `AllocUserPageDirectory` reuses the same construction helpers and installs a user seed table so user mappings can be populated immediately.
+- Default kernel virtual bases (`VMA_KERNEL`) are:
+  - x86-32: `0xC0000000`
+  - x86-64: `0xFFFFFFFFC0000000`
 
-On x86-64, `AllocPageDirectory` builds fresh paging structures (low-memory region, kernel region, recursive slot, task-runner window) instead of cloning loader tables. `AllocUserPageDirectory` reuses these helpers and pre-installs a userland seed table so user mappings can be populated immediately. The default x86-64 kernel virtual base (`VMA_KERNEL`) is `0xFFFFFFFFC0000000`.
+2. Arena layout (`PROCESS_ADDRESS_SPACE` in `kernel/include/process/Process-Arena.h`, `kernel/source/process/Process-Arena.c`):
+- `Image`: executable image span loaded at `VMA_USER`.
+- `Heap`: process heap growth lane (same initial base/size as before).
+- `Stack`: downward-growing user task stacks.
+- `System`: process-owned fixed mappings (for example message queue backing storage).
+- `Mmio`: process MMIO/DMA-oriented mappings.
+
+3. Region operations inside arena policy:
+- `AllocRegion`, `FreeRegion`, and `ResizeRegion` perform mapping updates, populate page tables, and flush translation state.
+- Arena-aware allocation keeps fixed mappings out of the heap lane and avoids heap growth failures caused by unrelated `AllocRegion(0, ...)` placement.
 
 #### Region descriptor tracking
 
@@ -310,7 +328,11 @@ Forward resolution (handle -> pointer) is radix-tree lookup. Reverse lookup (poi
 
 Each task embeds an `ARCH_TASK_DATA` structure (declared in the architecture-specific header under `kernel/include/arch/`) that contains the saved interrupt frame along with the user, system, and any auxiliary stack descriptors that the target CPU requires. The generic `tag_TASK` definition in `kernel/include/process/Task.h` exposes this structure as the `Arch` member so that all stack and context manipulations remain scoped to the active architecture.
 
-The x86-32 implementation of `SetupTask` (`kernel/source/arch/x86-32/x86-32.c`) is responsible for allocating and clearing the per-task stacks, initialising the selectors in the interrupt frame and performing the bootstrap stack switch for the main kernel task. The x86-64 flavour performs the same duties and additionally provisions a dedicated Interrupt Stack Table (IST1) stack for faults that require a reliable kernel stack even if the regular system stack becomes unusable. During IDT initialisation the kernel assigns IST1 to the fault vectors that are most likely to execute with a corrupted task stack (double fault, invalid TSS, segment-not-present, stack, general protection and page faults). This ensures the handlers always run on the emergency per-task stack, preventing the double-fault escalation that previously produced a triple fault when the active stack pointer was already invalid. `CreateTask` calls the relevant helper after finishing the generic bookkeeping, which keeps the scheduler and task manager architecture-agnostic while allowing future architectures to provide their own `SetupTask` specialisation.
+The x86-32 implementation of `SetupTask` (`kernel/source/arch/x86-32/x86-32.c`) allocates and clears per-task stacks, initializes selectors in the interrupt frame, and performs the bootstrap stack switch for the main kernel task.
+
+The x86-64 implementation performs the same baseline duties and also provisions a dedicated Interrupt Stack Table (`IST1`) stack for faults that need a reliable kernel stack when the regular system stack is unusable. During IDT initialization, the kernel assigns `IST1` to fault vectors that are likely to run with a corrupted task stack (double fault, invalid TSS, segment-not-present, stack, general protection, and page faults). This keeps handlers on the emergency per-task stack and prevents double-fault escalation into triple fault when the active stack pointer is invalid.
+
+`CreateTask` calls the architecture-specific helper after generic task bookkeeping. This keeps scheduler and task-manager logic architecture-agnostic while allowing each architecture to specialize `SetupTask`.
 
 Both the x86-32 and x86-64 context-switch helpers (`SetupStackForKernelMode` and `SetupStackForUserMode` in their respective architecture headers) must reserve space on the stack in bytes rather than entries before writing the return frame. Subtracting the correct byte count avoids writing past the top of the allocated stack when seeding the initial `iret` frame for a task. On x86-64 the helpers also arrange the bootstrap frame so that the stack pointer becomes 16-byte aligned after `iretq` pops its arguments, preserving the ABI-mandated alignment once execution resumes in the scheduled task.
 
@@ -334,6 +356,8 @@ IRQ 0 └── trap lands in interrupt-a.asm : Interrupt_Clock
     └── calls ClockHandler to increment system time
     └── calls Scheduler to check if it's time to switch to another task
         └── Scheduler switches page directory if needed and returns the next task's context
+
+`Sleep` relies on scheduler wake-up timestamps only after the first `EnableInterrupts` call is executed. Before this point, `Sleep` uses a calibrated busy-wait loop (derived from CPU base frequency) so early-boot delays do not depend on `GetSystemTime` progression.
 
 ##### ISR 0 call graph
 
@@ -455,7 +479,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 
 **1. Task Termination:**
 - When a task terminates, `KillTask()` releases every mutex held by the task before marking it as `TASK_STATUS_DEAD`
-- The task remains in the scheduler queue until the next context switch
+- During `DeleteTask()`, the task is removed from the scheduler queue before task resources are released
 - `DeleteDeadTasksAndProcesses()` (called periodically) removes dead tasks and processes from lists
 
 **2. Process Termination via Task Count:**
@@ -561,10 +585,12 @@ exos-runtime-c.c : malloc() (or any other function)
 
 `SYSTEM_DATA_VIEW` is a project-level build flag (`./scripts/build --arch x86-32 --fs ext2 --system-data-view`) that enables the System Data View mode before task creation. The mode shows the system data pages, uses the kernel keyboard input for navigation (left/right to change page, up/down to scroll), and exits on `Esc` to continue boot. The xHCI page reports PCI identity, decoded PCI status error flags, scratchpad capability/state (`HCSPARAMS2`, `MaxScratchpadBuffers`, `DCBAA[0]`), controller runtime registers (`USBCMD`, `USBSTS`, `CRCR`, `DCBAAP`, interrupter state), slot usage, and per-root-port enumeration diagnostics (raw `PORTSC`, speed/link state, last enumeration error/completion, present/slot state).
 
+Console applications can query the active text geometry through `SYSCALL_ConsoleGetCurrentMode` and the runtime helper `ConsoleGetCurrentMode()`. This returns the console columns and rows without relying on any desktop or window handle.
+
 
 ### Task and window message delivery
 
-Tasks own a lazily instantiated message queue (`MESSAGEQUEUE` in `kernel/source/process/TaskMessaging.c`) built on the generic list container. Only the kernel process starts with a queue; user processes and their tasks get a queue *only when they explicitly call* `GetMessage()`, `PeekMessage()`, or `WaitForMessage()` (which marks the task queue as initialized). No queue is created when posting; if a task/process never asked for one, posted messages are dropped and keyboard input continues down the classic buffered path for `getkey()` (used by the shell). When a process message queue exists, the keyboard helpers (`PeekChar`, `GetChar`, `GetKeyCode`) consume key events from that queue by discarding `EWM_KEYUP` messages and returning the first `EWM_KEYDOWN`, then fall back to the classic buffer when no queue exists. Each queue is capped to 100 pending messages and guarded by a per-queue mutex plus a waiting flag. `WaitForMessage` marks the queue as waiting and sleeps the task; `AddTaskMessage` wakes the task when a new message arrives and clears the waiting flag.
+Tasks and processes own fixed-size message queues (`MESSAGEQUEUE` in `kernel/source/process/Task-Messaging.c`) backed by dedicated virtual memory regions and operated through `utils/MessageQueue`. Task queues are allocated at task creation (`TaskInitializeMessageBuffer` in `kernel/source/process/Task.c`), while process queues are allocated on demand (`EnsureProcessMessageQueue`). Both use the process `System` arena (`ProcessArenaAllocateSystem`) so queue storage does not consume heap expansion space. Queue operations do not allocate or free entries during message posting/retrieval. If a target queue does not exist, posted messages are dropped and keyboard input continues down the classic buffered path for `getkey()` (used by the shell). When a process message queue exists, the keyboard helpers (`PeekChar`, `GetChar`, `GetKeyCode`) consume key events from that queue by discarding `EWM_KEYUP` messages and returning the first `EWM_KEYDOWN`, then fall back to the classic buffer when no queue exists. Each queue is capped to 100 pending messages and guarded by a per-queue mutex plus a waiting flag. `WaitForMessage` marks the task queue as waiting and sleeps the task; `AddTaskMessage` wakes the task when a new message arrives and clears the waiting flag.
 
 Message posting:
 - `PostMessage` accepts NULL targets (current task), task handles, and window handles; window targets enqueue into the owning task queue. Keyboard drivers and the mouse dispatcher push input events into the global input queue using `EnqueueInputMessage` so only the focused process sees them.
@@ -573,20 +599,16 @@ Message posting:
 
 Message retrieval:
 - `GetMessage`/`PeekMessage` first check the global input queue when the caller’s process has focus (desktop focus + per-desktop `FocusedProcess`), then fall back to the task’s own queue. `GetMessage` blocks if neither queue holds messages; `PeekMessage` is non-blocking. Userland syscalls translate handles in `MESSAGEINFO` before dispatching to the kernel implementations.
-- Focus tracking lives in `Kernel.FocusedDesktop` and `Desktop.FocusedProcess`. When a process is created on the focused desktop it becomes the focused process; when a focused process dies its desktop falls back to the kernel process. The focus setters ensure a focused process always exists for the active desktop.
+- Focus tracking lives in `Kernel.ActiveDesktop` and `Kernel.FocusedProcess`. A process may exist without any desktop. When a focused process is associated with a desktop, focusing that process also makes its desktop active. When no active desktop exists, input falls back to the focused process, then to `KernelProcess`.
 
 
 ### Command line editing
 
 Interactive editing of shell command lines is implemented in `kernel/source/utils/CommandLineEditor.c`. The module processes keyboard input via the classic buffered path (`PeekChar`/`GetKeyCode`), maintains an in-memory history, refreshes the console display, and relies on callbacks to retrieve completion suggestions. The shell owns an input state structure that embeds the editor instance and provides shell-specific callbacks for completion and idle processing so the component remains agnostic of higher level shell logic. While reading input, the editor adjusts for console scrolling so the display does not re-trigger scrolling on each key press, console paging prompts are suspended until the line is submitted, and successful key interactions update session activity timestamps.
 
-Shell graphics commands are implemented in `kernel/source/shell/Shell-Commands-Graphics.c`. The `gfx backend <driver> <WidthxHeightxBitsPerPixel>` mode selects backend and mode, and `gfx smoke_test [DurationMilliseconds]` creates a temporary desktop, renders a basic window using kernel graphics primitives, waits for the requested duration, then restores text console mode.
-Graphics drivers expose mode enumeration through `DF_GFX_GETMODECOUNT` and `DF_GFX_GETMODEINFO`; `GRAPHICSMODEINFO.ModeIndex` selects a mode and `INFINITY` targets the active mode.
-The `driver <alias>` shell command prints one detailed driver report (identity fields, type, flags, command pointers, command-reported version/capabilities, and enum domains).
-
 Keyboard input keeps two distinct paths for compatibility. The legacy PS/2 pipeline continues to use scan code -> KEYTRANS tables, while a separate HID path uses usage page 0x07 indexed KEY_LAYOUT_HID layouts. The HID layout file format is UTF-8 text with an "EKM1" header and directives: code, levels, map, dead, and compose. The kernel keeps an embedded en-US fallback (KEY_LAYOUT_FALLBACK_CODE) used when HID layout loading fails. The HID layout loader parses EKM1 files with a tolerant UTF-8 decoder, logs replacement counts, and rejects malformed directives or out-of-range entries. USB HID keyboard support lives in `kernel/source/drivers/input/Keyboard-USB.c`; keyboard reports are processed in boot protocol on the primary keyboard interface, and consumer/media usages (usage page 0x0C) are decoded from an optional secondary HID consumer interface into the common key event path with keydown/keyup transitions. HID report descriptor decoding is implemented by the reusable helper `utils/HIDReport` (`kernel/include/utils/HIDReport.h`, `kernel/source/utils/HIDReport.c`). Keyboard initialization is mediated by a selector driver (`kernel/source/drivers/input/Keyboard-Selector.c`) that probes for a USB HID keyboard after PCI/xHCI enumeration and otherwise falls back to PS/2 detection, ensuring only one keyboard driver is active at a time.
 
-All reusable helpers -such as the command line editor, adaptive delay, string containers, byte-size formatting helpers (`utils/SizeFormat`), CRC/SHA-256 utilities, compression utilities, chunk cache utilities, detached signature utilities, notifications, path helpers, TOML parsing, UUID support, regex, hysteresis control, cooldown timing, rate limiting, and network checksum helpers— live under `kernel/source/utils` with their public headers in `kernel/include/utils`. SHA-256 is exposed through `utils/Crypt` and bridged to the vendored BearSSL hash implementation under `third/bearssl`. Compression is exposed through `utils/Compression` and bridged to the vendored miniz backend under `third/miniz`. Detached signature verification is exposed through `utils/Signature` with a backend-swappable API surface, and Ed25519 verification is wired to vendored Monocypher sources under `third/monocypher`. This keeps generic infrastructure separated from core subsystems and makes it easier to share common code across the kernel.
+All reusable helpers -such as the command line editor, adaptive delay, string containers, byte-size formatting helpers (`utils/SizeFormat`), CRC/SHA-256 utilities, compression utilities, chunk cache utilities, detached signature utilities, notifications, path helpers, TOML parsing, UUID support, regex, hysteresis control, cooldown timing, rate limiting, and network checksum helpers— live under `kernel/source/utils` with their public headers in `kernel/include/utils`. Architecture-compat 64-bit helpers shared by the whole kernel (`U64_MUL_U32`, `U64_DIV_U32`) are exposed from `kernel/include/Base.h` and keep arithmetic behavior identical on x86-32 and x86-64. SHA-256 is exposed through `utils/Crypt` and bridged to the vendored BearSSL hash implementation under `third/bearssl`. Compression is exposed through `utils/Compression` and bridged to the vendored miniz backend under `third/miniz`. Detached signature verification is exposed through `utils/Signature` with a backend-swappable API surface, and Ed25519 verification is wired to vendored Monocypher sources under `third/monocypher`. This keeps generic infrastructure separated from core subsystems and makes it easier to share common code across the kernel.
 
 
 ### Exposed objects in shell
@@ -710,6 +732,7 @@ Hardware-facing components are grouped under `kernel/source/drivers` with public
 
 Kernel-side registration follows a deterministic list-driven flow in `KernelData.c`: `InitializeDriverList()` populates `StartupDrivers` (load order) and `Drivers` (all known descriptors), then `LoadAllDrivers()` walks `StartupDrivers` in order.
 PCI-backed class drivers such as `e1000`, `ahci`, `nvme`, and `xhci` are also inserted in the global known-driver list (`Drivers`) for shell and diagnostics visibility, while their effective load/attach lifecycle remains driven by PCI enumeration.
+The `driver <alias>` shell command prints one detailed driver report (identity fields, type, flags, command pointers, command-reported version/capabilities, and enum domains).
 
 The NVMe driver initializes admin queues first, then I/O queues, configures completion interrupts through MSI-X when available, enumerates namespaces, and registers each namespace as a disk so `MountDiskPartitions` can attach file systems.
 
@@ -750,8 +773,14 @@ The VESA driver requests VBE modes in linear frame buffer mode (INT 10h 4F02h, b
 `kernel/include/GFX.h` defines a backend-facing graphics command contract. Legacy drawing commands (`SETMODE`, `GETMODEINFO`, `SETPIXEL`, `GETPIXEL`, `LINE`, `RECTANGLE`) stay unchanged for compatibility. The same header also defines optional backend commands for capabilities/outputs/present/surfaces (`GETCAPABILITIES`, `ENUMOUTPUTS`, `GETOUTPUTINFO`, `PRESENT`, `WAITVBLANK`, `ALLOCSURFACE`, `FREESURFACE`, `SETSCANOUT`). Legacy backends that do not implement those optional commands return `DF_RETURN_NOT_IMPLEMENTED`.
 
 Text rendering commands are also part of the graphics contract (`TEXT_PUTCELL`, `TEXT_CLEAR_REGION`, `TEXT_SCROLL_REGION`, `TEXT_SET_CURSOR`, `TEXT_SET_CURSOR_VISIBLE`). This path allows console text operations to be dispatched through the active graphics backend.
+High-level text drawing and measurement are also exposed through the same backend contract (`TEXT_DRAW`, `TEXT_MEASURE`) so desktop code and backend selection keep one shared implementation path across VESA, GOP, and Intel graphics.
+Mouse pointer commands are part of the same contract as optional backend operations (`CURSOR_SET_SHAPE`, `CURSOR_SET_POSITION`, `CURSOR_SET_VISIBLE`). Desktop cursor ownership remains in kernel desktop code, which selects the hardware cursor path when available and falls back deterministically to a software overlay when cursor-plane support or cursor operations are unavailable.
+When `gfx backend <alias> <mode>` applies a graphics mode while shell stays in console frontend, display session routes console rendering through the selected backend and recomputes console cell geometry from the active pixel mode so shell output remains visible across backend and mode transitions.
+Shell graphics commands are implemented in `kernel/source/shell/Shell-Commands-Graphics.c`. The `gfx backend <driver> <WidthxHeightxBitsPerPixel>` mode selects backend and mode, and `gfx smoke_test [DurationMilliseconds]` creates a temporary desktop, renders a basic window using kernel graphics primitives, waits for the requested duration, then restores text console mode.
+Graphics drivers expose mode enumeration through `DF_GFX_GETMODECOUNT` and `DF_GFX_GETMODEINFO`; `GRAPHICSMODEINFO.ModeIndex` selects a mode and `INFINITY` targets the active mode.
 
 Graphics backend selection is handled by `kernel/source/drivers/graphics/Graphics-Selector.c`. The selector loads graphics backends, keeps only active/usable ones, scores their capabilities, and forwards `DF_GFX_*` calls to the selected backend. This provides deterministic fallback behavior without hardcoding a single backend in desktop code.
+Boot-path capability gating is centralized in `utils/BootPath` (`kernel/include/utils/BootPath.h`, `kernel/source/utils/BootPath.c`). VESA probing is blocked on x86-64 boot paths and kept available on x86-32; backend availability on x86-32 is then decided by the VESA initialization/probe path itself.
 Explicit backend forcing through `gfx backend <alias> <mode>` uses a strict selector path: only the requested backend is loaded into selector state, and command forwarding does not fall back to other backends while forced mode is active.
 Display-class PCI fallback attach logic is implemented in `kernel/source/drivers/graphics/Graphics-PCI.c`; the PCI bus layer registers this graphics-provided attach driver during PCI initialization so generic display controllers remain visible in the PCI device list.
 
@@ -764,12 +793,14 @@ Intel capability handling is centralized in an internal `INTEL_GFX_CAPS` object 
 The Intel backend takeover path reads active pipe/plane state from display registers, maps the active scanout buffer through the aperture BAR, builds a `GRAPHICSCONTEXT` from that mode, and serves window-manager drawing through CPU primitives (`SETPIXEL`, `GETPIXEL`, `LINE`, `RECTANGLE`) writing directly to the active scanout memory.
 
 The native `DF_GFX_SETMODE` path in `kernel/source/drivers/graphics/iGPU-Mode.c` uses a stage-ordered sequence (disable, route, clock, link, enable, verify), explicit pipe/output/transcoder routing policy, conservative generation-aware clock-source handling, eDP panel/backlight stabilization hooks, and rollback to a captured hardware snapshot when a partial modeset stage fails.
-When active scanout takeover is unavailable on hybrid platforms, Intel backend load remains available for explicit backend forcing, and the same `DF_GFX_SETMODE` path performs a conservative cold modeset bootstrap (requested mode timings, pipe/output/link programming, then context rebuild from programmed state).
+When active scanout takeover is unavailable on hybrid platforms, Intel backend load remains available for explicit backend forcing, and the same `DF_GFX_SETMODE` path performs a conservative cold modeset bootstrap (requested mode timings, pipe/output/link programming, then context rebuild from programmed state). Intel mode enumeration remains available in that state: `DF_GFX_GETMODECOUNT` and `DF_GFX_GETMODEINFO` expose a deterministic 32-bpp catalog built from the active mode when present, the firmware boot framebuffer mode when available, and a conservative fallback list filtered by Intel capability bounds.
 The modeset core resolves explicit `INTEL_DISPLAY_FAMILY_OPS` descriptors from display version so stride encoding/decoding, plane tiling policy, and cold-modeset support remain per-family and extension-ready for additional Intel generations without hardwired device-id flow control.
 Modeset diagnostics keep explicit failure state in `INTEL_GFX_STATE` (`LastModesetFailureStage`, `LastModesetFailureCode`) to avoid silent fallback behavior during native bring-up.
 VBlank synchronization is implemented in `kernel/source/drivers/graphics/iGPU-Interrupt.c`: `DF_GFX_WAITVBLANK` performs bounded waits (`HasOperationTimedOut`) with rate-limited timeout diagnostics, present serialization uses a dedicated `PresentMutex`, and frame pacing state is tracked through `PresentFrameSequence` and `VBlankFrameSequence` with optional PIPESTAT vblank status handling plus scanline polling fallback.
 
-Display ownership state is tracked through `kernel/source/DisplaySession.c` (`DISPLAY_SESSION` stored in `KERNELDATA`). This records active frontend (`console` or `desktop`), active desktop pointer, selected graphics driver, and active mode so mode transitions are represented as explicit kernel state.
+Display ownership state is tracked through `kernel/source/desktop/DisplaySession.c` (`DISPLAY_SESSION` stored in `KERNELDATA`). This records active frontend (`console` or `desktop`), active desktop pointer, selected graphics driver, and active mode so mode transitions are represented as explicit kernel state.
+Desktop cursor runtime state is tracked per desktop (`DESKTOP` fields) and managed by `kernel/source/desktop/Desktop-Cursor.c` (position, pending target position, software-dirty state, visibility, clipping rectangle, active path, fallback reason). Rectangle intersection and screen/window coordinate conversion helpers are centralized in `kernel/source/utils/Graphics-Utils.c` (`kernel/include/utils/Graphics-Utils.h`) to avoid duplicate geometry logic across desktop subsystems. Desktop visible-region construction and subtree subtraction are centralized in `kernel/source/desktop/Desktop-VisibleRegion.c` and are consumed by cursor and window clipping paths so occlusion is computed from one shared implementation. Overlay invalidation helpers are centralized in `kernel/source/desktop/Desktop-OverlayInvalidation.c` (`kernel/include/desktop/Desktop-OverlayInvalidation.h`) and are shared by overlay producers so bounded screen damage can be invalidated consistently across window trees and root fallback. Software cursor overlay rendering is emitted at the end of each window draw with visibility clipping, so asynchronous `EWM_DRAW` ordering does not leave stale cursor pixels when repaint occurs on child windows after the root draw.
+VESA drawing primitives include line, rectangle, arc, and triangle command paths (`DF_GFX_LINE`, `DF_GFX_RECTANGLE`, `DF_GFX_ARC`, `DF_GFX_TRIANGLE`) with selector forwarding through `Graphics-Selector`.
 Frontend transitions are executed through `DisplaySwitchToConsole()` and `DisplaySwitchToDesktop()`, which keep backend ownership active and avoid using `DF_UNLOAD` as a display switching path.
 Emergency text fallback is isolated in `kernel/source/Console-VGATextFallback.c` and is only entered when console front-end activation cannot be completed through the active graphics backend path. The fallback requests VGA text mode through the VGA driver command interface, instead of direct register programming calls from console code.
 
@@ -783,6 +814,11 @@ Console paging input wait paths must run without any console mutex held to preve
 - Emergency fallback remains isolated to `kernel/source/Console-VGATextFallback.c`.
 
 The default font is an in-tree ASCII 8x16 EXOS font and can be replaced through the font API.
+The shared font layer is split between font-face metrics/raster access (`FONT_FACE`) and the legacy bitmap glyph-set compatibility path (`FONT_GLYPH_SET`). Existing console rendering continues to use the in-tree bitmap font through this abstraction boundary.
+Generic driver diagnostics use `DF_DEBUG_INFO` with `DRIVER_DEBUG_INFO.Text`, a multi-line buffer sized with `MAX_STRING_BUFFER`.
+Graphics backends implement `DF_DEBUG_INFO` to expose backend alias and current resolution, and the graphics selector forwards this query to the active backend.
+Mouse drivers implement `DF_DEBUG_INFO` to expose the selected mouse manufacturer and product, and the mouse selector forwards this query to the active mouse driver.
+Userland text rendering is exposed through `SYSCALL_DrawText` / `SYSCALL_MeasureText` and the runtime wrappers `DrawText` / `MeasureText`. The initial userland path accepts `Font = 0` to select the default kernel font; explicit userland font objects remain a later extension.
 
 
 ### Early boot console path
@@ -1839,14 +1875,157 @@ IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_TCP, TCP_OnIPv4Packet);
 The network stack successfully handles real network traffic across multiple devices and provides a robust foundation for implementing network applications and services.
 
 
+## Windowing
+
+### Desktop shell entry points
+
+The `desktop` shell command exposes `desktop show`, `desktop status`, and `desktop theme <path-or-name>`. `desktop show` creates the kernel shell desktop on first use, selects and persists one complete display selection (`backend + mode`) on that first activation, reuses that same persisted selection on later activations of the same desktop, and optionally applies `Desktop.ThemePath` from `exos.*.toml`; theme load/activation failures are reported but never block desktop activation.
+An internal kernel test module (`kernel/source/desktop/Desktop-InternalTest.c`, `kernel/include/desktop/Desktop-InternalTest.h`) runs on `desktop show` and ensures one visible test window exists on the shell desktop, with deterministic placement for windowing validation.
+
+### Windowing core paths
+
+#### Non-client rendering and decoration mode
+
+Default non-client rendering is implemented in `kernel/source/desktop/Desktop-NonClient.c`.
+Structured draw dispatch is centralized in `kernel/source/desktop/Desktop-Draw.c`.
+Desktop core owns system chrome there and prepares the effective draw surface before invoking the window procedure.
+For system-decorated windows, `EWM_DRAW` is dispatched in client coordinates only.
+For client-decorated and bare windows, `EWM_DRAW` keeps the full owned surface.
+`DefWindowFunc` does not need to redraw system chrome to preserve the frame.
+Decoration mode is resolved from `EWS_SYSTEM_DECORATED`, `EWS_CLIENT_DECORATED`, and `EWS_BARE_SURFACE`, with style `0` treated as system-decorated for compatibility.
+The same non-client path resolves and draws window caption text inside the themed title bar when a caption is set.
+
+#### Window geometry and coordinate spaces
+
+Userland geometry updates use `SYSCALL_MoveWindow` with a `WINDOWRECT` payload (`runtime` `MoveWindow(HANDLE, LPRECT)`), so move and resize are applied through a single update path shared with desktop drag handling.
+Creation, move, resize, and drag-driven geometry changes all resolve through the same core placement path before one window rectangle is committed.
+
+Coordinate naming is shared across kernel and runtime:
+- `ScreenRect` / `ScreenPoint`: absolute desktop coordinates.
+- `WindowRect` / `WindowPoint`: coordinates relative to the full window rectangle (frame included).
+- `ClientRect` / `ClientPoint`: coordinates relative to the client area origin.
+
+Reusable geometry conversions are centralized in `kernel/source/utils/Graphics-Utils.c` (`kernel/include/utils/Graphics-Utils.h`).
+Userland can query both rectangle spaces through `GetWindowRect` and `GetWindowClientRect`.
+Window hierarchy traversal is centralized in `kernel/source/desktop/Desktop-WindowRelations.c`; parent and direct child/sibling discovery are exposed through `GetWindowParent`, `GetWindowChildCount`, `GetWindowChild`, `GetNextWindowSibling`, and `GetPreviousWindowSibling`.
+Window placement policy can be expressed through generic window style bits. `EWS_EXCLUDE_SIBLING_PLACEMENT` marks one window as reserving its own rectangle against sibling placement.
+Sibling z-order policy can also be expressed through generic style bits: `EWS_ALWAYS_IN_FRONT` keeps one window in the front band, while `EWS_ALWAYS_AT_BOTTOM` keeps one window in the bottom band.
+Sibling z-order values are not guaranteed to remain equal to the last raw `Order` value one caller observed or assigned, because the desktop pipeline can renormalize sibling orders after topmost/bottommost style changes.
+Window captions are stored in core window state and exposed through `SetWindowCaption` and `GetWindowCaption`.
+The core placement resolver first constrains one candidate rectangle to the parent effective work rectangle, then shrinks that placement area around visible sibling windows that reserve placement on one parent edge, and finally rejects any remaining overlap with reserved sibling rectangles.
+Dockable components publish this reservation through the high-level window style API on the docked window itself. Host relayout temporarily clears that style on attached dockables while one new layout frame is applied, then restores it after the frame is committed, so docking does not require one core placement bypass path.
+Visibility changes and style changes affecting `EWS_EXCLUDE_SIBLING_PLACEMENT` or `EWS_VISIBLE` immediately trigger one sibling-placement revalidation pass, so existing sibling windows are re-clamped through the same generic placement resolver without waiting for a later move or creation path.
+
+#### Timers and periodic redraw
+
+Per-window timer delivery is implemented in `kernel/source/desktop/Desktop-Timer.c` (`kernel/include/desktop/Desktop-Timer.h`) with `SetWindowTimer`, `KillWindowTimer`, and asynchronous `EWM_TIMER` dispatch.
+The desktop clock widget (`kernel/source/ui/ClockWidget.c`, `kernel/include/ui/ClockWidget.h`) uses this timer path to request redraw once per second.
+
+#### Window dock host integration
+
+Docking host integration is implemented by window classes in `kernel/source/ui/WindowDockHost.c` and `kernel/source/ui/WindowDockable.c`.
+`WindowDockHostClass` provides one `DockHost` state per host window class data, and root window class registration derives from this base.
+The windowing core remains dock-agnostic: it emits generic `EWM_NOTIFY` messages (`EWN_WINDOW_RECT_CHANGED`, `EWN_WINDOW_PROPERTY_CHANGED`) and does not read dock-specific window properties.
+When the desktop root window receives `EWN_WINDOW_RECT_CHANGED`, its window procedure relays the same notify to direct children so desktop-owned components can react to root size or position changes without polling.
+Dock components subscribe to these notifications and update docking state (`WindowDockHostHandleWindowRectChanged`, relayout, attach/detach) in component code.
+When a window is attached into an existing subtree, the windowing core also posts `EWM_CHILD_APPENDED` to every ancestor up to the desktop root with the appended child `WindowID` in `Param1` so layout components can react to descendant injection without coupling to concrete component creation order.
+When a window is detached from an existing subtree, the windowing core also posts `EWM_CHILD_REMOVED` to the former parent and every ancestor up to the desktop root with the removed child `WindowID` in `Param1`.
+Public window lookup uses `FindWindow(Start, WindowID)` to resolve one window by identifier inside one subtree, while handle membership checks use `ContainsWindow(Start, Target)` when one caller must validate that one concrete handle belongs to that subtree.
+Parent movement constraints use the generic window work rectangle API (`SetWindowWorkRect`, `GetWindowWorkRect`) so specialized layout components can publish host work areas without coupling core windowing paths to docking details.
+Docked windows publish sibling-placement exclusion through `EWS_EXCLUDE_SIBLING_PLACEMENT` and do not use docking-specific bypass logic when the host applies one assigned rectangle.
+Shell bar content composition uses slot windows exposed by `kernel/source/ui/ShellBar.c` (`left`, `center`, `components`) and the desktop injects concrete component windows into these slots.
+The shell bar does not reference concrete component types; it only manages slot geometry and keeps slot children fitted to slot client rectangles.
+The on-screen debug information component (`kernel/source/ui/OnScreenDebugInfo.c`, `kernel/include/ui/OnScreenDebugInfo.h`) is instantiated by the internal desktop test path as one bare bottom-band window spanning part of the desktop placement area, and it renders graphics then mouse debug lines through the shared high-level text API without coupling to other components.
+
+#### Theme architecture
+
+Token resolution for desktop colors and metrics is implemented in `kernel/source/desktop/Desktop-ThemeTokens.c` (`kernel/include/desktop/Desktop-ThemeTokens.h`).
+`GetSystemBrush` and `GetSystemPen` resolve `SM_COLOR_*` from the default token set before returning shared draw objects.
+
+Theme schema validation is defined in `kernel/source/desktop/Desktop-ThemeSchema.c` (`kernel/include/desktop/Desktop-ThemeSchema.h`), including top-level sections, canonical element/state identifiers, property typing, and parser limits.
+
+Strict parsing and runtime table construction are implemented in `kernel/source/desktop/Desktop-ThemeParser.c` (`kernel/include/desktop/Desktop-ThemeParser.h`), with validation of section/key strictness, property typing, token references, recipe bindings, and parser limits.
+
+Property resolution (`element`, `state`) is implemented in `kernel/source/desktop/Desktop-ThemeResolver.c` (`kernel/include/desktop/Desktop-ThemeResolver.h`) with fallback order `exact -> partial -> normal`.
+
+Recipe rendering is implemented in `kernel/source/desktop/Desktop-ThemeRecipes.c` (`kernel/include/desktop/Desktop-ThemeRecipes.h`), with bounded execution of primitives (`fill_rect`, `stroke_rect`, `line`, `gradient_h`, `gradient_v`, `glyph`, `inset_rect`) and `token:` color resolution.
+
+Runtime activation and lifecycle are implemented in `kernel/source/desktop/Desktop-ThemeRuntime.c` (`kernel/include/desktop/Desktop-ThemeRuntime.h`) through `LoadTheme`, `ActivateTheme`, `GetActiveThemeInfo`, and `ResetThemeToDefault`.
+Desktop startup theme selection accepts `Desktop.ThemePath` from `exos.*.toml`.
+
+#### Dispatch and synchronization
+
+Desktop-owned `EWM_*` traffic is pumped by a dedicated dispatcher task in `kernel/source/desktop/Desktop-Dispatcher.c`.
+`desktop show` ensures this dispatcher exists before desktop interaction continues.
+
+Windowing lock ordering is defined in `kernel/include/desktop/Desktop.h`:
+`TaskMessageMutex -> DesktopTreeMutex -> DesktopStateMutex -> WindowMutex -> GraphicsContextMutex`.
+`PostMessage` and window callbacks execute outside structural desktop locks to avoid reentrant deadlock cycles during drag, redraw, and timer delivery.
+
+#### Mutex ownership rules
+
+The whole kernel follows one strict ownership rule for mutexes:
+
+- one object mutex is taken only by code that owns that object's state,
+- foreign callers use owner-side getters, setters, or snapshot helpers,
+- structural locks remain short and cover only local get/set or list mutation,
+- tree walks use snapshots and continue outside the structural lock,
+- no message send, callback dispatch, or recursive traversal is allowed while
+  holding a desktop tree/state/window mutex.
+
+Desktop and windowing code follow this same kernel-wide rule. Typical examples:
+
+- desktop code reads one window rectangle through
+  `GetWindowScreenRectSnapshot(...)` instead of taking `Window->Mutex`
+  directly,
+- draw and overlay paths snapshot child lists first, then recurse without
+  holding the parent window lock,
+- graphics-context clip/origin mutation stays on graphics-context helpers
+  instead of direct caller-side `GC->Mutex` access.
+
+
 ## Tooling and References
 
 ### Logging
 
-Kernel logging funnels through `KernelLogText` and uses typed prefixes for log classes. The available log types are `DEBUG`, `WARNING`, `ERROR`, `VERBOSE`, and `TEST`. `DEBUG`, `WARNING`, `ERROR`, and `VERBOSE` are always available, while `TEST` is a debug-only type used by automated test scripts and is compiled out when `DEBUG_OUTPUT` is disabled. All logs follow the standard `[FunctionName]` prefix rule and emit structured results such as `TEST > [CMD_sysinfo] sys_info : OK`. Serial output is sanitized to printable ASCII (plus tab/newline) before being written to the log. When `DEBUG_SPLIT` is set to `1`, the kernel log stream is sent to a dedicated console region on the right side of the screen while standard console output remains on the left.
-`KernelLogSetTagFilter()` adds optional tag-based filtering. The filter string is a separator-based list (comma, semicolon, pipe, or spaces) and each entry matches a log prefix tag (for example `MountDiskPartitionsGpt` or `[MountDiskPartitionsGpt]`). When a filter is active, only log lines whose first bracket tag is listed are emitted. The default kernel filter is initialized for NVMe/GPT diagnosis.
-The build can override this startup filter with `--kernel-log-tag-filter <value>` in `scripts/build.sh`; passing an empty value compiles an empty default filter.
-The `ThresholdLatch` utility supports one-shot logging when a time threshold is exceeded during long-running operations.
+#### Log pipeline and format
+
+Kernel logging funnels through `KernelLogText` and uses typed log classes.
+All logs follow the `[FunctionName]` prefix rule and can emit structured results such as `TEST > [CMD_sysinfo] sys_info : OK`.
+Serial output is sanitized to printable ASCII (plus tab/newline) before being written to the log.
+When `DEBUG_SPLIT` is `1`, kernel logs are mirrored to a dedicated right-side console region while standard console output remains on the left.
+
+#### Log classes
+
+Available log classes are `DEBUG`, `WARNING`, `ERROR`, `VERBOSE`, and `TEST`.
+`DEBUG`, `WARNING`, `ERROR`, and `VERBOSE` are always available.
+`TEST` is debug-only and is compiled out when `DEBUG_OUTPUT` is disabled.
+
+#### Tag filtering
+
+`KernelLogSetTagFilter()` provides optional tag-based filtering.
+The filter value accepts separators (comma, semicolon, pipe, or space), and each token matches the first bracket tag in a log line (for example `MountDiskPartitionsGpt` or `[MountDiskPartitionsGpt]`).
+When filtering is active, only matching tagged lines are emitted.
+The default startup filter is initialized for NVMe/GPT diagnostics.
+Builds can override this value with `--kernel-log-tag-filter <value>` in `scripts/build.sh`; passing an empty value compiles an empty default filter.
+
+#### Recent retained log view
+
+The log module retains one bounded in-memory view of recent formatted lines for desktop diagnostics.
+Retention is owned by `Log.c` and exposed through:
+- `KernelLogGetRecentSequence()`
+- `KernelLogCaptureRecentLines()`
+
+The retained view is intentionally small and bounded:
+- latest `500` lines maximum,
+- about `96 KiB` of recent formatted text.
+
+This retained view is consumed by the floating desktop log viewer component in `kernel/source/ui/LogViewer.c`.
+The UI component does not access desktop internals or log storage internals directly; it only polls the public log snapshot API and redraws when the retained sequence changes.
+
+#### Threshold-based one-shot logging
+
+`ThresholdLatch` provides one-shot logging when an elapsed-time threshold is crossed during long operations.
 
 
 ### Automated debug validation script
@@ -1972,6 +2151,7 @@ Cooperative interruption API:
 
 Console paging (`-- Press a key --`) integrates with cooperative interruption:
 - When paging wait detects `Control+C` (virtual combination or ASCII `0x03`), it requests interruption for the current process instead of consuming the key as paging continuation.
+- Fault dump paths (`LogCPUState` in x86-32/x86-64 fault handlers) force paging inactive while diagnostics are emitted, then restore the previous state.
 
 Long command loops can place interruption checkpoints; `dir` and `dir --stress` integrate this behavior and abort listing when an interruption request is pending.
 

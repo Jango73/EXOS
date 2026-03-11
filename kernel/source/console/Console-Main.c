@@ -363,6 +363,18 @@ U32 GetConsoleHeight(void) {
 
 /***************************************************************************/
 
+U32 GetConsoleCharHeight(void) {
+    U32 CharHeight;
+
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+    CharHeight = Console.FontHeight;
+    UnlockMutex(MUTEX_CONSOLE_STATE);
+
+    return CharHeight;
+}
+
+/***************************************************************************/
+
 U32 GetConsoleForeColor(void) {
     U32 Color;
 
@@ -695,11 +707,12 @@ void ConsolePanic(LPCSTR Format, ...) {
 /***************************************************************************/
 
 void InitializeConsole(void) {
-    const FONT_GLYPH_SET* Font = FontGetDefault();
+    const FONT_FACE* Font = FontGetDefaultFace();
+    FONT_METRICS Metrics;
 
-    if (Font != NULL) {
-        Console.FontWidth = Font->Width;
-        Console.FontHeight = Font->Height;
+    if (FontFaceGetMetrics(Font, &Metrics)) {
+        Console.FontWidth = Metrics.CellWidth;
+        Console.FontHeight = Metrics.CellHeight;
     }
 
     if (Console.UseFramebuffer != FALSE) {
@@ -806,6 +819,79 @@ void ConsoleSetFramebufferInfo(
 /***************************************************************************/
 
 /**
+ * @brief Route console text rendering through the active graphics backend.
+ *
+ * This updates console geometry from one graphics mode descriptor and enables
+ * framebuffer text dispatch through DF_GFX_TEXT_* commands.
+ *
+ * @param ModeInfo Active graphics mode descriptor.
+ * @return TRUE on success, FALSE on invalid mode geometry.
+ */
+BOOL ConsoleSetGraphicsTextMode(LPGRAPHICSMODEINFO ModeInfo) {
+    U32 CellWidth = 0;
+    U32 CellHeight = 0;
+    U32 Columns = 0;
+    U32 Rows = 0;
+    U32 BytesPerPixel = 0;
+
+    if (ModeInfo == NULL || ModeInfo->Width == 0 || ModeInfo->Height == 0 || ModeInfo->BitsPerPixel == 0) {
+        return FALSE;
+    }
+
+    CellWidth = ConsoleGetCellWidth();
+    CellHeight = ConsoleGetCellHeight();
+    if (CellWidth == 0 || CellHeight == 0) {
+        return FALSE;
+    }
+
+    Columns = ModeInfo->Width / CellWidth;
+    Rows = ModeInfo->Height / CellHeight;
+    if (Columns == 0 || Rows == 0) {
+        return FALSE;
+    }
+
+    BytesPerPixel = ModeInfo->BitsPerPixel / 8;
+    if (BytesPerPixel == 0) {
+        BytesPerPixel = 4;
+    }
+
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+
+    ConsoleResetFramebufferCursorState();
+    Console.UseFramebuffer = TRUE;
+    Console.Memory = NULL;
+    Console.Port = 0;
+    Console.FramebufferPhysical = 0;
+    Console.FramebufferLinear = NULL;
+    Console.FramebufferWidth = ModeInfo->Width;
+    Console.FramebufferHeight = ModeInfo->Height;
+    Console.FramebufferBitsPerPixel = ModeInfo->BitsPerPixel;
+    Console.FramebufferBytesPerPixel = BytesPerPixel;
+    Console.FramebufferPitch = ModeInfo->Width * BytesPerPixel;
+    Console.FramebufferType = MULTIBOOT_FRAMEBUFFER_RGB;
+    Console.FramebufferRedPosition = 16;
+    Console.FramebufferRedMaskSize = 8;
+    Console.FramebufferGreenPosition = 8;
+    Console.FramebufferGreenMaskSize = 8;
+    Console.FramebufferBluePosition = 0;
+    Console.FramebufferBlueMaskSize = 8;
+    Console.ScreenWidth = Columns;
+    Console.ScreenHeight = Rows;
+    Console.CursorX = 0;
+    Console.CursorY = 0;
+    ConsoleApplyLayout();
+
+    UnlockMutex(MUTEX_CONSOLE_STATE);
+
+#if DEBUG_OUTPUT != 1
+    ClearConsole();
+#endif
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Enable or disable console paging.
  * @param Enabled TRUE to enable paging, FALSE to disable.
  */
@@ -839,6 +925,16 @@ void ConsoleSetPagingActive(BOOL Active) {
     } else {
         ConsoleResetPaging();
     }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Query whether console paging is active.
+ * @return TRUE if paging prompts are active, FALSE otherwise.
+ */
+BOOL ConsoleGetPagingActive(void) {
+    return Console.PagingActive ? TRUE : FALSE;
 }
 
 /***************************************************************************/

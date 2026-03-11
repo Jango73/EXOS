@@ -29,10 +29,156 @@
 
 /************************************************************************/
 
-#define XHCI_ENUM_FAILURE_LOG_IMMEDIATE_BUDGET 1
-#define XHCI_ENUM_FAILURE_LOG_INTERVAL_MS 2000
-#define XHCI_ENABLE_SLOT_TIMEOUT_LOG_IMMEDIATE_BUDGET 1
-#define XHCI_ENABLE_SLOT_TIMEOUT_LOG_INTERVAL_MS 2000
+#define XHCI_COMMAND_TIMEOUT_LOG_IMMEDIATE_BUDGET 2
+#define XHCI_COMMAND_TIMEOUT_LOG_INTERVAL_MS 1000
+/************************************************************************/
+
+/**
+ * @brief Emit one rate-limited snapshot when command completion stalls.
+ * @param Device xHCI controller.
+ * @param TrbPhysical Command TRB physical address.
+ * @param Stage Stage label.
+ */
+static void XHCI_LogCommandTimeoutState(LPXHCI_DEVICE Device, U64 TrbPhysical, LPCSTR Stage) {
+    static RATE_LIMITER DATA_SECTION CommandTimeoutLimiter = {0};
+    static BOOL DATA_SECTION CommandTimeoutLimiterInitAttempted = FALSE;
+    U32 Suppressed = 0;
+    LINEAR InterrupterBase;
+    U32 UsbStatus;
+    U32 UsbCommand;
+    U32 CrcrLow;
+    U32 CrcrHigh;
+    U32 Iman;
+    U32 ErdpLow;
+    U32 ErdpHigh;
+    U32 EventDword0 = 0;
+    U32 EventDword1 = 0;
+    U32 EventDword2 = 0;
+    U32 EventDword3 = 0;
+    U32 EventCycle = 0;
+    U32 ExpectedCycle = 0;
+    U32 CommandDword0 = 0;
+    U32 CommandDword1 = 0;
+    U32 CommandDword2 = 0;
+    U32 CommandDword3 = 0;
+    U32 CommandType = 0;
+    U32 CommandSlot = 0;
+    U32 CommandIndex = 0xFFFFFFFF;
+    U32 CommandOffset = 0;
+    U16 PciCommand = 0;
+    U16 PciStatus = 0;
+    U32 SlotPort = 0;
+    U32 SlotAddress = 0;
+    U32 SlotPresent = 0;
+    U64 CommandRingBase;
+    U64 CommandOffsetU64;
+
+    if (Device == NULL) {
+        return;
+    }
+
+    if (CommandTimeoutLimiter.Initialized == FALSE && CommandTimeoutLimiterInitAttempted == FALSE) {
+        CommandTimeoutLimiterInitAttempted = TRUE;
+        if (RateLimiterInit(&CommandTimeoutLimiter,
+                            XHCI_COMMAND_TIMEOUT_LOG_IMMEDIATE_BUDGET,
+                            XHCI_COMMAND_TIMEOUT_LOG_INTERVAL_MS) == FALSE) {
+            return;
+        }
+    }
+
+    if (!RateLimiterShouldTrigger(&CommandTimeoutLimiter, GetSystemTime(), &Suppressed)) {
+        return;
+    }
+
+    XHCI_LogHseTransitionIfNeeded(Device, TEXT("CommandTimeout"));
+    InterrupterBase = Device->RuntimeBase + XHCI_RT_INTERRUPTER_BASE;
+    UsbCommand = XHCI_Read32(Device->OpBase, XHCI_OP_USBCMD);
+    UsbStatus = XHCI_Read32(Device->OpBase, XHCI_OP_USBSTS);
+    CrcrLow = XHCI_Read32(Device->OpBase, XHCI_OP_CRCR);
+    CrcrHigh = XHCI_Read32(Device->OpBase, (U32)(XHCI_OP_CRCR + 4));
+    Iman = XHCI_Read32(InterrupterBase, XHCI_IMAN);
+    ErdpLow = XHCI_Read32(InterrupterBase, XHCI_ERDP);
+    ErdpHigh = XHCI_Read32(InterrupterBase, (U32)(XHCI_ERDP + 4));
+    PciCommand = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_COMMAND);
+    PciStatus = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_STATUS);
+
+    if (Device->EventRingLinear != 0) {
+        LPXHCI_TRB EventRing = (LPXHCI_TRB)Device->EventRingLinear;
+        U32 EventIndex = Device->EventRingDequeueIndex;
+        XHCI_TRB Event = EventRing[EventIndex];
+        EventDword0 = Event.Dword0;
+        EventDword1 = Event.Dword1;
+        EventDword2 = Event.Dword2;
+        EventDword3 = Event.Dword3;
+        EventCycle = (Event.Dword3 & XHCI_TRB_CYCLE) ? 1U : 0U;
+        ExpectedCycle = Device->EventRingCycleState ? 1U : 0U;
+    }
+
+    CommandRingBase = U64_FromUINT(Device->CommandRingPhysical);
+    if (U64_Cmp(TrbPhysical, CommandRingBase) >= 0) {
+        CommandOffsetU64 = U64_Sub(TrbPhysical, CommandRingBase);
+        if (U64_High32(CommandOffsetU64) == 0) {
+            CommandOffset = U64_Low32(CommandOffsetU64);
+            if (CommandOffset < PAGE_SIZE && (CommandOffset % sizeof(XHCI_TRB)) == 0 && Device->CommandRingLinear != 0) {
+                LPXHCI_TRB CommandRing = (LPXHCI_TRB)Device->CommandRingLinear;
+                CommandIndex = CommandOffset / sizeof(XHCI_TRB);
+                CommandDword0 = CommandRing[CommandIndex].Dword0;
+                CommandDword1 = CommandRing[CommandIndex].Dword1;
+                CommandDword2 = CommandRing[CommandIndex].Dword2;
+                CommandDword3 = CommandRing[CommandIndex].Dword3;
+                CommandType = (CommandDword3 >> XHCI_TRB_TYPE_SHIFT) & 0x3F;
+                CommandSlot = (CommandDword3 >> 24) & 0xFF;
+            }
+        }
+    }
+
+    if (CommandSlot != 0 && Device->UsbDevices != NULL) {
+        for (U32 PortIndex = 0; PortIndex < Device->MaxPorts; PortIndex++) {
+            LPXHCI_USB_DEVICE UsbDevice = Device->UsbDevices[PortIndex];
+            if (UsbDevice == NULL || UsbDevice->SlotId != CommandSlot) {
+                continue;
+            }
+
+            SlotPort = (U32)UsbDevice->PortNumber;
+            SlotAddress = (U32)UsbDevice->Address;
+            SlotPresent = UsbDevice->Present ? 1 : 0;
+            break;
+        }
+    }
+
+    WARNING(TEXT("[XHCI_LogCommandTimeoutState] stage=%s TRB=%p CmdType=%x CmdSlot=%x SlotPort=%u SlotAddr=%x SlotPresent=%u CmdIdx=%x CmdEnq=%u CmdCycle=%u Cmd=%x:%x:%x:%x USBCMD=%x USBSTS=%x PCICMD=%x PCISTS=%x CRCR=%x:%x IMAN=%x ERDP=%x:%x CQ=%u Event=%x:%x:%x:%x Cy=%u/%u suppressed=%u"),
+            (Stage != NULL) ? Stage : TEXT("?"),
+            (LPVOID)(UINT)U64_Low32(TrbPhysical),
+            CommandType,
+            CommandSlot,
+            SlotPort,
+            SlotAddress,
+            SlotPresent,
+            CommandIndex,
+            Device->CommandRingEnqueueIndex,
+            Device->CommandRingCycleState,
+            CommandDword3,
+            CommandDword2,
+            CommandDword1,
+            CommandDword0,
+            UsbCommand,
+            UsbStatus,
+            (U32)PciCommand,
+            (U32)PciStatus,
+            CrcrHigh,
+            CrcrLow,
+            Iman,
+            ErdpHigh,
+            ErdpLow,
+            Device->CompletionCount,
+            EventDword3,
+            EventDword2,
+            EventDword1,
+            EventDword0,
+            EventCycle,
+            ExpectedCycle,
+            Suppressed);
+}
 
 /************************************************************************/
 
@@ -52,9 +198,6 @@ void XHCI_InitUsbDeviceObject(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice)
     UsbDevice->Controller = Device;
     UsbDevice->LastEnumError = XHCI_ENUM_ERROR_NONE;
     UsbDevice->LastEnumCompletion = 0;
-    (void)RateLimiterInit(&UsbDevice->EnumFailureLogLimiter,
-                          XHCI_ENUM_FAILURE_LOG_IMMEDIATE_BUDGET,
-                          XHCI_ENUM_FAILURE_LOG_INTERVAL_MS);
 
     InitMutex(&UsbDevice->Mutex);
     UsbDevice->Contexts.First = NULL;
@@ -244,7 +387,6 @@ static void XHCI_FreeUsbDeviceResources(LPXHCI_USB_DEVICE UsbDevice) {
     UsbDevice->Depth = 0;
     UsbDevice->RouteString = 0;
     UsbDevice->Controller = NULL;
-    RateLimiterReset(&UsbDevice->EnumFailureLogLimiter);
 }
 
 /************************************************************************/
@@ -391,11 +533,15 @@ static void XHCI_ResetTransferRingState(PHYSICAL RingPhysical, LINEAR RingLinear
  * @return TRUE on success.
  */
 BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U8* SlotIdOut, U32* CompletionOut) {
-    U32 Timeout = XHCI_EVENT_TIMEOUT_MS;
-    U32 StartTick = GetSystemTime();
-    THRESHOLD_LATCH Latch;
+    U32 Timeout = XHCI_DEFAULT_EVENT_TIMEOUT_MS;
+    U32 RequestedTimeout = Timeout;
+    U32 ElapsedMilliseconds = 0;
+    U32 NextWarningAt = 200;
 
-    ThresholdLatchInit(&Latch, TEXT("Command completion"), 200, StartTick);
+    if (Device != NULL && Device->CommandTimeoutMS != 0) {
+        Timeout = Device->CommandTimeoutMS;
+    }
+    RequestedTimeout = Timeout;
 
     LockMutex(&(Device->Mutex), INFINITY);
     if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT, TrbPhysical, SlotIdOut, CompletionOut)) {
@@ -403,7 +549,7 @@ BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U8* Sl
         return TRUE;
     }
 
-    while (Timeout > 0) {
+    while (ElapsedMilliseconds < Timeout) {
         if (XHCI_PollForCompletion(Device, XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT, TrbPhysical, SlotIdOut, CompletionOut)) {
             UnlockMutex(&(Device->Mutex));
             return TRUE;
@@ -414,19 +560,23 @@ BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U8* Sl
             return TRUE;
         }
 
-        if (ThresholdLatchCheck(&Latch, GetSystemTime())) {
-            WARNING(TEXT("[XHCI_WaitForCommandCompletion] %s exceeded %u ms (TRB=%p)"),
-                    Latch.Name ? Latch.Name : TEXT("?"),
-                    Latch.ThresholdMS,
+        if (ElapsedMilliseconds >= NextWarningAt) {
+            WARNING(TEXT("[XHCI_WaitForCommandCompletion] exceeded %u ms (TRB=%p)"),
+                    ElapsedMilliseconds,
                     (LPVOID)(UINT)U64_Low32(TrbPhysical));
+            XHCI_LogCommandTimeoutState(Device, TrbPhysical, TEXT("Exceeded"));
+            if (NextWarningAt < MAX_U32 - 200) {
+                NextWarningAt += 200;
+            }
         }
 
         Sleep(1);
-        Timeout--;
+        ElapsedMilliseconds++;
     }
 
     UnlockMutex(&(Device->Mutex));
-    WARNING(TEXT("[XHCI_WaitForCommandCompletion] Timeout %u ms (TRB=%p)"), XHCI_EVENT_TIMEOUT_MS, (LPVOID)(UINT)U64_Low32(TrbPhysical));
+    WARNING(TEXT("[XHCI_WaitForCommandCompletion] Timeout %u ms (TRB=%p)"), RequestedTimeout, (LPVOID)(UINT)U64_Low32(TrbPhysical));
+    XHCI_LogCommandTimeoutState(Device, TrbPhysical, TEXT("Timeout"));
     return FALSE;
 }
 
@@ -440,11 +590,14 @@ BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U8* Sl
  * @return TRUE on success.
  */
 BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* CompletionOut) {
-    U32 Timeout = XHCI_EVENT_TIMEOUT_MS;
-    U32 StartTick = GetSystemTime();
-    THRESHOLD_LATCH Latch;
+    U32 Timeout = XHCI_DEFAULT_TRANSFER_TIMEOUT_MS;
+    U32 RequestedTimeout = Timeout;
+    U32 ElapsedMilliseconds = 0;
 
-    ThresholdLatchInit(&Latch, TEXT("Transfer completion"), 200, StartTick);
+    if (Device != NULL && Device->TransferTimeoutMS != 0) {
+        Timeout = Device->TransferTimeoutMS;
+    }
+    RequestedTimeout = Timeout;
 
     LockMutex(&(Device->Mutex), INFINITY);
     if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut)) {
@@ -452,7 +605,7 @@ BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* 
         return TRUE;
     }
 
-    while (Timeout > 0) {
+    while (ElapsedMilliseconds < Timeout) {
         if (XHCI_PollForCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut)) {
             UnlockMutex(&(Device->Mutex));
             return TRUE;
@@ -463,19 +616,11 @@ BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* 
             return TRUE;
         }
 
-        if (ThresholdLatchCheck(&Latch, GetSystemTime())) {
-            WARNING(TEXT("[XHCI_WaitForTransferCompletion] %s exceeded %u ms (TRB=%p)"),
-                    Latch.Name ? Latch.Name : TEXT("?"),
-                    Latch.ThresholdMS,
-                    (LPVOID)(UINT)U64_Low32(TrbPhysical));
-        }
-
         Sleep(1);
-        Timeout--;
+        ElapsedMilliseconds++;
     }
 
     UnlockMutex(&(Device->Mutex));
-    WARNING(TEXT("[XHCI_WaitForTransferCompletion] Timeout %u ms (TRB=%p)"), XHCI_EVENT_TIMEOUT_MS, (LPVOID)(UINT)U64_Low32(TrbPhysical));
     return FALSE;
 }
 
@@ -488,7 +633,7 @@ BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* 
  * @param Dci Endpoint DCI.
  * @return TRUE on success.
  */
-static BOOL XHCI_StopEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U8 Dci) {
+static BOOL XHCI_StopEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U8 Dci, U32* CompletionOut) {
     if (Device == NULL || UsbDevice == NULL || UsbDevice->SlotId == 0 || Dci == 0) {
         return FALSE;
     }
@@ -509,14 +654,17 @@ static BOOL XHCI_StopEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice,
     XHCI_RingDoorbell(Device, 0, 0);
 
     if (!XHCI_WaitForCommandCompletion(Device, TrbPhysical, NULL, &Completion)) {
+        if (CompletionOut != NULL) {
+            *CompletionOut = 0;
+        }
         return FALSE;
     }
 
+    if (CompletionOut != NULL) {
+        *CompletionOut = Completion;
+    }
+
     if (Completion != XHCI_COMPLETION_SUCCESS) {
-        WARNING(TEXT("[XHCI_StopEndpoint] Slot=%x DCI=%x completion %x"),
-                (U32)UsbDevice->SlotId,
-                (U32)Dci,
-                Completion);
         return FALSE;
     }
 
@@ -561,6 +709,109 @@ static BOOL XHCI_ResetEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice
                 (U32)UsbDevice->SlotId,
                 (U32)Dci,
                 Completion);
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Program transfer-ring dequeue pointer for one endpoint.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device state.
+ * @param Endpoint Endpoint descriptor.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_SetTransferRingDequeuePointer(LPXHCI_DEVICE Device,
+                                               LPXHCI_USB_DEVICE UsbDevice,
+                                               LPXHCI_USB_ENDPOINT Endpoint,
+                                               U64* ProgrammedDequeueOut,
+                                               U32* CompletionOut) {
+    if (Device == NULL || UsbDevice == NULL || Endpoint == NULL || Endpoint->Dci == 0 || Endpoint->TransferRingPhysical == 0) {
+        return FALSE;
+    }
+
+    XHCI_TRB Trb;
+    U64 TrbPhysical = U64_0;
+    U32 Completion = 0;
+    U64 DequeuePointer = U64_FromUINT(Endpoint->TransferRingPhysical);
+
+    // DCS must match the consumer cycle state at the new dequeue pointer.
+    if (Endpoint->TransferRingCycleState != 0) {
+        DequeuePointer = U64_Make(U64_High32(DequeuePointer), U64_Low32(DequeuePointer) | 1);
+    }
+
+    MemorySet(&Trb, 0, sizeof(Trb));
+    Trb.Dword0 = U64_Low32(DequeuePointer);
+    Trb.Dword1 = U64_High32(DequeuePointer);
+    Trb.Dword2 = ((U32)Endpoint->Dci << 16);
+    Trb.Dword3 = (XHCI_TRB_TYPE_SET_TR_DEQUEUE_POINTER << XHCI_TRB_TYPE_SHIFT) |
+                 ((U32)UsbDevice->SlotId << 24);
+
+    if (!XHCI_CommandRingEnqueue(Device, &Trb, &TrbPhysical)) {
+        return FALSE;
+    }
+
+    XHCI_RingDoorbell(Device, 0, 0);
+
+    if (ProgrammedDequeueOut != NULL) {
+        *ProgrammedDequeueOut = DequeuePointer;
+    }
+
+    if (!XHCI_WaitForCommandCompletion(Device, TrbPhysical, NULL, &Completion)) {
+        if (CompletionOut != NULL) {
+            *CompletionOut = 0;
+        }
+        return FALSE;
+    }
+
+    if (CompletionOut != NULL) {
+        *CompletionOut = Completion;
+    }
+
+    if (Completion != XHCI_COMPLETION_SUCCESS) {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Recover one transfer endpoint after stall/timeout.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device state.
+ * @param Endpoint Endpoint descriptor.
+ * @param EndpointHalted TRUE when endpoint is in halted state (stall).
+ * @return TRUE on success.
+ */
+BOOL XHCI_ResetTransferEndpoint(LPXHCI_DEVICE Device,
+                                LPXHCI_USB_DEVICE UsbDevice,
+                                LPXHCI_USB_ENDPOINT Endpoint,
+                                BOOL EndpointHalted) {
+    if (Device == NULL || UsbDevice == NULL || Endpoint == NULL || Endpoint->Dci == 0) {
+        return FALSE;
+    }
+
+    if (EndpointHalted) {
+        if (!XHCI_ResetEndpoint(Device, UsbDevice, Endpoint->Dci)) {
+            return FALSE;
+        }
+    } else {
+        if (!XHCI_StopEndpoint(Device, UsbDevice, Endpoint->Dci, NULL)) {
+            return FALSE;
+        }
+    }
+
+    XHCI_ResetTransferRingState(Endpoint->TransferRingPhysical,
+                                Endpoint->TransferRingLinear,
+                                &Endpoint->TransferRingCycleState,
+                                &Endpoint->TransferRingEnqueueIndex);
+
+    if (!XHCI_SetTransferRingDequeuePointer(Device, UsbDevice, Endpoint, NULL, NULL)) {
         return FALSE;
     }
 
@@ -628,7 +879,7 @@ static void XHCI_TeardownDeviceTransfers(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE
     }
 
     if (UsbDevice->TransferRingPhysical != 0 && UsbDevice->TransferRingLinear != 0) {
-        (void)XHCI_StopEndpoint(Device, UsbDevice, XHCI_EP0_DCI);
+        (void)XHCI_StopEndpoint(Device, UsbDevice, XHCI_EP0_DCI, NULL);
         (void)XHCI_ResetEndpoint(Device, UsbDevice, XHCI_EP0_DCI);
         XHCI_ResetTransferRingState(UsbDevice->TransferRingPhysical,
                                     UsbDevice->TransferRingLinear,
@@ -654,7 +905,7 @@ static void XHCI_TeardownDeviceTransfers(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE
                     continue;
                 }
 
-                (void)XHCI_StopEndpoint(Device, UsbDevice, Endpoint->Dci);
+                (void)XHCI_StopEndpoint(Device, UsbDevice, Endpoint->Dci, NULL);
                 (void)XHCI_ResetEndpoint(Device, UsbDevice, Endpoint->Dci);
                 XHCI_ResetTransferRingState(Endpoint->TransferRingPhysical,
                                             Endpoint->TransferRingLinear,

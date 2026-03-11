@@ -60,6 +60,13 @@
 #define DF_GFX_TEXT_SCROLL_REGION (DF_FIRST_FUNCTION + 21)
 #define DF_GFX_TEXT_SET_CURSOR (DF_FIRST_FUNCTION + 22)
 #define DF_GFX_TEXT_SET_CURSOR_VISIBLE (DF_FIRST_FUNCTION + 23)
+#define DF_GFX_CURSOR_SET_SHAPE (DF_FIRST_FUNCTION + 24)
+#define DF_GFX_CURSOR_SET_POSITION (DF_FIRST_FUNCTION + 25)
+#define DF_GFX_CURSOR_SET_VISIBLE (DF_FIRST_FUNCTION + 26)
+#define DF_GFX_ARC (DF_FIRST_FUNCTION + 27)
+#define DF_GFX_TRIANGLE (DF_FIRST_FUNCTION + 28)
+#define DF_GFX_TEXT_DRAW (DF_FIRST_FUNCTION + 29)
+#define DF_GFX_TEXT_MEASURE (DF_FIRST_FUNCTION + 30)
 
 /***************************************************************************/
 
@@ -106,6 +113,12 @@ typedef U32 (*GFXGETMODECOUNTFUNC)(void);
 
 /***************************************************************************/
 
+// Cursor formats
+
+#define GFX_CURSOR_FORMAT_ARGB8888 0x0001
+
+/***************************************************************************/
+
 typedef struct tag_BRUSH {
     LISTNODE_FIELDS
     U32 Color;
@@ -125,6 +138,10 @@ typedef struct tag_PEN {
 typedef struct tag_FONT {
     LISTNODE_FIELDS
 } FONT, *LPFONT;
+
+/***************************************************************************/
+
+struct tag_FONT_FACE;
 
 /***************************************************************************/
 
@@ -149,6 +166,12 @@ typedef struct tag_GRAPHICSCONTEXT {
     I32 Height;
     U32 BitsPerPixel;
     U32 BytesPerScanLine;
+    U32 RedPosition;
+    U32 RedMaskSize;
+    U32 GreenPosition;
+    U32 GreenMaskSize;
+    U32 BluePosition;
+    U32 BlueMaskSize;
     U8* MemoryBase;
     POINT LoClip;
     POINT HiClip;
@@ -285,6 +308,55 @@ typedef struct tag_GFX_TEXT_CURSOR_VISIBLE_INFO {
     HANDLE GC;
     BOOL IsVisible;
 } GFX_TEXT_CURSOR_VISIBLE_INFO, *LPGFX_TEXT_CURSOR_VISIBLE_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_TEXT_DRAW_INFO {
+    ABI_HEADER Header;
+    HANDLE GC;
+    I32 X;
+    I32 Y;
+    LPCSTR Text;
+    const struct tag_FONT_FACE* Font;
+} GFX_TEXT_DRAW_INFO, *LPGFX_TEXT_DRAW_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_TEXT_MEASURE_INFO {
+    ABI_HEADER Header;
+    LPCSTR Text;
+    const struct tag_FONT_FACE* Font;
+    U32 Width;
+    U32 Height;
+} GFX_TEXT_MEASURE_INFO, *LPGFX_TEXT_MEASURE_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_CURSOR_SHAPE_INFO {
+    ABI_HEADER Header;
+    U32 Width;
+    U32 Height;
+    U32 HotspotX;
+    U32 HotspotY;
+    U32 Format;
+    U32 Pitch;
+    LPCVOID Pixels;
+} GFX_CURSOR_SHAPE_INFO, *LPGFX_CURSOR_SHAPE_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_CURSOR_POSITION_INFO {
+    ABI_HEADER Header;
+    I32 X;
+    I32 Y;
+} GFX_CURSOR_POSITION_INFO, *LPGFX_CURSOR_POSITION_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_CURSOR_VISIBLE_INFO {
+    ABI_HEADER Header;
+    BOOL IsVisible;
+} GFX_CURSOR_VISIBLE_INFO, *LPGFX_CURSOR_VISIBLE_INFO;
 
 /***************************************************************************/
 

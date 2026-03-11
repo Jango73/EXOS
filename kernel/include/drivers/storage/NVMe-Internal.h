@@ -74,6 +74,8 @@ typedef struct tag_NVME_DISK {
 
 BOOL NVMeSetupAdminQueues(LPNVME_DEVICE Device);
 void NVMeFreeAdminQueues(LPNVME_DEVICE Device);
+void NVMeFreeQueueBuffer(LPNVME_QUEUE_BUFFER Queue);
+BOOL NVMeAllocateQueueBuffer(LPNVME_QUEUE_BUFFER Queue, U32 QueueSize, UINT QueueAlignment, LPCSTR QueueName);
 BOOL NVMeSubmitAdminCommand(LPNVME_DEVICE Device, const NVME_COMMAND* Command, NVME_COMPLETION* CompletionOut);
 BOOL NVMeIdentifyController(LPNVME_DEVICE Device);
 BOOL NVMeIdentifyNamespace(LPNVME_DEVICE Device, U32 NamespaceId, U64* NumSectorsOut, U32* BytesPerSectorOut);

@@ -46,6 +46,8 @@ U32 Line24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2);
 U32 Rect8(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2);
 U32 Rect16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2);
 U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2);
+U32 VESAArcPrimitive(LPVESA_CONTEXT Context, LPARCINFO Info);
+U32 VESATrianglePrimitive(LPVESA_CONTEXT Context, LPTRIANGLEINFO Info);
 void VESADrawSelfTest(LPVESA_CONTEXT Context);
 
 /************************************************************************/

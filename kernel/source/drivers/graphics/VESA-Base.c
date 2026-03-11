@@ -24,11 +24,14 @@
 
 #include "GFX.h"
 #include "Arch.h"
+#include "CoreString.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
+#include "Profile.h"
 #include "drivers/graphics/VESA-Shared.h"
 #include "drivers/graphics/Graphics-TextRenderer.h"
+#include "utils/BootPath.h"
 
 /************************************************************************/
 
@@ -81,8 +84,6 @@ LPDRIVER VESAGetDriver(void) {
 /************************************************************************/
 
 static U32 DATA_SECTION VESARectangleLogCount = 0;
-
-/************************************************************************/
 
 typedef struct tag_VESAINFOBLOCK {
     U8 Signature[4];  // 4 signature bytes
@@ -191,6 +192,39 @@ VESA_CONTEXT VESAContext = {
 /***************************************************************************/
 
 /**
+ * @brief Return multi-line VESA backend debug information.
+ * @param Info Receives the formatted text.
+ * @return DF_RETURN_SUCCESS on success.
+ */
+static UINT VESADebugInfo(LPDRIVER_DEBUG_INFO Info) {
+    U32 Width = 0;
+    U32 Height = 0;
+    U32 BitsPerPixel = 0;
+
+    SAFE_USE(Info) {
+        if ((VESADriver.Flags & DRIVER_FLAG_READY) != 0) {
+            Width = VESAContext.Header.Width;
+            Height = VESAContext.Header.Height;
+            BitsPerPixel = VESAContext.Header.BitsPerPixel;
+        }
+
+        StringPrintFormat(
+            Info->Text,
+            TEXT("Manufacturer: %s\nProduct: %s\nResolution: %ux%ux%u"),
+            VESADriver.Manufacturer,
+            VESADriver.Product,
+            Width,
+            Height,
+            BitsPerPixel);
+        return DF_RETURN_SUCCESS;
+    }
+
+    return DF_RETURN_BAD_PARAMETER;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Initialize VESA context and retrieve controller info.
  *
  * Performs real-mode calls to fetch VESA data, seeds graphics context defaults,
@@ -201,10 +235,10 @@ VESA_CONTEXT VESAContext = {
 static BOOL InitializeVESA(void) {
     INTEL_X86_REGISTERS Regs;
 
-    // TODO : Fix real mode call in x86-64
-#if defined(__EXOS_ARCH_X86_64__)
-    return TRUE;
-#endif
+    if (VesaIsSupportedOnCurrentBootPath() == FALSE) {
+        WARNING(TEXT("[InitializeVESA] Unsupported boot path for VESA"));
+        return FALSE;
+    }
 
     DEBUG(TEXT("[InitializeVESA] Enter"));
 
@@ -321,10 +355,56 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
     U32 Found = 0;
     U32 Index = 0;
     U32 Mode = 0;
+    U32 RequestedWidth;
+    U32 RequestedHeight;
+    U32 RequestedBitsPerPixel;
+    BOOL AutoSelect;
+    U32 SelectedModeIndex;
+    U32 BestArea;
+    U32 BestBitsPerPixel;
     UINT FrameBufferSize = 0;
     LINEAR LinearBase = 0;
 
-    DEBUG(TEXT("[SetVideoMode] GFX mode request : %ux%u"), Info->Width, Info->Height);
+    DEBUG(TEXT("[SetVideoMode] GFX mode request : %ux%ux%u"), Info->Width, Info->Height, Info->BitsPerPixel);
+
+    RequestedWidth = Info->Width;
+    RequestedHeight = Info->Height;
+    RequestedBitsPerPixel = Info->BitsPerPixel;
+    AutoSelect = (RequestedWidth == 0 && RequestedHeight == 0 && RequestedBitsPerPixel == 0);
+
+    if (AutoSelect != FALSE) {
+        SelectedModeIndex = INFINITY;
+        BestArea = 0;
+        BestBitsPerPixel = 0;
+
+        for (Index = 0;; Index++) {
+            if (VESAModeSpecs[Index].Mode == 0) {
+                break;
+            }
+
+            if (VESAModeSpecs[Index].Width * VESAModeSpecs[Index].Height > BestArea ||
+                (VESAModeSpecs[Index].Width * VESAModeSpecs[Index].Height == BestArea &&
+                    VESAModeSpecs[Index].BitsPerPixel > BestBitsPerPixel)) {
+                SelectedModeIndex = Index;
+                BestArea = VESAModeSpecs[Index].Width * VESAModeSpecs[Index].Height;
+                BestBitsPerPixel = VESAModeSpecs[Index].BitsPerPixel;
+            }
+        }
+
+        if (SelectedModeIndex == INFINITY) {
+            WARNING(TEXT("[SetVideoMode] Auto-select failed: no mode candidate"));
+            return DF_RETURN_GENERIC;
+        }
+
+        RequestedWidth = VESAModeSpecs[SelectedModeIndex].Width;
+        RequestedHeight = VESAModeSpecs[SelectedModeIndex].Height;
+        RequestedBitsPerPixel = VESAModeSpecs[SelectedModeIndex].BitsPerPixel;
+
+        DEBUG(TEXT("[SetVideoMode] Auto-select chose %ux%ux%u"),
+            RequestedWidth,
+            RequestedHeight,
+            RequestedBitsPerPixel);
+    }
 
     if (VESAContext.LinearFrameBufferEnabled != FALSE && VESAContext.FrameBufferLinear != 0 &&
         VESAContext.FrameBufferSize != 0) {
@@ -341,8 +421,8 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
 
         DEBUG(TEXT("[SetVideoMode] Checking mode %x"), VESAModeSpecs[Index].Mode);
 
-        if (VESAModeSpecs[Index].Width == Info->Width && VESAModeSpecs[Index].Height == Info->Height &&
-            VESAModeSpecs[Index].BitsPerPixel == Info->BitsPerPixel) {
+        if (VESAModeSpecs[Index].Width == RequestedWidth && VESAModeSpecs[Index].Height == RequestedHeight &&
+            VESAModeSpecs[Index].BitsPerPixel == RequestedBitsPerPixel) {
             BOOL ModeListed = FALSE;
             BOOL ModeListValid = TRUE;
 
@@ -448,6 +528,12 @@ static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
     if (VESAContext.Header.BytesPerScanLine == 0) {
         VESAContext.Header.BytesPerScanLine = VESAContext.Header.Width * VESAContext.PixelSize;
     }
+    VESAContext.Header.RedPosition = VESAContext.ModeInfo.RedFieldPosition;
+    VESAContext.Header.RedMaskSize = VESAContext.ModeInfo.RedMaskSize;
+    VESAContext.Header.GreenPosition = VESAContext.ModeInfo.GreenFieldPosition;
+    VESAContext.Header.GreenMaskSize = VESAContext.ModeInfo.GreenMaskSize;
+    VESAContext.Header.BluePosition = VESAContext.ModeInfo.BlueFieldPosition;
+    VESAContext.Header.BlueMaskSize = VESAContext.ModeInfo.BlueMaskSize;
 
     FrameBufferSize = VESAContext.Header.BytesPerScanLine * VESAContext.Header.Height;
     if (FrameBufferSize == 0) {
@@ -662,6 +748,7 @@ static U32 VESA_Line(LPLINEINFO Info) {
 static U32 VESA_Rectangle(LPRECTINFO Info) {
     LPVESA_CONTEXT Context;
     static U32 DATA_SECTION VESARectangleDebugCount = 0;
+    PROFILE_SCOPE Scope;
 
     if (Info == NULL) return 0;
 
@@ -684,10 +771,58 @@ static U32 VESA_Rectangle(LPRECTINFO Info) {
         VESARectangleDebugCount++;
     }
 
+    ProfileStart(&Scope, TEXT("VESA.Rectangle"));
     LockMutex(&(Context->Header.Mutex), INFINITY);
 
     Context->ModeSpecs.Rect(Context, Info->X1, Info->Y1, Info->X2, Info->Y2);
 
+    UnlockMutex(&(Context->Header.Mutex));
+    ProfileStop(&Scope);
+
+    return 1;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Draw an arc via driver interface.
+ * @param Info Arc descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VESA_Arc(LPARCINFO Info) {
+    LPVESA_CONTEXT Context;
+
+    if (Info == NULL) return 0;
+
+    Context = (LPVESA_CONTEXT)Info->GC;
+    if (Context == NULL) return 0;
+    if (Context->Header.TypeID != KOID_GRAPHICSCONTEXT) return 0;
+
+    LockMutex(&(Context->Header.Mutex), INFINITY);
+    VESAArcPrimitive(Context, Info);
+    UnlockMutex(&(Context->Header.Mutex));
+
+    return 1;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Draw a triangle via driver interface.
+ * @param Info Triangle descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VESA_Triangle(LPTRIANGLEINFO Info) {
+    LPVESA_CONTEXT Context;
+
+    if (Info == NULL) return 0;
+
+    Context = (LPVESA_CONTEXT)Info->GC;
+    if (Context == NULL) return 0;
+    if (Context->Header.TypeID != KOID_GRAPHICSCONTEXT) return 0;
+
+    LockMutex(&(Context->Header.Mutex), INFINITY);
+    VESATrianglePrimitive(Context, Info);
     UnlockMutex(&(Context->Header.Mutex));
 
     return 1;
@@ -826,6 +961,47 @@ static U32 VESA_TextSetCursorVisible(LPGFX_TEXT_CURSOR_VISIBLE_INFO Info) {
 /***************************************************************************/
 
 /**
+ * @brief Draw one text string in VESA framebuffer.
+ * @param Info Text draw descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VESA_TextDraw(LPGFX_TEXT_DRAW_INFO Info) {
+    LPVESA_CONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPVESA_CONTEXT)Info->GC;
+    if (Context == NULL || Context->Header.TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Header.Mutex), INFINITY);
+    Result = GfxTextDrawString((LPGRAPHICSCONTEXT)&Context->Header, Info);
+    UnlockMutex(&(Context->Header.Mutex));
+    return Result ? 1 : 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Measure one text string using the shared text renderer.
+ * @param Info Text measure descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VESA_TextMeasure(LPGFX_TEXT_MEASURE_INFO Info) {
+    if (Info == NULL) {
+        return 0;
+    }
+
+    return GfxTextMeasure(Info) ? 1 : 0;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Driver command dispatcher for VESA graphics.
  *
  * Handles load/unload, mode setting, drawing primitives, and resource creation.
@@ -846,6 +1022,7 @@ UINT VESACommands(UINT Function, UINT Param) {
                 return DF_RETURN_SUCCESS;
             }
 
+            VESADriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RETURN_UNEXPECTED;
         case DF_UNLOAD:
             if ((VESADriver.Flags & DRIVER_FLAG_READY) == 0) {
@@ -857,14 +1034,27 @@ UINT VESACommands(UINT Function, UINT Param) {
             return DF_RETURN_SUCCESS;
         case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
+        case DF_DEBUG_INFO:
+            return VESADebugInfo((LPDRIVER_DEBUG_INFO)Param);
         case DF_GFX_GETMODECOUNT:
             return 0;
         case DF_GFX_GETMODEINFO: {
             LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Param;
+
+            if ((VESADriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return DF_RETURN_UNEXPECTED;
+            }
+
             SAFE_USE(Info) {
                 if (Info->ModeIndex != INFINITY && Info->ModeIndex != 0) {
                     return DF_GFX_ERROR_MODEUNAVAIL;
                 }
+
+                if (VESAContext.Header.Width == 0 || VESAContext.Header.Height == 0 || VESAContext.Header.BitsPerPixel == 0) {
+                    WARNING(TEXT("[VESACommands] GETMODEINFO requested but no active VESA mode is available"));
+                    return DF_RETURN_UNEXPECTED;
+                }
+
                 Info->Width = VESAContext.Header.Width;
                 Info->Height = VESAContext.Header.Height;
                 Info->BitsPerPixel = VESAContext.Header.BitsPerPixel;
@@ -888,6 +1078,10 @@ UINT VESACommands(UINT Function, UINT Param) {
             return VESA_Line((LPLINEINFO)Param);
         case DF_GFX_RECTANGLE:
             return VESA_Rectangle((LPRECTINFO)Param);
+        case DF_GFX_ARC:
+            return VESA_Arc((LPARCINFO)Param);
+        case DF_GFX_TRIANGLE:
+            return VESA_Triangle((LPTRIANGLEINFO)Param);
         case DF_GFX_TEXT_PUTCELL:
             return VESA_TextPutCell((LPGFX_TEXT_CELL_INFO)Param);
         case DF_GFX_TEXT_CLEAR_REGION:
@@ -898,6 +1092,10 @@ UINT VESACommands(UINT Function, UINT Param) {
             return VESA_TextSetCursor((LPGFX_TEXT_CURSOR_INFO)Param);
         case DF_GFX_TEXT_SET_CURSOR_VISIBLE:
             return VESA_TextSetCursorVisible((LPGFX_TEXT_CURSOR_VISIBLE_INFO)Param);
+        case DF_GFX_TEXT_DRAW:
+            return VESA_TextDraw((LPGFX_TEXT_DRAW_INFO)Param);
+        case DF_GFX_TEXT_MEASURE:
+            return VESA_TextMeasure((LPGFX_TEXT_MEASURE_INFO)Param);
         case DF_GFX_GETCAPABILITIES:
         case DF_GFX_ENUMOUTPUTS:
         case DF_GFX_GETOUTPUTINFO:

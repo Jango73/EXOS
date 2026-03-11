@@ -33,6 +33,7 @@
 #include "process/Schedule.h"
 #include "process/Task-Messaging.h"
 #include "CoreString.h"
+#include "utils/BusyWait.h"
 #include "utils/Helpers.h"
 
 /************************************************************************/
@@ -75,6 +76,63 @@ static void TaskInitializeStackConfig(void) {
                     configValue, parsedValue, TASK_MINIMUM_SYSTEM_STACK_SIZE_DEFAULT);
         }
     }
+}
+
+/************************************************************************/
+
+static BOOL TaskInitializeMessageBuffer(LPTASK Task) {
+    UINT MessageBufferSize = TASK_MESSAGE_QUEUE_MAX_MESSAGES * sizeof(MESSAGE);
+    LINEAR MessageBufferBase;
+    LPMESSAGE MessageBufferStorage;
+
+    if (Task == NULL) {
+        return FALSE;
+    }
+
+    if (Task->Process == NULL) {
+        return FALSE;
+    }
+
+    MessageBufferBase = ProcessArenaAllocateSystem(Task->Process,
+                                                   MessageBufferSize,
+                                                   ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE,
+                                                   TEXT("TaskMessageBuffer"));
+    if (MessageBufferBase == NULL) {
+        ERROR(TEXT("[TaskInitializeMessageBuffer] Could not allocate message buffer for task %p"), Task);
+        return FALSE;
+    }
+
+    MessageBufferStorage = (LPMESSAGE)MessageBufferBase;
+
+    Task->MessageQueue.MessageBufferBase = MessageBufferBase;
+    Task->MessageQueue.MessageBufferSize = MessageBufferSize;
+    InitMutex(&(Task->MessageQueue.Mutex));
+    Task->MessageQueue.Capacity = TASK_MESSAGE_QUEUE_MAX_MESSAGES;
+    Task->MessageQueue.Flags = 0;
+    Task->MessageQueue.Waiting = FALSE;
+    MessageQueueBufferInitialize(&(Task->MessageQueue.MessageBuffer),
+                                 MessageBufferStorage,
+                                 TASK_MESSAGE_QUEUE_MAX_MESSAGES);
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+static void TaskReleaseMessageBuffer(LPTASK Task) {
+    if (Task == NULL) {
+        return;
+    }
+
+    if (Task->MessageQueue.MessageBufferBase != 0 && Task->MessageQueue.MessageBufferSize > 0) {
+        FreeRegion(Task->MessageQueue.MessageBufferBase, Task->MessageQueue.MessageBufferSize);
+    }
+
+    Task->MessageQueue.MessageBufferBase = 0;
+    Task->MessageQueue.MessageBufferSize = 0;
+    MessageQueueBufferReset(&(Task->MessageQueue.MessageBuffer));
+    Task->MessageQueue.MessageBuffer.Entries = NULL;
+    Task->MessageQueue.MessageBuffer.Capacity = 0;
 }
 
 /************************************************************************/
@@ -195,6 +253,13 @@ void DeleteTask(LPTASK This) {
         LockMutex(MUTEX_KERNEL, INFINITY);
 
         //-------------------------------------
+        // Remove task from scheduler queue before freeing task resources
+
+        if (RemoveTaskFromQueue(This) == FALSE) {
+            DEBUG(TEXT("[DeleteTask] Task %p not present in scheduler queue"), This);
+        }
+
+        //-------------------------------------
         // Unlock all mutexs locked by this task
 
         ReleaseTaskMutexes(This);
@@ -202,7 +267,7 @@ void DeleteTask(LPTASK This) {
         //-------------------------------------
         // Delete the task's message queue
 
-
+        TaskReleaseMessageBuffer(This);
         DeleteMessageQueue(&(This->MessageQueue));
 
         //-------------------------------------
@@ -413,6 +478,13 @@ LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
         Task = NULL;
 
         ERROR(TEXT("[CreateTask] Architecture-specific task setup failed"));
+        goto Out;
+    }
+
+    if (TaskInitializeMessageBuffer(Task) == FALSE) {
+        DeleteTask(Task);
+        Task = NULL;
+        ERROR(TEXT("[CreateTask] Task message buffer setup failed"));
         goto Out;
     }
 
@@ -627,6 +699,15 @@ U32 SetTaskPriority(LPTASK Task, U32 Priority) {
  * @param MilliSeconds Number of milliseconds to sleep
  */
 void Sleep(U32 MilliSeconds) {
+    if (MilliSeconds == 0) {
+        return;
+    }
+
+    if (IsSystemTimeOperational() == FALSE) {
+        BusyWaitMilliseconds(MilliSeconds);
+        return;
+    }
+
     LPTASK Task;
 
     U32 Flags;
@@ -673,33 +754,6 @@ void Sleep(U32 MilliSeconds) {
 
     // DEBUG(TEXT("[Sleep] Exit"));
     return;
-}
-
-/************************************************************************/
-
-/**
- * @brief Suspends the current task even when the scheduler is frozen.
- *
- * Uses a timed idle loop when task switching is disabled.
- *
- * @param MilliSeconds Number of milliseconds to sleep
- */
-void SleepWithSchedulerFrozenSupport(U32 MilliSeconds) {
-    if (MilliSeconds == 0) {
-        return;
-    }
-
-    if (IsSchedulerFrozen()) {
-        UINT StartTime = GetSystemTime();
-
-        while ((UINT)(GetSystemTime() - StartTime) < MilliSeconds) {
-            IdleCPU();
-        }
-
-        return;
-    }
-
-    Sleep(MilliSeconds);
 }
 
 /************************************************************************/
@@ -862,11 +916,7 @@ void DumpTask(LPTASK Task) {
     VERBOSE(TEXT("IST1StackSize   : %u"), Task->Arch.Ist1Stack.Size);
 #endif
     VERBOSE(TEXT("WakeUpTime      : %u"), (U32)Task->WakeUpTime);
-    UINT PendingMessages = 0;
-
-    if (Task->MessageQueue.Messages != NULL) {
-        PendingMessages = Task->MessageQueue.Messages->NumItems;
-    }
+    UINT PendingMessages = MessageQueueBufferGetCount(&(Task->MessageQueue.MessageBuffer));
 
     VERBOSE(TEXT("Queued messages : %u"), PendingMessages);
 

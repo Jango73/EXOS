@@ -209,6 +209,26 @@ static void Delay(void) {
 /***************************************************************************/
 
 /**
+ * @brief Return multi-line serial mouse debug information.
+ * @param Info Receives the formatted text.
+ * @return DF_RETURN_SUCCESS on success.
+ */
+static UINT SerialMouseDebugInfo(LPDRIVER_DEBUG_INFO Info) {
+    SAFE_USE(Info) {
+        StringPrintFormat(
+            Info->Text,
+            TEXT("Mouse manufacturer: %s\nMouse product: %s"),
+            SerialMouseDriver.Manufacturer,
+            SerialMouseDriver.Product);
+        return DF_RETURN_SUCCESS;
+    }
+
+    return DF_RETURN_BAD_PARAMETER;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Wait for mouse data to be available, handling errors.
  *
  * @param TimeOut Iteration budget before giving up.
@@ -570,6 +590,8 @@ UINT SerialMouseCommands(UINT Function, UINT Parameter) {
             return DF_RETURN_SUCCESS;
         case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
+        case DF_DEBUG_INFO:
+            return SerialMouseDebugInfo((LPDRIVER_DEBUG_INFO)Parameter);
         case DF_MOUSE_RESET:
             return DF_RETURN_NOT_IMPLEMENTED;
         case DF_MOUSE_GETDELTAX:

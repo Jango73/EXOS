@@ -103,6 +103,7 @@ void SetConsoleCursorPosition(U32 CursorX, U32 CursorY);
 void GetConsoleCursorPosition(U32* CursorX, U32* CursorY);
 U32 GetConsoleWidth(void);
 U32 GetConsoleHeight(void);
+U32 GetConsoleCharHeight(void);
 U32 GetConsoleForeColor(void);
 U32 GetConsoleBackColor(void);
 void SetConsoleCharacter(STR);
@@ -137,12 +138,14 @@ void ConsoleSetFramebufferInfo(
     U32 GreenMaskSize,
     U32 BluePosition,
     U32 BlueMaskSize);
+BOOL ConsoleSetGraphicsTextMode(LPGRAPHICSMODEINFO ModeInfo);
 UINT ConsoleSetMode(LPGRAPHICSMODEINFO Info);
 UINT ConsoleGetModeCount(void);
 UINT ConsoleGetModeInfo(LPCONSOLEMODEINFO Info);
 void ConsoleSetPagingEnabled(BOOL Enabled);
 BOOL ConsoleGetPagingEnabled(void);
 void ConsoleSetPagingActive(BOOL Active);
+BOOL ConsoleGetPagingActive(void);
 void ConsoleResetPaging(void);
 
 // Functions in shell/Shell-Main.c

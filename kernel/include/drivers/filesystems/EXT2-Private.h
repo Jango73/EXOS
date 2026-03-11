@@ -110,6 +110,8 @@ void Ext2BufferPoolDeinit(LPEXT2FILESYSTEM FileSystem);
 LPVOID Ext2AcquireBlockBuffer(LPEXT2FILESYSTEM FileSystem);
 void Ext2ReleaseBlockBuffer(LPEXT2FILESYSTEM FileSystem, LPVOID Buffer);
 BOOL LoadGroupDescriptors(LPEXT2FILESYSTEM FileSystem);
+BOOL PrepareInodeBlockAccess(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, U8** BlockBufferOut, U32* OffsetInBlockOut,
+                             U32* CopySizeOut);
 BOOL ReadInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode);
 BOOL WriteInode(LPEXT2FILESYSTEM FileSystem, U32 InodeIndex, LPEXT2INODE Inode);
 BOOL GetInodeBlockNumber(LPEXT2FILESYSTEM FileSystem, LPEXT2INODE Inode, U32 BlockIndex, U32* BlockNumber);

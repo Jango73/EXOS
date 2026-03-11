@@ -36,6 +36,8 @@
 #include "Memory.h"
 #include "input/Mouse.h"
 #include "Desktop.h"
+#include "desktop/Desktop-NonClient.h"
+#include "desktop/Desktop-WindowClass.h"
 #include "process/Process.h"
 #include "process/Schedule.h"
 #include "User.h"
@@ -517,30 +519,28 @@ UINT SysCall_PostMessage(UINT Parameter) {
 /************************************************************************/
 
 /**
- * @brief Send a synchronous message to a task or window handle.
- *
- * Resolves the target handle to its kernel pointer and dispatches the
- * message via SendMessage.
+ * @brief SendMessage syscall stub.
  *
  * @param Parameter Pointer to MESSAGEINFO supplied by userland.
- * @return UINT Non-zero on success, zero on failure.
+ * @return UINT DF_RETURN_NOT_IMPLEMENTED.
  */
 UINT SysCall_SendMessage(UINT Parameter) {
-    LPMESSAGEINFO Message = (LPMESSAGEINFO)Parameter;
+    UNUSED(Parameter);
 
-    SAFE_USE_INPUT_POINTER(Message, MESSAGEINFO) {
-        LINEAR TargetPointer = HandleToPointer(Message->Target);
+    // Legacy synchronous path kept for reference:
+    // LPMESSAGEINFO Message = (LPMESSAGEINFO)Parameter;
+    // SAFE_USE_INPUT_POINTER(Message, MESSAGEINFO) {
+    //     LINEAR TargetPointer = HandleToPointer(Message->Target);
+    //     if (Message->Target == 0) {
+    //         return (UINT)SendMessage(NULL, Message->Message, Message->Param1, Message->Param2);
+    //     }
+    //     SAFE_USE_VALID((LPVOID)TargetPointer) {
+    //         return (UINT)SendMessage((HANDLE)TargetPointer, Message->Message, Message->Param1, Message->Param2);
+    //     }
+    // }
+    // return 0;
 
-        if (Message->Target == 0) {
-            return (UINT)SendMessage(NULL, Message->Message, Message->Param1, Message->Param2);
-        }
-
-        SAFE_USE_VALID((LPVOID)TargetPointer) {
-            return (UINT)SendMessage((HANDLE)TargetPointer, Message->Message, Message->Param1, Message->Param2);
-        }
-    }
-
-    return 0;
+    return DF_RETURN_NOT_IMPLEMENTED;
 }
 
 /************************************************************************/
@@ -1439,6 +1439,28 @@ UINT SysCall_ConsoleGetModeInfo(UINT Parameter) {
 /************************************************************************/
 
 /**
+ * @brief Retrieve the current console mode geometry.
+ *
+ * @param Parameter Linear address of CONSOLEMODEINFO.
+ * @return UINT TRUE on success.
+ */
+UINT SysCall_ConsoleGetCurrentMode(UINT Parameter) {
+    LPCONSOLEMODEINFO Info = (LPCONSOLEMODEINFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, CONSOLEMODEINFO) {
+        Info->Index = 0;
+        Info->Columns = GetConsoleWidth();
+        Info->Rows = GetConsoleHeight();
+        Info->CharHeight = GetConsoleCharHeight();
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Create a new desktop for the current process.
  *
  * @param Parameter Reserved.
@@ -1602,17 +1624,17 @@ UINT SysCall_HideWindow(UINT Parameter) {
 /************************************************************************/
 
 /**
- * @brief Move a window to a new position.
+ * @brief Move and/or resize one window.
  *
- * @param Parameter Pointer to WINDOWINFO containing the target window and new position.
+ * @param Parameter Pointer to WINDOWRECT containing the target window and new rectangle.
  * @return UINT TRUE on success.
  */
 UINT SysCall_MoveWindow(UINT Parameter) {
-    LPWINDOWINFO WindowInfo = (LPWINDOWINFO)Parameter;
+    LPWINDOWRECT WindowRect = (LPWINDOWRECT)Parameter;
 
-    SAFE_USE_INPUT_POINTER(WindowInfo, WINDOWINFO) {
-        LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowInfo->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)MoveWindow((HANDLE)Window, &(WindowInfo->WindowPosition)); }
+    SAFE_USE_INPUT_POINTER(WindowRect, WINDOWRECT) {
+        LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)MoveWindow((HANDLE)Window, &(WindowRect->Rect)); }
     }
 
     return 0;
@@ -1738,7 +1760,7 @@ UINT SysCall_GetWindowProp(UINT Parameter) {
 /************************************************************************/
 
 /**
- * @brief Retrieve the client rectangle for a window.
+ * @brief Retrieve the screen rectangle for a window.
  *
  * @param Parameter Pointer to WINDOWRECT containing the window handle.
  * @return UINT TRUE on success.
@@ -1752,6 +1774,178 @@ UINT SysCall_GetWindowRect(UINT Parameter) {
     }
 
     return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the client rectangle for a window.
+ *
+ * @param Parameter Pointer to WINDOWRECT containing the window handle.
+ * @return UINT TRUE on success.
+ */
+UINT SysCall_GetWindowClientRect(UINT Parameter) {
+    LPWINDOWRECT WindowRect = (LPWINDOWRECT)Parameter;
+
+    SAFE_USE_INPUT_POINTER(WindowRect, WINDOWRECT) {
+        LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+            return (UINT)GetWindowClientRect((HANDLE)Window, &(WindowRect->Rect));
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the parent handle for one window.
+ *
+ * @param Parameter Window handle.
+ * @return UINT Parent handle or 0.
+ */
+UINT SysCall_GetWindowParent(UINT Parameter) {
+    LPWINDOW Window = (LPWINDOW)HandleToPointer(Parameter);
+
+    SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+        HANDLE ParentHandle = PointerToHandle((LINEAR)GetWindowParent((HANDLE)Window));
+        return ParentHandle;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the direct child count for one window.
+ *
+ * @param Parameter Window handle.
+ * @return UINT Number of direct children.
+ */
+UINT SysCall_GetWindowChildCount(UINT Parameter) {
+    LPWINDOW Window = (LPWINDOW)HandleToPointer(Parameter);
+
+    SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)GetWindowChildCount((HANDLE)Window); }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve one direct child handle by index.
+ *
+ * @param Parameter Pointer to WINDOWCHILDINFO.
+ * @return UINT Child handle or 0.
+ */
+UINT SysCall_GetWindowChild(UINT Parameter) {
+    LPWINDOWCHILDINFO WindowChildInfo = (LPWINDOWCHILDINFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(WindowChildInfo, WINDOWCHILDINFO) {
+        LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowChildInfo->Window);
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+            HANDLE ChildHandle = PointerToHandle((LINEAR)GetWindowChild((HANDLE)Window, WindowChildInfo->ChildIndex));
+            return ChildHandle;
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the next sibling handle for one window.
+ *
+ * @param Parameter Window handle.
+ * @return UINT Next sibling handle or 0.
+ */
+UINT SysCall_GetNextWindowSibling(UINT Parameter) {
+    LPWINDOW Window = (LPWINDOW)HandleToPointer(Parameter);
+
+    SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+        HANDLE SiblingHandle = PointerToHandle((LINEAR)GetNextWindowSibling((HANDLE)Window));
+        return SiblingHandle;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the previous sibling handle for one window.
+ *
+ * @param Parameter Window handle.
+ * @return UINT Previous sibling handle or 0.
+ */
+UINT SysCall_GetPreviousWindowSibling(UINT Parameter) {
+    LPWINDOW Window = (LPWINDOW)HandleToPointer(Parameter);
+
+    SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+        HANDLE SiblingHandle = PointerToHandle((LINEAR)GetPreviousWindowSibling((HANDLE)Window));
+        return SiblingHandle;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Register one userland window class.
+ *
+ * @param Parameter Pointer to WINDOWCLASSINFO.
+ * @return UINT Class identifier on success, 0 on failure.
+ */
+UINT SysCall_RegisterWindowClass(UINT Parameter) {
+    LPWINDOWCLASSINFO ClassInfo = (LPWINDOWCLASSINFO)Parameter;
+    LPWINDOW_CLASS WindowClass;
+    LPPROCESS Process;
+
+    SAFE_USE_INPUT_POINTER(ClassInfo, WINDOWCLASSINFO) {
+        Process = GetCurrentProcess();
+        if (Process == NULL || Process->TypeID != KOID_PROCESS) return 0;
+
+        WindowClass = WindowClassRegisterUserClass(
+            ClassInfo->ClassName,
+            (U32)ClassInfo->BaseClass,
+            ClassInfo->BaseClassName,
+            ClassInfo->Function,
+            ClassInfo->ClassDataSize,
+            Process);
+
+        if (WindowClass == NULL || WindowClass->TypeID != KOID_WINDOW_CLASS) return 0;
+
+        ClassInfo->WindowClass = (HANDLE)WindowClass->ClassID;
+        return (UINT)WindowClass->ClassID;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Unregister one userland window class.
+ *
+ * @param Parameter Pointer to WINDOWCLASSINFO.
+ * @return UINT TRUE on success, FALSE on failure.
+ */
+UINT SysCall_UnregisterWindowClass(UINT Parameter) {
+    LPWINDOWCLASSINFO ClassInfo = (LPWINDOWCLASSINFO)Parameter;
+    LPPROCESS Process;
+
+    SAFE_USE_INPUT_POINTER(ClassInfo, WINDOWCLASSINFO) {
+        Process = GetCurrentProcess();
+        if (Process == NULL || Process->TypeID != KOID_PROCESS) return FALSE;
+
+        return (UINT)WindowClassUnregisterUserClass((U32)ClassInfo->WindowClass, ClassInfo->ClassName, Process);
+    }
+
+    return FALSE;
 }
 
 /************************************************************************/
@@ -1839,12 +2033,12 @@ UINT SysCall_EnumWindows(UINT Parameter) {
 /************************************************************************/
 
 /**
- * @brief Invoke the default window procedure.
+ * @brief Invoke the base window procedure.
  *
  * @param Parameter Pointer to MESSAGEINFO structure.
- * @return UINT Result of DefWindowFunc on success, 0 on error.
+ * @return UINT Result of BaseWindowFunc on success, 0 on error.
  */
-UINT SysCall_DefWindowFunc(UINT Parameter) {
+UINT SysCall_BaseWindowFunc(UINT Parameter) {
     LPMESSAGEINFO Message = (LPMESSAGEINFO)Parameter;
 
     SAFE_USE_INPUT_POINTER(Message, MESSAGEINFO) {
@@ -1856,7 +2050,7 @@ UINT SysCall_DefWindowFunc(UINT Parameter) {
             return 0;
         }
 
-        UINT Result = (UINT)DefWindowFunc(Message->Target, Message->Message, Message->Param1, Message->Param2);
+        UINT Result = (UINT)BaseWindowFunc(Message->Target, Message->Message, Message->Param1, Message->Param2);
 
         Message->Target = Original;
         return Result;
@@ -2136,6 +2330,84 @@ UINT SysCall_Rectangle(UINT Parameter) {
         }
 
         RectInfo->GC = OriginalGC;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Draw one text string using the current graphics context colors.
+ *
+ * @param Parameter Pointer to TEXT_DRAW_INFO with GC handle and text parameters.
+ * @return UINT TRUE on success.
+ */
+UINT SysCall_DrawText(UINT Parameter) {
+    LPTEXT_DRAW_INFO TextInfo = (LPTEXT_DRAW_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(TextInfo, TEXT_DRAW_INFO) {
+        GFX_TEXT_DRAW_INFO DrawInfo;
+        HANDLE OriginalGC = TextInfo->GC;
+        LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)HandleToPointer(OriginalGC);
+
+        SAFE_USE_VALID_ID(Context, KOID_GRAPHICSCONTEXT) {
+            if (TextInfo->Text == NULL || TextInfo->Font != 0) {
+                return 0;
+            }
+
+            SAFE_USE_VALID(TextInfo->Text) {
+                DrawInfo = (GFX_TEXT_DRAW_INFO){
+                    .Header = TextInfo->Header,
+                    .GC = (HANDLE)Context,
+                    .X = TextInfo->X,
+                    .Y = TextInfo->Y,
+                    .Text = TextInfo->Text,
+                    .Font = NULL
+                };
+                return (UINT)DrawText(&DrawInfo);
+            }
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Measure one text string using the default font.
+ *
+ * @param Parameter Pointer to TEXT_MEASURE_INFO.
+ * @return UINT TRUE on success.
+ */
+UINT SysCall_MeasureText(UINT Parameter) {
+    LPTEXT_MEASURE_INFO TextInfo = (LPTEXT_MEASURE_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(TextInfo, TEXT_MEASURE_INFO) {
+        GFX_TEXT_MEASURE_INFO MeasureInfo;
+
+        if (TextInfo->Text == NULL || TextInfo->Font != 0) {
+            return 0;
+        }
+
+        SAFE_USE_VALID(TextInfo->Text) {
+            MeasureInfo = (GFX_TEXT_MEASURE_INFO){
+                .Header = TextInfo->Header,
+                .Text = TextInfo->Text,
+                .Font = NULL,
+                .Width = 0,
+                .Height = 0
+            };
+
+            if (MeasureText(&MeasureInfo) == FALSE) {
+                return 0;
+            }
+
+            TextInfo->Width = MeasureInfo.Width;
+            TextInfo->Height = MeasureInfo.Height;
+            return 1;
+        }
     }
 
     return 0;

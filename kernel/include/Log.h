@@ -45,11 +45,25 @@
 
 /***************************************************************************/
 
+typedef struct tag_KERNEL_LOG_RECENT_VIEW {
+    LPSTR Text;
+    UINT TextBufferSize;
+    UINT MaxLines;
+    U32 Sequence;
+    UINT TotalLines;
+    UINT CopiedLines;
+    BOOL Truncated;
+} KERNEL_LOG_RECENT_VIEW, *LPKERNEL_LOG_RECENT_VIEW;
+
+/***************************************************************************/
+
 void InitKernelLog(void);
 void KernelLogSetTagFilter(LPCSTR TagFilter);
 LPCSTR KernelLogGetTagFilter(void);
 void KernelLogSetErrorConsoleEnabled(BOOL Enabled);
 BOOL KernelLogGetErrorConsoleEnabled(void);
+U32 KernelLogGetRecentSequence(void);
+BOOL KernelLogCaptureRecentLines(LPKERNEL_LOG_RECENT_VIEW View);
 void KernelLogText(U32, LPCSTR, ...);
 void KernelLogMem(U32 Type, LINEAR Memory, U32 Size);
 void LogTaskSystemStructures(U32 Type);

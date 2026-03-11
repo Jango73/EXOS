@@ -17,48 +17,37 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Display session state
+    Desktop window class registry
 
 \************************************************************************/
 
-#ifndef DISPLAY_SESSION_H_INCLUDED
-#define DISPLAY_SESSION_H_INCLUDED
+#ifndef DESKTOP_WINDOW_CLASS_H_INCLUDED
+#define DESKTOP_WINDOW_CLASS_H_INCLUDED
 
 /************************************************************************/
 
-#include "Driver.h"
-#include "User.h"
-#include "process/Process.h"
+#include "Desktop.h"
 
 /************************************************************************/
 
-#define DISPLAY_FRONTEND_NONE 0x00000000
-#define DISPLAY_FRONTEND_CONSOLE 0x00000001
-#define DISPLAY_FRONTEND_DESKTOP 0x00000002
+#define WINDOW_CLASS_DEFAULT_NAME TEXT("DefaultWindowClass")
 
 /************************************************************************/
 
-typedef struct tag_DISPLAY_SESSION {
-    LPDRIVER GraphicsDriver;
-    LPDESKTOP ActiveDesktop;
-    GRAPHICSMODEINFO ActiveMode;
-    U32 ActiveFrontEnd;
-    BOOL IsInitialized;
-    BOOL HasValidMode;
-} DISPLAY_SESSION, *LPDISPLAY_SESSION;
+BOOL WindowClassInitializeRegistry(void);
+LPWINDOW_CLASS WindowClassRegisterKernelClass(LPCSTR Name, LPWINDOW_CLASS BaseClass, WINDOWFUNC Function, U32 ClassDataSize);
+LPWINDOW_CLASS WindowClassRegisterUserClass(
+    LPCSTR Name,
+    U32 BaseClassID,
+    LPCSTR BaseClassName,
+    WINDOWFUNC Function,
+    U32 ClassDataSize,
+    LPPROCESS OwnerProcess);
+BOOL WindowClassUnregisterUserClass(U32 ClassID, LPCSTR Name, LPPROCESS OwnerProcess);
+LPWINDOW_CLASS WindowClassFindByName(LPCSTR Name);
+LPWINDOW_CLASS WindowClassFindByHandle(U32 ClassID);
+LPWINDOW_CLASS WindowClassGetDefault(void);
 
 /************************************************************************/
 
-void DisplaySessionInitialize(void);
-BOOL DisplaySessionSetConsoleMode(LPGRAPHICSMODEINFO ModeInfo);
-BOOL DisplaySessionSetDesktopMode(LPDESKTOP Desktop, LPDRIVER GraphicsDriver, LPGRAPHICSMODEINFO ModeInfo);
-BOOL DisplaySwitchToConsole(void);
-BOOL DisplaySwitchToDesktop(LPDESKTOP Desktop);
-BOOL DisplaySessionGetActiveMode(LPGRAPHICSMODEINFO ModeInfoOut);
-U32 DisplaySessionGetActiveFrontEnd(void);
-LPDRIVER DisplaySessionGetActiveGraphicsDriver(void);
-LPDESKTOP DisplaySessionGetActiveDesktop(void);
-
-/************************************************************************/
-
-#endif  // DISPLAY_SESSION_H_INCLUDED
+#endif

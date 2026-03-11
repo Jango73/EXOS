@@ -33,6 +33,8 @@
 #define MUTEX_WAIT_SLEEP_INTERVAL_MS 20
 #define MUTEX_REENTRANT_ERROR_TIMEOUT_MS 2000
 #define MUTEX_REENTRANT_FORCE_UNLOCK_TIMEOUT_MS 5000
+#define MUTEX_TIMEOUT_MIN_LOOP_LIMIT 8
+#define MUTEX_TIMEOUT_EXTRA_LOOP_MARGIN 8
 
 /***************************************************************************/
 
@@ -113,7 +115,7 @@ LPMUTEX CreateMutex(void) {
  * @return TRUE on success, FALSE on failure.
  */
 BOOL DeleteMutex(LPMUTEX Mutex) {
-    SAFE_USE_VALID_ID(Mutex, KOID_MUTEX) {
+    if (Mutex != NULL && Mutex->TypeID == KOID_MUTEX) {
         ReleaseKernelObject(Mutex);
     }
 
@@ -133,7 +135,6 @@ BOOL DeleteMutex(LPMUTEX Mutex) {
  * @return Lock count on success, 0 on failure.
  */
 UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
-    UNUSED(TimeOut);
     LPPROCESS Process;
     LPTASK Task;
     UINT Flags;
@@ -153,10 +154,10 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
         SAFE_USE_ID_2(TaskList->First, TaskList->First->Next, KOID_TASK) {
             Task = GetCurrentTask();
 
-            SAFE_USE_VALID_ID(Task, KOID_TASK) {
+            if (Task != NULL && Task->TypeID == KOID_TASK) {
                 Process = Task->Process;
 
-                SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+                if (Process != NULL && Process->TypeID == KOID_PROCESS) {
                     if (Mutex->Task == Task) {
                         Mutex->Lock++;
                         Ret = Mutex->Lock;
@@ -166,8 +167,17 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
 
                         UINT StartWaitTime = GetSystemTime();
                         UINT LastDebugTime = StartWaitTime;
+                        UINT WaitLoopCount = 0;
+                        UINT WaitLoopLimit = MUTEX_TIMEOUT_MIN_LOOP_LIMIT;
                         THRESHOLD_LATCH ReentrantErrorLatch;
                         THRESHOLD_LATCH ReentrantForceUnlockLatch;
+
+                        if (TimeOut != INFINITY) {
+                            WaitLoopLimit = (TimeOut / MUTEX_WAIT_SLEEP_INTERVAL_MS) + MUTEX_TIMEOUT_EXTRA_LOOP_MARGIN;
+                            if (WaitLoopLimit < MUTEX_TIMEOUT_MIN_LOOP_LIMIT) {
+                                WaitLoopLimit = MUTEX_TIMEOUT_MIN_LOOP_LIMIT;
+                            }
+                        }
 
                         ThresholdLatchInit(&ReentrantErrorLatch,
                                            TEXT("Mutex reentrant wait error"),
@@ -192,6 +202,21 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
 
                             if (Mutex->Task == NULL) {
                                 break;
+                            }
+
+                            //-------------------------------------
+                            // Apply caller timeout for non-infinite waits
+
+                            if (TimeOut != INFINITY) {
+                                if (HasOperationTimedOut(StartWaitTime, WaitLoopCount, WaitLoopLimit, TimeOut) != FALSE) {
+                                    WARNING(TEXT("[LockMutex] Timeout while waiting mutex=%p owner_task=%p waiter_task=%p timeout=%u"),
+                                        Mutex,
+                                        Mutex->Task,
+                                        Task,
+                                        TimeOut);
+                                    RestoreFlags(&Flags);
+                                    return 0;
+                                }
                             }
 
                             //-------------------------------------
@@ -245,6 +270,7 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                                 IdleCPU();            // IdleCPU enables interrupts
                                 DisableInterrupts();  // Disable immediately after
                             }
+                            WaitLoopCount++;
                             // Continue loop with interrupts already disabled
                         }
 

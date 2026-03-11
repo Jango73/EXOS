@@ -190,21 +190,23 @@ static void EarlyBootConsoleWritePixel(U32 X, U32 Y, U32 Pixel) {
  * @param Character ASCII codepoint.
  */
 static void EarlyBootConsoleDrawCharacter(U32 Column, U32 Row, U32 Character) {
-    const FONT_GLYPH_SET* Font = FontGetDefault();
-    if (Font == NULL || Font->GlyphData == NULL || Font->BytesPerRow == 0) {
-        return;
-    }
+    const FONT_FACE* Font = FontGetDefaultFace();
+    FONT_GLYPH_BITMAP Glyph;
+    FONT_METRICS Metrics;
+    U32 DrawHeight = 0;
+    U32 DrawWidth = 0;
 
-    U32 GlyphCodepoint = EarlyBootConsoleNormalizeCharacter(Character);
-    const U8* Glyph = FontGetGlyph(Font, GlyphCodepoint);
-    if (Glyph == NULL) {
+    Character = EarlyBootConsoleNormalizeCharacter(Character);
+
+    if (!FontFaceGetMetrics(Font, &Metrics) || !FontFaceGetGlyphBitmap(Font, Character, &Glyph) ||
+        Glyph.Data == NULL || Glyph.BytesPerRow == 0) {
         return;
     }
 
     U32 BaseX = Column * EARLY_BOOT_CONSOLE_CHARACTER_WIDTH;
     U32 BaseY = Row * EARLY_BOOT_CONSOLE_CHARACTER_HEIGHT;
-    U32 DrawHeight = Font->Height;
-    U32 DrawWidth = Font->Width;
+    DrawHeight = Metrics.CellHeight;
+    DrawWidth = Metrics.CellWidth;
     if (DrawHeight > EARLY_BOOT_CONSOLE_CHARACTER_HEIGHT) {
         DrawHeight = EARLY_BOOT_CONSOLE_CHARACTER_HEIGHT;
     }
@@ -216,8 +218,8 @@ static void EarlyBootConsoleDrawCharacter(U32 Column, U32 Row, U32 Character) {
         for (U32 GlyphColumn = 0; GlyphColumn < EARLY_BOOT_CONSOLE_CHARACTER_WIDTH; GlyphColumn++) {
             U32 Pixel = G_EarlyBootConsole.BackgroundPixel;
             if (GlyphRow < DrawHeight && GlyphColumn < DrawWidth) {
-                U32 ByteIndex = (GlyphRow * Font->BytesPerRow) + (GlyphColumn / 8);
-                U8 Bits = Glyph[ByteIndex];
+                U32 ByteIndex = (GlyphRow * Glyph.BytesPerRow) + (GlyphColumn / 8);
+                U8 Bits = Glyph.Data[ByteIndex];
                 U8 Mask = (U8)(0x80 >> (GlyphColumn & 0x07));
                 if ((Bits & Mask) != 0) {
                     Pixel = G_EarlyBootConsole.ForegroundPixel;

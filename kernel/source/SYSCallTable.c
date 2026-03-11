@@ -123,6 +123,7 @@ void InitializeSystemCallTable(void) {
     SysCallTable[SYSCALL_ConsoleSetMode] = (SYSCALLENTRY){SysCall_ConsoleSetMode, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_ConsoleGetModeCount] = (SYSCALLENTRY){SysCall_ConsoleGetModeCount, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_ConsoleGetModeInfo] = (SYSCALLENTRY){SysCall_ConsoleGetModeInfo, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_ConsoleGetCurrentMode] = (SYSCALLENTRY){SysCall_ConsoleGetCurrentMode, EXOS_PRIVILEGE_USER};
 
     // Authentication Services
     SysCallTable[SYSCALL_Login] = (SYSCALLENTRY){SysCall_Login, EXOS_PRIVILEGE_USER};
@@ -160,11 +161,19 @@ void InitializeSystemCallTable(void) {
     SysCallTable[SYSCALL_SetWindowProp] = (SYSCALLENTRY){SysCall_SetWindowProp, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetWindowProp] = (SYSCALLENTRY){SysCall_GetWindowProp, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetWindowRect] = (SYSCALLENTRY){SysCall_GetWindowRect, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_GetWindowClientRect] = (SYSCALLENTRY){SysCall_GetWindowClientRect, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_GetWindowParent] = (SYSCALLENTRY){SysCall_GetWindowParent, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_GetWindowChildCount] = (SYSCALLENTRY){SysCall_GetWindowChildCount, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_GetWindowChild] = (SYSCALLENTRY){SysCall_GetWindowChild, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_GetNextWindowSibling] = (SYSCALLENTRY){SysCall_GetNextWindowSibling, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_GetPreviousWindowSibling] = (SYSCALLENTRY){SysCall_GetPreviousWindowSibling, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_RegisterWindowClass] = (SYSCALLENTRY){SysCall_RegisterWindowClass, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_UnregisterWindowClass] = (SYSCALLENTRY){SysCall_UnregisterWindowClass, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_InvalidateWindowRect] = (SYSCALLENTRY){SysCall_InvalidateWindowRect, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetWindowGC] = (SYSCALLENTRY){SysCall_GetWindowGC, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_ReleaseWindowGC] = (SYSCALLENTRY){SysCall_ReleaseWindowGC, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_EnumWindows] = (SYSCALLENTRY){SysCall_EnumWindows, EXOS_PRIVILEGE_USER};
-    SysCallTable[SYSCALL_DefWindowFunc] = (SYSCALLENTRY){SysCall_DefWindowFunc, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_BaseWindowFunc] = (SYSCALLENTRY){SysCall_BaseWindowFunc, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetSystemBrush] = (SYSCALLENTRY){SysCall_GetSystemBrush, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetSystemPen] = (SYSCALLENTRY){SysCall_GetSystemPen, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_CreateBrush] = (SYSCALLENTRY){SysCall_CreateBrush, EXOS_PRIVILEGE_USER};
@@ -175,4 +184,6 @@ void InitializeSystemCallTable(void) {
     SysCallTable[SYSCALL_GetPixel] = (SYSCALLENTRY){SysCall_GetPixel, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_Line] = (SYSCALLENTRY){SysCall_Line, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_Rectangle] = (SYSCALLENTRY){SysCall_Rectangle, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_DrawText] = (SYSCALLENTRY){SysCall_DrawText, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_MeasureText] = (SYSCALLENTRY){SysCall_MeasureText, EXOS_PRIVILEGE_USER};
 }

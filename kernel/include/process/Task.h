@@ -37,6 +37,7 @@
 #include "List.h"
 #include "Mutex.h"
 #include "User.h"
+#include "utils/MessageQueue.h"
 
 /************************************************************************/
 
@@ -53,10 +54,12 @@
 
 typedef struct tag_MESSAGEQUEUE {
     MUTEX Mutex;      // Queue mutex
-    LPLIST Messages;  // Underlying list of MESSAGE
     UINT Capacity;    // Optional max capacity (0 = unlimited)
     UINT Flags;       // Future flags
     BOOL Waiting;     // Indicates a waiter is sleeping on this queue
+    MESSAGE_QUEUE_BUFFER MessageBuffer;  // Optional fixed-size message buffer
+    LINEAR MessageBufferBase;            // Backing storage virtual base for task queue
+    UINT MessageBufferSize;              // Backing storage size in bytes
 } MESSAGEQUEUE, *LPMESSAGEQUEUE;
 
 /************************************************************************/
@@ -77,6 +80,12 @@ struct tag_TASK {
     ARCH_TASK_DATA Arch;      // Architecture-specific task data
     UINT WakeUpTime;          // System time at which to wake up the task
     MESSAGEQUEUE MessageQueue;  // Message queue for this task
+    LPVOID WindowDispatchWindow;          // Current window in nested window dispatch
+    LPVOID WindowDispatchClass;           // Current class in nested window dispatch
+    WINDOWFUNC WindowDispatchFunction;    // Current function in nested window dispatch
+    U32 WindowDispatchDepth;              // Current nested window dispatch depth
+    U32 DebugLockOrderDepth;  // Lock order checker stack depth
+    U32 DebugLockOrderStack[32];  // Lock order checker role stack
 };
 
 typedef struct tag_TASK TASK, *LPTASK;
@@ -90,7 +99,6 @@ BOOL SetTaskExitCode(LPTASK Task, UINT Code);
 void DeleteDeadTasksAndProcesses(void);
 U32 SetTaskPriority(LPTASK, U32);
 void Sleep(U32);
-void SleepWithSchedulerFrozenSupport(U32);
 U32 GetTaskStatus(LPTASK Task);
 void SetTaskStatus(LPTASK Task, U32 Status);
 void SetTaskStatusDirect(LPTASK Task, U32 Status);

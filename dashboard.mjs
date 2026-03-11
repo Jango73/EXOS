@@ -68,7 +68,7 @@ const defaultSettings = {
     maxLogLines: 1000,
     logBatchSize: 50,
     maxQueuedLogLines: 2000,
-    sidebarMinWidth: 25
+    sidebarMinWidth: 32
 };
 
 function parsePositiveInteger(value) {
@@ -98,6 +98,10 @@ function normalizeSettings(overrides) {
     for (const key of positiveIntegerKeys) {
         const parsed = parsePositiveInteger(overrides[key]);
         if (parsed !== undefined) {
+            if (key === 'sidebarMinWidth') {
+                normalized[key] = Math.max(parsed, 32);
+                continue;
+            }
             normalized[key] = parsed;
         }
     }

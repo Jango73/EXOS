@@ -157,11 +157,12 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_ConsoleGetString 0x00000031
 #define SYSCALL_ConsoleGotoXY 0x00000032
 #define SYSCALL_ConsoleClear 0x00000034
+#define SYSCALL_ConsoleBlitBuffer 0x00000077
+#define SYSCALL_ConsoleGetKeyModifiers 0x00000078
 #define SYSCALL_ConsoleSetMode 0x00000079
 #define SYSCALL_ConsoleGetModeCount 0x0000007A
 #define SYSCALL_ConsoleGetModeInfo 0x0000007B
-#define SYSCALL_ConsoleBlitBuffer 0x00000077
-#define SYSCALL_ConsoleGetKeyModifiers 0x00000078
+#define SYSCALL_ConsoleGetCurrentMode 0x0000007F
 
 /************************************************************************/
 /* Console Colors                                                        */
@@ -234,11 +235,19 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_SetWindowProp 0x00000050
 #define SYSCALL_GetWindowProp 0x00000051
 #define SYSCALL_GetWindowRect 0x00000052
+#define SYSCALL_GetWindowClientRect 0x0000007C
+#define SYSCALL_GetWindowParent 0x00000077
+#define SYSCALL_GetWindowChildCount 0x00000078
+#define SYSCALL_GetWindowChild 0x00000079
+#define SYSCALL_GetNextWindowSibling 0x0000007A
+#define SYSCALL_GetPreviousWindowSibling 0x0000007B
+#define SYSCALL_RegisterWindowClass 0x0000007D
+#define SYSCALL_UnregisterWindowClass 0x0000007E
 #define SYSCALL_InvalidateWindowRect 0x00000053
 #define SYSCALL_GetWindowGC 0x00000054
 #define SYSCALL_ReleaseWindowGC 0x00000055
 #define SYSCALL_EnumWindows 0x00000056
-#define SYSCALL_DefWindowFunc 0x00000057
+#define SYSCALL_BaseWindowFunc 0x00000057
 #define SYSCALL_GetSystemBrush 0x00000058
 #define SYSCALL_GetSystemPen 0x00000059
 #define SYSCALL_CreateBrush 0x0000005A
@@ -253,6 +262,8 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_CreatePolyRegion 0x00000063
 #define SYSCALL_MoveRegion 0x00000064
 #define SYSCALL_CombineRegion 0x00000065
+#define SYSCALL_DrawText 0x00000080
+#define SYSCALL_MeasureText 0x00000081
 
 /************************************************************************/
 // Network Socket Services
@@ -275,7 +286,7 @@ typedef struct PACKED tag_ABI_HEADER {
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x0000007C
+#define SYSCALL_Last 0x00000082
 
 /************************************************************************/
 // Structure limits
@@ -481,6 +492,8 @@ typedef struct PACKED tag_WINDOWINFO {
     ABI_HEADER Header;
     HANDLE Window;
     HANDLE Parent;
+    HANDLE WindowClass;
+    LPCSTR WindowClassName;
     WINDOWFUNC Function;
     U32 Style;
     U32 ID;
@@ -488,6 +501,16 @@ typedef struct PACKED tag_WINDOWINFO {
     POINT WindowSize;
     BOOL ShowHide;
 } WINDOWINFO, *LPWINDOWINFO;
+
+typedef struct PACKED tag_WINDOWCLASSINFO {
+    ABI_HEADER Header;
+    HANDLE WindowClass;
+    HANDLE BaseClass;
+    LPCSTR ClassName;
+    LPCSTR BaseClassName;
+    WINDOWFUNC Function;
+    U32 ClassDataSize;
+} WINDOWCLASSINFO, *LPWINDOWCLASSINFO;
 
 typedef struct PACKED tag_PROPINFO {
     ABI_HEADER Header;
@@ -501,6 +524,12 @@ typedef struct PACKED tag_WINDOWRECT {
     HANDLE Window;
     RECT Rect;
 } WINDOWRECT, *LPWINDOWRECT;
+
+typedef struct PACKED tag_WINDOWCHILDINFO {
+    ABI_HEADER Header;
+    HANDLE Window;
+    U32 ChildIndex;
+} WINDOWCHILDINFO, *LPWINDOWCHILDINFO;
 
 typedef struct PACKED tag_GCSELECT {
     ABI_HEADER Header;
@@ -548,6 +577,16 @@ typedef struct PACKED tag_RECTINFO {
     I32 Y2;
 } RECTINFO, *LPRECTINFO;
 
+typedef struct PACKED tag_ARCINFO {
+    ABI_HEADER Header;
+    HANDLE GC;
+    I32 CenterX;
+    I32 CenterY;
+    I32 Radius;
+    I32 StartAngle;
+    I32 EndAngle;
+} ARCINFO, *LPARCINFO;
+
 typedef struct PACKED tag_TRIANGLEINFO {
     ABI_HEADER Header;
     HANDLE GC;
@@ -555,6 +594,28 @@ typedef struct PACKED tag_TRIANGLEINFO {
     POINT P2;
     POINT P3;
 } TRIANGLEINFO, *LPTRIANGLEINFO;
+
+typedef struct PACKED tag_TEXT_DRAW_INFO {
+    ABI_HEADER Header;
+    HANDLE GC;
+    I32 X;
+    I32 Y;
+    LPCSTR Text;
+    HANDLE Font;
+} TEXT_DRAW_INFO, *LPTEXT_DRAW_INFO;
+
+typedef struct PACKED tag_TEXT_MEASURE_INFO {
+    ABI_HEADER Header;
+    LPCSTR Text;
+    HANDLE Font;
+    U32 Width;
+    U32 Height;
+} TEXT_MEASURE_INFO, *LPTEXT_MEASURE_INFO;
+
+typedef struct PACKED tag_DRIVER_DEBUG_INFO {
+    ABI_HEADER Header;
+    STR Text[MAX_STRING_BUFFER];
+} DRIVER_DEBUG_INFO, *LPDRIVER_DEBUG_INFO;
 
 typedef struct PACKED tag_LOGIN_INFO {
     ABI_HEADER Header;
@@ -721,6 +782,7 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 #define DF_ENUM_NEXT 0x0009
 #define DF_ENUM_END 0x000A
 #define DF_ENUM_PRETTY 0x000B
+#define DF_DEBUG_INFO 0x000C
 
 #define DF_FIRST_FUNCTION 0x1000
 
@@ -744,6 +806,29 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 
 #define EWS_VISIBLE 0x0001
 #define EWS_ALWAYS_IN_FRONT 0x0002
+#define EWS_ALWAYS_AT_BOTTOM 0x0004
+#define EWS_SYSTEM_DECORATED 0x0008
+#define EWS_CLIENT_DECORATED 0x0010
+#define EWS_BARE_SURFACE 0x0020
+#define EWS_EXCLUDE_SIBLING_PLACEMENT 0x0040
+#define EWS_DECORATION_MASK (EWS_SYSTEM_DECORATED | EWS_CLIENT_DECORATED | EWS_BARE_SURFACE)
+
+/************************************************************************/
+// Window docking
+
+#define WINDOW_DOCK_HOST_CLASS_NAME TEXT("WindowDockHostClass")
+#define WINDOW_DOCKABLE_CLASS_NAME TEXT("WindowDockableClass")
+
+#define WINDOW_DOCK_PROP_ENABLED TEXT("dock.enabled")
+#define WINDOW_DOCK_PROP_EDGE TEXT("dock.edge")
+#define WINDOW_DOCK_PROP_PRIORITY TEXT("dock.priority")
+#define WINDOW_DOCK_PROP_ORDER TEXT("dock.order")
+#define WINDOW_DOCK_PROP_SIZE_POLICY TEXT("dock.size.policy")
+#define WINDOW_DOCK_PROP_SIZE_PREFERRED TEXT("dock.size.preferred")
+#define WINDOW_DOCK_PROP_SIZE_MINIMUM TEXT("dock.size.minimum")
+#define WINDOW_DOCK_PROP_SIZE_MAXIMUM TEXT("dock.size.maximum")
+#define WINDOW_DOCK_PROP_SIZE_WEIGHT TEXT("dock.size.weight")
+#define WINDOW_PROP_BYPASS_PARENT_WORK_RECT TEXT("window.bypass.parent_work_rect")
 
 /************************************************************************/
 // Task and window messages
@@ -775,6 +860,17 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 #define EWM_NOTIFY 0x40000010
 #define EWM_GOTFOCUS 0x40000011
 #define EWM_LOSTFOCUS 0x40000012
+#define EWM_TIMER 0x40000013
+#define EWM_CLEAR 0x40000014
+#define EWM_CHILD_APPENDED 0x40000015
+#define EWM_CHILD_REMOVED 0x40000016
+
+// Window procedure result contract
+#define EWM_NOT_HANDLED 0xFFFFFFFF
+
+// Window notify codes (Param1 when Message == EWM_NOTIFY)
+#define EWN_WINDOW_RECT_CHANGED 0x00000001
+#define EWN_WINDOW_PROPERTY_CHANGED 0x00000002
 
 // Task messages define by userland apps begin here
 #define EM_USER 0x60000000

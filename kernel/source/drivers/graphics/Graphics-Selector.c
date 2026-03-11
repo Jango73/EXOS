@@ -26,6 +26,10 @@
 #include "CoreString.h"
 #include "DriverGetters.h"
 #include "Log.h"
+#include "Profile.h"
+#include "Clock.h"
+#include "utils/BootPath.h"
+#include "utils/RateLimiter.h"
 
 /************************************************************************/
 
@@ -82,6 +86,26 @@ static BOOL GraphicsSelectorIsBooleanTextCommand(UINT Function) {
         case DF_GFX_TEXT_SCROLL_REGION:
         case DF_GFX_TEXT_SET_CURSOR:
         case DF_GFX_TEXT_SET_CURSOR_VISIBLE:
+        case DF_GFX_TEXT_DRAW:
+        case DF_GFX_TEXT_MEASURE:
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Check whether one graphics command is related to cursor management.
+ * @param Function Driver command identifier.
+ * @return TRUE for cursor shape/position/visibility commands.
+ */
+static BOOL GraphicsSelectorIsCursorCommand(UINT Function) {
+    switch (Function) {
+        case DF_GFX_CURSOR_SET_SHAPE:
+        case DF_GFX_CURSOR_SET_POSITION:
+        case DF_GFX_CURSOR_SET_VISIBLE:
             return TRUE;
     }
 
@@ -231,6 +255,32 @@ LPCSTR GraphicsSelectorGetActiveBackendName(void) {
 /************************************************************************/
 
 /**
+ * @brief Return active backend driver descriptor.
+ * @return Active backend driver, or NULL when unavailable.
+ */
+LPDRIVER GraphicsSelectorGetActiveBackendDriver(void) {
+    if ((GraphicsSelectorDriver.Flags & DRIVER_FLAG_READY) == 0) {
+        return NULL;
+    }
+
+    if (GraphicsSelectorState.BackendCount == 0) {
+        return NULL;
+    }
+
+    if (GraphicsSelectorState.ActiveIndex >= GraphicsSelectorState.BackendCount) {
+        return NULL;
+    }
+
+    SAFE_USE(GraphicsSelectorState.Backends[GraphicsSelectorState.ActiveIndex]) {
+        return GraphicsSelectorState.Backends[GraphicsSelectorState.ActiveIndex];
+    }
+
+    return NULL;
+}
+
+/************************************************************************/
+
+/**
  * @brief Score a graphics backend by exposed capabilities.
  * @param Driver Candidate driver.
  * @return Score value. Higher means more capable.
@@ -321,6 +371,10 @@ static UINT GraphicsSelectorLoad(void) {
             continue;
         }
 
+        if (Driver == VESAGetDriver() && VesaIsSupportedOnCurrentBootPath() == FALSE) {
+            continue;
+        }
+
         LoadResult = Driver->Command(DF_LOAD, 0);
         DEBUG(TEXT("[GraphicsSelectorLoad] Probe backend %s load_result=%u ready=%u"),
             Driver->Product,
@@ -362,10 +416,9 @@ static UINT GraphicsSelectorLoad(void) {
     }
 
     if (GraphicsSelectorState.BackendCount == 0) {
-        ERROR(TEXT("[GraphicsSelectorLoad] No active graphics backend"));
-        GraphicsSelectorDriver.Flags &= ~DRIVER_FLAG_READY;
-        GraphicsSelectorState = (GRAPHICS_SELECTOR_STATE){0};
-        return DF_RETURN_UNEXPECTED;
+        WARNING(TEXT("[GraphicsSelectorLoad] No active graphics backend"));
+        GraphicsSelectorDriver.Flags |= DRIVER_FLAG_READY;
+        return DF_RETURN_SUCCESS;
     }
 
     GraphicsSelectorState.ActiveIndex = 0;
@@ -419,24 +472,55 @@ static UINT GraphicsSelectorUnload(void) {
  * @return Result from selected backend.
  */
 static UINT GraphicsSelectorForward(UINT Function, UINT Parameter) {
+    static RATE_LIMITER CursorForwardLimiter;
+    static BOOL CursorForwardLimiterReady = FALSE;
     UINT Index = 0;
     BOOL IsBooleanTextCommand = FALSE;
+    BOOL IsCursorCommand = FALSE;
+    U32 Suppressed = 0;
+    U32 Now = GetSystemTime();
 
     if (GraphicsSelectorState.BackendCount == 0) {
         return DF_RETURN_NOT_IMPLEMENTED;
     }
 
     IsBooleanTextCommand = GraphicsSelectorIsBooleanTextCommand(Function);
+    IsCursorCommand = GraphicsSelectorIsCursorCommand(Function);
+
+    if (IsCursorCommand != FALSE && CursorForwardLimiterReady == FALSE) {
+        if (RateLimiterInit(&CursorForwardLimiter, 24, 1000) != FALSE) {
+            CursorForwardLimiterReady = TRUE;
+        }
+    }
 
     for (Index = GraphicsSelectorState.ActiveIndex; Index < GraphicsSelectorState.BackendCount; Index++) {
         LPDRIVER Driver = GraphicsSelectorState.Backends[Index];
         UINT Result = 0;
+        PROFILE_SCOPE RectangleForwardScope;
 
         if (Driver == NULL || Driver->Command == NULL) {
             continue;
         }
 
+        if (Function == DF_GFX_RECTANGLE) {
+            ProfileStart(&RectangleForwardScope, TEXT("GraphicsSelector.RectangleForward"));
+        }
         Result = Driver->Command(Function, Parameter);
+        if (Function == DF_GFX_RECTANGLE) {
+            ProfileStop(&RectangleForwardScope);
+        }
+
+        if (IsCursorCommand != FALSE &&
+            CursorForwardLimiterReady != FALSE &&
+            RateLimiterShouldTrigger(&CursorForwardLimiter, Now, &Suppressed) != FALSE) {
+            DEBUG(TEXT("[GraphicsSelectorForward] cursor fn=%u backend=%s index=%u result=%u active=%u suppressed=%u"),
+                Function,
+                Driver->Product,
+                Index,
+                Result,
+                GraphicsSelectorState.ActiveIndex,
+                Suppressed);
+        }
 
         if (Function == DF_GFX_CREATECONTEXT) {
             if (Result >= VMA_KERNEL) {
@@ -481,6 +565,8 @@ static UINT GraphicsSelectorCommands(UINT Function, UINT Parameter) {
             return GraphicsSelectorUnload();
         case DF_GET_VERSION:
             return MAKE_VERSION(GRAPHICS_SELECTOR_VER_MAJOR, GRAPHICS_SELECTOR_VER_MINOR);
+        case DF_DEBUG_INFO:
+            return GraphicsSelectorForward(Function, Parameter);
         case DF_GFX_GETMODECOUNT:
         case DF_GFX_GETMODEINFO:
         case DF_GFX_SETMODE:
@@ -505,6 +591,13 @@ static UINT GraphicsSelectorCommands(UINT Function, UINT Parameter) {
         case DF_GFX_TEXT_SCROLL_REGION:
         case DF_GFX_TEXT_SET_CURSOR:
         case DF_GFX_TEXT_SET_CURSOR_VISIBLE:
+        case DF_GFX_CURSOR_SET_SHAPE:
+        case DF_GFX_CURSOR_SET_POSITION:
+        case DF_GFX_CURSOR_SET_VISIBLE:
+        case DF_GFX_ARC:
+        case DF_GFX_TRIANGLE:
+        case DF_GFX_TEXT_DRAW:
+        case DF_GFX_TEXT_MEASURE:
             return GraphicsSelectorForward(Function, Parameter);
     }
 

@@ -46,6 +46,9 @@ extern RestoreIOAPICAfterRealMode
 %define LOCAL_PARAM_INT         0x48
 %define LOCAL_PARAM_PTR         0x50
 
+%define SELECTOR_PM32_CODE      0x18
+%define SELECTOR_PM32_DATA      0x20
+
 ;----------------------------------------------------------------------------
 
 section .text
@@ -127,12 +130,23 @@ RealModeCall:
     cld
     rep     movsb
 
+    ; Build dedicated 32-bit compatibility descriptors for the return path.
+    ; Index 3 (selector 0x18): 32-bit flat code segment.
+    lea     rdi, [rbx + 0x10 + (3 * SEGMENT_DESCRIPTOR_SIZE)]
+    mov     dword [rdi], 0x0000FFFF
+    mov     dword [rdi + 4], 0x00CF9A00
+
+    ; Index 4 (selector 0x20): 32-bit flat data segment.
+    lea     rdi, [rbx + 0x10 + (4 * SEGMENT_DESCRIPTOR_SIZE)]
+    mov     dword [rdi], 0x0000FFFF
+    mov     dword [rdi + 4], 0x00CF9200
+
     ;--------------------------------------
     ; Compute relocations
 
     ; 64-bit offset for jump to RMC code
     lea     rsi, [rel RelJmp]
-    mov     dword [rsi], ebx
+    mov     [rsi], rbx
 
     ; 64-bit offset for GDT label
     lea     rsi, [rbx + Rel1 - RMCSetup]
@@ -152,6 +166,15 @@ RealModeCall:
     lea     rdi, [rbx + Real_GDT_Label - RMCSetup + 2]
     mov     dword [rdi], esi
 
+    ; Patch 64-bit IDT/GDT labels used by the long-mode trampoline
+    mov     rsi, [rel Kernel_x86_32 + KERNELDATA_X86_64.IDT]
+    lea     rdi, [rbx + Real_IDT_Label64 - RMCSetup + 2]
+    mov     [rdi], rsi
+
+    mov     rsi, [rel Kernel_x86_32 + KERNELDATA_X86_64.GDT]
+    lea     rdi, [rbx + Real_GDT_Label64 - RMCSetup + 2]
+    mov     [rdi], rsi
+
     ; 16-bit segment for jump to real mode code
     lea     rsi, [rbx + Rel3 - RMCSetup]
     mov     eax, ebx
@@ -166,10 +189,20 @@ RealModeCall:
     lea     rsi, [rbx + Rel5 - RMCSetup]
     add     dword [rsi], ebx
 
+    ; 32-bit offset for jump to long mode trampoline in low memory
+    lea     rsi, [rbx + Rel6 - RMCSetup]
+    add     dword [rsi], ebx
+
     ; 64-bit return target for the long mode trampoline
-    lea     rdi, [rbx + ReturnToLong - RMCSetup]
+    lea     rdi, [rbx + ReturnToLongTarget - RMCSetup]
     lea     rax, [rel RealModeCall_Back]
     mov     [rdi], rax
+
+    ; Preserve full-width stack pointers for the 64-bit resume path.
+    lea     rdi, [rbx + Save_RSP64 - RMCSetup]
+    mov     [rdi], rsp
+    lea     rdi, [rbx + Save_RBP64 - RMCSetup]
+    mov     [rdi], rbp
 
     ;--------------------------------------
     ; Transfer register parameters to low memory buffer
@@ -196,10 +229,9 @@ RealModeCall:
     ; Jump to code at rbx
 
 RMCJump1:
-
-    db      0xEA                       ; jmp far
+    jmp     far [rel RelJmp]
 RelJmp:
-    dd      0
+    dq      0
     dw      SELECTOR_KERNEL_CODE
 
 RealModeCall_Back:
@@ -298,6 +330,14 @@ Real_GDT_Label:
     dw  (GDT_SIZE - 1)
     dd 0
 
+Real_IDT_Label64:
+    dw  (IDT_SIZE - 1)
+    dq 0
+
+Real_GDT_Label64:
+    dw  (GDT_SIZE - 1)
+    dq 0
+
 Save_REG:
 Save_SEG: dw 0, 0, 0, 0, 0           ; ds, ss, es, fs, gs
 Save_STR: dd 0, 0                    ; esp, ebp
@@ -305,6 +345,8 @@ Save_CTL: dd 0, 0                    ; cr0, cr3
 Save_INT: dd 0
 Save_PRM: dd 0
 Save_IRQ: dd 0
+Save_RSP64: dq 0
+Save_RBP64: dq 0
 
 Param_REGS:
 Param_DS   : dw 0
@@ -440,7 +482,7 @@ bits 16
     ;--------------------------------------
     ; Setup the stack
 
-    mov     sp, LOW_MEMORY_PAGE_5
+    mov     sp, LOW_MEMORY_PAGE_7
 
     ;--------------------------------------
     ; Save our base address
@@ -482,20 +524,20 @@ DoFarCall:
 
     mov     ebp, Param_REGS - RMCSetup
 
-    mov     ax, [ebp+0]
+    mov     ax, [cs:ebp+0]
     mov     ds, ax
-    mov     ax, [ebp+2]
+    mov     ax, [cs:ebp+2]
     mov     es, ax
-    mov     ax, [ebp+4]
+    mov     ax, [cs:ebp+4]
     mov     fs, ax
-    mov     ax, [ebp+6]
+    mov     ax, [cs:ebp+6]
     mov     gs, ax
-    mov     eax, [ebp+8]
-    mov     ebx, [ebp+12]
-    mov     ecx, [ebp+16]
-    mov     edx, [ebp+20]
-    mov     esi, [ebp+24]
-    mov     edi, [ebp+28]
+    mov     eax, [cs:ebp+8]
+    mov     ebx, [cs:ebp+12]
+    mov     ecx, [cs:ebp+16]
+    mov     edx, [cs:ebp+20]
+    mov     esi, [cs:ebp+24]
+    mov     edi, [cs:ebp+28]
     mov     ebp, esp
 
     db      0x9A                       ; call far
@@ -509,20 +551,20 @@ FarAddress:
 
     mov     ebp, Param_REGS - RMCSetup
 
-    mov     [ebp+8], eax
+    mov     [cs:ebp+8], eax
     mov     ax, ds
-    mov     [ebp+0], ax
+    mov     [cs:ebp+0], ax
     mov     ax, es
-    mov     [ebp+2], ax
+    mov     [cs:ebp+2], ax
     mov     ax, fs
-    mov     [ebp+4], ax
+    mov     [cs:ebp+4], ax
     mov     ax, gs
-    mov     [ebp+6], ax
-    mov     [ebp+12], ebx
-    mov     [ebp+16], ecx
-    mov     [ebp+20], edx
-    mov     [ebp+24], esi
-    mov     [ebp+28], edi
+    mov     [cs:ebp+6], ax
+    mov     [cs:ebp+12], ebx
+    mov     [cs:ebp+16], ecx
+    mov     [cs:ebp+20], edx
+    mov     [cs:ebp+24], esi
+    mov     [cs:ebp+28], edi
 
     jmp     ReturnFromCall
 
@@ -541,20 +583,20 @@ DoInterrupt:
 
     mov     ebp, Param_REGS - RMCSetup
 
-    mov     ax, [ebp+0]
+    mov     ax, [cs:ebp+0]
     mov     ds, ax
-    mov     ax, [ebp+2]
+    mov     ax, [cs:ebp+2]
     mov     es, ax
-    mov     ax, [ebp+4]
+    mov     ax, [cs:ebp+4]
     mov     fs, ax
-    mov     ax, [ebp+6]
+    mov     ax, [cs:ebp+6]
     mov     gs, ax
-    mov     eax, [ebp+8]
-    mov     ebx, [ebp+12]
-    mov     ecx, [ebp+16]
-    mov     edx, [ebp+20]
-    mov     esi, [ebp+24]
-    mov     edi, [ebp+28]
+    mov     eax, [cs:ebp+8]
+    mov     ebx, [cs:ebp+12]
+    mov     ecx, [cs:ebp+16]
+    mov     edx, [cs:ebp+20]
+    mov     esi, [cs:ebp+24]
+    mov     edi, [cs:ebp+28]
 
     mov     ebp, esp
 
@@ -566,20 +608,20 @@ RMCIntCall:
 
     mov     ebp, Param_REGS - RMCSetup
 
-    mov     [ebp+8], eax
+    mov     [cs:ebp+8], eax
     mov     ax, ds
-    mov     [ebp+0], ax
+    mov     [cs:ebp+0], ax
     mov     ax, es
-    mov     [ebp+2], ax
+    mov     [cs:ebp+2], ax
     mov     ax, fs
-    mov     [ebp+4], ax
+    mov     [cs:ebp+4], ax
     mov     ax, gs
-    mov     [ebp+6], ax
-    mov     [ebp+12], ebx
-    mov     [ebp+16], ecx
-    mov     [ebp+20], edx
-    mov     [ebp+24], esi
-    mov     [ebp+28], edi
+    mov     [cs:ebp+6], ax
+    mov     [cs:ebp+12], ebx
+    mov     [cs:ebp+16], ecx
+    mov     [cs:ebp+20], edx
+    mov     [cs:ebp+24], esi
+    mov     [cs:ebp+28], edi
 
     ;--------------------------------------
     ; Interrupt or far call returns here
@@ -626,7 +668,7 @@ bits 16
     db      0xEA                       ; jmp far
 Rel5:
     dd      L6 - RMCSetup
-    dw      SELECTOR_KERNEL_CODE
+    dw      SELECTOR_PM32_CODE
 
 L6:
 
@@ -635,7 +677,7 @@ bits 32
     ;--------------------------------------
     ; Restore 32-bit segment registers
 
-    mov     ax, SELECTOR_KERNEL_DATA
+    mov     ax, SELECTOR_PM32_DATA
     mov     ds, ax
     mov     ss, ax
     mov     es, ax
@@ -647,24 +689,10 @@ bits 32
 
     mov     esi, ebx
     add     esi, Save_REG - RMCSetup
-    mov     eax, [esi+22]
+    mov     eax, [cs:esi+22]
     mov     cr3, eax
-    mov     eax, [esi+18]
+    mov     eax, [cs:esi+18]
     mov     cr0, eax
-
-    ;--------------------------------------
-    ; Load the real IDT
-
-    mov     esi, ebx
-    add     esi, Real_IDT_Label - RMCSetup
-    lidt    [esi]
-
-    ;--------------------------------------
-    ; Load the real GDT
-
-    mov     esi, ebx
-    add     esi, Real_GDT_Label - RMCSetup
-    lgdt    [esi]
 
     ;--------------------------------------
     ; Restore registers
@@ -672,26 +700,45 @@ bits 32
     mov     esi, ebx
     add     esi, Save_REG - RMCSetup
 
-    mov     ax, [esi+0]
+    mov     ax, [cs:esi+0]
     mov     ds, ax
-    mov     ax, [esi+2]
+    mov     ax, [cs:esi+2]
     mov     ss, ax
-    mov     ax, [esi+4]
+    mov     ax, [cs:esi+4]
     mov     es, ax
-    mov     ax, [esi+6]
+    mov     ax, [cs:esi+6]
     mov     fs, ax
-    mov     ax, [esi+8]
+    mov     ax, [cs:esi+8]
     mov     gs, ax
-    mov     esp, [esi+10]
-    mov     ebp, [esi+14]
-
     ;--------------------------------------
     ; Return to kernel code
 
     db      0xEA                       ; jmp far
-ReturnToLong:
-    dq      0
+Rel6:
+    dd      ReturnToLong - RMCSetup
     dw      SELECTOR_KERNEL_CODE
+
+bits 64
+
+ReturnToLong:
+    lidt    [rel Real_IDT_Label64]
+    lgdt    [rel Real_GDT_Label64]
+
+    mov     ax, SELECTOR_KERNEL_DATA
+    mov     ds, ax
+    mov     ss, ax
+    mov     es, ax
+    mov     fs, ax
+    mov     gs, ax
+
+    mov     rsp, [rel Save_RSP64]
+    mov     rbp, [rel Save_RBP64]
+
+    mov     rax, [rel ReturnToLongTarget]
+    jmp     rax
+
+ReturnToLongTarget:
+    dq      0
 
     ;--------------------------------------
 

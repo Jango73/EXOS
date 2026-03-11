@@ -175,45 +175,72 @@ void RouteKeyUp(U8 VirtualKey) {
 
 /***************************************************************************/
 
-static BOOL FetchKeyFromMessageQueue(BOOL RemoveKeyDown, BOOL PurgeKeyUp, LPKEYCODE KeyCode) {
+static LPPROCESS LockCurrentProcessMessageQueue(void) {
     LPTASK Task = GetCurrentTask();
     LPPROCESS Process = NULL;
-    LPLIST MessageList = NULL;
-    BOOL Found = FALSE;
-
-    if (KeyCode == NULL) return FALSE;
 
     SAFE_USE_VALID_ID(Task, KOID_TASK) { Process = Task->Process; }
-    SAFE_USE_VALID_ID(Process, KOID_PROCESS) { MessageList = Process->MessageQueue.Messages; }
-
-    if (MessageList == NULL) return FALSE;
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+        if (Process->MessageQueue.MessageBuffer.Entries == NULL ||
+            Process->MessageQueue.MessageBuffer.Capacity == 0) {
+            return NULL;
+        }
+    }
 
     LockMutex(&(Process->Mutex), INFINITY);
     LockMutex(&(Process->MessageQueue.Mutex), INFINITY);
 
-    LPLISTNODE Node = MessageList->First;
-    while (Node != NULL) {
-        LPLISTNODE Next = Node->Next;
-        LPMESSAGE Message = (LPMESSAGE)Node;
+    return Process;
+}
 
-        if (Message->Message == EWM_KEYUP) {
-            if (PurgeKeyUp) {
-                ListEraseItem(MessageList, Message);
-            }
-        } else if (Message->Message == EWM_KEYDOWN && Found == FALSE) {
-            KeyCode->VirtualKey = Message->Param1;
-            KeyCode->ASCIICode = (STR)Message->Param2;
-            Found = TRUE;
-            if (RemoveKeyDown) {
-                ListEraseItem(MessageList, Message);
-            }
-        }
+/***************************************************************************/
 
-        Node = Next;
+static void UnlockCurrentProcessMessageQueue(LPPROCESS Process) {
+    if (Process == NULL) {
+        return;
     }
 
     UnlockMutex(&(Process->MessageQueue.Mutex));
     UnlockMutex(&(Process->Mutex));
+}
+
+/***************************************************************************/
+
+static BOOL FetchKeyFromMessageQueue(BOOL RemoveKeyDown, BOOL PurgeKeyUp, LPKEYCODE KeyCode) {
+    LPPROCESS Process;
+    BOOL Found = FALSE;
+    MESSAGE CurrentMessage;
+    UINT Offset = 0;
+
+    if (KeyCode == NULL) return FALSE;
+
+    Process = LockCurrentProcessMessageQueue();
+    if (Process == NULL) return FALSE;
+
+    while (Offset < MessageQueueBufferGetCount(&(Process->MessageQueue.MessageBuffer))) {
+        if (MessageQueueBufferReadAt(&(Process->MessageQueue.MessageBuffer), Offset, &CurrentMessage) == FALSE) {
+            break;
+        }
+
+        if (CurrentMessage.Message == EWM_KEYUP) {
+            if (PurgeKeyUp) {
+                (void)MessageQueueBufferRemoveAt(&(Process->MessageQueue.MessageBuffer), Offset, NULL);
+                continue;
+            }
+        } else if (CurrentMessage.Message == EWM_KEYDOWN && Found == FALSE) {
+            KeyCode->VirtualKey = CurrentMessage.Param1;
+            KeyCode->ASCIICode = (STR)CurrentMessage.Param2;
+            Found = TRUE;
+            if (RemoveKeyDown) {
+                (void)MessageQueueBufferRemoveAt(&(Process->MessageQueue.MessageBuffer), Offset, NULL);
+                continue;
+            }
+        }
+
+        Offset++;
+    }
+
+    UnlockCurrentProcessMessageQueue(Process);
 
     return Found;
 }
@@ -221,33 +248,30 @@ static BOOL FetchKeyFromMessageQueue(BOOL RemoveKeyDown, BOOL PurgeKeyUp, LPKEYC
 /***************************************************************************/
 
 static BOOL PeekKeyInMessageQueue(LPKEYCODE KeyCode) {
-    LPTASK Task = GetCurrentTask();
-    LPPROCESS Process = NULL;
-    LPLIST MessageList = NULL;
+    LPPROCESS Process;
     BOOL Found = FALSE;
+    MESSAGE CurrentMessage;
+    UINT Offset = 0;
 
     if (KeyCode == NULL) return FALSE;
 
-    SAFE_USE_VALID_ID(Task, KOID_TASK) { Process = Task->Process; }
-    SAFE_USE_VALID_ID(Process, KOID_PROCESS) { MessageList = Process->MessageQueue.Messages; }
+    Process = LockCurrentProcessMessageQueue();
+    if (Process == NULL) return FALSE;
 
-    if (MessageList == NULL) return FALSE;
+    for (Offset = 0; Offset < MessageQueueBufferGetCount(&(Process->MessageQueue.MessageBuffer)); Offset++) {
+        if (MessageQueueBufferReadAt(&(Process->MessageQueue.MessageBuffer), Offset, &CurrentMessage) == FALSE) {
+            break;
+        }
 
-    LockMutex(&(Process->Mutex), INFINITY);
-    LockMutex(&(Process->MessageQueue.Mutex), INFINITY);
-
-    for (LPLISTNODE Node = MessageList->First; Node != NULL; Node = Node->Next) {
-        LPMESSAGE Message = (LPMESSAGE)Node;
-        if (Message->Message == EWM_KEYDOWN) {
-            KeyCode->VirtualKey = Message->Param1;
-            KeyCode->ASCIICode = (STR)Message->Param2;
+        if (CurrentMessage.Message == EWM_KEYDOWN) {
+            KeyCode->VirtualKey = CurrentMessage.Param1;
+            KeyCode->ASCIICode = (STR)CurrentMessage.Param2;
             Found = TRUE;
             break;
         }
     }
 
-    UnlockMutex(&(Process->MessageQueue.Mutex));
-    UnlockMutex(&(Process->Mutex));
+    UnlockCurrentProcessMessageQueue(Process);
 
     return Found;
 }

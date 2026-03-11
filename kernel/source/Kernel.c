@@ -37,6 +37,7 @@
 #include "process/Process.h"
 #include "process/Task.h"
 #include "SerialPort.h"
+#include "utils/BusyWait.h"
 #include "utils/Helpers.h"
 #include "utils/TOML.h"
 #include "utils/UUID.h"
@@ -231,25 +232,11 @@ void ReleaseHandle(HANDLE Handle) {
 static void InitializeFocusState(void) {
     LPLIST DesktopList = GetDesktopList();
 
-    // Ensure the main desktop is registered in the kernel's desktop list
-    if (DesktopList != NULL && DesktopList->First == NULL) {
-        ListAddHead(DesktopList, &MainDesktop);
-    }
-
-    if (GetFocusedDesktop() == NULL) {
-        SetFocusedDesktop(&MainDesktop);
-    }
-
-    SetFocusedDesktop(GetFocusedDesktop());
     SetFocusedProcess(&KernelProcess);
 
     if (KernelProcess.Desktop == NULL) {
-        KernelProcess.Desktop = GetFocusedDesktop();
-    }
-
-    SAFE_USE_VALID_ID(GetFocusedDesktop(), KOID_DESKTOP) {
-        if (GetFocusedDesktop()->FocusedProcess == NULL) {
-            GetFocusedDesktop()->FocusedProcess = &KernelProcess;
+        if (DesktopList != NULL && DesktopList->First != NULL) {
+            KernelProcess.Desktop = (LPDESKTOP)DesktopList->First;
         }
     }
 
@@ -268,9 +255,9 @@ static void InitializeFocusState(void) {
 void InitializeQuantumTime(void) {
     // Set base quantum time based on environment
 #if BARE_METAL == 1
-    SetMinimumQuantum(10);  // Shorter quantum for bare-metal
+    SetMinimumQuantum(2);  // Shorter quantum for bare-metal
 #else
-    SetMinimumQuantum(50);  // Longer quantum for emulation/virtualization
+    SetMinimumQuantum(10);  // Longer quantum for emulation/virtualization
 #endif
 
     if (SCHEDULING_DEBUG_OUTPUT == 1) {
@@ -456,6 +443,8 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
         ERROR(TEXT("[CreateKernelObject] Failed to allocate memory for object type %d"), ObjectTypeID);
         return NULL;
     }
+
+    MemorySet(Object, 0, Size);
 
     // Initialize LISTNODE_FIELDS
     UUID_Generate(Identifier);
@@ -975,6 +964,10 @@ void InitializeKernel(void) {
 
     GetCPUInformation(GetKernelCPUInfo());
     DEBUG(TEXT("[InitializeKernel] CPU information captured"));
+    BusyWaitSetFrequencyMHz(GetKernelCPUInfo()->BaseFrequencyMHz);
+    DEBUG(TEXT("[InitializeKernel] BusyWait profile base_mhz=%u loops_per_ms=%u"),
+          GetKernelCPUInfo()->BaseFrequencyMHz,
+          BusyWaitGetLoopsPerMillisecond());
     PreInitializeKernel();
     DEBUG(TEXT("[InitializeKernel] Architecture pre-initialization complete"));
     //-------------------------------------
@@ -1020,6 +1013,7 @@ void InitializeKernel(void) {
     // Enable interrupts
 
     EnableInterrupts();
+    MarkSystemTimeOperational();
     DEBUG(TEXT("[InitializeKernel] Interrupts enabled"));
 
     // Load keyboard layout only after interrupts are active.

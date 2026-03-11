@@ -70,6 +70,7 @@ typedef struct tag_CPUINFORMATION {
     U32 Model;
     U32 Stepping;
     U32 Features;
+    U32 BaseFrequencyMHz;
 } CPUINFORMATION, *LPCPUINFORMATION;
 
 /************************************************************************/
@@ -144,10 +145,13 @@ typedef struct tag_KERNELDATA {
     LPLIST Socket;
     LPLIST StartupDrivers;          // Driver list in initialization order
     LPLIST Drivers;                 // List of all known drivers
+    LPLIST WindowClass;             // List of registered window classes
     LPLIST UserSessions;            // List of active user sessions
     LPLIST UserAccount;             // List of user accounts
     DISPLAY_SESSION DisplaySession; // Active display ownership state
-    LPDESKTOP FocusedDesktop;       // Desktop with input focus
+    LPDESKTOP ActiveDesktop;        // Current desktop
+    LPPROCESS FocusedProcess;       // Process with input focus
+    DESKTOP_THEME Theme;           // Global desktop theme runtime state
     CACHE ObjectTerminationCache;   // Cache for terminated object states with TTL
     FILESYSTEM_GLOBAL_INFO FileSystemInfo;
     SYSTEMFSFILESYSTEM SystemFS;
@@ -170,7 +174,7 @@ void SetConfiguration(LPTOML Configuration);
 void SetDeferredWorkPollDelay(UINT Delay);
 void SetDeferredWorkWaitTimeout(UINT Timeout);
 void SetDoLogin(BOOL DoLogin);
-void SetFocusedDesktop(LPDESKTOP Desktop);
+void SetActiveDesktop(LPDESKTOP Desktop);
 void SetFocusedProcess(LPPROCESS Process);
 void SetKeyboardCode(LPCSTR KeyboardCode);
 void SetLanguageCode(LPCSTR LanguageCode);
@@ -190,13 +194,15 @@ LPDRIVER GetDefaultFileSystemDriver(void);
 LPDISPLAY_SESSION GetDisplaySession(void);
 LPLIST GetDriverList(void);
 LPLIST GetStartupDriverList(void);
+LPLIST GetWindowClassList(void);
 LPLIST GetEventList(void);
 LPLIST GetFileList(void);
 FILESYSTEM_GLOBAL_INFO* GetFileSystemGlobalInfo(void);
 LPLIST GetFileSystemList(void);
 LPLIST GetUnusedFileSystemList(void);
-LPDESKTOP GetFocusedDesktop(void);
+LPDESKTOP GetActiveDesktop(void);
 LPPROCESS GetFocusedProcess(void);
+LPDESKTOP_THEME GetGlobalThemeState(void);
 LPDRIVER GetGraphicsDriver(void);
 LPHANDLE_MAP GetHandleMap(void);
 LPCPUINFORMATION GetKernelCPUInfo(void);

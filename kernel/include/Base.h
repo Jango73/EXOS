@@ -463,6 +463,7 @@ extern void ConsolePrint(LPCSTR Format, ...);
 #define MAX_FILE_NAME 256
 #define MAX_USER_NAME 128
 #define MAX_NAME 128
+#define MAX_WINDOW_CAPTION 128
 #define MAX_PASSWORD 64
 #define MAX_COMMAND_NAME 64
 
@@ -471,8 +472,12 @@ extern void ConsolePrint(LPCSTR Format, ...);
 
 #define COLOR_BLACK ((COLOR)0x00000000)
 #define COLOR_GRAY25 ((COLOR)0x00404040)
+#define COLOR_GRAY30 ((COLOR)0x004D4D4D)
+#define COLOR_GRAY35 ((COLOR)0x00595959)
+#define COLOR_GRAY40 ((COLOR)0x00666666)
 #define COLOR_GRAY50 ((COLOR)0x00808080)
 #define COLOR_GRAY75 ((COLOR)0x00C0C0C0)
+#define COLOR_GRAY90 ((COLOR)0x00E6E6E6)
 #define COLOR_WHITE ((COLOR)0x00FFFFFF)
 #define COLOR_RED ((COLOR)0x000000FF)
 #define COLOR_GREEN ((COLOR)0x0000FF00)
@@ -613,6 +618,71 @@ static inline U64 U64_Sub(U64 a, U64 b) {
     return r;
 }
 
+// Multiply two U32 values and return U64
+static inline U64 U64_MultiplyU32(U32 Left, U32 Right) {
+    U64 Result = U64_0;
+    U64 Addend;
+
+    Addend.LO = Left;
+    Addend.HI = 0;
+
+    while (Right != 0) {
+        if ((Right & 1) != 0) {
+            Result = U64_Add(Result, Addend);
+        }
+
+        Right >>= 1;
+        if (Right != 0) {
+            U32 AddendHigh = Addend.HI;
+            U32 AddendLow = Addend.LO;
+            Addend = U64_Make((AddendHigh << 1) | (AddendLow >> 31), AddendLow << 1);
+        }
+    }
+
+    return Result;
+}
+
+// Divide U64 by U32 and return U64 quotient
+static inline U64 U64_DivideByU32(U64 Dividend, U32 Divisor, U32* Remainder) {
+    U64 Quotient = U64_0;
+    U32 CurrentRemainder = 0;
+    UINT BitIndex;
+
+    if (Divisor == 0) {
+        if (Remainder != NULL) {
+            *Remainder = 0;
+        }
+        return Quotient;
+    }
+
+    for (BitIndex = 0; BitIndex < 64; BitIndex++) {
+        U32 Shift = (U32)(63 - BitIndex);
+        U32 NextBit;
+
+        if (Shift >= 32) {
+            NextBit = (Dividend.HI >> (Shift - 32)) & 1;
+        } else {
+            NextBit = (Dividend.LO >> Shift) & 1;
+        }
+
+        CurrentRemainder = (CurrentRemainder << 1) | NextBit;
+        if (CurrentRemainder >= Divisor) {
+            CurrentRemainder -= Divisor;
+            if (Shift >= 32) {
+                Quotient.HI |= 1 << (Shift - 32);
+            } else {
+                Quotient.LO |= 1 << Shift;
+            }
+        }
+    }
+
+    if (Remainder != NULL) {
+        *Remainder = CurrentRemainder;
+    }
+
+    return Quotient;
+}
+
 // Compare: return -1 if a<b, 0 if a==b, 1 if a>b
 static inline int U64_Cmp(U64 a, U64 b) {
     if (a.HI < b.HI) return -1;
@@ -695,6 +765,29 @@ static inline U64 U64_Sub(U64 a, U64 b) {
     return a - b;
 }
 
+// Multiply two U32 values and return U64
+static inline U64 U64_MultiplyU32(U32 Left, U32 Right) {
+    return (U64)Left * (U64)Right;
+}
+
+// Divide U64 by U32 and return U64 quotient
+static inline U64 U64_DivideByU32(U64 Dividend, U32 Divisor, U32* Remainder) {
+    U64 Quotient = U64_0;
+
+    if (Divisor == 0) {
+        if (Remainder != NULL) {
+            *Remainder = 0;
+        }
+        return Quotient;
+    }
+
+    Quotient = Dividend / (U64)Divisor;
+    if (Remainder != NULL) {
+        *Remainder = (U32)(Dividend % (U64)Divisor);
+    }
+    return Quotient;
+}
+
 // Compare: return -1 if a<b, 0 if a==b, 1 if a>b
 static inline int U64_Cmp(U64 a, U64 b) {
     if (a < b) return -1;
@@ -743,6 +836,9 @@ static inline U32 U64_Low32(U64 Value) {
 }
 
 #endif
+
+#define U64_MUL_U32(Left, Right) U64_MultiplyU32((Left), (Right))
+#define U64_DIV_U32(Dividend, Divisor, Remainder) U64_DivideByU32((Dividend), (Divisor), (Remainder))
 
 /************************************************************************/
 // Logging macros
