@@ -80,32 +80,23 @@ static BOOL DesktopComponentsInjectShellBarClock(LPDESKTOP Desktop) {
     WINDOWINFO WindowInfo;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
-        DEBUG(TEXT("[DesktopComponentsInjectShellBarClock] Invalid desktop=%p"), Desktop);
         return FALSE;
     }
     if (DesktopClockWidgetEnsureClassRegistered() == FALSE) {
-        DEBUG(TEXT("[DesktopComponentsInjectShellBarClock] Clock widget class registration failed"));
         return FALSE;
     }
 
     ShellBarWindow = ShellBarGetWindow((HANDLE)Desktop->Window);
     ComponentsSlotWindow = ShellBarGetSlotWindow(ShellBarWindow, SHELL_BAR_SLOT_COMPONENTS);
     if (ComponentsSlotWindow == NULL) {
-        DEBUG(TEXT("[DesktopComponentsInjectShellBarClock] Components slot unavailable slot=%p"), ComponentsSlotWindow);
         return FALSE;
     }
     if (GetWindowRect(ComponentsSlotWindow, &SlotRect) != FALSE &&
         GetWindowClientRect(ComponentsSlotWindow, &SlotClientRect) != FALSE) {
-        DEBUG(
-            TEXT("[DesktopComponentsInjectShellBarClock] Components slot=%p width=%u height=%u"),
-            ComponentsSlotWindow,
-            (UINT)(SlotClientRect.X2 - SlotClientRect.X1 + 1),
-            (UINT)(SlotClientRect.Y2 - SlotClientRect.Y1 + 1));
     }
 
     ClockWindow = (HANDLE)DesktopComponentsFindDirectChildByProp((LPWINDOW)ComponentsSlotWindow, DESKTOP_SHELL_BAR_CLOCK_PROP, 1);
     if (ClockWindow != NULL) {
-        DEBUG(TEXT("[DesktopComponentsInjectShellBarClock] Clock already present window=%p"), ClockWindow);
         return TRUE;
     }
 
@@ -127,17 +118,9 @@ static BOOL DesktopComponentsInjectShellBarClock(LPDESKTOP Desktop) {
 
     ClockWindow = (HANDLE)CreateWindow(&WindowInfo);
     if (ClockWindow == NULL) {
-        DEBUG(TEXT("[DesktopComponentsInjectShellBarClock] CreateWindow failed for clock id=%x"), WindowInfo.ID);
         return FALSE;
     }
 
-    DEBUG(
-        TEXT("[DesktopComponentsInjectShellBarClock] Clock window=%p parent=%p id=%x width=%u height=%u"),
-        ClockWindow,
-        ComponentsSlotWindow,
-        WindowInfo.ID,
-        (UINT)WindowInfo.WindowSize.X,
-        (UINT)WindowInfo.WindowSize.Y);
 
     (void)SetWindowProp(ClockWindow, DESKTOP_SHELL_BAR_CLOCK_PROP, 1);
     return TRUE;
@@ -162,31 +145,24 @@ static BOOL DesktopComponentsEnsureLogViewerWindow(LPDESKTOP Desktop) {
     I32 WindowHeight;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
-        DEBUG(TEXT("[DesktopComponentsEnsureLogViewerWindow] Invalid desktop=%p"), Desktop);
         return FALSE;
     }
     if (DesktopLogViewerEnsureClassRegistered() == FALSE) {
-        DEBUG(TEXT("[DesktopComponentsEnsureLogViewerWindow] Log viewer class registration failed"));
         return FALSE;
     }
 
     RootWindow = (HANDLE)Desktop->Window;
     if (RootWindow == NULL) {
-        DEBUG(TEXT("[DesktopComponentsEnsureLogViewerWindow] Root window unavailable"));
         return FALSE;
     }
 
     if (GetDesktopScreenRect(Desktop, &ScreenRect) == FALSE) {
-        DEBUG(TEXT("[DesktopComponentsEnsureLogViewerWindow] Desktop screen rect unavailable"));
         return FALSE;
     }
 
     ScreenWidth = ScreenRect.X2 - ScreenRect.X1 + 1;
     ScreenHeight = ScreenRect.Y2 - ScreenRect.Y1 + 1;
     if (ScreenWidth <= 0 || ScreenHeight <= 0) {
-        DEBUG(TEXT("[DesktopComponentsEnsureLogViewerWindow] Invalid desktop size width=%u height=%u"),
-            (UINT)(ScreenWidth > 0 ? ScreenWidth : 0),
-            (UINT)(ScreenHeight > 0 ? ScreenHeight : 0));
         return FALSE;
     }
 
@@ -205,7 +181,6 @@ static BOOL DesktopComponentsEnsureLogViewerWindow(LPDESKTOP Desktop) {
         (void)MoveWindow(LogViewerWindow, &WindowRect);
         (void)SetWindowCaption(LogViewerWindow, TEXT("Kernel Log"));
         (void)ShowWindow(LogViewerWindow, TRUE);
-        DEBUG(TEXT("[DesktopComponentsEnsureLogViewerWindow] Existing log viewer=%p"), LogViewerWindow);
         return TRUE;
     }
 
@@ -227,13 +202,11 @@ static BOOL DesktopComponentsEnsureLogViewerWindow(LPDESKTOP Desktop) {
 
     LogViewerWindow = (HANDLE)CreateWindow(&WindowInfo);
     if (LogViewerWindow == NULL) {
-        DEBUG(TEXT("[DesktopComponentsEnsureLogViewerWindow] CreateWindow failed for log viewer id=%x"), WindowInfo.ID);
         return FALSE;
     }
 
     (void)SetWindowProp(LogViewerWindow, DESKTOP_LOG_VIEWER_PROP, 1);
     (void)SetWindowCaption(LogViewerWindow, TEXT("Kernel Log"));
-    DEBUG(TEXT("[DesktopComponentsEnsureLogViewerWindow] Created log viewer=%p"), LogViewerWindow);
     return TRUE;
 }
 
@@ -249,12 +222,10 @@ BOOL DesktopComponentsInitialize(LPDESKTOP Desktop) {
     BOOL LogViewerResult;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
-        DEBUG(TEXT("[DesktopComponentsInitialize] Invalid desktop=%p"), Desktop);
         return FALSE;
     }
 
     if (ShellBarCreate((HANDLE)Desktop->Window) == FALSE) {
-        DEBUG(TEXT("[DesktopComponentsInitialize] Shell bar creation failed"));
         return FALSE;
     }
 
@@ -264,8 +235,6 @@ BOOL DesktopComponentsInitialize(LPDESKTOP Desktop) {
         Desktop->PendingComponents &= ~DESKTOP_PENDING_COMPONENT_CLOCK;
     }
     LogViewerResult = DesktopComponentsEnsureLogViewerWindow(Desktop);
-    DEBUG(TEXT("[DesktopComponentsInitialize] Clock injection result=%u"), (UINT)ClockResult);
-    DEBUG(TEXT("[DesktopComponentsInitialize] Log viewer result=%u"), (UINT)LogViewerResult);
     return (ClockResult != FALSE && LogViewerResult != FALSE);
 }
 
@@ -284,11 +253,9 @@ BOOL DesktopComponentsHandleChildAppended(LPDESKTOP Desktop, U32 ChildWindowID) 
     if (ChildWindowID != SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID) return FALSE;
     if ((Desktop->PendingComponents & DESKTOP_PENDING_COMPONENT_CLOCK) == 0) return FALSE;
 
-    DEBUG(TEXT("[DesktopComponentsHandleChildAppended] Retrying pending clock injection child_id=%x"), ChildWindowID);
     Result = DesktopComponentsInjectShellBarClock(Desktop);
     if (Result != FALSE) {
         Desktop->PendingComponents &= ~DESKTOP_PENDING_COMPONENT_CLOCK;
     }
-    DEBUG(TEXT("[DesktopComponentsHandleChildAppended] Retry result=%u"), (UINT)Result);
     return Result;
 }

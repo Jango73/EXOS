@@ -94,7 +94,6 @@ static U32 DesktopDispatcherTask(LPVOID Parameter) {
     U32 DispatchFailureCount = 0;
 
     SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
-        DEBUG(TEXT("[DesktopDispatcherTask] Started desktop=%p"), Desktop);
     }
 
     FOREVER {
@@ -109,9 +108,6 @@ static U32 DesktopDispatcherTask(LPVOID Parameter) {
         }
 
         if (DispatchMessage(&Message) == FALSE && DispatchFailureCount < 64) {
-            DEBUG(TEXT("[DesktopDispatcherTask] Dispatch failed msg=%u target=%p"),
-                Message.Message,
-                Message.Target);
             DispatchFailureCount++;
         }
     }
@@ -175,9 +171,6 @@ BOOL DesktopEnsureDispatcherTask(LPDESKTOP Desktop) {
         DesktopAssignWindowTaskRecursive(Desktop->Window, DispatcherTask);
     }
 
-    DEBUG(TEXT("[DesktopEnsureDispatcherTask] Dispatcher task ready desktop=%p task=%p"),
-        Desktop,
-        DispatcherTask);
 
     return TRUE;
 }

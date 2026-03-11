@@ -212,7 +212,6 @@ BOOL LoadTheme(LPCSTR Path) {
     Theme->LastStatus = DESKTOP_THEME_STATUS_SUCCESS;
     Theme->LastFallbackReason = DESKTOP_THEME_FALLBACK_REASON_NONE;
 
-    DEBUG(TEXT("[LoadTheme] Theme loaded and staged path=%s"), Path);
 
     KernelHeapFree(Source);
     return TRUE;
@@ -281,7 +280,6 @@ BOOL ActivateTheme(LPCSTR NameOrHandle) {
     DesktopThemeSyncSystemObjects();
     ThemeInvalidateDesktopWindows(Desktop);
 
-    DEBUG(TEXT("[ActivateTheme] Theme activated path=%s"), Theme->ActiveFromFile ? Theme->ActivePath : TEXT("<built-in>"));
     return TRUE;
 }
 
@@ -353,7 +351,6 @@ BOOL ResetThemeToDefault(void) {
     DesktopThemeSyncSystemObjects();
     ThemeInvalidateDesktopWindows(Desktop);
 
-    DEBUG(TEXT("[ResetThemeToDefault] Built-in theme reactivated"));
     return TRUE;
 }
 

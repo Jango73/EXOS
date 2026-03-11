@@ -99,7 +99,6 @@ static U32 DesktopTimerTask(LPVOID Parameter) {
         return 0;
     }
 
-    DEBUG(TEXT("[DesktopTimerTask] Started desktop=%p"), Desktop);
 
     FOREVER {
         if (Desktop->TypeID != KOID_DESKTOP) {
@@ -111,10 +110,6 @@ static U32 DesktopTimerTask(LPVOID Parameter) {
         LockMutex(&(Desktop->TimerMutex), INFINITY);
         Timers = Desktop->Timers;
         DueCapacity = (Timers != NULL) ? Timers->NumItems : 0;
-        DEBUG(
-            TEXT("[DesktopTimerTask] Snapshot timers=%p num_items=%u"),
-            Timers,
-            DueCapacity);
         UnlockMutex(&(Desktop->TimerMutex));
 
         if (DueCapacity > 0) {
@@ -132,15 +127,6 @@ static U32 DesktopTimerTask(LPVOID Parameter) {
         Timers = Desktop->Timers;
         for (Node = Timers != NULL ? Timers->First : NULL; Node != NULL; Node = Node->Next) {
             Timer = (LPDESKTOP_WINDOW_TIMER)Node;
-            DEBUG(
-                TEXT("[DesktopTimerTask] Iterate node=%p timer=%p window=%p interval=%u next_tick=%u due_count=%u due_capacity=%u"),
-                Node,
-                Timer,
-                (Timer != NULL) ? Timer->Window : NULL,
-                (Timer != NULL) ? Timer->IntervalMilliseconds : 0,
-                (Timer != NULL) ? Timer->NextTick : 0,
-                DueCount,
-                DueCapacity);
             if (Timer == NULL) continue;
             if (Timer->IntervalMilliseconds == 0) continue;
             if (Timer->Window == NULL || Timer->Window->TypeID != KOID_WINDOW) continue;
@@ -148,11 +134,6 @@ static U32 DesktopTimerTask(LPVOID Parameter) {
 
             Timer->NextTick = Now + Timer->IntervalMilliseconds;
             if (DueEntries != NULL && DueCount < DueCapacity) {
-                DEBUG(
-                    TEXT("[DesktopTimerTask] Due window=%p timer_id=%x next_tick=%u"),
-                    Timer->Window,
-                    Timer->TimerID,
-                    Timer->NextTick);
                 DueEntries[DueCount].Window = (HANDLE)Timer->Window;
                 DueEntries[DueCount].TimerID = Timer->TimerID;
                 DueCount++;
@@ -242,12 +223,6 @@ BOOL SetWindowTimer(HANDLE Window, U32 TimerID, U32 IntervalMilliseconds) {
 
     NextTick = GetSystemTime() + IntervalMilliseconds;
 
-    DEBUG(
-        TEXT("[SetWindowTimer] window=%p timer_id=%x interval=%u next_tick=%u"),
-        This,
-        TimerID,
-        IntervalMilliseconds,
-        NextTick);
 
     LockMutex(&(Desktop->TimerMutex), INFINITY);
 
@@ -275,13 +250,6 @@ BOOL SetWindowTimer(HANDLE Window, U32 TimerID, U32 IntervalMilliseconds) {
     Timer->TimerID = TimerID;
     Timer->IntervalMilliseconds = IntervalMilliseconds;
     Timer->NextTick = NextTick;
-    DEBUG(
-        TEXT("[SetWindowTimer] New timer=%p window=%p timer_id=%x interval=%u next_tick=%u"),
-        Timer,
-        This,
-        TimerID,
-        IntervalMilliseconds,
-        NextTick);
     ListAddItem(Desktop->Timers, Timer);
 
     UnlockMutex(&(Desktop->TimerMutex));

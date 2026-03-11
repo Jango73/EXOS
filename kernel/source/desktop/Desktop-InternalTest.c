@@ -239,15 +239,7 @@ static U32 DesktopInternalTestWindowFunc(HANDLE Window, U32 Message, U32 Param1,
 
     SAFE_USE_VALID_ID(This, KOID_WINDOW) {
         if (Message == EWM_CREATE) {
-            DEBUG(TEXT("[DesktopInternalTestWindowFunc] EWM_CREATE id=%x style=%x status=%x"),
-                This->WindowID,
-                This->Style,
-                This->Status);
         } else if (Message == EWM_DRAW) {
-            DEBUG(TEXT("[DesktopInternalTestWindowFunc] EWM_DRAW id=%x style=%x status=%x"),
-                This->WindowID,
-                This->Style,
-                This->Status);
         }
     }
 
@@ -328,7 +320,6 @@ static BOOL DesktopInternalEnsureSingleWindow(
         (void)MoveWindow((HANDLE)Window, &WindowRect);
         (void)SetWindowCaption((HANDLE)Window, Caption);
         (void)ShowWindow((HANDLE)Window, TRUE);
-        DEBUG(TEXT("[DesktopInternalEnsureSingleWindow] Existing test window visible title=%s id=%x"), Title, WindowID);
         return TRUE;
     }
 
@@ -356,7 +347,6 @@ static BOOL DesktopInternalEnsureSingleWindow(
 
     (void)SetWindowCaption((HANDLE)Window, Caption);
     (void)ShowWindow((HANDLE)Window, TRUE);
-    DEBUG(TEXT("[DesktopInternalEnsureSingleWindow] Test window created title=%s id=%x"), Title, WindowID);
     return TRUE;
 }
 
@@ -486,13 +476,6 @@ BOOL DesktopInternalRunStressDrag(LPDESKTOP Desktop, U32 Cycles) {
     RightBaseOffscreen = RightOffscreenX + 120;
     LeftBaseOffscreen = LeftOffscreenX - 120;
 
-    DEBUG(TEXT("[DesktopInternalRunStressDrag] Begin cycles=%u start_x=%x left_x=%x right_x=%x min_y=%x max_y=%x"),
-        Cycles,
-        StartX,
-        LeftOffscreenX,
-        RightOffscreenX,
-        MinY,
-        MaxY);
 
     for (CycleIndex = 0; CycleIndex < Cycles; CycleIndex++) {
         TargetRightX =
@@ -528,7 +511,6 @@ BOOL DesktopInternalRunStressDrag(LPDESKTOP Desktop, U32 Cycles) {
     Position.X = StartX;
     Position.Y = StartY;
     (void)DesktopInternalMoveWindowToPosition(FirstWindow, &Position);
-    DEBUG(TEXT("[DesktopInternalRunStressDrag] Completed cycles=%u"), Cycles);
     return TRUE;
 }
 

@@ -337,18 +337,6 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
     InnerY2 = InnerY1 + (I32)TitleHeight - 1;
 
     SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
-        DEBUG(
-            TEXT("[DrawWindowTitleBarFromTheme] window_id=%x style=%x title_rect=(%x,%x)-(%x,%x) full_rect=(%x,%x)-(%x,%x)"),
-            ((LPWINDOW)Window)->WindowID,
-            Snapshot.Style,
-            InnerX1,
-            InnerY1,
-            InnerX2,
-            InnerY2,
-            Rect->X1,
-            Rect->Y1,
-            Rect->X2,
-            Rect->Y2);
     }
 
     if (!DesktopThemeResolveLevel1Color(TEXT("window.titlebar"), TEXT("normal"), TEXT("background"), &Background)) {
@@ -369,14 +357,6 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
 
     if (Background != 0 || Background2 != 0) {
         if (Background2 != 0 && Background2 != Background) {
-            DEBUG(
-                TEXT("[DrawWindowTitleBarFromTheme] gradient start=%x end=%x rect=(%x,%x)-(%x,%x)"),
-                Background,
-                Background2,
-                InnerX1,
-                InnerY1,
-                InnerX2,
-                InnerY2);
             (void)DrawVerticalGradientRect(GC, InnerX1, InnerY1, InnerX2, InnerY2, Background, Background2);
         } else {
             (void)DrawSolidRect(GC, InnerX1, InnerY1, InnerX2, InnerY2, Background);
@@ -530,12 +510,6 @@ BOOL ShouldDrawWindowNonClient(LPWINDOW Window) {
     if (Window != NULL && Window->TypeID == KOID_WINDOW &&
         (Window->WindowID == DESKTOP_NON_CLIENT_TRACE_SHELLBAR_WINDOW_ID ||
          Window->WindowID == DESKTOP_NON_CLIENT_TRACE_TEST_WINDOW_ID)) {
-        DEBUG(
-            TEXT("[ShouldDrawWindowNonClient] window_id=%x style=%x decoration_mode=%x result=%x"),
-            Window->WindowID,
-            Window->Style,
-            DecorationMode,
-            Result);
     }
 
     return Result;
@@ -711,14 +685,6 @@ BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect) {
     SAFE_USE_VALID_ID(This, KOID_WINDOW) {
         if (This->WindowID == DESKTOP_NON_CLIENT_TRACE_SHELLBAR_WINDOW_ID ||
             This->WindowID == DESKTOP_NON_CLIENT_TRACE_TEST_WINDOW_ID) {
-            DEBUG(
-                TEXT("[DrawWindowNonClient] window_id=%x style=%x rect=(%x,%x)-(%x,%x)"),
-                This->WindowID,
-                This->Style,
-                Rect->X1,
-                Rect->Y1,
-                Rect->X2,
-                Rect->Y2);
         }
     }
 

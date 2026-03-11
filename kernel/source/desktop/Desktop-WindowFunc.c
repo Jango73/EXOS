@@ -175,13 +175,6 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
             }
 
             if (This != NULL && This->TypeID == KOID_WINDOW && This->WindowID == DESKTOP_WINDOW_FUNC_TRACE_SHELLBAR_WINDOW_ID) {
-                DEBUG(
-                    TEXT("[DefaultWindowFunc] shellbar EWM_CLEAR surface=(%x,%x)-(%x,%x) style=%x"),
-                    SurfaceRect.X1,
-                    SurfaceRect.Y1,
-                    SurfaceRect.X2,
-                    SurfaceRect.Y2,
-                    This->Style);
             }
 
             GC = BeginWindowDraw(Window);

@@ -123,46 +123,22 @@ BOOL DesktopSelectGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICSMODEINFO Selec
         DesktopInitializeGraphicsModeInfo(&Candidate, Index, 0, 0, 0);
         QueryResult = GraphicsDriver->Command(DF_GFX_GETMODEINFO, (UINT)&Candidate);
         if (QueryResult != DF_RETURN_SUCCESS) {
-            DEBUG(TEXT("[DesktopSelectGraphicsMode] Rejected mode index=%u reason=query_failed status=%u"), Index, QueryResult);
             continue;
         }
 
         if (DesktopIsValidGraphicsModeInfo(&Candidate) == FALSE) {
-            DEBUG(TEXT("[DesktopSelectGraphicsMode] Rejected mode index=%u reason=invalid_values %ux%ux%u"),
-                Index,
-                Candidate.Width,
-                Candidate.Height,
-                Candidate.BitsPerPixel);
             continue;
         }
 
         if (IsBetterDesktopModeCandidate(&Candidate, SelectedMode)) {
             *SelectedMode = Candidate;
             HasSelectedMode = TRUE;
-            DEBUG(TEXT("[DesktopSelectGraphicsMode] Candidate mode index=%u selected %ux%ux%u"),
-                Index,
-                Candidate.Width,
-                Candidate.Height,
-                Candidate.BitsPerPixel);
         } else {
-            DEBUG(TEXT("[DesktopSelectGraphicsMode] Rejected mode index=%u reason=lower_rank %ux%ux%u"),
-                Index,
-                Candidate.Width,
-                Candidate.Height,
-                Candidate.BitsPerPixel);
         }
     }
 
     if (HasSelectedMode) {
-        DEBUG(TEXT("[DesktopSelectGraphicsMode] Selected mode %ux%ux%u (mode_count=%u)"),
-            SelectedMode->Width,
-            SelectedMode->Height,
-            SelectedMode->BitsPerPixel,
-            ModeCount);
     } else {
-        DEBUG(TEXT("[DesktopSelectGraphicsMode] Enumeration unavailable (mode_count=%u raw=%u)"),
-            ModeCount,
-            RawModeCount);
     }
 
     return HasSelectedMode;

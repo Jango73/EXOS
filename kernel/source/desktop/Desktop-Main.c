@@ -84,7 +84,6 @@ static void NotifyWindowChildAppended(LPWINDOW Window) {
         ParentWindow = GetWindowParent((HANDLE)Current);
         if (ParentWindow == NULL) break;
 
-        DEBUG(TEXT("[NotifyWindowChildAppended] Parent=%p child_id=%x"), ParentWindow, ChildWindowID);
         (void)PostMessage(ParentWindow, EWM_CHILD_APPENDED, ChildWindowID, 0);
         Current = (LPWINDOW)ParentWindow;
     }
@@ -105,7 +104,6 @@ static void NotifyWindowChildRemoved(LPWINDOW Parent, U32 ChildWindowID) {
 
     Current = Parent;
     FOREVER {
-        DEBUG(TEXT("[NotifyWindowChildRemoved] Parent=%p child_id=%x"), Current, ChildWindowID);
         (void)PostMessage((HANDLE)Current, EWM_CHILD_REMOVED, ChildWindowID, 0);
 
         ParentWindow = GetWindowParent((HANDLE)Current);
@@ -565,11 +563,6 @@ BOOL ShowDesktop(LPDESKTOP This) {
 
     if (DesktopApplyDisplaySelection(This, &ModeInfo) != FALSE) {
         This->Graphics = GetGraphicsDriver();
-        DEBUG(TEXT("[ShowDesktop] Reapplied stored display selection %s %ux%ux%u"),
-            This->DisplaySelection.BackendAlias,
-            ModeInfo.Width,
-            ModeInfo.Height,
-            ModeInfo.BitsPerPixel);
     } else {
         HasSelectedMode = DesktopSelectGraphicsMode(This->Graphics, &SelectedModeInfo);
         UsedLegacyAutoSelect = FALSE;
@@ -579,9 +572,6 @@ BOOL ShowDesktop(LPDESKTOP This) {
             ModeSetResult = This->Graphics->Command(DF_GFX_SETMODE, (UINT)&RequestedModeInfo);
             if (ModeSetResult == DF_RETURN_SUCCESS) {
                 ModeInfo = RequestedModeInfo;
-                DEBUG(
-                    TEXT("[ShowDesktop] Applied selected mode %ux%ux%u"), ModeInfo.Width, ModeInfo.Height,
-                    ModeInfo.BitsPerPixel);
             } else {
                 WARNING(TEXT("[ShowDesktop] DF_GFX_SETMODE selected mode failed (%u)"), ModeSetResult);
             }
@@ -600,7 +590,6 @@ BOOL ShowDesktop(LPDESKTOP This) {
         }
 
         if (UsedLegacyAutoSelect != FALSE) {
-            DEBUG(TEXT("[ShowDesktop] Legacy auto-select mode fallback applied"));
         }
     }
 
@@ -1258,9 +1247,6 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
     UNUSED(FullWindow);
 
     if (This->WindowID == 0x53484252) {
-        DEBUG(
-            TEXT("[InvalidateWindowRect] shellbar full=%x rect=(%x,%x)-(%x,%x)"), FullWindow, Rect.X1, Rect.Y1, Rect.X2,
-            Rect.Y2);
     }
 
     return RequestWindowDraw(Handle);

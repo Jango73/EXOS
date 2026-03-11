@@ -203,19 +203,6 @@ static BOOL DrawWindowSystemChrome(LPWINDOW Window, LPRECT ClipRect) {
 
     DrawNonClient = ShouldDrawWindowNonClient(Window);
     if (DesktopDrawIsShellBarWindow(Window) != FALSE || DesktopDrawIsTestWindow(Window) != FALSE) {
-        DEBUG(
-            TEXT("[DrawWindowSystemChrome] window_id=%x draw_non_client=%x style=%x clip=(%x,%x)-(%x,%x) rect=(%x,%x)-(%x,%x)"),
-            Window->WindowID,
-            DrawNonClient,
-            Window->Style,
-            ClipRect->X1,
-            ClipRect->Y1,
-            ClipRect->X2,
-            ClipRect->Y2,
-            Window->ScreenRect.X1,
-            Window->ScreenRect.Y1,
-            Window->ScreenRect.X2,
-            Window->ScreenRect.Y2);
     }
     if (DrawNonClient == FALSE) return TRUE;
     if (GetWindowFullLocalRect(Window, &WindowRect) == FALSE) return FALSE;
@@ -315,20 +302,6 @@ BOOL DesktopDispatchWindowDraw(LPWINDOW Window, HANDLE TargetHandle, U32 Param1,
         if (RectRegionGetRect(&ClipRegion, ClipIndex, &ClipRect) == FALSE) continue;
 
         if (DesktopDrawIsShellBarWindow(Window) != FALSE || DesktopDrawIsTestWindow(Window) != FALSE) {
-            DEBUG(
-                TEXT("[DesktopDispatchWindowDraw] window_id=%x clip=(%x,%x)-(%x,%x) style=%x rect=(%x,%x)-(%x,%x) param1=%x param2=%x"),
-                Window->WindowID,
-                ClipRect.X1,
-                ClipRect.Y1,
-                ClipRect.X2,
-                ClipRect.Y2,
-                Window->Style,
-                Window->ScreenRect.X1,
-                Window->ScreenRect.Y1,
-                Window->ScreenRect.X2,
-                Window->ScreenRect.Y2,
-                Param1,
-                Param2);
         }
 
         if (DrawWindowSystemChrome(Window, &ClipRect) == FALSE) {
