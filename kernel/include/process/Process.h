@@ -231,6 +231,12 @@ typedef struct tag_DESKTOP_THEME {
     BOOL ActiveFromFile;
 } DESKTOP_THEME, *LPDESKTOP_THEME;
 
+typedef struct tag_DESKTOP_DISPLAY_SELECTION {
+    STR BackendAlias[MAX_NAME];
+    GRAPHICSMODEINFO ModeInfo;
+    BOOL IsAssigned;
+} DESKTOP_DISPLAY_SELECTION, *LPDESKTOP_DISPLAY_SELECTION;
+
 typedef struct tag_MOUSE_CURSOR {
     I32 X;                // Cursor X position in screen coordinates
     I32 Y;                // Cursor Y position in screen coordinates
@@ -261,6 +267,7 @@ struct tag_DESKTOP {
     U32 Mode;                 // Active desktop display mode
     I32 Order;                // Desktop ordering key among active desktops
     U32 PendingComponents;    // Pending desktop-owned component injection flags
+    DESKTOP_DISPLAY_SELECTION DisplaySelection;
     MOUSE_CURSOR Cursor;      // Desktop cursor runtime state
 };
 

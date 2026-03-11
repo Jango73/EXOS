@@ -255,6 +255,32 @@ LPCSTR GraphicsSelectorGetActiveBackendName(void) {
 /************************************************************************/
 
 /**
+ * @brief Return active backend driver descriptor.
+ * @return Active backend driver, or NULL when unavailable.
+ */
+LPDRIVER GraphicsSelectorGetActiveBackendDriver(void) {
+    if ((GraphicsSelectorDriver.Flags & DRIVER_FLAG_READY) == 0) {
+        return NULL;
+    }
+
+    if (GraphicsSelectorState.BackendCount == 0) {
+        return NULL;
+    }
+
+    if (GraphicsSelectorState.ActiveIndex >= GraphicsSelectorState.BackendCount) {
+        return NULL;
+    }
+
+    SAFE_USE(GraphicsSelectorState.Backends[GraphicsSelectorState.ActiveIndex]) {
+        return GraphicsSelectorState.Backends[GraphicsSelectorState.ActiveIndex];
+    }
+
+    return NULL;
+}
+
+/************************************************************************/
+
+/**
  * @brief Score a graphics backend by exposed capabilities.
  * @param Driver Candidate driver.
  * @return Score value. Higher means more capable.

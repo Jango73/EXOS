@@ -22,28 +22,29 @@
 
 \************************************************************************/
 
-#include "console/Console.h"
+#include "Clock.h"
+#include "CoreString.h"
+#include "Desktop-Components.h"
+#include "Desktop-Cursor.h"
+#include "Desktop-Dispatcher.h"
+#include "Desktop-ModeSelector.h"
+#include "Desktop-NonClient.h"
+#include "Desktop-OverlayInvalidation.h"
+#include "Desktop-Private.h"
+#include "Desktop-ThemeTokens.h"
+#include "Desktop-Timer.h"
+#include "Desktop-WindowClass.h"
+#include "Desktop.h"
 #include "DisplaySession.h"
 #include "DriverGetters.h"
 #include "GFX.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "console/Console.h"
 #include "input/Mouse.h"
-#include "Desktop-Dispatcher.h"
-#include "Desktop-Components.h"
-#include "Desktop-Cursor.h"
-#include "Desktop-OverlayInvalidation.h"
-#include "Desktop-NonClient.h"
-#include "Desktop-Timer.h"
-#include "Desktop-WindowClass.h"
-#include "Desktop-Private.h"
-#include "Desktop.h"
-#include "Desktop-ModeSelector.h"
-#include "Desktop-ThemeTokens.h"
-#include "ui/RootWindowClass.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
-#include "Clock.h"
+#include "ui/RootWindowClass.h"
 #include "utils/Graphics-Utils.h"
 #include "utils/RateLimiter.h"
 
@@ -83,10 +84,7 @@ static void NotifyWindowChildAppended(LPWINDOW Window) {
         ParentWindow = GetWindowParent((HANDLE)Current);
         if (ParentWindow == NULL) break;
 
-        DEBUG(
-            TEXT("[NotifyWindowChildAppended] Parent=%p child_id=%x"),
-            ParentWindow,
-            ChildWindowID);
+        DEBUG(TEXT("[NotifyWindowChildAppended] Parent=%p child_id=%x"), ParentWindow, ChildWindowID);
         (void)PostMessage(ParentWindow, EWM_CHILD_APPENDED, ChildWindowID, 0);
         Current = (LPWINDOW)ParentWindow;
     }
@@ -107,10 +105,7 @@ static void NotifyWindowChildRemoved(LPWINDOW Parent, U32 ChildWindowID) {
 
     Current = Parent;
     FOREVER {
-        DEBUG(
-            TEXT("[NotifyWindowChildRemoved] Parent=%p child_id=%x"),
-            Current,
-            ChildWindowID);
+        DEBUG(TEXT("[NotifyWindowChildRemoved] Parent=%p child_id=%x"), Current, ChildWindowID);
         (void)PostMessage((HANDLE)Current, EWM_CHILD_REMOVED, ChildWindowID, 0);
 
         ParentWindow = GetWindowParent((HANDLE)Current);
@@ -202,7 +197,94 @@ static void UpdateDesktopWindowRect(LPDESKTOP Desktop, I32 Width, I32 Height) {
             (void)UpdateWindowScreenRectAndDirtyRegion(Desktop->Window, &Rect);
         }
     }
+}
 
+/***************************************************************************/
+
+/**
+ * @brief Check whether one desktop already owns one persisted display selection.
+ * @param Desktop Desktop instance to inspect.
+ * @return TRUE when backend alias and mode are valid.
+ */
+static BOOL DesktopHasDisplaySelection(LPDESKTOP Desktop) {
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
+        return FALSE;
+    }
+
+    if (Desktop->DisplaySelection.IsAssigned == FALSE) {
+        return FALSE;
+    }
+
+    if (StringLength(Desktop->DisplaySelection.BackendAlias) == 0) {
+        return FALSE;
+    }
+
+    return DesktopIsValidGraphicsModeInfo(&Desktop->DisplaySelection.ModeInfo);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Persist one backend and mode selection on the desktop.
+ * @param Desktop Desktop receiving the persisted selection.
+ * @param BackendAlias Selected backend alias.
+ * @param ModeInfo Selected graphics mode.
+ */
+static void DesktopSetDisplaySelection(LPDESKTOP Desktop, LPCSTR BackendAlias, LPGRAPHICSMODEINFO ModeInfo) {
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP || BackendAlias == NULL || ModeInfo == NULL) {
+        return;
+    }
+
+    if (StringLength(BackendAlias) == 0 || DesktopIsValidGraphicsModeInfo(ModeInfo) == FALSE) {
+        return;
+    }
+
+    MemorySet(&(Desktop->DisplaySelection), 0, sizeof(Desktop->DisplaySelection));
+    StringCopy(Desktop->DisplaySelection.BackendAlias, BackendAlias);
+    Desktop->DisplaySelection.ModeInfo = *ModeInfo;
+    Desktop->DisplaySelection.ModeInfo.ModeIndex = INFINITY;
+    Desktop->DisplaySelection.IsAssigned = TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Apply the desktop persisted backend and mode selection.
+ * @param Desktop Desktop owning the selection.
+ * @param AppliedModeInfo Receives the effective graphics mode.
+ * @return TRUE when the stored backend and mode were applied successfully.
+ */
+static BOOL DesktopApplyDisplaySelection(LPDESKTOP Desktop, LPGRAPHICSMODEINFO AppliedModeInfo) {
+    GRAPHICSMODEINFO RequestedModeInfo;
+    GRAPHICSMODEINFO QueriedModeInfo;
+    UINT ModeSetResult;
+
+    if (DesktopHasDisplaySelection(Desktop) == FALSE || AppliedModeInfo == NULL) {
+        return FALSE;
+    }
+
+    if (GraphicsSelectorForceBackendByName(Desktop->DisplaySelection.BackendAlias) == FALSE) {
+        WARNING(TEXT("[DesktopApplyDisplaySelection] Stored backend unavailable (%s)"),
+            Desktop->DisplaySelection.BackendAlias);
+        return FALSE;
+    }
+
+    RequestedModeInfo = Desktop->DisplaySelection.ModeInfo;
+    ModeSetResult = GetGraphicsDriver()->Command(DF_GFX_SETMODE, (UINT)&RequestedModeInfo);
+    if (ModeSetResult != DF_RETURN_SUCCESS) {
+        WARNING(TEXT("[DesktopApplyDisplaySelection] Stored mode apply failed (%u)"), ModeSetResult);
+        return FALSE;
+    }
+
+    DesktopInitializeGraphicsModeInfo(&QueriedModeInfo, INFINITY, 0, 0, 0);
+    if (GetGraphicsDriver()->Command(DF_GFX_GETMODEINFO, (UINT)&QueriedModeInfo) == DF_RETURN_SUCCESS &&
+        DesktopIsValidGraphicsModeInfo(&QueriedModeInfo) != FALSE) {
+        *AppliedModeInfo = QueriedModeInfo;
+    } else {
+        *AppliedModeInfo = RequestedModeInfo;
+    }
+
+    return TRUE;
 }
 
 /***************************************************************************/
@@ -416,9 +498,7 @@ BOOL DeleteDesktop(LPDESKTOP This) {
         This->Timers = NULL;
     }
 
-    SAFE_USE_VALID_ID(This->Window, KOID_WINDOW) {
-        DeleteWindow(This->Window);
-    }
+    SAFE_USE_VALID_ID(This->Window, KOID_WINDOW) { DeleteWindow(This->Window); }
 
     ReleaseKernelObject(This);
 
@@ -435,15 +515,13 @@ BOOL DeleteDesktop(LPDESKTOP This) {
 BOOL ShowDesktop(LPDESKTOP This) {
     GRAPHICSMODEINFO ModeInfo;
     GRAPHICSMODEINFO QueriedModeInfo;
-    GRAPHICSMODEINFO ActiveModeInfo;
     GRAPHICSMODEINFO SelectedModeInfo;
     GRAPHICSMODEINFO RequestedModeInfo;
     UINT ModeSetResult;
     LPDESKTOP Desktop;
     LPLISTNODE Node;
     I32 Order;
-    BOOL HasActiveMode;
-    LPDRIVER ActiveGraphicsDriver;
+    LPDRIVER SelectedBackendDriver;
     BOOL ModeReady;
     BOOL HasSelectedMode;
     BOOL UsedLegacyAutoSelect;
@@ -485,12 +563,13 @@ BOOL ShowDesktop(LPDESKTOP This) {
         return FALSE;
     }
 
-    HasActiveMode = DisplaySessionGetActiveMode(&ActiveModeInfo);
-    ActiveGraphicsDriver = DisplaySessionGetActiveGraphicsDriver();
-    if (HasActiveMode && ActiveGraphicsDriver != NULL && ActiveGraphicsDriver == This->Graphics && ActiveGraphicsDriver != ConsoleGetDriver() &&
-        ActiveModeInfo.Width != 0 && ActiveModeInfo.Height != 0) {
-        ModeInfo = ActiveModeInfo;
-        DEBUG(TEXT("[ShowDesktop] Reusing active graphics mode %ux%ux%u"), ModeInfo.Width, ModeInfo.Height, ModeInfo.BitsPerPixel);
+    if (DesktopApplyDisplaySelection(This, &ModeInfo) != FALSE) {
+        This->Graphics = GetGraphicsDriver();
+        DEBUG(TEXT("[ShowDesktop] Reapplied stored display selection %s %ux%ux%u"),
+            This->DisplaySelection.BackendAlias,
+            ModeInfo.Width,
+            ModeInfo.Height,
+            ModeInfo.BitsPerPixel);
     } else {
         HasSelectedMode = DesktopSelectGraphicsMode(This->Graphics, &SelectedModeInfo);
         UsedLegacyAutoSelect = FALSE;
@@ -500,9 +579,8 @@ BOOL ShowDesktop(LPDESKTOP This) {
             ModeSetResult = This->Graphics->Command(DF_GFX_SETMODE, (UINT)&RequestedModeInfo);
             if (ModeSetResult == DF_RETURN_SUCCESS) {
                 ModeInfo = RequestedModeInfo;
-                DEBUG(TEXT("[ShowDesktop] Applied selected mode %ux%ux%u"),
-                    ModeInfo.Width,
-                    ModeInfo.Height,
+                DEBUG(
+                    TEXT("[ShowDesktop] Applied selected mode %ux%ux%u"), ModeInfo.Width, ModeInfo.Height,
                     ModeInfo.BitsPerPixel);
             } else {
                 WARNING(TEXT("[ShowDesktop] DF_GFX_SETMODE selected mode failed (%u)"), ModeSetResult);
@@ -534,17 +612,17 @@ BOOL ShowDesktop(LPDESKTOP This) {
     }
 
     ModeReady = DesktopIsValidGraphicsModeInfo(&ModeInfo);
-    if (ModeReady == FALSE && HasActiveMode && ActiveModeInfo.Width != 0 && ActiveModeInfo.Height != 0) {
-        ModeInfo = ActiveModeInfo;
-        ModeReady = TRUE;
-    }
-
     if (ModeReady == FALSE) {
         WARNING(TEXT("[ShowDesktop] No valid graphics mode available after selection"));
         This->Mode = DESKTOP_MODE_CONSOLE;
         UnlockMutex(&(This->Mutex));
         UnlockMutex(MUTEX_KERNEL);
         return FALSE;
+    }
+
+    SelectedBackendDriver = GraphicsSelectorGetActiveBackendDriver();
+    if (SelectedBackendDriver != NULL && StringLength(SelectedBackendDriver->Alias) != 0) {
+        DesktopSetDisplaySelection(This, SelectedBackendDriver->Alias, &ModeInfo);
     }
 
     if (DisplaySessionSetDesktopMode(This, This->Graphics, &ModeInfo) == FALSE) {
@@ -1155,7 +1233,8 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
     SAFE_USE(Src) {
         WindowRectToScreenRectLocked(This, Src, &Rect);
         (void)RectRegionAddRect(&This->DirtyRegion, &Rect);
-    } else {
+    }
+    else {
         WindowRect.X1 = 0;
         WindowRect.Y1 = 0;
         WindowRect.X2 = This->Rect.X2 - This->Rect.X1;
@@ -1180,11 +1259,7 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
 
     if (This->WindowID == 0x53484252) {
         DEBUG(
-            TEXT("[InvalidateWindowRect] shellbar full=%x rect=(%x,%x)-(%x,%x)"),
-            FullWindow,
-            Rect.X1,
-            Rect.Y1,
-            Rect.X2,
+            TEXT("[InvalidateWindowRect] shellbar full=%x rect=(%x,%x)-(%x,%x)"), FullWindow, Rect.X1, Rect.Y1, Rect.X2,
             Rect.Y2);
     }
 

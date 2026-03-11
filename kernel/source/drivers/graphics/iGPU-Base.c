@@ -21,89 +21,104 @@
 
 \************************************************************************/
 
-#include "iGPU-Internal.h"
-
 #include "CoreString.h"
 #include "KernelData.h"
 #include "Log.h"
 #include "Memory.h"
+#include "console/Console.h"
+#include "iGPU-Internal.h"
+
+/************************************************************************/
+
+typedef struct tag_INTEL_GFX_MODE_CANDIDATE {
+    U32 Width;
+    U32 Height;
+    U32 BitsPerPixel;
+} INTEL_GFX_MODE_CANDIDATE, *LPINTEL_GFX_MODE_CANDIDATE;
 
 /************************************************************************/
 
 static const INTEL_GFX_FAMILY_ENTRY IntelGfxFamilyTable[] = {
     {.DeviceId = 0x0100,
-        .DeviceIdMask = 0xFF00,
-        .Generation = 6,
-        .DisplayVersion = 6,
-        .PipeCount = 2,
-        .TranscoderCount = 2,
-        .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C,
-        .SupportsFBC = TRUE,
-        .SupportsPSR = FALSE,
-        .SupportsAsyncFlip = FALSE,
-        .MaxWidth = 4096,
-        .MaxHeight = 4096},
+     .DeviceIdMask = 0xFF00,
+     .Generation = 6,
+     .DisplayVersion = 6,
+     .PipeCount = 2,
+     .TranscoderCount = 2,
+     .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C,
+     .SupportsFBC = TRUE,
+     .SupportsPSR = FALSE,
+     .SupportsAsyncFlip = FALSE,
+     .MaxWidth = 4096,
+     .MaxHeight = 4096},
     {.DeviceId = 0x1600,
-        .DeviceIdMask = 0xFF00,
-        .Generation = 8,
-        .DisplayVersion = 8,
-        .PipeCount = 3,
-        .TranscoderCount = 3,
-        .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C | INTEL_PORT_D,
-        .SupportsFBC = TRUE,
-        .SupportsPSR = TRUE,
-        .SupportsAsyncFlip = FALSE,
-        .MaxWidth = 5120,
-        .MaxHeight = 3200},
+     .DeviceIdMask = 0xFF00,
+     .Generation = 8,
+     .DisplayVersion = 8,
+     .PipeCount = 3,
+     .TranscoderCount = 3,
+     .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C | INTEL_PORT_D,
+     .SupportsFBC = TRUE,
+     .SupportsPSR = TRUE,
+     .SupportsAsyncFlip = FALSE,
+     .MaxWidth = 5120,
+     .MaxHeight = 3200},
     {.DeviceId = 0x1900,
-        .DeviceIdMask = 0xFF00,
-        .Generation = 9,
-        .DisplayVersion = 9,
-        .PipeCount = 3,
-        .TranscoderCount = 3,
-        .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C | INTEL_PORT_D,
-        .SupportsFBC = TRUE,
-        .SupportsPSR = TRUE,
-        .SupportsAsyncFlip = FALSE,
-        .MaxWidth = 5120,
-        .MaxHeight = 3200},
+     .DeviceIdMask = 0xFF00,
+     .Generation = 9,
+     .DisplayVersion = 9,
+     .PipeCount = 3,
+     .TranscoderCount = 3,
+     .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C | INTEL_PORT_D,
+     .SupportsFBC = TRUE,
+     .SupportsPSR = TRUE,
+     .SupportsAsyncFlip = FALSE,
+     .MaxWidth = 5120,
+     .MaxHeight = 3200},
     {.DeviceId = 0x3E00,
-        .DeviceIdMask = 0xFF00,
-        .Generation = 9,
-        .DisplayVersion = 10,
-        .PipeCount = 3,
-        .TranscoderCount = 3,
-        .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C | INTEL_PORT_D,
-        .SupportsFBC = TRUE,
-        .SupportsPSR = TRUE,
-        .SupportsAsyncFlip = TRUE,
-        .MaxWidth = 8192,
-        .MaxHeight = 8192},
+     .DeviceIdMask = 0xFF00,
+     .Generation = 9,
+     .DisplayVersion = 10,
+     .PipeCount = 3,
+     .TranscoderCount = 3,
+     .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C | INTEL_PORT_D,
+     .SupportsFBC = TRUE,
+     .SupportsPSR = TRUE,
+     .SupportsAsyncFlip = TRUE,
+     .MaxWidth = 8192,
+     .MaxHeight = 8192},
     {.DeviceId = 0x8A00,
-        .DeviceIdMask = 0xFF00,
-        .Generation = 11,
-        .DisplayVersion = 11,
-        .PipeCount = 3,
-        .TranscoderCount = 4,
-        .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C | INTEL_PORT_D | INTEL_PORT_E,
-        .SupportsFBC = TRUE,
-        .SupportsPSR = TRUE,
-        .SupportsAsyncFlip = TRUE,
-        .MaxWidth = 8192,
-        .MaxHeight = 8192},
+     .DeviceIdMask = 0xFF00,
+     .Generation = 11,
+     .DisplayVersion = 11,
+     .PipeCount = 3,
+     .TranscoderCount = 4,
+     .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C | INTEL_PORT_D | INTEL_PORT_E,
+     .SupportsFBC = TRUE,
+     .SupportsPSR = TRUE,
+     .SupportsAsyncFlip = TRUE,
+     .MaxWidth = 8192,
+     .MaxHeight = 8192},
     {.DeviceId = 0x9A00,
-        .DeviceIdMask = 0xFF00,
-        .Generation = 12,
-        .DisplayVersion = 12,
-        .PipeCount = 4,
-        .TranscoderCount = 4,
-        .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C | INTEL_PORT_D | INTEL_PORT_E,
-        .SupportsFBC = TRUE,
-        .SupportsPSR = TRUE,
-        .SupportsAsyncFlip = TRUE,
-        .MaxWidth = 8192,
-        .MaxHeight = 8192}
-};
+     .DeviceIdMask = 0xFF00,
+     .Generation = 12,
+     .DisplayVersion = 12,
+     .PipeCount = 4,
+     .TranscoderCount = 4,
+     .PortMask = INTEL_PORT_A | INTEL_PORT_B | INTEL_PORT_C | INTEL_PORT_D | INTEL_PORT_E,
+     .SupportsFBC = TRUE,
+     .SupportsPSR = TRUE,
+     .SupportsAsyncFlip = TRUE,
+     .MaxWidth = 8192,
+     .MaxHeight = 8192}};
+
+/************************************************************************/
+
+static const INTEL_GFX_MODE_CANDIDATE IntelGfxConservativeModeTable[] = {
+    {.Width = 1920, .Height = 1080, .BitsPerPixel = 32}, {.Width = 1680, .Height = 1050, .BitsPerPixel = 32},
+    {.Width = 1600, .Height = 900, .BitsPerPixel = 32},  {.Width = 1440, .Height = 900, .BitsPerPixel = 32},
+    {.Width = 1366, .Height = 768, .BitsPerPixel = 32},  {.Width = 1280, .Height = 800, .BitsPerPixel = 32},
+    {.Width = 1280, .Height = 720, .BitsPerPixel = 32},  {.Width = 1024, .Height = 768, .BitsPerPixel = 32}};
 
 /************************************************************************/
 
@@ -122,15 +137,131 @@ DRIVER DATA_SECTION IntelGfxDriver = {
     .Product = "Intel Integrated Graphics",
     .Alias = "igpu",
     .Flags = 0,
-    .Command = IntelGfxCommands
-};
+    .Command = IntelGfxCommands};
 
 INTEL_GFX_STATE DATA_SECTION IntelGfxState = {0};
 
 /************************************************************************/
 
-LPDRIVER IntelGfxGetDriver(void) {
-    return &IntelGfxDriver;
+LPDRIVER IntelGfxGetDriver(void) { return &IntelGfxDriver; }
+
+/************************************************************************/
+
+/**
+ * @brief Check whether one Intel mode candidate is valid for cold modeset.
+ * @param Candidate Candidate mode descriptor.
+ * @return TRUE when dimensions and pixel format are usable.
+ */
+static BOOL IntelGfxIsValidEnumeratedMode(const INTEL_GFX_MODE_CANDIDATE* Candidate) {
+    if (Candidate == NULL) {
+        return FALSE;
+    }
+
+    if (Candidate->Width == 0 || Candidate->Height == 0 || Candidate->BitsPerPixel == 0) {
+        return FALSE;
+    }
+
+    if (Candidate->BitsPerPixel != 32) {
+        return FALSE;
+    }
+
+    if (IntelGfxState.Capabilities.MaxWidth != 0 && Candidate->Width > IntelGfxState.Capabilities.MaxWidth) {
+        return FALSE;
+    }
+
+    if (IntelGfxState.Capabilities.MaxHeight != 0 && Candidate->Height > IntelGfxState.Capabilities.MaxHeight) {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve one Intel mode candidate by enumerated index.
+ * @param ModeIndex Zero-based enumerated mode index.
+ * @param CandidateOut Receives the selected mode candidate.
+ * @return TRUE when one mode candidate exists for this index.
+ */
+static BOOL IntelGfxGetEnumeratedModeByIndex(U32 ModeIndex, LPINTEL_GFX_MODE_CANDIDATE CandidateOut) {
+    INTEL_GFX_MODE_CANDIDATE BootMode;
+    INTEL_GFX_MODE_CANDIDATE ActiveMode;
+    U32 EnumeratedIndex = 0;
+    U32 TableIndex = 0;
+
+    if (CandidateOut == NULL) {
+        return FALSE;
+    }
+
+    *CandidateOut = (INTEL_GFX_MODE_CANDIDATE){0};
+
+    ActiveMode = (INTEL_GFX_MODE_CANDIDATE){
+        .Width = IntelGfxState.HasActiveMode != FALSE ? IntelGfxState.ActiveWidth : 0,
+        .Height = IntelGfxState.HasActiveMode != FALSE ? IntelGfxState.ActiveHeight : 0,
+        .BitsPerPixel = IntelGfxState.HasActiveMode != FALSE ? IntelGfxState.ActiveBitsPerPixel : 0};
+    if (IntelGfxIsValidEnumeratedMode(&ActiveMode) != FALSE) {
+        if (EnumeratedIndex == ModeIndex) {
+            *CandidateOut = ActiveMode;
+            return TRUE;
+        }
+        EnumeratedIndex++;
+    }
+
+    BootMode = (INTEL_GFX_MODE_CANDIDATE){
+        .Width = Console.FramebufferWidth,
+        .Height = Console.FramebufferHeight,
+        .BitsPerPixel = Console.FramebufferBitsPerPixel};
+    if (IntelGfxIsValidEnumeratedMode(&BootMode) != FALSE &&
+        (ActiveMode.Width != BootMode.Width || ActiveMode.Height != BootMode.Height ||
+         ActiveMode.BitsPerPixel != BootMode.BitsPerPixel)) {
+        if (EnumeratedIndex == ModeIndex) {
+            *CandidateOut = BootMode;
+            return TRUE;
+        }
+        EnumeratedIndex++;
+    }
+
+    for (TableIndex = 0; TableIndex < sizeof(IntelGfxConservativeModeTable) / sizeof(IntelGfxConservativeModeTable[0]);
+         TableIndex++) {
+        const INTEL_GFX_MODE_CANDIDATE* Candidate = &IntelGfxConservativeModeTable[TableIndex];
+
+        if (IntelGfxIsValidEnumeratedMode(Candidate) == FALSE) {
+            continue;
+        }
+
+        if ((ActiveMode.Width == Candidate->Width && ActiveMode.Height == Candidate->Height &&
+             ActiveMode.BitsPerPixel == Candidate->BitsPerPixel) ||
+            (BootMode.Width == Candidate->Width && BootMode.Height == Candidate->Height &&
+             BootMode.BitsPerPixel == Candidate->BitsPerPixel)) {
+            continue;
+        }
+
+        if (EnumeratedIndex == ModeIndex) {
+            *CandidateOut = *Candidate;
+            return TRUE;
+        }
+        EnumeratedIndex++;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Count Intel cold-modeset candidates exposed through mode enumeration.
+ * @return Number of usable enumerated modes.
+ */
+static U32 IntelGfxGetEnumeratedModeCount(void) {
+    INTEL_GFX_MODE_CANDIDATE Candidate;
+    U32 Count = 0;
+
+    while (IntelGfxGetEnumeratedModeByIndex(Count, &Candidate) != FALSE) {
+        Count++;
+    }
+
+    return Count;
 }
 
 /************************************************************************/
@@ -212,8 +343,7 @@ static void IntelGfxResolveCapabilitiesFromDevice(U16 DeviceId, LPINTEL_GFX_CAPS
         .SupportsPSR = FALSE,
         .SupportsAsyncFlip = FALSE,
         .MaxWidth = 4096,
-        .MaxHeight = 4096
-    };
+        .MaxHeight = 4096};
 
     for (Index = 0; Index < sizeof(IntelGfxFamilyTable) / sizeof(IntelGfxFamilyTable[0]); Index++) {
         const INTEL_GFX_FAMILY_ENTRY* Entry = &IntelGfxFamilyTable[Index];
@@ -228,8 +358,7 @@ static void IntelGfxResolveCapabilitiesFromDevice(U16 DeviceId, LPINTEL_GFX_CAPS
                 .SupportsPSR = Entry->SupportsPSR,
                 .SupportsAsyncFlip = Entry->SupportsAsyncFlip,
                 .MaxWidth = Entry->MaxWidth,
-                .MaxHeight = Entry->MaxHeight
-            };
+                .MaxHeight = Entry->MaxHeight};
             return;
         }
     }
@@ -290,8 +419,7 @@ static void IntelGfxProjectCapabilities(const INTEL_GFX_CAPS* IntelCaps, LPGFX_C
         .SupportsTiledSurface = (IntelCaps->Generation >= 5) ? TRUE : FALSE,
         .MaxWidth = IntelCaps->MaxWidth,
         .MaxHeight = IntelCaps->MaxHeight,
-        .PreferredFormat = GFX_FORMAT_XRGB8888
-    };
+        .PreferredFormat = GFX_FORMAT_XRGB8888};
 }
 
 /************************************************************************/
@@ -305,17 +433,14 @@ static void IntelGfxInitializeCapabilities(LPPCI_DEVICE Device) {
     IntelGfxProbeCapabilities(&IntelGfxState.IntelCapabilities);
     IntelGfxProjectCapabilities(&IntelGfxState.IntelCapabilities, &IntelGfxState.Capabilities);
 
-    DEBUG(TEXT("[IntelGfxInitializeCapabilities] Gen=%u Dv=%u Pipes=%u Transcoders=%u Ports=%x FBC=%u PSR=%u AsyncFlip=%u Max=%ux%u"),
-        IntelGfxState.IntelCapabilities.Generation,
-        IntelGfxState.IntelCapabilities.DisplayVersion,
-        IntelGfxState.IntelCapabilities.PipeCount,
-        IntelGfxState.IntelCapabilities.TranscoderCount,
-        IntelGfxState.IntelCapabilities.PortMask,
-        IntelGfxState.IntelCapabilities.SupportsFBC ? 1 : 0,
-        IntelGfxState.IntelCapabilities.SupportsPSR ? 1 : 0,
-        IntelGfxState.IntelCapabilities.SupportsAsyncFlip ? 1 : 0,
-        IntelGfxState.IntelCapabilities.MaxWidth,
-        IntelGfxState.IntelCapabilities.MaxHeight);
+    DEBUG(
+        TEXT("[IntelGfxInitializeCapabilities] Gen=%u Dv=%u Pipes=%u Transcoders=%u Ports=%x FBC=%u PSR=%u "
+             "AsyncFlip=%u Max=%ux%u"),
+        IntelGfxState.IntelCapabilities.Generation, IntelGfxState.IntelCapabilities.DisplayVersion,
+        IntelGfxState.IntelCapabilities.PipeCount, IntelGfxState.IntelCapabilities.TranscoderCount,
+        IntelGfxState.IntelCapabilities.PortMask, IntelGfxState.IntelCapabilities.SupportsFBC ? 1 : 0,
+        IntelGfxState.IntelCapabilities.SupportsPSR ? 1 : 0, IntelGfxState.IntelCapabilities.SupportsAsyncFlip ? 1 : 0,
+        IntelGfxState.IntelCapabilities.MaxWidth, IntelGfxState.IntelCapabilities.MaxHeight);
 }
 
 /************************************************************************/
@@ -371,9 +496,9 @@ static UINT IntelGfxLoad(void) {
     (void)PCI_EnableBusMaster(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, TRUE);
 
     ProbeValue = *((volatile U32*)((U8*)(LINEAR)IntelGfxState.MmioBase + INTEL_MMIO_PROBE_REGISTER));
-    DEBUG(TEXT("[IntelGfxLoad] Device=%x:%x.%u DID=%x BAR0=%p size=%u probe=%x"),
-        Device->Info.Bus, Device->Info.Dev, Device->Info.Func, Device->Info.DeviceID,
-        (LPVOID)(LINEAR)Bar0Base, Bar0Size, ProbeValue);
+    DEBUG(
+        TEXT("[IntelGfxLoad] Device=%x:%x.%u DID=%x BAR0=%p size=%u probe=%x"), Device->Info.Bus, Device->Info.Dev,
+        Device->Info.Func, Device->Info.DeviceID, (LPVOID)(LINEAR)Bar0Base, Bar0Size, ProbeValue);
 
     IntelGfxInitializeCapabilities(Device);
 
@@ -411,19 +536,19 @@ static UINT IntelGfxUnload(void) {
 /************************************************************************/
 
 static UINT IntelGfxGetModeInfo(LPGRAPHICSMODEINFO Info) {
+    INTEL_GFX_MODE_CANDIDATE Candidate;
+
     SAFE_USE(Info) {
-        if (Info->ModeIndex != INFINITY && Info->ModeIndex != 0) {
+        U32 RequestedModeIndex = 0;
+
+        RequestedModeIndex = (Info->ModeIndex == INFINITY) ? 0 : Info->ModeIndex;
+        if (IntelGfxGetEnumeratedModeByIndex(RequestedModeIndex, &Candidate) == FALSE) {
             return DF_GFX_ERROR_MODEUNAVAIL;
         }
 
-        if (IntelGfxState.HasActiveMode == FALSE || IntelGfxState.Context.Width <= 0 || IntelGfxState.Context.Height <= 0 ||
-            IntelGfxState.Context.BitsPerPixel == 0) {
-            return DF_RETURN_UNEXPECTED;
-        }
-
-        Info->Width = (U32)IntelGfxState.Context.Width;
-        Info->Height = (U32)IntelGfxState.Context.Height;
-        Info->BitsPerPixel = IntelGfxState.Context.BitsPerPixel;
+        Info->Width = Candidate.Width;
+        Info->Height = Candidate.Height;
+        Info->BitsPerPixel = Candidate.BitsPerPixel;
         return DF_RETURN_SUCCESS;
     }
 
@@ -437,12 +562,7 @@ static U32 IntelGfxGetModeCount(void) {
         return 0;
     }
 
-    if (IntelGfxState.HasActiveMode == FALSE || IntelGfxState.Context.Width <= 0 || IntelGfxState.Context.Height <= 0 ||
-        IntelGfxState.Context.BitsPerPixel == 0) {
-        return 0;
-    }
-
-    return 1;
+    return IntelGfxGetEnumeratedModeCount();
 }
 
 /************************************************************************/
@@ -476,12 +596,7 @@ static UINT IntelGfxDebugInfo(LPDRIVER_DEBUG_INFO Info) {
         }
 
         StringPrintFormat(
-            Info->Text,
-            TEXT("Backend: %s\nResolution: %ux%ux%u"),
-            IntelGfxDriver.Alias,
-            Width,
-            Height,
-            BitsPerPixel);
+            Info->Text, TEXT("Backend: %s\nResolution: %ux%ux%u"), IntelGfxDriver.Alias, Width, Height, BitsPerPixel);
         return DF_RETURN_SUCCESS;
     }
 
