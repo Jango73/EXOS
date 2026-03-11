@@ -20,7 +20,7 @@
   - Support at least one exclusion mode equivalent to: "this window reserves its rectangle against sibling placement".
   - Keep the API behavior-oriented so future constraints can be added without coupling to docking.
 
-- [ ] Refactor core window placement so every path uses the same constraint resolver.
+- [x] Refactor core window placement so every path uses the same constraint resolver.
   - Cover create, move, size, programmatic rect changes, and drag-driven changes.
   - Make the resolver operate only on generic window state and generic constraints.
 

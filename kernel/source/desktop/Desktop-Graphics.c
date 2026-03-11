@@ -196,60 +196,6 @@ BOOL BuildWindowRectAtPosition(LPWINDOW Window, LPPOINT Position, LPRECT Rect) {
 /***************************************************************************/
 
 /**
- * @brief Clamp one window rectangle inside one parent work rectangle.
- * @param Window Target window.
- * @param Parent Parent window.
- * @param WindowRect In-out candidate rectangle in parent coordinates.
- */
-static void ClampWindowRectToParentWorkRect(LPWINDOW Window, LPWINDOW Parent, LPRECT WindowRect) {
-    RECT WorkRect;
-    I32 Width;
-    I32 Height;
-    WINDOW_STATE_SNAPSHOT Snapshot;
-
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
-    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return;
-    if (WindowRect == NULL) return;
-    if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return;
-    if ((Snapshot.Status & WINDOW_STATUS_BYPASS_PARENT_WORK_RECT) != 0) return;
-    if (GetWindowEffectiveWorkRectSnapshot(Parent, &WorkRect) == FALSE) return;
-
-    Width = WindowRect->X2 - WindowRect->X1 + 1;
-    Height = WindowRect->Y2 - WindowRect->Y1 + 1;
-    if (Width <= 0 || Height <= 0) return;
-
-    if (Width > (WorkRect.X2 - WorkRect.X1 + 1)) {
-        WindowRect->X1 = WorkRect.X1;
-        WindowRect->X2 = WorkRect.X2;
-    } else {
-        if (WindowRect->X1 < WorkRect.X1) {
-            WindowRect->X1 = WorkRect.X1;
-            WindowRect->X2 = WindowRect->X1 + Width - 1;
-        }
-        if (WindowRect->X2 > WorkRect.X2) {
-            WindowRect->X2 = WorkRect.X2;
-            WindowRect->X1 = WindowRect->X2 - Width + 1;
-        }
-    }
-
-    if (Height > (WorkRect.Y2 - WorkRect.Y1 + 1)) {
-        WindowRect->Y1 = WorkRect.Y1;
-        WindowRect->Y2 = WorkRect.Y2;
-    } else {
-        if (WindowRect->Y1 < WorkRect.Y1) {
-            WindowRect->Y1 = WorkRect.Y1;
-            WindowRect->Y2 = WindowRect->Y1 + Height - 1;
-        }
-        if (WindowRect->Y2 > WorkRect.Y2) {
-            WindowRect->Y2 = WorkRect.Y2;
-            WindowRect->Y1 = WindowRect->Y2 - Height + 1;
-        }
-    }
-}
-
-/***************************************************************************/
-
-/**
  * @brief Apply default move/resize behavior and enqueue bounded damage.
  * @param Window Target window.
  * @param WindowRect New window rectangle relative to parent.
@@ -281,7 +227,7 @@ BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect) {
         return TRUE;
     }
 
-    ClampWindowRectToParentWorkRect(Window, Parent, WindowRect);
+    if (DesktopResolveWindowPlacementRect(Window, WindowRect) == FALSE) return FALSE;
     if (GetWindowScreenRectSnapshot(Parent, &ParentScreenRect) == FALSE) return FALSE;
 
     LockMutex(&(Window->Mutex), INFINITY);

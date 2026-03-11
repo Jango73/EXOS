@@ -91,6 +91,7 @@ BOOL DesktopDispatchWindowDraw(LPWINDOW Window, HANDLE TargetHandle, U32 Param1,
 BOOL DesktopGetWindowDrawSurfaceRect(LPWINDOW Window, LPRECT Rect);
 BOOL DesktopGetWindowDrawClipRect(LPWINDOW Window, LPRECT Rect);
 BOOL BuildWindowRectAtPosition(LPWINDOW Window, LPPOINT Position, LPRECT Rect);
+BOOL DesktopResolveWindowPlacementRect(LPWINDOW Window, LPRECT WindowRect);
 BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect);
 BOOL GetWindowScreenRectSnapshot(LPWINDOW Window, LPRECT Rect);
 BOOL GetWindowStateSnapshot(LPWINDOW Window, LPWINDOW_STATE_SNAPSHOT Snapshot);

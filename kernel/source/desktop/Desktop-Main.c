@@ -741,6 +741,7 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
     LPWINDOW Parent;
     LPDESKTOP Desktop;
     LPTASK OwnerTask;
+    RECT InitialRect;
     RECT ParentScreenRect;
     U32 ParentLevel;
 
@@ -813,14 +814,6 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
         KernelHeapFree(This);
         return NULL;
     }
-    This->Rect.X1 = Info->WindowPosition.X;
-    This->Rect.Y1 = Info->WindowPosition.Y;
-    This->Rect.X2 = Info->WindowPosition.X + (Info->WindowSize.X - 1);
-    This->Rect.Y2 = Info->WindowPosition.Y + (Info->WindowSize.Y - 1);
-    This->ScreenRect = This->Rect;
-    RectRegionReset(&This->DirtyRegion);
-    (void)RectRegionAddRect(&This->DirtyRegion, &This->ScreenRect);
-
     if (This->ParentWindow == NULL) {
         SAFE_USE(Desktop) {
             if (Desktop->Window == NULL) {
@@ -830,6 +823,25 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
             }
         }
     }
+
+    InitialRect.X1 = Info->WindowPosition.X;
+    InitialRect.Y1 = Info->WindowPosition.Y;
+    InitialRect.X2 = Info->WindowPosition.X + (Info->WindowSize.X - 1);
+    InitialRect.Y2 = Info->WindowPosition.Y + (Info->WindowSize.Y - 1);
+
+    if (DesktopResolveWindowPlacementRect(This, &InitialRect) == FALSE) {
+        if (This->ClassData != NULL) {
+            KernelHeapFree(This->ClassData);
+            This->ClassData = NULL;
+        }
+        KernelHeapFree(This);
+        return NULL;
+    }
+
+    This->Rect = InitialRect;
+    This->ScreenRect = This->Rect;
+    RectRegionReset(&This->DirtyRegion);
+    (void)RectRegionAddRect(&This->DirtyRegion, &This->ScreenRect);
 
     SAFE_USE(This->ParentWindow) {
         if (GetWindowScreenRectSnapshot(This->ParentWindow, &ParentScreenRect) != FALSE) {

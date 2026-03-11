@@ -1896,6 +1896,7 @@ Decoration mode is resolved from `EWS_SYSTEM_DECORATED`, `EWS_CLIENT_DECORATED`,
 #### Window geometry and coordinate spaces
 
 Userland geometry updates use `SYSCALL_MoveWindow` with a `WINDOWRECT` payload (`runtime` `MoveWindow(HANDLE, LPRECT)`), so move and resize are applied through a single update path shared with desktop drag handling.
+Creation, move, resize, and drag-driven geometry changes all resolve through the same core placement path before one window rectangle is committed.
 
 Coordinate naming is shared across kernel and runtime:
 - `ScreenRect` / `ScreenPoint`: absolute desktop coordinates.
@@ -1906,6 +1907,7 @@ Reusable geometry conversions are centralized in `kernel/source/utils/Graphics-U
 Userland can query both rectangle spaces through `GetWindowRect` and `GetWindowClientRect`.
 Window hierarchy traversal is centralized in `kernel/source/desktop/Desktop-WindowRelations.c`; parent and direct child/sibling discovery are exposed through `GetWindowParent`, `GetWindowChildCount`, `GetWindowChild`, `GetNextWindowSibling`, and `GetPreviousWindowSibling`.
 Window placement policy can be expressed through generic window style bits. `EWS_EXCLUDE_SIBLING_PLACEMENT` marks one window as reserving its own rectangle against sibling placement.
+The core placement resolver first constrains one candidate rectangle to the parent effective work rectangle, then shrinks that placement area around visible sibling windows that reserve placement on one parent edge, and finally rejects any remaining overlap with reserved sibling rectangles.
 
 #### Timers and periodic redraw
 
