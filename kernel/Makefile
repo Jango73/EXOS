@@ -99,6 +99,7 @@ SRC_C  = $(wildcard source/*.c) \
          $(wildcard source/font/*.c) \
          $(wildcard source/expose/*.c) \
          $(wildcard source/package/*.c) \
+         $(wildcard source/math/*.c) \
          $(wildcard source/utils/*.c) \
          $(wildcard source/test/*.c) \
          $(wildcard source/autotest/*.c) \

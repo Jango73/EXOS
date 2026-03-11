@@ -1882,6 +1882,17 @@ The network stack successfully handles real network traffic across multiple devi
 The `desktop` shell command exposes `desktop show`, `desktop status`, and `desktop theme <path-or-name>`. `desktop show` creates the kernel shell desktop on first use, selects and persists one complete display selection (`backend + mode`) on that first activation, reuses that same persisted selection on later activations of the same desktop, and injects startup desktop components only after the desktop activation path succeeds. Theme load/activation from `Desktop.ThemePath` in `exos.*.toml` remains optional; failures are reported but never block desktop activation.
 An internal kernel test module (`kernel/source/desktop/Desktop-InternalTest.c`, `kernel/include/desktop/Desktop-InternalTest.h`) runs on `desktop show` and ensures one visible test window exists on the shell desktop, with deterministic placement for windowing validation.
 
+### Math module
+
+Kernel math primitives for 3D transforms are implemented in `kernel/include/math/Math.h`, `kernel/include/math/Math3D.h`, `kernel/source/math/Math.c`, and `kernel/source/math/Math3D.c`.
+
+The math base exposes:
+- trigonometry for `F32` and `F64` (`MathSin*`, `MathCos*`),
+- scalar square root (`MathSqrt*`),
+- `Vector3`, `Quat4`, and `Matrix4` primitives for transform composition and point transformation.
+
+Trigonometry selects a polynomial path when hardware FPU support is present and a lookup-table path when FPU support is not available.
+
 ### Windowing core paths
 
 #### Non-client rendering and decoration mode
