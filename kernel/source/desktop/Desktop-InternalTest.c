@@ -23,6 +23,7 @@
 
 #include "Desktop-InternalTest.h"
 #include "Desktop-Private.h"
+#include "desktop/components/OnScreenDebugInfo.h"
 #include "Clock.h"
 #include "Kernel.h"
 #include "Log.h"
@@ -31,6 +32,8 @@
 // Macros
 
 #define DESKTOP_INTERNAL_TEST_WINDOW_ID_A 0x000085A1
+#define DESKTOP_INTERNAL_ON_SCREEN_DEBUG_INFO_WINDOW_ID 0x000085D1
+#define DESKTOP_INTERNAL_ON_SCREEN_DEBUG_INFO_MARGIN 16
 
 /***************************************************************************/
 
@@ -81,6 +84,58 @@ static BOOL DesktopInternalResolveCenteredWindowRect(LPDESKTOP Desktop, LPRECT R
     Rect->Y1 = DesktopRect.Y1 + ((DesktopHeight - WindowHeight) / 2);
     Rect->X2 = Rect->X1 + WindowWidth - 1;
     Rect->Y2 = Rect->Y1 + WindowHeight - 1;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve the bottom-right debug-info component rectangle in desktop coordinates.
+ * @param Desktop Target desktop.
+ * @param Rect Receives the resulting rectangle.
+ * @return TRUE on success.
+ */
+static BOOL DesktopInternalResolveOnScreenDebugInfoRect(LPDESKTOP Desktop, LPRECT Rect) {
+    RECT DesktopRect;
+    POINT PreferredSize;
+    I32 DesktopWidth;
+    I32 DesktopHeight;
+    I32 Width;
+    I32 Height;
+
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+    if (Rect == NULL) return FALSE;
+    if (Desktop->Window == NULL || Desktop->Window->TypeID != KOID_WINDOW) return FALSE;
+    if (OnScreenDebugInfoGetPreferredSize(&PreferredSize) == FALSE) return FALSE;
+
+    if (GetWindowWorkRect((HANDLE)Desktop->Window, &DesktopRect) == FALSE) {
+        if (GetDesktopScreenRect(Desktop, &DesktopRect) == FALSE) return FALSE;
+    }
+
+    DesktopWidth = DesktopRect.X2 - DesktopRect.X1 + 1;
+    DesktopHeight = DesktopRect.Y2 - DesktopRect.Y1 + 1;
+    Width = PreferredSize.X;
+    Height = PreferredSize.Y;
+
+    if (DesktopWidth <= 0 || DesktopHeight <= 0 || Width <= 0 || Height <= 0) return FALSE;
+    if (Width > DesktopWidth) Width = DesktopWidth;
+    if (Height > DesktopHeight) Height = DesktopHeight;
+
+    Rect->X2 = DesktopRect.X2 - DESKTOP_INTERNAL_ON_SCREEN_DEBUG_INFO_MARGIN;
+    Rect->Y2 = DesktopRect.Y2 - DESKTOP_INTERNAL_ON_SCREEN_DEBUG_INFO_MARGIN;
+    Rect->X1 = Rect->X2 - Width + 1;
+    Rect->Y1 = Rect->Y2 - Height + 1;
+
+    if (Rect->X1 < DesktopRect.X1) {
+        Rect->X1 = DesktopRect.X1;
+        Rect->X2 = Rect->X1 + Width - 1;
+    }
+
+    if (Rect->Y1 < DesktopRect.Y1) {
+        Rect->Y1 = DesktopRect.Y1;
+        Rect->Y2 = Rect->Y1 + Height - 1;
+    }
+
     return TRUE;
 }
 
@@ -265,6 +320,7 @@ static BOOL DesktopInternalEnsureSingleWindow(
     LPCSTR Title,
     LPCSTR WindowClassName,
     WINDOWFUNC WindowFunc,
+    U32 WindowStyle,
     I32 X,
     I32 Y,
     I32 Width,
@@ -297,7 +353,7 @@ static BOOL DesktopInternalEnsureSingleWindow(
     WindowInfo.WindowClass = 0;
     WindowInfo.WindowClassName = WindowClassName;
     WindowInfo.Function = WindowFunc;
-    WindowInfo.Style = EWS_VISIBLE | EWS_SYSTEM_DECORATED;
+    WindowInfo.Style = WindowStyle;
     WindowInfo.ID = WindowID;
     WindowInfo.WindowPosition.X = X;
     WindowInfo.WindowPosition.Y = Y;
@@ -320,10 +376,13 @@ static BOOL DesktopInternalEnsureSingleWindow(
 
 BOOL DesktopInternalTestEnsureWindowsVisible(LPDESKTOP Desktop) {
     BOOL FirstCreated;
+    BOOL DebugInfoCreated;
+    RECT DebugInfoRect;
     RECT WindowRect;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
     if (DesktopInternalResolveCenteredWindowRect(Desktop, &WindowRect) == FALSE) return FALSE;
+    if (DesktopInternalResolveOnScreenDebugInfoRect(Desktop, &DebugInfoRect) == FALSE) return FALSE;
 
     FirstCreated = DesktopInternalEnsureSingleWindow(
         Desktop,
@@ -331,12 +390,25 @@ BOOL DesktopInternalTestEnsureWindowsVisible(LPDESKTOP Desktop) {
         TEXT("Kernel Test Alpha"),
         NULL,
         DesktopInternalTestWindowFunc,
+        EWS_VISIBLE | EWS_SYSTEM_DECORATED,
         WindowRect.X1,
         WindowRect.Y1,
         WindowRect.X2 - WindowRect.X1 + 1,
         WindowRect.Y2 - WindowRect.Y1 + 1);
 
-    return FirstCreated;
+    DebugInfoCreated = DesktopInternalEnsureSingleWindow(
+        Desktop,
+        DESKTOP_INTERNAL_ON_SCREEN_DEBUG_INFO_WINDOW_ID,
+        TEXT("OnScreenDebugInfo"),
+        NULL,
+        OnScreenDebugInfoWindowFunc,
+        EWS_VISIBLE | EWS_CLIENT_DECORATED | EWS_ALWAYS_IN_FRONT,
+        DebugInfoRect.X1,
+        DebugInfoRect.Y1,
+        DebugInfoRect.X2 - DebugInfoRect.X1 + 1,
+        DebugInfoRect.Y2 - DebugInfoRect.Y1 + 1);
+
+    return FirstCreated && DebugInfoCreated;
 
 //    return TRUE;
 }

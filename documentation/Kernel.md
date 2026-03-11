@@ -1918,6 +1918,7 @@ Parent movement constraints use the generic window work rectangle API (`SetWindo
 Docked windows bypass parent work-rectangle clamping only through the shared window property `WINDOW_PROP_BYPASS_PARENT_WORK_RECT`, not by mutating `WINDOW` state directly from component code.
 Shell bar content composition uses slot windows exposed by `kernel/source/desktop/components/ShellBar.c` (`left`, `center`, `components`) and the desktop injects concrete component windows into these slots.
 The shell bar does not reference concrete component types; it only manages slot geometry and keeps slot children fitted to slot client rectangles.
+The on-screen debug information component (`kernel/source/desktop/components/OnScreenDebugInfo.c`, `kernel/include/desktop/components/OnScreenDebugInfo.h`) is instantiated by the internal desktop test path and renders placeholder text lines through the shared high-level text API without coupling to other components.
 
 #### Theme architecture
 
