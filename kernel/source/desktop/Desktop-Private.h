@@ -90,6 +90,12 @@ BOOL DesktopBuildWindowVisibleRegion(
     LPRECT_REGION Region,
     LPRECT Storage,
     UINT Capacity);
+BOOL DesktopBuildRootVisibleRegion(
+    LPWINDOW RootWindow,
+    LPRECT BaseRect,
+    LPRECT_REGION Region,
+    LPRECT Storage,
+    UINT Capacity);
 BOOL BuildWindowDrawClipRegion(
     LPWINDOW This,
     LPRECT_REGION ClipRegion,

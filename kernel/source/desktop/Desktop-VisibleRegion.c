@@ -240,3 +240,49 @@ BOOL DesktopBuildWindowVisibleRegion(
 
     return TRUE;
 }
+
+/************************************************************************/
+
+/**
+ * @brief Build one visible region for one root window from one base screen rectangle.
+ * @param RootWindow Desktop root window.
+ * @param BaseRect Base screen rectangle.
+ * @param Region Output region.
+ * @param Storage Region storage.
+ * @param Capacity Region storage capacity.
+ * @return TRUE on success.
+ */
+BOOL DesktopBuildRootVisibleRegion(
+    LPWINDOW RootWindow,
+    LPRECT BaseRect,
+    LPRECT_REGION Region,
+    LPRECT Storage,
+    UINT Capacity
+) {
+    LPWINDOW* Children = NULL;
+    LPWINDOW Child;
+    UINT ChildCount = 0;
+    UINT ChildIndex;
+
+    if (RootWindow == NULL || RootWindow->TypeID != KOID_WINDOW) return FALSE;
+    if (BaseRect == NULL || Region == NULL || Storage == NULL || Capacity == 0) return FALSE;
+
+    if (RectRegionInit(Region, Storage, Capacity) == FALSE) return FALSE;
+    RectRegionReset(Region);
+    if (RectRegionAddRect(Region, BaseRect) == FALSE) return FALSE;
+
+    (void)DesktopSnapshotWindowChildren(RootWindow, &Children, &ChildCount);
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        Child = Children[ChildIndex];
+        if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
+
+        DesktopVisibleRegionSubtractVisibleWindowTree(Child, Region, Capacity);
+        if (RectRegionGetCount(Region) == 0) break;
+    }
+
+    if (Children != NULL) {
+        KernelHeapFree(Children);
+    }
+
+    return TRUE;
+}

@@ -366,51 +366,6 @@ BOOL BuildWindowDrawClipRegion(
 }
 
 /**
- * @brief Build one root-draw clip region excluding visible child windows.
- * @param RootWindow Desktop root window.
- * @param SourceRect Source screen clip rectangle.
- * @param Region Output region.
- * @param Storage Region storage.
- * @param Capacity Region capacity.
- * @return TRUE on success.
- */
-static BOOL BuildDesktopRootVisibleClipRegion(
-    LPWINDOW RootWindow,
-    LPRECT SourceRect,
-    LPRECT_REGION Region,
-    LPRECT Storage,
-    UINT Capacity
-) {
-    LPWINDOW* Children = NULL;
-    LPWINDOW Child;
-    UINT ChildCount = 0;
-    UINT ChildIndex;
-
-    if (RootWindow == NULL || RootWindow->TypeID != KOID_WINDOW) return FALSE;
-    if (SourceRect == NULL || Region == NULL || Storage == NULL || Capacity == 0) return FALSE;
-
-    if (RectRegionInit(Region, Storage, Capacity) == FALSE) return FALSE;
-    RectRegionReset(Region);
-    if (RectRegionAddRect(Region, SourceRect) == FALSE) return FALSE;
-
-    (void)DesktopSnapshotWindowChildren(RootWindow, &Children, &ChildCount);
-    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
-        Child = Children[ChildIndex];
-        if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
-        DesktopVisibleRegionSubtractVisibleWindowTree(Child, Region, Capacity);
-        if (RectRegionGetCount(Region) == 0) break;
-    }
-
-    if (Children != NULL) {
-        KernelHeapFree(Children);
-    }
-
-    return TRUE;
-}
-
-/***************************************************************************/
-
-/**
  * @brief Resolve shared brush and pen objects for a system color index.
  * @param Index SM_COLOR_* identifier.
  * @param Brush Receives brush object pointer.
@@ -1592,7 +1547,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 }
 
                 if (DesktopGetWindowDrawClipRect((LPWINDOW)Window, &ClipRect) != FALSE &&
-                    BuildDesktopRootVisibleClipRegion((LPWINDOW)Window, &ClipRect, &RootVisibleRegion, RootVisibleStorage, WINDOW_DIRTY_REGION_CAPACITY) !=
+                    DesktopBuildRootVisibleRegion((LPWINDOW)Window, &ClipRect, &RootVisibleRegion, RootVisibleStorage, WINDOW_DIRTY_REGION_CAPACITY) !=
                         FALSE) {
                     for (RootVisibleIndex = 0; RootVisibleIndex < RectRegionGetCount(&RootVisibleRegion); RootVisibleIndex++) {
                         if (RectRegionGetRect(&RootVisibleRegion, RootVisibleIndex, &RootVisibleRect) == FALSE) continue;
