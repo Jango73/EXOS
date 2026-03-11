@@ -412,8 +412,9 @@ static void GfxTextFillRect(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I
  * @return TRUE on success.
  */
 BOOL GfxTextPutCell(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_CELL_INFO Info) {
-    const FONT_GLYPH_SET* Font = NULL;
-    const U8* Glyph = NULL;
+    const FONT_FACE* Font = NULL;
+    FONT_GLYPH_BITMAP Glyph;
+    FONT_METRICS Metrics;
     U32 Foreground = 0;
     U32 Background = 0;
     I32 PixelX = 0;
@@ -439,20 +440,16 @@ BOOL GfxTextPutCell(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_CELL_INFO Info) {
                     PixelY + (I32)Info->CellHeight - 1,
                     Background);
 
-    Font = FontGetDefault();
-    if (Font == NULL || Font->GlyphData == NULL) {
+    Font = FontGetDefaultFace();
+    if (!FontFaceGetMetrics(Font, &Metrics) || !FontFaceGetGlyphBitmap(Font, (U32)Info->Character, &Glyph) ||
+        Glyph.Data == NULL) {
         return FALSE;
     }
 
-    Glyph = FontGetGlyph(Font, (U32)Info->Character);
-    if (Glyph == NULL) {
-        return FALSE;
-    }
-
-    for (U32 Row = 0; Row < Font->Height && Row < Info->CellHeight; Row++) {
-        for (U32 Col = 0; Col < Font->Width && Col < Info->CellWidth; Col++) {
-            U32 ByteIndex = (Row * Font->BytesPerRow) + (Col / 8);
-            U8 Bits = Glyph[ByteIndex];
+    for (U32 Row = 0; Row < Metrics.CellHeight && Row < Info->CellHeight; Row++) {
+        for (U32 Col = 0; Col < Metrics.CellWidth && Col < Info->CellWidth; Col++) {
+            U32 ByteIndex = (Row * Glyph.BytesPerRow) + (Col / 8);
+            U8 Bits = Glyph.Data[ByteIndex];
             U32 BitMask = 0x80 >> (Col % 8);
             if ((Bits & BitMask) != 0) {
                 GfxTextWritePixel(Context, PixelX + (I32)Col, PixelY + (I32)Row, Foreground);

@@ -31,6 +31,8 @@
 /***************************************************************************/
 
 #define FONT_FALLBACK_GLYPH 0x3Fu
+#define FONT_FACE_KIND_BITMAP_MONO 0x00000001
+#define FONT_FACE_KIND_OUTLINE 0x00000002
 
 /***************************************************************************/
 
@@ -41,6 +43,54 @@ typedef struct tag_FONT_GLYPH_SET {
     U32 GlyphCount;
     const U8* GlyphData;
 } FONT_GLYPH_SET, *LPFONT_GLYPH_SET;
+
+/***************************************************************************/
+
+typedef struct tag_FONT_METRICS {
+    U32 CellWidth;
+    U32 CellHeight;
+    U32 AdvanceWidth;
+    U32 LineHeight;
+} FONT_METRICS, *LPFONT_METRICS;
+
+/***************************************************************************/
+
+typedef struct tag_FONT_GLYPH_BITMAP {
+    I32 OffsetX;
+    I32 OffsetY;
+    U32 Width;
+    U32 Height;
+    U32 BytesPerRow;
+    U32 AdvanceWidth;
+    const U8* Data;
+} FONT_GLYPH_BITMAP, *LPFONT_GLYPH_BITMAP;
+
+/***************************************************************************/
+
+struct tag_FONT_FACE;
+
+typedef BOOL (*FONT_FACE_GET_METRICS_PROC)(const struct tag_FONT_FACE*, LPFONT_METRICS);
+typedef BOOL (*FONT_FACE_GET_GLYPH_BITMAP_PROC)(
+    const struct tag_FONT_FACE*,
+    U32,
+    LPFONT_GLYPH_BITMAP);
+
+/***************************************************************************/
+
+typedef struct tag_FONT_FACE {
+    U32 Kind;
+    LPCVOID Context;
+    FONT_FACE_GET_METRICS_PROC GetMetrics;
+    FONT_FACE_GET_GLYPH_BITMAP_PROC GetGlyphBitmap;
+} FONT_FACE, *LPFONT_FACE;
+
+/***************************************************************************/
+
+const FONT_FACE* FontGetDefaultFace(void);
+BOOL FontSetDefaultFace(const FONT_FACE* Font);
+BOOL FontFaceGetMetrics(const FONT_FACE* Font, LPFONT_METRICS MetricsOut);
+BOOL FontFaceGetGlyphBitmap(const FONT_FACE* Font, U32 Codepoint, LPFONT_GLYPH_BITMAP GlyphOut);
+const FONT_GLYPH_SET* FontFaceGetGlyphSet(const FONT_FACE* Font);
 
 /***************************************************************************/
 

@@ -707,11 +707,12 @@ void ConsolePanic(LPCSTR Format, ...) {
 /***************************************************************************/
 
 void InitializeConsole(void) {
-    const FONT_GLYPH_SET* Font = FontGetDefault();
+    const FONT_FACE* Font = FontGetDefaultFace();
+    FONT_METRICS Metrics;
 
-    if (Font != NULL) {
-        Console.FontWidth = Font->Width;
-        Console.FontHeight = Font->Height;
+    if (FontFaceGetMetrics(Font, &Metrics)) {
+        Console.FontWidth = Metrics.CellWidth;
+        Console.FontHeight = Metrics.CellHeight;
     }
 
     if (Console.UseFramebuffer != FALSE) {

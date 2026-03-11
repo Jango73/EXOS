@@ -274,3 +274,58 @@ const FONT_GLYPH_SET FontAscii = {
 };
 
 /************************************************************************/
+
+static BOOL FontAsciiGetMetrics(const FONT_FACE* Font, LPFONT_METRICS MetricsOut) {
+    UNUSED(Font);
+
+    if (MetricsOut == NULL) {
+        return FALSE;
+    }
+
+    *MetricsOut = (FONT_METRICS){
+        .CellWidth = FontAscii.Width,
+        .CellHeight = FontAscii.Height,
+        .AdvanceWidth = FontAscii.Width,
+        .LineHeight = FontAscii.Height
+    };
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL FontAsciiGetGlyphBitmap(const FONT_FACE* Font, U32 Codepoint, LPFONT_GLYPH_BITMAP GlyphOut) {
+    const U8* Glyph = NULL;
+
+    UNUSED(Font);
+
+    if (GlyphOut == NULL) {
+        return FALSE;
+    }
+
+    Glyph = FontGetGlyph(&FontAscii, Codepoint);
+    if (Glyph == NULL) {
+        return FALSE;
+    }
+
+    *GlyphOut = (FONT_GLYPH_BITMAP){
+        .OffsetX = 0,
+        .OffsetY = 0,
+        .Width = FontAscii.Width,
+        .Height = FontAscii.Height,
+        .BytesPerRow = FontAscii.BytesPerRow,
+        .AdvanceWidth = FontAscii.Width,
+        .Data = Glyph
+    };
+    return TRUE;
+}
+
+/************************************************************************/
+
+const FONT_FACE FontAsciiFace = {
+    .Kind = FONT_FACE_KIND_BITMAP_MONO,
+    .Context = &FontAscii,
+    .GetMetrics = FontAsciiGetMetrics,
+    .GetGlyphBitmap = FontAsciiGetGlyphBitmap
+};
+
+/************************************************************************/

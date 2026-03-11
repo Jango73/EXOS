@@ -12,9 +12,9 @@ Add reusable text drawing and text measurement services for all graphics drivers
 
 ## Implementation Steps
 ### Step 1: Introduce a generic font face abstraction
-- [ ] Define a reusable font interface that separates font identity, metrics, and glyph raster access from the current fixed bitmap glyph-set structure.
-- [ ] Provide a first adapter backed by the existing console font so the initial implementation reuses the current glyph data without changing behavior.
-- [ ] Keep the abstraction font-type agnostic so later providers can expose rasterized TrueType-style glyphs through the same contract.
+- [x] Define a reusable font interface that separates font identity, metrics, and glyph raster access from the current fixed bitmap glyph-set structure.
+- [x] Provide a first adapter backed by the existing console font so the initial implementation reuses the current glyph data without changing behavior.
+- [x] Keep the abstraction font-type agnostic so later providers can expose rasterized TrueType-style glyphs through the same contract.
 
 ### Step 2: Add a shared graphics text API
 - [ ] Define one graphics text draw entry point for printing a string at pixel coordinates with an explicit font.
