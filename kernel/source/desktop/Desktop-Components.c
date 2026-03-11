@@ -24,6 +24,7 @@
 #include "Desktop-Components.h"
 
 #include "ui/ClockWidget.h"
+#include "ui/LogViewer.h"
 #include "ui/ShellBar.h"
 #include "desktop/Desktop-NonClient.h"
 #include "Log.h"
@@ -32,6 +33,8 @@
 
 #define DESKTOP_SHELL_BAR_CLOCK_WINDOW_ID 0x5342434C
 #define DESKTOP_SHELL_BAR_CLOCK_PROP TEXT("desktop.shellbar.clock")
+#define DESKTOP_LOG_VIEWER_WINDOW_ID 0x534C4F47
+#define DESKTOP_LOG_VIEWER_PROP TEXT("desktop.logviewer.window")
 #define DESKTOP_PENDING_COMPONENT_CLOCK 0x00000001
 
 /***************************************************************************/
@@ -143,12 +146,107 @@ static BOOL DesktopComponentsInjectShellBarClock(LPDESKTOP Desktop) {
 /***************************************************************************/
 
 /**
+ * @brief Create or refresh the floating log viewer window on the desktop root.
+ * @param Desktop Target desktop.
+ * @return TRUE on success.
+ */
+static BOOL DesktopComponentsEnsureLogViewerWindow(LPDESKTOP Desktop) {
+    HANDLE RootWindow;
+    HANDLE LogViewerWindow;
+    WINDOWINFO WindowInfo;
+    RECT ScreenRect;
+    RECT WindowRect;
+    I32 ScreenWidth;
+    I32 ScreenHeight;
+    I32 WindowWidth;
+    I32 WindowHeight;
+
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
+        DEBUG(TEXT("[DesktopComponentsEnsureLogViewerWindow] Invalid desktop=%p"), Desktop);
+        return FALSE;
+    }
+    if (DesktopLogViewerEnsureClassRegistered() == FALSE) {
+        DEBUG(TEXT("[DesktopComponentsEnsureLogViewerWindow] Log viewer class registration failed"));
+        return FALSE;
+    }
+
+    RootWindow = (HANDLE)Desktop->Window;
+    if (RootWindow == NULL) {
+        DEBUG(TEXT("[DesktopComponentsEnsureLogViewerWindow] Root window unavailable"));
+        return FALSE;
+    }
+
+    if (GetDesktopScreenRect(Desktop, &ScreenRect) == FALSE) {
+        DEBUG(TEXT("[DesktopComponentsEnsureLogViewerWindow] Desktop screen rect unavailable"));
+        return FALSE;
+    }
+
+    ScreenWidth = ScreenRect.X2 - ScreenRect.X1 + 1;
+    ScreenHeight = ScreenRect.Y2 - ScreenRect.Y1 + 1;
+    if (ScreenWidth <= 0 || ScreenHeight <= 0) {
+        DEBUG(TEXT("[DesktopComponentsEnsureLogViewerWindow] Invalid desktop size width=%u height=%u"),
+            (UINT)(ScreenWidth > 0 ? ScreenWidth : 0),
+            (UINT)(ScreenHeight > 0 ? ScreenHeight : 0));
+        return FALSE;
+    }
+
+    WindowWidth = ScreenWidth / 2;
+    WindowHeight = (ScreenHeight * 3) / 4;
+    if (WindowWidth < 1) WindowWidth = 1;
+    if (WindowHeight < 1) WindowHeight = 1;
+
+    WindowRect.X1 = ScreenWidth - WindowWidth;
+    WindowRect.Y1 = 0;
+    WindowRect.X2 = ScreenWidth - 1;
+    WindowRect.Y2 = WindowHeight - 1;
+
+    LogViewerWindow = (HANDLE)DesktopComponentsFindDirectChildByProp((LPWINDOW)RootWindow, DESKTOP_LOG_VIEWER_PROP, 1);
+    if (LogViewerWindow != NULL) {
+        (void)MoveWindow(LogViewerWindow, &WindowRect);
+        (void)SetWindowCaption(LogViewerWindow, TEXT("Kernel Log"));
+        (void)ShowWindow(LogViewerWindow, TRUE);
+        DEBUG(TEXT("[DesktopComponentsEnsureLogViewerWindow] Existing log viewer=%p"), LogViewerWindow);
+        return TRUE;
+    }
+
+    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Version = EXOS_ABI_VERSION;
+    WindowInfo.Header.Flags = 0;
+    WindowInfo.Window = NULL;
+    WindowInfo.Parent = RootWindow;
+    WindowInfo.WindowClass = 0;
+    WindowInfo.WindowClassName = DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME;
+    WindowInfo.Function = NULL;
+    WindowInfo.Style = EWS_VISIBLE | EWS_SYSTEM_DECORATED;
+    WindowInfo.ID = DESKTOP_LOG_VIEWER_WINDOW_ID;
+    WindowInfo.WindowPosition.X = WindowRect.X1;
+    WindowInfo.WindowPosition.Y = WindowRect.Y1;
+    WindowInfo.WindowSize.X = WindowRect.X2 - WindowRect.X1 + 1;
+    WindowInfo.WindowSize.Y = WindowRect.Y2 - WindowRect.Y1 + 1;
+    WindowInfo.ShowHide = TRUE;
+
+    LogViewerWindow = (HANDLE)CreateWindow(&WindowInfo);
+    if (LogViewerWindow == NULL) {
+        DEBUG(TEXT("[DesktopComponentsEnsureLogViewerWindow] CreateWindow failed for log viewer id=%x"), WindowInfo.ID);
+        return FALSE;
+    }
+
+    (void)SetWindowProp(LogViewerWindow, DESKTOP_LOG_VIEWER_PROP, 1);
+    (void)SetWindowCaption(LogViewerWindow, TEXT("Kernel Log"));
+    DEBUG(TEXT("[DesktopComponentsEnsureLogViewerWindow] Created log viewer=%p"), LogViewerWindow);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Instantiate desktop-owned UI components.
  * @param Desktop Target desktop.
  * @return TRUE on success.
  */
 BOOL DesktopComponentsInitialize(LPDESKTOP Desktop) {
-    BOOL Result;
+    BOOL ClockResult;
+    BOOL LogViewerResult;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
         DEBUG(TEXT("[DesktopComponentsInitialize] Invalid desktop=%p"), Desktop);
@@ -161,12 +259,14 @@ BOOL DesktopComponentsInitialize(LPDESKTOP Desktop) {
     }
 
     Desktop->PendingComponents |= DESKTOP_PENDING_COMPONENT_CLOCK;
-    Result = DesktopComponentsInjectShellBarClock(Desktop);
-    if (Result != FALSE) {
+    ClockResult = DesktopComponentsInjectShellBarClock(Desktop);
+    if (ClockResult != FALSE) {
         Desktop->PendingComponents &= ~DESKTOP_PENDING_COMPONENT_CLOCK;
     }
-    DEBUG(TEXT("[DesktopComponentsInitialize] Clock injection result=%u"), (UINT)Result);
-    return Result;
+    LogViewerResult = DesktopComponentsEnsureLogViewerWindow(Desktop);
+    DEBUG(TEXT("[DesktopComponentsInitialize] Clock injection result=%u"), (UINT)ClockResult);
+    DEBUG(TEXT("[DesktopComponentsInitialize] Log viewer result=%u"), (UINT)LogViewerResult);
+    return (ClockResult != FALSE && LogViewerResult != FALSE);
 }
 
 /***************************************************************************/

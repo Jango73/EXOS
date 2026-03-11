@@ -1,4 +1,3 @@
-
 /************************************************************************\
 
     EXOS Kernel
@@ -18,55 +17,26 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Log
+    Desktop log viewer component
 
 \************************************************************************/
 
-#ifndef LOG_H_INCLUDED
-#define LOG_H_INCLUDED
+#ifndef DESKTOP_COMPONENTS_LOG_VIEWER_H_INCLUDED
+#define DESKTOP_COMPONENTS_LOG_VIEWER_H_INCLUDED
 
 /***************************************************************************/
 
-#include "Base.h"
-#include "Driver.h"
+#include "Desktop.h"
 
 /***************************************************************************/
 
-// Debug out on COM2
-#define LOG_COM_INDEX 1
-
-#define LOG_DEBUG 0x0001
-#define LOG_VERBOSE 0x0002
-#define LOG_WARNING 0x0004
-#define LOG_ERROR 0x0008
-#define LOG_TEST 0x0010
-
-#define INTERRUPT_LOG_SAMPLE_LIMIT 4
+#define DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME TEXT("DesktopLogViewerWindowClass")
 
 /***************************************************************************/
 
-typedef struct tag_KERNEL_LOG_RECENT_VIEW {
-    LPSTR Text;
-    UINT TextBufferSize;
-    UINT MaxLines;
-    U32 Sequence;
-    UINT TotalLines;
-    UINT CopiedLines;
-    BOOL Truncated;
-} KERNEL_LOG_RECENT_VIEW, *LPKERNEL_LOG_RECENT_VIEW;
-
-/***************************************************************************/
-
-void InitKernelLog(void);
-void KernelLogSetTagFilter(LPCSTR TagFilter);
-LPCSTR KernelLogGetTagFilter(void);
-void KernelLogSetErrorConsoleEnabled(BOOL Enabled);
-BOOL KernelLogGetErrorConsoleEnabled(void);
-U32 KernelLogGetRecentSequence(void);
-BOOL KernelLogCaptureRecentLines(LPKERNEL_LOG_RECENT_VIEW View);
-void KernelLogText(U32, LPCSTR, ...);
-void KernelLogMem(U32 Type, LINEAR Memory, U32 Size);
-void LogTaskSystemStructures(U32 Type);
+BOOL DesktopLogViewerEnsureClassRegistered(void);
+BOOL DesktopLogViewerGetPreferredSize(LPPOINT SizeOut);
+U32 DesktopLogViewerWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
 
 /***************************************************************************/
 

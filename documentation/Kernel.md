@@ -2007,6 +2007,20 @@ When filtering is active, only matching tagged lines are emitted.
 The default startup filter is initialized for NVMe/GPT diagnostics.
 Builds can override this value with `--kernel-log-tag-filter <value>` in `scripts/build.sh`; passing an empty value compiles an empty default filter.
 
+#### Recent retained log view
+
+The log module retains one bounded in-memory view of recent formatted lines for desktop diagnostics.
+Retention is owned by `Log.c` and exposed through:
+- `KernelLogGetRecentSequence()`
+- `KernelLogCaptureRecentLines()`
+
+The retained view is intentionally small and bounded:
+- latest `500` lines maximum,
+- about `96 KiB` of recent formatted text.
+
+This retained view is consumed by the floating desktop log viewer component in `kernel/source/ui/LogViewer.c`.
+The UI component does not access desktop internals or log storage internals directly; it only polls the public log snapshot API and redraws when the retained sequence changes.
+
 #### Threshold-based one-shot logging
 
 `ThresholdLatch` provides one-shot logging when an elapsed-time threshold is crossed during long operations.

@@ -579,10 +579,6 @@ static U32 ShowMainDesktopFromShell(void) {
         }
     }
 
-    if (DesktopInternalTestEnsureWindowsVisible(Desktop) == FALSE) {
-        ConsolePrint(TEXT("desktop show: internal test windows unavailable\n"));
-    }
-
     return DF_RETURN_SUCCESS;
 }
 
