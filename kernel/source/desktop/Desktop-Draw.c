@@ -60,43 +60,6 @@ static BOOL DesktopDrawIsTestWindow(LPWINDOW Window) {
 /***************************************************************************/
 
 /**
- * @brief Compute one union clip rectangle for one window draw dispatch.
- * @param Window Target window.
- * @param ClipRect Receives one screen-space clip rectangle.
- * @return TRUE when one clip rectangle was produced.
- */
-static BOOL BuildWindowDispatchClipRect(LPWINDOW Window, LPRECT ClipRect) {
-    RECT ClipStorage[WINDOW_DIRTY_REGION_CAPACITY];
-    RECT_REGION ClipRegion;
-    RECT CurrentRect;
-    UINT ClipCount;
-    UINT ClipIndex;
-
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
-    if (ClipRect == NULL) return FALSE;
-
-    if (BuildWindowDrawClipRegion(Window, &ClipRegion, ClipStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) {
-        return FALSE;
-    }
-
-    ClipCount = RectRegionGetCount(&ClipRegion);
-    if (ClipCount == 0) return FALSE;
-    if (RectRegionGetRect(&ClipRegion, 0, ClipRect) == FALSE) return FALSE;
-
-    for (ClipIndex = 1; ClipIndex < ClipCount; ClipIndex++) {
-        if (RectRegionGetRect(&ClipRegion, ClipIndex, &CurrentRect) == FALSE) continue;
-        if (CurrentRect.X1 < ClipRect->X1) ClipRect->X1 = CurrentRect.X1;
-        if (CurrentRect.Y1 < ClipRect->Y1) ClipRect->Y1 = CurrentRect.Y1;
-        if (CurrentRect.X2 > ClipRect->X2) ClipRect->X2 = CurrentRect.X2;
-        if (CurrentRect.Y2 > ClipRect->Y2) ClipRect->Y2 = CurrentRect.Y2;
-    }
-
-    return TRUE;
-}
-
-/***************************************************************************/
-
-/**
  * @brief Compute one full window rectangle in window coordinates.
  * @param Window Target window.
  * @param WindowRect Receives the full local rectangle.
@@ -331,41 +294,52 @@ static BOOL DispatchPreparedClientDraw(
  * @return TRUE when the dispatch completed.
  */
 BOOL DesktopDispatchWindowDraw(LPWINDOW Window, HANDLE TargetHandle, U32 Param1, U32 Param2) {
+    RECT ClipStorage[WINDOW_DIRTY_REGION_CAPACITY];
+    RECT_REGION ClipRegion;
     RECT ClipRect;
+    UINT ClipCount;
+    UINT ClipIndex;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
 
     ClearWindowDrawContext(Window);
 
-    if (BuildWindowDispatchClipRect(Window, &ClipRect) == FALSE) {
+    if (BuildWindowDrawClipRegion(Window, &ClipRegion, ClipStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) {
         return FALSE;
     }
 
-    if (DesktopDrawIsShellBarWindow(Window) != FALSE || DesktopDrawIsTestWindow(Window) != FALSE) {
-        DEBUG(
-            TEXT("[DesktopDispatchWindowDraw] window_id=%x clip=(%x,%x)-(%x,%x) style=%x rect=(%x,%x)-(%x,%x) param1=%x param2=%x"),
-            Window->WindowID,
-            ClipRect.X1,
-            ClipRect.Y1,
-            ClipRect.X2,
-            ClipRect.Y2,
-            Window->Style,
-            Window->ScreenRect.X1,
-            Window->ScreenRect.Y1,
-            Window->ScreenRect.X2,
-            Window->ScreenRect.Y2,
-            Param1,
-            Param2);
-    }
+    ClipCount = RectRegionGetCount(&ClipRegion);
+    if (ClipCount == 0) return FALSE;
 
-    if (DrawWindowSystemChrome(Window, &ClipRect) == FALSE) {
-        ClearWindowDrawContext(Window);
-        return FALSE;
-    }
+    for (ClipIndex = 0; ClipIndex < ClipCount; ClipIndex++) {
+        if (RectRegionGetRect(&ClipRegion, ClipIndex, &ClipRect) == FALSE) continue;
 
-    if (DispatchPreparedClientDraw(Window, TargetHandle, &ClipRect, Param1, Param2) == FALSE) {
-        ClearWindowDrawContext(Window);
-        return FALSE;
+        if (DesktopDrawIsShellBarWindow(Window) != FALSE || DesktopDrawIsTestWindow(Window) != FALSE) {
+            DEBUG(
+                TEXT("[DesktopDispatchWindowDraw] window_id=%x clip=(%x,%x)-(%x,%x) style=%x rect=(%x,%x)-(%x,%x) param1=%x param2=%x"),
+                Window->WindowID,
+                ClipRect.X1,
+                ClipRect.Y1,
+                ClipRect.X2,
+                ClipRect.Y2,
+                Window->Style,
+                Window->ScreenRect.X1,
+                Window->ScreenRect.Y1,
+                Window->ScreenRect.X2,
+                Window->ScreenRect.Y2,
+                Param1,
+                Param2);
+        }
+
+        if (DrawWindowSystemChrome(Window, &ClipRect) == FALSE) {
+            ClearWindowDrawContext(Window);
+            return FALSE;
+        }
+
+        if (DispatchPreparedClientDraw(Window, TargetHandle, &ClipRect, Param1, Param2) == FALSE) {
+            ClearWindowDrawContext(Window);
+            return FALSE;
+        }
     }
 
     DesktopCursorRenderSoftwareOverlayOnWindow(Window);
