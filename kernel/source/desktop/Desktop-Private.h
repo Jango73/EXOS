@@ -81,8 +81,6 @@ extern PEN Pen_Title_Text;
 
 BOOL ResetGraphicsContext(LPGRAPHICSCONTEXT This);
 BOOL SetGraphicsContextClipScreenRect(HANDLE GC, LPRECT ClipRect);
-BOOL DesktopVisibleRegionSubtractOccluder(LPRECT_REGION Region, LPRECT Occluder, UINT Capacity);
-void DesktopVisibleRegionSubtractVisibleWindowTree(LPWINDOW Window, LPRECT_REGION Region, UINT Capacity);
 BOOL DesktopBuildWindowVisibleRegion(
     LPWINDOW Window,
     LPRECT BaseRect,

@@ -215,27 +215,6 @@ static void DesktopCursorUnionRect(LPRECT Left, LPRECT Right, LPRECT Result) {
 }
 
 /**
- * @brief Build one cursor clip region excluding occluded zones for one window.
- * @param Window Target window.
- * @param BaseRect Base visible intersection rectangle.
- * @param Region Output region.
- * @param Storage Region storage.
- * @param Capacity Region capacity.
- * @return TRUE on success.
- */
-static BOOL DesktopCursorBuildVisibleRegionForWindow(
-    LPWINDOW Window,
-    LPRECT BaseRect,
-    LPRECT_REGION Region,
-    LPRECT Storage,
-    UINT Capacity
-) {
-    return DesktopBuildWindowVisibleRegion(Window, BaseRect, TRUE, Region, Storage, Capacity);
-}
-
-/************************************************************************/
-
-/**
  * @brief Build one ABI header.
  * @param Header Output header.
  * @param Size Structure size.
@@ -713,7 +692,7 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
         return;
     }
 
-    if (DesktopCursorBuildVisibleRegionForWindow(Window, &Intersection, &DrawClipRegion, DrawClipStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) {
+    if (DesktopBuildWindowVisibleRegion(Window, &Intersection, TRUE, &DrawClipRegion, DrawClipStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) {
         return;
     }
 

@@ -83,7 +83,7 @@ static BOOL DesktopVisibleRegionSubtractRectFromRect(LPRECT_REGION Region, LPREC
  * @param Capacity Temporary region storage capacity.
  * @return TRUE on success.
  */
-BOOL DesktopVisibleRegionSubtractOccluder(LPRECT_REGION Region, LPRECT Occluder, UINT Capacity) {
+static BOOL DesktopVisibleRegionSubtractOccluder(LPRECT_REGION Region, LPRECT Occluder, UINT Capacity) {
     RECT ExistingStorage[WINDOW_DIRTY_REGION_CAPACITY];
     RECT TempStorage[WINDOW_DIRTY_REGION_CAPACITY];
     RECT_REGION TempRegion;
@@ -129,7 +129,7 @@ BOOL DesktopVisibleRegionSubtractOccluder(LPRECT_REGION Region, LPRECT Occluder,
  * @param Region Region to clip.
  * @param Capacity Temporary region storage capacity.
  */
-void DesktopVisibleRegionSubtractVisibleWindowTree(LPWINDOW Window, LPRECT_REGION Region, UINT Capacity) {
+static void DesktopVisibleRegionSubtractVisibleWindowTree(LPWINDOW Window, LPRECT_REGION Region, UINT Capacity) {
     LPWINDOW* Children = NULL;
     LPWINDOW Child;
     RECT WindowRect;
