@@ -768,10 +768,40 @@ BOOL DeleteWindow(LPWINDOW This) {
 /**
  * @brief Search recursively for a window starting from another window.
  * @param Start Window to start searching from.
- * @param Target Window to find.
+ * @param WindowID Window identifier to find.
  * @return Pointer to the found window or NULL.
  */
-LPWINDOW FindWindow(LPWINDOW Start, LPWINDOW Target) {
+LPWINDOW FindWindow(LPWINDOW Start, U32 WindowID) {
+    LPWINDOW Current = NULL;
+    LPWINDOW Child = NULL;
+    UINT ChildCount;
+    UINT Index;
+
+    if (Start == NULL) return NULL;
+    if (Start->TypeID != KOID_WINDOW) return NULL;
+
+    if (Start->WindowID == WindowID) return Start;
+
+    ChildCount = GetWindowChildCount((HANDLE)Start);
+    for (Index = 0; Index < ChildCount; Index++) {
+        Child = (LPWINDOW)GetWindowChild((HANDLE)Start, Index);
+        if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
+        Current = FindWindow(Child, WindowID);
+        if (Current != NULL) return Current;
+    }
+
+    return Current;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Check whether one concrete window handle belongs to one subtree.
+ * @param Start Window to start searching from.
+ * @param Target Window handle to find.
+ * @return Target window pointer when it belongs to the subtree, otherwise NULL.
+ */
+LPWINDOW ContainsWindow(LPWINDOW Start, LPWINDOW Target) {
     LPWINDOW Current = NULL;
     LPWINDOW Child = NULL;
     UINT ChildCount;
@@ -789,7 +819,7 @@ LPWINDOW FindWindow(LPWINDOW Start, LPWINDOW Target) {
     for (Index = 0; Index < ChildCount; Index++) {
         Child = (LPWINDOW)GetWindowChild((HANDLE)Start, Index);
         if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
-        Current = FindWindow(Child, Target);
+        Current = ContainsWindow(Child, Target);
         if (Current != NULL) return Current;
     }
 

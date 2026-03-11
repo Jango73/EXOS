@@ -29,43 +29,14 @@
 /***************************************************************************/
 
 #define DESKTOP_LOG_VIEWER_WINDOW_ID 0x534C4F47
-#define DESKTOP_LOG_VIEWER_PROP TEXT("desktop.logviewer.window")
-
 /***************************************************************************/
 
 /**
- * @brief Find one direct child window by property value.
- * @param Parent Parent window.
- * @param Name Property name.
- * @param Value Property value.
- * @return Matching child or NULL.
- */
-static LPWINDOW StartupDesktopComponentsFindDirectChildByProp(LPWINDOW Parent, LPCSTR Name, U32 Value) {
-    U32 ChildCount;
-    U32 ChildIndex;
-    HANDLE ChildWindow;
-
-    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return NULL;
-    if (Name == NULL) return NULL;
-
-    ChildCount = GetWindowChildCount((HANDLE)Parent);
-    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
-        ChildWindow = GetWindowChild((HANDLE)Parent, ChildIndex);
-        if (ChildWindow == NULL) continue;
-        if (GetWindowProp(ChildWindow, Name) == Value) return (LPWINDOW)ChildWindow;
-    }
-
-    return NULL;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Create or refresh the floating log viewer window on the desktop root.
+ * @brief Ensure the floating log viewer window exists and has the expected rect.
  * @param Desktop Target desktop.
  * @return TRUE on success.
  */
-static BOOL CreateLogViewer(LPDESKTOP Desktop) {
+static BOOL EnsureLogViewerWindow(LPDESKTOP Desktop) {
     HANDLE RootWindow;
     HANDLE LogViewerWindow;
     WINDOWINFO WindowInfo;
@@ -79,7 +50,7 @@ static BOOL CreateLogViewer(LPDESKTOP Desktop) {
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
         return FALSE;
     }
-    if (DesktopLogViewerEnsureClassRegistered() == FALSE) {
+    if (LogViewerEnsureClassRegistered() == FALSE) {
         return FALSE;
     }
 
@@ -108,7 +79,7 @@ static BOOL CreateLogViewer(LPDESKTOP Desktop) {
     WindowRect.X2 = ScreenWidth - 1;
     WindowRect.Y2 = WindowHeight - 1;
 
-    LogViewerWindow = (HANDLE)StartupDesktopComponentsFindDirectChildByProp((LPWINDOW)RootWindow, DESKTOP_LOG_VIEWER_PROP, 1);
+    LogViewerWindow = (HANDLE)FindWindow((LPWINDOW)RootWindow, DESKTOP_LOG_VIEWER_WINDOW_ID);
     if (LogViewerWindow != NULL) {
         (void)MoveWindow(LogViewerWindow, &WindowRect);
         (void)SetWindowCaption(LogViewerWindow, TEXT("Kernel Log"));
@@ -137,7 +108,6 @@ static BOOL CreateLogViewer(LPDESKTOP Desktop) {
         return FALSE;
     }
 
-    (void)SetWindowProp(LogViewerWindow, DESKTOP_LOG_VIEWER_PROP, 1);
     (void)SetWindowCaption(LogViewerWindow, TEXT("Kernel Log"));
     return TRUE;
 }
@@ -155,7 +125,7 @@ BOOL StartupDesktopComponentsInitialize(LPDESKTOP Desktop) {
         return FALSE;
     }
 
-    LogViewerResult = CreateLogViewer(Desktop);
+    LogViewerResult = EnsureLogViewerWindow(Desktop);
     return LogViewerResult != FALSE;
 }
 

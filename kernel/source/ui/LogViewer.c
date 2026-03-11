@@ -46,7 +46,7 @@
  * @param SizeOut Receives the preferred size.
  * @return TRUE on success.
  */
-BOOL DesktopLogViewerGetPreferredSize(LPPOINT SizeOut) {
+BOOL LogViewerGetPreferredSize(LPPOINT SizeOut) {
     if (SizeOut == NULL) return FALSE;
 
     SizeOut->X = LOG_VIEWER_DEFAULT_WIDTH;
@@ -56,27 +56,27 @@ BOOL DesktopLogViewerGetPreferredSize(LPPOINT SizeOut) {
 
 /***************************************************************************/
 
-BOOL DesktopLogViewerEnsureClassRegistered(void) {
+BOOL LogViewerEnsureClassRegistered(void) {
     LPWINDOW_CLASS WindowClass;
 
     if (WindowClassInitializeRegistry() == FALSE) {
-        DEBUG(TEXT("[DesktopLogViewerEnsureClassRegistered] Registry initialization failed"));
+        DEBUG(TEXT("[LogViewerEnsureClassRegistered] Registry initialization failed"));
         return FALSE;
     }
 
     WindowClass = WindowClassFindByName(DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME);
     if (WindowClass != NULL) {
-        DEBUG(TEXT("[DesktopLogViewerEnsureClassRegistered] Existing class=%p"), WindowClass);
+        DEBUG(TEXT("[LogViewerEnsureClassRegistered] Existing class=%p"), WindowClass);
         return TRUE;
     }
 
     WindowClass = WindowClassRegisterKernelClass(
         DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME,
         WindowClassGetDefault(),
-        DesktopLogViewerWindowFunc,
+        LogViewerWindowFunc,
         0);
 
-    DEBUG(TEXT("[DesktopLogViewerEnsureClassRegistered] Registered class=%p"), WindowClass);
+    DEBUG(TEXT("[LogViewerEnsureClassRegistered] Registered class=%p"), WindowClass);
     return WindowClass != NULL;
 }
 
@@ -89,7 +89,7 @@ BOOL DesktopLogViewerEnsureClassRegistered(void) {
  * @param LineHeight Current text line height.
  * @param Text Mutable text buffer split in place on newline boundaries.
  */
-static void DesktopLogViewerDrawLines(HANDLE GraphicsContext, LPRECT ClientRect, I32 LineHeight, LPSTR Text) {
+static void LogViewerDrawLines(HANDLE GraphicsContext, LPRECT ClientRect, I32 LineHeight, LPSTR Text) {
     GFX_TEXT_DRAW_INFO DrawInfo;
     LPSTR Line;
     LPSTR NextLine;
@@ -129,7 +129,7 @@ static void DesktopLogViewerDrawLines(HANDLE GraphicsContext, LPRECT ClientRect,
 
 /***************************************************************************/
 
-U32 DesktopLogViewerWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
+U32 LogViewerWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     RECT ClientRect;
     HANDLE GraphicsContext;
     GFX_TEXT_MEASURE_INFO MeasureInfo;
@@ -202,7 +202,7 @@ U32 DesktopLogViewerWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param
 
             (void)SelectBrush(GraphicsContext, NULL);
             (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_TEXT_NORMAL));
-            DesktopLogViewerDrawLines(GraphicsContext, &ClientRect, LineHeight, TextBuffer);
+            LogViewerDrawLines(GraphicsContext, &ClientRect, LineHeight, TextBuffer);
 
             (void)EndWindowDraw(Window);
             return 1;

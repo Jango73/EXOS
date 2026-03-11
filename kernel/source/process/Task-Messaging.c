@@ -734,7 +734,7 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
 
             SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
                 LOCK_TREE(&(Desktop->Mutex), "Desktop");
-                Window = FindWindow(Desktop->Window, (LPWINDOW)Target);
+                Window = ContainsWindow(Desktop->Window, (LPWINDOW)Target);
                 UNLOCK_TREE(&(Desktop->Mutex), "Desktop");
             } else {
                 Window = NULL;
@@ -842,7 +842,7 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     //-------------------------------------
     // Find the window in the desktop
 
-    Window = FindWindow(Desktop->Window, (LPWINDOW)Target);
+    Window = ContainsWindow(Desktop->Window, (LPWINDOW)Target);
 
     //-------------------------------------
     // Unlock access to the desktop
@@ -1023,7 +1023,7 @@ BOOL DispatchMessage(LPMESSAGEINFO Message) {
     if (Desktop->TypeID != KOID_DESKTOP) return FALSE;
 
     LOCK_TREE(&(Desktop->Mutex), "Desktop");
-    Window = FindWindow(Desktop->Window, (LPWINDOW)Message->Target);
+    Window = ContainsWindow(Desktop->Window, (LPWINDOW)Message->Target);
     UNLOCK_TREE(&(Desktop->Mutex), "Desktop");
 
     SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
