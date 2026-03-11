@@ -81,9 +81,9 @@ static const THEME_RECIPE Recipes[] = {
 };
 
 static const THEME_BINDING Bindings[] = {
-    {TEXT("window.frame"), TEXT("normal"), TEXT("window_frame_classic")},
-    {TEXT("window.frame"), TEXT("focused"), TEXT("window_frame_classic")},
-    {TEXT("window.frame"), TEXT("active"), TEXT("window_frame_classic")},
+    {TEXT("window.border"), TEXT("normal"), TEXT("window_frame_classic")},
+    {TEXT("window.border"), TEXT("focused"), TEXT("window_frame_classic")},
+    {TEXT("window.border"), TEXT("active"), TEXT("window_frame_classic")},
 };
 
 /***************************************************************************/

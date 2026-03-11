@@ -166,7 +166,7 @@ static BOOL DrawVerticalGradientRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, 
 /***************************************************************************/
 
 /**
- * @brief Resolve themed border thickness for window frame rendering.
+ * @brief Resolve themed border thickness for window border rendering.
  * @param ThicknessOut Receives thickness in pixels.
  * @return TRUE on success.
  */
@@ -176,9 +176,7 @@ static BOOL ResolveWindowBorderThickness(U32* ThicknessOut) {
     if (ThicknessOut == NULL) return FALSE;
 
     if (!DesktopThemeResolveLevel1Metric(TEXT("window.border"), TEXT("normal"), TEXT("border_thickness"), &BorderThickness)) {
-        if (!DesktopThemeResolveLevel1Metric(TEXT("window.frame"), TEXT("normal"), TEXT("border_thickness"), &BorderThickness)) {
-            BorderThickness = 2;
-        }
+        BorderThickness = 2;
     }
 
     if (BorderThickness == 0) BorderThickness = 1;
@@ -210,11 +208,9 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
     (void)ResolveWindowBorderThickness(&BorderThickness);
 
     if (!DesktopThemeResolveLevel1Color(TEXT("window.border"), TEXT("normal"), TEXT("border_color"), &BorderColor)) {
-        if (!DesktopThemeResolveLevel1Color(TEXT("window.frame"), TEXT("normal"), TEXT("border_color"), &BorderColor)) {
-            HANDLE Pen = GetSystemPen(SM_COLOR_DARK_SHADOW);
-            SAFE_USE_VALID_ID((LPPEN)Pen, KOID_PEN) {
-                BorderColor = ((LPPEN)Pen)->Color;
-            }
+        HANDLE Pen = GetSystemPen(SM_COLOR_DARK_SHADOW);
+        SAFE_USE_VALID_ID((LPPEN)Pen, KOID_PEN) {
+            BorderColor = ((LPPEN)Pen)->Color;
         }
     }
 
@@ -377,11 +373,9 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
     }
 
     if (!DesktopThemeResolveLevel1Color(TEXT("window.border"), TEXT("normal"), TEXT("border_color"), &SeparatorColor)) {
-        if (!DesktopThemeResolveLevel1Color(TEXT("window.frame"), TEXT("normal"), TEXT("border_color"), &SeparatorColor)) {
-            HANDLE Pen = GetSystemPen(SM_COLOR_DARK_SHADOW);
-            SAFE_USE_VALID_ID((LPPEN)Pen, KOID_PEN) {
-                SeparatorColor = ((LPPEN)Pen)->Color;
-            }
+        HANDLE Pen = GetSystemPen(SM_COLOR_DARK_SHADOW);
+        SAFE_USE_VALID_ID((LPPEN)Pen, KOID_PEN) {
+            SeparatorColor = ((LPPEN)Pen)->Color;
         }
     }
 
@@ -396,7 +390,7 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
 /***************************************************************************/
 
 /**
- * @brief Draw themed client area inside the non-client frame.
+ * @brief Draw themed client area inside the non-client border.
  * @param Window Window handle.
  * @param GC Graphics context.
  * @param Rect Full window rectangle in window coordinates.
@@ -666,7 +660,7 @@ BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect) {
         }
     }
 
-    if (DesktopThemeDrawRecipeForElementState(Window, GC, Rect, TEXT("window.frame"), TEXT("normal"))) {
+    if (DesktopThemeDrawRecipeForElementState(Window, GC, Rect, TEXT("window.border"), TEXT("normal"))) {
         (void)DrawWindowTitleBarFromTheme(Window, GC, Rect);
         DrawWindowBorderFromTheme(GC, Rect);
         return TRUE;

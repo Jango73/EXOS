@@ -115,7 +115,6 @@ Use canonical element identifiers. These names are part of the theme contract.
 
 Core desktop and window elements:
 - `desktop.root`
-- `window.frame`
 - `window.client`
 - `window.titlebar`
 - `window.title.text`
@@ -177,7 +176,8 @@ Example:
 ```toml
 [tokens]
 color.desktop.background = "#002b36"
-color.window.frame = "#a0a0a0"
+color.window.border = "#000000"
+color.client.background = "#202020"
 color.window.title.active.start = "#1f4a9a"
 color.window.title.active.end = "#4f89ff"
 color.window.title.inactive.start = "#5a5a5a"
@@ -226,7 +226,6 @@ Example recipe:
 ```toml
 [recipes.window_frame_classic]
 steps = [
-  { op = "fill_rect",   x1 = 0, y1 = 0, x2 = "w-1", y2 = "h-1", color = "token:color.window.frame" },
   { op = "stroke_rect", x1 = 0, y1 = 0, x2 = "w-1", y2 = "h-1", color = "#000000", thickness = 1 },
   { op = "stroke_rect", x1 = 1, y1 = 1, x2 = "w-2", y2 = "h-2", color = "#ffffff", thickness = 1 }
 ]
@@ -236,8 +235,8 @@ State-aware binding:
 
 ```toml
 [bindings]
-"window.frame.normal" = "window_frame_classic"
-"window.frame.focused" = "window_frame_classic"
+"window.border.normal" = "window_frame_classic"
+"window.border.focused" = "window_frame_classic"
 "window.button.close.hover" = "window_button_close_hover"
 ```
 
@@ -315,7 +314,7 @@ Compatibility first, then extension.
 
 ### Step 3: Define TOML Theme Schema
 - [x] Freeze top-level sections: `theme`, `tokens`, `elements`, `recipes`, `bindings`.
-- [x] Freeze canonical element identifiers (`desktop.root`, `window.frame`, etc.).
+- [x] Freeze canonical element identifiers (`desktop.root`, `window.border`, `window.titlebar`, etc.).
 - [x] Freeze state identifiers and state fallback order.
 - [x] Define allowed property names and value types per element family.
 - [x] Define parser limits (file size, token count, recipe count, primitive count).

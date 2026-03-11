@@ -43,6 +43,7 @@
 #define THEME_TOKEN_COLOR_TITLE_BAR 0x00001009
 #define THEME_TOKEN_COLOR_TITLE_BAR_2 0x0000100A
 #define THEME_TOKEN_COLOR_TITLE_TEXT 0x0000100B
+#define THEME_TOKEN_COLOR_WINDOW_BORDER 0x0000100C
 
 /************************************************************************/
 // Built-in metric token identifiers
