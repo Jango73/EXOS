@@ -1907,6 +1907,8 @@ Reusable geometry conversions are centralized in `kernel/source/utils/Graphics-U
 Userland can query both rectangle spaces through `GetWindowRect` and `GetWindowClientRect`.
 Window hierarchy traversal is centralized in `kernel/source/desktop/Desktop-WindowRelations.c`; parent and direct child/sibling discovery are exposed through `GetWindowParent`, `GetWindowChildCount`, `GetWindowChild`, `GetNextWindowSibling`, and `GetPreviousWindowSibling`.
 Window placement policy can be expressed through generic window style bits. `EWS_EXCLUDE_SIBLING_PLACEMENT` marks one window as reserving its own rectangle against sibling placement.
+Sibling z-order policy can also be expressed through generic style bits: `EWS_ALWAYS_IN_FRONT` keeps one window in the front band, while `EWS_ALWAYS_AT_BOTTOM` keeps one window in the bottom band.
+Sibling z-order values are not guaranteed to remain equal to the last raw `Order` value one caller observed or assigned, because the desktop pipeline can renormalize sibling orders after topmost/bottommost style changes.
 The core placement resolver first constrains one candidate rectangle to the parent effective work rectangle, then shrinks that placement area around visible sibling windows that reserve placement on one parent edge, and finally rejects any remaining overlap with reserved sibling rectangles.
 Dockable components publish this reservation through the high-level window style API on the docked window itself. Host relayout temporarily clears that style on attached dockables while one new layout frame is applied, then restores it after the frame is committed, so docking does not require one core placement bypass path.
 Visibility changes and style changes affecting `EWS_EXCLUDE_SIBLING_PLACEMENT` or `EWS_VISIBLE` immediately trigger one sibling-placement revalidation pass, so existing sibling windows are re-clamped through the same generic placement resolver without waiting for a later move or creation path.
@@ -1928,7 +1930,7 @@ Parent movement constraints use the generic window work rectangle API (`SetWindo
 Docked windows publish sibling-placement exclusion through `EWS_EXCLUDE_SIBLING_PLACEMENT` and do not use docking-specific bypass logic when the host applies one assigned rectangle.
 Shell bar content composition uses slot windows exposed by `kernel/source/ui/ShellBar.c` (`left`, `center`, `components`) and the desktop injects concrete component windows into these slots.
 The shell bar does not reference concrete component types; it only manages slot geometry and keeps slot children fitted to slot client rectangles.
-The on-screen debug information component (`kernel/source/ui/OnScreenDebugInfo.c`, `kernel/include/ui/OnScreenDebugInfo.h`) is instantiated by the internal desktop test path and renders graphics debug lines through the shared high-level text API without coupling to other components.
+The on-screen debug information component (`kernel/source/ui/OnScreenDebugInfo.c`, `kernel/include/ui/OnScreenDebugInfo.h`) is instantiated by the internal desktop test path as one bare bottom-band window spanning part of the desktop placement area, and it renders graphics debug lines through the shared high-level text API without coupling to other components.
 
 #### Theme architecture
 

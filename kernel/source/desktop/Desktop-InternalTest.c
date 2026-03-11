@@ -33,7 +33,6 @@
 
 #define DESKTOP_INTERNAL_TEST_WINDOW_ID_A 0x000085A1
 #define DESKTOP_INTERNAL_ON_SCREEN_DEBUG_INFO_WINDOW_ID 0x000085D1
-#define DESKTOP_INTERNAL_ON_SCREEN_DEBUG_INFO_MARGIN 16
 
 /***************************************************************************/
 
@@ -97,7 +96,6 @@ static BOOL DesktopInternalResolveCenteredWindowRect(LPDESKTOP Desktop, LPRECT R
  */
 static BOOL DesktopInternalResolveOnScreenDebugInfoRect(LPDESKTOP Desktop, LPRECT Rect) {
     RECT DesktopRect;
-    POINT PreferredSize;
     I32 DesktopWidth;
     I32 DesktopHeight;
     I32 Width;
@@ -106,7 +104,6 @@ static BOOL DesktopInternalResolveOnScreenDebugInfoRect(LPDESKTOP Desktop, LPREC
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
     if (Rect == NULL) return FALSE;
     if (Desktop->Window == NULL || Desktop->Window->TypeID != KOID_WINDOW) return FALSE;
-    if (OnScreenDebugInfoGetPreferredSize(&PreferredSize) == FALSE) return FALSE;
 
     if (GetWindowWorkRect((HANDLE)Desktop->Window, &DesktopRect) == FALSE) {
         if (GetDesktopScreenRect(Desktop, &DesktopRect) == FALSE) return FALSE;
@@ -114,18 +111,17 @@ static BOOL DesktopInternalResolveOnScreenDebugInfoRect(LPDESKTOP Desktop, LPREC
 
     DesktopWidth = DesktopRect.X2 - DesktopRect.X1 + 1;
     DesktopHeight = DesktopRect.Y2 - DesktopRect.Y1 + 1;
-    Width = PreferredSize.X;
-    Height = PreferredSize.Y;
+    if (DesktopWidth <= 0 || DesktopHeight <= 0) return FALSE;
 
-    if (DesktopWidth <= 0 || DesktopHeight <= 0 || Width <= 0 || Height <= 0) return FALSE;
-    if (Width > DesktopWidth) Width = DesktopWidth;
-    if (Height > DesktopHeight) Height = DesktopHeight;
+    Width = DesktopWidth / 2;
+    Height = DesktopHeight / 4;
+    if (Width <= 0) Width = 1;
+    if (Height <= 0) Height = 1;
 
-    Rect->X1 = DesktopRect.X1 + DESKTOP_INTERNAL_ON_SCREEN_DEBUG_INFO_MARGIN;
-    Rect->Y1 = DesktopRect.Y1 + DESKTOP_INTERNAL_ON_SCREEN_DEBUG_INFO_MARGIN;
+    Rect->X1 = DesktopRect.X1;
+    Rect->Y1 = DesktopRect.Y1;
     Rect->X2 = Rect->X1 + Width - 1;
     Rect->Y2 = Rect->Y1 + Height - 1;
-
     return TRUE;
 }
 
@@ -390,7 +386,7 @@ BOOL DesktopInternalTestEnsureWindowsVisible(LPDESKTOP Desktop) {
         TEXT("OnScreenDebugInfo"),
         NULL,
         OnScreenDebugInfoWindowFunc,
-        EWS_VISIBLE | EWS_CLIENT_DECORATED | EWS_ALWAYS_IN_FRONT,
+        EWS_VISIBLE | EWS_BARE_SURFACE | EWS_ALWAYS_AT_BOTTOM,
         DebugInfoRect.X1,
         DebugInfoRect.Y1,
         DebugInfoRect.X2 - DebugInfoRect.X1 + 1,

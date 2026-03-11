@@ -28,6 +28,43 @@
 /***************************************************************************/
 
 /**
+ * @brief Recalculate one parent child order list from sibling z-order styles.
+ * @param Parent Parent window, already locked.
+ */
+static void DesktopRecalculateParentChildOrdersLocked(LPWINDOW Parent) {
+    LPLISTNODE Node;
+    LPWINDOW Child;
+    I32 NextOrder;
+    U32 Pass;
+
+    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return;
+    if (Parent->Children == NULL) return;
+
+    NextOrder = 0;
+    for (Pass = 0; Pass < 3; Pass++) {
+        for (Node = Parent->Children->First; Node != NULL; Node = Node->Next) {
+            Child = (LPWINDOW)Node;
+            if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
+
+            LockMutex(&(Child->Mutex), INFINITY);
+            if (Pass == 0 && (Child->Style & EWS_ALWAYS_IN_FRONT) != 0) {
+                Child->Order = NextOrder++;
+            } else if (Pass == 1 &&
+                       (Child->Style & (EWS_ALWAYS_IN_FRONT | EWS_ALWAYS_AT_BOTTOM)) == 0) {
+                Child->Order = NextOrder++;
+            } else if (Pass == 2 && (Child->Style & EWS_ALWAYS_AT_BOTTOM) != 0) {
+                Child->Order = NextOrder++;
+            }
+            UnlockMutex(&(Child->Mutex));
+        }
+    }
+
+    ListSort(Parent->Children, SortWindows_Order);
+}
+
+/***************************************************************************/
+
+/**
  * @brief Snapshot one window state under its owner mutex.
  * @param Window Source window.
  * @param Snapshot Receives state snapshot.
@@ -263,30 +300,57 @@ BOOL DesktopConsumeWindowDirtyRegionSnapshot(
  * @return TRUE on success.
  */
 BOOL DesktopAttachWindowChild(LPWINDOW Parent, LPWINDOW Child) {
-    LPLISTNODE Node;
-    LPWINDOW Sibling;
-
     if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return FALSE;
     if (Child == NULL || Child->TypeID != KOID_WINDOW) return FALSE;
 
     LockMutex(&(Parent->Mutex), INFINITY);
-
-    for (Node = Parent->Children != NULL ? Parent->Children->First : NULL; Node != NULL; Node = Node->Next) {
-        Sibling = (LPWINDOW)Node;
-        if (Sibling == NULL || Sibling->TypeID != KOID_WINDOW) continue;
-
-        LockMutex(&(Sibling->Mutex), INFINITY);
-        Sibling->Order++;
-        UnlockMutex(&(Sibling->Mutex));
-    }
-
-    LockMutex(&(Child->Mutex), INFINITY);
-    Child->Order = 0;
-    UnlockMutex(&(Child->Mutex));
-
     ListAddHead(Parent->Children, Child);
+    DesktopRecalculateParentChildOrdersLocked(Parent);
 
     UnlockMutex(&(Parent->Mutex));
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Re-sort one parent child list after one z-order style change.
+ * @param Window Window whose parent child list must be re-sorted.
+ * @return TRUE on success.
+ */
+BOOL DesktopRefreshWindowZOrder(LPWINDOW Window) {
+    LPWINDOW Parent;
+    LPWINDOW* Children;
+    UINT ChildCount;
+    UINT ChildIndex;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    Parent = Window->ParentWindow;
+    UnlockMutex(&(Window->Mutex));
+
+    if (Parent == NULL || Parent->TypeID != KOID_WINDOW) return TRUE;
+
+    LockMutex(&(Parent->Mutex), INFINITY);
+    DesktopRecalculateParentChildOrdersLocked(Parent);
+    UnlockMutex(&(Parent->Mutex));
+
+    (void)RequestWindowDraw((HANDLE)Parent);
+
+    Children = NULL;
+    ChildCount = 0;
+    if (DesktopSnapshotWindowChildren(Parent, &Children, &ChildCount) == FALSE) return FALSE;
+
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        if (Children[ChildIndex] == NULL || Children[ChildIndex]->TypeID != KOID_WINDOW) continue;
+        (void)RequestWindowDraw((HANDLE)Children[ChildIndex]);
+    }
+
+    if (Children != NULL) {
+        KernelHeapFree(Children);
+    }
+
     return TRUE;
 }
 

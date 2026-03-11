@@ -116,6 +116,8 @@ BOOL DesktopSetWindowTask(LPWINDOW Window, LPTASK Task);
 BOOL DesktopSetWindowVisibleState(LPWINDOW Window, BOOL ShowHide);
 BOOL DesktopSetWindowStyleState(LPWINDOW Window, U32 StyleMask, BOOL Enabled);
 BOOL DesktopSetWindowBypassParentWorkRectState(LPWINDOW Window, BOOL Enabled);
+BOOL DesktopRefreshWindowZOrder(LPWINDOW Window);
+I32 SortWindows_Order(LPCVOID Item1, LPCVOID Item2);
 BOOL DesktopGetRootWindow(LPDESKTOP Desktop, LPWINDOW* RootWindow);
 BOOL DesktopClearWindowReferences(LPDESKTOP Desktop, LPWINDOW Window);
 BOOL GetDesktopCaptureState(LPWINDOW Window, LPWINDOW* CaptureWindow, I32* OffsetX, I32* OffsetY);

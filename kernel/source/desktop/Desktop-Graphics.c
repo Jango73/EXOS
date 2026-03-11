@@ -716,6 +716,9 @@ BOOL SetWindowStyleState(HANDLE Handle, U32 StyleMask, BOOL Enabled) {
     if ((StyleMask & (EWS_EXCLUDE_SIBLING_PLACEMENT | EWS_VISIBLE)) != 0) {
         (void)DesktopRevalidateSiblingPlacementConstraints(This);
     }
+    if ((StyleMask & (EWS_ALWAYS_IN_FRONT | EWS_ALWAYS_AT_BOTTOM)) != 0) {
+        (void)DesktopRefreshWindowZOrder(This);
+    }
 
     return TRUE;
 }
