@@ -69,7 +69,7 @@ static LPWINDOW StartupDesktopComponentsFindDirectChildByProp(LPWINDOW Parent, L
  * @param Desktop Target desktop.
  * @return TRUE on success.
  */
-static BOOL StartupDesktopComponentsInjectShellBarClock(LPDESKTOP Desktop) {
+static BOOL InjectShellBarClock(LPDESKTOP Desktop) {
     HANDLE ShellBarWindow;
     HANDLE ComponentsSlotWindow;
     HANDLE ClockWindow;
@@ -206,7 +206,6 @@ static BOOL CreateLogViewer(LPDESKTOP Desktop) {
 /***************************************************************************/
 
 BOOL StartupDesktopComponentsInitialize(LPDESKTOP Desktop) {
-    BOOL ClockResult;
     BOOL LogViewerResult;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
@@ -218,12 +217,8 @@ BOOL StartupDesktopComponentsInitialize(LPDESKTOP Desktop) {
     }
 
     Desktop->PendingComponents |= DESKTOP_PENDING_COMPONENT_CLOCK;
-    ClockResult = StartupDesktopComponentsInjectShellBarClock(Desktop);
-    if (ClockResult != FALSE) {
-        Desktop->PendingComponents &= ~DESKTOP_PENDING_COMPONENT_CLOCK;
-    }
     LogViewerResult = CreateLogViewer(Desktop);
-    return (ClockResult != FALSE && LogViewerResult != FALSE);
+    return LogViewerResult != FALSE;
 }
 
 /***************************************************************************/
@@ -235,7 +230,7 @@ BOOL StartupDesktopComponentsHandleChildAppended(LPDESKTOP Desktop, U32 ChildWin
     if (ChildWindowID != SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID) return FALSE;
     if ((Desktop->PendingComponents & DESKTOP_PENDING_COMPONENT_CLOCK) == 0) return FALSE;
 
-    Result = StartupDesktopComponentsInjectShellBarClock(Desktop);
+    Result = InjectShellBarClock(Desktop);
     if (Result != FALSE) {
         Desktop->PendingComponents &= ~DESKTOP_PENDING_COMPONENT_CLOCK;
     }
