@@ -10,7 +10,7 @@ Tested on QEMU, Bochs, ACER Predator.<br>
 
 This is an ongoing operating system project that was abandoned in late 1999.<br>
 Back then, it was 32 bit only and compiled with gcc and nasm, and linked with jloc.<br>
-In 2025, I ported the project to i686-elf-gcc/nasm/i686-elf-ld, then ported to x86-64.
+In summer 2025, I ported the project to i686-elf-gcc/nasm/i686-elf-ld, then ported to x86-64.
 
 ## Disclaimer
 
@@ -83,6 +83,7 @@ EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/con
 
 ## Things it will do
 
+- Full windowing system
 - IPC (shared memory through page mapping)
 - Multi-core (SMP)
 - Full security

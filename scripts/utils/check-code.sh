@@ -155,7 +155,8 @@ for FILE in $FILES; do
                 TemplateLineCount++;
                 TemplateLines[TemplateLineCount] = TemplateLine;
                 if (index(TemplateLine, "<Domain name>") > 0 ||
-                    index(TemplateLine, "<Module name>") > 0) {
+                    index(TemplateLine, "<Module name>") > 0 ||
+                    index(TemplateLine, "<CopyrightEndYear>") > 0) {
                     PlaceholderLines[TemplateLineCount] = 1;
                 }
             }
