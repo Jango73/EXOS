@@ -48,6 +48,45 @@ static U32 DesktopInternalStressNextRandom(U32* State) {
 /***************************************************************************/
 
 /**
+ * @brief Resolve the centered half-size test window rectangle in desktop coordinates.
+ * @param Desktop Target desktop.
+ * @param Rect Receives the resulting rectangle.
+ * @return TRUE on success.
+ */
+static BOOL DesktopInternalResolveCenteredWindowRect(LPDESKTOP Desktop, LPRECT Rect) {
+    RECT DesktopRect;
+    I32 DesktopWidth;
+    I32 DesktopHeight;
+    I32 WindowWidth;
+    I32 WindowHeight;
+
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+    if (Rect == NULL) return FALSE;
+    if (Desktop->Window == NULL || Desktop->Window->TypeID != KOID_WINDOW) return FALSE;
+
+    if (GetWindowWorkRect((HANDLE)Desktop->Window, &DesktopRect) == FALSE) {
+        if (GetDesktopScreenRect(Desktop, &DesktopRect) == FALSE) return FALSE;
+    }
+
+    DesktopWidth = DesktopRect.X2 - DesktopRect.X1 + 1;
+    DesktopHeight = DesktopRect.Y2 - DesktopRect.Y1 + 1;
+    if (DesktopWidth <= 0 || DesktopHeight <= 0) return FALSE;
+
+    WindowWidth = DesktopWidth / 2;
+    WindowHeight = DesktopHeight / 2;
+    if (WindowWidth <= 0) WindowWidth = 1;
+    if (WindowHeight <= 0) WindowHeight = 1;
+
+    Rect->X1 = DesktopRect.X1 + ((DesktopWidth - WindowWidth) / 2);
+    Rect->Y1 = DesktopRect.Y1 + ((DesktopHeight - WindowHeight) / 2);
+    Rect->X2 = Rect->X1 + WindowWidth - 1;
+    Rect->Y2 = Rect->Y1 + WindowHeight - 1;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Move one window while preserving its current size.
  * @param Window Target window.
  * @param Position New top-left position in parent coordinates.
@@ -233,11 +272,18 @@ static BOOL DesktopInternalEnsureSingleWindow(
 ) {
     LPWINDOW Window;
     WINDOWINFO WindowInfo;
+    RECT WindowRect;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
 
     Window = DesktopInternalFindTestWindow(Desktop, WindowID);
+    WindowRect.X1 = X;
+    WindowRect.Y1 = Y;
+    WindowRect.X2 = X + Width - 1;
+    WindowRect.Y2 = Y + Height - 1;
+
     if (Window != NULL && Window->TypeID == KOID_WINDOW) {
+        (void)MoveWindow((HANDLE)Window, &WindowRect);
         (void)ShowWindow((HANDLE)Window, TRUE);
         DEBUG(TEXT("[DesktopInternalEnsureSingleWindow] Existing test window visible title=%s id=%x"), Title, WindowID);
         return TRUE;
@@ -274,8 +320,10 @@ static BOOL DesktopInternalEnsureSingleWindow(
 
 BOOL DesktopInternalTestEnsureWindowsVisible(LPDESKTOP Desktop) {
     BOOL FirstCreated;
+    RECT WindowRect;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+    if (DesktopInternalResolveCenteredWindowRect(Desktop, &WindowRect) == FALSE) return FALSE;
 
     FirstCreated = DesktopInternalEnsureSingleWindow(
         Desktop,
@@ -283,10 +331,10 @@ BOOL DesktopInternalTestEnsureWindowsVisible(LPDESKTOP Desktop) {
         TEXT("Kernel Test Alpha"),
         NULL,
         DesktopInternalTestWindowFunc,
-        48,
-        56,
-        360,
-        220);
+        WindowRect.X1,
+        WindowRect.Y1,
+        WindowRect.X2 - WindowRect.X1 + 1,
+        WindowRect.Y2 - WindowRect.Y1 + 1);
 
     return FirstCreated;
 
