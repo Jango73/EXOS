@@ -31,7 +31,6 @@
 /***************************************************************************/
 
 BOOL StartupDesktopComponentsInitialize(LPDESKTOP Desktop);
-BOOL StartupDesktopComponentsHandleChildAppended(LPDESKTOP Desktop, U32 ChildWindowID);
 
 /***************************************************************************/
 

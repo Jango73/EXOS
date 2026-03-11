@@ -47,6 +47,7 @@ BOOL ShellBarEnsureClassRegistered(void);
 BOOL ShellBarCreate(HANDLE ParentWindow);
 HANDLE ShellBarGetWindow(HANDLE ParentWindow);
 HANDLE ShellBarGetSlotWindow(HANDLE ShellBarWindow, U32 SlotID);
+BOOL ShellBarEnsureClockWidget(HANDLE ShellBarWindow);
 U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
 
 /************************************************************************/

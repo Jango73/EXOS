@@ -23,8 +23,9 @@
 
 #include "ui/ShellBar.h"
 
-#include "ui/WindowDockable.h"
 #include "Log.h"
+#include "ui/ClockWidget.h"
+#include "ui/WindowDockable.h"
 
 /************************************************************************/
 
@@ -35,6 +36,8 @@
 #define SHELL_BAR_SLOT_COMPONENTS_WIDTH 168
 #define SHELL_BAR_ROLE_PROP TEXT("shellbar.role")
 #define SHELL_BAR_SLOT_PROP TEXT("shellbar.slot")
+#define SHELL_BAR_CLOCK_PROP TEXT("desktop.shellbar.clock")
+#define SHELL_BAR_CLOCK_WINDOW_ID 0x5342434C
 #define SHELL_BAR_ROLE_MAIN 1
 
 /************************************************************************/
@@ -98,6 +101,45 @@ static HANDLE ShellBarFindDirectChildByProp(HANDLE Parent, LPCSTR Name, U32 Valu
     }
 
     return NULL;
+}
+
+/************************************************************************/
+
+BOOL ShellBarEnsureClockWidget(HANDLE ShellBarWindow) {
+    HANDLE ComponentsSlotWindow;
+    HANDLE ClockWindow;
+    WINDOWINFO WindowInfo;
+
+    if (ShellBarWindow == NULL) return FALSE;
+    if (DesktopClockWidgetEnsureClassRegistered() == FALSE) return FALSE;
+
+    ComponentsSlotWindow = ShellBarGetSlotWindow(ShellBarWindow, SHELL_BAR_SLOT_COMPONENTS);
+    if (ComponentsSlotWindow == NULL) return FALSE;
+
+    ClockWindow = ShellBarFindDirectChildByProp(ComponentsSlotWindow, SHELL_BAR_CLOCK_PROP, 1);
+    if (ClockWindow != NULL) return TRUE;
+
+    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Version = EXOS_ABI_VERSION;
+    WindowInfo.Header.Flags = 0;
+    WindowInfo.Window = NULL;
+    WindowInfo.Parent = ComponentsSlotWindow;
+    WindowInfo.WindowClass = 0;
+    WindowInfo.WindowClassName = DESKTOP_CLOCK_WIDGET_WINDOW_CLASS_NAME;
+    WindowInfo.Function = NULL;
+    WindowInfo.Style = EWS_VISIBLE | EWS_CLIENT_DECORATED;
+    WindowInfo.ID = SHELL_BAR_CLOCK_WINDOW_ID;
+    WindowInfo.WindowPosition.X = 0;
+    WindowInfo.WindowPosition.Y = 0;
+    WindowInfo.WindowSize.X = 1;
+    WindowInfo.WindowSize.Y = 1;
+    WindowInfo.ShowHide = TRUE;
+
+    ClockWindow = (HANDLE)CreateWindow(&WindowInfo);
+    if (ClockWindow == NULL) return FALSE;
+
+    (void)SetWindowProp(ClockWindow, SHELL_BAR_CLOCK_PROP, 1);
+    return TRUE;
 }
 
 /************************************************************************/
@@ -318,8 +360,6 @@ HANDLE ShellBarGetSlotWindow(HANDLE ShellBarWindow, U32 SlotID) {
 /************************************************************************/
 
 U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
-    RECT WindowRect;
-
     switch (Message) {
         case EWM_CREATE:
             (void)SetWindowProp(Window, SHELL_BAR_ROLE_PROP, SHELL_BAR_ROLE_MAIN);
@@ -343,20 +383,13 @@ U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
         case EWM_CHILD_APPENDED:
         case EWM_CHILD_REMOVED:
-            DEBUG(TEXT("[ShellBarWindowFunc] Message=%x window=%p child_id=%x"), Message, Window, Param1);
             ShellBarHandleChildAppended(Window);
+            if (Message == EWM_CHILD_APPENDED && Param1 == SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID) {
+                (void)ShellBarEnsureClockWidget(Window);
+            }
             return 1;
 
         case EWM_DRAW:
-            if (GetWindowRect(Window, &WindowRect) != FALSE) {
-                DEBUG(
-                    TEXT("[ShellBarWindowFunc] EWM_DRAW id=%x rect=(%x,%x)-(%x,%x)"),
-                    SHELL_BAR_WINDOW_ID,
-                    WindowRect.X1,
-                    WindowRect.Y1,
-                    WindowRect.X2,
-                    WindowRect.Y2);
-            }
             (void)BaseWindowFunc(Window, EWM_CLEAR, Param1, Param2);
             return 1;
     }

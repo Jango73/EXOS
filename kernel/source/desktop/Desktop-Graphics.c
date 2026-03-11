@@ -34,7 +34,6 @@
 #include "input/Mouse.h"
 #include "input/MouseDispatcher.h"
 #include "process/Task-Messaging.h"
-#include "ui/Startup-Desktop-Components.h"
 #include "utils/Graphics-Utils.h"
 
 /***************************************************************************/
@@ -1529,21 +1528,6 @@ static U32 DrawButtons(HANDLE GC) {
  */
 U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     switch (Message) {
-        case EWM_CREATE: {
-        } break;
-
-        case EWM_NOTIFY:
-            break;
-
-        case EWM_CHILD_APPENDED: {
-            LPDESKTOP Desktop;
-
-            Desktop = GetWindowDesktop((LPWINDOW)Window);
-            if (Desktop != NULL && StartupDesktopComponentsHandleChildAppended(Desktop, Param1) != FALSE) {
-                return 1;
-            }
-        } break;
-
         case EWM_DRAW: {
             HANDLE GC;
             RECTINFO RectInfo;

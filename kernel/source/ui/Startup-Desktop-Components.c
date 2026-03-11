@@ -23,17 +23,13 @@
 
 #include "ui/Startup-Desktop-Components.h"
 
-#include "ui/ClockWidget.h"
 #include "ui/LogViewer.h"
 #include "ui/ShellBar.h"
 
 /***************************************************************************/
 
-#define DESKTOP_SHELL_BAR_CLOCK_WINDOW_ID 0x5342434C
-#define DESKTOP_SHELL_BAR_CLOCK_PROP TEXT("desktop.shellbar.clock")
 #define DESKTOP_LOG_VIEWER_WINDOW_ID 0x534C4F47
 #define DESKTOP_LOG_VIEWER_PROP TEXT("desktop.logviewer.window")
-#define DESKTOP_PENDING_COMPONENT_CLOCK 0x00000001
 
 /***************************************************************************/
 
@@ -60,63 +56,6 @@ static LPWINDOW StartupDesktopComponentsFindDirectChildByProp(LPWINDOW Parent, L
     }
 
     return NULL;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Inject the desktop clock widget into the shell bar components slot.
- * @param Desktop Target desktop.
- * @return TRUE on success.
- */
-static BOOL InjectShellBarClock(LPDESKTOP Desktop) {
-    HANDLE ShellBarWindow;
-    HANDLE ComponentsSlotWindow;
-    HANDLE ClockWindow;
-    WINDOWINFO WindowInfo;
-
-    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
-        return FALSE;
-    }
-    if (DesktopClockWidgetEnsureClassRegistered() == FALSE) {
-        return FALSE;
-    }
-
-    ShellBarWindow = ShellBarGetWindow((HANDLE)Desktop->Window);
-    ComponentsSlotWindow = ShellBarGetSlotWindow(ShellBarWindow, SHELL_BAR_SLOT_COMPONENTS);
-    if (ComponentsSlotWindow == NULL) {
-        return FALSE;
-    }
-
-    ClockWindow = (HANDLE)StartupDesktopComponentsFindDirectChildByProp(
-        (LPWINDOW)ComponentsSlotWindow, DESKTOP_SHELL_BAR_CLOCK_PROP, 1);
-    if (ClockWindow != NULL) {
-        return TRUE;
-    }
-
-    WindowInfo.Header.Size = sizeof(WINDOWINFO);
-    WindowInfo.Header.Version = EXOS_ABI_VERSION;
-    WindowInfo.Header.Flags = 0;
-    WindowInfo.Window = NULL;
-    WindowInfo.Parent = ComponentsSlotWindow;
-    WindowInfo.WindowClass = 0;
-    WindowInfo.WindowClassName = DESKTOP_CLOCK_WIDGET_WINDOW_CLASS_NAME;
-    WindowInfo.Function = NULL;
-    WindowInfo.Style = EWS_VISIBLE | EWS_CLIENT_DECORATED;
-    WindowInfo.ID = DESKTOP_SHELL_BAR_CLOCK_WINDOW_ID;
-    WindowInfo.WindowPosition.X = 0;
-    WindowInfo.WindowPosition.Y = 0;
-    WindowInfo.WindowSize.X = 1;
-    WindowInfo.WindowSize.Y = 1;
-    WindowInfo.ShowHide = TRUE;
-
-    ClockWindow = (HANDLE)CreateWindow(&WindowInfo);
-    if (ClockWindow == NULL) {
-        return FALSE;
-    }
-
-    (void)SetWindowProp(ClockWindow, DESKTOP_SHELL_BAR_CLOCK_PROP, 1);
-    return TRUE;
 }
 
 /***************************************************************************/
@@ -216,23 +155,8 @@ BOOL StartupDesktopComponentsInitialize(LPDESKTOP Desktop) {
         return FALSE;
     }
 
-    Desktop->PendingComponents |= DESKTOP_PENDING_COMPONENT_CLOCK;
     LogViewerResult = CreateLogViewer(Desktop);
     return LogViewerResult != FALSE;
 }
 
 /***************************************************************************/
-
-BOOL StartupDesktopComponentsHandleChildAppended(LPDESKTOP Desktop, U32 ChildWindowID) {
-    BOOL Result = FALSE;
-
-    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
-    if (ChildWindowID != SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID) return FALSE;
-    if ((Desktop->PendingComponents & DESKTOP_PENDING_COMPONENT_CLOCK) == 0) return FALSE;
-
-    Result = InjectShellBarClock(Desktop);
-    if (Result != FALSE) {
-        Desktop->PendingComponents &= ~DESKTOP_PENDING_COMPONENT_CLOCK;
-    }
-    return Result;
-}
