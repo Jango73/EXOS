@@ -612,6 +612,7 @@ SYS_FUNC_BEGIN TaskRunner
     mov     r15, r15
 
     mov     rbx, rdi
+    mov     rdi, rsi            ; SysV ABI: first C argument = task parameter
     call    rbx                 ; Call task function
 
 .exit:
