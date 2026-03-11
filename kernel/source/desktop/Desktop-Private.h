@@ -92,6 +92,7 @@ BOOL DesktopGetWindowDrawSurfaceRect(LPWINDOW Window, LPRECT Rect);
 BOOL DesktopGetWindowDrawClipRect(LPWINDOW Window, LPRECT Rect);
 BOOL BuildWindowRectAtPosition(LPWINDOW Window, LPPOINT Position, LPRECT Rect);
 BOOL DesktopResolveWindowPlacementRect(LPWINDOW Window, LPRECT WindowRect);
+BOOL DesktopRevalidateSiblingPlacementConstraints(LPWINDOW Window);
 BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect);
 BOOL GetWindowScreenRectSnapshot(LPWINDOW Window, LPRECT Rect);
 BOOL GetWindowStateSnapshot(LPWINDOW Window, LPWINDOW_STATE_SNAPSHOT Snapshot);

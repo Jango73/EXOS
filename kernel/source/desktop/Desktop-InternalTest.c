@@ -129,8 +129,6 @@ static BOOL DesktopInternalResolveOnScreenDebugInfoRect(LPDESKTOP Desktop, LPREC
     return TRUE;
 }
 
-/***************************************************************************/
-
 /**
  * @brief Move one window while preserving its current size.
  * @param Window Target window.

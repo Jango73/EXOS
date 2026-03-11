@@ -222,12 +222,11 @@ BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect) {
 
     OldScreenRect = Snapshot.ScreenRect;
     OldRect = Snapshot.Rect;
+    if (DesktopResolveWindowPlacementRect(Window, WindowRect) == FALSE) return FALSE;
     if (WindowRect->X1 == OldRect.X1 && WindowRect->Y1 == OldRect.Y1 && WindowRect->X2 == OldRect.X2 &&
         WindowRect->Y2 == OldRect.Y2) {
         return TRUE;
     }
-
-    if (DesktopResolveWindowPlacementRect(Window, WindowRect) == FALSE) return FALSE;
     if (GetWindowScreenRectSnapshot(Parent, &ParentScreenRect) == FALSE) return FALSE;
 
     LockMutex(&(Window->Mutex), INFINITY);
@@ -577,6 +576,7 @@ BOOL ShowWindow(HANDLE Handle, BOOL ShowHide) {
     // Send appropriate messages to the window
 
     (void)DesktopSetWindowVisibleState(This, ShowHide);
+    (void)DesktopRevalidateSiblingPlacementConstraints(This);
 
     PostMessage(Handle, EWM_SHOW, 0, 0);
     (void)RequestWindowDraw(Handle);
@@ -705,11 +705,19 @@ BOOL SizeWindow(HANDLE Handle, LPPOINT Size) {
  */
 BOOL SetWindowStyleState(HANDLE Handle, U32 StyleMask, BOOL Enabled) {
     LPWINDOW This = (LPWINDOW)Handle;
+    BOOL Result;
 
     if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
     if (StyleMask == 0) return FALSE;
 
-    return DesktopSetWindowStyleState(This, StyleMask, Enabled);
+    Result = DesktopSetWindowStyleState(This, StyleMask, Enabled);
+    if (Result == FALSE) return FALSE;
+
+    if ((StyleMask & (EWS_EXCLUDE_SIBLING_PLACEMENT | EWS_VISIBLE)) != 0) {
+        (void)DesktopRevalidateSiblingPlacementConstraints(This);
+    }
+
+    return TRUE;
 }
 
 /***************************************************************************/

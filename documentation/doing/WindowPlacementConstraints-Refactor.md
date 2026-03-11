@@ -35,4 +35,4 @@
 - [ ] Confirm that no file in `desktop/` includes or references symbols from `ui/`.
 - [ ] Confirm that components use only public high-level APIs.
 - [ ] Confirm that a window created directly inside a reserved sibling area is rejected or clamped by the generic constraint path.
-- [ ] Update `documentation/Kernel.md` with the final architecture and constraint contract.
+- [x] Update `documentation/Kernel.md` with the final architecture and constraint contract.

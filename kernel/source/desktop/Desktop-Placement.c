@@ -290,3 +290,47 @@ BOOL DesktopResolveWindowPlacementRect(LPWINDOW Window, LPRECT WindowRect) {
 
     return ValidateReservedSiblingIntersections(Window, Parent, WindowRect);
 }
+
+/***************************************************************************/
+
+/**
+ * @brief Reapply generic sibling-placement constraints after one reservation change.
+ * @param Window Window whose reservation state changed.
+ * @return TRUE on success.
+ */
+BOOL DesktopRevalidateSiblingPlacementConstraints(LPWINDOW Window) {
+    WINDOW_STATE_SNAPSHOT Snapshot;
+    WINDOW_STATE_SNAPSHOT ChildSnapshot;
+    LPWINDOW* Children;
+    LPWINDOW Child;
+    UINT ChildCount;
+    UINT ChildIndex;
+    RECT Rect;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return FALSE;
+    if (Snapshot.ParentWindow == NULL || Snapshot.ParentWindow->TypeID != KOID_WINDOW) return TRUE;
+
+    Rect = Snapshot.Rect;
+    (void)DefaultSetWindowRect(Window, &Rect);
+
+    Children = NULL;
+    ChildCount = 0;
+    if (DesktopSnapshotWindowChildren(Snapshot.ParentWindow, &Children, &ChildCount) == FALSE) return FALSE;
+
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        Child = Children[ChildIndex];
+
+        if (Child == NULL || Child->TypeID != KOID_WINDOW || Child == Window) continue;
+        if (GetWindowStateSnapshot(Child, &ChildSnapshot) == FALSE) continue;
+
+        Rect = ChildSnapshot.Rect;
+        (void)DefaultSetWindowRect(Child, &Rect);
+    }
+
+    if (Children != NULL) {
+        KernelHeapFree(Children);
+    }
+
+    return TRUE;
+}
