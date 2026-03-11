@@ -1879,7 +1879,7 @@ The network stack successfully handles real network traffic across multiple devi
 
 ### Desktop shell entry points
 
-The `desktop` shell command exposes `desktop show`, `desktop status`, and `desktop theme <path-or-name>`. `desktop show` creates the kernel shell desktop on first use, selects and persists one complete display selection (`backend + mode`) on that first activation, reuses that same persisted selection on later activations of the same desktop, and optionally applies `Desktop.ThemePath` from `exos.*.toml`; theme load/activation failures are reported but never block desktop activation.
+The `desktop` shell command exposes `desktop show`, `desktop status`, and `desktop theme <path-or-name>`. `desktop show` creates the kernel shell desktop on first use, selects and persists one complete display selection (`backend + mode`) on that first activation, reuses that same persisted selection on later activations of the same desktop, and injects startup desktop components only after the desktop activation path succeeds. Theme load/activation from `Desktop.ThemePath` in `exos.*.toml` remains optional; failures are reported but never block desktop activation.
 An internal kernel test module (`kernel/source/desktop/Desktop-InternalTest.c`, `kernel/include/desktop/Desktop-InternalTest.h`) runs on `desktop show` and ensures one visible test window exists on the shell desktop, with deterministic placement for windowing validation.
 
 ### Windowing core paths
@@ -1933,7 +1933,7 @@ When a window is detached from an existing subtree, the windowing core also post
 Public window lookup uses `FindWindow(Start, WindowID)` to resolve one window by identifier inside one subtree, while handle membership checks use `ContainsWindow(Start, Target)` when one caller must validate that one concrete handle belongs to that subtree.
 Parent movement constraints use the generic window work rectangle API (`SetWindowWorkRect`, `GetWindowWorkRect`) so specialized layout components can publish host work areas without coupling core windowing paths to docking details.
 Docked windows publish sibling-placement exclusion through `EWS_EXCLUDE_SIBLING_PLACEMENT` and do not use docking-specific bypass logic when the host applies one assigned rectangle.
-Shell bar content composition uses slot windows exposed by `kernel/source/ui/ShellBar.c` (`left`, `center`, `components`) and the desktop injects concrete component windows into these slots.
+Shell bar content composition uses slot windows exposed by `kernel/source/ui/ShellBar.c` (`left`, `center`, `components`) and the desktop injects concrete component windows into these slots after desktop activation succeeds.
 The shell bar does not reference concrete component types; it only manages slot geometry and keeps slot children fitted to slot client rectangles.
 The on-screen debug information component (`kernel/source/ui/OnScreenDebugInfo.c`, `kernel/include/ui/OnScreenDebugInfo.h`) is instantiated by the internal desktop test path as one bare bottom-band window spanning part of the desktop placement area, and it renders graphics then mouse debug lines through the shared high-level text API without coupling to other components.
 

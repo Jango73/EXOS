@@ -466,7 +466,6 @@ LPDESKTOP CreateDesktop(void) {
         return NULL;
     }
 
-    (void)StartupDesktopComponentsInitialize(This);
     UpdateDesktopWindowRect(This, (I32)Console.Width, (I32)Console.Height);
 
     //-------------------------------------
@@ -638,6 +637,9 @@ BOOL ShowDesktop(LPDESKTOP This) {
 
     SetActiveDesktop(This);
     DesktopCursorOnDesktopActivated(This);
+    if (StartupDesktopComponentsInitialize(This) == FALSE) {
+        WARNING(TEXT("[ShowDesktop] Startup desktop components initialization failed"));
+    }
 
     //-------------------------------------
     // Force the desktop root window to repaint

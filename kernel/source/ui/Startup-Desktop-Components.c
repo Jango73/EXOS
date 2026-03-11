@@ -116,16 +116,27 @@ static BOOL EnsureLogViewerWindow(LPDESKTOP Desktop) {
 /***************************************************************************/
 
 BOOL StartupDesktopComponentsInitialize(LPDESKTOP Desktop) {
+    HANDLE RootWindow;
+    HANDLE ShellBarWindow;
     BOOL LogViewerResult;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
         return FALSE;
     }
 
-    if (ShellBarCreate((HANDLE)Desktop->Window) == FALSE) {
+    RootWindow = (HANDLE)Desktop->Window;
+    if (RootWindow == NULL) {
         return FALSE;
     }
 
+    ShellBarWindow = ShellBarGetWindow(RootWindow);
+    if (ShellBarWindow == NULL) {
+        if (ShellBarCreate(RootWindow) == FALSE) {
+            // Shell bar injection is best-effort; continue with other startup components.
+        }
+
+        ShellBarWindow = ShellBarGetWindow(RootWindow);
+    }
     LogViewerResult = EnsureLogViewerWindow(Desktop);
     return LogViewerResult != FALSE;
 }
