@@ -214,143 +214,6 @@ static void DesktopCursorUnionRect(LPRECT Left, LPRECT Right, LPRECT Result) {
     Result->Y2 = Left->Y2 > Right->Y2 ? Left->Y2 : Right->Y2;
 }
 
-/************************************************************************/
-
-/**
- * @brief Append one rectangle into one region when valid.
- * @param Region Target region.
- * @param Rect Rectangle to append.
- * @return TRUE on success.
- */
-static BOOL DesktopCursorRegionAppendRectIfValid(LPRECT_REGION Region, LPRECT Rect) {
-    if (Region == NULL || Rect == NULL) return FALSE;
-    if (Rect->X1 > Rect->X2 || Rect->Y1 > Rect->Y2) return TRUE;
-    return RectRegionAddRect(Region, Rect);
-}
-
-/************************************************************************/
-
-/**
- * @brief Subtract one occluder rectangle from one source rectangle.
- * @param Region Destination region receiving remaining rectangles.
- * @param Source Source rectangle.
- * @param Occluder Occluding rectangle.
- * @return TRUE on success.
- */
-static BOOL DesktopCursorRegionSubtractRectFromRect(LPRECT_REGION Region, LPRECT Source, LPRECT Occluder) {
-    RECT Inter;
-    RECT Piece;
-
-    if (Region == NULL || Source == NULL || Occluder == NULL) return FALSE;
-
-    if (IntersectRect(Source, Occluder, &Inter) == FALSE) {
-        return DesktopCursorRegionAppendRectIfValid(Region, Source);
-    }
-
-    Piece = (RECT){Source->X1, Source->Y1, Source->X2, Inter.Y1 - 1};
-    if (DesktopCursorRegionAppendRectIfValid(Region, &Piece) == FALSE) return FALSE;
-
-    Piece = (RECT){Source->X1, Inter.Y2 + 1, Source->X2, Source->Y2};
-    if (DesktopCursorRegionAppendRectIfValid(Region, &Piece) == FALSE) return FALSE;
-
-    Piece = (RECT){Source->X1, Inter.Y1, Inter.X1 - 1, Inter.Y2};
-    if (DesktopCursorRegionAppendRectIfValid(Region, &Piece) == FALSE) return FALSE;
-
-    Piece = (RECT){Inter.X2 + 1, Inter.Y1, Source->X2, Inter.Y2};
-    if (DesktopCursorRegionAppendRectIfValid(Region, &Piece) == FALSE) return FALSE;
-
-    return TRUE;
-}
-
-/************************************************************************/
-
-/**
- * @brief Subtract one occluding rectangle from one region.
- * @param Region Region to update in place.
- * @param Occluder Occluding rectangle.
- * @return TRUE on success.
- */
-static BOOL DesktopCursorRegionSubtractOccluder(LPRECT_REGION Region, LPRECT Occluder) {
-    RECT ExistingRects[WINDOW_DIRTY_REGION_CAPACITY];
-    RECT TempStorage[WINDOW_DIRTY_REGION_CAPACITY];
-    RECT_REGION TempRegion;
-    RECT Existing;
-    UINT Count;
-    UINT Index;
-
-    if (Region == NULL || Occluder == NULL) return FALSE;
-
-    if (RectRegionInit(&TempRegion, TempStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) return FALSE;
-    RectRegionReset(&TempRegion);
-
-    Count = RectRegionGetCount(Region);
-    if (Count > WINDOW_DIRTY_REGION_CAPACITY) Count = WINDOW_DIRTY_REGION_CAPACITY;
-
-    for (Index = 0; Index < Count; Index++) {
-        if (RectRegionGetRect(Region, Index, &ExistingRects[Index]) == FALSE) {
-            return FALSE;
-        }
-    }
-
-    for (Index = 0; Index < Count; Index++) {
-        Existing = ExistingRects[Index];
-        if (DesktopCursorRegionSubtractRectFromRect(&TempRegion, &Existing, Occluder) == FALSE) {
-            RectRegionReset(Region);
-            return FALSE;
-        }
-    }
-
-    RectRegionReset(Region);
-    Count = RectRegionGetCount(&TempRegion);
-    for (Index = 0; Index < Count; Index++) {
-        if (RectRegionGetRect(&TempRegion, Index, &Existing) == FALSE) return FALSE;
-        if (RectRegionAddRect(Region, &Existing) == FALSE) return FALSE;
-    }
-
-    return TRUE;
-}
-
-/************************************************************************/
-
-/**
- * @brief Subtract one visible window subtree from one clip region.
- * @param Node Subtree root window.
- * @param Region Region to clip.
- */
-static void DesktopCursorSubtractVisibleWindowTreeFromRegion(LPWINDOW Node, LPRECT_REGION Region) {
-    LPWINDOW* Children = NULL;
-    LPWINDOW Child;
-    RECT NodeRect;
-    UINT ChildCount = 0;
-    UINT ChildIndex;
-    BOOL IsVisible = FALSE;
-    WINDOW_STATE_SNAPSHOT Snapshot;
-
-    if (Node == NULL || Node->TypeID != KOID_WINDOW) return;
-    if (Region == NULL) return;
-
-    if (GetWindowStateSnapshot(Node, &Snapshot) == FALSE) return;
-    IsVisible = ((Snapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
-    NodeRect = Snapshot.ScreenRect;
-    (void)DesktopSnapshotWindowChildren(Node, &Children, &ChildCount);
-
-    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
-        Child = Children[ChildIndex];
-        if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
-        DesktopCursorSubtractVisibleWindowTreeFromRegion(Child, Region);
-    }
-
-    if (Children != NULL) {
-        KernelHeapFree(Children);
-    }
-
-    if (IsVisible != FALSE) {
-        (void)DesktopCursorRegionSubtractOccluder(Region, &NodeRect);
-    }
-}
-
-/************************************************************************/
-
 /**
  * @brief Build one cursor clip region excluding occluded zones for one window.
  * @param Window Target window.
@@ -392,7 +255,7 @@ static BOOL DesktopCursorBuildVisibleRegionForWindow(
             if (Candidate == Window) continue;
             if (GetWindowOrderSnapshot(Candidate, &CandidateOrder) == FALSE) continue;
             if (CandidateOrder >= WindowOrder) continue;
-            DesktopCursorSubtractVisibleWindowTreeFromRegion(Candidate, Region);
+            DesktopVisibleRegionSubtractVisibleWindowTree(Candidate, Region, WINDOW_DIRTY_REGION_CAPACITY);
             if (RectRegionGetCount(Region) == 0) {
                 if (Windows != NULL) KernelHeapFree(Windows);
                 return TRUE;
@@ -409,7 +272,7 @@ static BOOL DesktopCursorBuildVisibleRegionForWindow(
     for (Index = 0; Index < Count; Index++) {
         Candidate = Windows[Index];
         if (Candidate == NULL || Candidate->TypeID != KOID_WINDOW) continue;
-        DesktopCursorSubtractVisibleWindowTreeFromRegion(Candidate, Region);
+        DesktopVisibleRegionSubtractVisibleWindowTree(Candidate, Region, WINDOW_DIRTY_REGION_CAPACITY);
         if (RectRegionGetCount(Region) == 0) {
             if (Windows != NULL) KernelHeapFree(Windows);
             return TRUE;

@@ -294,10 +294,6 @@ BOOL SetGraphicsContextClipScreenRect(HANDLE GC, LPRECT ClipRect) {
     return TRUE;
 }
 
-/***************************************************************************/
-
-static void RootClipSubtractVisibleWindowTree(LPWINDOW Window, LPRECT_REGION Region);
-
 /**
  * @brief Build and consume one window clip region from accumulated dirty rectangles.
  * @param This Window whose dirty region is consumed.
@@ -336,7 +332,7 @@ BOOL BuildWindowDrawClipRegion(
         if (GetWindowOrderSnapshot(SiblingWindow, &SiblingOrder) == FALSE) continue;
         if (SiblingOrder >= ThisOrder) continue;
 
-        RootClipSubtractVisibleWindowTree(SiblingWindow, ClipRegion);
+        DesktopVisibleRegionSubtractVisibleWindowTree(SiblingWindow, ClipRegion, ClipCapacity);
         if (RectRegionGetCount(ClipRegion) == 0) break;
     }
 
@@ -346,139 +342,6 @@ BOOL BuildWindowDrawClipRegion(
 
     return TRUE;
 }
-
-/***************************************************************************/
-
-/**
- * @brief Append one rectangle to a region when bounds are valid.
- * @param Region Destination region.
- * @param Rect Rectangle candidate.
- * @return TRUE on success.
- */
-static BOOL RegionAppendRectIfValid(LPRECT_REGION Region, LPRECT Rect) {
-    if (Region == NULL || Rect == NULL) return FALSE;
-    if (Rect->X1 > Rect->X2 || Rect->Y1 > Rect->Y2) return TRUE;
-    return RectRegionAddRect(Region, Rect);
-}
-
-/***************************************************************************/
-
-/**
- * @brief Subtract one occluder rectangle from one source rectangle.
- * @param Region Destination region receiving remaining parts.
- * @param Source Source rectangle.
- * @param Occluder Occluding rectangle.
- * @return TRUE on success.
- */
-static BOOL RegionSubtractRectFromRect(LPRECT_REGION Region, LPRECT Source, LPRECT Occluder) {
-    RECT Inter;
-    RECT Piece;
-
-    if (Region == NULL || Source == NULL || Occluder == NULL) return FALSE;
-
-    if (IntersectRect(Source, Occluder, &Inter) == FALSE) {
-        return RegionAppendRectIfValid(Region, Source);
-    }
-
-    Piece = (RECT){Source->X1, Source->Y1, Source->X2, Inter.Y1 - 1};
-    if (RegionAppendRectIfValid(Region, &Piece) == FALSE) return FALSE;
-
-    Piece = (RECT){Source->X1, Inter.Y2 + 1, Source->X2, Source->Y2};
-    if (RegionAppendRectIfValid(Region, &Piece) == FALSE) return FALSE;
-
-    Piece = (RECT){Source->X1, Inter.Y1, Inter.X1 - 1, Inter.Y2};
-    if (RegionAppendRectIfValid(Region, &Piece) == FALSE) return FALSE;
-
-    Piece = (RECT){Inter.X2 + 1, Inter.Y1, Source->X2, Inter.Y2};
-    if (RegionAppendRectIfValid(Region, &Piece) == FALSE) return FALSE;
-
-    return TRUE;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Subtract one occluding rectangle from one clip region.
- * @param Region Region updated in place.
- * @param Occluder Occluding rectangle.
- * @return TRUE on success.
- */
-static BOOL RegionSubtractOccluder(LPRECT_REGION Region, LPRECT Occluder) {
-    RECT ExistingStorage[WINDOW_DIRTY_REGION_CAPACITY];
-    RECT TempStorage[WINDOW_DIRTY_REGION_CAPACITY];
-    RECT_REGION TempRegion;
-    RECT Existing;
-    UINT Count;
-    UINT Index;
-
-    if (Region == NULL || Occluder == NULL) return FALSE;
-    if (RectRegionInit(&TempRegion, TempStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) return FALSE;
-    RectRegionReset(&TempRegion);
-
-    Count = RectRegionGetCount(Region);
-    if (Count > WINDOW_DIRTY_REGION_CAPACITY) Count = WINDOW_DIRTY_REGION_CAPACITY;
-
-    for (Index = 0; Index < Count; Index++) {
-        if (RectRegionGetRect(Region, Index, &ExistingStorage[Index]) == FALSE) return FALSE;
-    }
-
-    for (Index = 0; Index < Count; Index++) {
-        Existing = ExistingStorage[Index];
-        if (RegionSubtractRectFromRect(&TempRegion, &Existing, Occluder) == FALSE) {
-            RectRegionReset(Region);
-            return FALSE;
-        }
-    }
-
-    RectRegionReset(Region);
-    Count = RectRegionGetCount(&TempRegion);
-    for (Index = 0; Index < Count; Index++) {
-        if (RectRegionGetRect(&TempRegion, Index, &Existing) == FALSE) return FALSE;
-        if (RectRegionAddRect(Region, &Existing) == FALSE) return FALSE;
-    }
-
-    return TRUE;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Subtract one visible window subtree from one root clip region.
- * @param Window Window subtree root.
- * @param Region Region to clip.
- */
-static void RootClipSubtractVisibleWindowTree(LPWINDOW Window, LPRECT_REGION Region) {
-    LPWINDOW* Children = NULL;
-    LPWINDOW Child;
-    RECT WindowRect;
-    UINT ChildCount = 0;
-    UINT ChildIndex;
-    BOOL IsVisible = FALSE;
-    WINDOW_STATE_SNAPSHOT Snapshot;
-
-    if (Window == NULL || Window->TypeID != KOID_WINDOW || Region == NULL) return;
-
-    if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return;
-    IsVisible = ((Snapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
-    WindowRect = Snapshot.ScreenRect;
-    (void)DesktopSnapshotWindowChildren(Window, &Children, &ChildCount);
-
-    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
-        Child = Children[ChildIndex];
-        if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
-        RootClipSubtractVisibleWindowTree(Child, Region);
-    }
-
-    if (Children != NULL) {
-        KernelHeapFree(Children);
-    }
-
-    if (IsVisible != FALSE) {
-        (void)RegionSubtractOccluder(Region, &WindowRect);
-    }
-}
-
-/***************************************************************************/
 
 /**
  * @brief Build one root-draw clip region excluding visible child windows.
@@ -512,7 +375,7 @@ static BOOL BuildDesktopRootVisibleClipRegion(
     for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
         Child = Children[ChildIndex];
         if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
-        RootClipSubtractVisibleWindowTree(Child, Region);
+        DesktopVisibleRegionSubtractVisibleWindowTree(Child, Region, Capacity);
         if (RectRegionGetCount(Region) == 0) break;
     }
 
