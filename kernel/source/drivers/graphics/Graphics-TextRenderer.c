@@ -308,13 +308,12 @@ static U32 GfxTextScaleColor(U32 Value, U32 MaskSize) {
 /************************************************************************/
 
 /**
- * @brief Convert VGA-like color index to context pixel format.
+ * @brief Convert one RGB color to context pixel format.
  * @param Context Graphics context.
- * @param ColorIndex 0..15 color index.
+ * @param Color RGB color in 0xRRGGBB form.
  * @return Packed pixel value matching context format.
  */
-static U32 GfxTextPackColor(LPGRAPHICSCONTEXT Context, U32 ColorIndex) {
-    U32 Color = GfxTextPalette[ColorIndex & 0x0F];
+static U32 GfxTextPackRgbColor(LPGRAPHICSCONTEXT Context, U32 Color) {
     U32 Red = (Color >> 16) & 0xFF;
     U32 Green = (Color >> 8) & 0xFF;
     U32 Blue = Color & 0xFF;
@@ -339,6 +338,18 @@ static U32 GfxTextPackColor(LPGRAPHICSCONTEXT Context, U32 ColorIndex) {
     PackedColor |= GfxTextScaleColor(Green, GreenMaskSize) << GreenPosition;
     PackedColor |= GfxTextScaleColor(Blue, BlueMaskSize) << BluePosition;
     return PackedColor;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Convert VGA-like color index to context pixel format.
+ * @param Context Graphics context.
+ * @param ColorIndex 0..15 color index.
+ * @return Packed pixel value matching context format.
+ */
+static U32 GfxTextPackColor(LPGRAPHICSCONTEXT Context, U32 ColorIndex) {
+    return GfxTextPackRgbColor(Context, GfxTextPalette[ColorIndex & 0x0F]);
 }
 
 /************************************************************************/
@@ -401,6 +412,272 @@ static void GfxTextFillRect(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I
         return;
     }
     (void)GraphicsFillSolidRect(Context, X1, Y1, X2, Y2, Color);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve one font face or return the default font face.
+ * @param RequestedFont Requested font face.
+ * @return Resolved font face.
+ */
+static const FONT_FACE* GfxTextResolveFont(const FONT_FACE* RequestedFont) {
+    if (RequestedFont != NULL) {
+        return RequestedFont;
+    }
+
+    return FontGetDefaultFace();
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve foreground text color from one graphics context.
+ * @param Context Graphics context.
+ * @return Packed foreground color.
+ */
+static U32 GfxTextResolveForegroundColor(LPGRAPHICSCONTEXT Context) {
+    U32 Color = 0xFFFFFF;
+
+    SAFE_USE_VALID_ID(Context, KOID_GRAPHICSCONTEXT) {
+        SAFE_USE_VALID_ID(Context->Pen, KOID_PEN) {
+            Color = Context->Pen->Color;
+        }
+    }
+
+    return GfxTextPackRgbColor(Context, Color);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve optional background text color from one graphics context.
+ * @param Context Graphics context.
+ * @param HasBackgroundOut Receives TRUE when a background fill is requested.
+ * @return Packed background color.
+ */
+static U32 GfxTextResolveBackgroundColor(LPGRAPHICSCONTEXT Context, BOOL* HasBackgroundOut) {
+    U32 Color = 0;
+    BOOL HasBackground = FALSE;
+
+    SAFE_USE_VALID_ID(Context, KOID_GRAPHICSCONTEXT) {
+        SAFE_USE_VALID_ID(Context->Brush, KOID_BRUSH) {
+            Color = Context->Brush->Color;
+            HasBackground = TRUE;
+        }
+    }
+
+    SAFE_USE(HasBackgroundOut) { *HasBackgroundOut = HasBackground; }
+    return GfxTextPackRgbColor(Context, Color);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Draw one glyph bitmap at one pixel position.
+ * @param Context Graphics context.
+ * @param Glyph Glyph bitmap.
+ * @param PixelX Baseline-relative X position.
+ * @param PixelY Baseline-relative Y position.
+ * @param Foreground Packed foreground color.
+ */
+static void GfxTextDrawGlyphBitmap(
+    LPGRAPHICSCONTEXT Context,
+    LPFONT_GLYPH_BITMAP Glyph,
+    I32 PixelX,
+    I32 PixelY,
+    U32 Foreground) {
+    U32 Row = 0;
+    U32 Col = 0;
+
+    if (Context == NULL || Glyph == NULL || Glyph->Data == NULL || Glyph->BytesPerRow == 0) {
+        return;
+    }
+
+    for (Row = 0; Row < Glyph->Height; Row++) {
+        for (Col = 0; Col < Glyph->Width; Col++) {
+            U32 ByteIndex = (Row * Glyph->BytesPerRow) + (Col / 8);
+            U8 Bits = Glyph->Data[ByteIndex];
+            U32 BitMask = 0x80 >> (Col % 8);
+            if ((Bits & BitMask) != 0) {
+                GfxTextWritePixel(
+                    Context,
+                    PixelX + Glyph->OffsetX + (I32)Col,
+                    PixelY + Glyph->OffsetY + (I32)Row,
+                    Foreground);
+            }
+        }
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve one glyph advance width using glyph and face metrics.
+ * @param Glyph Glyph bitmap.
+ * @param Metrics Face metrics.
+ * @return Advance width in pixels.
+ */
+static U32 GfxTextResolveAdvanceWidth(LPFONT_GLYPH_BITMAP Glyph, LPFONT_METRICS Metrics) {
+    if (Glyph != NULL && Glyph->AdvanceWidth != 0) {
+        return Glyph->AdvanceWidth;
+    }
+
+    if (Metrics != NULL && Metrics->AdvanceWidth != 0) {
+        return Metrics->AdvanceWidth;
+    }
+
+    if (Glyph != NULL && Glyph->Width != 0) {
+        return Glyph->Width;
+    }
+
+    if (Metrics != NULL) {
+        return Metrics->CellWidth;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Measure one text string using one font face.
+ * @param Info Text measure descriptor.
+ * @return TRUE on success.
+ */
+BOOL GfxTextMeasure(LPGFX_TEXT_MEASURE_INFO Info) {
+    const FONT_FACE* Font = NULL;
+    FONT_METRICS Metrics;
+    FONT_GLYPH_BITMAP Glyph;
+    U32 MaxWidth = 0;
+    U32 CurrentWidth = 0;
+    U32 TotalHeight = 0;
+    U32 Index = 0;
+    BOOL HasAnyCharacter = FALSE;
+
+    if (Info == NULL || Info->Text == NULL) {
+        return FALSE;
+    }
+
+    Font = GfxTextResolveFont(Info->Font);
+    if (!FontFaceGetMetrics(Font, &Metrics)) {
+        return FALSE;
+    }
+
+    while (Info->Text[Index] != STR_NULL) {
+        STR Character = Info->Text[Index];
+
+        if (Character == '\r') {
+            CurrentWidth = 0;
+            Index++;
+            continue;
+        }
+
+        if (Character == '\n') {
+            if (CurrentWidth > MaxWidth) {
+                MaxWidth = CurrentWidth;
+            }
+
+            TotalHeight += Metrics.LineHeight;
+            CurrentWidth = 0;
+            HasAnyCharacter = TRUE;
+            Index++;
+            continue;
+        }
+
+        if (!FontFaceGetGlyphBitmap(Font, (U32)(U8)Character, &Glyph)) {
+            return FALSE;
+        }
+
+        CurrentWidth += GfxTextResolveAdvanceWidth(&Glyph, &Metrics);
+        HasAnyCharacter = TRUE;
+        Index++;
+    }
+
+    if (CurrentWidth > MaxWidth) {
+        MaxWidth = CurrentWidth;
+    }
+
+    if (HasAnyCharacter != FALSE) {
+        TotalHeight += Metrics.LineHeight;
+    }
+
+    Info->Width = MaxWidth;
+    Info->Height = TotalHeight;
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Draw one text string at one pixel position.
+ * @param Context Graphics context.
+ * @param Info Text draw descriptor.
+ * @return TRUE on success.
+ */
+BOOL GfxTextDrawString(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_DRAW_INFO Info) {
+    const FONT_FACE* Font = NULL;
+    FONT_METRICS Metrics;
+    FONT_GLYPH_BITMAP Glyph;
+    U32 Foreground = 0;
+    U32 Background = 0;
+    U32 AdvanceWidth = 0;
+    U32 Index = 0;
+    I32 CursorX = 0;
+    I32 CursorY = 0;
+    BOOL HasBackground = FALSE;
+
+    if (Context == NULL || Info == NULL || Info->Text == NULL || Context->MemoryBase == NULL) {
+        return FALSE;
+    }
+
+    Font = GfxTextResolveFont(Info->Font);
+    if (!FontFaceGetMetrics(Font, &Metrics)) {
+        return FALSE;
+    }
+
+    Foreground = GfxTextResolveForegroundColor(Context);
+    Background = GfxTextResolveBackgroundColor(Context, &HasBackground);
+    CursorX = Info->X;
+    CursorY = Info->Y;
+
+    while (Info->Text[Index] != STR_NULL) {
+        STR Character = Info->Text[Index];
+
+        if (Character == '\r') {
+            CursorX = Info->X;
+            Index++;
+            continue;
+        }
+
+        if (Character == '\n') {
+            CursorX = Info->X;
+            CursorY += (I32)Metrics.LineHeight;
+            Index++;
+            continue;
+        }
+
+        if (!FontFaceGetGlyphBitmap(Font, (U32)(U8)Character, &Glyph)) {
+            return FALSE;
+        }
+
+        AdvanceWidth = GfxTextResolveAdvanceWidth(&Glyph, &Metrics);
+        if (HasBackground != FALSE && AdvanceWidth != 0 && Metrics.LineHeight != 0) {
+            GfxTextFillRect(
+                Context,
+                CursorX,
+                CursorY,
+                CursorX + (I32)AdvanceWidth - 1,
+                CursorY + (I32)Metrics.LineHeight - 1,
+                Background);
+        }
+
+        GfxTextDrawGlyphBitmap(Context, &Glyph, CursorX, CursorY, Foreground);
+        CursorX += (I32)AdvanceWidth;
+        Index++;
+    }
+
+    return TRUE;
 }
 
 /************************************************************************/

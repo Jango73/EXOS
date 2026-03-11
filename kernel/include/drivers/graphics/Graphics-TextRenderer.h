@@ -35,6 +35,8 @@ BOOL GfxTextClearRegion(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_REGION_INFO Info);
 BOOL GfxTextScrollRegion(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_REGION_INFO Info);
 BOOL GfxTextSetCursor(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_CURSOR_INFO Info);
 BOOL GfxTextSetCursorVisible(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_CURSOR_VISIBLE_INFO Info);
+BOOL GfxTextDrawString(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_DRAW_INFO Info);
+BOOL GfxTextMeasure(LPGFX_TEXT_MEASURE_INFO Info);
 
 /************************************************************************/
 

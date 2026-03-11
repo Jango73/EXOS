@@ -28,6 +28,7 @@
 
 #include "process/Process.h"
 #include "Desktop-ThemeRuntime.h"
+#include "GFX.h"
 
 /************************************************************************/
 // Windowing lock contract
@@ -111,6 +112,8 @@ BOOL Line(LPLINEINFO);
 BOOL Rectangle(LPRECTINFO);
 BOOL Arc(LPARCINFO);
 BOOL Triangle(LPTRIANGLEINFO);
+BOOL DrawText(LPGFX_TEXT_DRAW_INFO);
+BOOL MeasureText(LPGFX_TEXT_MEASURE_INFO);
 BOOL SetWindowTimer(HANDLE Window, U32 TimerID, U32 IntervalMilliseconds);
 BOOL KillWindowTimer(HANDLE Window, U32 TimerID);
 U32 BaseWindowFunc(HANDLE, U32, U32, U32);

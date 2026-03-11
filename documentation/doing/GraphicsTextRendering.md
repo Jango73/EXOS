@@ -17,10 +17,10 @@ Add reusable text drawing and text measurement services for all graphics drivers
 - [x] Keep the abstraction font-type agnostic so later providers can expose rasterized TrueType-style glyphs through the same contract.
 
 ### Step 2: Add a shared graphics text API
-- [ ] Define one graphics text draw entry point for printing a string at pixel coordinates with an explicit font.
-- [ ] Define one graphics text measure entry point that returns text width and height for a string with an explicit font.
-- [ ] Keep line-break, advance, and bounding-box rules centralized in shared code so every backend measures and draws text the same way.
-- [ ] Define matching high-level kernel entry points that can be exposed safely to userland without leaking backend-private details.
+- [x] Define one graphics text draw entry point for printing a string at pixel coordinates with an explicit font.
+- [x] Define one graphics text measure entry point that returns text width and height for a string with an explicit font.
+- [x] Keep line-break, advance, and bounding-box rules centralized in shared code so every backend measures and draws text the same way.
+- [x] Define matching high-level kernel entry points that can be exposed safely to userland without leaking backend-private details.
 
 ### Step 3: Route all drivers through one renderer
 - [ ] Implement the new text draw and measure path in shared graphics code, with backends only supplying pixel writes and context synchronization.

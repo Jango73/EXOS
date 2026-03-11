@@ -139,6 +139,10 @@ typedef struct tag_FONT {
 
 /***************************************************************************/
 
+struct tag_FONT_FACE;
+
+/***************************************************************************/
+
 typedef struct tag_BITMAP {
     LISTNODE_FIELDS
     U32 Width;
@@ -302,6 +306,27 @@ typedef struct tag_GFX_TEXT_CURSOR_VISIBLE_INFO {
     HANDLE GC;
     BOOL IsVisible;
 } GFX_TEXT_CURSOR_VISIBLE_INFO, *LPGFX_TEXT_CURSOR_VISIBLE_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_TEXT_DRAW_INFO {
+    ABI_HEADER Header;
+    HANDLE GC;
+    I32 X;
+    I32 Y;
+    LPCSTR Text;
+    const struct tag_FONT_FACE* Font;
+} GFX_TEXT_DRAW_INFO, *LPGFX_TEXT_DRAW_INFO;
+
+/***************************************************************************/
+
+typedef struct tag_GFX_TEXT_MEASURE_INFO {
+    ABI_HEADER Header;
+    LPCSTR Text;
+    const struct tag_FONT_FACE* Font;
+    U32 Width;
+    U32 Height;
+} GFX_TEXT_MEASURE_INFO, *LPGFX_TEXT_MEASURE_INFO;
 
 /***************************************************************************/
 

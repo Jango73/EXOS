@@ -24,6 +24,7 @@
 #include "shell/Shell-Commands-Private.h"
 #include "DisplaySession.h"
 #include "DriverGetters.h"
+#include "Font.h"
 #include "GFX.h"
 #include "Desktop.h"
 #include "Desktop-InternalTest.h"
@@ -79,6 +80,9 @@ static U32 GfxSmokeWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2
             HANDLE GraphicsContext = NULL;
             RECTINFO RectangleInfo;
             LINEINFO LineInfo;
+            GFX_TEXT_MEASURE_INFO MeasureInfo;
+            GFX_TEXT_DRAW_INFO DrawInfo;
+            const FONT_FACE* Font = FontGetDefaultFace();
 
             GraphicsContext = BeginWindowDraw(Window);
             if (GraphicsContext == NULL) {
@@ -123,6 +127,33 @@ static U32 GfxSmokeWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2
             LineInfo.X2 = 12;
             LineInfo.Y2 = GfxSmokeWindowHeight - 19;
             (void)Line(&LineInfo);
+
+            MeasureInfo = (GFX_TEXT_MEASURE_INFO){
+                .Header = {.Size = sizeof(GFX_TEXT_MEASURE_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+                .Text = TEXT("Graphics smoke test"),
+                .Font = Font,
+                .Width = 0,
+                .Height = 0
+            };
+            (void)MeasureText(&MeasureInfo);
+
+            (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_TITLE_TEXT));
+            (void)SelectBrush(GraphicsContext, NULL);
+            DrawInfo = (GFX_TEXT_DRAW_INFO){
+                .Header = {.Size = sizeof(GFX_TEXT_DRAW_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+                .GC = GraphicsContext,
+                .X = (GfxSmokeWindowWidth - (I32)MeasureInfo.Width) / 2,
+                .Y = 8,
+                .Text = TEXT("Graphics smoke test"),
+                .Font = Font
+            };
+            (void)DrawText(&DrawInfo);
+
+            (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_TEXT_NORMAL));
+            DrawInfo.X = 24;
+            DrawInfo.Y = 72;
+            DrawInfo.Text = TEXT("Shared text API\nKernel window path");
+            (void)DrawText(&DrawInfo);
 
             (void)EndWindowDraw(Window);
             return 0;
