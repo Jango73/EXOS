@@ -21,7 +21,7 @@
 
 \************************************************************************/
 
-#include "desktop/components/ClockWidget.h"
+#include "ui/ClockWidget.h"
 #include "Desktop-WindowClass.h"
 
 #include "Clock.h"

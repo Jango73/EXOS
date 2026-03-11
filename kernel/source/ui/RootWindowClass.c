@@ -21,7 +21,7 @@
 
 \************************************************************************/
 
-#include "desktop/components/RootWindowClass.h"
+#include "ui/RootWindowClass.h"
 
 LPROOT_WINDOW_CLASS_DATA RootWindowClassGetData(LPDESKTOP Desktop) {
     LPWINDOW Window;

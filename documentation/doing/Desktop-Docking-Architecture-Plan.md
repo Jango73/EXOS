@@ -94,8 +94,8 @@ Deliverable:
 
 ## Step 1 - Generic API and type model
 - [x] Add public generic headers:
-  - `kernel/include/desktop/components/Dockable.h`
-  - `kernel/include/desktop/components/DockHost.h`
+  - `kernel/include/ui/Dockable.h`
+  - `kernel/include/ui/DockHost.h`
 - [x] Add central enums and structs:
   - `DOCK_EDGE`
   - `DOCK_LAYOUT_POLICY`
@@ -172,8 +172,8 @@ Deliverable:
 
 ## Step 6 - Root host class integration
 - [x] Add generic window dock host module:
-  - `kernel/include/desktop/components/WindowDockHost.h`
-  - `kernel/source/desktop/components/WindowDockHost.c`
+  - `kernel/include/ui/WindowDockHost.h`
+  - `kernel/source/ui/WindowDockHost.c`
 - [x] Bind one `DockHost` instance to desktop root window through class inheritance.
 - [x] Trigger relayout on desktop mode/size changes.
 - [x] Expose helper API for components to register as dockables on any host window.
@@ -194,8 +194,8 @@ Deliverable:
 
 ## Step 8 - ShellBar component
 - [x] Add component files:
-  - `kernel/include/desktop/components/ShellBar.h`
-  - `kernel/source/desktop/components/ShellBar.c`
+  - `kernel/include/ui/ShellBar.h`
+  - `kernel/source/ui/ShellBar.c`
 - [x] Implement `ShellBar` as a dockable consumer of generic APIs.
 - [ ] Support all four edges through dock state updates.
 - [x] Keep `ShellBar` behavior-focused; all visual look is resolved from theme tokens.

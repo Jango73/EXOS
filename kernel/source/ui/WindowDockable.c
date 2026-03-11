@@ -21,7 +21,7 @@
 
 \************************************************************************/
 
-#include "desktop/components/WindowDockable.h"
+#include "ui/WindowDockable.h"
 #include "CoreString.h"
 
 /************************************************************************/

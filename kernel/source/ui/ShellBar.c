@@ -21,9 +21,9 @@
 
 \************************************************************************/
 
-#include "desktop/components/ShellBar.h"
+#include "ui/ShellBar.h"
 
-#include "desktop/components/WindowDockable.h"
+#include "ui/WindowDockable.h"
 #include "Log.h"
 
 /************************************************************************/

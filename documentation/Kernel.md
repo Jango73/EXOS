@@ -1913,11 +1913,11 @@ Dockable components publish this reservation through the high-level window style
 #### Timers and periodic redraw
 
 Per-window timer delivery is implemented in `kernel/source/desktop/Desktop-Timer.c` (`kernel/include/desktop/Desktop-Timer.h`) with `SetWindowTimer`, `KillWindowTimer`, and asynchronous `EWM_TIMER` dispatch.
-The desktop clock widget (`kernel/source/desktop/components/ClockWidget.c`, `kernel/include/desktop/components/ClockWidget.h`) uses this timer path to request redraw once per second.
+The desktop clock widget (`kernel/source/ui/ClockWidget.c`, `kernel/include/ui/ClockWidget.h`) uses this timer path to request redraw once per second.
 
 #### Window dock host integration
 
-Docking host integration is implemented by window classes in `kernel/source/desktop/components/WindowDockHost.c` and `kernel/source/desktop/components/WindowDockable.c`.
+Docking host integration is implemented by window classes in `kernel/source/ui/WindowDockHost.c` and `kernel/source/ui/WindowDockable.c`.
 `WindowDockHostClass` provides one `DockHost` state per host window class data, and root window class registration derives from this base.
 The windowing core remains dock-agnostic: it emits generic `EWM_NOTIFY` messages (`EWN_WINDOW_RECT_CHANGED`, `EWN_WINDOW_PROPERTY_CHANGED`) and does not read dock-specific window properties.
 Dock components subscribe to these notifications and update docking state (`WindowDockHostHandleWindowRectChanged`, relayout, attach/detach) in component code.
@@ -1925,9 +1925,9 @@ When a window is attached into an existing subtree, the windowing core also post
 When a window is detached from an existing subtree, the windowing core also posts `EWM_CHILD_REMOVED` to the former parent and every ancestor up to the desktop root with the removed child `WindowID` in `Param1`.
 Parent movement constraints use the generic window work rectangle API (`SetWindowWorkRect`, `GetWindowWorkRect`) so specialized layout components can publish host work areas without coupling core windowing paths to docking details.
 Docked windows publish sibling-placement exclusion through `EWS_EXCLUDE_SIBLING_PLACEMENT` and do not use docking-specific bypass logic when the host applies one assigned rectangle.
-Shell bar content composition uses slot windows exposed by `kernel/source/desktop/components/ShellBar.c` (`left`, `center`, `components`) and the desktop injects concrete component windows into these slots.
+Shell bar content composition uses slot windows exposed by `kernel/source/ui/ShellBar.c` (`left`, `center`, `components`) and the desktop injects concrete component windows into these slots.
 The shell bar does not reference concrete component types; it only manages slot geometry and keeps slot children fitted to slot client rectangles.
-The on-screen debug information component (`kernel/source/desktop/components/OnScreenDebugInfo.c`, `kernel/include/desktop/components/OnScreenDebugInfo.h`) is instantiated by the internal desktop test path and renders placeholder text lines through the shared high-level text API without coupling to other components.
+The on-screen debug information component (`kernel/source/ui/OnScreenDebugInfo.c`, `kernel/include/ui/OnScreenDebugInfo.h`) is instantiated by the internal desktop test path and renders placeholder text lines through the shared high-level text API without coupling to other components.
 
 #### Theme architecture
 

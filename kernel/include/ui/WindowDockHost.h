@@ -27,7 +27,7 @@
 /************************************************************************/
 
 #include "desktop/Desktop-WindowClass.h"
-#include "desktop/components/DockHost.h"
+#include "ui/DockHost.h"
 
 typedef struct tag_WINDOW_DOCK_HOST_CLASS_DATA {
     DOCK_HOST DockHost;

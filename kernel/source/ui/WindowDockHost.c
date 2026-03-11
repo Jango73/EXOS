@@ -21,7 +21,7 @@
 
 \************************************************************************/
 
-#include "desktop/components/WindowDockHost.h"
+#include "ui/WindowDockHost.h"
 #include "CoreString.h"
 
 /************************************************************************/

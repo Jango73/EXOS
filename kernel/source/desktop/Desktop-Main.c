@@ -40,7 +40,7 @@
 #include "Desktop.h"
 #include "Desktop-ModeSelector.h"
 #include "Desktop-ThemeTokens.h"
-#include "desktop/components/RootWindowClass.h"
+#include "ui/RootWindowClass.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
 #include "Clock.h"

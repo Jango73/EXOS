@@ -23,7 +23,7 @@
 
 #include "Desktop-InternalTest.h"
 #include "Desktop-Private.h"
-#include "desktop/components/OnScreenDebugInfo.h"
+#include "ui/OnScreenDebugInfo.h"
 #include "Clock.h"
 #include "Kernel.h"
 #include "Log.h"

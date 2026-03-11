@@ -17,30 +17,32 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Desktop root window class
+    Window dockable class helpers
 
 \************************************************************************/
 
-#ifndef ROOT_WINDOW_CLASS_H_INCLUDED
-#define ROOT_WINDOW_CLASS_H_INCLUDED
+#ifndef WINDOW_DOCKABLE_H_INCLUDED
+#define WINDOW_DOCKABLE_H_INCLUDED
 
 /************************************************************************/
 
-#include "desktop/Desktop.h"
-#include "desktop/components/WindowDockHost.h"
+#include "ui/WindowDockHost.h"
+
+typedef struct tag_WINDOW_DOCKABLE_CLASS_DATA {
+    DOCKABLE Dockable;
+    BOOL DockableInitialized;
+    BOOL DockableAttached;
+    STR Identifier[32];
+} WINDOW_DOCKABLE_CLASS_DATA, *LPWINDOW_DOCKABLE_CLASS_DATA;
 
 /************************************************************************/
 
-#define ROOT_WINDOW_CLASS_NAME TEXT("RootWindowClass")
-
-/************************************************************************/
-
-typedef WINDOW_DOCK_HOST_CLASS_DATA ROOT_WINDOW_CLASS_DATA;
-typedef LPWINDOW_DOCK_HOST_CLASS_DATA LPROOT_WINDOW_CLASS_DATA;
-
-/************************************************************************/
-
-LPROOT_WINDOW_CLASS_DATA RootWindowClassGetData(LPDESKTOP Desktop);
+BOOL WindowDockableClassEnsureRegistered(void);
+BOOL WindowDockableClassEnsureDerivedRegistered(LPCSTR ClassName, WINDOWFUNC WindowFunction);
+BOOL WindowDockableWindowInheritsDockableClass(LPWINDOW Window);
+LPWINDOW_DOCKABLE_CLASS_DATA WindowDockableClassGetData(LPWINDOW Window);
+void WindowDockableHandlePropertyChanged(HANDLE Window);
+U32 WindowDockableWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
 
 /************************************************************************/
 

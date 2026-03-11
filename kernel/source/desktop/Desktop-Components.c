@@ -23,8 +23,8 @@
 
 #include "Desktop-Components.h"
 
-#include "desktop/components/ClockWidget.h"
-#include "desktop/components/ShellBar.h"
+#include "ui/ClockWidget.h"
+#include "ui/ShellBar.h"
 #include "desktop/Desktop-NonClient.h"
 #include "Log.h"
 

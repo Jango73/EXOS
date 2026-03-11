@@ -21,7 +21,7 @@
 
 \************************************************************************/
 
-#include "desktop/components/OnScreenDebugInfo.h"
+#include "ui/OnScreenDebugInfo.h"
 #include "CoreString.h"
 
 /***************************************************************************/
