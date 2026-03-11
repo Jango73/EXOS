@@ -625,6 +625,53 @@ void Rectangle(HANDLE GC, U32 X1, U32 Y1, U32 X2, U32 Y2) {
 
 /***************************************************************************/
 
+BOOL DrawText(HANDLE GC, I32 X, I32 Y, LPCSTR Text, HANDLE Font) {
+    TEXT_DRAW_INFO TextInfo;
+
+    TextInfo.Header.Size = sizeof TextInfo;
+    TextInfo.Header.Version = EXOS_ABI_VERSION;
+    TextInfo.Header.Flags = 0;
+    TextInfo.GC = GC;
+    TextInfo.X = X;
+    TextInfo.Y = Y;
+    TextInfo.Text = Text;
+    TextInfo.Font = Font;
+
+    return (BOOL)exoscall(SYSCALL_DrawText, EXOS_PARAM(&TextInfo));
+}
+
+/***************************************************************************/
+
+BOOL MeasureText(LPCSTR Text, HANDLE Font, U32* WidthOut, U32* HeightOut) {
+    TEXT_MEASURE_INFO TextInfo;
+    BOOL Result = FALSE;
+
+    TextInfo.Header.Size = sizeof TextInfo;
+    TextInfo.Header.Version = EXOS_ABI_VERSION;
+    TextInfo.Header.Flags = 0;
+    TextInfo.Text = Text;
+    TextInfo.Font = Font;
+    TextInfo.Width = 0;
+    TextInfo.Height = 0;
+
+    Result = (BOOL)exoscall(SYSCALL_MeasureText, EXOS_PARAM(&TextInfo));
+    if (Result == FALSE) {
+        return FALSE;
+    }
+
+    if (WidthOut != NULL) {
+        *WidthOut = TextInfo.Width;
+    }
+
+    if (HeightOut != NULL) {
+        *HeightOut = TextInfo.Height;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
 BOOL GetMousePos(LPPOINT Point) { return (BOOL)exoscall(SYSCALL_GetMousePos, EXOS_PARAM(Point)); }
 
 /***************************************************************************/

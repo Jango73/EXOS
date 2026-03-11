@@ -1789,7 +1789,9 @@ UINT SysCall_GetWindowClientRect(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(WindowRect, WINDOWRECT) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)GetWindowClientRect(Window, &(WindowRect->Rect)); }
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+            return (UINT)GetWindowClientRect((HANDLE)Window, &(WindowRect->Rect));
+        }
     }
 
     return 0;
@@ -2328,6 +2330,84 @@ UINT SysCall_Rectangle(UINT Parameter) {
         }
 
         RectInfo->GC = OriginalGC;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Draw one text string using the current graphics context colors.
+ *
+ * @param Parameter Pointer to TEXT_DRAW_INFO with GC handle and text parameters.
+ * @return UINT TRUE on success.
+ */
+UINT SysCall_DrawText(UINT Parameter) {
+    LPTEXT_DRAW_INFO TextInfo = (LPTEXT_DRAW_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(TextInfo, TEXT_DRAW_INFO) {
+        GFX_TEXT_DRAW_INFO DrawInfo;
+        HANDLE OriginalGC = TextInfo->GC;
+        LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)HandleToPointer(OriginalGC);
+
+        SAFE_USE_VALID_ID(Context, KOID_GRAPHICSCONTEXT) {
+            if (TextInfo->Text == NULL || TextInfo->Font != 0) {
+                return 0;
+            }
+
+            SAFE_USE_VALID(TextInfo->Text) {
+                DrawInfo = (GFX_TEXT_DRAW_INFO){
+                    .Header = TextInfo->Header,
+                    .GC = (HANDLE)Context,
+                    .X = TextInfo->X,
+                    .Y = TextInfo->Y,
+                    .Text = TextInfo->Text,
+                    .Font = NULL
+                };
+                return (UINT)DrawText(&DrawInfo);
+            }
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Measure one text string using the default font.
+ *
+ * @param Parameter Pointer to TEXT_MEASURE_INFO.
+ * @return UINT TRUE on success.
+ */
+UINT SysCall_MeasureText(UINT Parameter) {
+    LPTEXT_MEASURE_INFO TextInfo = (LPTEXT_MEASURE_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(TextInfo, TEXT_MEASURE_INFO) {
+        GFX_TEXT_MEASURE_INFO MeasureInfo;
+
+        if (TextInfo->Text == NULL || TextInfo->Font != 0) {
+            return 0;
+        }
+
+        SAFE_USE_VALID(TextInfo->Text) {
+            MeasureInfo = (GFX_TEXT_MEASURE_INFO){
+                .Header = TextInfo->Header,
+                .Text = TextInfo->Text,
+                .Font = NULL,
+                .Width = 0,
+                .Height = 0
+            };
+
+            if (MeasureText(&MeasureInfo) == FALSE) {
+                return 0;
+            }
+
+            TextInfo->Width = MeasureInfo.Width;
+            TextInfo->Height = MeasureInfo.Height;
+            return 1;
+        }
     }
 
     return 0;

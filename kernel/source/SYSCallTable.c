@@ -184,4 +184,6 @@ void InitializeSystemCallTable(void) {
     SysCallTable[SYSCALL_GetPixel] = (SYSCALLENTRY){SysCall_GetPixel, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_Line] = (SYSCALLENTRY){SysCall_Line, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_Rectangle] = (SYSCALLENTRY){SysCall_Rectangle, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_DrawText] = (SYSCALLENTRY){SysCall_DrawText, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_MeasureText] = (SYSCALLENTRY){SysCall_MeasureText, EXOS_PRIVILEGE_USER};
 }

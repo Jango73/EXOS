@@ -103,6 +103,8 @@ U32 SetPixel(HANDLE, U32, U32);
 U32 GetPixel(HANDLE, U32, U32);
 void Line(HANDLE, U32, U32, U32, U32);
 void Rectangle(HANDLE, U32, U32, U32, U32);
+BOOL DrawText(HANDLE, I32, I32, LPCSTR, HANDLE);
+BOOL MeasureText(LPCSTR, HANDLE, U32* WidthOut, U32* HeightOut);
 BOOL GetMousePos(LPPOINT);
 U32 GetMouseButtons(void);
 HANDLE CaptureMouse(HANDLE);

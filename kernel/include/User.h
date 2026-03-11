@@ -262,6 +262,8 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_CreatePolyRegion 0x00000063
 #define SYSCALL_MoveRegion 0x00000064
 #define SYSCALL_CombineRegion 0x00000065
+#define SYSCALL_DrawText 0x00000080
+#define SYSCALL_MeasureText 0x00000081
 
 /************************************************************************/
 // Network Socket Services
@@ -284,7 +286,7 @@ typedef struct PACKED tag_ABI_HEADER {
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x00000080
+#define SYSCALL_Last 0x00000082
 
 /************************************************************************/
 // Structure limits
@@ -592,6 +594,23 @@ typedef struct PACKED tag_TRIANGLEINFO {
     POINT P2;
     POINT P3;
 } TRIANGLEINFO, *LPTRIANGLEINFO;
+
+typedef struct PACKED tag_TEXT_DRAW_INFO {
+    ABI_HEADER Header;
+    HANDLE GC;
+    I32 X;
+    I32 Y;
+    LPCSTR Text;
+    HANDLE Font;
+} TEXT_DRAW_INFO, *LPTEXT_DRAW_INFO;
+
+typedef struct PACKED tag_TEXT_MEASURE_INFO {
+    ABI_HEADER Header;
+    LPCSTR Text;
+    HANDLE Font;
+    U32 Width;
+    U32 Height;
+} TEXT_MEASURE_INFO, *LPTEXT_MEASURE_INFO;
 
 typedef struct PACKED tag_LOGIN_INFO {
     ABI_HEADER Header;

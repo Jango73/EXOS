@@ -773,6 +773,7 @@ The VESA driver requests VBE modes in linear frame buffer mode (INT 10h 4F02h, b
 `kernel/include/GFX.h` defines a backend-facing graphics command contract. Legacy drawing commands (`SETMODE`, `GETMODEINFO`, `SETPIXEL`, `GETPIXEL`, `LINE`, `RECTANGLE`) stay unchanged for compatibility. The same header also defines optional backend commands for capabilities/outputs/present/surfaces (`GETCAPABILITIES`, `ENUMOUTPUTS`, `GETOUTPUTINFO`, `PRESENT`, `WAITVBLANK`, `ALLOCSURFACE`, `FREESURFACE`, `SETSCANOUT`). Legacy backends that do not implement those optional commands return `DF_RETURN_NOT_IMPLEMENTED`.
 
 Text rendering commands are also part of the graphics contract (`TEXT_PUTCELL`, `TEXT_CLEAR_REGION`, `TEXT_SCROLL_REGION`, `TEXT_SET_CURSOR`, `TEXT_SET_CURSOR_VISIBLE`). This path allows console text operations to be dispatched through the active graphics backend.
+High-level text drawing and measurement are also exposed through the same backend contract (`TEXT_DRAW`, `TEXT_MEASURE`) so desktop code and backend selection keep one shared implementation path across VESA, GOP, and Intel graphics.
 Mouse pointer commands are part of the same contract as optional backend operations (`CURSOR_SET_SHAPE`, `CURSOR_SET_POSITION`, `CURSOR_SET_VISIBLE`). Desktop cursor ownership remains in kernel desktop code, which selects the hardware cursor path when available and falls back deterministically to a software overlay when cursor-plane support or cursor operations are unavailable.
 When `gfx backend <alias> <mode>` applies a graphics mode while shell stays in console frontend, display session routes console rendering through the selected backend and recomputes console cell geometry from the active pixel mode so shell output remains visible across backend and mode transitions.
 Shell graphics commands are implemented in `kernel/source/shell/Shell-Commands-Graphics.c`. The `gfx backend <driver> <WidthxHeightxBitsPerPixel>` mode selects backend and mode, and `gfx smoke_test [DurationMilliseconds]` creates a temporary desktop, renders a basic window using kernel graphics primitives, waits for the requested duration, then restores text console mode.
@@ -813,6 +814,8 @@ Console paging input wait paths must run without any console mutex held to preve
 - Emergency fallback remains isolated to `kernel/source/Console-VGATextFallback.c`.
 
 The default font is an in-tree ASCII 8x16 EXOS font and can be replaced through the font API.
+The shared font layer is split between font-face metrics/raster access (`FONT_FACE`) and the legacy bitmap glyph-set compatibility path (`FONT_GLYPH_SET`). Existing console rendering continues to use the in-tree bitmap font through this abstraction boundary.
+Userland text rendering is exposed through `SYSCALL_DrawText` / `SYSCALL_MeasureText` and the runtime wrappers `DrawText` / `MeasureText`. The initial userland path accepts `Font = 0` to select the default kernel font; explicit userland font objects remain a later extension.
 
 
 ### Early boot console path

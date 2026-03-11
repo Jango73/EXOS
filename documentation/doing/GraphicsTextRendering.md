@@ -28,8 +28,8 @@ Add reusable text drawing and text measurement services for all graphics drivers
 - [x] Reuse the shared font abstraction in console-adjacent text paths where it makes sense, instead of growing a second text stack.
 
 ### Step 4: Compatibility, validation, and documentation
-- [ ] Preserve the existing console-font visual result for the first implementation.
-- [ ] Expose the high-level text draw and measure API to userland through new syscalls and runtime wrappers using the same font abstraction contract.
-- [ ] Validate x86-32 and x86-64 builds and exercise text draw/measure on each active graphics backend.
-- [ ] Validate the userland path on window graphics contexts so application-side measurement matches kernel-side rendering.
-- [ ] Update `documentation/Kernel.md` with the new graphics text contract and the font abstraction boundaries.
+- [x] Preserve the existing console-font visual result for the first implementation.
+- [x] Expose the high-level text draw and measure API to userland through new syscalls and runtime wrappers using the same font abstraction contract.
+- [x] Validate x86-32 and x86-64 builds and exercise text draw/measure on each active graphics backend.
+- [x] Validate the userland path on window graphics contexts so application-side measurement matches kernel-side rendering.
+- [x] Update `documentation/Kernel.md` with the new graphics text contract and the font abstraction boundaries.
