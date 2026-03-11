@@ -27,6 +27,7 @@
 #include "Desktop-Components.h"
 #include "Desktop-ThemeResolver.h"
 #include "Desktop-ThemeTokens.h"
+#include "CoreString.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Profile.h"
@@ -580,6 +581,44 @@ BOOL GetWindowStyle(HANDLE Handle, U32* Style) {
     if (GetWindowStateSnapshot(This, &Snapshot) == FALSE) return FALSE;
 
     *Style = Snapshot.Style;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Set one window caption string.
+ * @param Handle Window handle.
+ * @param Caption New caption text, or NULL for an empty caption.
+ * @return TRUE on success.
+ */
+BOOL SetWindowCaption(HANDLE Handle, LPCSTR Caption) {
+    LPWINDOW This = (LPWINDOW)Handle;
+
+    if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
+    if (DesktopSetWindowCaption(This, Caption) == FALSE) return FALSE;
+
+    return RequestWindowDraw(Handle);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Retrieve one window caption string.
+ * @param Handle Window handle.
+ * @param Caption Receives a null-terminated caption string.
+ * @param CaptionLength Destination buffer length.
+ * @return TRUE on success.
+ */
+BOOL GetWindowCaption(HANDLE Handle, LPSTR Caption, UINT CaptionLength) {
+    WINDOW_STATE_SNAPSHOT Snapshot;
+    LPWINDOW This = (LPWINDOW)Handle;
+
+    if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
+    if (Caption == NULL || CaptionLength == 0) return FALSE;
+    if (GetWindowStateSnapshot(This, &Snapshot) == FALSE) return FALSE;
+
+    StringCopyLimit(Caption, Snapshot.Caption, CaptionLength);
     return TRUE;
 }
 

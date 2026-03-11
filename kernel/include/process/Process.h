@@ -208,6 +208,7 @@ struct tag_WINDOW {
     U32 Status;
     U32 Level;
     I32 Order;
+    STR Caption[MAX_WINDOW_CAPTION];
 };
 
 typedef struct tag_WINDOW_CLASS {

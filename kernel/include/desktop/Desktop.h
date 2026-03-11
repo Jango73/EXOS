@@ -85,6 +85,8 @@ BOOL MoveWindow(HANDLE, LPRECT);
 BOOL SizeWindow(HANDLE, LPPOINT);
 BOOL SetWindowStyleState(HANDLE, U32, BOOL);
 BOOL GetWindowStyle(HANDLE, U32*);
+BOOL SetWindowCaption(HANDLE, LPCSTR);
+BOOL GetWindowCaption(HANDLE, LPSTR, UINT);
 HANDLE GetWindowParent(HANDLE);
 U32 GetWindowChildCount(HANDLE);
 HANDLE GetWindowChild(HANDLE, U32 ChildIndex);

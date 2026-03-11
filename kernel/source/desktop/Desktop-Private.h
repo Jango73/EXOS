@@ -42,6 +42,7 @@ typedef struct tag_WINDOW_STATE_SNAPSHOT {
     LPTASK Task;
     LPWINDOW_CLASS Class;
     BOOL HasWorkRect;
+    STR Caption[MAX_WINDOW_CAPTION];
 } WINDOW_STATE_SNAPSHOT, *LPWINDOW_STATE_SNAPSHOT;
 
 typedef struct tag_WINDOW_DRAW_CONTEXT_SNAPSHOT {
@@ -128,6 +129,7 @@ BOOL DesktopDetachWindowChild(LPWINDOW Parent, LPWINDOW Child);
 BOOL DesktopSetWindowTask(LPWINDOW Window, LPTASK Task);
 BOOL DesktopSetWindowVisibleState(LPWINDOW Window, BOOL ShowHide);
 BOOL DesktopSetWindowStyleState(LPWINDOW Window, U32 StyleMask, BOOL Enabled);
+BOOL DesktopSetWindowCaption(LPWINDOW Window, LPCSTR Caption);
 BOOL DesktopSetWindowBypassParentWorkRectState(LPWINDOW Window, BOOL Enabled);
 BOOL DesktopRefreshWindowZOrder(LPWINDOW Window);
 I32 SortWindows_Order(LPCVOID Item1, LPCVOID Item2);

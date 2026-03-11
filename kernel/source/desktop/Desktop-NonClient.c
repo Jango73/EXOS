@@ -22,9 +22,11 @@
 \************************************************************************/
 
 #include "Desktop-NonClient.h"
+#include "Desktop-Private.h"
 #include "Desktop-ThemeRecipes.h"
 #include "Desktop-ThemeResolver.h"
 #include "Desktop-ThemeTokens.h"
+#include "CoreString.h"
 #include "GFX.h"
 #include "Kernel.h"
 #include "Log.h"
@@ -288,13 +290,17 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
  * @return TRUE when title bar was drawn.
  */
 static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
-    LPWINDOW This = (LPWINDOW)Window;
+    WINDOW_STATE_SNAPSHOT Snapshot;
     HANDLE TitleBrush;
     HANDLE TitleBrush2;
+    HANDLE TitlePen;
+    HANDLE OldPen = NULL;
+    HANDLE OldBrush = NULL;
     LPBRUSH TitleBrushPtr;
     LPBRUSH TitleBrush2Ptr;
     COLOR Background = 0;
     COLOR Background2 = 0;
+    COLOR TextColor = 0;
     U32 BorderThickness;
     U32 TitleHeight = 22;
     I32 InnerX1;
@@ -303,10 +309,15 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
     I32 InnerY2;
     I32 MaxTitleHeight;
     I32 BottomLineY;
+    I32 TextHeight = 0;
+    I32 TextY;
     COLOR SeparatorColor = 0;
+    GFX_TEXT_MEASURE_INFO MeasureInfo;
+    GFX_TEXT_DRAW_INFO DrawInfo;
 
     if (GC == NULL || Rect == NULL) return FALSE;
     if (ResolveWindowBorderThickness(&BorderThickness) == FALSE) return FALSE;
+    if (GetWindowStateSnapshot((LPWINDOW)Window, &Snapshot) == FALSE) return FALSE;
 
     if (!DesktopThemeResolveLevel1Metric(TEXT("window.titlebar"), TEXT("normal"), TEXT("title_height"), &TitleHeight)) {
         if (!DesktopThemeResolveTokenMetricByName(TEXT("metric.window.title_height"), &TitleHeight)) {
@@ -325,11 +336,11 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
     if ((I32)TitleHeight > MaxTitleHeight) TitleHeight = (U32)MaxTitleHeight;
     InnerY2 = InnerY1 + (I32)TitleHeight - 1;
 
-    SAFE_USE_VALID_ID(This, KOID_WINDOW) {
+    SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
         DEBUG(
             TEXT("[DrawWindowTitleBarFromTheme] window_id=%x style=%x title_rect=(%x,%x)-(%x,%x) full_rect=(%x,%x)-(%x,%x)"),
-            This->WindowID,
-            This->Style,
+            ((LPWINDOW)Window)->WindowID,
+            Snapshot.Style,
             InnerX1,
             InnerY1,
             InnerX2,
@@ -383,6 +394,57 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
     if (BottomLineY >= Rect->Y1 && BottomLineY <= Rect->Y2) {
         (void)DrawSolidRect(GC, InnerX1, BottomLineY, InnerX2, BottomLineY, SeparatorColor);
     }
+
+    if (StringLength(Snapshot.Caption) == 0) return TRUE;
+
+    if (!DesktopThemeResolveLevel1Color(TEXT("window.titlebar"), TEXT("normal"), TEXT("text_color"), &TextColor)) {
+        TitlePen = GetSystemPen(SM_COLOR_TITLE_TEXT);
+        SAFE_USE_VALID_ID((LPPEN)TitlePen, KOID_PEN) {
+            TextColor = ((LPPEN)TitlePen)->Color;
+        }
+    }
+
+    MeasureInfo = (GFX_TEXT_MEASURE_INFO){
+        .Header = {.Size = sizeof(GFX_TEXT_MEASURE_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+        .Text = Snapshot.Caption,
+        .Font = NULL,
+        .Width = 0,
+        .Height = 0
+    };
+    if (MeasureText(&MeasureInfo) != FALSE && MeasureInfo.Height != 0) {
+        TextHeight = (I32)MeasureInfo.Height;
+    } else {
+        TextHeight = 16;
+    }
+
+    TextY = InnerY1 + (((InnerY2 - InnerY1 + 1) - TextHeight) / 2);
+    if (TextY < InnerY1) TextY = InnerY1;
+
+    OldPen = SelectPen(GC, GetSystemPen(SM_COLOR_TITLE_TEXT));
+    OldBrush = SelectBrush(GC, NULL);
+    if (TextColor != 0) {
+        PEN TempPen;
+
+        MemorySet(&TempPen, 0, sizeof(TempPen));
+        TempPen.TypeID = KOID_PEN;
+        TempPen.References = 1;
+        TempPen.Color = TextColor;
+        TempPen.Pattern = MAX_U32;
+        (void)SelectPen(GC, (HANDLE)&TempPen);
+    }
+
+    DrawInfo = (GFX_TEXT_DRAW_INFO){
+        .Header = {.Size = sizeof(GFX_TEXT_DRAW_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+        .GC = GC,
+        .X = InnerX1 + 8,
+        .Y = TextY,
+        .Text = Snapshot.Caption,
+        .Font = NULL
+    };
+    (void)DrawText(&DrawInfo);
+
+    (void)SelectBrush(GC, OldBrush);
+    (void)SelectPen(GC, OldPen);
 
     return TRUE;
 }

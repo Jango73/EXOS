@@ -463,6 +463,7 @@ extern void ConsolePrint(LPCSTR Format, ...);
 #define MAX_FILE_NAME 256
 #define MAX_USER_NAME 128
 #define MAX_NAME 128
+#define MAX_WINDOW_CAPTION 128
 #define MAX_PASSWORD 64
 #define MAX_COMMAND_NAME 64
 

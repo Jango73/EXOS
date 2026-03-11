@@ -1892,6 +1892,7 @@ For system-decorated windows, `EWM_DRAW` is dispatched in client coordinates onl
 For client-decorated and bare windows, `EWM_DRAW` keeps the full owned surface.
 `DefWindowFunc` does not need to redraw system chrome to preserve the frame.
 Decoration mode is resolved from `EWS_SYSTEM_DECORATED`, `EWS_CLIENT_DECORATED`, and `EWS_BARE_SURFACE`, with style `0` treated as system-decorated for compatibility.
+The same non-client path resolves and draws window caption text inside the themed title bar when a caption is set.
 
 #### Window geometry and coordinate spaces
 
@@ -1909,6 +1910,7 @@ Window hierarchy traversal is centralized in `kernel/source/desktop/Desktop-Wind
 Window placement policy can be expressed through generic window style bits. `EWS_EXCLUDE_SIBLING_PLACEMENT` marks one window as reserving its own rectangle against sibling placement.
 Sibling z-order policy can also be expressed through generic style bits: `EWS_ALWAYS_IN_FRONT` keeps one window in the front band, while `EWS_ALWAYS_AT_BOTTOM` keeps one window in the bottom band.
 Sibling z-order values are not guaranteed to remain equal to the last raw `Order` value one caller observed or assigned, because the desktop pipeline can renormalize sibling orders after topmost/bottommost style changes.
+Window captions are stored in core window state and exposed through `SetWindowCaption` and `GetWindowCaption`.
 The core placement resolver first constrains one candidate rectangle to the parent effective work rectangle, then shrinks that placement area around visible sibling windows that reserve placement on one parent edge, and finally rejects any remaining overlap with reserved sibling rectangles.
 Dockable components publish this reservation through the high-level window style API on the docked window itself. Host relayout temporarily clears that style on attached dockables while one new layout frame is applied, then restores it after the frame is committed, so docking does not require one core placement bypass path.
 Visibility changes and style changes affecting `EWS_EXCLUDE_SIBLING_PLACEMENT` or `EWS_VISIBLE` immediately trigger one sibling-placement revalidation pass, so existing sibling windows are re-clamped through the same generic placement resolver without waiting for a later move or creation path.

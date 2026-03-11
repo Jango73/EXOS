@@ -292,6 +292,7 @@ static LPWINDOW DesktopInternalFindTestWindow(LPDESKTOP Desktop, U32 WindowID) {
  * @param Desktop Target desktop.
  * @param WindowID Window identifier.
  * @param Title Internal title tag used for diagnostics.
+ * @param Caption Caption applied to the test window, or NULL for none.
  * @param X Left position in desktop coordinates.
  * @param Y Top position in desktop coordinates.
  * @param Width Width in pixels.
@@ -302,6 +303,7 @@ static BOOL DesktopInternalEnsureSingleWindow(
     LPDESKTOP Desktop,
     U32 WindowID,
     LPCSTR Title,
+    LPCSTR Caption,
     LPCSTR WindowClassName,
     WINDOWFUNC WindowFunc,
     U32 WindowStyle,
@@ -324,6 +326,7 @@ static BOOL DesktopInternalEnsureSingleWindow(
 
     if (Window != NULL && Window->TypeID == KOID_WINDOW) {
         (void)MoveWindow((HANDLE)Window, &WindowRect);
+        (void)SetWindowCaption((HANDLE)Window, Caption);
         (void)ShowWindow((HANDLE)Window, TRUE);
         DEBUG(TEXT("[DesktopInternalEnsureSingleWindow] Existing test window visible title=%s id=%x"), Title, WindowID);
         return TRUE;
@@ -351,6 +354,7 @@ static BOOL DesktopInternalEnsureSingleWindow(
         return FALSE;
     }
 
+    (void)SetWindowCaption((HANDLE)Window, Caption);
     (void)ShowWindow((HANDLE)Window, TRUE);
     DEBUG(TEXT("[DesktopInternalEnsureSingleWindow] Test window created title=%s id=%x"), Title, WindowID);
     return TRUE;
@@ -372,6 +376,7 @@ BOOL DesktopInternalTestEnsureWindowsVisible(LPDESKTOP Desktop) {
         Desktop,
         DESKTOP_INTERNAL_TEST_WINDOW_ID_A,
         TEXT("Kernel Test Alpha"),
+        TEXT("Test"),
         NULL,
         DesktopInternalTestWindowFunc,
         EWS_VISIBLE | EWS_SYSTEM_DECORATED,
@@ -384,6 +389,7 @@ BOOL DesktopInternalTestEnsureWindowsVisible(LPDESKTOP Desktop) {
         Desktop,
         DESKTOP_INTERNAL_ON_SCREEN_DEBUG_INFO_WINDOW_ID,
         TEXT("OnScreenDebugInfo"),
+        NULL,
         NULL,
         OnScreenDebugInfoWindowFunc,
         EWS_VISIBLE | EWS_BARE_SURFACE | EWS_ALWAYS_AT_BOTTOM,

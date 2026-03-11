@@ -23,6 +23,7 @@
 
 #include "Desktop-Private.h"
 #include "Desktop.h"
+#include "CoreString.h"
 #include "Kernel.h"
 
 /***************************************************************************/
@@ -86,6 +87,7 @@ BOOL GetWindowStateSnapshot(LPWINDOW Window, LPWINDOW_STATE_SNAPSHOT Snapshot) {
     Snapshot->Task = Window->Task;
     Snapshot->Class = Window->Class;
     Snapshot->HasWorkRect = ((Window->Status & WINDOW_STATUS_HAS_WORK_RECT) != 0);
+    StringCopyLimit(Snapshot->Caption, Window->Caption, MAX_WINDOW_CAPTION);
     UnlockMutex(&(Window->Mutex));
 
     return TRUE;
@@ -434,6 +436,24 @@ BOOL DesktopSetWindowStyleState(LPWINDOW Window, U32 StyleMask, BOOL Enabled) {
     } else {
         Window->Style &= ~StyleMask;
     }
+    UnlockMutex(&(Window->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Update one window caption under the window owner mutex.
+ * @param Window Target window.
+ * @param Caption New caption text, or NULL for an empty caption.
+ * @return TRUE on success.
+ */
+BOOL DesktopSetWindowCaption(LPWINDOW Window, LPCSTR Caption) {
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    StringCopyLimit(Window->Caption, Caption != NULL ? Caption : TEXT(""), MAX_WINDOW_CAPTION);
     UnlockMutex(&(Window->Mutex));
 
     return TRUE;
