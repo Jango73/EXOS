@@ -230,59 +230,7 @@ static BOOL DesktopCursorBuildVisibleRegionForWindow(
     LPRECT Storage,
     UINT Capacity
 ) {
-    LPWINDOW Parent;
-    LPWINDOW* Windows = NULL;
-    LPWINDOW Candidate;
-    I32 WindowOrder;
-    I32 CandidateOrder;
-    UINT Count = 0;
-    UINT Index;
-
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
-    if (BaseRect == NULL || Region == NULL || Storage == NULL || Capacity == 0) return FALSE;
-    if (GetWindowOrderSnapshot(Window, &WindowOrder) == FALSE) return FALSE;
-
-    if (RectRegionInit(Region, Storage, Capacity) == FALSE) return FALSE;
-    RectRegionReset(Region);
-    if (RectRegionAddRect(Region, BaseRect) == FALSE) return FALSE;
-
-    Parent = (LPWINDOW)GetWindowParent((HANDLE)Window);
-    if (Parent != NULL && Parent->TypeID == KOID_WINDOW) {
-        (void)DesktopSnapshotWindowChildren(Parent, &Windows, &Count);
-        for (Index = 0; Index < Count; Index++) {
-            Candidate = Windows[Index];
-            if (Candidate == NULL || Candidate->TypeID != KOID_WINDOW) continue;
-            if (Candidate == Window) continue;
-            if (GetWindowOrderSnapshot(Candidate, &CandidateOrder) == FALSE) continue;
-            if (CandidateOrder >= WindowOrder) continue;
-            DesktopVisibleRegionSubtractVisibleWindowTree(Candidate, Region, WINDOW_DIRTY_REGION_CAPACITY);
-            if (RectRegionGetCount(Region) == 0) {
-                if (Windows != NULL) KernelHeapFree(Windows);
-                return TRUE;
-            }
-        }
-        if (Windows != NULL) {
-            KernelHeapFree(Windows);
-            Windows = NULL;
-        }
-    }
-
-    Count = 0;
-    (void)DesktopSnapshotWindowChildren(Window, &Windows, &Count);
-    for (Index = 0; Index < Count; Index++) {
-        Candidate = Windows[Index];
-        if (Candidate == NULL || Candidate->TypeID != KOID_WINDOW) continue;
-        DesktopVisibleRegionSubtractVisibleWindowTree(Candidate, Region, WINDOW_DIRTY_REGION_CAPACITY);
-        if (RectRegionGetCount(Region) == 0) {
-            if (Windows != NULL) KernelHeapFree(Windows);
-            return TRUE;
-        }
-    }
-    if (Windows != NULL) {
-        KernelHeapFree(Windows);
-    }
-
-    return TRUE;
+    return DesktopBuildWindowVisibleRegion(Window, BaseRect, TRUE, Region, Storage, Capacity);
 }
 
 /************************************************************************/
