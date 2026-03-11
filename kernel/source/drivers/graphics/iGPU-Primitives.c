@@ -117,12 +117,6 @@ static void IntelGfxDrawRectangleInternal(LPGRAPHICSCONTEXT Context, I32 X1, I32
 
 /************************************************************************/
 
-static I32 IntelGfxTriangleEdgeFunction(I32 Ax, I32 Ay, I32 Bx, I32 By, I32 Px, I32 Py) {
-    return (Px - Ax) * (By - Ay) - (Py - Ay) * (Bx - Ax);
-}
-
-/************************************************************************/
-
 static BOOL IntelGfxNormalizeFlushBounds(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2, LPRECT BoundsOut) {
     I32 Temp = 0;
 
@@ -295,9 +289,6 @@ UINT IntelGfxRectangle(LPRECTINFO Info) {
 
 UINT IntelGfxArc(LPARCINFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
-    I32 X = 0;
-    I32 Y = 0;
-    I32 Error = 0;
     I32 Radius = 0;
     I32 CenterX = 0;
     I32 CenterY = 0;
@@ -325,36 +316,7 @@ UINT IntelGfxArc(LPARCINFO Info) {
     StrokeColor = Context->Pen->Color;
 
     // Midpoint circle rasterization. Start/end angles are intentionally ignored.
-    X = Radius;
-    Y = 0;
-    Error = 1 - Radius;
-
-    while (X >= Y) {
-        COLOR PixelColor = StrokeColor;
-        (void)IntelGfxWritePixelInternal(Context, CenterX + X, CenterY + Y, &PixelColor);
-        PixelColor = StrokeColor;
-        (void)IntelGfxWritePixelInternal(Context, CenterX + Y, CenterY + X, &PixelColor);
-        PixelColor = StrokeColor;
-        (void)IntelGfxWritePixelInternal(Context, CenterX - Y, CenterY + X, &PixelColor);
-        PixelColor = StrokeColor;
-        (void)IntelGfxWritePixelInternal(Context, CenterX - X, CenterY + Y, &PixelColor);
-        PixelColor = StrokeColor;
-        (void)IntelGfxWritePixelInternal(Context, CenterX - X, CenterY - Y, &PixelColor);
-        PixelColor = StrokeColor;
-        (void)IntelGfxWritePixelInternal(Context, CenterX - Y, CenterY - X, &PixelColor);
-        PixelColor = StrokeColor;
-        (void)IntelGfxWritePixelInternal(Context, CenterX + Y, CenterY - X, &PixelColor);
-        PixelColor = StrokeColor;
-        (void)IntelGfxWritePixelInternal(Context, CenterX + X, CenterY - Y, &PixelColor);
-
-        Y++;
-        if (Error < 0) {
-            Error += (2 * Y) + 1;
-        } else {
-            X--;
-            Error += 2 * (Y - X) + 1;
-        }
-    }
+    (void)GraphicsStrokeArc(Context, IntelGfxPlotLinePixel, CenterX, CenterY, Radius, StrokeColor);
 
     if (IntelGfxNormalizeFlushBounds(
             Context, CenterX - Radius, CenterY - Radius, CenterX + Radius, CenterY + Radius, &Bounds)) {
@@ -415,7 +377,7 @@ UINT IntelGfxTriangle(LPTRIANGLEINFO Info) {
     if (Info->P2.Y > MaxY) MaxY = Info->P2.Y;
     if (Info->P3.Y > MaxY) MaxY = Info->P3.Y;
 
-    Area = IntelGfxTriangleEdgeFunction(Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
+    Area = GraphicsTriangleEdgeFunction(Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
     if (Area == 0) {
         if (HasStroke != FALSE) {
             IntelGfxDrawLineInternal(Context, Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y);

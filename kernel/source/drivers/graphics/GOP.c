@@ -611,6 +611,80 @@ static UINT GOPGfxRectangle(LPRECTINFO Info) {
 /************************************************************************/
 
 /**
+ * @brief Draw an arc in GOP framebuffer.
+ * @param Info Arc descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static UINT GOPGfxArc(LPARCINFO Info) {
+    LPGRAPHICSCONTEXT Context = NULL;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)Info->GC;
+    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Mutex), INFINITY);
+    if (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN && Info->Radius > 0) {
+        (void)GraphicsStrokeArc(Context, GOPGfxPlotLinePixel, Info->CenterX, Info->CenterY, Info->Radius, Context->Pen->Color);
+    }
+    UnlockMutex(&(Context->Mutex));
+
+    return 1;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Draw a triangle in GOP framebuffer.
+ * @param Info Triangle descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static UINT GOPGfxTriangle(LPTRIANGLEINFO Info) {
+    LPGRAPHICSCONTEXT Context = NULL;
+    I32 Area = 0;
+    COLOR FillColor = 0;
+    BOOL HasFill = FALSE;
+    BOOL HasStroke = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)Info->GC;
+    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Mutex), INFINITY);
+
+    HasFill = (Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH);
+    HasStroke = (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN);
+    if (HasFill != FALSE) {
+        FillColor = Context->Brush->Color;
+    }
+
+    Area = GraphicsTriangleEdgeFunction(Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
+    if (Area != 0 && HasFill != FALSE) {
+        (void)GraphicsFillTriangleSpans(Context, Info, FillColor, NULL);
+    }
+
+    if (HasStroke != FALSE) {
+        GOPGfxDrawLine(Context, Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y);
+        GOPGfxDrawLine(Context, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
+        GOPGfxDrawLine(Context, Info->P3.X, Info->P3.Y, Info->P1.X, Info->P1.Y);
+    }
+
+    UnlockMutex(&(Context->Mutex));
+    return 1;
+}
+
+/************************************************************************/
+
+/**
  * @brief Draw one text cell in GOP framebuffer.
  * @param Info Text cell descriptor.
  * @return 1 on success, 0 on failure.
@@ -791,6 +865,10 @@ static UINT GOPGfxCommands(UINT Function, UINT Param) {
             return GOPGfxLine((LPLINEINFO)Param);
         case DF_GFX_RECTANGLE:
             return GOPGfxRectangle((LPRECTINFO)Param);
+        case DF_GFX_ARC:
+            return GOPGfxArc((LPARCINFO)Param);
+        case DF_GFX_TRIANGLE:
+            return GOPGfxTriangle((LPTRIANGLEINFO)Param);
         case DF_GFX_TEXT_PUTCELL:
             return GOPGfxTextPutCell((LPGFX_TEXT_CELL_INFO)Param);
         case DF_GFX_TEXT_CLEAR_REGION:

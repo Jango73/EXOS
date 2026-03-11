@@ -259,8 +259,53 @@ BOOL GraphicsFillSolidRect(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I3
 
 /************************************************************************/
 
-static I32 GraphicsTriangleEdgeFunction(I32 Ax, I32 Ay, I32 Bx, I32 By, I32 Px, I32 Py) {
+I32 GraphicsTriangleEdgeFunction(I32 Ax, I32 Ay, I32 Bx, I32 By, I32 Px, I32 Py) {
     return (Px - Ax) * (By - Ay) - (Py - Ay) * (Bx - Ax);
+}
+
+/************************************************************************/
+
+BOOL GraphicsStrokeArc(LPVOID Context, GRAPHICS_PLOT_PIXEL_ROUTINE PlotPixel, I32 CenterX, I32 CenterY, I32 Radius, COLOR StrokeColor) {
+    I32 X = 0;
+    I32 Y = 0;
+    I32 Error = 0;
+    COLOR PixelColor = 0;
+
+    if (PlotPixel == NULL) return FALSE;
+    if (Radius <= 0) return FALSE;
+
+    X = Radius;
+    Y = 0;
+    Error = 1 - Radius;
+
+    while (X >= Y) {
+        PixelColor = StrokeColor;
+        (void)PlotPixel(Context, CenterX + X, CenterY + Y, &PixelColor);
+        PixelColor = StrokeColor;
+        (void)PlotPixel(Context, CenterX + Y, CenterY + X, &PixelColor);
+        PixelColor = StrokeColor;
+        (void)PlotPixel(Context, CenterX - Y, CenterY + X, &PixelColor);
+        PixelColor = StrokeColor;
+        (void)PlotPixel(Context, CenterX - X, CenterY + Y, &PixelColor);
+        PixelColor = StrokeColor;
+        (void)PlotPixel(Context, CenterX - X, CenterY - Y, &PixelColor);
+        PixelColor = StrokeColor;
+        (void)PlotPixel(Context, CenterX - Y, CenterY - X, &PixelColor);
+        PixelColor = StrokeColor;
+        (void)PlotPixel(Context, CenterX + Y, CenterY - X, &PixelColor);
+        PixelColor = StrokeColor;
+        (void)PlotPixel(Context, CenterX + X, CenterY - Y, &PixelColor);
+
+        Y++;
+        if (Error < 0) {
+            Error += (2 * Y) + 1;
+        } else {
+            X--;
+            Error += 2 * (Y - X) + 1;
+        }
+    }
+
+    return TRUE;
 }
 
 /************************************************************************/

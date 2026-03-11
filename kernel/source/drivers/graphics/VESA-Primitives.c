@@ -124,6 +124,19 @@ struct tag_VESA_CONTEXT {
     U32 FrameBufferSize;
     BOOL LinearFrameBufferEnabled;
 };
+
+/***************************************************************************/
+
+static BOOL VESAPlotPixel(LPVOID Context, I32 X, I32 Y, COLOR* Color) {
+    LPVESA_CONTEXT VesaContext = (LPVESA_CONTEXT)Context;
+
+    if (VesaContext == NULL || Color == NULL) return FALSE;
+    (void)VesaContext->ModeSpecs.SetPixel(VesaContext, X, Y, *Color);
+    return TRUE;
+}
+
+/***************************************************************************/
+
 COLOR SetPixel8(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
     U32 Offset;
     U8* Plane;
@@ -878,12 +891,6 @@ U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 
 /***************************************************************************/
 
-static I32 TriangleEdgeFunction(I32 Ax, I32 Ay, I32 Bx, I32 By, I32 Px, I32 Py) {
-    return (Px - Ax) * (By - Ay) - (Py - Ay) * (Bx - Ax);
-}
-
-/***************************************************************************/
-
 U32 VESATrianglePrimitive(LPVESA_CONTEXT Context, LPTRIANGLEINFO Info) {
     I32 MinX;
     I32 MaxX;
@@ -925,7 +932,7 @@ U32 VESATrianglePrimitive(LPVESA_CONTEXT Context, LPTRIANGLEINFO Info) {
     if (MaxY > Context->Header.HiClip.Y) MaxY = Context->Header.HiClip.Y;
     if (MinX > MaxX || MinY > MaxY) return 1;
 
-    Area = TriangleEdgeFunction(Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
+    Area = GraphicsTriangleEdgeFunction(Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
     if (Area == 0) {
         if (HasStroke != FALSE) {
             Context->ModeSpecs.Line(Context, Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y);
@@ -951,9 +958,6 @@ U32 VESATrianglePrimitive(LPVESA_CONTEXT Context, LPTRIANGLEINFO Info) {
 /***************************************************************************/
 
 U32 VESAArcPrimitive(LPVESA_CONTEXT Context, LPARCINFO Info) {
-    I32 X;
-    I32 Y;
-    I32 Error;
     I32 Radius;
     I32 CenterX;
     I32 CenterY;
@@ -970,28 +974,7 @@ U32 VESAArcPrimitive(LPVESA_CONTEXT Context, LPARCINFO Info) {
 
     // Midpoint circle rasterization. Start/end angles are intentionally ignored
     // for now; current clock widget usage draws full circles.
-    X = Radius;
-    Y = 0;
-    Error = 1 - Radius;
-
-    while (X >= Y) {
-        Context->ModeSpecs.SetPixel(Context, CenterX + X, CenterY + Y, StrokeColor);
-        Context->ModeSpecs.SetPixel(Context, CenterX + Y, CenterY + X, StrokeColor);
-        Context->ModeSpecs.SetPixel(Context, CenterX - Y, CenterY + X, StrokeColor);
-        Context->ModeSpecs.SetPixel(Context, CenterX - X, CenterY + Y, StrokeColor);
-        Context->ModeSpecs.SetPixel(Context, CenterX - X, CenterY - Y, StrokeColor);
-        Context->ModeSpecs.SetPixel(Context, CenterX - Y, CenterY - X, StrokeColor);
-        Context->ModeSpecs.SetPixel(Context, CenterX + Y, CenterY - X, StrokeColor);
-        Context->ModeSpecs.SetPixel(Context, CenterX + X, CenterY - Y, StrokeColor);
-
-        Y++;
-        if (Error < 0) {
-            Error += (2 * Y) + 1;
-        } else {
-            X--;
-            Error += 2 * (Y - X) + 1;
-        }
-    }
+    (void)GraphicsStrokeArc(Context, VESAPlotPixel, CenterX, CenterY, Radius, StrokeColor);
 
     return 1;
 }
