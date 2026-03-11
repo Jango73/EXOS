@@ -24,7 +24,6 @@
 #include "Desktop-Private.h"
 #include "Desktop-Cursor.h"
 #include "Desktop-NonClient.h"
-#include "Desktop-Components.h"
 #include "Desktop-ThemeResolver.h"
 #include "Desktop-ThemeTokens.h"
 #include "CoreString.h"
@@ -35,6 +34,7 @@
 #include "input/Mouse.h"
 #include "input/MouseDispatcher.h"
 #include "process/Task-Messaging.h"
+#include "ui/Startup-Desktop-Components.h"
 #include "utils/Graphics-Utils.h"
 
 /***************************************************************************/
@@ -1539,7 +1539,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             LPDESKTOP Desktop;
 
             Desktop = GetWindowDesktop((LPWINDOW)Window);
-            if (Desktop != NULL && DesktopComponentsHandleChildAppended(Desktop, Param1) != FALSE) {
+            if (Desktop != NULL && StartupDesktopComponentsHandleChildAppended(Desktop, Param1) != FALSE) {
                 return 1;
             }
         } break;

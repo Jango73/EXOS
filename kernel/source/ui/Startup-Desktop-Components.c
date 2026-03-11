@@ -17,17 +17,15 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Desktop component composition
+    Startup desktop component composition
 
 \************************************************************************/
 
-#include "Desktop-Components.h"
+#include "ui/Startup-Desktop-Components.h"
 
 #include "ui/ClockWidget.h"
 #include "ui/LogViewer.h"
 #include "ui/ShellBar.h"
-#include "desktop/Desktop-NonClient.h"
-#include "Log.h"
 
 /***************************************************************************/
 
@@ -46,7 +44,7 @@
  * @param Value Property value.
  * @return Matching child or NULL.
  */
-static LPWINDOW DesktopComponentsFindDirectChildByProp(LPWINDOW Parent, LPCSTR Name, U32 Value) {
+static LPWINDOW StartupDesktopComponentsFindDirectChildByProp(LPWINDOW Parent, LPCSTR Name, U32 Value) {
     U32 ChildCount;
     U32 ChildIndex;
     HANDLE ChildWindow;
@@ -71,12 +69,10 @@ static LPWINDOW DesktopComponentsFindDirectChildByProp(LPWINDOW Parent, LPCSTR N
  * @param Desktop Target desktop.
  * @return TRUE on success.
  */
-static BOOL DesktopComponentsInjectShellBarClock(LPDESKTOP Desktop) {
+static BOOL StartupDesktopComponentsInjectShellBarClock(LPDESKTOP Desktop) {
     HANDLE ShellBarWindow;
     HANDLE ComponentsSlotWindow;
     HANDLE ClockWindow;
-    RECT SlotRect;
-    RECT SlotClientRect;
     WINDOWINFO WindowInfo;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
@@ -91,11 +87,9 @@ static BOOL DesktopComponentsInjectShellBarClock(LPDESKTOP Desktop) {
     if (ComponentsSlotWindow == NULL) {
         return FALSE;
     }
-    if (GetWindowRect(ComponentsSlotWindow, &SlotRect) != FALSE &&
-        GetWindowClientRect(ComponentsSlotWindow, &SlotClientRect) != FALSE) {
-    }
 
-    ClockWindow = (HANDLE)DesktopComponentsFindDirectChildByProp((LPWINDOW)ComponentsSlotWindow, DESKTOP_SHELL_BAR_CLOCK_PROP, 1);
+    ClockWindow = (HANDLE)StartupDesktopComponentsFindDirectChildByProp(
+        (LPWINDOW)ComponentsSlotWindow, DESKTOP_SHELL_BAR_CLOCK_PROP, 1);
     if (ClockWindow != NULL) {
         return TRUE;
     }
@@ -121,7 +115,6 @@ static BOOL DesktopComponentsInjectShellBarClock(LPDESKTOP Desktop) {
         return FALSE;
     }
 
-
     (void)SetWindowProp(ClockWindow, DESKTOP_SHELL_BAR_CLOCK_PROP, 1);
     return TRUE;
 }
@@ -133,7 +126,7 @@ static BOOL DesktopComponentsInjectShellBarClock(LPDESKTOP Desktop) {
  * @param Desktop Target desktop.
  * @return TRUE on success.
  */
-static BOOL DesktopComponentsEnsureLogViewerWindow(LPDESKTOP Desktop) {
+static BOOL CreateLogViewer(LPDESKTOP Desktop) {
     HANDLE RootWindow;
     HANDLE LogViewerWindow;
     WINDOWINFO WindowInfo;
@@ -176,7 +169,7 @@ static BOOL DesktopComponentsEnsureLogViewerWindow(LPDESKTOP Desktop) {
     WindowRect.X2 = ScreenWidth - 1;
     WindowRect.Y2 = WindowHeight - 1;
 
-    LogViewerWindow = (HANDLE)DesktopComponentsFindDirectChildByProp((LPWINDOW)RootWindow, DESKTOP_LOG_VIEWER_PROP, 1);
+    LogViewerWindow = (HANDLE)StartupDesktopComponentsFindDirectChildByProp((LPWINDOW)RootWindow, DESKTOP_LOG_VIEWER_PROP, 1);
     if (LogViewerWindow != NULL) {
         (void)MoveWindow(LogViewerWindow, &WindowRect);
         (void)SetWindowCaption(LogViewerWindow, TEXT("Kernel Log"));
@@ -212,12 +205,7 @@ static BOOL DesktopComponentsEnsureLogViewerWindow(LPDESKTOP Desktop) {
 
 /***************************************************************************/
 
-/**
- * @brief Instantiate desktop-owned UI components.
- * @param Desktop Target desktop.
- * @return TRUE on success.
- */
-BOOL DesktopComponentsInitialize(LPDESKTOP Desktop) {
+BOOL StartupDesktopComponentsInitialize(LPDESKTOP Desktop) {
     BOOL ClockResult;
     BOOL LogViewerResult;
 
@@ -230,30 +218,24 @@ BOOL DesktopComponentsInitialize(LPDESKTOP Desktop) {
     }
 
     Desktop->PendingComponents |= DESKTOP_PENDING_COMPONENT_CLOCK;
-    ClockResult = DesktopComponentsInjectShellBarClock(Desktop);
+    ClockResult = StartupDesktopComponentsInjectShellBarClock(Desktop);
     if (ClockResult != FALSE) {
         Desktop->PendingComponents &= ~DESKTOP_PENDING_COMPONENT_CLOCK;
     }
-    LogViewerResult = DesktopComponentsEnsureLogViewerWindow(Desktop);
+    LogViewerResult = CreateLogViewer(Desktop);
     return (ClockResult != FALSE && LogViewerResult != FALSE);
 }
 
 /***************************************************************************/
 
-/**
- * @brief Retry pending desktop-owned component injections after one child append.
- * @param Desktop Target desktop.
- * @param ChildWindowID Newly appended child window identifier.
- * @return TRUE when one pending component was realized.
- */
-BOOL DesktopComponentsHandleChildAppended(LPDESKTOP Desktop, U32 ChildWindowID) {
+BOOL StartupDesktopComponentsHandleChildAppended(LPDESKTOP Desktop, U32 ChildWindowID) {
     BOOL Result = FALSE;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
     if (ChildWindowID != SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID) return FALSE;
     if ((Desktop->PendingComponents & DESKTOP_PENDING_COMPONENT_CLOCK) == 0) return FALSE;
 
-    Result = DesktopComponentsInjectShellBarClock(Desktop);
+    Result = StartupDesktopComponentsInjectShellBarClock(Desktop);
     if (Result != FALSE) {
         Desktop->PendingComponents &= ~DESKTOP_PENDING_COMPONENT_CLOCK;
     }

@@ -17,21 +17,21 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Desktop component composition
+    Startup desktop component composition
 
 \************************************************************************/
 
-#ifndef DESKTOP_COMPONENTS_H_INCLUDED
-#define DESKTOP_COMPONENTS_H_INCLUDED
+#ifndef STARTUP_DESKTOP_COMPONENTS_H_INCLUDED
+#define STARTUP_DESKTOP_COMPONENTS_H_INCLUDED
 
 /***************************************************************************/
 
-#include "Desktop.h"
+#include "desktop/Desktop.h"
 
 /***************************************************************************/
 
-BOOL DesktopComponentsInitialize(LPDESKTOP Desktop);
-BOOL DesktopComponentsHandleChildAppended(LPDESKTOP Desktop, U32 ChildWindowID);
+BOOL StartupDesktopComponentsInitialize(LPDESKTOP Desktop);
+BOOL StartupDesktopComponentsHandleChildAppended(LPDESKTOP Desktop, U32 ChildWindowID);
 
 /***************************************************************************/
 

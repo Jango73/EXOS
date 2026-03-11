@@ -24,7 +24,6 @@
 
 #include "Clock.h"
 #include "CoreString.h"
-#include "Desktop-Components.h"
 #include "Desktop-Cursor.h"
 #include "Desktop-Dispatcher.h"
 #include "Desktop-ModeSelector.h"
@@ -45,6 +44,7 @@
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
 #include "ui/RootWindowClass.h"
+#include "ui/Startup-Desktop-Components.h"
 #include "utils/Graphics-Utils.h"
 #include "utils/RateLimiter.h"
 
@@ -462,7 +462,7 @@ LPDESKTOP CreateDesktop(void) {
         return NULL;
     }
 
-    (void)DesktopComponentsInitialize(This);
+    (void)StartupDesktopComponentsInitialize(This);
     UpdateDesktopWindowRect(This, (I32)Console.Width, (I32)Console.Height);
 
     //-------------------------------------
