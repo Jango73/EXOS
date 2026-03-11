@@ -96,3 +96,22 @@ BOOL GetGraphicsDebugInfo(LPDRIVER_DEBUG_INFO Info) {
 }
 
 /***************************************************************************/
+
+/**
+ * @brief Retrieve multi-line debug information from the active mouse driver.
+ * @param Info Receives driver-specific debug lines.
+ * @return TRUE on success.
+ */
+BOOL GetMouseDebugInfo(LPDRIVER_DEBUG_INFO Info) {
+    LPDRIVER Driver = NULL;
+
+    if (Info == NULL) return FALSE;
+    if (Info->Header.Size < sizeof(DRIVER_DEBUG_INFO)) return FALSE;
+
+    Driver = GetMouseDriver();
+    if (Driver == NULL || Driver->Command == NULL) return FALSE;
+
+    return Driver->Command(DF_DEBUG_INFO, (UINT)(LPVOID)Info) == DF_RETURN_SUCCESS ? TRUE : FALSE;
+}
+
+/***************************************************************************/

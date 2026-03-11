@@ -817,6 +817,7 @@ The default font is an in-tree ASCII 8x16 EXOS font and can be replaced through 
 The shared font layer is split between font-face metrics/raster access (`FONT_FACE`) and the legacy bitmap glyph-set compatibility path (`FONT_GLYPH_SET`). Existing console rendering continues to use the in-tree bitmap font through this abstraction boundary.
 Generic driver diagnostics use `DF_DEBUG_INFO` with `DRIVER_DEBUG_INFO.Text`, a multi-line buffer sized with `MAX_STRING_BUFFER`.
 Graphics backends implement `DF_DEBUG_INFO` to expose backend alias and current resolution, and the graphics selector forwards this query to the active backend.
+Mouse drivers implement `DF_DEBUG_INFO` to expose the selected mouse manufacturer and product, and the mouse selector forwards this query to the active mouse driver.
 Userland text rendering is exposed through `SYSCALL_DrawText` / `SYSCALL_MeasureText` and the runtime wrappers `DrawText` / `MeasureText`. The initial userland path accepts `Font = 0` to select the default kernel font; explicit userland font objects remain a later extension.
 
 
@@ -1932,7 +1933,7 @@ Parent movement constraints use the generic window work rectangle API (`SetWindo
 Docked windows publish sibling-placement exclusion through `EWS_EXCLUDE_SIBLING_PLACEMENT` and do not use docking-specific bypass logic when the host applies one assigned rectangle.
 Shell bar content composition uses slot windows exposed by `kernel/source/ui/ShellBar.c` (`left`, `center`, `components`) and the desktop injects concrete component windows into these slots.
 The shell bar does not reference concrete component types; it only manages slot geometry and keeps slot children fitted to slot client rectangles.
-The on-screen debug information component (`kernel/source/ui/OnScreenDebugInfo.c`, `kernel/include/ui/OnScreenDebugInfo.h`) is instantiated by the internal desktop test path as one bare bottom-band window spanning part of the desktop placement area, and it renders graphics debug lines through the shared high-level text API without coupling to other components.
+The on-screen debug information component (`kernel/source/ui/OnScreenDebugInfo.c`, `kernel/include/ui/OnScreenDebugInfo.h`) is instantiated by the internal desktop test path as one bare bottom-band window spanning part of the desktop placement area, and it renders graphics then mouse debug lines through the shared high-level text API without coupling to other components.
 
 #### Theme architecture
 

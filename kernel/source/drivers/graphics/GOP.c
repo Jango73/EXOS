@@ -882,8 +882,9 @@ static UINT GOPGfxDebugInfo(LPDRIVER_DEBUG_INFO Info) {
 
         StringPrintFormat(
             Info->Text,
-            TEXT("Backend: %s\nResolution: %ux%ux%u"),
-            GOPGfxDriver.Alias,
+            TEXT("Manufacturer: %s\nProduct: %s\nResolution: %ux%ux%u"),
+            GOPGfxDriver.Manufacturer,
+            GOPGfxDriver.Product,
             Width,
             Height,
             BitsPerPixel);

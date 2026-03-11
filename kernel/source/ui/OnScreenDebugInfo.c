@@ -26,13 +26,35 @@
 
 /***************************************************************************/
 
-#define ON_SCREEN_DEBUG_INFO_LINE_COUNT 5
+#define ON_SCREEN_DEBUG_INFO_LINE_COUNT 8
 #define ON_SCREEN_DEBUG_INFO_PADDING_X 10
 #define ON_SCREEN_DEBUG_INFO_PADDING_Y 8
 #define ON_SCREEN_DEBUG_INFO_LINE_GAP 4
 #define ON_SCREEN_DEBUG_INFO_DEFAULT_LINE_HEIGHT 16
 #define ON_SCREEN_DEBUG_INFO_DEFAULT_WIDTH 160
 #define ON_SCREEN_DEBUG_INFO_DEFAULT_HEIGHT 112
+
+/***************************************************************************/
+
+/**
+ * @brief Append one titled debug section to the combined on-screen buffer.
+ * @param Destination Receives the concatenated text.
+ * @param Title Section title ending with ':'.
+ * @param Source Multi-line section body.
+ */
+static void OnScreenDebugInfoAppendSection(LPSTR Destination, LPCSTR Title, LPCSTR Source) {
+    if (Destination == NULL || Title == NULL || Source == NULL || *Source == 0) {
+        return;
+    }
+
+    if (*Destination != 0) {
+        StringConcat(Destination, TEXT("\n"));
+    }
+
+    StringConcat(Destination, Title);
+    StringConcat(Destination, TEXT("\n"));
+    StringConcat(Destination, Source);
+}
 
 /***************************************************************************/
 
@@ -114,7 +136,9 @@ U32 OnScreenDebugInfoWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Para
     RECT ClientRect;
     HANDLE GraphicsContext = NULL;
     GFX_TEXT_MEASURE_INFO MeasureInfo;
-    DRIVER_DEBUG_INFO DebugInfo;
+    DRIVER_DEBUG_INFO GraphicsDebugInfo;
+    DRIVER_DEBUG_INFO MouseDebugInfo;
+    DRIVER_DEBUG_INFO CombinedDebugInfo;
     I32 LineHeight = ON_SCREEN_DEBUG_INFO_DEFAULT_LINE_HEIGHT;
 
     switch (Message) {
@@ -145,16 +169,33 @@ U32 OnScreenDebugInfoWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Para
             (void)SelectBrush(GraphicsContext, NULL);
             (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_TEXT_NORMAL));
 
-            DebugInfo = (DRIVER_DEBUG_INFO){
+            GraphicsDebugInfo = (DRIVER_DEBUG_INFO){
                 .Header = {.Size = sizeof(DRIVER_DEBUG_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0}
             };
-            StringClear(DebugInfo.Text);
+            MouseDebugInfo = (DRIVER_DEBUG_INFO){
+                .Header = {.Size = sizeof(DRIVER_DEBUG_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0}
+            };
+            CombinedDebugInfo = (DRIVER_DEBUG_INFO){
+                .Header = {.Size = sizeof(DRIVER_DEBUG_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0}
+            };
+            StringClear(GraphicsDebugInfo.Text);
+            StringClear(MouseDebugInfo.Text);
+            StringClear(CombinedDebugInfo.Text);
 
-            if (GetGraphicsDebugInfo(&DebugInfo) == FALSE) {
-                StringCopy(DebugInfo.Text, TEXT("Backend: unavailable\nResolution: 0x0x0"));
+            if (GetGraphicsDebugInfo(&GraphicsDebugInfo) == FALSE) {
+                StringCopy(
+                    GraphicsDebugInfo.Text,
+                    TEXT("Manufacturer: unavailable\nProduct: unavailable\nResolution: 0x0x0"));
             }
 
-            OnScreenDebugInfoDrawLines(GraphicsContext, &ClientRect, LineHeight, DebugInfo.Text);
+            if (GetMouseDebugInfo(&MouseDebugInfo) == FALSE) {
+                StringCopy(MouseDebugInfo.Text, TEXT("Manufacturer: unavailable\nProduct: unavailable"));
+            }
+
+            OnScreenDebugInfoAppendSection(CombinedDebugInfo.Text, TEXT("Graphics:"), GraphicsDebugInfo.Text);
+            OnScreenDebugInfoAppendSection(CombinedDebugInfo.Text, TEXT("Mouse:"), MouseDebugInfo.Text);
+
+            OnScreenDebugInfoDrawLines(GraphicsContext, &ClientRect, LineHeight, CombinedDebugInfo.Text);
 
             (void)EndWindowDraw(Window);
             return 1;

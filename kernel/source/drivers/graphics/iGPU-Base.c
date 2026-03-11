@@ -596,7 +596,13 @@ static UINT IntelGfxDebugInfo(LPDRIVER_DEBUG_INFO Info) {
         }
 
         StringPrintFormat(
-            Info->Text, TEXT("Backend: %s\nResolution: %ux%ux%u"), IntelGfxDriver.Alias, Width, Height, BitsPerPixel);
+            Info->Text,
+            TEXT("Manufacturer: %s\nProduct: %s\nResolution: %ux%ux%u"),
+            IntelGfxDriver.Manufacturer,
+            IntelGfxDriver.Product,
+            Width,
+            Height,
+            BitsPerPixel);
         return DF_RETURN_SUCCESS;
     }
 

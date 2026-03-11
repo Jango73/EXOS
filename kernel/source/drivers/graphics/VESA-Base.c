@@ -210,8 +210,9 @@ static UINT VESADebugInfo(LPDRIVER_DEBUG_INFO Info) {
 
         StringPrintFormat(
             Info->Text,
-            TEXT("Backend: %s\nResolution: %ux%ux%u"),
-            VESADriver.Alias,
+            TEXT("Manufacturer: %s\nProduct: %s\nResolution: %ux%ux%u"),
+            VESADriver.Manufacturer,
+            VESADriver.Product,
             Width,
             Height,
             BitsPerPixel);

@@ -465,6 +465,7 @@ void InitializeDriverList(void) {
     RegisterDriver(ClockGetDriver(), TRUE);
     RegisterDriver(PCIGetDriver(), TRUE);
     RegisterDriver(KeyboardSelectorGetDriver(), TRUE);
+    RegisterDriver(MouseSelectorGetDriver(), TRUE);
     RegisterDriver(USBMouseGetDriver(), TRUE);
     RegisterDriver(USBStorageGetDriver(), TRUE);
     RegisterDriver(ATADiskGetDriver(), TRUE);
@@ -1140,12 +1141,7 @@ BOOL GetCPUInformation(LPCPUINFORMATION Info) {
  * @return Pointer to the mouse driver.
  */
 LPDRIVER GetMouseDriver(void) {
-    LPDRIVER UsbDriver = USBMouseGetDriver();
-    if (UsbDriver != NULL && UsbDriver->Command(DF_MOUSE_HAS_DEVICE, 0) == 1U) {
-        return UsbDriver;
-    }
-
-    return SerialMouseGetDriver();
+    return MouseSelectorGetDriver();
 }
 
 /************************************************************************/
