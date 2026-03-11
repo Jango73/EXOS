@@ -23,6 +23,7 @@
 
 #include "iGPU-Internal.h"
 
+#include "CoreString.h"
 #include "KernelData.h"
 #include "Log.h"
 #include "Memory.h"
@@ -457,6 +458,38 @@ static UINT IntelGfxGetCapabilities(LPGFX_CAPABILITIES Capabilities) {
 
 /************************************************************************/
 
+/**
+ * @brief Return multi-line Intel graphics backend debug information.
+ * @param Info Receives the formatted text.
+ * @return DF_RETURN_SUCCESS on success.
+ */
+static UINT IntelGfxDebugInfo(LPDRIVER_DEBUG_INFO Info) {
+    U32 Width = 0;
+    U32 Height = 0;
+    U32 BitsPerPixel = 0;
+
+    SAFE_USE(Info) {
+        if ((IntelGfxDriver.Flags & DRIVER_FLAG_READY) != 0 && IntelGfxState.HasActiveMode != FALSE) {
+            if (IntelGfxState.Context.Width > 0) Width = (U32)IntelGfxState.Context.Width;
+            if (IntelGfxState.Context.Height > 0) Height = (U32)IntelGfxState.Context.Height;
+            BitsPerPixel = IntelGfxState.Context.BitsPerPixel;
+        }
+
+        StringPrintFormat(
+            Info->Text,
+            TEXT("Backend: %s\nResolution: %ux%ux%u"),
+            IntelGfxDriver.Alias,
+            Width,
+            Height,
+            BitsPerPixel);
+        return DF_RETURN_SUCCESS;
+    }
+
+    return DF_RETURN_BAD_PARAMETER;
+}
+
+/************************************************************************/
+
 static UINT IntelGfxCommands(UINT Function, UINT Param) {
     switch (Function) {
         case DF_LOAD:
@@ -465,6 +498,8 @@ static UINT IntelGfxCommands(UINT Function, UINT Param) {
             return IntelGfxUnload();
         case DF_GET_VERSION:
             return MAKE_VERSION(INTEL_GFX_VER_MAJOR, INTEL_GFX_VER_MINOR);
+        case DF_DEBUG_INFO:
+            return IntelGfxDebugInfo((LPDRIVER_DEBUG_INFO)Param);
 
         case DF_GFX_CREATECONTEXT:
             if ((IntelGfxDriver.Flags & DRIVER_FLAG_READY) == 0) {

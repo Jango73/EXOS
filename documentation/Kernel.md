@@ -815,6 +815,8 @@ Console paging input wait paths must run without any console mutex held to preve
 
 The default font is an in-tree ASCII 8x16 EXOS font and can be replaced through the font API.
 The shared font layer is split between font-face metrics/raster access (`FONT_FACE`) and the legacy bitmap glyph-set compatibility path (`FONT_GLYPH_SET`). Existing console rendering continues to use the in-tree bitmap font through this abstraction boundary.
+Generic driver diagnostics use `DF_DEBUG_INFO` with `DRIVER_DEBUG_INFO.Text`, a multi-line buffer sized with `MAX_STRING_BUFFER`.
+Graphics backends implement `DF_DEBUG_INFO` to expose backend alias and current resolution, and the graphics selector forwards this query to the active backend.
 Userland text rendering is exposed through `SYSCALL_DrawText` / `SYSCALL_MeasureText` and the runtime wrappers `DrawText` / `MeasureText`. The initial userland path accepts `Font = 0` to select the default kernel font; explicit userland font objects remain a later extension.
 
 

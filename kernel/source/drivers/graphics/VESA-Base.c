@@ -24,6 +24,7 @@
 
 #include "GFX.h"
 #include "Arch.h"
+#include "CoreString.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
@@ -83,8 +84,6 @@ LPDRIVER VESAGetDriver(void) {
 /************************************************************************/
 
 static U32 DATA_SECTION VESARectangleLogCount = 0;
-
-/************************************************************************/
 
 typedef struct tag_VESAINFOBLOCK {
     U8 Signature[4];  // 4 signature bytes
@@ -189,6 +188,38 @@ VIDEOMODESPECS VESAModeSpecs[] = {
 
 VESA_CONTEXT VESAContext = {
     .Header = {.TypeID = KOID_GRAPHICSCONTEXT, .References = 1, .Mutex = EMPTY_MUTEX, .Driver = &VESADriver}};
+
+/***************************************************************************/
+
+/**
+ * @brief Return multi-line VESA backend debug information.
+ * @param Info Receives the formatted text.
+ * @return DF_RETURN_SUCCESS on success.
+ */
+static UINT VESADebugInfo(LPDRIVER_DEBUG_INFO Info) {
+    U32 Width = 0;
+    U32 Height = 0;
+    U32 BitsPerPixel = 0;
+
+    SAFE_USE(Info) {
+        if ((VESADriver.Flags & DRIVER_FLAG_READY) != 0) {
+            Width = VESAContext.Header.Width;
+            Height = VESAContext.Header.Height;
+            BitsPerPixel = VESAContext.Header.BitsPerPixel;
+        }
+
+        StringPrintFormat(
+            Info->Text,
+            TEXT("Backend: %s\nResolution: %ux%ux%u"),
+            VESADriver.Alias,
+            Width,
+            Height,
+            BitsPerPixel);
+        return DF_RETURN_SUCCESS;
+    }
+
+    return DF_RETURN_BAD_PARAMETER;
+}
 
 /***************************************************************************/
 
@@ -1002,6 +1033,8 @@ UINT VESACommands(UINT Function, UINT Param) {
             return DF_RETURN_SUCCESS;
         case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
+        case DF_DEBUG_INFO:
+            return VESADebugInfo((LPDRIVER_DEBUG_INFO)Param);
         case DF_GFX_GETMODECOUNT:
             return 0;
         case DF_GFX_GETMODEINFO: {

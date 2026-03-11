@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "GFX.h"
+#include "CoreString.h"
 #include "console/Console.h"
 #include "Log.h"
 #include "Memory.h"
@@ -863,6 +864,38 @@ static UINT GOPGfxTextMeasure(LPGFX_TEXT_MEASURE_INFO Info) {
 /************************************************************************/
 
 /**
+ * @brief Return multi-line GOP backend debug information.
+ * @param Info Receives the formatted text.
+ * @return DF_RETURN_SUCCESS on success.
+ */
+static UINT GOPGfxDebugInfo(LPDRIVER_DEBUG_INFO Info) {
+    U32 Width = 0;
+    U32 Height = 0;
+    U32 BitsPerPixel = 0;
+
+    SAFE_USE(Info) {
+        if ((GOPGfxDriver.Flags & DRIVER_FLAG_READY) != 0) {
+            if (GOPGfxState.Context.Width > 0) Width = (U32)GOPGfxState.Context.Width;
+            if (GOPGfxState.Context.Height > 0) Height = (U32)GOPGfxState.Context.Height;
+            BitsPerPixel = GOPGfxState.Context.BitsPerPixel;
+        }
+
+        StringPrintFormat(
+            Info->Text,
+            TEXT("Backend: %s\nResolution: %ux%ux%u"),
+            GOPGfxDriver.Alias,
+            Width,
+            Height,
+            BitsPerPixel);
+        return DF_RETURN_SUCCESS;
+    }
+
+    return DF_RETURN_BAD_PARAMETER;
+}
+
+/************************************************************************/
+
+/**
  * @brief GOP graphics command dispatcher.
  * @param Function Driver function code.
  * @param Param Driver parameter.
@@ -876,6 +909,8 @@ static UINT GOPGfxCommands(UINT Function, UINT Param) {
             return GOPGfxUnload();
         case DF_GET_VERSION:
             return MAKE_VERSION(GOP_GFX_VER_MAJOR, GOP_GFX_VER_MINOR);
+        case DF_DEBUG_INFO:
+            return GOPGfxDebugInfo((LPDRIVER_DEBUG_INFO)Param);
 
         case DF_GFX_CREATECONTEXT:
             if ((GOPGfxDriver.Flags & DRIVER_FLAG_READY) == 0) {

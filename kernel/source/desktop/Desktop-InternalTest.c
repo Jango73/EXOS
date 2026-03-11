@@ -90,7 +90,7 @@ static BOOL DesktopInternalResolveCenteredWindowRect(LPDESKTOP Desktop, LPRECT R
 /***************************************************************************/
 
 /**
- * @brief Resolve the bottom-right debug-info component rectangle in desktop coordinates.
+ * @brief Resolve the top-left debug-info component rectangle in desktop coordinates.
  * @param Desktop Target desktop.
  * @param Rect Receives the resulting rectangle.
  * @return TRUE on success.
@@ -121,20 +121,10 @@ static BOOL DesktopInternalResolveOnScreenDebugInfoRect(LPDESKTOP Desktop, LPREC
     if (Width > DesktopWidth) Width = DesktopWidth;
     if (Height > DesktopHeight) Height = DesktopHeight;
 
-    Rect->X2 = DesktopRect.X2 - DESKTOP_INTERNAL_ON_SCREEN_DEBUG_INFO_MARGIN;
-    Rect->Y2 = DesktopRect.Y2 - DESKTOP_INTERNAL_ON_SCREEN_DEBUG_INFO_MARGIN;
-    Rect->X1 = Rect->X2 - Width + 1;
-    Rect->Y1 = Rect->Y2 - Height + 1;
-
-    if (Rect->X1 < DesktopRect.X1) {
-        Rect->X1 = DesktopRect.X1;
-        Rect->X2 = Rect->X1 + Width - 1;
-    }
-
-    if (Rect->Y1 < DesktopRect.Y1) {
-        Rect->Y1 = DesktopRect.Y1;
-        Rect->Y2 = Rect->Y1 + Height - 1;
-    }
+    Rect->X1 = DesktopRect.X1 + DESKTOP_INTERNAL_ON_SCREEN_DEBUG_INFO_MARGIN;
+    Rect->Y1 = DesktopRect.Y1 + DESKTOP_INTERNAL_ON_SCREEN_DEBUG_INFO_MARGIN;
+    Rect->X2 = Rect->X1 + Width - 1;
+    Rect->Y2 = Rect->Y1 + Height - 1;
 
     return TRUE;
 }
