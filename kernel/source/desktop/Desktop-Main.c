@@ -43,14 +43,18 @@
 #include "input/Mouse.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
-#include "ui/RootWindowClass.h"
 #include "ui/Startup-Desktop-Components.h"
+#include "ui/WindowDockHost.h"
 #include "utils/Graphics-Utils.h"
 #include "utils/RateLimiter.h"
 
 /***************************************************************************/
 
 extern DRIVER ConsoleDriver;
+
+/***************************************************************************/
+
+#define ROOT_WINDOW_CLASS_NAME TEXT("RootWindowClass")
 
 /***************************************************************************/
 

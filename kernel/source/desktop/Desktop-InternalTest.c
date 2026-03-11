@@ -23,7 +23,6 @@
 
 #include "Desktop-InternalTest.h"
 #include "Desktop-Private.h"
-#include "ui/OnScreenDebugInfo.h"
 #include "Clock.h"
 #include "Kernel.h"
 #include "Log.h"
@@ -378,10 +377,10 @@ BOOL DesktopInternalTestEnsureWindowsVisible(LPDESKTOP Desktop) {
     DebugInfoCreated = DesktopInternalEnsureSingleWindow(
         Desktop,
         DESKTOP_INTERNAL_ON_SCREEN_DEBUG_INFO_WINDOW_ID,
-        TEXT("OnScreenDebugInfo"),
+        TEXT("DebugInfo"),
         NULL,
         NULL,
-        OnScreenDebugInfoWindowFunc,
+        DesktopInternalTestWindowFunc,
         EWS_VISIBLE | EWS_BARE_SURFACE | EWS_ALWAYS_AT_BOTTOM,
         DebugInfoRect.X1,
         DebugInfoRect.Y1,
