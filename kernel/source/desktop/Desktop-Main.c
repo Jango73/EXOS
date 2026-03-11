@@ -354,7 +354,7 @@ LPDESKTOP CreateDesktop(void) {
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;
     WindowInfo.Parent = NULL;
-    if (RootWindowClassEnsureRegistered(DesktopWindowFunc) == FALSE) {
+    if (WindowDockHostClassEnsureDerivedRegistered(ROOT_WINDOW_CLASS_NAME, DesktopWindowFunc) == FALSE) {
         DeleteList(This->Timers);
         KernelHeapFree(This);
         return NULL;

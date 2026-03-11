@@ -1908,6 +1908,7 @@ Userland can query both rectangle spaces through `GetWindowRect` and `GetWindowC
 Window hierarchy traversal is centralized in `kernel/source/desktop/Desktop-WindowRelations.c`; parent and direct child/sibling discovery are exposed through `GetWindowParent`, `GetWindowChildCount`, `GetWindowChild`, `GetNextWindowSibling`, and `GetPreviousWindowSibling`.
 Window placement policy can be expressed through generic window style bits. `EWS_EXCLUDE_SIBLING_PLACEMENT` marks one window as reserving its own rectangle against sibling placement.
 The core placement resolver first constrains one candidate rectangle to the parent effective work rectangle, then shrinks that placement area around visible sibling windows that reserve placement on one parent edge, and finally rejects any remaining overlap with reserved sibling rectangles.
+Dockable components publish this reservation through the high-level window style API on the docked window itself. Host relayout temporarily clears that style on attached dockables while one new layout frame is applied, then restores it after the frame is committed, so docking does not require one core placement bypass path.
 
 #### Timers and periodic redraw
 
@@ -1923,7 +1924,7 @@ Dock components subscribe to these notifications and update docking state (`Wind
 When a window is attached into an existing subtree, the windowing core also posts `EWM_CHILD_APPENDED` to every ancestor up to the desktop root with the appended child `WindowID` in `Param1` so layout components can react to descendant injection without coupling to concrete component creation order.
 When a window is detached from an existing subtree, the windowing core also posts `EWM_CHILD_REMOVED` to the former parent and every ancestor up to the desktop root with the removed child `WindowID` in `Param1`.
 Parent movement constraints use the generic window work rectangle API (`SetWindowWorkRect`, `GetWindowWorkRect`) so specialized layout components can publish host work areas without coupling core windowing paths to docking details.
-Docked windows bypass parent work-rectangle clamping only through the shared window property `WINDOW_PROP_BYPASS_PARENT_WORK_RECT`, not by mutating `WINDOW` state directly from component code.
+Docked windows publish sibling-placement exclusion through `EWS_EXCLUDE_SIBLING_PLACEMENT` and do not use docking-specific bypass logic when the host applies one assigned rectangle.
 Shell bar content composition uses slot windows exposed by `kernel/source/desktop/components/ShellBar.c` (`left`, `center`, `components`) and the desktop injects concrete component windows into these slots.
 The shell bar does not reference concrete component types; it only manages slot geometry and keeps slot children fitted to slot client rectangles.
 The on-screen debug information component (`kernel/source/desktop/components/OnScreenDebugInfo.c`, `kernel/include/desktop/components/OnScreenDebugInfo.h`) is instantiated by the internal desktop test path and renders placeholder text lines through the shared high-level text API without coupling to other components.

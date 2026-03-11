@@ -40,7 +40,6 @@ typedef LPWINDOW_DOCK_HOST_CLASS_DATA LPROOT_WINDOW_CLASS_DATA;
 
 /************************************************************************/
 
-BOOL RootWindowClassEnsureRegistered(WINDOWFUNC WindowFunction);
 LPROOT_WINDOW_CLASS_DATA RootWindowClassGetData(LPDESKTOP Desktop);
 
 /************************************************************************/

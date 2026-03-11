@@ -24,7 +24,7 @@
   - Cover create, move, size, programmatic rect changes, and drag-driven changes.
   - Make the resolver operate only on generic window state and generic constraints.
 
-- [ ] Refactor docking/components to publish constraints only through the new API.
+- [x] Refactor docking/components to publish constraints only through the new API.
   - Remove any remaining `desktop <-> components` dependency.
   - Make dock hosts/dockables consumers of the generic constraint system rather than owners of placement policy in core windowing.
 

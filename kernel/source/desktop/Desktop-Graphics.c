@@ -697,6 +697,44 @@ BOOL SizeWindow(HANDLE Handle, LPPOINT Size) {
 /***************************************************************************/
 
 /**
+ * @brief Set or clear one masked style on one window.
+ * @param Handle Window handle.
+ * @param StyleMask Style bits to update.
+ * @param Enabled TRUE to set bits, FALSE to clear bits.
+ * @return TRUE on success.
+ */
+BOOL SetWindowStyleState(HANDLE Handle, U32 StyleMask, BOOL Enabled) {
+    LPWINDOW This = (LPWINDOW)Handle;
+
+    if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
+    if (StyleMask == 0) return FALSE;
+
+    return DesktopSetWindowStyleState(This, StyleMask, Enabled);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Retrieve raw style bits from one window.
+ * @param Handle Window handle.
+ * @param Style Receives raw style bits.
+ * @return TRUE on success.
+ */
+BOOL GetWindowStyle(HANDLE Handle, U32* Style) {
+    WINDOW_STATE_SNAPSHOT Snapshot;
+    LPWINDOW This = (LPWINDOW)Handle;
+
+    if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
+    if (Style == NULL) return FALSE;
+    if (GetWindowStateSnapshot(This, &Snapshot) == FALSE) return FALSE;
+
+    *Style = Snapshot.Style;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Set one window work rectangle in parent coordinates.
  * @param Handle Window handle.
  * @param WorkRect Work rectangle to assign.

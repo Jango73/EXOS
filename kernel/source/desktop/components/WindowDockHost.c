@@ -252,14 +252,16 @@ U32 WindowDockHostHandleWindowRectChanged(HANDLE Window) {
 /************************************************************************/
 
 U32 WindowDockHostRelayout(HANDLE Window) {
-    LPWINDOW This;
     LPWINDOW_DOCK_HOST_CLASS_DATA Data;
     DOCK_LAYOUT_FRAME Frame;
     DOCK_LAYOUT_RESULT Result;
+    HANDLE DockableWindow;
+    U32 DockableStyle;
+    BOOL ReservedPlacementStates[DOCK_HOST_MAX_ITEMS];
+    UINT Index;
     U32 Status;
 
-    This = (LPWINDOW)Window;
-    Data = WindowDockHostClassGetData(This);
+    Data = WindowDockHostClassGetData((LPWINDOW)Window);
     if (Data == NULL || Data->DockHostInitialized == FALSE) return DOCK_LAYOUT_STATUS_NOT_ATTACHED;
 
     Status = DockHostBuildLayoutFrame(&(Data->DockHost), &Frame);
@@ -267,11 +269,28 @@ U32 WindowDockHostRelayout(HANDLE Window) {
         Frame.Status = Status;
     }
 
-    Status = DockHostApplyLayoutFrame(&(Data->DockHost), &Frame, &Result);
-    if (Status != DOCK_LAYOUT_STATUS_SUCCESS) return Status;
+    for (Index = 0; Index < Data->DockHost.ItemCount && Index < DOCK_HOST_MAX_ITEMS; Index++) {
+        ReservedPlacementStates[Index] = FALSE;
 
-    if (DockHostGetWorkRect(&(Data->DockHost), &(Result.WorkRect)) == DOCK_LAYOUT_STATUS_SUCCESS) {
-        (void)SetWindowWorkRect((HANDLE)This, &(Result.WorkRect));
+        if (Data->DockHost.Items[Index] == NULL) continue;
+        DockableWindow = (HANDLE)Data->DockHost.Items[Index]->Context;
+        if (DockableWindow == NULL) continue;
+        if (GetWindowStyle(DockableWindow, &DockableStyle) == FALSE) continue;
+
+        ReservedPlacementStates[Index] = ((DockableStyle & EWS_EXCLUDE_SIBLING_PLACEMENT) != 0);
+        if (ReservedPlacementStates[Index] != FALSE) {
+            (void)SetWindowStyleState(DockableWindow, EWS_EXCLUDE_SIBLING_PLACEMENT, FALSE);
+        }
+    }
+
+    Status = DockHostApplyLayoutFrame(&(Data->DockHost), &Frame, &Result);
+    for (Index = 0; Index < Data->DockHost.ItemCount && Index < DOCK_HOST_MAX_ITEMS; Index++) {
+        if (ReservedPlacementStates[Index] == FALSE) continue;
+        if (Data->DockHost.Items[Index] == NULL) continue;
+
+        DockableWindow = (HANDLE)Data->DockHost.Items[Index]->Context;
+        if (DockableWindow == NULL) continue;
+        (void)SetWindowStyleState(DockableWindow, EWS_EXCLUDE_SIBLING_PLACEMENT, TRUE);
     }
 
     return Status;

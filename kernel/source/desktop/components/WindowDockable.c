@@ -22,7 +22,6 @@
 \************************************************************************/
 
 #include "desktop/components/WindowDockable.h"
-#include "../Desktop-Private.h"
 #include "CoreString.h"
 
 /************************************************************************/
@@ -132,14 +131,7 @@ static U32 WindowDockableApplyRect(LPDOCKABLE Dockable, LPDOCK_HOST Host, LPRECT
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
     Rect = *AssignedRect;
-    (void)DesktopSetWindowBypassParentWorkRectState(Window, TRUE);
-
-    if (MoveWindow((HANDLE)Window, &Rect) == FALSE) {
-        (void)DesktopSetWindowBypassParentWorkRectState(Window, FALSE);
-        return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
-    }
-
-    (void)DesktopSetWindowBypassParentWorkRectState(Window, FALSE);
+    if (MoveWindow((HANDLE)Window, &Rect) == FALSE) return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
     (void)InvalidateWindowRect((HANDLE)Window, NULL);
     return DOCK_LAYOUT_STATUS_SUCCESS;
 }
@@ -168,6 +160,7 @@ static void WindowDockableApplyProperties(LPWINDOW Window) {
     Edge = GetWindowProp((HANDLE)Window, WINDOW_DOCK_PROP_EDGE);
 
     if (Enabled == 0 || (Edge != DOCK_EDGE_TOP && Edge != DOCK_EDGE_BOTTOM && Edge != DOCK_EDGE_LEFT && Edge != DOCK_EDGE_RIGHT)) {
+        (void)SetWindowStyleState((HANDLE)Window, EWS_EXCLUDE_SIBLING_PLACEMENT, FALSE);
         if (Data->DockableAttached != FALSE) {
             (void)WindowDockHostDetachDockable((HANDLE)HostWindow, &(Data->Dockable));
             Data->DockableAttached = FALSE;
@@ -176,6 +169,7 @@ static void WindowDockableApplyProperties(LPWINDOW Window) {
         return;
     }
 
+    (void)SetWindowStyleState((HANDLE)Window, EWS_EXCLUDE_SIBLING_PLACEMENT, TRUE);
     (void)DockableSetEdge(&(Data->Dockable), Edge);
     (void)DockableSetOrder(
         &(Data->Dockable),

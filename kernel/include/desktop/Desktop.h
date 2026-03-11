@@ -83,6 +83,8 @@ BOOL BringWindowToFront(HANDLE);
 BOOL GetWindowRect(HANDLE, LPRECT);
 BOOL MoveWindow(HANDLE, LPRECT);
 BOOL SizeWindow(HANDLE, LPPOINT);
+BOOL SetWindowStyleState(HANDLE, U32, BOOL);
+BOOL GetWindowStyle(HANDLE, U32*);
 HANDLE GetWindowParent(HANDLE);
 U32 GetWindowChildCount(HANDLE);
 HANDLE GetWindowChild(HANDLE, U32 ChildIndex);

@@ -23,14 +23,6 @@
 
 #include "desktop/components/RootWindowClass.h"
 
-/************************************************************************/
-
-BOOL RootWindowClassEnsureRegistered(WINDOWFUNC WindowFunction) {
-    return WindowDockHostClassEnsureDerivedRegistered(ROOT_WINDOW_CLASS_NAME, WindowFunction);
-}
-
-/************************************************************************/
-
 LPROOT_WINDOW_CLASS_DATA RootWindowClassGetData(LPDESKTOP Desktop) {
     LPWINDOW Window;
 

@@ -351,6 +351,32 @@ BOOL DesktopSetWindowVisibleState(LPWINDOW Window, BOOL ShowHide) {
     return TRUE;
 }
 
+/***************************************************************************/
+
+/**
+ * @brief Set one masked window style state under the window owner mutex.
+ * @param Window Target window.
+ * @param StyleMask Style bits to update.
+ * @param Enabled TRUE to set bits, FALSE to clear bits.
+ * @return TRUE on success.
+ */
+BOOL DesktopSetWindowStyleState(LPWINDOW Window, U32 StyleMask, BOOL Enabled) {
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (StyleMask == 0) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    if (Enabled != FALSE) {
+        Window->Style |= StyleMask;
+    } else {
+        Window->Style &= ~StyleMask;
+    }
+    UnlockMutex(&(Window->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
 BOOL DesktopGetRootWindow(LPDESKTOP Desktop, LPWINDOW* RootWindow) {
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
     if (RootWindow == NULL) return FALSE;
