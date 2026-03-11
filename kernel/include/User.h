@@ -809,6 +809,7 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 #define EWS_SYSTEM_DECORATED 0x0004
 #define EWS_CLIENT_DECORATED 0x0008
 #define EWS_BARE_SURFACE 0x0010
+#define EWS_EXCLUDE_SIBLING_PLACEMENT 0x0020
 #define EWS_DECORATION_MASK (EWS_SYSTEM_DECORATED | EWS_CLIENT_DECORATED | EWS_BARE_SURFACE)
 
 /************************************************************************/

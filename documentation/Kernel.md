@@ -1905,6 +1905,7 @@ Coordinate naming is shared across kernel and runtime:
 Reusable geometry conversions are centralized in `kernel/source/utils/Graphics-Utils.c` (`kernel/include/utils/Graphics-Utils.h`).
 Userland can query both rectangle spaces through `GetWindowRect` and `GetWindowClientRect`.
 Window hierarchy traversal is centralized in `kernel/source/desktop/Desktop-WindowRelations.c`; parent and direct child/sibling discovery are exposed through `GetWindowParent`, `GetWindowChildCount`, `GetWindowChild`, `GetNextWindowSibling`, and `GetPreviousWindowSibling`.
+Window placement policy can be expressed through generic window style bits. `EWS_EXCLUDE_SIBLING_PLACEMENT` marks one window as reserving its own rectangle against sibling placement.
 
 #### Timers and periodic redraw
 

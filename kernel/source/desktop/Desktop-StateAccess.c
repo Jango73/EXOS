@@ -116,14 +116,6 @@ BOOL GetWindowEffectiveWorkRectSnapshot(LPWINDOW Window, LPRECT WorkRect) {
     return TRUE;
 }
 
-/***************************************************************************/
-
-/**
- * @brief Snapshot one draw context under owner mutex.
- * @param Window Source window.
- * @param Snapshot Receives draw context snapshot.
- * @return TRUE on success.
- */
 BOOL GetWindowDrawContextSnapshot(LPWINDOW Window, LPWINDOW_DRAW_CONTEXT_SNAPSHOT Snapshot) {
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (Snapshot == NULL) return FALSE;
@@ -359,14 +351,6 @@ BOOL DesktopSetWindowVisibleState(LPWINDOW Window, BOOL ShowHide) {
     return TRUE;
 }
 
-/***************************************************************************/
-
-/**
- * @brief Snapshot one desktop root window under desktop owner mutex.
- * @param Desktop Source desktop.
- * @param RootWindow Receives root window pointer.
- * @return TRUE on success.
- */
 BOOL DesktopGetRootWindow(LPDESKTOP Desktop, LPWINDOW* RootWindow) {
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
     if (RootWindow == NULL) return FALSE;

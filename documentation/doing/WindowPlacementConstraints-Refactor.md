@@ -16,7 +16,7 @@
 
 ## Steps
 
-- [ ] Define a generic window placement-constraint API in high-level windowing headers.
+- [x] Define a generic window placement-constraint API in high-level windowing headers.
   - Support at least one exclusion mode equivalent to: "this window reserves its rectangle against sibling placement".
   - Keep the API behavior-oriented so future constraints can be added without coupling to docking.
 
