@@ -929,6 +929,47 @@ static U32 VESA_TextSetCursorVisible(LPGFX_TEXT_CURSOR_VISIBLE_INFO Info) {
 /***************************************************************************/
 
 /**
+ * @brief Draw one text string in VESA framebuffer.
+ * @param Info Text draw descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VESA_TextDraw(LPGFX_TEXT_DRAW_INFO Info) {
+    LPVESA_CONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPVESA_CONTEXT)Info->GC;
+    if (Context == NULL || Context->Header.TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Header.Mutex), INFINITY);
+    Result = GfxTextDrawString((LPGRAPHICSCONTEXT)&Context->Header, Info);
+    UnlockMutex(&(Context->Header.Mutex));
+    return Result ? 1 : 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Measure one text string using the shared text renderer.
+ * @param Info Text measure descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VESA_TextMeasure(LPGFX_TEXT_MEASURE_INFO Info) {
+    if (Info == NULL) {
+        return 0;
+    }
+
+    return GfxTextMeasure(Info) ? 1 : 0;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Driver command dispatcher for VESA graphics.
  *
  * Handles load/unload, mode setting, drawing primitives, and resource creation.
@@ -1017,6 +1058,10 @@ UINT VESACommands(UINT Function, UINT Param) {
             return VESA_TextSetCursor((LPGFX_TEXT_CURSOR_INFO)Param);
         case DF_GFX_TEXT_SET_CURSOR_VISIBLE:
             return VESA_TextSetCursorVisible((LPGFX_TEXT_CURSOR_VISIBLE_INFO)Param);
+        case DF_GFX_TEXT_DRAW:
+            return VESA_TextDraw((LPGFX_TEXT_DRAW_INFO)Param);
+        case DF_GFX_TEXT_MEASURE:
+            return VESA_TextMeasure((LPGFX_TEXT_MEASURE_INFO)Param);
         case DF_GFX_GETCAPABILITIES:
         case DF_GFX_ENUMOUTPUTS:
         case DF_GFX_GETOUTPUTINFO:

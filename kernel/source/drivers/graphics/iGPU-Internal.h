@@ -349,6 +349,8 @@ UINT IntelGfxTextClearRegion(LPGFX_TEXT_REGION_INFO Info);
 UINT IntelGfxTextScrollRegion(LPGFX_TEXT_REGION_INFO Info);
 UINT IntelGfxTextSetCursor(LPGFX_TEXT_CURSOR_INFO Info);
 UINT IntelGfxTextSetCursorVisible(LPGFX_TEXT_CURSOR_VISIBLE_INFO Info);
+UINT IntelGfxTextDraw(LPGFX_TEXT_DRAW_INFO Info);
+UINT IntelGfxTextMeasure(LPGFX_TEXT_MEASURE_INFO Info);
 void IntelGfxNotePresentBlit(void);
 UINT IntelGfxWaitForNextVBlank(U32 TimeoutMilliseconds, U32* SequenceOut);
 UINT IntelGfxPresent(LPGFX_PRESENT_INFO Info);

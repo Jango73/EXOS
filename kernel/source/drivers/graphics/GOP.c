@@ -822,6 +822,47 @@ static UINT GOPGfxTextSetCursorVisible(LPGFX_TEXT_CURSOR_VISIBLE_INFO Info) {
 /************************************************************************/
 
 /**
+ * @brief Draw one text string in GOP framebuffer.
+ * @param Info Text draw descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static UINT GOPGfxTextDraw(LPGFX_TEXT_DRAW_INFO Info) {
+    LPGRAPHICSCONTEXT Context = NULL;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)Info->GC;
+    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    LockMutex(&(Context->Mutex), INFINITY);
+    Result = GfxTextDrawString(Context, Info);
+    UnlockMutex(&(Context->Mutex));
+    return Result ? 1 : 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Measure one text string using the shared text renderer.
+ * @param Info Text measure descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static UINT GOPGfxTextMeasure(LPGFX_TEXT_MEASURE_INFO Info) {
+    if (Info == NULL) {
+        return 0;
+    }
+
+    return GfxTextMeasure(Info) ? 1 : 0;
+}
+
+/************************************************************************/
+
+/**
  * @brief GOP graphics command dispatcher.
  * @param Function Driver function code.
  * @param Param Driver parameter.
@@ -879,6 +920,10 @@ static UINT GOPGfxCommands(UINT Function, UINT Param) {
             return GOPGfxTextSetCursor((LPGFX_TEXT_CURSOR_INFO)Param);
         case DF_GFX_TEXT_SET_CURSOR_VISIBLE:
             return GOPGfxTextSetCursorVisible((LPGFX_TEXT_CURSOR_VISIBLE_INFO)Param);
+        case DF_GFX_TEXT_DRAW:
+            return GOPGfxTextDraw((LPGFX_TEXT_DRAW_INFO)Param);
+        case DF_GFX_TEXT_MEASURE:
+            return GOPGfxTextMeasure((LPGFX_TEXT_MEASURE_INFO)Param);
 
         case DF_GFX_CREATEBRUSH:
         case DF_GFX_CREATEPEN:

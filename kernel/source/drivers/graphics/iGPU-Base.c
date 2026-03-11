@@ -504,6 +504,10 @@ static UINT IntelGfxCommands(UINT Function, UINT Param) {
             return IntelGfxTextSetCursor((LPGFX_TEXT_CURSOR_INFO)Param);
         case DF_GFX_TEXT_SET_CURSOR_VISIBLE:
             return IntelGfxTextSetCursorVisible((LPGFX_TEXT_CURSOR_VISIBLE_INFO)Param);
+        case DF_GFX_TEXT_DRAW:
+            return IntelGfxTextDraw((LPGFX_TEXT_DRAW_INFO)Param);
+        case DF_GFX_TEXT_MEASURE:
+            return IntelGfxTextMeasure((LPGFX_TEXT_MEASURE_INFO)Param);
         case DF_GFX_PRESENT:
             return IntelGfxPresent((LPGFX_PRESENT_INFO)Param);
         case DF_GFX_WAITVBLANK:

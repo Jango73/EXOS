@@ -65,6 +65,8 @@
 #define DF_GFX_CURSOR_SET_VISIBLE (DF_FIRST_FUNCTION + 26)
 #define DF_GFX_ARC (DF_FIRST_FUNCTION + 27)
 #define DF_GFX_TRIANGLE (DF_FIRST_FUNCTION + 28)
+#define DF_GFX_TEXT_DRAW (DF_FIRST_FUNCTION + 29)
+#define DF_GFX_TEXT_MEASURE (DF_FIRST_FUNCTION + 30)
 
 /***************************************************************************/
 

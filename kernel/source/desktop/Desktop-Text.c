@@ -23,7 +23,7 @@
 
 #include "Desktop.h"
 
-#include "drivers/graphics/Graphics-TextRenderer.h"
+#include "KernelData.h"
 
 /***************************************************************************/
 
@@ -35,7 +35,7 @@
 BOOL DrawText(LPGFX_TEXT_DRAW_INFO TextInfo) {
     LPGRAPHICSCONTEXT Context = NULL;
     GFX_TEXT_DRAW_INFO DrawInfo;
-    BOOL Result = FALSE;
+    UINT Result = 0;
 
     if (TextInfo == NULL) return FALSE;
     if (TextInfo->Header.Size < sizeof(GFX_TEXT_DRAW_INFO)) return FALSE;
@@ -49,11 +49,11 @@ BOOL DrawText(LPGFX_TEXT_DRAW_INFO TextInfo) {
     DrawInfo.X = Context->Origin.X + DrawInfo.X;
     DrawInfo.Y = Context->Origin.Y + DrawInfo.Y;
 
-    LockMutex(&(Context->Mutex), INFINITY);
-    Result = GfxTextDrawString(Context, &DrawInfo);
-    UnlockMutex(&(Context->Mutex));
+    if (Context->Driver == NULL || Context->Driver->Command == NULL) return FALSE;
 
-    return Result;
+    Result = Context->Driver->Command(DF_GFX_TEXT_DRAW, (UINT)(LPVOID)&DrawInfo);
+
+    return Result != 0 ? TRUE : FALSE;
 }
 
 /***************************************************************************/
@@ -64,11 +64,16 @@ BOOL DrawText(LPGFX_TEXT_DRAW_INFO TextInfo) {
  * @return TRUE on success.
  */
 BOOL MeasureText(LPGFX_TEXT_MEASURE_INFO TextInfo) {
+    LPDRIVER Driver = NULL;
+
     if (TextInfo == NULL) return FALSE;
     if (TextInfo->Header.Size < sizeof(GFX_TEXT_MEASURE_INFO)) return FALSE;
     if (TextInfo->Text == NULL) return FALSE;
 
-    return GfxTextMeasure(TextInfo);
+    Driver = GetGraphicsDriver();
+    if (Driver == NULL || Driver->Command == NULL) return FALSE;
+
+    return Driver->Command(DF_GFX_TEXT_MEASURE, (UINT)(LPVOID)TextInfo) != 0 ? TRUE : FALSE;
 }
 
 /***************************************************************************/

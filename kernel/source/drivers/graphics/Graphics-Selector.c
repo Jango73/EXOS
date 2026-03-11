@@ -86,6 +86,8 @@ static BOOL GraphicsSelectorIsBooleanTextCommand(UINT Function) {
         case DF_GFX_TEXT_SCROLL_REGION:
         case DF_GFX_TEXT_SET_CURSOR:
         case DF_GFX_TEXT_SET_CURSOR_VISIBLE:
+        case DF_GFX_TEXT_DRAW:
+        case DF_GFX_TEXT_MEASURE:
             return TRUE;
     }
 
@@ -566,6 +568,8 @@ static UINT GraphicsSelectorCommands(UINT Function, UINT Parameter) {
         case DF_GFX_CURSOR_SET_VISIBLE:
         case DF_GFX_ARC:
         case DF_GFX_TRIANGLE:
+        case DF_GFX_TEXT_DRAW:
+        case DF_GFX_TEXT_MEASURE:
             return GraphicsSelectorForward(Function, Parameter);
     }
 

@@ -274,3 +274,47 @@ UINT IntelGfxTextSetCursorVisible(LPGFX_TEXT_CURSOR_VISIBLE_INFO Info) {
 }
 
 /************************************************************************/
+
+UINT IntelGfxTextDraw(LPGFX_TEXT_DRAW_INFO Info) {
+    LPGRAPHICSCONTEXT Context = NULL;
+    GFX_TEXT_MEASURE_INFO MeasureInfo;
+    BOOL Result = FALSE;
+
+    if (Info == NULL) {
+        return 0;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)Info->GC;
+    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return 0;
+    }
+
+    MeasureInfo = (GFX_TEXT_MEASURE_INFO){
+        .Header = {.Size = sizeof(GFX_TEXT_MEASURE_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+        .Text = Info->Text,
+        .Font = Info->Font,
+        .Width = 0,
+        .Height = 0
+    };
+
+    LockMutex(&(Context->Mutex), INFINITY);
+    IntelGfxHandleTextWriteActivity(Context);
+    Result = GfxTextDrawString(Context, Info);
+    if (Result && GfxTextMeasure(&MeasureInfo) && MeasureInfo.Width != 0 && MeasureInfo.Height != 0) {
+        (void)IntelGfxFlushContextRegionToScanout(Context, Info->X, Info->Y, MeasureInfo.Width, MeasureInfo.Height);
+    }
+    UnlockMutex(&(Context->Mutex));
+    return Result ? 1 : 0;
+}
+
+/************************************************************************/
+
+UINT IntelGfxTextMeasure(LPGFX_TEXT_MEASURE_INFO Info) {
+    if (Info == NULL) {
+        return 0;
+    }
+
+    return GfxTextMeasure(Info) ? 1 : 0;
+}
+
+/************************************************************************/

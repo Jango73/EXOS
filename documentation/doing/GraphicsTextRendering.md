@@ -23,9 +23,9 @@ Add reusable text drawing and text measurement services for all graphics drivers
 - [x] Define matching high-level kernel entry points that can be exposed safely to userland without leaking backend-private details.
 
 ### Step 3: Route all drivers through one renderer
-- [ ] Implement the new text draw and measure path in shared graphics code, with backends only supplying pixel writes and context synchronization.
-- [ ] Wire selector, VESA, GOP, and Intel graphics drivers to the same shared implementation so text rendering behavior stays identical across backends.
-- [ ] Reuse the shared font abstraction in console-adjacent text paths where it makes sense, instead of growing a second text stack.
+- [x] Implement the new text draw and measure path in shared graphics code, with backends only supplying pixel writes and context synchronization.
+- [x] Wire selector, VESA, GOP, and Intel graphics drivers to the same shared implementation so text rendering behavior stays identical across backends.
+- [x] Reuse the shared font abstraction in console-adjacent text paths where it makes sense, instead of growing a second text stack.
 
 ### Step 4: Compatibility, validation, and documentation
 - [ ] Preserve the existing console-font visual result for the first implementation.
