@@ -23,12 +23,108 @@
 
 #include "ui/Startup-Desktop-Components.h"
 
+#include "ui/Cube3D.h"
 #include "ui/LogViewer.h"
 #include "ui/ShellBar.h"
 
 /***************************************************************************/
 
+#define DESKTOP_CUBE3D_WINDOW_ID 0x53435542
 #define DESKTOP_LOG_VIEWER_WINDOW_ID 0x534C4F47
+
+/***************************************************************************/
+
+/**
+ * @brief Ensure the floating 3D cube window exists and has the expected rect.
+ * @param Desktop Target desktop.
+ * @return TRUE on success.
+ */
+static BOOL EnsureCube3DWindow(LPDESKTOP Desktop) {
+    HANDLE RootWindow;
+    HANDLE CubeWindow;
+    WINDOWINFO WindowInfo;
+    POINT PreferredSize;
+    RECT ScreenRect;
+    RECT WindowRect;
+    I32 ScreenWidth;
+    I32 ScreenHeight;
+    I32 WindowWidth;
+    I32 WindowHeight;
+
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
+        return FALSE;
+    }
+    if (Cube3DEnsureClassRegistered() == FALSE) {
+        return FALSE;
+    }
+
+    RootWindow = (HANDLE)Desktop->Window;
+    if (RootWindow == NULL) {
+        return FALSE;
+    }
+
+    if (GetDesktopScreenRect(Desktop, &ScreenRect) == FALSE) {
+        return FALSE;
+    }
+
+    if (Cube3DGetPreferredSize(&PreferredSize) == FALSE) {
+        return FALSE;
+    }
+
+    ScreenWidth = ScreenRect.X2 - ScreenRect.X1 + 1;
+    ScreenHeight = ScreenRect.Y2 - ScreenRect.Y1 + 1;
+    if (ScreenWidth <= 0 || ScreenHeight <= 0) {
+        return FALSE;
+    }
+
+    WindowWidth = PreferredSize.X;
+    WindowHeight = PreferredSize.Y;
+    if (WindowWidth > ScreenWidth - 16) WindowWidth = ScreenWidth - 16;
+    if (WindowHeight > ScreenHeight - 16) WindowHeight = ScreenHeight - 16;
+    if (WindowWidth < 1) WindowWidth = 1;
+    if (WindowHeight < 1) WindowHeight = 1;
+
+    WindowRect.X1 = 8;
+    WindowRect.Y1 = 64;
+    WindowRect.X2 = WindowRect.X1 + WindowWidth - 1;
+    WindowRect.Y2 = WindowRect.Y1 + WindowHeight - 1;
+    if (WindowRect.X2 >= ScreenWidth) WindowRect.X2 = ScreenWidth - 1;
+    if (WindowRect.Y2 >= ScreenHeight) WindowRect.Y2 = ScreenHeight - 1;
+    if (WindowRect.X2 < WindowRect.X1) WindowRect.X2 = WindowRect.X1;
+    if (WindowRect.Y2 < WindowRect.Y1) WindowRect.Y2 = WindowRect.Y1;
+
+    CubeWindow = (HANDLE)FindWindow((LPWINDOW)RootWindow, DESKTOP_CUBE3D_WINDOW_ID);
+    if (CubeWindow != NULL) {
+        (void)MoveWindow(CubeWindow, &WindowRect);
+        (void)SetWindowCaption(CubeWindow, TEXT("3D Cube"));
+        (void)ShowWindow(CubeWindow, TRUE);
+        return TRUE;
+    }
+
+    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Version = EXOS_ABI_VERSION;
+    WindowInfo.Header.Flags = 0;
+    WindowInfo.Window = NULL;
+    WindowInfo.Parent = RootWindow;
+    WindowInfo.WindowClass = 0;
+    WindowInfo.WindowClassName = DESKTOP_CUBE3D_WINDOW_CLASS_NAME;
+    WindowInfo.Function = NULL;
+    WindowInfo.Style = EWS_VISIBLE | EWS_SYSTEM_DECORATED;
+    WindowInfo.ID = DESKTOP_CUBE3D_WINDOW_ID;
+    WindowInfo.WindowPosition.X = WindowRect.X1;
+    WindowInfo.WindowPosition.Y = WindowRect.Y1;
+    WindowInfo.WindowSize.X = WindowRect.X2 - WindowRect.X1 + 1;
+    WindowInfo.WindowSize.Y = WindowRect.Y2 - WindowRect.Y1 + 1;
+    WindowInfo.ShowHide = TRUE;
+
+    CubeWindow = (HANDLE)CreateWindow(&WindowInfo);
+    if (CubeWindow == NULL) {
+        return FALSE;
+    }
+
+    (void)SetWindowCaption(CubeWindow, TEXT("3D Cube"));
+    return TRUE;
+}
 
 /***************************************************************************/
 
@@ -118,6 +214,7 @@ static BOOL EnsureLogViewerWindow(LPDESKTOP Desktop) {
 BOOL StartupDesktopComponentsInitialize(LPDESKTOP Desktop) {
     HANDLE RootWindow;
     HANDLE ShellBarWindow;
+    BOOL Cube3DResult;
     BOOL LogViewerResult;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
@@ -137,8 +234,9 @@ BOOL StartupDesktopComponentsInitialize(LPDESKTOP Desktop) {
 
         ShellBarWindow = ShellBarGetWindow(RootWindow);
     }
+    Cube3DResult = EnsureCube3DWindow(Desktop);
     LogViewerResult = EnsureLogViewerWindow(Desktop);
-    return LogViewerResult != FALSE;
+    return (Cube3DResult != FALSE) && (LogViewerResult != FALSE);
 }
 
 /***************************************************************************/

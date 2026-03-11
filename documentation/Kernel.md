@@ -1946,6 +1946,7 @@ Parent movement constraints use the generic window work rectangle API (`SetWindo
 Docked windows publish sibling-placement exclusion through `EWS_EXCLUDE_SIBLING_PLACEMENT` and do not use docking-specific bypass logic when the host applies one assigned rectangle.
 Shell bar content composition uses slot windows exposed by `kernel/source/ui/ShellBar.c` (`left`, `center`, `components`) and the desktop injects concrete component windows into these slots after desktop activation succeeds.
 The shell bar does not reference concrete component types; it only manages slot geometry and keeps slot children fitted to slot client rectangles.
+A floating wireframe cube component is provided by `kernel/source/ui/Cube3D.c` (`kernel/include/ui/Cube3D.h`). It defines `VERTEX3` and `QUAD` geometry sets and renders one rotating cube with one timer-driven redraw loop.
 The on-screen debug information component (`kernel/source/ui/OnScreenDebugInfo.c`, `kernel/include/ui/OnScreenDebugInfo.h`) is instantiated by the internal desktop test path as one bare bottom-band window spanning part of the desktop placement area, and it renders graphics then mouse debug lines through the shared high-level text API without coupling to other components.
 
 #### Theme architecture
