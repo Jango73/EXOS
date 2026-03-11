@@ -137,6 +137,9 @@ BOOL DesktopGetRootWindow(LPDESKTOP Desktop, LPWINDOW* RootWindow);
 BOOL DesktopClearWindowReferences(LPDESKTOP Desktop, LPWINDOW Window);
 BOOL GetDesktopCaptureState(LPWINDOW Window, LPWINDOW* CaptureWindow, I32* OffsetX, I32* OffsetY);
 BOOL SetDesktopCaptureState(LPWINDOW Window, LPWINDOW CaptureWindow, I32 OffsetX, I32 OffsetY);
+BOOL DesktopResolveWindowTarget(LPDESKTOP Desktop, HANDLE Target, LPWINDOW* Window);
+BOOL DesktopMarkWindowDispatchBegin(LPWINDOW Window, U32 Message);
+BOOL DesktopMarkWindowDispatchEnd(LPWINDOW Window, U32 Message);
 
 /************************************************************************/
 

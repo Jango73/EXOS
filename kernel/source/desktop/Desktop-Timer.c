@@ -99,7 +99,6 @@ static U32 DesktopTimerTask(LPVOID Parameter) {
         return 0;
     }
 
-
     FOREVER {
         if (Desktop->TypeID != KOID_DESKTOP) {
             break;

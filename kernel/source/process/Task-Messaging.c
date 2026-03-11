@@ -30,7 +30,6 @@
 #include "process/Process-Control.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
-#include "CoreString.h"
 #include "utils/Helpers.h"
 #include "utils/LockOrderDebug.h"
 
@@ -50,10 +49,6 @@
 
 #define LOCK_TASK_MESSAGE(Mutex, Name) LOCK_WITH_ROLE((Mutex), DESKTOP_LOCK_ROLE_TASK_MESSAGE, (Name))
 #define UNLOCK_TASK_MESSAGE(Mutex, Name) UNLOCK_WITH_ROLE((Mutex), DESKTOP_LOCK_ROLE_TASK_MESSAGE, (Name))
-#define LOCK_TREE(Mutex, Name) LOCK_WITH_ROLE((Mutex), DESKTOP_LOCK_ROLE_TREE, (Name))
-#define UNLOCK_TREE(Mutex, Name) UNLOCK_WITH_ROLE((Mutex), DESKTOP_LOCK_ROLE_TREE, (Name))
-#define LOCK_WINDOW(Mutex, Name) LOCK_WITH_ROLE((Mutex), DESKTOP_LOCK_ROLE_WINDOW, (Name))
-#define UNLOCK_WINDOW(Mutex, Name) UNLOCK_WITH_ROLE((Mutex), DESKTOP_LOCK_ROLE_WINDOW, (Name))
 
 /************************************************************************/
 
@@ -63,7 +58,13 @@ static BOOL AddProcessMessage(LPPROCESS Process, LPMESSAGE Message);
 static BOOL InterceptProcessControlMessage(LPPROCESS Process, U32 Message, U32 Param1, U32 Param2);
 static BOOL FetchProcessMessage(LPPROCESS Process, LPMESSAGEINFO Message, BOOL Remove);
 static BOOL FetchTaskMessage(LPTASK Task, LPMESSAGEINFO Message, BOOL Remove);
-static BOOL FindTaskMessageOffset(LPMESSAGEQUEUE Queue, HANDLE Target, U32 Message, UINT* Offset);
+static BOOL FindTaskMessageOffset(
+    LPMESSAGEQUEUE Queue,
+    HANDLE Target,
+    U32 Message,
+    BOOL MatchParam1,
+    U32 Param1,
+    UINT* Offset);
 static LPWINDOW_CLASS ResolveWindowDispatchClass(LPWINDOW Window, WINDOWFUNC Function);
 static void PushWindowDispatchContext(
     LPTASK Task,
@@ -78,11 +79,6 @@ static void PopWindowDispatchContext(
     LPVOID PreviousWindow,
     LPVOID PreviousClass,
     WINDOWFUNC PreviousFunction);
-static void BeginWindowDrawDispatchState(LPWINDOW Window, U32 Message);
-static void EndWindowDrawDispatchState(LPWINDOW Window, U32 Message);
-
-/************************************************************************/
-
 static LPWINDOW_CLASS ResolveWindowDispatchClass(LPWINDOW Window, WINDOWFUNC Function) {
     LPWINDOW_CLASS This;
 
@@ -135,37 +131,6 @@ static void PopWindowDispatchContext(
         Task->WindowDispatchDepth--;
     }
 }
-
-/************************************************************************/
-
-/**
- * @brief Mark one window as processing one draw dispatch.
- * @param Window Target window.
- * @param Message Message being dispatched.
- */
-static void BeginWindowDrawDispatchState(LPWINDOW Window, U32 Message) {
-    if (Message != EWM_DRAW) return;
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
-
-    Window->Status &= ~WINDOW_STATUS_NEED_DRAW;
-    Window->Status |= WINDOW_STATUS_DRAWING;
-}
-
-/************************************************************************/
-
-/**
- * @brief Clear one window draw-dispatch state after callback return.
- * @param Window Target window.
- * @param Message Message being dispatched.
- */
-static void EndWindowDrawDispatchState(LPWINDOW Window, U32 Message) {
-    if (Message != EWM_DRAW) return;
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
-
-    Window->Status &= ~WINDOW_STATUS_DRAWING;
-}
-
-/************************************************************************/
 
 /**
  * @brief Initializes a message queue structure.
@@ -404,7 +369,13 @@ static BOOL CopyMessageFromQueueLocked(LPMESSAGEQUEUE Queue, LPMESSAGEINFO Messa
 
 /************************************************************************/
 
-static BOOL FindTaskMessageOffset(LPMESSAGEQUEUE Queue, HANDLE Target, U32 Message, UINT* Offset) {
+static BOOL FindTaskMessageOffset(
+    LPMESSAGEQUEUE Queue,
+    HANDLE Target,
+    U32 Message,
+    BOOL MatchParam1,
+    U32 Param1,
+    UINT* Offset) {
     UINT Index = 0;
     MESSAGE Current;
 
@@ -417,10 +388,16 @@ static BOOL FindTaskMessageOffset(LPMESSAGEQUEUE Queue, HANDLE Target, U32 Messa
             return FALSE;
         }
 
-        if (Current.Target == Target && Current.Message == Message) {
-            *Offset = Index;
-            return TRUE;
+        if (Current.Target != Target || Current.Message != Message) {
+            continue;
         }
+
+        if (MatchParam1 != FALSE && Current.Param1 != Param1) {
+            continue;
+        }
+
+        *Offset = Index;
+        return TRUE;
     }
 
     return FALSE;
@@ -697,7 +674,8 @@ BOOL BroadcastProcessMessage(U32 Msg, U32 Param1, U32 Param2) {
  * @param Param2 Second message parameter
  * @return TRUE if message was posted successfully, FALSE on error
  *
- * @note For EWM_DRAW messages, duplicates are consolidated to prevent flooding
+ * @note For EWM_DRAW, duplicate messages are consolidated per target window
+ * @note For EWM_NOTIFY, duplicate notifications are consolidated per target window and notification id
  * @note Structural locks are held only for target resolution, never across queue operations
  */
 BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
@@ -733,9 +711,7 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
             }
 
             SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
-                LOCK_TREE(&(Desktop->Mutex), "Desktop");
-                Window = ContainsWindow(Desktop->Window, (LPWINDOW)Target);
-                UNLOCK_TREE(&(Desktop->Mutex), "Desktop");
+                (void)DesktopResolveWindowTarget(Desktop, Target, &Window);
             } else {
                 Window = NULL;
             }
@@ -754,14 +730,33 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
             return FALSE;
         }
 
-        if (Msg == EWM_DRAW && Window != NULL) {
+        if ((Msg == EWM_DRAW || Msg == EWM_NOTIFY) && Window != NULL) {
             UINT ExistingOffset = 0;
             MESSAGE Existing;
+            BOOL HasExisting = FALSE;
 
             LOCK_TASK_MESSAGE(&(Task->Mutex), "WindowTask");
             LOCK_TASK_MESSAGE(&(Task->MessageQueue.Mutex), "WindowTaskMessageQueue");
 
-            if (FindTaskMessageOffset(&(Task->MessageQueue), (HANDLE)Window, Msg, &ExistingOffset) == TRUE &&
+            if (Msg == EWM_DRAW) {
+                HasExisting = FindTaskMessageOffset(
+                    &(Task->MessageQueue),
+                    (HANDLE)Window,
+                    Msg,
+                    FALSE,
+                    0,
+                    &ExistingOffset);
+            } else {
+                HasExisting = FindTaskMessageOffset(
+                    &(Task->MessageQueue),
+                    (HANDLE)Window,
+                    Msg,
+                    TRUE,
+                    Param1,
+                    &ExistingOffset);
+            }
+
+            if (HasExisting != FALSE &&
                 MessageQueueBufferRemoveAt(&(Task->MessageQueue.MessageBuffer), ExistingOffset, &Existing) == TRUE) {
                 GetLocalTime(&(Existing.Time));
                 Existing.Param1 = Param1;
@@ -818,7 +813,7 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
  * @param Param2 Second message parameter
  * @return Result value returned by the window's message handler, or 0 on error
  *
- * @note This function locks the desktop and window mutexes during operation
+ * @note Target resolution and dispatch state transitions are delegated to desktop owner APIs
  * @note The target must be a valid window in the current process's desktop
  */
 U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
@@ -834,21 +829,7 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
     if (Desktop == NULL) return 0;
     if (Desktop->TypeID != KOID_DESKTOP) return 0;
 
-    //-------------------------------------
-    // Lock access to the desktop
-
-    LOCK_TREE(&(Desktop->Mutex), "Desktop");
-
-    //-------------------------------------
-    // Find the window in the desktop
-
-    Window = ContainsWindow(Desktop->Window, (LPWINDOW)Target);
-
-    //-------------------------------------
-    // Unlock access to the desktop
-
-    UNLOCK_TREE(&(Desktop->Mutex), "Desktop");
-
+    (void)DesktopResolveWindowTarget(Desktop, Target, &Window);
     //-------------------------------------
     // Send message to window if found
 
@@ -870,15 +851,13 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
                     &PreviousFunction);
             }
 
-            LOCK_WINDOW(&(Window->Mutex), "Window");
-            BeginWindowDrawDispatchState(Window, Msg);
+            (void)DesktopMarkWindowDispatchBegin(Window, Msg);
             if (Msg == EWM_DRAW) {
                 Result = DesktopDispatchWindowDraw(Window, Target, Param1, Param2) != FALSE;
             } else {
                 Result = Window->Function(Target, Msg, Param1, Param2);
             }
-            EndWindowDrawDispatchState(Window, Msg);
-            UNLOCK_WINDOW(&(Window->Mutex), "Window");
+            (void)DesktopMarkWindowDispatchEnd(Window, Msg);
 
             SAFE_USE_VALID_ID(Window->Task, KOID_TASK) {
                 PopWindowDispatchContext(Window->Task, PreviousWindow, PreviousClass, PreviousFunction);
@@ -998,7 +977,7 @@ BOOL GetMessage(LPMESSAGEINFO Message) {
  *                target handle and message parameters
  * @return TRUE if message was dispatched successfully, FALSE on error
  *
- * @note Resolves the target under desktop tree lock, then invokes callback under window lock only
+ * @note Resolves and dispatches through desktop owner APIs without holding window mutex across callback
  * @note Only works within the context of the current process's desktop
  */
 BOOL DispatchMessage(LPMESSAGEINFO Message) {
@@ -1022,10 +1001,7 @@ BOOL DispatchMessage(LPMESSAGEINFO Message) {
     if (Desktop == NULL) return FALSE;
     if (Desktop->TypeID != KOID_DESKTOP) return FALSE;
 
-    LOCK_TREE(&(Desktop->Mutex), "Desktop");
-    Window = ContainsWindow(Desktop->Window, (LPWINDOW)Message->Target);
-    UNLOCK_TREE(&(Desktop->Mutex), "Desktop");
-
+    (void)DesktopResolveWindowTarget(Desktop, Message->Target, &Window);
     SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
         SAFE_USE(Window->Function) {
             TargetHandle = EnsureHandle((LINEAR)Window);
@@ -1053,15 +1029,13 @@ BOOL DispatchMessage(LPMESSAGEINFO Message) {
                     &PreviousFunction);
             }
 
-            LOCK_WINDOW(&(Window->Mutex), "Window");
-            BeginWindowDrawDispatchState(Window, Message->Message);
+            (void)DesktopMarkWindowDispatchBegin(Window, Message->Message);
             if (Message->Message == EWM_DRAW) {
                 (void)DesktopDispatchWindowDraw(Window, TargetHandle, Message->Param1, Message->Param2);
             } else {
                 Window->Function(TargetHandle, Message->Message, Message->Param1, Message->Param2);
             }
-            EndWindowDrawDispatchState(Window, Message->Message);
-            UNLOCK_WINDOW(&(Window->Mutex), "Window");
+            (void)DesktopMarkWindowDispatchEnd(Window, Message->Message);
 
             SAFE_USE_VALID_ID(Window->Task, KOID_TASK) {
                 PopWindowDispatchContext(Window->Task, PreviousWindow, PreviousClass, PreviousFunction);

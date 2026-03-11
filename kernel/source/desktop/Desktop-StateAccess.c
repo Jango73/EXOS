@@ -491,3 +491,67 @@ BOOL DesktopClearWindowReferences(LPDESKTOP Desktop, LPWINDOW Window) {
 
     return TRUE;
 }
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve one window target under desktop owner mutex.
+ * @param Desktop Desktop owning the tree.
+ * @param Target Target handle to resolve.
+ * @param Window Receives resolved window or NULL.
+ * @return TRUE when the resolve path completed.
+ */
+BOOL DesktopResolveWindowTarget(LPDESKTOP Desktop, HANDLE Target, LPWINDOW* Window) {
+    if (Window == NULL) return FALSE;
+    *Window = NULL;
+
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+    if (Target == NULL) return FALSE;
+
+    LockMutex(&(Desktop->Mutex), INFINITY);
+    *Window = ContainsWindow(Desktop->Window, (LPWINDOW)Target);
+    UnlockMutex(&(Desktop->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Mark one window dispatch begin state under owner mutex.
+ * @param Window Target window.
+ * @param Message Dispatched message.
+ * @return TRUE on success.
+ */
+BOOL DesktopMarkWindowDispatchBegin(LPWINDOW Window, U32 Message) {
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    if (Message == EWM_DRAW) {
+        Window->Status &= ~WINDOW_STATUS_NEED_DRAW;
+        Window->Status |= WINDOW_STATUS_DRAWING;
+    }
+    UnlockMutex(&(Window->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Mark one window dispatch end state under owner mutex.
+ * @param Window Target window.
+ * @param Message Dispatched message.
+ * @return TRUE on success.
+ */
+BOOL DesktopMarkWindowDispatchEnd(LPWINDOW Window, U32 Message) {
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    if (Message == EWM_DRAW) {
+        Window->Status &= ~WINDOW_STATUS_DRAWING;
+    }
+    UnlockMutex(&(Window->Mutex));
+
+    return TRUE;
+}

@@ -594,6 +594,7 @@ Tasks and processes own fixed-size message queues (`MESSAGEQUEUE` in `kernel/sou
 
 Message posting:
 - `PostMessage` accepts NULL targets (current task), task handles, and window handles; window targets enqueue into the owning task queue. Keyboard drivers and the mouse dispatcher push input events into the global input queue using `EnqueueInputMessage` so only the focused process sees them.
+- Queue pressure is reduced by coalescing duplicate window messages in `PostMessage`: one pending `EWM_DRAW` per target window, and one pending `EWM_NOTIFY` per target window and notification id (`Param1`).
 - Mouse input is throttled by a tiny dispatcher that filters `EWM_MOUSEMOVE` with a 10ms cooldown between enqueues, while button changes still dispatch immediately through the shared input queue.
 - `SendMessage` remains synchronous and window-only.
 

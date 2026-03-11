@@ -715,12 +715,14 @@ U32 SetWindowProp(HANDLE Handle, LPCSTR Name, U32 Value) {
     LPLISTNODE Node;
     LPPROPERTY Prop;
     U32 OldValue = 0;
+    BOOL HasChanged = FALSE;
 
     //-------------------------------------
     // Check validity of parameters
 
     if (This == NULL) return 0;
     if (This->TypeID != KOID_WINDOW) return 0;
+    if (Name == NULL || *Name == STR_NULL) return 0;
 
     //-------------------------------------
     // Lock access to resources
@@ -731,7 +733,10 @@ U32 SetWindowProp(HANDLE Handle, LPCSTR Name, U32 Value) {
         Prop = (LPPROPERTY)Node;
         if (StringCompareNC(Prop->Name, Name) == 0) {
             OldValue = Prop->Value;
-            Prop->Value = Value;
+            if (OldValue != Value) {
+                Prop->Value = Value;
+                HasChanged = TRUE;
+            }
             goto Out;
         }
     }
@@ -745,15 +750,17 @@ U32 SetWindowProp(HANDLE Handle, LPCSTR Name, U32 Value) {
         StringCopy(Prop->Name, Name);
         Prop->Value = Value;
         ListAddItem(This->Properties, Prop);
+        HasChanged = TRUE;
     }
 
 Out:
-
     //-------------------------------------
     // Unlock access to resources
 
     UnlockMutex(&(This->Mutex));
-    (void)PostMessage(Handle, EWM_NOTIFY, EWN_WINDOW_PROPERTY_CHANGED, 0);
+    if (HasChanged != FALSE) {
+        (void)PostMessage(Handle, EWM_NOTIFY, EWN_WINDOW_PROPERTY_CHANGED, 0);
+    }
 
     return OldValue;
 }
