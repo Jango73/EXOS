@@ -1544,7 +1544,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             GC = BeginWindowDraw(Window);
 
             if (GC) {
-                GetWindowRect(Window, &Rect);
+                GetWindowClientRect(Window, &Rect);
 
                 RectInfo.Header.Size = sizeof(RectInfo);
                 RectInfo.Header.Version = EXOS_ABI_VERSION;
@@ -1569,23 +1569,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                     SelectBrush(GC, GetSystemBrush(SM_COLOR_DESKTOP));
                 }
 
-                if (DesktopGetWindowDrawClipRect((LPWINDOW)Window, &ClipRect) != FALSE &&
-                    DesktopBuildRootVisibleRegion((LPWINDOW)Window, &ClipRect, &RootVisibleRegion, RootVisibleStorage, WINDOW_DIRTY_REGION_CAPACITY) !=
-                        FALSE) {
-                    for (RootVisibleIndex = 0; RootVisibleIndex < RectRegionGetCount(&RootVisibleRegion); RootVisibleIndex++) {
-                        if (RectRegionGetRect(&RootVisibleRegion, RootVisibleIndex, &RootVisibleRect) == FALSE) continue;
-                        (void)SetGraphicsContextClipScreenRect(GC, &RootVisibleRect);
-#if DESKTOP_USE_TEMPORARY_FAST_ROOT_FILL
-                        (void)DesktopFillRectangleTemporaryFast(
-                            GC,
-                            &RootVisibleRect,
-                            HasBackground ? Background : Brush_Desktop.Color
-                        );
-#else
-                        Rectangle(&RectInfo);
-#endif
-                    }
-                }
+                Rectangle(&RectInfo);
 
                 ProfileDump();
                 EndWindowDraw(Window);
