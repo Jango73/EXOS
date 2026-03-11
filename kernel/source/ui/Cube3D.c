@@ -23,14 +23,19 @@
 
 #include "ui/Cube3D.h"
 
+#include "Clock.h"
 #include "Desktop-WindowClass.h"
+#include "math/Math.h"
 #include "math/Math3D.h"
 
 /***************************************************************************/
 
 #define CUBE3D_TIMER_ID 1
-#define CUBE3D_TIMER_INTERVAL_MS 50
-#define CUBE3D_PROP_PHASE TEXT("desktop.cube3d.phase")
+#define CUBE3D_TIMER_INTERVAL_MS 200
+#define CUBE3D_PROP_ANGLE_MDEG TEXT("desktop.cube3d.angle_mdeg")
+#define CUBE3D_PROP_LAST_TICK TEXT("desktop.cube3d.last_tick")
+#define CUBE3D_ROTATION_MDEG_PER_SECOND 20000
+#define CUBE3D_FULL_TURN_MDEG 360000
 #define CUBE3D_DEFAULT_WIDTH 420
 #define CUBE3D_DEFAULT_HEIGHT 300
 
@@ -168,7 +173,8 @@ static void Cube3DDrawWireframe(HANDLE Window, LPRECT ClientRect) {
     I32 CenterX;
     I32 CenterY;
     F32 Focal;
-    F32 Phase;
+    F32 AngleRadians;
+    U32 AngleMilliDegrees;
     UINT VertexIndex;
     UINT QuadIndex;
 
@@ -190,9 +196,10 @@ static void Cube3DDrawWireframe(HANDLE Window, LPRECT ClientRect) {
     CenterY = ClientRect->Y1 + (ClientHeight / 2);
     Focal = (F32)((ClientWidth < ClientHeight) ? ClientWidth : ClientHeight) * 0.65f;
 
-    Phase = ((F32)GetWindowProp(Window, CUBE3D_PROP_PHASE)) * 0.01f;
+    AngleMilliDegrees = GetWindowProp(Window, CUBE3D_PROP_ANGLE_MDEG);
+    AngleRadians = ((F32)AngleMilliDegrees * MATH_PI_F32) / 180000.0f;
 
-    Euler = Math3DVector3(Phase * 0.60f, Phase, Phase * 0.35f);
+    Euler = Math3DVector3(AngleRadians * 0.60f, AngleRadians, AngleRadians * 0.35f);
     Translation = Math3DVector3(0.0f, 0.0f, 5.0f);
     Scale = Math3DVector3(1.35f, 1.35f, 1.35f);
     Transform = Math3DMatrix4ComposeTRS(Translation, Euler, Scale);
@@ -236,11 +243,17 @@ static void Cube3DDrawWireframe(HANDLE Window, LPRECT ClientRect) {
  */
 U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     RECT ClientRect;
-    U32 Phase;
+    U32 AngleMilliDegrees;
+    U32 LastTick;
+    U32 Now;
+    U32 DeltaMilliseconds;
+    U32 DeltaMilliDegrees;
 
     switch (Message) {
         case EWM_CREATE:
-            (void)SetWindowProp(Window, CUBE3D_PROP_PHASE, 0);
+            Now = GetSystemTime();
+            (void)SetWindowProp(Window, CUBE3D_PROP_ANGLE_MDEG, 0);
+            (void)SetWindowProp(Window, CUBE3D_PROP_LAST_TICK, Now);
             (void)SetWindowTimer(Window, CUBE3D_TIMER_ID, CUBE3D_TIMER_INTERVAL_MS);
             return 1;
 
@@ -250,8 +263,20 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
         case EWM_TIMER:
             if (Param1 == CUBE3D_TIMER_ID) {
-                Phase = GetWindowProp(Window, CUBE3D_PROP_PHASE);
-                (void)SetWindowProp(Window, CUBE3D_PROP_PHASE, Phase + 1);
+                Now = GetSystemTime();
+                LastTick = GetWindowProp(Window, CUBE3D_PROP_LAST_TICK);
+                DeltaMilliseconds = Now - LastTick;
+
+                if (DeltaMilliseconds == 0) {
+                    return 1;
+                }
+
+                DeltaMilliDegrees = (DeltaMilliseconds * CUBE3D_ROTATION_MDEG_PER_SECOND) / 1000;
+                AngleMilliDegrees = GetWindowProp(Window, CUBE3D_PROP_ANGLE_MDEG);
+                AngleMilliDegrees = (AngleMilliDegrees + DeltaMilliDegrees) % CUBE3D_FULL_TURN_MDEG;
+
+                (void)SetWindowProp(Window, CUBE3D_PROP_ANGLE_MDEG, AngleMilliDegrees);
+                (void)SetWindowProp(Window, CUBE3D_PROP_LAST_TICK, Now);
                 (void)InvalidateWindowRect(Window, NULL);
             }
             return 1;
