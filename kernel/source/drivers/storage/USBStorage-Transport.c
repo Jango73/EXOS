@@ -35,6 +35,8 @@
 
 #define USB_STORAGE_WAIT_LOG_IMMEDIATE_BUDGET 1
 #define USB_STORAGE_WAIT_LOG_INTERVAL_MS 1000
+#define USB_STORAGE_COMMAND_LOG_IMMEDIATE_BUDGET 4
+#define USB_STORAGE_COMMAND_LOG_INTERVAL_MS 1000
 #define USB_STORAGE_TRANSFER_STATUS_SUCCESS 0
 #define USB_STORAGE_TRANSFER_STATUS_TIMEOUT 1
 #define USB_STORAGE_TRANSFER_STATUS_STALL 2
@@ -65,6 +67,49 @@ static BOOL USBStorageShouldTraceTransfer(U32* SuppressedOut) {
     }
 
     return RateLimiterShouldTrigger(&TransferTraceLimiter, GetSystemTime(), SuppressedOut);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Check whether one BOT command trace line should be emitted.
+ * @param Operation SCSI operation code.
+ * @param SuppressedOut Receives suppressed count.
+ * @return TRUE when one line can be emitted.
+ */
+static BOOL USBStorageShouldTraceCommand(U8 Operation, U32* SuppressedOut) {
+    static RATE_LIMITER DATA_SECTION ReadCommandTraceLimiter = {0};
+    static RATE_LIMITER DATA_SECTION WriteCommandTraceLimiter = {0};
+    static BOOL DATA_SECTION CommandTraceLimiterInitAttempted = FALSE;
+
+    if (SuppressedOut == NULL) {
+        return FALSE;
+    }
+
+    *SuppressedOut = 0;
+    if (Operation != USB_SCSI_READ_10 && Operation != USB_SCSI_WRITE_10) {
+        return TRUE;
+    }
+
+    if (ReadCommandTraceLimiter.Initialized == FALSE && CommandTraceLimiterInitAttempted == FALSE) {
+        CommandTraceLimiterInitAttempted = TRUE;
+        if (RateLimiterInit(&ReadCommandTraceLimiter,
+                            USB_STORAGE_COMMAND_LOG_IMMEDIATE_BUDGET,
+                            USB_STORAGE_COMMAND_LOG_INTERVAL_MS) == FALSE) {
+            return FALSE;
+        }
+        if (RateLimiterInit(&WriteCommandTraceLimiter,
+                            USB_STORAGE_COMMAND_LOG_IMMEDIATE_BUDGET,
+                            USB_STORAGE_COMMAND_LOG_INTERVAL_MS) == FALSE) {
+            return FALSE;
+        }
+    }
+
+    if (Operation == USB_SCSI_READ_10) {
+        return RateLimiterShouldTrigger(&ReadCommandTraceLimiter, GetSystemTime(), SuppressedOut);
+    }
+
+    return RateLimiterShouldTrigger(&WriteCommandTraceLimiter, GetSystemTime(), SuppressedOut);
 }
 
 /************************************************************************/
@@ -529,6 +574,7 @@ static BOOL USBStorageBotCommand(LPUSB_MASS_STORAGE_DEVICE Device,
                                  UINT DataLength,
                                  BOOL DirectionIn,
                                  LPVOID DataBuffer) {
+    U32 Suppressed = 0;
     U32 ExpectedTag;
     U32 TransferStatus;
     U32 TransferLength;
@@ -566,17 +612,20 @@ static BOOL USBStorageBotCommand(LPUSB_MASS_STORAGE_DEVICE Device,
     Device->LastCswStatus = 0xFF;
     Device->LastCswResidue = 0;
 
-    DEBUG(TEXT("[USBStorageBotCommand] Op=%x CdbLen=%u DataLen=%u DirIn=%u Tag=%x Slot=%x Port=%u Addr=%u OutEp=%x InEp=%x"),
-          (U32)CommandBlock[0],
-          (U32)CommandBlockLength,
-          DataLength,
-          (U32)(DirectionIn != FALSE),
-          (U32)CommandBlockWrapper->Tag,
-          (U32)Device->UsbDevice->SlotId,
-          (U32)Device->UsbDevice->PortNumber,
-          (U32)Device->UsbDevice->Address,
-          (U32)Device->BulkOutEndpoint->Address,
-          (U32)Device->BulkInEndpoint->Address);
+    if (USBStorageShouldTraceCommand(CommandBlock[0], &Suppressed)) {
+        DEBUG(TEXT("[USBStorageBotCommand] Op=%x CdbLen=%u DataLen=%u DirIn=%u Tag=%x Slot=%x Port=%u Addr=%u OutEp=%x InEp=%x suppressed=%u"),
+              (U32)CommandBlock[0],
+              (U32)CommandBlockLength,
+              DataLength,
+              (U32)(DirectionIn != FALSE),
+              (U32)CommandBlockWrapper->Tag,
+              (U32)Device->UsbDevice->SlotId,
+              (U32)Device->UsbDevice->PortNumber,
+              (U32)Device->UsbDevice->Address,
+              (U32)Device->BulkOutEndpoint->Address,
+              (U32)Device->BulkInEndpoint->Address,
+              Suppressed);
+    }
 
     if (!USBStorageBulkTransfer(Device->Controller, Device->UsbDevice, Device->BulkOutEndpoint,
                                     Device->InputOutputBufferPhysical, Device->InputOutputBufferLinear,
