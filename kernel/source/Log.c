@@ -44,7 +44,12 @@
 #define KERNEL_LOG_ENTRY_BUFFER_SIZE (MAX_STRING_BUFFER + 160)
 
 #ifndef KERNEL_LOG_DEFAULT_TAG_FILTER
-#define KERNEL_LOG_DEFAULT_TAG_FILTER "USBMouseClearState,USBMouseFindDevice,USBMouseStartDevice,USBMouseSubmitReport,USBMouseHandleReport,USBMousePoll"
+#define KERNEL_LOG_DEFAULT_TAG_FILTER                                                                                   \
+    "XHCI_LogProbeFailure,XHCI_ConfigureEndpoint,XHCI_AddBulkEndpointPair,"                                           \
+    "XHCI_LogBulkEndpointContextState,XHCI_ControlTransfer,XHCI_ResetTransferEndpoint,"                               \
+    "USBStorageStartDevice,USBStorageBotCommand,USBStorageBulkTransferOnce,"                                          \
+    "USBStorageBulkTransfer,USBStorageWaitCompletion,USBStorageRequestSense,"                                         \
+    "USBMouseStartDevice,USBMouseSubmitReport,USBMousePoll"
 #endif
 
 typedef struct tag_KERNEL_LOG_RECENT_LINE {

@@ -286,11 +286,24 @@ T91060> DEBUG > [USBStorageBotCommand] Op=0x3 CdbLen=6 DataLen=18 DirIn=1 Tag=0x
 ## Next Steps
 
 1. Verify the exact meaning of `Completion=0x13` against the local xHCI completion-code table.
-2. Verify `XHCI_SetTransferRingDequeuePointer` TRB encoding (fields, reserved bits, DCS handling).
-3. Verify context index usage for `DCI=3` (off-by-one risks between slot/control/endpoint contexts).
-4. Compare `ProgrammedDequeue` vs `CtxDequeue` after command while masking/isolating cycle-related bits and alignment constraints.
-5. Run one minimal recovery variant at a time:
-   - keep software ring state unchanged before `SET_TR_DEQUEUE_POINTER`, or
-   - program dequeue from current endpoint context instead of ring base,
-   - then retry `Op=0x25` once.
-6. If `0x13` persists, capture completion of `RESET_ENDPOINT` in the same sequence to validate endpoint state preconditions before `SET_TR_DEQUEUE_POINTER`.
+2. `XHCI_SetTransferRingDequeuePointer` TRB encoding bug found in EXOS code:
+   - `Endpoint->Dci` was written into `Dword2`.
+   - xHCI command TRBs encode the endpoint identifier in `Dword3[20:16]`, like `STOP_ENDPOINT` and `RESET_ENDPOINT`.
+   - fix applied in `kernel/source/drivers/usb/XHCI-Device-Lifecycle.c`.
+   - impact scope is shared by BOT recovery and any interrupt/bulk endpoint path that depends on endpoint dequeue resynchronization.
+3. Recovery state handling hardened in `XHCI_ResetTransferEndpoint`:
+   - timeout path:
+     - `Running` -> `STOP_ENDPOINT`
+     - `Halted` -> `RESET_ENDPOINT`
+     - `Stopped/Error` -> go directly to `SET_TR_DEQUEUE_POINTER`
+   - stall path:
+     - `Halted` -> `RESET_ENDPOINT`
+     - `Running` -> `STOP_ENDPOINT`
+     - `Stopped/Error` -> go directly to `SET_TR_DEQUEUE_POINTER`
+   - this matches xHCI command preconditions more closely than unconditional `STOP_ENDPOINT` on timeout.
+4. Verify context index usage for `DCI=3` (off-by-one risks between slot/control/endpoint contexts).
+5. Compare `ProgrammedDequeue` vs `CtxDequeue` after command while masking/isolating cycle-related bits and alignment constraints.
+6. Rerun Predator and verify:
+   - `SET_TR_DEQUEUE_POINTER` no longer returns `0x13`
+   - BOT `READ CAPACITY (10)` reaches completion on Bulk IN
+   - USB mouse interrupt IN reports complete without repeated recovery

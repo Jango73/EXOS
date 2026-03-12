@@ -525,6 +525,30 @@ static void XHCI_ResetTransferRingState(PHYSICAL RingPhysical, LINEAR RingLinear
 /************************************************************************/
 
 /**
+ * @brief Read the current endpoint state from the output device context.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device state.
+ * @param Dci Endpoint DCI.
+ * @return Endpoint state value or disabled when unavailable.
+ */
+static U32 XHCI_GetEndpointState(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U8 Dci) {
+    LPXHCI_CONTEXT_32 EndpointContext;
+
+    if (Device == NULL || UsbDevice == NULL || UsbDevice->DeviceContextLinear == 0 || Dci == 0) {
+        return XHCI_ENDPOINT_STATE_DISABLED;
+    }
+
+    EndpointContext = XHCI_GetContextPointer(UsbDevice->DeviceContextLinear, Device->ContextSize, (U32)Dci);
+    if (EndpointContext == NULL) {
+        return XHCI_ENDPOINT_STATE_DISABLED;
+    }
+
+    return (EndpointContext->Dword0 & 0x7U);
+}
+
+/************************************************************************/
+
+/**
  * @brief Wait for a command completion event.
  * @param Device xHCI device.
  * @param TrbPhysical Command TRB physical address.
@@ -746,8 +770,9 @@ static BOOL XHCI_SetTransferRingDequeuePointer(LPXHCI_DEVICE Device,
     MemorySet(&Trb, 0, sizeof(Trb));
     Trb.Dword0 = U64_Low32(DequeuePointer);
     Trb.Dword1 = U64_High32(DequeuePointer);
-    Trb.Dword2 = ((U32)Endpoint->Dci << 16);
+    Trb.Dword2 = 0;
     Trb.Dword3 = (XHCI_TRB_TYPE_SET_TR_DEQUEUE_POINTER << XHCI_TRB_TYPE_SHIFT) |
+                 ((U32)Endpoint->Dci << 16) |
                  ((U32)UsbDevice->SlotId << 24);
 
     if (!XHCI_CommandRingEnqueue(Device, &Trb, &TrbPhysical)) {
@@ -792,18 +817,51 @@ BOOL XHCI_ResetTransferEndpoint(LPXHCI_DEVICE Device,
                                 LPXHCI_USB_DEVICE UsbDevice,
                                 LPXHCI_USB_ENDPOINT Endpoint,
                                 BOOL EndpointHalted) {
+    U32 EndpointState;
+    U32 FinalEndpointState;
+    U32 StopCompletion = 0;
+    U32 SetCompletion = 0;
+    U64 ProgrammedDequeue = U64_0;
+    BOOL RecoveryCommandOk = FALSE;
+
     if (Device == NULL || UsbDevice == NULL || Endpoint == NULL || Endpoint->Dci == 0) {
         return FALSE;
     }
 
+    EndpointState = XHCI_GetEndpointState(Device, UsbDevice, Endpoint->Dci);
+
+    DEBUG(TEXT("[XHCI_ResetTransferEndpoint] Begin Slot=%x DCI=%x Halted=%u CtxState=%x"),
+          (U32)UsbDevice->SlotId,
+          (U32)Endpoint->Dci,
+          EndpointHalted ? 1 : 0,
+          EndpointState);
+
     if (EndpointHalted) {
-        if (!XHCI_ResetEndpoint(Device, UsbDevice, Endpoint->Dci)) {
-            return FALSE;
+        if (EndpointState == XHCI_ENDPOINT_STATE_HALTED) {
+            RecoveryCommandOk = XHCI_ResetEndpoint(Device, UsbDevice, Endpoint->Dci);
+        } else if (EndpointState == XHCI_ENDPOINT_STATE_RUNNING) {
+            RecoveryCommandOk = XHCI_StopEndpoint(Device, UsbDevice, Endpoint->Dci, &StopCompletion);
+        } else if (EndpointState == XHCI_ENDPOINT_STATE_STOPPED || EndpointState == XHCI_ENDPOINT_STATE_ERROR) {
+            RecoveryCommandOk = TRUE;
         }
     } else {
-        if (!XHCI_StopEndpoint(Device, UsbDevice, Endpoint->Dci, NULL)) {
-            return FALSE;
+        if (EndpointState == XHCI_ENDPOINT_STATE_RUNNING) {
+            RecoveryCommandOk = XHCI_StopEndpoint(Device, UsbDevice, Endpoint->Dci, &StopCompletion);
+        } else if (EndpointState == XHCI_ENDPOINT_STATE_HALTED) {
+            RecoveryCommandOk = XHCI_ResetEndpoint(Device, UsbDevice, Endpoint->Dci);
+        } else if (EndpointState == XHCI_ENDPOINT_STATE_STOPPED || EndpointState == XHCI_ENDPOINT_STATE_ERROR) {
+            RecoveryCommandOk = TRUE;
         }
+    }
+
+    if (!RecoveryCommandOk) {
+        WARNING(TEXT("[XHCI_ResetTransferEndpoint] Pre-recovery command failed Slot=%x DCI=%x Halted=%u CtxState=%x StopCompletion=%x"),
+                (U32)UsbDevice->SlotId,
+                (U32)Endpoint->Dci,
+                EndpointHalted ? 1 : 0,
+                EndpointState,
+                StopCompletion);
+        return FALSE;
     }
 
     XHCI_ResetTransferRingState(Endpoint->TransferRingPhysical,
@@ -811,9 +869,32 @@ BOOL XHCI_ResetTransferEndpoint(LPXHCI_DEVICE Device,
                                 &Endpoint->TransferRingCycleState,
                                 &Endpoint->TransferRingEnqueueIndex);
 
-    if (!XHCI_SetTransferRingDequeuePointer(Device, UsbDevice, Endpoint, NULL, NULL)) {
+    if (!XHCI_SetTransferRingDequeuePointer(Device, UsbDevice, Endpoint, &ProgrammedDequeue, &SetCompletion)) {
+        FinalEndpointState = XHCI_GetEndpointState(Device, UsbDevice, Endpoint->Dci);
+        WARNING(TEXT("[XHCI_ResetTransferEndpoint] SET_TR_DEQUEUE_POINTER failed Slot=%x DCI=%x Halted=%u InitialState=%x FinalState=%x StopCompletion=%x SetCompletion=%x Dequeue=%x:%x"),
+                (U32)UsbDevice->SlotId,
+                (U32)Endpoint->Dci,
+                EndpointHalted ? 1 : 0,
+                EndpointState,
+                FinalEndpointState,
+                StopCompletion,
+                SetCompletion,
+                U64_High32(ProgrammedDequeue),
+                U64_Low32(ProgrammedDequeue));
         return FALSE;
     }
+
+    FinalEndpointState = XHCI_GetEndpointState(Device, UsbDevice, Endpoint->Dci);
+    DEBUG(TEXT("[XHCI_ResetTransferEndpoint] End Slot=%x DCI=%x Halted=%u InitialState=%x FinalState=%x StopCompletion=%x SetCompletion=%x Dequeue=%x:%x"),
+          (U32)UsbDevice->SlotId,
+          (U32)Endpoint->Dci,
+          EndpointHalted ? 1 : 0,
+          EndpointState,
+          FinalEndpointState,
+          StopCompletion,
+          SetCompletion,
+          U64_High32(ProgrammedDequeue),
+          U64_Low32(ProgrammedDequeue));
 
     return TRUE;
 }
