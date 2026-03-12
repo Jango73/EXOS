@@ -291,6 +291,65 @@ Date: 2026-03-12 (local debug run after interrupt-context and stale-completion f
   - dequeue pointer validity after recovery,
   - endpoint context fields that still differ between QEMU tolerance and Predator behavior.
 
+## Additional Hostile Review Result
+
+Date: 2026-03-12
+
+- Doorbell ordering was still relying on implicit CPU/MMIO ordering:
+  - QEMU often hides this class of issue because guest memory updates are observed synchronously by the emulated controller.
+  - Real hardware is less forgiving if ring/context writes are not published before the doorbell MMIO write.
+  - Status: fixed by publishing ring/context memory with an explicit barrier in `XHCI_RingDoorbell`.
+
+- After this pass, no remaining field-level xHCI spec violation stands out in the minimal single-TRB IN path as clearly as the earlier fixes (`SET_TR_DEQUEUE_POINTER`, endpoint-state recovery, BOT CSW validation, interrupt context encoding).
+  - That does not prove the path is correct.
+  - It does mean the remaining bug is increasingly likely to be in a smaller hardware-facing contract: transfer publication ordering, a still-misencoded context detail not yet surfaced by logs, or a controller-specific assumption that QEMU tolerates.
+
+## Predator Result After Doorbell Barrier
+
+Date: 2026-03-12
+
+- Predator behavior did not change after adding the doorbell publication barrier.
+- Conclusion:
+  - the barrier was a plausible hardware-facing fix, but it did not address the active failure on this machine.
+  - the debug focus narrows again to the BOT `Bulk IN` path itself, using the minimal sequence:
+    - configure Bulk IN endpoint,
+    - submit one `Normal TRB` IN,
+    - wait for one transfer event,
+    - recover endpoint only after a real timeout or halt.
+
+## Current Debug Strategy
+
+- Ignore the USB mouse path for the next pass.
+- Ignore generic “shared Dci=3” theorizing unless the BOT `Bulk IN` audit proves a common xHCI fault.
+- Audit only BOT `Bulk IN` on Predator:
+  - `READ CAPACITY (10)` data stage,
+  - `REQUEST SENSE` data stage,
+  - CSW IN stage.
+- Treat every remaining change as suspect until justified directly against the BOT + xHCI spec path for a single Bulk IN transfer.
+
+## BOT Bulk IN Audit
+
+Date: 2026-03-12
+
+### Objective finding
+- The BOT `Bulk IN` error path was not following the BOT transport state machine.
+- Previous behavior in `USBStorageBulkTransfer`:
+  - on `STALL`, it reset the xHCI endpoint, cleared the halted USB endpoint, and retried the same data transfer;
+  - on timeout, it reset the xHCI endpoint, cleared the halted USB endpoint, and retried the same data transfer.
+- This mixes xHCI endpoint recovery with BOT protocol policy and replays the data stage in cases where BOT expects a different next step.
+
+### Relevant BOT requirement
+- BOT status-transport flow:
+  - if the data transport or CSW transport stalls, the host clears the halted pipe and proceeds to CSW handling;
+  - transport errors that are not this stall-handling path require BOT reset recovery.
+- In particular, replaying the same Bulk IN data stage after a stall is not the BOT-prescribed next step.
+
+### Status
+- Corrected in `USBStorage-Transport.c`:
+  - timeout is treated as transfer failure and falls back to BOT reset recovery at command level;
+  - data-stage `STALL` clears the affected bulk pipe and proceeds to CSW handling;
+  - CSW `STALL` clears Bulk IN and retries CSW once instead of replaying the earlier data stage.
+
 ### Practical interpretation
 - The previously confirmed xHCI dequeue-command encoding bug is fixed.
 - The previously confirmed BOT CSW validation bugs are fixed.
@@ -374,3 +433,35 @@ T199820> DEBUG > [USBStorageBotCommand] Op=0x25 CdbLen=10 DataLen=8 DirIn=1 Tag=
    - device discovery and report submission are confirmed.
    - report completion is not yet proven in the captured logs.
 5. Keep the log filter focused on xHCI, BOT, and USB mouse tags so future screenshots stay readable.
+
+## Latest Predator Result
+
+Date: 2026-03-12
+
+### Objective findings
+- BOT progressed further than before:
+  - `READ CAPACITY (10)` produced a real CSW instead of ending only in transport timeout.
+  - `REQUEST SENSE` completed successfully at least once.
+- Observed sense data:
+  - `Response=0x70`
+  - `SenseKey=0x6`
+  - `ASC=0x28`
+  - `ASCQ=0x0`
+- A partition entry `u0p0` of type EFI became visible for the first time during this debug cycle.
+
+### Interpretation
+- The BOT path is no longer blocked only by missing xHCI completion events.
+- At least one command sequence reached device-level BOT completion and valid sense reporting.
+- `SenseKey=0x6 / ASC=0x28 / ASCQ=0x0` is consistent with a media-state change indication rather than a pure transport parse failure.
+- The storage path remains unstable because later `READ CAPACITY`, data-stage, and CSW IN attempts can still fall back to timeout/recovery.
+
+### Separate issue
+- Port `14` still enters repeated probe failure loops unrelated to the BOT device on port `1`.
+- `XHCI_LogProbeFailure` has been rate-limited so this unstable port does not flood the log indefinitely.
+
+### Updated objective conclusion
+- There is a real storage-progress signal on Predator:
+  - valid BOT exchange observed,
+  - valid sense data observed,
+  - EFI partition visibility observed.
+- The remaining blocker is instability of the Bulk IN path, not a total inability to communicate with the USB mass-storage device.

@@ -128,6 +128,15 @@ static BOOL XHCI_IsSameTrbPointer(U64 Left, U64 Right) {
 /************************************************************************/
 
 /**
+ * @brief Publish ring/context writes before a doorbell MMIO write.
+ */
+static void XHCI_PublishRingState(void) {
+    __sync_synchronize();
+}
+
+/************************************************************************/
+
+/**
  * @brief Ring an xHCI doorbell.
  * @param Device xHCI device.
  * @param DoorbellIndex Doorbell index (slot ID).
@@ -135,6 +144,7 @@ static BOOL XHCI_IsSameTrbPointer(U64 Left, U64 Right) {
  */
 void XHCI_RingDoorbell(LPXHCI_DEVICE Device, U32 DoorbellIndex, U32 Target) {
     U32 Value = Target & XHCI_DOORBELL_TARGET_MASK;
+    XHCI_PublishRingState();
     XHCI_Write32(Device->DoorbellBase, DoorbellIndex * sizeof(U32), Value);
 }
 

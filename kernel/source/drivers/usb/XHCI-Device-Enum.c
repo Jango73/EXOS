@@ -28,6 +28,11 @@
 #include "utils/ThresholdLatch.h"
 
 /************************************************************************/
+
+#define XHCI_PROBE_FAILURE_LOG_IMMEDIATE_BUDGET 2
+#define XHCI_PROBE_FAILURE_LOG_INTERVAL_MS 2000
+
+/************************************************************************/
 /**
  * @brief Emit rate-limited root port enumeration diagnostics.
  * @param UsbDevice Root port USB device.
@@ -35,6 +40,9 @@
  * @param PortStatus Current port status register value.
  */
 static void XHCI_LogProbeFailure(LPXHCI_USB_DEVICE UsbDevice, LPCSTR Step, U32 PortStatus) {
+    static RATE_LIMITER DATA_SECTION ProbeFailureLimiter = {0};
+    static BOOL DATA_SECTION ProbeFailureLimiterInitAttempted = FALSE;
+    U32 Suppressed = 0;
     U32 UsbCommand = 0;
     U32 UsbStatus = 0;
     U32 PortLinkState = 0;
@@ -45,6 +53,19 @@ static void XHCI_LogProbeFailure(LPXHCI_USB_DEVICE UsbDevice, LPCSTR Step, U32 P
     LPXHCI_DEVICE Device = NULL;
 
     if (UsbDevice == NULL || UsbDevice->IsRootPort == FALSE) {
+        return;
+    }
+
+    if (ProbeFailureLimiter.Initialized == FALSE && ProbeFailureLimiterInitAttempted == FALSE) {
+        ProbeFailureLimiterInitAttempted = TRUE;
+        if (RateLimiterInit(&ProbeFailureLimiter,
+                            XHCI_PROBE_FAILURE_LOG_IMMEDIATE_BUDGET,
+                            XHCI_PROBE_FAILURE_LOG_INTERVAL_MS) == FALSE) {
+            return;
+        }
+    }
+
+    if (!RateLimiterShouldTrigger(&ProbeFailureLimiter, GetSystemTime(), &Suppressed)) {
         return;
     }
 
@@ -61,7 +82,7 @@ static void XHCI_LogProbeFailure(LPXHCI_USB_DEVICE UsbDevice, LPCSTR Step, U32 P
     Enabled = (PortStatus & XHCI_PORTSC_PED) ? 1 : 0;
     Reset = (PortStatus & XHCI_PORTSC_PR) ? 1 : 0;
 
-    WARNING(TEXT("[XHCI_LogProbeFailure] Port=%u Step=%s Err=%x Completion=%x Raw=%x CCS=%u PED=%u PR=%u PLS=%x Speed=%x Slot=%x Addr=%x Present=%u Hub=%u Vid=%x Pid=%x Class=%x/%x/%x MPS0=%u USBCMD=%x USBSTS=%x"),
+    WARNING(TEXT("[XHCI_LogProbeFailure] Port=%u Step=%s Err=%x Completion=%x Raw=%x CCS=%u PED=%u PR=%u PLS=%x Speed=%x Slot=%x Addr=%x Present=%u Hub=%u Vid=%x Pid=%x Class=%x/%x/%x MPS0=%u USBCMD=%x USBSTS=%x suppressed=%u"),
             (U32)UsbDevice->PortNumber,
             (Step != NULL) ? Step : TEXT("?"),
             (U32)UsbDevice->LastEnumError,
@@ -83,7 +104,8 @@ static void XHCI_LogProbeFailure(LPXHCI_USB_DEVICE UsbDevice, LPCSTR Step, U32 P
             (U32)UsbDevice->DeviceDescriptor.DeviceProtocol,
             (U32)UsbDevice->MaxPacketSize0,
             UsbCommand,
-            UsbStatus);
+            UsbStatus,
+            Suppressed);
 }
 
 static U32 XHCI_ReadRootPortStatusSafe(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
