@@ -181,7 +181,7 @@ struct tag_PROCESS {
 typedef struct tag_PROPERTY {
     LISTNODE_FIELDS
     STR Name[32];
-    U32 Value;
+    UINT Value;
 } PROPERTY, *LPPROPERTY;
 
 struct tag_WINDOW {

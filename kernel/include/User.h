@@ -249,6 +249,7 @@ BOOL GetLocalTime(LPDATETIME Time);
 #define SYSCALL_RegisterWindowClass 0x0000007D
 #define SYSCALL_UnregisterWindowClass 0x0000007E
 #define SYSCALL_FindWindowClass 0x0000007F
+#define SYSCALL_WindowInheritsClass 0x00000083
 #define SYSCALL_InvalidateWindowRect 0x00000053
 #define SYSCALL_GetWindowGC 0x00000054
 #define SYSCALL_ReleaseWindowGC 0x00000055
@@ -293,7 +294,7 @@ BOOL GetLocalTime(LPDATETIME Time);
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x00000082
+#define SYSCALL_Last 0x00000083
 
 /************************************************************************/
 // Structure limits
@@ -523,8 +524,15 @@ typedef struct PACKED tag_PROPINFO {
     ABI_HEADER Header;
     HANDLE Window;
     LPCSTR Name;
-    U32 Value;
+    UINT Value;
 } PROPINFO, *LPPROPINFO;
+
+typedef struct PACKED tag_WINDOW_CLASS_QUERY_INFO {
+    ABI_HEADER Header;
+    HANDLE Window;
+    HANDLE WindowClass;
+    LPCSTR ClassName;
+} WINDOW_CLASS_QUERY_INFO, *LPWINDOW_CLASS_QUERY_INFO;
 
 typedef struct PACKED tag_WINDOWRECT {
     ABI_HEADER Header;
@@ -747,6 +755,23 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
     U32 Address;            // IPv4 address in network byte order
     U8  Zero[8];            // Padding to 16 bytes
 } SOCKET_ADDRESS_INET, *LPSOCKET_ADDRESS_INET;
+
+/************************************************************************/
+// Public userland windowing API declarations
+
+HANDLE RegisterWindowClass(LPCSTR ClassName, HANDLE BaseClass, LPCSTR BaseClassName, WINDOWFUNC Function, U32 ClassDataSize);
+BOOL UnregisterWindowClass(HANDLE WindowClass, LPCSTR ClassName);
+HANDLE FindWindowClass(LPCSTR ClassName);
+BOOL WindowInheritsClass(HANDLE Window, HANDLE WindowClass, LPCSTR ClassName);
+BOOL InvalidateWindowRect(HANDLE Window, LPRECT Rect);
+UINT SetWindowProp(HANDLE Window, LPCSTR Name, UINT Value);
+UINT GetWindowProp(HANDLE Window, LPCSTR Name);
+BOOL GetWindowRect(HANDLE Window, LPRECT Rect);
+BOOL MoveWindow(HANDLE Window, LPRECT Rect);
+BOOL SetWindowStyleState(HANDLE Window, U32 Style, BOOL State);
+BOOL GetWindowStyle(HANDLE Window, U32* StyleOut);
+HANDLE GetWindowParent(HANDLE Window);
+U32 BaseWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
 
 /************************************************************************/
 // Flags

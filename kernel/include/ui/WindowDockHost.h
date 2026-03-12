@@ -26,7 +26,7 @@
 
 /************************************************************************/
 
-#include "desktop/Desktop-WindowClass.h"
+#include "User.h"
 #include "ui/DockHost.h"
 
 typedef struct tag_WINDOW_DOCK_HOST_CLASS_DATA {
@@ -38,9 +38,9 @@ typedef struct tag_WINDOW_DOCK_HOST_CLASS_DATA {
 
 BOOL WindowDockHostClassEnsureRegistered(void);
 BOOL WindowDockHostClassEnsureDerivedRegistered(LPCSTR ClassName, WINDOWFUNC WindowFunction);
-BOOL WindowDockHostWindowInheritsDockHostClass(LPWINDOW Window);
+BOOL WindowDockHostWindowInheritsDockHostClass(HANDLE Window);
 BOOL WindowDockHostIsDockPropertyName(LPCSTR Name);
-LPWINDOW_DOCK_HOST_CLASS_DATA WindowDockHostClassGetData(LPWINDOW Window);
+LPWINDOW_DOCK_HOST_CLASS_DATA WindowDockHostClassGetData(HANDLE Window);
 void WindowDockHostShutdownWindow(HANDLE Window);
 U32 WindowDockHostAttachDockable(HANDLE Window, LPDOCKABLE Dockable);
 U32 WindowDockHostDetachDockable(HANDLE Window, LPDOCKABLE Dockable);

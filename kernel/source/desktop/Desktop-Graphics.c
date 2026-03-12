@@ -710,11 +710,11 @@ BOOL GetWindowWorkRect(HANDLE Handle, LPRECT WorkRect) {
  * @param Value Property value.
  * @return Previous property value or 0.
  */
-U32 SetWindowProp(HANDLE Handle, LPCSTR Name, U32 Value) {
+UINT SetWindowProp(HANDLE Handle, LPCSTR Name, UINT Value) {
     LPWINDOW This = (LPWINDOW)Handle;
     LPLISTNODE Node;
     LPPROPERTY Prop;
-    U32 OldValue = 0;
+    UINT OldValue = 0;
     BOOL HasChanged = FALSE;
 
     //-------------------------------------
@@ -773,11 +773,11 @@ Out:
  * @param Name Property name.
  * @return Property value or 0 if not found.
  */
-U32 GetWindowProp(HANDLE Handle, LPCSTR Name) {
+UINT GetWindowProp(HANDLE Handle, LPCSTR Name) {
     LPWINDOW This = (LPWINDOW)Handle;
     LPLISTNODE Node = NULL;
     LPPROPERTY Prop = NULL;
-    U32 Value = 0;
+    UINT Value = 0;
 
     //-------------------------------------
     // Check validity of parameters

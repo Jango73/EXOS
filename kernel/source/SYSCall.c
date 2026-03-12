@@ -1977,6 +1977,28 @@ UINT SysCall_FindWindowClass(UINT Parameter) {
 /************************************************************************/
 
 /**
+ * @brief Resolve whether one window inherits from one window class.
+ *
+ * @param Parameter Pointer to WINDOW_CLASS_QUERY_INFO.
+ * @return UINT TRUE when the window inherits from the class.
+ */
+UINT SysCall_WindowInheritsClass(UINT Parameter) {
+    LPWINDOW_CLASS_QUERY_INFO QueryInfo = (LPWINDOW_CLASS_QUERY_INFO)Parameter;
+    LPWINDOW Window;
+
+    SAFE_USE_INPUT_POINTER(QueryInfo, WINDOW_CLASS_QUERY_INFO) {
+        Window = (LPWINDOW)HandleToPointer(QueryInfo->Window);
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+            return (UINT)WindowInheritsClass((HANDLE)Window, QueryInfo->WindowClass, QueryInfo->ClassName);
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Mark a window region as needing redraw.
  *
  * @param Parameter Pointer to WINDOWRECT with the target window and rectangle.

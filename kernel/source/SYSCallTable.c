@@ -170,6 +170,7 @@ void InitializeSystemCallTable(void) {
     SysCallTable[SYSCALL_RegisterWindowClass] = (SYSCALLENTRY){SysCall_RegisterWindowClass, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_UnregisterWindowClass] = (SYSCALLENTRY){SysCall_UnregisterWindowClass, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_FindWindowClass] = (SYSCALLENTRY){SysCall_FindWindowClass, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_WindowInheritsClass] = (SYSCALLENTRY){SysCall_WindowInheritsClass, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_InvalidateWindowRect] = (SYSCALLENTRY){SysCall_InvalidateWindowRect, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetWindowGC] = (SYSCALLENTRY){SysCall_GetWindowGC, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_ReleaseWindowGC] = (SYSCALLENTRY){SysCall_ReleaseWindowGC, EXOS_PRIVILEGE_USER};

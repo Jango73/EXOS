@@ -356,6 +356,32 @@ HANDLE FindWindowClass(LPCSTR ClassName) {
 
 /************************************************************************/
 
+BOOL WindowInheritsClass(HANDLE Window, HANDLE WindowClass, LPCSTR ClassName) {
+    LPWINDOW This;
+    LPWINDOW_CLASS BaseClass;
+    LPWINDOW_CLASS CurrentClass;
+
+    This = (LPWINDOW)Window;
+    if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
+
+    BaseClass = NULL;
+    if (WindowClass != 0) {
+        BaseClass = WindowClassFindByHandle((U32)WindowClass);
+    } else if (ClassName != NULL) {
+        BaseClass = WindowClassFindByName(ClassName);
+    }
+
+    if (BaseClass == NULL || BaseClass->TypeID != KOID_WINDOW_CLASS) return FALSE;
+
+    for (CurrentClass = This->Class; CurrentClass != NULL; CurrentClass = CurrentClass->BaseClass) {
+        if (CurrentClass == BaseClass) return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
 BOOL WindowClassInitializeRegistry(void) {
     if (WindowClassGetDefault() != NULL) return TRUE;
     return WindowClassRegisterKernelClass(WINDOW_CLASS_DEFAULT_NAME, NULL, BaseWindowFunc, 0) != NULL;

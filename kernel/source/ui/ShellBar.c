@@ -259,20 +259,8 @@ static U32 ShellBarSlotWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Pa
  * @return TRUE on success.
  */
 static BOOL ShellBarEnsureSlotClassRegistered(void) {
-    LPWINDOW_CLASS WindowClass;
-
-    if (WindowClassInitializeRegistry() == FALSE) return FALSE;
-
-    WindowClass = WindowClassFindByName(SHELL_BAR_SLOT_WINDOW_CLASS_NAME);
-    if (WindowClass != NULL) return TRUE;
-
-    WindowClass = WindowClassRegisterKernelClass(
-        SHELL_BAR_SLOT_WINDOW_CLASS_NAME,
-        WindowClassGetDefault(),
-        ShellBarSlotWindowFunc,
-        0);
-
-    return WindowClass != NULL;
+    if (FindWindowClass(SHELL_BAR_SLOT_WINDOW_CLASS_NAME) != NULL) return TRUE;
+    return RegisterWindowClass(SHELL_BAR_SLOT_WINDOW_CLASS_NAME, 0, NULL, ShellBarSlotWindowFunc, 0) != NULL;
 }
 
 /************************************************************************/

@@ -251,6 +251,21 @@ HANDLE FindWindowClass(LPCSTR ClassName) {
 
 /***************************************************************************/
 
+BOOL WindowInheritsClass(HANDLE Window, HANDLE WindowClass, LPCSTR ClassName) {
+    WINDOW_CLASS_QUERY_INFO QueryInfo;
+
+    QueryInfo.Header.Size = sizeof QueryInfo;
+    QueryInfo.Header.Version = EXOS_ABI_VERSION;
+    QueryInfo.Header.Flags = 0;
+    QueryInfo.Window = Window;
+    QueryInfo.WindowClass = WindowClass;
+    QueryInfo.ClassName = ClassName;
+
+    return (BOOL)exoscall(SYSCALL_WindowInheritsClass, EXOS_PARAM(&QueryInfo));
+}
+
+/***************************************************************************/
+
 HANDLE CreateWindowWithClass(
     HANDLE Parent,
     HANDLE WindowClass,
@@ -346,7 +361,7 @@ BOOL InvalidateWindowRect(HANDLE Window, LPRECT Rect) {
 
 /***************************************************************************/
 
-U32 SetWindowProp(HANDLE Window, LPCSTR Name, U32 Value) {
+UINT SetWindowProp(HANDLE Window, LPCSTR Name, UINT Value) {
     PROPINFO PropInfo;
 
     PropInfo.Header.Size = sizeof PropInfo;
@@ -356,12 +371,12 @@ U32 SetWindowProp(HANDLE Window, LPCSTR Name, U32 Value) {
     PropInfo.Name = Name;
     PropInfo.Value = Value;
 
-    return exoscall(SYSCALL_SetWindowProp, EXOS_PARAM(&PropInfo));
+    return (UINT)exoscall(SYSCALL_SetWindowProp, EXOS_PARAM(&PropInfo));
 }
 
 /***************************************************************************/
 
-U32 GetWindowProp(HANDLE Window, LPCSTR Name) {
+UINT GetWindowProp(HANDLE Window, LPCSTR Name) {
     PROPINFO PropInfo;
 
     PropInfo.Header.Size = sizeof PropInfo;
@@ -370,7 +385,7 @@ U32 GetWindowProp(HANDLE Window, LPCSTR Name) {
     PropInfo.Window = Window;
     PropInfo.Name = Name;
 
-    return exoscall(SYSCALL_GetWindowProp, EXOS_PARAM(&PropInfo));
+    return (UINT)exoscall(SYSCALL_GetWindowProp, EXOS_PARAM(&PropInfo));
 }
 
 /***************************************************************************/

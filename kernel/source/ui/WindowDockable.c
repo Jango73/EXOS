@@ -23,53 +23,14 @@
 
 #include "ui/WindowDockable.h"
 #include "CoreString.h"
+#include "Heap.h"
 
 /************************************************************************/
 
-/**
- * @brief Resolve one window class by name and ensure it is valid.
- * @param ClassName Window class name.
- * @return Class pointer or NULL.
- */
-static LPWINDOW_CLASS WindowDockableResolveClassByName(LPCSTR ClassName) {
-    LPWINDOW_CLASS WindowClass;
-
-    if (ClassName == NULL) return NULL;
-
-    WindowClass = WindowClassFindByName(ClassName);
-    if (WindowClass == NULL || WindowClass->TypeID != KOID_WINDOW_CLASS) return NULL;
-
-    return WindowClass;
-}
+#define WINDOW_DOCKABLE_PROP_STATE TEXT("windowdockable.state")
 
 /************************************************************************/
 
-/**
- * @brief Resolve whether one class inherits from the dockable base class.
- * @param WindowClass Window class to inspect.
- * @return TRUE when class inherits from dockable class.
- */
-static BOOL WindowDockableClassIsDerived(LPWINDOW_CLASS WindowClass) {
-    LPWINDOW_CLASS DockableClass;
-    LPWINDOW_CLASS Current;
-
-    DockableClass = WindowDockableResolveClassByName(WINDOW_DOCKABLE_CLASS_NAME);
-    if (DockableClass == NULL) return FALSE;
-
-    for (Current = WindowClass; Current != NULL; Current = Current->BaseClass) {
-        if (Current == DockableClass) return TRUE;
-    }
-
-    return FALSE;
-}
-
-/************************************************************************/
-
-/**
- * @brief Resolve one size request from window properties.
- * @param Window Source window.
- * @param Request Receives parsed request.
- */
 static void WindowDockableReadSizeRequestFromProperties(HANDLE Window, LPDOCK_SIZE_REQUEST Request) {
     if (Request == NULL) return;
 
@@ -90,14 +51,6 @@ static void WindowDockableReadSizeRequestFromProperties(HANDLE Window, LPDOCK_SI
 
 /************************************************************************/
 
-/**
- * @brief Resolve one fixed-size request from one current dockable state.
- * @param Dockable Source dockable.
- * @param Host Dock host.
- * @param HostRect Current host rectangle.
- * @param Request Output size request.
- * @return Dock layout status.
- */
 static U32 WindowDockableMeasure(LPDOCKABLE Dockable, LPDOCK_HOST Host, LPRECT HostRect, LPDOCK_SIZE_REQUEST Request) {
     UNUSED(Host);
     UNUSED(HostRect);
@@ -110,16 +63,8 @@ static U32 WindowDockableMeasure(LPDOCKABLE Dockable, LPDOCK_HOST Host, LPRECT H
 
 /************************************************************************/
 
-/**
- * @brief Apply one assigned rectangle to one docked window geometry.
- * @param Dockable Source dockable.
- * @param Host Dock host.
- * @param AssignedRect Assigned window rectangle.
- * @param WorkRect Updated host work rectangle.
- * @return Dock layout status.
- */
 static U32 WindowDockableApplyRect(LPDOCKABLE Dockable, LPDOCK_HOST Host, LPRECT AssignedRect, LPRECT WorkRect) {
-    LPWINDOW Window;
+    HANDLE Window;
     RECT Rect;
 
     UNUSED(Host);
@@ -127,24 +72,20 @@ static U32 WindowDockableApplyRect(LPDOCKABLE Dockable, LPDOCK_HOST Host, LPRECT
 
     if (Dockable == NULL || AssignedRect == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
-    Window = (LPWINDOW)Dockable->Context;
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
+    Window = (HANDLE)Dockable->Context;
+    if (Window == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
     Rect = *AssignedRect;
-    if (MoveWindow((HANDLE)Window, &Rect) == FALSE) return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
-    (void)InvalidateWindowRect((HANDLE)Window, NULL);
+    if (MoveWindow(Window, &Rect) == FALSE) return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
+    (void)InvalidateWindowRect(Window, NULL);
     return DOCK_LAYOUT_STATUS_SUCCESS;
 }
 
 /************************************************************************/
 
-/**
- * @brief Apply docking properties to one dockable and synchronize host attachment.
- * @param Window Target window.
- */
-static void WindowDockableApplyProperties(LPWINDOW Window) {
+static void WindowDockableApplyProperties(HANDLE Window) {
     LPWINDOW_DOCKABLE_CLASS_DATA Data;
-    LPWINDOW HostWindow;
+    HANDLE HostWindow;
     DOCK_SIZE_REQUEST Request;
     U32 Enabled;
     U32 Edge;
@@ -153,36 +94,36 @@ static void WindowDockableApplyProperties(LPWINDOW Window) {
     Data = WindowDockableClassGetData(Window);
     if (Data == NULL || Data->DockableInitialized == FALSE) return;
 
-    HostWindow = (LPWINDOW)GetWindowParent((HANDLE)Window);
-    if (HostWindow == NULL || HostWindow->TypeID != KOID_WINDOW) return;
+    HostWindow = GetWindowParent(Window);
+    if (HostWindow == NULL) return;
 
-    Enabled = GetWindowProp((HANDLE)Window, WINDOW_DOCK_PROP_ENABLED);
-    Edge = GetWindowProp((HANDLE)Window, WINDOW_DOCK_PROP_EDGE);
+    Enabled = GetWindowProp(Window, WINDOW_DOCK_PROP_ENABLED);
+    Edge = GetWindowProp(Window, WINDOW_DOCK_PROP_EDGE);
 
     if (Enabled == 0 || (Edge != DOCK_EDGE_TOP && Edge != DOCK_EDGE_BOTTOM && Edge != DOCK_EDGE_LEFT && Edge != DOCK_EDGE_RIGHT)) {
-        (void)SetWindowStyleState((HANDLE)Window, EWS_EXCLUDE_SIBLING_PLACEMENT, FALSE);
+        (void)SetWindowStyleState(Window, EWS_EXCLUDE_SIBLING_PLACEMENT, FALSE);
         if (Data->DockableAttached != FALSE) {
-            (void)WindowDockHostDetachDockable((HANDLE)HostWindow, &(Data->Dockable));
+            (void)WindowDockHostDetachDockable(HostWindow, &(Data->Dockable));
             Data->DockableAttached = FALSE;
-            (void)WindowDockHostRelayout((HANDLE)HostWindow);
+            (void)WindowDockHostRelayout(HostWindow);
         }
         return;
     }
 
-    (void)SetWindowStyleState((HANDLE)Window, EWS_EXCLUDE_SIBLING_PLACEMENT, TRUE);
+    (void)SetWindowStyleState(Window, EWS_EXCLUDE_SIBLING_PLACEMENT, TRUE);
     (void)DockableSetEdge(&(Data->Dockable), Edge);
     (void)DockableSetOrder(
         &(Data->Dockable),
-        (I32)GetWindowProp((HANDLE)Window, WINDOW_DOCK_PROP_PRIORITY),
-        (I32)GetWindowProp((HANDLE)Window, WINDOW_DOCK_PROP_ORDER));
+        (I32)GetWindowProp(Window, WINDOW_DOCK_PROP_PRIORITY),
+        (I32)GetWindowProp(Window, WINDOW_DOCK_PROP_ORDER));
 
-    WindowDockableReadSizeRequestFromProperties((HANDLE)Window, &Request);
+    WindowDockableReadSizeRequestFromProperties(Window, &Request);
     (void)DockableSetSizeRequest(&(Data->Dockable), &Request);
 
-    (void)WindowDockHostHandleWindowRectChanged((HANDLE)HostWindow);
+    (void)WindowDockHostHandleWindowRectChanged(HostWindow);
 
     if (Data->DockableAttached == FALSE) {
-        Status = WindowDockHostAttachDockable((HANDLE)HostWindow, &(Data->Dockable));
+        Status = WindowDockHostAttachDockable(HostWindow, &(Data->Dockable));
         if (Status == DOCK_LAYOUT_STATUS_SUCCESS || Status == DOCK_LAYOUT_STATUS_ALREADY_ATTACHED) {
             Data->DockableAttached = TRUE;
         } else {
@@ -190,108 +131,85 @@ static void WindowDockableApplyProperties(LPWINDOW Window) {
             return;
         }
     } else {
-        (void)WindowDockHostMarkDirty((HANDLE)HostWindow, DOCK_DIRTY_REASON_DOCKABLE_PROPERTY_CHANGED);
+        (void)WindowDockHostMarkDirty(HostWindow, DOCK_DIRTY_REASON_DOCKABLE_PROPERTY_CHANGED);
     }
 
-    (void)WindowDockHostRelayout((HANDLE)HostWindow);
+    (void)WindowDockHostRelayout(HostWindow);
 }
 
 /************************************************************************/
 
 BOOL WindowDockableClassEnsureRegistered(void) {
-    LPWINDOW_CLASS DockableClass;
-
-    if (WindowClassInitializeRegistry() == FALSE) return FALSE;
-
-    DockableClass = WindowClassFindByName(WINDOW_DOCKABLE_CLASS_NAME);
-    if (DockableClass != NULL) return TRUE;
-
-    DockableClass = WindowClassRegisterKernelClass(
-        WINDOW_DOCKABLE_CLASS_NAME,
-        WindowClassGetDefault(),
-        WindowDockableWindowFunc,
-        sizeof(WINDOW_DOCKABLE_CLASS_DATA));
-
-    return DockableClass != NULL;
+    if (FindWindowClass(WINDOW_DOCKABLE_CLASS_NAME) != NULL) return TRUE;
+    return RegisterWindowClass(WINDOW_DOCKABLE_CLASS_NAME, 0, NULL, WindowDockableWindowFunc, 0) != NULL;
 }
 
 /************************************************************************/
 
 BOOL WindowDockableClassEnsureDerivedRegistered(LPCSTR ClassName, WINDOWFUNC WindowFunction) {
-    LPWINDOW_CLASS DockableClass;
-    LPWINDOW_CLASS WindowClass;
+    HANDLE DockableClass;
 
     if (ClassName == NULL || WindowFunction == NULL) return FALSE;
     if (WindowDockableClassEnsureRegistered() == FALSE) return FALSE;
+    if (FindWindowClass(ClassName) != NULL) return TRUE;
 
-    WindowClass = WindowClassFindByName(ClassName);
-    if (WindowClass != NULL) return TRUE;
-
-    DockableClass = WindowDockableResolveClassByName(WINDOW_DOCKABLE_CLASS_NAME);
+    DockableClass = FindWindowClass(WINDOW_DOCKABLE_CLASS_NAME);
     if (DockableClass == NULL) return FALSE;
 
-    WindowClass = WindowClassRegisterKernelClass(
-        ClassName,
-        DockableClass,
-        WindowFunction,
-        sizeof(WINDOW_DOCKABLE_CLASS_DATA));
-
-    return WindowClass != NULL;
+    return RegisterWindowClass(ClassName, DockableClass, NULL, WindowFunction, 0) != NULL;
 }
 
 /************************************************************************/
 
-BOOL WindowDockableWindowInheritsDockableClass(LPWINDOW Window) {
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
-    if (Window->Class == NULL || Window->Class->TypeID != KOID_WINDOW_CLASS) return FALSE;
-
-    return WindowDockableClassIsDerived(Window->Class);
+BOOL WindowDockableWindowInheritsDockableClass(HANDLE Window) {
+    return WindowInheritsClass(Window, 0, WINDOW_DOCKABLE_CLASS_NAME);
 }
 
 /************************************************************************/
 
-LPWINDOW_DOCKABLE_CLASS_DATA WindowDockableClassGetData(LPWINDOW Window) {
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return NULL;
+LPWINDOW_DOCKABLE_CLASS_DATA WindowDockableClassGetData(HANDLE Window) {
     if (WindowDockableWindowInheritsDockableClass(Window) == FALSE) return NULL;
-    if (Window->ClassData == NULL) return NULL;
-    if (Window->Class == NULL || Window->Class->ClassDataSize < sizeof(WINDOW_DOCKABLE_CLASS_DATA)) return NULL;
-
-    return (LPWINDOW_DOCKABLE_CLASS_DATA)Window->ClassData;
+    return (LPWINDOW_DOCKABLE_CLASS_DATA)(LPVOID)(LINEAR)GetWindowProp(Window, WINDOW_DOCKABLE_PROP_STATE);
 }
 
 /************************************************************************/
 
 void WindowDockableHandlePropertyChanged(HANDLE Window) {
-    LPWINDOW This;
     LPWINDOW_DOCKABLE_CLASS_DATA Data;
 
-    This = (LPWINDOW)Window;
-    Data = WindowDockableClassGetData(This);
+    Data = WindowDockableClassGetData(Window);
     if (Data == NULL || Data->DockableInitialized == FALSE) return;
 
-    WindowDockableApplyProperties(This);
+    WindowDockableApplyProperties(Window);
 }
 
 /************************************************************************/
 
 U32 WindowDockableWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
-    LPWINDOW This = (LPWINDOW)Window;
-    LPWINDOW HostWindow;
     LPWINDOW_DOCKABLE_CLASS_DATA Data;
     DOCKABLE_CALLBACKS Callbacks;
-    UINT IdentifierValue;
+    HANDLE HostWindow;
+
+    if (WindowDockableWindowInheritsDockableClass(Window) == FALSE) {
+        return BaseWindowFunc(Window, Message, Param1, Param2);
+    }
 
     switch (Message) {
         case EWM_CREATE:
-            Data = WindowDockableClassGetData(This);
-            if (Data == NULL) return 0;
+            Data = WindowDockableClassGetData(Window);
+            if (Data == NULL) {
+                Data = (LPWINDOW_DOCKABLE_CLASS_DATA)HeapAlloc(sizeof(WINDOW_DOCKABLE_CLASS_DATA));
+                if (Data == NULL) return 0;
+
+                MemorySet(Data, 0, sizeof(WINDOW_DOCKABLE_CLASS_DATA));
+                (void)SetWindowProp(Window, WINDOW_DOCKABLE_PROP_STATE, (UINT)(LINEAR)Data);
+            }
 
             if (Data->DockableInitialized == FALSE) {
-                IdentifierValue = (UINT)(LINEAR)This;
                 StringCopy(Data->Identifier, TEXT("dock-"));
-                U32ToHexString((U32)IdentifierValue, Data->Identifier + 5);
+                U32ToHexString((U32)(LINEAR)Window, Data->Identifier + 5);
 
-                if (DockableInit(&(Data->Dockable), Data->Identifier, This) == FALSE) return 0;
+                if (DockableInit(&(Data->Dockable), Data->Identifier, (LPVOID)Window) == FALSE) return 0;
 
                 Callbacks.Measure = WindowDockableMeasure;
                 Callbacks.ApplyRect = WindowDockableApplyRect;
@@ -302,26 +220,32 @@ U32 WindowDockableWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
                 Data->DockableInitialized = TRUE;
             }
 
-            WindowDockableApplyProperties(This);
+            WindowDockableApplyProperties(Window);
             return BaseWindowFunc(Window, Message, Param1, Param2);
 
         case EWM_NOTIFY:
             if (Param1 == EWN_WINDOW_PROPERTY_CHANGED) {
-                WindowDockableApplyProperties(This);
+                WindowDockableApplyProperties(Window);
                 return 1;
             }
             return BaseWindowFunc(Window, Message, Param1, Param2);
 
         case EWM_DELETE:
-            Data = WindowDockableClassGetData(This);
+            Data = WindowDockableClassGetData(Window);
             if (Data != NULL && Data->DockableAttached != FALSE) {
-                HostWindow = (LPWINDOW)GetWindowParent(Window);
-                if (HostWindow != NULL && HostWindow->TypeID == KOID_WINDOW) {
-                    (void)WindowDockHostDetachDockable((HANDLE)HostWindow, &(Data->Dockable));
-                    (void)WindowDockHostRelayout((HANDLE)HostWindow);
+                HostWindow = GetWindowParent(Window);
+                if (HostWindow != NULL) {
+                    (void)WindowDockHostDetachDockable(HostWindow, &(Data->Dockable));
+                    (void)WindowDockHostRelayout(HostWindow);
                 }
                 Data->DockableAttached = FALSE;
             }
+
+            if (Data != NULL) {
+                (void)SetWindowProp(Window, WINDOW_DOCKABLE_PROP_STATE, 0);
+                HeapFree(Data);
+            }
+
             return BaseWindowFunc(Window, Message, Param1, Param2);
     }
 
