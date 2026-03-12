@@ -749,7 +749,7 @@ Keyboard selection is handled by the keyboard selector driver, keeping one activ
 
 USB foundations are defined in `kernel/include/drivers/USB.h`, including shared type definitions (speed tiers, endpoint kinds, addressing) and standard descriptor layouts used by host controller and class drivers.
 
-The xHCI host stack (`kernel/source/drivers/XHCI-Core.c`, `kernel/source/drivers/XHCI-Device-Lifecycle.c`, `kernel/source/drivers/XHCI-Device-Transfer.c`, `kernel/source/drivers/XHCI-Device-Enum.c`, `kernel/source/drivers/XHCI-Hub.c`, `kernel/source/drivers/XHCI-Enum.c`) is attached by the PCI subsystem and performs:
+The xHCI host stack (`kernel/source/drivers/usb/XHCI-Core.c`, `kernel/source/drivers/usb/XHCI-Controller.c`, `kernel/source/drivers/usb/XHCI-Device-Lifecycle.c`, `kernel/source/drivers/usb/XHCI-Device-Transfer.c`, `kernel/source/drivers/usb/XHCI-Device-Enum.c`, `kernel/source/drivers/usb/XHCI-Hub.c`, `kernel/source/drivers/usb/XHCI-Enum.c`) is attached by the PCI subsystem and performs:
 
 - controller halt/reset/run sequencing,
 - MMIO mapping and ring allocation (DCBAA, command ring, event ring),

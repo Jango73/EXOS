@@ -391,6 +391,7 @@ U32 XHCI_Read32(LINEAR Base, U32 Offset);
 void XHCI_Write32(LINEAR Base, U32 Offset, U32 Value);
 void XHCI_Write64(LINEAR Base, U32 Offset, U64 Value);
 LPXHCI_CONTEXT_32 XHCI_GetContextPointer(LINEAR Base, U32 ContextSize, U32 Index);
+LINEAR XHCI_GetInterrupterBase(LPXHCI_DEVICE Device);
 void XHCI_RingDoorbell(LPXHCI_DEVICE Device, U32 DoorbellIndex, U32 Target);
 void XHCI_InitUsbDeviceObject(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice);
 BOOL XHCI_PopCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* SlotIdOut, U32* CompletionOut);
@@ -404,6 +405,7 @@ void XHCI_PollCompletions(LPXHCI_DEVICE Device);
 void XHCI_LogHseTransitionIfNeeded(LPXHCI_DEVICE Device, LPCSTR Source);
 BOOL XHCI_WaitForRegister(LINEAR Base, U32 Offset, U32 Mask, U32 Value, U32 Timeout, LPCSTR Name);
 BOOL XHCI_AllocPage(LPCSTR Tag, PHYSICAL *PhysicalOut, LINEAR *LinearOut);
+void XHCI_FreeResources(LPXHCI_DEVICE Device);
 U32 XHCI_ReadPortStatus(LPXHCI_DEVICE Device, U32 PortIndex);
 void XHCI_AddDeviceToList(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice);
 
