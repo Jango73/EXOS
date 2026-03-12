@@ -167,7 +167,7 @@ static BOOL XHCI_ResetHubPort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub, U8 Po
         return FALSE;
     }
 
-    U32 Timeout = XHCI_PORT_RESET_TIMEOUT;
+    U32 Timeout = XHCI_PORT_RESET_TIMEOUT_MS;
     USB_PORT_STATUS Status;
     MemorySet(&Status, 0, sizeof(Status));
 
@@ -183,7 +183,7 @@ static BOOL XHCI_ResetHubPort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub, U8 Po
     }
 
     if (Timeout == 0) {
-        WARNING(TEXT("[XHCI_ResetHubPort] Timeout %u ms (Port=%u)"), XHCI_PORT_RESET_TIMEOUT, Port);
+        WARNING(TEXT("[XHCI_ResetHubPort] Timeout %u ms (Port=%u)"), XHCI_PORT_RESET_TIMEOUT_MS, Port);
     }
 
     return (Timeout != 0);

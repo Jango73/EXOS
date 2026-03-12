@@ -612,7 +612,7 @@ static BOOL XHCI_ResetAndStart(LPXHCI_DEVICE Device) {
                               XHCI_OP_USBSTS,
                               XHCI_USBSTS_HCH,
                               XHCI_USBSTS_HCH,
-                              XHCI_HALT_TIMEOUT,
+                              XHCI_CONTROLLER_HALT_TIMEOUT_MS,
                               TEXT("Controller halt"))) {
         XHCI_LogHseTransitionIfNeeded(Device, TEXT("ResetAndStart-HaltTimeout"));
         ERROR(TEXT("[XHCI_ResetAndStart] Halt timeout"));
@@ -627,7 +627,7 @@ static BOOL XHCI_ResetAndStart(LPXHCI_DEVICE Device) {
                               XHCI_OP_USBCMD,
                               XHCI_USBCMD_HCRST,
                               0,
-                              XHCI_RESET_TIMEOUT,
+                              XHCI_CONTROLLER_RESET_TIMEOUT_MS,
                               TEXT("Controller reset"))) {
         XHCI_LogHseTransitionIfNeeded(Device, TEXT("ResetAndStart-ResetTimeout"));
         ERROR(TEXT("[XHCI_ResetAndStart] Reset bit timeout"));
@@ -638,7 +638,7 @@ static BOOL XHCI_ResetAndStart(LPXHCI_DEVICE Device) {
                               XHCI_OP_USBSTS,
                               XHCI_USBSTS_CNR,
                               0,
-                              XHCI_RESET_TIMEOUT,
+                              XHCI_CONTROLLER_RESET_TIMEOUT_MS,
                               TEXT("Controller ready"))) {
         XHCI_LogHseTransitionIfNeeded(Device, TEXT("ResetAndStart-ReadyTimeout"));
         ERROR(TEXT("[XHCI_ResetAndStart] Controller not ready"));
@@ -689,7 +689,7 @@ static BOOL XHCI_ResetAndStart(LPXHCI_DEVICE Device) {
                               XHCI_OP_USBSTS,
                               XHCI_USBSTS_HCH,
                               0,
-                              XHCI_RUN_TIMEOUT,
+                              XHCI_CONTROLLER_RUN_TIMEOUT_MS,
                               TEXT("Controller run"))) {
         XHCI_LogHseTransitionIfNeeded(Device, TEXT("ResetAndStart-RunTimeout"));
         ERROR(TEXT("[XHCI_ResetAndStart] Run timeout"));

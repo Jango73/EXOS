@@ -534,7 +534,7 @@ static BOOL XHCI_ResetPort(LPXHCI_DEVICE Device, U32 PortIndex) {
                               Offset,
                               XHCI_PORTSC_PR,
                               0,
-                              XHCI_PORT_RESET_TIMEOUT,
+                              XHCI_PORT_RESET_TIMEOUT_MS,
                               TEXT("Port reset"))) {
         ERROR(TEXT("[XHCI_ResetPort] Port %u reset timeout"), PortIndex + 1);
         return FALSE;

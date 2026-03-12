@@ -589,7 +589,7 @@ static void USBMousePoll(LPVOID Context) {
         if (!USBMouseIsDevicePresent(USBMouseCustomData.State.Controller, USBMouseCustomData.State.UsbDevice)) {
             DEBUG(TEXT("[USBMousePoll] Mouse disconnected"));
             USBMouseClearState(TEXT("disconnect"));
-            USBMouseCustomData.State.RetryDelay = 50;
+            USBMouseCustomData.State.RetryDelay = USB_MOUSE_DISCOVERY_RETRY_DELAY_POLLS;
         }
     }
 
@@ -606,7 +606,7 @@ static void USBMousePoll(LPVOID Context) {
                         (Interface != NULL) ? (U32)Interface->Number : 0,
                         (Endpoint != NULL) ? (U32)Endpoint->Address : 0);
                 USBMouseClearState(TEXT("start_failed"));
-                USBMouseCustomData.State.RetryDelay = 50;
+                USBMouseCustomData.State.RetryDelay = USB_MOUSE_DISCOVERY_RETRY_DELAY_POLLS;
             }
         }
     }
@@ -618,7 +618,7 @@ static void USBMousePoll(LPVOID Context) {
     if (!USBMouseCustomData.State.ReportPending) {
         if (!USBMouseSubmitReport(USBMouseCustomData.State.Controller)) {
             WARNING(TEXT("[USBMousePoll] Report submit failed"));
-            USBMouseCustomData.State.RetryDelay = 10;
+            USBMouseCustomData.State.RetryDelay = USB_MOUSE_SUBMIT_RETRY_DELAY_POLLS;
         }
         return;
     }

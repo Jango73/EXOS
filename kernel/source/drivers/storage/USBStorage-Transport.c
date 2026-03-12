@@ -487,7 +487,7 @@ static BOOL USBStorageBulkTransfer(LPXHCI_DEVICE Device,
     if (!USBStorageBulkTransferOnce(Device, UsbDevice, Endpoint, BufferPhysical, BufferLinear,
                                     Length,
                                     DirectionIn,
-                                    USB_MASS_STORAGE_BULK_TIMEOUT_MILLISECONDS,
+                                    USB_MASS_STORAGE_BULK_TIMEOUT_MS,
                                     ScsiOpCode,
                                     &Completion,
                                     &TransferLength)) {

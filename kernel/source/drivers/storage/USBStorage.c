@@ -58,7 +58,6 @@
 #define USB_SCSI_READ_CAPACITY_10 0x25
 #define USB_SCSI_READ_10 0x28
 
-#define USB_MASS_STORAGE_BULK_TIMEOUT_MILLISECONDS 1000
 #define USB_MASS_STORAGE_BULK_RETRIES 3
 #define USB_MASS_STORAGE_SCAN_LOG_IMMEDIATE_BUDGET 1
 #define USB_MASS_STORAGE_SCAN_LOG_INTERVAL_MS 2000
@@ -722,7 +721,7 @@ static void USBStorageScanControllers(void) {
 
                     if (!USBStorageStartDevice(Controller, UsbDevice, Interface, BulkIn, BulkOut)) {
                         USBStorageLogScan(UsbDevice, Interface, TEXT("StartDeviceFailed"));
-                        USBStorageState.RetryDelay = 20;
+                        USBStorageState.RetryDelay = USB_MASS_STORAGE_SCAN_RETRY_DELAY_POLLS;
                         continue;
                     }
 

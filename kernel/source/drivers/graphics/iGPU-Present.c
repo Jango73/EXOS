@@ -34,10 +34,6 @@ static INTEL_GFX_SURFACE IntelGfxSurfaces[INTEL_GFX_MAX_SURFACES] = {0};
 
 /************************************************************************/
 
-#define INTEL_GFX_WAIT_VBLANK_DEFAULT_TIMEOUT_MS 40
-
-/************************************************************************/
-
 UINT IntelGfxFlushContextRegionToScanout(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, U32 Width, U32 Height) {
     U32 BytesPerPixel = 0;
     U32 CopyBytes = 0;

@@ -31,10 +31,6 @@
 
 /************************************************************************/
 
-#define INTEL_GFX_CURSOR_SHOW_DELAY_MS 250
-
-/************************************************************************/
-
 typedef struct tag_INTEL_GFX_CURSOR_RUNTIME {
     COOLDOWN ShowCooldown;
     U32 DeferredHandle;

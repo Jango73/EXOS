@@ -748,6 +748,7 @@ Keyboard selection is handled by the keyboard selector driver, keeping one activ
 ### USB host and class stack
 
 USB foundations are defined in `kernel/include/drivers/USB.h`, including shared type definitions (speed tiers, endpoint kinds, addressing) and standard descriptor layouts used by host controller and class drivers.
+Driver timeout and retry-delay constants shared across storage, USB, and graphics drivers are centralized in `kernel/include/Driver.h`, with units encoded in the constant names (`_MS`, `_LOOPS`, `_ITER`, `_POLLS`) so policy stays in the driver while the numerical values live in one shared declaration point.
 
 The xHCI host stack (`kernel/source/drivers/usb/XHCI-Core.c`, `kernel/source/drivers/usb/XHCI-Controller.c`, `kernel/source/drivers/usb/XHCI-Device-Lifecycle.c`, `kernel/source/drivers/usb/XHCI-Device-Transfer.c`, `kernel/source/drivers/usb/XHCI-Device-Enum.c`, `kernel/source/drivers/usb/XHCI-Hub.c`, `kernel/source/drivers/usb/XHCI-Enum.c`) is attached by the PCI subsystem and performs:
 

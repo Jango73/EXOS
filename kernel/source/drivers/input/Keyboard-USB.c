@@ -1213,7 +1213,7 @@ static void USBKeyboardPoll(LPVOID Context) {
         if (!USBKeyboardIsDevicePresent(USBKeyboardState.Controller, USBKeyboardState.UsbDevice)) {
             DEBUG(TEXT("[USBKeyboardPoll] Keyboard disconnected"));
             USBKeyboardClearState();
-            USBKeyboardState.RetryDelay = 50;
+            USBKeyboardState.RetryDelay = USB_KEYBOARD_DISCOVERY_RETRY_DELAY_POLLS;
         }
     }
 
@@ -1233,7 +1233,7 @@ static void USBKeyboardPoll(LPVOID Context) {
                                   &ConsumerEndpoint)) {
             if (!USBKeyboardStartDevice(Device, UsbDevice, Interface, Endpoint, ConsumerInterface, ConsumerEndpoint)) {
                 USBKeyboardClearState();
-                USBKeyboardState.RetryDelay = 50;
+                USBKeyboardState.RetryDelay = USB_KEYBOARD_DISCOVERY_RETRY_DELAY_POLLS;
             }
         }
     }
