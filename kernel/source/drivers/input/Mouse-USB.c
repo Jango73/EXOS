@@ -629,6 +629,7 @@ static void USBMousePoll(LPVOID Context) {
                                             (USBMouseCustomData.State.UsbDevice != NULL) ? USBMouseCustomData.State.UsbDevice->SlotId : 0,
                                             (USBMouseCustomData.State.Endpoint != NULL) ? USBMouseCustomData.State.Endpoint->Dci : 0,
                                             &Completion,
+                                            NULL,
                                             &UsedRouteFallback,
                                             &ObservedTrbPhysical)) {
         if (RateLimiterShouldTrigger(&USBMouseCustomData.State.WaitCompletionLogLimiter, GetSystemTime(), &Suppressed)) {

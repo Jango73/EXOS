@@ -327,6 +327,7 @@ typedef struct tag_XHCI_USB_DEVICE {
 typedef struct tag_XHCI_COMPLETION {
     U64 TrbPhysical;
     U32 Completion;
+    U32 TransferLength;
     U8 Type;
     U8 SlotId;
     U8 EndpointId;
@@ -401,8 +402,18 @@ LPXHCI_CONTEXT_32 XHCI_GetContextPointer(LINEAR Base, U32 ContextSize, U32 Index
 LINEAR XHCI_GetInterrupterBase(LPXHCI_DEVICE Device);
 void XHCI_RingDoorbell(LPXHCI_DEVICE Device, U32 DoorbellIndex, U32 Target);
 void XHCI_InitUsbDeviceObject(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice);
-BOOL XHCI_PopCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* SlotIdOut, U32* CompletionOut);
-BOOL XHCI_PollForCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* SlotIdOut, U32* CompletionOut);
+BOOL XHCI_PopCompletion(LPXHCI_DEVICE Device,
+                        U8 Type,
+                        U64 TrbPhysical,
+                        U8* SlotIdOut,
+                        U32* CompletionOut,
+                        U32* TransferLengthOut);
+BOOL XHCI_PollForCompletion(LPXHCI_DEVICE Device,
+                            U8 Type,
+                            U64 TrbPhysical,
+                            U8* SlotIdOut,
+                            U32* CompletionOut,
+                            U32* TransferLengthOut);
 BOOL XHCI_CommandRingEnqueue(LPXHCI_DEVICE Device, const XHCI_TRB* Trb, U64* PhysicalOut);
 BOOL XHCI_TransferRingEnqueue(LPXHCI_USB_DEVICE UsbDevice, const XHCI_TRB* Trb, U64* PhysicalOut);
 BOOL XHCI_RingEnqueue(LINEAR RingLinear, PHYSICAL RingPhysical, U32* EnqueueIndex, U32* CycleState,
@@ -458,6 +469,7 @@ BOOL XHCI_CheckTransferCompletionRouted(LPXHCI_DEVICE Device,
                                         U8 SlotId,
                                         U8 EndpointId,
                                         U32* CompletionOut,
+                                        U32* TransferLengthOut,
                                         BOOL* UsedRouteFallbackOut,
                                         U64* ObservedTrbPhysicalOut);
 

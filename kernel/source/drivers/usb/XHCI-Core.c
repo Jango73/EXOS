@@ -101,6 +101,17 @@ static U32 XHCI_GetCompletionCode(U32 Dword2) {
 /************************************************************************/
 
 /**
+ * @brief Extract xHCI transfer-event transfer length from Dword2.
+ * @param Dword2 TRB Dword2 value.
+ * @return Transfer length field.
+ */
+static U32 XHCI_GetTransferLength(U32 Dword2) {
+    return (Dword2 & 0x00FFFFFF);
+}
+
+/************************************************************************/
+
+/**
  * @brief Compare two TRB pointers while ignoring reserved low bits.
  * @param Left Left pointer.
  * @param Right Right pointer.
@@ -257,6 +268,7 @@ static void XHCI_PushCompletion(LPXHCI_DEVICE Device, const XHCI_TRB* Event) {
 
     U64 Pointer = U64_Make(Event->Dword1, Event->Dword0);
     U32 Completion = XHCI_GetCompletionCode(Event->Dword2);
+    U32 TransferLength = XHCI_GetTransferLength(Event->Dword2);
     U8 SlotId = (U8)((Event->Dword3 >> 24) & 0xFF);
     U8 EndpointId = (U8)((Event->Dword3 >> 16) & 0x1F);
 
@@ -270,6 +282,7 @@ static void XHCI_PushCompletion(LPXHCI_DEVICE Device, const XHCI_TRB* Event) {
     XHCI_COMPLETION* Entry = &Device->CompletionQueue[Device->CompletionCount++];
     Entry->TrbPhysical = Pointer;
     Entry->Completion = Completion;
+    Entry->TransferLength = TransferLength;
     Entry->Type = Type;
     Entry->SlotId = SlotId;
     Entry->EndpointId = EndpointId;
@@ -286,7 +299,12 @@ static void XHCI_PushCompletion(LPXHCI_DEVICE Device, const XHCI_TRB* Event) {
  * @param CompletionOut Receives completion code when provided.
  * @return TRUE if a matching completion was found.
  */
-BOOL XHCI_PopCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* SlotIdOut, U32* CompletionOut) {
+BOOL XHCI_PopCompletion(LPXHCI_DEVICE Device,
+                        U8 Type,
+                        U64 TrbPhysical,
+                        U8* SlotIdOut,
+                        U32* CompletionOut,
+                        U32* TransferLengthOut) {
     if (Device == NULL) {
         return FALSE;
     }
@@ -305,6 +323,9 @@ BOOL XHCI_PopCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* Slot
         }
         if (CompletionOut != NULL) {
             *CompletionOut = Entry->Completion;
+        }
+        if (TransferLengthOut != NULL) {
+            *TransferLengthOut = Entry->TransferLength;
         }
 
         for (U32 Shift = Index + 1; Shift < Device->CompletionCount; Shift++) {
@@ -326,7 +347,12 @@ BOOL XHCI_PopCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* Slot
  * @param CompletionOut Receives completion code when provided.
  * @return TRUE when the target completion is found while draining events.
  */
-BOOL XHCI_PollForCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* SlotIdOut, U32* CompletionOut) {
+BOOL XHCI_PollForCompletion(LPXHCI_DEVICE Device,
+                            U8 Type,
+                            U64 TrbPhysical,
+                            U8* SlotIdOut,
+                            U32* CompletionOut,
+                            U32* TransferLengthOut) {
     XHCI_TRB Event;
 
     if (Device == NULL) {
@@ -345,6 +371,9 @@ BOOL XHCI_PollForCompletion(LPXHCI_DEVICE Device, U8 Type, U64 TrbPhysical, U8* 
                 }
                 if (CompletionOut != NULL) {
                     *CompletionOut = XHCI_GetCompletionCode(Event.Dword2);
+                }
+                if (TransferLengthOut != NULL) {
+                    *TransferLengthOut = XHCI_GetTransferLength(Event.Dword2);
                 }
                 return TRUE;
             }

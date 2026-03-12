@@ -269,6 +269,7 @@ BOOL XHCI_CheckTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* Co
                                               0,
                                               CompletionOut,
                                               NULL,
+                                              NULL,
                                               NULL);
 }
 
@@ -287,6 +288,7 @@ static BOOL XHCI_PopTransferCompletionByRoute(LPXHCI_DEVICE Device,
                                               U8 SlotId,
                                               U8 EndpointId,
                                               U32* CompletionOut,
+                                              U32* TransferLengthOut,
                                               U64* ObservedTrbPhysicalOut) {
     U32 Index;
 
@@ -305,6 +307,9 @@ static BOOL XHCI_PopTransferCompletionByRoute(LPXHCI_DEVICE Device,
 
         if (CompletionOut != NULL) {
             *CompletionOut = Entry->Completion;
+        }
+        if (TransferLengthOut != NULL) {
+            *TransferLengthOut = Entry->TransferLength;
         }
         if (ObservedTrbPhysicalOut != NULL) {
             *ObservedTrbPhysicalOut = Entry->TrbPhysical;
@@ -338,6 +343,7 @@ BOOL XHCI_CheckTransferCompletionRouted(LPXHCI_DEVICE Device,
                                         U8 SlotId,
                                         U8 EndpointId,
                                         U32* CompletionOut,
+                                        U32* TransferLengthOut,
                                         BOOL* UsedRouteFallbackOut,
                                         U64* ObservedTrbPhysicalOut) {
     if (Device == NULL) {
@@ -350,12 +356,13 @@ BOOL XHCI_CheckTransferCompletionRouted(LPXHCI_DEVICE Device,
 
     LockMutex(&(Device->Mutex), INFINITY);
     XHCI_PollCompletions(Device);
-    Found = XHCI_PopCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut);
+    Found = XHCI_PopCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut, TransferLengthOut);
     if (!Found && SlotId != 0 && EndpointId != 0) {
         Found = XHCI_PopTransferCompletionByRoute(Device,
                                                   SlotId,
                                                   EndpointId,
                                                   CompletionOut,
+                                                  TransferLengthOut,
                                                   &ObservedTrbPhysical);
         UsedRouteFallback = Found ? TRUE : FALSE;
     }

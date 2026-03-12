@@ -63,6 +63,25 @@ static BOOL USBStorageShouldTraceTransfer(U32* SuppressedOut) {
     return RateLimiterShouldTrigger(&TransferTraceLimiter, GetSystemTime(), SuppressedOut);
 }
 
+/************************************************************************/
+
+/**
+ * @brief Perform BOT reset recovery after a transport/protocol violation.
+ * @param Device USB mass storage device context.
+ * @param Operation SCSI operation code.
+ * @param Reason Short reason string.
+ */
+static void USBStorageRunBotResetRecovery(LPUSB_MASS_STORAGE_DEVICE Device, U8 Operation, LPCSTR Reason) {
+    if (Device == NULL) {
+        return;
+    }
+
+    WARNING(TEXT("[USBStorageRunBotResetRecovery] Op=%x Reason=%s"),
+            (U32)Operation,
+            (Reason != NULL) ? Reason : TEXT("unknown"));
+    (void)USBStorageResetRecovery(Device);
+}
+
 /**
  * @brief Check whether an interface matches USB mass storage BOT.
  * @param Interface USB interface descriptor.
@@ -246,7 +265,8 @@ static BOOL USBStorageWaitCompletion(LPXHCI_DEVICE Device,
                                      LPXHCI_USB_ENDPOINT Endpoint,
                                      U64 TrbPhysical,
                                      UINT TimeoutMilliseconds,
-                                     U32* CompletionOut) {
+                                     U32* CompletionOut,
+                                     U32* TransferLengthOut) {
     UINT Remaining = TimeoutMilliseconds;
     UINT Elapsed = 0;
     U32 Suppressed = 0;
@@ -267,6 +287,7 @@ static BOOL USBStorageWaitCompletion(LPXHCI_DEVICE Device,
                                                (UsbDevice != NULL) ? UsbDevice->SlotId : 0,
                                                (Endpoint != NULL) ? Endpoint->Dci : 0,
                                                CompletionOut,
+                                               TransferLengthOut,
                                                &UsedRouteFallback,
                                                &ObservedTrbPhysical)) {
             if (UsedRouteFallback && USBStorageShouldTraceTransfer(&Suppressed)) {
@@ -329,7 +350,8 @@ static BOOL USBStorageBulkTransferOnce(LPXHCI_DEVICE Device,
                                            BOOL DirectionIn,
                                            UINT TimeoutMilliseconds,
                                            U8 ScsiOpCode,
-                                           U32* CompletionOut) {
+                                           U32* CompletionOut,
+                                           U32* TransferLengthOut) {
     if (Device == NULL || UsbDevice == NULL || Endpoint == NULL || BufferPhysical == 0 || BufferLinear == 0) {
         return FALSE;
     }
@@ -349,7 +371,13 @@ static BOOL USBStorageBulkTransferOnce(LPXHCI_DEVICE Device,
         return FALSE;
     }
 
-    if (!USBStorageWaitCompletion(Device, UsbDevice, Endpoint, TrbPhysical, TimeoutMilliseconds, CompletionOut)) {
+    if (!USBStorageWaitCompletion(Device,
+                                  UsbDevice,
+                                  Endpoint,
+                                  TrbPhysical,
+                                  TimeoutMilliseconds,
+                                  CompletionOut,
+                                  TransferLengthOut)) {
         DEBUG(TEXT("[USBStorageBulkTransferOnce] Timeout Op=%x Slot=%x Port=%u Addr=%u Ep=%x Dci=%u DirIn=%u Len=%u Trb=%p"),
               (U32)ScsiOpCode,
               (U32)UsbDevice->SlotId,
@@ -386,10 +414,12 @@ static BOOL USBStorageBulkTransfer(LPXHCI_DEVICE Device,
                                        LINEAR BufferLinear,
                                        UINT Length,
                                        BOOL DirectionIn,
-                                       U8 ScsiOpCode) {
+                                       U8 ScsiOpCode,
+                                       U32* TransferLengthOut) {
     U32 Suppressed = 0;
     for (UINT Attempt = 0; Attempt < USB_MASS_STORAGE_BULK_RETRIES; Attempt++) {
         U32 Completion = 0;
+        U32 TransferLength = 0;
         if (ScsiOpCode == USB_SCSI_READ_CAPACITY_10 && USBStorageShouldTraceTransfer(&Suppressed)) {
             DEBUG(TEXT("[USBStorageBulkTransfer] Op=%x Attempt=%u/%u Slot=%x Ep=%x Dci=%u DirIn=%u Len=%u suppressed=%u"),
                   (U32)ScsiOpCode,
@@ -408,7 +438,8 @@ static BOOL USBStorageBulkTransfer(LPXHCI_DEVICE Device,
                                             DirectionIn,
                                             USB_MASS_STORAGE_BULK_TIMEOUT_MILLISECONDS,
                                             ScsiOpCode,
-                                            &Completion)) {
+                                            &Completion,
+                                            &TransferLength)) {
             if (USBStorageShouldTraceTransfer(&Suppressed)) {
                 DEBUG(TEXT("[USBStorageBulkTransfer] Attempt=%u/%u failed Slot=%x Port=%u Addr=%u Ep=%x DirIn=%u suppressed=%u"),
                       Attempt + 1,
@@ -434,6 +465,9 @@ static BOOL USBStorageBulkTransfer(LPXHCI_DEVICE Device,
         }
 
         if (Completion == XHCI_COMPLETION_SUCCESS || Completion == XHCI_COMPLETION_SHORT_PACKET) {
+            if (DirectionIn && TransferLengthOut != NULL) {
+                *TransferLengthOut = TransferLength;
+            }
             return TRUE;
         }
 
@@ -488,6 +522,9 @@ static BOOL USBStorageBotCommand(LPUSB_MASS_STORAGE_DEVICE Device,
                                      UINT DataLength,
                                      BOOL DirectionIn,
                                      LPVOID DataOut) {
+    U32 ExpectedTag;
+    U32 TransferLength;
+    U32 ActualLength;
     if (Device == NULL || CommandBlock == NULL || CommandBlockLength == 0) {
         return FALSE;
     }
@@ -514,6 +551,7 @@ static BOOL USBStorageBotCommand(LPUSB_MASS_STORAGE_DEVICE Device,
     CommandBlockWrapper->LogicalUnitNumber = 0;
     CommandBlockWrapper->CommandBlockLength = CommandBlockLength;
     MemoryCopy(CommandBlockWrapper->CommandBlock, CommandBlock, CommandBlockLength);
+    ExpectedTag = CommandBlockWrapper->Tag;
     Device->LastScsiOpCode = CommandBlock[0];
     Device->LastBotStage = 1;
     Device->LastCswStatus = 0xFF;
@@ -533,19 +571,22 @@ static BOOL USBStorageBotCommand(LPUSB_MASS_STORAGE_DEVICE Device,
 
     if (!USBStorageBulkTransfer(Device->Controller, Device->UsbDevice, Device->BulkOutEndpoint,
                                     Device->InputOutputBufferPhysical, Device->InputOutputBufferLinear,
-                                    USB_MASS_STORAGE_COMMAND_BLOCK_LENGTH, FALSE, CommandBlock[0])) {
+                                    USB_MASS_STORAGE_COMMAND_BLOCK_LENGTH, FALSE, CommandBlock[0], NULL)) {
         Device->LastBotStage = 2;
+        USBStorageRunBotResetRecovery(Device, CommandBlock[0], TEXT("CBW"));
         ERROR(TEXT("[USBStorageBotCommand] CBW send failed Op=%x Tag=%x"), (U32)CommandBlock[0], (U32)CommandBlockWrapper->Tag);
         return FALSE;
     }
 
     if (DataLength > 0) {
         Device->LastBotStage = 3;
+        TransferLength = 0;
         if (!USBStorageBulkTransfer(Device->Controller, Device->UsbDevice,
                                         DirectionIn ? Device->BulkInEndpoint : Device->BulkOutEndpoint,
                                         Device->InputOutputBufferPhysical, Device->InputOutputBufferLinear,
-                                        DataLength, DirectionIn, CommandBlock[0])) {
+                                        DataLength, DirectionIn, CommandBlock[0], &TransferLength)) {
             Device->LastBotStage = 4;
+            USBStorageRunBotResetRecovery(Device, CommandBlock[0], TEXT("DataStage"));
             ERROR(TEXT("[USBStorageBotCommand] Data stage failed Op=%x Tag=%x DirIn=%u Len=%u"),
                   (U32)CommandBlock[0],
                   (U32)CommandBlockWrapper->Tag,
@@ -562,35 +603,85 @@ static BOOL USBStorageBotCommand(LPUSB_MASS_STORAGE_DEVICE Device,
     USB_MASS_STORAGE_COMMAND_STATUS_WRAPPER* CommandStatusWrapper =
         (USB_MASS_STORAGE_COMMAND_STATUS_WRAPPER*)Device->InputOutputBufferLinear;
     Device->LastBotStage = 5;
+    MemorySet(CommandStatusWrapper, 0, USB_MASS_STORAGE_COMMAND_STATUS_LENGTH);
+    TransferLength = 0;
     if (!USBStorageBulkTransfer(Device->Controller, Device->UsbDevice, Device->BulkInEndpoint,
                                     Device->InputOutputBufferPhysical, Device->InputOutputBufferLinear,
-                                    USB_MASS_STORAGE_COMMAND_STATUS_LENGTH, TRUE, CommandBlock[0])) {
+                                    USB_MASS_STORAGE_COMMAND_STATUS_LENGTH, TRUE, CommandBlock[0], &TransferLength)) {
         Device->LastBotStage = 6;
+        USBStorageRunBotResetRecovery(Device, CommandBlock[0], TEXT("CSW"));
         ERROR(TEXT("[USBStorageBotCommand] CSW read failed Op=%x Tag=%x"), (U32)CommandBlock[0], (U32)CommandBlockWrapper->Tag);
         return FALSE;
     }
     Device->LastBotStage = 7;
+    if (TransferLength > USB_MASS_STORAGE_COMMAND_STATUS_LENGTH) {
+        USBStorageRunBotResetRecovery(Device, CommandBlock[0], TEXT("InvalidCSWLength"));
+        ERROR(TEXT("[USBStorageBotCommand] Invalid CSW transfer length=%u Op=%x Tag=%x"),
+              TransferLength,
+              (U32)CommandBlock[0],
+              ExpectedTag);
+        return FALSE;
+    }
+    ActualLength = (U32)USB_MASS_STORAGE_COMMAND_STATUS_LENGTH - TransferLength;
+    if (ActualLength != USB_MASS_STORAGE_COMMAND_STATUS_LENGTH) {
+        USBStorageRunBotResetRecovery(Device, CommandBlock[0], TEXT("ShortCSW"));
+        ERROR(TEXT("[USBStorageBotCommand] Short CSW length=%u Op=%x Tag=%x"),
+              ActualLength,
+              (U32)CommandBlock[0],
+              ExpectedTag);
+        return FALSE;
+    }
     Device->LastCswStatus = CommandStatusWrapper->Status;
     Device->LastCswResidue = CommandStatusWrapper->DataResidue;
 
     if (CommandStatusWrapper->Signature != USB_MASS_STORAGE_COMMAND_STATUS_SIGNATURE ||
-        CommandStatusWrapper->Tag != CommandBlockWrapper->Tag) {
+        CommandStatusWrapper->Tag != ExpectedTag) {
+        USBStorageRunBotResetRecovery(Device, CommandBlock[0], TEXT("InvalidCSW"));
         ERROR(TEXT("[USBStorageBotCommand] Invalid CSW Op=%x Sig=%x Tag=%x ExpectedTag=%x Status=%x Residue=%u"),
               (U32)CommandBlock[0],
               (U32)CommandStatusWrapper->Signature,
               (U32)CommandStatusWrapper->Tag,
-              (U32)CommandBlockWrapper->Tag,
+              ExpectedTag,
               (U32)CommandStatusWrapper->Status,
               (U32)CommandStatusWrapper->DataResidue);
         return FALSE;
     }
 
-    if (CommandStatusWrapper->Status != 0) {
+    if (CommandStatusWrapper->DataResidue > (U32)DataLength) {
+        USBStorageRunBotResetRecovery(Device, CommandBlock[0], TEXT("InvalidResidue"));
+        ERROR(TEXT("[USBStorageBotCommand] Invalid CSW residue=%u DataLen=%u Op=%x Tag=%x"),
+              (U32)CommandStatusWrapper->DataResidue,
+              (U32)DataLength,
+              (U32)CommandBlock[0],
+              ExpectedTag);
+        return FALSE;
+    }
+
+    if (CommandStatusWrapper->Status == USB_MASS_STORAGE_COMMAND_STATUS_PHASE_ERROR) {
+        USBStorageRunBotResetRecovery(Device, CommandBlock[0], TEXT("PhaseError"));
+        ERROR(TEXT("[USBStorageBotCommand] CSW phase error residue=%u Op=%x Tag=%x"),
+              (U32)CommandStatusWrapper->DataResidue,
+              (U32)CommandBlock[0],
+              ExpectedTag);
+        return FALSE;
+    }
+
+    if (CommandStatusWrapper->Status == USB_MASS_STORAGE_COMMAND_STATUS_FAILED) {
         WARNING(TEXT("[USBStorageBotCommand] CSW status=%x residue=%u Op=%x Tag=%x"),
                 (U32)CommandStatusWrapper->Status,
                 (U32)CommandStatusWrapper->DataResidue,
                 (U32)CommandBlock[0],
-                (U32)CommandBlockWrapper->Tag);
+                ExpectedTag);
+        return FALSE;
+    }
+
+    if (CommandStatusWrapper->Status != USB_MASS_STORAGE_COMMAND_STATUS_PASSED) {
+        USBStorageRunBotResetRecovery(Device, CommandBlock[0], TEXT("UnknownCSWStatus"));
+        ERROR(TEXT("[USBStorageBotCommand] Invalid CSW status=%x residue=%u Op=%x Tag=%x"),
+                (U32)CommandStatusWrapper->Status,
+                (U32)CommandStatusWrapper->DataResidue,
+                (U32)CommandBlock[0],
+                ExpectedTag);
         return FALSE;
     }
 

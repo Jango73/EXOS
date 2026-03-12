@@ -568,18 +568,18 @@ BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U8* Sl
     RequestedTimeout = Timeout;
 
     LockMutex(&(Device->Mutex), INFINITY);
-    if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT, TrbPhysical, SlotIdOut, CompletionOut)) {
+    if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT, TrbPhysical, SlotIdOut, CompletionOut, NULL)) {
         UnlockMutex(&(Device->Mutex));
         return TRUE;
     }
 
     while (ElapsedMilliseconds < Timeout) {
-        if (XHCI_PollForCompletion(Device, XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT, TrbPhysical, SlotIdOut, CompletionOut)) {
+        if (XHCI_PollForCompletion(Device, XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT, TrbPhysical, SlotIdOut, CompletionOut, NULL)) {
             UnlockMutex(&(Device->Mutex));
             return TRUE;
         }
 
-        if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT, TrbPhysical, SlotIdOut, CompletionOut)) {
+        if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT, TrbPhysical, SlotIdOut, CompletionOut, NULL)) {
             UnlockMutex(&(Device->Mutex));
             return TRUE;
         }
@@ -624,18 +624,18 @@ BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* 
     RequestedTimeout = Timeout;
 
     LockMutex(&(Device->Mutex), INFINITY);
-    if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut)) {
+    if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut, NULL)) {
         UnlockMutex(&(Device->Mutex));
         return TRUE;
     }
 
     while (ElapsedMilliseconds < Timeout) {
-        if (XHCI_PollForCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut)) {
+        if (XHCI_PollForCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut, NULL)) {
             UnlockMutex(&(Device->Mutex));
             return TRUE;
         }
 
-        if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut)) {
+        if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut, NULL)) {
             UnlockMutex(&(Device->Mutex));
             return TRUE;
         }
