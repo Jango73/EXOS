@@ -2514,15 +2514,47 @@ UINT SysCall_ClipMouse(UINT Parameter) {
 /************************************************************************/
 
 /**
+ * @brief Draw one themed window background into one graphics context.
+ *
+ * @param Parameter Pointer to WINDOW_BACKGROUND_INFO.
+ * @return UINT TRUE on success.
+ */
+UINT SysCall_DrawWindowBackground(UINT Parameter) {
+    LPWINDOW_BACKGROUND_INFO BackgroundInfo = (LPWINDOW_BACKGROUND_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(BackgroundInfo, WINDOW_BACKGROUND_INFO) {
+        HANDLE OriginalGC = BackgroundInfo->GC;
+        LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)HandleToPointer(OriginalGC);
+        LPWINDOW Window = NULL;
+
+        SAFE_USE_VALID_ID(Context, KOID_GRAPHICSCONTEXT) {
+            if (BackgroundInfo->Window != NULL) {
+                Window = (LPWINDOW)HandleToPointer(BackgroundInfo->Window);
+                if (Window == NULL || Window->TypeID != KOID_WINDOW) {
+                    return 0;
+                }
+            }
+
+            return (UINT)DrawWindowBackground((HANDLE)Window, (HANDLE)Context, &(BackgroundInfo->Rect), BackgroundInfo->ThemeToken);
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
  * @brief Capture mouse input to a specific window.
  *
- * Not yet implemented.
- *
- * @param Parameter Reserved.
- * @return UINT Always returns 0.
+ * @param Parameter Target window handle.
+ * @return UINT Captured window handle on success, 0 on failure.
  */
 UINT SysCall_CaptureMouse(UINT Parameter) {
-    UNUSED(Parameter);
+    LPWINDOW Window = (LPWINDOW)HandleToPointer((HANDLE)Parameter);
+
+    SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)CaptureMouse((HANDLE)Window); }
+
     return 0;
 }
 
@@ -2531,14 +2563,12 @@ UINT SysCall_CaptureMouse(UINT Parameter) {
 /**
  * @brief Release mouse capture.
  *
- * Not yet implemented.
- *
  * @param Parameter Reserved.
- * @return UINT Always returns 0.
+ * @return UINT TRUE on success, FALSE on failure.
  */
 UINT SysCall_ReleaseMouse(UINT Parameter) {
     UNUSED(Parameter);
-    return 0;
+    return (UINT)ReleaseMouse();
 }
 
 /************************************************************************/

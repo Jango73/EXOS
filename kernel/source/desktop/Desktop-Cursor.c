@@ -524,7 +524,7 @@ void DesktopCursorOnDesktopActivated(LPDESKTOP Desktop) {
     LockMutex(&(Desktop->Mutex), INFINITY);
 
     Desktop->Cursor.Visible = TRUE;
-    if (GetMousePosition(&CurrentX, &CurrentY) == TRUE) {
+    if (GetMouseScreenPosition(&CurrentX, &CurrentY) == TRUE) {
         Desktop->Cursor.X = CurrentX;
         Desktop->Cursor.Y = CurrentY;
     }

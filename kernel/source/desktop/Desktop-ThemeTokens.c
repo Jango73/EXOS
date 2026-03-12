@@ -70,6 +70,14 @@ static const THEME_COLOR_TOKEN_ENTRY BuiltinColorTokens[] = {
     {THEME_TOKEN_COLOR_TEXT_NORMAL, TEXT("color.text.normal"), COLOR_GRAY75},
     {THEME_TOKEN_COLOR_TEXT_SELECTED, TEXT("color.text.selected"), COLOR_GRAY75},
     {THEME_TOKEN_COLOR_TITLE_TEXT, TEXT("color.title_text"), COLOR_GRAY75},
+    {THEME_TOKEN_COLOR_BUTTON_BACKGROUND, TEXT("color.button.background"), COLOR_GRAY35},
+    {THEME_TOKEN_COLOR_BUTTON_BACKGROUND_HOVER, TEXT("color.button.background.hover"), COLOR_GRAY40},
+    {THEME_TOKEN_COLOR_BUTTON_BACKGROUND_PRESSED, TEXT("color.button.background.pressed"), COLOR_GRAY25},
+    {THEME_TOKEN_COLOR_BUTTON_BACKGROUND_DISABLED, TEXT("color.button.background.disabled"), COLOR_GRAY30},
+    {THEME_TOKEN_COLOR_BUTTON_BORDER, TEXT("color.button.border"), COLOR_GRAY75},
+    {THEME_TOKEN_COLOR_BUTTON_BORDER_HOVER, TEXT("color.button.border.hover"), COLOR_GRAY90},
+    {THEME_TOKEN_COLOR_BUTTON_BORDER_PRESSED, TEXT("color.button.border.pressed"), COLOR_GRAY50},
+    {THEME_TOKEN_COLOR_BUTTON_TEXT_DISABLED, TEXT("color.button.text.disabled"), COLOR_GRAY50},
 };
 
 // Built-in metric tokens must be unique by TokenID.

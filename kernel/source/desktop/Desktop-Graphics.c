@@ -1230,67 +1230,6 @@ BOOL Rectangle(LPRECTINFO RectInfo) {
 /***************************************************************************/
 
 /**
- * @brief Temporary fast rectangle fill path for desktop root drawing.
- * @param GC Graphics context handle.
- * @param ScreenRect Rectangle in screen coordinates.
- * @param FillColor Fill color.
- * @return TRUE on success.
- */
-static BOOL DesktopFillRectangleTemporaryFast(HANDLE GC, LPRECT ScreenRect, COLOR FillColor) {
-    LPGRAPHICSCONTEXT Context;
-    I32 DrawX1;
-    I32 DrawY1;
-    I32 DrawX2;
-    I32 DrawY2;
-    I32 Y;
-    U32 Width;
-    U32 X;
-    U32* Pixel;
-
-    if (GC == NULL || ScreenRect == NULL) return FALSE;
-
-    Context = (LPGRAPHICSCONTEXT)GC;
-    if (Context->TypeID != KOID_GRAPHICSCONTEXT) return FALSE;
-    if (Context->MemoryBase == NULL) return FALSE;
-    if (Context->BitsPerPixel != 32) return FALSE;
-
-    DrawX1 = ScreenRect->X1;
-    DrawY1 = ScreenRect->Y1;
-    DrawX2 = ScreenRect->X2;
-    DrawY2 = ScreenRect->Y2;
-
-    LockMutex(&(Context->Mutex), INFINITY);
-
-    if (DrawX1 < Context->LoClip.X) DrawX1 = Context->LoClip.X;
-    if (DrawY1 < Context->LoClip.Y) DrawY1 = Context->LoClip.Y;
-    if (DrawX2 > Context->HiClip.X) DrawX2 = Context->HiClip.X;
-    if (DrawY2 > Context->HiClip.Y) DrawY2 = Context->HiClip.Y;
-
-    if (DrawX1 < 0) DrawX1 = 0;
-    if (DrawY1 < 0) DrawY1 = 0;
-    if (DrawX2 >= Context->Width) DrawX2 = Context->Width - 1;
-    if (DrawY2 >= Context->Height) DrawY2 = Context->Height - 1;
-
-    if (DrawX2 < DrawX1 || DrawY2 < DrawY1) {
-        UnlockMutex(&(Context->Mutex));
-        return TRUE;
-    }
-
-    Width = (U32)(DrawX2 - DrawX1 + 1);
-    for (Y = DrawY1; Y <= DrawY2; Y++) {
-        Pixel = (U32*)(Context->MemoryBase + (U32)(Y * (I32)Context->BytesPerScanLine) + ((U32)DrawX1 << 2));
-        for (X = 0; X < Width; X++) {
-            Pixel[X] = FillColor;
-        }
-    }
-
-    UnlockMutex(&(Context->Mutex));
-    return TRUE;
-}
-
-/***************************************************************************/
-
-/**
  * @brief Draw an arc using current pen.
  * @param ArcInfo Arc parameters.
  * @return TRUE on success.
@@ -1415,6 +1354,25 @@ BOOL GetWindowScreenRectSnapshot(LPWINDOW Window, LPRECT Rect) {
 /***************************************************************************/
 
 /**
+ * @brief Retrieve current mouse position.
+ * @param Point Receives current screen coordinates.
+ * @return TRUE on success.
+ */
+BOOL GetMousePosition(LPPOINT Point) {
+    I32 MouseX;
+    I32 MouseY;
+
+    if (Point == NULL) return FALSE;
+    if (GetMouseScreenPosition(&MouseX, &MouseY) == FALSE) return FALSE;
+
+    Point->X = MouseX;
+    Point->Y = MouseY;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Get desktop capture state for one window desktop.
  * @param Window Any window on the target desktop.
  * @param CaptureWindow Receives captured window (optional).
@@ -1464,6 +1422,41 @@ BOOL SetDesktopCaptureState(LPWINDOW Window, LPWINDOW CaptureWindow, I32 OffsetX
     UnlockMutex(&(Desktop->Mutex));
 
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Capture mouse input for one window.
+ * @param Window Target window handle.
+ * @return Captured window handle on success, NULL on failure.
+ */
+HANDLE CaptureMouse(HANDLE Window) {
+    LPWINDOW This = (LPWINDOW)Window;
+
+    if (This == NULL || This->TypeID != KOID_WINDOW) return NULL;
+    if (SetDesktopCaptureState(This, This, 0, 0) == FALSE) return NULL;
+
+    return Window;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Release current mouse capture.
+ * @return TRUE on success.
+ */
+BOOL ReleaseMouse(void) {
+    LPDESKTOP ActiveDesktop;
+    LPWINDOW CaptureWindow = NULL;
+
+    ActiveDesktop = GetActiveDesktop();
+    if (ActiveDesktop == NULL || ActiveDesktop->TypeID != KOID_DESKTOP) return FALSE;
+    if (ActiveDesktop->Window == NULL || ActiveDesktop->Window->TypeID != KOID_WINDOW) return FALSE;
+    if (GetDesktopCaptureState(ActiveDesktop->Window, &CaptureWindow, NULL, NULL) == FALSE) return FALSE;
+    if (CaptureWindow == NULL || CaptureWindow->TypeID != KOID_WINDOW) return FALSE;
+
+    return SetDesktopCaptureState(CaptureWindow, NULL, 0, 0);
 }
 
 /***************************************************************************/
@@ -1557,46 +1550,13 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
         case EWM_DRAW: {
             HANDLE GC;
-            RECTINFO RectInfo;
             RECT Rect;
-            RECT RootVisibleStorage[WINDOW_DIRTY_REGION_CAPACITY];
-            RECT_REGION RootVisibleRegion;
-            RECT RootVisibleRect;
-            UINT RootVisibleIndex;
-            BRUSH Brush;
-            COLOR Background;
-            BOOL HasBackground;
-            RECT ClipRect;
 
             GC = BeginWindowDraw(Window);
 
             if (GC) {
                 GetWindowClientRect(Window, &Rect);
-
-                RectInfo.Header.Size = sizeof(RectInfo);
-                RectInfo.Header.Version = EXOS_ABI_VERSION;
-                RectInfo.Header.Flags = 0;
-                RectInfo.GC = GC;
-                RectInfo.X1 = Rect.X1;
-                RectInfo.Y1 = Rect.Y1;
-                RectInfo.X2 = Rect.X2;
-                RectInfo.Y2 = Rect.Y2;
-
-                SelectPen(GC, NULL);
-
-                HasBackground = DesktopThemeResolveLevel1Color(TEXT("desktop.root"), TEXT("normal"), TEXT("background"), &Background);
-                if (HasBackground) {
-                    MemorySet(&Brush, 0, sizeof(Brush));
-                    Brush.TypeID = KOID_BRUSH;
-                    Brush.References = 1;
-                    Brush.Color = Background;
-                    Brush.Pattern = MAX_U32;
-                    SelectBrush(GC, (HANDLE)&Brush);
-                } else {
-                    SelectBrush(GC, GetSystemBrush(SM_COLOR_DESKTOP));
-                }
-
-                Rectangle(&RectInfo);
+                (void)DrawWindowBackground(Window, GC, &Rect, THEME_TOKEN_WINDOW_BACKGROUND_DESKTOP);
 
                 EndWindowDraw(Window);
             }
@@ -1631,7 +1591,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             I32 MouseX;
             I32 MouseY;
 
-            if (GetMousePosition(&MouseX, &MouseY) == FALSE) {
+            if (GetMouseScreenPosition(&MouseX, &MouseY) == FALSE) {
                 break;
             }
 
@@ -1659,7 +1619,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 }
             }
 
-            if (GetMousePosition(&MouseX, &MouseY) == FALSE) {
+            if (GetMouseScreenPosition(&MouseX, &MouseY) == FALSE) {
                 break;
             }
 

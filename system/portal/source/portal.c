@@ -285,7 +285,7 @@ U32 DesktopTask(LPVOID Param) {
     MouseButtons = 0;
 
     FOREVER {
-        GetMousePos(&NewMousePos);
+        GetMousePosition(&NewMousePos);
 
         if (NewMousePos.X != MousePos.X || NewMousePos.Y != MousePos.Y) {
             MousePos.X = NewMousePos.X;

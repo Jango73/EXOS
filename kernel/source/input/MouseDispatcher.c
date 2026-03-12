@@ -285,7 +285,7 @@ void MouseDispatcherOnInput(I32 DeltaX, I32 DeltaY, U32 Buttons) {
  * @param Y Output Y coordinate.
  * @return TRUE when the dispatcher is initialized and the position is copied.
  */
-BOOL GetMousePosition(I32* X, I32* Y) {
+BOOL GetMouseScreenPosition(I32* X, I32* Y) {
     UINT Flags;
     I32 CurrentX;
     I32 CurrentY;

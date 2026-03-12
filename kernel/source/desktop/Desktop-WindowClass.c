@@ -250,47 +250,17 @@ static LPWINDOW_CLASS WindowClassRegister(
 
 /************************************************************************/
 
-BOOL WindowClassInitializeRegistry(void) {
-    if (WindowClassGetDefault() != NULL) return TRUE;
-    return WindowClassRegisterKernelClass(WINDOW_CLASS_DEFAULT_NAME, NULL, BaseWindowFunc, 0) != NULL;
-}
-
-/************************************************************************/
-
-LPWINDOW_CLASS WindowClassRegisterKernelClass(LPCSTR Name, LPWINDOW_CLASS BaseClass, WINDOWFUNC Function, U32 ClassDataSize) {
-    return WindowClassRegister(Name, BaseClass, Function, ClassDataSize, NULL);
-}
-
-/************************************************************************/
-
-LPWINDOW_CLASS WindowClassRegisterUserClass(
-    LPCSTR Name,
-    U32 BaseClassID,
-    LPCSTR BaseClassName,
-    WINDOWFUNC Function,
-    U32 ClassDataSize,
-    LPPROCESS OwnerProcess) {
-    LPWINDOW_CLASS BaseClass = NULL;
-
-    if (OwnerProcess == NULL || OwnerProcess->TypeID != KOID_PROCESS) return NULL;
-    if (Name == NULL || Function == NULL) return NULL;
-
-    if (BaseClassID != 0) {
-        BaseClass = WindowClassFindByHandle(BaseClassID);
-    } else if (BaseClassName != NULL) {
-        BaseClass = WindowClassFindByName(BaseClassName);
-    }
-
-    return WindowClassRegister(Name, BaseClass, Function, ClassDataSize, OwnerProcess);
-}
-
-/************************************************************************/
-
-BOOL WindowClassUnregisterUserClass(U32 ClassID, LPCSTR Name, LPPROCESS OwnerProcess) {
+/**
+ * @brief Unregister one class from the global registry.
+ * @param ClassID Optional class identifier.
+ * @param Name Optional class name.
+ * @param OwnerProcess Owner process for user classes, NULL for kernel classes.
+ * @return TRUE on success.
+ */
+static BOOL WindowClassUnregister(U32 ClassID, LPCSTR Name, LPPROCESS OwnerProcess) {
     LPLIST ClassList;
     LPWINDOW_CLASS This;
 
-    if (OwnerProcess == NULL || OwnerProcess->TypeID != KOID_PROCESS) return FALSE;
     if (ClassID == 0 && Name == NULL) return FALSE;
 
     ClassList = GetWindowClassList();
@@ -338,6 +308,82 @@ BOOL WindowClassUnregisterUserClass(U32 ClassID, LPCSTR Name, LPPROCESS OwnerPro
 
     KernelHeapFree(This);
     return TRUE;
+}
+
+/************************************************************************/
+
+HANDLE RegisterWindowClass(LPCSTR ClassName, HANDLE BaseClass, LPCSTR BaseClassName, WINDOWFUNC Function, U32 ClassDataSize) {
+    LPWINDOW_CLASS WindowClass = NULL;
+    LPPROCESS Process = GetCurrentProcess();
+
+    if (Process == &KernelProcess) {
+        LPWINDOW_CLASS KernelBaseClass = NULL;
+
+        if (WindowClassInitializeRegistry() == FALSE) return NULL;
+        if (BaseClass != 0) {
+            KernelBaseClass = WindowClassFindByHandle((U32)BaseClass);
+        } else if (BaseClassName != NULL) {
+            KernelBaseClass = WindowClassFindByName(BaseClassName);
+        }
+
+        WindowClass = WindowClassRegisterKernelClass(ClassName, KernelBaseClass, Function, ClassDataSize);
+    } else {
+        WindowClass = WindowClassRegisterUserClass(ClassName, (U32)BaseClass, BaseClassName, Function, ClassDataSize, Process);
+    }
+
+    if (WindowClass == NULL || WindowClass->TypeID != KOID_WINDOW_CLASS) return NULL;
+    return (HANDLE)(UINT)WindowClass->ClassID;
+}
+
+/************************************************************************/
+
+BOOL UnregisterWindowClass(HANDLE WindowClass, LPCSTR ClassName) {
+    LPPROCESS Process = GetCurrentProcess();
+
+    return WindowClassUnregister((U32)WindowClass, ClassName, Process == &KernelProcess ? NULL : Process);
+}
+
+/************************************************************************/
+
+BOOL WindowClassInitializeRegistry(void) {
+    if (WindowClassGetDefault() != NULL) return TRUE;
+    return WindowClassRegisterKernelClass(WINDOW_CLASS_DEFAULT_NAME, NULL, BaseWindowFunc, 0) != NULL;
+}
+
+/************************************************************************/
+
+LPWINDOW_CLASS WindowClassRegisterKernelClass(LPCSTR Name, LPWINDOW_CLASS BaseClass, WINDOWFUNC Function, U32 ClassDataSize) {
+    return WindowClassRegister(Name, BaseClass, Function, ClassDataSize, NULL);
+}
+
+/************************************************************************/
+
+LPWINDOW_CLASS WindowClassRegisterUserClass(
+    LPCSTR Name,
+    U32 BaseClassID,
+    LPCSTR BaseClassName,
+    WINDOWFUNC Function,
+    U32 ClassDataSize,
+    LPPROCESS OwnerProcess) {
+    LPWINDOW_CLASS BaseClass = NULL;
+
+    if (OwnerProcess == NULL || OwnerProcess->TypeID != KOID_PROCESS) return NULL;
+    if (Name == NULL || Function == NULL) return NULL;
+
+    if (BaseClassID != 0) {
+        BaseClass = WindowClassFindByHandle(BaseClassID);
+    } else if (BaseClassName != NULL) {
+        BaseClass = WindowClassFindByName(BaseClassName);
+    }
+
+    return WindowClassRegister(Name, BaseClass, Function, ClassDataSize, OwnerProcess);
+}
+
+/************************************************************************/
+
+BOOL WindowClassUnregisterUserClass(U32 ClassID, LPCSTR Name, LPPROCESS OwnerProcess) {
+    if (OwnerProcess == NULL || OwnerProcess->TypeID != KOID_PROCESS) return FALSE;
+    return WindowClassUnregister(ClassID, Name, OwnerProcess);
 }
 
 /************************************************************************/

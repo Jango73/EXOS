@@ -1935,6 +1935,8 @@ Visibility changes and style changes affecting `EWS_EXCLUDE_SIBLING_PLACEMENT` o
 Per-window timer delivery is implemented in `kernel/source/desktop/Desktop-Timer.c` (`kernel/include/desktop/Desktop-Timer.h`) with `SetWindowTimer`, `KillWindowTimer`, and asynchronous `EWM_TIMER` dispatch.
 The desktop clock widget (`kernel/source/ui/ClockWidget.c`, `kernel/include/ui/ClockWidget.h`) uses this timer path to request redraw once per second.
 
+`DrawWindowBackground` is exposed through the public windowing API and resolves one reserved `THEME_TOKEN_*` background token to one themed window element/state before drawing the background rectangle. The default clear path, desktop root background, client-decorated window client background, and reusable button component all use this same entry point instead of duplicating theme lookup and fill logic.
+
 #### Window dock host integration
 
 Docking host integration is implemented by window classes in `kernel/source/ui/WindowDockHost.c` and `kernel/source/ui/WindowDockable.c`.
@@ -1949,6 +1951,7 @@ Parent movement constraints use the generic window work rectangle API (`SetWindo
 Docked windows publish sibling-placement exclusion through `EWS_EXCLUDE_SIBLING_PLACEMENT` and do not use docking-specific bypass logic when the host applies one assigned rectangle.
 Shell bar content composition uses slot windows exposed by `kernel/source/ui/ShellBar.c` (`left`, `center`, `components`) and the desktop injects concrete component windows into these slots after desktop activation succeeds.
 The shell bar does not reference concrete component types; it only manages slot geometry and keeps slot children fitted to slot client rectangles.
+A reusable button component is provided by `kernel/source/ui/Button.c` (`kernel/include/ui/Button.h`). It stays on the top-level window API, paints its background through `DrawWindowBackground`, and exposes classic `normal`, `hover`, `pressed`, and `disabled` theme states.
 A floating wireframe cube component is provided by `kernel/source/ui/Cube3D.c` (`kernel/include/ui/Cube3D.h`). It defines `VERTEX3` and `QUAD` geometry sets and renders one rotating cube with one timer-driven redraw loop.
 The on-screen debug information component (`kernel/source/ui/OnScreenDebugInfo.c`, `kernel/include/ui/OnScreenDebugInfo.h`) is instantiated by the internal desktop test path as one bare bottom-band window spanning part of the desktop placement area, and it renders graphics then mouse debug lines through the shared high-level text API without coupling to other components.
 

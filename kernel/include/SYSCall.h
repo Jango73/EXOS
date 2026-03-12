@@ -143,6 +143,7 @@ UINT SysCall_Line(UINT Parameter);
 UINT SysCall_Rectangle(UINT Parameter);
 UINT SysCall_DrawText(UINT Parameter);
 UINT SysCall_MeasureText(UINT Parameter);
+UINT SysCall_DrawWindowBackground(UINT Parameter);
 UINT SysCall_GetMousePos(UINT Parameter);
 UINT SysCall_SetMousePos(UINT Parameter);
 UINT SysCall_GetMouseButtons(UINT Parameter);

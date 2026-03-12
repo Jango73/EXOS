@@ -63,7 +63,7 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
 
             if ((Param1 & MB_LEFT) == 0) break;
             if (This == NULL || This->TypeID != KOID_WINDOW) break;
-            if (GetMousePosition(&MouseX, &MouseY) == FALSE) break;
+            if (GetMouseScreenPosition(&MouseX, &MouseY) == FALSE) break;
 
             MousePosition.X = MouseX;
             MousePosition.Y = MouseY;
@@ -150,16 +150,11 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
             RECT ClipScreenRect;
             RECT ClipLocalRect;
             RECT SurfaceScreenRect;
-            RECT WindowRect;
-            RECTINFO RectInfo;
-            BRUSH Brush;
-            COLOR Background;
-            BOOL HasBackground;
             LPWINDOW This = (LPWINDOW)Window;
             WINDOW_DRAW_CONTEXT_SNAPSHOT DrawContext;
 
             if (DesktopGetWindowDrawSurfaceRect(This, &SurfaceRect) == FALSE) {
-                if (GetWindowDrawableRect(This, &SurfaceRect) == FALSE) break;
+                if (GetWindowDrawableRect((HANDLE)This, &SurfaceRect) == FALSE) break;
             } else if (GetWindowDrawContextSnapshot(This, &DrawContext) != FALSE &&
                        (DrawContext.Flags & WINDOW_DRAW_CONTEXT_ACTIVE) != 0 &&
                        DesktopGetWindowDrawClipRect(This, &ClipScreenRect) != FALSE) {
@@ -180,32 +175,7 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
             GC = BeginWindowDraw(Window);
             if (GC == NULL) break;
 
-            HasBackground = DesktopThemeResolveLevel1Color(TEXT("window.client"), TEXT("normal"), TEXT("background"), &Background);
-            if (HasBackground == FALSE) {
-                HasBackground = DesktopThemeResolveTokenColorByName(TEXT("color.client.background"), &Background);
-            }
-
-            if (HasBackground != FALSE) {
-                MemorySet(&Brush, 0, sizeof(Brush));
-                Brush.TypeID = KOID_BRUSH;
-                Brush.References = 1;
-                Brush.Color = Background;
-                Brush.Pattern = MAX_U32;
-                (void)SelectBrush(GC, (HANDLE)&Brush);
-            } else {
-                (void)SelectBrush(GC, GetSystemBrush(SM_COLOR_CLIENT));
-            }
-            (void)SelectPen(GC, NULL);
-
-            RectInfo.Header.Size = sizeof(RECTINFO);
-            RectInfo.Header.Version = EXOS_ABI_VERSION;
-            RectInfo.Header.Flags = 0;
-            RectInfo.GC = GC;
-            RectInfo.X1 = SurfaceRect.X1;
-            RectInfo.Y1 = SurfaceRect.Y1;
-            RectInfo.X2 = SurfaceRect.X2;
-            RectInfo.Y2 = SurfaceRect.Y2;
-            (void)Rectangle(&RectInfo);
+            (void)DrawWindowBackground(Window, GC, &SurfaceRect, THEME_TOKEN_WINDOW_BACKGROUND_CLIENT);
 
             EndWindowDraw(Window);
             return 1;

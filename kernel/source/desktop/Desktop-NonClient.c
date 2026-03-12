@@ -440,28 +440,11 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
  */
 BOOL DrawWindowClientArea(HANDLE Window, HANDLE GC, LPRECT Rect) {
     RECT ClientRect;
-    HANDLE ClientBrush;
-    LPBRUSH ClientBrushPtr;
-    COLOR ClientBackground = COLOR_WHITE;
 
     if (Window == NULL || GC == NULL || Rect == NULL) return FALSE;
     if (GetWindowClientRectFromWindowRect((LPWINDOW)Window, Rect, &ClientRect) == FALSE) return FALSE;
 
-    if (DesktopThemeDrawRecipeForElementState(Window, GC, &ClientRect, TEXT("window.client"), TEXT("normal"))) {
-        return TRUE;
-    }
-
-    if (!DesktopThemeResolveLevel1Color(TEXT("window.client"), TEXT("normal"), TEXT("background"), &ClientBackground)) {
-        if (!DesktopThemeResolveTokenColorByName(TEXT("color.client.background"), &ClientBackground)) {
-            ClientBrush = GetSystemBrush(SM_COLOR_CLIENT);
-            SAFE_USE_VALID_ID((LPBRUSH)ClientBrush, KOID_BRUSH) {
-                ClientBrushPtr = (LPBRUSH)ClientBrush;
-                ClientBackground = ClientBrushPtr->Color;
-            }
-        }
-    }
-
-    return DrawSolidRect(GC, ClientRect.X1, ClientRect.Y1, ClientRect.X2, ClientRect.Y2, ClientBackground);
+    return DrawWindowBackground(Window, GC, &ClientRect, THEME_TOKEN_WINDOW_BACKGROUND_CLIENT);
 }
 
 /***************************************************************************/

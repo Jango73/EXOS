@@ -672,7 +672,25 @@ BOOL MeasureText(LPCSTR Text, HANDLE Font, U32* WidthOut, U32* HeightOut) {
 
 /***************************************************************************/
 
-BOOL GetMousePos(LPPOINT Point) { return (BOOL)exoscall(SYSCALL_GetMousePos, EXOS_PARAM(Point)); }
+BOOL DrawWindowBackground(HANDLE Window, HANDLE GC, LPRECT Rect, U32 ThemeToken) {
+    WINDOW_BACKGROUND_INFO BackgroundInfo;
+
+    if (Rect == NULL) return FALSE;
+
+    BackgroundInfo.Header.Size = sizeof BackgroundInfo;
+    BackgroundInfo.Header.Version = EXOS_ABI_VERSION;
+    BackgroundInfo.Header.Flags = 0;
+    BackgroundInfo.Window = Window;
+    BackgroundInfo.GC = GC;
+    BackgroundInfo.Rect = *Rect;
+    BackgroundInfo.ThemeToken = ThemeToken;
+
+    return (BOOL)exoscall(SYSCALL_DrawWindowBackground, EXOS_PARAM(&BackgroundInfo));
+}
+
+/***************************************************************************/
+
+BOOL GetMousePosition(LPPOINT Point) { return (BOOL)exoscall(SYSCALL_GetMousePos, EXOS_PARAM(Point)); }
 
 /***************************************************************************/
 
@@ -681,13 +699,12 @@ U32 GetMouseButtons(void) { return (U32)exoscall(SYSCALL_GetMouseButtons, EXOS_P
 /***************************************************************************/
 
 HANDLE CaptureMouse(HANDLE Window) {
-    UNUSED(Window);
-    return NULL;
+    return (HANDLE)exoscall(SYSCALL_CaptureMouse, EXOS_PARAM(Window));
 }
 
 /***************************************************************************/
 
-BOOL ReleaseMouse(void) { return FALSE; }
+BOOL ReleaseMouse(void) { return (BOOL)exoscall(SYSCALL_ReleaseMouse, EXOS_PARAM(0)); }
 
 /***************************************************************************/
 
