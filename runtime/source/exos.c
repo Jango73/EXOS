@@ -56,6 +56,10 @@ U32 GetSystemTime(void) { return (U32)exoscall(SYSCALL_GetSystemTime, EXOS_PARAM
 
 /***************************************************************************/
 
+BOOL GetLocalTime(LPDATETIME Time) { return (BOOL)exoscall(SYSCALL_GetLocalTime, EXOS_PARAM(Time)); }
+
+/***************************************************************************/
+
 BOOL GetMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last) {
     MESSAGEINFO MessageInfo;
     BOOL Result;
@@ -225,6 +229,24 @@ BOOL UnregisterWindowClass(HANDLE WindowClass, LPCSTR ClassName) {
     ClassInfo.ClassDataSize = 0;
 
     return (BOOL)exoscall(SYSCALL_UnregisterWindowClass, EXOS_PARAM(&ClassInfo));
+}
+
+/***************************************************************************/
+
+HANDLE FindWindowClass(LPCSTR ClassName) {
+    WINDOWCLASSINFO ClassInfo;
+
+    ClassInfo.Header.Size = sizeof ClassInfo;
+    ClassInfo.Header.Version = EXOS_ABI_VERSION;
+    ClassInfo.Header.Flags = 0;
+    ClassInfo.WindowClass = 0;
+    ClassInfo.BaseClass = 0;
+    ClassInfo.ClassName = ClassName;
+    ClassInfo.BaseClassName = NULL;
+    ClassInfo.Function = NULL;
+    ClassInfo.ClassDataSize = 0;
+
+    return (HANDLE)exoscall(SYSCALL_FindWindowClass, EXOS_PARAM(&ClassInfo));
 }
 
 /***************************************************************************/

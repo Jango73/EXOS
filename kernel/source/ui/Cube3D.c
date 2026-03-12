@@ -24,7 +24,6 @@
 #include "ui/Cube3D.h"
 
 #include "Clock.h"
-#include "Desktop-WindowClass.h"
 #include "math/Math.h"
 #include "math/Math3D.h"
 
@@ -86,24 +85,8 @@ BOOL Cube3DGetPreferredSize(LPPOINT SizeOut) {
  * @return TRUE on success.
  */
 BOOL Cube3DEnsureClassRegistered(void) {
-    LPWINDOW_CLASS WindowClass;
-
-    if (WindowClassInitializeRegistry() == FALSE) {
-        return FALSE;
-    }
-
-    WindowClass = WindowClassFindByName(DESKTOP_CUBE3D_WINDOW_CLASS_NAME);
-    if (WindowClass != NULL) {
-        return TRUE;
-    }
-
-    WindowClass = WindowClassRegisterKernelClass(
-        DESKTOP_CUBE3D_WINDOW_CLASS_NAME,
-        WindowClassGetDefault(),
-        Cube3DWindowFunc,
-        0);
-
-    return WindowClass != NULL;
+    if (FindWindowClass(DESKTOP_CUBE3D_WINDOW_CLASS_NAME) != NULL) return TRUE;
+    return RegisterWindowClass(DESKTOP_CUBE3D_WINDOW_CLASS_NAME, 0, NULL, Cube3DWindowFunc, 0) != NULL;
 }
 
 /***************************************************************************/

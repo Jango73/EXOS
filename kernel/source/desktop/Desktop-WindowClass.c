@@ -345,6 +345,17 @@ BOOL UnregisterWindowClass(HANDLE WindowClass, LPCSTR ClassName) {
 
 /************************************************************************/
 
+HANDLE FindWindowClass(LPCSTR ClassName) {
+    LPWINDOW_CLASS WindowClass;
+
+    WindowClass = WindowClassFindByName(ClassName);
+    if (WindowClass == NULL || WindowClass->TypeID != KOID_WINDOW_CLASS) return NULL;
+
+    return (HANDLE)(UINT)WindowClass->ClassID;
+}
+
+/************************************************************************/
+
 BOOL WindowClassInitializeRegistry(void) {
     if (WindowClassGetDefault() != NULL) return TRUE;
     return WindowClassRegisterKernelClass(WINDOW_CLASS_DEFAULT_NAME, NULL, BaseWindowFunc, 0) != NULL;

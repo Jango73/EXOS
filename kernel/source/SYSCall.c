@@ -1951,6 +1951,32 @@ UINT SysCall_UnregisterWindowClass(UINT Parameter) {
 /************************************************************************/
 
 /**
+ * @brief Find one userland window class by name.
+ *
+ * @param Parameter Pointer to WINDOWCLASSINFO.
+ * @return UINT Class identifier on success, 0 when absent or on failure.
+ */
+UINT SysCall_FindWindowClass(UINT Parameter) {
+    LPWINDOWCLASSINFO ClassInfo = (LPWINDOWCLASSINFO)Parameter;
+    LPWINDOW_CLASS WindowClass;
+
+    SAFE_USE_INPUT_POINTER(ClassInfo, WINDOWCLASSINFO) {
+        WindowClass = WindowClassFindByName(ClassInfo->ClassName);
+        if (WindowClass == NULL || WindowClass->TypeID != KOID_WINDOW_CLASS) {
+            ClassInfo->WindowClass = 0;
+            return 0;
+        }
+
+        ClassInfo->WindowClass = (HANDLE)WindowClass->ClassID;
+        return (UINT)WindowClass->ClassID;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
  * @brief Mark a window region as needing redraw.
  *
  * @param Parameter Pointer to WINDOWRECT with the target window and rectangle.

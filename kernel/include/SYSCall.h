@@ -126,6 +126,7 @@ UINT SysCall_GetNextWindowSibling(UINT Parameter);
 UINT SysCall_GetPreviousWindowSibling(UINT Parameter);
 UINT SysCall_RegisterWindowClass(UINT Parameter);
 UINT SysCall_UnregisterWindowClass(UINT Parameter);
+UINT SysCall_FindWindowClass(UINT Parameter);
 UINT SysCall_InvalidateWindowRect(UINT Parameter);
 UINT SysCall_GetWindowGC(UINT Parameter);
 UINT SysCall_ReleaseWindowGC(UINT Parameter);

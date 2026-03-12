@@ -154,8 +154,8 @@ static void ButtonNotifyClicked(HANDLE Window) {
  * @return TRUE on success.
  */
 BOOL ButtonEnsureClassRegistered(void) {
-    (void)RegisterWindowClass(DESKTOP_BUTTON_WINDOW_CLASS_NAME, 0, NULL, ButtonWindowFunc, 0);
-    return TRUE;
+    if (FindWindowClass(DESKTOP_BUTTON_WINDOW_CLASS_NAME) != NULL) return TRUE;
+    return RegisterWindowClass(DESKTOP_BUTTON_WINDOW_CLASS_NAME, 0, NULL, ButtonWindowFunc, 0) != NULL;
 }
 
 /***************************************************************************/

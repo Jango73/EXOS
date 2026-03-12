@@ -22,12 +22,8 @@
 \************************************************************************/
 
 #include "ui/ClockWidget.h"
-#include "Desktop-WindowClass.h"
-
-#include "Clock.h"
 #include "CoreString.h"
-#include "Log.h"
-#include "utils/Graphics-Utils.h"
+#include "User.h"
 
 /***************************************************************************/
 
@@ -56,24 +52,8 @@ static const I32 ClockDirection60[60][2] = {
 /***************************************************************************/
 
 BOOL DesktopClockWidgetEnsureClassRegistered(void) {
-    LPWINDOW_CLASS WindowClass;
-
-    if (WindowClassInitializeRegistry() == FALSE) {
-        return FALSE;
-    }
-
-    WindowClass = WindowClassFindByName(DESKTOP_CLOCK_WIDGET_WINDOW_CLASS_NAME);
-    if (WindowClass != NULL) {
-        return TRUE;
-    }
-
-    WindowClass = WindowClassRegisterKernelClass(
-        DESKTOP_CLOCK_WIDGET_WINDOW_CLASS_NAME,
-        WindowClassGetDefault(),
-        DesktopClockWidgetWindowFunc,
-        0);
-
-    return WindowClass != NULL;
+    if (FindWindowClass(DESKTOP_CLOCK_WIDGET_WINDOW_CLASS_NAME) != NULL) return TRUE;
+    return RegisterWindowClass(DESKTOP_CLOCK_WIDGET_WINDOW_CLASS_NAME, 0, NULL, DesktopClockWidgetWindowFunc, 0) != NULL;
 }
 
 /***************************************************************************/

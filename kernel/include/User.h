@@ -194,6 +194,11 @@ typedef struct PACKED tag_ABI_HEADER {
 #define KEYMOD_ALT              0x00000004
 
 /************************************************************************/
+// Public userland API declarations
+
+BOOL GetLocalTime(LPDATETIME Time);
+
+/************************************************************************/
 // Authentication Services
 
 #define SYSCALL_Login 0x00000035
@@ -243,6 +248,7 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_GetPreviousWindowSibling 0x0000007B
 #define SYSCALL_RegisterWindowClass 0x0000007D
 #define SYSCALL_UnregisterWindowClass 0x0000007E
+#define SYSCALL_FindWindowClass 0x0000007F
 #define SYSCALL_InvalidateWindowRect 0x00000053
 #define SYSCALL_GetWindowGC 0x00000054
 #define SYSCALL_ReleaseWindowGC 0x00000055

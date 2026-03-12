@@ -72,6 +72,7 @@ BOOL DeleteDesktop(LPDESKTOP);
 BOOL ShowDesktop(LPDESKTOP);
 HANDLE RegisterWindowClass(LPCSTR ClassName, HANDLE BaseClass, LPCSTR BaseClassName, WINDOWFUNC Function, U32 ClassDataSize);
 BOOL UnregisterWindowClass(HANDLE WindowClass, LPCSTR ClassName);
+HANDLE FindWindowClass(LPCSTR ClassName);
 LPWINDOW CreateWindow(LPWINDOWINFO);
 BOOL DeleteWindow(LPWINDOW);
 LPWINDOW FindWindow(LPWINDOW, U32);

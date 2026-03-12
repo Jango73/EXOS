@@ -22,7 +22,6 @@
 \************************************************************************/
 
 #include "ui/LogViewer.h"
-#include "Desktop-WindowClass.h"
 
 #include "CoreString.h"
 #include "Log.h"
@@ -57,24 +56,8 @@ BOOL LogViewerGetPreferredSize(LPPOINT SizeOut) {
 /***************************************************************************/
 
 BOOL LogViewerEnsureClassRegistered(void) {
-    LPWINDOW_CLASS WindowClass;
-
-    if (WindowClassInitializeRegistry() == FALSE) {
-        return FALSE;
-    }
-
-    WindowClass = WindowClassFindByName(DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME);
-    if (WindowClass != NULL) {
-        return TRUE;
-    }
-
-    WindowClass = WindowClassRegisterKernelClass(
-        DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME,
-        WindowClassGetDefault(),
-        LogViewerWindowFunc,
-        0);
-
-    return WindowClass != NULL;
+    if (FindWindowClass(DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME) != NULL) return TRUE;
+    return RegisterWindowClass(DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME, 0, NULL, LogViewerWindowFunc, 0) != NULL;
 }
 
 /***************************************************************************/
