@@ -161,6 +161,24 @@
   - Parsing/storage for SS endpoint companion descriptors is implemented and `bMaxBurst` + interrupt `Mult` are propagated to endpoint contexts.
   - Status: partially fixed (stream-context programming for bulk streams remains open).
 
+- Interrupt endpoint context fields were still not fully spec-compliant:
+  - Spec reference: section 4.8.2.3 / 4.8.2.4 (interrupt endpoint context), USB 2.0 endpoint descriptor `wMaxPacketSize` transaction encoding, and xHCI endpoint context `Interval` / `Max Burst Size` / `Max ESIT Payload`.
+  - Requirement:
+    - high-speed interrupt endpoints derive additional transactions from `wMaxPacketSize[12:11]`;
+    - full-speed and low-speed interrupt endpoints require interval conversion from frames to the xHCI exponent encoding;
+    - interrupt `Mult` stays zero;
+    - periodic endpoint context must program `Max ESIT Payload`.
+  - Previous behavior:
+    - used raw `bInterval` except for a simple HS/SS decrement;
+    - left `Max ESIT Payload` at zero;
+    - propagated SS companion `Mult` into interrupt endpoints.
+  - Status: fixed in `XHCI_AddInterruptEndpoint`.
+
+- Cached transfer completions from a previous timeout/recovery cycle could survive long enough to be matched by route fallback on the same `Slot/DCI`:
+  - Evidence: historical Predator logs showed `Transfer event TRB pointer mismatch ... Expected=0x... Observed=0x... Completion=0x1` after endpoint reset on `Dci=3`.
+  - Requirement: a new transfer must not consume a stale transfer event that belongs to the previous ring state.
+  - Status: mitigated by purging cached transfer completions for the route before re-arming a fresh normal transfer and immediately after endpoint dequeue reprogramming.
+
 - Endpoint recovery sequence was not xHCI-compliant before fix:
   - Spec reference: section 4.6.9 (Reset Endpoint Command) and section 4.6.10 (Set TR Dequeue Pointer Command).
   - Requirement:
@@ -235,9 +253,43 @@ Date: 2026-03-12 (local debug run after commits through `4b255051`)
 - Recovery path:
   - `XHCI_ResetTransferEndpoint` completes with `SetCompletion=0x1`.
   - the earlier `SET_TR_DEQUEUE_POINTER Completion=0x13` failure is no longer present.
+- New correction after this run:
+  - interrupt endpoint context encoding was tightened for non-SuperSpeed periodic devices;
+  - cached transfer completions are purged on fresh single-TRB submissions and after dequeue reprogramming.
 - Follow-up BOT failures:
   - `REQUEST SENSE (Op=0x03)` data stage can timeout on Bulk IN (`Len=18`).
   - CSW read can also timeout (`Len=13`), producing `USBStorageBotCommand CSW read failed`.
+
+## Latest Predator Log Follow-up
+
+Date: 2026-03-12 (local debug run after interrupt-context and stale-completion fixes)
+
+### What changed
+- Transfer-event fallback mismatch logs are no longer visible in the captured output.
+- `XHCI_ResetTransferEndpoint` still succeeds with `SetCompletion=0x1`.
+- Endpoint recovery continues to end in `FinalState=0x3`.
+
+### What did not change
+- BOT `READ CAPACITY (10)` still fails on the Bulk IN data stage (`Len=8`, `Ep=0x81`, `Dci=3`).
+- BOT `REQUEST SENSE (0x03)` still times out on the Bulk IN data stage (`Len=18`).
+- CSW read still times out on Bulk IN (`Len=13`).
+- USB mouse report submission is still visible, but report completion is still not proven.
+
+### Interpretation
+- Purging cached transfer completions appears to have removed one false-positive path: no more stale `Expected/Observed` transfer-event mismatch is visible.
+- The remaining blocker is still a real IN-transfer completion problem on xHCI endpoint `Dci=3`.
+- Because the same endpoint direction is involved for both BOT `Bulk IN` and the USB mouse interrupt report path, the shared suspect remains the generic xHCI IN-transfer path rather than BOT parsing.
+
+### Next audit focus
+- Audit `Normal TRB` IN submission semantics against xHCI spec:
+  - transfer length field usage,
+  - interrupt-on-short-packet behavior,
+  - constraints on single-TRB TD usage.
+- Audit `Transfer Event` expectations for single-TRB IN transfers:
+  - when a controller may legally withhold completion versus report short packet / success.
+- Audit common IN-endpoint programming shared by bulk and interrupt paths:
+  - dequeue pointer validity after recovery,
+  - endpoint context fields that still differ between QEMU tolerance and Predator behavior.
 
 ### Practical interpretation
 - The previously confirmed xHCI dequeue-command encoding bug is fixed.

@@ -237,6 +237,7 @@ static BOOL XHCI_SubmitHubStatusTransfer(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE
 
     MemorySet((LPVOID)Hub->HubStatusLinear, 0, Hub->HubInterruptLength);
     Hub->HubStatusPending = FALSE;
+    XHCI_ClearTransferCompletions(Device, Hub->SlotId, Hub->HubInterruptEndpoint->Dci);
 
     if (!XHCI_RingEnqueue(Hub->HubInterruptEndpoint->TransferRingLinear,
                           Hub->HubInterruptEndpoint->TransferRingPhysical,

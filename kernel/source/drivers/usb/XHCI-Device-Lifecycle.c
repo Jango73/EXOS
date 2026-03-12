@@ -884,6 +884,7 @@ BOOL XHCI_ResetTransferEndpoint(LPXHCI_DEVICE Device,
         return FALSE;
     }
 
+    XHCI_ClearTransferCompletions(Device, UsbDevice->SlotId, Endpoint->Dci);
     FinalEndpointState = XHCI_GetEndpointState(Device, UsbDevice, Endpoint->Dci);
     DEBUG(TEXT("[XHCI_ResetTransferEndpoint] End Slot=%x DCI=%x Halted=%u InitialState=%x FinalState=%x StopCompletion=%x SetCompletion=%x Dequeue=%x:%x"),
           (U32)UsbDevice->SlotId,

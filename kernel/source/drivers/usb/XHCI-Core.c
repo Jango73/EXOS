@@ -338,6 +338,46 @@ BOOL XHCI_PopCompletion(LPXHCI_DEVICE Device,
     return FALSE;
 }
 
+/************************************************************************/
+
+/**
+ * @brief Remove cached transfer completions for one slot/endpoint route.
+ * @param Device xHCI device.
+ * @param SlotId Slot identifier.
+ * @param EndpointId Endpoint identifier (DCI).
+ */
+void XHCI_ClearTransferCompletions(LPXHCI_DEVICE Device, U8 SlotId, U8 EndpointId) {
+    U32 ReadIndex;
+    U32 WriteIndex;
+
+    if (Device == NULL || SlotId == 0 || EndpointId == 0) {
+        return;
+    }
+
+    LockMutex(&(Device->Mutex), INFINITY);
+    XHCI_PollCompletions(Device);
+
+    WriteIndex = 0;
+    for (ReadIndex = 0; ReadIndex < Device->CompletionCount; ReadIndex++) {
+        XHCI_COMPLETION* Entry = &Device->CompletionQueue[ReadIndex];
+        if (Entry->Type == XHCI_TRB_TYPE_TRANSFER_EVENT &&
+            Entry->SlotId == SlotId &&
+            Entry->EndpointId == EndpointId) {
+            continue;
+        }
+
+        if (WriteIndex != ReadIndex) {
+            Device->CompletionQueue[WriteIndex] = *Entry;
+        }
+        WriteIndex++;
+    }
+
+    Device->CompletionCount = WriteIndex;
+    UnlockMutex(&(Device->Mutex));
+}
+
+/************************************************************************/
+
 /**
  * @brief Drain events until one targeted completion is found.
  * @param Device xHCI device.

@@ -759,11 +759,11 @@ The xHCI host stack (`kernel/source/drivers/usb/XHCI-Core.c`, `kernel/source/dri
 - operational reporting via `usbctl ports`, `usbctl probe`, `usbctl devices`.
 
 USB interfaces and endpoints are kernel objects stored in global lists. Class drivers hold references so teardown is deferred until hotplug release is safe.
-Class drivers reuse the same xHCI high-level transfer helpers for normal-transfer submission and transfer-event completion matching (including route fallback by slot/DCI when TRB pointer correlation fails on some controllers).
+Class drivers reuse the same xHCI high-level transfer helpers for normal-transfer submission and transfer-event completion matching. Before a fresh single-TRB transfer is armed on one endpoint, cached transfer events for the same slot/DCI route are purged so late completions from a previous timeout/recovery cycle cannot be misassociated with the new transfer.
 
 Disconnect handling is staged: stop and reset endpoints, flush transfer rings, disable slot context, then release resources only after object references drain. This avoids invalid memory access during in-flight I/O.
 
-Hub-class devices are supported through descriptor parsing, port power management, downstream tracking, and interrupt-endpoint polling for port-change driven reset/re-enumeration.
+Hub-class devices are supported through descriptor parsing, port power management, downstream tracking, and interrupt-endpoint polling for port-change driven reset/re-enumeration. Interrupt endpoint contexts derive interval, Max Burst, and Max ESIT payload from the descriptor encoding required by the endpoint speed tier instead of reusing raw descriptor fields.
 
 USB mass storage (`kernel/source/drivers/USBMassStorage.c`, BOT read-only path) configures bulk endpoints, executes CBW/CSW transactions for SCSI `INQUIRY`, `READ CAPACITY(10)`, and `READ(10)`, then registers discovered media in the global disk list for `MountDiskPartitions`. The BOT transport validates CSW signature, tag, residue bounds, and status values against the Bulk-Only Transport rules; invalid CSWs, phase errors, and transport-stage failures trigger BOT reset recovery before the device is retried. Active USB storage is tracked in `Kernel.USBDevice`; shell command `usb drives` reports address, VID/PID, and block geometry. When SystemFS is ready, new partitions are attached under `/fs/<volume>`. On removal, associated file systems are detached and released. Mount/unmount events broadcast `ETM_USB_MASS_STORAGE_MOUNTED` and `ETM_USB_MASS_STORAGE_UNMOUNTED` to userland process message queues.
 

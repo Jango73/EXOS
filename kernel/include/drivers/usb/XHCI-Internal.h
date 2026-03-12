@@ -408,6 +408,7 @@ BOOL XHCI_PopCompletion(LPXHCI_DEVICE Device,
                         U8* SlotIdOut,
                         U32* CompletionOut,
                         U32* TransferLengthOut);
+void XHCI_ClearTransferCompletions(LPXHCI_DEVICE Device, U8 SlotId, U8 EndpointId);
 BOOL XHCI_PollForCompletion(LPXHCI_DEVICE Device,
                             U8 Type,
                             U64 TrbPhysical,
