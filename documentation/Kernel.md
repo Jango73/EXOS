@@ -740,7 +740,7 @@ The NVMe driver initializes admin queues first, then I/O queues, configures comp
 
 ### Input device stack
 
-Mouse input is centralized in `kernel/source/MouseCommon.c`, which buffers deltas/buttons, dispatches events, and selects the active mouse driver. USB HID mouse support (`kernel/source/drivers/Mouse-USB.c`) takes priority over the serial mouse when a compatible USB device is present.
+Mouse input is centralized in `kernel/source/MouseCommon.c`, which buffers deltas/buttons, dispatches events, and selects the active mouse driver. USB HID mouse support (`kernel/source/drivers/Mouse-USB.c`) takes priority over the serial mouse when a compatible USB device is present. The USB mouse driver mirrors the USB keyboard execution model: device discovery stays in deferred polling, while report processing follows xHCI interrupts in normal mode and falls back to deferred polling only when the global polling configuration is enabled.
 
 Keyboard selection is handled by the keyboard selector driver, keeping one active keyboard path at a time while sharing the same higher-level input/message routing model.
 

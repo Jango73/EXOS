@@ -41,10 +41,6 @@
 #define USB_HID_PROTOCOL_BOOT 0x00
 #define USB_MOUSE_DISCOVERY_LOG_IMMEDIATE_BUDGET 4
 #define USB_MOUSE_DISCOVERY_LOG_INTERVAL_MS 1000
-#define USB_MOUSE_WAIT_LOG_IMMEDIATE_BUDGET 4
-#define USB_MOUSE_WAIT_LOG_INTERVAL_MS 1000
-#define USB_MOUSE_REPORT_LOG_IMMEDIATE_BUDGET 24
-#define USB_MOUSE_REPORT_LOG_INTERVAL_MS 1000
 
 /***************************************************************************/
 
@@ -64,8 +60,6 @@ typedef struct tag_USB_MOUSE_STATE {
     U32 RetryDelay;
     U32 PollHandle;
     RATE_LIMITER DiscoveryLogLimiter;
-    RATE_LIMITER WaitCompletionLogLimiter;
-    RATE_LIMITER ReportLogLimiter;
 } USB_MOUSE_STATE, *LPUSB_MOUSE_STATE;
 
 typedef struct tag_USB_MOUSE_CUSTOM_DATA {
@@ -74,6 +68,7 @@ typedef struct tag_USB_MOUSE_CUSTOM_DATA {
 } USB_MOUSE_CUSTOM_DATA, *LPUSB_MOUSE_CUSTOM_DATA;
 
 static void USBMousePoll(LPVOID Context);
+void USBMouseOnXhciInterrupt(LPXHCI_DEVICE Device);
 
 /***************************************************************************/
 
@@ -104,9 +99,7 @@ static USB_MOUSE_CUSTOM_DATA DATA_SECTION USBMouseCustomData = {
         .ReferencesHeld = FALSE,
         .RetryDelay = 0,
         .PollHandle = DEFERRED_WORK_INVALID_HANDLE,
-        .DiscoveryLogLimiter = {0},
-        .WaitCompletionLogLimiter = {0},
-        .ReportLogLimiter = {0}
+        .DiscoveryLogLimiter = {0}
     }
 };
 
@@ -434,10 +427,6 @@ static BOOL USBMouseSubmitReport(LPXHCI_DEVICE Device) {
     }
 
     USBMouseCustomData.State.ReportPending = TRUE;
-    DEBUG(TEXT("[USBMouseSubmitReport] Submitted report len=%u trb=%p dci=%x"),
-          (U32)USBMouseCustomData.State.ReportLength,
-          USBMouseCustomData.State.ReportTrbPhysical,
-          (U32)USBMouseCustomData.State.Endpoint->Dci);
     return TRUE;
 }
 
@@ -447,7 +436,6 @@ static BOOL USBMouseSubmitReport(LPXHCI_DEVICE Device) {
  * @brief Parse and dispatch a HID boot mouse report.
  */
 static void USBMouseHandleReport(void) {
-    U32 Suppressed = 0;
     const U8* Report = (const U8*)USBMouseCustomData.State.ReportLinear;
     U32 Buttons = 0;
     I32 DeltaX = 0;
@@ -470,18 +458,55 @@ static void USBMouseHandleReport(void) {
     DeltaX = (I32)(I8)Report[1];
     DeltaY = (I32)(I8)Report[2];
 
-    if (RateLimiterShouldTrigger(&USBMouseCustomData.State.ReportLogLimiter, GetSystemTime(), &Suppressed)) {
-        DEBUG(TEXT("[USBMouseHandleReport] Raw=%x:%x:%x Parsed dx=%x dy=%x buttons=%x suppressed=%u"),
-              (U32)Report[0],
-              (U32)Report[1],
-              (U32)Report[2],
-              (U32)DeltaX,
-              (U32)DeltaY,
-              Buttons,
-              Suppressed);
+    MouseCommonQueuePacket(&USBMouseCustomData.Common, DeltaX, DeltaY, Buttons);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Process the active mouse report transfer and re-arm it.
+ */
+static void USBMouseProcessReports(void) {
+    U32 Completion = 0;
+
+    if (USBMouseCustomData.State.Controller == NULL) {
+        return;
     }
 
-    MouseCommonQueuePacket(&USBMouseCustomData.Common, DeltaX, DeltaY, Buttons);
+    if (!USBMouseCustomData.State.ReportPending) {
+        if (!USBMouseSubmitReport(USBMouseCustomData.State.Controller)) {
+            WARNING(TEXT("[USBMouseProcessReports] Report submit failed"));
+            USBMouseCustomData.State.RetryDelay = USB_MOUSE_SUBMIT_RETRY_DELAY_POLLS;
+        }
+        return;
+    }
+
+    if (!XHCI_CheckTransferCompletionRouted(USBMouseCustomData.State.Controller,
+                                            USBMouseCustomData.State.ReportTrbPhysical,
+                                            (USBMouseCustomData.State.UsbDevice != NULL)
+                                                ? USBMouseCustomData.State.UsbDevice->SlotId
+                                                : 0,
+                                            (USBMouseCustomData.State.Endpoint != NULL)
+                                                ? USBMouseCustomData.State.Endpoint->Dci
+                                                : 0,
+                                            &Completion,
+                                            NULL,
+                                            NULL,
+                                            NULL)) {
+        return;
+    }
+
+    USBMouseCustomData.State.ReportPending = FALSE;
+    if (Completion == XHCI_COMPLETION_SUCCESS || Completion == XHCI_COMPLETION_SHORT_PACKET) {
+        USBMouseHandleReport();
+    } else {
+        WARNING(TEXT("[USBMouseProcessReports] Completion %x"), Completion);
+    }
+
+    if (!USBMouseSubmitReport(USBMouseCustomData.State.Controller)) {
+        WARNING(TEXT("[USBMouseProcessReports] Report re-submit failed"));
+        USBMouseCustomData.State.RetryDelay = USB_MOUSE_SUBMIT_RETRY_DELAY_POLLS;
+    }
 }
 
 /***************************************************************************/
@@ -560,6 +585,7 @@ static BOOL USBMouseStartDevice(LPXHCI_DEVICE Device,
           (U32)Interface->Number,
           (U32)Endpoint->Address);
 
+    (void)USBMouseSubmitReport(Device);
     return TRUE;
 }
 
@@ -570,10 +596,6 @@ static BOOL USBMouseStartDevice(LPXHCI_DEVICE Device,
  * @param Context Unused.
  */
 static void USBMousePoll(LPVOID Context) {
-    U32 Suppressed = 0;
-    BOOL UsedRouteFallback = FALSE;
-    U64 ObservedTrbPhysical = U64_0;
-
     UNUSED(Context);
 
     if (USBMouseCustomData.State.Initialized == FALSE) {
@@ -615,49 +637,27 @@ static void USBMousePoll(LPVOID Context) {
         return;
     }
 
-    if (!USBMouseCustomData.State.ReportPending) {
-        if (!USBMouseSubmitReport(USBMouseCustomData.State.Controller)) {
-            WARNING(TEXT("[USBMousePoll] Report submit failed"));
-            USBMouseCustomData.State.RetryDelay = USB_MOUSE_SUBMIT_RETRY_DELAY_POLLS;
-        }
+    if (DeferredWorkIsPollingMode()) {
+        USBMouseProcessReports();
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Process mouse reports on xHCI interrupts.
+ * @param Device xHCI device issuing the interrupt.
+ */
+void USBMouseOnXhciInterrupt(LPXHCI_DEVICE Device) {
+    if (USBMouseCustomData.State.Initialized == FALSE) {
         return;
     }
 
-    U32 Completion = 0;
-    if (!XHCI_CheckTransferCompletionRouted(USBMouseCustomData.State.Controller,
-                                            USBMouseCustomData.State.ReportTrbPhysical,
-                                            (USBMouseCustomData.State.UsbDevice != NULL) ? USBMouseCustomData.State.UsbDevice->SlotId : 0,
-                                            (USBMouseCustomData.State.Endpoint != NULL) ? USBMouseCustomData.State.Endpoint->Dci : 0,
-                                            &Completion,
-                                            NULL,
-                                            &UsedRouteFallback,
-                                            &ObservedTrbPhysical)) {
-        if (RateLimiterShouldTrigger(&USBMouseCustomData.State.WaitCompletionLogLimiter, GetSystemTime(), &Suppressed)) {
-            DEBUG(TEXT("[USBMousePoll] Waiting completion trb=%p suppressed=%u"),
-                  USBMouseCustomData.State.ReportTrbPhysical,
-                  Suppressed);
-        }
+    if (USBMouseCustomData.State.Controller == NULL || USBMouseCustomData.State.Controller != Device) {
         return;
     }
 
-    if (UsedRouteFallback && RateLimiterShouldTrigger(&USBMouseCustomData.State.WaitCompletionLogLimiter,
-                                                      GetSystemTime(),
-                                                      &Suppressed)) {
-        DEBUG(TEXT("[USBMousePoll] Completion fallback expected=%x:%x observed=%x:%x completion=%x suppressed=%u"),
-              U64_High32(USBMouseCustomData.State.ReportTrbPhysical),
-              U64_Low32(USBMouseCustomData.State.ReportTrbPhysical),
-              U64_High32(ObservedTrbPhysical),
-              U64_Low32(ObservedTrbPhysical),
-              Completion,
-              Suppressed);
-    }
-
-    USBMouseCustomData.State.ReportPending = FALSE;
-    if (Completion == XHCI_COMPLETION_SUCCESS || Completion == XHCI_COMPLETION_SHORT_PACKET) {
-        USBMouseHandleReport();
-    } else {
-        WARNING(TEXT("[USBMousePoll] Completion %x"), Completion);
-    }
+    USBMouseProcessReports();
 }
 
 /***************************************************************************/
@@ -691,12 +691,6 @@ UINT USBMouseCommands(UINT Function, UINT Parameter) {
             (void)RateLimiterInit(&USBMouseCustomData.State.DiscoveryLogLimiter,
                                   USB_MOUSE_DISCOVERY_LOG_IMMEDIATE_BUDGET,
                                   USB_MOUSE_DISCOVERY_LOG_INTERVAL_MS);
-            (void)RateLimiterInit(&USBMouseCustomData.State.WaitCompletionLogLimiter,
-                                  USB_MOUSE_WAIT_LOG_IMMEDIATE_BUDGET,
-                                  USB_MOUSE_WAIT_LOG_INTERVAL_MS);
-            (void)RateLimiterInit(&USBMouseCustomData.State.ReportLogLimiter,
-                                  USB_MOUSE_REPORT_LOG_IMMEDIATE_BUDGET,
-                                  USB_MOUSE_REPORT_LOG_INTERVAL_MS);
 
             USBMouseCustomData.State.Initialized = TRUE;
             USBMouseDriver.Flags |= DRIVER_FLAG_READY;

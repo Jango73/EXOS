@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "drivers/input/USBKeyboard.h"
+#include "drivers/input/USBMouse.h"
 #include "drivers/usb/XHCI-Internal.h"
 
 /************************************************************************/
@@ -219,6 +220,7 @@ static void XHCI_InterruptBottomHalf(LPDEVICE DevicePointer, LPVOID Context) {
         XHCI_PollCompletions(Device);
         UnlockMutex(&(Device->Mutex));
         USBKeyboardOnXhciInterrupt(Device);
+        USBMouseOnXhciInterrupt(Device);
     }
 }
 
