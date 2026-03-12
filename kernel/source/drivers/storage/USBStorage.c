@@ -722,7 +722,7 @@ static void USBStorageScanControllers(void) {
 
                     if (!USBStorageStartDevice(Controller, UsbDevice, Interface, BulkIn, BulkOut)) {
                         USBStorageLogScan(UsbDevice, Interface, TEXT("StartDeviceFailed"));
-                        USBStorageState.RetryDelay = 50;
+                        USBStorageState.RetryDelay = 20;
                         continue;
                     }
 
