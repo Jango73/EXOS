@@ -66,7 +66,7 @@ typedef struct tag_Z_ORDER_CHILD_SNAPSHOT {
 /***************************************************************************/
 
 LPWINDOW NewWindow(void);
-BOOL DeleteWindow(LPWINDOW);
+BOOL DesktopDeleteWindow(LPWINDOW);
 U32 DesktopWindowFunc(HANDLE, U32, U32, U32);
 
 /***************************************************************************/
@@ -154,7 +154,7 @@ static BOOL EnsureWindowDirtyRegionInitialized(LPWINDOW This) {
  * @param Rect New screen rectangle.
  * @return TRUE on success.
  */
-BOOL UpdateWindowScreenRectAndDirtyRegion(LPWINDOW Window, LPRECT Rect) {
+BOOL DesktopUpdateWindowScreenRectAndDirtyRegion(LPWINDOW Window, LPRECT Rect) {
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (Rect == NULL) return FALSE;
 
@@ -196,7 +196,7 @@ static void UpdateDesktopWindowRect(LPDESKTOP Desktop, I32 Width, I32 Height) {
 
     SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
         SAFE_USE_VALID_ID(Desktop->Window, KOID_WINDOW) {
-            (void)UpdateWindowScreenRectAndDirtyRegion(Desktop->Window, &Rect);
+            (void)DesktopUpdateWindowScreenRectAndDirtyRegion(Desktop->Window, &Rect);
         }
     }
 }
@@ -458,7 +458,7 @@ LPDESKTOP CreateDesktop(void) {
     PreviousDesktop = GetCurrentProcess()->Desktop;
     GetCurrentProcess()->Desktop = This;
 
-    This->Window = CreateWindow(&WindowInfo);
+    This->Window = DesktopCreateWindow(&WindowInfo);
 
     if (This->Window == NULL) {
         GetCurrentProcess()->Desktop = PreviousDesktop;
@@ -499,7 +499,7 @@ BOOL DeleteDesktop(LPDESKTOP This) {
         This->Timers = NULL;
     }
 
-    SAFE_USE_VALID_ID(This->Window, KOID_WINDOW) { DeleteWindow(This->Window); }
+    SAFE_USE_VALID_ID(This->Window, KOID_WINDOW) { DesktopDeleteWindow(This->Window); }
 
     ReleaseKernelObject(This);
 
@@ -714,7 +714,7 @@ LPWINDOW NewWindow(void) {
  * @brief Delete a window and its children.
  * @param This Window to delete.
  */
-BOOL DeleteWindow(LPWINDOW This) {
+BOOL DesktopDeleteWindow(LPWINDOW This) {
     LPPROCESS Process;
     LPTASK Task;
     LPDESKTOP Desktop;
@@ -750,7 +750,7 @@ BOOL DeleteWindow(LPWINDOW This) {
     FOREVER {
         ChildWindow = (LPWINDOW)GetWindowChild((HANDLE)This, 0);
         if (ChildWindow == NULL || ChildWindow->TypeID != KOID_WINDOW) break;
-        DeleteWindow(ChildWindow);
+        DesktopDeleteWindow(ChildWindow);
     }
 
     LockMutex(&(This->Mutex), INFINITY);
@@ -777,7 +777,7 @@ BOOL DeleteWindow(LPWINDOW This) {
  * @param WindowID Window identifier to find.
  * @return Pointer to the found window or NULL.
  */
-LPWINDOW FindWindow(LPWINDOW Start, U32 WindowID) {
+LPWINDOW DesktopFindWindow(LPWINDOW Start, U32 WindowID) {
     LPWINDOW Current = NULL;
     LPWINDOW Child = NULL;
     UINT ChildCount;
@@ -792,7 +792,7 @@ LPWINDOW FindWindow(LPWINDOW Start, U32 WindowID) {
     for (Index = 0; Index < ChildCount; Index++) {
         Child = (LPWINDOW)GetWindowChild((HANDLE)Start, Index);
         if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
-        Current = FindWindow(Child, WindowID);
+        Current = DesktopFindWindow(Child, WindowID);
         if (Current != NULL) return Current;
     }
 
@@ -807,7 +807,7 @@ LPWINDOW FindWindow(LPWINDOW Start, U32 WindowID) {
  * @param Target Window handle to find.
  * @return Target window pointer when it belongs to the subtree, otherwise NULL.
  */
-LPWINDOW ContainsWindow(LPWINDOW Start, LPWINDOW Target) {
+LPWINDOW DesktopContainsWindow(LPWINDOW Start, LPWINDOW Target) {
     LPWINDOW Current = NULL;
     LPWINDOW Child = NULL;
     UINT ChildCount;
@@ -825,7 +825,7 @@ LPWINDOW ContainsWindow(LPWINDOW Start, LPWINDOW Target) {
     for (Index = 0; Index < ChildCount; Index++) {
         Child = (LPWINDOW)GetWindowChild((HANDLE)Start, Index);
         if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
-        Current = ContainsWindow(Child, Target);
+        Current = DesktopContainsWindow(Child, Target);
         if (Current != NULL) return Current;
     }
 
@@ -839,7 +839,7 @@ LPWINDOW ContainsWindow(LPWINDOW Start, LPWINDOW Target) {
  * @param Info Structure describing the window to create.
  * @return Pointer to the created window or NULL on failure.
  */
-LPWINDOW CreateWindow(LPWINDOWINFO Info) {
+LPWINDOW DesktopCreateWindow(LPWINDOWINFO Info) {
     LPWINDOW This;
     LPWINDOW Parent;
     LPDESKTOP Desktop;
@@ -993,7 +993,7 @@ LPWINDOW CreateWindow(LPWINDOWINFO Info) {
  * @param This Window whose desktop is requested.
  * @return Pointer to the desktop or NULL.
  */
-LPDESKTOP GetWindowDesktop(LPWINDOW This) {
+LPDESKTOP DesktopGetWindowDesktop(LPWINDOW This) {
     LPPROCESS Process = NULL;
     LPTASK Task = NULL;
     LPDESKTOP Desktop = NULL;
@@ -1070,7 +1070,7 @@ static BOOL AppendWindowPointer(LPWINDOW** Windows, UINT* Count, UINT* Capacity,
  * @param Param2 Second parameter.
  * @return TRUE on success.
  */
-BOOL BroadcastMessageToWindow(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2) {
+BOOL DesktopBroadcastMessageToWindow(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2) {
     LPWINDOW* Pending = NULL;
     UINT PendingCount = 0;
     UINT PendingCapacity = 0;
@@ -1141,6 +1141,36 @@ BOOL BroadcastMessageToWindow(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2) {
     if (Recipients != NULL) KernelHeapFree(Recipients);
 
     return Success;
+}
+
+/***************************************************************************/
+
+HANDLE CreateWindow(LPWINDOWINFO Info) {
+    return (HANDLE)DesktopCreateWindow(Info);
+}
+
+/***************************************************************************/
+
+BOOL DeleteWindow(HANDLE Window) {
+    return DesktopDeleteWindow((LPWINDOW)Window);
+}
+
+/***************************************************************************/
+
+HANDLE FindWindow(HANDLE StartWindow, U32 WindowID) {
+    return (HANDLE)DesktopFindWindow((LPWINDOW)StartWindow, WindowID);
+}
+
+/***************************************************************************/
+
+HANDLE ContainsWindow(HANDLE StartWindow, HANDLE TargetWindow) {
+    return (HANDLE)DesktopContainsWindow((LPWINDOW)StartWindow, (LPWINDOW)TargetWindow);
+}
+
+/***************************************************************************/
+
+HANDLE GetWindowDesktop(HANDLE Window) {
+    return (HANDLE)DesktopGetWindowDesktop((LPWINDOW)Window);
 }
 
 /***************************************************************************/

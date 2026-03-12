@@ -202,42 +202,18 @@ UINT SysCall_SetLocalTime(UINT Parameter) {
  * @return UINT Result code from the underlying delete operation.
  */
 UINT SysCall_DeleteObject(UINT Parameter) {
-    LINEAR ObjectAddress = HandleToPointer(Parameter);
+    LINEAR ObjectPointer = HandleToPointer((HANDLE)Parameter);
 
-    SAFE_USE(ObjectAddress) {
-        LPOBJECT Object = (LPOBJECT)ObjectAddress;
-        UINT Result = 0;
-
-        SAFE_USE_VALID(Object) {
-            switch (Object->TypeID) {
-                case KOID_FILE:
-                    Result = (UINT)CloseFile((LPFILE)Object);
-                    break;
-                case KOID_DESKTOP:
-                    Result = (UINT)DeleteDesktop((LPDESKTOP)Object);
-                    break;
-                case KOID_WINDOW:
-                    Result = (UINT)DeleteWindow((LPWINDOW)Object);
-                    break;
-                default:
-                    WARNING(TEXT("[SysCall_DeleteObject] Unsupported object type=%u handle=%u"),
-                            Object->TypeID, Parameter);
-                    Result = 0;
-                    break;
-            }
-        } else {
-            WARNING(TEXT("[SysCall_DeleteObject] Invalid object pointer handle=%u"), Parameter);
-        }
-
-        if (Result != 0) {
-            ReleaseHandle(Parameter);
-        }
-
-        return Result;
+    if (ObjectPointer == 0) {
+        return 0;
     }
 
-    WARNING(TEXT("[SysCall_DeleteObject] Unknown handle=%u"), Parameter);
-    return 0;
+    if (DeleteObject((HANDLE)ObjectPointer) == FALSE) {
+        return 0;
+    }
+
+    ReleaseHandle((HANDLE)Parameter);
+    return 1;
 }
 
 /************************************************************************/
@@ -1562,7 +1538,7 @@ UINT SysCall_CreateWindow(UINT Parameter) {
         HANDLE ParentHandle = WindowInfo->Parent;
         WindowInfo->Parent = (HANDLE)HandleToPointer(ParentHandle);
 
-        LPWINDOW Window = CreateWindow(WindowInfo);
+        LPWINDOW Window = (LPWINDOW)CreateWindow(WindowInfo);
 
         WindowInfo->Parent = ParentHandle;
 
@@ -1574,7 +1550,7 @@ UINT SysCall_CreateWindow(UINT Parameter) {
                 return WindowHandle;
             }
 
-            DeleteWindow(Window);
+            DeleteWindow((HANDLE)Window);
         }
 
         WindowInfo->Window = 0;
@@ -2413,7 +2389,7 @@ UINT SysCall_DrawText(UINT Parameter) {
                     .Text = TextInfo->Text,
                     .Font = NULL
                 };
-                return (UINT)DrawText(&DrawInfo);
+                return (UINT)DesktopDrawText(&DrawInfo);
             }
         }
     }
@@ -2448,7 +2424,7 @@ UINT SysCall_MeasureText(UINT Parameter) {
                 .Height = 0
             };
 
-            if (MeasureText(&MeasureInfo) == FALSE) {
+            if (DesktopMeasureText(&MeasureInfo) == FALSE) {
                 return 0;
             }
 

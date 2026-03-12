@@ -509,7 +509,7 @@ BOOL DesktopResolveWindowTarget(LPDESKTOP Desktop, HANDLE Target, LPWINDOW* Wind
     if (Target == NULL) return FALSE;
 
     LockMutex(&(Desktop->Mutex), INFINITY);
-    *Window = ContainsWindow(Desktop->Window, (LPWINDOW)Target);
+    *Window = (LPWINDOW)DesktopContainsWindow(Desktop->Window, (LPWINDOW)Target);
     UnlockMutex(&(Desktop->Mutex));
 
     return TRUE;

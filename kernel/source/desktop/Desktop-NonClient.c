@@ -391,7 +391,7 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
         .Width = 0,
         .Height = 0
     };
-    if (MeasureText(&MeasureInfo) != FALSE && MeasureInfo.Height != 0) {
+    if (DesktopMeasureText(&MeasureInfo) != FALSE && MeasureInfo.Height != 0) {
         TextHeight = (I32)MeasureInfo.Height;
     } else {
         TextHeight = 16;
@@ -421,7 +421,7 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
         .Text = Snapshot.Caption,
         .Font = NULL
     };
-    (void)DrawText(&DrawInfo);
+    (void)DesktopDrawText(&DrawInfo);
 
     (void)SelectBrush(GC, OldBrush);
     (void)SelectPen(GC, OldPen);

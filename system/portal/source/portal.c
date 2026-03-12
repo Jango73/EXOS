@@ -44,6 +44,13 @@ static STR Prop_Down[] = "DOWN";
 /************************************************************************/
 
 void DrawFrame3D(HANDLE GC, LPRECT Rect, BOOL Invert, BOOL Fill) {
+    LINEINFO LineInfo;
+
+    LineInfo.Header.Size = sizeof(LINEINFO);
+    LineInfo.Header.Version = EXOS_ABI_VERSION;
+    LineInfo.Header.Flags = 0;
+    LineInfo.GC = GC;
+
     if (Fill == TRUE) {
         SelectPen(GC, NULL);
         SelectBrush(GC, GetSystemBrush(SM_COLOR_NORMAL));
@@ -51,21 +58,31 @@ void DrawFrame3D(HANDLE GC, LPRECT Rect, BOOL Invert, BOOL Fill) {
     }
     if (Invert == FALSE) {
         SelectPen(GC, GetSystemPen(SM_COLOR_HIGHLIGHT));
-        Line(GC, Rect->X1, Rect->Y2, Rect->X1, Rect->Y1);
-        Line(GC, Rect->X1, Rect->Y1, Rect->X2, Rect->Y1);
+        LineInfo.X1 = Rect->X1; LineInfo.Y1 = Rect->Y2; LineInfo.X2 = Rect->X1; LineInfo.Y2 = Rect->Y1;
+        (void)Line(&LineInfo);
+        LineInfo.X1 = Rect->X1; LineInfo.Y1 = Rect->Y1; LineInfo.X2 = Rect->X2; LineInfo.Y2 = Rect->Y1;
+        (void)Line(&LineInfo);
         SelectPen(GC, GetSystemPen(SM_COLOR_DARK_SHADOW));
-        Line(GC, Rect->X2, Rect->Y1, Rect->X2, Rect->Y2);
-        Line(GC, Rect->X2, Rect->Y2, Rect->X1, Rect->Y2);
+        LineInfo.X1 = Rect->X2; LineInfo.Y1 = Rect->Y1; LineInfo.X2 = Rect->X2; LineInfo.Y2 = Rect->Y2;
+        (void)Line(&LineInfo);
+        LineInfo.X1 = Rect->X2; LineInfo.Y1 = Rect->Y2; LineInfo.X2 = Rect->X1; LineInfo.Y2 = Rect->Y2;
+        (void)Line(&LineInfo);
         SelectPen(GC, GetSystemPen(SM_COLOR_LIGHT_SHADOW));
-        Line(GC, Rect->X2 - 1, Rect->Y1 + 1, Rect->X2 - 1, Rect->Y2 - 1);
-        Line(GC, Rect->X2 - 1, Rect->Y2 - 1, Rect->X1 + 1, Rect->Y2 - 1);
+        LineInfo.X1 = Rect->X2 - 1; LineInfo.Y1 = Rect->Y1 + 1; LineInfo.X2 = Rect->X2 - 1; LineInfo.Y2 = Rect->Y2 - 1;
+        (void)Line(&LineInfo);
+        LineInfo.X1 = Rect->X2 - 1; LineInfo.Y1 = Rect->Y2 - 1; LineInfo.X2 = Rect->X1 + 1; LineInfo.Y2 = Rect->Y2 - 1;
+        (void)Line(&LineInfo);
     } else {
         SelectPen(GC, GetSystemPen(SM_COLOR_DARK_SHADOW));
-        Line(GC, Rect->X1, Rect->Y2, Rect->X1, Rect->Y1);
-        Line(GC, Rect->X1, Rect->Y1, Rect->X2, Rect->Y1);
+        LineInfo.X1 = Rect->X1; LineInfo.Y1 = Rect->Y2; LineInfo.X2 = Rect->X1; LineInfo.Y2 = Rect->Y1;
+        (void)Line(&LineInfo);
+        LineInfo.X1 = Rect->X1; LineInfo.Y1 = Rect->Y1; LineInfo.X2 = Rect->X2; LineInfo.Y2 = Rect->Y1;
+        (void)Line(&LineInfo);
         SelectPen(GC, GetSystemPen(SM_COLOR_HIGHLIGHT));
-        Line(GC, Rect->X2, Rect->Y1, Rect->X2, Rect->Y2);
-        Line(GC, Rect->X2, Rect->Y2, Rect->X1, Rect->Y2);
+        LineInfo.X1 = Rect->X2; LineInfo.Y1 = Rect->Y1; LineInfo.X2 = Rect->X2; LineInfo.Y2 = Rect->Y2;
+        (void)Line(&LineInfo);
+        LineInfo.X1 = Rect->X2; LineInfo.Y1 = Rect->Y2; LineInfo.X2 = Rect->X1; LineInfo.Y2 = Rect->Y2;
+        (void)Line(&LineInfo);
     }
 }
 
@@ -349,6 +366,8 @@ U32 DesktopTask(LPVOID Param) {
 
 BOOL InitApplication(void) {
     TASKINFO TaskInfo;
+    PENINFO PenInfo;
+    BRUSHINFO BrushInfo;
 
     TaskInfo.Header.Size = sizeof(TASKINFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
@@ -363,18 +382,34 @@ BOOL InitApplication(void) {
 
     Sleep(500);
 
-    RedPen = CreatePen(MAKERGB(255, 0, 0), 0xFFFFFFFF);
-    RedBrush = CreateBrush(MAKERGB(255, 0, 0), 0xFFFFFFFF);
+    PenInfo.Header.Size = sizeof(PENINFO);
+    PenInfo.Header.Version = EXOS_ABI_VERSION;
+    PenInfo.Header.Flags = 0;
+    PenInfo.Color = MAKERGB(255, 0, 0);
+    PenInfo.Pattern = 0xFFFFFFFF;
+    PenInfo.Flags = 0;
+    RedPen = CreatePen(&PenInfo);
 
-    GreenPen = CreatePen(MAKERGB(0, 255, 0), 0xFFFFFFFF);
-    GreenBrush = CreateBrush(MAKERGB(0, 255, 0), 0xFFFFFFFF);
+    BrushInfo.Header.Size = sizeof(BRUSHINFO);
+    BrushInfo.Header.Version = EXOS_ABI_VERSION;
+    BrushInfo.Header.Flags = 0;
+    BrushInfo.Color = MAKERGB(255, 0, 0);
+    BrushInfo.Pattern = 0xFFFFFFFF;
+    BrushInfo.Flags = 0;
+    RedBrush = CreateBrush(&BrushInfo);
 
-    MainWindow = CreateWindow(NULL, MainWindowFunc, 0, 0, 100, 100, 400, 300);
+    PenInfo.Color = MAKERGB(0, 255, 0);
+    GreenPen = CreatePen(&PenInfo);
+
+    BrushInfo.Color = MAKERGB(0, 255, 0);
+    GreenBrush = CreateBrush(&BrushInfo);
+
+    MainWindow = CreateWindowWithClass(NULL, 0, NULL, MainWindowFunc, 0, 0, 100, 100, 400, 300);
 
     if (MainWindow == NULL) return FALSE;
 
-    CreateWindow(MainWindow, ButtonFunc, EWS_VISIBLE, 0, 400 - 90, 300 - 60, 80, 20);
-    CreateWindow(MainWindow, ButtonFunc, EWS_VISIBLE, 0, 400 - 90, 300 - 30, 80, 20);
+    CreateWindowWithClass(MainWindow, 0, NULL, ButtonFunc, EWS_VISIBLE, 0, 400 - 90, 300 - 60, 80, 20);
+    CreateWindowWithClass(MainWindow, 0, NULL, ButtonFunc, EWS_VISIBLE, 0, 400 - 90, 300 - 30, 80, 20);
 
     ShowWindow(MainWindow);
 

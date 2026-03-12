@@ -28,6 +28,7 @@
 #include "BuddyAllocator.h"
 #include "Clock.h"
 #include "console/Console.h"
+#include "desktop/Desktop.h"
 #include "DisplaySession.h"
 #include "drivers/platform/ACPI.h"
 #include "drivers/input/Keyboard.h"
@@ -177,6 +178,50 @@ LINEAR EnsureKernelPointer(LINEAR Value) {
 
     LINEAR Pointer = HandleToPointer((HANDLE)Value);
     return Pointer;
+}
+
+/************************************************************************/
+
+BOOL DeleteObject(HANDLE Object) {
+    LINEAR ObjectAddress = (LINEAR)Object;
+
+    SAFE_USE(ObjectAddress) {
+        LPOBJECT KernelObject = (LPOBJECT)ObjectAddress;
+        UINT Result = 0;
+
+        SAFE_USE_VALID(KernelObject) {
+            switch (KernelObject->TypeID) {
+                case KOID_FILE:
+                    Result = (UINT)CloseFile((LPFILE)KernelObject);
+                    break;
+                case KOID_DESKTOP:
+                    Result = (UINT)DeleteDesktop((LPDESKTOP)KernelObject);
+                    break;
+                case KOID_WINDOW:
+                    Result = (UINT)DeleteWindow((HANDLE)KernelObject);
+                    break;
+                case KOID_BRUSH:
+                    KernelHeapFree(KernelObject);
+                    Result = 1;
+                    break;
+                case KOID_PEN:
+                    KernelHeapFree(KernelObject);
+                    Result = 1;
+                    break;
+                default:
+                    WARNING(TEXT("[DeleteObject] Unsupported object type=%u object=%p"), KernelObject->TypeID, ObjectAddress);
+                    Result = 0;
+                    break;
+            }
+        } else {
+            WARNING(TEXT("[DeleteObject] Invalid object pointer object=%p"), ObjectAddress);
+        }
+
+        return Result != 0 ? TRUE : FALSE;
+    }
+
+    WARNING(TEXT("[DeleteObject] Invalid object address object=%p"), ObjectAddress);
+    return FALSE;
 }
 
 /************************************************************************/

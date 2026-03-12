@@ -300,8 +300,8 @@ HANDLE CreateWindowWithClass(
 
 /***************************************************************************/
 
-HANDLE CreateWindow(HANDLE Parent, WINDOWFUNC Func, U32 Style, U32 ID, I32 PosX, I32 PosY, I32 SizeX, I32 SizeY) {
-    return CreateWindowWithClass(Parent, 0, NULL, Func, Style, ID, PosX, PosY, SizeX, SizeY);
+HANDLE CreateWindow(LPWINDOWINFO WindowInfo) {
+    return (HANDLE)exoscall(SYSCALL_CreateWindow, EXOS_PARAM(WindowInfo));
 }
 
 /***************************************************************************/
@@ -526,30 +526,14 @@ HANDLE GetSystemPen(U32 Index) { return exoscall(SYSCALL_GetSystemPen, EXOS_PARA
 
 /***************************************************************************/
 
-HANDLE CreateBrush(COLOR Color, U32 Pattern) {
-    BRUSHINFO BrushInfo;
-
-    BrushInfo.Header.Size = sizeof BrushInfo;
-    BrushInfo.Header.Version = EXOS_ABI_VERSION;
-    BrushInfo.Header.Flags = 0;
-    BrushInfo.Color = Color;
-    BrushInfo.Pattern = Pattern;
-
-    return exoscall(SYSCALL_CreateBrush, EXOS_PARAM(&BrushInfo));
+HANDLE CreateBrush(LPBRUSHINFO BrushInfo) {
+    return exoscall(SYSCALL_CreateBrush, EXOS_PARAM(BrushInfo));
 }
 
 /***************************************************************************/
 
-HANDLE CreatePen(COLOR Color, U32 Pattern) {
-    PENINFO PenInfo;
-
-    PenInfo.Header.Size = sizeof PenInfo;
-    PenInfo.Header.Version = EXOS_ABI_VERSION;
-    PenInfo.Header.Flags = 0;
-    PenInfo.Color = Color;
-    PenInfo.Pattern = Pattern;
-
-    return exoscall(SYSCALL_CreatePen, EXOS_PARAM(&PenInfo));
+HANDLE CreatePen(LPPENINFO PenInfo) {
+    return exoscall(SYSCALL_CreatePen, EXOS_PARAM(PenInfo));
 }
 
 /***************************************************************************/
@@ -628,19 +612,8 @@ U32 GetPixel(HANDLE GC, U32 X, U32 Y) {
 
 /***************************************************************************/
 
-void Line(HANDLE GC, U32 X1, U32 Y1, U32 X2, U32 Y2) {
-    LINEINFO LineInfo;
-
-    LineInfo.Header.Size = sizeof LineInfo;
-    LineInfo.Header.Version = EXOS_ABI_VERSION;
-    LineInfo.Header.Flags = 0;
-    LineInfo.GC = GC;
-    LineInfo.X1 = X1;
-    LineInfo.Y1 = Y1;
-    LineInfo.X2 = X2;
-    LineInfo.Y2 = Y2;
-
-    exoscall(SYSCALL_Line, EXOS_PARAM(&LineInfo));
+BOOL Line(LPLINEINFO LineInfo) {
+    return (BOOL)exoscall(SYSCALL_Line, EXOS_PARAM(LineInfo));
 }
 
 /***************************************************************************/
@@ -662,49 +635,22 @@ void Rectangle(HANDLE GC, U32 X1, U32 Y1, U32 X2, U32 Y2) {
 
 /***************************************************************************/
 
-BOOL DrawText(HANDLE GC, I32 X, I32 Y, LPCSTR Text, HANDLE Font) {
-    TEXT_DRAW_INFO TextInfo;
+BOOL DrawText(LPTEXT_DRAW_INFO DrawInfo) {
+    if (DrawInfo == NULL) {
+        return FALSE;
+    }
 
-    TextInfo.Header.Size = sizeof TextInfo;
-    TextInfo.Header.Version = EXOS_ABI_VERSION;
-    TextInfo.Header.Flags = 0;
-    TextInfo.GC = GC;
-    TextInfo.X = X;
-    TextInfo.Y = Y;
-    TextInfo.Text = Text;
-    TextInfo.Font = Font;
-
-    return (BOOL)exoscall(SYSCALL_DrawText, EXOS_PARAM(&TextInfo));
+    return (BOOL)exoscall(SYSCALL_DrawText, EXOS_PARAM(DrawInfo));
 }
 
 /***************************************************************************/
 
-BOOL MeasureText(LPCSTR Text, HANDLE Font, U32* WidthOut, U32* HeightOut) {
-    TEXT_MEASURE_INFO TextInfo;
-    BOOL Result = FALSE;
-
-    TextInfo.Header.Size = sizeof TextInfo;
-    TextInfo.Header.Version = EXOS_ABI_VERSION;
-    TextInfo.Header.Flags = 0;
-    TextInfo.Text = Text;
-    TextInfo.Font = Font;
-    TextInfo.Width = 0;
-    TextInfo.Height = 0;
-
-    Result = (BOOL)exoscall(SYSCALL_MeasureText, EXOS_PARAM(&TextInfo));
-    if (Result == FALSE) {
+BOOL MeasureText(LPTEXT_MEASURE_INFO MeasureInfo) {
+    if (MeasureInfo == NULL) {
         return FALSE;
     }
 
-    if (WidthOut != NULL) {
-        *WidthOut = TextInfo.Width;
-    }
-
-    if (HeightOut != NULL) {
-        *HeightOut = TextInfo.Height;
-    }
-
-    return TRUE;
+    return (BOOL)exoscall(SYSCALL_MeasureText, EXOS_PARAM(MeasureInfo));
 }
 
 /***************************************************************************/

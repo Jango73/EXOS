@@ -23,6 +23,7 @@
 
 #include "ui/ClockWidget.h"
 #include "CoreString.h"
+#include "Heap.h"
 #include "User.h"
 
 /***************************************************************************/
@@ -31,6 +32,13 @@
 #define CLOCK_WIDGET_TIMER_INTERVAL_MS 1000
 #define CLOCK_UNIT_SCALE 1024
 #define CLOCK_CIRCLE_MARGIN 4
+#define CLOCK_WIDGET_PROP_STATE TEXT("desktop.clock_widget.state")
+
+/***************************************************************************/
+
+typedef struct tag_CLOCK_WIDGET_STATE {
+    HANDLE Brush;
+} CLOCK_WIDGET_STATE, *LPCLOCK_WIDGET_STATE;
 
 /***************************************************************************/
 
@@ -58,9 +66,8 @@ BOOL DesktopClockWidgetEnsureClassRegistered(void) {
 
 /***************************************************************************/
 
-static BOOL DrawClockHandTriangle(HANDLE GC, I32 CenterX, I32 CenterY, U32 Slot60, I32 Length, I32 HalfWidth, I32 Tail, COLOR Color) {
+static BOOL DrawClockHandTriangle(HANDLE GC, HANDLE Brush, I32 CenterX, I32 CenterY, U32 Slot60, I32 Length, I32 HalfWidth, I32 Tail) {
     TRIANGLEINFO TriangleInfo;
-    BRUSH Brush;
     I32 DirX;
     I32 DirY;
     I32 PerpX;
@@ -80,12 +87,7 @@ static BOOL DrawClockHandTriangle(HANDLE GC, I32 CenterX, I32 CenterY, U32 Slot6
 
     BaseX = CenterX - ((DirX * Tail) / CLOCK_UNIT_SCALE);
     BaseY = CenterY - ((DirY * Tail) / CLOCK_UNIT_SCALE);
-
-    MemorySet(&Brush, 0, sizeof(Brush));
-    Brush.TypeID = KOID_BRUSH;
-    Brush.References = 1;
-    Brush.Color = Color;
-    Brush.Pattern = MAX_U32;
+    if (Brush == NULL) return FALSE;
 
     TriangleInfo.Header.Size = sizeof(TriangleInfo);
     TriangleInfo.Header.Version = EXOS_ABI_VERSION;
@@ -98,7 +100,7 @@ static BOOL DrawClockHandTriangle(HANDLE GC, I32 CenterX, I32 CenterY, U32 Slot6
     TriangleInfo.P3.X = CenterX + ((DirX * Length) / CLOCK_UNIT_SCALE);
     TriangleInfo.P3.Y = CenterY + ((DirY * Length) / CLOCK_UNIT_SCALE);
 
-    OldBrush = SelectBrush(GC, (HANDLE)&Brush);
+    OldBrush = SelectBrush(GC, Brush);
     OldPen = SelectPen(GC, NULL);
     (void)Triangle(&TriangleInfo);
     (void)SelectPen(GC, OldPen);
@@ -124,14 +126,44 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
     U32 MinuteSlot;
     U32 SecondSlot;
     U32 Hour;
+    LPCLOCK_WIDGET_STATE State;
+    BRUSHINFO BrushInfo;
 
     switch (Message) {
-        case EWM_CREATE:
+        case EWM_CREATE: {
+            State = (LPCLOCK_WIDGET_STATE)KernelHeapAlloc(sizeof(CLOCK_WIDGET_STATE));
+            if (State == NULL) {
+                return 0;
+            }
+
+            MemorySet(State, 0, sizeof(CLOCK_WIDGET_STATE));
+            BrushInfo.Header.Size = sizeof(BrushInfo);
+            BrushInfo.Header.Version = EXOS_ABI_VERSION;
+            BrushInfo.Header.Flags = 0;
+            BrushInfo.Color = COLOR_BLACK;
+            BrushInfo.Pattern = MAX_U32;
+            BrushInfo.Flags = 0;
+            State->Brush = CreateBrush(&BrushInfo);
+            if (State->Brush == NULL) {
+                KernelHeapFree(State);
+                return 0;
+            }
+
+            (void)SetWindowProp(Window, CLOCK_WIDGET_PROP_STATE, (UINT)State);
             (void)SetWindowTimer(Window, CLOCK_WIDGET_TIMER_ID, CLOCK_WIDGET_TIMER_INTERVAL_MS);
             return 1;
+        }
 
         case EWM_DELETE:
             (void)KillWindowTimer(Window, CLOCK_WIDGET_TIMER_ID);
+            State = (LPCLOCK_WIDGET_STATE)GetWindowProp(Window, CLOCK_WIDGET_PROP_STATE);
+            if (State != NULL) {
+                if (State->Brush != NULL) {
+                    (void)DeleteObject(State->Brush);
+                }
+                KernelHeapFree(State);
+                (void)SetWindowProp(Window, CLOCK_WIDGET_PROP_STATE, 0);
+            }
             break;
 
         case EWM_TIMER:
@@ -145,6 +177,12 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
 
             GC = BeginWindowDraw(Window);
             if (GC == NULL) {
+                return 1;
+            }
+
+            State = (LPCLOCK_WIDGET_STATE)GetWindowProp(Window, CLOCK_WIDGET_PROP_STATE);
+            if (State == NULL || State->Brush == NULL) {
+                EndWindowDraw(Window);
                 return 1;
             }
 
@@ -198,9 +236,9 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
             ArcInfo.Radius = Radius - 1;
             (void)Arc(&ArcInfo);
 
-            (void)DrawClockHandTriangle(GC, CenterX, CenterY, HourSlot, (Radius * 50) / 100, 4, 8, COLOR_BLACK);
-            (void)DrawClockHandTriangle(GC, CenterX, CenterY, MinuteSlot, (Radius * 66) / 100, 3, 8, COLOR_BLACK);
-            (void)DrawClockHandTriangle(GC, CenterX, CenterY, SecondSlot, (Radius * 78) / 100, 2, 10, COLOR_BLACK);
+            (void)DrawClockHandTriangle(GC, State->Brush, CenterX, CenterY, HourSlot, (Radius * 50) / 100, 4, 8);
+            (void)DrawClockHandTriangle(GC, State->Brush, CenterX, CenterY, MinuteSlot, (Radius * 66) / 100, 3, 8);
+            (void)DrawClockHandTriangle(GC, State->Brush, CenterX, CenterY, SecondSlot, (Radius * 78) / 100, 2, 10);
 
             EndWindowDraw(Window);
             return 1;

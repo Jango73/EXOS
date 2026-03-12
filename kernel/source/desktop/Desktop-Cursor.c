@@ -659,7 +659,7 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
 
-    Desktop = GetWindowDesktop(Window);
+    Desktop = DesktopGetWindowDesktop(Window);
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return;
 
     LockMutex(&(Desktop->Mutex), INFINITY);

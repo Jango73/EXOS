@@ -24,6 +24,8 @@
 #include "ui/Cube3D.h"
 
 #include "Clock.h"
+#include "CoreString.h"
+#include "Heap.h"
 #include "math/Math.h"
 #include "math/Math3D.h"
 
@@ -31,10 +33,7 @@
 
 #define CUBE3D_TIMER_ID 1
 #define CUBE3D_TIMER_INTERVAL_MS 200
-#define CUBE3D_PROP_ANGLE_X_MDEG TEXT("desktop.cube3d.angle_x_mdeg")
-#define CUBE3D_PROP_ANGLE_Y_MDEG TEXT("desktop.cube3d.angle_y_mdeg")
-#define CUBE3D_PROP_ANGLE_Z_MDEG TEXT("desktop.cube3d.angle_z_mdeg")
-#define CUBE3D_PROP_LAST_TICK TEXT("desktop.cube3d.last_tick")
+#define CUBE3D_PROP_STATE TEXT("desktop.cube3d.state")
 #define CUBE3D_ROTATION_X_MDEG_PER_SECOND 12000
 #define CUBE3D_ROTATION_Y_MDEG_PER_SECOND 20000
 #define CUBE3D_ROTATION_Z_MDEG_PER_SECOND 7000
@@ -42,6 +41,16 @@
 #define CUBE3D_DEFAULT_WIDTH 420
 #define CUBE3D_DEFAULT_HEIGHT 300
 #define CUBE3D_COLOR_FLASH_GREEN ((COLOR)0x0014FF39)
+
+/***************************************************************************/
+
+typedef struct tag_CUBE3D_STATE {
+    HANDLE FlashPen;
+    U32 AngleXMilliDegrees;
+    U32 AngleYMilliDegrees;
+    U32 AngleZMilliDegrees;
+    U32 LastTick;
+} CUBE3D_STATE, *LPCUBE3D_STATE;
 
 /***************************************************************************/
 
@@ -149,7 +158,6 @@ static void Cube3DDrawWireframe(HANDLE Window, LPRECT ClientRect) {
     HANDLE GraphicsContext;
     HANDLE PreviousPen;
     LINEINFO LineInfo;
-    PEN FlashPen;
     MATRIX4 Transform;
     VECTOR3 Euler;
     VECTOR3 Translation;
@@ -163,12 +171,9 @@ static void Cube3DDrawWireframe(HANDLE Window, LPRECT ClientRect) {
     I32 CenterX;
     I32 CenterY;
     F32 Focal;
-    F32 AngleRadians;
-    U32 AngleXMilliDegrees;
-    U32 AngleYMilliDegrees;
-    U32 AngleZMilliDegrees;
     UINT VertexIndex;
     UINT QuadIndex;
+    LPCUBE3D_STATE State;
 
     if (Window == NULL || ClientRect == NULL) return;
 
@@ -188,13 +193,16 @@ static void Cube3DDrawWireframe(HANDLE Window, LPRECT ClientRect) {
     CenterY = ClientRect->Y1 + (ClientHeight / 2);
     Focal = (F32)((ClientWidth < ClientHeight) ? ClientWidth : ClientHeight) * 0.65f;
 
-    AngleXMilliDegrees = GetWindowProp(Window, CUBE3D_PROP_ANGLE_X_MDEG);
-    AngleYMilliDegrees = GetWindowProp(Window, CUBE3D_PROP_ANGLE_Y_MDEG);
-    AngleZMilliDegrees = GetWindowProp(Window, CUBE3D_PROP_ANGLE_Z_MDEG);
+    State = (LPCUBE3D_STATE)GetWindowProp(Window, CUBE3D_PROP_STATE);
+    if (State == NULL || State->FlashPen == NULL) {
+        (void)EndWindowDraw(Window);
+        return;
+    }
+
     Euler = Math3DVector3(
-        ((F32)AngleXMilliDegrees * MATH_PI_F32) / 180000.0f,
-        ((F32)AngleYMilliDegrees * MATH_PI_F32) / 180000.0f,
-        ((F32)AngleZMilliDegrees * MATH_PI_F32) / 180000.0f);
+        ((F32)State->AngleXMilliDegrees * MATH_PI_F32) / 180000.0f,
+        ((F32)State->AngleYMilliDegrees * MATH_PI_F32) / 180000.0f,
+        ((F32)State->AngleZMilliDegrees * MATH_PI_F32) / 180000.0f);
     Translation = Math3DVector3(0.0f, 0.0f, 5.0f);
     Scale = Math3DVector3(1.35f, 1.35f, 1.35f);
     Transform = Math3DMatrix4ComposeTRS(Translation, Euler, Scale);
@@ -207,13 +215,7 @@ static void Cube3DDrawWireframe(HANDLE Window, LPRECT ClientRect) {
     }
 
     (void)SelectBrush(GraphicsContext, NULL);
-    FlashPen = (PEN){
-        .TypeID = KOID_PEN,
-        .References = 1,
-        .Color = CUBE3D_COLOR_FLASH_GREEN,
-        .Pattern = MAX_U32
-    };
-    PreviousPen = SelectPen(GraphicsContext, (HANDLE)&FlashPen);
+    PreviousPen = SelectPen(GraphicsContext, State->FlashPen);
 
     LineInfo.Header.Size = sizeof(LINEINFO);
     LineInfo.Header.Version = EXOS_ABI_VERSION;
@@ -245,34 +247,62 @@ static void Cube3DDrawWireframe(HANDLE Window, LPRECT ClientRect) {
  */
 U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     RECT ClientRect;
-    U32 AngleXMilliDegrees;
-    U32 AngleYMilliDegrees;
-    U32 AngleZMilliDegrees;
     U32 LastTick;
     U32 Now;
     U32 DeltaMilliseconds;
     U32 DeltaXMilliDegrees;
     U32 DeltaYMilliDegrees;
     U32 DeltaZMilliDegrees;
+    LPCUBE3D_STATE State;
+    PENINFO PenInfo;
 
     switch (Message) {
         case EWM_CREATE:
+            State = (LPCUBE3D_STATE)KernelHeapAlloc(sizeof(CUBE3D_STATE));
+            if (State == NULL) {
+                return 0;
+            }
+
+            MemorySet(State, 0, sizeof(CUBE3D_STATE));
+            PenInfo.Header.Size = sizeof(PENINFO);
+            PenInfo.Header.Version = EXOS_ABI_VERSION;
+            PenInfo.Header.Flags = 0;
+            PenInfo.Color = CUBE3D_COLOR_FLASH_GREEN;
+            PenInfo.Pattern = MAX_U32;
+            PenInfo.Flags = 0;
+            State->FlashPen = CreatePen(&PenInfo);
+            if (State->FlashPen == NULL) {
+                KernelHeapFree(State);
+                return 0;
+            }
+
             Now = GetSystemTime();
-            (void)SetWindowProp(Window, CUBE3D_PROP_ANGLE_X_MDEG, 0);
-            (void)SetWindowProp(Window, CUBE3D_PROP_ANGLE_Y_MDEG, 0);
-            (void)SetWindowProp(Window, CUBE3D_PROP_ANGLE_Z_MDEG, 0);
-            (void)SetWindowProp(Window, CUBE3D_PROP_LAST_TICK, Now);
+            State->LastTick = Now;
+            (void)SetWindowProp(Window, CUBE3D_PROP_STATE, (UINT)State);
             (void)SetWindowTimer(Window, CUBE3D_TIMER_ID, CUBE3D_TIMER_INTERVAL_MS);
             return 1;
 
         case EWM_DELETE:
             (void)KillWindowTimer(Window, CUBE3D_TIMER_ID);
+            State = (LPCUBE3D_STATE)GetWindowProp(Window, CUBE3D_PROP_STATE);
+            if (State != NULL) {
+                if (State->FlashPen != NULL) {
+                    (void)DeleteObject(State->FlashPen);
+                }
+                KernelHeapFree(State);
+                (void)SetWindowProp(Window, CUBE3D_PROP_STATE, 0);
+            }
             break;
 
         case EWM_TIMER:
             if (Param1 == CUBE3D_TIMER_ID) {
+                State = (LPCUBE3D_STATE)GetWindowProp(Window, CUBE3D_PROP_STATE);
+                if (State == NULL) {
+                    return 1;
+                }
+
                 Now = GetSystemTime();
-                LastTick = GetWindowProp(Window, CUBE3D_PROP_LAST_TICK);
+                LastTick = State->LastTick;
                 DeltaMilliseconds = Now - LastTick;
 
                 if (DeltaMilliseconds == 0) {
@@ -282,17 +312,10 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 DeltaXMilliDegrees = (DeltaMilliseconds * CUBE3D_ROTATION_X_MDEG_PER_SECOND) / 1000;
                 DeltaYMilliDegrees = (DeltaMilliseconds * CUBE3D_ROTATION_Y_MDEG_PER_SECOND) / 1000;
                 DeltaZMilliDegrees = (DeltaMilliseconds * CUBE3D_ROTATION_Z_MDEG_PER_SECOND) / 1000;
-                AngleXMilliDegrees = GetWindowProp(Window, CUBE3D_PROP_ANGLE_X_MDEG);
-                AngleYMilliDegrees = GetWindowProp(Window, CUBE3D_PROP_ANGLE_Y_MDEG);
-                AngleZMilliDegrees = GetWindowProp(Window, CUBE3D_PROP_ANGLE_Z_MDEG);
-                AngleXMilliDegrees = (AngleXMilliDegrees + DeltaXMilliDegrees) % CUBE3D_FULL_TURN_MDEG;
-                AngleYMilliDegrees = (AngleYMilliDegrees + DeltaYMilliDegrees) % CUBE3D_FULL_TURN_MDEG;
-                AngleZMilliDegrees = (AngleZMilliDegrees + DeltaZMilliDegrees) % CUBE3D_FULL_TURN_MDEG;
-
-                (void)SetWindowProp(Window, CUBE3D_PROP_ANGLE_X_MDEG, AngleXMilliDegrees);
-                (void)SetWindowProp(Window, CUBE3D_PROP_ANGLE_Y_MDEG, AngleYMilliDegrees);
-                (void)SetWindowProp(Window, CUBE3D_PROP_ANGLE_Z_MDEG, AngleZMilliDegrees);
-                (void)SetWindowProp(Window, CUBE3D_PROP_LAST_TICK, Now);
+                State->AngleXMilliDegrees = (State->AngleXMilliDegrees + DeltaXMilliDegrees) % CUBE3D_FULL_TURN_MDEG;
+                State->AngleYMilliDegrees = (State->AngleYMilliDegrees + DeltaYMilliDegrees) % CUBE3D_FULL_TURN_MDEG;
+                State->AngleZMilliDegrees = (State->AngleZMilliDegrees + DeltaZMilliDegrees) % CUBE3D_FULL_TURN_MDEG;
+                State->LastTick = Now;
                 (void)InvalidateWindowRect(Window, NULL);
             }
             return 1;

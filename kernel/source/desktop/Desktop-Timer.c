@@ -216,7 +216,7 @@ BOOL SetWindowTimer(HANDLE Window, U32 TimerID, U32 IntervalMilliseconds) {
     if (TimerID == 0) return FALSE;
     if (IntervalMilliseconds == 0) return KillWindowTimer(Window, TimerID);
 
-    Desktop = GetWindowDesktop(This);
+    Desktop = DesktopGetWindowDesktop(This);
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
     if (DesktopTimerEnsureTask(Desktop) == FALSE) return FALSE;
 
@@ -268,7 +268,7 @@ BOOL KillWindowTimer(HANDLE Window, U32 TimerID) {
     if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
     if (TimerID == 0) return FALSE;
 
-    Desktop = GetWindowDesktop(This);
+    Desktop = DesktopGetWindowDesktop(This);
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
 
     LockMutex(&(Desktop->TimerMutex), INFINITY);

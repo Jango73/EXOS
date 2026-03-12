@@ -81,7 +81,7 @@ BOOL OnScreenDebugInfoGetPreferredSize(LPPOINT SizeOut) {
  * @param Text Mutable text buffer split in-place on newline boundaries.
  */
 static void OnScreenDebugInfoDrawLines(HANDLE GraphicsContext, LPRECT ClientRect, I32 LineHeight, LPSTR Text) {
-    GFX_TEXT_DRAW_INFO DrawInfo;
+    TEXT_DRAW_INFO DrawInfo;
     LPSTR Line = NULL;
     LPSTR NextLine = NULL;
     I32 LineY = 0;
@@ -89,8 +89,8 @@ static void OnScreenDebugInfoDrawLines(HANDLE GraphicsContext, LPRECT ClientRect
 
     if (GraphicsContext == NULL || ClientRect == NULL || Text == NULL) return;
 
-    DrawInfo = (GFX_TEXT_DRAW_INFO){
-        .Header = {.Size = sizeof(GFX_TEXT_DRAW_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+    DrawInfo = (TEXT_DRAW_INFO){
+        .Header = {.Size = sizeof(TEXT_DRAW_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
         .GC = GraphicsContext,
         .X = ClientRect->X1 + ON_SCREEN_DEBUG_INFO_PADDING_X,
         .Y = ClientRect->Y1 + ON_SCREEN_DEBUG_INFO_PADDING_Y,
@@ -135,7 +135,7 @@ static void OnScreenDebugInfoDrawLines(HANDLE GraphicsContext, LPRECT ClientRect
 U32 OnScreenDebugInfoWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     RECT ClientRect;
     HANDLE GraphicsContext = NULL;
-    GFX_TEXT_MEASURE_INFO MeasureInfo;
+    TEXT_MEASURE_INFO MeasureInfo;
     DRIVER_DEBUG_INFO GraphicsDebugInfo;
     DRIVER_DEBUG_INFO MouseDebugInfo;
     DRIVER_DEBUG_INFO CombinedDebugInfo;
@@ -155,8 +155,8 @@ U32 OnScreenDebugInfoWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Para
                 return 1;
             }
 
-            MeasureInfo = (GFX_TEXT_MEASURE_INFO){
-                .Header = {.Size = sizeof(GFX_TEXT_MEASURE_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+            MeasureInfo = (TEXT_MEASURE_INFO){
+                .Header = {.Size = sizeof(TEXT_MEASURE_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
                 .Text = TEXT("Line"),
                 .Font = NULL,
                 .Width = 0,

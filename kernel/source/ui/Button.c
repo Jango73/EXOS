@@ -90,8 +90,8 @@ static void ButtonSetStateProp(HANDLE Window, LPCSTR Name, U32 Value) {
  * @param ClientRect Button client rectangle.
  */
 static void ButtonDrawCaption(HANDLE Window, HANDLE GC, LPRECT ClientRect) {
-    GFX_TEXT_MEASURE_INFO MeasureInfo;
-    GFX_TEXT_DRAW_INFO DrawInfo;
+    TEXT_MEASURE_INFO MeasureInfo;
+    TEXT_DRAW_INFO DrawInfo;
     STR Caption[DESKTOP_BUTTON_CAPTION_BUFFER_SIZE];
     U32 ThemeToken;
     I32 TextX;
@@ -101,8 +101,8 @@ static void ButtonDrawCaption(HANDLE Window, HANDLE GC, LPRECT ClientRect) {
     if (GetWindowCaption(Window, Caption, sizeof(Caption)) == FALSE) return;
     if (Caption[0] == STR_NULL) return;
 
-    MeasureInfo = (GFX_TEXT_MEASURE_INFO){
-        .Header = {.Size = sizeof(GFX_TEXT_MEASURE_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+    MeasureInfo = (TEXT_MEASURE_INFO){
+        .Header = {.Size = sizeof(TEXT_MEASURE_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
         .Text = Caption,
         .Font = NULL,
         .Width = 0,
@@ -120,8 +120,8 @@ static void ButtonDrawCaption(HANDLE Window, HANDLE GC, LPRECT ClientRect) {
     }
     (void)SelectBrush(GC, NULL);
 
-    DrawInfo = (GFX_TEXT_DRAW_INFO){
-        .Header = {.Size = sizeof(GFX_TEXT_DRAW_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+    DrawInfo = (TEXT_DRAW_INFO){
+        .Header = {.Size = sizeof(TEXT_DRAW_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
         .GC = GC,
         .X = TextX,
         .Y = TextY,

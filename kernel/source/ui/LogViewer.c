@@ -70,15 +70,15 @@ BOOL LogViewerEnsureClassRegistered(void) {
  * @param Text Mutable text buffer split in place on newline boundaries.
  */
 static void LogViewerDrawLines(HANDLE GraphicsContext, LPRECT ClientRect, I32 LineHeight, LPSTR Text) {
-    GFX_TEXT_DRAW_INFO DrawInfo;
+    TEXT_DRAW_INFO DrawInfo;
     LPSTR Line;
     LPSTR NextLine;
     I32 LineY;
 
     if (GraphicsContext == NULL || ClientRect == NULL || Text == NULL) return;
 
-    DrawInfo = (GFX_TEXT_DRAW_INFO){
-        .Header = {.Size = sizeof(GFX_TEXT_DRAW_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+    DrawInfo = (TEXT_DRAW_INFO){
+        .Header = {.Size = sizeof(TEXT_DRAW_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
         .GC = GraphicsContext,
         .X = ClientRect->X1 + LOG_VIEWER_PADDING_X,
         .Y = ClientRect->Y1 + LOG_VIEWER_PADDING_Y,
@@ -110,7 +110,7 @@ static void LogViewerDrawLines(HANDLE GraphicsContext, LPRECT ClientRect, I32 Li
 U32 LogViewerWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     RECT ClientRect;
     HANDLE GraphicsContext;
-    GFX_TEXT_MEASURE_INFO MeasureInfo;
+    TEXT_MEASURE_INFO MeasureInfo;
     KERNEL_LOG_RECENT_VIEW View;
     STR TextBuffer[LOG_VIEWER_TEXT_BUFFER_SIZE];
     I32 ClientHeight;
@@ -152,8 +152,8 @@ U32 LogViewerWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 return 1;
             }
 
-            MeasureInfo = (GFX_TEXT_MEASURE_INFO){
-                .Header = {.Size = sizeof(GFX_TEXT_MEASURE_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+            MeasureInfo = (TEXT_MEASURE_INFO){
+                .Header = {.Size = sizeof(TEXT_MEASURE_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
                 .Text = TEXT("Line"),
                 .Font = NULL,
                 .Width = 0,

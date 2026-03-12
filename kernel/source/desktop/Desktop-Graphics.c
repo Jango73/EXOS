@@ -1387,7 +1387,7 @@ BOOL GetDesktopCaptureState(LPWINDOW Window, LPWINDOW* CaptureWindow, I32* Offse
     if (OffsetX != NULL) *OffsetX = 0;
     if (OffsetY != NULL) *OffsetY = 0;
 
-    Desktop = GetWindowDesktop(Window);
+    Desktop = DesktopGetWindowDesktop(Window);
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
 
     LockMutex(&(Desktop->Mutex), INFINITY);
@@ -1412,7 +1412,7 @@ BOOL GetDesktopCaptureState(LPWINDOW Window, LPWINDOW* CaptureWindow, I32* Offse
 BOOL SetDesktopCaptureState(LPWINDOW Window, LPWINDOW CaptureWindow, I32 OffsetX, I32 OffsetY) {
     LPDESKTOP Desktop;
 
-    Desktop = GetWindowDesktop(Window);
+    Desktop = DesktopGetWindowDesktop(Window);
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
 
     LockMutex(&(Desktop->Mutex), INFINITY);

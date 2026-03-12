@@ -135,7 +135,7 @@ static U32 GfxSmokeWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2
                 .Width = 0,
                 .Height = 0
             };
-            (void)MeasureText(&MeasureInfo);
+            (void)DesktopMeasureText(&MeasureInfo);
 
             (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_TITLE_TEXT));
             (void)SelectBrush(GraphicsContext, NULL);
@@ -147,13 +147,13 @@ static U32 GfxSmokeWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2
                 .Text = TEXT("Graphics smoke test"),
                 .Font = Font
             };
-            (void)DrawText(&DrawInfo);
+            (void)DesktopDrawText(&DrawInfo);
 
             (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_TEXT_NORMAL));
             DrawInfo.X = 24;
             DrawInfo.Y = 72;
             DrawInfo.Text = TEXT("Shared text API\nKernel window path");
-            (void)DrawText(&DrawInfo);
+            (void)DesktopDrawText(&DrawInfo);
 
             (void)EndWindowDraw(Window);
             return 0;
