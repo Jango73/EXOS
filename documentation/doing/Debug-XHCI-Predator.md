@@ -479,3 +479,19 @@ Date: 2026-03-12
 - Status:
   - corrected in `XHCI_BuildBulkEndpointContext`
   - bulk endpoints now use `Average TRB Length = 3072`
+
+## USB Mass Storage Write Path
+
+Date: 2026-03-12
+
+- The targeted xHCI smoke test on `/fs/u0p0` exposed a simpler blocker unrelated to the remaining Predator bulk-IN issue:
+  - the USB mass-storage disk backend itself was still read-only;
+  - `USBStorageWrite()` returned `DF_RETURN_NO_PERMISSION`;
+  - `USBStorageSetAccess()` forced `DISK_ACCESS_READONLY`;
+  - only SCSI `INQUIRY`, `READ CAPACITY(10)`, and `READ(10)` were implemented.
+- Consequence:
+  - `copy /fs/u0p0/read.txt /fs/u0p0/write.txt` could never succeed, even when xHCI enumeration and BOT reads were good enough to mount `u0p0`.
+- Correction:
+  - added SCSI `WRITE(10)` support in the USB BOT transport;
+  - replaced the duplicated read-only sector path with shared read/write request validation and chunked transfer helpers;
+  - removed the unconditional USB disk read-only policy so the filesystem layer can issue writes to USB mass storage.

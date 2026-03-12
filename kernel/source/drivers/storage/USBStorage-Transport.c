@@ -18,7 +18,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    USB Mass Storage (BOT, read-only)
+    USB Mass Storage (BOT)
 
 \************************************************************************/
 
@@ -520,15 +520,15 @@ static BOOL USBStorageBulkTransfer(LPXHCI_DEVICE Device,
  * @param CommandBlockLength SCSI command length.
  * @param DataLength Data stage length in bytes.
  * @param DirectionIn TRUE when data stage is IN.
- * @param DataOut Optional output buffer for IN data.
+ * @param DataBuffer Optional transfer buffer for data stage payload.
  * @return TRUE on success.
  */
 static BOOL USBStorageBotCommand(LPUSB_MASS_STORAGE_DEVICE Device,
-                                     const U8* CommandBlock,
-                                     U8 CommandBlockLength,
-                                     UINT DataLength,
-                                     BOOL DirectionIn,
-                                     LPVOID DataOut) {
+                                 const U8* CommandBlock,
+                                 U8 CommandBlockLength,
+                                 UINT DataLength,
+                                 BOOL DirectionIn,
+                                 LPVOID DataBuffer) {
     U32 ExpectedTag;
     U32 TransferStatus;
     U32 TransferLength;
@@ -595,6 +595,10 @@ static BOOL USBStorageBotCommand(LPUSB_MASS_STORAGE_DEVICE Device,
         Device->LastBotStage = 3;
         TransferLength = 0;
         TransferStatus = USB_STORAGE_TRANSFER_STATUS_ERROR;
+        if (!DirectionIn && DataBuffer != NULL) {
+            MemoryCopy((LPVOID)Device->InputOutputBufferLinear, DataBuffer, DataLength);
+        }
+
         if (!USBStorageBulkTransfer(Device->Controller, Device->UsbDevice,
                                         DirectionIn ? Device->BulkInEndpoint : Device->BulkOutEndpoint,
                                         Device->InputOutputBufferPhysical, Device->InputOutputBufferLinear,
@@ -627,8 +631,8 @@ static BOOL USBStorageBotCommand(LPUSB_MASS_STORAGE_DEVICE Device,
             }
         }
 
-        if (!DataStageStalled && DirectionIn && DataOut != NULL) {
-            MemoryCopy(DataOut, (LPVOID)Device->InputOutputBufferLinear, DataLength);
+        if (!DataStageStalled && DirectionIn && DataBuffer != NULL) {
+            MemoryCopy(DataBuffer, (LPVOID)Device->InputOutputBufferLinear, DataLength);
         }
     }
 
@@ -878,23 +882,25 @@ BOOL USBStorageReadCapacity(LPUSB_MASS_STORAGE_DEVICE Device) {
 /************************************************************************/
 
 /**
- * @brief Build a SCSI READ(10) command block.
+ * @brief Build a SCSI READ(10) or WRITE(10) command block.
  * @param CommandBlock Output command block buffer.
  * @param CommandBlockLength Command block buffer length in bytes.
  * @param LogicalBlockAddress Starting logical block address.
- * @param TransferBlocks Block count to read.
+ * @param TransferBlocks Block count to transfer.
+ * @param DirectionIn TRUE for READ(10), FALSE for WRITE(10).
  * @return TRUE on success.
  */
-static BOOL USBStorageBuildRead10(U8* CommandBlock,
-                                  UINT CommandBlockLength,
-                                  UINT LogicalBlockAddress,
-                                  UINT TransferBlocks) {
-    if (CommandBlock == NULL || CommandBlockLength < USB_SCSI_READ_10_COMMAND_BLOCK_LENGTH) {
+static BOOL USBStorageBuildReadWrite10(U8* CommandBlock,
+                                       UINT CommandBlockLength,
+                                       UINT LogicalBlockAddress,
+                                       UINT TransferBlocks,
+                                       BOOL DirectionIn) {
+    if (CommandBlock == NULL || CommandBlockLength < USB_SCSI_READ_WRITE_10_COMMAND_BLOCK_LENGTH) {
         return FALSE;
     }
 
     MemorySet(CommandBlock, 0, CommandBlockLength);
-    CommandBlock[0] = USB_SCSI_READ_10;
+    CommandBlock[0] = DirectionIn ? USB_SCSI_READ_10 : USB_SCSI_WRITE_10;
     CommandBlock[2] = (U8)((LogicalBlockAddress >> 24) & 0xFF);
     CommandBlock[3] = (U8)((LogicalBlockAddress >> 16) & 0xFF);
     CommandBlock[4] = (U8)((LogicalBlockAddress >> 8) & 0xFF);
@@ -908,21 +914,23 @@ static BOOL USBStorageBuildRead10(U8* CommandBlock,
 /************************************************************************/
 
 /**
- * @brief Read blocks using SCSI READ(10).
+ * @brief Transfer blocks using SCSI READ(10) or WRITE(10).
  * @param Device USB mass storage device context.
  * @param LogicalBlockAddress Starting logical block address.
- * @param TransferBlocks Number of blocks to read.
- * @param Output Output buffer for data.
+ * @param TransferBlocks Number of blocks to transfer.
+ * @param DirectionIn TRUE for READ(10), FALSE for WRITE(10).
+ * @param Buffer Data buffer.
  * @return TRUE on success.
  */
-BOOL USBStorageReadBlocks(LPUSB_MASS_STORAGE_DEVICE Device,
+static BOOL USBStorageTransferBlocks(LPUSB_MASS_STORAGE_DEVICE Device,
                                      UINT LogicalBlockAddress,
                                      UINT TransferBlocks,
-                                     LPVOID Output) {
-    U8 CommandBlock[USB_SCSI_READ_10_COMMAND_BLOCK_LENGTH];
+                                     BOOL DirectionIn,
+                                     LPVOID Buffer) {
+    U8 CommandBlock[USB_SCSI_READ_WRITE_10_COMMAND_BLOCK_LENGTH];
     UINT Length = TransferBlocks * Device->BlockSize;
 
-    if (Output == NULL || Length == 0 || Length > PAGE_SIZE) {
+    if (Buffer == NULL || Length == 0 || Length > PAGE_SIZE) {
         return FALSE;
     }
 
@@ -930,14 +938,33 @@ BOOL USBStorageReadBlocks(LPUSB_MASS_STORAGE_DEVICE Device,
         return FALSE;
     }
 
-    if (!USBStorageBuildRead10(CommandBlock,
-                               sizeof(CommandBlock),
-                               LogicalBlockAddress,
-                               TransferBlocks)) {
+    if (!USBStorageBuildReadWrite10(CommandBlock,
+                                    sizeof(CommandBlock),
+                                    LogicalBlockAddress,
+                                    TransferBlocks,
+                                    DirectionIn)) {
         return FALSE;
     }
 
-    return USBStorageBotCommand(Device, CommandBlock, sizeof(CommandBlock), Length, TRUE, Output);
+    return USBStorageBotCommand(Device, CommandBlock, sizeof(CommandBlock), Length, DirectionIn, Buffer);
+}
+
+/************************************************************************/
+
+BOOL USBStorageReadBlocks(LPUSB_MASS_STORAGE_DEVICE Device,
+                          UINT LogicalBlockAddress,
+                          UINT TransferBlocks,
+                          LPVOID Output) {
+    return USBStorageTransferBlocks(Device, LogicalBlockAddress, TransferBlocks, TRUE, Output);
+}
+
+/************************************************************************/
+
+BOOL USBStorageWriteBlocks(LPUSB_MASS_STORAGE_DEVICE Device,
+                           UINT LogicalBlockAddress,
+                           UINT TransferBlocks,
+                           LPCVOID Input) {
+    return USBStorageTransferBlocks(Device, LogicalBlockAddress, TransferBlocks, FALSE, (LPVOID)Input);
 }
 
 /************************************************************************/

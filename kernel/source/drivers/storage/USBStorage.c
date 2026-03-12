@@ -18,7 +18,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    USB Mass Storage (BOT, read-only)
+    USB Mass Storage (BOT)
 
 \************************************************************************/
 
@@ -134,6 +134,10 @@ BOOL USBStorageReadBlocks(LPUSB_MASS_STORAGE_DEVICE Device,
                           UINT LogicalBlockAddress,
                           UINT TransferBlocks,
                           LPVOID Output);
+BOOL USBStorageWriteBlocks(LPUSB_MASS_STORAGE_DEVICE Device,
+                           UINT LogicalBlockAddress,
+                           UINT TransferBlocks,
+                           LPCVOID Input);
 
 static USB_MASS_STORAGE_STATE DATA_SECTION USBStorageState = {
     .Initialized = FALSE,
@@ -378,7 +382,7 @@ static LPUSB_MASS_STORAGE_DEVICE USBStorageAllocateDevice(void) {
     Device->Disk.Next = NULL;
     Device->Disk.Prev = NULL;
     Device->Disk.Driver = &USBStorageDriver;
-    Device->Access = DISK_ACCESS_READONLY;
+    Device->Access = 0;
     Device->Tag = 1;
     Device->Ready = FALSE;
     return Device;
@@ -775,16 +779,26 @@ static void USBStoragePoll(LPVOID Context) {
 /************************************************************************/
 
 /**
- * @brief Read sectors from a USB mass storage device.
+ * @brief Validate a USB mass storage I/O control request.
+ * @param DeviceOut Receives validated USB mass storage device.
  * @param Control I/O control structure.
+ * @param TotalBytesOut Receives validated transfer length in bytes.
  * @return DF_RETURN_SUCCESS on success or error code.
  */
-static U32 USBStorageRead(LPIOCONTROL Control) {
+static U32 USBStorageValidateIoControl(LPUSB_MASS_STORAGE_DEVICE* DeviceOut,
+                                       LPIOCONTROL Control,
+                                       UINT* TotalBytesOut) {
+    LPUSB_MASS_STORAGE_DEVICE Device = NULL;
+
+    if (DeviceOut == NULL || TotalBytesOut == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
     if (Control == NULL) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    LPUSB_MASS_STORAGE_DEVICE Device = (LPUSB_MASS_STORAGE_DEVICE)Control->Disk;
+    Device = (LPUSB_MASS_STORAGE_DEVICE)Control->Disk;
     if (Device == NULL) {
         return DF_RETURN_BAD_PARAMETER;
     }
@@ -809,6 +823,8 @@ static U32 USBStorageRead(LPIOCONTROL Control) {
         return DF_RETURN_NODEVICE;
     }
 
+    *DeviceOut = Device;
+
     if (Control->NumSectors == 0) {
         return DF_RETURN_SUCCESS;
     }
@@ -825,14 +841,41 @@ static U32 USBStorageRead(LPIOCONTROL Control) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    UINT TotalBytes = Control->NumSectors * Device->BlockSize;
-    if (Control->BufferSize < TotalBytes) {
+    *TotalBytesOut = Control->NumSectors * Device->BlockSize;
+    if (Control->BufferSize < *TotalBytesOut) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    UINT Remaining = Control->NumSectors;
-    UINT CurrentLogicalBlockAddress = Control->SectorLow;
-    U8* Output = (U8*)Control->Buffer;
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Transfer sectors through USB BOT read or write commands.
+ * @param Control I/O control structure.
+ * @param DirectionIn TRUE for read, FALSE for write.
+ * @return DF_RETURN_SUCCESS on success or error code.
+ */
+static U32 USBStorageTransfer(LPIOCONTROL Control, BOOL DirectionIn) {
+    LPUSB_MASS_STORAGE_DEVICE Device = NULL;
+    UINT TotalBytes = 0;
+    UINT Remaining = 0;
+    UINT CurrentLogicalBlockAddress = 0;
+    U8* Buffer = NULL;
+    U32 Validation = USBStorageValidateIoControl(&Device, Control, &TotalBytes);
+
+    if (Validation != DF_RETURN_SUCCESS) {
+        return Validation;
+    }
+
+    if (!DirectionIn && (Device->Access & DISK_ACCESS_READONLY) != 0) {
+        return DF_RETURN_NO_PERMISSION;
+    }
+
+    Remaining = Control->NumSectors;
+    CurrentLogicalBlockAddress = Control->SectorLow;
+    Buffer = (U8*)Control->Buffer;
 
     while (Remaining > 0) {
         UINT MaximumBlocks = PAGE_SIZE / Device->BlockSize;
@@ -841,11 +884,17 @@ static U32 USBStorageRead(LPIOCONTROL Control) {
             Blocks = MaximumBlocks;
         }
 
-        if (!USBStorageReadBlocks(Device, CurrentLogicalBlockAddress, Blocks, Output)) {
-            return DF_RETURN_HARDWARE;
+        if (DirectionIn) {
+            if (!USBStorageReadBlocks(Device, CurrentLogicalBlockAddress, Blocks, Buffer)) {
+                return DF_RETURN_HARDWARE;
+            }
+        } else {
+            if (!USBStorageWriteBlocks(Device, CurrentLogicalBlockAddress, Blocks, Buffer)) {
+                return DF_RETURN_HARDWARE;
+            }
         }
 
-        Output += Blocks * Device->BlockSize;
+        Buffer += Blocks * Device->BlockSize;
         CurrentLogicalBlockAddress += Blocks;
         Remaining -= Blocks;
     }
@@ -856,13 +905,23 @@ static U32 USBStorageRead(LPIOCONTROL Control) {
 /************************************************************************/
 
 /**
- * @brief Reject writes to a read-only USB mass storage device.
+ * @brief Read sectors from a USB mass storage device.
  * @param Control I/O control structure.
- * @return DF_RETURN_NO_PERMISSION.
+ * @return DF_RETURN_SUCCESS on success or error code.
+ */
+static U32 USBStorageRead(LPIOCONTROL Control) {
+    return USBStorageTransfer(Control, TRUE);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Write sectors to a USB mass storage device.
+ * @param Control I/O control structure.
+ * @return DF_RETURN_SUCCESS on success or error code.
  */
 static U32 USBStorageWrite(LPIOCONTROL Control) {
-    UNUSED(Control);
-    return DF_RETURN_NO_PERMISSION;
+    return USBStorageTransfer(Control, FALSE);
 }
 
 /************************************************************************/
@@ -916,7 +975,7 @@ static U32 USBStorageSetAccess(LPDISKACCESS Access) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    Device->Access = (Access->Access | DISK_ACCESS_READONLY);
+    Device->Access = Access->Access;
     return DF_RETURN_SUCCESS;
 }
 
