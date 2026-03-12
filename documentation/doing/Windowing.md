@@ -182,7 +182,6 @@ color.window.title.active.start = "#1f4a9a"
 color.window.title.active.end = "#4f89ff"
 color.window.title.inactive.start = "#5a5a5a"
 color.window.title.inactive.end = "#7a7a7a"
-color.window.text = "#ffffff"
 metric.window.border = 2
 metric.window.title_height = 22
 metric.window.button_size = 18

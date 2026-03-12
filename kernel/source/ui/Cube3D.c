@@ -42,6 +42,7 @@
 #define CUBE3D_FULL_TURN_MDEG 360000
 #define CUBE3D_DEFAULT_WIDTH 420
 #define CUBE3D_DEFAULT_HEIGHT 300
+#define CUBE3D_COLOR_FLASH_GREEN ((COLOR)0x0014FF39)
 
 /***************************************************************************/
 
@@ -163,7 +164,9 @@ static void Cube3DDrawEdge(LPLINEINFO LineInfo, I32 X1, I32 Y1, I32 X2, I32 Y2) 
  */
 static void Cube3DDrawWireframe(HANDLE Window, LPRECT ClientRect) {
     HANDLE GraphicsContext;
+    HANDLE PreviousPen;
     LINEINFO LineInfo;
+    PEN FlashPen;
     MATRIX4 Transform;
     VECTOR3 Euler;
     VECTOR3 Translation;
@@ -221,7 +224,13 @@ static void Cube3DDrawWireframe(HANDLE Window, LPRECT ClientRect) {
     }
 
     (void)SelectBrush(GraphicsContext, NULL);
-    (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_TEXT_NORMAL));
+    FlashPen = (PEN){
+        .TypeID = KOID_PEN,
+        .References = 1,
+        .Color = CUBE3D_COLOR_FLASH_GREEN,
+        .Pattern = MAX_U32
+    };
+    PreviousPen = SelectPen(GraphicsContext, (HANDLE)&FlashPen);
 
     LineInfo.Header.Size = sizeof(LINEINFO);
     LineInfo.Header.Version = EXOS_ABI_VERSION;
@@ -237,6 +246,7 @@ static void Cube3DDrawWireframe(HANDLE Window, LPRECT ClientRect) {
         if (Valid[Face.D] && Valid[Face.A]) Cube3DDrawEdge(&LineInfo, ScreenX[Face.D], ScreenY[Face.D], ScreenX[Face.A], ScreenY[Face.A]);
     }
 
+    (void)SelectPen(GraphicsContext, PreviousPen);
     (void)EndWindowDraw(Window);
 }
 
