@@ -1,0 +1,1 @@
+EXOS smoke test reference file. This content is shared across filesystem images and the USB xHCI image so read, copy, and compare operations exercise the same payload on every path. The text is intentionally longer than two hundred characters to keep validation deterministic across builds and targets.

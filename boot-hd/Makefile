@@ -153,8 +153,7 @@ EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/ext2-root
 USB3_STAGING_DIR= $(BUILD_DIR)/boot-hd/usb-3-root
 FS_TEST_EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/fs-test-ext2-root
 FS_TEST_READ_FILE= read.txt
-FS_TEST_EXT2_READ_MARKER=FS_TEST_EXT2_READ_OK
-FS_TEST_FAT32_READ_MARKER=FS_TEST_FAT32_READ_OK
+FS_TEST_READ_SOURCE= assets/fs-test-read.txt
 EXT2_LABEL      ?= exos
 CONFIG_TOML_NAME ?= exos.toml
 
@@ -400,17 +399,16 @@ $(FS_TEST_EXT2_IMG): check_tools
 	@echo "Preparing EXT2 smoke-test staging directory at $(FS_TEST_EXT2_STAGING_DIR)"
 	@rm -rf $(FS_TEST_EXT2_STAGING_DIR)
 	@mkdir -p $(FS_TEST_EXT2_STAGING_DIR)
-	@printf '%s\n' "$(FS_TEST_EXT2_READ_MARKER)" > $(FS_TEST_EXT2_STAGING_DIR)/$(FS_TEST_READ_FILE)
+	@cp $(FS_TEST_READ_SOURCE) $(FS_TEST_EXT2_STAGING_DIR)/$(FS_TEST_READ_FILE)
 	$(call POPULATE_EXT2_IMAGE,$(FS_TEST_EXT2_IMG),$(FS_TEST_EXT2_STAGING_DIR))
 
 $(FS_TEST_FAT32_IMG): check_tools
 	@mkdir -p $(dir $@)
 	$(call CREATE_FAT32_IMAGE_SIZE,$@,$(FS_TEST_IMG_SIZE_MB))
 	@parted -s $@ set 1 boot off
-	@printf '%s\n' "$(FS_TEST_FAT32_READ_MARKER)" > $(BUILD_DIR)/boot-hd/fs-test-fat32-read.txt
-	$(call MTOOLS_OPERATION,$(FS_TEST_FAT32_IMG),Injecting FAT32 smoke marker,\
-		MTOOLSRC=$(MTOOLS_CONF) mcopy -D o $(BUILD_DIR)/boot-hd/fs-test-fat32-read.txt z:/$(FS_TEST_READ_FILE),\
-		FAT32 smoke marker injected.)
+	$(call MTOOLS_OPERATION,$(FS_TEST_FAT32_IMG),Injecting FAT32 smoke test file,\
+		MTOOLSRC=$(MTOOLS_CONF) mcopy -D o $(FS_TEST_READ_SOURCE) z:/$(FS_TEST_READ_FILE),\
+		FAT32 smoke test file injected.)
 
 $(FS_TEST_NTFS_IMG): check_tools
 	@mkdir -p $(dir $@)
@@ -430,8 +428,7 @@ $(FS_TEST_NTFS_IMG): check_tools
 			rm -f "$$TMP_NTFS"; \
 			dd if=/dev/zero of="$$TMP_NTFS" bs=512 count="$$PART_SECTORS"; \
 			mkfs.ntfs -F -Q -L EXOS_NTFS "$$TMP_NTFS" >/dev/null; \
-			printf '%s\n' "FS_TEST_NTFS_READ_OK" > "$(BUILD_DIR)/boot-hd/fs-test-ntfs-read.txt"; \
-			ntfscp -q -f "$$TMP_NTFS" "$(BUILD_DIR)/boot-hd/fs-test-ntfs-read.txt" "/$(FS_TEST_READ_FILE)"; \
+			ntfscp -q -f "$$TMP_NTFS" "$(FS_TEST_READ_SOURCE)" "/$(FS_TEST_READ_FILE)"; \
 			dd if="$$TMP_NTFS" of=$@ bs=512 seek="$$PART_START" conv=notrunc; \
 			rm -f "$$TMP_NTFS"; \
 			echo "NTFS image created. Use scripts/ntfs/populate-ntfs-image.sh to add folders/files."; \
@@ -454,6 +451,7 @@ $(USB3_IMG): check_tools $(TICTACTOE_ELF)
 	@echo "Preparing USB MSD staging directory at $(USB3_STAGING_DIR)"
 	@rm -rf $(USB3_STAGING_DIR)
 	@mkdir -p $(USB3_STAGING_DIR)
+	@cp $(FS_TEST_READ_SOURCE) $(USB3_STAGING_DIR)/$(FS_TEST_READ_FILE)
 	@cp $(TICTACTOE_ELF) $(USB3_STAGING_DIR)/tictactoe
 	$(call POPULATE_EXT2_IMAGE,$(USB3_IMG),$(USB3_STAGING_DIR))
 endif

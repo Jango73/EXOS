@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 IMAGE_PATH="$ROOT_DIR/build/image/x86-64-mbr-debug-ext2/boot-hd/fs-test-ntfs.img"
+FS_TEST_READ_SOURCE="$ROOT_DIR/boot-hd/assets/fs-test-read.txt"
 PARTITION_INDEX=1
 LOOP_DEVICE=""
 PARTITION_DEVICE=""
@@ -113,7 +114,7 @@ populate_ntfs_tree() {
     printf '%s\n' "VectorNote templates placeholder" > "$root/Program Files/VectorNote/templates.txt"
 
     if [ ! -f "$root/read.txt" ]; then
-        printf '%s\n' "FS_TEST_NTFS_READ_OK" > "$root/read.txt"
+        cp "$FS_TEST_READ_SOURCE" "$root/read.txt"
     fi
     sync
 }
