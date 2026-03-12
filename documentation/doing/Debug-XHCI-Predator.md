@@ -495,3 +495,160 @@ Date: 2026-03-12
   - added SCSI `WRITE(10)` support in the USB BOT transport;
   - replaced the duplicated read-only sector path with shared read/write request validation and chunked transfer helpers;
   - removed the unconditional USB disk read-only policy so the filesystem layer can issue writes to USB mass storage.
+
+## Screenshot Reference Logs
+
+Date: 2026-03-12
+
+- Source: user-provided Predator photo.
+- Purpose: keep the visible log lines in the tracking file for later cross-reference.
+
+```text
+T160> WARNING > [XHCI_LogProbeFailure] Port=14 Step=AddressDevice Err=0x6 Completion=0x0 Raw=0x220603 CCS=1 PED=1 PR=0 PLS=0x0 Speed=0x1 Slot=0x5 Addr=0x0 Present=0 Hub=0 Vid=0x0 Pid=0x0 Class=0x0/0x0/0x0 MPS0=8 USBCMD=0x1 USBSTS=0x18 suppressed=0
+T160> DEBUG > [USBMouseStartDevice] Begin addr=0x2 slot=0x2 vid=0x1017 pid=0x900a if=0 ep=0x81 mps=8
+T6620> ERROR > [XHCI_ControlTransfer] Completion code 6
+T6620> WARNING > [USBMouseStartDevice] SET_IDLE failed
+T6660> DEBUG > [USBMouseStartDevice] Mouse addr=0x2 if=0 ep=0x81
+T6660> DEBUG > [USBMouseSubmitReport] Submitted report len=8 trb=000000000061A000 dci=0x3
+T6740> WARNING > [XHCI_LogProbeFailure] Port=14 Step=AddressDevice Err=0x6 Completion=0x0 Raw=0x220603 CCS=1 PED=1 PR=0 PLS=0x0 Speed=0x1 Slot=0x0 Addr=0x0 Present=0 Hub=0 Vid=0x0 Pid=0x0 Class=0x0/0x0/0x0 MPS0=8 USBSTS=0x18 suppressed=0
+T6740> DEBUG > [USBStorageStartDevice] Begin Port=1 Addr=1 Slot=0x1 If=0 Class=0x8/0x6/0x50 Vid=0x5e3 Pid=0x736 BulkOut=0x2 Attr=0x2 MPS=512 BulkIn=0x81 Attr=0x2 MPS=512
+T6780> DEBUG > [USBStorageBotCommand] Op=0x12 CdbLen=6 DataLen=36 DirIn=1 Tag=0x1 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T6780> DEBUG > [USBStorageWaitCompletion] Begin Timeout=1000 Trb=0x0:0x525000 suppressed=0
+T6780> DEBUG > [USBStorageWaitCompletion] Completed Elapsed=0 Completion=0x1 Trb=0x0:0x525000 suppressed=0
+T6860> DEBUG > [USBStorageBotCommand] Op=0x25 CdbLen=10 DataLen=8 DirIn=1 Tag=0x2 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T7160> DEBUG > [XHCI_ResetTransferEndpoint] Begin Slot=0x1 DCI=0x3 Halted=1 CtxState=0x2
+T7240> DEBUG > [XHCI_ResetTransferEndpoint] End Slot=0x1 DCI=0x3 Halted=1 InitialState=0x2 FinalState=0x3 StopCompletion=0x0 SetCompletion=0x1 Dequeue=0x0:0x61e001
+T7320> WARNING > [USBStorageBotCommand] CSW status=0x1 residue=8 Op=0x25 Tag=0x2
+T7320> WARNING > [USBStorageStartDevice] READ CAPACITY failed, attempting reset
+T7320> DEBUG > [USBStorageBotCommand] Op=0x3 CdbLen=6 DataLen=18 DirIn=1 Tag=0x3 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T7440> DEBUG > [USBStorageRequestSense] Response=0x70 SenseKey=0x6 ASC=0x28 ASCQ=0x0 LastOp=0x3
+T7520> DEBUG > [USBStorageBotCommand] Op=0x25 CdbLen=10 DataLen=8 DirIn=1 Tag=0x4 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T49300> DEBUG > [USBStorageWaitCompletion] Timeout Elapsed=1000 Trb=0x0:0x61e030 suppressed=24
+T49300> DEBUG > [USBStorageBulkTransferOnce] Timeout Op=0x25 Slot=0x1 Port=1 Addr=1 Ep=0x81 Dci=3 DirIn=1 Len=8 Trb=000000000061e030
+T49300> DEBUG > [XHCI_ResetTransferEndpoint] Begin Slot=0x1 DCI=0x3 Halted=0 CtxState=0x1
+T49380> DEBUG > [XHCI_ResetTransferEndpoint] End Slot=0x1 DCI=0x3 Halted=0 InitialState=0x1 FinalState=0x3 StopCompletion=0x1 SetCompletion=0x1 Dequeue=0x0:0x61e001
+T49650> ERROR > [USBStorageBotCommand] Data stage failed Op=0x25 Tag=0x4 DirIn=1 Len=8
+T49650> DEBUG > [USBStorageBotCommand] Op=0x3 CdbLen=6 DataLen=18 DirIn=1 Tag=0x5 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T91140> DEBUG > [USBStorageWaitCompletion] Timeout Elapsed=1000 Trb=0x0:0x61e010 suppressed=6
+T91140> DEBUG > [USBStorageBulkTransferOnce] Timeout Op=0x3 Slot=0x1 Port=1 Addr=1 Ep=0x81 Dci=3 DirIn=1 Len=13 Trb=000000000061e010
+T91140> DEBUG > [XHCI_ResetTransferEndpoint] Begin Slot=0x1 DCI=0x3 Halted=0 CtxState=0x1
+T91220> DEBUG > [XHCI_ResetTransferEndpoint] End Slot=0x1 DCI=0x3 Halted=0 InitialState=0x1 FinalState=0x3 StopCompletion=0x1 SetCompletion=0x1 Dequeue=0x0:0x61e001
+T91610> ERROR > [USBStorageBotCommand] CSW read failed Op=0x3 Tag=0x0
+T91610> WARNING > [USBStorageRequestSense] REQUEST SENSE failed LastOp=0x3 Stage=6 LastCSW=0xff Residue=0
+T91660> ERROR > [USBStorageStartDevice] READ CAPACITY failed
+T91660> DEBUG > [USBMousePoll] Waiting completion trb=000000000061A000 suppressed=0
+T91720> DEBUG > [USBMousePoll] Waiting completion trb=000000000061A000 suppressed=0
+T91780> DEBUG > [USBMousePoll] Waiting completion trb=000000000061A000 suppressed=0
+T91840> DEBUG > [USBMousePoll] Waiting completion trb=000000000061A000 suppressed=0
+T91920> DEBUG > [USBMousePoll] Waiting completion trb=000000000061A000 suppressed=0
+T92940> DEBUG > [USBMousePoll] Waiting completion trb=000000000061A000 suppressed=16
+T93980> DEBUG > [USBMousePoll] Waiting completion trb=000000000061A000 suppressed=16
+T94780> WARNING > [XHCI_LogProbeFailure] Port=14 Step=AddressDevice Err=0x6 Completion=0x0 Raw=0x220603 CCS=1 PED=1 PR=0 PLS=0x0 Speed=0x1 Slot=0x7 Addr=0x0 Present=0 Hub=0 Vid=0x0 Pid=0x0 Class=0x0/0x0/0x0 MPS0=8 USBSTS=0x18 suppressed=1
+T94780> DEBUG > [USBStorageStartDevice] Begin Port=1 Addr=1 Slot=0x1 If=0 Class=0x8/0x6/0x50 Vid=0x5e3 Pid=0x736 BulkOut=0x2 Attr=0x2 MPS=512 BulkIn=0x81 Attr=0x2 MPS=512
+T94780> DEBUG > [USBStorageBotCommand] Op=0x12 CdbLen=6 DataLen=36 DirIn=1 Tag=0x1 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T91700> DEBUG > [USBMousePoll] Waiting completion trb=000000000061A000 suppressed=16
+T94720> WARNING > [XHCI_LogProbeFailure] Port=14 Step=AddressDevice Err=0x6 Completion=0x0 Raw=0x220603 CCS=1 PED=1 PR=0 PLS=0x0 Speed=0x1 Slot=0x0 Addr=0x0 Present=0 Hub=0 Vid=0x0 Pid=0x0 Class=0x0/0x0/0x0 MPS0=8 USBSTS=0x18 suppressed=1
+T94780> DEBUG > [USBStorageStartDevice] Begin Port=1 Addr=1 Slot=0x1 If=0 Class=0x8/0x6/0x50 Vid=0x5e3 Pid=0x736 BulkOut=0x2 Attr=0x2 MPS=512 BulkIn=0x81 Attr=0x2 MPS=512
+T94780> DEBUG > [USBStorageBotCommand] Op=0x12 CdbLen=6 DataLen=36 DirIn=1 Tag=0x1 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T94780> DEBUG > [USBStorageWaitCompletion] Begin Timeout=1000 Trb=0x0:0x525050 suppressed=1
+T135540> DEBUG > [USBStorageWaitCompletion] Timeout Elapsed=1000 Trb=0x0:0x61e000 suppressed=2
+T135540> DEBUG > [USBStorageBulkTransferOnce] Timeout Op=0x12 Slot=0x1 Port=1 Addr=1 Ep=0x81 Dci=3 DirIn=1 Len=36 Trb=000000000061e000
+T135540> DEBUG > [XHCI_ResetTransferEndpoint] Begin Slot=0x1 DCI=0x3 Halted=0 CtxState=0x1
+T135620> DEBUG > [XHCI_ResetTransferEndpoint] End Slot=0x1 DCI=0x3 Halted=0 InitialState=0x1 FinalState=0x3 StopCompletion=0x1 SetCompletion=0x1 Dequeue=0x0:0x61e001
+T136740> ERROR > [USBStorageBotCommand] Data stage failed Op=0x12 Tag=0x1 DirIn=1 Len=36
+T136740> WARNING > [USBStorageStartDevice] inquiry failed, attempting reset
+T136860> DEBUG > [USBStorageBotCommand] Op=0x12 CdbLen=6 DataLen=36 DirIn=1 Tag=0x2 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T137100> DEBUG > [USBStorageBotCommand] Op=0x25 CdbLen=10 DataLen=8 DirIn=1 Tag=0x3 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T137100> DEBUG > [USBStorageStartDevice] Capacity blocks=1953500 block_size=512
+T137100> DEBUG > [USBStorageStartDevice] Mounting disk partitions
+T137100> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x4 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T137220> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x5 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T137340> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x6 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T137460> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x7 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T137540> DEBUG > [USBStorageWaitCompletion] Completed Elapsed=1 Completion=0x1 Trb=0x0:0x61e0a0 suppressed=37
+T137660> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x8 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T137720> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x9 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T137800> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0xa Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T137980> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0xb Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T138380> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=1024 DirIn=1 Tag=0xc Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T138820> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=1024 DirIn=1 Tag=0xd Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T139080> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=4096 DirIn=1 Tag=0xe Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T139480> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0xf Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T139680> DEBUG > [USBStorageWaitCompletion] Completed Elapsed=1 Completion=0x1 Trb=0x0:0x61e1a0 suppressed=47
+T139740> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x10 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T139900> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x11 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T140040> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x12 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T140220> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x13 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T140340> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x14 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T140560> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x15 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T140980> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x16 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T141020> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x17 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T139540> DEBUG > [USBStorageWaitCompletion] Completed Elapsed=1 Completion=0x1 Trb=0x0:0x61e2b0 suppressed=49
+T146600> DEBUG > [USBStorageWaitCompletion] Completed Elapsed=1 Completion=0x1 Trb=0x0:0x525570 suppressed=53
+T146660> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x51 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T146780> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x55 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T146860> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x56 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T147100> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x57 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T147220> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x58 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T147420> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x59 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T147560> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x5a Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T147800> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x5b Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T148600> DEBUG > [USBStorageWaitCompletion] Completed Elapsed=1 Completion=0x1 Trb=0x0:0x61eb30 suppressed=51
+T148660> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x5c Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T147920> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x5d Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T148780> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x5e Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T148960> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x5f Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T149200> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x60 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T149410> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x61 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T149260> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x62 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T149400> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x63 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T149520> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x64 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T149600> DEBUG > [USBStorageWaitCompletion] Completed Elapsed=1 Completion=0x1 Trb=0x0:0x61ec40 suppressed=51
+T149660> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x65 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T149760> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x66 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T149800> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x67 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T149920> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x68 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T149940> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x69 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T150280> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x6a Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T151420> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x6b Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T151540> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x6c Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T149620> DEBUG > [USBStorageWaitCompletion] Completed Elapsed=1 Completion=0x1 Trb=0x0:0x61ed40 suppressed=47
+T149660> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x6d Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T149780> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x6e Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T150040> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x6f Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T150040> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x70 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T151600> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x71 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T150280> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x72 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T151320> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x7b Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T151440> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x7c Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T151580> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x7d Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T151660> DEBUG > [USBStorageWaitCompletion] Completed Elapsed=1 Completion=0x1 Trb=0x0:0x525810 suppressed=49
+T151700> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x7e Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T151820> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x7f Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T151940> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x80 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T152060> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x81 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T152320> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x82 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T152440> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x84 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T152560> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x85 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T152660> DEBUG > [USBStorageWaitCompletion] Completed Elapsed=1 Completion=0x1 Trb=0x0:0x61ef20 suppressed=49
+T152700> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x86 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T152820> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x87 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T152960> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x88 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T153060> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x89 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T153200> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x8a Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T153340> DEBUG > [USBStorageBotCommand] Op=0x28 CdbLen=10 DataLen=512 DirIn=1 Tag=0x8b Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T153460> DEBUG > [USBStorageStartDevice] USB disk addr=0x1 blocks=1955840 block_size=512
+T153520> DEBUG > [USBMousePoll] Waiting completion trb=000000000061A000 suppressed=12
+T153600> WARNING > [XHCI_LogProbeFailure] Port=14 Step=AddressDevice Err=0x6 Completion=0x0 Raw=0x220603 CCS=1 PED=1 PR=0 PLS=0x0 Speed=0x1 Slot=0x1 Addr=0x0 Present=0 Hub=0 Vid=0x0 Pid=0x0 Class=0x0/0x0/0x0 MPS0=8 USBCMD=0x1 USBSTS=0x18 suppressed=7
+T155520> DEBUG > [USBMousePoll] Waiting completion trb=000000000061A000 suppressed=6
+T155540> WARNING > [XHCI_LogProbeFailure] Port=14 Step=AddressDevice Err=0x6 Completion=0x0 Raw=0x220603 CCS=1 PED=1 PR=0 PLS=0x0 Speed=0x1 Slot=0x6 Addr=0x0 Present=0 Hub=0 Vid=0x0 Pid=0x0 Class=0x0/0x0/0x0 MPS0=8 USBCMD=0x1 USBSTS=0x18 suppressed=27
+T155640> DEBUG > [USBMousePoll] Waiting completion trb=000000000061A000 suppressed=6
+T157540> WARNING > [XHCI_LogProbeFailure] Port=14 Step=AddressDevice Err=0x6 Completion=0x0 Raw=0x220603 CCS=1 PED=1 PR=0 PLS=0x0 Speed=0x1 Slot=0x2 Addr=0x0 Present=0 Hub=0 Vid=0x0 Pid=0x0 Class=0x0/0x0/0x0 MPS0=8 USBCMD=0x1 USBSTS=0x18 suppressed=27
+T158560> DEBUG > [USBMousePoll] Waiting completion trb=000000000061A000 suppressed=6
+T159360> DEBUG > [USBMousePoll] Waiting completion trb=000000000061A000 suppressed=6
+T159560> WARNING > [XHCI_LogProbeFailure] Port=14 Step=AddressDevice Err=0x6 Completion=0x0 Raw=0x220603 CCS=1 PED=1 PR=0 PLS=0x0 Speed=0x1 Slot=0x0 Addr=0x0 Present=0 Hub=0 Vid=0x0 Pid=0x0 Class=0x0/0x0/0x0 MPS0=8 USBCMD=0x1 USBSTS=0x18 suppressed=27
+T160560> DEBUG > [USBMousePoll] Waiting completion trb=000000000061A000 suppressed=6
+T161660> WARNING > [XHCI_LogProbeFailure] Port=14 Step=AddressDevice Err=0x6 Completion=0x0 Raw=0x220603 CCS=1 PED=1 PR=0 PLS=0x0 Speed=0x1 Slot=0x0 Addr=0x0 Present=0 Hub=0 Vid=0x0 Pid=0x0 Class=0x0/0x0/0x0 MPS0=8 USBCMD=0x1 USBSTS=0x18 suppressed=27
+T162660> DEBUG > [USBMousePoll] Waiting completion trb=000000000061A000 suppressed=9
+T163700> WARNING > [XHCI_LogProbeFailure] Port=14 Step=AddressDevice Err=0x6 Completion=0x0 Raw=0x220603 CCS=1 PED=1 PR=0 PLS=0x0 Speed=0x1 Slot=0x0 Addr=0x0 Present=0 Hub=0 Vid=0x0 Pid=0x0 Class=0x0/0x0/0x0 MPS0=8 USBCMD=0x1 USBSTS=0x18 suppressed=27
+```
