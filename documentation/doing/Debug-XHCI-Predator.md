@@ -465,3 +465,17 @@ Date: 2026-03-12
   - valid sense data observed,
   - EFI partition visibility observed.
 - The remaining blocker is instability of the Bulk IN path, not a total inability to communicate with the USB mass-storage device.
+
+## Bulk IN Context Follow-up
+
+Date: 2026-03-12
+
+- Bulk endpoint context audit result:
+  - no field remained clearly non-compliant;
+  - one field was still not aligned with the xHCI recommended initial value:
+    - `Endpoint Context DW4[15:0] Average TRB Length`
+    - previous code used `MaxPacketSize` (`512` here)
+    - spec guidance for bulk endpoints recommends `3KB`
+- Status:
+  - corrected in `XHCI_BuildBulkEndpointContext`
+  - bulk endpoints now use `Average TRB Length = 3072`

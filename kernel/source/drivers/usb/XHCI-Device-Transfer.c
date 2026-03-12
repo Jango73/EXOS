@@ -33,6 +33,7 @@
 #define XHCI_ENUM_FAILURE_LOG_INTERVAL_MS 2000
 #define XHCI_ENABLE_SLOT_TIMEOUT_LOG_IMMEDIATE_BUDGET 1
 #define XHCI_ENABLE_SLOT_TIMEOUT_LOG_INTERVAL_MS 2000
+#define XHCI_BULK_AVERAGE_TRB_LENGTH 3072
 
 /************************************************************************/
 
@@ -1005,7 +1006,7 @@ static void XHCI_BuildBulkEndpointContext(LPXHCI_CONTEXT_32 EpCtx, LPXHCI_USB_EN
     EpCtx->Dword2 = (U32)(U64_Low32(Dequeue) & ~0xFU);
     EpCtx->Dword2 |= (Endpoint->TransferRingCycleState ? 1U : 0U);
     EpCtx->Dword3 = U64_High32(Dequeue);
-    EpCtx->Dword4 = XHCI_BuildEndpointContextDword4(MaximumPacketSize, 0);
+    EpCtx->Dword4 = XHCI_BuildEndpointContextDword4(XHCI_BULK_AVERAGE_TRB_LENGTH, 0);
 }
 
 /************************************************************************/
