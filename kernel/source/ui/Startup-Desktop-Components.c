@@ -25,12 +25,15 @@
 
 #include "ui/Cube3D.h"
 #include "ui/LogViewer.h"
+#include "ui/OnScreenDebugInfo.h"
 #include "ui/ShellBar.h"
 
 /***************************************************************************/
 
 #define DESKTOP_CUBE3D_WINDOW_ID 0x53435542
 #define DESKTOP_LOG_VIEWER_WINDOW_ID 0x534C4F47
+#define DESKTOP_ON_SCREEN_DEBUG_INFO_WINDOW_ID 0x5344534F
+#define DESKTOP_CUBE3D_WINDOW_TOP 300
 
 /***************************************************************************/
 
@@ -85,7 +88,7 @@ static BOOL EnsureCube3DWindow(LPDESKTOP Desktop) {
     if (WindowHeight < 1) WindowHeight = 1;
 
     WindowRect.X1 = 8;
-    WindowRect.Y1 = 64;
+    WindowRect.Y1 = DESKTOP_CUBE3D_WINDOW_TOP;
     WindowRect.X2 = WindowRect.X1 + WindowWidth - 1;
     WindowRect.Y2 = WindowRect.Y1 + WindowHeight - 1;
     if (WindowRect.X2 >= ScreenWidth) WindowRect.X2 = ScreenWidth - 1;
@@ -211,11 +214,97 @@ static BOOL EnsureLogViewerWindow(LPDESKTOP Desktop) {
 
 /***************************************************************************/
 
+/**
+ * @brief Ensure the on-screen debug information window exists and has the expected rect.
+ * @param Desktop Target desktop.
+ * @return TRUE on success.
+ */
+static BOOL EnsureOnScreenDebugInfoWindow(LPDESKTOP Desktop) {
+    HANDLE RootWindow;
+    HANDLE DebugInfoWindow;
+    WINDOWINFO WindowInfo;
+    POINT PreferredSize;
+    RECT ScreenRect;
+    RECT WindowRect;
+    I32 ScreenWidth;
+    I32 ScreenHeight;
+    I32 WindowWidth;
+    I32 WindowHeight;
+
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
+        return FALSE;
+    }
+
+    RootWindow = (HANDLE)Desktop->Window;
+    if (RootWindow == NULL) {
+        return FALSE;
+    }
+
+    if (GetDesktopScreenRect(Desktop, &ScreenRect) == FALSE) {
+        return FALSE;
+    }
+
+    if (OnScreenDebugInfoGetPreferredSize(&PreferredSize) == FALSE) {
+        return FALSE;
+    }
+
+    ScreenWidth = ScreenRect.X2 - ScreenRect.X1 + 1;
+    ScreenHeight = ScreenRect.Y2 - ScreenRect.Y1 + 1;
+    if (ScreenWidth <= 0 || ScreenHeight <= 0) {
+        return FALSE;
+    }
+
+    WindowWidth = PreferredSize.X;
+    WindowHeight = PreferredSize.Y;
+    if (WindowWidth > ScreenWidth) WindowWidth = ScreenWidth;
+    if (WindowHeight > ScreenHeight) WindowHeight = ScreenHeight;
+    if (WindowWidth < 1) WindowWidth = 1;
+    if (WindowHeight < 1) WindowHeight = 1;
+
+    WindowRect.X1 = 0;
+    WindowRect.Y1 = 0;
+    WindowRect.X2 = WindowRect.X1 + WindowWidth - 1;
+    WindowRect.Y2 = WindowRect.Y1 + WindowHeight - 1;
+
+    DebugInfoWindow = (HANDLE)FindWindow((LPWINDOW)RootWindow, DESKTOP_ON_SCREEN_DEBUG_INFO_WINDOW_ID);
+    if (DebugInfoWindow != NULL) {
+        (void)MoveWindow(DebugInfoWindow, &WindowRect);
+        (void)ShowWindow(DebugInfoWindow, TRUE);
+        return TRUE;
+    }
+
+    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Version = EXOS_ABI_VERSION;
+    WindowInfo.Header.Flags = 0;
+    WindowInfo.Window = NULL;
+    WindowInfo.Parent = RootWindow;
+    WindowInfo.WindowClass = 0;
+    WindowInfo.WindowClassName = NULL;
+    WindowInfo.Function = OnScreenDebugInfoWindowFunc;
+    WindowInfo.Style = EWS_VISIBLE | EWS_BARE_SURFACE | EWS_ALWAYS_AT_BOTTOM;
+    WindowInfo.ID = DESKTOP_ON_SCREEN_DEBUG_INFO_WINDOW_ID;
+    WindowInfo.WindowPosition.X = WindowRect.X1;
+    WindowInfo.WindowPosition.Y = WindowRect.Y1;
+    WindowInfo.WindowSize.X = WindowRect.X2 - WindowRect.X1 + 1;
+    WindowInfo.WindowSize.Y = WindowRect.Y2 - WindowRect.Y1 + 1;
+    WindowInfo.ShowHide = TRUE;
+
+    DebugInfoWindow = (HANDLE)CreateWindow(&WindowInfo);
+    if (DebugInfoWindow == NULL) {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
 BOOL StartupDesktopComponentsInitialize(LPDESKTOP Desktop) {
     HANDLE RootWindow;
     HANDLE ShellBarWindow;
     BOOL Cube3DResult;
     BOOL LogViewerResult;
+    BOOL OnScreenDebugInfoResult;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
         return FALSE;
@@ -236,7 +325,10 @@ BOOL StartupDesktopComponentsInitialize(LPDESKTOP Desktop) {
     }
     Cube3DResult = EnsureCube3DWindow(Desktop);
     LogViewerResult = EnsureLogViewerWindow(Desktop);
-    return (Cube3DResult != FALSE) && (LogViewerResult != FALSE);
+    OnScreenDebugInfoResult = EnsureOnScreenDebugInfoWindow(Desktop);
+    return (Cube3DResult != FALSE) &&
+           (LogViewerResult != FALSE) &&
+           (OnScreenDebugInfoResult != FALSE);
 }
 
 /***************************************************************************/
