@@ -208,6 +208,10 @@ BOOL DisplaySwitchToConsole(void) {
     GraphicsDriver = GetGraphicsDriver();
     if (GraphicsDriver != NULL && GraphicsDriver != ConsoleGetDriver() &&
         DisplaySessionQueryGraphicsMode(GraphicsDriver, &ModeInfo) != FALSE) {
+        if (ConsoleSetGraphicsTextMode(&ModeInfo) == FALSE) {
+            goto FallbackToVgaText;
+        }
+
         Session = GetDisplaySession();
 
         SAFE_USE(Session) {
@@ -223,6 +227,7 @@ BOOL DisplaySwitchToConsole(void) {
         }
     }
 
+FallbackToVgaText:
     WARNING(TEXT("[DisplaySwitchToConsole] Entering emergency VGA text fallback"));
     if (ConsoleVGATextFallbackActivate(80, 25, &ModeInfo) != FALSE) {
         WARNING(TEXT("[DisplaySwitchToConsole] Emergency VGA text fallback active (%ux%u)"),

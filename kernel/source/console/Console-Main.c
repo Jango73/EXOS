@@ -681,6 +681,11 @@ void ConsolePanic(LPCSTR Format, ...) {
 
     DisableInterrupts();
 
+    if (DisplaySwitchToConsole() != FALSE) {
+        ClearConsole();
+        SetConsoleCursorPosition(0, 0);
+    }
+
     VarArgStart(Args, Format);
     StringPrintFormatArgs(Text, Format, Args);
     VarArgEnd(Args);
