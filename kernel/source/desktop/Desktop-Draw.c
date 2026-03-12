@@ -66,14 +66,9 @@ static BOOL DesktopDrawIsTestWindow(LPWINDOW Window) {
  * @return TRUE when the rectangle was computed.
  */
 static BOOL GetWindowFullLocalRect(LPWINDOW Window, LPRECT WindowRect) {
-    RECT ScreenRect;
-
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (WindowRect == NULL) return FALSE;
-    if (GetWindowRect((HANDLE)Window, &ScreenRect) == FALSE) return FALSE;
-
-    GraphicsScreenRectToWindowRect(&ScreenRect, &ScreenRect, WindowRect);
-    return TRUE;
+    return GetWindowRect((HANDLE)Window, WindowRect);
 }
 
 /***************************************************************************/
@@ -284,10 +279,13 @@ BOOL DesktopDispatchWindowDraw(LPWINDOW Window, HANDLE TargetHandle, U32 Param1,
     RECT ClipStorage[WINDOW_DIRTY_REGION_CAPACITY];
     RECT_REGION ClipRegion;
     RECT ClipRect;
+    WINDOW_STATE_SNAPSHOT Snapshot;
     UINT ClipCount;
     UINT ClipIndex;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return FALSE;
+    if ((Snapshot.Status & WINDOW_STATUS_VISIBLE) == 0) return TRUE;
 
     ClearWindowDrawContext(Window);
 

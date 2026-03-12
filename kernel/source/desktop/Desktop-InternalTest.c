@@ -318,7 +318,7 @@ static BOOL DesktopInternalEnsureSingleWindow(
     if (Window != NULL && Window->TypeID == KOID_WINDOW) {
         (void)MoveWindow((HANDLE)Window, &WindowRect);
         (void)SetWindowCaption((HANDLE)Window, Caption);
-        (void)ShowWindow((HANDLE)Window, TRUE);
+        (void)ShowWindow((HANDLE)Window);
         return TRUE;
     }
 
@@ -338,14 +338,14 @@ static BOOL DesktopInternalEnsureSingleWindow(
     WindowInfo.WindowSize.Y = Height;
     WindowInfo.ShowHide = TRUE;
 
-    Window = CreateWindow(&WindowInfo);
+    Window = (LPWINDOW)CreateWindow(&WindowInfo);
     if (Window == NULL) {
         WARNING(TEXT("[DesktopInternalEnsureSingleWindow] Test window creation failed title=%s id=%x"), Title, WindowID);
         return FALSE;
     }
 
     (void)SetWindowCaption((HANDLE)Window, Caption);
-    (void)ShowWindow((HANDLE)Window, TRUE);
+    (void)ShowWindow((HANDLE)Window);
     return TRUE;
 }
 

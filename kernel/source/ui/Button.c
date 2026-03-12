@@ -35,19 +35,19 @@
 /***************************************************************************/
 
 /**
- * @brief Resolve whether one screen point is inside one window rectangle.
+ * @brief Resolve whether one local point is inside one window rectangle.
  * @param Window Target window handle.
- * @param ScreenX Screen X coordinate.
- * @param ScreenY Screen Y coordinate.
+ * @param WindowX Window-relative X coordinate.
+ * @param WindowY Window-relative Y coordinate.
  * @return TRUE when the point is inside the window rectangle.
  */
-static BOOL ButtonIsPointInside(HANDLE Window, I32 ScreenX, I32 ScreenY) {
+static BOOL ButtonIsPointInside(HANDLE Window, I32 WindowX, I32 WindowY) {
     RECT WindowRect;
 
     if (Window == NULL) return FALSE;
     if (GetWindowRect(Window, &WindowRect) == FALSE) return FALSE;
 
-    return ScreenX >= WindowRect.X1 && ScreenX <= WindowRect.X2 && ScreenY >= WindowRect.Y1 && ScreenY <= WindowRect.Y2;
+    return WindowX >= WindowRect.X1 && WindowX <= WindowRect.X2 && WindowY >= WindowRect.Y1 && WindowY <= WindowRect.Y2;
 }
 
 /***************************************************************************/
@@ -216,6 +216,7 @@ U32 ButtonWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     RECT ClientRect;
     HANDLE GraphicsContext;
     POINT MousePosition;
+    POINT WindowPoint;
     I32 MouseX;
     I32 MouseY;
     BOOL IsInside;
@@ -236,10 +237,10 @@ U32 ButtonWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             if (GetWindowProp(Window, DESKTOP_BUTTON_PROP_DISABLED) != 0) return 1;
 
             if (GetMousePosition(&MousePosition) == FALSE) return 1;
-            MouseX = MousePosition.X;
-            MouseY = MousePosition.Y;
+            if (ScreenPointToWindowPoint(Window, &MousePosition, &WindowPoint) == FALSE) return 1;
+            MouseX = WindowPoint.X;
+            MouseY = WindowPoint.Y;
             if (ButtonIsPointInside(Window, MouseX, MouseY) == FALSE) return 1;
-
             (void)CaptureMouse(Window);
             ButtonSetStateProp(Window, DESKTOP_BUTTON_PROP_HOVER, 1);
             ButtonSetStateProp(Window, DESKTOP_BUTTON_PROP_PRESSED, 1);
@@ -262,8 +263,9 @@ U32 ButtonWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             if ((Param1 & MB_LEFT) == 0) return 1;
 
             if (GetMousePosition(&MousePosition) == FALSE) return 1;
-            MouseX = MousePosition.X;
-            MouseY = MousePosition.Y;
+            if (ScreenPointToWindowPoint(Window, &MousePosition, &WindowPoint) == FALSE) return 1;
+            MouseX = WindowPoint.X;
+            MouseY = WindowPoint.Y;
             IsInside = ButtonIsPointInside(Window, MouseX, MouseY);
             WasPressed = GetWindowProp(Window, DESKTOP_BUTTON_PROP_PRESSED) != 0;
 

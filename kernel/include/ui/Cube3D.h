@@ -31,6 +31,7 @@
 /***************************************************************************/
 
 #define DESKTOP_CUBE3D_WINDOW_CLASS_NAME TEXT("DesktopCube3DWindowClass")
+#define DESKTOP_CUBE3D_WINDOW_ID 0x53435542
 
 /***************************************************************************/
 

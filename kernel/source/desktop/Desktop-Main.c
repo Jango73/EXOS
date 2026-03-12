@@ -980,7 +980,7 @@ LPWINDOW DesktopCreateWindow(LPWINDOWINFO Info) {
     }
 
     if (Info->ShowHide != FALSE || (This->Style & EWS_VISIBLE) != 0) {
-        (void)ShowWindow((HANDLE)This, TRUE);
+        (void)ShowWindow((HANDLE)This);
     }
 
     return This;
@@ -1260,6 +1260,31 @@ BOOL ScreenRectToWindowRect(HANDLE Handle, LPRECT ScreenRect, LPRECT WindowRect)
 /***************************************************************************/
 
 /**
+ * @brief Convert one screen point to one window-relative point.
+ * @param Handle Window handle.
+ * @param ScreenPoint Source screen point.
+ * @param WindowPoint Destination window-relative point.
+ * @return TRUE on success.
+ */
+BOOL ScreenPointToWindowPoint(HANDLE Handle, LPPOINT ScreenPoint, LPPOINT WindowPoint) {
+    LPWINDOW This = (LPWINDOW)Handle;
+
+    if (This == NULL) return FALSE;
+    if (This->TypeID != KOID_WINDOW) return FALSE;
+
+    if (ScreenPoint == NULL) return FALSE;
+    if (WindowPoint == NULL) return FALSE;
+
+    LockMutex(&(This->Mutex), INFINITY);
+    GraphicsScreenPointToWindowPoint(&(This->ScreenRect), ScreenPoint, WindowPoint);
+    UnlockMutex(&(This->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Add a rectangle to a window's invalid region.
  * @param Handle Window handle.
  * @param Src Rectangle to invalidate.
@@ -1271,6 +1296,7 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
     RECT LocalRect;
     RECT WindowRect;
     BOOL FullWindow = FALSE;
+    BOOL IsVisible = FALSE;
 
     if (This == NULL) return FALSE;
     if (This->TypeID != KOID_WINDOW) return FALSE;
@@ -1279,6 +1305,12 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
     // Lock access to resources
 
     LockMutex(&(This->Mutex), INFINITY);
+
+    IsVisible = ((This->Status & WINDOW_STATUS_VISIBLE) != 0);
+    if (IsVisible == FALSE) {
+        UnlockMutex(&(This->Mutex));
+        return TRUE;
+    }
 
     if (EnsureWindowDirtyRegionInitialized(This) == FALSE) {
         UnlockMutex(&(This->Mutex));
@@ -1328,11 +1360,19 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
 BOOL RequestWindowDraw(HANDLE Handle) {
     LPWINDOW This = (LPWINDOW)Handle;
     BOOL ShouldPost = FALSE;
+    BOOL IsVisible = FALSE;
 
     if (This == NULL) return FALSE;
     if (This->TypeID != KOID_WINDOW) return FALSE;
 
     LockMutex(&(This->Mutex), INFINITY);
+
+    IsVisible = ((This->Status & WINDOW_STATUS_VISIBLE) != 0);
+    if (IsVisible == FALSE) {
+        This->Status &= ~WINDOW_STATUS_NEED_DRAW;
+        UnlockMutex(&(This->Mutex));
+        return TRUE;
+    }
 
     if ((This->Status & WINDOW_STATUS_NEED_DRAW) == 0) {
         This->Status |= WINDOW_STATUS_NEED_DRAW;

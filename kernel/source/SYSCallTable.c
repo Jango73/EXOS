@@ -157,11 +157,13 @@ void InitializeSystemCallTable(void) {
     SysCallTable[SYSCALL_SetWindowFunc] = (SYSCALLENTRY){SysCall_SetWindowFunc, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetWindowFunc] = (SYSCALLENTRY){SysCall_GetWindowFunc, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_SetWindowStyle] = (SYSCALLENTRY){SysCall_SetWindowStyle, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_ClearWindowStyle] = (SYSCALLENTRY){SysCall_ClearWindowStyle, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetWindowStyle] = (SYSCALLENTRY){SysCall_GetWindowStyle, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_SetWindowProp] = (SYSCALLENTRY){SysCall_SetWindowProp, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetWindowProp] = (SYSCALLENTRY){SysCall_GetWindowProp, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetWindowRect] = (SYSCALLENTRY){SysCall_GetWindowRect, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetWindowClientRect] = (SYSCALLENTRY){SysCall_GetWindowClientRect, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_ScreenPointToWindowPoint] = (SYSCALLENTRY){SysCall_ScreenPointToWindowPoint, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetWindowParent] = (SYSCALLENTRY){SysCall_GetWindowParent, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetWindowChildCount] = (SYSCALLENTRY){SysCall_GetWindowChildCount, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetWindowChild] = (SYSCALLENTRY){SysCall_GetWindowChild, EXOS_PRIVILEGE_USER};

@@ -1572,7 +1572,7 @@ UINT SysCall_ShowWindow(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(WindowInfo, WINDOWINFO) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowInfo->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)ShowWindow((HANDLE)Window, TRUE); }
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)ShowWindow((HANDLE)Window); }
     }
 
     return 0;
@@ -1591,7 +1591,7 @@ UINT SysCall_HideWindow(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(WindowInfo, WINDOWINFO) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowInfo->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)ShowWindow((HANDLE)Window, FALSE); }
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)HideWindow((HANDLE)Window); }
     }
 
     return 0;
@@ -1676,7 +1676,28 @@ UINT SysCall_GetWindowFunc(UINT Parameter) {
  * @return UINT Always returns 0.
  */
 UINT SysCall_SetWindowStyle(UINT Parameter) {
-    UNUSED(Parameter);
+    LPWINDOWINFO WindowInfo = (LPWINDOWINFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(WindowInfo, WINDOWINFO) {
+        LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowInfo->Window);
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+            return (UINT)SetWindowStyle((HANDLE)Window, WindowInfo->Style);
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+UINT SysCall_ClearWindowStyle(UINT Parameter) {
+    LPWINDOWINFO WindowInfo = (LPWINDOWINFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(WindowInfo, WINDOWINFO) {
+        LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowInfo->Window);
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)ClearWindowStyle((HANDLE)Window, WindowInfo->Style); }
+    }
+
     return 0;
 }
 
@@ -1767,6 +1788,30 @@ UINT SysCall_GetWindowClientRect(UINT Parameter) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
         SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
             return (UINT)GetWindowClientRect((HANDLE)Window, &(WindowRect->Rect));
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Convert one screen point to one window-relative point.
+ *
+ * @param Parameter Pointer to WINDOWPOINTINFO containing the target window.
+ * @return UINT TRUE on success.
+ */
+UINT SysCall_ScreenPointToWindowPoint(UINT Parameter) {
+    LPWINDOWPOINTINFO WindowPointInfo = (LPWINDOWPOINTINFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(WindowPointInfo, WINDOWPOINTINFO) {
+        LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowPointInfo->Window);
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+            return (UINT)ScreenPointToWindowPoint(
+                (HANDLE)Window,
+                &(WindowPointInfo->ScreenPoint),
+                &(WindowPointInfo->WindowPoint));
         }
     }
 

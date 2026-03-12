@@ -336,6 +336,35 @@ BOOL HideWindow(HANDLE Window) {
 
 /***************************************************************************/
 
+BOOL SetWindowStyle(HANDLE Window, U32 Style) {
+    WINDOWINFO WindowInfo;
+
+    WindowInfo.Header.Size = sizeof WindowInfo;
+    WindowInfo.Header.Version = EXOS_ABI_VERSION;
+    WindowInfo.Header.Flags = 0;
+    WindowInfo.Window = Window;
+    WindowInfo.Style = Style;
+    WindowInfo.ShowHide = TRUE;
+
+    return (BOOL)exoscall(SYSCALL_SetWindowStyle, EXOS_PARAM(&WindowInfo));
+}
+
+/***************************************************************************/
+
+BOOL ClearWindowStyle(HANDLE Window, U32 Style) {
+    WINDOWINFO WindowInfo;
+
+    WindowInfo.Header.Size = sizeof WindowInfo;
+    WindowInfo.Header.Version = EXOS_ABI_VERSION;
+    WindowInfo.Header.Flags = 0;
+    WindowInfo.Window = Window;
+    WindowInfo.Style = Style;
+
+    return (BOOL)exoscall(SYSCALL_ClearWindowStyle, EXOS_PARAM(&WindowInfo));
+}
+
+/***************************************************************************/
+
 BOOL InvalidateWindowRect(HANDLE Window, LPRECT Rect) {
     WINDOWRECT WindowRect;
 
@@ -463,6 +492,29 @@ BOOL GetWindowClientRect(HANDLE Window, LPRECT Rect) {
     Rect->X2 = WindowRect.Rect.X2;
     Rect->Y2 = WindowRect.Rect.Y2;
 
+    return TRUE;
+}
+
+/***************************************************************************/
+
+BOOL ScreenPointToWindowPoint(HANDLE Window, LPPOINT ScreenPoint, LPPOINT WindowPoint) {
+    WINDOWPOINTINFO WindowPointInfo;
+
+    if (Window == NULL) return FALSE;
+    if (ScreenPoint == NULL) return FALSE;
+    if (WindowPoint == NULL) return FALSE;
+
+    WindowPointInfo.Header.Size = sizeof WindowPointInfo;
+    WindowPointInfo.Header.Version = EXOS_ABI_VERSION;
+    WindowPointInfo.Header.Flags = 0;
+    WindowPointInfo.Window = Window;
+    WindowPointInfo.ScreenPoint = *ScreenPoint;
+    WindowPointInfo.WindowPoint.X = 0;
+    WindowPointInfo.WindowPoint.Y = 0;
+
+    if (exoscall(SYSCALL_ScreenPointToWindowPoint, EXOS_PARAM(&WindowPointInfo)) == FALSE) return FALSE;
+
+    *WindowPoint = WindowPointInfo.WindowPoint;
     return TRUE;
 }
 

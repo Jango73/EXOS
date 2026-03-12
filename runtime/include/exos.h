@@ -79,6 +79,8 @@ HANDLE CreateWindowWithClass(HANDLE, HANDLE, LPCSTR, WINDOWFUNC, U32, U32, I32, 
 BOOL DestroyWindow(HANDLE);
 BOOL ShowWindow(HANDLE);
 BOOL HideWindow(HANDLE);
+BOOL SetWindowStyle(HANDLE, U32);
+BOOL ClearWindowStyle(HANDLE, U32);
 BOOL InvalidateWindowRect(HANDLE, LPRECT);
 UINT SetWindowProp(HANDLE, LPCSTR, UINT);
 UINT GetWindowProp(HANDLE, LPCSTR);
@@ -88,6 +90,7 @@ HANDLE BeginWindowDraw(HANDLE);
 BOOL EndWindowDraw(HANDLE);
 BOOL GetWindowRect(HANDLE, LPRECT);
 BOOL GetWindowClientRect(HANDLE, LPRECT);
+BOOL ScreenPointToWindowPoint(HANDLE, LPPOINT, LPPOINT);
 HANDLE GetWindowParent(HANDLE);
 U32 GetWindowChildCount(HANDLE);
 HANDLE GetWindowChild(HANDLE, U32 ChildIndex);

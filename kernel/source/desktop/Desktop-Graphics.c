@@ -24,6 +24,7 @@
 #include "Desktop-Private.h"
 #include "Desktop-Cursor.h"
 #include "Desktop-NonClient.h"
+#include "Desktop-OverlayInvalidation.h"
 #include "Desktop-ThemeResolver.h"
 #include "Desktop-ThemeTokens.h"
 #include "CoreString.h"
@@ -419,18 +420,28 @@ static BOOL ResolveSystemDrawObjects(U32 Index, LPBRUSH* Brush, LPPEN* Pen) {
  * @param ShowHide TRUE to show, FALSE to hide.
  * @return TRUE on success.
  */
-BOOL ShowWindow(HANDLE Handle, BOOL ShowHide) {
+BOOL DesktopSetWindowVisibility(HANDLE Handle, BOOL ShowHide) {
     LPWINDOW This = (LPWINDOW)Handle;
+    LPDESKTOP Desktop = NULL;
     LPWINDOW* Children = NULL;
     LPWINDOW Child;
+    LPWINDOW RootWindow = NULL;
+    RECT FullWindowRect;
+    RECT PreviousScreenRect;
     UINT ChildCount = 0;
     UINT ChildIndex;
+    BOOL WasVisible = FALSE;
+    WINDOW_STATE_SNAPSHOT Snapshot;
 
     //-------------------------------------
     // Check validity of parameters
 
     if (This == NULL) return FALSE;
     if (This->TypeID != KOID_WINDOW) return FALSE;
+    if (GetWindowStateSnapshot(This, &Snapshot) == FALSE) return FALSE;
+
+    PreviousScreenRect = Snapshot.ScreenRect;
+    WasVisible = ((Snapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
 
     //-------------------------------------
     // Send appropriate messages to the window
@@ -439,7 +450,15 @@ BOOL ShowWindow(HANDLE Handle, BOOL ShowHide) {
     (void)DesktopRevalidateSiblingPlacementConstraints(This);
 
     PostMessage(Handle, EWM_SHOW, 0, 0);
-    (void)RequestWindowDraw(Handle);
+    if (ShowHide != FALSE && WasVisible == FALSE) {
+        if (GetWindowRect(Handle, &FullWindowRect) != FALSE) {
+            (void)InvalidateWindowRect(Handle, &FullWindowRect);
+        } else {
+            (void)RequestWindowDraw(Handle);
+        }
+    } else {
+        (void)RequestWindowDraw(Handle);
+    }
 
     (void)DesktopSnapshotWindowChildren(This, &Children, &ChildCount);
     for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
@@ -449,14 +468,45 @@ BOOL ShowWindow(HANDLE Handle, BOOL ShowHide) {
         if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
         if (GetWindowStateSnapshot(Child, &ChildSnapshot) == FALSE) continue;
         if ((ChildSnapshot.Style & EWS_VISIBLE) != 0) {
-            ShowWindow((HANDLE)Child, ShowHide);
+            DesktopSetWindowVisibility((HANDLE)Child, ShowHide);
         }
     }
     if (Children != NULL) {
         KernelHeapFree(Children);
     }
 
+    if (ShowHide == FALSE && WasVisible != FALSE) {
+        Desktop = DesktopGetWindowDesktop(This);
+        if (Desktop != NULL && DesktopGetRootWindow(Desktop, &RootWindow) != FALSE && RootWindow != NULL) {
+            DesktopOverlayInvalidateWindowTreeThenRootRect(RootWindow, &PreviousScreenRect);
+        }
+    }
+
     return TRUE;
+}
+
+/***************************************************************************/
+
+BOOL ShowWindow(HANDLE Handle) {
+    return DesktopSetWindowVisibility(Handle, TRUE);
+}
+
+/***************************************************************************/
+
+BOOL HideWindow(HANDLE Handle) {
+    return DesktopSetWindowVisibility(Handle, FALSE);
+}
+
+/***************************************************************************/
+
+BOOL SetWindowStyle(HANDLE Handle, U32 StyleMask) {
+    return SetWindowStyleState(Handle, StyleMask, TRUE);
+}
+
+/***************************************************************************/
+
+BOOL ClearWindowStyle(HANDLE Handle, U32 StyleMask) {
+    return SetWindowStyleState(Handle, StyleMask, FALSE);
 }
 
 /***************************************************************************/
@@ -1564,8 +1614,10 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
         case EWM_MOUSEMOVE: {
             POINT Position;
+            POINT LocalPosition;
             LPWINDOW Target;
             LPWINDOW CaptureWindow = NULL;
+            RECT WindowScreenRect;
 
             Position.X = SIGNED(Param1);
             Position.Y = SIGNED(Param2);
@@ -1573,7 +1625,14 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             if (GetDesktopCaptureState((LPWINDOW)Window, &CaptureWindow, NULL, NULL) != FALSE) {
                 SAFE_USE_VALID_ID(CaptureWindow, KOID_WINDOW) {
                     if (CaptureWindow != (LPWINDOW)Window) {
-                        (void)PostMessage((HANDLE)CaptureWindow, EWM_MOUSEMOVE, Param1, Param2);
+                        if (GetWindowScreenRectSnapshot(CaptureWindow, &WindowScreenRect) != FALSE) {
+                            GraphicsScreenPointToWindowPoint(&WindowScreenRect, &Position, &LocalPosition);
+                            (void)PostMessage(
+                                (HANDLE)CaptureWindow,
+                                EWM_MOUSEMOVE,
+                                UNSIGNED(LocalPosition.X),
+                                UNSIGNED(LocalPosition.Y));
+                        }
                         break;
                     }
                 }
@@ -1581,7 +1640,10 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
             Target = (LPWINDOW)WindowHitTest(Window, &Position);
             if (Target != NULL && Target != (LPWINDOW)Window) {
-                (void)PostMessage((HANDLE)Target, EWM_MOUSEMOVE, Param1, Param2);
+                if (GetWindowScreenRectSnapshot(Target, &WindowScreenRect) != FALSE) {
+                    GraphicsScreenPointToWindowPoint(&WindowScreenRect, &Position, &LocalPosition);
+                    (void)PostMessage((HANDLE)Target, EWM_MOUSEMOVE, UNSIGNED(LocalPosition.X), UNSIGNED(LocalPosition.Y));
+                }
             }
         } break;
 

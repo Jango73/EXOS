@@ -228,7 +228,7 @@ U32 WindowDockHostRelayout(HANDLE Window) {
 
         ReservedPlacementStates[Index] = ((DockableStyle & EWS_EXCLUDE_SIBLING_PLACEMENT) != 0);
         if (ReservedPlacementStates[Index] != FALSE) {
-            (void)SetWindowStyleState(DockableWindow, EWS_EXCLUDE_SIBLING_PLACEMENT, FALSE);
+            (void)ClearWindowStyle(DockableWindow, EWS_EXCLUDE_SIBLING_PLACEMENT);
         }
     }
 
@@ -240,7 +240,7 @@ U32 WindowDockHostRelayout(HANDLE Window) {
 
         DockableWindow = (HANDLE)Data->DockHost.Items[Index]->Context;
         if (DockableWindow == NULL) continue;
-        (void)SetWindowStyleState(DockableWindow, EWS_EXCLUDE_SIBLING_PLACEMENT, TRUE);
+        (void)SetWindowStyle(DockableWindow, EWS_EXCLUDE_SIBLING_PLACEMENT);
     }
 
     return Status;

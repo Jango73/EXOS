@@ -31,6 +31,7 @@
 /***************************************************************************/
 
 #define DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME TEXT("DesktopLogViewerWindowClass")
+#define DESKTOP_LOG_VIEWER_WINDOW_ID 0x534C4F47
 
 /***************************************************************************/
 

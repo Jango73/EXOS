@@ -101,7 +101,7 @@ static void WindowDockableApplyProperties(HANDLE Window) {
     Edge = GetWindowProp(Window, WINDOW_DOCK_PROP_EDGE);
 
     if (Enabled == 0 || (Edge != DOCK_EDGE_TOP && Edge != DOCK_EDGE_BOTTOM && Edge != DOCK_EDGE_LEFT && Edge != DOCK_EDGE_RIGHT)) {
-        (void)SetWindowStyleState(Window, EWS_EXCLUDE_SIBLING_PLACEMENT, FALSE);
+        (void)ClearWindowStyle(Window, EWS_EXCLUDE_SIBLING_PLACEMENT);
         if (Data->DockableAttached != FALSE) {
             (void)WindowDockHostDetachDockable(HostWindow, &(Data->Dockable));
             Data->DockableAttached = FALSE;
@@ -110,7 +110,7 @@ static void WindowDockableApplyProperties(HANDLE Window) {
         return;
     }
 
-    (void)SetWindowStyleState(Window, EWS_EXCLUDE_SIBLING_PLACEMENT, TRUE);
+    (void)SetWindowStyle(Window, EWS_EXCLUDE_SIBLING_PLACEMENT);
     (void)DockableSetEdge(&(Data->Dockable), Edge);
     (void)DockableSetOrder(
         &(Data->Dockable),

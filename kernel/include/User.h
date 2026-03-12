@@ -18,7 +18,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    User
+    EXOS Public API
 
 \************************************************************************/
 
@@ -250,6 +250,8 @@ BOOL GetLocalTime(LPDATETIME Time);
 #define SYSCALL_UnregisterWindowClass 0x0000007E
 #define SYSCALL_FindWindowClass 0x0000007F
 #define SYSCALL_WindowInheritsClass 0x00000083
+#define SYSCALL_ClearWindowStyle 0x00000084
+#define SYSCALL_ScreenPointToWindowPoint 0x00000085
 #define SYSCALL_InvalidateWindowRect 0x00000053
 #define SYSCALL_GetWindowGC 0x00000054
 #define SYSCALL_ReleaseWindowGC 0x00000055
@@ -540,6 +542,13 @@ typedef struct PACKED tag_WINDOWRECT {
     RECT Rect;
 } WINDOWRECT, *LPWINDOWRECT;
 
+typedef struct PACKED tag_WINDOWPOINTINFO {
+    ABI_HEADER Header;
+    HANDLE Window;
+    POINT ScreenPoint;
+    POINT WindowPoint;
+} WINDOWPOINTINFO, *LPWINDOWPOINTINFO;
+
 typedef struct PACKED tag_WINDOWCHILDINFO {
     ABI_HEADER Header;
     HANDLE Window;
@@ -774,8 +783,12 @@ UINT SetWindowProp(HANDLE Window, LPCSTR Name, UINT Value);
 UINT GetWindowProp(HANDLE Window, LPCSTR Name);
 BOOL GetWindowRect(HANDLE Window, LPRECT Rect);
 BOOL GetWindowClientRect(HANDLE Window, LPRECT Rect);
+BOOL ScreenPointToWindowPoint(HANDLE Window, LPPOINT ScreenPoint, LPPOINT WindowPoint);
 BOOL MoveWindow(HANDLE Window, LPRECT Rect);
-BOOL SetWindowStyleState(HANDLE Window, U32 Style, BOOL State);
+BOOL ShowWindow(HANDLE Window);
+BOOL HideWindow(HANDLE Window);
+BOOL SetWindowStyle(HANDLE Window, U32 Style);
+BOOL ClearWindowStyle(HANDLE Window, U32 Style);
 BOOL GetWindowStyle(HANDLE Window, U32* StyleOut);
 BOOL SetWindowCaption(HANDLE Window, LPCSTR Caption);
 BOOL GetWindowCaption(HANDLE Window, LPSTR Caption, UINT CaptionLength);

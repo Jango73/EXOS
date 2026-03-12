@@ -78,6 +78,7 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
         case EWM_MOUSEMOVE: {
             LPWINDOW This = (LPWINDOW)Window;
             LPWINDOW CaptureWindow = NULL;
+            RECT ScreenRect;
             RECT ParentScreenRect;
             POINT NewPosition;
             U32 Buttons;
@@ -95,8 +96,10 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
                 break;
             }
 
-            NewPosition.X = SIGNED(Param1) - OffsetX;
-            NewPosition.Y = SIGNED(Param2) - OffsetY;
+            if (GetWindowScreenRectSnapshot(This, &ScreenRect) == FALSE) break;
+
+            NewPosition.X = ScreenRect.X1 + SIGNED(Param1) - OffsetX;
+            NewPosition.Y = ScreenRect.Y1 + SIGNED(Param2) - OffsetY;
 
             SAFE_USE_VALID_ID(This->ParentWindow, KOID_WINDOW) {
                 ParentHasRect = GetWindowScreenRectSnapshot(This->ParentWindow, &ParentScreenRect);

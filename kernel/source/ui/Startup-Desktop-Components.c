@@ -30,8 +30,6 @@
 
 /***************************************************************************/
 
-#define DESKTOP_CUBE3D_WINDOW_ID 0x53435542
-#define DESKTOP_LOG_VIEWER_WINDOW_ID 0x534C4F47
 #define DESKTOP_ON_SCREEN_DEBUG_INFO_WINDOW_ID 0x5344534F
 #define DESKTOP_CUBE3D_WINDOW_TOP 300
 
@@ -96,11 +94,11 @@ static BOOL EnsureCube3DWindow(LPDESKTOP Desktop) {
     if (WindowRect.X2 < WindowRect.X1) WindowRect.X2 = WindowRect.X1;
     if (WindowRect.Y2 < WindowRect.Y1) WindowRect.Y2 = WindowRect.Y1;
 
-    CubeWindow = (HANDLE)FindWindow((LPWINDOW)RootWindow, DESKTOP_CUBE3D_WINDOW_ID);
+    CubeWindow = FindWindow(RootWindow, DESKTOP_CUBE3D_WINDOW_ID);
     if (CubeWindow != NULL) {
         (void)MoveWindow(CubeWindow, &WindowRect);
         (void)SetWindowCaption(CubeWindow, TEXT("3D Cube"));
-        (void)ShowWindow(CubeWindow, TRUE);
+        (void)HideWindow(CubeWindow);
         return TRUE;
     }
 
@@ -112,13 +110,13 @@ static BOOL EnsureCube3DWindow(LPDESKTOP Desktop) {
     WindowInfo.WindowClass = 0;
     WindowInfo.WindowClassName = DESKTOP_CUBE3D_WINDOW_CLASS_NAME;
     WindowInfo.Function = NULL;
-    WindowInfo.Style = EWS_VISIBLE | EWS_SYSTEM_DECORATED;
+    WindowInfo.Style = EWS_SYSTEM_DECORATED;
     WindowInfo.ID = DESKTOP_CUBE3D_WINDOW_ID;
     WindowInfo.WindowPosition.X = WindowRect.X1;
     WindowInfo.WindowPosition.Y = WindowRect.Y1;
     WindowInfo.WindowSize.X = WindowRect.X2 - WindowRect.X1 + 1;
     WindowInfo.WindowSize.Y = WindowRect.Y2 - WindowRect.Y1 + 1;
-    WindowInfo.ShowHide = TRUE;
+    WindowInfo.ShowHide = FALSE;
 
     CubeWindow = (HANDLE)CreateWindow(&WindowInfo);
     if (CubeWindow == NULL) {
@@ -126,6 +124,7 @@ static BOOL EnsureCube3DWindow(LPDESKTOP Desktop) {
     }
 
     (void)SetWindowCaption(CubeWindow, TEXT("3D Cube"));
+    (void)HideWindow(CubeWindow);
     return TRUE;
 }
 
@@ -179,11 +178,11 @@ static BOOL EnsureLogViewerWindow(LPDESKTOP Desktop) {
     WindowRect.X2 = ScreenWidth - 1;
     WindowRect.Y2 = WindowHeight - 1;
 
-    LogViewerWindow = (HANDLE)FindWindow((LPWINDOW)RootWindow, DESKTOP_LOG_VIEWER_WINDOW_ID);
+    LogViewerWindow = FindWindow(RootWindow, DESKTOP_LOG_VIEWER_WINDOW_ID);
     if (LogViewerWindow != NULL) {
         (void)MoveWindow(LogViewerWindow, &WindowRect);
         (void)SetWindowCaption(LogViewerWindow, TEXT("Kernel Log"));
-        (void)ShowWindow(LogViewerWindow, TRUE);
+        (void)HideWindow(LogViewerWindow);
         return TRUE;
     }
 
@@ -195,13 +194,13 @@ static BOOL EnsureLogViewerWindow(LPDESKTOP Desktop) {
     WindowInfo.WindowClass = 0;
     WindowInfo.WindowClassName = DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME;
     WindowInfo.Function = NULL;
-    WindowInfo.Style = EWS_VISIBLE | EWS_SYSTEM_DECORATED;
+    WindowInfo.Style = EWS_SYSTEM_DECORATED;
     WindowInfo.ID = DESKTOP_LOG_VIEWER_WINDOW_ID;
     WindowInfo.WindowPosition.X = WindowRect.X1;
     WindowInfo.WindowPosition.Y = WindowRect.Y1;
     WindowInfo.WindowSize.X = WindowRect.X2 - WindowRect.X1 + 1;
     WindowInfo.WindowSize.Y = WindowRect.Y2 - WindowRect.Y1 + 1;
-    WindowInfo.ShowHide = TRUE;
+    WindowInfo.ShowHide = FALSE;
 
     LogViewerWindow = (HANDLE)CreateWindow(&WindowInfo);
     if (LogViewerWindow == NULL) {
@@ -209,6 +208,7 @@ static BOOL EnsureLogViewerWindow(LPDESKTOP Desktop) {
     }
 
     (void)SetWindowCaption(LogViewerWindow, TEXT("Kernel Log"));
+    (void)HideWindow(LogViewerWindow);
     return TRUE;
 }
 
@@ -266,10 +266,9 @@ static BOOL EnsureOnScreenDebugInfoWindow(LPDESKTOP Desktop) {
     WindowRect.X2 = WindowRect.X1 + WindowWidth - 1;
     WindowRect.Y2 = WindowRect.Y1 + WindowHeight - 1;
 
-    DebugInfoWindow = (HANDLE)FindWindow((LPWINDOW)RootWindow, DESKTOP_ON_SCREEN_DEBUG_INFO_WINDOW_ID);
+    DebugInfoWindow = FindWindow(RootWindow, DESKTOP_ON_SCREEN_DEBUG_INFO_WINDOW_ID);
     if (DebugInfoWindow != NULL) {
         (void)MoveWindow(DebugInfoWindow, &WindowRect);
-        (void)ShowWindow(DebugInfoWindow, TRUE);
         return TRUE;
     }
 
