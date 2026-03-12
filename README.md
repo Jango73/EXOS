@@ -105,24 +105,24 @@ EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/con
 ### C language (no headers)
 
 ### bcrypt
-Used for password hashing. Sources in third/bcrypt (under Apache 2.0, see third/bcrypt/README and third/bcrypt/LICENSE).
-Compiled files in kernel: bcrypt.c, blowfish.c.
+Used for password hashing. Sources in third/bcrypt (under Apache 2.0, see third/bcrypt/README and third/bcrypt/LICENSE).<br>
+Compiled files in kernel: bcrypt.c, blowfish.c.<br>
 bcrypt is copyright (c) 2002 Johnny Shelley <jshelley@cahaus.com>
 
 ### BearSSL
-Used for SHA-256 hashing in kernel crypt utilities. Sources in `third/bearssl` (MIT license, see `third/bearssl/LICENSE.txt` and `third/bearssl/README.txt`).
-Integrated SHA-256 sources: `third/bearssl/src/hash/sha2small.c`, `third/bearssl/src/codec/dec32be.c`, `third/bearssl/src/codec/enc32be.c`.
+Used for SHA-256 hashing in kernel crypt utilities. Sources in `third/bearssl` (MIT license, see `third/bearssl/LICENSE.txt` and `third/bearssl/README.txt`).<br>
+Integrated SHA-256 sources: `third/bearssl/src/hash/sha2small.c`, `third/bearssl/src/codec/dec32be.c`, `third/bearssl/src/codec/enc32be.c`.<br>
 BearSSL is copyright (c) 2016 Thomas Pornin <pornin@bolet.org>.
 
 ### miniz
-Used for DEFLATE/zlib compression in kernel compression utilities. Sources in `third/miniz` (MIT license, see `third/miniz/LICENSE` and `third/miniz/readme.md`).
-Integrated kernel backend source: `third/miniz/miniz.c`.
+Used for DEFLATE/zlib compression in kernel compression utilities. Sources in `third/miniz` (MIT license, see `third/miniz/LICENSE` and `third/miniz/readme.md`).<br>
+Integrated kernel backend source: `third/miniz/miniz.c`.<br>
 miniz is copyright (c) Rich Geldreich, RAD Game Tools, and Valve Software.
 
 ### Monocypher
-Used for detached signature verification (Ed25519) in kernel signature utilities. Sources in `third/monocypher` (BSD-2-Clause OR CC0-1.0, see `third/monocypher/LICENCE.md` and `third/monocypher/README.md`).
-Integrated signature backend sources: `third/monocypher/src/monocypher.c` and `third/monocypher/src/optional/monocypher-ed25519.c`.
-For kernel freestanding compatibility, Monocypher Argon2 is disabled in x86-32 builds.
+Used for detached signature verification (Ed25519) in kernel signature utilities. Sources in `third/monocypher` (BSD-2-Clause OR CC0-1.0, see `third/monocypher/LICENCE.md` and `third/monocypher/README.md`).<br>
+Integrated signature backend sources: `third/monocypher/src/monocypher.c` and `third/monocypher/src/optional/monocypher-ed25519.c`.<br>
+For kernel freestanding compatibility, Monocypher Argon2 is disabled in x86-32 builds.<br>
 Monocypher is copyright (c) 2017-2019 Loup Vaillant.
 
 ### utf8-hoehrmann
