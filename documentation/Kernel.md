@@ -759,6 +759,7 @@ The xHCI host stack (`kernel/source/drivers/XHCI-Core.c`, `kernel/source/drivers
 - operational reporting via `usbctl ports`, `usbctl probe`, `usbctl devices`.
 
 USB interfaces and endpoints are kernel objects stored in global lists. Class drivers hold references so teardown is deferred until hotplug release is safe.
+Class drivers reuse the same xHCI high-level transfer helpers for normal-transfer submission and transfer-event completion matching (including route fallback by slot/DCI when TRB pointer correlation fails on some controllers).
 
 Disconnect handling is staged: stop and reset endpoints, flush transfer rings, disable slot context, then release resources only after object references drain. This avoids invalid memory access during in-flight I/O.
 

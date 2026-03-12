@@ -242,12 +242,16 @@ BOOL USBStorageResetRecovery(LPUSB_MASS_STORAGE_DEVICE Device) {
  * @return TRUE on completion, FALSE on timeout.
  */
 static BOOL USBStorageWaitCompletion(LPXHCI_DEVICE Device,
+                                     LPXHCI_USB_DEVICE UsbDevice,
+                                     LPXHCI_USB_ENDPOINT Endpoint,
                                      U64 TrbPhysical,
                                      UINT TimeoutMilliseconds,
                                      U32* CompletionOut) {
     UINT Remaining = TimeoutMilliseconds;
     UINT Elapsed = 0;
     U32 Suppressed = 0;
+    BOOL UsedRouteFallback = FALSE;
+    U64 ObservedTrbPhysical = U64_0;
 
     if (USBStorageShouldTraceTransfer(&Suppressed)) {
         DEBUG(TEXT("[USBStorageWaitCompletion] Begin Timeout=%u Trb=%x:%x suppressed=%u"),
@@ -258,7 +262,23 @@ static BOOL USBStorageWaitCompletion(LPXHCI_DEVICE Device,
     }
 
     while (Remaining > 0) {
-        if (XHCI_CheckTransferCompletion(Device, TrbPhysical, CompletionOut)) {
+        if (XHCI_CheckTransferCompletionRouted(Device,
+                                               TrbPhysical,
+                                               (UsbDevice != NULL) ? UsbDevice->SlotId : 0,
+                                               (Endpoint != NULL) ? Endpoint->Dci : 0,
+                                               CompletionOut,
+                                               &UsedRouteFallback,
+                                               &ObservedTrbPhysical)) {
+            if (UsedRouteFallback && USBStorageShouldTraceTransfer(&Suppressed)) {
+                DEBUG(TEXT("[USBStorageWaitCompletion] Transfer event TRB pointer mismatch Slot=%x Dci=%u Expected=%x:%x Observed=%x:%x Completion=%x"),
+                      (UsbDevice != NULL) ? (U32)UsbDevice->SlotId : 0,
+                      (Endpoint != NULL) ? (U32)Endpoint->Dci : 0,
+                      U64_High32(TrbPhysical),
+                      U64_Low32(TrbPhysical),
+                      U64_High32(ObservedTrbPhysical),
+                      U64_Low32(ObservedTrbPhysical),
+                      (CompletionOut != NULL) ? *CompletionOut : 0);
+            }
             if (USBStorageShouldTraceTransfer(&Suppressed)) {
                 DEBUG(TEXT("[USBStorageWaitCompletion] Completed Elapsed=%u Completion=%x Trb=%x:%x suppressed=%u"),
                       Elapsed,
@@ -318,31 +338,18 @@ static BOOL USBStorageBulkTransferOnce(LPXHCI_DEVICE Device,
         return FALSE;
     }
 
-    XHCI_TRB Trb;
     U64 TrbPhysical = U64_0;
-    MemorySet(&Trb, 0, sizeof(Trb));
-    Trb.Dword0 = U64_Low32(U64_FromUINT(BufferPhysical));
-    Trb.Dword1 = U64_High32(U64_FromUINT(BufferPhysical));
-    Trb.Dword2 = (U32)Length;
-    Trb.Dword3 = (XHCI_TRB_TYPE_NORMAL << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_IOC;
-    if (DirectionIn) {
-        // Allow early completion event on short packet for BOT IN data stages.
-        Trb.Dword3 |= XHCI_TRB_ISP;
-    }
-
-    if (!XHCI_RingEnqueue(Endpoint->TransferRingLinear,
-                          Endpoint->TransferRingPhysical,
-                          &Endpoint->TransferRingEnqueueIndex,
-                          &Endpoint->TransferRingCycleState,
-                          XHCI_TRANSFER_RING_TRBS,
-                          &Trb,
-                          &TrbPhysical)) {
+    if (!XHCI_SubmitNormalTransfer(Device,
+                                   UsbDevice,
+                                   Endpoint,
+                                   BufferPhysical,
+                                   (U32)Length,
+                                   DirectionIn,
+                                   &TrbPhysical)) {
         return FALSE;
     }
 
-    XHCI_RingDoorbell(Device, UsbDevice->SlotId, Endpoint->Dci);
-
-    if (!USBStorageWaitCompletion(Device, TrbPhysical, TimeoutMilliseconds, CompletionOut)) {
+    if (!USBStorageWaitCompletion(Device, UsbDevice, Endpoint, TrbPhysical, TimeoutMilliseconds, CompletionOut)) {
         DEBUG(TEXT("[USBStorageBulkTransferOnce] Timeout Op=%x Slot=%x Port=%u Addr=%u Ep=%x Dci=%u DirIn=%u Len=%u Trb=%p"),
               (U32)ScsiOpCode,
               (U32)UsbDevice->SlotId,

@@ -24,6 +24,7 @@
 
 #include "input/MouseCommon.h"
 #include "drivers/usb/XHCI-Internal.h"
+#include "Clock.h"
 
 /***************************************************************************/
 
@@ -38,6 +39,12 @@
 #define USB_HID_REQUEST_SET_IDLE 0x0A
 
 #define USB_HID_PROTOCOL_BOOT 0x00
+#define USB_MOUSE_DISCOVERY_LOG_IMMEDIATE_BUDGET 4
+#define USB_MOUSE_DISCOVERY_LOG_INTERVAL_MS 1000
+#define USB_MOUSE_WAIT_LOG_IMMEDIATE_BUDGET 4
+#define USB_MOUSE_WAIT_LOG_INTERVAL_MS 1000
+#define USB_MOUSE_REPORT_LOG_IMMEDIATE_BUDGET 24
+#define USB_MOUSE_REPORT_LOG_INTERVAL_MS 1000
 
 /***************************************************************************/
 
@@ -56,6 +63,9 @@ typedef struct tag_USB_MOUSE_STATE {
     BOOL ReferencesHeld;
     U32 RetryDelay;
     U32 PollHandle;
+    RATE_LIMITER DiscoveryLogLimiter;
+    RATE_LIMITER WaitCompletionLogLimiter;
+    RATE_LIMITER ReportLogLimiter;
 } USB_MOUSE_STATE, *LPUSB_MOUSE_STATE;
 
 typedef struct tag_USB_MOUSE_CUSTOM_DATA {
@@ -93,7 +103,10 @@ static USB_MOUSE_CUSTOM_DATA DATA_SECTION USBMouseCustomData = {
         .ReportPending = FALSE,
         .ReferencesHeld = FALSE,
         .RetryDelay = 0,
-        .PollHandle = DEFERRED_WORK_INVALID_HANDLE
+        .PollHandle = DEFERRED_WORK_INVALID_HANDLE,
+        .DiscoveryLogLimiter = {0},
+        .WaitCompletionLogLimiter = {0},
+        .ReportLogLimiter = {0}
     }
 };
 
@@ -223,7 +236,15 @@ static BOOL USBMouseSetIdle(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U
 /**
  * @brief Release resources for the active USB mouse.
  */
-static void USBMouseClearState(void) {
+static void USBMouseClearState(LPCSTR Reason) {
+    DEBUG(TEXT("[USBMouseClearState] reason=%s addr=%x slot=%x if=%u ep=%x pending=%u"),
+          (Reason != NULL) ? Reason : TEXT("unknown"),
+          (USBMouseCustomData.State.UsbDevice != NULL) ? (U32)USBMouseCustomData.State.UsbDevice->Address : 0,
+          (USBMouseCustomData.State.UsbDevice != NULL) ? (U32)USBMouseCustomData.State.UsbDevice->SlotId : 0,
+          (U32)USBMouseCustomData.State.InterfaceNumber,
+          (USBMouseCustomData.State.Endpoint != NULL) ? (U32)USBMouseCustomData.State.Endpoint->Address : 0,
+          USBMouseCustomData.State.ReportPending ? 1 : 0);
+
     if (USBMouseCustomData.State.ReferencesHeld) {
         XHCI_ReleaseUsbEndpoint(USBMouseCustomData.State.Endpoint);
         XHCI_ReleaseUsbInterface(USBMouseCustomData.State.Interface);
@@ -296,8 +317,14 @@ static BOOL USBMouseFindDevice(LPXHCI_DEVICE* DeviceOut,
                                LPXHCI_USB_DEVICE* UsbDeviceOut,
                                LPXHCI_USB_INTERFACE* InterfaceOut,
                                LPXHCI_USB_ENDPOINT* EndpointOut) {
+    U32 Suppressed = 0;
+
     if (DeviceOut == NULL || UsbDeviceOut == NULL || InterfaceOut == NULL || EndpointOut == NULL) {
         return FALSE;
+    }
+
+    if (RateLimiterShouldTrigger(&USBMouseCustomData.State.DiscoveryLogLimiter, GetSystemTime(), &Suppressed)) {
+        DEBUG(TEXT("[USBMouseFindDevice] Scanning xHCI devices (suppressed=%u)"), Suppressed);
     }
 
     LPLIST PciList = GetPCIDeviceList();
@@ -352,8 +379,21 @@ static BOOL USBMouseFindDevice(LPXHCI_DEVICE* DeviceOut,
 
                     LPXHCI_USB_ENDPOINT Endpoint = USBMouseFindInterruptInEndpoint(Interface);
                     if (Endpoint == NULL) {
+                        WARNING(TEXT("[USBMouseFindDevice] HID mouse missing interrupt IN endpoint (addr=%x if=%u)"),
+                                (U32)UsbDevice->Address,
+                                (U32)Interface->Number);
                         continue;
                     }
+
+                    DEBUG(TEXT("[USBMouseFindDevice] Candidate addr=%x slot=%x vid=%x pid=%x port=%u if=%u ep=%x mps=%u"),
+                          (U32)UsbDevice->Address,
+                          (U32)UsbDevice->SlotId,
+                          (U32)UsbDevice->DeviceDescriptor.VendorID,
+                          (U32)UsbDevice->DeviceDescriptor.ProductID,
+                          (U32)UsbDevice->PortNumber,
+                          (U32)Interface->Number,
+                          (U32)Endpoint->Address,
+                          (U32)Endpoint->MaxPacketSize);
 
                     *DeviceOut = Device;
                     *UsbDeviceOut = UsbDevice;
@@ -378,28 +418,26 @@ static BOOL USBMouseFindDevice(LPXHCI_DEVICE* DeviceOut,
 static BOOL USBMouseSubmitReport(LPXHCI_DEVICE Device) {
     if (Device == NULL || USBMouseCustomData.State.Endpoint == NULL ||
         USBMouseCustomData.State.ReportLinear == 0 || USBMouseCustomData.State.ReportPhysical == 0) {
+        WARNING(TEXT("[USBMouseSubmitReport] Mouse state is invalid"));
         return FALSE;
     }
 
-    XHCI_TRB Trb;
-    MemorySet(&Trb, 0, sizeof(Trb));
-    Trb.Dword0 = U64_Low32(U64_FromUINT(USBMouseCustomData.State.ReportPhysical));
-    Trb.Dword1 = U64_High32(U64_FromUINT(USBMouseCustomData.State.ReportPhysical));
-    Trb.Dword2 = USBMouseCustomData.State.ReportLength;
-    Trb.Dword3 = (XHCI_TRB_TYPE_NORMAL << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_IOC;
-
-    if (!XHCI_RingEnqueue(USBMouseCustomData.State.Endpoint->TransferRingLinear,
-                          USBMouseCustomData.State.Endpoint->TransferRingPhysical,
-                          &USBMouseCustomData.State.Endpoint->TransferRingEnqueueIndex,
-                          &USBMouseCustomData.State.Endpoint->TransferRingCycleState,
-                          XHCI_TRANSFER_RING_TRBS,
-                          &Trb,
-                          &USBMouseCustomData.State.ReportTrbPhysical)) {
+    if (!XHCI_SubmitNormalTransfer(Device,
+                                   USBMouseCustomData.State.UsbDevice,
+                                   USBMouseCustomData.State.Endpoint,
+                                   USBMouseCustomData.State.ReportPhysical,
+                                   (U32)USBMouseCustomData.State.ReportLength,
+                                   FALSE,
+                                   &USBMouseCustomData.State.ReportTrbPhysical)) {
+        WARNING(TEXT("[USBMouseSubmitReport] Transfer ring enqueue failed"));
         return FALSE;
     }
 
-    XHCI_RingDoorbell(Device, USBMouseCustomData.State.UsbDevice->SlotId, USBMouseCustomData.State.Endpoint->Dci);
     USBMouseCustomData.State.ReportPending = TRUE;
+    DEBUG(TEXT("[USBMouseSubmitReport] Submitted report len=%u trb=%p dci=%x"),
+          (U32)USBMouseCustomData.State.ReportLength,
+          USBMouseCustomData.State.ReportTrbPhysical,
+          (U32)USBMouseCustomData.State.Endpoint->Dci);
     return TRUE;
 }
 
@@ -409,6 +447,7 @@ static BOOL USBMouseSubmitReport(LPXHCI_DEVICE Device) {
  * @brief Parse and dispatch a HID boot mouse report.
  */
 static void USBMouseHandleReport(void) {
+    U32 Suppressed = 0;
     const U8* Report = (const U8*)USBMouseCustomData.State.ReportLinear;
     U32 Buttons = 0;
     I32 DeltaX = 0;
@@ -431,6 +470,17 @@ static void USBMouseHandleReport(void) {
     DeltaX = (I32)(I8)Report[1];
     DeltaY = (I32)(I8)Report[2];
 
+    if (RateLimiterShouldTrigger(&USBMouseCustomData.State.ReportLogLimiter, GetSystemTime(), &Suppressed)) {
+        DEBUG(TEXT("[USBMouseHandleReport] Raw=%x:%x:%x Parsed dx=%x dy=%x buttons=%x suppressed=%u"),
+              (U32)Report[0],
+              (U32)Report[1],
+              (U32)Report[2],
+              (U32)DeltaX,
+              (U32)DeltaY,
+              Buttons,
+              Suppressed);
+    }
+
     MouseCommonQueuePacket(&USBMouseCustomData.Common, DeltaX, DeltaY, Buttons);
 }
 
@@ -449,8 +499,18 @@ static BOOL USBMouseStartDevice(LPXHCI_DEVICE Device,
                                 LPXHCI_USB_INTERFACE Interface,
                                 LPXHCI_USB_ENDPOINT Endpoint) {
     if (Device == NULL || UsbDevice == NULL || Interface == NULL || Endpoint == NULL) {
+        WARNING(TEXT("[USBMouseStartDevice] Input pointers are invalid"));
         return FALSE;
     }
+
+    DEBUG(TEXT("[USBMouseStartDevice] Begin addr=%x slot=%x vid=%x pid=%x if=%u ep=%x mps=%u"),
+          (U32)UsbDevice->Address,
+          (U32)UsbDevice->SlotId,
+          (U32)UsbDevice->DeviceDescriptor.VendorID,
+          (U32)UsbDevice->DeviceDescriptor.ProductID,
+          (U32)Interface->Number,
+          (U32)Endpoint->Address,
+          (U32)Endpoint->MaxPacketSize);
 
     if (!USBMouseSetBootProtocol(Device, UsbDevice, Interface->Number)) {
         WARNING(TEXT("[USBMouseStartDevice] SET_PROTOCOL failed"));
@@ -510,6 +570,10 @@ static BOOL USBMouseStartDevice(LPXHCI_DEVICE Device,
  * @param Context Unused.
  */
 static void USBMousePoll(LPVOID Context) {
+    U32 Suppressed = 0;
+    BOOL UsedRouteFallback = FALSE;
+    U64 ObservedTrbPhysical = U64_0;
+
     UNUSED(Context);
 
     if (USBMouseCustomData.State.Initialized == FALSE) {
@@ -524,7 +588,7 @@ static void USBMousePoll(LPVOID Context) {
     if (USBMouseCustomData.State.Controller != NULL && USBMouseCustomData.State.UsbDevice != NULL) {
         if (!USBMouseIsDevicePresent(USBMouseCustomData.State.Controller, USBMouseCustomData.State.UsbDevice)) {
             DEBUG(TEXT("[USBMousePoll] Mouse disconnected"));
-            USBMouseClearState();
+            USBMouseClearState(TEXT("disconnect"));
             USBMouseCustomData.State.RetryDelay = 50;
         }
     }
@@ -537,7 +601,11 @@ static void USBMousePoll(LPVOID Context) {
 
         if (USBMouseFindDevice(&Device, &UsbDevice, &Interface, &Endpoint)) {
             if (!USBMouseStartDevice(Device, UsbDevice, Interface, Endpoint)) {
-                USBMouseClearState();
+                WARNING(TEXT("[USBMousePoll] Mouse start failed addr=%x if=%u ep=%x"),
+                        (UsbDevice != NULL) ? (U32)UsbDevice->Address : 0,
+                        (Interface != NULL) ? (U32)Interface->Number : 0,
+                        (Endpoint != NULL) ? (U32)Endpoint->Address : 0);
+                USBMouseClearState(TEXT("start_failed"));
                 USBMouseCustomData.State.RetryDelay = 50;
             }
         }
@@ -548,15 +616,39 @@ static void USBMousePoll(LPVOID Context) {
     }
 
     if (!USBMouseCustomData.State.ReportPending) {
-        (void)USBMouseSubmitReport(USBMouseCustomData.State.Controller);
+        if (!USBMouseSubmitReport(USBMouseCustomData.State.Controller)) {
+            WARNING(TEXT("[USBMousePoll] Report submit failed"));
+            USBMouseCustomData.State.RetryDelay = 10;
+        }
         return;
     }
 
     U32 Completion = 0;
-    if (!XHCI_CheckTransferCompletion(USBMouseCustomData.State.Controller,
-                                       USBMouseCustomData.State.ReportTrbPhysical,
-                                       &Completion)) {
+    if (!XHCI_CheckTransferCompletionRouted(USBMouseCustomData.State.Controller,
+                                            USBMouseCustomData.State.ReportTrbPhysical,
+                                            (USBMouseCustomData.State.UsbDevice != NULL) ? USBMouseCustomData.State.UsbDevice->SlotId : 0,
+                                            (USBMouseCustomData.State.Endpoint != NULL) ? USBMouseCustomData.State.Endpoint->Dci : 0,
+                                            &Completion,
+                                            &UsedRouteFallback,
+                                            &ObservedTrbPhysical)) {
+        if (RateLimiterShouldTrigger(&USBMouseCustomData.State.WaitCompletionLogLimiter, GetSystemTime(), &Suppressed)) {
+            DEBUG(TEXT("[USBMousePoll] Waiting completion trb=%p suppressed=%u"),
+                  USBMouseCustomData.State.ReportTrbPhysical,
+                  Suppressed);
+        }
         return;
+    }
+
+    if (UsedRouteFallback && RateLimiterShouldTrigger(&USBMouseCustomData.State.WaitCompletionLogLimiter,
+                                                      GetSystemTime(),
+                                                      &Suppressed)) {
+        DEBUG(TEXT("[USBMousePoll] Completion fallback expected=%x:%x observed=%x:%x completion=%x suppressed=%u"),
+              U64_High32(USBMouseCustomData.State.ReportTrbPhysical),
+              U64_Low32(USBMouseCustomData.State.ReportTrbPhysical),
+              U64_High32(ObservedTrbPhysical),
+              U64_Low32(ObservedTrbPhysical),
+              Completion,
+              Suppressed);
     }
 
     USBMouseCustomData.State.ReportPending = FALSE;
@@ -595,6 +687,16 @@ UINT USBMouseCommands(UINT Function, UINT Parameter) {
                 }
             }
 
+            (void)RateLimiterInit(&USBMouseCustomData.State.DiscoveryLogLimiter,
+                                  USB_MOUSE_DISCOVERY_LOG_IMMEDIATE_BUDGET,
+                                  USB_MOUSE_DISCOVERY_LOG_INTERVAL_MS);
+            (void)RateLimiterInit(&USBMouseCustomData.State.WaitCompletionLogLimiter,
+                                  USB_MOUSE_WAIT_LOG_IMMEDIATE_BUDGET,
+                                  USB_MOUSE_WAIT_LOG_INTERVAL_MS);
+            (void)RateLimiterInit(&USBMouseCustomData.State.ReportLogLimiter,
+                                  USB_MOUSE_REPORT_LOG_IMMEDIATE_BUDGET,
+                                  USB_MOUSE_REPORT_LOG_INTERVAL_MS);
+
             USBMouseCustomData.State.Initialized = TRUE;
             USBMouseDriver.Flags |= DRIVER_FLAG_READY;
             return DF_RETURN_SUCCESS;
@@ -609,7 +711,7 @@ UINT USBMouseCommands(UINT Function, UINT Parameter) {
                 USBMouseCustomData.State.PollHandle = DEFERRED_WORK_INVALID_HANDLE;
             }
 
-            USBMouseClearState();
+            USBMouseClearState(TEXT("driver_unload"));
             USBMouseDriver.Flags &= ~DRIVER_FLAG_READY;
             return DF_RETURN_SUCCESS;
         case DF_GET_VERSION:

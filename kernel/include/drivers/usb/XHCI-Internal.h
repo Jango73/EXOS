@@ -322,6 +322,7 @@ typedef struct tag_XHCI_COMPLETION {
     U32 Completion;
     U8 Type;
     U8 SlotId;
+    U8 EndpointId;
 } XHCI_COMPLETION, *LPXHCI_COMPLETION;
 
 struct tag_XHCI_DEVICE {
@@ -422,6 +423,13 @@ BOOL XHCI_AddBulkEndpointPair(LPXHCI_DEVICE Device,
                               LPXHCI_USB_DEVICE UsbDevice,
                               LPXHCI_USB_ENDPOINT BulkOutEndpoint,
                               LPXHCI_USB_ENDPOINT BulkInEndpoint);
+BOOL XHCI_SubmitNormalTransfer(LPXHCI_DEVICE Device,
+                               LPXHCI_USB_DEVICE UsbDevice,
+                               LPXHCI_USB_ENDPOINT Endpoint,
+                               PHYSICAL BufferPhysical,
+                               U32 Length,
+                               BOOL InterruptOnShortPacket,
+                               U64* TrbPhysicalOut);
 BOOL XHCI_UpdateHubSlotContext(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice);
 BOOL XHCI_ControlTransfer(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, const USB_SETUP_PACKET* Setup,
                          PHYSICAL Physical, LPVOID Linear, U16 Length, BOOL DirectionIn);
@@ -436,6 +444,13 @@ void XHCI_EnsureUsbDevices(LPXHCI_DEVICE Device);
 BOOL XHCI_InitHub(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub);
 void XHCI_RegisterHubPoll(LPXHCI_DEVICE Device);
 BOOL XHCI_CheckTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* CompletionOut);
+BOOL XHCI_CheckTransferCompletionRouted(LPXHCI_DEVICE Device,
+                                        U64 TrbPhysical,
+                                        U8 SlotId,
+                                        U8 EndpointId,
+                                        U32* CompletionOut,
+                                        BOOL* UsedRouteFallbackOut,
+                                        U64* ObservedTrbPhysicalOut);
 
 U32 XHCI_EnumNext(LPDRIVER_ENUM_NEXT Next);
 U32 XHCI_EnumPretty(LPDRIVER_ENUM_PRETTY Pretty);

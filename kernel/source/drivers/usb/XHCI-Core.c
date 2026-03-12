@@ -544,6 +544,7 @@ static void XHCI_PushCompletion(LPXHCI_DEVICE Device, const XHCI_TRB* Event) {
     Entry->Completion = Completion;
     Entry->Type = Type;
     Entry->SlotId = SlotId;
+    Entry->EndpointId = EndpointId;
 }
 
 /************************************************************************/

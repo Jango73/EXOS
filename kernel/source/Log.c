@@ -44,7 +44,7 @@
 #define KERNEL_LOG_ENTRY_BUFFER_SIZE (MAX_STRING_BUFFER + 160)
 
 #ifndef KERNEL_LOG_DEFAULT_TAG_FILTER
-#define KERNEL_LOG_DEFAULT_TAG_FILTER ""
+#define KERNEL_LOG_DEFAULT_TAG_FILTER "USBMouseClearState,USBMouseFindDevice,USBMouseStartDevice,USBMouseSubmitReport,USBMouseHandleReport,USBMousePoll"
 #endif
 
 typedef struct tag_KERNEL_LOG_RECENT_LINE {

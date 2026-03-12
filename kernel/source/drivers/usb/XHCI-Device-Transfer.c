@@ -1148,6 +1148,55 @@ BOOL XHCI_UpdateHubSlotContext(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice
 /************************************************************************/
 
 /**
+ * @brief Submit a normal transfer TRB on one endpoint transfer ring.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device state.
+ * @param Endpoint Endpoint descriptor.
+ * @param BufferPhysical Physical address of the transfer buffer.
+ * @param Length Transfer length in bytes.
+ * @param InterruptOnShortPacket TRUE to set ISP on the submitted TRB.
+ * @param TrbPhysicalOut Receives submitted TRB physical address.
+ * @return TRUE on success.
+ */
+BOOL XHCI_SubmitNormalTransfer(LPXHCI_DEVICE Device,
+                               LPXHCI_USB_DEVICE UsbDevice,
+                               LPXHCI_USB_ENDPOINT Endpoint,
+                               PHYSICAL BufferPhysical,
+                               U32 Length,
+                               BOOL InterruptOnShortPacket,
+                               U64* TrbPhysicalOut) {
+    XHCI_TRB Trb;
+
+    if (Device == NULL || UsbDevice == NULL || Endpoint == NULL || BufferPhysical == 0) {
+        return FALSE;
+    }
+
+    MemorySet(&Trb, 0, sizeof(Trb));
+    Trb.Dword0 = U64_Low32(U64_FromUINT(BufferPhysical));
+    Trb.Dword1 = U64_High32(U64_FromUINT(BufferPhysical));
+    Trb.Dword2 = Length;
+    Trb.Dword3 = (XHCI_TRB_TYPE_NORMAL << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_IOC;
+    if (InterruptOnShortPacket) {
+        Trb.Dword3 |= XHCI_TRB_ISP;
+    }
+
+    if (!XHCI_RingEnqueue(Endpoint->TransferRingLinear,
+                          Endpoint->TransferRingPhysical,
+                          &Endpoint->TransferRingEnqueueIndex,
+                          &Endpoint->TransferRingCycleState,
+                          XHCI_TRANSFER_RING_TRBS,
+                          &Trb,
+                          TrbPhysicalOut)) {
+        return FALSE;
+    }
+
+    XHCI_RingDoorbell(Device, UsbDevice->SlotId, Endpoint->Dci);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Perform a control transfer on EP0.
  * @param Device xHCI device.
  * @param UsbDevice USB device state.
