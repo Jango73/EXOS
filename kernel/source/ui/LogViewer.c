@@ -30,7 +30,7 @@
 /***************************************************************************/
 
 #define LOG_VIEWER_TIMER_ID 1
-#define LOG_VIEWER_TIMER_INTERVAL_MS 500
+#define LOG_VIEWER_TIMER_INTERVAL_MS 1000
 #define LOG_VIEWER_PADDING_X 8
 #define LOG_VIEWER_PADDING_Y 4
 #define LOG_VIEWER_LINE_GAP 2
