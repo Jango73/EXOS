@@ -77,12 +77,31 @@
 
 ### BOT transfer recovery hardening (xHCI side)
 - Added xHCI endpoint recovery for BOT bulk endpoints on timeout/stall:
-  - run `STOP_ENDPOINT` + `RESET_ENDPOINT` on the target DCI.
+  - choose `STOP_ENDPOINT`, `RESET_ENDPOINT`, or direct dequeue reprogramming based on current endpoint state.
   - reset software transfer ring state before retry.
+  - use correctly encoded `SET_TR_DEQUEUE_POINTER`.
   - keep USB `CLEAR_FEATURE(ENDPOINT_HALT)` as protocol-level recovery step.
   - files:
     - `kernel/source/drivers/usb/XHCI-Device-Lifecycle.c`
     - `kernel/source/drivers/storage/USBStorage-Transport.c`
+
+### BOT specification compliance fixes
+- Fixed BOT command status handling to follow the Bulk-Only Transport rules:
+  - preserve the expected CBW tag before the shared IO buffer is reused for the CSW.
+  - validate CSW signature and tag against the original CBW.
+  - validate `DataResidue <= dCBWDataTransferLength`.
+  - treat `bCSWStatus == 0x02` as phase error and force reset recovery.
+  - force reset recovery on invalid CSW, invalid residue, and transport-stage failures.
+- Added transfer-event residual length propagation from xHCI to BOT:
+  - xHCI completion queue stores transfer-event transfer length.
+  - BOT derives actual CSW receive length from requested length minus residual length.
+  - short or oversized CSW transfers are rejected.
+- files:
+  - `kernel/include/drivers/storage/USBStorage-Private.h`
+  - `kernel/source/drivers/storage/USBStorage-Transport.c`
+  - `kernel/include/drivers/usb/XHCI-Internal.h`
+  - `kernel/source/drivers/usb/XHCI-Core.c`
+  - `kernel/source/drivers/usb/XHCI-Hub.c`
 
 ## External Driver Cross-Check
 - Linux xHCI behavior was used as reference for normal TRB direction semantics.
@@ -91,16 +110,25 @@
 
 ## Status
 - Bulk OUT path reaches device.
-- Bulk IN completion for BOT data stage (`Ep=0x81`) times out on Predator during READ CAPACITY and REQUEST SENSE.
-- xHCI stack is partially functional (device visible, BOT init started) but storage attach remains blocked on bulk IN transfer completion.
+- `SET_TR_DEQUEUE_POINTER` no longer fails with `Completion=0x13`; xHCI endpoint recovery completes with `SetCompletion=0x1`.
+- BOT CSW handling is now strict and spec-aligned.
+- Remaining blocker on Predator is still Bulk IN on `Ep=0x81`:
+  - `READ CAPACITY (10)` data stage fails.
+  - `REQUEST SENSE` data stage can timeout.
+  - CSW read can also timeout.
+- xHCI stack is partially functional (device visible, BOT init started, mouse interrupt report submitted) but storage attach remains blocked on bulk IN transfer completion.
 
 ## Next Debug Focus
-- Instrument transfer event matching for `Ep=0x81`:
-  - verify transfer event pointer/correlation against enqueued TRB physical address.
-  - verify completion code and transfer length fields from event TRB when timeout path triggers.
+- Audit xHCI Bulk IN transfer semantics for `Ep=0x81` / `Dci=3`:
+  - transfer-event transfer length interpretation.
+  - short-packet handling on normal TRBs.
+  - dequeue/ring progression after recovery.
 - Verify endpoint context fields for DCI of bulk IN after `Configure Endpoint`:
   - endpoint state, dequeue pointer, MPS, endpoint type.
-- Keep log filter focused on xHCI + USB storage tags to preserve screenshot readability.
+- Check whether the mouse interrupt IN endpoint ever reaches completion on Predator:
+  - device discovery and report submission are confirmed.
+  - report completion is not yet proven.
+- Keep log filter focused on xHCI + USB storage + USB mouse tags to preserve screenshot readability.
 
 ## xHCI Specification Compliance Audit
 
@@ -194,34 +222,28 @@ T52900> DEBUG > [USBStorageBotCommand] Op=0x12 CbLen=6 DataLen=36 DirIn=1 Tag=0x
 
 ## Latest Predator Log
 
-Date: 2026-03-06 (local debug run)
+Date: 2026-03-12 (local debug run after commits through `4b255051`)
 
 ### What the log sequence confirms
-- BOT initialization starts correctly:
+- Mouse path:
+  - USB mouse is detected and started on `Addr=0x2`, `Ep=0x81`, `Dci=0x3`.
+  - report submission succeeds (`USBMouseSubmitReport Submitted report len=8 ... dci=0x3`).
+  - report completion is not yet proven by the captured logs.
+- BOT initialization:
   - `INQUIRY (Op=0x12)` succeeds.
-- The first failing operation is `READ CAPACITY (10)`:
-  - `Op=0x25`, data stage `DirIn=1`, `Len=8`, endpoint `Ep=0x81` (`Dci=3`).
-  - `USBStorageWaitCompletion` reaches timeout (`Elapsed=1000`).
-
-### xHCI recovery chain observed on each failed attempt
-- `XHCI_ResetTransferEndpoint` starts for `Slot=0x1`, `DCI=0x3`.
-- `XHCI_StopEndpoint` returns a completion code in logs (visible per attempt).
-- `XHCI_SetTransferRingDequeuePointer` returns:
-  - `Completion=0x13` (repeated).
-  - `Dequeue` value logged as programmed pointer (example seen: `...:0x618001`).
-- Endpoint context snapshots around recovery are visible:
-  - Before recovery: `CtxState` observed as `0x2` and later `0x1` depending on attempt.
-  - After recovery: `CtxState=0x3` in the captured lines.
-  - `CtxDequeue` differs from programmed dequeue in captured lines (example seen: context `...:0x618021` vs programmed `...:0x618001`).
+  - `READ CAPACITY (10)` still fails on the Bulk IN data stage (`Len=8`, `Ep=0x81`, `Dci=3`).
+- Recovery path:
+  - `XHCI_ResetTransferEndpoint` completes with `SetCompletion=0x1`.
+  - the earlier `SET_TR_DEQUEUE_POINTER Completion=0x13` failure is no longer present.
+- Follow-up BOT failures:
+  - `REQUEST SENSE (Op=0x03)` data stage can timeout on Bulk IN (`Len=18`).
+  - CSW read can also timeout (`Len=13`), producing `USBStorageBotCommand CSW read failed`.
 
 ### Practical interpretation
-- The failure is concentrated on Bulk IN endpoint recovery (DCI 3), not on generic BOT command construction.
-- `SET_TR_DEQUEUE_POINTER` is consistently rejected (`Completion=0x13`) during recovery.
-- Because recovery does not complete, the same `READ CAPACITY` data-stage timeout pattern repeats and then cascades into `REQUEST SENSE` failures.
-
-### Current working conclusion
-- Primary blocker is in xHCI recovery semantics/state handling for Bulk IN (`Ep=0x81`, `Dci=3`) on Predator:
-  - command acceptance/state preconditions and/or dequeue pointer synchronization with endpoint context remain unresolved.
+- The previously confirmed xHCI dequeue-command encoding bug is fixed.
+- The previously confirmed BOT CSW validation bugs are fixed.
+- The remaining blocker is a real transfer problem on Bulk IN, not a false BOT parse/validation failure.
+- Failure scope remains concentrated on `Ep=0x81` / `Dci=3`.
 
 ## Expected vs Observed Chain
 
@@ -240,13 +262,11 @@ Observed (latest Predator screenshot, right pane):
 
 `USBStorageBotCommand(Op=0x25)`  
 `-> USBStorageBulkTransfer(DATA IN, Ep=0x81, Dci=3, Len=8)`  
-`-> USBStorageWaitCompletion(Timeout Elapsed=1000)`  
-`-> XHCI_ResetTransferEndpoint(Begin, CtxState/CtxDequeue logged)`  
-`-> XHCI_StopEndpoint(Completion seen, often 0x1)`  
-`-> XHCI_SetTransferRingDequeuePointer(Completion=0x13, repeated)`  
-`-> XHCI_ResetTransferEndpoint(End Success=0, SetCompletion=0x13)`  
-`-> retry repeats same failure chain`  
+`-> XHCI_ResetTransferEndpoint(Begin ... CtxState=0x2)`  
+`-> XHCI_ResetTransferEndpoint(End ... FinalState=0x3 SetCompletion=0x1)`  
 `-> USBStorageBotCommand Data stage failed Op=0x25`  
+`-> REQUEST SENSE data stage timeout (Len=18)`  
+`-> REQUEST SENSE CSW read timeout (Len=13)`  
 `-> cascade to REQUEST SENSE failure path`
 
 ## Last Log
@@ -261,49 +281,44 @@ T6740> DEBUG > [USBStorageStartDevice] Begin Port=1 Addr=1 Slot=0x1 If=0 Class=0
 T6780> DEBUG > [USBStorageBotCommand] Op=0x12 CdbLen=6 DataLen=36 DirIn=1 Tag=0x1 ...
 T6780> DEBUG > [USBStorageWaitCompletion] Begin Timeout=1000 Trb=0x0:0x617000 suppressed=0
 T6780> DEBUG > [USBStorageWaitCompletion] Completed Elapsed=0 Completion=0x1 Trb=0x0:0x617000 suppressed=0
-T6860> DEBUG > [USBStorageBotCommand] Op=0x25 CdbLen=10 DataLen=8 DirIn=1 Tag=0x2 ...
-T7160> DEBUG > [XHCI_ResetTransferEndpoint] Begin Slot=0x1 DCI=0x3 Ep=0x81 Halted=1 CtxState=0x2 CtxDequeue=0x0:0x618021 ...
-T7240> DEBUG > [XHCI_SetTransferRingDequeuePointer] Slot=0x1 DCI=0x3 Completion=0x13 Dequeue=0x0:0x618001 ...
-T7240> DEBUG > [XHCI_ResetTransferEndpoint] End Slot=0x1 DCI=0x3 Success=0 StopCompletion=0x0 SetCompletion=0x13 ProgrammedDequeue=0x0:0x618001 CtxState=0x3 CtxDequeue=0x0:0x618021 ...
-T49060> DEBUG > [USBStorageWaitCompletion] Timeout Elapsed=1000 Trb=0x0:0x618000 suppressed=13
-T49060> DEBUG > [USBStorageBulkTransferOnce] Timeout Op=0x25 Slot=0x1 Port=1 Addr=1 Ep=0x81 Dci=3 DirIn=1 Len=8 Trb=...
-T49060> DEBUG > [USBStorageBulkTransfer] Attempt=1/3 failed Slot=0x1 Port=1 Addr=1 Ep=0x81 DirIn=1 ...
-T49100> DEBUG > [XHCI_ResetTransferEndpoint] Begin Slot=0x1 DCI=0x3 Ep=0x81 Halted=0 CtxState=0x1 CtxDequeue=0x0:0x618021 ...
-T49100> DEBUG > [XHCI_StopEndpoint] Slot=0x1 DCI=0x3 Completion=0x1 Trb=...
-T49120> DEBUG > [XHCI_SetTransferRingDequeuePointer] Slot=0x1 DCI=0x3 Completion=0x13 Dequeue=0x0:0x618001 ...
-T49140> DEBUG > [XHCI_ResetTransferEndpoint] End Slot=0x1 DCI=0x3 Success=0 StopCompletion=0x1 SetCompletion=0x13 ProgrammedDequeue=0x0:0x618001 CtxState=0x3 CtxDequeue=0x0:0x618021 ...
-T90940> DEBUG > [USBStorageWaitCompletion] Timeout Elapsed=1000 Trb=0x0:0x618000 suppressed=1
-T90940> DEBUG > [USBStorageBulkTransferOnce] Timeout Op=0x25 Slot=0x1 Port=1 Addr=1 Ep=0x81 Dci=3 DirIn=1 Len=8 Trb=...
-T90940> DEBUG > [XHCI_ResetTransferEndpoint] Begin Slot=0x1 DCI=0x3 Ep=0x81 Halted=0 CtxState=0x1 CtxDequeue=0x0:0x618021 ...
-T90980> DEBUG > [XHCI_StopEndpoint] Slot=0x1 DCI=0x3 Completion=0x1 Trb=...
-T91020> DEBUG > [XHCI_SetTransferRingDequeuePointer] Slot=0x1 DCI=0x3 Completion=0x13 Dequeue=0x0:0x618001 ...
-T91060> DEBUG > [XHCI_ResetTransferEndpoint] End Slot=0x1 DCI=0x3 Success=0 StopCompletion=0x1 SetCompletion=0x13 ProgrammedDequeue=0x0:0x618001 CtxState=0x3 CtxDequeue=0x0:0x618021 ...
-T91060> ERROR > [USBStorageBotCommand] Data stage failed Op=0x25 Tag=0x2 DirIn=1 Len=8
-T91060> WARNING > [USBStorageStartDevice] READ CAPACITY failed, attempting reset
-T91060> DEBUG > [USBStorageBotCommand] Op=0x3 CdbLen=6 DataLen=18 DirIn=1 Tag=0x3 ...
+T16620> DEBUG > [USBStorageStartDevice] Begin Port=1 Addr=1 Slot=0x1 If=0 Class=0x8/0x6/0x50 Vid=0x5e3 Pid=0x736 BulkOut=0x2 Attr=0x2 MPS=512 BulkIn=0x81 Attr=0x2 MPS=512
+T16780> DEBUG > [USBStorageBotCommand] Op=0x12 CdbLen=6 DataLen=36 DirIn=1 Tag=0x1 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T16780> DEBUG > [USBStorageWaitCompletion] Begin Timeout=1000 Trb=0x0:0x525000 suppressed=0
+T16780> DEBUG > [USBStorageWaitCompletion] Completed Elapsed=0 Completion=0x1 Trb=0x0:0x525000 suppressed=0
+T16860> DEBUG > [USBStorageBotCommand] Op=0x25 CdbLen=10 DataLen=8 DirIn=1 Tag=0x2 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T17160> DEBUG > [XHCI_ResetTransferEndpoint] Begin Slot=0x1 DCI=0x3 Halted=1 CtxState=0x2
+T17240> DEBUG > [XHCI_ResetTransferEndpoint] End Slot=0x1 DCI=0x3 Halted=1 InitialState=0x2 FinalState=0x3 StopCompletion=0x0 SetCompletion=0x1 Dequeue=0x0:0x61e001
+T17440> ERROR > [USBStorageBotCommand] Data stage failed Op=0x25 Tag=0x2 DirIn=1 Len=8
+T17440> WARNING > [USBStorageStartDevice] READ CAPACITY failed, attempting reset
+T17440> DEBUG > [USBStorageBotCommand] Op=0x3 CdbLen=6 DataLen=18 DirIn=1 Tag=0x3 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
+T149260> DEBUG > [USBStorageWaitCompletion] Timeout Elapsed=1000 Trb=0x0:0x61e010 suppressed=17
+T149260> DEBUG > [USBStorageBulkTransferOnce] Timeout Op=0x3 Slot=0x1 Port=1 Addr=1 Ep=0x81 Dci=3 DirIn=1 Len=18 Trb=...
+T149300> DEBUG > [XHCI_ResetTransferEndpoint] Begin Slot=0x1 DCI=0x3 Halted=0 CtxState=0x2
+T149340> DEBUG > [XHCI_ResetTransferEndpoint] End Slot=0x1 DCI=0x3 Halted=0 InitialState=0x2 FinalState=0x3 StopCompletion=0x0 SetCompletion=0x1 Dequeue=0x0:0x61e001
+T157700> DEBUG > [USBStorageWaitCompletion] Begin Timeout=1000 Trb=0x0:0x61e000 suppressed=1
+T199460> DEBUG > [USBStorageWaitCompletion] Timeout Elapsed=1000 Trb=0x0:0x61e010 suppressed=2
+T199460> DEBUG > [USBStorageBulkTransferOnce] Timeout Op=0x3 Slot=0x1 Port=1 Addr=1 Ep=0x81 Dci=3 DirIn=1 Len=13 Trb=...
+T199460> DEBUG > [XHCI_ResetTransferEndpoint] Begin Slot=0x1 DCI=0x3 Halted=0 CtxState=0x1
+T199540> DEBUG > [XHCI_ResetTransferEndpoint] End Slot=0x1 DCI=0x3 Halted=0 InitialState=0x1 FinalState=0x3 StopCompletion=0x1 SetCompletion=0x1 Dequeue=0x0:0x61e001
+T199700> ERROR > [USBStorageBotCommand] CSW read failed Op=0x3 Tag=0x0
+T199700> WARNING > [USBStorageRequestSense] REQUEST SENSE failed LastOp=0x3 Stage=6 LastCSW=0xff Residue=0
+T199820> DEBUG > [USBStorageBotCommand] Op=0x25 CdbLen=10 DataLen=8 DirIn=1 Tag=0x4 Slot=0x1 Port=1 Addr=1 OutEp=0x2 InEp=0x81
 ```
 
 ## Next Steps
 
-1. Verify the exact meaning of `Completion=0x13` against the local xHCI completion-code table.
-2. `XHCI_SetTransferRingDequeuePointer` TRB encoding bug found in EXOS code:
-   - `Endpoint->Dci` was written into `Dword2`.
-   - xHCI command TRBs encode the endpoint identifier in `Dword3[20:16]`, like `STOP_ENDPOINT` and `RESET_ENDPOINT`.
-   - fix applied in `kernel/source/drivers/usb/XHCI-Device-Lifecycle.c`.
-   - impact scope is shared by BOT recovery and any interrupt/bulk endpoint path that depends on endpoint dequeue resynchronization.
-3. Recovery state handling hardened in `XHCI_ResetTransferEndpoint`:
-   - timeout path:
-     - `Running` -> `STOP_ENDPOINT`
-     - `Halted` -> `RESET_ENDPOINT`
-     - `Stopped/Error` -> go directly to `SET_TR_DEQUEUE_POINTER`
-   - stall path:
-     - `Halted` -> `RESET_ENDPOINT`
-     - `Running` -> `STOP_ENDPOINT`
-     - `Stopped/Error` -> go directly to `SET_TR_DEQUEUE_POINTER`
-   - this matches xHCI command preconditions more closely than unconditional `STOP_ENDPOINT` on timeout.
-4. Verify context index usage for `DCI=3` (off-by-one risks between slot/control/endpoint contexts).
-5. Compare `ProgrammedDequeue` vs `CtxDequeue` after command while masking/isolating cycle-related bits and alignment constraints.
-6. Rerun Predator and verify:
-   - `SET_TR_DEQUEUE_POINTER` no longer returns `0x13`
-   - BOT `READ CAPACITY (10)` reaches completion on Bulk IN
-   - USB mouse interrupt IN reports complete without repeated recovery
+1. Audit xHCI Bulk IN completion semantics for `Ep=0x81` / `Dci=3`:
+   - transfer-event transfer length interpretation.
+   - short-packet handling on normal TRBs.
+   - whether repeated IN retries still correlate to the correct transfer event.
+2. Verify endpoint-context programming for the bulk IN endpoint after `Configure Endpoint`:
+   - endpoint type.
+   - MPS.
+   - dequeue pointer.
+   - endpoint state transitions observed after retries.
+3. Verify transfer-ring progression after recovery:
+   - whether software enqueue/cycle state and controller dequeue state remain synchronized after `STOP_ENDPOINT` / `RESET_ENDPOINT` / `SET_TR_DEQUEUE_POINTER`.
+4. Confirm whether the mouse interrupt IN endpoint ever completes on Predator:
+   - device discovery and report submission are confirmed.
+   - report completion is not yet proven in the captured logs.
+5. Keep the log filter focused on xHCI, BOT, and USB mouse tags so future screenshots stay readable.
