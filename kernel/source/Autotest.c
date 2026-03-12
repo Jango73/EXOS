@@ -117,7 +117,6 @@ BOOL RunAllTests(void) {
     U32 Index = 0;
     TEST_RESULTS OverallResults = {0, 0};
     BOOL AllPassed = TRUE;
-    BOOL PreviousErrorConsoleEnabled;
 
     UNUSED(TotalTestModules);
 
@@ -125,9 +124,6 @@ BOOL RunAllTests(void) {
     DEBUG(TEXT("[Autotest] Starting Test Suite"));
     DEBUG(TEXT("[Autotest] Found %u test modules to run"), TotalTestModules);
     DEBUG(TEXT("[Autotest] AUTOTEST_ERROR_SCOPE_BEGIN"));
-
-    PreviousErrorConsoleEnabled = KernelLogGetErrorConsoleEnabled();
-    KernelLogSetErrorConsoleEnabled(FALSE);
 
     // Run each test in the registry
     for (Index = 0; TestRegistry[Index].Name != NULL; Index++) {
@@ -137,7 +133,6 @@ BOOL RunAllTests(void) {
         RunSingleTest(&TestRegistry[Index], &OverallResults);
     }
 
-    KernelLogSetErrorConsoleEnabled(PreviousErrorConsoleEnabled);
     DEBUG(TEXT("[Autotest] AUTOTEST_ERROR_SCOPE_END"));
 
     // Determine overall pass/fail status

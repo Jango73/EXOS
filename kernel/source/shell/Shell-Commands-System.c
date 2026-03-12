@@ -421,7 +421,6 @@ U32 CMD_prof(LPSHELLCONTEXT Context) {
  * @return DF_RETURN_SUCCESS.
  */
 U32 CMD_autotest(LPSHELLCONTEXT Context) {
-    BOOL PreviousErrorConsoleEnabled;
     BOOL Result = FALSE;
 
     ParseNextCommandLineComponent(Context);
@@ -431,10 +430,7 @@ U32 CMD_autotest(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    PreviousErrorConsoleEnabled = KernelLogGetErrorConsoleEnabled();
-    KernelLogSetErrorConsoleEnabled(FALSE);
     Result = RunSingleTestByName(TEXT("TestCopyStack"));
-    KernelLogSetErrorConsoleEnabled(PreviousErrorConsoleEnabled);
 
     if (Result) {
         ConsolePrint(TEXT("autotest stack: passed\n"));

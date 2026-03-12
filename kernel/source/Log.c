@@ -60,7 +60,6 @@ typedef struct tag_KERNEL_LOG_RECENT_LINE {
 typedef struct tag_KERNEL_LOG_STATE {
     STR DefaultTagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
     STR TagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
-    BOOL ErrorConsoleEnabled;
     U32 RecentSequence;
     U32 RecentWriteOffset;
     UINT RecentUsedBytes;
@@ -73,7 +72,6 @@ typedef struct tag_KERNEL_LOG_STATE {
 static KERNEL_LOG_STATE DATA_SECTION KernelLogState = {
     .DefaultTagFilter = KERNEL_LOG_DEFAULT_TAG_FILTER,
     .TagFilter = {0},
-    .ErrorConsoleEnabled = TRUE,
     .RecentSequence = 0,
     .RecentWriteOffset = 0,
     .RecentUsedBytes = 0,
@@ -165,46 +163,6 @@ void KernelLogSetTagFilter(LPCSTR TagFilter) {
  */
 LPCSTR KernelLogGetTagFilter(void) {
     return KernelLogState.TagFilter;
-}
-
-/************************************************************************/
-
-/**
- * @brief Enable or disable console mirror for LOG_ERROR messages.
- * @param Enabled TRUE to print error logs to console, FALSE to keep serial-only.
- */
-void KernelLogSetErrorConsoleEnabled(BOOL Enabled) {
-    U32 Flags;
-
-    SaveFlags(&Flags);
-    FreezeScheduler();
-    DisableInterrupts();
-
-    KernelLogState.ErrorConsoleEnabled = Enabled;
-
-    UnfreezeScheduler();
-    RestoreFlags(&Flags);
-}
-
-/************************************************************************/
-
-/**
- * @brief Return current console mirror state for LOG_ERROR messages.
- * @return TRUE when LOG_ERROR is mirrored to console.
- */
-BOOL KernelLogGetErrorConsoleEnabled(void) {
-    BOOL Enabled;
-    U32 Flags;
-
-    SaveFlags(&Flags);
-    FreezeScheduler();
-    DisableInterrupts();
-
-    Enabled = KernelLogState.ErrorConsoleEnabled;
-
-    UnfreezeScheduler();
-    RestoreFlags(&Flags);
-    return Enabled;
 }
 
 /************************************************************************/
@@ -607,10 +565,6 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
 
         case LOG_ERROR: {
             Prefix = TEXT("ERROR > ");
-            if (KernelLogState.ErrorConsoleEnabled) {
-                ConsolePrint(TextBuffer);
-                ConsolePrint(Text_NewLine);
-            }
         } break;
     }
 

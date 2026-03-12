@@ -37,6 +37,7 @@
 #include "User.h"
 #include "drivers/interrupts/DeviceInterrupt.h"
 #include "drivers/usb/USB.h"
+#include "utils/FailureGate.h"
 #include "utils/RateLimiter.h"
 
 /************************************************************************/
@@ -101,6 +102,7 @@
 #define XHCI_PORTSC_SPEED_MASK 0x00003C00
 #define XHCI_PORTSC_SPEED_SHIFT 10
 #define XHCI_PORTSC_W1C_MASK 0x00FE0000
+#define XHCI_ROOT_PORT_PROBE_FAILURE_THRESHOLD 8
 
 #define XHCI_ENUM_ERROR_NONE            0u
 #define XHCI_ENUM_ERROR_BUSY            1u
@@ -114,6 +116,7 @@
 #define XHCI_ENUM_ERROR_CONFIG_PARSE    9u
 #define XHCI_ENUM_ERROR_SET_CONFIG     10u
 #define XHCI_ENUM_ERROR_HUB_INIT       11u
+#define XHCI_ENUM_ERROR_BLACKLISTED    12u
 
 /************************************************************************/
 // xHCI runtime registers
@@ -293,6 +296,8 @@ typedef struct tag_XHCI_USB_DEVICE {
     BOOL DestroyPending;
     U8 LastEnumError;
     U16 LastEnumCompletion;
+    U32 LastRootPortProbeSignature;
+    FAILURE_GATE RootPortFailureGate;
     U8 PortNumber;
     U8 RootPortNumber;
     U8 Depth;

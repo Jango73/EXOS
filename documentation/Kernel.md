@@ -761,7 +761,7 @@ The xHCI host stack (`kernel/source/drivers/usb/XHCI-Core.c`, `kernel/source/dri
 USB interfaces and endpoints are kernel objects stored in global lists. Class drivers hold references so teardown is deferred until hotplug release is safe.
 Class drivers reuse the same xHCI high-level transfer helpers for normal-transfer submission and transfer-event completion matching. Before a fresh single-TRB transfer is armed on one endpoint, cached transfer events for the same slot/DCI route are purged so late completions from a previous timeout/recovery cycle cannot be misassociated with the new transfer. Doorbell writes publish ring/context memory updates through an explicit barrier before the MMIO write so real controllers do not observe partially visible producer state.
 
-Disconnect handling is staged: stop and reset endpoints, flush transfer rings, disable slot context, then release resources only after object references drain. This avoids invalid memory access during in-flight I/O. Root-port probe failures are rate-limited in the xHCI diagnostics path so one unstable port does not flood the kernel log and hide unrelated USB activity.
+Disconnect handling is staged: stop and reset endpoints, flush transfer rings, disable slot context, then release resources only after object references drain. This avoids invalid memory access during in-flight I/O. Root-port probe failures are rate-limited in the xHCI diagnostics path so one unstable port does not flood the kernel log and hide unrelated USB activity. Repeated failures on one root port while its filtered `PORTSC` state stays unchanged are counted through the reusable `utils/FailureGate` helper; after the threshold is reached, the port is blacklisted and no longer re-enumerated until the port state changes or the device disconnects.
 
 Hub-class devices are supported through descriptor parsing, port power management, downstream tracking, and interrupt-endpoint polling for port-change driven reset/re-enumeration. Interrupt endpoint contexts derive interval, Max Burst, and Max ESIT payload from the descriptor encoding required by the endpoint speed tier instead of reusing raw descriptor fields. Bulk endpoint contexts use a non-zero Average TRB Length aligned with the xHCI recommended initial value for bulk transfers rather than reusing the endpoint maximum packet size.
 
@@ -2008,6 +2008,7 @@ Kernel logging funnels through `KernelLogText` and uses typed log classes.
 All logs follow the `[FunctionName]` prefix rule and can emit structured results such as `TEST > [CMD_sysinfo] sys_info : OK`.
 Serial output is sanitized to printable ASCII (plus tab/newline) before being written to the log.
 When `DEBUG_SPLIT` is `1`, kernel logs are mirrored to a dedicated right-side console region while standard console output remains on the left.
+`LOG_ERROR` entries stay in the kernel log path and are not mirrored to the main console, so diagnostics do not interfere with interactive console output.
 
 #### Log classes
 

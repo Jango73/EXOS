@@ -198,6 +198,8 @@ void XHCI_InitUsbDeviceObject(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice)
     UsbDevice->Controller = Device;
     UsbDevice->LastEnumError = XHCI_ENUM_ERROR_NONE;
     UsbDevice->LastEnumCompletion = 0;
+    UsbDevice->LastRootPortProbeSignature = 0;
+    (void)FailureGateInit(&UsbDevice->RootPortFailureGate, XHCI_ROOT_PORT_PROBE_FAILURE_THRESHOLD);
 
     InitMutex(&UsbDevice->Mutex);
     UsbDevice->Contexts.First = NULL;
