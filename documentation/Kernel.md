@@ -41,8 +41,17 @@
   - [Shell scripting](#shell-scripting)
   - [Network Stack](#network-stack)
 - [Windowing](#windowing)
-  - [Desktop shell entry points](#desktop-shell-entry-points)
-  - [Windowing core paths](#windowing-core-paths)
+  - [Desktop activation](#desktop-activation)
+  - [Window model](#window-model)
+  - [Rendering pipeline](#rendering-pipeline)
+  - [Decoration modes](#decoration-modes)
+  - [Input, capture, and timers](#input-capture-and-timers)
+  - [Theme architecture](#theme-architecture)
+  - [Theme levels](#theme-levels)
+  - [Theme runtime API and fallback](#theme-runtime-api-and-fallback)
+  - [Theme file example](#theme-file-example)
+  - [Legacy compatibility](#legacy-compatibility)
+  - [Synchronization rules](#synchronization-rules)
 - [Tooling and References](#tooling-and-references)
   - [Logging](#logging)
   - [Automated debug validation script](#automated-debug-validation-script)
@@ -1881,117 +1890,207 @@ The network stack successfully handles real network traffic across multiple devi
 
 ## Windowing
 
-### Desktop shell entry points
+The windowing system is implemented in the kernel desktop layer. It owns desktop lifetime, window objects, z-order, invalidation, draw dispatch, non-client rendering, and theme activation. Graphics drivers provide scanout and drawing contexts, but window composition policy stays in desktop code.
 
-The `desktop` shell command exposes `desktop show`, `desktop status`, and `desktop theme <path-or-name>`. `desktop show` creates the kernel shell desktop on first use, selects and persists one complete display selection (`backend + mode`) on that first activation, reuses that same persisted selection on later activations of the same desktop, and injects startup desktop components only after the desktop activation path succeeds. Once one backend accepts `DF_GFX_SETMODE`, the graphics selector keeps that backend fixed for the rest of the active graphics session; if that backend cannot later provide `DF_GFX_GETCONTEXT`, desktop activation fails explicitly instead of silently falling back to another backend. Theme load/activation from `Desktop.ThemePath` in `exos.*.toml` remains optional; failures are reported but never block desktop activation.
-An internal kernel test module (`kernel/source/desktop/Desktop-InternalTest.c`, `kernel/include/desktop/Desktop-InternalTest.h`) runs on `desktop show` and ensures one visible test window exists on the shell desktop, with deterministic placement for windowing validation.
+### Desktop activation
 
-### Math module
+The shell entry point is the `desktop` command.
 
-Kernel math primitives for 3D transforms are implemented in `kernel/include/math/Math.h`, `kernel/include/math/Math3D.h`, `kernel/source/math/Math.c`, and `kernel/source/math/Math3D.c`.
+- `desktop show` creates or reuses the shell desktop, starts the dispatcher task, selects one graphics backend and mode, and switches the session to graphics mode.
+- `desktop status` reports desktop state and theme runtime state.
+- `desktop theme <path-or-name>` loads and/or activates one theme.
 
-The math base exposes:
-- trigonometry for `F32` and `F64` (`MathSin*`, `MathCos*`),
-- scalar square root (`MathSqrt*`),
-- `Vector3`, `Quat4`, and `Matrix4` primitives for transform composition and point transformation.
+`Desktop.ThemePath` in `exos.*.toml` is optional. If configured, `desktop show` tries to load and activate that theme after desktop activation succeeds. Theme errors never block desktop startup.
 
-Trigonometry selects a polynomial path when hardware FPU support is present and a lookup-table path when FPU support is not available.
+### Window model
 
-### Windowing core paths
+Each window is a kernel object attached to one desktop tree. Parent/child relations, sibling order, visibility, and geometry are managed by the desktop core. Userland interacts through the public window API and syscalls, but the authoritative state lives in the kernel.
 
-#### Non-client rendering and decoration mode
+Geometry uses three coordinate spaces:
 
-Default non-client rendering is implemented in `kernel/source/desktop/Desktop-NonClient.c`.
-Structured draw dispatch is centralized in `kernel/source/desktop/Desktop-Draw.c`.
-Desktop core owns system chrome there and prepares the effective draw surface before invoking the window procedure.
-For system-decorated windows, `EWM_DRAW` is dispatched in client coordinates only.
-For client-decorated and bare windows, `EWM_DRAW` keeps the full owned surface.
-`DefWindowFunc` does not need to redraw system chrome to preserve the frame.
-Decoration mode is resolved from `EWS_SYSTEM_DECORATED`, `EWS_CLIENT_DECORATED`, and `EWS_BARE_SURFACE`, with style `0` treated as system-decorated for compatibility.
-The same non-client path resolves and draws window caption text inside the themed title bar when a caption is set.
-
-#### Window geometry and coordinate spaces
-
-Userland geometry updates use `SYSCALL_MoveWindow` with a `WINDOWRECT` payload (`runtime` `MoveWindow(HANDLE, LPRECT)`), so move and resize are applied through a single update path shared with desktop drag handling.
-Creation, move, resize, and drag-driven geometry changes all resolve through the same core placement path before one window rectangle is committed.
-
-Coordinate naming is shared across kernel and runtime:
 - `ScreenRect` / `ScreenPoint`: absolute desktop coordinates.
-- `WindowRect` / `WindowPoint`: coordinates relative to the full window rectangle (frame included).
+- `WindowRect` / `WindowPoint`: coordinates relative to the full owned window rectangle.
 - `ClientRect` / `ClientPoint`: coordinates relative to the client area origin.
 
-Reusable geometry conversions are centralized in `kernel/source/utils/Graphics-Utils.c` (`kernel/include/utils/Graphics-Utils.h`).
-Userland can query both rectangle spaces through `GetWindowRect` and `GetWindowClientRect`.
-Window hierarchy traversal is centralized in `kernel/source/desktop/Desktop-WindowRelations.c`; parent and direct child/sibling discovery are exposed through `GetWindowParent`, `GetWindowChildCount`, `GetWindowChild`, `GetNextWindowSibling`, and `GetPreviousWindowSibling`.
-Window placement policy can be expressed through generic window style bits. `EWS_EXCLUDE_SIBLING_PLACEMENT` marks one window as reserving its own rectangle against sibling placement.
-Sibling z-order policy can also be expressed through generic style bits: `EWS_ALWAYS_IN_FRONT` keeps one window in the front band, while `EWS_ALWAYS_AT_BOTTOM` keeps one window in the bottom band.
-Sibling z-order values are not guaranteed to remain equal to the last raw `Order` value one caller observed or assigned, because the desktop pipeline can renormalize sibling orders after topmost/bottommost style changes.
-Window captions are stored in core window state and exposed through `SetWindowCaption` and `GetWindowCaption`.
-The core placement resolver first constrains one candidate rectangle to the parent effective work rectangle, then shrinks that placement area around visible sibling windows that reserve placement on one parent edge, and finally rejects any remaining overlap with reserved sibling rectangles.
-Dockable components publish this reservation through the high-level window style API on the docked window itself. Host relayout temporarily clears that style on attached dockables while one new layout frame is applied, then restores it after the frame is committed, so docking does not require one core placement bypass path.
-Visibility changes and style changes affecting `EWS_EXCLUDE_SIBLING_PLACEMENT` or `EWS_VISIBLE` immediately trigger one sibling-placement revalidation pass, so existing sibling windows are re-clamped through the same generic placement resolver without waiting for a later move or creation path.
+Creation, move, resize, and drag-driven geometry changes all resolve through the same placement path before one new rectangle is committed. Style bits also express generic placement and z-order policy such as `EWS_ALWAYS_IN_FRONT`, `EWS_ALWAYS_AT_BOTTOM`, and `EWS_EXCLUDE_SIBLING_PLACEMENT`.
 
-#### Timers and periodic redraw
+### Rendering pipeline
 
-Per-window timer delivery is implemented in `kernel/source/desktop/Desktop-Timer.c` (`kernel/include/desktop/Desktop-Timer.h`) with `SetWindowTimer`, `KillWindowTimer`, and asynchronous `EWM_TIMER` dispatch.
-The desktop clock widget (`kernel/source/ui/ClockWidget.c`, `kernel/include/ui/ClockWidget.h`) uses this timer path to request redraw once per second.
+Rendering is asynchronous and dirty-rectangle driven.
 
-`DrawWindowBackground` is exposed through the public windowing API and resolves one reserved `THEME_TOKEN_*` background token to one themed window element/state before drawing the background rectangle. The default clear path, desktop root background, client-decorated window client background, and reusable button component all use this same entry point instead of duplicating theme lookup and fill logic.
+When a window is invalidated, the desktop core records screen-space damage in the window dirty region and posts one coalesced draw request. The structured draw path then rebuilds the clip region, iterates dirty rectangles, draws kernel-owned non-client visuals when required, and finally dispatches `EWM_DRAW` to the window procedure with an active draw context.
 
-#### Window dock host integration
+This split is important:
 
-Docking host integration is implemented by window classes in `kernel/source/ui/WindowDockHost.c` and `kernel/source/ui/WindowDockable.c`.
-`WindowDockHostClass` provides one `DockHost` state per host window class data, and root window class registration derives from this base.
-The windowing core remains dock-agnostic: it emits generic `EWM_NOTIFY` messages (`EWN_WINDOW_RECT_CHANGED`, `EWN_WINDOW_PROPERTY_CHANGED`) and does not read dock-specific window properties.
-When the desktop root window receives `EWN_WINDOW_RECT_CHANGED`, its window procedure relays the same notify to direct children so desktop-owned components can react to root size or position changes without polling.
-Dock components subscribe to these notifications and update docking state (`WindowDockHostHandleWindowRectChanged`, relayout, attach/detach) in component code.
-When a window is attached into an existing subtree, the windowing core also posts `EWM_CHILD_APPENDED` to every ancestor up to the desktop root with the appended child `WindowID` in `Param1` so layout components can react to descendant injection without coupling to concrete component creation order.
-When a window is detached from an existing subtree, the windowing core also posts `EWM_CHILD_REMOVED` to the former parent and every ancestor up to the desktop root with the removed child `WindowID` in `Param1`.
-Public window lookup uses `FindWindow(Start, WindowID)` to resolve one window by identifier inside one subtree, while handle membership checks use `ContainsWindow(Start, Target)` when one caller must validate that one concrete handle belongs to that subtree.
-Parent movement constraints resolve from the parent effective placement rectangle and sibling placement reservations, without docking-specific coupling in core windowing paths.
-Docked windows publish sibling-placement exclusion through `EWS_EXCLUDE_SIBLING_PLACEMENT` and do not use docking-specific bypass logic when the host applies one assigned rectangle.
-Shell bar content composition uses slot windows exposed by `kernel/source/ui/ShellBar.c` (`left`, `center`, `components`) and the desktop injects concrete component windows into these slots after desktop activation succeeds.
-The shell bar does not reference concrete component types; it only manages slot geometry and keeps slot children fitted to slot client rectangles.
-A reusable button component is provided by `kernel/source/ui/Button.c` (`kernel/include/ui/Button.h`). It stays on the top-level window API, clears itself through the shared `EWM_CLEAR` pipeline with its themed background token, disables button borders through the level 1 theme defaults, and exposes classic `normal`, `hover`, `pressed`, and `disabled` theme states.
-Transparent client content is handled through the generic desktop windowing path: `EWM_CLEAR` resolves the effective themed background, updates the resolved transparency state of the window from that draw result, and custom-drawn components can override that inference with one generic transparency hint. Desktop mouse move dispatch also tracks the last mouse move target at desktop scope so hit-test changes deliver one final out-of-bounds `EWM_MOUSEMOVE` to the old target before the new target is notified, which allows any widget to clear hover state without component-specific leave handling.
-A floating wireframe cube component is provided by `kernel/source/ui/Cube3D.c` (`kernel/include/ui/Cube3D.h`). It defines `VERTEX3` and `QUAD` geometry sets and renders one rotating cube with one timer-driven redraw loop.
-The on-screen debug information component (`kernel/source/ui/OnScreenDebugInfo.c`, `kernel/include/ui/OnScreenDebugInfo.h`) is instantiated by the internal desktop test path as one bare bottom-band window spanning part of the desktop placement area, and it renders graphics then mouse debug lines through the shared high-level text API without coupling to other components.
+- system chrome is rendered by the kernel before client paint,
+- client paint is clipped to the effective dirty region,
+- draw dispatch happens outside structural desktop locks.
 
-#### Theme architecture
+`EWM_CLEAR` is part of the same pipeline. It resolves the themed background for the current draw surface, updates resolved transparency state, and lets overlay invalidation re-expose what became visible behind transparent content.
 
-Token resolution for desktop colors and metrics is implemented in `kernel/source/desktop/Desktop-ThemeTokens.c` (`kernel/include/desktop/Desktop-ThemeTokens.h`).
-`GetSystemBrush` and `GetSystemPen` resolve `SM_COLOR_*` from the default token set before returning shared draw objects.
+### Decoration modes
 
-Theme schema validation is defined in `kernel/source/desktop/Desktop-ThemeSchema.c` (`kernel/include/desktop/Desktop-ThemeSchema.h`), including top-level sections, canonical element/state identifiers, property typing, and parser limits.
+Decoration mode is selected through window style bits:
 
-Strict parsing and runtime table construction are implemented in `kernel/source/desktop/Desktop-ThemeParser.c` (`kernel/include/desktop/Desktop-ThemeParser.h`), with validation of section/key strictness, property typing, token references, recipe bindings, and parser limits.
+- `EWS_SYSTEM_DECORATED`
+- `EWS_CLIENT_DECORATED`
+- `EWS_BARE_SURFACE`
 
-Property resolution (`element`, `state`) is implemented in `kernel/source/desktop/Desktop-ThemeResolver.c` (`kernel/include/desktop/Desktop-ThemeResolver.h`) with fallback order `exact -> partial -> normal`.
+Style `0` is treated as `SystemDecorated` for compatibility.
 
-Recipe rendering is implemented in `kernel/source/desktop/Desktop-ThemeRecipes.c` (`kernel/include/desktop/Desktop-ThemeRecipes.h`), with bounded execution of primitives (`fill_rect`, `stroke_rect`, `line`, `gradient_h`, `gradient_v`, `glyph`, `inset_rect`) and `token:` color resolution.
+For `SystemDecorated` windows, the kernel owns the border, title bar, caption rendering, and non-client layout. `EWM_DRAW` is delivered in client coordinates only.
 
-Runtime activation and lifecycle are implemented in `kernel/source/desktop/Desktop-ThemeRuntime.c` (`kernel/include/desktop/Desktop-ThemeRuntime.h`) through `LoadTheme`, `ActivateTheme`, `GetActiveThemeInfo`, and `ResetThemeToDefault`.
-Desktop startup theme selection accepts `Desktop.ThemePath` from `exos.*.toml`.
+For `ClientDecorated` windows, the kernel renders no non-client chrome. The client owns the full window surface, including any custom frame or title bar. `EWM_DRAW` is delivered on the full owned surface.
 
-#### Dispatch and synchronization
+For `BareSurface` windows, the kernel also skips non-client rendering and keeps policy assumptions minimal.
 
-Desktop-owned `EWM_*` traffic is pumped by a dedicated dispatcher task in `kernel/source/desktop/Desktop-Dispatcher.c`.
-`desktop show` ensures this dispatcher exists before desktop interaction continues.
+### Input, capture, and timers
 
-Windowing lock ordering is defined in `kernel/include/desktop/Desktop.h`:
-`TaskMessageMutex -> DesktopTreeMutex -> DesktopStateMutex -> WindowMutex -> GraphicsContextMutex`.
-`PostMessage` and window callbacks execute outside structural desktop locks to avoid reentrant deadlock cycles during drag, redraw, and timer delivery.
+The desktop layer routes mouse and keyboard events to the focused window and tracks capture at desktop scope. Focus changes, mouse capture, move/resize operations, and timer delivery all use generic windowing paths rather than component-specific logic.
 
-#### Mutex ownership rules
+Per-window timers are asynchronous. `SetWindowTimer`, `KillWindowTimer`, and `EWM_TIMER` let one window request periodic redraw or state updates without blocking the desktop pipeline.
 
-The whole kernel follows one strict ownership rule for mutexes:
+### Theme architecture
 
-- one object mutex is taken only by code that owns that object's state,
-- foreign callers use owner-side getters, setters, or snapshot helpers,
-- structural locks remain short and cover only local get/set or list mutation,
-- tree walks use snapshots and continue outside the structural lock,
-- no message send, callback dispatch, or recursive traversal is allowed while
-  holding a desktop tree/state/window mutex.
+The theme system has one built-in default runtime and one optional loaded runtime. Theme files are strict TOML documents parsed directly by the kernel.
+
+The top-level theme sections are:
+
+- `[theme]`
+- `[tokens]`
+- `[elements.<element-id>]`
+- `[recipes.<recipe-id>]`
+- `[bindings]`
+
+Canonical element identifiers include:
+
+- `desktop.root`
+- `window.client`
+- `window.border`
+- `window.titlebar`
+- `window.title.text`
+- `window.button.close`
+- `window.button.maximize`
+- `window.button.minimize`
+- `window.resize.left`
+- `window.resize.right`
+- `window.resize.top`
+- `window.resize.bottom`
+- `window.resize.top_left`
+- `window.resize.top_right`
+- `window.resize.bottom_left`
+- `window.resize.bottom_right`
+- `button.body`
+- `button.text`
+- `textbox.body`
+- `textbox.text`
+- `textbox.caret`
+- `menu.background`
+- `menu.item`
+- `menu.item.text`
+
+State identifiers are:
+
+- `normal`
+- `hover`
+- `pressed`
+- `focused`
+- `active`
+- `disabled`
+- `checked`
+- `selected`
+
+State lookup uses the fallback order `exact -> partial -> normal`.
+
+### Theme levels
+
+Level 1 is the fast path. It resolves tokens and typed element properties such as colors, metrics, booleans, and text values.
+
+Level 2 is the recipe path. One binding maps `(element, state)` to one recipe identifier. The recipe interpreter executes a bounded list of primitives such as `fill_rect`, `stroke_rect`, `line`, `gradient_h`, `gradient_v`, `glyph`, and `inset_rect`.
+
+This keeps most themes simple while still allowing richer non-client rendering without hardcoding theme-specific drawing logic into the desktop.
+
+### Theme runtime API and fallback
+
+Theme runtime lifecycle is exposed through:
+
+- `LoadTheme(Path)`
+- `ActivateTheme(NameOrHandle)`
+- `GetActiveThemeInfo(Info)`
+- `ResetThemeToDefault()`
+
+`LoadTheme` parses one file and stages the candidate runtime. `ActivateTheme` swaps the active runtime atomically and invalidates desktop windows for full redraw. `ResetThemeToDefault` switches back to the built-in runtime.
+
+The runtime tracks:
+
+- whether the built-in or loaded theme is active,
+- whether one staged theme exists,
+- active and staged theme paths,
+- last parser/activation status,
+- last fallback reason,
+- active token/property/recipe/binding counts.
+
+Failure is explicit. Invalid path, file read failure, strict parse failure, invalid references, and activation failure all leave the existing active theme usable. Fallback reason and status stay queryable through `GetActiveThemeInfo`.
+
+### Theme file example
+
+Minimal reference theme:
+
+```toml
+[theme]
+name = "Default"
+
+[tokens]
+color.desktop.background = "#008080"
+color.window.border = "#000000"
+color.client.background = "#c0c0c0"
+color.window.title.active.start = "#000080"
+color.window.title.active.end = "#1084d0"
+color.window.title.inactive.start = "#808080"
+color.window.title.inactive.end = "#a0a0a0"
+color.window.title.text = "#ffffff"
+metric.window.border = 2
+metric.window.title_height = 22
+
+[elements.desktop.root]
+background = "token:color.desktop.background"
+
+[elements.window.client]
+background = "token:color.client.background"
+
+[elements.window.border]
+border_color = "token:color.window.border"
+border_thickness = "token:metric.window.border"
+
+[elements.window.titlebar]
+background = "token:color.window.title.active.start"
+background2 = "token:color.window.title.active.end"
+title_height = "token:metric.window.title_height"
+
+[elements.window.titlebar.states.normal]
+background = "token:color.window.title.active.start"
+background2 = "token:color.window.title.active.end"
+
+[elements.window.titlebar.states.focused]
+background = "token:color.window.title.active.start"
+background2 = "token:color.window.title.active.end"
+
+[elements.window.titlebar.states.active]
+background = "token:color.window.title.active.start"
+background2 = "token:color.window.title.active.end"
+```
+
+### Legacy compatibility
+
+Legacy `SM_COLOR_*` consumers are not bypassed. `GetSystemBrush` and `GetSystemPen` resolve these legacy system colors through the active theme token set, so older code keeps working while the desktop renderer uses the same theme contract.
+
+### Synchronization rules
+
+Desktop-owned `EWM_*` traffic is pumped by a dedicated dispatcher task. Lock ordering remains:
+
+`TaskMessageMutex -> DesktopTreeMutex -> DesktopStateMutex -> WindowMutex -> GraphicsContextMutex`
+
+Structural desktop locks are not held across message dispatch, callbacks, or recursive tree traversal. Windowing follows the kernel-wide mutex ownership rule: one object mutex is manipulated by the code that owns that object state, and foreign callers access that state through owner-side helpers or snapshots.
 
 Desktop and windowing code follow this same kernel-wide rule. Typical examples:
 

@@ -367,19 +367,13 @@ Compatibility first, then extension.
 - [x] Add diagnostics to report active cursor path (`hardware` or `software`) and fallback reason.
 
 ### Step 11: Client-Decorated Framework Support
-- [ ] Add decoration mode flag to window creation ABI/runtime API.
-- [ ] Implement no-chrome kernel path for `ClientDecorated` windows.
+- [x] Add decoration mode flag to window creation ABI/runtime API.
+- [x] Implement no-chrome kernel path for `ClientDecorated` windows.
 - [ ] Verify input/focus/capture/resize semantics for client-rendered chrome.
-- [ ] Add dirty-rectangle present path validation for framework rendering.
+- [ ] Validate dirty-rectangle redraw dispatch for `ClientDecorated` full-surface windows.
 - [ ] Validate minimal requirements for Qt-like platform plugins.
 
-### Step 12: Portal/Userland Alignment
-- [ ] Update `portal` to stop drawing standard non-client frame visuals.
-- [ ] Keep `portal` focused on client-area content and behavior.
-- [ ] Validate button and control rendering against canonical element definitions.
-- [ ] Verify behavior in both x86-32 and x86-64 configurations.
-
-### Step 13: Testing and Hardening
+### Step 12: Testing and Hardening
 - [ ] Add functional tests for create/show/hide/destroy/focus/capture.
 - [ ] Add state-transition rendering tests (`normal`, `hover`, `pressed`, `focused`, `disabled`).
 - [ ] Add compatibility tests for legacy `SM_COLOR_*` consumers.
@@ -389,13 +383,13 @@ Compatibility first, then extension.
 - [ ] Add malformed TOML and reference-error tests.
 - [ ] Add boundary tests for parser/runtime limits.
 
-### Step 14: Documentation Finalization
-- [ ] Update `documentation/Kernel.md` with final architecture.
-- [ ] Document TOML schema contract and canonical element/state registry.
-- [ ] Document theme API and fallback semantics.
-- [ ] Document diskless bootstrap and EXOS shell commands.
-- [ ] Document window decoration modes and framework integration expectations.
-- [ ] Add a minimal reference default theme file example.
+### Step 13: Documentation Finalization
+- [x] Update `documentation/Kernel.md` with final architecture.
+- [x] Document TOML schema contract and canonical element/state registry.
+- [x] Document theme API and fallback semantics.
+- [x] Document diskless bootstrap and EXOS shell commands.
+- [x] Document window decoration modes and framework integration expectations.
+- [x] Add a minimal reference default theme file example.
 
 ## Portal and Desktop Integration Notes
 - `portal` should not hardcode standard frame visuals.
