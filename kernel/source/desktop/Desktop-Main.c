@@ -291,6 +291,34 @@ static BOOL DesktopApplyDisplaySelection(LPDESKTOP Desktop, LPGRAPHICSMODEINFO A
 
 /***************************************************************************/
 
+/**
+ * @brief Validate that the active graphics backend can provide one drawing context.
+ * @param GraphicsDriver Active graphics driver.
+ * @return TRUE when the backend exposes one usable graphics context.
+ */
+static BOOL DesktopEnsureGraphicsContextAvailable(LPDRIVER GraphicsDriver) {
+    UINT ContextPointer = 0;
+    LPGRAPHICSCONTEXT Context = NULL;
+
+    if (GraphicsDriver == NULL || GraphicsDriver->Command == NULL) {
+        return FALSE;
+    }
+
+    ContextPointer = GraphicsDriver->Command(DF_GFX_CREATECONTEXT, 0);
+    if (!IS_VALID_KERNEL_POINTER((LPVOID)(UINT)ContextPointer)) {
+        return FALSE;
+    }
+
+    Context = (LPGRAPHICSCONTEXT)(LPVOID)ContextPointer;
+    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
 BRUSH Brush_Desktop = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = 0, .Pattern = MAX_U32 };
 BRUSH Brush_High = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = 0, .Pattern = MAX_U32 };
 BRUSH Brush_Normal = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = 0, .Pattern = MAX_U32 };
@@ -606,6 +634,14 @@ BOOL ShowDesktop(LPDESKTOP This) {
     ModeReady = DesktopIsValidGraphicsModeInfo(&ModeInfo);
     if (ModeReady == FALSE) {
         WARNING(TEXT("[ShowDesktop] No valid graphics mode available after selection"));
+        This->Mode = DESKTOP_MODE_CONSOLE;
+        UnlockMutex(&(This->Mutex));
+        UnlockMutex(MUTEX_KERNEL);
+        return FALSE;
+    }
+
+    if (DesktopEnsureGraphicsContextAvailable(This->Graphics) == FALSE) {
+        WARNING(TEXT("[ShowDesktop] Active graphics backend cannot provide a drawing context"));
         This->Mode = DESKTOP_MODE_CONSOLE;
         UnlockMutex(&(This->Mutex));
         UnlockMutex(MUTEX_KERNEL);

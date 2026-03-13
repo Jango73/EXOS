@@ -123,7 +123,7 @@ static BOOL ConsoleTextAcquireContext(LPDRIVER* DriverOut, LPGRAPHICSCONTEXT* Co
         goto Done;
     }
 
-    if (ContextPointer < VMA_KERNEL) {
+    if (!IS_VALID_KERNEL_POINTER((LPVOID)(UINT)ContextPointer)) {
         goto Done;
     }
 

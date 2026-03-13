@@ -44,6 +44,7 @@ typedef struct tag_GRAPHICS_SELECTOR_STATE {
     UINT Priorities[4];
     UINT BackendCount;
     UINT ActiveIndex;
+    BOOL SelectionFrozen;
 } GRAPHICS_SELECTOR_STATE, *LPGRAPHICS_SELECTOR_STATE;
 
 /************************************************************************/
@@ -51,6 +52,7 @@ typedef struct tag_GRAPHICS_SELECTOR_STATE {
 static UINT GraphicsSelectorCommands(UINT Function, UINT Parameter);
 static UINT GraphicsSelectorBackendPriority(LPDRIVER Driver);
 static UINT GraphicsSelectorScoreDriver(LPDRIVER Driver);
+static UINT GraphicsSelectorForwardFrozen(UINT Function, UINT Parameter);
 static UINT GraphicsSelectorLoad(void);
 static UINT GraphicsSelectorUnload(void);
 
@@ -466,6 +468,33 @@ static UINT GraphicsSelectorUnload(void) {
 /************************************************************************/
 
 /**
+ * @brief Forward one command only to the frozen active backend.
+ * @param Function Driver command identifier.
+ * @param Parameter Driver command parameter.
+ * @return Result from the active backend, or DF_RETURN_NOT_IMPLEMENTED when missing.
+ */
+static UINT GraphicsSelectorForwardFrozen(UINT Function, UINT Parameter) {
+    LPDRIVER Driver = NULL;
+
+    if (GraphicsSelectorState.BackendCount == 0) {
+        return DF_RETURN_NOT_IMPLEMENTED;
+    }
+
+    if (GraphicsSelectorState.ActiveIndex >= GraphicsSelectorState.BackendCount) {
+        return DF_RETURN_NOT_IMPLEMENTED;
+    }
+
+    Driver = GraphicsSelectorState.Backends[GraphicsSelectorState.ActiveIndex];
+    if (Driver == NULL || Driver->Command == NULL) {
+        return DF_RETURN_NOT_IMPLEMENTED;
+    }
+
+    return Driver->Command(Function, Parameter);
+}
+
+/************************************************************************/
+
+/**
  * @brief Forward a command to the selected backend.
  * @param Function Command identifier.
  * @param Parameter Command parameter.
@@ -482,6 +511,10 @@ static UINT GraphicsSelectorForward(UINT Function, UINT Parameter) {
 
     if (GraphicsSelectorState.BackendCount == 0) {
         return DF_RETURN_NOT_IMPLEMENTED;
+    }
+
+    if (GraphicsSelectorState.SelectionFrozen != FALSE) {
+        return GraphicsSelectorForwardFrozen(Function, Parameter);
     }
 
     IsBooleanTextCommand = GraphicsSelectorIsBooleanTextCommand(Function);
@@ -522,16 +555,16 @@ static UINT GraphicsSelectorForward(UINT Function, UINT Parameter) {
                 Suppressed);
         }
 
-        if (Function == DF_GFX_CREATECONTEXT) {
-            if (Result >= VMA_KERNEL) {
+        if (IsBooleanTextCommand != FALSE) {
+            if (Result != 0) {
                 GraphicsSelectorState.ActiveIndex = Index;
                 return Result;
             }
             continue;
         }
 
-        if (IsBooleanTextCommand != FALSE) {
-            if (Result != 0) {
+        if (Function == DF_GFX_CREATECONTEXT) {
+            if (IS_VALID_KERNEL_POINTER((LPVOID)(UINT)Result)) {
                 GraphicsSelectorState.ActiveIndex = Index;
                 return Result;
             }
@@ -543,6 +576,9 @@ static UINT GraphicsSelectorForward(UINT Function, UINT Parameter) {
         }
 
         GraphicsSelectorState.ActiveIndex = Index;
+        if (Function == DF_GFX_SETMODE && Result == DF_RETURN_SUCCESS) {
+            GraphicsSelectorState.SelectionFrozen = TRUE;
+        }
         return Result;
     }
 

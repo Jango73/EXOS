@@ -522,7 +522,7 @@ typedef U32 COLOR;
 #define SETALPHA(c, a) (((COLOR)c & 0x00FFFFFF) | ((COLOR)a << 0x18))
 
 /************************************************************************/
-// Utilitiy macros
+// Utility macros
 
 #define UNUSED(x) (void)(x)
 #define SAFE_USE(a) if ((a) != NULL)
@@ -538,6 +538,12 @@ typedef U32 COLOR;
 
 // This is called before dereferencing a user-provided pointer to a parameter structure
 #define SAFE_USE_INPUT_POINTER(p, s) if ((p) != NULL && IsValidMemory((LINEAR)p) && (p)->Header.Size >= sizeof(s))
+
+#ifdef CONFIG_VMA_KERNEL
+    #define IS_VALID_KERNEL_POINTER(Value) (((UINT)(Value) != 0) && ((UINT)(Value) >= (UINT)(CONFIG_VMA_KERNEL)))
+#else
+    #define IS_VALID_KERNEL_POINTER(Value) ((UINT)(Value) != 0)
+#endif
 
 // Do an infinite loop
 #define FOREVER while(1)
