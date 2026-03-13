@@ -32,6 +32,8 @@
 
 #define SHELL_BAR_WINDOW_CLASS_NAME TEXT("ShellBarWindowClass")
 #define SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID 0x53424350
+#define SHELL_BAR_COMPONENT_PROP_ORDER TEXT("shellbar.component_order")
+#define SHELL_BAR_COMPONENT_PROP_WIDTH TEXT("shellbar.component_width")
 
 /************************************************************************/
 
@@ -47,7 +49,6 @@ BOOL ShellBarEnsureClassRegistered(void);
 BOOL ShellBarCreate(HANDLE ParentWindow);
 HANDLE ShellBarGetWindow(HANDLE ParentWindow);
 HANDLE ShellBarGetSlotWindow(HANDLE ShellBarWindow, U32 SlotID);
-BOOL ShellBarEnsureClockWidget(HANDLE ShellBarWindow);
 U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
 
 /************************************************************************/

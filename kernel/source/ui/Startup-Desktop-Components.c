@@ -23,6 +23,8 @@
 
 #include "ui/Startup-Desktop-Components.h"
 
+#include "ui/Button.h"
+#include "ui/ClockWidget.h"
 #include "ui/Cube3D.h"
 #include "ui/LogViewer.h"
 #include "ui/OnScreenDebugInfo.h"
@@ -32,6 +34,104 @@
 
 #define DESKTOP_ON_SCREEN_DEBUG_INFO_WINDOW_ID 0x5344534F
 #define DESKTOP_CUBE3D_WINDOW_TOP 300
+#define SHELL_BAR_CLOCK_WINDOW_ID 0x5342434C
+#define SHELL_BAR_BUTTON_LOG_VIEWER_WINDOW_ID 0x53424C47
+#define SHELL_BAR_BUTTON_CUBE3D_WINDOW_ID 0x53424333
+#define SHELL_BAR_COMPONENT_ORDER_BUTTON_CUBE3D 3
+#define SHELL_BAR_COMPONENT_ORDER_BUTTON_LOG_VIEWER 2
+#define SHELL_BAR_COMPONENT_ORDER_CLOCK 1
+#define SHELL_BAR_COMPONENT_WIDTH_CLOCK 64
+#define SHELL_BAR_COMPONENT_WIDTH_BUTTON 88
+
+/***************************************************************************/
+
+static BOOL MarkShellBarComponentLayout(HANDLE Window, U32 Order, U32 Width) {
+    if (Window == NULL) return FALSE;
+    if (Order == 0 || Width == 0) return FALSE;
+
+    (void)SetWindowProp(Window, SHELL_BAR_COMPONENT_PROP_ORDER, Order);
+    (void)SetWindowProp(Window, SHELL_BAR_COMPONENT_PROP_WIDTH, Width);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+static BOOL EnsureShellBarClockWidget(HANDLE ShellBarWindow) {
+    HANDLE ComponentsSlotWindow;
+    HANDLE ClockWindow;
+    WINDOWINFO WindowInfo;
+
+    if (ShellBarWindow == NULL) return FALSE;
+    if (DesktopClockWidgetEnsureClassRegistered() == FALSE) return FALSE;
+
+    ComponentsSlotWindow = ShellBarGetSlotWindow(ShellBarWindow, SHELL_BAR_SLOT_COMPONENTS);
+    if (ComponentsSlotWindow == NULL) return FALSE;
+
+    ClockWindow = FindWindow(ComponentsSlotWindow, SHELL_BAR_CLOCK_WINDOW_ID);
+    if (ClockWindow != NULL) {
+        return MarkShellBarComponentLayout(
+            ClockWindow,
+            SHELL_BAR_COMPONENT_ORDER_CLOCK,
+            SHELL_BAR_COMPONENT_WIDTH_CLOCK);
+    }
+
+    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Version = EXOS_ABI_VERSION;
+    WindowInfo.Header.Flags = 0;
+    WindowInfo.Window = NULL;
+    WindowInfo.Parent = ComponentsSlotWindow;
+    WindowInfo.WindowClass = 0;
+    WindowInfo.WindowClassName = DESKTOP_CLOCK_WIDGET_WINDOW_CLASS_NAME;
+    WindowInfo.Function = NULL;
+    WindowInfo.Style = EWS_VISIBLE | EWS_CLIENT_DECORATED;
+    WindowInfo.ID = SHELL_BAR_CLOCK_WINDOW_ID;
+    WindowInfo.WindowPosition.X = 0;
+    WindowInfo.WindowPosition.Y = 0;
+    WindowInfo.WindowSize.X = 1;
+    WindowInfo.WindowSize.Y = 1;
+    WindowInfo.ShowHide = TRUE;
+
+    ClockWindow = (HANDLE)CreateWindow(&WindowInfo);
+    if (ClockWindow == NULL) return FALSE;
+
+    return MarkShellBarComponentLayout(
+        ClockWindow,
+        SHELL_BAR_COMPONENT_ORDER_CLOCK,
+        SHELL_BAR_COMPONENT_WIDTH_CLOCK);
+}
+
+/***************************************************************************/
+
+static BOOL EnsureShellBarButton(
+    HANDLE ShellBarWindow,
+    U32 ButtonWindowID,
+    U32 TargetWindowID,
+    U32 Order,
+    LPCSTR Caption
+) {
+    HANDLE ComponentsSlotWindow;
+    HANDLE ButtonWindow;
+    RECT ButtonRect;
+
+    if (ShellBarWindow == NULL || Caption == NULL) return FALSE;
+    if (ButtonEnsureClassRegistered() == FALSE) return FALSE;
+
+    ComponentsSlotWindow = ShellBarGetSlotWindow(ShellBarWindow, SHELL_BAR_SLOT_COMPONENTS);
+    if (ComponentsSlotWindow == NULL) return FALSE;
+
+    ButtonWindow = FindWindow(ComponentsSlotWindow, ButtonWindowID);
+    if (ButtonWindow == NULL) {
+        ButtonRect.X1 = 0;
+        ButtonRect.Y1 = 0;
+        ButtonRect.X2 = SHELL_BAR_COMPONENT_WIDTH_BUTTON - 1;
+        ButtonRect.Y2 = 1;
+        ButtonWindow = ButtonCreate(ComponentsSlotWindow, ButtonWindowID, &ButtonRect, Caption);
+        if (ButtonWindow == NULL) return FALSE;
+    }
+
+    (void)SetWindowProp(ButtonWindow, DESKTOP_BUTTON_PROP_NOTIFY_VALUE, TargetWindowID);
+    return MarkShellBarComponentLayout(ButtonWindow, Order, SHELL_BAR_COMPONENT_WIDTH_BUTTON);
+}
 
 /***************************************************************************/
 
@@ -301,6 +401,9 @@ static BOOL EnsureOnScreenDebugInfoWindow(LPDESKTOP Desktop) {
 BOOL StartupDesktopComponentsInitialize(LPDESKTOP Desktop) {
     HANDLE RootWindow;
     HANDLE ShellBarWindow;
+    BOOL ShellBarClockResult = TRUE;
+    BOOL ShellBarLogViewerButtonResult = TRUE;
+    BOOL ShellBarCube3DButtonResult = TRUE;
     BOOL Cube3DResult;
     BOOL LogViewerResult;
     BOOL OnScreenDebugInfoResult;
@@ -322,10 +425,28 @@ BOOL StartupDesktopComponentsInitialize(LPDESKTOP Desktop) {
 
         ShellBarWindow = ShellBarGetWindow(RootWindow);
     }
+    if (ShellBarWindow != NULL) {
+        ShellBarClockResult = EnsureShellBarClockWidget(ShellBarWindow);
+        ShellBarLogViewerButtonResult = EnsureShellBarButton(
+            ShellBarWindow,
+            SHELL_BAR_BUTTON_LOG_VIEWER_WINDOW_ID,
+            DESKTOP_LOG_VIEWER_WINDOW_ID,
+            SHELL_BAR_COMPONENT_ORDER_BUTTON_LOG_VIEWER,
+            TEXT("LogViewer"));
+        ShellBarCube3DButtonResult = EnsureShellBarButton(
+            ShellBarWindow,
+            SHELL_BAR_BUTTON_CUBE3D_WINDOW_ID,
+            DESKTOP_CUBE3D_WINDOW_ID,
+            SHELL_BAR_COMPONENT_ORDER_BUTTON_CUBE3D,
+            TEXT("Cube3D"));
+    }
     Cube3DResult = EnsureCube3DWindow(Desktop);
     LogViewerResult = EnsureLogViewerWindow(Desktop);
     OnScreenDebugInfoResult = EnsureOnScreenDebugInfoWindow(Desktop);
-    return (Cube3DResult != FALSE) &&
+    return (ShellBarClockResult != FALSE) &&
+           (ShellBarLogViewerButtonResult != FALSE) &&
+           (ShellBarCube3DButtonResult != FALSE) &&
+           (Cube3DResult != FALSE) &&
            (LogViewerResult != FALSE) &&
            (OnScreenDebugInfoResult != FALSE);
 }

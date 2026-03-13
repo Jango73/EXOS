@@ -164,29 +164,6 @@ static BOOL ResolveBuiltinColorToken(U32 TokenID, COLOR* Color) {
 /***************************************************************************/
 
 /**
- * @brief Resolve a built-in metric token identifier.
- * @param TokenID Built-in THEME_TOKEN_METRIC_* identifier.
- * @param Value Receives the token value.
- * @return TRUE when the token exists.
- */
-static BOOL ResolveBuiltinMetricToken(U32 TokenID, U32* Value) {
-    UINT Index;
-
-    if (Value == NULL) return FALSE;
-
-    for (Index = 0; Index < (sizeof(BuiltinMetricTokens) / sizeof(BuiltinMetricTokens[0])); Index++) {
-        if (BuiltinMetricTokens[Index].TokenID == TokenID) {
-            *Value = BuiltinMetricTokens[Index].Value;
-            return TRUE;
-        }
-    }
-
-    return FALSE;
-}
-
-/***************************************************************************/
-
-/**
  * @brief Resolve a built-in color token name from token identifier.
  * @param TokenID Built-in color token identifier.
  * @param TokenName Receives canonical token name.
@@ -330,38 +307,6 @@ static BOOL ResolveSystemColorTokenID(U32 SystemColorIndex, U32* TokenID) {
             *TokenID = BuiltinSystemColorBindings[Index].TokenID;
             return TRUE;
         }
-    }
-
-    return FALSE;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Convert SM_* metric identifiers to built-in metric token identifiers.
- * @param SystemMetricIndex Value from SM_* metric constants.
- * @param TokenID Receives THEME_TOKEN_METRIC_* identifier.
- * @return TRUE when mapping exists.
- */
-static BOOL ResolveSystemMetricTokenID(U32 SystemMetricIndex, U32* TokenID) {
-    if (TokenID == NULL) return FALSE;
-
-    switch (SystemMetricIndex) {
-        case SM_MINIMUM_WINDOW_WIDTH:
-            *TokenID = THEME_TOKEN_METRIC_MINIMUM_WINDOW_WIDTH;
-            return TRUE;
-        case SM_MINIMUM_WINDOW_HEIGHT:
-            *TokenID = THEME_TOKEN_METRIC_MINIMUM_WINDOW_HEIGHT;
-            return TRUE;
-        case SM_MAXIMUM_WINDOW_WIDTH:
-            *TokenID = THEME_TOKEN_METRIC_MAXIMUM_WINDOW_WIDTH;
-            return TRUE;
-        case SM_MAXIMUM_WINDOW_HEIGHT:
-            *TokenID = THEME_TOKEN_METRIC_MAXIMUM_WINDOW_HEIGHT;
-            return TRUE;
-        case SM_TITLE_BAR_HEIGHT:
-            *TokenID = THEME_TOKEN_METRIC_TITLE_BAR_HEIGHT;
-            return TRUE;
     }
 
     return FALSE;

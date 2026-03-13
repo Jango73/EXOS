@@ -24,9 +24,6 @@
 #include "ui/ShellBar.h"
 
 #include "ui/Button.h"
-#include "ui/ClockWidget.h"
-#include "ui/Cube3D.h"
-#include "ui/LogViewer.h"
 #include "ui/WindowDockable.h"
 
 /************************************************************************/
@@ -38,18 +35,8 @@
 #define SHELL_BAR_SLOT_COMPONENTS_WIDTH 256
 #define SHELL_BAR_ROLE_PROP TEXT("shellbar.role")
 #define SHELL_BAR_SLOT_PROP TEXT("shellbar.slot")
-#define SHELL_BAR_COMPONENT_ROLE_PROP TEXT("shellbar.component_role")
-#define SHELL_BAR_CLOCK_PROP TEXT("desktop.shellbar.clock")
-#define SHELL_BAR_CLOCK_WINDOW_ID 0x5342434C
-#define SHELL_BAR_BUTTON_LOG_VIEWER_WINDOW_ID 0x53424C47
-#define SHELL_BAR_BUTTON_CUBE3D_WINDOW_ID 0x53424333
-#define SHELL_BAR_COMPONENT_ROLE_CLOCK 1
-#define SHELL_BAR_COMPONENT_ROLE_BUTTON_LOG_VIEWER 2
-#define SHELL_BAR_COMPONENT_ROLE_BUTTON_CUBE3D 3
 #define SHELL_BAR_COMPONENTS_PADDING 4
 #define SHELL_BAR_COMPONENTS_GAP 4
-#define SHELL_BAR_CLOCK_WIDTH 64
-#define SHELL_BAR_BUTTON_WIDTH 88
 #define SHELL_BAR_ROLE_MAIN 1
 
 /************************************************************************/
@@ -90,115 +77,59 @@ static HANDLE ShellBarFindDirectChildByProp(HANDLE Parent, LPCSTR Name, U32 Valu
 static void ShellBarLayoutComponents(HANDLE ComponentsSlotWindow) {
     RECT ClientRect;
     RECT ChildRect;
-    HANDLE ClockWindow;
-    HANDLE LogViewerButtonWindow;
-    HANDLE Cube3DButtonWindow;
+    HANDLE CurrentWindow;
+    HANDLE SelectedWindow;
+    U32 ChildCount;
+    U32 ChildIndex;
+    U32 SelectionPass;
+    U32 BestOrder;
+    U32 CurrentOrder;
+    U32 ComponentWidth;
+    U32 SelectedWidth;
+    U32 PreviousOrder;
+    BOOL FoundSelection;
     I32 RightEdge;
 
     if (ComponentsSlotWindow == NULL) return;
     if (GetWindowClientRect(ComponentsSlotWindow, &ClientRect) == FALSE) return;
 
     RightEdge = ClientRect.X2 - SHELL_BAR_COMPONENTS_PADDING;
+    ChildCount = GetWindowChildCount(ComponentsSlotWindow);
+    PreviousOrder = 0xFFFFFFFF;
+    for (SelectionPass = 0; SelectionPass < ChildCount; SelectionPass++) {
+        SelectedWindow = NULL;
+        SelectedWidth = 0;
+        BestOrder = 0;
+        FoundSelection = FALSE;
 
-    Cube3DButtonWindow =
-        ShellBarFindDirectChildByProp(ComponentsSlotWindow, SHELL_BAR_COMPONENT_ROLE_PROP, SHELL_BAR_COMPONENT_ROLE_BUTTON_CUBE3D);
-    if (Cube3DButtonWindow != NULL) {
+        for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+            CurrentWindow = GetWindowChild(ComponentsSlotWindow, ChildIndex);
+            if (CurrentWindow == NULL) continue;
+
+            ComponentWidth = GetWindowProp(CurrentWindow, SHELL_BAR_COMPONENT_PROP_WIDTH);
+            if (ComponentWidth == 0) continue;
+
+            CurrentOrder = GetWindowProp(CurrentWindow, SHELL_BAR_COMPONENT_PROP_ORDER);
+            if (CurrentOrder == 0 || CurrentOrder >= PreviousOrder) continue;
+
+            if (FoundSelection == FALSE || CurrentOrder > BestOrder) {
+                SelectedWindow = CurrentWindow;
+                SelectedWidth = ComponentWidth;
+                BestOrder = CurrentOrder;
+                FoundSelection = TRUE;
+            }
+        }
+
+        if (SelectedWindow == NULL || SelectedWidth == 0) continue;
+
         ChildRect = ClientRect;
         ChildRect.X2 = RightEdge;
-        ChildRect.X1 = ChildRect.X2 - SHELL_BAR_BUTTON_WIDTH + 1;
+        ChildRect.X1 = ChildRect.X2 - (I32)SelectedWidth + 1;
         if (ChildRect.X1 < ClientRect.X1) ChildRect.X1 = ClientRect.X1;
-        (void)MoveWindow(Cube3DButtonWindow, &ChildRect);
+        (void)MoveWindow(SelectedWindow, &ChildRect);
         RightEdge = ChildRect.X1 - SHELL_BAR_COMPONENTS_GAP;
+        PreviousOrder = BestOrder;
     }
-
-    LogViewerButtonWindow =
-        ShellBarFindDirectChildByProp(ComponentsSlotWindow, SHELL_BAR_COMPONENT_ROLE_PROP, SHELL_BAR_COMPONENT_ROLE_BUTTON_LOG_VIEWER);
-    if (LogViewerButtonWindow != NULL) {
-        ChildRect = ClientRect;
-        ChildRect.X2 = RightEdge;
-        ChildRect.X1 = ChildRect.X2 - SHELL_BAR_BUTTON_WIDTH + 1;
-        if (ChildRect.X1 < ClientRect.X1) ChildRect.X1 = ClientRect.X1;
-        (void)MoveWindow(LogViewerButtonWindow, &ChildRect);
-        RightEdge = ChildRect.X1 - SHELL_BAR_COMPONENTS_GAP;
-    }
-
-    ClockWindow = ShellBarFindDirectChildByProp(ComponentsSlotWindow, SHELL_BAR_COMPONENT_ROLE_PROP, SHELL_BAR_COMPONENT_ROLE_CLOCK);
-    if (ClockWindow != NULL) {
-        ChildRect = ClientRect;
-        ChildRect.X2 = RightEdge;
-        ChildRect.X1 = ChildRect.X2 - SHELL_BAR_CLOCK_WIDTH + 1;
-        if (ChildRect.X1 < ClientRect.X1) ChildRect.X1 = ClientRect.X1;
-        (void)MoveWindow(ClockWindow, &ChildRect);
-    }
-}
-
-BOOL ShellBarEnsureClockWidget(HANDLE ShellBarWindow) {
-    HANDLE ComponentsSlotWindow;
-    HANDLE ClockWindow;
-    WINDOWINFO WindowInfo;
-
-    if (ShellBarWindow == NULL) return FALSE;
-    if (DesktopClockWidgetEnsureClassRegistered() == FALSE) return FALSE;
-
-    ComponentsSlotWindow = ShellBarGetSlotWindow(ShellBarWindow, SHELL_BAR_SLOT_COMPONENTS);
-    if (ComponentsSlotWindow == NULL) return FALSE;
-
-    ClockWindow = ShellBarFindDirectChildByProp(ComponentsSlotWindow, SHELL_BAR_CLOCK_PROP, 1);
-    if (ClockWindow != NULL) return TRUE;
-
-    WindowInfo.Header.Size = sizeof(WINDOWINFO);
-    WindowInfo.Header.Version = EXOS_ABI_VERSION;
-    WindowInfo.Header.Flags = 0;
-    WindowInfo.Window = NULL;
-    WindowInfo.Parent = ComponentsSlotWindow;
-    WindowInfo.WindowClass = 0;
-    WindowInfo.WindowClassName = DESKTOP_CLOCK_WIDGET_WINDOW_CLASS_NAME;
-    WindowInfo.Function = NULL;
-    WindowInfo.Style = EWS_VISIBLE | EWS_CLIENT_DECORATED;
-    WindowInfo.ID = SHELL_BAR_CLOCK_WINDOW_ID;
-    WindowInfo.WindowPosition.X = 0;
-    WindowInfo.WindowPosition.Y = 0;
-    WindowInfo.WindowSize.X = 1;
-    WindowInfo.WindowSize.Y = 1;
-    WindowInfo.ShowHide = TRUE;
-
-    ClockWindow = (HANDLE)CreateWindow(&WindowInfo);
-    if (ClockWindow == NULL) return FALSE;
-
-    (void)SetWindowProp(ClockWindow, SHELL_BAR_CLOCK_PROP, 1);
-    (void)SetWindowProp(ClockWindow, SHELL_BAR_COMPONENT_ROLE_PROP, SHELL_BAR_COMPONENT_ROLE_CLOCK);
-    ShellBarLayoutComponents(ComponentsSlotWindow);
-    return TRUE;
-}
-
-/************************************************************************/
-
-static BOOL ShellBarEnsureButton(
-    HANDLE ShellBarWindow, U32 ButtonWindowID, U32 ComponentRole, U32 NotifyValue, LPCSTR Caption) {
-    HANDLE ComponentsSlotWindow;
-    HANDLE ButtonWindow;
-    RECT ButtonRect;
-
-    if (ShellBarWindow == NULL || Caption == NULL) return FALSE;
-    if (ButtonEnsureClassRegistered() == FALSE) return FALSE;
-
-    ComponentsSlotWindow = ShellBarGetSlotWindow(ShellBarWindow, SHELL_BAR_SLOT_COMPONENTS);
-    if (ComponentsSlotWindow == NULL) return FALSE;
-
-    ButtonWindow = ShellBarFindDirectChildByProp(ComponentsSlotWindow, SHELL_BAR_COMPONENT_ROLE_PROP, ComponentRole);
-    if (ButtonWindow != NULL) return TRUE;
-
-    ButtonRect.X1 = 0;
-    ButtonRect.Y1 = 0;
-    ButtonRect.X2 = SHELL_BAR_BUTTON_WIDTH - 1;
-    ButtonRect.Y2 = 1;
-    ButtonWindow = ButtonCreate(ComponentsSlotWindow, ButtonWindowID, &ButtonRect, Caption);
-    if (ButtonWindow == NULL) return FALSE;
-
-    (void)SetWindowProp(ButtonWindow, SHELL_BAR_COMPONENT_ROLE_PROP, ComponentRole);
-    (void)SetWindowProp(ButtonWindow, DESKTOP_BUTTON_PROP_NOTIFY_VALUE, NotifyValue);
-    ShellBarLayoutComponents(ComponentsSlotWindow);
-    return TRUE;
 }
 
 /************************************************************************/
@@ -418,7 +349,11 @@ BOOL ShellBarCreate(HANDLE ParentWindow) {
     WindowInfo.ShowHide = TRUE;
 
     Window = (HANDLE)CreateWindow(&WindowInfo);
-    return Window != NULL;
+    if (Window == NULL) return FALSE;
+
+    (void)SetWindowProp(Window, SHELL_BAR_ROLE_PROP, SHELL_BAR_ROLE_MAIN);
+    (void)ShellBarEnsureSlotWindows(Window);
+    return TRUE;
 }
 
 /************************************************************************/
@@ -459,19 +394,6 @@ U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_SIZE_MAXIMUM, SHELL_BAR_HEIGHT);
             (void)SetWindowProp(Window, WINDOW_DOCK_PROP_SIZE_WEIGHT, 1);
             (void)ShellBarEnsureSlotWindows(Window);
-            (void)ShellBarEnsureClockWidget(Window);
-            (void)ShellBarEnsureButton(
-                Window,
-                SHELL_BAR_BUTTON_LOG_VIEWER_WINDOW_ID,
-                SHELL_BAR_COMPONENT_ROLE_BUTTON_LOG_VIEWER,
-                DESKTOP_LOG_VIEWER_WINDOW_ID,
-                TEXT("LogViewer"));
-            (void)ShellBarEnsureButton(
-                Window,
-                SHELL_BAR_BUTTON_CUBE3D_WINDOW_ID,
-                SHELL_BAR_COMPONENT_ROLE_BUTTON_CUBE3D,
-                DESKTOP_CUBE3D_WINDOW_ID,
-                TEXT("Cube3D"));
             return BaseWindowFunc(Window, Message, Param1, Param2);
 
         case EWM_NOTIFY:
@@ -481,7 +403,7 @@ U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             }
 
             if (Param1 == EWN_UI_BUTTON_CLICKED) {
-                if (Param2 == DESKTOP_LOG_VIEWER_WINDOW_ID || Param2 == DESKTOP_CUBE3D_WINDOW_ID) {
+                if (Param2 != 0) {
                     (void)ShellBarToggleTargetWindow(Window, Param2);
                     return 1;
                 }
@@ -491,21 +413,6 @@ U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
         case EWM_CHILD_APPENDED:
         case EWM_CHILD_REMOVED:
             ShellBarHandleChildAppended(Window);
-            if (Message == EWM_CHILD_APPENDED && Param1 == SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID) {
-                (void)ShellBarEnsureClockWidget(Window);
-                (void)ShellBarEnsureButton(
-                    Window,
-                    SHELL_BAR_BUTTON_LOG_VIEWER_WINDOW_ID,
-                    SHELL_BAR_COMPONENT_ROLE_BUTTON_LOG_VIEWER,
-                    DESKTOP_LOG_VIEWER_WINDOW_ID,
-                    TEXT("LogViewer"));
-                (void)ShellBarEnsureButton(
-                    Window,
-                    SHELL_BAR_BUTTON_CUBE3D_WINDOW_ID,
-                    SHELL_BAR_COMPONENT_ROLE_BUTTON_CUBE3D,
-                    DESKTOP_CUBE3D_WINDOW_ID,
-                    TEXT("Cube3D"));
-            }
             return 1;
 
         case EWM_DRAW:

@@ -66,59 +66,6 @@ static SYSTEM_DRAW_OBJECT_ENTRY SystemDrawObjects[] = {
 };
 
 /**
- * @brief Invalidate one rectangle across all layers affected by transparency.
- * @param Window Source window.
- * @param WindowRect Local window rectangle, or NULL for the drawable area.
- * @return TRUE on success.
- */
-static BOOL InvalidateTransparencyChainRect(LPWINDOW Window, LPRECT WindowRect) {
-    LPDESKTOP Desktop;
-    LPWINDOW RootWindow = NULL;
-    RECT LocalRect;
-    RECT ScreenRect;
-
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
-
-    if (WindowRect != NULL) {
-        LocalRect = *WindowRect;
-    } else {
-        if (GetWindowDrawableRect((HANDLE)Window, &LocalRect) == FALSE) return FALSE;
-    }
-
-    if (WindowRectToScreenRect((HANDLE)Window, &LocalRect, &ScreenRect) == FALSE) return FALSE;
-
-    Desktop = DesktopGetWindowDesktop(Window);
-    if (Desktop == NULL) return FALSE;
-    if (DesktopGetRootWindow(Desktop, &RootWindow) == FALSE) return FALSE;
-    if (RootWindow == NULL) return FALSE;
-
-    DesktopOverlayInvalidateWindowTreeThenRootRect(RootWindow, &ScreenRect);
-    return TRUE;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Apply one resolved transparency change and invalidate accordingly.
- * @param Window Target window.
- * @param PreviousTransparent Effective transparency before the change.
- * @param CurrentTransparent Effective transparency after the change.
- * @return TRUE on success.
- */
-static BOOL UpdateWindowTransparencyAfterResolvedChange(LPWINDOW Window, BOOL PreviousTransparent, BOOL CurrentTransparent) {
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
-    if (DesktopSetWindowResolvedTransparencyState(Window, CurrentTransparent) == FALSE) return FALSE;
-
-    if (PreviousTransparent != CurrentTransparent) {
-        return InvalidateTransparencyChainRect(Window, NULL);
-    }
-
-    return InvalidateWindowRect((HANDLE)Window, NULL);
-}
-
-/***************************************************************************/
-
-/**
  * @brief Convert one screen rectangle into coordinates relative to one window.
  * @param Window Window used as origin.
  * @param ScreenRect Rectangle in screen coordinates.
