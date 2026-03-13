@@ -383,29 +383,6 @@ BOOL DesktopThemeResolveSystemColor(U32 SystemColorIndex, COLOR* Color) {
     return ResolveBuiltinColorToken(TokenID, Color);
 }
 
-/***************************************************************************/
-
-BOOL DesktopThemeResolveSystemMetric(U32 SystemMetricIndex, U32* Value) {
-    U32 TokenID;
-    UINT Index;
-    LPCSTR TokenName = NULL;
-
-    if (Value == NULL) return FALSE;
-    if (ResolveSystemMetricTokenID(SystemMetricIndex, &TokenID) == FALSE) return FALSE;
-
-    for (Index = 0; Index < (sizeof(BuiltinMetricTokens) / sizeof(BuiltinMetricTokens[0])); Index++) {
-        if (BuiltinMetricTokens[Index].TokenID != TokenID) continue;
-        TokenName = BuiltinMetricTokens[Index].Name;
-        break;
-    }
-
-    if (TokenName != NULL && DesktopThemeResolveTokenMetricByName(TokenName, Value)) return TRUE;
-
-    return ResolveBuiltinMetricToken(TokenID, Value);
-}
-
-/***************************************************************************/
-
 BOOL DesktopThemeResolveTokenColorByName(LPCSTR TokenName, COLOR* Color) {
     if (TokenName == NULL || Color == NULL) return FALSE;
 

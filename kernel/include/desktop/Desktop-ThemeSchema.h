@@ -96,14 +96,11 @@ typedef struct tag_DESKTOP_THEME_SCHEMA_LIMITS {
 /************************************************************************/
 // External functions
 
-BOOL DesktopThemeSchemaIsTopLevelSection(LPCSTR Name);
 BOOL DesktopThemeSchemaGetTopLevelSectionID(LPCSTR Name, U32* SectionID);
-BOOL DesktopThemeSchemaIsElementID(LPCSTR Name);
 BOOL DesktopThemeSchemaGetElementFamily(LPCSTR Name, U32* FamilyID);
 BOOL DesktopThemeSchemaIsStateID(LPCSTR Name);
 BOOL DesktopThemeSchemaGetPropertyType(U32 FamilyID, LPCSTR PropertyName, U32* PropertyType);
 BOOL DesktopThemeSchemaGetLimits(LPDESKTOP_THEME_SCHEMA_LIMITS Limits);
-BOOL DesktopThemeSchemaIsValidStateFallbackOrder(LPCSTR First, LPCSTR Second, LPCSTR Third);
 
 /************************************************************************/
 

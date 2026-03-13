@@ -255,34 +255,6 @@ BOOL DisplaySwitchToDesktop(LPDESKTOP Desktop) {
     return ShowDesktop(Desktop);
 }
 
-/************************************************************************/
-
-/**
- * @brief Retrieve active display mode from session.
- * @param ModeInfoOut Destination mode descriptor.
- * @return TRUE when a valid mode is available.
- */
-BOOL DisplaySessionGetActiveMode(LPGRAPHICSMODEINFO ModeInfoOut) {
-    LPDISPLAY_SESSION Session = GetDisplaySession();
-
-    if (ModeInfoOut == NULL) {
-        return FALSE;
-    }
-
-    SAFE_USE(Session) {
-        if (Session->IsInitialized == FALSE || Session->HasValidMode == FALSE) {
-            return FALSE;
-        }
-
-        *ModeInfoOut = Session->ActiveMode;
-        return TRUE;
-    }
-
-    return FALSE;
-}
-
-/************************************************************************/
-
 /**
  * @brief Retrieve active display front-end.
  * @return One of DISPLAY_FRONTEND_*.

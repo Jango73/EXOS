@@ -38,23 +38,6 @@
 #define LOG_VIEWER_TEXT_BUFFER_SIZE 32768
 #define LOG_VIEWER_PROP_SEQUENCE TEXT("desktop.logviewer.sequence")
 
-/***************************************************************************/
-
-/**
- * @brief Return the preferred initial size for the log viewer component.
- * @param SizeOut Receives the preferred size.
- * @return TRUE on success.
- */
-BOOL LogViewerGetPreferredSize(LPPOINT SizeOut) {
-    if (SizeOut == NULL) return FALSE;
-
-    SizeOut->X = LOG_VIEWER_DEFAULT_WIDTH;
-    SizeOut->Y = LOG_VIEWER_DEFAULT_HEIGHT;
-    return TRUE;
-}
-
-/***************************************************************************/
-
 BOOL LogViewerEnsureClassRegistered(void) {
     if (FindWindowClass(DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME) != NULL) return TRUE;
     return RegisterWindowClass(DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME, 0, NULL, LogViewerWindowFunc, 0) != NULL;

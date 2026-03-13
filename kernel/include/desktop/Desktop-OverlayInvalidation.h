@@ -31,7 +31,6 @@
 /************************************************************************/
 
 void DesktopOverlayInvalidateWindowTreeRect(LPWINDOW Window, LPRECT ScreenRect, BOOL SkipCurrent);
-void DesktopOverlayInvalidateWindowTreeFullWindowRect(LPWINDOW Window, LPRECT ScreenRect, BOOL SkipCurrent);
 BOOL DesktopOverlayInvalidateRootRect(LPWINDOW RootWindow, LPRECT ScreenRect);
 void DesktopOverlayInvalidateWindowTreeThenRootRect(LPWINDOW RootWindow, LPRECT ScreenRect);
 

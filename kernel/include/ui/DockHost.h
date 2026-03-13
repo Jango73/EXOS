@@ -115,15 +115,11 @@ typedef struct tag_DOCK_HOST {
 BOOL DockHostInit(LPDOCK_HOST Host, LPCSTR Identifier, LPVOID Context);
 BOOL DockHostReset(LPDOCK_HOST Host);
 U32 DockHostSetHostRect(LPDOCK_HOST Host, LPRECT HostRect);
-U32 DockHostSetPolicy(LPDOCK_HOST Host, LPDOCK_HOST_LAYOUT_POLICY Policy);
 U32 DockHostAttachDockable(LPDOCK_HOST Host, LPDOCKABLE Dockable);
 U32 DockHostDetachDockable(LPDOCK_HOST Host, LPDOCKABLE Dockable);
 U32 DockHostMarkDirty(LPDOCK_HOST Host, U32 Reason);
-BOOL DockHostIsRelayoutRequired(LPDOCK_HOST Host);
 U32 DockHostBuildLayoutFrame(LPDOCK_HOST Host, LPDOCK_LAYOUT_FRAME Frame);
 U32 DockHostApplyLayoutFrame(LPDOCK_HOST Host, LPDOCK_LAYOUT_FRAME Frame, LPDOCK_LAYOUT_RESULT Result);
-U32 DockHostRelayout(LPDOCK_HOST Host, LPDOCK_LAYOUT_RESULT Result);
-U32 DockHostGetWorkRect(LPDOCK_HOST Host, LPRECT WorkRect);
 
 /************************************************************************/
 

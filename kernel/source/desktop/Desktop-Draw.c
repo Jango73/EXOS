@@ -154,14 +154,6 @@ BOOL DesktopGetWindowDrawSurfaceRect(LPWINDOW Window, LPRECT Rect) {
     return TRUE;
 }
 
-/***************************************************************************/
-
-BOOL GetWindowDrawSurfaceRect(HANDLE Handle, LPRECT Rect) {
-    return DesktopGetWindowDrawSurfaceRect((LPWINDOW)Handle, Rect);
-}
-
-/***************************************************************************/
-
 /**
  * @brief Expose the current draw clip rectangle for one window dispatch.
  * @param Window Target window.

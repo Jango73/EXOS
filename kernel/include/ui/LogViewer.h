@@ -36,7 +36,6 @@
 /***************************************************************************/
 
 BOOL LogViewerEnsureClassRegistered(void);
-BOOL LogViewerGetPreferredSize(LPPOINT SizeOut);
 U32 LogViewerWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
 
 /***************************************************************************/

@@ -41,7 +41,6 @@ BOOL WindowDockableClassEnsureRegistered(void);
 BOOL WindowDockableClassEnsureDerivedRegistered(LPCSTR ClassName, WINDOWFUNC WindowFunction);
 BOOL WindowDockableWindowInheritsDockableClass(HANDLE Window);
 LPWINDOW_DOCKABLE_CLASS_DATA WindowDockableClassGetData(HANDLE Window);
-void WindowDockableHandlePropertyChanged(HANDLE Window);
 U32 WindowDockableWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
 
 /************************************************************************/

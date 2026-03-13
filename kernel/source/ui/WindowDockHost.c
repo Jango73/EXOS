@@ -31,24 +31,6 @@
 
 /************************************************************************/
 
-BOOL WindowDockHostIsDockPropertyName(LPCSTR Name) {
-    if (Name == NULL) return FALSE;
-
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_ENABLED) == 0) return TRUE;
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_EDGE) == 0) return TRUE;
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_PRIORITY) == 0) return TRUE;
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_ORDER) == 0) return TRUE;
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_SIZE_POLICY) == 0) return TRUE;
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_SIZE_PREFERRED) == 0) return TRUE;
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_SIZE_MINIMUM) == 0) return TRUE;
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_SIZE_MAXIMUM) == 0) return TRUE;
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_SIZE_WEIGHT) == 0) return TRUE;
-
-    return FALSE;
-}
-
-/************************************************************************/
-
 static LPWINDOW_DOCK_HOST_CLASS_DATA WindowDockHostAllocateData(HANDLE Window) {
     LPWINDOW_DOCK_HOST_CLASS_DATA Data;
 
@@ -244,19 +226,6 @@ U32 WindowDockHostRelayout(HANDLE Window) {
     }
 
     return Status;
-}
-
-/************************************************************************/
-
-U32 WindowDockHostGetWorkRect(HANDLE Window, LPRECT WorkRect) {
-    LPWINDOW_DOCK_HOST_CLASS_DATA Data;
-
-    if (WorkRect == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
-
-    Data = WindowDockHostClassGetData(Window);
-    if (Data == NULL || Data->DockHostInitialized == FALSE) return DOCK_LAYOUT_STATUS_NOT_ATTACHED;
-
-    return DockHostGetWorkRect(&(Data->DockHost), WorkRect);
 }
 
 /************************************************************************/

@@ -54,7 +54,6 @@ BOOL DisplaySessionSetConsoleGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICSMOD
 BOOL DisplaySessionSetDesktopMode(LPDESKTOP Desktop, LPDRIVER GraphicsDriver, LPGRAPHICSMODEINFO ModeInfo);
 BOOL DisplaySwitchToConsole(void);
 BOOL DisplaySwitchToDesktop(LPDESKTOP Desktop);
-BOOL DisplaySessionGetActiveMode(LPGRAPHICSMODEINFO ModeInfoOut);
 U32 DisplaySessionGetActiveFrontEnd(void);
 LPDRIVER DisplaySessionGetActiveGraphicsDriver(void);
 

@@ -172,19 +172,6 @@ LPWINDOW_DOCKABLE_CLASS_DATA WindowDockableClassGetData(HANDLE Window) {
     return (LPWINDOW_DOCKABLE_CLASS_DATA)(LPVOID)(LINEAR)GetWindowProp(Window, WINDOW_DOCKABLE_PROP_STATE);
 }
 
-/************************************************************************/
-
-void WindowDockableHandlePropertyChanged(HANDLE Window) {
-    LPWINDOW_DOCKABLE_CLASS_DATA Data;
-
-    Data = WindowDockableClassGetData(Window);
-    if (Data == NULL || Data->DockableInitialized == FALSE) return;
-
-    WindowDockableApplyProperties(Window);
-}
-
-/************************************************************************/
-
 U32 WindowDockableWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     LPWINDOW_DOCKABLE_CLASS_DATA Data;
     DOCKABLE_CALLBACKS Callbacks;

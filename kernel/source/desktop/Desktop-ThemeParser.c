@@ -791,28 +791,3 @@ BOOL DesktopThemeActivateParsed(LPDESKTOP_THEME_RUNTIME Candidate, LPDESKTOP_THE
 
     return TRUE;
 }
-
-/***************************************************************************/
-
-BOOL DesktopThemeLoadAndActivateStrict(
-    LPCSTR Source,
-    LPDESKTOP_THEME_RUNTIME Fallback,
-    LPDESKTOP_THEME_RUNTIME* ActiveRuntime,
-    U32* Status
-) {
-    LPDESKTOP_THEME_RUNTIME Candidate = NULL;
-
-    if (ActiveRuntime == NULL) {
-        if (Status) *Status = DESKTOP_THEME_STATUS_BAD_PARAMETER;
-        return FALSE;
-    }
-
-    if (DesktopThemeParseStrict(Source, &Candidate, Status) == FALSE) {
-        if (*ActiveRuntime == NULL && Fallback != NULL) *ActiveRuntime = Fallback;
-        return FALSE;
-    }
-
-    return DesktopThemeActivateParsed(Candidate, Fallback, ActiveRuntime);
-}
-
-/***************************************************************************/

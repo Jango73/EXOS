@@ -39,7 +39,6 @@ typedef struct tag_WINDOW_DOCK_HOST_CLASS_DATA {
 BOOL WindowDockHostClassEnsureRegistered(void);
 BOOL WindowDockHostClassEnsureDerivedRegistered(LPCSTR ClassName, WINDOWFUNC WindowFunction);
 BOOL WindowDockHostWindowInheritsDockHostClass(HANDLE Window);
-BOOL WindowDockHostIsDockPropertyName(LPCSTR Name);
 LPWINDOW_DOCK_HOST_CLASS_DATA WindowDockHostClassGetData(HANDLE Window);
 void WindowDockHostShutdownWindow(HANDLE Window);
 U32 WindowDockHostAttachDockable(HANDLE Window, LPDOCKABLE Dockable);
@@ -47,7 +46,6 @@ U32 WindowDockHostDetachDockable(HANDLE Window, LPDOCKABLE Dockable);
 U32 WindowDockHostMarkDirty(HANDLE Window, U32 Reason);
 U32 WindowDockHostHandleWindowRectChanged(HANDLE Window);
 U32 WindowDockHostRelayout(HANDLE Window);
-U32 WindowDockHostGetWorkRect(HANDLE Window, LPRECT WorkRect);
 U32 WindowDockHostWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
 
 /************************************************************************/

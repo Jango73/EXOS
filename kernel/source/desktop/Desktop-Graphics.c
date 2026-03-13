@@ -684,38 +684,6 @@ BOOL SetWindowStyleState(HANDLE Handle, U32 StyleMask, BOOL Enabled) {
     return TRUE;
 }
 
-/***************************************************************************/
-
-/**
- * @brief Set one content transparency hint on one window.
- * @param Handle Window handle.
- * @param Hint One WINDOW_CONTENT_TRANSPARENCY_HINT_* value.
- * @return TRUE on success.
- */
-BOOL SetWindowContentTransparencyHint(HANDLE Handle, U32 Hint) {
-    LPWINDOW This = (LPWINDOW)Handle;
-    WINDOW_STATE_SNAPSHOT Snapshot;
-    BOOL PreviousTransparent = FALSE;
-    BOOL CurrentTransparent = FALSE;
-
-    if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
-    if (Hint > WINDOW_CONTENT_TRANSPARENCY_HINT_TRANSPARENT) return FALSE;
-    if (GetWindowStateSnapshot(This, &Snapshot) == FALSE) return FALSE;
-    PreviousTransparent = ((Snapshot.Status & WINDOW_STATUS_CONTENT_TRANSPARENT) != 0);
-    if (DesktopSetWindowContentTransparencyHint(This, Hint) == FALSE) return FALSE;
-
-    CurrentTransparent = PreviousTransparent;
-    if (Hint == WINDOW_CONTENT_TRANSPARENCY_HINT_TRANSPARENT) {
-        CurrentTransparent = TRUE;
-    } else if (Hint == WINDOW_CONTENT_TRANSPARENCY_HINT_OPAQUE) {
-        CurrentTransparent = FALSE;
-    }
-
-    return UpdateWindowTransparencyAfterResolvedChange(This, PreviousTransparent, CurrentTransparent);
-}
-
-/***************************************************************************/
-
 /**
  * @brief Retrieve raw style bits from one window.
  * @param Handle Window handle.
