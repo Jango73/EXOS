@@ -36,6 +36,7 @@ typedef struct tag_WINDOW_STATE_SNAPSHOT {
     RECT WorkRect;
     U32 Style;
     U32 Status;
+    U32 ContentTransparencyHint;
     U32 Level;
     I32 Order;
     LPWINDOW ParentWindow;
@@ -129,6 +130,8 @@ BOOL DesktopDetachWindowChild(LPWINDOW Parent, LPWINDOW Child);
 BOOL DesktopSetWindowTask(LPWINDOW Window, LPTASK Task);
 BOOL DesktopSetWindowVisibleState(LPWINDOW Window, BOOL ShowHide);
 BOOL DesktopSetWindowStyleState(LPWINDOW Window, U32 StyleMask, BOOL Enabled);
+BOOL DesktopSetWindowContentTransparencyHint(LPWINDOW Window, U32 Hint);
+BOOL DesktopSetWindowResolvedTransparencyState(LPWINDOW Window, BOOL Enabled);
 BOOL DesktopSetWindowCaption(LPWINDOW Window, LPCSTR Caption);
 BOOL DesktopSetWindowBypassParentWorkRectState(LPWINDOW Window, BOOL Enabled);
 BOOL DesktopRefreshWindowZOrder(LPWINDOW Window);
@@ -138,6 +141,7 @@ BOOL DesktopClearWindowReferences(LPDESKTOP Desktop, LPWINDOW Window);
 BOOL GetDesktopCaptureState(LPWINDOW Window, LPWINDOW* CaptureWindow, I32* OffsetX, I32* OffsetY);
 BOOL SetDesktopCaptureState(LPWINDOW Window, LPWINDOW CaptureWindow, I32 OffsetX, I32 OffsetY);
 BOOL DesktopResolveWindowTarget(LPDESKTOP Desktop, HANDLE Target, LPWINDOW* Window);
+BOOL DrawWindowBackgroundResolved(HANDLE Window, HANDLE GC, LPRECT Rect, U32 ThemeToken, BOOL* Transparent);
 BOOL DesktopMarkWindowDispatchBegin(LPWINDOW Window, U32 Message);
 BOOL DesktopMarkWindowDispatchEnd(LPWINDOW Window, U32 Message);
 

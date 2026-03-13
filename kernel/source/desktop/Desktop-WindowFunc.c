@@ -23,6 +23,7 @@
 
 #include "Desktop-Private.h"
 #include "Desktop-NonClient.h"
+#include "Desktop-OverlayInvalidation.h"
 #include "Desktop-ThemeResolver.h"
 #include "Desktop-ThemeTokens.h"
 #include "Kernel.h"
@@ -155,6 +156,14 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
             RECT SurfaceScreenRect;
             LPWINDOW This = (LPWINDOW)Window;
             WINDOW_DRAW_CONTEXT_SNAPSHOT DrawContext;
+            WINDOW_STATE_SNAPSHOT Snapshot;
+            LPDESKTOP Desktop;
+            LPWINDOW RootWindow = NULL;
+            RECT DamageScreenRect;
+            U32 ThemeToken;
+            BOOL PreviousTransparent;
+            BOOL ResolvedTransparent = FALSE;
+            BOOL EffectiveTransparent = FALSE;
 
             if (DesktopGetWindowDrawSurfaceRect(This, &SurfaceRect) == FALSE) {
                 if (GetWindowDrawableRect((HANDLE)This, &SurfaceRect) == FALSE) break;
@@ -178,9 +187,33 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
             GC = BeginWindowDraw(Window);
             if (GC == NULL) break;
 
-            (void)DrawWindowBackground(Window, GC, &SurfaceRect, THEME_TOKEN_WINDOW_BACKGROUND_CLIENT);
+            ThemeToken = Param1 != 0 ? Param1 : THEME_TOKEN_WINDOW_BACKGROUND_CLIENT;
+            if (GetWindowStateSnapshot(This, &Snapshot) == FALSE) {
+                EndWindowDraw(Window);
+                break;
+            }
+            PreviousTransparent = ((Snapshot.Status & WINDOW_STATUS_CONTENT_TRANSPARENT) != 0);
+            (void)DrawWindowBackgroundResolved(Window, GC, &SurfaceRect, ThemeToken, &ResolvedTransparent);
 
             EndWindowDraw(Window);
+
+            EffectiveTransparent = ResolvedTransparent;
+            if (Snapshot.ContentTransparencyHint == WINDOW_CONTENT_TRANSPARENCY_HINT_TRANSPARENT) {
+                EffectiveTransparent = TRUE;
+            } else if (Snapshot.ContentTransparencyHint == WINDOW_CONTENT_TRANSPARENCY_HINT_OPAQUE) {
+                EffectiveTransparent = FALSE;
+            }
+
+            if (EffectiveTransparent != PreviousTransparent) {
+                (void)DesktopSetWindowResolvedTransparencyState(This, EffectiveTransparent);
+
+                if (WindowRectToScreenRect((HANDLE)This, &SurfaceRect, &DamageScreenRect) != FALSE) {
+                    Desktop = DesktopGetWindowDesktop(This);
+                    if (Desktop != NULL && DesktopGetRootWindow(Desktop, &RootWindow) != FALSE && RootWindow != NULL) {
+                        DesktopOverlayInvalidateWindowTreeThenRootRect(RootWindow, &DamageScreenRect);
+                    }
+                }
+            }
             return 1;
         }
     }

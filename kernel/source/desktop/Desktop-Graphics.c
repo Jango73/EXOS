@@ -65,6 +65,57 @@ static SYSTEM_DRAW_OBJECT_ENTRY SystemDrawObjects[] = {
     {SM_COLOR_TITLE_TEXT, &Brush_Title_Text, &Pen_Title_Text},
 };
 
+/**
+ * @brief Invalidate one rectangle across all layers affected by transparency.
+ * @param Window Source window.
+ * @param WindowRect Local window rectangle, or NULL for the drawable area.
+ * @return TRUE on success.
+ */
+static BOOL InvalidateTransparencyChainRect(LPWINDOW Window, LPRECT WindowRect) {
+    LPDESKTOP Desktop;
+    LPWINDOW RootWindow = NULL;
+    RECT LocalRect;
+    RECT ScreenRect;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+
+    if (WindowRect != NULL) {
+        LocalRect = *WindowRect;
+    } else {
+        if (GetWindowDrawableRect((HANDLE)Window, &LocalRect) == FALSE) return FALSE;
+    }
+
+    if (WindowRectToScreenRect((HANDLE)Window, &LocalRect, &ScreenRect) == FALSE) return FALSE;
+
+    Desktop = DesktopGetWindowDesktop(Window);
+    if (Desktop == NULL) return FALSE;
+    if (DesktopGetRootWindow(Desktop, &RootWindow) == FALSE) return FALSE;
+    if (RootWindow == NULL) return FALSE;
+
+    DesktopOverlayInvalidateWindowTreeThenRootRect(RootWindow, &ScreenRect);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Apply one resolved transparency change and invalidate accordingly.
+ * @param Window Target window.
+ * @param PreviousTransparent Effective transparency before the change.
+ * @param CurrentTransparent Effective transparency after the change.
+ * @return TRUE on success.
+ */
+static BOOL UpdateWindowTransparencyAfterResolvedChange(LPWINDOW Window, BOOL PreviousTransparent, BOOL CurrentTransparent) {
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (DesktopSetWindowResolvedTransparencyState(Window, CurrentTransparent) == FALSE) return FALSE;
+
+    if (PreviousTransparent != CurrentTransparent) {
+        return InvalidateTransparencyChainRect(Window, NULL);
+    }
+
+    return InvalidateWindowRect((HANDLE)Window, NULL);
+}
+
 /***************************************************************************/
 
 /**
@@ -631,6 +682,36 @@ BOOL SetWindowStyleState(HANDLE Handle, U32 StyleMask, BOOL Enabled) {
     }
 
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Set one content transparency hint on one window.
+ * @param Handle Window handle.
+ * @param Hint One WINDOW_CONTENT_TRANSPARENCY_HINT_* value.
+ * @return TRUE on success.
+ */
+BOOL SetWindowContentTransparencyHint(HANDLE Handle, U32 Hint) {
+    LPWINDOW This = (LPWINDOW)Handle;
+    WINDOW_STATE_SNAPSHOT Snapshot;
+    BOOL PreviousTransparent = FALSE;
+    BOOL CurrentTransparent = FALSE;
+
+    if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
+    if (Hint > WINDOW_CONTENT_TRANSPARENCY_HINT_TRANSPARENT) return FALSE;
+    if (GetWindowStateSnapshot(This, &Snapshot) == FALSE) return FALSE;
+    PreviousTransparent = ((Snapshot.Status & WINDOW_STATUS_CONTENT_TRANSPARENT) != 0);
+    if (DesktopSetWindowContentTransparencyHint(This, Hint) == FALSE) return FALSE;
+
+    CurrentTransparent = PreviousTransparent;
+    if (Hint == WINDOW_CONTENT_TRANSPARENCY_HINT_TRANSPARENT) {
+        CurrentTransparent = TRUE;
+    } else if (Hint == WINDOW_CONTENT_TRANSPARENCY_HINT_OPAQUE) {
+        CurrentTransparent = FALSE;
+    }
+
+    return UpdateWindowTransparencyAfterResolvedChange(This, PreviousTransparent, CurrentTransparent);
 }
 
 /***************************************************************************/

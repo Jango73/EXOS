@@ -935,6 +935,7 @@ LPWINDOW DesktopCreateWindow(LPWINDOWINFO Info) {
     This->Function = Info->Function;
     This->WindowID = Info->ID;
     This->Style = Info->Style;
+    This->ContentTransparencyHint = WINDOW_CONTENT_TRANSPARENCY_HINT_AUTO;
 
     if (WindowClassInitializeRegistry() == FALSE) {
         KernelHeapFree(This);

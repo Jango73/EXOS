@@ -156,7 +156,9 @@ static void DesktopVisibleRegionSubtractVisibleWindowTree(LPWINDOW Window, LPREC
     }
 
     if (IsVisible != FALSE) {
-        (void)DesktopVisibleRegionSubtractOccluder(Region, &WindowRect, Capacity);
+        if ((Snapshot.Status & WINDOW_STATUS_CONTENT_TRANSPARENT) == 0) {
+            (void)DesktopVisibleRegionSubtractOccluder(Region, &WindowRect, Capacity);
+        }
     }
 }
 

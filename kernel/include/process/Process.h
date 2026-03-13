@@ -139,6 +139,7 @@ UINT TaskGetMinimumSystemStackSize(void);
 #define WINDOW_STATUS_DRAWING 0x0004
 #define WINDOW_STATUS_HAS_WORK_RECT 0x0008
 #define WINDOW_STATUS_BYPASS_PARENT_WORK_RECT 0x0010
+#define WINDOW_STATUS_CONTENT_TRANSPARENT 0x0020
 
 /************************************************************************/
 // Other window values
@@ -146,6 +147,9 @@ UINT TaskGetMinimumSystemStackSize(void);
 #define WINDOW_DIRTY_REGION_CAPACITY 32
 #define WINDOW_DRAW_CONTEXT_ACTIVE 0x00000001
 #define WINDOW_DRAW_CONTEXT_CLIENT_COORDINATES 0x00000002
+#define WINDOW_CONTENT_TRANSPARENCY_HINT_AUTO 0x00000000
+#define WINDOW_CONTENT_TRANSPARENCY_HINT_OPAQUE 0x00000001
+#define WINDOW_CONTENT_TRANSPARENCY_HINT_TRANSPARENT 0x00000002
 
 /************************************************************************/
 
@@ -206,6 +210,7 @@ struct tag_WINDOW {
     U32 WindowID;
     U32 Style;
     U32 Status;
+    U32 ContentTransparencyHint;
     U32 Level;
     I32 Order;
     STR Caption[MAX_WINDOW_CAPTION];

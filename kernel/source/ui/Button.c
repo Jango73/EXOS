@@ -68,7 +68,7 @@ static U32 ButtonResolveBackgroundToken(HANDLE Window) {
 /***************************************************************************/
 
 /**
- * @brief Update one button boolean state property and invalidate on change.
+ * @brief Update one button state property and request redraw.
  * @param Window Target button window.
  * @param Name Property name.
  * @param Value New property value.
@@ -279,6 +279,8 @@ U32 ButtonWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             return 1;
 
         case EWM_DRAW:
+            (void)BaseWindowFunc(Window, EWM_CLEAR, ButtonResolveBackgroundToken(Window), Param2);
+
             GraphicsContext = BeginWindowDraw(Window);
             if (GraphicsContext == NULL) return 1;
             if (GetWindowClientRect(Window, &ClientRect) == FALSE) {
@@ -286,7 +288,6 @@ U32 ButtonWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 return 1;
             }
 
-            (void)DrawWindowBackground(Window, GraphicsContext, &ClientRect, ButtonResolveBackgroundToken(Window));
             ButtonDrawCaption(Window, GraphicsContext, &ClientRect);
             (void)EndWindowDraw(Window);
             return 1;

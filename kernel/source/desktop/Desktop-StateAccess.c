@@ -81,6 +81,7 @@ BOOL GetWindowStateSnapshot(LPWINDOW Window, LPWINDOW_STATE_SNAPSHOT Snapshot) {
     Snapshot->WorkRect = Window->WorkRect;
     Snapshot->Style = Window->Style;
     Snapshot->Status = Window->Status;
+    Snapshot->ContentTransparencyHint = Window->ContentTransparencyHint;
     Snapshot->Level = Window->Level;
     Snapshot->Order = Window->Order;
     Snapshot->ParentWindow = Window->ParentWindow;
@@ -435,6 +436,47 @@ BOOL DesktopSetWindowStyleState(LPWINDOW Window, U32 StyleMask, BOOL Enabled) {
         Window->Style |= StyleMask;
     } else {
         Window->Style &= ~StyleMask;
+    }
+    UnlockMutex(&(Window->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Set one content transparency hint under the owner mutex.
+ * @param Window Target window.
+ * @param Hint One WINDOW_CONTENT_TRANSPARENCY_HINT_* value.
+ * @return TRUE on success.
+ */
+BOOL DesktopSetWindowContentTransparencyHint(LPWINDOW Window, U32 Hint) {
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (Hint > WINDOW_CONTENT_TRANSPARENCY_HINT_TRANSPARENT) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    Window->ContentTransparencyHint = Hint;
+    UnlockMutex(&(Window->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Set one resolved transparency state under the owner mutex.
+ * @param Window Target window.
+ * @param Enabled TRUE when the resolved clear path left content transparent.
+ * @return TRUE on success.
+ */
+BOOL DesktopSetWindowResolvedTransparencyState(LPWINDOW Window, BOOL Enabled) {
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    if (Enabled != FALSE) {
+        Window->Status |= WINDOW_STATUS_CONTENT_TRANSPARENT;
+    } else {
+        Window->Status &= ~WINDOW_STATUS_CONTENT_TRANSPARENT;
     }
     UnlockMutex(&(Window->Mutex));
 

@@ -212,8 +212,6 @@ static BOOL DrawWindowSystemChrome(LPWINDOW Window, LPRECT ClipRect) {
     return TRUE;
 }
 
-/***************************************************************************/
-
 /**
  * @brief Dispatch one client draw callback using the structured draw context.
  * @param Window Target window.

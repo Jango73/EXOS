@@ -35,18 +35,19 @@ typedef struct tag_WINDOW_BACKGROUND_THEME_ENTRY {
     LPCSTR ElementID;
     LPCSTR StateID;
     U32 FallbackSystemColor;
+    BOOL AllowMissingBackgroundTransparency;
 } WINDOW_BACKGROUND_THEME_ENTRY, *LPWINDOW_BACKGROUND_THEME_ENTRY;
 
 /***************************************************************************/
 // Other declarations
 
 static const WINDOW_BACKGROUND_THEME_ENTRY WindowBackgroundThemeEntries[] = {
-    {THEME_TOKEN_WINDOW_BACKGROUND_DESKTOP, TEXT("desktop.root"), TEXT("normal"), SM_COLOR_DESKTOP},
-    {THEME_TOKEN_WINDOW_BACKGROUND_CLIENT, TEXT("window.client"), TEXT("normal"), SM_COLOR_CLIENT},
-    {THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_NORMAL, TEXT("button.body"), TEXT("normal"), SM_COLOR_NORMAL},
-    {THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_HOVER, TEXT("button.body"), TEXT("hover"), SM_COLOR_NORMAL},
-    {THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_PRESSED, TEXT("button.body"), TEXT("pressed"), SM_COLOR_NORMAL},
-    {THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_DISABLED, TEXT("button.body"), TEXT("disabled"), SM_COLOR_NORMAL},
+    {THEME_TOKEN_WINDOW_BACKGROUND_DESKTOP, TEXT("desktop.root"), TEXT("normal"), SM_COLOR_DESKTOP, FALSE},
+    {THEME_TOKEN_WINDOW_BACKGROUND_CLIENT, TEXT("window.client"), TEXT("normal"), SM_COLOR_CLIENT, FALSE},
+    {THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_NORMAL, TEXT("button.body"), TEXT("normal"), SM_COLOR_NORMAL, TRUE},
+    {THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_HOVER, TEXT("button.body"), TEXT("hover"), SM_COLOR_NORMAL, FALSE},
+    {THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_PRESSED, TEXT("button.body"), TEXT("pressed"), SM_COLOR_NORMAL, FALSE},
+    {THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_DISABLED, TEXT("button.body"), TEXT("disabled"), SM_COLOR_NORMAL, FALSE},
 };
 
 /***************************************************************************/
@@ -109,6 +110,58 @@ static BOOL DrawSolidBackground(HANDLE GC, LPRECT Rect, COLOR Color) {
     (void)SelectBrush(GC, OldBrush);
     (void)SelectPen(GC, OldPen);
 
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve whether one level 1 background leaves the rectangle uncovered.
+ * @param ElementID Theme element identifier.
+ * @param StateID Theme state identifier.
+ * @param AllowMissingBackgroundTransparency TRUE when a missing background means transparent.
+ * @param Transparent Receives TRUE when no background coverage exists.
+ * @return TRUE on success.
+ */
+static BOOL ResolveLevel1BackgroundTransparency(
+    LPCSTR ElementID,
+    LPCSTR StateID,
+    BOOL AllowMissingBackgroundTransparency,
+    BOOL* Transparent
+) {
+    COLOR BackgroundColor;
+    COLOR BorderColor;
+    U32 BorderThickness = 0;
+    U32 BackgroundAlpha = 0;
+    U32 BorderAlpha = 0;
+    BOOL HasBackground;
+    BOOL HasBorderColor;
+    BOOL HasBorderThickness;
+    BOOL HasVisibleBorder = FALSE;
+
+    if (ElementID == NULL || StateID == NULL || Transparent == NULL) return FALSE;
+
+    HasBackground = DesktopThemeResolveLevel1Color(ElementID, StateID, TEXT("background"), &BackgroundColor);
+    HasBorderColor = DesktopThemeResolveLevel1Color(ElementID, StateID, TEXT("border_color"), &BorderColor);
+    HasBorderThickness = DesktopThemeResolveLevel1Metric(ElementID, StateID, TEXT("border_thickness"), &BorderThickness);
+    if (HasBorderColor != FALSE) {
+        BorderAlpha = (BorderColor >> 24) & 0xFF;
+    }
+    HasVisibleBorder =
+        (HasBorderColor != FALSE && HasBorderThickness != FALSE && BorderThickness > 0 && BorderAlpha == 0xFF);
+
+    if (HasBackground != FALSE) {
+        BackgroundAlpha = (BackgroundColor >> 24) & 0xFF;
+        *Transparent = (BackgroundAlpha != 0xFF && HasVisibleBorder == FALSE);
+        return TRUE;
+    }
+
+    if (AllowMissingBackgroundTransparency != FALSE && HasVisibleBorder == FALSE) {
+        *Transparent = TRUE;
+        return TRUE;
+    }
+
+    *Transparent = FALSE;
     return TRUE;
 }
 
@@ -188,20 +241,31 @@ static BOOL DrawBackgroundBorder(HANDLE GC, LPRECT Rect, COLOR Color, U32 Thickn
  * @param FallbackSystemColor Legacy fallback system color.
  * @return TRUE on success.
  */
-static BOOL DrawLevel1WindowBackground(HANDLE GC, LPRECT Rect, LPCSTR ElementID, LPCSTR StateID, U32 FallbackSystemColor) {
+static BOOL DrawLevel1WindowBackground(
+    HANDLE GC,
+    LPRECT Rect,
+    LPCSTR ElementID,
+    LPCSTR StateID,
+    U32 FallbackSystemColor,
+    BOOL AllowMissingBackgroundTransparency
+) {
     COLOR BackgroundColor;
     COLOR BorderColor;
     U32 BorderThickness = 0;
     BOOL HasBackground;
     BOOL HasBorderColor;
     BOOL HasBorderThickness;
+    U32 BackgroundAlpha = 0;
 
     if (GC == NULL || Rect == NULL || ElementID == NULL || StateID == NULL) return FALSE;
 
     HasBackground = DesktopThemeResolveLevel1Color(ElementID, StateID, TEXT("background"), &BackgroundColor);
     if (HasBackground != FALSE) {
-        (void)DrawSolidBackground(GC, Rect, BackgroundColor);
-    } else {
+        BackgroundAlpha = (BackgroundColor >> 24) & 0xFF;
+        if (BackgroundAlpha == 0xFF) {
+            (void)DrawSolidBackground(GC, Rect, BackgroundColor);
+        }
+    } else if (AllowMissingBackgroundTransparency == FALSE) {
         RECTINFO RectInfo;
         HANDLE OldPen = NULL;
         HANDLE OldBrush = NULL;
@@ -241,17 +305,39 @@ static BOOL DrawLevel1WindowBackground(HANDLE GC, LPRECT Rect, LPCSTR ElementID,
  * @param ThemeToken Public theme token identifier.
  * @return TRUE on success.
  */
-BOOL DrawWindowBackground(HANDLE Window, HANDLE GC, LPRECT Rect, U32 ThemeToken) {
+BOOL DrawWindowBackgroundResolved(HANDLE Window, HANDLE GC, LPRECT Rect, U32 ThemeToken, BOOL* Transparent) {
     const WINDOW_BACKGROUND_THEME_ENTRY* Entry = NULL;
+    BOOL IsTransparent = FALSE;
 
     if (GC == NULL || Rect == NULL) return FALSE;
     if (ResolveWindowBackgroundThemeEntry(ThemeToken, &Entry) == FALSE) return FALSE;
+    if (ResolveLevel1BackgroundTransparency(
+            Entry->ElementID,
+            Entry->StateID,
+            Entry->AllowMissingBackgroundTransparency,
+            &IsTransparent) == FALSE) {
+        return FALSE;
+    }
+
+    if (Transparent != NULL) *Transparent = IsTransparent;
 
     if (DesktopThemeDrawRecipeForElementState(Window, GC, Rect, Entry->ElementID, Entry->StateID) != FALSE) {
         return TRUE;
     }
 
-    return DrawLevel1WindowBackground(GC, Rect, Entry->ElementID, Entry->StateID, Entry->FallbackSystemColor);
+    return DrawLevel1WindowBackground(
+        GC,
+        Rect,
+        Entry->ElementID,
+        Entry->StateID,
+        Entry->FallbackSystemColor,
+        Entry->AllowMissingBackgroundTransparency);
+}
+
+/***************************************************************************/
+
+BOOL DrawWindowBackground(HANDLE Window, HANDLE GC, LPRECT Rect, U32 ThemeToken) {
+    return DrawWindowBackgroundResolved(Window, GC, Rect, ThemeToken, NULL);
 }
 
 /***************************************************************************/
