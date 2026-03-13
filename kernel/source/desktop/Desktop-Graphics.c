@@ -772,68 +772,6 @@ BOOL GetWindowCaption(HANDLE Handle, LPSTR Caption, UINT CaptionLength) {
     return TRUE;
 }
 
-/***************************************************************************/
-
-/**
- * @brief Set one window work rectangle in parent coordinates.
- * @param Handle Window handle.
- * @param WorkRect Work rectangle to assign.
- * @return TRUE on success.
- */
-BOOL SetWindowWorkRect(HANDLE Handle, LPRECT WorkRect) {
-    LPWINDOW This = (LPWINDOW)Handle;
-    RECT Candidate;
-
-    if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
-    if (WorkRect == NULL) return FALSE;
-    if (WorkRect->X1 > WorkRect->X2 || WorkRect->Y1 > WorkRect->Y2) return FALSE;
-
-    LockMutex(&(This->Mutex), INFINITY);
-    Candidate = *WorkRect;
-    if (Candidate.X1 < 0) Candidate.X1 = 0;
-    if (Candidate.Y1 < 0) Candidate.Y1 = 0;
-    if (Candidate.X2 > (This->Rect.X2 - This->Rect.X1)) Candidate.X2 = This->Rect.X2 - This->Rect.X1;
-    if (Candidate.Y2 > (This->Rect.Y2 - This->Rect.Y1)) Candidate.Y2 = This->Rect.Y2 - This->Rect.Y1;
-    if (Candidate.X1 > Candidate.X2 || Candidate.Y1 > Candidate.Y2) {
-        UnlockMutex(&(This->Mutex));
-        return FALSE;
-    }
-
-    This->WorkRect = Candidate;
-    This->Status |= WINDOW_STATUS_HAS_WORK_RECT;
-    UnlockMutex(&(This->Mutex));
-    return TRUE;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Get one window work rectangle in parent coordinates.
- * @param Handle Window handle.
- * @param WorkRect Receives work rectangle.
- * @return TRUE on success.
- */
-BOOL GetWindowWorkRect(HANDLE Handle, LPRECT WorkRect) {
-    LPWINDOW This = (LPWINDOW)Handle;
-
-    if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
-    if (WorkRect == NULL) return FALSE;
-
-    LockMutex(&(This->Mutex), INFINITY);
-    if ((This->Status & WINDOW_STATUS_HAS_WORK_RECT) != 0) {
-        *WorkRect = This->WorkRect;
-    } else {
-        WorkRect->X1 = 0;
-        WorkRect->Y1 = 0;
-        WorkRect->X2 = This->Rect.X2 - This->Rect.X1;
-        WorkRect->Y2 = This->Rect.Y2 - This->Rect.Y1;
-    }
-    UnlockMutex(&(This->Mutex));
-    return TRUE;
-}
-
-/***************************************************************************/
-
 /**
  * @brief Set a custom property on a window.
  * @param Handle Window handle.

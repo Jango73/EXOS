@@ -84,8 +84,6 @@ BOOL BringWindowToFront(HANDLE);
 BOOL SizeWindow(HANDLE, LPPOINT);
 BOOL SetWindowStyleState(HANDLE, U32, BOOL);
 BOOL SetWindowContentTransparencyHint(HANDLE Handle, U32 Hint);
-BOOL SetWindowWorkRect(HANDLE Handle, LPRECT WorkRect);
-BOOL GetWindowWorkRect(HANDLE Handle, LPRECT WorkRect);
 BOOL GetWindowDrawableRect(HANDLE Handle, LPRECT DrawableRect);
 BOOL WindowRectToScreenRect(HANDLE Handle, LPRECT WindowRect, LPRECT ScreenRect);
 BOOL GetDesktopScreenRect(LPDESKTOP, LPRECT);

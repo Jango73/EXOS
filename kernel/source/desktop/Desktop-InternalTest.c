@@ -65,9 +65,7 @@ static BOOL DesktopInternalResolveCenteredWindowRect(LPDESKTOP Desktop, LPRECT R
     if (Rect == NULL) return FALSE;
     if (Desktop->Window == NULL || Desktop->Window->TypeID != KOID_WINDOW) return FALSE;
 
-    if (GetWindowWorkRect((HANDLE)Desktop->Window, &DesktopRect) == FALSE) {
-        if (GetDesktopScreenRect(Desktop, &DesktopRect) == FALSE) return FALSE;
-    }
+    if (GetDesktopScreenRect(Desktop, &DesktopRect) == FALSE) return FALSE;
 
     DesktopWidth = DesktopRect.X2 - DesktopRect.X1 + 1;
     DesktopHeight = DesktopRect.Y2 - DesktopRect.Y1 + 1;
@@ -104,9 +102,7 @@ static BOOL DesktopInternalResolveOnScreenDebugInfoRect(LPDESKTOP Desktop, LPREC
     if (Rect == NULL) return FALSE;
     if (Desktop->Window == NULL || Desktop->Window->TypeID != KOID_WINDOW) return FALSE;
 
-    if (GetWindowWorkRect((HANDLE)Desktop->Window, &DesktopRect) == FALSE) {
-        if (GetDesktopScreenRect(Desktop, &DesktopRect) == FALSE) return FALSE;
-    }
+    if (GetDesktopScreenRect(Desktop, &DesktopRect) == FALSE) return FALSE;
 
     DesktopWidth = DesktopRect.X2 - DesktopRect.X1 + 1;
     DesktopHeight = DesktopRect.Y2 - DesktopRect.Y1 + 1;
