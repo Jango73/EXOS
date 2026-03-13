@@ -26,6 +26,7 @@
 #include "Desktop-ThemeRecipes.h"
 #include "Desktop-ThemeResolver.h"
 #include "Kernel.h"
+#include "Log.h"
 
 /***************************************************************************/
 // Type definitions

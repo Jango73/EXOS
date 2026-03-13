@@ -528,7 +528,52 @@ BOOL DesktopClearWindowReferences(LPDESKTOP Desktop, LPWINDOW Window) {
 
     LockMutex(&(Desktop->Mutex), INFINITY);
     if (Desktop->Capture == Window) Desktop->Capture = NULL;
+    if (Desktop->LastMouseMoveTarget == Window) Desktop->LastMouseMoveTarget = NULL;
     if (Desktop->Focus == Window) Desktop->Focus = NULL;
+    UnlockMutex(&(Desktop->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Get desktop last mouse move target for one window desktop.
+ * @param Window Any window on the target desktop.
+ * @param TargetWindow Receives last mouse move target (optional).
+ * @return TRUE on success.
+ */
+BOOL GetDesktopLastMouseMoveTarget(LPWINDOW Window, LPWINDOW* TargetWindow) {
+    LPDESKTOP Desktop;
+
+    if (TargetWindow != NULL) *TargetWindow = NULL;
+
+    Desktop = DesktopGetWindowDesktop(Window);
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+
+    LockMutex(&(Desktop->Mutex), INFINITY);
+    if (TargetWindow != NULL) *TargetWindow = Desktop->LastMouseMoveTarget;
+    UnlockMutex(&(Desktop->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Set desktop last mouse move target for one window desktop.
+ * @param Window Any window on the target desktop.
+ * @param TargetWindow Target window or NULL.
+ * @return TRUE on success.
+ */
+BOOL SetDesktopLastMouseMoveTarget(LPWINDOW Window, LPWINDOW TargetWindow) {
+    LPDESKTOP Desktop;
+
+    Desktop = DesktopGetWindowDesktop(Window);
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+
+    LockMutex(&(Desktop->Mutex), INFINITY);
+    Desktop->LastMouseMoveTarget = TargetWindow;
     UnlockMutex(&(Desktop->Mutex));
 
     return TRUE;

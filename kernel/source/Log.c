@@ -44,37 +44,7 @@
 #define KERNEL_LOG_ENTRY_BUFFER_SIZE (MAX_STRING_BUFFER + 160)
 
 #ifndef KERNEL_LOG_DEFAULT_TAG_FILTER
-#define KERNEL_LOG_DEFAULT_TAG_FILTER                                                                                  \
-    "[GraphicsSelectorLoad],"                                                                                          \
-    "[GraphicsSelectorForceBackendByName],"                                                                            \
-    "[DesktopSelectGraphicsMode],"                                                                                     \
-    "[DesktopApplyDisplaySelection],"                                                                                  \
-    "[ShowDesktop],"                                                                                                   \
-    "[GOPGfxLoad],"                                                                                                    \
-    "[GOPGfxSetMode],"                                                                                                 \
-    "[InitializeVESA],"                                                                                                \
-    "[SetVideoMode],"                                                                                                  \
-    "[IntelGfxLoad],"                                                                                                  \
-    "[IntelGfxTakeoverActiveMode],"                                                                                    \
-    "[IntelGfxSetMode],"                                                                                               \
-    "[IntelGfxBuildModeProgram],"                                                                                      \
-    "[IntelGfxProgramMode],"                                                                                           \
-    "[IntelGfxVerifyProgramMode],"                                                                                     \
-    "[IntelGfxPrepareScanoutMemory],"                                                                                  \
-    "[IntelGfxMapActiveFrameBuffer],"                                                                                  \
-    "[IntelGfxReadActiveScanoutState],"                                                                                \
-    "[IntelGfxWaitPipeState],"                                                                                         \
-    "[IntelGfxDumpPipeRegisters],"                                                                                     \
-    "[IntelGfxDisablePipe],"                                                                                           \
-    "[IntelGfxEnablePipe],"                                                                                            \
-    "[IntelGfxProgramTranscoderRoute],"                                                                                \
-    "[IntelGfxProgramClockSource],"                                                                                    \
-    "[IntelGfxConfigureConnectorLink],"                                                                                \
-    "[IntelGfxProgramPanelStability],"                                                                                 \
-    "[IntelGfxWaitForNextVBlank],"                                                                                     \
-    "[IntelGfxOnModeActivated],"                                                                                       \
-    "[ConsoleVGATextFallbackActivate],"                                                                                \
-    "[DisplaySwitchToConsole]"
+#define KERNEL_LOG_DEFAULT_TAG_FILTER ""
 #endif
 
 typedef struct tag_KERNEL_LOG_RECENT_LINE {

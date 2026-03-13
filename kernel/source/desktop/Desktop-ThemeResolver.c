@@ -218,14 +218,27 @@ BOOL DesktopThemeResolveLevel1Text(
     if (ResolveRuntimeLevel1Text(ElementID, State3, PropertyName, Value, ValueBufferSize)) return TRUE;
 
     for (Index = 0; Index < (sizeof(BuiltinLevel1Properties) / sizeof(BuiltinLevel1Properties[0])); Index++) {
-        if (IsMatchingPropertyEntry(&BuiltinLevel1Properties[Index], ElementID, State1, PropertyName) ||
-            IsMatchingPropertyEntry(&BuiltinLevel1Properties[Index], ElementID, State2, PropertyName) ||
-            IsMatchingPropertyEntry(&BuiltinLevel1Properties[Index], ElementID, State3, PropertyName)) {
-            ValueLength = StringLength(BuiltinLevel1Properties[Index].Value);
-            if (ValueLength + 1 > ValueBufferSize) return FALSE;
-            StringCopy(Value, BuiltinLevel1Properties[Index].Value);
-            return TRUE;
-        }
+        if (IsMatchingPropertyEntry(&BuiltinLevel1Properties[Index], ElementID, State1, PropertyName) == FALSE) continue;
+        ValueLength = StringLength(BuiltinLevel1Properties[Index].Value);
+        if (ValueLength + 1 > ValueBufferSize) return FALSE;
+        StringCopy(Value, BuiltinLevel1Properties[Index].Value);
+        return TRUE;
+    }
+
+    for (Index = 0; Index < (sizeof(BuiltinLevel1Properties) / sizeof(BuiltinLevel1Properties[0])); Index++) {
+        if (IsMatchingPropertyEntry(&BuiltinLevel1Properties[Index], ElementID, State2, PropertyName) == FALSE) continue;
+        ValueLength = StringLength(BuiltinLevel1Properties[Index].Value);
+        if (ValueLength + 1 > ValueBufferSize) return FALSE;
+        StringCopy(Value, BuiltinLevel1Properties[Index].Value);
+        return TRUE;
+    }
+
+    for (Index = 0; Index < (sizeof(BuiltinLevel1Properties) / sizeof(BuiltinLevel1Properties[0])); Index++) {
+        if (IsMatchingPropertyEntry(&BuiltinLevel1Properties[Index], ElementID, State3, PropertyName) == FALSE) continue;
+        ValueLength = StringLength(BuiltinLevel1Properties[Index].Value);
+        if (ValueLength + 1 > ValueBufferSize) return FALSE;
+        StringCopy(Value, BuiltinLevel1Properties[Index].Value);
+        return TRUE;
     }
 
     return FALSE;

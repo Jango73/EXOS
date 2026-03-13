@@ -140,6 +140,8 @@ BOOL DesktopGetRootWindow(LPDESKTOP Desktop, LPWINDOW* RootWindow);
 BOOL DesktopClearWindowReferences(LPDESKTOP Desktop, LPWINDOW Window);
 BOOL GetDesktopCaptureState(LPWINDOW Window, LPWINDOW* CaptureWindow, I32* OffsetX, I32* OffsetY);
 BOOL SetDesktopCaptureState(LPWINDOW Window, LPWINDOW CaptureWindow, I32 OffsetX, I32 OffsetY);
+BOOL GetDesktopLastMouseMoveTarget(LPWINDOW Window, LPWINDOW* TargetWindow);
+BOOL SetDesktopLastMouseMoveTarget(LPWINDOW Window, LPWINDOW TargetWindow);
 BOOL DesktopResolveWindowTarget(LPDESKTOP Desktop, HANDLE Target, LPWINDOW* Window);
 BOOL DrawWindowBackgroundResolved(HANDLE Window, HANDLE GC, LPRECT Rect, U32 ThemeToken, BOOL* Transparent);
 BOOL DesktopMarkWindowDispatchBegin(LPWINDOW Window, U32 Message);

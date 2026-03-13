@@ -1592,6 +1592,26 @@ BOOL ReleaseMouse(void) {
 
 /***************************************************************************/
 
+/**
+ * @brief Post one mouse move to one target window from one screen position.
+ * @param Target Destination window.
+ * @param ScreenPosition Mouse position in screen coordinates.
+ * @return TRUE when the message was posted.
+ */
+static BOOL DesktopPostMouseMoveFromScreenPoint(LPWINDOW Target, LPPOINT ScreenPosition) {
+    RECT WindowScreenRect;
+    POINT LocalPosition;
+
+    if (Target == NULL || Target->TypeID != KOID_WINDOW) return FALSE;
+    if (ScreenPosition == NULL) return FALSE;
+    if (GetWindowScreenRectSnapshot(Target, &WindowScreenRect) == FALSE) return FALSE;
+
+    GraphicsScreenPointToWindowPoint(&WindowScreenRect, ScreenPosition, &LocalPosition);
+    return PostMessage((HANDLE)Target, EWM_MOUSEMOVE, UNSIGNED(LocalPosition.X), UNSIGNED(LocalPosition.Y));
+}
+
+/***************************************************************************/
+
 /*
 static U32 DrawMouseCursor(HANDLE GC, I32 X, I32 Y, BOOL OnOff) {
     LINEINFO LineInfo;
@@ -1695,10 +1715,9 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
         case EWM_MOUSEMOVE: {
             POINT Position;
-            POINT LocalPosition;
             LPWINDOW Target;
+            LPWINDOW PreviousTarget = NULL;
             LPWINDOW CaptureWindow = NULL;
-            RECT WindowScreenRect;
 
             Position.X = SIGNED(Param1);
             Position.Y = SIGNED(Param2);
@@ -1706,26 +1725,29 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             if (GetDesktopCaptureState((LPWINDOW)Window, &CaptureWindow, NULL, NULL) != FALSE) {
                 SAFE_USE_VALID_ID(CaptureWindow, KOID_WINDOW) {
                     if (CaptureWindow != (LPWINDOW)Window) {
-                        if (GetWindowScreenRectSnapshot(CaptureWindow, &WindowScreenRect) != FALSE) {
-                            GraphicsScreenPointToWindowPoint(&WindowScreenRect, &Position, &LocalPosition);
-                            (void)PostMessage(
-                                (HANDLE)CaptureWindow,
-                                EWM_MOUSEMOVE,
-                                UNSIGNED(LocalPosition.X),
-                                UNSIGNED(LocalPosition.Y));
-                        }
+                        (void)DesktopPostMouseMoveFromScreenPoint(CaptureWindow, &Position);
                         break;
                     }
                 }
             }
 
+            (void)GetDesktopLastMouseMoveTarget((LPWINDOW)Window, &PreviousTarget);
             Target = (LPWINDOW)WindowHitTest(Window, &Position);
-            if (Target != NULL && Target != (LPWINDOW)Window) {
-                if (GetWindowScreenRectSnapshot(Target, &WindowScreenRect) != FALSE) {
-                    GraphicsScreenPointToWindowPoint(&WindowScreenRect, &Position, &LocalPosition);
-                    (void)PostMessage((HANDLE)Target, EWM_MOUSEMOVE, UNSIGNED(LocalPosition.X), UNSIGNED(LocalPosition.Y));
+            if (Target == (LPWINDOW)Window) {
+                Target = NULL;
+            }
+
+            if (PreviousTarget != NULL && PreviousTarget != Target) {
+                SAFE_USE_VALID_ID(PreviousTarget, KOID_WINDOW) {
+                    (void)DesktopPostMouseMoveFromScreenPoint(PreviousTarget, &Position);
                 }
             }
+
+            if (Target != NULL) {
+                (void)DesktopPostMouseMoveFromScreenPoint(Target, &Position);
+            }
+
+            (void)SetDesktopLastMouseMoveTarget((LPWINDOW)Window, Target);
         } break;
 
         case EWM_MOUSEDOWN: {

@@ -24,6 +24,7 @@
 #include "ui/Button.h"
 
 #include "CoreString.h"
+#include "Kernel.h"
 
 /***************************************************************************/
 // Macros
@@ -31,6 +32,10 @@
 #define DESKTOP_BUTTON_PROP_HOVER TEXT("ui.button.hover")
 #define DESKTOP_BUTTON_PROP_PRESSED TEXT("ui.button.pressed")
 #define DESKTOP_BUTTON_CAPTION_BUFFER_SIZE 128
+
+/***************************************************************************/
+
+static U32 ButtonResolveBackgroundToken(HANDLE Window);
 
 /***************************************************************************/
 
