@@ -54,7 +54,6 @@ void AcquireLockRole(U32 Role, LPCSTR RoleName) {
 #if DEBUG_OUTPUT == 1
     U32 Flags;
     LPTASK Task;
-    U32 PreviousRole;
 
     if (Role == 0) return;
 
@@ -67,18 +66,7 @@ void AcquireLockRole(U32 Role, LPCSTR RoleName) {
         return;
     }
 
-    if (Task->DebugLockOrderDepth > 0) {
-        PreviousRole = Task->DebugLockOrderStack[Task->DebugLockOrderDepth - 1];
-        /*
-        if (Role < PreviousRole) {
-            WARNING(TEXT("[AcquireLockRole] Lock order inversion task=%p role=%u previous=%u name=%s"),
-                  Task,
-                  Role,
-                  PreviousRole,
-                  RoleName != NULL ? RoleName : TEXT("unknown"));
-        }
-        */
-    }
+    UNUSED(RoleName);
 
     if (Task->DebugLockOrderDepth >= LOCK_ORDER_DEBUG_MAX_DEPTH) {
         /*

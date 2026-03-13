@@ -617,13 +617,11 @@ BOOL XHCI_WaitForCommandCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U8* Sl
  */
 BOOL XHCI_WaitForTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* CompletionOut) {
     U32 Timeout = XHCI_DEFAULT_TRANSFER_TIMEOUT_MS;
-    U32 RequestedTimeout = Timeout;
     U32 ElapsedMilliseconds = 0;
 
     if (Device != NULL && Device->TransferTimeoutMS != 0) {
         Timeout = Device->TransferTimeoutMS;
     }
-    RequestedTimeout = Timeout;
 
     LockMutex(&(Device->Mutex), INFINITY);
     if (XHCI_PopCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut, NULL)) {

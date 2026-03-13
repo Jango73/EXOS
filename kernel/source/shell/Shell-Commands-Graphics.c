@@ -340,7 +340,7 @@ static LPDRIVER FindGraphicsBackendByAlias(LPCSTR Alias) {
  */
 static U32 RunGraphicsSmokeTest(U32 DurationMilliseconds) {
     LPDESKTOP Desktop = NULL;
-    LPWINDOW Window = NULL;
+    HANDLE Window = NULL;
     WINDOWINFO WindowInfo;
 
     Desktop = CreateDesktop();
@@ -379,7 +379,7 @@ static U32 RunGraphicsSmokeTest(U32 DurationMilliseconds) {
         return DF_RETURN_SUCCESS;
     }
 
-    (void)PostMessage((HANDLE)Window, EWM_DRAW, 0, 0);
+    (void)PostMessage(Window, EWM_DRAW, 0, 0);
 
     Sleep(DurationMilliseconds);
 

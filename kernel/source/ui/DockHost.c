@@ -47,22 +47,6 @@ static BOOL DockHostIsValidEdge(U32 Edge) {
     return FALSE;
 }
 
-/************************************************************************/
-
-/**
- * @brief Check one overflow policy.
- * @param Policy Candidate policy.
- * @return TRUE when valid.
- */
-static BOOL DockHostIsValidOverflowPolicy(U32 Policy) {
-    if (Policy == DOCK_OVERFLOW_POLICY_CLIP) return TRUE;
-    if (Policy == DOCK_OVERFLOW_POLICY_SHRINK) return TRUE;
-    if (Policy == DOCK_OVERFLOW_POLICY_REJECT) return TRUE;
-    return FALSE;
-}
-
-/************************************************************************/
-
 /**
  * @brief Validate one host rectangle.
  * @param Rect Candidate rectangle.
@@ -74,44 +58,6 @@ static BOOL DockHostIsValidRect(LPRECT Rect) {
     if (Rect->Y2 < Rect->Y1) return FALSE;
     return TRUE;
 }
-
-/************************************************************************/
-
-/**
- * @brief Validate one edge policy object.
- * @param Policy Candidate policy.
- * @return TRUE when valid.
- */
-static BOOL DockHostValidateEdgePolicy(LPDOCK_EDGE_LAYOUT_POLICY Policy) {
-    if (Policy == NULL) return FALSE;
-    if (Policy->MarginStart < 0) return FALSE;
-    if (Policy->MarginEnd < 0) return FALSE;
-    if (Policy->Spacing < 0) return FALSE;
-    if (DockHostIsValidOverflowPolicy(Policy->OverflowPolicy) == FALSE) return FALSE;
-    return TRUE;
-}
-
-/************************************************************************/
-
-/**
- * @brief Validate one host policy object.
- * @param Policy Candidate policy.
- * @return TRUE when valid.
- */
-static BOOL DockHostValidatePolicy(LPDOCK_HOST_LAYOUT_POLICY Policy) {
-    if (Policy == NULL) return FALSE;
-    if (Policy->PaddingTop < 0) return FALSE;
-    if (Policy->PaddingBottom < 0) return FALSE;
-    if (Policy->PaddingLeft < 0) return FALSE;
-    if (Policy->PaddingRight < 0) return FALSE;
-    if (DockHostValidateEdgePolicy(&(Policy->Top)) == FALSE) return FALSE;
-    if (DockHostValidateEdgePolicy(&(Policy->Bottom)) == FALSE) return FALSE;
-    if (DockHostValidateEdgePolicy(&(Policy->Left)) == FALSE) return FALSE;
-    if (DockHostValidateEdgePolicy(&(Policy->Right)) == FALSE) return FALSE;
-    return TRUE;
-}
-
-/************************************************************************/
 
 /**
  * @brief Compare two dockables with deterministic tie-break.

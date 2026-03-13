@@ -945,7 +945,6 @@ static void SystemDataViewDrawPageEhci(LPSYSTEM_DATA_VIEW_CONTEXT Context, U8 Pa
 /************************************************************************/
 
 /**
-/**
  * @brief Count active xHCI slots attached to one controller.
  *
  * @param Device xHCI controller.

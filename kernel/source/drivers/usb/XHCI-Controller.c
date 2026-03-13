@@ -134,6 +134,39 @@ static void XHCI_LogInitReadback(LPXHCI_DEVICE Device,
     PciCommand = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_COMMAND);
     PciStatus = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_STATUS);
 
+    DEBUG(TEXT("[XHCI_LogInitReadback] step=%s prog-dcbaap=%x:%x rd-dcbaap=%x:%x prog-crcr=%x:%x rd-crcr=%x:%x"),
+        Step,
+        U64_High32(ProgrammedDcbaap),
+        U64_Low32(ProgrammedDcbaap),
+        DcbaapHigh,
+        DcbaapLow,
+        U64_High32(ProgrammedCrcr),
+        U64_Low32(ProgrammedCrcr),
+        CrcrHigh,
+        CrcrLow);
+    DEBUG(TEXT("[XHCI_LogInitReadback] step=%s prog-erstba=%x:%x rd-erstba=%x:%x prog-erdp=%x:%x rd-erdp=%x:%x"),
+        Step,
+        U64_High32(ProgrammedErstba),
+        U64_Low32(ProgrammedErstba),
+        ErstbaHigh,
+        ErstbaLow,
+        U64_High32(ProgrammedErdp),
+        U64_Low32(ProgrammedErdp),
+        ErdpHigh,
+        ErdpLow);
+    DEBUG(TEXT("[XHCI_LogInitReadback] step=%s usbcmd=%x usbsts=%x config=%x iman=%x imod=%x erstsz=%x dcbaa0=%x:%x pci-cmd=%x pci-sts=%x"),
+        Step,
+        Usbcmd,
+        Usbsts,
+        Config,
+        Iman,
+        Imod,
+        Erstsz,
+        DcbaaEntry0High,
+        DcbaaEntry0Low,
+        PciCommand,
+        PciStatus);
+
 }
 
 /************************************************************************/

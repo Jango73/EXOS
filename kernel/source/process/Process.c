@@ -44,9 +44,6 @@ PROCESS DATA_SECTION KernelProcess = {
     .OwnerProcess = NULL, // OwnerProcess (from LISTNODE_FIELDS)
     .Next = NULL,
     .Prev = NULL,                   // Next, previous
-    .Mutex = EMPTY_MUTEX,           // Mutex
-    .HeapMutex = EMPTY_MUTEX,       // Heap mutex
-    .Security = EMPTY_SECURITY,     // Security
     .Desktop = NULL,                // Desktop
     .Privilege = CPU_PRIVILEGE_KERNEL,  // Privilege
     .Status = PROCESS_STATUS_ALIVE, // Status
@@ -58,10 +55,6 @@ PROCESS DATA_SECTION KernelProcess = {
     .RegionCount = 0,
     .HeapBase = 0,                  // Heap base
     .HeapSize = 0,                  // Heap size
-    .MaximumAllocatedMemory = N_HalfMemory, // Maximum heap allocation limit
-    .FileName = "",                 // File name
-    .CommandLine = "",              // Command line
-    .WorkFolder = ROOT,             // Working directory
     .TaskCount = 0                  // Task count (will be incremented by CreateTask)
 };
 
@@ -112,9 +105,13 @@ void InitializeKernelProcess(void) {
 
     DEBUG(TEXT("[InitializeKernelProcess] Enter"));
 
+    InitMutex(&(KernelProcess.Mutex));
+    InitMutex(&(KernelProcess.HeapMutex));
+    InitSecurity(&(KernelProcess.Security));
     KernelProcess.PageDirectory = GetPageDirectory();
     KernelProcess.MaximumAllocatedMemory = N_HalfMemory;
     KernelProcess.HeapSize = KERNEL_PROCESS_HEAP_SIZE;
+    StringCopy(KernelProcess.WorkFolder, TEXT(ROOT));
 
     DEBUG(TEXT("[InitializeKernelProcess] Memory : %u"), KernelStartup.MemorySize);
     DEBUG(TEXT("[InitializeKernelProcess] Pages : %u"), KernelStartup.PageCount);
