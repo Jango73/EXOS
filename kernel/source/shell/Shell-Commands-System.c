@@ -133,6 +133,38 @@ static void PrintDriverDetails(LPDRIVER Driver) {
 /***************************************************************************/
 
 /**
+ * @brief Print one summary line for every registered driver.
+ */
+static void PrintDriverList(void) {
+    UINT DriverCount = 0;
+    LPLIST DriverList = GetDriverList();
+
+    if (DriverList == NULL || DriverList->First == NULL) {
+        ConsolePrint(TEXT("No driver detected\n"));
+        return;
+    }
+
+    for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
+        LPDRIVER Driver = (LPDRIVER)Node;
+
+        SAFE_USE_VALID_ID(Driver, KOID_DRIVER) {
+            ConsolePrint(TEXT("%s type=%s ready=%u product=%s\n"),
+                StringLength(Driver->Alias) != 0 ? Driver->Alias : TEXT("<none>"),
+                DriverTypeToText(Driver->Type),
+                (Driver->Flags & DRIVER_FLAG_READY) != 0 ? 1 : 0,
+                StringLength(Driver->Product) != 0 ? Driver->Product : TEXT("<none>"));
+            DriverCount++;
+        }
+    }
+
+    if (DriverCount == 0) {
+        ConsolePrint(TEXT("No driver detected\n"));
+    }
+}
+
+/***************************************************************************/
+
+/**
  * @brief Print one driver detail view selected by alias.
  * @param Context Shell context.
  * @return DF_RETURN_SUCCESS on completion.
@@ -144,7 +176,13 @@ U32 CMD_driver(LPSHELLCONTEXT Context) {
     ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command) == 0) {
-        ConsolePrint(TEXT("Usage: driver Alias\n"));
+        ConsolePrint(TEXT("Usage: driver list\n"));
+        ConsolePrint(TEXT("       driver Alias\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (StringCompareNC(Context->Command, TEXT("list")) == 0) {
+        PrintDriverList();
         return DF_RETURN_SUCCESS;
     }
 

@@ -751,7 +751,7 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
 
         ActiveBackendName = GraphicsSelectorGetActiveBackendName();
         if (ActiveBackendName != NULL && StringLength(ActiveBackendName) != 0) {
-            ConsolePrint(TEXT("gfx: backend=%s mode=%ux%ux%u\n"),
+            ConsolePrint(TEXT("gfx: driver=%s mode=%ux%ux%u\n"),
                 ActiveBackendName,
                 ModeInfo.Width,
                 ModeInfo.Height,
@@ -766,8 +766,8 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    if (StringCompareNC(Mode, TEXT("backend")) != 0) {
-        ConsolePrint(TEXT("Usage: gfx backend Driver WidthxHeightxBitsPerPixel\n"));
+    if (StringCompareNC(Mode, TEXT("driver")) != 0) {
+        ConsolePrint(TEXT("Usage: gfx driver Driver WidthxHeightxBitsPerPixel\n"));
         ConsolePrint(TEXT("       gfx info\n"));
         ConsolePrint(TEXT("       gfx smoke_test [DurationMilliseconds]\n"));
         return DF_RETURN_SUCCESS;
@@ -778,12 +778,12 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
     ParseNextCommandLineComponent(Context);
 
     if (StringLength(DriverName) == 0 || StringLength(Context->Command) == 0) {
-        ConsolePrint(TEXT("Usage: gfx backend Driver WidthxHeightxBitsPerPixel\n"));
+        ConsolePrint(TEXT("Usage: gfx driver Driver WidthxHeightxBitsPerPixel\n"));
         return DF_RETURN_SUCCESS;
     }
 
     if (!ParseGraphicsModeToken(Context->Command, &ModeInfo)) {
-        ConsolePrint(TEXT("Usage: gfx backend Driver WidthxHeightxBitsPerPixel\n"));
+        ConsolePrint(TEXT("Usage: gfx driver Driver WidthxHeightxBitsPerPixel\n"));
         return DF_RETURN_SUCCESS;
     }
 
@@ -797,11 +797,11 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
     }
 
     if (!GraphicsSelectorForceBackendByName(DriverName)) {
-        ConsolePrint(TEXT("gfx: backend '%s' unavailable (supported: "), DriverName);
+        ConsolePrint(TEXT("gfx: driver '%s' unavailable (supported: "), DriverName);
         PrintSupportedGraphicsBackendAliases();
         ConsolePrint(TEXT(")\n"));
         if (RequestedBackend != NULL) {
-            ConsolePrint(TEXT("gfx: backend '%s' load_result=%u ready=%u\n"),
+            ConsolePrint(TEXT("gfx: driver '%s' load_result=%u ready=%u\n"),
                 DriverName,
                 RequestedBackendLoadResult,
                 (RequestedBackend->Flags & DRIVER_FLAG_READY) != 0 ? 1 : 0);
@@ -833,7 +833,7 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
 
     ActiveBackendName = GraphicsSelectorGetActiveBackendName();
     if (ActiveBackendName != NULL && StringLength(ActiveBackendName) != 0) {
-        ConsolePrint(TEXT("gfx: backend=%s mode=%ux%ux%u\n"),
+        ConsolePrint(TEXT("gfx: driver=%s mode=%ux%ux%u\n"),
             ActiveBackendName,
             ModeInfo.Width,
             ModeInfo.Height,
