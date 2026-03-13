@@ -29,13 +29,109 @@
 /***************************************************************************/
 // Macros
 
-#define DESKTOP_BUTTON_PROP_HOVER TEXT("ui.button.hover")
-#define DESKTOP_BUTTON_PROP_PRESSED TEXT("ui.button.pressed")
+#define DESKTOP_BUTTON_PROP_STATE TEXT("ui.button.state")
 #define DESKTOP_BUTTON_CAPTION_BUFFER_SIZE 128
+
+/***************************************************************************/
+// Type definitions
+
+typedef struct tag_DESKTOP_BUTTON_STATE {
+    U32 Hover;
+    U32 Pressed;
+} DESKTOP_BUTTON_STATE, *LPDESKTOP_BUTTON_STATE;
 
 /***************************************************************************/
 
 static U32 ButtonResolveBackgroundToken(HANDLE Window);
+static LPDESKTOP_BUTTON_STATE ButtonGetState(HANDLE Window);
+static BOOL ButtonEnsureState(HANDLE Window);
+static void ButtonDeleteState(HANDLE Window);
+static void ButtonSetHoverState(HANDLE Window, U32 Value);
+static void ButtonSetPressedState(HANDLE Window, U32 Value);
+
+/***************************************************************************/
+
+/**
+ * @brief Get one button private state from one window.
+ * @param Window Target button window.
+ * @return State pointer or NULL.
+ */
+static LPDESKTOP_BUTTON_STATE ButtonGetState(HANDLE Window) {
+    return (LPDESKTOP_BUTTON_STATE)(LPVOID)(LINEAR)GetWindowProp(Window, DESKTOP_BUTTON_PROP_STATE);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Allocate button private state when absent.
+ * @param Window Target button window.
+ * @return TRUE on success.
+ */
+static BOOL ButtonEnsureState(HANDLE Window) {
+    LPDESKTOP_BUTTON_STATE State;
+
+    State = ButtonGetState(Window);
+    if (State != NULL) return TRUE;
+
+    State = (LPDESKTOP_BUTTON_STATE)HeapAlloc(sizeof(DESKTOP_BUTTON_STATE));
+    if (State == NULL) return FALSE;
+
+    MemorySet(State, 0, sizeof(DESKTOP_BUTTON_STATE));
+    (void)SetWindowProp(Window, DESKTOP_BUTTON_PROP_STATE, (UINT)(LINEAR)State);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Release button private state.
+ * @param Window Target button window.
+ */
+static void ButtonDeleteState(HANDLE Window) {
+    LPDESKTOP_BUTTON_STATE State;
+
+    State = ButtonGetState(Window);
+    if (State == NULL) return;
+
+    HeapFree(State);
+    (void)SetWindowProp(Window, DESKTOP_BUTTON_PROP_STATE, 0);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Update button hover state and request redraw when changed.
+ * @param Window Target button window.
+ * @param Value New hover state.
+ */
+static void ButtonSetHoverState(HANDLE Window, U32 Value) {
+    LPDESKTOP_BUTTON_STATE State;
+
+    if (ButtonEnsureState(Window) == FALSE) return;
+    State = ButtonGetState(Window);
+    if (State == NULL || State->Hover == Value) return;
+
+    State->Hover = Value;
+    (void)InvalidateWindowRect(Window, NULL);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Update button pressed state and request redraw when changed.
+ * @param Window Target button window.
+ * @param Value New pressed state.
+ */
+static void ButtonSetPressedState(HANDLE Window, U32 Value) {
+    LPDESKTOP_BUTTON_STATE State;
+
+    if (ButtonEnsureState(Window) == FALSE) return;
+    State = ButtonGetState(Window);
+    if (State == NULL || State->Pressed == Value) return;
+
+    State->Pressed = Value;
+    (void)InvalidateWindowRect(Window, NULL);
+}
 
 /***************************************************************************/
 
@@ -63,27 +159,14 @@ static BOOL ButtonIsPointInside(HANDLE Window, I32 WindowX, I32 WindowY) {
  * @return One THEME_TOKEN_WINDOW_BACKGROUND_* identifier.
  */
 static U32 ButtonResolveBackgroundToken(HANDLE Window) {
+    LPDESKTOP_BUTTON_STATE State;
+
+    State = ButtonGetState(Window);
     if (GetWindowProp(Window, DESKTOP_BUTTON_PROP_DISABLED) != 0) return THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_DISABLED;
-    if (GetWindowProp(Window, DESKTOP_BUTTON_PROP_PRESSED) != 0) return THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_PRESSED;
-    if (GetWindowProp(Window, DESKTOP_BUTTON_PROP_HOVER) != 0) return THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_HOVER;
+    if (State != NULL && State->Pressed != 0) return THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_PRESSED;
+    if (State != NULL && State->Hover != 0) return THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_HOVER;
 
     return THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_NORMAL;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Update one button state property and request redraw.
- * @param Window Target button window.
- * @param Name Property name.
- * @param Value New property value.
- */
-static void ButtonSetStateProp(HANDLE Window, LPCSTR Name, U32 Value) {
-    if (Window == NULL || Name == NULL) return;
-    if (GetWindowProp(Window, Name) == Value) return;
-
-    (void)SetWindowProp(Window, Name, Value);
-    (void)InvalidateWindowRect(Window, NULL);
 }
 
 /***************************************************************************/
@@ -220,6 +303,7 @@ HANDLE ButtonCreate(HANDLE ParentWindow, U32 WindowID, LPRECT WindowRect, LPCSTR
 U32 ButtonWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     RECT ClientRect;
     HANDLE GraphicsContext;
+    LPDESKTOP_BUTTON_STATE State;
     POINT MousePosition;
     POINT WindowPoint;
     I32 MouseX;
@@ -229,12 +313,11 @@ U32 ButtonWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
     switch (Message) {
         case EWM_CREATE:
-            (void)SetWindowProp(Window, DESKTOP_BUTTON_PROP_HOVER, 0);
-            (void)SetWindowProp(Window, DESKTOP_BUTTON_PROP_PRESSED, 0);
-            return 1;
+            return ButtonEnsureState(Window);
 
         case EWM_DELETE:
             (void)ReleaseMouse();
+            ButtonDeleteState(Window);
             return 1;
 
         case EWM_MOUSEDOWN:
@@ -247,20 +330,21 @@ U32 ButtonWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             MouseY = WindowPoint.Y;
             if (ButtonIsPointInside(Window, MouseX, MouseY) == FALSE) return 1;
             (void)CaptureMouse(Window);
-            ButtonSetStateProp(Window, DESKTOP_BUTTON_PROP_HOVER, 1);
-            ButtonSetStateProp(Window, DESKTOP_BUTTON_PROP_PRESSED, 1);
+            ButtonSetHoverState(Window, 1);
+            ButtonSetPressedState(Window, 1);
             return 1;
 
         case EWM_MOUSEMOVE:
             MouseX = SIGNED(Param1);
             MouseY = SIGNED(Param2);
             IsInside = ButtonIsPointInside(Window, MouseX, MouseY);
+            State = ButtonGetState(Window);
 
-            if (GetWindowProp(Window, DESKTOP_BUTTON_PROP_PRESSED) != 0) {
-                ButtonSetStateProp(Window, DESKTOP_BUTTON_PROP_HOVER, IsInside ? 1 : 0);
-                ButtonSetStateProp(Window, DESKTOP_BUTTON_PROP_PRESSED, IsInside ? 1 : 0);
+            if (State != NULL && State->Pressed != 0) {
+                ButtonSetHoverState(Window, IsInside ? 1 : 0);
+                ButtonSetPressedState(Window, IsInside ? 1 : 0);
             } else if (GetWindowProp(Window, DESKTOP_BUTTON_PROP_DISABLED) == 0) {
-                ButtonSetStateProp(Window, DESKTOP_BUTTON_PROP_HOVER, IsInside ? 1 : 0);
+                ButtonSetHoverState(Window, IsInside ? 1 : 0);
             }
             return 1;
 
@@ -272,11 +356,12 @@ U32 ButtonWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             MouseX = WindowPoint.X;
             MouseY = WindowPoint.Y;
             IsInside = ButtonIsPointInside(Window, MouseX, MouseY);
-            WasPressed = GetWindowProp(Window, DESKTOP_BUTTON_PROP_PRESSED) != 0;
+            State = ButtonGetState(Window);
+            WasPressed = (State != NULL && State->Pressed != 0);
 
             (void)ReleaseMouse();
-            ButtonSetStateProp(Window, DESKTOP_BUTTON_PROP_PRESSED, 0);
-            ButtonSetStateProp(Window, DESKTOP_BUTTON_PROP_HOVER, IsInside ? 1 : 0);
+            ButtonSetPressedState(Window, 0);
+            ButtonSetHoverState(Window, IsInside ? 1 : 0);
 
             if (WasPressed != FALSE && IsInside != FALSE && GetWindowProp(Window, DESKTOP_BUTTON_PROP_DISABLED) == 0) {
                 ButtonNotifyClicked(Window);

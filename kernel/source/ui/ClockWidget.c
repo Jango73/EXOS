@@ -131,7 +131,7 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
 
     switch (Message) {
         case EWM_CREATE: {
-            State = (LPCLOCK_WIDGET_STATE)KernelHeapAlloc(sizeof(CLOCK_WIDGET_STATE));
+            State = (LPCLOCK_WIDGET_STATE)HeapAlloc(sizeof(CLOCK_WIDGET_STATE));
             if (State == NULL) {
                 return 0;
             }
@@ -145,7 +145,7 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
             BrushInfo.Flags = 0;
             State->Brush = CreateBrush(&BrushInfo);
             if (State->Brush == NULL) {
-                KernelHeapFree(State);
+                HeapFree(State);
                 return 0;
             }
 
@@ -161,7 +161,7 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
                 if (State->Brush != NULL) {
                     (void)DeleteObject(State->Brush);
                 }
-                KernelHeapFree(State);
+                HeapFree(State);
                 (void)SetWindowProp(Window, CLOCK_WIDGET_PROP_STATE, 0);
             }
             break;

@@ -258,7 +258,7 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
     switch (Message) {
         case EWM_CREATE:
-            State = (LPCUBE3D_STATE)KernelHeapAlloc(sizeof(CUBE3D_STATE));
+            State = (LPCUBE3D_STATE)HeapAlloc(sizeof(CUBE3D_STATE));
             if (State == NULL) {
                 return 0;
             }
@@ -272,7 +272,7 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             PenInfo.Flags = 0;
             State->FlashPen = CreatePen(&PenInfo);
             if (State->FlashPen == NULL) {
-                KernelHeapFree(State);
+                HeapFree(State);
                 return 0;
             }
 
@@ -289,7 +289,7 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 if (State->FlashPen != NULL) {
                     (void)DeleteObject(State->FlashPen);
                 }
-                KernelHeapFree(State);
+                HeapFree(State);
                 (void)SetWindowProp(Window, CUBE3D_PROP_STATE, 0);
             }
             break;
