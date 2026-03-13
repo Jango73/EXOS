@@ -885,7 +885,7 @@ HANDLE GetWindowGC(HANDLE Handle) {
     GraphicsDriver = GetGraphicsDriver();
     if (GraphicsDriver == NULL || GraphicsDriver->Command == NULL) return NULL;
 
-    ContextPointer = GraphicsDriver->Command(DF_GFX_CREATECONTEXT, 0);
+    ContextPointer = GraphicsDriver->Command(DF_GFX_GETCONTEXT, 0);
     if (ContextPointer == 0) return NULL;
 
     Context = (LPGRAPHICSCONTEXT)(LPVOID)ContextPointer;

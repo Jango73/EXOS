@@ -304,7 +304,7 @@ static BOOL DesktopEnsureGraphicsContextAvailable(LPDRIVER GraphicsDriver) {
         return FALSE;
     }
 
-    ContextPointer = GraphicsDriver->Command(DF_GFX_CREATECONTEXT, 0);
+    ContextPointer = GraphicsDriver->Command(DF_GFX_GETCONTEXT, 0);
     if (!IS_VALID_KERNEL_POINTER((LPVOID)(UINT)ContextPointer)) {
         return FALSE;
     }
@@ -594,6 +594,11 @@ BOOL ShowDesktop(LPDESKTOP This) {
 
     if (DesktopApplyDisplaySelection(This, &ModeInfo) != FALSE) {
         This->Graphics = GetGraphicsDriver();
+        DEBUG(TEXT("[ShowDesktop] Applied stored display selection backend=%s mode=%ux%ux%u"),
+            GraphicsSelectorGetActiveBackendName(),
+            ModeInfo.Width,
+            ModeInfo.Height,
+            ModeInfo.BitsPerPixel);
     } else {
         HasSelectedMode = DesktopSelectGraphicsMode(This->Graphics, &SelectedModeInfo);
         UsedLegacyAutoSelect = FALSE;
@@ -603,6 +608,11 @@ BOOL ShowDesktop(LPDESKTOP This) {
             ModeSetResult = This->Graphics->Command(DF_GFX_SETMODE, (UINT)&RequestedModeInfo);
             if (ModeSetResult == DF_RETURN_SUCCESS) {
                 ModeInfo = RequestedModeInfo;
+                DEBUG(TEXT("[ShowDesktop] Selected mode applied backend=%s mode=%ux%ux%u"),
+                    GraphicsSelectorGetActiveBackendName(),
+                    ModeInfo.Width,
+                    ModeInfo.Height,
+                    ModeInfo.BitsPerPixel);
             } else {
                 WARNING(TEXT("[ShowDesktop] DF_GFX_SETMODE selected mode failed (%u)"), ModeSetResult);
             }
@@ -617,6 +627,11 @@ BOOL ShowDesktop(LPDESKTOP This) {
             } else {
                 ModeInfo = RequestedModeInfo;
                 UsedLegacyAutoSelect = TRUE;
+                DEBUG(TEXT("[ShowDesktop] Legacy mode applied backend=%s mode=%ux%ux%u"),
+                    GraphicsSelectorGetActiveBackendName(),
+                    ModeInfo.Width,
+                    ModeInfo.Height,
+                    ModeInfo.BitsPerPixel);
             }
         }
 
@@ -650,6 +665,12 @@ BOOL ShowDesktop(LPDESKTOP This) {
 
     SelectedBackendDriver = GraphicsSelectorGetActiveBackendDriver();
     if (SelectedBackendDriver != NULL && StringLength(SelectedBackendDriver->Alias) != 0) {
+        DEBUG(TEXT("[ShowDesktop] Final backend=%s alias=%s mode=%ux%ux%u"),
+            SelectedBackendDriver->Product,
+            SelectedBackendDriver->Alias,
+            ModeInfo.Width,
+            ModeInfo.Height,
+            ModeInfo.BitsPerPixel);
         DesktopSetDisplaySelection(This, SelectedBackendDriver->Alias, &ModeInfo);
     }
 

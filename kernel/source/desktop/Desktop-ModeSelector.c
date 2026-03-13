@@ -117,30 +117,49 @@ BOOL DesktopSelectGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICSMODEINFO Selec
     MaxModesToProbe = (ModeCount > 0) ? ModeCount : 1;
     HasSelectedMode = FALSE;
 
+    DEBUG(TEXT("[DesktopSelectGraphicsMode] Probe driver=%s raw_count=%u max_probe=%u"),
+        GraphicsDriver->Product,
+        RawModeCount,
+        MaxModesToProbe);
+
     DesktopInitializeGraphicsModeInfo(SelectedMode, INFINITY, 0, 0, 0);
 
     for (Index = 0; Index < MaxModesToProbe; Index++) {
         DesktopInitializeGraphicsModeInfo(&Candidate, Index, 0, 0, 0);
         QueryResult = GraphicsDriver->Command(DF_GFX_GETMODEINFO, (UINT)&Candidate);
         if (QueryResult != DF_RETURN_SUCCESS) {
+            DEBUG(TEXT("[DesktopSelectGraphicsMode] Mode index=%u query failed result=%u"),
+                Index,
+                QueryResult);
             continue;
         }
 
         if (DesktopIsValidGraphicsModeInfo(&Candidate) == FALSE) {
+            DEBUG(TEXT("[DesktopSelectGraphicsMode] Mode index=%u invalid width=%u height=%u bpp=%u"),
+                Index,
+                Candidate.Width,
+                Candidate.Height,
+                Candidate.BitsPerPixel);
             continue;
         }
+
+        DEBUG(TEXT("[DesktopSelectGraphicsMode] Mode index=%u candidate=%ux%ux%u"),
+            Index,
+            Candidate.Width,
+            Candidate.Height,
+            Candidate.BitsPerPixel);
 
         if (IsBetterDesktopModeCandidate(&Candidate, SelectedMode)) {
             *SelectedMode = Candidate;
             HasSelectedMode = TRUE;
+            DEBUG(TEXT("[DesktopSelectGraphicsMode] Mode index=%u selected=%ux%ux%u"),
+                Index,
+                SelectedMode->Width,
+                SelectedMode->Height,
+                SelectedMode->BitsPerPixel);
         } else {
         }
     }
 
-    if (HasSelectedMode) {
-    } else {
-    }
-
     return HasSelectedMode;
 }
-

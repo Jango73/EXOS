@@ -563,9 +563,8 @@ static UINT GraphicsSelectorForward(UINT Function, UINT Parameter) {
             continue;
         }
 
-        if (Function == DF_GFX_CREATECONTEXT) {
+        if (Function == DF_GFX_GETCONTEXT) {
             if (IS_VALID_KERNEL_POINTER((LPVOID)(UINT)Result)) {
-                GraphicsSelectorState.ActiveIndex = Index;
                 return Result;
             }
             continue;
@@ -606,7 +605,7 @@ static UINT GraphicsSelectorCommands(UINT Function, UINT Parameter) {
         case DF_GFX_GETMODECOUNT:
         case DF_GFX_GETMODEINFO:
         case DF_GFX_SETMODE:
-        case DF_GFX_CREATECONTEXT:
+        case DF_GFX_GETCONTEXT:
         case DF_GFX_CREATEBRUSH:
         case DF_GFX_CREATEPEN:
         case DF_GFX_SETPIXEL:

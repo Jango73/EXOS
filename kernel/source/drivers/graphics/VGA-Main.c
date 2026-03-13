@@ -344,7 +344,7 @@ static UINT VGACommands(UINT Function, UINT Parameter) {
         case DF_GFX_SETMODE:
             return VGASetModeFromRequest((LPGRAPHICSMODEINFO)Parameter);
 
-        case DF_GFX_CREATECONTEXT:
+        case DF_GFX_GETCONTEXT:
         case DF_GFX_CREATEBRUSH:
         case DF_GFX_CREATEPEN:
         case DF_GFX_SETPIXEL:

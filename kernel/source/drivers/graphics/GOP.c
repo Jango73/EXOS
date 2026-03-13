@@ -913,7 +913,7 @@ static UINT GOPGfxCommands(UINT Function, UINT Param) {
         case DF_DEBUG_INFO:
             return GOPGfxDebugInfo((LPDRIVER_DEBUG_INFO)Param);
 
-        case DF_GFX_CREATECONTEXT:
+        case DF_GFX_GETCONTEXT:
             if ((GOPGfxDriver.Flags & DRIVER_FLAG_READY) == 0) {
                 return 0;
             }

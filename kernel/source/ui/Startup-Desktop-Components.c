@@ -182,7 +182,7 @@ static BOOL EnsureLogViewerWindow(LPDESKTOP Desktop) {
     if (LogViewerWindow != NULL) {
         (void)MoveWindow(LogViewerWindow, &WindowRect);
         (void)SetWindowCaption(LogViewerWindow, TEXT("Kernel Log"));
-        (void)HideWindow(LogViewerWindow);
+        (void)ShowWindow(LogViewerWindow);
         return TRUE;
     }
 
@@ -200,7 +200,7 @@ static BOOL EnsureLogViewerWindow(LPDESKTOP Desktop) {
     WindowInfo.WindowPosition.Y = WindowRect.Y1;
     WindowInfo.WindowSize.X = WindowRect.X2 - WindowRect.X1 + 1;
     WindowInfo.WindowSize.Y = WindowRect.Y2 - WindowRect.Y1 + 1;
-    WindowInfo.ShowHide = FALSE;
+    WindowInfo.ShowHide = TRUE;
 
     LogViewerWindow = (HANDLE)CreateWindow(&WindowInfo);
     if (LogViewerWindow == NULL) {
@@ -208,7 +208,7 @@ static BOOL EnsureLogViewerWindow(LPDESKTOP Desktop) {
     }
 
     (void)SetWindowCaption(LogViewerWindow, TEXT("Kernel Log"));
-    (void)HideWindow(LogViewerWindow);
+    (void)ShowWindow(LogViewerWindow);
     return TRUE;
 }
 

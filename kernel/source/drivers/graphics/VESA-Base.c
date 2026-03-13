@@ -1064,7 +1064,7 @@ UINT VESACommands(UINT Function, UINT Param) {
         }
         case DF_GFX_SETMODE:
             return SetVideoMode((LPGRAPHICSMODEINFO)Param);
-        case DF_GFX_CREATECONTEXT:
+        case DF_GFX_GETCONTEXT:
             return (UINT)(LPVOID)&VESAContext;
         case DF_GFX_CREATEBRUSH:
             return (UINT)VESA_CreateBrush((LPBRUSHINFO)Param);

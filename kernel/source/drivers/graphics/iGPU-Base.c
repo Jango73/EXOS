@@ -622,7 +622,7 @@ static UINT IntelGfxCommands(UINT Function, UINT Param) {
         case DF_DEBUG_INFO:
             return IntelGfxDebugInfo((LPDRIVER_DEBUG_INFO)Param);
 
-        case DF_GFX_CREATECONTEXT:
+        case DF_GFX_GETCONTEXT:
             if ((IntelGfxDriver.Flags & DRIVER_FLAG_READY) == 0) {
                 return 0;
             }

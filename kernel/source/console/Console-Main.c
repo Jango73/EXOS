@@ -1067,7 +1067,7 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
             return DF_RETURN_GENERIC;
         }
 
-        case DF_GFX_CREATECONTEXT:
+        case DF_GFX_GETCONTEXT:
         case DF_GFX_CREATEBRUSH:
         case DF_GFX_CREATEPEN:
         case DF_GFX_SETPIXEL:
