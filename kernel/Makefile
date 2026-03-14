@@ -91,7 +91,11 @@ SRC_C  = $(wildcard source/*.c) \
          $(wildcard source/drivers/bus/*.c) \
          $(wildcard source/drivers/interrupts/*.c) \
          $(wildcard source/drivers/input/*.c) \
-         $(wildcard source/drivers/graphics/*.c) \
+         $(wildcard source/drivers/graphics/common/*.c) \
+         $(wildcard source/drivers/graphics/gop/*.c) \
+         $(wildcard source/drivers/graphics/igpu/*.c) \
+         $(wildcard source/drivers/graphics/vesa/*.c) \
+         $(wildcard source/drivers/graphics/vga/*.c) \
          $(wildcard source/drivers/usb/*.c) \
          $(wildcard source/drivers/network/*.c) \
          $(wildcard source/drivers/storage/*.c) \

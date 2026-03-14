@@ -21,7 +21,7 @@
 
 \************************************************************************/
 
-#include "drivers/graphics/Graphics-TextRenderer.h"
+#include "drivers/graphics/common/Graphics-TextRenderer.h"
 #include "utils/Graphics-Utils.h"
 
 #include "CoreString.h"

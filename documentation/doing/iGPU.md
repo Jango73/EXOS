@@ -68,7 +68,7 @@ Suggested new structures:
 
 Deliverable:
 - `GFX.h` update proposal that stays backward-compatible with VESA.
-- Implemented in `kernel/include/GFX.h` and `kernel/source/drivers/graphics/VESA.c`.
+- Implemented in `kernel/include/GFX.h` and `kernel/source/drivers/graphics/vesa/VESA-Base.c`.
 
 ## Step 2 - Intel driver skeleton and PCI attach
 Create a dedicated Intel graphics driver module.
@@ -139,9 +139,9 @@ Deliverable:
 - `DF_GFX_SETMODE` programs Intel display pipeline without firmware fallback.
 
 Status note:
-- Conservative native modeset is implemented in `kernel/source/drivers/graphics/iGPU-Mode.c` on one active pipe/output.
+- Conservative native modeset is implemented in `kernel/source/drivers/graphics/igpu/iGPU-Mode.c` on one active pipe/output.
 - Validation enforces XRGB8888 path and active-mode dimensions while API lacks explicit refresh/format fields in `GRAPHICSMODEINFO`.
-- Stage-ordered native modeset applies explicit pipe/output/transcoder policy, conservative clock-source programming (`DPLL_CTRL1` reuse), connector-link enable, internal panel stabilization, and rollback to captured hardware state on partial failure in `kernel/source/drivers/graphics/iGPU-Mode.c`.
+- Stage-ordered native modeset applies explicit pipe/output/transcoder policy, conservative clock-source programming (`DPLL_CTRL1` reuse), connector-link enable, internal panel stabilization, and rollback to captured hardware state on partial failure in `kernel/source/drivers/graphics/igpu/iGPU-Mode.c`.
 - Cold modeset bootstrap is implemented for the `no active Intel scanout` path: load keeps the Intel backend available, `SETMODE` builds conservative timings from the requested mode, programs pipe/output/link, and rebuilds context from the programmed state when takeover readback is unavailable.
 
 ### Step 5.b - Spec alignment for all iGPU display modes

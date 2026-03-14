@@ -30,7 +30,7 @@
 #include "Kernel.h"
 #include "Memory.h"
 #include "vbr-multiboot.h"
-#include "drivers/graphics/VGA.h"
+#include "drivers/graphics/vga/VGA.h"
 #include "process/Process.h"
 #include "drivers/input/Keyboard.h"
 #include "Log.h"

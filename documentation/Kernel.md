@@ -891,7 +891,7 @@ Graphics drivers expose mode enumeration through `DF_GFX_GETMODECOUNT` and `DF_G
 
 #### Backend selection and diagnostics
 
-Graphics backend selection is implemented in `kernel/source/drivers/graphics/Graphics-Selector.c`. The selector loads available backends, filters inactive or unusable ones, scores remaining candidates, and forwards `DF_GFX_*` commands to the selected backend. This provides deterministic backend selection for desktop code.
+Graphics backend selection is implemented in `kernel/source/drivers/graphics/common/Graphics-Selector.c`. The selector loads available backends, filters inactive or unusable ones, scores remaining candidates, and forwards `DF_GFX_*` commands to the selected backend. This provides deterministic backend selection for desktop code.
 
 Boot-path capability gating is centralized in `utils/BootPath` (`kernel/include/utils/BootPath.h`, `kernel/source/utils/BootPath.c`). VESA probing is disabled on x86-64 boot paths and enabled on x86-32 boot paths. On x86-32, backend availability is decided by the VESA initialization and probe path.
 
@@ -907,31 +907,31 @@ The VESA driver requests VBE modes in linear frame buffer mode (`INT 10h 4F02h`,
 
 VESA drawing primitives include line, rectangle, arc, and triangle command paths (`DF_GFX_LINE`, `DF_GFX_RECTANGLE`, `DF_GFX_ARC`, `DF_GFX_TRIANGLE`) and are forwarded through `Graphics-Selector`.
 
-`kernel/source/drivers/graphics/VGA-Main.c` exposes a dedicated VGA text driver (`alias: vga`) that implements mode enumeration and text mode selection through the same `DF_GFX_*` contract.
+`kernel/source/drivers/graphics/vga/VGA-Main.c` exposes a dedicated VGA text driver (`alias: vga`) that implements mode enumeration and text mode selection through the same `DF_GFX_*` contract.
 
-Display-class PCI attach logic is implemented in `kernel/source/drivers/graphics/Graphics-PCI.c`. The PCI bus layer registers this graphics-provided attach driver during PCI initialization so generic display controllers appear in the PCI device list.
+Display-class PCI attach logic is implemented in `kernel/source/drivers/graphics/common/Graphics-PCI.c`. The PCI bus layer registers this graphics-provided attach driver during PCI initialization so generic display controllers appear in the PCI device list.
 
 #### Intel native backend
 
 The Intel native backend is split by responsibility:
 
-- `kernel/source/drivers/graphics/iGPU-Base.c`: load, dispatch, and PCI attach
-- `kernel/source/drivers/graphics/iGPU-Mode.c`: takeover and native modeset flow
-- `kernel/source/drivers/graphics/iGPU-Present.c`: CPU drawing and surfaces
-- `kernel/source/drivers/graphics/iGPU-Text.c`: text and cursor operations
-- `kernel/source/drivers/graphics/iGPU-Interrupt.c`: vblank synchronization and frame pacing
+- `kernel/source/drivers/graphics/igpu/iGPU-Base.c`: load, dispatch, and PCI attach
+- `kernel/source/drivers/graphics/igpu/iGPU-Mode.c`: takeover and native modeset flow
+- `kernel/source/drivers/graphics/igpu/iGPU-Present.c`: CPU drawing and surfaces
+- `kernel/source/drivers/graphics/igpu/iGPU-Text.c`: text and cursor operations
+- `kernel/source/drivers/graphics/igpu/iGPU-Interrupt.c`: vblank synchronization and frame pacing
 
 Capability discovery is centralized in an internal `INTEL_GFX_CAPS` object built from a PCI device-id family table and refined with bounded MMIO register probes such as display version, pipe presence, and port mask. Public `GFX_CAPABILITIES` values returned by `DF_GFX_GETCAPABILITIES` are projected from that single capability object.
 
 The takeover path reads active pipe and plane state from display registers, maps the active scanout buffer through the aperture BAR, builds a `GRAPHICSCONTEXT` from the discovered mode, and then serves window-manager drawing through CPU primitives writing directly to active scanout memory.
 
-The native `DF_GFX_SETMODE` path in `kernel/source/drivers/graphics/iGPU-Mode.c` follows an ordered sequence: disable, route, clock, link, enable, verify. It applies explicit pipe, output, and transcoder routing policy, uses conservative generation-aware clock handling, includes eDP panel and backlight stabilization hooks, and rolls back to a captured hardware snapshot when a partial modeset stage fails.
+The native `DF_GFX_SETMODE` path in `kernel/source/drivers/graphics/igpu/iGPU-Mode.c` follows an ordered sequence: disable, route, clock, link, enable, verify. It applies explicit pipe, output, and transcoder routing policy, uses conservative generation-aware clock handling, includes eDP panel and backlight stabilization hooks, and rolls back to a captured hardware snapshot when a partial modeset stage fails.
 
 On hybrid platforms without active scanout takeover, the Intel backend can be loaded through explicit backend forcing. In that case `DF_GFX_SETMODE` performs a conservative cold modeset bootstrap using requested timings, pipe and output programming, link setup, and context rebuild from programmed state. `DF_GFX_GETMODECOUNT` and `DF_GFX_GETMODEINFO` expose a deterministic 32-bpp catalog assembled from the active mode, the firmware boot framebuffer mode, and a conservative list filtered by Intel capability bounds.
 
 The modeset core resolves explicit `INTEL_DISPLAY_FAMILY_OPS` descriptors from display version so stride encoding and decoding, plane tiling policy, and cold-modeset support remain family-specific and extension-ready without hardwired device-id control flow. Diagnostics record explicit failure state in `INTEL_GFX_STATE` through `LastModesetFailureStage` and `LastModesetFailureCode`.
 
-VBlank synchronization is implemented in `kernel/source/drivers/graphics/iGPU-Interrupt.c`. `DF_GFX_WAITVBLANK` performs bounded waits with `HasOperationTimedOut()` and rate-limited timeout diagnostics. Presentation serialization uses `PresentMutex`, and frame pacing tracks `PresentFrameSequence` and `VBlankFrameSequence` with optional `PIPESTAT` vblank handling and scanline polling fallback.
+VBlank synchronization is implemented in `kernel/source/drivers/graphics/igpu/iGPU-Interrupt.c`. `DF_GFX_WAITVBLANK` performs bounded waits with `HasOperationTimedOut()` and rate-limited timeout diagnostics. Presentation serialization uses `PresentMutex`, and frame pacing tracks `PresentFrameSequence` and `VBlankFrameSequence` with optional `PIPESTAT` vblank handling and scanline polling fallback.
 
 #### Desktop, cursor, and overlay path
 

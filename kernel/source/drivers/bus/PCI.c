@@ -29,7 +29,7 @@
 #include "Log.h"
 #include "CoreString.h"
 #include "DriverEnum.h"
-#include "drivers/graphics/Graphics-PCI.h"
+#include "drivers/graphics/common/Graphics-PCI.h"
 #include "drivers/network/E1000.h"
 #include "drivers/usb/XHCI.h"
 #include "User.h"

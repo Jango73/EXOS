@@ -28,7 +28,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "Profile.h"
-#include "drivers/graphics/VESA.h"
+#include "drivers/graphics/vesa/VESA.h"
 #include "utils/Graphics-Utils.h"
 
 /************************************************************************/

@@ -21,7 +21,7 @@
 
 \************************************************************************/
 
-#include "drivers/graphics/Graphics-PCI.h"
+#include "drivers/graphics/common/Graphics-PCI.h"
 
 #include "Kernel.h"
 

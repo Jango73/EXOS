@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "drivers/graphics/VGA.h"
+#include "drivers/graphics/vga/VGA.h"
 
 #include "GFX.h"
 #include "System.h"
