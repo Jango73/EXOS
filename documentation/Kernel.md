@@ -54,6 +54,7 @@
   - [Legacy compatibility](#legacy-compatibility)
   - [Synchronization rules](#synchronization-rules)
 - [Tooling and References](#tooling-and-references)
+  - [System Data View](#system-data-view)
   - [Logging](#logging)
   - [Automated debug validation script](#automated-debug-validation-script)
   - [Build output layout](#build-output-layout)
@@ -557,6 +558,8 @@ This approach ensures that:
 
 #### System call full path - x86-32
 
+`USE_SYSCALL` is a project-level build flag (`./scripts/build --arch x86-64 --fs ext2 --debug --use-syscall`) that selects between the interrupt gate path and the SYSCALL/SYSRET pair on x86-64. The flag has no effect on x86-32 builds.
+
 ```
 exos-runtime-c.c : malloc() (or any other function)
 └── calls exos-runtime-a.asm : exoscall()
@@ -590,13 +593,6 @@ exos-runtime-c.c : malloc() (or any other function)
                 └── calls SysCall_xxx via SysCallTable[]
                     └── whew... finally job is done
 ```
-
-`USE_SYSCALL` is a project-level build flag (`./scripts/build --arch x86-64 --fs ext2 --debug --use-syscall`) that selects between the interrupt gate path and the SYSCALL/SYSRET pair on x86-64. The flag has no effect on x86-32 builds.
-
-`SYSTEM_DATA_VIEW` is a project-level build flag (`./scripts/build --arch x86-32 --fs ext2 --system-data-view`) that enables the System Data View mode before task creation. The mode shows the system data pages, uses the kernel keyboard input for navigation (left/right to change page, up/down to scroll), and exits on `Esc` to continue boot. The xHCI page reports PCI identity, decoded PCI status error flags, scratchpad capability/state (`HCSPARAMS2`, `MaxScratchpadBuffers`, `DCBAA[0]`), controller runtime registers (`USBCMD`, `USBSTS`, `CRCR`, `DCBAAP`, interrupter state), slot usage, and per-root-port enumeration diagnostics (raw `PORTSC`, speed/link state, last enumeration error/completion, present/slot state).
-
-Console applications can query the active text geometry through `SYSCALL_ConsoleGetCurrentMode` and the runtime helper `ConsoleGetCurrentMode()`. This returns the console columns and rows without relying on any desktop or window handle.
-
 
 ### Task and window message delivery
 
@@ -2238,6 +2234,29 @@ Desktop and windowing code follow this same kernel-wide rule. Typical examples:
 
 
 ## Tooling and References
+
+### System Data View
+
+`SYSTEM_DATA_VIEW` is a project-level build flag (`./scripts/build --arch x86-32 --fs ext2 --system-data-view`) that starts a diagnostic pager before task creation. The view renders in the kernel console, uses left/right to switch pages, uses up/down to scroll, and exits on `Esc` to continue the boot sequence.
+
+The implementation lives in `kernel/source/SystemDataView.c`. It provides a compact inspection surface for platform state that is already available during early kernel execution, before the shell or desktop environment starts.
+
+#### Pages
+
+- `ACPI MADT`: reports whether ACPI, the local APIC, and the IO APIC are enabled, then lists MADT-derived LAPIC entries, IO APIC entries, and interrupt source overrides.
+- `PIC / PIT / IO APIC`: shows PIC masks, IRR and ISR state, IMCR value, PIT counter and status, then prints the discovered IO APIC base, identifier, version, and redirection entries.
+- `Local APIC`: shows the LAPIC base and version together with `SVR`, `TPR`, `LDR`, `DFR`, timer registers, and the major local interrupt vectors used by the kernel.
+- `Interrupt Routing`: summarizes the interrupt routing view used by the kernel for timer, keyboard, mouse, AHCI, EHCI, xHCI, and E1000-related paths, including the PCI controller selected for each block when one exists.
+- `AHCI`: identifies the SATA AHCI controller found through PCI enumeration and prints its PCI location, vendor and device identifiers, IRQ line, and BAR values.
+- `EHCI`: identifies the USB EHCI controller found through PCI enumeration and prints its PCI location, vendor and device identifiers, IRQ line, and BAR values.
+- `xHCI`: reports PCI identity, decoded PCI status error flags, scratchpad capability and state (`HCSPARAMS2`, `MaxScratchpadBuffers`, `DCBAA[0]`), controller runtime registers (`USBCMD`, `USBSTS`, `CRCR`, `DCBAAP`, interrupter state), slot usage, and per-port enumeration diagnostics such as raw `PORTSC`, speed/link state, device presence, slot assignment, and the last enumeration completion or error.
+- `Graphics Devices (PCI)`: enumerates all PCI display controllers and shows bus/device/function, vendor and device identifiers, display subclass, IRQ wiring, BAR values, and whether the device is attached in the kernel PCI device list.
+- `Network Devices`: enumerates PCI network controllers present on the bus and shows the PCI location, identifiers, controller type, IRQ wiring, and BAR values. When a controller is attached by the kernel network stack, the page also shows the device name, driver manufacturer and product, MAC address, active IPv4 address, link state, MTU, and initialization or readiness state.
+- `PCI Devices`: walks the PCI space discovered by the kernel and prints a compact list of every enumerated function.
+- `VMD (Intel Bridge)`: highlights Intel bridge devices matching the VMD-oriented detection criteria and prints the PCI location, identifiers, header type, interrupt pin, and BAR values.
+- `Storage Controllers`: enumerates PCI mass-storage controllers and reports the PCI location, class/subclass/interface triplet, vendor and device identifiers, IRQ line, and BAR values.
+- `IDT`: prints the IDT base and limit, then shows the installed handler offsets and selectors for a subset of active interrupt vectors.
+- `GDT`: prints the GDT base and limit, then shows the decoded base and limit for the first descriptors used by the kernel execution environment.
 
 ### Logging
 

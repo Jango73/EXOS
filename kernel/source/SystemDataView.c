@@ -32,7 +32,10 @@
 #include "drivers/bus/PCI.h"
 #include "drivers/storage/USBStorage.h"
 #include "drivers/usb/XHCI-Internal.h"
+#include "Endianness.h"
 #include "KernelData.h"
+#include "network/Network.h"
+#include "network/NetworkManager.h"
 #include "process/Task.h"
 #include "System.h"
 #include "input/VKey.h"
@@ -42,10 +45,10 @@
 /************************************************************************/
 // Macros
 
-#define SYSTEM_DATA_VIEW_PAGE_COUNT 13
+#define SYSTEM_DATA_VIEW_PAGE_COUNT 14
 #define SYSTEM_DATA_VIEW_OUTPUT_BUFFER_SIZE 32768
 #define SYSTEM_DATA_VIEW_OUTPUT_MAX_LINES 1024
-#define SYSTEM_DATA_VIEW_VALUE_COLUMN 20
+#define SYSTEM_DATA_VIEW_VALUE_COLUMN 24
 
 #define SYSTEM_DATA_VIEW_PIC1_COMMAND 0x20
 #define SYSTEM_DATA_VIEW_PIC1_DATA 0x21
@@ -124,6 +127,13 @@ typedef struct tag_SYSTEM_DATA_VIEW_PCI_GRAPHICS_STATE {
     UINT Count;
     UINT AttachedCount;
 } SYSTEM_DATA_VIEW_PCI_GRAPHICS_STATE, *LPSYSTEM_DATA_VIEW_PCI_GRAPHICS_STATE;
+
+typedef struct tag_SYSTEM_DATA_VIEW_NETWORK_STATE {
+    UINT Index;
+    UINT Count;
+    UINT AttachedCount;
+    UINT ReadyCount;
+} SYSTEM_DATA_VIEW_NETWORK_STATE, *LPSYSTEM_DATA_VIEW_NETWORK_STATE;
 
 /************************************************************************/
 
@@ -1622,6 +1632,49 @@ static LPCSTR SystemDataViewGraphicsSubclassName(U8 SubClass) {
 /************************************************************************/
 
 /**
+ * @brief Format an IPv4 address in dotted-decimal notation.
+ *
+ * @param Buffer Destination buffer.
+ * @param BufferLength Destination buffer length.
+ * @param IPv4_Be IPv4 address in big-endian format.
+ */
+static void SystemDataViewFormatIPv4(LPSTR Buffer, UINT BufferLength, U32 IPv4_Be) {
+    U32 IPv4_Host = Ntohl(IPv4_Be);
+
+    if (Buffer == NULL || BufferLength == 0) {
+        return;
+    }
+
+    StringPrintFormat(Buffer,
+        TEXT("%u.%u.%u.%u"),
+        (IPv4_Host >> 24) & 0xFF,
+        (IPv4_Host >> 16) & 0xFF,
+        (IPv4_Host >> 8) & 0xFF,
+        IPv4_Host & 0xFF);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Return a short network subclass name.
+ *
+ * @param SubClass PCI network subclass.
+ * @return Subclass name.
+ */
+static LPCSTR SystemDataViewNetworkSubclassName(U8 SubClass) {
+    switch (SubClass) {
+        case PCI_SUBCLASS_ETHERNET:
+            return TEXT("Ethernet");
+        case 0x80:
+            return TEXT("Other");
+    }
+
+    return TEXT("Unknown");
+}
+
+/************************************************************************/
+
+/**
  * @brief Check whether one PCI BDF exists in the kernel attached PCI list.
  *
  * @param Bus PCI bus.
@@ -1648,6 +1701,42 @@ static BOOL SystemDataViewIsAttachedPciDevice(U8 Bus, U8 Device, U8 Function) {
     }
 
     return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Find a registered network device context by PCI location.
+ *
+ * @param Bus PCI bus.
+ * @param Device PCI device.
+ * @param Function PCI function.
+ * @return Matching network device context or NULL.
+ */
+static LPNETWORK_DEVICE_CONTEXT SystemDataViewFindNetworkDeviceContext(U8 Bus, U8 Device, U8 Function) {
+    LPLIST NetworkDeviceList = GetNetworkDeviceList();
+
+    if (NetworkDeviceList == NULL) {
+        return NULL;
+    }
+
+    for (LPLISTNODE Node = NetworkDeviceList->First; Node != NULL; Node = Node->Next) {
+        LPNETWORK_DEVICE_CONTEXT NetContext = (LPNETWORK_DEVICE_CONTEXT)Node;
+
+        SAFE_USE_VALID_ID(NetContext, KOID_NETWORKDEVICE) {
+            LPPCI_DEVICE PciDevice = NetContext->Device;
+
+            SAFE_USE_VALID_ID(PciDevice, KOID_PCIDEVICE) {
+                if (PciDevice->Info.Bus == Bus &&
+                    PciDevice->Info.Dev == Device &&
+                    PciDevice->Info.Func == Function) {
+                    return NetContext;
+                }
+            }
+        }
+    }
+
+    return NULL;
 }
 
 /************************************************************************/
@@ -1737,6 +1826,154 @@ static void SystemDataViewDrawPageGraphicsDevices(LPSYSTEM_DATA_VIEW_CONTEXT Con
     if (State.Count == 0) {
         SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Graphics"),
             TEXT("No PCI display controller found\n"));
+    }
+
+    SystemDataViewDrawFooter(Context);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Network controller visitor for the System Data View.
+ *
+ * @param Context Output context.
+ * @param Info PCI function info.
+ * @param UserData User data pointer.
+ * @return TRUE to continue.
+ */
+static BOOL SystemDataViewPciNetworkVisitor(LPSYSTEM_DATA_VIEW_CONTEXT Context,
+    const SYSTEM_DATA_VIEW_PCI_INFO* Info,
+    LPVOID UserData) {
+    NETWORKINFO NetworkInfo;
+    NETWORKGETINFO GetInfo;
+    STR Label[32];
+    STR IPv4Address[24];
+    BOOL Attached = FALSE;
+    LPNETWORK_DEVICE_CONTEXT NetContext = NULL;
+    LPSYSTEM_DATA_VIEW_NETWORK_STATE State = (LPSYSTEM_DATA_VIEW_NETWORK_STATE)UserData;
+
+    if (Context == NULL || Info == NULL || State == NULL) {
+        return FALSE;
+    }
+
+    if (Info->BaseClass != PCI_CLASS_NETWORK) {
+        return TRUE;
+    }
+
+    State->Count++;
+    State->Index++;
+    NetContext = SystemDataViewFindNetworkDeviceContext(Info->Bus, Info->Dev, Info->Func);
+    Attached = NetContext != NULL;
+    if (Attached) {
+        State->AttachedCount++;
+        SAFE_USE_VALID_ID(NetContext, KOID_NETWORKDEVICE) {
+            if (NetContext->IsReady) {
+                State->ReadyCount++;
+            }
+        }
+    }
+
+    StringPrintFormat(Label, TEXT("Network %u"), (U32)State->Index);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, Label,
+        TEXT("Bus=%u Dev=%u Fn=%u\n"),
+        (U32)Info->Bus,
+        (U32)Info->Dev,
+        (U32)Info->Func);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Vendor"),
+        TEXT("%x\n"), (U32)Info->VendorID);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Device Identifier"),
+        TEXT("%x rev=%x\n"),
+        (U32)Info->DeviceID,
+        (U32)Info->Revision);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Controller Type"),
+        TEXT("%s (sub=%x if=%x)\n"),
+        SystemDataViewNetworkSubclassName(Info->SubClass),
+        (U32)Info->SubClass,
+        (U32)Info->ProgIF);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("IRQ Line/Pin"),
+        TEXT("%u / %u\n"),
+        (U32)Info->IRQLine,
+        (U32)Info->IRQLegacyPin);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("BAR0/BAR1"),
+        TEXT("%x / %x\n"),
+        Info->BAR[0],
+        Info->BAR[1]);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Kernel Network Link"),
+        TEXT("%s\n"),
+        Attached ? TEXT("Attached") : TEXT("Not attached"));
+
+    if (Attached) {
+        SAFE_USE_VALID_ID(NetContext, KOID_NETWORKDEVICE) {
+            LPPCI_DEVICE Device = NetContext->Device;
+
+            SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
+                SAFE_USE_VALID_ID(Device->Driver, KOID_DRIVER) {
+                    MemorySet(&NetworkInfo, 0, sizeof(NetworkInfo));
+                    GetInfo.Device = Device;
+                    GetInfo.Info = &NetworkInfo;
+                    Device->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo);
+
+                    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Device Name"),
+                        TEXT("%s\n"), Device->Name);
+                    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Driver"),
+                        TEXT("%s / %s\n"),
+                        Device->Driver->Manufacturer,
+                        Device->Driver->Product);
+                    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("MAC"),
+                        TEXT("%x:%x:%x:%x:%x:%x\n"),
+                        NetworkInfo.MAC[0],
+                        NetworkInfo.MAC[1],
+                        NetworkInfo.MAC[2],
+                        NetworkInfo.MAC[3],
+                        NetworkInfo.MAC[4],
+                        NetworkInfo.MAC[5]);
+                    SystemDataViewFormatIPv4(IPv4Address, sizeof(IPv4Address), NetContext->ActiveConfig.LocalIPv4_Be);
+                    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("IPv4"),
+                        TEXT("%s\n"), IPv4Address);
+                    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Link"),
+                        TEXT("%s %u Mbps %s duplex\n"),
+                        NetworkInfo.LinkUp ? TEXT("Up") : TEXT("Down"),
+                        NetworkInfo.SpeedMbps,
+                        NetworkInfo.DuplexFull ? TEXT("Full") : TEXT("Half"));
+                    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("MTU"),
+                        TEXT("%u\n"), NetworkInfo.MTU);
+                    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("State"),
+                        TEXT("Initialized=%s Ready=%s Interrupts=%s\n"),
+                        NetContext->IsInitialized ? TEXT("Yes") : TEXT("No"),
+                        NetContext->IsReady ? TEXT("Yes") : TEXT("No"),
+                        NetContext->InterruptsEnabled ? TEXT("On") : TEXT("Off"));
+                }
+            }
+        }
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Draw the network device summary page.
+ *
+ * @param Context Output context.
+ * @param PageIndex Page index.
+ */
+static void SystemDataViewDrawPageNetworkDevices(LPSYSTEM_DATA_VIEW_CONTEXT Context, U8 PageIndex) {
+    SYSTEM_DATA_VIEW_NETWORK_STATE State;
+
+    SystemDataViewDrawPageHeader(Context, TEXT("Network Devices"), PageIndex);
+    MemorySet(&State, 0, sizeof(State));
+    SystemDataViewPciEnumerate(Context, SystemDataViewPciNetworkVisitor, &State, NULL);
+
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Devices Found"),
+        TEXT("%u\n"), (U32)State.Count);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Kernel Attached"),
+        TEXT("%u\n"), (U32)State.AttachedCount);
+    SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Devices Ready"),
+        TEXT("%u\n"), (U32)State.ReadyCount);
+    if (State.Count == 0) {
+        SystemDataViewWriteFormat(Context, SYSTEM_DATA_VIEW_VALUE_COLUMN, TEXT("Network"),
+            TEXT("No PCI network controller found\n"));
     }
 
     SystemDataViewDrawFooter(Context);
@@ -1928,18 +2165,21 @@ static void SystemDataViewDrawPage(LPSYSTEM_DATA_VIEW_CONTEXT Context, U8 PageIn
             SystemDataViewDrawPageGraphicsDevices(Context, PageIndex);
             break;
         case 8:
-            SystemDataViewDrawPagePciList(Context, PageIndex);
+            SystemDataViewDrawPageNetworkDevices(Context, PageIndex);
             break;
         case 9:
-            SystemDataViewDrawPageVmd(Context, PageIndex);
+            SystemDataViewDrawPagePciList(Context, PageIndex);
             break;
         case 10:
-            SystemDataViewDrawPageStorageControllers(Context, PageIndex);
+            SystemDataViewDrawPageVmd(Context, PageIndex);
             break;
         case 11:
-            SystemDataViewDrawPageIdt(Context, PageIndex);
+            SystemDataViewDrawPageStorageControllers(Context, PageIndex);
             break;
         case 12:
+            SystemDataViewDrawPageIdt(Context, PageIndex);
+            break;
+        case 13:
         default:
             SystemDataViewDrawPageGdt(Context, PageIndex);
             break;
