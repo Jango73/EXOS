@@ -50,6 +50,11 @@
 - Add full TLS pipeline (per-thread data)
 - Load and map shared modules
 
+## Drivers
+
+- Implement PCIe : Peripheral-Component-Interconnect-Express.md
+- Implement VMD : Volume-Management-Device.md
+
 ## Session
 
 - Lock session on inactivity in graphics display
@@ -65,7 +70,12 @@
 
 ## Console
 
-- N/A
+- Implement Text-Terminal.md
+
+## Graphics
+
+- Implement Cursor-Bitmap-Architecture.md
+- Implement VGA-Console-Driver-Delegation-Plan.md
 
 ## Filesystem cache
 
@@ -75,6 +85,7 @@
 ## Network
 - Create a NetworkHeapAlloc/Free and dedicated memory region for the network heap (AllocRegion).
 - Optimize/evolve the network stack
+- Implement Realtek-RTL8111-8168-8411.md
 
 ## Keyboard
 
@@ -92,7 +103,7 @@
 
 ## Multicore
 
-- Handle n CPUs
+- Implement Symmetric-Multiprocessing.md
 
 ## Scheduling
 
@@ -119,16 +130,14 @@
 - Update common kernel file routing and shell tooling to call the right command based on intent.
 - Add regression tests per driver to validate behavior parity after the split.
 
-## Drivers
-
-- PCIe
-
 ## Localization
 
 - UTF
-- Unicode
+- Implement Unicode.md
 - I18n
 
 ## Other
 
+- Implement x86-Disassembly.md
+- Implement Native-C-Compiler.md
 - Add quotes at startup

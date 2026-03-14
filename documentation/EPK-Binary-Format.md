@@ -1,4 +1,4 @@
-# EPK Binary Format Specification (Step 1)
+# EPK Binary Format Specification
 
 ## Scope
 
