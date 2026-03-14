@@ -2,6 +2,7 @@
 SHELL = /bin/bash
 
 include ../make/arch.mk
+BUILD_CONFIGURATION ?= release
 
 ifeq ($(strip $(BUILD_CORE_NAME)),)
 $(error BUILD_CORE_NAME is required)
@@ -81,7 +82,13 @@ PAYLOAD_BIN_LD  = main-bin.ld
 PAYLOAD_ELF_LD  = main-elf.ld
 
 NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DBOOT_STAGE_MARKERS=$(BOOT_STAGE_MARKERS) -DRESERVED_SECTORS=$(RESERVED_SECTORS) -DPAYLOAD_ADDRESS=$(PAYLOAD_ADDRESS) -DMEMORY_BASE=$(MEMORY_BASE) -DMEMORY_SIZE=$(MEMORY_SIZE) -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) $(NASM_ARCH_FLAGS)
-CFLAGS          = -m16 -g -Wall -Wextra -O0 \
+DEBUG_CFLAGS    =
+
+ifeq ($(BUILD_CONFIGURATION),debug)
+DEBUG_CFLAGS    += -g
+endif
+
+CFLAGS          = -m16 $(DEBUG_CFLAGS) -Wall -Wextra -O0 \
                   -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
                   -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
                   -fvisibility=hidden -mno-red-zone -fno-stack-protector \

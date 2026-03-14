@@ -3,6 +3,7 @@ SHELL = /bin/bash
 
 include ../make/arch.mk
 BARE_METAL              ?= 0
+BUILD_CONFIGURATION     ?= release
 DEBUG_OUTPUT            ?= 0
 DEBUG_SPLIT             ?= 0
 SCHEDULING_DEBUG_OUTPUT ?= 0
@@ -42,7 +43,15 @@ $(error Unsupported architecture $(ARCH))
 endif
 
 NASMFLAGS       = -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DDEBUG_SPLIT=$(DEBUG_SPLIT) -DFORCE_PIC=$(FORCE_PIC) -DUSE_SYSCALL=$(USE_SYSCALL) -DPROFILING=$(PROFILING)
-CFLAGS          = -D__KERNEL__ -g -Wall -Wextra -O0 -falign-functions=16 \
+DEBUG_CFLAGS    =
+DEBUG_AFLAGS    =
+
+ifeq ($(BUILD_CONFIGURATION),debug)
+DEBUG_CFLAGS    += -g
+DEBUG_AFLAGS    += -g -F dwarf
+endif
+
+CFLAGS          = -D__KERNEL__ $(DEBUG_CFLAGS) -Wall -Wextra -O0 -falign-functions=16 \
                   -ffreestanding -fno-builtin -nostdinc \
                   -fno-pic -fno-pie -fno-stack-protector \
                   -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
@@ -65,7 +74,7 @@ ifeq ($(ARCH),x86-64)
 AFLAGS_INCLUDES += -I source/arch/x86-32/asm/
 endif
 
-AFLAGS          = -f $(NASM_FORMAT) -g -F dwarf -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DDEBUG_SPLIT=$(DEBUG_SPLIT) -DFORCE_PIC=$(FORCE_PIC) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DPROFILING=$(PROFILING) -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) -DUSE_SYSCALL=$(USE_SYSCALL) $(AFLAGS_INCLUDES)
+AFLAGS          = -f $(NASM_FORMAT) $(DEBUG_AFLAGS) -d__KERNEL__ -DDEBUG_OUTPUT=$(DEBUG_OUTPUT) -DDEBUG_SPLIT=$(DEBUG_SPLIT) -DFORCE_PIC=$(FORCE_PIC) -DSCHEDULING_DEBUG_OUTPUT=$(SCHEDULING_DEBUG_OUTPUT) -DPROFILING=$(PROFILING) -DCONFIG_VMA_KERNEL=$(VMA_KERNEL) -DUSE_SYSCALL=$(USE_SYSCALL) $(AFLAGS_INCLUDES)
 
 LINKER_SCRIPT   = exos-$(ARCH).ld
 
