@@ -21,8 +21,8 @@
 
 \************************************************************************/
 
-#ifndef VESA_SHARED_H_INCLUDED
-#define VESA_SHARED_H_INCLUDED
+#ifndef VESA_H_INCLUDED
+#define VESA_H_INCLUDED
 
 /************************************************************************/
 
@@ -52,4 +52,4 @@ void VESADrawSelfTest(LPVESA_CONTEXT Context);
 
 /************************************************************************/
 
-#endif
+#endif  // VESA_H_INCLUDED

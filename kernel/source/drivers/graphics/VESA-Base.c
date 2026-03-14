@@ -29,7 +29,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "Profile.h"
-#include "drivers/graphics/VESA-Shared.h"
+#include "drivers/graphics/VESA.h"
 #include "drivers/graphics/Graphics-TextRenderer.h"
 #include "utils/BootPath.h"
 
