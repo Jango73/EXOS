@@ -123,10 +123,6 @@
 - Unicode
 - I18n
 
-## Desktop
-
-- Continue graphics UI
-
 ## Other
 
 - Add quotes at startup
