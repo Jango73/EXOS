@@ -1,4 +1,4 @@
-# Networking Stack Roadmap
+# Networking Stack
 
 ## Ethernet (E1000 driver)
 - [X] TX/RX descriptors, frame reception  

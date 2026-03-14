@@ -1,5 +1,11 @@
 # General TODO list
 
+## Tools
+
+- Seperate scripts by build platform in scripts folder
+  - scripts/linux/
+  - scripts/windows/
+
 ## API return contract (mandatory, system-wide)
 
 - Target contract for kernel APIs, drivers, and syscalls: functions return only `DF_RETURN_*` status codes (`DF_RETURN_SUCCESS` on success, error code otherwise).
@@ -13,9 +19,7 @@
 - FileReadAll() : use HeapAlloc, NOT KernelHeapAlloc
 - Later: align x86-32 page directory creation (`AllocPageDirectory` and `AllocUserPageDirectory`) with the modular x86-64 region-based approach (low region, kernel region, task runner, recursive slot) while preserving current behavior. Execute this refactor in small validated steps to limit boot and paging regression risk.
 - Implement a memory sanity checker that scans memory to check how fragmented memory is.
-- Script allocates too many small objects and fragments kernel heap.
 - TOML parsing allocations too many small objects and fragments kernel heap.
-- Shell seems to allocate memory for each caracter typed.
 
 ## Problems
 
@@ -44,22 +48,24 @@
 ## Process
 
 - Add full TLS pipeline (per-thread data)
+- Load and map shared modules
 
 ## Session
 
 - Lock session on inactivity in graphics display
 
-## Shell kernel objects exposure
+## Shell
+
+- Reserve dedicated memory region for kernel shell task
+- Shell seems to allocate memory for each caracter typed.
 
 ## Scripting
 
-- Reserve dedicated memory region for kernel shell task
+- Script allocates too many small objects and fragments kernel heap. It should allocate its own region and heap.
 
 ## Console
 
-## Shared modules
-
-- Load and map shared modules
+- N/A
 
 ## Filesystem cache
 
