@@ -25,7 +25,7 @@
 
 - [X] Implement **Control Transfer** (SETUP + DATA + STATUS) + timeouts + STALL -> CLEAR_FEATURE.
 - [X] Standard sequence: **GET_DESCRIPTOR(Device)**, **SET_ADDRESS**, **GET_DESCRIPTOR(Config)**.
-- [X] No **SET_CONFIGURATION** yet (read-only).\
+- [X] No **SET_CONFIGURATION** yet (descriptor inspection only).\
 
 **Success**: `usbctl probe` shows VendorID/ProductID of directly attached device.
 **QEMU test**: `-device usb-kbd` (xHCI + keyboard).
@@ -42,7 +42,7 @@
 
 ## Step 4 --- HUB Driver (USB2 & USB3)
 
-**Goal**: support real hotplug through hubs.
+**Goal**: support runtime device attach/remove through hubs.
 
 - [X] Hub class: **Interrupt IN** status change -> reset port, **GetPortStatus**, **SetPortFeature**.
 - [X] xHCI: handle **TT** for FS/LS behind HS.
@@ -50,14 +50,14 @@
 **Success**: plugging on a hub -> new device appears / disappears
 cleanly.
 
-## Step 5 --- User Notification (mount/hotplug)
+## Step 5 --- User Notification (mount/attach/remove)
 
 **Goal**: notify userland when USB devices are attached/removed.
 
 - [X] Emit a kernel-level notification on USB device attach/detach.
 - [X] Provide a minimal userland hook to display the notification.
 
-**Success**: plug/unplug triggers a visible notice without polling commands.
+**Success**: device attach/remove triggers a visible notice without manual refresh commands.
 
 ## Step 6 --- HID Mouse (optional but easy)
 
@@ -79,58 +79,63 @@ cleanly.
 **Success**: keystrokes visible in EXOS TTY (6KRO OK).
 **Independent**: nothing else required.
 
-## Step 8 --- Generic Bulk + Mass Storage (BOT) read-only
+## Step 8 --- Generic Bulk + Mass Storage (BOT) read access only
 
 **Goal**: read a USB stick.
 
 - [X] Bulk IN/OUT engine (queues, timeouts, retry).
 - [X] MSC BOT: **CBW/CSW**, SCSI **INQUIRY**, **READ CAPACITY(10)**, **READ(10)**.
-- [X] Expose block device `usb0` (read-only) -> attach to existing VFS.
+- [X] Expose block device `usb0` (read access only) -> attach to existing VFS.
 
 **Success**: shell command `usb drives` sees mounted USB drives.
 
-## Step 9 --- Mass Storage read/write + cache/flush
+## Step 9 --- Mass Storage write support + cache synchronization
 
-**Goal**: stable RW.
+**Goal**: stable write support.
+**Observed in code**: `WRITE(10)` and `REQUEST SENSE` exist, but there is no `SYNCHRONIZE CACHE` path and no explicit `UNIT ATTENTION` / `NOT READY` re-init flow.
 
 - [ ] **WRITE(10)**, write-cache, **SYNCHRONIZE CACHE**.
 - [ ] SCSI error paths (UNIT ATTENTION, NOT READY), clean re-init.
 
 **Success**: create a file on a FS (FAT32/EXT2) on `usb0`.
 
-## Step 10 --- Robust hotplug & teardown
+## Step 10 --- Robust runtime removal & teardown
 
-**Goal**: unplug/insert without breaking system.
+**Goal**: device removal/insertion without breaking system.
 
 - [X] Cancel URB/TD, flush rings, **STOP/RESET EP**, **Disable Slot**.
 - [X] Refcount on device/interface/endpoint objects.
 
-**Success**: unplug during I/O -> no panic, resources freed.
+**Success**: device removal during I/O -> no panic, resources freed.
 
-## Step 11 --- CDC-ACM (USB-Serial)
+## Step 11 --- CDC-ACM (USB Serial)
 
 **Goal**: USB serial console (external debug).
+**Observed in code**: no CDC-ACM driver, no USB serial endpoint exposure, no `SET_LINE_CODING` / `SET_CONTROL_LINE_STATE` handling found.
 
 - [ ] Control + Bulk (2 endpoints), **SET_LINE_CODING**, **SET_CONTROL_LINE_STATE**.
 
-**Success**: homemade `/dev/ttyACM0`, echo works.
+**Success**: a USB serial endpoint is exposed and loopback text exchange works.
 
 ## Step 12 --- Isochronous (UAC1 minimal audio) --- optional
 
 **Goal**: validate Iso pipe.
+**Observed in code**: endpoint type parsing knows Iso endpoints, but no Iso transfer path or UAC1 class support was found.
 
 - [ ] Open Iso EP IN/OUT, manage frame/uframe, no-retry.
 
 **Success**: capture or playback mono 16-bit 48 kHz for a few seconds.
 
 ## Step 13 --- Perf & comfort
+**Observed in code**: xHCI interrupt moderation register programming exists, but no USB MSI-X path, no USB scatter/gather, no Link PM policy, and no USB transfer trace tool equivalent were found.
 
 - [ ] **MSI-X**, interrupt coalescing, dynamic ring sizes.
 - [ ] **Scatter/Gather (SG)** if IOMMU later.
 - [ ] **U1/U2 & Link PM** if useful, throttle HID polling.
-- [ ] Stats, simple `usbmon` (dump TRB/TD/EP events).
+- [ ] Stats, simple USB transfer trace tool (dump TRB/TD/EP events).
 
 ## Step 14 --- Controller compatibility (if really needed)
+**Observed in code**: only xHCI is implemented; EHCI/UHCI/OHCI drivers and a common HCD API were not found.
 
 - [ ] **EHCI** (USB2 HS): QEMU/older hw; reuse layers 3+ (core, hubs, classes).
 - [ ] **UHCI/OHCI**: only if you target very old hw (otherwise skip).
