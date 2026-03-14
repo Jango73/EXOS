@@ -17,12 +17,12 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Partition I/O
+    File System Common
 
 \************************************************************************/
 
-#ifndef UTILS_PARTITIONIO_H_INCLUDED
-#define UTILS_PARTITIONIO_H_INCLUDED
+#ifndef DRIVERS_FILESYSTEMS_FILESYSTEM_COMMON_H_INCLUDED
+#define DRIVERS_FILESYSTEMS_FILESYSTEM_COMMON_H_INCLUDED
 
 /************************************************************************/
 
@@ -36,4 +36,4 @@ BOOL PartitionTransferSectors(LPSTORAGE_UNIT Disk, SECTOR PartitionStart, U32 Pa
 
 /************************************************************************/
 
-#endif  // UTILS_PARTITIONIO_H_INCLUDED
+#endif  // DRIVERS_FILESYSTEMS_FILESYSTEM_COMMON_H_INCLUDED

@@ -26,7 +26,7 @@
 #include "FileSystem.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "utils/PartitionIO.h"
+#include "drivers/filesystems/FileSystem-Common.h"
 #include "utils/Path.h"
 
 /************************************************************************/

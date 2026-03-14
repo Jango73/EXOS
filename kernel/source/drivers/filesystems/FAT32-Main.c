@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "drivers/filesystems/FAT32-Private.h"
-#include "utils/PartitionIO.h"
+#include "drivers/filesystems/FileSystem-Common.h"
 
 DRIVER DATA_SECTION FAT32Driver = {
     .TypeID = KOID_DRIVER,
