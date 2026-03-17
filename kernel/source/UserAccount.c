@@ -157,7 +157,7 @@ static UINT UserAccountDriverCommands(UINT Function, UINT Parameter) {
  * @param Privilege Privilege level (EXOS_PRIVILEGE_USER or EXOS_PRIVILEGE_ADMIN).
  * @return Pointer to created user account or NULL on failure.
  */
-LPUSERACCOUNT CreateUserAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege) {
+LPUSER_ACCOUNT CreateUserAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege) {
     DEBUG(TEXT("[CreateUserAccount] Enter - UserName=%s"), UserName ? UserName : TEXT("NULL"));
 
     if (UserName == NULL || Password == NULL) {
@@ -185,7 +185,7 @@ LPUSERACCOUNT CreateUserAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege)
 
     // Allocate new user account
     DEBUG(TEXT("[CreateUserAccount] Allocating memory for new user"));
-    LPUSERACCOUNT NewUser = (LPUSERACCOUNT)KernelHeapAlloc(sizeof(USERACCOUNT));
+    LPUSER_ACCOUNT NewUser = (LPUSER_ACCOUNT)KernelHeapAlloc(sizeof(USER_ACCOUNT));
     if (NewUser == NULL) {
         DEBUG(TEXT("[CreateUserAccount] Memory allocation failed"));
         UnlockMutex(MUTEX_ACCOUNTS);
@@ -193,8 +193,8 @@ LPUSERACCOUNT CreateUserAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege)
     }
 
     // Initialize user account
-    MemorySet(NewUser, 0, sizeof(USERACCOUNT));
-    NewUser->TypeID = KOID_USERACCOUNT;
+    MemorySet(NewUser, 0, sizeof(USER_ACCOUNT));
+    NewUser->TypeID = KOID_USER_ACCOUNT;
     NewUser->References = 1;
 
     StringCopy(NewUser->UserName, UserName);
@@ -246,7 +246,7 @@ BOOL DeleteUserAccount(LPCSTR UserName) {
 
     LockMutex(MUTEX_ACCOUNTS, INFINITY);
 
-    LPUSERACCOUNT User = FindUserAccount(UserName);
+    LPUSER_ACCOUNT User = FindUserAccount(UserName);
     if (User == NULL) {
         UnlockMutex(MUTEX_ACCOUNTS);
         return FALSE;
@@ -268,7 +268,7 @@ BOOL DeleteUserAccount(LPCSTR UserName) {
  * @param UserName Username to search for.
  * @return Pointer to user account or NULL if not found.
  */
-LPUSERACCOUNT FindUserAccount(LPCSTR UserName) {
+LPUSER_ACCOUNT FindUserAccount(LPCSTR UserName) {
     LPLIST UserAccountList = GetUserAccountList();
     if (UserName == NULL || UserAccountList == NULL) {
         return NULL;
@@ -276,7 +276,7 @@ LPUSERACCOUNT FindUserAccount(LPCSTR UserName) {
 
     U32 Count = ListGetSize(UserAccountList);
     for (U32 i = 0; i < Count; i++) {
-        LPUSERACCOUNT User = (LPUSERACCOUNT)ListGetItem(UserAccountList, i);
+        LPUSER_ACCOUNT User = (LPUSER_ACCOUNT)ListGetItem(UserAccountList, i);
         if (User != NULL && STRINGS_EQUAL(User->UserName, UserName)) {
             return User;
         }
@@ -292,7 +292,7 @@ LPUSERACCOUNT FindUserAccount(LPCSTR UserName) {
  * @param UserID User ID hash to search for.
  * @return Pointer to user account or NULL if not found.
  */
-LPUSERACCOUNT FindUserAccountByID(U64 UserID) {
+LPUSER_ACCOUNT FindUserAccountByID(U64 UserID) {
     LPLIST UserAccountList = GetUserAccountList();
     if (UserAccountList == NULL) {
         return NULL;
@@ -300,7 +300,7 @@ LPUSERACCOUNT FindUserAccountByID(U64 UserID) {
 
     U32 Count = ListGetSize(UserAccountList);
     for (U32 i = 0; i < Count; i++) {
-        LPUSERACCOUNT User = (LPUSERACCOUNT)ListGetItem(UserAccountList, i);
+        LPUSER_ACCOUNT User = (LPUSER_ACCOUNT)ListGetItem(UserAccountList, i);
         if (User != NULL && U64_Cmp(User->UserID, UserID) == 0) {
             return User;
         }
@@ -325,7 +325,7 @@ BOOL ChangeUserPassword(LPCSTR UserName, LPCSTR OldPassword, LPCSTR NewPassword)
 
     LockMutex(MUTEX_ACCOUNTS, INFINITY);
 
-    LPUSERACCOUNT User = FindUserAccount(UserName);
+    LPUSER_ACCOUNT User = FindUserAccount(UserName);
     if (User == NULL) {
         UnlockMutex(MUTEX_ACCOUNTS);
         return FALSE;
@@ -354,7 +354,7 @@ BOOL ChangeUserPassword(LPCSTR UserName, LPCSTR OldPassword, LPCSTR NewPassword)
  */
 BOOL LoadUserDatabase(void) {
     STR DatabasePath[MAX_PATH_NAME];
-    DATABASE* Database = DatabaseCreate(sizeof(USERACCOUNT), (U32)((U8*)&((USERACCOUNT*)0)->UserID - (U8*)0), USER_DATABASE_CAPACITY);
+    DATABASE* Database = DatabaseCreate(sizeof(USER_ACCOUNT), (U32)((U8*)&((USER_ACCOUNT*)0)->UserID - (U8*)0), USER_DATABASE_CAPACITY);
     if (Database == NULL) {
         ERROR(TEXT("Failed to allocate temporary user database"));
         return FALSE;
@@ -386,15 +386,15 @@ BOOL LoadUserDatabase(void) {
     ListReset(UserAccountList);
 
     for (U32 i = 0; i < Database->Count; i++) {
-        LPUSERACCOUNT User = (LPUSERACCOUNT)((U8*)Database->Records + i * Database->RecordSize);
-        LPUSERACCOUNT NewUser = (LPUSERACCOUNT)KernelHeapAlloc(sizeof(USERACCOUNT));
+        LPUSER_ACCOUNT User = (LPUSER_ACCOUNT)((U8*)Database->Records + i * Database->RecordSize);
+        LPUSER_ACCOUNT NewUser = (LPUSER_ACCOUNT)KernelHeapAlloc(sizeof(USER_ACCOUNT));
 
         SAFE_USE(NewUser) {
-            MemoryCopy(NewUser, User, sizeof(USERACCOUNT));
+            MemoryCopy(NewUser, User, sizeof(USER_ACCOUNT));
             NewUser->Next = NULL;
             NewUser->Prev = NULL;
             NewUser->References = 1;
-            NewUser->TypeID = KOID_USERACCOUNT;
+            NewUser->TypeID = KOID_USER_ACCOUNT;
 
             if (ListAddTail(UserAccountList, NewUser) == 0) {
                 KernelHeapFree(NewUser);
@@ -418,7 +418,7 @@ BOOL LoadUserDatabase(void) {
  */
 BOOL SaveUserDatabase(void) {
     STR DatabasePath[MAX_PATH_NAME];
-    DATABASE* Database = DatabaseCreate(sizeof(USERACCOUNT), (U32)((U8*)&((USERACCOUNT*)0)->UserID - (U8*)0), USER_DATABASE_CAPACITY);
+    DATABASE* Database = DatabaseCreate(sizeof(USER_ACCOUNT), (U32)((U8*)&((USER_ACCOUNT*)0)->UserID - (U8*)0), USER_DATABASE_CAPACITY);
     if (Database == NULL) {
         ERROR(TEXT("Failed to allocate temporary user database"));
         return FALSE;
@@ -435,7 +435,7 @@ BOOL SaveUserDatabase(void) {
     SAFE_USE(UserAccountList) {
         U32 Count = ListGetSize(UserAccountList);
         for (U32 i = 0; i < Count && Database->Count < Database->Capacity; i++) {
-            LPUSERACCOUNT User = (LPUSERACCOUNT)ListGetItem(UserAccountList, i);
+            LPUSER_ACCOUNT User = (LPUSER_ACCOUNT)ListGetItem(UserAccountList, i);
 
             SAFE_USE(User) {
                 DatabaseAdd(Database, User);

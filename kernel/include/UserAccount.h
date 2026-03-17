@@ -22,8 +22,8 @@
 
 \************************************************************************/
 
-#ifndef USERACCOUNT_H_INCLUDED
-#define USERACCOUNT_H_INCLUDED
+#ifndef USER_ACCOUNT_H_INCLUDED
+#define USER_ACCOUNT_H_INCLUDED
 
 /************************************************************************/
 
@@ -50,7 +50,7 @@ typedef struct tag_TASK TASK, *LPTASK;
 
 /************************************************************************/
 
-typedef struct tag_USERACCOUNT {
+typedef struct tag_USER_ACCOUNT {
     LISTNODE_FIELDS
     U64 UserID;              // Unique user hash
     STR UserName[32];        // Username
@@ -59,11 +59,11 @@ typedef struct tag_USERACCOUNT {
     DATETIME CreationTime;   // Creation date
     DATETIME LastLoginTime;  // Last login
     U32 Status;              // Account status (active/suspended)
-} USERACCOUNT, *LPUSERACCOUNT;
+} USER_ACCOUNT, *LPUSER_ACCOUNT;
 
 /************************************************************************/
 
-typedef struct tag_USERSESSION {
+typedef struct tag_USER_SESSION {
     LISTNODE_FIELDS
     U64 SessionID;          // Unique session ID
     U64 UserID;             // Logged in user
@@ -75,17 +75,17 @@ typedef struct tag_USERSESSION {
     DATETIME LockTime;      // Lock time
     U32 FailedUnlockCount;  // Failed unlock attempts
     HANDLE ShellTask;       // Associated shell task (HANDLE to TASK)
-} USERSESSION, *LPUSERSESSION;
+} USER_SESSION, *LPUSER_SESSION;
 
 /************************************************************************/
 
 // Functions in UserAccount.c
 BOOL InitializeUserSystem(void);
 void ShutdownUserSystem(void);
-LPUSERACCOUNT CreateUserAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege);
+LPUSER_ACCOUNT CreateUserAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege);
 BOOL DeleteUserAccount(LPCSTR UserName);
-LPUSERACCOUNT FindUserAccount(LPCSTR UserName);
-LPUSERACCOUNT FindUserAccountByID(U64 UserID);
+LPUSER_ACCOUNT FindUserAccount(LPCSTR UserName);
+LPUSER_ACCOUNT FindUserAccountByID(U64 UserID);
 BOOL ChangeUserPassword(LPCSTR UserName, LPCSTR OldPassword, LPCSTR NewPassword);
 BOOL LoadUserDatabase(void);
 BOOL SaveUserDatabase(void);
@@ -96,18 +96,18 @@ BOOL VerifyPassword(LPCSTR Password, U64 StoredHash);
 U64 GenerateSessionID(void);
 
 // Session management functions
-LPUSERSESSION CreateUserSession(U64 UserID, HANDLE ShellTask);
-BOOL ValidateUserSession(LPUSERSESSION Session);
-void DestroyUserSession(LPUSERSESSION Session);
+LPUSER_SESSION CreateUserSession(U64 UserID, HANDLE ShellTask);
+BOOL ValidateUserSession(LPUSER_SESSION Session);
+void DestroyUserSession(LPUSER_SESSION Session);
 void TimeoutInactiveSessions(void);
-LPUSERSESSION GetCurrentSession(void);
-BOOL SetCurrentSession(LPUSERSESSION Session);
-BOOL IsUserSessionTimedOut(LPUSERSESSION Session);
-BOOL IsUserSessionLocked(LPUSERSESSION Session);
-BOOL LockUserSession(LPUSERSESSION Session, U32 Reason);
-BOOL UnlockUserSession(LPUSERSESSION Session);
-BOOL VerifySessionUnlockPassword(LPUSERSESSION Session, LPCSTR Password);
-BOOL SessionUserRequiresPassword(LPUSERSESSION Session);
+LPUSER_SESSION GetCurrentSession(void);
+BOOL SetCurrentSession(LPUSER_SESSION Session);
+BOOL IsUserSessionTimedOut(LPUSER_SESSION Session);
+BOOL IsUserSessionLocked(LPUSER_SESSION Session);
+BOOL LockUserSession(LPUSER_SESSION Session, U32 Reason);
+BOOL UnlockUserSession(LPUSER_SESSION Session);
+BOOL VerifySessionUnlockPassword(LPUSER_SESSION Session, LPCSTR Password);
+BOOL SessionUserRequiresPassword(LPUSER_SESSION Session);
 
 /************************************************************************/
 
@@ -118,4 +118,4 @@ BOOL SessionUserRequiresPassword(LPUSERSESSION Session);
 
 #pragma pack(pop)
 
-#endif  // USERACCOUNT_H_INCLUDED
+#endif  // USER_ACCOUNT_H_INCLUDED

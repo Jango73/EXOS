@@ -233,7 +233,7 @@ Security in EXOS is implemented as a layered architecture. The effective access 
 #### Layer 3: Identity and session model
 
 - Identity is session-centric: `GetCurrentUser()` resolves the current process session to a user account (`kernel/source/utils/Helpers.c`).
-- `USERACCOUNT` stores `UserID`, privilege (`EXOS_PRIVILEGE_USER` or `EXOS_PRIVILEGE_ADMIN`), status, and password hash; `USERSESSION` stores `SessionID`, `UserID`, login/activity timestamps, lock state, and shell task binding (`kernel/include/UserAccount.h`).
+- `USER_ACCOUNT` stores `UserID`, privilege (`EXOS_PRIVILEGE_USER` or `EXOS_PRIVILEGE_ADMIN`), status, and password hash; `USER_SESSION` stores `SessionID`, `UserID`, login/activity timestamps, lock state, and shell task binding (`kernel/include/UserAccount.h`).
 - Session lifecycle is managed by `CreateUserSession`, `SetCurrentSession`, `GetCurrentSession`, timeout validation, and lock/unlock helpers in `UserSession.c`.
 - Session inactivity timeout is configurable with `Session.TimeoutSeconds` in kernel configuration, with a compile fallback to `SESSION_TIMEOUT_MS`. Key `Session.TimeoutMinutes` is also accepted when `Session.TimeoutSeconds` is absent.
 - Child process creation inherits the parent session (`Process->Session`), preserving identity continuity across spawned processes (`kernel/source/process/Process.c`).

@@ -59,7 +59,7 @@
 
 ## Session/TTY Coupling (1:1)
 
-- Each `USERSESSION` owns exactly one TTY (single source of truth).
+- Each `USER_SESSION` owns exactly one TTY (single source of truth).
 - Processes inherit the session pointer from `OwnerProcess` in `NewProcess`.
 - Input routing should resolve `Process->Session->TTY` (not a per-process TTY field).
 - StdIO defaulting should also resolve `Process->Session->TTY` to avoid duplicates.

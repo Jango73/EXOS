@@ -108,7 +108,7 @@ UINT SysCall_GetSystemInfo(UINT Parameter) {
         Info->NumProcesses = ProcessList != NULL ? ProcessList->NumItems : 0;
         Info->NumTasks = TaskList != NULL ? TaskList->NumItems : 0;
 
-        LPUSERACCOUNT User = GetCurrentUser();
+        LPUSER_ACCOUNT User = GetCurrentUser();
 
         StringCopy(Info->UserName, User != NULL ? User->UserName : TEXT(""));
         StringCopy(Info->KeyboardLayout, GetKeyboardCode());
@@ -2652,14 +2652,14 @@ UINT SysCall_Login(UINT Parameter) {
     LPLOGIN_INFO LoginInfo = (LPLOGIN_INFO)Parameter;
 
     SAFE_USE_INPUT_POINTER(LoginInfo, LOGIN_INFO) {
-        LPUSERACCOUNT Account = FindUserAccount(LoginInfo->UserName);
+        LPUSER_ACCOUNT Account = FindUserAccount(LoginInfo->UserName);
         if (Account == NULL) return FALSE;
 
         if (!VerifyPassword(LoginInfo->Password, Account->PasswordHash)) {
             return FALSE;
         }
 
-        LPUSERSESSION Session = CreateUserSession(Account->UserID, (HANDLE)GetCurrentTask());
+        LPUSER_SESSION Session = CreateUserSession(Account->UserID, (HANDLE)GetCurrentTask());
         if (Session == NULL) {
             return FALSE;
         }
@@ -2682,7 +2682,7 @@ UINT SysCall_Login(UINT Parameter) {
  */
 UINT SysCall_Logout(UINT Parameter) {
     UNUSED(Parameter);
-    LPUSERSESSION Session = GetCurrentSession();
+    LPUSER_SESSION Session = GetCurrentSession();
     if (Session == NULL) {
         return FALSE;
     }
@@ -2705,10 +2705,10 @@ UINT SysCall_GetCurrentUser(UINT Parameter) {
     LPCURRENT_USER_INFO UserInfo = (LPCURRENT_USER_INFO)Parameter;
 
     SAFE_USE_INPUT_POINTER(UserInfo, CURRENT_USER_INFO) {
-        LPUSERACCOUNT Account = GetCurrentUser();
+        LPUSER_ACCOUNT Account = GetCurrentUser();
         if (Account == NULL) return FALSE;
 
-        LPUSERSESSION Session = GetCurrentSession();
+        LPUSER_SESSION Session = GetCurrentSession();
         if (Session == NULL) return FALSE;
 
         StringCopy(UserInfo->UserName, Account->UserName);
@@ -2734,7 +2734,7 @@ UINT SysCall_ChangePassword(UINT Parameter) {
     LPPASSWORD_CHANGE PasswordChange = (LPPASSWORD_CHANGE)Parameter;
 
     SAFE_USE_INPUT_POINTER(PasswordChange, PASSWORD_CHANGE) {
-        LPUSERACCOUNT Account = GetCurrentUser();
+        LPUSER_ACCOUNT Account = GetCurrentUser();
         if (Account == NULL) {
             return FALSE;
         }
@@ -2757,12 +2757,12 @@ UINT SysCall_CreateUser(UINT Parameter) {
     LPUSER_CREATE_INFO CreateInfo = (LPUSER_CREATE_INFO)Parameter;
 
     SAFE_USE_INPUT_POINTER(CreateInfo, USER_CREATE_INFO) {
-        LPUSERACCOUNT CurrentAccount = GetCurrentUser();
+        LPUSER_ACCOUNT CurrentAccount = GetCurrentUser();
         if (CurrentAccount == NULL || CurrentAccount->Privilege != EXOS_PRIVILEGE_ADMIN) {
             return FALSE;
         }
 
-        LPUSERACCOUNT NewAccount = CreateUserAccount(CreateInfo->UserName, CreateInfo->Password, CreateInfo->Privilege);
+        LPUSER_ACCOUNT NewAccount = CreateUserAccount(CreateInfo->UserName, CreateInfo->Password, CreateInfo->Privilege);
         return (NewAccount != NULL) ? TRUE : FALSE;
     }
 
@@ -2781,7 +2781,7 @@ UINT SysCall_DeleteUser(UINT Parameter) {
     LPUSER_DELETE_INFO DeleteInfo = (LPUSER_DELETE_INFO)Parameter;
 
     SAFE_USE_INPUT_POINTER(DeleteInfo, USER_DELETE_INFO) {
-        LPUSERACCOUNT CurrentAccount = GetCurrentUser();
+        LPUSER_ACCOUNT CurrentAccount = GetCurrentUser();
         if (CurrentAccount == NULL || CurrentAccount->Privilege != EXOS_PRIVILEGE_ADMIN) {
             return FALSE;
         }
@@ -2804,20 +2804,20 @@ UINT SysCall_ListUsers(UINT Parameter) {
     LPUSER_LIST_INFO ListInfo = (LPUSER_LIST_INFO)Parameter;
 
     SAFE_USE_INPUT_POINTER(ListInfo, USER_LIST_INFO) {
-        LPUSERACCOUNT CurrentAccount = GetCurrentUser();
+        LPUSER_ACCOUNT CurrentAccount = GetCurrentUser();
         if (CurrentAccount == NULL || CurrentAccount->Privilege != EXOS_PRIVILEGE_ADMIN) {
             return FALSE;
         }
 
         ListInfo->UserCount = 0;
         LPLIST UserAccountList = GetUserAccountList();
-        LPUSERACCOUNT Account =
-            (LPUSERACCOUNT)(UserAccountList != NULL ? UserAccountList->First : NULL);
+        LPUSER_ACCOUNT Account =
+            (LPUSER_ACCOUNT)(UserAccountList != NULL ? UserAccountList->First : NULL);
 
         while (Account != NULL && ListInfo->UserCount < ListInfo->MaxUsers) {
             StringCopy(ListInfo->UserNames[ListInfo->UserCount], Account->UserName);
             ListInfo->UserCount++;
-            Account = (LPUSERACCOUNT)Account->Next;
+            Account = (LPUSER_ACCOUNT)Account->Next;
         }
 
         return TRUE;
@@ -3105,7 +3105,7 @@ UINT SystemCallHandler(U32 Function, UINT Parameter) {
         return 0;
     }
 
-    LPUSERACCOUNT CurrentUser = GetCurrentUser();
+    LPUSER_ACCOUNT CurrentUser = GetCurrentUser();
     U32 RequiredPrivilege = SysCallTable[Function].Privilege;
 
     if (CurrentUser == NULL) {

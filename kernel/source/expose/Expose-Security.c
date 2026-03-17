@@ -47,7 +47,7 @@ LPPROCESS ExposeGetCallerProcess(void) {
  * @brief Retrieves the calling user for exposure access checks.
  * @return User account pointer or NULL when no user is logged in.
  */
-LPUSERACCOUNT ExposeGetCallerUser(void) {
+LPUSER_ACCOUNT ExposeGetCallerUser(void) {
     return GetCurrentUser();
 }
 
@@ -65,12 +65,12 @@ BOOL ExposeIsKernelCaller(void) {
             return FALSE;
         }
 
-        LPUSERACCOUNT User = ExposeGetCallerUser();
+        LPUSER_ACCOUNT User = ExposeGetCallerUser();
         if (User == NULL) {
             return TRUE;
         }
 
-        SAFE_USE_VALID_ID(User, KOID_USERACCOUNT) {
+        SAFE_USE_VALID_ID(User, KOID_USER_ACCOUNT) {
             return User->Privilege == EXOS_PRIVILEGE_ADMIN;
         }
     }
@@ -85,9 +85,9 @@ BOOL ExposeIsKernelCaller(void) {
  * @return TRUE when the calling user is an administrator.
  */
 BOOL ExposeIsAdminCaller(void) {
-    LPUSERACCOUNT User = ExposeGetCallerUser();
+    LPUSER_ACCOUNT User = ExposeGetCallerUser();
 
-    SAFE_USE_VALID_ID(User, KOID_USERACCOUNT) {
+    SAFE_USE_VALID_ID(User, KOID_USER_ACCOUNT) {
         return User->Privilege == EXOS_PRIVILEGE_ADMIN;
     }
 
@@ -110,8 +110,8 @@ BOOL ExposeIsSameUser(LPPROCESS Caller, LPPROCESS Target) {
 
     SAFE_USE_VALID_ID(Caller, KOID_PROCESS) {
         if (Caller->Session != NULL) {
-            LPUSERSESSION Session = Caller->Session;
-            SAFE_USE_VALID_ID(Session, KOID_USERSESSION) {
+            LPUSER_SESSION Session = Caller->Session;
+            SAFE_USE_VALID_ID(Session, KOID_USER_SESSION) {
                 CallerUserIdentifier = Session->UserID;
                 CallerHasUser = TRUE;
             }
@@ -125,8 +125,8 @@ BOOL ExposeIsSameUser(LPPROCESS Caller, LPPROCESS Target) {
 
     SAFE_USE_VALID_ID(Target, KOID_PROCESS) {
         if (Target->Session != NULL) {
-            LPUSERSESSION Session = Target->Session;
-            SAFE_USE_VALID_ID(Session, KOID_USERSESSION) {
+            LPUSER_SESSION Session = Target->Session;
+            SAFE_USE_VALID_ID(Session, KOID_USER_SESSION) {
                 TargetUserIdentifier = Session->UserID;
                 TargetHasUser = TRUE;
             }

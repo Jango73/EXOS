@@ -119,10 +119,10 @@
 
 /************************************************************************/
 
-typedef struct tag_USERACCOUNT USERACCOUNT, *LPUSERACCOUNT;
+typedef struct tag_USER_ACCOUNT USER_ACCOUNT, *LPUSER_ACCOUNT;
 
 LPPROCESS ExposeGetCallerProcess(void);
-LPUSERACCOUNT ExposeGetCallerUser(void);
+LPUSER_ACCOUNT ExposeGetCallerUser(void);
 BOOL ExposeIsKernelCaller(void);
 BOOL ExposeIsAdminCaller(void);
 BOOL ExposeIsSameUser(LPPROCESS Caller, LPPROCESS Target);

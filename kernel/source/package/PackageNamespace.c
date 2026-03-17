@@ -311,7 +311,7 @@ static BOOL PackageNamespaceBindCurrentUserAlias(LPCSTR UserName) {
  * @return TRUE when initialization succeeded.
  */
 BOOL PackageNamespaceInitialize(void) {
-    LPUSERACCOUNT CurrentUser;
+    LPUSER_ACCOUNT CurrentUser;
 
     if (!FileSystemReady()) return FALSE;
     if (!PackageNamespaceEnsurePathsLoaded()) return FALSE;
@@ -343,7 +343,7 @@ BOOL PackageNamespaceInitialize(void) {
  * @return TRUE when aliases are mounted.
  */
 BOOL PackageNamespaceBindCurrentProcessPackageView(LPFILESYSTEM PackageFileSystem, LPCSTR PackageName) {
-    LPUSERACCOUNT CurrentUser = GetCurrentUser();
+    LPUSER_ACCOUNT CurrentUser = GetCurrentUser();
     LPFILESYSTEM ActiveFileSystem = NULL;
     LPCSTR UserName = NULL;
     STR UserDataSourcePath[MAX_PATH_NAME];

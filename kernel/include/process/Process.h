@@ -174,7 +174,7 @@ struct tag_PROCESS {
     UINT TaskCount;                  // Number of active tasks in this process
     MESSAGEQUEUE MessageQueue;       // Process-level message queue (input, etc.)
     U64 UserID;                      // Owner user
-    LPUSERSESSION Session;           // User session
+    LPUSER_SESSION Session;           // User session
     LPFILESYSTEM PackageFileSystem;  // Mounted package filesystem tied to this process
     struct tag_MEMORY_REGION_DESCRIPTOR* RegionListHead;
     struct tag_MEMORY_REGION_DESCRIPTOR* RegionListTail;

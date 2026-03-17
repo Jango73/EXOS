@@ -125,7 +125,7 @@ static void RefreshInputDisplay(
  */
 static void MarkCurrentSessionActivity(void) {
     LPPROCESS Process = GetCurrentProcess();
-    LPUSERSESSION Session;
+    LPUSER_SESSION Session;
 
     SAFE_USE(Process) {
         Session = Process->Session;

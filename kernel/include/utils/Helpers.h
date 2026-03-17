@@ -80,7 +80,7 @@
 
 /***************************************************************************/
 
-LPUSERACCOUNT GetCurrentUser(void);
+LPUSER_ACCOUNT GetCurrentUser(void);
 LPTOML GetConfiguration(void);
 LPFILESYSTEM GetSystemFS(void);
 LPSYSTEMFSFILESYSTEM GetSystemFSFilesystem(void);
