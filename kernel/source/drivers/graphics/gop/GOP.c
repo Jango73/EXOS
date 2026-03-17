@@ -409,7 +409,7 @@ static UINT GOPGfxUnload(void) {
  * @param Info Output mode descriptor.
  * @return DF_RETURN_SUCCESS on success.
  */
-static UINT GOPGfxGetModeInfo(LPGRAPHICSMODEINFO Info) {
+static UINT GOPGfxGetModeInfo(LPGRAPHICS_MODE_INFO Info) {
     SAFE_USE(Info) {
         if (Info->ModeIndex != INFINITY && Info->ModeIndex != 0) {
             return DF_GFX_ERROR_MODEUNAVAIL;
@@ -434,7 +434,7 @@ static UINT GOPGfxGetModeInfo(LPGRAPHICSMODEINFO Info) {
  * @param Info Requested/returned mode descriptor.
  * @return DF_RETURN_SUCCESS when context is active.
  */
-static UINT GOPGfxSetMode(LPGRAPHICSMODEINFO Info) {
+static UINT GOPGfxSetMode(LPGRAPHICS_MODE_INFO Info) {
     if ((GOPGfxDriver.Flags & DRIVER_FLAG_READY) == 0) {
         return DF_RETURN_UNEXPECTED;
     }
@@ -480,7 +480,7 @@ static UINT GOPGfxGetCapabilities(LPGFX_CAPABILITIES Capabilities) {
  * @param Info Pixel descriptor.
  * @return 1 on success, 0 on failure.
  */
-static UINT GOPGfxSetPixel(LPPIXELINFO Info) {
+static UINT GOPGfxSetPixel(LPPIXEL_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     COLOR PixelColor = 0;
     BOOL Result = FALSE;
@@ -515,7 +515,7 @@ static UINT GOPGfxSetPixel(LPPIXELINFO Info) {
  * @param Info Pixel descriptor.
  * @return 1 on success, 0 on failure.
  */
-static UINT GOPGfxGetPixel(LPPIXELINFO Info) {
+static UINT GOPGfxGetPixel(LPPIXEL_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     U32 Offset = 0;
 
@@ -561,7 +561,7 @@ static UINT GOPGfxGetPixel(LPPIXELINFO Info) {
  * @param Info Line descriptor.
  * @return 1 on success, 0 on failure.
  */
-static UINT GOPGfxLine(LPLINEINFO Info) {
+static UINT GOPGfxLine(LPLINE_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
 
     if (Info == NULL) {
@@ -587,7 +587,7 @@ static UINT GOPGfxLine(LPLINEINFO Info) {
  * @param Info Rectangle descriptor.
  * @return 1 on success, 0 on failure.
  */
-static UINT GOPGfxRectangle(LPRECTINFO Info) {
+static UINT GOPGfxRectangle(LPRECT_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     PROFILE_SCOPE Scope;
 
@@ -616,7 +616,7 @@ static UINT GOPGfxRectangle(LPRECTINFO Info) {
  * @param Info Arc descriptor.
  * @return 1 on success, 0 on failure.
  */
-static UINT GOPGfxArc(LPARCINFO Info) {
+static UINT GOPGfxArc(LPARC_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
 
     if (Info == NULL) {
@@ -644,7 +644,7 @@ static UINT GOPGfxArc(LPARCINFO Info) {
  * @param Info Triangle descriptor.
  * @return 1 on success, 0 on failure.
  */
-static UINT GOPGfxTriangle(LPTRIANGLEINFO Info) {
+static UINT GOPGfxTriangle(LPTRIANGLE_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     I32 Area = 0;
     COLOR FillColor = 0;
@@ -929,23 +929,23 @@ static UINT GOPGfxCommands(UINT Function, UINT Param) {
 
             return 1;
         case DF_GFX_GETMODEINFO:
-            return GOPGfxGetModeInfo((LPGRAPHICSMODEINFO)Param);
+            return GOPGfxGetModeInfo((LPGRAPHICS_MODE_INFO)Param);
         case DF_GFX_SETMODE:
-            return GOPGfxSetMode((LPGRAPHICSMODEINFO)Param);
+            return GOPGfxSetMode((LPGRAPHICS_MODE_INFO)Param);
         case DF_GFX_GETCAPABILITIES:
             return GOPGfxGetCapabilities((LPGFX_CAPABILITIES)Param);
         case DF_GFX_SETPIXEL:
-            return GOPGfxSetPixel((LPPIXELINFO)Param);
+            return GOPGfxSetPixel((LPPIXEL_INFO)Param);
         case DF_GFX_GETPIXEL:
-            return GOPGfxGetPixel((LPPIXELINFO)Param);
+            return GOPGfxGetPixel((LPPIXEL_INFO)Param);
         case DF_GFX_LINE:
-            return GOPGfxLine((LPLINEINFO)Param);
+            return GOPGfxLine((LPLINE_INFO)Param);
         case DF_GFX_RECTANGLE:
-            return GOPGfxRectangle((LPRECTINFO)Param);
+            return GOPGfxRectangle((LPRECT_INFO)Param);
         case DF_GFX_ARC:
-            return GOPGfxArc((LPARCINFO)Param);
+            return GOPGfxArc((LPARC_INFO)Param);
         case DF_GFX_TRIANGLE:
-            return GOPGfxTriangle((LPTRIANGLEINFO)Param);
+            return GOPGfxTriangle((LPTRIANGLE_INFO)Param);
         case DF_GFX_TEXT_PUTCELL:
             return GOPGfxTextPutCell((LPGFX_TEXT_CELL_INFO)Param);
         case DF_GFX_TEXT_CLEAR_REGION:

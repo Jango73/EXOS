@@ -257,13 +257,13 @@ BOOL ButtonEnsureClassRegistered(void) {
  * @return Button window handle on success, NULL on failure.
  */
 HANDLE ButtonCreate(HANDLE ParentWindow, U32 WindowID, LPRECT WindowRect, LPCSTR Caption) {
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
     HANDLE Window;
 
     if (ParentWindow == NULL || WindowRect == NULL) return NULL;
     if (ButtonEnsureClassRegistered() == FALSE) return NULL;
 
-    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Size = sizeof(WINDOW_INFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;

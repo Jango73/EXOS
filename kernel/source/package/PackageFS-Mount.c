@@ -194,10 +194,10 @@ BOOL PackageFSUnmount(LPFILESYSTEM FileSystem) {
  * @param Info Volume information structure.
  * @return DF_RETURN_SUCCESS on success.
  */
-U32 PackageFSGetVolumeInfo(LPVOLUMEINFO Info) {
+U32 PackageFSGetVolumeInfo(LPVOLUME_INFO Info) {
     LPFILESYSTEM FileSystem;
 
-    if (Info == NULL || Info->Size != sizeof(VOLUMEINFO) || Info->Volume == 0) {
+    if (Info == NULL || Info->Size != sizeof(VOLUME_INFO) || Info->Volume == 0) {
         return DF_RETURN_BAD_PARAMETER;
     }
 

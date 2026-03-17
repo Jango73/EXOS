@@ -369,7 +369,7 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             Device->Driver->Command(DF_NT_RESET, (UINT)(LPVOID)&Reset);
 
             // Get device information
-            NETWORKINFO Info;
+            NETWORK_INFO Info;
             MemorySet(&Info, 0, sizeof(Info));
             NETWORK_GET_INFO GetInfo = {.Device = Device, .Info = &Info};
             Device->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo);

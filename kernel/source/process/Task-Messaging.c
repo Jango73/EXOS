@@ -53,11 +53,11 @@
 /************************************************************************/
 
 static BOOL AddTaskMessage(LPTASK Task, LPMESSAGE Message);
-static BOOL CopyMessageFromQueueLocked(LPMESSAGEQUEUE Queue, LPMESSAGEINFO Message, BOOL Remove);
+static BOOL CopyMessageFromQueueLocked(LPMESSAGEQUEUE Queue, LPMESSAGE_INFO Message, BOOL Remove);
 static BOOL AddProcessMessage(LPPROCESS Process, LPMESSAGE Message);
 static BOOL InterceptProcessControlMessage(LPPROCESS Process, U32 Message, U32 Param1, U32 Param2);
-static BOOL FetchProcessMessage(LPPROCESS Process, LPMESSAGEINFO Message, BOOL Remove);
-static BOOL FetchTaskMessage(LPTASK Task, LPMESSAGEINFO Message, BOOL Remove);
+static BOOL FetchProcessMessage(LPPROCESS Process, LPMESSAGE_INFO Message, BOOL Remove);
+static BOOL FetchTaskMessage(LPTASK Task, LPMESSAGE_INFO Message, BOOL Remove);
 static BOOL FindTaskMessageOffset(
     LPMESSAGEQUEUE Queue,
     HANDLE Target,
@@ -238,7 +238,7 @@ BOOL EnsureProcessMessageQueue(LPPROCESS Process, BOOL CreateIfMissing) {
 
 /************************************************************************/
 
-static BOOL FetchProcessMessage(LPPROCESS Process, LPMESSAGEINFO Message, BOOL Remove) {
+static BOOL FetchProcessMessage(LPPROCESS Process, LPMESSAGE_INFO Message, BOOL Remove) {
     if (EnsureProcessMessageQueue(Process, TRUE) == FALSE) {
         return FALSE;
     }
@@ -254,7 +254,7 @@ static BOOL FetchProcessMessage(LPPROCESS Process, LPMESSAGEINFO Message, BOOL R
 
 /************************************************************************/
 
-static BOOL FetchTaskMessage(LPTASK Task, LPMESSAGEINFO Message, BOOL Remove) {
+static BOOL FetchTaskMessage(LPTASK Task, LPMESSAGE_INFO Message, BOOL Remove) {
     if (EnsureTaskMessageQueue(Task, TRUE) == FALSE) {
         return FALSE;
     }
@@ -280,7 +280,7 @@ static BOOL FetchTaskMessage(LPTASK Task, LPMESSAGEINFO Message, BOOL Remove) {
  * @param Message Pointer to message info structure to fill
  * @return TRUE if a message was found, FALSE otherwise
  */
-BOOL PeekMessage(LPMESSAGEINFO Message) {
+BOOL PeekMessage(LPMESSAGE_INFO Message) {
     LPTASK Task;
     LPPROCESS TaskProcessPtr = NULL;
     LPPROCESS Process = NULL;
@@ -311,7 +311,7 @@ BOOL PeekMessage(LPMESSAGEINFO Message) {
  * @param Remove TRUE to erase the message from the queue.
  * @return TRUE if a message was found.
  */
-static BOOL CopyMessageFromQueueLocked(LPMESSAGEQUEUE Queue, LPMESSAGEINFO Message, BOOL Remove) {
+static BOOL CopyMessageFromQueueLocked(LPMESSAGEQUEUE Queue, LPMESSAGE_INFO Message, BOOL Remove) {
     MESSAGE Current;
 
     if (Queue == NULL || Message == NULL) {
@@ -934,7 +934,7 @@ void WaitForMessage(LPTASK Task) {
  * @param Message Pointer to message info structure to fill
  * @return TRUE if message retrieved successfully, FALSE on ETM_QUIT or error
  */
-BOOL GetMessage(LPMESSAGEINFO Message) {
+BOOL GetMessage(LPMESSAGE_INFO Message) {
     LPTASK Task;
     LPPROCESS TaskProcessPtr = NULL;
     LPPROCESS Process = NULL;
@@ -980,7 +980,7 @@ BOOL GetMessage(LPMESSAGEINFO Message) {
  * @note Resolves and dispatches through desktop owner APIs without holding window mutex across callback
  * @note Only works within the context of the current process's desktop
  */
-BOOL DispatchMessage(LPMESSAGEINFO Message) {
+BOOL DispatchMessage(LPMESSAGE_INFO Message) {
     LPPROCESS Process = NULL;
     LPDESKTOP Desktop = NULL;
     LPWINDOW Window = NULL;

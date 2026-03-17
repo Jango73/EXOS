@@ -101,7 +101,7 @@ LPDRIVER KernelProcessGetDriver(void) {
 void InitializeKernelProcess(void) {
     TRACED_FUNCTION;
 
-    TASKINFO TaskInfo;
+    TASK_INFO TaskInfo;
 
     DEBUG(TEXT("[InitializeKernelProcess] Enter"));
 
@@ -148,7 +148,7 @@ void InitializeKernelProcess(void) {
     StringCopy(KernelProcess.FileName, KernelStartup.CommandLine);
     StringCopy(KernelProcess.CommandLine, KernelStartup.CommandLine);
 
-    TaskInfo.Header.Size = sizeof(TASKINFO);
+    TaskInfo.Header.Size = sizeof(TASK_INFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
     TaskInfo.Func = (TASKFUNC)InitializeKernel;
@@ -466,15 +466,15 @@ void KillProcess(LPPROCESS This) {
 /**
  * @brief Create a new process from an executable file.
  *
- * @param Info Pointer to a PROCESSINFO describing the executable.
+ * @param Info Pointer to a PROCESS_INFO describing the executable.
  * @return TRUE on success, FALSE on failure.
  */
-BOOL CreateProcess(LPPROCESSINFO Info) {
+BOOL CreateProcess(LPPROCESS_INFO Info) {
     TRACED_FUNCTION;
 
     EXECUTABLEINFO ExecutableInfo;
-    TASKINFO TaskInfo;
-    FILEOPENINFO FileOpenInfo;
+    TASK_INFO TaskInfo;
+    FILE_OPEN_INFO FileOpenInfo;
     LPPROCESS Process = NULL;
     LPPROCESS ParentProcess = NULL;
     LPTASK Task = NULL;
@@ -499,7 +499,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     }
 
     MemorySet(&TaskInfo, 0, sizeof(TaskInfo));
-    TaskInfo.Header.Size = sizeof(TASKINFO);
+    TaskInfo.Header.Size = sizeof(TASK_INFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
 
@@ -528,7 +528,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     DEBUG(TEXT("[CreateProcess] : Opening file %s"), FileName);
 
-    FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
+    FileOpenInfo.Header.Size = sizeof(FILE_OPEN_INFO);
     FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
     FileOpenInfo.Header.Flags = 0;
     FileOpenInfo.Name = FileName;
@@ -590,7 +590,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
         StringClear(Process->CommandLine);
     }
 
-    // Initialize WorkFolder from PROCESSINFO or inherit from parent
+    // Initialize WorkFolder from PROCESS_INFO or inherit from parent
     if (!StringEmpty(Info->WorkFolder)) {
         StringCopy(Process->WorkFolder, Info->WorkFolder);
     } else {
@@ -603,7 +603,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
         }
     }
 
-    // Update returned PROCESSINFO with effective WorkFolder
+    // Update returned PROCESS_INFO with effective WorkFolder
     StringCopy(Info->WorkFolder, Process->WorkFolder);
 
     // Copy process creation flags
@@ -685,7 +685,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Open the executable file
 
-    FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
+    FileOpenInfo.Header.Size = sizeof(FILE_OPEN_INFO);
     FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
     FileOpenInfo.Header.Flags = 0;
     FileOpenInfo.Name = FileName;
@@ -805,13 +805,13 @@ Out:
 UINT Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
     DEBUG(TEXT("[Spawn] Launching : %s"), CommandLine);
 
-    PROCESSINFO ProcessInfo;
-    WAITINFO WaitInfo;
+    PROCESS_INFO ProcessInfo;
+    WAIT_INFO WaitInfo;
     UINT Result;
     LPPROCESS ParentProcess = NULL;
 
-    MemorySet(&ProcessInfo, 0, sizeof(PROCESSINFO));
-    ProcessInfo.Header.Size = sizeof(PROCESSINFO);
+    MemorySet(&ProcessInfo, 0, sizeof(PROCESS_INFO));
+    ProcessInfo.Header.Size = sizeof(PROCESS_INFO);
     ProcessInfo.Header.Version = EXOS_ABI_VERSION;
     ProcessInfo.Header.Flags = 0;
     ProcessInfo.Flags = 0;
@@ -836,7 +836,7 @@ UINT Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
     }
 
     // Wait for the process to complete
-    WaitInfo.Header.Size = sizeof(WAITINFO);
+    WaitInfo.Header.Size = sizeof(WAIT_INFO);
     WaitInfo.Header.Version = EXOS_ABI_VERSION;
     WaitInfo.Header.Flags = 0;
     WaitInfo.Count = 1;

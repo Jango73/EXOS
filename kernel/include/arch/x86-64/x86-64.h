@@ -588,9 +588,9 @@ extern KERNELDATA_X86_64 Kernel_x86_32;
 
 struct tag_TASK;
 struct tag_PROCESS;
-struct tag_TASKINFO;
+struct tag_TASK_INFO;
 
-BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info);
+BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASK_INFO* Info);
 void PreInitializeKernel(void);
 void InitializeSystemCall(void);
 void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table);

@@ -446,7 +446,7 @@ BOOL SegmentInfoToString(LPSEGMENT_INFO This, LPSTR Text) {
  * architecture-neutral bookkeeping and delegates the hardware specific work to
  * this helper.
  */
-BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info) {
+BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASK_INFO* Info) {
     LINEAR BaseVMA = VMA_KERNEL;
     SELECTOR CodeSelector = SELECTOR_KERNEL_CODE;
     SELECTOR DataSelector = SELECTOR_KERNEL_DATA;

@@ -61,7 +61,7 @@ static const char* GetAttitudeName(I32 attitude) {
 /************************************************************************/
 
 static BOOL QueryConsoleSize(U32* Width, U32* Height) {
-    CONSOLEMODEINFO Info;
+    CONSOLE_MODE_INFO Info;
 
     if (Width == NULL || Height == NULL) return FALSE;
     if (!ConsoleGetCurrentMode(&Info)) return FALSE;
@@ -610,7 +610,7 @@ static void WriteCenteredToFrame(I32 y, const char* text, U8 attr) {
 /************************************************************************/
 
 static void BlitFrameBuffer(void) {
-    CONSOLEBLITBUFFER Frame;
+    CONSOLE_BLIT_BUFFER Frame;
 
     Frame.Text = (LPCSTR)App.Render.ScreenBuffer[0];
     Frame.Width = SCREEN_WIDTH;
@@ -1281,7 +1281,7 @@ static void RenderStatusBar(void) {
 /************************************************************************/
 
 void RenderInGameScreen(void) {
-    CONSOLEBLITBUFFER Frame;
+    CONSOLE_BLIT_BUFFER Frame;
 
     ClearFrameBuffers();
     RenderTopBar();
@@ -1382,7 +1382,7 @@ void RenderDebugScreen(void) {
                 fore = TeamColors[(U32)team % MAX_TEAMS];
             }
         }
-        CONSOLEBLITBUFFER Line = {0, (U32)y, SCREEN_WIDTH, 1, (LPCSTR)App.Render.ScreenBuffer[y], fore, CONSOLE_BLACK, SCREEN_WIDTH, NULL, 0};
+        CONSOLE_BLIT_BUFFER Line = {0, (U32)y, SCREEN_WIDTH, 1, (LPCSTR)App.Render.ScreenBuffer[y], fore, CONSOLE_BLACK, SCREEN_WIDTH, NULL, 0};
         ConsoleBlitBuffer(&Line);
         strcpy(App.Render.PrevScreenBuffer[y], App.Render.ScreenBuffer[y]);
     }

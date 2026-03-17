@@ -150,7 +150,7 @@ static void DesktopCursorBuildArrowPixels(U32* Pixels, U32 Width, U32 Height) {
  * @param Height Cursor height.
  */
 static void DesktopCursorDrawTemplate(HANDLE GC, I32 OriginX, I32 OriginY, U32 Width, U32 Height) {
-    PIXELINFO PixelInfo;
+    PIXEL_INFO PixelInfo;
     U32 X;
     U32 Y;
     char TemplateToken;

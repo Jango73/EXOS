@@ -29,7 +29,7 @@
 /************************************************************************/
 
 BOOL GetExecutableInfo_EXOS(LPFILE File, LPEXECUTABLEINFO Info) {
-    FILEOPERATION FileOperation;
+    FILE_OPERATION FileOperation;
     EXOSCHUNK Chunk;
     EXOSHEADER Header;
     EXOSCHUNK_INIT Init;
@@ -42,7 +42,7 @@ BOOL GetExecutableInfo_EXOS(LPFILE File, LPEXECUTABLEINFO Info) {
     if (File == NULL) return FALSE;
     if (Info == NULL) return FALSE;
 
-    FileOperation.Header.Size = sizeof(FILEOPERATION);
+    FileOperation.Header.Size = sizeof(FILE_OPERATION);
     FileOperation.Header.Version = EXOS_ABI_VERSION;
     FileOperation.Header.Flags = 0;
     FileOperation.File = (HANDLE)File;
@@ -110,7 +110,7 @@ Out_Error:
 /************************************************************************/
 
 BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LINEAR DataBase) {
-    FILEOPERATION FileOperation;
+    FILE_OPERATION FileOperation;
     EXOSCHUNK Chunk;
     EXOSHEADER Header;
     EXOSCHUNK_FIXUP Fixup;
@@ -129,7 +129,7 @@ BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LI
 
     if (File == NULL) return FALSE;
 
-    FileOperation.Header.Size = sizeof(FILEOPERATION);
+    FileOperation.Header.Size = sizeof(FILE_OPERATION);
     FileOperation.Header.Version = EXOS_ABI_VERSION;
     FileOperation.Header.Flags = 0;
     FileOperation.File = (HANDLE)File;

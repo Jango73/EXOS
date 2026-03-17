@@ -78,8 +78,8 @@ static U32 GfxSmokeWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2
     switch (Message) {
         case EWM_DRAW: {
             HANDLE GraphicsContext = NULL;
-            RECTINFO RectangleInfo;
-            LINEINFO LineInfo;
+            RECT_INFO RectangleInfo;
+            LINE_INFO LineInfo;
             GFX_TEXT_MEASURE_INFO MeasureInfo;
             GFX_TEXT_DRAW_INFO DrawInfo;
             const FONT_FACE* Font = FontGetDefaultFace();
@@ -206,7 +206,7 @@ static BOOL ParseGraphicsModeComponent(LPCSTR Text, UINT* InOutIndex, U32* Value
  * @param InfoOut Parsed mode info.
  * @return TRUE on success.
  */
-static BOOL ParseGraphicsModeToken(LPCSTR Token, LPGRAPHICSMODEINFO InfoOut) {
+static BOOL ParseGraphicsModeToken(LPCSTR Token, LPGRAPHICS_MODE_INFO InfoOut) {
     UINT Index = 0;
     U32 Width = 0;
     U32 Height = 0;
@@ -246,7 +246,7 @@ static BOOL ParseGraphicsModeToken(LPCSTR Token, LPGRAPHICSMODEINFO InfoOut) {
         return FALSE;
     }
 
-    InfoOut->Header.Size = sizeof(GRAPHICSMODEINFO);
+    InfoOut->Header.Size = sizeof(GRAPHICS_MODE_INFO);
     InfoOut->Header.Version = EXOS_ABI_VERSION;
     InfoOut->Header.Flags = 0;
     InfoOut->ModeIndex = INFINITY;
@@ -341,7 +341,7 @@ static LPDRIVER FindGraphicsBackendByAlias(LPCSTR Alias) {
 static U32 RunGraphicsSmokeTest(U32 DurationMilliseconds) {
     LPDESKTOP Desktop = NULL;
     HANDLE Window = NULL;
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
 
     Desktop = CreateDesktop();
     if (Desktop == NULL) {
@@ -699,7 +699,7 @@ U32 CMD_desktop(LPSHELLCONTEXT Context) {
 U32 CMD_gfx(LPSHELLCONTEXT Context) {
     STR Mode[64];
     STR DriverName[64];
-    GRAPHICSMODEINFO ModeInfo;
+    GRAPHICS_MODE_INFO ModeInfo;
     LPDRIVER GraphicsDriver = NULL;
     UINT ModeSetResult = 0;
     LPDESKTOP ActiveDesktop = NULL;

@@ -449,7 +449,7 @@ void ARP_OnEthernetFrame(LPDEVICE Device, const U8* Frame, U32 Length) {
  * @param LocalIPv4_Be Local IPv4 address in big-endian format.
  * @param DeviceInfo Optional device info containing MAC address (may be NULL).
  */
-void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be, const NETWORKINFO* DeviceInfo) {
+void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be, const NETWORK_INFO* DeviceInfo) {
     LPARP_CONTEXT Context;
     U32 Index;
     BOOL Success = FALSE;
@@ -487,7 +487,7 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be, const NETWORKINFO* Device
         MacRetrieved = TRUE;
     } else {
         NETWORK_GET_INFO GetInfo;
-        NETWORKINFO Info;
+        NETWORK_INFO Info;
         MemorySet(&GetInfo, 0, sizeof(GetInfo));
         MemorySet(&Info, 0, sizeof(Info));
         GetInfo.Device = (LPPCI_DEVICE)Device;

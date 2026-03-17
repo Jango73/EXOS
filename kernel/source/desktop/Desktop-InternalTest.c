@@ -300,7 +300,7 @@ static BOOL DesktopInternalEnsureSingleWindow(
     I32 Height
 ) {
     LPWINDOW Window;
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
     RECT WindowRect;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
@@ -318,7 +318,7 @@ static BOOL DesktopInternalEnsureSingleWindow(
         return TRUE;
     }
 
-    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Size = sizeof(WINDOW_INFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;

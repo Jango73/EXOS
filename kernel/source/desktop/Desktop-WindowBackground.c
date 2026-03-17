@@ -84,7 +84,7 @@ static BOOL ResolveWindowBackgroundThemeEntry(U32 ThemeToken, const WINDOW_BACKG
  */
 static BOOL DrawSolidBackground(HANDLE GC, LPRECT Rect, COLOR Color) {
     BRUSH Brush;
-    RECTINFO RectInfo;
+    RECT_INFO RectInfo;
     HANDLE OldBrush;
     HANDLE OldPen;
 
@@ -178,7 +178,7 @@ static BOOL ResolveLevel1BackgroundTransparency(
  */
 static BOOL DrawBackgroundBorder(HANDLE GC, LPRECT Rect, COLOR Color, U32 Thickness) {
     PEN Pen;
-    LINEINFO LineInfo;
+    LINE_INFO LineInfo;
     HANDLE OldPen;
     UINT Index;
     I32 Offset;
@@ -267,7 +267,7 @@ static BOOL DrawLevel1WindowBackground(
             (void)DrawSolidBackground(GC, Rect, BackgroundColor);
         }
     } else if (AllowMissingBackgroundTransparency == FALSE) {
-        RECTINFO RectInfo;
+        RECT_INFO RectInfo;
         HANDLE OldPen = NULL;
         HANDLE OldBrush = NULL;
 

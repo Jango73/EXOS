@@ -44,9 +44,9 @@ static STR Prop_Down[] = "DOWN";
 /************************************************************************/
 
 void DrawFrame3D(HANDLE GC, LPRECT Rect, BOOL Invert, BOOL Fill) {
-    LINEINFO LineInfo;
+    LINE_INFO LineInfo;
 
-    LineInfo.Header.Size = sizeof(LINEINFO);
+    LineInfo.Header.Size = sizeof(LINE_INFO);
     LineInfo.Header.Version = EXOS_ABI_VERSION;
     LineInfo.Header.Flags = 0;
     LineInfo.GC = GC;
@@ -365,11 +365,11 @@ U32 DesktopTask(LPVOID Param) {
 /************************************************************************/
 
 BOOL InitApplication(void) {
-    TASKINFO TaskInfo;
-    PENINFO PenInfo;
-    BRUSHINFO BrushInfo;
+    TASK_INFO TaskInfo;
+    PEN_INFO PenInfo;
+    BRUSH_INFO BrushInfo;
 
-    TaskInfo.Header.Size = sizeof(TASKINFO);
+    TaskInfo.Header.Size = sizeof(TASK_INFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
     TaskInfo.Func = DesktopTask;
@@ -382,7 +382,7 @@ BOOL InitApplication(void) {
 
     Sleep(500);
 
-    PenInfo.Header.Size = sizeof(PENINFO);
+    PenInfo.Header.Size = sizeof(PEN_INFO);
     PenInfo.Header.Version = EXOS_ABI_VERSION;
     PenInfo.Header.Flags = 0;
     PenInfo.Color = MAKERGB(255, 0, 0);
@@ -390,7 +390,7 @@ BOOL InitApplication(void) {
     PenInfo.Flags = 0;
     RedPen = CreatePen(&PenInfo);
 
-    BrushInfo.Header.Size = sizeof(BRUSHINFO);
+    BrushInfo.Header.Size = sizeof(BRUSH_INFO);
     BrushInfo.Header.Version = EXOS_ABI_VERSION;
     BrushInfo.Header.Flags = 0;
     BrushInfo.Color = MAKERGB(255, 0, 0);

@@ -661,8 +661,8 @@ static void USBKeyboardHandleSpecialUsage(U8 Usage) {
     if (Keyboard.UsageStatus[KEY_USAGE_LEFT_CTRL] || Keyboard.UsageStatus[KEY_USAGE_RIGHT_CTRL]) {
         (void)DisplaySwitchToConsole();
     } else {
-        TASKINFO TaskInfo;
-        TaskInfo.Header.Size = sizeof(TASKINFO);
+        TASK_INFO TaskInfo;
+        TaskInfo.Header.Size = sizeof(TASK_INFO);
         TaskInfo.Header.Version = EXOS_ABI_VERSION;
         TaskInfo.Header.Flags = 0;
         TaskInfo.Func = Shell;

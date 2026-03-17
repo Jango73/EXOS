@@ -90,7 +90,7 @@ static void DesktopAssignWindowTaskRecursive(LPWINDOW Window, LPTASK Task) {
  */
 static U32 DesktopDispatcherTask(LPVOID Parameter) {
     LPDESKTOP Desktop = (LPDESKTOP)Parameter;
-    MESSAGEINFO Message;
+    MESSAGE_INFO Message;
     U32 DispatchFailureCount = 0;
 
     SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
@@ -123,7 +123,7 @@ static U32 DesktopDispatcherTask(LPVOID Parameter) {
  * @return TRUE when dispatcher is available.
  */
 BOOL DesktopEnsureDispatcherTask(LPDESKTOP Desktop) {
-    TASKINFO TaskInfo;
+    TASK_INFO TaskInfo;
     LPTASK DispatcherTask;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {

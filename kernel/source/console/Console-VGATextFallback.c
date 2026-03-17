@@ -38,14 +38,14 @@
  * @param AppliedMode Optional output for the effective mode.
  * @return TRUE when VGA text mode activation succeeded.
  */
-BOOL ConsoleVGATextFallbackActivate(U32 Columns, U32 Rows, LPGRAPHICSMODEINFO AppliedMode) {
+BOOL ConsoleVGATextFallbackActivate(U32 Columns, U32 Rows, LPGRAPHICS_MODE_INFO AppliedMode) {
     U32 RequestedColumns = (Columns != 0) ? Columns : 80;
     U32 RequestedRows = (Rows != 0) ? Rows : 25;
     LPDRIVER VGADriver = VGAGetDriver();
-    GRAPHICSMODEINFO RequestedMode;
+    GRAPHICS_MODE_INFO RequestedMode;
     UINT SetModeResult = DF_RETURN_NOT_IMPLEMENTED;
     BOOL FallbackUsed = FALSE;
-    GRAPHICSMODEINFO ModeInfo;
+    GRAPHICS_MODE_INFO ModeInfo;
 
     if (VGADriver == NULL || VGADriver->Command == NULL) {
         ERROR(TEXT("[ConsoleVGATextFallbackActivate] VGA driver unavailable"));

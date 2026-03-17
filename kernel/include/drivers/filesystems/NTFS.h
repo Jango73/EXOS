@@ -103,12 +103,12 @@ typedef struct tag_NTFS_VOLUMENAME {
 /***************************************************************************/
 // $VOLUME_INFORMATION
 
-typedef struct tag_NTFS_VOLUMEINFO {
+typedef struct tag_NTFS_VOLUME_INFO {
     U8 Unknown[8];
     U8 MajorVersion;
     U8 MinorVersion;
     U8 ChkDskFlag;
-} NTFS_VOLUMEINFO, *LPNTFS_VOLUMEINFO;
+} NTFS_VOLUME_INFO, *LPNTFS_VOLUME_INFO;
 
 /***************************************************************************/
 // $AttrDef

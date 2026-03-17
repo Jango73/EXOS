@@ -1138,7 +1138,7 @@ static U32 E1000_OnReset(const NETWORK_RESET *Reset) {
 /************************************************************************/
 
 /**
- * @brief Fill NETWORKINFO structure with device state.
+ * @brief Fill NETWORK_INFO structure with device state.
  * @param Get Query parameters and output buffer.
  * @return DF_RETURN_SUCCESS on success or error code.
  */

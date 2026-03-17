@@ -627,11 +627,11 @@ BOOL NtfsApplyFileRecordFixup(
  * @param HeaderOut Parsed and validated file record header.
  * @return TRUE on success, FALSE on read or validation failure.
  */
-static U32 NtfsGetVolumeInfo(LPVOLUMEINFO VolumeInfo) {
+static U32 NtfsGetVolumeInfo(LPVOLUME_INFO VolumeInfo) {
     LPFILESYSTEM Header;
     LPNTFSFILESYSTEM FileSystem;
 
-    if (VolumeInfo == NULL || VolumeInfo->Size != sizeof(VOLUMEINFO)) {
+    if (VolumeInfo == NULL || VolumeInfo->Size != sizeof(VOLUME_INFO)) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
@@ -664,9 +664,9 @@ static UINT NTFSCommands(UINT Function, UINT Parameter) {
             return DF_RETURN_SUCCESS;
         case DF_GET_VERSION:
             return MAKE_VERSION(NTFS_VER_MAJOR, NTFS_VER_MINOR);
-        case DF_FS_GETVOLUMEINFO:
-            return NtfsGetVolumeInfo((LPVOLUMEINFO)Parameter);
-        case DF_FS_SETVOLUMEINFO:
+        case DF_FS_GETVOLUME_INFO:
+            return NtfsGetVolumeInfo((LPVOLUME_INFO)Parameter);
+        case DF_FS_SETVOLUME_INFO:
             return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_CREATEFOLDER:
             return NtfsCreateFolder((LPFILEINFO)Parameter);

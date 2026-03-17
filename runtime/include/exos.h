@@ -53,15 +53,15 @@ typedef struct tag_MESSAGE {
 
 /************************************************************************/
 
-HANDLE CreateTask(LPTASKINFO);
+HANDLE CreateTask(LPTASK_INFO);
 BOOL KillTask(HANDLE);
 void Exit(void);
 void Sleep(U32);
-U32 Wait(LPWAITINFO);
+U32 Wait(LPWAIT_INFO);
 U32 GetSystemTime(void);
 BOOL GetLocalTime(LPDATETIME Time);
-U32 FindFirstFile(FILEFINDINFO* Info);
-U32 FindNextFile(FILEFINDINFO* Info);
+U32 FindFirstFile(FILE_FIND_INFO* Info);
+U32 FindNextFile(FILE_FIND_INFO* Info);
 BOOL GetMessage(HANDLE, LPMESSAGE, U32, U32);
 BOOL PeekMessage(HANDLE, LPMESSAGE, U32, U32, U32);
 BOOL DispatchMessage(LPMESSAGE);
@@ -114,11 +114,11 @@ HANDLE CaptureMouse(HANDLE);
 BOOL ReleaseMouse(void);
 U32 GetKeyModifiers(void);
 U32 ConsoleGetKey(LPKEYCODE);
-U32 ConsoleBlitBuffer(LPCONSOLEBLITBUFFER);
+U32 ConsoleBlitBuffer(LPCONSOLE_BLIT_BUFFER);
 void ConsoleGotoXY(LPPOINT);
 void ConsoleClear(void);
 U32 ConsoleSetMode(U32 Columns, U32 Rows);
-BOOL ConsoleGetCurrentMode(LPCONSOLEMODEINFO Info);
+BOOL ConsoleGetCurrentMode(LPCONSOLE_MODE_INFO Info);
 BOOL DeleteObject(HANDLE);
 void srand(U32);
 U32 rand(void);

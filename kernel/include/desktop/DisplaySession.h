@@ -40,7 +40,7 @@
 
 typedef struct tag_DISPLAY_SESSION {
     LPDRIVER GraphicsDriver;
-    GRAPHICSMODEINFO ActiveMode;
+    GRAPHICS_MODE_INFO ActiveMode;
     U32 ActiveFrontEnd;
     BOOL IsInitialized;
     BOOL HasValidMode;
@@ -49,9 +49,9 @@ typedef struct tag_DISPLAY_SESSION {
 /************************************************************************/
 
 void DisplaySessionInitialize(void);
-BOOL DisplaySessionSetConsoleMode(LPGRAPHICSMODEINFO ModeInfo);
-BOOL DisplaySessionSetConsoleGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICSMODEINFO ModeInfo);
-BOOL DisplaySessionSetDesktopMode(LPDESKTOP Desktop, LPDRIVER GraphicsDriver, LPGRAPHICSMODEINFO ModeInfo);
+BOOL DisplaySessionSetConsoleMode(LPGRAPHICS_MODE_INFO ModeInfo);
+BOOL DisplaySessionSetConsoleGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICS_MODE_INFO ModeInfo);
+BOOL DisplaySessionSetDesktopMode(LPDESKTOP Desktop, LPDRIVER GraphicsDriver, LPGRAPHICS_MODE_INFO ModeInfo);
 BOOL DisplaySwitchToConsole(void);
 BOOL DisplaySwitchToDesktop(LPDESKTOP Desktop);
 U32 DisplaySessionGetActiveFrontEnd(void);

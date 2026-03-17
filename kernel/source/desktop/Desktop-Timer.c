@@ -159,7 +159,7 @@ static U32 DesktopTimerTask(LPVOID Parameter) {
 /***************************************************************************/
 
 BOOL DesktopTimerEnsureTask(LPDESKTOP Desktop) {
-    TASKINFO TaskInfo;
+    TASK_INFO TaskInfo;
     LPTASK TimerTask;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;

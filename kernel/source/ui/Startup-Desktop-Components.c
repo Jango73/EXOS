@@ -59,7 +59,7 @@ static BOOL MarkShellBarComponentLayout(HANDLE Window, U32 Order, U32 Width) {
 static BOOL EnsureShellBarClockWidget(HANDLE ShellBarWindow) {
     HANDLE ComponentsSlotWindow;
     HANDLE ClockWindow;
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
 
     if (ShellBarWindow == NULL) return FALSE;
     if (DesktopClockWidgetEnsureClassRegistered() == FALSE) return FALSE;
@@ -75,7 +75,7 @@ static BOOL EnsureShellBarClockWidget(HANDLE ShellBarWindow) {
             SHELL_BAR_COMPONENT_WIDTH_CLOCK);
     }
 
-    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Size = sizeof(WINDOW_INFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;
@@ -143,7 +143,7 @@ static BOOL EnsureShellBarButton(
 static BOOL EnsureCube3DWindow(LPDESKTOP Desktop) {
     HANDLE RootWindow;
     HANDLE CubeWindow;
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
     POINT PreferredSize;
     RECT ScreenRect;
     RECT WindowRect;
@@ -202,7 +202,7 @@ static BOOL EnsureCube3DWindow(LPDESKTOP Desktop) {
         return TRUE;
     }
 
-    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Size = sizeof(WINDOW_INFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;
@@ -238,7 +238,7 @@ static BOOL EnsureCube3DWindow(LPDESKTOP Desktop) {
 static BOOL EnsureLogViewerWindow(LPDESKTOP Desktop) {
     HANDLE RootWindow;
     HANDLE LogViewerWindow;
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
     RECT ScreenRect;
     RECT WindowRect;
     I32 ScreenWidth;
@@ -286,7 +286,7 @@ static BOOL EnsureLogViewerWindow(LPDESKTOP Desktop) {
         return TRUE;
     }
 
-    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Size = sizeof(WINDOW_INFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;
@@ -322,7 +322,7 @@ static BOOL EnsureLogViewerWindow(LPDESKTOP Desktop) {
 static BOOL EnsureOnScreenDebugInfoWindow(LPDESKTOP Desktop) {
     HANDLE RootWindow;
     HANDLE DebugInfoWindow;
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
     POINT PreferredSize;
     RECT ScreenRect;
     RECT WindowRect;
@@ -372,7 +372,7 @@ static BOOL EnsureOnScreenDebugInfoWindow(LPDESKTOP Desktop) {
         return TRUE;
     }
 
-    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Size = sizeof(WINDOW_INFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;

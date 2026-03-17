@@ -49,7 +49,7 @@ char** _argv = NULL;
 char* _static_argv[16];                          // Support up to 16 arguments
 char _static_arg_storage[MAX_STRING_BUFFER];     // Storage for argument strings
 
-PROCESSINFO _ProcessInfo;
+PROCESS_INFO _ProcessInfo;
 
 /************************************************************************/
 
@@ -147,8 +147,8 @@ void free(void* p) { exoscall(SYSCALL_HeapFree, EXOS_PARAM(p)); }
 void* realloc(void* ptr, size_t size) { return KernelHeapRealloc(ptr, size); }
 #else
 void* realloc(void* ptr, size_t size) {
-    HEAPREALLOCINFO info;
-    info.Header.Size = sizeof(HEAPREALLOCINFO);
+    HEAP_REALLOC_INFO info;
+    info.Header.Size = sizeof(HEAP_REALLOC_INFO);
     info.Header.Version = EXOS_ABI_VERSION;
     info.Header.Flags = 0;
     info.Pointer = ptr;
@@ -309,11 +309,11 @@ unsigned getkeymodifiers(void) {
 
 #ifndef __KERNEL__
 int _beginthread(void (*start_address)(void*), unsigned stack_size, void* arg_list) {
-    TASKINFO TaskInfo;
+    TASK_INFO TaskInfo;
 
     memset(&TaskInfo, 0, sizeof(TaskInfo));
 
-    TaskInfo.Header.Size = sizeof(TASKINFO);
+    TaskInfo.Header.Size = sizeof(TASK_INFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
     #pragma GCC diagnostic push
@@ -343,11 +343,11 @@ void sleep(unsigned ms) { exoscall(SYSCALL_Sleep, EXOS_PARAM(ms)); }
 
 #ifndef __KERNEL__
 int system(const char* __cmd) {
-    PROCESSINFO ProcessInfo;
+    PROCESS_INFO ProcessInfo;
 
     memset(&ProcessInfo, 0, sizeof(ProcessInfo));
 
-    ProcessInfo.Header.Size = sizeof(PROCESSINFO);
+    ProcessInfo.Header.Size = sizeof(PROCESS_INFO);
     ProcessInfo.Header.Version = EXOS_ABI_VERSION;
     ProcessInfo.Header.Flags = 0;
     ProcessInfo.Flags = 0;
@@ -364,11 +364,11 @@ int system(const char* __cmd) {
 
 #ifndef __KERNEL__
 FILE* fopen(const char* __name, const char* __mode) {
-    FILEOPENINFO info;
+    FILE_OPEN_INFO info;
     FILE* __fp;
     HANDLE handle;
 
-    info.Header.Size = sizeof(FILEOPENINFO);
+    info.Header.Size = sizeof(FILE_OPEN_INFO);
     info.Header.Version = EXOS_ABI_VERSION;
     info.Header.Flags = 0;
     info.Flags = 0;
@@ -464,7 +464,7 @@ int fclose(FILE* __fp) {
 
 #ifndef __KERNEL__
 size_t fread(void* buf, size_t elsize, size_t num, FILE* fp) {
-    FILEOPERATION fileop;
+    FILE_OPERATION fileop;
 
     if (!fp) return 0;
 
@@ -481,7 +481,7 @@ size_t fread(void* buf, size_t elsize, size_t num, FILE* fp) {
 /************************************************************************/
 
 size_t fwrite(const void* buf, size_t elsize, size_t num, FILE* fp) {
-    FILEOPERATION fileop;
+    FILE_OPERATION fileop;
 
     if (!fp) return 0;
 
@@ -500,7 +500,7 @@ size_t fwrite(const void* buf, size_t elsize, size_t num, FILE* fp) {
 /************************************************************************/
 
 int fseek(FILE* fp, long int pos, int whence) {
-    FILEOPERATION Operation;
+    FILE_OPERATION Operation;
     long Target = 0;
     long Current;
     long Size;

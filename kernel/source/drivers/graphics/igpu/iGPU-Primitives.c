@@ -172,7 +172,7 @@ static void IntelGfxFlushBoundsToScanout(LPGRAPHICSCONTEXT Context, LPRECT Bound
 
 /************************************************************************/
 
-UINT IntelGfxSetPixel(LPPIXELINFO Info) {
+UINT IntelGfxSetPixel(LPPIXEL_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     COLOR PixelColor = 0;
 
@@ -200,7 +200,7 @@ UINT IntelGfxSetPixel(LPPIXELINFO Info) {
 
 /************************************************************************/
 
-UINT IntelGfxGetPixel(LPPIXELINFO Info) {
+UINT IntelGfxGetPixel(LPPIXEL_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     U32 Offset = 0;
 
@@ -231,7 +231,7 @@ UINT IntelGfxGetPixel(LPPIXELINFO Info) {
 
 /************************************************************************/
 
-UINT IntelGfxLine(LPLINEINFO Info) {
+UINT IntelGfxLine(LPLINE_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     RECT Bounds = {0};
 
@@ -256,7 +256,7 @@ UINT IntelGfxLine(LPLINEINFO Info) {
 
 /************************************************************************/
 
-UINT IntelGfxRectangle(LPRECTINFO Info) {
+UINT IntelGfxRectangle(LPRECT_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     RECT Bounds = {0};
     PROFILE_SCOPE Scope;
@@ -287,7 +287,7 @@ UINT IntelGfxRectangle(LPRECTINFO Info) {
 
 /************************************************************************/
 
-UINT IntelGfxArc(LPARCINFO Info) {
+UINT IntelGfxArc(LPARC_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     I32 Radius = 0;
     I32 CenterX = 0;
@@ -329,7 +329,7 @@ UINT IntelGfxArc(LPARCINFO Info) {
 
 /************************************************************************/
 
-UINT IntelGfxTriangle(LPTRIANGLEINFO Info) {
+UINT IntelGfxTriangle(LPTRIANGLE_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     I32 MinX = 0;
     I32 MaxX = 0;

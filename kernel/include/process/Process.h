@@ -238,7 +238,7 @@ typedef struct tag_DESKTOP_THEME {
 
 typedef struct tag_DESKTOP_DISPLAY_SELECTION {
     STR BackendAlias[MAX_NAME];
-    GRAPHICSMODEINFO ModeInfo;
+    GRAPHICS_MODE_INFO ModeInfo;
     BOOL IsAssigned;
 } DESKTOP_DISPLAY_SELECTION, *LPDESKTOP_DISPLAY_SELECTION;
 
@@ -290,7 +290,7 @@ void DumpProcess(LPPROCESS);
 void KillProcess(LPPROCESS);
 void DeleteProcessCommit(LPPROCESS);
 void InitSecurity(LPSECURITY);
-BOOL CreateProcess(LPPROCESSINFO);
+BOOL CreateProcess(LPPROCESS_INFO);
 UINT Spawn(LPCSTR, LPCSTR);
 void SetProcessStatus(LPPROCESS Process, U32 Status);
 LINEAR GetProcessHeap(LPPROCESS);

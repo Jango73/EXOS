@@ -285,7 +285,7 @@ Event lifecycle and state helpers:
 - `SignalKernelEvent()` and `ResetKernelEvent()` update the signaled state with local interrupts masked (`SaveFlags`/`DisableInterrupts`) so they are safe in interrupt context.
 - `KernelEventIsSignaled()` and `KernelEventGetSignalCount()` expose state for scheduler and consumer code.
 
-`Wait()` recognizes event handles in `WAITINFO.Objects` and returns when `SignalKernelEvent` marks the event signaled, propagating `SignalCount` through the wait exit codes. The termination cache is checked first for process and task exits.
+`Wait()` recognizes event handles in `WAIT_INFO.Objects` and returns when `SignalKernelEvent` marks the event signaled, propagating `SignalCount` through the wait exit codes. The termination cache is checked first for process and task exits.
 
 #### List nodes
 
@@ -322,7 +322,7 @@ This guarantees one active exported handle per pointer in the global map and avo
 
 #### Message path behavior
 
-`SysCall_GetMessage()` and `SysCall_PeekMessage()` convert `MESSAGEINFO.Target` from handle to pointer before calling the internal queue logic, then convert the returned pointer back through `PointerToHandle()`. `SysCall_DispatchMessage()` resolves the incoming handle to a pointer for dispatch, then restores the original handle in the user buffer.
+`SysCall_GetMessage()` and `SysCall_PeekMessage()` convert `MESSAGE_INFO.Target` from handle to pointer before calling the internal queue logic, then convert the returned pointer back through `PointerToHandle()`. `SysCall_DispatchMessage()` resolves the incoming handle to a pointer for dispatch, then restores the original handle in the user buffer.
 
 Because `PointerToHandle()` reuses existing mappings, repeated message retrieval and dispatch cycles keep target handles stable instead of generating transient replacements.
 
@@ -605,7 +605,7 @@ Message posting:
 - `SendMessage` is synchronous and window-only.
 
 Message retrieval:
-- `GetMessage`/`PeekMessage` first check the global input queue when the caller’s process has focus (desktop focus + per-desktop `FocusedProcess`), then fall back to the task’s own queue. `GetMessage` blocks if neither queue holds messages; `PeekMessage` is non-blocking. Userland syscalls translate handles in `MESSAGEINFO` before dispatching to the kernel implementations.
+- `GetMessage`/`PeekMessage` first check the global input queue when the caller’s process has focus (desktop focus + per-desktop `FocusedProcess`), then fall back to the task’s own queue. `GetMessage` blocks if neither queue holds messages; `PeekMessage` is non-blocking. Userland syscalls translate handles in `MESSAGE_INFO` before dispatching to the kernel implementations.
 - Focus tracking lives in `Kernel.ActiveDesktop` and `Kernel.FocusedProcess`. A process may exist without any desktop. When a focused process is associated with a desktop, focusing that process also makes its desktop active. When no active desktop exists, input falls back to the focused process, then to `KernelProcess`.
 
 
@@ -887,7 +887,7 @@ The same contract also defines optional backend operations for modern display ha
 
 Backends that do not support optional commands return `DF_RETURN_NOT_IMPLEMENTED`.
 
-Graphics drivers expose mode enumeration through `DF_GFX_GETMODECOUNT` and `DF_GFX_GETMODEINFO`. `GRAPHICSMODEINFO.ModeIndex` selects a specific mode, while `INFINITY` targets the active mode.
+Graphics drivers expose mode enumeration through `DF_GFX_GETMODECOUNT` and `DF_GFX_GETMODEINFO`. `GRAPHICS_MODE_INFO.ModeIndex` selects a specific mode, while `INFINITY` targets the active mode.
 
 #### Backend selection and diagnostics
 

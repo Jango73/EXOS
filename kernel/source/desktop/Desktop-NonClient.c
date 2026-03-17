@@ -49,7 +49,7 @@
  * @return TRUE on success.
  */
 static BOOL DrawSolidRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color) {
-    RECTINFO RectInfo;
+    RECT_INFO RectInfo;
     BRUSH Brush;
     HANDLE OldPen;
     HANDLE OldBrush;
@@ -95,8 +95,8 @@ static BOOL DrawSolidRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color
  * @return TRUE on success.
  */
 static BOOL DrawVerticalGradientRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR StartColor, COLOR EndColor) {
-    LINEINFO BaseLineInfo;
-    LINEINFO LineInfo;
+    LINE_INFO BaseLineInfo;
+    LINE_INFO LineInfo;
     PEN Pen;
     HANDLE OldPen;
     I32 Height;
@@ -196,7 +196,7 @@ static BOOL ResolveWindowBorderThickness(U32* ThicknessOut) {
 static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
     U32 BorderThickness = 2;
     COLOR BorderColor = 0;
-    LINEINFO LineInfo;
+    LINE_INFO LineInfo;
     PEN Pen;
     HANDLE OldPen;
     I32 Width;

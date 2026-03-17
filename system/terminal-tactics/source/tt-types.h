@@ -474,7 +474,7 @@ typedef struct {
     U32 ViewportHeight;
     char ViewBuffer[MAX_VIEWPORT_HEIGHT][MAX_VIEWPORT_WIDTH + 1];
     U8 ViewColors[MAX_VIEWPORT_HEIGHT][MAX_VIEWPORT_WIDTH];
-    CONSOLEBLITBUFFER ViewBlitInfo;
+    CONSOLE_BLIT_BUFFER ViewBlitInfo;
     char PrevViewBuffer[MAX_VIEWPORT_HEIGHT][MAX_VIEWPORT_WIDTH + 1];
     U8 PrevViewColors[MAX_VIEWPORT_HEIGHT][MAX_VIEWPORT_WIDTH];
     char PrevTopLine0[MAX_SCREEN_WIDTH + 1];

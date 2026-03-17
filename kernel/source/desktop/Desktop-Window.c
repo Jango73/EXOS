@@ -386,7 +386,7 @@ LPWINDOW DesktopContainsWindow(LPWINDOW Start, LPWINDOW Target) {
  * @param Info Structure describing the window to create.
  * @return Pointer to the created window or NULL on failure.
  */
-LPWINDOW DesktopCreateWindow(LPWINDOWINFO Info) {
+LPWINDOW DesktopCreateWindow(LPWINDOW_INFO Info) {
     LPWINDOW This;
     LPWINDOW Parent;
     LPDESKTOP Desktop;
@@ -574,7 +574,7 @@ LPDESKTOP DesktopGetWindowDesktop(LPWINDOW This) {
 
 /***************************************************************************/
 
-HANDLE CreateWindow(LPWINDOWINFO Info) {
+HANDLE CreateWindow(LPWINDOW_INFO Info) {
     return (HANDLE)DesktopCreateWindow(Info);
 }
 

@@ -67,7 +67,7 @@ typedef struct tag_NETWORK_RESET {
 
 typedef struct tag_NETWORK_GET_INFO {
     LPPCI_DEVICE Device;
-    LPNETWORKINFO Info;
+    LPNETWORK_INFO Info;
 } NETWORK_GET_INFO, *LPNETWORK_GET_INFO;
 
 typedef struct tag_NETWORK_SET_RX_CB {

@@ -388,7 +388,7 @@ void DeleteTask(LPTASK This) {
  * @param Info Task creation parameters including function, stack size, priority
  * @return Pointer to created task, or NULL on failure
  */
-LPTASK CreateTask(LPPROCESS Process, LPTASKINFO Info) {
+LPTASK CreateTask(LPPROCESS Process, LPTASK_INFO Info) {
     TRACED_FUNCTION;
 
     LPTASK Task = NULL;

@@ -94,7 +94,7 @@ BOOL PackageFSPathExists(LPFS_PATHCHECK Check);
 
 BOOL PackageFSFileExists(LPFILEINFO Info);
 
-U32 PackageFSGetVolumeInfo(LPVOLUMEINFO Info);
+U32 PackageFSGetVolumeInfo(LPVOLUME_INFO Info);
 
 /************************************************************************/
 

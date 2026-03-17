@@ -105,7 +105,7 @@ static BOOL DesktopHasDisplaySelection(LPDESKTOP Desktop) {
  * @param BackendAlias Selected backend alias.
  * @param ModeInfo Selected graphics mode.
  */
-static void DesktopSetDisplaySelection(LPDESKTOP Desktop, LPCSTR BackendAlias, LPGRAPHICSMODEINFO ModeInfo) {
+static void DesktopSetDisplaySelection(LPDESKTOP Desktop, LPCSTR BackendAlias, LPGRAPHICS_MODE_INFO ModeInfo) {
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP || BackendAlias == NULL || ModeInfo == NULL) {
         return;
     }
@@ -129,9 +129,9 @@ static void DesktopSetDisplaySelection(LPDESKTOP Desktop, LPCSTR BackendAlias, L
  * @param AppliedModeInfo Receives the effective graphics mode.
  * @return TRUE when the stored backend and mode were applied successfully.
  */
-static BOOL DesktopApplyDisplaySelection(LPDESKTOP Desktop, LPGRAPHICSMODEINFO AppliedModeInfo) {
-    GRAPHICSMODEINFO RequestedModeInfo;
-    GRAPHICSMODEINFO QueriedModeInfo;
+static BOOL DesktopApplyDisplaySelection(LPDESKTOP Desktop, LPGRAPHICS_MODE_INFO AppliedModeInfo) {
+    GRAPHICS_MODE_INFO RequestedModeInfo;
+    GRAPHICS_MODE_INFO QueriedModeInfo;
     UINT ModeSetResult;
 
     if (DesktopHasDisplaySelection(Desktop) == FALSE || AppliedModeInfo == NULL) {
@@ -284,7 +284,7 @@ static I32 SortDesktops_Order(LPCVOID Item1, LPCVOID Item2) {
  */
 LPDESKTOP CreateDesktop(void) {
     LPDESKTOP This;
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
     LPDESKTOP PreviousDesktop;
 
     This = (LPDESKTOP)KernelHeapAlloc(sizeof(DESKTOP));
@@ -317,7 +317,7 @@ LPDESKTOP CreateDesktop(void) {
         return NULL;
     }
 
-    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Size = sizeof(WINDOW_INFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;
@@ -398,10 +398,10 @@ BOOL DeleteDesktop(LPDESKTOP This) {
  * @return TRUE on success.
  */
 BOOL ShowDesktop(LPDESKTOP This) {
-    GRAPHICSMODEINFO ModeInfo;
-    GRAPHICSMODEINFO QueriedModeInfo;
-    GRAPHICSMODEINFO SelectedModeInfo;
-    GRAPHICSMODEINFO RequestedModeInfo;
+    GRAPHICS_MODE_INFO ModeInfo;
+    GRAPHICS_MODE_INFO QueriedModeInfo;
+    GRAPHICS_MODE_INFO SelectedModeInfo;
+    GRAPHICS_MODE_INFO RequestedModeInfo;
     UINT ModeSetResult;
     LPDESKTOP Desktop;
     LPLISTNODE Node;

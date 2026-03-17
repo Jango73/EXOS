@@ -1844,7 +1844,7 @@ static void SystemDataViewDrawPageGraphicsDevices(LPSYSTEM_DATA_VIEW_CONTEXT Con
 static BOOL SystemDataViewPciNetworkVisitor(LPSYSTEM_DATA_VIEW_CONTEXT Context,
     const SYSTEM_DATA_VIEW_PCI_INFO* Info,
     LPVOID UserData) {
-    NETWORKINFO NetworkInfo;
+    NETWORK_INFO NetworkInfo;
     NETWORK_GET_INFO GetInfo;
     STR Label[32];
     STR IPv4Address[24];

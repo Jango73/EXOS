@@ -68,9 +68,9 @@ static UINT PackageFSCommands(UINT Function, UINT Parameter) {
             return Initialize();
         case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
-        case DF_FS_GETVOLUMEINFO:
-            return PackageFSGetVolumeInfo((LPVOLUMEINFO)Parameter);
-        case DF_FS_SETVOLUMEINFO:
+        case DF_FS_GETVOLUME_INFO:
+            return PackageFSGetVolumeInfo((LPVOLUME_INFO)Parameter);
+        case DF_FS_SETVOLUME_INFO:
             return DF_RETURN_NO_PERMISSION;
         case DF_FS_CREATEFOLDER:
         case DF_FS_DELETEFOLDER:

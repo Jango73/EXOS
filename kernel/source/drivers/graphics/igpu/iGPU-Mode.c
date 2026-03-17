@@ -1103,7 +1103,7 @@ static UINT IntelGfxRestoreModeSnapshot(LPINTEL_GFX_MODE_SNAPSHOT Snapshot) {
 
 /************************************************************************/
 
-static UINT IntelGfxBuildModeProgram(LPGRAPHICSMODEINFO Info, LPINTEL_GFX_MODE_PROGRAM ProgramOut) {
+static UINT IntelGfxBuildModeProgram(LPGRAPHICS_MODE_INFO Info, LPINTEL_GFX_MODE_PROGRAM ProgramOut) {
     const INTEL_DISPLAY_FAMILY_OPS* Family = IntelGfxGetFamilyProgramming();
     U32 RequestedWidth = 0;
     U32 RequestedHeight = 0;
@@ -1521,7 +1521,7 @@ UINT IntelGfxTakeoverActiveMode(void) {
 
 /************************************************************************/
 
-UINT IntelGfxSetMode(LPGRAPHICSMODEINFO Info) {
+UINT IntelGfxSetMode(LPGRAPHICS_MODE_INFO Info) {
     INTEL_GFX_MODE_PROGRAM Program;
     UINT Result = 0;
 

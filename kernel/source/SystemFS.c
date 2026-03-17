@@ -595,7 +595,7 @@ static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR Sou
 BOOL SystemFSMountFileSystem(LPFILESYSTEM FileSystem) {
     FS_MOUNT_CONTROL Control;
     FS_PATHCHECK Check;
-    VOLUMEINFO Volume;
+    VOLUME_INFO Volume;
     STR Path[MAX_PATH_NAME];
     const STR FsRoot[] = {PATH_SEP, 'f', 's', STR_NULL};
     LPSYSTEMFSFILESYSTEM SystemFS = GetSystemFSData();
@@ -606,10 +606,10 @@ BOOL SystemFSMountFileSystem(LPFILESYSTEM FileSystem) {
     if (SystemFS == NULL || SystemFS->Root == NULL) return FALSE;
     if (FileSystem == &SystemFS->Header) return TRUE;
 
-    Volume.Size = sizeof(VOLUMEINFO);
+    Volume.Size = sizeof(VOLUME_INFO);
     Volume.Volume = (HANDLE)FileSystem;
     Volume.Name[0] = STR_NULL;
-    Result = FileSystem->Driver->Command(DF_FS_GETVOLUMEINFO, (UINT)&Volume);
+    Result = FileSystem->Driver->Command(DF_FS_GETVOLUME_INFO, (UINT)&Volume);
     if (Result != DF_RETURN_SUCCESS || Volume.Name[0] == STR_NULL) {
         StringCopy(Volume.Name, FileSystem->Name);
     }
@@ -648,7 +648,7 @@ BOOL SystemFSMountFileSystem(LPFILESYSTEM FileSystem) {
 BOOL SystemFSUnmountFileSystem(LPFILESYSTEM FileSystem) {
     FS_UNMOUNT_CONTROL Control;
     FS_PATHCHECK Check;
-    VOLUMEINFO Volume;
+    VOLUME_INFO Volume;
     STR Path[MAX_PATH_NAME];
     const STR FsRoot[] = {PATH_SEP, 'f', 's', STR_NULL};
     LPSYSTEMFSFILESYSTEM SystemFS = GetSystemFSData();
@@ -659,10 +659,10 @@ BOOL SystemFSUnmountFileSystem(LPFILESYSTEM FileSystem) {
     if (SystemFS == NULL || SystemFS->Root == NULL) return FALSE;
     if (FileSystem == &SystemFS->Header) return TRUE;
 
-    Volume.Size = sizeof(VOLUMEINFO);
+    Volume.Size = sizeof(VOLUME_INFO);
     Volume.Volume = (HANDLE)FileSystem;
     Volume.Name[0] = STR_NULL;
-    Result = FileSystem->Driver->Command(DF_FS_GETVOLUMEINFO, (UINT)&Volume);
+    Result = FileSystem->Driver->Command(DF_FS_GETVOLUME_INFO, (UINT)&Volume);
     if (Result != DF_RETURN_SUCCESS || Volume.Name[0] == STR_NULL) {
         StringCopy(Volume.Name, FileSystem->Name);
     }
@@ -1104,15 +1104,15 @@ UINT SystemFSCommands(UINT Function, UINT Parameter) {
             return Initialize();
         case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
-        case DF_FS_GETVOLUMEINFO: {
-            LPVOLUMEINFO Info = (LPVOLUMEINFO)Parameter;
-            if (Info && Info->Size == sizeof(VOLUMEINFO)) {
+        case DF_FS_GETVOLUME_INFO: {
+            LPVOLUME_INFO Info = (LPVOLUME_INFO)Parameter;
+            if (Info && Info->Size == sizeof(VOLUME_INFO)) {
                 StringCopy(Info->Name, TEXT("/"));
                 return DF_RETURN_SUCCESS;
             }
             return DF_RETURN_BAD_PARAMETER;
         }
-        case DF_FS_SETVOLUMEINFO:
+        case DF_FS_SETVOLUME_INFO:
             return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_CREATEFOLDER:
             return CreateFolder((LPFILEINFO)Parameter);

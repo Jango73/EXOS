@@ -34,21 +34,21 @@
 
 /************************************************************************/
 
-static BOOL DisplaySessionQueryGraphicsMode(LPDRIVER Driver, LPGRAPHICSMODEINFO ModeInfo);
+static BOOL DisplaySessionQueryGraphicsMode(LPDRIVER Driver, LPGRAPHICS_MODE_INFO ModeInfo);
 /**
  * @brief Query active mode information from a graphics backend.
  * @param Driver Graphics driver to query.
  * @param ModeInfo Output mode information.
  * @return TRUE when mode information is valid.
  */
-static BOOL DisplaySessionQueryGraphicsMode(LPDRIVER Driver, LPGRAPHICSMODEINFO ModeInfo) {
+static BOOL DisplaySessionQueryGraphicsMode(LPDRIVER Driver, LPGRAPHICS_MODE_INFO ModeInfo) {
     UINT Result;
 
     if (Driver == NULL || Driver->Command == NULL || ModeInfo == NULL) {
         return FALSE;
     }
 
-    ModeInfo->Header.Size = sizeof(GRAPHICSMODEINFO);
+    ModeInfo->Header.Size = sizeof(GRAPHICS_MODE_INFO);
     ModeInfo->Header.Version = EXOS_ABI_VERSION;
     ModeInfo->Header.Flags = 0;
     ModeInfo->ModeIndex = INFINITY;
@@ -91,7 +91,7 @@ void DisplaySessionInitialize(void) {
  * @param ModeInfo Active console mode.
  * @return TRUE on success.
  */
-BOOL DisplaySessionSetConsoleMode(LPGRAPHICSMODEINFO ModeInfo) {
+BOOL DisplaySessionSetConsoleMode(LPGRAPHICS_MODE_INFO ModeInfo) {
     LPDISPLAY_SESSION Session = GetDisplaySession();
 
     if (ModeInfo == NULL) {
@@ -122,7 +122,7 @@ BOOL DisplaySessionSetConsoleMode(LPGRAPHICSMODEINFO ModeInfo) {
  * @param ModeInfo Active graphics mode.
  * @return TRUE on success.
  */
-BOOL DisplaySessionSetConsoleGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICSMODEINFO ModeInfo) {
+BOOL DisplaySessionSetConsoleGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICS_MODE_INFO ModeInfo) {
     LPDISPLAY_SESSION Session = GetDisplaySession();
 
     if (GraphicsDriver == NULL || ModeInfo == NULL) {
@@ -158,7 +158,7 @@ BOOL DisplaySessionSetConsoleGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICSMOD
  * @param ModeInfo Active graphics mode.
  * @return TRUE on success.
  */
-BOOL DisplaySessionSetDesktopMode(LPDESKTOP Desktop, LPDRIVER GraphicsDriver, LPGRAPHICSMODEINFO ModeInfo) {
+BOOL DisplaySessionSetDesktopMode(LPDESKTOP Desktop, LPDRIVER GraphicsDriver, LPGRAPHICS_MODE_INFO ModeInfo) {
     LPDISPLAY_SESSION Session = GetDisplaySession();
 
     if (Desktop == NULL || GraphicsDriver == NULL || ModeInfo == NULL) {
@@ -187,7 +187,7 @@ BOOL DisplaySessionSetDesktopMode(LPDESKTOP Desktop, LPDRIVER GraphicsDriver, LP
  * @return TRUE on success.
  */
 BOOL DisplaySwitchToConsole(void) {
-    GRAPHICSMODEINFO ModeInfo;
+    GRAPHICS_MODE_INFO ModeInfo;
     UINT Result;
     LPDRIVER GraphicsDriver;
     LPDISPLAY_SESSION Session;

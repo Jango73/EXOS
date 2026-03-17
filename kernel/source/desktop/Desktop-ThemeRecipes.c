@@ -257,7 +257,7 @@ static COLOR ThemeInterpolateColor(COLOR StartColor, COLOR EndColor, U32 Numerat
  */
 static BOOL ThemeDrawColoredLine(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color) {
     PEN Pen;
-    LINEINFO LineInfo;
+    LINE_INFO LineInfo;
     HANDLE OldPen;
 
     if (GC == NULL) return FALSE;
@@ -268,7 +268,7 @@ static BOOL ThemeDrawColoredLine(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLO
     Pen.Color = Color;
     Pen.Pattern = MAX_U32;
 
-    LineInfo.Header.Size = sizeof(LINEINFO);
+    LineInfo.Header.Size = sizeof(LINE_INFO);
     LineInfo.Header.Version = EXOS_ABI_VERSION;
     LineInfo.Header.Flags = 0;
     LineInfo.GC = GC;
@@ -298,7 +298,7 @@ static BOOL ThemeDrawColoredLine(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLO
  */
 static BOOL ThemeDrawFilledRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color) {
     BRUSH Brush;
-    RECTINFO RectInfo;
+    RECT_INFO RectInfo;
     HANDLE OldBrush;
     HANDLE OldPen;
 
@@ -310,7 +310,7 @@ static BOOL ThemeDrawFilledRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR
     Brush.Color = Color;
     Brush.Pattern = MAX_U32;
 
-    RectInfo.Header.Size = sizeof(RECTINFO);
+    RectInfo.Header.Size = sizeof(RECT_INFO);
     RectInfo.Header.Version = EXOS_ABI_VERSION;
     RectInfo.Header.Flags = 0;
     RectInfo.GC = GC;

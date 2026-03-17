@@ -7,7 +7,7 @@
   - `EnqueueInputMessage` (focused window/process message queue in `kernel/source/process/TaskMessaging.c`), or
   - the legacy keyboard buffer (`Keyboard.Buffer`) when no message queue is available.
 - Userland uses `runtime/include/exos.h` `Console*` functions that map to the console syscalls.
-- `PROCESSINFO` exposes `StdIn/StdOut/StdErr` but the `PROCESS` struct does not store them and the console path ignores them.
+- `PROCESS_INFO` exposes `StdIn/StdOut/StdErr` but the `PROCESS` struct does not store them and the console path ignores them.
 - `SystemFS` is the root pseudo filesystem (`kernel/source/SystemFS.c`), but there are no TTY nodes yet.
 - Configuration is provided via TOML (see `kernel/configuration/exos.ref.toml`) and is used for runtime paths.
 
@@ -74,7 +74,7 @@
 
 ## [ ] Step 5 - Process StdIO Plumbing
 
-- Extend `PROCESS` to store `StdIn`, `StdOut`, `StdErr` handles (matching `PROCESSINFO`).
+- Extend `PROCESS` to store `StdIn`, `StdOut`, `StdErr` handles (matching `PROCESS_INFO`).
 - On process creation:
   - If `StdIn/Out/Err` not provided, default to `tty0` or the caller's controlling TTY.
   - Bind `ControllingTTY` accordingly.

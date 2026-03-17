@@ -1041,7 +1041,7 @@ HANDLE SelectPen(HANDLE GC, HANDLE Pen) {
  * @param BrushInfo Brush parameters.
  * @return Handle to the created brush or NULL.
  */
-HANDLE CreateBrush(LPBRUSHINFO BrushInfo) {
+HANDLE CreateBrush(LPBRUSH_INFO BrushInfo) {
     LPBRUSH Brush = NULL;
 
     if (BrushInfo == NULL) return NULL;
@@ -1066,7 +1066,7 @@ HANDLE CreateBrush(LPBRUSHINFO BrushInfo) {
  * @param PenInfo Pen parameters.
  * @return Handle to the created pen or NULL.
  */
-HANDLE CreatePen(LPPENINFO PenInfo) {
+HANDLE CreatePen(LPPEN_INFO PenInfo) {
     LPPEN Pen = NULL;
 
     if (PenInfo == NULL) return NULL;
@@ -1091,9 +1091,9 @@ HANDLE CreatePen(LPPENINFO PenInfo) {
  * @param PixelInfo Pixel parameters.
  * @return TRUE on success.
  */
-BOOL SetPixel(LPPIXELINFO PixelInfo) {
+BOOL SetPixel(LPPIXEL_INFO PixelInfo) {
     LPGRAPHICSCONTEXT Context;
-    PIXELINFO Pixel;
+    PIXEL_INFO Pixel;
 
     //-------------------------------------
     // Check validity of parameters
@@ -1121,9 +1121,9 @@ BOOL SetPixel(LPPIXELINFO PixelInfo) {
  * @param PixelInfo Pixel parameters.
  * @return TRUE on success.
  */
-BOOL GetPixel(LPPIXELINFO PixelInfo) {
+BOOL GetPixel(LPPIXEL_INFO PixelInfo) {
     LPGRAPHICSCONTEXT Context;
-    PIXELINFO Pixel;
+    PIXEL_INFO Pixel;
 
     //-------------------------------------
     // Check validity of parameters
@@ -1152,15 +1152,15 @@ BOOL GetPixel(LPPIXELINFO PixelInfo) {
  * @param LineInfo Line parameters.
  * @return TRUE on success.
  */
-BOOL Line(LPLINEINFO LineInfo) {
+BOOL Line(LPLINE_INFO LineInfo) {
     LPGRAPHICSCONTEXT Context;
-    LINEINFO Line;
+    LINE_INFO Line;
 
     //-------------------------------------
     // Check validity of parameters
 
     if (LineInfo == NULL) return FALSE;
-    if (LineInfo->Header.Size < sizeof(LINEINFO)) return FALSE;
+    if (LineInfo->Header.Size < sizeof(LINE_INFO)) return FALSE;
 
     Context = (LPGRAPHICSCONTEXT)LineInfo->GC;
 
@@ -1185,15 +1185,15 @@ BOOL Line(LPLINEINFO LineInfo) {
  * @param RectInfo Rectangle parameters.
  * @return TRUE on success.
  */
-BOOL Rectangle(LPRECTINFO RectInfo) {
+BOOL Rectangle(LPRECT_INFO RectInfo) {
     LPGRAPHICSCONTEXT Context;
-    RECTINFO RectangleInfo;
+    RECT_INFO RectangleInfo;
 
     //-------------------------------------
     // Check validity of parameters
 
     if (RectInfo == NULL) return FALSE;
-    if (RectInfo->Header.Size < sizeof(RECTINFO)) return FALSE;
+    if (RectInfo->Header.Size < sizeof(RECT_INFO)) return FALSE;
 
     Context = (LPGRAPHICSCONTEXT)RectInfo->GC;
 
@@ -1218,12 +1218,12 @@ BOOL Rectangle(LPRECTINFO RectInfo) {
  * @param ArcInfo Arc parameters.
  * @return TRUE on success.
  */
-BOOL Arc(LPARCINFO ArcInfo) {
+BOOL Arc(LPARC_INFO ArcInfo) {
     LPGRAPHICSCONTEXT Context;
-    ARCINFO Arc;
+    ARC_INFO Arc;
 
     if (ArcInfo == NULL) return FALSE;
-    if (ArcInfo->Header.Size < sizeof(ARCINFO)) return FALSE;
+    if (ArcInfo->Header.Size < sizeof(ARC_INFO)) return FALSE;
 
     Context = (LPGRAPHICSCONTEXT)ArcInfo->GC;
     if (Context == NULL) return FALSE;
@@ -1244,12 +1244,12 @@ BOOL Arc(LPARCINFO ArcInfo) {
  * @param TriangleInfo Triangle parameters.
  * @return TRUE on success.
  */
-BOOL Triangle(LPTRIANGLEINFO TriangleInfo) {
+BOOL Triangle(LPTRIANGLE_INFO TriangleInfo) {
     LPGRAPHICSCONTEXT Context;
-    TRIANGLEINFO Triangle;
+    TRIANGLE_INFO Triangle;
 
     if (TriangleInfo == NULL) return FALSE;
-    if (TriangleInfo->Header.Size < sizeof(TRIANGLEINFO)) return FALSE;
+    if (TriangleInfo->Header.Size < sizeof(TRIANGLE_INFO)) return FALSE;
 
     Context = (LPGRAPHICSCONTEXT)TriangleInfo->GC;
     if (Context == NULL) return FALSE;
@@ -1467,7 +1467,7 @@ static BOOL DesktopPostMouseMoveFromScreenPoint(LPWINDOW Target, LPPOINT ScreenP
 
 /*
 static U32 DrawMouseCursor(HANDLE GC, I32 X, I32 Y, BOOL OnOff) {
-    LINEINFO LineInfo;
+    LINE_INFO LineInfo;
 
     if (OnOff) {
         SelectPen(GC, GetSystemPen(SM_COLOR_HIGHLIGHT));
@@ -1497,7 +1497,7 @@ static U32 DrawMouseCursor(HANDLE GC, I32 X, I32 Y, BOOL OnOff) {
 
 /*
 static U32 DrawButtons(HANDLE GC) {
-    LINEINFO LineInfo;
+    LINE_INFO LineInfo;
     U32 Buttons = GetMouseDriver().Command(DF_MOUSE_GETBUTTONS, 0);
 
     if (Buttons & MB_LEFT) {

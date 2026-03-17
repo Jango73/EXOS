@@ -34,7 +34,7 @@
 
 /***************************************************************************/
 
-#include "User.h" /* For console color defines and CONSOLEBLITBUFFER */
+#include "User.h" /* For console color defines and CONSOLE_BLIT_BUFFER */
 
 /***************************************************************************/
 
@@ -138,10 +138,10 @@ void ConsoleSetFramebufferInfo(
     U32 GreenMaskSize,
     U32 BluePosition,
     U32 BlueMaskSize);
-BOOL ConsoleSetGraphicsTextMode(LPGRAPHICSMODEINFO ModeInfo);
-UINT ConsoleSetMode(LPGRAPHICSMODEINFO Info);
+BOOL ConsoleSetGraphicsTextMode(LPGRAPHICS_MODE_INFO ModeInfo);
+UINT ConsoleSetMode(LPGRAPHICS_MODE_INFO Info);
 UINT ConsoleGetModeCount(void);
-UINT ConsoleGetModeInfo(LPCONSOLEMODEINFO Info);
+UINT ConsoleGetModeInfo(LPCONSOLE_MODE_INFO Info);
 void ConsoleSetPagingEnabled(BOOL Enabled);
 BOOL ConsoleGetPagingEnabled(void);
 void ConsoleSetPagingActive(BOOL Active);

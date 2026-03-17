@@ -535,7 +535,7 @@ static UINT IntelGfxUnload(void) {
 
 /************************************************************************/
 
-static UINT IntelGfxGetModeInfo(LPGRAPHICSMODEINFO Info) {
+static UINT IntelGfxGetModeInfo(LPGRAPHICS_MODE_INFO Info) {
     INTEL_GFX_MODE_CANDIDATE Candidate;
 
     SAFE_USE(Info) {
@@ -633,23 +633,23 @@ static UINT IntelGfxCommands(UINT Function, UINT Param) {
         case DF_GFX_GETMODECOUNT:
             return IntelGfxGetModeCount();
         case DF_GFX_GETMODEINFO:
-            return IntelGfxGetModeInfo((LPGRAPHICSMODEINFO)Param);
+            return IntelGfxGetModeInfo((LPGRAPHICS_MODE_INFO)Param);
         case DF_GFX_GETCAPABILITIES:
             return IntelGfxGetCapabilities((LPGFX_CAPABILITIES)Param);
         case DF_GFX_SETMODE:
-            return IntelGfxSetMode((LPGRAPHICSMODEINFO)Param);
+            return IntelGfxSetMode((LPGRAPHICS_MODE_INFO)Param);
         case DF_GFX_SETPIXEL:
-            return IntelGfxSetPixel((LPPIXELINFO)Param);
+            return IntelGfxSetPixel((LPPIXEL_INFO)Param);
         case DF_GFX_GETPIXEL:
-            return IntelGfxGetPixel((LPPIXELINFO)Param);
+            return IntelGfxGetPixel((LPPIXEL_INFO)Param);
         case DF_GFX_LINE:
-            return IntelGfxLine((LPLINEINFO)Param);
+            return IntelGfxLine((LPLINE_INFO)Param);
         case DF_GFX_RECTANGLE:
-            return IntelGfxRectangle((LPRECTINFO)Param);
+            return IntelGfxRectangle((LPRECT_INFO)Param);
         case DF_GFX_ARC:
-            return IntelGfxArc((LPARCINFO)Param);
+            return IntelGfxArc((LPARC_INFO)Param);
         case DF_GFX_TRIANGLE:
-            return IntelGfxTriangle((LPTRIANGLEINFO)Param);
+            return IntelGfxTriangle((LPTRIANGLE_INFO)Param);
         case DF_GFX_TEXT_PUTCELL:
             return IntelGfxTextPutCell((LPGFX_TEXT_CELL_INFO)Param);
         case DF_GFX_TEXT_CLEAR_REGION:

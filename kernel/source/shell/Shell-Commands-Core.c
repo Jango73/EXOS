@@ -803,7 +803,7 @@ U32 CMD_cls(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 U32 CMD_conmode(LPSHELLCONTEXT Context) {
-    GRAPHICSMODEINFO Info;
+    GRAPHICS_MODE_INFO Info;
     U32 Columns;
     U32 Rows;
     U32 Result;
@@ -816,7 +816,7 @@ U32 CMD_conmode(LPSHELLCONTEXT Context) {
     }
 
     if (StringCompareNC(Context->Command, TEXT("list")) == 0) {
-        CONSOLEMODEINFO ModeInfo;
+        CONSOLE_MODE_INFO ModeInfo;
         ModeCount = DoSystemCall(SYSCALL_ConsoleGetModeCount, SYSCALL_PARAM(0));
         ConsolePrint(TEXT("VGA text modes:\n"));
         for (U32 Index = 0; Index < ModeCount; Index++) {

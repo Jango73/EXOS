@@ -351,7 +351,7 @@ void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
  * and seeds the register snapshot so the generic scheduler can operate while
  * the long mode context-switching code is under construction.
  */
-BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info) {
+BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASK_INFO* Info) {
     LINEAR BaseVMA = VMA_KERNEL;
     UNUSED(BaseVMA);
     SELECTOR CodeSelector = SELECTOR_KERNEL_CODE;

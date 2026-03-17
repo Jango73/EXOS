@@ -71,7 +71,7 @@ typedef enum tag_DESKTOP_LOCK_ROLE {
 LPDESKTOP CreateDesktop(void);
 BOOL DeleteDesktop(LPDESKTOP);
 BOOL ShowDesktop(LPDESKTOP);
-LPWINDOW DesktopCreateWindow(LPWINDOWINFO);
+LPWINDOW DesktopCreateWindow(LPWINDOW_INFO);
 BOOL DesktopDeleteWindow(LPWINDOW);
 LPWINDOW DesktopFindWindow(LPWINDOW, U32);
 LPWINDOW DesktopContainsWindow(LPWINDOW, LPWINDOW);
@@ -87,9 +87,9 @@ BOOL WindowRectToScreenRect(HANDLE Handle, LPRECT WindowRect, LPRECT ScreenRect)
 BOOL GetDesktopScreenRect(LPDESKTOP, LPRECT);
 HANDLE GetWindowGC(HANDLE);
 BOOL ReleaseWindowGC(HANDLE);
-BOOL SetPixel(LPPIXELINFO);
-BOOL GetPixel(LPPIXELINFO);
-BOOL Rectangle(LPRECTINFO);
+BOOL SetPixel(LPPIXEL_INFO);
+BOOL GetPixel(LPPIXEL_INFO);
+BOOL Rectangle(LPRECT_INFO);
 BOOL DesktopDrawText(LPGFX_TEXT_DRAW_INFO);
 BOOL DesktopMeasureText(LPGFX_TEXT_MEASURE_INFO);
 HANDLE WindowHitTest(HANDLE, LPPOINT);

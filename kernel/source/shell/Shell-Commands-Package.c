@@ -45,8 +45,8 @@ static BOOL ShellLaunchPackage(LPSHELLCONTEXT Context,
                                BOOL Background);
 
 BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName) {
-    FILEOPENINFO FileOpenInfo;
-    FILEOPERATION FileOperation;
+    FILE_OPEN_INFO FileOpenInfo;
+    FILE_OPERATION FileOperation;
     HANDLE Handle = NULL;
     U32 FileSize = 0;
     U32 BytesRead = 0;
@@ -61,7 +61,7 @@ BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName) {
         return FALSE;
     }
 
-    FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
+    FileOpenInfo.Header.Size = sizeof(FILE_OPEN_INFO);
     FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
     FileOpenInfo.Header.Flags = 0;
     FileOpenInfo.Name = ScriptFileName;
@@ -88,7 +88,7 @@ BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName) {
         goto Out;
     }
 
-    FileOperation.Header.Size = sizeof(FILEOPERATION);
+    FileOperation.Header.Size = sizeof(FILE_OPERATION);
     FileOperation.Header.Version = EXOS_ABI_VERSION;
     FileOperation.Header.Flags = 0;
     FileOperation.File = Handle;
@@ -668,10 +668,10 @@ static BOOL ShellLaunchCommandLine(LPSHELLCONTEXT Context,
     }
 
     if (Background) {
-        PROCESSINFO ProcessInfo;
+        PROCESS_INFO ProcessInfo;
 
         MemorySet(&ProcessInfo, 0, sizeof(ProcessInfo));
-        ProcessInfo.Header.Size = sizeof(PROCESSINFO);
+        ProcessInfo.Header.Size = sizeof(PROCESS_INFO);
         ProcessInfo.Header.Version = EXOS_ABI_VERSION;
         ProcessInfo.Header.Flags = 0;
         ProcessInfo.Flags = 0;

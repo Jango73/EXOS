@@ -677,12 +677,12 @@ static UINT GetObjectExitCode(LPVOID Object) {
 
 /************************************************************************/
 
-U32 Wait(LPWAITINFO WaitInfo) {
+U32 Wait(LPWAIT_INFO WaitInfo) {
     UINT Index;
     UINT StartTime;
     LPTASK CurrentTask;
 
-    if (WaitInfo == NULL || WaitInfo->Count == 0 || WaitInfo->Count > WAITINFO_MAX_OBJECTS) {
+    if (WaitInfo == NULL || WaitInfo->Count == 0 || WaitInfo->Count > WAIT_INFO_MAX_OBJECTS) {
         return WAIT_INVALID_PARAMETER;
     }
 

@@ -349,7 +349,7 @@ static U32 ShutdownVESA(void) {
  * @param Info Requested mode description
  * @return DF_RETURN_SUCCESS on success, DF_RETURN_GENERIC otherwise
  */
-static U32 SetVideoMode(LPGRAPHICSMODEINFO Info) {
+static U32 SetVideoMode(LPGRAPHICS_MODE_INFO Info) {
     INTEL_X86_REGISTERS Regs;
     U16* ModePtr = NULL;
     U32 Found = 0;
@@ -609,7 +609,7 @@ static U32 SetClip(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
  * @param Color 8-bit color value
  * @return Previous pixel value
  */
-static LPBRUSH VESA_CreateBrush(LPBRUSHINFO Info) {
+static LPBRUSH VESA_CreateBrush(LPBRUSH_INFO Info) {
     LPBRUSH Brush;
 
     if (Info == NULL) return NULL;
@@ -635,7 +635,7 @@ static LPBRUSH VESA_CreateBrush(LPBRUSHINFO Info) {
  * @param Info Pen creation parameters
  * @return Allocated pen or NULL on failure
  */
-static LPPEN VESA_CreatePen(LPPENINFO Info) {
+static LPPEN VESA_CreatePen(LPPEN_INFO Info) {
     LPPEN Pen;
 
     if (Info == NULL) return NULL;
@@ -661,7 +661,7 @@ static LPPEN VESA_CreatePen(LPPENINFO Info) {
  * @param Info Pixel operation descriptor
  * @return 1 on success, 0 on failure
  */
-static U32 VESA_SetPixel(LPPIXELINFO Info) {
+static U32 VESA_SetPixel(LPPIXEL_INFO Info) {
     LPVESA_CONTEXT Context;
 
     if (Info == NULL) return 0;
@@ -688,7 +688,7 @@ static U32 VESA_SetPixel(LPPIXELINFO Info) {
  * @param Info Pixel operation descriptor
  * @return 1 on success, 0 on failure
  */
-static U32 VESA_GetPixel(LPPIXELINFO Info) {
+static U32 VESA_GetPixel(LPPIXEL_INFO Info) {
     LPVESA_CONTEXT Context;
 
     if (Info == NULL) return 0;
@@ -715,7 +715,7 @@ static U32 VESA_GetPixel(LPPIXELINFO Info) {
  * @param Info Line descriptor
  * @return 1 on success, 0 on failure
  */
-static U32 VESA_Line(LPLINEINFO Info) {
+static U32 VESA_Line(LPLINE_INFO Info) {
     LPVESA_CONTEXT Context;
 
     if (Info == NULL) return 0;
@@ -745,7 +745,7 @@ static U32 VESA_Line(LPLINEINFO Info) {
  * @param Info Rectangle descriptor
  * @return 1 on success, 0 on failure
  */
-static U32 VESA_Rectangle(LPRECTINFO Info) {
+static U32 VESA_Rectangle(LPRECT_INFO Info) {
     LPVESA_CONTEXT Context;
     static U32 DATA_SECTION VESARectangleDebugCount = 0;
     PROFILE_SCOPE Scope;
@@ -789,7 +789,7 @@ static U32 VESA_Rectangle(LPRECTINFO Info) {
  * @param Info Arc descriptor.
  * @return 1 on success, 0 on failure.
  */
-static U32 VESA_Arc(LPARCINFO Info) {
+static U32 VESA_Arc(LPARC_INFO Info) {
     LPVESA_CONTEXT Context;
 
     if (Info == NULL) return 0;
@@ -812,7 +812,7 @@ static U32 VESA_Arc(LPARCINFO Info) {
  * @param Info Triangle descriptor.
  * @return 1 on success, 0 on failure.
  */
-static U32 VESA_Triangle(LPTRIANGLEINFO Info) {
+static U32 VESA_Triangle(LPTRIANGLE_INFO Info) {
     LPVESA_CONTEXT Context;
 
     if (Info == NULL) return 0;
@@ -1039,7 +1039,7 @@ UINT VESACommands(UINT Function, UINT Param) {
         case DF_GFX_GETMODECOUNT:
             return 0;
         case DF_GFX_GETMODEINFO: {
-            LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Param;
+            LPGRAPHICS_MODE_INFO Info = (LPGRAPHICS_MODE_INFO)Param;
 
             if ((VESADriver.Flags & DRIVER_FLAG_READY) == 0) {
                 return DF_RETURN_UNEXPECTED;
@@ -1063,25 +1063,25 @@ UINT VESACommands(UINT Function, UINT Param) {
             return DF_RETURN_GENERIC;
         }
         case DF_GFX_SETMODE:
-            return SetVideoMode((LPGRAPHICSMODEINFO)Param);
+            return SetVideoMode((LPGRAPHICS_MODE_INFO)Param);
         case DF_GFX_GETCONTEXT:
             return (UINT)(LPVOID)&VESAContext;
         case DF_GFX_CREATEBRUSH:
-            return (UINT)VESA_CreateBrush((LPBRUSHINFO)Param);
+            return (UINT)VESA_CreateBrush((LPBRUSH_INFO)Param);
         case DF_GFX_CREATEPEN:
-            return (UINT)VESA_CreatePen((LPPENINFO)Param);
+            return (UINT)VESA_CreatePen((LPPEN_INFO)Param);
         case DF_GFX_SETPIXEL:
-            return VESA_SetPixel((LPPIXELINFO)Param);
+            return VESA_SetPixel((LPPIXEL_INFO)Param);
         case DF_GFX_GETPIXEL:
-            return VESA_GetPixel((LPPIXELINFO)Param);
+            return VESA_GetPixel((LPPIXEL_INFO)Param);
         case DF_GFX_LINE:
-            return VESA_Line((LPLINEINFO)Param);
+            return VESA_Line((LPLINE_INFO)Param);
         case DF_GFX_RECTANGLE:
-            return VESA_Rectangle((LPRECTINFO)Param);
+            return VESA_Rectangle((LPRECT_INFO)Param);
         case DF_GFX_ARC:
-            return VESA_Arc((LPARCINFO)Param);
+            return VESA_Arc((LPARC_INFO)Param);
         case DF_GFX_TRIANGLE:
-            return VESA_Triangle((LPTRIANGLEINFO)Param);
+            return VESA_Triangle((LPTRIANGLE_INFO)Param);
         case DF_GFX_TEXT_PUTCELL:
             return VESA_TextPutCell((LPGFX_TEXT_CELL_INFO)Param);
         case DF_GFX_TEXT_CLEAR_REGION:

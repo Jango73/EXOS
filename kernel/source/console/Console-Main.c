@@ -832,7 +832,7 @@ void ConsoleSetFramebufferInfo(
  * @param ModeInfo Active graphics mode descriptor.
  * @return TRUE on success, FALSE on invalid mode geometry.
  */
-BOOL ConsoleSetGraphicsTextMode(LPGRAPHICSMODEINFO ModeInfo) {
+BOOL ConsoleSetGraphicsTextMode(LPGRAPHICS_MODE_INFO ModeInfo) {
     U32 CellWidth = 0;
     U32 CellHeight = 0;
     U32 Columns = 0;
@@ -974,7 +974,7 @@ void ConsoleResetPaging(void) {
  * @param Info Mode description with Width/Height in characters.
  * @return DF_RETURN_SUCCESS on success, error code otherwise.
  */
-UINT ConsoleSetMode(LPGRAPHICSMODEINFO Info) { return ConsoleDriverCommands(DF_GFX_SETMODE, (UINT)Info); }
+UINT ConsoleSetMode(LPGRAPHICS_MODE_INFO Info) { return ConsoleDriverCommands(DF_GFX_SETMODE, (UINT)Info); }
 
 /***************************************************************************/
 
@@ -999,7 +999,7 @@ UINT ConsoleGetModeCount(void) {
  * @param Info Mode request (Index) and output (Columns/Rows/CharHeight).
  * @return DF_RETURN_SUCCESS on success, error code otherwise.
  */
-UINT ConsoleGetModeInfo(LPCONSOLEMODEINFO Info) {
+UINT ConsoleGetModeInfo(LPCONSOLE_MODE_INFO Info) {
     VGAMODEINFO VgaInfo;
 
     if (Info == NULL) return DF_RETURN_GENERIC;
@@ -1048,7 +1048,7 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
             return MAKE_VERSION(CONSOLE_VER_MAJOR, CONSOLE_VER_MINOR);
 
         case DF_GFX_GETMODEINFO: {
-            LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Parameter;
+            LPGRAPHICS_MODE_INFO Info = (LPGRAPHICS_MODE_INFO)Parameter;
             SAFE_USE(Info) {
                 Info->Width = Console.Width;
                 Info->Height = Console.Height;
@@ -1059,7 +1059,7 @@ static UINT ConsoleDriverCommands(UINT Function, UINT Parameter) {
         }
 
         case DF_GFX_SETMODE: {
-            LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Parameter;
+            LPGRAPHICS_MODE_INFO Info = (LPGRAPHICS_MODE_INFO)Parameter;
             SAFE_USE(Info) {
                 return ConsoleVGATextFallbackActivate(Info->Width, Info->Height, NULL) != FALSE ? DF_RETURN_SUCCESS
                                                                                                 : DF_GFX_ERROR_MODEUNAVAIL;

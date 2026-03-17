@@ -177,7 +177,7 @@ static void ReleaseFileSystemProbeSnapshot(LPFILESYSTEM* Snapshot, U32 Count) {
  * @param Info Pointer to file open information structure
  * @return Pointer to opened file structure, or NULL on failure
  */
-LPFILE OpenFile(LPFILEOPENINFO Info) {
+LPFILE OpenFile(LPFILE_OPEN_INFO Info) {
     FILEINFO Find;
     LPFILESYSTEM FileSystem = NULL;
     LPLISTNODE Node = NULL;
@@ -393,7 +393,7 @@ UINT GetFilePosition(LPFILE File) {
  * @param Operation Pointer to file operation structure containing new position
  * @return DF_RETURN_SUCCESS on success, DF_RETURN_BAD_PARAMETER on failure
  */
-UINT SetFilePosition(LPFILEOPERATION Operation) {
+UINT SetFilePosition(LPFILE_OPERATION Operation) {
     SAFE_USE_VALID(Operation) {
         LPFILE File = (LPFILE)Operation->File;
 
@@ -424,7 +424,7 @@ UINT SetFilePosition(LPFILEOPERATION Operation) {
  * @param Operation Pointer to file operation structure
  * @return Number of bytes read, 0 on failure
  */
-UINT ReadFile(LPFILEOPERATION Operation) {
+UINT ReadFile(LPFILE_OPERATION Operation) {
     LPFILE File = NULL;
     UINT Result = 0;
     UINT BytesTransferred = 0;
@@ -465,7 +465,7 @@ UINT ReadFile(LPFILEOPERATION Operation) {
  * @param Operation Pointer to file operation structure
  * @return Number of bytes written, 0 on failure
  */
-UINT WriteFile(LPFILEOPERATION Operation) {
+UINT WriteFile(LPFILE_OPERATION Operation) {
     LPFILE File = NULL;
     UINT Result = 0;
     UINT BytesWritten = 0;
@@ -542,8 +542,8 @@ UINT GetFileSize(LPFILE File) {
  * @return Pointer to allocated buffer containing file content, NULL on failure
  */
 LPVOID FileReadAll(LPCSTR Name, UINT *Size) {
-    FILEOPENINFO OpenInfo;
-    FILEOPERATION FileOp;
+    FILE_OPEN_INFO OpenInfo;
+    FILE_OPERATION FileOp;
     LPFILE File = NULL;
     LPVOID Buffer = NULL;
     UINT BytesToRead = 0;
@@ -555,7 +555,7 @@ LPVOID FileReadAll(LPCSTR Name, UINT *Size) {
         //-------------------------------------
         // Open the file
 
-        OpenInfo.Header.Size = sizeof(FILEOPENINFO);
+        OpenInfo.Header.Size = sizeof(FILE_OPEN_INFO);
         OpenInfo.Name = (LPSTR)Name;
         OpenInfo.Flags = FILE_OPEN_READ;
         File = OpenFile(&OpenInfo);
@@ -572,7 +572,7 @@ LPVOID FileReadAll(LPCSTR Name, UINT *Size) {
         Buffer = KernelHeapAlloc(BytesToRead + 1);
 
         SAFE_USE(Buffer) {
-            FileOp.Header.Size = sizeof(FILEOPERATION);
+            FileOp.Header.Size = sizeof(FILE_OPERATION);
             FileOp.File = (HANDLE)File;
             FileOp.Buffer = Buffer;
             FileOp.NumBytes = BytesToRead;
@@ -602,8 +602,8 @@ LPVOID FileReadAll(LPCSTR Name, UINT *Size) {
  * @return Number of bytes written
  */
 UINT FileWriteAll(LPCSTR Name, LPCVOID Buffer, UINT Size) {
-    FILEOPENINFO OpenInfo;
-    FILEOPERATION FileOp;
+    FILE_OPEN_INFO OpenInfo;
+    FILE_OPERATION FileOp;
     LPFILE File = NULL;
     UINT BytesWritten = 0;
 
@@ -613,7 +613,7 @@ UINT FileWriteAll(LPCSTR Name, LPCVOID Buffer, UINT Size) {
         //-------------------------------------
         // Open the file
 
-        OpenInfo.Header.Size = sizeof(FILEOPENINFO);
+        OpenInfo.Header.Size = sizeof(FILE_OPEN_INFO);
         OpenInfo.Name = (LPSTR)Name;
         OpenInfo.Flags = FILE_OPEN_WRITE | FILE_OPEN_CREATE_ALWAYS | FILE_OPEN_TRUNCATE;
         File = OpenFile(&OpenInfo);
@@ -626,7 +626,7 @@ UINT FileWriteAll(LPCSTR Name, LPCVOID Buffer, UINT Size) {
         //-------------------------------------
         // Write the buffer to the file
 
-        FileOp.Header.Size = sizeof(FILEOPERATION);
+        FileOp.Header.Size = sizeof(FILE_OPERATION);
         FileOp.File = (HANDLE)File;
         FileOp.Buffer = (LPVOID)Buffer;
         FileOp.NumBytes = Size;

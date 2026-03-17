@@ -382,7 +382,7 @@ static BOOL InitializeMouse(void) {
  */
 /*
 static void DrawMouseCursor(I32 X, I32 Y) {
-    LINEINFO LineInfo;
+    LINE_INFO LineInfo;
 
     LineInfo.GC = 0;
 

@@ -330,16 +330,16 @@ UINT IntelGfxVerifyProgramMode(const INTEL_GFX_MODE_PROGRAM* Program);
 UINT IntelGfxCommitProgramMode(const INTEL_GFX_MODE_PROGRAM* Program);
 
 UINT IntelGfxTakeoverActiveMode(void);
-UINT IntelGfxSetMode(LPGRAPHICSMODEINFO Info);
+UINT IntelGfxSetMode(LPGRAPHICS_MODE_INFO Info);
 
 void IntelGfxReleaseAllSurfaces(void);
 
-UINT IntelGfxSetPixel(LPPIXELINFO Info);
-UINT IntelGfxGetPixel(LPPIXELINFO Info);
-UINT IntelGfxLine(LPLINEINFO Info);
-UINT IntelGfxRectangle(LPRECTINFO Info);
-UINT IntelGfxArc(LPARCINFO Info);
-UINT IntelGfxTriangle(LPTRIANGLEINFO Info);
+UINT IntelGfxSetPixel(LPPIXEL_INFO Info);
+UINT IntelGfxGetPixel(LPPIXEL_INFO Info);
+UINT IntelGfxLine(LPLINE_INFO Info);
+UINT IntelGfxRectangle(LPRECT_INFO Info);
+UINT IntelGfxArc(LPARC_INFO Info);
+UINT IntelGfxTriangle(LPTRIANGLE_INFO Info);
 UINT IntelGfxFlushContextRegionToScanout(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, U32 Width, U32 Height);
 UINT IntelGfxScrollRegionViaShadow(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_REGION_INFO Info);
 void IntelGfxTextShutdownRuntime(void);

@@ -32,7 +32,7 @@
 // Header.Size with sizeof(struct), set Header.Version to EXOS_ABI_VERSION, and clear
 // Header.Flags before invoking system calls.
 
-HANDLE CreateTask(LPTASKINFO TaskInfo) { return (HANDLE)exoscall(SYSCALL_CreateTask, EXOS_PARAM(TaskInfo)); }
+HANDLE CreateTask(LPTASK_INFO TaskInfo) { return (HANDLE)exoscall(SYSCALL_CreateTask, EXOS_PARAM(TaskInfo)); }
 
 /***************************************************************************/
 
@@ -48,7 +48,7 @@ void Sleep(U32 MilliSeconds) { exoscall(SYSCALL_Sleep, EXOS_PARAM(MilliSeconds))
 
 /***************************************************************************/
 
-U32 Wait(LPWAITINFO WaitInfo) { return (U32)exoscall(SYSCALL_Wait, EXOS_PARAM(WaitInfo)); }
+U32 Wait(LPWAIT_INFO WaitInfo) { return (U32)exoscall(SYSCALL_Wait, EXOS_PARAM(WaitInfo)); }
 
 /***************************************************************************/
 
@@ -61,7 +61,7 @@ BOOL GetLocalTime(LPDATETIME Time) { return (BOOL)exoscall(SYSCALL_GetLocalTime,
 /***************************************************************************/
 
 BOOL GetMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last) {
-    MESSAGEINFO MessageInfo;
+    MESSAGE_INFO MessageInfo;
     BOOL Result;
 
     MessageInfo.Header.Size = sizeof MessageInfo;
@@ -85,7 +85,7 @@ BOOL GetMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last) {
 /***************************************************************************/
 
 BOOL PeekMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last, U32 Flags) {
-    MESSAGEINFO MessageInfo;
+    MESSAGE_INFO MessageInfo;
     BOOL Result;
 
     UNUSED(Flags);
@@ -113,7 +113,7 @@ BOOL PeekMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last, U32 Flag
 /***************************************************************************/
 
 BOOL DispatchMessage(LPMESSAGE Message) {
-    MESSAGEINFO MessageInfo;
+    MESSAGE_INFO MessageInfo;
     MESSAGE LocalMessage;
 
     if (Message == NULL) return FALSE;
@@ -137,7 +137,7 @@ BOOL DispatchMessage(LPMESSAGE Message) {
 BOOL PostMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2) {
     UNUSED(Target);
 
-    MESSAGEINFO MessageInfo;
+    MESSAGE_INFO MessageInfo;
 
     MessageInfo.Header.Size = sizeof MessageInfo;
     MessageInfo.Header.Version = EXOS_ABI_VERSION;
@@ -152,7 +152,7 @@ BOOL PostMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2) {
 /***************************************************************************/
 
 U32 SendMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2) {
-    MESSAGEINFO MessageInfo;
+    MESSAGE_INFO MessageInfo;
 
     MessageInfo.Header.Size = sizeof MessageInfo;
     MessageInfo.Header.Version = EXOS_ABI_VERSION;
@@ -167,14 +167,14 @@ U32 SendMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2) {
 
 /***************************************************************************/
 
-U32 FindFirstFile(FILEFINDINFO* Info) {
+U32 FindFirstFile(FILE_FIND_INFO* Info) {
     if (Info == NULL) return 0;
     return (U32)exoscall(SYSCALL_FindFirstFile, EXOS_PARAM(Info));
 }
 
 /***************************************************************************/
 
-U32 FindNextFile(FILEFINDINFO* Info) {
+U32 FindNextFile(FILE_FIND_INFO* Info) {
     if (Info == NULL) return 0;
     return (U32)exoscall(SYSCALL_FindNextFile, EXOS_PARAM(Info));
 }
@@ -198,7 +198,7 @@ HANDLE GetCurrentDesktop(void) { return (HANDLE)exoscall(SYSCALL_GetCurrentDeskt
 /***************************************************************************/
 
 HANDLE RegisterWindowClass(LPCSTR ClassName, HANDLE BaseClass, LPCSTR BaseClassName, WINDOWFUNC Function, U32 ClassDataSize) {
-    WINDOWCLASSINFO ClassInfo;
+    WINDOW_CLASS_INFO ClassInfo;
 
     ClassInfo.Header.Size = sizeof ClassInfo;
     ClassInfo.Header.Version = EXOS_ABI_VERSION;
@@ -216,7 +216,7 @@ HANDLE RegisterWindowClass(LPCSTR ClassName, HANDLE BaseClass, LPCSTR BaseClassN
 /***************************************************************************/
 
 BOOL UnregisterWindowClass(HANDLE WindowClass, LPCSTR ClassName) {
-    WINDOWCLASSINFO ClassInfo;
+    WINDOW_CLASS_INFO ClassInfo;
 
     ClassInfo.Header.Size = sizeof ClassInfo;
     ClassInfo.Header.Version = EXOS_ABI_VERSION;
@@ -234,7 +234,7 @@ BOOL UnregisterWindowClass(HANDLE WindowClass, LPCSTR ClassName) {
 /***************************************************************************/
 
 HANDLE FindWindowClass(LPCSTR ClassName) {
-    WINDOWCLASSINFO ClassInfo;
+    WINDOW_CLASS_INFO ClassInfo;
 
     ClassInfo.Header.Size = sizeof ClassInfo;
     ClassInfo.Header.Version = EXOS_ABI_VERSION;
@@ -277,7 +277,7 @@ HANDLE CreateWindowWithClass(
     I32 PosY,
     I32 SizeX,
     I32 SizeY) {
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
 
     WindowInfo.Header.Size = sizeof WindowInfo;
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
@@ -300,7 +300,7 @@ HANDLE CreateWindowWithClass(
 
 /***************************************************************************/
 
-HANDLE CreateWindow(LPWINDOWINFO WindowInfo) {
+HANDLE CreateWindow(LPWINDOW_INFO WindowInfo) {
     return (HANDLE)exoscall(SYSCALL_CreateWindow, EXOS_PARAM(WindowInfo));
 }
 
@@ -311,7 +311,7 @@ BOOL DestroyWindow(HANDLE Window) { return (BOOL)exoscall(SYSCALL_DeleteObject, 
 /***************************************************************************/
 
 BOOL ShowWindow(HANDLE Window) {
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
 
     WindowInfo.Header.Size = sizeof WindowInfo;
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
@@ -324,7 +324,7 @@ BOOL ShowWindow(HANDLE Window) {
 /***************************************************************************/
 
 BOOL HideWindow(HANDLE Window) {
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
 
     WindowInfo.Header.Size = sizeof WindowInfo;
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
@@ -337,7 +337,7 @@ BOOL HideWindow(HANDLE Window) {
 /***************************************************************************/
 
 BOOL SetWindowStyle(HANDLE Window, U32 Style) {
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
 
     WindowInfo.Header.Size = sizeof WindowInfo;
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
@@ -352,7 +352,7 @@ BOOL SetWindowStyle(HANDLE Window, U32 Style) {
 /***************************************************************************/
 
 BOOL ClearWindowStyle(HANDLE Window, U32 Style) {
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
 
     WindowInfo.Header.Size = sizeof WindowInfo;
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
@@ -366,7 +366,7 @@ BOOL ClearWindowStyle(HANDLE Window, U32 Style) {
 /***************************************************************************/
 
 BOOL InvalidateWindowRect(HANDLE Window, LPRECT Rect) {
-    WINDOWRECT WindowRect;
+    WINDOW_RECT WindowRect;
 
     WindowRect.Header.Size = sizeof WindowRect;
     WindowRect.Header.Version = EXOS_ABI_VERSION;
@@ -391,7 +391,7 @@ BOOL InvalidateWindowRect(HANDLE Window, LPRECT Rect) {
 /***************************************************************************/
 
 UINT SetWindowProp(HANDLE Window, LPCSTR Name, UINT Value) {
-    PROPINFO PropInfo;
+    PROP_INFO PropInfo;
 
     PropInfo.Header.Size = sizeof PropInfo;
     PropInfo.Header.Version = EXOS_ABI_VERSION;
@@ -406,7 +406,7 @@ UINT SetWindowProp(HANDLE Window, LPCSTR Name, UINT Value) {
 /***************************************************************************/
 
 UINT GetWindowProp(HANDLE Window, LPCSTR Name) {
-    PROPINFO PropInfo;
+    PROP_INFO PropInfo;
 
     PropInfo.Header.Size = sizeof PropInfo;
     PropInfo.Header.Version = EXOS_ABI_VERSION;
@@ -444,7 +444,7 @@ BOOL EndWindowDraw(HANDLE Window) {
 /***************************************************************************/
 
 BOOL GetWindowRect(HANDLE Window, LPRECT Rect) {
-    WINDOWRECT WindowRect;
+    WINDOW_RECT WindowRect;
 
     if (Window == NULL) return FALSE;
     if (Rect == NULL) return FALSE;
@@ -471,7 +471,7 @@ BOOL GetWindowRect(HANDLE Window, LPRECT Rect) {
 /***************************************************************************/
 
 BOOL GetWindowClientRect(HANDLE Window, LPRECT Rect) {
-    WINDOWRECT WindowRect;
+    WINDOW_RECT WindowRect;
 
     if (Window == NULL) return FALSE;
     if (Rect == NULL) return FALSE;
@@ -498,7 +498,7 @@ BOOL GetWindowClientRect(HANDLE Window, LPRECT Rect) {
 /***************************************************************************/
 
 BOOL ScreenPointToWindowPoint(HANDLE Window, LPPOINT ScreenPoint, LPPOINT WindowPoint) {
-    WINDOWPOINTINFO WindowPointInfo;
+    WINDOW_POINT_INFO WindowPointInfo;
 
     if (Window == NULL) return FALSE;
     if (ScreenPoint == NULL) return FALSE;
@@ -529,7 +529,7 @@ U32 GetWindowChildCount(HANDLE Window) { return exoscall(SYSCALL_GetWindowChildC
 /***************************************************************************/
 
 HANDLE GetWindowChild(HANDLE Window, U32 ChildIndex) {
-    WINDOWCHILDINFO WindowChildInfo;
+    WINDOW_CHILD_INFO WindowChildInfo;
 
     WindowChildInfo.Header.Size = sizeof WindowChildInfo;
     WindowChildInfo.Header.Version = EXOS_ABI_VERSION;
@@ -551,7 +551,7 @@ HANDLE GetPreviousWindowSibling(HANDLE Window) { return (HANDLE)exoscall(SYSCALL
 /***************************************************************************/
 
 BOOL MoveWindow(HANDLE Window, LPRECT Rect) {
-    WINDOWRECT WindowRect;
+    WINDOW_RECT WindowRect;
 
     if (Window == NULL) return FALSE;
     if (Rect == NULL) return FALSE;
@@ -578,13 +578,13 @@ HANDLE GetSystemPen(U32 Index) { return exoscall(SYSCALL_GetSystemPen, EXOS_PARA
 
 /***************************************************************************/
 
-HANDLE CreateBrush(LPBRUSHINFO BrushInfo) {
+HANDLE CreateBrush(LPBRUSH_INFO BrushInfo) {
     return exoscall(SYSCALL_CreateBrush, EXOS_PARAM(BrushInfo));
 }
 
 /***************************************************************************/
 
-HANDLE CreatePen(LPPENINFO PenInfo) {
+HANDLE CreatePen(LPPEN_INFO PenInfo) {
     return exoscall(SYSCALL_CreatePen, EXOS_PARAM(PenInfo));
 }
 
@@ -619,7 +619,7 @@ HANDLE SelectPen(HANDLE GC, HANDLE Pen) {
 /***************************************************************************/
 
 U32 BaseWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
-    MESSAGEINFO MessageInfo;
+    MESSAGE_INFO MessageInfo;
 
     MessageInfo.Header.Size = sizeof MessageInfo;
     MessageInfo.Header.Version = EXOS_ABI_VERSION;
@@ -635,7 +635,7 @@ U32 BaseWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 /***************************************************************************/
 
 U32 SetPixel(HANDLE GC, U32 X, U32 Y) {
-    PIXELINFO PixelInfo;
+    PIXEL_INFO PixelInfo;
 
     PixelInfo.Header.Size = sizeof PixelInfo;
     PixelInfo.Header.Version = EXOS_ABI_VERSION;
@@ -650,7 +650,7 @@ U32 SetPixel(HANDLE GC, U32 X, U32 Y) {
 /***************************************************************************/
 
 U32 GetPixel(HANDLE GC, U32 X, U32 Y) {
-    PIXELINFO PixelInfo;
+    PIXEL_INFO PixelInfo;
 
     PixelInfo.Header.Size = sizeof PixelInfo;
     PixelInfo.Header.Version = EXOS_ABI_VERSION;
@@ -664,14 +664,14 @@ U32 GetPixel(HANDLE GC, U32 X, U32 Y) {
 
 /***************************************************************************/
 
-BOOL Line(LPLINEINFO LineInfo) {
+BOOL Line(LPLINE_INFO LineInfo) {
     return (BOOL)exoscall(SYSCALL_Line, EXOS_PARAM(LineInfo));
 }
 
 /***************************************************************************/
 
 void Rectangle(HANDLE GC, U32 X1, U32 Y1, U32 X2, U32 Y2) {
-    RECTINFO RectInfo;
+    RECT_INFO RectInfo;
 
     RectInfo.Header.Size = sizeof RectInfo;
     RectInfo.Header.Version = EXOS_ABI_VERSION;
@@ -757,7 +757,7 @@ U32 ConsoleGetKey(LPKEYCODE KeyCode) {
 
 /***************************************************************************/
 
-U32 ConsoleBlitBuffer(LPCONSOLEBLITBUFFER Buffer) {
+U32 ConsoleBlitBuffer(LPCONSOLE_BLIT_BUFFER Buffer) {
     return exoscall(SYSCALL_ConsoleBlitBuffer, EXOS_PARAM(Buffer));
 }
 
@@ -776,7 +776,7 @@ void ConsoleClear(void) {
 /***************************************************************************/
 
 U32 ConsoleSetMode(U32 Columns, U32 Rows) {
-    GRAPHICSMODEINFO Info;
+    GRAPHICS_MODE_INFO Info;
 
     Info.Header.Size = sizeof Info;
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -791,7 +791,7 @@ U32 ConsoleSetMode(U32 Columns, U32 Rows) {
 
 /***************************************************************************/
 
-BOOL ConsoleGetCurrentMode(LPCONSOLEMODEINFO Info) {
+BOOL ConsoleGetCurrentMode(LPCONSOLE_MODE_INFO Info) {
     if (Info == NULL) return FALSE;
 
     Info->Header.Size = sizeof *Info;

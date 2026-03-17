@@ -799,7 +799,7 @@ void GotoEndOfFile(LPEDITFILE File) {
  */
 I32 Loop(LPEDITCONTEXT Context) {
     KEYCODE KeyCode;
-    MESSAGEINFO Message;
+    MESSAGE_INFO Message;
     U32 Item;
     BOOL Handled;
 
@@ -919,8 +919,8 @@ I32 Loop(LPEDITCONTEXT Context) {
  * @return TRUE on success, FALSE on error.
  */
 BOOL OpenTextFile(LPEDITCONTEXT Context, LPCSTR Name) {
-    FILEOPENINFO Info;
-    FILEOPERATION FileOperation;
+    FILE_OPEN_INFO Info;
+    FILE_OPERATION FileOperation;
     LPEDITFILE File;
     LPEDITLINE Line;
     HANDLE Handle;

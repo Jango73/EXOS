@@ -67,7 +67,7 @@ BOOL DesktopClockWidgetEnsureClassRegistered(void) {
 /***************************************************************************/
 
 static BOOL DrawClockHandTriangle(HANDLE GC, HANDLE Brush, I32 CenterX, I32 CenterY, U32 Slot60, I32 Length, I32 HalfWidth, I32 Tail) {
-    TRIANGLEINFO TriangleInfo;
+    TRIANGLE_INFO TriangleInfo;
     I32 DirX;
     I32 DirY;
     I32 PerpX;
@@ -114,7 +114,7 @@ static BOOL DrawClockHandTriangle(HANDLE GC, HANDLE Brush, I32 CenterX, I32 Cent
 U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     RECT ClientRect;
     HANDLE GC;
-    ARCINFO ArcInfo;
+    ARC_INFO ArcInfo;
     DATETIME LocalTime;
     I32 ClientWidth;
     I32 ClientHeight;
@@ -127,7 +127,7 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
     U32 SecondSlot;
     U32 Hour;
     LPCLOCK_WIDGET_STATE State;
-    BRUSHINFO BrushInfo;
+    BRUSH_INFO BrushInfo;
 
     switch (Message) {
         case EWM_CREATE: {

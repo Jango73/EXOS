@@ -33,7 +33,7 @@
  * @param Selected Already selected mode.
  * @return TRUE when candidate should replace selected.
  */
-static BOOL IsBetterDesktopModeCandidate(LPGRAPHICSMODEINFO Candidate, LPGRAPHICSMODEINFO Selected) {
+static BOOL IsBetterDesktopModeCandidate(LPGRAPHICS_MODE_INFO Candidate, LPGRAPHICS_MODE_INFO Selected) {
     U32 CandidateArea;
     U32 SelectedArea;
 
@@ -63,7 +63,7 @@ static BOOL IsBetterDesktopModeCandidate(LPGRAPHICSMODEINFO Candidate, LPGRAPHIC
  * @param ModeInfo Mode descriptor to validate.
  * @return TRUE when width/height/depth are valid.
  */
-BOOL DesktopIsValidGraphicsModeInfo(LPGRAPHICSMODEINFO ModeInfo) {
+BOOL DesktopIsValidGraphicsModeInfo(LPGRAPHICS_MODE_INFO ModeInfo) {
     if (ModeInfo == NULL) return FALSE;
     if (ModeInfo->Width == 0 || ModeInfo->Height == 0 || ModeInfo->BitsPerPixel == 0) return FALSE;
     return TRUE;
@@ -79,10 +79,10 @@ BOOL DesktopIsValidGraphicsModeInfo(LPGRAPHICSMODEINFO ModeInfo) {
  * @param Height Requested height (0 means backend-defined).
  * @param BitsPerPixel Requested depth (0 means backend-defined).
  */
-void DesktopInitializeGraphicsModeInfo(LPGRAPHICSMODEINFO ModeInfo, U32 ModeIndex, U32 Width, U32 Height, U32 BitsPerPixel) {
+void DesktopInitializeGraphicsModeInfo(LPGRAPHICS_MODE_INFO ModeInfo, U32 ModeIndex, U32 Width, U32 Height, U32 BitsPerPixel) {
     if (ModeInfo == NULL) return;
 
-    ModeInfo->Header.Size = sizeof(GRAPHICSMODEINFO);
+    ModeInfo->Header.Size = sizeof(GRAPHICS_MODE_INFO);
     ModeInfo->Header.Version = EXOS_ABI_VERSION;
     ModeInfo->Header.Flags = 0;
     ModeInfo->ModeIndex = ModeIndex;
@@ -99,8 +99,8 @@ void DesktopInitializeGraphicsModeInfo(LPGRAPHICSMODEINFO ModeInfo, U32 ModeInde
  * @param SelectedMode Output selected mode.
  * @return TRUE when a mode was selected from mode enumeration.
  */
-BOOL DesktopSelectGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICSMODEINFO SelectedMode) {
-    GRAPHICSMODEINFO Candidate;
+BOOL DesktopSelectGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICS_MODE_INFO SelectedMode) {
+    GRAPHICS_MODE_INFO Candidate;
     UINT RawModeCount;
     U32 ModeCount;
     U32 MaxModesToProbe;

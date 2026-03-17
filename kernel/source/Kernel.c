@@ -1003,7 +1003,7 @@ static void KillActiveKernelTasks(void) {
  */
 
 void InitializeKernel(void) {
-    TASKINFO TaskInfo;
+    TASK_INFO TaskInfo;
 
     DEBUG(TEXT("[InitializeKernel] Start"));
 
@@ -1086,7 +1086,7 @@ void InitializeKernel(void) {
         //-------------------------------------
         // Kernel monitor
 
-        TaskInfo.Header.Size = sizeof(TASKINFO);
+        TaskInfo.Header.Size = sizeof(TASK_INFO);
         TaskInfo.Header.Version = EXOS_ABI_VERSION;
         TaskInfo.Header.Flags = 0;
         TaskInfo.Func = KernelMonitor;
@@ -1106,7 +1106,7 @@ void InitializeKernel(void) {
         DEBUG(TEXT("[InitializeKernel] ========================================"));
         KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Starting task"));
 
-        TaskInfo.Header.Size = sizeof(TASKINFO);
+        TaskInfo.Header.Size = sizeof(TASK_INFO);
         TaskInfo.Header.Version = EXOS_ABI_VERSION;
         TaskInfo.Header.Flags = 0;
         TaskInfo.Func = ClockTestTask;
@@ -1122,7 +1122,7 @@ void InitializeKernel(void) {
         //-------------------------------------
         // Shell task
 
-        TaskInfo.Header.Size = sizeof(TASKINFO);
+        TaskInfo.Header.Size = sizeof(TASK_INFO);
         TaskInfo.Header.Version = EXOS_ABI_VERSION;
         TaskInfo.Header.Flags = 0;
         TaskInfo.Func = Shell;

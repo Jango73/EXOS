@@ -55,7 +55,7 @@
 static UINT VGACommands(UINT Function, UINT Parameter);
 static U8 VGAReadCRTCRegister(U8 RegisterIndex);
 static BOOL VGAReadCurrentTextModeInfo(LPVGAMODEINFO Info);
-static UINT VGASetModeFromRequest(LPGRAPHICSMODEINFO Info);
+static UINT VGASetModeFromRequest(LPGRAPHICS_MODE_INFO Info);
 
 /***************************************************************************/
 
@@ -257,7 +257,7 @@ static BOOL VGAReadCurrentTextModeInfo(LPVGAMODEINFO Info) {
  * @param Info Input/output mode descriptor.
  * @return DF_RETURN_SUCCESS on success or DF_GFX_ERROR_MODEUNAVAIL.
  */
-static UINT VGASetModeFromRequest(LPGRAPHICSMODEINFO Info) {
+static UINT VGASetModeFromRequest(LPGRAPHICS_MODE_INFO Info) {
     U32 RequestedColumns = 0;
     U32 RequestedRows = 0;
     U32 ModeIndex = 0;
@@ -315,7 +315,7 @@ static UINT VGACommands(UINT Function, UINT Parameter) {
             return VGAGetModeCount();
 
         case DF_GFX_GETMODEINFO: {
-            LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Parameter;
+            LPGRAPHICS_MODE_INFO Info = (LPGRAPHICS_MODE_INFO)Parameter;
             VGAMODEINFO ModeInfo;
 
             SAFE_USE(Info) {
@@ -342,7 +342,7 @@ static UINT VGACommands(UINT Function, UINT Parameter) {
         }
 
         case DF_GFX_SETMODE:
-            return VGASetModeFromRequest((LPGRAPHICSMODEINFO)Parameter);
+            return VGASetModeFromRequest((LPGRAPHICS_MODE_INFO)Parameter);
 
         case DF_GFX_GETCONTEXT:
         case DF_GFX_CREATEBRUSH:

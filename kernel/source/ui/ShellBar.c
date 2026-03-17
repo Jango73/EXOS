@@ -229,12 +229,12 @@ static void ShellBarHandleChildAppended(HANDLE ShellBarWindow) {
  * @return TRUE on success.
  */
 static BOOL ShellBarCreateSlotWindow(HANDLE ShellBarWindow, U32 WindowID) {
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
     HANDLE Window;
 
     if (ShellBarWindow == NULL) return FALSE;
 
-    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Size = sizeof(WINDOW_INFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;
@@ -326,13 +326,13 @@ static BOOL ShellBarEnsureSlotWindows(HANDLE ShellBarWindow) {
 /************************************************************************/
 
 BOOL ShellBarCreate(HANDLE ParentWindow) {
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
     HANDLE Window;
 
     if (ParentWindow == NULL) return FALSE;
     if (ShellBarEnsureClassRegistered() == FALSE) return FALSE;
 
-    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Size = sizeof(WINDOW_INFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;

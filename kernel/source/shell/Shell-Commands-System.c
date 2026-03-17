@@ -371,7 +371,7 @@ U32 CMD_network(LPSHELLCONTEXT Context) {
 
                 SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
                     SAFE_USE_VALID_ID(Device->Driver, KOID_DRIVER) {
-                        NETWORKINFO Info;
+                        NETWORK_INFO Info;
                         MemorySet(&Info, 0, sizeof(Info));
                         NETWORK_GET_INFO GetInfo = {.Device = Device, .Info = &Info};
                         Device->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo);

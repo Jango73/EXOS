@@ -977,9 +977,9 @@ UINT FAT32Commands(UINT Function, UINT Parameter) {
             return Initialize();
         case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
-        case DF_FS_GETVOLUMEINFO:
+        case DF_FS_GETVOLUME_INFO:
             return DF_RETURN_NOT_IMPLEMENTED;
-        case DF_FS_SETVOLUMEINFO:
+        case DF_FS_SETVOLUME_INFO:
             return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_CREATEFOLDER:
             return (UINT)CreateFile((LPFILEINFO)Parameter, TRUE);

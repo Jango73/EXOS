@@ -150,9 +150,9 @@ BOOL InitializeDeferredWork(void) {
         ConsolePrint(TEXT("WARNING : Devices in polling mode.\n"));
     }
 
-    TASKINFO TaskInfo;
+    TASK_INFO TaskInfo;
     MemorySet(&TaskInfo, 0, sizeof(TaskInfo));
-    TaskInfo.Header.Size = sizeof(TASKINFO);
+    TaskInfo.Header.Size = sizeof(TASK_INFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Func = DeferredWorkDispatcherTask;
     TaskInfo.Parameter = NULL;
@@ -399,9 +399,9 @@ static void ProcessPollCallbacks(void) {
 static U32 DeferredWorkDispatcherTask(LPVOID Param) {
     UNUSED(Param);
 
-    WAITINFO WaitInfo;
-    MemorySet(&WaitInfo, 0, sizeof(WAITINFO));
-    WaitInfo.Header.Size = sizeof(WAITINFO);
+    WAIT_INFO WaitInfo;
+    MemorySet(&WaitInfo, 0, sizeof(WAIT_INFO));
+    WaitInfo.Header.Size = sizeof(WAIT_INFO);
     WaitInfo.Header.Version = EXOS_ABI_VERSION;
     WaitInfo.Header.Flags = 0;
     WaitInfo.Count = 1;

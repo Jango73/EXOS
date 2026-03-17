@@ -137,7 +137,7 @@ static BOOL Cube3DProjectPoint(VECTOR3 Point3D, I32 CenterX, I32 CenterY, F32 Fo
  * @param X2 Second point X.
  * @param Y2 Second point Y.
  */
-static void Cube3DDrawEdge(LPLINEINFO LineInfo, I32 X1, I32 Y1, I32 X2, I32 Y2) {
+static void Cube3DDrawEdge(LPLINE_INFO LineInfo, I32 X1, I32 Y1, I32 X2, I32 Y2) {
     if (LineInfo == NULL) return;
 
     LineInfo->X1 = X1;
@@ -157,7 +157,7 @@ static void Cube3DDrawEdge(LPLINEINFO LineInfo, I32 X1, I32 Y1, I32 X2, I32 Y2) 
 static void Cube3DDrawWireframe(HANDLE Window, LPRECT ClientRect) {
     HANDLE GraphicsContext;
     HANDLE PreviousPen;
-    LINEINFO LineInfo;
+    LINE_INFO LineInfo;
     MATRIX4 Transform;
     VECTOR3 Euler;
     VECTOR3 Translation;
@@ -217,7 +217,7 @@ static void Cube3DDrawWireframe(HANDLE Window, LPRECT ClientRect) {
     (void)SelectBrush(GraphicsContext, NULL);
     PreviousPen = SelectPen(GraphicsContext, State->FlashPen);
 
-    LineInfo.Header.Size = sizeof(LINEINFO);
+    LineInfo.Header.Size = sizeof(LINE_INFO);
     LineInfo.Header.Version = EXOS_ABI_VERSION;
     LineInfo.Header.Flags = 0;
     LineInfo.GC = GraphicsContext;
@@ -254,7 +254,7 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     U32 DeltaYMilliDegrees;
     U32 DeltaZMilliDegrees;
     LPCUBE3D_STATE State;
-    PENINFO PenInfo;
+    PEN_INFO PenInfo;
 
     switch (Message) {
         case EWM_CREATE:
@@ -264,7 +264,7 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             }
 
             MemorySet(State, 0, sizeof(CUBE3D_STATE));
-            PenInfo.Header.Size = sizeof(PENINFO);
+            PenInfo.Header.Size = sizeof(PEN_INFO);
             PenInfo.Header.Version = EXOS_ABI_VERSION;
             PenInfo.Header.Flags = 0;
             PenInfo.Color = CUBE3D_COLOR_FLASH_GREEN;

@@ -710,9 +710,9 @@ void InitializeSystemCall(void);
 
 struct tag_TASK;
 struct tag_PROCESS;
-struct tag_TASKINFO;
+struct tag_TASK_INFO;
 
-BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info);
+BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASK_INFO* Info);
 void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask);
 
 /***************************************************************************/

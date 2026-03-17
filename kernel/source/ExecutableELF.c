@@ -156,8 +156,8 @@ static BOOL AddUIntOverflow(UINT Left, UINT Right, UINT* Out) {
  * @param File Source file.
  * @param FileOperation Receives initialized operation state.
  */
-static void ELFInitializeFileOperation(LPFILE File, LPFILEOPERATION FileOperation) {
-    FileOperation->Header.Size = sizeof(FILEOPERATION);
+static void ELFInitializeFileOperation(LPFILE File, LPFILE_OPERATION FileOperation) {
+    FileOperation->Header.Size = sizeof(FILE_OPERATION);
     FileOperation->Header.Version = EXOS_ABI_VERSION;
     FileOperation->Header.Flags = 0;
     FileOperation->File = (HANDLE)File;
@@ -175,7 +175,7 @@ static void ELFInitializeFileOperation(LPFILE File, LPFILEOPERATION FileOperatio
  * @param Size Number of bytes to read.
  * @return TRUE on success.
  */
-static BOOL ELFReadBytes(LPFILEOPERATION FileOperation, UINT Offset, LPVOID Buffer, UINT Size) {
+static BOOL ELFReadBytes(LPFILE_OPERATION FileOperation, UINT Offset, LPVOID Buffer, UINT Size) {
     if (Offset > 0xFFFFFFFF) return FALSE;
     if (Size > 0xFFFFFFFF) return FALSE;
 
@@ -196,7 +196,7 @@ static BOOL ELFReadBytes(LPFILEOPERATION FileOperation, UINT Offset, LPVOID Buff
  * @param Ident Receives EI_NIDENT bytes.
  * @return TRUE when the file starts with a supported ELF signature.
  */
-static BOOL ELFReadIdent(LPFILEOPERATION FileOperation, U32 FileSize, U8 Ident[EI_NIDENT]) {
+static BOOL ELFReadIdent(LPFILE_OPERATION FileOperation, U32 FileSize, U8 Ident[EI_NIDENT]) {
     if (FileSize < EI_NIDENT) return FALSE;
     if (!ELFReadBytes(FileOperation, 0, Ident, EI_NIDENT)) return FALSE;
     return ELFMakeSig(Ident) == ELF_SIGNATURE;
@@ -214,7 +214,7 @@ static BOOL ELFReadIdent(LPFILEOPERATION FileOperation, U32 FileSize, U8 Ident[E
  * @return TRUE on success.
  */
 static BOOL ELFReadHeader(
-    LPFILEOPERATION FileOperation,
+    LPFILE_OPERATION FileOperation,
     U32 FileSize,
     U8 Class,
     const U8 Ident[EI_NIDENT],
@@ -319,7 +319,7 @@ static BOOL ELFValidateProgramHeaderTable(U32 FileSize, const ELF_FILE_HEADER* H
  * @return TRUE on success.
  */
 static BOOL ELFReadProgramHeader(
-    LPFILEOPERATION FileOperation,
+    LPFILE_OPERATION FileOperation,
     const ELF_FILE_HEADER* Header,
     U8 Class,
     U32 Index,
@@ -402,7 +402,7 @@ static void ELFResetLayout(LPELF_LAYOUT_INFO Layout) {
  * @return TRUE on success.
  */
 static BOOL ELFAnalyzeLayout(
-    LPFILEOPERATION FileOperation,
+    LPFILE_OPERATION FileOperation,
     U32 FileSize,
     const ELF_FILE_HEADER* Header,
     U8 Class,
@@ -531,7 +531,7 @@ static void ELFStoreExecutableInfo(
  * @return TRUE on success.
  */
 static BOOL ELFLoadSegments(
-    LPFILEOPERATION FileOperation,
+    LPFILE_OPERATION FileOperation,
     U32 FileSize,
     const ELF_FILE_HEADER* Header,
     const ELF_LAYOUT_INFO* Layout,
@@ -603,7 +603,7 @@ static BOOL ELFLoadSegments(
 // COMMENTS & LOGS IN ENGLISH (per coding guideline)
 
 BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
-    FILEOPERATION FileOperation;
+    FILE_OPERATION FileOperation;
     ELF_FILE_HEADER Header;
     ELF_LAYOUT_INFO Layout;
     U32 FileSize;
@@ -642,7 +642,7 @@ Out_Error:
 // COMMENTS & LOGS IN ENGLISH (per coding guideline)
 
 BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LINEAR DataBase, LINEAR BssBase) {
-    FILEOPERATION FileOperation;
+    FILE_OPERATION FileOperation;
     ELF_FILE_HEADER Header;
     ELF_LAYOUT_INFO Layout;
     U32 FileSize;
