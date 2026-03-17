@@ -858,7 +858,7 @@ static void DHCP_HandleRequestTimeout(LPDEVICE Device, LPDHCP_CONTEXT Context) {
 
 void DHCP_Initialize(LPDEVICE Device) {
     LPDHCP_CONTEXT Context;
-    NETWORKGETINFO GetInfo;
+    NETWORK_GET_INFO GetInfo;
     NETWORKINFO Info;
 
     if (Device == NULL) return;

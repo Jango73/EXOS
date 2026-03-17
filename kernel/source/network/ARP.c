@@ -486,7 +486,7 @@ void ARP_Initialize(LPDEVICE Device, U32 LocalIPv4_Be, const NETWORKINFO* Device
         Context->LocalMacAddress[5] = DeviceInfo->MAC[5];
         MacRetrieved = TRUE;
     } else {
-        NETWORKGETINFO GetInfo;
+        NETWORK_GET_INFO GetInfo;
         NETWORKINFO Info;
         MemorySet(&GetInfo, 0, sizeof(GetInfo));
         MemorySet(&Info, 0, sizeof(Info));

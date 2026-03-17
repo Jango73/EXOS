@@ -127,7 +127,7 @@ static INT IPv4_SendEthernetFrame(LPIPV4_CONTEXT Context, const U8* Data, U32 Le
  * @return TRUE on success.
  */
 static BOOL IPv4_GetSourceMACAddress(LPDEVICE Device, U8 SourceMAC[6]) {
-    NETWORKGETINFO GetInfo;
+    NETWORK_GET_INFO GetInfo;
     NETWORKINFO NetInfo;
     BOOL MacRetrieved = FALSE;
 

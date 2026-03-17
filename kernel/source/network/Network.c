@@ -38,7 +38,7 @@
  * @return 1 on success, 0 otherwise.
  */
 INT Network_SendRawFrame(LPDEVICE Device, const U8 *Data, U32 Length) {
-    NETWORKSEND Send;
+    NETWORK_SEND Send;
     INT Result = 0;
 
     if (Device == NULL) return 0;

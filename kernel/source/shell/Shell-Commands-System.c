@@ -373,7 +373,7 @@ U32 CMD_network(LPSHELLCONTEXT Context) {
                     SAFE_USE_VALID_ID(Device->Driver, KOID_DRIVER) {
                         NETWORKINFO Info;
                         MemorySet(&Info, 0, sizeof(Info));
-                        NETWORKGETINFO GetInfo = {.Device = Device, .Info = &Info};
+                        NETWORK_GET_INFO GetInfo = {.Device = Device, .Info = &Info};
                         Device->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo);
 
                         U32 IpHost = Ntohl(NetContext->ActiveConfig.LocalIPv4_Be);
