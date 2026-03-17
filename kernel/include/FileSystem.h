@@ -108,14 +108,14 @@ typedef struct tag_LCHS {
 
 /***************************************************************************/
 
-typedef struct tag_BOOTPARTITION {
+typedef struct tag_BOOT_PARTITION {
     U8 Disk;        // 0x80 for active partition
     PCHS StartCHS;  // CHS of disk start
     U8 Type;        // Type of partition
     PCHS EndCHS;    // CHS of disk end
     SECTOR LBA;     // Logical Block Addressing start
     U32 Size;       // Size in sectors
-} BOOTPARTITION, *LPBOOTPARTITION;
+} BOOT_PARTITION, *LPBOOT_PARTITION;
 
 /***************************************************************************/
 
@@ -168,16 +168,15 @@ typedef struct tag_FILESYSTEM_GLOBAL_INFO {
 } FILESYSTEM_GLOBAL_INFO, *LPFILESYSTEM_GLOBAL_INFO;
 
 /***************************************************************************/
-// The structure used by the folder commands
-// and the file open command
+// The structure used by the folder commands and the file open command
 
-typedef struct tag_FILEINFO {
+typedef struct tag_FILE_INFO {
     UINT Size;
     LPFILESYSTEM FileSystem;
     U32 Attributes;
     U32 Flags;
     STR Name[MAX_PATH_NAME];
-} FILEINFO, *LPFILEINFO;
+} FILE_INFO, *LPFILE_INFO;
 
 /***************************************************************************/
 // Structure that discribes an open file
@@ -219,31 +218,31 @@ typedef struct tag_PARTITION_CREATION {
 
 /***************************************************************************/
 
-typedef struct tag_PATHNODE {
+typedef struct tag_PATH_NODE {
     LISTNODE_FIELDS
     STR Name[MAX_FILE_NAME];
-} PATHNODE, *LPPATHNODE;
+} PATH_NODE, *LPPATH_NODE;
 
 /***************************************************************************/
 
-typedef struct tag_FS_MOUNT_CONTROL {
+typedef struct tag_FILESYSTEM_MOUNT_CONTROL {
     STR Path[MAX_PATH_NAME];
     LPLISTNODE Node;
     STR SourcePath[MAX_PATH_NAME];
-} FS_MOUNT_CONTROL, *LPFS_MOUNT_CONTROL;
+} FILESYSTEM_MOUNT_CONTROL, *LPFILESYSTEM_MOUNT_CONTROL;
 
-typedef FS_MOUNT_CONTROL FS_UNMOUNT_CONTROL, *LPFS_UNMOUNT_CONTROL;
+typedef FILESYSTEM_MOUNT_CONTROL FILESYSTEM_UNMOUNT_CONTROL, *LPFILESYSTEM_UNMOUNT_CONTROL;
 
 /***************************************************************************/
 
-typedef struct tag_FS_PATHCHECK {
+typedef struct tag_FILESYSTEM_PATHCHECK {
     STR CurrentFolder[MAX_PATH_NAME];
     STR SubFolder[MAX_PATH_NAME];
-} FS_PATHCHECK, *LPFS_PATHCHECK;
+} FILESYSTEM_PATHCHECK, *LPFILESYSTEM_PATHCHECK;
 
 /***************************************************************************/
 
-BOOL MountDiskPartitions(LPSTORAGE_UNIT, LPBOOTPARTITION, U32);
+BOOL MountDiskPartitions(LPSTORAGE_UNIT, LPBOOT_PARTITION, U32);
 U32 GetNumFileSystems(void);
 LPSTORAGE_UNIT FileSystemGetStorageUnit(LPFILESYSTEM FileSystem);
 BOOL FileSystemHasStorageUnit(LPFILESYSTEM FileSystem);

@@ -130,7 +130,7 @@ static LPSYSTEMFSFILE FindChild(LPSYSTEMFSFILE Parent, LPCSTR Name) {
 static LPSYSTEMFSFILE FindNode(LPCSTR Path) {
     LPLIST Parts;
     LPLISTNODE Node;
-    LPPATHNODE Part;
+    LPPATH_NODE Part;
     LPSYSTEMFSFILE Current;
 
     // SystemFS is now always available as direct object
@@ -140,7 +140,7 @@ static LPSYSTEMFSFILE FindNode(LPCSTR Path) {
 
     Current = GetSystemFSFilesystem()->Root;
     for (Node = Parts->First; Node; Node = Node->Next) {
-        Part = (LPPATHNODE)Node;
+        Part = (LPPATH_NODE)Node;
         if (Part->Name[0] == STR_NULL) continue;
         Current = FindChild(Current, Part->Name);
         if (Current == NULL) break;
@@ -182,10 +182,10 @@ static BOOL IsCircularMount(LPSYSTEMFSFILE Node, LPFILESYSTEM FilesystemToMount)
  * @param Control Mount parameters including target path and filesystem node.
  * @return DF_RETURN_SUCCESS on success, an error code otherwise.
  */
-static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
+static U32 MountObject(LPFILESYSTEM_MOUNT_CONTROL Control) {
     LPLIST Parts;
     LPLISTNODE Node;
-    LPPATHNODE Part = NULL;
+    LPPATH_NODE Part = NULL;
     LPSYSTEMFSFILE Parent;
     LPSYSTEMFSFILE Child;
 
@@ -196,7 +196,7 @@ static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
 
     Parent = GetSystemFSFilesystem()->Root;
     for (Node = Parts->First; Node; Node = Node->Next) {
-        Part = (LPPATHNODE)Node;
+        Part = (LPPATH_NODE)Node;
         if (Part->Name[0] == STR_NULL) continue;
         if (Node->Next == NULL) break;
         Child = FindChild(Parent, Part->Name);
@@ -253,7 +253,7 @@ static U32 MountObject(LPFS_MOUNT_CONTROL Control) {
  * @param Control Unmount parameters containing the target path.
  * @return DF_RETURN_SUCCESS on success, an error code otherwise.
  */
-static U32 UnmountObject(LPFS_UNMOUNT_CONTROL Control) {
+static U32 UnmountObject(LPFILESYSTEM_UNMOUNT_CONTROL Control) {
     LPSYSTEMFSFILE Node;
 
     if (Control == NULL) return DF_RETURN_BAD_PARAMETER;
@@ -278,7 +278,7 @@ static U32 UnmountObject(LPFS_UNMOUNT_CONTROL Control) {
 static BOOL ResolvePath(LPCSTR Path, LPSYSTEMFSFILE *Node, STR Remaining[MAX_PATH_NAME]) {
     LPLIST Parts;
     LPLISTNODE It;
-    LPPATHNODE Part;
+    LPPATH_NODE Part;
     LPSYSTEMFSFILE Current;
 
     if (Path == NULL || Node == NULL || Remaining == NULL) return FALSE;
@@ -290,7 +290,7 @@ static BOOL ResolvePath(LPCSTR Path, LPSYSTEMFSFILE *Node, STR Remaining[MAX_PAT
     Remaining[0] = STR_NULL;
 
     for (It = Parts->First; It; It = It->Next) {
-        Part = (LPPATHNODE)It;
+        Part = (LPPATH_NODE)It;
 
         if (Part->Name[0] == STR_NULL || StringCompare(Part->Name, TEXT(".")) == 0) {
             continue;
@@ -317,7 +317,7 @@ static BOOL ResolvePath(LPCSTR Path, LPSYSTEMFSFILE *Node, STR Remaining[MAX_PAT
                 }
 
                 for (; It; It = It->Next) {
-                    Part = (LPPATHNODE)It;
+                    Part = (LPPATH_NODE)It;
                     if (Part->Name[0] == STR_NULL) continue;
                     StringConcat(Remaining, Part->Name);
                     if (It->Next) StringConcat(Remaining, Sep);
@@ -380,11 +380,11 @@ static LPSYSFSFILE WrapMountedFile(LPSYSTEMFSFILE Parent, LPFILE Mounted, U32 Op
  * @param Control Path check parameters including current and target folders.
  * @return TRUE if the path exists, FALSE otherwise.
  */
-static BOOL PathExists(LPFS_PATHCHECK Control) {
+static BOOL PathExists(LPFILESYSTEM_PATHCHECK Control) {
     STR Temp[MAX_PATH_NAME];
     STR Remaining[MAX_PATH_NAME];
     LPSYSTEMFSFILE Node;
-    FILEINFO Info;
+    FILE_INFO Info;
     LPFILE Mounted;
     BOOL Result = FALSE;
 
@@ -404,7 +404,7 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
 
     if (Node->Mounted == NULL) return FALSE;
 
-    Info.Size = sizeof(FILEINFO);
+    Info.Size = sizeof(FILE_INFO);
     Info.FileSystem = Node->Mounted;
     Info.Attributes = MAX_U32;
     Info.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
@@ -426,15 +426,15 @@ static BOOL PathExists(LPFS_PATHCHECK Control) {
  * @param Info File information containing the folder path.
  * @return DF_RETURN_SUCCESS on success, an error code otherwise.
  */
-static U32 CreateFolder(LPFILEINFO Info) {
+static U32 CreateFolder(LPFILE_INFO Info) {
     LPLIST Parts;
     LPLISTNODE Node;
-    LPPATHNODE Part = NULL;
+    LPPATH_NODE Part = NULL;
     LPSYSTEMFSFILE Parent;
     LPSYSTEMFSFILE Child;
     LPSYSTEMFSFILE MountedNode;
     STR Remaining[MAX_PATH_NAME];
-    FILEINFO Local;
+    FILE_INFO Local;
     UINT Result;
 
     if (Info == NULL) return DF_RETURN_BAD_PARAMETER;
@@ -458,7 +458,7 @@ static U32 CreateFolder(LPFILEINFO Info) {
 
     Parent = GetSystemFSFilesystem()->Root;
     for (Node = Parts->First; Node; Node = Node->Next) {
-        Part = (LPPATHNODE)Node;
+        Part = (LPPATH_NODE)Node;
         if (Part->Name[0] == STR_NULL) continue;
         if (Node->Next == NULL) break;
         Child = FindChild(Parent, Part->Name);
@@ -501,7 +501,7 @@ static U32 CreateFolder(LPFILEINFO Info) {
  * @param Info File information specifying the folder path.
  * @return DF_RETURN_SUCCESS on success, an error code otherwise.
  */
-static U32 DeleteFolder(LPFILEINFO Info) {
+static U32 DeleteFolder(LPFILE_INFO Info) {
     LPSYSTEMFSFILE Node;
 
     if (Info == NULL) return DF_RETURN_BAD_PARAMETER;
@@ -526,8 +526,8 @@ static U32 DeleteFolder(LPFILEINFO Info) {
 static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR SourcePath) {
     LPLISTNODE Node;
     LPFILESYSTEM FS;
-    FS_MOUNT_CONTROL Control;
-    FILEINFO Info;
+    FILESYSTEM_MOUNT_CONTROL Control;
+    FILE_INFO Info;
     LPFILE TestFile;
     BOOL FileSystemFound = FALSE;
     LPLIST FileSystemList = GetFileSystemList();
@@ -554,7 +554,7 @@ static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR Sou
 
             // Check if SourcePath exists in the filesystem
             if (SourcePath && SourcePath[0] != STR_NULL) {
-                Info.Size = sizeof(FILEINFO);
+                Info.Size = sizeof(FILE_INFO);
                 Info.FileSystem = FS;
                 Info.Attributes = FS_ATTR_FOLDER;
                 Info.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
@@ -593,8 +593,8 @@ static void MountConfiguredFileSystem(LPCSTR FileSystem, LPCSTR Path, LPCSTR Sou
  * @return TRUE on success or when already mounted, FALSE otherwise.
  */
 BOOL SystemFSMountFileSystem(LPFILESYSTEM FileSystem) {
-    FS_MOUNT_CONTROL Control;
-    FS_PATHCHECK Check;
+    FILESYSTEM_MOUNT_CONTROL Control;
+    FILESYSTEM_PATHCHECK Check;
     VOLUME_INFO Volume;
     STR Path[MAX_PATH_NAME];
     const STR FsRoot[] = {PATH_SEP, 'f', 's', STR_NULL};
@@ -646,8 +646,8 @@ BOOL SystemFSMountFileSystem(LPFILESYSTEM FileSystem) {
  * @return TRUE on success or when already unmounted, FALSE otherwise.
  */
 BOOL SystemFSUnmountFileSystem(LPFILESYSTEM FileSystem) {
-    FS_UNMOUNT_CONTROL Control;
-    FS_PATHCHECK Check;
+    FILESYSTEM_UNMOUNT_CONTROL Control;
+    FILESYSTEM_PATHCHECK Check;
     VOLUME_INFO Volume;
     STR Path[MAX_PATH_NAME];
     const STR FsRoot[] = {PATH_SEP, 'f', 's', STR_NULL};
@@ -700,7 +700,7 @@ BOOL SystemFSUnmountFileSystem(LPFILESYSTEM FileSystem) {
 BOOL MountSystemFS(void) {
     LPLISTNODE Node;
     LPFILESYSTEM FS;
-    FILEINFO Info;
+    FILE_INFO Info;
     const STR FsRoot[] = {PATH_SEP, 'f', 's', STR_NULL};
     LPSYSTEMFSFILESYSTEM SystemFS = GetSystemFSData();
     LPLIST FileSystemList = GetFileSystemList();
@@ -722,7 +722,7 @@ BOOL MountSystemFS(void) {
     SystemFS->Header.Partition.NumSectors = 0;
     MemorySet(SystemFS->Header.Partition.TypeGuid, 0, GPT_GUID_LENGTH);
 
-    Info.Size = sizeof(FILEINFO);
+    Info.Size = sizeof(FILE_INFO);
     Info.FileSystem = &SystemFS->Header;
     Info.Attributes = 0;
     Info.Flags = 0;
@@ -757,11 +757,11 @@ static U32 Initialize(void) { return DF_RETURN_SUCCESS; }
  * @param Find File information describing the target path and flags.
  * @return Wrapped SYSFSFILE handle, or NULL on failure.
  */
-static LPSYSFSFILE OpenFile(LPFILEINFO Find) {
+static LPSYSFSFILE OpenFile(LPFILE_INFO Find) {
     STR Path[MAX_PATH_NAME];
     STR Remaining[MAX_PATH_NAME];
     LPSYSTEMFSFILE Node;
-    FILEINFO Local;
+    FILE_INFO Local;
     LPFILE Mounted;
     BOOL Wildcard = FALSE;
 
@@ -1075,7 +1075,7 @@ BOOL MountUserNodes(void) {
  * @param Info File information containing the path to test.
  * @return TRUE if the file exists, FALSE otherwise.
  */
-static BOOL FileExists(LPFILEINFO Info) {
+static BOOL FileExists(LPFILE_INFO Info) {
     LPSYSFSFILE File;
 
     SAFE_USE(Info) {
@@ -1115,19 +1115,19 @@ UINT SystemFSCommands(UINT Function, UINT Parameter) {
         case DF_FS_SETVOLUME_INFO:
             return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_CREATEFOLDER:
-            return CreateFolder((LPFILEINFO)Parameter);
+            return CreateFolder((LPFILE_INFO)Parameter);
         case DF_FS_DELETEFOLDER:
-            return DeleteFolder((LPFILEINFO)Parameter);
+            return DeleteFolder((LPFILE_INFO)Parameter);
         case DF_FS_MOUNTOBJECT:
-            return MountObject((LPFS_MOUNT_CONTROL)Parameter);
+            return MountObject((LPFILESYSTEM_MOUNT_CONTROL)Parameter);
         case DF_FS_UNMOUNTOBJECT:
-            return UnmountObject((LPFS_UNMOUNT_CONTROL)Parameter);
+            return UnmountObject((LPFILESYSTEM_UNMOUNT_CONTROL)Parameter);
         case DF_FS_PATHEXISTS:
-            return (UINT)PathExists((LPFS_PATHCHECK)Parameter);
+            return (UINT)PathExists((LPFILESYSTEM_PATHCHECK)Parameter);
         case DF_FS_FILEEXISTS:
-            return (UINT)FileExists((LPFILEINFO)Parameter);
+            return (UINT)FileExists((LPFILE_INFO)Parameter);
         case DF_FS_OPENFILE:
-            return (UINT)OpenFile((LPFILEINFO)Parameter);
+            return (UINT)OpenFile((LPFILE_INFO)Parameter);
         case DF_FS_OPENNEXT:
             return (UINT)OpenNext((LPSYSFSFILE)Parameter);
         case DF_FS_CLOSEFILE:

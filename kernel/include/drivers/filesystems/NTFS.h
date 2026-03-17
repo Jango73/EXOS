@@ -229,7 +229,7 @@ BOOL NtfsTimestampToDateTime(U64 NtfsTimestamp, LPDATETIME DateTime);
  * @param PartIndex Partition index used for volume naming.
  * @return TRUE on success, FALSE when validation or allocation fails.
  */
-BOOL MountPartition_NTFS(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex);
+BOOL MountPartition_NTFS(LPSTORAGE_UNIT Disk, LPBOOT_PARTITION Partition, U32 Base, U32 PartIndex);
 
 /***************************************************************************/
 

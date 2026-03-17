@@ -193,7 +193,7 @@ static U32 PackageFSAdvanceEnumeration(LPPACKAGEFSFILE File) {
  * @param Info Open request.
  * @return Opened file handle or NULL.
  */
-LPPACKAGEFSFILE PackageFSOpenFile(LPFILEINFO Info) {
+LPPACKAGEFSFILE PackageFSOpenFile(LPFILE_INFO Info) {
     LPPACKAGEFSFILESYSTEM FileSystem;
     STR PathText[MAX_PATH_NAME];
     LPSTR LastSlash;
@@ -601,7 +601,7 @@ U32 PackageFSWriteFile(LPPACKAGEFSFILE File) {
  * @param Check Path check structure.
  * @return TRUE when path resolves to a folder.
  */
-BOOL PackageFSPathExists(LPFS_PATHCHECK Check) {
+BOOL PackageFSPathExists(LPFILESYSTEM_PATHCHECK Check) {
     UNUSED(Check);
     return FALSE;
 }
@@ -613,7 +613,7 @@ BOOL PackageFSPathExists(LPFS_PATHCHECK Check) {
  * @param Info File info containing target path.
  * @return TRUE when target exists.
  */
-BOOL PackageFSFileExists(LPFILEINFO Info) {
+BOOL PackageFSFileExists(LPFILE_INFO Info) {
     LPPACKAGEFSFILESYSTEM FileSystem;
     LPPACKAGEFS_NODE Node;
     STR FullPath[MAX_PATH_NAME];

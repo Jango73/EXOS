@@ -1094,8 +1094,8 @@ UINT SysCall_FindFirstFile(UINT Parameter) {
             return FALSE;
         }
 
-        FILEINFO Find;
-        Find.Size = sizeof(FILEINFO);
+        FILE_INFO Find;
+        Find.Size = sizeof(FILE_INFO);
         Find.FileSystem = GetSystemFS();
         Find.Attributes = MAX_U32;
         Find.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;

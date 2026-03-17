@@ -320,7 +320,7 @@ static LPNTFSFILE NtfsCreateFileHandle(LPFILESYSTEM FileSystem) {
  * @param Info VFS open parameters.
  * @return Open file handle or NULL on failure.
  */
-LPFILE NtfsOpenFile(LPFILEINFO Info) {
+LPFILE NtfsOpenFile(LPFILE_INFO Info) {
     LPNTFSFILE File;
     NTFS_FILE_RECORD_INFO RecordInfo;
     U32 FileRecordIndex;

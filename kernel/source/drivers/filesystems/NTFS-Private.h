@@ -255,16 +255,16 @@ BOOL NtfsReadFileDataRangeByIndex(
 
 /***************************************************************************/
 
-LPFILE NtfsOpenFile(LPFILEINFO Info);
+LPFILE NtfsOpenFile(LPFILE_INFO Info);
 U32 NtfsOpenNext(LPNTFSFILE File);
 U32 NtfsCloseFile(LPNTFSFILE File);
 U32 NtfsReadFile(LPNTFSFILE File);
 U32 NtfsWriteFile(LPNTFSFILE File);
-U32 NtfsCreateFolder(LPFILEINFO Info);
-U32 NtfsDeleteFolder(LPFILEINFO Info);
-U32 NtfsRenameFolder(LPFILEINFO Info);
-U32 NtfsDeleteFile(LPFILEINFO Info);
-U32 NtfsRenameFile(LPFILEINFO Info);
+U32 NtfsCreateFolder(LPFILE_INFO Info);
+U32 NtfsDeleteFolder(LPFILE_INFO Info);
+U32 NtfsRenameFolder(LPFILE_INFO Info);
+U32 NtfsDeleteFile(LPFILE_INFO Info);
+U32 NtfsRenameFile(LPFILE_INFO Info);
 
 /***************************************************************************/
 

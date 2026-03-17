@@ -552,7 +552,7 @@ BOOL QualifyCommandLine(LPSHELLCONTEXT Context, LPCSTR RawCommandLine, LPSTR Qua
 /***************************************************************************/
 
 static void ChangeFolder(LPSHELLCONTEXT Context) {
-    FS_PATHCHECK Control;
+    FILESYSTEM_PATHCHECK Control;
     STR NewPath[MAX_PATH_NAME];
 
     ParseNextCommandLineComponent(Context);
@@ -578,7 +578,7 @@ static void ChangeFolder(LPSHELLCONTEXT Context) {
 
 static BOOL MakeFolder(LPSHELLCONTEXT Context, LPSTR QualifiedName) {
     LPFILESYSTEM FileSystem;
-    FILEINFO FileInfo;
+    FILE_INFO FileInfo;
     STR FileName[MAX_PATH_NAME];
     UINT Result;
 
@@ -593,7 +593,7 @@ static BOOL MakeFolder(LPSHELLCONTEXT Context, LPSTR QualifiedName) {
     if (FileSystem == NULL) return FALSE;
 
     if (QualifyFileName(Context, Context->Command, FileName)) {
-        FileInfo.Size = sizeof(FILEINFO);
+        FileInfo.Size = sizeof(FILE_INFO);
         FileInfo.FileSystem = FileSystem;
         FileInfo.Attributes = MAX_U32;
         FileInfo.Flags = 0;
@@ -679,11 +679,11 @@ static void ListFile(LPFILE File, U32 Indent) {
 /***************************************************************************/
 
 void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL Pause, BOOL Recurse, U32* NumListed) {
-    FILEINFO Find;
+    FILE_INFO Find;
     LPFILESYSTEM FileSystem;
     LPFILE File;
     LPPROCESS CurrentProcess = GetCurrentProcess();
-    FS_PATHCHECK PathCheck;
+    FILESYSTEM_PATHCHECK PathCheck;
     STR DiskName[MAX_FILE_NAME];
     LPCSTR Reason = TEXT("unknown");
     STR Pattern[MAX_PATH_NAME];
@@ -696,7 +696,7 @@ void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL Pause, 
 
     FileSystem = GetSystemFS();
 
-    Find.Size = sizeof(FILEINFO);
+    Find.Size = sizeof(FILE_INFO);
     Find.FileSystem = FileSystem;
     Find.Attributes = MAX_U32;
     Find.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;

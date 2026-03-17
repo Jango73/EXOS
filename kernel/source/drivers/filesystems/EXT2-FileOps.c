@@ -102,7 +102,7 @@ static U32 Initialize(void) { return DF_RETURN_SUCCESS; }
  * @param Info File open parameters provided by the kernel.
  * @return Pointer to the opened file object, or NULL on failure.
  */
-static LPEXT2FILE OpenFile(LPFILEINFO Info) {
+static LPEXT2FILE OpenFile(LPFILE_INFO Info) {
     LPEXT2FILESYSTEM FileSystem;
     LPEXT2FILE File;
     BOOL Wildcard;
@@ -509,7 +509,7 @@ static U32 WriteFile(LPEXT2FILE File) {
  * @param PartIndex Index of the partition on the disk.
  * @return TRUE on success, FALSE if the partition could not be mounted.
  */
-BOOL MountPartition_EXT2(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
+BOOL MountPartition_EXT2(LPSTORAGE_UNIT Disk, LPBOOT_PARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer[SECTOR_SIZE * 2];
     IOCONTROL Control;
     LPEXT2SUPER Super;
@@ -611,9 +611,9 @@ UINT EXT2Commands(UINT Function, UINT Parameter) {
         case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
         case DF_FS_CREATEFOLDER:
-            return CreateNode((LPFILEINFO)Parameter, TRUE);
+            return CreateNode((LPFILE_INFO)Parameter, TRUE);
         case DF_FS_OPENFILE:
-            return (UINT)OpenFile((LPFILEINFO)Parameter);
+            return (UINT)OpenFile((LPFILE_INFO)Parameter);
         case DF_FS_OPENNEXT:
             return OpenNext((LPEXT2FILE)Parameter);
         case DF_FS_CLOSEFILE:

@@ -162,9 +162,9 @@ BOOL EnsureParentDirectory(
     LPEXT2INODE Parent,
     U32* ParentIndex,
     LPSTR FinalComponent);
-U32 CreateNode(LPFILEINFO Info, BOOL Directory);
+U32 CreateNode(LPFILE_INFO Info, BOOL Directory);
 
-BOOL MountPartition_EXT2(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex);
+BOOL MountPartition_EXT2(LPSTORAGE_UNIT Disk, LPBOOT_PARTITION Partition, U32 Base, U32 PartIndex);
 U32 Ext2CreatePartition(LPPARTITION_CREATION Create);
 UINT EXT2Commands(UINT Function, UINT Parameter);
 

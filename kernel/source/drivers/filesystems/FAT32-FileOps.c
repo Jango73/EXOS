@@ -264,7 +264,7 @@ static U32 Initialize(void) { return DF_RETURN_SUCCESS; }
  * @param IsFolder TRUE to create a folder, FALSE to create a file.
  * @return DF_RETURN_* code.
  */
-static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
+static U32 CreateFile(LPFILE_INFO File, BOOL IsFolder) {
     LPFAT32FILESYSTEM FileSystem = NULL;
     FATFILELOC FileLoc;
     STR Component[MAX_FILE_NAME];
@@ -456,7 +456,7 @@ static U32 CreateFile(LPFILEINFO File, BOOL IsFolder) {
  * @param File File information describing folder.
  * @return DF_RETURN_* code.
  */
-static U32 DeleteFolder(LPFILEINFO File) {
+static U32 DeleteFolder(LPFILE_INFO File) {
     UNUSED(File);
 
     return DF_RETURN_SUCCESS;
@@ -469,7 +469,7 @@ static U32 DeleteFolder(LPFILEINFO File) {
  * @param File File information with old and new names.
  * @return DF_RETURN_* code.
  */
-static U32 RenameFolder(LPFILEINFO File) {
+static U32 RenameFolder(LPFILE_INFO File) {
     UNUSED(File);
 
     return DF_RETURN_SUCCESS;
@@ -482,7 +482,7 @@ static U32 RenameFolder(LPFILEINFO File) {
  * @param Find File information containing path.
  * @return Handle to FAT file or NULL on failure.
  */
-static LPFATFILE OpenFile(LPFILEINFO Find) {
+static LPFATFILE OpenFile(LPFILE_INFO Find) {
     LPFAT32FILESYSTEM FileSystem = NULL;
     LPFATFILE File = NULL;
     LPFATDIRENTRY_EXT DirEntry = NULL;
@@ -536,8 +536,8 @@ static LPFATFILE OpenFile(LPFILEINFO Find) {
         //-------------------------------------
         // Create the file
 
-        FILEINFO TempFileInfo;
-        TempFileInfo.Size = sizeof(FILEINFO);
+        FILE_INFO TempFileInfo;
+        TempFileInfo.Size = sizeof(FILE_INFO);
         TempFileInfo.FileSystem = (LPFILESYSTEM)FileSystem;
         TempFileInfo.Attributes = MAX_U32;
         TempFileInfo.Flags = FILE_OPEN_CREATE_ALWAYS;
@@ -982,13 +982,13 @@ UINT FAT32Commands(UINT Function, UINT Parameter) {
         case DF_FS_SETVOLUME_INFO:
             return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_CREATEFOLDER:
-            return (UINT)CreateFile((LPFILEINFO)Parameter, TRUE);
+            return (UINT)CreateFile((LPFILE_INFO)Parameter, TRUE);
         case DF_FS_DELETEFOLDER:
-            return (UINT)DeleteFolder((LPFILEINFO)Parameter);
+            return (UINT)DeleteFolder((LPFILE_INFO)Parameter);
         case DF_FS_RENAMEFOLDER:
-            return (UINT)RenameFolder((LPFILEINFO)Parameter);
+            return (UINT)RenameFolder((LPFILE_INFO)Parameter);
         case DF_FS_OPENFILE:
-            return (UINT)OpenFile((LPFILEINFO)Parameter);
+            return (UINT)OpenFile((LPFILE_INFO)Parameter);
         case DF_FS_OPENNEXT:
             return (UINT)OpenNext((LPFATFILE)Parameter);
         case DF_FS_CLOSEFILE:

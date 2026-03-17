@@ -178,7 +178,7 @@ static void ReleaseFileSystemProbeSnapshot(LPFILESYSTEM* Snapshot, U32 Count) {
  * @return Pointer to opened file structure, or NULL on failure
  */
 LPFILE OpenFile(LPFILE_OPEN_INFO Info) {
-    FILEINFO Find;
+    FILE_INFO Find;
     LPFILESYSTEM FileSystem = NULL;
     LPLISTNODE Node = NULL;
     LPFILE File = NULL;

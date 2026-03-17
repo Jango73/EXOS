@@ -80,7 +80,7 @@ static UINT PackageFSCommands(UINT Function, UINT Parameter) {
         case DF_FS_SETATTRIBUTES:
             return DF_RETURN_NO_PERMISSION;
         case DF_FS_OPENFILE:
-            return (UINT)PackageFSOpenFile((LPFILEINFO)Parameter);
+            return (UINT)PackageFSOpenFile((LPFILE_INFO)Parameter);
         case DF_FS_OPENNEXT:
             return PackageFSOpenNext((LPPACKAGEFSFILE)Parameter);
         case DF_FS_CLOSEFILE:
@@ -90,9 +90,9 @@ static UINT PackageFSCommands(UINT Function, UINT Parameter) {
         case DF_FS_WRITE:
             return PackageFSWriteFile((LPPACKAGEFSFILE)Parameter);
         case DF_FS_PATHEXISTS:
-            return (UINT)PackageFSPathExists((LPFS_PATHCHECK)Parameter);
+            return (UINT)PackageFSPathExists((LPFILESYSTEM_PATHCHECK)Parameter);
         case DF_FS_FILEEXISTS:
-            return (UINT)PackageFSFileExists((LPFILEINFO)Parameter);
+            return (UINT)PackageFSFileExists((LPFILE_INFO)Parameter);
         case DF_FS_GETPOSITION:
         case DF_FS_SETPOSITION:
         case DF_FS_GETATTRIBUTES:

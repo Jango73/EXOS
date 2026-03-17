@@ -150,7 +150,7 @@ static LPFATFILE NewFATFile(LPFAT16FILESYSTEM FileSystem, LPFATFILELOC FileLoc) 
 
 /***************************************************************************/
 
-BOOL MountPartition_FAT16(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
+BOOL MountPartition_FAT16(LPSTORAGE_UNIT Disk, LPBOOT_PARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer[SECTOR_SIZE];
     LPFAT16MBR Master;
     LPFAT16FILESYSTEM FileSystem;
@@ -560,7 +560,7 @@ static U32 Initialize(void) { return DF_RETURN_SUCCESS; }
  * @param Find File info containing path.
  * @return Allocated FAT file or NULL on failure.
  */
-static LPFATFILE OpenFile(LPFILEINFO Find) {
+static LPFATFILE OpenFile(LPFILE_INFO Find) {
     LPFAT16FILESYSTEM FileSystem = NULL;
     LPFATFILE File = NULL;
     LPFATDIRENTRY DirEntry = NULL;
@@ -1029,7 +1029,7 @@ UINT FAT16Commands(UINT Function, UINT Parameter) {
         case DF_FS_RENAMEFOLDER:
             return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_OPENFILE:
-            return (UINT)OpenFile((LPFILEINFO)Parameter);
+            return (UINT)OpenFile((LPFILE_INFO)Parameter);
         case DF_FS_OPENNEXT:
             return (UINT)OpenNext((LPFATFILE)Parameter);
         case DF_FS_CLOSEFILE:

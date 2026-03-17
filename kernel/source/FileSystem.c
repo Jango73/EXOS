@@ -37,10 +37,10 @@
 #include "Text.h"
 #include "utils/TOML.h"
 
-extern BOOL MountPartition_FAT16(LPSTORAGE_UNIT, LPBOOTPARTITION, U32, U32);
-extern BOOL MountPartition_FAT32(LPSTORAGE_UNIT, LPBOOTPARTITION, U32, U32);
-extern BOOL MountPartition_EXFS(LPSTORAGE_UNIT, LPBOOTPARTITION, U32, U32);
-extern BOOL MountPartition_EXT2(LPSTORAGE_UNIT, LPBOOTPARTITION, U32, U32);
+extern BOOL MountPartition_FAT16(LPSTORAGE_UNIT, LPBOOT_PARTITION, U32, U32);
+extern BOOL MountPartition_FAT32(LPSTORAGE_UNIT, LPBOOT_PARTITION, U32, U32);
+extern BOOL MountPartition_EXFS(LPSTORAGE_UNIT, LPBOOT_PARTITION, U32, U32);
+extern BOOL MountPartition_EXT2(LPSTORAGE_UNIT, LPBOOT_PARTITION, U32, U32);
 
 /***************************************************************************/
 
@@ -390,7 +390,7 @@ static void RegisterUnusedFileSystem(
  * @param PartIndex GPT entry index.
  * @return TRUE when a FAT file system is mounted, FALSE otherwise.
  */
-static BOOL MountGptFatPartition(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 PartIndex, U32* FormatOut) {
+static BOOL MountGptFatPartition(LPSTORAGE_UNIT Disk, LPBOOT_PARTITION Partition, U32 PartIndex, U32* FormatOut) {
     BOOL Mounted = FALSE;
 
     if (Disk == NULL || Partition == NULL) return FALSE;
@@ -511,8 +511,8 @@ static BOOL MountDiskPartitionsGpt(LPSTORAGE_UNIT Disk) {
             continue;
         }
 
-        BOOTPARTITION Partition;
-        MemorySet(&Partition, 0, sizeof(BOOTPARTITION));
+        BOOT_PARTITION Partition;
+        MemorySet(&Partition, 0, sizeof(BOOT_PARTITION));
         Partition.LBA = (SECTOR)FirstLba;
         Partition.Size = (LastLba - FirstLba) + 1u;
 
@@ -673,13 +673,13 @@ static void ReadKernelConfiguration(void) {
  * @return TRUE when found, FALSE otherwise.
  */
 static BOOL FileSystemHasConfigFile(LPFILESYSTEM FileSystem, LPCSTR Name) {
-    FILEINFO Info;
+    FILE_INFO Info;
     LPFILE File;
     UINT Result;
 
     if (FileSystem == NULL || Name == NULL) return FALSE;
 
-    Info.Size = sizeof(FILEINFO);
+    Info.Size = sizeof(FILE_INFO);
     Info.FileSystem = FileSystem;
     Info.Attributes = MAX_U32;
     Info.Flags = FILE_OPEN_READ;
@@ -988,7 +988,7 @@ void FileSystemSetActivePartition(LPFILESYSTEM FileSystem) {
  * @param Base Base sector address for partition calculations
  * @return TRUE if extended partitions were processed successfully, FALSE otherwise
  */
-BOOL MountPartition_Extended(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base) {
+BOOL MountPartition_Extended(LPSTORAGE_UNIT Disk, LPBOOT_PARTITION Partition, U32 Base) {
     U8 Buffer[FILESYSTEM_MAX_SECTOR_SIZE];
     IOCONTROL Control;
     U32 Result;
@@ -1011,7 +1011,7 @@ BOOL MountPartition_Extended(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32
 
     Base += Partition->LBA;
 
-    Partition = (LPBOOTPARTITION)(Buffer + MBR_PARTITION_START);
+    Partition = (LPBOOT_PARTITION)(Buffer + MBR_PARTITION_START);
 
     return MountDiskPartitions(Disk, Partition, Base);
 }
@@ -1030,7 +1030,7 @@ BOOL MountPartition_Extended(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32
  * @param Base Base sector address for partition offset calculations
  * @return TRUE if partitions were processed successfully, FALSE otherwise
  */
-BOOL MountDiskPartitions(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base) {
+BOOL MountDiskPartitions(LPSTORAGE_UNIT Disk, LPBOOT_PARTITION Partition, U32 Base) {
     U8 Buffer[FILESYSTEM_MAX_SECTOR_SIZE];
     IOCONTROL Control;
     U32 Result;
@@ -1060,7 +1060,7 @@ BOOL MountDiskPartitions(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Bas
             return FALSE;
         }
 
-        Partition = (LPBOOTPARTITION)(Buffer + MBR_PARTITION_START);
+        Partition = (LPBOOT_PARTITION)(Buffer + MBR_PARTITION_START);
     }
 
     //-------------------------------------

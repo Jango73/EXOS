@@ -669,17 +669,17 @@ static UINT NTFSCommands(UINT Function, UINT Parameter) {
         case DF_FS_SETVOLUME_INFO:
             return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_CREATEFOLDER:
-            return NtfsCreateFolder((LPFILEINFO)Parameter);
+            return NtfsCreateFolder((LPFILE_INFO)Parameter);
         case DF_FS_DELETEFOLDER:
-            return NtfsDeleteFolder((LPFILEINFO)Parameter);
+            return NtfsDeleteFolder((LPFILE_INFO)Parameter);
         case DF_FS_RENAMEFOLDER:
-            return NtfsRenameFolder((LPFILEINFO)Parameter);
+            return NtfsRenameFolder((LPFILE_INFO)Parameter);
         case DF_FS_DELETEFILE:
-            return NtfsDeleteFile((LPFILEINFO)Parameter);
+            return NtfsDeleteFile((LPFILE_INFO)Parameter);
         case DF_FS_RENAMEFILE:
-            return NtfsRenameFile((LPFILEINFO)Parameter);
+            return NtfsRenameFile((LPFILE_INFO)Parameter);
         case DF_FS_OPENFILE:
-            return (UINT)NtfsOpenFile((LPFILEINFO)Parameter);
+            return (UINT)NtfsOpenFile((LPFILE_INFO)Parameter);
         case DF_FS_OPENNEXT:
             return NtfsOpenNext((LPNTFSFILE)Parameter);
         case DF_FS_CLOSEFILE:
@@ -721,7 +721,7 @@ DRIVER DATA_SECTION NTFSDriver = {
  * @param PartIndex Partition index.
  * @return TRUE on success, FALSE otherwise.
  */
-BOOL MountPartition_NTFS(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
+BOOL MountPartition_NTFS(LPSTORAGE_UNIT Disk, LPBOOT_PARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer[NTFS_MAX_SECTOR_SIZE];
     LPNTFS_MBR BootSector;
     LPNTFSFILESYSTEM FileSystem;
