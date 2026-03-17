@@ -36,7 +36,7 @@
  * @param Info Output structure to populate.
  * @return TRUE on success, FALSE on error or unknown format.
  */
-BOOL GetExecutableInfo(LPFILE File, LPEXECUTABLEINFO Info) {
+BOOL GetExecutableInfo(LPFILE File, LPEXECUTABLE_INFO Info) {
     FILE_OPERATION FileOperation;
     U32 Signature;
     U32 BytesTransferred;
@@ -76,7 +76,7 @@ BOOL GetExecutableInfo(LPFILE File, LPEXECUTABLEINFO Info) {
  * @param Load Parameters describing the load operation.
  * @return TRUE on success, FALSE on failure.
  */
-BOOL LoadExecutable(LPEXECUTABLELOAD Load) {
+BOOL LoadExecutable(LPEXECUTABLE_LOAD Load) {
     FILE_OPERATION FileOperation;
     U32 Signature;
     U32 BytesTransferred;

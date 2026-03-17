@@ -482,7 +482,7 @@ static BOOL ELFAnalyzeLayout(
 static void ELFStoreExecutableInfo(
     const ELF_FILE_HEADER* Header,
     const ELF_LAYOUT_INFO* Layout,
-    LPEXECUTABLEINFO Info
+    LPEXECUTABLE_INFO Info
 ) {
     Info->EntryPoint = Header->EntryPoint;
 
@@ -536,7 +536,7 @@ static BOOL ELFLoadSegments(
     const ELF_FILE_HEADER* Header,
     const ELF_LAYOUT_INFO* Layout,
     U8 Class,
-    LPEXECUTABLEINFO Info,
+    LPEXECUTABLE_INFO Info,
     LINEAR CodeBase,
     LINEAR DataBase
 ) {
@@ -602,7 +602,7 @@ static BOOL ELFLoadSegments(
 // Reads ELF header and program headers, classifies segments, computes layout.
 // COMMENTS & LOGS IN ENGLISH (per coding guideline)
 
-BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info) {
+BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLE_INFO Info) {
     FILE_OPERATION FileOperation;
     ELF_FILE_HEADER Header;
     ELF_LAYOUT_INFO Layout;
@@ -641,7 +641,7 @@ Out_Error:
 // and fixes up the effective entry point.
 // COMMENTS & LOGS IN ENGLISH (per coding guideline)
 
-BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LINEAR DataBase, LINEAR BssBase) {
+BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLE_INFO Info, LINEAR CodeBase, LINEAR DataBase, LINEAR BssBase) {
     FILE_OPERATION FileOperation;
     ELF_FILE_HEADER Header;
     ELF_LAYOUT_INFO Layout;

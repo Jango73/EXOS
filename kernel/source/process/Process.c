@@ -472,7 +472,7 @@ void KillProcess(LPPROCESS This) {
 BOOL CreateProcess(LPPROCESS_INFO Info) {
     TRACED_FUNCTION;
 
-    EXECUTABLEINFO ExecutableInfo;
+    EXECUTABLE_INFO ExecutableInfo;
     TASK_INFO TaskInfo;
     FILE_OPEN_INFO FileOpenInfo;
     LPPROCESS Process = NULL;
@@ -699,7 +699,7 @@ BOOL CreateProcess(LPPROCESS_INFO Info) {
 
     DEBUG(TEXT("[CreateProcess] Loading executable"));
 
-    EXECUTABLELOAD LoadInfo;
+    EXECUTABLE_LOAD LoadInfo;
     LoadInfo.File = File;
     LoadInfo.Info = &ExecutableInfo;
     LoadInfo.CodeBase = (LINEAR)CodeBase;

@@ -28,7 +28,7 @@
 
 /************************************************************************/
 
-BOOL GetExecutableInfo_EXOS(LPFILE File, LPEXECUTABLEINFO Info) {
+BOOL GetExecutableInfo_EXOS(LPFILE File, LPEXECUTABLE_INFO Info) {
     FILE_OPERATION FileOperation;
     EXOSCHUNK Chunk;
     EXOSHEADER Header;
@@ -109,7 +109,7 @@ Out_Error:
 
 /************************************************************************/
 
-BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LINEAR DataBase) {
+BOOL LoadExecutable_EXOS(LPFILE File, LPEXECUTABLE_INFO Info, LINEAR CodeBase, LINEAR DataBase) {
     FILE_OPERATION FileOperation;
     EXOSCHUNK Chunk;
     EXOSHEADER Header;

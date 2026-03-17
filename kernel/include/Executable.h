@@ -38,7 +38,7 @@
 
 /***************************************************************************/
 
-typedef struct tag_EXECUTABLEINFO {
+typedef struct tag_EXECUTABLE_INFO {
     UINT EntryPoint;
     UINT CodeBase;
     UINT CodeSize;
@@ -50,23 +50,23 @@ typedef struct tag_EXECUTABLEINFO {
     UINT StackRequested;
     UINT HeapMinimum;
     UINT HeapRequested;
-} EXECUTABLEINFO, *LPEXECUTABLEINFO;
+} EXECUTABLE_INFO, *LPEXECUTABLE_INFO;
 
 /***************************************************************************/
 // Load request: caller provides actual target bases where segments will land.
 
-typedef struct tag_EXECUTABLELOAD {
+typedef struct tag_EXECUTABLE_LOAD {
     LPFILE File;
-    LPEXECUTABLEINFO Info;
+    LPEXECUTABLE_INFO Info;
     LINEAR CodeBase;
     LINEAR DataBase;
     LINEAR BssBase;
-} EXECUTABLELOAD, *LPEXECUTABLELOAD;
+} EXECUTABLE_LOAD, *LPEXECUTABLE_LOAD;
 
 /***************************************************************************/
 
-BOOL GetExecutableInfo(LPFILE, LPEXECUTABLEINFO);
-BOOL LoadExecutable(LPEXECUTABLELOAD);
+BOOL GetExecutableInfo(LPFILE, LPEXECUTABLE_INFO);
+BOOL LoadExecutable(LPEXECUTABLE_LOAD);
 
 /***************************************************************************/
 
