@@ -135,6 +135,7 @@ PAYLOAD_ELF     = $(BUILD_DIR)/boot-hd/vbr-payload.elf
 PAYLOAD_MAP     = $(BUILD_DIR)/boot-hd/vbr-payload.map
 FINAL_IMG       = $(BUILD_DIR)/boot-hd/exos.img
 USB3_IMG        = $(BUILD_DIR)/boot-hd/usb-3.img
+FLOPPY_IMG      = $(BUILD_DIR)/boot-hd/floppy-3.5.img
 FS_TEST_EXT2_IMG= $(BUILD_DIR)/boot-hd/fs-test-ext2.img
 FS_TEST_FAT32_IMG= $(BUILD_DIR)/boot-hd/fs-test-fat32.img
 FS_TEST_NTFS_IMG= $(BUILD_DIR)/boot-hd/fs-test-ntfs.img
@@ -299,10 +300,10 @@ define MCOPY_IF_NEEDED
 	fi;
 endef
 
-.PHONY: all update update-fat32 update-ext2 update-test-image install-mbr install-vbr-payload clean check_tools rebuild-image usb-3-image normalize-partition-flags
+.PHONY: all update update-fat32 update-ext2 update-test-image install-mbr install-vbr-payload clean check_tools rebuild-image usb-3-image floppy-image normalize-partition-flags
 
 # Default: build tools, ensure images exist (create once), then update contents
-all: check_tools normalize-partition-flags update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
+all: check_tools normalize-partition-flags $(FLOPPY_IMG) update install-vbr-payload $(BUILD_DIR)/boot-hd/payload.sym
 
 normalize-partition-flags: $(FINAL_IMG) $(USB3_IMG) $(FS_TEST_EXT2_IMG) $(FS_TEST_FAT32_IMG) $(FS_TEST_NTFS_IMG)
 	@echo "Normalizing partition active flags..."
@@ -464,6 +465,18 @@ $(USB3_IMG): check_tools $(TICTACTOE_ELF)
 endif
 
 usb-3-image: $(USB3_IMG)
+
+$(FLOPPY_IMG): check_tools
+	@mkdir -p $(dir $@)
+	@if [ -f $@ ]; then \
+		echo "Skipping creation of $@ (already exists)."; \
+	else \
+		echo "Creating 1.44MiB floppy image with FAT12..."; \
+		dd if=/dev/zero of=$@ bs=512 count=2880; \
+		mkfs.fat -F 12 -n EXOSFDD $@; \
+	fi
+
+floppy-image: $(FLOPPY_IMG)
 
 $(KERNEL_CFG_FAT32): $(FINAL_IMG)
 	@[ -f $@ ] || cp $(KERNEL_CFG_REF) $@

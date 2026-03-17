@@ -215,6 +215,7 @@ FS_TEST_EXT2_IMG_PATH="$IMAGE_BUILD_DIR/boot-hd/fs-test-ext2.img"
 FS_TEST_FAT32_IMG_PATH="$IMAGE_BUILD_DIR/boot-hd/fs-test-fat32.img"
 FS_TEST_NTFS_IMG_PATH="$IMAGE_BUILD_DIR/boot-hd/fs-test-ntfs.img"
 NTFS_LIVE_IMG_PATH="build/test-images/ntfs-live.img"
+FLOPPY_35_PATH="${FLOPPY_35_PATH:-$IMAGE_BUILD_DIR/boot-hd/floppy-3.5.img}"
 CYCLE_BIN="$CORE_BUILD_DIR/tools/cycle"
 DEBUG_ELF="$CORE_BUILD_DIR/kernel/exos.elf"
 
@@ -236,6 +237,11 @@ if [ "$USB3_ENABLED" -eq 1 ] && [ ! -f "$USB_3_PATH" ]; then
     exit 1
 fi
 
+if [ ! -f "$FLOPPY_35_PATH" ]; then
+    echo "Floppy image not found: $FLOPPY_35_PATH"
+    exit 1
+fi
+
 mkdir -p log
 
 LOG_DEBUG_COM1="log/debug-com1-${ARCH}-${BOOT_MODE}-${LOG_CONFIGURATION}.log"
@@ -244,18 +250,33 @@ LOG_NET_PCAP="log/kernel-net-${ARCH}-${BOOT_MODE}-${LOG_CONFIGURATION}.pcap"
 
 USB_ARGUMENTS=()
 NVME_ARGUMENTS=()
+STORAGE_ARGUMENTS=()
+FLOPPY_ARGUMENTS=()
+AUDIO_ARGUMENTS=()
+NETWORK_ARGUMENTS=()
+UEFI_ARGUMENTS=()
 
 function BuildUsbArguments() {
-    USB_ARGUMENTS=()
+    USB_ARGUMENTS=(
+        -device qemu-xhci,id=xhci
+        -device usb-kbd,bus=xhci.0
+        -device usb-mouse,bus=xhci.0
+    )
+
     if [ "$USB3_ENABLED" -eq 1 ]; then
-        USB_ARGUMENTS=(-drive format=raw,file="$USB_3_PATH",if=none,id=usbdrive0 -device usb-storage,drive=usbdrive0,bus=xhci.0,id=usbmsd0)
+        USB_ARGUMENTS+=(
+            -drive format=raw,file="$USB_3_PATH",if=none,id=usbdrive0
+            -device usb-storage,drive=usbdrive0,bus=xhci.0,id=usbmsd0
+        )
     fi
 }
 
 function BuildNvmeArguments() {
     NVME_ARGUMENTS=()
+
     if [ "$NVME_ENABLED" -eq 1 ]; then
         local NtfsImagePath="$FS_TEST_NTFS_IMG_PATH"
+
         if [ "$NTFS_LIVE_ENABLED" -eq 1 ] && [ -f "$NTFS_LIVE_IMG_PATH" ] && [ -r "$NTFS_LIVE_IMG_PATH" ] && [ -w "$NTFS_LIVE_IMG_PATH" ]; then
             NtfsImagePath="$NTFS_LIVE_IMG_PATH"
             echo "Using NTFS live image: $NtfsImagePath"
@@ -267,6 +288,7 @@ function BuildNvmeArguments() {
             echo "FS test image path not set"
             exit 1
         fi
+
         if [ ! -f "$FS_TEST_EXT2_IMG_PATH" ] || [ ! -f "$FS_TEST_FAT32_IMG_PATH" ] || [ ! -f "$NtfsImagePath" ]; then
             echo "Missing one or more FS test images:"
             echo "  $FS_TEST_EXT2_IMG_PATH"
@@ -275,6 +297,7 @@ function BuildNvmeArguments() {
             echo "Build it with: ./scripts/build.sh --arch $ARCH --fs ext2 --debug"
             exit 1
         fi
+
         NVME_ARGUMENTS=(
             -drive format=raw,file="$FS_TEST_EXT2_IMG_PATH",if=none,id=fsxt0
             -device nvme,drive=fsxt0,serial=exosfs0
@@ -286,23 +309,60 @@ function BuildNvmeArguments() {
     fi
 }
 
+function BuildStorageArguments() {
+    STORAGE_ARGUMENTS=(
+        -device ahci,id=ahci
+        -drive format=raw,file="$IMG_PATH",if=none,id=drive0
+        -device ide-hd,drive=drive0,bus=ahci.0
+    )
+}
+
+function BuildFloppyArguments() {
+    FLOPPY_ARGUMENTS=(
+        -device isa-fdc,id=fdc0 \
+        -drive if=none,file="$FLOPPY_35_PATH",format=raw,id=floppy0 \
+        -device floppy,drive=floppy0
+    )
+}
+
+function BuildAudioArguments() {
+    AUDIO_ARGUMENTS=(
+        -audiodev pa,id=audio0
+        -device intel-hda,id=hda
+        -device hda-duplex,bus=hda.0,audiodev=audio0
+    )
+}
+
+function BuildNetworkArguments() {
+    NETWORK_ARGUMENTS=(
+        -netdev user,id=net0
+        -device e1000,netdev=net0
+        -object filter-dump,id=dump0,netdev=net0,file="${LOG_NET_PCAP}"
+    )
+}
+
 function FindFirmwareFile() {
     local env_value="$1"
     shift
+
     if [ -n "$env_value" ] && [ -f "$env_value" ]; then
         echo "$env_value"
         return 0
     fi
+
     for candidate in "$@"; do
         if [ -f "$candidate" ]; then
             echo "$candidate"
             return 0
         fi
     done
+
     return 1
 }
 
 function BuildUefiArguments() {
+    UEFI_ARGUMENTS=()
+
     if [ "$USE_UEFI" -eq 0 ]; then
         return 0
     fi
@@ -330,6 +390,10 @@ function BuildUefiArguments() {
 function RunStandardQemu() {
     BuildUsbArguments
     BuildNvmeArguments
+    BuildStorageArguments
+    BuildFloppyArguments
+    BuildAudioArguments
+    BuildNetworkArguments
     BuildUefiArguments
 
     if [ ! -x "$CYCLE_BIN" ]; then
@@ -341,21 +405,13 @@ function RunStandardQemu() {
     -machine q35,acpi=on,kernel-irqchip=split \
     -nodefaults \
     -smp cpus=1,cores=1,threads=1 \
-    -device qemu-xhci,id=xhci \
-    -device usb-kbd,bus=xhci.0 \
-    -device usb-mouse,bus=xhci.0 \
     "${USB_ARGUMENTS[@]}" \
+    "${STORAGE_ARGUMENTS[@]}" \
+    "${FLOPPY_ARGUMENTS[@]}" \
     "${NVME_ARGUMENTS[@]}" \
+    "${AUDIO_ARGUMENTS[@]}" \
+    "${NETWORK_ARGUMENTS[@]}" \
     "${UEFI_ARGUMENTS[@]}" \
-    -audiodev pa,id=audio0 \
-    -device intel-hda,id=hda \
-    -device hda-duplex,bus=hda.0,audiodev=audio0 \
-    -device ahci,id=ahci \
-    -drive format=raw,file="$IMG_PATH",if=none,id=drive0 \
-    -device ide-hd,drive=drive0,bus=ahci.0 \
-    -netdev user,id=net0 \
-    -device e1000,netdev=net0 \
-    -object filter-dump,id=dump0,netdev=net0,file="${LOG_NET_PCAP}" \
     -monitor telnet:127.0.0.1:${MONITOR_PORT},server,nowait \
     -serial file:"${LOG_DEBUG_COM1}" \
     -serial stdio \
@@ -367,6 +423,10 @@ function RunStandardQemu() {
 function RunGdbQemu() {
     BuildUsbArguments
     BuildNvmeArguments
+    BuildStorageArguments
+    BuildFloppyArguments
+    BuildAudioArguments
+    BuildNetworkArguments
     BuildUefiArguments
 
     if [ ! -f "$DEBUG_ELF" ]; then
@@ -381,18 +441,15 @@ function RunGdbQemu() {
 
     "$QEMU_BIN" \
     -machine q35,acpi=on,kernel-irqchip=split \
+    -nodefaults \
     -smp cpus=1,cores=1,threads=1 \
-    -device qemu-xhci,id=xhci \
-    -device usb-kbd,bus=xhci.0 \
-    -device usb-mouse,bus=xhci.0 \
     "${USB_ARGUMENTS[@]}" \
+    "${STORAGE_ARGUMENTS[@]}" \
+    "${FLOPPY_ARGUMENTS[@]}" \
     "${NVME_ARGUMENTS[@]}" \
+    "${AUDIO_ARGUMENTS[@]}" \
+    "${NETWORK_ARGUMENTS[@]}" \
     "${UEFI_ARGUMENTS[@]}" \
-    -device ahci,id=ahci \
-    -drive format=raw,file="$IMG_PATH",if=none,id=drive0 \
-    -device ide-hd,drive=drive0,bus=ahci.0 \
-    -netdev user,id=net0 \
-    -device e1000,netdev=net0 \
     -serial file:"${LOG_DEBUG_COM1}" \
     -serial file:"${LOG_KERNEL}" \
     -vga std \
