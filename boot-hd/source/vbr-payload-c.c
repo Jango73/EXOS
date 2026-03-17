@@ -24,7 +24,6 @@
 
 // x86-32 32 bits real mode payload entry point
 
-#include "../include/vbr-multiboot.h"
 #include "../include/vbr-realmode-utils.h"
 #include "../include/vbr-payload-shared.h"
 #include "boot-reservation.h"
