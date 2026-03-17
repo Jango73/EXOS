@@ -29,12 +29,14 @@
 
 LPCSTR Quotes [] = {
     TEXT("Nearly all men can stand adversity, but if you want to test a man's character, give him power. Abraham Lincoln."),
+    TEXT("Those who deny freedom to others deserve it not for themselves. (speech, 1859). Abraham Lincoln."),
     TEXT("Reality is merely an illusion, albeit a very persistent one. Letter to Michele Besso (1955). Albert Einstein."),
     TEXT("We do not see things as they are, we see them as we are. (attribution debated). Anaïs Nin."),
     TEXT("Knowing yourself is the beginning of all wisdom. Aristotle."),
     TEXT("Wisdom begins in wonder. Metaphysics. Aristotle."),
     TEXT("It is the mark of an educated mind to be able to entertain a thought without accepting it. Aristotle."),
     TEXT("We are what we repeatedly do. Excellence, then, is not an act, but a habit. Nicomachean Ethics. Aristotle."),
+    TEXT("He who would give up essential liberty to purchase a little temporary safety deserves neither liberty nor safety. (1755). Benjamin Franklin."),
     TEXT("Listen to their words and observe their actions. The Analects. Confucius."),
     TEXT("Holding on to anger is like grasping a hot coal with the intent of throwing it at someone else; you are the one who gets burned. (Buddhist teaching). Gautama Buddha."),
     TEXT("One cannot understand modern civilization unless one first admits that it is a universal conspiracy against every form of inner life. France Against the Robots. Georges Bernanos."),
@@ -54,12 +56,13 @@ LPCSTR Quotes [] = {
     TEXT("The greatest tyrannies are always perpetrated in the name of the noblest causes. Thomas Paine."),
     TEXT("Those who can make you believe absurdities can make you commit atrocities. Questions sur les miracles. Voltaire."),
     TEXT("It is dangerous to be right in matters on which the established authorities are wrong. The Age of Louis XIV. Voltaire."),
+    TEXT("I disapprove of what you say, but I will defend to the death your right to say it. Voltaire."),
     TEXT("There are more things in heaven and earth, Horatio, than are dreamt of in your philosophy. Hamlet. William Shakespeare."),
     TEXT("But the line dividing good and evil cuts through the heart of every human being. The Gulag Archipelago. Aleksandr Solzhenitsyn."),
     TEXT("Hypocrisy is a tribute vice pays to virtue. Maxims. François de La Rochefoucauld."),
     TEXT("When you wake up in the morning, tell yourself: The people I deal with today will be meddling, ungrateful, arrogant, dishonest, jealous, and surly. Meditations. Marcus Aurelius."),
     TEXT("Action is the pointer which shows the balance. We must not touch the pointer but the weight. Gravity and Grace. Simone Weil."),
-    TEXT("That reality is the unique source of all the good that can exist in this world. Simone Weil."),
+    TEXT("Political parties are a wonderful mechanism for killing the truth. On the Abolition of All Political Parties. Simone Weil."),
     TEXT("The world will not be destroyed by those who do evil, but by those who watch them without doing anything. Albert Einstein."),
     TEXT("Unthinking respect for authority is the greatest enemy of truth. (1931). Albert Einstein."),
     TEXT("Imagination is more important than knowledge. (1929 interview). Albert Einstein."),
@@ -71,6 +74,10 @@ LPCSTR Quotes [] = {
     TEXT("Live not by lies. (essay). Aleksandr Solzhenitsyn."),
     TEXT("Own only what you can always carry with you: know languages, know countries, know people. Let your memory be your travel bag. Aleksandr Solzhenitsyn."),
     TEXT("They lie, we know they lie, they know we know they lie, we know they know we know they lie, but they still lie. Aleksandr Solzhenitsyn."),
+    TEXT("Man is born free, and everywhere he is in chains. The Social Contract. Jean-Jacques Rousseau."),
+    TEXT("Freedom is the freedom to say that two plus two make four. Nineteen Eighty-Four. George Orwell."),
+    TEXT("Liberty lies in the rights of that person whose views you find most odious. H. L. Mencken."),
+    TEXT("Between stimulus and response there is a space. In that space is our power to choose our response. Viktor Frankl."),
 };
 
 /************************************************************************/
