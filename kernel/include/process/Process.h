@@ -154,28 +154,28 @@ UINT TaskGetMinimumSystemStackSize(void);
 /************************************************************************/
 
 struct tag_PROCESS {
-    LISTNODE_FIELDS          // Standard EXOS object fields
-        MUTEX Mutex;         // This structure's mutex
-    MUTEX HeapMutex;         // This structure's mutex for heap allocation
-    SECURITY Security;       // Security attributes
-    LPDESKTOP Desktop;       // This process' desktop
-    U32 Privilege;           // This process' privilege level
-    U32 Status;              // (alive/dead)
-    U32 Flags;               // Process creation flags
-    U32 ControlFlags;        // Process control state (pause/interrupt)
-    PHYSICAL PageDirectory;  // This process' page directory
+    LISTNODE_FIELDS                                         // Standard EXOS object fields
+        MUTEX Mutex;                                        // This structure's mutex
+    MUTEX HeapMutex;                                        // This structure's mutex for heap allocation
+    SECURITY Security;                                      // Security attributes
+    U32 Privilege;                                          // This process' privilege level
+    U32 Status;                                             // (alive/dead)
+    U32 Flags;                                              // Process creation flags
+    U32 ControlFlags;                                       // Process control state (pause/interrupt)
+    PHYSICAL PageDirectory;
     LINEAR HeapBase;
     UINT HeapSize;
     UINT MaximumAllocatedMemory;
-    UINT ExitCode;  // This process' exit code
+    UINT ExitCode;                                          // Exit code
     STR FileName[MAX_PATH_NAME];
     STR CommandLine[MAX_PATH_NAME];
     STR WorkFolder[MAX_PATH_NAME];
-    UINT TaskCount;                  // Number of active tasks in this process
-    MESSAGEQUEUE MessageQueue;       // Process-level message queue (input, etc.)
-    U64 UserID;                      // Owner user
-    LPUSER_SESSION Session;           // User session
-    LPFILESYSTEM PackageFileSystem;  // Mounted package filesystem tied to this process
+    UINT TaskCount;                                         // Number of active tasks in this process
+    MESSAGEQUEUE MessageQueue;                              // Process-level message queue (input, etc.)
+    U64 UserID;                                             // Owner user
+    LPDESKTOP Desktop;                                      // This process' desktop
+    LPUSER_SESSION Session;                                 // User session
+    LPFILESYSTEM PackageFileSystem;                         // Mounted package filesystem tied to this process
     struct tag_MEMORY_REGION_DESCRIPTOR* RegionListHead;
     struct tag_MEMORY_REGION_DESCRIPTOR* RegionListTail;
     UINT RegionCount;
@@ -189,23 +189,15 @@ typedef struct tag_PROPERTY {
 } PROPERTY, *LPPROPERTY;
 
 struct tag_WINDOW {
-    LISTNODE_FIELDS         // Standard EXOS object fields
-        MUTEX Mutex;        // This window's mutex
-    LPTASK Task;            // The task that created this window
-    WINDOWFUNC Function;    // The function that manages this window
-    LPWINDOW ParentWindow;  // The parent of this window
-    LPLIST Children;        // The children of this window
-    LPLIST Properties;      // The user-defined properties of this window
-    LPWINDOW_CLASS Class;   // Window class metadata
-    LPVOID ClassData;       // Window class private data
-    RECT Rect;              // The rectangle of this window
-    RECT ScreenRect;
-    RECT WorkRect;
-    RECT DirtyRects[WINDOW_DIRTY_REGION_CAPACITY];
-    RECT_REGION DirtyRegion;
-    RECT DrawSurfaceRect;
-    RECT DrawClipRect;
-    POINT DrawOrigin;
+    LISTNODE_FIELDS                                 // Standard EXOS object fields
+        MUTEX Mutex;                                // This window's mutex
+    LPTASK Task;                                    // The task that created this window
+    WINDOWFUNC Function;                            // The function that manages this window
+    LPWINDOW ParentWindow;                          // The parent of this window
+    LPLIST Children;                                // The children of this window
+    LPLIST Properties;                              // The user-defined properties of this window
+    LPWINDOW_CLASS Class;                           // Window class metadata
+    LPVOID ClassData;                               // Window class private data
     U32 DrawContextFlags;
     U32 WindowID;
     U32 Style;
@@ -214,6 +206,14 @@ struct tag_WINDOW {
     U32 Level;
     I32 Order;
     STR Caption[MAX_WINDOW_CAPTION];
+    POINT DrawOrigin;
+    RECT Rect;                                      // The rectangle of this window
+    RECT ScreenRect;
+    RECT WorkRect;
+    RECT DirtyRects[WINDOW_DIRTY_REGION_CAPACITY];
+    RECT_REGION DirtyRegion;
+    RECT DrawSurfaceRect;
+    RECT DrawClipRect;
 };
 
 typedef struct tag_WINDOW_CLASS {
@@ -257,24 +257,24 @@ typedef struct tag_MOUSE_CURSOR {
 } MOUSE_CURSOR, *LPMOUSE_CURSOR;
 
 struct tag_DESKTOP {
-    LISTNODE_FIELDS            // Standard EXOS object fields
-        MUTEX Mutex;           // This structure's mutex
-    LPTASK Task;               // The task that created this desktop
-    LPDRIVER Graphics;         // This desktop's graphics driver
-    LPWINDOW Window;           // Window of the desktop
-    LPWINDOW Capture;          // Window that captured mouse
-    LPWINDOW LastMouseMoveTarget;  // Window that last received mouse move dispatch
-    I32 CaptureOffsetX;        // Mouse offset X in captured window on drag start
-    I32 CaptureOffsetY;        // Mouse offset Y in captured window on drag start
-    MUTEX TimerMutex;          // Protect desktop timers
-    LPLIST Timers;             // Per-desktop timer entries
-    LPTASK TimerTask;          // Per-desktop timer worker task
-    LPWINDOW Focus;            // Window that has focus
-    U32 Mode;                 // Active desktop display mode
-    I32 Order;                // Desktop ordering key among active desktops
-    U32 PendingComponents;    // Pending desktop-owned component injection flags
+    LISTNODE_FIELDS                 // Standard EXOS object fields
+        MUTEX Mutex;                // This structure's mutex
+    LPTASK Task;                    // The task that created this desktop
+    LPDRIVER Graphics;              // This desktop's graphics driver
+    LPWINDOW Window;                // Window of the desktop
+    LPWINDOW Capture;               // Window that captured mouse
+    LPWINDOW LastMouseMoveTarget;   // Window that last received mouse move dispatch
+    I32 CaptureOffsetX;             // Mouse offset X in captured window on drag start
+    I32 CaptureOffsetY;             // Mouse offset Y in captured window on drag start
+    MUTEX TimerMutex;               // Protect desktop timers
+    LPLIST Timers;                  // Per-desktop timer entries
+    LPTASK TimerTask;               // Per-desktop timer worker task
+    LPWINDOW Focus;                 // Window that has focus
+    U32 Mode;                       // Active desktop display mode
+    I32 Order;                      // Desktop ordering key among active desktops
+    U32 PendingComponents;          // Pending desktop-owned component injection flags
+    MOUSE_CURSOR Cursor;            // Desktop cursor runtime state
     DESKTOP_DISPLAY_SELECTION DisplaySelection;
-    MOUSE_CURSOR Cursor;      // Desktop cursor runtime state
 };
 
 /************************************************************************/

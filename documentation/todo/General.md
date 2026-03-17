@@ -39,7 +39,6 @@
 ## Naming
 
 - Remove all abbreviations
-- Merge FSID.h and ID.h -> ID.h
 
 ## Logs
 

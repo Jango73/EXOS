@@ -429,7 +429,7 @@ static void Welcome(void) {
         EXOS_VERSION_MAJOR, EXOS_VERSION_MINOR, EXOS_VERSION_PATCH
         );
 
-    ConsolePrint(TEXT("%s\n\n"), GetRandomQuote());
+    ConsolePrint(TEXT("\n%s\n\n"), GetRandomQuote());
 
 /*
     ConsolePrint(TEXT("\nEXOS - "));
