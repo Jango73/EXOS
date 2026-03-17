@@ -6,8 +6,8 @@ echo "Checking struct naming conventions in .h and .c files..."
 echo "Expected format: tag_SCREAMING_SNAKE_CASE"
 echo "=================================================="
 
-# Find all .h and .c files and search for struct definitions
-find . -name "*.h" -o -name "*.c" | while read file; do
+# Find all .h and .c files excluding "third/" directory
+find kernel -type f \( -name '*.h' -o -name '*.c' \) -print | while read file; do
     # Extract struct definitions (both typedef struct and plain struct)
     # Look for patterns like "struct NAME" or "typedef struct NAME"
     # Handle __attribute__ between struct and name
@@ -19,12 +19,18 @@ find . -name "*.h" -o -name "*.c" | while read file; do
         struct_name=$(echo "$content" | awk '{
             # Remove typedef if present
             gsub(/^[[:space:]]*typedef[[:space:]]+/, "")
+
             # Remove everything up to and including "struct "
             sub(/^.*struct[[:space:]]+/, "")
+
             # Remove __attribute__((packed)) if present (handle nested parentheses)
             if (match($0, /^__attribute__[[:space:]]*\(\(packed\)\)[[:space:]]+/)) {
                 sub(/^__attribute__[[:space:]]*\(\(packed\)\)[[:space:]]+/, "")
             }
+
+            # Remove PACKED
+            gsub(/\<([Pp][Aa][Cc][Kk][Ee][Dd])\>/, "")
+
             # Extract first word as struct name
             if (match($0, /^[A-Za-z_][A-Za-z0-9_]*/)) {
                 print substr($0, RSTART, RLENGTH)

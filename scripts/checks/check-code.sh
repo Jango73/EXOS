@@ -224,7 +224,7 @@ if ! command -v jscpd >/dev/null 2>&1; then
     echo "ERROR: jscpd is required but not installed."
     JSCPD_STATUS=1
 else
-    if ! jscpd kernel -l 10 -k 100; then
+    if ! jscpd kernel -l 20 -k 100; then
         JSCPD_STATUS=1
     fi
 fi

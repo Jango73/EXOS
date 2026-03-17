@@ -367,8 +367,67 @@ function startTail(file, box) {
 }
 
 const config = loadConfig();
-const sidebarEntries = normalizeSidebarEntries();
-const scripts = loadScripts(sidebarEntries);
+
+let currentCommandSetIndex = 0;
+
+function getCurrentCommandSet() {
+    const sets = Array.isArray(config.commandSets) ? config.commandSets : [];
+    if (sets.length === 0) return { name: 'empty', commands: [] };
+    return sets[currentCommandSetIndex] ?? sets[0];
+}
+
+function normalizeSidebarEntriesFromSet(commandSet) {
+    const entries = [];
+
+    for (const command of (Array.isArray(commandSet.commands) ? commandSet.commands : [])) {
+        const displayLabel = resolveBindingLabel(command);
+        const script = resolveBindingScript(command);
+
+        const keyName = (typeof command === 'object' && command && typeof command.key === 'string')
+            ? command.key.trim()
+            : '';
+
+        const keyText = keyName === '' ? '' : keyName.toUpperCase();
+        const fallbackLabel = script !== '' ? script : '(no command)';
+
+        entries.push({
+            text: keyText !== '' ? `${keyText} - ${displayLabel || fallbackLabel}` : `${displayLabel || fallbackLabel}`,
+            script,
+            keyName,
+            selectable: script !== ''
+        });
+    }
+
+    return entries;
+}
+
+function switchCommandSet(direction = 1) {
+    const sets = Array.isArray(config.commandSets) ? config.commandSets : [];
+    if (sets.length <= 1) return;
+
+    currentCommandSetIndex += direction;
+
+    if (currentCommandSetIndex < 0) {
+        currentCommandSetIndex = sets.length - 1;
+    } else if (currentCommandSetIndex >= sets.length) {
+        currentCommandSetIndex = 0;
+    }
+
+    const currentSet = getCurrentCommandSet();
+
+    sidebarEntries = normalizeSidebarEntriesFromSet(currentSet);
+    scripts = loadScripts(sidebarEntries);
+
+    list.setItems(scripts);
+    list.select(0);
+
+    sidebar.setLabel(` Scripts (${currentSet.name}) `);
+
+    screen.render();
+}
+
+let sidebarEntries = normalizeSidebarEntriesFromSet(getCurrentCommandSet());
+let scripts = loadScripts(sidebarEntries);
 
 const dashboardTheme = {
     background: '#1a2f4d',
@@ -634,6 +693,14 @@ const list = blessed.list({
         selected: { bg: dashboardTheme.selected, fg: dashboardTheme.text },
         item: { hover: { bg: dashboardTheme.hover, fg: dashboardTheme.text } }
     }
+});
+
+list.key(['C-right'], () => {
+    switchCommandSet(1);
+});
+
+list.key(['C-left'], () => {
+    switchCommandSet(-1);
 });
 
 screen.append(sidebar);
