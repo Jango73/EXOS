@@ -181,7 +181,7 @@ BOOL FindAvailableMemoryRange(PHYSICAL MinimumAddress, UINT Size, PHYSICAL* OutA
     UINT AlignedSize = (UINT)PAGE_ALIGN(Size);
 
     for (UINT Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
-        const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
+        const MULTIBOOT_MEMORY_ENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
         PHYSICAL EntryBase = 0;
         UINT EntrySize = 0;
 
@@ -263,7 +263,7 @@ BOOL FindAvailableMemoryRangeInWindow(
     }
 
     for (UINT Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
-        const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
+        const MULTIBOOT_MEMORY_ENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
         PHYSICAL EntryBase = 0;
         UINT EntrySize = 0;
 
@@ -353,7 +353,7 @@ void UpdateKernelMemoryMetricsFromMultibootMap(void) {
     PHYSICAL MaxUsableRAM = 0;
 
     for (UINT Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
-        const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
+        const MULTIBOOT_MEMORY_ENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
         PHYSICAL Base = 0;
         UINT Size = 0;
 
@@ -421,7 +421,7 @@ void MarkUsedPhysicalMemory(void) {
     }
 
     for (UINT Index = 0; Index < KernelStartup.MultibootMemoryEntryCount; Index++) {
-        const MULTIBOOTMEMORYENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
+        const MULTIBOOT_MEMORY_ENTRY* Entry = &KernelStartup.MultibootMemoryEntries[Index];
         PHYSICAL Base = 0;
         UINT Size = 0;
 

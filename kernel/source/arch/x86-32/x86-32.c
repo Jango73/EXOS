@@ -190,7 +190,7 @@ static UINT InterruptsDriverCommands(UINT Function, UINT Parameter);
 
 /************************************************************************/
 
-KERNELDATA_X86_32 DATA_SECTION Kernel_x86_32 = {
+KERNEL_DATA_X86_32 DATA_SECTION Kernel_x86_32 = {
     .IDT = NULL,
     .GDT = NULL,
     .TSS = NULL

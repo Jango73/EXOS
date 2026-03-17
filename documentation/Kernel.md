@@ -820,7 +820,7 @@ Disk I/O goes through one shared validation and chunking path. `DF_DISK_READ` an
 
 Console rendering is a kernel-owned display frontend. Text drawing is dispatched through the active graphics backend whenever framebuffer console output is available.
 
-Display ownership is tracked in `kernel/source/desktop/DisplaySession.c` through `DISPLAY_SESSION` stored in `KERNELDATA`. This state records the active frontend (`console` or `desktop`), the active desktop pointer, the selected graphics driver, and the active mode. Frontend transitions are performed by `DisplaySwitchToConsole()` and `DisplaySwitchToDesktop()`, with backend ownership preserved across frontend changes.
+Display ownership is tracked in `kernel/source/desktop/DisplaySession.c` through `DISPLAY_SESSION` stored in `KERNEL_DATA`. This state records the active frontend (`console` or `desktop`), the active desktop pointer, the selected graphics driver, and the active mode. Frontend transitions are performed by `DisplaySwitchToConsole()` and `DisplaySwitchToDesktop()`, with backend ownership preserved across frontend changes.
 
 #### Console rendering path
 

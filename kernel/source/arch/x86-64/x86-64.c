@@ -158,7 +158,7 @@ LPDRIVER InterruptsGetDriver(void) {
 
 \************************************************************************/
 
-KERNELDATA_X86_64 DATA_SECTION Kernel_x86_32 = {
+KERNEL_DATA_X86_64 DATA_SECTION Kernel_x86_32 = {
     .IDT = NULL,
     .GDT = NULL,
     .TSS = NULL,

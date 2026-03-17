@@ -22,8 +22,8 @@
 
 \************************************************************************/
 
-#ifndef KERNELDATA_H_INCLUDED
-#define KERNELDATA_H_INCLUDED
+#ifndef KERNEL_DATA_H_INCLUDED
+#define KERNEL_DATA_H_INCLUDED
 
 /************************************************************************/
 
@@ -63,7 +63,7 @@
 /************************************************************************/
 // Structure to receive CPU information
 
-typedef struct tag_CPUINFORMATION {
+typedef struct tag_CPU_INFORMATION {
     STR Name[16];
     U32 Type;
     U32 Family;
@@ -71,18 +71,18 @@ typedef struct tag_CPUINFORMATION {
     U32 Stepping;
     U32 Features;
     U32 BaseFrequencyMHz;
-} CPUINFORMATION, *LPCPUINFORMATION;
+} CPU_INFORMATION, *LPCPU_INFORMATION;
 
 /************************************************************************/
 // Global Kernel Data
 
-typedef struct tag_MULTIBOOTMEMORYENTRY {
+typedef struct tag_MULTIBOOT_MEMORY_ENTRY {
     U64 Base;
     U64 Length;
     U32 Type;
-} MULTIBOOTMEMORYENTRY, *LPMULTIBOOTMEMORYENTRY;
+} MULTIBOOT_MEMORY_ENTRY, *LPMULTIBOOT_MEMORY_ENTRY;
 
-typedef struct tag_KERNELSTARTUPINFO {
+typedef struct tag_KERNEL_STARTUP_INFO {
     // WARNING: This layout is mirrored in assembly:
     // - kernel/source/arch/x86-32/asm/x86-32.inc (KernelStartupInfo)
     // - kernel/source/arch/x86-64/asm/x86-64.inc (KernelStartupInfo)
@@ -100,11 +100,11 @@ typedef struct tag_KERNELSTARTUPINFO {
     UINT PageCount;   // Total memory size in pages (4K)
     U32 MultibootMemoryEntryCount;
     PHYSICAL RsdpPhysical;
-    MULTIBOOTMEMORYENTRY MultibootMemoryEntries[N_4KB / sizeof(MULTIBOOTMEMORYENTRY)];
+    MULTIBOOT_MEMORY_ENTRY MultibootMemoryEntries[N_4KB / sizeof(MULTIBOOT_MEMORY_ENTRY)];
     STR CommandLine[MAX_COMMAND_LINE];
-} KERNELSTARTUPINFO, *LPKERNELSTARTUPINFO;
+} KERNEL_STARTUP_INFO, *LPKERNEL_STARTUP_INFO;
 
-extern KERNELSTARTUPINFO KernelStartup;
+extern KERNEL_STARTUP_INFO KernelStartup;
 
 typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
 
@@ -123,7 +123,7 @@ typedef struct tag_STARTUP_DRIVER_ENTRY {
 
 /************************************************************************/
 
-typedef struct tag_KERNELDATA {
+typedef struct tag_KERNEL_DATA {
     // NOTE: This structure has no global assembly mirror.
     // Assembly code must not rely on hardcoded offsets into this struct.
     LPLIST Desktop;
@@ -156,7 +156,7 @@ typedef struct tag_KERNELDATA {
     FILESYSTEM_GLOBAL_INFO FileSystemInfo;
     SYSTEMFSFILESYSTEM SystemFS;
     HANDLE_MAP HandleMap;           // Global handle to pointer mapping
-    CPUINFORMATION CPU;
+    CPU_INFORMATION CPU;
     LPTOML Configuration;
     UINT MinimumQuantum;            // Minimum quantum time in milliseconds (adjusted for emulation)
     UINT MaximumQuantum;            // Maximum quantum time in milliseconds (adjusted for emulation)
@@ -165,7 +165,7 @@ typedef struct tag_KERNELDATA {
     BOOL DoLogin;                   // Enable/disable login sequence (TRUE=enable, FALSE=disable)
     STR LanguageCode[8];
     STR KeyboardCode[8];
-} KERNELDATA, *LPKERNELDATA;
+} KERNEL_DATA, *LPKERNEL_DATA;
 
 /************************************************************************/
 // Functions in KernelData.c
@@ -183,7 +183,7 @@ void SetMinimumQuantum(UINT MinimumQuantum);
 void SetUserAccountList(LPLIST List);
 void SetUserSessionList(LPLIST List);
 
-BOOL GetCPUInformation(LPCPUINFORMATION);
+BOOL GetCPUInformation(LPCPU_INFORMATION);
 LPTOML GetConfiguration(void);
 UINT GetDeferredWorkPollDelay(void);
 UINT GetDeferredWorkWaitTimeout(void);
@@ -205,7 +205,7 @@ LPPROCESS GetFocusedProcess(void);
 LPDESKTOP_THEME GetGlobalThemeState(void);
 LPDRIVER GetGraphicsDriver(void);
 LPHANDLE_MAP GetHandleMap(void);
-LPCPUINFORMATION GetKernelCPUInfo(void);
+LPCPU_INFORMATION GetKernelCPUInfo(void);
 LPCSTR GetKeyboardCode(void);
 LPCSTR GetLanguageCode(void);
 UINT GetMaximumQuantum(void);
@@ -232,4 +232,4 @@ void InitializeDriverList(void);
 
 #pragma pack(pop)
 
-#endif  // KERNELDATA_H_INCLUDED
+#endif  // KERNEL_DATA_H_INCLUDED

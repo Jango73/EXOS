@@ -35,7 +35,7 @@
 extern LINEAR __bss_init_start;
 extern LINEAR __bss_init_end;
 
-KERNELSTARTUPINFO KernelStartup = {
+KERNEL_STARTUP_INFO KernelStartup = {
     .IRQMask_21_PM = 0x000000FB, .IRQMask_A1_PM = 0x000000FF, .IRQMask_21_RM = 0, .IRQMask_A1_RM = 0};
 
 /************************************************************************/
@@ -256,7 +256,7 @@ void KernelMain(void) {
         PHYSICAL MmapEnd = MultibootInfo->mmap_addr + MultibootInfo->mmap_length;
         U32 EntryCount = 0;
 
-        while (MmapCursor < MmapEnd && EntryCount < (N_4KB / sizeof(MULTIBOOTMEMORYENTRY))) {
+        while (MmapCursor < MmapEnd && EntryCount < (N_4KB / sizeof(MULTIBOOT_MEMORY_ENTRY))) {
             multiboot_memory_map_t* MmapEntry = (multiboot_memory_map_t*)(UINT)MmapCursor;
             // Duplicate Multiboot entry information
             KernelStartup.MultibootMemoryEntries[EntryCount].Base = U64_Make(MmapEntry->addr_high, MmapEntry->addr_low);

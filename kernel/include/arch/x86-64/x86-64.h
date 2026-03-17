@@ -346,11 +346,11 @@ typedef struct tag_GDT_REGISTER {
 typedef U16 SELECTOR;
 typedef U64 OFFSET;
 
-typedef struct tag_KERNELDATA_X86_64 {
+typedef struct tag_KERNEL_DATA_X86_64 {
     LPGATE_DESCRIPTOR IDT;
     LPVOID GDT;
     LPX86_64_TASK_STATE_SEGMENT TSS;
-} KERNELDATA_X86_64, *LPKERNELDATA_X86_64;
+} KERNEL_DATA_X86_64, *LPKERNEL_DATA_X86_64;
 
 /***************************************************************************/
 // Inline helpers
@@ -584,7 +584,7 @@ static inline U32 LoadPageDirectory(PHYSICAL Base)
 
 /***************************************************************************/
 
-extern KERNELDATA_X86_64 Kernel_x86_32;
+extern KERNEL_DATA_X86_64 Kernel_x86_32;
 
 struct tag_TASK;
 struct tag_PROCESS;

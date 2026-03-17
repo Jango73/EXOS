@@ -191,7 +191,7 @@ static F32 SinLookupF32(F32 Radians) {
  * @return TRUE when x87 feature bit is present.
  */
 BOOL MathHasHardwareFPU(void) {
-    LPCPUINFORMATION CpuInfo = GetKernelCPUInfo();
+    LPCPU_INFORMATION CpuInfo = GetKernelCPUInfo();
 
     if (CpuInfo == NULL) {
         return TRUE;

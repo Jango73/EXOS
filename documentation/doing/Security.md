@@ -43,7 +43,7 @@
 ### 2.3 Global User Context
 - [x] Global session list exists (`Kernel.UserSessions` in `kernel/source/KernelData.c`).
 - [x] Effective current user resolution exists through `process->Session` + `GetCurrentUser()` (`kernel/source/utils/Helpers.c`).
-- [ ] Global `CurrentUser` pointer in `KERNELDATA`.
+- [ ] Global `CurrentUser` pointer in `KERNEL_DATA`.
 
 ## Phase 3 - Syscalls
 - [x] `SysCall_Login` implemented (`kernel/source/SYSCall.c`).
