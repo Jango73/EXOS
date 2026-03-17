@@ -43,25 +43,25 @@
 
 /***************************************************************************/
 
-typedef struct tag_HEAPBLOCKHEADER {
+typedef struct tag_HEAP_BLOCK_HEADER {
     UINT TypeID;
     UINT Size;
     UINT Flags;
-    struct tag_HEAPBLOCKHEADER* Next;
-    struct tag_HEAPBLOCKHEADER* Prev;
-} HEAPBLOCKHEADER, *LPHEAPBLOCKHEADER;
+    struct tag_HEAP_BLOCK_HEADER* Next;
+    struct tag_HEAP_BLOCK_HEADER* Prev;
+} HEAP_BLOCK_HEADER, *LPHEAP_BLOCK_HEADER;
 
 /***************************************************************************/
 
-typedef struct tag_HEAPCONTROLBLOCK {
+typedef struct tag_HEAP_CONTROL_BLOCK {
     UINT TypeID;
     LINEAR HeapBase;
     UINT HeapSize;
     LPPROCESS Owner;
-    LPHEAPBLOCKHEADER FreeLists[HEAP_NUM_SIZE_CLASSES];
-    LPHEAPBLOCKHEADER LargeFreeList;
+    LPHEAP_BLOCK_HEADER FreeLists[HEAP_NUM_SIZE_CLASSES];
+    LPHEAP_BLOCK_HEADER LargeFreeList;
     LPVOID FirstUnallocated;
-} HEAPCONTROLBLOCK, *LPHEAPCONTROLBLOCK;
+} HEAP_CONTROL_BLOCK, *LPHEAP_CONTROL_BLOCK;
 
 /***************************************************************************/
 

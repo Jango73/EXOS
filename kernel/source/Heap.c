@@ -76,12 +76,12 @@ static UINT GetSizeForClass(UINT SizeClass) {
  * @param Block Heap block header.
  * @return Size class index, or 0xFF for large blocks.
  */
-static UINT GetBlockSizeClass(LPHEAPBLOCKHEADER Block) {
-    if (Block == NULL || Block->Size <= sizeof(HEAPBLOCKHEADER)) {
+static UINT GetBlockSizeClass(LPHEAP_BLOCK_HEADER Block) {
+    if (Block == NULL || Block->Size <= sizeof(HEAP_BLOCK_HEADER)) {
         return 0xFF;
     }
 
-    return GetSizeClass(Block->Size - sizeof(HEAPBLOCKHEADER));
+    return GetSizeClass(Block->Size - sizeof(HEAP_BLOCK_HEADER));
 }
 
 /************************************************************************/
@@ -91,7 +91,7 @@ static UINT GetBlockSizeClass(LPHEAPBLOCKHEADER Block) {
  * @param Block Heap block header.
  * @return TRUE if free, FALSE otherwise.
  */
-static BOOL IsBlockFree(LPHEAPBLOCKHEADER Block) {
+static BOOL IsBlockFree(LPHEAP_BLOCK_HEADER Block) {
     if (Block == NULL) {
         return FALSE;
     }
@@ -107,7 +107,7 @@ static BOOL IsBlockFree(LPHEAPBLOCKHEADER Block) {
  * @param Block Candidate block.
  * @return TRUE when valid, FALSE otherwise.
  */
-static BOOL IsBlockInHeap(LPHEAPCONTROLBLOCK ControlBlock, LPHEAPBLOCKHEADER Block) {
+static BOOL IsBlockInHeap(LPHEAP_CONTROL_BLOCK ControlBlock, LPHEAP_BLOCK_HEADER Block) {
     LINEAR FirstBlock;
     LINEAR FirstUnallocated;
     LINEAR Address;
@@ -116,7 +116,7 @@ static BOOL IsBlockInHeap(LPHEAPCONTROLBLOCK ControlBlock, LPHEAPBLOCKHEADER Blo
         return FALSE;
     }
 
-    FirstBlock = (ControlBlock->HeapBase + sizeof(HEAPCONTROLBLOCK) + 15) & ~15;
+    FirstBlock = (ControlBlock->HeapBase + sizeof(HEAP_CONTROL_BLOCK) + 15) & ~15;
     FirstUnallocated = (LINEAR)ControlBlock->FirstUnallocated;
     Address = (LINEAR)Block;
 
@@ -124,7 +124,7 @@ static BOOL IsBlockInHeap(LPHEAPCONTROLBLOCK ControlBlock, LPHEAPBLOCKHEADER Blo
         return FALSE;
     }
 
-    if (Block->TypeID != KOID_HEAP || Block->Size < sizeof(HEAPBLOCKHEADER)) {
+    if (Block->TypeID != KOID_HEAP || Block->Size < sizeof(HEAP_BLOCK_HEADER)) {
         return FALSE;
     }
 
@@ -143,24 +143,24 @@ static BOOL IsBlockInHeap(LPHEAPCONTROLBLOCK ControlBlock, LPHEAPBLOCKHEADER Blo
  * @param Target Target block.
  * @return Previous adjacent block, or NULL.
  */
-static LPHEAPBLOCKHEADER FindPreviousPhysicalBlock(LPHEAPCONTROLBLOCK ControlBlock, LPHEAPBLOCKHEADER Target) {
+static LPHEAP_BLOCK_HEADER FindPreviousPhysicalBlock(LPHEAP_CONTROL_BLOCK ControlBlock, LPHEAP_BLOCK_HEADER Target) {
     LINEAR Cursor;
     LINEAR FirstBlock;
     LINEAR FirstUnallocated;
-    LPHEAPBLOCKHEADER Block;
-    LPHEAPBLOCKHEADER Previous;
+    LPHEAP_BLOCK_HEADER Block;
+    LPHEAP_BLOCK_HEADER Previous;
 
     if (ControlBlock == NULL || Target == NULL) {
         return NULL;
     }
 
-    FirstBlock = (ControlBlock->HeapBase + sizeof(HEAPCONTROLBLOCK) + 15) & ~15;
+    FirstBlock = (ControlBlock->HeapBase + sizeof(HEAP_CONTROL_BLOCK) + 15) & ~15;
     FirstUnallocated = (LINEAR)ControlBlock->FirstUnallocated;
     Cursor = FirstBlock;
     Previous = NULL;
 
     while (Cursor < FirstUnallocated) {
-        Block = (LPHEAPBLOCKHEADER)Cursor;
+        Block = (LPHEAP_BLOCK_HEADER)Cursor;
 
         if (Block == Target) {
             return Previous;
@@ -188,7 +188,7 @@ static LPHEAPBLOCKHEADER FindPreviousPhysicalBlock(LPHEAPCONTROLBLOCK ControlBlo
  * Inserts the block at the head of the corresponding freelist as a doubly-linked list.
  * Large blocks (>2048 bytes) are added to the separate large block freelist.
  */
-static void AddToFreeList(LPHEAPCONTROLBLOCK ControlBlock, LPHEAPBLOCKHEADER Block, UINT SizeClass) {
+static void AddToFreeList(LPHEAP_CONTROL_BLOCK ControlBlock, LPHEAP_BLOCK_HEADER Block, UINT SizeClass) {
     if (IsBlockFree(Block)) {
         ERROR(TEXT("[AddToFreeList] Block already marked free"));
         return;
@@ -226,7 +226,7 @@ static void AddToFreeList(LPHEAPCONTROLBLOCK ControlBlock, LPHEAPBLOCKHEADER Blo
  * Removes the block from its doubly-linked freelist by updating the previous and next
  * block pointers. Updates the freelist head if removing the first block.
  */
-static void RemoveFromFreeList(LPHEAPCONTROLBLOCK ControlBlock, LPHEAPBLOCKHEADER Block, UINT SizeClass) {
+static void RemoveFromFreeList(LPHEAP_CONTROL_BLOCK ControlBlock, LPHEAP_BLOCK_HEADER Block, UINT SizeClass) {
     if (Block == NULL) return;
 
     if (Block->Prev) {
@@ -262,7 +262,7 @@ static void RemoveFromFreeList(LPHEAPCONTROLBLOCK ControlBlock, LPHEAPBLOCKHEADE
 void HeapInit(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize) {
     MemorySet((LPVOID)HeapBase, 0, HeapSize);
 
-    LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)HeapBase;
+    LPHEAP_CONTROL_BLOCK ControlBlock = (LPHEAP_CONTROL_BLOCK)HeapBase;
 
     ControlBlock->TypeID = KOID_HEAP;
     ControlBlock->HeapBase = HeapBase;
@@ -276,7 +276,7 @@ void HeapInit(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize) {
     ControlBlock->LargeFreeList = NULL;
 
     // Set first unallocated to after control block, aligned to 16 bytes
-    ControlBlock->FirstUnallocated = (LPVOID)((HeapBase + sizeof(HEAPCONTROLBLOCK) + 15) & ~15);
+    ControlBlock->FirstUnallocated = (LPVOID)((HeapBase + sizeof(HEAP_CONTROL_BLOCK) + 15) & ~15);
 }
 
 /************************************************************************/
@@ -287,7 +287,7 @@ void HeapInit(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize) {
  * @param RequiredSize Allocation size (including header) that triggered the expansion.
  * @return TRUE if the heap was expanded, FALSE otherwise.
  */
-static BOOL TryExpandHeap(LPHEAPCONTROLBLOCK ControlBlock, UINT RequiredSize) {
+static BOOL TryExpandHeap(LPHEAP_CONTROL_BLOCK ControlBlock, UINT RequiredSize) {
     if (ControlBlock == NULL || ControlBlock->Owner == NULL) {
         ERROR(TEXT("[TryExpandHeap] Heap owner is undefined"));
         return FALSE;
@@ -356,11 +356,11 @@ static BOOL TryExpandHeap(LPHEAPCONTROLBLOCK ControlBlock, UINT RequiredSize) {
 LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Size) {
     UNUSED(HeapSize);
 
-    LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)HeapBase;
+    LPHEAP_CONTROL_BLOCK ControlBlock = (LPHEAP_CONTROL_BLOCK)HeapBase;
     if (Process != NULL) {
         ControlBlock->Owner = Process;
     }
-    LPHEAPBLOCKHEADER Block = NULL;
+    LPHEAP_BLOCK_HEADER Block = NULL;
     UINT SizeClass = 0;
     UINT ActualSize = 0;
     UINT TotalSize = 0;
@@ -379,7 +379,7 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
         ActualSize = (Size + 15) & ~15;
     }
 
-    TotalSize = ActualSize + sizeof(HEAPBLOCKHEADER);
+    TotalSize = ActualSize + sizeof(HEAP_BLOCK_HEADER);
 
     // Try to find a block in the appropriate freelist
     if (SizeClass != 0xFF) {
@@ -387,7 +387,7 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
         Block = ControlBlock->FreeLists[SizeClass];
         if (Block != NULL && Block->TypeID == KOID_HEAP && Block->Size >= TotalSize) {
             RemoveFromFreeList(ControlBlock, Block, SizeClass);
-            return (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
+            return (LPVOID)((LINEAR)Block + sizeof(HEAP_BLOCK_HEADER));
         }
 
         // Try larger size classes
@@ -399,22 +399,23 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
                 // Split the block if it's significantly larger
                 if (Block->Size > TotalSize) {
                     UINT RemainingSize = Block->Size - TotalSize;
-                    if (RemainingSize >= sizeof(HEAPBLOCKHEADER) + HEAP_MIN_BLOCK_SIZE) {
-                        LPHEAPBLOCKHEADER SplitBlock = (LPHEAPBLOCKHEADER)((LINEAR)Block + TotalSize);
+
+                    if (RemainingSize >= sizeof(HEAP_BLOCK_HEADER) + HEAP_MIN_BLOCK_SIZE) {
+                        LPHEAP_BLOCK_HEADER SplitBlock = (LPHEAP_BLOCK_HEADER)((LINEAR)Block + TotalSize);
                         SplitBlock->TypeID = KOID_HEAP;
                         SplitBlock->Size = RemainingSize;
                         SplitBlock->Flags = 0;
                         SplitBlock->Next = NULL;
                         SplitBlock->Prev = NULL;
 
-                        UINT SplitSizeClass = GetSizeClass(RemainingSize - sizeof(HEAPBLOCKHEADER));
+                        UINT SplitSizeClass = GetSizeClass(RemainingSize - sizeof(HEAP_BLOCK_HEADER));
                         AddToFreeList(ControlBlock, SplitBlock, SplitSizeClass);
 
                         Block->Size = TotalSize;
                     }
                 }
 
-                return (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
+                return (LPVOID)((LINEAR)Block + sizeof(HEAP_BLOCK_HEADER));
             }
         }
     } else {
@@ -428,22 +429,22 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
                 if (Block->Size > TotalSize) {
                     UINT RemainingSize = Block->Size - TotalSize;
 
-                    if (RemainingSize >= sizeof(HEAPBLOCKHEADER) + HEAP_MIN_BLOCK_SIZE) {
-                        LPHEAPBLOCKHEADER SplitBlock = (LPHEAPBLOCKHEADER)((LINEAR)Block + TotalSize);
+                    if (RemainingSize >= sizeof(HEAP_BLOCK_HEADER) + HEAP_MIN_BLOCK_SIZE) {
+                        LPHEAP_BLOCK_HEADER SplitBlock = (LPHEAP_BLOCK_HEADER)((LINEAR)Block + TotalSize);
                         SplitBlock->TypeID = KOID_HEAP;
                         SplitBlock->Size = RemainingSize;
                         SplitBlock->Flags = 0;
                         SplitBlock->Next = NULL;
                         SplitBlock->Prev = NULL;
 
-                        UINT SplitSizeClass = GetSizeClass(RemainingSize - sizeof(HEAPBLOCKHEADER));
+                        UINT SplitSizeClass = GetSizeClass(RemainingSize - sizeof(HEAP_BLOCK_HEADER));
                         AddToFreeList(ControlBlock, SplitBlock, SplitSizeClass);
 
                         Block->Size = TotalSize;
                     }
                 }
 
-                return (LPVOID)((LINEAR)Block + sizeof(HEAPBLOCKHEADER));
+                return (LPVOID)((LINEAR)Block + sizeof(HEAP_BLOCK_HEADER));
             }
             Block = Block->Next;
         }
@@ -463,7 +464,7 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
         }
     }
 
-    Block = (LPHEAPBLOCKHEADER)NewBlockAddr;
+    Block = (LPHEAP_BLOCK_HEADER)NewBlockAddr;
     Block->TypeID = KOID_HEAP;
     Block->Size = TotalSize;
     Block->Flags = 0;
@@ -472,7 +473,7 @@ LPVOID HeapAlloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, UINT Si
 
     ControlBlock->FirstUnallocated = (LPVOID)(NewBlockAddr + TotalSize);
 
-    return (LPVOID)(NewBlockAddr + sizeof(HEAPBLOCKHEADER));
+    return (LPVOID)(NewBlockAddr + sizeof(HEAP_BLOCK_HEADER));
 }
 
 /************************************************************************/
@@ -500,23 +501,23 @@ LPVOID HeapRealloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, LPVOI
         return NULL;
     }
 
-    LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)HeapBase;
+    LPHEAP_CONTROL_BLOCK ControlBlock = (LPHEAP_CONTROL_BLOCK)HeapBase;
     if (Process != NULL) {
         ControlBlock->Owner = Process;
     }
     if (ControlBlock == NULL || ControlBlock->TypeID != KOID_HEAP) return NULL;
 
     // Get the block header
-    LPHEAPBLOCKHEADER Block = (LPHEAPBLOCKHEADER)((LINEAR)Pointer - sizeof(HEAPBLOCKHEADER));
+    LPHEAP_BLOCK_HEADER Block = (LPHEAP_BLOCK_HEADER)((LINEAR)Pointer - sizeof(HEAP_BLOCK_HEADER));
     if (Block->TypeID != KOID_HEAP) {
         ERROR(TEXT("[HeapRealloc_HBHS] Invalid block header ID"));
         return NULL;
     }
 
-    UINT OldDataSize = Block->Size - sizeof(HEAPBLOCKHEADER);
+    UINT OldDataSize = Block->Size - sizeof(HEAP_BLOCK_HEADER);
     UINT NewSizeClass = GetSizeClass(Size);
     UINT NewActualSize = (NewSizeClass != 0xFF) ? GetSizeForClass(NewSizeClass) : ((Size + 15) & ~15);
-    UINT NewTotalSize = NewActualSize + sizeof(HEAPBLOCKHEADER);
+    UINT NewTotalSize = NewActualSize + sizeof(HEAP_BLOCK_HEADER);
 
     // If new size fits in current block, just return the same pointer
     if (NewTotalSize <= Block->Size) {
@@ -548,10 +549,10 @@ LPVOID HeapRealloc_HBHS(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize, LPVOI
 void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer) {
     UNUSED(HeapSize);
 
-    LPHEAPCONTROLBLOCK ControlBlock = (LPHEAPCONTROLBLOCK)HeapBase;
-    LPHEAPBLOCKHEADER Block = NULL;
-    LPHEAPBLOCKHEADER Previous = NULL;
-    LPHEAPBLOCKHEADER Next = NULL;
+    LPHEAP_CONTROL_BLOCK ControlBlock = (LPHEAP_CONTROL_BLOCK)HeapBase;
+    LPHEAP_BLOCK_HEADER Block = NULL;
+    LPHEAP_BLOCK_HEADER Previous = NULL;
+    LPHEAP_BLOCK_HEADER Next = NULL;
     BOOL Merged;
     UINT SizeClass = 0;
 
@@ -561,7 +562,7 @@ void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer) {
     // DEBUG("[HeapFree_HBHS] Freeing pointer %x", Pointer);
 
     // Get the block header
-    Block = (LPHEAPBLOCKHEADER)((LINEAR)Pointer - sizeof(HEAPBLOCKHEADER));
+    Block = (LPHEAP_BLOCK_HEADER)((LINEAR)Pointer - sizeof(HEAP_BLOCK_HEADER));
     if (Block->TypeID != KOID_HEAP) {
         ERROR(TEXT("[HeapFree_HBHS] Invalid block header ID"));
         return;
@@ -582,7 +583,7 @@ void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer) {
     FOREVER {
         Merged = FALSE;
 
-        Next = (LPHEAPBLOCKHEADER)((LINEAR)Block + Block->Size);
+        Next = (LPHEAP_BLOCK_HEADER)((LINEAR)Block + Block->Size);
         if ((LINEAR)Next < (LINEAR)ControlBlock->FirstUnallocated &&
             IsBlockInHeap(ControlBlock, Next) &&
             IsBlockFree(Next)) {
@@ -610,8 +611,8 @@ void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer) {
         ControlBlock->FirstUnallocated = (LPVOID)Block;
 
         FOREVER {
-            LPHEAPBLOCKHEADER Tail = (LPHEAPBLOCKHEADER)ControlBlock->FirstUnallocated;
-            LPHEAPBLOCKHEADER TailPrevious = FindPreviousPhysicalBlock(ControlBlock, Tail);
+            LPHEAP_BLOCK_HEADER Tail = (LPHEAP_BLOCK_HEADER)ControlBlock->FirstUnallocated;
+            LPHEAP_BLOCK_HEADER TailPrevious = FindPreviousPhysicalBlock(ControlBlock, Tail);
 
             if (TailPrevious == NULL || IsBlockInHeap(ControlBlock, TailPrevious) == FALSE || IsBlockFree(TailPrevious) == FALSE) {
                 break;
@@ -624,7 +625,7 @@ void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer) {
         return;
     }
 
-    UINT DataSize = Block->Size - sizeof(HEAPBLOCKHEADER);
+    UINT DataSize = Block->Size - sizeof(HEAP_BLOCK_HEADER);
     SizeClass = GetSizeClass(DataSize);
 
     AddToFreeList(ControlBlock, Block, SizeClass);
