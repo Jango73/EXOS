@@ -395,7 +395,7 @@ typedef UINT SOCKET_HANDLE;
 // ASCII string types
 
 typedef U8 STR;
-typedef const STR CSTR;
+typedef CONST STR CSTR;
 typedef STR* LPSTR;
 typedef CONST STR* LPCSTR;
 

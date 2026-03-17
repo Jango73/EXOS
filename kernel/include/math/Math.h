@@ -41,6 +41,7 @@
 
 /************************************************************************/
 
+UINT RandomInteger(void);
 BOOL MathHasHardwareFPU(void);
 F32 MathSinF32(F32 Radians);
 F32 MathCosF32(F32 Radians);

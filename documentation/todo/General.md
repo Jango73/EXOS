@@ -140,4 +140,3 @@
 
 - Implement x86-Disassembly.md
 - Implement Native-C-Compiler.md
-- Add quotes at startup

@@ -32,6 +32,57 @@
 
 /************************************************************************/
 
+UINT RandomInteger(void) {
+    static UINT Seed = 0;
+
+    if (Seed == 0) {
+        DATETIME t;
+        if (!GetLocalTime(&t)) {
+            Seed = (UINT)0xA5A5A5A5;
+        } else {
+            UINT seed = 0;
+
+#ifdef __EXOS_64__
+            seed ^= ((UINT)t.Year   * (UINT)11400714819323198485);
+            seed ^= ((UINT)t.Month  << 60);
+            seed ^= ((UINT)t.Day    << 54);
+            seed ^= ((UINT)t.Hour   << 48);
+            seed ^= ((UINT)t.Minute << 42);
+            seed ^= ((UINT)t.Second << 36);
+            seed ^= ((UINT)t.Milli  << 26);
+#else
+            seed ^= ((UINT)t.Year   * (UINT)2654435761);
+            seed ^= ((UINT)t.Month  << 28);
+            seed ^= ((UINT)t.Day    << 22);
+            seed ^= ((UINT)t.Hour   << 17);
+            seed ^= ((UINT)t.Minute << 11);
+            seed ^= ((UINT)t.Second << 5);
+            seed ^= (UINT)t.Milli;
+#endif
+
+            if (seed == 0) {
+#ifdef __EXOS_64__
+                seed = (UINT)11400714819323198485;
+#else
+                seed = (UINT)0x6D2B79F5;
+#endif
+            }
+
+            Seed = seed;
+        }
+    }
+
+#ifdef __EXOS_64__
+    Seed = Seed * (UINT)6364136223846793005 + (UINT)1;
+#else
+    Seed = Seed * (UINT)1103515245 + (UINT)12345;
+#endif
+
+    return Seed;
+}
+
+/************************************************************************/
+
 /**
  * @brief Normalize one F32 angle to [0, 2PI).
  * @param Radians Angle in radians.

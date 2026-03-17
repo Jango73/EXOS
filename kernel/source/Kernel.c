@@ -35,6 +35,7 @@
 #include "File.h"
 #include "Lang.h"
 #include "Log.h"
+#include "Quotes.h"
 #include "process/Process.h"
 #include "process/Task.h"
 #include "SerialPort.h"
@@ -427,6 +428,8 @@ static void Welcome(void) {
         Text_Architecture,
         EXOS_VERSION_MAJOR, EXOS_VERSION_MINOR, EXOS_VERSION_PATCH
         );
+
+    ConsolePrint(TEXT("%s\n\n"), GetRandomQuote());
 
 /*
     ConsolePrint(TEXT("\nEXOS - "));
