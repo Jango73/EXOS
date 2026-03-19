@@ -104,7 +104,7 @@ HANDLE SelectPen(HANDLE, HANDLE);
 U32 BaseWindowFunc(HANDLE, U32, U32, U32);
 U32 SetPixel(HANDLE, U32, U32);
 U32 GetPixel(HANDLE, U32, U32);
-void Rectangle(HANDLE, U32, U32, U32, U32);
+void Rectangle(HANDLE, U32, U32, U32, U32, U32);
 BOOL DrawText(LPTEXT_DRAW_INFO DrawInfo);
 BOOL MeasureText(LPTEXT_MEASURE_INFO MeasureInfo);
 BOOL DrawWindowBackground(HANDLE Window, HANDLE GC, LPRECT Rect, U32 ThemeToken);

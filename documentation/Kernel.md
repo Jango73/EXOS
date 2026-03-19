@@ -920,7 +920,7 @@ The VESA driver requests VBE modes in linear frame buffer mode (`INT 10h 4F02h`,
 
 VESA drawing primitives include line, rectangle, arc, and triangle command paths (`DF_GFX_LINE`, `DF_GFX_RECTANGLE`, `DF_GFX_ARC`, `DF_GFX_TRIANGLE`) and are forwarded through `Graphics-Selector`.
 
-Rectangle, triangle, and arc rasterization share the generic scanline helpers in `kernel/source/utils/Graphics-Utils.c`. Solid fills, vertical gradients, and horizontal gradients all converge on the same scanline entry, and the low-level contiguous pixel write path is provided by the architecture `GraphicsDrawScanlineAsm` helper in `kernel/source/arch/x86-32/asm/System.asm` and `kernel/source/arch/x86-64/asm/System.asm`.
+Rectangle, triangle, and arc rasterization share the generic scanline helpers in `kernel/source/utils/Graphics-Utils.c`. Solid fills, vertical gradients, horizontal gradients, filled arcs, and rounded-corner rectangles all converge on the same scanline entry so shape composition stays backend-agnostic. The low-level contiguous pixel write path is provided by the architecture `GraphicsDrawScanlineAsm` helper in `kernel/source/arch/x86-32/asm/System.asm` and `kernel/source/arch/x86-64/asm/System.asm`.
 
 `kernel/source/drivers/graphics/vga/VGA-Main.c` exposes a dedicated VGA text driver (`alias: vga`) that implements mode enumeration and text mode selection through the same `DF_GFX_*` contract.
 
@@ -2212,18 +2212,22 @@ border_thickness = "token:metric.window.border"
 background = "token:color.window.title.active.start"
 background2 = "token:color.window.title.active.end"
 title_height = "token:metric.window.title_height"
+corner_radius = 6
 
 [elements.window.titlebar.states.normal]
 background = "token:color.window.title.active.start"
 background2 = "token:color.window.title.active.end"
+corner_radius = 6
 
 [elements.window.titlebar.states.focused]
 background = "token:color.window.title.active.start"
 background2 = "token:color.window.title.active.end"
+corner_radius = 6
 
 [elements.window.titlebar.states.active]
 background = "token:color.window.title.active.start"
 background2 = "token:color.window.title.active.end"
+corner_radius = 6
 ```
 
 ### Legacy compatibility

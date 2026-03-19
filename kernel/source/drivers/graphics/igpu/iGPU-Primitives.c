@@ -80,46 +80,16 @@ static void IntelGfxDrawLineInternal(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, 
 /************************************************************************/
 
 static void IntelGfxDrawRectangleInternal(LPGRAPHICSCONTEXT Context, LPRECT_INFO Info) {
-    I32 Temp = 0;
-    I32 X1 = 0;
-    I32 Y1 = 0;
-    I32 X2 = 0;
-    I32 Y2 = 0;
     PROFILE_SCOPE Scope;
 
     if (Context == NULL || Info == NULL) {
         return;
     }
 
-    X1 = Info->X1;
-    Y1 = Info->Y1;
-    X2 = Info->X2;
-    Y2 = Info->Y2;
-
-    if (X1 > X2) {
-        Temp = X1;
-        X1 = X2;
-        X2 = Temp;
-    }
-    if (Y1 > Y2) {
-        Temp = Y1;
-        Y1 = Y2;
-        Y2 = Temp;
-    }
-
-    if (((Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH) ||
-         (Info->Header.Flags & RECT_FLAG_FILL_GRADIENT_MASK) != 0) &&
-        Context->MemoryBase != NULL && Context->BitsPerPixel == 32) {
+    if (Context->MemoryBase != NULL && Context->BitsPerPixel == 32) {
         ProfileStart(&Scope, TEXT("iGPU.RectangleFill"));
-        (void)GraphicsFillRectangleFromDescriptor(Context, Info);
+        (void)GraphicsDrawRectangleFromDescriptor(Context, Info);
         ProfileStop(&Scope);
-    }
-
-    if (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN) {
-        IntelGfxDrawLineInternal(Context, X1, Y1, X2, Y1);
-        IntelGfxDrawLineInternal(Context, X2, Y1, X2, Y2);
-        IntelGfxDrawLineInternal(Context, X2, Y2, X1, Y2);
-        IntelGfxDrawLineInternal(Context, X1, Y2, X1, Y1);
     }
 }
 
@@ -297,10 +267,6 @@ UINT IntelGfxRectangle(LPRECT_INFO Info) {
 
 UINT IntelGfxArc(LPARC_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
-    I32 Radius = 0;
-    I32 CenterX = 0;
-    I32 CenterY = 0;
-    COLOR StrokeColor = 0;
     RECT Bounds = {0};
 
     if (Info == NULL) {
@@ -313,21 +279,15 @@ UINT IntelGfxArc(LPARC_INFO Info) {
     }
 
     LockMutex(&(Context->Mutex), INFINITY);
-    if (Context->Pen == NULL || Context->Pen->TypeID != KOID_PEN || Info->Radius <= 0) {
-        UnlockMutex(&(Context->Mutex));
-        return 1;
-    }
-
-    Radius = Info->Radius;
-    CenterX = Info->CenterX;
-    CenterY = Info->CenterY;
-    StrokeColor = Context->Pen->Color;
-
-    // Midpoint circle rasterization. Start/end angles are intentionally ignored.
-    (void)GraphicsStrokeArc(Context, IntelGfxPlotLinePixel, CenterX, CenterY, Radius, StrokeColor);
+    (void)GraphicsDrawArcFromDescriptor(Context, Info);
 
     if (IntelGfxNormalizeFlushBounds(
-            Context, CenterX - Radius, CenterY - Radius, CenterX + Radius, CenterY + Radius, &Bounds)) {
+            Context,
+            Info->CenterX - Info->Radius,
+            Info->CenterY - Info->Radius,
+            Info->CenterX + Info->Radius,
+            Info->CenterY + Info->Radius,
+            &Bounds)) {
         IntelGfxFlushBoundsToScanout(Context, &Bounds);
     }
     UnlockMutex(&(Context->Mutex));

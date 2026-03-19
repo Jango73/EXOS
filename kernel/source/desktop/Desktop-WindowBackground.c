@@ -104,6 +104,8 @@ static BOOL DrawSolidBackground(HANDLE GC, LPRECT Rect, COLOR Color) {
     RectInfo.Y1 = Rect->Y1;
     RectInfo.X2 = Rect->X2;
     RectInfo.Y2 = Rect->Y2;
+    RectInfo.CornerRadius = 0;
+    RectInfo.CornerStyle = RECT_CORNER_STYLE_SQUARE;
 
     OldPen = SelectPen(GC, NULL);
     OldBrush = SelectBrush(GC, (HANDLE)&Brush);
@@ -279,6 +281,8 @@ static BOOL DrawLevel1WindowBackground(
         RectInfo.Y1 = Rect->Y1;
         RectInfo.X2 = Rect->X2;
         RectInfo.Y2 = Rect->Y2;
+        RectInfo.CornerRadius = 0;
+        RectInfo.CornerStyle = RECT_CORNER_STYLE_SQUARE;
 
         OldPen = SelectPen(GC, NULL);
         OldBrush = SelectBrush(GC, GetSystemBrush(FallbackSystemColor));

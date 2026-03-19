@@ -258,46 +258,15 @@ static void GOPGfxDrawLine(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I3
  * @param Info Rectangle descriptor.
  */
 static void GOPGfxDrawRectangle(LPGRAPHICSCONTEXT Context, LPRECT_INFO Info) {
-    I32 Temp = 0;
-    I32 X1 = 0;
-    I32 Y1 = 0;
-    I32 X2 = 0;
-    I32 Y2 = 0;
     PROFILE_SCOPE Scope;
 
     if (Context == NULL || Info == NULL) {
         return;
     }
 
-    X1 = Info->X1;
-    Y1 = Info->Y1;
-    X2 = Info->X2;
-    Y2 = Info->Y2;
-
-    if (X1 > X2) {
-        Temp = X1;
-        X1 = X2;
-        X2 = Temp;
-    }
-    if (Y1 > Y2) {
-        Temp = Y1;
-        Y1 = Y2;
-        Y2 = Temp;
-    }
-
-    if ((Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH) ||
-        (Info->Header.Flags & RECT_FLAG_FILL_GRADIENT_MASK) != 0) {
-        ProfileStart(&Scope, TEXT("GOP.RectangleFill"));
-        (void)GraphicsFillRectangleFromDescriptor(Context, Info);
-        ProfileStop(&Scope);
-    }
-
-    if (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN) {
-        GOPGfxDrawLine(Context, X1, Y1, X2, Y1);
-        GOPGfxDrawLine(Context, X2, Y1, X2, Y2);
-        GOPGfxDrawLine(Context, X2, Y2, X1, Y2);
-        GOPGfxDrawLine(Context, X1, Y2, X1, Y1);
-    }
+    ProfileStart(&Scope, TEXT("GOP.RectangleFill"));
+    (void)GraphicsDrawRectangleFromDescriptor(Context, Info);
+    ProfileStop(&Scope);
 }
 
 /************************************************************************/
@@ -636,9 +605,7 @@ static UINT GOPGfxArc(LPARC_INFO Info) {
     }
 
     LockMutex(&(Context->Mutex), INFINITY);
-    if (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN && Info->Radius > 0) {
-        (void)GraphicsStrokeArc(Context, GOPGfxPlotLinePixel, Info->CenterX, Info->CenterY, Info->Radius, Context->Pen->Color);
-    }
+    (void)GraphicsDrawArcFromDescriptor(Context, Info);
     UnlockMutex(&(Context->Mutex));
 
     return 1;

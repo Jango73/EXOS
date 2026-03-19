@@ -670,7 +670,7 @@ BOOL Line(LPLINE_INFO LineInfo) {
 
 /***************************************************************************/
 
-void Rectangle(HANDLE GC, U32 X1, U32 Y1, U32 X2, U32 Y2) {
+void Rectangle(HANDLE GC, U32 X1, U32 Y1, U32 X2, U32 Y2, U32 CornerRadius) {
     RECT_INFO RectInfo;
 
     RectInfo.Header.Size = sizeof RectInfo;
@@ -681,6 +681,8 @@ void Rectangle(HANDLE GC, U32 X1, U32 Y1, U32 X2, U32 Y2) {
     RectInfo.Y1 = Y1;
     RectInfo.X2 = X2;
     RectInfo.Y2 = Y2;
+    RectInfo.CornerRadius = (I32)CornerRadius;
+    RectInfo.CornerStyle = CornerRadius > 0 ? RECT_CORNER_STYLE_ROUNDED : RECT_CORNER_STYLE_SQUARE;
 
     exoscall(SYSCALL_Rectangle, EXOS_PARAM(&RectInfo));
 }

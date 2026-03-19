@@ -45,6 +45,30 @@ typedef enum tag_GRAPHICS_GRADIENT_AXIS {
 
 /************************************************************************/
 
+#define GRAPHICS_ARC_QUADRANT_BOTTOM_RIGHT 0x0001
+#define GRAPHICS_ARC_QUADRANT_BOTTOM_LEFT 0x0002
+#define GRAPHICS_ARC_QUADRANT_TOP_LEFT 0x0004
+#define GRAPHICS_ARC_QUADRANT_TOP_RIGHT 0x0008
+#define GRAPHICS_ARC_QUADRANT_ALL                                                              \
+    (GRAPHICS_ARC_QUADRANT_BOTTOM_RIGHT | GRAPHICS_ARC_QUADRANT_BOTTOM_LEFT |                 \
+        GRAPHICS_ARC_QUADRANT_TOP_LEFT | GRAPHICS_ARC_QUADRANT_TOP_RIGHT)
+
+/************************************************************************/
+
+typedef struct tag_GRAPHICS_FILL_DESCRIPTOR {
+    BOOL Enabled;
+    BOOL HasGradient;
+    GRAPHICS_GRADIENT_AXIS Axis;
+    COLOR StartColor;
+    COLOR EndColor;
+    I32 GradientX1;
+    I32 GradientY1;
+    I32 GradientX2;
+    I32 GradientY2;
+} GRAPHICS_FILL_DESCRIPTOR, *LPGRAPHICS_FILL_DESCRIPTOR;
+
+/************************************************************************/
+
 /**
  * @brief Append one rectangle to a region when it is valid.
  * @param Region Destination region.
@@ -165,6 +189,225 @@ static COLOR GraphicsInterpolateColor(COLOR StartColor, COLOR EndColor, U32 Nume
     OutB = GraphicsInterpolateChannel(StartB, EndB, Numerator, Denominator);
 
     return (OutA << 24) | (OutR << 16) | (OutG << 8) | OutB;
+}
+
+/************************************************************************/
+
+static void GraphicsNormalizeRectangle(I32* X1, I32* Y1, I32* X2, I32* Y2) {
+    I32 Temp = 0;
+
+    if (X1 == NULL || Y1 == NULL || X2 == NULL || Y2 == NULL) return;
+
+    if (*X1 > *X2) {
+        Temp = *X1;
+        *X1 = *X2;
+        *X2 = Temp;
+    }
+
+    if (*Y1 > *Y2) {
+        Temp = *Y1;
+        *Y1 = *Y2;
+        *Y2 = Temp;
+    }
+}
+
+/************************************************************************/
+
+static BOOL GraphicsHasRectangleGradient(LPRECT_INFO Info) {
+    if (Info == NULL) return FALSE;
+    return (Info->Header.Flags & RECT_FLAG_FILL_GRADIENT_MASK) != 0;
+}
+
+/************************************************************************/
+
+static BOOL GraphicsHasArcGradient(LPARC_INFO Info) {
+    if (Info == NULL) return FALSE;
+    return (Info->Header.Flags & ARC_FLAG_FILL_GRADIENT_MASK) != 0;
+}
+
+/************************************************************************/
+
+static BOOL GraphicsSetupSolidFillDescriptor(LPGRAPHICS_FILL_DESCRIPTOR Fill, COLOR FillColor) {
+    if (Fill == NULL) return FALSE;
+
+    Fill->Enabled = TRUE;
+    Fill->HasGradient = FALSE;
+    Fill->Axis = GRAPHICS_GRADIENT_AXIS_VERTICAL;
+    Fill->StartColor = FillColor;
+    Fill->EndColor = FillColor;
+    Fill->GradientX1 = 0;
+    Fill->GradientY1 = 0;
+    Fill->GradientX2 = 0;
+    Fill->GradientY2 = 0;
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL GraphicsSetupRectangleFillDescriptor(LPGRAPHICSCONTEXT Context, LPRECT_INFO Info, LPGRAPHICS_FILL_DESCRIPTOR Fill) {
+    I32 X1 = 0;
+    I32 Y1 = 0;
+    I32 X2 = 0;
+    I32 Y2 = 0;
+
+    if (Context == NULL || Info == NULL || Fill == NULL) return FALSE;
+
+    *Fill = (GRAPHICS_FILL_DESCRIPTOR){0};
+    if (GraphicsHasRectangleGradient(Info) != FALSE) {
+        X1 = Info->X1;
+        Y1 = Info->Y1;
+        X2 = Info->X2;
+        Y2 = Info->Y2;
+        GraphicsNormalizeRectangle(&X1, &Y1, &X2, &Y2);
+
+        Fill->Enabled = TRUE;
+        Fill->HasGradient = TRUE;
+        Fill->Axis = (Info->Header.Flags & RECT_FLAG_FILL_HORIZONTAL_GRADIENT) != 0
+            ? GRAPHICS_GRADIENT_AXIS_HORIZONTAL
+            : GRAPHICS_GRADIENT_AXIS_VERTICAL;
+        Fill->StartColor = Info->StartColor;
+        Fill->EndColor = Info->EndColor;
+        Fill->GradientX1 = X1;
+        Fill->GradientY1 = Y1;
+        Fill->GradientX2 = X2;
+        Fill->GradientY2 = Y2;
+        return TRUE;
+    }
+
+    if (Context->Brush == NULL || Context->Brush->TypeID != KOID_BRUSH) return TRUE;
+    return GraphicsSetupSolidFillDescriptor(Fill, Context->Brush->Color);
+}
+
+/************************************************************************/
+
+static BOOL GraphicsSetupArcFillDescriptor(LPGRAPHICSCONTEXT Context, LPARC_INFO Info, LPGRAPHICS_FILL_DESCRIPTOR Fill) {
+    if (Context == NULL || Info == NULL || Fill == NULL) return FALSE;
+
+    *Fill = (GRAPHICS_FILL_DESCRIPTOR){0};
+    if ((Info->Header.Flags & ARC_FLAG_FILL) == 0 && GraphicsHasArcGradient(Info) == FALSE) return TRUE;
+
+    if (GraphicsHasArcGradient(Info) != FALSE) {
+        Fill->Enabled = TRUE;
+        Fill->HasGradient = TRUE;
+        Fill->Axis = (Info->Header.Flags & ARC_FLAG_FILL_HORIZONTAL_GRADIENT) != 0
+            ? GRAPHICS_GRADIENT_AXIS_HORIZONTAL
+            : GRAPHICS_GRADIENT_AXIS_VERTICAL;
+        Fill->StartColor = Info->StartColor;
+        Fill->EndColor = Info->EndColor;
+        Fill->GradientX1 = Info->CenterX - Info->Radius;
+        Fill->GradientY1 = Info->CenterY - Info->Radius;
+        Fill->GradientX2 = Info->CenterX + Info->Radius;
+        Fill->GradientY2 = Info->CenterY + Info->Radius;
+        return TRUE;
+    }
+
+    if (Context->Brush == NULL || Context->Brush->TypeID != KOID_BRUSH) return TRUE;
+    return GraphicsSetupSolidFillDescriptor(Fill, Context->Brush->Color);
+}
+
+/************************************************************************/
+
+static U32 GraphicsResolveRoundedCornerRadius(LPRECT_INFO Info, I32 X1, I32 Y1, I32 X2, I32 Y2) {
+    I32 Width = 0;
+    I32 Height = 0;
+    I32 Radius = 0;
+
+    if (Info == NULL) return 0;
+    if (Info->CornerStyle != RECT_CORNER_STYLE_ROUNDED) return 0;
+    if (Info->CornerRadius <= 0) return 0;
+
+    Width = X2 - X1 + 1;
+    Height = Y2 - Y1 + 1;
+    Radius = Info->CornerRadius;
+    if (Width <= 0 || Height <= 0) return 0;
+    if (Radius > Width / 2) Radius = Width / 2;
+    if (Radius > Height / 2) Radius = Height / 2;
+    if (Radius < 0) Radius = 0;
+    return (U32)Radius;
+}
+
+/************************************************************************/
+
+static BOOL GraphicsDrawFillSpan(
+    LPGRAPHICSCONTEXT Context, LPGRAPHICS_FILL_DESCRIPTOR Fill, I32 X1, I32 X2, I32 Y) {
+    I32 ClipX1 = 0;
+    I32 ClipX2 = 0;
+    COLOR StartColor = 0;
+    COLOR EndColor = 0;
+    U32 Denominator = 0;
+    U32 StartNumerator = 0;
+    U32 EndNumerator = 0;
+
+    if (Context == NULL || Fill == NULL) return FALSE;
+    if (Fill->Enabled == FALSE) return TRUE;
+    if (GraphicsClipScanline(Context, X1, X2, Y, &ClipX1, &ClipX2) == FALSE) return TRUE;
+
+    if (Fill->HasGradient == FALSE) {
+        StartColor = Fill->StartColor;
+        EndColor = Fill->StartColor;
+    } else if (Fill->Axis == GRAPHICS_GRADIENT_AXIS_HORIZONTAL) {
+        Denominator = Fill->GradientX2 > Fill->GradientX1 ? (U32)(Fill->GradientX2 - Fill->GradientX1) : 0;
+        StartNumerator = ClipX1 >= Fill->GradientX1 ? (U32)(ClipX1 - Fill->GradientX1) : 0;
+        EndNumerator = ClipX2 >= Fill->GradientX1 ? (U32)(ClipX2 - Fill->GradientX1) : 0;
+        StartColor = GraphicsInterpolateColor(Fill->StartColor, Fill->EndColor, StartNumerator, Denominator);
+        EndColor = GraphicsInterpolateColor(Fill->StartColor, Fill->EndColor, EndNumerator, Denominator);
+    } else {
+        Denominator = Fill->GradientY2 > Fill->GradientY1 ? (U32)(Fill->GradientY2 - Fill->GradientY1) : 0;
+        StartNumerator = Y >= Fill->GradientY1 ? (U32)(Y - Fill->GradientY1) : 0;
+        StartColor = GraphicsInterpolateColor(Fill->StartColor, Fill->EndColor, StartNumerator, Denominator);
+        EndColor = StartColor;
+    }
+
+    return GraphicsDrawScanline(Context, ClipX1, ClipX2, Y, StartColor, EndColor);
+}
+
+/************************************************************************/
+
+static I32 GraphicsNormalizeAngle(I32 Angle) {
+    while (Angle < 0) Angle += 360;
+    while (Angle >= 360) Angle -= 360;
+    return Angle;
+}
+
+/************************************************************************/
+
+static BOOL GraphicsAngleIsWithinClockwiseSweep(I32 StartAngle, I32 EndAngle, I32 TestAngle) {
+    StartAngle = GraphicsNormalizeAngle(StartAngle);
+    EndAngle = GraphicsNormalizeAngle(EndAngle);
+    TestAngle = GraphicsNormalizeAngle(TestAngle);
+
+    if (StartAngle <= EndAngle) {
+        return TestAngle >= StartAngle && TestAngle <= EndAngle;
+    }
+
+    return TestAngle >= StartAngle || TestAngle <= EndAngle;
+}
+
+/************************************************************************/
+
+static U32 GraphicsResolveArcQuadrantMask(LPARC_INFO Info) {
+    I32 Delta = 0;
+    U32 Mask = 0;
+
+    if (Info == NULL) return 0;
+
+    Delta = Info->EndAngle - Info->StartAngle;
+    if (Delta >= 360 || Delta <= -360) return GRAPHICS_ARC_QUADRANT_ALL;
+
+    if (GraphicsAngleIsWithinClockwiseSweep(Info->StartAngle, Info->EndAngle, 45)) {
+        Mask |= GRAPHICS_ARC_QUADRANT_BOTTOM_RIGHT;
+    }
+    if (GraphicsAngleIsWithinClockwiseSweep(Info->StartAngle, Info->EndAngle, 135)) {
+        Mask |= GRAPHICS_ARC_QUADRANT_BOTTOM_LEFT;
+    }
+    if (GraphicsAngleIsWithinClockwiseSweep(Info->StartAngle, Info->EndAngle, 225)) {
+        Mask |= GRAPHICS_ARC_QUADRANT_TOP_LEFT;
+    }
+    if (GraphicsAngleIsWithinClockwiseSweep(Info->StartAngle, Info->EndAngle, 315)) {
+        Mask |= GRAPHICS_ARC_QUADRANT_TOP_RIGHT;
+    }
+
+    return Mask;
 }
 
 /************************************************************************/
@@ -549,26 +792,28 @@ BOOL GraphicsFillHorizontalGradientRect(
  * @return TRUE on success.
  */
 BOOL GraphicsFillRectangleFromDescriptor(LPGRAPHICSCONTEXT Context, LPRECT_INFO Info) {
-    U32 GradientFlags = 0;
+    GRAPHICS_FILL_DESCRIPTOR Fill;
+    I32 X1 = 0;
+    I32 Y1 = 0;
+    I32 X2 = 0;
+    I32 Y2 = 0;
+    I32 Y = 0;
 
     if (Context == NULL || Info == NULL) return FALSE;
+    if (GraphicsSetupRectangleFillDescriptor(Context, Info, &Fill) == FALSE) return FALSE;
+    if (Fill.Enabled == FALSE) return TRUE;
 
-    GradientFlags = Info->Header.Flags & RECT_FLAG_FILL_GRADIENT_MASK;
-    switch (GradientFlags) {
-        case RECT_FLAG_FILL_VERTICAL_GRADIENT:
-            return GraphicsFillVerticalGradientRect(
-                Context, Info->X1, Info->Y1, Info->X2, Info->Y2, Info->StartColor, Info->EndColor);
+    X1 = Info->X1;
+    Y1 = Info->Y1;
+    X2 = Info->X2;
+    Y2 = Info->Y2;
+    GraphicsNormalizeRectangle(&X1, &Y1, &X2, &Y2);
 
-        case RECT_FLAG_FILL_HORIZONTAL_GRADIENT:
-            return GraphicsFillHorizontalGradientRect(
-                Context, Info->X1, Info->Y1, Info->X2, Info->Y2, Info->StartColor, Info->EndColor);
-
-        default:
-            break;
+    for (Y = Y1; Y <= Y2; Y++) {
+        if (GraphicsDrawFillSpan(Context, &Fill, X1, X2, Y) == FALSE) return FALSE;
     }
 
-    if (Context->Brush == NULL || Context->Brush->TypeID != KOID_BRUSH) return TRUE;
-    return GraphicsFillSolidRect(Context, Info->X1, Info->Y1, Info->X2, Info->Y2, Context->Brush->Color);
+    return TRUE;
 }
 
 /************************************************************************/
@@ -830,65 +1075,93 @@ BOOL GraphicsFillTriangleHorizontalGradient(
 
 /************************************************************************/
 
-/**
- * @brief Draw one horizontal arc span and keep stroke symmetry clipping.
- * @param Context Graphics context.
- * @param CenterX Arc center X.
- * @param CenterY Arc center Y.
- * @param SpanX Half span extent on X axis.
- * @param RowOffset Absolute Y offset from center.
- * @param StrokeColor Stroke color.
- * @return TRUE on success.
- */
-static BOOL GraphicsStrokeArcSpan(
-    LPGRAPHICSCONTEXT Context, I32 CenterX, I32 CenterY, I32 SpanX, I32 RowOffset, COLOR StrokeColor) {
-    BOOL TopOk = TRUE;
-    BOOL BottomOk = TRUE;
-
-    if (Context == NULL) return FALSE;
-    if (SpanX < 0) return FALSE;
-
-    TopOk = GraphicsDrawScanline(
-        Context, CenterX - SpanX, CenterX - SpanX, CenterY + RowOffset, StrokeColor, StrokeColor);
-    if (SpanX != 0) {
-        TopOk = GraphicsDrawScanline(
-                    Context, CenterX + SpanX, CenterX + SpanX, CenterY + RowOffset, StrokeColor, StrokeColor) ||
-                TopOk;
-    }
-
-    if (RowOffset != 0) {
-        BottomOk = GraphicsDrawScanline(
-            Context, CenterX - SpanX, CenterX - SpanX, CenterY - RowOffset, StrokeColor, StrokeColor);
-        if (SpanX != 0) {
-            BottomOk = GraphicsDrawScanline(
-                           Context, CenterX + SpanX, CenterX + SpanX, CenterY - RowOffset, StrokeColor, StrokeColor) ||
-                       BottomOk;
-        }
-    }
-
-    return TopOk || BottomOk;
+static BOOL GraphicsStrokePoint(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, COLOR StrokeColor) {
+    return GraphicsDrawFillSpan(
+        Context,
+        &(GRAPHICS_FILL_DESCRIPTOR){
+            .Enabled = TRUE,
+            .HasGradient = FALSE,
+            .Axis = GRAPHICS_GRADIENT_AXIS_VERTICAL,
+            .StartColor = StrokeColor,
+            .EndColor = StrokeColor},
+        X,
+        X,
+        Y);
 }
 
 /************************************************************************/
 
-BOOL GraphicsStrokeArc(LPVOID Context, GRAPHICS_PLOT_PIXEL_ROUTINE PlotPixel, I32 CenterX, I32 CenterY, I32 Radius, COLOR StrokeColor) {
-    LPGRAPHICSCONTEXT GraphicsContext = (LPGRAPHICSCONTEXT)Context;
+static BOOL GraphicsRenderArcSpan(
+    LPGRAPHICSCONTEXT Context,
+    I32 CenterX,
+    I32 CenterY,
+    I32 SpanX,
+    I32 RowOffset,
+    U32 QuadrantMask,
+    LPGRAPHICS_FILL_DESCRIPTOR Fill,
+    BOOL HasStroke,
+    COLOR StrokeColor) {
+    I32 TopY = CenterY - RowOffset;
+    I32 BottomY = CenterY + RowOffset;
+
+    if (Context == NULL || SpanX < 0) return FALSE;
+
+    if ((QuadrantMask & GRAPHICS_ARC_QUADRANT_TOP_LEFT) != 0) {
+        if (GraphicsDrawFillSpan(Context, Fill, CenterX - SpanX, CenterX, TopY) == FALSE) return FALSE;
+        if (HasStroke != FALSE && GraphicsStrokePoint(Context, CenterX - SpanX, TopY, StrokeColor) == FALSE) return FALSE;
+    }
+
+    if ((QuadrantMask & GRAPHICS_ARC_QUADRANT_TOP_RIGHT) != 0) {
+        if (GraphicsDrawFillSpan(Context, Fill, CenterX, CenterX + SpanX, TopY) == FALSE) return FALSE;
+        if (HasStroke != FALSE && GraphicsStrokePoint(Context, CenterX + SpanX, TopY, StrokeColor) == FALSE) return FALSE;
+    }
+
+    if (BottomY == TopY) return TRUE;
+
+    if ((QuadrantMask & GRAPHICS_ARC_QUADRANT_BOTTOM_LEFT) != 0) {
+        if (GraphicsDrawFillSpan(Context, Fill, CenterX - SpanX, CenterX, BottomY) == FALSE) return FALSE;
+        if (HasStroke != FALSE && GraphicsStrokePoint(Context, CenterX - SpanX, BottomY, StrokeColor) == FALSE) return FALSE;
+    }
+
+    if ((QuadrantMask & GRAPHICS_ARC_QUADRANT_BOTTOM_RIGHT) != 0) {
+        if (GraphicsDrawFillSpan(Context, Fill, CenterX, CenterX + SpanX, BottomY) == FALSE) return FALSE;
+        if (HasStroke != FALSE && GraphicsStrokePoint(Context, CenterX + SpanX, BottomY, StrokeColor) == FALSE) return FALSE;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL GraphicsRenderArc(
+    LPGRAPHICSCONTEXT Context,
+    I32 CenterX,
+    I32 CenterY,
+    I32 Radius,
+    U32 QuadrantMask,
+    LPGRAPHICS_FILL_DESCRIPTOR Fill,
+    BOOL HasStroke,
+    COLOR StrokeColor) {
     I32 X = 0;
     I32 Y = 0;
     I32 Error = 0;
 
-    UNUSED(PlotPixel);
-
-    if (GraphicsContext == NULL || GraphicsContext->MemoryBase == NULL) return FALSE;
-    if (Radius <= 0) return FALSE;
+    if (Context == NULL || Context->MemoryBase == NULL) return FALSE;
+    if (Radius <= 0 || QuadrantMask == 0) return FALSE;
 
     X = Radius;
     Y = 0;
     Error = 1 - Radius;
 
     while (X >= Y) {
-        (void)GraphicsStrokeArcSpan(GraphicsContext, CenterX, CenterY, X, Y, StrokeColor);
-        (void)GraphicsStrokeArcSpan(GraphicsContext, CenterX, CenterY, Y, X, StrokeColor);
+        if (GraphicsRenderArcSpan(Context, CenterX, CenterY, X, Y, QuadrantMask, Fill, HasStroke, StrokeColor) == FALSE) {
+            return FALSE;
+        }
+        if (X != Y) {
+            if (GraphicsRenderArcSpan(Context, CenterX, CenterY, Y, X, QuadrantMask, Fill, HasStroke, StrokeColor) == FALSE) {
+                return FALSE;
+            }
+        }
 
         Y++;
         if (Error < 0) {
@@ -897,6 +1170,141 @@ BOOL GraphicsStrokeArc(LPVOID Context, GRAPHICS_PLOT_PIXEL_ROUTINE PlotPixel, I3
             X--;
             Error += 2 * (Y - X) + 1;
         }
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+BOOL GraphicsStrokeArc(LPVOID Context, GRAPHICS_PLOT_PIXEL_ROUTINE PlotPixel, I32 CenterX, I32 CenterY, I32 Radius, COLOR StrokeColor) {
+    GRAPHICS_FILL_DESCRIPTOR Fill = {0};
+
+    UNUSED(PlotPixel);
+
+    return GraphicsRenderArc((LPGRAPHICSCONTEXT)Context, CenterX, CenterY, Radius, GRAPHICS_ARC_QUADRANT_ALL, &Fill, TRUE, StrokeColor);
+}
+
+/************************************************************************/
+
+BOOL GraphicsDrawArcFromDescriptor(LPGRAPHICSCONTEXT Context, LPARC_INFO Info) {
+    GRAPHICS_FILL_DESCRIPTOR Fill;
+    COLOR StrokeColor = 0;
+    BOOL HasStroke = FALSE;
+    U32 QuadrantMask = 0;
+
+    if (Context == NULL || Info == NULL) return FALSE;
+    if (Info->Radius <= 0) return TRUE;
+    if (GraphicsSetupArcFillDescriptor(Context, Info, &Fill) == FALSE) return FALSE;
+
+    HasStroke = Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN;
+    if (HasStroke != FALSE) {
+        StrokeColor = Context->Pen->Color;
+    }
+
+    QuadrantMask = GraphicsResolveArcQuadrantMask(Info);
+    if (QuadrantMask == 0) return TRUE;
+    return GraphicsRenderArc(Context, Info->CenterX, Info->CenterY, Info->Radius, QuadrantMask, &Fill, HasStroke, StrokeColor);
+}
+
+/************************************************************************/
+
+BOOL GraphicsDrawRectangleFromDescriptor(LPGRAPHICSCONTEXT Context, LPRECT_INFO Info) {
+    GRAPHICS_FILL_DESCRIPTOR Fill;
+    I32 X1 = 0;
+    I32 Y1 = 0;
+    I32 X2 = 0;
+    I32 Y2 = 0;
+    I32 Radius = 0;
+    I32 Y = 0;
+    BOOL HasStroke = FALSE;
+
+    if (Context == NULL || Info == NULL) return FALSE;
+    if (GraphicsSetupRectangleFillDescriptor(Context, Info, &Fill) == FALSE) return FALSE;
+
+    X1 = Info->X1;
+    Y1 = Info->Y1;
+    X2 = Info->X2;
+    Y2 = Info->Y2;
+    GraphicsNormalizeRectangle(&X1, &Y1, &X2, &Y2);
+    Radius = (I32)GraphicsResolveRoundedCornerRadius(Info, X1, Y1, X2, Y2);
+    HasStroke = Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN;
+
+    if (Radius <= 0) {
+        if (GraphicsFillRectangleFromDescriptor(Context, Info) == FALSE) return FALSE;
+
+        if (HasStroke != FALSE) {
+            if (GraphicsDrawScanline(Context, X1, X2, Y1, Context->Pen->Color, Context->Pen->Color) == FALSE) return FALSE;
+            if (GraphicsDrawScanline(Context, X1, X2, Y2, Context->Pen->Color, Context->Pen->Color) == FALSE) return FALSE;
+            if (GraphicsFillSolidRect(Context, X1, Y1, X1, Y2, Context->Pen->Color) == FALSE) return FALSE;
+            if (GraphicsFillSolidRect(Context, X2, Y1, X2, Y2, Context->Pen->Color) == FALSE) return FALSE;
+        }
+
+        return TRUE;
+    }
+
+    for (Y = Y1; Y <= Y2; Y++) {
+        I32 SpanStart = X1;
+        I32 SpanEnd = X2;
+
+        if (Y < Y1 + Radius || Y > Y2 - Radius) {
+            SpanStart = X1 + Radius;
+            SpanEnd = X2 - Radius;
+        }
+
+        if (GraphicsDrawFillSpan(Context, &Fill, SpanStart, SpanEnd, Y) == FALSE) return FALSE;
+    }
+
+    if (GraphicsRenderArc(
+            Context,
+            X1 + Radius,
+            Y1 + Radius,
+            Radius,
+            GRAPHICS_ARC_QUADRANT_TOP_LEFT,
+            &Fill,
+            HasStroke,
+            HasStroke != FALSE ? Context->Pen->Color : 0) == FALSE) {
+        return FALSE;
+    }
+    if (GraphicsRenderArc(
+            Context,
+            X2 - Radius,
+            Y1 + Radius,
+            Radius,
+            GRAPHICS_ARC_QUADRANT_TOP_RIGHT,
+            &Fill,
+            HasStroke,
+            HasStroke != FALSE ? Context->Pen->Color : 0) == FALSE) {
+        return FALSE;
+    }
+    if (GraphicsRenderArc(
+            Context,
+            X2 - Radius,
+            Y2 - Radius,
+            Radius,
+            GRAPHICS_ARC_QUADRANT_BOTTOM_RIGHT,
+            &Fill,
+            HasStroke,
+            HasStroke != FALSE ? Context->Pen->Color : 0) == FALSE) {
+        return FALSE;
+    }
+    if (GraphicsRenderArc(
+            Context,
+            X1 + Radius,
+            Y2 - Radius,
+            Radius,
+            GRAPHICS_ARC_QUADRANT_BOTTOM_LEFT,
+            &Fill,
+            HasStroke,
+            HasStroke != FALSE ? Context->Pen->Color : 0) == FALSE) {
+        return FALSE;
+    }
+
+    if (HasStroke != FALSE) {
+        if (GraphicsDrawScanline(Context, X1 + Radius, X2 - Radius, Y1, Context->Pen->Color, Context->Pen->Color) == FALSE) return FALSE;
+        if (GraphicsDrawScanline(Context, X1 + Radius, X2 - Radius, Y2, Context->Pen->Color, Context->Pen->Color) == FALSE) return FALSE;
+        if (GraphicsFillSolidRect(Context, X1, Y1 + Radius, X1, Y2 - Radius, Context->Pen->Color) == FALSE) return FALSE;
+        if (GraphicsFillSolidRect(Context, X2, Y1 + Radius, X2, Y2 - Radius, Context->Pen->Color) == FALSE) return FALSE;
     }
 
     return TRUE;

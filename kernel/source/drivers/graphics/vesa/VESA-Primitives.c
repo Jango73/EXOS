@@ -125,18 +125,6 @@ struct tag_VESA_CONTEXT {
     BOOL LinearFrameBufferEnabled;
 };
 
-/***************************************************************************/
-
-static BOOL VESAPlotPixel(LPVOID Context, I32 X, I32 Y, COLOR* Color) {
-    LPVESA_CONTEXT VesaContext = (LPVESA_CONTEXT)Context;
-
-    if (VesaContext == NULL || Color == NULL) return FALSE;
-    (void)VesaContext->ModeSpecs.SetPixel(VesaContext, X, Y, *Color);
-    return TRUE;
-}
-
-/***************************************************************************/
-
 COLOR SetPixel8(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
     U32 Offset;
     U8* Plane;
@@ -958,24 +946,8 @@ U32 VESATrianglePrimitive(LPVESA_CONTEXT Context, LPTRIANGLE_INFO Info) {
 /***************************************************************************/
 
 U32 VESAArcPrimitive(LPVESA_CONTEXT Context, LPARC_INFO Info) {
-    I32 Radius;
-    I32 CenterX;
-    I32 CenterY;
-    COLOR StrokeColor;
-
     if (Context == NULL || Info == NULL) return 0;
-    if (Context->Header.Pen == NULL || Context->Header.Pen->TypeID != KOID_PEN) return 1;
-    if (Info->Radius <= 0) return 1;
-
-    Radius = Info->Radius;
-    CenterX = Info->CenterX;
-    CenterY = Info->CenterY;
-    StrokeColor = Context->Header.Pen->Color;
-
-    // Midpoint circle rasterization. Start/end angles are intentionally ignored
-    // for now; current clock widget usage draws full circles.
-    (void)GraphicsStrokeArc(Context, VESAPlotPixel, CenterX, CenterY, Radius, StrokeColor);
-
+    (void)GraphicsDrawArcFromDescriptor((LPGRAPHICSCONTEXT)&(Context->Header), Info);
     return 1;
 }
 

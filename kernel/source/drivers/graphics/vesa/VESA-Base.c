@@ -748,10 +748,6 @@ static U32 VESA_Line(LPLINE_INFO Info) {
 static U32 VESA_Rectangle(LPRECT_INFO Info) {
     LPVESA_CONTEXT Context;
     static U32 DATA_SECTION VESARectangleDebugCount = 0;
-    I32 X1 = 0;
-    I32 Y1 = 0;
-    I32 X2 = 0;
-    I32 Y2 = 0;
     PROFILE_SCOPE Scope;
 
     if (Info == NULL) return 0;
@@ -777,32 +773,7 @@ static U32 VESA_Rectangle(LPRECT_INFO Info) {
 
     ProfileStart(&Scope, TEXT("VESA.Rectangle"));
     LockMutex(&(Context->Header.Mutex), INFINITY);
-    X1 = Info->X1;
-    Y1 = Info->Y1;
-    X2 = Info->X2;
-    Y2 = Info->Y2;
-    if (X1 > X2) {
-        I32 Temp = X1;
-        X1 = X2;
-        X2 = Temp;
-    }
-    if (Y1 > Y2) {
-        I32 Temp = Y1;
-        Y1 = Y2;
-        Y2 = Temp;
-    }
-
-    if ((Context->Header.Brush != NULL && Context->Header.Brush->TypeID == KOID_BRUSH) ||
-        (Info->Header.Flags & RECT_FLAG_FILL_GRADIENT_MASK) != 0) {
-        (void)GraphicsFillRectangleFromDescriptor((LPGRAPHICSCONTEXT)&(Context->Header), Info);
-    }
-
-    if (Context->Header.Pen != NULL && Context->Header.Pen->TypeID == KOID_PEN) {
-        Context->ModeSpecs.Line(Context, X1, Y1, X2, Y1);
-        Context->ModeSpecs.Line(Context, X2, Y1, X2, Y2);
-        Context->ModeSpecs.Line(Context, X2, Y2, X1, Y2);
-        Context->ModeSpecs.Line(Context, X1, Y2, X1, Y1);
-    }
+    (void)GraphicsDrawRectangleFromDescriptor((LPGRAPHICSCONTEXT)&(Context->Header), Info);
 
     UnlockMutex(&(Context->Header.Mutex));
     ProfileStop(&Scope);
@@ -827,7 +798,7 @@ static U32 VESA_Arc(LPARC_INFO Info) {
     if (Context->Header.TypeID != KOID_GRAPHICSCONTEXT) return 0;
 
     LockMutex(&(Context->Header.Mutex), INFINITY);
-    VESAArcPrimitive(Context, Info);
+    (void)GraphicsDrawArcFromDescriptor((LPGRAPHICSCONTEXT)&(Context->Header), Info);
     UnlockMutex(&(Context->Header.Mutex));
 
     return 1;

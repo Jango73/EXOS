@@ -47,9 +47,10 @@
  * @param X2 Right.
  * @param Y2 Bottom.
  * @param Color Fill color.
+ * @param CornerRadius Corner radius.
  * @return TRUE on success.
  */
-static BOOL DrawSolidRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color) {
+static BOOL DrawSolidRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color, U32 CornerRadius) {
     RECT_INFO RectInfo;
     BRUSH Brush;
     HANDLE OldPen;
@@ -72,6 +73,8 @@ static BOOL DrawSolidRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color
     RectInfo.Y1 = Y1;
     RectInfo.X2 = X2;
     RectInfo.Y2 = Y2;
+    RectInfo.CornerRadius = (I32)CornerRadius;
+    RectInfo.CornerStyle = CornerRadius > 0 ? RECT_CORNER_STYLE_ROUNDED : RECT_CORNER_STYLE_SQUARE;
 
     OldPen = SelectPen(GC, NULL);
     OldBrush = SelectBrush(GC, (HANDLE)&Brush);
@@ -93,9 +96,11 @@ static BOOL DrawSolidRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color
  * @param Y2 Bottom.
  * @param StartColor Gradient start color (top).
  * @param EndColor Gradient end color (bottom).
+ * @param CornerRadius Corner radius.
  * @return TRUE on success.
  */
-static BOOL DrawVerticalGradientRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR StartColor, COLOR EndColor) {
+static BOOL DrawVerticalGradientRect(
+    HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR StartColor, COLOR EndColor, U32 CornerRadius) {
     RECT_INFO RectInfo;
 
     if (GC == NULL) return FALSE;
@@ -111,8 +116,32 @@ static BOOL DrawVerticalGradientRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, 
     RectInfo.Y2 = Y2;
     RectInfo.StartColor = StartColor;
     RectInfo.EndColor = EndColor;
+    RectInfo.CornerRadius = (I32)CornerRadius;
+    RectInfo.CornerStyle = CornerRadius > 0 ? RECT_CORNER_STYLE_ROUNDED : RECT_CORNER_STYLE_SQUARE;
 
     return Rectangle(&RectInfo);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve themed title bar height.
+ * @param TitleHeightOut Receives the title bar height in pixels.
+ * @return TRUE on success.
+ */
+static BOOL ResolveWindowTitleBarHeight(U32* TitleHeightOut) {
+    U32 TitleHeight = 22;
+
+    if (TitleHeightOut == NULL) return FALSE;
+
+    if (!DesktopThemeResolveLevel1Metric(TEXT("window.titlebar"), TEXT("normal"), TEXT("title_height"), &TitleHeight)) {
+        if (!DesktopThemeResolveTokenMetricByName(TEXT("metric.window.title_height"), &TitleHeight)) {
+            TitleHeight = 22;
+        }
+    }
+
+    *TitleHeightOut = TitleHeight;
+    return TRUE;
 }
 
 /***************************************************************************/
@@ -145,6 +174,7 @@ static BOOL ResolveWindowBorderThickness(U32* ThicknessOut) {
  */
 static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
     U32 BorderThickness = 2;
+    U32 TitleHeight = 22;
     COLOR BorderColor = 0;
     LINE_INFO LineInfo;
     PEN Pen;
@@ -153,11 +183,13 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
     I32 Height;
     I32 MaxThickness;
     I32 Thickness;
+    I32 BorderTopY;
     I32 Offset;
 
     if (GC == NULL || Rect == NULL) return;
 
     (void)ResolveWindowBorderThickness(&BorderThickness);
+    (void)ResolveWindowTitleBarHeight(&TitleHeight);
 
     if (!DesktopThemeResolveLevel1Color(TEXT("window.border"), TEXT("normal"), TEXT("border_color"), &BorderColor)) {
         HANDLE Pen = GetSystemPen(SM_COLOR_DARK_SHADOW);
@@ -177,6 +209,9 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
     Thickness = (I32)BorderThickness;
     if (Thickness <= 0) return;
     if (Thickness > MaxThickness) Thickness = MaxThickness;
+    BorderTopY = Rect->Y1 + (I32)TitleHeight;
+    if (BorderTopY < Rect->Y1) BorderTopY = Rect->Y1;
+    if (BorderTopY > Rect->Y2 + 1) BorderTopY = Rect->Y2 + 1;
 
     MemorySet(&Pen, 0, sizeof(Pen));
     Pen.TypeID = KOID_PEN;
@@ -191,15 +226,6 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
 
     OldPen = SelectPen(GC, (HANDLE)&Pen);
 
-    // Top border lines
-    for (Offset = 0; Offset < Thickness; Offset++) {
-        LineInfo.X1 = Rect->X1;
-        LineInfo.Y1 = Rect->Y1 + Offset;
-        LineInfo.X2 = Rect->X2;
-        LineInfo.Y2 = Rect->Y1 + Offset;
-        (void)Line(&LineInfo);
-    }
-
     // Bottom border lines
     for (Offset = 0; Offset < Thickness; Offset++) {
         LineInfo.X1 = Rect->X1;
@@ -212,7 +238,7 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
     // Left border lines
     for (Offset = 0; Offset < Thickness; Offset++) {
         LineInfo.X1 = Rect->X1 + Offset;
-        LineInfo.Y1 = Rect->Y1 + Thickness;
+        LineInfo.Y1 = BorderTopY;
         LineInfo.X2 = Rect->X1 + Offset;
         LineInfo.Y2 = Rect->Y2 - Thickness;
         if (LineInfo.Y1 <= LineInfo.Y2) (void)Line(&LineInfo);
@@ -221,7 +247,7 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
     // Right border lines
     for (Offset = 0; Offset < Thickness; Offset++) {
         LineInfo.X1 = Rect->X2 - Offset;
-        LineInfo.Y1 = Rect->Y1 + Thickness;
+        LineInfo.Y1 = BorderTopY;
         LineInfo.X2 = Rect->X2 - Offset;
         LineInfo.Y2 = Rect->Y2 - Thickness;
         if (LineInfo.Y1 <= LineInfo.Y2) (void)Line(&LineInfo);
@@ -251,8 +277,8 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
     COLOR Background = 0;
     COLOR Background2 = 0;
     COLOR TextColor = 0;
-    U32 BorderThickness;
     U32 TitleHeight = 22;
+    U32 CornerRadius = 6;
     I32 InnerX1;
     I32 InnerX2;
     I32 InnerY1;
@@ -266,19 +292,17 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
     GFX_TEXT_DRAW_INFO DrawInfo;
 
     if (GC == NULL || Rect == NULL) return FALSE;
-    if (ResolveWindowBorderThickness(&BorderThickness) == FALSE) return FALSE;
     if (GetWindowStateSnapshot((LPWINDOW)Window, &Snapshot) == FALSE) return FALSE;
 
-    if (!DesktopThemeResolveLevel1Metric(TEXT("window.titlebar"), TEXT("normal"), TEXT("title_height"), &TitleHeight)) {
-        if (!DesktopThemeResolveTokenMetricByName(TEXT("metric.window.title_height"), &TitleHeight)) {
-            TitleHeight = 22;
-        }
+    (void)ResolveWindowTitleBarHeight(&TitleHeight);
+    if (!DesktopThemeResolveLevel1Metric(TEXT("window.titlebar"), TEXT("normal"), TEXT("corner_radius"), &CornerRadius)) {
+        CornerRadius = 6;
     }
     if (TitleHeight == 0) return FALSE;
 
-    InnerX1 = Rect->X1 + (I32)BorderThickness;
-    InnerX2 = Rect->X2 - (I32)BorderThickness;
-    InnerY1 = Rect->Y1 + (I32)BorderThickness;
+    InnerX1 = Rect->X1;
+    InnerX2 = Rect->X2;
+    InnerY1 = Rect->Y1;
     if (InnerX1 > InnerX2 || InnerY1 > Rect->Y2) return FALSE;
 
     MaxTitleHeight = Rect->Y2 - InnerY1 + 1;
@@ -307,9 +331,9 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
 
     if (Background != 0 || Background2 != 0) {
         if (Background2 != 0 && Background2 != Background) {
-            (void)DrawVerticalGradientRect(GC, InnerX1, InnerY1, InnerX2, InnerY2, Background, Background2);
+            (void)DrawVerticalGradientRect(GC, InnerX1, InnerY1, InnerX2, InnerY2, Background, Background2, CornerRadius);
         } else {
-            (void)DrawSolidRect(GC, InnerX1, InnerY1, InnerX2, InnerY2, Background);
+            (void)DrawSolidRect(GC, InnerX1, InnerY1, InnerX2, InnerY2, Background, CornerRadius);
         }
     }
 
@@ -322,7 +346,7 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
 
     BottomLineY = InnerY2;
     if (BottomLineY >= Rect->Y1 && BottomLineY <= Rect->Y2) {
-        (void)DrawSolidRect(GC, InnerX1, BottomLineY, InnerX2, BottomLineY, SeparatorColor);
+        (void)DrawSolidRect(GC, InnerX1, BottomLineY, InnerX2, BottomLineY, SeparatorColor, 0);
     }
 
     if (StringLength(Snapshot.Caption) == 0) return TRUE;
@@ -458,7 +482,6 @@ BOOL ShouldDrawWindowNonClient(LPWINDOW Window) {
  */
 BOOL IsPointInWindowTitleBar(LPWINDOW Window, LPPOINT ScreenPoint) {
     RECT ScreenRect;
-    U32 BorderThickness;
     U32 TitleHeight = 22;
     I32 InnerX1;
     I32 InnerX2;
@@ -469,20 +492,14 @@ BOOL IsPointInWindowTitleBar(LPWINDOW Window, LPPOINT ScreenPoint) {
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (ScreenPoint == NULL) return FALSE;
     if (ShouldDrawWindowNonClient(Window) == FALSE) return FALSE;
-    if (ResolveWindowBorderThickness(&BorderThickness) == FALSE) return FALSE;
-
-    if (!DesktopThemeResolveLevel1Metric(TEXT("window.titlebar"), TEXT("normal"), TEXT("title_height"), &TitleHeight)) {
-        if (!DesktopThemeResolveTokenMetricByName(TEXT("metric.window.title_height"), &TitleHeight)) {
-            TitleHeight = 22;
-        }
-    }
+    (void)ResolveWindowTitleBarHeight(&TitleHeight);
     if (TitleHeight == 0) return FALSE;
 
     ScreenRect = Window->ScreenRect;
 
-    InnerX1 = ScreenRect.X1 + (I32)BorderThickness;
-    InnerX2 = ScreenRect.X2 - (I32)BorderThickness;
-    InnerY1 = ScreenRect.Y1 + (I32)BorderThickness;
+    InnerX1 = ScreenRect.X1;
+    InnerX2 = ScreenRect.X2;
+    InnerY1 = ScreenRect.Y1;
     if (InnerX1 > InnerX2 || InnerY1 > ScreenRect.Y2) return FALSE;
 
     MaxTitleHeight = ScreenRect.Y2 - InnerY1 + 1;
@@ -530,16 +547,10 @@ BOOL GetWindowClientRectFromWindowRect(LPWINDOW Window, LPRECT WindowRect, LPREC
     }
 
     if (ResolveWindowBorderThickness(&BorderThickness) == FALSE) return FALSE;
-
-    if (!DesktopThemeResolveLevel1Metric(TEXT("window.titlebar"), TEXT("normal"), TEXT("title_height"), &TitleHeight)) {
-        if (!DesktopThemeResolveTokenMetricByName(TEXT("metric.window.title_height"), &TitleHeight)) {
-            TitleHeight = 22;
-        }
-    }
+    (void)ResolveWindowTitleBarHeight(&TitleHeight);
 
     Left += (I32)BorderThickness;
     Right -= (I32)BorderThickness;
-    Top += (I32)BorderThickness;
     Bottom -= (I32)BorderThickness;
 
     if (Left > Right || Top > Bottom) return FALSE;
@@ -621,11 +632,6 @@ BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect) {
         }
     }
 
-    if (DesktopThemeDrawRecipeForElementState(Window, GC, Rect, TEXT("window.border"), TEXT("normal"))) {
-        (void)DrawWindowTitleBarFromTheme(Window, GC, Rect);
-        DrawWindowBorderFromTheme(GC, Rect);
-        return TRUE;
-    }
     (void)DrawWindowTitleBarFromTheme(Window, GC, Rect);
     DrawWindowBorderFromTheme(GC, Rect);
 
