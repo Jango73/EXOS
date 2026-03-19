@@ -255,18 +255,24 @@ static void GOPGfxDrawLine(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I3
 /**
  * @brief Draw and fill a rectangle using current brush and pen.
  * @param Context Active graphics context.
- * @param X1 Left coordinate.
- * @param Y1 Top coordinate.
- * @param X2 Right coordinate.
- * @param Y2 Bottom coordinate.
+ * @param Info Rectangle descriptor.
  */
-static void GOPGfxDrawRectangle(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
+static void GOPGfxDrawRectangle(LPGRAPHICSCONTEXT Context, LPRECT_INFO Info) {
     I32 Temp = 0;
+    I32 X1 = 0;
+    I32 Y1 = 0;
+    I32 X2 = 0;
+    I32 Y2 = 0;
     PROFILE_SCOPE Scope;
 
-    if (Context == NULL) {
+    if (Context == NULL || Info == NULL) {
         return;
     }
+
+    X1 = Info->X1;
+    Y1 = Info->Y1;
+    X2 = Info->X2;
+    Y2 = Info->Y2;
 
     if (X1 > X2) {
         Temp = X1;
@@ -279,9 +285,10 @@ static void GOPGfxDrawRectangle(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X
         Y2 = Temp;
     }
 
-    if (Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH) {
+    if ((Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH) ||
+        (Info->Header.Flags & RECT_FLAG_FILL_GRADIENT_MASK) != 0) {
         ProfileStart(&Scope, TEXT("GOP.RectangleFill"));
-        (void)GraphicsFillSolidRect(Context, X1, Y1, X2, Y2, Context->Brush->Color);
+        (void)GraphicsFillRectangleFromDescriptor(Context, Info);
         ProfileStop(&Scope);
     }
 
@@ -602,7 +609,7 @@ static UINT GOPGfxRectangle(LPRECT_INFO Info) {
 
     ProfileStart(&Scope, TEXT("GOP.Rectangle"));
     LockMutex(&(Context->Mutex), INFINITY);
-    GOPGfxDrawRectangle(Context, Info->X1, Info->Y1, Info->X2, Info->Y2);
+    GOPGfxDrawRectangle(Context, Info);
     UnlockMutex(&(Context->Mutex));
     ProfileStop(&Scope);
 

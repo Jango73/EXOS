@@ -93,6 +93,18 @@ extern void SetConsoleCursorPosition(U32 X, U32 Y);
 extern void IdleCPU(void);
 extern void DeadCPU(void);
 extern void Reboot(void);
+extern BOOL GraphicsDrawScanlineAsm(U8* Pixel, U32 PixelCount, U32 BitsPerPixel, U32 RasterOperation, COLOR StartColor, COLOR EndColor);
+extern BOOL GraphicsDrawHorizontalGradientScanlineAsm(
+    U8* Pixel, U32 PixelCount, U32 BitsPerPixel, U32 RasterOperation, COLOR StartColor, COLOR EndColor);
+extern BOOL GraphicsFillVerticalGradientRectAsm(
+    U8* Pixel,
+    U32 PixelCount,
+    U32 RowCount,
+    U32 BitsPerPixel,
+    U32 BytesPerScanLine,
+    U32 RasterOperation,
+    COLOR StartColor,
+    COLOR EndColor);
 
 /***************************************************************************/
 

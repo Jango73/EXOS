@@ -920,6 +920,8 @@ The VESA driver requests VBE modes in linear frame buffer mode (`INT 10h 4F02h`,
 
 VESA drawing primitives include line, rectangle, arc, and triangle command paths (`DF_GFX_LINE`, `DF_GFX_RECTANGLE`, `DF_GFX_ARC`, `DF_GFX_TRIANGLE`) and are forwarded through `Graphics-Selector`.
 
+Rectangle, triangle, and arc rasterization share the generic scanline helpers in `kernel/source/utils/Graphics-Utils.c`. Solid fills, vertical gradients, and horizontal gradients all converge on the same scanline entry, and the low-level contiguous pixel write path is provided by the architecture `GraphicsDrawScanlineAsm` helper in `kernel/source/arch/x86-32/asm/System.asm` and `kernel/source/arch/x86-64/asm/System.asm`.
+
 `kernel/source/drivers/graphics/vga/VGA-Main.c` exposes a dedicated VGA text driver (`alias: vga`) that implements mode enumeration and text mode selection through the same `DF_GFX_*` contract.
 
 Display-class PCI attach logic is implemented in `kernel/source/drivers/graphics/common/Graphics-PCI.c`. The PCI bus layer registers this graphics-provided attach driver during PCI initialization so generic display controllers appear in the PCI device list.

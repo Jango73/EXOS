@@ -79,14 +79,22 @@ static void IntelGfxDrawLineInternal(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, 
 
 /************************************************************************/
 
-static void IntelGfxDrawRectangleInternal(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
+static void IntelGfxDrawRectangleInternal(LPGRAPHICSCONTEXT Context, LPRECT_INFO Info) {
     I32 Temp = 0;
-    COLOR FillColor = 0;
+    I32 X1 = 0;
+    I32 Y1 = 0;
+    I32 X2 = 0;
+    I32 Y2 = 0;
     PROFILE_SCOPE Scope;
 
-    if (Context == NULL) {
+    if (Context == NULL || Info == NULL) {
         return;
     }
+
+    X1 = Info->X1;
+    Y1 = Info->Y1;
+    X2 = Info->X2;
+    Y2 = Info->Y2;
 
     if (X1 > X2) {
         Temp = X1;
@@ -99,11 +107,11 @@ static void IntelGfxDrawRectangleInternal(LPGRAPHICSCONTEXT Context, I32 X1, I32
         Y2 = Temp;
     }
 
-    if (Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH && Context->MemoryBase != NULL &&
-        Context->BitsPerPixel == 32) {
+    if (((Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH) ||
+         (Info->Header.Flags & RECT_FLAG_FILL_GRADIENT_MASK) != 0) &&
+        Context->MemoryBase != NULL && Context->BitsPerPixel == 32) {
         ProfileStart(&Scope, TEXT("iGPU.RectangleFill"));
-        FillColor = Context->Brush->Color;
-        (void)GraphicsFillSolidRect(Context, X1, Y1, X2, Y2, FillColor);
+        (void)GraphicsFillRectangleFromDescriptor(Context, Info);
         ProfileStop(&Scope);
     }
 
@@ -273,7 +281,7 @@ UINT IntelGfxRectangle(LPRECT_INFO Info) {
 
     ProfileStart(&Scope, TEXT("iGPU.Rectangle"));
     LockMutex(&(Context->Mutex), INFINITY);
-    IntelGfxDrawRectangleInternal(Context, Info->X1, Info->Y1, Info->X2, Info->Y2);
+    IntelGfxDrawRectangleInternal(Context, Info);
     if (IntelGfxNormalizeFlushBounds(Context, Info->X1, Info->Y1, Info->X2, Info->Y2, &Bounds)) {
         ProfileStart(&FlushScope, TEXT("iGPU.RectangleFlush"));
         IntelGfxFlushBoundsToScanout(Context, &Bounds);

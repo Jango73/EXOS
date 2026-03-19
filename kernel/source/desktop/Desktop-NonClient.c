@@ -30,6 +30,7 @@
 #include "GFX.h"
 #include "Kernel.h"
 #include "Log.h"
+#include "utils/Graphics-Utils.h"
 
 /***************************************************************************/
 
@@ -95,74 +96,23 @@ static BOOL DrawSolidRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color
  * @return TRUE on success.
  */
 static BOOL DrawVerticalGradientRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR StartColor, COLOR EndColor) {
-    LINE_INFO BaseLineInfo;
-    LINE_INFO LineInfo;
-    PEN Pen;
-    HANDLE OldPen;
-    I32 Height;
-    I32 Offset;
-    U32 Numerator;
-    U32 Denominator;
-    U32 StartA;
-    U32 StartR;
-    U32 StartG;
-    U32 StartB;
-    U32 EndA;
-    U32 EndR;
-    U32 EndG;
-    U32 EndB;
-    COLOR RowColor;
+    RECT_INFO RectInfo;
 
     if (GC == NULL) return FALSE;
     if (X1 > X2 || Y1 > Y2) return FALSE;
 
-    Height = Y2 - Y1 + 1;
-    if (Height <= 1) {
-        return DrawSolidRect(GC, X1, Y1, X2, Y2, StartColor);
-    }
+    RectInfo.Header.Size = sizeof(RectInfo);
+    RectInfo.Header.Version = EXOS_ABI_VERSION;
+    RectInfo.Header.Flags = RECT_FLAG_FILL_VERTICAL_GRADIENT;
+    RectInfo.GC = GC;
+    RectInfo.X1 = X1;
+    RectInfo.Y1 = Y1;
+    RectInfo.X2 = X2;
+    RectInfo.Y2 = Y2;
+    RectInfo.StartColor = StartColor;
+    RectInfo.EndColor = EndColor;
 
-    StartA = (StartColor >> 24) & 0xFF;
-    StartR = (StartColor >> 16) & 0xFF;
-    StartG = (StartColor >> 8) & 0xFF;
-    StartB = StartColor & 0xFF;
-    EndA = (EndColor >> 24) & 0xFF;
-    EndR = (EndColor >> 16) & 0xFF;
-    EndG = (EndColor >> 8) & 0xFF;
-    EndB = EndColor & 0xFF;
-
-    MemorySet(&Pen, 0, sizeof(Pen));
-    Pen.TypeID = KOID_PEN;
-    Pen.References = 1;
-    Pen.Pattern = MAX_U32;
-
-    BaseLineInfo.Header.Size = sizeof(BaseLineInfo);
-    BaseLineInfo.Header.Version = EXOS_ABI_VERSION;
-    BaseLineInfo.Header.Flags = 0;
-    BaseLineInfo.GC = GC;
-    BaseLineInfo.X1 = X1;
-    BaseLineInfo.X2 = X2;
-
-    OldPen = SelectPen(GC, (HANDLE)&Pen);
-    Denominator = (U32)(Height - 1);
-
-    for (Offset = 0; Offset < Height; Offset++) {
-        Numerator = (U32)Offset;
-
-        RowColor =
-            ((((StartA + (((I32)EndA - (I32)StartA) * Numerator) / Denominator) & 0xFF) << 24)) |
-            ((((StartR + (((I32)EndR - (I32)StartR) * Numerator) / Denominator) & 0xFF) << 16)) |
-            ((((StartG + (((I32)EndG - (I32)StartG) * Numerator) / Denominator) & 0xFF) << 8)) |
-            (((StartB + (((I32)EndB - (I32)StartB) * Numerator) / Denominator) & 0xFF));
-
-        Pen.Color = RowColor;
-        LineInfo = BaseLineInfo;
-        LineInfo.Y1 = Y1 + Offset;
-        LineInfo.Y2 = Y1 + Offset;
-        (void)Line(&LineInfo);
-    }
-
-    (void)SelectPen(GC, OldPen);
-    return TRUE;
+    return Rectangle(&RectInfo);
 }
 
 /***************************************************************************/
