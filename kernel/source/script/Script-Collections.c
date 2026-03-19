@@ -38,12 +38,12 @@ void ScriptFreeVariable(LPSCRIPT_VARIABLE Variable) {
     if (Variable == NULL) return;
 
     if (Variable->Type == SCRIPT_VAR_STRING && Variable->Value.String) {
-        HeapFree(Variable->Value.String);
+        ScriptFree(Variable->Context, Variable->Value.String);
     } else if (Variable->Type == SCRIPT_VAR_ARRAY && Variable->Value.Array) {
         ScriptDestroyArray(Variable->Value.Array);
     }
 
-    HeapFree(Variable);
+    ScriptFree(Variable->Context, Variable);
 }
 
 /************************************************************************/
@@ -56,6 +56,7 @@ void ScriptValueInit(SCRIPT_VALUE* Value) {
     MemorySet(Value, 0, sizeof(SCRIPT_VALUE));
     Value->Type = SCRIPT_VAR_FLOAT;
     Value->Value.Float = 0.0f;
+    Value->ContextOwner = NULL;
     Value->OwnsValue = FALSE;
     Value->HostDescriptor = NULL;
     Value->HostContext = NULL;
@@ -69,7 +70,7 @@ void ScriptValueRelease(SCRIPT_VALUE* Value) {
     }
 
     if (Value->Type == SCRIPT_VAR_STRING && Value->OwnsValue && Value->Value.String) {
-        HeapFree(Value->Value.String);
+        ScriptFree(Value->ContextOwner, Value->Value.String);
     } else if (Value->Type == SCRIPT_VAR_ARRAY && Value->OwnsValue && Value->Value.Array) {
         ScriptDestroyArray(Value->Value.Array);
     } else if (Value->Type == SCRIPT_VAR_HOST_HANDLE && Value->OwnsValue &&
@@ -81,6 +82,7 @@ void ScriptValueRelease(SCRIPT_VALUE* Value) {
 
     Value->Type = SCRIPT_VAR_FLOAT;
     Value->Value.Float = 0.0f;
+    Value->ContextOwner = NULL;
     Value->OwnsValue = FALSE;
     Value->HostDescriptor = NULL;
     Value->HostContext = NULL;
@@ -94,15 +96,16 @@ U32 ScriptHashHostSymbol(LPCSTR Name) {
 
 /************************************************************************/
 
-BOOL ScriptInitHostRegistry(LPSCRIPT_HOST_REGISTRY Registry) {
-    if (Registry == NULL) {
+BOOL ScriptInitHostRegistry(LPSCRIPT_CONTEXT Context, LPSCRIPT_HOST_REGISTRY Registry) {
+    if (Registry == NULL || Context == NULL) {
         return FALSE;
     }
 
     MemorySet(Registry, 0, sizeof(SCRIPT_HOST_REGISTRY));
+    Registry->Context = Context;
 
     for (U32 i = 0; i < SCRIPT_VAR_HASH_SIZE; i++) {
-        Registry->Buckets[i] = NewList(NULL, HeapAlloc, HeapFree);
+        Registry->Buckets[i] = NewListEx(NULL, &Context->Allocator, AllocatorListAlloc, AllocatorListFree);
         if (Registry->Buckets[i] == NULL) {
             for (U32 j = 0; j < i; j++) {
                 if (Registry->Buckets[j]) {
@@ -130,7 +133,7 @@ void ScriptReleaseHostSymbol(LPSCRIPT_HOST_SYMBOL Symbol) {
         Symbol->Descriptor->ReleaseHandle(HostCtx, Symbol->Handle);
     }
 
-    HeapFree(Symbol);
+    ScriptFree(Symbol->ContextOwner, Symbol);
 }
 
 /************************************************************************/
@@ -184,19 +187,23 @@ LPSCRIPT_HOST_SYMBOL ScriptFindHostSymbol(LPSCRIPT_HOST_REGISTRY Registry, LPCST
  * @param InitialCapacity Initial capacity of the array
  * @return Pointer to new array or NULL on failure
  */
-LPSCRIPT_ARRAY ScriptCreateArray(U32 InitialCapacity) {
+LPSCRIPT_ARRAY ScriptCreateArray(LPSCRIPT_CONTEXT Context, U32 InitialCapacity) {
+    LPSCRIPT_ARRAY Array;
+
     if (InitialCapacity == 0) InitialCapacity = 4;
 
-    LPSCRIPT_ARRAY Array = (LPSCRIPT_ARRAY)HeapAlloc(sizeof(SCRIPT_ARRAY));
+    Array = (LPSCRIPT_ARRAY)ScriptAlloc(Context, sizeof(SCRIPT_ARRAY));
     if (Array == NULL) return NULL;
 
-    Array->Elements = (LPVOID*)HeapAlloc(InitialCapacity * sizeof(LPVOID));
-    Array->ElementTypes = (SCRIPT_VAR_TYPE*)HeapAlloc(InitialCapacity * sizeof(SCRIPT_VAR_TYPE));
+    MemorySet(Array, 0, sizeof(SCRIPT_ARRAY));
+    Array->Context = Context;
+    Array->Elements = (LPVOID*)ScriptAlloc(Context, InitialCapacity * sizeof(LPVOID));
+    Array->ElementTypes = (SCRIPT_VAR_TYPE*)ScriptAlloc(Context, InitialCapacity * sizeof(SCRIPT_VAR_TYPE));
 
     if (Array->Elements == NULL || Array->ElementTypes == NULL) {
-        if (Array->Elements) HeapFree(Array->Elements);
-        if (Array->ElementTypes) HeapFree(Array->ElementTypes);
-        HeapFree(Array);
+        if (Array->Elements) ScriptFree(Context, Array->Elements);
+        if (Array->ElementTypes) ScriptFree(Context, Array->ElementTypes);
+        ScriptFree(Context, Array);
         return NULL;
     }
 
@@ -218,13 +225,13 @@ void ScriptDestroyArray(LPSCRIPT_ARRAY Array) {
     // Free all string elements
     for (U32 i = 0; i < Array->Size; i++) {
         if (Array->ElementTypes[i] == SCRIPT_VAR_STRING && Array->Elements[i]) {
-            HeapFree(Array->Elements[i]);
+            ScriptFree(Array->Context, Array->Elements[i]);
         }
     }
 
-    HeapFree(Array->Elements);
-    HeapFree(Array->ElementTypes);
-    HeapFree(Array);
+    ScriptFree(Array->Context, Array->Elements);
+    ScriptFree(Array->Context, Array->ElementTypes);
+    ScriptFree(Array->Context, Array);
 }
 
 /************************************************************************/
@@ -245,12 +252,12 @@ SCRIPT_ERROR ScriptArraySet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE Typ
         U32 NewCapacity = Index + 1;
         if (NewCapacity < Array->Capacity * 2) NewCapacity = Array->Capacity * 2;
 
-        LPVOID* NewElements = (LPVOID*)HeapAlloc(NewCapacity * sizeof(LPVOID));
-        SCRIPT_VAR_TYPE* NewTypes = (SCRIPT_VAR_TYPE*)HeapAlloc(NewCapacity * sizeof(SCRIPT_VAR_TYPE));
+        LPVOID* NewElements = (LPVOID*)ScriptAlloc(Array->Context, NewCapacity * sizeof(LPVOID));
+        SCRIPT_VAR_TYPE* NewTypes = (SCRIPT_VAR_TYPE*)ScriptAlloc(Array->Context, NewCapacity * sizeof(SCRIPT_VAR_TYPE));
 
         if (NewElements == NULL || NewTypes == NULL) {
-            if (NewElements) HeapFree(NewElements);
-            if (NewTypes) HeapFree(NewTypes);
+            if (NewElements) ScriptFree(Array->Context, NewElements);
+            if (NewTypes) ScriptFree(Array->Context, NewTypes);
             return SCRIPT_ERROR_OUT_OF_MEMORY;
         }
 
@@ -260,8 +267,8 @@ SCRIPT_ERROR ScriptArraySet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE Typ
             NewTypes[i] = Array->ElementTypes[i];
         }
 
-        HeapFree(Array->Elements);
-        HeapFree(Array->ElementTypes);
+        ScriptFree(Array->Context, Array->Elements);
+        ScriptFree(Array->Context, Array->ElementTypes);
         Array->Elements = NewElements;
         Array->ElementTypes = NewTypes;
         Array->Capacity = NewCapacity;
@@ -269,7 +276,7 @@ SCRIPT_ERROR ScriptArraySet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE Typ
 
     // Free existing string value if overwriting
     if (Index < Array->Size && Array->ElementTypes[Index] == SCRIPT_VAR_STRING && Array->Elements[Index]) {
-        HeapFree(Array->Elements[Index]);
+        ScriptFree(Array->Context, Array->Elements[Index]);
     }
 
     Array->ElementTypes[Index] = Type;
@@ -277,16 +284,16 @@ SCRIPT_ERROR ScriptArraySet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE Typ
     // Copy value based on type
     if (Type == SCRIPT_VAR_STRING && Value.String) {
         U32 Len = StringLength(Value.String) + 1;
-        Array->Elements[Index] = HeapAlloc(Len);
+        Array->Elements[Index] = ScriptAlloc(Array->Context, Len);
         if (Array->Elements[Index] == NULL) return SCRIPT_ERROR_OUT_OF_MEMORY;
         StringCopy((LPSTR)Array->Elements[Index], Value.String);
     } else if (Type == SCRIPT_VAR_INTEGER) {
-        I32* IntPtr = (I32*)HeapAlloc(sizeof(I32));
+        I32* IntPtr = (I32*)ScriptAlloc(Array->Context, sizeof(I32));
         if (IntPtr == NULL) return SCRIPT_ERROR_OUT_OF_MEMORY;
         *IntPtr = Value.Integer;
         Array->Elements[Index] = IntPtr;
     } else if (Type == SCRIPT_VAR_FLOAT) {
-        F32* FloatPtr = (F32*)HeapAlloc(sizeof(F32));
+        F32* FloatPtr = (F32*)ScriptAlloc(Array->Context, sizeof(F32));
         if (FloatPtr == NULL) return SCRIPT_ERROR_OUT_OF_MEMORY;
         *FloatPtr = Value.Float;
         Array->Elements[Index] = FloatPtr;
@@ -347,7 +354,7 @@ LPSCRIPT_VARIABLE ScriptSetArrayElement(LPSCRIPT_CONTEXT Context, LPCSTR Name, U
     // Create array variable if it doesn't exist
     if (Variable == NULL) {
         SCRIPT_VAR_VALUE ArrayValue;
-        ArrayValue.Array = ScriptCreateArray(0);
+        ArrayValue.Array = ScriptCreateArray(Context, 0);
         if (ArrayValue.Array == NULL) return NULL;
 
         Variable = ScriptSetVariable(Context, Name, SCRIPT_VAR_ARRAY, ArrayValue);
@@ -390,10 +397,11 @@ LPSCRIPT_VARIABLE ScriptGetArrayElement(LPSCRIPT_CONTEXT Context, LPCSTR Name, U
     if (Error != SCRIPT_OK) return NULL;
 
     // Create a temporary variable to hold the element value
-    LPSCRIPT_VARIABLE TempVar = (LPSCRIPT_VARIABLE)HeapAlloc(sizeof(SCRIPT_VARIABLE));
+    LPSCRIPT_VARIABLE TempVar = (LPSCRIPT_VARIABLE)ScriptAlloc(Context, sizeof(SCRIPT_VARIABLE));
     if (TempVar == NULL) return NULL;
 
     MemorySet(TempVar, 0, sizeof(SCRIPT_VARIABLE));
+    TempVar->Context = Context;
     TempVar->Type = ElementType;
     TempVar->Value = ElementValue;
     TempVar->RefCount = 1;
@@ -409,7 +417,7 @@ BOOL ScriptRegisterHostSymbol(LPSCRIPT_CONTEXT Context, LPCSTR Name, SCRIPT_HOST
     }
 
     if (Context->HostRegistry.Buckets[0] == NULL) {
-        if (!ScriptInitHostRegistry(&Context->HostRegistry)) {
+        if (!ScriptInitHostRegistry(Context, &Context->HostRegistry)) {
             return FALSE;
         }
     }
@@ -417,7 +425,7 @@ BOOL ScriptRegisterHostSymbol(LPSCRIPT_CONTEXT Context, LPCSTR Name, SCRIPT_HOST
     U32 Hash = ScriptHashHostSymbol(Name);
     LPLIST Bucket = Context->HostRegistry.Buckets[Hash];
     if (Bucket == NULL) {
-        Bucket = NewList(NULL, HeapAlloc, HeapFree);
+        Bucket = NewListEx(NULL, &Context->Allocator, AllocatorListAlloc, AllocatorListFree);
         if (Bucket == NULL) {
             return FALSE;
         }
@@ -433,12 +441,13 @@ BOOL ScriptRegisterHostSymbol(LPSCRIPT_CONTEXT Context, LPCSTR Name, SCRIPT_HOST
         }
     }
 
-    LPSCRIPT_HOST_SYMBOL Symbol = (LPSCRIPT_HOST_SYMBOL)HeapAlloc(sizeof(SCRIPT_HOST_SYMBOL));
+    LPSCRIPT_HOST_SYMBOL Symbol = (LPSCRIPT_HOST_SYMBOL)ScriptAlloc(Context, sizeof(SCRIPT_HOST_SYMBOL));
     if (Symbol == NULL) {
         return FALSE;
     }
 
     MemorySet(Symbol, 0, sizeof(SCRIPT_HOST_SYMBOL));
+    Symbol->ContextOwner = Context;
     StringCopy(Symbol->Name, Name);
     Symbol->Kind = Kind;
     Symbol->Handle = Handle;
@@ -490,24 +499,29 @@ void ScriptClearHostSymbols(LPSCRIPT_CONTEXT Context) {
     }
 
     ScriptClearHostRegistryInternal(&Context->HostRegistry);
-    ScriptInitHostRegistry(&Context->HostRegistry);
+    ScriptInitHostRegistry(Context, &Context->HostRegistry);
 }
 
 /************************************************************************/
 
-SCRIPT_ERROR ScriptPrepareHostValue(SCRIPT_VALUE* Value, const SCRIPT_HOST_DESCRIPTOR* DefaultDescriptor, LPVOID DefaultContext) {
-    if (Value == NULL) {
+SCRIPT_ERROR ScriptPrepareHostValue(
+    LPSCRIPT_CONTEXT Context,
+    SCRIPT_VALUE* Value,
+    const SCRIPT_HOST_DESCRIPTOR* DefaultDescriptor,
+    LPVOID DefaultContext) {
+    if (Value == NULL || Context == NULL) {
         return SCRIPT_ERROR_SYNTAX;
     }
 
     if (Value->Type == SCRIPT_VAR_STRING && Value->Value.String && !Value->OwnsValue) {
         U32 Len = StringLength(Value->Value.String) + 1;
-        LPSTR Copy = (LPSTR)HeapAlloc(Len);
+        LPSTR Copy = (LPSTR)ScriptAlloc(Context, Len);
         if (Copy == NULL) {
             return SCRIPT_ERROR_OUT_OF_MEMORY;
         }
         StringCopy(Copy, Value->Value.String);
         Value->Value.String = Copy;
+        Value->ContextOwner = Context;
         Value->OwnsValue = TRUE;
     }
 
@@ -568,7 +582,8 @@ SCRIPT_ERROR ScriptConcatStrings(const SCRIPT_VALUE* LeftValue, const SCRIPT_VAL
     UINT RightLength = StringLength(RightText);
     UINT TotalLength = LeftLength + RightLength + 1;
 
-    LPSTR NewString = (LPSTR)HeapAlloc(TotalLength);
+    LPSCRIPT_CONTEXT ResultContext = (LeftValue->ContextOwner != NULL) ? LeftValue->ContextOwner : RightValue->ContextOwner;
+    LPSTR NewString = (LPSTR)ScriptAlloc(ResultContext, TotalLength);
     if (NewString == NULL) {
         return SCRIPT_ERROR_OUT_OF_MEMORY;
     }
@@ -578,6 +593,7 @@ SCRIPT_ERROR ScriptConcatStrings(const SCRIPT_VALUE* LeftValue, const SCRIPT_VAL
 
     Result->Type = SCRIPT_VAR_STRING;
     Result->Value.String = NewString;
+    Result->ContextOwner = ResultContext;
     Result->OwnsValue = TRUE;
 
     return SCRIPT_OK;
@@ -615,7 +631,8 @@ SCRIPT_ERROR ScriptRemoveStringOccurrences(const SCRIPT_VALUE* LeftValue, const 
     SourceLength = StringLength(SourceText);
     PatternLength = StringLength(PatternText);
 
-    NewString = (LPSTR)HeapAlloc(SourceLength + 1);
+    LPSCRIPT_CONTEXT ResultContext = (LeftValue->ContextOwner != NULL) ? LeftValue->ContextOwner : RightValue->ContextOwner;
+    NewString = (LPSTR)ScriptAlloc(ResultContext, SourceLength + 1);
     if (NewString == NULL) {
         return SCRIPT_ERROR_OUT_OF_MEMORY;
     }
@@ -624,6 +641,7 @@ SCRIPT_ERROR ScriptRemoveStringOccurrences(const SCRIPT_VALUE* LeftValue, const 
         StringCopy(NewString, SourceText);
         Result->Type = SCRIPT_VAR_STRING;
         Result->Value.String = NewString;
+        Result->ContextOwner = ResultContext;
         Result->OwnsValue = TRUE;
         return SCRIPT_OK;
     }
@@ -645,6 +663,7 @@ SCRIPT_ERROR ScriptRemoveStringOccurrences(const SCRIPT_VALUE* LeftValue, const 
 
     Result->Type = SCRIPT_VAR_STRING;
     Result->Value.String = NewString;
+    Result->ContextOwner = ResultContext;
     Result->OwnsValue = TRUE;
 
     return SCRIPT_OK;

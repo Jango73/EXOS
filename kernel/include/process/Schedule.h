@@ -31,7 +31,7 @@
 
 typedef struct tag_TASK TASK, *LPTASK;
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;
-typedef struct tag_WAITINFO WAITINFO, *LPWAITINFO;
+typedef struct tag_WAIT_INFO WAIT_INFO, *LPWAIT_INFO;
 
 /***************************************************************************/
 
@@ -60,7 +60,7 @@ BOOL UnfreezeScheduler(void);
 BOOL IsSchedulerFrozen(void);
 
 // Waits for one or more kernel objects to become signaled
-U32 Wait(LPWAITINFO WaitInfo);
+U32 Wait(LPWAIT_INFO WaitInfo);
 
 /************************************************************************/
 

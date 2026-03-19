@@ -77,13 +77,13 @@ EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/con
 - ARP/IPv4/DHCP/UDP/TCP network layers ~
 - Minimal HTTP client ~
 - Kernel pointer masking, handles in userland
+- Windowing system (WIP)
 - A few test apps
 
 (~ means working in emulator - QEMU, but not tested or not yet working on bare metal)
 
 ## Things it will do
 
-- Full windowing system
 - IPC (shared memory through page mapping)
 - Multi-core (SMP)
 - Full security
@@ -139,11 +139,11 @@ Lines of code this project, excluding third party software.
 -------------------------------------------------------------------------------
 Language                     files          blank        comment           code
 -------------------------------------------------------------------------------
-C                              318          30475          31567         103197
-C/C++ Header                   228           5880           6523          14436
-Assembly                        20           1877           1216           5814
+C                              330          31310          32482         106119
+C/C++ Header                   236           6030           6685          14795
+Assembly                        20           1877           1216           5815
 -------------------------------------------------------------------------------
-SUM:                           566          38232          39306         123447
+SUM:                           586          39217          40383         126729
 -------------------------------------------------------------------------------
 ```
 

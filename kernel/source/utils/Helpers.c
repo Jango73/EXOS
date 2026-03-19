@@ -30,7 +30,7 @@
 
 /***************************************************************************/
 
-LPUSERACCOUNT GetCurrentUser(void) {
+LPUSER_ACCOUNT GetCurrentUser(void) {
     LPPROCESS CurrentProcess = GetCurrentProcess();
     if (CurrentProcess == NULL || CurrentProcess->Session == NULL) {
         return NULL;

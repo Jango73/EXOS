@@ -61,36 +61,30 @@ typedef void (*NT_RXCB)(const U8 *Frame, U32 Length, LPVOID UserData);
 
 /************************************************************************/
 
-typedef struct tag_IPADDRESS {
-    U8 Data[4];
-} IPADDRESS, *LPIPADDRESS;
-
-/************************************************************************/
-
-typedef struct tag_NETWORKRESET {
+typedef struct tag_NETWORK_RESET {
     LPPCI_DEVICE Device;
-} NETWORKRESET, *LPNETWORKRESET;
+} NETWORK_RESET, *LPNETWORK_RESET;
 
-typedef struct tag_NETWORKGETINFO {
+typedef struct tag_NETWORK_GET_INFO {
     LPPCI_DEVICE Device;
-    LPNETWORKINFO Info;
-} NETWORKGETINFO, *LPNETWORKGETINFO;
+    LPNETWORK_INFO Info;
+} NETWORK_GET_INFO, *LPNETWORK_GET_INFO;
 
-typedef struct tag_NETWORKSETRXCB {
+typedef struct tag_NETWORK_SET_RX_CB {
     LPPCI_DEVICE Device;
     NT_RXCB Callback;
     LPVOID UserData;
-} NETWORKSETRXCB, *LPNETWORKSETRXCB;
+} NETWORK_SET_RX_CB, *LPNETWORK_SET_RX_CB;
 
-typedef struct tag_NETWORKSEND {
+typedef struct tag_NETWORK_SEND {
     LPPCI_DEVICE Device;
     const U8 *Data;
     U32 Length;
-} NETWORKSEND, *LPNETWORKSEND;
+} NETWORK_SEND, *LPNETWORK_SEND;
 
-typedef struct tag_NETWORKPOLL {
+typedef struct tag_NETWORK_POLL {
     LPPCI_DEVICE Device;
-} NETWORKPOLL, *LPNETWORKPOLL;
+} NETWORK_POLL, *LPNETWORK_POLL;
 
 /************************************************************************/
 

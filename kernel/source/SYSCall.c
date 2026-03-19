@@ -81,16 +81,16 @@ UINT SysCall_GetVersion(UINT Parameter) {
 /**
  * @brief Collect global system information for the caller.
  *
- * Ensures the SYSTEMINFO buffer is accessible, populates it, and keeps
+ * Ensures the SYSTEM_INFO buffer is accessible, populates it, and keeps
  * handles untouched because the structure only contains plain data.
  *
- * @param Parameter Pointer to a SYSTEMINFO structure.
+ * @param Parameter Pointer to a SYSTEM_INFO structure.
  * @return UINT TRUE on success, FALSE when the buffer is invalid.
  */
 UINT SysCall_GetSystemInfo(UINT Parameter) {
-    LPSYSTEMINFO Info = (LPSYSTEMINFO)Parameter;
+    LPSYSTEM_INFO Info = (LPSYSTEM_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Info, SYSTEMINFO) {
+    SAFE_USE_INPUT_POINTER(Info, SYSTEM_INFO) {
         Info->TotalPhysicalMemory = U64_FromUINT(KernelStartup.MemorySize);
         Info->PhysicalMemoryUsed = U64_FromUINT(GetPhysicalMemoryUsed());
         Info->PhysicalMemoryAvail = U64_Sub(Info->TotalPhysicalMemory, Info->PhysicalMemoryUsed);
@@ -108,7 +108,7 @@ UINT SysCall_GetSystemInfo(UINT Parameter) {
         Info->NumProcesses = ProcessList != NULL ? ProcessList->NumItems : 0;
         Info->NumTasks = TaskList != NULL ? TaskList->NumItems : 0;
 
-        LPUSERACCOUNT User = GetCurrentUser();
+        LPUSER_ACCOUNT User = GetCurrentUser();
 
         StringCopy(Info->UserName, User != NULL ? User->UserName : TEXT(""));
         StringCopy(Info->KeyboardLayout, GetKeyboardCode());
@@ -202,42 +202,18 @@ UINT SysCall_SetLocalTime(UINT Parameter) {
  * @return UINT Result code from the underlying delete operation.
  */
 UINT SysCall_DeleteObject(UINT Parameter) {
-    LINEAR ObjectAddress = HandleToPointer(Parameter);
+    LINEAR ObjectPointer = HandleToPointer((HANDLE)Parameter);
 
-    SAFE_USE(ObjectAddress) {
-        LPOBJECT Object = (LPOBJECT)ObjectAddress;
-        UINT Result = 0;
-
-        SAFE_USE_VALID(Object) {
-            switch (Object->TypeID) {
-                case KOID_FILE:
-                    Result = (UINT)CloseFile((LPFILE)Object);
-                    break;
-                case KOID_DESKTOP:
-                    Result = (UINT)DeleteDesktop((LPDESKTOP)Object);
-                    break;
-                case KOID_WINDOW:
-                    Result = (UINT)DeleteWindow((LPWINDOW)Object);
-                    break;
-                default:
-                    WARNING(TEXT("[SysCall_DeleteObject] Unsupported object type=%u handle=%u"),
-                            Object->TypeID, Parameter);
-                    Result = 0;
-                    break;
-            }
-        } else {
-            WARNING(TEXT("[SysCall_DeleteObject] Invalid object pointer handle=%u"), Parameter);
-        }
-
-        if (Result != 0) {
-            ReleaseHandle(Parameter);
-        }
-
-        return Result;
+    if (ObjectPointer == 0) {
+        return 0;
     }
 
-    WARNING(TEXT("[SysCall_DeleteObject] Unknown handle=%u"), Parameter);
-    return 0;
+    if (DeleteObject((HANDLE)ObjectPointer) == FALSE) {
+        return 0;
+    }
+
+    ReleaseHandle((HANDLE)Parameter);
+    return 1;
 }
 
 /************************************************************************/
@@ -249,13 +225,13 @@ UINT SysCall_DeleteObject(UINT Parameter) {
  * with user-visible handles, and tears everything down if handle export
  * fails.
  *
- * @param Parameter Pointer to PROCESSINFO structure supplied by userland.
+ * @param Parameter Pointer to PROCESS_INFO structure supplied by userland.
  * @return UINT Result code from CreateProcess or an error code.
  */
 UINT SysCall_CreateProcess(UINT Parameter) {
-    LPPROCESSINFO Info = (LPPROCESSINFO)Parameter;
+    LPPROCESS_INFO Info = (LPPROCESS_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Info, PROCESSINFO) {
+    SAFE_USE_INPUT_POINTER(Info, PROCESS_INFO) {
         UINT Result = (UINT)CreateProcess(Info);
 
         if (Result) {
@@ -294,19 +270,19 @@ UINT SysCall_KillProcess(UINT Parameter) {
 /**
  * @brief Retrieve information about a process, using handles for inputs.
  *
- * Converts an optional handle in PROCESSINFO into a kernel pointer before
+ * Converts an optional handle in PROCESS_INFO into a kernel pointer before
  * filling the structure.
  *
- * @param Parameter Pointer to PROCESSINFO provided by userland.
+ * @param Parameter Pointer to PROCESS_INFO provided by userland.
  * @return UINT DF_RETURN_SUCCESS on success, DF_RETURN_GENERIC on error.
  */
 UINT SysCall_GetProcessInfo(UINT Parameter) {
-    LPPROCESSINFO Info = (LPPROCESSINFO)Parameter;
+    LPPROCESS_INFO Info = (LPPROCESS_INFO)Parameter;
     LPPROCESS CurrentProcess;
 
     DEBUG(TEXT("[SysCall_GetProcessInfo] Enter, Parameter=%x"), Parameter);
 
-    SAFE_USE_INPUT_POINTER(Info, PROCESSINFO) {
+    SAFE_USE_INPUT_POINTER(Info, PROCESS_INFO) {
         CurrentProcess = Info->Process ? (LPPROCESS)HandleToPointer(Info->Process) : GetCurrentProcess();
 
         SAFE_USE_VALID_ID(CurrentProcess, KOID_PROCESS) {
@@ -330,13 +306,13 @@ UINT SysCall_GetProcessInfo(UINT Parameter) {
 /**
  * @brief Create a task for the current process and return its handle.
  *
- * @param Parameter Pointer to TASKINFO structure provided by userland.
+ * @param Parameter Pointer to TASK_INFO structure provided by userland.
  * @return UINT Handle to the created task, or 0 on failure.
  */
 UINT SysCall_CreateTask(UINT Parameter) {
-    LPTASKINFO TaskInfo = (LPTASKINFO)Parameter;
+    LPTASK_INFO TaskInfo = (LPTASK_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(TaskInfo, TASKINFO) {
+    SAFE_USE_INPUT_POINTER(TaskInfo, TASK_INFO) {
         LPTASK Task = CreateTask(GetCurrentProcess(), TaskInfo);
         return PointerToHandle((LINEAR)Task);
     }
@@ -447,21 +423,21 @@ UINT SysCall_Sleep(UINT Parameter) {
 /**
  * @brief Wait for one or more kernel objects referenced by handles.
  *
- * Resolves every handle in WAITINFO into a kernel pointer before delegating
+ * Resolves every handle in WAIT_INFO into a kernel pointer before delegating
  * to Wait(), restoring the original handles afterwards.
  *
- * @param Parameter Pointer to WAITINFO structure provided by userland.
+ * @param Parameter Pointer to WAIT_INFO structure provided by userland.
  * @return UINT Wait() return code or WAIT_INVALID_PARAMETER on invalid handle.
  */
 UINT SysCall_Wait(UINT Parameter) {
-    LPWAITINFO WaitInfo = (LPWAITINFO)Parameter;
+    LPWAIT_INFO WaitInfo = (LPWAIT_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(WaitInfo, WAITINFO) {
-        if (WaitInfo->Count == 0 || WaitInfo->Count > WAITINFO_MAX_OBJECTS) {
+    SAFE_USE_INPUT_POINTER(WaitInfo, WAIT_INFO) {
+        if (WaitInfo->Count == 0 || WaitInfo->Count > WAIT_INFO_MAX_OBJECTS) {
             return WAIT_INVALID_PARAMETER;
         }
 
-        HANDLE OriginalHandles[WAITINFO_MAX_OBJECTS];
+        HANDLE OriginalHandles[WAIT_INFO_MAX_OBJECTS];
 
         for (UINT Index = 0; Index < WaitInfo->Count; Index++) {
             OriginalHandles[Index] = WaitInfo->Objects[Index];
@@ -495,13 +471,13 @@ UINT SysCall_Wait(UINT Parameter) {
  * Resolves the target handle to its kernel pointer and forwards the request
  * to PostMessage without altering the original ABI structure.
  *
- * @param Parameter Pointer to MESSAGEINFO provided by userland.
+ * @param Parameter Pointer to MESSAGE_INFO provided by userland.
  * @return UINT Non-zero on success, zero on failure.
  */
 UINT SysCall_PostMessage(UINT Parameter) {
-    LPMESSAGEINFO Message = (LPMESSAGEINFO)Parameter;
+    LPMESSAGE_INFO Message = (LPMESSAGE_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Message, MESSAGEINFO) {
+    SAFE_USE_INPUT_POINTER(Message, MESSAGE_INFO) {
         LINEAR TargetPointer = HandleToPointer(Message->Target);
 
         if (Message->Target == 0) {
@@ -521,15 +497,15 @@ UINT SysCall_PostMessage(UINT Parameter) {
 /**
  * @brief SendMessage syscall stub.
  *
- * @param Parameter Pointer to MESSAGEINFO supplied by userland.
+ * @param Parameter Pointer to MESSAGE_INFO supplied by userland.
  * @return UINT DF_RETURN_NOT_IMPLEMENTED.
  */
 UINT SysCall_SendMessage(UINT Parameter) {
     UNUSED(Parameter);
 
     // Legacy synchronous path kept for reference:
-    // LPMESSAGEINFO Message = (LPMESSAGEINFO)Parameter;
-    // SAFE_USE_INPUT_POINTER(Message, MESSAGEINFO) {
+    // LPMESSAGE_INFO Message = (LPMESSAGE_INFO)Parameter;
+    // SAFE_USE_INPUT_POINTER(Message, MESSAGE_INFO) {
     //     LINEAR TargetPointer = HandleToPointer(Message->Target);
     //     if (Message->Target == 0) {
     //         return (UINT)SendMessage(NULL, Message->Message, Message->Param1, Message->Param2);
@@ -554,9 +530,9 @@ UINT SysCall_SendMessage(UINT Parameter) {
  * @return UINT Always returns 0.
  */
 UINT SysCall_PeekMessage(UINT Parameter) {
-    LPMESSAGEINFO Message = (LPMESSAGEINFO)Parameter;
+    LPMESSAGE_INFO Message = (LPMESSAGE_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Message, MESSAGEINFO) {
+    SAFE_USE_INPUT_POINTER(Message, MESSAGE_INFO) {
         HANDLE Filter = Message->Target;
         Message->Target = (HANDLE)HandleToPointer(Filter);
 
@@ -582,17 +558,17 @@ UINT SysCall_PeekMessage(UINT Parameter) {
 /**
  * @brief Retrieve the next message, translating handles as needed.
  *
- * Accepts an optional handle filter in MESSAGEINFO.Target, resolves it to a
+ * Accepts an optional handle filter in MESSAGE_INFO.Target, resolves it to a
  * kernel pointer before invoking GetMessage(), then converts the returned
  * pointer back into a handle.
  *
- * @param Parameter Pointer to MESSAGEINFO supplied by userland.
+ * @param Parameter Pointer to MESSAGE_INFO supplied by userland.
  * @return UINT Non-zero on success, zero on failure or invalid handle.
  */
 UINT SysCall_GetMessage(UINT Parameter) {
-    LPMESSAGEINFO Message = (LPMESSAGEINFO)Parameter;
+    LPMESSAGE_INFO Message = (LPMESSAGE_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Message, MESSAGEINFO) {
+    SAFE_USE_INPUT_POINTER(Message, MESSAGE_INFO) {
         HANDLE Filter = Message->Target;
         Message->Target = (HANDLE)HandleToPointer(Filter);
 
@@ -621,13 +597,13 @@ UINT SysCall_GetMessage(UINT Parameter) {
  * Converts the target handle into a kernel pointer for the duration of the
  * dispatch, restoring the handle afterwards.
  *
- * @param Parameter Pointer to MESSAGEINFO provided by userland.
+ * @param Parameter Pointer to MESSAGE_INFO provided by userland.
  * @return UINT Non-zero on success, zero on failure.
  */
 UINT SysCall_DispatchMessage(UINT Parameter) {
-    LPMESSAGEINFO Message = (LPMESSAGEINFO)Parameter;
+    LPMESSAGE_INFO Message = (LPMESSAGE_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Message, MESSAGEINFO) {
+    SAFE_USE_INPUT_POINTER(Message, MESSAGE_INFO) {
         HANDLE Original = Message->Target;
         Message->Target = (HANDLE)HandleToPointer(Original);
 
@@ -692,13 +668,13 @@ UINT SysCall_DeleteMutex(UINT Parameter) {
 /**
  * @brief Lock a mutex identified by a handle.
  *
- * @param Parameter Pointer to MUTEXINFO structure containing the handle and timeout.
+ * @param Parameter Pointer to MUTEX_INFO structure containing the handle and timeout.
  * @return UINT Lock count on success, MAX_U32 on invalid handle.
  */
 UINT SysCall_LockMutex(UINT Parameter) {
-    LPMUTEXINFO Info = (LPMUTEXINFO)Parameter;
+    LPMUTEX_INFO Info = (LPMUTEX_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Info, MUTEXINFO) {
+    SAFE_USE_INPUT_POINTER(Info, MUTEX_INFO) {
         LINEAR MutexPointer = HandleToPointer(Info->Mutex);
         LPMUTEX Mutex = (LPMUTEX)MutexPointer;
 
@@ -713,13 +689,13 @@ UINT SysCall_LockMutex(UINT Parameter) {
 /**
  * @brief Unlock a mutex identified by a handle.
  *
- * @param Parameter Pointer to MUTEXINFO structure containing the handle.
+ * @param Parameter Pointer to MUTEX_INFO structure containing the handle.
  * @return UINT Lock count on success, MAX_U32 on invalid handle.
  */
 UINT SysCall_UnlockMutex(UINT Parameter) {
-    LPMUTEXINFO Info = (LPMUTEXINFO)Parameter;
+    LPMUTEX_INFO Info = (LPMUTEX_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Info, MUTEXINFO) {
+    SAFE_USE_INPUT_POINTER(Info, MUTEX_INFO) {
         LINEAR MutexPointer = HandleToPointer(Info->Mutex);
         LPMUTEX Mutex = (LPMUTEX)MutexPointer;
 
@@ -734,13 +710,13 @@ UINT SysCall_UnlockMutex(UINT Parameter) {
 /**
  * @brief Allocate a region of virtual memory with specified attributes.
  *
- * @param Parameter Pointer to ALLOCREGIONINFO structure.
+ * @param Parameter Pointer to ALLOC_REGION_INFO structure.
  * @return UINT Operation result from AllocRegion or 0 on invalid input.
  */
 UINT SysCall_AllocRegion(UINT Parameter) {
-    LPALLOCREGIONINFO Info = (LPALLOCREGIONINFO)Parameter;
+    LPALLOC_REGION_INFO Info = (LPALLOC_REGION_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Info, ALLOCREGIONINFO) {
+    SAFE_USE_INPUT_POINTER(Info, ALLOC_REGION_INFO) {
         return AllocRegion(Info->Base, Info->Target, Info->Size, Info->Flags, NULL);
     }
 
@@ -752,13 +728,13 @@ UINT SysCall_AllocRegion(UINT Parameter) {
 /**
  * @brief Free a previously allocated virtual memory region.
  *
- * @param Parameter Pointer to ALLOCREGIONINFO describing the region.
+ * @param Parameter Pointer to ALLOC_REGION_INFO describing the region.
  * @return UINT Operation result from FreeRegion or 0 on invalid input.
  */
 UINT SysCall_FreeRegion(UINT Parameter) {
-    LPALLOCREGIONINFO Info = (LPALLOCREGIONINFO)Parameter;
+    LPALLOC_REGION_INFO Info = (LPALLOC_REGION_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Info, ALLOCREGIONINFO) { return FreeRegion(Info->Base, Info->Size); }
+    SAFE_USE_INPUT_POINTER(Info, ALLOC_REGION_INFO) { return FreeRegion(Info->Base, Info->Size); }
 
     return 0;
 }
@@ -830,13 +806,13 @@ UINT SysCall_HeapFree(UINT Parameter) {
 /**
  * @brief Resize a heap allocation while preserving its contents.
  *
- * @param Parameter Linear address of HEAPREALLOCINFO describing the request.
+ * @param Parameter Linear address of HEAP_REALLOC_INFO describing the request.
  * @return UINT Linear address of the resized block, or 0 on failure.
  */
 UINT SysCall_HeapRealloc(UINT Parameter) {
-    LPHEAPREALLOCINFO Info = (LPHEAPREALLOCINFO)Parameter;
+    LPHEAP_REALLOC_INFO Info = (LPHEAP_REALLOC_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Info, HEAPREALLOCINFO) { return (UINT)HeapRealloc(Info->Pointer, Info->Size); }
+    SAFE_USE_INPUT_POINTER(Info, HEAP_REALLOC_INFO) { return (UINT)HeapRealloc(Info->Pointer, Info->Size); }
 
     return 0;
 }
@@ -846,13 +822,13 @@ UINT SysCall_HeapRealloc(UINT Parameter) {
 /**
  * @brief Enumerate mounted volumes, exposing handles to the callback.
  *
- * @param Parameter Pointer to ENUMVOLUMESINFO describing the callback and context.
+ * @param Parameter Pointer to ENUM_VOLUMES_INFO describing the callback and context.
  * @return UINT Non-zero when enumeration ran, zero on error.
  */
 UINT SysCall_EnumVolumes(UINT Parameter) {
-    LPENUMVOLUMESINFO Info = (LPENUMVOLUMESINFO)Parameter;
+    LPENUM_VOLUMES_INFO Info = (LPENUM_VOLUMES_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Info, ENUMVOLUMESINFO) {
+    SAFE_USE_INPUT_POINTER(Info, ENUM_VOLUMES_INFO) {
         if (Info->Func == NULL) return 0;
 
         LockMutex(MUTEX_FILESYSTEM, INFINITY);
@@ -883,14 +859,14 @@ UINT SysCall_EnumVolumes(UINT Parameter) {
 /**
  * @brief Retrieve information for a specific volume handle.
  *
- * @param Parameter Pointer to VOLUMEINFO containing the target handle.
+ * @param Parameter Pointer to VOLUME_INFO containing the target handle.
  * @return UINT Non-zero on success.
  */
 UINT SysCall_GetVolumeInfo(UINT Parameter) {
-    LPVOLUMEINFO Info = (LPVOLUMEINFO)Parameter;
+    LPVOLUME_INFO Info = (LPVOLUME_INFO)Parameter;
 
     SAFE_USE_VALID(Info) {
-        if (Info->Size < sizeof(VOLUMEINFO)) {
+        if (Info->Size < sizeof(VOLUME_INFO)) {
             return 0;
         }
 
@@ -912,13 +888,13 @@ UINT SysCall_GetVolumeInfo(UINT Parameter) {
 /**
  * @brief Open a file and return a handle to user space.
  *
- * @param Parameter Pointer to FILEOPENINFO describing the request.
+ * @param Parameter Pointer to FILE_OPEN_INFO describing the request.
  * @return UINT File handle on success, 0 otherwise.
  */
 UINT SysCall_OpenFile(UINT Parameter) {
-    LPFILEOPENINFO Info = (LPFILEOPENINFO)Parameter;
+    LPFILE_OPEN_INFO Info = (LPFILE_OPEN_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Info, FILEOPENINFO) {
+    SAFE_USE_INPUT_POINTER(Info, FILE_OPEN_INFO) {
         LPFILE File = OpenFile(Info);
 
         SAFE_USE_VALID_ID(File, KOID_FILE) {
@@ -940,13 +916,13 @@ UINT SysCall_OpenFile(UINT Parameter) {
 /**
  * @brief Read data from a file handle into a caller-provided buffer.
  *
- * @param Parameter Pointer to FILEOPERATION containing the read request.
+ * @param Parameter Pointer to FILE_OPERATION containing the read request.
  * @return UINT Bytes read on success, 0 on failure.
  */
 UINT SysCall_ReadFile(UINT Parameter) {
-    LPFILEOPERATION Operation = (LPFILEOPERATION)Parameter;
+    LPFILE_OPERATION Operation = (LPFILE_OPERATION)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Operation, FILEOPERATION) {
+    SAFE_USE_INPUT_POINTER(Operation, FILE_OPERATION) {
         HANDLE FileHandle = Operation->File;
         LPFILE File = (LPFILE)HandleToPointer(FileHandle);
 
@@ -968,13 +944,13 @@ UINT SysCall_ReadFile(UINT Parameter) {
 /**
  * @brief Write data from a caller buffer into a file handle.
  *
- * @param Parameter Pointer to FILEOPERATION describing the write.
+ * @param Parameter Pointer to FILE_OPERATION describing the write.
  * @return UINT Bytes written on success, 0 otherwise.
  */
 UINT SysCall_WriteFile(UINT Parameter) {
-    LPFILEOPERATION Operation = (LPFILEOPERATION)Parameter;
+    LPFILE_OPERATION Operation = (LPFILE_OPERATION)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Operation, FILEOPERATION) {
+    SAFE_USE_INPUT_POINTER(Operation, FILE_OPERATION) {
         HANDLE FileHandle = Operation->File;
         LPFILE File = (LPFILE)HandleToPointer(FileHandle);
 
@@ -1028,13 +1004,13 @@ UINT SysCall_GetFilePosition(UINT Parameter) {
 /**
  * @brief Update the file pointer for a handle.
  *
- * @param Parameter Pointer to FILEOPERATION describing the seek.
+ * @param Parameter Pointer to FILE_OPERATION describing the seek.
  * @return UINT Result of SetFilePosition, 0 on failure.
  */
 UINT SysCall_SetFilePosition(UINT Parameter) {
-    LPFILEOPERATION Operation = (LPFILEOPERATION)Parameter;
+    LPFILE_OPERATION Operation = (LPFILE_OPERATION)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Operation, FILEOPERATION) {
+    SAFE_USE_INPUT_POINTER(Operation, FILE_OPERATION) {
         HANDLE FileHandle = Operation->File;
         LPFILE File = (LPFILE)HandleToPointer(FileHandle);
 
@@ -1110,16 +1086,16 @@ static BOOL BuildEnumeratePattern(LPCSTR Path, LPSTR OutPattern) {
 }
 
 UINT SysCall_FindFirstFile(UINT Parameter) {
-    LPFILEFINDINFO Info = (LPFILEFINDINFO)Parameter;
+    LPFILE_FIND_INFO Info = (LPFILE_FIND_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Info, FILEFINDINFO) {
+    SAFE_USE_INPUT_POINTER(Info, FILE_FIND_INFO) {
         STR EnumeratePattern[MAX_PATH_NAME];
         if (!BuildEnumeratePattern(Info->Path, EnumeratePattern)) {
             return FALSE;
         }
 
-        FILEINFO Find;
-        Find.Size = sizeof(FILEINFO);
+        FILE_INFO Find;
+        Find.Size = sizeof(FILE_INFO);
         Find.FileSystem = GetSystemFS();
         Find.Attributes = MAX_U32;
         Find.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
@@ -1166,9 +1142,9 @@ UINT SysCall_FindFirstFile(UINT Parameter) {
 /************************************************************************/
 
 UINT SysCall_FindNextFile(UINT Parameter) {
-    LPFILEFINDINFO Info = (LPFILEFINDINFO)Parameter;
+    LPFILE_FIND_INFO Info = (LPFILE_FIND_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Info, FILEFINDINFO) {
+    SAFE_USE_INPUT_POINTER(Info, FILE_FIND_INFO) {
         LPFILE File = (LPFILE)HandleToPointer(Info->SearchHandle);
         LPFILESYSTEM FS = GetSystemFS();
 
@@ -1277,11 +1253,11 @@ UINT SysCall_ConsolePrint(UINT Parameter) {
 /**
  * @brief Blit a text buffer to the console at the given position.
  *
- * @param Parameter Linear address of CONSOLEBLITBUFFER.
+ * @param Parameter Linear address of CONSOLE_BLIT_BUFFER.
  * @return UINT Always returns 0.
  */
 UINT SysCall_ConsoleBlitBuffer(UINT Parameter) {
-    LPCONSOLEBLITBUFFER Info = (LPCONSOLEBLITBUFFER)Parameter;
+    LPCONSOLE_BLIT_BUFFER Info = (LPCONSOLE_BLIT_BUFFER)Parameter;
 
     if (Info != NULL && IsValidMemory((LINEAR)Info) && IsValidMemory((LINEAR)Info->Text)) {
         UINT maxWidth = Console.Width;
@@ -1396,13 +1372,13 @@ UINT SysCall_ConsoleClear(UINT Parameter) {
 /**
  * @brief Set the console text mode.
  *
- * @param Parameter Linear address of GRAPHICSMODEINFO (Width/Height in chars).
+ * @param Parameter Linear address of GRAPHICS_MODE_INFO (Width/Height in chars).
  * @return UINT DF_RETURN_SUCCESS on success, error code otherwise.
  */
 UINT SysCall_ConsoleSetMode(UINT Parameter) {
-    LPGRAPHICSMODEINFO Info = (LPGRAPHICSMODEINFO)Parameter;
+    LPGRAPHICS_MODE_INFO Info = (LPGRAPHICS_MODE_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Info, GRAPHICSMODEINFO) { return ConsoleSetMode(Info); }
+    SAFE_USE_INPUT_POINTER(Info, GRAPHICS_MODE_INFO) { return ConsoleSetMode(Info); }
 
     return DF_RETURN_GENERIC;
 }
@@ -1425,13 +1401,13 @@ UINT SysCall_ConsoleGetModeCount(UINT Parameter) {
 /**
  * @brief Retrieve console mode info by index.
  *
- * @param Parameter Linear address of CONSOLEMODEINFO.
+ * @param Parameter Linear address of CONSOLE_MODE_INFO.
  * @return UINT DF_RETURN_SUCCESS on success, error code otherwise.
  */
 UINT SysCall_ConsoleGetModeInfo(UINT Parameter) {
-    LPCONSOLEMODEINFO Info = (LPCONSOLEMODEINFO)Parameter;
+    LPCONSOLE_MODE_INFO Info = (LPCONSOLE_MODE_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Info, CONSOLEMODEINFO) { return ConsoleGetModeInfo(Info); }
+    SAFE_USE_INPUT_POINTER(Info, CONSOLE_MODE_INFO) { return ConsoleGetModeInfo(Info); }
 
     return DF_RETURN_GENERIC;
 }
@@ -1441,13 +1417,13 @@ UINT SysCall_ConsoleGetModeInfo(UINT Parameter) {
 /**
  * @brief Retrieve the current console mode geometry.
  *
- * @param Parameter Linear address of CONSOLEMODEINFO.
+ * @param Parameter Linear address of CONSOLE_MODE_INFO.
  * @return UINT TRUE on success.
  */
 UINT SysCall_ConsoleGetCurrentMode(UINT Parameter) {
-    LPCONSOLEMODEINFO Info = (LPCONSOLEMODEINFO)Parameter;
+    LPCONSOLE_MODE_INFO Info = (LPCONSOLE_MODE_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Info, CONSOLEMODEINFO) {
+    SAFE_USE_INPUT_POINTER(Info, CONSOLE_MODE_INFO) {
         Info->Index = 0;
         Info->Columns = GetConsoleWidth();
         Info->Rows = GetConsoleHeight();
@@ -1552,17 +1528,17 @@ UINT SysCall_GetCurrentDesktop(UINT Parameter) {
 /**
  * @brief Create a window and return its handle.
  *
- * @param Parameter Pointer to WINDOWINFO describing the window.
+ * @param Parameter Pointer to WINDOW_INFO describing the window.
  * @return UINT Window handle on success, 0 otherwise.
  */
 UINT SysCall_CreateWindow(UINT Parameter) {
-    LPWINDOWINFO WindowInfo = (LPWINDOWINFO)Parameter;
+    LPWINDOW_INFO WindowInfo = (LPWINDOW_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(WindowInfo, WINDOWINFO) {
+    SAFE_USE_INPUT_POINTER(WindowInfo, WINDOW_INFO) {
         HANDLE ParentHandle = WindowInfo->Parent;
         WindowInfo->Parent = (HANDLE)HandleToPointer(ParentHandle);
 
-        LPWINDOW Window = CreateWindow(WindowInfo);
+        LPWINDOW Window = (LPWINDOW)CreateWindow(WindowInfo);
 
         WindowInfo->Parent = ParentHandle;
 
@@ -1574,7 +1550,7 @@ UINT SysCall_CreateWindow(UINT Parameter) {
                 return WindowHandle;
             }
 
-            DeleteWindow(Window);
+            DeleteWindow((HANDLE)Window);
         }
 
         WindowInfo->Window = 0;
@@ -1588,15 +1564,15 @@ UINT SysCall_CreateWindow(UINT Parameter) {
 /**
  * @brief Show a window referenced by handle.
  *
- * @param Parameter Pointer to WINDOWINFO containing the window handle.
+ * @param Parameter Pointer to WINDOW_INFO containing the window handle.
  * @return UINT TRUE on success.
  */
 UINT SysCall_ShowWindow(UINT Parameter) {
-    LPWINDOWINFO WindowInfo = (LPWINDOWINFO)Parameter;
+    LPWINDOW_INFO WindowInfo = (LPWINDOW_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(WindowInfo, WINDOWINFO) {
+    SAFE_USE_INPUT_POINTER(WindowInfo, WINDOW_INFO) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowInfo->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)ShowWindow((HANDLE)Window, TRUE); }
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)ShowWindow((HANDLE)Window); }
     }
 
     return 0;
@@ -1607,15 +1583,15 @@ UINT SysCall_ShowWindow(UINT Parameter) {
 /**
  * @brief Hide a window referenced by handle.
  *
- * @param Parameter Pointer to WINDOWINFO containing the window handle.
+ * @param Parameter Pointer to WINDOW_INFO containing the window handle.
  * @return UINT TRUE on success.
  */
 UINT SysCall_HideWindow(UINT Parameter) {
-    LPWINDOWINFO WindowInfo = (LPWINDOWINFO)Parameter;
+    LPWINDOW_INFO WindowInfo = (LPWINDOW_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(WindowInfo, WINDOWINFO) {
+    SAFE_USE_INPUT_POINTER(WindowInfo, WINDOW_INFO) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowInfo->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)ShowWindow((HANDLE)Window, FALSE); }
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)HideWindow((HANDLE)Window); }
     }
 
     return 0;
@@ -1626,13 +1602,13 @@ UINT SysCall_HideWindow(UINT Parameter) {
 /**
  * @brief Move and/or resize one window.
  *
- * @param Parameter Pointer to WINDOWRECT containing the target window and new rectangle.
+ * @param Parameter Pointer to WINDOW_RECT containing the target window and new rectangle.
  * @return UINT TRUE on success.
  */
 UINT SysCall_MoveWindow(UINT Parameter) {
-    LPWINDOWRECT WindowRect = (LPWINDOWRECT)Parameter;
+    LPWINDOW_RECT WindowRect = (LPWINDOW_RECT)Parameter;
 
-    SAFE_USE_INPUT_POINTER(WindowRect, WINDOWRECT) {
+    SAFE_USE_INPUT_POINTER(WindowRect, WINDOW_RECT) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
         SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)MoveWindow((HANDLE)Window, &(WindowRect->Rect)); }
     }
@@ -1645,13 +1621,13 @@ UINT SysCall_MoveWindow(UINT Parameter) {
 /**
  * @brief Resize a window.
  *
- * @param Parameter Pointer to WINDOWINFO containing the target window and new size.
+ * @param Parameter Pointer to WINDOW_INFO containing the target window and new size.
  * @return UINT TRUE on success.
  */
 UINT SysCall_SizeWindow(UINT Parameter) {
-    LPWINDOWINFO WindowInfo = (LPWINDOWINFO)Parameter;
+    LPWINDOW_INFO WindowInfo = (LPWINDOW_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(WindowInfo, WINDOWINFO) {
+    SAFE_USE_INPUT_POINTER(WindowInfo, WINDOW_INFO) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowInfo->Window);
         SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)SizeWindow((HANDLE)Window, &(WindowInfo->WindowSize)); }
     }
@@ -1700,7 +1676,28 @@ UINT SysCall_GetWindowFunc(UINT Parameter) {
  * @return UINT Always returns 0.
  */
 UINT SysCall_SetWindowStyle(UINT Parameter) {
-    UNUSED(Parameter);
+    LPWINDOW_INFO WindowInfo = (LPWINDOW_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(WindowInfo, WINDOW_INFO) {
+        LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowInfo->Window);
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+            return (UINT)SetWindowStyle((HANDLE)Window, WindowInfo->Style);
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+UINT SysCall_ClearWindowStyle(UINT Parameter) {
+    LPWINDOW_INFO WindowInfo = (LPWINDOW_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(WindowInfo, WINDOW_INFO) {
+        LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowInfo->Window);
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)ClearWindowStyle((HANDLE)Window, WindowInfo->Style); }
+    }
+
     return 0;
 }
 
@@ -1724,13 +1721,13 @@ UINT SysCall_GetWindowStyle(UINT Parameter) {
 /**
  * @brief Associate a custom property with a window.
  *
- * @param Parameter Pointer to PROPINFO describing the property.
+ * @param Parameter Pointer to PROP_INFO describing the property.
  * @return UINT Previous property value, or 0.
  */
 UINT SysCall_SetWindowProp(UINT Parameter) {
-    LPPROPINFO PropInfo = (LPPROPINFO)Parameter;
+    LPPROP_INFO PropInfo = (LPPROP_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(PropInfo, PROPINFO) {
+    SAFE_USE_INPUT_POINTER(PropInfo, PROP_INFO) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(PropInfo->Window);
         SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return SetWindowProp((HANDLE)Window, PropInfo->Name, PropInfo->Value); }
     }
@@ -1743,13 +1740,13 @@ UINT SysCall_SetWindowProp(UINT Parameter) {
 /**
  * @brief Retrieve a custom property from a window.
  *
- * @param Parameter Pointer to PROPINFO containing the window handle and property name.
+ * @param Parameter Pointer to PROP_INFO containing the window handle and property name.
  * @return UINT Property value or 0.
  */
 UINT SysCall_GetWindowProp(UINT Parameter) {
-    LPPROPINFO PropInfo = (LPPROPINFO)Parameter;
+    LPPROP_INFO PropInfo = (LPPROP_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(PropInfo, PROPINFO) {
+    SAFE_USE_INPUT_POINTER(PropInfo, PROP_INFO) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(PropInfo->Window);
         SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return GetWindowProp((HANDLE)Window, PropInfo->Name); }
     }
@@ -1762,13 +1759,13 @@ UINT SysCall_GetWindowProp(UINT Parameter) {
 /**
  * @brief Retrieve the screen rectangle for a window.
  *
- * @param Parameter Pointer to WINDOWRECT containing the window handle.
+ * @param Parameter Pointer to WINDOW_RECT containing the window handle.
  * @return UINT TRUE on success.
  */
 UINT SysCall_GetWindowRect(UINT Parameter) {
-    LPWINDOWRECT WindowRect = (LPWINDOWRECT)Parameter;
+    LPWINDOW_RECT WindowRect = (LPWINDOW_RECT)Parameter;
 
-    SAFE_USE_INPUT_POINTER(WindowRect, WINDOWRECT) {
+    SAFE_USE_INPUT_POINTER(WindowRect, WINDOW_RECT) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
         SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)GetWindowRect((HANDLE)Window, &(WindowRect->Rect)); }
     }
@@ -1781,16 +1778,40 @@ UINT SysCall_GetWindowRect(UINT Parameter) {
 /**
  * @brief Retrieve the client rectangle for a window.
  *
- * @param Parameter Pointer to WINDOWRECT containing the window handle.
+ * @param Parameter Pointer to WINDOW_RECT containing the window handle.
  * @return UINT TRUE on success.
  */
 UINT SysCall_GetWindowClientRect(UINT Parameter) {
-    LPWINDOWRECT WindowRect = (LPWINDOWRECT)Parameter;
+    LPWINDOW_RECT WindowRect = (LPWINDOW_RECT)Parameter;
 
-    SAFE_USE_INPUT_POINTER(WindowRect, WINDOWRECT) {
+    SAFE_USE_INPUT_POINTER(WindowRect, WINDOW_RECT) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
         SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
             return (UINT)GetWindowClientRect((HANDLE)Window, &(WindowRect->Rect));
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Convert one screen point to one window-relative point.
+ *
+ * @param Parameter Pointer to WINDOW_POINT_INFO containing the target window.
+ * @return UINT TRUE on success.
+ */
+UINT SysCall_ScreenPointToWindowPoint(UINT Parameter) {
+    LPWINDOW_POINT_INFO WindowPointInfo = (LPWINDOW_POINT_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(WindowPointInfo, WINDOW_POINT_INFO) {
+        LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowPointInfo->Window);
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+            return (UINT)ScreenPointToWindowPoint(
+                (HANDLE)Window,
+                &(WindowPointInfo->ScreenPoint),
+                &(WindowPointInfo->WindowPoint));
         }
     }
 
@@ -1837,13 +1858,13 @@ UINT SysCall_GetWindowChildCount(UINT Parameter) {
 /**
  * @brief Retrieve one direct child handle by index.
  *
- * @param Parameter Pointer to WINDOWCHILDINFO.
+ * @param Parameter Pointer to WINDOW_CHILD_INFO.
  * @return UINT Child handle or 0.
  */
 UINT SysCall_GetWindowChild(UINT Parameter) {
-    LPWINDOWCHILDINFO WindowChildInfo = (LPWINDOWCHILDINFO)Parameter;
+    LPWINDOW_CHILD_INFO WindowChildInfo = (LPWINDOW_CHILD_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(WindowChildInfo, WINDOWCHILDINFO) {
+    SAFE_USE_INPUT_POINTER(WindowChildInfo, WINDOW_CHILD_INFO) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowChildInfo->Window);
         SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
             HANDLE ChildHandle = PointerToHandle((LINEAR)GetWindowChild((HANDLE)Window, WindowChildInfo->ChildIndex));
@@ -1897,15 +1918,15 @@ UINT SysCall_GetPreviousWindowSibling(UINT Parameter) {
 /**
  * @brief Register one userland window class.
  *
- * @param Parameter Pointer to WINDOWCLASSINFO.
+ * @param Parameter Pointer to WINDOW_CLASS_INFO.
  * @return UINT Class identifier on success, 0 on failure.
  */
 UINT SysCall_RegisterWindowClass(UINT Parameter) {
-    LPWINDOWCLASSINFO ClassInfo = (LPWINDOWCLASSINFO)Parameter;
+    LPWINDOW_CLASS_INFO ClassInfo = (LPWINDOW_CLASS_INFO)Parameter;
     LPWINDOW_CLASS WindowClass;
     LPPROCESS Process;
 
-    SAFE_USE_INPUT_POINTER(ClassInfo, WINDOWCLASSINFO) {
+    SAFE_USE_INPUT_POINTER(ClassInfo, WINDOW_CLASS_INFO) {
         Process = GetCurrentProcess();
         if (Process == NULL || Process->TypeID != KOID_PROCESS) return 0;
 
@@ -1931,14 +1952,14 @@ UINT SysCall_RegisterWindowClass(UINT Parameter) {
 /**
  * @brief Unregister one userland window class.
  *
- * @param Parameter Pointer to WINDOWCLASSINFO.
+ * @param Parameter Pointer to WINDOW_CLASS_INFO.
  * @return UINT TRUE on success, FALSE on failure.
  */
 UINT SysCall_UnregisterWindowClass(UINT Parameter) {
-    LPWINDOWCLASSINFO ClassInfo = (LPWINDOWCLASSINFO)Parameter;
+    LPWINDOW_CLASS_INFO ClassInfo = (LPWINDOW_CLASS_INFO)Parameter;
     LPPROCESS Process;
 
-    SAFE_USE_INPUT_POINTER(ClassInfo, WINDOWCLASSINFO) {
+    SAFE_USE_INPUT_POINTER(ClassInfo, WINDOW_CLASS_INFO) {
         Process = GetCurrentProcess();
         if (Process == NULL || Process->TypeID != KOID_PROCESS) return FALSE;
 
@@ -1951,15 +1972,63 @@ UINT SysCall_UnregisterWindowClass(UINT Parameter) {
 /************************************************************************/
 
 /**
+ * @brief Find one userland window class by name.
+ *
+ * @param Parameter Pointer to WINDOW_CLASS_INFO.
+ * @return UINT Class identifier on success, 0 when absent or on failure.
+ */
+UINT SysCall_FindWindowClass(UINT Parameter) {
+    LPWINDOW_CLASS_INFO ClassInfo = (LPWINDOW_CLASS_INFO)Parameter;
+    LPWINDOW_CLASS WindowClass;
+
+    SAFE_USE_INPUT_POINTER(ClassInfo, WINDOW_CLASS_INFO) {
+        WindowClass = WindowClassFindByName(ClassInfo->ClassName);
+        if (WindowClass == NULL || WindowClass->TypeID != KOID_WINDOW_CLASS) {
+            ClassInfo->WindowClass = 0;
+            return 0;
+        }
+
+        ClassInfo->WindowClass = (HANDLE)WindowClass->ClassID;
+        return (UINT)WindowClass->ClassID;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve whether one window inherits from one window class.
+ *
+ * @param Parameter Pointer to WINDOW_CLASS_QUERY_INFO.
+ * @return UINT TRUE when the window inherits from the class.
+ */
+UINT SysCall_WindowInheritsClass(UINT Parameter) {
+    LPWINDOW_CLASS_QUERY_INFO QueryInfo = (LPWINDOW_CLASS_QUERY_INFO)Parameter;
+    LPWINDOW Window;
+
+    SAFE_USE_INPUT_POINTER(QueryInfo, WINDOW_CLASS_QUERY_INFO) {
+        Window = (LPWINDOW)HandleToPointer(QueryInfo->Window);
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+            return (UINT)WindowInheritsClass((HANDLE)Window, QueryInfo->WindowClass, QueryInfo->ClassName);
+        }
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Mark a window region as needing redraw.
  *
- * @param Parameter Pointer to WINDOWRECT with the target window and rectangle.
+ * @param Parameter Pointer to WINDOW_RECT with the target window and rectangle.
  * @return UINT TRUE on success.
  */
 UINT SysCall_InvalidateWindowRect(UINT Parameter) {
-    LPWINDOWRECT WindowRect = (LPWINDOWRECT)Parameter;
+    LPWINDOW_RECT WindowRect = (LPWINDOW_RECT)Parameter;
 
-    SAFE_USE_INPUT_POINTER(WindowRect, WINDOWRECT) {
+    SAFE_USE_INPUT_POINTER(WindowRect, WINDOW_RECT) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
         SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)InvalidateWindowRect((HANDLE)Window, &(WindowRect->Rect)); }
     }
@@ -2035,13 +2104,13 @@ UINT SysCall_EnumWindows(UINT Parameter) {
 /**
  * @brief Invoke the base window procedure.
  *
- * @param Parameter Pointer to MESSAGEINFO structure.
+ * @param Parameter Pointer to MESSAGE_INFO structure.
  * @return UINT Result of BaseWindowFunc on success, 0 on error.
  */
 UINT SysCall_BaseWindowFunc(UINT Parameter) {
-    LPMESSAGEINFO Message = (LPMESSAGEINFO)Parameter;
+    LPMESSAGE_INFO Message = (LPMESSAGE_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Message, MESSAGEINFO) {
+    SAFE_USE_INPUT_POINTER(Message, MESSAGE_INFO) {
         HANDLE Original = Message->Target;
         Message->Target = (HANDLE)HandleToPointer(Original);
 
@@ -2102,13 +2171,13 @@ UINT SysCall_GetSystemPen(UINT Parameter) {
 /**
  * @brief Create a brush and expose it as a handle.
  *
- * @param Parameter Pointer to BRUSHINFO describing the brush.
+ * @param Parameter Pointer to BRUSH_INFO describing the brush.
  * @return UINT Brush handle or 0 on failure.
  */
 UINT SysCall_CreateBrush(UINT Parameter) {
-    LPBRUSHINFO Info = (LPBRUSHINFO)Parameter;
+    LPBRUSH_INFO Info = (LPBRUSH_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Info, BRUSHINFO) {
+    SAFE_USE_INPUT_POINTER(Info, BRUSH_INFO) {
         LPBRUSH Brush = (LPBRUSH)CreateBrush(Info);
 
         SAFE_USE_VALID_ID(Brush, KOID_BRUSH) {
@@ -2126,13 +2195,13 @@ UINT SysCall_CreateBrush(UINT Parameter) {
 /**
  * @brief Create a pen and expose it as a handle.
  *
- * @param Parameter Pointer to PENINFO describing the pen.
+ * @param Parameter Pointer to PEN_INFO describing the pen.
  * @return UINT Pen handle or 0 on failure.
  */
 UINT SysCall_CreatePen(UINT Parameter) {
-    LPPENINFO Info = (LPPENINFO)Parameter;
+    LPPEN_INFO Info = (LPPEN_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(Info, PENINFO) {
+    SAFE_USE_INPUT_POINTER(Info, PEN_INFO) {
         LPPEN Pen = (LPPEN)CreatePen(Info);
 
         SAFE_USE_VALID_ID(Pen, KOID_PEN) {
@@ -2228,13 +2297,13 @@ UINT SysCall_SelectPen(UINT Parameter) {
 /**
  * @brief Set a pixel within a graphics context.
  *
- * @param Parameter Pointer to PIXELINFO containing the draw parameters.
+ * @param Parameter Pointer to PIXEL_INFO containing the draw parameters.
  * @return UINT TRUE on success.
  */
 UINT SysCall_SetPixel(UINT Parameter) {
-    LPPIXELINFO PixelInfo = (LPPIXELINFO)Parameter;
+    LPPIXEL_INFO PixelInfo = (LPPIXEL_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(PixelInfo, PIXELINFO) {
+    SAFE_USE_INPUT_POINTER(PixelInfo, PIXEL_INFO) {
         HANDLE OriginalGC = PixelInfo->GC;
         LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)HandleToPointer(OriginalGC);
 
@@ -2256,13 +2325,13 @@ UINT SysCall_SetPixel(UINT Parameter) {
 /**
  * @brief Retrieve a pixel from a graphics context.
  *
- * @param Parameter Pointer to PIXELINFO containing coordinates.
+ * @param Parameter Pointer to PIXEL_INFO containing coordinates.
  * @return UINT TRUE on success.
  */
 UINT SysCall_GetPixel(UINT Parameter) {
-    LPPIXELINFO PixelInfo = (LPPIXELINFO)Parameter;
+    LPPIXEL_INFO PixelInfo = (LPPIXEL_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(PixelInfo, PIXELINFO) {
+    SAFE_USE_INPUT_POINTER(PixelInfo, PIXEL_INFO) {
         HANDLE OriginalGC = PixelInfo->GC;
         LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)HandleToPointer(OriginalGC);
 
@@ -2284,13 +2353,13 @@ UINT SysCall_GetPixel(UINT Parameter) {
 /**
  * @brief Draw a line using the current graphics context pen.
  *
- * @param Parameter Pointer to LINEINFO with GC handle and coordinates.
+ * @param Parameter Pointer to LINE_INFO with GC handle and coordinates.
  * @return UINT TRUE on success.
  */
 UINT SysCall_Line(UINT Parameter) {
-    LPLINEINFO LineInfo = (LPLINEINFO)Parameter;
+    LPLINE_INFO LineInfo = (LPLINE_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(LineInfo, LINEINFO) {
+    SAFE_USE_INPUT_POINTER(LineInfo, LINE_INFO) {
         HANDLE OriginalGC = LineInfo->GC;
         LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)HandleToPointer(OriginalGC);
 
@@ -2312,13 +2381,13 @@ UINT SysCall_Line(UINT Parameter) {
 /**
  * @brief Draw a rectangle using the current pen and brush.
  *
- * @param Parameter Pointer to RECTINFO with GC handle and rectangle.
+ * @param Parameter Pointer to RECT_INFO with GC handle and rectangle.
  * @return UINT TRUE on success.
  */
 UINT SysCall_Rectangle(UINT Parameter) {
-    LPRECTINFO RectInfo = (LPRECTINFO)Parameter;
+    LPRECT_INFO RectInfo = (LPRECT_INFO)Parameter;
 
-    SAFE_USE_INPUT_POINTER(RectInfo, RECTINFO) {
+    SAFE_USE_INPUT_POINTER(RectInfo, RECT_INFO) {
         HANDLE OriginalGC = RectInfo->GC;
         LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)HandleToPointer(OriginalGC);
 
@@ -2365,7 +2434,7 @@ UINT SysCall_DrawText(UINT Parameter) {
                     .Text = TextInfo->Text,
                     .Font = NULL
                 };
-                return (UINT)DrawText(&DrawInfo);
+                return (UINT)DesktopDrawText(&DrawInfo);
             }
         }
     }
@@ -2400,7 +2469,7 @@ UINT SysCall_MeasureText(UINT Parameter) {
                 .Height = 0
             };
 
-            if (MeasureText(&MeasureInfo) == FALSE) {
+            if (DesktopMeasureText(&MeasureInfo) == FALSE) {
                 return 0;
             }
 
@@ -2514,15 +2583,47 @@ UINT SysCall_ClipMouse(UINT Parameter) {
 /************************************************************************/
 
 /**
+ * @brief Draw one themed window background into one graphics context.
+ *
+ * @param Parameter Pointer to WINDOW_BACKGROUND_INFO.
+ * @return UINT TRUE on success.
+ */
+UINT SysCall_DrawWindowBackground(UINT Parameter) {
+    LPWINDOW_BACKGROUND_INFO BackgroundInfo = (LPWINDOW_BACKGROUND_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(BackgroundInfo, WINDOW_BACKGROUND_INFO) {
+        HANDLE OriginalGC = BackgroundInfo->GC;
+        LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)HandleToPointer(OriginalGC);
+        LPWINDOW Window = NULL;
+
+        SAFE_USE_VALID_ID(Context, KOID_GRAPHICSCONTEXT) {
+            if (BackgroundInfo->Window != NULL) {
+                Window = (LPWINDOW)HandleToPointer(BackgroundInfo->Window);
+                if (Window == NULL || Window->TypeID != KOID_WINDOW) {
+                    return 0;
+                }
+            }
+
+            return (UINT)DrawWindowBackground((HANDLE)Window, (HANDLE)Context, &(BackgroundInfo->Rect), BackgroundInfo->ThemeToken);
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
  * @brief Capture mouse input to a specific window.
  *
- * Not yet implemented.
- *
- * @param Parameter Reserved.
- * @return UINT Always returns 0.
+ * @param Parameter Target window handle.
+ * @return UINT Captured window handle on success, 0 on failure.
  */
 UINT SysCall_CaptureMouse(UINT Parameter) {
-    UNUSED(Parameter);
+    LPWINDOW Window = (LPWINDOW)HandleToPointer((HANDLE)Parameter);
+
+    SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)CaptureMouse((HANDLE)Window); }
+
     return 0;
 }
 
@@ -2531,14 +2632,12 @@ UINT SysCall_CaptureMouse(UINT Parameter) {
 /**
  * @brief Release mouse capture.
  *
- * Not yet implemented.
- *
  * @param Parameter Reserved.
- * @return UINT Always returns 0.
+ * @return UINT TRUE on success, FALSE on failure.
  */
 UINT SysCall_ReleaseMouse(UINT Parameter) {
     UNUSED(Parameter);
-    return 0;
+    return (UINT)ReleaseMouse();
 }
 
 /************************************************************************/
@@ -2553,14 +2652,14 @@ UINT SysCall_Login(UINT Parameter) {
     LPLOGIN_INFO LoginInfo = (LPLOGIN_INFO)Parameter;
 
     SAFE_USE_INPUT_POINTER(LoginInfo, LOGIN_INFO) {
-        LPUSERACCOUNT Account = FindUserAccount(LoginInfo->UserName);
+        LPUSER_ACCOUNT Account = FindUserAccount(LoginInfo->UserName);
         if (Account == NULL) return FALSE;
 
         if (!VerifyPassword(LoginInfo->Password, Account->PasswordHash)) {
             return FALSE;
         }
 
-        LPUSERSESSION Session = CreateUserSession(Account->UserID, (HANDLE)GetCurrentTask());
+        LPUSER_SESSION Session = CreateUserSession(Account->UserID, (HANDLE)GetCurrentTask());
         if (Session == NULL) {
             return FALSE;
         }
@@ -2583,7 +2682,7 @@ UINT SysCall_Login(UINT Parameter) {
  */
 UINT SysCall_Logout(UINT Parameter) {
     UNUSED(Parameter);
-    LPUSERSESSION Session = GetCurrentSession();
+    LPUSER_SESSION Session = GetCurrentSession();
     if (Session == NULL) {
         return FALSE;
     }
@@ -2606,10 +2705,10 @@ UINT SysCall_GetCurrentUser(UINT Parameter) {
     LPCURRENT_USER_INFO UserInfo = (LPCURRENT_USER_INFO)Parameter;
 
     SAFE_USE_INPUT_POINTER(UserInfo, CURRENT_USER_INFO) {
-        LPUSERACCOUNT Account = GetCurrentUser();
+        LPUSER_ACCOUNT Account = GetCurrentUser();
         if (Account == NULL) return FALSE;
 
-        LPUSERSESSION Session = GetCurrentSession();
+        LPUSER_SESSION Session = GetCurrentSession();
         if (Session == NULL) return FALSE;
 
         StringCopy(UserInfo->UserName, Account->UserName);
@@ -2635,7 +2734,7 @@ UINT SysCall_ChangePassword(UINT Parameter) {
     LPPASSWORD_CHANGE PasswordChange = (LPPASSWORD_CHANGE)Parameter;
 
     SAFE_USE_INPUT_POINTER(PasswordChange, PASSWORD_CHANGE) {
-        LPUSERACCOUNT Account = GetCurrentUser();
+        LPUSER_ACCOUNT Account = GetCurrentUser();
         if (Account == NULL) {
             return FALSE;
         }
@@ -2658,12 +2757,12 @@ UINT SysCall_CreateUser(UINT Parameter) {
     LPUSER_CREATE_INFO CreateInfo = (LPUSER_CREATE_INFO)Parameter;
 
     SAFE_USE_INPUT_POINTER(CreateInfo, USER_CREATE_INFO) {
-        LPUSERACCOUNT CurrentAccount = GetCurrentUser();
+        LPUSER_ACCOUNT CurrentAccount = GetCurrentUser();
         if (CurrentAccount == NULL || CurrentAccount->Privilege != EXOS_PRIVILEGE_ADMIN) {
             return FALSE;
         }
 
-        LPUSERACCOUNT NewAccount = CreateUserAccount(CreateInfo->UserName, CreateInfo->Password, CreateInfo->Privilege);
+        LPUSER_ACCOUNT NewAccount = CreateUserAccount(CreateInfo->UserName, CreateInfo->Password, CreateInfo->Privilege);
         return (NewAccount != NULL) ? TRUE : FALSE;
     }
 
@@ -2682,7 +2781,7 @@ UINT SysCall_DeleteUser(UINT Parameter) {
     LPUSER_DELETE_INFO DeleteInfo = (LPUSER_DELETE_INFO)Parameter;
 
     SAFE_USE_INPUT_POINTER(DeleteInfo, USER_DELETE_INFO) {
-        LPUSERACCOUNT CurrentAccount = GetCurrentUser();
+        LPUSER_ACCOUNT CurrentAccount = GetCurrentUser();
         if (CurrentAccount == NULL || CurrentAccount->Privilege != EXOS_PRIVILEGE_ADMIN) {
             return FALSE;
         }
@@ -2705,20 +2804,20 @@ UINT SysCall_ListUsers(UINT Parameter) {
     LPUSER_LIST_INFO ListInfo = (LPUSER_LIST_INFO)Parameter;
 
     SAFE_USE_INPUT_POINTER(ListInfo, USER_LIST_INFO) {
-        LPUSERACCOUNT CurrentAccount = GetCurrentUser();
+        LPUSER_ACCOUNT CurrentAccount = GetCurrentUser();
         if (CurrentAccount == NULL || CurrentAccount->Privilege != EXOS_PRIVILEGE_ADMIN) {
             return FALSE;
         }
 
         ListInfo->UserCount = 0;
         LPLIST UserAccountList = GetUserAccountList();
-        LPUSERACCOUNT Account =
-            (LPUSERACCOUNT)(UserAccountList != NULL ? UserAccountList->First : NULL);
+        LPUSER_ACCOUNT Account =
+            (LPUSER_ACCOUNT)(UserAccountList != NULL ? UserAccountList->First : NULL);
 
         while (Account != NULL && ListInfo->UserCount < ListInfo->MaxUsers) {
             StringCopy(ListInfo->UserNames[ListInfo->UserCount], Account->UserName);
             ListInfo->UserCount++;
-            Account = (LPUSERACCOUNT)Account->Next;
+            Account = (LPUSER_ACCOUNT)Account->Next;
         }
 
         return TRUE;
@@ -3006,7 +3105,7 @@ UINT SystemCallHandler(U32 Function, UINT Parameter) {
         return 0;
     }
 
-    LPUSERACCOUNT CurrentUser = GetCurrentUser();
+    LPUSER_ACCOUNT CurrentUser = GetCurrentUser();
     U32 RequiredPrivilege = SysCallTable[Function].Privilege;
 
     if (CurrentUser == NULL) {

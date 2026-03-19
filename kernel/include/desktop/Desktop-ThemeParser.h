@@ -70,12 +70,6 @@ BOOL DesktopThemeParseStrict(LPCSTR Source, LPDESKTOP_THEME_RUNTIME* Runtime, U3
 void DesktopThemeFreeRuntime(LPDESKTOP_THEME_RUNTIME Runtime);
 LPDESKTOP_THEME_RUNTIME DesktopThemeCreateBuiltinRuntime(void);
 BOOL DesktopThemeActivateParsed(LPDESKTOP_THEME_RUNTIME Candidate, LPDESKTOP_THEME_RUNTIME Fallback, LPDESKTOP_THEME_RUNTIME* ActiveRuntime);
-BOOL DesktopThemeLoadAndActivateStrict(
-    LPCSTR Source,
-    LPDESKTOP_THEME_RUNTIME Fallback,
-    LPDESKTOP_THEME_RUNTIME* ActiveRuntime,
-    U32* Status
-);
 
 /************************************************************************/
 

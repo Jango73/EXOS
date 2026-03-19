@@ -26,7 +26,6 @@
 #define MEMORY_DESCRIPTORS_H_INCLUDED
 
 #include "Memory.h"
-#include "process/Process.h"
 
 /************************************************************************/
 // #defines
@@ -47,13 +46,12 @@ extern UINT G_FreeRegionDescriptorCount;
 extern UINT G_TotalRegionDescriptorCount;
 extern UINT G_RegionDescriptorPages;
 
-LPPROCESS ResolveCurrentAddressSpaceOwner(void);
 void InitializeRegionDescriptorTracking(void);
-LPMEMORY_REGION_DESCRIPTOR FindDescriptorForBase(LPPROCESS Process, LINEAR CanonicalBase);
-LPMEMORY_REGION_DESCRIPTOR FindDescriptorCoveringAddress(LPPROCESS Process, LINEAR CanonicalBase);
+LPMEMORY_REGION_DESCRIPTOR FindDescriptorForBase(LPMEMORY_REGION_LIST List, LINEAR CanonicalBase);
+LPMEMORY_REGION_DESCRIPTOR FindDescriptorCoveringAddress(LPMEMORY_REGION_LIST List, LINEAR CanonicalBase);
 void ExtendDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor, UINT AdditionalPages);
-BOOL RegisterRegionDescriptor(LINEAR Base, UINT NumPages, PHYSICAL Target, U32 Flags, LPCSTR Tag);
-void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes);
+BOOL RegisterRegionDescriptor(LPMEMORY_REGION_LIST List, LINEAR Base, UINT NumPages, PHYSICAL Target, U32 Flags, LPCSTR Tag);
+void UpdateDescriptorsForFree(LPMEMORY_REGION_LIST List, LINEAR Base, UINT SizeBytes);
 void RefreshDescriptorGranularity(LPMEMORY_REGION_DESCRIPTOR Descriptor);
 MEMORY_REGION_GRANULARITY ComputeDescriptorGranularity(LINEAR Base, UINT PageCount);
 BOOL RegionTrackAlloc(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag);

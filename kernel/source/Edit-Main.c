@@ -678,8 +678,8 @@ static BOOL CommandExit(LPEDITCONTEXT Context) {
  * @return TRUE on success, FALSE on error.
  */
 static BOOL SaveFile(LPEDITFILE File) {
-    FILEOPENINFO Info;
-    FILEOPERATION Operation;
+    FILE_OPEN_INFO Info;
+    FILE_OPERATION Operation;
     LPLISTNODE Node;
     LPEDITLINE Line;
     HANDLE Handle;

@@ -44,14 +44,27 @@
 #define USB_MASS_STORAGE_COMMAND_STATUS_SIGNATURE 0x53425355
 #define USB_MASS_STORAGE_COMMAND_BLOCK_LENGTH 31
 #define USB_MASS_STORAGE_COMMAND_STATUS_LENGTH 13
+#define USB_MASS_STORAGE_COMMAND_STATUS_PASSED 0
+#define USB_MASS_STORAGE_COMMAND_STATUS_FAILED 1
+#define USB_MASS_STORAGE_COMMAND_STATUS_PHASE_ERROR 2
 
 #define USB_SCSI_INQUIRY 0x12
+#define USB_SCSI_TEST_UNIT_READY 0x00
 #define USB_SCSI_REQUEST_SENSE 0x03
 #define USB_SCSI_READ_CAPACITY_10 0x25
 #define USB_SCSI_READ_10 0x28
-#define USB_SCSI_READ_10_COMMAND_BLOCK_LENGTH 10
+#define USB_SCSI_WRITE_10 0x2A
+#define USB_SCSI_SYNCHRONIZE_CACHE_10 0x35
+#define USB_SCSI_READ_WRITE_10_COMMAND_BLOCK_LENGTH 10
+#define USB_SCSI_TEST_UNIT_READY_COMMAND_BLOCK_LENGTH 6
+#define USB_SCSI_SYNCHRONIZE_CACHE_10_COMMAND_BLOCK_LENGTH 10
 
-#define USB_MASS_STORAGE_BULK_TIMEOUT_MILLISECONDS 1000
+#define USB_SCSI_SENSE_KEY_NOT_READY 0x02
+#define USB_SCSI_SENSE_KEY_UNIT_ATTENTION 0x06
+
+#define USB_MASS_STORAGE_READY_RETRY_COUNT 5
+#define USB_MASS_STORAGE_READY_RETRY_DELAY_MS 100
+
 #define USB_MASS_STORAGE_BULK_RETRIES 3
 #define USB_MASS_STORAGE_SCAN_LOG_IMMEDIATE_BUDGET 1
 #define USB_MASS_STORAGE_SCAN_LOG_INTERVAL_MS 2000
@@ -112,14 +125,38 @@ typedef struct tag_USB_MASS_STORAGE_STATE {
     RATE_LIMITER ScanLogLimiter;
 } USB_MASS_STORAGE_STATE, *LPUSB_MASS_STORAGE_STATE;
 
+typedef struct tag_USB_STORAGE_SENSE_DATA {
+    U8 ResponseCode;
+    U8 SenseKey;
+    U8 AdditionalSenseCode;
+    U8 AdditionalSenseCodeQualifier;
+} USB_STORAGE_SENSE_DATA, *LPUSB_STORAGE_SENSE_DATA;
+
 BOOL USBStorageResetRecovery(LPUSB_MASS_STORAGE_DEVICE Device);
+BOOL USBStorageBotCommand(LPUSB_MASS_STORAGE_DEVICE Device,
+                          const U8* CommandBlock,
+                          U8 CommandBlockLength,
+                          UINT DataLength,
+                          BOOL DirectionIn,
+                          LPVOID DataBuffer);
 BOOL USBStorageInquiry(LPUSB_MASS_STORAGE_DEVICE Device);
 BOOL USBStorageRequestSense(LPUSB_MASS_STORAGE_DEVICE Device);
+BOOL USBStorageRequestSenseData(LPUSB_MASS_STORAGE_DEVICE Device,
+                                LPUSB_STORAGE_SENSE_DATA SenseDataOut,
+                                BOOL LogResult);
 BOOL USBStorageReadCapacity(LPUSB_MASS_STORAGE_DEVICE Device);
 BOOL USBStorageReadBlocks(LPUSB_MASS_STORAGE_DEVICE Device,
                           UINT LogicalBlockAddress,
                           UINT TransferBlocks,
                           LPVOID Output);
+BOOL USBStorageWriteBlocks(LPUSB_MASS_STORAGE_DEVICE Device,
+                           UINT LogicalBlockAddress,
+                           UINT TransferBlocks,
+                           LPCVOID Input);
+BOOL USBStorageTestUnitReady(LPUSB_MASS_STORAGE_DEVICE Device);
+BOOL USBStorageSynchronizeCache(LPUSB_MASS_STORAGE_DEVICE Device);
+BOOL USBStorageReinitializeDevice(LPUSB_MASS_STORAGE_DEVICE Device);
+BOOL USBStorageRecoverCommandFailure(LPUSB_MASS_STORAGE_DEVICE Device, U8 FailedOperation);
 BOOL USBStorageIsMassStorageInterface(LPXHCI_USB_INTERFACE Interface);
 BOOL USBStorageFindBulkEndpoints(LPXHCI_USB_INTERFACE Interface,
                                  LPXHCI_USB_ENDPOINT* BulkInOut,

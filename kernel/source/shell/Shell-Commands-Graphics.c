@@ -78,8 +78,8 @@ static U32 GfxSmokeWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2
     switch (Message) {
         case EWM_DRAW: {
             HANDLE GraphicsContext = NULL;
-            RECTINFO RectangleInfo;
-            LINEINFO LineInfo;
+            RECT_INFO RectangleInfo;
+            LINE_INFO LineInfo;
             GFX_TEXT_MEASURE_INFO MeasureInfo;
             GFX_TEXT_DRAW_INFO DrawInfo;
             const FONT_FACE* Font = FontGetDefaultFace();
@@ -135,7 +135,7 @@ static U32 GfxSmokeWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2
                 .Width = 0,
                 .Height = 0
             };
-            (void)MeasureText(&MeasureInfo);
+            (void)DesktopMeasureText(&MeasureInfo);
 
             (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_TITLE_TEXT));
             (void)SelectBrush(GraphicsContext, NULL);
@@ -147,13 +147,13 @@ static U32 GfxSmokeWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2
                 .Text = TEXT("Graphics smoke test"),
                 .Font = Font
             };
-            (void)DrawText(&DrawInfo);
+            (void)DesktopDrawText(&DrawInfo);
 
             (void)SelectPen(GraphicsContext, GetSystemPen(SM_COLOR_TEXT_NORMAL));
             DrawInfo.X = 24;
             DrawInfo.Y = 72;
             DrawInfo.Text = TEXT("Shared text API\nKernel window path");
-            (void)DrawText(&DrawInfo);
+            (void)DesktopDrawText(&DrawInfo);
 
             (void)EndWindowDraw(Window);
             return 0;
@@ -206,7 +206,7 @@ static BOOL ParseGraphicsModeComponent(LPCSTR Text, UINT* InOutIndex, U32* Value
  * @param InfoOut Parsed mode info.
  * @return TRUE on success.
  */
-static BOOL ParseGraphicsModeToken(LPCSTR Token, LPGRAPHICSMODEINFO InfoOut) {
+static BOOL ParseGraphicsModeToken(LPCSTR Token, LPGRAPHICS_MODE_INFO InfoOut) {
     UINT Index = 0;
     U32 Width = 0;
     U32 Height = 0;
@@ -246,7 +246,7 @@ static BOOL ParseGraphicsModeToken(LPCSTR Token, LPGRAPHICSMODEINFO InfoOut) {
         return FALSE;
     }
 
-    InfoOut->Header.Size = sizeof(GRAPHICSMODEINFO);
+    InfoOut->Header.Size = sizeof(GRAPHICS_MODE_INFO);
     InfoOut->Header.Version = EXOS_ABI_VERSION;
     InfoOut->Header.Flags = 0;
     InfoOut->ModeIndex = INFINITY;
@@ -340,8 +340,8 @@ static LPDRIVER FindGraphicsBackendByAlias(LPCSTR Alias) {
  */
 static U32 RunGraphicsSmokeTest(U32 DurationMilliseconds) {
     LPDESKTOP Desktop = NULL;
-    LPWINDOW Window = NULL;
-    WINDOWINFO WindowInfo;
+    HANDLE Window = NULL;
+    WINDOW_INFO WindowInfo;
 
     Desktop = CreateDesktop();
     if (Desktop == NULL) {
@@ -379,7 +379,7 @@ static U32 RunGraphicsSmokeTest(U32 DurationMilliseconds) {
         return DF_RETURN_SUCCESS;
     }
 
-    (void)PostMessage((HANDLE)Window, EWM_DRAW, 0, 0);
+    (void)PostMessage(Window, EWM_DRAW, 0, 0);
 
     Sleep(DurationMilliseconds);
 
@@ -699,7 +699,7 @@ U32 CMD_desktop(LPSHELLCONTEXT Context) {
 U32 CMD_gfx(LPSHELLCONTEXT Context) {
     STR Mode[64];
     STR DriverName[64];
-    GRAPHICSMODEINFO ModeInfo;
+    GRAPHICS_MODE_INFO ModeInfo;
     LPDRIVER GraphicsDriver = NULL;
     UINT ModeSetResult = 0;
     LPDESKTOP ActiveDesktop = NULL;
@@ -751,7 +751,7 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
 
         ActiveBackendName = GraphicsSelectorGetActiveBackendName();
         if (ActiveBackendName != NULL && StringLength(ActiveBackendName) != 0) {
-            ConsolePrint(TEXT("gfx: backend=%s mode=%ux%ux%u\n"),
+            ConsolePrint(TEXT("gfx: driver=%s mode=%ux%ux%u\n"),
                 ActiveBackendName,
                 ModeInfo.Width,
                 ModeInfo.Height,
@@ -766,8 +766,8 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    if (StringCompareNC(Mode, TEXT("backend")) != 0) {
-        ConsolePrint(TEXT("Usage: gfx backend Driver WidthxHeightxBitsPerPixel\n"));
+    if (StringCompareNC(Mode, TEXT("driver")) != 0) {
+        ConsolePrint(TEXT("Usage: gfx driver Driver WidthxHeightxBitsPerPixel\n"));
         ConsolePrint(TEXT("       gfx info\n"));
         ConsolePrint(TEXT("       gfx smoke_test [DurationMilliseconds]\n"));
         return DF_RETURN_SUCCESS;
@@ -778,12 +778,12 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
     ParseNextCommandLineComponent(Context);
 
     if (StringLength(DriverName) == 0 || StringLength(Context->Command) == 0) {
-        ConsolePrint(TEXT("Usage: gfx backend Driver WidthxHeightxBitsPerPixel\n"));
+        ConsolePrint(TEXT("Usage: gfx driver Driver WidthxHeightxBitsPerPixel\n"));
         return DF_RETURN_SUCCESS;
     }
 
     if (!ParseGraphicsModeToken(Context->Command, &ModeInfo)) {
-        ConsolePrint(TEXT("Usage: gfx backend Driver WidthxHeightxBitsPerPixel\n"));
+        ConsolePrint(TEXT("Usage: gfx driver Driver WidthxHeightxBitsPerPixel\n"));
         return DF_RETURN_SUCCESS;
     }
 
@@ -797,11 +797,11 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
     }
 
     if (!GraphicsSelectorForceBackendByName(DriverName)) {
-        ConsolePrint(TEXT("gfx: backend '%s' unavailable (supported: "), DriverName);
+        ConsolePrint(TEXT("gfx: driver '%s' unavailable (supported: "), DriverName);
         PrintSupportedGraphicsBackendAliases();
         ConsolePrint(TEXT(")\n"));
         if (RequestedBackend != NULL) {
-            ConsolePrint(TEXT("gfx: backend '%s' load_result=%u ready=%u\n"),
+            ConsolePrint(TEXT("gfx: driver '%s' load_result=%u ready=%u\n"),
                 DriverName,
                 RequestedBackendLoadResult,
                 (RequestedBackend->Flags & DRIVER_FLAG_READY) != 0 ? 1 : 0);
@@ -833,7 +833,7 @@ U32 CMD_gfx(LPSHELLCONTEXT Context) {
 
     ActiveBackendName = GraphicsSelectorGetActiveBackendName();
     if (ActiveBackendName != NULL && StringLength(ActiveBackendName) != 0) {
-        ConsolePrint(TEXT("gfx: backend=%s mode=%ux%ux%u\n"),
+        ConsolePrint(TEXT("gfx: driver=%s mode=%ux%ux%u\n"),
             ActiveBackendName,
             ModeInfo.Width,
             ModeInfo.Height,

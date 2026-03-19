@@ -38,7 +38,7 @@
 
 #define KERNEL_LOG_VER_MAJOR 1
 #define KERNEL_LOG_VER_MINOR 0
-#define KERNEL_LOG_TAG_FILTER_MAX_LENGTH 512
+#define KERNEL_LOG_TAG_FILTER_MAX_LENGTH 1024
 #define KERNEL_LOG_RECENT_TEXT_BYTES (96 * 1024)
 #define KERNEL_LOG_RECENT_MAX_LINES 500
 #define KERNEL_LOG_ENTRY_BUFFER_SIZE (MAX_STRING_BUFFER + 160)
@@ -55,7 +55,6 @@ typedef struct tag_KERNEL_LOG_RECENT_LINE {
 typedef struct tag_KERNEL_LOG_STATE {
     STR DefaultTagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
     STR TagFilter[KERNEL_LOG_TAG_FILTER_MAX_LENGTH];
-    BOOL ErrorConsoleEnabled;
     U32 RecentSequence;
     U32 RecentWriteOffset;
     UINT RecentUsedBytes;
@@ -68,7 +67,6 @@ typedef struct tag_KERNEL_LOG_STATE {
 static KERNEL_LOG_STATE DATA_SECTION KernelLogState = {
     .DefaultTagFilter = KERNEL_LOG_DEFAULT_TAG_FILTER,
     .TagFilter = {0},
-    .ErrorConsoleEnabled = TRUE,
     .RecentSequence = 0,
     .RecentWriteOffset = 0,
     .RecentUsedBytes = 0,
@@ -95,7 +93,7 @@ DRIVER DATA_SECTION KernelLogDriver = {
     .VersionMajor = KERNEL_LOG_VER_MAJOR,
     .VersionMinor = KERNEL_LOG_VER_MINOR,
     .Designer = "Jango73",
-    .Manufacturer = "EXOS",
+    .Manufacturer = "N/A",
     .Product = "KernelLog",
     .Alias = "kernel_log",
     .Flags = DRIVER_FLAG_CRITICAL,
@@ -160,46 +158,6 @@ void KernelLogSetTagFilter(LPCSTR TagFilter) {
  */
 LPCSTR KernelLogGetTagFilter(void) {
     return KernelLogState.TagFilter;
-}
-
-/************************************************************************/
-
-/**
- * @brief Enable or disable console mirror for LOG_ERROR messages.
- * @param Enabled TRUE to print error logs to console, FALSE to keep serial-only.
- */
-void KernelLogSetErrorConsoleEnabled(BOOL Enabled) {
-    U32 Flags;
-
-    SaveFlags(&Flags);
-    FreezeScheduler();
-    DisableInterrupts();
-
-    KernelLogState.ErrorConsoleEnabled = Enabled;
-
-    UnfreezeScheduler();
-    RestoreFlags(&Flags);
-}
-
-/************************************************************************/
-
-/**
- * @brief Return current console mirror state for LOG_ERROR messages.
- * @return TRUE when LOG_ERROR is mirrored to console.
- */
-BOOL KernelLogGetErrorConsoleEnabled(void) {
-    BOOL Enabled;
-    U32 Flags;
-
-    SaveFlags(&Flags);
-    FreezeScheduler();
-    DisableInterrupts();
-
-    Enabled = KernelLogState.ErrorConsoleEnabled;
-
-    UnfreezeScheduler();
-    RestoreFlags(&Flags);
-    return Enabled;
 }
 
 /************************************************************************/
@@ -602,10 +560,6 @@ void KernelLogText(U32 Type, LPCSTR Format, ...) {
 
         case LOG_ERROR: {
             Prefix = TEXT("ERROR > ");
-            if (KernelLogState.ErrorConsoleEnabled) {
-                ConsolePrint(TextBuffer);
-                ConsolePrint(Text_NewLine);
-            }
         } break;
     }
 

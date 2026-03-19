@@ -33,7 +33,7 @@
  * @param Info Requested folder creation information.
  * @return DF_RETURN_NO_PERMISSION for read-only policy.
  */
-U32 NtfsCreateFolder(LPFILEINFO Info) {
+U32 NtfsCreateFolder(LPFILE_INFO Info) {
     UNUSED(Info);
     return DF_RETURN_NO_PERMISSION;
 }
@@ -48,7 +48,7 @@ U32 NtfsCreateFolder(LPFILEINFO Info) {
  * @param Info Requested folder deletion information.
  * @return DF_RETURN_NO_PERMISSION for read-only policy.
  */
-U32 NtfsDeleteFolder(LPFILEINFO Info) {
+U32 NtfsDeleteFolder(LPFILE_INFO Info) {
     UNUSED(Info);
     return DF_RETURN_NO_PERMISSION;
 }
@@ -63,7 +63,7 @@ U32 NtfsDeleteFolder(LPFILEINFO Info) {
  * @param Info Requested folder rename information.
  * @return DF_RETURN_NO_PERMISSION for read-only policy.
  */
-U32 NtfsRenameFolder(LPFILEINFO Info) {
+U32 NtfsRenameFolder(LPFILE_INFO Info) {
     UNUSED(Info);
     return DF_RETURN_NO_PERMISSION;
 }
@@ -78,7 +78,7 @@ U32 NtfsRenameFolder(LPFILEINFO Info) {
  * @param Info Requested file deletion information.
  * @return DF_RETURN_NO_PERMISSION for read-only policy.
  */
-U32 NtfsDeleteFile(LPFILEINFO Info) {
+U32 NtfsDeleteFile(LPFILE_INFO Info) {
     UNUSED(Info);
     return DF_RETURN_NO_PERMISSION;
 }
@@ -93,7 +93,7 @@ U32 NtfsDeleteFile(LPFILEINFO Info) {
  * @param Info Requested file rename information.
  * @return DF_RETURN_NO_PERMISSION for read-only policy.
  */
-U32 NtfsRenameFile(LPFILEINFO Info) {
+U32 NtfsRenameFile(LPFILE_INFO Info) {
     UNUSED(Info);
     return DF_RETURN_NO_PERMISSION;
 }

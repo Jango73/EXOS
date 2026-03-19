@@ -1,3 +1,4 @@
+
 /************************************************************************\
 
     EXOS Kernel
@@ -53,25 +54,34 @@ typedef struct tag_SYSTEM_COLOR_BINDING {
 /***************************************************************************/
 // Other declarations
 
+// Built-in color tokens must be unique by TokenID.
+// Duplicate TokenID entries are forbidden.
 static const THEME_COLOR_TOKEN_ENTRY BuiltinColorTokens[] = {
-    {THEME_TOKEN_COLOR_DESKTOP_BACKGROUND, TEXT("color.desktop.background"), COLOR_GRAY25},
-    {THEME_TOKEN_COLOR_HIGHLIGHT, TEXT("color.highlight"), COLOR_GRAY90},
-    {THEME_TOKEN_COLOR_NORMAL, TEXT("color.normal"), COLOR_GRAY50},
-    {THEME_TOKEN_COLOR_LIGHT_SHADOW, TEXT("color.light_shadow"), 0x00404040},
-    {THEME_TOKEN_COLOR_DARK_SHADOW, TEXT("color.dark_shadow"), 0x00000000},
-    {THEME_TOKEN_COLOR_CLIENT_BACKGROUND, TEXT("color.client.background"), COLOR_GRAY30},
-    {THEME_TOKEN_COLOR_TEXT_NORMAL, TEXT("color.text.normal"), COLOR_BLACK},
-    {THEME_TOKEN_COLOR_TEXT_SELECTED, TEXT("color.text.selected"), COLOR_WHITE},
-    {THEME_TOKEN_COLOR_SELECTION, TEXT("color.selection"), COLOR_DARK_BLUE},
-    {THEME_TOKEN_COLOR_TITLE_BAR, TEXT("color.title_bar"), COLOR_GRAY35},
-    {THEME_TOKEN_COLOR_TITLE_BAR_2, TEXT("color.title_bar_2"), COLOR_GRAY25},
-    {THEME_TOKEN_COLOR_TITLE_TEXT, TEXT("color.title_text"), COLOR_WHITE},
-    {THEME_TOKEN_COLOR_WINDOW_BORDER, TEXT("color.window.border"), 0x00000000},
-    {THEME_TOKEN_COLOR_TITLE_BAR, TEXT("color.window.title.active.start"), COLOR_GRAY50},
-    {THEME_TOKEN_COLOR_TITLE_BAR_2, TEXT("color.window.title.active.end"), COLOR_GRAY40},
-    {THEME_TOKEN_COLOR_TITLE_TEXT, TEXT("color.window.text"), COLOR_WHITE},
+    {THEME_TOKEN_COLOR_DESKTOP_BACKGROUND, TEXT("color.desktop.background"), SETALPHA(COLOR_GRAY15, 0xFF)},
+    {THEME_TOKEN_COLOR_HIGHLIGHT, TEXT("color.highlight"), SETALPHA(COLOR_GRAY90, 0xFF)},
+    {THEME_TOKEN_COLOR_NORMAL, TEXT("color.normal"), SETALPHA(COLOR_GRAY50, 0xFF)},
+    {THEME_TOKEN_COLOR_LIGHT_SHADOW, TEXT("color.light_shadow"), SETALPHA((COLOR)0x00404040, 0xFF)},
+    {THEME_TOKEN_COLOR_DARK_SHADOW, TEXT("color.dark_shadow"), SETALPHA((COLOR)0x00000000, 0xFF)},
+    {THEME_TOKEN_COLOR_CLIENT_BACKGROUND, TEXT("color.client.background"), SETALPHA(COLOR_GRAY20, 0xFF)},
+    {THEME_TOKEN_COLOR_WINDOW_BORDER, TEXT("color.window.border"), SETALPHA((COLOR)0x00000000, 0xFF)},
+    {THEME_TOKEN_COLOR_SELECTION, TEXT("color.selection"), SETALPHA(COLOR_DARK_BLUE, 0xFF)},
+    {THEME_TOKEN_COLOR_TITLE_BAR, TEXT("color.window.title.active.start"), SETALPHA(COLOR_GRAY35, 0xFF)},
+    {THEME_TOKEN_COLOR_TITLE_BAR_2, TEXT("color.window.title.active.end"), SETALPHA(COLOR_GRAY25, 0xFF)},
+    {THEME_TOKEN_COLOR_TEXT_NORMAL, TEXT("color.text.normal"), SETALPHA(COLOR_GRAY75, 0xFF)},
+    {THEME_TOKEN_COLOR_TEXT_SELECTED, TEXT("color.text.selected"), SETALPHA(COLOR_GRAY75, 0xFF)},
+    {THEME_TOKEN_COLOR_TITLE_TEXT, TEXT("color.title_text"), SETALPHA(COLOR_GRAY75, 0xFF)},
+    {THEME_TOKEN_COLOR_BUTTON_BACKGROUND, TEXT("color.button.background"), SETALPHA(COLOR_GRAY35, 1)},
+    {THEME_TOKEN_COLOR_BUTTON_BACKGROUND_HOVER, TEXT("color.button.background.hover"), SETALPHA(COLOR_GRAY40, 0xFF)},
+    {THEME_TOKEN_COLOR_BUTTON_BACKGROUND_PRESSED, TEXT("color.button.background.pressed"), SETALPHA(COLOR_GRAY50, 0xFF)},
+    {THEME_TOKEN_COLOR_BUTTON_BACKGROUND_DISABLED, TEXT("color.button.background.disabled"), SETALPHA(COLOR_GRAY30, 0xFF)},
+    {THEME_TOKEN_COLOR_BUTTON_BORDER, TEXT("color.button.border"), SETALPHA(COLOR_GRAY75, 0xFF)},
+    {THEME_TOKEN_COLOR_BUTTON_BORDER_HOVER, TEXT("color.button.border.hover"), SETALPHA(COLOR_GRAY90, 0xFF)},
+    {THEME_TOKEN_COLOR_BUTTON_BORDER_PRESSED, TEXT("color.button.border.pressed"), SETALPHA(COLOR_GRAY50, 0xFF)},
+    {THEME_TOKEN_COLOR_BUTTON_TEXT_DISABLED, TEXT("color.button.text.disabled"), SETALPHA(COLOR_GRAY50, 0xFF)},
 };
 
+// Built-in metric tokens must be unique by TokenID.
+// Duplicate TokenID entries are forbidden.
 static const THEME_METRIC_TOKEN_ENTRY BuiltinMetricTokens[] = {
     {THEME_TOKEN_METRIC_MINIMUM_WINDOW_WIDTH, TEXT("metric.window.minimum_width"), 32},
     {THEME_TOKEN_METRIC_MINIMUM_WINDOW_HEIGHT, TEXT("metric.window.minimum_height"), 16},
@@ -144,29 +154,6 @@ static BOOL ResolveBuiltinColorToken(U32 TokenID, COLOR* Color) {
     for (Index = 0; Index < (sizeof(BuiltinColorTokens) / sizeof(BuiltinColorTokens[0])); Index++) {
         if (BuiltinColorTokens[Index].TokenID == TokenID) {
             *Color = BuiltinColorTokens[Index].Value;
-            return TRUE;
-        }
-    }
-
-    return FALSE;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Resolve a built-in metric token identifier.
- * @param TokenID Built-in THEME_TOKEN_METRIC_* identifier.
- * @param Value Receives the token value.
- * @return TRUE when the token exists.
- */
-static BOOL ResolveBuiltinMetricToken(U32 TokenID, U32* Value) {
-    UINT Index;
-
-    if (Value == NULL) return FALSE;
-
-    for (Index = 0; Index < (sizeof(BuiltinMetricTokens) / sizeof(BuiltinMetricTokens[0])); Index++) {
-        if (BuiltinMetricTokens[Index].TokenID == TokenID) {
-            *Value = BuiltinMetricTokens[Index].Value;
             return TRUE;
         }
     }
@@ -327,38 +314,6 @@ static BOOL ResolveSystemColorTokenID(U32 SystemColorIndex, U32* TokenID) {
 
 /***************************************************************************/
 
-/**
- * @brief Convert SM_* metric identifiers to built-in metric token identifiers.
- * @param SystemMetricIndex Value from SM_* metric constants.
- * @param TokenID Receives THEME_TOKEN_METRIC_* identifier.
- * @return TRUE when mapping exists.
- */
-static BOOL ResolveSystemMetricTokenID(U32 SystemMetricIndex, U32* TokenID) {
-    if (TokenID == NULL) return FALSE;
-
-    switch (SystemMetricIndex) {
-        case SM_MINIMUM_WINDOW_WIDTH:
-            *TokenID = THEME_TOKEN_METRIC_MINIMUM_WINDOW_WIDTH;
-            return TRUE;
-        case SM_MINIMUM_WINDOW_HEIGHT:
-            *TokenID = THEME_TOKEN_METRIC_MINIMUM_WINDOW_HEIGHT;
-            return TRUE;
-        case SM_MAXIMUM_WINDOW_WIDTH:
-            *TokenID = THEME_TOKEN_METRIC_MAXIMUM_WINDOW_WIDTH;
-            return TRUE;
-        case SM_MAXIMUM_WINDOW_HEIGHT:
-            *TokenID = THEME_TOKEN_METRIC_MAXIMUM_WINDOW_HEIGHT;
-            return TRUE;
-        case SM_TITLE_BAR_HEIGHT:
-            *TokenID = THEME_TOKEN_METRIC_TITLE_BAR_HEIGHT;
-            return TRUE;
-    }
-
-    return FALSE;
-}
-
-/***************************************************************************/
-
 BOOL DesktopThemeResolveSystemColor(U32 SystemColorIndex, COLOR* Color) {
     U32 TokenID;
     LPCSTR TokenName = NULL;
@@ -372,29 +327,6 @@ BOOL DesktopThemeResolveSystemColor(U32 SystemColorIndex, COLOR* Color) {
 
     return ResolveBuiltinColorToken(TokenID, Color);
 }
-
-/***************************************************************************/
-
-BOOL DesktopThemeResolveSystemMetric(U32 SystemMetricIndex, U32* Value) {
-    U32 TokenID;
-    UINT Index;
-    LPCSTR TokenName = NULL;
-
-    if (Value == NULL) return FALSE;
-    if (ResolveSystemMetricTokenID(SystemMetricIndex, &TokenID) == FALSE) return FALSE;
-
-    for (Index = 0; Index < (sizeof(BuiltinMetricTokens) / sizeof(BuiltinMetricTokens[0])); Index++) {
-        if (BuiltinMetricTokens[Index].TokenID != TokenID) continue;
-        TokenName = BuiltinMetricTokens[Index].Name;
-        break;
-    }
-
-    if (TokenName != NULL && DesktopThemeResolveTokenMetricByName(TokenName, Value)) return TRUE;
-
-    return ResolveBuiltinMetricToken(TokenID, Value);
-}
-
-/***************************************************************************/
 
 BOOL DesktopThemeResolveTokenColorByName(LPCSTR TokenName, COLOR* Color) {
     if (TokenName == NULL || Color == NULL) return FALSE;

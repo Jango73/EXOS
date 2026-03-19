@@ -51,7 +51,7 @@ static void ShellPrintByteSizeLine(LPCSTR Label, U64 ByteCount) {
 U32 CMD_sysinfo(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
-    SYSTEMINFO Info;
+    SYSTEM_INFO Info;
 
     Info.Header.Size = sizeof Info;
     Info.Header.Version = EXOS_ABI_VERSION;
@@ -81,8 +81,8 @@ U32 CMD_sysinfo(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 U32 CMD_type(LPSHELLCONTEXT Context) {
-    FILEOPENINFO FileOpenInfo;
-    FILEOPERATION FileOperation;
+    FILE_OPEN_INFO FileOpenInfo;
+    FILE_OPERATION FileOperation;
     STR FileName[MAX_PATH_NAME];
     HANDLE Handle;
     U32 FileSize;
@@ -93,7 +93,7 @@ U32 CMD_type(LPSHELLCONTEXT Context) {
 
     if (StringLength(Context->Command)) {
         if (QualifyFileName(Context, Context->Command, FileName)) {
-            FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
+            FileOpenInfo.Header.Size = sizeof(FILE_OPEN_INFO);
             FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
             FileOpenInfo.Header.Flags = 0;
             FileOpenInfo.Name = FileName;
@@ -105,10 +105,10 @@ U32 CMD_type(LPSHELLCONTEXT Context) {
                 FileSize = DoSystemCall(SYSCALL_GetFileSize, SYSCALL_PARAM(Handle));
 
                 if (FileSize) {
-                    Buffer = (U8*)HeapAlloc(FileSize + 1);
+                    Buffer = (U8*)AllocatorAlloc(&Context->Allocator, FileSize + 1);
 
                     if (Buffer) {
-                        FileOperation.Header.Size = sizeof(FILEOPERATION);
+                        FileOperation.Header.Size = sizeof(FILE_OPERATION);
                         FileOperation.Header.Version = EXOS_ABI_VERSION;
                         FileOperation.Header.Flags = 0;
                         FileOperation.File = Handle;
@@ -121,7 +121,7 @@ U32 CMD_type(LPSHELLCONTEXT Context) {
                             Success = TRUE;
                         }
 
-                        HeapFree(Buffer);
+                        AllocatorFree(&Context->Allocator, Buffer);
                     }
                 }
                 DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(Handle));
@@ -395,4 +395,3 @@ U32 CMD_filesystem(LPSHELLCONTEXT Context) {
 }
 
 /***************************************************************************/
-

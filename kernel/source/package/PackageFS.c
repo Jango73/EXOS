@@ -41,7 +41,7 @@ DRIVER PackageFSDriver = {
     .VersionMajor = VER_MAJOR,
     .VersionMinor = VER_MINOR,
     .Designer = "Jango73",
-    .Manufacturer = "EXOS",
+    .Manufacturer = "N/A",
     .Product = "EXOS PackageFS",
     .Alias = "packagefs",
     .Command = PackageFSCommands};
@@ -68,9 +68,9 @@ static UINT PackageFSCommands(UINT Function, UINT Parameter) {
             return Initialize();
         case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
-        case DF_FS_GETVOLUMEINFO:
-            return PackageFSGetVolumeInfo((LPVOLUMEINFO)Parameter);
-        case DF_FS_SETVOLUMEINFO:
+        case DF_FS_GETVOLUME_INFO:
+            return PackageFSGetVolumeInfo((LPVOLUME_INFO)Parameter);
+        case DF_FS_SETVOLUME_INFO:
             return DF_RETURN_NO_PERMISSION;
         case DF_FS_CREATEFOLDER:
         case DF_FS_DELETEFOLDER:
@@ -80,7 +80,7 @@ static UINT PackageFSCommands(UINT Function, UINT Parameter) {
         case DF_FS_SETATTRIBUTES:
             return DF_RETURN_NO_PERMISSION;
         case DF_FS_OPENFILE:
-            return (UINT)PackageFSOpenFile((LPFILEINFO)Parameter);
+            return (UINT)PackageFSOpenFile((LPFILE_INFO)Parameter);
         case DF_FS_OPENNEXT:
             return PackageFSOpenNext((LPPACKAGEFSFILE)Parameter);
         case DF_FS_CLOSEFILE:
@@ -90,9 +90,9 @@ static UINT PackageFSCommands(UINT Function, UINT Parameter) {
         case DF_FS_WRITE:
             return PackageFSWriteFile((LPPACKAGEFSFILE)Parameter);
         case DF_FS_PATHEXISTS:
-            return (UINT)PackageFSPathExists((LPFS_PATHCHECK)Parameter);
+            return (UINT)PackageFSPathExists((LPFILESYSTEM_PATHCHECK)Parameter);
         case DF_FS_FILEEXISTS:
-            return (UINT)PackageFSFileExists((LPFILEINFO)Parameter);
+            return (UINT)PackageFSFileExists((LPFILE_INFO)Parameter);
         case DF_FS_GETPOSITION:
         case DF_FS_SETPOSITION:
         case DF_FS_GETATTRIBUTES:

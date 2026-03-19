@@ -85,7 +85,7 @@
 /************************************************************************/
 // ELF-specific entry points (mirror the generic ones, with explicit bases)
 
-BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLEINFO Info);
-BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLEINFO Info, LINEAR CodeBase, LINEAR DataBase, LINEAR BssBase);
+BOOL GetExecutableInfo_ELF(LPFILE File, LPEXECUTABLE_INFO Info);
+BOOL LoadExecutable_ELF(LPFILE File, LPEXECUTABLE_INFO Info, LINEAR CodeBase, LINEAR DataBase, LINEAR BssBase);
 
 #endif

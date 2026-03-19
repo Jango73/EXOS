@@ -49,7 +49,9 @@
 #include "UserSession.h"
 #include "utils/CommandLineEditor.h"
 #include "utils/Helpers.h"
+#include "utils/Allocator.h"
 #include "utils/Path.h"
+#include "utils/ReservedHeap.h"
 #include "utils/StringArray.h"
 #include "input/VKey.h"
 
@@ -58,6 +60,8 @@
 #define SHELL_NUM_BUFFERS 8
 #define BUFFER_SIZE 1024
 #define HISTORY_SIZE 20
+#define SHELL_RESERVED_HEAP_INITIAL_SIZE N_256KB
+#define SHELL_RESERVED_HEAP_MAXIMUM_SIZE N_2MB
 
 /************************************************************************/
 
@@ -72,6 +76,8 @@ typedef struct tag_SHELLCONTEXT {
     SHELLINPUTSTATE Input;
     STR Command[256];
     STR CurrentFolder[MAX_PATH_NAME];
+    RESERVED_HEAP ReservedHeap;
+    ALLOCATOR Allocator;
     LPVOID BufferBase;
     U32 BufferSize;
     LPSTR Buffer[SHELL_NUM_BUFFERS];

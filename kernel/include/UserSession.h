@@ -22,8 +22,8 @@
 
 \************************************************************************/
 
-#ifndef USERSESSION_H_INCLUDED
-#define USERSESSION_H_INCLUDED
+#ifndef USER_SESSION_H_INCLUDED
+#define USER_SESSION_H_INCLUDED
 
 /************************************************************************/
 
@@ -45,22 +45,22 @@
 // Functions in Session.c
 BOOL InitializeSessionSystem(void);
 void ShutdownSessionSystem(void);
-LPUSERSESSION CreateUserSession(U64 UserID, HANDLE ShellTask);
-BOOL ValidateUserSession(LPUSERSESSION Session);
-void DestroyUserSession(LPUSERSESSION Session);
+LPUSER_SESSION CreateUserSession(U64 UserID, HANDLE ShellTask);
+BOOL ValidateUserSession(LPUSER_SESSION Session);
+void DestroyUserSession(LPUSER_SESSION Session);
 void TimeoutInactiveSessions(void);
-LPUSERSESSION FindSessionByTask(HANDLE Task);
-LPUSERSESSION GetCurrentSession(void);
-void UpdateSessionActivity(LPUSERSESSION Session);
-BOOL IsUserSessionTimedOut(LPUSERSESSION Session);
-BOOL IsUserSessionLocked(LPUSERSESSION Session);
-BOOL LockUserSession(LPUSERSESSION Session, U32 Reason);
-BOOL UnlockUserSession(LPUSERSESSION Session);
-BOOL VerifySessionUnlockPassword(LPUSERSESSION Session, LPCSTR Password);
-BOOL SessionUserRequiresPassword(LPUSERSESSION Session);
+LPUSER_SESSION FindSessionByTask(HANDLE Task);
+LPUSER_SESSION GetCurrentSession(void);
+void UpdateSessionActivity(LPUSER_SESSION Session);
+BOOL IsUserSessionTimedOut(LPUSER_SESSION Session);
+BOOL IsUserSessionLocked(LPUSER_SESSION Session);
+BOOL LockUserSession(LPUSER_SESSION Session, U32 Reason);
+BOOL UnlockUserSession(LPUSER_SESSION Session);
+BOOL VerifySessionUnlockPassword(LPUSER_SESSION Session, LPCSTR Password);
+BOOL SessionUserRequiresPassword(LPUSER_SESSION Session);
 
 /************************************************************************/
 
 #pragma pack(pop)
 
-#endif  // USERSESSION_H_INCLUDED
+#endif  // USER_SESSION_H_INCLUDED

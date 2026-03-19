@@ -23,6 +23,7 @@
 
 #include "Desktop-Private.h"
 #include "Desktop-NonClient.h"
+#include "Desktop-OverlayInvalidation.h"
 #include "Desktop-ThemeResolver.h"
 #include "Desktop-ThemeTokens.h"
 #include "Kernel.h"
@@ -63,7 +64,7 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
 
             if ((Param1 & MB_LEFT) == 0) break;
             if (This == NULL || This->TypeID != KOID_WINDOW) break;
-            if (GetMousePosition(&MouseX, &MouseY) == FALSE) break;
+            if (GetMouseScreenPosition(&MouseX, &MouseY) == FALSE) break;
 
             MousePosition.X = MouseX;
             MousePosition.Y = MouseY;
@@ -78,6 +79,7 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
         case EWM_MOUSEMOVE: {
             LPWINDOW This = (LPWINDOW)Window;
             LPWINDOW CaptureWindow = NULL;
+            RECT ScreenRect;
             RECT ParentScreenRect;
             POINT NewPosition;
             U32 Buttons;
@@ -95,8 +97,10 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
                 break;
             }
 
-            NewPosition.X = SIGNED(Param1) - OffsetX;
-            NewPosition.Y = SIGNED(Param2) - OffsetY;
+            if (GetWindowScreenRectSnapshot(This, &ScreenRect) == FALSE) break;
+
+            NewPosition.X = ScreenRect.X1 + SIGNED(Param1) - OffsetX;
+            NewPosition.Y = ScreenRect.Y1 + SIGNED(Param2) - OffsetY;
 
             SAFE_USE_VALID_ID(This->ParentWindow, KOID_WINDOW) {
                 ParentHasRect = GetWindowScreenRectSnapshot(This->ParentWindow, &ParentScreenRect);
@@ -150,16 +154,19 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
             RECT ClipScreenRect;
             RECT ClipLocalRect;
             RECT SurfaceScreenRect;
-            RECT WindowRect;
-            RECTINFO RectInfo;
-            BRUSH Brush;
-            COLOR Background;
-            BOOL HasBackground;
             LPWINDOW This = (LPWINDOW)Window;
             WINDOW_DRAW_CONTEXT_SNAPSHOT DrawContext;
+            WINDOW_STATE_SNAPSHOT Snapshot;
+            LPDESKTOP Desktop;
+            LPWINDOW RootWindow = NULL;
+            RECT DamageScreenRect;
+            U32 ThemeToken;
+            BOOL PreviousTransparent;
+            BOOL ResolvedTransparent = FALSE;
+            BOOL EffectiveTransparent = FALSE;
 
             if (DesktopGetWindowDrawSurfaceRect(This, &SurfaceRect) == FALSE) {
-                if (GetWindowDrawableRect(This, &SurfaceRect) == FALSE) break;
+                if (GetWindowDrawableRect((HANDLE)This, &SurfaceRect) == FALSE) break;
             } else if (GetWindowDrawContextSnapshot(This, &DrawContext) != FALSE &&
                        (DrawContext.Flags & WINDOW_DRAW_CONTEXT_ACTIVE) != 0 &&
                        DesktopGetWindowDrawClipRect(This, &ClipScreenRect) != FALSE) {
@@ -180,34 +187,33 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
             GC = BeginWindowDraw(Window);
             if (GC == NULL) break;
 
-            HasBackground = DesktopThemeResolveLevel1Color(TEXT("window.client"), TEXT("normal"), TEXT("background"), &Background);
-            if (HasBackground == FALSE) {
-                HasBackground = DesktopThemeResolveTokenColorByName(TEXT("color.client.background"), &Background);
+            ThemeToken = Param1 != 0 ? Param1 : THEME_TOKEN_WINDOW_BACKGROUND_CLIENT;
+            if (GetWindowStateSnapshot(This, &Snapshot) == FALSE) {
+                EndWindowDraw(Window);
+                break;
             }
-
-            if (HasBackground != FALSE) {
-                MemorySet(&Brush, 0, sizeof(Brush));
-                Brush.TypeID = KOID_BRUSH;
-                Brush.References = 1;
-                Brush.Color = Background;
-                Brush.Pattern = MAX_U32;
-                (void)SelectBrush(GC, (HANDLE)&Brush);
-            } else {
-                (void)SelectBrush(GC, GetSystemBrush(SM_COLOR_CLIENT));
-            }
-            (void)SelectPen(GC, NULL);
-
-            RectInfo.Header.Size = sizeof(RECTINFO);
-            RectInfo.Header.Version = EXOS_ABI_VERSION;
-            RectInfo.Header.Flags = 0;
-            RectInfo.GC = GC;
-            RectInfo.X1 = SurfaceRect.X1;
-            RectInfo.Y1 = SurfaceRect.Y1;
-            RectInfo.X2 = SurfaceRect.X2;
-            RectInfo.Y2 = SurfaceRect.Y2;
-            (void)Rectangle(&RectInfo);
+            PreviousTransparent = ((Snapshot.Status & WINDOW_STATUS_CONTENT_TRANSPARENT) != 0);
+            (void)DrawWindowBackgroundResolved(Window, GC, &SurfaceRect, ThemeToken, &ResolvedTransparent);
 
             EndWindowDraw(Window);
+
+            EffectiveTransparent = ResolvedTransparent;
+            if (Snapshot.ContentTransparencyHint == WINDOW_CONTENT_TRANSPARENCY_HINT_TRANSPARENT) {
+                EffectiveTransparent = TRUE;
+            } else if (Snapshot.ContentTransparencyHint == WINDOW_CONTENT_TRANSPARENCY_HINT_OPAQUE) {
+                EffectiveTransparent = FALSE;
+            }
+
+            if (EffectiveTransparent != PreviousTransparent) {
+                (void)DesktopSetWindowResolvedTransparencyState(This, EffectiveTransparent);
+
+                if (WindowRectToScreenRect((HANDLE)This, &SurfaceRect, &DamageScreenRect) != FALSE) {
+                    Desktop = DesktopGetWindowDesktop(This);
+                    if (Desktop != NULL && DesktopGetRootWindow(Desktop, &RootWindow) != FALSE && RootWindow != NULL) {
+                        DesktopOverlayInvalidateWindowTreeThenRootRect(RootWindow, &DamageScreenRect);
+                    }
+                }
+            }
             return 1;
         }
     }

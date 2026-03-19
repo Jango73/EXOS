@@ -540,6 +540,17 @@ function SendKey() {
     sleep "$KEY_DELAY_SECONDS"
 }
 
+function SendHotkey() {
+    # Send one raw QEMU monitor key chord without appending Enter.
+    local Hotkey="$1"
+    if [ -z "$Hotkey" ]; then
+        echo "Unsupported empty hotkey."
+        return 1
+    fi
+    MonitorCommand "sendkey $Hotkey"
+    sleep "$COMMAND_DELAY_SECONDS"
+}
+
 function SendCommand() {
     # Type a full shell command as key events, then press Enter.
     local Cmd="$1"
@@ -814,24 +825,37 @@ function AssertDownloadedFileHash() {
 
 function RunCommandSpec() {
     # Execute one command specification line:
-    # command + expected log + optional file-size-compare check.
-    local CommandText="$1"
-    local ExpectedText="$2"
-    local CompareSource="$3"
-    local CompareDownloaded="$4"
-    local TimeoutSeconds="${5:-$DEFAULT_TIMEOUT_SECONDS}"
+    # command or hotkey + expected log + optional file-size-compare check.
+    local ActionType="$1"
+    local ActionText="$2"
+    local ExpectedText="$3"
+    local CompareSource="$4"
+    local CompareDownloaded="$5"
+    local TimeoutSeconds="${6:-$DEFAULT_TIMEOUT_SECONDS}"
     local Offset
 
-    if [ -z "$CommandText" ]; then
-        echo "Invalid empty command in command specification."
+    if [ -z "$ActionType" ]; then
+        echo "Invalid empty action type in command specification."
         return 1
     fi
 
-    echo "Running command: $CommandText"
+    if [ -z "$ActionText" ]; then
+        echo "Invalid empty action in command specification."
+        return 1
+    fi
+
+    echo "Running $ActionType: $ActionText"
     Offset="$(GetLogSize)"
-    SendCommand "$CommandText"
-    if [[ "$CommandText" == /* ]]; then
-        VerifySpawnCommandLine "$CommandText" "$Offset"
+    if [ "$ActionType" = "command" ]; then
+        SendCommand "$ActionText"
+        if [[ "$ActionText" == /* ]]; then
+            VerifySpawnCommandLine "$ActionText" "$Offset"
+        fi
+    elif [ "$ActionType" = "hotkey" ]; then
+        SendHotkey "$ActionText"
+    else
+        echo "Invalid action type in command specification: $ActionType"
+        return 1
     fi
     if [ -n "$ExpectedText" ]; then
         WaitForExpectedLog "$ExpectedText" "$Offset" "$TimeoutSeconds"
@@ -850,9 +874,10 @@ function RunCommandSpec() {
 
 function RunCommandList() {
     # Command file grammar (one spec per line):
-    # command: "..." | [log: "..."] | [file-size-compare: "host/path" "/guest/path"] | [timeout: N]
+    # command: "..." | hotkey: "..." | [log: "..."] | [file-size-compare: "host/path" "/guest/path"] | [timeout: N]
     local Line
     local Part
+    local ActionType=""
     local CommandText=""
     local ExpectedText=""
     local CompareSource=""
@@ -878,6 +903,7 @@ function RunCommandList() {
         if [[ "$Line" == \#* ]]; then
             continue
         fi
+        ActionType=""
         CommandText=""
         ExpectedText=""
         CompareSource=""
@@ -887,6 +913,10 @@ function RunCommandList() {
         while IFS= read -r Part; do
             Part="$(Trim "$Part")"
             if [[ "$Part" =~ ^command:[[:space:]]*\"([^\"]*)\"$ ]]; then
+                ActionType="command"
+                CommandText="${BASH_REMATCH[1]}"
+            elif [[ "$Part" =~ ^hotkey:[[:space:]]*\"([^\"]*)\"$ ]]; then
+                ActionType="hotkey"
                 CommandText="${BASH_REMATCH[1]}"
             elif [[ "$Part" =~ ^log:[[:space:]]*\"([^\"]*)\"$ ]]; then
                 ExpectedText="${BASH_REMATCH[1]}"
@@ -901,12 +931,12 @@ function RunCommandList() {
             fi
         done < <(echo "$Line" | tr '|' '\n')
 
-        if [ -z "$CommandText" ]; then
-            echo "Invalid command spec, missing command: $Line"
+        if [ -z "$ActionType" ] || [ -z "$CommandText" ]; then
+            echo "Invalid command spec, missing command or hotkey: $Line"
             exit 1
         fi
 
-        RunCommandSpec "$CommandText" "$ExpectedText" "$CompareSource" "$CompareDownloaded" "$TimeoutSeconds"
+        RunCommandSpec "$ActionType" "$CommandText" "$ExpectedText" "$CompareSource" "$CompareDownloaded" "$TimeoutSeconds"
     done < "$ResolvedCommandsFile"
 }
 

@@ -65,7 +65,7 @@ U32 CMD_adduser(LPSHELLCONTEXT Context) {
     }
 
 
-    LPUSERACCOUNT Account = CreateUserAccount(UserName, Password, Privilege);
+    LPUSER_ACCOUNT Account = CreateUserAccount(UserName, Password, Privilege);
 
     SAFE_USE(Account) {
     } else {
@@ -93,10 +93,10 @@ U32 CMD_deluser(LPSHELLCONTEXT Context) {
         }
     }
 
-    LPUSERSESSION Session = GetCurrentSession();
+    LPUSER_SESSION Session = GetCurrentSession();
 
     SAFE_USE(Session) {
-        LPUSERACCOUNT CurrentAccount = FindUserAccountByID(Session->UserID);
+        LPUSER_ACCOUNT CurrentAccount = FindUserAccountByID(Session->UserID);
 
         if (CurrentAccount == NULL || CurrentAccount->Privilege != EXOS_PRIVILEGE_ADMIN) {
             ConsolePrint(TEXT("Only admin users can delete accounts\n"));
@@ -140,7 +140,7 @@ U32 CMD_login(LPSHELLCONTEXT Context) {
     CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, TRUE);
     StringCopy(Password, Context->Input.CommandLine);
 
-    LPUSERACCOUNT Account = FindUserAccount(UserName);
+    LPUSER_ACCOUNT Account = FindUserAccount(UserName);
     if (Account == NULL) {
         ConsolePrint(TEXT("ERROR: User '%s' not found\n"), UserName);
         return DF_RETURN_SUCCESS;
@@ -151,7 +151,7 @@ U32 CMD_login(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    LPUSERSESSION Session = CreateUserSession(Account->UserID, (HANDLE)GetCurrentTask());
+    LPUSER_SESSION Session = CreateUserSession(Account->UserID, (HANDLE)GetCurrentTask());
     if (Session == NULL) {
         ConsolePrint(TEXT("ERROR: Failed to create session\n"));
         return DF_RETURN_SUCCESS;
@@ -174,7 +174,7 @@ U32 CMD_login(LPSHELLCONTEXT Context) {
 U32 CMD_logout(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
-    LPUSERSESSION Session = GetCurrentSession();
+    LPUSER_SESSION Session = GetCurrentSession();
     if (Session == NULL) {
         ConsolePrint(TEXT("No active session\n"));
         return DF_RETURN_SUCCESS;
@@ -192,13 +192,13 @@ U32 CMD_logout(LPSHELLCONTEXT Context) {
 U32 CMD_whoami(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
-    LPUSERSESSION Session = GetCurrentSession();
+    LPUSER_SESSION Session = GetCurrentSession();
     if (Session == NULL) {
         ConsolePrint(TEXT("No active session\n"));
         return DF_RETURN_SUCCESS;
     }
 
-    LPUSERACCOUNT Account = FindUserAccountByID(Session->UserID);
+    LPUSER_ACCOUNT Account = FindUserAccountByID(Session->UserID);
     if (Account == NULL) {
         ConsolePrint(TEXT("Session user not found\n"));
         return DF_RETURN_SUCCESS;
@@ -222,13 +222,13 @@ U32 CMD_passwd(LPSHELLCONTEXT Context) {
     STR NewPassword[MAX_PASSWORD];
     STR ConfirmPassword[MAX_PASSWORD];
 
-    LPUSERSESSION Session = GetCurrentSession();
+    LPUSER_SESSION Session = GetCurrentSession();
     if (Session == NULL) {
         ConsolePrint(TEXT("No active session\n"));
         return DF_RETURN_SUCCESS;
     }
 
-    LPUSERACCOUNT Account = FindUserAccountByID(Session->UserID);
+    LPUSER_ACCOUNT Account = FindUserAccountByID(Session->UserID);
     if (Account == NULL) {
         ConsolePrint(TEXT("Session user not found\n"));
         return DF_RETURN_SUCCESS;

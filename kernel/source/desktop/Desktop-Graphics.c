@@ -24,6 +24,7 @@
 #include "Desktop-Private.h"
 #include "Desktop-Cursor.h"
 #include "Desktop-NonClient.h"
+#include "Desktop-OverlayInvalidation.h"
 #include "Desktop-ThemeResolver.h"
 #include "Desktop-ThemeTokens.h"
 #include "CoreString.h"
@@ -63,8 +64,6 @@ static SYSTEM_DRAW_OBJECT_ENTRY SystemDrawObjects[] = {
     {SM_COLOR_TITLE_BAR_2, &Brush_Title_Bar_2, &Pen_Title_Bar_2},
     {SM_COLOR_TITLE_TEXT, &Brush_Title_Text, &Pen_Title_Text},
 };
-
-/***************************************************************************/
 
 /**
  * @brief Convert one screen rectangle into coordinates relative to one window.
@@ -419,18 +418,28 @@ static BOOL ResolveSystemDrawObjects(U32 Index, LPBRUSH* Brush, LPPEN* Pen) {
  * @param ShowHide TRUE to show, FALSE to hide.
  * @return TRUE on success.
  */
-BOOL ShowWindow(HANDLE Handle, BOOL ShowHide) {
+BOOL DesktopSetWindowVisibility(HANDLE Handle, BOOL ShowHide) {
     LPWINDOW This = (LPWINDOW)Handle;
+    LPDESKTOP Desktop = NULL;
     LPWINDOW* Children = NULL;
     LPWINDOW Child;
+    LPWINDOW RootWindow = NULL;
+    RECT FullWindowRect;
+    RECT PreviousScreenRect;
     UINT ChildCount = 0;
     UINT ChildIndex;
+    BOOL WasVisible = FALSE;
+    WINDOW_STATE_SNAPSHOT Snapshot;
 
     //-------------------------------------
     // Check validity of parameters
 
     if (This == NULL) return FALSE;
     if (This->TypeID != KOID_WINDOW) return FALSE;
+    if (GetWindowStateSnapshot(This, &Snapshot) == FALSE) return FALSE;
+
+    PreviousScreenRect = Snapshot.ScreenRect;
+    WasVisible = ((Snapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
 
     //-------------------------------------
     // Send appropriate messages to the window
@@ -439,7 +448,15 @@ BOOL ShowWindow(HANDLE Handle, BOOL ShowHide) {
     (void)DesktopRevalidateSiblingPlacementConstraints(This);
 
     PostMessage(Handle, EWM_SHOW, 0, 0);
-    (void)RequestWindowDraw(Handle);
+    if (ShowHide != FALSE && WasVisible == FALSE) {
+        if (GetWindowRect(Handle, &FullWindowRect) != FALSE) {
+            (void)InvalidateWindowRect(Handle, &FullWindowRect);
+        } else {
+            (void)RequestWindowDraw(Handle);
+        }
+    } else {
+        (void)RequestWindowDraw(Handle);
+    }
 
     (void)DesktopSnapshotWindowChildren(This, &Children, &ChildCount);
     for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
@@ -449,14 +466,45 @@ BOOL ShowWindow(HANDLE Handle, BOOL ShowHide) {
         if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
         if (GetWindowStateSnapshot(Child, &ChildSnapshot) == FALSE) continue;
         if ((ChildSnapshot.Style & EWS_VISIBLE) != 0) {
-            ShowWindow((HANDLE)Child, ShowHide);
+            DesktopSetWindowVisibility((HANDLE)Child, ShowHide);
         }
     }
     if (Children != NULL) {
         KernelHeapFree(Children);
     }
 
+    if (ShowHide == FALSE && WasVisible != FALSE) {
+        Desktop = DesktopGetWindowDesktop(This);
+        if (Desktop != NULL && DesktopGetRootWindow(Desktop, &RootWindow) != FALSE && RootWindow != NULL) {
+            DesktopOverlayInvalidateWindowTreeThenRootRect(RootWindow, &PreviousScreenRect);
+        }
+    }
+
     return TRUE;
+}
+
+/***************************************************************************/
+
+BOOL ShowWindow(HANDLE Handle) {
+    return DesktopSetWindowVisibility(Handle, TRUE);
+}
+
+/***************************************************************************/
+
+BOOL HideWindow(HANDLE Handle) {
+    return DesktopSetWindowVisibility(Handle, FALSE);
+}
+
+/***************************************************************************/
+
+BOOL SetWindowStyle(HANDLE Handle, U32 StyleMask) {
+    return SetWindowStyleState(Handle, StyleMask, TRUE);
+}
+
+/***************************************************************************/
+
+BOOL ClearWindowStyle(HANDLE Handle, U32 StyleMask) {
+    return SetWindowStyleState(Handle, StyleMask, FALSE);
 }
 
 /***************************************************************************/
@@ -583,8 +631,6 @@ BOOL SetWindowStyleState(HANDLE Handle, U32 StyleMask, BOOL Enabled) {
     return TRUE;
 }
 
-/***************************************************************************/
-
 /**
  * @brief Retrieve raw style bits from one window.
  * @param Handle Window handle.
@@ -641,68 +687,6 @@ BOOL GetWindowCaption(HANDLE Handle, LPSTR Caption, UINT CaptionLength) {
     return TRUE;
 }
 
-/***************************************************************************/
-
-/**
- * @brief Set one window work rectangle in parent coordinates.
- * @param Handle Window handle.
- * @param WorkRect Work rectangle to assign.
- * @return TRUE on success.
- */
-BOOL SetWindowWorkRect(HANDLE Handle, LPRECT WorkRect) {
-    LPWINDOW This = (LPWINDOW)Handle;
-    RECT Candidate;
-
-    if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
-    if (WorkRect == NULL) return FALSE;
-    if (WorkRect->X1 > WorkRect->X2 || WorkRect->Y1 > WorkRect->Y2) return FALSE;
-
-    LockMutex(&(This->Mutex), INFINITY);
-    Candidate = *WorkRect;
-    if (Candidate.X1 < 0) Candidate.X1 = 0;
-    if (Candidate.Y1 < 0) Candidate.Y1 = 0;
-    if (Candidate.X2 > (This->Rect.X2 - This->Rect.X1)) Candidate.X2 = This->Rect.X2 - This->Rect.X1;
-    if (Candidate.Y2 > (This->Rect.Y2 - This->Rect.Y1)) Candidate.Y2 = This->Rect.Y2 - This->Rect.Y1;
-    if (Candidate.X1 > Candidate.X2 || Candidate.Y1 > Candidate.Y2) {
-        UnlockMutex(&(This->Mutex));
-        return FALSE;
-    }
-
-    This->WorkRect = Candidate;
-    This->Status |= WINDOW_STATUS_HAS_WORK_RECT;
-    UnlockMutex(&(This->Mutex));
-    return TRUE;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Get one window work rectangle in parent coordinates.
- * @param Handle Window handle.
- * @param WorkRect Receives work rectangle.
- * @return TRUE on success.
- */
-BOOL GetWindowWorkRect(HANDLE Handle, LPRECT WorkRect) {
-    LPWINDOW This = (LPWINDOW)Handle;
-
-    if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
-    if (WorkRect == NULL) return FALSE;
-
-    LockMutex(&(This->Mutex), INFINITY);
-    if ((This->Status & WINDOW_STATUS_HAS_WORK_RECT) != 0) {
-        *WorkRect = This->WorkRect;
-    } else {
-        WorkRect->X1 = 0;
-        WorkRect->Y1 = 0;
-        WorkRect->X2 = This->Rect.X2 - This->Rect.X1;
-        WorkRect->Y2 = This->Rect.Y2 - This->Rect.Y1;
-    }
-    UnlockMutex(&(This->Mutex));
-    return TRUE;
-}
-
-/***************************************************************************/
-
 /**
  * @brief Set a custom property on a window.
  * @param Handle Window handle.
@@ -710,17 +694,19 @@ BOOL GetWindowWorkRect(HANDLE Handle, LPRECT WorkRect) {
  * @param Value Property value.
  * @return Previous property value or 0.
  */
-U32 SetWindowProp(HANDLE Handle, LPCSTR Name, U32 Value) {
+UINT SetWindowProp(HANDLE Handle, LPCSTR Name, UINT Value) {
     LPWINDOW This = (LPWINDOW)Handle;
     LPLISTNODE Node;
     LPPROPERTY Prop;
-    U32 OldValue = 0;
+    UINT OldValue = 0;
+    BOOL HasChanged = FALSE;
 
     //-------------------------------------
     // Check validity of parameters
 
     if (This == NULL) return 0;
     if (This->TypeID != KOID_WINDOW) return 0;
+    if (Name == NULL || *Name == STR_NULL) return 0;
 
     //-------------------------------------
     // Lock access to resources
@@ -731,7 +717,10 @@ U32 SetWindowProp(HANDLE Handle, LPCSTR Name, U32 Value) {
         Prop = (LPPROPERTY)Node;
         if (StringCompareNC(Prop->Name, Name) == 0) {
             OldValue = Prop->Value;
-            Prop->Value = Value;
+            if (OldValue != Value) {
+                Prop->Value = Value;
+                HasChanged = TRUE;
+            }
             goto Out;
         }
     }
@@ -745,15 +734,17 @@ U32 SetWindowProp(HANDLE Handle, LPCSTR Name, U32 Value) {
         StringCopy(Prop->Name, Name);
         Prop->Value = Value;
         ListAddItem(This->Properties, Prop);
+        HasChanged = TRUE;
     }
 
 Out:
-
     //-------------------------------------
     // Unlock access to resources
 
     UnlockMutex(&(This->Mutex));
-    (void)PostMessage(Handle, EWM_NOTIFY, EWN_WINDOW_PROPERTY_CHANGED, 0);
+    if (HasChanged != FALSE) {
+        (void)PostMessage(Handle, EWM_NOTIFY, EWN_WINDOW_PROPERTY_CHANGED, 0);
+    }
 
     return OldValue;
 }
@@ -766,11 +757,11 @@ Out:
  * @param Name Property name.
  * @return Property value or 0 if not found.
  */
-U32 GetWindowProp(HANDLE Handle, LPCSTR Name) {
+UINT GetWindowProp(HANDLE Handle, LPCSTR Name) {
     LPWINDOW This = (LPWINDOW)Handle;
     LPLISTNODE Node = NULL;
     LPPROPERTY Prop = NULL;
-    U32 Value = 0;
+    UINT Value = 0;
 
     //-------------------------------------
     // Check validity of parameters
@@ -828,7 +819,7 @@ HANDLE GetWindowGC(HANDLE Handle) {
     GraphicsDriver = GetGraphicsDriver();
     if (GraphicsDriver == NULL || GraphicsDriver->Command == NULL) return NULL;
 
-    ContextPointer = GraphicsDriver->Command(DF_GFX_CREATECONTEXT, 0);
+    ContextPointer = GraphicsDriver->Command(DF_GFX_GETCONTEXT, 0);
     if (ContextPointer == 0) return NULL;
 
     Context = (LPGRAPHICSCONTEXT)(LPVOID)ContextPointer;
@@ -1050,7 +1041,7 @@ HANDLE SelectPen(HANDLE GC, HANDLE Pen) {
  * @param BrushInfo Brush parameters.
  * @return Handle to the created brush or NULL.
  */
-HANDLE CreateBrush(LPBRUSHINFO BrushInfo) {
+HANDLE CreateBrush(LPBRUSH_INFO BrushInfo) {
     LPBRUSH Brush = NULL;
 
     if (BrushInfo == NULL) return NULL;
@@ -1075,7 +1066,7 @@ HANDLE CreateBrush(LPBRUSHINFO BrushInfo) {
  * @param PenInfo Pen parameters.
  * @return Handle to the created pen or NULL.
  */
-HANDLE CreatePen(LPPENINFO PenInfo) {
+HANDLE CreatePen(LPPEN_INFO PenInfo) {
     LPPEN Pen = NULL;
 
     if (PenInfo == NULL) return NULL;
@@ -1100,9 +1091,9 @@ HANDLE CreatePen(LPPENINFO PenInfo) {
  * @param PixelInfo Pixel parameters.
  * @return TRUE on success.
  */
-BOOL SetPixel(LPPIXELINFO PixelInfo) {
+BOOL SetPixel(LPPIXEL_INFO PixelInfo) {
     LPGRAPHICSCONTEXT Context;
-    PIXELINFO Pixel;
+    PIXEL_INFO Pixel;
 
     //-------------------------------------
     // Check validity of parameters
@@ -1130,9 +1121,9 @@ BOOL SetPixel(LPPIXELINFO PixelInfo) {
  * @param PixelInfo Pixel parameters.
  * @return TRUE on success.
  */
-BOOL GetPixel(LPPIXELINFO PixelInfo) {
+BOOL GetPixel(LPPIXEL_INFO PixelInfo) {
     LPGRAPHICSCONTEXT Context;
-    PIXELINFO Pixel;
+    PIXEL_INFO Pixel;
 
     //-------------------------------------
     // Check validity of parameters
@@ -1161,15 +1152,15 @@ BOOL GetPixel(LPPIXELINFO PixelInfo) {
  * @param LineInfo Line parameters.
  * @return TRUE on success.
  */
-BOOL Line(LPLINEINFO LineInfo) {
+BOOL Line(LPLINE_INFO LineInfo) {
     LPGRAPHICSCONTEXT Context;
-    LINEINFO Line;
+    LINE_INFO Line;
 
     //-------------------------------------
     // Check validity of parameters
 
     if (LineInfo == NULL) return FALSE;
-    if (LineInfo->Header.Size < sizeof(LINEINFO)) return FALSE;
+    if (LineInfo->Header.Size < sizeof(LINE_INFO)) return FALSE;
 
     Context = (LPGRAPHICSCONTEXT)LineInfo->GC;
 
@@ -1194,15 +1185,15 @@ BOOL Line(LPLINEINFO LineInfo) {
  * @param RectInfo Rectangle parameters.
  * @return TRUE on success.
  */
-BOOL Rectangle(LPRECTINFO RectInfo) {
+BOOL Rectangle(LPRECT_INFO RectInfo) {
     LPGRAPHICSCONTEXT Context;
-    RECTINFO RectangleInfo;
+    RECT_INFO RectangleInfo;
 
     //-------------------------------------
     // Check validity of parameters
 
     if (RectInfo == NULL) return FALSE;
-    if (RectInfo->Header.Size < sizeof(RECTINFO)) return FALSE;
+    if (RectInfo->Header.Size < sizeof(RECT_INFO)) return FALSE;
 
     Context = (LPGRAPHICSCONTEXT)RectInfo->GC;
 
@@ -1223,77 +1214,16 @@ BOOL Rectangle(LPRECTINFO RectInfo) {
 /***************************************************************************/
 
 /**
- * @brief Temporary fast rectangle fill path for desktop root drawing.
- * @param GC Graphics context handle.
- * @param ScreenRect Rectangle in screen coordinates.
- * @param FillColor Fill color.
- * @return TRUE on success.
- */
-static BOOL DesktopFillRectangleTemporaryFast(HANDLE GC, LPRECT ScreenRect, COLOR FillColor) {
-    LPGRAPHICSCONTEXT Context;
-    I32 DrawX1;
-    I32 DrawY1;
-    I32 DrawX2;
-    I32 DrawY2;
-    I32 Y;
-    U32 Width;
-    U32 X;
-    U32* Pixel;
-
-    if (GC == NULL || ScreenRect == NULL) return FALSE;
-
-    Context = (LPGRAPHICSCONTEXT)GC;
-    if (Context->TypeID != KOID_GRAPHICSCONTEXT) return FALSE;
-    if (Context->MemoryBase == NULL) return FALSE;
-    if (Context->BitsPerPixel != 32) return FALSE;
-
-    DrawX1 = ScreenRect->X1;
-    DrawY1 = ScreenRect->Y1;
-    DrawX2 = ScreenRect->X2;
-    DrawY2 = ScreenRect->Y2;
-
-    LockMutex(&(Context->Mutex), INFINITY);
-
-    if (DrawX1 < Context->LoClip.X) DrawX1 = Context->LoClip.X;
-    if (DrawY1 < Context->LoClip.Y) DrawY1 = Context->LoClip.Y;
-    if (DrawX2 > Context->HiClip.X) DrawX2 = Context->HiClip.X;
-    if (DrawY2 > Context->HiClip.Y) DrawY2 = Context->HiClip.Y;
-
-    if (DrawX1 < 0) DrawX1 = 0;
-    if (DrawY1 < 0) DrawY1 = 0;
-    if (DrawX2 >= Context->Width) DrawX2 = Context->Width - 1;
-    if (DrawY2 >= Context->Height) DrawY2 = Context->Height - 1;
-
-    if (DrawX2 < DrawX1 || DrawY2 < DrawY1) {
-        UnlockMutex(&(Context->Mutex));
-        return TRUE;
-    }
-
-    Width = (U32)(DrawX2 - DrawX1 + 1);
-    for (Y = DrawY1; Y <= DrawY2; Y++) {
-        Pixel = (U32*)(Context->MemoryBase + (U32)(Y * (I32)Context->BytesPerScanLine) + ((U32)DrawX1 << 2));
-        for (X = 0; X < Width; X++) {
-            Pixel[X] = FillColor;
-        }
-    }
-
-    UnlockMutex(&(Context->Mutex));
-    return TRUE;
-}
-
-/***************************************************************************/
-
-/**
  * @brief Draw an arc using current pen.
  * @param ArcInfo Arc parameters.
  * @return TRUE on success.
  */
-BOOL Arc(LPARCINFO ArcInfo) {
+BOOL Arc(LPARC_INFO ArcInfo) {
     LPGRAPHICSCONTEXT Context;
-    ARCINFO Arc;
+    ARC_INFO Arc;
 
     if (ArcInfo == NULL) return FALSE;
-    if (ArcInfo->Header.Size < sizeof(ARCINFO)) return FALSE;
+    if (ArcInfo->Header.Size < sizeof(ARC_INFO)) return FALSE;
 
     Context = (LPGRAPHICSCONTEXT)ArcInfo->GC;
     if (Context == NULL) return FALSE;
@@ -1314,12 +1244,12 @@ BOOL Arc(LPARCINFO ArcInfo) {
  * @param TriangleInfo Triangle parameters.
  * @return TRUE on success.
  */
-BOOL Triangle(LPTRIANGLEINFO TriangleInfo) {
+BOOL Triangle(LPTRIANGLE_INFO TriangleInfo) {
     LPGRAPHICSCONTEXT Context;
-    TRIANGLEINFO Triangle;
+    TRIANGLE_INFO Triangle;
 
     if (TriangleInfo == NULL) return FALSE;
-    if (TriangleInfo->Header.Size < sizeof(TRIANGLEINFO)) return FALSE;
+    if (TriangleInfo->Header.Size < sizeof(TRIANGLE_INFO)) return FALSE;
 
     Context = (LPGRAPHICSCONTEXT)TriangleInfo->GC;
     if (Context == NULL) return FALSE;
@@ -1408,6 +1338,25 @@ BOOL GetWindowScreenRectSnapshot(LPWINDOW Window, LPRECT Rect) {
 /***************************************************************************/
 
 /**
+ * @brief Retrieve current mouse position.
+ * @param Point Receives current screen coordinates.
+ * @return TRUE on success.
+ */
+BOOL GetMousePosition(LPPOINT Point) {
+    I32 MouseX;
+    I32 MouseY;
+
+    if (Point == NULL) return FALSE;
+    if (GetMouseScreenPosition(&MouseX, &MouseY) == FALSE) return FALSE;
+
+    Point->X = MouseX;
+    Point->Y = MouseY;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Get desktop capture state for one window desktop.
  * @param Window Any window on the target desktop.
  * @param CaptureWindow Receives captured window (optional).
@@ -1422,7 +1371,7 @@ BOOL GetDesktopCaptureState(LPWINDOW Window, LPWINDOW* CaptureWindow, I32* Offse
     if (OffsetX != NULL) *OffsetX = 0;
     if (OffsetY != NULL) *OffsetY = 0;
 
-    Desktop = GetWindowDesktop(Window);
+    Desktop = DesktopGetWindowDesktop(Window);
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
 
     LockMutex(&(Desktop->Mutex), INFINITY);
@@ -1447,7 +1396,7 @@ BOOL GetDesktopCaptureState(LPWINDOW Window, LPWINDOW* CaptureWindow, I32* Offse
 BOOL SetDesktopCaptureState(LPWINDOW Window, LPWINDOW CaptureWindow, I32 OffsetX, I32 OffsetY) {
     LPDESKTOP Desktop;
 
-    Desktop = GetWindowDesktop(Window);
+    Desktop = DesktopGetWindowDesktop(Window);
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
 
     LockMutex(&(Desktop->Mutex), INFINITY);
@@ -1461,9 +1410,64 @@ BOOL SetDesktopCaptureState(LPWINDOW Window, LPWINDOW CaptureWindow, I32 OffsetX
 
 /***************************************************************************/
 
+/**
+ * @brief Capture mouse input for one window.
+ * @param Window Target window handle.
+ * @return Captured window handle on success, NULL on failure.
+ */
+HANDLE CaptureMouse(HANDLE Window) {
+    LPWINDOW This = (LPWINDOW)Window;
+
+    if (This == NULL || This->TypeID != KOID_WINDOW) return NULL;
+    if (SetDesktopCaptureState(This, This, 0, 0) == FALSE) return NULL;
+
+    return Window;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Release current mouse capture.
+ * @return TRUE on success.
+ */
+BOOL ReleaseMouse(void) {
+    LPDESKTOP ActiveDesktop;
+    LPWINDOW CaptureWindow = NULL;
+
+    ActiveDesktop = GetActiveDesktop();
+    if (ActiveDesktop == NULL || ActiveDesktop->TypeID != KOID_DESKTOP) return FALSE;
+    if (ActiveDesktop->Window == NULL || ActiveDesktop->Window->TypeID != KOID_WINDOW) return FALSE;
+    if (GetDesktopCaptureState(ActiveDesktop->Window, &CaptureWindow, NULL, NULL) == FALSE) return FALSE;
+    if (CaptureWindow == NULL || CaptureWindow->TypeID != KOID_WINDOW) return FALSE;
+
+    return SetDesktopCaptureState(CaptureWindow, NULL, 0, 0);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Post one mouse move to one target window from one screen position.
+ * @param Target Destination window.
+ * @param ScreenPosition Mouse position in screen coordinates.
+ * @return TRUE when the message was posted.
+ */
+static BOOL DesktopPostMouseMoveFromScreenPoint(LPWINDOW Target, LPPOINT ScreenPosition) {
+    RECT WindowScreenRect;
+    POINT LocalPosition;
+
+    if (Target == NULL || Target->TypeID != KOID_WINDOW) return FALSE;
+    if (ScreenPosition == NULL) return FALSE;
+    if (GetWindowScreenRectSnapshot(Target, &WindowScreenRect) == FALSE) return FALSE;
+
+    GraphicsScreenPointToWindowPoint(&WindowScreenRect, ScreenPosition, &LocalPosition);
+    return PostMessage((HANDLE)Target, EWM_MOUSEMOVE, UNSIGNED(LocalPosition.X), UNSIGNED(LocalPosition.Y));
+}
+
+/***************************************************************************/
+
 /*
 static U32 DrawMouseCursor(HANDLE GC, I32 X, I32 Y, BOOL OnOff) {
-    LINEINFO LineInfo;
+    LINE_INFO LineInfo;
 
     if (OnOff) {
         SelectPen(GC, GetSystemPen(SM_COLOR_HIGHLIGHT));
@@ -1493,7 +1497,7 @@ static U32 DrawMouseCursor(HANDLE GC, I32 X, I32 Y, BOOL OnOff) {
 
 /*
 static U32 DrawButtons(HANDLE GC) {
-    LINEINFO LineInfo;
+    LINE_INFO LineInfo;
     U32 Buttons = GetMouseDriver().Command(DF_MOUSE_GETBUTTONS, 0);
 
     if (Buttons & MB_LEFT) {
@@ -1550,46 +1554,13 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
         case EWM_DRAW: {
             HANDLE GC;
-            RECTINFO RectInfo;
             RECT Rect;
-            RECT RootVisibleStorage[WINDOW_DIRTY_REGION_CAPACITY];
-            RECT_REGION RootVisibleRegion;
-            RECT RootVisibleRect;
-            UINT RootVisibleIndex;
-            BRUSH Brush;
-            COLOR Background;
-            BOOL HasBackground;
-            RECT ClipRect;
 
             GC = BeginWindowDraw(Window);
 
             if (GC) {
                 GetWindowClientRect(Window, &Rect);
-
-                RectInfo.Header.Size = sizeof(RectInfo);
-                RectInfo.Header.Version = EXOS_ABI_VERSION;
-                RectInfo.Header.Flags = 0;
-                RectInfo.GC = GC;
-                RectInfo.X1 = Rect.X1;
-                RectInfo.Y1 = Rect.Y1;
-                RectInfo.X2 = Rect.X2;
-                RectInfo.Y2 = Rect.Y2;
-
-                SelectPen(GC, NULL);
-
-                HasBackground = DesktopThemeResolveLevel1Color(TEXT("desktop.root"), TEXT("normal"), TEXT("background"), &Background);
-                if (HasBackground) {
-                    MemorySet(&Brush, 0, sizeof(Brush));
-                    Brush.TypeID = KOID_BRUSH;
-                    Brush.References = 1;
-                    Brush.Color = Background;
-                    Brush.Pattern = MAX_U32;
-                    SelectBrush(GC, (HANDLE)&Brush);
-                } else {
-                    SelectBrush(GC, GetSystemBrush(SM_COLOR_DESKTOP));
-                }
-
-                Rectangle(&RectInfo);
+                (void)DrawWindowBackground(Window, GC, &Rect, THEME_TOKEN_WINDOW_BACKGROUND_DESKTOP);
 
                 EndWindowDraw(Window);
             }
@@ -1598,6 +1569,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
         case EWM_MOUSEMOVE: {
             POINT Position;
             LPWINDOW Target;
+            LPWINDOW PreviousTarget = NULL;
             LPWINDOW CaptureWindow = NULL;
 
             Position.X = SIGNED(Param1);
@@ -1606,16 +1578,29 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             if (GetDesktopCaptureState((LPWINDOW)Window, &CaptureWindow, NULL, NULL) != FALSE) {
                 SAFE_USE_VALID_ID(CaptureWindow, KOID_WINDOW) {
                     if (CaptureWindow != (LPWINDOW)Window) {
-                        (void)PostMessage((HANDLE)CaptureWindow, EWM_MOUSEMOVE, Param1, Param2);
+                        (void)DesktopPostMouseMoveFromScreenPoint(CaptureWindow, &Position);
                         break;
                     }
                 }
             }
 
+            (void)GetDesktopLastMouseMoveTarget((LPWINDOW)Window, &PreviousTarget);
             Target = (LPWINDOW)WindowHitTest(Window, &Position);
-            if (Target != NULL && Target != (LPWINDOW)Window) {
-                (void)PostMessage((HANDLE)Target, EWM_MOUSEMOVE, Param1, Param2);
+            if (Target == (LPWINDOW)Window) {
+                Target = NULL;
             }
+
+            if (PreviousTarget != NULL && PreviousTarget != Target) {
+                SAFE_USE_VALID_ID(PreviousTarget, KOID_WINDOW) {
+                    (void)DesktopPostMouseMoveFromScreenPoint(PreviousTarget, &Position);
+                }
+            }
+
+            if (Target != NULL) {
+                (void)DesktopPostMouseMoveFromScreenPoint(Target, &Position);
+            }
+
+            (void)SetDesktopLastMouseMoveTarget((LPWINDOW)Window, Target);
         } break;
 
         case EWM_MOUSEDOWN: {
@@ -1624,7 +1609,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             I32 MouseX;
             I32 MouseY;
 
-            if (GetMousePosition(&MouseX, &MouseY) == FALSE) {
+            if (GetMouseScreenPosition(&MouseX, &MouseY) == FALSE) {
                 break;
             }
 
@@ -1652,7 +1637,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 }
             }
 
-            if (GetMousePosition(&MouseX, &MouseY) == FALSE) {
+            if (GetMouseScreenPosition(&MouseX, &MouseY) == FALSE) {
                 break;
             }
 

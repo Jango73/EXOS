@@ -348,7 +348,7 @@ static BOOL ReadBlock(FILE* file, void* buffer, size_t size, const char* label, 
 /************************************************************************/
 
 void LoadSaveList(void) {
-    FILEFINDINFO FindInfo;
+    FILE_FIND_INFO FindInfo;
     char saveDirectory[MAX_PATH_NAME];
 
     if (!ResolveSaveDirectory(saveDirectory, sizeof(saveDirectory))) {
@@ -360,7 +360,7 @@ void LoadSaveList(void) {
     App.Menu.SelectedSaveIndex = 0;
 
     memset(&FindInfo, 0, sizeof(FindInfo));
-    FindInfo.Header.Size = sizeof(FILEFINDINFO);
+    FindInfo.Header.Size = sizeof(FILE_FIND_INFO);
     FindInfo.Header.Version = EXOS_ABI_VERSION;
     FindInfo.Header.Flags = 0;
     FindInfo.Path = (LPCSTR)saveDirectory;

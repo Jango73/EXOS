@@ -44,7 +44,7 @@ DRIVER DATA_SECTION RAMDiskDriver = {
     .VersionMajor = VER_MAJOR,
     .VersionMinor = VER_MINOR,
     .Designer = "Jango73",
-    .Manufacturer = "EXOS",
+    .Manufacturer = "N/A",
     .Product = "RAM Disk Controller",
     .Alias = "ramdisk",
     .Flags = 0,
@@ -416,7 +416,7 @@ ClusterEntry6);
  */
 static U32 RAMDiskInitialize(void) {
     PARTITION_CREATION Create;
-    LPBOOTPARTITION Partition;
+    LPBOOT_PARTITION Partition;
     LPRAMDISK Disk;
 
     DEBUG(TEXT("[RAMDiskInitialize] Enter"));
@@ -444,7 +444,7 @@ static U32 RAMDiskInitialize(void) {
       //-------------------------------------
       // Initialize the partitions
 
-      Partition = (LPBOOTPARTITION) (Disk->Base + MBR_PARTITION_START);
+      Partition = (LPBOOT_PARTITION) (Disk->Base + MBR_PARTITION_START);
 
       Partition->Disk              = 0x80;
       Partition->StartCHS.Head     = 0;
@@ -471,7 +471,7 @@ static U32 RAMDiskInitialize(void) {
     //-------------------------------------
     // Initialize the partitions
 
-    Partition = (LPBOOTPARTITION)(Disk->Base + MBR_PARTITION_START);
+    Partition = (LPBOOT_PARTITION)(Disk->Base + MBR_PARTITION_START);
 
     Partition->Disk = 0x00;
     Partition->StartCHS.Head = 0;

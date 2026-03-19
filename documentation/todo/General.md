@@ -1,5 +1,11 @@
 # General TODO list
 
+## Tools
+
+- Seperate scripts by build platform in scripts folder
+  - scripts/linux/
+  - scripts/windows/
+
 ## API return contract (mandatory, system-wide)
 
 - Target contract for kernel APIs, drivers, and syscalls: functions return only `DF_RETURN_*` status codes (`DF_RETURN_SUCCESS` on success, error code otherwise).
@@ -13,9 +19,7 @@
 - FileReadAll() : use HeapAlloc, NOT KernelHeapAlloc
 - Later: align x86-32 page directory creation (`AllocPageDirectory` and `AllocUserPageDirectory`) with the modular x86-64 region-based approach (low region, kernel region, task runner, recursive slot) while preserving current behavior. Execute this refactor in small validated steps to limit boot and paging regression risk.
 - Implement a memory sanity checker that scans memory to check how fragmented memory is.
-- Script allocates too many small objects and fragments kernel heap.
 - TOML parsing allocations too many small objects and fragments kernel heap.
-- Shell seems to allocate memory for each caracter typed.
 
 ## Problems
 
@@ -35,7 +39,6 @@
 ## Naming
 
 - Remove all abbreviations
-- Merge FSID.h and ID.h -> ID.h
 
 ## Logs
 
@@ -44,22 +47,29 @@
 ## Process
 
 - Add full TLS pipeline (per-thread data)
+- Load and map shared modules
+
+## Drivers
+
+- Implement PCIe : Peripheral-Component-Interconnect-Express.md
+- Implement VMD : Volume-Management-Device.md
 
 ## Session
 
 - Lock session on inactivity in graphics display
 
-## Shell kernel objects exposure
+## Shell
 
 ## Scripting
 
-- Reserve dedicated memory region for kernel shell task
-
 ## Console
 
-## Shared modules
+- Implement Text-Terminal.md
 
-- Load and map shared modules
+## Graphics
+
+- Implement Cursor-Bitmap-Architecture.md
+- Implement VGA-Console-Driver-Delegation-Plan.md
 
 ## Filesystem cache
 
@@ -69,6 +79,7 @@
 ## Network
 - Create a NetworkHeapAlloc/Free and dedicated memory region for the network heap (AllocRegion).
 - Optimize/evolve the network stack
+- Implement Realtek-RTL8111-8168-8411.md
 
 ## Keyboard
 
@@ -86,7 +97,7 @@
 
 ## Multicore
 
-- Handle n CPUs
+- Implement Symmetric-Multiprocessing.md
 
 ## Scheduling
 
@@ -113,20 +124,13 @@
 - Update common kernel file routing and shell tooling to call the right command based on intent.
 - Add regression tests per driver to validate behavior parity after the split.
 
-## Drivers
-
-- PCIe
-
 ## Localization
 
 - UTF
-- Unicode
+- Implement Unicode.md
 - I18n
-
-## Desktop
-
-- Continue graphics UI
 
 ## Other
 
-- Add quotes at startup
+- Implement x86-Disassembly.md
+- Implement Native-C-Compiler.md

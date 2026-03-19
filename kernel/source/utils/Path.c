@@ -51,7 +51,7 @@ LPLIST DecomposePath(LPCSTR Path) {
     U32 PathIndex = 0;
     U32 ComponentIndex = 0;
     LPLIST List = NULL;
-    LPPATHNODE Node = NULL;
+    LPPATH_NODE Node = NULL;
 
     if (Path == NULL) {
         ERROR(TEXT("[DecomposePath] Path is NULL"));
@@ -84,7 +84,7 @@ LPLIST DecomposePath(LPCSTR Path) {
             }
         }
 
-        Node = KernelHeapAlloc(sizeof(PATHNODE));
+        Node = KernelHeapAlloc(sizeof(PATH_NODE));
         if (Node == NULL) {
             ERROR(TEXT("[DecomposePath] Failed to allocate node"));
             goto Error;
@@ -136,7 +136,7 @@ void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
     STR Part[MAX_FILE_NAME];
     STR Pattern[MAX_PATH_NAME];
     LPSTR Slash;
-    FILEINFO Find;
+    FILE_INFO Find;
     LPFILE File;
 
     Context->Matches.Count = 0;
@@ -157,7 +157,7 @@ void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
     StringCopy(Pattern, Dir);
     StringConcat(Pattern, TEXT("*"));
 
-    Find.Size = sizeof(FILEINFO);
+    Find.Size = sizeof(FILE_INFO);
     Find.FileSystem = Context->FileSystem;
     Find.Attributes = MAX_U32;
     Find.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
@@ -208,6 +208,12 @@ void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
  * @return TRUE on success, FALSE on failure.
  */
 BOOL PathCompletionInit(LPPATHCOMPLETION Context, LPFILESYSTEM FileSystem) {
+    return PathCompletionInitA(Context, FileSystem, NULL);
+}
+
+/***************************************************************************/
+
+BOOL PathCompletionInitA(LPPATHCOMPLETION Context, LPFILESYSTEM FileSystem, LPCALLOCATOR Allocator) {
     if (FileSystem == NULL) {
         ERROR(TEXT("[PathCompletionInit] PathCompletionInit called with NULL FileSystem"));
         return FALSE;
@@ -220,7 +226,7 @@ BOOL PathCompletionInit(LPPATHCOMPLETION Context, LPFILESYSTEM FileSystem) {
     Context->FileSystem = FileSystem;
     Context->Base[0] = STR_NULL;
     Context->Index = 0;
-    return StringArrayInit(&Context->Matches, 32);
+    return StringArrayInitA(&Context->Matches, 32, Allocator);
 }
 
 /***************************************************************************/

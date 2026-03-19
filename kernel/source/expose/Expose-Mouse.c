@@ -67,7 +67,7 @@ SCRIPT_ERROR MouseGetProperty(
         I32 MouseX = 0;
         I32 MouseY = 0;
 
-        if (!GetMousePosition(&MouseX, &MouseY)) {
+        if (!GetMouseScreenPosition(&MouseX, &MouseY)) {
             return SCRIPT_ERROR_UNDEFINED_VAR;
         }
 

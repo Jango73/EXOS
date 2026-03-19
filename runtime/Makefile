@@ -1,5 +1,6 @@
 
 ARCH ?= x86-32
+BUILD_CONFIGURATION ?= release
 PROFILING ?= 0
 USE_SYSCALL ?= 0
 
@@ -29,7 +30,15 @@ else
 $(error Unsupported architecture $(ARCH))
 endif
 
-CFLAGS  = -g -Wall -Wextra -O0 -nostdinc \
+DEBUG_CFLAGS =
+DEBUG_AFLAGS =
+
+ifeq ($(BUILD_CONFIGURATION),debug)
+DEBUG_CFLAGS += -g
+DEBUG_AFLAGS += -g -F dwarf
+endif
+
+CFLAGS  = $(DEBUG_CFLAGS) -Wall -Wextra -O0 -nostdinc \
         -ffreestanding -fno-stack-protector -mno-stack-arg-probe -fno-builtin -fno-pic -fno-pie \
         -fcf-protection=none \
         -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
@@ -39,7 +48,7 @@ CFLAGS  = -g -Wall -Wextra -O0 -nostdinc \
         -I../kernel/include \
         $(CFLAGS_ARCH)
 
-CXXFLAGS = -g -Wall -Wextra -O0 -std=c++11 \
+CXXFLAGS = $(DEBUG_CFLAGS) -Wall -Wextra -O0 -std=c++11 \
         -ffreestanding -fno-stack-protector -mno-stack-arg-probe -fno-builtin -fno-pic -fno-pie \
         -fcf-protection=none \
         -fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables \
@@ -48,7 +57,7 @@ CXXFLAGS = -g -Wall -Wextra -O0 -std=c++11 \
         -DPROFILING=$(PROFILING) -DUSE_SYSCALL=$(USE_SYSCALL) \
         $(CXXFLAGS_ARCH)
 
-AFLAGS  = -f $(NASM_FORMAT) -g -F dwarf -I source/ -DPROFILING=$(PROFILING) -DUSE_SYSCALL=$(USE_SYSCALL)
+AFLAGS  = -f $(NASM_FORMAT) $(DEBUG_AFLAGS) -I source/ -DPROFILING=$(PROFILING) -DUSE_SYSCALL=$(USE_SYSCALL)
 
 LDFLAGS = -T linker.ld -nostdlib -Map=$(BUILD_DIR)/runtime/exos-runtime.map
 

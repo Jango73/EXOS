@@ -23,81 +23,49 @@
 
 #include "ui/WindowDockHost.h"
 #include "CoreString.h"
+#include "Heap.h"
 
 /************************************************************************/
 
-BOOL WindowDockHostIsDockPropertyName(LPCSTR Name) {
-    if (Name == NULL) return FALSE;
+#define WINDOW_DOCK_HOST_PROP_STATE TEXT("windowdockhost.state")
 
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_ENABLED) == 0) return TRUE;
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_EDGE) == 0) return TRUE;
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_PRIORITY) == 0) return TRUE;
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_ORDER) == 0) return TRUE;
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_SIZE_POLICY) == 0) return TRUE;
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_SIZE_PREFERRED) == 0) return TRUE;
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_SIZE_MINIMUM) == 0) return TRUE;
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_SIZE_MAXIMUM) == 0) return TRUE;
-    if (StringCompareNC(Name, WINDOW_DOCK_PROP_SIZE_WEIGHT) == 0) return TRUE;
+/************************************************************************/
 
-    return FALSE;
+static LPWINDOW_DOCK_HOST_CLASS_DATA WindowDockHostAllocateData(HANDLE Window) {
+    LPWINDOW_DOCK_HOST_CLASS_DATA Data;
+
+    Data = (LPWINDOW_DOCK_HOST_CLASS_DATA)HeapAlloc(sizeof(WINDOW_DOCK_HOST_CLASS_DATA));
+    if (Data == NULL) return NULL;
+
+    MemorySet(Data, 0, sizeof(WINDOW_DOCK_HOST_CLASS_DATA));
+    (void)SetWindowProp(Window, WINDOW_DOCK_HOST_PROP_STATE, (UINT)(LINEAR)Data);
+    return Data;
 }
 
 /************************************************************************/
 
-/**
- * @brief Resolve one window class by name and ensure it is valid.
- * @param ClassName Window class name.
- * @return Class pointer or NULL.
- */
-static LPWINDOW_CLASS WindowDockHostResolveClassByName(LPCSTR ClassName) {
-    LPWINDOW_CLASS WindowClass;
+static LPWINDOW_DOCK_HOST_CLASS_DATA WindowDockHostEnsureData(HANDLE Window) {
+    LPWINDOW_DOCK_HOST_CLASS_DATA Data;
 
-    if (ClassName == NULL) return NULL;
+    Data = WindowDockHostClassGetData(Window);
+    if (Data != NULL) return Data;
 
-    WindowClass = WindowClassFindByName(ClassName);
-    if (WindowClass == NULL || WindowClass->TypeID != KOID_WINDOW_CLASS) return NULL;
-
-    return WindowClass;
+    if (WindowDockHostWindowInheritsDockHostClass(Window) == FALSE) return NULL;
+    return WindowDockHostAllocateData(Window);
 }
 
 /************************************************************************/
 
-/**
- * @brief Resolve whether one class inherits from the dock host base class.
- * @param WindowClass Window class to inspect.
- * @return TRUE when class inherits from dock host class.
- */
-static BOOL WindowDockHostClassIsDerived(LPWINDOW_CLASS WindowClass) {
-    LPWINDOW_CLASS DockHostClass;
-    LPWINDOW_CLASS Current;
-
-    DockHostClass = WindowDockHostResolveClassByName(WINDOW_DOCK_HOST_CLASS_NAME);
-    if (DockHostClass == NULL) return FALSE;
-
-    for (Current = WindowClass; Current != NULL; Current = Current->BaseClass) {
-        if (Current == DockHostClass) return TRUE;
-    }
-
-    return FALSE;
-}
-
-/************************************************************************/
-
-/**
- * @brief Ensure one dock host state exists for one window.
- * @param Window Target window.
- * @return Class data pointer or NULL.
- */
-static LPWINDOW_DOCK_HOST_CLASS_DATA WindowDockHostEnsureState(LPWINDOW Window) {
+static LPWINDOW_DOCK_HOST_CLASS_DATA WindowDockHostEnsureState(HANDLE Window) {
     LPWINDOW_DOCK_HOST_CLASS_DATA Data;
     RECT HostRect;
 
-    Data = WindowDockHostClassGetData(Window);
+    Data = WindowDockHostEnsureData(Window);
     if (Data == NULL) return NULL;
     if (Data->DockHostInitialized != FALSE) return Data;
 
-    if (DockHostInit(&(Data->DockHost), TEXT("WindowDockHost"), Window) == FALSE) return NULL;
-    if (GetWindowRect((HANDLE)Window, &HostRect) != FALSE) {
+    if (DockHostInit(&(Data->DockHost), TEXT("WindowDockHost"), (LPVOID)Window) == FALSE) return NULL;
+    if (GetWindowRect(Window, &HostRect) != FALSE) {
         (void)DockHostSetHostRect(&(Data->DockHost), &HostRect);
     }
 
@@ -108,92 +76,63 @@ static LPWINDOW_DOCK_HOST_CLASS_DATA WindowDockHostEnsureState(LPWINDOW Window) 
 /************************************************************************/
 
 BOOL WindowDockHostClassEnsureRegistered(void) {
-    LPWINDOW_CLASS DockHostClass;
-
-    if (WindowClassInitializeRegistry() == FALSE) return FALSE;
-
-    DockHostClass = WindowClassFindByName(WINDOW_DOCK_HOST_CLASS_NAME);
-    if (DockHostClass != NULL) return TRUE;
-
-    DockHostClass = WindowClassRegisterKernelClass(
-        WINDOW_DOCK_HOST_CLASS_NAME,
-        WindowClassGetDefault(),
-        WindowDockHostWindowFunc,
-        sizeof(WINDOW_DOCK_HOST_CLASS_DATA));
-
-    return DockHostClass != NULL;
+    if (FindWindowClass(WINDOW_DOCK_HOST_CLASS_NAME) != NULL) return TRUE;
+    return RegisterWindowClass(WINDOW_DOCK_HOST_CLASS_NAME, 0, NULL, WindowDockHostWindowFunc, 0) != NULL;
 }
 
 /************************************************************************/
 
 BOOL WindowDockHostClassEnsureDerivedRegistered(LPCSTR ClassName, WINDOWFUNC WindowFunction) {
-    LPWINDOW_CLASS DockHostClass;
-    LPWINDOW_CLASS WindowClass;
+    HANDLE DockHostClass;
 
     if (ClassName == NULL || WindowFunction == NULL) return FALSE;
     if (WindowDockHostClassEnsureRegistered() == FALSE) return FALSE;
+    if (FindWindowClass(ClassName) != NULL) return TRUE;
 
-    WindowClass = WindowClassFindByName(ClassName);
-    if (WindowClass != NULL) return TRUE;
-
-    DockHostClass = WindowDockHostResolveClassByName(WINDOW_DOCK_HOST_CLASS_NAME);
+    DockHostClass = FindWindowClass(WINDOW_DOCK_HOST_CLASS_NAME);
     if (DockHostClass == NULL) return FALSE;
 
-    WindowClass = WindowClassRegisterKernelClass(
-        ClassName,
-        DockHostClass,
-        WindowFunction,
-        sizeof(WINDOW_DOCK_HOST_CLASS_DATA));
-
-    return WindowClass != NULL;
+    return RegisterWindowClass(ClassName, DockHostClass, NULL, WindowFunction, 0) != NULL;
 }
 
 /************************************************************************/
 
-BOOL WindowDockHostWindowInheritsDockHostClass(LPWINDOW Window) {
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
-    if (Window->Class == NULL || Window->Class->TypeID != KOID_WINDOW_CLASS) return FALSE;
-
-    return WindowDockHostClassIsDerived(Window->Class);
+BOOL WindowDockHostWindowInheritsDockHostClass(HANDLE Window) {
+    return WindowInheritsClass(Window, 0, WINDOW_DOCK_HOST_CLASS_NAME);
 }
 
 /************************************************************************/
 
-LPWINDOW_DOCK_HOST_CLASS_DATA WindowDockHostClassGetData(LPWINDOW Window) {
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return NULL;
+LPWINDOW_DOCK_HOST_CLASS_DATA WindowDockHostClassGetData(HANDLE Window) {
     if (WindowDockHostWindowInheritsDockHostClass(Window) == FALSE) return NULL;
-    if (Window->ClassData == NULL) return NULL;
-    if (Window->Class == NULL || Window->Class->ClassDataSize < sizeof(WINDOW_DOCK_HOST_CLASS_DATA)) return NULL;
-
-    return (LPWINDOW_DOCK_HOST_CLASS_DATA)Window->ClassData;
+    return (LPWINDOW_DOCK_HOST_CLASS_DATA)(LPVOID)(LINEAR)GetWindowProp(Window, WINDOW_DOCK_HOST_PROP_STATE);
 }
 
 /************************************************************************/
 
 void WindowDockHostShutdownWindow(HANDLE Window) {
-    LPWINDOW This;
     LPWINDOW_DOCK_HOST_CLASS_DATA Data;
 
-    This = (LPWINDOW)Window;
-    Data = WindowDockHostClassGetData(This);
-    if (Data == NULL || Data->DockHostInitialized == FALSE) return;
+    Data = WindowDockHostClassGetData(Window);
+    if (Data == NULL) return;
 
-    (void)DockHostReset(&(Data->DockHost));
-    Data->DockHostInitialized = FALSE;
+    if (Data->DockHostInitialized != FALSE) {
+        (void)DockHostReset(&(Data->DockHost));
+        Data->DockHostInitialized = FALSE;
+    }
+
+    (void)SetWindowProp(Window, WINDOW_DOCK_HOST_PROP_STATE, 0);
+    HeapFree(Data);
 }
 
 /************************************************************************/
 
 U32 WindowDockHostAttachDockable(HANDLE Window, LPDOCKABLE Dockable) {
-    LPWINDOW This;
     LPWINDOW_DOCK_HOST_CLASS_DATA Data;
 
     if (Dockable == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
-    This = (LPWINDOW)Window;
-    if (This == NULL || This->TypeID != KOID_WINDOW) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
-
-    Data = WindowDockHostEnsureState(This);
+    Data = WindowDockHostEnsureState(Window);
     if (Data == NULL) return DOCK_LAYOUT_STATUS_NOT_ATTACHED;
 
     return DockHostAttachDockable(&(Data->DockHost), Dockable);
@@ -202,13 +141,11 @@ U32 WindowDockHostAttachDockable(HANDLE Window, LPDOCKABLE Dockable) {
 /************************************************************************/
 
 U32 WindowDockHostDetachDockable(HANDLE Window, LPDOCKABLE Dockable) {
-    LPWINDOW This;
     LPWINDOW_DOCK_HOST_CLASS_DATA Data;
 
     if (Dockable == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
-    This = (LPWINDOW)Window;
-    Data = WindowDockHostClassGetData(This);
+    Data = WindowDockHostClassGetData(Window);
     if (Data == NULL || Data->DockHostInitialized == FALSE) return DOCK_LAYOUT_STATUS_NOT_ATTACHED;
 
     return DockHostDetachDockable(&(Data->DockHost), Dockable);
@@ -217,11 +154,9 @@ U32 WindowDockHostDetachDockable(HANDLE Window, LPDOCKABLE Dockable) {
 /************************************************************************/
 
 U32 WindowDockHostMarkDirty(HANDLE Window, U32 Reason) {
-    LPWINDOW This;
     LPWINDOW_DOCK_HOST_CLASS_DATA Data;
 
-    This = (LPWINDOW)Window;
-    Data = WindowDockHostClassGetData(This);
+    Data = WindowDockHostClassGetData(Window);
     if (Data == NULL || Data->DockHostInitialized == FALSE) return DOCK_LAYOUT_STATUS_NOT_ATTACHED;
 
     return DockHostMarkDirty(&(Data->DockHost), Reason);
@@ -230,23 +165,19 @@ U32 WindowDockHostMarkDirty(HANDLE Window, U32 Reason) {
 /************************************************************************/
 
 U32 WindowDockHostHandleWindowRectChanged(HANDLE Window) {
-    LPWINDOW This;
     LPWINDOW_DOCK_HOST_CLASS_DATA Data;
     RECT HostRect;
     U32 Status;
 
-    This = (LPWINDOW)Window;
-    if (This == NULL || This->TypeID != KOID_WINDOW) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
-
-    Data = WindowDockHostEnsureState(This);
+    Data = WindowDockHostEnsureState(Window);
     if (Data == NULL) return DOCK_LAYOUT_STATUS_NOT_ATTACHED;
 
-    if (GetWindowRect((HANDLE)This, &HostRect) == FALSE) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
+    if (GetWindowRect(Window, &HostRect) == FALSE) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
 
     Status = DockHostSetHostRect(&(Data->DockHost), &HostRect);
     if (Status != DOCK_LAYOUT_STATUS_SUCCESS) return Status;
 
-    return WindowDockHostRelayout((HANDLE)This);
+    return WindowDockHostRelayout(Window);
 }
 
 /************************************************************************/
@@ -261,7 +192,7 @@ U32 WindowDockHostRelayout(HANDLE Window) {
     UINT Index;
     U32 Status;
 
-    Data = WindowDockHostClassGetData((LPWINDOW)Window);
+    Data = WindowDockHostClassGetData(Window);
     if (Data == NULL || Data->DockHostInitialized == FALSE) return DOCK_LAYOUT_STATUS_NOT_ATTACHED;
 
     Status = DockHostBuildLayoutFrame(&(Data->DockHost), &Frame);
@@ -279,18 +210,19 @@ U32 WindowDockHostRelayout(HANDLE Window) {
 
         ReservedPlacementStates[Index] = ((DockableStyle & EWS_EXCLUDE_SIBLING_PLACEMENT) != 0);
         if (ReservedPlacementStates[Index] != FALSE) {
-            (void)SetWindowStyleState(DockableWindow, EWS_EXCLUDE_SIBLING_PLACEMENT, FALSE);
+            (void)ClearWindowStyle(DockableWindow, EWS_EXCLUDE_SIBLING_PLACEMENT);
         }
     }
 
     Status = DockHostApplyLayoutFrame(&(Data->DockHost), &Frame, &Result);
+
     for (Index = 0; Index < Data->DockHost.ItemCount && Index < DOCK_HOST_MAX_ITEMS; Index++) {
         if (ReservedPlacementStates[Index] == FALSE) continue;
         if (Data->DockHost.Items[Index] == NULL) continue;
 
         DockableWindow = (HANDLE)Data->DockHost.Items[Index]->Context;
         if (DockableWindow == NULL) continue;
-        (void)SetWindowStyleState(DockableWindow, EWS_EXCLUDE_SIBLING_PLACEMENT, TRUE);
+        (void)SetWindowStyle(DockableWindow, EWS_EXCLUDE_SIBLING_PLACEMENT);
     }
 
     return Status;
@@ -298,24 +230,10 @@ U32 WindowDockHostRelayout(HANDLE Window) {
 
 /************************************************************************/
 
-U32 WindowDockHostGetWorkRect(HANDLE Window, LPRECT WorkRect) {
-    LPWINDOW This;
-    LPWINDOW_DOCK_HOST_CLASS_DATA Data;
-
-    if (WorkRect == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
-
-    This = (LPWINDOW)Window;
-    Data = WindowDockHostClassGetData(This);
-    if (Data == NULL || Data->DockHostInitialized == FALSE) return DOCK_LAYOUT_STATUS_NOT_ATTACHED;
-
-    return DockHostGetWorkRect(&(Data->DockHost), WorkRect);
-}
-
-/************************************************************************/
-
 U32 WindowDockHostWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     switch (Message) {
         case EWM_CREATE:
+            if (WindowDockHostEnsureData(Window) == NULL) return 0;
             (void)WindowDockHostHandleWindowRectChanged(Window);
             return BaseWindowFunc(Window, Message, Param1, Param2);
 

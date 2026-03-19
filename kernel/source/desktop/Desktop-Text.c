@@ -32,7 +32,7 @@
  * @param TextInfo Text draw parameters.
  * @return TRUE on success.
  */
-BOOL DrawText(LPGFX_TEXT_DRAW_INFO TextInfo) {
+BOOL DesktopDrawText(LPGFX_TEXT_DRAW_INFO TextInfo) {
     LPGRAPHICSCONTEXT Context = NULL;
     GFX_TEXT_DRAW_INFO DrawInfo;
     UINT Result = 0;
@@ -63,7 +63,7 @@ BOOL DrawText(LPGFX_TEXT_DRAW_INFO TextInfo) {
  * @param TextInfo Text measure parameters.
  * @return TRUE on success.
  */
-BOOL MeasureText(LPGFX_TEXT_MEASURE_INFO TextInfo) {
+BOOL DesktopMeasureText(LPGFX_TEXT_MEASURE_INFO TextInfo) {
     LPDRIVER Driver = NULL;
 
     if (TextInfo == NULL) return FALSE;
@@ -74,6 +74,49 @@ BOOL MeasureText(LPGFX_TEXT_MEASURE_INFO TextInfo) {
     if (Driver == NULL || Driver->Command == NULL) return FALSE;
 
     return Driver->Command(DF_GFX_TEXT_MEASURE, (UINT)(LPVOID)TextInfo) != 0 ? TRUE : FALSE;
+}
+
+/***************************************************************************/
+
+BOOL DrawText(LPTEXT_DRAW_INFO TextInfo) {
+    GFX_TEXT_DRAW_INFO GraphicsTextInfo;
+
+    if (TextInfo == NULL) return FALSE;
+    if (TextInfo->Header.Size < sizeof(TEXT_DRAW_INFO)) return FALSE;
+
+    GraphicsTextInfo.Header = TextInfo->Header;
+    GraphicsTextInfo.Header.Size = sizeof(GFX_TEXT_DRAW_INFO);
+    GraphicsTextInfo.GC = TextInfo->GC;
+    GraphicsTextInfo.X = TextInfo->X;
+    GraphicsTextInfo.Y = TextInfo->Y;
+    GraphicsTextInfo.Text = TextInfo->Text;
+    GraphicsTextInfo.Font = (const struct tag_FONT_FACE*)(LPVOID)TextInfo->Font;
+
+    return DesktopDrawText(&GraphicsTextInfo);
+}
+
+/***************************************************************************/
+
+BOOL MeasureText(LPTEXT_MEASURE_INFO TextInfo) {
+    GFX_TEXT_MEASURE_INFO GraphicsTextInfo;
+
+    if (TextInfo == NULL) return FALSE;
+    if (TextInfo->Header.Size < sizeof(TEXT_MEASURE_INFO)) return FALSE;
+
+    GraphicsTextInfo.Header = TextInfo->Header;
+    GraphicsTextInfo.Header.Size = sizeof(GFX_TEXT_MEASURE_INFO);
+    GraphicsTextInfo.Text = TextInfo->Text;
+    GraphicsTextInfo.Font = (const struct tag_FONT_FACE*)(LPVOID)TextInfo->Font;
+    GraphicsTextInfo.Width = TextInfo->Width;
+    GraphicsTextInfo.Height = TextInfo->Height;
+
+    if (DesktopMeasureText(&GraphicsTextInfo) == FALSE) {
+        return FALSE;
+    }
+
+    TextInfo->Width = GraphicsTextInfo.Width;
+    TextInfo->Height = GraphicsTextInfo.Height;
+    return TRUE;
 }
 
 /***************************************************************************/

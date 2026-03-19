@@ -78,7 +78,7 @@ BOOL GetDefaultDeviceName(LPSTR Name, LPDEVICE Device, U32 DeviceType) {
             StringCopy(Name, Text_Eth);
             break;
         default:
-            StringCopy(Name, TEXT("dev"));
+            StringCopy(Name, Text_Dev);
             break;
     }
 

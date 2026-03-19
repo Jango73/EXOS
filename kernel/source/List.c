@@ -29,6 +29,21 @@
 #include "Log.h"
 #include "CoreString.h"
 
+static void ListFree(LPLIST This, LPVOID Pointer) {
+    if (This == NULL || Pointer == NULL) {
+        return;
+    }
+
+    if (This->MemFreeContextFunc != NULL) {
+        This->MemFreeContextFunc(This->MemoryContext, Pointer);
+        return;
+    }
+
+    if (This->MemFreeFunc != NULL) {
+        This->MemFreeFunc(Pointer);
+    }
+}
+
 /***************************************************************************/
 
 /**
@@ -111,31 +126,43 @@ void QuickSort(LPVOID Base, U32 NumItems, U32 ItemSize, COMPAREFUNC Func) {
  * @return Pointer to the new list, or NULL on failure.
  */
 LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREEFUNC MemFree) {
-    LPLIST This = NULL;
-
-    // FINE_DEBUG(TEXT("[NewList] Enter"));
-    // FINE_DEBUG(TEXT("[NewList] ItemDestructor = %X"), (LINEAR)ItemDestructor);
-    // FINE_DEBUG(TEXT("[NewList] MemAlloc = %X"), (LINEAR)MemAlloc);
-    // FINE_DEBUG(TEXT("[NewList] MemFree = %X"), (LINEAR)MemFree);
-
     if (MemAlloc == NULL) MemAlloc = KernelHeapAlloc;
     if (MemFree == NULL) MemFree = KernelHeapFree;
 
-    This = (LPLIST)MemAlloc(sizeof(LIST));
-
-    // FINE_DEBUG(TEXT("[NewList] List pointer = %X"), (LINEAR)This);
-
+    LPLIST This = (LPLIST)MemAlloc(sizeof(LIST));
     if (This == NULL) return NULL;
 
-    This->First = NULL;
-    This->Last = NULL;
-    This->Current = This->First;
-    This->NumItems = 0;
+    MemorySet(This, 0, sizeof(LIST));
     This->MemAllocFunc = MemAlloc;
     This->MemFreeFunc = MemFree;
     This->Destructor = ItemDestructor;
 
-    // FINE_DEBUG(TEXT("[NewList] Exit"));
+    return This;
+}
+
+/*************************************************************************************************/
+
+LPLIST NewListEx(
+    LISTITEMDESTRUCTOR ItemDestructor,
+    LPVOID MemoryContext,
+    MEMALLOCCONTEXTFUNC MemAlloc,
+    MEMFREECONTEXTFUNC MemFree) {
+    LPLIST This;
+
+    if (MemAlloc == NULL || MemFree == NULL) {
+        return NULL;
+    }
+
+    This = (LPLIST)MemAlloc(MemoryContext, sizeof(LIST));
+    if (This == NULL) {
+        return NULL;
+    }
+
+    MemorySet(This, 0, sizeof(LIST));
+    This->MemoryContext = MemoryContext;
+    This->MemAllocContextFunc = MemAlloc;
+    This->MemFreeContextFunc = MemFree;
+    This->Destructor = ItemDestructor;
 
     return This;
 }
@@ -150,7 +177,7 @@ LPLIST NewList(LISTITEMDESTRUCTOR ItemDestructor, MEMALLOCFUNC MemAlloc, MEMFREE
  */
 U32 DeleteList(LPLIST This) {
     ListReset(This);
-    This->MemFreeFunc(This);
+    ListFree(This, This);
     return TRUE;
 }
 

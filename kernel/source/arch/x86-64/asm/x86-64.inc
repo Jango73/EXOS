@@ -46,7 +46,7 @@ SELECTOR_REAL_DATA   equ (0x30 | SELECTOR_GLOBAL | CPU_PRIVILEGE_KERNEL)
 
 ;-------------------------------------------------------------------------
 ; KernelStartupInfo data layout (partial)
-; WARNING: MUST stay in sync with C struct tag_KERNELSTARTUPINFO
+; WARNING: MUST stay in sync with C struct tag_KERNEL_STARTUP_INFO
 ; in kernel/include/KernelData.h.
 
 STRUC KernelStartupInfo
@@ -140,7 +140,7 @@ ENDSTRUC
 ;-------------------------------------------------------------------------
 ; Kernel data layout shared with assembly
 
-STRUC KERNELDATA_X86_64
+STRUC KERNEL_DATA_X86_64
     .IDT RESQ 1
     .GDT RESQ 1
     .TSS RESQ 1

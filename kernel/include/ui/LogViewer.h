@@ -26,16 +26,16 @@
 
 /***************************************************************************/
 
-#include "Desktop.h"
+#include "User.h"
 
 /***************************************************************************/
 
 #define DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME TEXT("DesktopLogViewerWindowClass")
+#define DESKTOP_LOG_VIEWER_WINDOW_ID 0x534C4F47
 
 /***************************************************************************/
 
 BOOL LogViewerEnsureClassRegistered(void);
-BOOL LogViewerGetPreferredSize(LPPOINT SizeOut);
 U32 LogViewerWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
 
 /***************************************************************************/

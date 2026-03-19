@@ -18,122 +18,31 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    USB Mass Storage (BOT, read-only)
+    USB Mass Storage (BOT)
 
 \************************************************************************/
 
-#include "drivers/storage/USBStorage.h"
+#include "drivers/storage/USBStorage-Private.h"
 
 #include "Clock.h"
 #include "DeferredWork.h"
 #include "CoreString.h"
-#include "Disk.h"
-#include "Endianness.h"
 #include "FileSystem.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
 #include "console/Console.h"
 #include "User.h"
-#include "drivers/usb/XHCI-Internal.h"
 #include "process/Task-Messaging.h"
 #include "utils/Helpers.h"
-#include "utils/RateLimiter.h"
 
 /************************************************************************/
-
-#define USB_MASS_STORAGE_VER_MAJOR 1
-#define USB_MASS_STORAGE_VER_MINOR 0
-
-#define USB_MASS_STORAGE_SUBCLASS_SCSI 0x06
-#define USB_MASS_STORAGE_PROTOCOL_BOT 0x50
-#define USB_MASS_STORAGE_PROTOCOL_UAS 0x62
-
-#define USB_MASS_STORAGE_COMMAND_BLOCK_SIGNATURE 0x43425355
-#define USB_MASS_STORAGE_COMMAND_STATUS_SIGNATURE 0x53425355
-#define USB_MASS_STORAGE_COMMAND_BLOCK_LENGTH 31
-#define USB_MASS_STORAGE_COMMAND_STATUS_LENGTH 13
-
-#define USB_SCSI_INQUIRY 0x12
-#define USB_SCSI_READ_CAPACITY_10 0x25
-#define USB_SCSI_READ_10 0x28
-
-#define USB_MASS_STORAGE_BULK_TIMEOUT_MILLISECONDS 1000
-#define USB_MASS_STORAGE_BULK_RETRIES 3
-#define USB_MASS_STORAGE_SCAN_LOG_IMMEDIATE_BUDGET 1
-#define USB_MASS_STORAGE_SCAN_LOG_INTERVAL_MS 2000
 
 #define DF_RETURN_HARDWARE 0x00001001
-#define DF_RETURN_TIMEOUT 0x00001002
 #define DF_RETURN_NODEVICE 0x00001004
 
-/************************************************************************/
-
-#pragma pack(push, 1)
-
-typedef struct tag_USB_MASS_STORAGE_COMMAND_BLOCK_WRAPPER {
-    U32 Signature;
-    U32 Tag;
-    U32 DataTransferLength;
-    U8 Flags;
-    U8 LogicalUnitNumber;
-    U8 CommandBlockLength;
-    U8 CommandBlock[16];
-} USB_MASS_STORAGE_COMMAND_BLOCK_WRAPPER, *LPUSB_MASS_STORAGE_COMMAND_BLOCK_WRAPPER;
-
-typedef struct tag_USB_MASS_STORAGE_COMMAND_STATUS_WRAPPER {
-    U32 Signature;
-    U32 Tag;
-    U32 DataResidue;
-    U8 Status;
-} USB_MASS_STORAGE_COMMAND_STATUS_WRAPPER, *LPUSB_MASS_STORAGE_COMMAND_STATUS_WRAPPER;
-
-#pragma pack(pop)
-
-/************************************************************************/
-
-typedef struct tag_USB_MASS_STORAGE_DEVICE {
-    STORAGE_UNIT Disk;
-    U32 Access;
-    LPXHCI_DEVICE Controller;
-    LPXHCI_USB_DEVICE UsbDevice;
-    LPXHCI_USB_INTERFACE Interface;
-    LPXHCI_USB_ENDPOINT BulkInEndpoint;
-    LPXHCI_USB_ENDPOINT BulkOutEndpoint;
-    U8 InterfaceNumber;
-    U32 Tag;
-    UINT BlockCount;
-    UINT BlockSize;
-    PHYSICAL InputOutputBufferPhysical;
-    LINEAR InputOutputBufferLinear;
-    BOOL Ready;
-    BOOL MountPending;
-    BOOL ReferencesHeld;
-    LPUSB_STORAGE_ENTRY ListEntry;
-} USB_MASS_STORAGE_DEVICE, *LPUSB_MASS_STORAGE_DEVICE;
-
-typedef struct tag_USB_MASS_STORAGE_STATE {
-    BOOL Initialized;
-    U32 PollHandle;
-    UINT RetryDelay;
-    RATE_LIMITER ScanLogLimiter;
-} USB_MASS_STORAGE_STATE, *LPUSB_MASS_STORAGE_STATE;
-
 UINT USBStorageCommands(UINT Function, UINT Parameter);
-BOOL USBStorageIsMassStorageInterface(LPXHCI_USB_INTERFACE Interface);
-BOOL USBStorageFindBulkEndpoints(LPXHCI_USB_INTERFACE Interface,
-                                 LPXHCI_USB_ENDPOINT* BulkInOut,
-                                 LPXHCI_USB_ENDPOINT* BulkOutOut);
-BOOL USBStorageIsDevicePresent(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice);
-BOOL USBStorageIsTracked(LPXHCI_USB_DEVICE UsbDevice);
-BOOL USBStorageResetRecovery(LPUSB_MASS_STORAGE_DEVICE Device);
-BOOL USBStorageInquiry(LPUSB_MASS_STORAGE_DEVICE Device);
-BOOL USBStorageRequestSense(LPUSB_MASS_STORAGE_DEVICE Device);
-BOOL USBStorageReadCapacity(LPUSB_MASS_STORAGE_DEVICE Device);
-BOOL USBStorageReadBlocks(LPUSB_MASS_STORAGE_DEVICE Device,
-                          UINT LogicalBlockAddress,
-                          UINT TransferBlocks,
-                          LPVOID Output);
+
 
 static USB_MASS_STORAGE_STATE DATA_SECTION USBStorageState = {
     .Initialized = FALSE,
@@ -378,7 +287,7 @@ static LPUSB_MASS_STORAGE_DEVICE USBStorageAllocateDevice(void) {
     Device->Disk.Next = NULL;
     Device->Disk.Prev = NULL;
     Device->Disk.Driver = &USBStorageDriver;
-    Device->Access = DISK_ACCESS_READONLY;
+    Device->Access = 0;
     Device->Tag = 1;
     Device->Ready = FALSE;
     return Device;
@@ -718,7 +627,7 @@ static void USBStorageScanControllers(void) {
 
                     if (!USBStorageStartDevice(Controller, UsbDevice, Interface, BulkIn, BulkOut)) {
                         USBStorageLogScan(UsbDevice, Interface, TEXT("StartDeviceFailed"));
-                        USBStorageState.RetryDelay = 50;
+                        USBStorageState.RetryDelay = USB_MASS_STORAGE_SCAN_RETRY_DELAY_POLLS;
                         continue;
                     }
 
@@ -775,16 +684,26 @@ static void USBStoragePoll(LPVOID Context) {
 /************************************************************************/
 
 /**
- * @brief Read sectors from a USB mass storage device.
+ * @brief Validate a USB mass storage I/O control request.
+ * @param DeviceOut Receives validated USB mass storage device.
  * @param Control I/O control structure.
+ * @param TotalBytesOut Receives validated transfer length in bytes.
  * @return DF_RETURN_SUCCESS on success or error code.
  */
-static U32 USBStorageRead(LPIOCONTROL Control) {
+static U32 USBStorageValidateIoControl(LPUSB_MASS_STORAGE_DEVICE* DeviceOut,
+                                       LPIOCONTROL Control,
+                                       UINT* TotalBytesOut) {
+    LPUSB_MASS_STORAGE_DEVICE Device = NULL;
+
+    if (DeviceOut == NULL || TotalBytesOut == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
     if (Control == NULL) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    LPUSB_MASS_STORAGE_DEVICE Device = (LPUSB_MASS_STORAGE_DEVICE)Control->Disk;
+    Device = (LPUSB_MASS_STORAGE_DEVICE)Control->Disk;
     if (Device == NULL) {
         return DF_RETURN_BAD_PARAMETER;
     }
@@ -809,6 +728,8 @@ static U32 USBStorageRead(LPIOCONTROL Control) {
         return DF_RETURN_NODEVICE;
     }
 
+    *DeviceOut = Device;
+
     if (Control->NumSectors == 0) {
         return DF_RETURN_SUCCESS;
     }
@@ -825,29 +746,9 @@ static U32 USBStorageRead(LPIOCONTROL Control) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    UINT TotalBytes = Control->NumSectors * Device->BlockSize;
-    if (Control->BufferSize < TotalBytes) {
+    *TotalBytesOut = Control->NumSectors * Device->BlockSize;
+    if (Control->BufferSize < *TotalBytesOut) {
         return DF_RETURN_BAD_PARAMETER;
-    }
-
-    UINT Remaining = Control->NumSectors;
-    UINT CurrentLogicalBlockAddress = Control->SectorLow;
-    U8* Output = (U8*)Control->Buffer;
-
-    while (Remaining > 0) {
-        UINT MaximumBlocks = PAGE_SIZE / Device->BlockSize;
-        UINT Blocks = Remaining;
-        if (Blocks > MaximumBlocks) {
-            Blocks = MaximumBlocks;
-        }
-
-        if (!USBStorageReadBlocks(Device, CurrentLogicalBlockAddress, Blocks, Output)) {
-            return DF_RETURN_HARDWARE;
-        }
-
-        Output += Blocks * Device->BlockSize;
-        CurrentLogicalBlockAddress += Blocks;
-        Remaining -= Blocks;
     }
 
     return DF_RETURN_SUCCESS;
@@ -856,13 +757,112 @@ static U32 USBStorageRead(LPIOCONTROL Control) {
 /************************************************************************/
 
 /**
- * @brief Reject writes to a read-only USB mass storage device.
+ * @brief Flush one USB mass storage device write cache with one recovery retry.
+ * @param Device USB mass storage device context.
+ * @return TRUE on success.
+ */
+static BOOL USBStorageFlushWriteCache(LPUSB_MASS_STORAGE_DEVICE Device) {
+    if (Device == NULL) {
+        return FALSE;
+    }
+
+    if (USBStorageSynchronizeCache(Device)) {
+        return TRUE;
+    }
+
+    if (!USBStorageRecoverCommandFailure(Device, USB_SCSI_SYNCHRONIZE_CACHE_10)) {
+        return FALSE;
+    }
+
+    return USBStorageSynchronizeCache(Device);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Transfer sectors through USB BOT read or write commands.
  * @param Control I/O control structure.
- * @return DF_RETURN_NO_PERMISSION.
+ * @param DirectionIn TRUE for read, FALSE for write.
+ * @return DF_RETURN_SUCCESS on success or error code.
+ */
+static U32 USBStorageTransfer(LPIOCONTROL Control, BOOL DirectionIn) {
+    LPUSB_MASS_STORAGE_DEVICE Device = NULL;
+    UINT TotalBytes = 0;
+    UINT Remaining = 0;
+    UINT CurrentLogicalBlockAddress = 0;
+    U8* Buffer = NULL;
+    U32 Validation = USBStorageValidateIoControl(&Device, Control, &TotalBytes);
+
+    if (Validation != DF_RETURN_SUCCESS) {
+        return Validation;
+    }
+
+    if (!DirectionIn && (Device->Access & DISK_ACCESS_READONLY) != 0) {
+        return DF_RETURN_NO_PERMISSION;
+    }
+
+    Remaining = Control->NumSectors;
+    CurrentLogicalBlockAddress = Control->SectorLow;
+    Buffer = (U8*)Control->Buffer;
+
+    while (Remaining > 0) {
+        UINT MaximumBlocks = PAGE_SIZE / Device->BlockSize;
+        UINT Blocks = Remaining;
+        if (Blocks > MaximumBlocks) {
+            Blocks = MaximumBlocks;
+        }
+
+        if (DirectionIn) {
+            if (!USBStorageReadBlocks(Device, CurrentLogicalBlockAddress, Blocks, Buffer)) {
+                if (!USBStorageRecoverCommandFailure(Device, USB_SCSI_READ_10) ||
+                    !USBStorageReadBlocks(Device, CurrentLogicalBlockAddress, Blocks, Buffer)) {
+                    Device->Ready = FALSE;
+                    return DF_RETURN_HARDWARE;
+                }
+            }
+        } else {
+            if (!USBStorageWriteBlocks(Device, CurrentLogicalBlockAddress, Blocks, Buffer)) {
+                if (!USBStorageRecoverCommandFailure(Device, USB_SCSI_WRITE_10) ||
+                    !USBStorageWriteBlocks(Device, CurrentLogicalBlockAddress, Blocks, Buffer)) {
+                    Device->Ready = FALSE;
+                    return DF_RETURN_HARDWARE;
+                }
+            }
+        }
+
+        Buffer += Blocks * Device->BlockSize;
+        CurrentLogicalBlockAddress += Blocks;
+        Remaining -= Blocks;
+    }
+
+    if (!DirectionIn && Control->NumSectors != 0 && !USBStorageFlushWriteCache(Device)) {
+        Device->Ready = FALSE;
+        return DF_RETURN_HARDWARE;
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read sectors from a USB mass storage device.
+ * @param Control I/O control structure.
+ * @return DF_RETURN_SUCCESS on success or error code.
+ */
+static U32 USBStorageRead(LPIOCONTROL Control) {
+    return USBStorageTransfer(Control, TRUE);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Write sectors to a USB mass storage device.
+ * @param Control I/O control structure.
+ * @return DF_RETURN_SUCCESS on success or error code.
  */
 static U32 USBStorageWrite(LPIOCONTROL Control) {
-    UNUSED(Control);
-    return DF_RETURN_NO_PERMISSION;
+    return USBStorageTransfer(Control, FALSE);
 }
 
 /************************************************************************/
@@ -916,7 +916,7 @@ static U32 USBStorageSetAccess(LPDISKACCESS Access) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    Device->Access = (Access->Access | DISK_ACCESS_READONLY);
+    Device->Access = Access->Access;
     return DF_RETURN_SUCCESS;
 }
 
@@ -933,6 +933,15 @@ static U32 USBStorageReset(LPUSB_MASS_STORAGE_DEVICE Device) {
     }
 
     Device->Ready = USBStorageIsDevicePresent(Device->Controller, Device->UsbDevice);
+    if (!Device->Ready) {
+        return DF_RETURN_NODEVICE;
+    }
+
+    if (!USBStorageFlushWriteCache(Device)) {
+        Device->Ready = FALSE;
+        return DF_RETURN_HARDWARE;
+    }
+
     return DF_RETURN_SUCCESS;
 }
 

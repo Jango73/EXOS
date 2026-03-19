@@ -183,19 +183,6 @@ static BOOL FindNameID(const THEME_SCHEMA_NAME_ID_ENTRY* Table, UINT TableCount,
 /***************************************************************************/
 
 /**
- * @brief Tell whether a section name is part of the frozen top-level schema.
- * @param Name Section name.
- * @return TRUE when recognized.
- */
-BOOL DesktopThemeSchemaIsTopLevelSection(LPCSTR Name) {
-    U32 SectionID;
-
-    return DesktopThemeSchemaGetTopLevelSectionID(Name, &SectionID);
-}
-
-/***************************************************************************/
-
-/**
  * @brief Resolve top-level section identifier from its name.
  * @param Name Section name.
  * @param SectionID Receives DESKTOP_THEME_SECTION_* identifier.
@@ -203,19 +190,6 @@ BOOL DesktopThemeSchemaIsTopLevelSection(LPCSTR Name) {
  */
 BOOL DesktopThemeSchemaGetTopLevelSectionID(LPCSTR Name, U32* SectionID) {
     return FindNameID(TopLevelSections, sizeof(TopLevelSections) / sizeof(TopLevelSections[0]), Name, SectionID);
-}
-
-/***************************************************************************/
-
-/**
- * @brief Tell whether an element identifier is part of the frozen schema.
- * @param Name Element identifier.
- * @return TRUE when recognized.
- */
-BOOL DesktopThemeSchemaIsElementID(LPCSTR Name) {
-    U32 FamilyID;
-
-    return DesktopThemeSchemaGetElementFamily(Name, &FamilyID);
 }
 
 /***************************************************************************/
@@ -286,23 +260,6 @@ BOOL DesktopThemeSchemaGetLimits(LPDESKTOP_THEME_SCHEMA_LIMITS Limits) {
     Limits->MaxTokenCount = DESKTOP_THEME_MAX_TOKEN_COUNT;
     Limits->MaxRecipeCount = DESKTOP_THEME_MAX_RECIPE_COUNT;
     Limits->MaxPrimitiveCount = DESKTOP_THEME_MAX_PRIMITIVE_COUNT;
-
-    return TRUE;
-}
-
-/***************************************************************************/
-
-/**
- * @brief Validate a three-step state fallback sequence.
- * @param First First state (expected exact match).
- * @param Second Second state (expected partial fallback).
- * @param Third Third state (expected final fallback).
- * @return TRUE when sequence is valid.
- */
-BOOL DesktopThemeSchemaIsValidStateFallbackOrder(LPCSTR First, LPCSTR Second, LPCSTR Third) {
-    if (DesktopThemeSchemaIsStateID(First) == FALSE) return FALSE;
-    if (DesktopThemeSchemaIsStateID(Second) == FALSE) return FALSE;
-    if (StringCompareNC(Third, TEXT("normal")) != 0) return FALSE;
 
     return TRUE;
 }

@@ -32,6 +32,7 @@
 #include "Driver.h"
 #include "ID.h"
 #include "List.h"
+#include "Memory.h"
 #include "Mutex.h"
 #include "Security.h"
 #include "System.h"
@@ -55,7 +56,6 @@ typedef struct tag_WINDOW WINDOW, *LPWINDOW;
 typedef struct tag_WINDOW_CLASS WINDOW_CLASS, *LPWINDOW_CLASS;
 typedef struct tag_DESKTOP DESKTOP, *LPDESKTOP;
 typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
-struct tag_MEMORY_REGION_DESCRIPTOR;
 
 /************************************************************************/
 // Task status values
@@ -139,6 +139,7 @@ UINT TaskGetMinimumSystemStackSize(void);
 #define WINDOW_STATUS_DRAWING 0x0004
 #define WINDOW_STATUS_HAS_WORK_RECT 0x0008
 #define WINDOW_STATUS_BYPASS_PARENT_WORK_RECT 0x0010
+#define WINDOW_STATUS_CONTENT_TRANSPARENT 0x0020
 
 /************************************************************************/
 // Other window values
@@ -146,69 +147,71 @@ UINT TaskGetMinimumSystemStackSize(void);
 #define WINDOW_DIRTY_REGION_CAPACITY 32
 #define WINDOW_DRAW_CONTEXT_ACTIVE 0x00000001
 #define WINDOW_DRAW_CONTEXT_CLIENT_COORDINATES 0x00000002
+#define WINDOW_CONTENT_TRANSPARENCY_HINT_AUTO 0x00000000
+#define WINDOW_CONTENT_TRANSPARENCY_HINT_OPAQUE 0x00000001
+#define WINDOW_CONTENT_TRANSPARENCY_HINT_TRANSPARENT 0x00000002
 
 /************************************************************************/
 
 struct tag_PROCESS {
-    LISTNODE_FIELDS          // Standard EXOS object fields
-        MUTEX Mutex;         // This structure's mutex
-    MUTEX HeapMutex;         // This structure's mutex for heap allocation
-    SECURITY Security;       // Security attributes
-    LPDESKTOP Desktop;       // This process' desktop
-    U32 Privilege;           // This process' privilege level
-    U32 Status;              // (alive/dead)
-    U32 Flags;               // Process creation flags
-    U32 ControlFlags;        // Process control state (pause/interrupt)
-    PHYSICAL PageDirectory;  // This process' page directory
+    LISTNODE_FIELDS                                         // Standard EXOS object fields
+        MUTEX Mutex;                                        // This structure's mutex
+    MUTEX HeapMutex;                                        // This structure's mutex for heap allocation
+    SECURITY Security;                                      // Security attributes
+    U32 Privilege;                                          // This process' privilege level
+    U32 Status;                                             // (alive/dead)
+    U32 Flags;                                              // Process creation flags
+    U32 ControlFlags;                                       // Process control state (pause/interrupt)
+    PHYSICAL PageDirectory;
     LINEAR HeapBase;
     UINT HeapSize;
     UINT MaximumAllocatedMemory;
-    UINT ExitCode;  // This process' exit code
+    UINT ExitCode;                                          // Exit code
     STR FileName[MAX_PATH_NAME];
     STR CommandLine[MAX_PATH_NAME];
     STR WorkFolder[MAX_PATH_NAME];
-    UINT TaskCount;                  // Number of active tasks in this process
-    MESSAGEQUEUE MessageQueue;       // Process-level message queue (input, etc.)
-    U64 UserID;                      // Owner user
-    LPUSERSESSION Session;           // User session
-    LPFILESYSTEM PackageFileSystem;  // Mounted package filesystem tied to this process
-    struct tag_MEMORY_REGION_DESCRIPTOR* RegionListHead;
-    struct tag_MEMORY_REGION_DESCRIPTOR* RegionListTail;
-    UINT RegionCount;
+    UINT TaskCount;                                         // Number of active tasks in this process
+    MESSAGEQUEUE MessageQueue;                              // Process-level message queue (input, etc.)
+    U64 UserID;                                             // Owner user
+    LPDESKTOP Desktop;                                      // This process' desktop
+    LPUSER_SESSION Session;                                 // User session
+    LPFILESYSTEM PackageFileSystem;                         // Mounted package filesystem tied to this process
+    MEMORY_REGION_LIST MemoryRegionList;
     PROCESS_ADDRESS_SPACE AddressSpace;
 };
 
 typedef struct tag_PROPERTY {
     LISTNODE_FIELDS
     STR Name[32];
-    U32 Value;
+    UINT Value;
 } PROPERTY, *LPPROPERTY;
 
 struct tag_WINDOW {
-    LISTNODE_FIELDS         // Standard EXOS object fields
-        MUTEX Mutex;        // This window's mutex
-    LPTASK Task;            // The task that created this window
-    WINDOWFUNC Function;    // The function that manages this window
-    LPWINDOW ParentWindow;  // The parent of this window
-    LPLIST Children;        // The children of this window
-    LPLIST Properties;      // The user-defined properties of this window
-    LPWINDOW_CLASS Class;   // Window class metadata
-    LPVOID ClassData;       // Window class private data
-    RECT Rect;              // The rectangle of this window
+    LISTNODE_FIELDS                                 // Standard EXOS object fields
+        MUTEX Mutex;                                // This window's mutex
+    LPTASK Task;                                    // The task that created this window
+    WINDOWFUNC Function;                            // The function that manages this window
+    LPWINDOW ParentWindow;                          // The parent of this window
+    LPLIST Children;                                // The children of this window
+    LPLIST Properties;                              // The user-defined properties of this window
+    LPWINDOW_CLASS Class;                           // Window class metadata
+    LPVOID ClassData;                               // Window class private data
+    U32 DrawContextFlags;
+    U32 WindowID;
+    U32 Style;
+    U32 Status;
+    U32 ContentTransparencyHint;
+    U32 Level;
+    I32 Order;
+    STR Caption[MAX_WINDOW_CAPTION];
+    POINT DrawOrigin;
+    RECT Rect;                                      // The rectangle of this window
     RECT ScreenRect;
     RECT WorkRect;
     RECT DirtyRects[WINDOW_DIRTY_REGION_CAPACITY];
     RECT_REGION DirtyRegion;
     RECT DrawSurfaceRect;
     RECT DrawClipRect;
-    POINT DrawOrigin;
-    U32 DrawContextFlags;
-    U32 WindowID;
-    U32 Style;
-    U32 Status;
-    U32 Level;
-    I32 Order;
-    STR Caption[MAX_WINDOW_CAPTION];
 };
 
 typedef struct tag_WINDOW_CLASS {
@@ -233,7 +236,7 @@ typedef struct tag_DESKTOP_THEME {
 
 typedef struct tag_DESKTOP_DISPLAY_SELECTION {
     STR BackendAlias[MAX_NAME];
-    GRAPHICSMODEINFO ModeInfo;
+    GRAPHICS_MODE_INFO ModeInfo;
     BOOL IsAssigned;
 } DESKTOP_DISPLAY_SELECTION, *LPDESKTOP_DISPLAY_SELECTION;
 
@@ -252,23 +255,24 @@ typedef struct tag_MOUSE_CURSOR {
 } MOUSE_CURSOR, *LPMOUSE_CURSOR;
 
 struct tag_DESKTOP {
-    LISTNODE_FIELDS            // Standard EXOS object fields
-        MUTEX Mutex;           // This structure's mutex
-    LPTASK Task;               // The task that created this desktop
-    LPDRIVER Graphics;         // This desktop's graphics driver
-    LPWINDOW Window;           // Window of the desktop
-    LPWINDOW Capture;          // Window that captured mouse
-    I32 CaptureOffsetX;        // Mouse offset X in captured window on drag start
-    I32 CaptureOffsetY;        // Mouse offset Y in captured window on drag start
-    MUTEX TimerMutex;          // Protect desktop timers
-    LPLIST Timers;             // Per-desktop timer entries
-    LPTASK TimerTask;          // Per-desktop timer worker task
-    LPWINDOW Focus;            // Window that has focus
-    U32 Mode;                 // Active desktop display mode
-    I32 Order;                // Desktop ordering key among active desktops
-    U32 PendingComponents;    // Pending desktop-owned component injection flags
+    LISTNODE_FIELDS                 // Standard EXOS object fields
+        MUTEX Mutex;                // This structure's mutex
+    LPTASK Task;                    // The task that created this desktop
+    LPDRIVER Graphics;              // This desktop's graphics driver
+    LPWINDOW Window;                // Window of the desktop
+    LPWINDOW Capture;               // Window that captured mouse
+    LPWINDOW LastMouseMoveTarget;   // Window that last received mouse move dispatch
+    I32 CaptureOffsetX;             // Mouse offset X in captured window on drag start
+    I32 CaptureOffsetY;             // Mouse offset Y in captured window on drag start
+    MUTEX TimerMutex;               // Protect desktop timers
+    LPLIST Timers;                  // Per-desktop timer entries
+    LPTASK TimerTask;               // Per-desktop timer worker task
+    LPWINDOW Focus;                 // Window that has focus
+    U32 Mode;                       // Active desktop display mode
+    I32 Order;                      // Desktop ordering key among active desktops
+    U32 PendingComponents;          // Pending desktop-owned component injection flags
+    MOUSE_CURSOR Cursor;            // Desktop cursor runtime state
     DESKTOP_DISPLAY_SELECTION DisplaySelection;
-    MOUSE_CURSOR Cursor;      // Desktop cursor runtime state
 };
 
 /************************************************************************/
@@ -284,10 +288,11 @@ void DumpProcess(LPPROCESS);
 void KillProcess(LPPROCESS);
 void DeleteProcessCommit(LPPROCESS);
 void InitSecurity(LPSECURITY);
-BOOL CreateProcess(LPPROCESSINFO);
+BOOL CreateProcess(LPPROCESS_INFO);
 UINT Spawn(LPCSTR, LPCSTR);
 void SetProcessStatus(LPPROCESS Process, U32 Status);
 LINEAR GetProcessHeap(LPPROCESS);
+LPMEMORY_REGION_LIST GetProcessMemoryRegionList(LPPROCESS Process);
 
 /***************************************************************************/
 

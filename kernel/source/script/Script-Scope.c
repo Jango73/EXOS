@@ -35,18 +35,23 @@
  * @param Parent Parent scope or NULL for root scope
  * @return Pointer to new scope or NULL on failure
  */
-LPSCRIPT_SCOPE ScriptCreateScope(LPSCRIPT_SCOPE Parent) {
-    LPSCRIPT_SCOPE Scope = (LPSCRIPT_SCOPE)HeapAlloc(sizeof(SCRIPT_SCOPE));
+LPSCRIPT_SCOPE ScriptCreateScope(LPSCRIPT_CONTEXT Context, LPSCRIPT_SCOPE Parent) {
+    if (Context == NULL && Parent != NULL) {
+        Context = Parent->Context;
+    }
+
+    LPSCRIPT_SCOPE Scope = (LPSCRIPT_SCOPE)ScriptAlloc(Context, sizeof(SCRIPT_SCOPE));
     if (Scope == NULL) {
         DEBUG(TEXT("[ScriptCreateScope] Failed to allocate scope"));
         return NULL;
     }
 
     MemorySet(Scope, 0, sizeof(SCRIPT_SCOPE));
+    Scope->Context = Context;
 
     // Initialize hash table
     for (U32 i = 0; i < SCRIPT_VAR_HASH_SIZE; i++) {
-        Scope->Buckets[i] = NewList(NULL, HeapAlloc, HeapFree);
+        Scope->Buckets[i] = NewListEx(NULL, &Context->Allocator, AllocatorListAlloc, AllocatorListFree);
         if (Scope->Buckets[i] == NULL) {
             DEBUG(TEXT("[ScriptCreateScope] Failed to create bucket %d"), i);
             ScriptDestroyScope(Scope);
@@ -83,7 +88,7 @@ void ScriptDestroyScope(LPSCRIPT_SCOPE Scope) {
         }
     }
 
-    HeapFree(Scope);
+    ScriptFree(Scope->Context, Scope);
 }
 
 /************************************************************************/
@@ -96,7 +101,7 @@ void ScriptDestroyScope(LPSCRIPT_SCOPE Scope) {
 LPSCRIPT_SCOPE ScriptPushScope(LPSCRIPT_CONTEXT Context) {
     if (Context == NULL) return NULL;
 
-    LPSCRIPT_SCOPE NewScope = ScriptCreateScope(Context->CurrentScope);
+    LPSCRIPT_SCOPE NewScope = ScriptCreateScope(Context, Context->CurrentScope);
     if (NewScope == NULL) {
         return NULL;
     }
@@ -173,7 +178,7 @@ LPSCRIPT_VARIABLE ScriptSetVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, SC
     SAFE_USE(ExistingVar) {
         // Update existing variable in whichever scope it was found
         if (ExistingVar->Type == SCRIPT_VAR_STRING && ExistingVar->Value.String) {
-            HeapFree(ExistingVar->Value.String);
+            ScriptFree(Scope->Context, ExistingVar->Value.String);
             ExistingVar->Value.String = NULL;
         }
 
@@ -183,7 +188,7 @@ LPSCRIPT_VARIABLE ScriptSetVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, SC
         // Duplicate string value
         if (Type == SCRIPT_VAR_STRING && Value.String) {
             U32 Len = StringLength(Value.String) + 1;
-            ExistingVar->Value.String = (LPSTR)HeapAlloc(Len);
+            ExistingVar->Value.String = (LPSTR)ScriptAlloc(Scope->Context, Len);
             if (ExistingVar->Value.String) {
                 StringCopy(ExistingVar->Value.String, Value.String);
             }
@@ -196,10 +201,11 @@ LPSCRIPT_VARIABLE ScriptSetVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, SC
     U32 Hash = ScriptHashVariable(Name);
     LPLIST Bucket = Scope->Buckets[Hash];
 
-    LPSCRIPT_VARIABLE Variable = (LPSCRIPT_VARIABLE)HeapAlloc(sizeof(SCRIPT_VARIABLE));
+    LPSCRIPT_VARIABLE Variable = (LPSCRIPT_VARIABLE)ScriptAlloc(Scope->Context, sizeof(SCRIPT_VARIABLE));
     if (Variable == NULL) return NULL;
 
     MemorySet(Variable, 0, sizeof(SCRIPT_VARIABLE));
+    Variable->Context = Scope->Context;
     StringCopy(Variable->Name, Name);
     Variable->Type = Type;
     Variable->Value = Value;
@@ -208,11 +214,11 @@ LPSCRIPT_VARIABLE ScriptSetVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, SC
     // Duplicate string value
     if (Type == SCRIPT_VAR_STRING && Value.String) {
         U32 Len = StringLength(Value.String) + 1;
-        Variable->Value.String = (LPSTR)HeapAlloc(Len);
+        Variable->Value.String = (LPSTR)ScriptAlloc(Scope->Context, Len);
         if (Variable->Value.String) {
             StringCopy(Variable->Value.String, Value.String);
         } else {
-            HeapFree(Variable);
+            ScriptFree(Scope->Context, Variable);
             return NULL;
         }
     }

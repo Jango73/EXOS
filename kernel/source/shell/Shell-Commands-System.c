@@ -133,6 +133,38 @@ static void PrintDriverDetails(LPDRIVER Driver) {
 /***************************************************************************/
 
 /**
+ * @brief Print one summary line for every registered driver.
+ */
+static void PrintDriverList(void) {
+    UINT DriverCount = 0;
+    LPLIST DriverList = GetDriverList();
+
+    if (DriverList == NULL || DriverList->First == NULL) {
+        ConsolePrint(TEXT("No driver detected\n"));
+        return;
+    }
+
+    for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
+        LPDRIVER Driver = (LPDRIVER)Node;
+
+        SAFE_USE_VALID_ID(Driver, KOID_DRIVER) {
+            ConsolePrint(TEXT("%s type=%s ready=%u product=%s\n"),
+                StringLength(Driver->Alias) != 0 ? Driver->Alias : TEXT("<none>"),
+                DriverTypeToText(Driver->Type),
+                (Driver->Flags & DRIVER_FLAG_READY) != 0 ? 1 : 0,
+                StringLength(Driver->Product) != 0 ? Driver->Product : TEXT("<none>"));
+            DriverCount++;
+        }
+    }
+
+    if (DriverCount == 0) {
+        ConsolePrint(TEXT("No driver detected\n"));
+    }
+}
+
+/***************************************************************************/
+
+/**
  * @brief Print one driver detail view selected by alias.
  * @param Context Shell context.
  * @return DF_RETURN_SUCCESS on completion.
@@ -144,7 +176,13 @@ U32 CMD_driver(LPSHELLCONTEXT Context) {
     ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command) == 0) {
-        ConsolePrint(TEXT("Usage: driver Alias\n"));
+        ConsolePrint(TEXT("Usage: driver list\n"));
+        ConsolePrint(TEXT("       driver Alias\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (StringCompareNC(Context->Command, TEXT("list")) == 0) {
+        PrintDriverList();
         return DF_RETURN_SUCCESS;
     }
 
@@ -245,10 +283,11 @@ U32 CMD_memorymap(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
     LPPROCESS Process = &KernelProcess;
-    LPMEMORY_REGION_DESCRIPTOR Descriptor = Process->RegionListHead;
+    LPMEMORY_REGION_LIST RegionList = GetProcessMemoryRegionList(Process);
+    LPMEMORY_REGION_DESCRIPTOR Descriptor = (RegionList == NULL) ? NULL : RegionList->Head;
     UINT Index = 0;
 
-    ConsolePrint(TEXT("Kernel regions: %u\n"), Process->RegionCount);
+    ConsolePrint(TEXT("Kernel regions: %u\n"), RegionList ? RegionList->Count : 0);
 
     while (Descriptor != NULL) {
         LPCSTR Tag = (Descriptor->Tag[0] == STR_NULL) ? TEXT("???") : Descriptor->Tag;
@@ -333,9 +372,9 @@ U32 CMD_network(LPSHELLCONTEXT Context) {
 
                 SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
                     SAFE_USE_VALID_ID(Device->Driver, KOID_DRIVER) {
-                        NETWORKINFO Info;
+                        NETWORK_INFO Info;
                         MemorySet(&Info, 0, sizeof(Info));
-                        NETWORKGETINFO GetInfo = {.Device = Device, .Info = &Info};
+                        NETWORK_GET_INFO GetInfo = {.Device = Device, .Info = &Info};
                         Device->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo);
 
                         U32 IpHost = Ntohl(NetContext->ActiveConfig.LocalIPv4_Be);
@@ -421,7 +460,6 @@ U32 CMD_prof(LPSHELLCONTEXT Context) {
  * @return DF_RETURN_SUCCESS.
  */
 U32 CMD_autotest(LPSHELLCONTEXT Context) {
-    BOOL PreviousErrorConsoleEnabled;
     BOOL Result = FALSE;
 
     ParseNextCommandLineComponent(Context);
@@ -431,10 +469,7 @@ U32 CMD_autotest(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    PreviousErrorConsoleEnabled = KernelLogGetErrorConsoleEnabled();
-    KernelLogSetErrorConsoleEnabled(FALSE);
     Result = RunSingleTestByName(TEXT("TestCopyStack"));
-    KernelLogSetErrorConsoleEnabled(PreviousErrorConsoleEnabled);
 
     if (Result) {
         ConsolePrint(TEXT("autotest stack: passed\n"));

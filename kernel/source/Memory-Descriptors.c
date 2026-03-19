@@ -41,19 +41,6 @@ UINT DATA_SECTION G_RegionDescriptorPages = 0;
 
 /************************************************************************/
 /**
- * @brief Resolve the process associated with the active address space.
- * @return Current process or KernelProcess when unavailable.
- */
-LPPROCESS ResolveCurrentAddressSpaceOwner(void) {
-    LPPROCESS Process = GetCurrentProcess();
-    if (Process == NULL) {
-        Process = &KernelProcess;
-    }
-    return Process;
-}
-
-/************************************************************************/
-/**
  * @brief Allocate and chain one descriptor slab.
  * @return TRUE on success, FALSE otherwise.
  */
@@ -175,12 +162,12 @@ static void ReleaseRegionDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor) {
 
 /************************************************************************/
 /**
- * @brief Insert a descriptor into the process list sorted by base address.
- * @param Process Target process.
+ * @brief Insert a descriptor into the region list sorted by base address.
+ * @param List Target list.
  * @param Descriptor Descriptor to link.
  */
-static void InsertDescriptorOrdered(LPPROCESS Process, LPMEMORY_REGION_DESCRIPTOR Descriptor) {
-    LPMEMORY_REGION_DESCRIPTOR Current = Process->RegionListHead;
+static void InsertDescriptorOrdered(LPMEMORY_REGION_LIST List, LPMEMORY_REGION_DESCRIPTOR Descriptor) {
+    LPMEMORY_REGION_DESCRIPTOR Current = List->Head;
     LPMEMORY_REGION_DESCRIPTOR Previous = NULL;
 
     while (Current != NULL && Current->CanonicalBase < Descriptor->CanonicalBase) {
@@ -194,57 +181,57 @@ static void InsertDescriptorOrdered(LPPROCESS Process, LPMEMORY_REGION_DESCRIPTO
     if (Current != NULL) {
         Current->Prev = (LPLISTNODE)Descriptor;
     } else {
-        Process->RegionListTail = Descriptor;
+        List->Tail = Descriptor;
     }
 
     if (Previous != NULL) {
         Previous->Next = (LPLISTNODE)Descriptor;
     } else {
-        Process->RegionListHead = Descriptor;
+        List->Head = Descriptor;
     }
 
-    Process->RegionCount++;
+    List->Count++;
 }
 
 /************************************************************************/
 /**
- * @brief Remove a descriptor from the process list.
- * @param Process Target process.
+ * @brief Remove a descriptor from the region list.
+ * @param List Target list.
  * @param Descriptor Descriptor to unlink.
  */
-static void RemoveDescriptor(LPPROCESS Process, LPMEMORY_REGION_DESCRIPTOR Descriptor) {
+static void RemoveDescriptor(LPMEMORY_REGION_LIST List, LPMEMORY_REGION_DESCRIPTOR Descriptor) {
     LPMEMORY_REGION_DESCRIPTOR Prev = (LPMEMORY_REGION_DESCRIPTOR)Descriptor->Prev;
     LPMEMORY_REGION_DESCRIPTOR Next = (LPMEMORY_REGION_DESCRIPTOR)Descriptor->Next;
 
     if (Prev != NULL) {
         Prev->Next = (LPLISTNODE)Next;
     } else {
-        Process->RegionListHead = Next;
+        List->Head = Next;
     }
 
     if (Next != NULL) {
         Next->Prev = (LPLISTNODE)Prev;
     } else {
-        Process->RegionListTail = Prev;
+        List->Tail = Prev;
     }
 
     Descriptor->Next = NULL;
     Descriptor->Prev = NULL;
 
-    if (Process->RegionCount != 0) {
-        Process->RegionCount--;
+    if (List->Count != 0) {
+        List->Count--;
     }
 }
 
 /************************************************************************/
 /**
  * @brief Find the descriptor that starts at the specified canonical base.
- * @param Process Target process.
+ * @param List Target list.
  * @param CanonicalBase Canonical linear base.
  * @return Descriptor pointer or NULL when absent.
  */
-LPMEMORY_REGION_DESCRIPTOR FindDescriptorForBase(LPPROCESS Process, LINEAR CanonicalBase) {
-    LPMEMORY_REGION_DESCRIPTOR Current = Process->RegionListHead;
+LPMEMORY_REGION_DESCRIPTOR FindDescriptorForBase(LPMEMORY_REGION_LIST List, LINEAR CanonicalBase) {
+    LPMEMORY_REGION_DESCRIPTOR Current = List->Head;
 
     while (Current != NULL) {
         if (Current->CanonicalBase == CanonicalBase) {
@@ -262,14 +249,14 @@ LPMEMORY_REGION_DESCRIPTOR FindDescriptorForBase(LPPROCESS Process, LINEAR Canon
 /************************************************************************/
 /**
  * @brief Find the descriptor covering a given canonical address.
- * @param Process Target process.
+ * @param List Target list.
  * @param CanonicalBase Address to resolve.
  * @return Descriptor pointer or NULL when no descriptor covers the address.
  */
 LPMEMORY_REGION_DESCRIPTOR FindDescriptorCoveringAddress(
-    LPPROCESS Process,
+    LPMEMORY_REGION_LIST List,
     LINEAR CanonicalBase) {
-    LPMEMORY_REGION_DESCRIPTOR Current = Process->RegionListHead;
+    LPMEMORY_REGION_DESCRIPTOR Current = List->Head;
 
     while (Current != NULL) {
         LINEAR RegionStart = Current->CanonicalBase;
@@ -331,8 +318,7 @@ void ExtendDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor, UINT AdditionalPage
  * @param Flags Allocation flags.
  * @return TRUE on success, FALSE otherwise.
  */
-BOOL RegisterRegionDescriptor(LINEAR Base, UINT NumPages, PHYSICAL Target, U32 Flags, LPCSTR Tag) {
-    LPPROCESS Process = ResolveCurrentAddressSpaceOwner();
+BOOL RegisterRegionDescriptor(LPMEMORY_REGION_LIST List, LINEAR Base, UINT NumPages, PHYSICAL Target, U32 Flags, LPCSTR Tag) {
     LPMEMORY_REGION_DESCRIPTOR Descriptor = AcquireRegionDescriptor();
 
     if (Descriptor == NULL) {
@@ -345,7 +331,7 @@ BOOL RegisterRegionDescriptor(LINEAR Base, UINT NumPages, PHYSICAL Target, U32 F
     Descriptor->TypeID = KOID_MEMORY_REGION_DESCRIPTOR;
     Descriptor->References = 1;
     Descriptor->ID = U64_Make(0, 0);
-    Descriptor->OwnerProcess = Process;
+    MemoryRegionDescriptorAssignCurrentOwner(Descriptor);
     Descriptor->CanonicalBase = CanonicalizeLinearAddress(Base);
     Descriptor->Base = Descriptor->CanonicalBase;
     Descriptor->PhysicalBase = Target;
@@ -369,7 +355,7 @@ BOOL RegisterRegionDescriptor(LINEAR Base, UINT NumPages, PHYSICAL Target, U32 F
         Descriptor->Tag[0] = STR_NULL;
     }
 
-    InsertDescriptorOrdered(Process, Descriptor);
+    InsertDescriptorOrdered(List, Descriptor);
 
     return TRUE;
 }
@@ -380,18 +366,17 @@ BOOL RegisterRegionDescriptor(LINEAR Base, UINT NumPages, PHYSICAL Target, U32 F
  * @param Base Canonical base of the range being freed.
  * @param SizeBytes Size of the freed range in bytes.
  */
-void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
+void UpdateDescriptorsForFree(LPMEMORY_REGION_LIST List, LINEAR Base, UINT SizeBytes) {
     if (SizeBytes == 0) {
         return;
     }
 
-    LPPROCESS Process = ResolveCurrentAddressSpaceOwner();
     LINEAR CanonicalBase = CanonicalizeLinearAddress(Base);
     LINEAR Cursor = CanonicalBase;
     UINT RemainingBytes = SizeBytes;
 
     while (RemainingBytes != 0) {
-        LPMEMORY_REGION_DESCRIPTOR Descriptor = FindDescriptorCoveringAddress(Process, Cursor);
+        LPMEMORY_REGION_DESCRIPTOR Descriptor = FindDescriptorCoveringAddress(List, Cursor);
         if (Descriptor == NULL) {
             WARNING(TEXT("[UpdateDescriptorsForFree] Missing descriptor for base=%p size=%u"),
                 (LPVOID)Cursor,
@@ -417,12 +402,12 @@ void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
         BOOL TrimTail = (FreeStart > RegionStart && FreeEnd == RegionEnd);
 
         if (EntireRegion) {
-            RemoveDescriptor(Process, Descriptor);
+            RemoveDescriptor(List, Descriptor);
             ReleaseRegionDescriptor(Descriptor);
         } else if (TrimTail) {
             UINT Remaining = (UINT)(FreeStart - RegionStart);
             if (Remaining == 0) {
-                RemoveDescriptor(Process, Descriptor);
+                RemoveDescriptor(List, Descriptor);
                 ReleaseRegionDescriptor(Descriptor);
             } else {
                 Descriptor->Size = Remaining;
@@ -431,7 +416,7 @@ void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
             }
         } else if (TrimHead) {
             UINT Remaining = (UINT)(RegionEnd - FreeEnd);
-            RemoveDescriptor(Process, Descriptor);
+            RemoveDescriptor(List, Descriptor);
             Descriptor->Base = FreeEnd;
             Descriptor->CanonicalBase = FreeEnd;
             if (Descriptor->PhysicalBase != 0) {
@@ -443,7 +428,7 @@ void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
             if (Descriptor->Size == 0) {
                 ReleaseRegionDescriptor(Descriptor);
             } else {
-                InsertDescriptorOrdered(Process, Descriptor);
+                InsertDescriptorOrdered(List, Descriptor);
             }
         } else {
             UINT LeftBytes = (UINT)(FreeStart - RegionStart);
@@ -456,7 +441,7 @@ void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
                 ConsolePanic(TEXT("Descriptor split allocation failed"));
             }
 
-            RemoveDescriptor(Process, Descriptor);
+            RemoveDescriptor(List, Descriptor);
 
             Descriptor->Size = LeftBytes;
             Descriptor->PageCount = LeftBytes >> PAGE_SIZE_MUL;
@@ -466,13 +451,13 @@ void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
             if (Descriptor->Size == 0) {
                 ReleaseRegionDescriptor(Descriptor);
             } else {
-                InsertDescriptorOrdered(Process, Descriptor);
+                InsertDescriptorOrdered(List, Descriptor);
             }
 
             Right->TypeID = KOID_MEMORY_REGION_DESCRIPTOR;
             Right->References = 1;
             Right->ID = U64_Make(0, 0);
-            Right->OwnerProcess = Process;
+            Right->OwnerProcess = Descriptor->OwnerProcess;
             Right->Base = FreeEnd;
             Right->CanonicalBase = FreeEnd;
             Right->PhysicalBase = DescriptorPhysicalBase;
@@ -490,7 +475,7 @@ void UpdateDescriptorsForFree(LINEAR Base, UINT SizeBytes) {
             if (Right->Size == 0) {
                 ReleaseRegionDescriptor(Right);
             } else {
-                InsertDescriptorOrdered(Process, Right);
+                InsertDescriptorOrdered(List, Right);
             }
 
         }
@@ -536,6 +521,8 @@ void InitializeRegionDescriptorTracking(void) {
  * @return TRUE on success or when tracking is disabled.
  */
 BOOL RegionTrackAlloc(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag) {
+    LPMEMORY_REGION_LIST List = GetCurrentMemoryRegionList();
+
     if (G_RegionDescriptorsEnabled == FALSE || G_RegionDescriptorBootstrap == TRUE) {
         return TRUE;
     }
@@ -549,7 +536,11 @@ BOOL RegionTrackAlloc(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR
         return FALSE;
     }
 
-    return RegisterRegionDescriptor(Base, NumPages, Target, Flags, Tag);
+    if (List == NULL) {
+        return FALSE;
+    }
+
+    return RegisterRegionDescriptor(List, Base, NumPages, Target, Flags, Tag);
 }
 
 /************************************************************************/
@@ -560,6 +551,8 @@ BOOL RegionTrackAlloc(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR
  * @return TRUE on success or when tracking is disabled.
  */
 BOOL RegionTrackFree(LINEAR Base, UINT Size) {
+    LPMEMORY_REGION_LIST List = GetCurrentMemoryRegionList();
+
     if (G_RegionDescriptorsEnabled == FALSE || G_RegionDescriptorBootstrap == TRUE) {
         return TRUE;
     }
@@ -568,7 +561,11 @@ BOOL RegionTrackFree(LINEAR Base, UINT Size) {
         return FALSE;
     }
 
-    UpdateDescriptorsForFree(Base, Size);
+    if (List == NULL) {
+        return FALSE;
+    }
+
+    UpdateDescriptorsForFree(List, Base, Size);
     return TRUE;
 }
 
@@ -582,6 +579,8 @@ BOOL RegionTrackFree(LINEAR Base, UINT Size) {
  * @return TRUE on success or when tracking is disabled.
  */
 BOOL RegionTrackResize(LINEAR Base, UINT OldSize, UINT NewSize, U32 Flags) {
+    LPMEMORY_REGION_LIST List = GetCurrentMemoryRegionList();
+
     if (G_RegionDescriptorsEnabled == FALSE || G_RegionDescriptorBootstrap == TRUE) {
         return TRUE;
     }
@@ -593,7 +592,10 @@ BOOL RegionTrackResize(LINEAR Base, UINT OldSize, UINT NewSize, U32 Flags) {
     if (NewSize < OldSize) {
         LINEAR FreeBase = Base + (LINEAR)NewSize;
         UINT FreeSize = OldSize - NewSize;
-        UpdateDescriptorsForFree(FreeBase, FreeSize);
+        if (List == NULL) {
+            return FALSE;
+        }
+        UpdateDescriptorsForFree(List, FreeBase, FreeSize);
         return TRUE;
     }
 
@@ -604,9 +606,13 @@ BOOL RegionTrackResize(LINEAR Base, UINT OldSize, UINT NewSize, U32 Flags) {
     }
 
     LINEAR CanonicalBase = CanonicalizeLinearAddress(Base);
-    LPMEMORY_REGION_DESCRIPTOR Descriptor = FindDescriptorForBase(ResolveCurrentAddressSpaceOwner(), CanonicalBase);
+    if (List == NULL) {
+        return FALSE;
+    }
+
+    LPMEMORY_REGION_DESCRIPTOR Descriptor = FindDescriptorForBase(List, CanonicalBase);
     if (Descriptor == NULL) {
-        return RegisterRegionDescriptor(Base, (NewSize + PAGE_SIZE - 1) >> PAGE_SIZE_MUL, 0, Flags, NULL);
+        return RegisterRegionDescriptor(List, Base, (NewSize + PAGE_SIZE - 1) >> PAGE_SIZE_MUL, 0, Flags, NULL);
     }
 
     ExtendDescriptor(Descriptor, AdditionalPages);

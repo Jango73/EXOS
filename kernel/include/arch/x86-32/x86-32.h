@@ -433,11 +433,11 @@ typedef struct {
 
 // Architecture-specific kernel data exposed to assembly and C
 
-typedef struct tag_KERNELDATA_X86_32 {
+typedef struct tag_KERNEL_DATA_X86_32 {
     LPGATE_DESCRIPTOR IDT;
     LPSEGMENT_DESCRIPTOR GDT;
     LPTASK_STATE_SEGMENT TSS;
-} KERNELDATA_X86_32, *LPKERNELDATA_X86_32;
+} KERNEL_DATA_X86_32, *LPKERNEL_DATA_X86_32;
 
 #pragma pack(pop)
 
@@ -693,7 +693,7 @@ static inline U32 LoadPageDirectory(PHYSICAL Base)
 /************************************************************************/
 // External symbols
 
-extern KERNELDATA_X86_32 Kernel_x86_32;
+extern KERNEL_DATA_X86_32 Kernel_x86_32;
 
 BOOL GetSegmentInfo(LPSEGMENT_DESCRIPTOR This, LPSEGMENT_INFO Info);
 BOOL SegmentInfoToString(LPSEGMENT_INFO This, LPSTR Text);
@@ -710,9 +710,9 @@ void InitializeSystemCall(void);
 
 struct tag_TASK;
 struct tag_PROCESS;
-struct tag_TASKINFO;
+struct tag_TASK_INFO;
 
-BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info);
+BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASK_INFO* Info);
 void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTask);
 
 /***************************************************************************/

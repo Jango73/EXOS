@@ -121,7 +121,7 @@ section .text
     pop     rdi
     pop     rsi
     pop     rbp
-    pop     rsp
+    add     rsp, 8
     pop     rbx
     pop     rdx
     pop     rcx
@@ -494,7 +494,7 @@ Interrupt_SystemCall:
     cli
 
     mov     rdx, rsp                     ; Preserve user-mode stack pointer
-    mov     rax, [rel Kernel_x86_32 + KERNELDATA_X86_64.TSS]
+    mov     rax, [rel Kernel_x86_32 + KERNEL_DATA_X86_64.TSS]
     mov     rsp, [rax + X86_64_TASK_STATE_SEGMENT.RSP0] ; Switch to task kernel stack
 
     push    rdx                          ; Store user-mode stack pointer on kernel stack

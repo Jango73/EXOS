@@ -25,7 +25,6 @@
 #include "utils/CommandLineEditor.h"
 
 #include "console/Console.h"
-#include "Heap.h"
 #include "drivers/input/Keyboard.h"
 #include "Log.h"
 #include "CoreString.h"
@@ -125,7 +124,7 @@ static void RefreshInputDisplay(
  */
 static void MarkCurrentSessionActivity(void) {
     LPPROCESS Process = GetCurrentProcess();
-    LPUSERSESSION Session;
+    LPUSER_SESSION Session;
 
     SAFE_USE(Process) {
         Session = Process->Session;
@@ -136,10 +135,16 @@ static void MarkCurrentSessionActivity(void) {
 /***************************************************************************/
 
 void CommandLineEditorInit(LPCOMMANDLINEEDITOR Editor, U32 HistoryCapacity) {
+    CommandLineEditorInitA(Editor, HistoryCapacity, NULL);
+}
+
+/***************************************************************************/
+
+void CommandLineEditorInitA(LPCOMMANDLINEEDITOR Editor, U32 HistoryCapacity, LPCALLOCATOR Allocator) {
     MemorySet(Editor, 0, sizeof(COMMANDLINEEDITOR));
 
     Editor->HistoryCapacity = HistoryCapacity;
-    StringArrayInit(&Editor->History, HistoryCapacity);
+    StringArrayInitA(&Editor->History, HistoryCapacity, Allocator);
     Editor->CompletionCallback = NULL;
     Editor->CompletionUserData = NULL;
     Editor->IdleCallback = NULL;
@@ -375,7 +380,7 @@ void CommandLineEditorClearHistory(LPCOMMANDLINEEDITOR Editor) {
 
     for (Index = 0; Index < Editor->History.Count; Index++) {
         if (Editor->History.Items[Index]) {
-            KernelHeapFree(Editor->History.Items[Index]);
+            AllocatorFree(&Editor->History.Allocator, Editor->History.Items[Index]);
             Editor->History.Items[Index] = NULL;
         }
     }

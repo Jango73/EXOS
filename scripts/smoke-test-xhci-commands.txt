@@ -1,0 +1,8 @@
+# Smoke-test command specification
+# Format:
+# command: "<command line>" | log: "<expected fixed log fragment>" | file-size-compare: "<source-file>" "<downloaded-file>"
+
+command: "type /fs/u0p0/read.txt" | log: "TEST > [CMD_type] type /fs/u0p0/read.txt : OK"
+command: "copy /fs/u0p0/read.txt /fs/u0p0/write.txt" | log: "TEST > [CMD_copy] copy /fs/u0p0/read.txt /fs/u0p0/write.txt : OK"
+command: "type /fs/u0p0/write.txt" | log: "TEST > [CMD_type] type /fs/u0p0/write.txt : OK"
+command: "shutdown"

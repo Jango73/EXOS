@@ -52,10 +52,10 @@ struct tag_TSS_DESCRIPTOR;
 
 typedef UINT (*SYSCALLFUNC)(UINT);
 
-typedef struct tag_SYSCALLENTRY {
+typedef struct tag_SYSCALL_ENTRY {
     SYSCALLFUNC Function;
     U32 Privilege;
-} SYSCALLENTRY, *LPSYSCALLENTRY;
+} SYSCALL_ENTRY, *LPSYSCALL_ENTRY;
 
 /************************************************************************/
 // Functions in Kernel.c

@@ -395,7 +395,7 @@ typedef UINT SOCKET_HANDLE;
 // ASCII string types
 
 typedef U8 STR;
-typedef const STR CSTR;
+typedef CONST STR CSTR;
 typedef STR* LPSTR;
 typedef CONST STR* LPCSTR;
 
@@ -463,7 +463,7 @@ extern void ConsolePrint(LPCSTR Format, ...);
 #define MAX_FILE_NAME 256
 #define MAX_USER_NAME 128
 #define MAX_NAME 128
-#define MAX_WINDOW_CAPTION 128
+#define MAX_WINDOW_CAPTION 256
 #define MAX_PASSWORD 64
 #define MAX_COMMAND_NAME 64
 
@@ -471,12 +471,15 @@ extern void ConsolePrint(LPCSTR Format, ...);
 // Common color values
 
 #define COLOR_BLACK ((COLOR)0x00000000)
+#define COLOR_GRAY15 ((COLOR)0x00262626)
+#define COLOR_GRAY20 ((COLOR)0x00333333)
 #define COLOR_GRAY25 ((COLOR)0x00404040)
 #define COLOR_GRAY30 ((COLOR)0x004D4D4D)
 #define COLOR_GRAY35 ((COLOR)0x00595959)
 #define COLOR_GRAY40 ((COLOR)0x00666666)
 #define COLOR_GRAY50 ((COLOR)0x00808080)
 #define COLOR_GRAY75 ((COLOR)0x00C0C0C0)
+#define COLOR_GRAY80 ((COLOR)0x00CCCCCC)
 #define COLOR_GRAY90 ((COLOR)0x00E6E6E6)
 #define COLOR_WHITE ((COLOR)0x00FFFFFF)
 #define COLOR_RED ((COLOR)0x000000FF)
@@ -519,7 +522,7 @@ typedef U32 COLOR;
 #define SETALPHA(c, a) (((COLOR)c & 0x00FFFFFF) | ((COLOR)a << 0x18))
 
 /************************************************************************/
-// Utilitiy macros
+// Utility macros
 
 #define UNUSED(x) (void)(x)
 #define SAFE_USE(a) if ((a) != NULL)
@@ -535,6 +538,12 @@ typedef U32 COLOR;
 
 // This is called before dereferencing a user-provided pointer to a parameter structure
 #define SAFE_USE_INPUT_POINTER(p, s) if ((p) != NULL && IsValidMemory((LINEAR)p) && (p)->Header.Size >= sizeof(s))
+
+#ifdef CONFIG_VMA_KERNEL
+    #define IS_VALID_KERNEL_POINTER(Value) (((UINT)(Value) != 0) && ((UINT)(Value) >= (UINT)(CONFIG_VMA_KERNEL)))
+#else
+    #define IS_VALID_KERNEL_POINTER(Value) ((UINT)(Value) != 0)
+#endif
 
 // Do an infinite loop
 #define FOREVER while(1)

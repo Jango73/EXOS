@@ -99,7 +99,6 @@ static U32 DesktopTimerTask(LPVOID Parameter) {
         return 0;
     }
 
-
     FOREVER {
         if (Desktop->TypeID != KOID_DESKTOP) {
             break;
@@ -160,7 +159,7 @@ static U32 DesktopTimerTask(LPVOID Parameter) {
 /***************************************************************************/
 
 BOOL DesktopTimerEnsureTask(LPDESKTOP Desktop) {
-    TASKINFO TaskInfo;
+    TASK_INFO TaskInfo;
     LPTASK TimerTask;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
@@ -217,7 +216,7 @@ BOOL SetWindowTimer(HANDLE Window, U32 TimerID, U32 IntervalMilliseconds) {
     if (TimerID == 0) return FALSE;
     if (IntervalMilliseconds == 0) return KillWindowTimer(Window, TimerID);
 
-    Desktop = GetWindowDesktop(This);
+    Desktop = DesktopGetWindowDesktop(This);
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
     if (DesktopTimerEnsureTask(Desktop) == FALSE) return FALSE;
 
@@ -269,7 +268,7 @@ BOOL KillWindowTimer(HANDLE Window, U32 TimerID) {
     if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
     if (TimerID == 0) return FALSE;
 
-    Desktop = GetWindowDesktop(This);
+    Desktop = DesktopGetWindowDesktop(This);
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
 
     LockMutex(&(Desktop->TimerMutex), INFINITY);

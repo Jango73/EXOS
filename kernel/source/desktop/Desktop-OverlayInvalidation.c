@@ -172,14 +172,6 @@ void DesktopOverlayInvalidateWindowTreeRect(LPWINDOW Window, LPRECT ScreenRect, 
     DesktopOverlayInvalidateWindowTreeRectInternal(Window, ScreenRect, SkipCurrent, FALSE);
 }
 
-/************************************************************************/
-
-void DesktopOverlayInvalidateWindowTreeFullWindowRect(LPWINDOW Window, LPRECT ScreenRect, BOOL SkipCurrent) {
-    DesktopOverlayInvalidateWindowTreeRectInternal(Window, ScreenRect, SkipCurrent, TRUE);
-}
-
-/************************************************************************/
-
 BOOL DesktopOverlayInvalidateRootRect(LPWINDOW RootWindow, LPRECT ScreenRect) {
     RECT RootScreenRect;
     RECT Intersection;

@@ -104,7 +104,7 @@ RealModeCall :
     ;--------------------------------------
     ; Copy the GDT at RMC code + 16
 
-    mov     esi, [Kernel_x86_32 + KERNELDATA_X86_32.GDT]
+    mov     esi, [Kernel_x86_32 + KERNEL_DATA_X86_32.GDT]
     mov     edi, ebx
     add     edi, 0x10
     mov     ecx, 8 * SEGMENT_DESCRIPTOR_SIZE
@@ -129,14 +129,14 @@ RealModeCall :
     add     dword [esi], ebx
 
     ; Patch Real_IDT_Label base with Kernel_x86_32.IDT
-    mov     esi, [Kernel_x86_32 + KERNELDATA_X86_32.IDT]
+    mov     esi, [Kernel_x86_32 + KERNEL_DATA_X86_32.IDT]
     mov     edi, ebx
     add     edi, Real_IDT_Label - RMCSetup
     add     edi, 2                      ; skip 'limit' (dw), point to base (dd)
     mov     [edi], esi
 
     ; Patch Real_GDT_Label base with Kernel_x86_32.GDT
-    mov     esi, [Kernel_x86_32 + KERNELDATA_X86_32.GDT]
+    mov     esi, [Kernel_x86_32 + KERNEL_DATA_X86_32.GDT]
     mov     edi, ebx
     add     edi, Real_GDT_Label - RMCSetup
     add     edi, 2

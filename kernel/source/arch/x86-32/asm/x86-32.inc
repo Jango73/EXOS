@@ -103,7 +103,7 @@ GATE_OFFSET_OFFSET_16_31  equ 0x06
 
 ;-------------------------------------------------------------------------
 ; KernelStartupInfo data layout (partial)
-; WARNING: MUST stay in sync with C struct tag_KERNELSTARTUPINFO
+; WARNING: MUST stay in sync with C struct tag_KERNEL_STARTUP_INFO
 ; in kernel/include/KernelData.h.
 
 STRUC KernelStartupInfo
@@ -192,7 +192,7 @@ ENDSTRUC
 ; Minimal mapping: first fields must match C struct order.
 ; Keep this in sync with the C definition of 'Kernel_x86_32'.
 
-STRUC KERNELDATA_X86_32
+STRUC KERNEL_DATA_X86_32
     .IDT                RESB 4        ; LPSEGMENT_DESCRIPTOR*
     .GDT                RESB 4        ; LPSEGMENT_DESCRIPTOR*
     .TSS                RESB 4        ; LPTASK_STATE_SEGMENT*

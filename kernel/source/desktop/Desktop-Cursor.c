@@ -150,7 +150,7 @@ static void DesktopCursorBuildArrowPixels(U32* Pixels, U32 Width, U32 Height) {
  * @param Height Cursor height.
  */
 static void DesktopCursorDrawTemplate(HANDLE GC, I32 OriginX, I32 OriginY, U32 Width, U32 Height) {
-    PIXELINFO PixelInfo;
+    PIXEL_INFO PixelInfo;
     U32 X;
     U32 Y;
     char TemplateToken;
@@ -524,7 +524,7 @@ void DesktopCursorOnDesktopActivated(LPDESKTOP Desktop) {
     LockMutex(&(Desktop->Mutex), INFINITY);
 
     Desktop->Cursor.Visible = TRUE;
-    if (GetMousePosition(&CurrentX, &CurrentY) == TRUE) {
+    if (GetMouseScreenPosition(&CurrentX, &CurrentY) == TRUE) {
         Desktop->Cursor.X = CurrentX;
         Desktop->Cursor.Y = CurrentY;
     }
@@ -659,7 +659,7 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
 
-    Desktop = GetWindowDesktop(Window);
+    Desktop = DesktopGetWindowDesktop(Window);
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return;
 
     LockMutex(&(Desktop->Mutex), INFINITY);

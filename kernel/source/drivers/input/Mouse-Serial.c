@@ -164,7 +164,6 @@ static DRIVER DATA_SECTION SerialMouseDriver = {
 #define SERIAL_MSR_DCD 0x80   // Data Carrier Detect
 
 #define MOUSE_PORT 0x03F8
-#define MOUSE_TIMEOUT 0x4000
 
 /***************************************************************************/
 
@@ -331,9 +330,9 @@ static BOOL InitializeMouse(void) {
     //-------------------------------------
     // Check signature of mouse
 
-    WaitMouseData(MOUSE_TIMEOUT);
+    WaitMouseData(SERIAL_MOUSE_TIMEOUT_LOOPS);
     Sig1 = InPortByte(MOUSE_PORT + SERIAL_DATA);
-    WaitMouseData(MOUSE_TIMEOUT);
+    WaitMouseData(SERIAL_MOUSE_TIMEOUT_LOOPS);
     Sig2 = InPortByte(MOUSE_PORT + SERIAL_DATA);
 
     //-------------------------------------
@@ -383,7 +382,7 @@ static BOOL InitializeMouse(void) {
  */
 /*
 static void DrawMouseCursor(I32 X, I32 Y) {
-    LINEINFO LineInfo;
+    LINE_INFO LineInfo;
 
     LineInfo.GC = 0;
 
@@ -408,7 +407,7 @@ static void MouseHandler_Microsoft(void) {
     static U32 Buttons;
     static U32 DeltaX, DeltaY;
 
-    if (WaitMouseData(MOUSE_TIMEOUT) == FALSE) return;
+    if (WaitMouseData(SERIAL_MOUSE_TIMEOUT_LOOPS) == FALSE) return;
 
     Buttons = InPortByte(MOUSE_PORT + SERIAL_DATA);
 
@@ -427,10 +426,10 @@ static void MouseHandler_Microsoft(void) {
         return;
     }
 
-    if (WaitMouseData(MOUSE_TIMEOUT) == FALSE) return;
+    if (WaitMouseData(SERIAL_MOUSE_TIMEOUT_LOOPS) == FALSE) return;
     DeltaX = InPortByte(MOUSE_PORT + SERIAL_DATA);
 
-    if (WaitMouseData(MOUSE_TIMEOUT) == FALSE) return;
+    if (WaitMouseData(SERIAL_MOUSE_TIMEOUT_LOOPS) == FALSE) return;
     DeltaY = InPortByte(MOUSE_PORT + SERIAL_DATA);
 
     DeltaX = (DeltaX & 0x3F) | ((Buttons & 0x03) << 6);
@@ -470,15 +469,15 @@ static void MouseHandler_MouseSystems(void) {
     // if ((Status & SERIAL_IID_I) == 0) goto Out;
     // if ((Status & SERIAL_IID_ID) != SERIAL_IID_RD) goto Out;
 
-    if (WaitMouseData(MOUSE_TIMEOUT) == FALSE) goto Out;
+    if (WaitMouseData(SERIAL_MOUSE_TIMEOUT_LOOPS) == FALSE) goto Out;
 
     Buttons = InPortByte(MOUSE_PORT + SERIAL_DATA);
 
     if ((Buttons & 0xF8) != 0x80) goto Out;
 
-    if (WaitMouseData(MOUSE_TIMEOUT) == FALSE) goto Out;
+    if (WaitMouseData(SERIAL_MOUSE_TIMEOUT_LOOPS) == FALSE) goto Out;
     DeltaX1 = InPortByte(MOUSE_PORT + SERIAL_DATA);
-    if (WaitMouseData(MOUSE_TIMEOUT) == FALSE) goto Out;
+    if (WaitMouseData(SERIAL_MOUSE_TIMEOUT_LOOPS) == FALSE) goto Out;
     DeltaY1 = InPortByte(MOUSE_PORT + SERIAL_DATA);
 
     Buttons |= 0xFF;
@@ -497,7 +496,7 @@ static BOOL ReadMicrosoftPacket(I32* DeltaX, I32* DeltaY, U32* Buttons) {
         return FALSE;
     }
 
-    if (WaitMouseData(MOUSE_TIMEOUT) == FALSE) return FALSE;
+    if (WaitMouseData(SERIAL_MOUSE_TIMEOUT_LOOPS) == FALSE) return FALSE;
 
     U32 RawButtons = InPortByte(MOUSE_PORT + SERIAL_DATA);
 
@@ -516,10 +515,10 @@ static BOOL ReadMicrosoftPacket(I32* DeltaX, I32* DeltaY, U32* Buttons) {
         return FALSE;
     }
 
-    if (WaitMouseData(MOUSE_TIMEOUT) == FALSE) return FALSE;
+    if (WaitMouseData(SERIAL_MOUSE_TIMEOUT_LOOPS) == FALSE) return FALSE;
     U32 RawDeltaX = InPortByte(MOUSE_PORT + SERIAL_DATA);
 
-    if (WaitMouseData(MOUSE_TIMEOUT) == FALSE) return FALSE;
+    if (WaitMouseData(SERIAL_MOUSE_TIMEOUT_LOOPS) == FALSE) return FALSE;
     U32 RawDeltaY = InPortByte(MOUSE_PORT + SERIAL_DATA);
 
     RawDeltaX = (RawDeltaX & 0x3F) | ((RawButtons & 0x03) << 6);

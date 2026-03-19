@@ -30,7 +30,7 @@
 
 /************************************************************************/
 
-BOOL ConsoleVGATextFallbackActivate(U32 Columns, U32 Rows, LPGRAPHICSMODEINFO AppliedMode);
+BOOL ConsoleVGATextFallbackActivate(U32 Columns, U32 Rows, LPGRAPHICS_MODE_INFO AppliedMode);
 
 /************************************************************************/
 

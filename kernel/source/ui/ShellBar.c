@@ -23,8 +23,7 @@
 
 #include "ui/ShellBar.h"
 
-#include "Log.h"
-#include "ui/ClockWidget.h"
+#include "ui/Button.h"
 #include "ui/WindowDockable.h"
 
 /************************************************************************/
@@ -33,11 +32,11 @@
 #define SHELL_BAR_WINDOW_ID 0x53484252
 #define SHELL_BAR_SLOT_WINDOW_CLASS_NAME TEXT("ShellBarSlotWindowClass")
 #define SHELL_BAR_SLOT_LEFT_WIDTH 240
-#define SHELL_BAR_SLOT_COMPONENTS_WIDTH 168
+#define SHELL_BAR_SLOT_COMPONENTS_WIDTH 256
 #define SHELL_BAR_ROLE_PROP TEXT("shellbar.role")
 #define SHELL_BAR_SLOT_PROP TEXT("shellbar.slot")
-#define SHELL_BAR_CLOCK_PROP TEXT("desktop.shellbar.clock")
-#define SHELL_BAR_CLOCK_WINDOW_ID 0x5342434C
+#define SHELL_BAR_COMPONENTS_PADDING 4
+#define SHELL_BAR_COMPONENTS_GAP 4
 #define SHELL_BAR_ROLE_MAIN 1
 
 /************************************************************************/
@@ -49,30 +48,10 @@ BOOL ShellBarEnsureClassRegistered(void) {
 /************************************************************************/
 
 /**
- * @brief Resize all direct children of one slot to its full client rectangle.
- * @param SlotWindow Slot window.
- */
-static void ShellBarSlotResizeChildrenToClient(HANDLE SlotWindow) {
-    RECT ClientRect;
-    HANDLE ChildWindow;
-    HANDLE NextChildWindow;
-
-    if (SlotWindow == NULL) return;
-    if (GetWindowClientRect(SlotWindow, &ClientRect) == FALSE) return;
-
-
-    for (ChildWindow = GetWindowChild((HANDLE)SlotWindow, 0); ChildWindow != NULL; ChildWindow = NextChildWindow) {
-        NextChildWindow = GetNextWindowSibling(ChildWindow);
-        (void)MoveWindow(ChildWindow, &ClientRect);
-    }
-}
-
-/************************************************************************/
-
-/**
- * @brief Resolve one direct child by window identifier.
+ * @brief Resolve one direct child by property value.
  * @param Parent Parent window.
- * @param WindowID Window identifier.
+ * @param Name Property name.
+ * @param Value Property value.
  * @return Direct child pointer or NULL.
  */
 static HANDLE ShellBarFindDirectChildByProp(HANDLE Parent, LPCSTR Name, U32 Value) {
@@ -95,41 +74,94 @@ static HANDLE ShellBarFindDirectChildByProp(HANDLE Parent, LPCSTR Name, U32 Valu
 
 /************************************************************************/
 
-BOOL ShellBarEnsureClockWidget(HANDLE ShellBarWindow) {
-    HANDLE ComponentsSlotWindow;
-    HANDLE ClockWindow;
-    WINDOWINFO WindowInfo;
+static void ShellBarLayoutComponents(HANDLE ComponentsSlotWindow) {
+    RECT ClientRect;
+    RECT ChildRect;
+    HANDLE CurrentWindow;
+    HANDLE SelectedWindow;
+    U32 ChildCount;
+    U32 ChildIndex;
+    U32 SelectionPass;
+    U32 BestOrder;
+    U32 CurrentOrder;
+    U32 ComponentWidth;
+    U32 SelectedWidth;
+    U32 PreviousOrder;
+    BOOL FoundSelection;
+    I32 RightEdge;
+
+    if (ComponentsSlotWindow == NULL) return;
+    if (GetWindowClientRect(ComponentsSlotWindow, &ClientRect) == FALSE) return;
+
+    RightEdge = ClientRect.X2 - SHELL_BAR_COMPONENTS_PADDING;
+    ChildCount = GetWindowChildCount(ComponentsSlotWindow);
+    PreviousOrder = 0xFFFFFFFF;
+    for (SelectionPass = 0; SelectionPass < ChildCount; SelectionPass++) {
+        SelectedWindow = NULL;
+        SelectedWidth = 0;
+        BestOrder = 0;
+        FoundSelection = FALSE;
+
+        for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+            CurrentWindow = GetWindowChild(ComponentsSlotWindow, ChildIndex);
+            if (CurrentWindow == NULL) continue;
+
+            ComponentWidth = GetWindowProp(CurrentWindow, SHELL_BAR_COMPONENT_PROP_WIDTH);
+            if (ComponentWidth == 0) continue;
+
+            CurrentOrder = GetWindowProp(CurrentWindow, SHELL_BAR_COMPONENT_PROP_ORDER);
+            if (CurrentOrder == 0 || CurrentOrder >= PreviousOrder) continue;
+
+            if (FoundSelection == FALSE || CurrentOrder > BestOrder) {
+                SelectedWindow = CurrentWindow;
+                SelectedWidth = ComponentWidth;
+                BestOrder = CurrentOrder;
+                FoundSelection = TRUE;
+            }
+        }
+
+        if (SelectedWindow == NULL || SelectedWidth == 0) continue;
+
+        ChildRect = ClientRect;
+        ChildRect.X2 = RightEdge;
+        ChildRect.X1 = ChildRect.X2 - (I32)SelectedWidth + 1;
+        if (ChildRect.X1 < ClientRect.X1) ChildRect.X1 = ClientRect.X1;
+        (void)MoveWindow(SelectedWindow, &ChildRect);
+        RightEdge = ChildRect.X1 - SHELL_BAR_COMPONENTS_GAP;
+        PreviousOrder = BestOrder;
+    }
+}
+
+/************************************************************************/
+
+static BOOL ShellBarToggleTargetWindow(HANDLE ShellBarWindow, U32 TargetWindowID) {
+    HANDLE DesktopWindow;
+    HANDLE TargetWindow;
+    U32 Style;
+    BOOL Result;
 
     if (ShellBarWindow == NULL) return FALSE;
-    if (DesktopClockWidgetEnsureClassRegistered() == FALSE) return FALSE;
 
-    ComponentsSlotWindow = ShellBarGetSlotWindow(ShellBarWindow, SHELL_BAR_SLOT_COMPONENTS);
-    if (ComponentsSlotWindow == NULL) return FALSE;
+    DesktopWindow = GetWindowParent(ShellBarWindow);
+    if (DesktopWindow == NULL) return FALSE;
 
-    ClockWindow = ShellBarFindDirectChildByProp(ComponentsSlotWindow, SHELL_BAR_CLOCK_PROP, 1);
-    if (ClockWindow != NULL) return TRUE;
+    TargetWindow = FindWindow(DesktopWindow, TargetWindowID);
+    if (TargetWindow == NULL) return FALSE;
+    if (GetWindowStyle(TargetWindow, &Style) == FALSE) return FALSE;
 
-    WindowInfo.Header.Size = sizeof(WINDOWINFO);
-    WindowInfo.Header.Version = EXOS_ABI_VERSION;
-    WindowInfo.Header.Flags = 0;
-    WindowInfo.Window = NULL;
-    WindowInfo.Parent = ComponentsSlotWindow;
-    WindowInfo.WindowClass = 0;
-    WindowInfo.WindowClassName = DESKTOP_CLOCK_WIDGET_WINDOW_CLASS_NAME;
-    WindowInfo.Function = NULL;
-    WindowInfo.Style = EWS_VISIBLE | EWS_CLIENT_DECORATED;
-    WindowInfo.ID = SHELL_BAR_CLOCK_WINDOW_ID;
-    WindowInfo.WindowPosition.X = 0;
-    WindowInfo.WindowPosition.Y = 0;
-    WindowInfo.WindowSize.X = 1;
-    WindowInfo.WindowSize.Y = 1;
-    WindowInfo.ShowHide = TRUE;
+    if ((Style & EWS_VISIBLE) != 0) {
+        Result = HideWindow(TargetWindow);
+        if (Result != FALSE) {
+            (void)InvalidateWindowRect(DesktopWindow, NULL);
+        }
+        return Result;
+    }
 
-    ClockWindow = (HANDLE)CreateWindow(&WindowInfo);
-    if (ClockWindow == NULL) return FALSE;
-
-    (void)SetWindowProp(ClockWindow, SHELL_BAR_CLOCK_PROP, 1);
-    return TRUE;
+    Result = ShowWindow(TargetWindow);
+    if (Result != FALSE) {
+        (void)InvalidateWindowRect(DesktopWindow, NULL);
+    }
+    return Result;
 }
 
 /************************************************************************/
@@ -184,7 +216,7 @@ static void ShellBarHandleChildAppended(HANDLE ShellBarWindow) {
 
     ComponentsSlotWindow = ShellBarFindDirectChildByProp(ShellBarWindow, SHELL_BAR_SLOT_PROP, SHELL_BAR_SLOT_COMPONENTS);
     if (ComponentsSlotWindow != NULL) {
-        ShellBarSlotResizeChildrenToClient(ComponentsSlotWindow);
+        ShellBarLayoutComponents(ComponentsSlotWindow);
     }
 }
 
@@ -197,12 +229,12 @@ static void ShellBarHandleChildAppended(HANDLE ShellBarWindow) {
  * @return TRUE on success.
  */
 static BOOL ShellBarCreateSlotWindow(HANDLE ShellBarWindow, U32 WindowID) {
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
     HANDLE Window;
 
     if (ShellBarWindow == NULL) return FALSE;
 
-    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Size = sizeof(WINDOW_INFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;
@@ -233,17 +265,26 @@ static BOOL ShellBarCreateSlotWindow(HANDLE ShellBarWindow, U32 WindowID) {
 static U32 ShellBarSlotWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     switch (Message) {
         case EWM_CREATE:
-            ShellBarSlotResizeChildrenToClient(Window);
+            ShellBarLayoutComponents(Window);
             return 1;
 
         case EWM_CHILD_APPENDED:
         case EWM_CHILD_REMOVED:
-            ShellBarSlotResizeChildrenToClient(Window);
+            ShellBarLayoutComponents(Window);
             return 1;
 
         case EWM_NOTIFY:
+            if (Param1 == EWN_UI_BUTTON_CLICKED) {
+                HANDLE ParentWindow = GetWindowParent(Window);
+
+                if (ParentWindow != NULL) {
+                    (void)PostMessage(ParentWindow, EWM_NOTIFY, Param1, Param2);
+                }
+                return 1;
+            }
+
             if (Param1 == EWN_WINDOW_RECT_CHANGED) {
-                ShellBarSlotResizeChildrenToClient(Window);
+                ShellBarLayoutComponents(Window);
                 return 1;
             }
             break;
@@ -259,20 +300,8 @@ static U32 ShellBarSlotWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Pa
  * @return TRUE on success.
  */
 static BOOL ShellBarEnsureSlotClassRegistered(void) {
-    LPWINDOW_CLASS WindowClass;
-
-    if (WindowClassInitializeRegistry() == FALSE) return FALSE;
-
-    WindowClass = WindowClassFindByName(SHELL_BAR_SLOT_WINDOW_CLASS_NAME);
-    if (WindowClass != NULL) return TRUE;
-
-    WindowClass = WindowClassRegisterKernelClass(
-        SHELL_BAR_SLOT_WINDOW_CLASS_NAME,
-        WindowClassGetDefault(),
-        ShellBarSlotWindowFunc,
-        0);
-
-    return WindowClass != NULL;
+    if (FindWindowClass(SHELL_BAR_SLOT_WINDOW_CLASS_NAME) != NULL) return TRUE;
+    return RegisterWindowClass(SHELL_BAR_SLOT_WINDOW_CLASS_NAME, 0, NULL, ShellBarSlotWindowFunc, 0) != NULL;
 }
 
 /************************************************************************/
@@ -297,13 +326,13 @@ static BOOL ShellBarEnsureSlotWindows(HANDLE ShellBarWindow) {
 /************************************************************************/
 
 BOOL ShellBarCreate(HANDLE ParentWindow) {
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
     HANDLE Window;
 
     if (ParentWindow == NULL) return FALSE;
     if (ShellBarEnsureClassRegistered() == FALSE) return FALSE;
 
-    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Size = sizeof(WINDOW_INFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;
@@ -320,7 +349,11 @@ BOOL ShellBarCreate(HANDLE ParentWindow) {
     WindowInfo.ShowHide = TRUE;
 
     Window = (HANDLE)CreateWindow(&WindowInfo);
-    return Window != NULL;
+    if (Window == NULL) return FALSE;
+
+    (void)SetWindowProp(Window, SHELL_BAR_ROLE_PROP, SHELL_BAR_ROLE_MAIN);
+    (void)ShellBarEnsureSlotWindows(Window);
+    return TRUE;
 }
 
 /************************************************************************/
@@ -366,15 +399,20 @@ U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
         case EWM_NOTIFY:
             if (Param1 == EWN_WINDOW_RECT_CHANGED) {
                 ShellBarLayoutSlots(Window);
+                return BaseWindowFunc(Window, Message, Param1, Param2);
+            }
+
+            if (Param1 == EWN_UI_BUTTON_CLICKED) {
+                if (Param2 != 0) {
+                    (void)ShellBarToggleTargetWindow(Window, Param2);
+                    return 1;
+                }
             }
             return BaseWindowFunc(Window, Message, Param1, Param2);
 
         case EWM_CHILD_APPENDED:
         case EWM_CHILD_REMOVED:
             ShellBarHandleChildAppended(Window);
-            if (Message == EWM_CHILD_APPENDED && Param1 == SHELL_BAR_SLOT_COMPONENTS_WINDOW_ID) {
-                (void)ShellBarEnsureClockWidget(Window);
-            }
             return 1;
 
         case EWM_DRAW:

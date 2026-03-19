@@ -44,24 +44,15 @@ PROCESS DATA_SECTION KernelProcess = {
     .OwnerProcess = NULL, // OwnerProcess (from LISTNODE_FIELDS)
     .Next = NULL,
     .Prev = NULL,                   // Next, previous
-    .Mutex = EMPTY_MUTEX,           // Mutex
-    .HeapMutex = EMPTY_MUTEX,       // Heap mutex
-    .Security = EMPTY_SECURITY,     // Security
     .Desktop = NULL,                // Desktop
     .Privilege = CPU_PRIVILEGE_KERNEL,  // Privilege
     .Status = PROCESS_STATUS_ALIVE, // Status
     .Flags = PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH, // Flags
     .ControlFlags = 0,             // Process control flags
     .PageDirectory = 0,             // Page directory
-    .RegionListHead = NULL,
-    .RegionListTail = NULL,
-    .RegionCount = 0,
+    .MemoryRegionList = { .Head = NULL, .Tail = NULL, .Count = 0 },
     .HeapBase = 0,                  // Heap base
     .HeapSize = 0,                  // Heap size
-    .MaximumAllocatedMemory = N_HalfMemory, // Maximum heap allocation limit
-    .FileName = "",                 // File name
-    .CommandLine = "",              // Command line
-    .WorkFolder = ROOT,             // Working directory
     .TaskCount = 0                  // Task count (will be incremented by CreateTask)
 };
 
@@ -81,7 +72,7 @@ DRIVER DATA_SECTION KernelProcessDriver = {
     .VersionMajor = KERNEL_PROCESS_VER_MAJOR,
     .VersionMinor = KERNEL_PROCESS_VER_MINOR,
     .Designer = "Jango73",
-    .Manufacturer = "EXOS",
+    .Manufacturer = "N/A",
     .Product = "KernelProcess",
     .Alias = "kernel_process",
     .Flags = DRIVER_FLAG_CRITICAL,
@@ -108,13 +99,17 @@ LPDRIVER KernelProcessGetDriver(void) {
 void InitializeKernelProcess(void) {
     TRACED_FUNCTION;
 
-    TASKINFO TaskInfo;
+    TASK_INFO TaskInfo;
 
     DEBUG(TEXT("[InitializeKernelProcess] Enter"));
 
+    InitMutex(&(KernelProcess.Mutex));
+    InitMutex(&(KernelProcess.HeapMutex));
+    InitSecurity(&(KernelProcess.Security));
     KernelProcess.PageDirectory = GetPageDirectory();
     KernelProcess.MaximumAllocatedMemory = N_HalfMemory;
     KernelProcess.HeapSize = KERNEL_PROCESS_HEAP_SIZE;
+    StringCopy(KernelProcess.WorkFolder, TEXT(ROOT));
 
     DEBUG(TEXT("[InitializeKernelProcess] Memory : %u"), KernelStartup.MemorySize);
     DEBUG(TEXT("[InitializeKernelProcess] Pages : %u"), KernelStartup.PageCount);
@@ -151,7 +146,7 @@ void InitializeKernelProcess(void) {
     StringCopy(KernelProcess.FileName, KernelStartup.CommandLine);
     StringCopy(KernelProcess.CommandLine, KernelStartup.CommandLine);
 
-    TaskInfo.Header.Size = sizeof(TASKINFO);
+    TaskInfo.Header.Size = sizeof(TASK_INFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
     TaskInfo.Func = (TASKFUNC)InitializeKernel;
@@ -469,15 +464,15 @@ void KillProcess(LPPROCESS This) {
 /**
  * @brief Create a new process from an executable file.
  *
- * @param Info Pointer to a PROCESSINFO describing the executable.
+ * @param Info Pointer to a PROCESS_INFO describing the executable.
  * @return TRUE on success, FALSE on failure.
  */
-BOOL CreateProcess(LPPROCESSINFO Info) {
+BOOL CreateProcess(LPPROCESS_INFO Info) {
     TRACED_FUNCTION;
 
-    EXECUTABLEINFO ExecutableInfo;
-    TASKINFO TaskInfo;
-    FILEOPENINFO FileOpenInfo;
+    EXECUTABLE_INFO ExecutableInfo;
+    TASK_INFO TaskInfo;
+    FILE_OPEN_INFO FileOpenInfo;
     LPPROCESS Process = NULL;
     LPPROCESS ParentProcess = NULL;
     LPTASK Task = NULL;
@@ -502,7 +497,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     }
 
     MemorySet(&TaskInfo, 0, sizeof(TaskInfo));
-    TaskInfo.Header.Size = sizeof(TASKINFO);
+    TaskInfo.Header.Size = sizeof(TASK_INFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Header.Flags = 0;
 
@@ -531,7 +526,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     DEBUG(TEXT("[CreateProcess] : Opening file %s"), FileName);
 
-    FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
+    FileOpenInfo.Header.Size = sizeof(FILE_OPEN_INFO);
     FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
     FileOpenInfo.Header.Flags = 0;
     FileOpenInfo.Name = FileName;
@@ -593,7 +588,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
         StringClear(Process->CommandLine);
     }
 
-    // Initialize WorkFolder from PROCESSINFO or inherit from parent
+    // Initialize WorkFolder from PROCESS_INFO or inherit from parent
     if (!StringEmpty(Info->WorkFolder)) {
         StringCopy(Process->WorkFolder, Info->WorkFolder);
     } else {
@@ -606,7 +601,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
         }
     }
 
-    // Update returned PROCESSINFO with effective WorkFolder
+    // Update returned PROCESS_INFO with effective WorkFolder
     StringCopy(Info->WorkFolder, Process->WorkFolder);
 
     // Copy process creation flags
@@ -688,7 +683,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
     //-------------------------------------
     // Open the executable file
 
-    FileOpenInfo.Header.Size = sizeof(FILEOPENINFO);
+    FileOpenInfo.Header.Size = sizeof(FILE_OPEN_INFO);
     FileOpenInfo.Header.Version = EXOS_ABI_VERSION;
     FileOpenInfo.Header.Flags = 0;
     FileOpenInfo.Name = FileName;
@@ -702,7 +697,7 @@ BOOL CreateProcess(LPPROCESSINFO Info) {
 
     DEBUG(TEXT("[CreateProcess] Loading executable"));
 
-    EXECUTABLELOAD LoadInfo;
+    EXECUTABLE_LOAD LoadInfo;
     LoadInfo.File = File;
     LoadInfo.Info = &ExecutableInfo;
     LoadInfo.CodeBase = (LINEAR)CodeBase;
@@ -808,13 +803,13 @@ Out:
 UINT Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
     DEBUG(TEXT("[Spawn] Launching : %s"), CommandLine);
 
-    PROCESSINFO ProcessInfo;
-    WAITINFO WaitInfo;
+    PROCESS_INFO ProcessInfo;
+    WAIT_INFO WaitInfo;
     UINT Result;
     LPPROCESS ParentProcess = NULL;
 
-    MemorySet(&ProcessInfo, 0, sizeof(PROCESSINFO));
-    ProcessInfo.Header.Size = sizeof(PROCESSINFO);
+    MemorySet(&ProcessInfo, 0, sizeof(PROCESS_INFO));
+    ProcessInfo.Header.Size = sizeof(PROCESS_INFO);
     ProcessInfo.Header.Version = EXOS_ABI_VERSION;
     ProcessInfo.Header.Flags = 0;
     ProcessInfo.Flags = 0;
@@ -839,7 +834,7 @@ UINT Spawn(LPCSTR CommandLine, LPCSTR WorkFolder) {
     }
 
     // Wait for the process to complete
-    WaitInfo.Header.Size = sizeof(WAITINFO);
+    WaitInfo.Header.Size = sizeof(WAIT_INFO);
     WaitInfo.Header.Version = EXOS_ABI_VERSION;
     WaitInfo.Header.Flags = 0;
     WaitInfo.Count = 1;
@@ -902,6 +897,56 @@ LINEAR GetProcessHeap(LPPROCESS Process) {
     }
 
     return HeapBase;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Returns the memory region list owned by a process.
+ *
+ * @param Process Target process.
+ * @return Memory region list pointer or NULL when unavailable.
+ */
+LPMEMORY_REGION_LIST GetProcessMemoryRegionList(LPPROCESS Process) {
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+        return &Process->MemoryRegionList;
+    }
+
+    return NULL;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Returns the memory region list for the active address space.
+ *
+ * @return Memory region list pointer or NULL when unavailable.
+ */
+LPMEMORY_REGION_LIST GetCurrentMemoryRegionList(void) {
+    LPPROCESS Process = GetCurrentProcess();
+    if (Process == NULL) {
+        Process = &KernelProcess;
+    }
+
+    return GetProcessMemoryRegionList(Process);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Assigns the active address space owner to a descriptor.
+ *
+ * @param Descriptor Target descriptor.
+ */
+void MemoryRegionDescriptorAssignCurrentOwner(LPMEMORY_REGION_DESCRIPTOR Descriptor) {
+    LPPROCESS Process = GetCurrentProcess();
+    if (Process == NULL) {
+        Process = &KernelProcess;
+    }
+
+    SAFE_USE(Descriptor) {
+        Descriptor->OwnerProcess = Process;
+    }
 }
 
 /***************************************************************************/

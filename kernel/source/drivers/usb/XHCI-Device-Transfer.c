@@ -33,6 +33,7 @@
 #define XHCI_ENUM_FAILURE_LOG_INTERVAL_MS 2000
 #define XHCI_ENABLE_SLOT_TIMEOUT_LOG_IMMEDIATE_BUDGET 1
 #define XHCI_ENABLE_SLOT_TIMEOUT_LOG_INTERVAL_MS 2000
+#define XHCI_BULK_AVERAGE_TRB_LENGTH 3072
 
 /************************************************************************/
 
@@ -195,6 +196,128 @@ static U32 XHCI_BuildEndpointContextDword1(U32 EndpointType, U32 MaximumBurst, U
            ((EndpointType & 0x7U) << 3) |
            ((MaximumBurst & 0xFFU) << 8) |
            ((MaximumPacketSize & 0xFFFFU) << 16);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Build endpoint context DW4 from average TRB length and Max ESIT payload.
+ * @param AverageTrbLength Average TRB length.
+ * @param MaximumEsitPayload Maximum ESIT payload.
+ * @return Encoded DW4 value.
+ */
+static U32 XHCI_BuildEndpointContextDword4(U32 AverageTrbLength, U32 MaximumEsitPayload) {
+    return (AverageTrbLength & 0xFFFFU) | ((MaximumEsitPayload & 0xFFFFU) << 16);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Compute ceil(log2(Value)) for positive values.
+ * @param Value Input value.
+ * @return Ceil(log2(Value)).
+ */
+static U32 XHCI_Log2Ceil(U32 Value) {
+    U32 Result = 0;
+    U32 Base = 1;
+
+    if (Value <= 1) {
+        return 0;
+    }
+
+    while (Base < Value && Result < 31) {
+        Base <<= 1;
+        Result++;
+    }
+
+    return Result;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Compute xHCI interval field for an interrupt endpoint.
+ * @param UsbDevice USB device state.
+ * @param Endpoint Endpoint descriptor.
+ * @return Encoded interval field.
+ */
+static U32 XHCI_GetInterruptEndpointIntervalField(LPXHCI_USB_DEVICE UsbDevice, LPXHCI_USB_ENDPOINT Endpoint) {
+    U32 IntervalField = 0;
+    U32 Microframes = 0;
+
+    if (UsbDevice == NULL || Endpoint == NULL) {
+        return 0;
+    }
+
+    if (Endpoint->Interval == 0) {
+        return 0;
+    }
+
+    if (UsbDevice->SpeedId == USB_SPEED_HS || UsbDevice->SpeedId == USB_SPEED_SS) {
+        IntervalField = (U32)Endpoint->Interval - 1U;
+        return (IntervalField > 15U) ? 15U : IntervalField;
+    }
+
+    Microframes = (U32)Endpoint->Interval * 8U;
+    IntervalField = XHCI_Log2Ceil(Microframes);
+    if (IntervalField < 3U) {
+        IntervalField = 3U;
+    }
+    if (IntervalField > 10U) {
+        IntervalField = 10U;
+    }
+
+    return IntervalField;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Compute Max Burst field for one interrupt endpoint context.
+ * @param UsbDevice USB device state.
+ * @param Endpoint Endpoint descriptor.
+ * @return Encoded Max Burst value.
+ */
+static U32 XHCI_GetInterruptEndpointMaximumBurst(LPXHCI_USB_DEVICE UsbDevice, LPXHCI_USB_ENDPOINT Endpoint) {
+    if (UsbDevice == NULL || Endpoint == NULL) {
+        return 0;
+    }
+
+    if (UsbDevice->SpeedId == USB_SPEED_SS && Endpoint->HasSuperSpeedCompanion) {
+        return (U32)Endpoint->MaximumBurst;
+    }
+
+    if (UsbDevice->SpeedId == USB_SPEED_HS) {
+        return (U32)((Endpoint->MaxPacketSize >> 11) & 0x3U);
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Compute Max ESIT payload for one interrupt endpoint context.
+ * @param UsbDevice USB device state.
+ * @param Endpoint Endpoint descriptor.
+ * @return Maximum ESIT payload in bytes.
+ */
+static U32 XHCI_GetInterruptEndpointMaximumEsitPayload(LPXHCI_USB_DEVICE UsbDevice, LPXHCI_USB_ENDPOINT Endpoint) {
+    U32 MaximumPacketSize;
+    U32 MaximumBurst;
+
+    if (UsbDevice == NULL || Endpoint == NULL) {
+        return 0;
+    }
+
+    if (UsbDevice->SpeedId == USB_SPEED_SS && Endpoint->HasSuperSpeedCompanion &&
+        Endpoint->CompanionBytesPerInterval != 0) {
+        return (U32)Endpoint->CompanionBytesPerInterval;
+    }
+
+    MaximumPacketSize = (U32)Endpoint->MaxPacketSize & 0x7FFU;
+    MaximumBurst = XHCI_GetInterruptEndpointMaximumBurst(UsbDevice, Endpoint);
+    return MaximumPacketSize * (MaximumBurst + 1U);
 }
 
 /************************************************************************/
@@ -832,37 +955,27 @@ BOOL XHCI_AddInterruptEndpoint(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice
 
     LPXHCI_CONTEXT_32 EpCtx = XHCI_GetContextPointer(UsbDevice->InputContextLinear, Device->ContextSize, (U32)Endpoint->Dci + 1U);
     U32 EpType = 0;
+    U32 IntervalField;
+    U32 MaximumBurst;
+    U32 MaxPacket;
+    U32 MaximumEsitPayload;
     if ((Endpoint->Attributes & 0x03) == USB_ENDPOINT_TYPE_INTERRUPT) {
         EpType = ((Endpoint->Address & 0x80) != 0) ? 7U : 3U;
     }
-    U32 IntervalField = Endpoint->Interval;
-    U32 Mult = 0;
-    if (IntervalField == 0) {
-        IntervalField = 1;
-    }
-    if (UsbDevice->SpeedId == USB_SPEED_HS || UsbDevice->SpeedId == USB_SPEED_SS) {
-        if (IntervalField > 0) {
-            IntervalField -= 1;
-        }
-    }
-    if (IntervalField > 255) {
-        IntervalField = 255;
-    }
-    if (UsbDevice->SpeedId == USB_SPEED_SS && Endpoint->HasSuperSpeedCompanion) {
-        Mult = (U32)(Endpoint->CompanionAttributes & 0x03);
-    }
+    IntervalField = XHCI_GetInterruptEndpointIntervalField(UsbDevice, Endpoint);
+    MaximumBurst = XHCI_GetInterruptEndpointMaximumBurst(UsbDevice, Endpoint);
+    MaxPacket = ((U32)Endpoint->MaxPacketSize & 0x7FFU);
+    MaximumEsitPayload = XHCI_GetInterruptEndpointMaximumEsitPayload(UsbDevice, Endpoint);
 
-    U32 MaxPacket = ((U32)Endpoint->MaxPacketSize & 0x7FFU);
-
-    EpCtx->Dword0 = (Mult << 8) | (IntervalField << 16);
-    EpCtx->Dword1 = XHCI_BuildEndpointContextDword1(EpType, (U32)Endpoint->MaximumBurst, MaxPacket);
+    EpCtx->Dword0 = (IntervalField << 16);
+    EpCtx->Dword1 = XHCI_BuildEndpointContextDword1(EpType, MaximumBurst, MaxPacket);
 
     {
         U64 Dequeue = U64_FromUINT(Endpoint->TransferRingPhysical);
         EpCtx->Dword2 = (U32)(U64_Low32(Dequeue) & ~0xFU);
         EpCtx->Dword2 |= (Endpoint->TransferRingCycleState ? 1U : 0U);
         EpCtx->Dword3 = U64_High32(Dequeue);
-        EpCtx->Dword4 = MaxPacket;
+        EpCtx->Dword4 = XHCI_BuildEndpointContextDword4(MaximumEsitPayload, MaximumEsitPayload);
     }
 
     return XHCI_ConfigureEndpoint(Device, UsbDevice, NULL, NULL);
@@ -893,7 +1006,7 @@ static void XHCI_BuildBulkEndpointContext(LPXHCI_CONTEXT_32 EpCtx, LPXHCI_USB_EN
     EpCtx->Dword2 = (U32)(U64_Low32(Dequeue) & ~0xFU);
     EpCtx->Dword2 |= (Endpoint->TransferRingCycleState ? 1U : 0U);
     EpCtx->Dword3 = U64_High32(Dequeue);
-    EpCtx->Dword4 = MaximumPacketSize;
+    EpCtx->Dword4 = XHCI_BuildEndpointContextDword4(XHCI_BULK_AVERAGE_TRB_LENGTH, 0);
 }
 
 /************************************************************************/
@@ -1143,6 +1256,57 @@ BOOL XHCI_UpdateHubSlotContext(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice
                    ((U32)UsbDevice->HubPortCount << XHCI_SLOT_CTX_PORT_COUNT_SHIFT);
 
     return XHCI_EvaluateContext(Device, UsbDevice);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Submit a normal transfer TRB on one endpoint transfer ring.
+ * @param Device xHCI device.
+ * @param UsbDevice USB device state.
+ * @param Endpoint Endpoint descriptor.
+ * @param BufferPhysical Physical address of the transfer buffer.
+ * @param Length Transfer length in bytes.
+ * @param InterruptOnShortPacket TRUE to set ISP on the submitted TRB.
+ * @param TrbPhysicalOut Receives submitted TRB physical address.
+ * @return TRUE on success.
+ */
+BOOL XHCI_SubmitNormalTransfer(LPXHCI_DEVICE Device,
+                               LPXHCI_USB_DEVICE UsbDevice,
+                               LPXHCI_USB_ENDPOINT Endpoint,
+                               PHYSICAL BufferPhysical,
+                               U32 Length,
+                               BOOL InterruptOnShortPacket,
+                               U64* TrbPhysicalOut) {
+    XHCI_TRB Trb;
+
+    if (Device == NULL || UsbDevice == NULL || Endpoint == NULL || BufferPhysical == 0) {
+        return FALSE;
+    }
+
+    XHCI_ClearTransferCompletions(Device, UsbDevice->SlotId, Endpoint->Dci);
+
+    MemorySet(&Trb, 0, sizeof(Trb));
+    Trb.Dword0 = U64_Low32(U64_FromUINT(BufferPhysical));
+    Trb.Dword1 = U64_High32(U64_FromUINT(BufferPhysical));
+    Trb.Dword2 = Length;
+    Trb.Dword3 = (XHCI_TRB_TYPE_NORMAL << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_IOC;
+    if (InterruptOnShortPacket) {
+        Trb.Dword3 |= XHCI_TRB_ISP;
+    }
+
+    if (!XHCI_RingEnqueue(Endpoint->TransferRingLinear,
+                          Endpoint->TransferRingPhysical,
+                          &Endpoint->TransferRingEnqueueIndex,
+                          &Endpoint->TransferRingCycleState,
+                          XHCI_TRANSFER_RING_TRBS,
+                          &Trb,
+                          TrbPhysicalOut)) {
+        return FALSE;
+    }
+
+    XHCI_RingDoorbell(Device, UsbDevice->SlotId, Endpoint->Dci);
+    return TRUE;
 }
 
 /************************************************************************/

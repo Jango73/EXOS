@@ -167,7 +167,7 @@ static BOOL XHCI_ResetHubPort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub, U8 Po
         return FALSE;
     }
 
-    U32 Timeout = XHCI_PORT_RESET_TIMEOUT;
+    U32 Timeout = XHCI_PORT_RESET_TIMEOUT_MS;
     USB_PORT_STATUS Status;
     MemorySet(&Status, 0, sizeof(Status));
 
@@ -183,7 +183,7 @@ static BOOL XHCI_ResetHubPort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE Hub, U8 Po
     }
 
     if (Timeout == 0) {
-        WARNING(TEXT("[XHCI_ResetHubPort] Timeout %u ms (Port=%u)"), XHCI_PORT_RESET_TIMEOUT, Port);
+        WARNING(TEXT("[XHCI_ResetHubPort] Timeout %u ms (Port=%u)"), XHCI_PORT_RESET_TIMEOUT_MS, Port);
     }
 
     return (Timeout != 0);
@@ -237,6 +237,7 @@ static BOOL XHCI_SubmitHubStatusTransfer(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE
 
     MemorySet((LPVOID)Hub->HubStatusLinear, 0, Hub->HubInterruptLength);
     Hub->HubStatusPending = FALSE;
+    XHCI_ClearTransferCompletions(Device, Hub->SlotId, Hub->HubInterruptEndpoint->Dci);
 
     if (!XHCI_RingEnqueue(Hub->HubInterruptEndpoint->TransferRingLinear,
                           Hub->HubInterruptEndpoint->TransferRingPhysical,
@@ -263,15 +264,119 @@ static BOOL XHCI_SubmitHubStatusTransfer(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE
  * @return TRUE when completion was found.
  */
 BOOL XHCI_CheckTransferCompletion(LPXHCI_DEVICE Device, U64 TrbPhysical, U32* CompletionOut) {
+    return XHCI_CheckTransferCompletionRouted(Device,
+                                              TrbPhysical,
+                                              0,
+                                              0,
+                                              CompletionOut,
+                                              NULL,
+                                              NULL,
+                                              NULL);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Pop a completion using route fallback when TRB pointer does not match.
+ * @param Device xHCI device.
+ * @param SlotId Slot identifier.
+ * @param EndpointId Endpoint identifier (DCI).
+ * @param CompletionOut Receives completion code.
+ * @param ObservedTrbPhysicalOut Receives observed transfer-event pointer.
+ * @return TRUE on success.
+ */
+static BOOL XHCI_PopTransferCompletionByRoute(LPXHCI_DEVICE Device,
+                                              U8 SlotId,
+                                              U8 EndpointId,
+                                              U32* CompletionOut,
+                                              U32* TransferLengthOut,
+                                              U64* ObservedTrbPhysicalOut) {
+    U32 Index;
+
+    if (Device == NULL || SlotId == 0 || EndpointId == 0) {
+        return FALSE;
+    }
+
+    for (Index = 0; Index < Device->CompletionCount; Index++) {
+        XHCI_COMPLETION* Entry = &Device->CompletionQueue[Index];
+        if (Entry->Type != XHCI_TRB_TYPE_TRANSFER_EVENT) {
+            continue;
+        }
+        if (Entry->SlotId != SlotId || Entry->EndpointId != EndpointId) {
+            continue;
+        }
+
+        if (CompletionOut != NULL) {
+            *CompletionOut = Entry->Completion;
+        }
+        if (TransferLengthOut != NULL) {
+            *TransferLengthOut = Entry->TransferLength;
+        }
+        if (ObservedTrbPhysicalOut != NULL) {
+            *ObservedTrbPhysicalOut = Entry->TrbPhysical;
+        }
+
+        for (U32 Shift = Index + 1; Shift < Device->CompletionCount; Shift++) {
+            Device->CompletionQueue[Shift - 1] = Device->CompletionQueue[Shift];
+        }
+        Device->CompletionCount--;
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Check transfer completion with optional route fallback.
+ * @param Device xHCI device.
+ * @param TrbPhysical Expected TRB physical address.
+ * @param SlotId Slot identifier used for fallback matching.
+ * @param EndpointId Endpoint identifier (DCI) used for fallback matching.
+ * @param CompletionOut Receives completion code.
+ * @param UsedRouteFallbackOut Receives TRUE when fallback route matching was used.
+ * @param ObservedTrbPhysicalOut Receives observed transfer-event pointer when available.
+ * @return TRUE when completion was found.
+ */
+BOOL XHCI_CheckTransferCompletionRouted(LPXHCI_DEVICE Device,
+                                        U64 TrbPhysical,
+                                        U8 SlotId,
+                                        U8 EndpointId,
+                                        U32* CompletionOut,
+                                        U32* TransferLengthOut,
+                                        BOOL* UsedRouteFallbackOut,
+                                        U64* ObservedTrbPhysicalOut) {
     if (Device == NULL) {
         return FALSE;
     }
 
     BOOL Found = FALSE;
+    BOOL UsedRouteFallback = FALSE;
+    U64 ObservedTrbPhysical = TrbPhysical;
+
     LockMutex(&(Device->Mutex), INFINITY);
     XHCI_PollCompletions(Device);
-    Found = XHCI_PopCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut);
+    Found = XHCI_PopCompletion(Device, XHCI_TRB_TYPE_TRANSFER_EVENT, TrbPhysical, NULL, CompletionOut, TransferLengthOut);
+    if (!Found && SlotId != 0 && EndpointId != 0) {
+        Found = XHCI_PopTransferCompletionByRoute(Device,
+                                                  SlotId,
+                                                  EndpointId,
+                                                  CompletionOut,
+                                                  TransferLengthOut,
+                                                  &ObservedTrbPhysical);
+        UsedRouteFallback = Found ? TRUE : FALSE;
+    }
     UnlockMutex(&(Device->Mutex));
+
+    if (Found) {
+        if (UsedRouteFallbackOut != NULL) {
+            *UsedRouteFallbackOut = UsedRouteFallback;
+        }
+        if (ObservedTrbPhysicalOut != NULL) {
+            *ObservedTrbPhysicalOut = ObservedTrbPhysical;
+        }
+    }
     return Found;
 }
 

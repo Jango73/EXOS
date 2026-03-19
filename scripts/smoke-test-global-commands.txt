@@ -1,6 +1,6 @@
 # Smoke-test command specification
 # Format:
-# command: "<command line>" | log: "<expected fixed log fragment>" | file-size-compare: "<source-file>" "<downloaded-file>"
+# command: "<command line>" | hotkey: "<qemu-sendkey-chord>" | log: "<expected fixed log fragment>" | file-size-compare: "<source-file>" "<downloaded-file>"
 
 command: "sys_info" | log: "TEST > [CMD_sysinfo] sys_info : OK"
 command: "dir" | log: "TEST > [CMD_dir] dir : OK"
@@ -20,4 +20,7 @@ command: "type /fs/n2p0/read.txt" | log: "TEST > [CMD_type] type /fs/n2p0/read.t
 command: "scripts/test.e0" | log: "TEST > [CMD_script] Script return value: 832040"
 command: "/system/apps/netget --smoke-local /temp/index.html" | log: "TEST > [Spawn] Executable finished normally : /system/apps/netget" | file-size-compare: "scripts/net/www/index.html" "/exos/temp/index.html"
 command: "package run test" | log: "TEST > [Spawn] Executable finished normally : /package/binary/master"
+command: "desktop show"
+hotkey: "ctrl-alt-f1"
+command: "clear"
 command: "shutdown"

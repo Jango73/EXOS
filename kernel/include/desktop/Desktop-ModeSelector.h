@@ -32,9 +32,9 @@
 
 /***************************************************************************/
 
-BOOL DesktopIsValidGraphicsModeInfo(LPGRAPHICSMODEINFO ModeInfo);
-void DesktopInitializeGraphicsModeInfo(LPGRAPHICSMODEINFO ModeInfo, U32 ModeIndex, U32 Width, U32 Height, U32 BitsPerPixel);
-BOOL DesktopSelectGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICSMODEINFO SelectedMode);
+BOOL DesktopIsValidGraphicsModeInfo(LPGRAPHICS_MODE_INFO ModeInfo);
+void DesktopInitializeGraphicsModeInfo(LPGRAPHICS_MODE_INFO ModeInfo, U32 ModeIndex, U32 Width, U32 Height, U32 BitsPerPixel);
+BOOL DesktopSelectGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICS_MODE_INFO SelectedMode);
 
 /***************************************************************************/
 

@@ -26,7 +26,7 @@
 #include "FileSystem.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "utils/PartitionIO.h"
+#include "drivers/filesystems/FileSystem-Common.h"
 #include "utils/Path.h"
 
 /************************************************************************/
@@ -158,7 +158,7 @@ static LPEXFSFILE NewEXFSFile(LPEXFSFILESYSTEM FileSystem, LPEXFSFILELOC FileLoc
  * @param PartIndex Partition index.
  * @return TRUE on success.
  */
-BOOL MountPartition_EXFS(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
+BOOL MountPartition_EXFS(LPSTORAGE_UNIT Disk, LPBOOT_PARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer1[SECTOR_SIZE * 2];
     U8 Buffer2[SECTOR_SIZE * 2];
     IOCONTROL Control;
@@ -326,7 +326,7 @@ static BOOL WriteCluster(LPEXFSFILESYSTEM FileSystem, CLUSTER Cluster,
  */
 static BOOL LocateFile(LPEXFSFILESYSTEM FileSystem, LPCSTR Path, LPEXFSFILELOC FileLoc) {
     LPLIST List = NULL;
-    LPPATHNODE Component = NULL;
+    LPPATH_NODE Component = NULL;
     LPEXFSFILEREC FileRec;
 
     FileLoc->PageCluster = FileSystem->Super.RootCluster;
@@ -360,7 +360,7 @@ static BOOL LocateFile(LPEXFSFILESYSTEM FileSystem, LPCSTR Path, LPEXFSFILELOC F
     //-------------------------------------
     // Loop through all components
 
-    for (Component = (LPPATHNODE)List->First; Component != NULL; Component = (LPPATHNODE)Component->Next) {
+    for (Component = (LPPATH_NODE)List->First; Component != NULL; Component = (LPPATH_NODE)Component->Next) {
         //-------------------------------------
         // Loop through all directory entries
 
@@ -679,7 +679,7 @@ static U32 Initialize(void) { return DF_RETURN_SUCCESS; }
  * @param Find File information from a directory search.
  * @return Pointer to opened file or NULL.
  */
-static LPEXFSFILE OpenFile(LPFILEINFO Find) {
+static LPEXFSFILE OpenFile(LPFILE_INFO Find) {
     LPEXFSFILESYSTEM FileSystem = NULL;
     LPEXFSFILE File = NULL;
     LPEXFSFILEREC FileRec = NULL;
@@ -853,9 +853,9 @@ UINT EXFSCommands(UINT Function, UINT Parameter) {
             return Initialize();
         case DF_GET_VERSION:
             return MAKE_VERSION(VER_MAJOR, VER_MINOR);
-        case DF_FS_GETVOLUMEINFO:
+        case DF_FS_GETVOLUME_INFO:
             return DF_RETURN_NOT_IMPLEMENTED;
-        case DF_FS_SETVOLUMEINFO:
+        case DF_FS_SETVOLUME_INFO:
             return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_CREATEFOLDER:
             return DF_RETURN_NOT_IMPLEMENTED;
@@ -864,7 +864,7 @@ UINT EXFSCommands(UINT Function, UINT Parameter) {
         case DF_FS_RENAMEFOLDER:
             return DF_RETURN_NOT_IMPLEMENTED;
         case DF_FS_OPENFILE:
-            return (UINT)OpenFile((LPFILEINFO)Parameter);
+            return (UINT)OpenFile((LPFILE_INFO)Parameter);
         case DF_FS_OPENNEXT:
             return (UINT)OpenNext((LPEXFSFILE)Parameter);
         case DF_FS_CLOSEFILE:

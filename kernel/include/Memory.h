@@ -62,7 +62,16 @@ struct tag_MEMORY_REGION_DESCRIPTOR {
     STR Tag[MEMORY_REGION_TAG_MAX];
 };
 
+typedef struct tag_MEMORY_REGION_LIST {
+    LPMEMORY_REGION_DESCRIPTOR Head;
+    LPMEMORY_REGION_DESCRIPTOR Tail;
+    UINT Count;
+} MEMORY_REGION_LIST, *LPMEMORY_REGION_LIST;
+
 /************************************************************************/
+
+LPMEMORY_REGION_LIST GetCurrentMemoryRegionList(void);
+void MemoryRegionDescriptorAssignCurrentOwner(LPMEMORY_REGION_DESCRIPTOR Descriptor);
 
 // External symbols
 // Initializes the memory manager

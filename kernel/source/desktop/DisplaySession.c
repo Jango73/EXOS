@@ -28,27 +28,27 @@
 #include "DriverGetters.h"
 #include "GFX.h"
 #include "KernelData.h"
-#include "Log.h"
 #include "Mutex.h"
 #include "Desktop.h"
 
 /************************************************************************/
 
-static BOOL DisplaySessionQueryGraphicsMode(LPDRIVER Driver, LPGRAPHICSMODEINFO ModeInfo);
+static BOOL DisplaySessionQueryGraphicsMode(LPDRIVER Driver, LPGRAPHICS_MODE_INFO ModeInfo);
+static LPDRIVER DisplaySessionResolveConsoleGraphicsDriver(void);
 /**
  * @brief Query active mode information from a graphics backend.
  * @param Driver Graphics driver to query.
  * @param ModeInfo Output mode information.
  * @return TRUE when mode information is valid.
  */
-static BOOL DisplaySessionQueryGraphicsMode(LPDRIVER Driver, LPGRAPHICSMODEINFO ModeInfo) {
+static BOOL DisplaySessionQueryGraphicsMode(LPDRIVER Driver, LPGRAPHICS_MODE_INFO ModeInfo) {
     UINT Result;
 
     if (Driver == NULL || Driver->Command == NULL || ModeInfo == NULL) {
         return FALSE;
     }
 
-    ModeInfo->Header.Size = sizeof(GRAPHICSMODEINFO);
+    ModeInfo->Header.Size = sizeof(GRAPHICS_MODE_INFO);
     ModeInfo->Header.Version = EXOS_ABI_VERSION;
     ModeInfo->Header.Flags = 0;
     ModeInfo->ModeIndex = INFINITY;
@@ -62,6 +62,29 @@ static BOOL DisplaySessionQueryGraphicsMode(LPDRIVER Driver, LPGRAPHICSMODEINFO 
     }
 
     return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve the concrete graphics backend to reuse for console text mode.
+ * @return Graphics backend driver, or NULL when no reusable backend is active.
+ */
+static LPDRIVER DisplaySessionResolveConsoleGraphicsDriver(void) {
+    LPDRIVER ActiveBackendDriver = GraphicsSelectorGetActiveBackendDriver();
+    LPDRIVER SessionGraphicsDriver = DisplaySessionGetActiveGraphicsDriver();
+
+    if (ActiveBackendDriver != NULL && ActiveBackendDriver != ConsoleGetDriver()) {
+        return ActiveBackendDriver;
+    }
+
+    if (SessionGraphicsDriver != NULL &&
+        SessionGraphicsDriver != ConsoleGetDriver() &&
+        SessionGraphicsDriver != GetGraphicsDriver()) {
+        return SessionGraphicsDriver;
+    }
+
+    return NULL;
 }
 
 /************************************************************************/
@@ -91,7 +114,7 @@ void DisplaySessionInitialize(void) {
  * @param ModeInfo Active console mode.
  * @return TRUE on success.
  */
-BOOL DisplaySessionSetConsoleMode(LPGRAPHICSMODEINFO ModeInfo) {
+BOOL DisplaySessionSetConsoleMode(LPGRAPHICS_MODE_INFO ModeInfo) {
     LPDISPLAY_SESSION Session = GetDisplaySession();
 
     if (ModeInfo == NULL) {
@@ -107,7 +130,9 @@ BOOL DisplaySessionSetConsoleMode(LPGRAPHICSMODEINFO ModeInfo) {
         Session->ActiveMode = *ModeInfo;
         Session->ActiveFrontEnd = DISPLAY_FRONTEND_CONSOLE;
         Session->HasValidMode = TRUE;
+        SetFocusedProcess(&KernelProcess);
         SetActiveDesktop(NULL);
+        SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
         return TRUE;
     }
 
@@ -122,7 +147,7 @@ BOOL DisplaySessionSetConsoleMode(LPGRAPHICSMODEINFO ModeInfo) {
  * @param ModeInfo Active graphics mode.
  * @return TRUE on success.
  */
-BOOL DisplaySessionSetConsoleGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICSMODEINFO ModeInfo) {
+BOOL DisplaySessionSetConsoleGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICS_MODE_INFO ModeInfo) {
     LPDISPLAY_SESSION Session = GetDisplaySession();
 
     if (GraphicsDriver == NULL || ModeInfo == NULL) {
@@ -142,7 +167,9 @@ BOOL DisplaySessionSetConsoleGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICSMOD
         Session->ActiveMode = *ModeInfo;
         Session->ActiveFrontEnd = DISPLAY_FRONTEND_CONSOLE;
         Session->HasValidMode = TRUE;
+        SetFocusedProcess(&KernelProcess);
         SetActiveDesktop(NULL);
+        SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
         return TRUE;
     }
 
@@ -158,7 +185,7 @@ BOOL DisplaySessionSetConsoleGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICSMOD
  * @param ModeInfo Active graphics mode.
  * @return TRUE on success.
  */
-BOOL DisplaySessionSetDesktopMode(LPDESKTOP Desktop, LPDRIVER GraphicsDriver, LPGRAPHICSMODEINFO ModeInfo) {
+BOOL DisplaySessionSetDesktopMode(LPDESKTOP Desktop, LPDRIVER GraphicsDriver, LPGRAPHICS_MODE_INFO ModeInfo) {
     LPDISPLAY_SESSION Session = GetDisplaySession();
 
     if (Desktop == NULL || GraphicsDriver == NULL || ModeInfo == NULL) {
@@ -187,10 +214,10 @@ BOOL DisplaySessionSetDesktopMode(LPDESKTOP Desktop, LPDRIVER GraphicsDriver, LP
  * @return TRUE on success.
  */
 BOOL DisplaySwitchToConsole(void) {
-    GRAPHICSMODEINFO ModeInfo;
+    GRAPHICS_MODE_INFO ModeInfo;
+    GRAPHICS_MODE_INFO GraphicsModeInfo;
     UINT Result;
     LPDRIVER GraphicsDriver;
-    LPDISPLAY_SESSION Session;
 
     ModeInfo.Header.Size = sizeof(ModeInfo);
     ModeInfo.Header.Version = EXOS_ABI_VERSION;
@@ -200,38 +227,32 @@ BOOL DisplaySwitchToConsole(void) {
     ModeInfo.Height = (Console.Height != 0) ? Console.Height : 25;
     ModeInfo.BitsPerPixel = 0;
 
-    Result = ConsoleSetMode(&ModeInfo);
-    if (Result == DF_RETURN_SUCCESS) {
-        return TRUE;
-    }
-
-    GraphicsDriver = GetGraphicsDriver();
-    if (GraphicsDriver != NULL && GraphicsDriver != ConsoleGetDriver() &&
-        DisplaySessionQueryGraphicsMode(GraphicsDriver, &ModeInfo) != FALSE) {
-        Session = GetDisplaySession();
-
-        SAFE_USE(Session) {
-            if (Session->IsInitialized == FALSE) {
-                DisplaySessionInitialize();
+    GraphicsDriver = DisplaySessionResolveConsoleGraphicsDriver();
+    if (GraphicsDriver != NULL) {
+        if (DisplaySessionQueryGraphicsMode(GraphicsDriver, &GraphicsModeInfo) != FALSE) {
+            if (DisplaySessionSetConsoleGraphicsMode(GraphicsDriver, &GraphicsModeInfo) != FALSE) {
+                return TRUE;
             }
-
-            Session->GraphicsDriver = GraphicsDriver;
-            Session->ActiveMode = ModeInfo;
-            Session->ActiveFrontEnd = DISPLAY_FRONTEND_CONSOLE;
-            Session->HasValidMode = TRUE;
-            return TRUE;
         }
     }
 
-    WARNING(TEXT("[DisplaySwitchToConsole] Entering emergency VGA text fallback"));
-    if (ConsoleVGATextFallbackActivate(80, 25, &ModeInfo) != FALSE) {
-        WARNING(TEXT("[DisplaySwitchToConsole] Emergency VGA text fallback active (%ux%u)"),
-                ModeInfo.Width,
-                ModeInfo.Height);
+    Result = ConsoleSetMode(&ModeInfo);
+    if (Result == DF_RETURN_SUCCESS) {
+        return DisplaySessionSetConsoleMode(&ModeInfo);
+    }
+
+    if (GraphicsDriver != NULL && DisplaySessionQueryGraphicsMode(GraphicsDriver, &GraphicsModeInfo) != FALSE) {
+        if (DisplaySessionSetConsoleGraphicsMode(GraphicsDriver, &GraphicsModeInfo) == FALSE) {
+            goto FallbackToVgaText;
+        }
         return TRUE;
     }
 
-    WARNING(TEXT("[DisplaySwitchToConsole] Unable to activate console mode (%u)"), Result);
+FallbackToVgaText:
+    if (ConsoleVGATextFallbackActivate(80, 25, &ModeInfo) != FALSE) {
+        return DisplaySessionSetConsoleMode(&ModeInfo);
+    }
+
     return FALSE;
 }
 
@@ -249,34 +270,6 @@ BOOL DisplaySwitchToDesktop(LPDESKTOP Desktop) {
 
     return ShowDesktop(Desktop);
 }
-
-/************************************************************************/
-
-/**
- * @brief Retrieve active display mode from session.
- * @param ModeInfoOut Destination mode descriptor.
- * @return TRUE when a valid mode is available.
- */
-BOOL DisplaySessionGetActiveMode(LPGRAPHICSMODEINFO ModeInfoOut) {
-    LPDISPLAY_SESSION Session = GetDisplaySession();
-
-    if (ModeInfoOut == NULL) {
-        return FALSE;
-    }
-
-    SAFE_USE(Session) {
-        if (Session->IsInitialized == FALSE || Session->HasValidMode == FALSE) {
-            return FALSE;
-        }
-
-        *ModeInfoOut = Session->ActiveMode;
-        return TRUE;
-    }
-
-    return FALSE;
-}
-
-/************************************************************************/
 
 /**
  * @brief Retrieve active display front-end.

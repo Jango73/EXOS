@@ -80,7 +80,7 @@ LPPACKAGEFS_NODE PackageFSResolvePath(LPPACKAGEFSFILESYSTEM FileSystem,
                                       LPCSTR Path,
                                       BOOL FollowFinalAlias);
 
-LPPACKAGEFSFILE PackageFSOpenFile(LPFILEINFO Info);
+LPPACKAGEFSFILE PackageFSOpenFile(LPFILE_INFO Info);
 
 U32 PackageFSOpenNext(LPPACKAGEFSFILE File);
 
@@ -90,11 +90,11 @@ U32 PackageFSReadFile(LPPACKAGEFSFILE File);
 
 U32 PackageFSWriteFile(LPPACKAGEFSFILE File);
 
-BOOL PackageFSPathExists(LPFS_PATHCHECK Check);
+BOOL PackageFSPathExists(LPFILESYSTEM_PATHCHECK Check);
 
-BOOL PackageFSFileExists(LPFILEINFO Info);
+BOOL PackageFSFileExists(LPFILE_INFO Info);
 
-U32 PackageFSGetVolumeInfo(LPVOLUMEINFO Info);
+U32 PackageFSGetVolumeInfo(LPVOLUME_INFO Info);
 
 /************************************************************************/
 

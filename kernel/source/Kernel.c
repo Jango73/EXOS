@@ -28,12 +28,14 @@
 #include "BuddyAllocator.h"
 #include "Clock.h"
 #include "console/Console.h"
+#include "desktop/Desktop.h"
 #include "DisplaySession.h"
 #include "drivers/platform/ACPI.h"
 #include "drivers/input/Keyboard.h"
 #include "File.h"
 #include "Lang.h"
 #include "Log.h"
+#include "Quotes.h"
 #include "process/Process.h"
 #include "process/Task.h"
 #include "SerialPort.h"
@@ -51,25 +53,25 @@ extern U32 DeadBeef;
 #define KERNEL_LAYOUT_OFFSET_OF(Type, Member) ((UINT)__builtin_offsetof(Type, Member))
 
 #if defined(__EXOS_ARCH_X86_32__)
-typedef char KERNELSTARTUPINFO_OFFSET_KERNELRESERVEDBYTES_X86_32[
-    (KERNEL_LAYOUT_OFFSET_OF(KERNELSTARTUPINFO, KernelReservedBytes) == 0x08) ? 1 : -1];
-typedef char KERNELSTARTUPINFO_OFFSET_STACKTOP_X86_32[
-    (KERNEL_LAYOUT_OFFSET_OF(KERNELSTARTUPINFO, StackTop) == 0x0C) ? 1 : -1];
-typedef char KERNELSTARTUPINFO_OFFSET_IRQMASK21PM_X86_32[
-    (KERNEL_LAYOUT_OFFSET_OF(KERNELSTARTUPINFO, IRQMask_21_PM) == 0x14) ? 1 : -1];
-typedef char KERNELSTARTUPINFO_OFFSET_IRQMASKA1PM_X86_32[
-    (KERNEL_LAYOUT_OFFSET_OF(KERNELSTARTUPINFO, IRQMask_A1_PM) == 0x18) ? 1 : -1];
+typedef char KERNEL_STARTUP_INFO_OFFSET_KERNELRESERVEDBYTES_X86_32[
+    (KERNEL_LAYOUT_OFFSET_OF(KERNEL_STARTUP_INFO, KernelReservedBytes) == 0x08) ? 1 : -1];
+typedef char KERNEL_STARTUP_INFO_OFFSET_STACKTOP_X86_32[
+    (KERNEL_LAYOUT_OFFSET_OF(KERNEL_STARTUP_INFO, StackTop) == 0x0C) ? 1 : -1];
+typedef char KERNEL_STARTUP_INFO_OFFSET_IRQMASK21PM_X86_32[
+    (KERNEL_LAYOUT_OFFSET_OF(KERNEL_STARTUP_INFO, IRQMask_21_PM) == 0x14) ? 1 : -1];
+typedef char KERNEL_STARTUP_INFO_OFFSET_IRQMASKA1PM_X86_32[
+    (KERNEL_LAYOUT_OFFSET_OF(KERNEL_STARTUP_INFO, IRQMask_A1_PM) == 0x18) ? 1 : -1];
 #endif
 
 #if defined(__EXOS_ARCH_X86_64__)
-typedef char KERNELSTARTUPINFO_OFFSET_KERNELRESERVEDBYTES_X86_64[
-    (KERNEL_LAYOUT_OFFSET_OF(KERNELSTARTUPINFO, KernelReservedBytes) == 0x10) ? 1 : -1];
-typedef char KERNELSTARTUPINFO_OFFSET_STACKTOP_X86_64[
-    (KERNEL_LAYOUT_OFFSET_OF(KERNELSTARTUPINFO, StackTop) == 0x18) ? 1 : -1];
-typedef char KERNELSTARTUPINFO_OFFSET_IRQMASK21PM_X86_64[
-    (KERNEL_LAYOUT_OFFSET_OF(KERNELSTARTUPINFO, IRQMask_21_PM) == 0x28) ? 1 : -1];
-typedef char KERNELSTARTUPINFO_OFFSET_IRQMASKA1PM_X86_64[
-    (KERNEL_LAYOUT_OFFSET_OF(KERNELSTARTUPINFO, IRQMask_A1_PM) == 0x2C) ? 1 : -1];
+typedef char KERNEL_STARTUP_INFO_OFFSET_KERNELRESERVEDBYTES_X86_64[
+    (KERNEL_LAYOUT_OFFSET_OF(KERNEL_STARTUP_INFO, KernelReservedBytes) == 0x10) ? 1 : -1];
+typedef char KERNEL_STARTUP_INFO_OFFSET_STACKTOP_X86_64[
+    (KERNEL_LAYOUT_OFFSET_OF(KERNEL_STARTUP_INFO, StackTop) == 0x18) ? 1 : -1];
+typedef char KERNEL_STARTUP_INFO_OFFSET_IRQMASK21PM_X86_64[
+    (KERNEL_LAYOUT_OFFSET_OF(KERNEL_STARTUP_INFO, IRQMask_21_PM) == 0x28) ? 1 : -1];
+typedef char KERNEL_STARTUP_INFO_OFFSET_IRQMASKA1PM_X86_64[
+    (KERNEL_LAYOUT_OFFSET_OF(KERNEL_STARTUP_INFO, IRQMask_A1_PM) == 0x2C) ? 1 : -1];
 #endif
 
 /************************************************************************/
@@ -177,6 +179,50 @@ LINEAR EnsureKernelPointer(LINEAR Value) {
 
     LINEAR Pointer = HandleToPointer((HANDLE)Value);
     return Pointer;
+}
+
+/************************************************************************/
+
+BOOL DeleteObject(HANDLE Object) {
+    LINEAR ObjectAddress = (LINEAR)Object;
+
+    SAFE_USE(ObjectAddress) {
+        LPOBJECT KernelObject = (LPOBJECT)ObjectAddress;
+        UINT Result = 0;
+
+        SAFE_USE_VALID(KernelObject) {
+            switch (KernelObject->TypeID) {
+                case KOID_FILE:
+                    Result = (UINT)CloseFile((LPFILE)KernelObject);
+                    break;
+                case KOID_DESKTOP:
+                    Result = (UINT)DeleteDesktop((LPDESKTOP)KernelObject);
+                    break;
+                case KOID_WINDOW:
+                    Result = (UINT)DeleteWindow((HANDLE)KernelObject);
+                    break;
+                case KOID_BRUSH:
+                    KernelHeapFree(KernelObject);
+                    Result = 1;
+                    break;
+                case KOID_PEN:
+                    KernelHeapFree(KernelObject);
+                    Result = 1;
+                    break;
+                default:
+                    WARNING(TEXT("[DeleteObject] Unsupported object type=%u object=%p"), KernelObject->TypeID, ObjectAddress);
+                    Result = 0;
+                    break;
+            }
+        } else {
+            WARNING(TEXT("[DeleteObject] Invalid object pointer object=%p"), ObjectAddress);
+        }
+
+        return Result != 0 ? TRUE : FALSE;
+    }
+
+    WARNING(TEXT("[DeleteObject] Invalid object address object=%p"), ObjectAddress);
+    return FALSE;
 }
 
 /************************************************************************/
@@ -382,6 +428,8 @@ static void Welcome(void) {
         Text_Architecture,
         EXOS_VERSION_MAJOR, EXOS_VERSION_MINOR, EXOS_VERSION_PATCH
         );
+
+    ConsolePrint(TEXT("\n%s\n\n"), GetRandomQuote());
 
 /*
     ConsolePrint(TEXT("\nEXOS - "));
@@ -958,7 +1006,7 @@ static void KillActiveKernelTasks(void) {
  */
 
 void InitializeKernel(void) {
-    TASKINFO TaskInfo;
+    TASK_INFO TaskInfo;
 
     DEBUG(TEXT("[InitializeKernel] Start"));
 
@@ -1041,7 +1089,7 @@ void InitializeKernel(void) {
         //-------------------------------------
         // Kernel monitor
 
-        TaskInfo.Header.Size = sizeof(TASKINFO);
+        TaskInfo.Header.Size = sizeof(TASK_INFO);
         TaskInfo.Header.Version = EXOS_ABI_VERSION;
         TaskInfo.Header.Flags = 0;
         TaskInfo.Func = KernelMonitor;
@@ -1061,7 +1109,7 @@ void InitializeKernel(void) {
         DEBUG(TEXT("[InitializeKernel] ========================================"));
         KernelLogText(LOG_VERBOSE, TEXT("[InitializeKernel] Starting task"));
 
-        TaskInfo.Header.Size = sizeof(TASKINFO);
+        TaskInfo.Header.Size = sizeof(TASK_INFO);
         TaskInfo.Header.Version = EXOS_ABI_VERSION;
         TaskInfo.Header.Flags = 0;
         TaskInfo.Func = ClockTestTask;
@@ -1077,7 +1125,7 @@ void InitializeKernel(void) {
         //-------------------------------------
         // Shell task
 
-        TaskInfo.Header.Size = sizeof(TASKINFO);
+        TaskInfo.Header.Size = sizeof(TASK_INFO);
         TaskInfo.Header.Version = EXOS_ABI_VERSION;
         TaskInfo.Header.Flags = 0;
         TaskInfo.Func = Shell;

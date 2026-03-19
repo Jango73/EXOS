@@ -205,20 +205,32 @@ void InitShellContext(LPSHELLCONTEXT This) {
 
     MemorySet(This, 0, sizeof(SHELLCONTEXT));
 
+    if (!ReservedHeapInit(
+            &This->ReservedHeap,
+            GetCurrentProcess(),
+            SHELL_RESERVED_HEAP_INITIAL_SIZE,
+            SHELL_RESERVED_HEAP_MAXIMUM_SIZE,
+            ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE,
+            TEXT("ShellHeap"))) {
+        WARNING(TEXT("[InitShellContext] Reserved shell heap unavailable, using process heap"));
+        AllocatorInitProcess(&This->Allocator, GetCurrentProcess());
+    } else {
+        ReservedHeapInitAllocator(&This->ReservedHeap, &This->Allocator);
+    }
 
     This->Component = 0;
     This->CommandChar = 0;
 
-    CommandLineEditorInit(&This->Input.Editor, HISTORY_SIZE);
+    CommandLineEditorInitA(&This->Input.Editor, HISTORY_SIZE, &This->Allocator);
     CommandLineEditorSetCompletionCallback(
         &This->Input.Editor,
         ShellCommandLineCompletion,
         This);
-    StringArrayInit(&This->Options, 8);
-    PathCompletionInit(&This->PathCompletion, GetSystemFS());
+    StringArrayInitA(&This->Options, 8, &This->Allocator);
+    PathCompletionInitA(&This->PathCompletion, GetSystemFS(), &This->Allocator);
 
     for (Index = 0; Index < SHELL_NUM_BUFFERS; Index++) {
-        This->Buffer[Index] = (LPSTR)HeapAlloc(BUFFER_SIZE);
+        This->Buffer[Index] = (LPSTR)AllocatorAlloc(&This->Allocator, BUFFER_SIZE);
     }
 
     {
@@ -234,7 +246,7 @@ void InitShellContext(LPSHELLCONTEXT This) {
         ShellScriptCallFunction,
         This
     };
-    This->ScriptContext = ScriptCreateContext(&Callbacks);
+    This->ScriptContext = ScriptCreateContextA(&Callbacks, &This->Allocator);
 
     ShellRegisterScriptHostObjects(This);
 
@@ -247,7 +259,7 @@ void DeinitShellContext(LPSHELLCONTEXT This) {
 
 
     for (Index = 0; Index < SHELL_NUM_BUFFERS; Index++) {
-        if (This->Buffer[Index]) HeapFree(This->Buffer[Index]);
+        if (This->Buffer[Index]) AllocatorFree(&This->Allocator, This->Buffer[Index]);
     }
 
     CommandLineEditorDeinit(&This->Input.Editor);
@@ -260,6 +272,8 @@ void DeinitShellContext(LPSHELLCONTEXT This) {
         This->ScriptContext = NULL;
     }
 
+    ReservedHeapDeinit(&This->ReservedHeap);
+
 }
 
 /***************************************************************************/
@@ -267,7 +281,7 @@ void DeinitShellContext(LPSHELLCONTEXT This) {
 void ClearOptions(LPSHELLCONTEXT Context) {
     U32 Index;
     for (Index = 0; Index < Context->Options.Count; Index++) {
-        if (Context->Options.Items[Index]) HeapFree(Context->Options.Items[Index]);
+        if (Context->Options.Items[Index]) AllocatorFree(&Context->Options.Allocator, Context->Options.Items[Index]);
     }
     Context->Options.Count = 0;
 }
@@ -552,7 +566,7 @@ BOOL QualifyCommandLine(LPSHELLCONTEXT Context, LPCSTR RawCommandLine, LPSTR Qua
 /***************************************************************************/
 
 static void ChangeFolder(LPSHELLCONTEXT Context) {
-    FS_PATHCHECK Control;
+    FILESYSTEM_PATHCHECK Control;
     STR NewPath[MAX_PATH_NAME];
 
     ParseNextCommandLineComponent(Context);
@@ -578,7 +592,7 @@ static void ChangeFolder(LPSHELLCONTEXT Context) {
 
 static BOOL MakeFolder(LPSHELLCONTEXT Context, LPSTR QualifiedName) {
     LPFILESYSTEM FileSystem;
-    FILEINFO FileInfo;
+    FILE_INFO FileInfo;
     STR FileName[MAX_PATH_NAME];
     UINT Result;
 
@@ -593,7 +607,7 @@ static BOOL MakeFolder(LPSHELLCONTEXT Context, LPSTR QualifiedName) {
     if (FileSystem == NULL) return FALSE;
 
     if (QualifyFileName(Context, Context->Command, FileName)) {
-        FileInfo.Size = sizeof(FILEINFO);
+        FileInfo.Size = sizeof(FILE_INFO);
         FileInfo.FileSystem = FileSystem;
         FileInfo.Attributes = MAX_U32;
         FileInfo.Flags = 0;
@@ -679,11 +693,11 @@ static void ListFile(LPFILE File, U32 Indent) {
 /***************************************************************************/
 
 void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL Pause, BOOL Recurse, U32* NumListed) {
-    FILEINFO Find;
+    FILE_INFO Find;
     LPFILESYSTEM FileSystem;
     LPFILE File;
     LPPROCESS CurrentProcess = GetCurrentProcess();
-    FS_PATHCHECK PathCheck;
+    FILESYSTEM_PATHCHECK PathCheck;
     STR DiskName[MAX_FILE_NAME];
     LPCSTR Reason = TEXT("unknown");
     STR Pattern[MAX_PATH_NAME];
@@ -696,7 +710,7 @@ void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL Pause, 
 
     FileSystem = GetSystemFS();
 
-    Find.Size = sizeof(FILEINFO);
+    Find.Size = sizeof(FILE_INFO);
     Find.FileSystem = FileSystem;
     Find.Attributes = MAX_U32;
     Find.Flags = FILE_OPEN_READ | FILE_OPEN_EXISTING;
@@ -803,7 +817,7 @@ U32 CMD_cls(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 U32 CMD_conmode(LPSHELLCONTEXT Context) {
-    GRAPHICSMODEINFO Info;
+    GRAPHICS_MODE_INFO Info;
     U32 Columns;
     U32 Rows;
     U32 Result;
@@ -816,7 +830,7 @@ U32 CMD_conmode(LPSHELLCONTEXT Context) {
     }
 
     if (StringCompareNC(Context->Command, TEXT("list")) == 0) {
-        CONSOLEMODEINFO ModeInfo;
+        CONSOLE_MODE_INFO ModeInfo;
         ModeCount = DoSystemCall(SYSCALL_ConsoleGetModeCount, SYSCALL_PARAM(0));
         ConsolePrint(TEXT("VGA text modes:\n"));
         for (U32 Index = 0; Index < ModeCount; Index++) {

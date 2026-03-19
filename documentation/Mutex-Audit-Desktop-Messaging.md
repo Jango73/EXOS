@@ -45,8 +45,8 @@ These paths lock windows in opposite directions.
 
 ### Parent to child recursion
 
-- `kernel/source/desktop/Desktop-Main.c:678`
-  `FindWindow()` locks the parent window and recurses into children.
+- `kernel/source/desktop/Desktop-Window.c:327`
+  `DesktopFindWindow()` locks the parent window and recurses into children.
 - `kernel/source/desktop/Desktop-Graphics.c:1579`
   `WindowHitTest()` locks the parent window and recurses into children.
 - `kernel/source/desktop/Desktop-Graphics.c:631`
@@ -58,8 +58,8 @@ These paths lock windows in opposite directions.
 
 - `kernel/source/desktop/Desktop-Graphics.c:349`
   `DefaultSetWindowRect()` locks the child window first, then calls parent-based clamping and follow-up invalidation work.
-- `kernel/source/desktop/Desktop-Main.c:608`
-  `DeleteWindow()` locks the child window, then locks the parent window to remove the child from the list.
+- `kernel/source/desktop/Desktop-Window.c:264`
+  `DesktopDeleteWindow()` locks the child window, then locks the parent window to remove the child from the list.
 - `kernel/source/desktop/Desktop-Graphics.c:452`
   `BuildWindowDrawClipRegion()` locks the child window, releases it, then locks the parent and descends into sibling subtrees.
 
@@ -73,7 +73,7 @@ These sites call `PostMessage()` immediately after or around window state mutati
 
 - `kernel/source/desktop/Desktop-Graphics.c:349`
   `DefaultSetWindowRect()` mutates window geometry and then posts `EWN_WINDOW_RECT_CHANGED`.
-- `kernel/source/desktop/Desktop-Main.c:1184`
+- `kernel/source/desktop/Desktop-Window.c:769`
   `RequestWindowDraw()` sets `WINDOW_STATUS_NEED_DRAW` and posts `EWM_DRAW`.
 - `kernel/source/desktop/Desktop-Graphics.c:957`
   `SetWindowProp()` mutates the property list and posts `EWN_WINDOW_PROPERTY_CHANGED`.
@@ -117,11 +117,11 @@ Impact:
 
 These sites hold broad locks while calling operations that can block or wait on hardware.
 
-- `kernel/source/desktop/Desktop-Main.c:394`
+- `kernel/source/desktop/Desktop-Main.c:400`
   `ShowDesktop()` holds `MUTEX_KERNEL` and `Desktop->Mutex`.
-- `kernel/source/desktop/Desktop-Main.c:459`
+- `kernel/source/desktop/Desktop-Main.c:464`
   Inside that scope it calls `DF_GFX_SETMODE`.
-- `kernel/source/desktop/Desktop-Main.c:509`
+- `kernel/source/desktop/Desktop-Main.c:533`
   Still inside the same scope it calls `DisplaySessionSetDesktopMode()`.
 
 Impact:
@@ -132,10 +132,10 @@ Impact:
 
 These sites release kernel objects without unlocking the object mutex first.
 
-- `kernel/source/desktop/Desktop-Main.c:368`
+- `kernel/source/desktop/Desktop-Main.c:376`
   `DeleteDesktop()` locks `This->Mutex` and calls `ReleaseKernelObject(This)` without unlocking.
-- `kernel/source/desktop/Desktop-Main.c:608`
-  `DeleteWindow()` locks `This->Mutex` and calls `ReleaseKernelObject(This)` without unlocking.
+- `kernel/source/desktop/Desktop-Window.c:264`
+  `DesktopDeleteWindow()` locks `This->Mutex` and calls `ReleaseKernelObject(This)` without unlocking.
 
 Impact:
 - waiters can observe freed or recycled memory while still treating the mutex as live

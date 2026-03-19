@@ -28,7 +28,7 @@
 
 typedef struct tag_SESSION_LOCK_BACKEND_INTERFACE {
     BOOL (*CaptureState)(LPVOID BackendContext, LPVOID* OutState);
-    BOOL (*ShowAndUnlock)(LPVOID BackendContext, LPUSERSESSION Session);
+    BOOL (*ShowAndUnlock)(LPVOID BackendContext, LPUSER_SESSION Session);
     BOOL (*RestoreState)(LPVOID BackendContext, LPVOID State);
     void (*ReleaseState)(LPVOID BackendContext, LPVOID State);
 } SESSION_LOCK_BACKEND_INTERFACE, *LPSESSION_LOCK_BACKEND_INTERFACE;
@@ -147,11 +147,11 @@ static BOOL RestoreConsoleLockState(LPVOID BackendContext, LPVOID State) {
  * @param Session Existing session.
  * @return TRUE when switch is successful.
  */
-static BOOL SwitchLockedSessionUser(LPSHELLCONTEXT Context, LPUSERSESSION Session) {
+static BOOL SwitchLockedSessionUser(LPSHELLCONTEXT Context, LPUSER_SESSION Session) {
     STR UserName[MAX_USER_NAME];
     STR Password[MAX_PASSWORD];
-    LPUSERACCOUNT Account;
-    LPUSERSESSION NewSession;
+    LPUSER_ACCOUNT Account;
+    LPUSER_SESSION NewSession;
 
     if (Context == NULL || Session == NULL) {
         return FALSE;
@@ -202,9 +202,9 @@ static BOOL SwitchLockedSessionUser(LPSHELLCONTEXT Context, LPUSERSESSION Sessio
  * @param Session Session to unlock.
  * @return TRUE when unlock succeeds.
  */
-static BOOL ShowConsoleLockScreenAndUnlock(LPVOID BackendContext, LPUSERSESSION Session) {
+static BOOL ShowConsoleLockScreenAndUnlock(LPVOID BackendContext, LPUSER_SESSION Session) {
     LPSHELLCONTEXT Context = (LPSHELLCONTEXT)BackendContext;
-    LPUSERACCOUNT Account = NULL;
+    LPUSER_ACCOUNT Account = NULL;
     STR Selection[32];
     STR Password[MAX_PASSWORD];
 
@@ -278,7 +278,7 @@ static BOOL ShowConsoleLockScreenAndUnlock(LPVOID BackendContext, LPUSERSESSION 
  * @return TRUE when session ends unlocked.
  */
 static BOOL ProcessLockedSessionWithBackend(
-    LPUSERSESSION Session,
+    LPUSER_SESSION Session,
     LPSESSION_LOCK_BACKEND_INTERFACE Backend,
     LPVOID BackendContext) {
     LPVOID State = NULL;
@@ -316,7 +316,7 @@ static BOOL ProcessLockedSessionWithBackend(
  * @return TRUE when shell can continue.
  */
 static BOOL EnsureUnlockedSessionForShell(LPSHELLCONTEXT Context) {
-    LPUSERSESSION Session = GetCurrentSession();
+    LPUSER_SESSION Session = GetCurrentSession();
     SESSION_LOCK_BACKEND_INTERFACE Backend;
 
     if (Session == NULL) {
@@ -394,17 +394,17 @@ static BOOL HandleUserLoginProcess(void) {
 
     for (U32 LoginAttempts = 1; LoginAttempts <= 5; LoginAttempts++) {
         SHELLCONTEXT TempContext;
-        LPUSERSESSION Session = NULL;
-        LPUSERACCOUNT Account = NULL;
+        LPUSER_SESSION Session = NULL;
+        LPUSER_ACCOUNT Account = NULL;
         BOOL LoggedIn = FALSE;
 
         InitShellContext(&TempContext);
         CMD_login(&TempContext);
 
         Session = GetCurrentSession();
-        SAFE_USE_VALID_ID(Session, KOID_USERSESSION) {
+        SAFE_USE_VALID_ID(Session, KOID_USER_SESSION) {
             Account = FindUserAccountByID(Session->UserID);
-            SAFE_USE_VALID_ID(Account, KOID_USERACCOUNT) {
+            SAFE_USE_VALID_ID(Account, KOID_USER_ACCOUNT) {
                 ConsolePrint(TEXT("Logged in as: %s (%s)\n"), Account->UserName,
                     Account->Privilege == EXOS_PRIVILEGE_ADMIN ? TEXT("Administrator") : TEXT("User"));
                 LoggedIn = TRUE;

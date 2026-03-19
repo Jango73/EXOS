@@ -36,8 +36,8 @@
  * @param Info Output structure to populate.
  * @return TRUE on success, FALSE on error or unknown format.
  */
-BOOL GetExecutableInfo(LPFILE File, LPEXECUTABLEINFO Info) {
-    FILEOPERATION FileOperation;
+BOOL GetExecutableInfo(LPFILE File, LPEXECUTABLE_INFO Info) {
+    FILE_OPERATION FileOperation;
     U32 Signature;
     U32 BytesTransferred;
 
@@ -46,7 +46,7 @@ BOOL GetExecutableInfo(LPFILE File, LPEXECUTABLEINFO Info) {
     if (File == NULL) return FALSE;
     if (Info == NULL) return FALSE;
 
-    FileOperation.Header.Size = sizeof(FILEOPERATION);
+    FileOperation.Header.Size = sizeof(FILE_OPERATION);
     FileOperation.Header.Version = EXOS_ABI_VERSION;
     FileOperation.Header.Flags = 0;
     FileOperation.File = (HANDLE)File;
@@ -76,8 +76,8 @@ BOOL GetExecutableInfo(LPFILE File, LPEXECUTABLEINFO Info) {
  * @param Load Parameters describing the load operation.
  * @return TRUE on success, FALSE on failure.
  */
-BOOL LoadExecutable(LPEXECUTABLELOAD Load) {
-    FILEOPERATION FileOperation;
+BOOL LoadExecutable(LPEXECUTABLE_LOAD Load) {
+    FILE_OPERATION FileOperation;
     U32 Signature;
     U32 BytesTransferred;
 
@@ -86,7 +86,7 @@ BOOL LoadExecutable(LPEXECUTABLELOAD Load) {
     if (Load == NULL) return FALSE;
     if (Load->File == NULL) return FALSE;
 
-    FileOperation.Header.Size = sizeof(FILEOPERATION);
+    FileOperation.Header.Size = sizeof(FILE_OPERATION);
     FileOperation.Header.Version = EXOS_ABI_VERSION;
     FileOperation.Header.Flags = 0;
     FileOperation.File = (HANDLE)Load->File;

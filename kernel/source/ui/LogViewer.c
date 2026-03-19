@@ -22,7 +22,6 @@
 \************************************************************************/
 
 #include "ui/LogViewer.h"
-#include "Desktop-WindowClass.h"
 
 #include "CoreString.h"
 #include "Log.h"
@@ -30,7 +29,7 @@
 /***************************************************************************/
 
 #define LOG_VIEWER_TIMER_ID 1
-#define LOG_VIEWER_TIMER_INTERVAL_MS 500
+#define LOG_VIEWER_TIMER_INTERVAL_MS 1000
 #define LOG_VIEWER_PADDING_X 8
 #define LOG_VIEWER_PADDING_Y 4
 #define LOG_VIEWER_LINE_GAP 2
@@ -39,42 +38,9 @@
 #define LOG_VIEWER_TEXT_BUFFER_SIZE 32768
 #define LOG_VIEWER_PROP_SEQUENCE TEXT("desktop.logviewer.sequence")
 
-/***************************************************************************/
-
-/**
- * @brief Return the preferred initial size for the log viewer component.
- * @param SizeOut Receives the preferred size.
- * @return TRUE on success.
- */
-BOOL LogViewerGetPreferredSize(LPPOINT SizeOut) {
-    if (SizeOut == NULL) return FALSE;
-
-    SizeOut->X = LOG_VIEWER_DEFAULT_WIDTH;
-    SizeOut->Y = LOG_VIEWER_DEFAULT_HEIGHT;
-    return TRUE;
-}
-
-/***************************************************************************/
-
 BOOL LogViewerEnsureClassRegistered(void) {
-    LPWINDOW_CLASS WindowClass;
-
-    if (WindowClassInitializeRegistry() == FALSE) {
-        return FALSE;
-    }
-
-    WindowClass = WindowClassFindByName(DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME);
-    if (WindowClass != NULL) {
-        return TRUE;
-    }
-
-    WindowClass = WindowClassRegisterKernelClass(
-        DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME,
-        WindowClassGetDefault(),
-        LogViewerWindowFunc,
-        0);
-
-    return WindowClass != NULL;
+    if (FindWindowClass(DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME) != NULL) return TRUE;
+    return RegisterWindowClass(DESKTOP_LOG_VIEWER_WINDOW_CLASS_NAME, 0, NULL, LogViewerWindowFunc, 0) != NULL;
 }
 
 /***************************************************************************/
@@ -87,15 +53,15 @@ BOOL LogViewerEnsureClassRegistered(void) {
  * @param Text Mutable text buffer split in place on newline boundaries.
  */
 static void LogViewerDrawLines(HANDLE GraphicsContext, LPRECT ClientRect, I32 LineHeight, LPSTR Text) {
-    GFX_TEXT_DRAW_INFO DrawInfo;
+    TEXT_DRAW_INFO DrawInfo;
     LPSTR Line;
     LPSTR NextLine;
     I32 LineY;
 
     if (GraphicsContext == NULL || ClientRect == NULL || Text == NULL) return;
 
-    DrawInfo = (GFX_TEXT_DRAW_INFO){
-        .Header = {.Size = sizeof(GFX_TEXT_DRAW_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+    DrawInfo = (TEXT_DRAW_INFO){
+        .Header = {.Size = sizeof(TEXT_DRAW_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
         .GC = GraphicsContext,
         .X = ClientRect->X1 + LOG_VIEWER_PADDING_X,
         .Y = ClientRect->Y1 + LOG_VIEWER_PADDING_Y,
@@ -124,54 +90,10 @@ static void LogViewerDrawLines(HANDLE GraphicsContext, LPRECT ClientRect, I32 Li
     }
 }
 
-/***************************************************************************/
-
-/**
- * @brief Reposition one log viewer window from its direct parent geometry.
- * @param Window Log viewer window.
- * @return TRUE on success.
- */
-static BOOL LogViewerApplyParentLayout(HANDLE Window) {
-    HANDLE ParentWindow;
-    RECT ParentClientRect;
-    RECT WindowRect;
-    POINT PreferredSize;
-    I32 ParentWidth;
-    I32 ParentHeight;
-    I32 WindowWidth;
-    I32 WindowHeight;
-
-    if (Window == NULL) return FALSE;
-
-    ParentWindow = GetWindowParent(Window);
-    if (ParentWindow == NULL) return FALSE;
-    if (GetWindowClientRect(ParentWindow, &ParentClientRect) == FALSE) return FALSE;
-    if (LogViewerGetPreferredSize(&PreferredSize) == FALSE) return FALSE;
-
-    ParentWidth = ParentClientRect.X2 - ParentClientRect.X1 + 1;
-    ParentHeight = ParentClientRect.Y2 - ParentClientRect.Y1 + 1;
-    if (ParentWidth <= 0 || ParentHeight <= 0) return FALSE;
-
-    WindowWidth = PreferredSize.X;
-    WindowHeight = ParentHeight;
-    if (WindowWidth > ParentWidth) WindowWidth = ParentWidth;
-    if (WindowWidth < 1) WindowWidth = 1;
-    if (WindowHeight < 1) WindowHeight = 1;
-
-    WindowRect.X1 = ParentClientRect.X2 - WindowWidth + 1;
-    WindowRect.Y1 = ParentClientRect.Y1;
-    WindowRect.X2 = ParentClientRect.X2;
-    WindowRect.Y2 = ParentClientRect.Y2;
-
-    return MoveWindow(Window, &WindowRect);
-}
-
-/***************************************************************************/
-
 U32 LogViewerWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
     RECT ClientRect;
     HANDLE GraphicsContext;
-    GFX_TEXT_MEASURE_INFO MeasureInfo;
+    TEXT_MEASURE_INFO MeasureInfo;
     KERNEL_LOG_RECENT_VIEW View;
     STR TextBuffer[LOG_VIEWER_TEXT_BUFFER_SIZE];
     I32 ClientHeight;
@@ -200,15 +122,6 @@ U32 LogViewerWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             }
             return 1;
 
-        case EWM_NOTIFY:
-            if (Param1 == EWN_WINDOW_RECT_CHANGED) {
-                if ((HANDLE)(UINT)Param2 == GetWindowParent(Window)) {
-                    (void)LogViewerApplyParentLayout(Window);
-                    return 1;
-                }
-            }
-            break;
-
         case EWM_DRAW:
             (void)BaseWindowFunc(Window, EWM_CLEAR, Param1, Param2);
 
@@ -222,8 +135,8 @@ U32 LogViewerWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 return 1;
             }
 
-            MeasureInfo = (GFX_TEXT_MEASURE_INFO){
-                .Header = {.Size = sizeof(GFX_TEXT_MEASURE_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+            MeasureInfo = (TEXT_MEASURE_INFO){
+                .Header = {.Size = sizeof(TEXT_MEASURE_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
                 .Text = TEXT("Line"),
                 .Font = NULL,
                 .Width = 0,

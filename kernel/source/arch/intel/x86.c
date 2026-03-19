@@ -83,7 +83,7 @@ void WriteMSR64(U32 Msr, U32 ValueLow, U32 ValueHigh) {
 /***************************************************************************/
 
 void InitializePat(void) {
-    LPCPUINFORMATION CpuInfo = GetKernelCPUInfo();
+    LPCPU_INFORMATION CpuInfo = GetKernelCPUInfo();
     if (CpuInfo == NULL) {
         return;
     }

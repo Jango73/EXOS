@@ -24,16 +24,32 @@
 
 #include "utils/StringArray.h"
 
-#include "Heap.h"
 #include "CoreString.h"
 
 /************************************************************************/
 
 BOOL StringArrayInit(LPSTRINGARRAY Array, U32 Capacity) {
+    return StringArrayInitA(Array, Capacity, NULL);
+}
+
+/************************************************************************/
+
+BOOL StringArrayInitA(LPSTRINGARRAY Array, U32 Capacity, LPCALLOCATOR Allocator) {
+    if (Array == NULL || Capacity == 0) {
+        return FALSE;
+    }
+
+    if (Allocator != NULL) {
+        Array->Allocator = *Allocator;
+    } else {
+        AllocatorInitKernel(&Array->Allocator);
+    }
+
     Array->Capacity = Capacity;
     Array->Count = 0;
-    Array->Items = (LPSTR *)KernelHeapAlloc(sizeof(LPSTR) * Capacity);
+    Array->Items = (LPSTR*)AllocatorAlloc(&Array->Allocator, sizeof(LPSTR) * Capacity);
     if (Array->Items == NULL) return FALSE;
+    MemorySet(Array->Items, 0, sizeof(LPSTR) * Capacity);
     return TRUE;
 }
 
@@ -43,9 +59,9 @@ void StringArrayDeinit(LPSTRINGARRAY Array) {
     U32 Index;
     if (Array->Items) {
         for (Index = 0; Index < Array->Count; Index++) {
-            if (Array->Items[Index]) KernelHeapFree(Array->Items[Index]);
+            if (Array->Items[Index]) AllocatorFree(&Array->Allocator, Array->Items[Index]);
         }
-        KernelHeapFree(Array->Items);
+        AllocatorFree(&Array->Allocator, Array->Items);
     }
     Array->Items = NULL;
     Array->Count = 0;
@@ -57,11 +73,12 @@ void StringArrayDeinit(LPSTRINGARRAY Array) {
 static void StringArrayShiftLeft(LPSTRINGARRAY Array) {
     U32 Index;
     if (Array->Count == 0) return;
-    if (Array->Items[0]) KernelHeapFree(Array->Items[0]);
+    if (Array->Items[0]) AllocatorFree(&Array->Allocator, Array->Items[0]);
     for (Index = 1; Index < Array->Count; Index++) {
         Array->Items[Index - 1] = Array->Items[Index];
     }
     Array->Count--;
+    Array->Items[Array->Count] = NULL;
 }
 
 /************************************************************************/
@@ -80,7 +97,7 @@ BOOL StringArrayAddUnique(LPSTRINGARRAY Array, LPCSTR String) {
         StringArrayShiftLeft(Array);
     }
 
-    Array->Items[Array->Count] = (LPSTR)KernelHeapAlloc(StringLength(String) + 1);
+    Array->Items[Array->Count] = (LPSTR)AllocatorAlloc(&Array->Allocator, StringLength(String) + 1);
     if (Array->Items[Array->Count] == NULL) return FALSE;
     StringCopy(Array->Items[Array->Count], String);
     Array->Count++;
@@ -120,7 +137,7 @@ BOOL StringArrayMoveToEnd(LPSTRINGARRAY Array, LPCSTR String) {
         Array->Items[Array->Count] = ExistingString;
     } else {
         // Create new string
-        Array->Items[Array->Count] = (LPSTR)KernelHeapAlloc(StringLength(String) + 1);
+        Array->Items[Array->Count] = (LPSTR)AllocatorAlloc(&Array->Allocator, StringLength(String) + 1);
         if (Array->Items[Array->Count] == NULL) return FALSE;
         StringCopy(Array->Items[Array->Count], String);
     }
@@ -135,4 +152,3 @@ LPCSTR StringArrayGet(LPSTRINGARRAY Array, U32 Index) {
     if (Index >= Array->Count) return NULL;
     return Array->Items[Index];
 }
-

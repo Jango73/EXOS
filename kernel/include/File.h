@@ -44,16 +44,16 @@
 
 /***************************************************************************/
 
-LPFILE OpenFile(LPFILEOPENINFO FileOpenInfo);
+LPFILE OpenFile(LPFILE_OPEN_INFO FileOpenInfo);
 UINT CloseFile(LPFILE File);
 UINT GetFilePosition(LPFILE File);
-UINT SetFilePosition(LPFILEOPERATION Operation);
-UINT ReadFile(LPFILEOPERATION Operation);
-UINT WriteFile(LPFILEOPERATION Operation);
+UINT SetFilePosition(LPFILE_OPERATION Operation);
+UINT ReadFile(LPFILE_OPERATION Operation);
+UINT WriteFile(LPFILE_OPERATION Operation);
 UINT GetFileSize(LPFILE File);
-UINT DeleteFile(LPFILEOPENINFO FileOpenInfo);
-UINT CreateFolder(LPFILEOPENINFO FileOpenInfo);
-UINT DeleteFolder(LPFILEOPENINFO FileOpenInfo);
+UINT DeleteFile(LPFILE_OPEN_INFO FileOpenInfo);
+UINT CreateFolder(LPFILE_OPEN_INFO FileOpenInfo);
+UINT DeleteFolder(LPFILE_OPEN_INFO FileOpenInfo);
 
 LPVOID FileReadAll(LPCSTR, UINT *);
 UINT FileWriteAll(LPCSTR, LPCVOID, UINT);

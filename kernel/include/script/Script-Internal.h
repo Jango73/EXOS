@@ -30,6 +30,9 @@
 
 U32 ScriptHashVariable(LPCSTR Name);
 void ScriptFreeVariable(LPSCRIPT_VARIABLE Variable);
+LPVOID ScriptAlloc(LPSCRIPT_CONTEXT Context, UINT Size);
+LPVOID ScriptRealloc(LPSCRIPT_CONTEXT Context, LPVOID Pointer, UINT Size);
+void ScriptFree(LPSCRIPT_CONTEXT Context, LPVOID Pointer);
 
 void ScriptInitParser(LPSCRIPT_PARSER Parser, LPCSTR Input, LPSCRIPT_CONTEXT Context);
 void ScriptNextToken(LPSCRIPT_PARSER Parser);
@@ -50,7 +53,11 @@ BOOL ScriptIsKeyword(LPCSTR Str);
 
 void ScriptValueInit(SCRIPT_VALUE* Value);
 void ScriptValueRelease(SCRIPT_VALUE* Value);
-SCRIPT_ERROR ScriptPrepareHostValue(SCRIPT_VALUE* Value, const SCRIPT_HOST_DESCRIPTOR* DefaultDescriptor, LPVOID DefaultContext);
+SCRIPT_ERROR ScriptPrepareHostValue(
+    LPSCRIPT_CONTEXT Context,
+    SCRIPT_VALUE* Value,
+    const SCRIPT_HOST_DESCRIPTOR* DefaultDescriptor,
+    LPVOID DefaultContext);
 BOOL ScriptValueToFloat(const SCRIPT_VALUE* Value, F32* OutValue);
 SCRIPT_ERROR ScriptConcatStrings(const SCRIPT_VALUE* LeftValue, const SCRIPT_VALUE* RightValue, SCRIPT_VALUE* Result);
 SCRIPT_ERROR ScriptRemoveStringOccurrences(const SCRIPT_VALUE* LeftValue, const SCRIPT_VALUE* RightValue, SCRIPT_VALUE* Result);
@@ -66,10 +73,11 @@ void ScriptClearReturnValue(LPSCRIPT_CONTEXT Context);
 BOOL ScriptStoreReturnValue(LPSCRIPT_CONTEXT Context, const SCRIPT_VALUE* Value);
 
 U32 ScriptHashHostSymbol(LPCSTR Name);
-BOOL ScriptInitHostRegistry(LPSCRIPT_HOST_REGISTRY Registry);
+BOOL ScriptInitHostRegistry(LPSCRIPT_CONTEXT Context, LPSCRIPT_HOST_REGISTRY Registry);
 void ScriptClearHostRegistryInternal(LPSCRIPT_HOST_REGISTRY Registry);
 LPSCRIPT_HOST_SYMBOL ScriptFindHostSymbol(LPSCRIPT_HOST_REGISTRY Registry, LPCSTR Name);
 void ScriptReleaseHostSymbol(LPSCRIPT_HOST_SYMBOL Symbol);
+LPAST_NODE ScriptCreateASTNode(LPSCRIPT_CONTEXT Context, AST_NODE_TYPE Type);
 
 /************************************************************************/
 

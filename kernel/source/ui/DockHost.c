@@ -47,22 +47,6 @@ static BOOL DockHostIsValidEdge(U32 Edge) {
     return FALSE;
 }
 
-/************************************************************************/
-
-/**
- * @brief Check one overflow policy.
- * @param Policy Candidate policy.
- * @return TRUE when valid.
- */
-static BOOL DockHostIsValidOverflowPolicy(U32 Policy) {
-    if (Policy == DOCK_OVERFLOW_POLICY_CLIP) return TRUE;
-    if (Policy == DOCK_OVERFLOW_POLICY_SHRINK) return TRUE;
-    if (Policy == DOCK_OVERFLOW_POLICY_REJECT) return TRUE;
-    return FALSE;
-}
-
-/************************************************************************/
-
 /**
  * @brief Validate one host rectangle.
  * @param Rect Candidate rectangle.
@@ -74,44 +58,6 @@ static BOOL DockHostIsValidRect(LPRECT Rect) {
     if (Rect->Y2 < Rect->Y1) return FALSE;
     return TRUE;
 }
-
-/************************************************************************/
-
-/**
- * @brief Validate one edge policy object.
- * @param Policy Candidate policy.
- * @return TRUE when valid.
- */
-static BOOL DockHostValidateEdgePolicy(LPDOCK_EDGE_LAYOUT_POLICY Policy) {
-    if (Policy == NULL) return FALSE;
-    if (Policy->MarginStart < 0) return FALSE;
-    if (Policy->MarginEnd < 0) return FALSE;
-    if (Policy->Spacing < 0) return FALSE;
-    if (DockHostIsValidOverflowPolicy(Policy->OverflowPolicy) == FALSE) return FALSE;
-    return TRUE;
-}
-
-/************************************************************************/
-
-/**
- * @brief Validate one host policy object.
- * @param Policy Candidate policy.
- * @return TRUE when valid.
- */
-static BOOL DockHostValidatePolicy(LPDOCK_HOST_LAYOUT_POLICY Policy) {
-    if (Policy == NULL) return FALSE;
-    if (Policy->PaddingTop < 0) return FALSE;
-    if (Policy->PaddingBottom < 0) return FALSE;
-    if (Policy->PaddingLeft < 0) return FALSE;
-    if (Policy->PaddingRight < 0) return FALSE;
-    if (DockHostValidateEdgePolicy(&(Policy->Top)) == FALSE) return FALSE;
-    if (DockHostValidateEdgePolicy(&(Policy->Bottom)) == FALSE) return FALSE;
-    if (DockHostValidateEdgePolicy(&(Policy->Left)) == FALSE) return FALSE;
-    if (DockHostValidateEdgePolicy(&(Policy->Right)) == FALSE) return FALSE;
-    return TRUE;
-}
-
-/************************************************************************/
 
 /**
  * @brief Compare two dockables with deterministic tie-break.
@@ -671,20 +617,6 @@ U32 DockHostSetHostRect(LPDOCK_HOST Host, LPRECT HostRect) {
     return DOCK_LAYOUT_STATUS_SUCCESS;
 }
 
-/************************************************************************/
-
-U32 DockHostSetPolicy(LPDOCK_HOST Host, LPDOCK_HOST_LAYOUT_POLICY Policy) {
-    if (Host == NULL || Policy == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
-    if (DockHostValidatePolicy(Policy) == FALSE) return DOCK_LAYOUT_STATUS_INVALID_POLICY;
-
-    Host->Policy = *Policy;
-    Host->LayoutDirty = TRUE;
-    Host->LastDirtyReason = DOCK_DIRTY_REASON_POLICY_CHANGED;
-    return DOCK_LAYOUT_STATUS_SUCCESS;
-}
-
-/************************************************************************/
-
 U32 DockHostAttachDockable(LPDOCK_HOST Host, LPDOCKABLE Dockable) {
     UINT Index;
 
@@ -744,15 +676,6 @@ U32 DockHostMarkDirty(LPDOCK_HOST Host, U32 Reason) {
     Host->LastDirtyReason = Reason;
     return DOCK_LAYOUT_STATUS_SUCCESS;
 }
-
-/************************************************************************/
-
-BOOL DockHostIsRelayoutRequired(LPDOCK_HOST Host) {
-    if (Host == NULL) return FALSE;
-    return Host->LayoutDirty;
-}
-
-/************************************************************************/
 
 U32 DockHostBuildLayoutFrame(LPDOCK_HOST Host, LPDOCK_LAYOUT_FRAME Frame) {
     DOCK_EDGE_BUCKET Bucket;
@@ -840,30 +763,3 @@ U32 DockHostApplyLayoutFrame(LPDOCK_HOST Host, LPDOCK_LAYOUT_FRAME Frame, LPDOCK
     DockHostFillResultFromFrame(Result, Frame);
     return Status;
 }
-
-/************************************************************************/
-
-U32 DockHostRelayout(LPDOCK_HOST Host, LPDOCK_LAYOUT_RESULT Result) {
-    DOCK_LAYOUT_FRAME Frame;
-    U32 Status;
-
-    if (Host == NULL || Result == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
-
-    Status = DockHostBuildLayoutFrame(Host, &Frame);
-    if (Status != DOCK_LAYOUT_STATUS_SUCCESS && Frame.Status == DOCK_LAYOUT_STATUS_SUCCESS) {
-        Frame.Status = Status;
-    }
-
-    return DockHostApplyLayoutFrame(Host, &Frame, Result);
-}
-
-/************************************************************************/
-
-U32 DockHostGetWorkRect(LPDOCK_HOST Host, LPRECT WorkRect) {
-    if (Host == NULL || WorkRect == NULL) return DOCK_LAYOUT_STATUS_INVALID_PARAMETER;
-
-    *WorkRect = Host->WorkRect;
-    return DOCK_LAYOUT_STATUS_SUCCESS;
-}
-
-/************************************************************************/

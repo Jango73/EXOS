@@ -79,6 +79,8 @@ LPCSTR XHCIEnumErrorToString(U8 Code) {
             return TEXT("SETCONFIG");
         case XHCI_ENUM_ERROR_HUB_INIT:
             return TEXT("HUB");
+        case XHCI_ENUM_ERROR_BLACKLISTED:
+            return TEXT("BLACKLIST");
         default:
             return TEXT("UNKNOWN");
     }

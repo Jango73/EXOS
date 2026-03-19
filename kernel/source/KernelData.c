@@ -280,7 +280,7 @@ static LIST UserAccountList = {
 
 /************************************************************************/
 
-static KERNELDATA DATA_SECTION Kernel = {
+static KERNEL_DATA DATA_SECTION Kernel = {
     .StartupDrivers = &StartupDriverList,
     .Drivers = &DriverList,
     .WindowClass = &WindowClassList,
@@ -770,7 +770,7 @@ LPHANDLE_MAP GetHandleMap(void) {
  * @brief Retrieves the CPU information storage.
  * @return Pointer to the CPU information structure.
  */
-LPCPUINFORMATION GetKernelCPUInfo(void) {
+LPCPU_INFORMATION GetKernelCPUInfo(void) {
     return &(Kernel.CPU);
 }
 
@@ -1106,10 +1106,10 @@ static U32 DetectCPUBaseFrequencyMHz(void) {
  * @param Info Pointer to structure that receives CPU information.
  * @return TRUE on success.
  */
-BOOL GetCPUInformation(LPCPUINFORMATION Info) {
+BOOL GetCPUInformation(LPCPU_INFORMATION Info) {
     CPUIDREGISTERS Regs[8];
 
-    MemorySet(Info, 0, sizeof(CPUINFORMATION));
+    MemorySet(Info, 0, sizeof(CPU_INFORMATION));
 
     GetCPUID(Regs);
 

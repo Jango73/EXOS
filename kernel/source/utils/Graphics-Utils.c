@@ -310,7 +310,7 @@ BOOL GraphicsStrokeArc(LPVOID Context, GRAPHICS_PLOT_PIXEL_ROUTINE PlotPixel, I3
 
 /************************************************************************/
 
-BOOL GraphicsFillTriangleSpans(LPGRAPHICSCONTEXT Context, LPTRIANGLEINFO Info, COLOR FillColor, LPRECT FilledBounds) {
+BOOL GraphicsFillTriangleSpans(LPGRAPHICSCONTEXT Context, LPTRIANGLE_INFO Info, COLOR FillColor, LPRECT FilledBounds) {
     I32 MinX = 0;
     I32 MaxX = 0;
     I32 MinY = 0;

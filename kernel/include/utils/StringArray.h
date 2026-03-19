@@ -27,10 +27,12 @@
 /***************************************************************************/
 
 #include "Base.h"
+#include "utils/Allocator.h"
 
 /***************************************************************************/
 
 typedef struct tag_STRINGARRAY {
+    ALLOCATOR Allocator;
     U32 Capacity;
     U32 Count;
     LPSTR *Items;
@@ -39,6 +41,7 @@ typedef struct tag_STRINGARRAY {
 /***************************************************************************/
 
 BOOL StringArrayInit(LPSTRINGARRAY Array, U32 Capacity);
+BOOL StringArrayInitA(LPSTRINGARRAY Array, U32 Capacity, LPCALLOCATOR Allocator);
 void StringArrayDeinit(LPSTRINGARRAY Array);
 BOOL StringArrayAddUnique(LPSTRINGARRAY Array, LPCSTR String);
 BOOL StringArrayMoveToEnd(LPSTRINGARRAY Array, LPCSTR String);

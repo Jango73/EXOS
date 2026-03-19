@@ -123,8 +123,8 @@ typedef struct tag_EXOSCHUNK_FIXUP {
 
 /***************************************************************************/
 
-BOOL GetExecutableInfo_EXOS(LPFILE, LPEXECUTABLEINFO);
-BOOL LoadExecutable_EXOS(LPFILE, LPEXECUTABLEINFO, LINEAR, LINEAR);
+BOOL GetExecutableInfo_EXOS(LPFILE, LPEXECUTABLE_INFO);
+BOOL LoadExecutable_EXOS(LPFILE, LPEXECUTABLE_INFO, LINEAR, LINEAR);
 
 /***************************************************************************/
 

@@ -48,7 +48,7 @@ LPAST_NODE ScriptParseReturnStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* E
 
     ScriptNextToken(Parser);
 
-    ReturnNode = ScriptCreateASTNode(AST_RETURN);
+    ReturnNode = ScriptCreateASTNode(Parser->Context, AST_RETURN);
     if (ReturnNode == NULL) {
         *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
         return NULL;
@@ -207,14 +207,14 @@ LPAST_NODE ScriptParseShellCommandExpression(LPSCRIPT_PARSER Parser, SCRIPT_ERRO
         return NULL;
     }
 
-    LPAST_NODE Node = ScriptCreateASTNode(AST_EXPRESSION);
+    LPAST_NODE Node = ScriptCreateASTNode(Parser->Context, AST_EXPRESSION);
     if (Node == NULL) {
         *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
         return NULL;
     }
 
     U32 Length = End - Start;
-    Node->Data.Expression.CommandLine = (LPSTR)HeapAlloc(Length + 1);
+    Node->Data.Expression.CommandLine = (LPSTR)ScriptAlloc(Parser->Context, Length + 1);
     if (Node->Data.Expression.CommandLine == NULL) {
         ScriptDestroyAST(Node);
         *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
@@ -291,7 +291,7 @@ LPAST_NODE ScriptParseBlockAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
     }
     ScriptNextToken(Parser);
 
-    LPAST_NODE BlockNode = ScriptCreateASTNode(AST_BLOCK);
+    LPAST_NODE BlockNode = ScriptCreateASTNode(Parser->Context, AST_BLOCK);
     if (BlockNode == NULL) {
         *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
         return NULL;
@@ -299,7 +299,9 @@ LPAST_NODE ScriptParseBlockAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
 
     BlockNode->Data.Block.Capacity = 16;
     BlockNode->Data.Block.Count = 0;
-    BlockNode->Data.Block.Statements = (LPAST_NODE*)HeapAlloc(BlockNode->Data.Block.Capacity * sizeof(LPAST_NODE));
+    BlockNode->Data.Block.Statements = (LPAST_NODE*)ScriptAlloc(
+        Parser->Context,
+        BlockNode->Data.Block.Capacity * sizeof(LPAST_NODE));
     if (BlockNode->Data.Block.Statements == NULL) {
         *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
         ScriptDestroyAST(BlockNode);
@@ -317,7 +319,9 @@ LPAST_NODE ScriptParseBlockAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
         // Add statement to block
         if (BlockNode->Data.Block.Count >= BlockNode->Data.Block.Capacity) {
             BlockNode->Data.Block.Capacity *= 2;
-            LPAST_NODE* NewStatements = (LPAST_NODE*)HeapAlloc(BlockNode->Data.Block.Capacity * sizeof(LPAST_NODE));
+            LPAST_NODE* NewStatements = (LPAST_NODE*)ScriptAlloc(
+                Parser->Context,
+                BlockNode->Data.Block.Capacity * sizeof(LPAST_NODE));
             if (NewStatements == NULL) {
                 *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
                 ScriptDestroyAST(Statement);
@@ -327,7 +331,7 @@ LPAST_NODE ScriptParseBlockAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
             for (U32 i = 0; i < BlockNode->Data.Block.Count; i++) {
                 NewStatements[i] = BlockNode->Data.Block.Statements[i];
             }
-            HeapFree(BlockNode->Data.Block.Statements);
+            ScriptFree(Parser->Context, BlockNode->Data.Block.Statements);
             BlockNode->Data.Block.Statements = NewStatements;
         }
 
@@ -384,7 +388,7 @@ LPAST_NODE ScriptParseIfStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error
     ScriptNextToken(Parser);
 
     // Create IF node
-    LPAST_NODE IfNode = ScriptCreateASTNode(AST_IF);
+    LPAST_NODE IfNode = ScriptCreateASTNode(Parser->Context, AST_IF);
     if (IfNode == NULL) {
         *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
         return NULL;
@@ -449,7 +453,7 @@ LPAST_NODE ScriptParseForStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Erro
     ScriptNextToken(Parser);
 
     // Create FOR node
-    LPAST_NODE ForNode = ScriptCreateASTNode(AST_FOR);
+    LPAST_NODE ForNode = ScriptCreateASTNode(Parser->Context, AST_FOR);
     if (ForNode == NULL) {
         *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
         return NULL;

@@ -39,11 +39,13 @@
 /************************************************************************/
 
 typedef struct tag_DEFERRED_WORK_ITEM {
-    BOOL InUse;
+    volatile BOOL InUse;
+    volatile BOOL Unregistering;
     DEFERRED_WORK_CALLBACK WorkCallback;
     DEFERRED_WORK_POLL_CALLBACK PollCallback;
     LPVOID Context;
     volatile U32 PendingCount;
+    volatile U32 ActiveCallbacks;
     STR Name[32];
 } DEFERRED_WORK_ITEM, *LPDEFERRED_WORK_ITEM;
 
@@ -64,6 +66,17 @@ static DEFERRED_WORK_CONTEXT DATA_SECTION g_DeferredWork = {
 /************************************************************************/
 
 static UINT DeferredWorkDriverCommands(UINT Function, UINT Parameter);
+static BOOL DeferredWorkAcquirePendingDispatch(
+    UINT Handle,
+    DEFERRED_WORK_CALLBACK* Callback,
+    LPVOID* Context,
+    U32* PendingCount);
+static BOOL DeferredWorkAcquirePollDispatch(
+    UINT Handle,
+    DEFERRED_WORK_POLL_CALLBACK* Callback,
+    LPVOID* Context);
+static void DeferredWorkReleaseDispatch(UINT Handle);
+static void DeferredWorkWaitForQuiesced(UINT Handle);
 static void ProcessPendingWork(void);
 static void ProcessPollCallbacks(void);
 static U32 DeferredWorkDispatcherTask(LPVOID Param);
@@ -82,7 +95,7 @@ DRIVER DATA_SECTION DeferredWorkDriver = {
     .VersionMajor = DEFERRED_WORK_VER_MAJOR,
     .VersionMinor = DEFERRED_WORK_VER_MINOR,
     .Designer = "Jango73",
-    .Manufacturer = "EXOS",
+    .Manufacturer = "N/A",
     .Product = "DeferredWork",
     .Alias = "deferred_work",
     .Flags = DRIVER_FLAG_CRITICAL,
@@ -150,9 +163,9 @@ BOOL InitializeDeferredWork(void) {
         ConsolePrint(TEXT("WARNING : Devices in polling mode.\n"));
     }
 
-    TASKINFO TaskInfo;
+    TASK_INFO TaskInfo;
     MemorySet(&TaskInfo, 0, sizeof(TaskInfo));
-    TaskInfo.Header.Size = sizeof(TASKINFO);
+    TaskInfo.Header.Size = sizeof(TASK_INFO);
     TaskInfo.Header.Version = EXOS_ABI_VERSION;
     TaskInfo.Func = DeferredWorkDispatcherTask;
     TaskInfo.Parameter = NULL;
@@ -191,6 +204,133 @@ void ShutdownDeferredWork(void) {
 /************************************************************************/
 
 /**
+ * @brief Claims one pending work callback execution for one slot.
+ *
+ * The callback pointer and context are snapshotted while interrupts are
+ * disabled so later unregister operations cannot invalidate the dispatch
+ * frame already selected for execution.
+ *
+ * @param Handle Work item handle to inspect.
+ * @param Callback Output callback pointer.
+ * @param Context Output callback context.
+ * @param PendingCount Output number of queued runs consumed by this claim.
+ *
+ * @return TRUE when one dispatch batch was acquired, FALSE otherwise.
+ */
+static BOOL DeferredWorkAcquirePendingDispatch(
+    UINT Handle,
+    DEFERRED_WORK_CALLBACK* Callback,
+    LPVOID* Context,
+    U32* PendingCount) {
+    LPDEFERRED_WORK_ITEM Item;
+    UINT Flags;
+
+    if (Handle >= DEFERRED_WORK_MAX_ITEMS || Callback == NULL || Context == NULL || PendingCount == NULL) {
+        return FALSE;
+    }
+
+    SaveFlags(&Flags);
+    DisableInterrupts();
+
+    Item = &g_DeferredWork.WorkItems[Handle];
+    if (!Item->InUse || Item->Unregistering || Item->WorkCallback == NULL || Item->PendingCount == 0) {
+        RestoreFlags(&Flags);
+        return FALSE;
+    }
+
+    *Callback = Item->WorkCallback;
+    *Context = Item->Context;
+    *PendingCount = Item->PendingCount;
+    Item->PendingCount = 0;
+    Item->ActiveCallbacks++;
+
+    RestoreFlags(&Flags);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Claims one polling callback execution for one slot.
+ *
+ * @param Handle Work item handle to inspect.
+ * @param Callback Output poll callback pointer.
+ * @param Context Output callback context.
+ *
+ * @return TRUE when one polling callback was acquired, FALSE otherwise.
+ */
+static BOOL DeferredWorkAcquirePollDispatch(
+    UINT Handle,
+    DEFERRED_WORK_POLL_CALLBACK* Callback,
+    LPVOID* Context) {
+    LPDEFERRED_WORK_ITEM Item;
+    UINT Flags;
+
+    if (Handle >= DEFERRED_WORK_MAX_ITEMS || Callback == NULL || Context == NULL) {
+        return FALSE;
+    }
+
+    SaveFlags(&Flags);
+    DisableInterrupts();
+
+    Item = &g_DeferredWork.WorkItems[Handle];
+    if (!Item->InUse || Item->Unregistering || Item->PollCallback == NULL) {
+        RestoreFlags(&Flags);
+        return FALSE;
+    }
+
+    *Callback = Item->PollCallback;
+    *Context = Item->Context;
+    Item->ActiveCallbacks++;
+
+    RestoreFlags(&Flags);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Releases one previously acquired dispatch claim.
+ *
+ * @param Handle Work item handle previously acquired.
+ */
+static void DeferredWorkReleaseDispatch(UINT Handle) {
+    UINT Flags;
+
+    if (Handle >= DEFERRED_WORK_MAX_ITEMS) {
+        return;
+    }
+
+    SaveFlags(&Flags);
+    DisableInterrupts();
+
+    if (g_DeferredWork.WorkItems[Handle].ActiveCallbacks > 0) {
+        g_DeferredWork.WorkItems[Handle].ActiveCallbacks--;
+    }
+
+    RestoreFlags(&Flags);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Waits until one work item no longer has in-flight callbacks.
+ *
+ * @param Handle Work item handle to wait for.
+ */
+static void DeferredWorkWaitForQuiesced(UINT Handle) {
+    if (Handle >= DEFERRED_WORK_MAX_ITEMS) {
+        return;
+    }
+
+    while (g_DeferredWork.WorkItems[Handle].ActiveCallbacks > 0) {
+        Sleep(1);
+    }
+}
+
+/************************************************************************/
+
+/**
  * @brief Registers a deferred work item with callbacks and context.
  *
  * @param Registration Registration information defining callbacks and context.
@@ -198,6 +338,8 @@ void ShutdownDeferredWork(void) {
  * @return Handle to the registered work item or DEFERRED_WORK_INVALID_HANDLE.
  */
 U32 DeferredWorkRegister(const DEFERRED_WORK_REGISTRATION *Registration) {
+    UINT Flags;
+
     if (Registration == NULL) {
         return DEFERRED_WORK_INVALID_HANDLE;
     }
@@ -207,12 +349,19 @@ U32 DeferredWorkRegister(const DEFERRED_WORK_REGISTRATION *Registration) {
     }
 
     for (U32 Index = 0; Index < DEFERRED_WORK_MAX_ITEMS; Index++) {
-        if (!g_DeferredWork.WorkItems[Index].InUse) {
+        SaveFlags(&Flags);
+        DisableInterrupts();
+
+        if (!g_DeferredWork.WorkItems[Index].InUse &&
+            !g_DeferredWork.WorkItems[Index].Unregistering &&
+            g_DeferredWork.WorkItems[Index].ActiveCallbacks == 0) {
             g_DeferredWork.WorkItems[Index].InUse = TRUE;
+            g_DeferredWork.WorkItems[Index].Unregistering = FALSE;
             g_DeferredWork.WorkItems[Index].WorkCallback = Registration->WorkCallback;
             g_DeferredWork.WorkItems[Index].PollCallback = Registration->PollCallback;
             g_DeferredWork.WorkItems[Index].Context = Registration->Context;
             g_DeferredWork.WorkItems[Index].PendingCount = 0;
+            g_DeferredWork.WorkItems[Index].ActiveCallbacks = 0;
             MemorySet(g_DeferredWork.WorkItems[Index].Name, 0, sizeof(g_DeferredWork.WorkItems[Index].Name));
             if (Registration->Name) {
                 StringCopyLimit(g_DeferredWork.WorkItems[Index].Name,
@@ -220,11 +369,15 @@ U32 DeferredWorkRegister(const DEFERRED_WORK_REGISTRATION *Registration) {
                                 sizeof(g_DeferredWork.WorkItems[Index].Name));
             }
 
+            RestoreFlags(&Flags);
+
             DEBUG(TEXT("[DeferredWorkRegister] Registered work item %u (%s)"),
                   Index,
                   g_DeferredWork.WorkItems[Index].Name);
             return Index;
         }
+
+        RestoreFlags(&Flags);
     }
 
     ERROR(TEXT("[DeferredWorkRegister] No free deferred work slots"));
@@ -260,16 +413,41 @@ U32 DeferredWorkRegisterPollOnly(DEFERRED_WORK_POLL_CALLBACK PollCallback, LPVOI
  * @param Handle Deferred work handle to remove.
  */
 void DeferredWorkUnregister(U32 Handle) {
+    LPDEFERRED_WORK_ITEM Item;
+    UINT Flags;
+
     if (Handle >= DEFERRED_WORK_MAX_ITEMS) {
         return;
     }
 
-    g_DeferredWork.WorkItems[Handle].InUse = FALSE;
-    g_DeferredWork.WorkItems[Handle].WorkCallback = NULL;
-    g_DeferredWork.WorkItems[Handle].PollCallback = NULL;
-    g_DeferredWork.WorkItems[Handle].Context = NULL;
-    g_DeferredWork.WorkItems[Handle].PendingCount = 0;
-    MemorySet(g_DeferredWork.WorkItems[Handle].Name, 0, sizeof(g_DeferredWork.WorkItems[Handle].Name));
+    SaveFlags(&Flags);
+    DisableInterrupts();
+
+    Item = &g_DeferredWork.WorkItems[Handle];
+    if (!Item->InUse) {
+        RestoreFlags(&Flags);
+        return;
+    }
+
+    Item->Unregistering = TRUE;
+    Item->PendingCount = 0;
+
+    RestoreFlags(&Flags);
+
+    DeferredWorkWaitForQuiesced(Handle);
+
+    SaveFlags(&Flags);
+    DisableInterrupts();
+
+    Item->InUse = FALSE;
+    Item->Unregistering = FALSE;
+    Item->WorkCallback = NULL;
+    Item->PollCallback = NULL;
+    Item->Context = NULL;
+    Item->PendingCount = 0;
+    MemorySet(Item->Name, 0, sizeof(Item->Name));
+
+    RestoreFlags(&Flags);
 
     DEBUG(TEXT("[DeferredWorkUnregister] Unregistered work item %u"), Handle);
 }
@@ -282,18 +460,22 @@ void DeferredWorkUnregister(U32 Handle) {
  * @param Handle Deferred work handle to signal.
  */
 void DeferredWorkSignal(U32 Handle) {
+    LPDEFERRED_WORK_ITEM Item;
+    UINT Flags;
+
     if (Handle >= DEFERRED_WORK_MAX_ITEMS) {
         return;
     }
 
-    LPDEFERRED_WORK_ITEM Item = &g_DeferredWork.WorkItems[Handle];
-    if (!Item->InUse || Item->WorkCallback == NULL) {
+    SaveFlags(&Flags);
+    DisableInterrupts();
+
+    Item = &g_DeferredWork.WorkItems[Handle];
+    if (!Item->InUse || Item->Unregistering || Item->WorkCallback == NULL) {
+        RestoreFlags(&Flags);
         return;
     }
 
-    UINT Flags;
-    SaveFlags(&Flags);
-    DisableInterrupts();
     Item->PendingCount++;
     RestoreFlags(&Flags);
 
@@ -327,26 +509,21 @@ static void ProcessPendingWork(void) {
         WorkFound = FALSE;
 
         for (U32 Index = 0; Index < DEFERRED_WORK_MAX_ITEMS; Index++) {
-            LPDEFERRED_WORK_ITEM Item = &g_DeferredWork.WorkItems[Index];
-            if (!Item->InUse || Item->WorkCallback == NULL) {
+            U32 Pending = 0;
+            LPVOID Context = NULL;
+            DEFERRED_WORK_CALLBACK Callback = NULL;
+
+            if (!DeferredWorkAcquirePendingDispatch(Index, &Callback, &Context, &Pending)) {
                 continue;
             }
 
-            U32 Pending = 0;
-            UINT Flags;
-            SaveFlags(&Flags);
-            DisableInterrupts();
-            if (Item->PendingCount > 0U) {
-                Pending = Item->PendingCount;
-                Item->PendingCount = 0U;
-            }
-            RestoreFlags(&Flags);
-
-            while (Pending > 0U) {
-                Item->WorkCallback(Item->Context);
+            while (Pending > 0) {
+                Callback(Context);
                 Pending--;
                 WorkFound = TRUE;
             }
+
+            DeferredWorkReleaseDispatch(Index);
         }
     } while (WorkFound);
 
@@ -378,12 +555,15 @@ static void ProcessPendingWork(void) {
  */
 static void ProcessPollCallbacks(void) {
     for (U32 Index = 0; Index < DEFERRED_WORK_MAX_ITEMS; Index++) {
-        LPDEFERRED_WORK_ITEM Item = &g_DeferredWork.WorkItems[Index];
-        if (!Item->InUse || Item->PollCallback == NULL) {
+        LPVOID Context = NULL;
+        DEFERRED_WORK_POLL_CALLBACK Callback = NULL;
+
+        if (!DeferredWorkAcquirePollDispatch(Index, &Callback, &Context)) {
             continue;
         }
 
-        Item->PollCallback(Item->Context);
+        Callback(Context);
+        DeferredWorkReleaseDispatch(Index);
     }
 }
 
@@ -399,9 +579,9 @@ static void ProcessPollCallbacks(void) {
 static U32 DeferredWorkDispatcherTask(LPVOID Param) {
     UNUSED(Param);
 
-    WAITINFO WaitInfo;
-    MemorySet(&WaitInfo, 0, sizeof(WAITINFO));
-    WaitInfo.Header.Size = sizeof(WAITINFO);
+    WAIT_INFO WaitInfo;
+    MemorySet(&WaitInfo, 0, sizeof(WAIT_INFO));
+    WaitInfo.Header.Size = sizeof(WAIT_INFO);
     WaitInfo.Header.Version = EXOS_ABI_VERSION;
     WaitInfo.Header.Flags = 0;
     WaitInfo.Count = 1;

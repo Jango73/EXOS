@@ -60,8 +60,6 @@ typedef struct tag_KERNEL_LOG_RECENT_VIEW {
 void InitKernelLog(void);
 void KernelLogSetTagFilter(LPCSTR TagFilter);
 LPCSTR KernelLogGetTagFilter(void);
-void KernelLogSetErrorConsoleEnabled(BOOL Enabled);
-BOOL KernelLogGetErrorConsoleEnabled(void);
 U32 KernelLogGetRecentSequence(void);
 BOOL KernelLogCaptureRecentLines(LPKERNEL_LOG_RECENT_VIEW View);
 void KernelLogText(U32, LPCSTR, ...);

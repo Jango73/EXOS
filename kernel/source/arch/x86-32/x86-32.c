@@ -190,7 +190,7 @@ static UINT InterruptsDriverCommands(UINT Function, UINT Parameter);
 
 /************************************************************************/
 
-KERNELDATA_X86_32 DATA_SECTION Kernel_x86_32 = {
+KERNEL_DATA_X86_32 DATA_SECTION Kernel_x86_32 = {
     .IDT = NULL,
     .GDT = NULL,
     .TSS = NULL
@@ -205,7 +205,7 @@ DRIVER DATA_SECTION InterruptsDriver = {
     .VersionMajor = INTERRUPTS_VER_MAJOR,
     .VersionMinor = INTERRUPTS_VER_MINOR,
     .Designer = "Jango73",
-    .Manufacturer = "EXOS",
+    .Manufacturer = "Intel",
     .Product = "Interrupts",
     .Alias = "interrupts",
     .Flags = DRIVER_FLAG_CRITICAL,
@@ -446,7 +446,7 @@ BOOL SegmentInfoToString(LPSEGMENT_INFO This, LPSTR Text) {
  * architecture-neutral bookkeeping and delegates the hardware specific work to
  * this helper.
  */
-BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info) {
+BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASK_INFO* Info) {
     LINEAR BaseVMA = VMA_KERNEL;
     SELECTOR CodeSelector = SELECTOR_KERNEL_CODE;
     SELECTOR DataSelector = SELECTOR_KERNEL_DATA;

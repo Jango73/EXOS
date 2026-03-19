@@ -27,7 +27,7 @@
 
 /***************************************************************************/
 
-#include "FSID.h"
+#include "ID.h"
 #include "FileSystem.h"
 
 /***************************************************************************/
@@ -103,12 +103,12 @@ typedef struct tag_NTFS_VOLUMENAME {
 /***************************************************************************/
 // $VOLUME_INFORMATION
 
-typedef struct tag_NTFS_VOLUMEINFO {
+typedef struct tag_NTFS_VOLUME_INFO {
     U8 Unknown[8];
     U8 MajorVersion;
     U8 MinorVersion;
     U8 ChkDskFlag;
-} NTFS_VOLUMEINFO, *LPNTFS_VOLUMEINFO;
+} NTFS_VOLUME_INFO, *LPNTFS_VOLUME_INFO;
 
 /***************************************************************************/
 // $AttrDef
@@ -229,7 +229,7 @@ BOOL NtfsTimestampToDateTime(U64 NtfsTimestamp, LPDATETIME DateTime);
  * @param PartIndex Partition index used for volume naming.
  * @return TRUE on success, FALSE when validation or allocation fails.
  */
-BOOL MountPartition_NTFS(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex);
+BOOL MountPartition_NTFS(LPSTORAGE_UNIT Disk, LPBOOT_PARTITION Partition, U32 Base, U32 PartIndex);
 
 /***************************************************************************/
 

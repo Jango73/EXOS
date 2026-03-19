@@ -26,6 +26,7 @@
 
 /************************************************************************/
 
+#include "User.h"
 #include "process/Process.h"
 #include "Desktop-ThemeRuntime.h"
 #include "GFX.h"
@@ -70,60 +71,27 @@ typedef enum tag_DESKTOP_LOCK_ROLE {
 LPDESKTOP CreateDesktop(void);
 BOOL DeleteDesktop(LPDESKTOP);
 BOOL ShowDesktop(LPDESKTOP);
-LPWINDOW CreateWindow(LPWINDOWINFO);
-BOOL DeleteWindow(LPWINDOW);
-LPWINDOW FindWindow(LPWINDOW, U32);
-LPWINDOW ContainsWindow(LPWINDOW, LPWINDOW);
-LPDESKTOP GetWindowDesktop(LPWINDOW);
-BOOL BroadcastMessageToWindow(LPWINDOW This, U32 Msg, U32 Param1, U32 Param2);
-BOOL UpdateWindowScreenRectAndDirtyRegion(LPWINDOW Window, LPRECT Rect);
-BOOL InvalidateWindowRect(HANDLE, LPRECT);
+LPWINDOW DesktopCreateWindow(LPWINDOW_INFO);
+BOOL DesktopDeleteWindow(LPWINDOW);
+LPWINDOW DesktopFindWindow(LPWINDOW, U32);
+LPWINDOW DesktopContainsWindow(LPWINDOW, LPWINDOW);
+LPDESKTOP DesktopGetWindowDesktop(LPWINDOW);
+BOOL DesktopUpdateWindowScreenRectAndDirtyRegion(LPWINDOW Window, LPRECT Rect);
 BOOL RequestWindowDraw(HANDLE Handle);
-BOOL ShowWindow(HANDLE, BOOL);
+BOOL DesktopSetWindowVisibility(HANDLE, BOOL);
 BOOL BringWindowToFront(HANDLE);
-BOOL GetWindowRect(HANDLE, LPRECT);
-BOOL MoveWindow(HANDLE, LPRECT);
 BOOL SizeWindow(HANDLE, LPPOINT);
 BOOL SetWindowStyleState(HANDLE, U32, BOOL);
-BOOL GetWindowStyle(HANDLE, U32*);
-BOOL SetWindowCaption(HANDLE, LPCSTR);
-BOOL GetWindowCaption(HANDLE, LPSTR, UINT);
-HANDLE GetWindowParent(HANDLE);
-U32 GetWindowChildCount(HANDLE);
-HANDLE GetWindowChild(HANDLE, U32 ChildIndex);
-HANDLE GetNextWindowSibling(HANDLE);
-HANDLE GetPreviousWindowSibling(HANDLE);
-BOOL SetWindowWorkRect(HANDLE Handle, LPRECT WorkRect);
-BOOL GetWindowWorkRect(HANDLE Handle, LPRECT WorkRect);
-BOOL GetWindowClientRect(HANDLE Handle, LPRECT ClientRect);
 BOOL GetWindowDrawableRect(HANDLE Handle, LPRECT DrawableRect);
+BOOL WindowRectToScreenRect(HANDLE Handle, LPRECT WindowRect, LPRECT ScreenRect);
 BOOL GetDesktopScreenRect(LPDESKTOP, LPRECT);
-U32 SetWindowProp(HANDLE, LPCSTR, U32);
-U32 GetWindowProp(HANDLE, LPCSTR);
 HANDLE GetWindowGC(HANDLE);
 BOOL ReleaseWindowGC(HANDLE);
-HANDLE BeginWindowDraw(HANDLE);
-BOOL EndWindowDraw(HANDLE);
-BOOL GetWindowDrawSurfaceRect(HANDLE Handle, LPRECT Rect);
-HANDLE GetSystemBrush(U32);
-HANDLE GetSystemPen(U32);
-HANDLE SelectBrush(HANDLE, HANDLE);
-HANDLE SelectPen(HANDLE, HANDLE);
-HANDLE CreateBrush(LPBRUSHINFO);
-HANDLE CreatePen(LPPENINFO);
-BOOL SetPixel(LPPIXELINFO);
-BOOL GetPixel(LPPIXELINFO);
-BOOL Line(LPLINEINFO);
-BOOL Rectangle(LPRECTINFO);
-BOOL Arc(LPARCINFO);
-BOOL Triangle(LPTRIANGLEINFO);
-BOOL DrawText(LPGFX_TEXT_DRAW_INFO);
-BOOL MeasureText(LPGFX_TEXT_MEASURE_INFO);
-BOOL GetGraphicsDebugInfo(LPDRIVER_DEBUG_INFO);
-BOOL GetMouseDebugInfo(LPDRIVER_DEBUG_INFO);
-BOOL SetWindowTimer(HANDLE Window, U32 TimerID, U32 IntervalMilliseconds);
-BOOL KillWindowTimer(HANDLE Window, U32 TimerID);
-U32 BaseWindowFunc(HANDLE, U32, U32, U32);
+BOOL SetPixel(LPPIXEL_INFO);
+BOOL GetPixel(LPPIXEL_INFO);
+BOOL Rectangle(LPRECT_INFO);
+BOOL DesktopDrawText(LPGFX_TEXT_DRAW_INFO);
+BOOL DesktopMeasureText(LPGFX_TEXT_MEASURE_INFO);
 HANDLE WindowHitTest(HANDLE, LPPOINT);
 BOOL LoadTheme(LPCSTR Path);
 BOOL ActivateTheme(LPCSTR NameOrHandle);

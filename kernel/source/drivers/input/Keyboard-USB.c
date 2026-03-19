@@ -661,8 +661,8 @@ static void USBKeyboardHandleSpecialUsage(U8 Usage) {
     if (Keyboard.UsageStatus[KEY_USAGE_LEFT_CTRL] || Keyboard.UsageStatus[KEY_USAGE_RIGHT_CTRL]) {
         (void)DisplaySwitchToConsole();
     } else {
-        TASKINFO TaskInfo;
-        TaskInfo.Header.Size = sizeof(TASKINFO);
+        TASK_INFO TaskInfo;
+        TaskInfo.Header.Size = sizeof(TASK_INFO);
         TaskInfo.Header.Version = EXOS_ABI_VERSION;
         TaskInfo.Header.Flags = 0;
         TaskInfo.Func = Shell;
@@ -1213,7 +1213,7 @@ static void USBKeyboardPoll(LPVOID Context) {
         if (!USBKeyboardIsDevicePresent(USBKeyboardState.Controller, USBKeyboardState.UsbDevice)) {
             DEBUG(TEXT("[USBKeyboardPoll] Keyboard disconnected"));
             USBKeyboardClearState();
-            USBKeyboardState.RetryDelay = 50;
+            USBKeyboardState.RetryDelay = USB_KEYBOARD_DISCOVERY_RETRY_DELAY_POLLS;
         }
     }
 
@@ -1233,7 +1233,7 @@ static void USBKeyboardPoll(LPVOID Context) {
                                   &ConsumerEndpoint)) {
             if (!USBKeyboardStartDevice(Device, UsbDevice, Interface, Endpoint, ConsumerInterface, ConsumerEndpoint)) {
                 USBKeyboardClearState();
-                USBKeyboardState.RetryDelay = 50;
+                USBKeyboardState.RetryDelay = USB_KEYBOARD_DISCOVERY_RETRY_DELAY_POLLS;
             }
         }
     }

@@ -25,7 +25,13 @@
 #include "drivers/usb/XHCI-Internal.h"
 #include "drivers/usb/XHCI-Device-Internal.h"
 #include "Clock.h"
-#include "utils/ThresholdLatch.h"
+
+/************************************************************************/
+
+#define XHCI_PROBE_FAILURE_LOG_IMMEDIATE_BUDGET 2
+#define XHCI_PROBE_FAILURE_LOG_INTERVAL_MS 2000
+#define XHCI_ROOT_PORT_PROBE_SIGNATURE_MASK                                                                    \
+    (XHCI_PORTSC_CCS | XHCI_PORTSC_PED | XHCI_PORTSC_PR | XHCI_PORTSC_PLS_MASK | XHCI_PORTSC_SPEED_MASK)
 
 /************************************************************************/
 /**
@@ -35,6 +41,9 @@
  * @param PortStatus Current port status register value.
  */
 static void XHCI_LogProbeFailure(LPXHCI_USB_DEVICE UsbDevice, LPCSTR Step, U32 PortStatus) {
+    static RATE_LIMITER DATA_SECTION ProbeFailureLimiter = {0};
+    static BOOL DATA_SECTION ProbeFailureLimiterInitAttempted = FALSE;
+    U32 Suppressed = 0;
     U32 UsbCommand = 0;
     U32 UsbStatus = 0;
     U32 PortLinkState = 0;
@@ -45,6 +54,19 @@ static void XHCI_LogProbeFailure(LPXHCI_USB_DEVICE UsbDevice, LPCSTR Step, U32 P
     LPXHCI_DEVICE Device = NULL;
 
     if (UsbDevice == NULL || UsbDevice->IsRootPort == FALSE) {
+        return;
+    }
+
+    if (ProbeFailureLimiter.Initialized == FALSE && ProbeFailureLimiterInitAttempted == FALSE) {
+        ProbeFailureLimiterInitAttempted = TRUE;
+        if (RateLimiterInit(&ProbeFailureLimiter,
+                            XHCI_PROBE_FAILURE_LOG_IMMEDIATE_BUDGET,
+                            XHCI_PROBE_FAILURE_LOG_INTERVAL_MS) == FALSE) {
+            return;
+        }
+    }
+
+    if (!RateLimiterShouldTrigger(&ProbeFailureLimiter, GetSystemTime(), &Suppressed)) {
         return;
     }
 
@@ -61,7 +83,7 @@ static void XHCI_LogProbeFailure(LPXHCI_USB_DEVICE UsbDevice, LPCSTR Step, U32 P
     Enabled = (PortStatus & XHCI_PORTSC_PED) ? 1 : 0;
     Reset = (PortStatus & XHCI_PORTSC_PR) ? 1 : 0;
 
-    WARNING(TEXT("[XHCI_LogProbeFailure] Port=%u Step=%s Err=%x Completion=%x Raw=%x CCS=%u PED=%u PR=%u PLS=%x Speed=%x Slot=%x Addr=%x Present=%u Hub=%u Vid=%x Pid=%x Class=%x/%x/%x MPS0=%u USBCMD=%x USBSTS=%x"),
+    WARNING(TEXT("[XHCI_LogProbeFailure] Port=%u Step=%s Err=%x Completion=%x Raw=%x CCS=%u PED=%u PR=%u PLS=%x Speed=%x Slot=%x Addr=%x Present=%u Hub=%u Vid=%x Pid=%x Class=%x/%x/%x MPS0=%u USBCMD=%x USBSTS=%x suppressed=%u"),
             (U32)UsbDevice->PortNumber,
             (Step != NULL) ? Step : TEXT("?"),
             (U32)UsbDevice->LastEnumError,
@@ -83,7 +105,8 @@ static void XHCI_LogProbeFailure(LPXHCI_USB_DEVICE UsbDevice, LPCSTR Step, U32 P
             (U32)UsbDevice->DeviceDescriptor.DeviceProtocol,
             (U32)UsbDevice->MaxPacketSize0,
             UsbCommand,
-            UsbStatus);
+            UsbStatus,
+            Suppressed);
 }
 
 static U32 XHCI_ReadRootPortStatusSafe(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice) {
@@ -95,6 +118,95 @@ static U32 XHCI_ReadRootPortStatusSafe(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE U
     }
     return XHCI_ReadPortStatus(Device, (U32)UsbDevice->PortNumber - 1);
 }
+
+/************************************************************************/
+
+/**
+ * @brief Build a stable root-port signature used to detect state changes.
+ * @param PortStatus Raw PORTSC value.
+ * @return Filtered signature.
+ */
+static U32 XHCI_BuildRootPortProbeSignature(U32 PortStatus) {
+    return PortStatus & XHCI_ROOT_PORT_PROBE_SIGNATURE_MASK;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Refresh root-port failure-gate state from current port status.
+ * @param UsbDevice Root-port device state.
+ * @param PortStatus Current PORTSC value.
+ */
+static void XHCI_UpdateRootPortProbeState(LPXHCI_USB_DEVICE UsbDevice, U32 PortStatus) {
+    U32 Signature;
+
+    if (UsbDevice == NULL || UsbDevice->IsRootPort == FALSE) {
+        return;
+    }
+
+    Signature = XHCI_BuildRootPortProbeSignature(PortStatus);
+    if (UsbDevice->RootPortFailureGate.Initialized == FALSE) {
+        (void)FailureGateInit(&UsbDevice->RootPortFailureGate, XHCI_ROOT_PORT_PROBE_FAILURE_THRESHOLD);
+    }
+
+    if (UsbDevice->LastRootPortProbeSignature != Signature) {
+        UsbDevice->LastRootPortProbeSignature = Signature;
+        FailureGateReset(&UsbDevice->RootPortFailureGate);
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Record one failed root-port probe attempt.
+ * @param UsbDevice Root-port device state.
+ * @return TRUE when the port becomes blacklisted.
+ */
+static BOOL XHCI_RecordRootPortProbeFailure(LPXHCI_USB_DEVICE UsbDevice) {
+    if (UsbDevice == NULL || UsbDevice->IsRootPort == FALSE) {
+        return FALSE;
+    }
+
+    if (UsbDevice->RootPortFailureGate.Initialized == FALSE) {
+        (void)FailureGateInit(&UsbDevice->RootPortFailureGate, XHCI_ROOT_PORT_PROBE_FAILURE_THRESHOLD);
+    }
+
+    return FailureGateRecordFailure(&UsbDevice->RootPortFailureGate);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Clear root-port probe failure state after success or disconnect.
+ * @param UsbDevice Root-port device state.
+ */
+static void XHCI_ClearRootPortProbeFailureState(LPXHCI_USB_DEVICE UsbDevice) {
+    if (UsbDevice == NULL || UsbDevice->IsRootPort == FALSE) {
+        return;
+    }
+
+    UsbDevice->LastRootPortProbeSignature = 0;
+    FailureGateReset(&UsbDevice->RootPortFailureGate);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Mark one root port as blacklisted after repeated failures.
+ * @param UsbDevice Root-port device state.
+ */
+static void XHCI_BlacklistRootPort(LPXHCI_USB_DEVICE UsbDevice) {
+    if (UsbDevice == NULL || UsbDevice->IsRootPort == FALSE) {
+        return;
+    }
+
+    UsbDevice->LastEnumError = XHCI_ENUM_ERROR_BLACKLISTED;
+    UsbDevice->LastEnumCompletion = 0;
+    WARNING(TEXT("[XHCI_ProbePort] Port %u blacklisted after repeated failures"),
+            (U32)UsbDevice->PortNumber);
+}
+
+/************************************************************************/
 
 /**
  * @brief Detect whether a USB device is a hub.
@@ -422,7 +534,7 @@ static BOOL XHCI_ResetPort(LPXHCI_DEVICE Device, U32 PortIndex) {
                               Offset,
                               XHCI_PORTSC_PR,
                               0,
-                              XHCI_PORT_RESET_TIMEOUT,
+                              XHCI_PORT_RESET_TIMEOUT_MS,
                               TEXT("Port reset"))) {
         ERROR(TEXT("[XHCI_ResetPort] Port %u reset timeout"), PortIndex + 1);
         return FALSE;
@@ -769,8 +881,11 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
         UsbDevice->Present = FALSE;
         UsbDevice->LastEnumError = XHCI_ENUM_ERROR_NONE;
         UsbDevice->LastEnumCompletion = 0;
+        XHCI_ClearRootPortProbeFailureState(UsbDevice);
         return FALSE;
     }
+
+    XHCI_UpdateRootPortProbeState(UsbDevice, PortStatus);
 
     if (UsbDevice->DestroyPending && XHCI_UsbTreeHasReferences(UsbDevice)) {
         WARNING(TEXT("[XHCI_ProbePort] Port %u still referenced, delaying re-enumeration"),
@@ -792,7 +907,14 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
     UsbDevice->DestroyPending = FALSE;
 
     if (UsbDevice->Present) {
+        FailureGateRecordSuccess(&UsbDevice->RootPortFailureGate);
         return TRUE;
+    }
+
+    if (FailureGateIsBlocked(&UsbDevice->RootPortFailureGate)) {
+        UsbDevice->LastEnumError = XHCI_ENUM_ERROR_BLACKLISTED;
+        UsbDevice->LastEnumCompletion = 0;
+        return FALSE;
     }
 
     BOOL PortEnabled = (PortStatus & XHCI_PORTSC_PED) != 0;
@@ -804,12 +926,16 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
             U32 RetrySpeed = (RetryStatus & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
             if (!(RetryConnected && RetryEnabled && RetrySpeed != 0)) {
                 UsbDevice->LastEnumError = XHCI_ENUM_ERROR_RESET_TIMEOUT;
+                if (XHCI_RecordRootPortProbeFailure(UsbDevice)) {
+                    XHCI_BlacklistRootPort(UsbDevice);
+                }
                 XHCI_LogProbeFailure(UsbDevice, TEXT("ResetPort"), RetryStatus);
                 return FALSE;
             }
             PortStatus = RetryStatus;
             SpeedId = RetrySpeed;
             UsbDevice->SpeedId = (U8)SpeedId;
+            XHCI_UpdateRootPortProbeState(UsbDevice, PortStatus);
         }
     }
 
@@ -820,15 +946,23 @@ static BOOL XHCI_ProbePort(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice, U3
     if (UsbDevice->SpeedId == 0) {
         WARNING(TEXT("[XHCI_ProbePort] Port %u invalid speed after reset"), PortIndex + 1);
         UsbDevice->LastEnumError = XHCI_ENUM_ERROR_INVALID_SPEED;
+        if (XHCI_RecordRootPortProbeFailure(UsbDevice)) {
+            XHCI_BlacklistRootPort(UsbDevice);
+        }
         XHCI_LogProbeFailure(UsbDevice, TEXT("ReadSpeed"), PortStatus);
         return FALSE;
     }
 
     if (!XHCI_EnumerateDevice(Device, UsbDevice)) {
         WARNING(TEXT("[XHCI_ProbePort] Port %u enumerate failed"), PortIndex + 1);
+        if (XHCI_RecordRootPortProbeFailure(UsbDevice)) {
+            XHCI_BlacklistRootPort(UsbDevice);
+        }
         XHCI_LogProbeFailure(UsbDevice, TEXT("EnumerateDevice"), PortStatus);
         return FALSE;
     }
+
+    FailureGateRecordSuccess(&UsbDevice->RootPortFailureGate);
 
     if (UsbDevice->IsHub) {
         if (!XHCI_InitHub(Device, UsbDevice)) {

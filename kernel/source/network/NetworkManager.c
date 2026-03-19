@@ -58,7 +58,7 @@ DRIVER DATA_SECTION NetworkManagerDriver = {
     .VersionMajor = NETWORK_MANAGER_VER_MAJOR,
     .VersionMinor = NETWORK_MANAGER_VER_MINOR,
     .Designer = "Jango73",
-    .Manufacturer = "EXOS",
+    .Manufacturer = "N/A",
     .Product = "NetworkManager",
     .Alias = "network",
     .Flags = DRIVER_FLAG_CRITICAL,
@@ -365,13 +365,13 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             }
 
             // Reset the device
-            NETWORKRESET Reset = {.Device = Device};
+            NETWORK_RESET Reset = {.Device = Device};
             Device->Driver->Command(DF_NT_RESET, (UINT)(LPVOID)&Reset);
 
             // Get device information
-            NETWORKINFO Info;
+            NETWORK_INFO Info;
             MemorySet(&Info, 0, sizeof(Info));
-            NETWORKGETINFO GetInfo = {.Device = Device, .Info = &Info};
+            NETWORK_GET_INFO GetInfo = {.Device = Device, .Info = &Info};
             Device->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo);
 
             // Initialize ARP subsystem for this device
@@ -413,7 +413,7 @@ void NetworkManager_InitializeDevice(LPPCI_DEVICE Device, U32 LocalIPv4_Be) {
             }
 
             // Install RX callback with device context as UserData
-            NETWORKSETRXCB SetRxCb = {.Device = Device, .Callback = NetworkManager_RxCallback, .UserData = (LPVOID)DeviceContext};
+            NETWORK_SET_RX_CB SetRxCb = {.Device = Device, .Callback = NetworkManager_RxCallback, .UserData = (LPVOID)DeviceContext};
             U32 Result = Device->Driver->Command(DF_NT_SETRXCB, (UINT)(LPVOID)&SetRxCb);
             UNUSED(Result);
 

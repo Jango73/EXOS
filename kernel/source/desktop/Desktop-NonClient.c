@@ -49,7 +49,7 @@
  * @return TRUE on success.
  */
 static BOOL DrawSolidRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color) {
-    RECTINFO RectInfo;
+    RECT_INFO RectInfo;
     BRUSH Brush;
     HANDLE OldPen;
     HANDLE OldBrush;
@@ -95,8 +95,8 @@ static BOOL DrawSolidRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color
  * @return TRUE on success.
  */
 static BOOL DrawVerticalGradientRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR StartColor, COLOR EndColor) {
-    LINEINFO BaseLineInfo;
-    LINEINFO LineInfo;
+    LINE_INFO BaseLineInfo;
+    LINE_INFO LineInfo;
     PEN Pen;
     HANDLE OldPen;
     I32 Height;
@@ -196,7 +196,7 @@ static BOOL ResolveWindowBorderThickness(U32* ThicknessOut) {
 static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
     U32 BorderThickness = 2;
     COLOR BorderColor = 0;
-    LINEINFO LineInfo;
+    LINE_INFO LineInfo;
     PEN Pen;
     HANDLE OldPen;
     I32 Width;
@@ -391,7 +391,7 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
         .Width = 0,
         .Height = 0
     };
-    if (MeasureText(&MeasureInfo) != FALSE && MeasureInfo.Height != 0) {
+    if (DesktopMeasureText(&MeasureInfo) != FALSE && MeasureInfo.Height != 0) {
         TextHeight = (I32)MeasureInfo.Height;
     } else {
         TextHeight = 16;
@@ -421,7 +421,7 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
         .Text = Snapshot.Caption,
         .Font = NULL
     };
-    (void)DrawText(&DrawInfo);
+    (void)DesktopDrawText(&DrawInfo);
 
     (void)SelectBrush(GC, OldBrush);
     (void)SelectPen(GC, OldPen);
@@ -440,28 +440,11 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
  */
 BOOL DrawWindowClientArea(HANDLE Window, HANDLE GC, LPRECT Rect) {
     RECT ClientRect;
-    HANDLE ClientBrush;
-    LPBRUSH ClientBrushPtr;
-    COLOR ClientBackground = COLOR_WHITE;
 
     if (Window == NULL || GC == NULL || Rect == NULL) return FALSE;
     if (GetWindowClientRectFromWindowRect((LPWINDOW)Window, Rect, &ClientRect) == FALSE) return FALSE;
 
-    if (DesktopThemeDrawRecipeForElementState(Window, GC, &ClientRect, TEXT("window.client"), TEXT("normal"))) {
-        return TRUE;
-    }
-
-    if (!DesktopThemeResolveLevel1Color(TEXT("window.client"), TEXT("normal"), TEXT("background"), &ClientBackground)) {
-        if (!DesktopThemeResolveTokenColorByName(TEXT("color.client.background"), &ClientBackground)) {
-            ClientBrush = GetSystemBrush(SM_COLOR_CLIENT);
-            SAFE_USE_VALID_ID((LPBRUSH)ClientBrush, KOID_BRUSH) {
-                ClientBrushPtr = (LPBRUSH)ClientBrush;
-                ClientBackground = ClientBrushPtr->Color;
-            }
-        }
-    }
-
-    return DrawSolidRect(GC, ClientRect.X1, ClientRect.Y1, ClientRect.X2, ClientRect.Y2, ClientBackground);
+    return DrawWindowBackground(Window, GC, &ClientRect, THEME_TOKEN_WINDOW_BACKGROUND_CLIENT);
 }
 
 /***************************************************************************/

@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "drivers/filesystems/FAT32-Private.h"
-#include "utils/PartitionIO.h"
+#include "drivers/filesystems/FileSystem-Common.h"
 
 DRIVER DATA_SECTION FAT32Driver = {
     .TypeID = KOID_DRIVER,
@@ -118,7 +118,7 @@ LPFATFILE NewFATFile(LPFAT32FILESYSTEM FileSystem, LPFATFILELOC FileLoc) {
  * @param PartIndex Partition index for naming.
  * @return TRUE on success, FALSE on failure.
  */
-BOOL MountPartition_FAT32(LPSTORAGE_UNIT Disk, LPBOOTPARTITION Partition, U32 Base, U32 PartIndex) {
+BOOL MountPartition_FAT32(LPSTORAGE_UNIT Disk, LPBOOT_PARTITION Partition, U32 Base, U32 PartIndex) {
     U8 Buffer[SECTOR_SIZE];
     LPFAT32MBR Master;
     LPFAT32FILESYSTEM FileSystem;

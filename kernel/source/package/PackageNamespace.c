@@ -108,7 +108,7 @@ static BOOL PackageNamespaceEnsurePathsLoaded(void) {
  * @return TRUE when path exists.
  */
 static BOOL PackageNamespacePathExists(LPCSTR Path) {
-    FS_PATHCHECK Check;
+    FILESYSTEM_PATHCHECK Check;
 
     if (Path == NULL || Path[0] != PATH_SEP) return FALSE;
 
@@ -125,13 +125,13 @@ static BOOL PackageNamespacePathExists(LPCSTR Path) {
  * @return TRUE on success.
  */
 static BOOL PackageNamespaceEnsureFolder(LPCSTR Path) {
-    FILEINFO Info;
+    FILE_INFO Info;
     U32 Result;
 
     if (Path == NULL || Path[0] != PATH_SEP) return FALSE;
     if (PackageNamespacePathExists(Path)) return TRUE;
 
-    Info.Size = sizeof(FILEINFO);
+    Info.Size = sizeof(FILE_INFO);
     Info.FileSystem = GetSystemFS();
     Info.Attributes = FS_ATTR_FOLDER;
     Info.Flags = 0;
@@ -206,7 +206,7 @@ static BOOL PackageNamespaceBuildChildPath(LPCSTR Base, LPCSTR Name, STR OutPath
  * @return TRUE when mounted or already present.
  */
 static BOOL PackageNamespaceMountPath(LPFILESYSTEM FileSystem, LPCSTR Path, LPCSTR SourcePath) {
-    FS_MOUNT_CONTROL Control;
+    FILESYSTEM_MOUNT_CONTROL Control;
     U32 Result;
 
     if (FileSystem == NULL || Path == NULL || Path[0] != PATH_SEP) return FALSE;
@@ -237,7 +237,7 @@ static BOOL PackageNamespaceMountPath(LPFILESYSTEM FileSystem, LPCSTR Path, LPCS
  * @return TRUE on success or when already unmounted.
  */
 static BOOL PackageNamespaceUnmountPath(LPCSTR Path) {
-    FS_UNMOUNT_CONTROL Control;
+    FILESYSTEM_UNMOUNT_CONTROL Control;
     U32 Result;
 
     if (Path == NULL || Path[0] != PATH_SEP) return FALSE;
@@ -311,7 +311,7 @@ static BOOL PackageNamespaceBindCurrentUserAlias(LPCSTR UserName) {
  * @return TRUE when initialization succeeded.
  */
 BOOL PackageNamespaceInitialize(void) {
-    LPUSERACCOUNT CurrentUser;
+    LPUSER_ACCOUNT CurrentUser;
 
     if (!FileSystemReady()) return FALSE;
     if (!PackageNamespaceEnsurePathsLoaded()) return FALSE;
@@ -343,7 +343,7 @@ BOOL PackageNamespaceInitialize(void) {
  * @return TRUE when aliases are mounted.
  */
 BOOL PackageNamespaceBindCurrentProcessPackageView(LPFILESYSTEM PackageFileSystem, LPCSTR PackageName) {
-    LPUSERACCOUNT CurrentUser = GetCurrentUser();
+    LPUSER_ACCOUNT CurrentUser = GetCurrentUser();
     LPFILESYSTEM ActiveFileSystem = NULL;
     LPCSTR UserName = NULL;
     STR UserDataSourcePath[MAX_PATH_NAME];

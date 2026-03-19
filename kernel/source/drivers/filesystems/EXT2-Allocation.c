@@ -779,12 +779,12 @@ BOOL EnsureParentDirectory(
 /************************************************************************/
 
 /**
- * @brief Creates a file or directory node represented by FILEINFO.
+ * @brief Creates a file or directory node represented by FILE_INFO.
  * @param Info Kernel-provided file information structure.
  * @param Directory TRUE to create a directory, FALSE for a file.
  * @return Driver error code indicating the operation result.
  */
-U32 CreateNode(LPFILEINFO Info, BOOL Directory) {
+U32 CreateNode(LPFILE_INFO Info, BOOL Directory) {
     LPEXT2FILESYSTEM FileSystem;
     EXT2INODE ParentInode;
     U32 ParentIndex;

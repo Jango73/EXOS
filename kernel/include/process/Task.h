@@ -93,7 +93,7 @@ typedef struct tag_TASK TASK, *LPTASK;
 /************************************************************************/
 
 BOOL InitKernelTask(void);
-LPTASK CreateTask(LPPROCESS, LPTASKINFO);
+LPTASK CreateTask(LPPROCESS, LPTASK_INFO);
 BOOL KillTask(LPTASK Task);
 BOOL SetTaskExitCode(LPTASK Task, UINT Code);
 void DeleteDeadTasksAndProcesses(void);

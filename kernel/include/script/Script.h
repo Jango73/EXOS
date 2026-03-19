@@ -27,6 +27,7 @@
 
 #include "Base.h"
 #include "List.h"
+#include "utils/Allocator.h"
 
 /************************************************************************/
 
@@ -112,6 +113,7 @@ typedef struct tag_SCRIPT_CONTEXT* LPSCRIPT_CONTEXT;
 /************************************************************************/
 
 typedef struct tag_SCRIPT_ARRAY {
+    struct tag_SCRIPT_CONTEXT* Context;
     LPVOID* Elements;
     SCRIPT_VAR_TYPE* ElementTypes;
     U32 Size;
@@ -128,6 +130,7 @@ typedef union tag_SCRIPT_VAR_VALUE {
 
 typedef struct tag_SCRIPT_VARIABLE {
     LISTNODE_FIELDS;
+    struct tag_SCRIPT_CONTEXT* Context;
     STR Name[MAX_VAR_NAME];
     SCRIPT_VAR_TYPE Type;
     SCRIPT_VAR_VALUE Value;
@@ -135,6 +138,7 @@ typedef struct tag_SCRIPT_VARIABLE {
 } SCRIPT_VARIABLE, *LPSCRIPT_VARIABLE;
 
 typedef struct tag_SCRIPT_SCOPE {
+    struct tag_SCRIPT_CONTEXT* Context;
     LPLIST Buckets[SCRIPT_VAR_HASH_SIZE];
     U32 Count;
     struct tag_SCRIPT_SCOPE* Parent;
@@ -160,6 +164,7 @@ typedef struct tag_SCRIPT_HOST_DESCRIPTOR {
 typedef struct tag_SCRIPT_VALUE {
     SCRIPT_VAR_TYPE Type;
     SCRIPT_VAR_VALUE Value;
+    struct tag_SCRIPT_CONTEXT* ContextOwner;
     const SCRIPT_HOST_DESCRIPTOR* HostDescriptor;
     BOOL OwnsValue;
     LPVOID HostContext;
@@ -167,6 +172,7 @@ typedef struct tag_SCRIPT_VALUE {
 
 typedef struct tag_SCRIPT_HOST_SYMBOL {
     LISTNODE_FIELDS;
+    struct tag_SCRIPT_CONTEXT* ContextOwner;
     STR Name[MAX_VAR_NAME];
     SCRIPT_HOST_SYMBOL_KIND Kind;
     SCRIPT_HOST_HANDLE Handle;
@@ -175,6 +181,7 @@ typedef struct tag_SCRIPT_HOST_SYMBOL {
 } SCRIPT_HOST_SYMBOL, *LPSCRIPT_HOST_SYMBOL;
 
 typedef struct tag_SCRIPT_HOST_REGISTRY {
+    struct tag_SCRIPT_CONTEXT* Context;
     LPLIST Buckets[SCRIPT_VAR_HASH_SIZE];
     U32 Count;
 } SCRIPT_HOST_REGISTRY, *LPSCRIPT_HOST_REGISTRY;
@@ -212,6 +219,7 @@ struct tag_AST_NODE;
 
 // AST Node structure
 typedef struct tag_AST_NODE {
+    struct tag_SCRIPT_CONTEXT* Context;
     AST_NODE_TYPE Type;
     union {
         struct {
@@ -277,7 +285,7 @@ typedef struct tag_SCRIPT_PARSER {
 struct tag_SCRIPT_CONTEXT {
     SCRIPT_VAR_TABLE Variables;
     SCRIPT_CALLBACKS Callbacks;
-    LPVOID HeapBase;
+    ALLOCATOR Allocator;
     SCRIPT_ERROR ErrorCode;
     STR ErrorMessage[MAX_ERROR_MESSAGE];
     BOOL HasReturnValue;
@@ -292,6 +300,7 @@ struct tag_SCRIPT_CONTEXT {
 /************************************************************************/
 
 LPSCRIPT_CONTEXT ScriptCreateContext(LPSCRIPT_CALLBACKS Callbacks);
+LPSCRIPT_CONTEXT ScriptCreateContextA(LPSCRIPT_CALLBACKS Callbacks, LPCALLOCATOR Allocator);
 void ScriptDestroyContext(LPSCRIPT_CONTEXT Context);
 
 SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script);
@@ -307,7 +316,7 @@ BOOL ScriptHasReturnValue(LPSCRIPT_CONTEXT Context);
 BOOL ScriptGetReturnValue(LPSCRIPT_CONTEXT Context, SCRIPT_VAR_TYPE* Type, SCRIPT_VAR_VALUE* Value);
 
 // Array support functions
-LPSCRIPT_ARRAY ScriptCreateArray(U32 InitialCapacity);
+LPSCRIPT_ARRAY ScriptCreateArray(LPSCRIPT_CONTEXT Context, U32 InitialCapacity);
 void ScriptDestroyArray(LPSCRIPT_ARRAY Array);
 SCRIPT_ERROR ScriptArraySet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value);
 SCRIPT_ERROR ScriptArrayGet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE* Type, SCRIPT_VAR_VALUE* Value);
@@ -320,7 +329,7 @@ void ScriptUnregisterHostSymbol(LPSCRIPT_CONTEXT Context, LPCSTR Name);
 void ScriptClearHostSymbols(LPSCRIPT_CONTEXT Context);
 
 // Scope management functions
-LPSCRIPT_SCOPE ScriptCreateScope(LPSCRIPT_SCOPE Parent);
+LPSCRIPT_SCOPE ScriptCreateScope(LPSCRIPT_CONTEXT Context, LPSCRIPT_SCOPE Parent);
 void ScriptDestroyScope(LPSCRIPT_SCOPE Scope);
 LPSCRIPT_SCOPE ScriptPushScope(LPSCRIPT_CONTEXT Context);
 void ScriptPopScope(LPSCRIPT_CONTEXT Context);
@@ -328,7 +337,7 @@ LPSCRIPT_VARIABLE ScriptFindVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, B
 LPSCRIPT_VARIABLE ScriptSetVariableInScope(LPSCRIPT_SCOPE Scope, LPCSTR Name, SCRIPT_VAR_TYPE Type, SCRIPT_VAR_VALUE Value);
 
 // AST management functions
-LPAST_NODE ScriptCreateASTNode(AST_NODE_TYPE Type);
+LPAST_NODE ScriptCreateASTNode(LPSCRIPT_CONTEXT Context, AST_NODE_TYPE Type);
 void ScriptDestroyAST(LPAST_NODE Node);
 SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node);
 

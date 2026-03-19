@@ -359,7 +359,7 @@ LPAST_NODE ScriptParseAssignmentAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error)
         return NULL;
     }
 
-    LPAST_NODE Node = ScriptCreateASTNode(AST_ASSIGNMENT);
+    LPAST_NODE Node = ScriptCreateASTNode(Parser->Context, AST_ASSIGNMENT);
     if (Node == NULL) {
         *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
         return NULL;
@@ -423,7 +423,7 @@ LPAST_NODE ScriptParseComparisonAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error)
 
     while (Parser->CurrentToken.Type == TOKEN_COMPARISON) {
         // Create comparison node
-        LPAST_NODE CompNode = ScriptCreateASTNode(AST_EXPRESSION);
+        LPAST_NODE CompNode = ScriptCreateASTNode(Parser->Context, AST_EXPRESSION);
         if (CompNode == NULL) {
             *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
             ScriptDestroyAST(Left);
@@ -463,7 +463,7 @@ LPAST_NODE ScriptParseExpressionAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error)
     while (Parser->CurrentToken.Type == TOKEN_OPERATOR &&
            (Parser->CurrentToken.Value[0] == '+' || Parser->CurrentToken.Value[0] == '-')) {
 
-        LPAST_NODE OpNode = ScriptCreateASTNode(AST_EXPRESSION);
+        LPAST_NODE OpNode = ScriptCreateASTNode(Parser->Context, AST_EXPRESSION);
         if (OpNode == NULL) {
             *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
             ScriptDestroyAST(Left);
@@ -504,7 +504,7 @@ LPAST_NODE ScriptParseTermAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
     while (Parser->CurrentToken.Type == TOKEN_OPERATOR &&
            (Parser->CurrentToken.Value[0] == '*' || Parser->CurrentToken.Value[0] == '/')) {
 
-        LPAST_NODE OpNode = ScriptCreateASTNode(AST_EXPRESSION);
+        LPAST_NODE OpNode = ScriptCreateASTNode(Parser->Context, AST_EXPRESSION);
         if (OpNode == NULL) {
             *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
             ScriptDestroyAST(Left);
@@ -541,7 +541,7 @@ LPAST_NODE ScriptParseTermAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
 LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
     // NUMBER
     if (Parser->CurrentToken.Type == TOKEN_NUMBER) {
-        LPAST_NODE Node = ScriptCreateASTNode(AST_EXPRESSION);
+        LPAST_NODE Node = ScriptCreateASTNode(Parser->Context, AST_EXPRESSION);
         if (Node == NULL) {
             *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
             return NULL;
@@ -556,7 +556,7 @@ LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
 
     // IDENTIFIER (variable, function call, or array access)
     if (Parser->CurrentToken.Type == TOKEN_IDENTIFIER) {
-        LPAST_NODE Node = ScriptCreateASTNode(AST_EXPRESSION);
+        LPAST_NODE Node = ScriptCreateASTNode(Parser->Context, AST_EXPRESSION);
         if (Node == NULL) {
             *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
             return NULL;
@@ -624,7 +624,7 @@ LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
                     CurrentNode->Data.Expression.IsArrayAccess = TRUE;
                     CurrentNode->Data.Expression.ArrayIndexExpr = IndexExpr;
                 } else {
-                    LPAST_NODE ArrayNode = ScriptCreateASTNode(AST_EXPRESSION);
+                    LPAST_NODE ArrayNode = ScriptCreateASTNode(Parser->Context, AST_EXPRESSION);
                     if (ArrayNode == NULL) {
                         ScriptDestroyAST(IndexExpr);
                         ScriptDestroyAST(CurrentNode);
@@ -650,7 +650,7 @@ LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
                     return NULL;
                 }
 
-                LPAST_NODE PropertyNode = ScriptCreateASTNode(AST_EXPRESSION);
+                LPAST_NODE PropertyNode = ScriptCreateASTNode(Parser->Context, AST_EXPRESSION);
                 if (PropertyNode == NULL) {
                     ScriptDestroyAST(CurrentNode);
                     *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
@@ -675,7 +675,7 @@ LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
 
     // STRING
     if (Parser->CurrentToken.Type == TOKEN_STRING) {
-        LPAST_NODE Node = ScriptCreateASTNode(AST_EXPRESSION);
+        LPAST_NODE Node = ScriptCreateASTNode(Parser->Context, AST_EXPRESSION);
         if (Node == NULL) {
             *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
             return NULL;
@@ -706,4 +706,3 @@ LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
     *Error = SCRIPT_ERROR_SYNTAX;
     return NULL;
 }
-

@@ -217,7 +217,7 @@ typedef struct __iobuf {
 
 /************************************************************************/
 
-/* FILEFINDINFO comes from kernel/include/User.h via exos.h */
+/* FILE_FIND_INFO comes from kernel/include/User.h via exos.h */
 
 /************************************************************************/
 

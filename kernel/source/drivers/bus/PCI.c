@@ -29,7 +29,7 @@
 #include "Log.h"
 #include "CoreString.h"
 #include "DriverEnum.h"
-#include "drivers/graphics/Graphics-PCI.h"
+#include "drivers/graphics/common/Graphics-PCI.h"
 #include "drivers/network/E1000.h"
 #include "drivers/usb/XHCI.h"
 #include "User.h"
@@ -78,7 +78,7 @@ DRIVER DATA_SECTION PCIDriver = {
     .VersionMajor = PCI_VER_MAJOR,
     .VersionMinor = PCI_VER_MINOR,
     .Designer = "Jango73",
-    .Manufacturer = "EXOS",
+    .Manufacturer = "PCI-SIG",
     .Product = "PCI",
     .Alias = "pci",
     .Flags = DRIVER_FLAG_CRITICAL,

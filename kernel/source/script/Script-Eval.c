@@ -82,7 +82,7 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
 
         case TOKEN_STRING: {
             U32 Length = StringLength(Expr->Data.Expression.Value) + 1;
-            Result.Value.String = (LPSTR)HeapAlloc(Length);
+            Result.Value.String = (LPSTR)ScriptAlloc(Parser->Context, Length);
             if (Result.Value.String == NULL) {
                 if (Error) {
                     *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
@@ -91,6 +91,7 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
             }
             StringCopy(Result.Value.String, Expr->Data.Expression.Value);
             Result.Type = SCRIPT_VAR_STRING;
+            Result.ContextOwner = Parser->Context;
             Result.OwnsValue = TRUE;
             return Result;
         }
@@ -254,7 +255,7 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                         return Result;
                     }
 
-                    HostError = ScriptPrepareHostValue(&HostValue, HostArray->Descriptor, HostCtx);
+                    HostError = ScriptPrepareHostValue(Parser->Context, &HostValue, HostArray->Descriptor, HostCtx);
                     if (HostError != SCRIPT_OK) {
                         if (Error) {
                             *Error = HostError;
@@ -278,7 +279,7 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                 Result.Value = Element->Value;
                 Result.OwnsValue = FALSE;
 
-                HeapFree(Element);
+                ScriptFree(Parser->Context, Element);
                 return Result;
             }
 
@@ -309,7 +310,7 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                         return Result;
                     }
 
-                    HostError = ScriptPrepareHostValue(&HostValue, HostSymbol->Descriptor, HostCtx);
+                    HostError = ScriptPrepareHostValue(Parser->Context, &HostValue, HostSymbol->Descriptor, HostCtx);
                     if (HostError != SCRIPT_OK) {
                         if (Error) {
                             *Error = HostError;
@@ -540,7 +541,11 @@ SCRIPT_VALUE ScriptEvaluateHostProperty(LPSCRIPT_PARSER Parser, LPAST_NODE Expr,
         return Result;
     }
 
-    HostError = ScriptPrepareHostValue(&HostValue, HostValue.HostDescriptor ? HostValue.HostDescriptor : DefaultDescriptor, HostCtx);
+    HostError = ScriptPrepareHostValue(
+        Parser->Context,
+        &HostValue,
+        HostValue.HostDescriptor ? HostValue.HostDescriptor : DefaultDescriptor,
+        HostCtx);
     if (HostError != SCRIPT_OK) {
         if (Error) {
             *Error = HostError;
@@ -613,7 +618,7 @@ SCRIPT_VALUE ScriptEvaluateArrayAccess(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, 
             return Result;
         }
 
-        HostError = ScriptPrepareHostValue(&HostValue, DefaultDescriptor, HostCtx);
+        HostError = ScriptPrepareHostValue(Parser->Context, &HostValue, DefaultDescriptor, HostCtx);
         if (HostError != SCRIPT_OK) {
             if (Error) {
                 *Error = HostError;
@@ -639,4 +644,3 @@ SCRIPT_VALUE ScriptEvaluateArrayAccess(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, 
     }
     return Result;
 }
-

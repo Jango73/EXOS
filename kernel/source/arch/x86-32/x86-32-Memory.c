@@ -222,9 +222,9 @@ DRIVER DATA_SECTION MemoryManagerDriver = {
     .VersionMajor = MEMORY_MANAGER_VER_MAJOR,
     .VersionMinor = MEMORY_MANAGER_VER_MINOR,
     .Designer = "Jango73",
-    .Manufacturer = "EXOS",
-    .Product = "MemoryManager",
-    .Alias = "memory_manager",
+    .Manufacturer = "Intel",
+    .Product = "Memory",
+    .Alias = "memory",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = MemoryManagerCommands};
 

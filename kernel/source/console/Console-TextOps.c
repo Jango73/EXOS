@@ -35,6 +35,62 @@ static BOOL DATA_SECTION ConsoleTextCursorVisible = FALSE;
 static U32 DATA_SECTION ConsoleTextCursorCellX = 0;
 static U32 DATA_SECTION ConsoleTextCursorCellY = 0;
 static U32 DATA_SECTION ConsoleTextAcquireDepth = 0;
+static LPDRIVER DATA_SECTION ConsoleTextCachedDriver = NULL;
+static LPGRAPHICSCONTEXT DATA_SECTION ConsoleTextCachedContext = NULL;
+
+/************************************************************************/
+
+/**
+ * @brief Reset one graphics context to full-screen console coordinates.
+ * @param Context Target graphics context.
+ */
+static void ConsoleTextResetContext(LPGRAPHICSCONTEXT Context) {
+    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return;
+    }
+
+    LockMutex(&(Context->Mutex), INFINITY);
+    Context->Origin.X = 0;
+    Context->Origin.Y = 0;
+    Context->LoClip.X = 0;
+    Context->LoClip.Y = 0;
+    Context->HiClip.X = Context->Width - 1;
+    Context->HiClip.Y = Context->Height - 1;
+    UnlockMutex(&(Context->Mutex));
+}
+
+/************************************************************************/
+
+/**
+ * @brief Clear cached console graphics backend context.
+ */
+static void ConsoleTextInvalidateContextCache(void) {
+    ConsoleTextCachedDriver = NULL;
+    ConsoleTextCachedContext = NULL;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Validate cached console graphics backend context.
+ * @param Driver Expected active graphics driver.
+ * @return TRUE when the cached context can be reused.
+ */
+static BOOL ConsoleTextHasReusableContext(LPDRIVER Driver) {
+    if (Driver == NULL || Driver != ConsoleTextCachedDriver) {
+        return FALSE;
+    }
+
+    if (!IS_VALID_KERNEL_POINTER(ConsoleTextCachedContext)) {
+        return FALSE;
+    }
+
+    if (ConsoleTextCachedContext->TypeID != KOID_GRAPHICSCONTEXT) {
+        return FALSE;
+    }
+
+    return TRUE;
+}
 
 /************************************************************************/
 
@@ -87,6 +143,7 @@ static BOOL ConsoleTextResolveCellSize(U32* CellWidth, U32* CellHeight) {
  * @return TRUE on success.
  */
 static BOOL ConsoleTextAcquireContext(LPDRIVER* DriverOut, LPGRAPHICSCONTEXT* ContextOut) {
+    LPDRIVER ActiveBackendDriver = GraphicsSelectorGetActiveBackendDriver();
     LPDRIVER Driver = NULL;
     UINT ContextPointer = 0;
     LPGRAPHICSCONTEXT Context = NULL;
@@ -103,12 +160,25 @@ static BOOL ConsoleTextAcquireContext(LPDRIVER* DriverOut, LPGRAPHICSCONTEXT* Co
     }
 
     Driver = DisplaySessionGetActiveGraphicsDriver();
+    if (Driver == GetGraphicsDriver() && ActiveBackendDriver != NULL) {
+        Driver = ActiveBackendDriver;
+    }
+
+    if (Driver == NULL || Driver->Command == NULL || Driver == ConsoleGetDriver()) {
+        Driver = ActiveBackendDriver;
+    }
+
     if (Driver == NULL || Driver->Command == NULL || Driver == ConsoleGetDriver()) {
         Driver = GetGraphicsDriver();
     }
 
     if (Driver == NULL || Driver->Command == NULL || Driver == ConsoleGetDriver()) {
         goto Done;
+    }
+
+    if (ConsoleTextHasReusableContext(Driver) != FALSE) {
+        Context = ConsoleTextCachedContext;
+        goto ContextReady;
     }
 
     if ((Driver->Flags & DRIVER_FLAG_READY) == 0) {
@@ -118,12 +188,12 @@ static BOOL ConsoleTextAcquireContext(LPDRIVER* DriverOut, LPGRAPHICSCONTEXT* Co
         }
     }
 
-    ContextPointer = Driver->Command(DF_GFX_CREATECONTEXT, 0);
+    ContextPointer = Driver->Command(DF_GFX_GETCONTEXT, 0);
     if (ContextPointer == 0) {
         goto Done;
     }
 
-    if (ContextPointer < VMA_KERNEL) {
+    if (!IS_VALID_KERNEL_POINTER((LPVOID)(UINT)ContextPointer)) {
         goto Done;
     }
 
@@ -132,6 +202,12 @@ static BOOL ConsoleTextAcquireContext(LPDRIVER* DriverOut, LPGRAPHICSCONTEXT* Co
         goto Done;
     }
 
+    ConsoleTextResetContext(Context);
+
+    ConsoleTextCachedDriver = Driver;
+    ConsoleTextCachedContext = Context;
+
+ContextReady:
     SAFE_USE_2(DriverOut, ContextOut) {
         *DriverOut = Driver;
         *ContextOut = Context;
@@ -351,7 +427,7 @@ BOOL ConsoleIsFramebufferMappingInProgress(void) {
  * @brief Invalidate direct framebuffer mapping.
  */
 void ConsoleInvalidateFramebufferMapping(void) {
-    // No direct framebuffer mapping is kept in console text dispatch mode.
+    ConsoleTextInvalidateContextCache();
 }
 
 /************************************************************************/
@@ -436,6 +512,7 @@ void ConsoleShowFramebufferCursor(void) {
  * @brief Reset backend cursor state cache.
  */
 void ConsoleResetFramebufferCursorState(void) {
+    ConsoleTextInvalidateContextCache();
     ConsoleTextCursorVisible = FALSE;
     ConsoleTextCursorCellX = 0;
     ConsoleTextCursorCellY = 0;

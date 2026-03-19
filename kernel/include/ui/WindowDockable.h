@@ -39,9 +39,8 @@ typedef struct tag_WINDOW_DOCKABLE_CLASS_DATA {
 
 BOOL WindowDockableClassEnsureRegistered(void);
 BOOL WindowDockableClassEnsureDerivedRegistered(LPCSTR ClassName, WINDOWFUNC WindowFunction);
-BOOL WindowDockableWindowInheritsDockableClass(LPWINDOW Window);
-LPWINDOW_DOCKABLE_CLASS_DATA WindowDockableClassGetData(LPWINDOW Window);
-void WindowDockableHandlePropertyChanged(HANDLE Window);
+BOOL WindowDockableWindowInheritsDockableClass(HANDLE Window);
+LPWINDOW_DOCKABLE_CLASS_DATA WindowDockableClassGetData(HANDLE Window);
 U32 WindowDockableWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
 
 /************************************************************************/

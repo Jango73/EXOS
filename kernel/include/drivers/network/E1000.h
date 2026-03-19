@@ -178,9 +178,6 @@
 #define E1000_INTERRUPT_TRACE_LIMIT 32
 #define E1000_LINK_SPEED_MBPS 1000
 #define E1000_DEFAULT_MTU 1500
-#define E1000_TX_TIMEOUT_ITER 100000
-#define E1000_RESET_TIMEOUT_ITER 100000
-
 /***************************************************************************/
 /* Descriptors                                                             */
 

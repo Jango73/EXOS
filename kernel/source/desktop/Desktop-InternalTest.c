@@ -65,9 +65,7 @@ static BOOL DesktopInternalResolveCenteredWindowRect(LPDESKTOP Desktop, LPRECT R
     if (Rect == NULL) return FALSE;
     if (Desktop->Window == NULL || Desktop->Window->TypeID != KOID_WINDOW) return FALSE;
 
-    if (GetWindowWorkRect((HANDLE)Desktop->Window, &DesktopRect) == FALSE) {
-        if (GetDesktopScreenRect(Desktop, &DesktopRect) == FALSE) return FALSE;
-    }
+    if (GetDesktopScreenRect(Desktop, &DesktopRect) == FALSE) return FALSE;
 
     DesktopWidth = DesktopRect.X2 - DesktopRect.X1 + 1;
     DesktopHeight = DesktopRect.Y2 - DesktopRect.Y1 + 1;
@@ -104,9 +102,7 @@ static BOOL DesktopInternalResolveOnScreenDebugInfoRect(LPDESKTOP Desktop, LPREC
     if (Rect == NULL) return FALSE;
     if (Desktop->Window == NULL || Desktop->Window->TypeID != KOID_WINDOW) return FALSE;
 
-    if (GetWindowWorkRect((HANDLE)Desktop->Window, &DesktopRect) == FALSE) {
-        if (GetDesktopScreenRect(Desktop, &DesktopRect) == FALSE) return FALSE;
-    }
+    if (GetDesktopScreenRect(Desktop, &DesktopRect) == FALSE) return FALSE;
 
     DesktopWidth = DesktopRect.X2 - DesktopRect.X1 + 1;
     DesktopHeight = DesktopRect.Y2 - DesktopRect.Y1 + 1;
@@ -304,7 +300,7 @@ static BOOL DesktopInternalEnsureSingleWindow(
     I32 Height
 ) {
     LPWINDOW Window;
-    WINDOWINFO WindowInfo;
+    WINDOW_INFO WindowInfo;
     RECT WindowRect;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
@@ -318,11 +314,11 @@ static BOOL DesktopInternalEnsureSingleWindow(
     if (Window != NULL && Window->TypeID == KOID_WINDOW) {
         (void)MoveWindow((HANDLE)Window, &WindowRect);
         (void)SetWindowCaption((HANDLE)Window, Caption);
-        (void)ShowWindow((HANDLE)Window, TRUE);
+        (void)ShowWindow((HANDLE)Window);
         return TRUE;
     }
 
-    WindowInfo.Header.Size = sizeof(WINDOWINFO);
+    WindowInfo.Header.Size = sizeof(WINDOW_INFO);
     WindowInfo.Header.Version = EXOS_ABI_VERSION;
     WindowInfo.Header.Flags = 0;
     WindowInfo.Window = NULL;
@@ -338,14 +334,14 @@ static BOOL DesktopInternalEnsureSingleWindow(
     WindowInfo.WindowSize.Y = Height;
     WindowInfo.ShowHide = TRUE;
 
-    Window = CreateWindow(&WindowInfo);
+    Window = (LPWINDOW)CreateWindow(&WindowInfo);
     if (Window == NULL) {
         WARNING(TEXT("[DesktopInternalEnsureSingleWindow] Test window creation failed title=%s id=%x"), Title, WindowID);
         return FALSE;
     }
 
     (void)SetWindowCaption((HANDLE)Window, Caption);
-    (void)ShowWindow((HANDLE)Window, TRUE);
+    (void)ShowWindow((HANDLE)Window);
     return TRUE;
 }
 

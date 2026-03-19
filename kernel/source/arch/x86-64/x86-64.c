@@ -54,7 +54,7 @@ DRIVER DATA_SECTION InterruptsDriver = {
     .VersionMajor = INTERRUPTS_VER_MAJOR,
     .VersionMinor = INTERRUPTS_VER_MINOR,
     .Designer = "Jango73",
-    .Manufacturer = "EXOS",
+    .Manufacturer = "Intel",
     .Product = "Interrupts",
     .Alias = "interrupts",
     .Flags = DRIVER_FLAG_CRITICAL,
@@ -158,7 +158,7 @@ LPDRIVER InterruptsGetDriver(void) {
 
 \************************************************************************/
 
-KERNELDATA_X86_64 DATA_SECTION Kernel_x86_32 = {
+KERNEL_DATA_X86_64 DATA_SECTION Kernel_x86_32 = {
     .IDT = NULL,
     .GDT = NULL,
     .TSS = NULL,
@@ -351,7 +351,7 @@ void InitializeGlobalDescriptorTable(LPSEGMENT_DESCRIPTOR Table) {
  * and seeds the register snapshot so the generic scheduler can operate while
  * the long mode context-switching code is under construction.
  */
-BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASKINFO* Info) {
+BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TASK_INFO* Info) {
     LINEAR BaseVMA = VMA_KERNEL;
     UNUSED(BaseVMA);
     SELECTOR CodeSelector = SELECTOR_KERNEL_CODE;

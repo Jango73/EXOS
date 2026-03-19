@@ -66,14 +66,9 @@ static BOOL DesktopDrawIsTestWindow(LPWINDOW Window) {
  * @return TRUE when the rectangle was computed.
  */
 static BOOL GetWindowFullLocalRect(LPWINDOW Window, LPRECT WindowRect) {
-    RECT ScreenRect;
-
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (WindowRect == NULL) return FALSE;
-    if (GetWindowRect((HANDLE)Window, &ScreenRect) == FALSE) return FALSE;
-
-    GraphicsScreenRectToWindowRect(&ScreenRect, &ScreenRect, WindowRect);
-    return TRUE;
+    return GetWindowRect((HANDLE)Window, WindowRect);
 }
 
 /***************************************************************************/
@@ -159,14 +154,6 @@ BOOL DesktopGetWindowDrawSurfaceRect(LPWINDOW Window, LPRECT Rect) {
     return TRUE;
 }
 
-/***************************************************************************/
-
-BOOL GetWindowDrawSurfaceRect(HANDLE Handle, LPRECT Rect) {
-    return DesktopGetWindowDrawSurfaceRect((LPWINDOW)Handle, Rect);
-}
-
-/***************************************************************************/
-
 /**
  * @brief Expose the current draw clip rectangle for one window dispatch.
  * @param Window Target window.
@@ -216,8 +203,6 @@ static BOOL DrawWindowSystemChrome(LPWINDOW Window, LPRECT ClipRect) {
 
     return TRUE;
 }
-
-/***************************************************************************/
 
 /**
  * @brief Dispatch one client draw callback using the structured draw context.
@@ -284,10 +269,13 @@ BOOL DesktopDispatchWindowDraw(LPWINDOW Window, HANDLE TargetHandle, U32 Param1,
     RECT ClipStorage[WINDOW_DIRTY_REGION_CAPACITY];
     RECT_REGION ClipRegion;
     RECT ClipRect;
+    WINDOW_STATE_SNAPSHOT Snapshot;
     UINT ClipCount;
     UINT ClipIndex;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return FALSE;
+    if ((Snapshot.Status & WINDOW_STATUS_VISIBLE) == 0) return TRUE;
 
     ClearWindowDrawContext(Window);
 

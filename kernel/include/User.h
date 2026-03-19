@@ -18,7 +18,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    User
+    EXOS Public API
 
 \************************************************************************/
 
@@ -194,6 +194,11 @@ typedef struct PACKED tag_ABI_HEADER {
 #define KEYMOD_ALT              0x00000004
 
 /************************************************************************/
+// Public userland API declarations
+
+BOOL GetLocalTime(LPDATETIME Time);
+
+/************************************************************************/
 // Authentication Services
 
 #define SYSCALL_Login 0x00000035
@@ -243,6 +248,10 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_GetPreviousWindowSibling 0x0000007B
 #define SYSCALL_RegisterWindowClass 0x0000007D
 #define SYSCALL_UnregisterWindowClass 0x0000007E
+#define SYSCALL_FindWindowClass 0x0000007F
+#define SYSCALL_WindowInheritsClass 0x00000083
+#define SYSCALL_ClearWindowStyle 0x00000084
+#define SYSCALL_ScreenPointToWindowPoint 0x00000085
 #define SYSCALL_InvalidateWindowRect 0x00000053
 #define SYSCALL_GetWindowGC 0x00000054
 #define SYSCALL_ReleaseWindowGC 0x00000055
@@ -264,6 +273,7 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_CombineRegion 0x00000065
 #define SYSCALL_DrawText 0x00000080
 #define SYSCALL_MeasureText 0x00000081
+#define SYSCALL_DrawWindowBackground 0x00000082
 
 /************************************************************************/
 // Network Socket Services
@@ -286,12 +296,12 @@ typedef struct PACKED tag_ABI_HEADER {
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x00000082
+#define SYSCALL_Last 0x00000083
 
 /************************************************************************/
 // Structure limits
 
-#define WAITINFO_MAX_OBJECTS 32
+#define WAIT_INFO_MAX_OBJECTS 32
 
 /************************************************************************/
 // ABI Data Structures
@@ -305,7 +315,7 @@ typedef U32 (*WINDOWFUNC)(HANDLE, U32, U32, U32);
 // A function for volume enumeration
 typedef BOOL (*ENUMVOLUMESFUNC)(HANDLE, LPVOID);
 
-typedef struct PACKED tag_SYSTEMINFO {
+typedef struct PACKED tag_SYSTEM_INFO {
     ABI_HEADER Header;
     U64 TotalPhysicalMemory;
     U64 PhysicalMemoryUsed;
@@ -323,13 +333,13 @@ typedef struct PACKED tag_SYSTEMINFO {
     U32 NumTasks;
     STR UserName[MAX_USER_NAME];
     STR KeyboardLayout[MAX_USER_NAME];
-} SYSTEMINFO, *LPSYSTEMINFO;
+} SYSTEM_INFO, *LPSYSTEM_INFO;
 
-typedef struct PACKED tag_SECURITYATTRIBUTES {
+typedef struct PACKED tag_SECURITY_ATTRIBUTES {
     U32 Nothing;
-} SECURITYATTRIBUTES, *LPSECURITYATTRIBUTES;
+} SECURITY_ATTRIBUTES, *LPSECURITY_ATTRIBUTES;
 
-typedef struct PACKED tag_PROCESSINFO {
+typedef struct PACKED tag_PROCESS_INFO {
     ABI_HEADER Header;
     U32 Flags;
     STR CommandLine[MAX_PATH_NAME];
@@ -339,10 +349,10 @@ typedef struct PACKED tag_PROCESSINFO {
     HANDLE StdErr;
     HANDLE Process;
     HANDLE Task;
-    SECURITYATTRIBUTES Security;
-} PROCESSINFO, *LPPROCESSINFO;
+    SECURITY_ATTRIBUTES Security;
+} PROCESS_INFO, *LPPROCESS_INFO;
 
-typedef struct PACKED tag_CONSOLEBLITBUFFER {
+typedef struct PACKED tag_CONSOLE_BLIT_BUFFER {
     UINT X;
     UINT Y;
     UINT Width;
@@ -353,28 +363,28 @@ typedef struct PACKED tag_CONSOLEBLITBUFFER {
     UINT TextPitch;
     const U8* Attr;      /* Fore | (Back << 4) per cell, optional */
     UINT AttrPitch;      /* Bytes per row in Attr when provided */
-} CONSOLEBLITBUFFER, *LPCONSOLEBLITBUFFER;
+} CONSOLE_BLIT_BUFFER, *LPCONSOLE_BLIT_BUFFER;
 
-typedef struct PACKED tag_CONSOLEMODEINFO {
+typedef struct PACKED tag_CONSOLE_MODE_INFO {
     ABI_HEADER Header;
     U32 Index;
     U32 Columns;
     U32 Rows;
     U32 CharHeight;
-} CONSOLEMODEINFO, *LPCONSOLEMODEINFO;
+} CONSOLE_MODE_INFO, *LPCONSOLE_MODE_INFO;
 
-typedef struct PACKED tag_TASKINFO {
+typedef struct PACKED tag_TASK_INFO {
     ABI_HEADER Header;
     TASKFUNC Func;
     LPVOID Parameter;
     U32 StackSize;
     U32 Priority;
     U32 Flags;
-    SECURITYATTRIBUTES Security;
+    SECURITY_ATTRIBUTES Security;
     STR Name[MAX_USER_NAME];
-} TASKINFO, *LPTASKINFO;
+} TASK_INFO, *LPTASK_INFO;
 
-typedef struct PACKED tag_MESSAGEINFO {
+typedef struct PACKED tag_MESSAGE_INFO {
     ABI_HEADER Header;
     DATETIME Time;
     U32 First;
@@ -383,95 +393,88 @@ typedef struct PACKED tag_MESSAGEINFO {
     U32 Message;
     U32 Param1;
     U32 Param2;
-} MESSAGEINFO, *LPMESSAGEINFO;
+} MESSAGE_INFO, *LPMESSAGE_INFO;
 
 // Describes a mutex and some delay
-typedef struct PACKED tag_MUTEXINFO {
+typedef struct PACKED tag_MUTEX_INFO {
     ABI_HEADER Header;
     HANDLE Mutex;
     UINT MilliSeconds;
-} MUTEXINFO, *LPMUTEXINFO;
+} MUTEX_INFO, *LPMUTEX_INFO;
 
-typedef struct PACKED tag_WAITINFO {
+typedef struct PACKED tag_WAIT_INFO {
     ABI_HEADER Header;
     U32 Count;
     U32 MilliSeconds;
     U32 Flags;
-    HANDLE Objects[WAITINFO_MAX_OBJECTS];
-    UINT ExitCodes[WAITINFO_MAX_OBJECTS];
-} WAITINFO, *LPWAITINFO;
+    HANDLE Objects[WAIT_INFO_MAX_OBJECTS];
+    UINT ExitCodes[WAIT_INFO_MAX_OBJECTS];
+} WAIT_INFO, *LPWAIT_INFO;
 
-typedef struct PACKED tag_ALLOCREGIONINFO {
+typedef struct PACKED tag_ALLOC_REGION_INFO {
     ABI_HEADER Header;
     U32 Base;    // The base virtual address (0 = don't care)
     U32 Target;  // The physical address to map to (0 = don't care)
     U32 Size;    // The size in bytes to allocate
     U32 Flags;   // See ALLOC_PAGES_xxx
-} ALLOCREGIONINFO, *LPALLOCREGIONINFO;
+} ALLOC_REGION_INFO, *LPALLOC_REGION_INFO;
 
-typedef struct PACKED tag_HEAPREALLOCINFO {
+typedef struct PACKED tag_HEAP_REALLOC_INFO {
     ABI_HEADER Header;
     LPVOID Pointer;  // Pointer to existing memory block, or NULL
     U32 Size;        // New size of memory block in bytes
-} HEAPREALLOCINFO, *LPHEAPREALLOCINFO;
+} HEAP_REALLOC_INFO, *LPHEAP_REALLOC_INFO;
 
-typedef struct PACKED tag_ENUMVOLUMESINFO {
+typedef struct PACKED tag_ENUM_VOLUMES_INFO {
     ABI_HEADER Header;
     ENUMVOLUMESFUNC Func;  // The callback for enumeration
     LPVOID Parameter;      //
-} ENUMVOLUMESINFO, *LPENUMVOLUMESINFO;
+} ENUM_VOLUMES_INFO, *LPENUM_VOLUMES_INFO;
 
-typedef struct PACKED tag_VOLUMEINFO {
+typedef struct PACKED tag_VOLUME_INFO {
     U32 Size;
     HANDLE Volume;
     STR Name[MAX_FS_LOGICAL_NAME];
-} VOLUMEINFO, *LPVOLUMEINFO;
+} VOLUME_INFO, *LPVOLUME_INFO;
 
-typedef struct PACKED tag_FILEOPENINFO {
+typedef struct PACKED tag_FILE_OPEN_INFO {
     ABI_HEADER Header;
     LPCSTR Name;
     U32 Flags;
-} FILEOPENINFO, *LPFILEOPENINFO;
+} FILE_OPEN_INFO, *LPFILE_OPEN_INFO;
 
-typedef struct PACKED tag_GRAPHICSMODEINFO {
+typedef struct PACKED tag_GRAPHICS_MODE_INFO {
     ABI_HEADER Header;
     U32 ModeIndex;
     U32 Width;
     U32 Height;
     U32 BitsPerPixel;
-} GRAPHICSMODEINFO, *LPGRAPHICSMODEINFO;
+} GRAPHICS_MODE_INFO, *LPGRAPHICS_MODE_INFO;
 
-typedef struct PACKED tag_FILECOPYINFO {
-    ABI_HEADER Header;
-    LPCSTR Source;
-    LPCSTR Destination;
-    U32 Flags;
-} FILECOPYINFO, *LPFILECOPYINFO;
-
-typedef struct PACKED tag_FILEOPERATION {
+typedef struct PACKED tag_FILE_OPERATION {
     ABI_HEADER Header;
     HANDLE File;
     U32 NumBytes;
     LPVOID Buffer;
-} FILEOPERATION, *LPFILEOPERATION;
+} FILE_OPERATION, *LPFILE_OPERATION;
 
-typedef struct PACKED tag_FILEFINDINFO {
+typedef struct PACKED tag_FILE_FIND_INFO {
     ABI_HEADER Header;
     LPCSTR Path;         // Base directory to search
     LPCSTR Pattern;      // Wildcard pattern (supports '*')
     HANDLE SearchHandle; // Internal search state
     U32 Attributes;
     STR Name[MAX_FILE_NAME];
-} FILEFINDINFO, *LPFILEFINDINFO;
+} FILE_FIND_INFO, *LPFILE_FIND_INFO;
 
-typedef struct PACKED tag_NETWORKINFO {
+typedef struct PACKED tag_NETWORK_INFO {
     ABI_HEADER Header;
     U8 MAC[6];       // MAC address
     U32 LinkUp;      // 1 = link up, 0 = link down
     U32 SpeedMbps;   // Link speed in Mbps
     U32 DuplexFull;  // 1 = full duplex, 0 = half duplex
     U32 MTU;         // Maximum Transmission Unit
-} NETWORKINFO, *LPNETWORKINFO;
+} NETWORK_INFO, *LPNETWORK_INFO;
 
 typedef struct PACKED tag_KEYCODE {
     U8 VirtualKey;
@@ -488,7 +491,7 @@ typedef struct PACKED tag_RECT {
     I32 X2, Y2;
 } RECT, *LPRECT;
 
-typedef struct PACKED tag_WINDOWINFO {
+typedef struct PACKED tag_WINDOW_INFO {
     ABI_HEADER Header;
     HANDLE Window;
     HANDLE Parent;
@@ -500,9 +503,9 @@ typedef struct PACKED tag_WINDOWINFO {
     POINT WindowPosition;
     POINT WindowSize;
     BOOL ShowHide;
-} WINDOWINFO, *LPWINDOWINFO;
+} WINDOW_INFO, *LPWINDOW_INFO;
 
-typedef struct PACKED tag_WINDOWCLASSINFO {
+typedef struct PACKED tag_WINDOW_CLASS_INFO {
     ABI_HEADER Header;
     HANDLE WindowClass;
     HANDLE BaseClass;
@@ -510,26 +513,40 @@ typedef struct PACKED tag_WINDOWCLASSINFO {
     LPCSTR BaseClassName;
     WINDOWFUNC Function;
     U32 ClassDataSize;
-} WINDOWCLASSINFO, *LPWINDOWCLASSINFO;
+} WINDOW_CLASS_INFO, *LPWINDOW_CLASS_INFO;
 
-typedef struct PACKED tag_PROPINFO {
+typedef struct PACKED tag_PROP_INFO {
     ABI_HEADER Header;
     HANDLE Window;
     LPCSTR Name;
-    U32 Value;
-} PROPINFO, *LPPROPINFO;
+    UINT Value;
+} PROP_INFO, *LPPROP_INFO;
 
-typedef struct PACKED tag_WINDOWRECT {
+typedef struct PACKED tag_WINDOW_CLASS_QUERY_INFO {
+    ABI_HEADER Header;
+    HANDLE Window;
+    HANDLE WindowClass;
+    LPCSTR ClassName;
+} WINDOW_CLASS_QUERY_INFO, *LPWINDOW_CLASS_QUERY_INFO;
+
+typedef struct PACKED tag_WINDOW_RECT {
     ABI_HEADER Header;
     HANDLE Window;
     RECT Rect;
-} WINDOWRECT, *LPWINDOWRECT;
+} WINDOW_RECT, *LPWINDOW_RECT;
 
-typedef struct PACKED tag_WINDOWCHILDINFO {
+typedef struct PACKED tag_WINDOW_POINT_INFO {
+    ABI_HEADER Header;
+    HANDLE Window;
+    POINT ScreenPoint;
+    POINT WindowPoint;
+} WINDOW_POINT_INFO, *LPWINDOW_POINT_INFO;
+
+typedef struct PACKED tag_WINDOW_CHILD_INFO {
     ABI_HEADER Header;
     HANDLE Window;
     U32 ChildIndex;
-} WINDOWCHILDINFO, *LPWINDOWCHILDINFO;
+} WINDOW_CHILD_INFO, *LPWINDOW_CHILD_INFO;
 
 typedef struct PACKED tag_GCSELECT {
     ABI_HEADER Header;
@@ -537,47 +554,55 @@ typedef struct PACKED tag_GCSELECT {
     HANDLE Object;
 } GCSELECT, *LPGCSELECT;
 
-typedef struct PACKED tag_BRUSHINFO {
+typedef struct PACKED tag_BRUSH_INFO {
     ABI_HEADER Header;
     COLOR Color;
     U32 Pattern;
     U32 Flags;
-} BRUSHINFO, *LPBRUSHINFO;
+} BRUSH_INFO, *LPBRUSH_INFO;
 
-typedef struct PACKED tag_PENINFO {
+typedef struct PACKED tag_PEN_INFO {
     ABI_HEADER Header;
     COLOR Color;
     U32 Pattern;
     U32 Flags;
-} PENINFO, *LPPENINFO;
+} PEN_INFO, *LPPEN_INFO;
 
-typedef struct PACKED tag_PIXELINFO {
+typedef struct PACKED tag_PIXEL_INFO {
     ABI_HEADER Header;
     HANDLE GC;
     I32 X;
     I32 Y;
     COLOR Color;
-} PIXELINFO, *LPPIXELINFO;
+} PIXEL_INFO, *LPPIXEL_INFO;
 
-typedef struct PACKED tag_LINEINFO {
+typedef struct PACKED tag_LINE_INFO {
     ABI_HEADER Header;
     HANDLE GC;
     I32 X1;
     I32 Y1;
     I32 X2;
     I32 Y2;
-} LINEINFO, *LPLINEINFO;
+} LINE_INFO, *LPLINE_INFO;
 
-typedef struct PACKED tag_RECTINFO {
+typedef struct PACKED tag_RECT_INFO {
     ABI_HEADER Header;
     HANDLE GC;
     I32 X1;
     I32 Y1;
     I32 X2;
     I32 Y2;
-} RECTINFO, *LPRECTINFO;
+} RECT_INFO, *LPRECT_INFO;
 
-typedef struct PACKED tag_ARCINFO {
+typedef struct PACKED tag_WINDOW_BACKGROUND_INFO {
+    ABI_HEADER Header;
+    HANDLE Window;
+    HANDLE GC;
+    RECT Rect;
+    U32 ThemeToken;
+} WINDOW_BACKGROUND_INFO, *LPWINDOW_BACKGROUND_INFO;
+
+typedef struct PACKED tag_ARC_INFO {
     ABI_HEADER Header;
     HANDLE GC;
     I32 CenterX;
@@ -585,15 +610,15 @@ typedef struct PACKED tag_ARCINFO {
     I32 Radius;
     I32 StartAngle;
     I32 EndAngle;
-} ARCINFO, *LPARCINFO;
+} ARC_INFO, *LPARC_INFO;
 
-typedef struct PACKED tag_TRIANGLEINFO {
+typedef struct PACKED tag_TRIANGLE_INFO {
     ABI_HEADER Header;
     HANDLE GC;
     POINT P1;
     POINT P2;
     POINT P3;
-} TRIANGLEINFO, *LPTRIANGLEINFO;
+} TRIANGLE_INFO, *LPTRIANGLE_INFO;
 
 typedef struct PACKED tag_TEXT_DRAW_INFO {
     ABI_HEADER Header;
@@ -732,6 +757,62 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
     U32 Address;            // IPv4 address in network byte order
     U8  Zero[8];            // Padding to 16 bytes
 } SOCKET_ADDRESS_INET, *LPSOCKET_ADDRESS_INET;
+
+/************************************************************************/
+// Public userland windowing API declarations
+
+HANDLE RegisterWindowClass(LPCSTR ClassName, HANDLE BaseClass, LPCSTR BaseClassName, WINDOWFUNC Function, U32 ClassDataSize);
+BOOL UnregisterWindowClass(HANDLE WindowClass, LPCSTR ClassName);
+HANDLE FindWindowClass(LPCSTR ClassName);
+BOOL WindowInheritsClass(HANDLE Window, HANDLE WindowClass, LPCSTR ClassName);
+HANDLE CreateWindow(LPWINDOW_INFO Info);
+BOOL DeleteWindow(HANDLE Window);
+HANDLE FindWindow(HANDLE StartWindow, U32 WindowID);
+HANDLE ContainsWindow(HANDLE StartWindow, HANDLE TargetWindow);
+HANDLE GetWindowDesktop(HANDLE Window);
+BOOL PostMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2);
+BOOL InvalidateWindowRect(HANDLE Window, LPRECT Rect);
+UINT SetWindowProp(HANDLE Window, LPCSTR Name, UINT Value);
+UINT GetWindowProp(HANDLE Window, LPCSTR Name);
+BOOL GetWindowRect(HANDLE Window, LPRECT Rect);
+BOOL GetWindowClientRect(HANDLE Window, LPRECT Rect);
+BOOL ScreenPointToWindowPoint(HANDLE Window, LPPOINT ScreenPoint, LPPOINT WindowPoint);
+BOOL MoveWindow(HANDLE Window, LPRECT Rect);
+BOOL ShowWindow(HANDLE Window);
+BOOL HideWindow(HANDLE Window);
+BOOL SetWindowStyle(HANDLE Window, U32 Style);
+BOOL ClearWindowStyle(HANDLE Window, U32 Style);
+BOOL GetWindowStyle(HANDLE Window, U32* StyleOut);
+BOOL SetWindowCaption(HANDLE Window, LPCSTR Caption);
+BOOL GetWindowCaption(HANDLE Window, LPSTR Caption, UINT CaptionLength);
+HANDLE GetWindowParent(HANDLE Window);
+U32 GetWindowChildCount(HANDLE Window);
+HANDLE GetWindowChild(HANDLE Window, U32 ChildIndex);
+HANDLE GetNextWindowSibling(HANDLE Window);
+HANDLE GetPreviousWindowSibling(HANDLE Window);
+HANDLE BeginWindowDraw(HANDLE Window);
+BOOL EndWindowDraw(HANDLE Window);
+HANDLE GetSystemBrush(U32 Index);
+HANDLE GetSystemPen(U32 Index);
+HANDLE CreateBrush(LPBRUSH_INFO BrushInfo);
+HANDLE CreatePen(LPPEN_INFO PenInfo);
+HANDLE SelectBrush(HANDLE GC, HANDLE Brush);
+HANDLE SelectPen(HANDLE GC, HANDLE Pen);
+BOOL Line(LPLINE_INFO LineInfo);
+BOOL Arc(LPARC_INFO ArcInfo);
+BOOL Triangle(LPTRIANGLE_INFO TriangleInfo);
+BOOL DrawText(LPTEXT_DRAW_INFO DrawInfo);
+BOOL MeasureText(LPTEXT_MEASURE_INFO MeasureInfo);
+BOOL DrawWindowBackground(HANDLE Window, HANDLE GC, LPRECT Rect, U32 ThemeToken);
+BOOL GetMousePosition(LPPOINT Point);
+HANDLE CaptureMouse(HANDLE Window);
+BOOL ReleaseMouse(void);
+BOOL GetGraphicsDebugInfo(LPDRIVER_DEBUG_INFO Info);
+BOOL GetMouseDebugInfo(LPDRIVER_DEBUG_INFO Info);
+BOOL SetWindowTimer(HANDLE Window, U32 TimerID, U32 IntervalMilliseconds);
+BOOL KillWindowTimer(HANDLE Window, U32 TimerID);
+U32 BaseWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
+BOOL DeleteObject(HANDLE Object);
 
 /************************************************************************/
 // Flags
@@ -874,6 +955,44 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 
 // Task messages define by userland apps begin here
 #define EM_USER 0x60000000
+
+/************************************************************************/
+// Built-in theme tokens
+
+#define THEME_TOKEN_COLOR_DESKTOP_BACKGROUND 0x00001000
+#define THEME_TOKEN_COLOR_HIGHLIGHT 0x00001001
+#define THEME_TOKEN_COLOR_NORMAL 0x00001002
+#define THEME_TOKEN_COLOR_LIGHT_SHADOW 0x00001003
+#define THEME_TOKEN_COLOR_DARK_SHADOW 0x00001004
+#define THEME_TOKEN_COLOR_CLIENT_BACKGROUND 0x00001005
+#define THEME_TOKEN_COLOR_TEXT_NORMAL 0x00001006
+#define THEME_TOKEN_COLOR_TEXT_SELECTED 0x00001007
+#define THEME_TOKEN_COLOR_SELECTION 0x00001008
+#define THEME_TOKEN_COLOR_TITLE_BAR 0x00001009
+#define THEME_TOKEN_COLOR_TITLE_BAR_2 0x0000100A
+#define THEME_TOKEN_COLOR_TITLE_TEXT 0x0000100B
+#define THEME_TOKEN_COLOR_WINDOW_BORDER 0x0000100C
+#define THEME_TOKEN_COLOR_BUTTON_BACKGROUND 0x0000100D
+#define THEME_TOKEN_COLOR_BUTTON_BACKGROUND_HOVER 0x0000100E
+#define THEME_TOKEN_COLOR_BUTTON_BACKGROUND_PRESSED 0x0000100F
+#define THEME_TOKEN_COLOR_BUTTON_BACKGROUND_DISABLED 0x00001010
+#define THEME_TOKEN_COLOR_BUTTON_BORDER 0x00001011
+#define THEME_TOKEN_COLOR_BUTTON_BORDER_HOVER 0x00001012
+#define THEME_TOKEN_COLOR_BUTTON_BORDER_PRESSED 0x00001013
+#define THEME_TOKEN_COLOR_BUTTON_TEXT_DISABLED 0x00001014
+
+#define THEME_TOKEN_METRIC_MINIMUM_WINDOW_WIDTH 0x00002000
+#define THEME_TOKEN_METRIC_MINIMUM_WINDOW_HEIGHT 0x00002001
+#define THEME_TOKEN_METRIC_MAXIMUM_WINDOW_WIDTH 0x00002002
+#define THEME_TOKEN_METRIC_MAXIMUM_WINDOW_HEIGHT 0x00002003
+#define THEME_TOKEN_METRIC_TITLE_BAR_HEIGHT 0x00002004
+
+#define THEME_TOKEN_WINDOW_BACKGROUND_DESKTOP 0x00003000
+#define THEME_TOKEN_WINDOW_BACKGROUND_CLIENT 0x00003001
+#define THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_NORMAL 0x00003002
+#define THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_HOVER 0x00003003
+#define THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_PRESSED 0x00003004
+#define THEME_TOKEN_WINDOW_BACKGROUND_BUTTON_DISABLED 0x00003005
 
 /************************************************************************/
 // Value for GetSystemMetrics

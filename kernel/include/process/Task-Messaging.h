@@ -47,9 +47,9 @@ BOOL PostProcessMessage(LPPROCESS Process, U32 Msg, U32 Param1, U32 Param2);
 BOOL BroadcastProcessMessage(U32 Msg, U32 Param1, U32 Param2);
 BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2);
 U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2);
-BOOL PeekMessage(LPMESSAGEINFO Message);
-BOOL GetMessage(LPMESSAGEINFO Message);
-BOOL DispatchMessage(LPMESSAGEINFO Message);
+BOOL PeekMessage(LPMESSAGE_INFO Message);
+BOOL GetMessage(LPMESSAGE_INFO Message);
+BOOL DispatchMessage(LPMESSAGE_INFO Message);
 
 /************************************************************************/
 

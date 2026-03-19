@@ -137,21 +137,6 @@ BOOL DockableInit(LPDOCKABLE Dockable, LPCSTR Identifier, LPVOID Context) {
     return TRUE;
 }
 
-/************************************************************************/
-
-/**
- * @brief Reset one dockable mutable state while preserving immutable identity fields.
- * @param Dockable Target dockable object.
- * @return TRUE on success.
- */
-BOOL DockableReset(LPDOCKABLE Dockable) {
-    if (Dockable == NULL) return FALSE;
-    DockableSetMutableDefaults(Dockable);
-    return TRUE;
-}
-
-/************************************************************************/
-
 /**
  * @brief Update edge assignment for one dockable.
  * @param Dockable Target dockable object.
@@ -227,29 +212,3 @@ U32 DockableSetCallbacks(LPDOCKABLE Dockable, LPDOCKABLE_CALLBACKS Callbacks) {
     Dockable->Callbacks = *Callbacks;
     return DOCK_LAYOUT_STATUS_SUCCESS;
 }
-
-/************************************************************************/
-
-/**
- * @brief Export one compact snapshot of dockable state for diagnostics.
- * @param Dockable Source dockable object.
- * @param Snapshot Destination snapshot structure.
- * @return TRUE on success.
- */
-BOOL DockableGetSnapshot(LPDOCKABLE Dockable, LPDOCKABLE_SNAPSHOT Snapshot) {
-    if (Dockable == NULL || Snapshot == NULL) return FALSE;
-
-    Snapshot->Identifier = Dockable->Identifier;
-    Snapshot->Context = Dockable->Context;
-    Snapshot->Edge = Dockable->Edge;
-    Snapshot->Priority = Dockable->Priority;
-    Snapshot->Order = Dockable->Order;
-    Snapshot->Band = Dockable->Band;
-    Snapshot->InsertionIndex = Dockable->InsertionIndex;
-    Snapshot->Visible = Dockable->Visible;
-    Snapshot->Enabled = Dockable->Enabled;
-    Snapshot->SizeRequest = Dockable->SizeRequest;
-    return TRUE;
-}
-
-/************************************************************************/

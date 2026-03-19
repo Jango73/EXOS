@@ -128,13 +128,13 @@ BOOL ParseCommand(LPSHELLCONTEXT Context) {
     CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, FALSE);
 
     if (Context->Input.CommandLine[0] != STR_NULL) {
-        LPUSERSESSION Session = NULL;
+        LPUSER_SESSION Session = NULL;
 
         CommandLineEditorRemember(&Context->Input.Editor, Context->Input.CommandLine);
         ConsoleResetPaging();
         ExecuteCommandLine(Context, Context->Input.CommandLine);
         Session = GetCurrentSession();
-        SAFE_USE_VALID_ID(Session, KOID_USERSESSION) { UpdateSessionActivity(Session); }
+        SAFE_USE_VALID_ID(Session, KOID_USER_SESSION) { UpdateSessionActivity(Session); }
     }
 
 

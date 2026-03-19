@@ -1130,7 +1130,7 @@ static U32 E1000_OnDisableInterrupts(DEVICE_INTERRUPT_CONFIG *Config) {
  * @param Reset Reset parameters.
  * @return DF_RETURN_SUCCESS on success, DF_RETURN_UNEXPECTED on failure.
  */
-static U32 E1000_OnReset(const NETWORKRESET *Reset) {
+static U32 E1000_OnReset(const NETWORK_RESET *Reset) {
     if (Reset == NULL || Reset->Device == NULL) return DF_RETURN_BAD_PARAMETER;
     return E1000_Reset((LPE1000DEVICE)Reset->Device) ? DF_RETURN_SUCCESS : DF_RETURN_UNEXPECTED;
 }
@@ -1138,11 +1138,11 @@ static U32 E1000_OnReset(const NETWORKRESET *Reset) {
 /************************************************************************/
 
 /**
- * @brief Fill NETWORKINFO structure with device state.
+ * @brief Fill NETWORK_INFO structure with device state.
  * @param Get Query parameters and output buffer.
  * @return DF_RETURN_SUCCESS on success or error code.
  */
-static U32 E1000_OnGetInfo(const NETWORKGETINFO *Get) {
+static U32 E1000_OnGetInfo(const NETWORK_GET_INFO *Get) {
     if (Get == NULL || Get->Device == NULL || Get->Info == NULL) return DF_RETURN_BAD_PARAMETER;
     LPE1000DEVICE Device = (LPE1000DEVICE)Get->Device;
     U32 Status = E1000_ReadReg32(Device->MmioBase, E1000_REG_STATUS);
@@ -1169,7 +1169,7 @@ static U32 E1000_OnGetInfo(const NETWORKGETINFO *Get) {
  * @param Set Parameters including callback pointer.
  * @return DF_RETURN_SUCCESS on success or error code.
  */
-static U32 E1000_OnSetReceiveCallback(const NETWORKSETRXCB *Set) {
+static U32 E1000_OnSetReceiveCallback(const NETWORK_SET_RX_CB *Set) {
     if (Set == NULL || Set->Device == NULL) {
         return DF_RETURN_BAD_PARAMETER;
     }
@@ -1186,7 +1186,7 @@ static U32 E1000_OnSetReceiveCallback(const NETWORKSETRXCB *Set) {
  * @param Send Parameters describing frame to send.
  * @return DF_RETURN_SUCCESS on success or error code.
  */
-static U32 E1000_OnSend(const NETWORKSEND *Send) {
+static U32 E1000_OnSend(const NETWORK_SEND *Send) {
     if (Send == NULL || Send->Device == NULL || Send->Data == NULL || Send->Length == 0) {
         return DF_RETURN_BAD_PARAMETER;
     }
@@ -1201,7 +1201,7 @@ static U32 E1000_OnSend(const NETWORKSEND *Send) {
  * @param Poll Poll parameters.
  * @return DF_RETURN_SUCCESS on success or error code.
  */
-static U32 E1000_OnPoll(const NETWORKPOLL *Poll) {
+static U32 E1000_OnPoll(const NETWORK_POLL *Poll) {
     if (Poll == NULL || Poll->Device == NULL) return DF_RETURN_BAD_PARAMETER;
     return E1000_ReceivePoll((LPE1000DEVICE)Poll->Device);
 }
@@ -1275,19 +1275,19 @@ static UINT E1000Commands(UINT Function, UINT Param) {
 
         // Network DF_* API
         case DF_NT_RESET:
-            return E1000_OnReset((const NETWORKRESET *)(LPVOID)Param);
+            return E1000_OnReset((const NETWORK_RESET *)(LPVOID)Param);
         case DF_NT_GETINFO:
-            return E1000_OnGetInfo((const NETWORKGETINFO *)(LPVOID)Param);
+            return E1000_OnGetInfo((const NETWORK_GET_INFO *)(LPVOID)Param);
         case DF_NT_SETRXCB:
-            return E1000_OnSetReceiveCallback((const NETWORKSETRXCB *)(LPVOID)Param);
+            return E1000_OnSetReceiveCallback((const NETWORK_SET_RX_CB *)(LPVOID)Param);
         case DF_DEV_ENABLE_INTERRUPT:
             return E1000_OnEnableInterrupts((DEVICE_INTERRUPT_CONFIG *)(LPVOID)Param);
         case DF_DEV_DISABLE_INTERRUPT:
             return E1000_OnDisableInterrupts((DEVICE_INTERRUPT_CONFIG *)(LPVOID)Param);
         case DF_NT_SEND:
-            return E1000_OnSend((const NETWORKSEND *)(LPVOID)Param);
+            return E1000_OnSend((const NETWORK_SEND *)(LPVOID)Param);
         case DF_NT_POLL:
-            return E1000_OnPoll((const NETWORKPOLL *)(LPVOID)Param);
+            return E1000_OnPoll((const NETWORK_POLL *)(LPVOID)Param);
     }
 
     return DF_RETURN_NOT_IMPLEMENTED;

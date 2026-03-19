@@ -9,11 +9,11 @@
 
 ## Phase 1 - User Data Structures
 
-### 1.1 USERACCOUNT
-- [x] `USERACCOUNT` structure exists with `UserID`, `UserName`, `PasswordHash`, `Privilege`, `CreationTime`, `LastLoginTime`, `Status` (`kernel/include/UserAccount.h`).
+### 1.1 USER_ACCOUNT
+- [x] `USER_ACCOUNT` structure exists with `UserID`, `UserName`, `PasswordHash`, `Privilege`, `CreationTime`, `LastLoginTime`, `Status` (`kernel/include/UserAccount.h`).
 
-### 1.2 USERSESSION
-- [x] `USERSESSION` structure exists with `SessionID`, `UserID`, `LoginTime`, `LastActivity`, `ShellTask` (`kernel/include/UserAccount.h`).
+### 1.2 USER_SESSION
+- [x] `USER_SESSION` structure exists with `SessionID`, `UserID`, `LoginTime`, `LastActivity`, `ShellTask` (`kernel/include/UserAccount.h`).
 
 ### 1.3 PROCESS Extension
 - [x] `PROCESS` contains `UserID` and `Session` fields (`kernel/include/process/Process.h`).
@@ -43,7 +43,7 @@
 ### 2.3 Global User Context
 - [x] Global session list exists (`Kernel.UserSessions` in `kernel/source/KernelData.c`).
 - [x] Effective current user resolution exists through `process->Session` + `GetCurrentUser()` (`kernel/source/utils/Helpers.c`).
-- [ ] Global `CurrentUser` pointer in `KERNELDATA`.
+- [ ] Global `CurrentUser` pointer in `KERNEL_DATA`.
 
 ## Phase 3 - Syscalls
 - [x] `SysCall_Login` implemented (`kernel/source/SYSCall.c`).

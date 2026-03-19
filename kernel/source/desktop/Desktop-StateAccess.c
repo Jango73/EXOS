@@ -81,6 +81,7 @@ BOOL GetWindowStateSnapshot(LPWINDOW Window, LPWINDOW_STATE_SNAPSHOT Snapshot) {
     Snapshot->WorkRect = Window->WorkRect;
     Snapshot->Style = Window->Style;
     Snapshot->Status = Window->Status;
+    Snapshot->ContentTransparencyHint = Window->ContentTransparencyHint;
     Snapshot->Level = Window->Level;
     Snapshot->Order = Window->Order;
     Snapshot->ParentWindow = Window->ParentWindow;
@@ -444,6 +445,47 @@ BOOL DesktopSetWindowStyleState(LPWINDOW Window, U32 StyleMask, BOOL Enabled) {
 /***************************************************************************/
 
 /**
+ * @brief Set one content transparency hint under the owner mutex.
+ * @param Window Target window.
+ * @param Hint One WINDOW_CONTENT_TRANSPARENCY_HINT_* value.
+ * @return TRUE on success.
+ */
+BOOL DesktopSetWindowContentTransparencyHint(LPWINDOW Window, U32 Hint) {
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (Hint > WINDOW_CONTENT_TRANSPARENCY_HINT_TRANSPARENT) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    Window->ContentTransparencyHint = Hint;
+    UnlockMutex(&(Window->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Set one resolved transparency state under the owner mutex.
+ * @param Window Target window.
+ * @param Enabled TRUE when the resolved clear path left content transparent.
+ * @return TRUE on success.
+ */
+BOOL DesktopSetWindowResolvedTransparencyState(LPWINDOW Window, BOOL Enabled) {
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    if (Enabled != FALSE) {
+        Window->Status |= WINDOW_STATUS_CONTENT_TRANSPARENT;
+    } else {
+        Window->Status &= ~WINDOW_STATUS_CONTENT_TRANSPARENT;
+    }
+    UnlockMutex(&(Window->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Update one window caption under the window owner mutex.
  * @param Window Target window.
  * @param Caption New caption text, or NULL for an empty caption.
@@ -486,8 +528,117 @@ BOOL DesktopClearWindowReferences(LPDESKTOP Desktop, LPWINDOW Window) {
 
     LockMutex(&(Desktop->Mutex), INFINITY);
     if (Desktop->Capture == Window) Desktop->Capture = NULL;
+    if (Desktop->LastMouseMoveTarget == Window) Desktop->LastMouseMoveTarget = NULL;
     if (Desktop->Focus == Window) Desktop->Focus = NULL;
     UnlockMutex(&(Desktop->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Get desktop last mouse move target for one window desktop.
+ * @param Window Any window on the target desktop.
+ * @param TargetWindow Receives last mouse move target (optional).
+ * @return TRUE on success.
+ */
+BOOL GetDesktopLastMouseMoveTarget(LPWINDOW Window, LPWINDOW* TargetWindow) {
+    LPDESKTOP Desktop;
+
+    if (TargetWindow != NULL) *TargetWindow = NULL;
+
+    Desktop = DesktopGetWindowDesktop(Window);
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+
+    LockMutex(&(Desktop->Mutex), INFINITY);
+    if (TargetWindow != NULL) *TargetWindow = Desktop->LastMouseMoveTarget;
+    UnlockMutex(&(Desktop->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Set desktop last mouse move target for one window desktop.
+ * @param Window Any window on the target desktop.
+ * @param TargetWindow Target window or NULL.
+ * @return TRUE on success.
+ */
+BOOL SetDesktopLastMouseMoveTarget(LPWINDOW Window, LPWINDOW TargetWindow) {
+    LPDESKTOP Desktop;
+
+    Desktop = DesktopGetWindowDesktop(Window);
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+
+    LockMutex(&(Desktop->Mutex), INFINITY);
+    Desktop->LastMouseMoveTarget = TargetWindow;
+    UnlockMutex(&(Desktop->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve one window target under desktop owner mutex.
+ * @param Desktop Desktop owning the tree.
+ * @param Target Target handle to resolve.
+ * @param Window Receives resolved window or NULL.
+ * @return TRUE when the resolve path completed.
+ */
+BOOL DesktopResolveWindowTarget(LPDESKTOP Desktop, HANDLE Target, LPWINDOW* Window) {
+    if (Window == NULL) return FALSE;
+    *Window = NULL;
+
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+    if (Target == NULL) return FALSE;
+
+    LockMutex(&(Desktop->Mutex), INFINITY);
+    *Window = (LPWINDOW)DesktopContainsWindow(Desktop->Window, (LPWINDOW)Target);
+    UnlockMutex(&(Desktop->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Mark one window dispatch begin state under owner mutex.
+ * @param Window Target window.
+ * @param Message Dispatched message.
+ * @return TRUE on success.
+ */
+BOOL DesktopMarkWindowDispatchBegin(LPWINDOW Window, U32 Message) {
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    if (Message == EWM_DRAW) {
+        Window->Status &= ~WINDOW_STATUS_NEED_DRAW;
+        Window->Status |= WINDOW_STATUS_DRAWING;
+    }
+    UnlockMutex(&(Window->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Mark one window dispatch end state under owner mutex.
+ * @param Window Target window.
+ * @param Message Dispatched message.
+ * @return TRUE on success.
+ */
+BOOL DesktopMarkWindowDispatchEnd(LPWINDOW Window, U32 Message) {
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    if (Message == EWM_DRAW) {
+        Window->Status &= ~WINDOW_STATUS_DRAWING;
+    }
+    UnlockMutex(&(Window->Mutex));
 
     return TRUE;
 }
