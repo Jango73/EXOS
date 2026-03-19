@@ -121,7 +121,7 @@ section .text
     pop     rdi
     pop     rsi
     pop     rbp
-    pop     rsp
+    add     rsp, 8
     pop     rbx
     pop     rdx
     pop     rcx

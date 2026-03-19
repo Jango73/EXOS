@@ -356,6 +356,8 @@ Stack growth also enforces compile-time caps defined in `kernel/include/Stack.h`
 
 When an in-place resize fails (for example because the next virtual range is occupied), `GrowCurrentStack` relocates the active stack to a new region, switches the live stack pointer to the new top, updates the task stack descriptor, then releases the old region. This keeps kernel stack growth functional even when neighboring mappings block contiguous expansion.
 
+On x86-64, interrupt and syscall stubs must treat the saved general-register `RSP` slot as diagnostic state only. The unwind path discards that slot instead of restoring `RSP` from it, so a relocated live kernel stack continues to return through the copied interrupt frame rather than jumping back to the previous stack mapping.
+
 On x86-64, task setup allocates IST1 with an explicit guard gap above the system stack, so emergency fault stack placement does not sit immediately adjacent to the regular system stack.
 
 The stack autotest module (`TestCopyStack`) is registered for on-demand execution only. It is excluded from the boot-time `RunAllTests` path and can be triggered manually from the shell with `autotest stack`.
@@ -1698,6 +1700,7 @@ The device interrupt layer centralizes vector assignment, interrupt routing, and
 - Slot bookkeeping is allocated dynamically from kernel memory so the table matches the configured slot count.
 - `DeviceInterruptRegister()` binds ISR top halves, deferred callbacks, and optional poll routines to a slot.
 - `DeferredWorkDispatcher` waits on a kernel event, running deferred callbacks when signaled and invoking poll routines on timeout or when global polling mode is forced.
+- `DeferredWorkUnregister()` first blocks new dispatches on the slot, waits for in-flight callbacks to finish, then clears the slot so driver teardown cannot race one copied callback frame.
 - Automatic spurious-interrupt suppression masks a slot after repeated suppressed top halves and relies on its poll routine until the driver re-arms the IRQ.
 - Graceful fallback to polling when hardware interrupts are unavailable.
 - The IOAPIC driver is optional; when ACPI is unavailable the kernel continues in PIC mode and boots without IOAPIC.
