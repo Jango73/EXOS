@@ -32,6 +32,7 @@
 #include "Driver.h"
 #include "ID.h"
 #include "List.h"
+#include "Memory.h"
 #include "Mutex.h"
 #include "Security.h"
 #include "System.h"
@@ -55,7 +56,6 @@ typedef struct tag_WINDOW WINDOW, *LPWINDOW;
 typedef struct tag_WINDOW_CLASS WINDOW_CLASS, *LPWINDOW_CLASS;
 typedef struct tag_DESKTOP DESKTOP, *LPDESKTOP;
 typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
-struct tag_MEMORY_REGION_DESCRIPTOR;
 
 /************************************************************************/
 // Task status values
@@ -176,9 +176,7 @@ struct tag_PROCESS {
     LPDESKTOP Desktop;                                      // This process' desktop
     LPUSER_SESSION Session;                                 // User session
     LPFILESYSTEM PackageFileSystem;                         // Mounted package filesystem tied to this process
-    struct tag_MEMORY_REGION_DESCRIPTOR* RegionListHead;
-    struct tag_MEMORY_REGION_DESCRIPTOR* RegionListTail;
-    UINT RegionCount;
+    MEMORY_REGION_LIST MemoryRegionList;
     PROCESS_ADDRESS_SPACE AddressSpace;
 };
 
@@ -294,6 +292,7 @@ BOOL CreateProcess(LPPROCESS_INFO);
 UINT Spawn(LPCSTR, LPCSTR);
 void SetProcessStatus(LPPROCESS Process, U32 Status);
 LINEAR GetProcessHeap(LPPROCESS);
+LPMEMORY_REGION_LIST GetProcessMemoryRegionList(LPPROCESS Process);
 
 /***************************************************************************/
 

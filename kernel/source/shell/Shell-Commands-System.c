@@ -283,10 +283,11 @@ U32 CMD_memorymap(LPSHELLCONTEXT Context) {
     UNUSED(Context);
 
     LPPROCESS Process = &KernelProcess;
-    LPMEMORY_REGION_DESCRIPTOR Descriptor = Process->RegionListHead;
+    LPMEMORY_REGION_LIST RegionList = GetProcessMemoryRegionList(Process);
+    LPMEMORY_REGION_DESCRIPTOR Descriptor = (RegionList == NULL) ? NULL : RegionList->Head;
     UINT Index = 0;
 
-    ConsolePrint(TEXT("Kernel regions: %u\n"), Process->RegionCount);
+    ConsolePrint(TEXT("Kernel regions: %u\n"), RegionList ? RegionList->Count : 0);
 
     while (Descriptor != NULL) {
         LPCSTR Tag = (Descriptor->Tag[0] == STR_NULL) ? TEXT("???") : Descriptor->Tag;

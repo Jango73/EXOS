@@ -204,7 +204,7 @@ Virtual address space setup follows a dependency order.
 
 #### Region descriptor tracking
 
-Both x86-32 and x86-64 track successful virtual region operations with `MEMORY_REGION_DESCRIPTOR` records linked from `PROCESS.RegionListHead`. Allocation uses `RegionTrackAlloc`, release uses `RegionTrackFree`, and growth/shrink uses `RegionTrackResize`.
+Both x86-32 and x86-64 track successful virtual region operations with `MEMORY_REGION_DESCRIPTOR` records linked from `PROCESS.MemoryRegionList`. Allocation uses `RegionTrackAlloc`, release uses `RegionTrackFree`, and growth/shrink uses `RegionTrackResize`.
 
 Descriptors are allocated from dedicated descriptor slabs mapped with `AllocKernelRegion`, so descriptor metadata does not consume the process heap. Each descriptor stores canonical base, size/page count, optional physical origin, flags/attributes, tag, and paging granularity.
 

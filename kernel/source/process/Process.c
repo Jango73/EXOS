@@ -50,9 +50,7 @@ PROCESS DATA_SECTION KernelProcess = {
     .Flags = PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH, // Flags
     .ControlFlags = 0,             // Process control flags
     .PageDirectory = 0,             // Page directory
-    .RegionListHead = NULL,
-    .RegionListTail = NULL,
-    .RegionCount = 0,
+    .MemoryRegionList = { .Head = NULL, .Tail = NULL, .Count = 0 },
     .HeapBase = 0,                  // Heap base
     .HeapSize = 0,                  // Heap size
     .TaskCount = 0                  // Task count (will be incremented by CreateTask)
@@ -899,6 +897,56 @@ LINEAR GetProcessHeap(LPPROCESS Process) {
     }
 
     return HeapBase;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Returns the memory region list owned by a process.
+ *
+ * @param Process Target process.
+ * @return Memory region list pointer or NULL when unavailable.
+ */
+LPMEMORY_REGION_LIST GetProcessMemoryRegionList(LPPROCESS Process) {
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+        return &Process->MemoryRegionList;
+    }
+
+    return NULL;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Returns the memory region list for the active address space.
+ *
+ * @return Memory region list pointer or NULL when unavailable.
+ */
+LPMEMORY_REGION_LIST GetCurrentMemoryRegionList(void) {
+    LPPROCESS Process = GetCurrentProcess();
+    if (Process == NULL) {
+        Process = &KernelProcess;
+    }
+
+    return GetProcessMemoryRegionList(Process);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Assigns the active address space owner to a descriptor.
+ *
+ * @param Descriptor Target descriptor.
+ */
+void MemoryRegionDescriptorAssignCurrentOwner(LPMEMORY_REGION_DESCRIPTOR Descriptor) {
+    LPPROCESS Process = GetCurrentProcess();
+    if (Process == NULL) {
+        Process = &KernelProcess;
+    }
+
+    SAFE_USE(Descriptor) {
+        Descriptor->OwnerProcess = Process;
+    }
 }
 
 /***************************************************************************/
