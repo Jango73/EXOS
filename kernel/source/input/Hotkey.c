@@ -26,6 +26,7 @@
 #include "CoreString.h"
 #include "KernelData.h"
 #include "Log.h"
+#include "desktop/DisplaySession.h"
 #include "input/VKey.h"
 #include "process/Process-Control.h"
 #include "process/Task-Messaging.h"
@@ -54,6 +55,13 @@ static BOOL HotkeyActionKillProcess(LPPROCESS Process) {
 
 static BOOL HotkeyActionPauseProcess(LPPROCESS Process) {
     return PostProcessMessage(Process, ETM_PROCESS_TOGGLE_PAUSE, 0, 0);
+}
+
+/************************************************************************/
+
+static BOOL HotkeyActionSwitchToConsole(LPPROCESS Process) {
+    UNUSED(Process);
+    return DisplaySwitchToConsole();
 }
 
 /************************************************************************/
@@ -190,6 +198,7 @@ static HOTKEY_ACTION_HANDLER HotkeyResolveAction(LPCSTR ActionName) {
     HOTKEY_ACTION Actions[] = {
         {TEXT("kill_process"), HotkeyActionKillProcess},
         {TEXT("pause_process"), HotkeyActionPauseProcess},
+        {TEXT("switch_to_console"), HotkeyActionSwitchToConsole},
         {NULL, NULL}
     };
 

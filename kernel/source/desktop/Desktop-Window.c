@@ -27,6 +27,7 @@
 #include "Desktop-Private.h"
 #include "Desktop-Timer.h"
 #include "Desktop-WindowClass.h"
+#include "DisplaySession.h"
 #include "Desktop.h"
 #include "Kernel.h"
 #include "process/Process.h"
@@ -770,9 +771,17 @@ BOOL RequestWindowDraw(HANDLE Handle) {
     LPWINDOW This = (LPWINDOW)Handle;
     BOOL ShouldPost = FALSE;
     BOOL IsVisible = FALSE;
+    U32 FrontEnd = DisplaySessionGetActiveFrontEnd();
 
     if (This == NULL) return FALSE;
     if (This->TypeID != KOID_WINDOW) return FALSE;
+
+    if (FrontEnd != DISPLAY_FRONTEND_DESKTOP) {
+        LockMutex(&(This->Mutex), INFINITY);
+        This->Status &= ~WINDOW_STATUS_NEED_DRAW;
+        UnlockMutex(&(This->Mutex));
+        return TRUE;
+    }
 
     LockMutex(&(This->Mutex), INFINITY);
 

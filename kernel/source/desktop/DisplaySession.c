@@ -28,13 +28,13 @@
 #include "DriverGetters.h"
 #include "GFX.h"
 #include "KernelData.h"
-#include "Log.h"
 #include "Mutex.h"
 #include "Desktop.h"
 
 /************************************************************************/
 
 static BOOL DisplaySessionQueryGraphicsMode(LPDRIVER Driver, LPGRAPHICS_MODE_INFO ModeInfo);
+static LPDRIVER DisplaySessionResolveConsoleGraphicsDriver(void);
 /**
  * @brief Query active mode information from a graphics backend.
  * @param Driver Graphics driver to query.
@@ -62,6 +62,29 @@ static BOOL DisplaySessionQueryGraphicsMode(LPDRIVER Driver, LPGRAPHICS_MODE_INF
     }
 
     return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve the concrete graphics backend to reuse for console text mode.
+ * @return Graphics backend driver, or NULL when no reusable backend is active.
+ */
+static LPDRIVER DisplaySessionResolveConsoleGraphicsDriver(void) {
+    LPDRIVER ActiveBackendDriver = GraphicsSelectorGetActiveBackendDriver();
+    LPDRIVER SessionGraphicsDriver = DisplaySessionGetActiveGraphicsDriver();
+
+    if (ActiveBackendDriver != NULL && ActiveBackendDriver != ConsoleGetDriver()) {
+        return ActiveBackendDriver;
+    }
+
+    if (SessionGraphicsDriver != NULL &&
+        SessionGraphicsDriver != ConsoleGetDriver() &&
+        SessionGraphicsDriver != GetGraphicsDriver()) {
+        return SessionGraphicsDriver;
+    }
+
+    return NULL;
 }
 
 /************************************************************************/
@@ -107,7 +130,9 @@ BOOL DisplaySessionSetConsoleMode(LPGRAPHICS_MODE_INFO ModeInfo) {
         Session->ActiveMode = *ModeInfo;
         Session->ActiveFrontEnd = DISPLAY_FRONTEND_CONSOLE;
         Session->HasValidMode = TRUE;
+        SetFocusedProcess(&KernelProcess);
         SetActiveDesktop(NULL);
+        SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
         return TRUE;
     }
 
@@ -142,7 +167,9 @@ BOOL DisplaySessionSetConsoleGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICS_MO
         Session->ActiveMode = *ModeInfo;
         Session->ActiveFrontEnd = DISPLAY_FRONTEND_CONSOLE;
         Session->HasValidMode = TRUE;
+        SetFocusedProcess(&KernelProcess);
         SetActiveDesktop(NULL);
+        SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
         return TRUE;
     }
 
@@ -188,9 +215,9 @@ BOOL DisplaySessionSetDesktopMode(LPDESKTOP Desktop, LPDRIVER GraphicsDriver, LP
  */
 BOOL DisplaySwitchToConsole(void) {
     GRAPHICS_MODE_INFO ModeInfo;
+    GRAPHICS_MODE_INFO GraphicsModeInfo;
     UINT Result;
     LPDRIVER GraphicsDriver;
-    LPDISPLAY_SESSION Session;
 
     ModeInfo.Header.Size = sizeof(ModeInfo);
     ModeInfo.Header.Version = EXOS_ABI_VERSION;
@@ -200,43 +227,32 @@ BOOL DisplaySwitchToConsole(void) {
     ModeInfo.Height = (Console.Height != 0) ? Console.Height : 25;
     ModeInfo.BitsPerPixel = 0;
 
-    Result = ConsoleSetMode(&ModeInfo);
-    if (Result == DF_RETURN_SUCCESS) {
-        return TRUE;
+    GraphicsDriver = DisplaySessionResolveConsoleGraphicsDriver();
+    if (GraphicsDriver != NULL) {
+        if (DisplaySessionQueryGraphicsMode(GraphicsDriver, &GraphicsModeInfo) != FALSE) {
+            if (DisplaySessionSetConsoleGraphicsMode(GraphicsDriver, &GraphicsModeInfo) != FALSE) {
+                return TRUE;
+            }
+        }
     }
 
-    GraphicsDriver = GetGraphicsDriver();
-    if (GraphicsDriver != NULL && GraphicsDriver != ConsoleGetDriver() &&
-        DisplaySessionQueryGraphicsMode(GraphicsDriver, &ModeInfo) != FALSE) {
-        if (ConsoleSetGraphicsTextMode(&ModeInfo) == FALSE) {
+    Result = ConsoleSetMode(&ModeInfo);
+    if (Result == DF_RETURN_SUCCESS) {
+        return DisplaySessionSetConsoleMode(&ModeInfo);
+    }
+
+    if (GraphicsDriver != NULL && DisplaySessionQueryGraphicsMode(GraphicsDriver, &GraphicsModeInfo) != FALSE) {
+        if (DisplaySessionSetConsoleGraphicsMode(GraphicsDriver, &GraphicsModeInfo) == FALSE) {
             goto FallbackToVgaText;
         }
-
-        Session = GetDisplaySession();
-
-        SAFE_USE(Session) {
-            if (Session->IsInitialized == FALSE) {
-                DisplaySessionInitialize();
-            }
-
-            Session->GraphicsDriver = GraphicsDriver;
-            Session->ActiveMode = ModeInfo;
-            Session->ActiveFrontEnd = DISPLAY_FRONTEND_CONSOLE;
-            Session->HasValidMode = TRUE;
-            return TRUE;
-        }
+        return TRUE;
     }
 
 FallbackToVgaText:
-    WARNING(TEXT("[DisplaySwitchToConsole] Entering emergency VGA text fallback"));
     if (ConsoleVGATextFallbackActivate(80, 25, &ModeInfo) != FALSE) {
-        WARNING(TEXT("[DisplaySwitchToConsole] Emergency VGA text fallback active (%ux%u)"),
-                ModeInfo.Width,
-                ModeInfo.Height);
-        return TRUE;
+        return DisplaySessionSetConsoleMode(&ModeInfo);
     }
 
-    WARNING(TEXT("[DisplaySwitchToConsole] Unable to activate console mode (%u)"), Result);
     return FALSE;
 }
 

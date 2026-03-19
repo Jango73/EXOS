@@ -890,6 +890,7 @@ BOOL ConsoleSetGraphicsTextMode(LPGRAPHICS_MODE_INFO ModeInfo) {
 #if DEBUG_OUTPUT != 1
     ClearConsole();
 #endif
+
     return TRUE;
 }
 

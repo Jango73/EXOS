@@ -530,7 +530,10 @@ BOOL ShowDesktop(LPDESKTOP This) {
         DesktopSetDisplaySelection(This, SelectedBackendDriver->Alias, &ModeInfo);
     }
 
-    if (DisplaySessionSetDesktopMode(This, This->Graphics, &ModeInfo) == FALSE) {
+    if (DisplaySessionSetDesktopMode(
+            This,
+            (SelectedBackendDriver != NULL) ? SelectedBackendDriver : This->Graphics,
+            &ModeInfo) == FALSE) {
         WARNING(TEXT("[ShowDesktop] Unable to activate desktop display session"));
         This->Mode = DESKTOP_MODE_CONSOLE;
         UnlockMutex(&(This->Mutex));

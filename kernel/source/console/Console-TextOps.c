@@ -41,6 +41,27 @@ static LPGRAPHICSCONTEXT DATA_SECTION ConsoleTextCachedContext = NULL;
 /************************************************************************/
 
 /**
+ * @brief Reset one graphics context to full-screen console coordinates.
+ * @param Context Target graphics context.
+ */
+static void ConsoleTextResetContext(LPGRAPHICSCONTEXT Context) {
+    if (Context == NULL || Context->TypeID != KOID_GRAPHICSCONTEXT) {
+        return;
+    }
+
+    LockMutex(&(Context->Mutex), INFINITY);
+    Context->Origin.X = 0;
+    Context->Origin.Y = 0;
+    Context->LoClip.X = 0;
+    Context->LoClip.Y = 0;
+    Context->HiClip.X = Context->Width - 1;
+    Context->HiClip.Y = Context->Height - 1;
+    UnlockMutex(&(Context->Mutex));
+}
+
+/************************************************************************/
+
+/**
  * @brief Clear cached console graphics backend context.
  */
 static void ConsoleTextInvalidateContextCache(void) {
@@ -122,6 +143,7 @@ static BOOL ConsoleTextResolveCellSize(U32* CellWidth, U32* CellHeight) {
  * @return TRUE on success.
  */
 static BOOL ConsoleTextAcquireContext(LPDRIVER* DriverOut, LPGRAPHICSCONTEXT* ContextOut) {
+    LPDRIVER ActiveBackendDriver = GraphicsSelectorGetActiveBackendDriver();
     LPDRIVER Driver = NULL;
     UINT ContextPointer = 0;
     LPGRAPHICSCONTEXT Context = NULL;
@@ -138,6 +160,14 @@ static BOOL ConsoleTextAcquireContext(LPDRIVER* DriverOut, LPGRAPHICSCONTEXT* Co
     }
 
     Driver = DisplaySessionGetActiveGraphicsDriver();
+    if (Driver == GetGraphicsDriver() && ActiveBackendDriver != NULL) {
+        Driver = ActiveBackendDriver;
+    }
+
+    if (Driver == NULL || Driver->Command == NULL || Driver == ConsoleGetDriver()) {
+        Driver = ActiveBackendDriver;
+    }
+
     if (Driver == NULL || Driver->Command == NULL || Driver == ConsoleGetDriver()) {
         Driver = GetGraphicsDriver();
     }
@@ -171,6 +201,8 @@ static BOOL ConsoleTextAcquireContext(LPDRIVER* DriverOut, LPGRAPHICSCONTEXT* Co
     if (Context->TypeID != KOID_GRAPHICSCONTEXT) {
         goto Done;
     }
+
+    ConsoleTextResetContext(Context);
 
     ConsoleTextCachedDriver = Driver;
     ConsoleTextCachedContext = Context;

@@ -2421,6 +2421,9 @@ Supported actions:
 - `pause_process`: toggles pause for the focused process.
   - Kernel process is ignored.
   - Non-kernel process tasks are skipped by scheduler while paused.
+- `switch_to_console`: switches the active display front-end back to the console.
+  - This is intended for global recovery shortcuts such as `control+shift+f1`.
+  - It uses the existing display session console activation path, including graphics text routing and VGA text fallback.
 
 Process control messages are intercepted in task messaging before queue insertion:
 - `ETM_INTERRUPT`
@@ -2448,6 +2451,10 @@ Action = "kill_process"
 [[Hotkey]]
 Key = "shift+z"
 Action = "pause_process"
+
+[[Hotkey]]
+Key = "control+shift+f1"
+Action = "switch_to_console"
 ```
 
 

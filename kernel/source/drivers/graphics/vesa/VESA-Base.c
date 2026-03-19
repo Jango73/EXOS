@@ -84,7 +84,6 @@ LPDRIVER VESAGetDriver(void) {
 /************************************************************************/
 
 static U32 DATA_SECTION VESARectangleLogCount = 0;
-
 typedef struct tag_VESAINFOBLOCK {
     U8 Signature[4];  // 4 signature bytes
     U16 Version;      // VESA version number
@@ -851,6 +850,7 @@ static U32 VESA_TextPutCell(LPGFX_TEXT_CELL_INFO Info) {
     LockMutex(&(Context->Header.Mutex), INFINITY);
     Result = GfxTextPutCell((LPGRAPHICSCONTEXT)&Context->Header, Info);
     UnlockMutex(&(Context->Header.Mutex));
+
     return Result ? 1 : 0;
 }
 
@@ -877,6 +877,7 @@ static U32 VESA_TextClearRegion(LPGFX_TEXT_REGION_INFO Info) {
     LockMutex(&(Context->Header.Mutex), INFINITY);
     Result = GfxTextClearRegion((LPGRAPHICSCONTEXT)&Context->Header, Info);
     UnlockMutex(&(Context->Header.Mutex));
+
     return Result ? 1 : 0;
 }
 
@@ -929,6 +930,7 @@ static U32 VESA_TextSetCursor(LPGFX_TEXT_CURSOR_INFO Info) {
     LockMutex(&(Context->Header.Mutex), INFINITY);
     Result = GfxTextSetCursor((LPGRAPHICSCONTEXT)&Context->Header, Info);
     UnlockMutex(&(Context->Header.Mutex));
+
     return Result ? 1 : 0;
 }
 

@@ -28,7 +28,6 @@
 #include "DriverGetters.h"
 #include "GFX.h"
 #include "Kernel.h"
-#include "Log.h"
 /************************************************************************/
 
 /**
@@ -41,19 +40,18 @@
 BOOL ConsoleVGATextFallbackActivate(U32 Columns, U32 Rows, LPGRAPHICS_MODE_INFO AppliedMode) {
     U32 RequestedColumns = (Columns != 0) ? Columns : 80;
     U32 RequestedRows = (Rows != 0) ? Rows : 25;
+    const LINEAR VGATextMemory = 0xB8000;
+    const U32 VGATextPort = 0x03D4;
     LPDRIVER VGADriver = VGAGetDriver();
     GRAPHICS_MODE_INFO RequestedMode;
     UINT SetModeResult = DF_RETURN_NOT_IMPLEMENTED;
-    BOOL FallbackUsed = FALSE;
     GRAPHICS_MODE_INFO ModeInfo;
 
     if (VGADriver == NULL || VGADriver->Command == NULL) {
-        ERROR(TEXT("[ConsoleVGATextFallbackActivate] VGA driver unavailable"));
         return FALSE;
     }
 
     if (VGADriver->Command(DF_LOAD, 0) != DF_RETURN_SUCCESS) {
-        ERROR(TEXT("[ConsoleVGATextFallbackActivate] VGA driver load failed"));
         return FALSE;
     }
 
@@ -69,31 +67,41 @@ BOOL ConsoleVGATextFallbackActivate(U32 Columns, U32 Rows, LPGRAPHICS_MODE_INFO 
     if (SetModeResult != DF_RETURN_SUCCESS) {
         RequestedColumns = 80;
         RequestedRows = 25;
-        FallbackUsed = TRUE;
         RequestedMode.Width = RequestedColumns;
         RequestedMode.Height = RequestedRows;
         SetModeResult = VGADriver->Command(DF_GFX_SETMODE, (UINT)(LPVOID)&RequestedMode);
         if (SetModeResult != DF_RETURN_SUCCESS) {
-            ERROR(TEXT("[ConsoleVGATextFallbackActivate] VGA set mode failed for %ux%u"),
-                  RequestedColumns,
-                  RequestedRows);
             return FALSE;
         }
     }
 
     if (RequestedMode.Width == 0 || RequestedMode.Height == 0) {
-        ERROR(TEXT("[ConsoleVGATextFallbackActivate] VGA driver returned invalid mode %ux%u"),
-              RequestedMode.Width,
-              RequestedMode.Height);
         return FALSE;
     }
 
     Console.UseFramebuffer = FALSE;
+    Console.Port = VGATextPort;
+    Console.Memory = (U16*)(UINT)VGATextMemory;
     Console.ScreenWidth = RequestedMode.Width;
     Console.ScreenHeight = RequestedMode.Height;
+    Console.FramebufferPhysical = (PHYSICAL)VGATextMemory;
+    Console.FramebufferLinear = NULL;
+    Console.FramebufferPitch = RequestedMode.Width * sizeof(U16);
+    Console.FramebufferWidth = RequestedMode.Width;
+    Console.FramebufferHeight = RequestedMode.Height;
+    Console.FramebufferBitsPerPixel = 0;
+    Console.FramebufferType = MULTIBOOT_FRAMEBUFFER_TEXT;
+    Console.FramebufferRedPosition = 0;
+    Console.FramebufferRedMaskSize = 0;
+    Console.FramebufferGreenPosition = 0;
+    Console.FramebufferGreenMaskSize = 0;
+    Console.FramebufferBluePosition = 0;
+    Console.FramebufferBlueMaskSize = 0;
+    Console.FramebufferBytesPerPixel = sizeof(U16);
     ConsoleApplyLayout();
     Console.CursorX = 0;
     Console.CursorY = 0;
+
     ClearConsole();
 
     ModeInfo.Header.Size = sizeof(ModeInfo);
@@ -107,16 +115,6 @@ BOOL ConsoleVGATextFallbackActivate(U32 Columns, U32 Rows, LPGRAPHICS_MODE_INFO 
 
     if (AppliedMode != NULL) {
         *AppliedMode = ModeInfo;
-    }
-
-    if (FallbackUsed != FALSE) {
-        WARNING(TEXT("[ConsoleVGATextFallbackActivate] Falling back to VGA text mode %ux%u"),
-              RequestedColumns,
-              RequestedRows);
-    } else {
-        WARNING(TEXT("[ConsoleVGATextFallbackActivate] Activated VGA text fallback mode %ux%u"),
-                RequestedMode.Width,
-                RequestedMode.Height);
     }
 
     return TRUE;

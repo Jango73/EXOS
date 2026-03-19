@@ -24,6 +24,8 @@
 
 #include "drivers/graphics/vga/VGA.h"
 
+#include "Arch.h"
+#include "CoreString.h"
 #include "GFX.h"
 #include "System.h"
 
@@ -56,6 +58,24 @@ static UINT VGACommands(UINT Function, UINT Parameter);
 static U8 VGAReadCRTCRegister(U8 RegisterIndex);
 static BOOL VGAReadCurrentTextModeInfo(LPVGAMODEINFO Info);
 static UINT VGASetModeFromRequest(LPGRAPHICS_MODE_INFO Info);
+static void VGARequestBIOS80x25TextMode(void);
+
+/***************************************************************************/
+
+#define VIDEO_CALL 0x10
+
+/***************************************************************************/
+
+static void VGARequestBIOS80x25TextMode(void) {
+#if defined(__EXOS_ARCH_X86_32__)
+    INTEL_X86_REGISTERS Registers;
+
+    MemorySet(&Registers, 0, sizeof(Registers));
+    Registers.H.AH = 0x00;
+    Registers.H.AL = 0x03;
+    RealModeCall(VIDEO_CALL, &Registers);
+#endif
+}
 
 /***************************************************************************/
 
@@ -269,6 +289,10 @@ static UINT VGASetModeFromRequest(LPGRAPHICS_MODE_INFO Info) {
 
         if (VGAFindTextMode(RequestedColumns, RequestedRows, &ModeIndex) == FALSE) {
             return DF_GFX_ERROR_MODEUNAVAIL;
+        }
+
+        if (RequestedColumns == 80 && RequestedRows == 25) {
+            VGARequestBIOS80x25TextMode();
         }
 
         if (VGASetMode(ModeIndex) == FALSE) {

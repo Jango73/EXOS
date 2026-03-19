@@ -23,6 +23,7 @@
 
 #include "Clock.h"
 #include "Arch.h"
+#include "DisplaySession.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Desktop.h"
@@ -79,6 +80,7 @@ static void PopWindowDispatchContext(
     LPVOID PreviousWindow,
     LPVOID PreviousClass,
     WINDOWFUNC PreviousFunction);
+static BOOL ShouldSuppressDesktopDrawMessage(U32 Message);
 static LPWINDOW_CLASS ResolveWindowDispatchClass(LPWINDOW Window, WINDOWFUNC Function) {
     LPWINDOW_CLASS This;
 
@@ -89,6 +91,21 @@ static LPWINDOW_CLASS ResolveWindowDispatchClass(LPWINDOW Window, WINDOWFUNC Fun
     }
 
     return Window->Class;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Determine whether one desktop draw message must be suppressed.
+ * @param Message Message identifier.
+ * @return TRUE when the desktop frontend is inactive and draw must be skipped.
+ */
+static BOOL ShouldSuppressDesktopDrawMessage(U32 Message) {
+    if (Message != EWM_DRAW) {
+        return FALSE;
+    }
+
+    return DisplaySessionGetActiveFrontEnd() != DISPLAY_FRONTEND_DESKTOP;
 }
 
 /************************************************************************/
@@ -852,7 +869,9 @@ U32 SendMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
             }
 
             (void)DesktopMarkWindowDispatchBegin(Window, Msg);
-            if (Msg == EWM_DRAW) {
+            if (ShouldSuppressDesktopDrawMessage(Msg) != FALSE) {
+                Result = TRUE;
+            } else if (Msg == EWM_DRAW) {
                 Result = DesktopDispatchWindowDraw(Window, Target, Param1, Param2) != FALSE;
             } else {
                 Result = Window->Function(Target, Msg, Param1, Param2);
@@ -1030,7 +1049,8 @@ BOOL DispatchMessage(LPMESSAGE_INFO Message) {
             }
 
             (void)DesktopMarkWindowDispatchBegin(Window, Message->Message);
-            if (Message->Message == EWM_DRAW) {
+            if (ShouldSuppressDesktopDrawMessage(Message->Message) != FALSE) {
+            } else if (Message->Message == EWM_DRAW) {
                 (void)DesktopDispatchWindowDraw(Window, TargetHandle, Message->Param1, Message->Param2);
             } else {
                 Window->Function(TargetHandle, Message->Message, Message->Param1, Message->Param2);
