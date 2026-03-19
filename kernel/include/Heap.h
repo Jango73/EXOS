@@ -36,6 +36,10 @@
 
 /***************************************************************************/
 
+typedef BOOL (*HEAP_RESIZE_CALLBACK)(LPVOID Context, LINEAR HeapBase, UINT OldSize, UINT NewSize, U32 Flags);
+
+/***************************************************************************/
+
 #define HEAP_NUM_SIZE_CLASSES 8
 #define HEAP_MIN_BLOCK_SIZE 16
 #define HEAP_MAX_SMALL_BLOCK_SIZE 2048
@@ -61,11 +65,21 @@ typedef struct tag_HEAP_CONTROL_BLOCK {
     LPHEAP_BLOCK_HEADER FreeLists[HEAP_NUM_SIZE_CLASSES];
     LPHEAP_BLOCK_HEADER LargeFreeList;
     LPVOID FirstUnallocated;
+    LPVOID ResizeContext;
+    HEAP_RESIZE_CALLBACK ResizeCallback;
+    UINT MaximumSize;
+    U32 RegionFlags;
 } HEAP_CONTROL_BLOCK, *LPHEAP_CONTROL_BLOCK;
 
 /***************************************************************************/
 
 void HeapInit(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize);
+void HeapConfigureGrowth(
+    LINEAR HeapBase,
+    LPVOID ResizeContext,
+    HEAP_RESIZE_CALLBACK ResizeCallback,
+    UINT MaximumSize,
+    U32 RegionFlags);
 
 // Allocates memory space in the calling process' heap
 // Must provide the heap's limits.

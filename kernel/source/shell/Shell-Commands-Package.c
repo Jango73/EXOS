@@ -80,7 +80,7 @@ BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName) {
         goto Out;
     }
 
-    Buffer = (U8*)HeapAlloc(FileSize + 1);
+    Buffer = (U8*)AllocatorAlloc(&Context->Allocator, FileSize + 1);
     if (Buffer == NULL) {
         STR SizeText[32];
         SizeFormatBytesText(U64_FromUINT(FileSize + 1), SizeText);
@@ -128,7 +128,7 @@ BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName) {
 
 Out:
     if (Buffer != NULL) {
-        HeapFree(Buffer);
+        AllocatorFree(&Context->Allocator, Buffer);
     }
 
     if (Handle != NULL) {
@@ -438,7 +438,7 @@ static U32 ShellPackageList(LPSHELLCONTEXT Context, LPCSTR PackageNameOrPath) {
             PackageManifestStatusToString(Status),
             Status);
         TEST(TEXT("[CMD_package] package list %s : KO"), QualifiedPackage);
-        KernelHeapFree(PackageBytes);
+        AllocatorFree(&Context->Allocator, PackageBytes);
         return DF_RETURN_SUCCESS;
     }
 
@@ -448,7 +448,7 @@ static U32 ShellPackageList(LPSHELLCONTEXT Context, LPCSTR PackageNameOrPath) {
         ConsolePrint(TEXT("Package mount failed: %u\n"), Status);
         TEST(TEXT("[CMD_package] package list %s : KO"), QualifiedPackage);
         PackageManifestRelease(&Manifest);
-        KernelHeapFree(PackageBytes);
+        AllocatorFree(&Context->Allocator, PackageBytes);
         return DF_RETURN_SUCCESS;
     }
 
@@ -457,7 +457,7 @@ static U32 ShellPackageList(LPSHELLCONTEXT Context, LPCSTR PackageNameOrPath) {
         TEST(TEXT("[CMD_package] package list %s : KO"), QualifiedPackage);
         PackageFSUnmount(PackageFileSystem);
         PackageManifestRelease(&Manifest);
-        KernelHeapFree(PackageBytes);
+        AllocatorFree(&Context->Allocator, PackageBytes);
         return DF_RETURN_SUCCESS;
     }
     CleanupBound = TRUE;
@@ -497,7 +497,7 @@ Exit:
         PackageFSUnmount(PackageFileSystem);
     }
     PackageManifestRelease(&Manifest);
-    KernelHeapFree(PackageBytes);
+    AllocatorFree(&Context->Allocator, PackageBytes);
     if (Success) {
         TEST(TEXT("[CMD_package] package list %s : OK"), QualifiedPackage);
     } else {
@@ -548,7 +548,7 @@ static U32 ShellPackageAdd(LPSHELLCONTEXT Context, LPCSTR PackageNameOrPath) {
             PackageManifestStatusToString(Status),
             Status);
         TEST(TEXT("[CMD_package] package add %s : KO"), SourcePackagePath);
-        KernelHeapFree(PackageBytes);
+        AllocatorFree(&Context->Allocator, PackageBytes);
         return DF_RETURN_SUCCESS;
     }
 
@@ -562,7 +562,7 @@ static U32 ShellPackageAdd(LPSHELLCONTEXT Context, LPCSTR PackageNameOrPath) {
         ConsolePrint(TEXT("Destination path build failed for package %s\n"), Manifest.Name);
         TEST(TEXT("[CMD_package] package add %s : KO"), SourcePackagePath);
         PackageManifestRelease(&Manifest);
-        KernelHeapFree(PackageBytes);
+        AllocatorFree(&Context->Allocator, PackageBytes);
         return DF_RETURN_SUCCESS;
     }
 
@@ -570,7 +570,7 @@ static U32 ShellPackageAdd(LPSHELLCONTEXT Context, LPCSTR PackageNameOrPath) {
         ConsolePrint(TEXT("Package already installed: %s\n"), DestinationPackagePath);
         TEST(TEXT("[CMD_package] package add %s : OK"), DestinationPackagePath);
         PackageManifestRelease(&Manifest);
-        KernelHeapFree(PackageBytes);
+        AllocatorFree(&Context->Allocator, PackageBytes);
         return DF_RETURN_SUCCESS;
     }
 
@@ -578,7 +578,7 @@ static U32 ShellPackageAdd(LPSHELLCONTEXT Context, LPCSTR PackageNameOrPath) {
         ConsolePrint(TEXT("Package add failed while writing: %s\n"), DestinationPackagePath);
         TEST(TEXT("[CMD_package] package add %s : KO"), SourcePackagePath);
         PackageManifestRelease(&Manifest);
-        KernelHeapFree(PackageBytes);
+        AllocatorFree(&Context->Allocator, PackageBytes);
         return DF_RETURN_SUCCESS;
     }
 
@@ -586,7 +586,7 @@ static U32 ShellPackageAdd(LPSHELLCONTEXT Context, LPCSTR PackageNameOrPath) {
     Success = TRUE;
 
     PackageManifestRelease(&Manifest);
-    KernelHeapFree(PackageBytes);
+    AllocatorFree(&Context->Allocator, PackageBytes);
     if (Success) {
         TEST(TEXT("[CMD_package] package add %s : OK"), DestinationPackagePath);
     } else {
@@ -741,7 +741,7 @@ static BOOL ShellLaunchPackage(LPSHELLCONTEXT Context,
         ConsolePrint(TEXT("Package manifest error: %s (%u)\n"),
             PackageManifestStatusToString(Status),
             Status);
-        KernelHeapFree(PackageBytes);
+        AllocatorFree(&Context->Allocator, PackageBytes);
         return FALSE;
     }
 
@@ -751,7 +751,7 @@ static BOOL ShellLaunchPackage(LPSHELLCONTEXT Context,
             PackageManifestStatusToString(Status),
             Status);
         PackageManifestRelease(&Manifest);
-        KernelHeapFree(PackageBytes);
+        AllocatorFree(&Context->Allocator, PackageBytes);
         return FALSE;
     }
 
@@ -760,7 +760,7 @@ static BOOL ShellLaunchPackage(LPSHELLCONTEXT Context,
     if (Status != DF_RETURN_SUCCESS || PackageFileSystem == NULL) {
         ConsolePrint(TEXT("Package mount failed: %u\n"), Status);
         PackageManifestRelease(&Manifest);
-        KernelHeapFree(PackageBytes);
+        AllocatorFree(&Context->Allocator, PackageBytes);
         return FALSE;
     }
 
@@ -768,7 +768,7 @@ static BOOL ShellLaunchPackage(LPSHELLCONTEXT Context,
         ConsolePrint(TEXT("Package namespace bind failed\n"));
         PackageFSUnmount(PackageFileSystem);
         PackageManifestRelease(&Manifest);
-        KernelHeapFree(PackageBytes);
+        AllocatorFree(&Context->Allocator, PackageBytes);
         return FALSE;
     }
 
@@ -799,7 +799,7 @@ static BOOL ShellLaunchPackage(LPSHELLCONTEXT Context,
         PackageNamespaceUnbindCurrentProcessPackageView();
         PackageFSUnmount(PackageFileSystem);
         PackageManifestRelease(&Manifest);
-        KernelHeapFree(PackageBytes);
+        AllocatorFree(&Context->Allocator, PackageBytes);
         return FALSE;
     }
 
@@ -808,7 +808,7 @@ static BOOL ShellLaunchPackage(LPSHELLCONTEXT Context,
         PackageNamespaceUnbindCurrentProcessPackageView();
         PackageFSUnmount(PackageFileSystem);
         PackageManifestRelease(&Manifest);
-        KernelHeapFree(PackageBytes);
+        AllocatorFree(&Context->Allocator, PackageBytes);
         return FALSE;
     }
 
@@ -825,7 +825,7 @@ static BOOL ShellLaunchPackage(LPSHELLCONTEXT Context,
     }
 
     PackageManifestRelease(&Manifest);
-    KernelHeapFree(PackageBytes);
+    AllocatorFree(&Context->Allocator, PackageBytes);
     return TRUE;
 }
 

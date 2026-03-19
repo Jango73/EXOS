@@ -208,6 +208,12 @@ void BuildMatches(LPPATHCOMPLETION Context, LPCSTR Path) {
  * @return TRUE on success, FALSE on failure.
  */
 BOOL PathCompletionInit(LPPATHCOMPLETION Context, LPFILESYSTEM FileSystem) {
+    return PathCompletionInitA(Context, FileSystem, NULL);
+}
+
+/***************************************************************************/
+
+BOOL PathCompletionInitA(LPPATHCOMPLETION Context, LPFILESYSTEM FileSystem, LPCALLOCATOR Allocator) {
     if (FileSystem == NULL) {
         ERROR(TEXT("[PathCompletionInit] PathCompletionInit called with NULL FileSystem"));
         return FALSE;
@@ -220,7 +226,7 @@ BOOL PathCompletionInit(LPPATHCOMPLETION Context, LPFILESYSTEM FileSystem) {
     Context->FileSystem = FileSystem;
     Context->Base[0] = STR_NULL;
     Context->Index = 0;
-    return StringArrayInit(&Context->Matches, 32);
+    return StringArrayInitA(&Context->Matches, 32, Allocator);
 }
 
 /***************************************************************************/

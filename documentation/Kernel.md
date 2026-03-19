@@ -17,6 +17,7 @@
 - [Execution Model and Kernel Interface](#execution-model-and-kernel-interface)
   - [Tasks](#tasks)
   - [Process and Task Lifecycle Management](#process-and-task-lifecycle-management)
+    - [Reserved module heaps](#reserved-module-heaps)
   - [System calls](#system-calls)
   - [Task and window message delivery](#task-and-window-message-delivery)
   - [Command line editing](#command-line-editing)
@@ -457,6 +458,14 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 - When a heap allocation exhausts the committed region, the kernel automatically attempts to double the heap size without exceeding the process limit by calling `ResizeRegion`.
 - If the resize operation cannot be completed, the allocator logs an error and the allocation fails gracefully.
 - Kernel heap allocations that still fail dump the current task interrupt frame through the same logging path used by the #GP/#PF handlers, giving register and backtrace context when diagnosing out-of-heap issues.
+
+#### Reserved module heaps
+
+- `HeapAlloc_HBHS`, `HeapRealloc_HBHS`, and `HeapFree_HBHS` operate on an explicit heap base and size and form the common backend for both the process heap and module-owned heaps.
+- `HEAP_CONTROL_BLOCK` carries heap-local growth policy (`ResizeCallback`, `ResizeContext`, `MaximumSize`, `RegionFlags`) so heap expansion is no longer limited to `PROCESS.HeapBase`.
+- `utils/ReservedHeap` wraps one dedicated virtual region, one mutex, and one allocator view around that backend. The owner initializes the region, exposes `ReservedHeapAlloc`/`ReservedHeapRealloc`/`ReservedHeapFree`, and tears down the whole region at module shutdown.
+- The shell uses this mechanism for scripting state, command history, completion data, and shell-managed temporary buffers. This isolates shell pressure from the main kernel heap while keeping the allocation algorithm shared.
+- Reusable helpers that need to allocate inside one module heap consume a context-aware `ALLOCATOR` instead of calling `KernelHeapAlloc` or `HeapAlloc` directly.
 
 #### Status States
 

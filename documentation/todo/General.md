@@ -60,12 +60,7 @@
 
 ## Shell
 
-- Reserve dedicated memory region for kernel shell task
-- Shell seems to allocate memory for each caracter typed.
-
 ## Scripting
-
-- Script allocates too many small objects and fragments kernel heap. It should allocate its own region and heap.
 
 ## Console
 

@@ -205,20 +205,32 @@ void InitShellContext(LPSHELLCONTEXT This) {
 
     MemorySet(This, 0, sizeof(SHELLCONTEXT));
 
+    if (!ReservedHeapInit(
+            &This->ReservedHeap,
+            GetCurrentProcess(),
+            SHELL_RESERVED_HEAP_INITIAL_SIZE,
+            SHELL_RESERVED_HEAP_MAXIMUM_SIZE,
+            ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE,
+            TEXT("ShellHeap"))) {
+        WARNING(TEXT("[InitShellContext] Reserved shell heap unavailable, using process heap"));
+        AllocatorInitProcess(&This->Allocator, GetCurrentProcess());
+    } else {
+        ReservedHeapInitAllocator(&This->ReservedHeap, &This->Allocator);
+    }
 
     This->Component = 0;
     This->CommandChar = 0;
 
-    CommandLineEditorInit(&This->Input.Editor, HISTORY_SIZE);
+    CommandLineEditorInitA(&This->Input.Editor, HISTORY_SIZE, &This->Allocator);
     CommandLineEditorSetCompletionCallback(
         &This->Input.Editor,
         ShellCommandLineCompletion,
         This);
-    StringArrayInit(&This->Options, 8);
-    PathCompletionInit(&This->PathCompletion, GetSystemFS());
+    StringArrayInitA(&This->Options, 8, &This->Allocator);
+    PathCompletionInitA(&This->PathCompletion, GetSystemFS(), &This->Allocator);
 
     for (Index = 0; Index < SHELL_NUM_BUFFERS; Index++) {
-        This->Buffer[Index] = (LPSTR)HeapAlloc(BUFFER_SIZE);
+        This->Buffer[Index] = (LPSTR)AllocatorAlloc(&This->Allocator, BUFFER_SIZE);
     }
 
     {
@@ -234,7 +246,7 @@ void InitShellContext(LPSHELLCONTEXT This) {
         ShellScriptCallFunction,
         This
     };
-    This->ScriptContext = ScriptCreateContext(&Callbacks);
+    This->ScriptContext = ScriptCreateContextA(&Callbacks, &This->Allocator);
 
     ShellRegisterScriptHostObjects(This);
 
@@ -247,7 +259,7 @@ void DeinitShellContext(LPSHELLCONTEXT This) {
 
 
     for (Index = 0; Index < SHELL_NUM_BUFFERS; Index++) {
-        if (This->Buffer[Index]) HeapFree(This->Buffer[Index]);
+        if (This->Buffer[Index]) AllocatorFree(&This->Allocator, This->Buffer[Index]);
     }
 
     CommandLineEditorDeinit(&This->Input.Editor);
@@ -260,6 +272,8 @@ void DeinitShellContext(LPSHELLCONTEXT This) {
         This->ScriptContext = NULL;
     }
 
+    ReservedHeapDeinit(&This->ReservedHeap);
+
 }
 
 /***************************************************************************/
@@ -267,7 +281,7 @@ void DeinitShellContext(LPSHELLCONTEXT This) {
 void ClearOptions(LPSHELLCONTEXT Context) {
     U32 Index;
     for (Index = 0; Index < Context->Options.Count; Index++) {
-        if (Context->Options.Items[Index]) HeapFree(Context->Options.Items[Index]);
+        if (Context->Options.Items[Index]) AllocatorFree(&Context->Options.Allocator, Context->Options.Items[Index]);
     }
     Context->Options.Count = 0;
 }

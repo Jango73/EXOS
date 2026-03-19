@@ -105,7 +105,7 @@ U32 CMD_type(LPSHELLCONTEXT Context) {
                 FileSize = DoSystemCall(SYSCALL_GetFileSize, SYSCALL_PARAM(Handle));
 
                 if (FileSize) {
-                    Buffer = (U8*)HeapAlloc(FileSize + 1);
+                    Buffer = (U8*)AllocatorAlloc(&Context->Allocator, FileSize + 1);
 
                     if (Buffer) {
                         FileOperation.Header.Size = sizeof(FILE_OPERATION);
@@ -121,7 +121,7 @@ U32 CMD_type(LPSHELLCONTEXT Context) {
                             Success = TRUE;
                         }
 
-                        HeapFree(Buffer);
+                        AllocatorFree(&Context->Allocator, Buffer);
                     }
                 }
                 DoSystemCall(SYSCALL_DeleteObject, SYSCALL_PARAM(Handle));
@@ -159,7 +159,7 @@ U32 CMD_copy(LPSHELLCONTEXT Context) {
     SourceBytes = FileReadAll(SrcName, &FileSize);
     if (SourceBytes != NULL) {
         TotalCopied = FileWriteAll(DstName, SourceBytes, FileSize);
-        KernelHeapFree(SourceBytes);
+        AllocatorFree(&Context->Allocator, SourceBytes);
     }
 
     Success = (TotalCopied == FileSize);
@@ -395,4 +395,3 @@ U32 CMD_filesystem(LPSHELLCONTEXT Context) {
 }
 
 /***************************************************************************/
-

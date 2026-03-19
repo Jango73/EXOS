@@ -30,6 +30,36 @@
 #include "script/Script-Internal.h"
 
 /************************************************************************/
+
+LPVOID ScriptAlloc(LPSCRIPT_CONTEXT Context, UINT Size) {
+    if (Context == NULL) {
+        return NULL;
+    }
+
+    return AllocatorAlloc(&Context->Allocator, Size);
+}
+
+/************************************************************************/
+
+LPVOID ScriptRealloc(LPSCRIPT_CONTEXT Context, LPVOID Pointer, UINT Size) {
+    if (Context == NULL) {
+        return NULL;
+    }
+
+    return AllocatorRealloc(&Context->Allocator, Pointer, Size);
+}
+
+/************************************************************************/
+
+void ScriptFree(LPSCRIPT_CONTEXT Context, LPVOID Pointer) {
+    if (Context == NULL) {
+        return;
+    }
+
+    AllocatorFree(&Context->Allocator, Pointer);
+}
+
+/************************************************************************/
 /**
  * @brief Check whether a file name targets an E0 script.
  * @param FileName File name or path to inspect.
@@ -63,23 +93,37 @@ BOOL ScriptIsE0FileName(LPCSTR FileName) {
  * @return Pointer to new script context or NULL on failure
  */
 LPSCRIPT_CONTEXT ScriptCreateContext(LPSCRIPT_CALLBACKS Callbacks) {
+    return ScriptCreateContextA(Callbacks, NULL);
+}
 
-    LPSCRIPT_CONTEXT Context = (LPSCRIPT_CONTEXT)HeapAlloc(sizeof(SCRIPT_CONTEXT));
+/************************************************************************/
+
+LPSCRIPT_CONTEXT ScriptCreateContextA(LPSCRIPT_CALLBACKS Callbacks, LPCALLOCATOR Allocator) {
+    ALLOCATOR LocalAllocator;
+    LPSCRIPT_CONTEXT Context;
+
+    if (Allocator == NULL) {
+        AllocatorInitProcess(&LocalAllocator, GetCurrentProcess());
+        Allocator = &LocalAllocator;
+    }
+
+    Context = (LPSCRIPT_CONTEXT)AllocatorAlloc(Allocator, sizeof(SCRIPT_CONTEXT));
     if (Context == NULL) {
         DEBUG(TEXT("[ScriptCreateContext] Failed to allocate context"));
         return NULL;
     }
 
     MemorySet(Context, 0, sizeof(SCRIPT_CONTEXT));
+    Context->Allocator = *Allocator;
 
-    if (!ScriptInitHostRegistry(&Context->HostRegistry)) {
+    if (!ScriptInitHostRegistry(Context, &Context->HostRegistry)) {
         DEBUG(TEXT("[ScriptCreateContext] Failed to initialize host registry"));
         ScriptDestroyContext(Context);
         return NULL;
     }
 
     // Initialize global scope
-    Context->GlobalScope = ScriptCreateScope(NULL);
+    Context->GlobalScope = ScriptCreateScope(Context, NULL);
     if (Context->GlobalScope == NULL) {
         DEBUG(TEXT("[ScriptCreateContext] Failed to create global scope"));
         ScriptDestroyContext(Context);
@@ -113,7 +157,7 @@ void ScriptDestroyContext(LPSCRIPT_CONTEXT Context) {
         ScriptDestroyScope(Context->GlobalScope);
     }
 
-    HeapFree(Context);
+    ScriptFree(Context, Context);
 }
 
 /************************************************************************/
@@ -138,7 +182,7 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
     ScriptInitParser(&Parser, Script, Context);
 
     // PASS 1: Parse script and build AST
-    LPAST_NODE Root = ScriptCreateASTNode(AST_BLOCK);
+    LPAST_NODE Root = ScriptCreateASTNode(Context, AST_BLOCK);
     if (Root == NULL) {
         StringCopy(Context->ErrorMessage, TEXT("Out of memory"));
         Context->ErrorCode = SCRIPT_ERROR_OUT_OF_MEMORY;
@@ -146,7 +190,7 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
     }
 
     Root->Data.Block.Capacity = 16;
-    Root->Data.Block.Statements = (LPAST_NODE*)HeapAlloc(Root->Data.Block.Capacity * sizeof(LPAST_NODE));
+    Root->Data.Block.Statements = (LPAST_NODE*)ScriptAlloc(Context, Root->Data.Block.Capacity * sizeof(LPAST_NODE));
     if (Root->Data.Block.Statements == NULL) {
         ScriptDestroyAST(Root);
         StringCopy(Context->ErrorMessage, TEXT("Out of memory"));
@@ -170,7 +214,7 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
         // Add statement to root block
         if (Root->Data.Block.Count >= Root->Data.Block.Capacity) {
             Root->Data.Block.Capacity *= 2;
-            LPAST_NODE* NewStatements = (LPAST_NODE*)HeapAlloc(Root->Data.Block.Capacity * sizeof(LPAST_NODE));
+            LPAST_NODE* NewStatements = (LPAST_NODE*)ScriptAlloc(Context, Root->Data.Block.Capacity * sizeof(LPAST_NODE));
             if (NewStatements == NULL) {
                 ScriptDestroyAST(Statement);
                 ScriptDestroyAST(Root);
@@ -181,7 +225,7 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
             for (U32 i = 0; i < Root->Data.Block.Count; i++) {
                 NewStatements[i] = Root->Data.Block.Statements[i];
             }
-            HeapFree(Root->Data.Block.Statements);
+            ScriptFree(Context, Root->Data.Block.Statements);
             Root->Data.Block.Statements = NewStatements;
         }
 
@@ -331,14 +375,15 @@ BOOL ScriptGetReturnValue(LPSCRIPT_CONTEXT Context, SCRIPT_VAR_TYPE* Type, SCRIP
  * @param Type Node type
  * @return Pointer to new node or NULL on failure
  */
-LPAST_NODE ScriptCreateASTNode(AST_NODE_TYPE Type) {
-    LPAST_NODE Node = (LPAST_NODE)HeapAlloc(sizeof(AST_NODE));
+LPAST_NODE ScriptCreateASTNode(LPSCRIPT_CONTEXT Context, AST_NODE_TYPE Type) {
+    LPAST_NODE Node = (LPAST_NODE)ScriptAlloc(Context, sizeof(AST_NODE));
     if (Node == NULL) {
         ERROR(TEXT("[ScriptCreateASTNode] Failed to allocate AST node"));
         return NULL;
     }
 
     MemorySet(Node, 0, sizeof(AST_NODE));
+    Node->Context = Context;
     Node->Type = Type;
     Node->Next = NULL;
 
@@ -396,7 +441,7 @@ void ScriptDestroyAST(LPAST_NODE Node) {
                 for (U32 i = 0; i < Node->Data.Block.Count; i++) {
                     ScriptDestroyAST(Node->Data.Block.Statements[i]);
                 }
-                HeapFree(Node->Data.Block.Statements);
+                ScriptFree(Node->Context, Node->Data.Block.Statements);
             }
             break;
 
@@ -420,7 +465,7 @@ void ScriptDestroyAST(LPAST_NODE Node) {
                 ScriptDestroyAST(Node->Data.Expression.Right);
             }
             if (Node->Data.Expression.IsShellCommand && Node->Data.Expression.CommandLine) {
-                HeapFree(Node->Data.Expression.CommandLine);
+                ScriptFree(Node->Context, Node->Data.Expression.CommandLine);
             }
             break;
 
@@ -433,7 +478,7 @@ void ScriptDestroyAST(LPAST_NODE Node) {
         ScriptDestroyAST(Node->Next);
     }
 
-    HeapFree(Node);
+    ScriptFree(Node->Context, Node);
 }
 
 /************************************************************************/
@@ -471,7 +516,7 @@ void ScriptClearReturnValue(LPSCRIPT_CONTEXT Context) {
 
     if (Context->HasReturnValue) {
         if (Context->ReturnType == SCRIPT_VAR_STRING && Context->ReturnValue.String != NULL) {
-            HeapFree(Context->ReturnValue.String);
+            ScriptFree(Context, Context->ReturnValue.String);
         } else if (Context->ReturnType == SCRIPT_VAR_ARRAY && Context->ReturnValue.Array != NULL) {
             ScriptDestroyArray(Context->ReturnValue.Array);
         }
@@ -509,7 +554,7 @@ BOOL ScriptStoreReturnValue(LPSCRIPT_CONTEXT Context, const SCRIPT_VALUE* Value)
         }
 
         Length = StringLength(Value->Value.String) + 1;
-        Context->ReturnValue.String = (LPSTR)HeapAlloc(Length);
+        Context->ReturnValue.String = (LPSTR)ScriptAlloc(Context, Length);
         if (Context->ReturnValue.String == NULL) {
             ScriptClearReturnValue(Context);
             return FALSE;

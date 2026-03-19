@@ -25,6 +25,7 @@
 #define COMMANDLINEEDITOR_H_INCLUDED
 
 #include "Base.h"
+#include "utils/Allocator.h"
 #include "utils/StringArray.h"
 
 /***************************************************************************/
@@ -64,6 +65,7 @@ typedef struct tag_COMMANDLINEEDITOR {
 /***************************************************************************/
 
 void CommandLineEditorInit(LPCOMMANDLINEEDITOR Editor, U32 HistoryCapacity);
+void CommandLineEditorInitA(LPCOMMANDLINEEDITOR Editor, U32 HistoryCapacity, LPCALLOCATOR Allocator);
 void CommandLineEditorDeinit(LPCOMMANDLINEEDITOR Editor);
 void CommandLineEditorSetCompletionCallback(
     LPCOMMANDLINEEDITOR Editor,

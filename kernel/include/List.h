@@ -52,14 +52,19 @@ struct tag_LISTNODE {
 typedef void (*LISTITEMDESTRUCTOR)(LPVOID);
 typedef LPVOID (*MEMALLOCFUNC)(UINT);
 typedef void (*MEMFREEFUNC)(LPVOID);
+typedef LPVOID (*MEMALLOCCONTEXTFUNC)(LPVOID, UINT);
+typedef void (*MEMFREECONTEXTFUNC)(LPVOID, LPVOID);
 
 typedef struct tag_LIST {
     LPLISTNODE First;
     LPLISTNODE Last;
     LPLISTNODE Current;
     UINT NumItems;
+    LPVOID MemoryContext;
     MEMALLOCFUNC MemAllocFunc;
     MEMFREEFUNC MemFreeFunc;
+    MEMALLOCCONTEXTFUNC MemAllocContextFunc;
+    MEMFREECONTEXTFUNC MemFreeContextFunc;
     LISTITEMDESTRUCTOR Destructor;
 } LIST, *LPLIST;
 
@@ -71,6 +76,11 @@ typedef I32 (*COMPAREFUNC)(LPCVOID, LPCVOID);
 
 void QuickSort(LPVOID Base, U32 NumItems, U32 ItemSize, COMPAREFUNC Func);
 LPLIST NewList(LISTITEMDESTRUCTOR Destructor, MEMALLOCFUNC Alloc, MEMFREEFUNC Free);
+LPLIST NewListEx(
+    LISTITEMDESTRUCTOR Destructor,
+    LPVOID MemoryContext,
+    MEMALLOCCONTEXTFUNC Alloc,
+    MEMFREECONTEXTFUNC Free);
 U32 DeleteList(LPLIST List);
 U32 ListGetSize(LPLIST List);
 U32 ListAddItem(LPLIST List, LPVOID Item);

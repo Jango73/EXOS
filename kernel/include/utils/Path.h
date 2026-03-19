@@ -28,6 +28,7 @@
 /***************************************************************************/
 
 #include "FileSystem.h"
+#include "utils/Allocator.h"
 #include "utils/StringArray.h"
 
 /***************************************************************************/
@@ -46,6 +47,7 @@ typedef struct tag_PATHCOMPLETION {
 /***************************************************************************/
 
 BOOL PathCompletionInit(LPPATHCOMPLETION Context, LPFILESYSTEM FileSystem);
+BOOL PathCompletionInitA(LPPATHCOMPLETION Context, LPFILESYSTEM FileSystem, LPCALLOCATOR Allocator);
 void PathCompletionDeinit(LPPATHCOMPLETION Context);
 BOOL PathCompletionNext(LPPATHCOMPLETION Context, LPCSTR Path, LPSTR Output);
 

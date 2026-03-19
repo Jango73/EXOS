@@ -31,6 +31,18 @@
 
 /************************************************************************/
 
+static BOOL HeapResizeProcess(LPVOID Context, LINEAR HeapBase, UINT OldSize, UINT NewSize, U32 Flags) {
+    LPPROCESS Process = (LPPROCESS)Context;
+
+    if (Process == NULL) {
+        return FALSE;
+    }
+
+    return ResizeRegion(HeapBase, 0, OldSize, NewSize, Flags);
+}
+
+/************************************************************************/
+
 /**
  * @brief Determines the size class for a given allocation size
  * @param Size Size in bytes to categorize
@@ -277,6 +289,33 @@ void HeapInit(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize) {
 
     // Set first unallocated to after control block, aligned to 16 bytes
     ControlBlock->FirstUnallocated = (LPVOID)((HeapBase + sizeof(HEAP_CONTROL_BLOCK) + 15) & ~15);
+    ControlBlock->ResizeContext = Process;
+    ControlBlock->ResizeCallback = HeapResizeProcess;
+    ControlBlock->MaximumSize = (Process != NULL) ? Process->MaximumAllocatedMemory : HeapSize;
+    ControlBlock->RegionFlags = ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE;
+    if (Process != NULL && Process->Privilege == CPU_PRIVILEGE_KERNEL) {
+        ControlBlock->RegionFlags |= ALLOC_PAGES_AT_OR_OVER;
+    }
+}
+
+/************************************************************************/
+
+void HeapConfigureGrowth(
+    LINEAR HeapBase,
+    LPVOID ResizeContext,
+    HEAP_RESIZE_CALLBACK ResizeCallback,
+    UINT MaximumSize,
+    U32 RegionFlags) {
+    LPHEAP_CONTROL_BLOCK ControlBlock = (LPHEAP_CONTROL_BLOCK)HeapBase;
+
+    if (ControlBlock == NULL || ControlBlock->TypeID != KOID_HEAP) {
+        return;
+    }
+
+    ControlBlock->ResizeContext = ResizeContext;
+    ControlBlock->ResizeCallback = ResizeCallback;
+    ControlBlock->MaximumSize = MaximumSize;
+    ControlBlock->RegionFlags = RegionFlags;
 }
 
 /************************************************************************/
@@ -288,14 +327,13 @@ void HeapInit(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize) {
  * @return TRUE if the heap was expanded, FALSE otherwise.
  */
 static BOOL TryExpandHeap(LPHEAP_CONTROL_BLOCK ControlBlock, UINT RequiredSize) {
-    if (ControlBlock == NULL || ControlBlock->Owner == NULL) {
-        ERROR(TEXT("[TryExpandHeap] Heap owner is undefined"));
+    if (ControlBlock == NULL) {
+        ERROR(TEXT("[TryExpandHeap] Heap control block is undefined"));
         return FALSE;
     }
 
-    LPPROCESS Process = ControlBlock->Owner;
     UINT CurrentSize = ControlBlock->HeapSize;
-    UINT Limit = Process->MaximumAllocatedMemory;
+    UINT Limit = ControlBlock->MaximumSize;
     UINT AdditionalRequired = (UINT)RequiredSize;
     UINT DesiredSize = CurrentSize << 1;
 
@@ -321,19 +359,26 @@ static BOOL TryExpandHeap(LPHEAP_CONTROL_BLOCK ControlBlock, UINT RequiredSize) 
         return FALSE;
     }
 
-    U32 Flags = ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE;
-    if (Process->Privilege == CPU_PRIVILEGE_KERNEL) {
-        Flags |= ALLOC_PAGES_AT_OR_OVER;
+    if (ControlBlock->ResizeCallback == NULL) {
+        ERROR(TEXT("[TryExpandHeap] Heap resize callback is undefined"));
+        return FALSE;
     }
 
-    if (ResizeRegion(Process->HeapBase, 0, CurrentSize, DesiredSize, Flags) == FALSE) {
-        ERROR(TEXT("[TryExpandHeap] ResizeRegion failed for heap at %x (from %x to %x)"), Process->HeapBase, CurrentSize,
+    if (ControlBlock->ResizeCallback(
+            ControlBlock->ResizeContext,
+            ControlBlock->HeapBase,
+            CurrentSize,
+            DesiredSize,
+            ControlBlock->RegionFlags) == FALSE) {
+        ERROR(TEXT("[TryExpandHeap] ResizeRegion failed for heap at %x (from %x to %x)"), ControlBlock->HeapBase, CurrentSize,
             DesiredSize);
         return FALSE;
     }
 
     ControlBlock->HeapSize = DesiredSize;
-    Process->HeapSize = DesiredSize;
+    if (ControlBlock->Owner != NULL && ControlBlock->Owner->HeapBase == ControlBlock->HeapBase) {
+        ControlBlock->Owner->HeapSize = DesiredSize;
+    }
 
     DEBUG(TEXT("[TryExpandHeap] Expanded heap from %u to %u (required %u)"),
           CurrentSize, DesiredSize, RequiredSize);
