@@ -159,7 +159,7 @@ U32 CMD_copy(LPSHELLCONTEXT Context) {
     SourceBytes = FileReadAll(SrcName, &FileSize);
     if (SourceBytes != NULL) {
         TotalCopied = FileWriteAll(DstName, SourceBytes, FileSize);
-        AllocatorFree(&Context->Allocator, SourceBytes);
+        KernelHeapFree(SourceBytes);
     }
 
     Success = (TotalCopied == FileSize);
