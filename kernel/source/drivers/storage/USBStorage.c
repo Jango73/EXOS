@@ -22,121 +22,27 @@
 
 \************************************************************************/
 
-#include "drivers/storage/USBStorage.h"
+#include "drivers/storage/USBStorage-Private.h"
 
 #include "Clock.h"
 #include "DeferredWork.h"
 #include "CoreString.h"
-#include "Disk.h"
-#include "Endianness.h"
 #include "FileSystem.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
 #include "console/Console.h"
 #include "User.h"
-#include "drivers/usb/XHCI-Internal.h"
 #include "process/Task-Messaging.h"
 #include "utils/Helpers.h"
-#include "utils/RateLimiter.h"
 
 /************************************************************************/
-
-#define USB_MASS_STORAGE_VER_MAJOR 1
-#define USB_MASS_STORAGE_VER_MINOR 0
-
-#define USB_MASS_STORAGE_SUBCLASS_SCSI 0x06
-#define USB_MASS_STORAGE_PROTOCOL_BOT 0x50
-#define USB_MASS_STORAGE_PROTOCOL_UAS 0x62
-
-#define USB_MASS_STORAGE_COMMAND_BLOCK_SIGNATURE 0x43425355
-#define USB_MASS_STORAGE_COMMAND_STATUS_SIGNATURE 0x53425355
-#define USB_MASS_STORAGE_COMMAND_BLOCK_LENGTH 31
-#define USB_MASS_STORAGE_COMMAND_STATUS_LENGTH 13
-
-#define USB_SCSI_INQUIRY 0x12
-#define USB_SCSI_READ_CAPACITY_10 0x25
-#define USB_SCSI_READ_10 0x28
-
-#define USB_MASS_STORAGE_BULK_RETRIES 3
-#define USB_MASS_STORAGE_SCAN_LOG_IMMEDIATE_BUDGET 1
-#define USB_MASS_STORAGE_SCAN_LOG_INTERVAL_MS 2000
 
 #define DF_RETURN_HARDWARE 0x00001001
-#define DF_RETURN_TIMEOUT 0x00001002
 #define DF_RETURN_NODEVICE 0x00001004
 
-/************************************************************************/
-
-#pragma pack(push, 1)
-
-typedef struct tag_USB_MASS_STORAGE_COMMAND_BLOCK_WRAPPER {
-    U32 Signature;
-    U32 Tag;
-    U32 DataTransferLength;
-    U8 Flags;
-    U8 LogicalUnitNumber;
-    U8 CommandBlockLength;
-    U8 CommandBlock[16];
-} USB_MASS_STORAGE_COMMAND_BLOCK_WRAPPER, *LPUSB_MASS_STORAGE_COMMAND_BLOCK_WRAPPER;
-
-typedef struct tag_USB_MASS_STORAGE_COMMAND_STATUS_WRAPPER {
-    U32 Signature;
-    U32 Tag;
-    U32 DataResidue;
-    U8 Status;
-} USB_MASS_STORAGE_COMMAND_STATUS_WRAPPER, *LPUSB_MASS_STORAGE_COMMAND_STATUS_WRAPPER;
-
-#pragma pack(pop)
-
-/************************************************************************/
-
-typedef struct tag_USB_MASS_STORAGE_DEVICE {
-    STORAGE_UNIT Disk;
-    U32 Access;
-    LPXHCI_DEVICE Controller;
-    LPXHCI_USB_DEVICE UsbDevice;
-    LPXHCI_USB_INTERFACE Interface;
-    LPXHCI_USB_ENDPOINT BulkInEndpoint;
-    LPXHCI_USB_ENDPOINT BulkOutEndpoint;
-    U8 InterfaceNumber;
-    U32 Tag;
-    UINT BlockCount;
-    UINT BlockSize;
-    PHYSICAL InputOutputBufferPhysical;
-    LINEAR InputOutputBufferLinear;
-    BOOL Ready;
-    BOOL MountPending;
-    BOOL ReferencesHeld;
-    LPUSB_STORAGE_ENTRY ListEntry;
-} USB_MASS_STORAGE_DEVICE, *LPUSB_MASS_STORAGE_DEVICE;
-
-typedef struct tag_USB_MASS_STORAGE_STATE {
-    BOOL Initialized;
-    U32 PollHandle;
-    UINT RetryDelay;
-    RATE_LIMITER ScanLogLimiter;
-} USB_MASS_STORAGE_STATE, *LPUSB_MASS_STORAGE_STATE;
-
 UINT USBStorageCommands(UINT Function, UINT Parameter);
-BOOL USBStorageIsMassStorageInterface(LPXHCI_USB_INTERFACE Interface);
-BOOL USBStorageFindBulkEndpoints(LPXHCI_USB_INTERFACE Interface,
-                                 LPXHCI_USB_ENDPOINT* BulkInOut,
-                                 LPXHCI_USB_ENDPOINT* BulkOutOut);
-BOOL USBStorageIsDevicePresent(LPXHCI_DEVICE Device, LPXHCI_USB_DEVICE UsbDevice);
-BOOL USBStorageIsTracked(LPXHCI_USB_DEVICE UsbDevice);
-BOOL USBStorageResetRecovery(LPUSB_MASS_STORAGE_DEVICE Device);
-BOOL USBStorageInquiry(LPUSB_MASS_STORAGE_DEVICE Device);
-BOOL USBStorageRequestSense(LPUSB_MASS_STORAGE_DEVICE Device);
-BOOL USBStorageReadCapacity(LPUSB_MASS_STORAGE_DEVICE Device);
-BOOL USBStorageReadBlocks(LPUSB_MASS_STORAGE_DEVICE Device,
-                          UINT LogicalBlockAddress,
-                          UINT TransferBlocks,
-                          LPVOID Output);
-BOOL USBStorageWriteBlocks(LPUSB_MASS_STORAGE_DEVICE Device,
-                           UINT LogicalBlockAddress,
-                           UINT TransferBlocks,
-                           LPCVOID Input);
+
 
 static USB_MASS_STORAGE_STATE DATA_SECTION USBStorageState = {
     .Initialized = FALSE,
@@ -851,6 +757,29 @@ static U32 USBStorageValidateIoControl(LPUSB_MASS_STORAGE_DEVICE* DeviceOut,
 /************************************************************************/
 
 /**
+ * @brief Flush one USB mass storage device write cache with one recovery retry.
+ * @param Device USB mass storage device context.
+ * @return TRUE on success.
+ */
+static BOOL USBStorageFlushWriteCache(LPUSB_MASS_STORAGE_DEVICE Device) {
+    if (Device == NULL) {
+        return FALSE;
+    }
+
+    if (USBStorageSynchronizeCache(Device)) {
+        return TRUE;
+    }
+
+    if (!USBStorageRecoverCommandFailure(Device, USB_SCSI_SYNCHRONIZE_CACHE_10)) {
+        return FALSE;
+    }
+
+    return USBStorageSynchronizeCache(Device);
+}
+
+/************************************************************************/
+
+/**
  * @brief Transfer sectors through USB BOT read or write commands.
  * @param Control I/O control structure.
  * @param DirectionIn TRUE for read, FALSE for write.
@@ -885,17 +814,30 @@ static U32 USBStorageTransfer(LPIOCONTROL Control, BOOL DirectionIn) {
 
         if (DirectionIn) {
             if (!USBStorageReadBlocks(Device, CurrentLogicalBlockAddress, Blocks, Buffer)) {
-                return DF_RETURN_HARDWARE;
+                if (!USBStorageRecoverCommandFailure(Device, USB_SCSI_READ_10) ||
+                    !USBStorageReadBlocks(Device, CurrentLogicalBlockAddress, Blocks, Buffer)) {
+                    Device->Ready = FALSE;
+                    return DF_RETURN_HARDWARE;
+                }
             }
         } else {
             if (!USBStorageWriteBlocks(Device, CurrentLogicalBlockAddress, Blocks, Buffer)) {
-                return DF_RETURN_HARDWARE;
+                if (!USBStorageRecoverCommandFailure(Device, USB_SCSI_WRITE_10) ||
+                    !USBStorageWriteBlocks(Device, CurrentLogicalBlockAddress, Blocks, Buffer)) {
+                    Device->Ready = FALSE;
+                    return DF_RETURN_HARDWARE;
+                }
             }
         }
 
         Buffer += Blocks * Device->BlockSize;
         CurrentLogicalBlockAddress += Blocks;
         Remaining -= Blocks;
+    }
+
+    if (!DirectionIn && Control->NumSectors != 0 && !USBStorageFlushWriteCache(Device)) {
+        Device->Ready = FALSE;
+        return DF_RETURN_HARDWARE;
     }
 
     return DF_RETURN_SUCCESS;
@@ -991,6 +933,15 @@ static U32 USBStorageReset(LPUSB_MASS_STORAGE_DEVICE Device) {
     }
 
     Device->Ready = USBStorageIsDevicePresent(Device->Controller, Device->UsbDevice);
+    if (!Device->Ready) {
+        return DF_RETURN_NODEVICE;
+    }
+
+    if (!USBStorageFlushWriteCache(Device)) {
+        Device->Ready = FALSE;
+        return DF_RETURN_HARDWARE;
+    }
+
     return DF_RETURN_SUCCESS;
 }
 

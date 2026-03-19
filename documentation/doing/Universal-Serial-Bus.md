@@ -94,8 +94,8 @@ cleanly.
 **Goal**: stable write support.
 **Observed in code**: `WRITE(10)` and `REQUEST SENSE` exist, but there is no `SYNCHRONIZE CACHE` path and no explicit `UNIT ATTENTION` / `NOT READY` re-init flow.
 
-- [ ] **WRITE(10)**, write-cache, **SYNCHRONIZE CACHE**.
-- [ ] SCSI error paths (UNIT ATTENTION, NOT READY), clean re-init.
+- [X] **WRITE(10)**, write-cache, **SYNCHRONIZE CACHE**.
+- [X] SCSI error paths (UNIT ATTENTION, NOT READY), clean re-init.
 
 **Success**: create a file on a FS (FAT32/EXT2) on `usb0`.
 
