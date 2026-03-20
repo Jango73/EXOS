@@ -115,6 +115,7 @@ BOOL GetWindowOrderSnapshot(LPWINDOW Window, I32* Order);
 BOOL GetWindowLevelSnapshot(LPWINDOW Window, U32* Level);
 BOOL GetWindowEffectiveWorkRectSnapshot(LPWINDOW Window, LPRECT WorkRect);
 BOOL GetWindowDrawContextSnapshot(LPWINDOW Window, LPWINDOW_DRAW_CONTEXT_SNAPSHOT Snapshot);
+BOOL DesktopRefreshWindowChildScreenRects(LPWINDOW ParentWindow);
 BOOL DesktopSnapshotWindowChildren(LPWINDOW Parent, LPWINDOW** Children, UINT* ChildCount);
 void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window);
 BOOL DesktopConsumeWindowDirtyRegionSnapshot(

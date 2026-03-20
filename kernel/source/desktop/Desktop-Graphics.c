@@ -232,6 +232,7 @@ BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect) {
     GraphicsWindowRectToScreenRect(&ParentScreenRect, &(Window->Rect), &(Window->ScreenRect));
     NewScreenRect = Window->ScreenRect;
     UnlockMutex(&(Window->Mutex));
+    (void)DesktopRefreshWindowChildScreenRects(Window);
 
     FullWindowRect.X1 = 0;
     FullWindowRect.Y1 = 0;

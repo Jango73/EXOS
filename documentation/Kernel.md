@@ -2096,7 +2096,7 @@ For `BareSurface` windows, the kernel also skips non-client rendering and keeps 
 
 The desktop layer routes mouse and keyboard events to the focused window and tracks capture at desktop scope. Focus changes, mouse capture, move/resize operations, and timer delivery all use generic windowing paths rather than component-specific logic.
 
-Client invalidation and full-window invalidation are separate APIs. `InvalidateClientRect(Window, Rect)` interprets `Rect` in client coordinates and maps `NULL` to the full client area. `InvalidateWindowRect(Window, Rect)` remains the lower-level full-window API in window coordinates and maps `NULL` to the full window surface, including non-client chrome.
+Client invalidation and full-window invalidation are separate APIs. `InvalidateClientRect(Window, Rect)` interprets `Rect` in client coordinates and maps `NULL` to the full client area. `InvalidateWindowRect(Window, Rect)` remains the lower-level full-window API in window coordinates and maps `NULL` to the full window surface, including non-client chrome. When one parent window moves, the desktop refreshes descendant screen rectangles and invalidates descendant full surfaces so child windows follow the parent visually.
 
 Per-window timers are asynchronous. `SetWindowTimer`, `KillWindowTimer`, and `EWM_TIMER` let one window request periodic redraw or state updates without blocking the desktop pipeline.
 

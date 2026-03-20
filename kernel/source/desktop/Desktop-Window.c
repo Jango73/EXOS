@@ -242,6 +242,53 @@ BOOL DesktopUpdateWindowScreenRectAndDirtyRegion(LPWINDOW Window, LPRECT Rect) {
 /***************************************************************************/
 
 /**
+ * @brief Refresh direct and indirect child screen rectangles after one parent move.
+ * @param ParentWindow Window whose descendants are refreshed.
+ * @return TRUE on success.
+ */
+BOOL DesktopRefreshWindowChildScreenRects(LPWINDOW ParentWindow) {
+    LPWINDOW* Children;
+    LPWINDOW ChildWindow;
+    RECT ParentScreenRect;
+    RECT FullWindowRect;
+    RECT ChildScreenRect;
+    UINT ChildCount;
+    UINT ChildIndex;
+
+    if (ParentWindow == NULL || ParentWindow->TypeID != KOID_WINDOW) return FALSE;
+    if (GetWindowScreenRectSnapshot(ParentWindow, &ParentScreenRect) == FALSE) return FALSE;
+
+    Children = NULL;
+    ChildCount = 0;
+    if (DesktopSnapshotWindowChildren(ParentWindow, &Children, &ChildCount) == FALSE) return FALSE;
+
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        ChildWindow = Children[ChildIndex];
+        if (ChildWindow == NULL || ChildWindow->TypeID != KOID_WINDOW) continue;
+
+        LockMutex(&(ChildWindow->Mutex), INFINITY);
+        GraphicsWindowRectToScreenRect(&ParentScreenRect, &(ChildWindow->Rect), &(ChildWindow->ScreenRect));
+        ChildScreenRect = ChildWindow->ScreenRect;
+        UnlockMutex(&(ChildWindow->Mutex));
+
+        FullWindowRect.X1 = 0;
+        FullWindowRect.Y1 = 0;
+        FullWindowRect.X2 = ChildScreenRect.X2 - ChildScreenRect.X1;
+        FullWindowRect.Y2 = ChildScreenRect.Y2 - ChildScreenRect.Y1;
+        (void)InvalidateWindowRect((HANDLE)ChildWindow, &FullWindowRect);
+        (void)DesktopRefreshWindowChildScreenRects(ChildWindow);
+    }
+
+    if (Children != NULL) {
+        KernelHeapFree(Children);
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Comparison routine for sorting windows by order.
  * @param Item1 First window pointer.
  * @param Item2 Second window pointer.

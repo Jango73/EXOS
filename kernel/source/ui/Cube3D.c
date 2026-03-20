@@ -28,6 +28,7 @@
 #include "Heap.h"
 #include "math/Math.h"
 #include "math/Math3D.h"
+#include "ui/Button.h"
 
 /***************************************************************************/
 
@@ -41,15 +42,21 @@
 #define CUBE3D_DEFAULT_WIDTH 420
 #define CUBE3D_DEFAULT_HEIGHT 300
 #define CUBE3D_COLOR_FLASH_GREEN ((COLOR)0x0014FF39)
+#define CUBE3D_TOGGLE_BUTTON_ID 0x00000001
+#define CUBE3D_TOGGLE_BUTTON_WIDTH 112
+#define CUBE3D_TOGGLE_BUTTON_HEIGHT 28
+#define CUBE3D_TOGGLE_BUTTON_MARGIN 10
 
 /***************************************************************************/
 
 typedef struct tag_CUBE3D_STATE {
     HANDLE FlashPen;
+    HANDLE ToggleButton;
     U32 AngleXMilliDegrees;
     U32 AngleYMilliDegrees;
     U32 AngleZMilliDegrees;
     U32 LastTick;
+    BOOL RenderEnabled;
 } CUBE3D_STATE, *LPCUBE3D_STATE;
 
 /***************************************************************************/
@@ -71,6 +78,79 @@ static const QUAD CubeQuads[6] = {
     {1, 5, 6, 2},
     {3, 2, 6, 7},
     {0, 1, 5, 4}};
+
+/***************************************************************************/
+
+/**
+ * @brief Update the toggle button caption from one render state.
+ * @param ButtonWindow Button child window.
+ * @param RenderEnabled TRUE when cube rendering is enabled.
+ */
+static void Cube3DUpdateToggleButtonCaption(HANDLE ButtonWindow, BOOL RenderEnabled) {
+    if (ButtonWindow == NULL) return;
+
+    (void)SetWindowCaption(ButtonWindow, RenderEnabled ? TEXT("Hide Cube") : TEXT("Show Cube"));
+    (void)InvalidateClientRect(ButtonWindow, NULL);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Place the toggle button inside the cube client area.
+ * @param Window Cube window.
+ * @param ButtonWindow Toggle button child window.
+ */
+static void Cube3DLayoutToggleButton(HANDLE Window, HANDLE ButtonWindow) {
+    RECT ClientRect;
+    RECT ButtonRect;
+
+    if (Window == NULL || ButtonWindow == NULL) return;
+    if (GetWindowClientRect(Window, &ClientRect) == FALSE) return;
+
+    ButtonRect.X2 = ClientRect.X2 - CUBE3D_TOGGLE_BUTTON_MARGIN;
+    ButtonRect.X1 = ButtonRect.X2 - CUBE3D_TOGGLE_BUTTON_WIDTH + 1;
+    ButtonRect.Y1 = ClientRect.Y1 + CUBE3D_TOGGLE_BUTTON_MARGIN;
+    ButtonRect.Y2 = ButtonRect.Y1 + CUBE3D_TOGGLE_BUTTON_HEIGHT - 1;
+
+    if (ButtonRect.X1 < ClientRect.X1 + CUBE3D_TOGGLE_BUTTON_MARGIN) {
+        ButtonRect.X1 = ClientRect.X1 + CUBE3D_TOGGLE_BUTTON_MARGIN;
+        ButtonRect.X2 = ButtonRect.X1 + CUBE3D_TOGGLE_BUTTON_WIDTH - 1;
+    }
+
+    if (ButtonRect.Y2 > ClientRect.Y2 - CUBE3D_TOGGLE_BUTTON_MARGIN) {
+        ButtonRect.Y2 = ClientRect.Y2 - CUBE3D_TOGGLE_BUTTON_MARGIN;
+        ButtonRect.Y1 = ButtonRect.Y2 - CUBE3D_TOGGLE_BUTTON_HEIGHT + 1;
+    }
+
+    (void)MoveWindow(ButtonWindow, &ButtonRect);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Ensure the toggle button child exists and is configured.
+ * @param Window Cube window.
+ * @param State Cube private state.
+ * @return TRUE on success.
+ */
+static BOOL Cube3DEnsureToggleButton(HANDLE Window, LPCUBE3D_STATE State) {
+    RECT ButtonRect;
+
+    if (Window == NULL || State == NULL) return FALSE;
+    if (State->ToggleButton != NULL) return TRUE;
+
+    ButtonRect.X1 = 0;
+    ButtonRect.Y1 = 0;
+    ButtonRect.X2 = CUBE3D_TOGGLE_BUTTON_WIDTH - 1;
+    ButtonRect.Y2 = CUBE3D_TOGGLE_BUTTON_HEIGHT - 1;
+
+    State->ToggleButton = ButtonCreate(Window, CUBE3D_TOGGLE_BUTTON_ID, &ButtonRect, TEXT("Hide Cube"));
+    if (State->ToggleButton == NULL) return FALSE;
+
+    Cube3DUpdateToggleButtonCaption(State->ToggleButton, State->RenderEnabled);
+    Cube3DLayoutToggleButton(Window, State->ToggleButton);
+    return TRUE;
+}
 
 /***************************************************************************/
 
@@ -279,7 +359,14 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
             Now = GetSystemTime();
             State->LastTick = Now;
+            State->RenderEnabled = TRUE;
             (void)SetWindowProp(Window, CUBE3D_PROP_STATE, (UINT)State);
+            if (Cube3DEnsureToggleButton(Window, State) == FALSE) {
+                (void)DeleteObject(State->FlashPen);
+                HeapFree(State);
+                (void)SetWindowProp(Window, CUBE3D_PROP_STATE, 0);
+                return 0;
+            }
             (void)SetWindowTimer(Window, CUBE3D_TIMER_ID, CUBE3D_TIMER_INTERVAL_MS);
             return 1;
 
@@ -317,9 +404,33 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 State->AngleYMilliDegrees = (State->AngleYMilliDegrees + DeltaYMilliDegrees) % CUBE3D_FULL_TURN_MDEG;
                 State->AngleZMilliDegrees = (State->AngleZMilliDegrees + DeltaZMilliDegrees) % CUBE3D_FULL_TURN_MDEG;
                 State->LastTick = Now;
-                (void)InvalidateClientRect(Window, NULL);
+                if (State->RenderEnabled != FALSE) {
+                    (void)InvalidateClientRect(Window, NULL);
+                }
             }
             return 1;
+
+        case EWM_NOTIFY:
+            if (Param1 == EWN_WINDOW_RECT_CHANGED) {
+                State = (LPCUBE3D_STATE)GetWindowProp(Window, CUBE3D_PROP_STATE);
+                if (State != NULL && State->ToggleButton != NULL) {
+                    Cube3DLayoutToggleButton(Window, State->ToggleButton);
+                }
+                return 1;
+            }
+
+            if (Param1 == EWN_UI_BUTTON_CLICKED && Param2 == CUBE3D_TOGGLE_BUTTON_ID) {
+                State = (LPCUBE3D_STATE)GetWindowProp(Window, CUBE3D_PROP_STATE);
+                if (State == NULL) {
+                    return 1;
+                }
+
+                State->RenderEnabled = !State->RenderEnabled;
+                Cube3DUpdateToggleButtonCaption(State->ToggleButton, State->RenderEnabled);
+                (void)InvalidateClientRect(Window, NULL);
+                return 1;
+            }
+            break;
 
         case EWM_DRAW:
             (void)BaseWindowFunc(Window, EWM_CLEAR, Param1, Param2);
@@ -327,7 +438,10 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 return 1;
             }
 
-            Cube3DDrawWireframe(Window, &ClientRect);
+            State = (LPCUBE3D_STATE)GetWindowProp(Window, CUBE3D_PROP_STATE);
+            if (State != NULL && State->RenderEnabled != FALSE) {
+                Cube3DDrawWireframe(Window, &ClientRect);
+            }
             return 1;
 
         default:
