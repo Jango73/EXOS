@@ -301,6 +301,11 @@ BOOL DesktopDispatchWindowDraw(LPWINDOW Window, HANDLE TargetHandle, U32 Param1,
             ClearWindowDrawContext(Window);
             return FALSE;
         }
+
+        if (DesktopPresentScreenRect(Window, &ClipRect) == FALSE) {
+            ClearWindowDrawContext(Window);
+            return FALSE;
+        }
     }
 
     DesktopCursorRenderSoftwareOverlayOnWindow(Window);

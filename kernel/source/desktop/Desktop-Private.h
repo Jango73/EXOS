@@ -83,6 +83,8 @@ extern PEN Pen_Title_Text;
 
 BOOL ResetGraphicsContext(LPGRAPHICSCONTEXT This);
 BOOL SetGraphicsContextClipScreenRect(HANDLE GC, LPRECT ClipRect);
+BOOL DesktopGetWindowGraphicsContext(LPWINDOW Window, BOOL UseScanoutContext, LPGRAPHICSCONTEXT* ContextOut);
+BOOL DesktopPresentScreenRect(LPWINDOW Window, LPRECT ClipRect);
 BOOL DesktopBuildWindowVisibleRegion(
     LPWINDOW Window,
     LPRECT BaseRect,

@@ -654,7 +654,7 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
     U32 CursorPath;
     I32 LocalCursorX;
     I32 LocalCursorY;
-    HANDLE GC;
+    LPGRAPHICSCONTEXT GC = NULL;
     UINT ClipIndex;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
@@ -700,18 +700,17 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
         return;
     }
 
-    GC = GetWindowGC((HANDLE)Window);
-    if (GC == NULL) return;
+    if (DesktopGetWindowGraphicsContext(Window, TRUE, &GC) == FALSE) return;
     LocalCursorX = CursorX - WindowRect.X1;
     LocalCursorY = CursorY - WindowRect.Y1;
 
     for (ClipIndex = 0; ClipIndex < RectRegionGetCount(&DrawClipRegion); ClipIndex++) {
         if (RectRegionGetRect(&DrawClipRegion, ClipIndex, &DrawClipRect) == FALSE) continue;
-        (void)SetGraphicsContextClipScreenRect(GC, &DrawClipRect);
-        DesktopCursorDrawTemplate(GC, LocalCursorX, LocalCursorY, CursorWidth, CursorHeight);
+        (void)SetGraphicsContextClipScreenRect((HANDLE)GC, &DrawClipRect);
+        DesktopCursorDrawTemplate((HANDLE)GC, LocalCursorX, LocalCursorY, CursorWidth, CursorHeight);
     }
 
-    (void)ReleaseWindowGC(GC);
+    (void)ReleaseWindowGC((HANDLE)GC);
 }
 
 /************************************************************************/

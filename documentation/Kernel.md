@@ -916,7 +916,7 @@ Generic driver diagnostics use `DF_DEBUG_INFO` with `DRIVER_DEBUG_INFO.Text`, a 
 
 #### VESA and VGA paths
 
-The VESA driver requests VBE modes in linear frame buffer mode (`INT 10h 4F02h`, bit 14), validates linear frame buffer capability, and maps `PhysBasePtr` through `MapIOMemory`. Rendering writes directly to mapped VRAM.
+The VESA driver requests VBE modes in linear frame buffer mode (`INT 10h 4F02h`, bit 14), validates linear frame buffer capability, and maps `PhysBasePtr` through `MapIOMemory`. Console rendering writes directly to mapped VRAM. Desktop composition can instead draw into a desktop-owned shadow buffer and use `DF_GFX_PRESENT` to copy one dirty rectangle to the mapped scanout.
 
 VESA drawing primitives include line, rectangle, arc, and triangle command paths (`DF_GFX_LINE`, `DF_GFX_RECTANGLE`, `DF_GFX_ARC`, `DF_GFX_TRIANGLE`) and are forwarded through `Graphics-Selector`.
 
@@ -940,7 +940,7 @@ The Intel native backend is split by responsibility:
 
 Capability discovery is centralized in an internal `INTEL_GFX_CAPS` object built from a PCI device-id family table and refined with bounded MMIO register probes such as display version, pipe presence, and port mask. Public `GFX_CAPABILITIES` values returned by `DF_GFX_GETCAPABILITIES` are projected from that single capability object.
 
-The takeover path reads active pipe and plane state from display registers, maps the active scanout buffer through the aperture BAR, builds a `GRAPHICSCONTEXT` from the discovered mode, and then serves window-manager drawing through CPU primitives writing directly to active scanout memory.
+The takeover path reads active pipe and plane state from display registers, maps the active scanout buffer through the aperture BAR, builds a `GRAPHICSCONTEXT` from the discovered mode, and then serves window-manager drawing either directly to scanout or through a desktop-owned shadow context followed by `DF_GFX_PRESENT`.
 
 The native `DF_GFX_SETMODE` path in `kernel/source/drivers/graphics/igpu/iGPU-Mode.c` follows an ordered sequence: disable, route, clock, link, enable, verify. It applies explicit pipe, output, and transcoder routing policy, uses conservative generation-aware clock handling, includes eDP panel and backlight stabilization hooks, and rolls back to a captured hardware snapshot when a partial modeset stage fails.
 
@@ -956,13 +956,15 @@ Mouse pointer operations are part of the same graphics backend contract, and cur
 
 Desktop cursor runtime state is tracked per desktop and managed by `kernel/source/desktop/Desktop-Cursor.c`. That state includes position, pending target position, software-dirty state, visibility, clipping rectangle, active path, and fallback reason.
 
+Desktop graphics composition uses one per-desktop shadow buffer in graphics mode. `BeginWindowDraw()` resolves the desktop shadow context for window content, while the structured desktop draw dispatcher submits each completed dirty clip through `DF_GFX_PRESENT` after non-client and client rendering finish for that clip. This keeps the text console on direct framebuffer rendering while desktop windows gain one stable destination buffer suitable for stable software composition.
+
 Shared geometry and damage tracking are centralized:
 
 - rectangle intersection and screen or window coordinate conversion live in `kernel/source/utils/Graphics-Utils.c` and `kernel/include/utils/Graphics-Utils.h`
 - visible-region construction and subtree subtraction live in `kernel/source/desktop/Desktop-VisibleRegion.c`
 - overlay invalidation helpers live in `kernel/source/desktop/Desktop-OverlayInvalidation.c` and `kernel/include/desktop/Desktop-OverlayInvalidation.h`
 
-Occlusion, clipping, and bounded screen damage computation use one shared implementation path across desktop subsystems. Software cursor overlay rendering is emitted at the end of each window draw with visibility clipping so asynchronous `EWM_DRAW` ordering preserves correct cursor pixels after child-window repaint.
+Occlusion, clipping, bounded screen damage, and window composition use one shared implementation path across desktop subsystems. Software cursor overlay rendering stays outside the desktop shadow buffer and is emitted on the final scanout context after window present, so the cursor path remains compatible with hardware-cursor backends and does not become part of the desktop composition buffer.
 
 
 ### Early boot console path
@@ -2066,7 +2068,7 @@ Creation, move, resize, and drag-driven geometry changes all resolve through the
 
 Rendering is asynchronous and dirty-rectangle driven.
 
-When a window is invalidated, the desktop core records screen-space damage in the window dirty region and posts one coalesced draw request. The structured draw path then rebuilds the clip region, iterates dirty rectangles, draws kernel-owned non-client visuals when required, and finally dispatches `EWM_DRAW` to the window procedure with an active draw context.
+When a window is invalidated, the desktop core records screen-space damage in the window dirty region and posts one coalesced draw request. The structured draw path then rebuilds the clip region, iterates dirty rectangles, draws kernel-owned non-client visuals when required, dispatches `EWM_DRAW` to the window procedure with an active draw context, and presents the completed clip once after both passes finish.
 
 This split is important:
 

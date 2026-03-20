@@ -71,6 +71,8 @@ static GOP_GFX_STATE DATA_SECTION GOPGfxState = {0};
 
 /************************************************************************/
 
+static UINT GOPGfxPresent(LPGFX_PRESENT_INFO Info);
+
 /**
  * @brief Retrieve GOP graphics driver descriptor.
  * @return Pointer to GOP graphics driver.
@@ -376,6 +378,69 @@ static UINT GOPGfxUnload(void) {
 
     GOPGfxState = (GOP_GFX_STATE){0};
     GOPGfxDriver.Flags &= ~DRIVER_FLAG_READY;
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Copy one dirty rectangle from one source context to GOP scanout.
+ * @param Info Present descriptor.
+ * @return DF_RETURN_SUCCESS on success.
+ */
+static UINT GOPGfxPresent(LPGFX_PRESENT_INFO Info) {
+    LPGRAPHICSCONTEXT SourceContext = NULL;
+    RECT DirtyRect = {0};
+    U32 BytesPerPixel = 0;
+    U32 CopyBytes = 0;
+    U32 Row = 0;
+
+    if (Info == NULL) {
+        return DF_RETURN_GENERIC;
+    }
+
+    if (GOPGfxState.FrameBufferLinear == 0 || GOPGfxState.FrameBufferSize == 0) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    SourceContext = (LPGRAPHICSCONTEXT)Info->GC;
+    if (SourceContext == NULL || SourceContext->TypeID != KOID_GRAPHICSCONTEXT || SourceContext->MemoryBase == NULL) {
+        return DF_RETURN_GENERIC;
+    }
+
+    DirtyRect = Info->DirtyRect;
+    if (DirtyRect.X1 < 0) DirtyRect.X1 = 0;
+    if (DirtyRect.Y1 < 0) DirtyRect.Y1 = 0;
+    if (DirtyRect.X2 >= GOPGfxState.Context.Width) DirtyRect.X2 = GOPGfxState.Context.Width - 1;
+    if (DirtyRect.Y2 >= GOPGfxState.Context.Height) DirtyRect.Y2 = GOPGfxState.Context.Height - 1;
+    if (DirtyRect.X2 < DirtyRect.X1 || DirtyRect.Y2 < DirtyRect.Y1) {
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (SourceContext->MemoryBase == GOPGfxState.Context.MemoryBase) {
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (SourceContext->BitsPerPixel != GOPGfxState.Context.BitsPerPixel ||
+        SourceContext->BytesPerScanLine != GOPGfxState.Context.BytesPerScanLine) {
+        return DF_RETURN_NOT_IMPLEMENTED;
+    }
+
+    BytesPerPixel = SourceContext->BitsPerPixel / 8;
+    if (BytesPerPixel == 0) {
+        return DF_RETURN_GENERIC;
+    }
+
+    CopyBytes = (U32)(DirtyRect.X2 - DirtyRect.X1 + 1) * BytesPerPixel;
+    for (Row = 0; Row <= (U32)(DirtyRect.Y2 - DirtyRect.Y1); Row++) {
+        U32 Y = (U32)DirtyRect.Y1 + Row;
+        U32 Offset = Y * SourceContext->BytesPerScanLine + ((U32)DirtyRect.X1 * BytesPerPixel);
+        MemoryCopy(
+            GOPGfxState.Context.MemoryBase + Offset,
+            SourceContext->MemoryBase + Offset,
+            CopyBytes);
+    }
+
     return DF_RETURN_SUCCESS;
 }
 
@@ -889,6 +954,8 @@ static UINT GOPGfxCommands(UINT Function, UINT Param) {
             return GOPGfxSetMode((LPGRAPHICS_MODE_INFO)Param);
         case DF_GFX_GETCAPABILITIES:
             return GOPGfxGetCapabilities((LPGFX_CAPABILITIES)Param);
+        case DF_GFX_PRESENT:
+            return GOPGfxPresent((LPGFX_PRESENT_INFO)Param);
         case DF_GFX_SETPIXEL:
             return GOPGfxSetPixel((LPPIXEL_INFO)Param);
         case DF_GFX_GETPIXEL:
@@ -921,7 +988,6 @@ static UINT GOPGfxCommands(UINT Function, UINT Param) {
         case DF_GFX_ELLIPSE:
         case DF_GFX_ENUMOUTPUTS:
         case DF_GFX_GETOUTPUTINFO:
-        case DF_GFX_PRESENT:
         case DF_GFX_WAITVBLANK:
         case DF_GFX_ALLOCSURFACE:
         case DF_GFX_FREESURFACE:

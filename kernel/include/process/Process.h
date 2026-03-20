@@ -56,6 +56,7 @@ typedef struct tag_WINDOW WINDOW, *LPWINDOW;
 typedef struct tag_WINDOW_CLASS WINDOW_CLASS, *LPWINDOW_CLASS;
 typedef struct tag_DESKTOP DESKTOP, *LPDESKTOP;
 typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
+typedef struct tag_GRAPHICSCONTEXT GRAPHICSCONTEXT, *LPGRAPHICSCONTEXT;
 
 /************************************************************************/
 // Task status values
@@ -270,6 +271,9 @@ struct tag_DESKTOP {
     LPWINDOW Focus;                 // Window that has focus
     U32 Mode;                       // Active desktop display mode
     I32 Order;                      // Desktop ordering key among active desktops
+    LPGRAPHICSCONTEXT GraphicsContext;
+    LINEAR GraphicsShadowBufferLinear;
+    UINT GraphicsShadowBufferSize;
     U32 PendingComponents;          // Pending desktop-owned component injection flags
     MOUSE_CURSOR Cursor;            // Desktop cursor runtime state
     DESKTOP_DISPLAY_SELECTION DisplaySelection;

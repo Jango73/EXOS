@@ -504,6 +504,8 @@ UINT IntelGfxSetScanout(LPGFX_SCANOUT_INFO Info) {
 
 UINT IntelGfxPresent(LPGFX_PRESENT_INFO Info) {
     LPINTEL_GFX_SURFACE Surface = NULL;
+    LPGRAPHICSCONTEXT SourceContext = NULL;
+    INTEL_GFX_SURFACE TemporarySurface = {0};
     RECT DirtyRect = {0};
     U32 SourceSurfaceId = 0;
     U32 X = 0;
@@ -524,6 +526,34 @@ UINT IntelGfxPresent(LPGFX_PRESENT_INFO Info) {
     SourceSurfaceId = Info->SurfaceId;
     DirtyRect = Info->DirtyRect;
     PresentFlags = Info->Flags;
+    SourceContext = (LPGRAPHICSCONTEXT)Info->GC;
+
+    if (SourceContext != NULL && SourceContext->TypeID == KOID_GRAPHICSCONTEXT && SourceContext->MemoryBase != NULL &&
+        SourceSurfaceId == 0) {
+        TemporarySurface = (INTEL_GFX_SURFACE){
+            .InUse = TRUE,
+            .Width = (U32)SourceContext->Width,
+            .Height = (U32)SourceContext->Height,
+            .Format = (SourceContext->BitsPerPixel == 32) ? GFX_FORMAT_XRGB8888 :
+                      (SourceContext->BitsPerPixel == 24) ? GFX_FORMAT_RGB888 :
+                                                            GFX_FORMAT_RGB565,
+            .Pitch = SourceContext->BytesPerScanLine,
+            .MemoryBase = SourceContext->MemoryBase
+        };
+
+        if (!IntelGfxResolveDirtyRegion(&DirtyRect, &TemporarySurface, &X, &Y, &Width, &Height)) {
+            return DF_RETURN_SUCCESS;
+        }
+
+        if ((PresentFlags & GFX_PRESENT_FLAG_WAIT_VBLANK) != 0) {
+            Result = IntelGfxWaitForNextVBlank(INTEL_GFX_WAIT_VBLANK_DEFAULT_TIMEOUT_MS, NULL);
+            if (Result != DF_RETURN_SUCCESS) {
+                return Result;
+            }
+        }
+
+        return IntelGfxFlushContextRegionToScanout(SourceContext, (I32)X, (I32)Y, Width, Height);
+    }
 
     if (SourceSurfaceId == 0) {
         SourceSurfaceId = IntelGfxState.ScanoutSurfaceId;

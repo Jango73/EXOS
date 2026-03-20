@@ -38,6 +38,18 @@ typedef BOOL (*GRAPHICS_PLOT_PIXEL_ROUTINE)(LPVOID Context, I32 X, I32 Y, COLOR*
 BOOL IntersectRect(LPRECT Left, LPRECT Right, LPRECT Result);
 BOOL SubtractRectFromRect(LPRECT Source, LPRECT Occluder, LPRECT_REGION Region);
 BOOL SubtractRectFromRegion(LPRECT_REGION Region, LPRECT Occluder, LPRECT TempStorage, UINT TempCapacity);
+void GraphicsResolveChannelLayout(
+    LPGRAPHICSCONTEXT Context,
+    U32* RedPositionOut,
+    U32* RedMaskSizeOut,
+    U32* GreenPositionOut,
+    U32* GreenMaskSizeOut,
+    U32* BluePositionOut,
+    U32* BlueMaskSizeOut);
+U32 GraphicsPackColor(LPGRAPHICSCONTEXT Context, COLOR Color);
+COLOR GraphicsUnpackColor(LPGRAPHICSCONTEXT Context, U32 PackedColor);
+BOOL GraphicsWritePixel(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, COLOR Color);
+BOOL GraphicsReadPixel(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, COLOR* ColorOut);
 BOOL GraphicsDrawScanline(LPGRAPHICSCONTEXT Context, I32 X1, I32 X2, I32 Y, COLOR StartColor, COLOR EndColor);
 BOOL GraphicsFillSolidRect(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR FillColor);
 BOOL GraphicsFillVerticalGradientRect(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR StartColor, COLOR EndColor);

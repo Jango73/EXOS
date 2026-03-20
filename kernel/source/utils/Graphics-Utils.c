@@ -97,6 +97,227 @@ static void GraphicsSlowRedrawPauseIfNeeded(void) {
 
 /************************************************************************/
 
+static U32 GraphicsScaleColorChannel(U32 Value, U32 MaskSize) {
+    U32 MaxValue = 0;
+
+    if (MaskSize == 0) return 0;
+    if (MaskSize >= 8) return Value & 0xFF;
+
+    MaxValue = (1 << MaskSize) - 1;
+    return (Value * MaxValue) / 255;
+}
+
+/************************************************************************/
+
+static U32 GraphicsExpandColorChannel(U32 Value, U32 MaskSize) {
+    U32 MaxValue = 0;
+
+    if (MaskSize == 0) return 0;
+    if (MaskSize >= 8) return Value & 0xFF;
+
+    MaxValue = (1 << MaskSize) - 1;
+    if (MaxValue == 0) return 0;
+
+    return (Value * 255) / MaxValue;
+}
+
+/************************************************************************/
+
+void GraphicsResolveChannelLayout(
+    LPGRAPHICSCONTEXT Context,
+    U32* RedPositionOut,
+    U32* RedMaskSizeOut,
+    U32* GreenPositionOut,
+    U32* GreenMaskSizeOut,
+    U32* BluePositionOut,
+    U32* BlueMaskSizeOut) {
+    U32 RedPosition = 0;
+    U32 RedMaskSize = 0;
+    U32 GreenPosition = 0;
+    U32 GreenMaskSize = 0;
+    U32 BluePosition = 0;
+    U32 BlueMaskSize = 0;
+
+    SAFE_USE(Context) {
+        RedPosition = Context->RedPosition;
+        RedMaskSize = Context->RedMaskSize;
+        GreenPosition = Context->GreenPosition;
+        GreenMaskSize = Context->GreenMaskSize;
+        BluePosition = Context->BluePosition;
+        BlueMaskSize = Context->BlueMaskSize;
+    }
+
+    if (RedMaskSize == 0 || GreenMaskSize == 0 || BlueMaskSize == 0) {
+        if (Context != NULL && Context->BitsPerPixel == 16) {
+            RedPosition = 11;
+            RedMaskSize = 5;
+            GreenPosition = 5;
+            GreenMaskSize = 6;
+            BluePosition = 0;
+            BlueMaskSize = 5;
+        } else {
+            RedPosition = 16;
+            RedMaskSize = 8;
+            GreenPosition = 8;
+            GreenMaskSize = 8;
+            BluePosition = 0;
+            BlueMaskSize = 8;
+        }
+    }
+
+    SAFE_USE_3(RedPositionOut, RedMaskSizeOut, GreenPositionOut) {
+        *RedPositionOut = RedPosition;
+        *RedMaskSizeOut = RedMaskSize;
+        *GreenPositionOut = GreenPosition;
+    }
+
+    SAFE_USE_3(GreenMaskSizeOut, BluePositionOut, BlueMaskSizeOut) {
+        *GreenMaskSizeOut = GreenMaskSize;
+        *BluePositionOut = BluePosition;
+        *BlueMaskSizeOut = BlueMaskSize;
+    }
+}
+
+/************************************************************************/
+
+U32 GraphicsPackColor(LPGRAPHICSCONTEXT Context, COLOR Color) {
+    U32 RedPosition = 0;
+    U32 RedMaskSize = 0;
+    U32 GreenPosition = 0;
+    U32 GreenMaskSize = 0;
+    U32 BluePosition = 0;
+    U32 BlueMaskSize = 0;
+    U32 Red = 0;
+    U32 Green = 0;
+    U32 Blue = 0;
+    U32 PackedColor = 0;
+
+    if (Context == NULL) return Color;
+
+    Red = (Color >> 16) & 0xFF;
+    Green = (Color >> 8) & 0xFF;
+    Blue = Color & 0xFF;
+
+    GraphicsResolveChannelLayout(
+        Context,
+        &RedPosition,
+        &RedMaskSize,
+        &GreenPosition,
+        &GreenMaskSize,
+        &BluePosition,
+        &BlueMaskSize);
+
+    PackedColor |= GraphicsScaleColorChannel(Red, RedMaskSize) << RedPosition;
+    PackedColor |= GraphicsScaleColorChannel(Green, GreenMaskSize) << GreenPosition;
+    PackedColor |= GraphicsScaleColorChannel(Blue, BlueMaskSize) << BluePosition;
+    return PackedColor;
+}
+
+/************************************************************************/
+
+COLOR GraphicsUnpackColor(LPGRAPHICSCONTEXT Context, U32 PackedColor) {
+    U32 RedPosition = 0;
+    U32 RedMaskSize = 0;
+    U32 GreenPosition = 0;
+    U32 GreenMaskSize = 0;
+    U32 BluePosition = 0;
+    U32 BlueMaskSize = 0;
+    U32 RedMask = 0;
+    U32 GreenMask = 0;
+    U32 BlueMask = 0;
+    U32 Red = 0;
+    U32 Green = 0;
+    U32 Blue = 0;
+
+    if (Context == NULL) return 0xFF000000 | PackedColor;
+
+    GraphicsResolveChannelLayout(
+        Context,
+        &RedPosition,
+        &RedMaskSize,
+        &GreenPosition,
+        &GreenMaskSize,
+        &BluePosition,
+        &BlueMaskSize);
+
+    RedMask = ((1 << RedMaskSize) - 1);
+    GreenMask = ((1 << GreenMaskSize) - 1);
+    BlueMask = ((1 << BlueMaskSize) - 1);
+    Red = GraphicsExpandColorChannel((PackedColor >> RedPosition) & RedMask, RedMaskSize);
+    Green = GraphicsExpandColorChannel((PackedColor >> GreenPosition) & GreenMask, GreenMaskSize);
+    Blue = GraphicsExpandColorChannel((PackedColor >> BluePosition) & BlueMask, BlueMaskSize);
+
+    return 0xFF000000 | (Red << 16) | (Green << 8) | Blue;
+}
+
+/************************************************************************/
+
+
+BOOL GraphicsReadPixel(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, COLOR* ColorOut) {
+    U32 Offset = 0;
+    U32 PackedColor = 0;
+    U8* Pixel = NULL;
+
+    if (Context == NULL || ColorOut == NULL || Context->MemoryBase == NULL) return FALSE;
+    if (X < 0 || X >= Context->Width || Y < 0 || Y >= Context->Height) return FALSE;
+
+    switch (Context->BitsPerPixel) {
+        case 16:
+            Offset = (U32)(Y * (I32)Context->BytesPerScanLine) + ((U32)X << 1);
+            PackedColor = *((U16*)(Context->MemoryBase + Offset));
+            break;
+        case 24:
+            Offset = (U32)(Y * (I32)Context->BytesPerScanLine) + ((U32)X * 3);
+            Pixel = Context->MemoryBase + Offset;
+            PackedColor = (U32)Pixel[0] | ((U32)Pixel[1] << 8) | ((U32)Pixel[2] << 16);
+            break;
+        case 32:
+            Offset = (U32)(Y * (I32)Context->BytesPerScanLine) + ((U32)X << 2);
+            PackedColor = *((U32*)(Context->MemoryBase + Offset));
+            break;
+        default:
+            return FALSE;
+    }
+
+    *ColorOut = GraphicsUnpackColor(Context, PackedColor);
+    return TRUE;
+}
+
+/************************************************************************/
+
+BOOL GraphicsWritePixel(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, COLOR Color) {
+    U32 Offset = 0;
+    U32 PackedColor = 0;
+    U8* Pixel = NULL;
+
+    if (Context == NULL || Context->MemoryBase == NULL) return FALSE;
+    if (X < Context->LoClip.X || X > Context->HiClip.X || Y < Context->LoClip.Y || Y > Context->HiClip.Y) return FALSE;
+    if (X < 0 || X >= Context->Width || Y < 0 || Y >= Context->Height) return FALSE;
+
+    switch (Context->BitsPerPixel) {
+        case 16:
+            Offset = (U32)(Y * (I32)Context->BytesPerScanLine) + ((U32)X << 1);
+            *((U16*)(Context->MemoryBase + Offset)) = (U16)GraphicsPackColor(Context, Color);
+            return TRUE;
+        case 24:
+            Offset = (U32)(Y * (I32)Context->BytesPerScanLine) + ((U32)X * 3);
+            Pixel = Context->MemoryBase + Offset;
+            PackedColor = GraphicsPackColor(Context, Color);
+            Pixel[0] = (U8)(PackedColor & 0xFF);
+            Pixel[1] = (U8)((PackedColor >> 8) & 0xFF);
+            Pixel[2] = (U8)((PackedColor >> 16) & 0xFF);
+            return TRUE;
+        case 32:
+            Offset = (U32)(Y * (I32)Context->BytesPerScanLine) + ((U32)X << 2);
+            *((U32*)(Context->MemoryBase + Offset)) = GraphicsPackColor(Context, Color);
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
 /**
  * @brief Append one rectangle to a region when it is valid.
  * @param Region Destination region.
@@ -462,92 +683,78 @@ BOOL GraphicsDrawScanlineFallback(
     U8* Pixel, U32 PixelCount, U32 BitsPerPixel, U32 RasterOperation, COLOR StartColor, COLOR EndColor) {
     U32 PixelIndex = 0;
     U32 Denominator = 0;
+    GRAPHICSCONTEXT Context;
 
     if (Pixel == NULL || PixelCount == 0) return FALSE;
+    if (RasterOperation != ROP_SET) return FALSE;
 
     Denominator = PixelCount > 1 ? PixelCount - 1 : 0;
+    Context = (GRAPHICSCONTEXT){
+        .TypeID = KOID_GRAPHICSCONTEXT,
+        .Flags = GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY,
+        .Width = (I32)PixelCount,
+        .Height = 1,
+        .BitsPerPixel = BitsPerPixel,
+        .BytesPerScanLine = (BitsPerPixel == 24) ? (PixelCount * 3) : (PixelCount * (BitsPerPixel / 8)),
+        .MemoryBase = Pixel,
+        .LoClip = {.X = 0, .Y = 0},
+        .HiClip = {.X = (I32)PixelCount - 1, .Y = 0},
+        .Origin = {.X = 0, .Y = 0},
+        .RasterOperation = ROP_SET
+    };
+
+    if (BitsPerPixel == 16) {
+        Context.RedPosition = 11;
+        Context.RedMaskSize = 5;
+        Context.GreenPosition = 5;
+        Context.GreenMaskSize = 6;
+        Context.BluePosition = 0;
+        Context.BlueMaskSize = 5;
+    } else {
+        Context.RedPosition = 16;
+        Context.RedMaskSize = 8;
+        Context.GreenPosition = 8;
+        Context.GreenMaskSize = 8;
+        Context.BluePosition = 0;
+        Context.BlueMaskSize = 8;
+    }
 
     switch (BitsPerPixel) {
+        case 16:
+        case 24:
         case 32:
             for (PixelIndex = 0; PixelIndex < PixelCount; PixelIndex++) {
-                U32 PixelColor = GraphicsInterpolateColor(StartColor, EndColor, PixelIndex, Denominator);
-
-                switch (RasterOperation) {
-                    case ROP_SET:
-                        ((U32*)Pixel)[PixelIndex] = PixelColor;
-                        break;
-                    case ROP_XOR:
-                        ((U32*)Pixel)[PixelIndex] ^= PixelColor;
-                        break;
-                    case ROP_OR:
-                        ((U32*)Pixel)[PixelIndex] |= PixelColor;
-                        break;
-                    case ROP_AND:
-                        ((U32*)Pixel)[PixelIndex] &= PixelColor;
-                        break;
-                    default:
-                        return FALSE;
+                if (GraphicsWritePixel(
+                        &Context,
+                        (I32)PixelIndex,
+                        0,
+                        GraphicsInterpolateColor(StartColor, EndColor, PixelIndex, Denominator)) == FALSE) {
+                    return FALSE;
                 }
             }
             return TRUE;
+    }
 
-        case 24:
-            for (PixelIndex = 0; PixelIndex < PixelCount; PixelIndex++) {
-                COLOR PixelColor = GraphicsInterpolateColor(StartColor, EndColor, PixelIndex, Denominator);
-                U8 Red = (U8)((PixelColor >> 16) & 0xFF);
-                U8 Green = (U8)((PixelColor >> 8) & 0xFF);
-                U8 Blue = (U8)(PixelColor & 0xFF);
-                U8* Current = Pixel + (PixelIndex * 3);
+    return FALSE;
+}
 
-                switch (RasterOperation) {
-                    case ROP_SET:
-                        Current[0] = Red;
-                        Current[1] = Green;
-                        Current[2] = Blue;
-                        break;
-                    case ROP_XOR:
-                        Current[0] ^= Red;
-                        Current[1] ^= Green;
-                        Current[2] ^= Blue;
-                        break;
-                    case ROP_OR:
-                        Current[0] |= Red;
-                        Current[1] |= Green;
-                        Current[2] |= Blue;
-                        break;
-                    case ROP_AND:
-                        Current[0] &= Red;
-                        Current[1] &= Green;
-                        Current[2] &= Blue;
-                        break;
-                    default:
-                        return FALSE;
-                }
-            }
-            return TRUE;
+/************************************************************************/
 
-        case 16:
-            for (PixelIndex = 0; PixelIndex < PixelCount; PixelIndex++) {
-                U16 PixelColor = (U16)GraphicsInterpolateColor(StartColor, EndColor, PixelIndex, Denominator);
+static BOOL GraphicsCanUseFastOpaqueScanline(LPGRAPHICSCONTEXT Context, COLOR StartColor, COLOR EndColor) {
+    if (Context == NULL) return FALSE;
+    if (Context->RasterOperation != ROP_SET) return FALSE;
+    if (((StartColor >> 24) & 0xFF) != 0xFF || ((EndColor >> 24) & 0xFF) != 0xFF) return FALSE;
 
-                switch (RasterOperation) {
-                    case ROP_SET:
-                        ((U16*)Pixel)[PixelIndex] = PixelColor;
-                        break;
-                    case ROP_XOR:
-                        ((U16*)Pixel)[PixelIndex] ^= PixelColor;
-                        break;
-                    case ROP_OR:
-                        ((U16*)Pixel)[PixelIndex] |= PixelColor;
-                        break;
-                    case ROP_AND:
-                        ((U16*)Pixel)[PixelIndex] &= PixelColor;
-                        break;
-                    default:
-                        return FALSE;
-                }
-            }
-            return TRUE;
+    if (Context->BitsPerPixel == 16) {
+        return Context->RedPosition == 11 && Context->RedMaskSize == 5 &&
+               Context->GreenPosition == 5 && Context->GreenMaskSize == 6 &&
+               Context->BluePosition == 0 && Context->BlueMaskSize == 5;
+    }
+
+    if (Context->BitsPerPixel == 24 || Context->BitsPerPixel == 32) {
+        return Context->RedPosition == 16 && Context->RedMaskSize == 8 &&
+               Context->GreenPosition == 8 && Context->GreenMaskSize == 8 &&
+               Context->BluePosition == 0 && Context->BlueMaskSize == 8;
     }
 
     return FALSE;
@@ -618,13 +825,28 @@ BOOL GraphicsDrawScanline(LPGRAPHICSCONTEXT Context, I32 X1, I32 X2, I32 Y, COLO
     }
 
     PixelCount = (U32)(DrawX2 - DrawX1 + 1);
-    if (ClippedStartColor == ClippedEndColor) {
-        return GraphicsDrawScanlineAsm(
+    if (GraphicsCanUseFastOpaqueScanline(Context, ClippedStartColor, ClippedEndColor) == FALSE) {
+        return GraphicsDrawScanlineFallback(
             Pixel, PixelCount, Context->BitsPerPixel, Context->RasterOperation, ClippedStartColor, ClippedEndColor);
     }
 
+    if (ClippedStartColor == ClippedEndColor) {
+        return GraphicsDrawScanlineAsm(
+            Pixel,
+            PixelCount,
+            Context->BitsPerPixel,
+            Context->RasterOperation,
+            GraphicsPackColor(Context, ClippedStartColor),
+            GraphicsPackColor(Context, ClippedEndColor));
+    }
+
     return GraphicsDrawHorizontalGradientScanlineAsm(
-        Pixel, PixelCount, Context->BitsPerPixel, Context->RasterOperation, ClippedStartColor, ClippedEndColor);
+        Pixel,
+        PixelCount,
+        Context->BitsPerPixel,
+        Context->RasterOperation,
+        GraphicsPackColor(Context, ClippedStartColor),
+        GraphicsPackColor(Context, ClippedEndColor));
 }
 
 /************************************************************************/

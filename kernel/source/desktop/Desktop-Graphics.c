@@ -35,6 +35,7 @@
 #include "input/MouseDispatcher.h"
 #include "process/Task-Messaging.h"
 #include "utils/Graphics-Utils.h"
+#include "utils/LineRasterizer.h"
 
 /***************************************************************************/
 
@@ -181,6 +182,32 @@ static void DesktopHandleWindowEffectiveVisibilityChange(
     if (IsVisible != FALSE) {
         (void)RequestWindowDraw((HANDLE)Window);
     }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Plot one pixel through generic software composition helpers.
+ * @param Context Graphics context.
+ * @param X X coordinate.
+ * @param Y Y coordinate.
+ * @param Color Pixel color.
+ * @return TRUE on success.
+ */
+static BOOL DesktopPlotSoftwarePixel(LPVOID Context, I32 X, I32 Y, COLOR* Color) {
+    COLOR PreviousColor = 0;
+
+    if (Context == NULL || Color == NULL) {
+        return FALSE;
+    }
+
+    (void)GraphicsReadPixel((LPGRAPHICSCONTEXT)Context, X, Y, &PreviousColor);
+    if (GraphicsWritePixel((LPGRAPHICSCONTEXT)Context, X, Y, *Color) == FALSE) {
+        return FALSE;
+    }
+
+    *Color = PreviousColor;
+    return TRUE;
 }
 
 /***************************************************************************/
@@ -816,35 +843,47 @@ Out:
 /***************************************************************************/
 
 /**
- * @brief Obtain a graphics context for a window.
- * @param Handle Window handle.
- * @return Handle to a graphics context or NULL.
+ * @brief Resolve one graphics context for a window.
+ * @param Window Target window.
+ * @param UseScanoutContext TRUE to bypass the desktop shadow context.
+ * @param ContextOut Receives the prepared context.
+ * @return TRUE on success.
  */
-HANDLE GetWindowGC(HANDLE Handle) {
-    LPWINDOW This = (LPWINDOW)Handle;
+BOOL DesktopGetWindowGraphicsContext(LPWINDOW This, BOOL UseScanoutContext, LPGRAPHICSCONTEXT* ContextOut) {
+    LPDESKTOP Desktop;
     LPDRIVER GraphicsDriver;
-    LPGRAPHICSCONTEXT Context;
+    LPGRAPHICSCONTEXT Context = NULL;
     UINT ContextPointer;
     WINDOW_STATE_SNAPSHOT WindowSnapshot;
     WINDOW_DRAW_CONTEXT_SNAPSHOT DrawSnapshot;
 
-    //-------------------------------------
-    // Check validity of parameters
+    if (ContextOut == NULL) return FALSE;
+    *ContextOut = NULL;
+    if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
 
-    if (This == NULL) return NULL;
-    if (This->TypeID != KOID_WINDOW) return NULL;
+    Desktop = DesktopGetWindowDesktop(This);
+    if (Desktop != NULL && Desktop->TypeID == KOID_DESKTOP &&
+        Desktop->Mode == DESKTOP_MODE_GRAPHICS &&
+        Desktop->GraphicsContext != NULL &&
+        Desktop->GraphicsContext->TypeID == KOID_GRAPHICSCONTEXT &&
+        Desktop->GraphicsContext->MemoryBase != NULL &&
+        UseScanoutContext == FALSE) {
+        Context = Desktop->GraphicsContext;
+    }
 
-    GraphicsDriver = GetGraphicsDriver();
-    if (GraphicsDriver == NULL || GraphicsDriver->Command == NULL) return NULL;
+    if (Context == NULL) {
+        GraphicsDriver = GetGraphicsDriver();
+        if (GraphicsDriver == NULL || GraphicsDriver->Command == NULL) return FALSE;
 
-    ContextPointer = GraphicsDriver->Command(DF_GFX_GETCONTEXT, 0);
-    if (ContextPointer == 0) return NULL;
+        ContextPointer = GraphicsDriver->Command(DF_GFX_GETCONTEXT, 0);
+        if (ContextPointer == 0) return FALSE;
 
-    Context = (LPGRAPHICSCONTEXT)(LPVOID)ContextPointer;
-    if (Context->TypeID != KOID_GRAPHICSCONTEXT) return NULL;
+        Context = (LPGRAPHICSCONTEXT)(LPVOID)ContextPointer;
+        if (Context->TypeID != KOID_GRAPHICSCONTEXT) return FALSE;
+    }
 
     ResetGraphicsContext(Context);
-    if (GetWindowStateSnapshot(This, &WindowSnapshot) == FALSE) return NULL;
+    if (GetWindowStateSnapshot(This, &WindowSnapshot) == FALSE) return FALSE;
     if (GetWindowDrawContextSnapshot(This, &DrawSnapshot) == FALSE) {
         MemorySet(&DrawSnapshot, 0, sizeof(DrawSnapshot));
     }
@@ -874,6 +913,25 @@ HANDLE GetWindowGC(HANDLE Handle) {
     */
 
     UnlockMutex(&(Context->Mutex));
+
+    *ContextOut = Context;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Obtain a graphics context for a window.
+ * @param Handle Window handle.
+ * @return Handle to a graphics context or NULL.
+ */
+HANDLE GetWindowGC(HANDLE Handle) {
+    LPWINDOW This = (LPWINDOW)Handle;
+    LPGRAPHICSCONTEXT Context = NULL;
+
+    if (This == NULL) return NULL;
+    if (This->TypeID != KOID_WINDOW) return NULL;
+    if (DesktopGetWindowGraphicsContext(This, FALSE, &Context) == FALSE) return NULL;
 
     return (HANDLE)Context;
 }
@@ -946,6 +1004,39 @@ BOOL EndWindowDraw(HANDLE Handle) {
     if (This->TypeID != KOID_WINDOW) return NULL;
 
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Present one screen rectangle from the desktop shadow buffer.
+ * @param Window Any window on the target desktop.
+ * @param ClipRect Screen-space rectangle to present.
+ * @return TRUE on success.
+ */
+BOOL DesktopPresentScreenRect(LPWINDOW Window, LPRECT ClipRect) {
+    LPDESKTOP Desktop;
+    GFX_PRESENT_INFO PresentInfo;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (ClipRect == NULL) return FALSE;
+
+    Desktop = DesktopGetWindowDesktop(Window);
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+    if (Desktop->Mode != DESKTOP_MODE_GRAPHICS) return TRUE;
+    if (Desktop->Graphics == NULL || Desktop->Graphics->Command == NULL) return FALSE;
+    if (Desktop->GraphicsContext == NULL || Desktop->GraphicsContext->TypeID != KOID_GRAPHICSCONTEXT ||
+        Desktop->GraphicsContext->MemoryBase == NULL) return FALSE;
+
+    PresentInfo = (GFX_PRESENT_INFO){
+        .Header = {.Size = sizeof(GFX_PRESENT_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+        .GC = (HANDLE)Desktop->GraphicsContext,
+        .SurfaceId = 0,
+        .DirtyRect = *ClipRect,
+        .Flags = 0
+    };
+
+    return Desktop->Graphics->Command(DF_GFX_PRESENT, (UINT)(LPVOID)&PresentInfo) == DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1128,6 +1219,10 @@ BOOL SetPixel(LPPIXEL_INFO PixelInfo) {
     Pixel.X = Context->Origin.X + Pixel.X;
     Pixel.Y = Context->Origin.Y + Pixel.Y;
 
+    if ((Context->Flags & GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY) != 0) {
+        return GraphicsWritePixel(Context, Pixel.X, Pixel.Y, Pixel.Color);
+    }
+
     Context->Driver->Command(DF_GFX_SETPIXEL, (UINT)&Pixel);
 
     return TRUE;
@@ -1158,7 +1253,16 @@ BOOL GetPixel(LPPIXEL_INFO PixelInfo) {
     Pixel.X = Context->Origin.X + Pixel.X;
     Pixel.Y = Context->Origin.Y + Pixel.Y;
 
-    Context->Driver->Command(DF_GFX_GETPIXEL, (UINT)&Pixel);
+    if ((Context->Flags & GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY) != 0) {
+        COLOR PixelColor = 0;
+
+        if (GraphicsReadPixel(Context, Pixel.X, Pixel.Y, &PixelColor) == FALSE) {
+            return FALSE;
+        }
+        Pixel.Color = PixelColor;
+    } else {
+        Context->Driver->Command(DF_GFX_GETPIXEL, (UINT)&Pixel);
+    }
     PixelInfo->Color = Pixel.Color;
 
     return TRUE;
@@ -1191,6 +1295,21 @@ BOOL Line(LPLINE_INFO LineInfo) {
     Line.Y1 = Context->Origin.Y + Line.Y1;
     Line.X2 = Context->Origin.X + Line.X2;
     Line.Y2 = Context->Origin.Y + Line.Y2;
+
+    if ((Context->Flags & GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY) != 0) {
+        COLOR LineColor = 0;
+        U32 Pattern = MAX_U32;
+        U32 Width = 1;
+
+        if (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN) {
+            LineColor = Context->Pen->Color;
+            Pattern = Context->Pen->Pattern;
+            Width = Context->Pen->Width != 0 ? Context->Pen->Width : 1;
+        }
+
+        LineRasterizerDraw(Context, Line.X1, Line.Y1, Line.X2, Line.Y2, LineColor, Pattern, Width, DesktopPlotSoftwarePixel);
+        return TRUE;
+    }
 
     Context->Driver->Command(DF_GFX_LINE, (UINT)&Line);
 
@@ -1225,6 +1344,10 @@ BOOL Rectangle(LPRECT_INFO RectInfo) {
     RectangleInfo.X2 = Context->Origin.X + RectangleInfo.X2;
     RectangleInfo.Y2 = Context->Origin.Y + RectangleInfo.Y2;
 
+    if ((Context->Flags & GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY) != 0) {
+        return GraphicsDrawRectangleFromDescriptor(Context, &RectangleInfo);
+    }
+
     Context->Driver->Command(DF_GFX_RECTANGLE, (UINT)&RectangleInfo);
 
     return TRUE;
@@ -1251,6 +1374,10 @@ BOOL Arc(LPARC_INFO ArcInfo) {
     Arc = *ArcInfo;
     Arc.CenterX = Context->Origin.X + Arc.CenterX;
     Arc.CenterY = Context->Origin.Y + Arc.CenterY;
+
+    if ((Context->Flags & GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY) != 0) {
+        return GraphicsDrawArcFromDescriptor(Context, &Arc);
+    }
 
     Context->Driver->Command(DF_GFX_ARC, (UINT)&Arc);
     return TRUE;
@@ -1281,6 +1408,10 @@ BOOL Triangle(LPTRIANGLE_INFO TriangleInfo) {
     Triangle.P2.Y = Context->Origin.Y + Triangle.P2.Y;
     Triangle.P3.X = Context->Origin.X + Triangle.P3.X;
     Triangle.P3.Y = Context->Origin.Y + Triangle.P3.Y;
+
+    if ((Context->Flags & GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY) != 0) {
+        return GraphicsDrawTriangleFromDescriptor(Context, &Triangle);
+    }
 
     Context->Driver->Command(DF_GFX_TRIANGLE, (UINT)&Triangle);
     return TRUE;

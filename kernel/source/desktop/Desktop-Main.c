@@ -192,6 +192,90 @@ static BOOL DesktopEnsureGraphicsContextAvailable(LPDRIVER GraphicsDriver) {
 
 /***************************************************************************/
 
+/**
+ * @brief Release the desktop-owned graphics shadow buffer and context.
+ * @param Desktop Target desktop.
+ */
+static void DesktopReleaseGraphicsShadowBuffer(LPDESKTOP Desktop) {
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
+        return;
+    }
+
+    if (Desktop->GraphicsShadowBufferLinear != 0 && Desktop->GraphicsShadowBufferSize != 0) {
+        FreeRegion(Desktop->GraphicsShadowBufferLinear, Desktop->GraphicsShadowBufferSize);
+    }
+    if (Desktop->GraphicsContext != NULL) {
+        KernelHeapFree(Desktop->GraphicsContext);
+    }
+
+    Desktop->GraphicsShadowBufferLinear = 0;
+    Desktop->GraphicsShadowBufferSize = 0;
+    Desktop->GraphicsContext = NULL;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Create or resize the desktop-owned graphics shadow buffer.
+ * @param Desktop Target desktop.
+ * @param DriverContext Active backend scanout context.
+ * @return TRUE on success.
+ */
+static BOOL DesktopEnsureGraphicsShadowBuffer(LPDESKTOP Desktop, LPGRAPHICSCONTEXT DriverContext) {
+    UINT RequiredSize = 0;
+
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) {
+        return FALSE;
+    }
+
+    if (DriverContext == NULL || DriverContext->TypeID != KOID_GRAPHICSCONTEXT || DriverContext->MemoryBase == NULL) {
+        return FALSE;
+    }
+
+    RequiredSize = (UINT)(DriverContext->BytesPerScanLine * (U32)DriverContext->Height);
+    if (RequiredSize == 0) {
+        return FALSE;
+    }
+
+    if (Desktop->GraphicsShadowBufferLinear != 0 && Desktop->GraphicsShadowBufferSize != RequiredSize) {
+        DesktopReleaseGraphicsShadowBuffer(Desktop);
+    }
+
+    if (Desktop->GraphicsShadowBufferLinear == 0) {
+        Desktop->GraphicsShadowBufferLinear = AllocRegion(
+            VMA_KERNEL,
+            0,
+            RequiredSize,
+            ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE | ALLOC_PAGES_AT_OR_OVER,
+            TEXT("DesktopGraphicsShadow"));
+        if (Desktop->GraphicsShadowBufferLinear == 0) {
+            ERROR(TEXT("[DesktopEnsureGraphicsShadowBuffer] AllocRegion failed size=%u"), RequiredSize);
+            return FALSE;
+        }
+
+        Desktop->GraphicsShadowBufferSize = RequiredSize;
+    }
+
+    if (Desktop->GraphicsContext == NULL) {
+        Desktop->GraphicsContext = (LPGRAPHICSCONTEXT)KernelHeapAlloc(sizeof(GRAPHICSCONTEXT));
+        if (Desktop->GraphicsContext == NULL) {
+            DesktopReleaseGraphicsShadowBuffer(Desktop);
+            return FALSE;
+        }
+    }
+
+    *(Desktop->GraphicsContext) = *DriverContext;
+    Desktop->GraphicsContext->Flags |= GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY;
+    Desktop->GraphicsContext->MemoryBase = (U8*)(LINEAR)Desktop->GraphicsShadowBufferLinear;
+    Desktop->GraphicsContext->Driver = Desktop->Graphics;
+    Desktop->GraphicsContext->References = 1;
+    InitMutex(&(Desktop->GraphicsContext->Mutex));
+    MemorySet(Desktop->GraphicsContext->MemoryBase, 0, RequiredSize);
+    return TRUE;
+}
+
+/***************************************************************************/
+
 BRUSH Brush_Desktop = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = 0, .Pattern = MAX_U32 };
 BRUSH Brush_High = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = 0, .Pattern = MAX_U32 };
 BRUSH Brush_Normal = { .TypeID = KOID_BRUSH, .References = 1, .OwnerProcess = &KernelProcess, .Next = NULL, .Prev = NULL, .Color = 0, .Pattern = MAX_U32 };
@@ -378,6 +462,8 @@ BOOL DeleteDesktop(LPDESKTOP This) {
 
     LockMutex(&(This->Mutex), INFINITY);
 
+    DesktopReleaseGraphicsShadowBuffer(This);
+
     SAFE_USE(This->Timers) {
         DeleteList(This->Timers);
         This->Timers = NULL;
@@ -407,6 +493,8 @@ BOOL ShowDesktop(LPDESKTOP This) {
     LPLISTNODE Node;
     I32 Order;
     LPDRIVER SelectedBackendDriver;
+    LPGRAPHICSCONTEXT DriverContext;
+    UINT ContextPointer;
     BOOL ModeReady;
     BOOL HasSelectedMode;
     BOOL UsedLegacyAutoSelect;
@@ -513,6 +601,17 @@ BOOL ShowDesktop(LPDESKTOP This) {
 
     if (DesktopEnsureGraphicsContextAvailable(This->Graphics) == FALSE) {
         WARNING(TEXT("[ShowDesktop] Active graphics backend cannot provide a drawing context"));
+        This->Mode = DESKTOP_MODE_CONSOLE;
+        UnlockMutex(&(This->Mutex));
+        UnlockMutex(MUTEX_KERNEL);
+        return FALSE;
+    }
+
+    ContextPointer = This->Graphics->Command(DF_GFX_GETCONTEXT, 0);
+    DriverContext = (LPGRAPHICSCONTEXT)(LPVOID)ContextPointer;
+    if (!IS_VALID_KERNEL_POINTER((LPVOID)DriverContext) || DriverContext->TypeID != KOID_GRAPHICSCONTEXT ||
+        DesktopEnsureGraphicsShadowBuffer(This, DriverContext) == FALSE) {
+        WARNING(TEXT("[ShowDesktop] Unable to prepare desktop shadow buffer"));
         This->Mode = DESKTOP_MODE_CONSOLE;
         UnlockMutex(&(This->Mutex));
         UnlockMutex(MUTEX_KERNEL);

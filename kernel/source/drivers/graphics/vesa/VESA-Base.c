@@ -191,6 +191,10 @@ VESA_CONTEXT VESAContext = {
 
 /***************************************************************************/
 
+static U32 VESA_Present(LPGFX_PRESENT_INFO Info);
+
+/***************************************************************************/
+
 /**
  * @brief Return multi-line VESA backend debug information.
  * @param Info Receives the formatted text.
@@ -334,6 +338,61 @@ static U32 ShutdownVESA(void) {
     Regs.X.AX = 0x4F02;
     Regs.X.BX = 0x03;
     RealModeCall(VIDEO_CALL, &Regs);
+
+    return DF_RETURN_SUCCESS;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Copy one dirty rectangle from one source context to the VESA scanout.
+ * @param Info Present descriptor.
+ * @return DF_RETURN_SUCCESS on success.
+ */
+static U32 VESA_Present(LPGFX_PRESENT_INFO Info) {
+    LPGRAPHICSCONTEXT SourceContext = NULL;
+    RECT DirtyRect = {0};
+    U32 BytesPerPixel = 0;
+    U32 CopyBytes = 0;
+    U32 Row = 0;
+
+    if (Info == NULL) return DF_RETURN_GENERIC;
+    if (VESAContext.Header.MemoryBase == NULL || VESAContext.FrameBufferLinear == 0 || VESAContext.FrameBufferSize == 0) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    SourceContext = (LPGRAPHICSCONTEXT)Info->GC;
+    if (SourceContext == NULL || SourceContext->TypeID != KOID_GRAPHICSCONTEXT || SourceContext->MemoryBase == NULL) {
+        return DF_RETURN_GENERIC;
+    }
+
+    DirtyRect = Info->DirtyRect;
+    if (DirtyRect.X1 < 0) DirtyRect.X1 = 0;
+    if (DirtyRect.Y1 < 0) DirtyRect.Y1 = 0;
+    if (DirtyRect.X2 >= VESAContext.Header.Width) DirtyRect.X2 = VESAContext.Header.Width - 1;
+    if (DirtyRect.Y2 >= VESAContext.Header.Height) DirtyRect.Y2 = VESAContext.Header.Height - 1;
+    if (DirtyRect.X2 < DirtyRect.X1 || DirtyRect.Y2 < DirtyRect.Y1) {
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (SourceContext->MemoryBase == VESAContext.Header.MemoryBase) {
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (SourceContext->BitsPerPixel != VESAContext.Header.BitsPerPixel ||
+        SourceContext->BytesPerScanLine != VESAContext.Header.BytesPerScanLine) {
+        return DF_RETURN_NOT_IMPLEMENTED;
+    }
+
+    BytesPerPixel = SourceContext->BitsPerPixel / 8;
+    if (BytesPerPixel == 0) return DF_RETURN_GENERIC;
+
+    CopyBytes = (U32)(DirtyRect.X2 - DirtyRect.X1 + 1) * BytesPerPixel;
+    for (Row = 0; Row <= (U32)(DirtyRect.Y2 - DirtyRect.Y1); Row++) {
+        U32 Y = (U32)DirtyRect.Y1 + Row;
+        U32 Offset = Y * SourceContext->BytesPerScanLine + ((U32)DirtyRect.X1 * BytesPerPixel);
+        MemoryCopy(VESAContext.Header.MemoryBase + Offset, SourceContext->MemoryBase + Offset, CopyBytes);
+    }
 
     return DF_RETURN_SUCCESS;
 }
@@ -1099,10 +1158,11 @@ UINT VESACommands(UINT Function, UINT Param) {
             return VESA_TextDraw((LPGFX_TEXT_DRAW_INFO)Param);
         case DF_GFX_TEXT_MEASURE:
             return VESA_TextMeasure((LPGFX_TEXT_MEASURE_INFO)Param);
+        case DF_GFX_PRESENT:
+            return VESA_Present((LPGFX_PRESENT_INFO)Param);
         case DF_GFX_GETCAPABILITIES:
         case DF_GFX_ENUMOUTPUTS:
         case DF_GFX_GETOUTPUTINFO:
-        case DF_GFX_PRESENT:
         case DF_GFX_WAITVBLANK:
         case DF_GFX_ALLOCSURFACE:
         case DF_GFX_FREESURFACE:
