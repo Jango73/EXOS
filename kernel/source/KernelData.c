@@ -339,6 +339,7 @@ static KERNEL_DATA DATA_SECTION Kernel = {
     .DeferredWorkPollDelayMS = DEFERRED_WORK_POLL_DELAY_MS,
     .DoLogin = 0,
     .ShowDesktop = 1,
+    .SlowRedrawEnabled = 0,
     .LanguageCode = "en-US",
     .KeyboardCode = "fr-FR"
 };
@@ -858,6 +859,16 @@ BOOL GetShowDesktop(void) {
 /************************************************************************/
 
 /**
+ * @brief Gets the debug redraw throttling flag.
+ * @return TRUE when redraw throttling is enabled.
+ */
+BOOL GetSlowRedrawEnabled(void) {
+    return Kernel.SlowRedrawEnabled;
+}
+
+/************************************************************************/
+
+/**
  * @brief Sets the login sequence flag.
  * @param DoLogin TRUE to enable login, FALSE to disable.
  */
@@ -873,6 +884,16 @@ void SetDoLogin(BOOL DoLogin) {
  */
 void SetShowDesktop(BOOL ShowDesktop) {
     Kernel.ShowDesktop = ShowDesktop;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sets the debug redraw throttling flag.
+ * @param Enabled TRUE to enable redraw throttling, FALSE to disable.
+ */
+void SetSlowRedrawEnabled(BOOL Enabled) {
+    Kernel.SlowRedrawEnabled = Enabled;
 }
 
 /************************************************************************/

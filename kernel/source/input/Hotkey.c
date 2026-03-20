@@ -66,6 +66,17 @@ static BOOL HotkeyActionSwitchToConsole(LPPROCESS Process) {
 
 /************************************************************************/
 
+static BOOL HotkeyActionToggleSlowRedraw(LPPROCESS Process) {
+    UNUSED(Process);
+
+    SetSlowRedrawEnabled(!GetSlowRedrawEnabled());
+    DEBUG(TEXT("[HotkeyActionToggleSlowRedraw] Slow redraw %s"),
+        GetSlowRedrawEnabled() ? TEXT("enabled") : TEXT("disabled"));
+    return TRUE;
+}
+
+/************************************************************************/
+
 static U8 HotkeyTokenToVirtualKey(LPCSTR Token) {
     if (Token == NULL || Token[0] == STR_NULL) {
         return VK_NONE;
@@ -199,6 +210,7 @@ static HOTKEY_ACTION_HANDLER HotkeyResolveAction(LPCSTR ActionName) {
         {TEXT("kill_process"), HotkeyActionKillProcess},
         {TEXT("pause_process"), HotkeyActionPauseProcess},
         {TEXT("switch_to_console"), HotkeyActionSwitchToConsole},
+        {TEXT("toggle_slow_redraw"), HotkeyActionToggleSlowRedraw},
         {NULL, NULL}
     };
 
@@ -277,6 +289,11 @@ BOOL HotkeyHandleKeyDown(U8 VirtualKey, U32 Modifiers, BOOL Repeat) {
     Process = GetFocusedProcess();
     if (Process == NULL) {
         return FALSE;
+    }
+
+    if (HotkeyHandleEntry(
+            VirtualKey, Modifiers, TEXT("control+shift+f12"), TEXT("toggle_slow_redraw"), Process, FALSE) == TRUE) {
+        return TRUE;
     }
 
     FOREVER {

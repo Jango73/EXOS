@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "utils/Graphics-Utils.h"
+#include "KernelData.h"
 #include "System.h"
 #include "math/Math.h"
 #include "utils/LineRasterizer.h"
@@ -80,6 +81,19 @@ static BOOL GraphicsRenderArc(
     LPGRAPHICS_FILL_DESCRIPTOR Fill,
     BOOL HasStroke,
     COLOR StrokeColor);
+
+/************************************************************************/
+
+/**
+ * @brief Sleeps between primitive scanlines when debug redraw throttling is enabled.
+ */
+static void GraphicsSlowRedrawPauseIfNeeded(void) {
+    if (GetSlowRedrawEnabled() == FALSE) {
+        return;
+    }
+
+    Sleep(100);
+}
 
 /************************************************************************/
 
@@ -633,6 +647,7 @@ BOOL GraphicsFillSolidRect(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I3
     I32 Y = 0;
 
     if (Context == NULL || Context->MemoryBase == NULL) return FALSE;
+    GraphicsSlowRedrawPauseIfNeeded();
 
     DrawX1 = X1;
     DrawY1 = Y1;
@@ -697,6 +712,7 @@ BOOL GraphicsFillVerticalGradientRect(
     U8* Pixel = NULL;
 
     if (Context == NULL || Context->MemoryBase == NULL) return FALSE;
+    GraphicsSlowRedrawPauseIfNeeded();
     if (StartColor == EndColor) return GraphicsFillSolidRect(Context, X1, Y1, X2, Y2, StartColor);
 
     DrawX1 = X1;
@@ -782,6 +798,7 @@ BOOL GraphicsFillHorizontalGradientRect(
     I32 Y = 0;
 
     if (Context == NULL || Context->MemoryBase == NULL) return FALSE;
+    GraphicsSlowRedrawPauseIfNeeded();
     if (StartColor == EndColor) return GraphicsFillSolidRect(Context, X1, Y1, X2, Y2, StartColor);
 
     DrawY1 = Y1;
@@ -1215,6 +1232,7 @@ BOOL GraphicsDrawTriangleFromDescriptor(LPGRAPHICSCONTEXT Context, LPTRIANGLE_IN
     I32 Area = 0;
 
     if (Context == NULL || Info == NULL) return FALSE;
+    GraphicsSlowRedrawPauseIfNeeded();
 
     HasFill = (Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH);
     HasStroke = (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN);
@@ -1487,6 +1505,7 @@ BOOL GraphicsStrokeArc(LPVOID Context, GRAPHICS_PLOT_PIXEL_ROUTINE PlotPixel, I3
     U32 Offset = 0;
 
     UNUSED(PlotPixel);
+    GraphicsSlowRedrawPauseIfNeeded();
 
     for (Offset = 0; Offset < StrokeWidth; Offset++) {
         I32 CurrentRadius = Radius - (I32)Offset;
@@ -1512,6 +1531,7 @@ BOOL GraphicsDrawArcFromDescriptor(LPGRAPHICSCONTEXT Context, LPARC_INFO Info) {
     U32 Offset = 0;
 
     if (Context == NULL || Info == NULL) return FALSE;
+    GraphicsSlowRedrawPauseIfNeeded();
     if (Info->Radius <= 0) return TRUE;
     if (GraphicsSetupArcFillDescriptor(Context, Info, &Fill) == FALSE) return FALSE;
 
@@ -1557,6 +1577,7 @@ BOOL GraphicsDrawRectangleFromDescriptor(LPGRAPHICSCONTEXT Context, LPRECT_INFO 
     U32 Offset = 0;
 
     if (Context == NULL || Info == NULL) return FALSE;
+    GraphicsSlowRedrawPauseIfNeeded();
     if (GraphicsSetupRectangleFillDescriptor(Context, Info, &Fill) == FALSE) return FALSE;
 
     X1 = Info->X1;
