@@ -554,7 +554,7 @@ static void PrintDesktopStatus(void) {
  * @brief Show main desktop from shell and optionally apply config-selected theme.
  * @return DF_RETURN_SUCCESS on completion.
  */
-static U32 ShowMainDesktopFromShell(void) {
+U32 ShowMainDesktopFromShell(void) {
     LPDESKTOP Desktop;
     LPCSTR ConfiguredThemePath;
 

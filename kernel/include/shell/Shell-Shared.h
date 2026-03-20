@@ -124,6 +124,7 @@ U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
 
 U32 CMD_adduser(LPSHELLCONTEXT Context);
 U32 CMD_login(LPSHELLCONTEXT Context);
+U32 ShowMainDesktopFromShell(void);
 
 void SystemDataViewMode(void);
 

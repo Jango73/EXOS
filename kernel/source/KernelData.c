@@ -338,6 +338,7 @@ static KERNEL_DATA DATA_SECTION Kernel = {
     .DeferredWorkWaitTimeoutMS = DEFERRED_WORK_WAIT_TIMEOUT_MS,
     .DeferredWorkPollDelayMS = DEFERRED_WORK_POLL_DELAY_MS,
     .DoLogin = 0,
+    .ShowDesktop = 1,
     .LanguageCode = "en-US",
     .KeyboardCode = "fr-FR"
 };
@@ -847,11 +848,31 @@ BOOL GetDoLogin(void) {
 /************************************************************************/
 
 /**
+ * @brief Gets the automatic desktop activation flag.
+ * @return TRUE when automatic desktop activation is enabled.
+ */
+BOOL GetShowDesktop(void) {
+    return Kernel.ShowDesktop;
+}
+
+/************************************************************************/
+
+/**
  * @brief Sets the login sequence flag.
  * @param DoLogin TRUE to enable login, FALSE to disable.
  */
 void SetDoLogin(BOOL DoLogin) {
     Kernel.DoLogin = DoLogin;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sets the automatic desktop activation flag.
+ * @param ShowDesktop TRUE to enable automatic desktop activation, FALSE to disable.
+ */
+void SetShowDesktop(BOOL ShowDesktop) {
+    Kernel.ShowDesktop = ShowDesktop;
 }
 
 /************************************************************************/

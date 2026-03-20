@@ -163,6 +163,7 @@ typedef struct tag_KERNEL_DATA {
     UINT DeferredWorkWaitTimeoutMS; // Wait timeout for deferred work dispatcher in milliseconds
     UINT DeferredWorkPollDelayMS;   // Polling delay for deferred work dispatcher in milliseconds
     BOOL DoLogin;                   // Enable/disable login sequence (TRUE=enable, FALSE=disable)
+    BOOL ShowDesktop;               // Enable/disable automatic desktop activation (TRUE=enable, FALSE=disable)
     STR LanguageCode[8];
     STR KeyboardCode[8];
 } KERNEL_DATA, *LPKERNEL_DATA;
@@ -174,6 +175,7 @@ void SetConfiguration(LPTOML Configuration);
 void SetDeferredWorkPollDelay(UINT Delay);
 void SetDeferredWorkWaitTimeout(UINT Timeout);
 void SetDoLogin(BOOL DoLogin);
+void SetShowDesktop(BOOL ShowDesktop);
 void SetActiveDesktop(LPDESKTOP Desktop);
 void SetFocusedProcess(LPPROCESS Process);
 void SetKeyboardCode(LPCSTR KeyboardCode);
@@ -190,6 +192,7 @@ UINT GetDeferredWorkWaitTimeout(void);
 LPLIST GetDesktopList(void);
 LPLIST GetDiskList(void);
 BOOL GetDoLogin(void);
+BOOL GetShowDesktop(void);
 LPDRIVER GetDefaultFileSystemDriver(void);
 LPDISPLAY_SESSION GetDisplaySession(void);
 LPLIST GetDriverList(void);

@@ -693,6 +693,7 @@ static void UseConfiguration(void) {
         LPCSTR Layout;
         LPCSTR QuantumMS;
         LPCSTR DoLogin;
+        LPCSTR ShowDesktop;
 
         Layout = TomlGet(Configuration, TEXT("Keyboard.Layout"));
 
@@ -717,8 +718,20 @@ static void UseConfiguration(void) {
             SetDoLogin(TRUE);
         }
 
+        ShowDesktop = TomlGet(Configuration, TEXT("General.ShowDesktop"));
+
+        if (STRING_EMPTY(ShowDesktop) == FALSE) {
+            SetShowDesktop((StringToU32(ShowDesktop) != 0));
+        } else {
+            SetShowDesktop(TRUE);
+        }
+
         if (GetDoLogin() == FALSE) {
             ConsolePrint(TEXT("WARNING : Login sequence disabled\n"));
+        }
+
+        if (GetShowDesktop() == FALSE) {
+            ConsolePrint(TEXT("WARNING : Automatic desktop activation disabled\n"));
         }
     }
 
