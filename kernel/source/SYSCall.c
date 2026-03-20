@@ -2020,6 +2020,32 @@ UINT SysCall_WindowInheritsClass(UINT Parameter) {
 /************************************************************************/
 
 /**
+ * @brief Mark a client window region as needing redraw.
+ *
+ * @param Parameter Pointer to WINDOW_RECT with the target window and client rectangle.
+ * @return UINT TRUE on success.
+ */
+UINT SysCall_InvalidateClientRect(UINT Parameter) {
+    LPWINDOW_RECT WindowRect = (LPWINDOW_RECT)Parameter;
+
+    SAFE_USE_INPUT_POINTER(WindowRect, WINDOW_RECT) {
+        LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
+
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+            if ((WindowRect->Header.Flags & WINDOW_RECT_FLAG_ALL) != 0) {
+                return (UINT)InvalidateClientRect((HANDLE)Window, NULL);
+            }
+
+            return (UINT)InvalidateClientRect((HANDLE)Window, &(WindowRect->Rect));
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
  * @brief Mark a window region as needing redraw.
  *
  * @param Parameter Pointer to WINDOW_RECT with the target window and rectangle.
@@ -2030,7 +2056,13 @@ UINT SysCall_InvalidateWindowRect(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(WindowRect, WINDOW_RECT) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)InvalidateWindowRect((HANDLE)Window, &(WindowRect->Rect)); }
+        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+            if ((WindowRect->Header.Flags & WINDOW_RECT_FLAG_ALL) != 0) {
+                return (UINT)InvalidateWindowRect((HANDLE)Window, NULL);
+            }
+
+            return (UINT)InvalidateWindowRect((HANDLE)Window, &(WindowRect->Rect));
+        }
     }
 
     return 0;

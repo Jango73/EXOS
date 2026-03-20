@@ -695,6 +695,32 @@ BOOL ScreenPointToWindowPoint(HANDLE Handle, LPPOINT ScreenPoint, LPPOINT Window
 /***************************************************************************/
 
 /**
+ * @brief Add one client rectangle to a window dirty region.
+ * @param Handle Window handle.
+ * @param Src Client rectangle in client coordinates, or NULL for full client area.
+ * @return TRUE on success.
+ */
+BOOL InvalidateClientRect(HANDLE Handle, LPRECT Src) {
+    RECT ClientWindowRect;
+    RECT WindowRect;
+
+    if (GetWindowClientRect(Handle, &ClientWindowRect) == FALSE) return FALSE;
+
+    if (Src == NULL) {
+        return InvalidateWindowRect(Handle, &ClientWindowRect);
+    }
+
+    WindowRect.X1 = ClientWindowRect.X1 + Src->X1;
+    WindowRect.Y1 = ClientWindowRect.Y1 + Src->Y1;
+    WindowRect.X2 = ClientWindowRect.X1 + Src->X2;
+    WindowRect.Y2 = ClientWindowRect.Y1 + Src->Y2;
+
+    return InvalidateWindowRect(Handle, &WindowRect);
+}
+
+/***************************************************************************/
+
+/**
  * @brief Add a rectangle to a window's invalid region.
  * @param Handle Window handle.
  * @param Src Rectangle to invalidate.

@@ -117,7 +117,7 @@ U32 LogViewerWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 Sequence = KernelLogGetRecentSequence();
                 if (Sequence != GetWindowProp(Window, LOG_VIEWER_PROP_SEQUENCE)) {
                     (void)SetWindowProp(Window, LOG_VIEWER_PROP_SEQUENCE, Sequence);
-                    (void)InvalidateWindowRect(Window, NULL);
+                    (void)InvalidateClientRect(Window, NULL);
                 }
             }
             return 1;

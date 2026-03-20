@@ -105,7 +105,7 @@ U32 OnButtonLeftButtonDown(HANDLE Window, U32 Param1, U32 Param2) {
     UNUSED(Param2);
 
     SetWindowProp(Window, Prop_Down, 1);
-    InvalidateWindowRect(Window, NULL);
+    InvalidateClientRect(Window, NULL);
 
     return 0;
 }
@@ -116,7 +116,7 @@ U32 OnButtonLeftButtonUp(HANDLE Window, U32 Param1, U32 Param2) {
     UNUSED(Param1);
     UNUSED(Param2);
 
-    InvalidateWindowRect(Window, NULL);
+    InvalidateClientRect(Window, NULL);
     SetWindowProp(Window, Prop_Down, 0);
 
     /*
@@ -150,13 +150,13 @@ U32 OnButtonMouseMove(HANDLE Window, U32 Param1, U32 Param2) {
 
     if (Mouse.X >= 0 && Mouse.Y >= 0 && Mouse.X <= Size.X && Mouse.Y <= Size.Y) {
         if (!GetWindowProp(Window, Prop_Over)) {
-            InvalidateWindowRect(Window, NULL);
+            InvalidateClientRect(Window, NULL);
             SetWindowProp(Window, Prop_Over, 1);
             CaptureMouse(Window);
         }
     } else {
         if (GetWindowProp(Window, Prop_Over)) {
-            InvalidateWindowRect(Window, NULL);
+            InvalidateClientRect(Window, NULL);
             SetWindowProp(Window, Prop_Over, 0);
             if (!GetWindowProp(Window, Prop_Down)) ReleaseMouse();
         }

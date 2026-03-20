@@ -112,7 +112,7 @@ static void ButtonSetHoverState(HANDLE Window, U32 Value) {
     if (State == NULL || State->Hover == Value) return;
 
     State->Hover = Value;
-    (void)InvalidateWindowRect(Window, NULL);
+    (void)InvalidateClientRect(Window, NULL);
 }
 
 /***************************************************************************/
@@ -130,7 +130,7 @@ static void ButtonSetPressedState(HANDLE Window, U32 Value) {
     if (State == NULL || State->Pressed == Value) return;
 
     State->Pressed = Value;
-    (void)InvalidateWindowRect(Window, NULL);
+    (void)InvalidateClientRect(Window, NULL);
 }
 
 /***************************************************************************/

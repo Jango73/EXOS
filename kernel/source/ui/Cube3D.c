@@ -317,7 +317,7 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 State->AngleYMilliDegrees = (State->AngleYMilliDegrees + DeltaYMilliDegrees) % CUBE3D_FULL_TURN_MDEG;
                 State->AngleZMilliDegrees = (State->AngleZMilliDegrees + DeltaZMilliDegrees) % CUBE3D_FULL_TURN_MDEG;
                 State->LastTick = Now;
-                (void)InvalidateWindowRect(Window, NULL);
+                (void)InvalidateClientRect(Window, NULL);
             }
             return 1;
 

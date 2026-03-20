@@ -168,7 +168,7 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
 
         case EWM_TIMER:
             if (Param1 == CLOCK_WIDGET_TIMER_ID) {
-                (void)InvalidateWindowRect(Window, NULL);
+                (void)InvalidateClientRect(Window, NULL);
             }
             return 1;
 

@@ -252,6 +252,7 @@ BOOL GetLocalTime(LPDATETIME Time);
 #define SYSCALL_WindowInheritsClass 0x00000083
 #define SYSCALL_ClearWindowStyle 0x00000084
 #define SYSCALL_ScreenPointToWindowPoint 0x00000085
+#define SYSCALL_InvalidateClientRect 0x00000086
 #define SYSCALL_InvalidateWindowRect 0x00000053
 #define SYSCALL_GetWindowGC 0x00000054
 #define SYSCALL_ReleaseWindowGC 0x00000055
@@ -296,7 +297,7 @@ BOOL GetLocalTime(LPDATETIME Time);
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x00000083
+#define SYSCALL_Last 0x00000086
 
 /************************************************************************/
 // Structure limits
@@ -534,6 +535,8 @@ typedef struct PACKED tag_WINDOW_RECT {
     HANDLE Window;
     RECT Rect;
 } WINDOW_RECT, *LPWINDOW_RECT;
+
+#define WINDOW_RECT_FLAG_ALL 0x00000001
 
 typedef struct PACKED tag_WINDOW_POINT_INFO {
     ABI_HEADER Header;
@@ -791,6 +794,7 @@ HANDLE FindWindow(HANDLE StartWindow, U32 WindowID);
 HANDLE ContainsWindow(HANDLE StartWindow, HANDLE TargetWindow);
 HANDLE GetWindowDesktop(HANDLE Window);
 BOOL PostMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2);
+BOOL InvalidateClientRect(HANDLE Window, LPRECT Rect);
 BOOL InvalidateWindowRect(HANDLE Window, LPRECT Rect);
 UINT SetWindowProp(HANDLE Window, LPCSTR Name, UINT Value);
 UINT GetWindowProp(HANDLE Window, LPCSTR Name);

@@ -130,6 +130,7 @@ UINT SysCall_RegisterWindowClass(UINT Parameter);
 UINT SysCall_UnregisterWindowClass(UINT Parameter);
 UINT SysCall_FindWindowClass(UINT Parameter);
 UINT SysCall_WindowInheritsClass(UINT Parameter);
+UINT SysCall_InvalidateClientRect(UINT Parameter);
 UINT SysCall_InvalidateWindowRect(UINT Parameter);
 UINT SysCall_GetWindowGC(UINT Parameter);
 UINT SysCall_ReleaseWindowGC(UINT Parameter);

@@ -81,6 +81,7 @@ BOOL ShowWindow(HANDLE);
 BOOL HideWindow(HANDLE);
 BOOL SetWindowStyle(HANDLE, U32);
 BOOL ClearWindowStyle(HANDLE, U32);
+BOOL InvalidateClientRect(HANDLE, LPRECT);
 BOOL InvalidateWindowRect(HANDLE, LPRECT);
 UINT SetWindowProp(HANDLE, LPCSTR, UINT);
 UINT GetWindowProp(HANDLE, LPCSTR);
