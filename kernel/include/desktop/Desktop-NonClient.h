@@ -42,7 +42,6 @@ BOOL DrawWindowClientArea(HANDLE Window, HANDLE GC, LPRECT Rect);
 BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect);
 BOOL IsPointInWindowTitleBar(LPWINDOW Window, LPPOINT ScreenPoint);
 BOOL GetWindowClientRectFromWindowRect(LPWINDOW Window, LPRECT WindowRect, LPRECT ClientRect);
-BOOL GetWindowDrawableRectFromWindowRect(LPWINDOW Window, LPRECT WindowRect, LPRECT DrawableRect);
 
 /************************************************************************/
 

@@ -703,9 +703,7 @@ BOOL ScreenPointToWindowPoint(HANDLE Handle, LPPOINT ScreenPoint, LPPOINT Window
 BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
     LPWINDOW This = (LPWINDOW)Handle;
     RECT Rect;
-    RECT LocalRect;
     RECT WindowRect;
-    BOOL FullWindow = FALSE;
     BOOL IsVisible = FALSE;
 
     if (This == NULL) return FALSE;
@@ -732,18 +730,13 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
         (void)RectRegionAddRect(&This->DirtyRegion, &Rect);
     }
     else {
+        // Damage tracking uses the full window surface. Client/non-client split
+        // is resolved later during draw dispatch, not during invalidation.
         WindowRect.X1 = 0;
         WindowRect.Y1 = 0;
         WindowRect.X2 = This->Rect.X2 - This->Rect.X1;
         WindowRect.Y2 = This->Rect.Y2 - This->Rect.Y1;
-
-        if (GetWindowDrawableRectFromWindowRect(This, &WindowRect, &LocalRect) == FALSE) {
-            UnlockMutex(&(This->Mutex));
-            return FALSE;
-        }
-
-        FullWindow = TRUE;
-        WindowRectToScreenRectLocked(This, &LocalRect, &Rect);
+        WindowRectToScreenRectLocked(This, &WindowRect, &Rect);
         RectRegionReset(&This->DirtyRegion);
         (void)RectRegionAddRect(&This->DirtyRegion, &Rect);
     }
@@ -752,7 +745,6 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
     // Unlock access to resources
 
     UnlockMutex(&(This->Mutex));
-    UNUSED(FullWindow);
 
     if (This->WindowID == 0x53484252) {
     }

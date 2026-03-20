@@ -166,7 +166,11 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
             BOOL EffectiveTransparent = FALSE;
 
             if (DesktopGetWindowDrawSurfaceRect(This, &SurfaceRect) == FALSE) {
-                if (GetWindowDrawableRect((HANDLE)This, &SurfaceRect) == FALSE) break;
+                if (ShouldDrawWindowNonClient(This) != FALSE) {
+                    if (GetWindowClientRect((HANDLE)This, &SurfaceRect) == FALSE) break;
+                } else {
+                    if (GetWindowRect((HANDLE)This, &SurfaceRect) == FALSE) break;
+                }
             } else if (GetWindowDrawContextSnapshot(This, &DrawContext) != FALSE &&
                        (DrawContext.Flags & WINDOW_DRAW_CONTEXT_ACTIVE) != 0 &&
                        DesktopGetWindowDrawClipRect(This, &ClipScreenRect) != FALSE) {

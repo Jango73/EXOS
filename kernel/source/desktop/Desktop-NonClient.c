@@ -574,33 +574,6 @@ BOOL GetWindowClientRect(HANDLE Handle, LPRECT ClientRect) {
 
 /***************************************************************************/
 
-BOOL GetWindowDrawableRectFromWindowRect(LPWINDOW Window, LPRECT WindowRect, LPRECT DrawableRect) {
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
-    if (WindowRect == NULL || DrawableRect == NULL) return FALSE;
-
-    if (ShouldDrawWindowNonClient(Window) == FALSE) {
-        *DrawableRect = *WindowRect;
-        return TRUE;
-    }
-
-    return GetWindowClientRectFromWindowRect(Window, WindowRect, DrawableRect);
-}
-
-/***************************************************************************/
-
-BOOL GetWindowDrawableRect(HANDLE Handle, LPRECT DrawableRect) {
-    RECT WindowRect;
-    LPWINDOW Window = (LPWINDOW)Handle;
-
-    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
-    if (DrawableRect == NULL) return FALSE;
-    if (GetWindowRect(Handle, &WindowRect) == FALSE) return FALSE;
-
-    return GetWindowDrawableRectFromWindowRect(Window, &WindowRect, DrawableRect);
-}
-
-/***************************************************************************/
-
 /**
  * @brief Draw the default non-client visuals for a window.
  * @param Window Window handle.
