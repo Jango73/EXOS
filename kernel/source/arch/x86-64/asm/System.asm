@@ -318,11 +318,13 @@ SYS_FUNC_BEGIN GraphicsDrawHorizontalGradientScanlineAsm
     push    r13
     push    r14
     push    r15
-    sub     rsp, 56
+    sub     rsp, 64
 
     mov     r12d, esi
     dec     r12d
     mov     dword [rbp - 4], r12d
+    mov     dword [rbp - 40], edx
+    mov     dword [rbp - 44], ecx
 
     mov     eax, r8d
     shr     eax, 24
@@ -365,6 +367,7 @@ SYS_FUNC_BEGIN GraphicsDrawHorizontalGradientScanlineAsm
 .gradient_loop:
     mov     eax, dword [rbp - 24]
     imul    r13d
+    cdq
     idiv    dword [rbp - 4]
     add     eax, dword [rbp - 8]
     shl     eax, 24
@@ -372,6 +375,7 @@ SYS_FUNC_BEGIN GraphicsDrawHorizontalGradientScanlineAsm
 
     mov     eax, dword [rbp - 28]
     imul    r13d
+    cdq
     idiv    dword [rbp - 4]
     add     eax, dword [rbp - 12]
     shl     eax, 16
@@ -379,6 +383,7 @@ SYS_FUNC_BEGIN GraphicsDrawHorizontalGradientScanlineAsm
 
     mov     eax, dword [rbp - 32]
     imul    r13d
+    cdq
     idiv    dword [rbp - 4]
     add     eax, dword [rbp - 16]
     shl     eax, 8
@@ -386,26 +391,27 @@ SYS_FUNC_BEGIN GraphicsDrawHorizontalGradientScanlineAsm
 
     mov     eax, dword [rbp - 36]
     imul    r13d
+    cdq
     idiv    dword [rbp - 4]
     add     eax, dword [rbp - 20]
     or      ebx, eax
 
-    cmp     edx, 32
+    cmp     dword [rbp - 40], 32
     je      .gradient_32
-    cmp     edx, 24
+    cmp     dword [rbp - 40], 24
     je      .gradient_24
-    cmp     edx, 16
+    cmp     dword [rbp - 40], 16
     je      .gradient_16
     jmp     .gradient_cleanup_fail
 
 .gradient_32:
-    cmp     ecx, 0x0001
+    cmp     dword [rbp - 44], 0x0001
     je      .gradient_set32
-    cmp     ecx, 0x0004
+    cmp     dword [rbp - 44], 0x0004
     je      .gradient_xor32
-    cmp     ecx, 0x0003
+    cmp     dword [rbp - 44], 0x0003
     je      .gradient_or32
-    cmp     ecx, 0x0002
+    cmp     dword [rbp - 44], 0x0002
     je      .gradient_and32
     jmp     .gradient_cleanup_fail
 .gradient_set32:
@@ -428,13 +434,13 @@ SYS_FUNC_BEGIN GraphicsDrawHorizontalGradientScanlineAsm
     shr     eax, 16
     mov     r10d, ebx
     shr     r10d, 8
-    cmp     ecx, 0x0001
+    cmp     dword [rbp - 44], 0x0001
     je      .gradient_set24
-    cmp     ecx, 0x0004
+    cmp     dword [rbp - 44], 0x0004
     je      .gradient_xor24
-    cmp     ecx, 0x0003
+    cmp     dword [rbp - 44], 0x0003
     je      .gradient_or24
-    cmp     ecx, 0x0002
+    cmp     dword [rbp - 44], 0x0002
     je      .gradient_and24
     jmp     .gradient_cleanup_fail
 .gradient_set24:
@@ -462,13 +468,13 @@ SYS_FUNC_BEGIN GraphicsDrawHorizontalGradientScanlineAsm
 
 .gradient_16:
     mov     eax, ebx
-    cmp     ecx, 0x0001
+    cmp     dword [rbp - 44], 0x0001
     je      .gradient_set16
-    cmp     ecx, 0x0004
+    cmp     dword [rbp - 44], 0x0004
     je      .gradient_xor16
-    cmp     ecx, 0x0003
+    cmp     dword [rbp - 44], 0x0003
     je      .gradient_or16
-    cmp     ecx, 0x0002
+    cmp     dword [rbp - 44], 0x0002
     je      .gradient_and16
     jmp     .gradient_cleanup_fail
 .gradient_set16:
@@ -496,7 +502,7 @@ SYS_FUNC_BEGIN GraphicsDrawHorizontalGradientScanlineAsm
     xor     eax, eax
 
 .gradient_cleanup_done:
-    add     rsp, 40
+    add     rsp, 48
     pop     r15
     pop     r14
     pop     r13
@@ -588,6 +594,7 @@ SYS_FUNC_BEGIN GraphicsFillVerticalGradientRectAsm
 .vertical_interpolate:
     mov     eax, dword [rbp - 40]
     imul    ebx
+    cdq
     idiv    dword [rbp - 20]
     add     eax, dword [rbp - 24]
     shl     eax, 24
@@ -595,6 +602,7 @@ SYS_FUNC_BEGIN GraphicsFillVerticalGradientRectAsm
 
     mov     eax, dword [rbp - 44]
     imul    ebx
+    cdq
     idiv    dword [rbp - 20]
     add     eax, dword [rbp - 28]
     shl     eax, 16
@@ -602,6 +610,7 @@ SYS_FUNC_BEGIN GraphicsFillVerticalGradientRectAsm
 
     mov     eax, dword [rbp - 48]
     imul    ebx
+    cdq
     idiv    dword [rbp - 20]
     add     eax, dword [rbp - 32]
     shl     eax, 8
@@ -609,6 +618,7 @@ SYS_FUNC_BEGIN GraphicsFillVerticalGradientRectAsm
 
     mov     eax, dword [rbp - 52]
     imul    ebx
+    cdq
     idiv    dword [rbp - 20]
     add     eax, dword [rbp - 36]
     or      r10d, eax

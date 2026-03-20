@@ -505,6 +505,7 @@ GraphicsDrawHorizontalGradientScanlineAsm :
 .gradient_loop:
     mov     eax, [ebp - 24]
     imul    ebx
+    cdq
     idiv    dword [ebp - 4]
     add     eax, [ebp - 8]
     shl     eax, 24
@@ -512,6 +513,7 @@ GraphicsDrawHorizontalGradientScanlineAsm :
 
     mov     eax, [ebp - 28]
     imul    ebx
+    cdq
     idiv    dword [ebp - 4]
     add     eax, [ebp - 12]
     shl     eax, 16
@@ -519,6 +521,7 @@ GraphicsDrawHorizontalGradientScanlineAsm :
 
     mov     eax, [ebp - 32]
     imul    ebx
+    cdq
     idiv    dword [ebp - 4]
     add     eax, [ebp - 16]
     shl     eax, 8
@@ -526,6 +529,7 @@ GraphicsDrawHorizontalGradientScanlineAsm :
 
     mov     eax, [ebp - 36]
     imul    ebx
+    cdq
     idiv    dword [ebp - 4]
     add     eax, [ebp - 20]
     or      ecx, eax
@@ -733,6 +737,7 @@ GraphicsFillVerticalGradientRectAsm :
 .vertical_interpolate:
     mov     eax, [ebp - 40]
     imul    ebx
+    cdq
     idiv    dword [ebp - 20]
     add     eax, [ebp - 24]
     shl     eax, 24
@@ -740,6 +745,7 @@ GraphicsFillVerticalGradientRectAsm :
 
     mov     eax, [ebp - 44]
     imul    ebx
+    cdq
     idiv    dword [ebp - 20]
     add     eax, [ebp - 28]
     shl     eax, 16
@@ -747,6 +753,7 @@ GraphicsFillVerticalGradientRectAsm :
 
     mov     eax, [ebp - 48]
     imul    ebx
+    cdq
     idiv    dword [ebp - 20]
     add     eax, [ebp - 32]
     shl     eax, 8
@@ -754,6 +761,7 @@ GraphicsFillVerticalGradientRectAsm :
 
     mov     eax, [ebp - 52]
     imul    ebx
+    cdq
     idiv    dword [ebp - 20]
     add     eax, [ebp - 36]
     or      ecx, eax
