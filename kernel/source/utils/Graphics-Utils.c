@@ -23,6 +23,8 @@
 
 #include "utils/Graphics-Utils.h"
 #include "System.h"
+#include "math/Math.h"
+#include "utils/LineRasterizer.h"
 
 /************************************************************************/
 
@@ -66,6 +68,18 @@ typedef struct tag_GRAPHICS_FILL_DESCRIPTOR {
     I32 GradientX2;
     I32 GradientY2;
 } GRAPHICS_FILL_DESCRIPTOR, *LPGRAPHICS_FILL_DESCRIPTOR;
+
+/************************************************************************/
+
+static BOOL GraphicsRenderArc(
+    LPGRAPHICSCONTEXT Context,
+    I32 CenterX,
+    I32 CenterY,
+    I32 Radius,
+    U32 QuadrantMask,
+    LPGRAPHICS_FILL_DESCRIPTOR Fill,
+    BOOL HasStroke,
+    COLOR StrokeColor);
 
 /************************************************************************/
 
@@ -324,6 +338,14 @@ static U32 GraphicsResolveRoundedCornerRadius(LPRECT_INFO Info, I32 X1, I32 Y1, 
     if (Radius > Height / 2) Radius = Height / 2;
     if (Radius < 0) Radius = 0;
     return (U32)Radius;
+}
+
+/************************************************************************/
+
+static U32 GraphicsResolvePenWidth(LPGRAPHICSCONTEXT Context) {
+    if (Context == NULL || Context->Pen == NULL || Context->Pen->TypeID != KOID_PEN) return 1;
+    if (Context->Pen->Width == 0) return 1;
+    return Context->Pen->Width;
 }
 
 /************************************************************************/
@@ -1075,6 +1097,211 @@ BOOL GraphicsFillTriangleHorizontalGradient(
 
 /************************************************************************/
 
+static F64 GraphicsAbsoluteF64(F64 Value) {
+    return Value < 0 ? -Value : Value;
+}
+
+/************************************************************************/
+
+static I32 GraphicsRoundF64ToI32(F64 Value) {
+    return Value >= 0 ? (I32)(Value + 0.5) : (I32)(Value - 0.5);
+}
+
+/************************************************************************/
+
+static BOOL GraphicsStrokePoint(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, COLOR StrokeColor);
+static BOOL GraphicsPlotStrokePixel(LPVOID Context, I32 X, I32 Y, COLOR* Color);
+static BOOL GraphicsDrawSinglePixelLine(
+    LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR StrokeColor, U32 Pattern);
+
+/************************************************************************/
+
+static BOOL GraphicsComputeInsetTriangle(
+    LPTRIANGLE_INFO Info, U32 Inset, POINT* OutP1, POINT* OutP2, POINT* OutP3) {
+    const POINT* Vertices[3];
+    F64 NormalX[3];
+    F64 NormalY[3];
+    F64 Constant[3];
+    F64 CentroidX;
+    F64 CentroidY;
+    UINT Index;
+
+    if (Info == NULL || OutP1 == NULL || OutP2 == NULL || OutP3 == NULL) return FALSE;
+    if (Inset == 0) {
+        *OutP1 = Info->P1;
+        *OutP2 = Info->P2;
+        *OutP3 = Info->P3;
+        return TRUE;
+    }
+
+    Vertices[0] = &(Info->P1);
+    Vertices[1] = &(Info->P2);
+    Vertices[2] = &(Info->P3);
+    CentroidX = ((F64)Info->P1.X + (F64)Info->P2.X + (F64)Info->P3.X) / 3.0;
+    CentroidY = ((F64)Info->P1.Y + (F64)Info->P2.Y + (F64)Info->P3.Y) / 3.0;
+
+    for (Index = 0; Index < 3; Index++) {
+        const POINT* Start = Vertices[Index];
+        const POINT* End = Vertices[(Index + 1) % 3];
+        F64 DeltaX = (F64)(End->X - Start->X);
+        F64 DeltaY = (F64)(End->Y - Start->Y);
+        F64 Length = MathSqrtF64((DeltaX * DeltaX) + (DeltaY * DeltaY));
+        F64 MidX;
+        F64 MidY;
+        F64 Dot;
+
+        if (Length <= MATH_EPSILON_F64) return FALSE;
+
+        NormalX[Index] = DeltaY / Length;
+        NormalY[Index] = -DeltaX / Length;
+        MidX = ((F64)Start->X + (F64)End->X) * 0.5;
+        MidY = ((F64)Start->Y + (F64)End->Y) * 0.5;
+        Dot = (CentroidX - MidX) * NormalX[Index] + (CentroidY - MidY) * NormalY[Index];
+        if (Dot < 0) {
+            NormalX[Index] = -NormalX[Index];
+            NormalY[Index] = -NormalY[Index];
+        }
+
+        Constant[Index] = (NormalX[Index] * (F64)Start->X) + (NormalY[Index] * (F64)Start->Y) + (F64)Inset;
+    }
+
+    {
+        F64 Determinant = (NormalX[2] * NormalY[0]) - (NormalY[2] * NormalX[0]);
+        F64 X;
+        F64 Y;
+
+        if (GraphicsAbsoluteF64(Determinant) <= MATH_EPSILON_F64) return FALSE;
+        X = ((Constant[2] * NormalY[0]) - (NormalY[2] * Constant[0])) / Determinant;
+        Y = ((NormalX[2] * Constant[0]) - (Constant[2] * NormalX[0])) / Determinant;
+        OutP1->X = GraphicsRoundF64ToI32(X);
+        OutP1->Y = GraphicsRoundF64ToI32(Y);
+    }
+
+    {
+        F64 Determinant = (NormalX[0] * NormalY[1]) - (NormalY[0] * NormalX[1]);
+        F64 X;
+        F64 Y;
+
+        if (GraphicsAbsoluteF64(Determinant) <= MATH_EPSILON_F64) return FALSE;
+        X = ((Constant[0] * NormalY[1]) - (NormalY[0] * Constant[1])) / Determinant;
+        Y = ((NormalX[0] * Constant[1]) - (Constant[0] * NormalX[1])) / Determinant;
+        OutP2->X = GraphicsRoundF64ToI32(X);
+        OutP2->Y = GraphicsRoundF64ToI32(Y);
+    }
+
+    {
+        F64 Determinant = (NormalX[1] * NormalY[2]) - (NormalY[1] * NormalX[2]);
+        F64 X;
+        F64 Y;
+
+        if (GraphicsAbsoluteF64(Determinant) <= MATH_EPSILON_F64) return FALSE;
+        X = ((Constant[1] * NormalY[2]) - (NormalY[1] * Constant[2])) / Determinant;
+        Y = ((NormalX[1] * Constant[2]) - (Constant[1] * NormalX[2])) / Determinant;
+        OutP3->X = GraphicsRoundF64ToI32(X);
+        OutP3->Y = GraphicsRoundF64ToI32(Y);
+    }
+
+    return GraphicsTriangleEdgeFunction(OutP1->X, OutP1->Y, OutP2->X, OutP2->Y, OutP3->X, OutP3->Y) != 0;
+}
+
+/************************************************************************/
+
+BOOL GraphicsDrawTriangleFromDescriptor(LPGRAPHICSCONTEXT Context, LPTRIANGLE_INFO Info) {
+    TRIANGLE_INFO InsetTriangle;
+    U32 StrokeWidth = 1;
+    U32 Offset = 0;
+    BOOL HasFill = FALSE;
+    BOOL HasStroke = FALSE;
+    I32 Area = 0;
+
+    if (Context == NULL || Info == NULL) return FALSE;
+
+    HasFill = (Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH);
+    HasStroke = (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN);
+    if (HasFill == FALSE && HasStroke == FALSE) return TRUE;
+
+    Area = GraphicsTriangleEdgeFunction(Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
+    if (Area != 0 && HasFill != FALSE) {
+        if (GraphicsFillTriangleSpans(Context, Info, Context->Brush->Color, NULL) == FALSE) return FALSE;
+    }
+
+    if (HasStroke == FALSE) return TRUE;
+
+    if (Area == 0) {
+        LineRasterizerDraw(
+            Context,
+            Info->P1.X,
+            Info->P1.Y,
+            Info->P2.X,
+            Info->P2.Y,
+            Context->Pen->Color,
+            Context->Pen->Pattern,
+            GraphicsResolvePenWidth(Context),
+            GraphicsPlotStrokePixel);
+        LineRasterizerDraw(
+            Context,
+            Info->P2.X,
+            Info->P2.Y,
+            Info->P3.X,
+            Info->P3.Y,
+            Context->Pen->Color,
+            Context->Pen->Pattern,
+            GraphicsResolvePenWidth(Context),
+            GraphicsPlotStrokePixel);
+        LineRasterizerDraw(
+            Context,
+            Info->P3.X,
+            Info->P3.Y,
+            Info->P1.X,
+            Info->P1.Y,
+            Context->Pen->Color,
+            Context->Pen->Pattern,
+            GraphicsResolvePenWidth(Context),
+            GraphicsPlotStrokePixel);
+        return TRUE;
+    }
+
+    StrokeWidth = GraphicsResolvePenWidth(Context);
+    InsetTriangle = *Info;
+    for (Offset = 0; Offset < StrokeWidth; Offset++) {
+        if (GraphicsComputeInsetTriangle(Info, Offset, &(InsetTriangle.P1), &(InsetTriangle.P2), &(InsetTriangle.P3)) == FALSE) break;
+        if (GraphicsDrawSinglePixelLine(
+                Context,
+                InsetTriangle.P1.X,
+                InsetTriangle.P1.Y,
+                InsetTriangle.P2.X,
+                InsetTriangle.P2.Y,
+                Context->Pen->Color,
+                Context->Pen->Pattern) == FALSE) {
+            return FALSE;
+        }
+        if (GraphicsDrawSinglePixelLine(
+                Context,
+                InsetTriangle.P2.X,
+                InsetTriangle.P2.Y,
+                InsetTriangle.P3.X,
+                InsetTriangle.P3.Y,
+                Context->Pen->Color,
+                Context->Pen->Pattern) == FALSE) {
+            return FALSE;
+        }
+        if (GraphicsDrawSinglePixelLine(
+                Context,
+                InsetTriangle.P3.X,
+                InsetTriangle.P3.Y,
+                InsetTriangle.P1.X,
+                InsetTriangle.P1.Y,
+                Context->Pen->Color,
+                Context->Pen->Pattern) == FALSE) {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
 static BOOL GraphicsStrokePoint(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, COLOR StrokeColor) {
     return GraphicsDrawFillSpan(
         Context,
@@ -1087,6 +1314,83 @@ static BOOL GraphicsStrokePoint(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, COLOR S
         X,
         X,
         Y);
+}
+
+/************************************************************************/
+
+static BOOL GraphicsPlotStrokePixel(LPVOID Context, I32 X, I32 Y, COLOR* Color) {
+    if (Color == NULL) return FALSE;
+    return GraphicsStrokePoint((LPGRAPHICSCONTEXT)Context, X, Y, *Color);
+}
+
+/************************************************************************/
+
+static BOOL GraphicsDrawSinglePixelLine(
+    LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR StrokeColor, U32 Pattern) {
+    LineRasterizerDraw(Context, X1, Y1, X2, Y2, StrokeColor, Pattern, 1, GraphicsPlotStrokePixel);
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL GraphicsStrokeRectangleInset(
+    LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR StrokeColor) {
+    if (Context == NULL) return FALSE;
+    if (X1 > X2 || Y1 > Y2) return TRUE;
+
+    if (GraphicsDrawScanline(Context, X1, X2, Y1, StrokeColor, StrokeColor) == FALSE) return FALSE;
+    if (Y2 != Y1 && GraphicsDrawScanline(Context, X1, X2, Y2, StrokeColor, StrokeColor) == FALSE) return FALSE;
+    if (Y2 - Y1 > 1) {
+        if (GraphicsFillSolidRect(Context, X1, Y1 + 1, X1, Y2 - 1, StrokeColor) == FALSE) return FALSE;
+        if (X2 != X1 && GraphicsFillSolidRect(Context, X2, Y1 + 1, X2, Y2 - 1, StrokeColor) == FALSE) return FALSE;
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+static BOOL GraphicsStrokeRoundedRectangleInset(
+    LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2, I32 Radius, COLOR StrokeColor) {
+    GRAPHICS_FILL_DESCRIPTOR Fill = {0};
+
+    if (Context == NULL) return FALSE;
+    if (X1 > X2 || Y1 > Y2) return TRUE;
+
+    if (Radius <= 0) {
+        return GraphicsStrokeRectangleInset(Context, X1, Y1, X2, Y2, StrokeColor);
+    }
+
+    if (GraphicsRenderArc(Context, X1 + Radius, Y1 + Radius, Radius, GRAPHICS_ARC_QUADRANT_TOP_LEFT, &Fill, TRUE, StrokeColor) == FALSE) {
+        return FALSE;
+    }
+    if (GraphicsRenderArc(Context, X2 - Radius, Y1 + Radius, Radius, GRAPHICS_ARC_QUADRANT_TOP_RIGHT, &Fill, TRUE, StrokeColor) == FALSE) {
+        return FALSE;
+    }
+    if (GraphicsRenderArc(Context, X2 - Radius, Y2 - Radius, Radius, GRAPHICS_ARC_QUADRANT_BOTTOM_RIGHT, &Fill, TRUE, StrokeColor) == FALSE) {
+        return FALSE;
+    }
+    if (GraphicsRenderArc(Context, X1 + Radius, Y2 - Radius, Radius, GRAPHICS_ARC_QUADRANT_BOTTOM_LEFT, &Fill, TRUE, StrokeColor) == FALSE) {
+        return FALSE;
+    }
+    if (X1 + Radius <= X2 - Radius &&
+        GraphicsDrawScanline(Context, X1 + Radius, X2 - Radius, Y1, StrokeColor, StrokeColor) == FALSE) {
+        return FALSE;
+    }
+    if (X1 + Radius <= X2 - Radius &&
+        GraphicsDrawScanline(Context, X1 + Radius, X2 - Radius, Y2, StrokeColor, StrokeColor) == FALSE) {
+        return FALSE;
+    }
+    if (Y1 + Radius <= Y2 - Radius &&
+        GraphicsFillSolidRect(Context, X1, Y1 + Radius, X1, Y2 - Radius, StrokeColor) == FALSE) {
+        return FALSE;
+    }
+    if (Y1 + Radius <= Y2 - Radius &&
+        GraphicsFillSolidRect(Context, X2, Y1 + Radius, X2, Y2 - Radius, StrokeColor) == FALSE) {
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 /************************************************************************/
@@ -1179,19 +1483,33 @@ static BOOL GraphicsRenderArc(
 
 BOOL GraphicsStrokeArc(LPVOID Context, GRAPHICS_PLOT_PIXEL_ROUTINE PlotPixel, I32 CenterX, I32 CenterY, I32 Radius, COLOR StrokeColor) {
     GRAPHICS_FILL_DESCRIPTOR Fill = {0};
+    U32 StrokeWidth = GraphicsResolvePenWidth((LPGRAPHICSCONTEXT)Context);
+    U32 Offset = 0;
 
     UNUSED(PlotPixel);
 
-    return GraphicsRenderArc((LPGRAPHICSCONTEXT)Context, CenterX, CenterY, Radius, GRAPHICS_ARC_QUADRANT_ALL, &Fill, TRUE, StrokeColor);
+    for (Offset = 0; Offset < StrokeWidth; Offset++) {
+        I32 CurrentRadius = Radius - (I32)Offset;
+
+        if (CurrentRadius <= 0) break;
+        if (GraphicsRenderArc((LPGRAPHICSCONTEXT)Context, CenterX, CenterY, CurrentRadius, GRAPHICS_ARC_QUADRANT_ALL, &Fill, TRUE, StrokeColor) == FALSE) {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
 }
 
 /************************************************************************/
 
 BOOL GraphicsDrawArcFromDescriptor(LPGRAPHICSCONTEXT Context, LPARC_INFO Info) {
     GRAPHICS_FILL_DESCRIPTOR Fill;
+    GRAPHICS_FILL_DESCRIPTOR EmptyFill = {0};
     COLOR StrokeColor = 0;
     BOOL HasStroke = FALSE;
     U32 QuadrantMask = 0;
+    U32 StrokeWidth = 1;
+    U32 Offset = 0;
 
     if (Context == NULL || Info == NULL) return FALSE;
     if (Info->Radius <= 0) return TRUE;
@@ -1200,11 +1518,28 @@ BOOL GraphicsDrawArcFromDescriptor(LPGRAPHICSCONTEXT Context, LPARC_INFO Info) {
     HasStroke = Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN;
     if (HasStroke != FALSE) {
         StrokeColor = Context->Pen->Color;
+        StrokeWidth = GraphicsResolvePenWidth(Context);
     }
 
     QuadrantMask = GraphicsResolveArcQuadrantMask(Info);
     if (QuadrantMask == 0) return TRUE;
-    return GraphicsRenderArc(Context, Info->CenterX, Info->CenterY, Info->Radius, QuadrantMask, &Fill, HasStroke, StrokeColor);
+    if (Fill.Enabled != FALSE) {
+        if (GraphicsRenderArc(Context, Info->CenterX, Info->CenterY, Info->Radius, QuadrantMask, &Fill, FALSE, 0) == FALSE) {
+            return FALSE;
+        }
+    }
+    if (HasStroke == FALSE) return TRUE;
+
+    for (Offset = 0; Offset < StrokeWidth; Offset++) {
+        I32 CurrentRadius = Info->Radius - (I32)Offset;
+
+        if (CurrentRadius <= 0) break;
+        if (GraphicsRenderArc(Context, Info->CenterX, Info->CenterY, CurrentRadius, QuadrantMask, &EmptyFill, TRUE, StrokeColor) == FALSE) {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
 }
 
 /************************************************************************/
@@ -1218,6 +1553,8 @@ BOOL GraphicsDrawRectangleFromDescriptor(LPGRAPHICSCONTEXT Context, LPRECT_INFO 
     I32 Radius = 0;
     I32 Y = 0;
     BOOL HasStroke = FALSE;
+    U32 StrokeWidth = 1;
+    U32 Offset = 0;
 
     if (Context == NULL || Info == NULL) return FALSE;
     if (GraphicsSetupRectangleFillDescriptor(Context, Info, &Fill) == FALSE) return FALSE;
@@ -1229,15 +1566,22 @@ BOOL GraphicsDrawRectangleFromDescriptor(LPGRAPHICSCONTEXT Context, LPRECT_INFO 
     GraphicsNormalizeRectangle(&X1, &Y1, &X2, &Y2);
     Radius = (I32)GraphicsResolveRoundedCornerRadius(Info, X1, Y1, X2, Y2);
     HasStroke = Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN;
+    if (HasStroke != FALSE) {
+        StrokeWidth = GraphicsResolvePenWidth(Context);
+    }
 
     if (Radius <= 0) {
         if (GraphicsFillRectangleFromDescriptor(Context, Info) == FALSE) return FALSE;
 
         if (HasStroke != FALSE) {
-            if (GraphicsDrawScanline(Context, X1, X2, Y1, Context->Pen->Color, Context->Pen->Color) == FALSE) return FALSE;
-            if (GraphicsDrawScanline(Context, X1, X2, Y2, Context->Pen->Color, Context->Pen->Color) == FALSE) return FALSE;
-            if (GraphicsFillSolidRect(Context, X1, Y1, X1, Y2, Context->Pen->Color) == FALSE) return FALSE;
-            if (GraphicsFillSolidRect(Context, X2, Y1, X2, Y2, Context->Pen->Color) == FALSE) return FALSE;
+            for (Offset = 0; Offset < StrokeWidth; Offset++) {
+                I32 StrokeX1 = X1 + (I32)Offset;
+                I32 StrokeY1 = Y1 + (I32)Offset;
+                I32 StrokeX2 = X2 - (I32)Offset;
+                I32 StrokeY2 = Y2 - (I32)Offset;
+
+                if (GraphicsStrokeRectangleInset(Context, StrokeX1, StrokeY1, StrokeX2, StrokeY2, Context->Pen->Color) == FALSE) return FALSE;
+            }
         }
 
         return TRUE;
@@ -1255,56 +1599,32 @@ BOOL GraphicsDrawRectangleFromDescriptor(LPGRAPHICSCONTEXT Context, LPRECT_INFO 
         if (GraphicsDrawFillSpan(Context, &Fill, SpanStart, SpanEnd, Y) == FALSE) return FALSE;
     }
 
-    if (GraphicsRenderArc(
-            Context,
-            X1 + Radius,
-            Y1 + Radius,
-            Radius,
-            GRAPHICS_ARC_QUADRANT_TOP_LEFT,
-            &Fill,
-            HasStroke,
-            HasStroke != FALSE ? Context->Pen->Color : 0) == FALSE) {
+    if (GraphicsRenderArc(Context, X1 + Radius, Y1 + Radius, Radius, GRAPHICS_ARC_QUADRANT_TOP_LEFT, &Fill, FALSE, 0) == FALSE) {
         return FALSE;
     }
-    if (GraphicsRenderArc(
-            Context,
-            X2 - Radius,
-            Y1 + Radius,
-            Radius,
-            GRAPHICS_ARC_QUADRANT_TOP_RIGHT,
-            &Fill,
-            HasStroke,
-            HasStroke != FALSE ? Context->Pen->Color : 0) == FALSE) {
+    if (GraphicsRenderArc(Context, X2 - Radius, Y1 + Radius, Radius, GRAPHICS_ARC_QUADRANT_TOP_RIGHT, &Fill, FALSE, 0) == FALSE) {
         return FALSE;
     }
-    if (GraphicsRenderArc(
-            Context,
-            X2 - Radius,
-            Y2 - Radius,
-            Radius,
-            GRAPHICS_ARC_QUADRANT_BOTTOM_RIGHT,
-            &Fill,
-            HasStroke,
-            HasStroke != FALSE ? Context->Pen->Color : 0) == FALSE) {
+    if (GraphicsRenderArc(Context, X2 - Radius, Y2 - Radius, Radius, GRAPHICS_ARC_QUADRANT_BOTTOM_RIGHT, &Fill, FALSE, 0) == FALSE) {
         return FALSE;
     }
-    if (GraphicsRenderArc(
-            Context,
-            X1 + Radius,
-            Y2 - Radius,
-            Radius,
-            GRAPHICS_ARC_QUADRANT_BOTTOM_LEFT,
-            &Fill,
-            HasStroke,
-            HasStroke != FALSE ? Context->Pen->Color : 0) == FALSE) {
+    if (GraphicsRenderArc(Context, X1 + Radius, Y2 - Radius, Radius, GRAPHICS_ARC_QUADRANT_BOTTOM_LEFT, &Fill, FALSE, 0) == FALSE) {
         return FALSE;
     }
 
     if (HasStroke != FALSE) {
-        if (GraphicsDrawScanline(Context, X1 + Radius, X2 - Radius, Y1, Context->Pen->Color, Context->Pen->Color) == FALSE) return FALSE;
-        if (GraphicsDrawScanline(Context, X1 + Radius, X2 - Radius, Y2, Context->Pen->Color, Context->Pen->Color) == FALSE) return FALSE;
-        if (GraphicsFillSolidRect(Context, X1, Y1 + Radius, X1, Y2 - Radius, Context->Pen->Color) == FALSE) return FALSE;
-        if (GraphicsFillSolidRect(Context, X2, Y1 + Radius, X2, Y2 - Radius, Context->Pen->Color) == FALSE) return FALSE;
+        for (Offset = 0; Offset < StrokeWidth; Offset++) {
+            I32 StrokeX1 = X1 + (I32)Offset;
+            I32 StrokeY1 = Y1 + (I32)Offset;
+            I32 StrokeX2 = X2 - (I32)Offset;
+            I32 StrokeY2 = Y2 - (I32)Offset;
+            I32 StrokeRadius = Radius - (I32)Offset;
+
+            if (StrokeRadius < 0) StrokeRadius = 0;
+            if (GraphicsStrokeRoundedRectangleInset(Context, StrokeX1, StrokeY1, StrokeX2, StrokeY2, StrokeRadius, Context->Pen->Color) == FALSE) {
+                return FALSE;
+            }
+        }
     }
 
     return TRUE;

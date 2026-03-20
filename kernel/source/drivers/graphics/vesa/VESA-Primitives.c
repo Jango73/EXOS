@@ -30,6 +30,7 @@
 #include "Profile.h"
 #include "drivers/graphics/vesa/VESA.h"
 #include "utils/Graphics-Utils.h"
+#include "utils/LineRasterizer.h"
 
 /************************************************************************/
 
@@ -124,6 +125,8 @@ struct tag_VESA_CONTEXT {
     U32 FrameBufferSize;
     BOOL LinearFrameBufferEnabled;
 };
+
+static BOOL VESAPlotLinePixel(LPVOID Context, I32 X, I32 Y, COLOR* Color);
 
 COLOR SetPixel8(LPVESA_CONTEXT Context, I32 X, I32 Y, COLOR Color) {
     U32 Offset;
@@ -373,97 +376,28 @@ COLOR GetPixel24(LPVESA_CONTEXT Context, I32 X, I32 Y) {
  * @return Always 0
  */
 U32 Line8(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
-    UNUSED(Context);
-    UNUSED(X1);
-    UNUSED(Y1);
-    UNUSED(X2);
-    UNUSED(Y2);
-    /*
-      word d, dx, dy, ai, bi, xi, yi;
-      word line_bit = 0;
-      word x1 = Context.CurrentX;
-      word y1 = Context.CurrentY;
-      word x2 = x;
-      word y2 = y;
-
-      if (x1 < x2) { xi = 1; dx = x2 - x1; } else { xi = -1; dx = x1 - x2; }
-      if (y1 < y2) { yi = 1; dy = y2 - y1; } else { yi = -1; dy = y1 - y2; }
-
-      if (Context->DrawStyle != 0xFFFF)
-      {
-    if ((Context->DrawStyle >> line_bit) & 1) setpix1(x1, y1);
-    line_bit++;
-
-    if (dx > dy)
-    {
-      ai = (dy - dx) * 2;
-      bi = dy * 2;
-      d  = bi - dx;
-      while (x1 != x2)
-      {
-        if (d >= 0)
-        {
-          y1 += yi;
-          d += ai;
-        }
-        else
-        {
-          d += bi;
-        }
-        x1 += xi;
-        if ((Context->DrawStyle >> line_bit) & 1) setpix1(x1, y1);
-        line_bit++;
-        if (line_bit > 15) line_bit = 0;
-      }
-    }
-    else
-    {
-      ai = (dx - dy) * 2;
-      bi = dx * 2;
-      d  = bi - dy;
-      while (y1 != y2)
-      {
-        if (d >= 0)
-        {
-          x1 += xi;
-          d  += ai;
-        }
-        else
-        {
-          d += bi;
-        }
-        y1 += yi;
-        if ((Context->DrawStyle >> line_bit) & 1) setpix1(x1, y1);
-        line_bit++;
-        if (line_bit > 15) line_bit = 0;
-      }
-    }
-      }
-      else
-      {
-    setpix1(x1, y1);
-    if (dx>dy)
-    {
-      ai=(dy-dx)*2; bi=dy*2; d=bi-dx;
-      while (x1!=x2)
-      {
-        if (d>=0) { y1+=yi; d+=ai; } else { d+=bi; }
-        x1+=xi; setpix1(x1, y1);
-      }
-    }
-    else
-    {
-      ai=(dx-dy)*2; bi=dx*2; d=bi-dy;
-      while (y1!=y2)
-      {
-        if (d>=0) { x1+=xi; d+=ai; } else { d+=bi; }
-        y1+=yi; setpix1(x1, y1);
-      }
-    }
-      }
-    */
-
+    if (Context == NULL || Context->Header.Pen == NULL || Context->Header.Pen->TypeID != KOID_PEN) return MAX_U32;
+    LineRasterizerDraw(
+        Context,
+        X1,
+        Y1,
+        X2,
+        Y2,
+        Context->Header.Pen->Color,
+        Context->Header.Pen->Pattern,
+        Context->Header.Pen->Width != 0 ? Context->Header.Pen->Width : 1,
+        VESAPlotLinePixel);
     return 0;
+}
+
+/***************************************************************************/
+
+static BOOL VESAPlotLinePixel(LPVOID Context, I32 X, I32 Y, COLOR* Color) {
+    LPVESA_CONTEXT VesaContext = (LPVESA_CONTEXT)Context;
+
+    if (VesaContext == NULL || Color == NULL) return FALSE;
+    VesaContext->ModeSpecs.SetPixel(VesaContext, X, Y, *Color);
+    return TRUE;
 }
 
 /***************************************************************************/
@@ -479,75 +413,17 @@ U32 Line8(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
  * @return 0 on success, MAX_U32 on invalid pen
  */
 U32 Line16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
-    I32 d, dx, dy, ai, bi, xi, yi;
-    U32 LineBit = 0;
-    U32 Pattern;
-    COLOR Color;
-
-    if (Context->Header.Pen == NULL) return MAX_U32;
-    if (Context->Header.Pen->TypeID != KOID_PEN) return MAX_U32;
-
-    Color = Context->Header.Pen->Color;
-    Pattern = Context->Header.Pen->Pattern;
-
-    if (X1 < X2) {
-        xi = 1;
-        dx = X2 - X1;
-    } else {
-        xi = -1;
-        dx = X1 - X2;
-    }
-    if (Y1 < Y2) {
-        yi = 1;
-        dy = Y2 - Y1;
-    } else {
-        yi = -1;
-        dy = Y1 - Y2;
-    }
-
-    if ((Pattern >> LineBit) & 1) {
-        Context->ModeSpecs.SetPixel(Context, X1, Y1, Color);
-    }
-    LineBit++;
-
-    if (dx > dy) {
-        ai = (dy - dx) * 2;
-        bi = dy * 2;
-        d = bi - dx;
-        while (X1 != X2) {
-            if (d >= 0) {
-                Y1 += yi;
-                d += ai;
-            } else {
-                d += bi;
-            }
-            X1 += xi;
-            if ((Pattern >> LineBit) & 1) {
-                Context->ModeSpecs.SetPixel(Context, X1, Y1, Color);
-            }
-            LineBit++;
-            if (LineBit > 31) LineBit = 0;
-        }
-    } else {
-        ai = (dx - dy) * 2;
-        bi = dx * 2;
-        d = bi - dy;
-        while (Y1 != Y2) {
-            if (d >= 0) {
-                X1 += xi;
-                d += ai;
-            } else {
-                d += bi;
-            }
-            Y1 += yi;
-            if ((Pattern >> LineBit) & 1) {
-                Context->ModeSpecs.SetPixel(Context, X1, Y1, Color);
-            }
-            LineBit++;
-            if (LineBit > 31) LineBit = 0;
-        }
-    }
-
+    if (Context == NULL || Context->Header.Pen == NULL || Context->Header.Pen->TypeID != KOID_PEN) return MAX_U32;
+    LineRasterizerDraw(
+        Context,
+        X1,
+        Y1,
+        X2,
+        Y2,
+        Context->Header.Pen->Color,
+        Context->Header.Pen->Pattern,
+        Context->Header.Pen->Width != 0 ? Context->Header.Pen->Width : 1,
+        VESAPlotLinePixel);
     return 0;
 }
 
@@ -564,80 +440,17 @@ U32 Line16(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
  * @return 0 on success, MAX_U32 on invalid pen
  */
 U32 Line24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
-    I32 d, dx, dy, ai, bi, xi, yi;
-    U32 LineBit = 0;
-    U32 Pattern;
-    COLOR Color;
-
-    if (Context->Header.Pen == NULL) return MAX_U32;
-    if (Context->Header.Pen->TypeID != KOID_PEN) return MAX_U32;
-
-    Color = Context->Header.Pen->Color;
-    Pattern = Context->Header.Pen->Pattern;
-
-    Color = 0;
-    Color |= (((Context->Header.Pen->Color >> 0) & 0xFF) << 16);
-    Color |= (((Context->Header.Pen->Color >> 8) & 0xFF) << 8);
-    Color |= (((Context->Header.Pen->Color >> 16) & 0xFF) << 0);
-
-    if (X1 < X2) {
-        xi = 1;
-        dx = X2 - X1;
-    } else {
-        xi = -1;
-        dx = X1 - X2;
-    }
-    if (Y1 < Y2) {
-        yi = 1;
-        dy = Y2 - Y1;
-    } else {
-        yi = -1;
-        dy = Y1 - Y2;
-    }
-
-    if ((Pattern >> LineBit) & 1) {
-        Context->ModeSpecs.SetPixel(Context, X1, Y1, Color);
-    }
-    LineBit++;
-
-    if (dx > dy) {
-        ai = (dy - dx) * 2;
-        bi = dy * 2;
-        d = bi - dx;
-        while (X1 != X2) {
-            if (d >= 0) {
-                Y1 += yi;
-                d += ai;
-            } else {
-                d += bi;
-            }
-            X1 += xi;
-            if ((Pattern >> LineBit) & 1) {
-                Context->ModeSpecs.SetPixel(Context, X1, Y1, Color);
-            }
-            LineBit++;
-            if (LineBit > 31) LineBit = 0;
-        }
-    } else {
-        ai = (dx - dy) * 2;
-        bi = dx * 2;
-        d = bi - dy;
-        while (Y1 != Y2) {
-            if (d >= 0) {
-                X1 += xi;
-                d += ai;
-            } else {
-                d += bi;
-            }
-            Y1 += yi;
-            if ((Pattern >> LineBit) & 1) {
-                Context->ModeSpecs.SetPixel(Context, X1, Y1, Color);
-            }
-            LineBit++;
-            if (LineBit > 31) LineBit = 0;
-        }
-    }
-
+    if (Context == NULL || Context->Header.Pen == NULL || Context->Header.Pen->TypeID != KOID_PEN) return MAX_U32;
+    LineRasterizerDraw(
+        Context,
+        X1,
+        Y1,
+        X2,
+        Y2,
+        Context->Header.Pen->Color,
+        Context->Header.Pen->Pattern,
+        Context->Header.Pen->Width != 0 ? Context->Header.Pen->Width : 1,
+        VESAPlotLinePixel);
     return 0;
 }
 
@@ -880,66 +693,8 @@ U32 Rect24(LPVESA_CONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
 /***************************************************************************/
 
 U32 VESATrianglePrimitive(LPVESA_CONTEXT Context, LPTRIANGLE_INFO Info) {
-    I32 MinX;
-    I32 MaxX;
-    I32 MinY;
-    I32 MaxY;
-    I32 Area;
-    COLOR FillColor = 0;
-    BOOL HasFill = FALSE;
-    BOOL HasStroke = FALSE;
-    RECT FilledBounds;
-
     if (Context == NULL || Info == NULL) return 0;
-
-    HasFill = (Context->Header.Brush != NULL && Context->Header.Brush->TypeID == KOID_BRUSH);
-    HasStroke = (Context->Header.Pen != NULL && Context->Header.Pen->TypeID == KOID_PEN);
-    if (HasFill == FALSE && HasStroke == FALSE) return 1;
-
-    if (HasFill != FALSE) {
-        FillColor = Context->Header.Brush->Color;
-    }
-
-    MinX = Info->P1.X;
-    if (Info->P2.X < MinX) MinX = Info->P2.X;
-    if (Info->P3.X < MinX) MinX = Info->P3.X;
-    MaxX = Info->P1.X;
-    if (Info->P2.X > MaxX) MaxX = Info->P2.X;
-    if (Info->P3.X > MaxX) MaxX = Info->P3.X;
-
-    MinY = Info->P1.Y;
-    if (Info->P2.Y < MinY) MinY = Info->P2.Y;
-    if (Info->P3.Y < MinY) MinY = Info->P3.Y;
-    MaxY = Info->P1.Y;
-    if (Info->P2.Y > MaxY) MaxY = Info->P2.Y;
-    if (Info->P3.Y > MaxY) MaxY = Info->P3.Y;
-
-    if (MinX < Context->Header.LoClip.X) MinX = Context->Header.LoClip.X;
-    if (MinY < Context->Header.LoClip.Y) MinY = Context->Header.LoClip.Y;
-    if (MaxX > Context->Header.HiClip.X) MaxX = Context->Header.HiClip.X;
-    if (MaxY > Context->Header.HiClip.Y) MaxY = Context->Header.HiClip.Y;
-    if (MinX > MaxX || MinY > MaxY) return 1;
-
-    Area = GraphicsTriangleEdgeFunction(Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
-    if (Area == 0) {
-        if (HasStroke != FALSE) {
-            Context->ModeSpecs.Line(Context, Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y);
-            Context->ModeSpecs.Line(Context, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
-            Context->ModeSpecs.Line(Context, Info->P3.X, Info->P3.Y, Info->P1.X, Info->P1.Y);
-        }
-        return 1;
-    }
-
-    if (HasFill != FALSE) {
-        (void)GraphicsFillTriangleSpans((LPGRAPHICSCONTEXT)&(Context->Header), Info, FillColor, &FilledBounds);
-    }
-
-    if (HasStroke != FALSE) {
-        Context->ModeSpecs.Line(Context, Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y);
-        Context->ModeSpecs.Line(Context, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
-        Context->ModeSpecs.Line(Context, Info->P3.X, Info->P3.Y, Info->P1.X, Info->P1.Y);
-    }
-
+    (void)GraphicsDrawTriangleFromDescriptor((LPGRAPHICSCONTEXT)&(Context->Header), Info);
     return 1;
 }
 

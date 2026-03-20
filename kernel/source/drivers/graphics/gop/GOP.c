@@ -247,6 +247,7 @@ static void GOPGfxDrawLine(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I3
                        Y2,
                        Context->Pen->Color,
                        Context->Pen->Pattern,
+                       Context->Pen->Width != 0 ? Context->Pen->Width : 1,
                        GOPGfxPlotLinePixel);
 }
 
@@ -620,10 +621,6 @@ static UINT GOPGfxArc(LPARC_INFO Info) {
  */
 static UINT GOPGfxTriangle(LPTRIANGLE_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
-    I32 Area = 0;
-    COLOR FillColor = 0;
-    BOOL HasFill = FALSE;
-    BOOL HasStroke = FALSE;
 
     if (Info == NULL) {
         return 0;
@@ -635,23 +632,7 @@ static UINT GOPGfxTriangle(LPTRIANGLE_INFO Info) {
     }
 
     LockMutex(&(Context->Mutex), INFINITY);
-
-    HasFill = (Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH);
-    HasStroke = (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN);
-    if (HasFill != FALSE) {
-        FillColor = Context->Brush->Color;
-    }
-
-    Area = GraphicsTriangleEdgeFunction(Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
-    if (Area != 0 && HasFill != FALSE) {
-        (void)GraphicsFillTriangleSpans(Context, Info, FillColor, NULL);
-    }
-
-    if (HasStroke != FALSE) {
-        GOPGfxDrawLine(Context, Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y);
-        GOPGfxDrawLine(Context, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
-        GOPGfxDrawLine(Context, Info->P3.X, Info->P3.Y, Info->P1.X, Info->P1.Y);
-    }
+    (void)GraphicsDrawTriangleFromDescriptor(Context, Info);
 
     UnlockMutex(&(Context->Mutex));
     return 1;

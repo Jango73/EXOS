@@ -1080,6 +1080,7 @@ HANDLE CreatePen(LPPEN_INFO PenInfo) {
     Pen->References = 1;
     Pen->Color = PenInfo->Color;
     Pen->Pattern = PenInfo->Pattern;
+    Pen->Width = PenInfo->Width != 0 ? PenInfo->Width : 1;
 
     return (HANDLE)Pen;
 }

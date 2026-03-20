@@ -36,7 +36,7 @@ typedef BOOL (*LINE_RASTERIZER_PLOT_CALLBACK)(LPVOID Context, I32 X, I32 Y, COLO
 /************************************************************************/
 // External functions
 
-void LineRasterizerDraw(LPVOID Context, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color, U32 Pattern,
+void LineRasterizerDraw(LPVOID Context, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color, U32 Pattern, U32 Width,
                         LINE_RASTERIZER_PLOT_CALLBACK PlotCallback);
 
 /************************************************************************/

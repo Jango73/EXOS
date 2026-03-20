@@ -922,6 +922,8 @@ VESA drawing primitives include line, rectangle, arc, and triangle command paths
 
 Rectangle, triangle, and arc rasterization share the generic scanline helpers in `kernel/source/utils/Graphics-Utils.c`. Solid fills, vertical gradients, horizontal gradients, filled arcs, and rounded-corner rectangles all converge on the same scanline entry so shape composition stays backend-agnostic. The low-level contiguous pixel write path is provided by the architecture `GraphicsDrawScanlineAsm` helper in `kernel/source/arch/x86-32/asm/System.asm` and `kernel/source/arch/x86-64/asm/System.asm`.
 
+`PEN_INFO` and `PEN` carry `Width` in addition to color and pattern. `LINE` applies the selected pen width through the shared line rasterizer. Closed shapes apply the selected pen width inward from the outer contour, so rectangle, arc, and triangle outlines stay inside the requested geometry.
+
 `kernel/source/drivers/graphics/vga/VGA-Main.c` exposes a dedicated VGA text driver (`alias: vga`) that implements mode enumeration and text mode selection through the same `DF_GFX_*` contract.
 
 Display-class PCI attach logic is implemented in `kernel/source/drivers/graphics/common/Graphics-PCI.c`. The PCI bus layer registers this graphics-provided attach driver during PCI initialization so generic display controllers appear in the PCI device list.

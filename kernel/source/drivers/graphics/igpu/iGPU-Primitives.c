@@ -74,6 +74,7 @@ static void IntelGfxDrawLineInternal(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, 
                        Y2,
                        Context->Pen->Color,
                        Context->Pen->Pattern,
+                       Context->Pen->Width != 0 ? Context->Pen->Width : 1,
                        IntelGfxPlotLinePixel);
 }
 
@@ -303,12 +304,7 @@ UINT IntelGfxTriangle(LPTRIANGLE_INFO Info) {
     I32 MaxX = 0;
     I32 MinY = 0;
     I32 MaxY = 0;
-    I32 Area = 0;
-    COLOR FillColor = 0;
-    BOOL HasFill = FALSE;
-    BOOL HasStroke = FALSE;
     RECT Bounds = {0};
-    RECT FilledBounds = {0};
 
     if (Info == NULL) {
         return 0;
@@ -320,17 +316,6 @@ UINT IntelGfxTriangle(LPTRIANGLE_INFO Info) {
     }
 
     LockMutex(&(Context->Mutex), INFINITY);
-    HasFill = (Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH);
-    HasStroke = (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN);
-    if (HasFill == FALSE && HasStroke == FALSE) {
-        UnlockMutex(&(Context->Mutex));
-        return 1;
-    }
-
-    if (HasFill != FALSE) {
-        FillColor = Context->Brush->Color;
-    }
-
     MinX = Info->P1.X;
     if (Info->P2.X < MinX) MinX = Info->P2.X;
     if (Info->P3.X < MinX) MinX = Info->P3.X;
@@ -345,24 +330,7 @@ UINT IntelGfxTriangle(LPTRIANGLE_INFO Info) {
     if (Info->P2.Y > MaxY) MaxY = Info->P2.Y;
     if (Info->P3.Y > MaxY) MaxY = Info->P3.Y;
 
-    Area = GraphicsTriangleEdgeFunction(Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
-    if (Area == 0) {
-        if (HasStroke != FALSE) {
-            IntelGfxDrawLineInternal(Context, Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y);
-            IntelGfxDrawLineInternal(Context, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
-            IntelGfxDrawLineInternal(Context, Info->P3.X, Info->P3.Y, Info->P1.X, Info->P1.Y);
-        }
-    } else {
-        if (HasFill != FALSE) {
-            (void)GraphicsFillTriangleSpans(Context, Info, FillColor, &FilledBounds);
-        }
-
-        if (HasStroke != FALSE) {
-            IntelGfxDrawLineInternal(Context, Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y);
-            IntelGfxDrawLineInternal(Context, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
-            IntelGfxDrawLineInternal(Context, Info->P3.X, Info->P3.Y, Info->P1.X, Info->P1.Y);
-        }
-    }
+    (void)GraphicsDrawTriangleFromDescriptor(Context, Info);
 
     if (IntelGfxNormalizeFlushBounds(Context, MinX, MinY, MaxX, MaxY, &Bounds)) {
         IntelGfxFlushBoundsToScanout(Context, &Bounds);

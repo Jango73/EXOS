@@ -645,10 +645,11 @@ static LPPEN VESA_CreatePen(LPPEN_INFO Info) {
 
     MemorySet(Pen, 0, sizeof(PEN));
 
-    Pen->TypeID = KOID_BRUSH;
+    Pen->TypeID = KOID_PEN;
     Pen->References = 1;
     Pen->Color = Info->Color;
     Pen->Pattern = Info->Pattern;
+    Pen->Width = Info->Width != 0 ? Info->Width : 1;
 
     return Pen;
 }

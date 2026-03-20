@@ -173,7 +173,6 @@ static BOOL ResolveWindowBorderThickness(U32* ThicknessOut) {
  * @param Rect Target window rectangle in window coordinates.
  */
 static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
-    U32 BorderThickness = 2;
     U32 TitleHeight = 22;
     COLOR BorderColor = 0;
     LINE_INFO LineInfo;
@@ -184,11 +183,9 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
     I32 MaxThickness;
     I32 Thickness;
     I32 BorderTopY;
-    I32 Offset;
 
     if (GC == NULL || Rect == NULL) return;
 
-    (void)ResolveWindowBorderThickness(&BorderThickness);
     (void)ResolveWindowTitleBarHeight(&TitleHeight);
 
     if (!DesktopThemeResolveLevel1Color(TEXT("window.border"), TEXT("normal"), TEXT("border_color"), &BorderColor)) {
@@ -206,7 +203,7 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
     MaxThickness /= 2;
     if (MaxThickness <= 0) return;
 
-    Thickness = (I32)BorderThickness;
+    Thickness = 3;
     if (Thickness <= 0) return;
     if (Thickness > MaxThickness) Thickness = MaxThickness;
     BorderTopY = Rect->Y1 + (I32)TitleHeight;
@@ -218,6 +215,7 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
     Pen.References = 1;
     Pen.Color = BorderColor;
     Pen.Pattern = MAX_U32;
+    Pen.Width = (U32)Thickness;
 
     LineInfo.Header.Size = sizeof(LineInfo);
     LineInfo.Header.Version = EXOS_ABI_VERSION;
@@ -226,32 +224,23 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
 
     OldPen = SelectPen(GC, (HANDLE)&Pen);
 
-    // Bottom border lines
-    for (Offset = 0; Offset < Thickness; Offset++) {
-        LineInfo.X1 = Rect->X1;
-        LineInfo.Y1 = Rect->Y2 - Offset;
-        LineInfo.X2 = Rect->X2;
-        LineInfo.Y2 = Rect->Y2 - Offset;
-        (void)Line(&LineInfo);
-    }
+    LineInfo.X1 = Rect->X1 + ((Thickness - 1) / 2);
+    LineInfo.Y1 = BorderTopY;
+    LineInfo.X2 = Rect->X1 + ((Thickness - 1) / 2);
+    LineInfo.Y2 = Rect->Y2 - (Thickness / 2);
+    if (LineInfo.Y1 <= LineInfo.Y2) (void)Line(&LineInfo);
 
-    // Left border lines
-    for (Offset = 0; Offset < Thickness; Offset++) {
-        LineInfo.X1 = Rect->X1 + Offset;
-        LineInfo.Y1 = BorderTopY;
-        LineInfo.X2 = Rect->X1 + Offset;
-        LineInfo.Y2 = Rect->Y2 - Thickness;
-        if (LineInfo.Y1 <= LineInfo.Y2) (void)Line(&LineInfo);
-    }
+    LineInfo.X1 = Rect->X2 - (Thickness / 2);
+    LineInfo.Y1 = BorderTopY;
+    LineInfo.X2 = Rect->X2 - (Thickness / 2);
+    LineInfo.Y2 = Rect->Y2 - (Thickness / 2);
+    if (LineInfo.Y1 <= LineInfo.Y2) (void)Line(&LineInfo);
 
-    // Right border lines
-    for (Offset = 0; Offset < Thickness; Offset++) {
-        LineInfo.X1 = Rect->X2 - Offset;
-        LineInfo.Y1 = BorderTopY;
-        LineInfo.X2 = Rect->X2 - Offset;
-        LineInfo.Y2 = Rect->Y2 - Thickness;
-        if (LineInfo.Y1 <= LineInfo.Y2) (void)Line(&LineInfo);
-    }
+    LineInfo.X1 = Rect->X1 + ((Thickness - 1) / 2);
+    LineInfo.Y1 = Rect->Y2 - (Thickness / 2);
+    LineInfo.X2 = Rect->X2 - (Thickness / 2);
+    LineInfo.Y2 = Rect->Y2 - (Thickness / 2);
+    if (LineInfo.X1 <= LineInfo.X2) (void)Line(&LineInfo);
 
     (void)SelectPen(GC, OldPen);
 }

@@ -131,6 +131,7 @@ typedef struct tag_PEN {
     LISTNODE_FIELDS
     U32 Color;
     U32 Pattern;
+    U32 Width;
 } PEN, *LPPEN;
 
 /***************************************************************************/

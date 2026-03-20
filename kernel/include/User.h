@@ -565,6 +565,7 @@ typedef struct PACKED tag_PEN_INFO {
     ABI_HEADER Header;
     COLOR Color;
     U32 Pattern;
+    U32 Width;
     U32 Flags;
 } PEN_INFO, *LPPEN_INFO;
 

@@ -35,15 +35,22 @@
  * @param Y2 End Y.
  * @param Color Source color.
  * @param Pattern Optional 32-bit dash pattern, 0 means solid.
+ * @param Width Pen width in pixels. Zero is treated as one pixel.
  * @param PlotCallback Pixel plot callback.
  */
-void LineRasterizerDraw(LPVOID Context, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color, U32 Pattern,
+void LineRasterizerDraw(LPVOID Context, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color, U32 Pattern, U32 Width,
                         LINE_RASTERIZER_PLOT_CALLBACK PlotCallback) {
     I32 Dx;
     I32 Sx;
     I32 Dy;
     I32 Sy;
     I32 Error;
+    I32 RadiusLeft;
+    I32 RadiusRight;
+    I32 RadiusTop;
+    I32 RadiusBottom;
+    I32 PlotX;
+    I32 PlotY;
     U32 PatternBit;
 
     if (PlotCallback == NULL) {
@@ -53,6 +60,14 @@ void LineRasterizerDraw(LPVOID Context, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Co
     if (Pattern == 0) {
         Pattern = MAX_U32;
     }
+    if (Width == 0) {
+        Width = 1;
+    }
+
+    RadiusLeft = (I32)((Width - 1) / 2);
+    RadiusRight = (I32)(Width / 2);
+    RadiusTop = RadiusLeft;
+    RadiusBottom = RadiusRight;
 
     Dx = (X2 >= X1) ? (X2 - X1) : (X1 - X2);
     Sx = X1 < X2 ? 1 : -1;
@@ -63,8 +78,12 @@ void LineRasterizerDraw(LPVOID Context, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Co
 
     FOREVER {
         if (((Pattern >> (PatternBit & 31)) & 1) != 0) {
-            COLOR PixelColor = Color;
-            (void)PlotCallback(Context, X1, Y1, &PixelColor);
+            for (PlotY = Y1 - RadiusTop; PlotY <= Y1 + RadiusBottom; PlotY++) {
+                for (PlotX = X1 - RadiusLeft; PlotX <= X1 + RadiusRight; PlotX++) {
+                    COLOR PixelColor = Color;
+                    (void)PlotCallback(Context, PlotX, PlotY, &PixelColor);
+                }
+            }
         }
         PatternBit++;
 
