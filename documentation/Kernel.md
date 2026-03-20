@@ -2098,6 +2098,8 @@ The desktop layer routes mouse and keyboard events to the focused window and tra
 
 Client invalidation and full-window invalidation are separate APIs. `InvalidateClientRect(Window, Rect)` interprets `Rect` in client coordinates and maps `NULL` to the full client area. `InvalidateWindowRect(Window, Rect)` remains the lower-level full-window API in window coordinates and maps `NULL` to the full window surface, including non-client chrome. When one parent window moves, the desktop refreshes descendant screen rectangles and invalidates descendant full surfaces so child windows follow the parent visually.
 
+Window visibility distinguishes requested visibility from effective visibility. `EWS_VISIBLE` stores the window local visibility request. `WINDOW_STATUS_VISIBLE` stores effective visibility after combining that request with ancestor effective visibility. Hiding one parent clears effective visibility for the whole subtree without destroying descendant requested visibility, and showing the parent restores effective visibility only for descendants that still request visibility.
+
 Per-window timers are asynchronous. `SetWindowTimer`, `KillWindowTimer`, and `EWM_TIMER` let one window request periodic redraw or state updates without blocking the desktop pipeline.
 
 ### Theme architecture

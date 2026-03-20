@@ -142,6 +142,7 @@ static void DesktopVisibleRegionSubtractVisibleWindowTree(LPWINDOW Window, LPREC
 
     if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return;
     IsVisible = ((Snapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
+    if (IsVisible == FALSE) return;
     WindowRect = Snapshot.ScreenRect;
     (void)DesktopSnapshotWindowChildren(Window, &Children, &ChildCount);
 
@@ -155,10 +156,8 @@ static void DesktopVisibleRegionSubtractVisibleWindowTree(LPWINDOW Window, LPREC
         KernelHeapFree(Children);
     }
 
-    if (IsVisible != FALSE) {
-        if ((Snapshot.Status & WINDOW_STATUS_CONTENT_TRANSPARENT) == 0) {
-            (void)DesktopVisibleRegionSubtractOccluder(Region, &WindowRect, Capacity);
-        }
+    if ((Snapshot.Status & WINDOW_STATUS_CONTENT_TRANSPARENT) == 0) {
+        (void)DesktopVisibleRegionSubtractOccluder(Region, &WindowRect, Capacity);
     }
 }
 

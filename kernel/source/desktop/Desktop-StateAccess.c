@@ -29,6 +29,51 @@
 /***************************************************************************/
 
 /**
+ * @brief Refresh one subtree effective visibility from one ancestor visibility.
+ * @param Window Subtree root.
+ * @param AncestorVisible TRUE when all ancestors are effectively visible.
+ * @return TRUE on success.
+ */
+static BOOL DesktopRefreshWindowEffectiveVisibilityTreeInternal(LPWINDOW Window, BOOL AncestorVisible) {
+    LPWINDOW* Children;
+    LPWINDOW ChildWindow;
+    UINT ChildCount;
+    UINT ChildIndex;
+    BOOL RequestedVisible;
+    BOOL EffectiveVisible;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    RequestedVisible = ((Window->Style & EWS_VISIBLE) != 0);
+    EffectiveVisible = (AncestorVisible != FALSE && RequestedVisible != FALSE);
+    if (EffectiveVisible != FALSE) {
+        Window->Status |= WINDOW_STATUS_VISIBLE;
+    } else {
+        Window->Status &= ~WINDOW_STATUS_VISIBLE;
+    }
+    UnlockMutex(&(Window->Mutex));
+
+    Children = NULL;
+    ChildCount = 0;
+    if (DesktopSnapshotWindowChildren(Window, &Children, &ChildCount) == FALSE) return FALSE;
+
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        ChildWindow = Children[ChildIndex];
+        if (ChildWindow == NULL || ChildWindow->TypeID != KOID_WINDOW) continue;
+        (void)DesktopRefreshWindowEffectiveVisibilityTreeInternal(ChildWindow, EffectiveVisible);
+    }
+
+    if (Children != NULL) {
+        KernelHeapFree(Children);
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Recalculate one parent child order list from sibling z-order styles.
  * @param Parent Parent window, already locked.
  */
@@ -408,14 +453,35 @@ BOOL DesktopSetWindowVisibleState(LPWINDOW Window, BOOL ShowHide) {
     LockMutex(&(Window->Mutex), INFINITY);
     if (ShowHide != FALSE) {
         Window->Style |= EWS_VISIBLE;
-        Window->Status |= WINDOW_STATUS_VISIBLE;
     } else {
         Window->Style &= ~EWS_VISIBLE;
-        Window->Status &= ~WINDOW_STATUS_VISIBLE;
     }
     UnlockMutex(&(Window->Mutex));
 
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Refresh one window subtree effective visibility from style and ancestry.
+ * @param Window Subtree root.
+ * @return TRUE on success.
+ */
+BOOL DesktopRefreshWindowEffectiveVisibilityTree(LPWINDOW Window) {
+    WINDOW_STATE_SNAPSHOT Snapshot;
+    WINDOW_STATE_SNAPSHOT ParentSnapshot;
+    BOOL AncestorVisible = TRUE;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return FALSE;
+
+    if (Snapshot.ParentWindow != NULL && Snapshot.ParentWindow->TypeID == KOID_WINDOW) {
+        if (GetWindowStateSnapshot(Snapshot.ParentWindow, &ParentSnapshot) == FALSE) return FALSE;
+        AncestorVisible = ((ParentSnapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
+    }
+
+    return DesktopRefreshWindowEffectiveVisibilityTreeInternal(Window, AncestorVisible);
 }
 
 /***************************************************************************/

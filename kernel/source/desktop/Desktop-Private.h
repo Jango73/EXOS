@@ -130,6 +130,7 @@ BOOL DesktopAttachWindowChild(LPWINDOW Parent, LPWINDOW Child);
 BOOL DesktopDetachWindowChild(LPWINDOW Parent, LPWINDOW Child);
 BOOL DesktopSetWindowTask(LPWINDOW Window, LPTASK Task);
 BOOL DesktopSetWindowVisibleState(LPWINDOW Window, BOOL ShowHide);
+BOOL DesktopRefreshWindowEffectiveVisibilityTree(LPWINDOW Window);
 BOOL DesktopSetWindowStyleState(LPWINDOW Window, U32 StyleMask, BOOL Enabled);
 BOOL DesktopSetWindowContentTransparencyHint(LPWINDOW Window, U32 Hint);
 BOOL DesktopSetWindowResolvedTransparencyState(LPWINDOW Window, BOOL Enabled);

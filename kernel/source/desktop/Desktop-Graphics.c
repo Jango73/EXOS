@@ -142,6 +142,50 @@ static void InvalidateSiblingWindowsOnUncoveredRect(LPWINDOW Window, LPWINDOW Pa
 /***************************************************************************/
 
 /**
+ * @brief Apply effective visibility recomputation and redraw side effects for one subtree root.
+ * @param Window Window whose subtree visibility changed.
+ * @param PreviousScreenRect Root screen rectangle before the visibility change.
+ * @param WasVisible Previous effective visibility of the root window.
+ */
+static void DesktopHandleWindowEffectiveVisibilityChange(
+    LPWINDOW Window,
+    LPRECT PreviousScreenRect,
+    BOOL WasVisible) {
+    LPDESKTOP Desktop;
+    LPWINDOW RootWindow;
+    RECT CurrentScreenRect;
+    BOOL IsVisible;
+    WINDOW_STATE_SNAPSHOT Snapshot;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
+    if (PreviousScreenRect == NULL) return;
+    if (DesktopRefreshWindowEffectiveVisibilityTree(Window) == FALSE) return;
+    if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return;
+
+    CurrentScreenRect = Snapshot.ScreenRect;
+    IsVisible = ((Snapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
+
+    if (IsVisible != FALSE && WasVisible == FALSE) {
+        DesktopOverlayInvalidateWindowTreeRect(Window, &CurrentScreenRect, FALSE);
+        return;
+    }
+
+    if (IsVisible == FALSE && WasVisible != FALSE) {
+        Desktop = DesktopGetWindowDesktop(Window);
+        if (Desktop != NULL && DesktopGetRootWindow(Desktop, &RootWindow) != FALSE && RootWindow != NULL) {
+            DesktopOverlayInvalidateWindowTreeThenRootRect(RootWindow, PreviousScreenRect);
+        }
+        return;
+    }
+
+    if (IsVisible != FALSE) {
+        (void)RequestWindowDraw((HANDLE)Window);
+    }
+}
+
+/***************************************************************************/
+
+/**
  * @brief Set whether one window bypasses its parent work rectangle clamp.
  * @param Window Target window.
  * @param Enabled TRUE to bypass parent work rect clamping.
@@ -421,14 +465,7 @@ static BOOL ResolveSystemDrawObjects(U32 Index, LPBRUSH* Brush, LPPEN* Pen) {
  */
 BOOL DesktopSetWindowVisibility(HANDLE Handle, BOOL ShowHide) {
     LPWINDOW This = (LPWINDOW)Handle;
-    LPDESKTOP Desktop = NULL;
-    LPWINDOW* Children = NULL;
-    LPWINDOW Child;
-    LPWINDOW RootWindow = NULL;
-    RECT FullWindowRect;
     RECT PreviousScreenRect;
-    UINT ChildCount = 0;
-    UINT ChildIndex;
     BOOL WasVisible = FALSE;
     WINDOW_STATE_SNAPSHOT Snapshot;
 
@@ -447,39 +484,9 @@ BOOL DesktopSetWindowVisibility(HANDLE Handle, BOOL ShowHide) {
 
     (void)DesktopSetWindowVisibleState(This, ShowHide);
     (void)DesktopRevalidateSiblingPlacementConstraints(This);
+    DesktopHandleWindowEffectiveVisibilityChange(This, &PreviousScreenRect, WasVisible);
 
     PostMessage(Handle, EWM_SHOW, 0, 0);
-    if (ShowHide != FALSE && WasVisible == FALSE) {
-        if (GetWindowRect(Handle, &FullWindowRect) != FALSE) {
-            (void)InvalidateWindowRect(Handle, &FullWindowRect);
-        } else {
-            (void)RequestWindowDraw(Handle);
-        }
-    } else {
-        (void)RequestWindowDraw(Handle);
-    }
-
-    (void)DesktopSnapshotWindowChildren(This, &Children, &ChildCount);
-    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
-        WINDOW_STATE_SNAPSHOT ChildSnapshot;
-
-        Child = Children[ChildIndex];
-        if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
-        if (GetWindowStateSnapshot(Child, &ChildSnapshot) == FALSE) continue;
-        if ((ChildSnapshot.Style & EWS_VISIBLE) != 0) {
-            DesktopSetWindowVisibility((HANDLE)Child, ShowHide);
-        }
-    }
-    if (Children != NULL) {
-        KernelHeapFree(Children);
-    }
-
-    if (ShowHide == FALSE && WasVisible != FALSE) {
-        Desktop = DesktopGetWindowDesktop(This);
-        if (Desktop != NULL && DesktopGetRootWindow(Desktop, &RootWindow) != FALSE && RootWindow != NULL) {
-            DesktopOverlayInvalidateWindowTreeThenRootRect(RootWindow, &PreviousScreenRect);
-        }
-    }
 
     return TRUE;
 }
@@ -614,16 +621,26 @@ BOOL SizeWindow(HANDLE Handle, LPPOINT Size) {
  */
 BOOL SetWindowStyleState(HANDLE Handle, U32 StyleMask, BOOL Enabled) {
     LPWINDOW This = (LPWINDOW)Handle;
+    RECT PreviousScreenRect;
+    BOOL WasVisible;
     BOOL Result;
+    WINDOW_STATE_SNAPSHOT Snapshot;
 
     if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
     if (StyleMask == 0) return FALSE;
+    if (GetWindowStateSnapshot(This, &Snapshot) == FALSE) return FALSE;
+
+    PreviousScreenRect = Snapshot.ScreenRect;
+    WasVisible = ((Snapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
 
     Result = DesktopSetWindowStyleState(This, StyleMask, Enabled);
     if (Result == FALSE) return FALSE;
 
     if ((StyleMask & (EWS_EXCLUDE_SIBLING_PLACEMENT | EWS_VISIBLE)) != 0) {
         (void)DesktopRevalidateSiblingPlacementConstraints(This);
+    }
+    if ((StyleMask & EWS_VISIBLE) != 0) {
+        DesktopHandleWindowEffectiveVisibilityChange(This, &PreviousScreenRect, WasVisible);
     }
     if ((StyleMask & (EWS_ALWAYS_IN_FRONT | EWS_ALWAYS_AT_BOTTOM)) != 0) {
         (void)DesktopRefreshWindowZOrder(This);
@@ -1290,6 +1307,8 @@ HANDLE WindowHitTest(HANDLE Handle, LPPOINT Position) {
 
     if (This == NULL) return NULL;
     if (This->TypeID != KOID_WINDOW) return NULL;
+    if (GetWindowStateSnapshot(This, &Snapshot) == FALSE) goto Out;
+    if ((Snapshot.Status & WINDOW_STATUS_VISIBLE) == 0) goto Out;
 
     (void)DesktopSnapshotWindowChildren(This, &Children, &ChildCount);
     for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
@@ -1301,9 +1320,6 @@ HANDLE WindowHitTest(HANDLE Handle, LPPOINT Position) {
     // Test if this window passes hit test
 
     Target = NULL;
-
-    if (GetWindowStateSnapshot(This, &Snapshot) == FALSE) goto Out;
-    if ((Snapshot.Status & WINDOW_STATUS_VISIBLE) == 0) goto Out;
 
     if (Position->X >= Snapshot.ScreenRect.X1 && Position->X <= Snapshot.ScreenRect.X2 &&
         Position->Y >= Snapshot.ScreenRect.Y1 && Position->Y <= Snapshot.ScreenRect.Y2) {
