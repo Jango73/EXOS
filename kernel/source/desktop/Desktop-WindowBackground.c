@@ -257,9 +257,11 @@ static BOOL DrawLevel1WindowBackground(
     U32 BorderThickness = 0;
     U32 CornerStyle = RECT_CORNER_STYLE_SQUARE;
     U32 CornerRadiusMetric = 0;
+    U32 CornerRadiusLimitMetric = 0;
     I32 CornerRadius = 0;
     BOOL HasCornerStyle;
     BOOL HasCornerRadius;
+    BOOL HasCornerRadiusLimit;
     BOOL HasBackground;
     BOOL HasBorderColor;
     BOOL HasBorderThickness;
@@ -269,8 +271,12 @@ static BOOL DrawLevel1WindowBackground(
 
     HasCornerStyle = DesktopThemeResolveLevel1CornerStyle(ElementID, StateID, TEXT("corner_style"), &CornerStyle);
     HasCornerRadius = DesktopThemeResolveLevel1Metric(ElementID, StateID, TEXT("corner_radius"), &CornerRadiusMetric);
+    HasCornerRadiusLimit = DesktopThemeResolveLevel1Metric(ElementID, StateID, TEXT("corner_radius_limit"), &CornerRadiusLimitMetric);
     if (HasCornerRadius != FALSE) {
         CornerRadius = (I32)CornerRadiusMetric;
+        if (CornerRadius == RECT_CORNER_RADIUS_AUTO && HasCornerRadiusLimit != FALSE) {
+            CornerRadius = RECT_CORNER_RADIUS_AUTO_LIMIT((I32)CornerRadiusLimitMetric);
+        }
     }
 
     HasBackground = DesktopThemeResolveLevel1Color(ElementID, StateID, TEXT("background"), &BackgroundColor);

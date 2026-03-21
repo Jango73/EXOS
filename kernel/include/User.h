@@ -597,6 +597,7 @@ typedef struct PACKED tag_LINE_INFO {
 #define RECT_CORNER_STYLE_ROUNDED 0x00000001
 #define RECT_CORNER_STYLE_BEVEL 0x00000002
 #define RECT_CORNER_RADIUS_AUTO (-1)
+#define RECT_CORNER_RADIUS_AUTO_LIMIT(MaximumRadius) (-(1 + (MaximumRadius)))
 
 typedef struct PACKED tag_RECT_INFO {
     ABI_HEADER Header;

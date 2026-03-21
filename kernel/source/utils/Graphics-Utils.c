@@ -567,9 +567,16 @@ static U32 GraphicsResolveRoundedCornerRadius(LPRECT_INFO Info, I32 X1, I32 Y1, 
     Height = Y2 - Y1 + 1;
     if (Width <= 0 || Height <= 0) return 0;
 
-    if (Info->CornerRadius == RECT_CORNER_RADIUS_AUTO) {
+    if (Info->CornerRadius < 0) {
         Radius = Width < Height ? Width : Height;
         Radius /= 2;
+
+        if (Info->CornerRadius != RECT_CORNER_RADIUS_AUTO) {
+            I32 AutoRadiusLimit = -Info->CornerRadius - 1;
+
+            if (AutoRadiusLimit < 0) AutoRadiusLimit = 0;
+            if (Radius > AutoRadiusLimit) Radius = AutoRadiusLimit;
+        }
     } else {
         if (Info->CornerRadius <= 0) return 0;
         Radius = Info->CornerRadius;
