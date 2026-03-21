@@ -44,6 +44,12 @@ typedef struct tag_THEME_METRIC_TOKEN_ENTRY {
     U32 Value;
 } THEME_METRIC_TOKEN_ENTRY, *LPTHEME_METRIC_TOKEN_ENTRY;
 
+typedef struct tag_THEME_CORNER_STYLE_TOKEN_ENTRY {
+    U32 TokenID;
+    LPCSTR Name;
+    U32 Value;
+} THEME_CORNER_STYLE_TOKEN_ENTRY, *LPTHEME_CORNER_STYLE_TOKEN_ENTRY;
+
 typedef struct tag_SYSTEM_COLOR_BINDING {
     U32 SystemColor;
     U32 TokenID;
@@ -88,6 +94,13 @@ static const THEME_METRIC_TOKEN_ENTRY BuiltinMetricTokens[] = {
     {THEME_TOKEN_METRIC_MAXIMUM_WINDOW_WIDTH, TEXT("metric.window.maximum_width"), 4096},
     {THEME_TOKEN_METRIC_MAXIMUM_WINDOW_HEIGHT, TEXT("metric.window.maximum_height"), 2160},
     {THEME_TOKEN_METRIC_TITLE_BAR_HEIGHT, TEXT("metric.window.title_height"), 22},
+    {THEME_TOKEN_METRIC_CORNER_RADIUS_AUTO, TEXT("metric.corner_radius.auto"), (U32)RECT_CORNER_RADIUS_AUTO},
+};
+
+static const THEME_CORNER_STYLE_TOKEN_ENTRY BuiltinCornerStyleTokens[] = {
+    {THEME_TOKEN_CORNER_STYLE_SQUARE, TEXT("corner_style.square"), RECT_CORNER_STYLE_SQUARE},
+    {THEME_TOKEN_CORNER_STYLE_ROUNDED, TEXT("corner_style.rounded"), RECT_CORNER_STYLE_ROUNDED},
+    {THEME_TOKEN_CORNER_STYLE_BEVEL, TEXT("corner_style.bevel"), RECT_CORNER_STYLE_BEVEL},
 };
 
 static SYSTEM_COLOR_BINDING BuiltinSystemColorBindings[] = {
@@ -136,6 +149,25 @@ static BOOL ParseMetricLiteral(LPCSTR Value, U32* Metric) {
 
     *Metric = StringToU32(Value);
     return TRUE;
+}
+
+static BOOL ParseCornerStyleLiteral(LPCSTR Value, U32* CornerStyle) {
+    if (Value == NULL || CornerStyle == NULL) return FALSE;
+
+    if (StringCompareNC(Value, TEXT("square")) == 0) {
+        *CornerStyle = RECT_CORNER_STYLE_SQUARE;
+        return TRUE;
+    }
+    if (StringCompareNC(Value, TEXT("rounded")) == 0) {
+        *CornerStyle = RECT_CORNER_STYLE_ROUNDED;
+        return TRUE;
+    }
+    if (StringCompareNC(Value, TEXT("bevel")) == 0) {
+        *CornerStyle = RECT_CORNER_STYLE_BEVEL;
+        return TRUE;
+    }
+
+    return FALSE;
 }
 
 /***************************************************************************/
@@ -238,6 +270,21 @@ static BOOL ResolveBuiltinMetricTokenByName(LPCSTR TokenName, U32* Value) {
  * @param Depth Recursion depth.
  * @return TRUE on success.
  */
+static BOOL ResolveBuiltinCornerStyleTokenByName(LPCSTR TokenName, U32* Value) {
+    UINT Index;
+
+    if (TokenName == NULL || Value == NULL) return FALSE;
+
+    for (Index = 0; Index < (sizeof(BuiltinCornerStyleTokens) / sizeof(BuiltinCornerStyleTokens[0])); Index++) {
+        if (StringCompareNC(BuiltinCornerStyleTokens[Index].Name, TokenName) == 0) {
+            *Value = BuiltinCornerStyleTokens[Index].Value;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
 static BOOL ResolveRuntimeTokenColorRecursive(LPCSTR TokenName, COLOR* Color, U32 Depth) {
     LPCSTR Value = NULL;
 
@@ -297,6 +344,27 @@ static BOOL ResolveRuntimeTokenMetricRecursive(LPCSTR TokenName, U32* Metric, U3
  * @param TokenID Receives THEME_TOKEN_COLOR_* identifier.
  * @return TRUE when mapping exists.
  */
+static BOOL ResolveRuntimeTokenCornerStyleRecursive(LPCSTR TokenName, U32* CornerStyle, U32 Depth) {
+    LPCSTR Value = NULL;
+
+    if (TokenName == NULL || CornerStyle == NULL) return FALSE;
+    if (Depth > 8) return FALSE;
+
+    if (DesktopThemeLookupTokenValue(NULL, TokenName, &Value) == FALSE) {
+        return ResolveBuiltinCornerStyleTokenByName(TokenName, CornerStyle);
+    }
+    if (Value == NULL || Value[0] == STR_NULL) {
+        return ResolveBuiltinCornerStyleTokenByName(TokenName, CornerStyle);
+    }
+
+    if (ThemeStartsWith(Value, TEXT("token:"))) {
+        return ResolveRuntimeTokenCornerStyleRecursive(Value + 6, CornerStyle, Depth + 1);
+    }
+
+    if (ParseCornerStyleLiteral(Value, CornerStyle)) return TRUE;
+    return ResolveBuiltinCornerStyleTokenByName(TokenName, CornerStyle);
+}
+
 static BOOL ResolveSystemColorTokenID(U32 SystemColorIndex, U32* TokenID) {
     UINT Index;
 
@@ -347,6 +415,25 @@ BOOL DesktopThemeResolveTokenMetricByName(LPCSTR TokenName, U32* Value) {
 }
 
 /***************************************************************************/
+
+BOOL DesktopThemeResolveTokenCornerStyleByName(LPCSTR TokenName, U32* Value) {
+    if (TokenName == NULL || Value == NULL) return FALSE;
+
+    if (ResolveRuntimeTokenCornerStyleRecursive(TokenName, Value, 0)) return TRUE;
+
+    return ResolveBuiltinCornerStyleTokenByName(TokenName, Value);
+}
+
+BOOL DesktopThemeTokenNameExists(LPCSTR TokenName) {
+    U32 Value = 0;
+    COLOR Color = 0;
+
+    if (TokenName == NULL) return FALSE;
+    if (ResolveBuiltinColorTokenByName(TokenName, &Color)) return TRUE;
+    if (ResolveBuiltinMetricTokenByName(TokenName, &Value)) return TRUE;
+    if (ResolveBuiltinCornerStyleTokenByName(TokenName, &Value)) return TRUE;
+    return FALSE;
+}
 
 void DesktopThemeSyncSystemObjects(void) {
     UINT Index;

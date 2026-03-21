@@ -22,6 +22,7 @@
 \************************************************************************/
 
 #include "Desktop-ThemeParser.h"
+#include "Desktop-ThemeTokens.h"
 #include "CoreString.h"
 #include "Kernel.h"
 #include "utils/TOML.h"
@@ -370,7 +371,8 @@ static BOOL ThemeTokenExists(LPTOML Toml, LPCSTR TokenName) {
 
     StringCopy(FullKey, TEXT("tokens."));
     StringConcat(FullKey, TokenName);
-    return (TomlGet(Toml, FullKey) != NULL);
+    if (TomlGet(Toml, FullKey) != NULL) return TRUE;
+    return DesktopThemeTokenNameExists(TokenName);
 }
 
 /***************************************************************************/

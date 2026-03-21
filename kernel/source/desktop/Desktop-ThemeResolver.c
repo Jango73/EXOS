@@ -57,6 +57,14 @@ static const LEVEL1_PROPERTY_ENTRY BuiltinLevel1Properties[] = {
     {TEXT("button.body"), TEXT("hover"), TEXT("border_thickness"), TEXT("0")},
     {TEXT("button.body"), TEXT("pressed"), TEXT("border_thickness"), TEXT("0")},
     {TEXT("button.body"), TEXT("disabled"), TEXT("border_thickness"), TEXT("0")},
+    {TEXT("button.body"), TEXT("normal"), TEXT("corner_style"), TEXT("token:corner_style.rounded")},
+    {TEXT("button.body"), TEXT("hover"), TEXT("corner_style"), TEXT("token:corner_style.rounded")},
+    {TEXT("button.body"), TEXT("pressed"), TEXT("corner_style"), TEXT("token:corner_style.rounded")},
+    {TEXT("button.body"), TEXT("disabled"), TEXT("corner_style"), TEXT("token:corner_style.rounded")},
+    {TEXT("button.body"), TEXT("normal"), TEXT("corner_radius"), TEXT("token:metric.corner_radius.auto")},
+    {TEXT("button.body"), TEXT("hover"), TEXT("corner_radius"), TEXT("token:metric.corner_radius.auto")},
+    {TEXT("button.body"), TEXT("pressed"), TEXT("corner_radius"), TEXT("token:metric.corner_radius.auto")},
+    {TEXT("button.body"), TEXT("disabled"), TEXT("corner_radius"), TEXT("token:metric.corner_radius.auto")},
     {TEXT("button.text"), TEXT("normal"), TEXT("foreground"), TEXT("token:color.text.normal")},
     {TEXT("button.text"), TEXT("hover"), TEXT("foreground"), TEXT("token:color.text.normal")},
     {TEXT("button.text"), TEXT("pressed"), TEXT("foreground"), TEXT("token:color.text.normal")},
@@ -67,6 +75,7 @@ static const LEVEL1_PROPERTY_ENTRY BuiltinLevel1Properties[] = {
     {TEXT("window.border"), TEXT("normal"), TEXT("border_thickness"), TEXT("2")},
     {TEXT("window.border"), TEXT("active"), TEXT("border_thickness"), TEXT("2")},
     {TEXT("window.border"), TEXT("focused"), TEXT("border_thickness"), TEXT("2")},
+    {TEXT("window.titlebar"), TEXT("normal"), TEXT("corner_style"), TEXT("token:corner_style.rounded")},
 };
 
 /***************************************************************************/
@@ -276,3 +285,29 @@ BOOL DesktopThemeResolveLevel1Metric(LPCSTR ElementID, LPCSTR StateID, LPCSTR Pr
 }
 
 /***************************************************************************/
+
+BOOL DesktopThemeResolveLevel1CornerStyle(LPCSTR ElementID, LPCSTR StateID, LPCSTR PropertyName, U32* CornerStyle) {
+    STR Value[128];
+
+    if (CornerStyle == NULL) return FALSE;
+    if (!DesktopThemeResolveLevel1Text(ElementID, StateID, PropertyName, Value, sizeof(Value))) return FALSE;
+
+    if (ThemeStartsWith(Value, TEXT("token:"))) {
+        return DesktopThemeResolveTokenCornerStyleByName(Value + 6, CornerStyle);
+    }
+
+    if (StringCompareNC(Value, TEXT("square")) == 0) {
+        *CornerStyle = RECT_CORNER_STYLE_SQUARE;
+        return TRUE;
+    }
+    if (StringCompareNC(Value, TEXT("rounded")) == 0) {
+        *CornerStyle = RECT_CORNER_STYLE_ROUNDED;
+        return TRUE;
+    }
+    if (StringCompareNC(Value, TEXT("bevel")) == 0) {
+        *CornerStyle = RECT_CORNER_STYLE_BEVEL;
+        return TRUE;
+    }
+
+    return FALSE;
+}

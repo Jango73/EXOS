@@ -82,7 +82,7 @@ static BOOL ResolveWindowBackgroundThemeEntry(U32 ThemeToken, const WINDOW_BACKG
  * @param Color Fill color.
  * @return TRUE on success.
  */
-static BOOL DrawSolidBackground(HANDLE GC, LPRECT Rect, COLOR Color) {
+static BOOL DrawSolidBackground(HANDLE GC, LPRECT Rect, COLOR Color, U32 CornerStyle, I32 CornerRadius) {
     BRUSH Brush;
     RECT_INFO RectInfo;
     HANDLE OldBrush;
@@ -104,8 +104,8 @@ static BOOL DrawSolidBackground(HANDLE GC, LPRECT Rect, COLOR Color) {
     RectInfo.Y1 = Rect->Y1;
     RectInfo.X2 = Rect->X2;
     RectInfo.Y2 = Rect->Y2;
-    RectInfo.CornerRadius = 0;
-    RectInfo.CornerStyle = RECT_CORNER_STYLE_SQUARE;
+    RectInfo.CornerRadius = CornerRadius;
+    RectInfo.CornerStyle = CornerStyle;
 
     OldPen = SelectPen(GC, NULL);
     OldBrush = SelectBrush(GC, (HANDLE)&Brush);
@@ -255,6 +255,11 @@ static BOOL DrawLevel1WindowBackground(
     COLOR BackgroundColor;
     COLOR BorderColor;
     U32 BorderThickness = 0;
+    U32 CornerStyle = RECT_CORNER_STYLE_SQUARE;
+    U32 CornerRadiusMetric = 0;
+    I32 CornerRadius = 0;
+    BOOL HasCornerStyle;
+    BOOL HasCornerRadius;
     BOOL HasBackground;
     BOOL HasBorderColor;
     BOOL HasBorderThickness;
@@ -262,11 +267,17 @@ static BOOL DrawLevel1WindowBackground(
 
     if (GC == NULL || Rect == NULL || ElementID == NULL || StateID == NULL) return FALSE;
 
+    HasCornerStyle = DesktopThemeResolveLevel1CornerStyle(ElementID, StateID, TEXT("corner_style"), &CornerStyle);
+    HasCornerRadius = DesktopThemeResolveLevel1Metric(ElementID, StateID, TEXT("corner_radius"), &CornerRadiusMetric);
+    if (HasCornerRadius != FALSE) {
+        CornerRadius = (I32)CornerRadiusMetric;
+    }
+
     HasBackground = DesktopThemeResolveLevel1Color(ElementID, StateID, TEXT("background"), &BackgroundColor);
     if (HasBackground != FALSE) {
         BackgroundAlpha = (BackgroundColor >> 24) & 0xFF;
         if (BackgroundAlpha == 0xFF) {
-            (void)DrawSolidBackground(GC, Rect, BackgroundColor);
+            (void)DrawSolidBackground(GC, Rect, BackgroundColor, HasCornerStyle != FALSE ? CornerStyle : RECT_CORNER_STYLE_SQUARE, CornerRadius);
         }
     } else if (AllowMissingBackgroundTransparency == FALSE) {
         RECT_INFO RectInfo;
@@ -285,6 +296,9 @@ static BOOL DrawLevel1WindowBackground(
         RectInfo.CornerStyle = RECT_CORNER_STYLE_SQUARE;
 
         OldPen = SelectPen(GC, NULL);
+        RectInfo.CornerRadius = CornerRadius;
+        RectInfo.CornerStyle = HasCornerStyle != FALSE ? CornerStyle : RECT_CORNER_STYLE_SQUARE;
+
         OldBrush = SelectBrush(GC, GetSystemBrush(FallbackSystemColor));
         (void)Rectangle(&RectInfo);
         (void)SelectBrush(GC, OldBrush);

@@ -563,12 +563,17 @@ static U32 GraphicsResolveRoundedCornerRadius(LPRECT_INFO Info, I32 X1, I32 Y1, 
 
     if (Info == NULL) return 0;
     if (Info->CornerStyle != RECT_CORNER_STYLE_ROUNDED) return 0;
-    if (Info->CornerRadius <= 0) return 0;
-
     Width = X2 - X1 + 1;
     Height = Y2 - Y1 + 1;
-    Radius = Info->CornerRadius;
     if (Width <= 0 || Height <= 0) return 0;
+
+    if (Info->CornerRadius == RECT_CORNER_RADIUS_AUTO) {
+        Radius = Width < Height ? Width : Height;
+        Radius /= 2;
+    } else {
+        if (Info->CornerRadius <= 0) return 0;
+        Radius = Info->CornerRadius;
+    }
     if (Radius > Width / 2) Radius = Width / 2;
     if (Radius > Height / 2) Radius = Height / 2;
     if (Radius < 0) Radius = 0;

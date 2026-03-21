@@ -50,7 +50,7 @@
  * @param CornerRadius Corner radius.
  * @return TRUE on success.
  */
-static BOOL DrawSolidRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color, U32 CornerRadius) {
+static BOOL DrawSolidRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color, U32 CornerStyle, U32 CornerRadius) {
     RECT_INFO RectInfo;
     BRUSH Brush;
     HANDLE OldPen;
@@ -74,7 +74,7 @@ static BOOL DrawSolidRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color
     RectInfo.X2 = X2;
     RectInfo.Y2 = Y2;
     RectInfo.CornerRadius = (I32)CornerRadius;
-    RectInfo.CornerStyle = CornerRadius > 0 ? RECT_CORNER_STYLE_ROUNDED : RECT_CORNER_STYLE_SQUARE;
+    RectInfo.CornerStyle = CornerStyle;
 
     OldPen = SelectPen(GC, NULL);
     OldBrush = SelectBrush(GC, (HANDLE)&Brush);
@@ -100,7 +100,7 @@ static BOOL DrawSolidRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR Color
  * @return TRUE on success.
  */
 static BOOL DrawVerticalGradientRect(
-    HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR StartColor, COLOR EndColor, U32 CornerRadius) {
+    HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR StartColor, COLOR EndColor, U32 CornerStyle, U32 CornerRadius) {
     RECT_INFO RectInfo;
 
     if (GC == NULL) return FALSE;
@@ -117,7 +117,7 @@ static BOOL DrawVerticalGradientRect(
     RectInfo.StartColor = StartColor;
     RectInfo.EndColor = EndColor;
     RectInfo.CornerRadius = (I32)CornerRadius;
-    RectInfo.CornerStyle = CornerRadius > 0 ? RECT_CORNER_STYLE_ROUNDED : RECT_CORNER_STYLE_SQUARE;
+    RectInfo.CornerStyle = CornerStyle;
 
     return Rectangle(&RectInfo);
 }
@@ -268,6 +268,7 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
     COLOR TextColor = 0;
     U32 TitleHeight = 22;
     U32 CornerRadius = 6;
+    U32 CornerStyle = RECT_CORNER_STYLE_ROUNDED;
     I32 InnerX1;
     I32 InnerX2;
     I32 InnerY1;
@@ -286,6 +287,9 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
     (void)ResolveWindowTitleBarHeight(&TitleHeight);
     if (!DesktopThemeResolveLevel1Metric(TEXT("window.titlebar"), TEXT("normal"), TEXT("corner_radius"), &CornerRadius)) {
         CornerRadius = 6;
+    }
+    if (!DesktopThemeResolveLevel1CornerStyle(TEXT("window.titlebar"), TEXT("normal"), TEXT("corner_style"), &CornerStyle)) {
+        CornerStyle = CornerRadius > 0 ? RECT_CORNER_STYLE_ROUNDED : RECT_CORNER_STYLE_SQUARE;
     }
     if (TitleHeight == 0) return FALSE;
 
@@ -320,9 +324,9 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
 
     if (Background != 0 || Background2 != 0) {
         if (Background2 != 0 && Background2 != Background) {
-            (void)DrawVerticalGradientRect(GC, InnerX1, InnerY1, InnerX2, InnerY2, Background, Background2, CornerRadius);
+            (void)DrawVerticalGradientRect(GC, InnerX1, InnerY1, InnerX2, InnerY2, Background, Background2, CornerStyle, CornerRadius);
         } else {
-            (void)DrawSolidRect(GC, InnerX1, InnerY1, InnerX2, InnerY2, Background, CornerRadius);
+            (void)DrawSolidRect(GC, InnerX1, InnerY1, InnerX2, InnerY2, Background, CornerStyle, CornerRadius);
         }
     }
 
@@ -335,7 +339,7 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
 
     BottomLineY = InnerY2;
     if (BottomLineY >= Rect->Y1 && BottomLineY <= Rect->Y2) {
-        (void)DrawSolidRect(GC, InnerX1, BottomLineY, InnerX2, BottomLineY, SeparatorColor, 0);
+        (void)DrawSolidRect(GC, InnerX1, BottomLineY, InnerX2, BottomLineY, SeparatorColor, RECT_CORNER_STYLE_SQUARE, 0);
     }
 
     if (StringLength(Snapshot.Caption) == 0) return TRUE;
