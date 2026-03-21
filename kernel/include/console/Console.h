@@ -94,6 +94,7 @@ typedef struct tag_CONSOLE_STRUCT {
     U32 FontWidth;
     U32 FontHeight;
     BOOL UseFramebuffer;
+    BOOL UseTextBackend;
     CONSOLE_REGION Regions[MAX_CONSOLE_REGIONS];
 } CONSOLE_STRUCT, *LPCONSOLE_STRUCT;
 

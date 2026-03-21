@@ -99,15 +99,15 @@ CONSOLE_STRUCT Console = {
     .RegionCount = 1,
     .ActiveRegion = 0,
     .DebugRegion = 0,
-    .Port = 0x03D4,
-    .Memory = (LPVOID)0xB8000,
+    .Port = 0,
+    .Memory = NULL,
     .FramebufferPhysical = 0,
     .FramebufferLinear = NULL,
     .FramebufferPitch = 0,
     .FramebufferWidth = 0,
     .FramebufferHeight = 0,
     .FramebufferBitsPerPixel = 0,
-    .FramebufferType = 0,
+    .FramebufferType = MULTIBOOT_FRAMEBUFFER_TEXT,
     .FramebufferRedPosition = 0,
     .FramebufferRedMaskSize = 0,
     .FramebufferGreenPosition = 0,
@@ -117,7 +117,8 @@ CONSOLE_STRUCT Console = {
     .FramebufferBytesPerPixel = 0,
     .FontWidth = 8,
     .FontHeight = 16,
-    .UseFramebuffer = FALSE};
+    .UseFramebuffer = FALSE,
+    .UseTextBackend = TRUE};
 
 /***************************************************************************/
 
@@ -128,29 +129,17 @@ CONSOLE_STRUCT Console = {
  */
 static void SetConsoleCursorPositionLocked(U32 CursorX, U32 CursorY) {
     CONSOLE_REGION_STATE State;
-    U32 Position;
 
     if (ConsoleResolveRegionState(0, &State) == FALSE) {
         return;
     }
 
-    if (Console.UseFramebuffer != FALSE) {
-        ConsoleHideFramebufferCursor();
-        Console.CursorX = CursorX;
-        Console.CursorY = CursorY;
-        ConsoleShowFramebufferCursor();
-        return;
-    }
+    UNUSED(State);
 
-    Position = ((State.Y + CursorY) * Console.ScreenWidth) + (State.X + CursorX);
-
+    ConsoleHideFramebufferCursor();
     Console.CursorX = CursorX;
     Console.CursorY = CursorY;
-
-    OutPortByte(Console.Port + CGA_REGISTER, 14);
-    OutPortByte(Console.Port + CGA_DATA, (Position >> 8) & 0xFF);
-    OutPortByte(Console.Port + CGA_REGISTER, 15);
-    OutPortByte(Console.Port + CGA_DATA, (Position >> 0) & 0xFF);
+    ConsoleShowFramebufferCursor();
 }
 
 /***************************************************************************/
@@ -160,26 +149,23 @@ static void SetConsoleCursorPositionLocked(U32 CursorX, U32 CursorY) {
  * @param Char Character to display.
  */
 static void SetConsoleCharacterLocked(STR Char) {
-    U32 Offset = 0;
     CONSOLE_REGION_STATE State;
 
     if (ConsoleResolveRegionState(0, &State) == FALSE) {
         return;
     }
 
-    if (Console.UseFramebuffer != FALSE) {
-        if (ConsoleEnsureFramebufferMapped() == TRUE) {
-            U32 PixelX = (State.X + Console.CursorX) * ConsoleGetCellWidth();
-            U32 PixelY = (State.Y + Console.CursorY) * ConsoleGetCellHeight();
-            ConsoleHideFramebufferCursor();
-            ConsoleDrawGlyph(PixelX, PixelY, Char);
-            ConsoleShowFramebufferCursor();
-        }
+    if (ConsoleEnsureFramebufferMapped() == FALSE) {
         return;
     }
 
-    Offset = ((State.Y + Console.CursorY) * Console.ScreenWidth) + (State.X + Console.CursorX);
-    Console.Memory[Offset] = Char | (CHARATTR << 0x08);
+    {
+        U32 PixelX = (State.X + Console.CursorX) * ConsoleGetCellWidth();
+        U32 PixelY = (State.Y + Console.CursorY) * ConsoleGetCellHeight();
+        ConsoleHideFramebufferCursor();
+        ConsoleDrawGlyph(PixelX, PixelY, Char);
+        ConsoleShowFramebufferCursor();
+    }
 }
 
 /***************************************************************************/
@@ -202,7 +188,7 @@ static void ScrollConsoleLocked(void) {
  * @param Char Character to print.
  */
 static void ConsolePrintCharLocked(STR Char) {
-    if (Console.UseFramebuffer != FALSE && ConsoleEnsureFramebufferMapped() == FALSE) {
+    if (ConsoleEnsureFramebufferMapped() == FALSE) {
         return;
     }
 
@@ -283,54 +269,11 @@ void SetConsoleCursorPosition(U32 CursorX, U32 CursorY) {
  * @param CursorY Pointer to receive Y coordinate of the cursor.
  */
 void GetConsoleCursorPosition(U32* CursorX, U32* CursorY) {
-    CONSOLE_REGION_STATE State;
-    U32 Position;
-    U8 PositionHigh, PositionLow;
-    U32 AbsoluteX;
-    U32 AbsoluteY;
-
     LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
 
-    if (Console.UseFramebuffer != FALSE) {
-        SAFE_USE_2(CursorX, CursorY) {
-            *CursorX = Console.CursorX;
-            *CursorY = Console.CursorY;
-        }
-        UnlockMutex(MUTEX_CONSOLE_STATE);
-        return;
-    }
-
-    OutPortByte(Console.Port + CGA_REGISTER, 14);
-    PositionHigh = InPortByte(Console.Port + CGA_DATA);
-    OutPortByte(Console.Port + CGA_REGISTER, 15);
-    PositionLow = InPortByte(Console.Port + CGA_DATA);
-
-    Position = ((U32)PositionHigh << 8) | (U32)PositionLow;
-
-    if (ConsoleResolveRegionState(0, &State) == FALSE) {
-        SAFE_USE_2(CursorX, CursorY) {
-            *CursorX = 0;
-            *CursorY = 0;
-        }
-        UnlockMutex(MUTEX_CONSOLE_STATE);
-        return;
-    }
-
-    AbsoluteY = Position / Console.ScreenWidth;
-    AbsoluteX = Position % Console.ScreenWidth;
-
     SAFE_USE_2(CursorX, CursorY) {
-        if (AbsoluteX < State.X) {
-            *CursorX = 0;
-        } else {
-            *CursorX = AbsoluteX - State.X;
-        }
-
-        if (AbsoluteY < State.Y) {
-            *CursorY = 0;
-        } else {
-            *CursorY = AbsoluteY - State.Y;
-        }
+        *CursorX = Console.CursorX;
+        *CursorY = Console.CursorY;
     }
 
     UnlockMutex(MUTEX_CONSOLE_STATE);
@@ -492,7 +435,6 @@ void ConsolePrintDebugChar(STR Char) {
  */
 void ConsoleBackSpace(void) {
     CONSOLE_REGION_STATE State;
-    U32 Offset;
 
     if (ConsoleResolveRegionState(0, &State) == FALSE) return;
 
@@ -507,16 +449,11 @@ void ConsoleBackSpace(void) {
         Console.CursorX--;
     }
 
-    if (Console.UseFramebuffer != FALSE) {
-        if (ConsoleEnsureFramebufferMapped() == TRUE) {
-            ConsoleHideFramebufferCursor();
-            U32 PixelX = (State.X + Console.CursorX) * ConsoleGetCellWidth();
-            U32 PixelY = (State.Y + Console.CursorY) * ConsoleGetCellHeight();
-            ConsoleDrawGlyph(PixelX, PixelY, STR_SPACE);
-        }
-    } else {
-        Offset = ((State.Y + Console.CursorY) * Console.ScreenWidth) + (State.X + Console.CursorX);
-        Console.Memory[Offset] = (U16)STR_SPACE | (CHARATTR << 0x08);
+    if (ConsoleEnsureFramebufferMapped() == TRUE) {
+        U32 PixelX = (State.X + Console.CursorX) * ConsoleGetCellWidth();
+        U32 PixelY = (State.Y + Console.CursorY) * ConsoleGetCellHeight();
+        ConsoleHideFramebufferCursor();
+        ConsoleDrawGlyph(PixelX, PixelY, STR_SPACE);
     }
 
 Out:
@@ -570,35 +507,18 @@ void ConsolePrint(LPCSTR Format, ...) {
 void ConsolePrintLine(U32 Row, U32 Column, LPCSTR Text, U32 Length) {
     CONSOLE_REGION_STATE State;
     U32 Index;
-    U32 Offset;
-    U16 Attribute;
 
     if (Text == NULL) return;
 
     if (ConsoleResolveRegionState(0, &State) == FALSE) return;
 
     if (Row >= State.Height || Column >= State.Width) return;
-
-    if (Console.UseFramebuffer != FALSE) {
-        if (ConsoleEnsureFramebufferMapped() == FALSE) {
-            return;
-        }
-
-        for (Index = 0; Index < Length && (Column + Index) < State.Width; Index++) {
-            U32 PixelX = (State.X + Column + Index) * ConsoleGetCellWidth();
-            U32 PixelY = (State.Y + Row) * ConsoleGetCellHeight();
-            ConsoleDrawGlyph(PixelX, PixelY, Text[Index]);
-        }
-        return;
-    }
-
-    Offset = ((State.Y + Row) * Console.ScreenWidth) + (State.X + Column);
-    Attribute = (U16)(Console.ForeColor | (Console.BackColor << 0x04) | (Console.Blink << 0x07));
-    Attribute = (U16)(Attribute << 0x08);
+    if (ConsoleEnsureFramebufferMapped() == FALSE) return;
 
     for (Index = 0; Index < Length && (Column + Index) < State.Width; Index++) {
-        STR Character = Text[Index];
-        Console.Memory[Offset + Index] = (U16)Character | Attribute;
+        U32 PixelX = (State.X + Column + Index) * ConsoleGetCellWidth();
+        U32 PixelY = (State.Y + Row) * ConsoleGetCellHeight();
+        ConsoleDrawGlyph(PixelX, PixelY, Text[Index]);
     }
 }
 
@@ -735,12 +655,11 @@ void InitializeConsole(void) {
             Console.ScreenWidth = 80;
             Console.ScreenHeight = 25;
         }
+    } else if (Console.FramebufferType == MULTIBOOT_FRAMEBUFFER_TEXT &&
+               Console.ScreenWidth != 0u && Console.ScreenHeight != 0u) {
     } else {
-        if (Console.FramebufferType != MULTIBOOT_FRAMEBUFFER_TEXT ||
-            Console.ScreenWidth == 0u || Console.ScreenHeight == 0u) {
-            Console.ScreenWidth = 80;
-            Console.ScreenHeight = 25;
-        }
+        Console.ScreenWidth = 80;
+        Console.ScreenHeight = 25;
     }
 
     Console.BackColor = 0;
@@ -808,15 +727,20 @@ void ConsoleSetFramebufferInfo(
 
     if (Type == MULTIBOOT_FRAMEBUFFER_RGB && FramebufferPhysical != 0 && Width != 0u && Height != 0u) {
         Console.UseFramebuffer = TRUE;
+        Console.UseTextBackend = FALSE;
         Console.Memory = NULL;
         Console.Port = 0;
     } else if (Type == MULTIBOOT_FRAMEBUFFER_TEXT && FramebufferPhysical != 0) {
         Console.UseFramebuffer = FALSE;
-        Console.Memory = (U16*)(UINT)FramebufferPhysical;
+        Console.UseTextBackend = TRUE;
+        Console.Memory = NULL;
+        Console.Port = 0;
         Console.ScreenWidth = (Width != 0u) ? Width : 80u;
         Console.ScreenHeight = (Height != 0u) ? Height : 25u;
+        Console.FramebufferBytesPerPixel = sizeof(U16);
     } else {
         Console.UseFramebuffer = FALSE;
+        Console.UseTextBackend = FALSE;
     }
 }
 
@@ -863,6 +787,7 @@ BOOL ConsoleSetGraphicsTextMode(LPGRAPHICS_MODE_INFO ModeInfo) {
 
     ConsoleResetFramebufferCursorState();
     Console.UseFramebuffer = TRUE;
+    Console.UseTextBackend = FALSE;
     Console.Memory = NULL;
     Console.Port = 0;
     Console.FramebufferPhysical = 0;

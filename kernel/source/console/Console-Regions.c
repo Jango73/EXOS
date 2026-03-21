@@ -66,70 +66,8 @@ typedef struct tag_CONSOLE_ACTIVE_REGION_SNAPSHOT {
  * @return TRUE on success.
  */
 BOOL ConsoleCaptureActiveRegionSnapshot(LPVOID* OutSnapshot) {
-    LPCONSOLE_ACTIVE_REGION_SNAPSHOT Snapshot;
-    U32 CellCount;
-    U32 CellBytes;
-    U32 CellBytesPerRow;
-    U32 RegionOffset;
-
-    if (OutSnapshot == NULL) {
-        return FALSE;
-    }
-
-    *OutSnapshot = NULL;
-
-    Snapshot = (LPCONSOLE_ACTIVE_REGION_SNAPSHOT)KernelHeapAlloc(sizeof(CONSOLE_ACTIVE_REGION_SNAPSHOT));
-    if (Snapshot == NULL) {
-        return FALSE;
-    }
-
-    MemorySet(Snapshot, 0, sizeof(CONSOLE_ACTIVE_REGION_SNAPSHOT));
-
-    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
-
-    Snapshot->CursorX = Console.CursorX;
-    Snapshot->CursorY = Console.CursorY;
-    Snapshot->ForeColor = Console.ForeColor;
-    Snapshot->BackColor = Console.BackColor;
-    Snapshot->Blink = Console.Blink;
-    Snapshot->IsFramebuffer = Console.UseFramebuffer ? TRUE : FALSE;
-    Snapshot->RegionX = Console.Regions[0].X;
-    Snapshot->RegionY = Console.Regions[0].Y;
-    Snapshot->RegionWidth = Console.Regions[0].Width;
-    Snapshot->RegionHeight = Console.Regions[0].Height;
-
-    if (Snapshot->IsFramebuffer == FALSE) {
-        CellCount = Snapshot->RegionWidth * Snapshot->RegionHeight;
-        CellBytes = CellCount * sizeof(U16);
-        CellBytesPerRow = Snapshot->RegionWidth * sizeof(U16);
-        Snapshot->TextBuffer = (U16*)KernelHeapAlloc(CellBytes);
-        if (Snapshot->TextBuffer != NULL) {
-            for (U32 Row = 0; Row < Snapshot->RegionHeight; Row++) {
-                RegionOffset = ((Snapshot->RegionY + Row) * Console.ScreenWidth) + Snapshot->RegionX;
-                MemoryCopy(
-                    Snapshot->TextBuffer + (Row * Snapshot->RegionWidth),
-                    Console.Memory + RegionOffset,
-                    CellBytesPerRow);
-            }
-            Snapshot->TextCellCount = CellCount;
-            Snapshot->IsValid = TRUE;
-        }
-    } else {
-        // Backend text mode has no direct console-owned framebuffer snapshot.
-        Snapshot->IsValid = FALSE;
-    }
-
-    UnlockMutex(MUTEX_CONSOLE_STATE);
-
-    if (Snapshot->IsValid == FALSE) {
-        SAFE_USE(Snapshot->TextBuffer) { KernelHeapFree(Snapshot->TextBuffer); }
-        SAFE_USE(Snapshot->FramebufferBuffer) { KernelHeapFree(Snapshot->FramebufferBuffer); }
-        KernelHeapFree(Snapshot);
-        return FALSE;
-    }
-
-    *OutSnapshot = Snapshot;
-    return TRUE;
+    UNUSED(OutSnapshot);
+    return FALSE;
 }
 
 /***************************************************************************/
@@ -140,43 +78,8 @@ BOOL ConsoleCaptureActiveRegionSnapshot(LPVOID* OutSnapshot) {
  * @return TRUE on success.
  */
 BOOL ConsoleRestoreActiveRegionSnapshot(LPVOID Snapshot) {
-    LPCONSOLE_ACTIVE_REGION_SNAPSHOT State = (LPCONSOLE_ACTIVE_REGION_SNAPSHOT)Snapshot;
-    U32 CellBytesPerRow;
-    U32 RegionOffset;
-
-    if (State == NULL || State->IsValid == FALSE) {
-        return FALSE;
-    }
-
-    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
-
-    if (State->IsFramebuffer == FALSE) {
-        if (State->TextBuffer == NULL || State->TextCellCount == 0) {
-            UnlockMutex(MUTEX_CONSOLE_STATE);
-            return FALSE;
-        }
-
-        CellBytesPerRow = State->RegionWidth * sizeof(U16);
-        for (U32 Row = 0; Row < State->RegionHeight; Row++) {
-            RegionOffset = ((State->RegionY + Row) * Console.ScreenWidth) + State->RegionX;
-            MemoryCopy(
-                Console.Memory + RegionOffset,
-                State->TextBuffer + (Row * State->RegionWidth),
-                CellBytesPerRow);
-        }
-    } else {
-        UnlockMutex(MUTEX_CONSOLE_STATE);
-        return FALSE;
-    }
-
-    Console.ForeColor = State->ForeColor;
-    Console.BackColor = State->BackColor;
-    Console.Blink = State->Blink;
-
-    UnlockMutex(MUTEX_CONSOLE_STATE);
-
-    SetConsoleCursorPosition(State->CursorX, State->CursorY);
-    return TRUE;
+    UNUSED(Snapshot);
+    return FALSE;
 }
 
 /***************************************************************************/
@@ -437,59 +340,34 @@ static void ConsolePagerWaitLockedRegion(U32 RegionIndex) {
     BOOL ExitByInterrupt;
     U32 Row;
     U32 Column;
-    U32 Offset;
-    U16 Attribute;
-    STR Prompt[] = "-- Press a key --";
+    LPCSTR Prompt = TEXT("-- Press a key --");
     U32 PromptLen;
     U32 Start;
 
     if (ConsoleResolveRegionState(RegionIndex, &State) == FALSE) return;
     if ((*State.PagingEnabled) == FALSE || (*State.PagingActive) == FALSE) return;
     if (State.Width == 0 || State.Height < 2) return;
+    if (ConsoleEnsureFramebufferMapped() == FALSE) return;
 
     Row = State.Height - 1;
-    Attribute = (U16)(((*State.ForeColor) | ((*State.BackColor) << 0x04) | ((*State.Blink) << 0x07)) << 0x08);
-
-    if (Console.UseFramebuffer != FALSE) {
-        if (ConsoleEnsureFramebufferMapped() == FALSE) {
-            return;
-        }
-
-        for (Column = 0; Column < State.Width; Column++) {
-            U32 PixelX = (State.X + Column) * ConsoleGetCellWidth();
-            U32 PixelY = (State.Y + Row) * ConsoleGetCellHeight();
-            ConsoleDrawGlyph(PixelX, PixelY, STR_SPACE);
-        }
-
-        PromptLen = StringLength(Prompt);
-        if (PromptLen > State.Width) PromptLen = State.Width;
-        Start = (State.Width > PromptLen) ? (State.Width - PromptLen) / 2 : 0;
-        for (Column = 0; Column < PromptLen; Column++) {
-            U32 PixelX = (State.X + Start + Column) * ConsoleGetCellWidth();
-            U32 PixelY = (State.Y + Row) * ConsoleGetCellHeight();
-            ConsoleDrawGlyph(PixelX, PixelY, Prompt[Column]);
-        }
-
-        SetConsoleCursorPosition(0, Row);
-        goto WaitForKey;
-    }
 
     for (Column = 0; Column < State.Width; Column++) {
-        Offset = ((State.Y + Row) * Console.ScreenWidth) + (State.X + Column);
-        Console.Memory[Offset] = (U16)STR_SPACE | Attribute;
+        U32 PixelX = (State.X + Column) * ConsoleGetCellWidth();
+        U32 PixelY = (State.Y + Row) * ConsoleGetCellHeight();
+        ConsoleDrawGlyph(PixelX, PixelY, STR_SPACE);
     }
 
     PromptLen = StringLength(Prompt);
     if (PromptLen > State.Width) PromptLen = State.Width;
     Start = (State.Width > PromptLen) ? (State.Width - PromptLen) / 2 : 0;
-    Offset = ((State.Y + Row) * Console.ScreenWidth) + (State.X + Start);
     for (Column = 0; Column < PromptLen; Column++) {
-        Console.Memory[Offset + Column] = (U16)Prompt[Column] | Attribute;
+        U32 PixelX = (State.X + Start + Column) * ConsoleGetCellWidth();
+        U32 PixelY = (State.Y + Row) * ConsoleGetCellHeight();
+        ConsoleDrawGlyph(PixelX, PixelY, Prompt[Column]);
     }
 
     SetConsoleCursorPosition(0, Row);
 
-WaitForKey:
     CurrentProcess = GetCurrentProcess();
     CurrentTask = GetCurrentTask();
     WaitLoops = 0;
@@ -545,17 +423,10 @@ WaitForKey:
         }
     }
 
-    if (Console.UseFramebuffer != FALSE) {
-        for (Column = 0; Column < State.Width; Column++) {
-            U32 PixelX = (State.X + Column) * ConsoleGetCellWidth();
-            U32 PixelY = (State.Y + Row) * ConsoleGetCellHeight();
-            ConsoleDrawGlyph(PixelX, PixelY, STR_SPACE);
-        }
-    } else {
-        for (Column = 0; Column < State.Width; Column++) {
-            Offset = ((State.Y + Row) * Console.ScreenWidth) + (State.X + Column);
-            Console.Memory[Offset] = (U16)STR_SPACE | Attribute;
-        }
+    for (Column = 0; Column < State.Width; Column++) {
+        U32 PixelX = (State.X + Column) * ConsoleGetCellWidth();
+        U32 PixelY = (State.Y + Row) * ConsoleGetCellHeight();
+        ConsoleDrawGlyph(PixelX, PixelY, STR_SPACE);
     }
 
     UNUSED(ExitByInterrupt);
@@ -572,23 +443,16 @@ WaitForKey:
  */
 static void ConsoleSetCharacterRegion(U32 RegionIndex, STR Char) {
     CONSOLE_REGION_STATE State;
-    U32 Offset;
-    U16 Attribute;
 
     if (ConsoleResolveRegionState(RegionIndex, &State) == FALSE) return;
     if ((*State.CursorX) >= State.Width || (*State.CursorY) >= State.Height) return;
+    if (ConsoleEnsureFramebufferMapped() == FALSE) return;
 
-    if (Console.UseFramebuffer != FALSE) {
+    {
         U32 PixelX = (State.X + (*State.CursorX)) * ConsoleGetCellWidth();
         U32 PixelY = (State.Y + (*State.CursorY)) * ConsoleGetCellHeight();
-
         ConsoleDrawGlyph(PixelX, PixelY, Char);
-        return;
     }
-
-    Offset = ((State.Y + (*State.CursorY)) * Console.ScreenWidth) + (State.X + (*State.CursorX));
-    Attribute = (U16)(((*State.ForeColor) | ((*State.BackColor) << 0x04) | ((*State.Blink) << 0x07)) << 0x08);
-    Console.Memory[Offset] = (U16)Char | Attribute;
 }
 
 /***************************************************************************/
@@ -599,11 +463,6 @@ static void ConsoleSetCharacterRegion(U32 RegionIndex, STR Char) {
  */
 void ConsoleScrollRegion(U32 RegionIndex) {
     CONSOLE_REGION_STATE State;
-    U32 Row;
-    U32 Column;
-    U32 Src;
-    U32 Dst;
-    U16 Attribute;
 
     if (ConsoleResolveRegionState(RegionIndex, &State) == FALSE) return;
     if (State.Width == 0 || State.Height == 0) return;
@@ -614,24 +473,7 @@ void ConsoleScrollRegion(U32 RegionIndex) {
         (*State.PagingRemaining)--;
     }
 
-    if (Console.UseFramebuffer != FALSE) {
-        ConsoleScrollRegionFramebuffer(RegionIndex);
-        return;
-    }
-
-    for (Row = 1; Row < State.Height; Row++) {
-        for (Column = 0; Column < State.Width; Column++) {
-            Src = ((State.Y + Row) * Console.ScreenWidth) + (State.X + Column);
-            Dst = ((State.Y + (Row - 1)) * Console.ScreenWidth) + (State.X + Column);
-            Console.Memory[Dst] = Console.Memory[Src];
-        }
-    }
-
-    Attribute = (U16)(((*State.ForeColor) | ((*State.BackColor) << 0x04) | ((*State.Blink) << 0x07)) << 0x08);
-    for (Column = 0; Column < State.Width; Column++) {
-        Dst = ((State.Y + (State.Height - 1)) * Console.ScreenWidth) + (State.X + Column);
-        Console.Memory[Dst] = (U16)STR_SPACE | Attribute;
-    }
+    ConsoleScrollRegionFramebuffer(RegionIndex);
 }
 
 /***************************************************************************/
@@ -642,29 +484,11 @@ void ConsoleScrollRegion(U32 RegionIndex) {
  */
 void ConsoleClearRegion(U32 RegionIndex) {
     CONSOLE_REGION_STATE State;
-    U32 Row;
-    U32 Column;
-    U32 Offset;
-    U16 Attribute;
 
     if (ConsoleResolveRegionState(RegionIndex, &State) == FALSE) return;
     if (State.Width == 0 || State.Height == 0) return;
 
-    if (Console.UseFramebuffer != FALSE) {
-        ConsoleClearRegionFramebuffer(RegionIndex);
-        (*State.CursorX) = 0;
-        (*State.CursorY) = 0;
-        return;
-    }
-
-    Attribute = (U16)(((*State.ForeColor) | ((*State.BackColor) << 0x04) | ((*State.Blink) << 0x07)) << 0x08);
-    for (Row = 0; Row < State.Height; Row++) {
-        for (Column = 0; Column < State.Width; Column++) {
-            Offset = ((State.Y + Row) * Console.ScreenWidth) + (State.X + Column);
-            Console.Memory[Offset] = (U16)STR_SPACE | Attribute;
-        }
-    }
-
+    ConsoleClearRegionFramebuffer(RegionIndex);
     (*State.CursorX) = 0;
     (*State.CursorY) = 0;
 }
@@ -681,7 +505,7 @@ void ConsolePrintCharRegion(U32 RegionIndex, STR Char) {
 
     if (ConsoleResolveRegionState(RegionIndex, &State) == FALSE) return;
     if (State.Width == 0 || State.Height == 0) return;
-    if (Console.UseFramebuffer != FALSE && ConsoleEnsureFramebufferMapped() == FALSE) return;
+    if (ConsoleEnsureFramebufferMapped() == FALSE) return;
 
     if (Char == STR_NEWLINE) {
         (*State.CursorX) = 0;

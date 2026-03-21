@@ -860,7 +860,7 @@ Console synchronization uses dedicated lock domains in addition to the legacy co
 
 When both locks are needed, acquisition order is always state first, render second. Console paging input wait paths must run without any console mutex held so split and non-split console flows do not amplify lock hold times or stall on input.
 
-Emergency text fallback is isolated in `kernel/source/Console-VGATextFallback.c`. This path is used when console frontend activation cannot complete through the active graphics backend. It requests VGA text mode through the VGA driver command interface.
+Emergency text fallback is isolated in `kernel/source/Console-VGATextFallback.c`. This path is used when console frontend activation cannot complete through the active graphics backend. It requests VGA text mode through the VGA driver command interface, then keeps all text cells, region operations, and cursor updates on the delegated backend path.
 
 Console metadata differs by firmware path:
 
@@ -924,7 +924,7 @@ Rectangle, triangle, and arc rasterization share the generic scanline helpers in
 
 `PEN_INFO` and `PEN` carry `Width` in addition to color and pattern. `LINE` applies the selected pen width through the shared line rasterizer. Closed shapes apply the selected pen width inward from the outer contour, so rectangle, arc, and triangle outlines stay inside the requested geometry.
 
-`kernel/source/drivers/graphics/vga/VGA-Main.c` exposes a dedicated VGA text driver (`alias: vga`) that implements mode enumeration and text mode selection through the same `DF_GFX_*` contract.
+`kernel/source/drivers/graphics/vga/VGA-Main.c` exposes a dedicated VGA text driver (`alias: vga`) that implements mode enumeration, context retrieval, text cell output, region clear and scroll, and hardware cursor updates through the same `DF_GFX_*` contract. Console code no longer accesses VGA text memory or VGA cursor ports directly.
 
 Display-class PCI attach logic is implemented in `kernel/source/drivers/graphics/common/Graphics-PCI.c`. The PCI bus layer registers this graphics-provided attach driver during PCI initialization so generic display controllers appear in the PCI device list.
 

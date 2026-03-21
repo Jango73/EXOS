@@ -46,6 +46,7 @@ typedef struct tag_CONSOLE_REGION_STATE {
 /***************************************************************************/
 
 BOOL ConsoleEnsureFramebufferMapped(void);
+BOOL ConsoleUsesTextBackend(void);
 U32 ConsoleGetCellWidth(void);
 U32 ConsoleGetCellHeight(void);
 void ConsoleDrawGlyph(U32 X, U32 Y, STR Char);

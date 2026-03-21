@@ -41,6 +41,16 @@ static LPGRAPHICSCONTEXT DATA_SECTION ConsoleTextCachedContext = NULL;
 /************************************************************************/
 
 /**
+ * @brief Return TRUE when console text output is delegated to one backend.
+ * @return TRUE for delegated text paths, FALSE otherwise.
+ */
+BOOL ConsoleUsesTextBackend(void) {
+    return (Console.UseFramebuffer != FALSE || Console.UseTextBackend != FALSE) ? TRUE : FALSE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Reset one graphics context to full-screen console coordinates.
  * @param Context Target graphics context.
  */
@@ -155,7 +165,7 @@ static BOOL ConsoleTextAcquireContext(LPDRIVER* DriverOut, LPGRAPHICSCONTEXT* Co
 
     ConsoleTextAcquireDepth++;
 
-    if (DisplaySessionGetActiveFrontEnd() != DISPLAY_FRONTEND_CONSOLE) {
+    if (DisplaySessionGetActiveFrontEnd() != DISPLAY_FRONTEND_CONSOLE && Console.UseTextBackend == FALSE) {
         goto Done;
     }
 
@@ -170,6 +180,12 @@ static BOOL ConsoleTextAcquireContext(LPDRIVER* DriverOut, LPGRAPHICSCONTEXT* Co
 
     if (Driver == NULL || Driver->Command == NULL || Driver == ConsoleGetDriver()) {
         Driver = GetGraphicsDriver();
+    }
+
+    if (Driver == NULL || Driver->Command == NULL || Driver == ConsoleGetDriver()) {
+        if (Console.UseTextBackend != FALSE && Console.FramebufferType == MULTIBOOT_FRAMEBUFFER_TEXT) {
+            Driver = VGAGetDriver();
+        }
     }
 
     if (Driver == NULL || Driver->Command == NULL || Driver == ConsoleGetDriver()) {

@@ -40,8 +40,6 @@
 BOOL ConsoleVGATextFallbackActivate(U32 Columns, U32 Rows, LPGRAPHICS_MODE_INFO AppliedMode) {
     U32 RequestedColumns = (Columns != 0) ? Columns : 80;
     U32 RequestedRows = (Rows != 0) ? Rows : 25;
-    const LINEAR VGATextMemory = 0xB8000;
-    const U32 VGATextPort = 0x03D4;
     LPDRIVER VGADriver = VGAGetDriver();
     GRAPHICS_MODE_INFO RequestedMode;
     UINT SetModeResult = DF_RETURN_NOT_IMPLEMENTED;
@@ -80,11 +78,12 @@ BOOL ConsoleVGATextFallbackActivate(U32 Columns, U32 Rows, LPGRAPHICS_MODE_INFO 
     }
 
     Console.UseFramebuffer = FALSE;
-    Console.Port = VGATextPort;
-    Console.Memory = (U16*)(UINT)VGATextMemory;
+    Console.UseTextBackend = TRUE;
+    Console.Port = 0;
+    Console.Memory = NULL;
     Console.ScreenWidth = RequestedMode.Width;
     Console.ScreenHeight = RequestedMode.Height;
-    Console.FramebufferPhysical = (PHYSICAL)VGATextMemory;
+    Console.FramebufferPhysical = 0;
     Console.FramebufferLinear = NULL;
     Console.FramebufferPitch = RequestedMode.Width * sizeof(U16);
     Console.FramebufferWidth = RequestedMode.Width;
