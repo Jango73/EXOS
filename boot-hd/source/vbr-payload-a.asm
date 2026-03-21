@@ -513,6 +513,8 @@ SetPixel24:
 EnterUnrealMode:
     push    eax
     pushf
+    pop     ax
+    mov     [SavedFlags], ax
     cli
 
     mov     ax, ds
@@ -539,14 +541,11 @@ EnterUnrealMode:
     mov     eax, cr0
     and     eax, 0xFFFFFFFE
     mov     cr0, eax
-
-    popf
     pop     eax
     ret
 
 LeaveUnrealMode:
     push    eax
-    pushf
     cli
 
     mov     ax, [SavedDS]
@@ -558,6 +557,8 @@ LeaveUnrealMode:
     mov     ax, [SavedGS]
     mov     gs, ax
 
+    mov     ax, [SavedFlags]
+    push    ax
     popf
     pop     eax
     ret
@@ -1246,6 +1247,7 @@ SavedDS:    dw 0
 SavedES:    dw 0
 SavedFS:    dw 0
 SavedGS:    dw 0
+SavedFlags: dw 0
 
 ; Temporary GDT for unreal mode
 align 16

@@ -279,6 +279,11 @@ BOOL LoadKernelFat32(U32 BootDrive, U32 PartitionLba, const char* KernelFile, U3
         Cluster = Next;
     }
 
+    if (Remaining > 0U) {
+        BootErrorPrint(TEXT("[VBR] FAT32 kernel load incomplete. Halting.\r\n"));
+        Hang();
+    }
+
     if (FileSizeOut != NULL) {
         *FileSizeOut = FileSize;
     }
