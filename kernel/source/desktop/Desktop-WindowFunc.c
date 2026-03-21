@@ -180,7 +180,7 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
                 SurfaceScreenRect.Y2 = DrawContext.Origin.Y + SurfaceRect.Y2;
                 GraphicsScreenRectToWindowRect(&SurfaceScreenRect, &ClipScreenRect, &ClipLocalRect);
 
-                if (IntersectRect(&SurfaceRect, &ClipLocalRect, &SurfaceRect) == FALSE) {
+                if (IntersectRect(&SurfaceRect, &ClipLocalRect, &ClipLocalRect) == FALSE) {
                     return 1;
                 }
             }

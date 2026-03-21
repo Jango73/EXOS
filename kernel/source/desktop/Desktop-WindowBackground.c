@@ -119,6 +119,47 @@ static BOOL DrawSolidBackground(HANDLE GC, LPRECT Rect, COLOR Color, U32 CornerS
 /***************************************************************************/
 
 /**
+ * @brief Resolve whether one level 1 background geometry leaves corner pixels uncovered.
+ * @param ElementID Theme element identifier.
+ * @param StateID Theme state identifier.
+ * @param LeavesUncoveredCorners Receives TRUE when the geometry does not cover its full bounding rectangle.
+ * @return TRUE on success.
+ */
+static BOOL ResolveLevel1BackgroundCornerTransparency(LPCSTR ElementID, LPCSTR StateID, BOOL* LeavesUncoveredCorners) {
+    U32 CornerStyle = RECT_CORNER_STYLE_SQUARE;
+    U32 CornerRadiusMetric = 0;
+    U32 CornerRadiusLimitMetric = 0;
+    I32 CornerRadius = 0;
+    BOOL HasCornerStyle;
+    BOOL HasCornerRadius;
+    BOOL HasCornerRadiusLimit;
+
+    if (ElementID == NULL || StateID == NULL || LeavesUncoveredCorners == NULL) return FALSE;
+
+    *LeavesUncoveredCorners = FALSE;
+
+    HasCornerStyle = DesktopThemeResolveLevel1CornerStyle(ElementID, StateID, TEXT("corner_style"), &CornerStyle);
+    HasCornerRadius = DesktopThemeResolveLevel1Metric(ElementID, StateID, TEXT("corner_radius"), &CornerRadiusMetric);
+    HasCornerRadiusLimit = DesktopThemeResolveLevel1Metric(ElementID, StateID, TEXT("corner_radius_limit"), &CornerRadiusLimitMetric);
+
+    if (HasCornerStyle == FALSE || CornerStyle == RECT_CORNER_STYLE_SQUARE) return TRUE;
+    if (HasCornerRadius == FALSE) return TRUE;
+
+    CornerRadius = (I32)CornerRadiusMetric;
+    if (CornerRadius == RECT_CORNER_RADIUS_AUTO && HasCornerRadiusLimit != FALSE) {
+        CornerRadius = RECT_CORNER_RADIUS_AUTO_LIMIT((I32)CornerRadiusLimitMetric);
+    }
+
+    if (CornerRadius != 0) {
+        *LeavesUncoveredCorners = TRUE;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Resolve whether one level 1 background leaves the rectangle uncovered.
  * @param ElementID Theme element identifier.
  * @param StateID Theme state identifier.
@@ -137,12 +178,14 @@ static BOOL ResolveLevel1BackgroundTransparency(
     U32 BorderThickness = 0;
     U32 BackgroundAlpha = 0;
     U32 BorderAlpha = 0;
+    BOOL LeavesUncoveredCorners = FALSE;
     BOOL HasBackground;
     BOOL HasBorderColor;
     BOOL HasBorderThickness;
     BOOL HasVisibleBorder = FALSE;
 
     if (ElementID == NULL || StateID == NULL || Transparent == NULL) return FALSE;
+    if (ResolveLevel1BackgroundCornerTransparency(ElementID, StateID, &LeavesUncoveredCorners) == FALSE) return FALSE;
 
     HasBackground = DesktopThemeResolveLevel1Color(ElementID, StateID, TEXT("background"), &BackgroundColor);
     HasBorderColor = DesktopThemeResolveLevel1Color(ElementID, StateID, TEXT("border_color"), &BorderColor);
@@ -155,7 +198,7 @@ static BOOL ResolveLevel1BackgroundTransparency(
 
     if (HasBackground != FALSE) {
         BackgroundAlpha = (BackgroundColor >> 24) & 0xFF;
-        *Transparent = (BackgroundAlpha != 0xFF && HasVisibleBorder == FALSE);
+        *Transparent = (BackgroundAlpha != 0xFF && HasVisibleBorder == FALSE) || LeavesUncoveredCorners != FALSE;
         return TRUE;
     }
 
