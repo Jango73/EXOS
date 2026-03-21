@@ -925,6 +925,7 @@ Rectangle, triangle, and arc rasterization share the generic scanline helpers in
 `PEN_INFO` and `PEN` carry `Width` in addition to color and pattern. `LINE` applies the selected pen width through the shared line rasterizer. Closed shapes apply the selected pen width inward from the outer contour, so rectangle, arc, and triangle outlines stay inside the requested geometry.
 
 `kernel/source/drivers/graphics/vga/VGA-Main.c` exposes a dedicated VGA text driver (`alias: vga`) that implements mode enumeration, context retrieval, text cell output, region clear and scroll, and hardware cursor updates through the same `DF_GFX_*` contract. Console code no longer accesses VGA text memory or VGA cursor ports directly.
+When the boot path exposes a multiboot text framebuffer, console text dispatch resolves directly to the VGA driver instead of the graphics selector so early boot logging cannot recurse through backend probing.
 
 Display-class PCI attach logic is implemented in `kernel/source/drivers/graphics/common/Graphics-PCI.c`. The PCI bus layer registers this graphics-provided attach driver during PCI initialization so generic display controllers appear in the PCI device list.
 

@@ -169,22 +169,20 @@ static BOOL ConsoleTextAcquireContext(LPDRIVER* DriverOut, LPGRAPHICSCONTEXT* Co
         goto Done;
     }
 
-    Driver = DisplaySessionGetActiveGraphicsDriver();
-    if (Driver == GetGraphicsDriver() && ActiveBackendDriver != NULL) {
-        Driver = ActiveBackendDriver;
-    }
+    if (Console.UseTextBackend != FALSE && Console.FramebufferType == MULTIBOOT_FRAMEBUFFER_TEXT) {
+        Driver = VGAGetDriver();
+    } else {
+        Driver = DisplaySessionGetActiveGraphicsDriver();
+        if (Driver == GetGraphicsDriver() && ActiveBackendDriver != NULL) {
+            Driver = ActiveBackendDriver;
+        }
 
-    if (Driver == NULL || Driver->Command == NULL || Driver == ConsoleGetDriver()) {
-        Driver = ActiveBackendDriver;
-    }
+        if (Driver == NULL || Driver->Command == NULL || Driver == ConsoleGetDriver()) {
+            Driver = ActiveBackendDriver;
+        }
 
-    if (Driver == NULL || Driver->Command == NULL || Driver == ConsoleGetDriver()) {
-        Driver = GetGraphicsDriver();
-    }
-
-    if (Driver == NULL || Driver->Command == NULL || Driver == ConsoleGetDriver()) {
-        if (Console.UseTextBackend != FALSE && Console.FramebufferType == MULTIBOOT_FRAMEBUFFER_TEXT) {
-            Driver = VGAGetDriver();
+        if (Driver == NULL || Driver->Command == NULL || Driver == ConsoleGetDriver()) {
+            Driver = GetGraphicsDriver();
         }
     }
 
