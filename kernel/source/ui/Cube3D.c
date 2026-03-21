@@ -56,7 +56,7 @@ typedef struct tag_CUBE3D_STATE {
     U32 AngleYMilliDegrees;
     U32 AngleZMilliDegrees;
     U32 LastTick;
-    BOOL RenderEnabled;
+    BOOL RotationEnabled;
 } CUBE3D_STATE, *LPCUBE3D_STATE;
 
 /***************************************************************************/
@@ -82,14 +82,14 @@ static const QUAD CubeQuads[6] = {
 /***************************************************************************/
 
 /**
- * @brief Update the toggle button caption from one render state.
+ * @brief Update the toggle button caption from one rotation state.
  * @param ButtonWindow Button child window.
- * @param RenderEnabled TRUE when cube rendering is enabled.
+ * @param RotationEnabled TRUE when cube rotation is enabled.
  */
-static void Cube3DUpdateToggleButtonCaption(HANDLE ButtonWindow, BOOL RenderEnabled) {
+static void Cube3DUpdateToggleButtonCaption(HANDLE ButtonWindow, BOOL RotationEnabled) {
     if (ButtonWindow == NULL) return;
 
-    (void)SetWindowCaption(ButtonWindow, RenderEnabled ? TEXT("Hide Cube") : TEXT("Show Cube"));
+    (void)SetWindowCaption(ButtonWindow, RotationEnabled ? TEXT("Stop Rotation") : TEXT("Start Rotation"));
     (void)InvalidateClientRect(ButtonWindow, NULL);
 }
 
@@ -144,10 +144,10 @@ static BOOL Cube3DEnsureToggleButton(HANDLE Window, LPCUBE3D_STATE State) {
     ButtonRect.X2 = CUBE3D_TOGGLE_BUTTON_WIDTH - 1;
     ButtonRect.Y2 = CUBE3D_TOGGLE_BUTTON_HEIGHT - 1;
 
-    State->ToggleButton = ButtonCreate(Window, CUBE3D_TOGGLE_BUTTON_ID, &ButtonRect, TEXT("Hide Cube"));
+    State->ToggleButton = ButtonCreate(Window, CUBE3D_TOGGLE_BUTTON_ID, &ButtonRect, TEXT("Stop Rotation"));
     if (State->ToggleButton == NULL) return FALSE;
 
-    Cube3DUpdateToggleButtonCaption(State->ToggleButton, State->RenderEnabled);
+    Cube3DUpdateToggleButtonCaption(State->ToggleButton, State->RotationEnabled);
     Cube3DLayoutToggleButton(Window, State->ToggleButton);
     return TRUE;
 }
@@ -359,7 +359,7 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
 
             Now = GetSystemTime();
             State->LastTick = Now;
-            State->RenderEnabled = TRUE;
+            State->RotationEnabled = TRUE;
             (void)SetWindowProp(Window, CUBE3D_PROP_STATE, (UINT)State);
             if (Cube3DEnsureToggleButton(Window, State) == FALSE) {
                 (void)DeleteObject(State->FlashPen);
@@ -397,6 +397,11 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                     return 1;
                 }
 
+                if (State->RotationEnabled == FALSE) {
+                    State->LastTick = Now;
+                    return 1;
+                }
+
                 DeltaXMilliDegrees = (DeltaMilliseconds * CUBE3D_ROTATION_X_MDEG_PER_SECOND) / 1000;
                 DeltaYMilliDegrees = (DeltaMilliseconds * CUBE3D_ROTATION_Y_MDEG_PER_SECOND) / 1000;
                 DeltaZMilliDegrees = (DeltaMilliseconds * CUBE3D_ROTATION_Z_MDEG_PER_SECOND) / 1000;
@@ -404,9 +409,7 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 State->AngleYMilliDegrees = (State->AngleYMilliDegrees + DeltaYMilliDegrees) % CUBE3D_FULL_TURN_MDEG;
                 State->AngleZMilliDegrees = (State->AngleZMilliDegrees + DeltaZMilliDegrees) % CUBE3D_FULL_TURN_MDEG;
                 State->LastTick = Now;
-                if (State->RenderEnabled != FALSE) {
-                    (void)InvalidateClientRect(Window, NULL);
-                }
+                (void)InvalidateClientRect(Window, NULL);
             }
             return 1;
 
@@ -425,8 +428,9 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                     return 1;
                 }
 
-                State->RenderEnabled = !State->RenderEnabled;
-                Cube3DUpdateToggleButtonCaption(State->ToggleButton, State->RenderEnabled);
+                State->RotationEnabled = !State->RotationEnabled;
+                State->LastTick = GetSystemTime();
+                Cube3DUpdateToggleButtonCaption(State->ToggleButton, State->RotationEnabled);
                 (void)InvalidateClientRect(Window, NULL);
                 return 1;
             }
@@ -439,7 +443,7 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             }
 
             State = (LPCUBE3D_STATE)GetWindowProp(Window, CUBE3D_PROP_STATE);
-            if (State != NULL && State->RenderEnabled != FALSE) {
+            if (State != NULL) {
                 Cube3DDrawWireframe(Window, &ClientRect);
             }
             return 1;
