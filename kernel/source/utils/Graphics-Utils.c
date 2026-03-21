@@ -831,7 +831,7 @@ BOOL GraphicsDrawScanline(LPGRAPHICSCONTEXT Context, I32 X1, I32 X2, I32 Y, COLO
     }
 
     if (ClippedStartColor == ClippedEndColor) {
-        return GraphicsDrawScanlineAsm(
+        return DrawScanlineAsm(
             Pixel,
             PixelCount,
             Context->BitsPerPixel,
@@ -840,7 +840,7 @@ BOOL GraphicsDrawScanline(LPGRAPHICSCONTEXT Context, I32 X1, I32 X2, I32 Y, COLO
             GraphicsPackColor(Context, ClippedEndColor));
     }
 
-    return GraphicsDrawHorizontalGradientScanlineAsm(
+    return DrawHorizontalGradientScanlineAsm(
         Pixel,
         PixelCount,
         Context->BitsPerPixel,
@@ -989,7 +989,7 @@ BOOL GraphicsFillVerticalGradientRect(
 
     PixelCount = (U32)(DrawX2 - DrawX1 + 1);
     RowCount = (U32)(DrawY2 - DrawY1 + 1);
-    return GraphicsFillVerticalGradientRectAsm(
+    return FillVerticalGradientRectAsm(
         Pixel,
         PixelCount,
         RowCount,

@@ -600,18 +600,23 @@ void PrepareNextTaskSwitch(struct tag_TASK* CurrentTask, struct tag_TASK* NextTa
  */
 static void InitializeFPUState(void) {
     U32 Cr0Value;
+    U32 Cr4Value;
 
     DEBUG(TEXT("[InitializeFPUState] Enter"));
 
     __asm__ volatile("mov %%cr0, %0" : "=r"(Cr0Value));
     Cr0Value |= (CR0_COPROCESSOR | CR0_80387 | CR0_NUMERIC_ERROR);
-    Cr0Value &= ~(CR0_MONITOR_COPROCESSOR | CR0_TASKSWITCH);
+    Cr0Value &= ~(CR0_EMULATION | CR0_TASKSWITCH);
     __asm__ volatile("mov %0, %%cr0" : : "r"(Cr0Value));
+
+    __asm__ volatile("mov %%cr4, %0" : "=r"(Cr4Value));
+    Cr4Value |= (CR4_OSFXSR | CR4_OSXMMEXCPT);
+    __asm__ volatile("mov %0, %%cr4" : : "r"(Cr4Value));
 
     __asm__ volatile("fninit");
     __asm__ volatile("fnclex");
 
-    DEBUG(TEXT("[InitializeFPUState] CR0=%x"), Cr0Value);
+    DEBUG(TEXT("[InitializeFPUState] CR0=%x CR4=%x"), Cr0Value, Cr4Value);
 }
 
 /************************************************************************/

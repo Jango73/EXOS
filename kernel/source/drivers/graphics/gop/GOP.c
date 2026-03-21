@@ -23,6 +23,7 @@
 
 #include "GFX.h"
 #include "CoreString.h"
+#include "System.h"
 #include "console/Console.h"
 #include "Log.h"
 #include "Memory.h"
@@ -435,10 +436,15 @@ static UINT GOPGfxPresent(LPGFX_PRESENT_INFO Info) {
     for (Row = 0; Row <= (U32)(DirtyRect.Y2 - DirtyRect.Y1); Row++) {
         U32 Y = (U32)DirtyRect.Y1 + Row;
         U32 Offset = Y * SourceContext->BytesPerScanLine + ((U32)DirtyRect.X1 * BytesPerPixel);
-        MemoryCopy(
-            GOPGfxState.Context.MemoryBase + Offset,
-            SourceContext->MemoryBase + Offset,
-            CopyBytes);
+        if (BlitMemoryAsm(
+                GOPGfxState.Context.MemoryBase + Offset,
+                SourceContext->MemoryBase + Offset,
+                CopyBytes) == FALSE) {
+            MemoryCopy(
+                GOPGfxState.Context.MemoryBase + Offset,
+                SourceContext->MemoryBase + Offset,
+                CopyBytes);
+        }
     }
 
     return DF_RETURN_SUCCESS;

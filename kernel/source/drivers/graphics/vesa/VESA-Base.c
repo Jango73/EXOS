@@ -25,6 +25,7 @@
 #include "GFX.h"
 #include "Arch.h"
 #include "CoreString.h"
+#include "System.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
@@ -391,7 +392,9 @@ static U32 VESA_Present(LPGFX_PRESENT_INFO Info) {
     for (Row = 0; Row <= (U32)(DirtyRect.Y2 - DirtyRect.Y1); Row++) {
         U32 Y = (U32)DirtyRect.Y1 + Row;
         U32 Offset = Y * SourceContext->BytesPerScanLine + ((U32)DirtyRect.X1 * BytesPerPixel);
-        MemoryCopy(VESAContext.Header.MemoryBase + Offset, SourceContext->MemoryBase + Offset, CopyBytes);
+        if (BlitMemoryAsm(VESAContext.Header.MemoryBase + Offset, SourceContext->MemoryBase + Offset, CopyBytes) == FALSE) {
+            MemoryCopy(VESAContext.Header.MemoryBase + Offset, SourceContext->MemoryBase + Offset, CopyBytes);
+        }
     }
 
     return DF_RETURN_SUCCESS;

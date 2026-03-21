@@ -24,6 +24,7 @@
 #include "iGPU-Internal.h"
 
 #include "CoreString.h"
+#include "System.h"
 #include "Log.h"
 #include "Memory.h"
 #include "drivers/graphics/common/Graphics-TextRenderer.h"
@@ -70,7 +71,9 @@ UINT IntelGfxFlushContextRegionToScanout(LPGRAPHICSCONTEXT Context, I32 X, I32 Y
         U32 DestinationOffset = ((U32)Y + Row) * IntelGfxState.ActiveStride + ((U32)X * BytesPerPixel);
         U8* Source = Context->MemoryBase + SourceOffset;
         U8* Destination = (U8*)(LINEAR)IntelGfxState.FrameBufferLinear + DestinationOffset;
-        MemoryCopy(Destination, Source, CopyBytes);
+        if (BlitMemoryAsm(Destination, Source, CopyBytes) == FALSE) {
+            MemoryCopy(Destination, Source, CopyBytes);
+        }
     }
 
     IntelGfxNotePresentBlit();
@@ -160,7 +163,9 @@ UINT IntelGfxScrollRegionViaShadow(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_REGION_
 
     for (Row = 0; Row < PixelHeight; Row++) {
         U32 Offset = ((U32)PixelY + Row) * IntelGfxState.ActiveStride + ((U32)PixelX * BytesPerPixel);
-        MemoryCopy(ShadowBuffer + Offset, FrameBuffer + Offset, RowBytes);
+        if (BlitMemoryAsm(ShadowBuffer + Offset, FrameBuffer + Offset, RowBytes) == FALSE) {
+            MemoryCopy(ShadowBuffer + Offset, FrameBuffer + Offset, RowBytes);
+        }
     }
 
     ShadowContext = *Context;
@@ -173,7 +178,9 @@ UINT IntelGfxScrollRegionViaShadow(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_REGION_
 
     for (Row = 0; Row < PixelHeight; Row++) {
         U32 Offset = ((U32)PixelY + Row) * IntelGfxState.ActiveStride + ((U32)PixelX * BytesPerPixel);
-        MemoryCopy(FrameBuffer + Offset, ShadowBuffer + Offset, RowBytes);
+        if (BlitMemoryAsm(FrameBuffer + Offset, ShadowBuffer + Offset, RowBytes) == FALSE) {
+            MemoryCopy(FrameBuffer + Offset, ShadowBuffer + Offset, RowBytes);
+        }
     }
 
     IntelGfxNotePresentBlit();
@@ -345,7 +352,9 @@ static UINT IntelGfxBlitSurfaceRegionToScanout(LPINTEL_GFX_SURFACE Surface, U32 
         U32 DestinationOffset = (Y + Row) * IntelGfxState.ActiveStride + (X << 2);
         U8* Source = Surface->MemoryBase + SourceOffset;
         U8* Destination = (U8*)(LINEAR)IntelGfxState.FrameBufferLinear + DestinationOffset;
-        MemoryCopy(Destination, Source, CopyBytes);
+        if (BlitMemoryAsm(Destination, Source, CopyBytes) == FALSE) {
+            MemoryCopy(Destination, Source, CopyBytes);
+        }
     }
 
     IntelGfxNotePresentBlit();

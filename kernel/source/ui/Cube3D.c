@@ -349,7 +349,7 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             PenInfo.Header.Flags = 0;
             PenInfo.Color = CUBE3D_COLOR_FLASH_GREEN;
             PenInfo.Pattern = MAX_U32;
-            PenInfo.Width = 4;
+            PenInfo.Width = 2;
             PenInfo.Flags = 0;
             State->FlashPen = CreatePen(&PenInfo);
             if (State->FlashPen == NULL) {
