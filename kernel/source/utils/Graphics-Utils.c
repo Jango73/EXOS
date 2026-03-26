@@ -85,14 +85,10 @@ static BOOL GraphicsRenderArc(
 /************************************************************************/
 
 /**
- * @brief Sleeps between primitive scanlines when debug redraw throttling is enabled.
+ * @brief Legacy no-op kept so generic drawing primitives stay side-effect free.
  */
 static void GraphicsSlowRedrawPauseIfNeeded(void) {
-    if (GetSlowRedrawEnabled() == FALSE) {
-        return;
-    }
-
-    Sleep(100);
+    return;
 }
 
 /************************************************************************/

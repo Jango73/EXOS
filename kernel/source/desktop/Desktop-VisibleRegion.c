@@ -245,6 +245,7 @@ BOOL DesktopBuildWindowVisibleRegion(
         KernelHeapFree(Windows);
     }
 
+    DesktopPipelineTraceRegion(Window, Region);
     return TRUE;
 }
 
@@ -291,5 +292,6 @@ BOOL DesktopBuildRootVisibleRegion(
         KernelHeapFree(Children);
     }
 
+    DesktopPipelineTraceRegion(RootWindow, Region);
     return TRUE;
 }

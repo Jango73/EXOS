@@ -339,7 +339,7 @@ static KERNEL_DATA DATA_SECTION Kernel = {
     .DeferredWorkPollDelayMS = DEFERRED_WORK_POLL_DELAY_MS,
     .DoLogin = 0,
     .ShowDesktop = 1,
-    .SlowRedrawEnabled = 0,
+    .WindowPipelineTraceEnabled = 0,
     .LanguageCode = "en-US",
     .KeyboardCode = "fr-FR"
 };
@@ -859,11 +859,11 @@ BOOL GetShowDesktop(void) {
 /************************************************************************/
 
 /**
- * @brief Gets the debug redraw throttling flag.
- * @return TRUE when redraw throttling is enabled.
+ * @brief Gets the desktop window pipeline trace flag.
+ * @return TRUE when the visual window pipeline trace is enabled.
  */
-BOOL GetSlowRedrawEnabled(void) {
-    return Kernel.SlowRedrawEnabled;
+BOOL GetWindowPipelineTraceEnabled(void) {
+    return Kernel.WindowPipelineTraceEnabled;
 }
 
 /************************************************************************/
@@ -889,11 +889,11 @@ void SetShowDesktop(BOOL ShowDesktop) {
 /************************************************************************/
 
 /**
- * @brief Sets the debug redraw throttling flag.
- * @param Enabled TRUE to enable redraw throttling, FALSE to disable.
+ * @brief Sets the desktop window pipeline trace flag.
+ * @param Enabled TRUE to enable the visual window pipeline trace, FALSE to disable.
  */
-void SetSlowRedrawEnabled(BOOL Enabled) {
-    Kernel.SlowRedrawEnabled = Enabled;
+void SetWindowPipelineTraceEnabled(BOOL Enabled) {
+    Kernel.WindowPipelineTraceEnabled = Enabled;
 }
 
 /************************************************************************/

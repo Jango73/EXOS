@@ -212,6 +212,11 @@ static BOOL InvalidateWindowTreeOnScreenIntersection(LPWINDOW Window, LPRECT Scr
 /***************************************************************************/
 
 /**
+ * @brief Invalidate direct transparent children intersecting one screen rectangle.
+ * @param Window Parent window whose child list is inspected.
+ * @param ScreenRect Damage rectangle in screen coordinates.
+ */
+/**
  * @brief Update one window screen rectangle and reset its dirty region to this rectangle.
  * @param Window Target window.
  * @param Rect New screen rectangle.

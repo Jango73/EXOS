@@ -2442,9 +2442,10 @@ Supported actions:
 - `switch_to_console`: switches the active display front-end back to the console.
   - This is intended for global recovery shortcuts such as `control+shift+f1`.
   - It uses the existing display session console activation path, including graphics text routing and VGA text fallback.
-- `toggle_slow_redraw`: toggles a graphics debug mode that sleeps 100 milliseconds at each primitive draw entry.
+- `toggle_window_pipeline_trace`: toggles a desktop debug mode that visualizes computed regions and draw dispatches on screen.
   - `control+shift+f12` is handled as one built-in shortcut for this action before configuration-defined hotkeys are evaluated.
-  - The flag is stored in `KERNEL_DATA` and consumed by generic graphics utility primitives.
+  - The flag is stored in `KERNEL_DATA` and consumed by desktop pipeline trace helpers.
+  - For compatibility, the configuration action name `toggle_slow_redraw` still maps to the same handler.
 
 Process control messages are intercepted in task messaging before queue insertion:
 - `ETM_INTERRUPT`

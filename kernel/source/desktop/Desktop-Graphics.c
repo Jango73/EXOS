@@ -453,6 +453,7 @@ BOOL BuildWindowDrawClipRegion(
         (void)DesktopBuildWindowVisibleRegion(This, &WindowScreenRect, TRUE, ClipRegion, ClipStorage, ClipCapacity);
     }
 
+    DesktopPipelineTraceRegion(This, ClipRegion);
     return TRUE;
 }
 

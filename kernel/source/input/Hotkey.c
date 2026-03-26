@@ -66,12 +66,12 @@ static BOOL HotkeyActionSwitchToConsole(LPPROCESS Process) {
 
 /************************************************************************/
 
-static BOOL HotkeyActionToggleSlowRedraw(LPPROCESS Process) {
+static BOOL HotkeyActionToggleWindowPipelineTrace(LPPROCESS Process) {
     UNUSED(Process);
 
-    SetSlowRedrawEnabled(!GetSlowRedrawEnabled());
-    DEBUG(TEXT("[HotkeyActionToggleSlowRedraw] Slow redraw %s"),
-        GetSlowRedrawEnabled() ? TEXT("enabled") : TEXT("disabled"));
+    SetWindowPipelineTraceEnabled(!GetWindowPipelineTraceEnabled());
+    DEBUG(TEXT("[HotkeyActionToggleWindowPipelineTrace] Window pipeline trace %s"),
+        GetWindowPipelineTraceEnabled() ? TEXT("enabled") : TEXT("disabled"));
     return TRUE;
 }
 
@@ -210,7 +210,8 @@ static HOTKEY_ACTION_HANDLER HotkeyResolveAction(LPCSTR ActionName) {
         {TEXT("kill_process"), HotkeyActionKillProcess},
         {TEXT("pause_process"), HotkeyActionPauseProcess},
         {TEXT("switch_to_console"), HotkeyActionSwitchToConsole},
-        {TEXT("toggle_slow_redraw"), HotkeyActionToggleSlowRedraw},
+        {TEXT("toggle_window_pipeline_trace"), HotkeyActionToggleWindowPipelineTrace},
+        {TEXT("toggle_slow_redraw"), HotkeyActionToggleWindowPipelineTrace},
         {NULL, NULL}
     };
 
@@ -292,7 +293,7 @@ BOOL HotkeyHandleKeyDown(U8 VirtualKey, U32 Modifiers, BOOL Repeat) {
     }
 
     if (HotkeyHandleEntry(
-            VirtualKey, Modifiers, TEXT("control+shift+f12"), TEXT("toggle_slow_redraw"), Process, FALSE) == TRUE) {
+            VirtualKey, Modifiers, TEXT("control+shift+f12"), TEXT("toggle_window_pipeline_trace"), Process, FALSE) == TRUE) {
         return TRUE;
     }
 

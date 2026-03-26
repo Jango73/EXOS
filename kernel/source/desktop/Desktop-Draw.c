@@ -221,6 +221,7 @@ static BOOL DispatchPreparedClientDraw(
     U32 Param2) {
     RECT SurfaceRect;
     RECT SurfaceScreenRect;
+    RECT ClientScreenRect;
     RECT ClientClipRect;
     POINT DrawOrigin;
     U32 DrawFlags = 0;
@@ -228,6 +229,11 @@ static BOOL DispatchPreparedClientDraw(
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (ClipRect == NULL) return FALSE;
     if (Window->Function == NULL) return FALSE;
+    if (GetWindowClientScreenRect(Window, &ClientScreenRect) == FALSE) {
+        ClientScreenRect = Window->ScreenRect;
+    }
+
+    DesktopPipelineTraceWindowDrawDispatch(Window, ClipRect, &ClientScreenRect);
 
     if (ShouldDrawWindowNonClient(Window) != FALSE) {
         if (GetWindowClientScreenRect(Window, &SurfaceScreenRect) == FALSE) return FALSE;
