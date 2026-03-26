@@ -79,6 +79,8 @@ struct tag_TASK {
     U32 Flags;                // Task creation flags
     ARCH_TASK_DATA Arch;      // Architecture-specific task data
     UINT WakeUpTime;          // System time at which to wake up the task
+    LPMUTEX WaitingMutex;     // Mutex currently waited by this task
+    UINT WaitingSince;        // Time at which the current mutex wait started
     MESSAGEQUEUE MessageQueue;  // Message queue for this task
     LPVOID WindowDispatchWindow;          // Current window in nested window dispatch
     LPVOID WindowDispatchClass;           // Current class in nested window dispatch
