@@ -84,8 +84,6 @@ struct tag_TASK {
     LPVOID WindowDispatchClass;           // Current class in nested window dispatch
     WINDOWFUNC WindowDispatchFunction;    // Current function in nested window dispatch
     U32 WindowDispatchDepth;              // Current nested window dispatch depth
-    U32 DebugLockOrderDepth;  // Lock order checker stack depth
-    U32 DebugLockOrderStack[32];  // Lock order checker role stack
 };
 
 typedef struct tag_TASK TASK, *LPTASK;
