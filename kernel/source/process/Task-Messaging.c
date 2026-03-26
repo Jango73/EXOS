@@ -529,22 +529,18 @@ BOOL EnqueueInputMessage(U32 Msg, U32 Param1, U32 Param2) {
     LPDESKTOP Desktop = GetActiveDesktop();
     LPPROCESS Process = GetFocusedProcess();
     LPWINDOW FocusedWindow = NULL;
+    BOOL IsMouseMessage;
     LPTASK TargetTask = NULL;
 
-    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) { FocusedWindow = Desktop->Focus; }
+    IsMouseMessage = (Msg == EWM_MOUSEMOVE || Msg == EWM_MOUSEDOWN || Msg == EWM_MOUSEUP);
 
-    // Only route to a focused window if it belongs to the focused process.
-    SAFE_USE_VALID_ID(FocusedWindow, KOID_WINDOW) {
-        SAFE_USE_VALID_ID(FocusedWindow->Task, KOID_TASK) {
-            if (FocusedWindow->Task->Process == Process) {
-                TargetTask = FocusedWindow->Task;
-            }
-        }
+    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+        (void)DesktopGetFocusWindow(Desktop, &FocusedWindow);
     }
 
-    // Mouse input must always target one desktop window task when available,
-    // otherwise dispatcher receives thread messages with NULL target.
-    if (TargetTask == NULL && (Msg == EWM_MOUSEMOVE || Msg == EWM_MOUSEDOWN || Msg == EWM_MOUSEUP)) {
+    // Mouse input must always target the desktop window task so hit testing,
+    // capture, and non-client interactions keep using one dispatcher path.
+    if (IsMouseMessage != FALSE) {
         SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
             SAFE_USE_VALID_ID(Desktop->Window, KOID_WINDOW) {
                 SAFE_USE_VALID_ID(Desktop->Window->Task, KOID_TASK) {
@@ -552,6 +548,15 @@ BOOL EnqueueInputMessage(U32 Msg, U32 Param1, U32 Param2) {
                         FocusedWindow = Desktop->Window;
                         TargetTask = Desktop->Window->Task;
                     }
+                }
+            }
+        }
+    } else {
+        // Only route keyboard-like input to a focused window if it belongs to the focused process.
+        SAFE_USE_VALID_ID(FocusedWindow, KOID_WINDOW) {
+            SAFE_USE_VALID_ID(FocusedWindow->Task, KOID_TASK) {
+                if (FocusedWindow->Task->Process == Process) {
+                    TargetTask = FocusedWindow->Task;
                 }
             }
         }

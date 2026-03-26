@@ -73,6 +73,8 @@ static const THEME_COLOR_TOKEN_ENTRY BuiltinColorTokens[] = {
     {THEME_TOKEN_COLOR_SELECTION, TEXT("color.selection"), SETALPHA(COLOR_DARK_BLUE, 0xFF)},
     {THEME_TOKEN_COLOR_TITLE_BAR, TEXT("color.window.title.active.start"), SETALPHA(COLOR_GRAY35, 0xFF)},
     {THEME_TOKEN_COLOR_TITLE_BAR_2, TEXT("color.window.title.active.end"), SETALPHA(COLOR_GRAY25, 0xFF)},
+    {THEME_TOKEN_COLOR_TITLE_BAR_FOCUSED, TEXT("color.window.title.focused.start"), SETALPHA(COLOR_GRAY50, 0xFF)},
+    {THEME_TOKEN_COLOR_TITLE_BAR_FOCUSED_2, TEXT("color.window.title.focused.end"), SETALPHA(COLOR_GRAY40, 0xFF)},
     {THEME_TOKEN_COLOR_TEXT_NORMAL, TEXT("color.text.normal"), SETALPHA(COLOR_GRAY75, 0xFF)},
     {THEME_TOKEN_COLOR_TEXT_SELECTED, TEXT("color.text.selected"), SETALPHA(COLOR_GRAY75, 0xFF)},
     {THEME_TOKEN_COLOR_TITLE_TEXT, TEXT("color.title_text"), SETALPHA(COLOR_GRAY75, 0xFF)},

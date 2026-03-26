@@ -256,6 +256,7 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
  */
 static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
     WINDOW_STATE_SNAPSHOT Snapshot;
+    LPCSTR TitleState = TEXT("normal");
     HANDLE TitleBrush;
     HANDLE TitleBrush2;
     HANDLE TitlePen;
@@ -283,12 +284,15 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
 
     if (GC == NULL || Rect == NULL) return FALSE;
     if (GetWindowStateSnapshot((LPWINDOW)Window, &Snapshot) == FALSE) return FALSE;
+    if (IsDesktopWindowFocused((LPWINDOW)Window) != FALSE) {
+        TitleState = TEXT("focused");
+    }
 
     (void)ResolveWindowTitleBarHeight(&TitleHeight);
-    if (!DesktopThemeResolveLevel1Metric(TEXT("window.titlebar"), TEXT("normal"), TEXT("corner_radius"), &CornerRadius)) {
+    if (!DesktopThemeResolveLevel1Metric(TEXT("window.titlebar"), TitleState, TEXT("corner_radius"), &CornerRadius)) {
         CornerRadius = 6;
     }
-    if (!DesktopThemeResolveLevel1CornerStyle(TEXT("window.titlebar"), TEXT("normal"), TEXT("corner_style"), &CornerStyle)) {
+    if (!DesktopThemeResolveLevel1CornerStyle(TEXT("window.titlebar"), TitleState, TEXT("corner_style"), &CornerStyle)) {
         CornerStyle = CornerRadius > 0 ? RECT_CORNER_STYLE_ROUNDED : RECT_CORNER_STYLE_SQUARE;
     }
     if (TitleHeight == 0) return FALSE;
@@ -306,19 +310,31 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
     SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
     }
 
-    if (!DesktopThemeResolveLevel1Color(TEXT("window.titlebar"), TEXT("normal"), TEXT("background"), &Background)) {
-        TitleBrush = GetSystemBrush(SM_COLOR_TITLE_BAR);
-        SAFE_USE_VALID_ID((LPBRUSH)TitleBrush, KOID_BRUSH) {
-            TitleBrushPtr = (LPBRUSH)TitleBrush;
-            Background = TitleBrushPtr->Color;
+    if (!DesktopThemeResolveLevel1Color(TEXT("window.titlebar"), TitleState, TEXT("background"), &Background)) {
+        if (StringCompareNC(TitleState, TEXT("focused")) == 0) {
+            if (!DesktopThemeResolveTokenColorByName(TEXT("color.window.title.focused.start"), &Background)) {
+                Background = SETALPHA(COLOR_GRAY50, 0xFF);
+            }
+        } else {
+            TitleBrush = GetSystemBrush(SM_COLOR_TITLE_BAR);
+            SAFE_USE_VALID_ID((LPBRUSH)TitleBrush, KOID_BRUSH) {
+                TitleBrushPtr = (LPBRUSH)TitleBrush;
+                Background = TitleBrushPtr->Color;
+            }
         }
     }
 
-    if (!DesktopThemeResolveLevel1Color(TEXT("window.titlebar"), TEXT("normal"), TEXT("background2"), &Background2)) {
-        TitleBrush2 = GetSystemBrush(SM_COLOR_TITLE_BAR_2);
-        SAFE_USE_VALID_ID((LPBRUSH)TitleBrush2, KOID_BRUSH) {
-            TitleBrush2Ptr = (LPBRUSH)TitleBrush2;
-            Background2 = TitleBrush2Ptr->Color;
+    if (!DesktopThemeResolveLevel1Color(TEXT("window.titlebar"), TitleState, TEXT("background2"), &Background2)) {
+        if (StringCompareNC(TitleState, TEXT("focused")) == 0) {
+            if (!DesktopThemeResolveTokenColorByName(TEXT("color.window.title.focused.end"), &Background2)) {
+                Background2 = SETALPHA(COLOR_GRAY40, 0xFF);
+            }
+        } else {
+            TitleBrush2 = GetSystemBrush(SM_COLOR_TITLE_BAR_2);
+            SAFE_USE_VALID_ID((LPBRUSH)TitleBrush2, KOID_BRUSH) {
+                TitleBrush2Ptr = (LPBRUSH)TitleBrush2;
+                Background2 = TitleBrush2Ptr->Color;
+            }
         }
     }
 
@@ -344,7 +360,7 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
 
     if (StringLength(Snapshot.Caption) == 0) return TRUE;
 
-    if (!DesktopThemeResolveLevel1Color(TEXT("window.titlebar"), TEXT("normal"), TEXT("text_color"), &TextColor)) {
+    if (!DesktopThemeResolveLevel1Color(TEXT("window.titlebar"), TitleState, TEXT("text_color"), &TextColor)) {
         TitlePen = GetSystemPen(SM_COLOR_TITLE_TEXT);
         SAFE_USE_VALID_ID((LPPEN)TitlePen, KOID_PEN) {
             TextColor = ((LPPEN)TitlePen)->Color;

@@ -1756,8 +1756,18 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
         case EWM_MOUSEDOWN: {
             POINT Position;
             LPWINDOW Target;
+            LPWINDOW CaptureWindow = NULL;
             I32 MouseX;
             I32 MouseY;
+
+            if (GetDesktopCaptureState((LPWINDOW)Window, &CaptureWindow, NULL, NULL) != FALSE) {
+                SAFE_USE_VALID_ID(CaptureWindow, KOID_WINDOW) {
+                    if (CaptureWindow != (LPWINDOW)Window) {
+                        (void)PostMessage((HANDLE)CaptureWindow, EWM_MOUSEDOWN, Param1, Param2);
+                        break;
+                    }
+                }
+            }
 
             if (GetMouseScreenPosition(&MouseX, &MouseY) == FALSE) {
                 break;
@@ -1767,6 +1777,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             Position.Y = MouseY;
             Target = (LPWINDOW)WindowHitTest(Window, &Position);
             if (Target != NULL && Target != (LPWINDOW)Window) {
+                (void)DesktopSetFocusWindow(Target);
                 (void)PostMessage((HANDLE)Target, EWM_MOUSEDOWN, Param1, Param2);
             }
         } break;

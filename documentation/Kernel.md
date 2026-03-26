@@ -2201,6 +2201,8 @@ color.window.border = "#000000"
 color.client.background = "#c0c0c0"
 color.window.title.active.start = "#000080"
 color.window.title.active.end = "#1084d0"
+color.window.title.focused.start = "#808080"
+color.window.title.focused.end = "#666666"
 color.window.title.inactive.start = "#808080"
 color.window.title.inactive.end = "#a0a0a0"
 color.window.title.text = "#ffffff"
@@ -2229,8 +2231,8 @@ background2 = "token:color.window.title.active.end"
 corner_radius = 6
 
 [elements.window.titlebar.states.focused]
-background = "token:color.window.title.active.start"
-background2 = "token:color.window.title.active.end"
+background = "token:color.window.title.focused.start"
+background2 = "token:color.window.title.focused.end"
 corner_radius = 6
 
 [elements.window.titlebar.states.active]
