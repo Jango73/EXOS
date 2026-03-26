@@ -278,7 +278,7 @@ Success criteria:
 Success criteria:
 - mutex waits update the monitor state correctly in success, timeout, and abort paths.
 
-## [ ] Step 5 - Add diagnostics
+## [x] Step 5 - Add diagnostics
 
 - Add one short human-facing deadlock summary.
 - Add detailed `DEBUG()` chain logging.
@@ -287,7 +287,7 @@ Success criteria:
 Success criteria:
 - one deadlock incident yields one readable diagnostic sequence.
 
-## [ ] Step 6 - Add debug fail-fast policy
+## [x] Step 6 - Add debug fail-fast policy
 
 - In debug builds, stop the kernel when a cycle is confirmed.
 - Keep normal builds in diagnostic-only mode.

@@ -24,15 +24,41 @@
 #include "utils/DeadlockMonitor.h"
 
 #include "Clock.h"
+#include "console/Console.h"
+#include "Log.h"
 #include "Memory.h"
 #include "Mutex.h"
 #include "process/Task.h"
+#include "utils/RateLimiter.h"
 
 /************************************************************************/
 
 #define DEADLOCK_MONITOR_MAX_CHAIN_DEPTH 32
 
 /************************************************************************/
+
+static RATE_LIMITER DATA_SECTION DeadlockMonitorCycleLogLimiter = {0};
+static BOOL DATA_SECTION DeadlockMonitorCycleLogLimiterInitialized = FALSE;
+
+/************************************************************************/
+
+/**
+ * @brief Ensure the cycle log limiter is initialized once.
+ *
+ * @return TRUE when the limiter can be used.
+ */
+static BOOL DeadlockMonitorEnsureCycleLogLimiter(void) {
+    if (DeadlockMonitorCycleLogLimiterInitialized != FALSE) {
+        return TRUE;
+    }
+
+    if (RateLimiterInit(&DeadlockMonitorCycleLogLimiter, 2, 1000) == FALSE) {
+        return FALSE;
+    }
+
+    DeadlockMonitorCycleLogLimiterInitialized = TRUE;
+    return TRUE;
+}
 
 /**
  * @brief Validate one mutex pointer for deadlock analysis.
@@ -89,6 +115,92 @@ static void DeadlockMonitorClearWaitState(LPTASK Task, LPMUTEX Mutex) {
 /************************************************************************/
 
 /**
+ * @brief Log one confirmed mutex deadlock chain.
+ *
+ * @param WaiterTask Task that started the wait.
+ * @param Mutex Initial mutex waited by the task.
+ */
+static void DeadlockMonitorLogCycle(LPTASK WaiterTask, LPMUTEX Mutex) {
+    UINT Depth;
+    U32 Now;
+    U32 Suppressed = 0;
+    LPTASK OwnerTask;
+    LPTASK CurrentTask;
+    LPMUTEX CurrentMutex;
+
+    WaiterTask = DeadlockMonitorGetValidTask(WaiterTask);
+    Mutex = DeadlockMonitorGetValidMutex(Mutex);
+    if (WaiterTask == NULL || Mutex == NULL) {
+        return;
+    }
+
+    OwnerTask = DeadlockMonitorGetValidTask(Mutex->Task);
+    if (OwnerTask == NULL) {
+        return;
+    }
+
+    Now = GetSystemTime();
+    if (DeadlockMonitorEnsureCycleLogLimiter() != FALSE) {
+        if (RateLimiterShouldTrigger(&DeadlockMonitorCycleLogLimiter, Now, &Suppressed) == FALSE) {
+            return;
+        }
+    }
+
+    ERROR(TEXT("[DeadlockMonitorLogCycle] Mutex deadlock detected waiter=%p (%s) mutex=%p owner=%p (%s) suppressed=%u"),
+          WaiterTask,
+          WaiterTask->Name[0] != STR_NULL ? WaiterTask->Name : TEXT("Unnamed"),
+          Mutex,
+          OwnerTask,
+          OwnerTask->Name[0] != STR_NULL ? OwnerTask->Name : TEXT("Unnamed"),
+          Suppressed);
+
+    CurrentTask = WaiterTask;
+    CurrentMutex = Mutex;
+
+    for (Depth = 0; Depth < DEADLOCK_MONITOR_MAX_CHAIN_DEPTH; Depth++) {
+        OwnerTask = DeadlockMonitorGetValidTask(CurrentMutex->Task);
+        if (OwnerTask == NULL) {
+            DEBUG(TEXT("[DeadlockMonitorLogCycle] Chain[%u] task=%p (%s) waits for mutex=%p with no valid owner"),
+                  Depth,
+                  CurrentTask,
+                  CurrentTask->Name[0] != STR_NULL ? CurrentTask->Name : TEXT("Unnamed"),
+                  CurrentMutex);
+            return;
+        }
+
+        DEBUG(TEXT("[DeadlockMonitorLogCycle] Chain[%u] task=%p (%s) waits for mutex=%p owned by task=%p (%s)"),
+              Depth,
+              CurrentTask,
+              CurrentTask->Name[0] != STR_NULL ? CurrentTask->Name : TEXT("Unnamed"),
+              CurrentMutex,
+              OwnerTask,
+              OwnerTask->Name[0] != STR_NULL ? OwnerTask->Name : TEXT("Unnamed"));
+
+        if (OwnerTask == WaiterTask) {
+            return;
+        }
+
+        CurrentTask = OwnerTask;
+        CurrentMutex = DeadlockMonitorGetValidMutex(CurrentTask->WaitingMutex);
+        if (CurrentMutex == NULL) {
+            DEBUG(TEXT("[DeadlockMonitorLogCycle] Chain[%u] task=%p (%s) has no waited mutex"),
+                  Depth + 1,
+                  CurrentTask,
+                  CurrentTask->Name[0] != STR_NULL ? CurrentTask->Name : TEXT("Unnamed"));
+            return;
+        }
+    }
+
+    DEBUG(TEXT("[DeadlockMonitorLogCycle] Chain truncated at depth=%u"), DEADLOCK_MONITOR_MAX_CHAIN_DEPTH);
+
+#if DEBUG_OUTPUT == 1
+    ConsolePanic(TEXT("Mutex deadlock detected"));
+#endif
+}
+
+/************************************************************************/
+
+/**
  * @brief Record that one task starts waiting on one mutex.
  *
  * @param Task Waiting task.
@@ -103,6 +215,10 @@ void DeadlockMonitorOnWaitStart(LPTASK Task, LPMUTEX Mutex) {
 
     Task->WaitingMutex = Mutex;
     Task->WaitingSince = GetSystemTime();
+
+    if (DeadlockMonitorWouldCreateCycle(Task, Mutex) != FALSE) {
+        DeadlockMonitorLogCycle(Task, Mutex);
+    }
 }
 
 /************************************************************************/
