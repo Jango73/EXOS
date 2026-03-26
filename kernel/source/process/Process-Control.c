@@ -95,13 +95,7 @@ BOOL ProcessControlSetPaused(LPPROCESS Process, BOOL Paused) {
         }
 
         LockMutex(&(Process->Mutex), INFINITY);
-
-        if (Paused) {
-            Process->ControlFlags |= PROCESS_CONTROL_FLAG_PAUSED;
-        } else {
-            Process->ControlFlags &= ~PROCESS_CONTROL_FLAG_PAUSED;
-        }
-
+        Process->SchedulerState.Paused = Paused ? TRUE : FALSE;
         UnlockMutex(&(Process->Mutex));
         return TRUE;
     }
@@ -120,8 +114,8 @@ BOOL ProcessControlTogglePaused(LPPROCESS Process) {
         }
 
         LockMutex(&(Process->Mutex), INFINITY);
-        Process->ControlFlags ^= PROCESS_CONTROL_FLAG_PAUSED;
-        Paused = (Process->ControlFlags & PROCESS_CONTROL_FLAG_PAUSED) != 0;
+        Process->SchedulerState.Paused = Process->SchedulerState.Paused ? FALSE : TRUE;
+        Paused = Process->SchedulerState.Paused;
         UnlockMutex(&(Process->Mutex));
 
         DEBUG(TEXT("[ProcessControlTogglePaused] Process %s is %s"), Process->FileName, Paused ? TEXT("paused") : TEXT("running"));
@@ -139,9 +133,24 @@ BOOL ProcessControlIsProcessPaused(LPPROCESS Process) {
 
     SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
         LockMutex(&(Process->Mutex), INFINITY);
-        Paused = (Process->ControlFlags & PROCESS_CONTROL_FLAG_PAUSED) != 0;
+        Paused = Process->SchedulerState.Paused;
         UnlockMutex(&(Process->Mutex));
         return Paused;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+BOOL GetProcessSchedulerState(LPPROCESS Process, LPPROCESS_SCHEDULER_STATE State) {
+    if (State == NULL) {
+        return FALSE;
+    }
+
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+        State->Paused = Process->SchedulerState.Paused;
+        return TRUE;
     }
 
     return FALSE;

@@ -373,6 +373,11 @@ IRQ 0 └── trap lands in interrupt-a.asm : Interrupt_Clock
 
 `Sleep` relies on scheduler wake-up timestamps only after the first `EnableInterrupts` call is executed. Before this point, `Sleep` uses a calibrated busy-wait loop (derived from CPU base frequency) so early-boot delays do not depend on `GetSystemTime` progression.
 
+Fields that are read or written by the scheduler from ISR context are isolated in dedicated structures instead of sharing the general task/process state:
+- `TASK.SchedulerState` stores scheduler-owned task fields such as `Status` and `WakeUpTime`.
+- `PROCESS.SchedulerState` stores scheduler-owned process fields such as the paused state.
+- `GetTaskSchedulerStateSnapshot()`, `SetTaskSchedulerStatus()`, and `GetProcessSchedulerStateSnapshot()` expose this data to the scheduling code without taking task-local or process-local mutexes.
+
 ##### ISR 0 call graph
 
 ```

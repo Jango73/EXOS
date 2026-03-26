@@ -53,6 +53,30 @@ static TASKLIST DATA_SECTION TaskList = {.Freeze = 0, .SchedulerTime = 0, .NumTa
 /***************************************************************************/
 
 /**
+ * @brief Snapshot scheduler-visible state for one task.
+ * @param Task Target task.
+ * @param Snapshot Receives current scheduler-visible state.
+ * @return TRUE on success.
+ */
+static BOOL ScheduleGetTaskState(LPTASK Task, LPTASK_SCHEDULER_STATE State) {
+    return GetTaskSchedulerState(Task, State);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Snapshot scheduler-visible state for one process.
+ * @param Process Target process.
+ * @param Snapshot Receives current scheduler-visible state.
+ * @return TRUE on success.
+ */
+static BOOL ScheduleGetProcessState(LPPROCESS Process, LPPROCESS_SCHEDULER_STATE State) {
+    return GetProcessSchedulerState(Process, State);
+}
+
+/***************************************************************************/
+
+/**
  * @brief Wakes up tasks whose sleep time has expired.
  *
  * Centralized function to check and wake sleeping tasks. Should be called
@@ -63,10 +87,13 @@ static void WakeUpExpiredTasks(void) {
 
     for (UINT Index = 0; Index < TaskList.NumTasks; Index++) {
         LPTASK Task = TaskList.Tasks[Index];
+        TASK_SCHEDULER_STATE State;
 
-        if (GetTaskStatus(Task) == TASK_STATUS_SLEEPING && Task->WakeUpTime != INFINITY &&
-            CurrentTime >= Task->WakeUpTime) {
-            SetTaskStatus(Task, TASK_STATUS_RUNNING);
+        if (ScheduleGetTaskState(Task, &State) == FALSE) continue;
+
+        if (State.Status == TASK_STATUS_SLEEPING && State.WakeUpTime != INFINITY &&
+            CurrentTime >= State.WakeUpTime) {
+            (void)SetTaskSchedulerStatus(Task, TASK_STATUS_RUNNING);
         }
     }
 }
@@ -85,12 +112,16 @@ static void WakeUpExpiredTasks(void) {
  */
 static UINT RemoveDeadTasksFromQueue(LPTASK ExceptTask) {
     UINT NewExceptIndex = INFINITY;
+    TASK_SCHEDULER_STATE State;
 
     // Search backwards to handle array compaction safely
     for (I32 Index = (I32)(TaskList.NumTasks - 1); Index >= 0; Index--) {
         LPTASK Task = TaskList.Tasks[Index];
 
-        if (GetTaskStatus(Task) == TASK_STATUS_DEAD && Task != ExceptTask) {
+        if (Task == ExceptTask) continue;
+        if (ScheduleGetTaskState(Task, &State) == FALSE) continue;
+
+        if (State.Status == TASK_STATUS_DEAD) {
             FINE_DEBUG(TEXT("[RemoveDeadTasksFromQueue] Removing dead task %s at index %d"), Task->Name, Index);
 
             // Shift remaining tasks down
@@ -128,10 +159,13 @@ static UINT CountRunnableTasks(void) {
 
     for (UINT Index = 0; Index < TaskList.NumTasks; Index++) {
         LPTASK Task = TaskList.Tasks[Index];
-        BOOL ProcessPaused = ProcessControlIsProcessPaused(Task->Process);
+        TASK_SCHEDULER_STATE State;
+        PROCESS_SCHEDULER_STATE ProcessState;
 
-        U32 Status = GetTaskStatus(Task);
-        if ((Status == TASK_STATUS_READY || Status == TASK_STATUS_RUNNING) && ProcessPaused == FALSE) {
+        if (ScheduleGetTaskState(Task, &State) == FALSE) continue;
+        if (ScheduleGetProcessState(Task->Process, &ProcessState) == FALSE) continue;
+
+        if ((State.Status == TASK_STATUS_READY || State.Status == TASK_STATUS_RUNNING) && ProcessState.Paused == FALSE) {
             RunnableCount++;
         }
     }
@@ -154,11 +188,14 @@ UINT FindNextRunnableTask(UINT StartIndex) {
     for (UINT Attempts = 0; Attempts < TaskList.NumTasks; Attempts++) {
         UINT Index = (StartIndex + Attempts) % TaskList.NumTasks;
         LPTASK Task = TaskList.Tasks[Index];
-        BOOL ProcessPaused = ProcessControlIsProcessPaused(Task->Process);
+        TASK_SCHEDULER_STATE State;
+        PROCESS_SCHEDULER_STATE ProcessState;
 
         // Skip dead tasks - they will be removed during context switch
-        U32 Status = GetTaskStatus(Task);
-        if ((Status == TASK_STATUS_READY || Status == TASK_STATUS_RUNNING) && ProcessPaused == FALSE) {
+        if (ScheduleGetTaskState(Task, &State) == FALSE) continue;
+        if (ScheduleGetProcessState(Task->Process, &ProcessState) == FALSE) continue;
+
+        if ((State.Status == TASK_STATUS_READY || State.Status == TASK_STATUS_RUNNING) && ProcessState.Paused == FALSE) {
             return Index;
         }
     }
@@ -379,6 +416,8 @@ BOOL IsSchedulerFrozen(void) {
 /************************************************************************/
 
 void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
+    TASK_SCHEDULER_STATE NextTaskState;
+
     FINE_DEBUG(TEXT("[SwitchToNextTask] CurrentTask = %p (%s), NextTask = %p (%s)"),
         CurrentTask, CurrentTask->Name, NextTask, NextTask->Name);
 
@@ -389,9 +428,14 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
     DEBUG(TEXT("[SwitchToNextTask] Current SP = %p, current BP = %p"), CurrentStackPointer, CurrentFramePointer);
 #endif
 
-    if (NextTask->Status > TASK_STATUS_DEAD) {
+    if (ScheduleGetTaskState(NextTask, &NextTaskState) == FALSE) {
+        ERROR(TEXT("[SwitchToNextTask] Invalid next task snapshot"));
+        return;
+    }
+
+    if (NextTaskState.Status > TASK_STATUS_DEAD) {
         ERROR(TEXT("[SwitchToNextTask] MEMORY CORRUPTION: Task status %x is out of range"),
-            NextTask->Status);
+            NextTaskState.Status);
         return;
     }
 
@@ -414,6 +458,8 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
 /************************************************************************/
 
 void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
+    TASK_SCHEDULER_STATE NextTaskState;
+
     FINE_DEBUG(TEXT("[SwitchToNextTask_3] CurrentTask = %p (%s), NextTask = %p (%s)"),
         CurrentTask, CurrentTask->Name, NextTask, NextTask->Name);
 
@@ -426,11 +472,13 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
 
     PrepareNextTaskSwitch(CurrentTask, NextTask);
 
-    U32 CurrentTaskStatus = GetTaskStatus(NextTask);
+    if (ScheduleGetTaskState(NextTask, &NextTaskState) == FALSE) {
+        return;
+    }
 
     // First time run for the task
-    if (CurrentTaskStatus == TASK_STATUS_READY) {
-        SetTaskStatus(NextTask, TASK_STATUS_RUNNING);
+    if (NextTaskState.Status == TASK_STATUS_READY) {
+        (void)SetTaskSchedulerStatus(NextTask, TASK_STATUS_RUNNING);
 
         if (NextTask->Process->Privilege == CPU_PRIVILEGE_KERNEL) {
             LINEAR StackPointer = NextTask->Arch.Stack.Base + NextTask->Arch.Stack.Size - STACK_SAFETY_MARGIN;
@@ -492,6 +540,9 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
  *
  */
 void Scheduler(void) {
+    TASK_SCHEDULER_STATE CurrentTaskState;
+    TASK_SCHEDULER_STATE NextTaskState;
+    PROCESS_SCHEDULER_STATE CurrentProcessState;
     U32 Flags = 0;
     SaveFlags(&Flags);
     FINE_DEBUG(TEXT("[Scheduler] Enter : IF = %x"), Flags & 0x200);
@@ -515,7 +566,7 @@ void Scheduler(void) {
             ERROR(TEXT("[Scheduler] Killing task due to overflow : %X"), DangerousTask);
 
             // Mark task as dead - will be removed during next context switch
-            DangerousTask->Status = TASK_STATUS_DEAD;
+            DangerousTask->SchedulerState.Status = TASK_STATUS_DEAD;
         }
     }
     */
@@ -527,8 +578,14 @@ void Scheduler(void) {
 
     // Check if current task quantum has expired
     LPTASK CurrentTask = (TaskList.CurrentIndex < TaskList.NumTasks) ? TaskList.Tasks[TaskList.CurrentIndex] : NULL;
-    BOOL QuantumExpired =
-        CurrentTask && CurrentTask->WakeUpTime != INFINITY && GetSystemTime() >= CurrentTask->WakeUpTime;
+    BOOL HasCurrentTaskSnapshot = FALSE;
+    BOOL QuantumExpired = FALSE;
+
+    if (CurrentTask != NULL && ScheduleGetTaskState(CurrentTask, &CurrentTaskState) != FALSE) {
+        HasCurrentTaskSnapshot = TRUE;
+        QuantumExpired =
+            CurrentTaskState.WakeUpTime != INFINITY && GetSystemTime() >= CurrentTaskState.WakeUpTime;
+    }
 
     // Wake up expired sleeping tasks first
     WakeUpExpiredTasks();
@@ -544,8 +601,8 @@ void Scheduler(void) {
     }
 
     // If current task is still running and quantum not expired, keep it
-    if (CurrentTask && CurrentTask->Status == TASK_STATUS_RUNNING && !QuantumExpired &&
-        ProcessControlIsProcessPaused(CurrentTask->Process) == FALSE) {
+    if (CurrentTask && HasCurrentTaskSnapshot != FALSE && CurrentTaskState.Status == TASK_STATUS_RUNNING && !QuantumExpired &&
+        ScheduleGetProcessState(CurrentTask->Process, &CurrentProcessState) != FALSE && CurrentProcessState.Paused == FALSE) {
         FINE_DEBUG(TEXT("[Scheduler] Current task continues"));
 
         return;
@@ -573,7 +630,11 @@ void Scheduler(void) {
 
         // Remove dead tasks from queue now that we're switching TO a non-dead task
         // This prevents silent CurrentIndex adjustments and phantom task changes
-        if (NextTask->Status != TASK_STATUS_DEAD) {
+        if (ScheduleGetTaskState(NextTask, &NextTaskState) == FALSE) {
+            return;
+        }
+
+        if (NextTaskState.Status != TASK_STATUS_DEAD) {
             NextIndex = RemoveDeadTasksFromQueue(NextTask);
 
             if (NextIndex == INFINITY) {

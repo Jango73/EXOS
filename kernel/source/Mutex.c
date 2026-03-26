@@ -182,7 +182,6 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                 if (Process != NULL && Process->TypeID == KOID_PROCESS) {
                     if (Mutex->Task == Task) {
                         Mutex->Lock++;
-                        DeadlockMonitorOnAcquire(Task, Mutex);
                         Ret = Mutex->Lock;
                     } else {
                         //-------------------------------------
@@ -297,10 +296,10 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                             // Sleep with proper interrupt handling
 
                             SetTaskStatusDirect(Task, TASK_STATUS_SLEEPING);
-                            Task->WakeUpTime = GetSystemTime() + MUTEX_WAIT_SLEEP_INTERVAL_MS;
+                            Task->SchedulerState.WakeUpTime = GetSystemTime() + MUTEX_WAIT_SLEEP_INTERVAL_MS;
 
                             // Keep interrupts disabled during critical section
-                            while (Task->Status == TASK_STATUS_SLEEPING) {
+                            while (Task->SchedulerState.Status == TASK_STATUS_SLEEPING) {
                                 IdleCPU();            // IdleCPU enables interrupts
                                 DisableInterrupts();  // Disable immediately after
                             }

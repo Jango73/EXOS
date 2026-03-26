@@ -988,7 +988,7 @@ static void KillActiveKernelTasks(void) {
         for (LPTASK Task = (LPTASK)TaskList->First; Task; Task = (LPTASK)Task->Next) {
             SAFE_USE_VALID_ID(Task, KOID_TASK) {
                 if (Task->Process == &KernelProcess && Task->Type != TASK_TYPE_KERNEL_MAIN &&
-                    Task->Status != TASK_STATUS_DEAD) {
+                    Task->SchedulerState.Status != TASK_STATUS_DEAD) {
                     ListAddTail(TasksToKill, Task);
                 }
             }

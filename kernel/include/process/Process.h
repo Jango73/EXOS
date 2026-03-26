@@ -59,6 +59,13 @@ typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
 typedef struct tag_GRAPHICSCONTEXT GRAPHICSCONTEXT, *LPGRAPHICSCONTEXT;
 
 /************************************************************************/
+// Scheduler-owned process state
+
+typedef struct tag_PROCESS_SCHEDULER_STATE {
+    BOOL Paused;
+} PROCESS_SCHEDULER_STATE, *LPPROCESS_SCHEDULER_STATE;
+
+/************************************************************************/
 // Task status values
 
 #define TASK_STATUS_FREE 0x00
@@ -162,7 +169,8 @@ struct tag_PROCESS {
     U32 Privilege;                                          // This process' privilege level
     U32 Status;                                             // (alive/dead)
     U32 Flags;                                              // Process creation flags
-    U32 ControlFlags;                                       // Process control state (pause/interrupt)
+    U32 ControlFlags;                                       // Process control state (interrupt)
+    PROCESS_SCHEDULER_STATE SchedulerState;                 // Scheduler-owned ISR-visible state
     PHYSICAL PageDirectory;
     LINEAR HeapBase;
     UINT HeapSize;

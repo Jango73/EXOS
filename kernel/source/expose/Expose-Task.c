@@ -194,7 +194,7 @@ SCRIPT_ERROR TaskGetProperty(
         EXPOSE_BIND_HOST_HANDLE("process", Task->Process, &ProcessDescriptor, NULL);
         EXPOSE_BIND_STRING("name", Task->Name);
         EXPOSE_BIND_INTEGER("type", Task->Type);
-        EXPOSE_BIND_INTEGER("status", Task->Status);
+        EXPOSE_BIND_INTEGER("status", GetTaskStatus(Task));
         EXPOSE_BIND_INTEGER("priority", Task->Priority);
         EXPOSE_BIND_INTEGER("exit_code", Task->ExitCode);
         EXPOSE_BIND_INTEGER("flags", Task->Flags);
@@ -261,7 +261,7 @@ SCRIPT_ERROR TaskGetProperty(
             }
         }
 
-        EXPOSE_BIND_INTEGER("wake_up_time", Task->WakeUpTime);
+        EXPOSE_BIND_INTEGER("wake_up_time", Task->SchedulerState.WakeUpTime);
         EXPOSE_BIND_INTEGER("message_queue", (UINT)(LPVOID)&Task->MessageQueue);
         EXPOSE_BIND_INTEGER("mutex", (UINT)(LPVOID)&Task->Mutex);
 

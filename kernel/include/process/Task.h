@@ -63,6 +63,13 @@ typedef struct tag_MESSAGEQUEUE {
     UINT MessageBufferSize;              // Backing storage size in bytes
 } MESSAGEQUEUE, *LPMESSAGEQUEUE;
 
+// Scheduler-owned task state
+
+typedef struct tag_TASK_SCHEDULER_STATE {
+    U32 Status;
+    UINT WakeUpTime;
+} TASK_SCHEDULER_STATE, *LPTASK_SCHEDULER_STATE;
+
 /************************************************************************/
 // The Task structure
 
@@ -72,14 +79,13 @@ struct tag_TASK {
     LPPROCESS Process;        // Process that owns this task
     STR Name[MAX_USER_NAME];  // Task name for debugging
     U32 Type;                 // Type of task
-    U32 Status;               // Current status of this task
     U32 Priority;             // Current priority of this task
     TASKFUNC Function;        // Start address of this task
     LPVOID Parameter;         // Parameter passed to the function
     UINT ExitCode;            // This task's exit code
     U32 Flags;                // Task creation flags
     ARCH_TASK_DATA Arch;      // Architecture-specific task data
-    UINT WakeUpTime;          // System time at which to wake up the task
+    TASK_SCHEDULER_STATE SchedulerState;  // Scheduler-owned ISR-visible state
     LPMUTEX WaitingMutex;     // Mutex currently waited by this task
     UINT WaitingSince;        // Time at which the current mutex wait started
     U32 HeldMutexClassDepth;  // Number of held lock classes tracked for diagnostics
@@ -103,8 +109,10 @@ void DeleteDeadTasksAndProcesses(void);
 U32 SetTaskPriority(LPTASK, U32);
 void Sleep(U32);
 U32 GetTaskStatus(LPTASK Task);
+BOOL GetTaskSchedulerState(LPTASK Task, LPTASK_SCHEDULER_STATE State);
 void SetTaskStatus(LPTASK Task, U32 Status);
 void SetTaskStatusDirect(LPTASK Task, U32 Status);
+BOOL SetTaskSchedulerStatus(LPTASK Task, U32 Status);
 void SetTaskWakeUpTime(LPTASK Task, UINT WakeupTime);
 U32 ComputeTaskQuantumTime(U32 Priority);
 void DumpTask(LPTASK);

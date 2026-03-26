@@ -533,7 +533,7 @@ BOOL SetupTask(struct tag_TASK* Task, struct tag_PROCESS* Process, struct tag_TA
     }
 
     if (Info->Flags & TASK_CREATE_MAIN_KERNEL) {
-        Task->Status = TASK_STATUS_RUNNING;
+        Task->SchedulerState.Status = TASK_STATUS_RUNNING;
 
         Kernel_x86_32.TSS->ESP0 = SysStackTop - STACK_SAFETY_MARGIN;
 
