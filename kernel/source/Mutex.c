@@ -26,6 +26,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "process/Process.h"
+#include "utils/DeadlockMonitor.h"
 #include "utils/ThresholdLatch.h"
 
 /***************************************************************************/
@@ -139,6 +140,7 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
     LPTASK Task;
     UINT Flags;
     UINT Ret = 0;
+    BOOL WaitStateActive = FALSE;
 
 
     SaveFlags(&Flags);
@@ -160,6 +162,7 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                 if (Process != NULL && Process->TypeID == KOID_PROCESS) {
                     if (Mutex->Task == Task) {
                         Mutex->Lock++;
+                        DeadlockMonitorOnAcquire(Task, Mutex);
                         Ret = Mutex->Lock;
                     } else {
                         //-------------------------------------
@@ -171,6 +174,11 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                         UINT WaitLoopLimit = MUTEX_TIMEOUT_MIN_LOOP_LIMIT;
                         THRESHOLD_LATCH ReentrantErrorLatch;
                         THRESHOLD_LATCH ReentrantForceUnlockLatch;
+
+                        if (Mutex->Task != NULL) {
+                            DeadlockMonitorOnWaitStart(Task, Mutex);
+                            WaitStateActive = TRUE;
+                        }
 
                         if (TimeOut != INFINITY) {
                             WaitLoopLimit = (TimeOut / MUTEX_WAIT_SLEEP_INTERVAL_MS) + MUTEX_TIMEOUT_EXTRA_LOOP_MARGIN;
@@ -193,6 +201,9 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                             // Check if a process deleted this mutex
 
                             if (Mutex->TypeID != KOID_MUTEX) {
+                                if (WaitStateActive != FALSE) {
+                                    DeadlockMonitorOnWaitCancel(Task, Mutex);
+                                }
                                 RestoreFlags(&Flags);
                                 return 0;
                             }
@@ -209,6 +220,9 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
 
                             if (TimeOut != INFINITY) {
                                 if (HasOperationTimedOut(StartWaitTime, WaitLoopCount, WaitLoopLimit, TimeOut) != FALSE) {
+                                    if (WaitStateActive != FALSE) {
+                                        DeadlockMonitorOnWaitCancel(Task, Mutex);
+                                    }
                                     WARNING(TEXT("[LockMutex] Timeout while waiting mutex=%p owner_task=%p waiter_task=%p timeout=%u"),
                                         Mutex,
                                         Mutex->Task,
@@ -277,6 +291,7 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                         Mutex->Process = Process;
                         Mutex->Task = Task;
                         Mutex->Lock = 1;
+                        DeadlockMonitorOnAcquire(Task, Mutex);
 
                         Ret = Mutex->Lock;
                     }
@@ -324,6 +339,7 @@ BOOL UnlockMutex(LPMUTEX Mutex) {
     if (Mutex->Lock != 0) Mutex->Lock--;
 
     if (Mutex->Lock == 0) {
+        DeadlockMonitorOnRelease(Task, Mutex, NULL);
         Mutex->Process = NULL;
         Mutex->Task = NULL;
     }

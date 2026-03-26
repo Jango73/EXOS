@@ -258,7 +258,7 @@ Success criteria:
 Success criteria:
 - every blocking mutex wait leaves an observable task-side wait target.
 
-## [ ] Step 3 - Introduce `DeadlockMonitor`
+## [x] Step 3 - Introduce `DeadlockMonitor`
 
 - Add the reusable module in `kernel/include/utils` and `kernel/source/utils`.
 - Implement bounded owner-chain walking.
@@ -268,7 +268,7 @@ Success criteria:
 Success criteria:
 - the module can answer whether one new wait would create a cycle.
 
-## [ ] Step 4 - Hook `Mutex.c`
+## [x] Step 4 - Hook `Mutex.c`
 
 - Call the monitor on wait start.
 - Call the monitor on acquire after blocking.
