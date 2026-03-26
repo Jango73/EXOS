@@ -41,19 +41,19 @@
 
 /***************************************************************************/
 
-MUTEX KernelMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&LogMutex, .Prev = NULL, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX LogMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&MemoryMutex, .Prev = (LPLISTNODE)&KernelMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX MemoryMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ScheduleMutex, .Prev = (LPLISTNODE)&LogMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX ScheduleMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&DesktopMutex, .Prev = (LPLISTNODE)&MemoryMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX DesktopMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ProcessMutex, .Prev = (LPLISTNODE)&ScheduleMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX ProcessMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&TaskMutex, .Prev = (LPLISTNODE)&DesktopMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX TaskMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileSystemMutex, .Prev = (LPLISTNODE)&ProcessMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX FileSystemMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileMutex, .Prev = (LPLISTNODE)&TaskMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX FileMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ConsoleStateMutex, .Prev = (LPLISTNODE)&FileSystemMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX ConsoleStateMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ConsoleRenderMutex, .Prev = (LPLISTNODE)&FileMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX ConsoleRenderMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&UserAccountMutex, .Prev = (LPLISTNODE)&ConsoleStateMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX UserAccountMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&SessionMutex, .Prev = (LPLISTNODE)&ConsoleRenderMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX SessionMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = NULL, .Prev = (LPLISTNODE)&UserAccountMutex, .Owner = NULL, .Process = NULL, NULL, .Lock = 0};
+MUTEX KernelMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&LogMutex, .Prev = NULL, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_KERNEL, .DebugName = TEXT("KernelMutex"), .Lock = 0};
+MUTEX LogMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&MemoryMutex, .Prev = (LPLISTNODE)&KernelMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_LOG, .DebugName = TEXT("LogMutex"), .Lock = 0};
+MUTEX MemoryMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ScheduleMutex, .Prev = (LPLISTNODE)&LogMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_MEMORY, .DebugName = TEXT("MemoryMutex"), .Lock = 0};
+MUTEX ScheduleMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&DesktopMutex, .Prev = (LPLISTNODE)&MemoryMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_SCHEDULE, .DebugName = TEXT("ScheduleMutex"), .Lock = 0};
+MUTEX DesktopMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ProcessMutex, .Prev = (LPLISTNODE)&ScheduleMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_DESKTOP, .DebugName = TEXT("DesktopMutex"), .Lock = 0};
+MUTEX ProcessMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&TaskMutex, .Prev = (LPLISTNODE)&DesktopMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_PROCESS, .DebugName = TEXT("ProcessMutex"), .Lock = 0};
+MUTEX TaskMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileSystemMutex, .Prev = (LPLISTNODE)&ProcessMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_TASK, .DebugName = TEXT("TaskMutex"), .Lock = 0};
+MUTEX FileSystemMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileMutex, .Prev = (LPLISTNODE)&TaskMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_FILESYSTEM, .DebugName = TEXT("FileSystemMutex"), .Lock = 0};
+MUTEX FileMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ConsoleStateMutex, .Prev = (LPLISTNODE)&FileSystemMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_FILE, .DebugName = TEXT("FileMutex"), .Lock = 0};
+MUTEX ConsoleStateMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ConsoleRenderMutex, .Prev = (LPLISTNODE)&FileMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_CONSOLE_STATE, .DebugName = TEXT("ConsoleStateMutex"), .Lock = 0};
+MUTEX ConsoleRenderMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&UserAccountMutex, .Prev = (LPLISTNODE)&ConsoleStateMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_CONSOLE_RENDER, .DebugName = TEXT("ConsoleRenderMutex"), .Lock = 0};
+MUTEX UserAccountMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&SessionMutex, .Prev = (LPLISTNODE)&ConsoleRenderMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_USER_ACCOUNT, .DebugName = TEXT("UserAccountMutex"), .Lock = 0};
+MUTEX SessionMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = NULL, .Prev = (LPLISTNODE)&UserAccountMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_SESSION, .DebugName = TEXT("SessionMutex"), .Lock = 0};
 
 /***************************************************************************/
 
@@ -79,6 +79,8 @@ void InitMutex(LPMUTEX This) {
     This->Owner = NULL;
     This->Process = NULL;
     This->Task = NULL;
+    This->DebugClass = MUTEX_CLASS_NONE;
+    This->DebugName = NULL;
     This->Lock = 0;
 }
 
@@ -96,6 +98,8 @@ LPMUTEX CreateMutex(void) {
         Mutex->Owner = NULL;
         Mutex->Process = NULL;
         Mutex->Task = NULL;
+        Mutex->DebugClass = MUTEX_CLASS_NONE;
+        Mutex->DebugName = NULL;
         Mutex->Lock = 0;
 
         LPLIST MutexList = GetMutexList();
@@ -121,6 +125,22 @@ BOOL DeleteMutex(LPMUTEX Mutex) {
     }
 
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Set mutex debug lock-order information.
+ *
+ * @param Mutex Target mutex.
+ * @param DebugClass Lock class identifier.
+ * @param DebugName Optional diagnostic name.
+ */
+void SetMutexDebugInfo(LPMUTEX Mutex, U32 DebugClass, LPCSTR DebugName) {
+    SAFE_USE_ID(Mutex, KOID_MUTEX) {
+        Mutex->DebugClass = DebugClass;
+        Mutex->DebugName = DebugName;
+    }
 }
 
 /***************************************************************************/

@@ -303,7 +303,7 @@ Success criteria:
 Success criteria:
 - selected callers can fail cleanly instead of hanging forever.
 
-## [ ] Step 8 - Add lock classes for prevention diagnostics
+## [x] Step 8 - Add lock classes for prevention diagnostics
 
 - Add optional mutex classes and names.
 - Track held lock classes per task.

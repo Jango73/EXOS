@@ -191,6 +191,8 @@ LPTASK NewTask(void) {
     This->Status = TASK_STATUS_READY;
     This->WaitingMutex = NULL;
     This->WaitingSince = 0;
+    This->HeldMutexClassDepth = 0;
+    MemorySet(This->HeldMutexClasses, 0, sizeof(This->HeldMutexClasses));
     MemorySet(&(This->MessageQueue), 0, sizeof(MESSAGEQUEUE));
 
 
@@ -266,6 +268,8 @@ void DeleteTask(LPTASK This) {
 
         This->WaitingMutex = NULL;
         This->WaitingSince = 0;
+        This->HeldMutexClassDepth = 0;
+        MemorySet(This->HeldMutexClasses, 0, sizeof(This->HeldMutexClasses));
         ReleaseTaskMutexes(This);
 
         //-------------------------------------
@@ -548,6 +552,8 @@ BOOL KillTask(LPTASK Task) {
 
         Task->WaitingMutex = NULL;
         Task->WaitingSince = 0;
+        Task->HeldMutexClassDepth = 0;
+        MemorySet(Task->HeldMutexClasses, 0, sizeof(Task->HeldMutexClasses));
         ReleaseTaskMutexes(Task);
 
         SetTaskStatus(Task, TASK_STATUS_DEAD);

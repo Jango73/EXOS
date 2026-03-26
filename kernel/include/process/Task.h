@@ -48,6 +48,7 @@
 #define TASK_TYPE_USER_OTHER 4
 
 #define TASK_MESSAGE_QUEUE_MAX_MESSAGES 100
+#define TASK_MUTEX_CLASS_STACK_MAX_DEPTH 32
 
 /************************************************************************/
 // Message queue
@@ -81,6 +82,8 @@ struct tag_TASK {
     UINT WakeUpTime;          // System time at which to wake up the task
     LPMUTEX WaitingMutex;     // Mutex currently waited by this task
     UINT WaitingSince;        // Time at which the current mutex wait started
+    U32 HeldMutexClassDepth;  // Number of held lock classes tracked for diagnostics
+    U32 HeldMutexClasses[TASK_MUTEX_CLASS_STACK_MAX_DEPTH];  // Held lock class stack
     MESSAGEQUEUE MessageQueue;  // Message queue for this task
     LPVOID WindowDispatchWindow;          // Current window in nested window dispatch
     LPVOID WindowDispatchClass;           // Current class in nested window dispatch

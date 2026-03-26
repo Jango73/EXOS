@@ -39,6 +39,8 @@
 
 static RATE_LIMITER DATA_SECTION DeadlockMonitorCycleLogLimiter = {0};
 static BOOL DATA_SECTION DeadlockMonitorCycleLogLimiterInitialized = FALSE;
+static RATE_LIMITER DATA_SECTION DeadlockMonitorOrderLogLimiter = {0};
+static BOOL DATA_SECTION DeadlockMonitorOrderLogLimiterInitialized = FALSE;
 
 /************************************************************************/
 
@@ -57,6 +59,26 @@ static BOOL DeadlockMonitorEnsureCycleLogLimiter(void) {
     }
 
     DeadlockMonitorCycleLogLimiterInitialized = TRUE;
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Ensure the lock-order log limiter is initialized once.
+ *
+ * @return TRUE when the limiter can be used.
+ */
+static BOOL DeadlockMonitorEnsureOrderLogLimiter(void) {
+    if (DeadlockMonitorOrderLogLimiterInitialized != FALSE) {
+        return TRUE;
+    }
+
+    if (RateLimiterInit(&DeadlockMonitorOrderLogLimiter, 4, 1000) == FALSE) {
+        return FALSE;
+    }
+
+    DeadlockMonitorOrderLogLimiterInitialized = TRUE;
     return TRUE;
 }
 
@@ -110,6 +132,151 @@ static void DeadlockMonitorClearWaitState(LPTASK Task, LPMUTEX Mutex) {
 
     Task->WaitingMutex = NULL;
     Task->WaitingSince = 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Report one lock-order inversion candidate.
+ *
+ * @param Task Current task.
+ * @param HeldClass Top class already held.
+ * @param Mutex New mutex being acquired.
+ */
+static void DeadlockMonitorLogOrderViolation(LPTASK Task, U32 HeldClass, LPMUTEX Mutex) {
+    U32 Now;
+    U32 Suppressed = 0;
+    LPCSTR MutexName;
+
+    Task = DeadlockMonitorGetValidTask(Task);
+    Mutex = DeadlockMonitorGetValidMutex(Mutex);
+    if (Task == NULL || Mutex == NULL) {
+        return;
+    }
+
+    Now = GetSystemTime();
+    if (DeadlockMonitorEnsureOrderLogLimiter() != FALSE) {
+        if (RateLimiterShouldTrigger(&DeadlockMonitorOrderLogLimiter, Now, &Suppressed) == FALSE) {
+            return;
+        }
+    }
+
+    MutexName = Mutex->DebugName != NULL ? Mutex->DebugName : TEXT("UnnamedMutex");
+
+    WARNING(TEXT("[DeadlockMonitorLogOrderViolation] Lock order inversion task=%p (%s) held_class=%u new_class=%u mutex=%p name=%s suppressed=%u"),
+            Task,
+            Task->Name[0] != STR_NULL ? Task->Name : TEXT("Unnamed"),
+            HeldClass,
+            Mutex->DebugClass,
+            Mutex,
+            MutexName,
+            Suppressed);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Check whether acquiring one mutex violates the current class order.
+ *
+ * @param Task Current task.
+ * @param Mutex Mutex being acquired.
+ */
+static void DeadlockMonitorCheckLockOrder(LPTASK Task, LPMUTEX Mutex) {
+    U32 HeldClass;
+
+    Task = DeadlockMonitorGetValidTask(Task);
+    Mutex = DeadlockMonitorGetValidMutex(Mutex);
+    if (Task == NULL || Mutex == NULL) {
+        return;
+    }
+
+    if (Mutex->DebugClass == MUTEX_CLASS_NONE || Task->HeldMutexClassDepth == 0) {
+        return;
+    }
+
+    HeldClass = Task->HeldMutexClasses[Task->HeldMutexClassDepth - 1];
+    if (HeldClass == 0 || Mutex->DebugClass >= HeldClass) {
+        return;
+    }
+
+    DeadlockMonitorLogOrderViolation(Task, HeldClass, Mutex);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Push one held mutex class onto the current task stack.
+ *
+ * @param Task Current task.
+ * @param Mutex Acquired mutex.
+ */
+static void DeadlockMonitorPushHeldClass(LPTASK Task, LPMUTEX Mutex) {
+    Task = DeadlockMonitorGetValidTask(Task);
+    Mutex = DeadlockMonitorGetValidMutex(Mutex);
+    if (Task == NULL || Mutex == NULL) {
+        return;
+    }
+
+    if (Mutex->DebugClass == MUTEX_CLASS_NONE) {
+        return;
+    }
+
+    if (Task->HeldMutexClassDepth >= TASK_MUTEX_CLASS_STACK_MAX_DEPTH) {
+        WARNING(TEXT("[DeadlockMonitorPushHeldClass] Held class stack overflow task=%p (%s) mutex=%p class=%u"),
+                Task,
+                Task->Name[0] != STR_NULL ? Task->Name : TEXT("Unnamed"),
+                Mutex,
+                Mutex->DebugClass);
+        return;
+    }
+
+    Task->HeldMutexClasses[Task->HeldMutexClassDepth] = Mutex->DebugClass;
+    Task->HeldMutexClassDepth++;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Pop one held mutex class from the current task stack.
+ *
+ * @param Task Current task.
+ * @param Mutex Released mutex.
+ */
+static void DeadlockMonitorPopHeldClass(LPTASK Task, LPMUTEX Mutex) {
+    U32 ExpectedClass;
+
+    Task = DeadlockMonitorGetValidTask(Task);
+    Mutex = DeadlockMonitorGetValidMutex(Mutex);
+    if (Task == NULL || Mutex == NULL) {
+        return;
+    }
+
+    if (Mutex->DebugClass == MUTEX_CLASS_NONE) {
+        return;
+    }
+
+    if (Task->HeldMutexClassDepth == 0) {
+        WARNING(TEXT("[DeadlockMonitorPopHeldClass] Empty held class stack task=%p (%s) mutex=%p class=%u"),
+                Task,
+                Task->Name[0] != STR_NULL ? Task->Name : TEXT("Unnamed"),
+                Mutex,
+                Mutex->DebugClass);
+        return;
+    }
+
+    ExpectedClass = Task->HeldMutexClasses[Task->HeldMutexClassDepth - 1];
+    if (ExpectedClass != Mutex->DebugClass) {
+        WARNING(TEXT("[DeadlockMonitorPopHeldClass] Held class mismatch task=%p (%s) mutex=%p expected=%u actual=%u"),
+                Task,
+                Task->Name[0] != STR_NULL ? Task->Name : TEXT("Unnamed"),
+                Mutex,
+                ExpectedClass,
+                Mutex->DebugClass);
+        return;
+    }
+
+    Task->HeldMutexClassDepth--;
+    Task->HeldMutexClasses[Task->HeldMutexClassDepth] = 0;
 }
 
 /************************************************************************/
@@ -242,6 +409,8 @@ void DeadlockMonitorOnWaitCancel(LPTASK Task, LPMUTEX Mutex) {
  * @param Mutex Acquired mutex.
  */
 void DeadlockMonitorOnAcquire(LPTASK Task, LPMUTEX Mutex) {
+    DeadlockMonitorCheckLockOrder(Task, Mutex);
+    DeadlockMonitorPushHeldClass(Task, Mutex);
     DeadlockMonitorClearWaitState(Task, Mutex);
 }
 
@@ -255,7 +424,7 @@ void DeadlockMonitorOnAcquire(LPTASK Task, LPMUTEX Mutex) {
  * @param NextOwner Next owner if known.
  */
 void DeadlockMonitorOnRelease(LPTASK Task, LPMUTEX Mutex, LPTASK NextOwner) {
-    UNUSED(Task);
+    DeadlockMonitorPopHeldClass(Task, Mutex);
     UNUSED(Mutex);
     UNUSED(NextOwner);
 }

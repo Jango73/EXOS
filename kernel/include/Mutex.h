@@ -35,6 +35,26 @@ typedef struct tag_TASK TASK, *LPTASK;
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 
 /************************************************************************/
+// Mutex classes
+
+typedef enum tag_MUTEX_CLASS {
+    MUTEX_CLASS_NONE = 0,
+    MUTEX_CLASS_KERNEL = 1,
+    MUTEX_CLASS_LOG = 2,
+    MUTEX_CLASS_MEMORY = 3,
+    MUTEX_CLASS_SCHEDULE = 4,
+    MUTEX_CLASS_DESKTOP = 5,
+    MUTEX_CLASS_PROCESS = 6,
+    MUTEX_CLASS_TASK = 7,
+    MUTEX_CLASS_FILESYSTEM = 8,
+    MUTEX_CLASS_FILE = 9,
+    MUTEX_CLASS_CONSOLE_STATE = 10,
+    MUTEX_CLASS_CONSOLE_RENDER = 11,
+    MUTEX_CLASS_USER_ACCOUNT = 12,
+    MUTEX_CLASS_SESSION = 13
+} MUTEX_CLASS, *LPMUTEX_CLASS;
+
+/************************************************************************/
 // The mutex structure
 
 struct tag_MUTEX {
@@ -42,6 +62,8 @@ struct tag_MUTEX {
     LPPROCESS Owner;        // Process that created this mutex
     LPPROCESS Process;      // Process that has locked this mutex.
     LPTASK Task;            // Task that has locked this mutex.
+    U32 DebugClass;         // Lock-order prevention class
+    LPCSTR DebugName;       // Optional diagnostic name
     UINT Lock;              // Lock count of this mutex.
 };
 
@@ -57,6 +79,8 @@ typedef struct tag_MUTEX MUTEX, *LPMUTEX;
     .Prev = NULL, \
     .Process = NULL, \
     .Task = NULL, \
+    .DebugClass = MUTEX_CLASS_NONE, \
+    .DebugName = NULL, \
     .Lock = 0 \
 }
 
@@ -99,6 +123,7 @@ extern MUTEX SessionMutex;
 void InitMutex(LPMUTEX Mutex);
 LPMUTEX CreateMutex(void);
 BOOL DeleteMutex(LPMUTEX Mutex);
+void SetMutexDebugInfo(LPMUTEX Mutex, U32 DebugClass, LPCSTR DebugName);
 UINT LockMutex(LPMUTEX Mutex, UINT Timeout);
 BOOL UnlockMutex(LPMUTEX Mutex);
 
