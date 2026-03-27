@@ -878,6 +878,16 @@ void ConsoleApplyBootCursorHandover(void) {
 /***************************************************************************/
 
 /**
+ * @brief Repaint the canonical console content on the active backend.
+ */
+void ConsoleRefreshDisplay(void) {
+    ConsoleRepaintRegion(0);
+    SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
+}
+
+/***************************************************************************/
+
+/**
  * @brief Enable or disable console paging.
  * @param Enabled TRUE to enable paging, FALSE to disable.
  */

@@ -155,6 +155,7 @@ void ConsoleSetPagingActive(BOOL Active);
 BOOL ConsoleGetPagingActive(void);
 void ConsoleResetPaging(void);
 void ConsoleSetBootCursorHandover(U32 CursorX, U32 CursorY);
+void ConsoleRefreshDisplay(void);
 
 // Functions in shell/Shell-Main.c
 

@@ -154,6 +154,7 @@ static BOOL ConsoleTextResolveCellSize(U32* CellWidth, U32* CellHeight) {
  */
 static BOOL ConsoleTextAcquireContext(LPDRIVER* DriverOut, LPGRAPHICSCONTEXT* ContextOut) {
     LPDRIVER ActiveBackendDriver = GraphicsSelectorGetActiveBackendDriver();
+    LPDRIVER SessionGraphicsDriver = DisplaySessionGetActiveGraphicsDriver();
     LPDRIVER Driver = NULL;
     UINT ContextPointer = 0;
     LPGRAPHICSCONTEXT Context = NULL;
@@ -171,8 +172,13 @@ static BOOL ConsoleTextAcquireContext(LPDRIVER* DriverOut, LPGRAPHICSCONTEXT* Co
 
     if (Console.UseTextBackend != FALSE && Console.FramebufferType == MULTIBOOT_FRAMEBUFFER_TEXT) {
         Driver = VGAGetDriver();
+    } else if (Console.UseFramebuffer != FALSE &&
+               Console.FramebufferPhysical != 0 &&
+               Console.FramebufferType == MULTIBOOT_FRAMEBUFFER_RGB &&
+               SessionGraphicsDriver == ConsoleGetDriver()) {
+        Driver = GOPGetDriver();
     } else {
-        Driver = DisplaySessionGetActiveGraphicsDriver();
+        Driver = SessionGraphicsDriver;
         if (Driver == GetGraphicsDriver() && ActiveBackendDriver != NULL) {
             Driver = ActiveBackendDriver;
         }

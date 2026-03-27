@@ -45,6 +45,16 @@ KERNEL_STARTUP_INFO KernelStartup = {
 
 /************************************************************************/
 
+enum {
+    BOOT_STAGE_KERNEL_ENTRY = 30u,
+    BOOT_STAGE_KERNEL_MULTIBOOT_OK = 31u,
+    BOOT_STAGE_KERNEL_FRAMEBUFFER_READY = 32u,
+    BOOT_STAGE_KERNEL_BOOT_CONFIG_READY = 33u,
+    BOOT_STAGE_KERNEL_READY_TO_INIT = 34u
+};
+
+/************************************************************************/
+
 #if BOOT_STAGE_MARKERS == 1
 static U32 KernelBootMarkerScaleColor(U32 Value, U32 MaskSize) {
     if (MaskSize == 0u) {
@@ -207,9 +217,10 @@ void KernelMain(void) {
         ConsolePanic(TEXT("Multiboot information not valid"));
     }
 
-
     // Map the multiboot info structure to access it
     multiboot_info_t* MultibootInfo = (multiboot_info_t*)(UINT)MultibootInfoLinear;
+    KernelBootMarkStage(MultibootInfo, BOOT_STAGE_KERNEL_ENTRY, 255u, 0u, 0u);
+    KernelBootMarkStage(MultibootInfo, BOOT_STAGE_KERNEL_MULTIBOOT_OK, 255u, 128u, 0u);
 
     if ((MultibootInfo->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) != 0u) {
         PHYSICAL FramebufferPhysical = 0;
@@ -251,10 +262,9 @@ void KernelMain(void) {
             (U32)MultibootInfo->color_info[3],
             (U32)MultibootInfo->color_info[4],
             (U32)MultibootInfo->color_info[5]);
+
     }
-
-
-    KernelImportBootConfig(MultibootInfo);
+    KernelBootMarkStage(MultibootInfo, BOOT_STAGE_KERNEL_FRAMEBUFFER_READY, 255u, 255u, 0u);
 
     // Extract information from Multiboot structure
     // Get kernel address from first module
@@ -314,8 +324,12 @@ void KernelMain(void) {
     U32 BSSSize = BSSEnd - BSSStart;
     MemorySet((LPVOID)BSSStart, 0, BSSSize);
 
+    KernelImportBootConfig(MultibootInfo);
+    KernelBootMarkStage(MultibootInfo, BOOT_STAGE_KERNEL_BOOT_CONFIG_READY, 0u, 255u, 0u);
+
     //--------------------------------------
     // Main initialization routine
+    KernelBootMarkStage(MultibootInfo, BOOT_STAGE_KERNEL_READY_TO_INIT, 0u, 255u, 255u);
 
     InitializeKernel();
 }

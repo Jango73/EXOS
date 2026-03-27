@@ -132,7 +132,7 @@ BOOL DisplaySessionSetConsoleMode(LPGRAPHICS_MODE_INFO ModeInfo) {
         Session->HasValidMode = TRUE;
         SetFocusedProcess(&KernelProcess);
         SetActiveDesktop(NULL);
-        SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
+        ConsoleRefreshDisplay();
         return TRUE;
     }
 
@@ -169,7 +169,7 @@ BOOL DisplaySessionSetConsoleGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICS_MO
         Session->HasValidMode = TRUE;
         SetFocusedProcess(&KernelProcess);
         SetActiveDesktop(NULL);
-        SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
+        ConsoleRefreshDisplay();
         return TRUE;
     }
 
