@@ -167,7 +167,6 @@ LPTASK NewTask(void) {
 
     LPTASK This = NULL;
 
-
     This = (LPTASK)CreateKernelObject(sizeof(TASK), KOID_TASK);
 
     if (This == NULL) {

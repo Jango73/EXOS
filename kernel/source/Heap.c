@@ -296,6 +296,7 @@ void HeapInit(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize) {
     if (Process != NULL && Process->Privilege == CPU_PRIVILEGE_KERNEL) {
         ControlBlock->RegionFlags |= ALLOC_PAGES_AT_OR_OVER;
     }
+
 }
 
 /************************************************************************/

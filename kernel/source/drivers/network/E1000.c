@@ -120,6 +120,8 @@
 
 typedef struct tag_E1000DEVICE E1000DEVICE, *LPE1000DEVICE;
 
+#pragma pack(push, 1)
+
 struct tag_E1000DEVICE {
     PCI_DEVICE_FIELDS
 
@@ -167,6 +169,8 @@ struct tag_E1000DEVICE {
     U32 InterruptTraceCount;
     U32 AckTraceCount;
 };
+
+#pragma pack(pop)
 
 static UINT E1000Commands(UINT Function, UINT Param);
 static BOOL E1000_EnableInterrupts(LPE1000DEVICE Device, U8 LegacyIRQ, U8 TargetCPU);

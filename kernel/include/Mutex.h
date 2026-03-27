@@ -31,6 +31,10 @@
 
 /************************************************************************/
 
+#pragma pack(push, 1)
+
+/************************************************************************/
+
 typedef struct tag_TASK TASK, *LPTASK;
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 
@@ -126,5 +130,9 @@ BOOL DeleteMutex(LPMUTEX Mutex);
 void SetMutexDebugInfo(LPMUTEX Mutex, U32 DebugClass, LPCSTR DebugName);
 UINT LockMutex(LPMUTEX Mutex, UINT Timeout);
 BOOL UnlockMutex(LPMUTEX Mutex);
+
+/************************************************************************/
+
+#pragma pack(pop)
 
 #endif  // MUTEX_H_INCLUDED

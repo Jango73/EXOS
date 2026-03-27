@@ -33,6 +33,10 @@
 
 /************************************************************************/
 
+#pragma pack(push, 1)
+
+/************************************************************************/
+
 typedef void (*NT_RXCB)(const U8 *Frame, U32 Length, LPVOID UserData);
 
 #define PROTOCOL_NONE 0x00000000
@@ -97,5 +101,9 @@ typedef struct tag_NETWORK_POLL {
  * @return 1 on success, 0 otherwise.
  */
 INT Network_SendRawFrame(LPDEVICE Device, const U8 *Data, U32 Length);
+
+/************************************************************************/
+
+#pragma pack(pop)
 
 #endif  // NETWORK_H_INCLUDED
