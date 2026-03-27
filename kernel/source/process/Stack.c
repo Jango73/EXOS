@@ -469,28 +469,72 @@ static UINT StackComputeLiveCopySize(LINEAR Base, LINEAR OldTop, UINT OldSize) {
 /************************************************************************/
 
 /**
+ * @brief Adjust one saved stack pointer when it still targets a moved stack.
+ * @param Pointer Saved stack/frame pointer to inspect and update.
+ * @param OldBase Previous stack base.
+ * @param OldTop Previous stack top.
+ * @param Delta Relocation delta applied to the stack.
+ */
+static void StackAdjustSavedPointerIfNeeded(UINT* Pointer, LINEAR OldBase, LINEAR OldTop, LINEAR Delta) {
+    if (Pointer == NULL || *Pointer == 0) {
+        return;
+    }
+
+    if (*Pointer >= (UINT)OldBase && *Pointer <= (UINT)OldTop) {
+        *Pointer += (UINT)Delta;
+    }
+}
+
+/************************************************************************/
+
+/**
  * @brief Update task saved registers after stack relocation/growth.
  * @param Task Current task.
  * @param ActiveStack Stack descriptor that moved.
+ * @param OldBase Previous stack base.
  * @param OldTop Previous stack top.
  * @param NewTop New stack top.
  */
-static void StackUpdateTaskContextAfterMove(LPTASK Task, LPSTACK ActiveStack, LINEAR OldTop, LINEAR NewTop) {
+static void StackUpdateTaskContextAfterMove(
+    LPTASK Task,
+    LPSTACK ActiveStack,
+    LINEAR OldBase,
+    LINEAR OldTop,
+    LINEAR NewTop) {
     LINEAR Delta = NewTop - OldTop;
+
+    if (Task == NULL || ActiveStack == NULL || OldBase == 0 || OldTop <= OldBase) {
+        return;
+    }
 
 #if defined(__EXOS_ARCH_X86_32__)
     if (ActiveStack == &(Task->Arch.Stack)) {
-        Task->Arch.Context.Registers.ESP += (UINT)Delta;
-        Task->Arch.Context.Registers.EBP += (UINT)Delta;
+        StackAdjustSavedPointerIfNeeded((LINEAR*)&(Task->Arch.Context.Registers.ESP), OldBase, OldTop, Delta);
+        StackAdjustSavedPointerIfNeeded((LINEAR*)&(Task->Arch.Context.Registers.EBP), OldBase, OldTop, Delta);
     } else if (ActiveStack == &(Task->Arch.SystemStack)) {
         Task->Arch.Context.ESP0 = (U32)(NewTop - STACK_SAFETY_MARGIN);
+        StackAdjustSavedPointerIfNeeded((LINEAR*)&(Task->Arch.Context.Registers.ESP), OldBase, OldTop, Delta);
+        StackAdjustSavedPointerIfNeeded((LINEAR*)&(Task->Arch.Context.Registers.EBP), OldBase, OldTop, Delta);
     }
 #else
     if (ActiveStack == &(Task->Arch.Stack)) {
-        Task->Arch.Context.Registers.RSP += (U64)Delta;
-        Task->Arch.Context.Registers.RBP += (U64)Delta;
+        StackAdjustSavedPointerIfNeeded((LINEAR*)&(Task->Arch.Context.Registers.RSP), OldBase, OldTop, Delta);
+        StackAdjustSavedPointerIfNeeded((LINEAR*)&(Task->Arch.Context.Registers.RBP), OldBase, OldTop, Delta);
     } else if (ActiveStack == &(Task->Arch.SystemStack)) {
         Task->Arch.Context.RSP0 = (U64)(NewTop - STACK_SAFETY_MARGIN);
+        StackAdjustSavedPointerIfNeeded((LINEAR*)&(Task->Arch.Context.Registers.RSP), OldBase, OldTop, Delta);
+        StackAdjustSavedPointerIfNeeded((LINEAR*)&(Task->Arch.Context.Registers.RBP), OldBase, OldTop, Delta);
+
+        if (Kernel_x86_32.TSS != NULL) {
+            Kernel_x86_32.TSS->RSP0 = Task->Arch.Context.RSP0;
+        }
+    } else if (ActiveStack == &(Task->Arch.Ist1Stack)) {
+        StackAdjustSavedPointerIfNeeded((LINEAR*)&(Task->Arch.Context.Registers.RSP), OldBase, OldTop, Delta);
+        StackAdjustSavedPointerIfNeeded((LINEAR*)&(Task->Arch.Context.Registers.RBP), OldBase, OldTop, Delta);
+
+        if (Kernel_x86_32.TSS != NULL) {
+            Kernel_x86_32.TSS->IST1 = NewTop - STACK_SAFETY_MARGIN;
+        }
     }
 #endif
 }
@@ -668,7 +712,7 @@ BOOL GrowCurrentStack(UINT AdditionalBytes) {
             GetESP(UpdatedSP);
             UINT RemainingBytes = (UINT)(UpdatedSP - ActiveStack->Base);
 
-            StackUpdateTaskContextAfterMove(CurrentTask, ActiveStack, OldTop, NewTop);
+            StackUpdateTaskContextAfterMove(CurrentTask, ActiveStack, Base, OldTop, NewTop);
 
             DEBUG(TEXT("[GrowCurrentStack] Resize complete: Size=%u Remaining=%u SP=%p"),
                 ActiveStack->Size,
