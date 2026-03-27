@@ -339,7 +339,10 @@ static KERNEL_DATA DATA_SECTION Kernel = {
     .DeferredWorkPollDelayMS = DEFERRED_WORK_POLL_DELAY_MS,
     .DoLogin = 0,
     .ShowDesktop = 1,
-    .WindowPipelineTraceEnabled = 0,
+    .Debug = {
+        .UseDeadlockMonitor = 0,
+        .WindowPipelineTraceEnabled = 0
+    },
     .LanguageCode = "en-US",
     .KeyboardCode = "fr-FR"
 };
@@ -849,6 +852,16 @@ BOOL GetDoLogin(void) {
 /************************************************************************/
 
 /**
+ * @brief Gets the deadlock monitor usage flag.
+ * @return TRUE when mutex deadlock diagnostics hooks are enabled.
+ */
+BOOL GetUseDeadlockMonitor(void) {
+    return Kernel.Debug.UseDeadlockMonitor;
+}
+
+/************************************************************************/
+
+/**
  * @brief Gets the automatic desktop activation flag.
  * @return TRUE when automatic desktop activation is enabled.
  */
@@ -863,7 +876,17 @@ BOOL GetShowDesktop(void) {
  * @return TRUE when the visual window pipeline trace is enabled.
  */
 BOOL GetWindowPipelineTraceEnabled(void) {
-    return Kernel.WindowPipelineTraceEnabled;
+    return Kernel.Debug.WindowPipelineTraceEnabled;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sets the deadlock monitor usage flag.
+ * @param Enabled TRUE to enable mutex deadlock diagnostics hooks, FALSE to disable.
+ */
+void SetUseDeadlockMonitor(BOOL Enabled) {
+    Kernel.Debug.UseDeadlockMonitor = Enabled;
 }
 
 /************************************************************************/
@@ -893,7 +916,7 @@ void SetShowDesktop(BOOL ShowDesktop) {
  * @param Enabled TRUE to enable the visual window pipeline trace, FALSE to disable.
  */
 void SetWindowPipelineTraceEnabled(BOOL Enabled) {
-    Kernel.WindowPipelineTraceEnabled = Enabled;
+    Kernel.Debug.WindowPipelineTraceEnabled = Enabled;
 }
 
 /************************************************************************/

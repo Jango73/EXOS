@@ -101,6 +101,10 @@ EphemeralPortStart=32768
 SendBufferSize=32768
 ReceiveBufferSize=32768
 
+[Debug]
+# Enable or disable mutex deadlock diagnostics hooks (1=enable, 0=disable)
+# UseDeadlockMonitor=0
+
 # Run section (specify an executable to run)
 # [[Run]]
 # Command="/system/APPS/PORTAL"

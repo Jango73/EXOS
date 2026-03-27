@@ -2453,6 +2453,7 @@ Supported actions:
   - `control+shift+f12` is handled as one built-in shortcut for this action before configuration-defined hotkeys are evaluated.
   - The flag is stored in `KERNEL_DATA` and consumed by desktop pipeline trace helpers.
   - For compatibility, the configuration action name `toggle_slow_redraw` still maps to the same handler.
+- `Debug.UseDeadlockMonitor`: enables mutex deadlock diagnostics hooks in `Mutex.c` (`DeadlockMonitorOnWaitStart`, `DeadlockMonitorOnWaitCancel`, `DeadlockMonitorOnAcquire`, `DeadlockMonitorOnRelease`). Keep this disabled for normal runtime because the hooks run on the mutex hot path.
 
 Process control messages are intercepted in task messaging before queue insertion:
 - `ETM_INTERRUPT`

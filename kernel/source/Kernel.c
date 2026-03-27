@@ -710,6 +710,14 @@ static void UseConfiguration(void) {
             SetMinimumQuantum(StringToU32(QuantumMS));
         }
 
+        LPCSTR UseDeadlockMonitor = TomlGet(Configuration, TEXT("Debug.UseDeadlockMonitor"));
+
+        if (STRING_EMPTY(UseDeadlockMonitor) == FALSE) {
+            SetUseDeadlockMonitor((StringToU32(UseDeadlockMonitor) != 0));
+        } else {
+            SetUseDeadlockMonitor(FALSE);
+        }
+
         DoLogin = TomlGet(Configuration, TEXT("General.DoLogin"));
 
         if (STRING_EMPTY(DoLogin) == FALSE) {
@@ -732,6 +740,10 @@ static void UseConfiguration(void) {
 
         if (GetShowDesktop() == FALSE) {
             ConsolePrint(TEXT("WARNING : Automatic desktop activation disabled\n"));
+        }
+
+        if (GetUseDeadlockMonitor() != FALSE) {
+            ConsolePrint(TEXT("WARNING : Mutex deadlock diagnostics enabled\n"));
         }
     }
 
