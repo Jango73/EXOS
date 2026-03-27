@@ -23,17 +23,43 @@
 
 #include "drivers/network/RTL8169.h"
 
+#include "Kernel.h"
 #include "Log.h"
+#include "Memory.h"
+
+/************************************************************************/
+
+typedef struct tag_RTL8169_DEVICE RTL8169_DEVICE, *LPRTL8169_DEVICE;
 
 /************************************************************************/
 
 #define RTL8169_VERSION_MAJOR 1
 #define RTL8169_VERSION_MINOR 0
+#define RTL8169_DEFAULT_MTU 1500
+#define RTL8169_LINK_SPEED_UNKNOWN 0
+
+/************************************************************************/
+
+struct tag_RTL8169_DEVICE {
+    PCI_DEVICE_FIELDS
+
+    U8 Mac[6];
+    NT_RXCB RxCallback;
+    LPVOID RxUserData;
+};
 
 /************************************************************************/
 
 static UINT RTL8169Commands(UINT Function, UINT Parameter);
 static LPPCI_DEVICE RTL8169Attach(LPPCI_DEVICE PciDevice);
+static void RTL8169BuildPlaceholderMac(LPRTL8169_DEVICE Device);
+static U32 RTL8169OnReset(const NETWORK_RESET *Reset);
+static U32 RTL8169OnGetInfo(const NETWORK_GET_INFO *GetInfo);
+static U32 RTL8169OnSetReceiveCallback(const NETWORK_SET_RX_CB *Set);
+static U32 RTL8169OnSend(const NETWORK_SEND *Send);
+static U32 RTL8169OnPoll(const NETWORK_POLL *Poll);
+static U32 RTL8169OnEnableInterrupts(DEVICE_INTERRUPT_CONFIG *Config);
+static U32 RTL8169OnDisableInterrupts(DEVICE_INTERRUPT_CONFIG *Config);
 
 /************************************************************************/
 
@@ -98,26 +124,196 @@ static U32 RTL8169OnProbe(const PCI_INFO *PciInfo) {
 /************************************************************************/
 
 /**
+ * @brief Builds a deterministic placeholder MAC address for Step 2.
+ *
+ * The permanent hardware address is introduced later with MMIO and EEPROM
+ * support. Until then, provide a stable locally administered unicast address
+ * so the network stack can initialize without an all-zero MAC.
+ *
+ * @param Device Target RTL8169 device context.
+ */
+static void RTL8169BuildPlaceholderMac(LPRTL8169_DEVICE Device) {
+    if (Device == NULL) {
+        return;
+    }
+
+    Device->Mac[0] = 0x02;
+    Device->Mac[1] = 0x10;
+    Device->Mac[2] = 0xEC;
+    Device->Mac[3] = Device->Info.Bus;
+    Device->Mac[4] = Device->Info.Dev;
+    Device->Mac[5] = Device->Info.Func;
+}
+
+/************************************************************************/
+
+/**
  * @brief Attaches the driver to a supported PCI function.
  *
- * Step 0 only establishes the shared driver family shape and the PCI match
- * table. Hardware initialization is deferred to later implementation steps.
+ * Step 2 establishes the generic EXOS network-driver shape and returns an
+ * attached PCI device object. Hardware MMIO probing and controller setup are
+ * deferred to later steps.
  *
  * @param PciDevice Supported PCI function.
- * @return Always NULL during the skeleton stage.
+ * @return Attached PCI device on success, NULL on failure.
  */
 static LPPCI_DEVICE RTL8169Attach(LPPCI_DEVICE PciDevice) {
+    LPRTL8169_DEVICE Device;
+
     if (PciDevice == NULL) {
         return NULL;
     }
 
-    DEBUG(TEXT("[RTL8169Attach] Step 0 skeleton matched Realtek controller %x:%x on %x:%x.%x"),
-          (UINT)PciDevice->Info.VendorID,
-          (UINT)PciDevice->Info.DeviceID,
-          (UINT)PciDevice->Info.Bus,
-          (UINT)PciDevice->Info.Dev,
-          (UINT)PciDevice->Info.Func);
-    return NULL;
+    Device = (LPRTL8169_DEVICE)CreateKernelObject(sizeof(RTL8169_DEVICE), KOID_PCIDEVICE);
+    if (Device == NULL) {
+        ERROR(TEXT("[RTL8169Attach] Failed to allocate device object"));
+        return NULL;
+    }
+
+    Device->Driver = PciDevice->Driver;
+    Device->Info = PciDevice->Info;
+    MemoryCopy(Device->BARPhys, PciDevice->BARPhys, sizeof(Device->BARPhys));
+    MemoryCopy((LPVOID)Device->BARMapped, (LPVOID)PciDevice->BARMapped, sizeof(Device->BARMapped));
+    MemoryCopy(Device->Name, PciDevice->Name, sizeof(Device->Name));
+    InitMutex(&(Device->Mutex));
+    RTL8169BuildPlaceholderMac(Device);
+
+    DEBUG(TEXT("[RTL8169Attach] Attached Realtek controller %x:%x on %x:%x.%x"),
+          (UINT)Device->Info.VendorID,
+          (UINT)Device->Info.DeviceID,
+          (UINT)Device->Info.Bus,
+          (UINT)Device->Info.Dev,
+          (UINT)Device->Info.Func);
+    return (LPPCI_DEVICE)Device;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Reset callback invoked by the network manager.
+ * @param Reset Reset request.
+ * @return DF_RETURN_SUCCESS when the attached device handle is valid.
+ */
+static U32 RTL8169OnReset(const NETWORK_RESET *Reset) {
+    if (Reset == NULL || Reset->Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Reports the current device information.
+ * @param GetInfo Information query and output buffer.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8169OnGetInfo(const NETWORK_GET_INFO *GetInfo) {
+    LPRTL8169_DEVICE Device;
+
+    if (GetInfo == NULL || GetInfo->Device == NULL || GetInfo->Info == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    Device = (LPRTL8169_DEVICE)GetInfo->Device;
+
+    GetInfo->Info->MAC[0] = Device->Mac[0];
+    GetInfo->Info->MAC[1] = Device->Mac[1];
+    GetInfo->Info->MAC[2] = Device->Mac[2];
+    GetInfo->Info->MAC[3] = Device->Mac[3];
+    GetInfo->Info->MAC[4] = Device->Mac[4];
+    GetInfo->Info->MAC[5] = Device->Mac[5];
+    GetInfo->Info->LinkUp = FALSE;
+    GetInfo->Info->SpeedMbps = RTL8169_LINK_SPEED_UNKNOWN;
+    GetInfo->Info->DuplexFull = FALSE;
+    GetInfo->Info->MTU = RTL8169_DEFAULT_MTU;
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Stores the receive callback for later RX-path implementation.
+ * @param Set Callback registration request.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8169OnSetReceiveCallback(const NETWORK_SET_RX_CB *Set) {
+    LPRTL8169_DEVICE Device;
+
+    if (Set == NULL || Set->Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    Device = (LPRTL8169_DEVICE)Set->Device;
+    Device->RxCallback = Set->Callback;
+    Device->RxUserData = Set->UserData;
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Transmit stub used until TX rings are implemented.
+ * @param Send Send request.
+ * @return DF_RETURN_NOT_IMPLEMENTED for the Step 2 integration skeleton.
+ */
+static U32 RTL8169OnSend(const NETWORK_SEND *Send) {
+    if (Send == NULL || Send->Device == NULL || Send->Data == NULL || Send->Length == 0) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    return DF_RETURN_NOT_IMPLEMENTED;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Poll stub used until RX rings are implemented.
+ * @param Poll Poll request.
+ * @return DF_RETURN_SUCCESS while no receive path exists yet.
+ */
+static U32 RTL8169OnPoll(const NETWORK_POLL *Poll) {
+    if (Poll == NULL || Poll->Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Interrupt-enable stub for polling-only early integration.
+ * @param Config Interrupt configuration request.
+ * @return DF_RETURN_NOT_IMPLEMENTED so the network manager stays in polling mode.
+ */
+static U32 RTL8169OnEnableInterrupts(DEVICE_INTERRUPT_CONFIG *Config) {
+    if (Config == NULL || Config->Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    Config->VectorSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+    Config->InterruptEnabled = FALSE;
+    return DF_RETURN_NOT_IMPLEMENTED;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Interrupt-disable stub for polling-only early integration.
+ * @param Config Interrupt configuration request.
+ * @return DF_RETURN_SUCCESS when the request is structurally valid.
+ */
+static U32 RTL8169OnDisableInterrupts(DEVICE_INTERRUPT_CONFIG *Config) {
+    if (Config == NULL || Config->Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    Config->VectorSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+    Config->InterruptEnabled = FALSE;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -154,7 +350,7 @@ static U32 RTL8169OnGetVersion(void) {
 
 /**
  * @brief Retrieves the driver capabilities bitmask.
- * @return Zero because Step 0 exposes only the family skeleton.
+ * @return Zero because advanced capabilities are not exposed yet.
  */
 static U32 RTL8169OnGetCaps(void) {
     return 0;
@@ -164,10 +360,10 @@ static U32 RTL8169OnGetCaps(void) {
 
 /**
  * @brief Returns the highest implemented driver function identifier.
- * @return DF_PROBE for the Step 0 PCI-only skeleton.
+ * @return DF_DEV_DISABLE_INTERRUPT for the Step 2 integration skeleton.
  */
 static U32 RTL8169OnGetLastFunction(void) {
-    return DF_PROBE;
+    return DF_DEV_DISABLE_INTERRUPT;
 }
 
 /************************************************************************/
@@ -192,6 +388,20 @@ static UINT RTL8169Commands(UINT Function, UINT Parameter) {
             return RTL8169OnGetLastFunction();
         case DF_PROBE:
             return RTL8169OnProbe((const PCI_INFO *)(LPVOID)Parameter);
+        case DF_NT_RESET:
+            return RTL8169OnReset((const NETWORK_RESET *)(LPVOID)Parameter);
+        case DF_NT_GETINFO:
+            return RTL8169OnGetInfo((const NETWORK_GET_INFO *)(LPVOID)Parameter);
+        case DF_NT_SETRXCB:
+            return RTL8169OnSetReceiveCallback((const NETWORK_SET_RX_CB *)(LPVOID)Parameter);
+        case DF_DEV_ENABLE_INTERRUPT:
+            return RTL8169OnEnableInterrupts((DEVICE_INTERRUPT_CONFIG *)(LPVOID)Parameter);
+        case DF_DEV_DISABLE_INTERRUPT:
+            return RTL8169OnDisableInterrupts((DEVICE_INTERRUPT_CONFIG *)(LPVOID)Parameter);
+        case DF_NT_SEND:
+            return RTL8169OnSend((const NETWORK_SEND *)(LPVOID)Parameter);
+        case DF_NT_POLL:
+            return RTL8169OnPoll((const NETWORK_POLL *)(LPVOID)Parameter);
     }
 
     return DF_RETURN_NOT_IMPLEMENTED;
