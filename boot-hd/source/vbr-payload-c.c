@@ -51,6 +51,7 @@ static void InitDebug(void);
 static void OutputChar(U8 Char);
 static void WriteString(LPCSTR Str);
 static U32 ComputeKernelReservedBytes(U32 FileSize);
+static BOOL BootQueryTextCursorPosition(U32* CursorX, U32* CursorY);
 
 STR TempString[128];
 static const U16 COMPorts[4] = {0x3F8, 0x2F8, 0x3E8, 0x2E8};
@@ -112,6 +113,35 @@ static U32 ComputeKernelReservedBytes(U32 FileSize) {
 #else
     return MapSize;
 #endif
+}
+
+/************************************************************************/
+
+/**
+ * @brief Query the BIOS text cursor position on page zero.
+ * @param CursorX Receives the text column.
+ * @param CursorY Receives the text row.
+ * @return TRUE when the BIOS call completed.
+ */
+static BOOL BootQueryTextCursorPosition(U32* CursorX, U32* CursorY) {
+    U16 CursorPosition = 0;
+
+    if (CursorX == NULL || CursorY == NULL) {
+        return FALSE;
+    }
+
+    __asm__ __volatile__(
+        "movb $0x03, %%ah\n\t"
+        "movb $0x00, %%bh\n\t"
+        "int $0x10\n\t"
+        "movw %%dx, %0\n\t"
+        : "=rm"(CursorPosition)
+        :
+        : "ax", "bx", "dx");
+
+    *CursorX = (U32)(CursorPosition & 0x00FF);
+    *CursorY = (U32)((CursorPosition >> 8) & 0x00FF);
+    return TRUE;
 }
 
 /************************************************************************/
@@ -253,6 +283,7 @@ E820ENTRY E820_Map[E820_MAX_ENTRIES];
 multiboot_info_t MultibootInfo;
 multiboot_memory_map_t MultibootMemMap[E820_MAX_ENTRIES];
 multiboot_module_t KernelModule;
+EXOS_MULTIBOOT_CONFIG_TABLE MultibootConfigTable;
 const char BootloaderName[] = "EXOS VBR";
 const char KernelCmdLine[] = KERNEL_FILE;
 
@@ -361,27 +392,33 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
     BootDebugPrint(TEXT("[VBR] Calling architecture specific boot code\r\n"));
 
     BOOT_FRAMEBUFFER_INFO FramebufferInfo;
+    BOOT_CONFIG_TABLE_INFO ConfigTableInfo;
     MemorySet(&FramebufferInfo, 0, sizeof(FramebufferInfo));
+    MemorySet(&ConfigTableInfo, 0, sizeof(ConfigTableInfo));
     FramebufferInfo.Type = MULTIBOOT_FRAMEBUFFER_TEXT;
     FramebufferInfo.Address = U64_Make(0u, 0x000B8000u);
     FramebufferInfo.Pitch = 80U * 2U;
     FramebufferInfo.Width = 80U;
     FramebufferInfo.Height = 25U;
     FramebufferInfo.BitsPerPixel = 16U;
+    if (BootQueryTextCursorPosition(&ConfigTableInfo.ConsoleCursorX, &ConfigTableInfo.ConsoleCursorY) != FALSE) {
+        ConfigTableInfo.HasConsoleCursor = TRUE;
+    }
 
     U32 MultibootInfoPtr = BootBuildMultibootInfo(
         &MultibootInfo,
         MultibootMemMap,
         &KernelModule,
+        &MultibootConfigTable,
         E820_Map,
         E820_EntryCount,
         KERNEL_LINEAR_LOAD_ADDRESS,
         FileSize,
         KernelReservedBytes,
-        0u,
         (LPCSTR)BootloaderName,
         (LPCSTR)KernelCmdLine,
-        &FramebufferInfo);
+        &FramebufferInfo,
+        &ConfigTableInfo);
 
     const U64 UefiImageBase = U64_0;
     const U64 UefiImageSize = U64_0;

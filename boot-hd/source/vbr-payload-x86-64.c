@@ -618,6 +618,7 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U6
     UefiSerialWriteLabelHex32((LPCSTR)"[EnterProtectedPagingAndJump] GdtRegisterLimit=", Gdtr.Limit);
     UefiSerialWriteString((LPCSTR)"[EnterProtectedPagingAndJump] Jumping to kernel\r\n");
 #endif
+    BootRefreshMultibootCursorPosition((multiboot_info_t*)(UINT)MultibootInfoPtr);
     StubJumpToImage((U32)(&Gdtr), PagingStructure, KernelEntryLo, KernelEntryHi, MultibootInfoPtr, MULTIBOOT_BOOTLOADER_MAGIC);
 
     __builtin_unreachable();

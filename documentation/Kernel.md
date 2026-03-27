@@ -980,6 +980,8 @@ Occlusion, clipping, bounded screen damage, and window composition use one share
 
 `kernel/source/console/Console-EarlyBoot.c` provides a minimal framebuffer text path independent from normal console initialization. It writes glyphs through physical framebuffer mappings and is used for early boot and memory-initialization checkpoints.
 
+Bootloader text mode handoff preserves one logical cursor position through the multiboot `config_table` field using one EXOS-owned configuration block. When the first regular console backend activates, it imports that bootloader cell position once, clamps it to the active console geometry, and then continues with the standard console-owned cursor state for later frontend and backend transitions.
+
 
 ### ACPI services
 

@@ -63,18 +63,29 @@ typedef struct tag_BOOT_FRAMEBUFFER_INFO {
 
 /************************************************************************/
 
+typedef struct tag_BOOT_CONFIG_TABLE_INFO {
+    U32 RsdpPhysical;
+    U32 ConsoleCursorX;
+    U32 ConsoleCursorY;
+    BOOL HasConsoleCursor;
+} BOOT_CONFIG_TABLE_INFO, *LPBOOT_CONFIG_TABLE_INFO;
+
+/************************************************************************/
+
 U32 BootBuildMultibootInfo(
     multiboot_info_t* MultibootInfo,
     multiboot_memory_map_t* MultibootMemMap,
     multiboot_module_t* KernelModule,
+    LPEXOS_MULTIBOOT_CONFIG_TABLE ConfigTable,
     const E820ENTRY* E820Map,
     U32 E820EntryCount,
     U32 KernelPhysBase,
     U32 FileSize,
     U32 KernelReservedBytes,
-    U32 RsdpPhysical,
     LPCSTR BootloaderName,
     LPCSTR KernelCmdLine,
-    const BOOT_FRAMEBUFFER_INFO* FramebufferInfo);
+    const BOOT_FRAMEBUFFER_INFO* FramebufferInfo,
+    LPBOOT_CONFIG_TABLE_INFO ConfigTableInfo);
+void BootRefreshMultibootCursorPosition(multiboot_info_t* MultibootInfo);
 
 #endif  // BOOT_MULTIBOOT_H_INCLUDED

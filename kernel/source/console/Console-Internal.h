@@ -67,5 +67,6 @@ void ConsoleClearRegion(U32 RegionIndex);
 void ConsolePrintCharRegion(U32 RegionIndex, STR Char);
 void ConsoleApplyLayout(void);
 void ConsoleClampCursorToRegionZero(void);
+void ConsoleApplyBootCursorHandover(void);
 
 #endif

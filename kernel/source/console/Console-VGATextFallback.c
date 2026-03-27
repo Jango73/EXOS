@@ -98,10 +98,9 @@ BOOL ConsoleVGATextFallbackActivate(U32 Columns, U32 Rows, LPGRAPHICS_MODE_INFO 
     Console.FramebufferBlueMaskSize = 0;
     Console.FramebufferBytesPerPixel = sizeof(U16);
     ConsoleApplyLayout();
-    Console.CursorX = 0;
-    Console.CursorY = 0;
 
     ClearConsole();
+    ConsoleApplyBootCursorHandover();
 
     ModeInfo.Header.Size = sizeof(ModeInfo);
     ModeInfo.Header.Version = EXOS_ABI_VERSION;

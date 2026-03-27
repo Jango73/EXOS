@@ -120,7 +120,11 @@ CONSOLE_STRUCT Console = {
     .FontWidth = 8,
     .FontHeight = 16,
     .UseFramebuffer = FALSE,
-    .UseTextBackend = TRUE};
+    .UseTextBackend = TRUE,
+    .BootCursorHandoverPending = FALSE,
+    .BootCursorHandoverConsumed = FALSE,
+    .BootCursorX = 0,
+    .BootCursorY = 0};
 
 /***************************************************************************/
 
@@ -142,6 +146,26 @@ static void SetConsoleCursorPositionLocked(U32 CursorX, U32 CursorY) {
     Console.CursorX = CursorX;
     Console.CursorY = CursorY;
     ConsoleShowFramebufferCursor();
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Apply one pending bootloader cursor handover to the standard console.
+ *
+ * The bootloader passes a logical text cursor through one EXOS config table.
+ * Once the first final console backend is activated, this helper imports that
+ * position once and clamps it to the active region zero.
+ */
+static void ConsoleApplyBootCursorHandoverLocked(void) {
+    if (Console.BootCursorHandoverPending == FALSE || Console.BootCursorHandoverConsumed != FALSE) {
+        return;
+    }
+
+    Console.BootCursorHandoverConsumed = TRUE;
+    Console.CursorX = Console.BootCursorX;
+    Console.CursorY = Console.BootCursorY;
+    ConsoleClampCursorToRegionZero();
 }
 
 /***************************************************************************/
@@ -679,8 +703,7 @@ void InitializeConsole(void) {
     Console.PagingRemaining = 0;
 
     ConsoleApplyLayout();
-
-    GetConsoleCursorPosition(&Console.CursorX, &Console.CursorY);
+    ConsoleApplyBootCursorHandoverLocked();
     ConsoleClampCursorToRegionZero();
     SetConsoleCursorPosition(Console.CursorX, Console.CursorY);
 }
@@ -816,8 +839,6 @@ BOOL ConsoleSetGraphicsTextMode(LPGRAPHICS_MODE_INFO ModeInfo) {
     Console.FramebufferBlueMaskSize = 8;
     Console.ScreenWidth = Columns;
     Console.ScreenHeight = Rows;
-    Console.CursorX = 0;
-    Console.CursorY = 0;
     ConsoleApplyLayout();
 
     UnlockMutex(MUTEX_CONSOLE_STATE);
@@ -826,7 +847,32 @@ BOOL ConsoleSetGraphicsTextMode(LPGRAPHICS_MODE_INFO ModeInfo) {
     ClearConsole();
 #endif
 
+    ConsoleApplyBootCursorHandover();
+
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Seed one pending bootloader cursor handover before console takeover.
+ */
+void ConsoleSetBootCursorHandover(U32 CursorX, U32 CursorY) {
+    Console.BootCursorHandoverPending = TRUE;
+    Console.BootCursorHandoverConsumed = FALSE;
+    Console.BootCursorX = CursorX;
+    Console.BootCursorY = CursorY;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Import the pending bootloader cursor into the active console state once.
+ */
+void ConsoleApplyBootCursorHandover(void) {
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
+    ConsoleApplyBootCursorHandoverLocked();
+    UnlockMutex(MUTEX_CONSOLE_STATE);
 }
 
 /***************************************************************************/

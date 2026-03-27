@@ -76,6 +76,41 @@ static U32 KernelBootMarkerComposePixel(const multiboot_info_t* MultibootInfo, U
 
 /************************************************************************/
 
+/**
+ * @brief Import EXOS-specific bootloader configuration from one multiboot pointer.
+ * @param MultibootInfo Active multiboot information block.
+ */
+static void KernelImportBootConfig(multiboot_info_t* MultibootInfo) {
+    LPEXOS_MULTIBOOT_CONFIG_TABLE ConfigTable;
+
+    KernelStartup.RsdpPhysical = 0;
+
+    if (MultibootInfo == NULL || (MultibootInfo->flags & MULTIBOOT_INFO_CONFIG_TABLE) == 0u) {
+        return;
+    }
+
+    ConfigTable = (LPEXOS_MULTIBOOT_CONFIG_TABLE)(UINT)MultibootInfo->config_table;
+    if (ConfigTable == NULL) {
+        return;
+    }
+
+    if (ConfigTable->Signature != EXOS_MULTIBOOT_CONFIG_TABLE_SIGNATURE ||
+        ConfigTable->Version != EXOS_MULTIBOOT_CONFIG_TABLE_VERSION) {
+        KernelStartup.RsdpPhysical = (PHYSICAL)MultibootInfo->config_table;
+        return;
+    }
+
+    if ((ConfigTable->Flags & EXOS_MULTIBOOT_CONFIG_HAS_RSDP) != 0u) {
+        KernelStartup.RsdpPhysical = (PHYSICAL)ConfigTable->RsdpPhysical;
+    }
+
+    if ((ConfigTable->Flags & EXOS_MULTIBOOT_CONFIG_HAS_CONSOLE_CURSOR) != 0u) {
+        ConsoleSetBootCursorHandover(ConfigTable->ConsoleCursorX, ConfigTable->ConsoleCursorY);
+    }
+}
+
+/************************************************************************/
+
 void KernelBootMarkStage(multiboot_info_t* MultibootInfo, U32 StageIndex, U32 Red, U32 Green, U32 Blue) {
 #if BOOT_STAGE_MARKERS == 1
     const U32 MarkerBaseX = 2u;
@@ -219,11 +254,7 @@ void KernelMain(void) {
     }
 
 
-    if ((MultibootInfo->flags & MULTIBOOT_INFO_CONFIG_TABLE) != 0u) {
-        KernelStartup.RsdpPhysical = (PHYSICAL)MultibootInfo->config_table;
-    } else {
-        KernelStartup.RsdpPhysical = 0;
-    }
+    KernelImportBootConfig(MultibootInfo);
 
     // Extract information from Multiboot structure
     // Get kernel address from first module

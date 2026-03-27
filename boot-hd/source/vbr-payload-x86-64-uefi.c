@@ -748,6 +748,7 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U6
         __asm__ __volatile__("hlt");
     }
 #else
+    BootRefreshMultibootCursorPosition((multiboot_info_t*)(UINT)MultibootInfoPtr);
     StubJumpToImage((U32)(&Gdtr), PagingStructure, KernelEntryLo, KernelEntryHi, MultibootInfoPtr, MULTIBOOT_BOOTLOADER_MAGIC);
 #endif
 

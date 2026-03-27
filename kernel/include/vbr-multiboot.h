@@ -60,6 +60,12 @@
 #define MULTIBOOT_MEMORY_NVS          4
 #define MULTIBOOT_MEMORY_BADRAM       5
 
+// EXOS config table extension
+#define EXOS_MULTIBOOT_CONFIG_TABLE_SIGNATURE 0x534F5845
+#define EXOS_MULTIBOOT_CONFIG_TABLE_VERSION 1
+#define EXOS_MULTIBOOT_CONFIG_HAS_RSDP 0x00000001
+#define EXOS_MULTIBOOT_CONFIG_HAS_CONSOLE_CURSOR 0x00000002
+
 // Multiboot memory map structure
 typedef struct {
     U32 size;
@@ -77,6 +83,15 @@ typedef struct {
     U32 cmdline;       // Physical address of ASCII string (module arguments, null-terminated)
     U32 reserved;      // EXOS: loader-reserved kernel span in bytes
 } PACKED multiboot_module_t;
+
+typedef struct {
+    U32 Signature;
+    U32 Version;
+    U32 Flags;
+    U32 RsdpPhysical;
+    U32 ConsoleCursorX;
+    U32 ConsoleCursorY;
+} PACKED EXOS_MULTIBOOT_CONFIG_TABLE, *LPEXOS_MULTIBOOT_CONFIG_TABLE;
 
 // Main Multiboot information structure
 typedef struct {

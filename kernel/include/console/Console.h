@@ -97,6 +97,10 @@ typedef struct tag_CONSOLE_STRUCT {
     U32 FontHeight;
     BOOL UseFramebuffer;
     BOOL UseTextBackend;
+    BOOL BootCursorHandoverPending;
+    BOOL BootCursorHandoverConsumed;
+    U32 BootCursorX;
+    U32 BootCursorY;
     CONSOLE_REGION Regions[MAX_CONSOLE_REGIONS];
 } CONSOLE_STRUCT, *LPCONSOLE_STRUCT;
 
@@ -150,6 +154,7 @@ BOOL ConsoleGetPagingEnabled(void);
 void ConsoleSetPagingActive(BOOL Active);
 BOOL ConsoleGetPagingActive(void);
 void ConsoleResetPaging(void);
+void ConsoleSetBootCursorHandover(U32 CursorX, U32 CursorY);
 
 // Functions in shell/Shell-Main.c
 
