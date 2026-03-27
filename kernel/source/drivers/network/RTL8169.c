@@ -43,6 +43,8 @@ typedef struct tag_RTL8169_DEVICE RTL8169_DEVICE, *LPRTL8169_DEVICE;
 struct tag_RTL8169_DEVICE {
     PCI_DEVICE_FIELDS
 
+    const RTL8169_DEVICE_INFO *DeviceInfo;
+    U32 HardwareRevision;
     U8 Mac[6];
     NT_RXCB RxCallback;
     LPVOID RxUserData;
@@ -52,7 +54,9 @@ struct tag_RTL8169_DEVICE {
 
 static UINT RTL8169Commands(UINT Function, UINT Parameter);
 static LPPCI_DEVICE RTL8169Attach(LPPCI_DEVICE PciDevice);
+static const RTL8169_DEVICE_INFO *RTL8169FindDeviceInfo(U16 VendorID, U16 DeviceID);
 static void RTL8169BuildPlaceholderMac(LPRTL8169_DEVICE Device);
+static void RTL8169InitializeHardwareDescription(LPRTL8169_DEVICE Device);
 static U32 RTL8169OnReset(const NETWORK_RESET *Reset);
 static U32 RTL8169OnGetInfo(const NETWORK_GET_INFO *GetInfo);
 static U32 RTL8169OnSetReceiveCallback(const NETWORK_SET_RX_CB *Set);
@@ -66,6 +70,30 @@ static U32 RTL8169OnDisableInterrupts(DEVICE_INTERRUPT_CONFIG *Config);
 static DRIVER_MATCH RTL8169MatchTable[] = {
     RTL8169_MATCH_ENTRY(RTL8169_DEVICE_8161),
     RTL8169_MATCH_ENTRY(RTL8169_DEVICE_8168),
+};
+
+/************************************************************************/
+
+static const RTL8169_DEVICE_INFO RTL8169DeviceInfoTable[] = {
+    {
+        .VendorID = RTL8169_VENDOR_REALTEK,
+        .DeviceID = RTL8169_DEVICE_8161,
+        .Family = RTL8169_DEVICE_FAMILY_8111,
+        .QuirkFlags = RTL8169_QUIRK_PCIE_GIGABIT |
+                      RTL8169_QUIRK_REVISION_BY_MAC_VERSION |
+                      RTL8169_QUIRK_SHARED_8111_8168_REGISTERS,
+        .ProductName = TEXT("RTL8111 Family"),
+    },
+    {
+        .VendorID = RTL8169_VENDOR_REALTEK,
+        .DeviceID = RTL8169_DEVICE_8168,
+        .Family = RTL8169_DEVICE_FAMILY_8168,
+        .QuirkFlags = RTL8169_QUIRK_PCIE_GIGABIT |
+                      RTL8169_QUIRK_REVISION_BY_MAC_VERSION |
+                      RTL8169_QUIRK_SHARED_8111_8168_REGISTERS |
+                      RTL8169_QUIRK_SHARED_8411_REGISTERS,
+        .ProductName = TEXT("RTL8168/8411 Family"),
+    },
 };
 
 /************************************************************************/
@@ -124,6 +152,28 @@ static U32 RTL8169OnProbe(const PCI_INFO *PciInfo) {
 /************************************************************************/
 
 /**
+ * @brief Looks up the compact hardware description for a PCI identifier.
+ * @param VendorID PCI vendor identifier.
+ * @param DeviceID PCI device identifier.
+ * @return Matching device-description entry or NULL when unsupported.
+ */
+static const RTL8169_DEVICE_INFO *RTL8169FindDeviceInfo(U16 VendorID, U16 DeviceID) {
+    UINT Index;
+
+    for (Index = 0; Index < sizeof(RTL8169DeviceInfoTable) / sizeof(RTL8169DeviceInfoTable[0]); Index++) {
+        const RTL8169_DEVICE_INFO *DeviceInfo = &RTL8169DeviceInfoTable[Index];
+
+        if (DeviceInfo->VendorID == VendorID && DeviceInfo->DeviceID == DeviceID) {
+            return DeviceInfo;
+        }
+    }
+
+    return NULL;
+}
+
+/************************************************************************/
+
+/**
  * @brief Builds a deterministic placeholder MAC address for Step 2.
  *
  * The permanent hardware address is introduced later with MMIO and EEPROM
@@ -143,6 +193,21 @@ static void RTL8169BuildPlaceholderMac(LPRTL8169_DEVICE Device) {
     Device->Mac[3] = Device->Info.Bus;
     Device->Mac[4] = Device->Info.Dev;
     Device->Mac[5] = Device->Info.Func;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Initializes the revision-independent hardware-description state.
+ * @param Device Target RTL8169 device context.
+ */
+static void RTL8169InitializeHardwareDescription(LPRTL8169_DEVICE Device) {
+    if (Device == NULL) {
+        return;
+    }
+
+    Device->DeviceInfo = RTL8169FindDeviceInfo(Device->Info.VendorID, Device->Info.DeviceID);
+    Device->HardwareRevision = 0;
 }
 
 /************************************************************************/
@@ -176,9 +241,19 @@ static LPPCI_DEVICE RTL8169Attach(LPPCI_DEVICE PciDevice) {
     MemoryCopy((LPVOID)Device->BARMapped, (LPVOID)PciDevice->BARMapped, sizeof(Device->BARMapped));
     MemoryCopy(Device->Name, PciDevice->Name, sizeof(Device->Name));
     InitMutex(&(Device->Mutex));
+    RTL8169InitializeHardwareDescription(Device);
     RTL8169BuildPlaceholderMac(Device);
 
-    DEBUG(TEXT("[RTL8169Attach] Attached Realtek controller %x:%x on %x:%x.%x"),
+    if (Device->DeviceInfo == NULL) {
+        ERROR(TEXT("[RTL8169Attach] Missing hardware description for %x:%x"),
+              (UINT)Device->Info.VendorID,
+              (UINT)Device->Info.DeviceID);
+        ReleaseKernelObject(Device);
+        return NULL;
+    }
+
+    DEBUG(TEXT("[RTL8169Attach] Attached %s controller %x:%x on %x:%x.%x"),
+          Device->DeviceInfo->ProductName,
           (UINT)Device->Info.VendorID,
           (UINT)Device->Info.DeviceID,
           (UINT)Device->Info.Bus,
@@ -227,7 +302,7 @@ static U32 RTL8169OnGetInfo(const NETWORK_GET_INFO *GetInfo) {
     GetInfo->Info->LinkUp = FALSE;
     GetInfo->Info->SpeedMbps = RTL8169_LINK_SPEED_UNKNOWN;
     GetInfo->Info->DuplexFull = FALSE;
-    GetInfo->Info->MTU = RTL8169_DEFAULT_MTU;
+    GetInfo->Info->MTU = RTL8169_MAXIMUM_MTU;
 
     return DF_RETURN_SUCCESS;
 }
