@@ -55,16 +55,6 @@
 // Structural tree/list traversals that can race with z-order/tree mutations
 // must use one stable snapshot and execute callbacks outside structural locks.
 
-typedef enum tag_DESKTOP_LOCK_ROLE {
-    DESKTOP_LOCK_ROLE_NONE = 0,
-    DESKTOP_LOCK_ROLE_TASK_MESSAGE = 1,
-    DESKTOP_LOCK_ROLE_TREE = 2,
-    DESKTOP_LOCK_ROLE_STATE = 3,
-    DESKTOP_LOCK_ROLE_TIMER = 4,
-    DESKTOP_LOCK_ROLE_WINDOW = 5,
-    DESKTOP_LOCK_ROLE_GRAPHICS_CONTEXT = 6
-} DESKTOP_LOCK_ROLE, *LPDESKTOP_LOCK_ROLE;
-
 /************************************************************************/
 // Functions in Desktop.c
 
@@ -82,7 +72,6 @@ BOOL DesktopSetWindowVisibility(HANDLE, BOOL);
 BOOL BringWindowToFront(HANDLE);
 BOOL SizeWindow(HANDLE, LPPOINT);
 BOOL SetWindowStyleState(HANDLE, U32, BOOL);
-BOOL GetWindowDrawableRect(HANDLE Handle, LPRECT DrawableRect);
 BOOL WindowRectToScreenRect(HANDLE Handle, LPRECT WindowRect, LPRECT ScreenRect);
 BOOL GetDesktopScreenRect(LPDESKTOP, LPRECT);
 HANDLE GetWindowGC(HANDLE);

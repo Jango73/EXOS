@@ -46,6 +46,7 @@ typedef struct tag_CONSOLE_REGION_STATE {
 /***************************************************************************/
 
 BOOL ConsoleEnsureFramebufferMapped(void);
+BOOL ConsoleUsesTextBackend(void);
 U32 ConsoleGetCellWidth(void);
 U32 ConsoleGetCellHeight(void);
 void ConsoleDrawGlyph(U32 X, U32 Y, STR Char);
@@ -54,6 +55,11 @@ void ConsoleShowFramebufferCursor(void);
 void ConsoleResetFramebufferCursorState(void);
 void ConsoleClearRegionFramebuffer(U32 RegionIndex);
 void ConsoleScrollRegionFramebuffer(U32 RegionIndex);
+BOOL ConsoleEnsureShadowBuffer(void);
+void ConsoleShadowWriteRegionCell(U32 RegionIndex, U32 CellX, U32 CellY, STR Char, U32 ForeColor, U32 BackColor, U32 Blink);
+void ConsoleShadowClearRegion(U32 RegionIndex, U32 ForeColor, U32 BackColor, U32 Blink);
+void ConsoleShadowScrollRegion(U32 RegionIndex, U32 ForeColor, U32 BackColor, U32 Blink);
+void ConsoleRepaintRegion(U32 RegionIndex);
 
 BOOL ConsoleResolveRegionState(U32 Index, LPCONSOLE_REGION_STATE State);
 void ConsoleScrollRegion(U32 RegionIndex);
@@ -61,5 +67,6 @@ void ConsoleClearRegion(U32 RegionIndex);
 void ConsolePrintCharRegion(U32 RegionIndex, STR Char);
 void ConsoleApplyLayout(void);
 void ConsoleClampCursorToRegionZero(void);
+void ConsoleApplyBootCursorHandover(void);
 
 #endif

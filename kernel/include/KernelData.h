@@ -123,6 +123,13 @@ typedef struct tag_STARTUP_DRIVER_ENTRY {
 
 /************************************************************************/
 
+typedef struct tag_KERNEL_DEBUG_STATE {
+    BOOL UseDeadlockMonitor;         // Enable/disable mutex deadlock diagnostics hooks
+    BOOL WindowPipelineTraceEnabled; // Enable/disable visual tracing of the desktop window pipeline
+} KERNEL_DEBUG_STATE, *LPKERNEL_DEBUG_STATE;
+
+/************************************************************************/
+
 typedef struct tag_KERNEL_DATA {
     // NOTE: This structure has no global assembly mirror.
     // Assembly code must not rely on hardcoded offsets into this struct.
@@ -163,6 +170,8 @@ typedef struct tag_KERNEL_DATA {
     UINT DeferredWorkWaitTimeoutMS; // Wait timeout for deferred work dispatcher in milliseconds
     UINT DeferredWorkPollDelayMS;   // Polling delay for deferred work dispatcher in milliseconds
     BOOL DoLogin;                   // Enable/disable login sequence (TRUE=enable, FALSE=disable)
+    BOOL ShowDesktop;               // Enable/disable automatic desktop activation (TRUE=enable, FALSE=disable)
+    KERNEL_DEBUG_STATE Debug;
     STR LanguageCode[8];
     STR KeyboardCode[8];
 } KERNEL_DATA, *LPKERNEL_DATA;
@@ -173,7 +182,10 @@ typedef struct tag_KERNEL_DATA {
 void SetConfiguration(LPTOML Configuration);
 void SetDeferredWorkPollDelay(UINT Delay);
 void SetDeferredWorkWaitTimeout(UINT Timeout);
+void SetUseDeadlockMonitor(BOOL Enabled);
 void SetDoLogin(BOOL DoLogin);
+void SetShowDesktop(BOOL ShowDesktop);
+void SetWindowPipelineTraceEnabled(BOOL Enabled);
 void SetActiveDesktop(LPDESKTOP Desktop);
 void SetFocusedProcess(LPPROCESS Process);
 void SetKeyboardCode(LPCSTR KeyboardCode);
@@ -187,9 +199,12 @@ BOOL GetCPUInformation(LPCPU_INFORMATION);
 LPTOML GetConfiguration(void);
 UINT GetDeferredWorkPollDelay(void);
 UINT GetDeferredWorkWaitTimeout(void);
+BOOL GetUseDeadlockMonitor(void);
 LPLIST GetDesktopList(void);
 LPLIST GetDiskList(void);
 BOOL GetDoLogin(void);
+BOOL GetShowDesktop(void);
+BOOL GetWindowPipelineTraceEnabled(void);
 LPDRIVER GetDefaultFileSystemDriver(void);
 LPDISPLAY_SESSION GetDisplaySession(void);
 LPLIST GetDriverList(void);

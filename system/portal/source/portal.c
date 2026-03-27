@@ -54,7 +54,7 @@ void DrawFrame3D(HANDLE GC, LPRECT Rect, BOOL Invert, BOOL Fill) {
     if (Fill == TRUE) {
         SelectPen(GC, NULL);
         SelectBrush(GC, GetSystemBrush(SM_COLOR_NORMAL));
-        Rectangle(GC, Rect->X1, Rect->Y1, Rect->X2, Rect->Y2);
+        Rectangle(GC, Rect->X1, Rect->Y1, Rect->X2, Rect->Y2, 0);
     }
     if (Invert == FALSE) {
         SelectPen(GC, GetSystemPen(SM_COLOR_HIGHLIGHT));
@@ -105,7 +105,7 @@ U32 OnButtonLeftButtonDown(HANDLE Window, U32 Param1, U32 Param2) {
     UNUSED(Param2);
 
     SetWindowProp(Window, Prop_Down, 1);
-    InvalidateWindowRect(Window, NULL);
+    InvalidateClientRect(Window, NULL);
 
     return 0;
 }
@@ -116,7 +116,7 @@ U32 OnButtonLeftButtonUp(HANDLE Window, U32 Param1, U32 Param2) {
     UNUSED(Param1);
     UNUSED(Param2);
 
-    InvalidateWindowRect(Window, NULL);
+    InvalidateClientRect(Window, NULL);
     SetWindowProp(Window, Prop_Down, 0);
 
     /*
@@ -150,13 +150,13 @@ U32 OnButtonMouseMove(HANDLE Window, U32 Param1, U32 Param2) {
 
     if (Mouse.X >= 0 && Mouse.Y >= 0 && Mouse.X <= Size.X && Mouse.Y <= Size.Y) {
         if (!GetWindowProp(Window, Prop_Over)) {
-            InvalidateWindowRect(Window, NULL);
+            InvalidateClientRect(Window, NULL);
             SetWindowProp(Window, Prop_Over, 1);
             CaptureMouse(Window);
         }
     } else {
         if (GetWindowProp(Window, Prop_Over)) {
-            InvalidateWindowRect(Window, NULL);
+            InvalidateClientRect(Window, NULL);
             SetWindowProp(Window, Prop_Over, 0);
             if (!GetWindowProp(Window, Prop_Down)) ReleaseMouse();
         }
@@ -248,10 +248,10 @@ U32 MainWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 SelectPen(GC, NULL);
 
                 SelectBrush(GC, GetSystemBrush(SM_COLOR_TITLE_BAR));
-                Rectangle(GC, Rect.X1, Rect.Y1, Rect.X2, Rect.Y1 + 19);
+                Rectangle(GC, Rect.X1, Rect.Y1, Rect.X2, Rect.Y1 + 19, 0);
 
                 SelectBrush(GC, GetSystemBrush(SM_COLOR_NORMAL));
-                Rectangle(GC, Rect.X1, Rect.Y1 + 20, Rect.X2, Rect.Y2);
+                Rectangle(GC, Rect.X1, Rect.Y1 + 20, Rect.X2, Rect.Y2, 0);
 
         ReleaseWindowGC(GC);
     } else {
@@ -353,7 +353,7 @@ U32 DesktopTask(LPVOID Param) {
             {
               Sequence = 1 - Sequence;
               SelectBrush(GC, Sequence ? RedBrush : GreenBrush);
-              Rectangle(GC, 20, 20, 40, 40);
+              Rectangle(GC, 20, 20, 40, 40, 0);
               ReleaseWindowGC(GC);
             }
         */

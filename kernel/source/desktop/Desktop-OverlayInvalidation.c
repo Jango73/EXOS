@@ -137,6 +137,7 @@ static BOOL DesktopOverlayInvalidateRootVisibleRemainderRect(LPWINDOW RootWindow
             if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
             if (GetWindowStateSnapshot(Child, &ChildSnapshot) == FALSE) continue;
             if ((ChildSnapshot.Status & WINDOW_STATUS_VISIBLE) == 0) continue;
+            if ((ChildSnapshot.Status & WINDOW_STATUS_CONTENT_TRANSPARENT) != 0) continue;
 
             ChildRect = ChildSnapshot.ScreenRect;
             if (SubtractRectFromRegion(&RemainderRegion, &ChildRect, TempStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) {

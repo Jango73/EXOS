@@ -370,7 +370,7 @@ BOOL InvalidateWindowRect(HANDLE Window, LPRECT Rect) {
 
     WindowRect.Header.Size = sizeof WindowRect;
     WindowRect.Header.Version = EXOS_ABI_VERSION;
-    WindowRect.Header.Flags = 0;
+    WindowRect.Header.Flags = (Rect == NULL) ? WINDOW_RECT_FLAG_ALL : 0;
     WindowRect.Window = Window;
 
     if (Rect != NULL) {
@@ -386,6 +386,31 @@ BOOL InvalidateWindowRect(HANDLE Window, LPRECT Rect) {
     }
 
     return (BOOL)exoscall(SYSCALL_InvalidateWindowRect, EXOS_PARAM(&WindowRect));
+}
+
+/***************************************************************************/
+
+BOOL InvalidateClientRect(HANDLE Window, LPRECT Rect) {
+    WINDOW_RECT WindowRect;
+
+    WindowRect.Header.Size = sizeof WindowRect;
+    WindowRect.Header.Version = EXOS_ABI_VERSION;
+    WindowRect.Header.Flags = (Rect == NULL) ? WINDOW_RECT_FLAG_ALL : 0;
+    WindowRect.Window = Window;
+
+    if (Rect != NULL) {
+        WindowRect.Rect.X1 = Rect->X1;
+        WindowRect.Rect.Y1 = Rect->Y1;
+        WindowRect.Rect.X2 = Rect->X2;
+        WindowRect.Rect.Y2 = Rect->Y2;
+    } else {
+        WindowRect.Rect.X1 = 0;
+        WindowRect.Rect.Y1 = 0;
+        WindowRect.Rect.X2 = 0;
+        WindowRect.Rect.Y2 = 0;
+    }
+
+    return (BOOL)exoscall(SYSCALL_InvalidateClientRect, EXOS_PARAM(&WindowRect));
 }
 
 /***************************************************************************/
@@ -670,7 +695,7 @@ BOOL Line(LPLINE_INFO LineInfo) {
 
 /***************************************************************************/
 
-void Rectangle(HANDLE GC, U32 X1, U32 Y1, U32 X2, U32 Y2) {
+void Rectangle(HANDLE GC, U32 X1, U32 Y1, U32 X2, U32 Y2, U32 CornerRadius) {
     RECT_INFO RectInfo;
 
     RectInfo.Header.Size = sizeof RectInfo;
@@ -681,6 +706,8 @@ void Rectangle(HANDLE GC, U32 X1, U32 Y1, U32 X2, U32 Y2) {
     RectInfo.Y1 = Y1;
     RectInfo.X2 = X2;
     RectInfo.Y2 = Y2;
+    RectInfo.CornerRadius = (I32)CornerRadius;
+    RectInfo.CornerStyle = CornerRadius > 0 ? RECT_CORNER_STYLE_ROUNDED : RECT_CORNER_STYLE_SQUARE;
 
     exoscall(SYSCALL_Rectangle, EXOS_PARAM(&RectInfo));
 }

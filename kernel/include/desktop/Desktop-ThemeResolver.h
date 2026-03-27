@@ -33,6 +33,7 @@
 BOOL DesktopThemeResolveLevel1Text(LPCSTR ElementID, LPCSTR StateID, LPCSTR PropertyName, LPSTR Value, UINT ValueBufferSize);
 BOOL DesktopThemeResolveLevel1Color(LPCSTR ElementID, LPCSTR StateID, LPCSTR PropertyName, COLOR* Color);
 BOOL DesktopThemeResolveLevel1Metric(LPCSTR ElementID, LPCSTR StateID, LPCSTR PropertyName, U32* Metric);
+BOOL DesktopThemeResolveLevel1CornerStyle(LPCSTR ElementID, LPCSTR StateID, LPCSTR PropertyName, U32* CornerStyle);
 
 /************************************************************************/
 

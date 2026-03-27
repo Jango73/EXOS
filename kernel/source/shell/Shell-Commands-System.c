@@ -260,7 +260,7 @@ U32 CMD_showtask(LPSHELLCONTEXT Context) {
         STR Text[MAX_FILE_NAME];
 
         for (LPTASK Task = (LPTASK)TaskList->First; Task != NULL; Task = (LPTASK)Task->Next) {
-            StringPrintFormat(Text, TEXT("%x Status %x\n"), Task, Task->Status);
+            StringPrintFormat(Text, TEXT("%x Status %x\n"), Task, GetTaskStatus(Task));
             ConsolePrint(Text);
         }
     }

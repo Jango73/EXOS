@@ -36,7 +36,6 @@
 #define ETM_PROCESS_TOGGLE_PAUSE 0x20000003
 
 #define PROCESS_CONTROL_FLAG_INTERRUPT_PENDING 0x00000001
-#define PROCESS_CONTROL_FLAG_PAUSED 0x00000002
 
 /************************************************************************/
 
@@ -51,6 +50,7 @@ BOOL ProcessControlCheckpoint(LPPROCESS Process);
 BOOL ProcessControlSetPaused(LPPROCESS Process, BOOL Paused);
 BOOL ProcessControlTogglePaused(LPPROCESS Process);
 BOOL ProcessControlIsProcessPaused(LPPROCESS Process);
+BOOL GetProcessSchedulerState(LPPROCESS Process, LPPROCESS_SCHEDULER_STATE State);
 
 /************************************************************************/
 

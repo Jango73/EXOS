@@ -27,6 +27,7 @@
 /************************************************************************/
 
 #include "GFX.h"
+#include "desktop/Desktop-PipelineTrace.h"
 
 /************************************************************************/
 
@@ -83,6 +84,8 @@ extern PEN Pen_Title_Text;
 
 BOOL ResetGraphicsContext(LPGRAPHICSCONTEXT This);
 BOOL SetGraphicsContextClipScreenRect(HANDLE GC, LPRECT ClipRect);
+BOOL DesktopGetWindowGraphicsContext(LPWINDOW Window, BOOL UseScanoutContext, LPGRAPHICSCONTEXT* ContextOut);
+BOOL DesktopPresentScreenRect(LPWINDOW Window, LPRECT ClipRect);
 BOOL DesktopBuildWindowVisibleRegion(
     LPWINDOW Window,
     LPRECT BaseRect,
@@ -115,6 +118,7 @@ BOOL GetWindowOrderSnapshot(LPWINDOW Window, I32* Order);
 BOOL GetWindowLevelSnapshot(LPWINDOW Window, U32* Level);
 BOOL GetWindowEffectiveWorkRectSnapshot(LPWINDOW Window, LPRECT WorkRect);
 BOOL GetWindowDrawContextSnapshot(LPWINDOW Window, LPWINDOW_DRAW_CONTEXT_SNAPSHOT Snapshot);
+BOOL DesktopRefreshWindowChildScreenRects(LPWINDOW ParentWindow);
 BOOL DesktopSnapshotWindowChildren(LPWINDOW Parent, LPWINDOW** Children, UINT* ChildCount);
 void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window);
 BOOL DesktopConsumeWindowDirtyRegionSnapshot(
@@ -129,6 +133,7 @@ BOOL DesktopAttachWindowChild(LPWINDOW Parent, LPWINDOW Child);
 BOOL DesktopDetachWindowChild(LPWINDOW Parent, LPWINDOW Child);
 BOOL DesktopSetWindowTask(LPWINDOW Window, LPTASK Task);
 BOOL DesktopSetWindowVisibleState(LPWINDOW Window, BOOL ShowHide);
+BOOL DesktopRefreshWindowEffectiveVisibilityTree(LPWINDOW Window);
 BOOL DesktopSetWindowStyleState(LPWINDOW Window, U32 StyleMask, BOOL Enabled);
 BOOL DesktopSetWindowContentTransparencyHint(LPWINDOW Window, U32 Hint);
 BOOL DesktopSetWindowResolvedTransparencyState(LPWINDOW Window, BOOL Enabled);
@@ -137,6 +142,9 @@ BOOL DesktopSetWindowBypassParentWorkRectState(LPWINDOW Window, BOOL Enabled);
 BOOL DesktopRefreshWindowZOrder(LPWINDOW Window);
 I32 SortWindows_Order(LPCVOID Item1, LPCVOID Item2);
 BOOL DesktopGetRootWindow(LPDESKTOP Desktop, LPWINDOW* RootWindow);
+BOOL DesktopGetFocusWindow(LPDESKTOP Desktop, LPWINDOW* FocusWindow);
+BOOL DesktopSetFocusWindow(LPWINDOW Window);
+BOOL IsDesktopWindowFocused(LPWINDOW Window);
 BOOL DesktopClearWindowReferences(LPDESKTOP Desktop, LPWINDOW Window);
 BOOL GetDesktopCaptureState(LPWINDOW Window, LPWINDOW* CaptureWindow, I32* OffsetX, I32* OffsetY);
 BOOL SetDesktopCaptureState(LPWINDOW Window, LPWINDOW CaptureWindow, I32 OffsetX, I32 OffsetY);

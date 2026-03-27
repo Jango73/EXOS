@@ -17,33 +17,23 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Desktop non-client rendering
+    Desktop pipeline trace
 
 \************************************************************************/
 
-#ifndef DESKTOP_NON_CLIENT_H_INCLUDED
-#define DESKTOP_NON_CLIENT_H_INCLUDED
+#ifndef DESKTOP_PIPELINE_TRACE_H_INCLUDED
+#define DESKTOP_PIPELINE_TRACE_H_INCLUDED
 
 /************************************************************************/
 
 #include "Desktop.h"
+#include "utils/RectRegion.h"
 
 /************************************************************************/
 
-#define WINDOW_DECORATION_MODE_SYSTEM 0x00000000
-#define WINDOW_DECORATION_MODE_CLIENT 0x00000001
-#define WINDOW_DECORATION_MODE_BARE 0x00000002
+void DesktopPipelineTraceRegion(LPWINDOW Window, LPRECT_REGION Region);
+void DesktopPipelineTraceWindowDrawDispatch(LPWINDOW Window, LPRECT ClipRect, LPRECT ClientScreenRect);
 
 /************************************************************************/
 
-U32 GetWindowDecorationMode(LPWINDOW Window);
-BOOL ShouldDrawWindowNonClient(LPWINDOW Window);
-BOOL DrawWindowClientArea(HANDLE Window, HANDLE GC, LPRECT Rect);
-BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect);
-BOOL IsPointInWindowTitleBar(LPWINDOW Window, LPPOINT ScreenPoint);
-U32 GetWindowTitleBarButtonMessageAtPoint(LPWINDOW Window, LPPOINT ScreenPoint);
-BOOL GetWindowClientRectFromWindowRect(LPWINDOW Window, LPRECT WindowRect, LPRECT ClientRect);
-
-/************************************************************************/
-
-#endif  // DESKTOP_NON_CLIENT_H_INCLUDED
+#endif  // DESKTOP_PIPELINE_TRACE_H_INCLUDED

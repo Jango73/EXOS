@@ -51,15 +51,16 @@ U32 BootBuildMultibootInfo(
     multiboot_info_t* MultibootInfo,
     multiboot_memory_map_t* MultibootMemMap,
     multiboot_module_t* KernelModule,
+    LPEXOS_MULTIBOOT_CONFIG_TABLE ConfigTable,
     const E820ENTRY* E820Map,
     U32 E820EntryCount,
     U32 KernelPhysBase,
     U32 FileSize,
     U32 KernelReservedBytes,
-    U32 RsdpPhysical,
     LPCSTR BootloaderName,
     LPCSTR KernelCmdLine,
-    const BOOT_FRAMEBUFFER_INFO* FramebufferInfo) {
+    const BOOT_FRAMEBUFFER_INFO* FramebufferInfo,
+    LPBOOT_CONFIG_TABLE_INFO ConfigTableInfo) {
     // Clear the multiboot info structure
     MemorySet(MultibootInfo, 0, sizeof(multiboot_info_t));
     MemorySet(MultibootMemMap, 0, sizeof(multiboot_memory_map_t) * E820_MAX_ENTRIES);
@@ -147,9 +148,22 @@ U32 BootBuildMultibootInfo(
     // Set bootloader name
     MultibootInfo->boot_loader_name = (U32)(UINT)BootloaderName;
 
-    if (RsdpPhysical != 0u) {
+    if (ConfigTable != NULL && ConfigTableInfo != NULL &&
+        (ConfigTableInfo->RsdpPhysical != 0u || ConfigTableInfo->HasConsoleCursor != FALSE)) {
         MultibootInfo->flags |= MULTIBOOT_INFO_CONFIG_TABLE;
-        MultibootInfo->config_table = RsdpPhysical;
+        MultibootInfo->config_table = (U32)(UINT)ConfigTable;
+        MemorySet(ConfigTable, 0, sizeof(*ConfigTable));
+        ConfigTable->Signature = EXOS_MULTIBOOT_CONFIG_TABLE_SIGNATURE;
+        ConfigTable->Version = EXOS_MULTIBOOT_CONFIG_TABLE_VERSION;
+        if (ConfigTableInfo->RsdpPhysical != 0u) {
+            ConfigTable->Flags |= EXOS_MULTIBOOT_CONFIG_HAS_RSDP;
+            ConfigTable->RsdpPhysical = ConfigTableInfo->RsdpPhysical;
+        }
+        if (ConfigTableInfo->HasConsoleCursor != FALSE) {
+            ConfigTable->Flags |= EXOS_MULTIBOOT_CONFIG_HAS_CONSOLE_CURSOR;
+            ConfigTable->ConsoleCursorX = ConfigTableInfo->ConsoleCursorX;
+            ConfigTable->ConsoleCursorY = ConfigTableInfo->ConsoleCursorY;
+        }
     }
 
     // Set up kernel module
@@ -200,10 +214,54 @@ U32 BootBuildMultibootInfo(
     }
     if ((MultibootInfo->flags & MULTIBOOT_INFO_CONFIG_TABLE) != 0u) {
         BootDebugPrint(
-            TEXT("[BootBuildMultibootInfo] rsdp=%x\r\n"),
-            RsdpPhysical);
+            TEXT("[BootBuildMultibootInfo] config_table=%x flags=%x rsdp=%x cursor=(%u,%u)\r\n"),
+            MultibootInfo->config_table,
+            ConfigTable != NULL ? ConfigTable->Flags : 0,
+            ConfigTable != NULL ? ConfigTable->RsdpPhysical : 0,
+            ConfigTable != NULL ? ConfigTable->ConsoleCursorX : 0,
+            ConfigTable != NULL ? ConfigTable->ConsoleCursorY : 0);
     }
 #endif
 
     return (U32)(UINT)MultibootInfo;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Refresh one EXOS multiboot cursor handoff from the live BIOS cursor.
+ * @param MultibootInfo Active multiboot information block.
+ */
+void BootRefreshMultibootCursorPosition(multiboot_info_t* MultibootInfo) {
+    LPEXOS_MULTIBOOT_CONFIG_TABLE ConfigTable;
+    U16 CursorPosition = 0;
+
+#if defined(BOOT_UEFI)
+    UNUSED(MultibootInfo);
+    return;
+#endif
+
+    if (MultibootInfo == NULL || (MultibootInfo->flags & MULTIBOOT_INFO_CONFIG_TABLE) == 0u) {
+        return;
+    }
+
+    ConfigTable = (LPEXOS_MULTIBOOT_CONFIG_TABLE)(UINT)MultibootInfo->config_table;
+    if (ConfigTable == NULL ||
+        ConfigTable->Signature != EXOS_MULTIBOOT_CONFIG_TABLE_SIGNATURE ||
+        ConfigTable->Version != EXOS_MULTIBOOT_CONFIG_TABLE_VERSION ||
+        (ConfigTable->Flags & EXOS_MULTIBOOT_CONFIG_HAS_CONSOLE_CURSOR) == 0u) {
+        return;
+    }
+
+    __asm__ __volatile__(
+        "movb $0x03, %%ah\n\t"
+        "movb $0x00, %%bh\n\t"
+        "int $0x10\n\t"
+        "movw %%dx, %0\n\t"
+        : "=rm"(CursorPosition)
+        :
+        : "ax", "bx", "dx");
+
+    ConfigTable->ConsoleCursorX = (U32)(CursorPosition & 0x00FF);
+    ConfigTable->ConsoleCursorY = (U32)((CursorPosition >> 8) & 0x00FF);
 }

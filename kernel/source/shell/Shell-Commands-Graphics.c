@@ -93,6 +93,8 @@ static U32 GfxSmokeWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2
             RectangleInfo.Header.Version = EXOS_ABI_VERSION;
             RectangleInfo.Header.Flags = 0;
             RectangleInfo.GC = GraphicsContext;
+            RectangleInfo.CornerRadius = 0;
+            RectangleInfo.CornerStyle = RECT_CORNER_STYLE_SQUARE;
 
             LineInfo.Header.Size = sizeof(LineInfo);
             LineInfo.Header.Version = EXOS_ABI_VERSION;
@@ -552,7 +554,7 @@ static void PrintDesktopStatus(void) {
  * @brief Show main desktop from shell and optionally apply config-selected theme.
  * @return DF_RETURN_SUCCESS on completion.
  */
-static U32 ShowMainDesktopFromShell(void) {
+U32 ShowMainDesktopFromShell(void) {
     LPDESKTOP Desktop;
     LPCSTR ConfiguredThemePath;
 

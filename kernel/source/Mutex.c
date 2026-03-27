@@ -24,8 +24,10 @@
 
 #include "Clock.h"
 #include "Kernel.h"
+#include "KernelData.h"
 #include "Log.h"
 #include "process/Process.h"
+#include "utils/DeadlockMonitor.h"
 #include "utils/ThresholdLatch.h"
 
 /***************************************************************************/
@@ -40,19 +42,19 @@
 
 /***************************************************************************/
 
-MUTEX KernelMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&LogMutex, .Prev = NULL, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX LogMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&MemoryMutex, .Prev = (LPLISTNODE)&KernelMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX MemoryMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ScheduleMutex, .Prev = (LPLISTNODE)&LogMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX ScheduleMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&DesktopMutex, .Prev = (LPLISTNODE)&MemoryMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX DesktopMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ProcessMutex, .Prev = (LPLISTNODE)&ScheduleMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX ProcessMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&TaskMutex, .Prev = (LPLISTNODE)&DesktopMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX TaskMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileSystemMutex, .Prev = (LPLISTNODE)&ProcessMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX FileSystemMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileMutex, .Prev = (LPLISTNODE)&TaskMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX FileMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ConsoleStateMutex, .Prev = (LPLISTNODE)&FileSystemMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX ConsoleStateMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ConsoleRenderMutex, .Prev = (LPLISTNODE)&FileMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX ConsoleRenderMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&UserAccountMutex, .Prev = (LPLISTNODE)&ConsoleStateMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX UserAccountMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&SessionMutex, .Prev = (LPLISTNODE)&ConsoleRenderMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .Lock = 0};
-MUTEX SessionMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = NULL, .Prev = (LPLISTNODE)&UserAccountMutex, .Owner = NULL, .Process = NULL, NULL, .Lock = 0};
+MUTEX KernelMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&LogMutex, .Prev = NULL, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_KERNEL, .DebugName = TEXT("KernelMutex"), .Lock = 0};
+MUTEX LogMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&MemoryMutex, .Prev = (LPLISTNODE)&KernelMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_LOG, .DebugName = TEXT("LogMutex"), .Lock = 0};
+MUTEX MemoryMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ScheduleMutex, .Prev = (LPLISTNODE)&LogMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_MEMORY, .DebugName = TEXT("MemoryMutex"), .Lock = 0};
+MUTEX ScheduleMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&DesktopMutex, .Prev = (LPLISTNODE)&MemoryMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_SCHEDULE, .DebugName = TEXT("ScheduleMutex"), .Lock = 0};
+MUTEX DesktopMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ProcessMutex, .Prev = (LPLISTNODE)&ScheduleMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_DESKTOP, .DebugName = TEXT("DesktopMutex"), .Lock = 0};
+MUTEX ProcessMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&TaskMutex, .Prev = (LPLISTNODE)&DesktopMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_PROCESS, .DebugName = TEXT("ProcessMutex"), .Lock = 0};
+MUTEX TaskMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileSystemMutex, .Prev = (LPLISTNODE)&ProcessMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_TASK, .DebugName = TEXT("TaskMutex"), .Lock = 0};
+MUTEX FileSystemMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&FileMutex, .Prev = (LPLISTNODE)&TaskMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_FILESYSTEM, .DebugName = TEXT("FileSystemMutex"), .Lock = 0};
+MUTEX FileMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ConsoleStateMutex, .Prev = (LPLISTNODE)&FileSystemMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_FILE, .DebugName = TEXT("FileMutex"), .Lock = 0};
+MUTEX ConsoleStateMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&ConsoleRenderMutex, .Prev = (LPLISTNODE)&FileMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_CONSOLE_STATE, .DebugName = TEXT("ConsoleStateMutex"), .Lock = 0};
+MUTEX ConsoleRenderMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&UserAccountMutex, .Prev = (LPLISTNODE)&ConsoleStateMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_CONSOLE_RENDER, .DebugName = TEXT("ConsoleRenderMutex"), .Lock = 0};
+MUTEX UserAccountMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = (LPLISTNODE)&SessionMutex, .Prev = (LPLISTNODE)&ConsoleRenderMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_USER_ACCOUNT, .DebugName = TEXT("UserAccountMutex"), .Lock = 0};
+MUTEX SessionMutex = {.TypeID = KOID_MUTEX, .References = 1, .Next = NULL, .Prev = (LPLISTNODE)&UserAccountMutex, .Owner = NULL, .Process = NULL, .Task = NULL, .DebugClass = MUTEX_CLASS_SESSION, .DebugName = TEXT("SessionMutex"), .Lock = 0};
 
 /***************************************************************************/
 
@@ -78,6 +80,8 @@ void InitMutex(LPMUTEX This) {
     This->Owner = NULL;
     This->Process = NULL;
     This->Task = NULL;
+    This->DebugClass = MUTEX_CLASS_NONE;
+    This->DebugName = NULL;
     This->Lock = 0;
 }
 
@@ -95,6 +99,8 @@ LPMUTEX CreateMutex(void) {
         Mutex->Owner = NULL;
         Mutex->Process = NULL;
         Mutex->Task = NULL;
+        Mutex->DebugClass = MUTEX_CLASS_NONE;
+        Mutex->DebugName = NULL;
         Mutex->Lock = 0;
 
         LPLIST MutexList = GetMutexList();
@@ -125,6 +131,22 @@ BOOL DeleteMutex(LPMUTEX Mutex) {
 /***************************************************************************/
 
 /**
+ * @brief Set mutex debug lock-order information.
+ *
+ * @param Mutex Target mutex.
+ * @param DebugClass Lock class identifier.
+ * @param DebugName Optional diagnostic name.
+ */
+void SetMutexDebugInfo(LPMUTEX Mutex, U32 DebugClass, LPCSTR DebugName) {
+    SAFE_USE_ID(Mutex, KOID_MUTEX) {
+        Mutex->DebugClass = DebugClass;
+        Mutex->DebugName = DebugName;
+    }
+}
+
+/***************************************************************************/
+
+/**
  * @brief Acquires a mutex lock, blocking until available.
  *
  * If the mutex is already owned by the calling task, increments the lock count.
@@ -139,10 +161,12 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
     LPTASK Task;
     UINT Flags;
     UINT Ret = 0;
-
-
+    BOOL UseDeadlockMonitor = FALSE;
+    BOOL WaitStateActive = FALSE;
     SaveFlags(&Flags);
     DisableInterrupts();
+
+    UseDeadlockMonitor = GetUseDeadlockMonitor();
 
 
     //-------------------------------------
@@ -172,6 +196,11 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                         THRESHOLD_LATCH ReentrantErrorLatch;
                         THRESHOLD_LATCH ReentrantForceUnlockLatch;
 
+                        if (UseDeadlockMonitor != FALSE && Mutex->Task != NULL) {
+                            DeadlockMonitorOnWaitStart(Task, Mutex);
+                            WaitStateActive = TRUE;
+                        }
+
                         if (TimeOut != INFINITY) {
                             WaitLoopLimit = (TimeOut / MUTEX_WAIT_SLEEP_INTERVAL_MS) + MUTEX_TIMEOUT_EXTRA_LOOP_MARGIN;
                             if (WaitLoopLimit < MUTEX_TIMEOUT_MIN_LOOP_LIMIT) {
@@ -193,6 +222,9 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                             // Check if a process deleted this mutex
 
                             if (Mutex->TypeID != KOID_MUTEX) {
+                                if (UseDeadlockMonitor != FALSE && WaitStateActive != FALSE) {
+                                    DeadlockMonitorOnWaitCancel(Task, Mutex);
+                                }
                                 RestoreFlags(&Flags);
                                 return 0;
                             }
@@ -209,6 +241,9 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
 
                             if (TimeOut != INFINITY) {
                                 if (HasOperationTimedOut(StartWaitTime, WaitLoopCount, WaitLoopLimit, TimeOut) != FALSE) {
+                                    if (UseDeadlockMonitor != FALSE && WaitStateActive != FALSE) {
+                                        DeadlockMonitorOnWaitCancel(Task, Mutex);
+                                    }
                                     WARNING(TEXT("[LockMutex] Timeout while waiting mutex=%p owner_task=%p waiter_task=%p timeout=%u"),
                                         Mutex,
                                         Mutex->Task,
@@ -263,10 +298,10 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                             // Sleep with proper interrupt handling
 
                             SetTaskStatusDirect(Task, TASK_STATUS_SLEEPING);
-                            Task->WakeUpTime = GetSystemTime() + MUTEX_WAIT_SLEEP_INTERVAL_MS;
+                            Task->SchedulerState.WakeUpTime = GetSystemTime() + MUTEX_WAIT_SLEEP_INTERVAL_MS;
 
                             // Keep interrupts disabled during critical section
-                            while (Task->Status == TASK_STATUS_SLEEPING) {
+                            while (Task->SchedulerState.Status == TASK_STATUS_SLEEPING) {
                                 IdleCPU();            // IdleCPU enables interrupts
                                 DisableInterrupts();  // Disable immediately after
                             }
@@ -277,6 +312,9 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
                         Mutex->Process = Process;
                         Mutex->Task = Task;
                         Mutex->Lock = 1;
+                        if (UseDeadlockMonitor != FALSE) {
+                            DeadlockMonitorOnAcquire(Task, Mutex);
+                        }
 
                         Ret = Mutex->Lock;
                     }
@@ -324,6 +362,9 @@ BOOL UnlockMutex(LPMUTEX Mutex) {
     if (Mutex->Lock != 0) Mutex->Lock--;
 
     if (Mutex->Lock == 0) {
+        if (GetUseDeadlockMonitor() != FALSE) {
+            DeadlockMonitorOnRelease(Task, Mutex, NULL);
+        }
         Mutex->Process = NULL;
         Mutex->Task = NULL;
     }

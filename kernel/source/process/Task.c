@@ -167,7 +167,6 @@ LPTASK NewTask(void) {
 
     LPTASK This = NULL;
 
-
     This = (LPTASK)CreateKernelObject(sizeof(TASK), KOID_TASK);
 
     if (This == NULL) {
@@ -188,7 +187,12 @@ LPTASK NewTask(void) {
     // Initialize task-specific fields (LISTNODE_FIELDS already initialized by CreateKernelObject)
     InitMutex(&(This->Mutex));
     This->Type = TASK_TYPE_NONE;
-    This->Status = TASK_STATUS_READY;
+    This->SchedulerState.Status = TASK_STATUS_READY;
+    This->SchedulerState.WakeUpTime = INFINITY;
+    This->WaitingMutex = NULL;
+    This->WaitingSince = 0;
+    This->HeldMutexClassDepth = 0;
+    MemorySet(This->HeldMutexClasses, 0, sizeof(This->HeldMutexClasses));
     MemorySet(&(This->MessageQueue), 0, sizeof(MESSAGEQUEUE));
 
 
@@ -262,6 +266,10 @@ void DeleteTask(LPTASK This) {
         //-------------------------------------
         // Unlock all mutexs locked by this task
 
+        This->WaitingMutex = NULL;
+        This->WaitingSince = 0;
+        This->HeldMutexClassDepth = 0;
+        MemorySet(This->HeldMutexClasses, 0, sizeof(This->HeldMutexClasses));
         ReleaseTaskMutexes(This);
 
         //-------------------------------------
@@ -542,6 +550,10 @@ BOOL KillTask(LPTASK Task) {
         //-------------------------------------
         // Release all mutexes locked by this task
 
+        Task->WaitingMutex = NULL;
+        Task->WaitingSince = 0;
+        Task->HeldMutexClassDepth = 0;
+        MemorySet(Task->HeldMutexClasses, 0, sizeof(Task->HeldMutexClasses));
         ReleaseTaskMutexes(Task);
 
         SetTaskStatus(Task, TASK_STATUS_DEAD);
@@ -610,7 +622,7 @@ void DeleteDeadTasksAndProcesses(void) {
         SAFE_USE_VALID_ID(Task, KOID_TASK) {
             NextTask = (LPTASK)Task->Next;
 
-            if (Task->Status == TASK_STATUS_DEAD) {
+            if (Task->SchedulerState.Status == TASK_STATUS_DEAD) {
 
                 // DeleteTask will handle removing from list and cleanup
                 DeleteTask(Task);
@@ -721,7 +733,7 @@ void Sleep(U32 MilliSeconds) {
     Task = GetCurrentTask();
 
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
-        if (Task->Status == TASK_STATUS_DEAD) {
+        if (Task->SchedulerState.Status == TASK_STATUS_DEAD) {
             UnlockMutex(MUTEX_TASK);
             DeadCPU();
         }
@@ -737,7 +749,7 @@ void Sleep(U32 MilliSeconds) {
                 return;
             }
 
-            if (Task->Status == TASK_STATUS_DEAD) {
+            if (Task->SchedulerState.Status == TASK_STATUS_DEAD) {
                 return;
             }
 
@@ -770,12 +782,37 @@ U32 GetTaskStatus(LPTASK Task) {
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
         LockMutex(&(Task->Mutex), INFINITY);
 
-        Status = Task->Status;
+        Status = Task->SchedulerState.Status;
 
         UnlockMutex(&(Task->Mutex));
     }
 
     return Status;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Snapshot one task scheduler state without taking the task mutex.
+ *
+ * This helper is reserved for scheduler-owned paths. The scheduler may run
+ * from interrupt context and must not block on one task-local mutex while
+ * reading scheduler-visible state.
+ *
+ * @param Task Pointer to task to query.
+ * @param Snapshot Receives current scheduler-visible state.
+ * @return TRUE on success.
+ */
+BOOL GetTaskSchedulerState(LPTASK Task, LPTASK_SCHEDULER_STATE State) {
+    if (State == NULL) return FALSE;
+
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        State->Status = Task->SchedulerState.Status;
+        State->WakeUpTime = Task->SchedulerState.WakeUpTime;
+        return TRUE;
+    }
+
+    return FALSE;
 }
 
 /************************************************************************/
@@ -790,15 +827,15 @@ void SetTaskStatus(LPTASK Task, U32 Status) {
     FINE_DEBUG(TEXT("[SetTaskStatus] Enter"));
 
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
-        U32 OldStatus = Task->Status;
+        U32 OldStatus = Task->SchedulerState.Status;
         UNUSED(OldStatus);
 
         LockMutex(&(Task->Mutex), INFINITY);
         FreezeScheduler();
 
-        Task->Status = Status;
+        Task->SchedulerState.Status = Status;
 
-        if (Task->Status == TASK_STATUS_DEAD) {
+        if (Task->SchedulerState.Status == TASK_STATUS_DEAD) {
             // Store termination state in cache before task is destroyed
             StoreObjectTerminationState(Task, Task->ExitCode);
         }
@@ -822,13 +859,39 @@ void SetTaskStatus(LPTASK Task, U32 Status) {
  */
 void SetTaskStatusDirect(LPTASK Task, U32 Status) {
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
-        U32 OldStatus = Task->Status;
+        U32 OldStatus = Task->SchedulerState.Status;
         UNUSED(OldStatus);
 
-        Task->Status = Status;
+        Task->SchedulerState.Status = Status;
 
         FINE_DEBUG(TEXT("[SetTaskStatusDirect] Task %p (%s): %u -> %u"), Task, Task->Name, OldStatus, Status);
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Set one task status from a scheduler-owned path without taking the task mutex.
+ *
+ * This helper is reserved for scheduler/timer code paths that already own
+ * scheduling decisions and must not block on task-local mutexes.
+ *
+ * @param Task Pointer to task to modify.
+ * @param Status New status value to set.
+ * @return TRUE on success.
+ */
+BOOL SetTaskSchedulerStatus(LPTASK Task, U32 Status) {
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        SetTaskStatusDirect(Task, Status);
+
+        if (Task->SchedulerState.Status == TASK_STATUS_DEAD) {
+            StoreObjectTerminationState(Task, Task->ExitCode);
+        }
+
+        return TRUE;
+    }
+
+    return FALSE;
 }
 
 /************************************************************************/
@@ -846,7 +909,7 @@ void SetTaskWakeUpTime(LPTASK Task, UINT WakeupTime) {
 
     if (WakeupTime == INFINITY) {
         // INFINITY is treated as a sentinel meaning "sleep indefinitely"
-        Task->WakeUpTime = INFINITY;
+        Task->SchedulerState.WakeUpTime = INFINITY;
     } else {
         UINT CurrentTime = GetSystemTime();
         UINT Quantum = GetMinimumQuantum();
@@ -854,12 +917,12 @@ void SetTaskWakeUpTime(LPTASK Task, UINT WakeupTime) {
 
         if (BaseTime < CurrentTime) {
             // Overflow occurred while adding the quantum, saturate to sentinel
-            Task->WakeUpTime = INFINITY;
+            Task->SchedulerState.WakeUpTime = INFINITY;
         } else {
             UINT TargetTime = BaseTime + WakeupTime;
 
             // If addition overflows, keep the task asleep indefinitely
-            Task->WakeUpTime = (TargetTime < BaseTime) ? INFINITY : TargetTime;
+            Task->SchedulerState.WakeUpTime = (TargetTime < BaseTime) ? INFINITY : TargetTime;
         }
     }
 
@@ -902,7 +965,7 @@ void DumpTask(LPTASK Task) {
     VERBOSE(TEXT("Task Name       : %s"), Task->Name);
     VERBOSE(TEXT("References      : %u"), Task->References);
     VERBOSE(TEXT("Process         : %p"), Task->Process);
-    VERBOSE(TEXT("Status          : %u"), Task->Status);
+    VERBOSE(TEXT("Status          : %u"), Task->SchedulerState.Status);
     VERBOSE(TEXT("Priority        : %u"), Task->Priority);
     VERBOSE(TEXT("Function        : %p"), Task->Function);
     VERBOSE(TEXT("Parameter       : %p"), Task->Parameter);
@@ -915,7 +978,7 @@ void DumpTask(LPTASK Task) {
     VERBOSE(TEXT("IST1StackBase   : %p"), Task->Arch.Ist1Stack.Base);
     VERBOSE(TEXT("IST1StackSize   : %u"), Task->Arch.Ist1Stack.Size);
 #endif
-    VERBOSE(TEXT("WakeUpTime      : %u"), (U32)Task->WakeUpTime);
+    VERBOSE(TEXT("WakeUpTime      : %u"), (U32)Task->SchedulerState.WakeUpTime);
     UINT PendingMessages = MessageQueueBufferGetCount(&(Task->MessageQueue.MessageBuffer));
 
     VERBOSE(TEXT("Queued messages : %u"), PendingMessages);

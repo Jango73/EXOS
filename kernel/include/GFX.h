@@ -119,6 +119,10 @@ typedef U32 (*GFXGETMODECOUNTFUNC)(void);
 
 /***************************************************************************/
 
+#define GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY 0x00000001
+
+/***************************************************************************/
+
 typedef struct tag_BRUSH {
     LISTNODE_FIELDS
     U32 Color;
@@ -131,6 +135,7 @@ typedef struct tag_PEN {
     LISTNODE_FIELDS
     U32 Color;
     U32 Pattern;
+    U32 Width;
 } PEN, *LPPEN;
 
 /***************************************************************************/
@@ -162,6 +167,7 @@ typedef struct tag_GRAPHICSCONTEXT {
     LISTNODE_FIELDS
     MUTEX Mutex;
     LPDRIVER Driver;
+    U32 Flags;
     I32 Width;
     I32 Height;
     U32 BitsPerPixel;

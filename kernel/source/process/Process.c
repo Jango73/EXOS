@@ -49,6 +49,7 @@ PROCESS DATA_SECTION KernelProcess = {
     .Status = PROCESS_STATUS_ALIVE, // Status
     .Flags = PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH, // Flags
     .ControlFlags = 0,             // Process control flags
+    .SchedulerState = {.Paused = FALSE},
     .PageDirectory = 0,             // Page directory
     .MemoryRegionList = { .Head = NULL, .Tail = NULL, .Count = 0 },
     .HeapBase = 0,                  // Heap base
@@ -238,6 +239,7 @@ LPPROCESS NewProcess(void) {
     This->Status = PROCESS_STATUS_ALIVE;
     This->Flags = 0; // Will be set by CreateProcess
     This->ControlFlags = 0;
+    This->SchedulerState.Paused = FALSE;
     This->MaximumAllocatedMemory = N_HalfMemory;
     This->TaskCount = 0;
     This->Session = NULL;

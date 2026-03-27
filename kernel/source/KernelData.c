@@ -338,6 +338,11 @@ static KERNEL_DATA DATA_SECTION Kernel = {
     .DeferredWorkWaitTimeoutMS = DEFERRED_WORK_WAIT_TIMEOUT_MS,
     .DeferredWorkPollDelayMS = DEFERRED_WORK_POLL_DELAY_MS,
     .DoLogin = 0,
+    .ShowDesktop = 1,
+    .Debug = {
+        .UseDeadlockMonitor = 0,
+        .WindowPipelineTraceEnabled = 0
+    },
     .LanguageCode = "en-US",
     .KeyboardCode = "fr-FR"
 };
@@ -847,11 +852,71 @@ BOOL GetDoLogin(void) {
 /************************************************************************/
 
 /**
+ * @brief Gets the deadlock monitor usage flag.
+ * @return TRUE when mutex deadlock diagnostics hooks are enabled.
+ */
+BOOL GetUseDeadlockMonitor(void) {
+    return Kernel.Debug.UseDeadlockMonitor;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Gets the automatic desktop activation flag.
+ * @return TRUE when automatic desktop activation is enabled.
+ */
+BOOL GetShowDesktop(void) {
+    return Kernel.ShowDesktop;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Gets the desktop window pipeline trace flag.
+ * @return TRUE when the visual window pipeline trace is enabled.
+ */
+BOOL GetWindowPipelineTraceEnabled(void) {
+    return Kernel.Debug.WindowPipelineTraceEnabled;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sets the deadlock monitor usage flag.
+ * @param Enabled TRUE to enable mutex deadlock diagnostics hooks, FALSE to disable.
+ */
+void SetUseDeadlockMonitor(BOOL Enabled) {
+    Kernel.Debug.UseDeadlockMonitor = Enabled;
+}
+
+/************************************************************************/
+
+/**
  * @brief Sets the login sequence flag.
  * @param DoLogin TRUE to enable login, FALSE to disable.
  */
 void SetDoLogin(BOOL DoLogin) {
     Kernel.DoLogin = DoLogin;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sets the automatic desktop activation flag.
+ * @param ShowDesktop TRUE to enable automatic desktop activation, FALSE to disable.
+ */
+void SetShowDesktop(BOOL ShowDesktop) {
+    Kernel.ShowDesktop = ShowDesktop;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Sets the desktop window pipeline trace flag.
+ * @param Enabled TRUE to enable the visual window pipeline trace, FALSE to disable.
+ */
+void SetWindowPipelineTraceEnabled(BOOL Enabled) {
+    Kernel.Debug.WindowPipelineTraceEnabled = Enabled;
 }
 
 /************************************************************************/

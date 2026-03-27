@@ -1,4 +1,3 @@
-
 /************************************************************************\
 
     EXOS Kernel
@@ -43,6 +42,7 @@
 #define VGA_GFX 0x03CE
 #define VGA_CRTC 0x03D4
 #define VGA_STAT 0x03DA
+#define VGA_TEXT_MEMORY 0xB8000
 
 /***************************************************************************/
 
@@ -56,7 +56,15 @@
 
 static UINT VGACommands(UINT Function, UINT Parameter);
 static U8 VGAReadCRTCRegister(U8 RegisterIndex);
+static void VGAWriteCRTCRegister(U8 RegisterIndex, U8 Value);
 static BOOL VGAReadCurrentTextModeInfo(LPVGAMODEINFO Info);
+static BOOL VGARefreshTextContext(void);
+static U16 VGAComposeTextCell(STR Character, U32 ForegroundColorIndex, U32 BackgroundColorIndex);
+static U32 VGATextPutCell(LPGFX_TEXT_CELL_INFO Info);
+static U32 VGATextClearRegion(LPGFX_TEXT_REGION_INFO Info);
+static U32 VGATextScrollRegion(LPGFX_TEXT_REGION_INFO Info);
+static U32 VGATextSetCursor(LPGFX_TEXT_CURSOR_INFO Info);
+static U32 VGATextSetCursorVisible(LPGFX_TEXT_CURSOR_VISIBLE_INFO Info);
 static UINT VGASetModeFromRequest(LPGRAPHICS_MODE_INFO Info);
 static void VGARequestBIOS80x25TextMode(void);
 
@@ -93,6 +101,22 @@ static DRIVER DATA_SECTION VGADriver = {
     .Alias = "vga",
     .Flags = 0,
     .Command = VGACommands
+};
+
+typedef struct tag_VGA_STATE {
+    GRAPHICSCONTEXT Context;
+    U16* TextBuffer;
+    U32 CursorStart;
+    U32 CursorEnd;
+    BOOL CursorVisible;
+} VGA_STATE, *LPVGA_STATE;
+
+static VGA_STATE DATA_SECTION VGAState = {
+    .Context = {.TypeID = KOID_GRAPHICSCONTEXT, .References = 1, .Mutex = EMPTY_MUTEX, .Driver = &VGADriver, .Flags = GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY},
+    .TextBuffer = (U16*)(UINT)VGA_TEXT_MEMORY,
+    .CursorStart = 0,
+    .CursorEnd = 15,
+    .CursorVisible = TRUE
 };
 
 /***************************************************************************/
@@ -239,6 +263,20 @@ static U8 VGAReadCRTCRegister(U8 RegisterIndex) {
 /***************************************************************************/
 
 /**
+ * @brief Write one VGA CRTC register value.
+ * @param RegisterIndex CRTC register index.
+ * @param Value Register value.
+ */
+static void VGAWriteCRTCRegister(U8 RegisterIndex, U8 Value) {
+    OutPortByte(VGA_CRTC, RegisterIndex);
+    VGAIODelay();
+    OutPortByte(VGA_CRTC + 1, Value);
+    VGAIODelay();
+}
+
+/***************************************************************************/
+
+/**
  * @brief Read active VGA text mode metadata from hardware CRTC registers.
  * @param Info Output metadata structure.
  * @return TRUE on success, FALSE on invalid parameters.
@@ -268,6 +306,219 @@ static BOOL VGAReadCurrentTextModeInfo(LPVGAMODEINFO Info) {
     Info->Rows = (VerticalDisplayEnd + 1) / CharHeight;
 
     return Info->Columns > 0 && Info->Rows > 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Refresh VGA graphics context metadata from active hardware mode.
+ * @return TRUE when context is valid.
+ */
+static BOOL VGARefreshTextContext(void) {
+    VGAMODEINFO ModeInfo;
+    U8 CursorStart;
+    U8 CursorEnd;
+
+    if (VGAReadCurrentTextModeInfo(&ModeInfo) == FALSE) {
+        return FALSE;
+    }
+
+    VGAState.Context.Width = (I32)ModeInfo.Columns;
+    VGAState.Context.Height = (I32)ModeInfo.Rows;
+    VGAState.Context.BitsPerPixel = 0;
+    VGAState.Context.BytesPerScanLine = ModeInfo.Columns * sizeof(U16);
+    VGAState.Context.MemoryBase = NULL;
+    VGAState.Context.Origin.X = 0;
+    VGAState.Context.Origin.Y = 0;
+    VGAState.Context.LoClip.X = 0;
+    VGAState.Context.LoClip.Y = 0;
+    VGAState.Context.HiClip.X = (I32)ModeInfo.Columns - 1;
+    VGAState.Context.HiClip.Y = (I32)ModeInfo.Rows - 1;
+    VGAState.TextBuffer = (U16*)(UINT)VGA_TEXT_MEMORY;
+
+    CursorStart = VGAReadCRTCRegister(0x0A);
+    CursorEnd = VGAReadCRTCRegister(0x0B);
+    VGAState.CursorStart = (U32)(CursorStart & 0x1F);
+    VGAState.CursorEnd = (U32)(CursorEnd & 0x1F);
+    VGAState.CursorVisible = (CursorStart & 0x20) == 0 ? TRUE : FALSE;
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Compose one VGA text cell value.
+ * @param Character Character code.
+ * @param ForegroundColorIndex Foreground palette index.
+ * @param BackgroundColorIndex Background palette index.
+ * @return Packed VGA text cell.
+ */
+static U16 VGAComposeTextCell(STR Character, U32 ForegroundColorIndex, U32 BackgroundColorIndex) {
+    U16 Attribute = (U16)((ForegroundColorIndex & 0x0F) | ((BackgroundColorIndex & 0x0F) << 0x04));
+    return (U16)Character | (U16)(Attribute << 0x08);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Write one text cell through the VGA backend.
+ * @param Info Text cell descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VGATextPutCell(LPGFX_TEXT_CELL_INFO Info) {
+    U32 Offset;
+
+    if (Info == NULL || Info->GC != (HANDLE)&VGAState.Context) {
+        return 0;
+    }
+
+    if (VGARefreshTextContext() == FALSE) {
+        return 0;
+    }
+
+    if (Info->CellX >= (U32)VGAState.Context.Width || Info->CellY >= (U32)VGAState.Context.Height) {
+        return 0;
+    }
+
+    Offset = (Info->CellY * (U32)VGAState.Context.Width) + Info->CellX;
+    VGAState.TextBuffer[Offset] = VGAComposeTextCell(Info->Character, Info->ForegroundColorIndex, Info->BackgroundColorIndex);
+    return 1;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Clear one text region through the VGA backend.
+ * @param Info Text region descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VGATextClearRegion(LPGFX_TEXT_REGION_INFO Info) {
+    U32 Row;
+    U32 Column;
+
+    if (Info == NULL || Info->GC != (HANDLE)&VGAState.Context) {
+        return 0;
+    }
+
+    if (VGARefreshTextContext() == FALSE) {
+        return 0;
+    }
+
+    if ((Info->CellX + Info->RegionCellWidth) > (U32)VGAState.Context.Width ||
+        (Info->CellY + Info->RegionCellHeight) > (U32)VGAState.Context.Height) {
+        return 0;
+    }
+
+    for (Row = 0; Row < Info->RegionCellHeight; Row++) {
+        for (Column = 0; Column < Info->RegionCellWidth; Column++) {
+            U32 Offset = ((Info->CellY + Row) * (U32)VGAState.Context.Width) + Info->CellX + Column;
+            VGAState.TextBuffer[Offset] = VGAComposeTextCell(STR_SPACE, Info->ForegroundColorIndex, Info->BackgroundColorIndex);
+        }
+    }
+
+    return 1;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Scroll one text region through the VGA backend.
+ * @param Info Text region descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VGATextScrollRegion(LPGFX_TEXT_REGION_INFO Info) {
+    U32 Row;
+    U32 Column;
+
+    if (Info == NULL || Info->GC != (HANDLE)&VGAState.Context) {
+        return 0;
+    }
+
+    if (VGARefreshTextContext() == FALSE) {
+        return 0;
+    }
+
+    if ((Info->CellX + Info->RegionCellWidth) > (U32)VGAState.Context.Width ||
+        (Info->CellY + Info->RegionCellHeight) > (U32)VGAState.Context.Height) {
+        return 0;
+    }
+
+    if (Info->RegionCellHeight > 1) {
+        for (Row = 1; Row < Info->RegionCellHeight; Row++) {
+            for (Column = 0; Column < Info->RegionCellWidth; Column++) {
+                U32 SourceOffset = ((Info->CellY + Row) * (U32)VGAState.Context.Width) + Info->CellX + Column;
+                U32 DestinationOffset = ((Info->CellY + Row - 1) * (U32)VGAState.Context.Width) + Info->CellX + Column;
+                VGAState.TextBuffer[DestinationOffset] = VGAState.TextBuffer[SourceOffset];
+            }
+        }
+    }
+
+    for (Column = 0; Column < Info->RegionCellWidth; Column++) {
+        U32 Offset = ((Info->CellY + Info->RegionCellHeight - 1) * (U32)VGAState.Context.Width) + Info->CellX + Column;
+        VGAState.TextBuffer[Offset] = VGAComposeTextCell(STR_SPACE, Info->ForegroundColorIndex, Info->BackgroundColorIndex);
+    }
+
+    return 1;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Program VGA hardware cursor position.
+ * @param Info Cursor descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VGATextSetCursor(LPGFX_TEXT_CURSOR_INFO Info) {
+    U32 Position;
+
+    if (Info == NULL || Info->GC != (HANDLE)&VGAState.Context) {
+        return 0;
+    }
+
+    if (VGARefreshTextContext() == FALSE) {
+        return 0;
+    }
+
+    if (Info->CellX >= (U32)VGAState.Context.Width || Info->CellY >= (U32)VGAState.Context.Height) {
+        return 0;
+    }
+
+    Position = (Info->CellY * (U32)VGAState.Context.Width) + Info->CellX;
+    VGAWriteCRTCRegister(0x0E, (U8)((Position >> 8) & 0xFF));
+    VGAWriteCRTCRegister(0x0F, (U8)(Position & 0xFF));
+    return 1;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Program VGA hardware cursor visibility.
+ * @param Info Cursor visibility descriptor.
+ * @return 1 on success, 0 on failure.
+ */
+static U32 VGATextSetCursorVisible(LPGFX_TEXT_CURSOR_VISIBLE_INFO Info) {
+    U8 Start;
+    U8 End;
+
+    if (Info == NULL || Info->GC != (HANDLE)&VGAState.Context) {
+        return 0;
+    }
+
+    if (VGARefreshTextContext() == FALSE) {
+        return 0;
+    }
+
+    Start = (U8)(VGAState.CursorStart & 0x1F);
+    End = (U8)(VGAState.CursorEnd & 0x1F);
+    if (Info->IsVisible == FALSE) {
+        Start |= 0x20;
+    }
+
+    VGAWriteCRTCRegister(0x0A, Start);
+    VGAWriteCRTCRegister(0x0B, End);
+    VGAState.CursorVisible = Info->IsVisible ? TRUE : FALSE;
+    return 1;
 }
 
 /***************************************************************************/
@@ -304,6 +555,8 @@ static UINT VGASetModeFromRequest(LPGRAPHICS_MODE_INFO Info) {
             ModeInfo.Rows = RequestedRows;
         }
 
+        (void)VGARefreshTextContext();
+
         Info->Width = ModeInfo.Columns;
         Info->Height = ModeInfo.Rows;
         Info->BitsPerPixel = 0;
@@ -326,6 +579,7 @@ static UINT VGACommands(UINT Function, UINT Parameter) {
     switch (Function) {
         case DF_LOAD:
             VGADriver.Flags |= DRIVER_FLAG_READY;
+            (void)VGARefreshTextContext();
             return DF_RETURN_SUCCESS;
 
         case DF_UNLOAD:
@@ -369,6 +623,26 @@ static UINT VGACommands(UINT Function, UINT Parameter) {
             return VGASetModeFromRequest((LPGRAPHICS_MODE_INFO)Parameter);
 
         case DF_GFX_GETCONTEXT:
+            if ((VGADriver.Flags & DRIVER_FLAG_READY) == 0) {
+                return 0;
+            }
+            return VGARefreshTextContext() != FALSE ? (UINT)(LPVOID)&VGAState.Context : 0;
+
+        case DF_GFX_TEXT_PUTCELL:
+            return VGATextPutCell((LPGFX_TEXT_CELL_INFO)Parameter);
+
+        case DF_GFX_TEXT_CLEAR_REGION:
+            return VGATextClearRegion((LPGFX_TEXT_REGION_INFO)Parameter);
+
+        case DF_GFX_TEXT_SCROLL_REGION:
+            return VGATextScrollRegion((LPGFX_TEXT_REGION_INFO)Parameter);
+
+        case DF_GFX_TEXT_SET_CURSOR:
+            return VGATextSetCursor((LPGFX_TEXT_CURSOR_INFO)Parameter);
+
+        case DF_GFX_TEXT_SET_CURSOR_VISIBLE:
+            return VGATextSetCursorVisible((LPGFX_TEXT_CURSOR_VISIBLE_INFO)Parameter);
+
         case DF_GFX_CREATEBRUSH:
         case DF_GFX_CREATEPEN:
         case DF_GFX_SETPIXEL:
@@ -384,11 +658,6 @@ static UINT VGACommands(UINT Function, UINT Parameter) {
         case DF_GFX_ALLOCSURFACE:
         case DF_GFX_FREESURFACE:
         case DF_GFX_SETSCANOUT:
-        case DF_GFX_TEXT_PUTCELL:
-        case DF_GFX_TEXT_CLEAR_REGION:
-        case DF_GFX_TEXT_SCROLL_REGION:
-        case DF_GFX_TEXT_SET_CURSOR:
-        case DF_GFX_TEXT_SET_CURSOR_VISIBLE:
             return DF_RETURN_NOT_IMPLEMENTED;
     }
 

@@ -77,7 +77,7 @@ static U32 WindowDockableApplyRect(LPDOCKABLE Dockable, LPDOCK_HOST Host, LPRECT
 
     Rect = *AssignedRect;
     if (MoveWindow(Window, &Rect) == FALSE) return DOCK_LAYOUT_STATUS_LAYOUT_REJECTED;
-    (void)InvalidateWindowRect(Window, NULL);
+    (void)InvalidateClientRect(Window, NULL);
     return DOCK_LAYOUT_STATUS_SUCCESS;
 }
 

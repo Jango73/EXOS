@@ -24,6 +24,7 @@
 #include "iGPU-Internal.h"
 
 #include "CoreString.h"
+#include "System.h"
 #include "Log.h"
 #include "Memory.h"
 #include "drivers/graphics/common/Graphics-TextRenderer.h"
@@ -70,7 +71,9 @@ UINT IntelGfxFlushContextRegionToScanout(LPGRAPHICSCONTEXT Context, I32 X, I32 Y
         U32 DestinationOffset = ((U32)Y + Row) * IntelGfxState.ActiveStride + ((U32)X * BytesPerPixel);
         U8* Source = Context->MemoryBase + SourceOffset;
         U8* Destination = (U8*)(LINEAR)IntelGfxState.FrameBufferLinear + DestinationOffset;
-        MemoryCopy(Destination, Source, CopyBytes);
+        if (BlitMemoryAsm(Destination, Source, CopyBytes) == FALSE) {
+            MemoryCopy(Destination, Source, CopyBytes);
+        }
     }
 
     IntelGfxNotePresentBlit();
@@ -160,7 +163,9 @@ UINT IntelGfxScrollRegionViaShadow(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_REGION_
 
     for (Row = 0; Row < PixelHeight; Row++) {
         U32 Offset = ((U32)PixelY + Row) * IntelGfxState.ActiveStride + ((U32)PixelX * BytesPerPixel);
-        MemoryCopy(ShadowBuffer + Offset, FrameBuffer + Offset, RowBytes);
+        if (BlitMemoryAsm(ShadowBuffer + Offset, FrameBuffer + Offset, RowBytes) == FALSE) {
+            MemoryCopy(ShadowBuffer + Offset, FrameBuffer + Offset, RowBytes);
+        }
     }
 
     ShadowContext = *Context;
@@ -173,7 +178,9 @@ UINT IntelGfxScrollRegionViaShadow(LPGRAPHICSCONTEXT Context, LPGFX_TEXT_REGION_
 
     for (Row = 0; Row < PixelHeight; Row++) {
         U32 Offset = ((U32)PixelY + Row) * IntelGfxState.ActiveStride + ((U32)PixelX * BytesPerPixel);
-        MemoryCopy(FrameBuffer + Offset, ShadowBuffer + Offset, RowBytes);
+        if (BlitMemoryAsm(FrameBuffer + Offset, ShadowBuffer + Offset, RowBytes) == FALSE) {
+            MemoryCopy(FrameBuffer + Offset, ShadowBuffer + Offset, RowBytes);
+        }
     }
 
     IntelGfxNotePresentBlit();
@@ -345,7 +352,9 @@ static UINT IntelGfxBlitSurfaceRegionToScanout(LPINTEL_GFX_SURFACE Surface, U32 
         U32 DestinationOffset = (Y + Row) * IntelGfxState.ActiveStride + (X << 2);
         U8* Source = Surface->MemoryBase + SourceOffset;
         U8* Destination = (U8*)(LINEAR)IntelGfxState.FrameBufferLinear + DestinationOffset;
-        MemoryCopy(Destination, Source, CopyBytes);
+        if (BlitMemoryAsm(Destination, Source, CopyBytes) == FALSE) {
+            MemoryCopy(Destination, Source, CopyBytes);
+        }
     }
 
     IntelGfxNotePresentBlit();
@@ -504,6 +513,8 @@ UINT IntelGfxSetScanout(LPGFX_SCANOUT_INFO Info) {
 
 UINT IntelGfxPresent(LPGFX_PRESENT_INFO Info) {
     LPINTEL_GFX_SURFACE Surface = NULL;
+    LPGRAPHICSCONTEXT SourceContext = NULL;
+    INTEL_GFX_SURFACE TemporarySurface = {0};
     RECT DirtyRect = {0};
     U32 SourceSurfaceId = 0;
     U32 X = 0;
@@ -524,6 +535,34 @@ UINT IntelGfxPresent(LPGFX_PRESENT_INFO Info) {
     SourceSurfaceId = Info->SurfaceId;
     DirtyRect = Info->DirtyRect;
     PresentFlags = Info->Flags;
+    SourceContext = (LPGRAPHICSCONTEXT)Info->GC;
+
+    if (SourceContext != NULL && SourceContext->TypeID == KOID_GRAPHICSCONTEXT && SourceContext->MemoryBase != NULL &&
+        SourceSurfaceId == 0) {
+        TemporarySurface = (INTEL_GFX_SURFACE){
+            .InUse = TRUE,
+            .Width = (U32)SourceContext->Width,
+            .Height = (U32)SourceContext->Height,
+            .Format = (SourceContext->BitsPerPixel == 32) ? GFX_FORMAT_XRGB8888 :
+                      (SourceContext->BitsPerPixel == 24) ? GFX_FORMAT_RGB888 :
+                                                            GFX_FORMAT_RGB565,
+            .Pitch = SourceContext->BytesPerScanLine,
+            .MemoryBase = SourceContext->MemoryBase
+        };
+
+        if (!IntelGfxResolveDirtyRegion(&DirtyRect, &TemporarySurface, &X, &Y, &Width, &Height)) {
+            return DF_RETURN_SUCCESS;
+        }
+
+        if ((PresentFlags & GFX_PRESENT_FLAG_WAIT_VBLANK) != 0) {
+            Result = IntelGfxWaitForNextVBlank(INTEL_GFX_WAIT_VBLANK_DEFAULT_TIMEOUT_MS, NULL);
+            if (Result != DF_RETURN_SUCCESS) {
+                return Result;
+            }
+        }
+
+        return IntelGfxFlushContextRegionToScanout(SourceContext, (I32)X, (I32)Y, Width, Height);
+    }
 
     if (SourceSurfaceId == 0) {
         SourceSurfaceId = IntelGfxState.ScanoutSurfaceId;

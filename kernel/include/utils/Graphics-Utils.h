@@ -38,10 +38,33 @@ typedef BOOL (*GRAPHICS_PLOT_PIXEL_ROUTINE)(LPVOID Context, I32 X, I32 Y, COLOR*
 BOOL IntersectRect(LPRECT Left, LPRECT Right, LPRECT Result);
 BOOL SubtractRectFromRect(LPRECT Source, LPRECT Occluder, LPRECT_REGION Region);
 BOOL SubtractRectFromRegion(LPRECT_REGION Region, LPRECT Occluder, LPRECT TempStorage, UINT TempCapacity);
+void GraphicsResolveChannelLayout(
+    LPGRAPHICSCONTEXT Context,
+    U32* RedPositionOut,
+    U32* RedMaskSizeOut,
+    U32* GreenPositionOut,
+    U32* GreenMaskSizeOut,
+    U32* BluePositionOut,
+    U32* BlueMaskSizeOut);
+U32 GraphicsPackColor(LPGRAPHICSCONTEXT Context, COLOR Color);
+COLOR GraphicsUnpackColor(LPGRAPHICSCONTEXT Context, U32 PackedColor);
+BOOL GraphicsWritePixel(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, COLOR Color);
+BOOL GraphicsReadPixel(LPGRAPHICSCONTEXT Context, I32 X, I32 Y, COLOR* ColorOut);
+BOOL GraphicsDrawScanline(LPGRAPHICSCONTEXT Context, I32 X1, I32 X2, I32 Y, COLOR StartColor, COLOR EndColor);
 BOOL GraphicsFillSolidRect(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR FillColor);
+BOOL GraphicsFillVerticalGradientRect(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR StartColor, COLOR EndColor);
+BOOL GraphicsFillHorizontalGradientRect(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR StartColor, COLOR EndColor);
+BOOL GraphicsFillRectangleFromDescriptor(LPGRAPHICSCONTEXT Context, LPRECT_INFO Info);
+BOOL GraphicsDrawRectangleFromDescriptor(LPGRAPHICSCONTEXT Context, LPRECT_INFO Info);
 I32 GraphicsTriangleEdgeFunction(I32 Ax, I32 Ay, I32 Bx, I32 By, I32 Px, I32 Py);
 BOOL GraphicsFillTriangleSpans(LPGRAPHICSCONTEXT Context, LPTRIANGLE_INFO Info, COLOR FillColor, LPRECT FilledBounds);
+BOOL GraphicsFillTriangleVerticalGradient(
+    LPGRAPHICSCONTEXT Context, LPTRIANGLE_INFO Info, COLOR StartColor, COLOR EndColor, LPRECT FilledBounds);
+BOOL GraphicsFillTriangleHorizontalGradient(
+    LPGRAPHICSCONTEXT Context, LPTRIANGLE_INFO Info, COLOR StartColor, COLOR EndColor, LPRECT FilledBounds);
+BOOL GraphicsDrawTriangleFromDescriptor(LPGRAPHICSCONTEXT Context, LPTRIANGLE_INFO Info);
 BOOL GraphicsStrokeArc(LPVOID Context, GRAPHICS_PLOT_PIXEL_ROUTINE PlotPixel, I32 CenterX, I32 CenterY, I32 Radius, COLOR StrokeColor);
+BOOL GraphicsDrawArcFromDescriptor(LPGRAPHICSCONTEXT Context, LPARC_INFO Info);
 
 // Coordinate spaces:
 // - Screen: absolute desktop pixels.

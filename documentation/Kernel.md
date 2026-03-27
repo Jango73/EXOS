@@ -373,6 +373,11 @@ IRQ 0 └── trap lands in interrupt-a.asm : Interrupt_Clock
 
 `Sleep` relies on scheduler wake-up timestamps only after the first `EnableInterrupts` call is executed. Before this point, `Sleep` uses a calibrated busy-wait loop (derived from CPU base frequency) so early-boot delays do not depend on `GetSystemTime` progression.
 
+Fields that are read or written by the scheduler from ISR context are isolated in dedicated structures instead of sharing the general task/process state:
+- `TASK.SchedulerState` stores scheduler-owned task fields such as `Status` and `WakeUpTime`.
+- `PROCESS.SchedulerState` stores scheduler-owned process fields such as the paused state.
+- `GetTaskSchedulerStateSnapshot()`, `SetTaskSchedulerStatus()`, and `GetProcessSchedulerStateSnapshot()` expose this data to the scheduling code without taking task-local or process-local mutexes.
+
 ##### ISR 0 call graph
 
 ```
@@ -612,6 +617,7 @@ Tasks and processes own fixed-size message queues (`MESSAGEQUEUE` in `kernel/sou
 Message posting:
 - `PostMessage` accepts NULL targets (current task), task handles, and window handles; window targets enqueue into the owning task queue. Keyboard drivers and the mouse dispatcher push input events into the global input queue using `EnqueueInputMessage` so only the focused process sees them.
 - Queue pressure is reduced by coalescing duplicate window messages in `PostMessage`: one pending `EWM_DRAW` per target window, and one pending `EWM_NOTIFY` per target window and notification id (`Param1`).
+- Generic control activation uses `EWM_CLICKED`, while structural window notifications such as `EWN_WINDOW_RECT_CHANGED` remain on `EWM_NOTIFY`.
 - Mouse input is throttled by a tiny dispatcher that filters `EWM_MOUSEMOVE` with a 10ms cooldown between enqueues, while button changes still dispatch immediately through the shared input queue.
 - `SendMessage` is synchronous and window-only.
 
@@ -851,6 +857,8 @@ The console text dispatch path caches the active `GRAPHICSCONTEXT` while the con
 
 The dispatch path also exposes `ConsoleIsFramebufferMappingInProgress()`. Split-debug log mirroring uses that state to suppress recursive console writes during framebuffer context acquisition.
 
+Console state is tracked independently from the active backend through one console-owned shadow text buffer. This canonical cell buffer stores characters and text attributes for the full console grid, allowing region repaint and lock-screen state restoration even when the active backend only exposes glyph drawing and scrolling commands.
+
 #### Synchronization and fallback
 
 Console synchronization uses dedicated lock domains in addition to the legacy compatibility lock:
@@ -860,7 +868,7 @@ Console synchronization uses dedicated lock domains in addition to the legacy co
 
 When both locks are needed, acquisition order is always state first, render second. Console paging input wait paths must run without any console mutex held so split and non-split console flows do not amplify lock hold times or stall on input.
 
-Emergency text fallback is isolated in `kernel/source/Console-VGATextFallback.c`. This path is used when console frontend activation cannot complete through the active graphics backend. It requests VGA text mode through the VGA driver command interface.
+Emergency text fallback is isolated in `kernel/source/Console-VGATextFallback.c`. This path is used when console frontend activation cannot complete through the active graphics backend. It requests VGA text mode through the VGA driver command interface, then keeps all text cells, region operations, and cursor updates on the delegated backend path.
 
 Console metadata differs by firmware path:
 
@@ -916,11 +924,16 @@ Generic driver diagnostics use `DF_DEBUG_INFO` with `DRIVER_DEBUG_INFO.Text`, a 
 
 #### VESA and VGA paths
 
-The VESA driver requests VBE modes in linear frame buffer mode (`INT 10h 4F02h`, bit 14), validates linear frame buffer capability, and maps `PhysBasePtr` through `MapIOMemory`. Rendering writes directly to mapped VRAM.
+The VESA driver requests VBE modes in linear frame buffer mode (`INT 10h 4F02h`, bit 14), validates linear frame buffer capability, and maps `PhysBasePtr` through `MapIOMemory`. Console rendering writes directly to mapped VRAM. Desktop composition can instead draw into a desktop-owned shadow buffer and use `DF_GFX_PRESENT` to copy one dirty rectangle to the mapped scanout.
 
 VESA drawing primitives include line, rectangle, arc, and triangle command paths (`DF_GFX_LINE`, `DF_GFX_RECTANGLE`, `DF_GFX_ARC`, `DF_GFX_TRIANGLE`) and are forwarded through `Graphics-Selector`.
 
-`kernel/source/drivers/graphics/vga/VGA-Main.c` exposes a dedicated VGA text driver (`alias: vga`) that implements mode enumeration and text mode selection through the same `DF_GFX_*` contract.
+Rectangle, triangle, and arc rasterization share the generic scanline helpers in `kernel/source/utils/Graphics-Utils.c`. Solid fills, vertical gradients, horizontal gradients, filled arcs, and rounded-corner rectangles all converge on the same scanline entry so shape composition stays backend-agnostic. Rounded rectangles accept `RECT_CORNER_RADIUS_AUTO` in `RECT_INFO.CornerRadius`, which resolves to half of the rectangle's smallest dimension. `RECT_CORNER_RADIUS_AUTO_LIMIT(MaximumRadius)` keeps auto sizing but clamps the resolved radius to one maximum. Themes may apply the same behavior with `corner_radius = token:metric.corner_radius.auto` plus `corner_radius_limit = <value>`.  Desktop themes may also set `corner_style`, using literals or tokens that resolve to `square`, `rounded`, or `bevel`. The low-level contiguous pixel write path is provided by the architecture `GraphicsDrawScanlineAsm` helper in `kernel/source/arch/x86-32/asm/System.asm` and `kernel/source/arch/x86-64/asm/System.asm`. Solid `ROP_SET` scanlines and desktop present row blits use dedicated SSE2 fast paths when the architecture setup enables XMM instructions.
+
+`PEN_INFO` and `PEN` carry `Width` in addition to color and pattern. `LINE` applies the selected pen width through the shared line rasterizer. Closed shapes apply the selected pen width inward from the outer contour, so rectangle, arc, and triangle outlines stay inside the requested geometry.
+
+`kernel/source/drivers/graphics/vga/VGA-Main.c` exposes a dedicated VGA text driver (`alias: vga`) that implements mode enumeration, context retrieval, text cell output, region clear and scroll, and hardware cursor updates through the same `DF_GFX_*` contract. Console code no longer accesses VGA text memory or VGA cursor ports directly.
+When the boot path exposes a multiboot text framebuffer, console text dispatch resolves directly to the VGA driver instead of the graphics selector so early boot logging cannot recurse through backend probing.
 
 Display-class PCI attach logic is implemented in `kernel/source/drivers/graphics/common/Graphics-PCI.c`. The PCI bus layer registers this graphics-provided attach driver during PCI initialization so generic display controllers appear in the PCI device list.
 
@@ -936,7 +949,7 @@ The Intel native backend is split by responsibility:
 
 Capability discovery is centralized in an internal `INTEL_GFX_CAPS` object built from a PCI device-id family table and refined with bounded MMIO register probes such as display version, pipe presence, and port mask. Public `GFX_CAPABILITIES` values returned by `DF_GFX_GETCAPABILITIES` are projected from that single capability object.
 
-The takeover path reads active pipe and plane state from display registers, maps the active scanout buffer through the aperture BAR, builds a `GRAPHICSCONTEXT` from the discovered mode, and then serves window-manager drawing through CPU primitives writing directly to active scanout memory.
+The takeover path reads active pipe and plane state from display registers, maps the active scanout buffer through the aperture BAR, builds a `GRAPHICSCONTEXT` from the discovered mode, and then serves window-manager drawing either directly to scanout or through a desktop-owned shadow context followed by `DF_GFX_PRESENT`.
 
 The native `DF_GFX_SETMODE` path in `kernel/source/drivers/graphics/igpu/iGPU-Mode.c` follows an ordered sequence: disable, route, clock, link, enable, verify. It applies explicit pipe, output, and transcoder routing policy, uses conservative generation-aware clock handling, includes eDP panel and backlight stabilization hooks, and rolls back to a captured hardware snapshot when a partial modeset stage fails.
 
@@ -952,18 +965,22 @@ Mouse pointer operations are part of the same graphics backend contract, and cur
 
 Desktop cursor runtime state is tracked per desktop and managed by `kernel/source/desktop/Desktop-Cursor.c`. That state includes position, pending target position, software-dirty state, visibility, clipping rectangle, active path, and fallback reason.
 
+Desktop graphics composition uses one per-desktop shadow buffer in graphics mode. `BeginWindowDraw()` resolves the desktop shadow context for window content, while the structured desktop draw dispatcher submits each completed dirty clip through `DF_GFX_PRESENT` after non-client and client rendering finish for that clip. This keeps the text console on direct framebuffer rendering while desktop windows gain one stable destination buffer suitable for stable software composition.
+
 Shared geometry and damage tracking are centralized:
 
 - rectangle intersection and screen or window coordinate conversion live in `kernel/source/utils/Graphics-Utils.c` and `kernel/include/utils/Graphics-Utils.h`
 - visible-region construction and subtree subtraction live in `kernel/source/desktop/Desktop-VisibleRegion.c`
 - overlay invalidation helpers live in `kernel/source/desktop/Desktop-OverlayInvalidation.c` and `kernel/include/desktop/Desktop-OverlayInvalidation.h`
 
-Occlusion, clipping, and bounded screen damage computation use one shared implementation path across desktop subsystems. Software cursor overlay rendering is emitted at the end of each window draw with visibility clipping so asynchronous `EWM_DRAW` ordering preserves correct cursor pixels after child-window repaint.
+Occlusion, clipping, bounded screen damage, and window composition use one shared implementation path across desktop subsystems. Software cursor overlay rendering stays outside the desktop shadow buffer and is emitted on the final scanout context after window present, so the cursor path remains compatible with hardware-cursor backends and does not become part of the desktop composition buffer.
 
 
 ### Early boot console path
 
 `kernel/source/console/Console-EarlyBoot.c` provides a minimal framebuffer text path independent from normal console initialization. It writes glyphs through physical framebuffer mappings and is used for early boot and memory-initialization checkpoints.
+
+Bootloader text mode handoff preserves one logical cursor position through the multiboot `config_table` field using one EXOS-owned configuration block. When the first regular console backend activates, it imports that bootloader cell position once, clamps it to the active console geometry, and then continues with the standard console-owned cursor state for later frontend and backend transitions.
 
 
 ### ACPI services
@@ -2062,7 +2079,7 @@ Creation, move, resize, and drag-driven geometry changes all resolve through the
 
 Rendering is asynchronous and dirty-rectangle driven.
 
-When a window is invalidated, the desktop core records screen-space damage in the window dirty region and posts one coalesced draw request. The structured draw path then rebuilds the clip region, iterates dirty rectangles, draws kernel-owned non-client visuals when required, and finally dispatches `EWM_DRAW` to the window procedure with an active draw context.
+When a window is invalidated, the desktop core records screen-space damage in the window dirty region and posts one coalesced draw request. The structured draw path then rebuilds the clip region, iterates dirty rectangles, draws kernel-owned non-client visuals when required, dispatches `EWM_DRAW` to the window procedure with an active draw context, and presents the completed clip once after both passes finish.
 
 This split is important:
 
@@ -2079,10 +2096,15 @@ Decoration mode is selected through window style bits:
 - `EWS_SYSTEM_DECORATED`
 - `EWS_CLIENT_DECORATED`
 - `EWS_BARE_SURFACE`
+- `EWS_CLOSE_BUTTON_VISIBLE`
+- `EWS_MINIMIZE_BUTTON_VISIBLE`
+- `EWS_MAXIMIZE_BUTTON_VISIBLE`
 
 Style `0` is treated as `SystemDecorated` for compatibility.
 
-For `SystemDecorated` windows, the kernel owns the border, title bar, caption rendering, and non-client layout. `EWM_DRAW` is delivered in client coordinates only.
+If none of the title bar button visibility bits are set, system-decorated windows keep the default three-button chrome for compatibility. If at least one visibility bit is set, only the requested buttons are shown and hit-tested.
+
+For `SystemDecorated` windows, the kernel owns the border, title bar, caption rendering, non-client layout, and the standard title bar buttons that post `EWM_CLOSE`, `EWM_MAXIMIZE`, and `EWM_MINIMIZE`. `EWM_DRAW` is delivered in client coordinates only.
 
 For `ClientDecorated` windows, the kernel renders no non-client chrome. The client owns the full window surface, including any custom frame or title bar. `EWM_DRAW` is delivered on the full owned surface.
 
@@ -2091,6 +2113,10 @@ For `BareSurface` windows, the kernel also skips non-client rendering and keeps 
 ### Input, capture, and timers
 
 The desktop layer routes mouse and keyboard events to the focused window and tracks capture at desktop scope. Focus changes, mouse capture, move/resize operations, and timer delivery all use generic windowing paths rather than component-specific logic.
+
+Client invalidation and full-window invalidation are separate APIs. `InvalidateClientRect(Window, Rect)` interprets `Rect` in client coordinates and maps `NULL` to the full client area. `InvalidateWindowRect(Window, Rect)` remains the lower-level full-window API in window coordinates and maps `NULL` to the full window surface, including non-client chrome. When one parent window moves, the desktop refreshes descendant screen rectangles and invalidates descendant full surfaces so child windows follow the parent visually.
+
+Window visibility distinguishes requested visibility from effective visibility. `EWS_VISIBLE` stores the window local visibility request. `WINDOW_STATUS_VISIBLE` stores effective visibility after combining that request with ancestor effective visibility. Hiding one parent clears effective visibility for the whole subtree without destroying descendant requested visibility, and showing the parent restores effective visibility only for descendants that still request visibility.
 
 Per-window timers are asynchronous. `SetWindowTimer`, `KillWindowTimer`, and `EWM_TIMER` let one window request periodic redraw or state updates without blocking the desktop pipeline.
 
@@ -2190,6 +2216,8 @@ color.window.border = "#000000"
 color.client.background = "#c0c0c0"
 color.window.title.active.start = "#000080"
 color.window.title.active.end = "#1084d0"
+color.window.title.focused.start = "#808080"
+color.window.title.focused.end = "#666666"
 color.window.title.inactive.start = "#808080"
 color.window.title.inactive.end = "#a0a0a0"
 color.window.title.text = "#ffffff"
@@ -2210,18 +2238,22 @@ border_thickness = "token:metric.window.border"
 background = "token:color.window.title.active.start"
 background2 = "token:color.window.title.active.end"
 title_height = "token:metric.window.title_height"
+corner_radius = 6
 
 [elements.window.titlebar.states.normal]
 background = "token:color.window.title.active.start"
 background2 = "token:color.window.title.active.end"
+corner_radius = 6
 
 [elements.window.titlebar.states.focused]
-background = "token:color.window.title.active.start"
-background2 = "token:color.window.title.active.end"
+background = "token:color.window.title.focused.start"
+background2 = "token:color.window.title.focused.end"
+corner_radius = 6
 
 [elements.window.titlebar.states.active]
 background = "token:color.window.title.active.start"
 background2 = "token:color.window.title.active.end"
+corner_radius = 6
 ```
 
 ### Legacy compatibility
@@ -2427,6 +2459,11 @@ Supported actions:
 - `switch_to_console`: switches the active display front-end back to the console.
   - This is intended for global recovery shortcuts such as `control+shift+f1`.
   - It uses the existing display session console activation path, including graphics text routing and VGA text fallback.
+- `toggle_window_pipeline_trace`: toggles a desktop debug mode that visualizes computed regions and draw dispatches on screen.
+  - `control+shift+f12` is handled as one built-in shortcut for this action before configuration-defined hotkeys are evaluated.
+  - The flag is stored in `KERNEL_DATA` and consumed by desktop pipeline trace helpers.
+  - For compatibility, the configuration action name `toggle_slow_redraw` still maps to the same handler.
+- `Debug.UseDeadlockMonitor`: enables mutex deadlock diagnostics hooks in `Mutex.c` (`DeadlockMonitorOnWaitStart`, `DeadlockMonitorOnWaitCancel`, `DeadlockMonitorOnAcquire`, `DeadlockMonitorOnRelease`). Keep this disabled for normal runtime because the hooks run on the mutex hot path.
 
 Process control messages are intercepted in task messaging before queue insertion:
 - `ETM_INTERRUPT`

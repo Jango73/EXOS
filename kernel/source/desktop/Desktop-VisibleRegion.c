@@ -142,6 +142,7 @@ static void DesktopVisibleRegionSubtractVisibleWindowTree(LPWINDOW Window, LPREC
 
     if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return;
     IsVisible = ((Snapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
+    if (IsVisible == FALSE) return;
     WindowRect = Snapshot.ScreenRect;
     (void)DesktopSnapshotWindowChildren(Window, &Children, &ChildCount);
 
@@ -155,10 +156,8 @@ static void DesktopVisibleRegionSubtractVisibleWindowTree(LPWINDOW Window, LPREC
         KernelHeapFree(Children);
     }
 
-    if (IsVisible != FALSE) {
-        if ((Snapshot.Status & WINDOW_STATUS_CONTENT_TRANSPARENT) == 0) {
-            (void)DesktopVisibleRegionSubtractOccluder(Region, &WindowRect, Capacity);
-        }
+    if ((Snapshot.Status & WINDOW_STATUS_CONTENT_TRANSPARENT) == 0) {
+        (void)DesktopVisibleRegionSubtractOccluder(Region, &WindowRect, Capacity);
     }
 }
 
@@ -182,31 +181,35 @@ BOOL DesktopBuildWindowVisibleRegion(
     LPRECT Storage,
     UINT Capacity
 ) {
+    LPWINDOW Current;
     LPWINDOW Parent;
     LPWINDOW* Windows = NULL;
     LPWINDOW Candidate;
-    I32 WindowOrder;
+    I32 CurrentOrder;
     I32 CandidateOrder;
     UINT Count = 0;
     UINT Index;
 
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     if (BaseRect == NULL || Region == NULL || Storage == NULL || Capacity == 0) return FALSE;
-    if (GetWindowOrderSnapshot(Window, &WindowOrder) == FALSE) return FALSE;
 
     if (RectRegionInit(Region, Storage, Capacity) == FALSE) return FALSE;
     RectRegionReset(Region);
     if (RectRegionAddRect(Region, BaseRect) == FALSE) return FALSE;
 
-    Parent = (LPWINDOW)GetWindowParent((HANDLE)Window);
-    if (Parent != NULL && Parent->TypeID == KOID_WINDOW) {
+    Current = Window;
+    while (Current != NULL && Current->TypeID == KOID_WINDOW) {
+        if (GetWindowOrderSnapshot(Current, &CurrentOrder) == FALSE) return FALSE;
+        Parent = (LPWINDOW)GetWindowParent((HANDLE)Current);
+        if (Parent == NULL || Parent->TypeID != KOID_WINDOW) break;
+
         (void)DesktopSnapshotWindowChildren(Parent, &Windows, &Count);
         for (Index = 0; Index < Count; Index++) {
             Candidate = Windows[Index];
             if (Candidate == NULL || Candidate->TypeID != KOID_WINDOW) continue;
-            if (Candidate == Window) continue;
+            if (Candidate == Current) continue;
             if (GetWindowOrderSnapshot(Candidate, &CandidateOrder) == FALSE) continue;
-            if (CandidateOrder >= WindowOrder) continue;
+            if (CandidateOrder >= CurrentOrder) continue;
 
             DesktopVisibleRegionSubtractVisibleWindowTree(Candidate, Region, Capacity);
             if (RectRegionGetCount(Region) == 0) {
@@ -219,6 +222,8 @@ BOOL DesktopBuildWindowVisibleRegion(
             KernelHeapFree(Windows);
             Windows = NULL;
         }
+
+        Current = Parent;
     }
 
     if (ExcludeTargetChildren == FALSE) return TRUE;
@@ -240,6 +245,7 @@ BOOL DesktopBuildWindowVisibleRegion(
         KernelHeapFree(Windows);
     }
 
+    DesktopPipelineTraceRegion(Window, Region);
     return TRUE;
 }
 
@@ -286,5 +292,6 @@ BOOL DesktopBuildRootVisibleRegion(
         KernelHeapFree(Children);
     }
 
+    DesktopPipelineTraceRegion(RootWindow, Region);
     return TRUE;
 }

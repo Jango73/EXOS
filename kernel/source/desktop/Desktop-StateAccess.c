@@ -29,6 +29,51 @@
 /***************************************************************************/
 
 /**
+ * @brief Refresh one subtree effective visibility from one ancestor visibility.
+ * @param Window Subtree root.
+ * @param AncestorVisible TRUE when all ancestors are effectively visible.
+ * @return TRUE on success.
+ */
+static BOOL DesktopRefreshWindowEffectiveVisibilityTreeInternal(LPWINDOW Window, BOOL AncestorVisible) {
+    LPWINDOW* Children;
+    LPWINDOW ChildWindow;
+    UINT ChildCount;
+    UINT ChildIndex;
+    BOOL RequestedVisible;
+    BOOL EffectiveVisible;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+
+    LockMutex(&(Window->Mutex), INFINITY);
+    RequestedVisible = ((Window->Style & EWS_VISIBLE) != 0);
+    EffectiveVisible = (AncestorVisible != FALSE && RequestedVisible != FALSE);
+    if (EffectiveVisible != FALSE) {
+        Window->Status |= WINDOW_STATUS_VISIBLE;
+    } else {
+        Window->Status &= ~WINDOW_STATUS_VISIBLE;
+    }
+    UnlockMutex(&(Window->Mutex));
+
+    Children = NULL;
+    ChildCount = 0;
+    if (DesktopSnapshotWindowChildren(Window, &Children, &ChildCount) == FALSE) return FALSE;
+
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        ChildWindow = Children[ChildIndex];
+        if (ChildWindow == NULL || ChildWindow->TypeID != KOID_WINDOW) continue;
+        (void)DesktopRefreshWindowEffectiveVisibilityTreeInternal(ChildWindow, EffectiveVisible);
+    }
+
+    if (Children != NULL) {
+        KernelHeapFree(Children);
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Recalculate one parent child order list from sibling z-order styles.
  * @param Parent Parent window, already locked.
  */
@@ -408,14 +453,35 @@ BOOL DesktopSetWindowVisibleState(LPWINDOW Window, BOOL ShowHide) {
     LockMutex(&(Window->Mutex), INFINITY);
     if (ShowHide != FALSE) {
         Window->Style |= EWS_VISIBLE;
-        Window->Status |= WINDOW_STATUS_VISIBLE;
     } else {
         Window->Style &= ~EWS_VISIBLE;
-        Window->Status &= ~WINDOW_STATUS_VISIBLE;
     }
     UnlockMutex(&(Window->Mutex));
 
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Refresh one window subtree effective visibility from style and ancestry.
+ * @param Window Subtree root.
+ * @return TRUE on success.
+ */
+BOOL DesktopRefreshWindowEffectiveVisibilityTree(LPWINDOW Window) {
+    WINDOW_STATE_SNAPSHOT Snapshot;
+    WINDOW_STATE_SNAPSHOT ParentSnapshot;
+    BOOL AncestorVisible = TRUE;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return FALSE;
+
+    if (Snapshot.ParentWindow != NULL && Snapshot.ParentWindow->TypeID == KOID_WINDOW) {
+        if (GetWindowStateSnapshot(Snapshot.ParentWindow, &ParentSnapshot) == FALSE) return FALSE;
+        AncestorVisible = ((ParentSnapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
+    }
+
+    return DesktopRefreshWindowEffectiveVisibilityTreeInternal(Window, AncestorVisible);
 }
 
 /***************************************************************************/
@@ -512,6 +578,125 @@ BOOL DesktopGetRootWindow(LPDESKTOP Desktop, LPWINDOW* RootWindow) {
     UnlockMutex(&(Desktop->Mutex));
 
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Snapshot the focused window of one desktop under desktop owner mutex.
+ * @param Desktop Target desktop.
+ * @param FocusWindow Receives the focused window pointer, or NULL.
+ * @return TRUE on success.
+ */
+BOOL DesktopGetFocusWindow(LPDESKTOP Desktop, LPWINDOW* FocusWindow) {
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+    if (FocusWindow == NULL) return FALSE;
+
+    LockMutex(&(Desktop->Mutex), INFINITY);
+    *FocusWindow = Desktop->Focus;
+    UnlockMutex(&(Desktop->Mutex));
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve the focusable ancestor for one clicked window.
+ * @param Window Click target.
+ * @return Focusable window, promoted to the direct desktop child when applicable.
+ */
+static LPWINDOW DesktopResolveFocusableWindow(LPWINDOW Window) {
+    LPDESKTOP Desktop;
+    LPWINDOW RootWindow = NULL;
+    LPWINDOW Current;
+    LPWINDOW Parent;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return NULL;
+
+    Desktop = DesktopGetWindowDesktop(Window);
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return Window;
+    if (DesktopGetRootWindow(Desktop, &RootWindow) == FALSE) return Window;
+    if (RootWindow == NULL || RootWindow->TypeID != KOID_WINDOW) return Window;
+
+    Current = Window;
+    FOREVER {
+        Parent = (LPWINDOW)GetWindowParent((HANDLE)Current);
+        if (Parent == NULL || Parent->TypeID != KOID_WINDOW) break;
+        if (Parent == RootWindow) break;
+        Current = Parent;
+    }
+
+    return Current;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Focus one window on its desktop and synchronize focused process.
+ * @param Window Window that should receive focus.
+ * @return TRUE on success.
+ */
+BOOL DesktopSetFocusWindow(LPWINDOW Window) {
+    LPDESKTOP Desktop;
+    LPWINDOW FocusWindow;
+    LPWINDOW PreviousFocus = NULL;
+    LPPROCESS Process = NULL;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+
+    Desktop = DesktopGetWindowDesktop(Window);
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+
+    FocusWindow = DesktopResolveFocusableWindow(Window);
+    if (FocusWindow == NULL || FocusWindow->TypeID != KOID_WINDOW) return FALSE;
+
+    LockMutex(&(Desktop->Mutex), INFINITY);
+    PreviousFocus = Desktop->Focus;
+    Desktop->Focus = FocusWindow;
+    UnlockMutex(&(Desktop->Mutex));
+
+    SAFE_USE_VALID_ID(FocusWindow->Task, KOID_TASK) {
+        SAFE_USE_VALID_ID(FocusWindow->Task->Process, KOID_PROCESS) {
+            Process = FocusWindow->Task->Process;
+        }
+    }
+
+    if (Process != NULL) {
+        SetFocusedProcess(Process);
+    }
+
+    if (PreviousFocus != FocusWindow) {
+        SAFE_USE_VALID_ID(PreviousFocus, KOID_WINDOW) {
+            (void)RequestWindowDraw((HANDLE)PreviousFocus);
+        }
+        (void)RequestWindowDraw((HANDLE)FocusWindow);
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Tell whether one window is the focused window of its desktop.
+ * @param Window Target window.
+ * @return TRUE when the desktop focus points to that window.
+ */
+BOOL IsDesktopWindowFocused(LPWINDOW Window) {
+    LPDESKTOP Desktop;
+    LPWINDOW FocusWindow = NULL;
+    BOOL IsFocused = FALSE;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+
+    Desktop = DesktopGetWindowDesktop(Window);
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+
+    if (DesktopGetFocusWindow(Desktop, &FocusWindow) == FALSE) return FALSE;
+    IsFocused = (DesktopResolveFocusableWindow(Window) == FocusWindow);
+
+    return IsFocused;
 }
 
 /***************************************************************************/

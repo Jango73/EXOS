@@ -47,8 +47,11 @@ typedef struct BOOT_UEFI_CONTEXT {
     EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL* ConsoleOut;
     EFI_GRAPHICS_OUTPUT_PROTOCOL* GraphicsOutput;
     BOOL BootServicesExited;
+    BOOL HasConsoleCursor;
     U64 ImageBase;
     U64 ImageSize;
+    U32 ConsoleCursorX;
+    U32 ConsoleCursorY;
 } BOOT_UEFI_CONTEXT;
 
 /************************************************************************/
@@ -57,6 +60,7 @@ typedef struct BOOT_UEFI_MULTIBOOT_LAYOUT {
     multiboot_info_t* MultibootInfo;
     multiboot_memory_map_t* MultibootMemoryMap;
     multiboot_module_t* KernelModule;
+    EXOS_MULTIBOOT_CONFIG_TABLE* ConfigTable;
     LPSTR BootloaderName;
     LPSTR KernelCommandLine;
 } BOOT_UEFI_MULTIBOOT_LAYOUT;
@@ -171,6 +175,7 @@ static EFI_STATUS BootUefiAllocateMultibootData(
     BOOT_UEFI_CONTEXT* Context,
     LPCSTR KernelFileName,
     BOOT_UEFI_MULTIBOOT_LAYOUT* LayoutOut);
+static void BootUefiCaptureConsoleCursor(BOOT_UEFI_CONTEXT* Context);
 static U32 BootUefiGetRsdpPhysicalLow(BOOT_UEFI_CONTEXT* Context);
 static EFI_STATUS BootUefiExitBootServicesWithRetry(
     BOOT_UEFI_CONTEXT* Context,
@@ -1561,6 +1566,7 @@ static EFI_STATUS BootUefiAllocateMultibootData(
         (UINT)sizeof(multiboot_info_t) +
         (UINT)(sizeof(multiboot_memory_map_t) * E820_MAX_ENTRIES) +
         (UINT)sizeof(multiboot_module_t) +
+        (UINT)sizeof(EXOS_MULTIBOOT_CONFIG_TABLE) +
         (UINT)(StringLength(KernelFileName) + 1u) +
         (UINT)(StringLength(BootloaderNameText) + 1u);
     UINT MultibootPages = BootUefiAlignUp(MultibootBytes, EFI_PAGE_SIZE) / EFI_PAGE_SIZE;
@@ -1592,6 +1598,10 @@ static EFI_STATUS BootUefiAllocateMultibootData(
     MultibootCursor += sizeof(multiboot_module_t);
     MultibootCursor = BootUefiAlignPointer(MultibootCursor, 8u);
 
+    LayoutOut->ConfigTable = (EXOS_MULTIBOOT_CONFIG_TABLE*)MultibootCursor;
+    MultibootCursor += sizeof(EXOS_MULTIBOOT_CONFIG_TABLE);
+    MultibootCursor = BootUefiAlignPointer(MultibootCursor, 8u);
+
     LayoutOut->BootloaderName = (LPSTR)MultibootCursor;
     StringCopy(LayoutOut->BootloaderName, BootloaderNameText);
     MultibootCursor += StringLength(LayoutOut->BootloaderName) + 1u;
@@ -1599,6 +1609,29 @@ static EFI_STATUS BootUefiAllocateMultibootData(
     LayoutOut->KernelCommandLine = (LPSTR)MultibootCursor;
     StringCopy(LayoutOut->KernelCommandLine, KernelFileName);
     return EFI_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Capture the current UEFI text cursor position when available.
+ * @param Context Boot context storing the captured cursor.
+ */
+static void BootUefiCaptureConsoleCursor(BOOT_UEFI_CONTEXT* Context) {
+    EFI_SIMPLE_TEXT_OUTPUT_MODE* Mode;
+
+    if (Context == NULL || Context->ConsoleOut == NULL) {
+        return;
+    }
+
+    Mode = Context->ConsoleOut->Mode;
+    if (Mode == NULL || Mode->CursorColumn < 0 || Mode->CursorRow < 0) {
+        return;
+    }
+
+    Context->HasConsoleCursor = TRUE;
+    Context->ConsoleCursorX = (U32)Mode->CursorColumn;
+    Context->ConsoleCursorY = (U32)Mode->CursorRow;
 }
 
 /************************************************************************/
@@ -1704,6 +1737,7 @@ static EFI_STATUS BootUefiExitBootServicesWithRetry(
         UNUSED(DescriptorVersion);
 
         // Do not call any boot services between GetMemoryMap and ExitBootServices.
+        BootUefiCaptureConsoleCursor(Context);
         Status = Context->BootServices->ExitBootServices(Context->ImageHandle, MapKey);
         if (Status == EFI_SUCCESS) {
             *MemoryMapOut = MemoryMap;
@@ -1857,6 +1891,9 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 #endif
 
     U32 RsdpPhysicalLow = BootUefiGetRsdpPhysicalLow(&Context);
+    BOOT_CONFIG_TABLE_INFO ConfigTableInfo;
+    MemorySet(&ConfigTableInfo, 0, sizeof(ConfigTableInfo));
+    ConfigTableInfo.RsdpPhysical = RsdpPhysicalLow;
     BootUefiDebugTransportWrite((LPCSTR)"[EfiMain] RSDP captured\r\n");
     BootUefiMarkStage(&Context, BOOT_UEFI_STAGE_RSDP_CAPTURED, 0u, 0u, 255u);
 
@@ -1886,19 +1923,24 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     }
     BootUefiMarkStage(&Context, BOOT_UEFI_STAGE_E820_READY, 255u, 255u, 255u);
 
+    ConfigTableInfo.HasConsoleCursor = Context.HasConsoleCursor;
+    ConfigTableInfo.ConsoleCursorX = Context.ConsoleCursorX;
+    ConfigTableInfo.ConsoleCursorY = Context.ConsoleCursorY;
+
     U32 MultibootInfoPtr = BootBuildMultibootInfo(
         MultibootLayout.MultibootInfo,
         MultibootLayout.MultibootMemoryMap,
         MultibootLayout.KernelModule,
+        MultibootLayout.ConfigTable,
         E820Map,
         E820Count,
         KernelPhysicalBase,
         (U32)FileSize,
         KernelReservedBytes,
-        RsdpPhysicalLow,
         MultibootLayout.BootloaderName,
         MultibootLayout.KernelCommandLine,
-        HasFramebuffer ? &FramebufferInfo : NULL);
+        HasFramebuffer ? &FramebufferInfo : NULL,
+        &ConfigTableInfo);
     BootUefiMarkStage(&Context, BOOT_UEFI_STAGE_MULTIBOOT_READY, 128u, 128u, 128u);
 
     // No return path after this call.

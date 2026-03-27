@@ -388,6 +388,7 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U6
 
     BootDebugPrint(TEXT("[VBR x86-64] About to jump\r\n"));
 
+    BootRefreshMultibootCursorPosition((multiboot_info_t*)(UINT)MultibootInfoPtr);
     StubJumpToImage((U32)(&Gdtr), PagingStructure, KernelEntryLo, KernelEntryHi, MultibootInfoPtr, MULTIBOOT_BOOTLOADER_MAGIC);
 
     __builtin_unreachable();

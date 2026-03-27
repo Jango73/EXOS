@@ -17,12 +17,12 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Debug lock order checker
+    Deadlock monitor
 
 \************************************************************************/
 
-#ifndef LOCK_ORDER_DEBUG_H_INCLUDED
-#define LOCK_ORDER_DEBUG_H_INCLUDED
+#ifndef DEADLOCKMONITOR_H_INCLUDED
+#define DEADLOCKMONITOR_H_INCLUDED
 
 /************************************************************************/
 
@@ -30,11 +30,17 @@
 
 /************************************************************************/
 
-void AcquireLockRole(U32 Role, LPCSTR RoleName);
-void ReleaseLockRole(U32 Role, LPCSTR RoleName);
-void LockOrderDebugAcquire(U32 Role, LPCSTR RoleName);
-void LockOrderDebugRelease(U32 Role, LPCSTR RoleName);
+typedef struct tag_TASK TASK, *LPTASK;
+typedef struct tag_MUTEX MUTEX, *LPMUTEX;
 
 /************************************************************************/
 
-#endif  // LOCK_ORDER_DEBUG_H_INCLUDED
+void DeadlockMonitorOnWaitStart(LPTASK Task, LPMUTEX Mutex);
+void DeadlockMonitorOnWaitCancel(LPTASK Task, LPMUTEX Mutex);
+void DeadlockMonitorOnAcquire(LPTASK Task, LPMUTEX Mutex);
+void DeadlockMonitorOnRelease(LPTASK Task, LPMUTEX Mutex, LPTASK NextOwner);
+BOOL DeadlockMonitorWouldCreateCycle(LPTASK Task, LPMUTEX Mutex);
+
+/************************************************************************/
+
+#endif

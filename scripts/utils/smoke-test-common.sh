@@ -33,6 +33,10 @@ IMAGE_READY_TIMEOUT_SECONDS=15
 IMAGE_READY_POLL_SECONDS=0.5
 IMAGE_READY_STABLE_POLLS=3
 TEST_KEYBOARD_LAYOUT="en-US"
+GENERAL_SHOW_DESKTOP_DISABLED_LINE="ShowDesktop=0"
+KEYBOARD_LAYOUT_KEY="Layout"
+KEYBOARD_LAYOUT_PATTERN='^Layout="'
+GENERAL_SHOW_DESKTOP_DISABLED_PATTERN='^ShowDesktop=0$'
 PATCH_KEYBOARD_LAYOUT=1
 LOCAL_HTTP_SERVER_PID=""
 BOOT_READY_PATTERN="[InitializeKernel] Shell task created"
@@ -235,7 +239,8 @@ function WaitForImageReady() {
 
 function SetImageKeyboardLayout() {
     # Force a deterministic keyboard layout directly in exos.toml.
-    # This avoids flaky input when host/guest layouts differ.
+    # Also disable automatic desktop activation so the shell remains active
+    # when smoke test commands are injected.
     local ImagePath="$1"
     local FileSystemOffset="$2"
     local Layout="$3"
@@ -269,31 +274,60 @@ function SetImageKeyboardLayout() {
         return 1
     fi
 
-    awk -v layout="$Layout" '
+    awk -v layout="$Layout" \
+        -v keyboard_layout_key="$KEYBOARD_LAYOUT_KEY" \
+        -v show_desktop_disabled_line="$GENERAL_SHOW_DESKTOP_DISABLED_LINE" '
     BEGIN {
         in_keyboard = 0;
+        in_general = 0;
         layout_set = 0;
+        show_desktop_set = 0;
     }
     {
-        if ($0 ~ /^\[Keyboard\]/) {
-            in_keyboard = 1;
-            print $0;
-            next;
-        }
-
-        if ($0 ~ /^\[/ && in_keyboard == 1) {
-            if (layout_set == 0) {
-                print "Layout=\"" layout "\"";
-                layout_set = 1;
-            }
+        if ($0 ~ /^\[General\]/) {
+            in_general = 1;
             in_keyboard = 0;
             print $0;
             next;
         }
 
+        if ($0 ~ /^\[Keyboard\]/) {
+            in_keyboard = 1;
+            if (in_general == 1 && show_desktop_set == 0) {
+                print show_desktop_disabled_line;
+                show_desktop_set = 1;
+            }
+            in_general = 0;
+            print $0;
+            next;
+        }
+
+        if ($0 ~ /^\[/) {
+            if (in_general == 1 && show_desktop_set == 0) {
+                print show_desktop_disabled_line;
+                show_desktop_set = 1;
+            }
+            if (in_keyboard == 1 && layout_set == 0) {
+                print keyboard_layout_key "=\"" layout "\"";
+                layout_set = 1;
+            }
+            in_general = 0;
+            in_keyboard = 0;
+            print $0;
+            next;
+        }
+
+        if (in_general == 1 && $0 ~ /^ShowDesktop[[:space:]]*=/) {
+            if (show_desktop_set == 0) {
+                print show_desktop_disabled_line;
+                show_desktop_set = 1;
+            }
+            next;
+        }
+
         if (in_keyboard == 1 && $0 ~ /^Layout[[:space:]]*=/) {
             if (layout_set == 0) {
-                print "Layout=\"" layout "\"";
+                print keyboard_layout_key "=\"" layout "\"";
                 layout_set = 1;
             }
             next;
@@ -302,8 +336,11 @@ function SetImageKeyboardLayout() {
         print $0;
     }
     END {
+        if (in_general == 1 && show_desktop_set == 0) {
+            print show_desktop_disabled_line;
+        }
         if (in_keyboard == 1 && layout_set == 0) {
-            print "Layout=\"" layout "\"";
+            print keyboard_layout_key "=\"" layout "\"";
         }
     }
     ' "$ConfigFile" > "$PatchedConfigFile"
@@ -321,9 +358,15 @@ function SetImageKeyboardLayout() {
         dd if="$PartitionImage" of="$ImagePath" bs=1 seek="$FileSystemOffset" conv=notrunc status=none
     fi
 
-    if ! debugfs -R "cat /exos.toml" "$PartitionImage" 2>/dev/null | SearchRegex '^Layout="' >/dev/null; then
+    if ! debugfs -R "cat /exos.toml" "$PartitionImage" 2>/dev/null | SearchRegex "$KEYBOARD_LAYOUT_PATTERN" >/dev/null; then
         rm -f "$PartitionImage" "$ConfigFile" "$PatchedConfigFile"
         echo "Keyboard layout verification failed for image: $ImagePath"
+        return 1
+    fi
+
+    if ! debugfs -R "cat /exos.toml" "$PartitionImage" 2>/dev/null | SearchRegex "$GENERAL_SHOW_DESKTOP_DISABLED_PATTERN" >/dev/null; then
+        rm -f "$PartitionImage" "$ConfigFile" "$PatchedConfigFile"
+        echo "ShowDesktop patch verification failed for image: $ImagePath"
         return 1
     fi
 

@@ -78,6 +78,21 @@ typedef struct PACKED tag_EFI_TABLE_HEADER {
 // Simple text output protocol
 
 typedef struct tag_EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL;
+typedef struct tag_EFI_SIMPLE_TEXT_OUTPUT_MODE EFI_SIMPLE_TEXT_OUTPUT_MODE;
+
+struct tag_EFI_SIMPLE_TEXT_OUTPUT_MODE {
+    I32 MaxMode;
+    I32 Mode;
+    I32 Attribute;
+    I32 CursorColumn;
+    I32 CursorRow;
+    BOOL CursorVisible;
+};
+
+typedef EFI_STATUS(EFIAPI* EFI_TEXT_SET_CURSOR_POSITION)(
+    EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL* This,
+    U64 Column,
+    U64 Row);
 
 typedef EFI_STATUS(EFIAPI* EFI_TEXT_OUTPUT_STRING)(
     EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL* This,
@@ -91,9 +106,9 @@ struct tag_EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL {
     void* SetMode;
     void* SetAttribute;
     void* ClearScreen;
-    void* SetCursorPosition;
+    EFI_TEXT_SET_CURSOR_POSITION SetCursorPosition;
     void* EnableCursor;
-    void* Mode;
+    EFI_SIMPLE_TEXT_OUTPUT_MODE* Mode;
 };
 
 /************************************************************************/

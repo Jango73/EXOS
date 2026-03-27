@@ -27,6 +27,8 @@
 # DeviceInterruptSlots=32
 # Enable or disable login sequence (1=enable, 0=disable)
 # DoLogin=1
+# Enable or disable automatic desktop activation after shell initialization (1=enable, 0=disable)
+# ShowDesktop=1
 
 [Session]
 # Inactivity timeout before session lock (in seconds)
@@ -98,6 +100,10 @@ LocalIP="192.168.56.10"
 EphemeralPortStart=32768
 SendBufferSize=32768
 ReceiveBufferSize=32768
+
+[Debug]
+# Enable or disable mutex deadlock diagnostics hooks (1=enable, 0=disable)
+# UseDeadlockMonitor=0
 
 # Run section (specify an executable to run)
 # [[Run]]

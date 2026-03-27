@@ -318,6 +318,8 @@ static BOOL ThemeDrawFilledRect(HANDLE GC, I32 X1, I32 Y1, I32 X2, I32 Y2, COLOR
     RectInfo.Y1 = Y1;
     RectInfo.X2 = X2;
     RectInfo.Y2 = Y2;
+    RectInfo.CornerRadius = 0;
+    RectInfo.CornerStyle = RECT_CORNER_STYLE_SQUARE;
 
     OldPen = SelectPen(GC, NULL);
     OldBrush = SelectBrush(GC, (HANDLE)&Brush);

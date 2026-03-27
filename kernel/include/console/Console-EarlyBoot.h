@@ -26,8 +26,6 @@
 
 #include "Base.h"
 
-/************************************************************************/
-
 void EarlyBootConsoleInitialize(
     PHYSICAL FramebufferPhysical,
     U32 Width,

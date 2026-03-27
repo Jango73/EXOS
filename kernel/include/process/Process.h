@@ -56,6 +56,14 @@ typedef struct tag_WINDOW WINDOW, *LPWINDOW;
 typedef struct tag_WINDOW_CLASS WINDOW_CLASS, *LPWINDOW_CLASS;
 typedef struct tag_DESKTOP DESKTOP, *LPDESKTOP;
 typedef struct tag_FILESYSTEM FILESYSTEM, *LPFILESYSTEM;
+typedef struct tag_GRAPHICSCONTEXT GRAPHICSCONTEXT, *LPGRAPHICSCONTEXT;
+
+/************************************************************************/
+// Scheduler-owned process state
+
+typedef struct tag_PROCESS_SCHEDULER_STATE {
+    BOOL Paused;
+} PROCESS_SCHEDULER_STATE, *LPPROCESS_SCHEDULER_STATE;
 
 /************************************************************************/
 // Task status values
@@ -161,7 +169,8 @@ struct tag_PROCESS {
     U32 Privilege;                                          // This process' privilege level
     U32 Status;                                             // (alive/dead)
     U32 Flags;                                              // Process creation flags
-    U32 ControlFlags;                                       // Process control state (pause/interrupt)
+    U32 ControlFlags;                                       // Process control state (interrupt)
+    PROCESS_SCHEDULER_STATE SchedulerState;                 // Scheduler-owned ISR-visible state
     PHYSICAL PageDirectory;
     LINEAR HeapBase;
     UINT HeapSize;
@@ -270,6 +279,9 @@ struct tag_DESKTOP {
     LPWINDOW Focus;                 // Window that has focus
     U32 Mode;                       // Active desktop display mode
     I32 Order;                      // Desktop ordering key among active desktops
+    LPGRAPHICSCONTEXT GraphicsContext;
+    LINEAR GraphicsShadowBufferLinear;
+    UINT GraphicsShadowBufferSize;
     U32 PendingComponents;          // Pending desktop-owned component injection flags
     MOUSE_CURSOR Cursor;            // Desktop cursor runtime state
     DESKTOP_DISPLAY_SELECTION DisplaySelection;

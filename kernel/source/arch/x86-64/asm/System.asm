@@ -25,7 +25,6 @@
 %include "System.inc"
 
 extern SystemCallHandler
-
 ;-------------------------------------------------------------------------
 
 section .data

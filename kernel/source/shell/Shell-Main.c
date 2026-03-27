@@ -448,6 +448,10 @@ U32 Shell(LPVOID Param) {
 
     ExecuteStartupCommands();
 
+    if (GetShowDesktop()) {
+        ShowMainDesktopFromShell();
+    }
+
     while (EnsureUnlockedSessionForShell(&Context) && ParseCommand(&Context)) {
     }
 

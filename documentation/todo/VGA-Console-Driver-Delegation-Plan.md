@@ -135,7 +135,7 @@ So the fallback function should:
 
 ## Migration Plan
 
-## [ ] Step 1 - Define the backend contract baseline
+## [x] Step 1 - Define the backend contract baseline
 
 - Audit all text operations currently performed directly by the console in VGA mode.
 - Map each operation to an existing `DF_GFX_TEXT_*` command.
@@ -144,7 +144,7 @@ So the fallback function should:
 Success criteria:
 - there is one explicit command-level contract for all console text output operations.
 
-## [ ] Step 2 - Add VGA text context and command handlers
+## [x] Step 2 - Add VGA text context and command handlers
 
 - Implement `DF_GFX_GETCONTEXT` in the VGA driver.
 - Implement `DF_GFX_TEXT_PUTCELL`.
@@ -160,7 +160,7 @@ Implementation note:
 Success criteria:
 - the VGA driver is sufficient to render and update a text console without help from direct console-side hardware access.
 
-## [ ] Step 3 - Refactor console write path
+## [x] Step 3 - Refactor console write path
 
 - Replace direct `Console.Memory[...]` writes with backend command dispatch.
 - Route single-character output, line output, clear, backspace erase, and scrolling through the backend abstraction.
@@ -169,7 +169,7 @@ Success criteria:
 Success criteria:
 - no text output path in `Console-Main.c` writes directly to VGA text memory.
 
-## [ ] Step 4 - Remove direct VGA cursor programming from console
+## [x] Step 4 - Remove direct VGA cursor programming from console
 
 - Remove console-side writes to VGA CRTC cursor registers.
 - Use backend cursor commands for both position and visibility.
@@ -178,7 +178,7 @@ Success criteria:
 Success criteria:
 - the console never programs VGA cursor hardware directly.
 
-## [ ] Step 5 - Remove console ownership of VGA text memory
+## [x] Step 5 - Remove console ownership of VGA text memory
 
 - Remove `Console.Memory` as a hardware text-buffer access mechanism.
 - If a console buffer pointer is still needed for non-VGA internal purposes, rename it so it does not imply hardware ownership.
@@ -187,7 +187,7 @@ Success criteria:
 Success criteria:
 - `kernel/source/console/*` contains no `0xB8000` and no direct VGA text memory writes.
 
-## [ ] Step 6 - Unify backend acquisition
+## [x] Step 6 - Unify backend acquisition
 
 - Make console backend acquisition work uniformly for:
   - VGA text backend
@@ -199,7 +199,7 @@ Success criteria:
 Success criteria:
 - one code path selects the active backend and dispatches text operations.
 
-## [ ] Step 7 - Validate all output behaviors
+## [x] Step 7 - Validate all output behaviors
 
 Validate at minimum:
 - normal character output

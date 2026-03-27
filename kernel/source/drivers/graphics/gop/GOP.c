@@ -23,6 +23,7 @@
 
 #include "GFX.h"
 #include "CoreString.h"
+#include "System.h"
 #include "console/Console.h"
 #include "Log.h"
 #include "Memory.h"
@@ -70,6 +71,8 @@ static DRIVER DATA_SECTION GOPGfxDriver = {
 static GOP_GFX_STATE DATA_SECTION GOPGfxState = {0};
 
 /************************************************************************/
+
+static UINT GOPGfxPresent(LPGFX_PRESENT_INFO Info);
 
 /**
  * @brief Retrieve GOP graphics driver descriptor.
@@ -247,6 +250,7 @@ static void GOPGfxDrawLine(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I3
                        Y2,
                        Context->Pen->Color,
                        Context->Pen->Pattern,
+                       Context->Pen->Width != 0 ? Context->Pen->Width : 1,
                        GOPGfxPlotLinePixel);
 }
 
@@ -255,42 +259,18 @@ static void GOPGfxDrawLine(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I3
 /**
  * @brief Draw and fill a rectangle using current brush and pen.
  * @param Context Active graphics context.
- * @param X1 Left coordinate.
- * @param Y1 Top coordinate.
- * @param X2 Right coordinate.
- * @param Y2 Bottom coordinate.
+ * @param Info Rectangle descriptor.
  */
-static void GOPGfxDrawRectangle(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
-    I32 Temp = 0;
+static void GOPGfxDrawRectangle(LPGRAPHICSCONTEXT Context, LPRECT_INFO Info) {
     PROFILE_SCOPE Scope;
 
-    if (Context == NULL) {
+    if (Context == NULL || Info == NULL) {
         return;
     }
 
-    if (X1 > X2) {
-        Temp = X1;
-        X1 = X2;
-        X2 = Temp;
-    }
-    if (Y1 > Y2) {
-        Temp = Y1;
-        Y1 = Y2;
-        Y2 = Temp;
-    }
-
-    if (Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH) {
-        ProfileStart(&Scope, TEXT("GOP.RectangleFill"));
-        (void)GraphicsFillSolidRect(Context, X1, Y1, X2, Y2, Context->Brush->Color);
-        ProfileStop(&Scope);
-    }
-
-    if (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN) {
-        GOPGfxDrawLine(Context, X1, Y1, X2, Y1);
-        GOPGfxDrawLine(Context, X2, Y1, X2, Y2);
-        GOPGfxDrawLine(Context, X2, Y2, X1, Y2);
-        GOPGfxDrawLine(Context, X1, Y2, X1, Y1);
-    }
+    ProfileStart(&Scope, TEXT("GOP.RectangleFill"));
+    (void)GraphicsDrawRectangleFromDescriptor(Context, Info);
+    ProfileStop(&Scope);
 }
 
 /************************************************************************/
@@ -399,6 +379,74 @@ static UINT GOPGfxUnload(void) {
 
     GOPGfxState = (GOP_GFX_STATE){0};
     GOPGfxDriver.Flags &= ~DRIVER_FLAG_READY;
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Copy one dirty rectangle from one source context to GOP scanout.
+ * @param Info Present descriptor.
+ * @return DF_RETURN_SUCCESS on success.
+ */
+static UINT GOPGfxPresent(LPGFX_PRESENT_INFO Info) {
+    LPGRAPHICSCONTEXT SourceContext = NULL;
+    RECT DirtyRect = {0};
+    U32 BytesPerPixel = 0;
+    U32 CopyBytes = 0;
+    U32 Row = 0;
+
+    if (Info == NULL) {
+        return DF_RETURN_GENERIC;
+    }
+
+    if (GOPGfxState.FrameBufferLinear == 0 || GOPGfxState.FrameBufferSize == 0) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    SourceContext = (LPGRAPHICSCONTEXT)Info->GC;
+    if (SourceContext == NULL || SourceContext->TypeID != KOID_GRAPHICSCONTEXT || SourceContext->MemoryBase == NULL) {
+        return DF_RETURN_GENERIC;
+    }
+
+    DirtyRect = Info->DirtyRect;
+    if (DirtyRect.X1 < 0) DirtyRect.X1 = 0;
+    if (DirtyRect.Y1 < 0) DirtyRect.Y1 = 0;
+    if (DirtyRect.X2 >= GOPGfxState.Context.Width) DirtyRect.X2 = GOPGfxState.Context.Width - 1;
+    if (DirtyRect.Y2 >= GOPGfxState.Context.Height) DirtyRect.Y2 = GOPGfxState.Context.Height - 1;
+    if (DirtyRect.X2 < DirtyRect.X1 || DirtyRect.Y2 < DirtyRect.Y1) {
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (SourceContext->MemoryBase == GOPGfxState.Context.MemoryBase) {
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (SourceContext->BitsPerPixel != GOPGfxState.Context.BitsPerPixel ||
+        SourceContext->BytesPerScanLine != GOPGfxState.Context.BytesPerScanLine) {
+        return DF_RETURN_NOT_IMPLEMENTED;
+    }
+
+    BytesPerPixel = SourceContext->BitsPerPixel / 8;
+    if (BytesPerPixel == 0) {
+        return DF_RETURN_GENERIC;
+    }
+
+    CopyBytes = (U32)(DirtyRect.X2 - DirtyRect.X1 + 1) * BytesPerPixel;
+    for (Row = 0; Row <= (U32)(DirtyRect.Y2 - DirtyRect.Y1); Row++) {
+        U32 Y = (U32)DirtyRect.Y1 + Row;
+        U32 Offset = Y * SourceContext->BytesPerScanLine + ((U32)DirtyRect.X1 * BytesPerPixel);
+        if (BlitMemoryAsm(
+                GOPGfxState.Context.MemoryBase + Offset,
+                SourceContext->MemoryBase + Offset,
+                CopyBytes) == FALSE) {
+            MemoryCopy(
+                GOPGfxState.Context.MemoryBase + Offset,
+                SourceContext->MemoryBase + Offset,
+                CopyBytes);
+        }
+    }
+
     return DF_RETURN_SUCCESS;
 }
 
@@ -602,7 +650,7 @@ static UINT GOPGfxRectangle(LPRECT_INFO Info) {
 
     ProfileStart(&Scope, TEXT("GOP.Rectangle"));
     LockMutex(&(Context->Mutex), INFINITY);
-    GOPGfxDrawRectangle(Context, Info->X1, Info->Y1, Info->X2, Info->Y2);
+    GOPGfxDrawRectangle(Context, Info);
     UnlockMutex(&(Context->Mutex));
     ProfileStop(&Scope);
 
@@ -629,9 +677,7 @@ static UINT GOPGfxArc(LPARC_INFO Info) {
     }
 
     LockMutex(&(Context->Mutex), INFINITY);
-    if (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN && Info->Radius > 0) {
-        (void)GraphicsStrokeArc(Context, GOPGfxPlotLinePixel, Info->CenterX, Info->CenterY, Info->Radius, Context->Pen->Color);
-    }
+    (void)GraphicsDrawArcFromDescriptor(Context, Info);
     UnlockMutex(&(Context->Mutex));
 
     return 1;
@@ -646,10 +692,6 @@ static UINT GOPGfxArc(LPARC_INFO Info) {
  */
 static UINT GOPGfxTriangle(LPTRIANGLE_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
-    I32 Area = 0;
-    COLOR FillColor = 0;
-    BOOL HasFill = FALSE;
-    BOOL HasStroke = FALSE;
 
     if (Info == NULL) {
         return 0;
@@ -661,23 +703,7 @@ static UINT GOPGfxTriangle(LPTRIANGLE_INFO Info) {
     }
 
     LockMutex(&(Context->Mutex), INFINITY);
-
-    HasFill = (Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH);
-    HasStroke = (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN);
-    if (HasFill != FALSE) {
-        FillColor = Context->Brush->Color;
-    }
-
-    Area = GraphicsTriangleEdgeFunction(Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
-    if (Area != 0 && HasFill != FALSE) {
-        (void)GraphicsFillTriangleSpans(Context, Info, FillColor, NULL);
-    }
-
-    if (HasStroke != FALSE) {
-        GOPGfxDrawLine(Context, Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y);
-        GOPGfxDrawLine(Context, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
-        GOPGfxDrawLine(Context, Info->P3.X, Info->P3.Y, Info->P1.X, Info->P1.Y);
-    }
+    (void)GraphicsDrawTriangleFromDescriptor(Context, Info);
 
     UnlockMutex(&(Context->Mutex));
     return 1;
@@ -934,6 +960,8 @@ static UINT GOPGfxCommands(UINT Function, UINT Param) {
             return GOPGfxSetMode((LPGRAPHICS_MODE_INFO)Param);
         case DF_GFX_GETCAPABILITIES:
             return GOPGfxGetCapabilities((LPGFX_CAPABILITIES)Param);
+        case DF_GFX_PRESENT:
+            return GOPGfxPresent((LPGFX_PRESENT_INFO)Param);
         case DF_GFX_SETPIXEL:
             return GOPGfxSetPixel((LPPIXEL_INFO)Param);
         case DF_GFX_GETPIXEL:
@@ -966,7 +994,6 @@ static UINT GOPGfxCommands(UINT Function, UINT Param) {
         case DF_GFX_ELLIPSE:
         case DF_GFX_ENUMOUTPUTS:
         case DF_GFX_GETOUTPUTINFO:
-        case DF_GFX_PRESENT:
         case DF_GFX_WAITVBLANK:
         case DF_GFX_ALLOCSURFACE:
         case DF_GFX_FREESURFACE:

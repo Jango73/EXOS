@@ -168,7 +168,7 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
 
         case EWM_TIMER:
             if (Param1 == CLOCK_WIDGET_TIMER_ID) {
-                (void)InvalidateWindowRect(Window, NULL);
+                (void)InvalidateClientRect(Window, NULL);
             }
             return 1;
 
@@ -221,6 +221,8 @@ U32 DesktopClockWidgetWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Par
             ArcInfo.CenterY = CenterY;
             ArcInfo.StartAngle = 0;
             ArcInfo.EndAngle = 360;
+            ArcInfo.StartColor = 0;
+            ArcInfo.EndColor = 0;
 
             (void)SelectBrush(GC, NULL);
             (void)SelectPen(GC, GetSystemPen(SM_COLOR_TEXT_NORMAL));

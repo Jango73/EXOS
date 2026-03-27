@@ -212,6 +212,11 @@ static BOOL InvalidateWindowTreeOnScreenIntersection(LPWINDOW Window, LPRECT Scr
 /***************************************************************************/
 
 /**
+ * @brief Invalidate direct transparent children intersecting one screen rectangle.
+ * @param Window Parent window whose child list is inspected.
+ * @param ScreenRect Damage rectangle in screen coordinates.
+ */
+/**
  * @brief Update one window screen rectangle and reset its dirty region to this rectangle.
  * @param Window Target window.
  * @param Rect New screen rectangle.
@@ -236,6 +241,53 @@ BOOL DesktopUpdateWindowScreenRectAndDirtyRegion(LPWINDOW Window, LPRECT Rect) {
 
     UnlockMutex(&(Window->Mutex));
     (void)PostMessage((HANDLE)Window, EWM_NOTIFY, EWN_WINDOW_RECT_CHANGED, 0);
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Refresh direct and indirect child screen rectangles after one parent move.
+ * @param ParentWindow Window whose descendants are refreshed.
+ * @return TRUE on success.
+ */
+BOOL DesktopRefreshWindowChildScreenRects(LPWINDOW ParentWindow) {
+    LPWINDOW* Children;
+    LPWINDOW ChildWindow;
+    RECT ParentScreenRect;
+    RECT FullWindowRect;
+    RECT ChildScreenRect;
+    UINT ChildCount;
+    UINT ChildIndex;
+
+    if (ParentWindow == NULL || ParentWindow->TypeID != KOID_WINDOW) return FALSE;
+    if (GetWindowScreenRectSnapshot(ParentWindow, &ParentScreenRect) == FALSE) return FALSE;
+
+    Children = NULL;
+    ChildCount = 0;
+    if (DesktopSnapshotWindowChildren(ParentWindow, &Children, &ChildCount) == FALSE) return FALSE;
+
+    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
+        ChildWindow = Children[ChildIndex];
+        if (ChildWindow == NULL || ChildWindow->TypeID != KOID_WINDOW) continue;
+
+        LockMutex(&(ChildWindow->Mutex), INFINITY);
+        GraphicsWindowRectToScreenRect(&ParentScreenRect, &(ChildWindow->Rect), &(ChildWindow->ScreenRect));
+        ChildScreenRect = ChildWindow->ScreenRect;
+        UnlockMutex(&(ChildWindow->Mutex));
+
+        FullWindowRect.X1 = 0;
+        FullWindowRect.Y1 = 0;
+        FullWindowRect.X2 = ChildScreenRect.X2 - ChildScreenRect.X1;
+        FullWindowRect.Y2 = ChildScreenRect.Y2 - ChildScreenRect.Y1;
+        (void)InvalidateWindowRect((HANDLE)ChildWindow, &FullWindowRect);
+        (void)DesktopRefreshWindowChildScreenRects(ChildWindow);
+    }
+
+    if (Children != NULL) {
+        KernelHeapFree(Children);
+    }
+
     return TRUE;
 }
 
@@ -695,6 +747,32 @@ BOOL ScreenPointToWindowPoint(HANDLE Handle, LPPOINT ScreenPoint, LPPOINT Window
 /***************************************************************************/
 
 /**
+ * @brief Add one client rectangle to a window dirty region.
+ * @param Handle Window handle.
+ * @param Src Client rectangle in client coordinates, or NULL for full client area.
+ * @return TRUE on success.
+ */
+BOOL InvalidateClientRect(HANDLE Handle, LPRECT Src) {
+    RECT ClientWindowRect;
+    RECT WindowRect;
+
+    if (GetWindowClientRect(Handle, &ClientWindowRect) == FALSE) return FALSE;
+
+    if (Src == NULL) {
+        return InvalidateWindowRect(Handle, &ClientWindowRect);
+    }
+
+    WindowRect.X1 = ClientWindowRect.X1 + Src->X1;
+    WindowRect.Y1 = ClientWindowRect.Y1 + Src->Y1;
+    WindowRect.X2 = ClientWindowRect.X1 + Src->X2;
+    WindowRect.Y2 = ClientWindowRect.Y1 + Src->Y2;
+
+    return InvalidateWindowRect(Handle, &WindowRect);
+}
+
+/***************************************************************************/
+
+/**
  * @brief Add a rectangle to a window's invalid region.
  * @param Handle Window handle.
  * @param Src Rectangle to invalidate.
@@ -703,9 +781,7 @@ BOOL ScreenPointToWindowPoint(HANDLE Handle, LPPOINT ScreenPoint, LPPOINT Window
 BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
     LPWINDOW This = (LPWINDOW)Handle;
     RECT Rect;
-    RECT LocalRect;
     RECT WindowRect;
-    BOOL FullWindow = FALSE;
     BOOL IsVisible = FALSE;
 
     if (This == NULL) return FALSE;
@@ -732,18 +808,13 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
         (void)RectRegionAddRect(&This->DirtyRegion, &Rect);
     }
     else {
+        // Damage tracking uses the full window surface. Client/non-client split
+        // is resolved later during draw dispatch, not during invalidation.
         WindowRect.X1 = 0;
         WindowRect.Y1 = 0;
         WindowRect.X2 = This->Rect.X2 - This->Rect.X1;
         WindowRect.Y2 = This->Rect.Y2 - This->Rect.Y1;
-
-        if (GetWindowDrawableRectFromWindowRect(This, &WindowRect, &LocalRect) == FALSE) {
-            UnlockMutex(&(This->Mutex));
-            return FALSE;
-        }
-
-        FullWindow = TRUE;
-        WindowRectToScreenRectLocked(This, &LocalRect, &Rect);
+        WindowRectToScreenRectLocked(This, &WindowRect, &Rect);
         RectRegionReset(&This->DirtyRegion);
         (void)RectRegionAddRect(&This->DirtyRegion, &Rect);
     }
@@ -752,7 +823,6 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
     // Unlock access to resources
 
     UnlockMutex(&(This->Mutex));
-    UNUSED(FullWindow);
 
     if (This->WindowID == 0x53484252) {
     }

@@ -74,44 +74,23 @@ static void IntelGfxDrawLineInternal(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, 
                        Y2,
                        Context->Pen->Color,
                        Context->Pen->Pattern,
+                       Context->Pen->Width != 0 ? Context->Pen->Width : 1,
                        IntelGfxPlotLinePixel);
 }
 
 /************************************************************************/
 
-static void IntelGfxDrawRectangleInternal(LPGRAPHICSCONTEXT Context, I32 X1, I32 Y1, I32 X2, I32 Y2) {
-    I32 Temp = 0;
-    COLOR FillColor = 0;
+static void IntelGfxDrawRectangleInternal(LPGRAPHICSCONTEXT Context, LPRECT_INFO Info) {
     PROFILE_SCOPE Scope;
 
-    if (Context == NULL) {
+    if (Context == NULL || Info == NULL) {
         return;
     }
 
-    if (X1 > X2) {
-        Temp = X1;
-        X1 = X2;
-        X2 = Temp;
-    }
-    if (Y1 > Y2) {
-        Temp = Y1;
-        Y1 = Y2;
-        Y2 = Temp;
-    }
-
-    if (Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH && Context->MemoryBase != NULL &&
-        Context->BitsPerPixel == 32) {
+    if (Context->MemoryBase != NULL && Context->BitsPerPixel == 32) {
         ProfileStart(&Scope, TEXT("iGPU.RectangleFill"));
-        FillColor = Context->Brush->Color;
-        (void)GraphicsFillSolidRect(Context, X1, Y1, X2, Y2, FillColor);
+        (void)GraphicsDrawRectangleFromDescriptor(Context, Info);
         ProfileStop(&Scope);
-    }
-
-    if (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN) {
-        IntelGfxDrawLineInternal(Context, X1, Y1, X2, Y1);
-        IntelGfxDrawLineInternal(Context, X2, Y1, X2, Y2);
-        IntelGfxDrawLineInternal(Context, X2, Y2, X1, Y2);
-        IntelGfxDrawLineInternal(Context, X1, Y2, X1, Y1);
     }
 }
 
@@ -273,7 +252,7 @@ UINT IntelGfxRectangle(LPRECT_INFO Info) {
 
     ProfileStart(&Scope, TEXT("iGPU.Rectangle"));
     LockMutex(&(Context->Mutex), INFINITY);
-    IntelGfxDrawRectangleInternal(Context, Info->X1, Info->Y1, Info->X2, Info->Y2);
+    IntelGfxDrawRectangleInternal(Context, Info);
     if (IntelGfxNormalizeFlushBounds(Context, Info->X1, Info->Y1, Info->X2, Info->Y2, &Bounds)) {
         ProfileStart(&FlushScope, TEXT("iGPU.RectangleFlush"));
         IntelGfxFlushBoundsToScanout(Context, &Bounds);
@@ -289,10 +268,6 @@ UINT IntelGfxRectangle(LPRECT_INFO Info) {
 
 UINT IntelGfxArc(LPARC_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
-    I32 Radius = 0;
-    I32 CenterX = 0;
-    I32 CenterY = 0;
-    COLOR StrokeColor = 0;
     RECT Bounds = {0};
 
     if (Info == NULL) {
@@ -305,21 +280,15 @@ UINT IntelGfxArc(LPARC_INFO Info) {
     }
 
     LockMutex(&(Context->Mutex), INFINITY);
-    if (Context->Pen == NULL || Context->Pen->TypeID != KOID_PEN || Info->Radius <= 0) {
-        UnlockMutex(&(Context->Mutex));
-        return 1;
-    }
-
-    Radius = Info->Radius;
-    CenterX = Info->CenterX;
-    CenterY = Info->CenterY;
-    StrokeColor = Context->Pen->Color;
-
-    // Midpoint circle rasterization. Start/end angles are intentionally ignored.
-    (void)GraphicsStrokeArc(Context, IntelGfxPlotLinePixel, CenterX, CenterY, Radius, StrokeColor);
+    (void)GraphicsDrawArcFromDescriptor(Context, Info);
 
     if (IntelGfxNormalizeFlushBounds(
-            Context, CenterX - Radius, CenterY - Radius, CenterX + Radius, CenterY + Radius, &Bounds)) {
+            Context,
+            Info->CenterX - Info->Radius,
+            Info->CenterY - Info->Radius,
+            Info->CenterX + Info->Radius,
+            Info->CenterY + Info->Radius,
+            &Bounds)) {
         IntelGfxFlushBoundsToScanout(Context, &Bounds);
     }
     UnlockMutex(&(Context->Mutex));
@@ -335,12 +304,7 @@ UINT IntelGfxTriangle(LPTRIANGLE_INFO Info) {
     I32 MaxX = 0;
     I32 MinY = 0;
     I32 MaxY = 0;
-    I32 Area = 0;
-    COLOR FillColor = 0;
-    BOOL HasFill = FALSE;
-    BOOL HasStroke = FALSE;
     RECT Bounds = {0};
-    RECT FilledBounds = {0};
 
     if (Info == NULL) {
         return 0;
@@ -352,17 +316,6 @@ UINT IntelGfxTriangle(LPTRIANGLE_INFO Info) {
     }
 
     LockMutex(&(Context->Mutex), INFINITY);
-    HasFill = (Context->Brush != NULL && Context->Brush->TypeID == KOID_BRUSH);
-    HasStroke = (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN);
-    if (HasFill == FALSE && HasStroke == FALSE) {
-        UnlockMutex(&(Context->Mutex));
-        return 1;
-    }
-
-    if (HasFill != FALSE) {
-        FillColor = Context->Brush->Color;
-    }
-
     MinX = Info->P1.X;
     if (Info->P2.X < MinX) MinX = Info->P2.X;
     if (Info->P3.X < MinX) MinX = Info->P3.X;
@@ -377,24 +330,7 @@ UINT IntelGfxTriangle(LPTRIANGLE_INFO Info) {
     if (Info->P2.Y > MaxY) MaxY = Info->P2.Y;
     if (Info->P3.Y > MaxY) MaxY = Info->P3.Y;
 
-    Area = GraphicsTriangleEdgeFunction(Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
-    if (Area == 0) {
-        if (HasStroke != FALSE) {
-            IntelGfxDrawLineInternal(Context, Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y);
-            IntelGfxDrawLineInternal(Context, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
-            IntelGfxDrawLineInternal(Context, Info->P3.X, Info->P3.Y, Info->P1.X, Info->P1.Y);
-        }
-    } else {
-        if (HasFill != FALSE) {
-            (void)GraphicsFillTriangleSpans(Context, Info, FillColor, &FilledBounds);
-        }
-
-        if (HasStroke != FALSE) {
-            IntelGfxDrawLineInternal(Context, Info->P1.X, Info->P1.Y, Info->P2.X, Info->P2.Y);
-            IntelGfxDrawLineInternal(Context, Info->P2.X, Info->P2.Y, Info->P3.X, Info->P3.Y);
-            IntelGfxDrawLineInternal(Context, Info->P3.X, Info->P3.Y, Info->P1.X, Info->P1.Y);
-        }
-    }
+    (void)GraphicsDrawTriangleFromDescriptor(Context, Info);
 
     if (IntelGfxNormalizeFlushBounds(Context, MinX, MinY, MaxX, MaxY, &Bounds)) {
         IntelGfxFlushBoundsToScanout(Context, &Bounds);

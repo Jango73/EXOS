@@ -35,6 +35,7 @@
 #include "input/MouseDispatcher.h"
 #include "process/Task-Messaging.h"
 #include "utils/Graphics-Utils.h"
+#include "utils/LineRasterizer.h"
 
 /***************************************************************************/
 
@@ -142,6 +143,76 @@ static void InvalidateSiblingWindowsOnUncoveredRect(LPWINDOW Window, LPWINDOW Pa
 /***************************************************************************/
 
 /**
+ * @brief Apply effective visibility recomputation and redraw side effects for one subtree root.
+ * @param Window Window whose subtree visibility changed.
+ * @param PreviousScreenRect Root screen rectangle before the visibility change.
+ * @param WasVisible Previous effective visibility of the root window.
+ */
+static void DesktopHandleWindowEffectiveVisibilityChange(
+    LPWINDOW Window,
+    LPRECT PreviousScreenRect,
+    BOOL WasVisible) {
+    LPDESKTOP Desktop;
+    LPWINDOW RootWindow;
+    RECT CurrentScreenRect;
+    BOOL IsVisible;
+    WINDOW_STATE_SNAPSHOT Snapshot;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return;
+    if (PreviousScreenRect == NULL) return;
+    if (DesktopRefreshWindowEffectiveVisibilityTree(Window) == FALSE) return;
+    if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return;
+
+    CurrentScreenRect = Snapshot.ScreenRect;
+    IsVisible = ((Snapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
+
+    if (IsVisible != FALSE && WasVisible == FALSE) {
+        DesktopOverlayInvalidateWindowTreeRect(Window, &CurrentScreenRect, FALSE);
+        return;
+    }
+
+    if (IsVisible == FALSE && WasVisible != FALSE) {
+        Desktop = DesktopGetWindowDesktop(Window);
+        if (Desktop != NULL && DesktopGetRootWindow(Desktop, &RootWindow) != FALSE && RootWindow != NULL) {
+            DesktopOverlayInvalidateWindowTreeThenRootRect(RootWindow, PreviousScreenRect);
+        }
+        return;
+    }
+
+    if (IsVisible != FALSE) {
+        (void)RequestWindowDraw((HANDLE)Window);
+    }
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Plot one pixel through generic software composition helpers.
+ * @param Context Graphics context.
+ * @param X X coordinate.
+ * @param Y Y coordinate.
+ * @param Color Pixel color.
+ * @return TRUE on success.
+ */
+static BOOL DesktopPlotSoftwarePixel(LPVOID Context, I32 X, I32 Y, COLOR* Color) {
+    COLOR PreviousColor = 0;
+
+    if (Context == NULL || Color == NULL) {
+        return FALSE;
+    }
+
+    (void)GraphicsReadPixel((LPGRAPHICSCONTEXT)Context, X, Y, &PreviousColor);
+    if (GraphicsWritePixel((LPGRAPHICSCONTEXT)Context, X, Y, *Color) == FALSE) {
+        return FALSE;
+    }
+
+    *Color = PreviousColor;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Set whether one window bypasses its parent work rectangle clamp.
  * @param Window Target window.
  * @param Enabled TRUE to bypass parent work rect clamping.
@@ -232,6 +303,7 @@ BOOL DefaultSetWindowRect(LPWINDOW Window, LPRECT WindowRect) {
     GraphicsWindowRectToScreenRect(&ParentScreenRect, &(Window->Rect), &(Window->ScreenRect));
     NewScreenRect = Window->ScreenRect;
     UnlockMutex(&(Window->Mutex));
+    (void)DesktopRefreshWindowChildScreenRects(Window);
 
     FullWindowRect.X1 = 0;
     FullWindowRect.Y1 = 0;
@@ -381,6 +453,7 @@ BOOL BuildWindowDrawClipRegion(
         (void)DesktopBuildWindowVisibleRegion(This, &WindowScreenRect, TRUE, ClipRegion, ClipStorage, ClipCapacity);
     }
 
+    DesktopPipelineTraceRegion(This, ClipRegion);
     return TRUE;
 }
 
@@ -420,14 +493,7 @@ static BOOL ResolveSystemDrawObjects(U32 Index, LPBRUSH* Brush, LPPEN* Pen) {
  */
 BOOL DesktopSetWindowVisibility(HANDLE Handle, BOOL ShowHide) {
     LPWINDOW This = (LPWINDOW)Handle;
-    LPDESKTOP Desktop = NULL;
-    LPWINDOW* Children = NULL;
-    LPWINDOW Child;
-    LPWINDOW RootWindow = NULL;
-    RECT FullWindowRect;
     RECT PreviousScreenRect;
-    UINT ChildCount = 0;
-    UINT ChildIndex;
     BOOL WasVisible = FALSE;
     WINDOW_STATE_SNAPSHOT Snapshot;
 
@@ -446,39 +512,9 @@ BOOL DesktopSetWindowVisibility(HANDLE Handle, BOOL ShowHide) {
 
     (void)DesktopSetWindowVisibleState(This, ShowHide);
     (void)DesktopRevalidateSiblingPlacementConstraints(This);
+    DesktopHandleWindowEffectiveVisibilityChange(This, &PreviousScreenRect, WasVisible);
 
     PostMessage(Handle, EWM_SHOW, 0, 0);
-    if (ShowHide != FALSE && WasVisible == FALSE) {
-        if (GetWindowRect(Handle, &FullWindowRect) != FALSE) {
-            (void)InvalidateWindowRect(Handle, &FullWindowRect);
-        } else {
-            (void)RequestWindowDraw(Handle);
-        }
-    } else {
-        (void)RequestWindowDraw(Handle);
-    }
-
-    (void)DesktopSnapshotWindowChildren(This, &Children, &ChildCount);
-    for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
-        WINDOW_STATE_SNAPSHOT ChildSnapshot;
-
-        Child = Children[ChildIndex];
-        if (Child == NULL || Child->TypeID != KOID_WINDOW) continue;
-        if (GetWindowStateSnapshot(Child, &ChildSnapshot) == FALSE) continue;
-        if ((ChildSnapshot.Style & EWS_VISIBLE) != 0) {
-            DesktopSetWindowVisibility((HANDLE)Child, ShowHide);
-        }
-    }
-    if (Children != NULL) {
-        KernelHeapFree(Children);
-    }
-
-    if (ShowHide == FALSE && WasVisible != FALSE) {
-        Desktop = DesktopGetWindowDesktop(This);
-        if (Desktop != NULL && DesktopGetRootWindow(Desktop, &RootWindow) != FALSE && RootWindow != NULL) {
-            DesktopOverlayInvalidateWindowTreeThenRootRect(RootWindow, &PreviousScreenRect);
-        }
-    }
 
     return TRUE;
 }
@@ -613,16 +649,26 @@ BOOL SizeWindow(HANDLE Handle, LPPOINT Size) {
  */
 BOOL SetWindowStyleState(HANDLE Handle, U32 StyleMask, BOOL Enabled) {
     LPWINDOW This = (LPWINDOW)Handle;
+    RECT PreviousScreenRect;
+    BOOL WasVisible;
     BOOL Result;
+    WINDOW_STATE_SNAPSHOT Snapshot;
 
     if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
     if (StyleMask == 0) return FALSE;
+    if (GetWindowStateSnapshot(This, &Snapshot) == FALSE) return FALSE;
+
+    PreviousScreenRect = Snapshot.ScreenRect;
+    WasVisible = ((Snapshot.Status & WINDOW_STATUS_VISIBLE) != 0);
 
     Result = DesktopSetWindowStyleState(This, StyleMask, Enabled);
     if (Result == FALSE) return FALSE;
 
     if ((StyleMask & (EWS_EXCLUDE_SIBLING_PLACEMENT | EWS_VISIBLE)) != 0) {
         (void)DesktopRevalidateSiblingPlacementConstraints(This);
+    }
+    if ((StyleMask & EWS_VISIBLE) != 0) {
+        DesktopHandleWindowEffectiveVisibilityChange(This, &PreviousScreenRect, WasVisible);
     }
     if ((StyleMask & (EWS_ALWAYS_IN_FRONT | EWS_ALWAYS_AT_BOTTOM)) != 0) {
         (void)DesktopRefreshWindowZOrder(This);
@@ -798,35 +844,47 @@ Out:
 /***************************************************************************/
 
 /**
- * @brief Obtain a graphics context for a window.
- * @param Handle Window handle.
- * @return Handle to a graphics context or NULL.
+ * @brief Resolve one graphics context for a window.
+ * @param Window Target window.
+ * @param UseScanoutContext TRUE to bypass the desktop shadow context.
+ * @param ContextOut Receives the prepared context.
+ * @return TRUE on success.
  */
-HANDLE GetWindowGC(HANDLE Handle) {
-    LPWINDOW This = (LPWINDOW)Handle;
+BOOL DesktopGetWindowGraphicsContext(LPWINDOW This, BOOL UseScanoutContext, LPGRAPHICSCONTEXT* ContextOut) {
+    LPDESKTOP Desktop;
     LPDRIVER GraphicsDriver;
-    LPGRAPHICSCONTEXT Context;
+    LPGRAPHICSCONTEXT Context = NULL;
     UINT ContextPointer;
     WINDOW_STATE_SNAPSHOT WindowSnapshot;
     WINDOW_DRAW_CONTEXT_SNAPSHOT DrawSnapshot;
 
-    //-------------------------------------
-    // Check validity of parameters
+    if (ContextOut == NULL) return FALSE;
+    *ContextOut = NULL;
+    if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
 
-    if (This == NULL) return NULL;
-    if (This->TypeID != KOID_WINDOW) return NULL;
+    Desktop = DesktopGetWindowDesktop(This);
+    if (Desktop != NULL && Desktop->TypeID == KOID_DESKTOP &&
+        Desktop->Mode == DESKTOP_MODE_GRAPHICS &&
+        Desktop->GraphicsContext != NULL &&
+        Desktop->GraphicsContext->TypeID == KOID_GRAPHICSCONTEXT &&
+        Desktop->GraphicsContext->MemoryBase != NULL &&
+        UseScanoutContext == FALSE) {
+        Context = Desktop->GraphicsContext;
+    }
 
-    GraphicsDriver = GetGraphicsDriver();
-    if (GraphicsDriver == NULL || GraphicsDriver->Command == NULL) return NULL;
+    if (Context == NULL) {
+        GraphicsDriver = GetGraphicsDriver();
+        if (GraphicsDriver == NULL || GraphicsDriver->Command == NULL) return FALSE;
 
-    ContextPointer = GraphicsDriver->Command(DF_GFX_GETCONTEXT, 0);
-    if (ContextPointer == 0) return NULL;
+        ContextPointer = GraphicsDriver->Command(DF_GFX_GETCONTEXT, 0);
+        if (ContextPointer == 0) return FALSE;
 
-    Context = (LPGRAPHICSCONTEXT)(LPVOID)ContextPointer;
-    if (Context->TypeID != KOID_GRAPHICSCONTEXT) return NULL;
+        Context = (LPGRAPHICSCONTEXT)(LPVOID)ContextPointer;
+        if (Context->TypeID != KOID_GRAPHICSCONTEXT) return FALSE;
+    }
 
     ResetGraphicsContext(Context);
-    if (GetWindowStateSnapshot(This, &WindowSnapshot) == FALSE) return NULL;
+    if (GetWindowStateSnapshot(This, &WindowSnapshot) == FALSE) return FALSE;
     if (GetWindowDrawContextSnapshot(This, &DrawSnapshot) == FALSE) {
         MemorySet(&DrawSnapshot, 0, sizeof(DrawSnapshot));
     }
@@ -856,6 +914,25 @@ HANDLE GetWindowGC(HANDLE Handle) {
     */
 
     UnlockMutex(&(Context->Mutex));
+
+    *ContextOut = Context;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Obtain a graphics context for a window.
+ * @param Handle Window handle.
+ * @return Handle to a graphics context or NULL.
+ */
+HANDLE GetWindowGC(HANDLE Handle) {
+    LPWINDOW This = (LPWINDOW)Handle;
+    LPGRAPHICSCONTEXT Context = NULL;
+
+    if (This == NULL) return NULL;
+    if (This->TypeID != KOID_WINDOW) return NULL;
+    if (DesktopGetWindowGraphicsContext(This, FALSE, &Context) == FALSE) return NULL;
 
     return (HANDLE)Context;
 }
@@ -928,6 +1005,39 @@ BOOL EndWindowDraw(HANDLE Handle) {
     if (This->TypeID != KOID_WINDOW) return NULL;
 
     return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Present one screen rectangle from the desktop shadow buffer.
+ * @param Window Any window on the target desktop.
+ * @param ClipRect Screen-space rectangle to present.
+ * @return TRUE on success.
+ */
+BOOL DesktopPresentScreenRect(LPWINDOW Window, LPRECT ClipRect) {
+    LPDESKTOP Desktop;
+    GFX_PRESENT_INFO PresentInfo;
+
+    if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
+    if (ClipRect == NULL) return FALSE;
+
+    Desktop = DesktopGetWindowDesktop(Window);
+    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
+    if (Desktop->Mode != DESKTOP_MODE_GRAPHICS) return TRUE;
+    if (Desktop->Graphics == NULL || Desktop->Graphics->Command == NULL) return FALSE;
+    if (Desktop->GraphicsContext == NULL || Desktop->GraphicsContext->TypeID != KOID_GRAPHICSCONTEXT ||
+        Desktop->GraphicsContext->MemoryBase == NULL) return FALSE;
+
+    PresentInfo = (GFX_PRESENT_INFO){
+        .Header = {.Size = sizeof(GFX_PRESENT_INFO), .Version = EXOS_ABI_VERSION, .Flags = 0},
+        .GC = (HANDLE)Desktop->GraphicsContext,
+        .SurfaceId = 0,
+        .DirtyRect = *ClipRect,
+        .Flags = 0
+    };
+
+    return Desktop->Graphics->Command(DF_GFX_PRESENT, (UINT)(LPVOID)&PresentInfo) == DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -1080,6 +1190,7 @@ HANDLE CreatePen(LPPEN_INFO PenInfo) {
     Pen->References = 1;
     Pen->Color = PenInfo->Color;
     Pen->Pattern = PenInfo->Pattern;
+    Pen->Width = PenInfo->Width != 0 ? PenInfo->Width : 1;
 
     return (HANDLE)Pen;
 }
@@ -1108,6 +1219,10 @@ BOOL SetPixel(LPPIXEL_INFO PixelInfo) {
     Pixel = *PixelInfo;
     Pixel.X = Context->Origin.X + Pixel.X;
     Pixel.Y = Context->Origin.Y + Pixel.Y;
+
+    if ((Context->Flags & GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY) != 0) {
+        return GraphicsWritePixel(Context, Pixel.X, Pixel.Y, Pixel.Color);
+    }
 
     Context->Driver->Command(DF_GFX_SETPIXEL, (UINT)&Pixel);
 
@@ -1139,7 +1254,16 @@ BOOL GetPixel(LPPIXEL_INFO PixelInfo) {
     Pixel.X = Context->Origin.X + Pixel.X;
     Pixel.Y = Context->Origin.Y + Pixel.Y;
 
-    Context->Driver->Command(DF_GFX_GETPIXEL, (UINT)&Pixel);
+    if ((Context->Flags & GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY) != 0) {
+        COLOR PixelColor = 0;
+
+        if (GraphicsReadPixel(Context, Pixel.X, Pixel.Y, &PixelColor) == FALSE) {
+            return FALSE;
+        }
+        Pixel.Color = PixelColor;
+    } else {
+        Context->Driver->Command(DF_GFX_GETPIXEL, (UINT)&Pixel);
+    }
     PixelInfo->Color = Pixel.Color;
 
     return TRUE;
@@ -1172,6 +1296,21 @@ BOOL Line(LPLINE_INFO LineInfo) {
     Line.Y1 = Context->Origin.Y + Line.Y1;
     Line.X2 = Context->Origin.X + Line.X2;
     Line.Y2 = Context->Origin.Y + Line.Y2;
+
+    if ((Context->Flags & GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY) != 0) {
+        COLOR LineColor = 0;
+        U32 Pattern = MAX_U32;
+        U32 Width = 1;
+
+        if (Context->Pen != NULL && Context->Pen->TypeID == KOID_PEN) {
+            LineColor = Context->Pen->Color;
+            Pattern = Context->Pen->Pattern;
+            Width = Context->Pen->Width != 0 ? Context->Pen->Width : 1;
+        }
+
+        LineRasterizerDraw(Context, Line.X1, Line.Y1, Line.X2, Line.Y2, LineColor, Pattern, Width, DesktopPlotSoftwarePixel);
+        return TRUE;
+    }
 
     Context->Driver->Command(DF_GFX_LINE, (UINT)&Line);
 
@@ -1206,6 +1345,10 @@ BOOL Rectangle(LPRECT_INFO RectInfo) {
     RectangleInfo.X2 = Context->Origin.X + RectangleInfo.X2;
     RectangleInfo.Y2 = Context->Origin.Y + RectangleInfo.Y2;
 
+    if ((Context->Flags & GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY) != 0) {
+        return GraphicsDrawRectangleFromDescriptor(Context, &RectangleInfo);
+    }
+
     Context->Driver->Command(DF_GFX_RECTANGLE, (UINT)&RectangleInfo);
 
     return TRUE;
@@ -1232,6 +1375,10 @@ BOOL Arc(LPARC_INFO ArcInfo) {
     Arc = *ArcInfo;
     Arc.CenterX = Context->Origin.X + Arc.CenterX;
     Arc.CenterY = Context->Origin.Y + Arc.CenterY;
+
+    if ((Context->Flags & GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY) != 0) {
+        return GraphicsDrawArcFromDescriptor(Context, &Arc);
+    }
 
     Context->Driver->Command(DF_GFX_ARC, (UINT)&Arc);
     return TRUE;
@@ -1263,6 +1410,10 @@ BOOL Triangle(LPTRIANGLE_INFO TriangleInfo) {
     Triangle.P3.X = Context->Origin.X + Triangle.P3.X;
     Triangle.P3.Y = Context->Origin.Y + Triangle.P3.Y;
 
+    if ((Context->Flags & GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY) != 0) {
+        return GraphicsDrawTriangleFromDescriptor(Context, &Triangle);
+    }
+
     Context->Driver->Command(DF_GFX_TRIANGLE, (UINT)&Triangle);
     return TRUE;
 }
@@ -1288,6 +1439,8 @@ HANDLE WindowHitTest(HANDLE Handle, LPPOINT Position) {
 
     if (This == NULL) return NULL;
     if (This->TypeID != KOID_WINDOW) return NULL;
+    if (GetWindowStateSnapshot(This, &Snapshot) == FALSE) goto Out;
+    if ((Snapshot.Status & WINDOW_STATUS_VISIBLE) == 0) goto Out;
 
     (void)DesktopSnapshotWindowChildren(This, &Children, &ChildCount);
     for (ChildIndex = 0; ChildIndex < ChildCount; ChildIndex++) {
@@ -1299,9 +1452,6 @@ HANDLE WindowHitTest(HANDLE Handle, LPPOINT Position) {
     // Test if this window passes hit test
 
     Target = NULL;
-
-    if (GetWindowStateSnapshot(This, &Snapshot) == FALSE) goto Out;
-    if ((Snapshot.Status & WINDOW_STATUS_VISIBLE) == 0) goto Out;
 
     if (Position->X >= Snapshot.ScreenRect.X1 && Position->X <= Snapshot.ScreenRect.X2 &&
         Position->Y >= Snapshot.ScreenRect.Y1 && Position->Y <= Snapshot.ScreenRect.Y2) {
@@ -1606,8 +1756,18 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
         case EWM_MOUSEDOWN: {
             POINT Position;
             LPWINDOW Target;
+            LPWINDOW CaptureWindow = NULL;
             I32 MouseX;
             I32 MouseY;
+
+            if (GetDesktopCaptureState((LPWINDOW)Window, &CaptureWindow, NULL, NULL) != FALSE) {
+                SAFE_USE_VALID_ID(CaptureWindow, KOID_WINDOW) {
+                    if (CaptureWindow != (LPWINDOW)Window) {
+                        (void)PostMessage((HANDLE)CaptureWindow, EWM_MOUSEDOWN, Param1, Param2);
+                        break;
+                    }
+                }
+            }
 
             if (GetMouseScreenPosition(&MouseX, &MouseY) == FALSE) {
                 break;
@@ -1617,6 +1777,7 @@ U32 DesktopWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             Position.Y = MouseY;
             Target = (LPWINDOW)WindowHitTest(Window, &Position);
             if (Target != NULL && Target != (LPWINDOW)Window) {
+                (void)DesktopSetFocusWindow(Target);
                 (void)PostMessage((HANDLE)Target, EWM_MOUSEDOWN, Param1, Param2);
             }
         } break;

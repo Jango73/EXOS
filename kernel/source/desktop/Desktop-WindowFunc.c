@@ -36,6 +36,49 @@
 /***************************************************************************/
 
 #define DESKTOP_WINDOW_FUNC_TRACE_SHELLBAR_WINDOW_ID 0x53484252
+#define DESKTOP_WINDOW_PROP_NON_CLIENT_PRESSED_MESSAGE TEXT("desktop.non_client.pressed_message")
+
+/***************************************************************************/
+
+/**
+ * @brief Apply the default close behavior for one window.
+ * @param Window Target window.
+ * @return TRUE on success.
+ */
+static BOOL DesktopHandleDefaultClose(HANDLE Window) {
+    return DeleteWindow(Window);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Apply the default minimize behavior for one window.
+ * @param Window Target window.
+ * @return TRUE on success.
+ */
+static BOOL DesktopHandleDefaultMinimize(HANDLE Window) {
+    return HideWindow(Window);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Apply the default maximize behavior for one window.
+ * @param Window Target window.
+ * @return TRUE on success.
+ */
+static BOOL DesktopHandleDefaultMaximize(HANDLE Window) {
+    WINDOW_STATE_SNAPSHOT Snapshot;
+    RECT WorkRect;
+    LPWINDOW This = (LPWINDOW)Window;
+
+    if (This == NULL || This->TypeID != KOID_WINDOW) return FALSE;
+    if (GetWindowStateSnapshot(This, &Snapshot) == FALSE) return FALSE;
+    if (Snapshot.ParentWindow == NULL || Snapshot.ParentWindow->TypeID != KOID_WINDOW) return FALSE;
+    if (GetWindowEffectiveWorkRectSnapshot(Snapshot.ParentWindow, &WorkRect) == FALSE) return FALSE;
+
+    return DefaultSetWindowRect(This, &WorkRect);
+}
 
 /***************************************************************************/
 
@@ -55,12 +98,25 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
         case EWM_DELETE: {
         } break;
 
+        case EWM_CLOSE: {
+            return DesktopHandleDefaultClose(Window) != FALSE ? 1 : 0;
+        }
+
+        case EWM_MAXIMIZE: {
+            return DesktopHandleDefaultMaximize(Window) != FALSE ? 1 : 0;
+        }
+
+        case EWM_MINIMIZE: {
+            return DesktopHandleDefaultMinimize(Window) != FALSE ? 1 : 0;
+        }
+
         case EWM_MOUSEDOWN: {
             LPWINDOW This = (LPWINDOW)Window;
             POINT MousePosition;
             I32 MouseX;
             I32 MouseY;
             RECT ScreenRect;
+            U32 TitleBarButtonMessage;
 
             if ((Param1 & MB_LEFT) == 0) break;
             if (This == NULL || This->TypeID != KOID_WINDOW) break;
@@ -68,10 +124,19 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
 
             MousePosition.X = MouseX;
             MousePosition.Y = MouseY;
+            TitleBarButtonMessage = GetWindowTitleBarButtonMessageAtPoint(This, &MousePosition);
+
+            if (TitleBarButtonMessage != EWM_NONE) {
+                (void)SetWindowProp(Window, DESKTOP_WINDOW_PROP_NON_CLIENT_PRESSED_MESSAGE, TitleBarButtonMessage);
+                (void)BringWindowToFront(Window);
+                (void)RequestWindowDraw(Window);
+                return 1;
+            }
 
             if (IsPointInWindowTitleBar(This, &MousePosition) == FALSE) break;
 
             ScreenRect = This->ScreenRect;
+            (void)SetWindowProp(Window, DESKTOP_WINDOW_PROP_NON_CLIENT_PRESSED_MESSAGE, 0);
             (void)BringWindowToFront(Window);
             (void)SetDesktopCaptureState(This, This, MousePosition.X - ScreenRect.X1, MousePosition.Y - ScreenRect.Y1);
         } break;
@@ -86,8 +151,11 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
             I32 OffsetX = 0;
             I32 OffsetY = 0;
             BOOL ParentHasRect = FALSE;
+            U32 PressedMessage;
 
             if (This == NULL || This->TypeID != KOID_WINDOW) break;
+            PressedMessage = GetWindowProp(Window, DESKTOP_WINDOW_PROP_NON_CLIENT_PRESSED_MESSAGE);
+            if (PressedMessage != 0) return 1;
             if (GetDesktopCaptureState(This, &CaptureWindow, &OffsetX, &OffsetY) == FALSE) break;
             if (CaptureWindow != This) break;
 
@@ -122,8 +190,26 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
         case EWM_MOUSEUP: {
             LPWINDOW This = (LPWINDOW)Window;
             LPWINDOW CaptureWindow = NULL;
+            U32 PressedMessage;
+            POINT MousePosition;
+            I32 MouseX;
+            I32 MouseY;
 
             if (This == NULL || This->TypeID != KOID_WINDOW) break;
+            PressedMessage = GetWindowProp(Window, DESKTOP_WINDOW_PROP_NON_CLIENT_PRESSED_MESSAGE);
+            if (PressedMessage != 0) {
+                (void)SetWindowProp(Window, DESKTOP_WINDOW_PROP_NON_CLIENT_PRESSED_MESSAGE, 0);
+                (void)RequestWindowDraw(Window);
+                if ((Param1 & MB_LEFT) == 0) return 1;
+                if (GetMouseScreenPosition(&MouseX, &MouseY) == FALSE) return 1;
+
+                MousePosition.X = MouseX;
+                MousePosition.Y = MouseY;
+                if (GetWindowTitleBarButtonMessageAtPoint(This, &MousePosition) == PressedMessage) {
+                    (void)PostMessage(Window, PressedMessage, 0, 0);
+                }
+                return 1;
+            }
             if (GetDesktopCaptureState(This, &CaptureWindow, NULL, NULL) == FALSE) break;
             if (CaptureWindow != This) break;
 
@@ -166,7 +252,11 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
             BOOL EffectiveTransparent = FALSE;
 
             if (DesktopGetWindowDrawSurfaceRect(This, &SurfaceRect) == FALSE) {
-                if (GetWindowDrawableRect((HANDLE)This, &SurfaceRect) == FALSE) break;
+                if (ShouldDrawWindowNonClient(This) != FALSE) {
+                    if (GetWindowClientRect((HANDLE)This, &SurfaceRect) == FALSE) break;
+                } else {
+                    if (GetWindowRect((HANDLE)This, &SurfaceRect) == FALSE) break;
+                }
             } else if (GetWindowDrawContextSnapshot(This, &DrawContext) != FALSE &&
                        (DrawContext.Flags & WINDOW_DRAW_CONTEXT_ACTIVE) != 0 &&
                        DesktopGetWindowDrawClipRect(This, &ClipScreenRect) != FALSE) {
@@ -176,7 +266,7 @@ static U32 DefaultWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2)
                 SurfaceScreenRect.Y2 = DrawContext.Origin.Y + SurfaceRect.Y2;
                 GraphicsScreenRectToWindowRect(&SurfaceScreenRect, &ClipScreenRect, &ClipLocalRect);
 
-                if (IntersectRect(&SurfaceRect, &ClipLocalRect, &SurfaceRect) == FALSE) {
+                if (IntersectRect(&SurfaceRect, &ClipLocalRect, &ClipLocalRect) == FALSE) {
                     return 1;
                 }
             }
