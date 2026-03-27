@@ -41,6 +41,7 @@ BOOL ShouldDrawWindowNonClient(LPWINDOW Window);
 BOOL DrawWindowClientArea(HANDLE Window, HANDLE GC, LPRECT Rect);
 BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect);
 BOOL IsPointInWindowTitleBar(LPWINDOW Window, LPPOINT ScreenPoint);
+U32 GetWindowTitleBarButtonMessageAtPoint(LPWINDOW Window, LPPOINT ScreenPoint);
 BOOL GetWindowClientRectFromWindowRect(LPWINDOW Window, LPRECT WindowRect, LPRECT ClientRect);
 
 /************************************************************************/

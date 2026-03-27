@@ -33,7 +33,6 @@
 #define DESKTOP_BUTTON_WINDOW_CLASS_NAME TEXT("DesktopButtonWindowClass")
 #define DESKTOP_BUTTON_PROP_DISABLED TEXT("ui.button.disabled")
 #define DESKTOP_BUTTON_PROP_NOTIFY_VALUE TEXT("ui.button.notify_value")
-#define EWN_UI_BUTTON_CLICKED 0x00001000
 
 /***************************************************************************/
 

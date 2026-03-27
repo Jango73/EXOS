@@ -413,16 +413,8 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             }
             return 1;
 
-        case EWM_NOTIFY:
-            if (Param1 == EWN_WINDOW_RECT_CHANGED) {
-                State = (LPCUBE3D_STATE)GetWindowProp(Window, CUBE3D_PROP_STATE);
-                if (State != NULL && State->ToggleButton != NULL) {
-                    Cube3DLayoutToggleButton(Window, State->ToggleButton);
-                }
-                return 1;
-            }
-
-            if (Param1 == EWN_UI_BUTTON_CLICKED && Param2 == CUBE3D_TOGGLE_BUTTON_ID) {
+        case EWM_CLICKED:
+            if (Param1 == CUBE3D_TOGGLE_BUTTON_ID) {
                 State = (LPCUBE3D_STATE)GetWindowProp(Window, CUBE3D_PROP_STATE);
                 if (State == NULL) {
                     return 1;
@@ -432,6 +424,16 @@ U32 Cube3DWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
                 State->LastTick = GetSystemTime();
                 Cube3DUpdateToggleButtonCaption(State->ToggleButton, State->RotationEnabled);
                 (void)InvalidateClientRect(Window, NULL);
+                return 1;
+            }
+            break;
+
+        case EWM_NOTIFY:
+            if (Param1 == EWN_WINDOW_RECT_CHANGED) {
+                State = (LPCUBE3D_STATE)GetWindowProp(Window, CUBE3D_PROP_STATE);
+                if (State != NULL && State->ToggleButton != NULL) {
+                    Cube3DLayoutToggleButton(Window, State->ToggleButton);
+                }
                 return 1;
             }
             break;

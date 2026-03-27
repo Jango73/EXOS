@@ -617,6 +617,7 @@ Tasks and processes own fixed-size message queues (`MESSAGEQUEUE` in `kernel/sou
 Message posting:
 - `PostMessage` accepts NULL targets (current task), task handles, and window handles; window targets enqueue into the owning task queue. Keyboard drivers and the mouse dispatcher push input events into the global input queue using `EnqueueInputMessage` so only the focused process sees them.
 - Queue pressure is reduced by coalescing duplicate window messages in `PostMessage`: one pending `EWM_DRAW` per target window, and one pending `EWM_NOTIFY` per target window and notification id (`Param1`).
+- Generic control activation uses `EWM_CLICKED`, while structural window notifications such as `EWN_WINDOW_RECT_CHANGED` remain on `EWM_NOTIFY`.
 - Mouse input is throttled by a tiny dispatcher that filters `EWM_MOUSEMOVE` with a 10ms cooldown between enqueues, while button changes still dispatch immediately through the shared input queue.
 - `SendMessage` is synchronous and window-only.
 
@@ -2091,10 +2092,15 @@ Decoration mode is selected through window style bits:
 - `EWS_SYSTEM_DECORATED`
 - `EWS_CLIENT_DECORATED`
 - `EWS_BARE_SURFACE`
+- `EWS_CLOSE_BUTTON_VISIBLE`
+- `EWS_MINIMIZE_BUTTON_VISIBLE`
+- `EWS_MAXIMIZE_BUTTON_VISIBLE`
 
 Style `0` is treated as `SystemDecorated` for compatibility.
 
-For `SystemDecorated` windows, the kernel owns the border, title bar, caption rendering, and non-client layout. `EWM_DRAW` is delivered in client coordinates only.
+If none of the title bar button visibility bits are set, system-decorated windows keep the default three-button chrome for compatibility. If at least one visibility bit is set, only the requested buttons are shown and hit-tested.
+
+For `SystemDecorated` windows, the kernel owns the border, title bar, caption rendering, non-client layout, and the standard title bar buttons that post `EWM_CLOSE`, `EWM_MAXIMIZE`, and `EWM_MINIMIZE`. `EWM_DRAW` is delivered in client coordinates only.
 
 For `ClientDecorated` windows, the kernel renders no non-client chrome. The client owns the full window surface, including any custom frame or title bar. `EWM_DRAW` is delivered on the full owned surface.
 

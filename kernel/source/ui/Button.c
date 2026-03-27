@@ -232,7 +232,7 @@ static void ButtonNotifyClicked(HANDLE Window) {
     ParentWindow = GetWindowParent(Window);
     if (ParentWindow == NULL) return;
 
-    (void)PostMessage(ParentWindow, EWM_NOTIFY, EWN_UI_BUTTON_CLICKED, GetWindowProp(Window, DESKTOP_BUTTON_PROP_NOTIFY_VALUE));
+    (void)PostMessage(ParentWindow, EWM_CLICKED, GetWindowProp(Window, DESKTOP_BUTTON_PROP_NOTIFY_VALUE), 0);
 }
 
 /***************************************************************************/

@@ -273,16 +273,16 @@ static U32 ShellBarSlotWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Pa
             ShellBarLayoutComponents(Window);
             return 1;
 
-        case EWM_NOTIFY:
-            if (Param1 == EWN_UI_BUTTON_CLICKED) {
-                HANDLE ParentWindow = GetWindowParent(Window);
+        case EWM_CLICKED: {
+            HANDLE ParentWindow = GetWindowParent(Window);
 
-                if (ParentWindow != NULL) {
-                    (void)PostMessage(ParentWindow, EWM_NOTIFY, Param1, Param2);
-                }
-                return 1;
+            if (ParentWindow != NULL) {
+                (void)PostMessage(ParentWindow, EWM_CLICKED, Param1, Param2);
             }
+            return 1;
+        }
 
+        case EWM_NOTIFY:
             if (Param1 == EWN_WINDOW_RECT_CHANGED) {
                 ShellBarLayoutComponents(Window);
                 return 1;
@@ -396,17 +396,17 @@ U32 ShellBarWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2) {
             (void)ShellBarEnsureSlotWindows(Window);
             return BaseWindowFunc(Window, Message, Param1, Param2);
 
+        case EWM_CLICKED:
+            if (Param1 != 0) {
+                (void)ShellBarToggleTargetWindow(Window, Param1);
+                return 1;
+            }
+            return BaseWindowFunc(Window, Message, Param1, Param2);
+
         case EWM_NOTIFY:
             if (Param1 == EWN_WINDOW_RECT_CHANGED) {
                 ShellBarLayoutSlots(Window);
                 return BaseWindowFunc(Window, Message, Param1, Param2);
-            }
-
-            if (Param1 == EWN_UI_BUTTON_CLICKED) {
-                if (Param2 != 0) {
-                    (void)ShellBarToggleTargetWindow(Window, Param2);
-                    return 1;
-                }
             }
             return BaseWindowFunc(Window, Message, Param1, Param2);
 
