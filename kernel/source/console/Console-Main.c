@@ -101,6 +101,8 @@ CONSOLE_STRUCT Console = {
     .DebugRegion = 0,
     .Port = 0,
     .Memory = NULL,
+    .ShadowBuffer = NULL,
+    .ShadowBufferCellCount = 0,
     .FramebufferPhysical = 0,
     .FramebufferLinear = NULL,
     .FramebufferPitch = 0,
@@ -162,6 +164,7 @@ static void SetConsoleCharacterLocked(STR Char) {
     {
         U32 PixelX = (State.X + Console.CursorX) * ConsoleGetCellWidth();
         U32 PixelY = (State.Y + Console.CursorY) * ConsoleGetCellHeight();
+        ConsoleShadowWriteRegionCell(0, Console.CursorX, Console.CursorY, Char, Console.ForeColor, Console.BackColor, Console.Blink);
         ConsoleHideFramebufferCursor();
         ConsoleDrawGlyph(PixelX, PixelY, Char);
         ConsoleShowFramebufferCursor();
@@ -452,6 +455,7 @@ void ConsoleBackSpace(void) {
     if (ConsoleEnsureFramebufferMapped() == TRUE) {
         U32 PixelX = (State.X + Console.CursorX) * ConsoleGetCellWidth();
         U32 PixelY = (State.Y + Console.CursorY) * ConsoleGetCellHeight();
+        ConsoleShadowWriteRegionCell(0, Console.CursorX, Console.CursorY, STR_SPACE, Console.ForeColor, Console.BackColor, Console.Blink);
         ConsoleHideFramebufferCursor();
         ConsoleDrawGlyph(PixelX, PixelY, STR_SPACE);
     }
@@ -510,16 +514,22 @@ void ConsolePrintLine(U32 Row, U32 Column, LPCSTR Text, U32 Length) {
 
     if (Text == NULL) return;
 
-    if (ConsoleResolveRegionState(0, &State) == FALSE) return;
+    LockMutex(MUTEX_CONSOLE_STATE, INFINITY);
 
-    if (Row >= State.Height || Column >= State.Width) return;
-    if (ConsoleEnsureFramebufferMapped() == FALSE) return;
+    if (ConsoleResolveRegionState(0, &State) == FALSE) goto Out;
+
+    if (Row >= State.Height || Column >= State.Width) goto Out;
+    if (ConsoleEnsureFramebufferMapped() == FALSE) goto Out;
 
     for (Index = 0; Index < Length && (Column + Index) < State.Width; Index++) {
         U32 PixelX = (State.X + Column + Index) * ConsoleGetCellWidth();
         U32 PixelY = (State.Y + Row) * ConsoleGetCellHeight();
+        ConsoleShadowWriteRegionCell(0, Column + Index, Row, Text[Index], Console.ForeColor, Console.BackColor, Console.Blink);
         ConsoleDrawGlyph(PixelX, PixelY, Text[Index]);
     }
+
+Out:
+    UnlockMutex(MUTEX_CONSOLE_STATE);
 }
 
 /***************************************************************************/

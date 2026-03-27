@@ -857,6 +857,8 @@ The console text dispatch path caches the active `GRAPHICSCONTEXT` while the con
 
 The dispatch path also exposes `ConsoleIsFramebufferMappingInProgress()`. Split-debug log mirroring uses that state to suppress recursive console writes during framebuffer context acquisition.
 
+Console state is tracked independently from the active backend through one console-owned shadow text buffer. This canonical cell buffer stores characters and text attributes for the full console grid, allowing region repaint and lock-screen state restoration even when the active backend only exposes glyph drawing and scrolling commands.
+
 #### Synchronization and fallback
 
 Console synchronization uses dedicated lock domains in addition to the legacy compatibility lock:

@@ -55,6 +55,11 @@ void ConsoleShowFramebufferCursor(void);
 void ConsoleResetFramebufferCursorState(void);
 void ConsoleClearRegionFramebuffer(U32 RegionIndex);
 void ConsoleScrollRegionFramebuffer(U32 RegionIndex);
+BOOL ConsoleEnsureShadowBuffer(void);
+void ConsoleShadowWriteRegionCell(U32 RegionIndex, U32 CellX, U32 CellY, STR Char, U32 ForeColor, U32 BackColor, U32 Blink);
+void ConsoleShadowClearRegion(U32 RegionIndex, U32 ForeColor, U32 BackColor, U32 Blink);
+void ConsoleShadowScrollRegion(U32 RegionIndex, U32 ForeColor, U32 BackColor, U32 Blink);
+void ConsoleRepaintRegion(U32 RegionIndex);
 
 BOOL ConsoleResolveRegionState(U32 Index, LPCONSOLE_REGION_STATE State);
 void ConsoleScrollRegion(U32 RegionIndex);

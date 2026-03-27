@@ -77,6 +77,8 @@ typedef struct tag_CONSOLE_STRUCT {
     U32 DebugRegion;
     U32 Port;
     U16* Memory;
+    U16* ShadowBuffer;
+    UINT ShadowBufferCellCount;
     PHYSICAL FramebufferPhysical;
     U8* FramebufferLinear;
     U32 FramebufferPitch;
