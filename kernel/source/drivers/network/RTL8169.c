@@ -38,6 +38,7 @@ static LPPCI_DEVICE RTL8169Attach(LPPCI_DEVICE PciDevice);
 /************************************************************************/
 
 static DRIVER_MATCH RTL8169MatchTable[] = {
+    RTL8169_MATCH_ENTRY(RTL8169_DEVICE_8161),
     RTL8169_MATCH_ENTRY(RTL8169_DEVICE_8168),
 };
 
@@ -53,7 +54,7 @@ PCI_DRIVER DATA_SECTION RTL8169Driver = {
     .VersionMinor = RTL8169_VERSION_MINOR,
     .Designer = "Jango73",
     .Manufacturer = "Realtek",
-    .Product = "RTL8169 Family",
+    .Product = "RTL8111/8168/8411 Family",
     .Alias = "rtl8169",
     .Command = RTL8169Commands,
     .Matches = RTL8169MatchTable,
