@@ -53,6 +53,7 @@ LPDRIVER SATADiskGetDriver(void);
 LPDRIVER AHCIPCIGetDriver(void);
 LPDRIVER NVMeGetDriver(void);
 LPDRIVER E1000GetDriver(void);
+LPDRIVER RTL8169GetDriver(void);
 LPDRIVER RAMDiskGetDriver(void);
 LPDRIVER USBStorageGetDriver(void);
 LPDRIVER XHCIGetDriver(void);

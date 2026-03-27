@@ -752,10 +752,10 @@ All reusable helpers -such as the command line editor, adaptive delay, string co
 
 ### Driver architecture
 
-Hardware-facing components are grouped under `kernel/source/drivers` with public headers in `kernel/include/drivers`. This area contains keyboard, serial mouse, interrupt controller (I/O APIC), PCI bus, network (`E1000`), storage (`ATA`, `SATA`, `NVMe`), graphics (`VGA`, `VESA`, mode tables), and file system backends (`FAT16`, `FAT32`, `EXFS`).
+Hardware-facing components are grouped under `kernel/source/drivers` with public headers in `kernel/include/drivers`. This area contains keyboard, serial mouse, interrupt controller (I/O APIC), PCI bus, network (`E1000`, `RTL8169` family), storage (`ATA`, `SATA`, `NVMe`), graphics (`VGA`, `VESA`, mode tables), and file system backends (`FAT16`, `FAT32`, `EXFS`).
 
 Kernel-side registration follows a deterministic list-driven flow in `KernelData.c`: `InitializeDriverList()` populates `StartupDrivers` (load order) and `Drivers` (all known descriptors), then `LoadAllDrivers()` walks `StartupDrivers` in order.
-PCI-backed class drivers such as `e1000`, `ahci`, `nvme`, and `xhci` are also inserted in the global known-driver list (`Drivers`) for shell and diagnostics visibility, while their effective load/attach lifecycle remains driven by PCI enumeration.
+PCI-backed class drivers such as `e1000`, `rtl8169`, `ahci`, `nvme`, and `xhci` are also inserted in the global known-driver list (`Drivers`) for shell and diagnostics visibility, while their effective load/attach lifecycle remains driven by PCI enumeration.
 The `driver <alias>` shell command prints one detailed driver report (identity fields, type, flags, command pointers, command-reported version/capabilities, and enum domains).
 
 The NVMe driver initializes admin queues first, then I/O queues, configures completion interrupts through MSI-X when available, enumerates namespaces, and registers each namespace as a disk so `MountDiskPartitions` can attach file systems.
