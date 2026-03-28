@@ -63,6 +63,8 @@ typedef U32 (*REALTEK_NETWORK_POLL_ROUTINE)(LPREALTEK_NETWORK_COMMON_DEVICE Devi
     U16 InterruptStatusRegisterOffset;       \
     U16 InterruptEnableMask;                 \
     U16 InterruptRelevantMask;               \
+    U16 InterruptAcknowledgeAfterPollMask;   \
+    U16 PendingInterruptStatus;              \
     REALTEK_NETWORK_POLL_ROUTINE PollRoutine;
 
 /***************************************************************************/
@@ -109,13 +111,15 @@ void RealtekNetworkReadMacFromRegisters(
     U16 LowRegisterOffset,
     U16 HighRegisterOffset,
     U8* Mac);
+void RealtekNetworkClearMulticastRegisters(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 MulticastRegisterOffset);
 void RealtekNetworkBuildPlaceholderMac(LPREALTEK_NETWORK_COMMON_DEVICE Device);
 void RealtekNetworkConfigureInterruptSupport(
     LPREALTEK_NETWORK_COMMON_DEVICE Device,
     U16 InterruptMaskRegisterOffset,
     U16 InterruptStatusRegisterOffset,
     U16 InterruptEnableMask,
-    U16 InterruptRelevantMask);
+    U16 InterruptRelevantMask,
+    U16 InterruptAcknowledgeAfterPollMask);
 U32 RealtekNetworkOnReset(const NETWORK_RESET* Reset);
 U32 RealtekNetworkOnGetInfo(
     const NETWORK_GET_INFO* GetInfo,

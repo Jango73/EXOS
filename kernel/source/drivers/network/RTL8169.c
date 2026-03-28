@@ -61,6 +61,7 @@ static void RTL8169InitializeHardwareDescription(LPRTL8169_DEVICE Device);
 static U32 RTL8169InitializeRegisterAccess(LPRTL8169_DEVICE Device);
 static U32 RTL8169AllocateBuffers(LPRTL8169_DEVICE Device);
 static U32 RTL8169InitializeDescriptorRings(LPRTL8169_DEVICE Device);
+static void RTL8169InitializeReceiveFilter(LPRTL8169_DEVICE Device);
 static U32 RTL8169InitializeController(LPRTL8169_DEVICE Device);
 static U32 RTL8169OnReset(const NETWORK_RESET *Reset);
 static void RTL8169ReadPermanentMac(LPRTL8169_DEVICE Device);
@@ -329,6 +330,20 @@ static U32 RTL8169InitializeDescriptorRings(LPRTL8169_DEVICE Device) {
 /************************************************************************/
 
 /**
+ * @brief Program the default multicast filter state required by the RTL8169 family.
+ * @param Device Target RTL8169 device context.
+ */
+static void RTL8169InitializeReceiveFilter(LPRTL8169_DEVICE Device) {
+    if (Device == NULL) {
+        return;
+    }
+
+    RealtekNetworkClearMulticastRegisters((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8169_REG_MAR0);
+}
+
+/************************************************************************/
+
+/**
  * @brief Attaches the driver to a supported PCI function.
  *
  * Step 2 establishes the generic EXOS network-driver shape and returns an
@@ -357,7 +372,8 @@ static LPPCI_DEVICE RTL8169Attach(LPPCI_DEVICE PciDevice) {
         RTL8169_REG_INTRMASK,
         RTL8169_REG_INTRSTATUS,
         RTL8169_INTERRUPT_ENABLE_MASK,
-        RTL8169_INTERRUPT_RELEVANT_MASK);
+        RTL8169_INTERRUPT_RELEVANT_MASK,
+        0);
 
     if (Device->DeviceInfo == NULL) {
         ERROR(TEXT("[RTL8169Attach] Missing hardware description for %x:%x"),
@@ -434,10 +450,11 @@ static U32 RTL8169InitializeController(LPRTL8169_DEVICE Device) {
         (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
         RTL8169_REG_CFG9346,
         RTL8169_CFG9346_UNLOCK);
+    RTL8169InitializeReceiveFilter(Device);
     RealtekNetworkWriteRegister16(
         (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
         RTL8169_REG_RXMAXSIZE,
-        RTL8169_MAXIMUM_MTU);
+        RTL8169_RX_BUFFER_SIZE);
     Result = RTL8169InitializeDescriptorRings(Device);
     if (Result != DF_RETURN_SUCCESS) {
         RealtekNetworkWriteRegister8(

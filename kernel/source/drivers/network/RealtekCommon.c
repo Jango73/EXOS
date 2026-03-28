@@ -100,6 +100,7 @@ static void RealtekNetworkRearmInterrupts(LPREALTEK_NETWORK_COMMON_DEVICE Device
  */
 static BOOL RealtekNetworkInterruptTopHalf(LPDEVICE Device, LPVOID Context) {
     LPREALTEK_NETWORK_COMMON_DEVICE CommonDevice;
+    U16 AcknowledgeStatus;
     U16 InterruptStatus;
 
     UNUSED(Device);
@@ -112,8 +113,20 @@ static BOOL RealtekNetworkInterruptTopHalf(LPDEVICE Device, LPVOID Context) {
         }
 
         RealtekNetworkWriteRegister16(CommonDevice, CommonDevice->InterruptMaskRegisterOffset, 0);
-        RealtekNetworkWriteRegister16(CommonDevice, CommonDevice->InterruptStatusRegisterOffset, InterruptStatus);
+        AcknowledgeStatus = InterruptStatus & (U16)~CommonDevice->InterruptAcknowledgeAfterPollMask;
+        if (AcknowledgeStatus != 0) {
+            RealtekNetworkWriteRegister16(CommonDevice, CommonDevice->InterruptStatusRegisterOffset, AcknowledgeStatus);
+        }
+
+        CommonDevice->PendingInterruptStatus |= InterruptStatus & CommonDevice->InterruptAcknowledgeAfterPollMask;
         if ((InterruptStatus & CommonDevice->InterruptRelevantMask) == 0) {
+            if (CommonDevice->PendingInterruptStatus != 0) {
+                RealtekNetworkWriteRegister16(
+                    CommonDevice,
+                    CommonDevice->InterruptStatusRegisterOffset,
+                    CommonDevice->PendingInterruptStatus);
+                CommonDevice->PendingInterruptStatus = 0;
+            }
             RealtekNetworkRearmInterrupts(CommonDevice);
             return FALSE;
         }
@@ -157,6 +170,14 @@ static void RealtekNetworkPollRoutine(LPDEVICE Device, LPVOID Context) {
         NetworkContext = (LPNETWORK_DEVICE_CONTEXT)CommonDevice->RxUserData;
         SAFE_USE_VALID_ID(NetworkContext, KOID_NETWORKDEVICE) {
             NetworkManager_MaintenanceTick(NetworkContext);
+        }
+
+        if (CommonDevice->PendingInterruptStatus != 0) {
+            RealtekNetworkWriteRegister16(
+                CommonDevice,
+                CommonDevice->InterruptStatusRegisterOffset,
+                CommonDevice->PendingInterruptStatus);
+            CommonDevice->PendingInterruptStatus = 0;
         }
 
         RealtekNetworkRearmInterrupts(CommonDevice);
@@ -360,6 +381,8 @@ LPPCI_DEVICE RealtekNetworkAttachCommon(UINT DeviceSize, LPPCI_DEVICE PciDevice,
     Device->InterruptStatusRegisterOffset = 0;
     Device->InterruptEnableMask = 0;
     Device->InterruptRelevantMask = 0;
+    Device->InterruptAcknowledgeAfterPollMask = 0;
+    Device->PendingInterruptStatus = 0;
     Device->PollRoutine = NULL;
     return (LPPCI_DEVICE)Device;
 }
@@ -643,6 +666,22 @@ void RealtekNetworkReadMacFromRegisters(
 /************************************************************************/
 
 /**
+ * @brief Clear the Realtek multicast filter registers with DWORD writes.
+ * @param Device Target common device state.
+ * @param MulticastRegisterOffset Offset of the first multicast filter register.
+ */
+void RealtekNetworkClearMulticastRegisters(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 MulticastRegisterOffset) {
+    if (Device == NULL) {
+        return;
+    }
+
+    RealtekNetworkWriteRegister32(Device, MulticastRegisterOffset, 0);
+    RealtekNetworkWriteRegister32(Device, (U16)(MulticastRegisterOffset + sizeof(U32)), 0);
+}
+
+/************************************************************************/
+
+/**
  * @brief Builds a deterministic placeholder MAC address for pre-hardware bring-up.
  * @param Device Target common device state.
  */
@@ -674,7 +713,8 @@ void RealtekNetworkConfigureInterruptSupport(
     U16 InterruptMaskRegisterOffset,
     U16 InterruptStatusRegisterOffset,
     U16 InterruptEnableMask,
-    U16 InterruptRelevantMask) {
+    U16 InterruptRelevantMask,
+    U16 InterruptAcknowledgeAfterPollMask) {
     if (Device == NULL) {
         return;
     }
@@ -683,6 +723,8 @@ void RealtekNetworkConfigureInterruptSupport(
     Device->InterruptStatusRegisterOffset = InterruptStatusRegisterOffset;
     Device->InterruptEnableMask = InterruptEnableMask;
     Device->InterruptRelevantMask = InterruptRelevantMask;
+    Device->InterruptAcknowledgeAfterPollMask = InterruptAcknowledgeAfterPollMask;
+    Device->PendingInterruptStatus = 0;
 }
 
 /************************************************************************/
@@ -858,6 +900,7 @@ U32 RealtekNetworkOnEnableInterrupts(DEVICE_INTERRUPT_CONFIG* Config) {
 
     Device->InterruptRegistered = TRUE;
     Device->InterruptArmed = DeviceInterruptSlotIsEnabled(Device->InterruptSlot);
+    Device->PendingInterruptStatus = 0;
     RealtekNetworkWriteRegister16(Device, Device->InterruptMaskRegisterOffset, 0);
     RealtekNetworkWriteRegister16(Device, Device->InterruptStatusRegisterOffset, MAX_U16);
     RealtekNetworkRearmInterrupts(Device);
@@ -894,6 +937,7 @@ U32 RealtekNetworkOnDisableInterrupts(DEVICE_INTERRUPT_CONFIG* Config) {
     Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
     Device->InterruptRegistered = FALSE;
     Device->InterruptArmed = FALSE;
+    Device->PendingInterruptStatus = 0;
     Config->VectorSlot = DEVICE_INTERRUPT_INVALID_SLOT;
     Config->InterruptEnabled = FALSE;
     return DF_RETURN_SUCCESS;

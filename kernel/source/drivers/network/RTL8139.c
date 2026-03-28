@@ -58,6 +58,8 @@ static const RTL8139_DEVICE_INFO* RTL8139FindDeviceInfo(U16 VendorID, U16 Device
 static void RTL8139InitializeHardwareDescription(LPRTL8139_DEVICE Device);
 static U32 RTL8139InitializeRegisterAccess(LPRTL8139_DEVICE Device);
 static U32 RTL8139AllocateBuffers(LPRTL8139_DEVICE Device);
+static void RTL8139InitializeReceiveFilter(LPRTL8139_DEVICE Device);
+static void RTL8139WriteCurrentPacketRead(LPRTL8139_DEVICE Device);
 static void RTL8139ProgramBufferAddresses(LPRTL8139_DEVICE Device);
 static U32 RTL8139InitializeController(LPRTL8139_DEVICE Device);
 static U32 RTL8139OnReset(const NETWORK_RESET* Reset);
@@ -229,6 +231,41 @@ static U32 RTL8139AllocateBuffers(LPRTL8139_DEVICE Device) {
 /************************************************************************/
 
 /**
+ * @brief Program the default RTL8139 multicast filter state.
+ * @param Device Target RTL8139 device context.
+ */
+static void RTL8139InitializeReceiveFilter(LPRTL8139_DEVICE Device) {
+    if (Device == NULL) {
+        return;
+    }
+
+    RealtekNetworkClearMulticastRegisters((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8139_REG_MAR0);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Update CAPR using the RTL8139 current-read-minus-16 rule.
+ * @param Device Target RTL8139 device context.
+ */
+static void RTL8139WriteCurrentPacketRead(LPRTL8139_DEVICE Device) {
+    U16 CurrentPacketRead;
+
+    if (Device == NULL) {
+        return;
+    }
+
+    CurrentPacketRead = (U16)(Device->RxReadOffset - RTL8139_RX_READ_POINTER_ADJUST);
+    if (Device->RxReadOffset == 0) {
+        CurrentPacketRead = RTL8139_CAPR_INITIAL_VALUE;
+    }
+
+    RealtekNetworkWriteRegister16((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8139_REG_CAPR, CurrentPacketRead);
+}
+
+/************************************************************************/
+
+/**
  * @brief Program the active RX and TX buffer addresses into the controller.
  * @param Device Target RTL8139 device context.
  */
@@ -279,7 +316,8 @@ static LPPCI_DEVICE RTL8139Attach(LPPCI_DEVICE PciDevice) {
         RTL8139_REG_INTRMASK,
         RTL8139_REG_INTRSTATUS,
         RTL8139_INTERRUPT_ENABLE_MASK,
-        RTL8139_INTERRUPT_RELEVANT_MASK);
+        RTL8139_INTERRUPT_RELEVANT_MASK,
+        RTL8139_INTERRUPT_ACKNOWLEDGE_AFTER_POLL_MASK);
     if (Device->DeviceInfo == NULL) {
         ERROR(TEXT("[RTL8139Attach] Missing hardware description for %x:%x"),
               (UINT)Device->Info.VendorID,
@@ -350,21 +388,25 @@ static U32 RTL8139InitializeController(LPRTL8139_DEVICE Device) {
 
     // Keep conservative defaults until RX/TX buffers exist.
     RTL8139ProgramBufferAddresses(Device);
-    RealtekNetworkWriteRegister16((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8139_REG_CAPR, 0);
     Device->RxReadOffset = 0;
     Device->TxNextSlot = 0;
+    RTL8139WriteCurrentPacketRead(Device);
+    RTL8139InitializeReceiveFilter(Device);
     RealtekNetworkWriteRegister32(
         (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
         RTL8139_REG_RXCONFIG,
-        RTL8139_RXCONFIG_ACCEPT_PHYSICAL |
+            RTL8139_RXCONFIG_ACCEPT_PHYSICAL |
             RTL8139_RXCONFIG_ACCEPT_BROADCAST |
             RTL8139_RXCONFIG_ACCEPT_MULTICAST |
             RTL8139_RXCONFIG_WRAP);
-    RealtekNetworkWriteRegister32((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8139_REG_TXCONFIG, Device->HardwareRevision);
     RealtekNetworkWriteRegister8(
         (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
         RTL8139_REG_CHIPCMD,
         RTL8139_CHIPCMD_RX_ENABLE | RTL8139_CHIPCMD_TX_ENABLE);
+    RealtekNetworkWriteRegister32(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8139_REG_TXCONFIG,
+        RTL8139_TXCONFIG_IFG_NORMAL | RTL8139_TXCONFIG_DMA_1024);
     RTL8139ReadPermanentMac(Device);
     DEBUG(TEXT("[RTL8139InitializeController] Controller reset complete revision=%x"),
           Device->HardwareRevision);
@@ -549,7 +591,7 @@ static U32 RTL8139PollReceive(LPRTL8139_DEVICE Device) {
                     ReceiveStatus,
                     (UINT)ReceiveLength);
             Device->RxReadOffset = 0;
-            RealtekNetworkWriteRegister16((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8139_REG_CAPR, 0);
+            RTL8139WriteCurrentPacketRead(Device);
             return DF_RETURN_INPUT_OUTPUT;
         }
 
@@ -561,10 +603,7 @@ static U32 RTL8139PollReceive(LPRTL8139_DEVICE Device) {
 
         NextOffset = (Device->RxReadOffset + sizeof(RTL8139_RX_PACKET_HEADER) + ReceiveLength + 3) & ~3;
         Device->RxReadOffset = NextOffset % RTL8139_RX_RING_SIZE;
-        RealtekNetworkWriteRegister16(
-            (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
-            RTL8139_REG_CAPR,
-            (U16)(Device->RxReadOffset - RTL8139_RX_READ_POINTER_ADJUST));
+        RTL8139WriteCurrentPacketRead(Device);
     }
 
     return DF_RETURN_SUCCESS;
@@ -596,7 +635,7 @@ static U32 RTL8139OnSend(const NETWORK_SEND* Send) {
     TransmitStatus = RealtekNetworkReadRegister32(
         (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
         RTL8139TxSlotInfoTable[SlotIndex].StatusRegisterOffset);
-    if ((TransmitStatus & RTL8139_TXSTATUS_OWN) != 0) {
+    if ((TransmitStatus & RTL8139_TXSTATUS_OWN) == 0) {
         return DF_RETURN_UNEXPECTED;
     }
 

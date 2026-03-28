@@ -758,6 +758,7 @@ Kernel-side registration follows a deterministic list-driven flow in `KernelData
 PCI-backed class drivers such as `e1000`, `rtl8139`, `rtl8169`, `ahci`, `nvme`, and `xhci` are also inserted in the global known-driver list (`Drivers`) for shell and diagnostics visibility, while their effective load/attach lifecycle remains driven by PCI enumeration.
 The `driver <alias>` shell command prints one detailed driver report (identity fields, type, flags, command pointers, command-reported version/capabilities, and enum domains).
 The Realtek Ethernet families (`rtl8139`, `rtl8169`) share one common kernel layer for register-window setup, reset helpers, MAC plumbing, polling integration, and legacy INTx management through `DeviceInterrupt`, while each family keeps its own datapath and hardware-specific programming model.
+That shared layer also centralizes DWORD multicast-filter initialization and optional deferred interrupt acknowledgment for controller families whose receive-overflow handling must update device state before clearing selected ISR bits.
 
 The NVMe driver initializes admin queues first, then I/O queues, configures completion interrupts through MSI-X when available, enumerates namespaces, and registers each namespace as a disk so `MountDiskPartitions` can attach file systems.
 
