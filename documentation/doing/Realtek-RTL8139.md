@@ -109,11 +109,11 @@ Acceptance:
 - [ ] driver logs show stable probe, mapped BAR, and revision identification
 
 ### Step 5 - Reset and baseline device initialization
-- [ ] implement software reset with timeout handling
-- [ ] wait for the controller to leave reset cleanly
-- [ ] apply the minimum required initialization sequence for RX and TX enablement
-- [ ] leave advanced offloads disabled for the first version
-- [ ] keep link configuration conservative and stable
+- [x] implement software reset with timeout handling
+- [x] wait for the controller to leave reset cleanly
+- [x] apply the minimum required initialization sequence for RX and TX enablement
+- [x] leave advanced offloads disabled for the first version
+- [x] keep link configuration conservative and stable
 
 Acceptance:
 - [ ] controller reaches a quiet idle state after probe

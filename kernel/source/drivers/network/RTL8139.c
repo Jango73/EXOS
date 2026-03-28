@@ -53,6 +53,8 @@ static LPPCI_DEVICE RTL8139Attach(LPPCI_DEVICE PciDevice);
 static const RTL8139_DEVICE_INFO* RTL8139FindDeviceInfo(U16 VendorID, U16 DeviceID);
 static void RTL8139InitializeHardwareDescription(LPRTL8139_DEVICE Device);
 static U32 RTL8139InitializeRegisterAccess(LPRTL8139_DEVICE Device);
+static U32 RTL8139InitializeController(LPRTL8139_DEVICE Device);
+static U32 RTL8139OnReset(const NETWORK_RESET* Reset);
 static U32 RTL8139OnGetVersion(void);
 
 /************************************************************************/
@@ -209,6 +211,12 @@ static LPPCI_DEVICE RTL8139Attach(LPPCI_DEVICE PciDevice) {
         return NULL;
     }
 
+    Result = RTL8139InitializeController(Device);
+    if (Result != DF_RETURN_SUCCESS) {
+        ReleaseKernelObject(Device);
+        return NULL;
+    }
+
     Device->ProductName = Device->DeviceInfo->ProductName;
     DEBUG(TEXT("[RTL8139Attach] Attached %s controller %x:%x on %x:%x.%x"),
           Device->DeviceInfo->ProductName,
@@ -218,6 +226,63 @@ static LPPCI_DEVICE RTL8139Attach(LPPCI_DEVICE PciDevice) {
           (UINT)Device->Info.Dev,
           (UINT)Device->Info.Func);
     return (LPPCI_DEVICE)Device;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Reset the controller and leave it in a quiet baseline state.
+ * @param Device Target RTL8139 device context.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8139InitializeController(LPRTL8139_DEVICE Device) {
+    U32 Result;
+
+    if (Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    Result = RealtekNetworkResetController(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8139_REG_CHIPCMD,
+        RTL8139_CHIPCMD_RESET,
+        TEXT("RTL8139InitializeController"));
+    if (Result != DF_RETURN_SUCCESS) {
+        return Result;
+    }
+
+    RealtekNetworkInitializeQuietState(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8139_REG_CHIPCMD,
+        RTL8139_REG_INTRMASK,
+        RTL8139_REG_INTRSTATUS);
+
+    // Keep conservative defaults until RX/TX buffers exist.
+    RealtekNetworkWriteRegister32((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8139_REG_RXCONFIG, 0);
+    RealtekNetworkWriteRegister32((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8139_REG_TXCONFIG, Device->HardwareRevision);
+    DEBUG(TEXT("[RTL8139InitializeController] Controller reset complete revision=%x"),
+          Device->HardwareRevision);
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Network-manager reset callback.
+ * @param Reset Reset request.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8139OnReset(const NETWORK_RESET* Reset) {
+    LPRTL8139_DEVICE Device;
+    U32 Result;
+
+    Result = RealtekNetworkOnReset(Reset);
+    if (Result != DF_RETURN_SUCCESS) {
+        return Result;
+    }
+
+    Device = (LPRTL8139_DEVICE)Reset->Device;
+    return RTL8139InitializeController(Device);
 }
 
 /************************************************************************/
@@ -287,7 +352,7 @@ static UINT RTL8139Commands(UINT Function, UINT Parameter) {
         case DF_PROBE:
             return RTL8139OnProbe((const PCI_INFO*)(LPVOID)Parameter);
         case DF_NT_RESET:
-            return RealtekNetworkOnReset((const NETWORK_RESET*)(LPVOID)Parameter);
+            return RTL8139OnReset((const NETWORK_RESET*)(LPVOID)Parameter);
         case DF_NT_GETINFO:
             return RealtekNetworkOnGetInfo(
                 (const NETWORK_GET_INFO*)(LPVOID)Parameter,

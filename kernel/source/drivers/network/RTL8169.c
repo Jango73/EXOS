@@ -51,6 +51,8 @@ static LPPCI_DEVICE RTL8169Attach(LPPCI_DEVICE PciDevice);
 static const RTL8169_DEVICE_INFO *RTL8169FindDeviceInfo(U16 VendorID, U16 DeviceID);
 static void RTL8169InitializeHardwareDescription(LPRTL8169_DEVICE Device);
 static U32 RTL8169InitializeRegisterAccess(LPRTL8169_DEVICE Device);
+static U32 RTL8169InitializeController(LPRTL8169_DEVICE Device);
+static U32 RTL8169OnReset(const NETWORK_RESET *Reset);
 static U32 RTL8169OnGetVersion(void);
 
 /************************************************************************/
@@ -214,6 +216,12 @@ static LPPCI_DEVICE RTL8169Attach(LPPCI_DEVICE PciDevice) {
         return NULL;
     }
 
+    Result = RTL8169InitializeController(Device);
+    if (Result != DF_RETURN_SUCCESS) {
+        ReleaseKernelObject(Device);
+        return NULL;
+    }
+
     Device->ProductName = Device->DeviceInfo->ProductName;
     DEBUG(TEXT("[RTL8169Attach] Attached %s controller %x:%x on %x:%x.%x"),
           Device->DeviceInfo->ProductName,
@@ -223,6 +231,83 @@ static LPPCI_DEVICE RTL8169Attach(LPPCI_DEVICE PciDevice) {
           (UINT)Device->Info.Dev,
           (UINT)Device->Info.Func);
     return (LPPCI_DEVICE)Device;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Reset the controller and leave it in a quiet baseline state.
+ * @param Device Target RTL8169 device context.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8169InitializeController(LPRTL8169_DEVICE Device) {
+    U32 Result;
+    U32 RxConfig;
+
+    if (Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    Result = RealtekNetworkResetController(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_CHIPCMD,
+        RTL8169_CHIPCMD_RESET,
+        TEXT("RTL8169InitializeController"));
+    if (Result != DF_RETURN_SUCCESS) {
+        return Result;
+    }
+
+    RealtekNetworkInitializeQuietState(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_CHIPCMD,
+        RTL8169_REG_INTRMASK,
+        RTL8169_REG_INTRSTATUS);
+
+    RealtekNetworkWriteRegister8(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_CFG9346,
+        RTL8169_CFG9346_UNLOCK);
+    RealtekNetworkWriteRegister16(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_RXMAXSIZE,
+        RTL8169_MAXIMUM_MTU);
+    RxConfig = RTL8169_RXCONFIG_FIFO_UNLIMITED |
+               RTL8169_RXCONFIG_DMA_UNLIMITED |
+               RTL8169_RXCONFIG_ACCEPT_PHYSICAL |
+               RTL8169_RXCONFIG_ACCEPT_BROADCAST |
+               RTL8169_RXCONFIG_ACCEPT_MULTICAST;
+    RealtekNetworkWriteRegister32(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_RXCONFIG,
+        RxConfig);
+    RealtekNetworkWriteRegister16((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8169_REG_CPLUSCMD, 0);
+    RealtekNetworkWriteRegister8(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_CFG9346,
+        RTL8169_CFG9346_LOCK);
+    DEBUG(TEXT("[RTL8169InitializeController] Controller reset complete revision=%x"),
+          Device->HardwareRevision);
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Network-manager reset callback.
+ * @param Reset Reset request.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8169OnReset(const NETWORK_RESET *Reset) {
+    LPRTL8169_DEVICE Device;
+    U32 Result;
+
+    Result = RealtekNetworkOnReset(Reset);
+    if (Result != DF_RETURN_SUCCESS) {
+        return Result;
+    }
+
+    Device = (LPRTL8169_DEVICE)Reset->Device;
+    return RTL8169InitializeController(Device);
 }
 
 /************************************************************************/
@@ -292,7 +377,7 @@ static UINT RTL8169Commands(UINT Function, UINT Parameter) {
         case DF_PROBE:
             return RTL8169OnProbe((const PCI_INFO *)(LPVOID)Parameter);
         case DF_NT_RESET:
-            return RealtekNetworkOnReset((const NETWORK_RESET *)(LPVOID)Parameter);
+            return RTL8169OnReset((const NETWORK_RESET *)(LPVOID)Parameter);
         case DF_NT_GETINFO:
             return RealtekNetworkOnGetInfo(
                 (const NETWORK_GET_INFO *)(LPVOID)Parameter,

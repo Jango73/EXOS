@@ -23,6 +23,7 @@
 
 #include "drivers/network/RealtekCommon.h"
 
+#include "Clock.h"
 #include "CoreString.h"
 #include "Kernel.h"
 #include "Log.h"
@@ -304,6 +305,73 @@ U32 RealtekNetworkInitializeRegisterWindow(
           ValidationValue,
           (UINT)ValidationRegisterOffset);
     return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Issue a software reset and wait until the controller clears it.
+ * @param Device Target common device state.
+ * @param CommandRegisterOffset Chip command register offset.
+ * @param ResetMask Reset bit mask.
+ * @param FunctionName Caller function name for diagnostics.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+U32 RealtekNetworkResetController(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    U16 CommandRegisterOffset,
+    U8 ResetMask,
+    LPCSTR FunctionName) {
+    UINT StartTime;
+    UINT Loop;
+
+    if (Device == NULL || ResetMask == 0 || StringEmpty(FunctionName)) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    RealtekNetworkWriteRegister8(
+        Device,
+        CommandRegisterOffset,
+        (U8)(RealtekNetworkReadRegister8(Device, CommandRegisterOffset) | ResetMask));
+
+    StartTime = GetSystemTime();
+    for (Loop = 0; HasOperationTimedOut(
+            StartTime,
+            Loop,
+            REALTEK_NETWORK_RESET_LOOP_LIMIT,
+            REALTEK_NETWORK_RESET_TIMEOUT_MS) == FALSE;
+         Loop++) {
+        U8 Command = RealtekNetworkReadRegister8(Device, CommandRegisterOffset);
+        if ((Command & ResetMask) == 0) {
+            return DF_RETURN_SUCCESS;
+        }
+    }
+
+    ERROR(TEXT("[%s] Reset timed out"), FunctionName);
+    return DF_RETURN_UNEXPECTED;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Put the controller in a quiet polling-only state after reset.
+ * @param Device Target common device state.
+ * @param CommandRegisterOffset Chip command register offset.
+ * @param InterruptMaskRegisterOffset Interrupt-mask register offset.
+ * @param InterruptStatusRegisterOffset Interrupt-status register offset.
+ */
+void RealtekNetworkInitializeQuietState(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    U16 CommandRegisterOffset,
+    U16 InterruptMaskRegisterOffset,
+    U16 InterruptStatusRegisterOffset) {
+    if (Device == NULL) {
+        return;
+    }
+
+    RealtekNetworkWriteRegister16(Device, InterruptMaskRegisterOffset, 0);
+    RealtekNetworkWriteRegister16(Device, InterruptStatusRegisterOffset, MAX_U16);
+    RealtekNetworkWriteRegister8(Device, CommandRegisterOffset, 0);
 }
 
 /************************************************************************/

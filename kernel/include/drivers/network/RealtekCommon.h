@@ -34,6 +34,8 @@
 /***************************************************************************/
 
 #define REALTEK_NETWORK_VENDOR_ID 0x10EC
+#define REALTEK_NETWORK_RESET_TIMEOUT_MS 100
+#define REALTEK_NETWORK_RESET_LOOP_LIMIT 1000000
 
 #define REALTEK_NETWORK_MATCH_ENTRY(DeviceID) \
     { REALTEK_NETWORK_VENDOR_ID, DeviceID, PCI_CLASS_NETWORK, PCI_SUBCLASS_ETHERNET, PCI_ANY_CLASS }
@@ -75,6 +77,16 @@ U32 RealtekNetworkInitializeRegisterWindow(
     REALTEK_REGISTER_ACCESS_MODE FallbackMode,
     U16 ValidationRegisterOffset,
     LPCSTR FunctionName);
+U32 RealtekNetworkResetController(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    U16 CommandRegisterOffset,
+    U8 ResetMask,
+    LPCSTR FunctionName);
+void RealtekNetworkInitializeQuietState(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    U16 CommandRegisterOffset,
+    U16 InterruptMaskRegisterOffset,
+    U16 InterruptStatusRegisterOffset);
 U8 RealtekNetworkReadRegister8(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset);
 U16 RealtekNetworkReadRegister16(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset);
 U32 RealtekNetworkReadRegister32(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset);
