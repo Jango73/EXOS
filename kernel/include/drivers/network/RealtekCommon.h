@@ -1,0 +1,77 @@
+/************************************************************************\
+
+    EXOS Kernel
+    Copyright (c) 1999-2025 Jango73
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+    Realtek network common helpers
+
+\************************************************************************/
+
+#ifndef REALTEKCOMMON_H_INCLUDED
+#define REALTEKCOMMON_H_INCLUDED
+
+/***************************************************************************/
+
+#include "Base.h"
+#include "drivers/bus/PCI.h"
+#include "drivers/interrupts/DeviceInterrupt.h"
+#include "network/Network.h"
+
+/***************************************************************************/
+
+#define REALTEK_NETWORK_VENDOR_ID 0x10EC
+
+#define REALTEK_NETWORK_MATCH_ENTRY(DeviceID) \
+    { REALTEK_NETWORK_VENDOR_ID, DeviceID, PCI_CLASS_NETWORK, PCI_SUBCLASS_ETHERNET, PCI_ANY_CLASS }
+
+#define REALTEK_NETWORK_COMMON_DEVICE_FIELDS \
+    PCI_DEVICE_FIELDS                        \
+    LPCSTR ProductName;                      \
+    U8 Mac[6];                               \
+    NT_RXCB RxCallback;                      \
+    LPVOID RxUserData;
+
+/***************************************************************************/
+
+typedef struct tag_REALTEK_NETWORK_COMMON_DEVICE {
+    REALTEK_NETWORK_COMMON_DEVICE_FIELDS
+} REALTEK_NETWORK_COMMON_DEVICE, *LPREALTEK_NETWORK_COMMON_DEVICE;
+
+/***************************************************************************/
+
+LPPCI_DEVICE RealtekNetworkAttachCommon(UINT DeviceSize, LPPCI_DEVICE PciDevice, LPCSTR FunctionName);
+void RealtekNetworkBuildPlaceholderMac(LPREALTEK_NETWORK_COMMON_DEVICE Device);
+U32 RealtekNetworkOnReset(const NETWORK_RESET* Reset);
+U32 RealtekNetworkOnGetInfo(
+    const NETWORK_GET_INFO* GetInfo,
+    BOOL LinkUp,
+    U32 SpeedMbps,
+    BOOL DuplexFull,
+    U32 Mtu);
+U32 RealtekNetworkOnSetReceiveCallback(const NETWORK_SET_RX_CB* Set);
+U32 RealtekNetworkOnSendNotImplemented(const NETWORK_SEND* Send);
+U32 RealtekNetworkOnPollIdle(const NETWORK_POLL* Poll);
+U32 RealtekNetworkOnEnableInterruptsPollingOnly(DEVICE_INTERRUPT_CONFIG* Config);
+U32 RealtekNetworkOnDisableInterrupts(DEVICE_INTERRUPT_CONFIG* Config);
+U32 RealtekNetworkOnLoad(void);
+U32 RealtekNetworkOnUnload(void);
+U32 RealtekNetworkOnGetCaps(void);
+U32 RealtekNetworkOnGetLastFunction(void);
+
+/***************************************************************************/
+
+#endif  // REALTEKCOMMON_H_INCLUDED

@@ -483,6 +483,7 @@ void InitializeDriverList(void) {
     RegisterDriver(GraphicsSelectorGetDriver(), TRUE);
 
     RegisterDriver(E1000GetDriver(), FALSE);
+    RegisterDriver(RTL8139GetDriver(), FALSE);
     RegisterDriver(RTL8169GetDriver(), FALSE);
     RegisterDriver(AHCIPCIGetDriver(), FALSE);
     RegisterDriver(NVMeGetDriver(), FALSE);

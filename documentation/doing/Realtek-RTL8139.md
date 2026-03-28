@@ -35,13 +35,13 @@ This family grouping is the right target because:
 ## Driver family strategy
 
 ### Step 0 - Define the supported family
-- [ ] create `kernel/include/drivers/network/RTL8139.h`
-- [ ] create `kernel/source/drivers/network/RTL8139.c`
-- [ ] use one EXOS driver name for the `RTL8139` family
-- [ ] model the supported PCI IDs as a table of matches, not hardcoded single-device checks
+- [x] create `kernel/include/drivers/network/RTL8139.h`
+- [x] create `kernel/source/drivers/network/RTL8139.c`
+- [x] use one EXOS driver name for the `RTL8139` family
+- [x] model the supported PCI IDs as a table of matches, not hardcoded single-device checks
 
 Recommended naming:
-- [ ] use `RTL8139` as the source file family name
+- [x] use `RTL8139` as the source file family name
 
 Rationale:
 - `RTL8139` is a separate hardware family
@@ -49,9 +49,9 @@ Rationale:
 - EXOS should keep one hardware family per driver file unless the register model is truly shared
 
 ### Step 1 - Start with the minimum safe PCI ID set
-- [ ] add the QEMU-compatible `RTL8139` PCI identifier first
+- [x] add the QEMU-compatible `RTL8139` PCI identifier first
 - [ ] extend with nearby `RTL8139` family variants only when the hardware model is confirmed compatible
-- [ ] keep the match table data-driven so new IDs are added without restructuring the driver
+- [x] keep the match table data-driven so new IDs are added without restructuring the driver
 
 ## Relationship with the RTL8111 / RTL8168 / RTL8411 family
 
@@ -78,10 +78,10 @@ Driver consequence:
 ## Implementation steps
 
 ### Step 2 - Clone the E1000 and RTL8169 integration shape, not the hardware logic
-- [ ] copy the structural integration points from `E1000.c` and `RTL8169.c` only as references
-- [ ] keep the same driver contract: `DF_NT_RESET`, `DF_NT_GETINFO`, `DF_NT_SEND`, `DF_NT_POLL`, `DF_NT_SETRXCB`
-- [ ] register the driver through `KernelData.c`
-- [ ] keep `NetworkManager` unchanged except for normal attach and initialization flow
+- [x] copy the structural integration points from `E1000.c` and `RTL8169.c` only as references
+- [x] keep the same driver contract: `DF_NT_RESET`, `DF_NT_GETINFO`, `DF_NT_SEND`, `DF_NT_POLL`, `DF_NT_SETRXCB`
+- [x] register the driver through `KernelData.c`
+- [x] keep `NetworkManager` unchanged except for normal attach and initialization flow
 
 Acceptance:
 - [ ] the `RTL8139` device appears in `GetPCIDeviceList()`
@@ -90,13 +90,13 @@ Acceptance:
 - [ ] `NetworkManager_FindNetworkDevices()` picks it up without special-case code
 
 ### Step 3 - Build a reusable hardware-description layer inside the driver
-- [ ] define a compact per-device info table for revision-specific quirks
-- [ ] keep register offsets, flags, and RX or TX metadata in one shared header
-- [ ] separate common ring or buffer logic from revision-specific setup
-- [ ] avoid scattering magic values through probe, reset, TX, and RX paths
+- [x] define a compact per-device info table for revision-specific quirks
+- [x] keep register offsets, flags, and RX or TX metadata in one shared header
+- [x] separate common ring or buffer logic from revision-specific setup
+- [x] avoid scattering magic values through probe, reset, TX, and RX paths
 
 Acceptance:
-- [ ] adding a new compatible `RTL8139` family PCI ID is done by extending a table, not by duplicating functions
+- [x] adding a new compatible `RTL8139` family PCI ID is done by extending a table, not by duplicating functions
 
 ### Step 4 - Probe and register mapping
 - [ ] validate `PCI_CLASS_NETWORK` and `PCI_SUBCLASS_ETHERNET`

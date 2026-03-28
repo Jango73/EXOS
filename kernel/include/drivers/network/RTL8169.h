@@ -29,11 +29,11 @@
 #include "Base.h"
 #include "Driver.h"
 #include "drivers/bus/PCI.h"
-#include "network/Network.h"
+#include "drivers/network/RealtekCommon.h"
 
 /***************************************************************************/
 
-#define RTL8169_VENDOR_REALTEK 0x10EC
+#define RTL8169_VENDOR_REALTEK REALTEK_NETWORK_VENDOR_ID
 #define RTL8169_DEVICE_8161 0x8161
 #define RTL8169_DEVICE_8168 0x8168
 
@@ -73,11 +73,6 @@
 
 #define RTL8169_DESCRIPTOR_RING_ALIGN 256
 #define RTL8169_MAXIMUM_MTU 1500
-
-/***************************************************************************/
-
-#define RTL8169_MATCH_ENTRY(DeviceID) \
-    { RTL8169_VENDOR_REALTEK, DeviceID, PCI_CLASS_NETWORK, PCI_SUBCLASS_ETHERNET, PCI_ANY_CLASS }
 
 /***************************************************************************/
 
