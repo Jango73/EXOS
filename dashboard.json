@@ -30,6 +30,7 @@
 
                 { "label": "Start 32 QEMU MBR Rel", "script": "scripts/run --arch x86-32 --fs ext2 --release" },
                 { "label": "Start 32 QEMU MBR Deb", "script": "scripts/run --arch x86-32 --fs ext2 --debug" },
+                { "label": "Start 32 QEMU MBR Deb 2 NICs", "script": "scripts/run --arch x86-32 --fs ext2 --debug --net-card e1000 --net-card rtl8139" },
                 { "label": "Start 32 QEMU VESA Test", "script": "scripts/run --arch x86-32 --build-core-name x86-32-mbr-debug --build-image-name x86-32-mbr-debug-ext2 --debug --no-nvme --no-usb3" },
                 { "label": "Start 32 QEMU Dumper Test", "script": "scripts/run --arch x86-32 --build-core-name x86-32-mbr-debug --build-image-name x86-32-mbr-debug-ext2 --debug --no-nvme --no-usb3" },
 

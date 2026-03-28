@@ -2,7 +2,7 @@
 set -e
 
 function Usage() {
-    echo "Usage: $0 --arch <x86-32|x86-64> [--fs <ext2|fat32>] [--debug|--release] [--split] [--build-core-name <name>] [--build-image-name <name>] [--gdb] [--usb3|--no-usb3] [--uefi] [--nvme|--no-nvme] [--ntfs-live]"
+    echo "Usage: $0 --arch <x86-32|x86-64> [--fs <ext2|fat32>] [--debug|--release] [--split] [--build-core-name <name>] [--build-image-name <name>] [--gdb] [--usb3|--no-usb3] [--uefi] [--nvme|--no-nvme] [--ntfs-live] [--net-card <e1000|rtl8139> ...]"
 }
 
 ARCH="x86-32"
@@ -22,6 +22,7 @@ CORE_BUILD_DIR=""
 IMAGE_BUILD_DIR=""
 BUILD_LOCK_DIR=""
 LOG_CONFIGURATION=""
+NETWORK_CARDS=()
 
 function ComputeBuildNames() {
     local Suffix=""
@@ -120,6 +121,10 @@ while [ $# -gt 0 ]; do
         --ntfs-live)
             NTFS_LIVE_ENABLED=1
             ;;
+        --net-card)
+            shift
+            NETWORK_CARDS+=("$1")
+            ;;
         --build-core-name)
             shift
             BUILD_CORE_NAME="$1"
@@ -150,6 +155,22 @@ case "$FILE_SYSTEM" in
         exit 1
         ;;
 esac
+
+if [ "${#NETWORK_CARDS[@]}" -eq 0 ]; then
+    NETWORK_CARDS=("e1000")
+fi
+
+for NetworkCard in "${NETWORK_CARDS[@]}"; do
+    case "$NetworkCard" in
+        e1000|rtl8139)
+            ;;
+        *)
+            echo "Unknown network card: $NetworkCard"
+            Usage
+            exit 1
+            ;;
+    esac
+done
 
 if [ -z "$BUILD_CORE_NAME" ] && [ -n "$BUILD_IMAGE_NAME" ]; then
     case "$BUILD_IMAGE_NAME" in
@@ -334,11 +355,25 @@ function BuildAudioArguments() {
 }
 
 function BuildNetworkArguments() {
-    NETWORK_ARGUMENTS=(
-        -netdev user,id=net0
-        -device e1000,netdev=net0
-        -object filter-dump,id=dump0,netdev=net0,file="${LOG_NET_PCAP}"
-    )
+    local NetworkCard=""
+    local NetworkIndex=0
+
+    NETWORK_ARGUMENTS=()
+
+    for NetworkCard in "${NETWORK_CARDS[@]}"; do
+        NETWORK_ARGUMENTS+=(
+            -netdev "user,id=net${NetworkIndex}"
+            -device "${NetworkCard},netdev=net${NetworkIndex}"
+        )
+
+        if [ "$NetworkIndex" -eq 0 ]; then
+            NETWORK_ARGUMENTS+=(
+                -object "filter-dump,id=dump${NetworkIndex},netdev=net${NetworkIndex},file=${LOG_NET_PCAP}"
+            )
+        fi
+
+        NetworkIndex=$((NetworkIndex + 1))
+    done
 }
 
 function FindFirmwareFile() {
