@@ -106,6 +106,10 @@ U32 RealtekNetworkOnGetInfo(
     U32 SpeedMbps,
     BOOL DuplexFull,
     U32 Mtu);
+void RealtekNetworkDeliverReceivedFrame(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    const U8* Frame,
+    U32 Length);
 U32 RealtekNetworkOnSetReceiveCallback(const NETWORK_SET_RX_CB* Set);
 U32 RealtekNetworkOnSendNotImplemented(const NETWORK_SEND* Send);
 U32 RealtekNetworkOnPollIdle(const NETWORK_POLL* Poll);

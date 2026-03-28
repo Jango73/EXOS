@@ -42,6 +42,14 @@ struct tag_RTL8169_DEVICE {
     REALTEK_NETWORK_COMMON_DEVICE_FIELDS
     const RTL8169_DEVICE_INFO *DeviceInfo;
     U32 HardwareRevision;
+    DMA_BUFFER RxRing;
+    DMA_BUFFER TxRing;
+    DMA_BUFFER RxBufferPool;
+    DMA_BUFFER TxBufferPool;
+    UINT RxDescriptorCount;
+    UINT TxDescriptorCount;
+    UINT RxNextDescriptor;
+    UINT TxNextDescriptor;
 };
 
 /************************************************************************/
@@ -51,11 +59,16 @@ static LPPCI_DEVICE RTL8169Attach(LPPCI_DEVICE PciDevice);
 static const RTL8169_DEVICE_INFO *RTL8169FindDeviceInfo(U16 VendorID, U16 DeviceID);
 static void RTL8169InitializeHardwareDescription(LPRTL8169_DEVICE Device);
 static U32 RTL8169InitializeRegisterAccess(LPRTL8169_DEVICE Device);
+static U32 RTL8169AllocateBuffers(LPRTL8169_DEVICE Device);
+static U32 RTL8169InitializeDescriptorRings(LPRTL8169_DEVICE Device);
 static U32 RTL8169InitializeController(LPRTL8169_DEVICE Device);
 static U32 RTL8169OnReset(const NETWORK_RESET *Reset);
 static void RTL8169ReadPermanentMac(LPRTL8169_DEVICE Device);
 static void RTL8169QueryLinkState(LPRTL8169_DEVICE Device, BOOL* LinkUp, U32* SpeedMbps, BOOL* DuplexFull);
 static U32 RTL8169OnGetInfo(const NETWORK_GET_INFO *GetInfo);
+static U32 RTL8169PollReceive(LPRTL8169_DEVICE Device);
+static U32 RTL8169OnSend(const NETWORK_SEND* Send);
+static U32 RTL8169OnPoll(const NETWORK_POLL* Poll);
 static U32 RTL8169OnGetVersion(void);
 
 /************************************************************************/
@@ -177,6 +190,139 @@ static void RTL8169InitializeHardwareDescription(LPRTL8169_DEVICE Device) {
 
     Device->DeviceInfo = RTL8169FindDeviceInfo(Device->Info.VendorID, Device->Info.DeviceID);
     Device->HardwareRevision = 0;
+    Device->RxDescriptorCount = RTL8169_RX_DESCRIPTOR_COUNT;
+    Device->TxDescriptorCount = RTL8169_TX_DESCRIPTOR_COUNT;
+    Device->RxNextDescriptor = 0;
+    Device->TxNextDescriptor = 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Allocate descriptor rings and packet buffers for the RTL8169 family.
+ * @param Device Target RTL8169 device context.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8169AllocateBuffers(LPRTL8169_DEVICE Device) {
+    if (Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    if (Device->RxRing.LinearBase == 0) {
+        if (!DMABufferAllocate(
+                &Device->RxRing,
+                Device->RxDescriptorCount * sizeof(RTL8169_RX_DESCRIPTOR),
+                TRUE,
+                TEXT("RTL8169RxRing"))) {
+            ERROR(TEXT("[RTL8169AllocateBuffers] RX ring allocation failed"));
+            return DF_RETURN_NO_MEMORY;
+        }
+    }
+
+    if (Device->TxRing.LinearBase == 0) {
+        if (!DMABufferAllocate(
+                &Device->TxRing,
+                Device->TxDescriptorCount * sizeof(RTL8169_TX_DESCRIPTOR),
+                TRUE,
+                TEXT("RTL8169TxRing"))) {
+            ERROR(TEXT("[RTL8169AllocateBuffers] TX ring allocation failed"));
+            DMABufferRelease(&Device->RxRing);
+            return DF_RETURN_NO_MEMORY;
+        }
+    }
+
+    if (Device->RxBufferPool.LinearBase == 0) {
+        if (!DMABufferAllocate(
+                &Device->RxBufferPool,
+                Device->RxDescriptorCount * PAGE_SIZE,
+                FALSE,
+                TEXT("RTL8169RxBufferPool"))) {
+            ERROR(TEXT("[RTL8169AllocateBuffers] RX buffer pool allocation failed"));
+            DMABufferRelease(&Device->TxRing);
+            DMABufferRelease(&Device->RxRing);
+            return DF_RETURN_NO_MEMORY;
+        }
+    }
+
+    if (Device->TxBufferPool.LinearBase == 0) {
+        if (!DMABufferAllocate(
+                &Device->TxBufferPool,
+                Device->TxDescriptorCount * PAGE_SIZE,
+                FALSE,
+                TEXT("RTL8169TxBufferPool"))) {
+            ERROR(TEXT("[RTL8169AllocateBuffers] TX buffer pool allocation failed"));
+            DMABufferRelease(&Device->RxBufferPool);
+            DMABufferRelease(&Device->TxRing);
+            DMABufferRelease(&Device->RxRing);
+            return DF_RETURN_NO_MEMORY;
+        }
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Initialize descriptor rings from the allocated DMA buffers.
+ * @param Device Target RTL8169 device context.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8169InitializeDescriptorRings(LPRTL8169_DEVICE Device) {
+    LPRTL8169_RX_DESCRIPTOR RxDescriptors;
+    LPRTL8169_TX_DESCRIPTOR TxDescriptors;
+    UINT Index;
+
+    if (Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    RxDescriptors = (LPRTL8169_RX_DESCRIPTOR)(LPVOID)Device->RxRing.LinearBase;
+    TxDescriptors = (LPRTL8169_TX_DESCRIPTOR)(LPVOID)Device->TxRing.LinearBase;
+    MemorySet(RxDescriptors, 0, Device->RxRing.AllocatedSize);
+    MemorySet(TxDescriptors, 0, Device->TxRing.AllocatedSize);
+
+    for (Index = 0; Index < Device->RxDescriptorCount; Index++) {
+        PHYSICAL BufferPhysical = DMABufferGetPhysical(&Device->RxBufferPool, Index << PAGE_SIZE_MUL);
+        U32 DescriptorFlags = RTL8169_DESCRIPTOR_OWN | RTL8169_RX_BUFFER_SIZE;
+
+        if (BufferPhysical == 0) {
+            ERROR(TEXT("[RTL8169InitializeDescriptorRings] RX buffer physical lookup failed at %u"), Index);
+            return DF_RETURN_INPUT_OUTPUT;
+        }
+
+        if (Index + 1 == Device->RxDescriptorCount) {
+            DescriptorFlags |= RTL8169_DESCRIPTOR_RING_END;
+        }
+
+        RxDescriptors[Index].CommandStatus = DescriptorFlags;
+        RxDescriptors[Index].VLANInformation = 0;
+        RxDescriptors[Index].BufferAddressLow = (U32)(BufferPhysical & MAX_U32);
+        RxDescriptors[Index].BufferAddressHigh = 0;
+    }
+
+    for (Index = 0; Index < Device->TxDescriptorCount; Index++) {
+        PHYSICAL BufferPhysical = DMABufferGetPhysical(&Device->TxBufferPool, Index << PAGE_SIZE_MUL);
+        U32 DescriptorFlags = 0;
+
+        if (BufferPhysical == 0) {
+            ERROR(TEXT("[RTL8169InitializeDescriptorRings] TX buffer physical lookup failed at %u"), Index);
+            return DF_RETURN_INPUT_OUTPUT;
+        }
+
+        if (Index + 1 == Device->TxDescriptorCount) {
+            DescriptorFlags |= RTL8169_DESCRIPTOR_RING_END;
+        }
+
+        TxDescriptors[Index].CommandStatus = DescriptorFlags;
+        TxDescriptors[Index].VLANInformation = 0;
+        TxDescriptors[Index].BufferAddressLow = (U32)(BufferPhysical & MAX_U32);
+        TxDescriptors[Index].BufferAddressHigh = 0;
+    }
+
+    Device->RxNextDescriptor = 0;
+    Device->TxNextDescriptor = 0;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -219,8 +365,18 @@ static LPPCI_DEVICE RTL8169Attach(LPPCI_DEVICE PciDevice) {
         return NULL;
     }
 
+    Result = RTL8169AllocateBuffers(Device);
+    if (Result != DF_RETURN_SUCCESS) {
+        ReleaseKernelObject(Device);
+        return NULL;
+    }
+
     Result = RTL8169InitializeController(Device);
     if (Result != DF_RETURN_SUCCESS) {
+        DMABufferRelease(&Device->TxBufferPool);
+        DMABufferRelease(&Device->RxBufferPool);
+        DMABufferRelease(&Device->TxRing);
+        DMABufferRelease(&Device->RxRing);
         ReleaseKernelObject(Device);
         return NULL;
     }
@@ -274,6 +430,30 @@ static U32 RTL8169InitializeController(LPRTL8169_DEVICE Device) {
         (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
         RTL8169_REG_RXMAXSIZE,
         RTL8169_MAXIMUM_MTU);
+    Result = RTL8169InitializeDescriptorRings(Device);
+    if (Result != DF_RETURN_SUCCESS) {
+        RealtekNetworkWriteRegister8(
+            (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+            RTL8169_REG_CFG9346,
+            RTL8169_CFG9346_LOCK);
+        return Result;
+    }
+    RealtekNetworkWriteRegister32(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_TXDESCADDRLOW,
+        (U32)(Device->TxRing.PhysicalBase & MAX_U32));
+    RealtekNetworkWriteRegister32(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_TXDESCADDRHIGH,
+        0);
+    RealtekNetworkWriteRegister32(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_RXDESCADDRLOW,
+        (U32)(Device->RxRing.PhysicalBase & MAX_U32));
+    RealtekNetworkWriteRegister32(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_RXDESCADDRHIGH,
+        0);
     RxConfig = RTL8169_RXCONFIG_FIFO_UNLIMITED |
                RTL8169_RXCONFIG_DMA_UNLIMITED |
                RTL8169_RXCONFIG_ACCEPT_PHYSICAL |
@@ -288,6 +468,10 @@ static U32 RTL8169InitializeController(LPRTL8169_DEVICE Device) {
         (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
         RTL8169_REG_CFG9346,
         RTL8169_CFG9346_LOCK);
+    RealtekNetworkWriteRegister8(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_CHIPCMD,
+        RTL8169_CHIPCMD_RX_ENABLE | RTL8169_CHIPCMD_TX_ENABLE);
     RTL8169ReadPermanentMac(Device);
     DEBUG(TEXT("[RTL8169InitializeController] Controller reset complete revision=%x"),
           Device->HardwareRevision);
@@ -422,6 +606,126 @@ static U32 RTL8169InitializeRegisterAccess(LPRTL8169_DEVICE Device) {
 /************************************************************************/
 
 /**
+ * @brief Drain received packets from the RTL8169 RX descriptor ring.
+ * @param Device Target RTL8169 device context.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8169PollReceive(LPRTL8169_DEVICE Device) {
+    LPRTL8169_RX_DESCRIPTOR Descriptors;
+    UINT Guard;
+
+    if (Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    Descriptors = (LPRTL8169_RX_DESCRIPTOR)(LPVOID)Device->RxRing.LinearBase;
+    for (Guard = 0; Guard < Device->RxDescriptorCount; Guard++) {
+        LPRTL8169_RX_DESCRIPTOR Descriptor = &Descriptors[Device->RxNextDescriptor];
+        U32 DescriptorStatus = Descriptor->CommandStatus;
+        U32 FrameLength;
+        U8* Frame;
+        PHYSICAL BufferPhysical;
+        U32 RearmFlags;
+
+        if ((DescriptorStatus & RTL8169_DESCRIPTOR_OWN) != 0) {
+            return DF_RETURN_SUCCESS;
+        }
+
+        FrameLength = DescriptorStatus & RTL8169_DESCRIPTOR_LENGTH_MASK;
+        if (FrameLength > 4 && FrameLength <= RTL8169_RX_BUFFER_SIZE) {
+            Frame = (U8*)(LPVOID)(Device->RxBufferPool.LinearBase + (Device->RxNextDescriptor << PAGE_SIZE_MUL));
+            RealtekNetworkDeliverReceivedFrame((LPREALTEK_NETWORK_COMMON_DEVICE)Device, Frame, FrameLength - 4);
+        } else {
+            WARNING(TEXT("[RTL8169PollReceive] Dropping invalid RX descriptor length=%u status=%x"),
+                    FrameLength,
+                    DescriptorStatus);
+        }
+
+        BufferPhysical = DMABufferGetPhysical(&Device->RxBufferPool, Device->RxNextDescriptor << PAGE_SIZE_MUL);
+        RearmFlags = RTL8169_DESCRIPTOR_OWN | RTL8169_RX_BUFFER_SIZE;
+        if (Device->RxNextDescriptor + 1 == Device->RxDescriptorCount) {
+            RearmFlags |= RTL8169_DESCRIPTOR_RING_END;
+        }
+
+        Descriptor->VLANInformation = 0;
+        Descriptor->BufferAddressLow = (U32)(BufferPhysical & MAX_U32);
+        Descriptor->BufferAddressHigh = 0;
+        Descriptor->CommandStatus = RearmFlags;
+        Device->RxNextDescriptor = (Device->RxNextDescriptor + 1) % Device->RxDescriptorCount;
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Transmit one Ethernet frame using one RTL8169 TX descriptor.
+ * @param Send Send request.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8169OnSend(const NETWORK_SEND* Send) {
+    LPRTL8169_DEVICE Device;
+    LPRTL8169_TX_DESCRIPTOR Descriptors;
+    LPRTL8169_TX_DESCRIPTOR Descriptor;
+    UINT DescriptorIndex;
+    LINEAR BufferLinear;
+    U32 DescriptorFlags;
+
+    if (Send == NULL || Send->Device == NULL || Send->Data == NULL || Send->Length == 0) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    if (Send->Length > RTL8169_TX_BUFFER_SIZE) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    Device = (LPRTL8169_DEVICE)Send->Device;
+    Descriptors = (LPRTL8169_TX_DESCRIPTOR)(LPVOID)Device->TxRing.LinearBase;
+    DescriptorIndex = Device->TxNextDescriptor;
+    Descriptor = &Descriptors[DescriptorIndex];
+    if ((Descriptor->CommandStatus & RTL8169_DESCRIPTOR_OWN) != 0) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    BufferLinear = Device->TxBufferPool.LinearBase + (DescriptorIndex << PAGE_SIZE_MUL);
+    MemoryCopy((LPVOID)BufferLinear, Send->Data, Send->Length);
+
+    DescriptorFlags = RTL8169_DESCRIPTOR_OWN |
+                      RTL8169_DESCRIPTOR_FIRST_FRAGMENT |
+                      RTL8169_DESCRIPTOR_LAST_FRAGMENT |
+                      (Send->Length & RTL8169_DESCRIPTOR_LENGTH_MASK);
+    if (DescriptorIndex + 1 == Device->TxDescriptorCount) {
+        DescriptorFlags |= RTL8169_DESCRIPTOR_RING_END;
+    }
+
+    Descriptor->CommandStatus = DescriptorFlags;
+    RealtekNetworkWriteRegister8(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_TXPOLL,
+        RTL8169_TXPOLL_NORMAL_PRIORITY);
+    Device->TxNextDescriptor = (DescriptorIndex + 1) % Device->TxDescriptorCount;
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Poll the RTL8169 receive ring.
+ * @param Poll Poll request.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8169OnPoll(const NETWORK_POLL* Poll) {
+    if (Poll == NULL || Poll->Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    return RTL8169PollReceive((LPRTL8169_DEVICE)Poll->Device);
+}
+
+/************************************************************************/
+
+/**
  * @brief Retrieves the encoded driver version.
  * @return Driver version encoded with MAKE_VERSION.
  */
@@ -462,9 +766,9 @@ static UINT RTL8169Commands(UINT Function, UINT Parameter) {
         case DF_DEV_DISABLE_INTERRUPT:
             return RealtekNetworkOnDisableInterrupts((DEVICE_INTERRUPT_CONFIG *)(LPVOID)Parameter);
         case DF_NT_SEND:
-            return RealtekNetworkOnSendNotImplemented((const NETWORK_SEND *)(LPVOID)Parameter);
+            return RTL8169OnSend((const NETWORK_SEND *)(LPVOID)Parameter);
         case DF_NT_POLL:
-            return RealtekNetworkOnPollIdle((const NETWORK_POLL *)(LPVOID)Parameter);
+            return RTL8169OnPoll((const NETWORK_POLL *)(LPVOID)Parameter);
     }
 
     return DF_RETURN_NOT_IMPLEMENTED;

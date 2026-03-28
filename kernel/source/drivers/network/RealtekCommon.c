@@ -607,6 +607,27 @@ U32 RealtekNetworkOnGetInfo(
 /************************************************************************/
 
 /**
+ * @brief Deliver one received Ethernet frame to the registered callback.
+ * @param Device Target common device state.
+ * @param Frame Received frame payload.
+ * @param Length Frame length in bytes.
+ */
+void RealtekNetworkDeliverReceivedFrame(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    const U8* Frame,
+    U32 Length) {
+    if (Device == NULL || Frame == NULL || Length == 0) {
+        return;
+    }
+
+    if (Device->RxCallback != NULL) {
+        Device->RxCallback(Frame, Length, Device->RxUserData);
+    }
+}
+
+/************************************************************************/
+
+/**
  * @brief Stores the receive callback for later RX-path implementation.
  * @param Set Callback registration request.
  * @return DF_RETURN_SUCCESS on success or an error code.

@@ -130,12 +130,12 @@ Acceptance:
 - [ ] link up or down state matches the actual cable state
 
 ### Step 7 - RX and TX buffers
-- [ ] define `RTL8139` transmit and receive data structures in the driver header
-- [ ] allocate the RX receive area required by the controller model
-- [ ] allocate TX buffers or descriptor state as required by the controller model
-- [ ] program the controller with the active RX and TX memory addresses
-- [ ] implement one-frame TX path first
-- [ ] implement RX polling first, even before interrupts
+- [x] define `RTL8139` transmit and receive data structures in the driver header
+- [x] allocate the RX receive area required by the controller model
+- [x] allocate TX buffers or descriptor state as required by the controller model
+- [x] program the controller with the active RX and TX memory addresses
+- [x] implement one-frame TX path first
+- [x] implement RX polling first, even before interrupts
 
 Acceptance:
 - [ ] a raw Ethernet frame can be transmitted

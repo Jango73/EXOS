@@ -43,6 +43,10 @@ struct tag_RTL8139_DEVICE {
 
     const RTL8139_DEVICE_INFO* DeviceInfo;
     U32 HardwareRevision;
+    DMA_BUFFER RxBuffer;
+    DMA_BUFFER TxBufferPool;
+    UINT RxReadOffset;
+    UINT TxNextSlot;
 };
 
 /************************************************************************/
@@ -53,11 +57,16 @@ static LPPCI_DEVICE RTL8139Attach(LPPCI_DEVICE PciDevice);
 static const RTL8139_DEVICE_INFO* RTL8139FindDeviceInfo(U16 VendorID, U16 DeviceID);
 static void RTL8139InitializeHardwareDescription(LPRTL8139_DEVICE Device);
 static U32 RTL8139InitializeRegisterAccess(LPRTL8139_DEVICE Device);
+static U32 RTL8139AllocateBuffers(LPRTL8139_DEVICE Device);
+static void RTL8139ProgramBufferAddresses(LPRTL8139_DEVICE Device);
 static U32 RTL8139InitializeController(LPRTL8139_DEVICE Device);
 static U32 RTL8139OnReset(const NETWORK_RESET* Reset);
 static void RTL8139ReadPermanentMac(LPRTL8139_DEVICE Device);
 static void RTL8139QueryLinkState(LPRTL8139_DEVICE Device, BOOL* LinkUp, U32* SpeedMbps, BOOL* DuplexFull);
 static U32 RTL8139OnGetInfo(const NETWORK_GET_INFO* GetInfo);
+static U32 RTL8139PollReceive(LPRTL8139_DEVICE Device);
+static U32 RTL8139OnSend(const NETWORK_SEND* Send);
+static U32 RTL8139OnPoll(const NETWORK_POLL* Poll);
 static U32 RTL8139OnGetVersion(void);
 
 /************************************************************************/
@@ -177,7 +186,70 @@ static void RTL8139InitializeHardwareDescription(LPRTL8139_DEVICE Device) {
 
     Device->DeviceInfo = RTL8139FindDeviceInfo(Device->Info.VendorID, Device->Info.DeviceID);
     Device->HardwareRevision = 0;
+    Device->RxReadOffset = 0;
+    Device->TxNextSlot = 0;
     UNUSED(RTL8139TxSlotInfoTable);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Allocate RX and TX buffers required by the RTL8139 programming model.
+ * @param Device Target RTL8139 device context.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8139AllocateBuffers(LPRTL8139_DEVICE Device) {
+    if (Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    if (Device->RxBuffer.LinearBase == 0) {
+        if (!DMABufferAllocate(&Device->RxBuffer, RTL8139_RX_BUFFER_SIZE, TRUE, TEXT("RTL8139RxBuffer"))) {
+            ERROR(TEXT("[RTL8139AllocateBuffers] RX buffer allocation failed"));
+            return DF_RETURN_NO_MEMORY;
+        }
+    }
+
+    if (Device->TxBufferPool.LinearBase == 0) {
+        if (!DMABufferAllocate(
+                &Device->TxBufferPool,
+                RTL8139_TX_SLOT_COUNT * RTL8139_TX_BUFFER_SIZE,
+                TRUE,
+                TEXT("RTL8139TxBufferPool"))) {
+            ERROR(TEXT("[RTL8139AllocateBuffers] TX buffer allocation failed"));
+            DMABufferRelease(&Device->RxBuffer);
+            return DF_RETURN_NO_MEMORY;
+        }
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Program the active RX and TX buffer addresses into the controller.
+ * @param Device Target RTL8139 device context.
+ */
+static void RTL8139ProgramBufferAddresses(LPRTL8139_DEVICE Device) {
+    UINT Index;
+
+    if (Device == NULL) {
+        return;
+    }
+
+    RealtekNetworkWriteRegister32(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8139_REG_RXBUFSTART,
+        Device->RxBuffer.PhysicalBase);
+
+    for (Index = 0; Index < RTL8139_TX_SLOT_COUNT; Index++) {
+        PHYSICAL PhysicalAddress = DMABufferGetPhysical(&Device->TxBufferPool, Index * RTL8139_TX_BUFFER_SIZE);
+        RealtekNetworkWriteRegister32(
+            (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+            RTL8139TxSlotInfoTable[Index].AddressRegisterOffset,
+            (U32)PhysicalAddress);
+    }
 }
 
 /************************************************************************/
@@ -214,8 +286,16 @@ static LPPCI_DEVICE RTL8139Attach(LPPCI_DEVICE PciDevice) {
         return NULL;
     }
 
+    Result = RTL8139AllocateBuffers(Device);
+    if (Result != DF_RETURN_SUCCESS) {
+        ReleaseKernelObject(Device);
+        return NULL;
+    }
+
     Result = RTL8139InitializeController(Device);
     if (Result != DF_RETURN_SUCCESS) {
+        DMABufferRelease(&Device->TxBufferPool);
+        DMABufferRelease(&Device->RxBuffer);
         ReleaseKernelObject(Device);
         return NULL;
     }
@@ -261,8 +341,22 @@ static U32 RTL8139InitializeController(LPRTL8139_DEVICE Device) {
         RTL8139_REG_INTRSTATUS);
 
     // Keep conservative defaults until RX/TX buffers exist.
-    RealtekNetworkWriteRegister32((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8139_REG_RXCONFIG, 0);
+    RTL8139ProgramBufferAddresses(Device);
+    RealtekNetworkWriteRegister16((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8139_REG_CAPR, 0);
+    Device->RxReadOffset = 0;
+    Device->TxNextSlot = 0;
+    RealtekNetworkWriteRegister32(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8139_REG_RXCONFIG,
+        RTL8139_RXCONFIG_ACCEPT_PHYSICAL |
+            RTL8139_RXCONFIG_ACCEPT_BROADCAST |
+            RTL8139_RXCONFIG_ACCEPT_MULTICAST |
+            RTL8139_RXCONFIG_WRAP);
     RealtekNetworkWriteRegister32((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8139_REG_TXCONFIG, Device->HardwareRevision);
+    RealtekNetworkWriteRegister8(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8139_REG_CHIPCMD,
+        RTL8139_CHIPCMD_RX_ENABLE | RTL8139_CHIPCMD_TX_ENABLE);
     RTL8139ReadPermanentMac(Device);
     DEBUG(TEXT("[RTL8139InitializeController] Controller reset complete revision=%x"),
           Device->HardwareRevision);
@@ -408,6 +502,124 @@ static U32 RTL8139InitializeRegisterAccess(LPRTL8139_DEVICE Device) {
 /************************************************************************/
 
 /**
+ * @brief Drain received packets from the RTL8139 software RX ring.
+ * @param Device Target RTL8139 device context.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8139PollReceive(LPRTL8139_DEVICE Device) {
+    UINT Guard;
+
+    if (Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    for (Guard = 0; Guard < 64; Guard++) {
+        U8 ChipCommand;
+        U16 CurrentBufferAddress;
+        LPRTL8139_RX_PACKET_HEADER Header;
+        U16 ReceiveStatus;
+        U16 ReceiveLength;
+        U32 FrameLength;
+        UINT NextOffset;
+
+        ChipCommand = RealtekNetworkReadRegister8((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8139_REG_CHIPCMD);
+        if ((ChipCommand & RTL8139_CHIPCMD_RX_BUFFER_EMPTY) != 0) {
+            return DF_RETURN_SUCCESS;
+        }
+
+        CurrentBufferAddress = RealtekNetworkReadRegister16((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8139_REG_CBR);
+        if (Device->RxReadOffset == CurrentBufferAddress) {
+            return DF_RETURN_SUCCESS;
+        }
+
+        Header = (LPRTL8139_RX_PACKET_HEADER)(LPVOID)(Device->RxBuffer.LinearBase + Device->RxReadOffset);
+        ReceiveStatus = Header->ReceiveStatus;
+        ReceiveLength = Header->ReceiveLength;
+
+        if ((ReceiveStatus & RTL8139_RX_STATUS_OK) == 0 || ReceiveLength < 4 || ReceiveLength > RTL8139_RX_BUFFER_SIZE) {
+            WARNING(TEXT("[RTL8139PollReceive] Dropping invalid RX packet status=%x length=%u"),
+                    ReceiveStatus,
+                    (UINT)ReceiveLength);
+            Device->RxReadOffset = 0;
+            RealtekNetworkWriteRegister16((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8139_REG_CAPR, 0);
+            return DF_RETURN_INPUT_OUTPUT;
+        }
+
+        FrameLength = ReceiveLength - 4;
+        RealtekNetworkDeliverReceivedFrame(
+            (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+            (const U8*)((LPVOID)(Device->RxBuffer.LinearBase + Device->RxReadOffset + sizeof(RTL8139_RX_PACKET_HEADER))),
+            FrameLength);
+
+        NextOffset = (Device->RxReadOffset + sizeof(RTL8139_RX_PACKET_HEADER) + ReceiveLength + 3) & ~3;
+        Device->RxReadOffset = NextOffset % RTL8139_RX_RING_SIZE;
+        RealtekNetworkWriteRegister16(
+            (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+            RTL8139_REG_CAPR,
+            (U16)(Device->RxReadOffset - RTL8139_RX_READ_POINTER_ADJUST));
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Transmit one Ethernet frame through an RTL8139 TX slot.
+ * @param Send Send request.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8139OnSend(const NETWORK_SEND* Send) {
+    LPRTL8139_DEVICE Device;
+    UINT SlotIndex;
+    LINEAR BufferLinear;
+    U32 TransmitStatus;
+
+    if (Send == NULL || Send->Device == NULL || Send->Data == NULL || Send->Length == 0) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    if (Send->Length > RTL8139_TX_BUFFER_SIZE) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    Device = (LPRTL8139_DEVICE)Send->Device;
+    SlotIndex = Device->TxNextSlot % RTL8139_TX_SLOT_COUNT;
+    TransmitStatus = RealtekNetworkReadRegister32(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8139TxSlotInfoTable[SlotIndex].StatusRegisterOffset);
+    if ((TransmitStatus & RTL8139_TXSTATUS_OWN) != 0) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    BufferLinear = Device->TxBufferPool.LinearBase + (SlotIndex * RTL8139_TX_BUFFER_SIZE);
+    MemoryCopy((LPVOID)BufferLinear, Send->Data, Send->Length);
+    RealtekNetworkWriteRegister32(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8139TxSlotInfoTable[SlotIndex].StatusRegisterOffset,
+        Send->Length);
+    Device->TxNextSlot = (SlotIndex + 1) % RTL8139_TX_SLOT_COUNT;
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Poll the RTL8139 receive path.
+ * @param Poll Poll request.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8139OnPoll(const NETWORK_POLL* Poll) {
+    if (Poll == NULL || Poll->Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    return RTL8139PollReceive((LPRTL8139_DEVICE)Poll->Device);
+}
+
+/************************************************************************/
+
+/**
  * @brief Retrieves the encoded driver version.
  * @return Driver version encoded with MAKE_VERSION.
  */
@@ -448,9 +660,9 @@ static UINT RTL8139Commands(UINT Function, UINT Parameter) {
         case DF_DEV_DISABLE_INTERRUPT:
             return RealtekNetworkOnDisableInterrupts((DEVICE_INTERRUPT_CONFIG*)(LPVOID)Parameter);
         case DF_NT_SEND:
-            return RealtekNetworkOnSendNotImplemented((const NETWORK_SEND*)(LPVOID)Parameter);
+            return RTL8139OnSend((const NETWORK_SEND*)(LPVOID)Parameter);
         case DF_NT_POLL:
-            return RealtekNetworkOnPollIdle((const NETWORK_POLL*)(LPVOID)Parameter);
+            return RTL8139OnPoll((const NETWORK_POLL*)(LPVOID)Parameter);
     }
 
     return DF_RETURN_NOT_IMPLEMENTED;
