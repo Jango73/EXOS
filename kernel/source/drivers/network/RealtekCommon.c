@@ -509,6 +509,38 @@ void RealtekNetworkWriteRegister32(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 R
 /************************************************************************/
 
 /**
+ * @brief Read a MAC address from two consecutive low/high controller registers.
+ * @param Device Target common device state.
+ * @param LowRegisterOffset Register offset containing bytes 0..3.
+ * @param HighRegisterOffset Register offset containing bytes 4..5.
+ * @param Mac Output MAC buffer.
+ */
+void RealtekNetworkReadMacFromRegisters(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    U16 LowRegisterOffset,
+    U16 HighRegisterOffset,
+    U8* Mac) {
+    U32 LowValue;
+    U32 HighValue;
+
+    if (Device == NULL || Mac == NULL) {
+        return;
+    }
+
+    LowValue = RealtekNetworkReadRegister32(Device, LowRegisterOffset);
+    HighValue = RealtekNetworkReadRegister32(Device, HighRegisterOffset);
+
+    Mac[0] = (U8)(LowValue & MAX_U8);
+    Mac[1] = (U8)((LowValue >> 8) & MAX_U8);
+    Mac[2] = (U8)((LowValue >> 16) & MAX_U8);
+    Mac[3] = (U8)((LowValue >> 24) & MAX_U8);
+    Mac[4] = (U8)(HighValue & MAX_U8);
+    Mac[5] = (U8)((HighValue >> 8) & MAX_U8);
+}
+
+/************************************************************************/
+
+/**
  * @brief Builds a deterministic placeholder MAC address for pre-hardware bring-up.
  * @param Device Target common device state.
  */

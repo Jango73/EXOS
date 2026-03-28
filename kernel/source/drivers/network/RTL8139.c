@@ -55,6 +55,9 @@ static void RTL8139InitializeHardwareDescription(LPRTL8139_DEVICE Device);
 static U32 RTL8139InitializeRegisterAccess(LPRTL8139_DEVICE Device);
 static U32 RTL8139InitializeController(LPRTL8139_DEVICE Device);
 static U32 RTL8139OnReset(const NETWORK_RESET* Reset);
+static void RTL8139ReadPermanentMac(LPRTL8139_DEVICE Device);
+static void RTL8139QueryLinkState(LPRTL8139_DEVICE Device, BOOL* LinkUp, U32* SpeedMbps, BOOL* DuplexFull);
+static U32 RTL8139OnGetInfo(const NETWORK_GET_INFO* GetInfo);
 static U32 RTL8139OnGetVersion(void);
 
 /************************************************************************/
@@ -260,6 +263,7 @@ static U32 RTL8139InitializeController(LPRTL8139_DEVICE Device) {
     // Keep conservative defaults until RX/TX buffers exist.
     RealtekNetworkWriteRegister32((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8139_REG_RXCONFIG, 0);
     RealtekNetworkWriteRegister32((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8139_REG_TXCONFIG, Device->HardwareRevision);
+    RTL8139ReadPermanentMac(Device);
     DEBUG(TEXT("[RTL8139InitializeController] Controller reset complete revision=%x"),
           Device->HardwareRevision);
     return DF_RETURN_SUCCESS;
@@ -283,6 +287,88 @@ static U32 RTL8139OnReset(const NETWORK_RESET* Reset) {
 
     Device = (LPRTL8139_DEVICE)Reset->Device;
     return RTL8139InitializeController(Device);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read the permanent MAC address from controller registers.
+ * @param Device Target RTL8139 device context.
+ */
+static void RTL8139ReadPermanentMac(LPRTL8139_DEVICE Device) {
+    if (Device == NULL) {
+        return;
+    }
+
+    RealtekNetworkReadMacFromRegisters(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8139_REG_IDR0,
+        RTL8139_REG_IDR4,
+        Device->Mac);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Query the current link state reported by the RTL8139 PHY registers.
+ * @param Device Target RTL8139 device context.
+ * @param LinkUp Output link state.
+ * @param SpeedMbps Output speed in Mbps.
+ * @param DuplexFull Output duplex state.
+ */
+static void RTL8139QueryLinkState(LPRTL8139_DEVICE Device, BOOL* LinkUp, U32* SpeedMbps, BOOL* DuplexFull) {
+    U16 BasicStatus;
+    U16 LinkPartnerAbility;
+
+    if (Device == NULL || LinkUp == NULL || SpeedMbps == NULL || DuplexFull == NULL) {
+        return;
+    }
+
+    BasicStatus = RealtekNetworkReadRegister16((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8139_REG_MII_BMSR);
+    LinkPartnerAbility = RealtekNetworkReadRegister16((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8139_REG_ANLPAR);
+
+    *LinkUp = (BasicStatus & RTL8139_MII_BMSR_LINK_STATUS) != 0;
+    *SpeedMbps = 0;
+    *DuplexFull = FALSE;
+
+    if (*LinkUp == FALSE) {
+        return;
+    }
+
+    if ((LinkPartnerAbility & RTL8139_ANLPAR_100_FULL) != 0) {
+        *SpeedMbps = 100;
+        *DuplexFull = TRUE;
+    } else if ((LinkPartnerAbility & RTL8139_ANLPAR_100_HALF) != 0) {
+        *SpeedMbps = 100;
+    } else if ((LinkPartnerAbility & RTL8139_ANLPAR_10_FULL) != 0) {
+        *SpeedMbps = 10;
+        *DuplexFull = TRUE;
+    } else if ((LinkPartnerAbility & RTL8139_ANLPAR_10_HALF) != 0) {
+        *SpeedMbps = 10;
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Report MAC and link information for the RTL8139 controller.
+ * @param GetInfo Information query and output buffer.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8139OnGetInfo(const NETWORK_GET_INFO* GetInfo) {
+    LPRTL8139_DEVICE Device;
+    BOOL LinkUp;
+    U32 SpeedMbps;
+    BOOL DuplexFull;
+
+    if (GetInfo == NULL || GetInfo->Device == NULL || GetInfo->Info == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    Device = (LPRTL8139_DEVICE)GetInfo->Device;
+    RTL8139ReadPermanentMac(Device);
+    RTL8139QueryLinkState(Device, &LinkUp, &SpeedMbps, &DuplexFull);
+    return RealtekNetworkOnGetInfo(GetInfo, LinkUp, SpeedMbps, DuplexFull, RTL8139_MAXIMUM_MTU);
 }
 
 /************************************************************************/
@@ -354,12 +440,7 @@ static UINT RTL8139Commands(UINT Function, UINT Parameter) {
         case DF_NT_RESET:
             return RTL8139OnReset((const NETWORK_RESET*)(LPVOID)Parameter);
         case DF_NT_GETINFO:
-            return RealtekNetworkOnGetInfo(
-                (const NETWORK_GET_INFO*)(LPVOID)Parameter,
-                FALSE,
-                RTL8139_LINK_SPEED_UNKNOWN,
-                FALSE,
-                RTL8139_MAXIMUM_MTU);
+            return RTL8139OnGetInfo((const NETWORK_GET_INFO*)(LPVOID)Parameter);
         case DF_NT_SETRXCB:
             return RealtekNetworkOnSetReceiveCallback((const NETWORK_SET_RX_CB*)(LPVOID)Parameter);
         case DF_DEV_ENABLE_INTERRUPT:

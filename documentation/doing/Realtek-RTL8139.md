@@ -120,10 +120,10 @@ Acceptance:
 - [ ] repeated boot does not hang in reset or leave the device wedged
 
 ### Step 6 - MAC address and link reporting
-- [ ] read the permanent MAC address from the correct register path
-- [ ] populate `NETWORK_INFO.MAC`
-- [ ] report `LinkUp`, `SpeedMbps`, `DuplexFull`, and `MTU`
-- [ ] use `1500` MTU in the first implementation unless hardware setup requires another default
+- [x] read the permanent MAC address from the correct register path
+- [x] populate `NETWORK_INFO.MAC`
+- [x] report `LinkUp`, `SpeedMbps`, `DuplexFull`, and `MTU`
+- [x] use `1500` MTU in the first implementation unless hardware setup requires another default
 
 Acceptance:
 - [ ] `network devices` and `SystemDataView` show a valid MAC address

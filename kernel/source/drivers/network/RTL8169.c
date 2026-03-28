@@ -53,6 +53,9 @@ static void RTL8169InitializeHardwareDescription(LPRTL8169_DEVICE Device);
 static U32 RTL8169InitializeRegisterAccess(LPRTL8169_DEVICE Device);
 static U32 RTL8169InitializeController(LPRTL8169_DEVICE Device);
 static U32 RTL8169OnReset(const NETWORK_RESET *Reset);
+static void RTL8169ReadPermanentMac(LPRTL8169_DEVICE Device);
+static void RTL8169QueryLinkState(LPRTL8169_DEVICE Device, BOOL* LinkUp, U32* SpeedMbps, BOOL* DuplexFull);
+static U32 RTL8169OnGetInfo(const NETWORK_GET_INFO *GetInfo);
 static U32 RTL8169OnGetVersion(void);
 
 /************************************************************************/
@@ -285,6 +288,7 @@ static U32 RTL8169InitializeController(LPRTL8169_DEVICE Device) {
         (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
         RTL8169_REG_CFG9346,
         RTL8169_CFG9346_LOCK);
+    RTL8169ReadPermanentMac(Device);
     DEBUG(TEXT("[RTL8169InitializeController] Controller reset complete revision=%x"),
           Device->HardwareRevision);
     return DF_RETURN_SUCCESS;
@@ -308,6 +312,77 @@ static U32 RTL8169OnReset(const NETWORK_RESET *Reset) {
 
     Device = (LPRTL8169_DEVICE)Reset->Device;
     return RTL8169InitializeController(Device);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read the permanent MAC address from controller registers.
+ * @param Device Target RTL8169 device context.
+ */
+static void RTL8169ReadPermanentMac(LPRTL8169_DEVICE Device) {
+    if (Device == NULL) {
+        return;
+    }
+
+    RealtekNetworkReadMacFromRegisters(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_MAC0,
+        RTL8169_REG_MAC4,
+        Device->Mac);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Query the current link state from the Realtek PHY status register.
+ * @param Device Target RTL8169 device context.
+ * @param LinkUp Output link state.
+ * @param SpeedMbps Output speed in Mbps.
+ * @param DuplexFull Output duplex state.
+ */
+static void RTL8169QueryLinkState(LPRTL8169_DEVICE Device, BOOL* LinkUp, U32* SpeedMbps, BOOL* DuplexFull) {
+    U8 PhyStatus;
+
+    if (Device == NULL || LinkUp == NULL || SpeedMbps == NULL || DuplexFull == NULL) {
+        return;
+    }
+
+    PhyStatus = RealtekNetworkReadRegister8((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8169_REG_PHYSTATUS);
+    *LinkUp = (PhyStatus & RTL8169_PHYSTATUS_LINK_UP) != 0;
+    *SpeedMbps = 0;
+    *DuplexFull = (PhyStatus & RTL8169_PHYSTATUS_FULL_DUPLEX) != 0;
+
+    if ((PhyStatus & RTL8169_PHYSTATUS_1000_MBPS_FULL) != 0) {
+        *SpeedMbps = 1000;
+    } else if ((PhyStatus & RTL8169_PHYSTATUS_100_MBPS) != 0) {
+        *SpeedMbps = 100;
+    } else if ((PhyStatus & RTL8169_PHYSTATUS_10_MBPS) != 0) {
+        *SpeedMbps = 10;
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Report MAC and link information for the RTL8169 controller.
+ * @param GetInfo Information query and output buffer.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8169OnGetInfo(const NETWORK_GET_INFO *GetInfo) {
+    LPRTL8169_DEVICE Device;
+    BOOL LinkUp;
+    U32 SpeedMbps;
+    BOOL DuplexFull;
+
+    if (GetInfo == NULL || GetInfo->Device == NULL || GetInfo->Info == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    Device = (LPRTL8169_DEVICE)GetInfo->Device;
+    RTL8169ReadPermanentMac(Device);
+    RTL8169QueryLinkState(Device, &LinkUp, &SpeedMbps, &DuplexFull);
+    return RealtekNetworkOnGetInfo(GetInfo, LinkUp, SpeedMbps, DuplexFull, RTL8169_MAXIMUM_MTU);
 }
 
 /************************************************************************/
@@ -379,12 +454,7 @@ static UINT RTL8169Commands(UINT Function, UINT Parameter) {
         case DF_NT_RESET:
             return RTL8169OnReset((const NETWORK_RESET *)(LPVOID)Parameter);
         case DF_NT_GETINFO:
-            return RealtekNetworkOnGetInfo(
-                (const NETWORK_GET_INFO *)(LPVOID)Parameter,
-                FALSE,
-                RTL8169_LINK_SPEED_UNKNOWN,
-                FALSE,
-                RTL8169_MAXIMUM_MTU);
+            return RTL8169OnGetInfo((const NETWORK_GET_INFO *)(LPVOID)Parameter);
         case DF_NT_SETRXCB:
             return RealtekNetworkOnSetReceiveCallback((const NETWORK_SET_RX_CB *)(LPVOID)Parameter);
         case DF_DEV_ENABLE_INTERRUPT:

@@ -74,6 +74,12 @@
 #define RTL8169_DESCRIPTOR_RING_ALIGN 256
 #define RTL8169_MAXIMUM_MTU 1500
 
+#define RTL8169_PHYSTATUS_LINK_UP 0x02
+#define RTL8169_PHYSTATUS_FULL_DUPLEX 0x01
+#define RTL8169_PHYSTATUS_10_MBPS 0x04
+#define RTL8169_PHYSTATUS_100_MBPS 0x08
+#define RTL8169_PHYSTATUS_1000_MBPS_FULL 0x10
+
 /***************************************************************************/
 
 typedef struct tag_RTL8169_TX_DESCRIPTOR {

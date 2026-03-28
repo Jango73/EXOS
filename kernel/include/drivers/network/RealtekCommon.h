@@ -93,6 +93,11 @@ U32 RealtekNetworkReadRegister32(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 Reg
 void RealtekNetworkWriteRegister8(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset, U8 Value);
 void RealtekNetworkWriteRegister16(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset, U16 Value);
 void RealtekNetworkWriteRegister32(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset, U32 Value);
+void RealtekNetworkReadMacFromRegisters(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    U16 LowRegisterOffset,
+    U16 HighRegisterOffset,
+    U8* Mac);
 void RealtekNetworkBuildPlaceholderMac(LPREALTEK_NETWORK_COMMON_DEVICE Device);
 U32 RealtekNetworkOnReset(const NETWORK_RESET* Reset);
 U32 RealtekNetworkOnGetInfo(
