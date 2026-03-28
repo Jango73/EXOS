@@ -59,6 +59,10 @@ typedef U32 (*REALTEK_NETWORK_POLL_ROUTINE)(LPREALTEK_NETWORK_COMMON_DEVICE Devi
     U8 InterruptSlot;                        \
     BOOL InterruptRegistered;                \
     BOOL InterruptArmed;                     \
+    U16 InterruptMaskRegisterOffset;         \
+    U16 InterruptStatusRegisterOffset;       \
+    U16 InterruptEnableMask;                 \
+    U16 InterruptRelevantMask;               \
     REALTEK_NETWORK_POLL_ROUTINE PollRoutine;
 
 /***************************************************************************/
@@ -106,6 +110,12 @@ void RealtekNetworkReadMacFromRegisters(
     U16 HighRegisterOffset,
     U8* Mac);
 void RealtekNetworkBuildPlaceholderMac(LPREALTEK_NETWORK_COMMON_DEVICE Device);
+void RealtekNetworkConfigureInterruptSupport(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    U16 InterruptMaskRegisterOffset,
+    U16 InterruptStatusRegisterOffset,
+    U16 InterruptEnableMask,
+    U16 InterruptRelevantMask);
 U32 RealtekNetworkOnReset(const NETWORK_RESET* Reset);
 U32 RealtekNetworkOnGetInfo(
     const NETWORK_GET_INFO* GetInfo,
@@ -120,7 +130,7 @@ void RealtekNetworkDeliverReceivedFrame(
 U32 RealtekNetworkOnSetReceiveCallback(const NETWORK_SET_RX_CB* Set);
 U32 RealtekNetworkOnSendNotImplemented(const NETWORK_SEND* Send);
 U32 RealtekNetworkOnPollIdle(const NETWORK_POLL* Poll);
-U32 RealtekNetworkOnEnableInterruptsPollingOnly(DEVICE_INTERRUPT_CONFIG* Config);
+U32 RealtekNetworkOnEnableInterrupts(DEVICE_INTERRUPT_CONFIG* Config);
 U32 RealtekNetworkOnDisableInterrupts(DEVICE_INTERRUPT_CONFIG* Config);
 U32 RealtekNetworkOnLoad(void);
 U32 RealtekNetworkOnUnload(void);

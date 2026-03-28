@@ -274,6 +274,12 @@ static LPPCI_DEVICE RTL8139Attach(LPPCI_DEVICE PciDevice) {
 
     RTL8139InitializeHardwareDescription(Device);
     Device->PollRoutine = RTL8139PollDevice;
+    RealtekNetworkConfigureInterruptSupport(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8139_REG_INTRMASK,
+        RTL8139_REG_INTRSTATUS,
+        RTL8139_INTERRUPT_ENABLE_MASK,
+        RTL8139_INTERRUPT_RELEVANT_MASK);
     if (Device->DeviceInfo == NULL) {
         ERROR(TEXT("[RTL8139Attach] Missing hardware description for %x:%x"),
               (UINT)Device->Info.VendorID,
@@ -673,7 +679,7 @@ static UINT RTL8139Commands(UINT Function, UINT Parameter) {
         case DF_NT_SETRXCB:
             return RealtekNetworkOnSetReceiveCallback((const NETWORK_SET_RX_CB*)(LPVOID)Parameter);
         case DF_DEV_ENABLE_INTERRUPT:
-            return RealtekNetworkOnEnableInterruptsPollingOnly((DEVICE_INTERRUPT_CONFIG*)(LPVOID)Parameter);
+            return RealtekNetworkOnEnableInterrupts((DEVICE_INTERRUPT_CONFIG*)(LPVOID)Parameter);
         case DF_DEV_DISABLE_INTERRUPT:
             return RealtekNetworkOnDisableInterrupts((DEVICE_INTERRUPT_CONFIG*)(LPVOID)Parameter);
         case DF_NT_SEND:

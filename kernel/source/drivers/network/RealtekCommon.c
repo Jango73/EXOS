@@ -25,6 +25,7 @@
 
 #include "Clock.h"
 #include "CoreString.h"
+#include "DeferredWork.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
@@ -52,6 +53,7 @@ static void RealtekNetworkClearRegisterWindow(LPREALTEK_NETWORK_COMMON_DEVICE De
 static BOOL RealtekNetworkInterruptTopHalf(LPDEVICE Device, LPVOID Context);
 static void RealtekNetworkDeferredRoutine(LPDEVICE Device, LPVOID Context);
 static void RealtekNetworkPollRoutine(LPDEVICE Device, LPVOID Context);
+static void RealtekNetworkRearmInterrupts(LPREALTEK_NETWORK_COMMON_DEVICE Device);
 
 /************************************************************************/
 
@@ -76,14 +78,49 @@ static void RealtekNetworkClearRegisterWindow(LPREALTEK_NETWORK_COMMON_DEVICE De
 /************************************************************************/
 
 /**
- * @brief Shared top-half placeholder for polling-first Realtek drivers.
+ * @brief Re-arm hardware interrupts when the slot is operating in IRQ mode.
+ * @param Device Target common device state.
+ */
+static void RealtekNetworkRearmInterrupts(LPREALTEK_NETWORK_COMMON_DEVICE Device) {
+    if (Device == NULL || Device->InterruptArmed == FALSE ||
+        Device->InterruptMaskRegisterOffset == 0 || DeferredWorkIsPollingMode()) {
+        return;
+    }
+
+    RealtekNetworkWriteRegister16(Device, Device->InterruptMaskRegisterOffset, Device->InterruptEnableMask);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Shared top half for Realtek INTx interrupts.
  * @param Device Device pointer supplied by DeviceInterrupt.
  * @param Context Common Realtek device context.
- * @return FALSE because step 8 stays in polling-only mode.
+ * @return TRUE when deferred work should be scheduled, FALSE otherwise.
  */
 static BOOL RealtekNetworkInterruptTopHalf(LPDEVICE Device, LPVOID Context) {
+    LPREALTEK_NETWORK_COMMON_DEVICE CommonDevice;
+    U16 InterruptStatus;
+
     UNUSED(Device);
-    UNUSED(Context);
+
+    CommonDevice = (LPREALTEK_NETWORK_COMMON_DEVICE)Context;
+    SAFE_USE_VALID_ID(CommonDevice, KOID_PCIDEVICE) {
+        InterruptStatus = RealtekNetworkReadRegister16(CommonDevice, CommonDevice->InterruptStatusRegisterOffset);
+        if (InterruptStatus == 0 || InterruptStatus == MAX_U16) {
+            return FALSE;
+        }
+
+        RealtekNetworkWriteRegister16(CommonDevice, CommonDevice->InterruptMaskRegisterOffset, 0);
+        RealtekNetworkWriteRegister16(CommonDevice, CommonDevice->InterruptStatusRegisterOffset, InterruptStatus);
+        if ((InterruptStatus & CommonDevice->InterruptRelevantMask) == 0) {
+            RealtekNetworkRearmInterrupts(CommonDevice);
+            return FALSE;
+        }
+
+        return TRUE;
+    }
+
     return FALSE;
 }
 
@@ -121,6 +158,8 @@ static void RealtekNetworkPollRoutine(LPDEVICE Device, LPVOID Context) {
         SAFE_USE_VALID_ID(NetworkContext, KOID_NETWORKDEVICE) {
             NetworkManager_MaintenanceTick(NetworkContext);
         }
+
+        RealtekNetworkRearmInterrupts(CommonDevice);
     }
 }
 
@@ -317,6 +356,10 @@ LPPCI_DEVICE RealtekNetworkAttachCommon(UINT DeviceSize, LPPCI_DEVICE PciDevice,
     Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
     Device->InterruptRegistered = FALSE;
     Device->InterruptArmed = FALSE;
+    Device->InterruptMaskRegisterOffset = 0;
+    Device->InterruptStatusRegisterOffset = 0;
+    Device->InterruptEnableMask = 0;
+    Device->InterruptRelevantMask = 0;
     Device->PollRoutine = NULL;
     return (LPPCI_DEVICE)Device;
 }
@@ -619,6 +662,32 @@ void RealtekNetworkBuildPlaceholderMac(LPREALTEK_NETWORK_COMMON_DEVICE Device) {
 /************************************************************************/
 
 /**
+ * @brief Configure shared interrupt metadata for one Realtek device.
+ * @param Device Target common device state.
+ * @param InterruptMaskRegisterOffset Interrupt mask register offset.
+ * @param InterruptStatusRegisterOffset Interrupt status register offset.
+ * @param InterruptEnableMask Hardware mask applied when IRQ mode is armed.
+ * @param InterruptRelevantMask Status bits that should schedule deferred work.
+ */
+void RealtekNetworkConfigureInterruptSupport(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    U16 InterruptMaskRegisterOffset,
+    U16 InterruptStatusRegisterOffset,
+    U16 InterruptEnableMask,
+    U16 InterruptRelevantMask) {
+    if (Device == NULL) {
+        return;
+    }
+
+    Device->InterruptMaskRegisterOffset = InterruptMaskRegisterOffset;
+    Device->InterruptStatusRegisterOffset = InterruptStatusRegisterOffset;
+    Device->InterruptEnableMask = InterruptEnableMask;
+    Device->InterruptRelevantMask = InterruptRelevantMask;
+}
+
+/************************************************************************/
+
+/**
  * @brief Validates a generic network reset request.
  * @param Reset Reset request.
  * @return DF_RETURN_SUCCESS when the device handle is valid.
@@ -741,16 +810,19 @@ U32 RealtekNetworkOnPollIdle(const NETWORK_POLL* Poll) {
  * @param Config Interrupt configuration request.
  * @return DF_RETURN_NOT_IMPLEMENTED so polling remains active.
  */
-U32 RealtekNetworkOnEnableInterruptsPollingOnly(DEVICE_INTERRUPT_CONFIG* Config) {
+U32 RealtekNetworkOnEnableInterrupts(DEVICE_INTERRUPT_CONFIG* Config) {
     DEVICE_INTERRUPT_REGISTRATION Registration;
     LPREALTEK_NETWORK_COMMON_DEVICE Device;
+    U8 LegacyIRQ;
 
     if (Config == NULL || Config->Device == NULL) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
     Device = (LPREALTEK_NETWORK_COMMON_DEVICE)Config->Device;
-    if (Device->PollRoutine == NULL) {
+    if (Device->PollRoutine == NULL || Device->InterruptMaskRegisterOffset == 0 ||
+        Device->InterruptStatusRegisterOffset == 0 || Device->InterruptEnableMask == 0 ||
+        Device->InterruptRelevantMask == 0) {
         return DF_RETURN_NOT_IMPLEMENTED;
     }
 
@@ -761,8 +833,12 @@ U32 RealtekNetworkOnEnableInterruptsPollingOnly(DEVICE_INTERRUPT_CONFIG* Config)
     }
 
     MemorySet(&Registration, 0, sizeof(Registration));
+    LegacyIRQ = Config->LegacyIRQ;
+    if (LegacyIRQ == MAX_U8) {
+        LegacyIRQ = Device->Info.IRQLine;
+    }
     Registration.Device = (LPDEVICE)Device;
-    Registration.LegacyIRQ = MAX_U8;
+    Registration.LegacyIRQ = LegacyIRQ;
     Registration.TargetCPU = Config->TargetCPU;
     Registration.InterruptHandler = RealtekNetworkInterruptTopHalf;
     Registration.DeferredCallback = RealtekNetworkDeferredRoutine;
@@ -776,12 +852,15 @@ U32 RealtekNetworkOnEnableInterruptsPollingOnly(DEVICE_INTERRUPT_CONFIG* Config)
         Device->InterruptArmed = FALSE;
         Config->VectorSlot = DEVICE_INTERRUPT_INVALID_SLOT;
         Config->InterruptEnabled = FALSE;
-        WARNING(TEXT("[RealtekNetworkOnEnableInterruptsPollingOnly] Failed to register polling slot"));
+        WARNING(TEXT("[RealtekNetworkOnEnableInterrupts] Failed to register device interrupt"));
         return DF_RETURN_UNEXPECTED;
     }
 
     Device->InterruptRegistered = TRUE;
     Device->InterruptArmed = DeviceInterruptSlotIsEnabled(Device->InterruptSlot);
+    RealtekNetworkWriteRegister16(Device, Device->InterruptMaskRegisterOffset, 0);
+    RealtekNetworkWriteRegister16(Device, Device->InterruptStatusRegisterOffset, MAX_U16);
+    RealtekNetworkRearmInterrupts(Device);
     Config->VectorSlot = Device->InterruptSlot;
     Config->InterruptEnabled = Device->InterruptArmed;
     return DF_RETURN_SUCCESS;
@@ -802,6 +881,12 @@ U32 RealtekNetworkOnDisableInterrupts(DEVICE_INTERRUPT_CONFIG* Config) {
     }
 
     Device = (LPREALTEK_NETWORK_COMMON_DEVICE)Config->Device;
+    if (Device->InterruptMaskRegisterOffset != 0) {
+        RealtekNetworkWriteRegister16(Device, Device->InterruptMaskRegisterOffset, 0);
+    }
+    if (Device->InterruptStatusRegisterOffset != 0) {
+        RealtekNetworkWriteRegister16(Device, Device->InterruptStatusRegisterOffset, MAX_U16);
+    }
     if (Device->InterruptRegistered && Device->InterruptSlot != DEVICE_INTERRUPT_INVALID_SLOT) {
         DeviceInterruptUnregister(Device->InterruptSlot);
     }

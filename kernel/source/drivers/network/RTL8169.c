@@ -352,6 +352,12 @@ static LPPCI_DEVICE RTL8169Attach(LPPCI_DEVICE PciDevice) {
 
     RTL8169InitializeHardwareDescription(Device);
     Device->PollRoutine = RTL8169PollDevice;
+    RealtekNetworkConfigureInterruptSupport(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_INTRMASK,
+        RTL8169_REG_INTRSTATUS,
+        RTL8169_INTERRUPT_ENABLE_MASK,
+        RTL8169_INTERRUPT_RELEVANT_MASK);
 
     if (Device->DeviceInfo == NULL) {
         ERROR(TEXT("[RTL8169Attach] Missing hardware description for %x:%x"),
@@ -779,7 +785,7 @@ static UINT RTL8169Commands(UINT Function, UINT Parameter) {
         case DF_NT_SETRXCB:
             return RealtekNetworkOnSetReceiveCallback((const NETWORK_SET_RX_CB *)(LPVOID)Parameter);
         case DF_DEV_ENABLE_INTERRUPT:
-            return RealtekNetworkOnEnableInterruptsPollingOnly((DEVICE_INTERRUPT_CONFIG *)(LPVOID)Parameter);
+            return RealtekNetworkOnEnableInterrupts((DEVICE_INTERRUPT_CONFIG *)(LPVOID)Parameter);
         case DF_DEV_DISABLE_INTERRUPT:
             return RealtekNetworkOnDisableInterrupts((DEVICE_INTERRUPT_CONFIG *)(LPVOID)Parameter);
         case DF_NT_SEND:

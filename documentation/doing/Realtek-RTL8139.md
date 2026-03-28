@@ -152,10 +152,10 @@ Acceptance:
 - [ ] `netget` can download over the `RTL8139` controller in polling mode
 
 ### Step 9 - Legacy interrupt support
-- [ ] add legacy interrupt support through `DeviceInterruptRegister`
-- [ ] implement a small top half
-- [ ] move RX processing to deferred work or poll-style bottom-half handling when needed
-- [ ] keep interrupt acknowledgement and re-arm logic explicit and traceable
+- [x] add legacy interrupt support through `DeviceInterruptRegister`
+- [x] implement a small top half
+- [x] move RX processing to deferred work or poll-style bottom-half handling when needed
+- [x] keep interrupt acknowledgement and re-arm logic explicit and traceable
 
 Acceptance:
 - [ ] RX works with interrupts enabled
