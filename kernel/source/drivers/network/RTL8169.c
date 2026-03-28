@@ -67,6 +67,7 @@ static void RTL8169ReadPermanentMac(LPRTL8169_DEVICE Device);
 static void RTL8169QueryLinkState(LPRTL8169_DEVICE Device, BOOL* LinkUp, U32* SpeedMbps, BOOL* DuplexFull);
 static U32 RTL8169OnGetInfo(const NETWORK_GET_INFO *GetInfo);
 static U32 RTL8169PollReceive(LPRTL8169_DEVICE Device);
+static U32 RTL8169PollDevice(LPREALTEK_NETWORK_COMMON_DEVICE Device);
 static U32 RTL8169OnSend(const NETWORK_SEND* Send);
 static U32 RTL8169OnPoll(const NETWORK_POLL* Poll);
 static U32 RTL8169OnGetVersion(void);
@@ -350,6 +351,7 @@ static LPPCI_DEVICE RTL8169Attach(LPPCI_DEVICE PciDevice) {
     }
 
     RTL8169InitializeHardwareDescription(Device);
+    Device->PollRoutine = RTL8169PollDevice;
 
     if (Device->DeviceInfo == NULL) {
         ERROR(TEXT("[RTL8169Attach] Missing hardware description for %x:%x"),
@@ -711,6 +713,21 @@ static U32 RTL8169OnSend(const NETWORK_SEND* Send) {
 /************************************************************************/
 
 /**
+ * @brief Shared poll entry used by the Realtek common interrupt wrapper.
+ * @param Device Common Realtek device pointer.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8169PollDevice(LPREALTEK_NETWORK_COMMON_DEVICE Device) {
+    if (Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    return RTL8169PollReceive((LPRTL8169_DEVICE)Device);
+}
+
+/************************************************************************/
+
+/**
  * @brief Poll the RTL8169 receive ring.
  * @param Poll Poll request.
  * @return DF_RETURN_SUCCESS on success or an error code.
@@ -720,7 +737,7 @@ static U32 RTL8169OnPoll(const NETWORK_POLL* Poll) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    return RTL8169PollReceive((LPRTL8169_DEVICE)Poll->Device);
+    return RTL8169PollDevice((LPREALTEK_NETWORK_COMMON_DEVICE)Poll->Device);
 }
 
 /************************************************************************/

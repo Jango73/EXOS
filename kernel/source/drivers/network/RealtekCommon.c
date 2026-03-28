@@ -29,6 +29,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "System.h"
+#include "network/NetworkManager.h"
 
 /************************************************************************/
 
@@ -48,6 +49,9 @@ static BOOL RealtekNetworkFinalizeRegisterWindow(
     REALTEK_REGISTER_ACCESS_MODE AccessMode,
     LPCSTR FunctionName);
 static void RealtekNetworkClearRegisterWindow(LPREALTEK_NETWORK_COMMON_DEVICE Device);
+static BOOL RealtekNetworkInterruptTopHalf(LPDEVICE Device, LPVOID Context);
+static void RealtekNetworkDeferredRoutine(LPDEVICE Device, LPVOID Context);
+static void RealtekNetworkPollRoutine(LPDEVICE Device, LPVOID Context);
 
 /************************************************************************/
 
@@ -67,6 +71,57 @@ static void RealtekNetworkClearRegisterWindow(LPREALTEK_NETWORK_COMMON_DEVICE De
     Device->RegisterSize = 0;
     Device->RegisterLinear = 0;
     Device->RegisterPort = 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Shared top-half placeholder for polling-first Realtek drivers.
+ * @param Device Device pointer supplied by DeviceInterrupt.
+ * @param Context Common Realtek device context.
+ * @return FALSE because step 8 stays in polling-only mode.
+ */
+static BOOL RealtekNetworkInterruptTopHalf(LPDEVICE Device, LPVOID Context) {
+    UNUSED(Device);
+    UNUSED(Context);
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Shared deferred handler used by the Realtek polling-only slot.
+ * @param Device Device pointer supplied by DeviceInterrupt.
+ * @param Context Common Realtek device context.
+ */
+static void RealtekNetworkDeferredRoutine(LPDEVICE Device, LPVOID Context) {
+    RealtekNetworkPollRoutine(Device, Context);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Shared polling hook for Realtek family drivers.
+ * @param Device Device pointer supplied by DeviceInterrupt.
+ * @param Context Common Realtek device context.
+ */
+static void RealtekNetworkPollRoutine(LPDEVICE Device, LPVOID Context) {
+    LPREALTEK_NETWORK_COMMON_DEVICE CommonDevice;
+    LPNETWORK_DEVICE_CONTEXT NetworkContext;
+
+    UNUSED(Device);
+
+    CommonDevice = (LPREALTEK_NETWORK_COMMON_DEVICE)Context;
+    SAFE_USE_VALID_ID(CommonDevice, KOID_PCIDEVICE) {
+        if (CommonDevice->PollRoutine != NULL) {
+            CommonDevice->PollRoutine(CommonDevice);
+        }
+
+        NetworkContext = (LPNETWORK_DEVICE_CONTEXT)CommonDevice->RxUserData;
+        SAFE_USE_VALID_ID(NetworkContext, KOID_NETWORKDEVICE) {
+            NetworkManager_MaintenanceTick(NetworkContext);
+        }
+    }
 }
 
 /************************************************************************/
@@ -259,6 +314,10 @@ LPPCI_DEVICE RealtekNetworkAttachCommon(UINT DeviceSize, LPPCI_DEVICE PciDevice,
     RealtekNetworkClearRegisterWindow(Device);
     Device->ProductName = TEXT("Realtek Network Family");
     RealtekNetworkBuildPlaceholderMac(Device);
+    Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+    Device->InterruptRegistered = FALSE;
+    Device->InterruptArmed = FALSE;
+    Device->PollRoutine = NULL;
     return (LPPCI_DEVICE)Device;
 }
 
@@ -683,13 +742,49 @@ U32 RealtekNetworkOnPollIdle(const NETWORK_POLL* Poll) {
  * @return DF_RETURN_NOT_IMPLEMENTED so polling remains active.
  */
 U32 RealtekNetworkOnEnableInterruptsPollingOnly(DEVICE_INTERRUPT_CONFIG* Config) {
+    DEVICE_INTERRUPT_REGISTRATION Registration;
+    LPREALTEK_NETWORK_COMMON_DEVICE Device;
+
     if (Config == NULL || Config->Device == NULL) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    Config->VectorSlot = DEVICE_INTERRUPT_INVALID_SLOT;
-    Config->InterruptEnabled = FALSE;
-    return DF_RETURN_NOT_IMPLEMENTED;
+    Device = (LPREALTEK_NETWORK_COMMON_DEVICE)Config->Device;
+    if (Device->PollRoutine == NULL) {
+        return DF_RETURN_NOT_IMPLEMENTED;
+    }
+
+    if (Device->InterruptRegistered) {
+        Config->VectorSlot = Device->InterruptSlot;
+        Config->InterruptEnabled = Device->InterruptArmed;
+        return DF_RETURN_SUCCESS;
+    }
+
+    MemorySet(&Registration, 0, sizeof(Registration));
+    Registration.Device = (LPDEVICE)Device;
+    Registration.LegacyIRQ = MAX_U8;
+    Registration.TargetCPU = Config->TargetCPU;
+    Registration.InterruptHandler = RealtekNetworkInterruptTopHalf;
+    Registration.DeferredCallback = RealtekNetworkDeferredRoutine;
+    Registration.PollCallback = RealtekNetworkPollRoutine;
+    Registration.Context = Device;
+    Registration.Name = Device->Driver ? Device->Driver->Product : TEXT("Realtek");
+
+    if (!DeviceInterruptRegister(&Registration, &Device->InterruptSlot)) {
+        Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+        Device->InterruptRegistered = FALSE;
+        Device->InterruptArmed = FALSE;
+        Config->VectorSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+        Config->InterruptEnabled = FALSE;
+        WARNING(TEXT("[RealtekNetworkOnEnableInterruptsPollingOnly] Failed to register polling slot"));
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    Device->InterruptRegistered = TRUE;
+    Device->InterruptArmed = DeviceInterruptSlotIsEnabled(Device->InterruptSlot);
+    Config->VectorSlot = Device->InterruptSlot;
+    Config->InterruptEnabled = Device->InterruptArmed;
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/
@@ -700,10 +795,20 @@ U32 RealtekNetworkOnEnableInterruptsPollingOnly(DEVICE_INTERRUPT_CONFIG* Config)
  * @return DF_RETURN_SUCCESS when the request is structurally valid.
  */
 U32 RealtekNetworkOnDisableInterrupts(DEVICE_INTERRUPT_CONFIG* Config) {
+    LPREALTEK_NETWORK_COMMON_DEVICE Device;
+
     if (Config == NULL || Config->Device == NULL) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
+    Device = (LPREALTEK_NETWORK_COMMON_DEVICE)Config->Device;
+    if (Device->InterruptRegistered && Device->InterruptSlot != DEVICE_INTERRUPT_INVALID_SLOT) {
+        DeviceInterruptUnregister(Device->InterruptSlot);
+    }
+
+    Device->InterruptSlot = DEVICE_INTERRUPT_INVALID_SLOT;
+    Device->InterruptRegistered = FALSE;
+    Device->InterruptArmed = FALSE;
     Config->VectorSlot = DEVICE_INTERRUPT_INVALID_SLOT;
     Config->InterruptEnabled = FALSE;
     return DF_RETURN_SUCCESS;

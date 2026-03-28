@@ -142,8 +142,8 @@ Acceptance:
 - [ ] received frames reach the registered RX callback in polling mode
 
 ### Step 8 - Polling-only network bring-up
-- [ ] implement `DF_NT_POLL`
-- [ ] make `NetworkManager` operate on the `RTL8139` device in polling mode first
+- [x] implement `DF_NT_POLL`
+- [x] make `NetworkManager` operate on the `RTL8139` device in polling mode first
 - [ ] validate ARP, IPv4, DHCP, UDP, and TCP without interrupt dependency
 
 Acceptance:

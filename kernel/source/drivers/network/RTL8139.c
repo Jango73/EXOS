@@ -65,6 +65,7 @@ static void RTL8139ReadPermanentMac(LPRTL8139_DEVICE Device);
 static void RTL8139QueryLinkState(LPRTL8139_DEVICE Device, BOOL* LinkUp, U32* SpeedMbps, BOOL* DuplexFull);
 static U32 RTL8139OnGetInfo(const NETWORK_GET_INFO* GetInfo);
 static U32 RTL8139PollReceive(LPRTL8139_DEVICE Device);
+static U32 RTL8139PollDevice(LPREALTEK_NETWORK_COMMON_DEVICE Device);
 static U32 RTL8139OnSend(const NETWORK_SEND* Send);
 static U32 RTL8139OnPoll(const NETWORK_POLL* Poll);
 static U32 RTL8139OnGetVersion(void);
@@ -272,6 +273,7 @@ static LPPCI_DEVICE RTL8139Attach(LPPCI_DEVICE PciDevice) {
     }
 
     RTL8139InitializeHardwareDescription(Device);
+    Device->PollRoutine = RTL8139PollDevice;
     if (Device->DeviceInfo == NULL) {
         ERROR(TEXT("[RTL8139Attach] Missing hardware description for %x:%x"),
               (UINT)Device->Info.VendorID,
@@ -605,6 +607,21 @@ static U32 RTL8139OnSend(const NETWORK_SEND* Send) {
 /************************************************************************/
 
 /**
+ * @brief Shared poll entry used by the Realtek common interrupt wrapper.
+ * @param Device Common Realtek device pointer.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8139PollDevice(LPREALTEK_NETWORK_COMMON_DEVICE Device) {
+    if (Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    return RTL8139PollReceive((LPRTL8139_DEVICE)Device);
+}
+
+/************************************************************************/
+
+/**
  * @brief Poll the RTL8139 receive path.
  * @param Poll Poll request.
  * @return DF_RETURN_SUCCESS on success or an error code.
@@ -614,7 +631,7 @@ static U32 RTL8139OnPoll(const NETWORK_POLL* Poll) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    return RTL8139PollReceive((LPRTL8139_DEVICE)Poll->Device);
+    return RTL8139PollDevice((LPREALTEK_NETWORK_COMMON_DEVICE)Poll->Device);
 }
 
 /************************************************************************/

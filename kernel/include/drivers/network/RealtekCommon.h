@@ -37,6 +37,9 @@
 #define REALTEK_NETWORK_RESET_TIMEOUT_MS 100
 #define REALTEK_NETWORK_RESET_LOOP_LIMIT 1000000
 
+typedef struct tag_REALTEK_NETWORK_COMMON_DEVICE REALTEK_NETWORK_COMMON_DEVICE, *LPREALTEK_NETWORK_COMMON_DEVICE;
+typedef U32 (*REALTEK_NETWORK_POLL_ROUTINE)(LPREALTEK_NETWORK_COMMON_DEVICE Device);
+
 #define REALTEK_NETWORK_MATCH_ENTRY(DeviceID) \
     { REALTEK_NETWORK_VENDOR_ID, DeviceID, PCI_CLASS_NETWORK, PCI_SUBCLASS_ETHERNET, PCI_ANY_CLASS }
 
@@ -52,7 +55,11 @@
     U32 RegisterPort;                        \
     U8 Mac[6];                               \
     NT_RXCB RxCallback;                      \
-    LPVOID RxUserData;
+    LPVOID RxUserData;                       \
+    U8 InterruptSlot;                        \
+    BOOL InterruptRegistered;                \
+    BOOL InterruptArmed;                     \
+    REALTEK_NETWORK_POLL_ROUTINE PollRoutine;
 
 /***************************************************************************/
 
@@ -64,9 +71,9 @@ typedef enum tag_REALTEK_REGISTER_ACCESS_MODE {
 
 /***************************************************************************/
 
-typedef struct tag_REALTEK_NETWORK_COMMON_DEVICE {
+struct tag_REALTEK_NETWORK_COMMON_DEVICE {
     REALTEK_NETWORK_COMMON_DEVICE_FIELDS
-} REALTEK_NETWORK_COMMON_DEVICE, *LPREALTEK_NETWORK_COMMON_DEVICE;
+};
 
 /***************************************************************************/
 
