@@ -574,7 +574,7 @@ This approach ensures that:
 
 #### System call full path - x86-32
 
-`USE_SYSCALL` is a project-level build flag (`./scripts/build --arch x86-64 --fs ext2 --debug --use-syscall`) that selects between the interrupt gate path and the SYSCALL/SYSRET pair on x86-64. The flag has no effect on x86-32 builds.
+`USE_SYSCALL` is a project-level build flag (`./scripts/linux/build/build --arch x86-64 --fs ext2 --debug --use-syscall`) that selects between the interrupt gate path and the SYSCALL/SYSRET pair on x86-64. The flag has no effect on x86-32 builds.
 
 ```
 exos-runtime-c.c : malloc() (or any other function)
@@ -2285,7 +2285,7 @@ Desktop and windowing code follow this same kernel-wide rule. Typical examples:
 
 ### System Data View
 
-`SYSTEM_DATA_VIEW` is a project-level build flag (`./scripts/build --arch x86-32 --fs ext2 --system-data-view`) that starts a diagnostic pager before task creation. The view renders in the kernel console, uses left/right to switch pages, uses up/down to scroll, and exits on `Esc` to continue the boot sequence.
+`SYSTEM_DATA_VIEW` is a project-level build flag (`./scripts/linux/build/build --arch x86-32 --fs ext2 --system-data-view`) that starts a diagnostic pager before task creation. The view renders in the kernel console, uses left/right to switch pages, uses up/down to scroll, and exits on `Esc` to continue the boot sequence.
 
 The implementation lives in `kernel/source/SystemDataView.c`. It provides a compact inspection surface for platform state that is already available during early kernel execution, before the shell or desktop environment starts.
 
@@ -2328,7 +2328,7 @@ Available log classes are `DEBUG`, `WARNING`, `ERROR`, `VERBOSE`, and `TEST`.
 The filter value accepts separators (comma, semicolon, pipe, or space), and each token matches the first bracket tag in a log line (for example `MountDiskPartitionsGpt` or `[MountDiskPartitionsGpt]`).
 When filtering is active, only matching tagged lines are emitted.
 The default startup filter is initialized for NVMe/GPT diagnostics.
-Builds can override this value with `--kernel-log-tag-filter <value>` in `scripts/build.sh`; passing an empty value compiles an empty default filter.
+Builds can override this value with `--kernel-log-tag-filter <value>` in `scripts/linux/build/build.sh`; passing an empty value compiles an empty default filter.
 
 #### Recent retained log view
 
@@ -2351,7 +2351,7 @@ The UI component does not access desktop internals or log storage internals dire
 
 ### Automated debug validation script
 
-The repository provides `scripts/4-1-smoke-test-global.sh` to run an automated debug validation flow:
+The repository provides `scripts/linux/test/smoke-test-global.sh` to run an automated debug validation flow:
 
 - clean build + image generation,
 - QEMU boot,
