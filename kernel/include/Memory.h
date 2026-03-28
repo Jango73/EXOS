@@ -83,6 +83,7 @@ void MarkUsedPhysicalMemory(void);
 void SetLoaderReservedPhysicalRange(PHYSICAL Start, PHYSICAL End);
 void SetPhysicalAllocatorMetadataRange(PHYSICAL Start, PHYSICAL End);
 void SetAllocPhysicalPageTraceEnabled(BOOL Enabled);
+BOOL IsPhysicalMemoryRangeFree(PHYSICAL BaseAddress, UINT Size);
 BOOL FindAvailableMemoryRange(PHYSICAL MinimumAddress, UINT Size, PHYSICAL* OutAddress);
 BOOL FindAvailableMemoryRangeInWindow(
     PHYSICAL MinimumAddress,

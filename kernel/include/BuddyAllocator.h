@@ -33,6 +33,7 @@ UINT BuddyGetMetadataSize(UINT TotalPages);
 BOOL BuddyInitialize(LINEAR MetadataAddress, UINT MetadataSize, UINT TotalPages);
 BOOL BuddyResetAllReserved(void);
 BOOL BuddySetRange(UINT FirstPage, UINT PageCount, UINT Used);
+BOOL BuddyIsRangeFree(UINT FirstPage, UINT PageCount);
 PHYSICAL BuddyAllocPage(void);
 BOOL BuddyFreePage(PHYSICAL Page);
 BOOL BuddyIsReady(void);

@@ -470,6 +470,34 @@ BOOL BuddySetRange(UINT FirstPage, UINT PageCount, UINT Used) {
 
 /************************************************************************/
 /**
+ * @brief Check whether a contiguous physical page range is entirely free.
+ * @param FirstPage First page index.
+ * @param PageCount Number of pages to inspect.
+ * @return TRUE when every page is free, FALSE otherwise.
+ */
+BOOL BuddyIsRangeFree(UINT FirstPage, UINT PageCount) {
+    UINT End;
+
+    if (BuddyIsReady() == FALSE || PageCount == 0) {
+        return FALSE;
+    }
+
+    End = FirstPage + PageCount;
+    if (FirstPage >= G_BuddyHeader->TotalPages || End > G_BuddyHeader->TotalPages) {
+        return FALSE;
+    }
+
+    for (UINT Page = FirstPage; Page < End; Page++) {
+        if (G_PageUsed[Page] != 0) {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+/**
  * @brief Allocate one 4K physical page.
  * @return Physical address of allocated page, 0 on failure.
  */
