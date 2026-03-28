@@ -14,6 +14,7 @@ LOG_FILE="$ROOT_DIR/log/kernel.log"
 COMMANDS_FILE="${SMOKE_TEST_DEFAULT_COMMANDS_FILE:-$ROOT_DIR/scripts/smoke-test-global-commands.txt}"
 LOCAL_HTTP_SERVER_SCRIPT="${SMOKE_TEST_LOCAL_HTTP_SERVER_SCRIPT:-$ROOT_DIR/scripts/net/start-server.sh}"
 LOCAL_HTTP_SERVER_PORT="${LOCAL_HTTP_SERVER_PORT:-8081}"
+SMOKE_TEST_LOCAL_HTTP_BASE_URL="http://10.0.2.2:${LOCAL_HTTP_SERVER_PORT}"
 SMOKE_TEST_REQUIRE_LOCAL_HTTP_SERVER="${SMOKE_TEST_REQUIRE_LOCAL_HTTP_SERVER:-0}"
 if [ "$SMOKE_TEST_REQUIRE_LOCAL_HTTP_SERVER" = "1" ]; then
     SKIP_LOCAL_HTTP_SERVER="${SKIP_LOCAL_HTTP_SERVER:-0}"
@@ -930,6 +931,7 @@ function RunCommandList() {
     local CompareDownloaded=""
     local TimeoutSeconds=""
 
+    local CommandsContent=""
     local ResolvedCommandsFile="$COMMANDS_FILE"
 
     if [ ! -f "$ResolvedCommandsFile" ] && [[ "$ResolvedCommandsFile" != /* ]]; then
@@ -940,6 +942,8 @@ function RunCommandList() {
         echo "Commands file not found: $COMMANDS_FILE"
         exit 1
     fi
+
+    CommandsContent="$(sed "s|@LOCAL_HTTP_BASE_URL@|$SMOKE_TEST_LOCAL_HTTP_BASE_URL|g" "$ResolvedCommandsFile")"
 
     while IFS= read -r Line || [ -n "$Line" ]; do
         Line="${Line%%$'\r'}"
@@ -983,7 +987,7 @@ function RunCommandList() {
         fi
 
         RunCommandSpec "$ActionType" "$CommandText" "$ExpectedText" "$CompareSource" "$CompareDownloaded" "$TimeoutSeconds"
-    done < "$ResolvedCommandsFile"
+    done <<< "$CommandsContent"
 }
 
 function StopQemu() {
