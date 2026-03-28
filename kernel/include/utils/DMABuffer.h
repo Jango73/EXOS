@@ -43,6 +43,8 @@ typedef struct tag_DMA_BUFFER {
 BOOL DMABufferAllocate(LPDMA_BUFFER Buffer, UINT Size, BOOL RequireContiguous, LPCSTR Tag);
 void DMABufferRelease(LPDMA_BUFFER Buffer);
 PHYSICAL DMABufferGetPhysical(const DMA_BUFFER* Buffer, UINT Offset);
+LINEAR DMABufferGetIndexedLinear(const DMA_BUFFER* Buffer, UINT Index, UINT Stride);
+PHYSICAL DMABufferGetIndexedPhysical(const DMA_BUFFER* Buffer, UINT Index, UINT Stride);
 
 /***************************************************************************/
 

@@ -136,3 +136,47 @@ PHYSICAL DMABufferGetPhysical(const DMA_BUFFER* Buffer, UINT Offset) {
 
     return MapLinearToPhysical(Buffer->LinearBase + Offset);
 }
+
+/************************************************************************/
+
+/**
+ * @brief Resolve the linear address of one indexed element inside a DMA buffer.
+ * @param Buffer DMA buffer description.
+ * @param Index Element index.
+ * @param Stride Element stride in bytes.
+ * @return Linear address on success, 0 on failure.
+ */
+LINEAR DMABufferGetIndexedLinear(const DMA_BUFFER* Buffer, UINT Index, UINT Stride) {
+    UINT Offset;
+
+    if (Buffer == NULL || Stride == 0) {
+        return 0;
+    }
+
+    Offset = Index * Stride;
+    if (Offset >= Buffer->Size) {
+        return 0;
+    }
+
+    return Buffer->LinearBase + Offset;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve the physical address of one indexed element inside a DMA buffer.
+ * @param Buffer DMA buffer description.
+ * @param Index Element index.
+ * @param Stride Element stride in bytes.
+ * @return Physical address on success, 0 on failure.
+ */
+PHYSICAL DMABufferGetIndexedPhysical(const DMA_BUFFER* Buffer, UINT Index, UINT Stride) {
+    UINT Offset;
+
+    if (Buffer == NULL || Stride == 0) {
+        return 0;
+    }
+
+    Offset = Index * Stride;
+    return DMABufferGetPhysical(Buffer, Offset);
+}
