@@ -56,6 +56,15 @@ documentation and programming guides.
   a full receive-frame ceiling.
   The register limits received packet size, so EXOS now programs it to the
   receive buffer size used by the descriptor ring.
+- `C+CR` was not programmed before descriptor and controller setup.
+  The manual describes this register as the key configuration step before
+  other registers and descriptors are initialized.
+- `ETThR` was left implicit.
+  The register specification marks `0` as reserved, so EXOS now programs a
+  valid early-transmit threshold explicitly.
+- RX completion accepted any plausible length once `OWN` cleared.
+  The driver now rejects descriptors that are not single-buffer packets or
+  that carry documented RX error status bits.
 
 ### Confirmed remaining gaps
 

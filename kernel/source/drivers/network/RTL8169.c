@@ -62,6 +62,7 @@ static U32 RTL8169InitializeRegisterAccess(LPRTL8169_DEVICE Device);
 static U32 RTL8169AllocateBuffers(LPRTL8169_DEVICE Device);
 static U32 RTL8169InitializeDescriptorRings(LPRTL8169_DEVICE Device);
 static void RTL8169InitializeReceiveFilter(LPRTL8169_DEVICE Device);
+static U32 RTL8169GetReceiveDescriptorErrorMask(void);
 static U32 RTL8169InitializeController(LPRTL8169_DEVICE Device);
 static U32 RTL8169OnReset(const NETWORK_RESET *Reset);
 static void RTL8169ReadPermanentMac(LPRTL8169_DEVICE Device);
@@ -344,6 +345,21 @@ static void RTL8169InitializeReceiveFilter(LPRTL8169_DEVICE Device) {
 /************************************************************************/
 
 /**
+ * @brief Return the descriptor status bits that make one RX buffer invalid.
+ * @return Combined RTL8169 RX descriptor error mask.
+ */
+static U32 RTL8169GetReceiveDescriptorErrorMask(void) {
+    return RTL8169_DESCRIPTOR_BUFFER_OVERFLOW |
+           RTL8169_DESCRIPTOR_FIFO_OVERFLOW |
+           RTL8169_DESCRIPTOR_RECEIVE_WATCHDOG |
+           RTL8169_DESCRIPTOR_RECEIVE_ERROR |
+           RTL8169_DESCRIPTOR_RUNT |
+           RTL8169_DESCRIPTOR_CRC_ERROR;
+}
+
+/************************************************************************/
+
+/**
  * @brief Attaches the driver to a supported PCI function.
  *
  * Step 2 establishes the generic EXOS network-driver shape and returns an
@@ -450,11 +466,19 @@ static U32 RTL8169InitializeController(LPRTL8169_DEVICE Device) {
         (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
         RTL8169_REG_CFG9346,
         RTL8169_CFG9346_UNLOCK);
+    RealtekNetworkWriteRegister16(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_CPLUSCMD,
+        RTL8169_CPLUSCMD_DEFAULT);
     RTL8169InitializeReceiveFilter(Device);
     RealtekNetworkWriteRegister16(
         (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
         RTL8169_REG_RXMAXSIZE,
         RTL8169_RX_BUFFER_SIZE);
+    RealtekNetworkWriteRegister8(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_ETTHR,
+        RTL8169_ETTHR_MAXIMUM_VALID);
     Result = RTL8169InitializeDescriptorRings(Device);
     if (Result != DF_RETURN_SUCCESS) {
         RealtekNetworkWriteRegister8(
@@ -488,7 +512,6 @@ static U32 RTL8169InitializeController(LPRTL8169_DEVICE Device) {
         (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
         RTL8169_REG_RXCONFIG,
         RxConfig);
-    RealtekNetworkWriteRegister16((LPREALTEK_NETWORK_COMMON_DEVICE)Device, RTL8169_REG_CPLUSCMD, 0);
     RealtekNetworkWriteRegister8(
         (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
         RTL8169_REG_CFG9346,
@@ -497,6 +520,10 @@ static U32 RTL8169InitializeController(LPRTL8169_DEVICE Device) {
         (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
         RTL8169_REG_CHIPCMD,
         RTL8169_CHIPCMD_RX_ENABLE | RTL8169_CHIPCMD_TX_ENABLE);
+    RealtekNetworkWriteRegister32(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_TXCONFIG,
+        RTL8169_TXCONFIG_IFG_NORMAL | RTL8169_TXCONFIG_DMA_1024);
     RTL8169ReadPermanentMac(Device);
     DEBUG(TEXT("[RTL8169InitializeController] Controller reset complete revision=%x"),
           Device->HardwareRevision);
@@ -647,6 +674,7 @@ static U32 RTL8169PollReceive(LPRTL8169_DEVICE Device) {
     for (Guard = 0; Guard < Device->RxDescriptorCount; Guard++) {
         LPRTL8169_RX_DESCRIPTOR Descriptor = &Descriptors[Device->RxNextDescriptor];
         U32 DescriptorStatus = Descriptor->CommandStatus;
+        U32 DescriptorErrorMask = RTL8169GetReceiveDescriptorErrorMask();
         U32 FrameLength;
         U8* Frame;
         PHYSICAL BufferPhysical;
@@ -657,13 +685,16 @@ static U32 RTL8169PollReceive(LPRTL8169_DEVICE Device) {
         }
 
         FrameLength = DescriptorStatus & RTL8169_DESCRIPTOR_LENGTH_MASK;
-        if (FrameLength > 4 && FrameLength <= RTL8169_RX_BUFFER_SIZE) {
+        if ((DescriptorStatus & DescriptorErrorMask) != 0 ||
+            (DescriptorStatus & RTL8169_DESCRIPTOR_FIRST_FRAGMENT) == 0 ||
+            (DescriptorStatus & RTL8169_DESCRIPTOR_LAST_FRAGMENT) == 0 ||
+            FrameLength <= 4 || FrameLength > RTL8169_RX_BUFFER_SIZE) {
+            WARNING(TEXT("[RTL8169PollReceive] Dropping invalid RX descriptor status=%x length=%u"),
+                    DescriptorStatus,
+                    FrameLength);
+        } else {
             Frame = (U8*)(LPVOID)(Device->RxBufferPool.LinearBase + (Device->RxNextDescriptor << PAGE_SIZE_MUL));
             RealtekNetworkDeliverReceivedFrame((LPREALTEK_NETWORK_COMMON_DEVICE)Device, Frame, FrameLength - 4);
-        } else {
-            WARNING(TEXT("[RTL8169PollReceive] Dropping invalid RX descriptor length=%u status=%x"),
-                    FrameLength,
-                    DescriptorStatus);
         }
 
         BufferPhysical = DMABufferGetPhysical(&Device->RxBufferPool, Device->RxNextDescriptor << PAGE_SIZE_MUL);
