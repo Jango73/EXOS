@@ -51,6 +51,7 @@ AUTOTEST_ERROR_SCOPE_END="AUTOTEST_ERROR_SCOPE_END"
 RG_BIN="$(command -v rg || true)"
 GREP_BIN="$(command -v grep || true)"
 RUN_X86_32=1
+RUN_X86_32_RTL8139=1
 RUN_X86_64=1
 RUN_X86_64_UEFI=1
 SKIP_BUILD=0
@@ -65,7 +66,7 @@ CURRENT_LOGS_ARCHIVED=0
 SCRIPT_DISPLAY_NAME="${SMOKE_TEST_SCRIPT_NAME:-$0}"
 
 function Usage() {
-    echo "Usage: $SCRIPT_DISPLAY_NAME [--only <x86-32|x86-64|x86-64-uefi>] [--commands-file <path>] [--no-build] [--stop-after-shell] [--no-keyboard-layout-patch] [--hash-compare] [--key-delay <seconds>] [--command-delay <seconds>] [--boot-input-delay <seconds>] [--help]"
+    echo "Usage: $SCRIPT_DISPLAY_NAME [--only <x86-32|x86-32-rtl8139|x86-64|x86-64-uefi>] [--commands-file <path>] [--no-build] [--stop-after-shell] [--no-keyboard-layout-patch] [--hash-compare] [--key-delay <seconds>] [--command-delay <seconds>] [--boot-input-delay <seconds>] [--help]"
 }
 
 function ParseArguments() {
@@ -79,10 +80,12 @@ function ParseArguments() {
                     exit 1
                 fi
                 RUN_X86_32=0
+                RUN_X86_32_RTL8139=0
                 RUN_X86_64=0
                 RUN_X86_64_UEFI=0
                 case "$1" in
                     x86-32) RUN_X86_32=1 ;;
+                    x86-32-rtl8139) RUN_X86_32_RTL8139=1 ;;
                     x86-64) RUN_X86_64=1 ;;
                     x86-64-uefi) RUN_X86_64_UEFI=1 ;;
                     *)
@@ -1085,6 +1088,9 @@ function SmokeTestMain() {
 
     if [ "$RUN_X86_32" -eq 1 ]; then
         RunArchitecture "x86-32" "scripts/build.sh --arch x86-32 --fs ext2 --debug --clean --kernel-log-tag-filter ''" "scripts/run.sh --arch x86-32 --fs ext2 --debug" "log/kernel-x86-32-mbr-debug.log" "build/image/x86-32-mbr-debug-ext2/boot-hd/exos.img" "1048576"
+    fi
+    if [ "$RUN_X86_32_RTL8139" -eq 1 ]; then
+        RunArchitecture "x86-32 rtl8139" "scripts/build.sh --arch x86-32 --fs ext2 --debug --clean --kernel-log-tag-filter ''" "scripts/run.sh --arch x86-32 --fs ext2 --debug --net-card rtl8139" "log/kernel-x86-32-mbr-debug.log" "build/image/x86-32-mbr-debug-ext2/boot-hd/exos.img" "1048576"
     fi
     if [ "$RUN_X86_64" -eq 1 ]; then
         RunArchitecture "x86-64" "scripts/build.sh --arch x86-64 --fs ext2 --debug --clean --kernel-log-tag-filter ''" "scripts/run.sh --arch x86-64 --fs ext2 --debug" "log/kernel-x86-64-mbr-debug.log" "build/image/x86-64-mbr-debug-ext2/boot-hd/exos.img" "1048576"
