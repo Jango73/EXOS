@@ -52,6 +52,7 @@ static U32 RTL8139OnProbe(const PCI_INFO* PciInfo);
 static LPPCI_DEVICE RTL8139Attach(LPPCI_DEVICE PciDevice);
 static const RTL8139_DEVICE_INFO* RTL8139FindDeviceInfo(U16 VendorID, U16 DeviceID);
 static void RTL8139InitializeHardwareDescription(LPRTL8139_DEVICE Device);
+static U32 RTL8139InitializeRegisterAccess(LPRTL8139_DEVICE Device);
 static U32 RTL8139OnGetVersion(void);
 
 /************************************************************************/
@@ -183,6 +184,7 @@ static void RTL8139InitializeHardwareDescription(LPRTL8139_DEVICE Device) {
  */
 static LPPCI_DEVICE RTL8139Attach(LPPCI_DEVICE PciDevice) {
     LPRTL8139_DEVICE Device;
+    U32 Result;
 
     Device = (LPRTL8139_DEVICE)RealtekNetworkAttachCommon(
         sizeof(RTL8139_DEVICE),
@@ -201,6 +203,12 @@ static LPPCI_DEVICE RTL8139Attach(LPPCI_DEVICE PciDevice) {
         return NULL;
     }
 
+    Result = RTL8139InitializeRegisterAccess(Device);
+    if (Result != DF_RETURN_SUCCESS) {
+        ReleaseKernelObject(Device);
+        return NULL;
+    }
+
     Device->ProductName = Device->DeviceInfo->ProductName;
     DEBUG(TEXT("[RTL8139Attach] Attached %s controller %x:%x on %x:%x.%x"),
           Device->DeviceInfo->ProductName,
@@ -210,6 +218,40 @@ static LPPCI_DEVICE RTL8139Attach(LPPCI_DEVICE PciDevice) {
           (UINT)Device->Info.Dev,
           (UINT)Device->Info.Func);
     return (LPPCI_DEVICE)Device;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Initialize the active register BAR and cache the hardware revision.
+ * @param Device Target RTL8139 device context.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8139InitializeRegisterAccess(LPRTL8139_DEVICE Device) {
+    U32 Result;
+
+    if (Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    Result = RealtekNetworkInitializeRegisterWindow(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        REALTEK_REGISTER_ACCESS_MODE_IO,
+        REALTEK_REGISTER_ACCESS_MODE_MMIO,
+        RTL8139_REG_TXCONFIG,
+        TEXT("RTL8139InitializeRegisterAccess"));
+    if (Result != DF_RETURN_SUCCESS) {
+        return Result;
+    }
+
+    Device->HardwareRevision = RealtekNetworkReadRegister32(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8139_REG_TXCONFIG);
+    DEBUG(TEXT("[RTL8139InitializeRegisterAccess] Revision=%x access=%u bar=%u"),
+          Device->HardwareRevision,
+          (UINT)Device->RegisterAccessMode,
+          (UINT)Device->RegisterBarIndex);
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/

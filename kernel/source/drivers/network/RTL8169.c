@@ -50,6 +50,7 @@ static UINT RTL8169Commands(UINT Function, UINT Parameter);
 static LPPCI_DEVICE RTL8169Attach(LPPCI_DEVICE PciDevice);
 static const RTL8169_DEVICE_INFO *RTL8169FindDeviceInfo(U16 VendorID, U16 DeviceID);
 static void RTL8169InitializeHardwareDescription(LPRTL8169_DEVICE Device);
+static U32 RTL8169InitializeRegisterAccess(LPRTL8169_DEVICE Device);
 static U32 RTL8169OnGetVersion(void);
 
 /************************************************************************/
@@ -187,6 +188,7 @@ static void RTL8169InitializeHardwareDescription(LPRTL8169_DEVICE Device) {
  */
 static LPPCI_DEVICE RTL8169Attach(LPPCI_DEVICE PciDevice) {
     LPRTL8169_DEVICE Device;
+    U32 Result;
 
     Device = (LPRTL8169_DEVICE)RealtekNetworkAttachCommon(
         sizeof(RTL8169_DEVICE),
@@ -206,6 +208,12 @@ static LPPCI_DEVICE RTL8169Attach(LPPCI_DEVICE PciDevice) {
         return NULL;
     }
 
+    Result = RTL8169InitializeRegisterAccess(Device);
+    if (Result != DF_RETURN_SUCCESS) {
+        ReleaseKernelObject(Device);
+        return NULL;
+    }
+
     Device->ProductName = Device->DeviceInfo->ProductName;
     DEBUG(TEXT("[RTL8169Attach] Attached %s controller %x:%x on %x:%x.%x"),
           Device->DeviceInfo->ProductName,
@@ -215,6 +223,40 @@ static LPPCI_DEVICE RTL8169Attach(LPPCI_DEVICE PciDevice) {
           (UINT)Device->Info.Dev,
           (UINT)Device->Info.Func);
     return (LPPCI_DEVICE)Device;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Initialize the active register BAR and cache the hardware revision.
+ * @param Device Target RTL8169 device context.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+static U32 RTL8169InitializeRegisterAccess(LPRTL8169_DEVICE Device) {
+    U32 Result;
+
+    if (Device == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    Result = RealtekNetworkInitializeRegisterWindow(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        REALTEK_REGISTER_ACCESS_MODE_MMIO,
+        REALTEK_REGISTER_ACCESS_MODE_NONE,
+        RTL8169_REG_TXCONFIG,
+        TEXT("RTL8169InitializeRegisterAccess"));
+    if (Result != DF_RETURN_SUCCESS) {
+        return Result;
+    }
+
+    Device->HardwareRevision = RealtekNetworkReadRegister32(
+        (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
+        RTL8169_REG_TXCONFIG);
+    DEBUG(TEXT("[RTL8169InitializeRegisterAccess] Revision=%x access=%u bar=%u"),
+          Device->HardwareRevision,
+          (UINT)Device->RegisterAccessMode,
+          (UINT)Device->RegisterBarIndex);
+    return DF_RETURN_SUCCESS;
 }
 
 /************************************************************************/

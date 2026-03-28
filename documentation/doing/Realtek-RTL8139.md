@@ -99,11 +99,11 @@ Acceptance:
 - [x] adding a new compatible `RTL8139` family PCI ID is done by extending a table, not by duplicating functions
 
 ### Step 4 - Probe and register mapping
-- [ ] validate `PCI_CLASS_NETWORK` and `PCI_SUBCLASS_ETHERNET`
-- [ ] enable bus mastering and the controller register access mode required by the device
-- [ ] decode and map the active register BAR
-- [ ] validate that the mapped register block is readable
-- [ ] read hardware revision information early and store it in the device context
+- [x] validate `PCI_CLASS_NETWORK` and `PCI_SUBCLASS_ETHERNET`
+- [x] enable bus mastering and the controller register access mode required by the device
+- [x] decode and map the active register BAR
+- [x] validate that the mapped register block is readable
+- [x] read hardware revision information early and store it in the device context
 
 Acceptance:
 - [ ] driver logs show stable probe, mapped BAR, and revision identification

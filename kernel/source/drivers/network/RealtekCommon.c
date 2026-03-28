@@ -27,6 +27,205 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"
+#include "System.h"
+
+/************************************************************************/
+
+static BOOL RealtekNetworkConfigurePCICommand(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    REALTEK_REGISTER_ACCESS_MODE AccessMode,
+    LPCSTR FunctionName);
+static BOOL RealtekNetworkSelectRegisterWindowForMode(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    REALTEK_REGISTER_ACCESS_MODE AccessMode,
+    LPCSTR FunctionName);
+static BOOL RealtekNetworkFinalizeRegisterWindow(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    U8 BarIndex,
+    PHYSICAL RegisterBase,
+    UINT RegisterSize,
+    REALTEK_REGISTER_ACCESS_MODE AccessMode,
+    LPCSTR FunctionName);
+static void RealtekNetworkClearRegisterWindow(LPREALTEK_NETWORK_COMMON_DEVICE Device);
+
+/************************************************************************/
+
+/**
+ * @brief Reset the cached register-window description.
+ * @param Device Target common device state.
+ */
+static void RealtekNetworkClearRegisterWindow(LPREALTEK_NETWORK_COMMON_DEVICE Device) {
+    if (Device == NULL) {
+        return;
+    }
+
+    Device->RegisterBarIndex = 0xFF;
+    Device->RegisterAccessMode = REALTEK_REGISTER_ACCESS_MODE_NONE;
+    Device->PCICommand = 0;
+    Device->RegisterBase = 0;
+    Device->RegisterSize = 0;
+    Device->RegisterLinear = 0;
+    Device->RegisterPort = 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Update the PCI command register for the selected access mode.
+ * @param Device Target common device state.
+ * @param AccessMode Selected access mode.
+ * @param FunctionName Caller function name for diagnostics.
+ * @return TRUE on success, FALSE on failure.
+ */
+static BOOL RealtekNetworkConfigurePCICommand(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    REALTEK_REGISTER_ACCESS_MODE AccessMode,
+    LPCSTR FunctionName) {
+    U16 Command;
+
+    if (Device == NULL || StringEmpty(FunctionName)) {
+        return FALSE;
+    }
+
+    Command = PCI_Read16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_COMMAND);
+    Command |= PCI_CMD_BUSMASTER;
+    if (AccessMode == REALTEK_REGISTER_ACCESS_MODE_IO) {
+        Command |= PCI_CMD_IO;
+    } else if (AccessMode == REALTEK_REGISTER_ACCESS_MODE_MMIO) {
+        Command |= PCI_CMD_MEM;
+    } else {
+        ERROR(TEXT("[%s] Unsupported register access mode"), FunctionName);
+        return FALSE;
+    }
+
+    PCI_Write16(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, PCI_CFG_COMMAND, Command);
+    Device->PCICommand = Command;
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Cache the selected BAR and map it when MMIO is required.
+ * @param Device Target common device state.
+ * @param BarIndex Active BAR index.
+ * @param RegisterBase Decoded BAR base address.
+ * @param RegisterSize BAR size in bytes.
+ * @param AccessMode Selected access mode.
+ * @param FunctionName Caller function name for diagnostics.
+ * @return TRUE on success, FALSE on failure.
+ */
+static BOOL RealtekNetworkFinalizeRegisterWindow(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    U8 BarIndex,
+    PHYSICAL RegisterBase,
+    UINT RegisterSize,
+    REALTEK_REGISTER_ACCESS_MODE AccessMode,
+    LPCSTR FunctionName) {
+    if (Device == NULL || RegisterBase == 0 || RegisterSize == 0 || StringEmpty(FunctionName)) {
+        return FALSE;
+    }
+
+    Device->RegisterBarIndex = BarIndex;
+    Device->RegisterAccessMode = (U8)AccessMode;
+    Device->RegisterBase = RegisterBase;
+    Device->RegisterSize = RegisterSize;
+
+    if (AccessMode == REALTEK_REGISTER_ACCESS_MODE_IO) {
+        Device->RegisterPort = (U32)RegisterBase;
+        DEBUG(TEXT("[%s] Selected IO BAR%u base=%x size=%u cmd=%x"),
+              FunctionName,
+              (UINT)BarIndex,
+              (UINT)RegisterBase,
+              RegisterSize,
+              (UINT)Device->PCICommand);
+        return TRUE;
+    }
+
+    Device->RegisterLinear = MapIOMemory(RegisterBase, RegisterSize);
+    if (Device->RegisterLinear == 0) {
+        ERROR(TEXT("[%s] MapIOMemory failed base=%p size=%u"),
+              FunctionName,
+              (LPVOID)(LINEAR)RegisterBase,
+              RegisterSize);
+        RealtekNetworkClearRegisterWindow(Device);
+        return FALSE;
+    }
+
+    Device->BARMapped[BarIndex] = (LPVOID)Device->RegisterLinear;
+    DEBUG(TEXT("[%s] Selected MMIO BAR%u base=%p size=%u linear=%p cmd=%x"),
+          FunctionName,
+          (UINT)BarIndex,
+          (LPVOID)(LINEAR)RegisterBase,
+          RegisterSize,
+          (LPVOID)Device->RegisterLinear,
+          (UINT)Device->PCICommand);
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Find and initialize a BAR matching the requested access mode.
+ * @param Device Target common device state.
+ * @param AccessMode Desired access mode.
+ * @param FunctionName Caller function name for diagnostics.
+ * @return TRUE on success, FALSE otherwise.
+ */
+static BOOL RealtekNetworkSelectRegisterWindowForMode(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    REALTEK_REGISTER_ACCESS_MODE AccessMode,
+    LPCSTR FunctionName) {
+    UINT BarIndex;
+
+    if (Device == NULL || StringEmpty(FunctionName)) {
+        return FALSE;
+    }
+
+    if (!RealtekNetworkConfigurePCICommand(Device, AccessMode, FunctionName)) {
+        return FALSE;
+    }
+
+    for (BarIndex = 0; BarIndex < 6; BarIndex++) {
+        U32 RawBar = Device->Info.BAR[BarIndex];
+        PHYSICAL RegisterBase;
+        U32 RegisterSize;
+        BOOL IsModeMatch;
+
+        if (RawBar == 0) {
+            continue;
+        }
+
+        IsModeMatch = FALSE;
+        if (AccessMode == REALTEK_REGISTER_ACCESS_MODE_IO && PCI_BAR_IS_IO(RawBar)) {
+            IsModeMatch = TRUE;
+        } else if (AccessMode == REALTEK_REGISTER_ACCESS_MODE_MMIO && PCI_BAR_IS_MEM(RawBar)) {
+            IsModeMatch = TRUE;
+        }
+
+        if (IsModeMatch == FALSE) {
+            continue;
+        }
+
+        RegisterBase = PCI_GetBARBase(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, (U8)BarIndex);
+        RegisterSize = PCI_GetBARSize(Device->Info.Bus, Device->Info.Dev, Device->Info.Func, (U8)BarIndex);
+        if (RegisterBase == 0 || RegisterSize == 0) {
+            continue;
+        }
+
+        if (RealtekNetworkFinalizeRegisterWindow(
+                Device,
+                (U8)BarIndex,
+                RegisterBase,
+                RegisterSize,
+                AccessMode,
+                FunctionName)) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
 
 /************************************************************************/
 
@@ -56,9 +255,187 @@ LPPCI_DEVICE RealtekNetworkAttachCommon(UINT DeviceSize, LPPCI_DEVICE PciDevice,
     MemoryCopy((LPVOID)Device->BARMapped, (LPVOID)PciDevice->BARMapped, sizeof(Device->BARMapped));
     MemoryCopy(Device->Name, PciDevice->Name, sizeof(Device->Name));
     InitMutex(&(Device->Mutex));
+    RealtekNetworkClearRegisterWindow(Device);
     Device->ProductName = TEXT("Realtek Network Family");
     RealtekNetworkBuildPlaceholderMac(Device);
     return (LPPCI_DEVICE)Device;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Select and validate the active PCI register window.
+ * @param Device Target common device state.
+ * @param PreferredMode Preferred register access mode.
+ * @param FallbackMode Optional fallback register access mode.
+ * @param ValidationRegisterOffset Register read used to validate visibility.
+ * @param FunctionName Caller function name for diagnostics.
+ * @return DF_RETURN_SUCCESS on success or an error code.
+ */
+U32 RealtekNetworkInitializeRegisterWindow(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    REALTEK_REGISTER_ACCESS_MODE PreferredMode,
+    REALTEK_REGISTER_ACCESS_MODE FallbackMode,
+    U16 ValidationRegisterOffset,
+    LPCSTR FunctionName) {
+    U32 ValidationValue;
+
+    if (Device == NULL || StringEmpty(FunctionName)) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    RealtekNetworkClearRegisterWindow(Device);
+
+    if (!RealtekNetworkSelectRegisterWindowForMode(Device, PreferredMode, FunctionName) &&
+        (FallbackMode == REALTEK_REGISTER_ACCESS_MODE_NONE ||
+         !RealtekNetworkSelectRegisterWindowForMode(Device, FallbackMode, FunctionName))) {
+        ERROR(TEXT("[%s] No usable register BAR found"), FunctionName);
+        return DF_RETURN_NOT_IMPLEMENTED;
+    }
+
+    ValidationValue = RealtekNetworkReadRegister32(Device, ValidationRegisterOffset);
+    if (ValidationValue == MAX_U32) {
+        ERROR(TEXT("[%s] Register validation failed at %x"), FunctionName, (UINT)ValidationRegisterOffset);
+        return DF_RETURN_INPUT_OUTPUT;
+    }
+
+    DEBUG(TEXT("[%s] Register validation value=%x at %x"),
+          FunctionName,
+          ValidationValue,
+          (UINT)ValidationRegisterOffset);
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read an 8-bit controller register through IO or MMIO.
+ * @param Device Target common device state.
+ * @param RegisterOffset Register offset.
+ * @return Register value or zero when the window is unavailable.
+ */
+U8 RealtekNetworkReadRegister8(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset) {
+    if (Device == NULL) {
+        return 0;
+    }
+
+    if (Device->RegisterAccessMode == REALTEK_REGISTER_ACCESS_MODE_IO) {
+        return (U8)InPortByte(Device->RegisterPort + RegisterOffset);
+    }
+
+    if (Device->RegisterAccessMode == REALTEK_REGISTER_ACCESS_MODE_MMIO && Device->RegisterLinear != 0) {
+        return *(volatile U8*)((U8*)(LPVOID)Device->RegisterLinear + RegisterOffset);
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read a 16-bit controller register through IO or MMIO.
+ * @param Device Target common device state.
+ * @param RegisterOffset Register offset.
+ * @return Register value or zero when the window is unavailable.
+ */
+U16 RealtekNetworkReadRegister16(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset) {
+    if (Device == NULL) {
+        return 0;
+    }
+
+    if (Device->RegisterAccessMode == REALTEK_REGISTER_ACCESS_MODE_IO) {
+        return (U16)InPortWord(Device->RegisterPort + RegisterOffset);
+    }
+
+    if (Device->RegisterAccessMode == REALTEK_REGISTER_ACCESS_MODE_MMIO && Device->RegisterLinear != 0) {
+        return *(volatile U16*)((U8*)(LPVOID)Device->RegisterLinear + RegisterOffset);
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Read a 32-bit controller register through IO or MMIO.
+ * @param Device Target common device state.
+ * @param RegisterOffset Register offset.
+ * @return Register value or MAX_U32 when the window is unavailable.
+ */
+U32 RealtekNetworkReadRegister32(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset) {
+    if (Device == NULL) {
+        return MAX_U32;
+    }
+
+    if (Device->RegisterAccessMode == REALTEK_REGISTER_ACCESS_MODE_IO) {
+        return (U32)InPortLong(Device->RegisterPort + RegisterOffset);
+    }
+
+    if (Device->RegisterAccessMode == REALTEK_REGISTER_ACCESS_MODE_MMIO && Device->RegisterLinear != 0) {
+        return *(volatile U32*)((U8*)(LPVOID)Device->RegisterLinear + RegisterOffset);
+    }
+
+    return MAX_U32;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Write an 8-bit controller register through IO or MMIO.
+ * @param Device Target common device state.
+ * @param RegisterOffset Register offset.
+ * @param Value Value to write.
+ */
+void RealtekNetworkWriteRegister8(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset, U8 Value) {
+    if (Device == NULL) {
+        return;
+    }
+
+    if (Device->RegisterAccessMode == REALTEK_REGISTER_ACCESS_MODE_IO) {
+        OutPortByte(Device->RegisterPort + RegisterOffset, Value);
+    } else if (Device->RegisterAccessMode == REALTEK_REGISTER_ACCESS_MODE_MMIO && Device->RegisterLinear != 0) {
+        *(volatile U8*)((U8*)(LPVOID)Device->RegisterLinear + RegisterOffset) = Value;
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Write a 16-bit controller register through IO or MMIO.
+ * @param Device Target common device state.
+ * @param RegisterOffset Register offset.
+ * @param Value Value to write.
+ */
+void RealtekNetworkWriteRegister16(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset, U16 Value) {
+    if (Device == NULL) {
+        return;
+    }
+
+    if (Device->RegisterAccessMode == REALTEK_REGISTER_ACCESS_MODE_IO) {
+        OutPortWord(Device->RegisterPort + RegisterOffset, Value);
+    } else if (Device->RegisterAccessMode == REALTEK_REGISTER_ACCESS_MODE_MMIO && Device->RegisterLinear != 0) {
+        *(volatile U16*)((U8*)(LPVOID)Device->RegisterLinear + RegisterOffset) = Value;
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Write a 32-bit controller register through IO or MMIO.
+ * @param Device Target common device state.
+ * @param RegisterOffset Register offset.
+ * @param Value Value to write.
+ */
+void RealtekNetworkWriteRegister32(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset, U32 Value) {
+    if (Device == NULL) {
+        return;
+    }
+
+    if (Device->RegisterAccessMode == REALTEK_REGISTER_ACCESS_MODE_IO) {
+        OutPortLong(Device->RegisterPort + RegisterOffset, Value);
+    } else if (Device->RegisterAccessMode == REALTEK_REGISTER_ACCESS_MODE_MMIO && Device->RegisterLinear != 0) {
+        *(volatile U32*)((U8*)(LPVOID)Device->RegisterLinear + RegisterOffset) = Value;
+    }
 }
 
 /************************************************************************/

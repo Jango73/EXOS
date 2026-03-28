@@ -41,9 +41,24 @@
 #define REALTEK_NETWORK_COMMON_DEVICE_FIELDS \
     PCI_DEVICE_FIELDS                        \
     LPCSTR ProductName;                      \
+    U8 RegisterBarIndex;                     \
+    U8 RegisterAccessMode;                   \
+    U16 PCICommand;                          \
+    PHYSICAL RegisterBase;                   \
+    UINT RegisterSize;                       \
+    LINEAR RegisterLinear;                   \
+    U32 RegisterPort;                        \
     U8 Mac[6];                               \
     NT_RXCB RxCallback;                      \
     LPVOID RxUserData;
+
+/***************************************************************************/
+
+typedef enum tag_REALTEK_REGISTER_ACCESS_MODE {
+    REALTEK_REGISTER_ACCESS_MODE_NONE = 0,
+    REALTEK_REGISTER_ACCESS_MODE_IO = 1,
+    REALTEK_REGISTER_ACCESS_MODE_MMIO = 2,
+} REALTEK_REGISTER_ACCESS_MODE;
 
 /***************************************************************************/
 
@@ -54,6 +69,18 @@ typedef struct tag_REALTEK_NETWORK_COMMON_DEVICE {
 /***************************************************************************/
 
 LPPCI_DEVICE RealtekNetworkAttachCommon(UINT DeviceSize, LPPCI_DEVICE PciDevice, LPCSTR FunctionName);
+U32 RealtekNetworkInitializeRegisterWindow(
+    LPREALTEK_NETWORK_COMMON_DEVICE Device,
+    REALTEK_REGISTER_ACCESS_MODE PreferredMode,
+    REALTEK_REGISTER_ACCESS_MODE FallbackMode,
+    U16 ValidationRegisterOffset,
+    LPCSTR FunctionName);
+U8 RealtekNetworkReadRegister8(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset);
+U16 RealtekNetworkReadRegister16(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset);
+U32 RealtekNetworkReadRegister32(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset);
+void RealtekNetworkWriteRegister8(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset, U8 Value);
+void RealtekNetworkWriteRegister16(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset, U16 Value);
+void RealtekNetworkWriteRegister32(LPREALTEK_NETWORK_COMMON_DEVICE Device, U16 RegisterOffset, U32 Value);
 void RealtekNetworkBuildPlaceholderMac(LPREALTEK_NETWORK_COMMON_DEVICE Device);
 U32 RealtekNetworkOnReset(const NETWORK_RESET* Reset);
 U32 RealtekNetworkOnGetInfo(
