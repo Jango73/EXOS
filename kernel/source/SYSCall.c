@@ -203,9 +203,14 @@ UINT SysCall_SetLocalTime(UINT Parameter) {
  * @return UINT Result code from the underlying delete operation.
  */
 UINT SysCall_DeleteObject(UINT Parameter) {
+    LPPROCESS Caller = GetCurrentProcess();
     LINEAR ObjectPointer = HandleToPointer((HANDLE)Parameter);
 
     if (ObjectPointer == 0) {
+        return 0;
+    }
+
+    if (!ProcessAccessCanTargetObject(Caller, (LPVOID)ObjectPointer, TRUE)) {
         return 0;
     }
 
@@ -486,6 +491,7 @@ UINT SysCall_Sleep(UINT Parameter) {
  */
 UINT SysCall_Wait(UINT Parameter) {
     LPWAIT_INFO WaitInfo = (LPWAIT_INFO)Parameter;
+    LPPROCESS Caller = GetCurrentProcess();
 
     SAFE_USE_INPUT_POINTER(WaitInfo, WAIT_INFO) {
         if (WaitInfo->Count == 0 || WaitInfo->Count > WAIT_INFO_MAX_OBJECTS) {
@@ -499,6 +505,13 @@ UINT SysCall_Wait(UINT Parameter) {
             WaitInfo->Objects[Index] = (HANDLE)HandleToPointer(WaitInfo->Objects[Index]);
 
             if (WaitInfo->Objects[Index] == NULL) {
+                for (UINT Restore = 0; Restore <= Index; Restore++) {
+                    WaitInfo->Objects[Restore] = OriginalHandles[Restore];
+                }
+                return WAIT_INVALID_PARAMETER;
+            }
+
+            if (!ProcessAccessCanTargetObject(Caller, (LPVOID)WaitInfo->Objects[Index], TRUE)) {
                 for (UINT Restore = 0; Restore <= Index; Restore++) {
                     WaitInfo->Objects[Restore] = OriginalHandles[Restore];
                 }
@@ -821,10 +834,17 @@ UINT SysCall_IsMemoryValid(UINT Parameter) {
  * @return UINT Linear address of the process heap, or 0 on failure.
  */
 UINT SysCall_GetProcessHeap(UINT Parameter) {
+    LPPROCESS Caller = GetCurrentProcess();
     LINEAR ProcessPointer = Parameter ? HandleToPointer(Parameter) : 0;
     LPPROCESS Process = (LPPROCESS)ProcessPointer;
 
-    SAFE_USE_VALID_ID(Process, KOID_PROCESS) { return (UINT)GetProcessHeap(Process); }
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+        if (!ProcessAccessCanTargetProcess(Caller, Process, TRUE)) {
+            return 0;
+        }
+
+        return (UINT)GetProcessHeap(Process);
+    }
 
     if (Parameter == 0) {
         return (UINT)GetProcessHeap(NULL);

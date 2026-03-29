@@ -139,8 +139,8 @@
 ## Priority Follow-Up for User-Owned Process Isolation
 
 ### Highest Priority
-- [ ] Enforce the same-user/admin policy on remaining kernel handle-based operations that resolve or act on foreign kernel objects.
-- [ ] Enforce the same-user/admin policy on remaining process/task syscalls beyond `KillProcess`, `GetProcessInfo`, `GetProcessMemoryInfo`, and `KillTask`.
+- [x] Enforce the same-user/admin policy on remaining kernel handle-based operations that resolve or act on foreign kernel objects.
+- [x] Enforce the same-user/admin policy on remaining process/task syscalls beyond `KillProcess`, `GetProcessInfo`, `GetProcessMemoryInfo`, and `KillTask`.
 
 ### High Priority
 - [ ] Enforce the same-user/admin policy on window, desktop, and user-interface objects owned by foreign tasks or processes.

@@ -43,6 +43,7 @@ BOOL ProcessAccessIsAdministratorProcess(LPPROCESS Process);
 BOOL ProcessAccessIsSameUser(LPPROCESS Caller, LPPROCESS Target);
 BOOL ProcessAccessCanTargetProcess(LPPROCESS Caller, LPPROCESS Target, BOOL AllowAdminOverride);
 BOOL ProcessAccessCanTargetTask(LPPROCESS Caller, LPTASK TargetTask, BOOL AllowAdminOverride);
+BOOL ProcessAccessCanTargetObject(LPPROCESS Caller, LPVOID Object, BOOL AllowAdminOverride);
 
 /************************************************************************/
 

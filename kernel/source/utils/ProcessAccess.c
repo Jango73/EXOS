@@ -31,6 +31,65 @@
 /************************************************************************/
 
 /**
+ * @brief Resolve the owning process for one process-owned kernel object.
+ * @param Object Kernel object to inspect.
+ * @param OwnerProcessOut Receives the owning process when one exists.
+ * @return TRUE when the object resolves to one owning process.
+ */
+static BOOL ProcessAccessGetOwnerProcessForObject(LPVOID Object, LPPROCESS* OwnerProcessOut) {
+    LPPROCESS OwnerProcess = NULL;
+    LPOBJECT KernelObject = (LPOBJECT)Object;
+
+    if (OwnerProcessOut == NULL) {
+        return FALSE;
+    }
+
+    *OwnerProcessOut = NULL;
+
+    SAFE_USE_VALID(KernelObject) {
+        switch (KernelObject->TypeID) {
+            case KOID_PROCESS:
+                OwnerProcess = (LPPROCESS)KernelObject;
+                break;
+
+            case KOID_TASK: {
+                LPTASK Task = (LPTASK)KernelObject;
+                SAFE_USE_VALID_ID(Task, KOID_TASK) { OwnerProcess = Task->Process; }
+                break;
+            }
+
+            case KOID_WINDOW: {
+                LPWINDOW Window = (LPWINDOW)KernelObject;
+                SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+                    SAFE_USE_VALID_ID(Window->Task, KOID_TASK) { OwnerProcess = Window->Task->Process; }
+                }
+                break;
+            }
+
+            case KOID_DESKTOP: {
+                LPDESKTOP Desktop = (LPDESKTOP)KernelObject;
+                SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+                    SAFE_USE_VALID_ID(Desktop->Task, KOID_TASK) { OwnerProcess = Desktop->Task->Process; }
+                }
+                break;
+            }
+
+            default:
+                return FALSE;
+        }
+    }
+
+    SAFE_USE_VALID_ID(OwnerProcess, KOID_PROCESS) {
+        *OwnerProcessOut = OwnerProcess;
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Resolve the effective owner user identifier for one process.
  * @param Process Process to inspect.
  * @param UserIDOut Receives the effective user identifier.
@@ -165,4 +224,23 @@ BOOL ProcessAccessCanTargetTask(LPPROCESS Caller, LPTASK TargetTask, BOOL AllowA
     }
 
     return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Test whether one caller may target one owned kernel object.
+ * @param Caller Calling process.
+ * @param Object Kernel object to inspect.
+ * @param AllowAdminOverride Whether administrator/kernel override is accepted.
+ * @return TRUE when access is granted or the object has no process owner model.
+ */
+BOOL ProcessAccessCanTargetObject(LPPROCESS Caller, LPVOID Object, BOOL AllowAdminOverride) {
+    LPPROCESS OwnerProcess = NULL;
+
+    if (!ProcessAccessGetOwnerProcessForObject(Object, &OwnerProcess)) {
+        return TRUE;
+    }
+
+    return ProcessAccessCanTargetProcess(Caller, OwnerProcess, AllowAdminOverride);
 }
