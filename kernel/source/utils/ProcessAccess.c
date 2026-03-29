@@ -47,35 +47,10 @@ static BOOL ProcessAccessGetOwnerProcessForObject(LPVOID Object, LPPROCESS* Owne
     *OwnerProcessOut = NULL;
 
     SAFE_USE_VALID(KernelObject) {
-        switch (KernelObject->TypeID) {
-            case KOID_PROCESS:
-                OwnerProcess = (LPPROCESS)KernelObject;
-                break;
-
-            case KOID_TASK: {
-                LPTASK Task = (LPTASK)KernelObject;
-                SAFE_USE_VALID_ID(Task, KOID_TASK) { OwnerProcess = Task->Process; }
-                break;
-            }
-
-            case KOID_WINDOW: {
-                LPWINDOW Window = (LPWINDOW)KernelObject;
-                SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
-                    SAFE_USE_VALID_ID(Window->Task, KOID_TASK) { OwnerProcess = Window->Task->Process; }
-                }
-                break;
-            }
-
-            case KOID_DESKTOP: {
-                LPDESKTOP Desktop = (LPDESKTOP)KernelObject;
-                SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
-                    SAFE_USE_VALID_ID(Desktop->Task, KOID_TASK) { OwnerProcess = Desktop->Task->Process; }
-                }
-                break;
-            }
-
-            default:
-                return FALSE;
+        if (KernelObject->TypeID == KOID_PROCESS) {
+            OwnerProcess = (LPPROCESS)KernelObject;
+        } else {
+            OwnerProcess = KernelObject->OwnerProcess;
         }
     }
 

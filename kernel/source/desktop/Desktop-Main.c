@@ -371,25 +371,22 @@ LPDESKTOP CreateDesktop(void) {
     WINDOW_INFO WindowInfo;
     LPDESKTOP PreviousDesktop;
 
-    This = (LPDESKTOP)KernelHeapAlloc(sizeof(DESKTOP));
+    This = (LPDESKTOP)CreateKernelObject(sizeof(DESKTOP), KOID_DESKTOP);
     if (This == NULL) return NULL;
-
-    MemorySet(This, 0, sizeof(DESKTOP));
 
     InitMutex(&(This->Mutex));
     InitMutex(&(This->TimerMutex));
     This->Timers = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
     if (This->Timers == NULL) {
-        KernelHeapFree(This);
+        ReleaseKernelObject(This);
         return NULL;
     }
 
-    This->TypeID = KOID_DESKTOP;
-    This->References = KOID_DESKTOP;
     This->Task = GetCurrentTask();
+    SAFE_USE_VALID_ID(This->Task, KOID_TASK) { This->OwnerProcess = This->Task->Process; }
     if (EnsureAllMessageQueues(This->Task, TRUE) == FALSE) {
         DeleteList(This->Timers);
-        KernelHeapFree(This);
+        ReleaseKernelObject(This);
         return NULL;
     }
     This->Graphics = &ConsoleDriver;
@@ -397,7 +394,7 @@ LPDESKTOP CreateDesktop(void) {
 
     if (DesktopEnsureDispatcherTask(This) == FALSE) {
         DeleteList(This->Timers);
-        KernelHeapFree(This);
+        ReleaseKernelObject(This);
         return NULL;
     }
 
@@ -408,7 +405,7 @@ LPDESKTOP CreateDesktop(void) {
     WindowInfo.Parent = NULL;
     if (WindowDockHostClassEnsureDerivedRegistered(ROOT_WINDOW_CLASS_NAME, DesktopWindowFunc) == FALSE) {
         DeleteList(This->Timers);
-        KernelHeapFree(This);
+        ReleaseKernelObject(This);
         return NULL;
     }
 
@@ -430,7 +427,7 @@ LPDESKTOP CreateDesktop(void) {
 
     if (This->Window == NULL) {
         GetCurrentProcess()->Desktop = PreviousDesktop;
-        KernelHeapFree(This);
+        ReleaseKernelObject(This);
         return NULL;
     }
 

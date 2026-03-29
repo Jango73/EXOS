@@ -454,6 +454,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASK_INFO Info) {
     // Setup the task
 
     Task->Process = Process;
+    Task->OwnerProcess = Process;
     Task->Priority = Info->Priority;
     Task->Function = Info->Func;
     Task->Parameter = Info->Parameter;

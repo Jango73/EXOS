@@ -125,15 +125,11 @@ static BOOL EnsureWindowDirtyRegionInitialized(LPWINDOW This) {
  * @return Pointer to the created window or NULL on failure.
  */
 static LPWINDOW NewWindow(void) {
-    LPWINDOW This = (LPWINDOW)KernelHeapAlloc(sizeof(WINDOW));
+    LPWINDOW This = (LPWINDOW)CreateKernelObject(sizeof(WINDOW), KOID_WINDOW);
     if (This == NULL) return NULL;
-
-    MemorySet(This, 0, sizeof(WINDOW));
 
     InitMutex(&(This->Mutex));
 
-    This->TypeID = KOID_WINDOW;
-    This->References = 1;
     This->Properties = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
     This->Children = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
     (void)RectRegionInit(&This->DirtyRegion, This->DirtyRects, WINDOW_DIRTY_REGION_CAPACITY);
@@ -474,6 +470,7 @@ LPWINDOW DesktopCreateWindow(LPWINDOW_INFO Info) {
 
     OwnerTask = DesktopResolveWindowTask(Desktop, GetCurrentTask());
     This->Task = OwnerTask;
+    SAFE_USE_VALID_ID(OwnerTask, KOID_TASK) { This->OwnerProcess = OwnerTask->Process; }
     This->ParentWindow = Parent;
     This->Function = Info->Function;
     This->WindowID = Info->ID;
@@ -481,7 +478,7 @@ LPWINDOW DesktopCreateWindow(LPWINDOW_INFO Info) {
     This->ContentTransparencyHint = WINDOW_CONTENT_TRANSPARENCY_HINT_AUTO;
 
     if (WindowClassInitializeRegistry() == FALSE) {
-        KernelHeapFree(This);
+        ReleaseKernelObject(This);
         return NULL;
     }
 
@@ -493,14 +490,14 @@ LPWINDOW DesktopCreateWindow(LPWINDOW_INFO Info) {
         This->Class = WindowClassGetDefault();
     }
     if (This->Class == NULL) {
-        KernelHeapFree(This);
+        ReleaseKernelObject(This);
         return NULL;
     }
 
     if (This->Class->ClassDataSize > 0) {
         This->ClassData = KernelHeapAlloc(This->Class->ClassDataSize);
         if (This->ClassData == NULL) {
-            KernelHeapFree(This);
+            ReleaseKernelObject(This);
             return NULL;
         }
         MemorySet(This->ClassData, 0, This->Class->ClassDataSize);
@@ -515,7 +512,7 @@ LPWINDOW DesktopCreateWindow(LPWINDOW_INFO Info) {
             KernelHeapFree(This->ClassData);
             This->ClassData = NULL;
         }
-        KernelHeapFree(This);
+        ReleaseKernelObject(This);
         return NULL;
     }
     if (This->ParentWindow == NULL) {
@@ -538,7 +535,7 @@ LPWINDOW DesktopCreateWindow(LPWINDOW_INFO Info) {
             KernelHeapFree(This->ClassData);
             This->ClassData = NULL;
         }
-        KernelHeapFree(This);
+        ReleaseKernelObject(This);
         return NULL;
     }
 
