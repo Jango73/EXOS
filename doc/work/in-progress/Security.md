@@ -135,3 +135,21 @@
 - [ ] Unit tests for each user/security function.
 - [ ] Full integration tests for the user/security subsystem.
 - [ ] Security/attack-resistance test suite.
+
+## Priority Follow-Up for User-Owned Process Isolation
+
+### Highest Priority
+- [ ] Enforce the same-user/admin policy on remaining kernel handle-based operations that resolve or act on foreign kernel objects.
+- [ ] Enforce the same-user/admin policy on remaining process/task syscalls beyond `KillProcess`, `GetProcessInfo`, `GetProcessMemoryInfo`, and `KillTask`.
+
+### High Priority
+- [ ] Enforce the same-user/admin policy on window, desktop, and user-interface objects owned by foreign tasks or processes.
+- [ ] Review inter-process messaging paths and explicitly decide which cross-user message flows are allowed versus denied.
+- [ ] Audit `expose` process/task properties that may leak handles, pointers, memory-related details, or foreign object relationships.
+
+### Medium Priority
+- [ ] Enforce the same-user/admin policy on remaining shell commands that inspect or control processes, tasks, windows, or other live kernel objects.
+- [ ] Restrict debug, dump, and diagnostics paths that can reveal foreign process state across users.
+
+### Audit Rule
+- [ ] Audit every entry point that can read, modify, control, signal, or destroy an object owned by another process, and route the decision through `utils/ProcessAccess` or a sibling shared helper built on the same model.
