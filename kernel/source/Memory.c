@@ -166,6 +166,36 @@ void SetPhysicalAllocatorMetadataRange(PHYSICAL Start, PHYSICAL End) {
 /************************************************************************/
 
 /**
+ * @brief Check whether a physical memory range is completely free.
+ * @param BaseAddress Inclusive physical start address.
+ * @param Size Range size in bytes.
+ * @return TRUE when every covered page is free, FALSE otherwise.
+ */
+BOOL IsPhysicalMemoryRangeFree(PHYSICAL BaseAddress, UINT Size) {
+    UINT FirstPage;
+    UINT PageCount;
+
+    if (Size == 0) {
+        return FALSE;
+    }
+
+    if (BuddyIsReady() == FALSE) {
+        return TRUE;
+    }
+
+    BaseAddress &= ~((PHYSICAL)(PAGE_SIZE - 1));
+    PageCount = (UINT)(PAGE_ALIGN(Size) >> PAGE_SIZE_MUL);
+    if (PageCount == 0) {
+        return FALSE;
+    }
+
+    FirstPage = (UINT)(BaseAddress >> PAGE_SIZE_MUL);
+    return BuddyIsRangeFree(FirstPage, PageCount);
+}
+
+/************************************************************************/
+
+/**
  * @brief Find an available physical range in the boot memory map.
  * @param MinimumAddress Minimum acceptable physical start address.
  * @param Size Size in bytes.
@@ -207,19 +237,17 @@ BOOL FindAvailableMemoryRange(PHYSICAL MinimumAddress, UINT Size, PHYSICAL* OutA
             EntryStart = AlignedMinimum;
         }
 
-        PHYSICAL Candidate = PAGE_ALIGN(EntryStart);
-        if (Candidate >= EntryEnd) {
-            continue;
-        }
+        for (PHYSICAL Candidate = PAGE_ALIGN(EntryStart); Candidate < EntryEnd; Candidate += PAGE_SIZE) {
+            PHYSICAL CandidateEnd = Candidate + (PHYSICAL)AlignedSize;
 
-        PHYSICAL CandidateEnd = Candidate + (PHYSICAL)AlignedSize;
-        if (CandidateEnd <= Candidate) {
-            continue;
-        }
+            if (CandidateEnd <= Candidate || CandidateEnd > EntryEnd) {
+                break;
+            }
 
-        if (CandidateEnd <= EntryEnd) {
-            *OutAddress = Candidate;
-            return TRUE;
+            if (IsPhysicalMemoryRangeFree(Candidate, AlignedSize)) {
+                *OutAddress = Candidate;
+                return TRUE;
+            }
         }
     }
 
@@ -324,19 +352,17 @@ BOOL FindAvailableMemoryRangeInWindow(
                 continue;
             }
 
-            PHYSICAL Candidate = PAGE_ALIGN(RangeStart);
-            if (Candidate >= RangeEnd) {
-                continue;
-            }
+            for (PHYSICAL Candidate = PAGE_ALIGN(RangeStart); Candidate < RangeEnd; Candidate += PAGE_SIZE) {
+                PHYSICAL CandidateEnd = Candidate + (PHYSICAL)AlignedSize;
 
-            PHYSICAL CandidateEnd = Candidate + (PHYSICAL)AlignedSize;
-            if (CandidateEnd <= Candidate) {
-                continue;
-            }
+                if (CandidateEnd <= Candidate || CandidateEnd > RangeEnd) {
+                    break;
+                }
 
-            if (CandidateEnd <= RangeEnd) {
-                *OutAddress = Candidate;
-                return TRUE;
+                if (IsPhysicalMemoryRangeFree(Candidate, AlignedSize)) {
+                    *OutAddress = Candidate;
+                    return TRUE;
+                }
             }
         }
     }

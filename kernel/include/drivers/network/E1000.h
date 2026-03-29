@@ -32,6 +32,7 @@
 #include "Mutex.h" /* Optional: if the driver uses MUTEX internally */
 #include "network/Network.h"
 #include "drivers/bus/PCI.h"
+#include "utils/DMABuffer.h"
 
 /***************************************************************************/
 

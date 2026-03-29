@@ -305,6 +305,7 @@ UINT Spawn(LPCSTR, LPCSTR);
 void SetProcessStatus(LPPROCESS Process, U32 Status);
 LINEAR GetProcessHeap(LPPROCESS);
 LPMEMORY_REGION_LIST GetProcessMemoryRegionList(LPPROCESS Process);
+void MemoryRegionDescriptorAssignOwner(LPMEMORY_REGION_DESCRIPTOR Descriptor, LPPROCESS Process);
 
 /***************************************************************************/
 

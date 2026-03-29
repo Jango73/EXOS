@@ -72,6 +72,7 @@ void InitializeSystemCallTable(void) {
     SysCallTable[SYSCALL_CreateProcess] = (SYSCALL_ENTRY){SysCall_CreateProcess, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_KillProcess] = (SYSCALL_ENTRY){SysCall_KillProcess, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetProcessInfo] = (SYSCALL_ENTRY){SysCall_GetProcessInfo, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_GetProcessMemoryInfo] = (SYSCALL_ENTRY){SysCall_GetProcessMemoryInfo, EXOS_PRIVILEGE_USER};
 
     // Threading Services
     SysCallTable[SYSCALL_CreateTask] = (SYSCALL_ENTRY){SysCall_CreateTask, EXOS_PRIVILEGE_USER};

@@ -41,6 +41,8 @@
 /************************************************************************/
 // typedefs
 
+typedef struct tag_PROCESS PROCESS, *LPPROCESS;
+
 typedef enum {
     MEMORY_REGION_GRANULARITY_4K = 0,
     MEMORY_REGION_GRANULARITY_2M = 1,
@@ -83,6 +85,7 @@ void MarkUsedPhysicalMemory(void);
 void SetLoaderReservedPhysicalRange(PHYSICAL Start, PHYSICAL End);
 void SetPhysicalAllocatorMetadataRange(PHYSICAL Start, PHYSICAL End);
 void SetAllocPhysicalPageTraceEnabled(BOOL Enabled);
+BOOL IsPhysicalMemoryRangeFree(PHYSICAL BaseAddress, UINT Size);
 BOOL FindAvailableMemoryRange(PHYSICAL MinimumAddress, UINT Size, PHYSICAL* OutAddress);
 BOOL FindAvailableMemoryRangeInWindow(
     PHYSICAL MinimumAddress,
@@ -124,12 +127,15 @@ PHYSICAL MapLinearToPhysical(LINEAR Address);
 
 // Allocates physical space for a new region of virtual memory
 LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag);
+LINEAR AllocRegionForProcess(LPPROCESS TrackingProcess, LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag);
 
 // Resizes an existing region of virtual memory
 BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Flags);
+BOOL ResizeRegionForProcess(LPPROCESS TrackingProcess, LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Flags);
 
 // Frees physical space of a region of virtual memory
 BOOL FreeRegion(LINEAR Base, UINT Size);
+BOOL FreeRegionForProcess(LPPROCESS TrackingProcess, LINEAR Base, UINT Size);
 
 // Map/unmap a physical MMIO region (BAR or Base Address Register) as Uncached Read/Write
 LINEAR MapIOMemory(PHYSICAL PhysicalBase, UINT Size);

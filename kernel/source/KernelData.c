@@ -338,7 +338,7 @@ static KERNEL_DATA DATA_SECTION Kernel = {
     .DeferredWorkWaitTimeoutMS = DEFERRED_WORK_WAIT_TIMEOUT_MS,
     .DeferredWorkPollDelayMS = DEFERRED_WORK_POLL_DELAY_MS,
     .DoLogin = 0,
-    .ShowDesktop = 1,
+    .ShowDesktop = 0,
     .Debug = {
         .UseDeadlockMonitor = 0,
         .WindowPipelineTraceEnabled = 0
@@ -483,6 +483,8 @@ void InitializeDriverList(void) {
     RegisterDriver(GraphicsSelectorGetDriver(), TRUE);
 
     RegisterDriver(E1000GetDriver(), FALSE);
+    RegisterDriver(RTL8139GetDriver(), FALSE);
+    RegisterDriver(RTL8169GetDriver(), FALSE);
     RegisterDriver(AHCIPCIGetDriver(), FALSE);
     RegisterDriver(NVMeGetDriver(), FALSE);
     RegisterDriver(XHCIGetDriver(), FALSE);

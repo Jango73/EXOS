@@ -1,4 +1,4 @@
-// Auto-generated from scripts/utils/gen-font-ascii.js. Do not edit manually.
+// Auto-generated from scripts/common/utils/gen-font-ascii.js. Do not edit manually.
 // Source: third/fonts/oldschool_pc_font_pack/Bm437_IBM_VGA_8x16.otb
 // License: Creative Commons Attribution-ShareAlike 4.0 International.
 

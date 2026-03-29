@@ -32,7 +32,6 @@
  */
 static void PrintUsage(void) {
     printf("Usage: netget <URL> [output_file]\n");
-    printf("   or: netget --smoke-local [output_file]\n");
     printf("  URL         : HTTP URL to download (e.g., http://192.168.1.100/file.txt)\n");
     printf("  output_file : Optional output filename (default: extracted from URL)\n");
 }
@@ -228,7 +227,6 @@ int exosmain(int argc, char* argv[]) {
     HTTP_CONNECTION* connection;
     const char* urlString;
     const char* outputFile;
-    int firstArgIsSmokeLocal = 0;
     int result;
 
     // Check arguments
@@ -237,35 +235,22 @@ int exosmain(int argc, char* argv[]) {
         return 1;
     }
 
-    if (strcmp(argv[1], "--smoke-local") == 0) {
-        firstArgIsSmokeLocal = 1;
-        urlString = "http://10.0.2.2:8081/index.html";
-    } else {
-        urlString = argv[1];
-    }
+    urlString = argv[1];
 
     // Determine output filename
-    if (firstArgIsSmokeLocal) {
-        if (argc >= 3) {
-            outputFile = argv[2];
-        } else {
-            outputFile = "index.html";
-        }
+    if (argc >= 3) {
+        outputFile = argv[2];
     } else {
-        if (argc >= 3) {
-            outputFile = argv[2];
-        } else {
-            // Parse URL to extract filename
-            if (!HTTP_ParseURL(urlString, &parsedUrl)) {
-                printf("Error: Could not parse URL '%s'\n", urlString);
-                const char* detail = HTTP_GetLastErrorMessage();
-                if (detail && detail[0] != '\0') {
-                    printf("Detail: %s\n", detail);
-                }
-                return 1;
+        // Parse URL to extract filename
+        if (!HTTP_ParseURL(urlString, &parsedUrl)) {
+            printf("Error: Could not parse URL '%s'\n", urlString);
+            const char* detail = HTTP_GetLastErrorMessage();
+            if (detail && detail[0] != '\0') {
+                printf("Detail: %s\n", detail);
             }
-            outputFile = ExtractFilename(parsedUrl.Path);
+            return 1;
         }
+        outputFile = ExtractFilename(parsedUrl.Path);
     }
 
     printf("Downloading: %s to %s\n", urlString, outputFile);

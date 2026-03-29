@@ -150,6 +150,7 @@ HELLO_ELF       = $(CORE_BUILD_DIR)/system/hello/hello
 TICTACTOE_ELF	= $(CORE_BUILD_DIR)/system/tictactoe/tictactoe
 TERMTACTICS_ELF	= $(CORE_BUILD_DIR)/system/terminal-tactics/terminal-tactics
 INPUTINFO_ELF   = $(CORE_BUILD_DIR)/system/input-info/input-info
+MEMORY_SMOKE_ELF = $(CORE_BUILD_DIR)/system/memory-stress/memory-stress
 MASTER_ELF      = $(CORE_BUILD_DIR)/system/test/master/master
 SLAVE_ELF       = $(CORE_BUILD_DIR)/system/test/slave/slave
 SYSTEM_TEST_EPK_STAGING_DIR = $(BUILD_DIR)/boot-hd/system-test-epk-root
@@ -439,7 +440,7 @@ $(FS_TEST_NTFS_IMG): check_tools
 			ntfscp -q -f "$$TMP_NTFS" "$(FS_TEST_READ_SOURCE)" "/$(FS_TEST_READ_FILE)"; \
 			dd if="$$TMP_NTFS" of=$@ bs=512 seek="$$PART_START" conv=notrunc; \
 			rm -f "$$TMP_NTFS"; \
-			echo "NTFS image created. Use scripts/ntfs/populate-ntfs-image.sh to add folders/files."; \
+			echo "NTFS image created. Use scripts/linux/ntfs/populate-ntfs-image.sh to add folders/files."; \
 		else \
 			echo "WARNING: mkfs.ntfs not found, image keeps only NTFS partition type"; \
 		fi; \
@@ -535,6 +536,9 @@ update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32) $(SYSTEM_TEST_
 		$(call MCOPY_IF_NEEDED,$(TICTACTOE_ELF),z:/EXOS/APPS/tictactoe)\
 		$(call MCOPY_IF_NEEDED,$(TERMTACTICS_ELF),z:/EXOS/APPS/terminal-tactics)\
 		$(call MCOPY_IF_NEEDED,$(INPUTINFO_ELF),z:/EXOS/APPS/input-info)\
+		$(call MCOPY_IF_NEEDED,$(MEMORY_SMOKE_ELF),z:/EXOS/APPS/memory-stress)\
+		$(call MCOPY_IF_NEEDED,$(MEMORY_SMOKE_ELF),z:/EXOS/APPS/memory-fragmentation)\
+		$(call MCOPY_IF_NEEDED,$(MEMORY_SMOKE_ELF),z:/EXOS/APPS/memory-growth)\
 		$(call MCOPY_IF_NEEDED,$(MASTER_ELF),z:/EXOS/APPS/TEST/MASTER)\
 		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE)\
 		$(call MCOPY_IF_NEEDED,$(SYSTEM_TEST_EPK),z:/EXOS/APPS/TEST.EPK)\
@@ -565,6 +569,9 @@ update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2) $(SYSTEM_TEST_EP
 	@cp $(TICTACTOE_ELF) $(EXT2_STAGING_DIR)/exos/apps/tictactoe
 	@cp $(TERMTACTICS_ELF) $(EXT2_STAGING_DIR)/exos/apps/terminal-tactics
 	@cp $(INPUTINFO_ELF) $(EXT2_STAGING_DIR)/exos/apps/input-info
+	@cp $(MEMORY_SMOKE_ELF) $(EXT2_STAGING_DIR)/exos/apps/memory-stress
+	@cp $(MEMORY_SMOKE_ELF) $(EXT2_STAGING_DIR)/exos/apps/memory-fragmentation
+	@cp $(MEMORY_SMOKE_ELF) $(EXT2_STAGING_DIR)/exos/apps/memory-growth
 	@cp $(MASTER_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/master
 	@cp $(SLAVE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/slave
 	@cp $(SYSTEM_TEST_EPK) $(EXT2_STAGING_DIR)/exos/apps/test.epk

@@ -188,6 +188,7 @@ extern char* getcwd(char* buffer, size_t size);
 
 extern void exit(int code);
 extern void* malloc(size_t size);
+extern void* realloc(void* pointer, size_t size);
 extern void free(void* pointer);
 extern int peekch(void);
 extern int getch(void);

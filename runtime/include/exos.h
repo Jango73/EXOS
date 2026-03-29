@@ -60,6 +60,7 @@ void Sleep(U32);
 U32 Wait(LPWAIT_INFO);
 U32 GetSystemTime(void);
 BOOL GetLocalTime(LPDATETIME Time);
+BOOL GetProcessMemoryInfo(LPPROCESS_MEMORY_INFO Info);
 U32 FindFirstFile(FILE_FIND_INFO* Info);
 U32 FindNextFile(FILE_FIND_INFO* Info);
 BOOL GetMessage(HANDLE, LPMESSAGE, U32, U32);

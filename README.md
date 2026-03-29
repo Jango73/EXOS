@@ -20,34 +20,34 @@ EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/con
 
 ### Setup dependencies
 
-./scripts/1-1-setup-deps.sh
+./scripts/linux/setup/setup-deps.sh
 
-./scripts/1-2-setup-qemu.sh		<- if you want a recent QEMU (9.0.2)
+./scripts/linux/setup/setup-qemu.sh		<- if you want a recent QEMU (9.0.2)
 
 ### Build (Disk image with ext2)
 
-./scripts/build --arch <x86-32|x86-64> --fs ext2 --release (or --debug)
+./scripts/linux/build/build --arch <x86-32|x86-64> --fs ext2 --release (or --debug)
 
 ( add --clean for a clean build )
 
 ### Build (Disk image with FAT32)
 
-./scripts/build --arch <x86-32|x86-64> --fs fat32 --release (or --debug)
+./scripts/linux/build/build --arch <x86-32|x86-64> --fs fat32 --release (or --debug)
 
 ( add --clean for a clean build )
 
 ### Build for UEFI boot
 
-./scripts/build --arch <x86-32|x86-64> --fs ext2 --release (or --debug) --uefi
+./scripts/linux/build/build --arch <x86-32|x86-64> --fs ext2 --release (or --debug) --uefi
 
 ( add --clean for a clean build )
 
 ### Run
 
-./scripts/run --arch <x86-32|x86-64>
+./scripts/linux/run/run --arch <x86-32|x86-64>
 
 ( add --gdb to debug with gdb )
-( or ./scripts/(arch)/5-5-start-bochs.sh to use Bochs )
+( or `./scripts/linux/x86-32/start-bochs.sh` to use Bochs on x86-32 )
 
 ## Things it does
 
@@ -73,7 +73,8 @@ EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/con
 - Virtual file system with mount points
 - Scripted shell with kernel object exposure
 - Configuration with TOML format
-- E1000 network driver ~
+- E1000 driver ~
+- Realtek RTL8139 & RTL8111/8168/8411 drivers ~
 - ARP/IPv4/DHCP/UDP/TCP network layers ~
 - Minimal HTTP client ~
 - Kernel pointer masking, handles in userland
@@ -89,7 +90,6 @@ EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/con
 - Full security
 - Full network stack
 - Full Unicode
-- Realtek r8169 driver
 - PCIe driver
 - VMD (Volume Management Device - Intel)
 - Native C compiler (TinyCC port)
@@ -133,17 +133,17 @@ Bm437_IBM_VGA_8x16.otb from the Ultimate Oldschool PC Font Pack by VileR, licens
 
 ## Metrics (cloc)
 
-Lines of code this project, excluding third party software.
+Lines of code in this project, excluding third party software.
 
 ```
 -------------------------------------------------------------------------------
 Language                     files          blank        comment           code
 -------------------------------------------------------------------------------
-C                              331          32072          33219         108981
-C/C++ Header                   237           6073           6717          14997
+C                              336          32666          33990         111154
+C/C++ Header                   241           6180           6804          15379
 Assembly                        22           1991           1268           6937
 -------------------------------------------------------------------------------
-SUM:                           590          40136          41204         130915
+SUM:                           599          40837          42062         133470
 -------------------------------------------------------------------------------
 ```
 

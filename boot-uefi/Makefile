@@ -49,6 +49,7 @@ HELLO_ELF       := $(CORE_BUILD_DIR)/system/hello/hello
 TICTACTOE_ELF   := $(CORE_BUILD_DIR)/system/tictactoe/tictactoe
 TERMTACTICS_ELF := $(CORE_BUILD_DIR)/system/terminal-tactics/terminal-tactics
 INPUTINFO_ELF   := $(CORE_BUILD_DIR)/system/input-info/input-info
+MEMORY_SMOKE_ELF := $(CORE_BUILD_DIR)/system/memory-stress/memory-stress
 MASTER_ELF      := $(CORE_BUILD_DIR)/system/test/master/master
 SLAVE_ELF       := $(CORE_BUILD_DIR)/system/test/slave/slave
 TEST_E0_SCRIPT  := ../system/scripts/test.e0
@@ -227,6 +228,9 @@ $(UEFI_IMAGE): $(UEFI_BOOT_FILE_PATH) $(KERNEL_BIN) $(TEST_E0_SCRIPT) $(SYSTEM_T
 	@cp $(TICTACTOE_ELF) $(EXT2_STAGING_DIR)/exos/apps/tictactoe
 	@cp $(TERMTACTICS_ELF) $(EXT2_STAGING_DIR)/exos/apps/terminal-tactics
 	@cp $(INPUTINFO_ELF) $(EXT2_STAGING_DIR)/exos/apps/input-info
+	@cp $(MEMORY_SMOKE_ELF) $(EXT2_STAGING_DIR)/exos/apps/memory-stress
+	@cp $(MEMORY_SMOKE_ELF) $(EXT2_STAGING_DIR)/exos/apps/memory-fragmentation
+	@cp $(MEMORY_SMOKE_ELF) $(EXT2_STAGING_DIR)/exos/apps/memory-growth
 	@cp $(MASTER_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/master
 	@cp $(SLAVE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/slave
 	@cp $(SYSTEM_TEST_EPK) $(EXT2_STAGING_DIR)/exos/apps/test.epk

@@ -1277,7 +1277,7 @@ static BOOL PopulateRegionPages(LINEAR Base,
  *              - ALLOC_PAGES_IO: keep physical pages marked fixed for MMIO.
  * @return Allocated linear base address or 0 on failure.
  */
-LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag) {
+LINEAR AllocRegionForProcess(LPPROCESS TrackingProcess, LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag) {
     LINEAR Pointer = NULL;
     UINT NumPages = 0;
 
@@ -1338,8 +1338,8 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
         return NULL;
     }
 
-    if (RegionTrackAlloc(Pointer, Target, NumPages << PAGE_SIZE_MUL, Flags, Tag) == FALSE) {
-        FreeRegion(Pointer, NumPages << PAGE_SIZE_MUL);
+    if (RegionTrackAllocForProcess(TrackingProcess, Pointer, Target, NumPages << PAGE_SIZE_MUL, Flags, Tag) == FALSE) {
+        FreeRegionForProcess(TrackingProcess, Pointer, NumPages << PAGE_SIZE_MUL);
         return NULL;
     }
 
@@ -1348,6 +1348,12 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
 
 
     return Pointer;
+}
+
+/************************************************************************/
+
+LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag) {
+    return AllocRegionForProcess(NULL, Base, Target, Size, Flags, Tag);
 }
 
 /************************************************************************/
@@ -1362,7 +1368,7 @@ LINEAR AllocRegion(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Ta
  * @param Flags Mapping flags used for the region (see AllocRegion).
  * @return TRUE on success, FALSE otherwise.
  */
-BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Flags) {
+BOOL ResizeRegionForProcess(LPPROCESS TrackingProcess, LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Flags) {
 
     if (Base == 0) {
         ERROR(TEXT("[ResizeRegion] Base cannot be null"));
@@ -1411,7 +1417,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
             return FALSE;
         }
 
-        RegionTrackResize(Base, Size, NewSize, Flags);
+        RegionTrackResizeForProcess(TrackingProcess, Base, Size, NewSize, Flags);
 
         FlushTLB();
     } else {
@@ -1420,11 +1426,17 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
             LINEAR ReleaseBase = Base + (RequestedPages << PAGE_SIZE_MUL);
             UINT ReleaseSize = PagesToRelease << PAGE_SIZE_MUL;
 
-            FreeRegion(ReleaseBase, ReleaseSize);
+            FreeRegionForProcess(TrackingProcess, ReleaseBase, ReleaseSize);
         }
     }
 
     return TRUE;
+}
+
+/************************************************************************/
+
+BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Flags) {
+    return ResizeRegionForProcess(NULL, Base, Target, Size, NewSize, Flags);
 }
 
 /************************************************************************/
@@ -1435,7 +1447,7 @@ BOOL ResizeRegion(LINEAR Base, PHYSICAL Target, UINT Size, UINT NewSize, U32 Fla
  * @param Size Size of region.
  * @return TRUE on success.
  */
-BOOL FreeRegion(LINEAR Base, UINT Size) {
+BOOL FreeRegionForProcess(LPPROCESS TrackingProcess, LINEAR Base, UINT Size) {
     LINEAR OriginalBase = Base;
     LPPAGE_DIRECTORY Directory = (LPPAGE_DIRECTORY)GetCurrentPageDirectoryVA();
     LPPAGE_TABLE Table = NULL;
@@ -1470,7 +1482,7 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
         Base += PAGE_SIZE;
     }
 
-    RegionTrackFree(OriginalBase, NumPages << PAGE_SIZE_MUL);
+    RegionTrackFreeForProcess(TrackingProcess, OriginalBase, NumPages << PAGE_SIZE_MUL);
 
     FreeEmptyPageTables();
 
@@ -1478,6 +1490,12 @@ BOOL FreeRegion(LINEAR Base, UINT Size) {
     FlushTLB();
 
     return TRUE;
+}
+
+/************************************************************************/
+
+BOOL FreeRegion(LINEAR Base, UINT Size) {
+    return FreeRegionForProcess(NULL, Base, Size);
 }
 
 /************************************************************************/

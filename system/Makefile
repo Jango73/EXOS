@@ -23,9 +23,9 @@ SUBMAKE = $(MAKE) ARCH=$(ARCH) BUILD_CORE_NAME=$(BUILD_CORE_NAME) BUILD_IMAGE_NA
 
 ################################################################################
 
-.PHONY: all clean hello portal tictactoe terminal_tactics netget input-info master slave
+.PHONY: all clean hello portal tictactoe terminal_tactics netget input-info memory_smoke master slave
 
-all: hello portal tictactoe terminal_tactics netget input-info master slave
+all: hello portal tictactoe terminal_tactics netget input-info memory_smoke master slave
 
 ################################################################################
 # Hello program
@@ -88,6 +88,16 @@ input-info_clean:
 	+$(SUBMAKE) -C input-info clean
 
 ################################################################################
+# Memory smoke program
+
+memory_smoke:
+	@echo "[ Building memory-stress ]"
+	+$(SUBMAKE) -C memory-stress all
+
+memory_smoke_clean:
+	+$(SUBMAKE) -C memory-stress clean
+
+################################################################################
 # Master test program
 
 master:
@@ -109,5 +119,5 @@ slave_clean:
 
 ################################################################################
 
-clean: hello_clean portal_clean tictactoe_clean terminal_tactics_clean netget_clean input-info_clean master_clean slave_clean
+clean: hello_clean portal_clean tictactoe_clean terminal_tactics_clean netget_clean input-info_clean memory_smoke_clean master_clean slave_clean
 	@echo "[ Cleaning system programs ]"

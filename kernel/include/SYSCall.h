@@ -55,6 +55,7 @@ UINT SysCall_CreateProcess(UINT Parameter);
 UINT SysCall_KillProcess(UINT Parameter);
 
 UINT SysCall_GetProcessInfo(UINT Parameter);
+UINT SysCall_GetProcessMemoryInfo(UINT Parameter);
 UINT SysCall_CreateTask(UINT Parameter);
 UINT SysCall_KillTask(UINT Parameter);
 UINT SysCall_Exit(UINT Parameter);

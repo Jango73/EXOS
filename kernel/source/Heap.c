@@ -192,6 +192,44 @@ static LPHEAP_BLOCK_HEADER FindPreviousPhysicalBlock(LPHEAP_CONTROL_BLOCK Contro
 /************************************************************************/
 
 /**
+ * @brief Count total bytes held by free blocks inside an initialized heap.
+ * @param ControlBlock Heap control block.
+ * @return Total free payload bytes across all free blocks.
+ */
+static UINT CountFreePayloadBytes(LPHEAP_CONTROL_BLOCK ControlBlock) {
+    LINEAR Cursor;
+    LINEAR FirstBlock;
+    LINEAR FirstUnallocated;
+    LPHEAP_BLOCK_HEADER Block;
+    UINT TotalFreeBytes = 0;
+
+    if (ControlBlock == NULL) {
+        return 0;
+    }
+
+    FirstBlock = (ControlBlock->HeapBase + sizeof(HEAP_CONTROL_BLOCK) + 15) & ~15;
+    FirstUnallocated = (LINEAR)ControlBlock->FirstUnallocated;
+    Cursor = FirstBlock;
+
+    while (Cursor < FirstUnallocated) {
+        Block = (LPHEAP_BLOCK_HEADER)Cursor;
+        if (IsBlockInHeap(ControlBlock, Block) == FALSE) {
+            return 0;
+        }
+
+        if (IsBlockFree(Block) && Block->Size > sizeof(HEAP_BLOCK_HEADER)) {
+            TotalFreeBytes += Block->Size - sizeof(HEAP_BLOCK_HEADER);
+        }
+
+        Cursor += Block->Size;
+    }
+
+    return TotalFreeBytes;
+}
+
+/************************************************************************/
+
+/**
  * @brief Adds a free block to the appropriate freelist
  * @param ControlBlock Pointer to the heap control block
  * @param Block Pointer to the block header to add
@@ -677,6 +715,58 @@ void HeapFree_HBHS(LINEAR HeapBase, UINT HeapSize, LPVOID Pointer) {
     AddToFreeList(ControlBlock, Block, SizeClass);
 
     // DEBUG("[HeapFree_HBHS] Added block to freelist, size class %x", SizeClass);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Query memory statistics for a process heap.
+ * @param Process Target process.
+ * @param Info Output structure to fill.
+ * @return TRUE on success, FALSE on invalid arguments.
+ */
+BOOL HeapQueryProcessMemoryInfo(LPPROCESS Process, LPPROCESS_MEMORY_INFO Info) {
+    LPHEAP_CONTROL_BLOCK ControlBlock;
+    UINT HeapHeaderEndOffset;
+    UINT FirstUnallocatedOffset;
+    UINT TotalPayloadBytes;
+    UINT FreePayloadBytes;
+
+    if (Process == NULL || Info == NULL || Process->HeapBase == 0 || Process->HeapSize == 0) {
+        return FALSE;
+    }
+
+    LockMutex(&(Process->HeapMutex), INFINITY);
+
+    ControlBlock = (LPHEAP_CONTROL_BLOCK)Process->HeapBase;
+    if (ControlBlock->TypeID != KOID_HEAP) {
+        UnlockMutex(&(Process->HeapMutex));
+        return FALSE;
+    }
+
+    HeapHeaderEndOffset = ((sizeof(HEAP_CONTROL_BLOCK) + 15) & ~15);
+    FirstUnallocatedOffset = (UINT)((LINEAR)ControlBlock->FirstUnallocated - ControlBlock->HeapBase);
+    if (FirstUnallocatedOffset < HeapHeaderEndOffset) {
+        UnlockMutex(&(Process->HeapMutex));
+        return FALSE;
+    }
+
+    TotalPayloadBytes = FirstUnallocatedOffset - HeapHeaderEndOffset;
+    FreePayloadBytes = CountFreePayloadBytes(ControlBlock);
+    if (FreePayloadBytes > TotalPayloadBytes) {
+        UnlockMutex(&(Process->HeapMutex));
+        return FALSE;
+    }
+
+    Info->HeapBase = Process->HeapBase;
+    Info->HeapReservedSize = Process->HeapSize;
+    Info->HeapFirstUnallocatedOffset = FirstUnallocatedOffset;
+    Info->HeapFreeBytes = FreePayloadBytes;
+    Info->HeapUsedBytes = TotalPayloadBytes - FreePayloadBytes;
+
+    UnlockMutex(&(Process->HeapMutex));
+
+    return TRUE;
 }
 
 /************************************************************************/

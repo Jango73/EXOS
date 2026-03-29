@@ -60,6 +60,16 @@ BOOL GetLocalTime(LPDATETIME Time) { return (BOOL)exoscall(SYSCALL_GetLocalTime,
 
 /***************************************************************************/
 
+BOOL GetProcessMemoryInfo(LPPROCESS_MEMORY_INFO Info) {
+    if (Info == NULL) {
+        return FALSE;
+    }
+
+    return exoscall(SYSCALL_GetProcessMemoryInfo, EXOS_PARAM(Info)) == DF_RETURN_SUCCESS;
+}
+
+/***************************************************************************/
+
 BOOL GetMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last) {
     MESSAGE_INFO MessageInfo;
     BOOL Result;

@@ -301,11 +301,11 @@ void DeleteProcessCommit(LPPROCESS This) {
         if (This->HeapBase != 0 && This->HeapSize != 0) {
             DEBUG(TEXT("[DeleteProcessCommit] Freeing process heap base=%p size=%x"), (LINEAR)This->HeapBase,
                 (UINT)This->HeapSize);
-            FreeRegion(This->HeapBase, This->HeapSize);
+            FreeRegionForProcess(This, This->HeapBase, This->HeapSize);
         }
 
         if (This->MessageQueue.MessageBufferBase != 0 && This->MessageQueue.MessageBufferSize > 0) {
-            FreeRegion(This->MessageQueue.MessageBufferBase, This->MessageQueue.MessageBufferSize);
+            FreeRegionForProcess(This, This->MessageQueue.MessageBufferBase, This->MessageQueue.MessageBufferSize);
             This->MessageQueue.MessageBufferBase = 0;
             This->MessageQueue.MessageBufferSize = 0;
         }
@@ -674,7 +674,7 @@ BOOL CreateProcess(LPPROCESS_INFO Info) {
 
     DEBUG(TEXT("[CreateProcess] Allocating process space"));
 
-    if (AllocRegion(VMA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("ProcessSpace")) == NULL) {
+    if (AllocRegionForProcess(Process, VMA_USER, 0, TotalSize, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("ProcessSpace")) == NULL) {
         ERROR(TEXT("[CreateProcess] Failed to allocate process space"));
         LoadPageDirectory(PageDirectory);
         UnfreezeScheduler();
@@ -708,7 +708,7 @@ BOOL CreateProcess(LPPROCESS_INFO Info) {
     if (LoadExecutable(&LoadInfo) == FALSE) {
         DEBUG(TEXT("[CreateProcess] Load failed !"));
 
-        FreeRegion(VMA_USER, TotalSize);
+        FreeRegionForProcess(Process, VMA_USER, TotalSize);
         LoadPageDirectory(PageDirectory);
         UnfreezeScheduler();
         CloseFile(File);
@@ -725,7 +725,7 @@ BOOL CreateProcess(LPPROCESS_INFO Info) {
 
     if (ProcessArenaInitializeUser(Process, CodeBase, CodeSize + DataSize, HeapBase, HeapSize) == FALSE) {
         ERROR(TEXT("[CreateProcess] Failed to initialize process address space arenas"));
-        FreeRegion(VMA_USER, TotalSize);
+        FreeRegionForProcess(Process, VMA_USER, TotalSize);
         LoadPageDirectory(PageDirectory);
         UnfreezeScheduler();
         goto Out;
@@ -936,6 +936,24 @@ LPMEMORY_REGION_LIST GetCurrentMemoryRegionList(void) {
 /***************************************************************************/
 
 /**
+ * @brief Assigns one descriptor owner process explicitly.
+ *
+ * @param Descriptor Target descriptor.
+ * @param Process Owner process, or NULL to fall back to the kernel process.
+ */
+void MemoryRegionDescriptorAssignOwner(LPMEMORY_REGION_DESCRIPTOR Descriptor, LPPROCESS Process) {
+    if (Process == NULL) {
+        Process = &KernelProcess;
+    }
+
+    SAFE_USE(Descriptor) {
+        Descriptor->OwnerProcess = Process;
+    }
+}
+
+/***************************************************************************/
+
+/**
  * @brief Assigns the active address space owner to a descriptor.
  *
  * @param Descriptor Target descriptor.
@@ -946,9 +964,7 @@ void MemoryRegionDescriptorAssignCurrentOwner(LPMEMORY_REGION_DESCRIPTOR Descrip
         Process = &KernelProcess;
     }
 
-    SAFE_USE(Descriptor) {
-        Descriptor->OwnerProcess = Process;
-    }
+    MemoryRegionDescriptorAssignOwner(Descriptor, Process);
 }
 
 /***************************************************************************/

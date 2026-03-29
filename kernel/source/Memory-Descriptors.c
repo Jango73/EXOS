@@ -310,15 +310,31 @@ void ExtendDescriptor(LPMEMORY_REGION_DESCRIPTOR Descriptor, UINT AdditionalPage
 }
 
 /************************************************************************/
+
+/**
+ * @brief Resolve the descriptor list for one tracking owner.
+ * @param Process Explicit tracking owner, or NULL to use the current process.
+ * @return Descriptor list pointer or NULL when unavailable.
+ */
+static LPMEMORY_REGION_LIST ResolveTrackingList(LPPROCESS Process) {
+    if (Process != NULL) {
+        return GetProcessMemoryRegionList(Process);
+    }
+
+    return GetCurrentMemoryRegionList();
+}
+
+/************************************************************************/
 /**
  * @brief Register a freshly allocated region descriptor.
+ * @param OwnerProcess Explicit owner process for the descriptor.
  * @param Base Canonical base address.
  * @param NumPages Number of pages covered.
  * @param Target Physical base when fixed, 0 otherwise.
  * @param Flags Allocation flags.
  * @return TRUE on success, FALSE otherwise.
  */
-BOOL RegisterRegionDescriptor(LPMEMORY_REGION_LIST List, LINEAR Base, UINT NumPages, PHYSICAL Target, U32 Flags, LPCSTR Tag) {
+BOOL RegisterRegionDescriptor(LPPROCESS OwnerProcess, LPMEMORY_REGION_LIST List, LINEAR Base, UINT NumPages, PHYSICAL Target, U32 Flags, LPCSTR Tag) {
     LPMEMORY_REGION_DESCRIPTOR Descriptor = AcquireRegionDescriptor();
 
     if (Descriptor == NULL) {
@@ -331,7 +347,7 @@ BOOL RegisterRegionDescriptor(LPMEMORY_REGION_LIST List, LINEAR Base, UINT NumPa
     Descriptor->TypeID = KOID_MEMORY_REGION_DESCRIPTOR;
     Descriptor->References = 1;
     Descriptor->ID = U64_Make(0, 0);
-    MemoryRegionDescriptorAssignCurrentOwner(Descriptor);
+    MemoryRegionDescriptorAssignOwner(Descriptor, OwnerProcess);
     Descriptor->CanonicalBase = CanonicalizeLinearAddress(Base);
     Descriptor->Base = Descriptor->CanonicalBase;
     Descriptor->PhysicalBase = Target;
@@ -521,7 +537,22 @@ void InitializeRegionDescriptorTracking(void) {
  * @return TRUE on success or when tracking is disabled.
  */
 BOOL RegionTrackAlloc(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag) {
-    LPMEMORY_REGION_LIST List = GetCurrentMemoryRegionList();
+    return RegionTrackAllocForProcess(NULL, Base, Target, Size, Flags, Tag);
+}
+
+/************************************************************************/
+/**
+ * @brief Track a successful region allocation in one process descriptor list.
+ * @param Process Tracking owner, or NULL for the current process.
+ * @param Base Base address for the allocation.
+ * @param Target Physical base when fixed, 0 otherwise.
+ * @param Size Size in bytes.
+ * @param Flags Allocation flags.
+ * @param Tag Optional allocation tag.
+ * @return TRUE on success or when tracking is disabled.
+ */
+BOOL RegionTrackAllocForProcess(LPPROCESS Process, LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag) {
+    LPMEMORY_REGION_LIST List = ResolveTrackingList(Process);
 
     if (G_RegionDescriptorsEnabled == FALSE || G_RegionDescriptorBootstrap == TRUE) {
         return TRUE;
@@ -540,7 +571,7 @@ BOOL RegionTrackAlloc(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR
         return FALSE;
     }
 
-    return RegisterRegionDescriptor(List, Base, NumPages, Target, Flags, Tag);
+    return RegisterRegionDescriptor(Process, List, Base, NumPages, Target, Flags, Tag);
 }
 
 /************************************************************************/
@@ -551,7 +582,19 @@ BOOL RegionTrackAlloc(LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR
  * @return TRUE on success or when tracking is disabled.
  */
 BOOL RegionTrackFree(LINEAR Base, UINT Size) {
-    LPMEMORY_REGION_LIST List = GetCurrentMemoryRegionList();
+    return RegionTrackFreeForProcess(NULL, Base, Size);
+}
+
+/************************************************************************/
+/**
+ * @brief Track a successful region release in one process descriptor list.
+ * @param Process Tracking owner, or NULL for the current process.
+ * @param Base Base address for the free.
+ * @param Size Size in bytes.
+ * @return TRUE on success or when tracking is disabled.
+ */
+BOOL RegionTrackFreeForProcess(LPPROCESS Process, LINEAR Base, UINT Size) {
+    LPMEMORY_REGION_LIST List = ResolveTrackingList(Process);
 
     if (G_RegionDescriptorsEnabled == FALSE || G_RegionDescriptorBootstrap == TRUE) {
         return TRUE;
@@ -579,7 +622,21 @@ BOOL RegionTrackFree(LINEAR Base, UINT Size) {
  * @return TRUE on success or when tracking is disabled.
  */
 BOOL RegionTrackResize(LINEAR Base, UINT OldSize, UINT NewSize, U32 Flags) {
-    LPMEMORY_REGION_LIST List = GetCurrentMemoryRegionList();
+    return RegionTrackResizeForProcess(NULL, Base, OldSize, NewSize, Flags);
+}
+
+/************************************************************************/
+/**
+ * @brief Track a successful resize in one process descriptor list.
+ * @param Process Tracking owner, or NULL for the current process.
+ * @param Base Base address for the region.
+ * @param OldSize Previous size in bytes.
+ * @param NewSize New size in bytes.
+ * @param Flags Allocation flags.
+ * @return TRUE on success or when tracking is disabled.
+ */
+BOOL RegionTrackResizeForProcess(LPPROCESS Process, LINEAR Base, UINT OldSize, UINT NewSize, U32 Flags) {
+    LPMEMORY_REGION_LIST List = ResolveTrackingList(Process);
 
     if (G_RegionDescriptorsEnabled == FALSE || G_RegionDescriptorBootstrap == TRUE) {
         return TRUE;
@@ -612,7 +669,7 @@ BOOL RegionTrackResize(LINEAR Base, UINT OldSize, UINT NewSize, U32 Flags) {
 
     LPMEMORY_REGION_DESCRIPTOR Descriptor = FindDescriptorForBase(List, CanonicalBase);
     if (Descriptor == NULL) {
-        return RegisterRegionDescriptor(List, Base, (NewSize + PAGE_SIZE - 1) >> PAGE_SIZE_MUL, 0, Flags, NULL);
+        return RegisterRegionDescriptor(Process, List, Base, (NewSize + PAGE_SIZE - 1) >> PAGE_SIZE_MUL, 0, Flags, NULL);
     }
 
     ExtendDescriptor(Descriptor, AdditionalPages);

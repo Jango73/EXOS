@@ -304,6 +304,42 @@ UINT SysCall_GetProcessInfo(UINT Parameter) {
 /************************************************************************/
 
 /**
+ * @brief Retrieve heap usage information for a process.
+ *
+ * Converts the optional process handle to a kernel pointer, validates read
+ * access for the caller, then returns a consistent heap snapshot.
+ *
+ * @param Parameter Pointer to PROCESS_MEMORY_INFO provided by userland.
+ * @return UINT DF_RETURN_SUCCESS on success, DF_RETURN_GENERIC on error.
+ */
+UINT SysCall_GetProcessMemoryInfo(UINT Parameter) {
+    LPPROCESS_MEMORY_INFO Info = (LPPROCESS_MEMORY_INFO)Parameter;
+    LPPROCESS TargetProcess;
+
+    SAFE_USE_INPUT_POINTER(Info, PROCESS_MEMORY_INFO) {
+        TargetProcess = GetCurrentProcess();
+
+        if (Info->Process != 0) {
+            if ((LPPROCESS)HandleToPointer(Info->Process) != TargetProcess) {
+                return DF_RETURN_GENERIC;
+            }
+        }
+
+        SAFE_USE_VALID_ID(TargetProcess, KOID_PROCESS) {
+            if (HeapQueryProcessMemoryInfo(TargetProcess, Info) == FALSE) {
+                return DF_RETURN_GENERIC;
+            }
+
+            return DF_RETURN_SUCCESS;
+        }
+    }
+
+    return DF_RETURN_GENERIC;
+}
+
+/************************************************************************/
+
+/**
  * @brief Create a task for the current process and return its handle.
  *
  * @param Parameter Pointer to TASK_INFO structure provided by userland.

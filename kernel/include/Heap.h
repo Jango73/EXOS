@@ -71,6 +71,10 @@ typedef struct tag_HEAP_CONTROL_BLOCK {
 
 /***************************************************************************/
 
+typedef struct tag_PROCESS_MEMORY_INFO PROCESS_MEMORY_INFO, *LPPROCESS_MEMORY_INFO;
+
+/***************************************************************************/
+
 void HeapInit(LPPROCESS Process, LINEAR HeapBase, UINT HeapSize);
 void HeapConfigureGrowth(
     LINEAR HeapBase,
@@ -117,6 +121,8 @@ LPVOID HeapRealloc(LPVOID Pointer, UINT Size);
 
 // Frees memory space in the calling process' heap
 void HeapFree(LPVOID Pointer);
+
+BOOL HeapQueryProcessMemoryInfo(LPPROCESS Process, LPPROCESS_MEMORY_INFO Info);
 
 /***************************************************************************/
 

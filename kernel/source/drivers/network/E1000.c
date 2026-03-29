@@ -133,30 +133,20 @@ struct tag_E1000DEVICE {
     U8 Mac[6];
 
     // RX ring
-    PHYSICAL RxRingPhysical;
-    LINEAR RxRingLinear;
+    DMA_BUFFER RxRingBuffer;
     U32 RxRingCount;
     U32 RxHead;
     U32 RxTail;
 
     // TX ring
-    PHYSICAL TxRingPhysical;
-    LINEAR TxRingLinear;
+    DMA_BUFFER TxRingBuffer;
     U32 TxRingCount;
     U32 TxHead;
     U32 TxTail;
 
-    // RX buffers
-    PHYSICAL RxBufPhysical[E1000_RX_DESC_COUNT];
-    LINEAR RxBufLinear[E1000_RX_DESC_COUNT];
-
-    // TX buffers
-    PHYSICAL TxBufPhysical[E1000_TX_DESC_COUNT];
-    LINEAR TxBufLinear[E1000_TX_DESC_COUNT];
-
-    // Pooled linear areas (one big allocation each)
-    LINEAR RxPoolLinear;
-    LINEAR TxPoolLinear;
+    // Pooled DMA areas (one big allocation each)
+    DMA_BUFFER RxBufferPool;
+    DMA_BUFFER TxBufferPool;
 
     // RX callback (set via DF_NT_SETRXCB)
     NT_RXCB RxCallback;
@@ -182,6 +172,7 @@ static BOOL E1000_InterruptTopHalf(LPDEVICE Device, LPVOID Context);
 static void E1000_DeferredRoutine(LPDEVICE Device, LPVOID Context);
 static void E1000_PollRoutine(LPDEVICE Device, LPVOID Context);
 static U32 E1000_ReceivePoll(LPE1000DEVICE Device);
+static void E1000_ReleaseDMAResources(LPE1000DEVICE Device);
 
 /************************************************************************/
 // Globals and PCI match table
@@ -378,86 +369,93 @@ static void E1000_SetupMacFilters(LPE1000DEVICE Device) {
 // RX/TX rings setup
 
 /**
+ * @brief Release DMA resources allocated by the E1000 driver.
+ * @param Device Target E1000 device.
+ */
+static void E1000_ReleaseDMAResources(LPE1000DEVICE Device) {
+    if (Device == NULL) {
+        return;
+    }
+
+    DMABufferRelease(&Device->TxBufferPool);
+    DMABufferRelease(&Device->RxBufferPool);
+    DMABufferRelease(&Device->TxRingBuffer);
+    DMABufferRelease(&Device->RxRingBuffer);
+}
+
+/************************************************************************/
+
+/**
  * @brief Initialize the receive descriptor ring and buffers.
  * @param Device Target E1000 device.
  * @return TRUE on success, FALSE on failure.
  */
 static BOOL E1000_SetupReceive(LPE1000DEVICE Device) {
     UINT Index;
+    LPE1000_RXDESC Ring;
 
     Device->RxRingCount = E1000_RX_DESC_COUNT;
 
-    // Ring: one physical page, mapped once (unchanged semantics)
-    Device->RxRingPhysical = AllocPhysicalPage();
-    if (Device->RxRingPhysical == 0) {
-        ERROR(TEXT("[E1000_SetupReceive] Rx ring phys alloc failed"));
-        return FALSE;
-    }
-    Device->RxRingLinear =
-        AllocKernelRegion(Device->RxRingPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("E1000RxRing"));
-    if (Device->RxRingLinear == 0) {
-        ERROR(TEXT("[E1000_SetupReceive] Rx ring map failed"));
-        return FALSE;
-    }
-    MemorySet((LPVOID)Device->RxRingLinear, 0, PAGE_SIZE);
-
-    // RX buffer pool: allocate N pages in one shot (no target; VMM picks pages)
-    Device->RxPoolLinear =
-        AllocKernelRegion(0, E1000_RX_DESC_COUNT * PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("E1000RxPool"));
-    if (Device->RxPoolLinear == 0) {
-        ERROR(TEXT("[E1000_SetupReceive] Rx pool alloc failed"));
+    if (!DMABufferAllocate(
+            &Device->RxRingBuffer,
+            Device->RxRingCount * sizeof(E1000_RXDESC),
+            FALSE,
+            TEXT("E1000RxRing"))) {
+        ERROR(TEXT("[E1000_SetupReceive] RX ring allocation failed"));
         return FALSE;
     }
 
-    // Slice the pool per descriptor (1 page per buffer, as before)
+    if (!DMABufferAllocate(
+            &Device->RxBufferPool,
+            Device->RxRingCount * PAGE_SIZE,
+            FALSE,
+            TEXT("E1000RxPool"))) {
+        ERROR(TEXT("[E1000_SetupReceive] RX pool allocation failed"));
+        return FALSE;
+    }
+
+    Ring = (LPE1000_RXDESC)Device->RxRingBuffer.LinearBase;
     for (Index = 0; Index < Device->RxRingCount; Index++) {
-        LINEAR la = Device->RxPoolLinear + (Index << PAGE_SIZE_MUL);
-        PHYSICAL pa = MapLinearToPhysical(la);
-        if (pa == 0) {
-            ERROR(TEXT("[E1000_SetupReceive] Rx pool phys lookup failed at %u"), Index);
+        PHYSICAL BufferPhys = DMABufferGetIndexedPhysical(&Device->RxBufferPool, Index, PAGE_SIZE);
+        LINEAR BufferLinear = DMABufferGetIndexedLinear(&Device->RxBufferPool, Index, PAGE_SIZE);
+
+        if (BufferPhys == 0 || BufferLinear == 0) {
+            ERROR(TEXT("[E1000_SetupReceive] RX pool address lookup failed at %u"), Index);
             return FALSE;
         }
-        Device->RxBufLinear[Index] = la;
-        Device->RxBufPhysical[Index] = pa;
+
+        if ((BufferPhys & 0xF) != 0) {
+            ERROR(TEXT("[E1000_SetupReceive] Invalid/unaligned buffer physical address %p at index %u"),
+                  BufferPhys,
+                  Index);
+            return FALSE;
+        }
+
+        Ring[Index].BufferAddrLow = (U32)(BufferPhys & MAX_U32);
+        Ring[Index].BufferAddrHigh = 0;
+        Ring[Index].Length = 0;
+        Ring[Index].Checksum = 0;
+        Ring[Index].Status = 0;
+        Ring[Index].Errors = 0;
+        Ring[Index].Special = 0;
+
+        if (Index < 3) {
+            DEBUG(TEXT("[E1000_SetupReceive] RX[%u]: PhysAddr=%x Linear=%x (aligned=%s)"),
+                  Index,
+                  (U32)BufferPhys,
+                  (U32)BufferLinear,
+                  ((BufferPhys & 0xF) == 0) ? TEXT("YES") : TEXT("NO"));
+        }
     }
 
-    // First, setup all descriptors before programming registers
-    {
-        LPE1000_RXDESC Ring = (LPE1000_RXDESC)Device->RxRingLinear;
-        for (Index = 0; Index < Device->RxRingCount; Index++) {
-            // Ensure physical addresses are properly aligned and valid
-            PHYSICAL BufferPhys = Device->RxBufPhysical[Index];
-            if (BufferPhys == 0 || (BufferPhys & 0xF) != 0) {
-                ERROR(TEXT("[E1000_SetupReceive] Invalid/unaligned buffer physical address %p at index %u"),
-                      BufferPhys, Index);
-                return FALSE;
-            }
-
-            Ring[Index].BufferAddrLow = (U32)(BufferPhys & MAX_U32);
-            Ring[Index].BufferAddrHigh = 0;
-            Ring[Index].Length = 0;
-            Ring[Index].Checksum = 0;
-            Ring[Index].Status = 0;
-            Ring[Index].Errors = 0;
-            Ring[Index].Special = 0;
-
-            if (Index < 3) {
-                DEBUG(TEXT("[E1000_SetupReceive] RX[%u]: PhysAddr=%x Linear=%x (aligned=%s)"),
-                      Index, (U32)BufferPhys, (U32)Device->RxBufLinear[Index],
-                      ((BufferPhys & 0xF) == 0) ? "YES" : "NO");
-            }
-        }
-
-        // Additional verification: check descriptor ring alignment
-        if ((Device->RxRingPhysical & 0xF) != 0) {
-            ERROR(TEXT("[E1000_SetupReceive] Descriptor ring not 16-byte aligned: %p"),
-                  Device->RxRingPhysical);
-            return FALSE;
-        }
+    if ((DMABufferGetPhysical(&Device->RxRingBuffer, 0) & 0xF) != 0) {
+        ERROR(TEXT("[E1000_SetupReceive] Descriptor ring not 16-byte aligned: %p"),
+              DMABufferGetPhysical(&Device->RxRingBuffer, 0));
+        return FALSE;
     }
 
     // Then program NIC registers
-    E1000_WriteReg32(Device->MmioBase, E1000_REG_RDBAL, (U32)(Device->RxRingPhysical & MAX_U32));
+    E1000_WriteReg32(Device->MmioBase, E1000_REG_RDBAL, (U32)(DMABufferGetPhysical(&Device->RxRingBuffer, 0) & MAX_U32));
     E1000_WriteReg32(Device->MmioBase, E1000_REG_RDBAH, 0);
     E1000_WriteReg32(Device->MmioBase, E1000_REG_RDLEN, Device->RxRingCount * sizeof(E1000_RXDESC));
 
@@ -517,75 +515,61 @@ static BOOL E1000_SetupReceive(LPE1000DEVICE Device) {
  */
 static BOOL E1000_SetupTransmit(LPE1000DEVICE Device) {
     U32 Index;
+    LPE1000_TXDESC Ring;
 
     Device->TxRingCount = E1000_TX_DESC_COUNT;
 
-    // Ring: one physical page, mapped once (unchanged semantics)
-    Device->TxRingPhysical = AllocPhysicalPage();
-    if (Device->TxRingPhysical == 0) {
-        ERROR(TEXT("[E1000_SetupTransmit] Tx ring phys alloc failed"));
-        return FALSE;
-    }
-    Device->TxRingLinear =
-        AllocKernelRegion(Device->TxRingPhysical, PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("E1000TxRing"));
-    if (Device->TxRingLinear == 0) {
-        ERROR(TEXT("[E1000_SetupTransmit] Tx ring map failed"));
-        return FALSE;
-    }
-    MemorySet((LPVOID)Device->TxRingLinear, 0, PAGE_SIZE);
-
-    // TX buffer pool: allocate N pages in one shot
-    Device->TxPoolLinear =
-        AllocKernelRegion(0, E1000_TX_DESC_COUNT * PAGE_SIZE, ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE, TEXT("E1000TxPool"));
-    if (Device->TxPoolLinear == 0) {
-        ERROR(TEXT("[E1000_SetupTransmit] Tx pool alloc failed"));
+    if (!DMABufferAllocate(
+            &Device->TxRingBuffer,
+            Device->TxRingCount * sizeof(E1000_TXDESC),
+            FALSE,
+            TEXT("E1000TxRing"))) {
+        ERROR(TEXT("[E1000_SetupTransmit] TX ring allocation failed"));
         return FALSE;
     }
 
+    if (!DMABufferAllocate(
+            &Device->TxBufferPool,
+            Device->TxRingCount * PAGE_SIZE,
+            FALSE,
+            TEXT("E1000TxPool"))) {
+        ERROR(TEXT("[E1000_SetupTransmit] TX pool allocation failed"));
+        return FALSE;
+    }
+
+    Ring = (LPE1000_TXDESC)Device->TxRingBuffer.LinearBase;
     for (Index = 0; Index < Device->TxRingCount; Index++) {
-        LINEAR la = Device->TxPoolLinear + (Index << PAGE_SIZE_MUL);
-        PHYSICAL pa = MapLinearToPhysical(la);
-        if (pa == 0) {
-            ERROR(TEXT("[E1000_SetupTransmit] Tx pool phys lookup failed at %u"), Index);
+        PHYSICAL BufferPhys = DMABufferGetIndexedPhysical(&Device->TxBufferPool, Index, PAGE_SIZE);
+        if (BufferPhys == 0) {
+            ERROR(TEXT("[E1000_SetupTransmit] TX pool phys lookup failed at %u"), Index);
             return FALSE;
         }
-        Device->TxBufLinear[Index] = la;
-        Device->TxBufPhysical[Index] = pa;
+
+        if ((BufferPhys & 0xF) != 0) {
+            ERROR(TEXT("[E1000_SetupTransmit] Invalid/unaligned TX buffer physical address %p at index %u"),
+                  BufferPhys,
+                  Index);
+            return FALSE;
+        }
+
+        Ring[Index].BufferAddrLow = (U32)(BufferPhys & MAX_U32);
+        Ring[Index].BufferAddrHigh = 0;
+        Ring[Index].Length = 0;
+        Ring[Index].CSO = 0;
+        Ring[Index].CMD = 0;
+        Ring[Index].STA = E1000_TX_STA_DD;
+        Ring[Index].CSS = 0;
+        Ring[Index].Special = 0;
     }
 
-    // Setup descriptors and verify TX buffer alignment
-    {
-        LPE1000_TXDESC Ring = (LPE1000_TXDESC)Device->TxRingLinear;
-        for (Index = 0; Index < Device->TxRingCount; Index++) {
-            // Ensure TX physical addresses are properly aligned and valid
-            PHYSICAL BufferPhys = Device->TxBufPhysical[Index];
-            if (BufferPhys == 0 || (BufferPhys & 0xF) != 0) {
-                ERROR(TEXT("[E1000_SetupTransmit] Invalid/unaligned TX buffer physical address %p at index %u"),
-                      BufferPhys, Index);
-                return FALSE;
-            }
-
-            Ring[Index].BufferAddrLow = (U32)(BufferPhys & MAX_U32);
-            Ring[Index].BufferAddrHigh = 0;
-            Ring[Index].Length = 0;
-            Ring[Index].CSO = 0;
-            Ring[Index].CMD = 0;
-            Ring[Index].STA = E1000_TX_STA_DD; // Mark descriptor as done/available
-            Ring[Index].CSS = 0;
-            Ring[Index].Special = 0;
-
-        }
-
-        // Additional verification: check TX descriptor ring alignment
-        if ((Device->TxRingPhysical & 0xF) != 0) {
-            ERROR(TEXT("[E1000_SetupTransmit] TX descriptor ring not 16-byte aligned: %p"),
-                  Device->TxRingPhysical);
-            return FALSE;
-        }
+    if ((DMABufferGetPhysical(&Device->TxRingBuffer, 0) & 0xF) != 0) {
+        ERROR(TEXT("[E1000_SetupTransmit] TX descriptor ring not 16-byte aligned: %p"),
+              DMABufferGetPhysical(&Device->TxRingBuffer, 0));
+        return FALSE;
     }
 
     // Program NIC registers
-    E1000_WriteReg32(Device->MmioBase, E1000_REG_TDBAL, (U32)(Device->TxRingPhysical & MAX_U32));
+    E1000_WriteReg32(Device->MmioBase, E1000_REG_TDBAL, (U32)(DMABufferGetPhysical(&Device->TxRingBuffer, 0) & MAX_U32));
     E1000_WriteReg32(Device->MmioBase, E1000_REG_TDBAH, 0);
     E1000_WriteReg32(Device->MmioBase, E1000_REG_TDLEN, Device->TxRingCount * sizeof(E1000_TXDESC));
 
@@ -664,6 +648,7 @@ static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDevice) {
         if (Device->MmioBase) {
             UnMapIOMemory(Device->MmioBase, Device->MmioSize);
         }
+        E1000_ReleaseDMAResources(Device);
         KernelHeapFree(Device);
         return NULL;
     }
@@ -671,16 +656,7 @@ static LPPCI_DEVICE E1000_Attach(LPPCI_DEVICE PciDevice) {
 
     if (!E1000_SetupTransmit(Device)) {
         ERROR(TEXT("[E1000_Attach] TX setup failed"));
-        // Cleanup RX resources
-        if (Device->RxRingLinear) {
-            FreeRegion(Device->RxRingLinear, PAGE_SIZE);
-        }
-        if (Device->RxRingPhysical) {
-            FreePhysicalPage(Device->RxRingPhysical);
-        }
-        if (Device->RxPoolLinear) {
-            FreeRegion(Device->RxPoolLinear, E1000_RX_DESC_COUNT * PAGE_SIZE);
-        }
+        E1000_ReleaseDMAResources(Device);
         if (Device->MmioBase) {
             UnMapIOMemory(Device->MmioBase, Device->MmioSize);
         }
@@ -956,10 +932,15 @@ static U32 E1000_TransmitSend(LPE1000DEVICE Device, const U8 *Data, U32 Length) 
 
 
     U32 Index = Device->TxTail;
-    LPE1000_TXDESC Ring = (LPE1000_TXDESC)Device->TxRingLinear;
+    LPE1000_TXDESC Ring = (LPE1000_TXDESC)Device->TxRingBuffer.LinearBase;
+    LINEAR BufferLinear = DMABufferGetIndexedLinear(&Device->TxBufferPool, Index, PAGE_SIZE);
+
+    if (BufferLinear == 0) {
+        return DF_RETURN_INPUT_OUTPUT;
+    }
 
     // Copy into pre-allocated TX buffer
-    MemoryCopy((LPVOID)Device->TxBufLinear[Index], (LPVOID)Data, Length);
+    MemoryCopy((LPVOID)BufferLinear, (LPVOID)Data, Length);
 
     Ring[Index].Length = (U16)Length;
     Ring[Index].CMD = (E1000_TX_CMD_EOP | E1000_TX_CMD_IFCS | E1000_TX_CMD_RS);
@@ -991,7 +972,7 @@ static U32 E1000_TransmitSend(LPE1000DEVICE Device, const U8 *Data, U32 Length) 
  * @return DF_RETURN_SUCCESS after processing frames.
  */
 static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
-    LPE1000_RXDESC Ring = (LPE1000_RXDESC)Device->RxRingLinear;
+    LPE1000_RXDESC Ring = (LPE1000_RXDESC)Device->RxRingBuffer.LinearBase;
     U32 Count = 0;
     U32 MaxIterations = Device->RxRingCount * 2; // Safety limit: twice the ring size
     U32 ConsecutiveEmptyChecks = 0;
@@ -1030,9 +1011,9 @@ static U32 E1000_ReceivePoll(LPE1000DEVICE Device) {
 
         if ((Status & E1000_RX_STA_EOP) != 0) {
             U16 Length = Ring[NextIndex].Length;
-            const U8 *Frame = (const U8 *)Device->RxBufLinear[NextIndex];
+            const U8 *Frame = (const U8 *)DMABufferGetIndexedLinear(&Device->RxBufferPool, NextIndex, PAGE_SIZE);
 
-            if (Device->RxCallback) {
+            if (Frame != NULL && Device->RxCallback) {
                 Device->RxCallback(Frame, (U32)Length, Device->RxUserData);
             } else {
             }

@@ -42,7 +42,7 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 - **Style**: 4-space indentation, follow `.clang-format` rules.
 - **Numbers**: Hexadecimal for constant numbers, except for sizes, vectors, points and time.
 - **Number suffixes**: Do not add numeric suffixes like `u` to constants; they are not wanted here.
-- **Documentation**: Update `documentation/Kernel.md` when adding/modifying kernel components.
+- **Documentation**: Update `doc/guides/kernel.md` when adding/modifying kernel components.
 - **Documentation wording**: Use timeless technical wording. Do not use temporal terms like "now", "currently", "at this time" in documentation/comments.
 - **Kernel logical paths**: For kernel file/folder logical paths, use `utils/KernelPath` (`KernelPathResolve` / `KernelPathBuildFile`) and `KernelPath.*` config keys instead of hardcoded absolute paths.
 - **Languages**: C for kernel, avoid Python (use Node.js/JS if needed).
@@ -69,37 +69,37 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 ## Common Build Commands
 
 ## Tool Execution Policy
-- When running repository scripts that may require elevated permissions, always invoke them with the `bash scripts/...` form (example: `bash scripts/4-1-smoke-test-global.sh`).
+- When running repository scripts that may require elevated permissions, always invoke them with the `bash scripts/...` form (example: `bash scripts/linux/test/smoke-test-global.sh`).
 - Keep this invocation form consistent so persistent elevation approval can be reused on the same command prefix.
-- NEVER run two `./scripts/build` commands in parallel: this repository enforces a build lock and the second build will fail with \"A build is already running\". Always run build commands sequentially.
+- NEVER run two `./scripts/linux/build/build` commands in parallel: this repository enforces a build lock and the second build will fail with \"A build is already running\". Always run build commands sequentially.
 
 **Build (ext2):**
 ```bash
-./scripts/build --arch x86-32 --fs ext2 --release
-./scripts/build --arch x86-32 --fs ext2 --debug
-./scripts/build --arch x86-32 --fs ext2 --debug --clean
+./scripts/linux/build/build --arch x86-32 --fs ext2 --release
+./scripts/linux/build/build --arch x86-32 --fs ext2 --debug
+./scripts/linux/build/build --arch x86-32 --fs ext2 --debug --clean
 ```
 
 **Build (fat32):**
 ```bash
-./scripts/build --arch x86-32 --fs fat32 --release
-./scripts/build --arch x86-32 --fs fat32 --debug
+./scripts/linux/build/build --arch x86-32 --fs fat32 --release
+./scripts/linux/build/build --arch x86-32 --fs fat32 --debug
 ```
 
 **Run in QEMU:**
 ```bash
-./scripts/run --arch x86-32
-./scripts/run --arch x86-32 --gdb
+./scripts/linux/run/run --arch x86-32
+./scripts/linux/run/run --arch x86-32 --gdb
 ```
 
 Replace `x86-32` with `x86-64` when targeting the x86-64 architecture.
 
 **Automated build + smoke tests (dashboard-driven):**
 ```bash
-./scripts/4-1-smoke-test-global.sh
-./scripts/4-1-smoke-test-global.sh --only x86-32
-./scripts/4-1-smoke-test-global.sh --only x86-64
-./scripts/4-1-smoke-test-global.sh --only x86-64-uefi
+./scripts/linux/test/smoke-test-global.sh
+./scripts/linux/test/smoke-test-global.sh --only x86-32
+./scripts/linux/test/smoke-test-global.sh --only x86-64
+./scripts/linux/test/smoke-test-global.sh --only x86-64-uefi
 ```
 This script runs build + boot + shell command checks (`sysinfo`, `dir`, `/system/apps/hello`) and supports selecting a single target with `--only`.
 
@@ -119,10 +119,10 @@ This script runs build + boot + shell command checks (`sysinfo`, `dir`, `/system
 
 **Remote build on Windows (SSH to a Linux build host):**
 ```bat
-scripts\remote\x86-32\4-5-build-debug-ext2-ssh.bat
-scripts\remote\x86-64\4-5-build-debug-ext2-ssh.bat
+scripts\windows\remote\i386\build-debug-ext2-ssh.bat
+scripts\windows\remote\x86-64\build-debug-ext2-ssh.bat
 ```
-Configure SSH and the remote repo root once in `scripts/remote/ssh-config.bat`. The remote build runs in the same repository (same path, same branch/commit) as the Windows workspace (shared folder).
+Configure SSH and the remote repo root once in `scripts/windows/remote/ssh-config.bat`. The remote build runs in the same repository (same path, same branch/commit) as the Windows workspace (shared folder).
 
 **Don't wait more than 15 seconds when testing interactively; this limit does not apply to repository scripts, where timeouts may be adjusted as needed. The system boots in less than 2 seconds and auto-run executable should finish under 15 seconds.**
 
@@ -135,8 +135,8 @@ Bochs output goes to `bochs.log`.
 
 ## Documentation
 
-Kernel design : `documentation/Kernel.md`
-Doxygen documentation is in `documentation/kernel/*`
+Kernel design : `doc/guides/kernel.md`
+Doxygen documentation is in `doc/generated/kernel/*`
 
 **Core Components:**
 - **Kernel** (`kernel/source/`): Main OS kernel with multitasking, memory management, drivers
@@ -146,12 +146,12 @@ Doxygen documentation is in `documentation/kernel/*`
 - **System** (`system/`): User-space system library, samples
 
 ## Debug Workflow
-1. Use scheduling debug build when needing per-tick information, for scheduler or interrupt issues: `./scripts/build --arch x86-32 --fs ext2 --scheduling-debug` (or add `--clean` for a clean make) and the `x86-64` equivalent: `./scripts/build --arch x86-64 --fs ext2 --scheduling-debug`. GENERATES TONS OF LOG, USE WITH CARE.
+1. Use scheduling debug build when needing per-tick information, for scheduler or interrupt issues: `./scripts/linux/build/build --arch x86-32 --fs ext2 --scheduling-debug` (or add `--clean` for a clean make) and the `x86-64` equivalent: `./scripts/linux/build/build --arch x86-64 --fs ext2 --scheduling-debug`. GENERATES TONS OF LOG, USE WITH CARE.
 2. Monitor `log/kernel-x86-32.log` and `kernel-x86-64.log` for exceptions and page faults
 3. **To assert that the systems runs, the emulator must be running and there must be no fault in the logs, in all architectures**
 
 ### Reusable x86-64 debug launcher
-Use `bash scripts/x86-64/6-3-debug-vesa-int10.sh` as the default one-shot launcher for interactive x86-64 debug sessions requiring:
+Use `bash scripts/linux/x86-64/debug-vesa-int10.sh` as the default one-shot launcher for interactive x86-64 debug sessions requiring:
 - QEMU start with gdb stub (`-s -S`) and monitor telnet
 - deterministic keyboard layout patch in the image for monitor `sendkey`
 - optional automatic shell command injection
@@ -159,17 +159,17 @@ Use `bash scripts/x86-64/6-3-debug-vesa-int10.sh` as the default one-shot launch
 
 Default usage:
 ```bash
-bash scripts/x86-64/6-3-debug-vesa-int10.sh
+bash scripts/linux/x86-64/debug-vesa-int10.sh
 ```
 
 Send a command automatically:
 ```bash
-bash scripts/x86-64/6-3-debug-vesa-int10.sh "gfx backend vesa 1024x768x16"
+bash scripts/linux/x86-64/debug-vesa-int10.sh "gfx backend vesa 1024x768x16"
 ```
 
 Send a command and validate it through a kernel log pattern:
 ```bash
-bash scripts/x86-64/6-3-debug-vesa-int10.sh "gfx backend vesa 1024x768x16" "[GraphicsSelectorForceBackendByName] Forced backend"
+bash scripts/linux/x86-64/debug-vesa-int10.sh "gfx backend vesa 1024x768x16" "[GraphicsSelectorForceBackendByName] Forced backend"
 ```
 
 Key environment overrides:
@@ -179,8 +179,8 @@ Key environment overrides:
 - `MONITOR_PORT` and `GDB_PORT`
 
 **Disassembly Analysis:**
-- `./scripts/utils/show-x86-32.sh <address> [context_lines]` (x86-32 build)
-- `./scripts/utils/show-x86-64.sh <address> [context_lines]` (x86-64 build)
+- `./scripts/linux/utils/show-x86-32.sh <address> [context_lines]` (x86-32 build)
+- `./scripts/linux/utils/show-x86-64.sh <address> [context_lines]` (x86-64 build)
   - Default context: 20 lines before/after target address
   - Target line marked with `>>> ... <<<`
-  - Example: `./scripts/utils/show-x86-64.sh 0xc0123456 5` (5 lines context)
+  - Example: `./scripts/linux/utils/show-x86-64.sh 0xc0123456 5` (5 lines context)

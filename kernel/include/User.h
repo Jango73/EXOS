@@ -51,7 +51,7 @@ extern "C" {
 \************************************************************************/
 
 #define EXOS_VERSION_MAJOR 0
-#define EXOS_VERSION_MINOR 7
+#define EXOS_VERSION_MINOR 71
 #define EXOS_VERSION_PATCH 0
 
 #define EXOS_VERSION MAKE_VERSION(EXOS_VERSION_MAJOR, EXOS_VERSION_MINOR)
@@ -99,6 +99,7 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_CreateProcess 0x00000008
 #define SYSCALL_KillProcess 0x00000009
 #define SYSCALL_GetProcessInfo 0x0000000A
+#define SYSCALL_GetProcessMemoryInfo 0x00000087
 
 /************************************************************************/
 // Threading Services
@@ -297,7 +298,7 @@ BOOL GetLocalTime(LPDATETIME Time);
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x00000086
+#define SYSCALL_Last 0x00000088
 
 /************************************************************************/
 // Structure limits
@@ -352,6 +353,16 @@ typedef struct PACKED tag_PROCESS_INFO {
     HANDLE Task;
     SECURITY_ATTRIBUTES Security;
 } PROCESS_INFO, *LPPROCESS_INFO;
+
+typedef struct PACKED tag_PROCESS_MEMORY_INFO {
+    ABI_HEADER Header;
+    HANDLE Process;
+    LINEAR HeapBase;
+    UINT HeapReservedSize;
+    UINT HeapFirstUnallocatedOffset;
+    UINT HeapUsedBytes;
+    UINT HeapFreeBytes;
+} PROCESS_MEMORY_INFO, *LPPROCESS_MEMORY_INFO;
 
 typedef struct PACKED tag_CONSOLE_BLIT_BUFFER {
     UINT X;

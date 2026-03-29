@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Script to generate kernel documentation using doxygen
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPOSITORY_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
+# Check if doxygen is installed
+if ! command -v doxygen &> /dev/null; then
+    echo "Error: doxygen is not installed. Please install it first:"
+    echo "sudo apt-get install doxygen"
+    exit 1
+fi
+
+echo "Generating kernel documentation with doxygen..."
+cd "$REPOSITORY_ROOT"
+
+rm -rf doc/generated/kernel
+
+mkdir -p doc/generated/kernel
+
+# Run doxygen with project Doxyfile
+doxygen Doxyfile
+
+echo ""
+echo "Documentation is now in doc/generated/kernel/html/index.html"
