@@ -189,6 +189,7 @@ LPTASK NewTask(void) {
     This->Type = TASK_TYPE_NONE;
     This->SchedulerState.Status = TASK_STATUS_READY;
     This->SchedulerState.WakeUpTime = INFINITY;
+    This->SchedulerState.Suspended = FALSE;
     This->WaitingMutex = NULL;
     This->WaitingSince = 0;
     This->HeldMutexClassDepth = 0;
@@ -574,6 +575,55 @@ BOOL KillTask(LPTASK Task) {
 
 /************************************************************************/
 
+/**
+ * @brief Suspend one task without discarding its underlying wait state.
+ *
+ * The suspension flag is orthogonal to `SchedulerState.Status`, allowing one
+ * task to remain logically sleeping or waiting for messages while the
+ * scheduler excludes it from runnable selection.
+ *
+ * @param Task Pointer to the task to suspend.
+ * @return TRUE on success.
+ */
+BOOL SuspendTaskExecution(LPTASK Task) {
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        if (Task->Type == TASK_TYPE_KERNEL_MAIN) {
+            return FALSE;
+        }
+
+        LockMutex(&(Task->Mutex), INFINITY);
+        FreezeScheduler();
+        Task->SchedulerState.Suspended = TRUE;
+        UnfreezeScheduler();
+        UnlockMutex(&(Task->Mutex));
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resume one previously suspended task.
+ * @param Task Pointer to the task to resume.
+ * @return TRUE on success.
+ */
+BOOL ResumeTaskExecution(LPTASK Task) {
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        LockMutex(&(Task->Mutex), INFINITY);
+        FreezeScheduler();
+        Task->SchedulerState.Suspended = FALSE;
+        UnfreezeScheduler();
+        UnlockMutex(&(Task->Mutex));
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
 BOOL SetTaskExitCode(LPTASK Task, UINT Code) {
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
         LockMutex(MUTEX_KERNEL, INFINITY);
@@ -809,10 +859,30 @@ BOOL GetTaskSchedulerState(LPTASK Task, LPTASK_SCHEDULER_STATE State) {
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
         State->Status = Task->SchedulerState.Status;
         State->WakeUpTime = Task->SchedulerState.WakeUpTime;
+        State->Suspended = Task->SchedulerState.Suspended;
         return TRUE;
     }
 
     return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Test whether one task execution is suspended.
+ * @param Task Pointer to the task to query.
+ * @return TRUE when execution is suspended.
+ */
+BOOL IsTaskExecutionSuspended(LPTASK Task) {
+    BOOL Suspended = FALSE;
+
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        LockMutex(&(Task->Mutex), INFINITY);
+        Suspended = Task->SchedulerState.Suspended;
+        UnlockMutex(&(Task->Mutex));
+    }
+
+    return Suspended;
 }
 
 /************************************************************************/
@@ -966,6 +1036,7 @@ void DumpTask(LPTASK Task) {
     VERBOSE(TEXT("References      : %u"), Task->References);
     VERBOSE(TEXT("Process         : %p"), Task->Process);
     VERBOSE(TEXT("Status          : %u"), Task->SchedulerState.Status);
+    VERBOSE(TEXT("Suspended       : %s"), Task->SchedulerState.Suspended ? TEXT("yes") : TEXT("no"));
     VERBOSE(TEXT("Priority        : %u"), Task->Priority);
     VERBOSE(TEXT("Function        : %p"), Task->Function);
     VERBOSE(TEXT("Parameter       : %p"), Task->Parameter);

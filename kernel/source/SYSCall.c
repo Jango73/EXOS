@@ -440,13 +440,26 @@ UINT SysCall_Exit(UINT Parameter) {
 /**
  * @brief Suspend execution of a task identified by handle.
  *
- * Currently not implemented; reserved for future scheduler updates.
+ * Resolves the task handle, checks same-user/admin access, and marks the task
+ * as suspended so the scheduler stops selecting it while preserving its
+ * current wait state.
  *
- * @param Parameter Reserved.
- * @return UINT Always returns 0.
+ * @param Parameter Handle identifying the task to suspend, or 0 for the current task.
+ * @return UINT Non-zero on success, zero on failure.
  */
 UINT SysCall_SuspendTask(UINT Parameter) {
-    UNUSED(Parameter);
+    LPPROCESS Caller = GetCurrentProcess();
+    LINEAR TaskPointer = Parameter ? HandleToPointer(Parameter) : (LINEAR)GetCurrentTask();
+    LPTASK Task = (LPTASK)TaskPointer;
+
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        if (!ProcessAccessCanTargetTask(Caller, Task, TRUE)) {
+            return 0;
+        }
+
+        return (UINT)SuspendTaskExecution(Task);
+    }
+
     return 0;
 }
 
@@ -455,13 +468,25 @@ UINT SysCall_SuspendTask(UINT Parameter) {
 /**
  * @brief Resume execution of a suspended task.
  *
- * Currently not implemented; retained for ABI stability.
+ * Resolves the task handle, checks same-user/admin access, and clears the
+ * suspension flag so the scheduler may run the task again.
  *
- * @param Parameter Reserved.
- * @return UINT Always returns 0.
+ * @param Parameter Handle identifying the task to resume, or 0 for the current task.
+ * @return UINT Non-zero on success, zero on failure.
  */
 UINT SysCall_ResumeTask(UINT Parameter) {
-    UNUSED(Parameter);
+    LPPROCESS Caller = GetCurrentProcess();
+    LINEAR TaskPointer = Parameter ? HandleToPointer(Parameter) : (LINEAR)GetCurrentTask();
+    LPTASK Task = (LPTASK)TaskPointer;
+
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        if (!ProcessAccessCanTargetTask(Caller, Task, TRUE)) {
+            return 0;
+        }
+
+        return (UINT)ResumeTaskExecution(Task);
+    }
+
     return 0;
 }
 

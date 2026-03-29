@@ -199,7 +199,8 @@ static UINT CountRunnableTasks(void) {
         if (ScheduleGetTaskState(Task, &State) == FALSE) continue;
         if (ScheduleGetProcessState(Task->Process, &ProcessState) == FALSE) continue;
 
-        if ((State.Status == TASK_STATUS_READY || State.Status == TASK_STATUS_RUNNING) && ProcessState.Paused == FALSE) {
+        if ((State.Status == TASK_STATUS_READY || State.Status == TASK_STATUS_RUNNING) &&
+            State.Suspended == FALSE && ProcessState.Paused == FALSE) {
             RunnableCount++;
         }
     }
@@ -229,7 +230,8 @@ UINT FindNextRunnableTask(UINT StartIndex) {
         if (ScheduleGetTaskState(Task, &State) == FALSE) continue;
         if (ScheduleGetProcessState(Task->Process, &ProcessState) == FALSE) continue;
 
-        if ((State.Status == TASK_STATUS_READY || State.Status == TASK_STATUS_RUNNING) && ProcessState.Paused == FALSE) {
+        if ((State.Status == TASK_STATUS_READY || State.Status == TASK_STATUS_RUNNING) &&
+            State.Suspended == FALSE && ProcessState.Paused == FALSE) {
             return Index;
         }
     }
@@ -694,8 +696,10 @@ void Scheduler(void) {
     }
 
     // If current task is still running and quantum not expired, keep it
-    if (CurrentTask && HasCurrentTaskSnapshot != FALSE && CurrentTaskState.Status == TASK_STATUS_RUNNING && !QuantumExpired &&
-        ScheduleGetProcessState(CurrentTask->Process, &CurrentProcessState) != FALSE && CurrentProcessState.Paused == FALSE) {
+    if (CurrentTask && HasCurrentTaskSnapshot != FALSE && CurrentTaskState.Status == TASK_STATUS_RUNNING &&
+        CurrentTaskState.Suspended == FALSE && !QuantumExpired &&
+        ScheduleGetProcessState(CurrentTask->Process, &CurrentProcessState) != FALSE &&
+        CurrentProcessState.Paused == FALSE) {
         FINE_DEBUG(TEXT("[Scheduler] Current task continues"));
 
         return;

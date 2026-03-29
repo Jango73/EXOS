@@ -490,6 +490,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 - `TASK_STATUS_DEAD` (0xFF): Marked for deletion
 
 - Sleep durations are specified in `UINT`. A value of `INFINITY` is treated as a sentinel meaning "sleep indefinitely". `SetTaskWakeUpTime()` stores `INFINITY` without adding the current time and the scheduler ignores such tasks until another subsystem explicitly changes their status.
+- Task suspension is tracked separately from `Task.Status` in scheduler-owned task state. `SuspendTaskExecution()` and `ResumeTaskExecution()` toggle a dedicated suspension flag, allowing the scheduler to stop selecting a task without destroying whether it was running, sleeping, or waiting for messages.
 
 **Process Status (Process.Status):**
 - `PROCESS_STATUS_ALIVE` (0x00): Normal operating state
