@@ -34,9 +34,11 @@ IMAGE_READY_TIMEOUT_SECONDS=15
 IMAGE_READY_POLL_SECONDS=0.5
 IMAGE_READY_STABLE_POLLS=3
 TEST_KEYBOARD_LAYOUT="en-US"
+GENERAL_DO_LOGIN_DISABLED_LINE="DoLogin=0"
 GENERAL_SHOW_DESKTOP_DISABLED_LINE="ShowDesktop=0"
 KEYBOARD_LAYOUT_KEY="Layout"
 KEYBOARD_LAYOUT_PATTERN='^Layout="'
+GENERAL_DO_LOGIN_DISABLED_PATTERN='^DoLogin=0$'
 GENERAL_SHOW_DESKTOP_DISABLED_PATTERN='^ShowDesktop=0$'
 PATCH_KEYBOARD_LAYOUT=1
 LOCAL_HTTP_SERVER_PID=""
@@ -65,6 +67,8 @@ CURRENT_KERNEL_LOG_PATH=""
 CURRENT_COM1_LOG_PATH=""
 CURRENT_LOGS_ARCHIVED=0
 SCRIPT_DISPLAY_NAME="${SMOKE_TEST_SCRIPT_NAME:-$0}"
+SMOKE_TEST_SUMMARY_ENABLED=0
+SMOKE_TEST_FAILED_TARGET=""
 
 function Usage() {
     echo "Usage: $SCRIPT_DISPLAY_NAME [--only <x86-32|x86-32-rtl8139|x86-64|x86-64-uefi>] [--commands-file <path>] [--no-build] [--stop-after-shell] [--no-keyboard-layout-patch] [--hash-compare] [--key-delay <seconds>] [--command-delay <seconds>] [--boot-input-delay <seconds>] [--help]"
@@ -243,8 +247,8 @@ function WaitForImageReady() {
 
 function SetImageKeyboardLayout() {
     # Force a deterministic keyboard layout directly in exos.toml.
-    # Also disable automatic desktop activation so the shell remains active
-    # when smoke test commands are injected.
+    # Also disable login and automatic desktop activation so the shell
+    # remains directly accessible when smoke test commands are injected.
     local ImagePath="$1"
     local FileSystemOffset="$2"
     local Layout="$3"
@@ -280,11 +284,13 @@ function SetImageKeyboardLayout() {
 
     awk -v layout="$Layout" \
         -v keyboard_layout_key="$KEYBOARD_LAYOUT_KEY" \
+        -v do_login_disabled_line="$GENERAL_DO_LOGIN_DISABLED_LINE" \
         -v show_desktop_disabled_line="$GENERAL_SHOW_DESKTOP_DISABLED_LINE" '
     BEGIN {
         in_keyboard = 0;
         in_general = 0;
         layout_set = 0;
+        do_login_set = 0;
         show_desktop_set = 0;
     }
     {
@@ -297,6 +303,10 @@ function SetImageKeyboardLayout() {
 
         if ($0 ~ /^\[Keyboard\]/) {
             in_keyboard = 1;
+            if (in_general == 1 && do_login_set == 0) {
+                print do_login_disabled_line;
+                do_login_set = 1;
+            }
             if (in_general == 1 && show_desktop_set == 0) {
                 print show_desktop_disabled_line;
                 show_desktop_set = 1;
@@ -307,6 +317,10 @@ function SetImageKeyboardLayout() {
         }
 
         if ($0 ~ /^\[/) {
+            if (in_general == 1 && do_login_set == 0) {
+                print do_login_disabled_line;
+                do_login_set = 1;
+            }
             if (in_general == 1 && show_desktop_set == 0) {
                 print show_desktop_disabled_line;
                 show_desktop_set = 1;
@@ -318,6 +332,14 @@ function SetImageKeyboardLayout() {
             in_general = 0;
             in_keyboard = 0;
             print $0;
+            next;
+        }
+
+        if (in_general == 1 && $0 ~ /^DoLogin[[:space:]]*=/) {
+            if (do_login_set == 0) {
+                print do_login_disabled_line;
+                do_login_set = 1;
+            }
             next;
         }
 
@@ -340,6 +362,9 @@ function SetImageKeyboardLayout() {
         print $0;
     }
     END {
+        if (in_general == 1 && do_login_set == 0) {
+            print do_login_disabled_line;
+        }
         if (in_general == 1 && show_desktop_set == 0) {
             print show_desktop_disabled_line;
         }
@@ -365,6 +390,12 @@ function SetImageKeyboardLayout() {
     if ! debugfs -R "cat /exos.toml" "$PartitionImage" 2>/dev/null | SearchRegex "$KEYBOARD_LAYOUT_PATTERN" >/dev/null; then
         rm -f "$PartitionImage" "$ConfigFile" "$PatchedConfigFile"
         echo "Keyboard layout verification failed for image: $ImagePath"
+        return 1
+    fi
+
+    if ! debugfs -R "cat /exos.toml" "$PartitionImage" 2>/dev/null | SearchRegex "$GENERAL_DO_LOGIN_DISABLED_PATTERN" >/dev/null; then
+        rm -f "$PartitionImage" "$ConfigFile" "$PatchedConfigFile"
+        echo "DoLogin patch verification failed for image: $ImagePath"
         return 1
     fi
 
@@ -461,6 +492,15 @@ function OnScriptExit() {
         ArchiveCurrentRunLogs "fail"
     fi
     StopLocalHttpServer
+    if [ "$SMOKE_TEST_SUMMARY_ENABLED" -eq 1 ]; then
+        if [ "$ExitCode" -eq 0 ]; then
+            echo "Smoke test completed successfully."
+        elif [ -n "$SMOKE_TEST_FAILED_TARGET" ]; then
+            echo "Smoke test failed on target: $SMOKE_TEST_FAILED_TARGET"
+        else
+            echo "Smoke test failed."
+        fi
+    fi
 }
 
 function GetLogSize() {
@@ -1005,6 +1045,8 @@ function RunArchitecture() {
     local ImageRelativePath="$5"
     local FileSystemOffset="$6"
 
+    SMOKE_TEST_FAILED_TARGET="$Name"
+
     if [ "$SKIP_BUILD" -eq 0 ]; then
         echo "Building $Name..."
         bash -c "cd \"$ROOT_DIR\" && $BuildScript"
@@ -1076,6 +1118,7 @@ function RunArchitecture() {
 
     wait "$QemuPid" || true
     ArchiveCurrentRunLogs "pass"
+    SMOKE_TEST_FAILED_TARGET=""
 }
 
 function SmokeTestMain() {
@@ -1087,6 +1130,7 @@ function SmokeTestMain() {
     }
 
     ValidatePrerequisites
+    SMOKE_TEST_SUMMARY_ENABLED=1
     trap 'OnScriptExit $?' EXIT
     EnsureLocalHttpServer
 
