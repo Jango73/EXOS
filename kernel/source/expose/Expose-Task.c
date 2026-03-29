@@ -49,7 +49,7 @@ static UINT ProcessTaskGetCount(LPPROCESS Process) {
         for (LPLISTNODE Node = TaskList->First; Node; Node = Node->Next) {
             LPTASK Task = (LPTASK)Node;
             SAFE_USE_VALID_ID(Task, KOID_TASK) {
-                if (Task->Process == Process) {
+                if (Task->OwnerProcess == Process) {
                     Count++;
                 }
             }
@@ -78,7 +78,7 @@ static LPTASK ProcessTaskGetByIndex(LPPROCESS Process, UINT Index) {
         for (LPLISTNODE Node = TaskList->First; Node; Node = Node->Next) {
             LPTASK Task = (LPTASK)Node;
             SAFE_USE_VALID_ID(Task, KOID_TASK) {
-                if (Task->Process != Process) {
+                if (Task->OwnerProcess != Process) {
                     continue;
                 }
 
@@ -184,14 +184,14 @@ SCRIPT_ERROR TaskGetProperty(
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
         BOOL IsKernelOrAdmin = ExposeIsKernelCaller() || ExposeIsAdminCaller();
         LPPROCESS Caller = ExposeGetCallerProcess();
-        BOOL IsOwnerProcess = ExposeIsOwnerProcess(Caller, Task->Process);
+        BOOL IsOwnerProcess = ExposeIsOwnerProcess(Caller, Task->OwnerProcess);
 
-        if (Task->Process == &KernelProcess && IsKernelOrAdmin == FALSE) {
+        if (Task->OwnerProcess == &KernelProcess && IsKernelOrAdmin == FALSE) {
             return SCRIPT_ERROR_UNAUTHORIZED;
         }
 
         EXPOSE_BIND_INTEGER("handle", (UINT)(LPVOID)Task);
-        EXPOSE_BIND_HOST_HANDLE("process", Task->Process, &ProcessDescriptor, NULL);
+        EXPOSE_BIND_HOST_HANDLE("process", Task->OwnerProcess, &ProcessDescriptor, NULL);
         EXPOSE_BIND_STRING("name", Task->Name);
         EXPOSE_BIND_INTEGER("type", Task->Type);
         EXPOSE_BIND_INTEGER("status", GetTaskStatus(Task));
@@ -224,7 +224,7 @@ SCRIPT_ERROR TaskGetProperty(
             OutValue->Type = SCRIPT_VAR_HOST_HANDLE;
             OutValue->Value.HostHandle = &Task->Arch;
             OutValue->HostDescriptor = &ArchitectureTaskDataDescriptor;
-            OutValue->HostContext = Task->Process;
+            OutValue->HostContext = Task->OwnerProcess;
             OutValue->OwnsValue = FALSE;
             return SCRIPT_OK;
         }
@@ -236,7 +236,7 @@ SCRIPT_ERROR TaskGetProperty(
             OutValue->Type = SCRIPT_VAR_HOST_HANDLE;
             OutValue->Value.HostHandle = &Task->Arch.Stack;
             OutValue->HostDescriptor = &StackDescriptor;
-            OutValue->HostContext = Task->Process;
+            OutValue->HostContext = Task->OwnerProcess;
             OutValue->OwnsValue = FALSE;
             return SCRIPT_OK;
         }
@@ -248,7 +248,7 @@ SCRIPT_ERROR TaskGetProperty(
             OutValue->Type = SCRIPT_VAR_HOST_HANDLE;
             OutValue->Value.HostHandle = &Task->Arch.SystemStack;
             OutValue->HostDescriptor = &StackDescriptor;
-            OutValue->HostContext = Task->Process;
+            OutValue->HostContext = Task->OwnerProcess;
             OutValue->OwnsValue = FALSE;
             return SCRIPT_OK;
         }

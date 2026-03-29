@@ -195,7 +195,7 @@ BOOL ProcessAccessCanTargetProcess(LPPROCESS Caller, LPPROCESS Target, BOOL Allo
  */
 BOOL ProcessAccessCanTargetTask(LPPROCESS Caller, LPTASK TargetTask, BOOL AllowAdminOverride) {
     SAFE_USE_VALID_ID(TargetTask, KOID_TASK) {
-        return ProcessAccessCanTargetProcess(Caller, TargetTask->Process, AllowAdminOverride);
+        return ProcessAccessCanTargetProcess(Caller, TargetTask->OwnerProcess, AllowAdminOverride);
     }
 
     return FALSE;

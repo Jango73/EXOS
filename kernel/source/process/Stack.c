@@ -276,7 +276,7 @@ BOOL CheckStack(void) {
     InKernelMode = ((CurrentCS & SELECTOR_RPL_MASK) == 0);
 
     // Determine which ESP to check and which stack bounds to use
-    if (CurrentTask->Process->Privilege == CPU_PRIVILEGE_KERNEL) {
+    if (CurrentTask->OwnerProcess->Privilege == CPU_PRIVILEGE_KERNEL) {
         // Kernel tasks always use their normal stack
         CurrentESP = StackGetSavedPointer(CurrentTask);
         StackBase = CurrentTask->Arch.Stack.Base;
@@ -288,7 +288,7 @@ BOOL CheckStack(void) {
         // Instead, we just verify the task has a valid system stack allocated
         if (CurrentTask->Arch.SystemStack.Base == 0 || CurrentTask->Arch.SystemStack.Size == 0) {
             ERROR(TEXT("[CheckStack] User task in kernel mode without system stack!"));
-            ERROR(TEXT("[CheckStack] Task: %x (%s @ %s)"), CurrentTask, CurrentTask->Name, CurrentTask->Process->FileName);
+            ERROR(TEXT("[CheckStack] Task: %x (%s @ %s)"), CurrentTask, CurrentTask->Name, CurrentTask->OwnerProcess->FileName);
             return FALSE;
         }
         // For userland tasks in kernel mode, skip ESP validation as the current ESP
@@ -303,7 +303,7 @@ BOOL CheckStack(void) {
 
     if (CurrentESP < StackBase || CurrentESP > StackTop) {
         ERROR(TEXT("[CheckStack] ESP OUTSIDE STACK BOUNDS!"));
-        ERROR(TEXT("[CheckStack] Task: %x (%s @ %s)"), CurrentTask, CurrentTask->Name, CurrentTask->Process->FileName);
+        ERROR(TEXT("[CheckStack] Task: %x (%s @ %s)"), CurrentTask, CurrentTask->Name, CurrentTask->OwnerProcess->FileName);
         ERROR(TEXT("[CheckStack] ESP: %x"), CurrentESP);
         ERROR(TEXT("[CheckStack] StackBase: %x"), StackBase);
         ERROR(TEXT("[CheckStack] StackTop: %x"), StackTop);
@@ -321,7 +321,7 @@ BOOL CheckStack(void) {
 
     if (CurrentESP <= (StackBase + STACK_SAFETY_MARGIN)) {
         ERROR(TEXT("[CheckStack] STACK OVERFLOW DETECTED!"));
-        ERROR(TEXT("[CheckStack] Task: %x (%s @ %s)"), CurrentTask, CurrentTask->Name, CurrentTask->Process->FileName);
+        ERROR(TEXT("[CheckStack] Task: %x (%s @ %s)"), CurrentTask, CurrentTask->Name, CurrentTask->OwnerProcess->FileName);
         ERROR(TEXT("[CheckStack] Func: %x"), CurrentTask ? CurrentTask->Function : 0);
         ERROR(TEXT("[CheckStack] ESP: %x"), CurrentESP);
         ERROR(TEXT("[CheckStack] StackBase: %x"), StackBase);

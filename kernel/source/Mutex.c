@@ -179,7 +179,7 @@ UINT LockMutex(LPMUTEX Mutex, UINT TimeOut) {
             Task = GetCurrentTask();
 
             if (Task != NULL && Task->TypeID == KOID_TASK) {
-                Process = Task->Process;
+                Process = Task->OwnerProcess;
 
                 if (Process != NULL && Process->TypeID == KOID_PROCESS) {
                     if (Mutex->Task == Task) {

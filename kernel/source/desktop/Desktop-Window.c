@@ -326,7 +326,7 @@ BOOL DesktopDeleteWindow(LPWINDOW This) {
 
     Task = This->Task;
     if (Task == NULL) return FALSE;
-    Process = Task->Process;
+    Process = Task->OwnerProcess;
     if (Process == NULL) return FALSE;
     Desktop = Process->Desktop;
     if (Desktop == NULL) return FALSE;
@@ -470,7 +470,7 @@ LPWINDOW DesktopCreateWindow(LPWINDOW_INFO Info) {
 
     OwnerTask = DesktopResolveWindowTask(Desktop, GetCurrentTask());
     This->Task = OwnerTask;
-    SAFE_USE_VALID_ID(OwnerTask, KOID_TASK) { This->OwnerProcess = OwnerTask->Process; }
+    SAFE_USE_VALID_ID(OwnerTask, KOID_TASK) { This->OwnerProcess = OwnerTask->OwnerProcess; }
     This->ParentWindow = Parent;
     This->Function = Info->Function;
     This->WindowID = Info->ID;
@@ -606,7 +606,7 @@ LPDESKTOP DesktopGetWindowDesktop(LPWINDOW This) {
 
     Task = This->Task;
     if (Task != NULL && Task->TypeID == KOID_TASK) {
-        Process = Task->Process;
+        Process = Task->OwnerProcess;
 
         SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
             Desktop = Process->Desktop;

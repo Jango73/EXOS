@@ -383,7 +383,7 @@ LPDESKTOP CreateDesktop(void) {
     }
 
     This->Task = GetCurrentTask();
-    SAFE_USE_VALID_ID(This->Task, KOID_TASK) { This->OwnerProcess = This->Task->Process; }
+    SAFE_USE_VALID_ID(This->Task, KOID_TASK) { This->OwnerProcess = This->Task->OwnerProcess; }
     if (EnsureAllMessageQueues(This->Task, TRUE) == FALSE) {
         DeleteList(This->Timers);
         ReleaseKernelObject(This);

@@ -411,7 +411,7 @@ void KillProcess(LPPROCESS This) {
                     while (Task != NULL) {
                         LPTASK NextTask = (LPTASK)Task->Next;
                         SAFE_USE_VALID_ID(Task, KOID_TASK) {
-                            if (Task->Process == ChildProcess) {
+                            if (Task->OwnerProcess == ChildProcess) {
                                 DEBUG(TEXT("[KillProcess] Killing task %s"), Task->Name);
                                 KillTask(Task);
                             }
@@ -446,7 +446,7 @@ void KillProcess(LPPROCESS This) {
         while (Task != NULL) {
             LPTASK NextTask = (LPTASK)Task->Next;
             SAFE_USE_VALID_ID(Task, KOID_TASK) {
-                if (Task->Process == This) {
+                if (Task->OwnerProcess == This) {
                     DEBUG(TEXT("[KillProcess] Killing task %s"), Task->Name);
                     KillTask(Task);
                 }

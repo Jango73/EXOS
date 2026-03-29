@@ -179,7 +179,7 @@ static LPPROCESS LockCurrentProcessMessageQueue(void) {
     LPTASK Task = GetCurrentTask();
     LPPROCESS Process = NULL;
 
-    SAFE_USE_VALID_ID(Task, KOID_TASK) { Process = Task->Process; }
+    SAFE_USE_VALID_ID(Task, KOID_TASK) { Process = Task->OwnerProcess; }
     SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
         if (Process->MessageQueue.MessageBuffer.Entries == NULL ||
             Process->MessageQueue.MessageBuffer.Capacity == 0) {

@@ -606,7 +606,7 @@ void LogTask(U32 LogType, const LPTASK Task) {
              "  SysStackBase : %x\n"
              "  SysStackSize : %x\n"
              "  WakeUpTime : %x"),
-        (LINEAR)Task, Task->Name, (U32)Task->Process, (Task->Process == &KernelProcess ? "K" : "U"), (U32)Task->Type,
+        (LINEAR)Task, Task->Name, (U32)Task->OwnerProcess, (Task->OwnerProcess == &KernelProcess ? "K" : "U"), (U32)Task->Type,
         (U32)Task->SchedulerState.Status, (U32)Task->Priority, (U32)Task->Function, (U32)Task->Parameter, (U32)Task->ExitCode,
         (U32)Task->Arch.Stack.Base, (U32)Task->Arch.Stack.Size, (U32)Task->Arch.SystemStack.Base,
         (U32)Task->Arch.SystemStack.Size,

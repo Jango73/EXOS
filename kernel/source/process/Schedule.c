@@ -197,7 +197,7 @@ static UINT CountRunnableTasks(void) {
         PROCESS_SCHEDULER_STATE ProcessState;
 
         if (ScheduleGetTaskState(Task, &State) == FALSE) continue;
-        if (ScheduleGetProcessState(Task->Process, &ProcessState) == FALSE) continue;
+        if (ScheduleGetProcessState(Task->OwnerProcess, &ProcessState) == FALSE) continue;
 
         if ((State.Status == TASK_STATUS_READY || State.Status == TASK_STATUS_RUNNING) &&
             State.Suspended == FALSE && ProcessState.Paused == FALSE) {
@@ -228,7 +228,7 @@ UINT FindNextRunnableTask(UINT StartIndex) {
 
         // Skip dead tasks - they will be removed during context switch
         if (ScheduleGetTaskState(Task, &State) == FALSE) continue;
-        if (ScheduleGetProcessState(Task->Process, &ProcessState) == FALSE) continue;
+        if (ScheduleGetProcessState(Task->OwnerProcess, &ProcessState) == FALSE) continue;
 
         if ((State.Status == TASK_STATUS_READY || State.Status == TASK_STATUS_RUNNING) &&
             State.Suspended == FALSE && ProcessState.Paused == FALSE) {
@@ -369,7 +369,7 @@ BOOL RemoveTaskFromQueue(LPTASK OldTask) {
  */
 LPPROCESS GetCurrentProcess(void) {
     LPTASK Task = GetCurrentTask();
-    SAFE_USE(Task) { return Task->Process; }
+    SAFE_USE(Task) { return Task->OwnerProcess; }
     return &KernelProcess;
 }
 
@@ -534,8 +534,8 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
     }
 
     PHYSICAL NextCr3 = 0;
-    if (NextTask != NULL && NextTask->Process != NULL) {
-        NextCr3 = NextTask->Process->PageDirectory;
+    if (NextTask != NULL && NextTask->OwnerProcess != NULL) {
+        NextCr3 = NextTask->OwnerProcess->PageDirectory;
     }
     if (NextCr3 == 0) {
         NextCr3 = GetPageDirectory();
@@ -574,7 +574,7 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
     if (NextTaskState.Status == TASK_STATUS_READY) {
         (void)SetTaskSchedulerStatus(NextTask, TASK_STATUS_RUNNING);
 
-        if (NextTask->Process->Privilege == CPU_PRIVILEGE_KERNEL) {
+        if (NextTask->OwnerProcess->Privilege == CPU_PRIVILEGE_KERNEL) {
             LINEAR StackPointer = NextTask->Arch.Stack.Base + NextTask->Arch.Stack.Size - STACK_SAFETY_MARGIN;
 
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] StackPointer = %p"), StackPointer);
@@ -698,7 +698,7 @@ void Scheduler(void) {
     // If current task is still running and quantum not expired, keep it
     if (CurrentTask && HasCurrentTaskSnapshot != FALSE && CurrentTaskState.Status == TASK_STATUS_RUNNING &&
         CurrentTaskState.Suspended == FALSE && !QuantumExpired &&
-        ScheduleGetProcessState(CurrentTask->Process, &CurrentProcessState) != FALSE &&
+        ScheduleGetProcessState(CurrentTask->OwnerProcess, &CurrentProcessState) != FALSE &&
         CurrentProcessState.Paused == FALSE) {
         FINE_DEBUG(TEXT("[Scheduler] Current task continues"));
 
@@ -715,8 +715,8 @@ void Scheduler(void) {
 
         FINE_DEBUG(TEXT("[Scheduler] Switch between task index %u (%s @ %s) and %u (%s @ %s)"),
             TaskList.CurrentIndex, CurrentTask ? CurrentTask->Name : TEXT("NULL"),
-            CurrentTask ? CurrentTask->Process->FileName : TEXT("NULL"), NextIndex, NextTask->Name,
-            NextTask->Process->FileName);
+            CurrentTask ? CurrentTask->OwnerProcess->FileName : TEXT("NULL"), NextIndex, NextTask->Name,
+            NextTask->OwnerProcess->FileName);
 
         if (NextIndex >= TaskList.NumTasks) {
             // Should not happen if RunnableCount > 0, but safety check
@@ -744,8 +744,8 @@ void Scheduler(void) {
         TaskList.CurrentIndex = NextIndex;
         TaskList.SchedulerTime = 0;
 
-        if (CurrentTask && CurrentTask->Process != NextTask->Process &&
-            CurrentTask->Process->Privilege != NextTask->Process->Privilege) {
+        if (CurrentTask && CurrentTask->OwnerProcess != NextTask->OwnerProcess &&
+            CurrentTask->OwnerProcess->Privilege != NextTask->OwnerProcess->Privilege) {
             FINE_DEBUG(TEXT("[Scheduler] Different ring switch :"));
         }
 
