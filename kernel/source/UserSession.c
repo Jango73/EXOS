@@ -54,6 +54,21 @@ static void UserSessionSchedulerTick(LPVOID Context);
 /************************************************************************/
 
 /**
+ * @brief Initialize transient unlock throttling state for one session.
+ * @param Session Session storage.
+ */
+static void InitializeSessionUnlockPolicy(LPUSER_SESSION Session) {
+    SAFE_USE_VALID_ID(Session, KOID_USER_SESSION) {
+        (void)AuthPolicyInit(
+            &(Session->UnlockPolicy),
+            AUTH_POLICY_FAILURE_DELAY_MS,
+            AUTH_POLICY_LOCKOUT_THRESHOLD);
+    }
+}
+
+/************************************************************************/
+
+/**
  * @brief Deferred worker that applies session inactivity timeouts.
  * @param Context Unused.
  */
@@ -256,6 +271,7 @@ LPUSER_SESSION CreateUserSession(U64 UserID, HANDLE ShellTask) {
     NewSession->LastActivity = NewSession->LoginTime;
     NewSession->LastActivityMs = GetSystemTime();
     NewSession->LockTime = NewSession->LoginTime;
+    InitializeSessionUnlockPolicy(NewSession);
 
     // Add to list
     if (ListAddTail(SessionList, NewSession) == 0) {
@@ -395,6 +411,7 @@ BOOL UnlockUserSession(LPUSER_SESSION Session) {
         Session->IsLocked = FALSE;
         Session->LockReason = 0;
         Session->FailedUnlockCount = 0;
+        AuthPolicyRecordSuccess(&(Session->UnlockPolicy));
         UpdateSessionActivity(Session);
         return TRUE;
     }
@@ -412,20 +429,49 @@ BOOL UnlockUserSession(LPUSER_SESSION Session) {
  */
 BOOL VerifySessionUnlockPassword(LPUSER_SESSION Session, LPCSTR Password) {
     LPUSER_ACCOUNT Account;
+    UINT WaitRemaining;
 
     SAFE_USE_VALID_ID(Session, KOID_USER_SESSION) {
         if (Password == NULL) {
             return FALSE;
         }
 
+        WaitRemaining = 0;
+        if (!AuthPolicyCanAttempt(&(Session->UnlockPolicy), GetSystemTime(), &WaitRemaining)) {
+            return FALSE;
+        }
+
         Account = FindUserAccountByID(Session->UserID);
         SAFE_USE_VALID_ID(Account, KOID_USER_ACCOUNT) {
             if (VerifyPassword(Password, Account->PasswordHash)) {
+                AuthPolicyRecordSuccess(&(Session->UnlockPolicy));
+                Session->FailedUnlockCount = 0;
                 return TRUE;
             }
         }
 
         Session->FailedUnlockCount++;
+        (void)AuthPolicyRecordFailure(&(Session->UnlockPolicy), GetSystemTime(), NULL);
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Query whether one locked session may accept another unlock attempt.
+ * @param Session Session to inspect.
+ * @param WaitRemainingOut Receives remaining wait time when blocked.
+ * @return TRUE when another attempt may proceed.
+ */
+BOOL CanAttemptSessionUnlock(LPUSER_SESSION Session, UINT* WaitRemainingOut) {
+    if (WaitRemainingOut != NULL) {
+        *WaitRemainingOut = 0;
+    }
+
+    SAFE_USE_VALID_ID(Session, KOID_USER_SESSION) {
+        return AuthPolicyCanAttempt(&(Session->UnlockPolicy), GetSystemTime(), WaitRemainingOut);
     }
 
     return FALSE;

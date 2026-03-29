@@ -2718,14 +2718,23 @@ UINT SysCall_ReleaseMouse(UINT Parameter) {
  */
 UINT SysCall_Login(UINT Parameter) {
     LPLOGIN_INFO LoginInfo = (LPLOGIN_INFO)Parameter;
+    UINT WaitRemaining;
 
     SAFE_USE_INPUT_POINTER(LoginInfo, LOGIN_INFO) {
         LPUSER_ACCOUNT Account = FindUserAccount(LoginInfo->UserName);
         if (Account == NULL) return FALSE;
 
-        if (!VerifyPassword(LoginInfo->Password, Account->PasswordHash)) {
+        WaitRemaining = 0;
+        if (!CanAttemptUserAuthentication(Account, &WaitRemaining)) {
             return FALSE;
         }
+
+        if (!VerifyPassword(LoginInfo->Password, Account->PasswordHash)) {
+            (void)RecordUserAuthenticationFailure(Account, NULL);
+            return FALSE;
+        }
+
+        RecordUserAuthenticationSuccess(Account);
 
         LPUSER_SESSION Session = CreateUserSession(Account->UserID, (HANDLE)GetCurrentTask());
         if (Session == NULL) {

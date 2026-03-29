@@ -119,7 +119,7 @@
 - [x] Salted password hashing exists (salted CRC64).
 - [x] Automatic inactive session locking exists in shell flow (`kernel/source/shell/Shell-Main.c`).
 - [x] Automatic inactive session timeout execution exists in runtime scheduler/timer path through scheduler-triggered deferred work (`kernel/source/process/Schedule.c`, `kernel/source/UserSession.c`).
-- [ ] Brute-force protection policy beyond basic retry count in shell login loop.
+- [x] Brute-force protection policy exists beyond basic retry count in shell login loop (shared auth policy with failure cooldown and temporary lockout).
 - [ ] Process isolation policy based on user ownership.
 
 ## Security Considerations Status

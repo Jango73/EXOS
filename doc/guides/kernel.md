@@ -238,6 +238,7 @@ Security in EXOS is implemented as a layered architecture. The effective access 
 - Session lifecycle is managed by `CreateUserSession`, `SetCurrentSession`, `GetCurrentSession`, timeout validation, and lock/unlock helpers in `UserSession.c`.
 - Session inactivity timeout is configurable with `Session.TimeoutSeconds` in kernel configuration, with a compile fallback to `SESSION_TIMEOUT_MS`. Key `Session.TimeoutMinutes` is also accepted when `Session.TimeoutSeconds` is absent.
 - Periodic session timeout enforcement is triggered from the scheduler path through a lightweight scheduler tick callback that signals deferred work; the lock/unlock user interface remains handled by shell code (`kernel/source/process/Schedule.c`, `kernel/source/UserSession.c`, `kernel/source/shell/Shell-Main.c`).
+- Authentication throttling uses the shared `utils/AuthPolicy` helper. User login and session unlock flows apply a short cooldown after failures and a temporary lockout after repeated consecutive failures, while successful authentication resets the in-memory throttle state (`kernel/source/utils/AuthPolicy.c`, `kernel/source/UserAccount.c`, `kernel/source/UserSession.c`).
 - Child process creation inherits the parent session (`Process->Session`), preserving identity continuity across spawned processes (`kernel/source/process/Process.c`).
 
 #### Layer 4: Syscall privilege gate

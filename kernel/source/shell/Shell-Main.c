@@ -207,6 +207,7 @@ static BOOL ShowConsoleLockScreenAndUnlock(LPVOID BackendContext, LPUSER_SESSION
     LPUSER_ACCOUNT Account = NULL;
     STR Selection[32];
     STR Password[MAX_PASSWORD];
+    UINT WaitRemaining;
 
     if (Context == NULL || Session == NULL) {
         return FALSE;
@@ -239,6 +240,13 @@ static BOOL ShowConsoleLockScreenAndUnlock(LPVOID BackendContext, LPUSER_SESSION
         }
 
         if (StringEmpty(Selection) || STRINGS_EQUAL(Selection, TEXT("unlock"))) {
+            WaitRemaining = 0;
+            if (!CanAttemptSessionUnlock(Session, &WaitRemaining)) {
+                ConsolePrint(TEXT("Too many attempts. Retry in %u ms\n"), (U32)WaitRemaining);
+                Sleep((WaitRemaining > 1000) ? 1000 : (U32)WaitRemaining);
+                continue;
+            }
+
             ConsolePrint(TEXT("Password: "));
             if (!ReadLineWithIdleDisabled(Context, Password, sizeof(Password), TRUE)) {
                 return FALSE;

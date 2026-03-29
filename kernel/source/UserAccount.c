@@ -61,6 +61,21 @@ typedef struct tag_SESSION_ID_ENTROPY {
 
 /************************************************************************/
 
+/**
+ * @brief Initialize transient login throttling state for one user account.
+ * @param Account User account storage.
+ */
+static void InitializeUserAuthenticationPolicy(LPUSER_ACCOUNT Account) {
+    SAFE_USE(Account) {
+        (void)AuthPolicyInit(
+            &(Account->AuthenticationPolicy),
+            AUTH_POLICY_FAILURE_DELAY_MS,
+            AUTH_POLICY_LOCKOUT_THRESHOLD);
+    }
+}
+
+/************************************************************************/
+
 DRIVER DATA_SECTION UserAccountDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
@@ -220,6 +235,7 @@ LPUSER_ACCOUNT CreateUserAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege
 
     GetLocalTime(&NewUser->CreationTime);
     NewUser->LastLoginTime = NewUser->CreationTime;
+    InitializeUserAuthenticationPolicy(NewUser);
 
     // Add to list and database
     DEBUG(TEXT("[CreateUserAccount] Adding to user list"));
@@ -410,6 +426,7 @@ BOOL LoadUserDatabase(void) {
             NewUser->Prev = NULL;
             NewUser->References = 1;
             NewUser->TypeID = KOID_USER_ACCOUNT;
+            InitializeUserAuthenticationPolicy(NewUser);
 
             if (ListAddTail(UserAccountList, NewUser) == 0) {
                 KernelHeapFree(NewUser);
@@ -453,7 +470,9 @@ BOOL SaveUserDatabase(void) {
             LPUSER_ACCOUNT User = (LPUSER_ACCOUNT)ListGetItem(UserAccountList, i);
 
             SAFE_USE(User) {
-                DatabaseAdd(Database, User);
+                USER_ACCOUNT PersistentUser = *User;
+                MemorySet(&(PersistentUser.AuthenticationPolicy), 0, sizeof(PersistentUser.AuthenticationPolicy));
+                DatabaseAdd(Database, &PersistentUser);
             }
         }
     }
@@ -548,4 +567,70 @@ U64 GenerateSessionID(void) {
     }
 
     return SessionIdState;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Query whether one account may attempt authentication.
+ * @param Account Account to inspect.
+ * @param WaitRemainingOut Receives remaining wait time when blocked.
+ * @return TRUE when the attempt may proceed.
+ */
+BOOL CanAttemptUserAuthentication(LPUSER_ACCOUNT Account, UINT* WaitRemainingOut) {
+    BOOL Result = FALSE;
+
+    if (WaitRemainingOut != NULL) {
+        *WaitRemainingOut = 0;
+    }
+
+    LockMutex(MUTEX_ACCOUNTS, INFINITY);
+
+    SAFE_USE_VALID_ID(Account, KOID_USER_ACCOUNT) {
+        Result = AuthPolicyCanAttempt(&(Account->AuthenticationPolicy), GetSystemTime(), WaitRemainingOut);
+    }
+
+    UnlockMutex(MUTEX_ACCOUNTS);
+    return Result;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Record one failed authentication attempt for one account.
+ * @param Account Account to update.
+ * @param WaitRemainingOut Receives remaining delay or lockout time.
+ * @return TRUE when the account entered temporary lockout.
+ */
+BOOL RecordUserAuthenticationFailure(LPUSER_ACCOUNT Account, UINT* WaitRemainingOut) {
+    BOOL IsLocked = FALSE;
+
+    if (WaitRemainingOut != NULL) {
+        *WaitRemainingOut = 0;
+    }
+
+    LockMutex(MUTEX_ACCOUNTS, INFINITY);
+
+    SAFE_USE_VALID_ID(Account, KOID_USER_ACCOUNT) {
+        IsLocked = AuthPolicyRecordFailure(&(Account->AuthenticationPolicy), GetSystemTime(), WaitRemainingOut);
+    }
+
+    UnlockMutex(MUTEX_ACCOUNTS);
+    return IsLocked;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Reset failed authentication state after one successful login.
+ * @param Account Account to update.
+ */
+void RecordUserAuthenticationSuccess(LPUSER_ACCOUNT Account) {
+    LockMutex(MUTEX_ACCOUNTS, INFINITY);
+
+    SAFE_USE_VALID_ID(Account, KOID_USER_ACCOUNT) {
+        AuthPolicyRecordSuccess(&(Account->AuthenticationPolicy));
+    }
+
+    UnlockMutex(MUTEX_ACCOUNTS);
 }
