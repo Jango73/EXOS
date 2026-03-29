@@ -25,7 +25,7 @@
 - [x] Persistent user storage is implemented via KernelPath users database (`kernel/source/UserAccount.c`, `kernel/include/utils/KernelPath.h`).
 - [x] Access to account/session structures uses mutexes (`MUTEX_ACCOUNTS`, `MUTEX_SESSION`).
 - [ ] In-memory hash table for user lookup.
-- [ ] Automatic `root` account creation during boot.
+- [x] First admin account bootstrap exists through the shell login flow when no user account exists (`kernel/source/shell/Shell-Main.c`).
 
 ## Phase 2 - Authentication
 
@@ -38,6 +38,7 @@
 - [x] `ValidateUserSession` implemented (`kernel/source/UserSession.c`).
 - [x] `DestroyUserSession` implemented (`kernel/source/UserSession.c`).
 - [x] `TimeoutInactiveSessions` implemented (`kernel/source/UserSession.c`).
+- [x] Automatic inactive session locking exists in shell flow (`EnsureUnlockedSessionForShell`, `ShellSessionIdleCallback`, `kernel/source/shell/Shell-Main.c`).
 - [ ] Automatic periodic execution of inactive-session timeout.
 
 ### 2.3 Global User Context
@@ -55,7 +56,6 @@
 - [x] `SysCall_ListUsers` implemented (`kernel/source/SYSCall.c`).
 - [x] Syscall table registration exists for all these entries (`kernel/source/SYSCallTable.c`).
 - [x] `LOGIN_INFO` and `PASSWORD_CHANGE` structures exist (`kernel/include/User.h`).
-- [ ] Authentication syscalls located in slots `0x30-0x36`.
 
 ## Phase 4 - Shell Commands
 
@@ -111,12 +111,13 @@
 ## Initialization Sequence Status
 - [x] Kernel boot phase exists.
 - [x] User database loading exists (`LoadUserDatabase`).
-- [ ] Automatic `root` user creation on first execution.
+- [x] First admin user bootstrap exists on first execution through the shell login flow (`kernel/source/shell/Shell-Main.c`).
 - [x] Shell login flow exists (when login feature is enabled).
 - [x] Login retry loop exists.
 
 ## Security Measures Status
 - [x] Salted password hashing exists (salted CRC64).
+- [x] Automatic inactive session locking exists in shell flow (`kernel/source/shell/Shell-Main.c`).
 - [ ] Automatic inactive session timeout execution in runtime scheduler/timer path.
 - [ ] Brute-force protection policy beyond basic retry count in shell login loop.
 - [ ] Process isolation policy based on user ownership.

@@ -49,6 +49,18 @@ static UINT UserAccountDriverCommands(UINT Function, UINT Parameter);
 
 /************************************************************************/
 
+typedef struct tag_SESSION_ID_ENTROPY {
+    U32 Sequence;
+    U32 UpTimeMilliseconds;
+    UINT CurrentTask;
+    UINT CurrentProcess;
+    UINT StackMarker;
+    DATETIME LocalTime;
+    U64 PreviousState;
+} SESSION_ID_ENTROPY, *LPSESSION_ID_ENTROPY;
+
+/************************************************************************/
+
 DRIVER DATA_SECTION UserAccountDriver = {
     .TypeID = KOID_DRIVER,
     .References = 1,
@@ -510,15 +522,27 @@ BOOL VerifyPassword(LPCSTR Password, U64 StoredHash) {
  * @return New session ID.
  */
 U64 GenerateSessionID(void) {
-    U64 SessionID = U64_FromU32(NextSessionID);
-    NextSessionID++;
+    static U64 SessionIdState = U64_0;
+    SESSION_ID_ENTROPY Entropy;
 
-    // Add some entropy based on system time
-    DATETIME CurrentTime;
-    GetLocalTime(&CurrentTime);
-    U64 TimeHash = U64_FromU32(
-        CurrentTime.Year ^ CurrentTime.Month ^ CurrentTime.Day ^ CurrentTime.Hour ^ CurrentTime.Minute ^
-        CurrentTime.Second);
+    MemorySet(&Entropy, 0, sizeof(Entropy));
 
-    return U64_Add(SessionID, TimeHash);
+    Entropy.Sequence = NextSessionID++;
+    Entropy.UpTimeMilliseconds = (U32)GetSystemTime();
+    Entropy.CurrentTask = (UINT)GetCurrentTask();
+    Entropy.CurrentProcess = (UINT)GetCurrentProcess();
+    Entropy.StackMarker = (UINT)&Entropy;
+    Entropy.PreviousState = SessionIdState;
+    GetLocalTime(&Entropy.LocalTime);
+
+    SessionIdState = CRC64_Hash(&Entropy, sizeof(Entropy));
+
+    if (U64_Cmp(SessionIdState, U64_FromU32(0)) == 0) {
+        SessionIdState = CRC64_Hash(&NextSessionID, sizeof(NextSessionID));
+        if (U64_Cmp(SessionIdState, U64_FromU32(0)) == 0) {
+            SessionIdState = U64_FromU32(1);
+        }
+    }
+
+    return SessionIdState;
 }
