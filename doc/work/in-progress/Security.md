@@ -39,7 +39,7 @@
 - [x] `DestroyUserSession` implemented (`kernel/source/UserSession.c`).
 - [x] `TimeoutInactiveSessions` implemented (`kernel/source/UserSession.c`).
 - [x] Automatic inactive session locking exists in shell flow (`EnsureUnlockedSessionForShell`, `ShellSessionIdleCallback`, `kernel/source/shell/Shell-Main.c`).
-- [ ] Automatic periodic execution of inactive-session timeout.
+- [x] Automatic periodic execution of inactive-session timeout exists through scheduler-triggered deferred work (`kernel/source/process/Schedule.c`, `kernel/source/UserSession.c`).
 
 ### 2.3 Global User Context
 - [x] Global session list exists (`Kernel.UserSessions` in `kernel/source/KernelData.c`).
@@ -118,7 +118,7 @@
 ## Security Measures Status
 - [x] Salted password hashing exists (salted CRC64).
 - [x] Automatic inactive session locking exists in shell flow (`kernel/source/shell/Shell-Main.c`).
-- [ ] Automatic inactive session timeout execution in runtime scheduler/timer path.
+- [x] Automatic inactive session timeout execution exists in runtime scheduler/timer path through scheduler-triggered deferred work (`kernel/source/process/Schedule.c`, `kernel/source/UserSession.c`).
 - [ ] Brute-force protection policy beyond basic retry count in shell login loop.
 - [ ] Process isolation policy based on user ownership.
 

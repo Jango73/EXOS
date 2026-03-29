@@ -26,6 +26,7 @@
 
 #include "Clock.h"
 #include "CoreString.h"
+#include "DeferredWork.h"
 #include "Heap.h"
 #include "utils/Helpers.h"
 #include "Kernel.h"
@@ -36,6 +37,54 @@
 #include "process/Schedule.h"
 #include "process/Task.h"
 #include "UserAccount.h"
+
+/************************************************************************/
+
+#define SESSION_TIMEOUT_DISPATCH_PERIOD_MS 1000
+
+static U32 UserSessionDeferredHandle = DEFERRED_WORK_INVALID_HANDLE;
+static U32 UserSessionSchedulerTickHandle = SCHEDULER_TICK_INVALID_HANDLE;
+static UINT UserSessionLastDispatchTime = 0;
+
+/************************************************************************/
+
+static void UserSessionDeferredTimeoutWork(LPVOID Context);
+static void UserSessionSchedulerTick(LPVOID Context);
+
+/************************************************************************/
+
+/**
+ * @brief Deferred worker that applies session inactivity timeouts.
+ * @param Context Unused.
+ */
+static void UserSessionDeferredTimeoutWork(LPVOID Context) {
+    UNUSED(Context);
+    TimeoutInactiveSessions();
+}
+
+/************************************************************************/
+
+/**
+ * @brief Lightweight scheduler tick hook for session timeout dispatch.
+ * @param Context Unused.
+ */
+static void UserSessionSchedulerTick(LPVOID Context) {
+    UINT CurrentTime;
+
+    UNUSED(Context);
+
+    if (UserSessionDeferredHandle == DEFERRED_WORK_INVALID_HANDLE) {
+        return;
+    }
+
+    CurrentTime = GetSystemTime();
+    if ((CurrentTime - UserSessionLastDispatchTime) < SESSION_TIMEOUT_DISPATCH_PERIOD_MS) {
+        return;
+    }
+
+    UserSessionLastDispatchTime = CurrentTime;
+    DeferredWorkSignal(UserSessionDeferredHandle);
+}
 
 /************************************************************************/
 
@@ -88,6 +137,7 @@ static BOOL AccountHasDefinedPassword(LPUSER_ACCOUNT Account) {
  * @return TRUE on success, FALSE on failure.
  */
 BOOL InitializeSessionSystem(void) {
+    DEFERRED_WORK_REGISTRATION Registration;
     LPLIST SessionList = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
     if (SessionList == NULL) {
         ERROR(TEXT("Failed to create session list"));
@@ -95,6 +145,30 @@ BOOL InitializeSessionSystem(void) {
     }
 
     SetUserSessionList(SessionList);
+    UserSessionLastDispatchTime = GetSystemTime();
+
+    MemorySet(&Registration, 0, sizeof(Registration));
+    Registration.WorkCallback = UserSessionDeferredTimeoutWork;
+    Registration.Context = NULL;
+    Registration.Name = TEXT("UserSessionTimeout");
+
+    UserSessionDeferredHandle = DeferredWorkRegister(&Registration);
+    if (UserSessionDeferredHandle == DEFERRED_WORK_INVALID_HANDLE) {
+        ERROR(TEXT("[InitializeSessionSystem] Failed to register deferred session timeout work"));
+        DeleteList(SessionList);
+        SetUserSessionList(NULL);
+        return FALSE;
+    }
+
+    UserSessionSchedulerTickHandle = SchedulerRegisterTickCallback(UserSessionSchedulerTick, NULL);
+    if (UserSessionSchedulerTickHandle == SCHEDULER_TICK_INVALID_HANDLE) {
+        ERROR(TEXT("[InitializeSessionSystem] Failed to register scheduler session timeout hook"));
+        DeferredWorkUnregister(UserSessionDeferredHandle);
+        UserSessionDeferredHandle = DEFERRED_WORK_INVALID_HANDLE;
+        DeleteList(SessionList);
+        SetUserSessionList(NULL);
+        return FALSE;
+    }
 
     DEBUG(TEXT("Session management system initialized"));
     return TRUE;
@@ -106,6 +180,16 @@ BOOL InitializeSessionSystem(void) {
  * @brief Shutdown the session management system.
  */
 void ShutdownSessionSystem(void) {
+    if (UserSessionSchedulerTickHandle != SCHEDULER_TICK_INVALID_HANDLE) {
+        SchedulerUnregisterTickCallback(UserSessionSchedulerTickHandle);
+        UserSessionSchedulerTickHandle = SCHEDULER_TICK_INVALID_HANDLE;
+    }
+
+    if (UserSessionDeferredHandle != DEFERRED_WORK_INVALID_HANDLE) {
+        DeferredWorkUnregister(UserSessionDeferredHandle);
+        UserSessionDeferredHandle = DEFERRED_WORK_INVALID_HANDLE;
+    }
+
     LPLIST SessionList = GetUserSessionList();
     SAFE_USE(SessionList) {
         // Clean up all active sessions
@@ -126,6 +210,7 @@ void ShutdownSessionSystem(void) {
 
         DeleteList(SessionList);
         SetUserSessionList(NULL);
+        UserSessionLastDispatchTime = 0;
 
         UnlockMutex(MUTEX_SESSION);
     }

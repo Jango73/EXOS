@@ -104,7 +104,10 @@ BOOL InitializeUserSystem(void) {
         DEBUG(TEXT("No existing user database found - will let shell handle user creation"));
     }
 
-    InitializeSessionSystem();
+    if (!InitializeSessionSystem()) {
+        ERROR(TEXT("Failed to initialize session management system"));
+        return FALSE;
+    }
 
     DEBUG(TEXT("User account system initialized"));
     return TRUE;

@@ -237,6 +237,7 @@ Security in EXOS is implemented as a layered architecture. The effective access 
 - `USER_ACCOUNT` stores `UserID`, privilege (`EXOS_PRIVILEGE_USER` or `EXOS_PRIVILEGE_ADMIN`), status, and password hash; `USER_SESSION` stores `SessionID`, `UserID`, login/activity timestamps, lock state, and shell task binding (`kernel/include/UserAccount.h`).
 - Session lifecycle is managed by `CreateUserSession`, `SetCurrentSession`, `GetCurrentSession`, timeout validation, and lock/unlock helpers in `UserSession.c`.
 - Session inactivity timeout is configurable with `Session.TimeoutSeconds` in kernel configuration, with a compile fallback to `SESSION_TIMEOUT_MS`. Key `Session.TimeoutMinutes` is also accepted when `Session.TimeoutSeconds` is absent.
+- Periodic session timeout enforcement is triggered from the scheduler path through a lightweight scheduler tick callback that signals deferred work; the lock/unlock user interface remains handled by shell code (`kernel/source/process/Schedule.c`, `kernel/source/UserSession.c`, `kernel/source/shell/Shell-Main.c`).
 - Child process creation inherits the parent session (`Process->Session`), preserving identity continuity across spawned processes (`kernel/source/process/Process.c`).
 
 #### Layer 4: Syscall privilege gate
