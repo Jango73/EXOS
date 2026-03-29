@@ -46,6 +46,7 @@
 #include "Security.h"
 #include "Socket.h"
 #include "SYSCall.h"
+#include "utils/ProcessAccess.h"
 
 extern BOOL ReleaseWindowGC(HANDLE Handle);
 
@@ -254,10 +255,15 @@ UINT SysCall_CreateProcess(UINT Parameter) {
  * @return UINT Always returns 0.
  */
 UINT SysCall_KillProcess(UINT Parameter) {
+    LPPROCESS Caller = GetCurrentProcess();
     LINEAR ProcessPointer = Parameter ? HandleToPointer(Parameter) : (LINEAR)GetCurrentProcess();
     LPPROCESS Process = (LPPROCESS)ProcessPointer;
 
     SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+        if (!ProcessAccessCanTargetProcess(Caller, Process, TRUE)) {
+            return 0;
+        }
+
         KillProcess(Process);
         if (Parameter) ReleaseHandle(Parameter);
     }
@@ -278,6 +284,7 @@ UINT SysCall_KillProcess(UINT Parameter) {
  */
 UINT SysCall_GetProcessInfo(UINT Parameter) {
     LPPROCESS_INFO Info = (LPPROCESS_INFO)Parameter;
+    LPPROCESS Caller = GetCurrentProcess();
     LPPROCESS CurrentProcess;
 
     DEBUG(TEXT("[SysCall_GetProcessInfo] Enter, Parameter=%x"), Parameter);
@@ -286,6 +293,10 @@ UINT SysCall_GetProcessInfo(UINT Parameter) {
         CurrentProcess = Info->Process ? (LPPROCESS)HandleToPointer(Info->Process) : GetCurrentProcess();
 
         SAFE_USE_VALID_ID(CurrentProcess, KOID_PROCESS) {
+            if (!ProcessAccessCanTargetProcess(Caller, CurrentProcess, TRUE)) {
+                return DF_RETURN_GENERIC;
+            }
+
             DEBUG(TEXT("[SysCall_GetProcessInfo] Info->CommandLine = %s"), Info->CommandLine);
             DEBUG(TEXT("[SysCall_GetProcessInfo] CurrentProcess=%p"), CurrentProcess);
             DEBUG(TEXT("[SysCall_GetProcessInfo] CurrentProcess->CommandLine = %s"), CurrentProcess->CommandLine);
@@ -314,13 +325,16 @@ UINT SysCall_GetProcessInfo(UINT Parameter) {
  */
 UINT SysCall_GetProcessMemoryInfo(UINT Parameter) {
     LPPROCESS_MEMORY_INFO Info = (LPPROCESS_MEMORY_INFO)Parameter;
+    LPPROCESS Caller = GetCurrentProcess();
     LPPROCESS TargetProcess;
 
     SAFE_USE_INPUT_POINTER(Info, PROCESS_MEMORY_INFO) {
         TargetProcess = GetCurrentProcess();
 
         if (Info->Process != 0) {
-            if ((LPPROCESS)HandleToPointer(Info->Process) != TargetProcess) {
+            TargetProcess = (LPPROCESS)HandleToPointer(Info->Process);
+
+            if (!ProcessAccessCanTargetProcess(Caller, TargetProcess, TRUE)) {
                 return DF_RETURN_GENERIC;
             }
         }
@@ -371,12 +385,17 @@ UINT SysCall_CreateTask(UINT Parameter) {
 UINT SysCall_KillTask(UINT Parameter) {
     DEBUG(TEXT("[SysCall_KillTask] Enter, Parameter=%x"), Parameter);
 
+    LPPROCESS Caller = GetCurrentProcess();
     LINEAR TaskPointer = Parameter ? HandleToPointer(Parameter) : (LINEAR)GetCurrentTask();
     LPTASK Task = (LPTASK)TaskPointer;
 
     UINT Result = 0;
 
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        if (!ProcessAccessCanTargetTask(Caller, Task, TRUE)) {
+            return 0;
+        }
+
         Result = (UINT)KillTask(Task);
         if (Parameter && Result) ReleaseHandle(Parameter);
     }

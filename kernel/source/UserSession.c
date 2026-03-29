@@ -628,6 +628,9 @@ BOOL SetCurrentSession(LPUSER_SESSION Session) {
 
     // Associate the session with the current process
     CurrentProcess->Session = Session;
+    if (Session != NULL) {
+        CurrentProcess->UserID = Session->UserID;
+    }
 
     return TRUE;
 }

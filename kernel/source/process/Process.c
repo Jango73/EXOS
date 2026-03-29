@@ -248,6 +248,11 @@ LPPROCESS NewProcess(void) {
     // Inherit session from parent process
     SAFE_USE_VALID_ID(This->OwnerProcess, KOID_PROCESS) {
         This->Session = This->OwnerProcess->Session;
+        if (This->Session != NULL) {
+            This->UserID = This->Session->UserID;
+        } else {
+            This->UserID = This->OwnerProcess->UserID;
+        }
     }
 
     //-------------------------------------

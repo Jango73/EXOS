@@ -18,7 +18,7 @@
 ### 1.3 PROCESS Extension
 - [x] `PROCESS` contains `UserID` and `Session` fields (`kernel/include/process/Process.h`).
 - [x] Session inheritance from parent process is implemented (`kernel/source/process/Process.c`).
-- [ ] `PROCESS.UserID` is actively maintained by process lifecycle logic.
+- [x] `PROCESS.UserID` is actively maintained by process lifecycle logic.
 
 ### 1.4 User Database and Initialization
 - [x] In-memory user account container exists (`Kernel.UserAccount` list in `kernel/source/KernelData.c`).
@@ -120,7 +120,7 @@
 - [x] Automatic inactive session locking exists in shell flow (`kernel/source/shell/Shell-Main.c`).
 - [x] Automatic inactive session timeout execution exists in runtime scheduler/timer path through scheduler-triggered deferred work (`kernel/source/process/Schedule.c`, `kernel/source/UserSession.c`).
 - [x] Brute-force protection policy exists beyond basic retry count in shell login loop (shared auth policy with failure cooldown and temporary lockout).
-- [ ] Process isolation policy based on user ownership.
+- [x] Process isolation policy based on user ownership.
 
 ## Security Considerations Status
 - [x] Passwords are stored as hashes, not plaintext (`PasswordHash`).
