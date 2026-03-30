@@ -151,6 +151,11 @@ static U32 RTL8139OnProbe(const PCI_INFO* PciInfo) {
         return DF_RETURN_NOT_IMPLEMENTED;
     }
 
+    // Linux routes revision 0x20 and above to the CPlus datapath.
+    if (PciInfo->Revision >= 0x20) {
+        return DF_RETURN_NOT_IMPLEMENTED;
+    }
+
     return DF_RETURN_SUCCESS;
 }
 

@@ -54,6 +54,7 @@ LPDRIVER AHCIPCIGetDriver(void);
 LPDRIVER NVMeGetDriver(void);
 LPDRIVER E1000GetDriver(void);
 LPDRIVER RTL8139GetDriver(void);
+LPDRIVER RTL8139CPlusGetDriver(void);
 LPDRIVER RTL8169GetDriver(void);
 LPDRIVER RAMDiskGetDriver(void);
 LPDRIVER USBStorageGetDriver(void);
