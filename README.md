@@ -1,4 +1,4 @@
-# EXOS
+![EXOS](doc/assets/EXOS.png)
 
 ## TL;DR
 
