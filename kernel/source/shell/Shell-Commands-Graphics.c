@@ -26,25 +26,45 @@
 #include "DriverGetters.h"
 #include "GFX.h"
 #include "Desktop.h"
-#include "Desktop-InternalTest.h"
+#include "System.h"
 
 /***************************************************************************/
 
 /**
- * @brief Retrieve or create the kernel shell desktop instance.
- * @return Desktop pointer or NULL on failure.
+ * @brief Retrieve or create the desktop handle associated with the shell process.
+ * @return Desktop handle or 0 on failure.
  */
-static LPDESKTOP GetOrCreateShellDesktop(void) {
-    SAFE_USE_VALID_ID(KernelProcess.Desktop, KOID_DESKTOP) {
-        return KernelProcess.Desktop;
+static HANDLE GetOrCreateShellDesktopHandle(void) {
+    HANDLE Desktop = 0;
+
+    Desktop = DoSystemCall(SYSCALL_GetCurrentDesktop, SYSCALL_PARAM(0));
+    if (Desktop != 0) {
+        return Desktop;
     }
 
-    KernelProcess.Desktop = CreateDesktop();
-    SAFE_USE_VALID_ID(KernelProcess.Desktop, KOID_DESKTOP) {
-        return KernelProcess.Desktop;
+    return DoSystemCall(SYSCALL_CreateDesktop, SYSCALL_PARAM(0));
+}
+
+/************************************************************************/
+
+/**
+ * @brief Apply one desktop theme target through the desktop syscall boundary.
+ * @param Target Path or alias to apply.
+ * @return TRUE on success.
+ */
+static BOOL ShellApplyDesktopTheme(LPCSTR Target) {
+    DESKTOP_THEME_INFO ApplyInfo;
+
+    if (Target == NULL || StringLength(Target) == 0) {
+        return FALSE;
     }
 
-    return NULL;
+    ApplyInfo.Header.Size = sizeof(ApplyInfo);
+    ApplyInfo.Header.Version = EXOS_ABI_VERSION;
+    ApplyInfo.Header.Flags = 0;
+    ApplyInfo.Target = Target;
+
+    return DoSystemCall(SYSCALL_ApplyDesktopTheme, SYSCALL_PARAM(&ApplyInfo)) != FALSE;
 }
 
 /************************************************************************/
@@ -375,16 +395,16 @@ static void PrintDesktopStatus(void) {
  * @return DF_RETURN_SUCCESS on completion.
  */
 U32 ShowMainDesktopFromShell(void) {
-    LPDESKTOP Desktop;
+    HANDLE Desktop;
     LPCSTR ConfiguredThemePath;
 
-    Desktop = GetOrCreateShellDesktop();
-    if (Desktop == NULL) {
+    Desktop = GetOrCreateShellDesktopHandle();
+    if (Desktop == 0) {
         ConsolePrint(TEXT("desktop show: desktop creation failed\n"));
         return DF_RETURN_SUCCESS;
     }
 
-    if (DisplaySwitchToDesktop(Desktop) == FALSE) {
+    if (DoSystemCall(SYSCALL_ShowDesktop, SYSCALL_PARAM(Desktop)) == FALSE) {
         ConsolePrint(TEXT("desktop show: unable to switch to desktop\n"));
         return DF_RETURN_SUCCESS;
     }
@@ -394,7 +414,7 @@ U32 ShowMainDesktopFromShell(void) {
     // A configured theme path is optional and must never block desktop activation.
     ConfiguredThemePath = GetConfigurationValue(TEXT("Desktop.ThemePath"));
     if (ConfiguredThemePath != NULL && StringLength(ConfiguredThemePath) != 0) {
-        if (LoadTheme(ConfiguredThemePath) && ActivateTheme(TEXT("staged"))) {
+        if (ShellApplyDesktopTheme(ConfiguredThemePath) != FALSE) {
             ConsolePrint(TEXT("desktop show: theme activated from config (%s)\n"), ConfiguredThemePath);
         } else {
             ConsolePrint(TEXT("desktop show: theme config failed, keeping current theme (%s)\n"), ConfiguredThemePath);
@@ -403,51 +423,6 @@ U32 ShowMainDesktopFromShell(void) {
 
     return DF_RETURN_SUCCESS;
 }
-
-/************************************************************************/
-
-/**
- * @brief Apply one theme command target.
- * @param Target Path or name provided by shell.
- * @return DF_RETURN_SUCCESS on completion.
- */
-static U32 ApplyDesktopThemeTarget(LPCSTR Target) {
-    if (Target == NULL || StringLength(Target) == 0) {
-        ConsolePrint(TEXT("Usage: desktop theme <path-or-name>\n"));
-        return DF_RETURN_SUCCESS;
-    }
-
-    if (StringCompareNC(Target, TEXT("default")) == 0 ||
-        StringCompareNC(Target, TEXT("builtin")) == 0 ||
-        StringCompareNC(Target, TEXT("built-in")) == 0) {
-        if (ResetThemeToDefault()) {
-            ConsolePrint(TEXT("desktop theme: built-in theme activated\n"));
-        } else {
-            ConsolePrint(TEXT("desktop theme: unable to activate built-in theme\n"));
-        }
-        return DF_RETURN_SUCCESS;
-    }
-
-    if (ActivateTheme(Target)) {
-        ConsolePrint(TEXT("desktop theme: activated %s\n"), Target);
-        return DF_RETURN_SUCCESS;
-    }
-
-    if (LoadTheme(Target) == FALSE) {
-        ConsolePrint(TEXT("desktop theme: unable to load %s\n"), Target);
-        return DF_RETURN_SUCCESS;
-    }
-
-    if (ActivateTheme(TEXT("staged")) == FALSE) {
-        ConsolePrint(TEXT("desktop theme: load succeeded but activation failed (%s)\n"), Target);
-        return DF_RETURN_SUCCESS;
-    }
-
-    ConsolePrint(TEXT("desktop theme: loaded and activated %s\n"), Target);
-    return DF_RETURN_SUCCESS;
-}
-
-/************************************************************************/
 
 /**
  * @brief Desktop command dispatcher.
@@ -471,43 +446,22 @@ U32 CMD_desktop(LPSHELLCONTEXT Context) {
 
     if (StringCompareNC(Action, TEXT("theme")) == 0) {
         ParseNextCommandLineComponent(Context);
-        return ApplyDesktopThemeTarget(Context->Command);
-    }
-
-    if (StringCompareNC(Action, TEXT("stressdrag")) == 0) {
-        U32 Cycles = 12;
-        BOOL Result;
-        LPDESKTOP Desktop;
-
-        ParseNextCommandLineComponent(Context);
-        if (StringLength(Context->Command) != 0) {
-            Cycles = StringToU32(Context->Command);
-            if (Cycles == 0) {
-                ConsolePrint(TEXT("Usage: desktop stressdrag [cycles]\n"));
-                return DF_RETURN_SUCCESS;
-            }
-        }
-
-        Desktop = GetOrCreateShellDesktop();
-        if (Desktop == NULL) {
-            ConsolePrint(TEXT("desktop stressdrag: desktop creation failed\n"));
+        if (StringLength(Context->Command) == 0) {
+            ConsolePrint(TEXT("Usage: desktop theme <path-or-name>\n"));
             return DF_RETURN_SUCCESS;
         }
 
-        Result = DesktopInternalRunStressDrag(Desktop, Cycles);
-        if (Result == FALSE) {
-            ConsolePrint(TEXT("desktop stressdrag: failed\n"));
-            return DF_RETURN_SUCCESS;
+        if (ShellApplyDesktopTheme(Context->Command) != FALSE) {
+            ConsolePrint(TEXT("desktop theme: applied %s\n"), Context->Command);
+        } else {
+            ConsolePrint(TEXT("desktop theme: failed (%s)\n"), Context->Command);
         }
-
-        ConsolePrint(TEXT("desktop stressdrag: completed (%u cycles)\n"), Cycles);
         return DF_RETURN_SUCCESS;
     }
 
     ConsolePrint(TEXT("Usage: desktop show\n"));
     ConsolePrint(TEXT("       desktop status\n"));
     ConsolePrint(TEXT("       desktop theme <path-or-name>\n"));
-    ConsolePrint(TEXT("       desktop stressdrag [cycles]\n"));
     return DF_RETURN_SUCCESS;
 }
 

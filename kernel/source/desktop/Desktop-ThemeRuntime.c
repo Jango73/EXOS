@@ -356,6 +356,30 @@ BOOL ResetThemeToDefault(void) {
 
 /***************************************************************************/
 
+BOOL ApplyDesktopTheme(LPCSTR Target) {
+    if (Target == NULL || Target[0] == STR_NULL) {
+        return FALSE;
+    }
+
+    if (StringCompareNC(Target, TEXT("default")) == 0 ||
+        StringCompareNC(Target, TEXT("builtin")) == 0 ||
+        StringCompareNC(Target, TEXT("built-in")) == 0) {
+        return ResetThemeToDefault();
+    }
+
+    if (ActivateTheme(Target) != FALSE) {
+        return TRUE;
+    }
+
+    if (LoadTheme(Target) == FALSE) {
+        return FALSE;
+    }
+
+    return ActivateTheme(TEXT("staged"));
+}
+
+/***************************************************************************/
+
 LPDESKTOP_THEME_RUNTIME DesktopThemeGetActiveRuntime(LPDESKTOP Desktop) {
     UNUSED(Desktop);
     if (ThemeEnsureRuntimeState() == FALSE) return NULL;

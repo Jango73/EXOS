@@ -150,6 +150,7 @@ void InitializeSystemCallTable(void) {
     SysCallTable[SYSCALL_ShowDesktop] = (SYSCALL_ENTRY){SysCall_ShowDesktop, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetDesktopWindow] = (SYSCALL_ENTRY){SysCall_GetDesktopWindow, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_GetCurrentDesktop] = (SYSCALL_ENTRY){SysCall_GetCurrentDesktop, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_ApplyDesktopTheme] = (SYSCALL_ENTRY){SysCall_ApplyDesktopTheme, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_CreateWindow] = (SYSCALL_ENTRY){SysCall_CreateWindow, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_ShowWindow] = (SYSCALL_ENTRY){SysCall_ShowWindow, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_HideWindow] = (SYSCALL_ENTRY){SysCall_HideWindow, EXOS_PRIVILEGE_USER};

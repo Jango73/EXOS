@@ -276,6 +276,7 @@ BOOL GetLocalTime(LPDATETIME Time);
 #define SYSCALL_DrawText 0x00000080
 #define SYSCALL_MeasureText 0x00000081
 #define SYSCALL_DrawWindowBackground 0x00000082
+#define SYSCALL_ApplyDesktopTheme 0x00000088
 
 /************************************************************************/
 // Network Socket Services
@@ -298,7 +299,7 @@ BOOL GetLocalTime(LPDATETIME Time);
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x00000088
+#define SYSCALL_Last 0x00000089
 
 /************************************************************************/
 // Structure limits
@@ -561,6 +562,11 @@ typedef struct PACKED tag_WINDOW_CHILD_INFO {
     HANDLE Window;
     U32 ChildIndex;
 } WINDOW_CHILD_INFO, *LPWINDOW_CHILD_INFO;
+
+typedef struct PACKED tag_DESKTOP_THEME_INFO {
+    ABI_HEADER Header;
+    LPCSTR Target;
+} DESKTOP_THEME_INFO, *LPDESKTOP_THEME_INFO;
 
 typedef struct PACKED tag_GCSELECT {
     ABI_HEADER Header;

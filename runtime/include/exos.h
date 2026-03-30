@@ -72,6 +72,7 @@ HANDLE CreateDesktop(void);
 BOOL ShowDesktop(HANDLE);
 HANDLE GetDesktopWindow(HANDLE);
 HANDLE GetCurrentDesktop(void);
+BOOL ApplyDesktopTheme(LPCSTR Target);
 HANDLE RegisterWindowClass(LPCSTR, HANDLE, LPCSTR, WINDOWFUNC, U32);
 BOOL UnregisterWindowClass(HANDLE, LPCSTR);
 HANDLE FindWindowClass(LPCSTR);

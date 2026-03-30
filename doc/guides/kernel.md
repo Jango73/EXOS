@@ -2195,6 +2195,7 @@ Theme runtime lifecycle is exposed through:
 - `ActivateTheme(NameOrHandle)`
 - `GetActiveThemeInfo(Info)`
 - `ResetThemeToDefault()`
+- `ApplyDesktopTheme(Target)`
 
 `LoadTheme` parses one file and stages the candidate runtime. `ActivateTheme` swaps the active runtime atomically and invalidates desktop windows for full redraw. `ResetThemeToDefault` switches back to the built-in runtime.
 

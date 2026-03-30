@@ -207,6 +207,19 @@ HANDLE GetCurrentDesktop(void) { return (HANDLE)exoscall(SYSCALL_GetCurrentDeskt
 
 /***************************************************************************/
 
+BOOL ApplyDesktopTheme(LPCSTR Target) {
+    DESKTOP_THEME_INFO ApplyInfo;
+
+    ApplyInfo.Header.Size = sizeof ApplyInfo;
+    ApplyInfo.Header.Version = EXOS_ABI_VERSION;
+    ApplyInfo.Header.Flags = 0;
+    ApplyInfo.Target = Target;
+
+    return (BOOL)exoscall(SYSCALL_ApplyDesktopTheme, EXOS_PARAM(&ApplyInfo));
+}
+
+/***************************************************************************/
+
 HANDLE RegisterWindowClass(LPCSTR ClassName, HANDLE BaseClass, LPCSTR BaseClassName, WINDOWFUNC Function, U32 ClassDataSize) {
     WINDOW_CLASS_INFO ClassInfo;
 

@@ -1644,11 +1644,31 @@ UINT SysCall_GetCurrentDesktop(UINT Parameter) {
         }
     }
 
-    ERROR(TEXT("[SysCall_GetCurrentDesktop] No desktop for current process"));
     return 0;
 }
 
 /************************************************************************/
+
+/**
+ * @brief Apply one desktop theme target for the current process.
+ *
+ * The target may reference a built-in alias, an already staged theme, or one
+ * loadable theme path, with the resolution policy owned by desktop runtime.
+ *
+ * @param Parameter Pointer to DESKTOP_THEME_INFO.
+ * @return UINT TRUE on success, FALSE on error.
+ */
+UINT SysCall_ApplyDesktopTheme(UINT Parameter) {
+    LPDESKTOP_THEME_INFO ApplyInfo = (LPDESKTOP_THEME_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(ApplyInfo, DESKTOP_THEME_INFO) {
+        SAFE_USE_VALID(ApplyInfo->Target) {
+            return (UINT)ApplyDesktopTheme(ApplyInfo->Target);
+        }
+    }
+
+    return FALSE;
+}
 
 /**
  * @brief Create a window and return its handle.

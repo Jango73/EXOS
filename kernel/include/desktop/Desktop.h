@@ -86,6 +86,7 @@ BOOL LoadTheme(LPCSTR Path);
 BOOL ActivateTheme(LPCSTR NameOrHandle);
 BOOL GetActiveThemeInfo(LPDESKTOP_THEME_RUNTIME_INFO Info);
 BOOL ResetThemeToDefault(void);
+BOOL ApplyDesktopTheme(LPCSTR Target);
 
 /************************************************************************/
 

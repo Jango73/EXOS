@@ -107,6 +107,7 @@ UINT SysCall_CreateDesktop(UINT Parameter);
 UINT SysCall_ShowDesktop(UINT Parameter);
 UINT SysCall_GetDesktopWindow(UINT Parameter);
 UINT SysCall_GetCurrentDesktop(UINT Parameter);
+UINT SysCall_ApplyDesktopTheme(UINT Parameter);
 UINT SysCall_CreateWindow(UINT Parameter);
 UINT SysCall_ShowWindow(UINT Parameter);
 UINT SysCall_HideWindow(UINT Parameter);
