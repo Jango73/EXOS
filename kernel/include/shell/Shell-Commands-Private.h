@@ -41,8 +41,6 @@ U32 CMD_package(LPSHELLCONTEXT Context);
 U32 CMD_exit(LPSHELLCONTEXT Context);
 U32 CMD_sysinfo(LPSHELLCONTEXT Context);
 U32 CMD_killtask(LPSHELLCONTEXT Context);
-U32 CMD_showprocess(LPSHELLCONTEXT Context);
-U32 CMD_showtask(LPSHELLCONTEXT Context);
 U32 CMD_memedit(LPSHELLCONTEXT Context);
 U32 CMD_disasm(LPSHELLCONTEXT Context);
 U32 CMD_type(LPSHELLCONTEXT Context);

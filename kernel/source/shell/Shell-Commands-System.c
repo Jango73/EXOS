@@ -24,8 +24,7 @@
 
 #include "shell/Shell-Commands-Private.h"
 #include "Autotest.h"
-#include "process/Process.h"
-#include "utils/ProcessAccess.h"
+#include "process/Task-Access.h"
 #include "utils/SizeFormat.h"
 
 /**
@@ -226,74 +225,15 @@ U32 CMD_driver(LPSHELLCONTEXT Context) {
 
 U32 CMD_killtask(LPSHELLCONTEXT Context) {
     U32 TaskNum = 0;
-    LPPROCESS Caller = GetCurrentProcess();
     LPTASK Task = NULL;
     ParseNextCommandLineComponent(Context);
     TaskNum = StringToU32(Context->Command);
     LPLIST TaskList = GetTaskList();
     Task = (LPTASK)ListGetItem(TaskList, TaskNum);
     if (Task) {
-        if (!ProcessAccessCanTargetTask(Caller, Task, TRUE)) {
+        if (!KillTaskForCurrentProcess(Task, TRUE)) {
             ConsolePrint(TEXT("Access denied\n"));
             return DF_RETURN_SUCCESS;
-        }
-
-        KillTask(Task);
-    }
-
-    return DF_RETURN_SUCCESS;
-}
-
-/***************************************************************************/
-
-U32 CMD_showprocess(LPSHELLCONTEXT Context) {
-    LPPROCESS Caller;
-    LPPROCESS Process;
-
-    Caller = GetCurrentProcess();
-    ParseNextCommandLineComponent(Context);
-    LPLIST ProcessList = GetProcessList();
-    Process = ListGetItem(ProcessList, StringToU32(Context->Command));
-    if (Process) {
-        if (!ProcessAccessCanTargetProcess(Caller, Process, TRUE)) {
-            ConsolePrint(TEXT("Access denied\n"));
-            return DF_RETURN_SUCCESS;
-        }
-
-        DumpProcess(Process);
-    }
-
-    return DF_RETURN_SUCCESS;
-}
-
-/***************************************************************************/
-
-U32 CMD_showtask(LPSHELLCONTEXT Context) {
-    LPPROCESS Caller;
-    LPTASK Task;
-
-    Caller = GetCurrentProcess();
-    ParseNextCommandLineComponent(Context);
-    LPLIST TaskList = GetTaskList();
-    Task = ListGetItem(TaskList, StringToU32(Context->Command));
-
-    if (Task) {
-        if (!ProcessAccessCanTargetTask(Caller, Task, TRUE)) {
-            ConsolePrint(TEXT("Access denied\n"));
-            return DF_RETURN_SUCCESS;
-        }
-
-        DumpTask(Task);
-    } else {
-        STR Text[MAX_FILE_NAME];
-
-        for (LPTASK Task = (LPTASK)TaskList->First; Task != NULL; Task = (LPTASK)Task->Next) {
-            if (!ProcessAccessCanTargetTask(Caller, Task, TRUE)) {
-                continue;
-            }
-
-            StringPrintFormat(Text, TEXT("%x Status %x\n"), Task, GetTaskStatus(Task));
-            ConsolePrint(Text);
         }
     }
 
