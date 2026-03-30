@@ -155,3 +155,5 @@ It was a year-long solo project, developed the hard way:
 - On a Pentium, in DOS environment, without any debugger or VM
 - Relying on endless console print statements to trace bugs
 - Learning everything on the fly as the project grew
+
+EXOS’ coding style resembles that of Windows, like PascalCase naming, user function names, etc... Some will like it, others won't. But it is **not** Windows. It is more compact and will never collect or transmit user data. Ever. (Except possibly crash dumps for debugging.)
