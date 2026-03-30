@@ -1,0 +1,5 @@
+# Smoke-test command specification for the x86-32 rtl8139 target.
+# Keep this target focused on network validation to reduce redundant coverage.
+
+command: "/system/apps/netget @LOCAL_HTTP_BASE_URL@/index.html /temp/index.html" | log: "TEST > [Spawn] Executable finished normally : /system/apps/netget" | file-size-compare: "scripts/common/net/www/index.html" "/exos/temp/index.html"
+command: "shutdown"

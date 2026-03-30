@@ -12,6 +12,7 @@ set -euo pipefail
 ROOT_DIR="${SMOKE_TEST_ROOT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
 LOG_FILE="$ROOT_DIR/log/kernel.log"
 COMMANDS_FILE="${SMOKE_TEST_DEFAULT_COMMANDS_FILE:-$ROOT_DIR/scripts/common/smoke-test-global-commands.txt}"
+COMMANDS_FILE_EXPLICIT=0
 LOCAL_HTTP_SERVER_SCRIPT="${SMOKE_TEST_LOCAL_HTTP_SERVER_SCRIPT:-$ROOT_DIR/scripts/linux/net/start-server.sh}"
 LOCAL_HTTP_SERVER_PORT="${LOCAL_HTTP_SERVER_PORT:-8081}"
 SMOKE_TEST_LOCAL_HTTP_BASE_URL="http://10.0.2.2:${LOCAL_HTTP_SERVER_PORT}"
@@ -112,6 +113,7 @@ function ParseArguments() {
                     exit 1
                 fi
                 COMMANDS_FILE="$1"
+                COMMANDS_FILE_EXPLICIT=1
                 ;;
             --key-delay)
                 shift
@@ -962,6 +964,7 @@ function RunCommandSpec() {
 function RunCommandList() {
     # Command file grammar (one spec per line):
     # command: "..." | hotkey: "..." | [log: "..."] | [file-size-compare: "host/path" "/guest/path"] | [timeout: N]
+    local CommandsFilePath="${1:-$COMMANDS_FILE}"
     local Line
     local Part
     local ActionType=""
@@ -972,14 +975,14 @@ function RunCommandList() {
     local TimeoutSeconds=""
 
     local CommandsContent=""
-    local ResolvedCommandsFile="$COMMANDS_FILE"
+    local ResolvedCommandsFile="$CommandsFilePath"
 
     if [ ! -f "$ResolvedCommandsFile" ] && [[ "$ResolvedCommandsFile" != /* ]]; then
-        ResolvedCommandsFile="$ROOT_DIR/$COMMANDS_FILE"
+        ResolvedCommandsFile="$ROOT_DIR/$CommandsFilePath"
     fi
 
     if [ ! -f "$ResolvedCommandsFile" ]; then
-        echo "Commands file not found: $COMMANDS_FILE"
+        echo "Commands file not found: $CommandsFilePath"
         exit 1
     fi
 
@@ -1044,6 +1047,12 @@ function RunArchitecture() {
     local KernelLogRelativePath="$4"
     local ImageRelativePath="$5"
     local FileSystemOffset="$6"
+    local CommandsFileOverride="${7:-}"
+    local EffectiveCommandsFile="$COMMANDS_FILE"
+
+    if [ "$COMMANDS_FILE_EXPLICIT" -eq 0 ] && [ -n "$CommandsFileOverride" ]; then
+        EffectiveCommandsFile="$CommandsFileOverride"
+    fi
 
     SMOKE_TEST_FAILED_TARGET="$Name"
 
@@ -1103,7 +1112,7 @@ function RunArchitecture() {
         ArchiveCurrentRunLogs "pass"
         return 0
     fi
-    RunCommandList
+    RunCommandList "$EffectiveCommandsFile"
     AssertNoFailures 0
 
     ShutdownWaitStart="$SECONDS"
@@ -1138,7 +1147,7 @@ function SmokeTestMain() {
         RunArchitecture "x86-32" "scripts/linux/build/build.sh --arch x86-32 --fs ext2 --debug --clean --kernel-log-tag-filter ''" "scripts/linux/run/run.sh --arch x86-32 --fs ext2 --debug" "log/kernel-x86-32-mbr-debug.log" "build/image/x86-32-mbr-debug-ext2/boot-hd/exos.img" "1048576"
     fi
     if [ "$RUN_X86_32_RTL8139" -eq 1 ]; then
-        RunArchitecture "x86-32 rtl8139" "scripts/linux/build/build.sh --arch x86-32 --fs ext2 --debug --clean --kernel-log-tag-filter ''" "scripts/linux/run/run.sh --arch x86-32 --fs ext2 --debug --net-card rtl8139" "log/kernel-x86-32-mbr-debug.log" "build/image/x86-32-mbr-debug-ext2/boot-hd/exos.img" "1048576"
+        RunArchitecture "x86-32 rtl8139" "scripts/linux/build/build.sh --arch x86-32 --fs ext2 --debug --clean --kernel-log-tag-filter ''" "scripts/linux/run/run.sh --arch x86-32 --fs ext2 --debug --net-card rtl8139" "log/kernel-x86-32-mbr-debug.log" "build/image/x86-32-mbr-debug-ext2/boot-hd/exos.img" "1048576" "${SMOKE_TEST_X86_32_RTL8139_COMMANDS_FILE:-}"
     fi
     if [ "$RUN_X86_64" -eq 1 ]; then
         RunArchitecture "x86-64" "scripts/linux/build/build.sh --arch x86-64 --fs ext2 --debug --clean --kernel-log-tag-filter ''" "scripts/linux/run/run.sh --arch x86-64 --fs ext2 --debug" "log/kernel-x86-64-mbr-debug.log" "build/image/x86-64-mbr-debug-ext2/boot-hd/exos.img" "1048576"
