@@ -925,7 +925,7 @@ Boot-path capability gating is centralized in `utils/BootPath` (`kernel/include/
 
 Explicit backend forcing through `gfx driver <alias> <mode>` uses a strict selector path: only the requested backend is loaded into selector state, and command forwarding targets that backend while forced mode is active.
 
-Shell graphics commands are implemented in `kernel/source/shell/Shell-Commands-Graphics.c`. `gfx driver <driver> <WidthxHeightxBitsPerPixel>` selects a backend and mode. `gfx smoke_test [DurationMilliseconds]` creates a temporary desktop, renders a basic window through kernel graphics primitives, waits for the requested duration, then restores text console mode.
+Shell graphics commands are implemented in `kernel/source/shell/Shell-Commands-Graphics.c`. `gfx driver <driver> <WidthxHeightxBitsPerPixel>` selects a backend and mode, and `gfx info` reports the active backend and mode.
 
 Generic driver diagnostics use `DF_DEBUG_INFO` with `DRIVER_DEBUG_INFO.Text`, a multi-line buffer sized with `MAX_STRING_BUFFER`. Graphics backends use that interface to expose backend alias and current resolution, and the graphics selector forwards the query to the active backend. Mouse drivers expose the selected manufacturer and product through the same pattern, and the mouse selector forwards that data as well.
 

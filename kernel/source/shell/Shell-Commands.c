@@ -41,7 +41,7 @@ SHELL_COMMAND_ENTRY COMMANDS[] = {
     {"desktop", "desktop", "show|status|theme <path-or-name>|stressdrag [cycles]", "Control desktop and theme runtime", CMD_desktop},
     {"edit", "edit", "Name", "Open text editor", CMD_edit},
     {"fs", "file_system", "[--long]", "Show file system information", CMD_filesystem},
-    {"gfx", "graphics", "driver DriverAlias Mode|info|smoke_test [DurationMs]", "Control graphics mode", CMD_gfx},
+    {"gfx", "graphics", "driver DriverAlias Mode|info", "Control graphics mode", CMD_gfx},
     {"keyboard", "keyboard", "--layout Code", "Change keyboard layout", CMD_keyboard},
     {"kill", "kill_task", "Number", "Terminate task by number", CMD_killtask},
     {"list", "dir", "[Name] [-p] [-r] [-s|--stress]", "List folder entries", CMD_dir},
