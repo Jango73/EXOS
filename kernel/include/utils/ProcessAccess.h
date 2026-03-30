@@ -33,6 +33,15 @@ typedef struct tag_TASK TASK, *LPTASK;
 
 /************************************************************************/
 
+#define SAFE_USE_VALID_ID_ACCESSIBLE(a, i, c, o) \
+    if ((a) != NULL && IsValidMemory((LINEAR)(a)) && ((a)->TypeID == (i)) && \
+        ProcessAccessCanTargetObject((c), (LPVOID)(a), (o)))
+
+#define SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(a, i, o) \
+    SAFE_USE_VALID_ID_ACCESSIBLE((a), (i), GetCurrentProcess(), (o))
+
+/************************************************************************/
+
 #pragma pack(push, 1)
 
 /************************************************************************/
@@ -44,6 +53,7 @@ BOOL ProcessAccessIsSameUser(LPPROCESS Caller, LPPROCESS Target);
 BOOL ProcessAccessCanTargetProcess(LPPROCESS Caller, LPPROCESS Target, BOOL AllowAdminOverride);
 BOOL ProcessAccessCanTargetTask(LPPROCESS Caller, LPTASK TargetTask, BOOL AllowAdminOverride);
 BOOL ProcessAccessCanTargetObject(LPPROCESS Caller, LPVOID Object, BOOL AllowAdminOverride);
+BOOL ProcessAccessCanCurrentProcessTargetObject(LPVOID Object, BOOL AllowAdminOverride);
 
 /************************************************************************/
 

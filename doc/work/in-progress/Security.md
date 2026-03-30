@@ -143,7 +143,7 @@
 - [x] Enforce the same-user/admin policy on remaining process/task syscalls beyond `KillProcess`, `GetProcessInfo`, `GetProcessMemoryInfo`, and `KillTask`.
 
 ### High Priority
-- [ ] Enforce the same-user/admin policy on window, desktop, and user-interface objects owned by foreign tasks or processes.
+- [x] Enforce the same-user/admin policy on window, desktop, and user-interface objects owned by foreign tasks or processes.
 - [ ] Review inter-process messaging paths and explicitly decide which cross-user message flows are allowed versus denied.
 - [ ] Audit `expose` process/task properties that may leak handles, pointers, memory-related details, or foreign object relationships.
 

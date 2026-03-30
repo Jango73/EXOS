@@ -1163,6 +1163,7 @@ HANDLE CreateBrush(LPBRUSH_INFO BrushInfo) {
 
     Brush->TypeID = KOID_BRUSH;
     Brush->References = 1;
+    Brush->OwnerProcess = GetCurrentProcess();
     Brush->Color = BrushInfo->Color;
     Brush->Pattern = BrushInfo->Pattern;
 
@@ -1188,6 +1189,7 @@ HANDLE CreatePen(LPPEN_INFO PenInfo) {
 
     Pen->TypeID = KOID_PEN;
     Pen->References = 1;
+    Pen->OwnerProcess = GetCurrentProcess();
     Pen->Color = PenInfo->Color;
     Pen->Pattern = PenInfo->Pattern;
     Pen->Width = PenInfo->Width != 0 ? PenInfo->Width : 1;

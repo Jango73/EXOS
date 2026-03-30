@@ -269,6 +269,7 @@ static BOOL DesktopEnsureGraphicsShadowBuffer(LPDESKTOP Desktop, LPGRAPHICSCONTE
     Desktop->GraphicsContext->MemoryBase = (U8*)(LINEAR)Desktop->GraphicsShadowBufferLinear;
     Desktop->GraphicsContext->Driver = Desktop->Graphics;
     Desktop->GraphicsContext->References = 1;
+    Desktop->GraphicsContext->OwnerProcess = Desktop->OwnerProcess;
     InitMutex(&(Desktop->GraphicsContext->Mutex));
     MemorySet(Desktop->GraphicsContext->MemoryBase, 0, RequiredSize);
     return TRUE;

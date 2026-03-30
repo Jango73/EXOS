@@ -219,3 +219,15 @@ BOOL ProcessAccessCanTargetObject(LPPROCESS Caller, LPVOID Object, BOOL AllowAdm
 
     return ProcessAccessCanTargetProcess(Caller, OwnerProcess, AllowAdminOverride);
 }
+
+/************************************************************************/
+
+/**
+ * @brief Test whether the current process may target one owned kernel object.
+ * @param Object Kernel object to inspect.
+ * @param AllowAdminOverride Whether administrator/kernel override is accepted.
+ * @return TRUE when access is granted.
+ */
+BOOL ProcessAccessCanCurrentProcessTargetObject(LPVOID Object, BOOL AllowAdminOverride) {
+    return ProcessAccessCanTargetObject(GetCurrentProcess(), Object, AllowAdminOverride);
+}

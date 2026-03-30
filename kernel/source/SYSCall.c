@@ -50,6 +50,24 @@
 
 extern BOOL ReleaseWindowGC(HANDLE Handle);
 
+/************************************************************************/
+
+static LPWINDOW_CLASS SysCallResolveAccessibleWindowClass(HANDLE WindowClassHandle, LPCSTR WindowClassName) {
+    LPWINDOW_CLASS WindowClass = NULL;
+
+    if (WindowClassHandle != 0) {
+        WindowClass = WindowClassFindByHandle((U32)WindowClassHandle);
+    } else if (WindowClassName != NULL) {
+        WindowClass = WindowClassFindByName(WindowClassName);
+    }
+
+    SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(WindowClass, KOID_WINDOW_CLASS, TRUE) {
+        return WindowClass;
+    }
+
+    return NULL;
+}
+
 /**
  * @brief Emit a debug string originating from user space.
  *
@@ -1570,7 +1588,9 @@ UINT SysCall_CreateDesktop(UINT Parameter) {
 UINT SysCall_ShowDesktop(UINT Parameter) {
     LPDESKTOP Desktop = (LPDESKTOP)HandleToPointer(Parameter);
 
-    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) { return (UINT)ShowDesktop(Desktop); }
+    SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Desktop, KOID_DESKTOP, TRUE) {
+        return (UINT)ShowDesktop(Desktop);
+    }
     return 0;
 }
 
@@ -1586,10 +1606,15 @@ UINT SysCall_GetDesktopWindow(UINT Parameter) {
     LPDESKTOP Desktop = (LPDESKTOP)HandleToPointer(Parameter);
     LPWINDOW Window = NULL;
 
-    SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
+    SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Desktop, KOID_DESKTOP, TRUE) {
         LockMutex(&(Desktop->Mutex), INFINITY);
         Window = Desktop->Window;
         UnlockMutex(&(Desktop->Mutex));
+
+        if (Window != NULL && !ProcessAccessCanCurrentProcessTargetObject(Window, TRUE)) {
+            return 0;
+        }
+
         HANDLE Handle = PointerToHandle((LINEAR)Window);
         return Handle;
     }
@@ -1635,6 +1660,23 @@ UINT SysCall_CreateWindow(UINT Parameter) {
     LPWINDOW_INFO WindowInfo = (LPWINDOW_INFO)Parameter;
 
     SAFE_USE_INPUT_POINTER(WindowInfo, WINDOW_INFO) {
+        if (WindowInfo->Parent != 0) {
+            LPWINDOW ParentWindow = (LPWINDOW)HandleToPointer(WindowInfo->Parent);
+
+            SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(ParentWindow, KOID_WINDOW, TRUE) {
+            } else {
+                WindowInfo->Window = 0;
+                return 0;
+            }
+        }
+
+        if (WindowInfo->WindowClass != 0 || WindowInfo->WindowClassName != NULL) {
+            if (SysCallResolveAccessibleWindowClass(WindowInfo->WindowClass, WindowInfo->WindowClassName) == NULL) {
+                WindowInfo->Window = 0;
+                return 0;
+            }
+        }
+
         HANDLE ParentHandle = WindowInfo->Parent;
         WindowInfo->Parent = (HANDLE)HandleToPointer(ParentHandle);
 
@@ -1672,7 +1714,9 @@ UINT SysCall_ShowWindow(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(WindowInfo, WINDOW_INFO) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowInfo->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)ShowWindow((HANDLE)Window); }
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
+            return (UINT)ShowWindow((HANDLE)Window);
+        }
     }
 
     return 0;
@@ -1691,7 +1735,9 @@ UINT SysCall_HideWindow(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(WindowInfo, WINDOW_INFO) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowInfo->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)HideWindow((HANDLE)Window); }
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
+            return (UINT)HideWindow((HANDLE)Window);
+        }
     }
 
     return 0;
@@ -1710,7 +1756,9 @@ UINT SysCall_MoveWindow(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(WindowRect, WINDOW_RECT) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)MoveWindow((HANDLE)Window, &(WindowRect->Rect)); }
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
+            return (UINT)MoveWindow((HANDLE)Window, &(WindowRect->Rect));
+        }
     }
 
     return 0;
@@ -1729,7 +1777,9 @@ UINT SysCall_SizeWindow(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(WindowInfo, WINDOW_INFO) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowInfo->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)SizeWindow((HANDLE)Window, &(WindowInfo->WindowSize)); }
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
+            return (UINT)SizeWindow((HANDLE)Window, &(WindowInfo->WindowSize));
+        }
     }
 
     return 0;
@@ -1780,7 +1830,7 @@ UINT SysCall_SetWindowStyle(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(WindowInfo, WINDOW_INFO) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowInfo->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
             return (UINT)SetWindowStyle((HANDLE)Window, WindowInfo->Style);
         }
     }
@@ -1795,7 +1845,9 @@ UINT SysCall_ClearWindowStyle(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(WindowInfo, WINDOW_INFO) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowInfo->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)ClearWindowStyle((HANDLE)Window, WindowInfo->Style); }
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
+            return (UINT)ClearWindowStyle((HANDLE)Window, WindowInfo->Style);
+        }
     }
 
     return 0;
@@ -1829,7 +1881,9 @@ UINT SysCall_SetWindowProp(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(PropInfo, PROP_INFO) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(PropInfo->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return SetWindowProp((HANDLE)Window, PropInfo->Name, PropInfo->Value); }
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
+            return SetWindowProp((HANDLE)Window, PropInfo->Name, PropInfo->Value);
+        }
     }
 
     return 0;
@@ -1848,7 +1902,9 @@ UINT SysCall_GetWindowProp(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(PropInfo, PROP_INFO) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(PropInfo->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return GetWindowProp((HANDLE)Window, PropInfo->Name); }
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
+            return GetWindowProp((HANDLE)Window, PropInfo->Name);
+        }
     }
 
     return 0;
@@ -1867,7 +1923,9 @@ UINT SysCall_GetWindowRect(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(WindowRect, WINDOW_RECT) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)GetWindowRect((HANDLE)Window, &(WindowRect->Rect)); }
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
+            return (UINT)GetWindowRect((HANDLE)Window, &(WindowRect->Rect));
+        }
     }
 
     return 0;
@@ -1886,7 +1944,7 @@ UINT SysCall_GetWindowClientRect(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(WindowRect, WINDOW_RECT) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
             return (UINT)GetWindowClientRect((HANDLE)Window, &(WindowRect->Rect));
         }
     }
@@ -1907,7 +1965,7 @@ UINT SysCall_ScreenPointToWindowPoint(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(WindowPointInfo, WINDOW_POINT_INFO) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowPointInfo->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
             return (UINT)ScreenPointToWindowPoint(
                 (HANDLE)Window,
                 &(WindowPointInfo->ScreenPoint),
@@ -1929,8 +1987,14 @@ UINT SysCall_ScreenPointToWindowPoint(UINT Parameter) {
 UINT SysCall_GetWindowParent(UINT Parameter) {
     LPWINDOW Window = (LPWINDOW)HandleToPointer(Parameter);
 
-    SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
-        HANDLE ParentHandle = PointerToHandle((LINEAR)GetWindowParent((HANDLE)Window));
+    SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
+        HANDLE ParentWindow = GetWindowParent((HANDLE)Window);
+
+        if (ParentWindow != NULL && !ProcessAccessCanCurrentProcessTargetObject((LPVOID)ParentWindow, TRUE)) {
+            return 0;
+        }
+
+        HANDLE ParentHandle = PointerToHandle((LINEAR)ParentWindow);
         return ParentHandle;
     }
 
@@ -1948,7 +2012,9 @@ UINT SysCall_GetWindowParent(UINT Parameter) {
 UINT SysCall_GetWindowChildCount(UINT Parameter) {
     LPWINDOW Window = (LPWINDOW)HandleToPointer(Parameter);
 
-    SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)GetWindowChildCount((HANDLE)Window); }
+    SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
+        return (UINT)GetWindowChildCount((HANDLE)Window);
+    }
 
     return 0;
 }
@@ -1966,8 +2032,15 @@ UINT SysCall_GetWindowChild(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(WindowChildInfo, WINDOW_CHILD_INFO) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowChildInfo->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
-            HANDLE ChildHandle = PointerToHandle((LINEAR)GetWindowChild((HANDLE)Window, WindowChildInfo->ChildIndex));
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
+            HANDLE ChildWindow;
+
+            ChildWindow = GetWindowChild((HANDLE)Window, WindowChildInfo->ChildIndex);
+            if (ChildWindow != NULL && !ProcessAccessCanCurrentProcessTargetObject((LPVOID)ChildWindow, TRUE)) {
+                return 0;
+            }
+
+            HANDLE ChildHandle = PointerToHandle((LINEAR)ChildWindow);
             return ChildHandle;
         }
     }
@@ -1986,8 +2059,15 @@ UINT SysCall_GetWindowChild(UINT Parameter) {
 UINT SysCall_GetNextWindowSibling(UINT Parameter) {
     LPWINDOW Window = (LPWINDOW)HandleToPointer(Parameter);
 
-    SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
-        HANDLE SiblingHandle = PointerToHandle((LINEAR)GetNextWindowSibling((HANDLE)Window));
+    SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
+        HANDLE SiblingWindow;
+
+        SiblingWindow = GetNextWindowSibling((HANDLE)Window);
+        if (SiblingWindow != NULL && !ProcessAccessCanCurrentProcessTargetObject((LPVOID)SiblingWindow, TRUE)) {
+            return 0;
+        }
+
+        HANDLE SiblingHandle = PointerToHandle((LINEAR)SiblingWindow);
         return SiblingHandle;
     }
 
@@ -2005,8 +2085,15 @@ UINT SysCall_GetNextWindowSibling(UINT Parameter) {
 UINT SysCall_GetPreviousWindowSibling(UINT Parameter) {
     LPWINDOW Window = (LPWINDOW)HandleToPointer(Parameter);
 
-    SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
-        HANDLE SiblingHandle = PointerToHandle((LINEAR)GetPreviousWindowSibling((HANDLE)Window));
+    SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
+        HANDLE SiblingWindow;
+
+        SiblingWindow = GetPreviousWindowSibling((HANDLE)Window);
+        if (SiblingWindow != NULL && !ProcessAccessCanCurrentProcessTargetObject((LPVOID)SiblingWindow, TRUE)) {
+            return 0;
+        }
+
+        HANDLE SiblingHandle = PointerToHandle((LINEAR)SiblingWindow);
         return SiblingHandle;
     }
 
@@ -2027,6 +2114,12 @@ UINT SysCall_RegisterWindowClass(UINT Parameter) {
     LPPROCESS Process;
 
     SAFE_USE_INPUT_POINTER(ClassInfo, WINDOW_CLASS_INFO) {
+        if (ClassInfo->BaseClass != 0 || ClassInfo->BaseClassName != NULL) {
+            if (SysCallResolveAccessibleWindowClass(ClassInfo->BaseClass, ClassInfo->BaseClassName) == NULL) {
+                return 0;
+            }
+        }
+
         Process = GetCurrentProcess();
         if (Process == NULL || Process->TypeID != KOID_PROCESS) return 0;
 
@@ -2088,6 +2181,11 @@ UINT SysCall_FindWindowClass(UINT Parameter) {
             return 0;
         }
 
+        if (!ProcessAccessCanCurrentProcessTargetObject(WindowClass, TRUE)) {
+            ClassInfo->WindowClass = 0;
+            return 0;
+        }
+
         ClassInfo->WindowClass = (HANDLE)WindowClass->ClassID;
         return (UINT)WindowClass->ClassID;
     }
@@ -2109,7 +2207,12 @@ UINT SysCall_WindowInheritsClass(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(QueryInfo, WINDOW_CLASS_QUERY_INFO) {
         Window = (LPWINDOW)HandleToPointer(QueryInfo->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
+            if ((QueryInfo->WindowClass != 0 || QueryInfo->ClassName != NULL) &&
+                SysCallResolveAccessibleWindowClass(QueryInfo->WindowClass, QueryInfo->ClassName) == NULL) {
+                return FALSE;
+            }
+
             return (UINT)WindowInheritsClass((HANDLE)Window, QueryInfo->WindowClass, QueryInfo->ClassName);
         }
     }
@@ -2131,7 +2234,7 @@ UINT SysCall_InvalidateClientRect(UINT Parameter) {
     SAFE_USE_INPUT_POINTER(WindowRect, WINDOW_RECT) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
 
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
             if ((WindowRect->Header.Flags & WINDOW_RECT_FLAG_ALL) != 0) {
                 return (UINT)InvalidateClientRect((HANDLE)Window, NULL);
             }
@@ -2156,7 +2259,7 @@ UINT SysCall_InvalidateWindowRect(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(WindowRect, WINDOW_RECT) {
         LPWINDOW Window = (LPWINDOW)HandleToPointer(WindowRect->Window);
-        SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
             if ((WindowRect->Header.Flags & WINDOW_RECT_FLAG_ALL) != 0) {
                 return (UINT)InvalidateWindowRect((HANDLE)Window, NULL);
             }
@@ -2179,7 +2282,7 @@ UINT SysCall_InvalidateWindowRect(UINT Parameter) {
 UINT SysCall_GetWindowGC(UINT Parameter) {
     LPWINDOW Window = (LPWINDOW)HandleToPointer(Parameter);
 
-    SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
+    SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
         HANDLE ContextPointer = GetWindowGC((HANDLE)Window);
 
         SAFE_USE_VALID((LPVOID)ContextPointer) {
@@ -2207,7 +2310,7 @@ UINT SysCall_GetWindowGC(UINT Parameter) {
 UINT SysCall_ReleaseWindowGC(UINT Parameter) {
     LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)HandleToPointer(Parameter);
 
-    SAFE_USE_VALID_ID(Context, KOID_GRAPHICSCONTEXT) {
+    SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Context, KOID_GRAPHICSCONTEXT, TRUE) {
         UINT Result = (UINT)ReleaseWindowGC((HANDLE)Context);
         if (Result) ReleaseHandle(Parameter);
         return Result;
@@ -2359,7 +2462,7 @@ UINT SysCall_SelectBrush(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(Sel, GCSELECT) {
         LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)HandleToPointer(Sel->GC);
-        SAFE_USE_VALID_ID(Context, KOID_GRAPHICSCONTEXT) {
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Context, KOID_GRAPHICSCONTEXT, TRUE) {
             if (Sel->Object != 0) {
                 LPBRUSH Brush = (LPBRUSH)HandleToPointer(Sel->Object);
                 SAFE_USE_VALID_ID(Brush, KOID_BRUSH) {
@@ -2398,7 +2501,7 @@ UINT SysCall_SelectPen(UINT Parameter) {
 
     SAFE_USE_INPUT_POINTER(Sel, GCSELECT) {
         LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)HandleToPointer(Sel->GC);
-        SAFE_USE_VALID_ID(Context, KOID_GRAPHICSCONTEXT) {
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Context, KOID_GRAPHICSCONTEXT, TRUE) {
             if (Sel->Object != 0) {
                 LPPEN Pen = (LPPEN)HandleToPointer(Sel->Object);
                 SAFE_USE_VALID_ID(Pen, KOID_PEN) {
@@ -2440,6 +2543,11 @@ UINT SysCall_SetPixel(UINT Parameter) {
         LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)HandleToPointer(OriginalGC);
 
         SAFE_USE_VALID_ID(Context, KOID_GRAPHICSCONTEXT) {
+            if (!ProcessAccessCanCurrentProcessTargetObject(Context, TRUE)) {
+                PixelInfo->GC = OriginalGC;
+                return 0;
+            }
+
             PixelInfo->GC = (HANDLE)Context;
             UINT Result = (UINT)SetPixel(PixelInfo);
             PixelInfo->GC = OriginalGC;
@@ -2468,6 +2576,11 @@ UINT SysCall_GetPixel(UINT Parameter) {
         LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)HandleToPointer(OriginalGC);
 
         SAFE_USE_VALID_ID(Context, KOID_GRAPHICSCONTEXT) {
+            if (!ProcessAccessCanCurrentProcessTargetObject(Context, TRUE)) {
+                PixelInfo->GC = OriginalGC;
+                return 0;
+            }
+
             PixelInfo->GC = (HANDLE)Context;
             UINT Result = (UINT)GetPixel(PixelInfo);
             PixelInfo->GC = OriginalGC;
@@ -2496,6 +2609,11 @@ UINT SysCall_Line(UINT Parameter) {
         LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)HandleToPointer(OriginalGC);
 
         SAFE_USE_VALID_ID(Context, KOID_GRAPHICSCONTEXT) {
+            if (!ProcessAccessCanCurrentProcessTargetObject(Context, TRUE)) {
+                LineInfo->GC = OriginalGC;
+                return 0;
+            }
+
             LineInfo->GC = (HANDLE)Context;
             UINT Result = (UINT)Line(LineInfo);
             LineInfo->GC = OriginalGC;
@@ -2524,6 +2642,11 @@ UINT SysCall_Rectangle(UINT Parameter) {
         LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)HandleToPointer(OriginalGC);
 
         SAFE_USE_VALID_ID(Context, KOID_GRAPHICSCONTEXT) {
+            if (!ProcessAccessCanCurrentProcessTargetObject(Context, TRUE)) {
+                RectInfo->GC = OriginalGC;
+                return 0;
+            }
+
             RectInfo->GC = (HANDLE)Context;
             UINT Result = (UINT)Rectangle(RectInfo);
             RectInfo->GC = OriginalGC;
@@ -2552,7 +2675,7 @@ UINT SysCall_DrawText(UINT Parameter) {
         HANDLE OriginalGC = TextInfo->GC;
         LPGRAPHICSCONTEXT Context = (LPGRAPHICSCONTEXT)HandleToPointer(OriginalGC);
 
-        SAFE_USE_VALID_ID(Context, KOID_GRAPHICSCONTEXT) {
+        SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Context, KOID_GRAPHICSCONTEXT, TRUE) {
             if (TextInfo->Text == NULL || TextInfo->Font != 0) {
                 return 0;
             }
@@ -2734,6 +2857,14 @@ UINT SysCall_DrawWindowBackground(UINT Parameter) {
                 if (Window == NULL || Window->TypeID != KOID_WINDOW) {
                     return 0;
                 }
+
+                if (!ProcessAccessCanCurrentProcessTargetObject(Window, TRUE)) {
+                    return 0;
+                }
+            }
+
+            if (!ProcessAccessCanCurrentProcessTargetObject(Context, TRUE)) {
+                return 0;
             }
 
             return (UINT)DrawWindowBackground((HANDLE)Window, (HANDLE)Context, &(BackgroundInfo->Rect), BackgroundInfo->ThemeToken);
@@ -2754,7 +2885,9 @@ UINT SysCall_DrawWindowBackground(UINT Parameter) {
 UINT SysCall_CaptureMouse(UINT Parameter) {
     LPWINDOW Window = (LPWINDOW)HandleToPointer((HANDLE)Parameter);
 
-    SAFE_USE_VALID_ID(Window, KOID_WINDOW) { return (UINT)CaptureMouse((HANDLE)Window); }
+    SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Window, KOID_WINDOW, TRUE) {
+        return (UINT)CaptureMouse((HANDLE)Window);
+    }
 
     return 0;
 }
