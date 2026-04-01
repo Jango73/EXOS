@@ -486,30 +486,8 @@ U32 CMD_usb(LPSHELLCONTEXT Context) {
     }
 
     if (StringCompareNC(Context->Command, TEXT("drives")) == 0) {
-        LPLIST UsbStorageList = GetUsbStorageList();
-        if (UsbStorageList == NULL || UsbStorageList->First == NULL) {
-            ConsolePrint(TEXT("No USB drive detected\n"));
-            return DF_RETURN_SUCCESS;
-        }
-
-        UINT Index = 0;
-        for (LPLISTNODE Node = UsbStorageList->First; Node; Node = Node->Next) {
-            STR BlockSizeText[32];
-            LPUSB_STORAGE_ENTRY Entry = (LPUSB_STORAGE_ENTRY)Node;
-            if (Entry == NULL) {
-                continue;
-            }
-
-            SizeFormatBytesText(U64_FromUINT(Entry->BlockSize), BlockSizeText);
-            ConsolePrint(TEXT("usb%u: addr=%x vid=%x pid=%x blocks=%u block_size=%s state=%s\n"),
-                         Index,
-                         (U32)Entry->Address,
-                         (U32)Entry->VendorId,
-                         (U32)Entry->ProductId,
-                         Entry->BlockCount,
-                         BlockSizeText,
-                         Entry->Present ? TEXT("online") : TEXT("offline"));
-            Index++;
+        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_DRIVES))) {
+            ConsolePrint(TEXT("Unable to run embedded USB drive list script\n"));
         }
 
         return DF_RETURN_SUCCESS;

@@ -97,6 +97,18 @@ static LPCSTR G_EmbeddedScripts[SHELL_EMBEDDED_SCRIPT_COUNT] = {
         "}\n"
         "for (i = 0; i < count; i = i + 1) {\n"
         "    print(\"addr=\" + usb.devices[i].address + \" bus=\" + usb.devices[i].bus + \" device=\" + usb.devices[i].device + \" function=\" + usb.devices[i].function + \" port=\" + usb.devices[i].port_number + \" speed_id=\" + usb.devices[i].speed_id + \" vid=\" + usb.devices[i].vendor_id + \" pid=\" + usb.devices[i].product_id);\n"
+        "}\n",
+    [SHELL_EMBEDDED_SCRIPT_USB_DRIVES] = (LPCSTR)
+        "count = usb.drives.count;\n"
+        "if (count == 0) {\n"
+        "    print(\"No USB drive detected\");\n"
+        "}\n"
+        "for (i = 0; i < count; i = i + 1) {\n"
+        "    state = \"offline\";\n"
+        "    if (usb.drives[i].present != 0) {\n"
+        "        state = \"online\";\n"
+        "    }\n"
+        "    print(\"usb\" + i + \": addr=\" + usb.drives[i].address + \" vid=\" + usb.drives[i].vendor_id + \" pid=\" + usb.drives[i].product_id + \" blocks=\" + usb.drives[i].block_count + \" block_size=\" + usb.drives[i].block_size + \" state=\" + state);\n"
         "}\n"
 };
 

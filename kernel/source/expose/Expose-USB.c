@@ -26,6 +26,8 @@
 
 #include "DriverEnum.h"
 #include "Heap.h"
+#include "KernelData.h"
+#include "drivers/storage/USBStorage.h"
 
 /************************************************************************/
 
@@ -173,6 +175,7 @@ SCRIPT_ERROR UsbGetProperty(
         return SCRIPT_OK;
     }
 
+    EXPOSE_BIND_HOST_HANDLE("drives", GetUsbStorageList(), &UsbDriveArrayDescriptor, NULL);
     EXPOSE_BIND_HOST_HANDLE("devices", &UsbDeviceArraySentinel, &UsbDeviceArrayDescriptor, NULL);
 
     return SCRIPT_ERROR_UNDEFINED_VAR;
@@ -383,6 +386,108 @@ SCRIPT_ERROR UsbDeviceArrayGetElement(
 
 /************************************************************************/
 
+/**
+ * @brief Retrieve a property value from a USB drive exposed to the script engine.
+ * @param Context Host callback context (unused for USB exposure)
+ * @param Parent Handle to the USB drive instance requested by the script
+ * @param Property Property name requested by the script
+ * @param OutValue Output holder for the property value
+ * @return SCRIPT_OK when the property exists, SCRIPT_ERROR_UNDEFINED_VAR otherwise
+ */
+SCRIPT_ERROR UsbDriveGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue) {
+
+    UNUSED(Context);
+
+    EXPOSE_PROPERTY_GUARD();
+
+    LPUSB_STORAGE_ENTRY Entry = (LPUSB_STORAGE_ENTRY)Parent;
+    SAFE_USE_VALID_ID(Entry, KOID_USBSTORAGE) {
+        EXPOSE_BIND_INTEGER("address", Entry->Address);
+        EXPOSE_BIND_INTEGER("vendor_id", Entry->VendorId);
+        EXPOSE_BIND_INTEGER("product_id", Entry->ProductId);
+        EXPOSE_BIND_INTEGER("block_count", Entry->BlockCount);
+        EXPOSE_BIND_INTEGER("block_size", Entry->BlockSize);
+        EXPOSE_BIND_INTEGER("present", Entry->Present);
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    return SCRIPT_ERROR_UNDEFINED_VAR;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve a property value from the exposed USB drive array.
+ * @param Context Host callback context (unused for USB exposure)
+ * @param Parent Handle to the USB drive list exposed by the kernel
+ * @param Property Property name requested by the script
+ * @param OutValue Output holder for the property value
+ * @return SCRIPT_OK when the property exists, SCRIPT_ERROR_UNDEFINED_VAR otherwise
+ */
+SCRIPT_ERROR UsbDriveArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue) {
+
+    UNUSED(Context);
+
+    EXPOSE_PROPERTY_GUARD();
+
+    LPLIST UsbDriveList = (LPLIST)Parent;
+    if (UsbDriveList == NULL) {
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    EXPOSE_BIND_INTEGER("count", ListGetSize(UsbDriveList));
+
+    return SCRIPT_ERROR_UNDEFINED_VAR;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve a USB drive from the exposed USB drive array.
+ * @param Context Host callback context (unused for USB exposure)
+ * @param Parent Handle to the USB drive list exposed by the kernel
+ * @param Index Array index requested by the script
+ * @param OutValue Output holder for the resulting USB drive handle
+ * @return SCRIPT_OK when the drive exists, SCRIPT_ERROR_UNDEFINED_VAR otherwise
+ */
+SCRIPT_ERROR UsbDriveArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue) {
+
+    UNUSED(Context);
+
+    EXPOSE_ARRAY_GUARD();
+
+    LPLIST UsbDriveList = (LPLIST)Parent;
+    if (UsbDriveList == NULL) {
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    if (Index >= ListGetSize(UsbDriveList)) {
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    LPUSB_STORAGE_ENTRY Entry = (LPUSB_STORAGE_ENTRY)ListGetItem(UsbDriveList, Index);
+    SAFE_USE_VALID_ID(Entry, KOID_USBSTORAGE) {
+        EXPOSE_SET_HOST_HANDLE(Entry, &UsbDriveDescriptor, NULL, FALSE);
+        return SCRIPT_OK;
+    }
+
+    return SCRIPT_ERROR_UNDEFINED_VAR;
+}
+
+/************************************************************************/
+
 const SCRIPT_HOST_DESCRIPTOR UsbDescriptor = {
     UsbGetProperty,
     NULL,
@@ -414,6 +519,20 @@ const SCRIPT_HOST_DESCRIPTOR UsbDeviceDescriptor = {
 const SCRIPT_HOST_DESCRIPTOR UsbDeviceArrayDescriptor = {
     UsbDeviceArrayGetProperty,
     UsbDeviceArrayGetElement,
+    NULL,
+    NULL
+};
+
+const SCRIPT_HOST_DESCRIPTOR UsbDriveDescriptor = {
+    UsbDriveGetProperty,
+    NULL,
+    NULL,
+    NULL
+};
+
+const SCRIPT_HOST_DESCRIPTOR UsbDriveArrayDescriptor = {
+    UsbDriveArrayGetProperty,
+    UsbDriveArrayGetElement,
     NULL,
     NULL
 };
