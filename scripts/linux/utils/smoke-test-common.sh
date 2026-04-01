@@ -24,10 +24,12 @@ else
 fi
 MONITOR_HOST="127.0.0.1"
 MONITOR_PORT="${MONITOR_PORT:-4444}"
+MONITOR_MODE="${SMOKE_TEST_MONITOR_MODE:-auto}"
 MONITOR_CONNECT_MAX_ATTEMPTS=50
 DEFAULT_TIMEOUT_SECONDS=15
 BOOT_READY_TIMEOUT_SECONDS=45
 COMMAND_FORMATION_TIMEOUT_SECONDS=45
+MONITOR_FALLBACK_TIMEOUT_SECONDS=3
 KEY_DELAY_SECONDS=0.16
 COMMAND_DELAY_SECONDS=0.25
 BOOT_INPUT_DELAY_SECONDS=1.0
@@ -70,6 +72,7 @@ CURRENT_LOGS_ARCHIVED=0
 SCRIPT_DISPLAY_NAME="${SMOKE_TEST_SCRIPT_NAME:-$0}"
 SMOKE_TEST_SUMMARY_ENABLED=0
 SMOKE_TEST_FAILED_TARGET=""
+ACTIVE_MONITOR_MODE=""
 
 function Usage() {
     echo "Usage: $SCRIPT_DISPLAY_NAME [--only <x86-32|x86-32-rtl8139|x86-64|x86-64-uefi>] [--commands-file <path>] [--no-build] [--stop-after-shell] [--no-keyboard-layout-patch] [--hash-compare] [--key-delay <seconds>] [--command-delay <seconds>] [--boot-input-delay <seconds>] [--help]"
@@ -642,21 +645,72 @@ function SendHotkey() {
 
 function SendCommand() {
     # Type a full shell command as key events, then press Enter.
+    SendCommandWithMode "$1" "transient"
+}
+
+function SendCommandWithPersistentMonitor() {
+    # Type a full shell command over a single persistent monitor connection.
     local Cmd="$1"
     local Index=0
     local Length=${#Cmd}
     local Char
     local Key
 
+    if ! exec 3<>"/dev/tcp/$MONITOR_HOST/$MONITOR_PORT"; then
+        echo "Failed to connect to QEMU monitor at $MONITOR_HOST:$MONITOR_PORT"
+        return 1
+    fi
+
     while [ "$Index" -lt "$Length" ]; do
         Char="${Cmd:$Index:1}"
         Key="$(KeyForChar "$Char")"
-        SendKey "$Key"
+        if [ -z "$Key" ]; then
+            exec 3<&- || true
+            exec 3>&- || true
+            echo "Unsupported key in command string."
+            return 1
+        fi
+        printf "sendkey %s\r\n" "$Key" >&3
+        sleep "$KEY_DELAY_SECONDS"
         Index=$((Index + 1))
     done
 
-    SendKey "ret"
+    printf "sendkey ret\r\n" >&3
+    sleep "$KEY_DELAY_SECONDS"
+    exec 3<&- || true
+    exec 3>&- || true
     sleep "$COMMAND_DELAY_SECONDS"
+}
+
+function SendCommandWithMode() {
+    local Cmd="$1"
+    local Mode="${2:-transient}"
+
+    case "$Mode" in
+        transient)
+            local Index=0
+            local Length=${#Cmd}
+            local Char
+            local Key
+
+            while [ "$Index" -lt "$Length" ]; do
+                Char="${Cmd:$Index:1}"
+                Key="$(KeyForChar "$Char")"
+                SendKey "$Key"
+                Index=$((Index + 1))
+            done
+
+            SendKey "ret"
+            sleep "$COMMAND_DELAY_SECONDS"
+            ;;
+        persistent)
+            SendCommandWithPersistentMonitor "$Cmd"
+            ;;
+        *)
+            echo "Invalid monitor mode: $Mode"
+            return 1
+            ;;
+    esac
 }
 
 function WaitForExpectedLog() {
@@ -700,7 +754,7 @@ function WaitForExpectedLog() {
     done
 
     echo "Timed out waiting for expected log: $Expected"
-    return 1
+    return 2
 }
 
 function VerifySpawnCommandLine() {
@@ -734,7 +788,7 @@ function VerifySpawnCommandLine() {
     done
 
     echo "Timed out waiting for spawn launch log for command: $ExpectedCommand"
-    return 1
+    return 2
 }
 
 function AssertNoFailures() {
@@ -921,7 +975,10 @@ function RunCommandSpec() {
     local CompareSource="$4"
     local CompareDownloaded="$5"
     local TimeoutSeconds="${6:-$DEFAULT_TIMEOUT_SECONDS}"
+    local ProbeTimeoutSeconds="$MONITOR_FALLBACK_TIMEOUT_SECONDS"
     local Offset
+    local MonitorModeUsed=""
+    local WaitStatus=0
 
     if [ -z "$ActionType" ]; then
         echo "Invalid empty action type in command specification."
@@ -934,19 +991,71 @@ function RunCommandSpec() {
     fi
 
     echo "Running $ActionType: $ActionText"
-    Offset="$(GetLogSize)"
     if [ "$ActionType" = "command" ]; then
-        SendCommand "$ActionText"
+        MonitorModeUsed="$MONITOR_MODE"
+        if [ "$MONITOR_MODE" = "auto" ] && [ "$ACTIVE_MONITOR_MODE" = "persistent" ]; then
+            MonitorModeUsed="persistent"
+        elif [ "$MonitorModeUsed" = "auto" ]; then
+            MonitorModeUsed="transient"
+        fi
+
+        Offset="$(GetLogSize)"
+        SendCommandWithMode "$ActionText" "$MonitorModeUsed"
         if [[ "$ActionText" == /* ]]; then
-            VerifySpawnCommandLine "$ActionText" "$Offset"
+            if RunOptionalCommandCheck VerifySpawnCommandLine "$ActionText" "$Offset" "$ProbeTimeoutSeconds"; then
+                WaitStatus=0
+            else
+                WaitStatus=$?
+            fi
+            if [ "$WaitStatus" -ne 0 ]; then
+                if [ "$MONITOR_MODE" = "auto" ] && [ "$MonitorModeUsed" = "transient" ] && [ "$WaitStatus" -eq 2 ]; then
+                    echo "Retrying command with persistent monitor connection: $ActionText"
+                    ACTIVE_MONITOR_MODE="persistent"
+                    Offset="$(GetLogSize)"
+                    SendCommandWithMode "$ActionText" "persistent"
+                    VerifySpawnCommandLine "$ActionText" "$Offset"
+                else
+                    return 1
+                fi
+            fi
+        fi
+        if [ -n "$ExpectedText" ]; then
+            if [ "$MONITOR_MODE" = "auto" ] && [ "$MonitorModeUsed" = "transient" ]; then
+                if RunOptionalCommandCheck WaitForExpectedLog "$ExpectedText" "$Offset" "$ProbeTimeoutSeconds"; then
+                    WaitStatus=0
+                else
+                    WaitStatus=$?
+                fi
+            else
+                if RunOptionalCommandCheck WaitForExpectedLog "$ExpectedText" "$Offset" "$TimeoutSeconds"; then
+                    WaitStatus=0
+                else
+                    WaitStatus=$?
+                fi
+            fi
+            if [ "$WaitStatus" -ne 0 ]; then
+                if [ "$MONITOR_MODE" = "auto" ] && [ "$MonitorModeUsed" = "transient" ] && [ "$WaitStatus" -eq 2 ]; then
+                    echo "Retrying command with persistent monitor connection: $ActionText"
+                    ACTIVE_MONITOR_MODE="persistent"
+                    Offset="$(GetLogSize)"
+                    SendCommandWithMode "$ActionText" "persistent"
+                    if [[ "$ActionText" == /* ]]; then
+                        VerifySpawnCommandLine "$ActionText" "$Offset"
+                    fi
+                    WaitForExpectedLog "$ExpectedText" "$Offset" "$TimeoutSeconds"
+                else
+                    return 1
+                fi
+            fi
         fi
     elif [ "$ActionType" = "hotkey" ]; then
+        Offset="$(GetLogSize)"
         SendHotkey "$ActionText"
     else
         echo "Invalid action type in command specification: $ActionType"
         return 1
     fi
-    if [ -n "$ExpectedText" ]; then
+    if [ "$ActionType" != "command" ] && [ -n "$ExpectedText" ]; then
         WaitForExpectedLog "$ExpectedText" "$Offset" "$TimeoutSeconds"
     else
         sleep 0.5
@@ -959,6 +1068,17 @@ function RunCommandSpec() {
             AssertDownloadedFileHash "$Offset" "$CompareSource" "$CompareDownloaded"
         fi
     fi
+}
+
+function RunOptionalCommandCheck() {
+    local WaitStatus=0
+
+    set +e
+    "$@"
+    WaitStatus=$?
+    set -e
+
+    return "$WaitStatus"
 }
 
 function RunCommandList() {
