@@ -491,6 +491,11 @@ U32 CMD_usb(LPSHELLCONTEXT Context) {
         }
 
         return DF_RETURN_SUCCESS;
+    } else if (StringCompareNC(Context->Command, TEXT("probe")) == 0) {
+        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_PROBE))) {
+            ConsolePrint(TEXT("Unable to run embedded USB probe script\n"));
+        }
+        return DF_RETURN_SUCCESS;
     } else if (StringCompareNC(Context->Command, TEXT("devices")) == 0) {
         if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_DEVICES))) {
             ConsolePrint(TEXT("Unable to run embedded USB device list script\n"));
@@ -501,100 +506,11 @@ U32 CMD_usb(LPSHELLCONTEXT Context) {
             ConsolePrint(TEXT("Unable to run embedded USB port list script\n"));
         }
         return DF_RETURN_SUCCESS;
-    }
-
-    DRIVER_ENUM_QUERY Query;
-    MemorySet(&Query, 0, sizeof(Query));
-    Query.Header.Size = sizeof(Query);
-    Query.Header.Version = EXOS_ABI_VERSION;
-    if (StringCompareNC(Context->Command, TEXT("probe")) == 0) {
-        DRIVER_ENUM_QUERY PortQuery;
-        MemorySet(&PortQuery, 0, sizeof(PortQuery));
-        PortQuery.Header.Size = sizeof(PortQuery);
-        PortQuery.Header.Version = EXOS_ABI_VERSION;
-        PortQuery.Domain = ENUM_DOMAIN_XHCI_PORT;
-        PortQuery.Flags = 0;
-
-        UINT ProviderIndexProbe = 0;
-        DRIVER_ENUM_PROVIDER ProviderProbe = NULL;
-        BOOL FoundProbe = FALSE;
-
-        while (KernelEnumGetProvider(&PortQuery, ProviderIndexProbe, &ProviderProbe) == DF_RETURN_SUCCESS) {
-            DRIVER_ENUM_ITEM ItemProbe;
-            PortQuery.Index = 0;
-            FoundProbe = TRUE;
-
-            MemorySet(&ItemProbe, 0, sizeof(ItemProbe));
-            ItemProbe.Header.Size = sizeof(ItemProbe);
-            ItemProbe.Header.Version = EXOS_ABI_VERSION;
-
-            while (KernelEnumNext(ProviderProbe, &PortQuery, &ItemProbe) == DF_RETURN_SUCCESS) {
-                const DRIVER_ENUM_XHCI_PORT* Data = (const DRIVER_ENUM_XHCI_PORT*)ItemProbe.Data;
-                if (ItemProbe.DataSize < sizeof(DRIVER_ENUM_XHCI_PORT)) {
-                    break;
-                }
-                if (Data->Connected) {
-                    if (Data->LastEnumError == XHCI_ENUM_ERROR_ENABLE_SLOT) {
-                        ConsolePrint(TEXT("P%u Err=%s C=%u\n"),
-                                     (U32)Data->PortNumber,
-                                     XHCIEnumErrorToString(Data->LastEnumError),
-                                     (U32)Data->LastEnumCompletion);
-                    } else {
-                        ConsolePrint(TEXT("P%u Err=%s\n"),
-                                     (U32)Data->PortNumber,
-                                     XHCIEnumErrorToString(Data->LastEnumError));
-                    }
-                }
-            }
-            ProviderIndexProbe++;
-        }
-
-        if (!FoundProbe) {
-            ConsolePrint(TEXT("No xHCI controller detected\n"));
-        }
-        return DF_RETURN_SUCCESS;
     } else if (StringCompareNC(Context->Command, TEXT("device-tree")) == 0) {
-        Query.Domain = ENUM_DOMAIN_USB_NODE;
-    } else {
-        Query.Domain = ENUM_DOMAIN_XHCI_PORT;
-    }
-    Query.Flags = 0;
-
-    UINT ProviderIndex = 0;
-    BOOL Found = FALSE;
-    BOOL Printed = FALSE;
-    DRIVER_ENUM_PROVIDER Provider = NULL;
-
-    while (KernelEnumGetProvider(&Query, ProviderIndex, &Provider) == DF_RETURN_SUCCESS) {
-        DRIVER_ENUM_ITEM Item;
-        STR Buffer[256];
-
-        Found = TRUE;
-        Query.Index = 0;
-
-        MemorySet(&Item, 0, sizeof(Item));
-        Item.Header.Size = sizeof(Item);
-        Item.Header.Version = EXOS_ABI_VERSION;
-
-        while (KernelEnumNext(Provider, &Query, &Item) == DF_RETURN_SUCCESS) {
-            if (KernelEnumPretty(Provider, &Query, &Item, Buffer, sizeof(Buffer)) == DF_RETURN_SUCCESS) {
-                ConsolePrint(TEXT("%s\n"), Buffer);
-                Printed = TRUE;
-            }
+        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_DEVICE_TREE))) {
+            ConsolePrint(TEXT("Unable to run embedded USB device tree script\n"));
         }
-
-        ProviderIndex++;
-    }
-
-    if (!Found) {
-        ConsolePrint(TEXT("No xHCI controller detected\n"));
         return DF_RETURN_SUCCESS;
-    }
-
-    if (!Printed && Query.Domain == ENUM_DOMAIN_USB_DEVICE) {
-        ConsolePrint(TEXT("No USB device detected\n"));
-    } else if (!Printed && Query.Domain == ENUM_DOMAIN_USB_NODE) {
-        ConsolePrint(TEXT("No USB device tree detected\n"));
     }
     return DF_RETURN_SUCCESS;
 }

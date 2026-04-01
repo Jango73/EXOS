@@ -242,6 +242,24 @@ SCRIPT_ERROR UsbDriveArrayGetElement(
     U32 Index,
     LPSCRIPT_VALUE OutValue);
 
+SCRIPT_ERROR UsbNodeGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR UsbNodeArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR UsbNodeArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+
 extern const SCRIPT_HOST_DESCRIPTOR UsbDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR UsbPortDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR UsbPortArrayDescriptor;
@@ -249,6 +267,8 @@ extern const SCRIPT_HOST_DESCRIPTOR UsbDeviceDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR UsbDeviceArrayDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR UsbDriveDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR UsbDriveArrayDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR UsbNodeDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR UsbNodeArrayDescriptor;
 extern SCRIPT_HOST_HANDLE UsbRootHandle;
 
 /************************************************************************/
