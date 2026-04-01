@@ -163,6 +163,10 @@ void NORETURN EnterProtectedPagingAndJump(U32 FileSize, U32 MultibootInfoPtr, U6
 
 #if !defined(BOOT_UEFI)
     EnableA20();
+    if (CheckA20Enabled() == 0) {
+        BootErrorPrint(TEXT("[VBR x86-32] ERROR: A20 is disabled before protected mode transition. Halting.\r\n"));
+        Hang();
+    }
 #endif
 
     const U32 KernelVirtBase = (U32)CONFIG_VMA_KERNEL;
