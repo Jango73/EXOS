@@ -536,8 +536,8 @@ static U32 RTL8139InitializeRegisterAccess(LPRTL8139_DEVICE Device) {
 
     Result = RealtekNetworkInitializeRegisterWindow(
         (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
-        REALTEK_REGISTER_ACCESS_MODE_IO,
         REALTEK_REGISTER_ACCESS_MODE_MMIO,
+        REALTEK_REGISTER_ACCESS_MODE_IO,
         RTL8139_REG_TXCONFIG,
         TEXT("RTL8139InitializeRegisterAccess"));
     if (Result != DF_RETURN_SUCCESS) {
