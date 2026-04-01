@@ -26,14 +26,6 @@
 #include "shell/Shell-EmbeddedScripts.h"
 #include "utils/SizeFormat.h"
 
-static U64 ShellSectorCountToBytes(U32 SectorCount) {
-#ifdef __EXOS_32__
-    return U64_Make(SectorCount >> 23, SectorCount << 9);
-#else
-    return ((U64)SectorCount << 9);
-#endif
-}
-
 /***************************************************************************/
 
 /**
@@ -223,8 +215,6 @@ U32 CMD_disk(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 U32 CMD_filesystem(LPSHELLCONTEXT Context) {
-    LPLISTNODE Node;
-    LPFILESYSTEM FileSystem;
     BOOL LongMode;
 
     ParseNextCommandLineComponent(Context);
@@ -236,139 +226,13 @@ U32 CMD_filesystem(LPSHELLCONTEXT Context) {
     }
 
     if (LongMode) {
-        ConsolePrint(TEXT("General information\n"));
-        FILESYSTEM_GLOBAL_INFO* FileSystemInfo = GetFileSystemGlobalInfo();
-
-        if (StringEmpty(FileSystemInfo->ActivePartitionName) == FALSE) {
-            ConsolePrint(TEXT("Active partition : %s\n"), FileSystemInfo->ActivePartitionName);
-        } else {
-            ConsolePrint(TEXT("Active partition : <none>\n"));
+        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_FILE_SYSTEM_LIST_LONG))) {
+            ConsolePrint(TEXT("Unable to run embedded file system long list script\n"));
         }
-
-        ConsolePrint(TEXT("\n"));
-        ConsolePrint(TEXT("Discovered file systems\n"));
     } else {
-        ConsolePrint(TEXT("%-12s %-12s %-10s %11s\n"),
-            TEXT("Name"), TEXT("Type"), TEXT("Format"), TEXT("Size"));
-        ConsolePrint(TEXT("-------------------------------------------------\n"));
-    }
-
-    U32 UnmountedCount = 0;
-    LPLIST Lists[2] = {GetFileSystemList(), GetUnusedFileSystemList()};
-    for (U32 ListIndex = 0; ListIndex < 2; ListIndex++) {
-        LPLIST FileSystemList = Lists[ListIndex];
-        for (Node = FileSystemList != NULL ? FileSystemList->First : NULL; Node; Node = Node->Next) {
-            DISKINFO DiskInfo;
-            BOOL DiskInfoValid = FALSE;
-            LPSTORAGE_UNIT StorageUnit;
-            U64 PartitionSizeBytes;
-            STR PartitionSizeText[32];
-
-            FileSystem = (LPFILESYSTEM)Node;
-            StorageUnit = FileSystemGetStorageUnit(FileSystem);
-            PartitionSizeBytes = ShellSectorCountToBytes(FileSystem->Partition.NumSectors);
-            SizeFormatBytesText(PartitionSizeBytes, PartitionSizeText);
-
-            if (FileSystem->Mounted == FALSE) {
-                UnmountedCount++;
-            }
-
-            if (!LongMode) {
-                STR DisplayName[MAX_FS_LOGICAL_NAME + 2];
-                StringCopy(DisplayName, FileSystem->Name);
-                if (FileSystem->Mounted == FALSE) {
-                    StringConcat(DisplayName, TEXT("*"));
-                }
-
-                ConsolePrint(TEXT("%-12s %-12s %-10s %11s\n"),
-                    DisplayName,
-                    FileSystemGetPartitionTypeName(&FileSystem->Partition),
-                    FileSystemGetPartitionFormatName(FileSystem->Partition.Format),
-                    PartitionSizeText);
-                continue;
-            }
-
-            ConsolePrint(TEXT("Name         : %s\n"), FileSystem->Name);
-            ConsolePrint(TEXT("Mounted      : %s\n"), FileSystem->Mounted ? TEXT("YES") : TEXT("NO"));
-            if (FileSystem->Driver != NULL) {
-                ConsolePrint(TEXT("FS driver    : %s / %s\n"), FileSystem->Driver->Manufacturer, FileSystem->Driver->Product);
-            } else {
-                ConsolePrint(TEXT("FS driver    : <none>\n"));
-            }
-            ConsolePrint(TEXT("Scheme       : %s\n"), FileSystemGetPartitionSchemeName(FileSystem->Partition.Scheme));
-            ConsolePrint(TEXT("Type         : %s\n"), FileSystemGetPartitionTypeName(&FileSystem->Partition));
-            ConsolePrint(TEXT("Format       : %s\n"), FileSystemGetPartitionFormatName(FileSystem->Partition.Format));
-            if (FileSystem->Partition.Format == PARTITION_FORMAT_NTFS) {
-                NTFS_VOLUME_GEOMETRY Geometry;
-                MemorySet(&Geometry, 0, sizeof(NTFS_VOLUME_GEOMETRY));
-                if (NtfsGetVolumeGeometry(FileSystem, &Geometry)) {
-                    STR GeometrySizeText[32];
-
-                    SizeFormatBytesText(U64_FromUINT(Geometry.BytesPerSector), GeometrySizeText);
-                    ConsolePrint(TEXT("NTFS bytes/sector   : %s\n"), GeometrySizeText);
-                    ConsolePrint(TEXT("NTFS sectors/cluster: %u\n"), Geometry.SectorsPerCluster);
-                    SizeFormatBytesText(U64_FromUINT(Geometry.BytesPerCluster), GeometrySizeText);
-                    ConsolePrint(TEXT("NTFS bytes/cluster  : %s\n"), GeometrySizeText);
-                    SizeFormatBytesText(U64_FromUINT(Geometry.FileRecordSize), GeometrySizeText);
-                    ConsolePrint(TEXT("NTFS record size    : %s\n"), GeometrySizeText);
-                    ConsolePrint(TEXT("NTFS MFT LCN : %x, %x\n"),
-                        (U32)U64_High32(Geometry.MftStartCluster),
-                        (U32)U64_Low32(Geometry.MftStartCluster));
-                    if (StringEmpty(Geometry.VolumeLabel)) {
-                        ConsolePrint(TEXT("NTFS label   : <unknown>\n"));
-                    } else {
-                        ConsolePrint(TEXT("NTFS label   : %s\n"), Geometry.VolumeLabel);
-                    }
-                }
-            }
-            ConsolePrint(TEXT("Index        : %u\n"), FileSystem->Partition.Index);
-            ConsolePrint(TEXT("Start sector : %u\n"), FileSystem->Partition.StartSector);
-            ConsolePrint(TEXT("Size         : %u sectors (%s)\n"),
-                FileSystem->Partition.NumSectors, PartitionSizeText);
-            ConsolePrint(TEXT("Active       : %s\n"),
-                (FileSystem->Partition.Flags & PARTITION_FLAG_ACTIVE) ? TEXT("YES") : TEXT("NO"));
-
-            if (FileSystem->Partition.Scheme == PARTITION_SCHEME_MBR) {
-                ConsolePrint(TEXT("Type id      : %x\n"), FileSystem->Partition.Type);
-            } else if (FileSystem->Partition.Scheme == PARTITION_SCHEME_GPT) {
-                ConsolePrint(TEXT("Type GUID    : %x-%x-%x-%x-%x-%x-%x-%x-%x-%x-%x-%x-%x-%x-%x-%x\n"),
-                    FileSystem->Partition.TypeGuid[0], FileSystem->Partition.TypeGuid[1],
-                    FileSystem->Partition.TypeGuid[2], FileSystem->Partition.TypeGuid[3],
-                    FileSystem->Partition.TypeGuid[4], FileSystem->Partition.TypeGuid[5],
-                    FileSystem->Partition.TypeGuid[6], FileSystem->Partition.TypeGuid[7],
-                    FileSystem->Partition.TypeGuid[8], FileSystem->Partition.TypeGuid[9],
-                    FileSystem->Partition.TypeGuid[10], FileSystem->Partition.TypeGuid[11],
-                    FileSystem->Partition.TypeGuid[12], FileSystem->Partition.TypeGuid[13],
-                    FileSystem->Partition.TypeGuid[14], FileSystem->Partition.TypeGuid[15]);
-            }
-
-            if (StorageUnit != NULL && StorageUnit->Driver != NULL) {
-                MemorySet(&DiskInfo, 0, sizeof(DISKINFO));
-                DiskInfo.Disk = StorageUnit;
-                if (StorageUnit->Driver->Command(DF_DISK_GETINFO, (UINT)&DiskInfo) == DF_RETURN_SUCCESS) {
-                    DiskInfoValid = TRUE;
-                }
-                ConsolePrint(TEXT("Storage      : %s / %s\n"),
-                    StorageUnit->Driver->Manufacturer, StorageUnit->Driver->Product);
-            } else {
-                ConsolePrint(TEXT("Storage      : <none>\n"));
-            }
-
-            if (DiskInfoValid) {
-                ConsolePrint(TEXT("Removable    : %s\n"), DiskInfo.Removable ? TEXT("YES") : TEXT("NO"));
-                ConsolePrint(TEXT("Read only    : %s\n"),
-                    (DiskInfo.Access & DISK_ACCESS_READONLY) ? TEXT("YES") : TEXT("NO"));
-                ConsolePrint(TEXT("Disk sectors : %x, %x\n"),
-                    (U32)U64_High32(DiskInfo.NumSectors),
-                    (U32)U64_Low32(DiskInfo.NumSectors));
-            }
-            ConsolePrint(TEXT("\n"));
+        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_FILE_SYSTEM_LIST))) {
+            ConsolePrint(TEXT("Unable to run embedded file system list script\n"));
         }
-    }
-
-    if (!LongMode && UnmountedCount > 0) {
-        ConsolePrint(TEXT("\n"));
-        ConsolePrint(TEXT("* = unmounted\n"));
     }
 
     return DF_RETURN_SUCCESS;

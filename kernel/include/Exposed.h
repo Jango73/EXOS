@@ -375,6 +375,37 @@ extern const SCRIPT_HOST_DESCRIPTOR StorageArrayDescriptor;
 
 /************************************************************************/
 
+SCRIPT_ERROR FileSystemRootGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR FileSystemGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR FileSystemArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR FileSystemArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+
+extern const SCRIPT_HOST_DESCRIPTOR FileSystemRootDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR FileSystemDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR FileSystemArrayDescriptor;
+extern SCRIPT_HOST_HANDLE FileSystemRootHandle;
+
+/************************************************************************/
+
 SCRIPT_ERROR NetworkGetProperty(
     LPVOID Context,
     SCRIPT_HOST_HANDLE Parent,

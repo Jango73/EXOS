@@ -96,6 +96,15 @@ BOOL ExposeRegisterDefaultScriptHostObjects(LPSCRIPT_CONTEXT Context) {
 
     if (!ExposeRegisterDefaultHostSymbol(
             Context,
+            TEXT("file_system"),
+            SCRIPT_HOST_SYMBOL_OBJECT,
+            FileSystemRootHandle,
+            &FileSystemRootDescriptor)) {
+        return FALSE;
+    }
+
+    if (!ExposeRegisterDefaultHostSymbol(
+            Context,
             TEXT("pci_bus"),
             SCRIPT_HOST_SYMBOL_ARRAY,
             GetPCIDeviceList(),
