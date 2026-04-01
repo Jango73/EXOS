@@ -504,7 +504,7 @@ SCRIPT_ERROR ScriptArraySet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE Typ
         if (Array->Elements[Index] == NULL) return SCRIPT_ERROR_OUT_OF_MEMORY;
         StringCopy((LPSTR)Array->Elements[Index], Value.String);
     } else if (Type == SCRIPT_VAR_INTEGER) {
-        I32* IntPtr = (I32*)ScriptAlloc(Array->Context, sizeof(I32));
+        INT* IntPtr = (INT*)ScriptAlloc(Array->Context, sizeof(INT));
         if (IntPtr == NULL) return SCRIPT_ERROR_OUT_OF_MEMORY;
         *IntPtr = Value.Integer;
         Array->Elements[Index] = IntPtr;
@@ -541,7 +541,7 @@ SCRIPT_ERROR ScriptArrayGet(LPSCRIPT_ARRAY Array, U32 Index, SCRIPT_VAR_TYPE* Ty
     if (*Type == SCRIPT_VAR_STRING) {
         Value->String = (LPSTR)Array->Elements[Index];
     } else if (*Type == SCRIPT_VAR_INTEGER) {
-        Value->Integer = *(I32*)Array->Elements[Index];
+        Value->Integer = *(INT*)Array->Elements[Index];
     } else if (*Type == SCRIPT_VAR_FLOAT) {
         Value->Float = *(F32*)Array->Elements[Index];
     } else {
@@ -767,6 +767,26 @@ BOOL ScriptValueToFloat(const SCRIPT_VALUE* Value, F32* OutValue) {
 
     if (Value->Type == SCRIPT_VAR_INTEGER) {
         *OutValue = (F32)Value->Value.Integer;
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+BOOL ScriptValueToInteger(const SCRIPT_VALUE* Value, INT* OutValue) {
+    if (Value == NULL || OutValue == NULL) {
+        return FALSE;
+    }
+
+    if (Value->Type == SCRIPT_VAR_INTEGER) {
+        *OutValue = Value->Value.Integer;
+        return TRUE;
+    }
+
+    if (Value->Type == SCRIPT_VAR_FLOAT && IsInteger(Value->Value.Float)) {
+        *OutValue = (INT)Value->Value.Float;
         return TRUE;
     }
 

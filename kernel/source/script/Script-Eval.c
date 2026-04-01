@@ -76,8 +76,13 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
 
     switch (Expr->Data.Expression.TokenType) {
         case TOKEN_NUMBER:
-            Result.Type = SCRIPT_VAR_FLOAT;
-            Result.Value.Float = Expr->Data.Expression.NumValue;
+            if (Expr->Data.Expression.IsIntegerLiteral) {
+                Result.Type = SCRIPT_VAR_INTEGER;
+                Result.Value.Integer = Expr->Data.Expression.IntegerValue;
+            } else {
+                Result.Type = SCRIPT_VAR_FLOAT;
+                Result.Value.Float = Expr->Data.Expression.FloatValue;
+            }
             return Result;
 
         case TOKEN_STRING: {
@@ -103,11 +108,11 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                     if (Parser->Callbacks && Parser->Callbacks->ExecuteCommand) {
                         LPCSTR CommandLine = Expr->Data.Expression.CommandLine ?
                             Expr->Data.Expression.CommandLine : Expr->Data.Expression.Value;
-                        U32 Status = Parser->Callbacks->ExecuteCommand(CommandLine, Parser->Callbacks->UserData);
+                        UINT Status = Parser->Callbacks->ExecuteCommand(CommandLine, Parser->Callbacks->UserData);
 
                         if (Status == DF_RETURN_SUCCESS) {
-                            Result.Type = SCRIPT_VAR_FLOAT;
-                            Result.Value.Float = (F32)Status;
+                            Result.Type = SCRIPT_VAR_INTEGER;
+                            Result.Value.Integer = (INT)Status;
                             return Result;
                         }
 
@@ -177,7 +182,7 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                                 }
 
                                 if (IsInteger(ArgNumeric)) {
-                                    StringPrintFormat(ArgBuffer, TEXT("%d"), (I32)ArgNumeric);
+                                    StringPrintFormat(ArgBuffer, TEXT("%d"), (INT)ArgNumeric);
                                 } else {
                                     StringPrintFormat(ArgBuffer, TEXT("%f"), ArgNumeric);
                                 }
@@ -187,7 +192,7 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                         }
                     }
 
-                    U32 Status = Parser->Callbacks->CallFunction(
+                    UINT Status = Parser->Callbacks->CallFunction(
                         Expr->Data.Expression.Value,
                         ArgString,
                         Parser->Callbacks->UserData);
@@ -196,8 +201,8 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                         ScriptValueRelease(&ArgValue);
                     }
 
-                    Result.Type = SCRIPT_VAR_FLOAT;
-                    Result.Value.Float = (F32)Status;
+                    Result.Type = SCRIPT_VAR_INTEGER;
+                    Result.Value.Integer = (INT)Status;
                     return Result;
                 }
 
@@ -222,8 +227,8 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                     return Result;
                 }
 
-                F32 IndexNumeric;
-                if (!ScriptValueToFloat(&IndexValue, &IndexNumeric)) {
+                INT IndexNumeric;
+                if (!ScriptValueToInteger(&IndexValue, &IndexNumeric) || IndexNumeric < 0) {
                     if (Error) {
                         *Error = SCRIPT_ERROR_TYPE_MISMATCH;
                     }
@@ -423,32 +428,56 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                     return Result;
                 }
 
-                Result.Type = SCRIPT_VAR_FLOAT;
+                if (LeftValue.Type == SCRIPT_VAR_INTEGER &&
+                    RightValue.Type == SCRIPT_VAR_INTEGER) {
+                    Result.Type = SCRIPT_VAR_INTEGER;
 
-                if (Operator == '+') {
-                    Result.Value.Float = LeftNumeric + RightNumeric;
-                } else if (Operator == '-') {
-                    Result.Value.Float = LeftNumeric - RightNumeric;
-                } else if (Operator == '*') {
-                    Result.Value.Float = LeftNumeric * RightNumeric;
-                } else if (Operator == '/') {
-                    if (RightNumeric == 0.0f) {
-                        if (Error) {
-                            *Error = SCRIPT_ERROR_DIVISION_BY_ZERO;
+                    if (Operator == '+') {
+                        Result.Value.Integer = LeftValue.Value.Integer + RightValue.Value.Integer;
+                    } else if (Operator == '-') {
+                        Result.Value.Integer = LeftValue.Value.Integer - RightValue.Value.Integer;
+                    } else if (Operator == '*') {
+                        Result.Value.Integer = LeftValue.Value.Integer * RightValue.Value.Integer;
+                    } else if (Operator == '/') {
+                        if (RightValue.Value.Integer == 0) {
+                            if (Error) {
+                                *Error = SCRIPT_ERROR_DIVISION_BY_ZERO;
+                            }
+                            ScriptValueRelease(&LeftValue);
+                            ScriptValueRelease(&RightValue);
+                            return Result;
                         }
-                        ScriptValueRelease(&LeftValue);
-                        ScriptValueRelease(&RightValue);
-                        return Result;
-                    }
 
-                    if (IsInteger(LeftNumeric) && IsInteger(RightNumeric)) {
-                        Result.Value.Float = (F32)((I32)LeftNumeric / (I32)RightNumeric);
+                        Result.Value.Integer = LeftValue.Value.Integer / RightValue.Value.Integer;
                     } else {
-                        Result.Value.Float = LeftNumeric / RightNumeric;
+                        if (Error) {
+                            *Error = SCRIPT_ERROR_SYNTAX;
+                        }
                     }
                 } else {
-                    if (Error) {
-                        *Error = SCRIPT_ERROR_SYNTAX;
+                    Result.Type = SCRIPT_VAR_FLOAT;
+
+                    if (Operator == '+') {
+                        Result.Value.Float = LeftNumeric + RightNumeric;
+                    } else if (Operator == '-') {
+                        Result.Value.Float = LeftNumeric - RightNumeric;
+                    } else if (Operator == '*') {
+                        Result.Value.Float = LeftNumeric * RightNumeric;
+                    } else if (Operator == '/') {
+                        if (RightNumeric == 0.0f) {
+                            if (Error) {
+                                *Error = SCRIPT_ERROR_DIVISION_BY_ZERO;
+                            }
+                            ScriptValueRelease(&LeftValue);
+                            ScriptValueRelease(&RightValue);
+                            return Result;
+                        }
+
+                        Result.Value.Float = LeftNumeric / RightNumeric;
+                    } else {
+                        if (Error) {
+                            *Error = SCRIPT_ERROR_SYNTAX;
+                        }
                     }
                 }
             } else {
@@ -464,16 +493,16 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                         return Result;
                     }
 
-                    Result.Type = SCRIPT_VAR_FLOAT;
+                    Result.Type = SCRIPT_VAR_INTEGER;
 
                     if (StringCompare(Expr->Data.Expression.Value, TEXT("==")) == 0) {
-                        Result.Value.Float = (StringCompare(
+                        Result.Value.Integer = (StringCompare(
                             LeftValue.Value.String ? LeftValue.Value.String : TEXT(""),
-                            RightValue.Value.String ? RightValue.Value.String : TEXT("")) == 0) ? 1.0f : 0.0f;
+                            RightValue.Value.String ? RightValue.Value.String : TEXT("")) == 0) ? 1 : 0;
                     } else {
-                        Result.Value.Float = (StringCompare(
+                        Result.Value.Integer = (StringCompare(
                             LeftValue.Value.String ? LeftValue.Value.String : TEXT(""),
-                            RightValue.Value.String ? RightValue.Value.String : TEXT("")) != 0) ? 1.0f : 0.0f;
+                            RightValue.Value.String ? RightValue.Value.String : TEXT("")) != 0) ? 1 : 0;
                     }
 
                     ScriptValueRelease(&LeftValue);
@@ -494,20 +523,20 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                     return Result;
                 }
 
-                Result.Type = SCRIPT_VAR_FLOAT;
+                Result.Type = SCRIPT_VAR_INTEGER;
 
                 if (StringCompare(Expr->Data.Expression.Value, TEXT("<")) == 0) {
-                    Result.Value.Float = (LeftNumeric < RightNumeric) ? 1.0f : 0.0f;
+                    Result.Value.Integer = (LeftNumeric < RightNumeric) ? 1 : 0;
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT("<=")) == 0) {
-                    Result.Value.Float = (LeftNumeric <= RightNumeric) ? 1.0f : 0.0f;
+                    Result.Value.Integer = (LeftNumeric <= RightNumeric) ? 1 : 0;
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT(">")) == 0) {
-                    Result.Value.Float = (LeftNumeric > RightNumeric) ? 1.0f : 0.0f;
+                    Result.Value.Integer = (LeftNumeric > RightNumeric) ? 1 : 0;
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT(">=")) == 0) {
-                    Result.Value.Float = (LeftNumeric >= RightNumeric) ? 1.0f : 0.0f;
+                    Result.Value.Integer = (LeftNumeric >= RightNumeric) ? 1 : 0;
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT("==")) == 0) {
-                    Result.Value.Float = (LeftNumeric == RightNumeric) ? 1.0f : 0.0f;
+                    Result.Value.Integer = (LeftNumeric == RightNumeric) ? 1 : 0;
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT("!=")) == 0) {
-                    Result.Value.Float = (LeftNumeric != RightNumeric) ? 1.0f : 0.0f;
+                    Result.Value.Integer = (LeftNumeric != RightNumeric) ? 1 : 0;
                 } else {
                     if (Error) {
                         *Error = SCRIPT_ERROR_SYNTAX;
@@ -612,8 +641,8 @@ SCRIPT_VALUE ScriptEvaluateArrayAccess(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, 
         return Result;
     }
 
-    F32 IndexNumeric;
-    if (!ScriptValueToFloat(&IndexValue, &IndexNumeric)) {
+    INT IndexNumeric;
+    if (!ScriptValueToInteger(&IndexValue, &IndexNumeric) || IndexNumeric < 0) {
         if (Error) {
             *Error = SCRIPT_ERROR_TYPE_MISMATCH;
         }

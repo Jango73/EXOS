@@ -30,6 +30,58 @@
 #include "script/Script-Internal.h"
 
 /************************************************************************/
+
+/**
+ * @brief Parse one numeric token into native integer or floating-point storage.
+ * @param Token Token to fill.
+ */
+static void ScriptFinalizeNumberToken(LPSCRIPT_TOKEN Token) {
+    UINT Index = 0;
+    BOOL HasDecimalPoint = FALSE;
+    INT IntegerPart = 0;
+    F32 FloatValue = 0.0f;
+    F32 FractionScale = 0.1f;
+
+    if (Token == NULL) {
+        return;
+    }
+
+    while (Token->Value[Index] != STR_NULL) {
+        STR Character = Token->Value[Index];
+
+        if (Character == '.') {
+            HasDecimalPoint = TRUE;
+            Index++;
+            continue;
+        }
+
+        if (!IsNumeric(Character)) {
+            break;
+        }
+
+        if (!HasDecimalPoint) {
+            IntegerPart = (IntegerPart * 10) + (INT)(Character - '0');
+        } else {
+            FloatValue += (F32)(Character - '0') * FractionScale;
+            FractionScale /= 10.0f;
+        }
+
+        Index++;
+    }
+
+    if (!HasDecimalPoint) {
+        Token->IsInteger = TRUE;
+        Token->IntegerValue = IntegerPart;
+        Token->FloatValue = (F32)IntegerPart;
+        return;
+    }
+
+    Token->IsInteger = FALSE;
+    Token->IntegerValue = IntegerPart;
+    Token->FloatValue += (F32)IntegerPart;
+}
+
+/************************************************************************/
 /**
  * @brief Initialize a script parser.
  * @param Parser Parser to initialize
@@ -84,7 +136,7 @@ void ScriptNextToken(LPSCRIPT_PARSER Parser) {
 
         MemoryCopy(Parser->CurrentToken.Value, &Input[Start], Len);
         Parser->CurrentToken.Value[Len] = STR_NULL;
-        Parser->CurrentToken.NumValue = (F32)StringToU32(Parser->CurrentToken.Value);
+        ScriptFinalizeNumberToken(&Parser->CurrentToken);
 
     } else if ((Ch >= 'a' && Ch <= 'z') || (Ch >= 'A' && Ch <= 'Z') || Ch == '_') {
         // Identifier
@@ -548,7 +600,9 @@ LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
         }
 
         Node->Data.Expression.TokenType = TOKEN_NUMBER;
-        Node->Data.Expression.NumValue = Parser->CurrentToken.NumValue;
+        Node->Data.Expression.IsIntegerLiteral = Parser->CurrentToken.IsInteger;
+        Node->Data.Expression.IntegerValue = Parser->CurrentToken.IntegerValue;
+        Node->Data.Expression.FloatValue = Parser->CurrentToken.FloatValue;
         StringCopy(Node->Data.Expression.Value, Parser->CurrentToken.Value);
         ScriptNextToken(Parser);
         return Node;

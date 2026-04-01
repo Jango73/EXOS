@@ -57,6 +57,7 @@ SCRIPT_ERROR ScriptPrepareHostValue(
     const SCRIPT_HOST_DESCRIPTOR* DefaultDescriptor,
     LPVOID DefaultContext);
 BOOL ScriptValueToFloat(const SCRIPT_VALUE* Value, F32* OutValue);
+BOOL ScriptValueToInteger(const SCRIPT_VALUE* Value, INT* OutValue);
 SCRIPT_ERROR ScriptValueToString(
     const SCRIPT_VALUE* Value,
     LPSCRIPT_CONTEXT Context,

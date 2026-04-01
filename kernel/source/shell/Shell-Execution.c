@@ -161,7 +161,7 @@ void ShellScriptOutput(LPCSTR Message, LPVOID UserData) {
  * @param UserData Shell context
  * @return DF_RETURN_SUCCESS on success or an error code on failure
  */
-U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData) {
+UINT ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData) {
     LPSHELLCONTEXT Context = (LPSHELLCONTEXT)UserData;
     U32 Index;
     U32 Result = DF_RETURN_GENERIC;
@@ -237,7 +237,7 @@ LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData) {
  * @param UserData Shell context
  * @return Function result (U32)
  */
-U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData) {
+UINT ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData) {
     LPSHELLCONTEXT Context = (LPSHELLCONTEXT)UserData;
 
     if (STRINGS_EQUAL(FuncName, TEXT("exec"))) {
@@ -246,7 +246,7 @@ U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData) {
         }
 
         // Execute the provided command line using the standard shell command flow
-        U32 Result = ShellScriptExecuteCommand(Argument, Context);
+        UINT Result = ShellScriptExecuteCommand(Argument, Context);
         return Result;
     } else if (STRINGS_EQUAL(FuncName, TEXT("print"))) {
         if (Argument == NULL) {

@@ -204,7 +204,7 @@ SCRIPT_ERROR TaskGetProperty(
                 return SCRIPT_ERROR_UNAUTHORIZED;
             }
             OutValue->Type = SCRIPT_VAR_INTEGER;
-            OutValue->Value.Integer = (I32)(UINT)(LPVOID)Task->Function;
+            OutValue->Value.Integer = (INT)(UINT)(LPVOID)Task->Function;
             return SCRIPT_OK;
         }
 
@@ -213,7 +213,7 @@ SCRIPT_ERROR TaskGetProperty(
                 return SCRIPT_ERROR_UNAUTHORIZED;
             }
             OutValue->Type = SCRIPT_VAR_INTEGER;
-            OutValue->Value.Integer = (I32)(UINT)(LPVOID)Task->Parameter;
+            OutValue->Value.Integer = (INT)(UINT)(LPVOID)Task->Parameter;
             return SCRIPT_OK;
         }
 

@@ -209,7 +209,7 @@ SCRIPT_ERROR DriverEnumDomainArrayGetElement(
         }
 
         OutValue->Type = SCRIPT_VAR_INTEGER;
-        OutValue->Value.Integer = (I32)Driver->EnumDomains[Index];
+        OutValue->Value.Integer = (INT)Driver->EnumDomains[Index];
         return SCRIPT_OK;
     }
 

@@ -49,6 +49,29 @@ static const SCRIPT_HOST_DESCRIPTOR TestHostArrayDescriptor;
 static const SCRIPT_HOST_DESCRIPTOR TestHostValueDescriptor;
 
 /************************************************************************/
+
+/**
+ * @brief Test function callback used by numeric semantics unit tests.
+ * @param FuncName Function name requested by the script.
+ * @param Argument Serialized function argument.
+ * @param UserData Callback user data (unused).
+ * @return Native-width integer status.
+ */
+static UINT TestScriptCallFunction(
+    LPCSTR FuncName,
+    LPCSTR Argument,
+    LPVOID UserData) {
+    UNUSED(Argument);
+    UNUSED(UserData);
+
+    if (StringCompareNC(FuncName, TEXT("native_status")) == 0) {
+        return 123;
+    }
+
+    return MAX_UINT;
+}
+
+/************************************************************************/
 /**
  * @brief Populate the static host items used by the exposure unit tests.
  * @param Items Array of host items to initialize
@@ -1248,6 +1271,87 @@ void TestScriptLoopWithIf(TEST_RESULTS* Results) {
 /************************************************************************/
 
 /**
+ * @brief Test native-width integer semantics in parser, evaluator and callbacks.
+ * @param Results Pointer to TEST_RESULTS structure to be filled with test results.
+ */
+void TestScriptIntegerSemantics(TEST_RESULTS* Results) {
+    SCRIPT_ERROR Error = SCRIPT_OK;
+
+    Results->TestsRun = 0;
+    Results->TestsPassed = 0;
+
+    Results->TestsRun++;
+    LPSCRIPT_CONTEXT Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Failed to create context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("value = 1.5 + 2.25;"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("value"));
+        if (Var && Var->Type == SCRIPT_VAR_FLOAT && Var->Value.Float == 3.75f) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptIntegerSemantics] Test 1 failed: wrong float result"));
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Test 1 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Failed to create context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("value = 7 / 2;"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("value"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 3) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptIntegerSemantics] Test 2 failed: value = %d (expected 3)"),
+                Var ? Var->Value.Integer : -1);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Test 2 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    SCRIPT_CALLBACKS Callbacks;
+    MemorySet(&Callbacks, 0, sizeof(SCRIPT_CALLBACKS));
+    Callbacks.CallFunction = TestScriptCallFunction;
+    Context = ScriptCreateContext(&Callbacks);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Failed to create callback context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("status = native_status(42);"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("status"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 123) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptIntegerSemantics] Test 3 failed: status = %d (expected 123)"),
+                Var ? Var->Value.Integer : -1);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Test 3 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+}
+
+/************************************************************************/
+
+/**
  * @brief Main Script test function that runs all Script unit tests.
  *
  * This function coordinates all Script unit tests and aggregates their results.
@@ -1314,6 +1418,11 @@ void TestScript(TEST_RESULTS* Results) {
 
     // Run complex script tests
     TestScriptComplex(&SubResults);
+    Results->TestsRun += SubResults.TestsRun;
+    Results->TestsPassed += SubResults.TestsPassed;
+
+    // Run native-width integer semantic tests
+    TestScriptIntegerSemantics(&SubResults);
     Results->TestsRun += SubResults.TestsRun;
     Results->TestsPassed += SubResults.TestsPassed;
 }

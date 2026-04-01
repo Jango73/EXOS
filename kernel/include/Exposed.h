@@ -64,7 +64,7 @@
     do { \
         if (STRINGS_EQUAL_NO_CASE(Property, TEXT(PropertyName))) { \
             OutValue->Type = SCRIPT_VAR_INTEGER; \
-            OutValue->Value.Integer = (I32)(ValueExpr); \
+            OutValue->Value.Integer = (INT)(ValueExpr); \
             return SCRIPT_OK; \
         } \
     } while (0)

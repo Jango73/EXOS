@@ -504,7 +504,7 @@ U32 ScriptHashVariable(LPCSTR Name) {
  * @return TRUE if value has no fractional part
  */
 BOOL IsInteger(F32 Value) {
-    return Value == (F32)(I32)Value;
+    return Value == (F32)(INT)Value;
 }
 
 /************************************************************************/
@@ -635,7 +635,7 @@ SCRIPT_ERROR ScriptExecuteAssignment(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
         F32 Numeric = (EvaluatedValue.Type == SCRIPT_VAR_FLOAT) ? EvaluatedValue.Value.Float : 0.0f;
         if (IsInteger(Numeric)) {
             VarType = SCRIPT_VAR_INTEGER;
-            VarValue.Integer = (I32)Numeric;
+            VarValue.Integer = (INT)Numeric;
         } else {
             VarType = SCRIPT_VAR_FLOAT;
             VarValue.Float = Numeric;
@@ -653,8 +653,8 @@ SCRIPT_ERROR ScriptExecuteAssignment(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
             return Error;
         }
 
-        F32 IndexNumeric;
-        if (!ScriptValueToFloat(&IndexValue, &IndexNumeric)) {
+        INT IndexNumeric;
+        if (!ScriptValueToInteger(&IndexValue, &IndexNumeric) || IndexNumeric < 0) {
             ScriptValueRelease(&EvaluatedValue);
             ScriptValueRelease(&IndexValue);
             return SCRIPT_ERROR_TYPE_MISMATCH;

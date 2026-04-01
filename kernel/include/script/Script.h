@@ -122,7 +122,7 @@ typedef struct tag_SCRIPT_ARRAY {
 
 typedef union tag_SCRIPT_VAR_VALUE {
     LPSTR String;
-    I32 Integer;
+    INT Integer;
     F32 Float;
     LPSCRIPT_ARRAY Array;
     LPVOID HostHandle;
@@ -191,7 +191,9 @@ typedef struct tag_SCRIPT_HOST_REGISTRY {
 typedef struct tag_SCRIPT_TOKEN {
     TOKEN_TYPE Type;
     STR Value[MAX_TOKEN_LENGTH];
-    F32 NumValue;
+    BOOL IsInteger;
+    INT IntegerValue;
+    F32 FloatValue;
     U32 Position;
     U32 Line;
     U32 Column;
@@ -200,9 +202,9 @@ typedef struct tag_SCRIPT_TOKEN {
 /************************************************************************/
 
 typedef void (*SCRIPT_OUTPUT_CALLBACK)(LPCSTR Message, LPVOID UserData);
-typedef U32 (*SCRIPT_COMMAND_CALLBACK)(LPCSTR Command, LPVOID UserData);
+typedef UINT (*SCRIPT_COMMAND_CALLBACK)(LPCSTR Command, LPVOID UserData);
 typedef LPCSTR (*SCRIPT_VARIABLE_RESOLVER)(LPCSTR VarName, LPVOID UserData);
-typedef U32 (*SCRIPT_FUNCTION_CALLBACK)(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
+typedef UINT (*SCRIPT_FUNCTION_CALLBACK)(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
 
 typedef struct tag_SCRIPT_CALLBACKS {
     SCRIPT_OUTPUT_CALLBACK Output;
@@ -251,7 +253,9 @@ typedef struct tag_AST_NODE {
         struct {
             TOKEN_TYPE TokenType;
             STR Value[MAX_TOKEN_LENGTH];
-            F32 NumValue;
+            BOOL IsIntegerLiteral;
+            INT IntegerValue;
+            F32 FloatValue;
             BOOL IsVariable;
             BOOL IsArrayAccess;
             U32 ArrayIndex;
