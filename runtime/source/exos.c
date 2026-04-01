@@ -70,6 +70,20 @@ BOOL GetProcessMemoryInfo(LPPROCESS_MEMORY_INFO Info) {
 
 /***************************************************************************/
 
+BOOL GetProfileInfo(LPPROFILE_QUERY_INFO Info) {
+    if (Info == NULL) {
+        return FALSE;
+    }
+
+    Info->Header.Size = sizeof(*Info);
+    Info->Header.Version = EXOS_ABI_VERSION;
+    Info->Header.Flags = 0;
+
+    return exoscall(SYSCALL_GetProfileInfo, EXOS_PARAM(Info)) == DF_RETURN_SUCCESS;
+}
+
+/***************************************************************************/
+
 BOOL GetMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last) {
     MESSAGE_INFO MessageInfo;
     BOOL Result;

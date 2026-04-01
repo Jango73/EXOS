@@ -100,6 +100,7 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_KillProcess 0x00000009
 #define SYSCALL_GetProcessInfo 0x0000000A
 #define SYSCALL_GetProcessMemoryInfo 0x00000087
+#define SYSCALL_GetProfileInfo 0x00000089
 
 /************************************************************************/
 // Threading Services
@@ -299,12 +300,14 @@ BOOL GetLocalTime(LPDATETIME Time);
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x00000089
+#define SYSCALL_Last 0x0000008A
 
 /************************************************************************/
 // Structure limits
 
 #define WAIT_INFO_MAX_OBJECTS 32
+#define PROFILE_MAX_ENTRIES   64
+#define PROFILE_NAME_LENGTH   64
 
 /************************************************************************/
 // ABI Data Structures
@@ -364,6 +367,28 @@ typedef struct PACKED tag_PROCESS_MEMORY_INFO {
     UINT HeapUsedBytes;
     UINT HeapFreeBytes;
 } PROCESS_MEMORY_INFO, *LPPROCESS_MEMORY_INFO;
+
+typedef struct PACKED tag_PROFILE_ENTRY_INFO {
+    STR Name[PROFILE_NAME_LENGTH];
+    UINT CallCount;
+    UINT TimedCallCount;
+    UINT LastTicks;
+    UINT TotalTicks;
+    UINT MaxTicks;
+} PROFILE_ENTRY_INFO, *LPPROFILE_ENTRY_INFO;
+
+#define PROFILE_QUERY_FLAG_RESET 0x00000001
+
+typedef struct PACKED tag_PROFILE_QUERY_INFO {
+    ABI_HEADER Header;
+    UINT Capacity;
+    UINT Flags;
+    UINT EntryCount;
+    UINT TotalEntryCount;
+    UINT SampleCount;
+    UINT DroppedCount;
+    LPPROFILE_ENTRY_INFO Entries;
+} PROFILE_QUERY_INFO, *LPPROFILE_QUERY_INFO;
 
 typedef struct PACKED tag_CONSOLE_BLIT_BUFFER {
     UINT X;

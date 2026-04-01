@@ -38,6 +38,7 @@
 #include "Desktop.h"
 #include "desktop/Desktop-NonClient.h"
 #include "desktop/Desktop-WindowClass.h"
+#include "Profile.h"
 #include "process/Process.h"
 #include "process/Schedule.h"
 #include "User.h"
@@ -367,6 +368,32 @@ UINT SysCall_GetProcessMemoryInfo(UINT Parameter) {
                 return DF_RETURN_GENERIC;
             }
 
+            return DF_RETURN_SUCCESS;
+        }
+    }
+
+    return DF_RETURN_GENERIC;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Copy a bounded profiling snapshot into a user buffer.
+ *
+ * @param Parameter Pointer to PROFILE_QUERY_INFO provided by userland.
+ * @return UINT DF_RETURN_SUCCESS on success, DF_RETURN_GENERIC on error.
+ */
+UINT SysCall_GetProfileInfo(UINT Parameter) {
+    LPPROFILE_QUERY_INFO Info = (LPPROFILE_QUERY_INFO)Parameter;
+
+    SAFE_USE_INPUT_POINTER(Info, PROFILE_QUERY_INFO) {
+        if (Info->Capacity == 0) {
+            ProfileGetStats(Info);
+            return DF_RETURN_SUCCESS;
+        }
+
+        SAFE_USE_VALID(Info->Entries) {
+            ProfileGetStats(Info);
             return DF_RETURN_SUCCESS;
         }
     }

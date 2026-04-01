@@ -2,7 +2,6 @@
 
 ## High priority
 
-- Add fast diagnostic system : counters for function calls
 - Execute Shell-Scripting-Exposure-Plan.md : all remaining steps
 - Execute Packaging-System-Plan.md : all remaining steps
 - Execute Universal-Serial-Bus.md : all remaining steps

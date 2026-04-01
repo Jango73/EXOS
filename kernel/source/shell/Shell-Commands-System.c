@@ -418,10 +418,82 @@ U32 CMD_shutdown(LPSHELLCONTEXT Context) {
 
 /************************************************************************/
 
+/**
+ * @brief Print one profiling snapshot entry.
+ * @param Entry Snapshot entry to print.
+ */
+static void PrintProfileEntry(LPPROFILE_ENTRY_INFO Entry) {
+    UINT Average = 0;
+
+    if (Entry == NULL) {
+        return;
+    }
+
+    if (Entry->TimedCallCount > 0) {
+        Average = Entry->TotalTicks / Entry->TimedCallCount;
+    }
+
+    ConsolePrint(
+        TEXT("%-32s calls=%u timed=%u last=%u us avg=%u us max=%u us total=%u us\n"),
+        Entry->Name,
+        Entry->CallCount,
+        Entry->TimedCallCount,
+        Entry->LastTicks,
+        Average,
+        Entry->MaxTicks,
+        Entry->TotalTicks);
+}
+
+/************************************************************************/
+
 U32 CMD_prof(LPSHELLCONTEXT Context) {
-    UNUSED(Context);
-    ProfileDump();
-    return 0;
+    PROFILE_ENTRY_INFO Entries[PROFILE_MAX_ENTRIES];
+    PROFILE_QUERY_INFO Query;
+    UINT Result;
+
+    MemorySet(Entries, 0, sizeof(Entries));
+    MemorySet(&Query, 0, sizeof(Query));
+
+    ParseNextCommandLineComponent(Context);
+
+    Query.Header.Size = sizeof(Query);
+    Query.Header.Version = EXOS_ABI_VERSION;
+    Query.Header.Flags = 0;
+    Query.Capacity = PROFILE_MAX_ENTRIES;
+    Query.Flags = 0;
+    Query.Entries = Entries;
+
+    if (StringLength(Context->Command) != 0) {
+        if (StringCompareNC(Context->Command, TEXT("reset")) == 0) {
+            Query.Flags = PROFILE_QUERY_FLAG_RESET;
+        } else {
+            ConsolePrint(TEXT("Usage: prof [reset]\n"));
+            return DF_RETURN_SUCCESS;
+        }
+    }
+
+    Result = DoSystemCall(SYSCALL_GetProfileInfo, SYSCALL_PARAM(&Query));
+    if (Result != DF_RETURN_SUCCESS) {
+        ConsolePrint(TEXT("Profiling snapshot unavailable.\n"));
+        return Result;
+    }
+
+    if (Query.EntryCount == 0) {
+        ConsolePrint(TEXT("No profiling samples available.\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    for (UINT Index = 0; Index < Query.EntryCount; ++Index) {
+        PrintProfileEntry(&Entries[Index]);
+    }
+
+    ConsolePrint(TEXT("entries=%u total_entries=%u samples=%u dropped=%u%s\n"),
+                 Query.EntryCount,
+                 Query.TotalEntryCount,
+                 Query.SampleCount,
+                 Query.DroppedCount,
+                 (Query.Flags & PROFILE_QUERY_FLAG_RESET) != 0 ? TEXT(" reset=yes") : TEXT(""));
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/

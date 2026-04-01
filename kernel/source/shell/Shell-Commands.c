@@ -56,7 +56,7 @@ SHELL_COMMAND_ENTRY COMMANDS[] = {
     {"passwd", "set_password", "", "Change user password", CMD_passwd},
     {"pause", "pause", "on|off", "Toggle paged output", CMD_pause},
     {"pic", "pic", "", "Show interrupt controller info", CMD_pic},
-    {"prof", "profiling", "", "Show profiling statistics", CMD_prof},
+    {"prof", "profiling", "[reset]", "Show profiling statistics", CMD_prof},
     {"quit", "exit", "", "Exit shell", CMD_exit},
     {"reboot", "reboot", "", "Reboot system", CMD_reboot},
     {"run", "launch", "Name [-b|--background]", "Launch executable", CMD_run},
