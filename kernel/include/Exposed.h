@@ -406,6 +406,37 @@ extern SCRIPT_HOST_HANDLE FileSystemRootHandle;
 
 /************************************************************************/
 
+SCRIPT_ERROR MemoryMapRootGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR MemoryRegionDescriptorGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR MemoryRegionArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR MemoryRegionArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+
+extern const SCRIPT_HOST_DESCRIPTOR MemoryMapRootDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR MemoryRegionDescriptorDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR MemoryRegionArrayDescriptor;
+extern SCRIPT_HOST_HANDLE MemoryMapRootHandle;
+
+/************************************************************************/
+
 SCRIPT_ERROR NetworkGetProperty(
     LPVOID Context,
     SCRIPT_HOST_HANDLE Parent,

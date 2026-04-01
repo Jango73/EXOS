@@ -221,35 +221,8 @@ U32 CMD_memedit(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 U32 CMD_memorymap(LPSHELLCONTEXT Context) {
-    UNUSED(Context);
-
-    LPPROCESS Process = &KernelProcess;
-    LPMEMORY_REGION_LIST RegionList = GetProcessMemoryRegionList(Process);
-    LPMEMORY_REGION_DESCRIPTOR Descriptor = (RegionList == NULL) ? NULL : RegionList->Head;
-    UINT Index = 0;
-
-    ConsolePrint(TEXT("Kernel regions: %u\n"), RegionList ? RegionList->Count : 0);
-
-    while (Descriptor != NULL) {
-        LPCSTR Tag = (Descriptor->Tag[0] == STR_NULL) ? TEXT("???") : Descriptor->Tag;
-        STR SizeText[32];
-        SizeFormatBytesText(U64_FromUINT(Descriptor->Size), SizeText);
-        if (Descriptor->PhysicalBase == 0) {
-            ConsolePrint(TEXT("%u: tag=%s base=%p size=%s phys=???\n"),
-                Index,
-                Tag,
-                (LPVOID)Descriptor->CanonicalBase,
-                SizeText);
-        } else {
-            ConsolePrint(TEXT("%u: tag=%s base=%p size=%s phys=%p\n"),
-                Index,
-                Tag,
-                (LPVOID)Descriptor->CanonicalBase,
-                SizeText,
-                (LPVOID)Descriptor->PhysicalBase);
-        }
-        Descriptor = (LPMEMORY_REGION_DESCRIPTOR)Descriptor->Next;
-        Index++;
+    if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_MEMORY_MAP))) {
+        ConsolePrint(TEXT("Unable to run embedded memory-map script\n"));
     }
 
     return DF_RETURN_SUCCESS;
