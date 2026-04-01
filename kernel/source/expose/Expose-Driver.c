@@ -50,16 +50,21 @@ SCRIPT_ERROR DriverGetProperty(
     UNUSED(Context);
 
     EXPOSE_PROPERTY_GUARD();
-    EXPOSE_REQUIRE_ACCESS(EXPOSE_ACCESS_DRIVER, NULL);
 
     LPDRIVER Driver = (LPDRIVER)Parent;
     SAFE_USE_VALID_ID(Driver, KOID_DRIVER) {
+        EXPOSE_BIND_STRING("alias", Driver->Alias);
+        EXPOSE_BIND_STRING("type_name", DriverTypeToText(Driver->Type));
         EXPOSE_BIND_INTEGER("type", Driver->Type);
+        EXPOSE_BIND_STRING("product", Driver->Product);
+        EXPOSE_BIND_INTEGER("ready", (Driver->Flags & DRIVER_FLAG_READY) != 0);
+
+        EXPOSE_REQUIRE_ACCESS(EXPOSE_ACCESS_DRIVER, NULL);
+
         EXPOSE_BIND_INTEGER("version_major", Driver->VersionMajor);
         EXPOSE_BIND_INTEGER("version_minor", Driver->VersionMinor);
         EXPOSE_BIND_STRING("designer", Driver->Designer);
         EXPOSE_BIND_STRING("manufacturer", Driver->Manufacturer);
-        EXPOSE_BIND_STRING("product", Driver->Product);
         EXPOSE_BIND_INTEGER("flags", Driver->Flags);
         EXPOSE_BIND_INTEGER("enum_domain_count", Driver->EnumDomainCount);
 
@@ -97,7 +102,6 @@ SCRIPT_ERROR DriverArrayGetProperty(
     UNUSED(Context);
 
     EXPOSE_PROPERTY_GUARD();
-    EXPOSE_REQUIRE_ACCESS(EXPOSE_ACCESS_DRIVER, NULL);
 
     LPLIST DriverList = (LPLIST)Parent;
     if (DriverList == NULL) {
@@ -128,7 +132,6 @@ SCRIPT_ERROR DriverArrayGetElement(
     UNUSED(Context);
 
     EXPOSE_ARRAY_GUARD();
-    EXPOSE_REQUIRE_ACCESS(EXPOSE_ACCESS_DRIVER, NULL);
 
     LPLIST DriverList = (LPLIST)Parent;
     if (DriverList == NULL) {

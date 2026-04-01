@@ -327,6 +327,20 @@ LPSCRIPT_VARIABLE ScriptGetArrayElement(LPSCRIPT_CONTEXT Context, LPCSTR Name, U
 BOOL ScriptRegisterHostSymbol(LPSCRIPT_CONTEXT Context, LPCSTR Name, SCRIPT_HOST_SYMBOL_KIND Kind, SCRIPT_HOST_HANDLE Handle, const SCRIPT_HOST_DESCRIPTOR* Descriptor, LPVOID ContextPointer);
 void ScriptUnregisterHostSymbol(LPSCRIPT_CONTEXT Context, LPCSTR Name);
 void ScriptClearHostSymbols(LPSCRIPT_CONTEXT Context);
+void ScriptValueInit(SCRIPT_VALUE* Value);
+void ScriptValueRelease(SCRIPT_VALUE* Value);
+SCRIPT_ERROR ScriptGetHostSymbolValue(
+    LPSCRIPT_CONTEXT Context,
+    LPCSTR Name,
+    LPSCRIPT_VALUE OutValue);
+SCRIPT_ERROR ScriptGetHostPropertyValue(
+    const SCRIPT_VALUE* ParentValue,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+SCRIPT_ERROR ScriptGetHostElementValue(
+    const SCRIPT_VALUE* ParentValue,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
 
 // Scope management functions
 LPSCRIPT_SCOPE ScriptCreateScope(LPSCRIPT_CONTEXT Context, LPSCRIPT_SCOPE Parent);

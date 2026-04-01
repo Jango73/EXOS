@@ -390,7 +390,7 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                 SCRIPT_ERROR StringError = SCRIPT_OK;
 
                 if (Operator == '+') {
-                    if (LeftValue.Type == SCRIPT_VAR_STRING || RightValue.Type == SCRIPT_VAR_STRING) {
+                    if (LeftValue.Type == SCRIPT_VAR_STRING) {
                         StringError = ScriptConcatStrings(&LeftValue, &RightValue, &Result);
                         if (StringError != SCRIPT_OK && Error) {
                             *Error = StringError;
@@ -452,6 +452,35 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                     }
                 }
             } else {
+                if ((LeftValue.Type == SCRIPT_VAR_STRING || RightValue.Type == SCRIPT_VAR_STRING) &&
+                    (StringCompare(Expr->Data.Expression.Value, TEXT("==")) == 0 ||
+                     StringCompare(Expr->Data.Expression.Value, TEXT("!=")) == 0)) {
+                    if (LeftValue.Type != SCRIPT_VAR_STRING || RightValue.Type != SCRIPT_VAR_STRING) {
+                        if (Error) {
+                            *Error = SCRIPT_ERROR_TYPE_MISMATCH;
+                        }
+                        ScriptValueRelease(&LeftValue);
+                        ScriptValueRelease(&RightValue);
+                        return Result;
+                    }
+
+                    Result.Type = SCRIPT_VAR_FLOAT;
+
+                    if (StringCompare(Expr->Data.Expression.Value, TEXT("==")) == 0) {
+                        Result.Value.Float = (StringCompare(
+                            LeftValue.Value.String ? LeftValue.Value.String : TEXT(""),
+                            RightValue.Value.String ? RightValue.Value.String : TEXT("")) == 0) ? 1.0f : 0.0f;
+                    } else {
+                        Result.Value.Float = (StringCompare(
+                            LeftValue.Value.String ? LeftValue.Value.String : TEXT(""),
+                            RightValue.Value.String ? RightValue.Value.String : TEXT("")) != 0) ? 1.0f : 0.0f;
+                    }
+
+                    ScriptValueRelease(&LeftValue);
+                    ScriptValueRelease(&RightValue);
+                    return Result;
+                }
+
                 F32 LeftNumeric;
                 F32 RightNumeric;
 

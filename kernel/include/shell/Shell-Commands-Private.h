@@ -67,6 +67,8 @@ U32 CMD_nvme(LPSHELLCONTEXT Context);
 U32 CMD_dataview(LPSHELLCONTEXT Context);
 
 void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL Pause, BOOL Recurse, U32* NumListed);
+BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName);
+BOOL RunEmbeddedScript(LPSHELLCONTEXT Context, LPCSTR ScriptText);
 
 /************************************************************************/
 

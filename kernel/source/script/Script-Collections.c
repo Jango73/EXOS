@@ -182,6 +182,222 @@ LPSCRIPT_HOST_SYMBOL ScriptFindHostSymbol(LPSCRIPT_HOST_REGISTRY Registry, LPCST
 
     return NULL;
 }
+
+/************************************************************************/
+
+/**
+ * @brief Resolve the owning script context for one public value access.
+ * @param Value Source value.
+ * @return Script context or NULL when unavailable.
+ */
+static LPSCRIPT_CONTEXT ScriptGetValueContext(const SCRIPT_VALUE* Value) {
+    if (Value == NULL) {
+        return NULL;
+    }
+
+    return Value->ContextOwner;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve one registered host symbol into a reusable script value.
+ * @param Context Script context that owns the host registry.
+ * @param Name Host symbol name.
+ * @param OutValue Destination script value.
+ * @return SCRIPT_OK on success, otherwise an error code.
+ */
+SCRIPT_ERROR ScriptGetHostSymbolValue(
+    LPSCRIPT_CONTEXT Context,
+    LPCSTR Name,
+    LPSCRIPT_VALUE OutValue) {
+    LPSCRIPT_HOST_SYMBOL HostSymbol;
+    LPVOID HostContext;
+    SCRIPT_ERROR Result;
+
+    if (Context == NULL || Name == NULL || OutValue == NULL) {
+        return SCRIPT_ERROR_SYNTAX;
+    }
+
+    ScriptValueInit(OutValue);
+
+    HostSymbol = ScriptFindHostSymbol(&Context->HostRegistry, Name);
+    if (HostSymbol == NULL) {
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    HostContext = HostSymbol->Context ? HostSymbol->Context : HostSymbol->Descriptor->Context;
+
+    if (HostSymbol->Kind == SCRIPT_HOST_SYMBOL_PROPERTY) {
+        if (HostSymbol->Descriptor == NULL || HostSymbol->Descriptor->GetProperty == NULL) {
+            return SCRIPT_ERROR_TYPE_MISMATCH;
+        }
+
+        Result = HostSymbol->Descriptor->GetProperty(
+            HostContext,
+            HostSymbol->Handle,
+            HostSymbol->Name,
+            OutValue);
+        if (Result != SCRIPT_OK) {
+            ScriptValueRelease(OutValue);
+            return Result;
+        }
+
+        Result = ScriptPrepareHostValue(
+            Context,
+            OutValue,
+            HostSymbol->Descriptor,
+            HostContext);
+        if (Result != SCRIPT_OK) {
+            ScriptValueRelease(OutValue);
+            return Result;
+        }
+
+        if (OutValue->ContextOwner == NULL) {
+            OutValue->ContextOwner = Context;
+        }
+
+        return SCRIPT_OK;
+    }
+
+    OutValue->Type = SCRIPT_VAR_HOST_HANDLE;
+    OutValue->Value.HostHandle = HostSymbol->Handle;
+    OutValue->ContextOwner = Context;
+    OutValue->HostDescriptor = HostSymbol->Descriptor;
+    OutValue->OwnsValue = FALSE;
+    OutValue->HostContext = HostContext;
+    return SCRIPT_OK;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve one exposed host property from a script host value.
+ * @param ParentValue Parent host value.
+ * @param Property Property name.
+ * @param OutValue Destination script value.
+ * @return SCRIPT_OK on success, otherwise an error code.
+ */
+SCRIPT_ERROR ScriptGetHostPropertyValue(
+    const SCRIPT_VALUE* ParentValue,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue) {
+    LPSCRIPT_CONTEXT Context;
+    LPVOID HostContext;
+    SCRIPT_ERROR Result;
+
+    if (ParentValue == NULL || Property == NULL || OutValue == NULL) {
+        return SCRIPT_ERROR_SYNTAX;
+    }
+
+    if (ParentValue->Type != SCRIPT_VAR_HOST_HANDLE ||
+        ParentValue->HostDescriptor == NULL ||
+        ParentValue->HostDescriptor->GetProperty == NULL) {
+        return SCRIPT_ERROR_TYPE_MISMATCH;
+    }
+
+    Context = ScriptGetValueContext(ParentValue);
+    if (Context == NULL) {
+        return SCRIPT_ERROR_SYNTAX;
+    }
+
+    ScriptValueInit(OutValue);
+
+    HostContext = ParentValue->HostContext
+        ? ParentValue->HostContext
+        : ParentValue->HostDescriptor->Context;
+
+    Result = ParentValue->HostDescriptor->GetProperty(
+        HostContext,
+        ParentValue->Value.HostHandle,
+        Property,
+        OutValue);
+    if (Result != SCRIPT_OK) {
+        ScriptValueRelease(OutValue);
+        return Result;
+    }
+
+    Result = ScriptPrepareHostValue(
+        Context,
+        OutValue,
+        ParentValue->HostDescriptor,
+        HostContext);
+    if (Result != SCRIPT_OK) {
+        ScriptValueRelease(OutValue);
+        return Result;
+    }
+
+    if (OutValue->ContextOwner == NULL) {
+        OutValue->ContextOwner = Context;
+    }
+
+    return SCRIPT_OK;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resolve one exposed host array element from a script host value.
+ * @param ParentValue Parent host value.
+ * @param Index Element index.
+ * @param OutValue Destination script value.
+ * @return SCRIPT_OK on success, otherwise an error code.
+ */
+SCRIPT_ERROR ScriptGetHostElementValue(
+    const SCRIPT_VALUE* ParentValue,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue) {
+    LPSCRIPT_CONTEXT Context;
+    LPVOID HostContext;
+    SCRIPT_ERROR Result;
+
+    if (ParentValue == NULL || OutValue == NULL) {
+        return SCRIPT_ERROR_SYNTAX;
+    }
+
+    if (ParentValue->Type != SCRIPT_VAR_HOST_HANDLE ||
+        ParentValue->HostDescriptor == NULL ||
+        ParentValue->HostDescriptor->GetElement == NULL) {
+        return SCRIPT_ERROR_TYPE_MISMATCH;
+    }
+
+    Context = ScriptGetValueContext(ParentValue);
+    if (Context == NULL) {
+        return SCRIPT_ERROR_SYNTAX;
+    }
+
+    ScriptValueInit(OutValue);
+
+    HostContext = ParentValue->HostContext
+        ? ParentValue->HostContext
+        : ParentValue->HostDescriptor->Context;
+
+    Result = ParentValue->HostDescriptor->GetElement(
+        HostContext,
+        ParentValue->Value.HostHandle,
+        Index,
+        OutValue);
+    if (Result != SCRIPT_OK) {
+        ScriptValueRelease(OutValue);
+        return Result;
+    }
+
+    Result = ScriptPrepareHostValue(
+        Context,
+        OutValue,
+        ParentValue->HostDescriptor,
+        HostContext);
+    if (Result != SCRIPT_OK) {
+        ScriptValueRelease(OutValue);
+        return Result;
+    }
+
+    if (OutValue->ContextOwner == NULL) {
+        OutValue->ContextOwner = Context;
+    }
+
+    return SCRIPT_OK;
+}
 /**
  * @brief Create a new array with initial capacity.
  * @param InitialCapacity Initial capacity of the array
@@ -560,31 +776,120 @@ BOOL ScriptValueToFloat(const SCRIPT_VALUE* Value, F32* OutValue) {
 /************************************************************************/
 
 /**
+ * @brief Convert one script value to text for string-oriented operations.
+ * @param Value Source value.
+ * @param Context Allocator owner for temporary text conversion.
+ * @param OutText Receives converted text pointer.
+ * @param OutOwnsText Receives TRUE when caller must free `OutText`.
+ * @return SCRIPT_OK on success, otherwise an error code.
+ */
+SCRIPT_ERROR ScriptValueToString(
+    const SCRIPT_VALUE* Value,
+    LPSCRIPT_CONTEXT Context,
+    LPCSTR* OutText,
+    BOOL* OutOwnsText) {
+    LPSTR Buffer = NULL;
+
+    if (Value == NULL || Context == NULL || OutText == NULL || OutOwnsText == NULL) {
+        return SCRIPT_ERROR_SYNTAX;
+    }
+
+    *OutText = NULL;
+    *OutOwnsText = FALSE;
+
+    if (Value->Type == SCRIPT_VAR_STRING) {
+        *OutText = Value->Value.String ? Value->Value.String : TEXT("");
+        return SCRIPT_OK;
+    }
+
+    if (Value->Type == SCRIPT_VAR_INTEGER) {
+        Buffer = (LPSTR)ScriptAlloc(Context, 32);
+        if (Buffer == NULL) {
+            return SCRIPT_ERROR_OUT_OF_MEMORY;
+        }
+
+        StringPrintFormat(Buffer, TEXT("%d"), Value->Value.Integer);
+        *OutText = Buffer;
+        *OutOwnsText = TRUE;
+        return SCRIPT_OK;
+    }
+
+    if (Value->Type == SCRIPT_VAR_FLOAT) {
+        Buffer = (LPSTR)ScriptAlloc(Context, 64);
+        if (Buffer == NULL) {
+            return SCRIPT_ERROR_OUT_OF_MEMORY;
+        }
+
+        StringPrintFormat(Buffer, TEXT("%f"), Value->Value.Float);
+        *OutText = Buffer;
+        *OutOwnsText = TRUE;
+        return SCRIPT_OK;
+    }
+
+    return SCRIPT_ERROR_TYPE_MISMATCH;
+}
+
+/************************************************************************/
+
+/**
  * @brief Concatenate two script strings and store the result.
  * @param LeftValue Left operand (must be a string)
- * @param RightValue Right operand (must be a string)
+ * @param RightValue Right operand (string-convertible)
  * @param Result Destination value
  * @return SCRIPT_OK on success, otherwise an error code
  */
 SCRIPT_ERROR ScriptConcatStrings(const SCRIPT_VALUE* LeftValue, const SCRIPT_VALUE* RightValue, SCRIPT_VALUE* Result) {
+    LPCSTR LeftText = NULL;
+    LPCSTR RightText = NULL;
+    BOOL OwnsLeftText = FALSE;
+    BOOL OwnsRightText = FALSE;
+    LPSCRIPT_CONTEXT ResultContext = NULL;
+    UINT LeftLength = 0;
+    UINT RightLength = 0;
+    UINT TotalLength = 0;
+    LPSTR NewString = NULL;
+    SCRIPT_ERROR Error = SCRIPT_OK;
+
     if (LeftValue == NULL || RightValue == NULL || Result == NULL) {
         return SCRIPT_ERROR_SYNTAX;
     }
 
-    if (LeftValue->Type != SCRIPT_VAR_STRING || RightValue->Type != SCRIPT_VAR_STRING) {
+    if (LeftValue->Type != SCRIPT_VAR_STRING) {
         return SCRIPT_ERROR_TYPE_MISMATCH;
     }
 
-    LPCSTR LeftText = LeftValue->Value.String ? LeftValue->Value.String : TEXT("");
-    LPCSTR RightText = RightValue->Value.String ? RightValue->Value.String : TEXT("");
+    ResultContext = (LeftValue->ContextOwner != NULL)
+        ? LeftValue->ContextOwner
+        : RightValue->ContextOwner;
+    if (ResultContext == NULL) {
+        return SCRIPT_ERROR_SYNTAX;
+    }
 
-    UINT LeftLength = StringLength(LeftText);
-    UINT RightLength = StringLength(RightText);
-    UINT TotalLength = LeftLength + RightLength + 1;
+    Error = ScriptValueToString(LeftValue, ResultContext, &LeftText, &OwnsLeftText);
+    if (Error != SCRIPT_OK) {
+        return Error;
+    }
 
-    LPSCRIPT_CONTEXT ResultContext = (LeftValue->ContextOwner != NULL) ? LeftValue->ContextOwner : RightValue->ContextOwner;
-    LPSTR NewString = (LPSTR)ScriptAlloc(ResultContext, TotalLength);
+    Error = ScriptValueToString(RightValue, ResultContext, &RightText, &OwnsRightText);
+    if (Error != SCRIPT_OK) {
+        if (OwnsLeftText) {
+            ScriptFree(ResultContext, (LPVOID)LeftText);
+        }
+        return Error;
+    }
+
+    LeftLength = StringLength(LeftText);
+    RightLength = StringLength(RightText);
+    TotalLength = LeftLength + RightLength + 1;
+
+    NewString = (LPSTR)ScriptAlloc(ResultContext, TotalLength);
     if (NewString == NULL) {
+        if (OwnsLeftText) {
+            ScriptFree(ResultContext, (LPVOID)LeftText);
+        }
+        if (OwnsRightText) {
+            ScriptFree(ResultContext, (LPVOID)RightText);
+        }
         return SCRIPT_ERROR_OUT_OF_MEMORY;
     }
 
@@ -595,6 +900,13 @@ SCRIPT_ERROR ScriptConcatStrings(const SCRIPT_VALUE* LeftValue, const SCRIPT_VAL
     Result->Value.String = NewString;
     Result->ContextOwner = ResultContext;
     Result->OwnsValue = TRUE;
+
+    if (OwnsLeftText) {
+        ScriptFree(ResultContext, (LPVOID)LeftText);
+    }
+    if (OwnsRightText) {
+        ScriptFree(ResultContext, (LPVOID)RightText);
+    }
 
     return SCRIPT_OK;
 }

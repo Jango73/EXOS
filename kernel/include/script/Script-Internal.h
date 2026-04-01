@@ -51,14 +51,17 @@ LPAST_NODE ScriptParseShellCommandExpression(LPSCRIPT_PARSER Parser, SCRIPT_ERRO
 BOOL ScriptShouldParseShellCommand(LPSCRIPT_PARSER Parser);
 BOOL ScriptIsKeyword(LPCSTR Str);
 
-void ScriptValueInit(SCRIPT_VALUE* Value);
-void ScriptValueRelease(SCRIPT_VALUE* Value);
 SCRIPT_ERROR ScriptPrepareHostValue(
     LPSCRIPT_CONTEXT Context,
     SCRIPT_VALUE* Value,
     const SCRIPT_HOST_DESCRIPTOR* DefaultDescriptor,
     LPVOID DefaultContext);
 BOOL ScriptValueToFloat(const SCRIPT_VALUE* Value, F32* OutValue);
+SCRIPT_ERROR ScriptValueToString(
+    const SCRIPT_VALUE* Value,
+    LPSCRIPT_CONTEXT Context,
+    LPCSTR* OutText,
+    BOOL* OutOwnsText);
 SCRIPT_ERROR ScriptConcatStrings(const SCRIPT_VALUE* LeftValue, const SCRIPT_VALUE* RightValue, SCRIPT_VALUE* Result);
 SCRIPT_ERROR ScriptRemoveStringOccurrences(const SCRIPT_VALUE* LeftValue, const SCRIPT_VALUE* RightValue, SCRIPT_VALUE* Result);
 SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, SCRIPT_ERROR* Error);

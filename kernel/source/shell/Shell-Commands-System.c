@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "shell/Shell-Commands-Private.h"
+#include "shell/Shell-EmbeddedScripts.h"
 #include "Autotest.h"
 #include "process/Task-Access.h"
 #include "utils/SizeFormat.h"
@@ -134,38 +135,6 @@ static void PrintDriverDetails(LPDRIVER Driver) {
 /***************************************************************************/
 
 /**
- * @brief Print one summary line for every registered driver.
- */
-static void PrintDriverList(void) {
-    UINT DriverCount = 0;
-    LPLIST DriverList = GetDriverList();
-
-    if (DriverList == NULL || DriverList->First == NULL) {
-        ConsolePrint(TEXT("No driver detected\n"));
-        return;
-    }
-
-    for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
-        LPDRIVER Driver = (LPDRIVER)Node;
-
-        SAFE_USE_VALID_ID(Driver, KOID_DRIVER) {
-            ConsolePrint(TEXT("%s type=%s ready=%u product=%s\n"),
-                StringLength(Driver->Alias) != 0 ? Driver->Alias : TEXT("<none>"),
-                DriverTypeToText(Driver->Type),
-                (Driver->Flags & DRIVER_FLAG_READY) != 0 ? 1 : 0,
-                StringLength(Driver->Product) != 0 ? Driver->Product : TEXT("<none>"));
-            DriverCount++;
-        }
-    }
-
-    if (DriverCount == 0) {
-        ConsolePrint(TEXT("No driver detected\n"));
-    }
-}
-
-/***************************************************************************/
-
-/**
  * @brief Print one driver detail view selected by alias.
  * @param Context Shell context.
  * @return DF_RETURN_SUCCESS on completion.
@@ -183,7 +152,9 @@ U32 CMD_driver(LPSHELLCONTEXT Context) {
     }
 
     if (StringCompareNC(Context->Command, TEXT("list")) == 0) {
-        PrintDriverList();
+        if (!RunEmbeddedScript(Context, ShellGetEmbeddedDriverListScript())) {
+            ConsolePrint(TEXT("Unable to run embedded driver list script\n"));
+        }
         return DF_RETURN_SUCCESS;
     }
 
@@ -195,7 +166,6 @@ U32 CMD_driver(LPSHELLCONTEXT Context) {
 
     for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
         LPDRIVER Driver = (LPDRIVER)Node;
-
         SAFE_USE_VALID_ID(Driver, KOID_DRIVER) {
             if (StringLength(Driver->Alias) == 0) {
                 continue;
@@ -215,7 +185,6 @@ U32 CMD_driver(LPSHELLCONTEXT Context) {
         ConsolePrint(TEXT("driver: alias '%s' not found\n"), Context->Command);
         ConsolePrint(TEXT("known aliases:\n"));
         PrintKnownDriverAliases();
-        return DF_RETURN_SUCCESS;
     }
 
     return DF_RETURN_SUCCESS;
@@ -585,6 +554,16 @@ U32 CMD_usb(LPSHELLCONTEXT Context) {
         }
 
         return DF_RETURN_SUCCESS;
+    } else if (StringCompareNC(Context->Command, TEXT("devices")) == 0) {
+        if (!RunEmbeddedScript(Context, ShellGetEmbeddedUsbDevicesScript())) {
+            ConsolePrint(TEXT("Unable to run embedded USB device list script\n"));
+        }
+        return DF_RETURN_SUCCESS;
+    } else if (StringCompareNC(Context->Command, TEXT("ports")) == 0) {
+        if (!RunEmbeddedScript(Context, ShellGetEmbeddedUsbPortsScript())) {
+            ConsolePrint(TEXT("Unable to run embedded USB port list script\n"));
+        }
+        return DF_RETURN_SUCCESS;
     }
 
     DRIVER_ENUM_QUERY Query;
@@ -637,8 +616,6 @@ U32 CMD_usb(LPSHELLCONTEXT Context) {
             ConsolePrint(TEXT("No xHCI controller detected\n"));
         }
         return DF_RETURN_SUCCESS;
-    } else if (StringCompareNC(Context->Command, TEXT("devices")) == 0) {
-        Query.Domain = ENUM_DOMAIN_USB_DEVICE;
     } else if (StringCompareNC(Context->Command, TEXT("device-tree")) == 0) {
         Query.Domain = ENUM_DOMAIN_USB_NODE;
     } else {

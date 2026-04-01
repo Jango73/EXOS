@@ -23,6 +23,7 @@
 \************************************************************************/
 
 #include "shell/Shell-Commands-Private.h"
+#include "shell/Shell-EmbeddedScripts.h"
 #include "utils/SizeFormat.h"
 
 static U64 ShellSectorCountToBytes(U32 SectorCount) {
@@ -213,30 +214,9 @@ U32 CMD_edit(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 U32 CMD_disk(LPSHELLCONTEXT Context) {
-    UNUSED(Context);
-
-    LPLISTNODE Node;
-    LPSTORAGE_UNIT Disk;
-    DISKINFO DiskInfo;
-
-    LPLIST DiskList = GetDiskList();
-    for (Node = DiskList != NULL ? DiskList->First : NULL; Node; Node = Node->Next) {
-        STR SizeText[32];
-        Disk = (LPSTORAGE_UNIT)Node;
-
-        DiskInfo.Disk = Disk;
-        Disk->Driver->Command(DF_DISK_GETINFO, (UINT)&DiskInfo);
-        SizeFormatBytesText(U64_FromUINT(DiskInfo.BytesPerSector), SizeText);
-
-        ConsolePrint(TEXT("Manufacturer : %s\n"), Disk->Driver->Manufacturer);
-        ConsolePrint(TEXT("Product      : %s\n"), Disk->Driver->Product);
-        ConsolePrint(TEXT("Sector size  : %s\n"), SizeText);
-        ConsolePrint(TEXT("Sectors      : %x%08x\n"),
-                     (U32)U64_High32(DiskInfo.NumSectors),
-                     (U32)U64_Low32(DiskInfo.NumSectors));
-        ConsolePrint(TEXT("\n"));
+    if (!RunEmbeddedScript(Context, ShellGetEmbeddedDiskListScript())) {
+        ConsolePrint(TEXT("Unable to run embedded disk list script\n"));
     }
-
     return DF_RETURN_SUCCESS;
 }
 

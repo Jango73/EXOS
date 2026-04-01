@@ -128,6 +128,7 @@ BOOL ExposeIsAdminCaller(void);
 BOOL ExposeIsSameUser(LPPROCESS Caller, LPPROCESS Target);
 BOOL ExposeIsOwnerProcess(LPPROCESS Caller, LPPROCESS Target);
 BOOL ExposeCanReadProcess(LPPROCESS Caller, LPPROCESS Target, UINT RequiredAccess);
+BOOL ExposeRegisterDefaultScriptHostObjects(LPSCRIPT_CONTEXT Context);
 
 /************************************************************************/
 

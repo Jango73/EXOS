@@ -163,6 +163,7 @@ static BOOL ParseGraphicsModeToken(LPCSTR Token, LPGRAPHICS_MODE_INFO InfoOut) {
 
 /**
  * @brief Print supported shell aliases for graphics backend selection.
+ * @param Context Shell context.
  */
 static void PrintSupportedGraphicsBackendAliases(void) {
     UINT PrintedCount = 0;
@@ -201,6 +202,7 @@ static void PrintSupportedGraphicsBackendAliases(void) {
 
 /**
  * @brief Find one graphics backend driver by alias.
+ * @param Context Shell context.
  * @param Alias Driver alias.
  * @return Driver pointer or NULL when not found.
  */

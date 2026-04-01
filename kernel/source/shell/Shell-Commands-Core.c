@@ -107,99 +107,6 @@ static void DirStressListRecursive(LPSHELLCONTEXT Context, LPCSTR BasePath) {
     }
 }
 
-static void ShellRegisterScriptHostObjects(LPSHELLCONTEXT Context) {
-
-    if (Context == NULL || Context->ScriptContext == NULL) {
-        return;
-    }
-
-    LPLIST ProcessList = GetProcessList();
-    SAFE_USE(ProcessList) {
-        if (!ScriptRegisterHostSymbol(
-                Context->ScriptContext,
-                TEXT("process"),
-                SCRIPT_HOST_SYMBOL_ARRAY,
-                ProcessList,
-                &ProcessArrayDescriptor,
-                NULL)) {
-        }
-    }
-
-    LPLIST DriverList = GetDriverList();
-    SAFE_USE(DriverList) {
-        if (!ScriptRegisterHostSymbol(
-                Context->ScriptContext,
-                TEXT("drivers"),
-                SCRIPT_HOST_SYMBOL_ARRAY,
-                DriverList,
-                &DriverArrayDescriptor,
-                NULL)) {
-        }
-    }
-
-    LPLIST StorageList = GetDiskList();
-    SAFE_USE(StorageList) {
-        if (!ScriptRegisterHostSymbol(
-                Context->ScriptContext,
-                TEXT("storage"),
-                SCRIPT_HOST_SYMBOL_ARRAY,
-                StorageList,
-                &StorageArrayDescriptor,
-                NULL)) {
-        }
-    }
-
-    LPLIST PciDeviceList = GetPCIDeviceList();
-    SAFE_USE(PciDeviceList) {
-        if (!ScriptRegisterHostSymbol(
-                Context->ScriptContext,
-                TEXT("pci_bus"),
-                SCRIPT_HOST_SYMBOL_ARRAY,
-                PciDeviceList,
-                &PciBusArrayDescriptor,
-                NULL)) {
-        }
-
-        if (!ScriptRegisterHostSymbol(
-                Context->ScriptContext,
-                TEXT("pci_device"),
-                SCRIPT_HOST_SYMBOL_ARRAY,
-                PciDeviceList,
-                &PciDeviceArrayDescriptor,
-                NULL)) {
-        }
-    }
-
-    if (!ScriptRegisterHostSymbol(
-            Context->ScriptContext,
-            TEXT("usb"),
-            SCRIPT_HOST_SYMBOL_OBJECT,
-            UsbRootHandle,
-            &UsbDescriptor,
-            NULL)) {
-    }
-
-    if (!ScriptRegisterHostSymbol(
-            Context->ScriptContext,
-            TEXT("keyboard"),
-            SCRIPT_HOST_SYMBOL_OBJECT,
-            GetKeyboardRootHandle(),
-            GetKeyboardDescriptor(),
-            NULL)) {
-    }
-
-    if (!ScriptRegisterHostSymbol(
-            Context->ScriptContext,
-            TEXT("mouse"),
-            SCRIPT_HOST_SYMBOL_OBJECT,
-            GetMouseRootHandle(),
-            GetMouseDescriptor(),
-            NULL)) {
-    }
-}
-
-/************************************************************************/
-
 void InitShellContext(LPSHELLCONTEXT This) {
     U32 Index;
 
@@ -248,7 +155,9 @@ void InitShellContext(LPSHELLCONTEXT This) {
     };
     This->ScriptContext = ScriptCreateContextA(&Callbacks, &This->Allocator);
 
-    ShellRegisterScriptHostObjects(This);
+    if (!ExposeRegisterDefaultScriptHostObjects(This->ScriptContext)) {
+        WARNING(TEXT("[InitShellContext] Failed to register default script host objects"));
+    }
 
 }
 

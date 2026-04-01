@@ -495,6 +495,50 @@ void TestScriptComparisons(TEST_RESULTS* Results) {
     }
 
     ScriptDestroyContext(Context);
+
+    // Test 5: String equal (true)
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptComparisons] Failed to create context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("e = \"hello\" == \"hello\";"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("e"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 1) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptComparisons] Test 5 failed: e = %d (expected 1)"), Var ? Var->Value.Integer : -1);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptComparisons] Test 5 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    // Test 6: String not equal (true)
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptComparisons] Failed to create context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("f = \"hello\" != \"world\";"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("f"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 1) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptComparisons] Test 6 failed: f = %d (expected 1)"), Var ? Var->Value.Integer : -1);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptComparisons] Test 6 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
 }
 
 /************************************************************************/
