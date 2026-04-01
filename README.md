@@ -98,7 +98,11 @@ EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/con
 - AMD Radeon driver
 - Larger test apps
 - ACPI Energy sensor drivers
-- Lots of other things
+
+## Beyond
+
+- More architectures
+- More drivers
 
 ## Dependencies
 
