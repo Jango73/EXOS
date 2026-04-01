@@ -123,6 +123,15 @@ BOOL ExposeRegisterDefaultScriptHostObjects(LPSCRIPT_CONTEXT Context) {
 
     if (!ExposeRegisterDefaultHostSymbol(
             Context,
+            TEXT("network"),
+            SCRIPT_HOST_SYMBOL_OBJECT,
+            NetworkRootHandle,
+            &NetworkDescriptor)) {
+        return FALSE;
+    }
+
+    if (!ExposeRegisterDefaultHostSymbol(
+            Context,
             TEXT("keyboard"),
             SCRIPT_HOST_SYMBOL_OBJECT,
             GetKeyboardRootHandle(),

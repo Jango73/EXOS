@@ -214,7 +214,7 @@ U32 CMD_edit(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 U32 CMD_disk(LPSHELLCONTEXT Context) {
-    if (!RunEmbeddedScript(Context, ShellGetEmbeddedDiskListScript())) {
+    if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_DISK_LIST))) {
         ConsolePrint(TEXT("Unable to run embedded disk list script\n"));
     }
     return DF_RETURN_SUCCESS;

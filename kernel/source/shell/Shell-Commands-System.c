@@ -152,7 +152,7 @@ U32 CMD_driver(LPSHELLCONTEXT Context) {
     }
 
     if (StringCompareNC(Context->Command, TEXT("list")) == 0) {
-        if (!RunEmbeddedScript(Context, ShellGetEmbeddedDriverListScript())) {
+        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_DRIVER_LIST))) {
             ConsolePrint(TEXT("Unable to run embedded driver list script\n"));
         }
         return DF_RETURN_SUCCESS;
@@ -298,49 +298,8 @@ U32 CMD_network(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    LPLIST NetworkDeviceList = GetNetworkDeviceList();
-    if (NetworkDeviceList == NULL || NetworkDeviceList->First == NULL) {
-        ConsolePrint(TEXT("No network device detected\n"));
-        return DF_RETURN_SUCCESS;
-    }
-
-    SAFE_USE(NetworkDeviceList) {
-        for (LPLISTNODE Node = NetworkDeviceList->First; Node; Node = Node->Next) {
-            LPNETWORK_DEVICE_CONTEXT NetContext = (LPNETWORK_DEVICE_CONTEXT)Node;
-
-            SAFE_USE_VALID_ID(NetContext, KOID_NETWORKDEVICE) {
-                LPPCI_DEVICE Device = NetContext->Device;
-
-                SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
-                    SAFE_USE_VALID_ID(Device->Driver, KOID_DRIVER) {
-                        NETWORK_INFO Info;
-                        MemorySet(&Info, 0, sizeof(Info));
-                        NETWORK_GET_INFO GetInfo = {.Device = Device, .Info = &Info};
-                        Device->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo);
-
-                        U32 IpHost = Ntohl(NetContext->ActiveConfig.LocalIPv4_Be);
-                        U8 Ip1 = (IpHost >> 24) & 0xFF;
-                        U8 Ip2 = (IpHost >> 16) & 0xFF;
-                        U8 Ip3 = (IpHost >> 8) & 0xFF;
-                        U8 Ip4 = IpHost & 0xFF;
-
-                        ConsolePrint(TEXT("Name         : %s\n"), Device->Name);
-                        ConsolePrint(TEXT("Manufacturer : %s\n"), Device->Driver->Manufacturer);
-                        ConsolePrint(TEXT("Product      : %s\n"), Device->Driver->Product);
-                        ConsolePrint(TEXT("MAC          : %x:%x:%x:%x:%x:%x\n"),
-                                    Info.MAC[0], Info.MAC[1], Info.MAC[2],
-                                    Info.MAC[3], Info.MAC[4], Info.MAC[5]);
-                        ConsolePrint(TEXT("IP Address   : %u.%u.%u.%u\n"), Ip1, Ip2, Ip3, Ip4);
-                        ConsolePrint(TEXT("Link         : %s\n"), Info.LinkUp ? TEXT("UP") : TEXT("DOWN"));
-                        ConsolePrint(TEXT("Speed        : %u Mbps\n"), Info.SpeedMbps);
-                        ConsolePrint(TEXT("Duplex       : %s\n"), Info.DuplexFull ? TEXT("FULL") : TEXT("HALF"));
-                        ConsolePrint(TEXT("MTU          : %u\n"), Info.MTU);
-                        ConsolePrint(TEXT("Initialized  : %s\n"), NetContext->IsInitialized ? TEXT("YES") : TEXT("NO"));
-                        ConsolePrint(TEXT("\n"));
-                    }
-                }
-            }
-        }
+    if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_NETWORK_DEVICES))) {
+        ConsolePrint(TEXT("Unable to run embedded network device list script\n"));
     }
 
     return DF_RETURN_SUCCESS;
@@ -555,12 +514,12 @@ U32 CMD_usb(LPSHELLCONTEXT Context) {
 
         return DF_RETURN_SUCCESS;
     } else if (StringCompareNC(Context->Command, TEXT("devices")) == 0) {
-        if (!RunEmbeddedScript(Context, ShellGetEmbeddedUsbDevicesScript())) {
+        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_DEVICES))) {
             ConsolePrint(TEXT("Unable to run embedded USB device list script\n"));
         }
         return DF_RETURN_SUCCESS;
     } else if (StringCompareNC(Context->Command, TEXT("ports")) == 0) {
-        if (!RunEmbeddedScript(Context, ShellGetEmbeddedUsbPortsScript())) {
+        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_PORTS))) {
             ConsolePrint(TEXT("Unable to run embedded USB port list script\n"));
         }
         return DF_RETURN_SUCCESS;

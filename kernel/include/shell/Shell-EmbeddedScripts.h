@@ -28,10 +28,18 @@
 
 /************************************************************************/
 
-LPCSTR ShellGetEmbeddedDriverListScript(void);
-LPCSTR ShellGetEmbeddedDiskListScript(void);
-LPCSTR ShellGetEmbeddedUsbPortsScript(void);
-LPCSTR ShellGetEmbeddedUsbDevicesScript(void);
+typedef enum {
+    SHELL_EMBEDDED_SCRIPT_DRIVER_LIST = 0,
+    SHELL_EMBEDDED_SCRIPT_DISK_LIST,
+    SHELL_EMBEDDED_SCRIPT_NETWORK_DEVICES,
+    SHELL_EMBEDDED_SCRIPT_USB_PORTS,
+    SHELL_EMBEDDED_SCRIPT_USB_DEVICES,
+    SHELL_EMBEDDED_SCRIPT_COUNT
+} SHELL_EMBEDDED_SCRIPT_ID;
+
+/************************************************************************/
+
+LPCSTR ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_ID ScriptId);
 
 /************************************************************************/
 

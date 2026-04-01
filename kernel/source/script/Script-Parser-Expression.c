@@ -619,26 +619,20 @@ LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
                 }
                 ScriptNextToken(Parser);
 
-                if (!CurrentNode->Data.Expression.IsArrayAccess && CurrentNode->Data.Expression.BaseExpression == NULL &&
-                    CurrentNode == Node) {
-                    CurrentNode->Data.Expression.IsArrayAccess = TRUE;
-                    CurrentNode->Data.Expression.ArrayIndexExpr = IndexExpr;
-                } else {
-                    LPAST_NODE ArrayNode = ScriptCreateASTNode(Parser->Context, AST_EXPRESSION);
-                    if (ArrayNode == NULL) {
-                        ScriptDestroyAST(IndexExpr);
-                        ScriptDestroyAST(CurrentNode);
-                        *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
-                        return NULL;
-                    }
-
-                    ArrayNode->Data.Expression.TokenType = TOKEN_IDENTIFIER;
-                    ArrayNode->Data.Expression.IsVariable = TRUE;
-                    ArrayNode->Data.Expression.IsArrayAccess = TRUE;
-                    ArrayNode->Data.Expression.BaseExpression = CurrentNode;
-                    ArrayNode->Data.Expression.ArrayIndexExpr = IndexExpr;
-                    CurrentNode = ArrayNode;
+                LPAST_NODE ArrayNode = ScriptCreateASTNode(Parser->Context, AST_EXPRESSION);
+                if (ArrayNode == NULL) {
+                    ScriptDestroyAST(IndexExpr);
+                    ScriptDestroyAST(CurrentNode);
+                    *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
+                    return NULL;
                 }
+
+                ArrayNode->Data.Expression.TokenType = TOKEN_IDENTIFIER;
+                ArrayNode->Data.Expression.IsVariable = FALSE;
+                ArrayNode->Data.Expression.IsArrayAccess = TRUE;
+                ArrayNode->Data.Expression.BaseExpression = CurrentNode;
+                ArrayNode->Data.Expression.ArrayIndexExpr = IndexExpr;
+                CurrentNode = ArrayNode;
 
                 ContinueParsing = TRUE;
             } else if (Parser->CurrentToken.Type == TOKEN_OPERATOR && Parser->CurrentToken.Value[0] == '.') {

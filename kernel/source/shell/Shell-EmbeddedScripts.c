@@ -25,88 +25,92 @@
 
 /************************************************************************/
 
-static LPCSTR G_DriverListScript = (LPCSTR)
-    "count = drivers.count;\n"
-    "if (count == 0) {\n"
-    "    print(\"No driver detected\");\n"
-    "}\n"
-    "for (i = 0; i < count; i = i + 1) {\n"
-    "    alias = drivers[i].alias;\n"
-    "    if (alias == \"\") {\n"
-    "        alias = \"<none>\";\n"
-    "    }\n"
-    "    product = drivers[i].product;\n"
-    "    if (product == \"\") {\n"
-    "        product = \"<none>\";\n"
-    "    }\n"
-    "    print(alias + \" type=\" + drivers[i].type_name + \" ready=\" + drivers[i].ready + \" product=\" + product);\n"
-    "}\n";
-
-static LPCSTR G_DiskListScript = (LPCSTR)
-    "count = storage.count;\n"
-    "for (i = 0; i < count; i = i + 1) {\n"
-    "    print(\"Manufacturer : \" + storage[i].driver_manufacturer);\n"
-    "    print(\"Product      : \" + storage[i].driver_product);\n"
-    "    print(\"Sector size  : \" + storage[i].bytes_per_sector);\n"
-    "    print(\"Sectors low  : \" + storage[i].num_sectors_low);\n"
-    "    print(\"Sectors high : \" + storage[i].num_sectors_high);\n"
-    "    print(\"\");\n"
-    "}\n";
-
-static LPCSTR G_UsbPortsScript = (LPCSTR)
-    "count = usb.ports.count;\n"
-    "if (count == 0) {\n"
-    "    print(\"No USB port detected\");\n"
-    "}\n"
-    "for (i = 0; i < count; i = i + 1) {\n"
-    "    print(\"port=\" + usb.ports[i].port_number + \" bus=\" + usb.ports[i].bus + \" device=\" + usb.ports[i].device + \" function=\" + usb.ports[i].function + \" speed_id=\" + usb.ports[i].speed_id + \" connected=\" + usb.ports[i].connected + \" enabled=\" + usb.ports[i].enabled + \" status=\" + usb.ports[i].port_status);\n"
-    "}\n";
-
-static LPCSTR G_UsbDevicesScript = (LPCSTR)
-    "count = usb.devices.count;\n"
-    "if (count == 0) {\n"
-    "    print(\"No USB device detected\");\n"
-    "}\n"
-    "for (i = 0; i < count; i = i + 1) {\n"
-    "    print(\"addr=\" + usb.devices[i].address + \" bus=\" + usb.devices[i].bus + \" device=\" + usb.devices[i].device + \" function=\" + usb.devices[i].function + \" port=\" + usb.devices[i].port_number + \" speed_id=\" + usb.devices[i].speed_id + \" vid=\" + usb.devices[i].vendor_id + \" pid=\" + usb.devices[i].product_id);\n"
-    "}\n";
+static LPCSTR G_EmbeddedScripts[SHELL_EMBEDDED_SCRIPT_COUNT] = {
+    [SHELL_EMBEDDED_SCRIPT_DRIVER_LIST] = (LPCSTR)
+        "count = drivers.count;\n"
+        "if (count == 0) {\n"
+        "    print(\"No driver detected\");\n"
+        "}\n"
+        "for (i = 0; i < count; i = i + 1) {\n"
+        "    alias = drivers[i].alias;\n"
+        "    if (alias == \"\") {\n"
+        "        alias = \"<none>\";\n"
+        "    }\n"
+        "    product = drivers[i].product;\n"
+        "    if (product == \"\") {\n"
+        "        product = \"<none>\";\n"
+        "    }\n"
+        "    print(alias + \" type=\" + drivers[i].type_name + \" ready=\" + drivers[i].ready + \" product=\" + product);\n"
+        "}\n",
+    [SHELL_EMBEDDED_SCRIPT_DISK_LIST] = (LPCSTR)
+        "count = storage.count;\n"
+        "for (i = 0; i < count; i = i + 1) {\n"
+        "    print(\"Manufacturer : \" + storage[i].driver_manufacturer);\n"
+        "    print(\"Product      : \" + storage[i].driver_product);\n"
+        "    print(\"Sector size  : \" + storage[i].bytes_per_sector);\n"
+        "    print(\"Sectors low  : \" + storage[i].num_sectors_low);\n"
+        "    print(\"Sectors high : \" + storage[i].num_sectors_high);\n"
+        "    print(\"\");\n"
+        "}\n",
+    [SHELL_EMBEDDED_SCRIPT_NETWORK_DEVICES] = (LPCSTR)
+        "count = network.devices.count;\n"
+        "if (count == 0) {\n"
+        "    print(\"No network device detected\");\n"
+        "}\n"
+        "for (i = 0; i < count; i = i + 1) {\n"
+        "    print(\"Name         : \" + network.devices[i].name);\n"
+        "    print(\"Manufacturer : \" + network.devices[i].manufacturer);\n"
+        "    print(\"Product      : \" + network.devices[i].product);\n"
+        "    print(\"MAC          : \" + network.devices[i].mac_0 + \":\" + network.devices[i].mac_1 + \":\" + network.devices[i].mac_2 + \":\" + network.devices[i].mac_3 + \":\" + network.devices[i].mac_4 + \":\" + network.devices[i].mac_5);\n"
+        "    print(\"IP Address   : \" + network.devices[i].ip_0 + \".\" + network.devices[i].ip_1 + \".\" + network.devices[i].ip_2 + \".\" + network.devices[i].ip_3);\n"
+        "    if (network.devices[i].link_up != 0) {\n"
+        "        print(\"Link         : UP\");\n"
+        "    } else {\n"
+        "        print(\"Link         : DOWN\");\n"
+        "    }\n"
+        "    print(\"Speed        : \" + network.devices[i].speed_mbps + \" Mbps\");\n"
+        "    if (network.devices[i].duplex_full != 0) {\n"
+        "        print(\"Duplex       : FULL\");\n"
+        "    } else {\n"
+        "        print(\"Duplex       : HALF\");\n"
+        "    }\n"
+        "    print(\"MTU          : \" + network.devices[i].mtu);\n"
+        "    if (network.devices[i].initialized != 0) {\n"
+        "        print(\"Initialized  : YES\");\n"
+        "    } else {\n"
+        "        print(\"Initialized  : NO\");\n"
+        "    }\n"
+        "    print(\"\");\n"
+        "}\n",
+    [SHELL_EMBEDDED_SCRIPT_USB_PORTS] = (LPCSTR)
+        "count = usb.ports.count;\n"
+        "if (count == 0) {\n"
+        "    print(\"No USB port detected\");\n"
+        "}\n"
+        "for (i = 0; i < count; i = i + 1) {\n"
+        "    print(\"port=\" + usb.ports[i].port_number + \" bus=\" + usb.ports[i].bus + \" device=\" + usb.ports[i].device + \" function=\" + usb.ports[i].function + \" speed_id=\" + usb.ports[i].speed_id + \" connected=\" + usb.ports[i].connected + \" enabled=\" + usb.ports[i].enabled + \" status=\" + usb.ports[i].port_status);\n"
+        "}\n",
+    [SHELL_EMBEDDED_SCRIPT_USB_DEVICES] = (LPCSTR)
+        "count = usb.devices.count;\n"
+        "if (count == 0) {\n"
+        "    print(\"No USB device detected\");\n"
+        "}\n"
+        "for (i = 0; i < count; i = i + 1) {\n"
+        "    print(\"addr=\" + usb.devices[i].address + \" bus=\" + usb.devices[i].bus + \" device=\" + usb.devices[i].device + \" function=\" + usb.devices[i].function + \" port=\" + usb.devices[i].port_number + \" speed_id=\" + usb.devices[i].speed_id + \" vid=\" + usb.devices[i].vendor_id + \" pid=\" + usb.devices[i].product_id);\n"
+        "}\n"
+};
 
 /************************************************************************/
 
 /**
- * @brief Get the embedded E0 source for `driver list`.
+ * @brief Get one embedded E0 source by identifier.
+ * @param ScriptId Embedded script identifier.
  * @return Embedded script text.
  */
-LPCSTR ShellGetEmbeddedDriverListScript(void) {
-    return G_DriverListScript;
-}
+LPCSTR ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_ID ScriptId) {
+    if ((UINT)ScriptId >= SHELL_EMBEDDED_SCRIPT_COUNT) {
+        return NULL;
+    }
 
-/************************************************************************/
-
-/**
- * @brief Get the embedded E0 source for `disk`.
- * @return Embedded script text.
- */
-LPCSTR ShellGetEmbeddedDiskListScript(void) {
-    return G_DiskListScript;
-}
-
-/************************************************************************/
-
-/**
- * @brief Get the embedded E0 source for `usb ports`.
- * @return Embedded script text.
- */
-LPCSTR ShellGetEmbeddedUsbPortsScript(void) {
-    return G_UsbPortsScript;
-}
-
-/************************************************************************/
-
-/**
- * @brief Get the embedded E0 source for `usb devices`.
- * @return Embedded script text.
- */
-LPCSTR ShellGetEmbeddedUsbDevicesScript(void) {
-    return G_UsbDevicesScript;
+    return G_EmbeddedScripts[ScriptId];
 }

@@ -335,6 +335,37 @@ extern const SCRIPT_HOST_DESCRIPTOR StorageArrayDescriptor;
 
 /************************************************************************/
 
+SCRIPT_ERROR NetworkGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR NetworkDeviceGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR NetworkDeviceArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR NetworkDeviceArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+
+extern const SCRIPT_HOST_DESCRIPTOR NetworkDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR NetworkDeviceDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR NetworkDeviceArrayDescriptor;
+extern SCRIPT_HOST_HANDLE NetworkRootHandle;
+
+/************************************************************************/
+
 SCRIPT_ERROR KeyboardGetProperty(
     LPVOID Context,
     SCRIPT_HOST_HANDLE Parent,
