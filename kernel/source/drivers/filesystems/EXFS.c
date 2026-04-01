@@ -436,6 +436,7 @@ static BOOL LocateFile(LPEXFSFILESYSTEM FileSystem, LPCSTR Path, LPEXFSFILELOC F
         }
 
     NextComponent:
+        ;
     }
 
 Out_Success:

@@ -50,7 +50,7 @@ else
 $(error Unsupported architecture $(ARCH))
 endif
 
-CFLAGS  = -ffreestanding -Wall -Wextra -O0 -fno-pic -fno-stack-protector -fno-builtin -fcf-protection=none \
+CFLAGS  = -ffreestanding -Wall -Wextra -O0 -fno-pic -fno-stack-protector -fno-builtin \
           $(ARCH_CFLAGS)
 
 LDFLAGS = -T $(EXOS_MAKE_DIR)exos.ld -nostdlib -Map=$(APP_OUT_DIR)/$(APP_NAME).map $(ARCH_LDFLAGS)
