@@ -19,6 +19,7 @@
 *.gdbinit
 
 # AI agents
+.codex
 .claude/*
 .deepseek*
 .aider*
