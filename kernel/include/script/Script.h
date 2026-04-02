@@ -89,7 +89,8 @@ typedef enum {
     TOKEN_IF,
     TOKEN_ELSE,
     TOKEN_FOR,
-    TOKEN_RETURN
+    TOKEN_RETURN,
+    TOKEN_CONTINUE
 } TOKEN_TYPE;
 
 // AST Node Types
@@ -99,6 +100,7 @@ typedef enum {
     AST_FOR,            // for (init; cond; inc) body
     AST_BLOCK,          // { statements }
     AST_RETURN,         // return expr
+    AST_CONTINUE,       // continue
     AST_EXPRESSION      // standalone expr
 } AST_NODE_TYPE;
 
@@ -288,6 +290,7 @@ typedef struct tag_SCRIPT_PARSER {
     LPSCRIPT_CALLBACKS Callbacks;
     LPSCRIPT_SCOPE CurrentScope;
     LPSCRIPT_CONTEXT Context;
+    U32 LoopDepth;
 } SCRIPT_PARSER, *LPSCRIPT_PARSER;
 
 struct tag_SCRIPT_CONTEXT {
@@ -298,6 +301,7 @@ struct tag_SCRIPT_CONTEXT {
     STR ErrorMessage[MAX_ERROR_MESSAGE];
     BOOL HasReturnValue;
     BOOL ReturnTriggered;
+    BOOL ContinueTriggered;
     SCRIPT_VAR_TYPE ReturnType;
     SCRIPT_VAR_VALUE ReturnValue;
     LPSCRIPT_SCOPE GlobalScope;

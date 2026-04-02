@@ -1348,6 +1348,103 @@ void TestScriptLoopWithIf(TEST_RESULTS* Results) {
 /************************************************************************/
 
 /**
+ * @brief Test continue statements inside for loops.
+ * @param Results Pointer to TEST_RESULTS structure to be filled with test results.
+ */
+void TestScriptContinue(TEST_RESULTS* Results) {
+    SCRIPT_ERROR Error = SCRIPT_OK;
+    LPCSTR Script = NULL;
+
+    Results->TestsRun = 0;
+    Results->TestsPassed = 0;
+
+    Results->TestsRun++;
+    LPSCRIPT_CONTEXT Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptContinue] Failed to create context"));
+        return;
+    }
+
+    Script = TEXT(
+        "sum = 0;\n"
+        "for (i = 0; i < 6; i = i + 1) {\n"
+        "  if (i == 2) {\n"
+        "    continue;\n"
+        "  }\n"
+        "  sum = sum + i;\n"
+        "}"
+    );
+
+    Error = ScriptExecute(Context, Script);
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("sum"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 13) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptContinue] Test 1 failed: sum = %d (expected 13)"),
+                Var ? Var->Value.Integer : -1);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptContinue] Test 1 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptContinue] Failed to create second context"));
+        return;
+    }
+
+    Script = TEXT(
+        "sum = 0;\n"
+        "for (i = 0; i < 5; i = i + 1) {\n"
+        "  if (i == 1) {\n"
+        "    continue;\n"
+        "  }\n"
+        "  if (i == 3) {\n"
+        "    continue;\n"
+        "  }\n"
+        "  sum = sum + i;\n"
+        "}"
+    );
+
+    Error = ScriptExecute(Context, Script);
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("sum"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 6) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptContinue] Test 2 failed: sum = %d (expected 6)"),
+                Var ? Var->Value.Integer : -1);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptContinue] Test 2 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptContinue] Failed to create third context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("continue;"));
+    if (Error == SCRIPT_ERROR_SYNTAX) {
+        Results->TestsPassed++;
+    } else {
+        DEBUG(TEXT("[TestScriptContinue] Test 3 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+}
+
+/************************************************************************/
+
+/**
  * @brief Test native-width integer semantics in parser, evaluator and callbacks.
  * @param Results Pointer to TEST_RESULTS structure to be filled with test results.
  */
@@ -1570,6 +1667,11 @@ void TestScript(TEST_RESULTS* Results) {
 
     // Run loop with if tests
     TestScriptLoopWithIf(&SubResults);
+    Results->TestsRun += SubResults.TestsRun;
+    Results->TestsPassed += SubResults.TestsPassed;
+
+    // Run continue tests
+    TestScriptContinue(&SubResults);
     Results->TestsRun += SubResults.TestsRun;
     Results->TestsPassed += SubResults.TestsPassed;
 

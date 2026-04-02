@@ -231,8 +231,8 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
 
         Root->Data.Block.Statements[Root->Data.Block.Count++] = Statement;
 
-        // Semicolon is mandatory after assignments and returns.
-        if (Statement->Type == AST_ASSIGNMENT || Statement->Type == AST_RETURN) {
+        // Semicolon is mandatory after assignments and control-flow leaf statements.
+        if (Statement->Type == AST_ASSIGNMENT || Statement->Type == AST_RETURN || Statement->Type == AST_CONTINUE) {
             if (Parser.CurrentToken.Type != TOKEN_SEMICOLON && Parser.CurrentToken.Type != TOKEN_EOF) {
                 StringPrintFormat(Context->ErrorMessage, TEXT("Expected semicolon (l:%d,c:%d)"), Parser.CurrentToken.Line, Parser.CurrentToken.Column);
                 Context->ErrorCode = SCRIPT_ERROR_SYNTAX;
@@ -253,7 +253,7 @@ SCRIPT_ERROR ScriptExecute(LPSCRIPT_CONTEXT Context, LPCSTR Script) {
     // PASS 2: Execute AST - Execute statements directly without creating a new scope
     for (U32 i = 0; i < Root->Data.Block.Count; i++) {
         Error = ScriptExecuteAST(&Parser, Root->Data.Block.Statements[i]);
-        if (Error != SCRIPT_OK || Context->ReturnTriggered) {
+        if (Error != SCRIPT_OK || Context->ReturnTriggered || Context->ContinueTriggered) {
             break;
         }
     }
@@ -451,6 +451,9 @@ void ScriptDestroyAST(LPAST_NODE Node) {
             }
             break;
 
+        case AST_CONTINUE:
+            break;
+
         case AST_EXPRESSION:
             if (Node->Data.Expression.BaseExpression) {
                 ScriptDestroyAST(Node->Data.Expression.BaseExpression);
@@ -527,6 +530,7 @@ void ScriptClearReturnValue(LPSCRIPT_CONTEXT Context) {
 
     Context->HasReturnValue = FALSE;
     Context->ReturnTriggered = FALSE;
+    Context->ContinueTriggered = FALSE;
     Context->ReturnType = SCRIPT_VAR_FLOAT;
     MemorySet(&Context->ReturnValue, 0, sizeof(SCRIPT_VAR_VALUE));
 }
@@ -702,7 +706,7 @@ SCRIPT_ERROR ScriptExecuteBlock(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
     SCRIPT_ERROR Error = SCRIPT_OK;
     for (U32 i = 0; i < Node->Data.Block.Count; i++) {
         Error = ScriptExecuteAST(Parser, Node->Data.Block.Statements[i]);
-        if (Error != SCRIPT_OK || Parser->Context->ReturnTriggered) {
+        if (Error != SCRIPT_OK || Parser->Context->ReturnTriggered || Parser->Context->ContinueTriggered) {
             break;
         }
     }
@@ -790,6 +794,10 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
                 if (Error != SCRIPT_OK) return Error;
                 if (Parser->Context->ReturnTriggered) return SCRIPT_OK;
 
+                if (Parser->Context->ContinueTriggered) {
+                    Parser->Context->ContinueTriggered = FALSE;
+                }
+
                 // Execute increment
                 Error = ScriptExecuteAST(Parser, Node->Data.For.Increment);
                 if (Error != SCRIPT_OK) return Error;
@@ -821,6 +829,10 @@ SCRIPT_ERROR ScriptExecuteAST(LPSCRIPT_PARSER Parser, LPAST_NODE Node) {
             ScriptValueRelease(&ReturnValue);
             return SCRIPT_OK;
         }
+
+        case AST_CONTINUE:
+            Parser->Context->ContinueTriggered = TRUE;
+            return SCRIPT_OK;
 
         case AST_EXPRESSION: {
             // Standalone expression - evaluate it (for function calls)

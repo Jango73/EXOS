@@ -96,6 +96,7 @@ void ScriptInitParser(LPSCRIPT_PARSER Parser, LPCSTR Input, LPSCRIPT_CONTEXT Con
     Parser->Callbacks = &Context->Callbacks;
     Parser->CurrentScope = Context->CurrentScope;
     Parser->Context = Context;
+    Parser->LoopDepth = 0;
 
     ScriptNextToken(Parser);
 }
@@ -165,6 +166,8 @@ void ScriptNextToken(LPSCRIPT_PARSER Parser) {
                 Parser->CurrentToken.Type = TOKEN_FOR;
             } else if (StringCompare(Parser->CurrentToken.Value, TEXT("return")) == 0) {
                 Parser->CurrentToken.Type = TOKEN_RETURN;
+            } else if (StringCompare(Parser->CurrentToken.Value, TEXT("continue")) == 0) {
+                Parser->CurrentToken.Type = TOKEN_CONTINUE;
             }
         }
 

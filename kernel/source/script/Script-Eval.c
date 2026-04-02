@@ -39,7 +39,8 @@ BOOL ScriptIsKeyword(LPCSTR Str) {
     return (StringCompare(Str, TEXT("if")) == 0 ||
             StringCompare(Str, TEXT("else")) == 0 ||
             StringCompare(Str, TEXT("for")) == 0 ||
-            StringCompare(Str, TEXT("return")) == 0);
+            StringCompare(Str, TEXT("return")) == 0 ||
+            StringCompare(Str, TEXT("continue")) == 0);
 }
 
 /************************************************************************/

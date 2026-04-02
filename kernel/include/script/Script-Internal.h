@@ -47,6 +47,7 @@ LPAST_NODE ScriptParseBlockAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 LPAST_NODE ScriptParseIfStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 LPAST_NODE ScriptParseForStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 LPAST_NODE ScriptParseReturnStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
+LPAST_NODE ScriptParseContinueStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 LPAST_NODE ScriptParseShellCommandExpression(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 BOOL ScriptShouldParseShellCommand(LPSCRIPT_PARSER Parser);
 BOOL ScriptIsKeyword(LPCSTR Str);

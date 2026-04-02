@@ -1604,6 +1604,8 @@ This provides a stable interpreter state across commands and centralizes callbac
 
 The script engine implementation is split into dedicated modules under `kernel/source/script/` (`Script-Core.c`, `Script-Parser-Expression.c`, `Script-Parser-Statements.c`, `Script-Eval.c`, `Script-Collections.c`, `Script-Scope.c`) with public and internal headers under `kernel/include/script/`.
 
+Control-flow statements include `if`, `for`, `return`, and `continue`. `continue;` is accepted only inside loop bodies and skips directly to the increment phase of the current `for` iteration.
+
 #### Execution paths
 
 Shell command lines are executed through `ExecuteCommandLine()`, which calls `ScriptExecute()` directly on the entered text. Errors are reported through `ScriptGetErrorMessage()`.

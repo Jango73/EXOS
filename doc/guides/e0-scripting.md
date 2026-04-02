@@ -169,10 +169,15 @@ if (x > 0) {
 ### For loop
 ```text
 for (i = 0; i < 10; i = i + 1) {
+    if (i == 5) {
+        continue;
+    }
     sum = sum + i;
 }
 ```
 Capped at 1000 iterations.
+
+`continue;` is valid only inside a loop body. It skips the rest of the current iteration and proceeds with the loop increment.
 
 ---
 
