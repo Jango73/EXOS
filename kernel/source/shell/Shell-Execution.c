@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "shell/Shell-Shared.h"
+#include "shell/Shell-Commands-Private.h"
 #include "ID.h"
 #include "SYSCall.h"
 
@@ -351,6 +351,66 @@ static INT ShellScriptKillHandle(LPSHELLCONTEXT Context, LPCSTR HandleValue) {
 /************************************************************************/
 
 /**
+ * @brief Parse one positive integer argument for a shell host function.
+ * @param Context Shell context owning the script state.
+ * @param FunctionName Name of the host function.
+ * @param ParameterName Logical parameter name.
+ * @param ValueText Serialized argument text.
+ * @param OutValue Parsed integer value.
+ * @return TRUE on success.
+ */
+static BOOL ShellScriptParsePositiveInteger(
+    LPSHELLCONTEXT Context,
+    LPCSTR FunctionName,
+    LPCSTR ParameterName,
+    LPCSTR ValueText,
+    U32* OutValue) {
+    U32 Index = 0;
+    U32 Value = 0;
+
+    if (OutValue == NULL) {
+        return FALSE;
+    }
+
+    if (ValueText == NULL || StringLength(ValueText) == 0) {
+        ShellScriptFailFunction(Context, SCRIPT_ERROR_TYPE_MISMATCH, TEXT("set_graphics_driver() expects positive integer arguments"));
+        return FALSE;
+    }
+
+    for (Index = 0; ValueText[Index] != STR_NULL; Index++) {
+        if (!IsNumeric(ValueText[Index])) {
+            STR Message[MAX_ERROR_MESSAGE];
+
+            StringPrintFormat(
+                Message,
+                TEXT("%s() expects %s to be a positive integer"),
+                FunctionName,
+                ParameterName);
+            ShellScriptFailFunction(Context, SCRIPT_ERROR_TYPE_MISMATCH, Message);
+            return FALSE;
+        }
+    }
+
+    Value = StringToU32(ValueText);
+    if (Value == 0) {
+        STR Message[MAX_ERROR_MESSAGE];
+
+        StringPrintFormat(
+            Message,
+            TEXT("%s() expects %s to be a positive integer"),
+            FunctionName,
+            ParameterName);
+        ShellScriptFailFunction(Context, SCRIPT_ERROR_TYPE_MISMATCH, Message);
+        return FALSE;
+    }
+
+    *OutValue = Value;
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Shell callback for script function calls.
  * @param FuncName Function name to call
  * @param ArgumentCount Number of stringified arguments
@@ -396,6 +456,48 @@ INT ShellScriptCallFunction(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Argumen
         }
 
         return ShellScriptKillHandle(Context, Arguments[0]);
+    } else if (STRINGS_EQUAL(FuncName, TEXT("set_graphics_driver"))) {
+        STR ErrorMessage[MAX_ERROR_MESSAGE];
+        U32 Width = 0;
+        U32 Height = 0;
+        U32 BitsPerPixel = 0;
+        UINT Status = 0;
+
+        if (ArgumentCount != 4 || Arguments == NULL) {
+            return ShellScriptFailFunction(
+                Context,
+                SCRIPT_ERROR_SYNTAX,
+                TEXT("set_graphics_driver(driver_alias, width, height, bpp) expects exactly four arguments"));
+        }
+
+        if (Arguments[0] == NULL || StringLength(Arguments[0]) == 0) {
+            return ShellScriptFailFunction(
+                Context,
+                SCRIPT_ERROR_TYPE_MISMATCH,
+                TEXT("set_graphics_driver() expects a non-empty driver alias"));
+        }
+
+        if (!ShellScriptParsePositiveInteger(Context, TEXT("set_graphics_driver"), TEXT("width"), Arguments[1], &Width) ||
+            !ShellScriptParsePositiveInteger(Context, TEXT("set_graphics_driver"), TEXT("height"), Arguments[2], &Height) ||
+            !ShellScriptParsePositiveInteger(Context, TEXT("set_graphics_driver"), TEXT("bpp"), Arguments[3], &BitsPerPixel)) {
+            return SCRIPT_FUNCTION_STATUS_ERROR;
+        }
+
+        Status = ShellSetGraphicsDriver(
+            Arguments[0],
+            Width,
+            Height,
+            BitsPerPixel,
+            ErrorMessage,
+            sizeof(ErrorMessage));
+        if (Status != DF_RETURN_SUCCESS) {
+            return ShellScriptFailFunction(
+                Context,
+                SCRIPT_ERROR_TYPE_MISMATCH,
+                ErrorMessage[0] != STR_NULL ? ErrorMessage : TEXT("set_graphics_driver() failed"));
+        }
+
+        return (INT)Status;
     }
 
     return SCRIPT_FUNCTION_STATUS_UNKNOWN;

@@ -219,6 +219,12 @@ Reserved function return values:
 - `SCRIPT_FUNCTION_STATUS_UNKNOWN`: host symbol not found
 - `SCRIPT_FUNCTION_STATUS_ERROR`: host symbol found, but the callback rejected the call and set an explicit script error
 
+Shell host functions exposed in the kernel integration include:
+- `print(...)`
+- `exec(...)`
+- `kill(handle)`
+- `set_graphics_driver(driver_alias, width, height, bpp)`
+
 ### Variables
 ```c
 ScriptSetVariable(...);
@@ -247,7 +253,7 @@ ScriptUnregisterHostSymbol(...);
 static U32 Exec(const char* cmd, void* u) {
     return 0;
 }
-static U32 Call(const char* name, const char* arg, void* u) {
+static INT Call(const char* name, UINT argc, const char** argv, void* u) {
     return 0;
 }
 

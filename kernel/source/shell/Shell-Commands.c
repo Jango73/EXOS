@@ -41,7 +41,6 @@ SHELL_COMMAND_ENTRY COMMANDS[] = {
     {"desktop", "desktop", "show|status|theme <path-or-name>", "Control desktop and theme runtime", CMD_desktop},
     {"edit", "edit", "Name", "Open text editor", CMD_edit},
     {"fs", "file_system", "[--long]", "Show file system information", CMD_filesystem},
-    {"gfx", "graphics", "driver DriverAlias Mode|info", "Control graphics mode", CMD_gfx},
     {"keyboard", "keyboard", "--layout Code", "Change keyboard layout", CMD_keyboard},
     {"list", "dir", "[Name] [-p] [-r] [-s|--stress]", "List folder entries", CMD_dir},
     {"login", "login", "", "Authenticate user session", CMD_login},

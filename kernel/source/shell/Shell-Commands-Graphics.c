@@ -70,132 +70,28 @@ static BOOL ShellApplyDesktopTheme(LPCSTR Target) {
 /************************************************************************/
 
 /**
- * @brief Parse one unsigned decimal component from a mode token.
- * @param Text Mode token text.
- * @param InOutIndex Parse cursor.
- * @param ValueOut Parsed value.
- * @return TRUE on success.
+ * @brief Initialize one graphics mode descriptor from scalar values.
+ * @param ModeInfo Output mode descriptor.
+ * @param Width Requested width.
+ * @param Height Requested height.
+ * @param BitsPerPixel Requested bits per pixel.
  */
-static BOOL ParseGraphicsModeComponent(LPCSTR Text, UINT* InOutIndex, U32* ValueOut) {
-    UINT Index = 0;
-    U32 Value = 0;
-    BOOL HasDigit = FALSE;
-
-    if (Text == NULL || InOutIndex == NULL || ValueOut == NULL) {
-        return FALSE;
-    }
-
-    Index = *InOutIndex;
-    while (Text[Index] >= '0' && Text[Index] <= '9') {
-        HasDigit = TRUE;
-        Value = (Value * 10) + (U32)(Text[Index] - '0');
-        Index++;
-    }
-
-    if (!HasDigit) {
-        return FALSE;
-    }
-
-    *InOutIndex = Index;
-    *ValueOut = Value;
-    return TRUE;
-}
-
-/************************************************************************/
-
-/**
- * @brief Parse one graphics mode token formatted as WidthxHeightxBitsPerPixel.
- * @param Token Mode token string.
- * @param InfoOut Parsed mode info.
- * @return TRUE on success.
- */
-static BOOL ParseGraphicsModeToken(LPCSTR Token, LPGRAPHICS_MODE_INFO InfoOut) {
-    UINT Index = 0;
-    U32 Width = 0;
-    U32 Height = 0;
-    U32 BitsPerPixel = 0;
-
-    if (Token == NULL || InfoOut == NULL || StringLength(Token) == 0) {
-        return FALSE;
-    }
-
-    if (!ParseGraphicsModeComponent(Token, &Index, &Width)) {
-        return FALSE;
-    }
-
-    if (Token[Index] != 'x' && Token[Index] != 'X') {
-        return FALSE;
-    }
-    Index++;
-
-    if (!ParseGraphicsModeComponent(Token, &Index, &Height)) {
-        return FALSE;
-    }
-
-    if (Token[Index] != 'x' && Token[Index] != 'X') {
-        return FALSE;
-    }
-    Index++;
-
-    if (!ParseGraphicsModeComponent(Token, &Index, &BitsPerPixel)) {
-        return FALSE;
-    }
-
-    if (Token[Index] != STR_NULL) {
-        return FALSE;
-    }
-
-    if (Width == 0 || Height == 0 || BitsPerPixel == 0) {
-        return FALSE;
-    }
-
-    InfoOut->Header.Size = sizeof(GRAPHICS_MODE_INFO);
-    InfoOut->Header.Version = EXOS_ABI_VERSION;
-    InfoOut->Header.Flags = 0;
-    InfoOut->ModeIndex = INFINITY;
-    InfoOut->Width = Width;
-    InfoOut->Height = Height;
-    InfoOut->BitsPerPixel = BitsPerPixel;
-    return TRUE;
-}
-
-/************************************************************************/
-
-/**
- * @brief Print supported shell aliases for graphics backend selection.
- * @param Context Shell context.
- */
-static void PrintSupportedGraphicsBackendAliases(void) {
-    UINT PrintedCount = 0;
-    LPLIST DriverList = GetDriverList();
-
-    if (DriverList == NULL) {
-        ConsolePrint(TEXT("none"));
+static void InitializeGraphicsModeInfo(
+    LPGRAPHICS_MODE_INFO ModeInfo,
+    U32 Width,
+    U32 Height,
+    U32 BitsPerPixel) {
+    if (ModeInfo == NULL) {
         return;
     }
 
-    for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
-        LPDRIVER Driver = (LPDRIVER)Node;
-
-        if (Driver->Type != DRIVER_TYPE_GRAPHICS || Driver == GraphicsSelectorGetDriver()) {
-            continue;
-        }
-
-        if (StringLength(Driver->Alias) == 0) {
-            continue;
-        }
-
-        if (PrintedCount != 0) {
-            ConsolePrint(TEXT("|"));
-        }
-
-        ConsolePrint(TEXT("%s"), Driver->Alias);
-        PrintedCount++;
-    }
-
-    if (PrintedCount == 0) {
-        ConsolePrint(TEXT("none"));
-    }
+    ModeInfo->Header.Size = sizeof(GRAPHICS_MODE_INFO);
+    ModeInfo->Header.Version = EXOS_ABI_VERSION;
+    ModeInfo->Header.Flags = 0;
+    ModeInfo->ModeIndex = INFINITY;
+    ModeInfo->Width = Width;
+    ModeInfo->Height = Height;
+    ModeInfo->BitsPerPixel = BitsPerPixel;
 }
 
 /************************************************************************/
@@ -235,6 +131,108 @@ static LPDRIVER FindGraphicsBackendByAlias(LPCSTR Alias) {
 
     return NULL;
 }
+
+/************************************************************************/
+
+/**
+ * @brief Apply one graphics backend and mode selection from shell code.
+ * @param DriverAlias Requested backend alias.
+ * @param Width Requested mode width.
+ * @param Height Requested mode height.
+ * @param BitsPerPixel Requested mode bits per pixel.
+ * @param ErrorMessage Optional output buffer for a human-readable error.
+ * @param ErrorMessageCapacity Capacity of ErrorMessage in characters.
+ * @return DF_RETURN_SUCCESS on success, or one driver-style error code.
+ */
+UINT ShellSetGraphicsDriver(
+    LPCSTR DriverAlias,
+    U32 Width,
+    U32 Height,
+    U32 BitsPerPixel,
+    LPSTR ErrorMessage,
+    UINT ErrorMessageCapacity) {
+    GRAPHICS_MODE_INFO ModeInfo;
+    LPDRIVER GraphicsDriver = NULL;
+    LPDESKTOP ActiveDesktop = NULL;
+    LPDRIVER RequestedBackend = NULL;
+    UINT RequestedBackendLoadResult = DF_RETURN_SUCCESS;
+    UINT ModeSetResult = DF_RETURN_GENERIC;
+
+    if (ErrorMessage != NULL && ErrorMessageCapacity != 0) {
+        ErrorMessage[0] = STR_NULL;
+    }
+
+    if (DriverAlias == NULL || StringLength(DriverAlias) == 0 ||
+        Width == 0 || Height == 0 || BitsPerPixel == 0) {
+        if (ErrorMessage != NULL && ErrorMessageCapacity != 0) {
+            StringCopy(ErrorMessage, TEXT("set_graphics_driver(driver_alias, width, height, bpp) expects non-zero values"));
+        }
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    InitializeGraphicsModeInfo(&ModeInfo, Width, Height, BitsPerPixel);
+
+    RequestedBackend = FindGraphicsBackendByAlias(DriverAlias);
+    if (RequestedBackend != NULL && (RequestedBackend->Flags & DRIVER_FLAG_READY) == 0) {
+        RequestedBackendLoadResult = RequestedBackend->Command(DF_LOAD, 0);
+    }
+
+    if (!GraphicsSelectorForceBackendByName(DriverAlias)) {
+        if (ErrorMessage != NULL && ErrorMessageCapacity != 0) {
+            if (RequestedBackend != NULL) {
+                StringPrintFormat(
+                    ErrorMessage,
+                    TEXT("set_graphics_driver() could not select '%s' (load_result=%u)"),
+                    DriverAlias,
+                    RequestedBackendLoadResult);
+            } else {
+                StringPrintFormat(
+                    ErrorMessage,
+                    TEXT("set_graphics_driver() could not select '%s'"),
+                    DriverAlias);
+            }
+        }
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    GraphicsDriver = GetGraphicsDriver();
+    if (GraphicsDriver == NULL || GraphicsDriver->Command == NULL) {
+        if (ErrorMessage != NULL && ErrorMessageCapacity != 0) {
+            StringCopy(ErrorMessage, TEXT("set_graphics_driver() found no active graphics selector"));
+        }
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    ModeSetResult = GraphicsDriver->Command(DF_GFX_SETMODE, (UINT)(LPVOID)&ModeInfo);
+    if (ModeSetResult != DF_RETURN_SUCCESS) {
+        if (ErrorMessage != NULL && ErrorMessageCapacity != 0) {
+            StringPrintFormat(
+                ErrorMessage,
+                TEXT("set_graphics_driver() failed to apply %ux%ux%u on '%s' (%u)"),
+                Width,
+                Height,
+                BitsPerPixel,
+                DriverAlias,
+                ModeSetResult);
+        }
+        return ModeSetResult;
+    }
+
+    if (DisplaySessionSetConsoleGraphicsMode(GraphicsDriver, &ModeInfo) == FALSE) {
+        ActiveDesktop = GetActiveDesktop();
+        if (ActiveDesktop == NULL ||
+            DisplaySessionSetDesktopMode(ActiveDesktop, GraphicsDriver, &ModeInfo) == FALSE) {
+            if (ErrorMessage != NULL && ErrorMessageCapacity != 0) {
+                StringCopy(ErrorMessage, TEXT("set_graphics_driver() failed to update the display session"));
+            }
+            return DF_RETURN_UNEXPECTED;
+        }
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
 
 /**
  * @brief Convert display front-end identifier to text.
@@ -466,149 +464,3 @@ U32 CMD_desktop(LPSHELLCONTEXT Context) {
     ConsolePrint(TEXT("       desktop theme <path-or-name>\n"));
     return DF_RETURN_SUCCESS;
 }
-
-/************************************************************************/
-
-/**
- * @brief Graphics command dispatcher.
- * @param Context Shell context.
- * @return DF_RETURN_SUCCESS on completion.
- */
-U32 CMD_gfx(LPSHELLCONTEXT Context) {
-    STR Mode[64];
-    STR DriverName[64];
-    GRAPHICS_MODE_INFO ModeInfo;
-    LPDRIVER GraphicsDriver = NULL;
-    UINT ModeSetResult = 0;
-    LPDESKTOP ActiveDesktop = NULL;
-    LPCSTR ActiveBackendName = NULL;
-    LPDRIVER RequestedBackend = NULL;
-    UINT RequestedBackendLoadResult = DF_RETURN_SUCCESS;
-
-    ParseNextCommandLineComponent(Context);
-    StringCopy(Mode, Context->Command);
-
-    if (StringLength(Mode) == 0) {
-        StringCopy(Mode, TEXT("info"));
-    }
-
-    if (StringCompareNC(Mode, TEXT("info")) == 0) {
-        GraphicsDriver = GetGraphicsDriver();
-        if (GraphicsDriver == NULL || GraphicsDriver->Command == NULL) {
-            ConsolePrint(TEXT("gfx: no graphics driver available\n"));
-            return DF_RETURN_SUCCESS;
-        }
-
-        ModeInfo.Header.Size = sizeof(ModeInfo);
-        ModeInfo.Header.Version = EXOS_ABI_VERSION;
-        ModeInfo.Header.Flags = 0;
-        ModeInfo.ModeIndex = INFINITY;
-        ModeInfo.Width = 0;
-        ModeInfo.Height = 0;
-        ModeInfo.BitsPerPixel = 0;
-
-        ModeSetResult = GraphicsDriver->Command(DF_GFX_GETMODEINFO, (UINT)(LPVOID)&ModeInfo);
-        if (ModeSetResult != DF_RETURN_SUCCESS) {
-            ConsolePrint(TEXT("gfx: mode query failed (%u)\n"), ModeSetResult);
-            return DF_RETURN_SUCCESS;
-        }
-
-        ActiveBackendName = GraphicsSelectorGetActiveBackendName();
-        if (ActiveBackendName != NULL && StringLength(ActiveBackendName) != 0) {
-            ConsolePrint(TEXT("gfx: driver=%s mode=%ux%ux%u\n"),
-                ActiveBackendName,
-                ModeInfo.Width,
-                ModeInfo.Height,
-                ModeInfo.BitsPerPixel);
-        } else {
-            ConsolePrint(TEXT("gfx: mode=%ux%ux%u\n"),
-                ModeInfo.Width,
-                ModeInfo.Height,
-                ModeInfo.BitsPerPixel);
-        }
-
-        return DF_RETURN_SUCCESS;
-    }
-
-    if (StringCompareNC(Mode, TEXT("driver")) != 0) {
-        ConsolePrint(TEXT("Usage: gfx driver Driver WidthxHeightxBitsPerPixel\n"));
-        ConsolePrint(TEXT("       gfx info\n"));
-        return DF_RETURN_SUCCESS;
-    }
-
-    ParseNextCommandLineComponent(Context);
-    StringCopy(DriverName, Context->Command);
-    ParseNextCommandLineComponent(Context);
-
-    if (StringLength(DriverName) == 0 || StringLength(Context->Command) == 0) {
-        ConsolePrint(TEXT("Usage: gfx driver Driver WidthxHeightxBitsPerPixel\n"));
-        return DF_RETURN_SUCCESS;
-    }
-
-    if (!ParseGraphicsModeToken(Context->Command, &ModeInfo)) {
-        ConsolePrint(TEXT("Usage: gfx driver Driver WidthxHeightxBitsPerPixel\n"));
-        return DF_RETURN_SUCCESS;
-    }
-
-    RequestedBackend = FindGraphicsBackendByAlias(DriverName);
-    if (RequestedBackend != NULL && (RequestedBackend->Flags & DRIVER_FLAG_READY) == 0) {
-        RequestedBackendLoadResult = RequestedBackend->Command(DF_LOAD, 0);
-    }
-
-    if (GraphicsSelectorGetDriver() != NULL && GraphicsSelectorGetDriver()->Command != NULL) {
-        (void)GraphicsSelectorGetDriver()->Command(DF_UNLOAD, 0);
-    }
-
-    if (!GraphicsSelectorForceBackendByName(DriverName)) {
-        ConsolePrint(TEXT("gfx: driver '%s' unavailable (supported: "), DriverName);
-        PrintSupportedGraphicsBackendAliases();
-        ConsolePrint(TEXT(")\n"));
-        if (RequestedBackend != NULL) {
-            ConsolePrint(TEXT("gfx: driver '%s' load_result=%u ready=%u\n"),
-                DriverName,
-                RequestedBackendLoadResult,
-                (RequestedBackend->Flags & DRIVER_FLAG_READY) != 0 ? 1 : 0);
-            if (StringCompareNC(DriverName, TEXT("igpu")) == 0) {
-                ConsolePrint(TEXT("gfx: check logs [IntelGfxLoad] and [IntelGfxTakeoverActiveMode]\n"));
-            }
-        }
-        return DF_RETURN_SUCCESS;
-    }
-
-    GraphicsDriver = GetGraphicsDriver();
-    if (GraphicsDriver == NULL || GraphicsDriver->Command == NULL) {
-        ConsolePrint(TEXT("gfx: no graphics driver available\n"));
-        return DF_RETURN_SUCCESS;
-    }
-
-    ModeSetResult = GraphicsDriver->Command(DF_GFX_SETMODE, (UINT)(LPVOID)&ModeInfo);
-    if (ModeSetResult != DF_RETURN_SUCCESS) {
-        ConsolePrint(TEXT("gfx: mode set failed (%u)\n"), ModeSetResult);
-        return DF_RETURN_SUCCESS;
-    }
-
-    if (DisplaySessionSetConsoleGraphicsMode(GraphicsDriver, &ModeInfo) == FALSE) {
-        ActiveDesktop = GetActiveDesktop();
-        if (ActiveDesktop != NULL) {
-            (void)DisplaySessionSetDesktopMode(ActiveDesktop, GraphicsDriver, &ModeInfo);
-        }
-    }
-
-    ActiveBackendName = GraphicsSelectorGetActiveBackendName();
-    if (ActiveBackendName != NULL && StringLength(ActiveBackendName) != 0) {
-        ConsolePrint(TEXT("gfx: driver=%s mode=%ux%ux%u\n"),
-            ActiveBackendName,
-            ModeInfo.Width,
-            ModeInfo.Height,
-            ModeInfo.BitsPerPixel);
-    } else {
-        ConsolePrint(TEXT("gfx: mode=%ux%ux%u\n"),
-            ModeInfo.Width,
-            ModeInfo.Height,
-            ModeInfo.BitsPerPixel);
-    }
-
-    return DF_RETURN_SUCCESS;
-}
-
-/************************************************************************/

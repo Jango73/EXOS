@@ -52,7 +52,6 @@ U32 CMD_filesystem(LPSHELLCONTEXT Context);
 U32 CMD_network(LPSHELLCONTEXT Context);
 U32 CMD_pic(LPSHELLCONTEXT Context);
 U32 CMD_driver(LPSHELLCONTEXT Context);
-U32 CMD_gfx(LPSHELLCONTEXT Context);
 U32 CMD_desktop(LPSHELLCONTEXT Context);
 U32 CMD_reboot(LPSHELLCONTEXT Context);
 U32 CMD_shutdown(LPSHELLCONTEXT Context);
@@ -69,6 +68,13 @@ U32 CMD_dataview(LPSHELLCONTEXT Context);
 void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL Pause, BOOL Recurse, U32* NumListed);
 BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName);
 BOOL RunEmbeddedScript(LPSHELLCONTEXT Context, LPCSTR ScriptText);
+UINT ShellSetGraphicsDriver(
+    LPCSTR DriverAlias,
+    U32 Width,
+    U32 Height,
+    U32 BitsPerPixel,
+    LPSTR ErrorMessage,
+    UINT ErrorMessageCapacity);
 
 /************************************************************************/
 

@@ -682,21 +682,38 @@ All reusable helpers -such as the command line editor, adaptive delay, string co
 - `task`: Global task list root filtered through process access policy.
   - `task.count`: number of tasks the caller may target.
   - `task[n]`: task view at visible index `n`. Permissions and fields match the task view exposed through `process[n].task[n]`.
-- `drivers`: Kernel driver list root. provides indexed access to driver views. Permissions: kernel and administrator only.
-  - `drivers.count`: number of drivers. Permissions: kernel and administrator only.
-  - `drivers[n]`: driver view at index `n`. Permissions: kernel and administrator only.
+- `driver`: Kernel driver list root. provides indexed access to driver views. Permissions: kernel and administrator only.
+  - `driver.count`: number of drivers. Permissions: kernel and administrator only.
+  - `driver[n]`: driver view at index `n`. Permissions: kernel and administrator only.
     - `type`: driver type. Permissions: kernel and administrator only.
+    - `type_name`: driver type text. Permissions: anyone.
+    - `alias`: driver alias. Permissions: anyone.
     - `version_major`: major version. Permissions: kernel and administrator only.
     - `version_minor`: minor version. Permissions: kernel and administrator only.
     - `designer`: driver designer. Permissions: kernel and administrator only.
     - `manufacturer`: driver manufacturer. Permissions: kernel and administrator only.
     - `product`: driver product name. Permissions: kernel and administrator only.
+    - `ready`: ready flag. Permissions: anyone.
     - `flags`: driver flags. Permissions: kernel and administrator only.
-    - `command`: driver command pointer. Permissions: kernel and administrator only.
+    - `mode`: graphics mode array exposed by concrete graphics backends.
+      - `mode.count`: number of reported graphics modes for this driver.
+      - `mode[n]`: graphics mode view at index `n`.
+        - `width`: mode width.
+        - `height`: mode height.
+        - `bpp`: mode bit depth.
     - `enum_domain_count`: number of enum domains. Permissions: kernel and administrator only.
     - `enum_domains`: enum domain array. Permissions: kernel and administrator only.
       - `enum_domains.count`: enum domain count. Permissions: kernel and administrator only.
       - `enum_domains[n]`: enum domain value at index `n`. Permissions: kernel and administrator only.
+- `drivers`: Compatibility alias for `driver`.
+- `graphics`: Active graphics session state. Permissions: anyone.
+  - `graphics.frontend`: active display frontend text (`console` or `desktop`).
+  - `graphics.current_driver_index`: index of the active concrete graphics backend inside `driver[n]`.
+  - `graphics.current_driver_alias`: alias of the active concrete graphics backend.
+  - `graphics.mode`: active graphics mode view.
+    - `graphics.mode.width`: active mode width.
+    - `graphics.mode.height`: active mode height.
+    - `graphics.mode.bpp`: active mode bit depth.
 - `storage`: Storage list root. provides indexed access to storage views. Permissions: anyone.
   - `storage.count`: number of storage objects. Permissions: anyone.
   - `storage[n]`: storage view at index `n`. Permissions: anyone.
@@ -862,7 +879,7 @@ Console text output uses backend-dispatched text commands implemented in `kernel
 - `TEXT_SET_CURSOR`
 - `TEXT_SET_CURSOR_VISIBLE`
 
-When `gfx driver <alias> <mode>` applies a graphics mode while the shell is in the console frontend, display session routing uses the selected backend for console rendering and recomputes console cell geometry from the active pixel mode. Shell output stays visible across backend and mode transitions.
+When `set_graphics_driver(driver_alias, width, height, bpp)` applies a graphics mode while the shell is in the console frontend, display session routing uses the selected backend for console rendering and recomputes console cell geometry from the active pixel mode. Shell output stays visible across backend and mode transitions.
 
 The console text dispatch path caches the active `GRAPHICSCONTEXT` while the console frontend is bound to the same graphics driver. That cache is invalidated when console mode or framebuffer mapping changes so boot log rendering does not repeatedly call `DF_GFX_GETCONTEXT`.
 
@@ -927,9 +944,9 @@ Graphics backend selection is implemented in `kernel/source/drivers/graphics/com
 
 Boot-path capability gating is centralized in `utils/BootPath` (`kernel/include/utils/BootPath.h`, `kernel/source/utils/BootPath.c`). VESA probing is disabled on x86-64 boot paths and enabled on x86-32 boot paths. On x86-32, backend availability is decided by the VESA initialization and probe path.
 
-Explicit backend forcing through `gfx driver <alias> <mode>` uses a strict selector path: only the requested backend is loaded into selector state, and command forwarding targets that backend while forced mode is active.
+Explicit backend forcing through `set_graphics_driver(driver_alias, width, height, bpp)` uses a strict selector path: only the requested backend is loaded into selector state, and command forwarding targets that backend while forced mode is active.
 
-Shell graphics commands are implemented in `kernel/source/shell/Shell-Commands-Graphics.c`. `gfx driver <driver> <WidthxHeightxBitsPerPixel>` selects a backend and mode, and `gfx info` reports the active backend and mode.
+Shell graphics switching is implemented through the reusable `ShellSetGraphicsDriver()` helper in `kernel/source/shell/Shell-Commands-Graphics.c`, and exposed to E0 through the `set_graphics_driver(...)` host function.
 
 Generic driver diagnostics use `DF_DEBUG_INFO` with `DRIVER_DEBUG_INFO.Text`, a multi-line buffer sized with `MAX_STRING_BUFFER`. Graphics backends use that interface to expose backend alias and current resolution, and the graphics selector forwards the query to the active backend. Mouse drivers expose the selected manufacturer and product through the same pattern, and the mouse selector forwards that data as well.
 
@@ -1650,6 +1667,7 @@ The shell exposes host functions through that bridge:
 - `print(...)`: prints the stringified arguments joined with spaces.
 - `exec(...)`: rebuilds one command line from the stringified arguments and executes it through the normal shell command path.
 - `kill(handle)`: resolves one user-visible handle and routes to `SysCall_KillProcess()` or `SysCall_KillTask()` depending on the object type behind the handle.
+- `set_graphics_driver(driver_alias, width, height, bpp)`: forces one graphics backend alias and applies the requested mode through the selector path.
 
 Known host functions return `SCRIPT_FUNCTION_STATUS_UNKNOWN` when the symbol does not exist, and `SCRIPT_FUNCTION_STATUS_ERROR` when the function exists but rejects the call after setting an explicit script error.
 

@@ -359,9 +359,47 @@ SCRIPT_ERROR DriverEnumDomainArrayGetElement(
     U32 Index,
     LPSCRIPT_VALUE OutValue);
 
+SCRIPT_ERROR DriverModeArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR DriverModeArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR DriverModeGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
 extern const SCRIPT_HOST_DESCRIPTOR DriverDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR DriverArrayDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR DriverEnumDomainArrayDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR DriverModeDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR DriverModeArrayDescriptor;
+
+/************************************************************************/
+
+SCRIPT_ERROR GraphicsGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR GraphicsModeGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+extern const SCRIPT_HOST_DESCRIPTOR GraphicsDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR GraphicsModeDescriptor;
+SCRIPT_HOST_HANDLE GetGraphicsRootHandle(void);
 
 /************************************************************************/
 

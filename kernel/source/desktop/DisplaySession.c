@@ -310,3 +310,29 @@ LPDRIVER DisplaySessionGetActiveGraphicsDriver(void) {
 }
 
 /************************************************************************/
+
+/**
+ * @brief Retrieve the active graphics mode tracked by the session.
+ * @param ModeInfo Output mode information.
+ * @return TRUE when a valid active mode is available.
+ */
+BOOL DisplaySessionGetActiveMode(LPGRAPHICS_MODE_INFO ModeInfo) {
+    LPDISPLAY_SESSION Session = GetDisplaySession();
+
+    if (ModeInfo == NULL) {
+        return FALSE;
+    }
+
+    SAFE_USE(Session) {
+        if (Session->IsInitialized == FALSE || Session->HasValidMode == FALSE) {
+            return FALSE;
+        }
+
+        *ModeInfo = Session->ActiveMode;
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
