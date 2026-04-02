@@ -866,7 +866,7 @@ void TestScriptArrays(TEST_RESULTS* Results) {
 /**
  * @brief Test string operators in script expressions.
  *
- * This function validates string concatenation and string subtraction.
+ * This function validates string concatenation coercion and string subtraction.
  *
  * @param Results Pointer to TEST_RESULTS structure to be filled with test results
  */
@@ -898,7 +898,55 @@ void TestScriptStringOperators(TEST_RESULTS* Results) {
 
     ScriptDestroyContext(Context);
 
-    // Test 2: String subtraction removes all occurrences
+    // Test 2: Integer + string concatenates as text
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptStringOperators] Failed to create context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("value = 1 + \"bar\";"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("value"));
+        if (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String &&
+            StringCompare(Var->Value.String, TEXT("1bar")) == 0) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptStringOperators] Test 2 failed: value = %s (expected 1bar)"),
+                  (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String) ? Var->Value.String : TEXT("(null)"));
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptStringOperators] Test 2 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    // Test 3: A mixed + chain switches to text concatenation once a string appears
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptStringOperators] Failed to create context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("value = 1 + 2 + \"x\" + 3;"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("value"));
+        if (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String &&
+            StringCompare(Var->Value.String, TEXT("3x3")) == 0) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptStringOperators] Test 3 failed: value = %s (expected 3x3)"),
+                  (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String) ? Var->Value.String : TEXT("(null)"));
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptStringOperators] Test 3 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    // Test 4: String subtraction removes all occurrences
     Results->TestsRun++;
     Context = ScriptCreateContext(NULL);
     if (Context == NULL) {
@@ -913,16 +961,16 @@ void TestScriptStringOperators(TEST_RESULTS* Results) {
             StringCompare(Var->Value.String, TEXT("bar")) == 0) {
             Results->TestsPassed++;
         } else {
-            DEBUG(TEXT("[TestScriptStringOperators] Test 2 failed: value = %s (expected bar)"),
+            DEBUG(TEXT("[TestScriptStringOperators] Test 4 failed: value = %s (expected bar)"),
                   (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String) ? Var->Value.String : TEXT("(null)"));
         }
     } else {
-        DEBUG(TEXT("[TestScriptStringOperators] Test 2 failed with error %d"), Error);
+        DEBUG(TEXT("[TestScriptStringOperators] Test 4 failed with error %d"), Error);
     }
 
     ScriptDestroyContext(Context);
 
-    // Test 3: Removing an empty pattern keeps source unchanged
+    // Test 5: Removing an empty pattern keeps source unchanged
     Results->TestsRun++;
     Context = ScriptCreateContext(NULL);
     if (Context == NULL) {
@@ -937,11 +985,11 @@ void TestScriptStringOperators(TEST_RESULTS* Results) {
             StringCompare(Var->Value.String, TEXT("hello")) == 0) {
             Results->TestsPassed++;
         } else {
-            DEBUG(TEXT("[TestScriptStringOperators] Test 3 failed: value = %s (expected hello)"),
+            DEBUG(TEXT("[TestScriptStringOperators] Test 5 failed: value = %s (expected hello)"),
                   (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String) ? Var->Value.String : TEXT("(null)"));
         }
     } else {
-        DEBUG(TEXT("[TestScriptStringOperators] Test 3 failed with error %d"), Error);
+        DEBUG(TEXT("[TestScriptStringOperators] Test 5 failed with error %d"), Error);
     }
 
     ScriptDestroyContext(Context);

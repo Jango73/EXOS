@@ -852,8 +852,8 @@ SCRIPT_ERROR ScriptValueToString(
 /************************************************************************/
 
 /**
- * @brief Concatenate two script strings and store the result.
- * @param LeftValue Left operand (must be a string)
+ * @brief Concatenate two script values and store the result as text.
+ * @param LeftValue Left operand (string-convertible)
  * @param RightValue Right operand (string-convertible)
  * @param Result Destination value
  * @return SCRIPT_OK on success, otherwise an error code
@@ -872,10 +872,6 @@ SCRIPT_ERROR ScriptConcatStrings(const SCRIPT_VALUE* LeftValue, const SCRIPT_VAL
 
     if (LeftValue == NULL || RightValue == NULL || Result == NULL) {
         return SCRIPT_ERROR_SYNTAX;
-    }
-
-    if (LeftValue->Type != SCRIPT_VAR_STRING) {
-        return SCRIPT_ERROR_TYPE_MISMATCH;
     }
 
     ResultContext = (LeftValue->ContextOwner != NULL)

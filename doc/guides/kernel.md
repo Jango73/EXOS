@@ -1621,10 +1621,10 @@ Background mode is blocked for `.e0` scripts.
 
 E0 expressions support string-specific operator behavior in the interpreter:
 
-- `string + string` concatenates both operands.
+- `+` concatenates as text when either operand is a string. In a left-associative `+` chain, once one sub-expression yields a string, later `+` operations continue as text concatenation.
 - `string - string` removes every occurrence of the right operand from the left operand.
 
-Examples: `"foo" + "bar"` gives `"foobar"` and `"foobarfoo" - "foo"` gives `"bar"`.
+Examples: `"foo" + "bar"` gives `"foobar"`, `1 + "x"` gives `"1x"`, `1 + 2 + "x" + 3` gives `"3x3"`, and `"foobarfoo" - "foo"` gives `"bar"`.
 
 #### Shell command bridge inside E0
 

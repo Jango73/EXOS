@@ -513,7 +513,7 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                 SCRIPT_ERROR StringError = SCRIPT_OK;
 
                 if (Operator == '+') {
-                    if (LeftValue.Type == SCRIPT_VAR_STRING) {
+                    if (LeftValue.Type == SCRIPT_VAR_STRING || RightValue.Type == SCRIPT_VAR_STRING) {
                         StringError = ScriptConcatStrings(&LeftValue, &RightValue, &Result);
                         if (StringError != SCRIPT_OK && Error) {
                             *Error = StringError;
