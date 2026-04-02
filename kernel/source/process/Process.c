@@ -26,7 +26,7 @@
 
 #include "console/Console.h"
 #include "Driver.h"
-#include "Executable.h"
+#include "exec/Executable.h"
 #include "fs/File.h"
 #include "Kernel.h"
 #include "List.h"

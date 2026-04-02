@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "ExecutableELF.h"
+#include "exec/ExecutableELF.h"
 
 #include "Log.h"
 #include "text/CoreString.h"

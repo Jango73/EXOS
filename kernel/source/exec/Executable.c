@@ -22,10 +22,10 @@
 
 \************************************************************************/
 
-#include "Executable.h"
+#include "exec/Executable.h"
 
-#include "ExecutableELF.h"
-#include "ExecutableEXOS.h"
+#include "exec/ExecutableELF.h"
+#include "exec/ExecutableEXOS.h"
 #include "Log.h"
 
 /***************************************************************************/

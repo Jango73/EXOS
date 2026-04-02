@@ -27,9 +27,9 @@
 
 /************************************************************************/
 
-#include "Base.h"
-#include "Executable.h"
-#include "fs/File.h"
+#include "../Base.h"
+#include "exec/Executable.h"
+#include "../fs/File.h"
 
 /************************************************************************/
 // ELF signature and basic constants

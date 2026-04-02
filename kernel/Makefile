@@ -83,6 +83,7 @@ LDFLAGS_ELF     = -T $(LINKER_SCRIPT) -static -nostdlib -no-pie --no-dynamic-lin
 KERNEL_ELF      = $(BUILD_DIR)/kernel/exos.elf
 
 SRC_C  = $(wildcard source/*.c) \
+         $(wildcard source/exec/*.c) \
          $(wildcard source/fs/*.c) \
          $(wildcard source/sync/*.c) \
          $(wildcard source/user/*.c) \
