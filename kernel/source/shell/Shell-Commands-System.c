@@ -262,6 +262,29 @@ U32 CMD_killtask(LPSHELLCONTEXT Context) {
 
 /***************************************************************************/
 
+/**
+ * @brief List the tasks visible to the current shell caller.
+ * @param Context Shell context.
+ * @return DF_RETURN_SUCCESS on completion.
+ */
+U32 CMD_task(LPSHELLCONTEXT Context) {
+    ParseNextCommandLineComponent(Context);
+
+    if (StringLength(Context->Command) == 0 ||
+        StringCompareNC(Context->Command, TEXT("list")) != 0) {
+        ConsolePrint(TEXT("Usage: task list\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_TASK_LIST))) {
+        ConsolePrint(TEXT("Unable to run embedded task list script\n"));
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/***************************************************************************/
+
 U32 CMD_memedit(LPSHELLCONTEXT Context) {
     ParseNextCommandLineComponent(Context);
     MemoryEditor(StringToU32(Context->Command));

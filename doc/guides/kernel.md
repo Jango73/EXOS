@@ -1639,6 +1639,8 @@ Each `SHELL_COMMAND_ENTRY` stores the primary name, alternate name, usage text, 
 
 This places command execution policy in shell code while the script engine is generic.
 
+Shell inspection commands that only read exposed kernel objects can delegate formatting to embedded E0 scripts. `driver list`, `network devices`, `usb ports|devices|device-tree|drives|probe`, `mem_map`, and `task list` follow that pattern so the shell stays on the public exposure API instead of walking kernel lists directly.
+
 Function-call expressions support zero or more arguments. The parser stores each argument as an AST expression, the evaluator resolves each one to text, and the host `CallFunction` callback receives `(name, argc, argv, user)` instead of a single serialized argument.
 
 #### Return value behavior

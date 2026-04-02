@@ -62,6 +62,7 @@ SHELL_COMMAND_ENTRY COMMANDS[] = {
     {"run", "launch", "Name [-b|--background]", "Launch executable", CMD_run},
     {"shutdown", "power_off", "", "Power off system", CMD_shutdown},
     {"sys", "sys_info", "", "Show system information", CMD_sysinfo},
+    {"task", "task", "list", "List visible tasks", CMD_task},
     {"type", "show", "", "Show file content", CMD_type},
     {"usb", "usb", "ports|devices|tree|drives|probe", "Inspect USB devices", CMD_usb},
     {"who_am_i", "who", "", "Show current user identity", CMD_whoami},

@@ -42,6 +42,14 @@ static LPCSTR G_EmbeddedScripts[SHELL_EMBEDDED_SCRIPT_COUNT] = {
         "    }\n"
         "    print(alias + \" type=\" + drivers[i].type_name + \" ready=\" + drivers[i].ready + \" product=\" + product);\n"
         "}\n",
+    [SHELL_EMBEDDED_SCRIPT_TASK_LIST] = (LPCSTR)
+        "count = task.count;\n"
+        "if (count == 0) {\n"
+        "    print(\"No task detected\");\n"
+        "}\n"
+        "for (i = 0; i < count; i = i + 1) {\n"
+        "    print(\"task=\" + i + \" name=\" + task[i].name + \" type=\" + task[i].type + \" status=\" + task[i].status + \" priority=\" + task[i].priority + \" flags=\" + task[i].flags + \" exit=\" + task[i].exit_code);\n"
+        "}\n",
     [SHELL_EMBEDDED_SCRIPT_DISK_LIST] = (LPCSTR)
         "count = storage.count;\n"
         "for (i = 0; i < count; i = i + 1) {\n"
