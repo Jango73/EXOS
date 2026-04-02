@@ -92,6 +92,8 @@
 
 ### Shell
 
+- Add an interactive confirmation before `kill(handle)` terminates a sensitive kernel task or process
+
 ### Scripting
 
 ### Console
