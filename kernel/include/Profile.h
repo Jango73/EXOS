@@ -27,7 +27,7 @@
 
 /************************************************************************/
 
-#include "Base.h"
+#include "User.h"
 
 /************************************************************************/
 
@@ -50,7 +50,8 @@ typedef struct tag_PROFILE_SAMPLE {
 
 typedef struct tag_PROFILE_STATS {
     LPCSTR Name;
-    UINT Count;
+    UINT CallCount;
+    UINT TimedCallCount;
     UINT LastTicks;
     UINT TotalTicks;
     UINT MaxTicks;
@@ -58,9 +59,10 @@ typedef struct tag_PROFILE_STATS {
 
 /************************************************************************/
 
+void ProfileCountCall(LPCSTR Name);
 void ProfileStart(LPPROFILE_SCOPE Scope, LPCSTR Name);
 void ProfileStop(LPPROFILE_SCOPE Scope);
-void ProfileDump(void);
+UINT ProfileGetStats(LPPROFILE_QUERY_INFO Info);
 /************************************************************************/
 
 static inline void ProfileScopeBegin(LPPROFILE_SCOPE Scope, LPCSTR Name)

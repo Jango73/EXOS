@@ -68,6 +68,7 @@ typedef struct tag_MESSAGEQUEUE {
 typedef struct tag_TASK_SCHEDULER_STATE {
     U32 Status;
     UINT WakeUpTime;
+    BOOL Suspended;
 } TASK_SCHEDULER_STATE, *LPTASK_SCHEDULER_STATE;
 
 /************************************************************************/
@@ -76,7 +77,6 @@ typedef struct tag_TASK_SCHEDULER_STATE {
 struct tag_TASK {
     LISTNODE_FIELDS           // Standard EXOS object fields
         MUTEX Mutex;          // This structure's mutex
-    LPPROCESS Process;        // Process that owns this task
     STR Name[MAX_USER_NAME];  // Task name for debugging
     U32 Type;                 // Type of task
     U32 Priority;             // Current priority of this task
@@ -104,12 +104,15 @@ typedef struct tag_TASK TASK, *LPTASK;
 BOOL InitKernelTask(void);
 LPTASK CreateTask(LPPROCESS, LPTASK_INFO);
 BOOL KillTask(LPTASK Task);
+BOOL SuspendTaskExecution(LPTASK Task);
+BOOL ResumeTaskExecution(LPTASK Task);
 BOOL SetTaskExitCode(LPTASK Task, UINT Code);
 void DeleteDeadTasksAndProcesses(void);
 U32 SetTaskPriority(LPTASK, U32);
 void Sleep(U32);
 U32 GetTaskStatus(LPTASK Task);
 BOOL GetTaskSchedulerState(LPTASK Task, LPTASK_SCHEDULER_STATE State);
+BOOL IsTaskExecutionSuspended(LPTASK Task);
 void SetTaskStatus(LPTASK Task, U32 Status);
 void SetTaskStatusDirect(LPTASK Task, U32 Status);
 BOOL SetTaskSchedulerStatus(LPTASK Task, U32 Status);

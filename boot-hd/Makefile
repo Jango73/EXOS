@@ -157,7 +157,7 @@ SYSTEM_TEST_EPK_STAGING_DIR = $(BUILD_DIR)/boot-hd/system-test-epk-root
 SYSTEM_TEST_EPK = $(BUILD_DIR)/boot-hd/test.epk
 EXOS_VERSION_MAJOR = $(shell awk '/#define EXOS_VERSION_MAJOR/ {print $$3; exit}' ../kernel/include/User.h)
 EXOS_VERSION_MINOR = $(shell awk '/#define EXOS_VERSION_MINOR/ {print $$3; exit}' ../kernel/include/User.h)
-TEST_E0_SCRIPT  = ../system/scripts/test.e0
+SYSTEM_SCRIPT_FILES = $(wildcard ../system/scripts/*)
 EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/ext2-root
 USB3_STAGING_DIR= $(BUILD_DIR)/boot-hd/usb-3-root
 FS_TEST_EXT2_STAGING_DIR= $(BUILD_DIR)/boot-hd/fs-test-ext2-root
@@ -388,7 +388,7 @@ $(CYCLE_BIN):
 
 # Create image only if it does not exist
 FINAL_IMG_DEPS_COMMON = check_tools $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN)
-FINAL_IMG_DEPS_FULL = $(FINAL_IMG_DEPS_COMMON) $(KERNEL_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(INPUTINFO_ELF) $(MASTER_ELF) $(SLAVE_ELF) $(TEST_E0_SCRIPT)
+FINAL_IMG_DEPS_FULL = $(FINAL_IMG_DEPS_COMMON) $(KERNEL_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(INPUTINFO_ELF) $(MASTER_ELF) $(SLAVE_ELF) $(SYSTEM_SCRIPT_FILES)
 
 ifeq ($(TEST_PAYLOAD),1)
 FINAL_IMG_DEPS = $(FINAL_IMG_DEPS_COMMON)
@@ -542,7 +542,12 @@ update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32) $(SYSTEM_TEST_
 		$(call MCOPY_IF_NEEDED,$(MASTER_ELF),z:/EXOS/APPS/TEST/MASTER)\
 		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE)\
 		$(call MCOPY_IF_NEEDED,$(SYSTEM_TEST_EPK),z:/EXOS/APPS/TEST.EPK)\
-		$(call MCOPY_IF_NEEDED,$(TEST_E0_SCRIPT),z:/EXOS/SCRIPTS/TEST.E0),\
+		for f in $(SYSTEM_SCRIPT_FILES); do \
+			if [ -f "$$f" ]; then \
+				echo "Copying $$f -> z:/EXOS/SCRIPTS/$$(basename $$f)"; \
+				MTOOLSRC=$(MTOOLS_CONF) mcopy -D o "$$f" "z:/EXOS/SCRIPTS/$$(basename $$f)"; \
+			fi; \
+		done,\
 		All files injected into image.)
 
 update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2) $(SYSTEM_TEST_EPK)
@@ -575,7 +580,12 @@ update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2) $(SYSTEM_TEST_EP
 	@cp $(MASTER_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/master
 	@cp $(SLAVE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/slave
 	@cp $(SYSTEM_TEST_EPK) $(EXT2_STAGING_DIR)/exos/apps/test.epk
-	@cp $(TEST_E0_SCRIPT) $(EXT2_STAGING_DIR)/exos/scripts/test.e0
+	@for f in $(SYSTEM_SCRIPT_FILES); do \
+		if [ -f "$$f" ]; then \
+			echo "Copying $$f -> $(EXT2_STAGING_DIR)/exos/scripts/$$(basename $$f)"; \
+			cp "$$f" "$(EXT2_STAGING_DIR)/exos/scripts/$$(basename $$f)"; \
+		fi; \
+	done
 	$(call POPULATE_EXT2_IMAGE,$(FINAL_IMG),$(EXT2_STAGING_DIR))
 
 install-mbr: update $(MBR_BIN) $(VBR_BIN)

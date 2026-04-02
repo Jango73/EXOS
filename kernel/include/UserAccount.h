@@ -32,6 +32,7 @@
 #include "ID.h"
 #include "List.h"
 #include "Security.h"
+#include "utils/AuthPolicy.h"
 
 // Forward declarations
 typedef struct tag_TASK TASK, *LPTASK;
@@ -59,6 +60,7 @@ typedef struct tag_USER_ACCOUNT {
     DATETIME CreationTime;   // Creation date
     DATETIME LastLoginTime;  // Last login
     U32 Status;              // Account status (active/suspended)
+    AUTH_POLICY AuthenticationPolicy; // In-memory login throttling policy
 } USER_ACCOUNT, *LPUSER_ACCOUNT;
 
 /************************************************************************/
@@ -75,6 +77,7 @@ typedef struct tag_USER_SESSION {
     DATETIME LockTime;      // Lock time
     U32 FailedUnlockCount;  // Failed unlock attempts
     HANDLE ShellTask;       // Associated shell task (HANDLE to TASK)
+    AUTH_POLICY UnlockPolicy; // In-memory unlock throttling policy
 } USER_SESSION, *LPUSER_SESSION;
 
 /************************************************************************/
@@ -94,6 +97,10 @@ BOOL SaveUserDatabase(void);
 U64 HashPassword(LPCSTR Password);
 BOOL VerifyPassword(LPCSTR Password, U64 StoredHash);
 U64 GenerateSessionID(void);
+BOOL CanAttemptUserAuthentication(LPUSER_ACCOUNT Account, UINT* WaitRemainingOut);
+BOOL RecordUserAuthenticationFailure(LPUSER_ACCOUNT Account, UINT* WaitRemainingOut);
+void RecordUserAuthenticationSuccess(LPUSER_ACCOUNT Account);
+BOOL CanAttemptSessionUnlock(LPUSER_SESSION Session, UINT* WaitRemainingOut);
 
 // Session management functions
 LPUSER_SESSION CreateUserSession(U64 UserID, HANDLE ShellTask);

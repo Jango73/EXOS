@@ -40,6 +40,8 @@
 #define MAX_ERROR_MESSAGE 256
 #define SCRIPT_VAR_HASH_SIZE 32
 #define E0_SCRIPT_FILE_EXTENSION TEXT(".e0")
+#define SCRIPT_FUNCTION_STATUS_UNKNOWN ((INT)MAX_UINT)
+#define SCRIPT_FUNCTION_STATUS_ERROR ((INT)(MAX_UINT - 1))
 
 /************************************************************************/
 
@@ -80,13 +82,15 @@ typedef enum {
     TOKEN_LBRACKET,
     TOKEN_RBRACKET,
     TOKEN_SEMICOLON,
+    TOKEN_COMMA,
     TOKEN_COMPARISON,
     TOKEN_LBRACE,
     TOKEN_RBRACE,
     TOKEN_IF,
     TOKEN_ELSE,
     TOKEN_FOR,
-    TOKEN_RETURN
+    TOKEN_RETURN,
+    TOKEN_CONTINUE
 } TOKEN_TYPE;
 
 // AST Node Types
@@ -96,6 +100,7 @@ typedef enum {
     AST_FOR,            // for (init; cond; inc) body
     AST_BLOCK,          // { statements }
     AST_RETURN,         // return expr
+    AST_CONTINUE,       // continue
     AST_EXPRESSION      // standalone expr
 } AST_NODE_TYPE;
 
@@ -122,7 +127,7 @@ typedef struct tag_SCRIPT_ARRAY {
 
 typedef union tag_SCRIPT_VAR_VALUE {
     LPSTR String;
-    I32 Integer;
+    INT Integer;
     F32 Float;
     LPSCRIPT_ARRAY Array;
     LPVOID HostHandle;
@@ -191,7 +196,9 @@ typedef struct tag_SCRIPT_HOST_REGISTRY {
 typedef struct tag_SCRIPT_TOKEN {
     TOKEN_TYPE Type;
     STR Value[MAX_TOKEN_LENGTH];
-    F32 NumValue;
+    BOOL IsInteger;
+    INT IntegerValue;
+    F32 FloatValue;
     U32 Position;
     U32 Line;
     U32 Column;
@@ -200,9 +207,9 @@ typedef struct tag_SCRIPT_TOKEN {
 /************************************************************************/
 
 typedef void (*SCRIPT_OUTPUT_CALLBACK)(LPCSTR Message, LPVOID UserData);
-typedef U32 (*SCRIPT_COMMAND_CALLBACK)(LPCSTR Command, LPVOID UserData);
+typedef UINT (*SCRIPT_COMMAND_CALLBACK)(LPCSTR Command, LPVOID UserData);
 typedef LPCSTR (*SCRIPT_VARIABLE_RESOLVER)(LPCSTR VarName, LPVOID UserData);
-typedef U32 (*SCRIPT_FUNCTION_CALLBACK)(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
+typedef INT (*SCRIPT_FUNCTION_CALLBACK)(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Arguments, LPVOID UserData);
 
 typedef struct tag_SCRIPT_CALLBACKS {
     SCRIPT_OUTPUT_CALLBACK Output;
@@ -251,7 +258,9 @@ typedef struct tag_AST_NODE {
         struct {
             TOKEN_TYPE TokenType;
             STR Value[MAX_TOKEN_LENGTH];
-            F32 NumValue;
+            BOOL IsIntegerLiteral;
+            INT IntegerValue;
+            F32 FloatValue;
             BOOL IsVariable;
             BOOL IsArrayAccess;
             U32 ArrayIndex;
@@ -260,8 +269,10 @@ typedef struct tag_AST_NODE {
             BOOL IsPropertyAccess;
             STR PropertyName[MAX_TOKEN_LENGTH];
             BOOL IsFunctionCall;
-            STR Argument[MAX_TOKEN_LENGTH];
-            struct tag_AST_NODE* Left;   // Left operand for binary operations, or function argument expression
+            struct tag_AST_NODE* FirstArgument;
+            struct tag_AST_NODE* NextArgument;
+            U32 ArgumentCount;
+            struct tag_AST_NODE* Left;   // Left operand for binary operations
             struct tag_AST_NODE* Right;  // Right operand for binary operations
             BOOL IsShellCommand;
             LPSTR CommandLine;
@@ -280,6 +291,7 @@ typedef struct tag_SCRIPT_PARSER {
     LPSCRIPT_CALLBACKS Callbacks;
     LPSCRIPT_SCOPE CurrentScope;
     LPSCRIPT_CONTEXT Context;
+    U32 LoopDepth;
 } SCRIPT_PARSER, *LPSCRIPT_PARSER;
 
 struct tag_SCRIPT_CONTEXT {
@@ -290,6 +302,7 @@ struct tag_SCRIPT_CONTEXT {
     STR ErrorMessage[MAX_ERROR_MESSAGE];
     BOOL HasReturnValue;
     BOOL ReturnTriggered;
+    BOOL ContinueTriggered;
     SCRIPT_VAR_TYPE ReturnType;
     SCRIPT_VAR_VALUE ReturnValue;
     LPSCRIPT_SCOPE GlobalScope;
@@ -327,6 +340,20 @@ LPSCRIPT_VARIABLE ScriptGetArrayElement(LPSCRIPT_CONTEXT Context, LPCSTR Name, U
 BOOL ScriptRegisterHostSymbol(LPSCRIPT_CONTEXT Context, LPCSTR Name, SCRIPT_HOST_SYMBOL_KIND Kind, SCRIPT_HOST_HANDLE Handle, const SCRIPT_HOST_DESCRIPTOR* Descriptor, LPVOID ContextPointer);
 void ScriptUnregisterHostSymbol(LPSCRIPT_CONTEXT Context, LPCSTR Name);
 void ScriptClearHostSymbols(LPSCRIPT_CONTEXT Context);
+void ScriptValueInit(SCRIPT_VALUE* Value);
+void ScriptValueRelease(SCRIPT_VALUE* Value);
+SCRIPT_ERROR ScriptGetHostSymbolValue(
+    LPSCRIPT_CONTEXT Context,
+    LPCSTR Name,
+    LPSCRIPT_VALUE OutValue);
+SCRIPT_ERROR ScriptGetHostPropertyValue(
+    const SCRIPT_VALUE* ParentValue,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+SCRIPT_ERROR ScriptGetHostElementValue(
+    const SCRIPT_VALUE* ParentValue,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
 
 // Scope management functions
 LPSCRIPT_SCOPE ScriptCreateScope(LPSCRIPT_CONTEXT Context, LPSCRIPT_SCOPE Parent);

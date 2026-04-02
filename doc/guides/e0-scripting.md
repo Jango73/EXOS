@@ -53,7 +53,7 @@ Numeric coercion:
 Strings are immutable. Arrays can contain mixed values.
 
 String operators:
-- `string + string`: concatenation
+- `+`: text concatenation when either operand is a string
 - `string - string`: removes all occurrences of the right string from the left string (`"foobarfoo" - "foo"` gives `"bar"`)
 
 ---
@@ -112,6 +112,8 @@ x = 1 + 2 * 3;
 ok = (x >= 7) == 1;
 z = (10 / 4);
 name = "foo" + "bar";
+label = 1 + "x";
+mixed = 1 + 2 + "x" + 3;
 trimmed = "foobarfoo" - "foo";
 ```
 
@@ -120,13 +122,15 @@ trimmed = "foobarfoo" - "foo";
 ## 6) Host interop: functions, properties, and commands
 
 ### Function calls
-Syntax: `name(expr?)`  
-- Only one optional argument.
-- Argument is stringified before calling the host.
+Syntax: `name(expr1, expr2, ...)`
+- Zero or more arguments are supported.
+- Each argument is evaluated, then stringified before calling the host.
 
 ```text
 echo("hello");
 ping(123);
+copy("/system/config.toml", "/data/config.toml", 1);
+kill(task[0].handle);
 ```
 
 ### Property access
@@ -165,10 +169,15 @@ if (x > 0) {
 ### For loop
 ```text
 for (i = 0; i < 10; i = i + 1) {
+    if (i == 5) {
+        continue;
+    }
     sum = sum + i;
 }
 ```
 Capped at 1000 iterations.
+
+`continue;` is valid only inside a loop body. It skips the rest of the current iteration and proceeds with the loop increment.
 
 ---
 
@@ -201,10 +210,21 @@ void ScriptDestroyContext(LPSCRIPT_CONTEXT ctx);
 ```c
 typedef struct SCRIPT_CALLBACKS {
     U32 (*ExecuteCommand)(LPCSTR cmdline, void* user);
-    U32 (*CallFunction)(LPCSTR name, LPCSTR arg, void* user);
+    INT (*CallFunction)(LPCSTR name, UINT argc, LPCSTR* argv, void* user);
     void* UserData;
 } SCRIPT_CALLBACKS;
 ```
+
+Reserved function return values:
+- `SCRIPT_FUNCTION_STATUS_UNKNOWN`: host symbol not found
+- `SCRIPT_FUNCTION_STATUS_ERROR`: host symbol found, but the callback rejected the call and set an explicit script error
+
+Shell host functions exposed in the kernel integration include:
+- `print(...)`
+- `exec(...)`
+- `kill(handle)`
+- `smoke_test_multi_args(a, b, c, d)` for automated smoke validation of multi-argument host calls
+- `set_graphics_driver(driver_alias, width, height, bpp)`
 
 ### Variables
 ```c
@@ -234,7 +254,7 @@ ScriptUnregisterHostSymbol(...);
 static U32 Exec(const char* cmd, void* u) {
     return 0;
 }
-static U32 Call(const char* name, const char* arg, void* u) {
+static INT Call(const char* name, UINT argc, const char** argv, void* u) {
     return 0;
 }
 

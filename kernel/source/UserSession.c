@@ -26,6 +26,7 @@
 
 #include "Clock.h"
 #include "CoreString.h"
+#include "DeferredWork.h"
 #include "Heap.h"
 #include "utils/Helpers.h"
 #include "Kernel.h"
@@ -36,6 +37,69 @@
 #include "process/Schedule.h"
 #include "process/Task.h"
 #include "UserAccount.h"
+
+/************************************************************************/
+
+#define SESSION_TIMEOUT_DISPATCH_PERIOD_MS 1000
+
+static U32 UserSessionDeferredHandle = DEFERRED_WORK_INVALID_HANDLE;
+static U32 UserSessionSchedulerTickHandle = SCHEDULER_TICK_INVALID_HANDLE;
+static UINT UserSessionLastDispatchTime = 0;
+
+/************************************************************************/
+
+static void UserSessionDeferredTimeoutWork(LPVOID Context);
+static void UserSessionSchedulerTick(LPVOID Context);
+
+/************************************************************************/
+
+/**
+ * @brief Initialize transient unlock throttling state for one session.
+ * @param Session Session storage.
+ */
+static void InitializeSessionUnlockPolicy(LPUSER_SESSION Session) {
+    SAFE_USE_VALID_ID(Session, KOID_USER_SESSION) {
+        (void)AuthPolicyInit(
+            &(Session->UnlockPolicy),
+            AUTH_POLICY_FAILURE_DELAY_MS,
+            AUTH_POLICY_LOCKOUT_THRESHOLD);
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Deferred worker that applies session inactivity timeouts.
+ * @param Context Unused.
+ */
+static void UserSessionDeferredTimeoutWork(LPVOID Context) {
+    UNUSED(Context);
+    TimeoutInactiveSessions();
+}
+
+/************************************************************************/
+
+/**
+ * @brief Lightweight scheduler tick hook for session timeout dispatch.
+ * @param Context Unused.
+ */
+static void UserSessionSchedulerTick(LPVOID Context) {
+    UINT CurrentTime;
+
+    UNUSED(Context);
+
+    if (UserSessionDeferredHandle == DEFERRED_WORK_INVALID_HANDLE) {
+        return;
+    }
+
+    CurrentTime = GetSystemTime();
+    if ((CurrentTime - UserSessionLastDispatchTime) < SESSION_TIMEOUT_DISPATCH_PERIOD_MS) {
+        return;
+    }
+
+    UserSessionLastDispatchTime = CurrentTime;
+    DeferredWorkSignal(UserSessionDeferredHandle);
+}
 
 /************************************************************************/
 
@@ -88,6 +152,7 @@ static BOOL AccountHasDefinedPassword(LPUSER_ACCOUNT Account) {
  * @return TRUE on success, FALSE on failure.
  */
 BOOL InitializeSessionSystem(void) {
+    DEFERRED_WORK_REGISTRATION Registration;
     LPLIST SessionList = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
     if (SessionList == NULL) {
         ERROR(TEXT("Failed to create session list"));
@@ -95,6 +160,30 @@ BOOL InitializeSessionSystem(void) {
     }
 
     SetUserSessionList(SessionList);
+    UserSessionLastDispatchTime = GetSystemTime();
+
+    MemorySet(&Registration, 0, sizeof(Registration));
+    Registration.WorkCallback = UserSessionDeferredTimeoutWork;
+    Registration.Context = NULL;
+    Registration.Name = TEXT("UserSessionTimeout");
+
+    UserSessionDeferredHandle = DeferredWorkRegister(&Registration);
+    if (UserSessionDeferredHandle == DEFERRED_WORK_INVALID_HANDLE) {
+        ERROR(TEXT("[InitializeSessionSystem] Failed to register deferred session timeout work"));
+        DeleteList(SessionList);
+        SetUserSessionList(NULL);
+        return FALSE;
+    }
+
+    UserSessionSchedulerTickHandle = SchedulerRegisterTickCallback(UserSessionSchedulerTick, NULL);
+    if (UserSessionSchedulerTickHandle == SCHEDULER_TICK_INVALID_HANDLE) {
+        ERROR(TEXT("[InitializeSessionSystem] Failed to register scheduler session timeout hook"));
+        DeferredWorkUnregister(UserSessionDeferredHandle);
+        UserSessionDeferredHandle = DEFERRED_WORK_INVALID_HANDLE;
+        DeleteList(SessionList);
+        SetUserSessionList(NULL);
+        return FALSE;
+    }
 
     DEBUG(TEXT("Session management system initialized"));
     return TRUE;
@@ -106,6 +195,16 @@ BOOL InitializeSessionSystem(void) {
  * @brief Shutdown the session management system.
  */
 void ShutdownSessionSystem(void) {
+    if (UserSessionSchedulerTickHandle != SCHEDULER_TICK_INVALID_HANDLE) {
+        SchedulerUnregisterTickCallback(UserSessionSchedulerTickHandle);
+        UserSessionSchedulerTickHandle = SCHEDULER_TICK_INVALID_HANDLE;
+    }
+
+    if (UserSessionDeferredHandle != DEFERRED_WORK_INVALID_HANDLE) {
+        DeferredWorkUnregister(UserSessionDeferredHandle);
+        UserSessionDeferredHandle = DEFERRED_WORK_INVALID_HANDLE;
+    }
+
     LPLIST SessionList = GetUserSessionList();
     SAFE_USE(SessionList) {
         // Clean up all active sessions
@@ -126,6 +225,7 @@ void ShutdownSessionSystem(void) {
 
         DeleteList(SessionList);
         SetUserSessionList(NULL);
+        UserSessionLastDispatchTime = 0;
 
         UnlockMutex(MUTEX_SESSION);
     }
@@ -171,6 +271,7 @@ LPUSER_SESSION CreateUserSession(U64 UserID, HANDLE ShellTask) {
     NewSession->LastActivity = NewSession->LoginTime;
     NewSession->LastActivityMs = GetSystemTime();
     NewSession->LockTime = NewSession->LoginTime;
+    InitializeSessionUnlockPolicy(NewSession);
 
     // Add to list
     if (ListAddTail(SessionList, NewSession) == 0) {
@@ -310,6 +411,7 @@ BOOL UnlockUserSession(LPUSER_SESSION Session) {
         Session->IsLocked = FALSE;
         Session->LockReason = 0;
         Session->FailedUnlockCount = 0;
+        AuthPolicyRecordSuccess(&(Session->UnlockPolicy));
         UpdateSessionActivity(Session);
         return TRUE;
     }
@@ -327,20 +429,49 @@ BOOL UnlockUserSession(LPUSER_SESSION Session) {
  */
 BOOL VerifySessionUnlockPassword(LPUSER_SESSION Session, LPCSTR Password) {
     LPUSER_ACCOUNT Account;
+    UINT WaitRemaining;
 
     SAFE_USE_VALID_ID(Session, KOID_USER_SESSION) {
         if (Password == NULL) {
             return FALSE;
         }
 
+        WaitRemaining = 0;
+        if (!AuthPolicyCanAttempt(&(Session->UnlockPolicy), GetSystemTime(), &WaitRemaining)) {
+            return FALSE;
+        }
+
         Account = FindUserAccountByID(Session->UserID);
         SAFE_USE_VALID_ID(Account, KOID_USER_ACCOUNT) {
             if (VerifyPassword(Password, Account->PasswordHash)) {
+                AuthPolicyRecordSuccess(&(Session->UnlockPolicy));
+                Session->FailedUnlockCount = 0;
                 return TRUE;
             }
         }
 
         Session->FailedUnlockCount++;
+        (void)AuthPolicyRecordFailure(&(Session->UnlockPolicy), GetSystemTime(), NULL);
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Query whether one locked session may accept another unlock attempt.
+ * @param Session Session to inspect.
+ * @param WaitRemainingOut Receives remaining wait time when blocked.
+ * @return TRUE when another attempt may proceed.
+ */
+BOOL CanAttemptSessionUnlock(LPUSER_SESSION Session, UINT* WaitRemainingOut) {
+    if (WaitRemainingOut != NULL) {
+        *WaitRemainingOut = 0;
+    }
+
+    SAFE_USE_VALID_ID(Session, KOID_USER_SESSION) {
+        return AuthPolicyCanAttempt(&(Session->UnlockPolicy), GetSystemTime(), WaitRemainingOut);
     }
 
     return FALSE;
@@ -497,6 +628,9 @@ BOOL SetCurrentSession(LPUSER_SESSION Session) {
 
     // Associate the session with the current process
     CurrentProcess->Session = Session;
+    if (Session != NULL) {
+        CurrentProcess->UserID = Session->UserID;
+    }
 
     return TRUE;
 }

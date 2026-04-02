@@ -24,10 +24,8 @@
 
 #include "Profile.h"
 #include "Clock.h"
-#include "utils/CircularBuffer.h"
 #include "CoreString.h"
 #include "Log.h"
-#include "console/Console.h"
 #include "System.h"
 
 #if PROFILING
@@ -109,7 +107,8 @@ static LPPROFILE_STATS ProfileFindOrCreate(LPCSTR Name)
     }
 
     ProfileStats[ProfileStatsCount].Name = Name;
-    ProfileStats[ProfileStatsCount].Count = 0;
+    ProfileStats[ProfileStatsCount].CallCount = 0;
+    ProfileStats[ProfileStatsCount].TimedCallCount = 0;
     ProfileStats[ProfileStatsCount].LastTicks = 0;
     ProfileStats[ProfileStatsCount].TotalTicks = 0;
     ProfileStats[ProfileStatsCount].MaxTicks = 0;
@@ -134,7 +133,7 @@ static void ProfileRecordSample(LPCSTR Name, UINT DurationTicks)
         return;
     }
 
-    Entry->Count++;
+    Entry->TimedCallCount++;
     Entry->LastTicks = DurationTicks;
     Entry->TotalTicks += DurationTicks;
     if (DurationTicks > Entry->MaxTicks)
@@ -159,6 +158,32 @@ static void ProfileRecordSample(LPCSTR Name, UINT DurationTicks)
 /************************************************************************/
 
 /**
+ * @brief Increment the lightweight call counter for one profile entry.
+ *
+ * @param Name Entry name bound to a static call site.
+ */
+void ProfileCountCall(LPCSTR Name)
+{
+    LPPROFILE_STATS Entry;
+
+    if (Name == NULL)
+    {
+        return;
+    }
+
+    Entry = ProfileFindOrCreate(Name);
+    if (Entry == NULL)
+    {
+        ProfileSamplesDropped++;
+        return;
+    }
+
+    Entry->CallCount++;
+}
+
+/************************************************************************/
+
+/**
  * @brief Start a profiling scope.
  *
  * Initializes the scope with the provided name and records the start tick
@@ -174,6 +199,7 @@ void ProfileStart(LPPROFILE_SCOPE Scope, LPCSTR Name)
         return;
     }
 
+    ProfileCountCall(Name);
     Scope->Name = Name;
     Scope->StartMillis = GetSystemTime();
     Scope->StartCount = ProfileReadPITCount();
@@ -219,42 +245,64 @@ void ProfileStop(LPPROFILE_SCOPE Scope)
 /************************************************************************/
 
 /**
- * @brief Dump collected profiling data.
+ * @brief Capture a bounded snapshot of profiling counters and timings.
  *
- * Implemented in later steps once storage is in place.
+ * @param Info Snapshot descriptor and destination buffer.
+ * @return UINT Number of copied entries.
  */
-void ProfileDump(void)
+UINT ProfileGetStats(LPPROFILE_QUERY_INFO Info)
 {
-    if (ProfileStatsCount == 0)
+    UINT EntryCount;
+
+    if (Info == NULL)
     {
-        DEBUG(TEXT("[ProfileDump] No samples available (written=%u dropped=%u)"),
-              ProfileSamplesWritten,
-              ProfileSamplesDropped);
-        return;
+        return 0;
     }
 
-    for (UINT StatIndex = 0; StatIndex < ProfileStatsCount; ++StatIndex)
+    EntryCount = ProfileStatsCount;
+    if (EntryCount > Info->Capacity)
     {
-        UINT Average = (ProfileStats[StatIndex].Count > 0)
-                           ? (ProfileStats[StatIndex].TotalTicks / ProfileStats[StatIndex].Count)
-                           : 0;
-
-        DEBUG(TEXT("[ProfileDump] name=%s count=%u last=%u us avg=%u us max=%u us total=%u us"),
-              ProfileStats[StatIndex].Name,
-              ProfileStats[StatIndex].Count,
-              ProfileStats[StatIndex].LastTicks,
-              Average,
-              ProfileStats[StatIndex].MaxTicks,
-              ProfileStats[StatIndex].TotalTicks);
+        EntryCount = Info->Capacity;
     }
 
-    DEBUG(TEXT("[ProfileDump] samples=%u dropped=%u"),
-          ProfileSamplesWritten,
-          ProfileSamplesDropped);
+    Info->EntryCount = EntryCount;
+    Info->TotalEntryCount = ProfileStatsCount;
+    Info->SampleCount = ProfileSamplesWritten;
+    Info->DroppedCount = ProfileSamplesDropped;
+
+    for (UINT Index = 0; Index < EntryCount; ++Index)
+    {
+        MemorySet(&Info->Entries[Index], 0, sizeof(PROFILE_ENTRY_INFO));
+        StringCopyLimit(Info->Entries[Index].Name, ProfileStats[Index].Name != NULL ? ProfileStats[Index].Name : TEXT(""), PROFILE_NAME_LENGTH - 1);
+        Info->Entries[Index].CallCount = ProfileStats[Index].CallCount;
+        Info->Entries[Index].TimedCallCount = ProfileStats[Index].TimedCallCount;
+        Info->Entries[Index].LastTicks = ProfileStats[Index].LastTicks;
+        Info->Entries[Index].TotalTicks = ProfileStats[Index].TotalTicks;
+        Info->Entries[Index].MaxTicks = ProfileStats[Index].MaxTicks;
+    }
+
+    if ((Info->Flags & PROFILE_QUERY_FLAG_RESET) != 0)
+    {
+        ProfileStatsCount = 0;
+        ProfileSamplesWritten = 0;
+        ProfileSamplesDropped = 0;
+        ProfileSamplesLogged = 0;
+        MemorySet(ProfileStats, 0, sizeof(ProfileStats));
+    }
+
+    return EntryCount;
 }
 
 /************************************************************************/
+
 #else
+
+void ProfileCountCall(LPCSTR Name)
+{
+    UNUSED(Name);
+}
+
+/************************************************************************/
 
 void ProfileStart(LPPROFILE_SCOPE Scope, LPCSTR Name)
 {
@@ -271,9 +319,17 @@ void ProfileStop(LPPROFILE_SCOPE Scope)
 
 /************************************************************************/
 
-void ProfileDump(void)
+UINT ProfileGetStats(LPPROFILE_QUERY_INFO Info)
 {
-    DEBUG(TEXT("[ProfileDump] Profiling disabled"));
+    if (Info != NULL)
+    {
+        Info->EntryCount = 0;
+        Info->TotalEntryCount = 0;
+        Info->SampleCount = 0;
+        Info->DroppedCount = 0;
+    }
+
+    return 0;
 }
 
 /************************************************************************/

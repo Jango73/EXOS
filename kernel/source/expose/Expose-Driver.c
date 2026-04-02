@@ -25,11 +25,82 @@
 #include "Exposed.h"
 
 #include "Driver.h"
+#include "DriverGetters.h"
+#include "GFX.h"
 #include "KernelData.h"
 
 /************************************************************************/
 
 #define EXPOSE_ACCESS_DRIVER (EXPOSE_ACCESS_ADMIN | EXPOSE_ACCESS_KERNEL)
+
+/************************************************************************/
+
+/**
+ * @brief Check whether one driver can expose a graphics mode catalog.
+ * @param Driver Driver to inspect.
+ * @return TRUE when the driver is a concrete graphics backend.
+ */
+static BOOL DriverSupportsModeExposure(LPDRIVER Driver) {
+    return Driver != NULL &&
+           Driver->Type == DRIVER_TYPE_GRAPHICS &&
+           Driver->Command != NULL &&
+           Driver != GraphicsSelectorGetDriver();
+}
+
+/************************************************************************/
+
+/**
+ * @brief Query the supported graphics mode count for one driver.
+ * @param Driver Driver to query.
+ * @return Mode count, or 0 when unavailable.
+ */
+static U32 DriverGetGraphicsModeCountInternal(LPDRIVER Driver) {
+    if (!DriverSupportsModeExposure(Driver)) {
+        return 0;
+    }
+
+    if ((Driver->Flags & DRIVER_FLAG_READY) == 0) {
+        if (Driver->Command(DF_LOAD, 0) != DF_RETURN_SUCCESS ||
+            (Driver->Flags & DRIVER_FLAG_READY) == 0) {
+            return 0;
+        }
+    }
+
+    return Driver->Command(DF_GFX_GETMODECOUNT, 0);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Query one graphics mode descriptor from one driver.
+ * @param Driver Driver to query.
+ * @param ModeIndex Mode index.
+ * @param ModeInfo Output holder.
+ * @return TRUE on success.
+ */
+static BOOL DriverGetGraphicsModeInfoInternal(
+    LPDRIVER Driver,
+    U32 ModeIndex,
+    LPGRAPHICS_MODE_INFO ModeInfo) {
+    U32 ModeCount = 0;
+
+    if (ModeInfo == NULL) {
+        return FALSE;
+    }
+
+    ModeCount = DriverGetGraphicsModeCountInternal(Driver);
+    if (ModeIndex >= ModeCount) {
+        return FALSE;
+    }
+
+    MemorySet(ModeInfo, 0, sizeof(GRAPHICS_MODE_INFO));
+    ModeInfo->Header.Size = sizeof(GRAPHICS_MODE_INFO);
+    ModeInfo->Header.Version = EXOS_ABI_VERSION;
+    ModeInfo->Header.Flags = 0;
+    ModeInfo->ModeIndex = ModeIndex;
+
+    return Driver->Command(DF_GFX_GETMODEINFO, (UINT)(LPVOID)ModeInfo) == DF_RETURN_SUCCESS;
+}
 
 /************************************************************************/
 
@@ -50,16 +121,22 @@ SCRIPT_ERROR DriverGetProperty(
     UNUSED(Context);
 
     EXPOSE_PROPERTY_GUARD();
-    EXPOSE_REQUIRE_ACCESS(EXPOSE_ACCESS_DRIVER, NULL);
 
     LPDRIVER Driver = (LPDRIVER)Parent;
     SAFE_USE_VALID_ID(Driver, KOID_DRIVER) {
+        EXPOSE_BIND_STRING("alias", Driver->Alias);
+        EXPOSE_BIND_STRING("type_name", DriverTypeToText(Driver->Type));
         EXPOSE_BIND_INTEGER("type", Driver->Type);
+        EXPOSE_BIND_STRING("product", Driver->Product);
+        EXPOSE_BIND_INTEGER("ready", (Driver->Flags & DRIVER_FLAG_READY) != 0);
+        EXPOSE_BIND_HOST_HANDLE("mode", Driver, &DriverModeArrayDescriptor, NULL);
+
+        EXPOSE_REQUIRE_ACCESS(EXPOSE_ACCESS_DRIVER, NULL);
+
         EXPOSE_BIND_INTEGER("version_major", Driver->VersionMajor);
         EXPOSE_BIND_INTEGER("version_minor", Driver->VersionMinor);
         EXPOSE_BIND_STRING("designer", Driver->Designer);
         EXPOSE_BIND_STRING("manufacturer", Driver->Manufacturer);
-        EXPOSE_BIND_STRING("product", Driver->Product);
         EXPOSE_BIND_INTEGER("flags", Driver->Flags);
         EXPOSE_BIND_INTEGER("enum_domain_count", Driver->EnumDomainCount);
 
@@ -72,6 +149,109 @@ SCRIPT_ERROR DriverGetProperty(
             return SCRIPT_OK;
         }
 
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    return SCRIPT_ERROR_UNDEFINED_VAR;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve one property from the exposed driver mode array.
+ * @param Context Host callback context (unused for driver exposure)
+ * @param Parent Handle to the driver instance requested by the script
+ * @param Property Property name requested by the script
+ * @param OutValue Output holder for the property value
+ * @return SCRIPT_OK when the property exists, SCRIPT_ERROR_UNDEFINED_VAR otherwise
+ */
+SCRIPT_ERROR DriverModeArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue) {
+
+    UNUSED(Context);
+
+    EXPOSE_PROPERTY_GUARD();
+
+    LPDRIVER Driver = (LPDRIVER)Parent;
+    SAFE_USE_VALID_ID(Driver, KOID_DRIVER) {
+        EXPOSE_BIND_INTEGER("count", DriverGetGraphicsModeCountInternal(Driver));
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    return SCRIPT_ERROR_UNDEFINED_VAR;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve one mode view from the exposed driver mode array.
+ * @param Context Host callback context (unused for driver exposure)
+ * @param Parent Handle to the driver instance requested by the script
+ * @param Index Array index requested by the script
+ * @param OutValue Output holder for the resulting mode view
+ * @return SCRIPT_OK when the mode exists, SCRIPT_ERROR_UNDEFINED_VAR otherwise
+ */
+SCRIPT_ERROR DriverModeArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue) {
+
+    UNUSED(Context);
+
+    EXPOSE_ARRAY_GUARD();
+
+    LPDRIVER Driver = (LPDRIVER)Parent;
+    SAFE_USE_VALID_ID(Driver, KOID_DRIVER) {
+        if (Index >= DriverGetGraphicsModeCountInternal(Driver)) {
+            return SCRIPT_ERROR_UNDEFINED_VAR;
+        }
+
+        EXPOSE_SET_HOST_HANDLE(Driver, &DriverModeDescriptor, (LPVOID)(LINEAR)(Index + 1), FALSE);
+        return SCRIPT_OK;
+    }
+
+    return SCRIPT_ERROR_UNDEFINED_VAR;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve one property from one exposed graphics mode.
+ * @param Context Host callback context containing the mode index plus one
+ * @param Parent Handle to the driver instance requested by the script
+ * @param Property Property name requested by the script
+ * @param OutValue Output holder for the property value
+ * @return SCRIPT_OK when the property exists, SCRIPT_ERROR_UNDEFINED_VAR otherwise
+ */
+SCRIPT_ERROR DriverModeGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue) {
+    GRAPHICS_MODE_INFO ModeInfo;
+    LPDRIVER Driver = (LPDRIVER)Parent;
+    U32 ModeIndex = 0;
+
+    EXPOSE_PROPERTY_GUARD();
+
+    if (Context == NULL) {
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    ModeIndex = (U32)(LINEAR)Context - 1;
+
+    SAFE_USE_VALID_ID(Driver, KOID_DRIVER) {
+        if (!DriverGetGraphicsModeInfoInternal(Driver, ModeIndex, &ModeInfo)) {
+            return SCRIPT_ERROR_UNDEFINED_VAR;
+        }
+
+        EXPOSE_BIND_INTEGER("width", ModeInfo.Width);
+        EXPOSE_BIND_INTEGER("height", ModeInfo.Height);
+        EXPOSE_BIND_INTEGER("bpp", ModeInfo.BitsPerPixel);
         return SCRIPT_ERROR_UNDEFINED_VAR;
     }
 
@@ -97,7 +277,6 @@ SCRIPT_ERROR DriverArrayGetProperty(
     UNUSED(Context);
 
     EXPOSE_PROPERTY_GUARD();
-    EXPOSE_REQUIRE_ACCESS(EXPOSE_ACCESS_DRIVER, NULL);
 
     LPLIST DriverList = (LPLIST)Parent;
     if (DriverList == NULL) {
@@ -128,7 +307,6 @@ SCRIPT_ERROR DriverArrayGetElement(
     UNUSED(Context);
 
     EXPOSE_ARRAY_GUARD();
-    EXPOSE_REQUIRE_ACCESS(EXPOSE_ACCESS_DRIVER, NULL);
 
     LPLIST DriverList = (LPLIST)Parent;
     if (DriverList == NULL) {
@@ -206,7 +384,7 @@ SCRIPT_ERROR DriverEnumDomainArrayGetElement(
         }
 
         OutValue->Type = SCRIPT_VAR_INTEGER;
-        OutValue->Value.Integer = (I32)Driver->EnumDomains[Index];
+        OutValue->Value.Integer = (INT)Driver->EnumDomains[Index];
         return SCRIPT_OK;
     }
 
@@ -232,6 +410,20 @@ const SCRIPT_HOST_DESCRIPTOR DriverArrayDescriptor = {
 const SCRIPT_HOST_DESCRIPTOR DriverEnumDomainArrayDescriptor = {
     DriverEnumDomainArrayGetProperty,
     DriverEnumDomainArrayGetElement,
+    NULL,
+    NULL
+};
+
+const SCRIPT_HOST_DESCRIPTOR DriverModeDescriptor = {
+    DriverModeGetProperty,
+    NULL,
+    NULL,
+    NULL
+};
+
+const SCRIPT_HOST_DESCRIPTOR DriverModeArrayDescriptor = {
+    DriverModeArrayGetProperty,
+    DriverModeArrayGetElement,
     NULL,
     NULL
 };

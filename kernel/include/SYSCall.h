@@ -56,6 +56,7 @@ UINT SysCall_KillProcess(UINT Parameter);
 
 UINT SysCall_GetProcessInfo(UINT Parameter);
 UINT SysCall_GetProcessMemoryInfo(UINT Parameter);
+UINT SysCall_GetProfileInfo(UINT Parameter);
 UINT SysCall_CreateTask(UINT Parameter);
 UINT SysCall_KillTask(UINT Parameter);
 UINT SysCall_Exit(UINT Parameter);
@@ -107,6 +108,7 @@ UINT SysCall_CreateDesktop(UINT Parameter);
 UINT SysCall_ShowDesktop(UINT Parameter);
 UINT SysCall_GetDesktopWindow(UINT Parameter);
 UINT SysCall_GetCurrentDesktop(UINT Parameter);
+UINT SysCall_ApplyDesktopTheme(UINT Parameter);
 UINT SysCall_CreateWindow(UINT Parameter);
 UINT SysCall_ShowWindow(UINT Parameter);
 UINT SysCall_HideWindow(UINT Parameter);
@@ -165,6 +167,7 @@ UINT SysCall_ChangePassword(UINT Parameter);
 UINT SysCall_CreateUser(UINT Parameter);
 UINT SysCall_DeleteUser(UINT Parameter);
 UINT SysCall_ListUsers(UINT Parameter);
+UINT SysCall_SetGraphicsDriver(UINT Parameter);
 
 UINT SysCall_SocketCreate(UINT Parameter);
 UINT SysCall_SocketBind(UINT Parameter);

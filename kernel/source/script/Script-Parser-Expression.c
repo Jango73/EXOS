@@ -30,6 +30,58 @@
 #include "script/Script-Internal.h"
 
 /************************************************************************/
+
+/**
+ * @brief Parse one numeric token into native integer or floating-point storage.
+ * @param Token Token to fill.
+ */
+static void ScriptFinalizeNumberToken(LPSCRIPT_TOKEN Token) {
+    UINT Index = 0;
+    BOOL HasDecimalPoint = FALSE;
+    INT IntegerPart = 0;
+    F32 FloatValue = 0.0f;
+    F32 FractionScale = 0.1f;
+
+    if (Token == NULL) {
+        return;
+    }
+
+    while (Token->Value[Index] != STR_NULL) {
+        STR Character = Token->Value[Index];
+
+        if (Character == '.') {
+            HasDecimalPoint = TRUE;
+            Index++;
+            continue;
+        }
+
+        if (!IsNumeric(Character)) {
+            break;
+        }
+
+        if (!HasDecimalPoint) {
+            IntegerPart = (IntegerPart * 10) + (INT)(Character - '0');
+        } else {
+            FloatValue += (F32)(Character - '0') * FractionScale;
+            FractionScale /= 10.0f;
+        }
+
+        Index++;
+    }
+
+    if (!HasDecimalPoint) {
+        Token->IsInteger = TRUE;
+        Token->IntegerValue = IntegerPart;
+        Token->FloatValue = (F32)IntegerPart;
+        return;
+    }
+
+    Token->IsInteger = FALSE;
+    Token->IntegerValue = IntegerPart;
+    Token->FloatValue += (F32)IntegerPart;
+}
+
+/************************************************************************/
 /**
  * @brief Initialize a script parser.
  * @param Parser Parser to initialize
@@ -44,6 +96,7 @@ void ScriptInitParser(LPSCRIPT_PARSER Parser, LPCSTR Input, LPSCRIPT_CONTEXT Con
     Parser->Callbacks = &Context->Callbacks;
     Parser->CurrentScope = Context->CurrentScope;
     Parser->Context = Context;
+    Parser->LoopDepth = 0;
 
     ScriptNextToken(Parser);
 }
@@ -84,7 +137,7 @@ void ScriptNextToken(LPSCRIPT_PARSER Parser) {
 
         MemoryCopy(Parser->CurrentToken.Value, &Input[Start], Len);
         Parser->CurrentToken.Value[Len] = STR_NULL;
-        Parser->CurrentToken.NumValue = (F32)StringToU32(Parser->CurrentToken.Value);
+        ScriptFinalizeNumberToken(&Parser->CurrentToken);
 
     } else if ((Ch >= 'a' && Ch <= 'z') || (Ch >= 'A' && Ch <= 'Z') || Ch == '_') {
         // Identifier
@@ -113,6 +166,8 @@ void ScriptNextToken(LPSCRIPT_PARSER Parser) {
                 Parser->CurrentToken.Type = TOKEN_FOR;
             } else if (StringCompare(Parser->CurrentToken.Value, TEXT("return")) == 0) {
                 Parser->CurrentToken.Type = TOKEN_RETURN;
+            } else if (StringCompare(Parser->CurrentToken.Value, TEXT("continue")) == 0) {
+                Parser->CurrentToken.Type = TOKEN_CONTINUE;
             }
         }
 
@@ -209,6 +264,12 @@ void ScriptNextToken(LPSCRIPT_PARSER Parser) {
         Parser->CurrentToken.Value[1] = STR_NULL;
         (*Pos)++;
 
+    } else if (Ch == ',') {
+        Parser->CurrentToken.Type = TOKEN_COMMA;
+        Parser->CurrentToken.Value[0] = Ch;
+        Parser->CurrentToken.Value[1] = STR_NULL;
+        (*Pos)++;
+
     } else if (Ch == '{' || Ch == '}') {
         Parser->CurrentToken.Type = (Ch == '{') ? TOKEN_LBRACE : TOKEN_RBRACE;
         Parser->CurrentToken.Value[0] = Ch;
@@ -256,6 +317,73 @@ void ScriptNextToken(LPSCRIPT_PARSER Parser) {
         Parser->CurrentToken.Value[1] = STR_NULL;
         (*Pos)++;
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Parse one function-call argument list and attach it to an AST expression node.
+ * @param Parser Parser state.
+ * @param FunctionNode Function-call expression node.
+ * @param Error Pointer to error code.
+ * @return TRUE on success, FALSE on syntax or allocation failure.
+ */
+static BOOL ScriptParseFunctionArguments(
+    LPSCRIPT_PARSER Parser,
+    LPAST_NODE FunctionNode,
+    SCRIPT_ERROR* Error) {
+    LPAST_NODE FirstArgument = NULL;
+    LPAST_NODE LastArgument = NULL;
+
+    if (Parser == NULL || FunctionNode == NULL || Error == NULL) {
+        if (Error != NULL) {
+            *Error = SCRIPT_ERROR_SYNTAX;
+        }
+        return FALSE;
+    }
+
+    FunctionNode->Data.Expression.FirstArgument = NULL;
+    FunctionNode->Data.Expression.ArgumentCount = 0;
+
+    if (Parser->CurrentToken.Type == TOKEN_RPAREN) {
+        ScriptNextToken(Parser);
+        *Error = SCRIPT_OK;
+        return TRUE;
+    }
+
+    while (TRUE) {
+        LPAST_NODE ArgumentNode = ScriptParseComparisonAST(Parser, Error);
+        if (*Error != SCRIPT_OK || ArgumentNode == NULL) {
+            ScriptDestroyAST(FirstArgument);
+            return FALSE;
+        }
+
+        if (FirstArgument == NULL) {
+            FirstArgument = ArgumentNode;
+        } else {
+            LastArgument->Data.Expression.NextArgument = ArgumentNode;
+        }
+        LastArgument = ArgumentNode;
+        FunctionNode->Data.Expression.ArgumentCount++;
+
+        if (Parser->CurrentToken.Type == TOKEN_COMMA) {
+            ScriptNextToken(Parser);
+            continue;
+        }
+
+        if (Parser->CurrentToken.Type != TOKEN_RPAREN) {
+            *Error = SCRIPT_ERROR_SYNTAX;
+            ScriptDestroyAST(FirstArgument);
+            return FALSE;
+        }
+
+        ScriptNextToken(Parser);
+        break;
+    }
+
+    FunctionNode->Data.Expression.FirstArgument = FirstArgument;
+    *Error = SCRIPT_OK;
+    return TRUE;
 }
 
 /************************************************************************/
@@ -548,7 +676,9 @@ LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
         }
 
         Node->Data.Expression.TokenType = TOKEN_NUMBER;
-        Node->Data.Expression.NumValue = Parser->CurrentToken.NumValue;
+        Node->Data.Expression.IsIntegerLiteral = Parser->CurrentToken.IsInteger;
+        Node->Data.Expression.IntegerValue = Parser->CurrentToken.IntegerValue;
+        Node->Data.Expression.FloatValue = Parser->CurrentToken.FloatValue;
         StringCopy(Node->Data.Expression.Value, Parser->CurrentToken.Value);
         ScriptNextToken(Parser);
         return Node;
@@ -573,27 +703,11 @@ LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
         // Check for function call
         if (Parser->CurrentToken.Type == TOKEN_LPAREN) {
             Node->Data.Expression.IsFunctionCall = TRUE;
-            Node->Data.Expression.Left = NULL;
             ScriptNextToken(Parser);
 
-            // Parse argument as expression (allows nested function calls, variables, numbers, strings)
-            if (Parser->CurrentToken.Type == TOKEN_RPAREN) {
-                // No argument - empty parentheses
-                ScriptNextToken(Parser);
-            } else {
-                // Parse argument expression - store in Left field
-                Node->Data.Expression.Left = ScriptParseComparisonAST(Parser, Error);
-                if (*Error != SCRIPT_OK || Node->Data.Expression.Left == NULL) {
-                    ScriptDestroyAST(Node);
-                    return NULL;
-                }
-
-                if (Parser->CurrentToken.Type != TOKEN_RPAREN) {
-                    *Error = SCRIPT_ERROR_SYNTAX;
-                    ScriptDestroyAST(Node);
-                    return NULL;
-                }
-                ScriptNextToken(Parser);
+            if (!ScriptParseFunctionArguments(Parser, Node, Error)) {
+                ScriptDestroyAST(Node);
+                return NULL;
             }
         }
         LPAST_NODE CurrentNode = Node;
@@ -619,26 +733,20 @@ LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
                 }
                 ScriptNextToken(Parser);
 
-                if (!CurrentNode->Data.Expression.IsArrayAccess && CurrentNode->Data.Expression.BaseExpression == NULL &&
-                    CurrentNode == Node) {
-                    CurrentNode->Data.Expression.IsArrayAccess = TRUE;
-                    CurrentNode->Data.Expression.ArrayIndexExpr = IndexExpr;
-                } else {
-                    LPAST_NODE ArrayNode = ScriptCreateASTNode(Parser->Context, AST_EXPRESSION);
-                    if (ArrayNode == NULL) {
-                        ScriptDestroyAST(IndexExpr);
-                        ScriptDestroyAST(CurrentNode);
-                        *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
-                        return NULL;
-                    }
-
-                    ArrayNode->Data.Expression.TokenType = TOKEN_IDENTIFIER;
-                    ArrayNode->Data.Expression.IsVariable = TRUE;
-                    ArrayNode->Data.Expression.IsArrayAccess = TRUE;
-                    ArrayNode->Data.Expression.BaseExpression = CurrentNode;
-                    ArrayNode->Data.Expression.ArrayIndexExpr = IndexExpr;
-                    CurrentNode = ArrayNode;
+                LPAST_NODE ArrayNode = ScriptCreateASTNode(Parser->Context, AST_EXPRESSION);
+                if (ArrayNode == NULL) {
+                    ScriptDestroyAST(IndexExpr);
+                    ScriptDestroyAST(CurrentNode);
+                    *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
+                    return NULL;
                 }
+
+                ArrayNode->Data.Expression.TokenType = TOKEN_IDENTIFIER;
+                ArrayNode->Data.Expression.IsVariable = FALSE;
+                ArrayNode->Data.Expression.IsArrayAccess = TRUE;
+                ArrayNode->Data.Expression.BaseExpression = CurrentNode;
+                ArrayNode->Data.Expression.ArrayIndexExpr = IndexExpr;
+                CurrentNode = ArrayNode;
 
                 ContinueParsing = TRUE;
             } else if (Parser->CurrentToken.Type == TOKEN_OPERATOR && Parser->CurrentToken.Value[0] == '.') {

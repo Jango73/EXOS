@@ -151,6 +151,11 @@ static U32 RTL8139OnProbe(const PCI_INFO* PciInfo) {
         return DF_RETURN_NOT_IMPLEMENTED;
     }
 
+    // Linux routes revision 0x20 and above to the CPlus datapath.
+    if (PciInfo->Revision >= 0x20) {
+        return DF_RETURN_NOT_IMPLEMENTED;
+    }
+
     return DF_RETURN_SUCCESS;
 }
 
@@ -531,8 +536,8 @@ static U32 RTL8139InitializeRegisterAccess(LPRTL8139_DEVICE Device) {
 
     Result = RealtekNetworkInitializeRegisterWindow(
         (LPREALTEK_NETWORK_COMMON_DEVICE)Device,
-        REALTEK_REGISTER_ACCESS_MODE_IO,
         REALTEK_REGISTER_ACCESS_MODE_MMIO,
+        REALTEK_REGISTER_ACCESS_MODE_IO,
         RTL8139_REG_TXCONFIG,
         TEXT("RTL8139InitializeRegisterAccess"));
     if (Result != DF_RETURN_SUCCESS) {

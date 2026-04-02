@@ -32,8 +32,11 @@
 typedef struct tag_TASK TASK, *LPTASK;
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;
 typedef struct tag_WAIT_INFO WAIT_INFO, *LPWAIT_INFO;
+typedef void (*SCHEDULER_TICK_CALLBACK)(LPVOID Context);
 
 /***************************************************************************/
+
+#define SCHEDULER_TICK_INVALID_HANDLE 0xFFFFFFFF
 
 // Adds a task to the scheduler's queue
 BOOL AddTaskToQueue(LPTASK NewTask);
@@ -58,6 +61,12 @@ BOOL UnfreezeScheduler(void);
 
 // Returns TRUE when the scheduler is frozen
 BOOL IsSchedulerFrozen(void);
+
+// Registers one lightweight scheduler tick callback
+U32 SchedulerRegisterTickCallback(SCHEDULER_TICK_CALLBACK Callback, LPVOID Context);
+
+// Unregisters one scheduler tick callback
+void SchedulerUnregisterTickCallback(U32 Handle);
 
 // Waits for one or more kernel objects to become signaled
 U32 Wait(LPWAIT_INFO WaitInfo);

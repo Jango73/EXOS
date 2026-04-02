@@ -142,7 +142,7 @@ SCRIPT_ERROR ProcessGetProperty(
                 return SCRIPT_ERROR_UNAUTHORIZED;
             }
             OutValue->Type = SCRIPT_VAR_INTEGER;
-            OutValue->Value.Integer = (I32)Process->PageDirectory;
+            OutValue->Value.Integer = (INT)Process->PageDirectory;
             return SCRIPT_OK;
         }
 
@@ -151,7 +151,7 @@ SCRIPT_ERROR ProcessGetProperty(
                 return SCRIPT_ERROR_UNAUTHORIZED;
             }
             OutValue->Type = SCRIPT_VAR_INTEGER;
-            OutValue->Value.Integer = (I32)Process->HeapBase;
+            OutValue->Value.Integer = (INT)Process->HeapBase;
             return SCRIPT_OK;
         }
 
@@ -160,7 +160,7 @@ SCRIPT_ERROR ProcessGetProperty(
                 return SCRIPT_ERROR_UNAUTHORIZED;
             }
             OutValue->Type = SCRIPT_VAR_INTEGER;
-            OutValue->Value.Integer = (I32)Process->HeapSize;
+            OutValue->Value.Integer = (INT)Process->HeapSize;
             return SCRIPT_OK;
         }
 

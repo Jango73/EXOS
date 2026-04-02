@@ -1,6 +1,58 @@
 #!/bin/bash
 set -e
 
+function AddPathPrefix() {
+    local PathPrefix="$1"
+
+    case ":$PATH:" in
+        *":$PathPrefix:"*)
+            ;;
+        *)
+            export PATH="$PathPrefix:$PATH"
+            ;;
+    esac
+}
+
+function ConfigureCrossToolchainPath() {
+    local ToolchainPath=""
+
+    if [ -d "/opt/i686-elf-toolchain/bin" ]; then
+        ToolchainPath="/opt/i686-elf-toolchain/bin"
+    elif [ -d "/opt/i686-elf-toolchain/i686-elf-tools-linux/bin" ]; then
+        ToolchainPath="/opt/i686-elf-toolchain/i686-elf-tools-linux/bin"
+    fi
+
+    if [ -n "$ToolchainPath" ]; then
+        AddPathPrefix "$ToolchainPath"
+    fi
+}
+
+function ValidateCrossCompiler() {
+    local ErrorLog=""
+
+    if ! command -v i686-elf-gcc >/dev/null 2>&1; then
+        echo "Missing cross-compiler: i686-elf-gcc"
+        echo "Expected it in PATH or under /opt/i686-elf-toolchain/bin"
+        echo "Run ./scripts/linux/setup/setup-deps.sh, then retry."
+        exit 1
+    fi
+
+    ErrorLog="$(mktemp)"
+
+    if i686-elf-gcc --version >/dev/null 2>"$ErrorLog"; then
+        rm -f "$ErrorLog"
+        return 0
+    fi
+
+    echo "Cross-compiler found but unusable: $(command -v i686-elf-gcc)"
+    sed 's/^/ERROR: /' "$ErrorLog" >&2 || true
+    rm -f "$ErrorLog"
+    echo "The installed i686-elf toolchain is incompatible with this host system."
+    echo "This usually means the downloaded prebuilt toolchain requires a newer glibc than the host distribution provides."
+    echo "Install a compatible i686-elf toolchain, or build it locally, then retry."
+    exit 1
+}
+
 function Usage() {
     echo "Usage: $0 --arch <x86-32|x86-64> --fs <ext2|fat32> [--bare-metal] [--boot-stage-markers] [--clean] [--debug|--release] [--force-pic] [--kernel-log-tag-filter <filter>] [--log-udp-dest <ip:port>] [--log-udp-source <ip:port>] [--profiling] [--scheduling-debug] [--split] [--system-data-view] [--uefi] [--use-log-udp] [--use-syscall]"
 }
@@ -271,6 +323,9 @@ case "$FILE_SYSTEM" in
         exit 1
         ;;
 esac
+
+ConfigureCrossToolchainPath
+ValidateCrossCompiler
 
 AcquireBuildLock
 trap ReleaseBuildLock EXIT

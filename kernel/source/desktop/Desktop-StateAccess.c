@@ -657,8 +657,8 @@ BOOL DesktopSetFocusWindow(LPWINDOW Window) {
     UnlockMutex(&(Desktop->Mutex));
 
     SAFE_USE_VALID_ID(FocusWindow->Task, KOID_TASK) {
-        SAFE_USE_VALID_ID(FocusWindow->Task->Process, KOID_PROCESS) {
-            Process = FocusWindow->Task->Process;
+        SAFE_USE_VALID_ID(FocusWindow->Task->OwnerProcess, KOID_PROCESS) {
+            Process = FocusWindow->Task->OwnerProcess;
         }
     }
 

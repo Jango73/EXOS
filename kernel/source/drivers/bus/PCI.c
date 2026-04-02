@@ -32,6 +32,7 @@
 #include "drivers/graphics/common/Graphics-PCI.h"
 #include "drivers/network/E1000.h"
 #include "drivers/network/RTL8139.h"
+#include "drivers/network/RTL8139CPlus.h"
 #include "drivers/network/RTL8169.h"
 #include "drivers/usb/XHCI.h"
 #include "User.h"
@@ -644,6 +645,7 @@ static UINT PCIDriverCommands(UINT Function, UINT Parameter) {
             extern PCI_DRIVER NVMePCIDriver;
 
             PCI_RegisterDriver(&E1000Driver);
+            PCI_RegisterDriver(&RTL8139CPlusDriver);
             PCI_RegisterDriver(&RTL8139Driver);
             PCI_RegisterDriver(&RTL8169Driver);
             PCI_RegisterDriver(&AHCIPCIDriver);

@@ -89,11 +89,11 @@ static BOOL TaskInitializeMessageBuffer(LPTASK Task) {
         return FALSE;
     }
 
-    if (Task->Process == NULL) {
+    if (Task->OwnerProcess == NULL) {
         return FALSE;
     }
 
-    MessageBufferBase = ProcessArenaAllocateSystem(Task->Process,
+    MessageBufferBase = ProcessArenaAllocateSystem(Task->OwnerProcess,
                                                    MessageBufferSize,
                                                    ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE,
                                                    TEXT("TaskMessageBuffer"));
@@ -189,6 +189,7 @@ LPTASK NewTask(void) {
     This->Type = TASK_TYPE_NONE;
     This->SchedulerState.Status = TASK_STATUS_READY;
     This->SchedulerState.WakeUpTime = INFINITY;
+    This->SchedulerState.Suspended = FALSE;
     This->WaitingMutex = NULL;
     This->WaitingSince = 0;
     This->HeldMutexClassDepth = 0;
@@ -251,7 +252,7 @@ void DeleteTask(LPTASK This) {
 
     SAFE_USE_VALID_ID(This, KOID_TASK) {
         // Lock kernel mutex for the entire operation
-        SAFE_USE(This->Process) {
+        SAFE_USE(This->OwnerProcess) {
         }
 
         LockMutex(MUTEX_KERNEL, INFINITY);
@@ -292,7 +293,7 @@ void DeleteTask(LPTASK This) {
         }
 #endif
 
-        SAFE_USE(This->Process) {
+        SAFE_USE(This->OwnerProcess) {
             SAFE_USE(This->Arch.Stack.Base) {
                 FreeRegion(This->Arch.Stack.Base, This->Arch.Stack.Size);
             }
@@ -304,20 +305,20 @@ void DeleteTask(LPTASK This) {
         LPLIST ProcessList = GetProcessList();
         LPLIST TaskList = GetTaskList();
 
-        if (This->Process != NULL && This->Process != &KernelProcess) {
+        if (This->OwnerProcess != NULL && This->OwnerProcess != &KernelProcess) {
             LockMutex(MUTEX_PROCESS, INFINITY);
-            This->Process->TaskCount--;
+            This->OwnerProcess->TaskCount--;
 
 
-            if (This->Process->TaskCount == 0) {
+            if (This->OwnerProcess->TaskCount == 0) {
 
                 // Set process exit code to last task's exit code
-                This->Process->ExitCode = This->ExitCode;
+                This->OwnerProcess->ExitCode = This->ExitCode;
 
-                SetProcessStatus(This->Process, PROCESS_STATUS_DEAD);
+                SetProcessStatus(This->OwnerProcess, PROCESS_STATUS_DEAD);
 
                 // Apply child process policy
-                if (This->Process->Flags & PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH) {
+                if (This->OwnerProcess->Flags & PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH) {
 
                     // Find and kill all child processes
                     LPPROCESS Current = (LPPROCESS)ProcessList->First;
@@ -326,7 +327,7 @@ void DeleteTask(LPTASK This) {
                         LPPROCESS Next = (LPPROCESS)Current->Next;
 
                         SAFE_USE_VALID_ID(Current, KOID_PROCESS) {
-                            if (Current->OwnerProcess == This->Process) {
+                            if (Current->OwnerProcess == This->OwnerProcess) {
 
                                 // Kill all tasks of the child process
                                 LPTASK ChildTask = (LPTASK)TaskList->First;
@@ -335,7 +336,7 @@ void DeleteTask(LPTASK This) {
                                     LPTASK NextChildTask = (LPTASK)ChildTask->Next;
 
                                     SAFE_USE_VALID_ID(ChildTask, KOID_TASK) {
-                                        if (ChildTask->Process == Current) {
+                                        if (ChildTask->OwnerProcess == Current) {
                                             KillTask(ChildTask);
                                         }
                                     }
@@ -357,7 +358,7 @@ void DeleteTask(LPTASK This) {
                         LPPROCESS Next = (LPPROCESS)Current->Next;
 
                         SAFE_USE_VALID_ID(Current, KOID_PROCESS) {
-                            if (Current->OwnerProcess == This->Process) {
+                            if (Current->OwnerProcess == This->OwnerProcess) {
                                 Current->OwnerProcess = NULL;
                             }
                         }
@@ -452,7 +453,7 @@ LPTASK CreateTask(LPPROCESS Process, LPTASK_INFO Info) {
     //-------------------------------------
     // Setup the task
 
-    Task->Process = Process;
+    Task->OwnerProcess = Process;
     Task->Priority = Info->Priority;
     Task->Function = Info->Func;
     Task->Parameter = Info->Parameter;
@@ -574,6 +575,55 @@ BOOL KillTask(LPTASK Task) {
 
 /************************************************************************/
 
+/**
+ * @brief Suspend one task without discarding its underlying wait state.
+ *
+ * The suspension flag is orthogonal to `SchedulerState.Status`, allowing one
+ * task to remain logically sleeping or waiting for messages while the
+ * scheduler excludes it from runnable selection.
+ *
+ * @param Task Pointer to the task to suspend.
+ * @return TRUE on success.
+ */
+BOOL SuspendTaskExecution(LPTASK Task) {
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        if (Task->Type == TASK_TYPE_KERNEL_MAIN) {
+            return FALSE;
+        }
+
+        LockMutex(&(Task->Mutex), INFINITY);
+        FreezeScheduler();
+        Task->SchedulerState.Suspended = TRUE;
+        UnfreezeScheduler();
+        UnlockMutex(&(Task->Mutex));
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Resume one previously suspended task.
+ * @param Task Pointer to the task to resume.
+ * @return TRUE on success.
+ */
+BOOL ResumeTaskExecution(LPTASK Task) {
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        LockMutex(&(Task->Mutex), INFINITY);
+        FreezeScheduler();
+        Task->SchedulerState.Suspended = FALSE;
+        UnfreezeScheduler();
+        UnlockMutex(&(Task->Mutex));
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+
 BOOL SetTaskExitCode(LPTASK Task, UINT Code) {
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
         LockMutex(MUTEX_KERNEL, INFINITY);
@@ -581,8 +631,8 @@ BOOL SetTaskExitCode(LPTASK Task, UINT Code) {
         Task->ExitCode = Code;
 
         if (Task->Type == TASK_TYPE_USER_MAIN) {
-            SAFE_USE_VALID_ID(Task->Process, KOID_PROCESS) {
-                Task->Process->ExitCode = Code;
+            SAFE_USE_VALID_ID(Task->OwnerProcess, KOID_PROCESS) {
+                Task->OwnerProcess->ExitCode = Code;
             }
         }
 
@@ -809,10 +859,30 @@ BOOL GetTaskSchedulerState(LPTASK Task, LPTASK_SCHEDULER_STATE State) {
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
         State->Status = Task->SchedulerState.Status;
         State->WakeUpTime = Task->SchedulerState.WakeUpTime;
+        State->Suspended = Task->SchedulerState.Suspended;
         return TRUE;
     }
 
     return FALSE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Test whether one task execution is suspended.
+ * @param Task Pointer to the task to query.
+ * @return TRUE when execution is suspended.
+ */
+BOOL IsTaskExecutionSuspended(LPTASK Task) {
+    BOOL Suspended = FALSE;
+
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        LockMutex(&(Task->Mutex), INFINITY);
+        Suspended = Task->SchedulerState.Suspended;
+        UnlockMutex(&(Task->Mutex));
+    }
+
+    return Suspended;
 }
 
 /************************************************************************/
@@ -964,8 +1034,9 @@ void DumpTask(LPTASK Task) {
     VERBOSE(TEXT("Address         : %p"), Task);
     VERBOSE(TEXT("Task Name       : %s"), Task->Name);
     VERBOSE(TEXT("References      : %u"), Task->References);
-    VERBOSE(TEXT("Process         : %p"), Task->Process);
+    VERBOSE(TEXT("Process         : %p"), Task->OwnerProcess);
     VERBOSE(TEXT("Status          : %u"), Task->SchedulerState.Status);
+    VERBOSE(TEXT("Suspended       : %s"), Task->SchedulerState.Suspended ? TEXT("yes") : TEXT("no"));
     VERBOSE(TEXT("Priority        : %u"), Task->Priority);
     VERBOSE(TEXT("Function        : %p"), Task->Function);
     VERBOSE(TEXT("Parameter       : %p"), Task->Parameter);

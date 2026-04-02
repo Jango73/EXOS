@@ -52,10 +52,15 @@ void DisplaySessionInitialize(void);
 BOOL DisplaySessionSetConsoleMode(LPGRAPHICS_MODE_INFO ModeInfo);
 BOOL DisplaySessionSetConsoleGraphicsMode(LPDRIVER GraphicsDriver, LPGRAPHICS_MODE_INFO ModeInfo);
 BOOL DisplaySessionSetDesktopMode(LPDESKTOP Desktop, LPDRIVER GraphicsDriver, LPGRAPHICS_MODE_INFO ModeInfo);
+UINT DisplaySessionApplyGraphicsDriverByAlias(
+    LPCSTR DriverAlias,
+    LPGRAPHICS_MODE_INFO RequestedMode,
+    LPGRAPHICS_MODE_INFO AppliedMode);
 BOOL DisplaySwitchToConsole(void);
 BOOL DisplaySwitchToDesktop(LPDESKTOP Desktop);
 U32 DisplaySessionGetActiveFrontEnd(void);
 LPDRIVER DisplaySessionGetActiveGraphicsDriver(void);
+BOOL DisplaySessionGetActiveMode(LPGRAPHICS_MODE_INFO ModeInfo);
 
 /************************************************************************/
 

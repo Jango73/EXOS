@@ -237,7 +237,10 @@ Security in EXOS is implemented as a layered architecture. The effective access 
 - `USER_ACCOUNT` stores `UserID`, privilege (`EXOS_PRIVILEGE_USER` or `EXOS_PRIVILEGE_ADMIN`), status, and password hash; `USER_SESSION` stores `SessionID`, `UserID`, login/activity timestamps, lock state, and shell task binding (`kernel/include/UserAccount.h`).
 - Session lifecycle is managed by `CreateUserSession`, `SetCurrentSession`, `GetCurrentSession`, timeout validation, and lock/unlock helpers in `UserSession.c`.
 - Session inactivity timeout is configurable with `Session.TimeoutSeconds` in kernel configuration, with a compile fallback to `SESSION_TIMEOUT_MS`. Key `Session.TimeoutMinutes` is also accepted when `Session.TimeoutSeconds` is absent.
-- Child process creation inherits the parent session (`Process->Session`), preserving identity continuity across spawned processes (`kernel/source/process/Process.c`).
+- Periodic session timeout enforcement is triggered from the scheduler path through a lightweight scheduler tick callback that signals deferred work; the lock/unlock user interface remains handled by shell code (`kernel/source/process/Schedule.c`, `kernel/source/UserSession.c`, `kernel/source/shell/Shell-Main.c`).
+- Authentication throttling uses the shared `utils/AuthPolicy` helper. User login and session unlock flows apply a short cooldown after failures and a temporary lockout after repeated consecutive failures, while successful authentication resets the in-memory throttle state (`kernel/source/utils/AuthPolicy.c`, `kernel/source/UserAccount.c`, `kernel/source/UserSession.c`).
+- Child process creation inherits the parent session (`Process->Session`) and stable owner identifier (`Process->UserID`), preserving identity continuity across spawned processes even when the live session pointer is absent (`kernel/source/process/Process.c`, `kernel/source/UserSession.c`).
+- Same-user process targeting policy and caller privilege resolution are centralized in `utils/ProcessAccess`: a process may target itself, processes owned by the same effective user, or any process when the caller resolves to administrator or kernel privilege. For kernel objects that carry `OBJECT_FIELDS`, the canonical security owner is `OBJECT.OwnerProcess`; generic object access checks resolve ownership from that field so tasks, windows, desktops, graphics contexts backed by one desktop, and other process-owned objects share one source of truth. `PROCESS` objects remain the deliberate exception because their `OwnerProcess` link models parentage, while the process object itself is its own security target. The module also exposes a current-process helper and global validation macros so syscall and subsystem code can share the same object-validation plus authorization pattern without local wrappers. Task access wrappers mediate shell task-control commands so the shell does not carry direct policy checks. These helpers are reused by exposure checks, process/task syscalls, generic handle-based syscalls, window/desktop/window-class syscalls, and shell-facing task control (`kernel/source/utils/ProcessAccess.c`, `kernel/source/expose/Expose-Security.c`, `kernel/source/SYSCall.c`, `kernel/source/process/Task-Access.c`).
 
 #### Layer 4: Syscall privilege gate
 
@@ -487,6 +490,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 - `TASK_STATUS_DEAD` (0xFF): Marked for deletion
 
 - Sleep durations are specified in `UINT`. A value of `INFINITY` is treated as a sentinel meaning "sleep indefinitely". `SetTaskWakeUpTime()` stores `INFINITY` without adding the current time and the scheduler ignores such tasks until another subsystem explicitly changes their status.
+- Task suspension is tracked separately from `Task.Status` in scheduler-owned task state. `SuspendTaskExecution()` and `ResumeTaskExecution()` toggle a dedicated suspension flag, allowing the scheduler to stop selecting a task without destroying whether it was running, sleeping, or waiting for messages.
 
 **Process Status (Process.Status):**
 - `PROCESS_STATUS_ALIVE` (0x00): Normal operating state
@@ -654,7 +658,7 @@ All reusable helpers -such as the command line editor, adaptive delay, string co
     - `task`: task list for the owning process. Permissions: kernel and administrator only.
       - `task.count`: number of tasks in the process. Permissions: kernel and administrator only.
       - `task[n]`: task view at index `n`. Permissions: see fields below.
-        - `handle`: handle for the task. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
+        - `handle`: user-visible handle for the task. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
         - `name`: task name. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
         - `type`: task type. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
         - `status`: current task status. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
@@ -675,21 +679,41 @@ All reusable helpers -such as the command line editor, adaptive delay, string co
         - `mutex`: mutex pointer. Permissions: kernel and administrator only.
         - `message_queue`: message queue pointer. Permissions: kernel and administrator only.
         - `process`: owning process pointer. Permissions: kernel and administrator only.
-- `drivers`: Kernel driver list root. provides indexed access to driver views. Permissions: kernel and administrator only.
-  - `drivers.count`: number of drivers. Permissions: kernel and administrator only.
-  - `drivers[n]`: driver view at index `n`. Permissions: kernel and administrator only.
+- `task`: Global task list root filtered through process access policy.
+  - `task.count`: number of tasks the caller may target.
+  - `task[n]`: task view at visible index `n`. Permissions and fields match the task view exposed through `process[n].task[n]`.
+- `driver`: Kernel driver list root. provides indexed access to driver views. Permissions: kernel and administrator only.
+  - `driver.count`: number of drivers. Permissions: kernel and administrator only.
+  - `driver[n]`: driver view at index `n`. Permissions: kernel and administrator only.
     - `type`: driver type. Permissions: kernel and administrator only.
+    - `type_name`: driver type text. Permissions: anyone.
+    - `alias`: driver alias. Permissions: anyone.
     - `version_major`: major version. Permissions: kernel and administrator only.
     - `version_minor`: minor version. Permissions: kernel and administrator only.
     - `designer`: driver designer. Permissions: kernel and administrator only.
     - `manufacturer`: driver manufacturer. Permissions: kernel and administrator only.
     - `product`: driver product name. Permissions: kernel and administrator only.
+    - `ready`: ready flag. Permissions: anyone.
     - `flags`: driver flags. Permissions: kernel and administrator only.
-    - `command`: driver command pointer. Permissions: kernel and administrator only.
+    - `mode`: graphics mode array exposed by concrete graphics backends.
+      - `mode.count`: number of reported graphics modes for this driver.
+      - `mode[n]`: graphics mode view at index `n`.
+        - `width`: mode width.
+        - `height`: mode height.
+        - `bpp`: mode bit depth.
     - `enum_domain_count`: number of enum domains. Permissions: kernel and administrator only.
     - `enum_domains`: enum domain array. Permissions: kernel and administrator only.
       - `enum_domains.count`: enum domain count. Permissions: kernel and administrator only.
       - `enum_domains[n]`: enum domain value at index `n`. Permissions: kernel and administrator only.
+- `drivers`: Compatibility alias for `driver`.
+- `graphics`: Active graphics session state. Permissions: anyone.
+  - `graphics.frontend`: active display frontend text (`console` or `desktop`).
+  - `graphics.current_driver_index`: index of the active concrete graphics backend inside `driver[n]`.
+  - `graphics.current_driver_alias`: alias of the active concrete graphics backend.
+  - `graphics.mode`: active graphics mode view.
+    - `graphics.mode.width`: active mode width.
+    - `graphics.mode.height`: active mode height.
+    - `graphics.mode.bpp`: active mode bit depth.
 - `storage`: Storage list root. provides indexed access to storage views. Permissions: anyone.
   - `storage.count`: number of storage objects. Permissions: anyone.
   - `storage[n]`: storage view at index `n`. Permissions: anyone.
@@ -753,12 +777,13 @@ All reusable helpers -such as the command line editor, adaptive delay, string co
 
 ### Driver architecture
 
-Hardware-facing components are grouped under `kernel/source/drivers` with public headers in `kernel/include/drivers`. This area contains keyboard, serial mouse, interrupt controller (I/O APIC), PCI bus, network (`E1000`, `RTL8139`, `RTL8169` family), storage (`ATA`, `SATA`, `NVMe`), graphics (`VGA`, `VESA`, mode tables), and file system backends (`FAT16`, `FAT32`, `EXFS`).
+Hardware-facing components are grouped under `kernel/source/drivers` with public headers in `kernel/include/drivers`. This area contains keyboard, serial mouse, interrupt controller (I/O APIC), PCI bus, network (`E1000`, `RTL8139`, `RTL8139CPlus`, `RTL8169` family), storage (`ATA`, `SATA`, `NVMe`), graphics (`VGA`, `VESA`, mode tables), and file system backends (`FAT16`, `FAT32`, `EXFS`).
 
 Kernel-side registration follows a deterministic list-driven flow in `KernelData.c`: `InitializeDriverList()` populates `StartupDrivers` (load order) and `Drivers` (all known descriptors), then `LoadAllDrivers()` walks `StartupDrivers` in order.
 PCI-backed class drivers such as `e1000`, `rtl8139`, `rtl8169`, `ahci`, `nvme`, and `xhci` are also inserted in the global known-driver list (`Drivers`) for shell and diagnostics visibility, while their effective load/attach lifecycle remains driven by PCI enumeration.
 The `driver <alias>` shell command prints one detailed driver report (identity fields, type, flags, command pointers, command-reported version/capabilities, and enum domains).
-The Realtek Ethernet families (`rtl8139`, `rtl8169`) share one common kernel layer for register-window setup, reset helpers, MAC plumbing, polling integration, and legacy INTx management through `DeviceInterrupt`, while each family keeps its own datapath and hardware-specific programming model.
+The Realtek Ethernet families (`rtl8139`, `rtl8139cplus`, `rtl8169`) share one common kernel layer for register-window setup, reset helpers, MAC plumbing, polling integration, and legacy INTx management through `DeviceInterrupt`, while each family keeps its own datapath and hardware-specific programming model.
+`rtl8139` keeps the legacy receive-buffer ring used by pre-CPlus revisions, while `rtl8139cplus` switches to the descriptor-based C+ DMA path (separate RX/TX rings) even though both revisions expose the same PCI device identifier and PHY register set.
 That shared layer also centralizes DWORD multicast-filter initialization and optional deferred interrupt acknowledgment for controller families whose receive-overflow handling must update device state before clearing selected ISR bits.
 
 The NVMe driver initializes admin queues first, then I/O queues, configures completion interrupts through MSI-X when available, enumerates namespaces, and registers each namespace as a disk so `MountDiskPartitions` can attach file systems.
@@ -854,7 +879,7 @@ Console text output uses backend-dispatched text commands implemented in `kernel
 - `TEXT_SET_CURSOR`
 - `TEXT_SET_CURSOR_VISIBLE`
 
-When `gfx driver <alias> <mode>` applies a graphics mode while the shell is in the console frontend, display session routing uses the selected backend for console rendering and recomputes console cell geometry from the active pixel mode. Shell output stays visible across backend and mode transitions.
+When `set_graphics_driver(driver_alias, width, height, bpp)` applies a graphics mode while the shell is in the console frontend, display session routing uses the selected backend for console rendering and recomputes console cell geometry from the active pixel mode. Shell output stays visible across backend and mode transitions.
 
 The console text dispatch path caches the active `GRAPHICSCONTEXT` while the console frontend is bound to the same graphics driver. That cache is invalidated when console mode or framebuffer mapping changes so boot log rendering does not repeatedly call `DF_GFX_GETCONTEXT`.
 
@@ -919,9 +944,9 @@ Graphics backend selection is implemented in `kernel/source/drivers/graphics/com
 
 Boot-path capability gating is centralized in `utils/BootPath` (`kernel/include/utils/BootPath.h`, `kernel/source/utils/BootPath.c`). VESA probing is disabled on x86-64 boot paths and enabled on x86-32 boot paths. On x86-32, backend availability is decided by the VESA initialization and probe path.
 
-Explicit backend forcing through `gfx driver <alias> <mode>` uses a strict selector path: only the requested backend is loaded into selector state, and command forwarding targets that backend while forced mode is active.
+Explicit backend forcing through `set_graphics_driver(driver_alias, width, height, bpp)` uses a strict selector path: only the requested backend is loaded into selector state, and command forwarding targets that backend while forced mode is active.
 
-Shell graphics commands are implemented in `kernel/source/shell/Shell-Commands-Graphics.c`. `gfx driver <driver> <WidthxHeightxBitsPerPixel>` selects a backend and mode. `gfx smoke_test [DurationMilliseconds]` creates a temporary desktop, renders a basic window through kernel graphics primitives, waits for the requested duration, then restores text console mode.
+Shell graphics switching crosses the user/kernel boundary through `SYSCALL_SetGraphicsDriver`. The syscall payload is `GRAPHICS_DRIVER_SELECTION_INFO`, which carries one inline `DriverAlias[MAX_NAME]` buffer and the requested width, height, and bits per pixel. The shell `set_graphics_driver(...)` host function only marshals arguments into that ABI payload and invokes the syscall.
 
 Generic driver diagnostics use `DF_DEBUG_INFO` with `DRIVER_DEBUG_INFO.Text`, a multi-line buffer sized with `MAX_STRING_BUFFER`. Graphics backends use that interface to expose backend alias and current resolution, and the graphics selector forwards the query to the active backend. Mouse drivers expose the selected manufacturer and product through the same pattern, and the mouse selector forwards that data as well.
 
@@ -1596,6 +1621,8 @@ This provides a stable interpreter state across commands and centralizes callbac
 
 The script engine implementation is split into dedicated modules under `kernel/source/script/` (`Script-Core.c`, `Script-Parser-Expression.c`, `Script-Parser-Statements.c`, `Script-Eval.c`, `Script-Collections.c`, `Script-Scope.c`) with public and internal headers under `kernel/include/script/`.
 
+Control-flow statements include `if`, `for`, `return`, and `continue`. `continue;` is accepted only inside loop bodies and skips directly to the increment phase of the current `for` iteration.
+
 #### Execution paths
 
 Shell command lines are executed through `ExecuteCommandLine()`, which calls `ScriptExecute()` directly on the entered text. Errors are reported through `ScriptGetErrorMessage()`.
@@ -1613,10 +1640,10 @@ Background mode is blocked for `.e0` scripts.
 
 E0 expressions support string-specific operator behavior in the interpreter:
 
-- `string + string` concatenates both operands.
+- `+` concatenates as text when either operand is a string. In a left-associative `+` chain, once one sub-expression yields a string, later `+` operations continue as text concatenation.
 - `string - string` removes every occurrence of the right operand from the left operand.
 
-Examples: `"foo" + "bar"` gives `"foobar"` and `"foobarfoo" - "foo"` gives `"bar"`.
+Examples: `"foo" + "bar"` gives `"foobar"`, `1 + "x"` gives `"1x"`, `1 + 2 + "x" + 3` gives `"3x3"`, and `"foobarfoo" - "foo"` gives `"bar"`.
 
 #### Shell command bridge inside E0
 
@@ -1631,9 +1658,23 @@ Each `SHELL_COMMAND_ENTRY` stores the primary name, alternate name, usage text, 
 
 This places command execution policy in shell code while the script engine is generic.
 
+Shell inspection commands that only read exposed kernel objects can delegate formatting to embedded E0 scripts. `driver list`, `network devices`, `usb ports|devices|device-tree|drives|probe`, `mem_map`, and `task list` follow that pattern so the shell stays on the public exposure API instead of walking kernel lists directly.
+
+Function-call expressions support zero or more arguments. The parser stores each argument as an AST expression, the evaluator resolves each one to text, and the host `CallFunction` callback receives `(name, argc, argv, user)` instead of a single serialized argument.
+
+The shell exposes host functions through that bridge:
+
+- `print(...)`: prints the stringified arguments joined with spaces.
+- `exec(...)`: rebuilds one command line from the stringified arguments and executes it through the normal shell command path.
+- `kill(handle)`: resolves one user-visible handle and routes to `SysCall_KillProcess()` or `SysCall_KillTask()` depending on the object type behind the handle.
+- `smoke_test_multi_args(a, b, c, d)`: reserved smoke helper that validates four serialized arguments and returns one deterministic marker value for automated regression checks.
+- `set_graphics_driver(driver_alias, width, height, bpp)`: forces one graphics backend alias and applies the requested mode through the selector path.
+
+Known host functions return `SCRIPT_FUNCTION_STATUS_UNKNOWN` when the symbol does not exist, and `SCRIPT_FUNCTION_STATUS_ERROR` when the function exists but rejects the call after setting an explicit script error.
+
 #### Return value behavior
 
-`AST_RETURN` stores a return value in the script context (`ScriptStoreReturnValue()`). The shell path (`RunScriptFile()`) prints it as `Script return value: ...` after successful execution.
+`AST_RETURN` stores a return value in the script context (`ScriptStoreReturnValue()`). The shell path (`RunScriptFile()`) prints the raw return value on its own line after successful execution.
 
 Supported stored return categories are scalar values (string, integer, float). Host handles and arrays are rejected as return values by the interpreter storage path.
 
@@ -2191,6 +2232,7 @@ Theme runtime lifecycle is exposed through:
 - `ActivateTheme(NameOrHandle)`
 - `GetActiveThemeInfo(Info)`
 - `ResetThemeToDefault()`
+- `ApplyDesktopTheme(Target)`
 
 `LoadTheme` parses one file and stages the candidate runtime. `ActivateTheme` swaps the active runtime atomically and invalidates desktop windows for full redraw. `ResetThemeToDefault` switches back to the built-in runtime.
 

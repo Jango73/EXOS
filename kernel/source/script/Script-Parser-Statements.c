@@ -66,6 +66,40 @@ LPAST_NODE ScriptParseReturnStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* E
 /************************************************************************/
 
 /**
+ * @brief Parse a continue statement and build AST node.
+ * @param Parser Parser state
+ * @param Error Pointer to error code
+ * @return AST node or NULL on failure
+ */
+LPAST_NODE ScriptParseContinueStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
+    LPAST_NODE ContinueNode;
+
+    if (Parser == NULL || Error == NULL || Parser->CurrentToken.Type != TOKEN_CONTINUE) {
+        if (Error != NULL) {
+            *Error = SCRIPT_ERROR_SYNTAX;
+        }
+        return NULL;
+    }
+
+    if (Parser->LoopDepth == 0) {
+        *Error = SCRIPT_ERROR_SYNTAX;
+        return NULL;
+    }
+
+    ScriptNextToken(Parser);
+
+    ContinueNode = ScriptCreateASTNode(Parser->Context, AST_CONTINUE);
+    if (ContinueNode == NULL) {
+        *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
+        return NULL;
+    }
+
+    return ContinueNode;
+}
+
+/************************************************************************/
+
+/**
  * @brief Parse a statement (assignment, if, for, or block) and build AST node.
  * @param Parser Parser state
  * @param Error Pointer to error code
@@ -78,6 +112,8 @@ LPAST_NODE ScriptParseStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) 
         return ScriptParseForStatementAST(Parser, Error);
     } else if (Parser->CurrentToken.Type == TOKEN_RETURN) {
         return ScriptParseReturnStatementAST(Parser, Error);
+    } else if (Parser->CurrentToken.Type == TOKEN_CONTINUE) {
+        return ScriptParseContinueStatementAST(Parser, Error);
     } else if (Parser->CurrentToken.Type == TOKEN_LBRACE) {
         return ScriptParseBlockAST(Parser, Error);
     } else if (Parser->CurrentToken.Type == TOKEN_PATH) {
@@ -338,7 +374,7 @@ LPAST_NODE ScriptParseBlockAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
         BlockNode->Data.Block.Statements[BlockNode->Data.Block.Count++] = Statement;
 
         // Semicolon is mandatory after assignments and returns.
-        if (Statement->Type == AST_ASSIGNMENT || Statement->Type == AST_RETURN) {
+        if (Statement->Type == AST_ASSIGNMENT || Statement->Type == AST_RETURN || Statement->Type == AST_CONTINUE) {
             if (Parser->CurrentToken.Type != TOKEN_SEMICOLON && Parser->CurrentToken.Type != TOKEN_RBRACE) {
                 *Error = SCRIPT_ERROR_SYNTAX;
                 ScriptDestroyAST(BlockNode);
@@ -505,7 +541,9 @@ LPAST_NODE ScriptParseForStatementAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Erro
     ScriptNextToken(Parser);
 
     // Parse body
+    Parser->LoopDepth++;
     ForNode->Data.For.Body = ScriptParseStatementAST(Parser, Error);
+    Parser->LoopDepth--;
     if (*Error != SCRIPT_OK || ForNode->Data.For.Body == NULL) {
         ScriptDestroyAST(ForNode);
         return NULL;

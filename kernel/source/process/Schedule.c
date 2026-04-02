@@ -32,6 +32,7 @@
 #include "Memory.h"
 #include "process/Process-Control.h"
 #include "process/Process.h"
+#include "process/Schedule.h"
 #include "process/Stack.h"
 #include "System.h"
 #include "process/Task.h"
@@ -48,7 +49,18 @@ typedef struct tag_TASKLIST {
 
 /***************************************************************************/
 
+#define SCHEDULER_TICK_MAX_CALLBACKS 16
+
+typedef struct tag_SCHEDULER_TICK_SLOT {
+    SCHEDULER_TICK_CALLBACK Callback;
+    LPVOID Context;
+    BOOL InUse;
+} SCHEDULER_TICK_SLOT, *LPSCHEDULER_TICK_SLOT;
+
+/***************************************************************************/
+
 static TASKLIST DATA_SECTION TaskList = {.Freeze = 0, .SchedulerTime = 0, .NumTasks = 0, .CurrentIndex = 0, .Tasks = {NULL}};
+static SCHEDULER_TICK_SLOT DATA_SECTION SchedulerTickSlots[SCHEDULER_TICK_MAX_CALLBACKS];
 
 /***************************************************************************/
 
@@ -72,6 +84,28 @@ static BOOL ScheduleGetTaskState(LPTASK Task, LPTASK_SCHEDULER_STATE State) {
  */
 static BOOL ScheduleGetProcessState(LPPROCESS Process, LPPROCESS_SCHEDULER_STATE State) {
     return GetProcessSchedulerState(Process, State);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Run registered lightweight scheduler tick callbacks.
+ *
+ * Callbacks execute in scheduler context and must not block, lock mutexes or
+ * perform heavy work. They are intended for cheap state sampling and deferred
+ * work signaling only.
+ */
+static void RunSchedulerTickCallbacks(void) {
+    for (UINT Index = 0; Index < SCHEDULER_TICK_MAX_CALLBACKS; Index++) {
+        SCHEDULER_TICK_CALLBACK Callback = SchedulerTickSlots[Index].Callback;
+        LPVOID Context = SchedulerTickSlots[Index].Context;
+
+        if (SchedulerTickSlots[Index].InUse == FALSE || Callback == NULL) {
+            continue;
+        }
+
+        Callback(Context);
+    }
 }
 
 /***************************************************************************/
@@ -163,9 +197,10 @@ static UINT CountRunnableTasks(void) {
         PROCESS_SCHEDULER_STATE ProcessState;
 
         if (ScheduleGetTaskState(Task, &State) == FALSE) continue;
-        if (ScheduleGetProcessState(Task->Process, &ProcessState) == FALSE) continue;
+        if (ScheduleGetProcessState(Task->OwnerProcess, &ProcessState) == FALSE) continue;
 
-        if ((State.Status == TASK_STATUS_READY || State.Status == TASK_STATUS_RUNNING) && ProcessState.Paused == FALSE) {
+        if ((State.Status == TASK_STATUS_READY || State.Status == TASK_STATUS_RUNNING) &&
+            State.Suspended == FALSE && ProcessState.Paused == FALSE) {
             RunnableCount++;
         }
     }
@@ -193,9 +228,10 @@ UINT FindNextRunnableTask(UINT StartIndex) {
 
         // Skip dead tasks - they will be removed during context switch
         if (ScheduleGetTaskState(Task, &State) == FALSE) continue;
-        if (ScheduleGetProcessState(Task->Process, &ProcessState) == FALSE) continue;
+        if (ScheduleGetProcessState(Task->OwnerProcess, &ProcessState) == FALSE) continue;
 
-        if ((State.Status == TASK_STATUS_READY || State.Status == TASK_STATUS_RUNNING) && ProcessState.Paused == FALSE) {
+        if ((State.Status == TASK_STATUS_READY || State.Status == TASK_STATUS_RUNNING) &&
+            State.Suspended == FALSE && ProcessState.Paused == FALSE) {
             return Index;
         }
     }
@@ -333,7 +369,7 @@ BOOL RemoveTaskFromQueue(LPTASK OldTask) {
  */
 LPPROCESS GetCurrentProcess(void) {
     LPTASK Task = GetCurrentTask();
-    SAFE_USE(Task) { return Task->Process; }
+    SAFE_USE(Task) { return Task->OwnerProcess; }
     return &KernelProcess;
 }
 
@@ -415,6 +451,64 @@ BOOL IsSchedulerFrozen(void) {
 
 /************************************************************************/
 
+/**
+ * @brief Register one scheduler tick callback.
+ * @param Callback Lightweight callback to run from scheduler context.
+ * @param Context Opaque callback context.
+ * @return Registration handle or SCHEDULER_TICK_INVALID_HANDLE.
+ */
+U32 SchedulerRegisterTickCallback(SCHEDULER_TICK_CALLBACK Callback, LPVOID Context) {
+    UINT Flags;
+
+    if (Callback == NULL) {
+        return SCHEDULER_TICK_INVALID_HANDLE;
+    }
+
+    for (U32 Index = 0; Index < SCHEDULER_TICK_MAX_CALLBACKS; Index++) {
+        SaveFlags(&Flags);
+        DisableInterrupts();
+
+        if (SchedulerTickSlots[Index].InUse == FALSE) {
+            SchedulerTickSlots[Index].Callback = Callback;
+            SchedulerTickSlots[Index].Context = Context;
+            SchedulerTickSlots[Index].InUse = TRUE;
+
+            RestoreFlags(&Flags);
+            return Index;
+        }
+
+        RestoreFlags(&Flags);
+    }
+
+    ERROR(TEXT("[SchedulerRegisterTickCallback] No free scheduler tick callback slots"));
+    return SCHEDULER_TICK_INVALID_HANDLE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Unregister one scheduler tick callback.
+ * @param Handle Registration handle returned by SchedulerRegisterTickCallback.
+ */
+void SchedulerUnregisterTickCallback(U32 Handle) {
+    UINT Flags;
+
+    if (Handle >= SCHEDULER_TICK_MAX_CALLBACKS) {
+        return;
+    }
+
+    SaveFlags(&Flags);
+    DisableInterrupts();
+
+    SchedulerTickSlots[Handle].Callback = NULL;
+    SchedulerTickSlots[Handle].Context = NULL;
+    SchedulerTickSlots[Handle].InUse = FALSE;
+
+    RestoreFlags(&Flags);
+}
+
+/************************************************************************/
+
 void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
     TASK_SCHEDULER_STATE NextTaskState;
 
@@ -440,8 +534,8 @@ void SwitchToNextTask(LPTASK CurrentTask, LPTASK NextTask) {
     }
 
     PHYSICAL NextCr3 = 0;
-    if (NextTask != NULL && NextTask->Process != NULL) {
-        NextCr3 = NextTask->Process->PageDirectory;
+    if (NextTask != NULL && NextTask->OwnerProcess != NULL) {
+        NextCr3 = NextTask->OwnerProcess->PageDirectory;
     }
     if (NextCr3 == 0) {
         NextCr3 = GetPageDirectory();
@@ -480,7 +574,7 @@ void SwitchToNextTask_3(register LPTASK CurrentTask, register LPTASK NextTask) {
     if (NextTaskState.Status == TASK_STATUS_READY) {
         (void)SetTaskSchedulerStatus(NextTask, TASK_STATUS_RUNNING);
 
-        if (NextTask->Process->Privilege == CPU_PRIVILEGE_KERNEL) {
+        if (NextTask->OwnerProcess->Privilege == CPU_PRIVILEGE_KERNEL) {
             LINEAR StackPointer = NextTask->Arch.Stack.Base + NextTask->Arch.Stack.Size - STACK_SAFETY_MARGIN;
 
             FINE_DEBUG(TEXT("[SwitchToNextTask_3] StackPointer = %p"), StackPointer);
@@ -555,6 +649,7 @@ void Scheduler(void) {
     }
 
     TaskList.SchedulerTime += 10;
+    RunSchedulerTickCallbacks();
 
     // Check for stack overflow - kill dangerous tasks immediately
     /*
@@ -601,8 +696,10 @@ void Scheduler(void) {
     }
 
     // If current task is still running and quantum not expired, keep it
-    if (CurrentTask && HasCurrentTaskSnapshot != FALSE && CurrentTaskState.Status == TASK_STATUS_RUNNING && !QuantumExpired &&
-        ScheduleGetProcessState(CurrentTask->Process, &CurrentProcessState) != FALSE && CurrentProcessState.Paused == FALSE) {
+    if (CurrentTask && HasCurrentTaskSnapshot != FALSE && CurrentTaskState.Status == TASK_STATUS_RUNNING &&
+        CurrentTaskState.Suspended == FALSE && !QuantumExpired &&
+        ScheduleGetProcessState(CurrentTask->OwnerProcess, &CurrentProcessState) != FALSE &&
+        CurrentProcessState.Paused == FALSE) {
         FINE_DEBUG(TEXT("[Scheduler] Current task continues"));
 
         return;
@@ -618,8 +715,8 @@ void Scheduler(void) {
 
         FINE_DEBUG(TEXT("[Scheduler] Switch between task index %u (%s @ %s) and %u (%s @ %s)"),
             TaskList.CurrentIndex, CurrentTask ? CurrentTask->Name : TEXT("NULL"),
-            CurrentTask ? CurrentTask->Process->FileName : TEXT("NULL"), NextIndex, NextTask->Name,
-            NextTask->Process->FileName);
+            CurrentTask ? CurrentTask->OwnerProcess->FileName : TEXT("NULL"), NextIndex, NextTask->Name,
+            NextTask->OwnerProcess->FileName);
 
         if (NextIndex >= TaskList.NumTasks) {
             // Should not happen if RunnableCount > 0, but safety check
@@ -647,8 +744,8 @@ void Scheduler(void) {
         TaskList.CurrentIndex = NextIndex;
         TaskList.SchedulerTime = 0;
 
-        if (CurrentTask && CurrentTask->Process != NextTask->Process &&
-            CurrentTask->Process->Privilege != NextTask->Process->Privilege) {
+        if (CurrentTask && CurrentTask->OwnerProcess != NextTask->OwnerProcess &&
+            CurrentTask->OwnerProcess->Privilege != NextTask->OwnerProcess->Privilege) {
             FINE_DEBUG(TEXT("[Scheduler] Different ring switch :"));
         }
 

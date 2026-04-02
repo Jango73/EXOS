@@ -119,6 +119,8 @@ U32 CMD_deluser(LPSHELLCONTEXT Context) {
 U32 CMD_login(LPSHELLCONTEXT Context) {
     STR UserName[MAX_USER_NAME];
     STR Password[MAX_USER_NAME];
+    UINT WaitRemaining;
+    BOOL IsLocked;
 
 
     ParseNextCommandLineComponent(Context);
@@ -142,14 +144,28 @@ U32 CMD_login(LPSHELLCONTEXT Context) {
 
     LPUSER_ACCOUNT Account = FindUserAccount(UserName);
     if (Account == NULL) {
-        ConsolePrint(TEXT("ERROR: User '%s' not found\n"), UserName);
+        Sleep(AUTH_POLICY_FAILURE_DELAY_MS);
+        ConsolePrint(TEXT("ERROR: Invalid credentials\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    WaitRemaining = 0;
+    if (!CanAttemptUserAuthentication(Account, &WaitRemaining)) {
+        ConsolePrint(TEXT("ERROR: Too many attempts. Retry in %u ms\n"), (U32)WaitRemaining);
         return DF_RETURN_SUCCESS;
     }
 
     if (!VerifyPassword(Password, Account->PasswordHash)) {
-        ConsolePrint(TEXT("ERROR: Invalid password\n"));
+        IsLocked = RecordUserAuthenticationFailure(Account, &WaitRemaining);
+        if (IsLocked) {
+            ConsolePrint(TEXT("ERROR: Too many attempts. Account locked for %u ms\n"), (U32)WaitRemaining);
+        } else {
+            ConsolePrint(TEXT("ERROR: Invalid credentials\n"));
+        }
         return DF_RETURN_SUCCESS;
     }
+
+    RecordUserAuthenticationSuccess(Account);
 
     LPUSER_SESSION Session = CreateUserSession(Account->UserID, (HANDLE)GetCurrentTask());
     if (Session == NULL) {
@@ -267,4 +283,3 @@ U32 CMD_passwd(LPSHELLCONTEXT Context) {
 }
 
 /***************************************************************************/
-

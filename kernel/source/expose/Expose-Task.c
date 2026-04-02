@@ -24,10 +24,12 @@
 
 #include "Exposed.h"
 
+#include "Kernel.h"
 #include "KernelData.h"
 #include "Mutex.h"
 #include "process/Process.h"
 #include "process/Task.h"
+#include "utils/ProcessAccess.h"
 
 /************************************************************************/
 
@@ -49,7 +51,7 @@ static UINT ProcessTaskGetCount(LPPROCESS Process) {
         for (LPLISTNODE Node = TaskList->First; Node; Node = Node->Next) {
             LPTASK Task = (LPTASK)Node;
             SAFE_USE_VALID_ID(Task, KOID_TASK) {
-                if (Task->Process == Process) {
+                if (Task->OwnerProcess == Process) {
                     Count++;
                 }
             }
@@ -78,7 +80,7 @@ static LPTASK ProcessTaskGetByIndex(LPPROCESS Process, UINT Index) {
         for (LPLISTNODE Node = TaskList->First; Node; Node = Node->Next) {
             LPTASK Task = (LPTASK)Node;
             SAFE_USE_VALID_ID(Task, KOID_TASK) {
-                if (Task->Process != Process) {
+                if (Task->OwnerProcess != Process) {
                     continue;
                 }
 
@@ -89,6 +91,79 @@ static LPTASK ProcessTaskGetByIndex(LPPROCESS Process, UINT Index) {
 
                 MatchIndex++;
             }
+        }
+    }
+
+    UnlockMutex(MUTEX_TASK);
+
+    return Found;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Count the tasks the current caller may target.
+ * @param TaskList Global task list root.
+ * @return Number of visible tasks.
+ */
+static UINT TaskRootGetVisibleCount(LPLIST TaskList) {
+    UINT Count = 0;
+    LPPROCESS Caller = ExposeGetCallerProcess();
+
+    if (TaskList == NULL) {
+        return 0;
+    }
+
+    LockMutex(MUTEX_TASK, INFINITY);
+
+    for (LPLISTNODE Node = TaskList->First; Node; Node = Node->Next) {
+        LPTASK Task = (LPTASK)Node;
+        SAFE_USE_VALID_ID(Task, KOID_TASK) {
+            if (!ProcessAccessCanTargetTask(Caller, Task, TRUE)) {
+                continue;
+            }
+
+            Count++;
+        }
+    }
+
+    UnlockMutex(MUTEX_TASK);
+
+    return Count;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve one caller-visible task from the global task list.
+ * @param TaskList Global task list root.
+ * @param Index Visible task index requested by the caller.
+ * @return Task pointer or NULL when the index is out of range.
+ */
+static LPTASK TaskRootGetVisibleByIndex(LPLIST TaskList, UINT Index) {
+    LPTASK Found = NULL;
+    UINT MatchIndex = 0;
+    LPPROCESS Caller = ExposeGetCallerProcess();
+
+    if (TaskList == NULL) {
+        return NULL;
+    }
+
+    LockMutex(MUTEX_TASK, INFINITY);
+
+    for (LPLISTNODE Node = TaskList->First; Node; Node = Node->Next) {
+        LPTASK Task = (LPTASK)Node;
+        SAFE_USE_VALID_ID(Task, KOID_TASK) {
+            if (!ProcessAccessCanTargetTask(Caller, Task, TRUE)) {
+                continue;
+            }
+
+            if (MatchIndex == Index) {
+                Found = Task;
+                break;
+            }
+
+            MatchIndex++;
         }
     }
 
@@ -184,14 +259,14 @@ SCRIPT_ERROR TaskGetProperty(
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
         BOOL IsKernelOrAdmin = ExposeIsKernelCaller() || ExposeIsAdminCaller();
         LPPROCESS Caller = ExposeGetCallerProcess();
-        BOOL IsOwnerProcess = ExposeIsOwnerProcess(Caller, Task->Process);
+        BOOL IsOwnerProcess = ExposeIsOwnerProcess(Caller, Task->OwnerProcess);
 
-        if (Task->Process == &KernelProcess && IsKernelOrAdmin == FALSE) {
+        if (Task->OwnerProcess == &KernelProcess && IsKernelOrAdmin == FALSE) {
             return SCRIPT_ERROR_UNAUTHORIZED;
         }
 
-        EXPOSE_BIND_INTEGER("handle", (UINT)(LPVOID)Task);
-        EXPOSE_BIND_HOST_HANDLE("process", Task->Process, &ProcessDescriptor, NULL);
+        EXPOSE_BIND_INTEGER("handle", PointerToHandle((LINEAR)Task));
+        EXPOSE_BIND_HOST_HANDLE("process", Task->OwnerProcess, &ProcessDescriptor, NULL);
         EXPOSE_BIND_STRING("name", Task->Name);
         EXPOSE_BIND_INTEGER("type", Task->Type);
         EXPOSE_BIND_INTEGER("status", GetTaskStatus(Task));
@@ -204,7 +279,7 @@ SCRIPT_ERROR TaskGetProperty(
                 return SCRIPT_ERROR_UNAUTHORIZED;
             }
             OutValue->Type = SCRIPT_VAR_INTEGER;
-            OutValue->Value.Integer = (I32)(UINT)(LPVOID)Task->Function;
+            OutValue->Value.Integer = (INT)(UINT)(LPVOID)Task->Function;
             return SCRIPT_OK;
         }
 
@@ -213,7 +288,7 @@ SCRIPT_ERROR TaskGetProperty(
                 return SCRIPT_ERROR_UNAUTHORIZED;
             }
             OutValue->Type = SCRIPT_VAR_INTEGER;
-            OutValue->Value.Integer = (I32)(UINT)(LPVOID)Task->Parameter;
+            OutValue->Value.Integer = (INT)(UINT)(LPVOID)Task->Parameter;
             return SCRIPT_OK;
         }
 
@@ -224,7 +299,7 @@ SCRIPT_ERROR TaskGetProperty(
             OutValue->Type = SCRIPT_VAR_HOST_HANDLE;
             OutValue->Value.HostHandle = &Task->Arch;
             OutValue->HostDescriptor = &ArchitectureTaskDataDescriptor;
-            OutValue->HostContext = Task->Process;
+            OutValue->HostContext = Task->OwnerProcess;
             OutValue->OwnsValue = FALSE;
             return SCRIPT_OK;
         }
@@ -236,7 +311,7 @@ SCRIPT_ERROR TaskGetProperty(
             OutValue->Type = SCRIPT_VAR_HOST_HANDLE;
             OutValue->Value.HostHandle = &Task->Arch.Stack;
             OutValue->HostDescriptor = &StackDescriptor;
-            OutValue->HostContext = Task->Process;
+            OutValue->HostContext = Task->OwnerProcess;
             OutValue->OwnsValue = FALSE;
             return SCRIPT_OK;
         }
@@ -248,7 +323,7 @@ SCRIPT_ERROR TaskGetProperty(
             OutValue->Type = SCRIPT_VAR_HOST_HANDLE;
             OutValue->Value.HostHandle = &Task->Arch.SystemStack;
             OutValue->HostDescriptor = &StackDescriptor;
-            OutValue->HostContext = Task->Process;
+            OutValue->HostContext = Task->OwnerProcess;
             OutValue->OwnsValue = FALSE;
             return SCRIPT_OK;
         }
@@ -338,6 +413,70 @@ SCRIPT_ERROR TaskArrayGetElement(
 
 /************************************************************************/
 
+/**
+ * @brief Retrieve a property value from the exposed global task array.
+ * @param Context Host callback context (unused for task exposure)
+ * @param Parent Handle to the global task list exposed by the kernel
+ * @param Property Property name requested by the script
+ * @param OutValue Output holder for the resulting value
+ * @return SCRIPT_OK when the property exists, SCRIPT_ERROR_UNDEFINED_VAR otherwise
+ */
+SCRIPT_ERROR TaskRootArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue) {
+
+    UNUSED(Context);
+
+    EXPOSE_PROPERTY_GUARD();
+
+    LPLIST TaskList = (LPLIST)Parent;
+    if (TaskList == NULL) {
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    EXPOSE_BIND_INTEGER("count", TaskRootGetVisibleCount(TaskList));
+
+    return SCRIPT_ERROR_UNDEFINED_VAR;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve a task from the exposed global task array.
+ * @param Context Host callback context (unused for task exposure)
+ * @param Parent Handle to the global task list exposed by the kernel
+ * @param Index Array index requested by the script
+ * @param OutValue Output holder for the resulting task handle
+ * @return SCRIPT_OK when the task exists, SCRIPT_ERROR_UNDEFINED_VAR otherwise
+ */
+SCRIPT_ERROR TaskRootArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue) {
+
+    UNUSED(Context);
+
+    EXPOSE_ARRAY_GUARD();
+
+    LPLIST TaskList = (LPLIST)Parent;
+    if (TaskList == NULL) {
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    LPTASK Task = TaskRootGetVisibleByIndex(TaskList, (UINT)Index);
+    if (Task == NULL) {
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
+
+    EXPOSE_SET_HOST_HANDLE(Task, &TaskDescriptor, NULL, FALSE);
+    return SCRIPT_OK;
+}
+
+/************************************************************************/
+
 const SCRIPT_HOST_DESCRIPTOR TaskDescriptor = {
     TaskGetProperty,
     NULL,
@@ -348,6 +487,13 @@ const SCRIPT_HOST_DESCRIPTOR TaskDescriptor = {
 const SCRIPT_HOST_DESCRIPTOR TaskArrayDescriptor = {
     TaskArrayGetProperty,
     TaskArrayGetElement,
+    NULL,
+    NULL
+};
+
+const SCRIPT_HOST_DESCRIPTOR TaskRootArrayDescriptor = {
+    TaskRootArrayGetProperty,
+    TaskRootArrayGetElement,
     NULL,
     NULL
 };

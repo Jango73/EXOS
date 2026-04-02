@@ -23,143 +23,33 @@
 \************************************************************************/
 
 #include "shell/Shell-Commands-Private.h"
+#include "shell/Shell-EmbeddedScripts.h"
 #include "Autotest.h"
 #include "utils/SizeFormat.h"
 
-/**
- * @brief Print known non-empty driver aliases.
- */
-static void PrintKnownDriverAliases(void) {
-    UINT PrintedCount = 0;
-    LPLIST DriverList = GetDriverList();
-
-    if (DriverList == NULL) {
-        ConsolePrint(TEXT("none\n"));
-        return;
-    }
-
-    for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
-        LPDRIVER Driver = (LPDRIVER)Node;
-        SAFE_USE_VALID_ID(Driver, KOID_DRIVER) {
-            if (StringLength(Driver->Alias) == 0) {
-                continue;
-            }
-
-            if (PrintedCount != 0) {
-                if ((PrintedCount % 4) == 0) {
-                    ConsolePrint(TEXT("\n"));
-                } else {
-                    ConsolePrint(TEXT("  "));
-                }
-            }
-
-            ConsolePrint(TEXT("%s"), Driver->Alias);
-            PrintedCount++;
-        }
-    }
-
-    if (PrintedCount == 0) {
-        ConsolePrint(TEXT("none\n"));
-        return;
-    }
-
-    ConsolePrint(TEXT("\n"));
-}
-
 /***************************************************************************/
 
 /**
- * @brief Print detailed information for one driver.
- * @param Driver Driver descriptor.
+ * @brief Run the embedded driver detail script for one alias.
+ * @param Context Shell context.
+ * @param Alias Driver alias.
+ * @return TRUE on success.
  */
-static void PrintDriverDetails(LPDRIVER Driver) {
-    UINT VersionFromCommand = 0;
-    UINT CapsFromCommand = 0;
-    UINT LastFunctionFromCommand = 0;
-    U16 VersionMajorFromCommand = 0;
-    U16 VersionMinorFromCommand = 0;
-    UINT DomainCount = 0;
-    UINT Flags = 0;
-    BOOL IsReady = FALSE;
-    BOOL IsCritical = FALSE;
+static BOOL RunEmbeddedDriverDetailsScript(
+    LPSHELLCONTEXT Context,
+    LPCSTR Alias) {
+    STR ScriptText[4096];
 
-    Flags = Driver->Flags;
-    IsReady = (Flags & DRIVER_FLAG_READY) != 0;
-    IsCritical = (Flags & DRIVER_FLAG_CRITICAL) != 0;
-
-    if (Driver->Command != NULL) {
-        VersionFromCommand = Driver->Command(DF_GET_VERSION, 0);
-        CapsFromCommand = Driver->Command(DF_GET_CAPS, 0);
-        LastFunctionFromCommand = Driver->Command(DF_GET_LAST_FUNCTION, 0);
-        VersionMajorFromCommand = (U16)((VersionFromCommand >> 16) & 0xFFFF);
-        VersionMinorFromCommand = (U16)(VersionFromCommand & 0xFFFF);
+    if (Context == NULL || Alias == NULL || StringLength(Alias) == 0) {
+        return FALSE;
     }
 
-    ConsolePrint(TEXT("Address            : %p\n"), (LPVOID)Driver);
-    ConsolePrint(TEXT("Alias              : %s\n"),
-                 StringLength(Driver->Alias) != 0 ? Driver->Alias : TEXT("<none>"));
-    ConsolePrint(TEXT("Type               : %s (%x)\n"), DriverTypeToText(Driver->Type), Driver->Type);
-    ConsolePrint(TEXT("Version fields     : %u.%u\n"), Driver->VersionMajor, Driver->VersionMinor);
-    ConsolePrint(TEXT("Version command    : %u.%u (raw=%x)\n"),
-                 (U32)VersionMajorFromCommand,
-                 (U32)VersionMinorFromCommand,
-                 VersionFromCommand);
-    ConsolePrint(TEXT("Designer           : %s\n"), Driver->Designer);
-    ConsolePrint(TEXT("Manufacturer       : %s\n"), Driver->Manufacturer);
-    ConsolePrint(TEXT("Product            : %s\n"), Driver->Product);
-    ConsolePrint(TEXT("Flags              : %x\n"), Flags);
-    ConsolePrint(TEXT("Ready              : %s\n"), IsReady ? TEXT("yes") : TEXT("no"));
-    ConsolePrint(TEXT("Critical           : %s\n"), IsCritical ? TEXT("yes") : TEXT("no"));
-    ConsolePrint(TEXT("Command            : %p\n"), (LPVOID)Driver->Command);
-    ConsolePrint(TEXT("Caps command       : %x\n"), CapsFromCommand);
-    ConsolePrint(TEXT("Last function      : %x\n"), LastFunctionFromCommand);
-
-    DomainCount = Driver->EnumDomainCount;
-    if (DomainCount > DRIVER_ENUM_MAX_DOMAINS) {
-        DomainCount = DRIVER_ENUM_MAX_DOMAINS;
-    }
-
-    ConsolePrint(TEXT("Enum domains       : %u\n"), Driver->EnumDomainCount);
-    if (DomainCount == 0) {
-        ConsolePrint(TEXT("  <none>\n"));
-    } else {
-        for (UINT Index = 0; Index < DomainCount; Index++) {
-            UINT Domain = Driver->EnumDomains[Index];
-            ConsolePrint(TEXT("  %u: %s (%x)\n"), Index, DriverDomainToText(Domain), Domain);
-        }
-    }
-}
-
-/***************************************************************************/
-
-/**
- * @brief Print one summary line for every registered driver.
- */
-static void PrintDriverList(void) {
-    UINT DriverCount = 0;
-    LPLIST DriverList = GetDriverList();
-
-    if (DriverList == NULL || DriverList->First == NULL) {
-        ConsolePrint(TEXT("No driver detected\n"));
-        return;
-    }
-
-    for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
-        LPDRIVER Driver = (LPDRIVER)Node;
-
-        SAFE_USE_VALID_ID(Driver, KOID_DRIVER) {
-            ConsolePrint(TEXT("%s type=%s ready=%u product=%s\n"),
-                StringLength(Driver->Alias) != 0 ? Driver->Alias : TEXT("<none>"),
-                DriverTypeToText(Driver->Type),
-                (Driver->Flags & DRIVER_FLAG_READY) != 0 ? 1 : 0,
-                StringLength(Driver->Product) != 0 ? Driver->Product : TEXT("<none>"));
-            DriverCount++;
-        }
-    }
-
-    if (DriverCount == 0) {
-        ConsolePrint(TEXT("No driver detected\n"));
-    }
+    StringPrintFormat(
+        ScriptText,
+        TEXT("target_alias = \"%s\";\n%s"),
+        Alias,
+        ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_DRIVER_DETAILS));
+    return RunEmbeddedScript(Context, ScriptText);
 }
 
 /***************************************************************************/
@@ -170,9 +60,6 @@ static void PrintDriverList(void) {
  * @return DF_RETURN_SUCCESS on completion.
  */
 U32 CMD_driver(LPSHELLCONTEXT Context) {
-    BOOL Found = FALSE;
-    LPLIST DriverList = NULL;
-
     ParseNextCommandLineComponent(Context);
 
     if (StringLength(Context->Command) == 0) {
@@ -182,87 +69,35 @@ U32 CMD_driver(LPSHELLCONTEXT Context) {
     }
 
     if (StringCompareNC(Context->Command, TEXT("list")) == 0) {
-        PrintDriverList();
-        return DF_RETURN_SUCCESS;
-    }
-
-    DriverList = GetDriverList();
-    if (DriverList == NULL || DriverList->First == NULL) {
-        ConsolePrint(TEXT("No driver detected\n"));
-        return DF_RETURN_SUCCESS;
-    }
-
-    for (LPLISTNODE Node = DriverList->First; Node; Node = Node->Next) {
-        LPDRIVER Driver = (LPDRIVER)Node;
-
-        SAFE_USE_VALID_ID(Driver, KOID_DRIVER) {
-            if (StringLength(Driver->Alias) == 0) {
-                continue;
-            }
-
-            if (StringCompareNC(Driver->Alias, Context->Command) != 0) {
-                continue;
-            }
-
-            PrintDriverDetails(Driver);
-            Found = TRUE;
-            break;
+        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_DRIVER_LIST))) {
+            ConsolePrint(TEXT("Unable to run embedded driver list script\n"));
         }
-    }
-
-    if (!Found) {
-        ConsolePrint(TEXT("driver: alias '%s' not found\n"), Context->Command);
-        ConsolePrint(TEXT("known aliases:\n"));
-        PrintKnownDriverAliases();
         return DF_RETURN_SUCCESS;
     }
 
-    return DF_RETURN_SUCCESS;
-}
-
-/***************************************************************************/
-
-U32 CMD_killtask(LPSHELLCONTEXT Context) {
-    U32 TaskNum = 0;
-    LPTASK Task = NULL;
-    ParseNextCommandLineComponent(Context);
-    TaskNum = StringToU32(Context->Command);
-    LPLIST TaskList = GetTaskList();
-    Task = (LPTASK)ListGetItem(TaskList, TaskNum);
-    if (Task) KillTask(Task);
+    if (!RunEmbeddedDriverDetailsScript(Context, Context->Command)) {
+        ConsolePrint(TEXT("Unable to run embedded driver detail script\n"));
+    }
 
     return DF_RETURN_SUCCESS;
 }
 
-/***************************************************************************/
-
-U32 CMD_showprocess(LPSHELLCONTEXT Context) {
-    LPPROCESS Process;
+/**
+ * @brief List the tasks visible to the current shell caller.
+ * @param Context Shell context.
+ * @return DF_RETURN_SUCCESS on completion.
+ */
+U32 CMD_task(LPSHELLCONTEXT Context) {
     ParseNextCommandLineComponent(Context);
-    LPLIST ProcessList = GetProcessList();
-    Process = ListGetItem(ProcessList, StringToU32(Context->Command));
-    if (Process) DumpProcess(Process);
 
-    return DF_RETURN_SUCCESS;
-}
+    if (StringLength(Context->Command) == 0 ||
+        StringCompareNC(Context->Command, TEXT("list")) != 0) {
+        ConsolePrint(TEXT("Usage: task list\n"));
+        return DF_RETURN_SUCCESS;
+    }
 
-/***************************************************************************/
-
-U32 CMD_showtask(LPSHELLCONTEXT Context) {
-    LPTASK Task;
-    ParseNextCommandLineComponent(Context);
-    LPLIST TaskList = GetTaskList();
-    Task = ListGetItem(TaskList, StringToU32(Context->Command));
-
-    if (Task) {
-        DumpTask(Task);
-    } else {
-        STR Text[MAX_FILE_NAME];
-
-        for (LPTASK Task = (LPTASK)TaskList->First; Task != NULL; Task = (LPTASK)Task->Next) {
-            StringPrintFormat(Text, TEXT("%x Status %x\n"), Task, GetTaskStatus(Task));
-            ConsolePrint(Text);
-        }
+    if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_TASK_LIST))) {
+        ConsolePrint(TEXT("Unable to run embedded task list script\n"));
     }
 
     return DF_RETURN_SUCCESS;
@@ -280,35 +115,8 @@ U32 CMD_memedit(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 U32 CMD_memorymap(LPSHELLCONTEXT Context) {
-    UNUSED(Context);
-
-    LPPROCESS Process = &KernelProcess;
-    LPMEMORY_REGION_LIST RegionList = GetProcessMemoryRegionList(Process);
-    LPMEMORY_REGION_DESCRIPTOR Descriptor = (RegionList == NULL) ? NULL : RegionList->Head;
-    UINT Index = 0;
-
-    ConsolePrint(TEXT("Kernel regions: %u\n"), RegionList ? RegionList->Count : 0);
-
-    while (Descriptor != NULL) {
-        LPCSTR Tag = (Descriptor->Tag[0] == STR_NULL) ? TEXT("???") : Descriptor->Tag;
-        STR SizeText[32];
-        SizeFormatBytesText(U64_FromUINT(Descriptor->Size), SizeText);
-        if (Descriptor->PhysicalBase == 0) {
-            ConsolePrint(TEXT("%u: tag=%s base=%p size=%s phys=???\n"),
-                Index,
-                Tag,
-                (LPVOID)Descriptor->CanonicalBase,
-                SizeText);
-        } else {
-            ConsolePrint(TEXT("%u: tag=%s base=%p size=%s phys=%p\n"),
-                Index,
-                Tag,
-                (LPVOID)Descriptor->CanonicalBase,
-                SizeText,
-                (LPVOID)Descriptor->PhysicalBase);
-        }
-        Descriptor = (LPMEMORY_REGION_DESCRIPTOR)Descriptor->Next;
-        Index++;
+    if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_MEMORY_MAP))) {
+        ConsolePrint(TEXT("Unable to run embedded memory-map script\n"));
     }
 
     return DF_RETURN_SUCCESS;
@@ -357,49 +165,8 @@ U32 CMD_network(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    LPLIST NetworkDeviceList = GetNetworkDeviceList();
-    if (NetworkDeviceList == NULL || NetworkDeviceList->First == NULL) {
-        ConsolePrint(TEXT("No network device detected\n"));
-        return DF_RETURN_SUCCESS;
-    }
-
-    SAFE_USE(NetworkDeviceList) {
-        for (LPLISTNODE Node = NetworkDeviceList->First; Node; Node = Node->Next) {
-            LPNETWORK_DEVICE_CONTEXT NetContext = (LPNETWORK_DEVICE_CONTEXT)Node;
-
-            SAFE_USE_VALID_ID(NetContext, KOID_NETWORKDEVICE) {
-                LPPCI_DEVICE Device = NetContext->Device;
-
-                SAFE_USE_VALID_ID(Device, KOID_PCIDEVICE) {
-                    SAFE_USE_VALID_ID(Device->Driver, KOID_DRIVER) {
-                        NETWORK_INFO Info;
-                        MemorySet(&Info, 0, sizeof(Info));
-                        NETWORK_GET_INFO GetInfo = {.Device = Device, .Info = &Info};
-                        Device->Driver->Command(DF_NT_GETINFO, (UINT)(LPVOID)&GetInfo);
-
-                        U32 IpHost = Ntohl(NetContext->ActiveConfig.LocalIPv4_Be);
-                        U8 Ip1 = (IpHost >> 24) & 0xFF;
-                        U8 Ip2 = (IpHost >> 16) & 0xFF;
-                        U8 Ip3 = (IpHost >> 8) & 0xFF;
-                        U8 Ip4 = IpHost & 0xFF;
-
-                        ConsolePrint(TEXT("Name         : %s\n"), Device->Name);
-                        ConsolePrint(TEXT("Manufacturer : %s\n"), Device->Driver->Manufacturer);
-                        ConsolePrint(TEXT("Product      : %s\n"), Device->Driver->Product);
-                        ConsolePrint(TEXT("MAC          : %x:%x:%x:%x:%x:%x\n"),
-                                    Info.MAC[0], Info.MAC[1], Info.MAC[2],
-                                    Info.MAC[3], Info.MAC[4], Info.MAC[5]);
-                        ConsolePrint(TEXT("IP Address   : %u.%u.%u.%u\n"), Ip1, Ip2, Ip3, Ip4);
-                        ConsolePrint(TEXT("Link         : %s\n"), Info.LinkUp ? TEXT("UP") : TEXT("DOWN"));
-                        ConsolePrint(TEXT("Speed        : %u Mbps\n"), Info.SpeedMbps);
-                        ConsolePrint(TEXT("Duplex       : %s\n"), Info.DuplexFull ? TEXT("FULL") : TEXT("HALF"));
-                        ConsolePrint(TEXT("MTU          : %u\n"), Info.MTU);
-                        ConsolePrint(TEXT("Initialized  : %s\n"), NetContext->IsInitialized ? TEXT("YES") : TEXT("NO"));
-                        ConsolePrint(TEXT("\n"));
-                    }
-                }
-            }
-        }
+    if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_NETWORK_DEVICES))) {
+        ConsolePrint(TEXT("Unable to run embedded network device list script\n"));
     }
 
     return DF_RETURN_SUCCESS;
@@ -446,10 +213,82 @@ U32 CMD_shutdown(LPSHELLCONTEXT Context) {
 
 /************************************************************************/
 
+/**
+ * @brief Print one profiling snapshot entry.
+ * @param Entry Snapshot entry to print.
+ */
+static void PrintProfileEntry(LPPROFILE_ENTRY_INFO Entry) {
+    UINT Average = 0;
+
+    if (Entry == NULL) {
+        return;
+    }
+
+    if (Entry->TimedCallCount > 0) {
+        Average = Entry->TotalTicks / Entry->TimedCallCount;
+    }
+
+    ConsolePrint(
+        TEXT("%-32s calls=%u timed=%u last=%u us avg=%u us max=%u us total=%u us\n"),
+        Entry->Name,
+        Entry->CallCount,
+        Entry->TimedCallCount,
+        Entry->LastTicks,
+        Average,
+        Entry->MaxTicks,
+        Entry->TotalTicks);
+}
+
+/************************************************************************/
+
 U32 CMD_prof(LPSHELLCONTEXT Context) {
-    UNUSED(Context);
-    ProfileDump();
-    return 0;
+    PROFILE_ENTRY_INFO Entries[PROFILE_MAX_ENTRIES];
+    PROFILE_QUERY_INFO Query;
+    UINT Result;
+
+    MemorySet(Entries, 0, sizeof(Entries));
+    MemorySet(&Query, 0, sizeof(Query));
+
+    ParseNextCommandLineComponent(Context);
+
+    Query.Header.Size = sizeof(Query);
+    Query.Header.Version = EXOS_ABI_VERSION;
+    Query.Header.Flags = 0;
+    Query.Capacity = PROFILE_MAX_ENTRIES;
+    Query.Flags = 0;
+    Query.Entries = Entries;
+
+    if (StringLength(Context->Command) != 0) {
+        if (StringCompareNC(Context->Command, TEXT("reset")) == 0) {
+            Query.Flags = PROFILE_QUERY_FLAG_RESET;
+        } else {
+            ConsolePrint(TEXT("Usage: prof [reset]\n"));
+            return DF_RETURN_SUCCESS;
+        }
+    }
+
+    Result = DoSystemCall(SYSCALL_GetProfileInfo, SYSCALL_PARAM(&Query));
+    if (Result != DF_RETURN_SUCCESS) {
+        ConsolePrint(TEXT("Profiling snapshot unavailable.\n"));
+        return Result;
+    }
+
+    if (Query.EntryCount == 0) {
+        ConsolePrint(TEXT("No profiling samples available.\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
+    for (UINT Index = 0; Index < Query.EntryCount; ++Index) {
+        PrintProfileEntry(&Entries[Index]);
+    }
+
+    ConsolePrint(TEXT("entries=%u total_entries=%u samples=%u dropped=%u%s\n"),
+                 Query.EntryCount,
+                 Query.TotalEntryCount,
+                 Query.SampleCount,
+                 Query.DroppedCount,
+                 (Query.Flags & PROFILE_QUERY_FLAG_RESET) != 0 ? TEXT(" reset=yes") : TEXT(""));
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/
@@ -514,129 +353,31 @@ U32 CMD_usb(LPSHELLCONTEXT Context) {
     }
 
     if (StringCompareNC(Context->Command, TEXT("drives")) == 0) {
-        LPLIST UsbStorageList = GetUsbStorageList();
-        if (UsbStorageList == NULL || UsbStorageList->First == NULL) {
-            ConsolePrint(TEXT("No USB drive detected\n"));
-            return DF_RETURN_SUCCESS;
-        }
-
-        UINT Index = 0;
-        for (LPLISTNODE Node = UsbStorageList->First; Node; Node = Node->Next) {
-            STR BlockSizeText[32];
-            LPUSB_STORAGE_ENTRY Entry = (LPUSB_STORAGE_ENTRY)Node;
-            if (Entry == NULL) {
-                continue;
-            }
-
-            SizeFormatBytesText(U64_FromUINT(Entry->BlockSize), BlockSizeText);
-            ConsolePrint(TEXT("usb%u: addr=%x vid=%x pid=%x blocks=%u block_size=%s state=%s\n"),
-                         Index,
-                         (U32)Entry->Address,
-                         (U32)Entry->VendorId,
-                         (U32)Entry->ProductId,
-                         Entry->BlockCount,
-                         BlockSizeText,
-                         Entry->Present ? TEXT("online") : TEXT("offline"));
-            Index++;
+        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_DRIVES))) {
+            ConsolePrint(TEXT("Unable to run embedded USB drive list script\n"));
         }
 
         return DF_RETURN_SUCCESS;
-    }
-
-    DRIVER_ENUM_QUERY Query;
-    MemorySet(&Query, 0, sizeof(Query));
-    Query.Header.Size = sizeof(Query);
-    Query.Header.Version = EXOS_ABI_VERSION;
-    if (StringCompareNC(Context->Command, TEXT("probe")) == 0) {
-        DRIVER_ENUM_QUERY PortQuery;
-        MemorySet(&PortQuery, 0, sizeof(PortQuery));
-        PortQuery.Header.Size = sizeof(PortQuery);
-        PortQuery.Header.Version = EXOS_ABI_VERSION;
-        PortQuery.Domain = ENUM_DOMAIN_XHCI_PORT;
-        PortQuery.Flags = 0;
-
-        UINT ProviderIndexProbe = 0;
-        DRIVER_ENUM_PROVIDER ProviderProbe = NULL;
-        BOOL FoundProbe = FALSE;
-
-        while (KernelEnumGetProvider(&PortQuery, ProviderIndexProbe, &ProviderProbe) == DF_RETURN_SUCCESS) {
-            DRIVER_ENUM_ITEM ItemProbe;
-            PortQuery.Index = 0;
-            FoundProbe = TRUE;
-
-            MemorySet(&ItemProbe, 0, sizeof(ItemProbe));
-            ItemProbe.Header.Size = sizeof(ItemProbe);
-            ItemProbe.Header.Version = EXOS_ABI_VERSION;
-
-            while (KernelEnumNext(ProviderProbe, &PortQuery, &ItemProbe) == DF_RETURN_SUCCESS) {
-                const DRIVER_ENUM_XHCI_PORT* Data = (const DRIVER_ENUM_XHCI_PORT*)ItemProbe.Data;
-                if (ItemProbe.DataSize < sizeof(DRIVER_ENUM_XHCI_PORT)) {
-                    break;
-                }
-                if (Data->Connected) {
-                    if (Data->LastEnumError == XHCI_ENUM_ERROR_ENABLE_SLOT) {
-                        ConsolePrint(TEXT("P%u Err=%s C=%u\n"),
-                                     (U32)Data->PortNumber,
-                                     XHCIEnumErrorToString(Data->LastEnumError),
-                                     (U32)Data->LastEnumCompletion);
-                    } else {
-                        ConsolePrint(TEXT("P%u Err=%s\n"),
-                                     (U32)Data->PortNumber,
-                                     XHCIEnumErrorToString(Data->LastEnumError));
-                    }
-                }
-            }
-            ProviderIndexProbe++;
-        }
-
-        if (!FoundProbe) {
-            ConsolePrint(TEXT("No xHCI controller detected\n"));
+    } else if (StringCompareNC(Context->Command, TEXT("probe")) == 0) {
+        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_PROBE))) {
+            ConsolePrint(TEXT("Unable to run embedded USB probe script\n"));
         }
         return DF_RETURN_SUCCESS;
     } else if (StringCompareNC(Context->Command, TEXT("devices")) == 0) {
-        Query.Domain = ENUM_DOMAIN_USB_DEVICE;
-    } else if (StringCompareNC(Context->Command, TEXT("device-tree")) == 0) {
-        Query.Domain = ENUM_DOMAIN_USB_NODE;
-    } else {
-        Query.Domain = ENUM_DOMAIN_XHCI_PORT;
-    }
-    Query.Flags = 0;
-
-    UINT ProviderIndex = 0;
-    BOOL Found = FALSE;
-    BOOL Printed = FALSE;
-    DRIVER_ENUM_PROVIDER Provider = NULL;
-
-    while (KernelEnumGetProvider(&Query, ProviderIndex, &Provider) == DF_RETURN_SUCCESS) {
-        DRIVER_ENUM_ITEM Item;
-        STR Buffer[256];
-
-        Found = TRUE;
-        Query.Index = 0;
-
-        MemorySet(&Item, 0, sizeof(Item));
-        Item.Header.Size = sizeof(Item);
-        Item.Header.Version = EXOS_ABI_VERSION;
-
-        while (KernelEnumNext(Provider, &Query, &Item) == DF_RETURN_SUCCESS) {
-            if (KernelEnumPretty(Provider, &Query, &Item, Buffer, sizeof(Buffer)) == DF_RETURN_SUCCESS) {
-                ConsolePrint(TEXT("%s\n"), Buffer);
-                Printed = TRUE;
-            }
+        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_DEVICES))) {
+            ConsolePrint(TEXT("Unable to run embedded USB device list script\n"));
         }
-
-        ProviderIndex++;
-    }
-
-    if (!Found) {
-        ConsolePrint(TEXT("No xHCI controller detected\n"));
         return DF_RETURN_SUCCESS;
-    }
-
-    if (!Printed && Query.Domain == ENUM_DOMAIN_USB_DEVICE) {
-        ConsolePrint(TEXT("No USB device detected\n"));
-    } else if (!Printed && Query.Domain == ENUM_DOMAIN_USB_NODE) {
-        ConsolePrint(TEXT("No USB device tree detected\n"));
+    } else if (StringCompareNC(Context->Command, TEXT("ports")) == 0) {
+        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_PORTS))) {
+            ConsolePrint(TEXT("Unable to run embedded USB port list script\n"));
+        }
+        return DF_RETURN_SUCCESS;
+    } else if (StringCompareNC(Context->Command, TEXT("device-tree")) == 0) {
+        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_DEVICE_TREE))) {
+            ConsolePrint(TEXT("Unable to run embedded USB device tree script\n"));
+        }
+        return DF_RETURN_SUCCESS;
     }
     return DF_RETURN_SUCCESS;
 }

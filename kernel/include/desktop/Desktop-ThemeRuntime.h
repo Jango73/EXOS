@@ -60,6 +60,7 @@ BOOL LoadTheme(LPCSTR Path);
 BOOL ActivateTheme(LPCSTR NameOrHandle);
 BOOL GetActiveThemeInfo(LPDESKTOP_THEME_RUNTIME_INFO Info);
 BOOL ResetThemeToDefault(void);
+BOOL ApplyDesktopTheme(LPCSTR Target);
 
 LPDESKTOP_THEME_RUNTIME DesktopThemeGetActiveRuntime(LPDESKTOP Desktop);
 BOOL DesktopThemeLookupTokenValue(LPDESKTOP Desktop, LPCSTR TokenName, LPCSTR* Value);

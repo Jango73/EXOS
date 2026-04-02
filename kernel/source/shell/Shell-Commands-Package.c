@@ -44,6 +44,30 @@ static BOOL ShellLaunchPackage(LPSHELLCONTEXT Context,
                                LPCSTR PreferredCommandArguments,
                                BOOL Background);
 
+/***************************************************************************/
+
+/**
+ * @brief Print one script return value as plain output.
+ * @param ReturnType Return value type.
+ * @param ReturnValue Return value storage.
+ */
+static void ShellPrintScriptReturnValue(SCRIPT_VAR_TYPE ReturnType, SCRIPT_VAR_VALUE ReturnValue) {
+    STR ReturnText[64];
+
+    if (ReturnType == SCRIPT_VAR_STRING) {
+        StringCopy(ReturnText, ReturnValue.String ? ReturnValue.String : TEXT(""));
+    } else if (ReturnType == SCRIPT_VAR_INTEGER) {
+        StringPrintFormat(ReturnText, TEXT("%d"), ReturnValue.Integer);
+    } else if (ReturnType == SCRIPT_VAR_FLOAT) {
+        StringPrintFormat(ReturnText, TEXT("%f"), ReturnValue.Float);
+    } else {
+        StringCopy(ReturnText, TEXT("unsupported"));
+    }
+
+    ConsolePrint(TEXT("%s\n"), ReturnText);
+    TEST(TEXT("[CMD_script] %s"), ReturnText);
+}
+
 BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName) {
     FILE_OPEN_INFO FileOpenInfo;
     FILE_OPERATION FileOperation;
@@ -51,7 +75,6 @@ BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName) {
     U32 FileSize = 0;
     U32 BytesRead = 0;
     U8* Buffer = NULL;
-    STR ReturnText[64];
     SCRIPT_VAR_TYPE ReturnType;
     SCRIPT_VAR_VALUE ReturnValue;
     SCRIPT_ERROR Error = SCRIPT_OK;
@@ -110,18 +133,7 @@ BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName) {
     }
 
     if (ScriptGetReturnValue(Context->ScriptContext, &ReturnType, &ReturnValue)) {
-        if (ReturnType == SCRIPT_VAR_STRING) {
-            StringCopy(ReturnText, ReturnValue.String ? ReturnValue.String : TEXT(""));
-        } else if (ReturnType == SCRIPT_VAR_INTEGER) {
-            StringPrintFormat(ReturnText, TEXT("%d"), ReturnValue.Integer);
-        } else if (ReturnType == SCRIPT_VAR_FLOAT) {
-            StringPrintFormat(ReturnText, TEXT("%f"), ReturnValue.Float);
-        } else {
-            StringCopy(ReturnText, TEXT("unsupported"));
-        }
-
-        ConsolePrint(TEXT("Script return value: %s\n"), ReturnText);
-        TEST(TEXT("[CMD_script] Script return value: %s"), ReturnText);
+        ShellPrintScriptReturnValue(ReturnType, ReturnValue);
     }
 
     Success = TRUE;
@@ -136,6 +148,36 @@ Out:
     }
 
     return Success;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Run one embedded E0 script from a static kernel string.
+ * @param Context Shell context.
+ * @param ScriptText E0 source text.
+ * @return TRUE on success.
+ */
+BOOL RunEmbeddedScript(LPSHELLCONTEXT Context, LPCSTR ScriptText) {
+    SCRIPT_VAR_TYPE ReturnType;
+    SCRIPT_VAR_VALUE ReturnValue;
+    SCRIPT_ERROR Error = SCRIPT_OK;
+
+    if (Context == NULL || ScriptText == NULL || Context->ScriptContext == NULL) {
+        return FALSE;
+    }
+
+    Error = ScriptExecute(Context->ScriptContext, ScriptText);
+    if (Error != SCRIPT_OK) {
+        ConsolePrint(TEXT("Error: %s\n"), ScriptGetErrorMessage(Context->ScriptContext));
+        return FALSE;
+    }
+
+    if (ScriptGetReturnValue(Context->ScriptContext, &ReturnType, &ReturnValue)) {
+        ShellPrintScriptReturnValue(ReturnType, ReturnValue);
+    }
+
+    return TRUE;
 }
 
 /***************************************************************************/

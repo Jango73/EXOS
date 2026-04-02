@@ -29,6 +29,7 @@
 #include "process/Process.h"
 #include "process/Schedule.h"
 #include "utils/Helpers.h"
+#include "utils/ProcessAccess.h"
 #include "UserAccount.h"
 
 /************************************************************************/
@@ -58,24 +59,7 @@ LPUSER_ACCOUNT ExposeGetCallerUser(void) {
  * @return TRUE when the calling process has kernel privilege.
  */
 BOOL ExposeIsKernelCaller(void) {
-    LPPROCESS Caller = ExposeGetCallerProcess();
-
-    SAFE_USE_VALID_ID(Caller, KOID_PROCESS) {
-        if (Caller->Privilege != CPU_PRIVILEGE_KERNEL) {
-            return FALSE;
-        }
-
-        LPUSER_ACCOUNT User = ExposeGetCallerUser();
-        if (User == NULL) {
-            return TRUE;
-        }
-
-        SAFE_USE_VALID_ID(User, KOID_USER_ACCOUNT) {
-            return User->Privilege == EXOS_PRIVILEGE_ADMIN;
-        }
-    }
-
-    return FALSE;
+    return ProcessAccessIsKernelProcess(ExposeGetCallerProcess());
 }
 
 /************************************************************************/
@@ -85,13 +69,7 @@ BOOL ExposeIsKernelCaller(void) {
  * @return TRUE when the calling user is an administrator.
  */
 BOOL ExposeIsAdminCaller(void) {
-    LPUSER_ACCOUNT User = ExposeGetCallerUser();
-
-    SAFE_USE_VALID_ID(User, KOID_USER_ACCOUNT) {
-        return User->Privilege == EXOS_PRIVILEGE_ADMIN;
-    }
-
-    return FALSE;
+    return ProcessAccessIsAdministratorProcess(ExposeGetCallerProcess());
 }
 
 /************************************************************************/
@@ -103,46 +81,7 @@ BOOL ExposeIsAdminCaller(void) {
  * @return TRUE when both processes belong to the same user.
  */
 BOOL ExposeIsSameUser(LPPROCESS Caller, LPPROCESS Target) {
-    U64 CallerUserIdentifier = U64_Make(0, 0);
-    U64 TargetUserIdentifier = U64_Make(0, 0);
-    BOOL CallerHasUser = FALSE;
-    BOOL TargetHasUser = FALSE;
-
-    SAFE_USE_VALID_ID(Caller, KOID_PROCESS) {
-        if (Caller->Session != NULL) {
-            LPUSER_SESSION Session = Caller->Session;
-            SAFE_USE_VALID_ID(Session, KOID_USER_SESSION) {
-                CallerUserIdentifier = Session->UserID;
-                CallerHasUser = TRUE;
-            }
-        }
-
-        if (CallerHasUser == FALSE) {
-            CallerUserIdentifier = Caller->UserID;
-            CallerHasUser = TRUE;
-        }
-    }
-
-    SAFE_USE_VALID_ID(Target, KOID_PROCESS) {
-        if (Target->Session != NULL) {
-            LPUSER_SESSION Session = Target->Session;
-            SAFE_USE_VALID_ID(Session, KOID_USER_SESSION) {
-                TargetUserIdentifier = Session->UserID;
-                TargetHasUser = TRUE;
-            }
-        }
-
-        if (TargetHasUser == FALSE) {
-            TargetUserIdentifier = Target->UserID;
-            TargetHasUser = TRUE;
-        }
-    }
-
-    if (CallerHasUser == FALSE || TargetHasUser == FALSE) {
-        return FALSE;
-    }
-
-    return U64_Cmp(CallerUserIdentifier, TargetUserIdentifier) == 0;
+    return ProcessAccessIsSameUser(Caller, Target);
 }
 
 /************************************************************************/
@@ -178,15 +117,13 @@ BOOL ExposeCanReadProcess(LPPROCESS Caller, LPPROCESS Target, UINT RequiredAcces
     }
 
     if ((RequiredAccess & EXPOSE_ACCESS_KERNEL) != 0u) {
-        SAFE_USE_VALID_ID(Caller, KOID_PROCESS) {
-            if (Caller->Privilege == CPU_PRIVILEGE_KERNEL) {
-                return TRUE;
-            }
+        if (ProcessAccessIsKernelProcess(Caller)) {
+            return TRUE;
         }
     }
 
     if ((RequiredAccess & EXPOSE_ACCESS_ADMIN) != 0u) {
-        if (ExposeIsAdminCaller()) {
+        if (ProcessAccessIsAdministratorProcess(Caller)) {
             return TRUE;
         }
     }

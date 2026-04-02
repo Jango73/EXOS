@@ -39,7 +39,155 @@ BOOL ScriptIsKeyword(LPCSTR Str) {
     return (StringCompare(Str, TEXT("if")) == 0 ||
             StringCompare(Str, TEXT("else")) == 0 ||
             StringCompare(Str, TEXT("for")) == 0 ||
-            StringCompare(Str, TEXT("return")) == 0);
+            StringCompare(Str, TEXT("return")) == 0 ||
+            StringCompare(Str, TEXT("continue")) == 0);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Release one temporary function-call argument vector.
+ * @param Context Script context that owns the temporary allocations.
+ * @param Arguments Argument string array.
+ * @param OwnedArguments Ownership flags for each argument string.
+ * @param ArgumentCount Number of argument strings.
+ */
+static void ScriptReleaseFunctionArguments(
+    LPSCRIPT_CONTEXT Context,
+    LPCSTR* Arguments,
+    BOOL* OwnedArguments,
+    UINT ArgumentCount) {
+    UINT Index;
+
+    if (Context == NULL) {
+        return;
+    }
+
+    if (Arguments != NULL && OwnedArguments != NULL) {
+        for (Index = 0; Index < ArgumentCount; Index++) {
+            if (OwnedArguments[Index] && Arguments[Index] != NULL) {
+                ScriptFree(Context, (LPVOID)Arguments[Index]);
+            }
+        }
+    }
+
+    if (OwnedArguments != NULL) {
+        ScriptFree(Context, OwnedArguments);
+    }
+
+    if (Arguments != NULL) {
+        ScriptFree(Context, Arguments);
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Evaluate and stringify one function-call argument list.
+ * @param Parser Parser state.
+ * @param Expr Function-call AST expression node.
+ * @param OutArguments Receives the argument string vector.
+ * @param OutOwnedArguments Receives ownership flags for each argument string.
+ * @param OutArgumentCount Receives the number of stringified arguments.
+ * @return SCRIPT_OK on success, otherwise an error code.
+ */
+static SCRIPT_ERROR ScriptBuildFunctionArguments(
+    LPSCRIPT_PARSER Parser,
+    LPAST_NODE Expr,
+    LPCSTR** OutArguments,
+    BOOL** OutOwnedArguments,
+    UINT* OutArgumentCount) {
+    UINT ArgumentCount;
+    LPCSTR* Arguments = NULL;
+    BOOL* OwnedArguments = NULL;
+    UINT Index = 0;
+    LPAST_NODE ArgumentNode;
+
+    if (Parser == NULL || Expr == NULL || OutArguments == NULL || OutOwnedArguments == NULL || OutArgumentCount == NULL) {
+        return SCRIPT_ERROR_SYNTAX;
+    }
+
+    *OutArguments = NULL;
+    *OutOwnedArguments = NULL;
+    *OutArgumentCount = 0;
+
+    ArgumentCount = Expr->Data.Expression.ArgumentCount;
+    if (ArgumentCount == 0) {
+        return SCRIPT_OK;
+    }
+
+    Arguments = (LPCSTR*)ScriptAlloc(Parser->Context, sizeof(LPCSTR) * ArgumentCount);
+    OwnedArguments = (BOOL*)ScriptAlloc(Parser->Context, sizeof(BOOL) * ArgumentCount);
+    if (Arguments == NULL || OwnedArguments == NULL) {
+        if (Arguments != NULL) {
+            ScriptFree(Parser->Context, Arguments);
+        }
+        if (OwnedArguments != NULL) {
+            ScriptFree(Parser->Context, OwnedArguments);
+        }
+        return SCRIPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MemorySet(Arguments, 0, sizeof(LPCSTR) * ArgumentCount);
+    MemorySet(OwnedArguments, 0, sizeof(BOOL) * ArgumentCount);
+
+    ArgumentNode = Expr->Data.Expression.FirstArgument;
+    while (ArgumentNode != NULL && Index < ArgumentCount) {
+        SCRIPT_ERROR EvaluationError = SCRIPT_OK;
+        LPSTR StableArgument = NULL;
+        U32 StableLength = 0;
+        SCRIPT_VALUE ArgumentValue = ScriptEvaluateExpression(Parser, ArgumentNode, &EvaluationError);
+        if (EvaluationError != SCRIPT_OK) {
+            ScriptValueRelease(&ArgumentValue);
+            ScriptReleaseFunctionArguments(Parser->Context, Arguments, OwnedArguments, ArgumentCount);
+            return EvaluationError;
+        }
+
+        SCRIPT_ERROR Result = ScriptValueToString(
+            &ArgumentValue,
+            Parser->Context,
+            &Arguments[Index],
+            &OwnedArguments[Index]);
+
+        if (Result != SCRIPT_OK) {
+            ScriptValueRelease(&ArgumentValue);
+            ScriptReleaseFunctionArguments(Parser->Context, Arguments, OwnedArguments, ArgumentCount);
+            return Result;
+        }
+
+        StableLength = StringLength(Arguments[Index]) + 1;
+        StableArgument = (LPSTR)ScriptAlloc(Parser->Context, StableLength);
+        if (StableArgument == NULL) {
+            if (OwnedArguments[Index] && Arguments[Index] != NULL) {
+                ScriptFree(Parser->Context, (LPVOID)Arguments[Index]);
+            }
+            ScriptValueRelease(&ArgumentValue);
+            ScriptReleaseFunctionArguments(Parser->Context, Arguments, OwnedArguments, ArgumentCount);
+            return SCRIPT_ERROR_OUT_OF_MEMORY;
+        }
+
+        StringCopy(StableArgument, Arguments[Index]);
+        if (OwnedArguments[Index] && Arguments[Index] != NULL) {
+            ScriptFree(Parser->Context, (LPVOID)Arguments[Index]);
+        }
+        Arguments[Index] = StableArgument;
+        OwnedArguments[Index] = TRUE;
+
+        ScriptValueRelease(&ArgumentValue);
+
+        Index++;
+        ArgumentNode = ArgumentNode->Data.Expression.NextArgument;
+    }
+
+    if (ArgumentNode != NULL || Index != ArgumentCount) {
+        ScriptReleaseFunctionArguments(Parser->Context, Arguments, OwnedArguments, ArgumentCount);
+        return SCRIPT_ERROR_SYNTAX;
+    }
+
+    *OutArguments = Arguments;
+    *OutOwnedArguments = OwnedArguments;
+    *OutArgumentCount = ArgumentCount;
+    return SCRIPT_OK;
 }
 
 /************************************************************************/
@@ -76,8 +224,13 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
 
     switch (Expr->Data.Expression.TokenType) {
         case TOKEN_NUMBER:
-            Result.Type = SCRIPT_VAR_FLOAT;
-            Result.Value.Float = Expr->Data.Expression.NumValue;
+            if (Expr->Data.Expression.IsIntegerLiteral) {
+                Result.Type = SCRIPT_VAR_INTEGER;
+                Result.Value.Integer = Expr->Data.Expression.IntegerValue;
+            } else {
+                Result.Type = SCRIPT_VAR_FLOAT;
+                Result.Value.Float = Expr->Data.Expression.FloatValue;
+            }
             return Result;
 
         case TOKEN_STRING: {
@@ -103,11 +256,11 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                     if (Parser->Callbacks && Parser->Callbacks->ExecuteCommand) {
                         LPCSTR CommandLine = Expr->Data.Expression.CommandLine ?
                             Expr->Data.Expression.CommandLine : Expr->Data.Expression.Value;
-                        U32 Status = Parser->Callbacks->ExecuteCommand(CommandLine, Parser->Callbacks->UserData);
+                        UINT Status = Parser->Callbacks->ExecuteCommand(CommandLine, Parser->Callbacks->UserData);
 
                         if (Status == DF_RETURN_SUCCESS) {
-                            Result.Type = SCRIPT_VAR_FLOAT;
-                            Result.Value.Float = (F32)Status;
+                            Result.Type = SCRIPT_VAR_INTEGER;
+                            Result.Value.Integer = (INT)Status;
                             return Result;
                         }
 
@@ -147,57 +300,74 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                 }
 
                 if (Parser->Callbacks && Parser->Callbacks->CallFunction) {
-                    LPCSTR ArgString = TEXT("");
-                    STR ArgBuffer[MAX_TOKEN_LENGTH];
-                    SCRIPT_VALUE ArgValue;
-                    BOOL HasEvaluatedArg = FALSE;
+                    LPCSTR* Arguments = NULL;
+                    BOOL* OwnedArguments = NULL;
+                    UINT ArgumentCount = 0;
+                    SCRIPT_ERROR ArgumentError = ScriptBuildFunctionArguments(
+                        Parser,
+                        Expr,
+                        &Arguments,
+                        &OwnedArguments,
+                        &ArgumentCount);
+                    if (ArgumentError != SCRIPT_OK) {
+                        if (Error) {
+                            *Error = ArgumentError;
+                        }
+                        return Result;
+                    }
 
-                    if (Expr->Data.Expression.Left) {
-                        if (Expr->Data.Expression.Left->Data.Expression.TokenType == TOKEN_STRING) {
-                            ArgString = Expr->Data.Expression.Left->Data.Expression.Value;
-                        } else {
-                            ArgValue = ScriptEvaluateExpression(Parser, Expr->Data.Expression.Left, Error);
-                            HasEvaluatedArg = TRUE;
+                    INT Status = Parser->Callbacks->CallFunction(
+                        Expr->Data.Expression.Value,
+                        ArgumentCount,
+                        (LPCSTR*)Arguments,
+                        Parser->Callbacks->UserData);
+                    ScriptReleaseFunctionArguments(Parser->Context, Arguments, OwnedArguments, ArgumentCount);
 
-                            if (Error && *Error != SCRIPT_OK) {
-                                ScriptValueRelease(&ArgValue);
-                                return Result;
-                            }
-
-                            if (ArgValue.Type == SCRIPT_VAR_STRING) {
-                                ArgString = ArgValue.Value.String ? ArgValue.Value.String : TEXT("");
-                            } else {
-                                F32 ArgNumeric;
-                                if (!ScriptValueToFloat(&ArgValue, &ArgNumeric)) {
-                                    if (Error) {
-                                        *Error = SCRIPT_ERROR_TYPE_MISMATCH;
-                                    }
-                                    ScriptValueRelease(&ArgValue);
-                                    return Result;
-                                }
-
-                                if (IsInteger(ArgNumeric)) {
-                                    StringPrintFormat(ArgBuffer, TEXT("%d"), (I32)ArgNumeric);
-                                } else {
-                                    StringPrintFormat(ArgBuffer, TEXT("%f"), ArgNumeric);
-                                }
-
-                                ArgString = ArgBuffer;
+                    if (Status == SCRIPT_FUNCTION_STATUS_UNKNOWN) {
+                        LPSCRIPT_CONTEXT Context = Parser->Context;
+                        if (Context) {
+                            Context->ErrorCode = SCRIPT_ERROR_UNDEFINED_VAR;
+                            if (Context->ErrorMessage[0] == STR_NULL) {
+                                StringPrintFormat(
+                                    Context->ErrorMessage,
+                                    TEXT("Unknown function: %s"),
+                                    Expr->Data.Expression.Value);
                             }
                         }
+
+                        if (Error) {
+                            *Error = SCRIPT_ERROR_UNDEFINED_VAR;
+                        }
+                        return Result;
                     }
 
-                    U32 Status = Parser->Callbacks->CallFunction(
-                        Expr->Data.Expression.Value,
-                        ArgString,
-                        Parser->Callbacks->UserData);
+                    if (Status == SCRIPT_FUNCTION_STATUS_ERROR) {
+                        LPSCRIPT_CONTEXT Context = Parser->Context;
+                        SCRIPT_ERROR FunctionError = SCRIPT_ERROR_SYNTAX;
 
-                    if (HasEvaluatedArg) {
-                        ScriptValueRelease(&ArgValue);
+                        if (Context) {
+                            if (Context->ErrorCode != SCRIPT_OK) {
+                                FunctionError = Context->ErrorCode;
+                            } else {
+                                Context->ErrorCode = SCRIPT_ERROR_SYNTAX;
+                            }
+
+                            if (Context->ErrorMessage[0] == STR_NULL) {
+                                StringPrintFormat(
+                                    Context->ErrorMessage,
+                                    TEXT("Function call failed: %s"),
+                                    Expr->Data.Expression.Value);
+                            }
+                        }
+
+                        if (Error) {
+                            *Error = FunctionError;
+                        }
+                        return Result;
                     }
 
-                    Result.Type = SCRIPT_VAR_FLOAT;
-                    Result.Value.Float = (F32)Status;
+                    Result.Type = SCRIPT_VAR_INTEGER;
+                    Result.Value.Integer = (INT)Status;
                     return Result;
                 }
 
@@ -222,8 +392,8 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                     return Result;
                 }
 
-                F32 IndexNumeric;
-                if (!ScriptValueToFloat(&IndexValue, &IndexNumeric)) {
+                INT IndexNumeric;
+                if (!ScriptValueToInteger(&IndexValue, &IndexNumeric) || IndexNumeric < 0) {
                     if (Error) {
                         *Error = SCRIPT_ERROR_TYPE_MISMATCH;
                     }
@@ -423,35 +593,88 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                     return Result;
                 }
 
-                Result.Type = SCRIPT_VAR_FLOAT;
+                if (LeftValue.Type == SCRIPT_VAR_INTEGER &&
+                    RightValue.Type == SCRIPT_VAR_INTEGER) {
+                    Result.Type = SCRIPT_VAR_INTEGER;
 
-                if (Operator == '+') {
-                    Result.Value.Float = LeftNumeric + RightNumeric;
-                } else if (Operator == '-') {
-                    Result.Value.Float = LeftNumeric - RightNumeric;
-                } else if (Operator == '*') {
-                    Result.Value.Float = LeftNumeric * RightNumeric;
-                } else if (Operator == '/') {
-                    if (RightNumeric == 0.0f) {
+                    if (Operator == '+') {
+                        Result.Value.Integer = LeftValue.Value.Integer + RightValue.Value.Integer;
+                    } else if (Operator == '-') {
+                        Result.Value.Integer = LeftValue.Value.Integer - RightValue.Value.Integer;
+                    } else if (Operator == '*') {
+                        Result.Value.Integer = LeftValue.Value.Integer * RightValue.Value.Integer;
+                    } else if (Operator == '/') {
+                        if (RightValue.Value.Integer == 0) {
+                            if (Error) {
+                                *Error = SCRIPT_ERROR_DIVISION_BY_ZERO;
+                            }
+                            ScriptValueRelease(&LeftValue);
+                            ScriptValueRelease(&RightValue);
+                            return Result;
+                        }
+
+                        Result.Value.Integer = LeftValue.Value.Integer / RightValue.Value.Integer;
+                    } else {
                         if (Error) {
-                            *Error = SCRIPT_ERROR_DIVISION_BY_ZERO;
+                            *Error = SCRIPT_ERROR_SYNTAX;
+                        }
+                    }
+                } else {
+                    Result.Type = SCRIPT_VAR_FLOAT;
+
+                    if (Operator == '+') {
+                        Result.Value.Float = LeftNumeric + RightNumeric;
+                    } else if (Operator == '-') {
+                        Result.Value.Float = LeftNumeric - RightNumeric;
+                    } else if (Operator == '*') {
+                        Result.Value.Float = LeftNumeric * RightNumeric;
+                    } else if (Operator == '/') {
+                        if (RightNumeric == 0.0f) {
+                            if (Error) {
+                                *Error = SCRIPT_ERROR_DIVISION_BY_ZERO;
+                            }
+                            ScriptValueRelease(&LeftValue);
+                            ScriptValueRelease(&RightValue);
+                            return Result;
+                        }
+
+                        Result.Value.Float = LeftNumeric / RightNumeric;
+                    } else {
+                        if (Error) {
+                            *Error = SCRIPT_ERROR_SYNTAX;
+                        }
+                    }
+                }
+            } else {
+                if ((LeftValue.Type == SCRIPT_VAR_STRING || RightValue.Type == SCRIPT_VAR_STRING) &&
+                    (StringCompare(Expr->Data.Expression.Value, TEXT("==")) == 0 ||
+                     StringCompare(Expr->Data.Expression.Value, TEXT("!=")) == 0)) {
+                    if (LeftValue.Type != SCRIPT_VAR_STRING || RightValue.Type != SCRIPT_VAR_STRING) {
+                        if (Error) {
+                            *Error = SCRIPT_ERROR_TYPE_MISMATCH;
                         }
                         ScriptValueRelease(&LeftValue);
                         ScriptValueRelease(&RightValue);
                         return Result;
                     }
 
-                    if (IsInteger(LeftNumeric) && IsInteger(RightNumeric)) {
-                        Result.Value.Float = (F32)((I32)LeftNumeric / (I32)RightNumeric);
+                    Result.Type = SCRIPT_VAR_INTEGER;
+
+                    if (StringCompare(Expr->Data.Expression.Value, TEXT("==")) == 0) {
+                        Result.Value.Integer = (StringCompare(
+                            LeftValue.Value.String ? LeftValue.Value.String : TEXT(""),
+                            RightValue.Value.String ? RightValue.Value.String : TEXT("")) == 0) ? 1 : 0;
                     } else {
-                        Result.Value.Float = LeftNumeric / RightNumeric;
+                        Result.Value.Integer = (StringCompare(
+                            LeftValue.Value.String ? LeftValue.Value.String : TEXT(""),
+                            RightValue.Value.String ? RightValue.Value.String : TEXT("")) != 0) ? 1 : 0;
                     }
-                } else {
-                    if (Error) {
-                        *Error = SCRIPT_ERROR_SYNTAX;
-                    }
+
+                    ScriptValueRelease(&LeftValue);
+                    ScriptValueRelease(&RightValue);
+                    return Result;
                 }
-            } else {
+
                 F32 LeftNumeric;
                 F32 RightNumeric;
 
@@ -465,20 +688,20 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                     return Result;
                 }
 
-                Result.Type = SCRIPT_VAR_FLOAT;
+                Result.Type = SCRIPT_VAR_INTEGER;
 
                 if (StringCompare(Expr->Data.Expression.Value, TEXT("<")) == 0) {
-                    Result.Value.Float = (LeftNumeric < RightNumeric) ? 1.0f : 0.0f;
+                    Result.Value.Integer = (LeftNumeric < RightNumeric) ? 1 : 0;
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT("<=")) == 0) {
-                    Result.Value.Float = (LeftNumeric <= RightNumeric) ? 1.0f : 0.0f;
+                    Result.Value.Integer = (LeftNumeric <= RightNumeric) ? 1 : 0;
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT(">")) == 0) {
-                    Result.Value.Float = (LeftNumeric > RightNumeric) ? 1.0f : 0.0f;
+                    Result.Value.Integer = (LeftNumeric > RightNumeric) ? 1 : 0;
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT(">=")) == 0) {
-                    Result.Value.Float = (LeftNumeric >= RightNumeric) ? 1.0f : 0.0f;
+                    Result.Value.Integer = (LeftNumeric >= RightNumeric) ? 1 : 0;
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT("==")) == 0) {
-                    Result.Value.Float = (LeftNumeric == RightNumeric) ? 1.0f : 0.0f;
+                    Result.Value.Integer = (LeftNumeric == RightNumeric) ? 1 : 0;
                 } else if (StringCompare(Expr->Data.Expression.Value, TEXT("!=")) == 0) {
-                    Result.Value.Float = (LeftNumeric != RightNumeric) ? 1.0f : 0.0f;
+                    Result.Value.Integer = (LeftNumeric != RightNumeric) ? 1 : 0;
                 } else {
                     if (Error) {
                         *Error = SCRIPT_ERROR_SYNTAX;
@@ -583,8 +806,8 @@ SCRIPT_VALUE ScriptEvaluateArrayAccess(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, 
         return Result;
     }
 
-    F32 IndexNumeric;
-    if (!ScriptValueToFloat(&IndexValue, &IndexNumeric)) {
+    INT IndexNumeric;
+    if (!ScriptValueToInteger(&IndexValue, &IndexNumeric) || IndexNumeric < 0) {
         if (Error) {
             *Error = SCRIPT_ERROR_TYPE_MISMATCH;
         }

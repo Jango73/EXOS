@@ -33,7 +33,7 @@ Use LAPIC timers when available, fallback to PIT.
 - Success: every AP executes the trampoline and reaches AP C entry without new bootstrap infrastructure.
 
 ## [ ] Step 4 — Per-CPU Structures and Accessors
-- Introduce `CPU` struct (PascalCase fields) holding: APIC ID, ACPI ProcessorId, Status (offline/booting/online), PerCpuStack/TSS pointers, CurrentTask, LocalAPIC base, LapicTimer state, PerCpuFlags, Statistics.
+- Introduce `CPU` struct holding: APIC ID, ACPI ProcessorId, Status (offline/booting/online), PerCpuStack/TSS pointers, CurrentTask, LocalAPIC base, LapicTimer state, PerCpuFlags, Statistics.
 - Provide per-CPU storage accessors/macros (CurrentCPU(), PerCPUGet/Set) using GS base on x86-64 and segment-bases or per-CPU array indexed by APIC ID on x86-32.
 - Keep a global CPU table and bitmap of online CPUs; initialize BSP entry before AP start.
 - Success: any CPU can obtain its CPU struct without global locks.

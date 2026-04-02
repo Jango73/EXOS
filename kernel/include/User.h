@@ -51,7 +51,7 @@ extern "C" {
 \************************************************************************/
 
 #define EXOS_VERSION_MAJOR 0
-#define EXOS_VERSION_MINOR 71
+#define EXOS_VERSION_MINOR 72
 #define EXOS_VERSION_PATCH 0
 
 #define EXOS_VERSION MAKE_VERSION(EXOS_VERSION_MAJOR, EXOS_VERSION_MINOR)
@@ -100,6 +100,7 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_KillProcess 0x00000009
 #define SYSCALL_GetProcessInfo 0x0000000A
 #define SYSCALL_GetProcessMemoryInfo 0x00000087
+#define SYSCALL_GetProfileInfo 0x00000089
 
 /************************************************************************/
 // Threading Services
@@ -276,6 +277,8 @@ BOOL GetLocalTime(LPDATETIME Time);
 #define SYSCALL_DrawText 0x00000080
 #define SYSCALL_MeasureText 0x00000081
 #define SYSCALL_DrawWindowBackground 0x00000082
+#define SYSCALL_ApplyDesktopTheme 0x00000088
+#define SYSCALL_SetGraphicsDriver 0x0000008A
 
 /************************************************************************/
 // Network Socket Services
@@ -298,12 +301,14 @@ BOOL GetLocalTime(LPDATETIME Time);
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x00000088
+#define SYSCALL_Last 0x0000008B
 
 /************************************************************************/
 // Structure limits
 
 #define WAIT_INFO_MAX_OBJECTS 32
+#define PROFILE_MAX_ENTRIES   64
+#define PROFILE_NAME_LENGTH   64
 
 /************************************************************************/
 // ABI Data Structures
@@ -363,6 +368,28 @@ typedef struct PACKED tag_PROCESS_MEMORY_INFO {
     UINT HeapUsedBytes;
     UINT HeapFreeBytes;
 } PROCESS_MEMORY_INFO, *LPPROCESS_MEMORY_INFO;
+
+typedef struct PACKED tag_PROFILE_ENTRY_INFO {
+    STR Name[PROFILE_NAME_LENGTH];
+    UINT CallCount;
+    UINT TimedCallCount;
+    UINT LastTicks;
+    UINT TotalTicks;
+    UINT MaxTicks;
+} PROFILE_ENTRY_INFO, *LPPROFILE_ENTRY_INFO;
+
+#define PROFILE_QUERY_FLAG_RESET 0x00000001
+
+typedef struct PACKED tag_PROFILE_QUERY_INFO {
+    ABI_HEADER Header;
+    UINT Capacity;
+    UINT Flags;
+    UINT EntryCount;
+    UINT TotalEntryCount;
+    UINT SampleCount;
+    UINT DroppedCount;
+    LPPROFILE_ENTRY_INFO Entries;
+} PROFILE_QUERY_INFO, *LPPROFILE_QUERY_INFO;
 
 typedef struct PACKED tag_CONSOLE_BLIT_BUFFER {
     UINT X;
@@ -463,6 +490,14 @@ typedef struct PACKED tag_GRAPHICS_MODE_INFO {
     U32 BitsPerPixel;
 } GRAPHICS_MODE_INFO, *LPGRAPHICS_MODE_INFO;
 
+typedef struct PACKED tag_GRAPHICS_DRIVER_SELECTION_INFO {
+    ABI_HEADER Header;
+    STR DriverAlias[MAX_NAME];
+    U32 Width;
+    U32 Height;
+    U32 BitsPerPixel;
+} GRAPHICS_DRIVER_SELECTION_INFO, *LPGRAPHICS_DRIVER_SELECTION_INFO;
+
 typedef struct PACKED tag_FILE_OPERATION {
     ABI_HEADER Header;
     HANDLE File;
@@ -561,6 +596,11 @@ typedef struct PACKED tag_WINDOW_CHILD_INFO {
     HANDLE Window;
     U32 ChildIndex;
 } WINDOW_CHILD_INFO, *LPWINDOW_CHILD_INFO;
+
+typedef struct PACKED tag_DESKTOP_THEME_INFO {
+    ABI_HEADER Header;
+    LPCSTR Target;
+} DESKTOP_THEME_INFO, *LPDESKTOP_THEME_INFO;
 
 typedef struct PACKED tag_GCSELECT {
     ABI_HEADER Header;

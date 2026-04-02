@@ -40,9 +40,7 @@ U32 CMD_run(LPSHELLCONTEXT Context);
 U32 CMD_package(LPSHELLCONTEXT Context);
 U32 CMD_exit(LPSHELLCONTEXT Context);
 U32 CMD_sysinfo(LPSHELLCONTEXT Context);
-U32 CMD_killtask(LPSHELLCONTEXT Context);
-U32 CMD_showprocess(LPSHELLCONTEXT Context);
-U32 CMD_showtask(LPSHELLCONTEXT Context);
+U32 CMD_task(LPSHELLCONTEXT Context);
 U32 CMD_memedit(LPSHELLCONTEXT Context);
 U32 CMD_disasm(LPSHELLCONTEXT Context);
 U32 CMD_type(LPSHELLCONTEXT Context);
@@ -54,7 +52,6 @@ U32 CMD_filesystem(LPSHELLCONTEXT Context);
 U32 CMD_network(LPSHELLCONTEXT Context);
 U32 CMD_pic(LPSHELLCONTEXT Context);
 U32 CMD_driver(LPSHELLCONTEXT Context);
-U32 CMD_gfx(LPSHELLCONTEXT Context);
 U32 CMD_desktop(LPSHELLCONTEXT Context);
 U32 CMD_reboot(LPSHELLCONTEXT Context);
 U32 CMD_shutdown(LPSHELLCONTEXT Context);
@@ -69,6 +66,8 @@ U32 CMD_nvme(LPSHELLCONTEXT Context);
 U32 CMD_dataview(LPSHELLCONTEXT Context);
 
 void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL Pause, BOOL Recurse, U32* NumListed);
+BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName);
+BOOL RunEmbeddedScript(LPSHELLCONTEXT Context, LPCSTR ScriptText);
 
 /************************************************************************/
 

@@ -358,8 +358,7 @@ void BootMain(U32 BootDrive, U32 PartitionLba) {
     InitDebug();
     EnableA20();
     if (CheckA20Enabled() == 0) {
-        BootErrorPrint(TEXT("[VBR] ERROR: A20 is disabled. Halting.\r\n"));
-        Hang();
+        BootErrorPrint(TEXT("[VBR] WARNING: A20 still appears disabled after early enable attempt.\r\n"));
     }
 
     RetrieveMemoryMap();

@@ -289,7 +289,7 @@ BOOL PeekMessage(LPMESSAGE_INFO Message) {
     if (Message == NULL) return FALSE;
 
     Task = GetCurrentTask();
-    SAFE_USE_VALID_ID(Task, KOID_TASK) { TaskProcessPtr = Task->Process; }
+    SAFE_USE_VALID_ID(Task, KOID_TASK) { TaskProcessPtr = Task->OwnerProcess; }
     DEBUG(TEXT("[PeekMessage] Task=%p Process=%p FocusedProcess=%p"), Task, TaskProcessPtr, GetFocusedProcess());
 
     Process = TaskProcessPtr;
@@ -423,7 +423,7 @@ static BOOL AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
         return FALSE;
     }
 
-    if (InterceptProcessControlMessage(Task->Process, Message->Message, Message->Param1, Message->Param2)) {
+    if (InterceptProcessControlMessage(Task->OwnerProcess, Message->Message, Message->Param1, Message->Param2)) {
         return TRUE;
     }
 
@@ -500,7 +500,7 @@ static BOOL AddProcessMessage(LPPROCESS Process, LPMESSAGE Message) {
         LPTASK Task = (LPTASK)Node;
 
         SAFE_USE_VALID_ID(Task, KOID_TASK) {
-            if (Task->Process == Process && GetTaskStatus(Task) == TASK_STATUS_WAITMESSAGE) {
+            if (Task->OwnerProcess == Process && GetTaskStatus(Task) == TASK_STATUS_WAITMESSAGE) {
                 SetTaskStatus(Task, TASK_STATUS_RUNNING);
             }
         }
@@ -544,7 +544,7 @@ BOOL EnqueueInputMessage(U32 Msg, U32 Param1, U32 Param2) {
         SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
             SAFE_USE_VALID_ID(Desktop->Window, KOID_WINDOW) {
                 SAFE_USE_VALID_ID(Desktop->Window->Task, KOID_TASK) {
-                    if (Desktop->Window->Task->Process == Process) {
+                    if (Desktop->Window->Task->OwnerProcess == Process) {
                         FocusedWindow = Desktop->Window;
                         TargetTask = Desktop->Window->Task;
                     }
@@ -555,7 +555,7 @@ BOOL EnqueueInputMessage(U32 Msg, U32 Param1, U32 Param2) {
         // Only route keyboard-like input to a focused window if it belongs to the focused process.
         SAFE_USE_VALID_ID(FocusedWindow, KOID_WINDOW) {
             SAFE_USE_VALID_ID(FocusedWindow->Task, KOID_TASK) {
-                if (FocusedWindow->Task->Process == Process) {
+                if (FocusedWindow->Task->OwnerProcess == Process) {
                     TargetTask = FocusedWindow->Task;
                 }
             }
@@ -710,8 +710,8 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
             Window = (LPWINDOW)Target;
             SAFE_USE_VALID_ID(Window, KOID_WINDOW) {
                 SAFE_USE_VALID_ID(Window->Task, KOID_TASK) {
-                    SAFE_USE_VALID_ID(Window->Task->Process, KOID_PROCESS) {
-                        Desktop = Window->Task->Process->Desktop;
+                    SAFE_USE_VALID_ID(Window->Task->OwnerProcess, KOID_PROCESS) {
+                        Desktop = Window->Task->OwnerProcess->Desktop;
                     }
                 }
             }
@@ -909,17 +909,17 @@ void WaitForMessage(LPTASK Task) {
     // CPU cycles.
 
     while (GetTaskStatus(Task) == TASK_STATUS_WAITMESSAGE) {
-        SAFE_USE_VALID_ID(Task->Process, KOID_PROCESS) {
-            if (EnsureProcessMessageQueue(Task->Process, TRUE) == TRUE) {
-                LockMutex(&(Task->Process->MessageQueue.Mutex), INFINITY);
+        SAFE_USE_VALID_ID(Task->OwnerProcess, KOID_PROCESS) {
+            if (EnsureProcessMessageQueue(Task->OwnerProcess, TRUE) == TRUE) {
+                LockMutex(&(Task->OwnerProcess->MessageQueue.Mutex), INFINITY);
 
-                if (MessageQueueBufferGetCount(&(Task->Process->MessageQueue.MessageBuffer)) > 0) {
-                    UnlockMutex(&(Task->Process->MessageQueue.Mutex));
+                if (MessageQueueBufferGetCount(&(Task->OwnerProcess->MessageQueue.MessageBuffer)) > 0) {
+                    UnlockMutex(&(Task->OwnerProcess->MessageQueue.Mutex));
                     SetTaskStatus(Task, TASK_STATUS_RUNNING);
                     break;
                 }
 
-                UnlockMutex(&(Task->Process->MessageQueue.Mutex));
+                UnlockMutex(&(Task->OwnerProcess->MessageQueue.Mutex));
             }
         }
 
@@ -953,7 +953,7 @@ BOOL GetMessage(LPMESSAGE_INFO Message) {
     if (Message == NULL) return FALSE;
 
     Task = GetCurrentTask();
-    SAFE_USE_VALID_ID(Task, KOID_TASK) { TaskProcessPtr = Task->Process; }
+    SAFE_USE_VALID_ID(Task, KOID_TASK) { TaskProcessPtr = Task->OwnerProcess; }
 
     if (EnsureTaskMessageQueue(Task, TRUE) == FALSE) return FALSE;
     Process = TaskProcessPtr;
@@ -1019,8 +1019,8 @@ BOOL DispatchMessage(LPMESSAGE_INFO Message) {
             LPWINDOW_CLASS DispatchClass = ResolveWindowDispatchClass(Window, Window->Function);
 
             SAFE_USE_VALID_ID(Window->Task, KOID_TASK) {
-                SAFE_USE_VALID_ID(Window->Task->Process, KOID_PROCESS) {
-                    if (Window->Task->Process->Privilege == CPU_PRIVILEGE_KERNEL) {
+                SAFE_USE_VALID_ID(Window->Task->OwnerProcess, KOID_PROCESS) {
+                    if (Window->Task->OwnerProcess->Privilege == CPU_PRIVILEGE_KERNEL) {
                         TargetHandle = (HANDLE)Window;
                     }
                 }
@@ -1067,7 +1067,7 @@ BOOL EnsureAllMessageQueues(LPTASK Task, BOOL CreateIfMissing) {
     }
 
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
-        return EnsureProcessMessageQueue(Task->Process, CreateIfMissing);
+        return EnsureProcessMessageQueue(Task->OwnerProcess, CreateIfMissing);
     }
 
     return FALSE;

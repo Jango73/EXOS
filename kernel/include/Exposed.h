@@ -64,7 +64,7 @@
     do { \
         if (STRINGS_EQUAL_NO_CASE(Property, TEXT(PropertyName))) { \
             OutValue->Type = SCRIPT_VAR_INTEGER; \
-            OutValue->Value.Integer = (I32)(ValueExpr); \
+            OutValue->Value.Integer = (INT)(ValueExpr); \
             return SCRIPT_OK; \
         } \
     } while (0)
@@ -128,6 +128,7 @@ BOOL ExposeIsAdminCaller(void);
 BOOL ExposeIsSameUser(LPPROCESS Caller, LPPROCESS Target);
 BOOL ExposeIsOwnerProcess(LPPROCESS Caller, LPPROCESS Target);
 BOOL ExposeCanReadProcess(LPPROCESS Caller, LPPROCESS Target, UINT RequiredAccess);
+BOOL ExposeRegisterDefaultScriptHostObjects(LPSCRIPT_CONTEXT Context);
 
 /************************************************************************/
 
@@ -164,6 +165,18 @@ SCRIPT_ERROR TaskArrayGetElement(
     U32 Index,
     LPSCRIPT_VALUE OutValue);
 
+SCRIPT_ERROR TaskRootArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR TaskRootArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+
 SCRIPT_ERROR ArchitectureTaskDataGetProperty(
     LPVOID Context,
     SCRIPT_HOST_HANDLE Parent,
@@ -178,6 +191,7 @@ SCRIPT_ERROR StackGetProperty(
 
 extern const SCRIPT_HOST_DESCRIPTOR TaskDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR TaskArrayDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR TaskRootArrayDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR ArchitectureTaskDataDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR StackDescriptor;
 
@@ -223,11 +237,51 @@ SCRIPT_ERROR UsbDeviceArrayGetElement(
     U32 Index,
     LPSCRIPT_VALUE OutValue);
 
+SCRIPT_ERROR UsbDriveGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR UsbDriveArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR UsbDriveArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR UsbNodeGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR UsbNodeArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR UsbNodeArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+
 extern const SCRIPT_HOST_DESCRIPTOR UsbDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR UsbPortDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR UsbPortArrayDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR UsbDeviceDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR UsbDeviceArrayDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR UsbDriveDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR UsbDriveArrayDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR UsbNodeDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR UsbNodeArrayDescriptor;
 extern SCRIPT_HOST_HANDLE UsbRootHandle;
 
 /************************************************************************/
@@ -305,9 +359,47 @@ SCRIPT_ERROR DriverEnumDomainArrayGetElement(
     U32 Index,
     LPSCRIPT_VALUE OutValue);
 
+SCRIPT_ERROR DriverModeArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR DriverModeArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR DriverModeGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
 extern const SCRIPT_HOST_DESCRIPTOR DriverDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR DriverArrayDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR DriverEnumDomainArrayDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR DriverModeDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR DriverModeArrayDescriptor;
+
+/************************************************************************/
+
+SCRIPT_ERROR GraphicsGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR GraphicsModeGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+extern const SCRIPT_HOST_DESCRIPTOR GraphicsDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR GraphicsModeDescriptor;
+SCRIPT_HOST_HANDLE GetGraphicsRootHandle(void);
 
 /************************************************************************/
 
@@ -331,6 +423,99 @@ SCRIPT_ERROR StorageArrayGetElement(
 
 extern const SCRIPT_HOST_DESCRIPTOR StorageDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR StorageArrayDescriptor;
+
+/************************************************************************/
+
+SCRIPT_ERROR FileSystemRootGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR FileSystemGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR FileSystemArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR FileSystemArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+
+extern const SCRIPT_HOST_DESCRIPTOR FileSystemRootDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR FileSystemDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR FileSystemArrayDescriptor;
+extern SCRIPT_HOST_HANDLE FileSystemRootHandle;
+
+/************************************************************************/
+
+SCRIPT_ERROR MemoryMapRootGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR MemoryRegionDescriptorGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR MemoryRegionArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR MemoryRegionArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+
+extern const SCRIPT_HOST_DESCRIPTOR MemoryMapRootDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR MemoryRegionDescriptorDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR MemoryRegionArrayDescriptor;
+extern SCRIPT_HOST_HANDLE MemoryMapRootHandle;
+
+/************************************************************************/
+
+SCRIPT_ERROR NetworkGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR NetworkDeviceGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR NetworkDeviceArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR NetworkDeviceArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+
+extern const SCRIPT_HOST_DESCRIPTOR NetworkDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR NetworkDeviceDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR NetworkDeviceArrayDescriptor;
+extern SCRIPT_HOST_HANDLE NetworkRootHandle;
 
 /************************************************************************/
 

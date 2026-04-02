@@ -584,7 +584,15 @@ EnableA20:
     cmp     al, 1
     je      .done
 
-    ; Method 2: Keyboard controller
+    ; Method 2: BIOS A20 gate service (INT 15h, AX=2401h)
+    mov     ax, 0x2401
+    int     0x15
+
+    call    CheckA20Enabled
+    cmp     al, 1
+    je      .done
+
+    ; Method 3: Keyboard controller
     call    EnableA20_wait_8042
     mov     al, 0xAD        ; Disable keyboard
     out     0x64, al

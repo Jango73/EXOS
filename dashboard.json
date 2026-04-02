@@ -1,7 +1,4 @@
 {
-    "logs": [
-        "log/kernel.log"
-    ],
     "scriptsDir": "scripts/linux",
     "commandSets": [
         {
@@ -20,6 +17,7 @@
                 { "label": "Build 32 MBR Rel ++", "script": "scripts/linux/build/build --arch x86-32 --fs ext2 --release" },
                 { "label": "Build 32 MBR Deb", "script": "scripts/linux/build/build --arch x86-32 --fs ext2 --debug --clean" },
                 { "label": "Build 32 MBR Deb ++", "script": "scripts/linux/build/build --arch x86-32 --fs ext2 --debug" },
+                { "label": "Build 32 MBR Deb Prof", "script": "scripts/linux/build/build --arch x86-32 --fs ext2 --debug --profiling --clean" },
                 { "label": "Build 32 MBR Deb Split", "script": "scripts/linux/build/build --arch x86-32 --fs ext2 --debug --split --clean" },
 
                 { "label": "Build 32 System Data View", "script": "scripts/linux/build/build --arch x86-32 --fs ext2 --system-data-view --clean" },
@@ -85,6 +83,8 @@
         "enableCommandHistory": true,
         "persistLogs": false,
         "notifyOnExit": true,
+        "showCustomCommand": false,
+        "showLogWindow": false,
         "renderThrottleMs": 50,
         "maxLogLines": 1000,
         "sidebarMinWidth": 32

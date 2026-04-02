@@ -118,9 +118,9 @@ void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine);
 BOOL ParseCommand(LPSHELLCONTEXT Context);
 
 void ShellScriptOutput(LPCSTR Message, LPVOID UserData);
-U32 ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
+UINT ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
 LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData);
-U32 ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
+INT ShellScriptCallFunction(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Arguments, LPVOID UserData);
 
 U32 CMD_adduser(LPSHELLCONTEXT Context);
 U32 CMD_login(LPSHELLCONTEXT Context);

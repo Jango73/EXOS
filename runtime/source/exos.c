@@ -70,6 +70,20 @@ BOOL GetProcessMemoryInfo(LPPROCESS_MEMORY_INFO Info) {
 
 /***************************************************************************/
 
+BOOL GetProfileInfo(LPPROFILE_QUERY_INFO Info) {
+    if (Info == NULL) {
+        return FALSE;
+    }
+
+    Info->Header.Size = sizeof(*Info);
+    Info->Header.Version = EXOS_ABI_VERSION;
+    Info->Header.Flags = 0;
+
+    return exoscall(SYSCALL_GetProfileInfo, EXOS_PARAM(Info)) == DF_RETURN_SUCCESS;
+}
+
+/***************************************************************************/
+
 BOOL GetMessage(HANDLE Target, LPMESSAGE Message, U32 First, U32 Last) {
     MESSAGE_INFO MessageInfo;
     BOOL Result;
@@ -204,6 +218,19 @@ HANDLE GetDesktopWindow(HANDLE Desktop) { return (HANDLE)exoscall(SYSCALL_GetDes
 /***************************************************************************/
 
 HANDLE GetCurrentDesktop(void) { return (HANDLE)exoscall(SYSCALL_GetCurrentDesktop, EXOS_PARAM(0)); }
+
+/***************************************************************************/
+
+BOOL ApplyDesktopTheme(LPCSTR Target) {
+    DESKTOP_THEME_INFO ApplyInfo;
+
+    ApplyInfo.Header.Size = sizeof ApplyInfo;
+    ApplyInfo.Header.Version = EXOS_ABI_VERSION;
+    ApplyInfo.Header.Flags = 0;
+    ApplyInfo.Target = Target;
+
+    return (BOOL)exoscall(SYSCALL_ApplyDesktopTheme, EXOS_PARAM(&ApplyInfo));
+}
 
 /***************************************************************************/
 

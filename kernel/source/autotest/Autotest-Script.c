@@ -44,9 +44,61 @@ typedef struct {
     I32 Value;
 } TEST_HOST_PROPERTY;
 
+typedef struct {
+    UINT ArgumentCount;
+    STR Arguments[3][32];
+} TEST_SCRIPT_CALL_CAPTURE;
+
 static const SCRIPT_HOST_DESCRIPTOR TestHostObjectDescriptor;
 static const SCRIPT_HOST_DESCRIPTOR TestHostArrayDescriptor;
 static const SCRIPT_HOST_DESCRIPTOR TestHostValueDescriptor;
+
+/************************************************************************/
+
+/**
+ * @brief Test function callback used by numeric semantics unit tests.
+ * @param FuncName Function name requested by the script.
+ * @param ArgumentCount Number of serialized function arguments.
+ * @param Arguments Serialized function arguments.
+ * @param UserData Callback capture storage.
+ * @return Native-width integer status.
+ */
+static INT TestScriptCallFunction(
+    LPCSTR FuncName,
+    UINT ArgumentCount,
+    LPCSTR* Arguments,
+    LPVOID UserData) {
+    TEST_SCRIPT_CALL_CAPTURE* Capture = (TEST_SCRIPT_CALL_CAPTURE*)UserData;
+
+    if (Capture != NULL) {
+        Capture->ArgumentCount = ArgumentCount;
+        for (UINT Index = 0; Index < 3; Index++) {
+            Capture->Arguments[Index][0] = STR_NULL;
+        }
+
+        for (UINT Index = 0; Index < ArgumentCount && Index < 3; Index++) {
+            StringCopyLimit(
+                Capture->Arguments[Index],
+                Arguments[Index] != NULL ? Arguments[Index] : TEXT(""),
+                sizeof(Capture->Arguments[Index]));
+        }
+    }
+
+    if (StringCompareNC(FuncName, TEXT("native_status")) == 0) {
+        return 123;
+    }
+
+    if (StringCompareNC(FuncName, TEXT("native_failure")) == 0) {
+        if (UserData != NULL) {
+            LPSCRIPT_CONTEXT Context = (LPSCRIPT_CONTEXT)UserData;
+            Context->ErrorCode = SCRIPT_ERROR_TYPE_MISMATCH;
+            StringCopy(Context->ErrorMessage, TEXT("native_failure rejected the call"));
+        }
+        return SCRIPT_FUNCTION_STATUS_ERROR;
+    }
+
+    return SCRIPT_FUNCTION_STATUS_UNKNOWN;
+}
 
 /************************************************************************/
 /**
@@ -495,6 +547,50 @@ void TestScriptComparisons(TEST_RESULTS* Results) {
     }
 
     ScriptDestroyContext(Context);
+
+    // Test 5: String equal (true)
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptComparisons] Failed to create context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("e = \"hello\" == \"hello\";"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("e"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 1) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptComparisons] Test 5 failed: e = %d (expected 1)"), Var ? Var->Value.Integer : -1);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptComparisons] Test 5 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    // Test 6: String not equal (true)
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptComparisons] Failed to create context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("f = \"hello\" != \"world\";"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("f"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 1) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptComparisons] Test 6 failed: f = %d (expected 1)"), Var ? Var->Value.Integer : -1);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptComparisons] Test 6 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
 }
 
 /************************************************************************/
@@ -779,7 +875,7 @@ void TestScriptArrays(TEST_RESULTS* Results) {
 /**
  * @brief Test string operators in script expressions.
  *
- * This function validates string concatenation and string subtraction.
+ * This function validates string concatenation coercion and string subtraction.
  *
  * @param Results Pointer to TEST_RESULTS structure to be filled with test results
  */
@@ -811,7 +907,55 @@ void TestScriptStringOperators(TEST_RESULTS* Results) {
 
     ScriptDestroyContext(Context);
 
-    // Test 2: String subtraction removes all occurrences
+    // Test 2: Integer + string concatenates as text
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptStringOperators] Failed to create context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("value = 1 + \"bar\";"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("value"));
+        if (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String &&
+            StringCompare(Var->Value.String, TEXT("1bar")) == 0) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptStringOperators] Test 2 failed: value = %s (expected 1bar)"),
+                  (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String) ? Var->Value.String : TEXT("(null)"));
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptStringOperators] Test 2 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    // Test 3: A mixed + chain switches to text concatenation once a string appears
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptStringOperators] Failed to create context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("value = 1 + 2 + \"x\" + 3;"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("value"));
+        if (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String &&
+            StringCompare(Var->Value.String, TEXT("3x3")) == 0) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptStringOperators] Test 3 failed: value = %s (expected 3x3)"),
+                  (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String) ? Var->Value.String : TEXT("(null)"));
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptStringOperators] Test 3 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    // Test 4: String subtraction removes all occurrences
     Results->TestsRun++;
     Context = ScriptCreateContext(NULL);
     if (Context == NULL) {
@@ -826,16 +970,16 @@ void TestScriptStringOperators(TEST_RESULTS* Results) {
             StringCompare(Var->Value.String, TEXT("bar")) == 0) {
             Results->TestsPassed++;
         } else {
-            DEBUG(TEXT("[TestScriptStringOperators] Test 2 failed: value = %s (expected bar)"),
+            DEBUG(TEXT("[TestScriptStringOperators] Test 4 failed: value = %s (expected bar)"),
                   (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String) ? Var->Value.String : TEXT("(null)"));
         }
     } else {
-        DEBUG(TEXT("[TestScriptStringOperators] Test 2 failed with error %d"), Error);
+        DEBUG(TEXT("[TestScriptStringOperators] Test 4 failed with error %d"), Error);
     }
 
     ScriptDestroyContext(Context);
 
-    // Test 3: Removing an empty pattern keeps source unchanged
+    // Test 5: Removing an empty pattern keeps source unchanged
     Results->TestsRun++;
     Context = ScriptCreateContext(NULL);
     if (Context == NULL) {
@@ -850,11 +994,11 @@ void TestScriptStringOperators(TEST_RESULTS* Results) {
             StringCompare(Var->Value.String, TEXT("hello")) == 0) {
             Results->TestsPassed++;
         } else {
-            DEBUG(TEXT("[TestScriptStringOperators] Test 3 failed: value = %s (expected hello)"),
+            DEBUG(TEXT("[TestScriptStringOperators] Test 5 failed: value = %s (expected hello)"),
                   (Var && Var->Type == SCRIPT_VAR_STRING && Var->Value.String) ? Var->Value.String : TEXT("(null)"));
         }
     } else {
-        DEBUG(TEXT("[TestScriptStringOperators] Test 3 failed with error %d"), Error);
+        DEBUG(TEXT("[TestScriptStringOperators] Test 5 failed with error %d"), Error);
     }
 
     ScriptDestroyContext(Context);
@@ -1204,6 +1348,264 @@ void TestScriptLoopWithIf(TEST_RESULTS* Results) {
 /************************************************************************/
 
 /**
+ * @brief Test continue statements inside for loops.
+ * @param Results Pointer to TEST_RESULTS structure to be filled with test results.
+ */
+void TestScriptContinue(TEST_RESULTS* Results) {
+    SCRIPT_ERROR Error = SCRIPT_OK;
+    LPCSTR Script = NULL;
+
+    Results->TestsRun = 0;
+    Results->TestsPassed = 0;
+
+    Results->TestsRun++;
+    LPSCRIPT_CONTEXT Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptContinue] Failed to create context"));
+        return;
+    }
+
+    Script = TEXT(
+        "sum = 0;\n"
+        "for (i = 0; i < 6; i = i + 1) {\n"
+        "  if (i == 2) {\n"
+        "    continue;\n"
+        "  }\n"
+        "  sum = sum + i;\n"
+        "}"
+    );
+
+    Error = ScriptExecute(Context, Script);
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("sum"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 13) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptContinue] Test 1 failed: sum = %d (expected 13)"),
+                Var ? Var->Value.Integer : -1);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptContinue] Test 1 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptContinue] Failed to create second context"));
+        return;
+    }
+
+    Script = TEXT(
+        "sum = 0;\n"
+        "for (i = 0; i < 5; i = i + 1) {\n"
+        "  if (i == 1) {\n"
+        "    continue;\n"
+        "  }\n"
+        "  if (i == 3) {\n"
+        "    continue;\n"
+        "  }\n"
+        "  sum = sum + i;\n"
+        "}"
+    );
+
+    Error = ScriptExecute(Context, Script);
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("sum"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 6) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptContinue] Test 2 failed: sum = %d (expected 6)"),
+                Var ? Var->Value.Integer : -1);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptContinue] Test 2 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptContinue] Failed to create third context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("continue;"));
+    if (Error == SCRIPT_ERROR_SYNTAX) {
+        Results->TestsPassed++;
+    } else {
+        DEBUG(TEXT("[TestScriptContinue] Test 3 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Test native-width integer semantics in parser, evaluator and callbacks.
+ * @param Results Pointer to TEST_RESULTS structure to be filled with test results.
+ */
+void TestScriptIntegerSemantics(TEST_RESULTS* Results) {
+    SCRIPT_ERROR Error = SCRIPT_OK;
+
+    Results->TestsRun = 0;
+    Results->TestsPassed = 0;
+
+    Results->TestsRun++;
+    LPSCRIPT_CONTEXT Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Failed to create context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("value = 1.5 + 2.25;"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("value"));
+        if (Var && Var->Type == SCRIPT_VAR_FLOAT && Var->Value.Float == 3.75f) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptIntegerSemantics] Test 1 failed: wrong float result"));
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Test 1 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Failed to create context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("value = 7 / 2;"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("value"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 3) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptIntegerSemantics] Test 2 failed: value = %d (expected 3)"),
+                Var ? Var->Value.Integer : -1);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Test 2 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    SCRIPT_CALLBACKS Callbacks;
+    TEST_SCRIPT_CALL_CAPTURE Capture;
+
+    MemorySet(&Capture, 0, sizeof(TEST_SCRIPT_CALL_CAPTURE));
+    MemorySet(&Callbacks, 0, sizeof(SCRIPT_CALLBACKS));
+    Callbacks.CallFunction = TestScriptCallFunction;
+    Callbacks.UserData = &Capture;
+    Context = ScriptCreateContext(&Callbacks);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Failed to create callback context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("status = native_status(42, \"alpha\", 7 + 1);"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("status"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 123 &&
+            Capture.ArgumentCount == 3 &&
+            STRINGS_EQUAL(Capture.Arguments[0], TEXT("42")) &&
+            STRINGS_EQUAL(Capture.Arguments[1], TEXT("alpha")) &&
+            STRINGS_EQUAL(Capture.Arguments[2], TEXT("8"))) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptIntegerSemantics] Test 3 failed: status = %d (expected 123), argc = %u"),
+                Var ? Var->Value.Integer : -1,
+                Capture.ArgumentCount);
+            DEBUG(TEXT("[TestScriptIntegerSemantics] Test 3 args: [%s] [%s] [%s]"),
+                Capture.Arguments[0],
+                Capture.Arguments[1],
+                Capture.Arguments[2]);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Test 3 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    MemorySet(&Callbacks, 0, sizeof(SCRIPT_CALLBACKS));
+    Callbacks.CallFunction = TestScriptCallFunction;
+    Context = ScriptCreateContext(&Callbacks);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Failed to create zero-argument callback context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("status = native_status();"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("status"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 123) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptIntegerSemantics] Test 4 failed: status = %d (expected 123)"),
+                Var ? Var->Value.Integer : -1);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Test 4 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    MemorySet(&Callbacks, 0, sizeof(SCRIPT_CALLBACKS));
+    Callbacks.CallFunction = TestScriptCallFunction;
+    Context = ScriptCreateContext(&Callbacks);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Failed to create unknown-function callback context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("status = unknown_function(1);"));
+    if (Error == SCRIPT_ERROR_UNDEFINED_VAR &&
+        StringCompare(ScriptGetErrorMessage(Context), TEXT("Unknown function: unknown_function")) == 0) {
+        Results->TestsPassed++;
+    } else {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Test 5 failed: error = %d message = %s"),
+            Error,
+            ScriptGetErrorMessage(Context));
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    MemorySet(&Callbacks, 0, sizeof(SCRIPT_CALLBACKS));
+    Callbacks.CallFunction = TestScriptCallFunction;
+    Context = ScriptCreateContext(&Callbacks);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Failed to create function-failure callback context"));
+        return;
+    }
+
+    Context->Callbacks.UserData = Context;
+    Error = ScriptExecute(Context, TEXT("status = native_failure(1);"));
+    if (Error == SCRIPT_ERROR_TYPE_MISMATCH &&
+        StringCompare(ScriptGetErrorMessage(Context), TEXT("native_failure rejected the call")) == 0) {
+        Results->TestsPassed++;
+    } else {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Test 6 failed: error = %d message = %s"),
+            Error,
+            ScriptGetErrorMessage(Context));
+    }
+
+    ScriptDestroyContext(Context);
+}
+
+/************************************************************************/
+
+/**
  * @brief Main Script test function that runs all Script unit tests.
  *
  * This function coordinates all Script unit tests and aggregates their results.
@@ -1268,8 +1670,18 @@ void TestScript(TEST_RESULTS* Results) {
     Results->TestsRun += SubResults.TestsRun;
     Results->TestsPassed += SubResults.TestsPassed;
 
+    // Run continue tests
+    TestScriptContinue(&SubResults);
+    Results->TestsRun += SubResults.TestsRun;
+    Results->TestsPassed += SubResults.TestsPassed;
+
     // Run complex script tests
     TestScriptComplex(&SubResults);
+    Results->TestsRun += SubResults.TestsRun;
+    Results->TestsPassed += SubResults.TestsPassed;
+
+    // Run native-width integer semantic tests
+    TestScriptIntegerSemantics(&SubResults);
     Results->TestsRun += SubResults.TestsRun;
     Results->TestsPassed += SubResults.TestsPassed;
 }
