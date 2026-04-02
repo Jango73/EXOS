@@ -30,7 +30,7 @@
 #include "text/CoreString.h"
 #include "DeferredWork.h"
 #include "utils/Helpers.h"
-#include "User.h"
+#include "user/User.h"
 
 /************************************************************************/
 

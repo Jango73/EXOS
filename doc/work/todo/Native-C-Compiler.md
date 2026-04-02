@@ -22,7 +22,7 @@ Rationale:
 - Argument parsing for user processes is available (`_SetupArguments`, `_argc`, `_argv`):
   - `runtime/source/exos-runtime-c.c`
 - Kernel exposes file, process, memory and console syscalls:
-  - `kernel/include/User.h`
+  - `kernel/include/user/User.h`
   - `kernel/source/SYSCallTable.c`
 - ELF loader already validates executable format and rejects dynamic interpreter usage:
   - `kernel/source/ExecutableELF.c`

@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "UserSession.h"
+#include "user/UserSession.h"
 
 #include "Clock.h"
 #include "text/CoreString.h"
@@ -36,7 +36,7 @@
 #include "Mutex.h"
 #include "process/Schedule.h"
 #include "process/Task.h"
-#include "UserAccount.h"
+#include "user/UserAccount.h"
 
 /************************************************************************/
 

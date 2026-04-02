@@ -24,7 +24,7 @@
 #include "ui/ClockWidget.h"
 #include "text/CoreString.h"
 #include "Heap.h"
-#include "User.h"
+#include "user/User.h"
 
 /***************************************************************************/
 

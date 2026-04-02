@@ -34,7 +34,7 @@
 #include "input/VKey.h"
 #include "process/Process.h"
 #include "process/Task.h"
-#include "User.h"
+#include "user/User.h"
 
 /***************************************************************************/
 

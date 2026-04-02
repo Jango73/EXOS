@@ -33,7 +33,7 @@
 #include "text/CoreString.h"
 #include "SystemFS.h"
 #include "utils/Helpers.h"
-#include "User.h"
+#include "user/User.h"
 #include "text/Text.h"
 #include "utils/TOML.h"
 

@@ -36,7 +36,7 @@
 #include "Arch.h"
 #include "List.h"
 #include "Mutex.h"
-#include "User.h"
+#include "user/User.h"
 #include "utils/MessageQueue.h"
 
 /************************************************************************/

@@ -31,7 +31,7 @@
 #include "Memory.h"
 #include "DriverEnum.h"
 #include "drivers/bus/PCI.h"
-#include "User.h"
+#include "user/User.h"
 #include "utils/BufferPool.h"
 #include "utils/Cache.h"
 

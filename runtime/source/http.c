@@ -24,7 +24,7 @@
 
 #include "../include/exos.h"
 #include "../include/http.h"
-#include "../../kernel/include/User.h"
+#include "../../kernel/include/user/User.h"
 
 static unsigned int HTTPDefaultReceiveTimeoutMs = 10000; // 10 seconds by default
 static char HTTP_LastErrorMessage[128] = "Success";

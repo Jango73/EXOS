@@ -26,7 +26,7 @@
 #include "text/CoreString.h"
 #include "Heap.h"
 #include "Log.h"
-#include "User.h"
+#include "user/User.h"
 #include "package/EpkParser.h"
 #include "utils/TOML.h"
 

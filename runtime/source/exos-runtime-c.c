@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "../../kernel/include/text/CoreString.h"
-#include "../../kernel/include/User.h"
+#include "../../kernel/include/user/User.h"
 #include "../../kernel/include/VarArg.h"
 #include "../include/exos-runtime.h"
 #include "../include/exos.h"

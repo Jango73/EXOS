@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "UserAccount.h"
+#include "user/UserAccount.h"
 
 #include "Clock.h"
 #include "Driver.h"
@@ -38,7 +38,7 @@
 #include "Mutex.h"
 #include "text/CoreString.h"
 #include "System.h"
-#include "User.h"
+#include "user/User.h"
 
 /************************************************************************/
 

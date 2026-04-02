@@ -26,7 +26,7 @@
 
 /************************************************************************/
 
-#include "User.h"
+#include "user/User.h"
 #include "ui/DockHost.h"
 
 typedef struct tag_WINDOW_DOCK_HOST_CLASS_DATA {

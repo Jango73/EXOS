@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "../../kernel/include/User.h"
+#include "../../kernel/include/user/User.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -218,7 +218,7 @@ typedef struct __iobuf {
 
 /************************************************************************/
 
-/* FILE_FIND_INFO comes from kernel/include/User.h via exos.h */
+/* FILE_FIND_INFO comes from kernel/include/user/User.h via exos.h */
 
 /************************************************************************/
 

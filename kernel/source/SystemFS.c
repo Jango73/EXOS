@@ -32,7 +32,7 @@
 #include "utils/Path.h"
 #include "text/CoreString.h"
 #include "utils/TOML.h"
-#include "User.h"
+#include "user/User.h"
 
 /***************************************************************************/
 

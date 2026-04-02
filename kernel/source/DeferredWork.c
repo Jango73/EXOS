@@ -32,7 +32,7 @@
 #include "process/Schedule.h"
 #include "process/Task.h"
 #include "System.h"
-#include "User.h"
+#include "user/User.h"
 #include "text/CoreString.h"
 #include "utils/Helpers.h"
 

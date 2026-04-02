@@ -35,7 +35,7 @@
 #include "drivers/network/RTL8139CPlus.h"
 #include "drivers/network/RTL8169.h"
 #include "drivers/usb/XHCI.h"
-#include "User.h"
+#include "user/User.h"
 
 /***************************************************************************/
 // PCI config mechanism #1 (0xCF8/0xCFC)

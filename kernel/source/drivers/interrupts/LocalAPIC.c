@@ -28,7 +28,7 @@
 #include "drivers/interrupts/LocalAPIC.h"
 #include "Log.h"
 #include "Memory.h"
-#include "User.h"
+#include "user/User.h"
 #include "text/CoreString.h"
 #include "System.h"
 

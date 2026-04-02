@@ -29,7 +29,7 @@
 
 #include "drivers/bus/PCI.h"
 #include "Device.h"
-#include "User.h"
+#include "user/User.h"
 
 /************************************************************************/
 

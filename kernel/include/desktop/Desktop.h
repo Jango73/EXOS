@@ -26,7 +26,7 @@
 
 /************************************************************************/
 
-#include "User.h"
+#include "user/User.h"
 #include "process/Process.h"
 #include "Desktop-ThemeRuntime.h"
 #include "GFX.h"

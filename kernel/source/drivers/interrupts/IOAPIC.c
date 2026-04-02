@@ -26,7 +26,7 @@
 #include "drivers/interrupts/IOAPIC.h"
 #include "drivers/interrupts/LocalAPIC.h"
 #include "drivers/platform/ACPI.h"
-#include "User.h"
+#include "user/User.h"
 #include "drivers/interrupts/InterruptController.h"
 #include "Memory.h"
 #include "Log.h"

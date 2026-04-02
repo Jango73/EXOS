@@ -186,11 +186,11 @@ Files that expose system entry points, system calls, low-level timing, interrupt
 
 Files that define users, sessions, and identity-facing services:
 
-- `kernel/source/UserAccount.c`
-- `kernel/source/UserSession.c`
-- `kernel/include/User.h`
-- `kernel/include/UserAccount.h`
-- `kernel/include/UserSession.h`
+- `kernel/source/user/UserAccount.c`
+- `kernel/source/user/UserSession.c`
+- `kernel/include/user/User.h`
+- `kernel/include/user/UserAccount.h`
+- `kernel/include/user/UserSession.h`
 - `kernel/include/Security.h`
 
 ### `input/`

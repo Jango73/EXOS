@@ -32,7 +32,7 @@
 #include "DeferredWork.h"
 #include "process/Process.h"
 #include "text/CoreString.h"
-#include "User.h"
+#include "user/User.h"
 
 /***************************************************************************/
 

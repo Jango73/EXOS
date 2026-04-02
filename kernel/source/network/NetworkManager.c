@@ -25,7 +25,7 @@
 #include "network/NetworkManager.h"
 
 #include "network/ARP.h"
-#include "User.h"
+#include "user/User.h"
 #include "network/IPv4.h"
 #include "network/UDP.h"
 #include "network/DHCP.h"

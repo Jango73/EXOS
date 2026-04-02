@@ -27,12 +27,12 @@
 
 /************************************************************************/
 
-#include "Base.h"
-#include "Driver.h"
-#include "ID.h"
-#include "List.h"
-#include "Security.h"
-#include "utils/AuthPolicy.h"
+#include "../Base.h"
+#include "../Driver.h"
+#include "../ID.h"
+#include "../List.h"
+#include "../Security.h"
+#include "../utils/AuthPolicy.h"
 
 // Forward declarations
 typedef struct tag_TASK TASK, *LPTASK;

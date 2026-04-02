@@ -28,7 +28,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "text/Text.h"
-#include "User.h"
+#include "user/User.h"
 
 /************************************************************************/
 

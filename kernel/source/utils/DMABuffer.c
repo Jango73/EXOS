@@ -26,7 +26,7 @@
 #include "text/CoreString.h"
 #include "Log.h"
 #include "Memory.h"
-#include "User.h"
+#include "user/User.h"
 
 /************************************************************************/
 

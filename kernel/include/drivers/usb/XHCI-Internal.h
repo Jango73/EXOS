@@ -34,7 +34,7 @@
 #include "KernelData.h"
 #include "Log.h"
 #include "Memory.h"
-#include "User.h"
+#include "user/User.h"
 #include "drivers/interrupts/DeviceInterrupt.h"
 #include "drivers/usb/USB.h"
 #include "utils/FailureGate.h"

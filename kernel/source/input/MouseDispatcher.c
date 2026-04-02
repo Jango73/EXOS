@@ -32,7 +32,7 @@
 #include "Desktop-Cursor.h"
 #include "process/Process.h"
 #include "process/Task.h"
-#include "User.h"
+#include "user/User.h"
 #include "drivers/graphics/vga/VGA.h"
 #include "utils/Cooldown.h"
 

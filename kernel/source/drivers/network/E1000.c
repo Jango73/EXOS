@@ -36,7 +36,7 @@
 #include "network/NetworkManager.h"
 #include "drivers/bus/PCI.h"
 #include "text/CoreString.h"
-#include "User.h"
+#include "user/User.h"
 
 /************************************************************************/
 

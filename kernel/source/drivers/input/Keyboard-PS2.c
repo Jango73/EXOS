@@ -32,7 +32,7 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "input/VKey.h"
-#include "User.h"
+#include "user/User.h"
 
 /***************************************************************************/
 

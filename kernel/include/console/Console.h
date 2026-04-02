@@ -34,7 +34,7 @@
 
 /***************************************************************************/
 
-#include "User.h" /* For console color defines and CONSOLE_BLIT_BUFFER */
+#include "user/User.h" /* For console color defines and CONSOLE_BLIT_BUFFER */
 
 /***************************************************************************/
 

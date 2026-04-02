@@ -32,7 +32,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "console/Console.h"
-#include "User.h"
+#include "user/User.h"
 #include "process/Task-Messaging.h"
 #include "utils/Helpers.h"
 

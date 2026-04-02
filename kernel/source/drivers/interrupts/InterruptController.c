@@ -28,7 +28,7 @@
 #include "drivers/interrupts/InterruptController.h"
 #include "drivers/interrupts/IOAPIC.h"
 #include "drivers/interrupts/LocalAPIC.h"
-#include "User.h"
+#include "user/User.h"
 #include "Log.h"
 #include "System.h"
 

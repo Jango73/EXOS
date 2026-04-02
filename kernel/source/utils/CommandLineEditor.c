@@ -30,7 +30,7 @@
 #include "text/CoreString.h"
 #include "process/Schedule.h"
 #include "process/Task.h"
-#include "UserSession.h"
+#include "user/UserSession.h"
 #include "input/VKey.h"
 
 /***************************************************************************/
