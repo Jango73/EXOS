@@ -23,7 +23,7 @@
 
 #include "Autotest.h"
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "Log.h"
 #include "User.h"
 #include "package/PackageManifest.h"

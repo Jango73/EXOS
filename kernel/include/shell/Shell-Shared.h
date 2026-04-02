@@ -37,7 +37,7 @@
 #include "Exposed.h"
 #include "File.h"
 #include "Kernel.h"
-#include "Lang.h"
+#include "text/Lang.h"
 #include "Log.h"
 #include "Memory-Descriptors.h"
 #include "network/Network.h"

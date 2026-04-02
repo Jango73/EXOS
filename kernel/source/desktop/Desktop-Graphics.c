@@ -27,7 +27,7 @@
 #include "Desktop-OverlayInvalidation.h"
 #include "Desktop-ThemeResolver.h"
 #include "Desktop-ThemeTokens.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Desktop.h"

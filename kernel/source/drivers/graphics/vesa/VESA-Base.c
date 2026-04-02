@@ -24,7 +24,7 @@
 
 #include "GFX.h"
 #include "Arch.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "System.h"
 #include "Kernel.h"
 #include "Log.h"

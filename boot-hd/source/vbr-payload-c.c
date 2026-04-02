@@ -29,7 +29,7 @@
 #include "boot-reservation.h"
 #include "arch/x86-32/x86-32.h"
 #include "SerialPort.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 
 /************************************************************************/
 

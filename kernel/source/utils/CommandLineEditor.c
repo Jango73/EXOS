@@ -27,7 +27,7 @@
 #include "console/Console.h"
 #include "drivers/input/Keyboard.h"
 #include "Log.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "process/Schedule.h"
 #include "process/Task.h"
 #include "UserSession.h"

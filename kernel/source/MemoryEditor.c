@@ -26,7 +26,7 @@
 #include "console/Console.h"
 #include "Kernel.h"
 #include "drivers/input/Keyboard.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "input/VKey.h"
 
 /***************************************************************************/

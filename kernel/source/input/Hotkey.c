@@ -23,7 +23,7 @@
 
 #include "input/Hotkey.h"
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "KernelData.h"
 #include "Log.h"
 #include "desktop/DisplaySession.h"

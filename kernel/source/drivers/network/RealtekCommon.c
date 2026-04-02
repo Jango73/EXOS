@@ -24,7 +24,7 @@
 #include "drivers/network/RealtekCommon.h"
 
 #include "Clock.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "DeferredWork.h"
 #include "Kernel.h"
 #include "Log.h"

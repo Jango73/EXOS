@@ -27,7 +27,7 @@
 
 #include "../../kernel/include/arch/x86-32/x86-32.h"
 #include "../../kernel/include/SerialPort.h"
-#include "../../kernel/include/CoreString.h"
+#include "../../kernel/include/text/CoreString.h"
 #include "../include/vbr-realmode-utils.h"
 
 /************************************************************************/

@@ -22,7 +22,7 @@
 \************************************************************************/
 
 #include "ui/ClockWidget.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "Heap.h"
 #include "User.h"
 

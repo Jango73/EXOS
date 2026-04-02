@@ -23,7 +23,7 @@
 
 #include "package/PackageManifest.h"
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "Heap.h"
 #include "Log.h"
 #include "User.h"

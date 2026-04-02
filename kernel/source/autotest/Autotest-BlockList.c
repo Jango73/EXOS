@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "Autotest.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "Heap.h"
 #include "Log.h"
 #include "utils/BlockList.h"

@@ -375,7 +375,7 @@ function Main() {
     }
 
     const Output = BuildOutput(GlyphBytes);
-    const OutputPath = path.join(__dirname, "..", "..", "kernel", "source", "font", "FontData-ASCII.c");
+    const OutputPath = path.join(__dirname, "..", "..", "kernel", "source", "text", "font", "FontData-ASCII.c");
     fs.writeFileSync(OutputPath, Output);
 }
 

@@ -36,7 +36,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "Mutex.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "System.h"
 #include "User.h"
 

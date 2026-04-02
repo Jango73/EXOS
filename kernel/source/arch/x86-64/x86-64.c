@@ -31,9 +31,9 @@
 #include "Memory.h"
 #include "process/Process-Arena.h"
 #include "process/Stack.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "System.h"
-#include "Text.h"
+#include "text/Text.h"
 #include "Interrupt.h"
 #include "SYSCall.h"
 

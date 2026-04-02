@@ -25,7 +25,7 @@
 #include "Heap.h"
 #include "List.h"
 #include "Log.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "script/Script.h"
 #include "script/Script-Internal.h"
 

@@ -31,7 +31,7 @@
 #include "Kernel.h"
 #include "List.h"
 #include "Log.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #if defined(__EXOS_ARCH_X86_32__)
     #include "arch/x86-32/x86-32-Log.h"
 #endif

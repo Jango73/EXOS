@@ -39,7 +39,7 @@
 #include "Endianness.h"
 #include "Socket.h"
 #include "utils/Helpers.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "utils/TOML.h"
 
 /************************************************************************/

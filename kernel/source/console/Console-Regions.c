@@ -26,7 +26,7 @@
 #include "Kernel.h"
 #include "Memory.h"
 #include "Mutex.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "drivers/input/Keyboard.h"
 #include "input/VKey.h"
 #include "process/Process-Control.h"

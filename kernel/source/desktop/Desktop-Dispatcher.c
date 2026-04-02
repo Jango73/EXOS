@@ -24,7 +24,7 @@
 #include "Desktop-Dispatcher.h"
 #include "Desktop-Private.h"
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "process/Task.h"

@@ -23,7 +23,7 @@
 
 #include "drivers/storage/NVMe-Internal.h"
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "FileSystem.h"
 #include "KernelData.h"
 

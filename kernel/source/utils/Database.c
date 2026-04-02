@@ -27,7 +27,7 @@
 #include "File.h"
 #include "Heap.h"
 #include "Log.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 
 /************************************************************************/
 

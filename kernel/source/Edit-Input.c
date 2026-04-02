@@ -23,7 +23,7 @@
 \************************************************************************/
 
 #include "Edit-Private.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "Heap.h"
 #include "Kernel.h"
 #include "Log.h"

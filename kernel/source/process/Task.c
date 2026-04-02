@@ -32,7 +32,7 @@
 #include "process/Process.h"
 #include "process/Schedule.h"
 #include "process/Task-Messaging.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "utils/BusyWait.h"
 #include "utils/Helpers.h"
 

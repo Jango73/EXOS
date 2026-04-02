@@ -26,7 +26,7 @@
 #include "Desktop-Private.h"
 #include "Desktop.h"
 #include "Desktop-OverlayInvalidation.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "DisplaySession.h"
 #include "GFX.h"
 #include "Kernel.h"

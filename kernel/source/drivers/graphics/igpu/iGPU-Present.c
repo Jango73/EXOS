@@ -23,7 +23,7 @@
 
 #include "iGPU-Internal.h"
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "System.h"
 #include "Log.h"
 #include "Memory.h"

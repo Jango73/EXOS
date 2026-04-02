@@ -29,7 +29,7 @@
 #include "FileSystem.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 
 /***************************************************************************/
 

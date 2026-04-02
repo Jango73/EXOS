@@ -24,7 +24,7 @@
 
 #include "utils/Crypt.h"
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "System.h"
 #include "bearssl_hash.h"
 

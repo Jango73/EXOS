@@ -23,7 +23,7 @@
 
 #include "utils/Compression.h"
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 
 #define MINIZ_NO_STDIO
 #define MINIZ_NO_TIME

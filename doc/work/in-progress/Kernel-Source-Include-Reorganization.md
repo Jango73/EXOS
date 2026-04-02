@@ -140,22 +140,22 @@ Files that implement logging and profiling support:
 
 Files that implement string handling, text rendering, localization, and text resources:
 
-- `kernel/source/CoreString.c`
-- `kernel/source/Quotes.c`
-- `kernel/source/Text.c`
-- `kernel/source/Lang.c`
-- `kernel/include/CoreString.h`
-- `kernel/include/Quotes.h`
-- `kernel/include/Text.h`
-- `kernel/include/Lang.h`
+- `kernel/source/text/CoreString.c`
+- `kernel/source/text/Quotes.c`
+- `kernel/source/text/Text.c`
+- `kernel/source/text/Lang.c`
+- `kernel/include/text/CoreString.h`
+- `kernel/include/text/Quotes.h`
+- `kernel/include/text/Text.h`
+- `kernel/include/text/Lang.h`
 
 ### `text/font/`
 
 Files that implement fonts and embedded font data:
 
-- `kernel/source/font/Font.c`
-- `kernel/source/font/FontData-ASCII.c`
-- `kernel/include/Font.h`
+- `kernel/source/text/font/Font.c`
+- `kernel/source/text/font/FontData-ASCII.c`
+- `kernel/include/text/font/Font.h`
 
 Target location after reorganization:
 

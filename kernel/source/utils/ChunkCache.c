@@ -24,7 +24,7 @@
 #include "utils/ChunkCache.h"
 
 #include "Clock.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "Heap.h"
 
 /***************************************************************************/

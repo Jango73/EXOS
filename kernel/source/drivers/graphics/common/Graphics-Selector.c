@@ -23,7 +23,7 @@
 
 #include "GFX.h"
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "DriverGetters.h"
 #include "Log.h"
 #include "Profile.h"

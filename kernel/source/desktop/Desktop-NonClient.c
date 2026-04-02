@@ -26,7 +26,7 @@
 #include "Desktop-ThemeRecipes.h"
 #include "Desktop-ThemeResolver.h"
 #include "Desktop-ThemeTokens.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "GFX.h"
 #include "Kernel.h"
 #include "Log.h"

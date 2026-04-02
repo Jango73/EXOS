@@ -26,7 +26,7 @@
 #include "Base.h"
 #include "Log.h"
 #include "script/Script.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 
 /************************************************************************/
 

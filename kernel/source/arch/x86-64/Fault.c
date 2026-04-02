@@ -29,7 +29,7 @@
 #include "Memory.h"
 #include "process/Schedule.h"
 #include "System.h"
-#include "Text.h"
+#include "text/Text.h"
 #include "arch/x86-64/x86-64-Log.h"
 
 /************************************************************************/

@@ -26,7 +26,7 @@
 #include "drivers/input/Keyboard.h"
 
 #include "Clock.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "Log.h"
 #include "input/VKey.h"
 #include "utils/KernelPath.h"

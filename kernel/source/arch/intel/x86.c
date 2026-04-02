@@ -24,7 +24,7 @@
 
 #include "arch/Disassemble.h"
 #include "Memory.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "KernelData.h"
 #include "arch/intel/x86-32-Asm.h"
 

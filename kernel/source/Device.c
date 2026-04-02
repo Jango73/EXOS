@@ -26,8 +26,8 @@
 #include "Heap.h"
 #include "ID.h"
 #include "Memory.h"
-#include "CoreString.h"
-#include "Text.h"
+#include "text/CoreString.h"
+#include "text/Text.h"
 #include "Kernel.h"
 
 /************************************************************************/

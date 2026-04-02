@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 
 #include "Base.h"
 #include "VarArg.h"

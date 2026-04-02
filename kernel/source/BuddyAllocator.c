@@ -24,7 +24,7 @@
 #include "BuddyAllocator.h"
 
 #include "arch/Memory.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 
 /************************************************************************/
 // #defines

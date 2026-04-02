@@ -30,7 +30,7 @@
 #include "List.h"
 #include "Log.h"
 #include "utils/Path.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "utils/TOML.h"
 #include "User.h"
 

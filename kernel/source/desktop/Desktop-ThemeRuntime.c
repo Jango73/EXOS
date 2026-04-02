@@ -23,7 +23,7 @@
 
 #include "Desktop-ThemeRuntime.h"
 #include "Desktop-Private.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "Desktop.h"
 #include "Desktop-ThemeTokens.h"
 #include "File.h"

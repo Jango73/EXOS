@@ -31,9 +31,9 @@
 #include "Log.h"
 #include "Memory.h"
 #include "process/Process.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "System.h"
-#include "Text.h"
+#include "text/Text.h"
 
 // Conservative pointer checks. If StackLow/High are zero, use heuristics.
 /*

@@ -23,7 +23,7 @@
 
 #include "package/PackageNamespace.h"
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "KernelData.h"
 #include "Log.h"
 #include "SystemFS.h"

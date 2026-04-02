@@ -27,7 +27,7 @@
 #include "Base.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "DriverEnum.h"
 #include "drivers/graphics/common/Graphics-PCI.h"
 #include "drivers/network/E1000.h"

@@ -25,7 +25,7 @@
 #pragma once
 
 #include "Base.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "List.h"
 #include "Memory.h"
 #include "script/Script.h"

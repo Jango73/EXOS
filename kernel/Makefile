@@ -83,6 +83,8 @@ LDFLAGS_ELF     = -T $(LINKER_SCRIPT) -static -nostdlib -no-pie --no-dynamic-lin
 KERNEL_ELF      = $(BUILD_DIR)/kernel/exos.elf
 
 SRC_C  = $(wildcard source/*.c) \
+         $(wildcard source/text/*.c) \
+         $(wildcard source/text/font/*.c) \
          $(wildcard source/ui/layout/*.c) \
          $(wildcard source/ui/*.c) \
          $(wildcard source/desktop/*.c) \
@@ -109,7 +111,6 @@ SRC_C  = $(wildcard source/*.c) \
          $(wildcard source/drivers/network/*.c) \
          $(wildcard source/drivers/storage/*.c) \
          $(wildcard source/drivers/*.c) \
-         $(wildcard source/font/*.c) \
          $(wildcard source/expose/*.c) \
          $(wildcard source/package/*.c) \
          $(wildcard source/math/*.c) \

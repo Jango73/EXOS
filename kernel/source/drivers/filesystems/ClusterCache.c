@@ -23,7 +23,7 @@
 
 #include "drivers/filesystems/ClusterCache.h"
 #include "Clock.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "Heap.h"
 
 /***************************************************************************/

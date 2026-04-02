@@ -23,7 +23,7 @@
 
 #include "Arch.h"
 #include "console/Console.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "DriverGetters.h"
 #include "drivers/platform/ACPI.h"
 #include "drivers/interrupts/IOAPIC.h"

@@ -24,7 +24,7 @@
 #include "Desktop-Timer.h"
 
 #include "Clock.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "process/Task-Messaging.h"

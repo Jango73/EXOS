@@ -24,7 +24,7 @@
 
 #include "Profile.h"
 #include "Clock.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "Log.h"
 #include "System.h"
 

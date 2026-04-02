@@ -52,7 +52,7 @@ MBR_SOURCE      = source/mbr.asm
 VBR_SRC         = source/vbr.asm
 PAYLOAD_STUB    = source/vbr-payload-a.asm
 PAYLOAD_C       = source/vbr-payload-c.c
-PAYLOAD_STR_C   = ../kernel/source/CoreString.c
+PAYLOAD_STR_C   = ../kernel/source/text/CoreString.c
 
 # Configurable payload source (can be overridden with make PAYLOAD_SOURCE=...)
 PAYLOAD_SOURCE  ?= source/vbr-payload-c.c

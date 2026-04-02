@@ -25,7 +25,7 @@
 #include "UserSession.h"
 
 #include "Clock.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "DeferredWork.h"
 #include "Heap.h"
 #include "utils/Helpers.h"

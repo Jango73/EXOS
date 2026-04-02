@@ -30,7 +30,7 @@
 #include "drivers/interrupts/InterruptController.h"
 #include "Memory.h"
 #include "Log.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 
 /***************************************************************************/
 

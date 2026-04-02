@@ -2,7 +2,7 @@
 // Source: third/fonts/oldschool_pc_font_pack/Bm437_IBM_VGA_8x16.otb
 // License: Creative Commons Attribution-ShareAlike 4.0 International.
 
-#include "Font.h"
+#include "text/font/Font.h"
 
 /************************************************************************/
 

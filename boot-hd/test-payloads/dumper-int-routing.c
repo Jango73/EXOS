@@ -21,7 +21,7 @@
 
 \************************************************************************/
 
-#include "../../kernel/include/CoreString.h"
+#include "../../kernel/include/text/CoreString.h"
 #include "dumper-pci.h"
 #include "dumper.h"
 

@@ -29,9 +29,9 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "process/Schedule.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "System.h"
-#include "Text.h"
+#include "text/Text.h"
 
 /************************************************************************/
 

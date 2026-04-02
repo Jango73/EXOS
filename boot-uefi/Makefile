@@ -114,7 +114,7 @@ UEFI_C_SOURCES := source/boot-uefi.c \
                   source/uefi-log-udp.c \
                   source/uefi-compat.c \
                   ../boot-shared/source/boot-multiboot.c \
-                  ../kernel/source/CoreString.c \
+                  ../kernel/source/text/CoreString.c \
                   $(UEFI_ARCH_SOURCE)
 
 UEFI_C_OBJS := $(UEFI_BUILD_DIR)/boot-uefi.o \
@@ -164,7 +164,7 @@ $(UEFI_BUILD_DIR)/uefi-log-udp.o: source/uefi-log-udp.c | $(UEFI_BUILD_DIR)
 	@echo "Compiling UEFI UDP logger..."
 	$(CC) -target $(UEFI_TARGET) $(CFLAGS) -c $< -o $@
 
-$(UEFI_BUILD_DIR)/CoreString.o: ../kernel/source/CoreString.c | $(UEFI_BUILD_DIR)
+$(UEFI_BUILD_DIR)/CoreString.o: ../kernel/source/text/CoreString.c | $(UEFI_BUILD_DIR)
 	@echo "Compiling CoreString..."
 	$(CC) -target $(UEFI_TARGET) $(CFLAGS) -c $< -o $@
 

@@ -27,7 +27,7 @@
 #include "Log.h"
 #include "utils/CircularBuffer.h"
 #include "Heap.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 
 /************************************************************************/
 

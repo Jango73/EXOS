@@ -21,7 +21,7 @@
 
 \************************************************************************/
 
-#include "../../kernel/include/CoreString.h"
+#include "../../kernel/include/text/CoreString.h"
 #include "../include/vbr-realmode-utils.h"
 #include "dumper.h"
 

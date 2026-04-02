@@ -27,7 +27,7 @@
 #include "Heap.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 
 static void ListFree(LPLIST This, LPVOID Pointer) {
     if (This == NULL || Pointer == NULL) {

@@ -31,7 +31,7 @@
 #include "input/MouseCommon.h"
 #include "DeferredWork.h"
 #include "process/Process.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "User.h"
 
 /***************************************************************************/

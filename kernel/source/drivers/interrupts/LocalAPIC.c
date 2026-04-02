@@ -29,7 +29,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "User.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "System.h"
 
 /***************************************************************************/

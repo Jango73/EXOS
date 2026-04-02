@@ -22,7 +22,7 @@
 \************************************************************************/
 
 #include "Desktop-ThemeSchema.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 
 /***************************************************************************/
 // Type definitions

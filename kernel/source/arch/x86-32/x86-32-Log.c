@@ -26,7 +26,7 @@
 #include "Log.h"
 #include "arch/x86-32/x86-32-Log.h"
 #include "Memory.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "System.h"
 
 /************************************************************************/

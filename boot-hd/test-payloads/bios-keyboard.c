@@ -24,7 +24,7 @@
 // X86_32 16-bit real mode payload for BIOS keyboard echo
 
 #include "../../kernel/include/arch/x86-32/x86-32.h"
-#include "../../kernel/include/CoreString.h"
+#include "../../kernel/include/text/CoreString.h"
 #include "../include/vbr-realmode-utils.h"
 
 /************************************************************************/

@@ -33,7 +33,7 @@
 #include "process/Task.h"
 #include "System.h"
 #include "User.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "utils/Helpers.h"
 
 /************************************************************************/

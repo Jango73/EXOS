@@ -24,7 +24,7 @@
 #include "Desktop-WindowClass.h"
 #include "Desktop-Private.h"
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "Kernel.h"
 
 /************************************************************************/

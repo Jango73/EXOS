@@ -26,7 +26,7 @@
 #include "boot-multiboot.h"
 #include "boot-reservation.h"
 #include "vbr-realmode-utils.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 
 /************************************************************************/
 

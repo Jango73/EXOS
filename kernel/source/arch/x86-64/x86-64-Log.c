@@ -28,7 +28,7 @@
 #include "Memory.h"
 #include "process/Process.h"
 #include "process/Task.h"
-#include "Text.h"
+#include "text/Text.h"
 #include "arch/x86-64/x86-64-Memory.h"
 
 /***************************************************************************/

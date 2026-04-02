@@ -32,7 +32,7 @@
 #include "ID.h"
 #include "Log.h"
 #include "Memory.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "System.h"
 #include "Clock.h"
 #include "network/NetworkManager.h"

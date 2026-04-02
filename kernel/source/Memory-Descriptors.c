@@ -24,7 +24,7 @@
 #include "Memory-Descriptors.h"
 
 #include "console/Console.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "System.h"

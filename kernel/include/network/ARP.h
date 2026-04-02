@@ -29,7 +29,7 @@
 #include "Driver.h"
 #include "network/Network.h"
 #include "drivers/bus/PCI.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "Endianness.h"
 
 /************************************************************************/

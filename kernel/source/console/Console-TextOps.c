@@ -25,7 +25,7 @@
 
 #include "DisplaySession.h"
 #include "DriverGetters.h"
-#include "Font.h"
+#include "text/font/Font.h"
 #include "GFX.h"
 #include "Kernel.h"
 

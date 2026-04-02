@@ -21,7 +21,7 @@
 
 \************************************************************************/
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "KernelData.h"
 #include "Log.h"
 #include "Memory.h"

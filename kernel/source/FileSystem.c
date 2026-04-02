@@ -30,11 +30,11 @@
 #include "Kernel.h"
 #include "Log.h"
 #include "package/PackageNamespace.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "SystemFS.h"
 #include "utils/Helpers.h"
 #include "User.h"
-#include "Text.h"
+#include "text/Text.h"
 #include "utils/TOML.h"
 
 extern BOOL MountPartition_FAT16(LPSTORAGE_UNIT, LPBOOT_PARTITION, U32, U32);

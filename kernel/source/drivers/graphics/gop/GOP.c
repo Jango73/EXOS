@@ -22,7 +22,7 @@
 \************************************************************************/
 
 #include "GFX.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "System.h"
 #include "console/Console.h"
 #include "Log.h"
