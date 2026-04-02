@@ -40,6 +40,8 @@
 #define MAX_ERROR_MESSAGE 256
 #define SCRIPT_VAR_HASH_SIZE 32
 #define E0_SCRIPT_FILE_EXTENSION TEXT(".e0")
+#define SCRIPT_FUNCTION_STATUS_UNKNOWN ((INT)MAX_UINT)
+#define SCRIPT_FUNCTION_STATUS_ERROR ((INT)(MAX_UINT - 1))
 
 /************************************************************************/
 

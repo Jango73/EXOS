@@ -88,7 +88,16 @@ static INT TestScriptCallFunction(
         return 123;
     }
 
-    return (INT)MAX_UINT;
+    if (StringCompareNC(FuncName, TEXT("native_failure")) == 0) {
+        if (UserData != NULL) {
+            LPSCRIPT_CONTEXT Context = (LPSCRIPT_CONTEXT)UserData;
+            Context->ErrorCode = SCRIPT_ERROR_TYPE_MISMATCH;
+            StringCopy(Context->ErrorMessage, TEXT("native_failure rejected the call"));
+        }
+        return SCRIPT_FUNCTION_STATUS_ERROR;
+    }
+
+    return SCRIPT_FUNCTION_STATUS_UNKNOWN;
 }
 
 /************************************************************************/
@@ -1468,6 +1477,28 @@ void TestScriptIntegerSemantics(TEST_RESULTS* Results) {
         Results->TestsPassed++;
     } else {
         DEBUG(TEXT("[TestScriptIntegerSemantics] Test 5 failed: error = %d message = %s"),
+            Error,
+            ScriptGetErrorMessage(Context));
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    MemorySet(&Callbacks, 0, sizeof(SCRIPT_CALLBACKS));
+    Callbacks.CallFunction = TestScriptCallFunction;
+    Context = ScriptCreateContext(&Callbacks);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Failed to create function-failure callback context"));
+        return;
+    }
+
+    Context->Callbacks.UserData = Context;
+    Error = ScriptExecute(Context, TEXT("status = native_failure(1);"));
+    if (Error == SCRIPT_ERROR_TYPE_MISMATCH &&
+        StringCompare(ScriptGetErrorMessage(Context), TEXT("native_failure rejected the call")) == 0) {
+        Results->TestsPassed++;
+    } else {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Test 6 failed: error = %d message = %s"),
             Error,
             ScriptGetErrorMessage(Context));
     }

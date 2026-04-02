@@ -23,6 +23,8 @@
 \************************************************************************/
 
 #include "shell/Shell-Shared.h"
+#include "ID.h"
+#include "SYSCall.h"
 
 /***************************************************************************/
 
@@ -276,6 +278,79 @@ static LPCSTR ShellScriptJoinArguments(
 /************************************************************************/
 
 /**
+ * @brief Store one script error for a shell host function and return failure sentinel.
+ * @param Context Shell context owning the script context.
+ * @param ErrorCode Script error code to store.
+ * @param Message Human-readable error message.
+ * @return SCRIPT_FUNCTION_STATUS_ERROR.
+ */
+static INT ShellScriptFailFunction(
+    LPSHELLCONTEXT Context,
+    SCRIPT_ERROR ErrorCode,
+    LPCSTR Message) {
+    if (Context != NULL && Context->ScriptContext != NULL) {
+        Context->ScriptContext->ErrorCode = ErrorCode;
+        if (Message != NULL) {
+            StringCopy(Context->ScriptContext->ErrorMessage, Message);
+        }
+    }
+
+    return SCRIPT_FUNCTION_STATUS_ERROR;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Kill one process or task referenced by a user-visible handle.
+ * @param Context Shell context owning the script context.
+ * @param HandleValue Serialized handle value.
+ * @return Non-zero on success or SCRIPT_FUNCTION_STATUS_ERROR on failure.
+ */
+static INT ShellScriptKillHandle(LPSHELLCONTEXT Context, LPCSTR HandleValue) {
+    UINT Handle = 0;
+    LINEAR ObjectPointer = 0;
+    LPOBJECT Object = NULL;
+    UINT Status = 0;
+
+    if (HandleValue == NULL || StringLength(HandleValue) == 0) {
+        return ShellScriptFailFunction(Context, SCRIPT_ERROR_SYNTAX, TEXT("kill(handle) expects one handle argument"));
+    }
+
+    Handle = StringToU32(HandleValue);
+    if (Handle < HANDLE_MINIMUM) {
+        return ShellScriptFailFunction(Context, SCRIPT_ERROR_TYPE_MISMATCH, TEXT("kill(handle) expects a valid handle"));
+    }
+
+    ObjectPointer = HandleToPointer((HANDLE)Handle);
+    if (ObjectPointer == 0) {
+        return ShellScriptFailFunction(Context, SCRIPT_ERROR_UNDEFINED_VAR, TEXT("kill(handle) received an unknown handle"));
+    }
+
+    Object = (LPOBJECT)ObjectPointer;
+    SAFE_USE_VALID(Object) {
+        if (Object->TypeID == KOID_PROCESS) {
+            Status = SysCall_KillProcess(Handle);
+            if (Status == 0) {
+                return ShellScriptFailFunction(Context, SCRIPT_ERROR_UNAUTHORIZED, TEXT("kill(handle) failed to terminate the process"));
+            }
+            return (INT)Status;
+        }
+
+        if (Object->TypeID == KOID_TASK) {
+            Status = SysCall_KillTask(Handle);
+            if (Status == 0) {
+                return ShellScriptFailFunction(Context, SCRIPT_ERROR_UNAUTHORIZED, TEXT("kill(handle) failed to terminate the task"));
+            }
+            return (INT)Status;
+        }
+    }
+
+    return ShellScriptFailFunction(Context, SCRIPT_ERROR_TYPE_MISMATCH, TEXT("kill(handle) only supports process or task handles"));
+}
+
+/************************************************************************/
+
+/**
  * @brief Shell callback for script function calls.
  * @param FuncName Function name to call
  * @param ArgumentCount Number of stringified arguments
@@ -315,7 +390,13 @@ INT ShellScriptCallFunction(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Argumen
             ConsolePrint(TEXT("\r\n"));
         }
         return 0;
+    } else if (STRINGS_EQUAL(FuncName, TEXT("kill"))) {
+        if (ArgumentCount != 1 || Arguments == NULL) {
+            return ShellScriptFailFunction(Context, SCRIPT_ERROR_SYNTAX, TEXT("kill(handle) expects exactly one handle argument"));
+        }
+
+        return ShellScriptKillHandle(Context, Arguments[0]);
     }
 
-    return (INT)MAX_UINT;
+    return SCRIPT_FUNCTION_STATUS_UNKNOWN;
 }

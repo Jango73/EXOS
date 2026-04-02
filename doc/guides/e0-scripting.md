@@ -130,6 +130,7 @@ Syntax: `name(expr1, expr2, ...)`
 echo("hello");
 ping(123);
 copy("/system/config.toml", "/data/config.toml", 1);
+kill(task[0].handle);
 ```
 
 ### Property access
@@ -208,6 +209,10 @@ typedef struct SCRIPT_CALLBACKS {
     void* UserData;
 } SCRIPT_CALLBACKS;
 ```
+
+Reserved function return values:
+- `SCRIPT_FUNCTION_STATUS_UNKNOWN`: host symbol not found
+- `SCRIPT_FUNCTION_STATUS_ERROR`: host symbol found, but the callback rejected the call and set an explicit script error
 
 ### Variables
 ```c

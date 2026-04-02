@@ -1643,6 +1643,14 @@ Shell inspection commands that only read exposed kernel objects can delegate for
 
 Function-call expressions support zero or more arguments. The parser stores each argument as an AST expression, the evaluator resolves each one to text, and the host `CallFunction` callback receives `(name, argc, argv, user)` instead of a single serialized argument.
 
+The shell exposes host functions through that bridge:
+
+- `print(...)`: prints the stringified arguments joined with spaces.
+- `exec(...)`: rebuilds one command line from the stringified arguments and executes it through the normal shell command path.
+- `kill(handle)`: resolves one user-visible handle and routes to `SysCall_KillProcess()` or `SysCall_KillTask()` depending on the object type behind the handle.
+
+Known host functions return `SCRIPT_FUNCTION_STATUS_UNKNOWN` when the symbol does not exist, and `SCRIPT_FUNCTION_STATUS_ERROR` when the function exists but rejects the call after setting an explicit script error.
+
 #### Return value behavior
 
 `AST_RETURN` stores a return value in the script context (`ScriptStoreReturnValue()`). The shell path (`RunScriptFile()`) prints the raw return value on its own line after successful execution.

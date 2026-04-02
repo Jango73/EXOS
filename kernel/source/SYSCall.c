@@ -276,7 +276,7 @@ UINT SysCall_CreateProcess(UINT Parameter) {
  * @brief Terminate a process referenced by a handle.
  *
  * @param Parameter Handle identifying the process to terminate, or 0 for the current process.
- * @return UINT Always returns 0.
+ * @return UINT Non-zero on success, zero on failure.
  */
 UINT SysCall_KillProcess(UINT Parameter) {
     LPPROCESS Caller = GetCurrentProcess();
@@ -290,6 +290,7 @@ UINT SysCall_KillProcess(UINT Parameter) {
 
         KillProcess(Process);
         if (Parameter) ReleaseHandle(Parameter);
+        return 1;
     }
 
     return 0;

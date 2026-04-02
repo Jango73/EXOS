@@ -48,7 +48,7 @@ static LPCSTR G_EmbeddedScripts[SHELL_EMBEDDED_SCRIPT_COUNT] = {
         "    print(\"No task detected\");\n"
         "}\n"
         "for (i = 0; i < count; i = i + 1) {\n"
-        "    print(i + \" name=\" + task[i].name + \" type=\" + task[i].type + \" status=\" + task[i].status + \" priority=\" + task[i].priority + \" flags=\" + task[i].flags + \" exit=\" + task[i].exit_code);\n"
+        "    print(i + \" handle=\" + task[i].handle + \" name=\" + task[i].name + \" type=\" + task[i].type + \" status=\" + task[i].status + \" priority=\" + task[i].priority + \" flags=\" + task[i].flags + \" exit=\" + task[i].exit_code);\n"
         "}\n",
     [SHELL_EMBEDDED_SCRIPT_DISK_LIST] = (LPCSTR)
         "count = storage.count;\n"

@@ -72,6 +72,9 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 - When running repository scripts that may require elevated permissions, always invoke them with the `bash scripts/...` form (example: `bash scripts/linux/test/smoke-test-global.sh`).
 - Keep this invocation form consistent so persistent elevation approval can be reused on the same command prefix.
 - NEVER run two `./scripts/linux/build/build` commands in parallel: this repository enforces a build lock and the second build will fail with \"A build is already running\". Always run build commands sequentially.
+- If any header file (`*.h`) is modified, validation MUST use a `--clean` build.
+- If the modified header is shared across architectures, or is a central kernel header, validation MUST run with `--clean` on both `x86-32` and `x86-64`.
+- Incremental builds are forbidden as final validation after header changes.
 
 **Build (ext2):**
 ```bash

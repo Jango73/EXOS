@@ -43,7 +43,6 @@ SHELL_COMMAND_ENTRY COMMANDS[] = {
     {"fs", "file_system", "[--long]", "Show file system information", CMD_filesystem},
     {"gfx", "graphics", "driver DriverAlias Mode|info", "Control graphics mode", CMD_gfx},
     {"keyboard", "keyboard", "--layout Code", "Change keyboard layout", CMD_keyboard},
-    {"kill", "kill_task", "Number", "Terminate task by number", CMD_killtask},
     {"list", "dir", "[Name] [-p] [-r] [-s|--stress]", "List folder entries", CMD_dir},
     {"login", "login", "", "Authenticate user session", CMD_login},
     {"logout", "logout", "", "End current user session", CMD_logout},

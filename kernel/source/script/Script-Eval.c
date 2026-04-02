@@ -301,7 +301,7 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                         Parser->Callbacks->UserData);
                     ScriptReleaseFunctionArguments(Parser->Context, Arguments, OwnedArguments, ArgumentCount);
 
-                    if (Status == (INT)MAX_UINT) {
+                    if (Status == SCRIPT_FUNCTION_STATUS_UNKNOWN) {
                         LPSCRIPT_CONTEXT Context = Parser->Context;
                         if (Context) {
                             Context->ErrorCode = SCRIPT_ERROR_UNDEFINED_VAR;
@@ -315,6 +315,31 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
 
                         if (Error) {
                             *Error = SCRIPT_ERROR_UNDEFINED_VAR;
+                        }
+                        return Result;
+                    }
+
+                    if (Status == SCRIPT_FUNCTION_STATUS_ERROR) {
+                        LPSCRIPT_CONTEXT Context = Parser->Context;
+                        SCRIPT_ERROR FunctionError = SCRIPT_ERROR_SYNTAX;
+
+                        if (Context) {
+                            if (Context->ErrorCode != SCRIPT_OK) {
+                                FunctionError = Context->ErrorCode;
+                            } else {
+                                Context->ErrorCode = SCRIPT_ERROR_SYNTAX;
+                            }
+
+                            if (Context->ErrorMessage[0] == STR_NULL) {
+                                StringPrintFormat(
+                                    Context->ErrorMessage,
+                                    TEXT("Function call failed: %s"),
+                                    Expr->Data.Expression.Value);
+                            }
+                        }
+
+                        if (Error) {
+                            *Error = FunctionError;
                         }
                         return Result;
                     }
