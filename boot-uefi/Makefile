@@ -52,7 +52,7 @@ INPUTINFO_ELF   := $(CORE_BUILD_DIR)/system/input-info/input-info
 MEMORY_SMOKE_ELF := $(CORE_BUILD_DIR)/system/memory-stress/memory-stress
 MASTER_ELF      := $(CORE_BUILD_DIR)/system/test/master/master
 SLAVE_ELF       := $(CORE_BUILD_DIR)/system/test/slave/slave
-TEST_E0_SCRIPT  := ../system/scripts/test.e0
+SYSTEM_SCRIPT_FILES := $(wildcard ../system/scripts/*)
 EXOS_VERSION_MAJOR = $(shell awk '/#define EXOS_VERSION_MAJOR/ {print $$3; exit}' ../kernel/include/User.h)
 EXOS_VERSION_MINOR = $(shell awk '/#define EXOS_VERSION_MINOR/ {print $$3; exit}' ../kernel/include/User.h)
 EPK_PACK_BIN    := $(CORE_BUILD_DIR)/tools/epk-pack
@@ -199,7 +199,7 @@ $(SYSTEM_TEST_EPK): $(EPK_PACK_BIN) $(MASTER_ELF) $(SLAVE_ELF)
 		> $(SYSTEM_TEST_EPK_STAGING_DIR)/manifest.toml
 	@$(EPK_PACK_BIN) pack --input $(SYSTEM_TEST_EPK_STAGING_DIR) --output $(SYSTEM_TEST_EPK)
 
-$(UEFI_IMAGE): $(UEFI_BOOT_FILE_PATH) $(KERNEL_BIN) $(TEST_E0_SCRIPT) $(SYSTEM_TEST_EPK)
+$(UEFI_IMAGE): $(UEFI_BOOT_FILE_PATH) $(KERNEL_BIN) $(SYSTEM_SCRIPT_FILES) $(SYSTEM_TEST_EPK)
 	@mkdir -p $(UEFI_BUILD_DIR)
 	@rm -rf $(UEFI_STAGING_DIR)
 	@mkdir -p $(UEFI_STAGING_DIR)/EFI/BOOT
@@ -234,7 +234,12 @@ $(UEFI_IMAGE): $(UEFI_BOOT_FILE_PATH) $(KERNEL_BIN) $(TEST_E0_SCRIPT) $(SYSTEM_T
 	@cp $(MASTER_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/master
 	@cp $(SLAVE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/slave
 	@cp $(SYSTEM_TEST_EPK) $(EXT2_STAGING_DIR)/exos/apps/test.epk
-	@cp $(TEST_E0_SCRIPT) $(EXT2_STAGING_DIR)/exos/scripts/test.e0
+	@for f in $(SYSTEM_SCRIPT_FILES); do \
+		if [ -f "$$f" ]; then \
+			echo "Copying $$f -> $(EXT2_STAGING_DIR)/exos/scripts/$$(basename $$f)"; \
+			cp "$$f" "$(EXT2_STAGING_DIR)/exos/scripts/$$(basename $$f)"; \
+		fi; \
+	done
 	@echo "Creating UEFI disk image ($(IMG_SIZE_MB)MiB)..."
 	@dd if=/dev/zero of=$(UEFI_IMAGE) bs=1M count=$(IMG_SIZE_MB)
 	@parted -s $(UEFI_IMAGE) mklabel gpt
