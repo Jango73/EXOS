@@ -2,7 +2,7 @@
 
 ## Goal
 
-Finish the shell refactor so shell-facing inspection and control paths stop bypassing the scripting exposure layer for user accounts and driver discovery.
+Finish the shell refactor so shell-facing inspection and control paths stop bypassing the scripting exposure layer for user accounts and the last remaining graphics driver lookup.
 
 ## Remaining Violations
 
@@ -13,7 +13,7 @@ Finish the shell refactor so shell-facing inspection and control paths stop bypa
 - `kernel/source/shell/Shell-Main.c`
   - `GetUserAccountList`
 - `kernel/source/shell/Shell-Commands-System.c`
-  - `GetDriverList`
+  - none
 - `kernel/source/shell/Shell-Commands-Graphics.c`
   - `GetDriverList`
 
@@ -69,28 +69,13 @@ Result:
 
 - no shell code calls `GetUserAccountList()` anymore
 
-### Step 3. Remove remaining direct driver-list lookups from shell
+### Step 3. Remove the last direct driver-list lookup from shell
 
 Goal:
 
-- remove the remaining direct `GetDriverList()` usage from shell control flows
+- remove the last direct `GetDriverList()` usage from shell control flows
 
-#### Step 3.1. Rewrite `driver <alias>` lookup in `Shell-Commands-System.c`
-
-Replace:
-
-- direct driver list traversal
-
-With:
-
-- exposed `drivers` lookup by `alias`
-
-Notes:
-
-- `driver list` is already exposure-backed
-- this step is only about alias resolution and detail printing
-
-#### Step 3.2. Rewrite graphics backend alias lookup in `Shell-Commands-Graphics.c`
+#### Step 3.1. Rewrite graphics backend alias lookup in `Shell-Commands-Graphics.c`
 
 Replace:
 
@@ -98,16 +83,16 @@ Replace:
 
 With:
 
-- exposed `drivers` lookup by `alias`
+- exposed `driver` lookup by `alias`
 
 Notes:
 
-- this step only removes the forbidden getter usage in that file
-- it does not redesign the rest of the graphics control path
+- the shell `gfx` command is already gone
+- the remaining work is only about removing the private lookup still used by `ShellSetGraphicsDriver()`
 
 Result:
 
-- the shell no longer bypasses exposure for remaining driver discovery flows
+- the shell no longer bypasses exposure for remaining driver discovery
 
 ### Step 4. Documentation
 
@@ -130,13 +115,12 @@ Work:
   - `GetUserAccountList`
   - `GetDriverList`
 - shell host registration remains exposure-owned
-- `task` remains registered through expose, not shell-local logic
+- `task`, `driver`, and `graphics` remain registered through expose, not shell-local logic
 
 ### Command-level verification
 
 - first-user bootstrap path
 - `adduser` when the account list is empty and when it is not
-- `driver <alias>`
 - graphics backend alias lookup paths
 
 ### Build verification
