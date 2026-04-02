@@ -2,7 +2,7 @@
 
 ## Goal
 
-Finish the shell refactor so shell-facing inspection and control paths stop bypassing the scripting exposure layer for user accounts and the last remaining graphics driver lookup.
+Finish the shell refactor so shell-facing inspection and control paths stop bypassing the scripting exposure layer for user accounts.
 
 ## Remaining Violations
 
@@ -12,10 +12,6 @@ Finish the shell refactor so shell-facing inspection and control paths stop bypa
   - `GetUserAccountList`
 - `kernel/source/shell/Shell-Main.c`
   - `GetUserAccountList`
-- `kernel/source/shell/Shell-Commands-System.c`
-  - none
-- `kernel/source/shell/Shell-Commands-Graphics.c`
-  - `GetDriverList`
 
 ## Remaining Work
 
@@ -69,36 +65,11 @@ Result:
 
 - no shell code calls `GetUserAccountList()` anymore
 
-### Step 3. Remove the last direct driver-list lookup from shell
+### Step 3. Documentation
 
 Goal:
 
-- remove the last direct `GetDriverList()` usage from shell control flows
-
-#### Step 3.1. Rewrite graphics backend alias lookup in `Shell-Commands-Graphics.c`
-
-Replace:
-
-- direct driver list traversal
-
-With:
-
-- exposed `driver` lookup by `alias`
-
-Notes:
-
-- the shell `gfx` command is already gone
-- the remaining work is only about removing the private lookup still used by `ShellSetGraphicsDriver()`
-
-Result:
-
-- the shell no longer bypasses exposure for remaining driver discovery
-
-### Step 4. Documentation
-
-Goal:
-
-- document the architectural boundary once the remaining direct getters are gone
+- document the architectural boundary once the remaining direct user-account getters are gone
 
 Work:
 
@@ -113,7 +84,6 @@ Work:
 
 - no shell file calls:
   - `GetUserAccountList`
-  - `GetDriverList`
 - shell host registration remains exposure-owned
 - `task`, `driver`, and `graphics` remain registered through expose, not shell-local logic
 
@@ -121,7 +91,6 @@ Work:
 
 - first-user bootstrap path
 - `adduser` when the account list is empty and when it is not
-- graphics backend alias lookup paths
 
 ### Build verification
 

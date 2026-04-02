@@ -85,6 +85,8 @@
 
 - Implement PCIe : Peripheral-Component-Interconnect-Express.md
 - Implement VMD : Volume-Management-Device.md
+- Implement NVidia
+- Implement Radeon
 
 ### Session
 
