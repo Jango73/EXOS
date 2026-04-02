@@ -1752,7 +1752,7 @@ typedef struct DeviceTag {
 
 #### Device Interrupt Infrastructure
 
-**Location:** `kernel/source/drivers/DeviceInterrupt.c`, `kernel/include/drivers/DeviceInterrupt.h`, `kernel/source/DeferredWork.c`
+**Location:** `kernel/source/drivers/DeviceInterrupt.c`, `kernel/include/drivers/DeviceInterrupt.h`, `kernel/source/sync/DeferredWork.c`
 
 The device interrupt layer centralizes vector assignment, interrupt routing, and deferred work dispatching for hardware devices.
 

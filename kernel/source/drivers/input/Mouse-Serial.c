@@ -29,7 +29,7 @@
 #include "Log.h"
 #include "input/Mouse.h"
 #include "input/MouseCommon.h"
-#include "DeferredWork.h"
+#include "sync/DeferredWork.h"
 #include "process/Process.h"
 #include "text/CoreString.h"
 #include "user/User.h"

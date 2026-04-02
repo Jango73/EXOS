@@ -30,7 +30,7 @@
 #include "Base.h"
 #include "List.h"
 #include "Driver.h"
-#include "Mutex.h"
+#include "sync/Mutex.h"
 
 /***************************************************************************/
 

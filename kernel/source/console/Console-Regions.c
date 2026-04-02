@@ -25,7 +25,7 @@
 #include "Heap.h"
 #include "Kernel.h"
 #include "Memory.h"
-#include "Mutex.h"
+#include "sync/Mutex.h"
 #include "text/CoreString.h"
 #include "drivers/input/Keyboard.h"
 #include "input/VKey.h"

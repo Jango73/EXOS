@@ -27,7 +27,7 @@
 #include "Heap.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "Mutex.h"
+#include "sync/Mutex.h"
 #include "user/User.h"
 #include "drivers/input/Keyboard.h"
 #include "process/Task.h"

@@ -24,7 +24,7 @@
 #include "iGPU-Internal.h"
 
 #include "Clock.h"
-#include "DeferredWork.h"
+#include "sync/DeferredWork.h"
 #include "Log.h"
 #include "drivers/graphics/common/Graphics-TextRenderer.h"
 #include "utils/Cooldown.h"

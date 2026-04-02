@@ -28,7 +28,7 @@
 
 #include "Memory.h"
 #include "Heap.h"
-#include "Mutex.h"
+#include "sync/Mutex.h"
 #include "utils/Allocator.h"
 
 /**************************************************************************/

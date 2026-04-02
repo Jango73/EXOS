@@ -28,7 +28,7 @@
 #include "Driver.h"
 #include "Kernel.h"
 #include "drivers/interrupts/DeviceInterrupt.h"
-#include "DeferredWork.h"
+#include "sync/DeferredWork.h"
 #include "drivers/interrupts/InterruptController.h"
 #include "Log.h"
 #include "Memory.h"

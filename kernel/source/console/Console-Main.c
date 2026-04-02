@@ -33,7 +33,7 @@
 #include "process/Process.h"
 #include "drivers/input/Keyboard.h"
 #include "Log.h"
-#include "Mutex.h"
+#include "sync/Mutex.h"
 #include "text/CoreString.h"
 #include "System.h"
 #include "DriverGetters.h"

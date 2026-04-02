@@ -27,7 +27,7 @@
 #include "console/Console.h"
 #include "Log.h"
 #include "Memory.h"
-#include "Mutex.h"
+#include "sync/Mutex.h"
 #include "process/Task.h"
 #include "utils/RateLimiter.h"
 

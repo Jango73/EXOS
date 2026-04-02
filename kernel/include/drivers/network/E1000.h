@@ -29,7 +29,7 @@
 
 #include "Base.h"
 #include "Driver.h"
-#include "Mutex.h" /* Optional: if the driver uses MUTEX internally */
+#include "sync/Mutex.h" /* Optional: if the driver uses MUTEX internally */
 #include "network/Network.h"
 #include "drivers/bus/PCI.h"
 #include "utils/DMABuffer.h"

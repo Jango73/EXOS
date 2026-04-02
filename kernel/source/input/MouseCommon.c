@@ -24,7 +24,7 @@
 #include "input/MouseCommon.h"
 
 #include "Arch.h"
-#include "DeferredWork.h"
+#include "sync/DeferredWork.h"
 #include "Log.h"
 #include "input/MouseDispatcher.h"
 

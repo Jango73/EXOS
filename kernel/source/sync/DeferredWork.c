@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "DeferredWork.h"
+#include "sync/DeferredWork.h"
 
 #include "KernelEvent.h"
 #include "Kernel.h"

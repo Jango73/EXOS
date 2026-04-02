@@ -25,7 +25,7 @@
 #include "drivers/storage/USBStorage-Private.h"
 
 #include "Clock.h"
-#include "DeferredWork.h"
+#include "sync/DeferredWork.h"
 #include "text/CoreString.h"
 #include "fs/FileSystem.h"
 #include "Kernel.h"

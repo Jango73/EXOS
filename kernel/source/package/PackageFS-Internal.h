@@ -24,7 +24,7 @@
 #ifndef PACKAGEFS_INTERNAL_H_INCLUDED
 #define PACKAGEFS_INTERNAL_H_INCLUDED
 
-#include "Mutex.h"
+#include "sync/Mutex.h"
 #include "package/PackageFS.h"
 #include "utils/ChunkCache.h"
 

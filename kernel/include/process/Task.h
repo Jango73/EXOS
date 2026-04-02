@@ -35,7 +35,7 @@
 #include "process/Task-Stack.h"
 #include "Arch.h"
 #include "List.h"
-#include "Mutex.h"
+#include "sync/Mutex.h"
 #include "user/User.h"
 #include "utils/MessageQueue.h"
 

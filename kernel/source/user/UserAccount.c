@@ -35,7 +35,7 @@
 #include "List.h"
 #include "Log.h"
 #include "Memory.h"
-#include "Mutex.h"
+#include "sync/Mutex.h"
 #include "text/CoreString.h"
 #include "System.h"
 #include "user/User.h"

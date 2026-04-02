@@ -26,7 +26,7 @@
 
 #include "Kernel.h"
 #include "KernelData.h"
-#include "Mutex.h"
+#include "sync/Mutex.h"
 #include "process/Process.h"
 #include "process/Task.h"
 #include "utils/ProcessAccess.h"

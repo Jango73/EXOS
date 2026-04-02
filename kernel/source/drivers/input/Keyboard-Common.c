@@ -27,7 +27,7 @@
 #include "Clock.h"
 #include "console/Console.h"
 #include "text/CoreString.h"
-#include "DeferredWork.h"
+#include "sync/DeferredWork.h"
 #include "Log.h"
 #include "Memory.h"
 #include "input/Hotkey.h"

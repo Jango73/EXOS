@@ -28,7 +28,7 @@
 #include "Heap.h"
 #include "Log.h"
 #include "Memory.h"
-#include "Mutex.h"
+#include "sync/Mutex.h"
 #include "utils/BlockList.h"
 
 /************************************************************************/

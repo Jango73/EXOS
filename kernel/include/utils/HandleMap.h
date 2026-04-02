@@ -27,7 +27,7 @@
 /************************************************************************/
 
 #include "Base.h"
-#include "Mutex.h"
+#include "sync/Mutex.h"
 #include "utils/BlockList.h"
 #include "utils/RadixTree.h"
 

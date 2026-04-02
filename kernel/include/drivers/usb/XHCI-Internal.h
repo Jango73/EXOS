@@ -28,7 +28,7 @@
 #include "drivers/usb/XHCI.h"
 #include "Base.h"
 #include "text/CoreString.h"
-#include "DeferredWork.h"
+#include "sync/DeferredWork.h"
 #include "DriverEnum.h"
 #include "Kernel.h"
 #include "KernelData.h"

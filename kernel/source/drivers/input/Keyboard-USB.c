@@ -29,7 +29,7 @@
 #include "Clock.h"
 #include "console/Console.h"
 #include "DisplaySession.h"
-#include "DeferredWork.h"
+#include "sync/DeferredWork.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "input/VKey.h"

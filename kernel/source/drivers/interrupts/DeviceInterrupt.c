@@ -28,7 +28,7 @@
 #include "Log.h"
 #include "Memory.h"
 #include "text/CoreString.h"
-#include "DeferredWork.h"
+#include "sync/DeferredWork.h"
 #include "utils/Helpers.h"
 #include "user/User.h"
 

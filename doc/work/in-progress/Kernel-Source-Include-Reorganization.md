@@ -97,10 +97,10 @@ Files that belong to memory management, allocators, and descriptor tracking:
 
 Files that implement kernel synchronization and deferred execution primitives:
 
-- `kernel/source/Mutex.c`
-- `kernel/source/DeferredWork.c`
-- `kernel/include/Mutex.h`
-- `kernel/include/DeferredWork.h`
+- `kernel/source/sync/Mutex.c`
+- `kernel/source/sync/DeferredWork.c`
+- `kernel/include/sync/Mutex.h`
+- `kernel/include/sync/DeferredWork.h`
 
 ### `exec/`
 
