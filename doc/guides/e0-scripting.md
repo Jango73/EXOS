@@ -202,7 +202,7 @@ void ScriptDestroyContext(LPSCRIPT_CONTEXT ctx);
 ```c
 typedef struct SCRIPT_CALLBACKS {
     U32 (*ExecuteCommand)(LPCSTR cmdline, void* user);
-    U32 (*CallFunction)(LPCSTR name, UINT argc, LPCSTR* argv, void* user);
+    INT (*CallFunction)(LPCSTR name, UINT argc, LPCSTR* argv, void* user);
     void* UserData;
 } SCRIPT_CALLBACKS;
 ```

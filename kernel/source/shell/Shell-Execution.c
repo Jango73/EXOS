@@ -283,7 +283,7 @@ static LPCSTR ShellScriptJoinArguments(
  * @param UserData Shell context
  * @return Function result (U32)
  */
-UINT ShellScriptCallFunction(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Arguments, LPVOID UserData) {
+INT ShellScriptCallFunction(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Arguments, LPVOID UserData) {
     LPSHELLCONTEXT Context = (LPSHELLCONTEXT)UserData;
     LPCSTR JoinedArguments;
 
@@ -298,7 +298,7 @@ UINT ShellScriptCallFunction(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Argume
         }
 
         // Execute the provided command line using the standard shell command flow
-        UINT Result = ShellScriptExecuteCommand(JoinedArguments, Context);
+        INT Result = (INT)ShellScriptExecuteCommand(JoinedArguments, Context);
         return Result;
     } else if (STRINGS_EQUAL(FuncName, TEXT("print"))) {
         if (ArgumentCount == 0 || Arguments == NULL) {
@@ -317,5 +317,5 @@ UINT ShellScriptCallFunction(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Argume
         return 0;
     }
 
-    return MAX_U32;
+    return (INT)MAX_UINT;
 }

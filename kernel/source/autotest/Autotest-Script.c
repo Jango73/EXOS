@@ -63,7 +63,7 @@ static const SCRIPT_HOST_DESCRIPTOR TestHostValueDescriptor;
  * @param UserData Callback capture storage.
  * @return Native-width integer status.
  */
-static UINT TestScriptCallFunction(
+static INT TestScriptCallFunction(
     LPCSTR FuncName,
     UINT ArgumentCount,
     LPCSTR* Arguments,
@@ -88,7 +88,7 @@ static UINT TestScriptCallFunction(
         return 123;
     }
 
-    return MAX_UINT;
+    return (INT)MAX_UINT;
 }
 
 /************************************************************************/
@@ -1401,6 +1401,27 @@ void TestScriptIntegerSemantics(TEST_RESULTS* Results) {
         }
     } else {
         DEBUG(TEXT("[TestScriptIntegerSemantics] Test 4 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    MemorySet(&Callbacks, 0, sizeof(SCRIPT_CALLBACKS));
+    Callbacks.CallFunction = TestScriptCallFunction;
+    Context = ScriptCreateContext(&Callbacks);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Failed to create unknown-function callback context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("status = unknown_function(1);"));
+    if (Error == SCRIPT_ERROR_UNDEFINED_VAR &&
+        StringCompare(ScriptGetErrorMessage(Context), TEXT("Unknown function: unknown_function")) == 0) {
+        Results->TestsPassed++;
+    } else {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Test 5 failed: error = %d message = %s"),
+            Error,
+            ScriptGetErrorMessage(Context));
     }
 
     ScriptDestroyContext(Context);

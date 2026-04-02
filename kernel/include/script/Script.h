@@ -205,7 +205,7 @@ typedef struct tag_SCRIPT_TOKEN {
 typedef void (*SCRIPT_OUTPUT_CALLBACK)(LPCSTR Message, LPVOID UserData);
 typedef UINT (*SCRIPT_COMMAND_CALLBACK)(LPCSTR Command, LPVOID UserData);
 typedef LPCSTR (*SCRIPT_VARIABLE_RESOLVER)(LPCSTR VarName, LPVOID UserData);
-typedef UINT (*SCRIPT_FUNCTION_CALLBACK)(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Arguments, LPVOID UserData);
+typedef INT (*SCRIPT_FUNCTION_CALLBACK)(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Arguments, LPVOID UserData);
 
 typedef struct tag_SCRIPT_CALLBACKS {
     SCRIPT_OUTPUT_CALLBACK Output;

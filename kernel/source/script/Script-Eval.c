@@ -294,12 +294,30 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                         return Result;
                     }
 
-                    UINT Status = Parser->Callbacks->CallFunction(
+                    INT Status = Parser->Callbacks->CallFunction(
                         Expr->Data.Expression.Value,
                         ArgumentCount,
                         (LPCSTR*)Arguments,
                         Parser->Callbacks->UserData);
                     ScriptReleaseFunctionArguments(Parser->Context, Arguments, OwnedArguments, ArgumentCount);
+
+                    if (Status == (INT)MAX_UINT) {
+                        LPSCRIPT_CONTEXT Context = Parser->Context;
+                        if (Context) {
+                            Context->ErrorCode = SCRIPT_ERROR_UNDEFINED_VAR;
+                            if (Context->ErrorMessage[0] == STR_NULL) {
+                                StringPrintFormat(
+                                    Context->ErrorMessage,
+                                    TEXT("Unknown function: %s"),
+                                    Expr->Data.Expression.Value);
+                            }
+                        }
+
+                        if (Error) {
+                            *Error = SCRIPT_ERROR_UNDEFINED_VAR;
+                        }
+                        return Result;
+                    }
 
                     Result.Type = SCRIPT_VAR_INTEGER;
                     Result.Value.Integer = (INT)Status;
