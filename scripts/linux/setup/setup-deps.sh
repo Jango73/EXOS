@@ -162,12 +162,12 @@ InstallAptPackages()
 }
 
 # ////////////////////////////////////////////////////////////////////////////
-InstallJscpd()
+InstallNodePackages()
 {
-    echo "Installing jscpd..."
+    echo "Installing Node.js tooling..."
     RunOrFail \
-        "npm failed to install 'jscpd'. Check your Node.js/npm installation and permissions." \
-        sudo npm install -g jscpd
+        "npm failed to install the required global packages ('jscpd', 'rimraf'). Check your Node.js/npm installation and permissions." \
+        sudo npm install -g jscpd rimraf
 }
 
 # ////////////////////////////////////////////////////////////////////////////
@@ -368,7 +368,7 @@ main()
     done
 
     InstallAptPackages
-    InstallJscpd
+    InstallNodePackages
     InstallToolchain
 }
 
