@@ -27,7 +27,7 @@
 #include "Heap.h"
 #include "Kernel.h"
 #include "Log.h"
-#include "SystemFS.h"
+#include "fs/SystemFS.h"
 
 /************************************************************************/
 

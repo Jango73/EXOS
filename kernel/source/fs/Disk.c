@@ -21,7 +21,7 @@
 
 \************************************************************************/
 
-#include "Disk.h"
+#include "fs/Disk.h"
 
 #include "Kernel.h"
 #include "Log.h"

@@ -24,7 +24,7 @@
 
 #include "utils/Database.h"
 
-#include "File.h"
+#include "fs/File.h"
 #include "Heap.h"
 #include "Log.h"
 #include "text/CoreString.h"

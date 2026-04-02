@@ -27,7 +27,7 @@
 #include "Clock.h"
 #include "DeferredWork.h"
 #include "text/CoreString.h"
-#include "FileSystem.h"
+#include "fs/FileSystem.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "Memory.h"

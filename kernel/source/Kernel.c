@@ -32,7 +32,7 @@
 #include "DisplaySession.h"
 #include "drivers/platform/ACPI.h"
 #include "drivers/input/Keyboard.h"
-#include "File.h"
+#include "fs/File.h"
 #include "text/Lang.h"
 #include "Log.h"
 #include "text/Quotes.h"

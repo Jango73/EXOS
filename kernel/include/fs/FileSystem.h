@@ -27,10 +27,10 @@
 
 /***************************************************************************/
 
-#include "Driver.h"
-#include "ID.h"
+#include "../Driver.h"
+#include "../ID.h"
 #include "Disk.h"
-#include "process/Process.h"
+#include "../process/Process.h"
 
 /***************************************************************************/
 

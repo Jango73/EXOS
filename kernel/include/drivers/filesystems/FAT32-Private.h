@@ -26,7 +26,7 @@
 #define FAT32_PRIVATE_H_INCLUDED
 
 #include "drivers/filesystems/FAT.h"
-#include "FileSystem.h"
+#include "fs/FileSystem.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "text/CoreString.h"

@@ -28,7 +28,7 @@
 
 #include "drivers/storage/NVMe-Core.h"
 #include "Clock.h"
-#include "Disk.h"
+#include "fs/Disk.h"
 #include "Driver.h"
 #include "Kernel.h"
 #include "Log.h"

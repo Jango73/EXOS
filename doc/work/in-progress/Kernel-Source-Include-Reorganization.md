@@ -118,14 +118,14 @@ Files that describe executable formats and loading:
 
 Files that expose the generic file system, file, disk, and root system filesystem layers:
 
-- `kernel/source/File.c`
-- `kernel/source/FileSystem.c`
-- `kernel/source/SystemFS.c`
-- `kernel/source/Disk.c`
-- `kernel/include/File.h`
-- `kernel/include/FileSystem.h`
-- `kernel/include/SystemFS.h`
-- `kernel/include/Disk.h`
+- `kernel/source/fs/File.c`
+- `kernel/source/fs/FileSystem.c`
+- `kernel/source/fs/SystemFS.c`
+- `kernel/source/fs/Disk.c`
+- `kernel/include/fs/File.h`
+- `kernel/include/fs/FileSystem.h`
+- `kernel/include/fs/SystemFS.h`
+- `kernel/include/fs/Disk.h`
 
 ### `log/`
 

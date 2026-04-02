@@ -23,7 +23,7 @@
 
 #include "Exposed.h"
 
-#include "FileSystem.h"
+#include "fs/FileSystem.h"
 #include "KernelData.h"
 
 /************************************************************************/

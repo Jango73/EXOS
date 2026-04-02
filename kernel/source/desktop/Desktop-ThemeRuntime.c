@@ -26,7 +26,7 @@
 #include "text/CoreString.h"
 #include "Desktop.h"
 #include "Desktop-ThemeTokens.h"
-#include "File.h"
+#include "fs/File.h"
 #include "Kernel.h"
 #include "Log.h"
 

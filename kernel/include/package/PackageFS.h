@@ -25,7 +25,7 @@
 #define PACKAGEFS_H_INCLUDED
 
 #include "Base.h"
-#include "FileSystem.h"
+#include "fs/FileSystem.h"
 #include "package/EpkParser.h"
 
 #ifdef __cplusplus

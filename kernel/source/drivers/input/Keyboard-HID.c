@@ -25,7 +25,7 @@
 #include "drivers/input/Keyboard.h"
 
 #include "text/CoreString.h"
-#include "File.h"
+#include "fs/File.h"
 #include "Heap.h"
 #include "Log.h"
 #include "utf8-hoehrmann/utf8-hoehrmann.h"

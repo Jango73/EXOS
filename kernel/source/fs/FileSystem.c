@@ -22,16 +22,16 @@
 
 \************************************************************************/
 
-#include "FileSystem.h"
+#include "fs/FileSystem.h"
 
 #include "console/Console.h"
 #include "drivers/filesystems/NTFS.h"
-#include "File.h"
+#include "fs/File.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "package/PackageNamespace.h"
 #include "text/CoreString.h"
-#include "SystemFS.h"
+#include "fs/SystemFS.h"
 #include "utils/Helpers.h"
 #include "user/User.h"
 #include "text/Text.h"

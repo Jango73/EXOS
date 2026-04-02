@@ -26,7 +26,7 @@
 #include "text/CoreString.h"
 #include "KernelData.h"
 #include "Log.h"
-#include "SystemFS.h"
+#include "fs/SystemFS.h"
 #include "utils/Helpers.h"
 #include "utils/KernelPath.h"
 

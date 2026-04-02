@@ -29,7 +29,7 @@
 
 #include "Base.h"
 #include "Executable.h"
-#include "File.h"
+#include "fs/File.h"
 
 /************************************************************************/
 // ELF signature and basic constants

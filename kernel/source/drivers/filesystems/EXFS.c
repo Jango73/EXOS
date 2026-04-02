@@ -23,7 +23,7 @@
 \************************************************************************/
 #include "drivers/filesystems/EXFS.h"
 
-#include "FileSystem.h"
+#include "fs/FileSystem.h"
 #include "Kernel.h"
 #include "Log.h"
 #include "drivers/filesystems/FileSystem-Common.h"

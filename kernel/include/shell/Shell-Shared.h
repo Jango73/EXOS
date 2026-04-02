@@ -35,7 +35,7 @@
 #include "DriverEnum.h"
 #include "Endianness.h"
 #include "Exposed.h"
-#include "File.h"
+#include "fs/File.h"
 #include "Kernel.h"
 #include "text/Lang.h"
 #include "Log.h"

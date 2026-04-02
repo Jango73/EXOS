@@ -26,7 +26,7 @@
 #include "Clock.h"
 #include "console/Console.h"
 #include "GFX.h"
-#include "File.h"
+#include "fs/File.h"
 #include "Heap.h"
 #include "utils/Helpers.h"
 #include "ID.h"
