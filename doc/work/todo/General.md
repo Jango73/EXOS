@@ -2,7 +2,6 @@
 
 ## High priority
 
-- E0 scripting: support multiple arguments in function calls (`foo(a, b, c)`) and remove the current single-argument limitation in the parser, AST, evaluator, and callback interface.
 - Execute Shell-Scripting-Exposure-Plan.md : all remaining steps
 - Execute Packaging-System-Plan.md : all remaining steps
 - Execute Universal-Serial-Bus.md : all remaining steps

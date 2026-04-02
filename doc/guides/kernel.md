@@ -1640,7 +1640,7 @@ Function-call expressions support zero or more arguments. The parser stores each
 
 #### Return value behavior
 
-`AST_RETURN` stores a return value in the script context (`ScriptStoreReturnValue()`). The shell path (`RunScriptFile()`) prints it as `Script return value: ...` after successful execution.
+`AST_RETURN` stores a return value in the script context (`ScriptStoreReturnValue()`). The shell path (`RunScriptFile()`) prints the raw return value on its own line after successful execution.
 
 Supported stored return categories are scalar values (string, integer, float). Host handles and arrays are rejected as return values by the interpreter storage path.
 
