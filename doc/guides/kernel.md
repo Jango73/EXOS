@@ -946,7 +946,7 @@ Boot-path capability gating is centralized in `utils/BootPath` (`kernel/include/
 
 Explicit backend forcing through `set_graphics_driver(driver_alias, width, height, bpp)` uses a strict selector path: only the requested backend is loaded into selector state, and command forwarding targets that backend while forced mode is active.
 
-Shell graphics switching is implemented through the reusable `ShellSetGraphicsDriver()` helper in `kernel/source/shell/Shell-Commands-Graphics.c`, and exposed to E0 through the `set_graphics_driver(...)` host function.
+Shell graphics switching crosses the user/kernel boundary through `SYSCALL_SetGraphicsDriver`. The syscall payload is `GRAPHICS_DRIVER_SELECTION_INFO`, which carries one inline `DriverAlias[MAX_NAME]` buffer and the requested width, height, and bits per pixel. The shell `set_graphics_driver(...)` host function only marshals arguments into that ABI payload and invokes the syscall.
 
 Generic driver diagnostics use `DF_DEBUG_INFO` with `DRIVER_DEBUG_INFO.Text`, a multi-line buffer sized with `MAX_STRING_BUFFER`. Graphics backends use that interface to expose backend alias and current resolution, and the graphics selector forwards the query to the active backend. Mouse drivers expose the selected manufacturer and product through the same pattern, and the mouse selector forwards that data as well.
 

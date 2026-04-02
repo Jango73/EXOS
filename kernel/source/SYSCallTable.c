@@ -195,4 +195,5 @@ void InitializeSystemCallTable(void) {
     SysCallTable[SYSCALL_DrawText] = (SYSCALL_ENTRY){SysCall_DrawText, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_MeasureText] = (SYSCALL_ENTRY){SysCall_MeasureText, EXOS_PRIVILEGE_USER};
     SysCallTable[SYSCALL_DrawWindowBackground] = (SYSCALL_ENTRY){SysCall_DrawWindowBackground, EXOS_PRIVILEGE_USER};
+    SysCallTable[SYSCALL_SetGraphicsDriver] = (SYSCALL_ENTRY){SysCall_SetGraphicsDriver, EXOS_PRIVILEGE_USER};
 }

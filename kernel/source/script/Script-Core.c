@@ -464,6 +464,9 @@ void ScriptDestroyAST(LPAST_NODE Node) {
             if (Node->Data.Expression.FirstArgument) {
                 ScriptDestroyAST(Node->Data.Expression.FirstArgument);
             }
+            if (Node->Data.Expression.NextArgument) {
+                ScriptDestroyAST(Node->Data.Expression.NextArgument);
+            }
             if (Node->Data.Expression.Left) {
                 ScriptDestroyAST(Node->Data.Expression.Left);
             }
@@ -479,7 +482,7 @@ void ScriptDestroyAST(LPAST_NODE Node) {
             break;
     }
 
-    // Destroy next node in chain
+    // Destroy next node in generic chain
     if (Node->Next) {
         ScriptDestroyAST(Node->Next);
     }

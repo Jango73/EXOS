@@ -278,6 +278,7 @@ BOOL GetLocalTime(LPDATETIME Time);
 #define SYSCALL_MeasureText 0x00000081
 #define SYSCALL_DrawWindowBackground 0x00000082
 #define SYSCALL_ApplyDesktopTheme 0x00000088
+#define SYSCALL_SetGraphicsDriver 0x0000008A
 
 /************************************************************************/
 // Network Socket Services
@@ -300,7 +301,7 @@ BOOL GetLocalTime(LPDATETIME Time);
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x0000008A
+#define SYSCALL_Last 0x0000008B
 
 /************************************************************************/
 // Structure limits
@@ -488,6 +489,14 @@ typedef struct PACKED tag_GRAPHICS_MODE_INFO {
     U32 Height;
     U32 BitsPerPixel;
 } GRAPHICS_MODE_INFO, *LPGRAPHICS_MODE_INFO;
+
+typedef struct PACKED tag_GRAPHICS_DRIVER_SELECTION_INFO {
+    ABI_HEADER Header;
+    STR DriverAlias[MAX_NAME];
+    U32 Width;
+    U32 Height;
+    U32 BitsPerPixel;
+} GRAPHICS_DRIVER_SELECTION_INFO, *LPGRAPHICS_DRIVER_SELECTION_INFO;
 
 typedef struct PACKED tag_FILE_OPERATION {
     ABI_HEADER Header;

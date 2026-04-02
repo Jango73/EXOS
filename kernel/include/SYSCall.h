@@ -167,6 +167,7 @@ UINT SysCall_ChangePassword(UINT Parameter);
 UINT SysCall_CreateUser(UINT Parameter);
 UINT SysCall_DeleteUser(UINT Parameter);
 UINT SysCall_ListUsers(UINT Parameter);
+UINT SysCall_SetGraphicsDriver(UINT Parameter);
 
 UINT SysCall_SocketCreate(UINT Parameter);
 UINT SysCall_SocketBind(UINT Parameter);

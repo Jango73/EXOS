@@ -361,7 +361,7 @@ static BOOL ScriptParseFunctionArguments(
         if (FirstArgument == NULL) {
             FirstArgument = ArgumentNode;
         } else {
-            LastArgument->Next = ArgumentNode;
+            LastArgument->Data.Expression.NextArgument = ArgumentNode;
         }
         LastArgument = ArgumentNode;
         FunctionNode->Data.Expression.ArgumentCount++;

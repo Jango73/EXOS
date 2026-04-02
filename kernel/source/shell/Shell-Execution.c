@@ -457,7 +457,7 @@ INT ShellScriptCallFunction(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Argumen
 
         return ShellScriptKillHandle(Context, Arguments[0]);
     } else if (STRINGS_EQUAL(FuncName, TEXT("set_graphics_driver"))) {
-        STR ErrorMessage[MAX_ERROR_MESSAGE];
+        GRAPHICS_DRIVER_SELECTION_INFO SelectionInfo;
         U32 Width = 0;
         U32 Height = 0;
         U32 BitsPerPixel = 0;
@@ -477,24 +477,54 @@ INT ShellScriptCallFunction(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Argumen
                 TEXT("set_graphics_driver() expects a non-empty driver alias"));
         }
 
+        if (StringLength(Arguments[0]) >= MAX_NAME) {
+            return ShellScriptFailFunction(
+                Context,
+                SCRIPT_ERROR_TYPE_MISMATCH,
+                TEXT("set_graphics_driver() driver_alias exceeds MAX_NAME"));
+        }
+
         if (!ShellScriptParsePositiveInteger(Context, TEXT("set_graphics_driver"), TEXT("width"), Arguments[1], &Width) ||
             !ShellScriptParsePositiveInteger(Context, TEXT("set_graphics_driver"), TEXT("height"), Arguments[2], &Height) ||
             !ShellScriptParsePositiveInteger(Context, TEXT("set_graphics_driver"), TEXT("bpp"), Arguments[3], &BitsPerPixel)) {
             return SCRIPT_FUNCTION_STATUS_ERROR;
         }
 
-        Status = ShellSetGraphicsDriver(
-            Arguments[0],
-            Width,
-            Height,
-            BitsPerPixel,
-            ErrorMessage,
-            sizeof(ErrorMessage));
+        MemorySet(&SelectionInfo, 0, sizeof(SelectionInfo));
+        SelectionInfo.Header.Size = sizeof(SelectionInfo);
+        SelectionInfo.Header.Version = EXOS_ABI_VERSION;
+        SelectionInfo.Header.Flags = 0;
+        StringCopyLimit(SelectionInfo.DriverAlias, Arguments[0], MAX_NAME);
+        SelectionInfo.Width = Width;
+        SelectionInfo.Height = Height;
+        SelectionInfo.BitsPerPixel = BitsPerPixel;
+
+        Status = DoSystemCall(SYSCALL_SetGraphicsDriver, SYSCALL_PARAM(&SelectionInfo));
         if (Status != DF_RETURN_SUCCESS) {
+            STR ErrorMessage[MAX_ERROR_MESSAGE];
+
+            if (Status == DF_RETURN_BAD_PARAMETER) {
+                StringPrintFormat(
+                    ErrorMessage,
+                    TEXT("set_graphics_driver() could not select '%s'"),
+                    SelectionInfo.DriverAlias);
+            } else if (Status == DF_RETURN_UNEXPECTED) {
+                StringCopy(ErrorMessage, TEXT("set_graphics_driver() failed to update the display session"));
+            } else {
+                StringPrintFormat(
+                    ErrorMessage,
+                    TEXT("set_graphics_driver() failed to apply %ux%ux%u on '%s' (%u)"),
+                    Width,
+                    Height,
+                    BitsPerPixel,
+                    SelectionInfo.DriverAlias,
+                    Status);
+            }
+
             return ShellScriptFailFunction(
                 Context,
                 SCRIPT_ERROR_TYPE_MISMATCH,
-                ErrorMessage[0] != STR_NULL ? ErrorMessage : TEXT("set_graphics_driver() failed"));
+                ErrorMessage);
         }
 
         return (INT)Status;

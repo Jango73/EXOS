@@ -105,7 +105,9 @@ SCRIPT_ERROR GraphicsModeGetProperty(
     EXPOSE_PROPERTY_GUARD();
 
     MemorySet(&ModeInfo, 0, sizeof(ModeInfo));
-    (void)DisplaySessionGetActiveMode(&ModeInfo);
+    if (DisplaySessionGetActiveMode(&ModeInfo) == FALSE) {
+        return SCRIPT_ERROR_UNDEFINED_VAR;
+    }
 
     EXPOSE_BIND_INTEGER("width", ModeInfo.Width);
     EXPOSE_BIND_INTEGER("height", ModeInfo.Height);

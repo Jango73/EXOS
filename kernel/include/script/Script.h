@@ -270,6 +270,7 @@ typedef struct tag_AST_NODE {
             STR PropertyName[MAX_TOKEN_LENGTH];
             BOOL IsFunctionCall;
             struct tag_AST_NODE* FirstArgument;
+            struct tag_AST_NODE* NextArgument;
             U32 ArgumentCount;
             struct tag_AST_NODE* Left;   // Left operand for binary operations
             struct tag_AST_NODE* Right;  // Right operand for binary operations

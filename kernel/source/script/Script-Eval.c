@@ -134,6 +134,8 @@ static SCRIPT_ERROR ScriptBuildFunctionArguments(
     ArgumentNode = Expr->Data.Expression.FirstArgument;
     while (ArgumentNode != NULL && Index < ArgumentCount) {
         SCRIPT_ERROR EvaluationError = SCRIPT_OK;
+        LPSTR StableArgument = NULL;
+        U32 StableLength = 0;
         SCRIPT_VALUE ArgumentValue = ScriptEvaluateExpression(Parser, ArgumentNode, &EvaluationError);
         if (EvaluationError != SCRIPT_OK) {
             ScriptValueRelease(&ArgumentValue);
@@ -147,15 +149,34 @@ static SCRIPT_ERROR ScriptBuildFunctionArguments(
             &Arguments[Index],
             &OwnedArguments[Index]);
 
-        ScriptValueRelease(&ArgumentValue);
-
         if (Result != SCRIPT_OK) {
+            ScriptValueRelease(&ArgumentValue);
             ScriptReleaseFunctionArguments(Parser->Context, Arguments, OwnedArguments, ArgumentCount);
             return Result;
         }
 
+        StableLength = StringLength(Arguments[Index]) + 1;
+        StableArgument = (LPSTR)ScriptAlloc(Parser->Context, StableLength);
+        if (StableArgument == NULL) {
+            if (OwnedArguments[Index] && Arguments[Index] != NULL) {
+                ScriptFree(Parser->Context, (LPVOID)Arguments[Index]);
+            }
+            ScriptValueRelease(&ArgumentValue);
+            ScriptReleaseFunctionArguments(Parser->Context, Arguments, OwnedArguments, ArgumentCount);
+            return SCRIPT_ERROR_OUT_OF_MEMORY;
+        }
+
+        StringCopy(StableArgument, Arguments[Index]);
+        if (OwnedArguments[Index] && Arguments[Index] != NULL) {
+            ScriptFree(Parser->Context, (LPVOID)Arguments[Index]);
+        }
+        Arguments[Index] = StableArgument;
+        OwnedArguments[Index] = TRUE;
+
+        ScriptValueRelease(&ArgumentValue);
+
         Index++;
-        ArgumentNode = ArgumentNode->Next;
+        ArgumentNode = ArgumentNode->Data.Expression.NextArgument;
     }
 
     if (ArgumentNode != NULL || Index != ArgumentCount) {

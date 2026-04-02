@@ -25,6 +25,7 @@
 
 #include "console/Console.h"
 #include "console/Console-VGATextFallback.h"
+#include "desktop/Desktop-ModeSelector.h"
 #include "DriverGetters.h"
 #include "GFX.h"
 #include "KernelData.h"
@@ -210,6 +211,66 @@ BOOL DisplaySessionSetDesktopMode(LPDESKTOP Desktop, LPDRIVER GraphicsDriver, LP
 /************************************************************************/
 
 /**
+ * @brief Force one graphics backend alias and apply one graphics mode to the active display session.
+ * @param DriverAlias Requested graphics backend alias.
+ * @param RequestedMode Requested graphics mode.
+ * @param AppliedMode Optional output receiving the effective applied mode.
+ * @return DF_RETURN_SUCCESS on success, or one driver-style error code.
+ */
+UINT DisplaySessionApplyGraphicsDriverByAlias(
+    LPCSTR DriverAlias,
+    LPGRAPHICS_MODE_INFO RequestedMode,
+    LPGRAPHICS_MODE_INFO AppliedMode) {
+    LPDRIVER GraphicsDriver = NULL;
+    LPDESKTOP ActiveDesktop = NULL;
+    GRAPHICS_MODE_INFO EffectiveMode;
+    UINT ModeSetResult = DF_RETURN_GENERIC;
+
+    if (DriverAlias == NULL || StringLength(DriverAlias) == 0 || RequestedMode == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    if (DesktopIsValidGraphicsModeInfo(RequestedMode) == FALSE) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    if (GraphicsSelectorForceBackendByName(DriverAlias) == FALSE) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    GraphicsDriver = GraphicsSelectorGetActiveBackendDriver();
+    if (GraphicsDriver == NULL || GraphicsDriver->Command == NULL) {
+        return DF_RETURN_UNEXPECTED;
+    }
+
+    EffectiveMode = *RequestedMode;
+    ModeSetResult = GraphicsDriver->Command(DF_GFX_SETMODE, (UINT)(LPVOID)&EffectiveMode);
+    if (ModeSetResult != DF_RETURN_SUCCESS) {
+        return ModeSetResult;
+    }
+
+    if (DisplaySessionQueryGraphicsMode(GraphicsDriver, &EffectiveMode) == FALSE) {
+        EffectiveMode = *RequestedMode;
+    }
+
+    if (DisplaySessionSetConsoleGraphicsMode(GraphicsDriver, &EffectiveMode) == FALSE) {
+        ActiveDesktop = GetActiveDesktop();
+        if (ActiveDesktop == NULL ||
+            DisplaySessionSetDesktopMode(ActiveDesktop, GraphicsDriver, &EffectiveMode) == FALSE) {
+            return DF_RETURN_UNEXPECTED;
+        }
+    }
+
+    if (AppliedMode != NULL) {
+        *AppliedMode = EffectiveMode;
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
  * @brief Switch display ownership to console front-end.
  * @return TRUE on success.
  */
@@ -318,17 +379,25 @@ LPDRIVER DisplaySessionGetActiveGraphicsDriver(void) {
  */
 BOOL DisplaySessionGetActiveMode(LPGRAPHICS_MODE_INFO ModeInfo) {
     LPDISPLAY_SESSION Session = GetDisplaySession();
+    LPDRIVER GraphicsDriver = NULL;
 
     if (ModeInfo == NULL) {
         return FALSE;
     }
 
     SAFE_USE(Session) {
-        if (Session->IsInitialized == FALSE || Session->HasValidMode == FALSE) {
-            return FALSE;
+        if (Session->IsInitialized != FALSE && Session->HasValidMode != FALSE) {
+            *ModeInfo = Session->ActiveMode;
+            return TRUE;
         }
+    }
 
-        *ModeInfo = Session->ActiveMode;
+    GraphicsDriver = DisplaySessionGetActiveGraphicsDriver();
+    if (GraphicsDriver == NULL) {
+        GraphicsDriver = GraphicsSelectorGetActiveBackendDriver();
+    }
+
+    if (GraphicsDriver != NULL && DisplaySessionQueryGraphicsMode(GraphicsDriver, ModeInfo) != FALSE) {
         return TRUE;
     }
 
