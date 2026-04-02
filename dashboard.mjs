@@ -64,6 +64,8 @@ const defaultSettings = {
     enableCommandHistory: true,
     persistLogs: true,
     notifyOnExit: true,
+    showCustomCommand: true,
+    showLogWindow: true,
     renderThrottleMs: 100,
     maxLogLines: 1000,
     logBatchSize: 50,
@@ -87,7 +89,7 @@ function normalizeSettings(overrides) {
         return normalized;
     }
 
-    const booleanKeys = ['enableCommandHistory', 'persistLogs', 'notifyOnExit'];
+    const booleanKeys = ['enableCommandHistory', 'persistLogs', 'notifyOnExit', 'showCustomCommand', 'showLogWindow'];
     for (const key of booleanKeys) {
         if (typeof overrides[key] === 'boolean') {
             normalized[key] = overrides[key];
@@ -492,7 +494,7 @@ const logsContainer = blessed.box({
 
 const bottomContainer = blessed.box({
     parent: rightContainer,
-    bottom: 0,
+    top: '60%',
     height: '40%',
     width: '100%',
     style: {
@@ -706,6 +708,38 @@ list.key(['C-left'], () => {
 screen.append(sidebar);
 screen.append(rightContainer);
 
+function applyControlsLayout() {
+    if (currentSettings.showCustomCommand === false) {
+        inputBox.hide();
+        filterBox.left = 0;
+        filterBox.width = '100%';
+        filterBox.right = undefined;
+    } else {
+        inputBox.show();
+        inputBox.left = 0;
+        inputBox.width = '50%-1';
+        filterBox.left = '50%+1';
+        filterBox.width = undefined;
+        filterBox.right = 0;
+    }
+    scheduleRender();
+}
+
+function applyRightLayout() {
+    if (currentSettings.showLogWindow === false) {
+        logsContainer.hide();
+        bottomContainer.top = 0;
+        bottomContainer.height = '100%';
+    } else {
+        logsContainer.show();
+        logsContainer.top = 0;
+        logsContainer.height = '60%';
+        bottomContainer.top = '60%';
+        bottomContainer.height = '40%';
+    }
+    scheduleRender();
+}
+
 function applySidebarLayout() {
     const minWidth = currentSettings.sidebarMinWidth ?? defaultSettings.sidebarMinWidth;
     const ratioWidth = Math.floor(screen.width * SIDEBAR_WIDTH_RATIO);
@@ -717,6 +751,8 @@ function applySidebarLayout() {
 }
 
 applySidebarLayout();
+applyControlsLayout();
+applyRightLayout();
 screen.on('resize', applySidebarLayout);
 
 const logBoxes = [];
@@ -774,7 +810,14 @@ setInterval(() => {
 
 list.focus();
 
-const focusables = [list, ...logBoxes, stopButton, inputBox, filterBox, output];
+const focusables = [
+    list,
+    ...logBoxes,
+    stopButton,
+    ...(currentSettings.showCustomCommand === false ? [] : [inputBox]),
+    filterBox,
+    output
+];
 let focusIndex = 0;
 
 screen.key('tab', () => {
