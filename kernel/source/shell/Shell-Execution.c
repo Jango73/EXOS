@@ -411,6 +411,39 @@ static BOOL ShellScriptParsePositiveInteger(
 /************************************************************************/
 
 /**
+ * @brief Validate one dedicated smoke-test multi-argument host call.
+ * @param Context Shell context owning the script state.
+ * @param ArgumentCount Number of serialized arguments.
+ * @param Arguments Serialized arguments.
+ * @return One deterministic magic value on success.
+ */
+static INT ShellScriptSmokeTestMultiArgs(
+    LPSHELLCONTEXT Context,
+    UINT ArgumentCount,
+    LPCSTR* Arguments) {
+    if (ArgumentCount != 4 || Arguments == NULL) {
+        return ShellScriptFailFunction(
+            Context,
+            SCRIPT_ERROR_SYNTAX,
+            TEXT("smoke_test_multi_args(a, b, c, d) expects exactly four arguments"));
+    }
+
+    if (StringCompare(Arguments[0], TEXT("alpha")) != 0 ||
+        StringCompare(Arguments[1], TEXT("17")) != 0 ||
+        StringCompare(Arguments[2], TEXT("23")) != 0 ||
+        StringCompare(Arguments[3], TEXT("1")) != 0) {
+        return ShellScriptFailFunction(
+            Context,
+            SCRIPT_ERROR_TYPE_MISMATCH,
+            TEXT("smoke_test_multi_args() received unexpected serialized arguments"));
+    }
+
+    return 42023171;
+}
+
+/************************************************************************/
+
+/**
  * @brief Shell callback for script function calls.
  * @param FuncName Function name to call
  * @param ArgumentCount Number of stringified arguments
@@ -456,6 +489,8 @@ INT ShellScriptCallFunction(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Argumen
         }
 
         return ShellScriptKillHandle(Context, Arguments[0]);
+    } else if (STRINGS_EQUAL(FuncName, TEXT("smoke_test_multi_args"))) {
+        return ShellScriptSmokeTestMultiArgs(Context, ArgumentCount, Arguments);
     } else if (STRINGS_EQUAL(FuncName, TEXT("set_graphics_driver"))) {
         GRAPHICS_DRIVER_SELECTION_INFO SelectionInfo;
         U32 Width = 0;

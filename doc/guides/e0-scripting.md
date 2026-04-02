@@ -223,6 +223,7 @@ Shell host functions exposed in the kernel integration include:
 - `print(...)`
 - `exec(...)`
 - `kill(handle)`
+- `smoke_test_multi_args(a, b, c, d)` for automated smoke validation of multi-argument host calls
 - `set_graphics_driver(driver_alias, width, height, bpp)`
 
 ### Variables

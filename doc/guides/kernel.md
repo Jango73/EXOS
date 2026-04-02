@@ -1667,6 +1667,7 @@ The shell exposes host functions through that bridge:
 - `print(...)`: prints the stringified arguments joined with spaces.
 - `exec(...)`: rebuilds one command line from the stringified arguments and executes it through the normal shell command path.
 - `kill(handle)`: resolves one user-visible handle and routes to `SysCall_KillProcess()` or `SysCall_KillTask()` depending on the object type behind the handle.
+- `smoke_test_multi_args(a, b, c, d)`: reserved smoke helper that validates four serialized arguments and returns one deterministic marker value for automated regression checks.
 - `set_graphics_driver(driver_alias, width, height, bpp)`: forces one graphics backend alias and applies the requested mode through the selector path.
 
 Known host functions return `SCRIPT_FUNCTION_STATUS_UNKNOWN` when the symbol does not exist, and `SCRIPT_FUNCTION_STATUS_ERROR` when the function exists but rejects the call after setting an explicit script error.
