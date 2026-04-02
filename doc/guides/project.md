@@ -10,9 +10,6 @@ This document describes the organization of the git repository directories.
 ### `/boot-floppy/`
 Floppy bootloader with assembly files (boot-floppy.asm, hd-sector0.asm).
 
-### `/boot-freedos/`
-Configuration and files for booting via FreeDOS, including system TOML configurations.
-
 ### `/boot-hd/`
 Scripts and tools for creating bootable disk images. Contains subdirectories for kernel, runtime, system, and tools, as well as linker scripts.
 

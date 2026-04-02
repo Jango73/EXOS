@@ -44,7 +44,6 @@ clean:
 	@+$(SUBMAKE) -C kernel clean
 	@+$(SUBMAKE) -C runtime clean
 	@+$(SUBMAKE) -C system clean
-	@+$(SUBMAKE) -C boot-freedos clean
 	@+$(SUBMAKE) -C boot-hd clean
 	@+$(SUBMAKE) -C boot-uefi clean
 	@+$(SUBMAKE) -C tools clean
