@@ -78,6 +78,15 @@ BOOL ExposeRegisterDefaultScriptHostObjects(LPSCRIPT_CONTEXT Context) {
 
     if (!ExposeRegisterDefaultHostSymbol(
             Context,
+            TEXT("task"),
+            SCRIPT_HOST_SYMBOL_ARRAY,
+            GetTaskList(),
+            &TaskRootArrayDescriptor)) {
+        return FALSE;
+    }
+
+    if (!ExposeRegisterDefaultHostSymbol(
+            Context,
             TEXT("drivers"),
             SCRIPT_HOST_SYMBOL_ARRAY,
             GetDriverList(),

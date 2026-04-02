@@ -165,6 +165,18 @@ SCRIPT_ERROR TaskArrayGetElement(
     U32 Index,
     LPSCRIPT_VALUE OutValue);
 
+SCRIPT_ERROR TaskRootArrayGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR TaskRootArrayGetElement(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    U32 Index,
+    LPSCRIPT_VALUE OutValue);
+
 SCRIPT_ERROR ArchitectureTaskDataGetProperty(
     LPVOID Context,
     SCRIPT_HOST_HANDLE Parent,
@@ -179,6 +191,7 @@ SCRIPT_ERROR StackGetProperty(
 
 extern const SCRIPT_HOST_DESCRIPTOR TaskDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR TaskArrayDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR TaskRootArrayDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR ArchitectureTaskDataDescriptor;
 extern const SCRIPT_HOST_DESCRIPTOR StackDescriptor;
 

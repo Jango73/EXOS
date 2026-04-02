@@ -679,6 +679,9 @@ All reusable helpers -such as the command line editor, adaptive delay, string co
         - `mutex`: mutex pointer. Permissions: kernel and administrator only.
         - `message_queue`: message queue pointer. Permissions: kernel and administrator only.
         - `process`: owning process pointer. Permissions: kernel and administrator only.
+- `task`: Global task list root filtered through process access policy.
+  - `task.count`: number of tasks the caller may target.
+  - `task[n]`: task view at visible index `n`. Permissions and fields match the task view exposed through `process[n].task[n]`.
 - `drivers`: Kernel driver list root. provides indexed access to driver views. Permissions: kernel and administrator only.
   - `drivers.count`: number of drivers. Permissions: kernel and administrator only.
   - `drivers[n]`: driver view at index `n`. Permissions: kernel and administrator only.

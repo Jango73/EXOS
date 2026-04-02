@@ -26,6 +26,7 @@
 #include "shell/Shell-EmbeddedScripts.h"
 #include "Autotest.h"
 #include "process/Task-Access.h"
+#include "script/Script.h"
 #include "utils/SizeFormat.h"
 
 /**
@@ -66,6 +67,55 @@ static void PrintKnownDriverAliases(void) {
     }
 
     ConsolePrint(TEXT("\n"));
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve one shell-visible task by index through the exposure layer.
+ * @param Context Shell context that owns the script host registry.
+ * @param TaskIndex Task index in the exposed `task` root array.
+ * @param TaskOut Receives the resolved task handle on success.
+ * @return TRUE when the task resolves through the public host API.
+ */
+static BOOL ResolveShellTaskByIndex(LPSHELLCONTEXT Context, U32 TaskIndex, LPTASK* TaskOut) {
+    BOOL Success = FALSE;
+    SCRIPT_VALUE TaskArrayValue;
+    SCRIPT_VALUE TaskValue;
+
+    if (TaskOut == NULL) {
+        return FALSE;
+    }
+
+    *TaskOut = NULL;
+
+    if (Context == NULL || Context->ScriptContext == NULL) {
+        return FALSE;
+    }
+
+    ScriptValueInit(&TaskArrayValue);
+    ScriptValueInit(&TaskValue);
+
+    if (ScriptGetHostSymbolValue(Context->ScriptContext, TEXT("task"), &TaskArrayValue) != SCRIPT_OK) {
+        goto Cleanup;
+    }
+
+    if (ScriptGetHostElementValue(&TaskArrayValue, TaskIndex, &TaskValue) != SCRIPT_OK) {
+        goto Cleanup;
+    }
+
+    if (TaskValue.Type != SCRIPT_VAR_HOST_HANDLE) {
+        goto Cleanup;
+    }
+
+    *TaskOut = (LPTASK)TaskValue.Value.HostHandle;
+    Success = TRUE;
+
+Cleanup:
+    ScriptValueRelease(&TaskValue);
+    ScriptValueRelease(&TaskArrayValue);
+
+    return Success;
 }
 
 /***************************************************************************/
@@ -195,10 +245,11 @@ U32 CMD_driver(LPSHELLCONTEXT Context) {
 U32 CMD_killtask(LPSHELLCONTEXT Context) {
     U32 TaskNum = 0;
     LPTASK Task = NULL;
+
     ParseNextCommandLineComponent(Context);
     TaskNum = StringToU32(Context->Command);
-    LPLIST TaskList = GetTaskList();
-    Task = (LPTASK)ListGetItem(TaskList, TaskNum);
+
+    ResolveShellTaskByIndex(Context, TaskNum, &Task);
     if (Task) {
         if (!KillTaskForCurrentProcess(Task, TRUE)) {
             ConsolePrint(TEXT("Access denied\n"));
