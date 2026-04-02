@@ -24,6 +24,7 @@
 
 #include "Exposed.h"
 
+#include "Kernel.h"
 #include "KernelData.h"
 #include "Mutex.h"
 #include "process/Process.h"
@@ -264,7 +265,7 @@ SCRIPT_ERROR TaskGetProperty(
             return SCRIPT_ERROR_UNAUTHORIZED;
         }
 
-        EXPOSE_BIND_INTEGER("handle", (UINT)(LPVOID)Task);
+        EXPOSE_BIND_INTEGER("handle", PointerToHandle((LINEAR)Task));
         EXPOSE_BIND_HOST_HANDLE("process", Task->OwnerProcess, &ProcessDescriptor, NULL);
         EXPOSE_BIND_STRING("name", Task->Name);
         EXPOSE_BIND_INTEGER("type", Task->Type);

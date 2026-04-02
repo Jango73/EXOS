@@ -658,7 +658,7 @@ All reusable helpers -such as the command line editor, adaptive delay, string co
     - `task`: task list for the owning process. Permissions: kernel and administrator only.
       - `task.count`: number of tasks in the process. Permissions: kernel and administrator only.
       - `task[n]`: task view at index `n`. Permissions: see fields below.
-        - `handle`: handle for the task. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
+        - `handle`: user-visible handle for the task. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
         - `name`: task name. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
         - `type`: task type. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
         - `status`: current task status. Permissions: anyone (except tasks that belong to the kernel process, kernel and administrator only).
