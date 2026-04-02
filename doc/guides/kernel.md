@@ -1636,6 +1636,8 @@ Each `SHELL_COMMAND_ENTRY` stores the primary name, alternate name, usage text, 
 
 This places command execution policy in shell code while the script engine is generic.
 
+Function-call expressions support zero or more arguments. The parser stores each argument as an AST expression, the evaluator resolves each one to text, and the host `CallFunction` callback receives `(name, argc, argv, user)` instead of a single serialized argument.
+
 #### Return value behavior
 
 `AST_RETURN` stores a return value in the script context (`ScriptStoreReturnValue()`). The shell path (`RunScriptFile()`) prints it as `Script return value: ...` after successful execution.

@@ -45,6 +45,132 @@ BOOL ScriptIsKeyword(LPCSTR Str) {
 /************************************************************************/
 
 /**
+ * @brief Release one temporary function-call argument vector.
+ * @param Context Script context that owns the temporary allocations.
+ * @param Arguments Argument string array.
+ * @param OwnedArguments Ownership flags for each argument string.
+ * @param ArgumentCount Number of argument strings.
+ */
+static void ScriptReleaseFunctionArguments(
+    LPSCRIPT_CONTEXT Context,
+    LPCSTR* Arguments,
+    BOOL* OwnedArguments,
+    UINT ArgumentCount) {
+    UINT Index;
+
+    if (Context == NULL) {
+        return;
+    }
+
+    if (Arguments != NULL && OwnedArguments != NULL) {
+        for (Index = 0; Index < ArgumentCount; Index++) {
+            if (OwnedArguments[Index] && Arguments[Index] != NULL) {
+                ScriptFree(Context, (LPVOID)Arguments[Index]);
+            }
+        }
+    }
+
+    if (OwnedArguments != NULL) {
+        ScriptFree(Context, OwnedArguments);
+    }
+
+    if (Arguments != NULL) {
+        ScriptFree(Context, Arguments);
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Evaluate and stringify one function-call argument list.
+ * @param Parser Parser state.
+ * @param Expr Function-call AST expression node.
+ * @param OutArguments Receives the argument string vector.
+ * @param OutOwnedArguments Receives ownership flags for each argument string.
+ * @param OutArgumentCount Receives the number of stringified arguments.
+ * @return SCRIPT_OK on success, otherwise an error code.
+ */
+static SCRIPT_ERROR ScriptBuildFunctionArguments(
+    LPSCRIPT_PARSER Parser,
+    LPAST_NODE Expr,
+    LPCSTR** OutArguments,
+    BOOL** OutOwnedArguments,
+    UINT* OutArgumentCount) {
+    UINT ArgumentCount;
+    LPCSTR* Arguments = NULL;
+    BOOL* OwnedArguments = NULL;
+    UINT Index = 0;
+    LPAST_NODE ArgumentNode;
+
+    if (Parser == NULL || Expr == NULL || OutArguments == NULL || OutOwnedArguments == NULL || OutArgumentCount == NULL) {
+        return SCRIPT_ERROR_SYNTAX;
+    }
+
+    *OutArguments = NULL;
+    *OutOwnedArguments = NULL;
+    *OutArgumentCount = 0;
+
+    ArgumentCount = Expr->Data.Expression.ArgumentCount;
+    if (ArgumentCount == 0) {
+        return SCRIPT_OK;
+    }
+
+    Arguments = (LPCSTR*)ScriptAlloc(Parser->Context, sizeof(LPCSTR) * ArgumentCount);
+    OwnedArguments = (BOOL*)ScriptAlloc(Parser->Context, sizeof(BOOL) * ArgumentCount);
+    if (Arguments == NULL || OwnedArguments == NULL) {
+        if (Arguments != NULL) {
+            ScriptFree(Parser->Context, Arguments);
+        }
+        if (OwnedArguments != NULL) {
+            ScriptFree(Parser->Context, OwnedArguments);
+        }
+        return SCRIPT_ERROR_OUT_OF_MEMORY;
+    }
+
+    MemorySet(Arguments, 0, sizeof(LPCSTR) * ArgumentCount);
+    MemorySet(OwnedArguments, 0, sizeof(BOOL) * ArgumentCount);
+
+    ArgumentNode = Expr->Data.Expression.FirstArgument;
+    while (ArgumentNode != NULL && Index < ArgumentCount) {
+        SCRIPT_ERROR EvaluationError = SCRIPT_OK;
+        SCRIPT_VALUE ArgumentValue = ScriptEvaluateExpression(Parser, ArgumentNode, &EvaluationError);
+        if (EvaluationError != SCRIPT_OK) {
+            ScriptValueRelease(&ArgumentValue);
+            ScriptReleaseFunctionArguments(Parser->Context, Arguments, OwnedArguments, ArgumentCount);
+            return EvaluationError;
+        }
+
+        SCRIPT_ERROR Result = ScriptValueToString(
+            &ArgumentValue,
+            Parser->Context,
+            &Arguments[Index],
+            &OwnedArguments[Index]);
+
+        ScriptValueRelease(&ArgumentValue);
+
+        if (Result != SCRIPT_OK) {
+            ScriptReleaseFunctionArguments(Parser->Context, Arguments, OwnedArguments, ArgumentCount);
+            return Result;
+        }
+
+        Index++;
+        ArgumentNode = ArgumentNode->Next;
+    }
+
+    if (ArgumentNode != NULL || Index != ArgumentCount) {
+        ScriptReleaseFunctionArguments(Parser->Context, Arguments, OwnedArguments, ArgumentCount);
+        return SCRIPT_ERROR_SYNTAX;
+    }
+
+    *OutArguments = Arguments;
+    *OutOwnedArguments = OwnedArguments;
+    *OutArgumentCount = ArgumentCount;
+    return SCRIPT_OK;
+}
+
+/************************************************************************/
+
+/**
  * @brief Evaluate an expression AST node and return its value.
  * @param Parser Parser state (for variable/callback access)
  * @param Expr Expression node
@@ -152,54 +278,28 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                 }
 
                 if (Parser->Callbacks && Parser->Callbacks->CallFunction) {
-                    LPCSTR ArgString = TEXT("");
-                    STR ArgBuffer[MAX_TOKEN_LENGTH];
-                    SCRIPT_VALUE ArgValue;
-                    BOOL HasEvaluatedArg = FALSE;
-
-                    if (Expr->Data.Expression.Left) {
-                        if (Expr->Data.Expression.Left->Data.Expression.TokenType == TOKEN_STRING) {
-                            ArgString = Expr->Data.Expression.Left->Data.Expression.Value;
-                        } else {
-                            ArgValue = ScriptEvaluateExpression(Parser, Expr->Data.Expression.Left, Error);
-                            HasEvaluatedArg = TRUE;
-
-                            if (Error && *Error != SCRIPT_OK) {
-                                ScriptValueRelease(&ArgValue);
-                                return Result;
-                            }
-
-                            if (ArgValue.Type == SCRIPT_VAR_STRING) {
-                                ArgString = ArgValue.Value.String ? ArgValue.Value.String : TEXT("");
-                            } else {
-                                F32 ArgNumeric;
-                                if (!ScriptValueToFloat(&ArgValue, &ArgNumeric)) {
-                                    if (Error) {
-                                        *Error = SCRIPT_ERROR_TYPE_MISMATCH;
-                                    }
-                                    ScriptValueRelease(&ArgValue);
-                                    return Result;
-                                }
-
-                                if (IsInteger(ArgNumeric)) {
-                                    StringPrintFormat(ArgBuffer, TEXT("%d"), (INT)ArgNumeric);
-                                } else {
-                                    StringPrintFormat(ArgBuffer, TEXT("%f"), ArgNumeric);
-                                }
-
-                                ArgString = ArgBuffer;
-                            }
+                    LPCSTR* Arguments = NULL;
+                    BOOL* OwnedArguments = NULL;
+                    UINT ArgumentCount = 0;
+                    SCRIPT_ERROR ArgumentError = ScriptBuildFunctionArguments(
+                        Parser,
+                        Expr,
+                        &Arguments,
+                        &OwnedArguments,
+                        &ArgumentCount);
+                    if (ArgumentError != SCRIPT_OK) {
+                        if (Error) {
+                            *Error = ArgumentError;
                         }
+                        return Result;
                     }
 
                     UINT Status = Parser->Callbacks->CallFunction(
                         Expr->Data.Expression.Value,
-                        ArgString,
+                        ArgumentCount,
+                        (LPCSTR*)Arguments,
                         Parser->Callbacks->UserData);
-
-                    if (HasEvaluatedArg) {
-                        ScriptValueRelease(&ArgValue);
-                    }
+                    ScriptReleaseFunctionArguments(Parser->Context, Arguments, OwnedArguments, ArgumentCount);
 
                     Result.Type = SCRIPT_VAR_INTEGER;
                     Result.Value.Integer = (INT)Status;

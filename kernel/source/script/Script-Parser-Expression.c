@@ -261,6 +261,12 @@ void ScriptNextToken(LPSCRIPT_PARSER Parser) {
         Parser->CurrentToken.Value[1] = STR_NULL;
         (*Pos)++;
 
+    } else if (Ch == ',') {
+        Parser->CurrentToken.Type = TOKEN_COMMA;
+        Parser->CurrentToken.Value[0] = Ch;
+        Parser->CurrentToken.Value[1] = STR_NULL;
+        (*Pos)++;
+
     } else if (Ch == '{' || Ch == '}') {
         Parser->CurrentToken.Type = (Ch == '{') ? TOKEN_LBRACE : TOKEN_RBRACE;
         Parser->CurrentToken.Value[0] = Ch;
@@ -308,6 +314,73 @@ void ScriptNextToken(LPSCRIPT_PARSER Parser) {
         Parser->CurrentToken.Value[1] = STR_NULL;
         (*Pos)++;
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Parse one function-call argument list and attach it to an AST expression node.
+ * @param Parser Parser state.
+ * @param FunctionNode Function-call expression node.
+ * @param Error Pointer to error code.
+ * @return TRUE on success, FALSE on syntax or allocation failure.
+ */
+static BOOL ScriptParseFunctionArguments(
+    LPSCRIPT_PARSER Parser,
+    LPAST_NODE FunctionNode,
+    SCRIPT_ERROR* Error) {
+    LPAST_NODE FirstArgument = NULL;
+    LPAST_NODE LastArgument = NULL;
+
+    if (Parser == NULL || FunctionNode == NULL || Error == NULL) {
+        if (Error != NULL) {
+            *Error = SCRIPT_ERROR_SYNTAX;
+        }
+        return FALSE;
+    }
+
+    FunctionNode->Data.Expression.FirstArgument = NULL;
+    FunctionNode->Data.Expression.ArgumentCount = 0;
+
+    if (Parser->CurrentToken.Type == TOKEN_RPAREN) {
+        ScriptNextToken(Parser);
+        *Error = SCRIPT_OK;
+        return TRUE;
+    }
+
+    while (TRUE) {
+        LPAST_NODE ArgumentNode = ScriptParseComparisonAST(Parser, Error);
+        if (*Error != SCRIPT_OK || ArgumentNode == NULL) {
+            ScriptDestroyAST(FirstArgument);
+            return FALSE;
+        }
+
+        if (FirstArgument == NULL) {
+            FirstArgument = ArgumentNode;
+        } else {
+            LastArgument->Next = ArgumentNode;
+        }
+        LastArgument = ArgumentNode;
+        FunctionNode->Data.Expression.ArgumentCount++;
+
+        if (Parser->CurrentToken.Type == TOKEN_COMMA) {
+            ScriptNextToken(Parser);
+            continue;
+        }
+
+        if (Parser->CurrentToken.Type != TOKEN_RPAREN) {
+            *Error = SCRIPT_ERROR_SYNTAX;
+            ScriptDestroyAST(FirstArgument);
+            return FALSE;
+        }
+
+        ScriptNextToken(Parser);
+        break;
+    }
+
+    FunctionNode->Data.Expression.FirstArgument = FirstArgument;
+    *Error = SCRIPT_OK;
+    return TRUE;
 }
 
 /************************************************************************/
@@ -627,27 +700,11 @@ LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
         // Check for function call
         if (Parser->CurrentToken.Type == TOKEN_LPAREN) {
             Node->Data.Expression.IsFunctionCall = TRUE;
-            Node->Data.Expression.Left = NULL;
             ScriptNextToken(Parser);
 
-            // Parse argument as expression (allows nested function calls, variables, numbers, strings)
-            if (Parser->CurrentToken.Type == TOKEN_RPAREN) {
-                // No argument - empty parentheses
-                ScriptNextToken(Parser);
-            } else {
-                // Parse argument expression - store in Left field
-                Node->Data.Expression.Left = ScriptParseComparisonAST(Parser, Error);
-                if (*Error != SCRIPT_OK || Node->Data.Expression.Left == NULL) {
-                    ScriptDestroyAST(Node);
-                    return NULL;
-                }
-
-                if (Parser->CurrentToken.Type != TOKEN_RPAREN) {
-                    *Error = SCRIPT_ERROR_SYNTAX;
-                    ScriptDestroyAST(Node);
-                    return NULL;
-                }
-                ScriptNextToken(Parser);
+            if (!ScriptParseFunctionArguments(Parser, Node, Error)) {
+                ScriptDestroyAST(Node);
+                return NULL;
             }
         }
         LPAST_NODE CurrentNode = Node;

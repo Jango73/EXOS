@@ -44,6 +44,11 @@ typedef struct {
     I32 Value;
 } TEST_HOST_PROPERTY;
 
+typedef struct {
+    UINT ArgumentCount;
+    STR Arguments[3][32];
+} TEST_SCRIPT_CALL_CAPTURE;
+
 static const SCRIPT_HOST_DESCRIPTOR TestHostObjectDescriptor;
 static const SCRIPT_HOST_DESCRIPTOR TestHostArrayDescriptor;
 static const SCRIPT_HOST_DESCRIPTOR TestHostValueDescriptor;
@@ -53,16 +58,31 @@ static const SCRIPT_HOST_DESCRIPTOR TestHostValueDescriptor;
 /**
  * @brief Test function callback used by numeric semantics unit tests.
  * @param FuncName Function name requested by the script.
- * @param Argument Serialized function argument.
- * @param UserData Callback user data (unused).
+ * @param ArgumentCount Number of serialized function arguments.
+ * @param Arguments Serialized function arguments.
+ * @param UserData Callback capture storage.
  * @return Native-width integer status.
  */
 static UINT TestScriptCallFunction(
     LPCSTR FuncName,
-    LPCSTR Argument,
+    UINT ArgumentCount,
+    LPCSTR* Arguments,
     LPVOID UserData) {
-    UNUSED(Argument);
-    UNUSED(UserData);
+    TEST_SCRIPT_CALL_CAPTURE* Capture = (TEST_SCRIPT_CALL_CAPTURE*)UserData;
+
+    if (Capture != NULL) {
+        Capture->ArgumentCount = ArgumentCount;
+        for (UINT Index = 0; Index < 3; Index++) {
+            Capture->Arguments[Index][0] = STR_NULL;
+        }
+
+        for (UINT Index = 0; Index < ArgumentCount && Index < 3; Index++) {
+            StringCopyLimit(
+                Capture->Arguments[Index],
+                Arguments[Index] != NULL ? Arguments[Index] : TEXT(""),
+                sizeof(Capture->Arguments[Index]));
+        }
+    }
 
     if (StringCompareNC(FuncName, TEXT("native_status")) == 0) {
         return 123;
@@ -1325,25 +1345,62 @@ void TestScriptIntegerSemantics(TEST_RESULTS* Results) {
 
     Results->TestsRun++;
     SCRIPT_CALLBACKS Callbacks;
+    TEST_SCRIPT_CALL_CAPTURE Capture;
+
+    MemorySet(&Capture, 0, sizeof(TEST_SCRIPT_CALL_CAPTURE));
     MemorySet(&Callbacks, 0, sizeof(SCRIPT_CALLBACKS));
     Callbacks.CallFunction = TestScriptCallFunction;
+    Callbacks.UserData = &Capture;
     Context = ScriptCreateContext(&Callbacks);
     if (Context == NULL) {
         DEBUG(TEXT("[TestScriptIntegerSemantics] Failed to create callback context"));
         return;
     }
 
-    Error = ScriptExecute(Context, TEXT("status = native_status(42);"));
+    Error = ScriptExecute(Context, TEXT("status = native_status(42, \"alpha\", 7 + 1);"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("status"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 123 &&
+            Capture.ArgumentCount == 3 &&
+            STRINGS_EQUAL(Capture.Arguments[0], TEXT("42")) &&
+            STRINGS_EQUAL(Capture.Arguments[1], TEXT("alpha")) &&
+            STRINGS_EQUAL(Capture.Arguments[2], TEXT("8"))) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptIntegerSemantics] Test 3 failed: status = %d (expected 123), argc = %u"),
+                Var ? Var->Value.Integer : -1,
+                Capture.ArgumentCount);
+            DEBUG(TEXT("[TestScriptIntegerSemantics] Test 3 args: [%s] [%s] [%s]"),
+                Capture.Arguments[0],
+                Capture.Arguments[1],
+                Capture.Arguments[2]);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Test 3 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    MemorySet(&Callbacks, 0, sizeof(SCRIPT_CALLBACKS));
+    Callbacks.CallFunction = TestScriptCallFunction;
+    Context = ScriptCreateContext(&Callbacks);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Failed to create zero-argument callback context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("status = native_status();"));
     if (Error == SCRIPT_OK) {
         LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("status"));
         if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 123) {
             Results->TestsPassed++;
         } else {
-            DEBUG(TEXT("[TestScriptIntegerSemantics] Test 3 failed: status = %d (expected 123)"),
+            DEBUG(TEXT("[TestScriptIntegerSemantics] Test 4 failed: status = %d (expected 123)"),
                 Var ? Var->Value.Integer : -1);
         }
     } else {
-        DEBUG(TEXT("[TestScriptIntegerSemantics] Test 3 failed with error %d"), Error);
+        DEBUG(TEXT("[TestScriptIntegerSemantics] Test 4 failed with error %d"), Error);
     }
 
     ScriptDestroyContext(Context);

@@ -231,30 +231,87 @@ LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData) {
 /************************************************************************/
 
 /**
+ * @brief Concatenate script callback arguments into one shell-style string.
+ * @param Context Shell context used for buffer storage.
+ * @param ArgumentCount Number of arguments to concatenate.
+ * @param Arguments Argument vector.
+ * @return Pointer to an internal shell buffer, or NULL on failure.
+ */
+static LPCSTR ShellScriptJoinArguments(
+    LPSHELLCONTEXT Context,
+    UINT ArgumentCount,
+    LPCSTR* Arguments) {
+    UINT BufferIndex = 0;
+    UINT Index;
+
+    if (Context == NULL || Context->Buffer[0] == NULL || ArgumentCount == 0 || Arguments == NULL) {
+        return NULL;
+    }
+
+    for (Index = 0; Index < ArgumentCount; Index++) {
+        LPCSTR Argument = Arguments[Index];
+        U32 ArgumentLength;
+
+        if (Argument == NULL) {
+            Argument = TEXT("");
+        }
+
+        ArgumentLength = StringLength(Argument);
+        if (BufferIndex + ArgumentLength + 2 >= BUFFER_SIZE) {
+            return NULL;
+        }
+
+        if (Index > 0) {
+            Context->Buffer[0][BufferIndex++] = STR_SPACE;
+        }
+
+        MemoryCopy(Context->Buffer[0] + BufferIndex, Argument, ArgumentLength);
+        BufferIndex += ArgumentLength;
+    }
+
+    Context->Buffer[0][BufferIndex] = STR_NULL;
+    return Context->Buffer[0];
+}
+
+/************************************************************************/
+
+/**
  * @brief Shell callback for script function calls.
  * @param FuncName Function name to call
- * @param Argument String argument for the function
+ * @param ArgumentCount Number of stringified arguments
+ * @param Arguments String arguments for the function
  * @param UserData Shell context
  * @return Function result (U32)
  */
-UINT ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData) {
+UINT ShellScriptCallFunction(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Arguments, LPVOID UserData) {
     LPSHELLCONTEXT Context = (LPSHELLCONTEXT)UserData;
+    LPCSTR JoinedArguments;
 
     if (STRINGS_EQUAL(FuncName, TEXT("exec"))) {
-        if (Context == NULL || Argument == NULL) {
+        if (Context == NULL || ArgumentCount == 0 || Arguments == NULL) {
             return DF_RETURN_BAD_PARAMETER;
+        }
+
+        JoinedArguments = ShellScriptJoinArguments(Context, ArgumentCount, Arguments);
+        if (JoinedArguments == NULL) {
+            return DF_RETURN_GENERIC;
         }
 
         // Execute the provided command line using the standard shell command flow
-        UINT Result = ShellScriptExecuteCommand(Argument, Context);
+        UINT Result = ShellScriptExecuteCommand(JoinedArguments, Context);
         return Result;
     } else if (STRINGS_EQUAL(FuncName, TEXT("print"))) {
-        if (Argument == NULL) {
+        if (ArgumentCount == 0 || Arguments == NULL) {
             return DF_RETURN_BAD_PARAMETER;
         }
 
-        ConsolePrint(TEXT("%s"), Argument);
-        if (!ShellScriptContainsLineBreak(Argument)) {
+        JoinedArguments = ShellScriptJoinArguments(Context, ArgumentCount, Arguments);
+        if (JoinedArguments == NULL) {
+            return DF_RETURN_GENERIC;
+        }
+
+        ConsolePrint(TEXT("%s"), JoinedArguments);
+        if (!ShellScriptContainsLineBreak(JoinedArguments)) {
             ConsolePrint(TEXT("\r\n"));
         }
         return 0;

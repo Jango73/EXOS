@@ -458,6 +458,9 @@ void ScriptDestroyAST(LPAST_NODE Node) {
             if (Node->Data.Expression.ArrayIndexExpr) {
                 ScriptDestroyAST(Node->Data.Expression.ArrayIndexExpr);
             }
+            if (Node->Data.Expression.FirstArgument) {
+                ScriptDestroyAST(Node->Data.Expression.FirstArgument);
+            }
             if (Node->Data.Expression.Left) {
                 ScriptDestroyAST(Node->Data.Expression.Left);
             }

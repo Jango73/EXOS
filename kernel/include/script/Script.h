@@ -80,6 +80,7 @@ typedef enum {
     TOKEN_LBRACKET,
     TOKEN_RBRACKET,
     TOKEN_SEMICOLON,
+    TOKEN_COMMA,
     TOKEN_COMPARISON,
     TOKEN_LBRACE,
     TOKEN_RBRACE,
@@ -204,7 +205,7 @@ typedef struct tag_SCRIPT_TOKEN {
 typedef void (*SCRIPT_OUTPUT_CALLBACK)(LPCSTR Message, LPVOID UserData);
 typedef UINT (*SCRIPT_COMMAND_CALLBACK)(LPCSTR Command, LPVOID UserData);
 typedef LPCSTR (*SCRIPT_VARIABLE_RESOLVER)(LPCSTR VarName, LPVOID UserData);
-typedef UINT (*SCRIPT_FUNCTION_CALLBACK)(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
+typedef UINT (*SCRIPT_FUNCTION_CALLBACK)(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Arguments, LPVOID UserData);
 
 typedef struct tag_SCRIPT_CALLBACKS {
     SCRIPT_OUTPUT_CALLBACK Output;
@@ -264,8 +265,9 @@ typedef struct tag_AST_NODE {
             BOOL IsPropertyAccess;
             STR PropertyName[MAX_TOKEN_LENGTH];
             BOOL IsFunctionCall;
-            STR Argument[MAX_TOKEN_LENGTH];
-            struct tag_AST_NODE* Left;   // Left operand for binary operations, or function argument expression
+            struct tag_AST_NODE* FirstArgument;
+            U32 ArgumentCount;
+            struct tag_AST_NODE* Left;   // Left operand for binary operations
             struct tag_AST_NODE* Right;  // Right operand for binary operations
             BOOL IsShellCommand;
             LPSTR CommandLine;

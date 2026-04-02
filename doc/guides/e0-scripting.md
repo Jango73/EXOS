@@ -120,13 +120,14 @@ trimmed = "foobarfoo" - "foo";
 ## 6) Host interop: functions, properties, and commands
 
 ### Function calls
-Syntax: `name(expr?)`  
-- Only one optional argument.
-- Argument is stringified before calling the host.
+Syntax: `name(expr1, expr2, ...)`
+- Zero or more arguments are supported.
+- Each argument is evaluated, then stringified before calling the host.
 
 ```text
 echo("hello");
 ping(123);
+copy("/system/config.toml", "/data/config.toml", 1);
 ```
 
 ### Property access
@@ -201,7 +202,7 @@ void ScriptDestroyContext(LPSCRIPT_CONTEXT ctx);
 ```c
 typedef struct SCRIPT_CALLBACKS {
     U32 (*ExecuteCommand)(LPCSTR cmdline, void* user);
-    U32 (*CallFunction)(LPCSTR name, LPCSTR arg, void* user);
+    U32 (*CallFunction)(LPCSTR name, UINT argc, LPCSTR* argv, void* user);
     void* UserData;
 } SCRIPT_CALLBACKS;
 ```

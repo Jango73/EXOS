@@ -120,7 +120,7 @@ BOOL ParseCommand(LPSHELLCONTEXT Context);
 void ShellScriptOutput(LPCSTR Message, LPVOID UserData);
 UINT ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
 LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData);
-UINT ShellScriptCallFunction(LPCSTR FuncName, LPCSTR Argument, LPVOID UserData);
+UINT ShellScriptCallFunction(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Arguments, LPVOID UserData);
 
 U32 CMD_adduser(LPSHELLCONTEXT Context);
 U32 CMD_login(LPSHELLCONTEXT Context);
