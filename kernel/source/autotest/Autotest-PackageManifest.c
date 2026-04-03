@@ -21,10 +21,10 @@
 
 \************************************************************************/
 
-#include "Autotest.h"
+#include "autotest/Autotest.h"
 
-#include "CoreString.h"
-#include "Log.h"
+#include "text/CoreString.h"
+#include "log/Log.h"
 #include "User.h"
 #include "package/PackageManifest.h"
 

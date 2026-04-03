@@ -22,11 +22,11 @@
 
 \************************************************************************/
 
-#include "Exposed.h"
+#include "expose/Exposed.h"
 
-#include "DriverEnum.h"
-#include "Heap.h"
-#include "KernelData.h"
+#include "core/DriverEnum.h"
+#include "memory/Heap.h"
+#include "core/KernelData.h"
 #include "drivers/storage/USBStorage.h"
 #include "drivers/usb/XHCI.h"
 

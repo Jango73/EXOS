@@ -22,12 +22,12 @@
 
 \************************************************************************/
 
-#include "Exposed.h"
+#include "expose/Exposed.h"
 
-#include "Driver.h"
-#include "DriverGetters.h"
+#include "core/Driver.h"
+#include "core/DriverGetters.h"
 #include "GFX.h"
-#include "KernelData.h"
+#include "core/KernelData.h"
 
 /************************************************************************/
 

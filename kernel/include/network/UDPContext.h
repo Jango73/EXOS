@@ -26,9 +26,8 @@
 #define UDPCONTEXT_H_INCLUDED
 
 #include "Base.h"
-#include "Device.h"
+#include "core/Device.h"
 #include "UDP.h"
-#include "Endianness.h"
 
 /************************************************************************/
 

@@ -26,9 +26,8 @@
 #define DHCP_H_INCLUDED
 
 #include "Base.h"
-#include "Device.h"
+#include "core/Device.h"
 #include "network/Network.h"
-#include "Endianness.h"
 
 /************************************************************************/
 

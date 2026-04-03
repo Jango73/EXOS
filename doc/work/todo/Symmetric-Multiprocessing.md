@@ -72,7 +72,7 @@ Use LAPIC timers when available, fallback to PIT.
 ## [ ] Step 10 — Boot/Shutdown Flow and Debug
 - Adjust boot sequencing: ACPI → APIC init → CPU bring-up → scheduler start; ensure debug output uses CPU ID prefix.
 - Provide CPU offline/shutdown hook (at least halt APs) for clean reboot.
-- Update `doc/guides/kernel.md` after component changes.
+- Update `doc/guides/Kernel.md` after component changes.
 - Success: clean boot logs and orderly halt/reboot with multiple CPUs.
 
 ## [ ] Step 11 — Testing Matrix

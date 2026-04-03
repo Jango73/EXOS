@@ -23,8 +23,8 @@
 
 #include "ui/LogViewer.h"
 
-#include "CoreString.h"
-#include "Log.h"
+#include "text/CoreString.h"
+#include "log/Log.h"
 
 /***************************************************************************/
 

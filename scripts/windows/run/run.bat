@@ -140,11 +140,11 @@ if "%ARCH%"=="x86-32" (
     goto usage
 )
 
-set "IMG_PATH=%IMAGE_BUILD_DIR%\boot-hd\exos.img"
-set "USB_3_PATH=%IMAGE_BUILD_DIR%\boot-hd\usb-3.img"
-set "FS_TEST_EXT2_IMG_PATH=%IMAGE_BUILD_DIR%\boot-hd\fs-test-ext2.img"
-set "FS_TEST_FAT32_IMG_PATH=%IMAGE_BUILD_DIR%\boot-hd\fs-test-fat32.img"
-set "FS_TEST_NTFS_IMG_PATH=%IMAGE_BUILD_DIR%\boot-hd\fs-test-ntfs.img"
+set "IMG_PATH=%IMAGE_BUILD_DIR%\boot-mbr\exos.img"
+set "USB_3_PATH=%IMAGE_BUILD_DIR%\boot-mbr\usb-3.img"
+set "FS_TEST_EXT2_IMG_PATH=%IMAGE_BUILD_DIR%\boot-mbr\fs-test-ext2.img"
+set "FS_TEST_FAT32_IMG_PATH=%IMAGE_BUILD_DIR%\boot-mbr\fs-test-fat32.img"
+set "FS_TEST_NTFS_IMG_PATH=%IMAGE_BUILD_DIR%\boot-mbr\fs-test-ntfs.img"
 set "NTFS_LIVE_IMG_PATH=build\test-images\ntfs-live.img"
 
 if defined QEMU_BIN (

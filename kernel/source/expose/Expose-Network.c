@@ -21,10 +21,9 @@
 
 \************************************************************************/
 
-#include "Exposed.h"
+#include "expose/Exposed.h"
 
-#include "Endianness.h"
-#include "KernelData.h"
+#include "core/KernelData.h"
 #include "network/NetworkManager.h"
 
 /************************************************************************/

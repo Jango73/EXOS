@@ -26,10 +26,10 @@
 #define FAT32_PRIVATE_H_INCLUDED
 
 #include "drivers/filesystems/FAT.h"
-#include "FileSystem.h"
-#include "Kernel.h"
-#include "Log.h"
-#include "CoreString.h"
+#include "fs/FileSystem.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
+#include "text/CoreString.h"
 
 /***************************************************************************/
 

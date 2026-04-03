@@ -23,7 +23,7 @@
 
 #include "desktop/Desktop-ThemeCommon.h"
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 
 /***************************************************************************/
 

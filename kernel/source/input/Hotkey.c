@@ -23,9 +23,9 @@
 
 #include "input/Hotkey.h"
 
-#include "CoreString.h"
-#include "KernelData.h"
-#include "Log.h"
+#include "text/CoreString.h"
+#include "core/KernelData.h"
+#include "log/Log.h"
 #include "desktop/DisplaySession.h"
 #include "input/VKey.h"
 #include "process/Process-Control.h"

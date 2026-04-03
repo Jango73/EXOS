@@ -24,10 +24,10 @@
 
 #include "drivers/input/Keyboard.h"
 
-#include "CoreString.h"
-#include "File.h"
-#include "Heap.h"
-#include "Log.h"
+#include "text/CoreString.h"
+#include "fs/File.h"
+#include "memory/Heap.h"
+#include "log/Log.h"
 #include "utf8-hoehrmann/utf8-hoehrmann.h"
 
 /***************************************************************************/

@@ -23,11 +23,11 @@
 
 #include "arch/x86-32/x86-32.h"
 
-#include "CoreString.h"
-#include "Driver.h"
-#include "Log.h"
-#include "Memory.h"
-#include "Text.h"
+#include "text/CoreString.h"
+#include "core/Driver.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
+#include "text/Text.h"
 #include "User.h"
 
 /************************************************************************/

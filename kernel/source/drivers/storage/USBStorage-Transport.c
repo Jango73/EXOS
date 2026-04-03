@@ -24,11 +24,10 @@
 
 #include "drivers/storage/USBStorage-Private.h"
 
-#include "Clock.h"
-#include "Endianness.h"
-#include "Kernel.h"
-#include "Log.h"
-#include "Memory.h"
+#include "system/Clock.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
 #include "process/Task.h"
 
 /************************************************************************/

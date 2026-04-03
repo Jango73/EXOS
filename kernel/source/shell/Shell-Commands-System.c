@@ -24,7 +24,7 @@
 
 #include "shell/Shell-Commands-Private.h"
 #include "shell/Shell-EmbeddedScripts.h"
-#include "Autotest.h"
+#include "autotest/Autotest.h"
 #include "utils/SizeFormat.h"
 
 /***************************************************************************/

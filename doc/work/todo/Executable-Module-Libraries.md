@@ -261,6 +261,33 @@ Recommended first policy:
 Acceptance criteria:
 - The runtime has one stable way to resolve thread-local module data on both supported architectures.
 
+## TLS Support Requirements
+
+- Support static TLS for loadable modules as part of the initial module ABI.
+- Accept only TLS layouts the kernel can materialize deterministically for every task:
+  - one `PT_TLS` template per module;
+  - explicit alignment;
+  - explicit initialized size and total size;
+  - no toolchain-emitted TLS form that requires a user-space dynamic loader.
+- Define one supported access model for the first milestone:
+  - local-exec and initial-exec style access only when they can be lowered to the EXOS thread control block policy;
+  - reject general-dynamic and local-dynamic forms until the runtime exposes a compatible dynamic thread vector contract.
+- Keep TLS relocation support narrow and explicit:
+  - accept only relocation kinds required by the chosen x86-32 and x86-64 TLS code generation model;
+  - reject unsupported TLS relocations during module validation before any mapping occurs.
+- Require the runtime and toolchain to agree on:
+  - thread control block layout;
+  - module TLS offset encoding;
+  - `__tls_get_addr` requirements, or the deliberate absence of that entry point in the first milestone.
+- Keep late-loaded module TLS expansion mandatory:
+  - existing tasks must receive initialized TLS blocks for the new module;
+  - new tasks must inherit the full process module TLS set at creation time.
+- Make TLS failure handling strict:
+  - if one task cannot receive its TLS expansion, abort the module load and unwind every partial TLS installation in that process.
+
+Acceptance criteria:
+- One documented TLS contract exists across kernel validation, task state, runtime ABI, and module build output.
+
 ## Step 11 - Add Runtime and Syscall Surface
 
 - Add a syscall family for module operations:

@@ -23,7 +23,7 @@
 
 #include "drivers/graphics/common/Graphics-PCI.h"
 
-#include "Kernel.h"
+#include "core/Kernel.h"
 
 /************************************************************************/
 

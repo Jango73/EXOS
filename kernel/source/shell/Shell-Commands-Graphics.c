@@ -24,7 +24,7 @@
 #include "shell/Shell-Commands-Private.h"
 #include "DisplaySession.h"
 #include "Desktop.h"
-#include "System.h"
+#include "system/System.h"
 
 /***************************************************************************/
 

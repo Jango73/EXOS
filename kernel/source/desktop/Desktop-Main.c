@@ -22,7 +22,7 @@
 
 \************************************************************************/
 
-#include "Clock.h"
+#include "system/Clock.h"
 #include "Desktop-Cursor.h"
 #include "Desktop-Dispatcher.h"
 #include "Desktop-ModeSelector.h"
@@ -30,10 +30,10 @@
 #include "Desktop-ThemeTokens.h"
 #include "Desktop.h"
 #include "DisplaySession.h"
-#include "DriverGetters.h"
+#include "core/DriverGetters.h"
 #include "GFX.h"
-#include "Kernel.h"
-#include "Log.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
 #include "console/Console.h"
 #include "process/Task-Messaging.h"
 #include "ui/Startup-Desktop-Components.h"

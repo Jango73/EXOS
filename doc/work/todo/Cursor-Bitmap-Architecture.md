@@ -261,7 +261,7 @@ Deliverable:
 - Userland can create bitmaps/cursors, assign roles, and override per window.
 
 ## Step 9 - Documentation and tests
-- [ ] Update `doc/guides/kernel.md` with `BITMAP`, `CURSOR`, resolver flow, and ABI.
+- [ ] Update `doc/guides/Kernel.md` with `BITMAP`, `CURSOR`, resolver flow, and ABI.
 - [ ] Add kernel shell diagnostics command for cursor role resolution state.
 - [ ] Add smoke tests for role switching, per-window overrides, fallback behavior, and drag policy role.
 

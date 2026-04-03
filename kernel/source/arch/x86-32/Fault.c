@@ -23,17 +23,17 @@
 \************************************************************************/
 
 #include "console/Console.h"
-#include "Heap.h"
+#include "memory/Heap.h"
 #include "arch/Disassemble.h"
 #include "arch/x86-32/x86-32.h"
 #include "arch/x86-32/x86-32-Log.h"
-#include "Kernel.h"
-#include "Log.h"
-#include "Memory.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
 #include "process/Process.h"
-#include "CoreString.h"
-#include "System.h"
-#include "Text.h"
+#include "text/CoreString.h"
+#include "system/System.h"
+#include "text/Text.h"
 
 // Conservative pointer checks. If StackLow/High are zero, use heuristics.
 /*

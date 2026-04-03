@@ -24,8 +24,8 @@
 #include "Desktop-Private.h"
 #include "Desktop-NonClient.h"
 #include "Desktop.h"
-#include "Kernel.h"
-#include "Log.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
 #include "utils/Graphics-Utils.h"
 
 /***************************************************************************/

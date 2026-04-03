@@ -29,7 +29,7 @@
 
 #include "Base.h"
 #include "drivers/interrupts/DeviceInterrupt.h"
-#include "Driver.h"
+#include "core/Driver.h"
 #include "arch/intel/x86-Common.h"
 #include "arch/x86-64/x86-64-Memory.h"
 #include "process/Task-Stack.h"

@@ -21,10 +21,10 @@
 
 \************************************************************************/
 
-#include "Exposed.h"
+#include "expose/Exposed.h"
 
-#include "Driver.h"
-#include "KernelData.h"
+#include "core/Driver.h"
+#include "core/KernelData.h"
 #include "input/MouseDispatcher.h"
 
 /************************************************************************/

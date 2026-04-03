@@ -24,9 +24,9 @@
 
 #include "arch/intel/x86-32-Asm.h"
 
-#include "Heap.h"
-#include "CoreString.h"
-#include "System.h"
+#include "memory/Heap.h"
+#include "text/CoreString.h"
+#include "system/System.h"
 
 /*************************************************************************************************/
 

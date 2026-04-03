@@ -22,17 +22,17 @@
 
 \************************************************************************/
 
-#include "Clock.h"
+#include "system/Clock.h"
 #include "console/Console.h"
 #include "Arch.h"
-#include "Kernel.h"
-#include "Log.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
 #include "package/PackageFS.h"
 #include "package/PackageNamespace.h"
 #include "process/Process.h"
 #include "process/Schedule.h"
 #include "process/Task-Messaging.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "utils/BusyWait.h"
 #include "utils/Helpers.h"
 

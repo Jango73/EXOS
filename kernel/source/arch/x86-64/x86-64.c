@@ -26,16 +26,16 @@
 #include "arch/x86-64/x86-64-Log.h"
 
 #include "console/Console.h"
-#include "Kernel.h"
-#include "Log.h"
-#include "Memory.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
 #include "process/Process-Arena.h"
 #include "process/Stack.h"
-#include "CoreString.h"
-#include "System.h"
-#include "Text.h"
-#include "Interrupt.h"
-#include "SYSCall.h"
+#include "text/CoreString.h"
+#include "system/System.h"
+#include "text/Text.h"
+#include "system/Interrupt.h"
+#include "system/SYSCall.h"
 
 /************************************************************************/
 

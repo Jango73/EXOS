@@ -24,9 +24,9 @@
 #include "drivers/graphics/common/Graphics-TextRenderer.h"
 #include "utils/Graphics-Utils.h"
 
-#include "CoreString.h"
-#include "Font.h"
-#include "Memory.h"
+#include "text/CoreString.h"
+#include "text/font/Font.h"
+#include "memory/Memory.h"
 
 /************************************************************************/
 

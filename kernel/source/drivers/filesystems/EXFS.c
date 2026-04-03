@@ -23,9 +23,9 @@
 \************************************************************************/
 #include "drivers/filesystems/EXFS.h"
 
-#include "FileSystem.h"
-#include "Kernel.h"
-#include "Log.h"
+#include "fs/FileSystem.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
 #include "drivers/filesystems/FileSystem-Common.h"
 #include "utils/Path.h"
 

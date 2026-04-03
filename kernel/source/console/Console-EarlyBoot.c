@@ -23,8 +23,8 @@
 
 #include "console/Console-EarlyBoot.h"
 
-#include "Font.h"
-#include "Memory.h"
+#include "text/font/Font.h"
+#include "memory/Memory.h"
 #include "vbr-multiboot.h"
 
 /************************************************************************/

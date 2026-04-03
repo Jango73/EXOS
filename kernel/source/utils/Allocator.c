@@ -23,7 +23,7 @@
 
 #include "utils/Allocator.h"
 
-#include "Heap.h"
+#include "memory/Heap.h"
 
 /************************************************************************/
 

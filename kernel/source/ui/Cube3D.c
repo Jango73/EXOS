@@ -23,9 +23,9 @@
 
 #include "ui/Cube3D.h"
 
-#include "Clock.h"
-#include "CoreString.h"
-#include "Heap.h"
+#include "system/Clock.h"
+#include "text/CoreString.h"
+#include "memory/Heap.h"
 #include "math/Math.h"
 #include "math/Math3D.h"
 #include "ui/Button.h"

@@ -23,7 +23,7 @@
 
 #include "Desktop-ModeSelector.h"
 
-#include "Log.h"
+#include "log/Log.h"
 
 /***************************************************************************/
 

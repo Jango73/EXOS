@@ -24,10 +24,10 @@
 
 #include "utils/Path.h"
 
-#include "Heap.h"
-#include "List.h"
-#include "Log.h"
-#include "CoreString.h"
+#include "memory/Heap.h"
+#include "utils/List.h"
+#include "log/Log.h"
+#include "text/CoreString.h"
 
 /************************************************************************/
 

@@ -22,15 +22,15 @@
 
 \************************************************************************/
 
-#include "Exposed.h"
+#include "expose/Exposed.h"
 
-#include "Kernel.h"
-#include "Security.h"
+#include "core/Kernel.h"
+#include "core/Security.h"
 #include "process/Process.h"
 #include "process/Schedule.h"
 #include "utils/Helpers.h"
 #include "utils/ProcessAccess.h"
-#include "UserAccount.h"
+#include "user/UserAccount.h"
 
 /************************************************************************/
 

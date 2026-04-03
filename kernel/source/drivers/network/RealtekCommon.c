@@ -23,13 +23,13 @@
 
 #include "drivers/network/RealtekCommon.h"
 
-#include "Clock.h"
-#include "CoreString.h"
-#include "DeferredWork.h"
-#include "Kernel.h"
-#include "Log.h"
-#include "Memory.h"
-#include "System.h"
+#include "system/Clock.h"
+#include "text/CoreString.h"
+#include "sync/DeferredWork.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
+#include "system/System.h"
 #include "network/NetworkManager.h"
 
 /************************************************************************/

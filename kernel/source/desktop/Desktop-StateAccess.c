@@ -23,8 +23,8 @@
 
 #include "Desktop-Private.h"
 #include "Desktop.h"
-#include "CoreString.h"
-#include "Kernel.h"
+#include "text/CoreString.h"
+#include "core/Kernel.h"
 
 /***************************************************************************/
 

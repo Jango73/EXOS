@@ -63,14 +63,14 @@ ifeq ($(ARCH),x86-32)
 UEFI_TARGET := i686-unknown-windows
 UEFI_MACHINE := X86
 UEFI_BOOT_FILE := BOOTIA32.EFI
-UEFI_ARCH_SOURCE := ../boot-hd/source/vbr-payload-x86-32-uefi.c
+UEFI_ARCH_SOURCE := ../boot-mbr/source/vbr-payload-x86-32-uefi.c
 UEFI_JUMP_SOURCE := source/uefi-jump-x86-32.asm
 NASM_FORMAT := win32
 else ifeq ($(ARCH),x86-64)
 UEFI_TARGET := x86_64-unknown-windows
 UEFI_MACHINE := X64
 UEFI_BOOT_FILE := BOOTX64.EFI
-UEFI_ARCH_SOURCE := ../boot-hd/source/vbr-payload-x86-64-uefi.c
+UEFI_ARCH_SOURCE := ../boot-mbr/source/vbr-payload-x86-64-uefi.c
 UEFI_JUMP_SOURCE := source/uefi-jump-x86-64.asm
 NASM_FORMAT := win64
 else
@@ -104,7 +104,7 @@ CFLAGS := -ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie \
           -DUEFI_LOG_UDP_DEST_PORT=$(UEFI_LOG_UDP_DEST_PORT) \
           -DUEFI_LOG_UDP_SOURCE_PORT=$(UEFI_LOG_UDP_SOURCE_PORT) \
           -DARCH=$(ARCH) \
-          -Iinclude -I../boot-hd/include -I../boot-shared/include -I../kernel/include
+          -Iinclude -I../boot-mbr/include -I../boot-shared/include -I../kernel/include
 
 LDFLAGS := /subsystem:efi_application /entry:EfiMain /nodefaultlib /dll /machine:$(UEFI_MACHINE)
 
@@ -114,7 +114,7 @@ UEFI_C_SOURCES := source/boot-uefi.c \
                   source/uefi-log-udp.c \
                   source/uefi-compat.c \
                   ../boot-shared/source/boot-multiboot.c \
-                  ../kernel/source/CoreString.c \
+                  ../kernel/source/text/CoreString.c \
                   $(UEFI_ARCH_SOURCE)
 
 UEFI_C_OBJS := $(UEFI_BUILD_DIR)/boot-uefi.o \
@@ -164,7 +164,7 @@ $(UEFI_BUILD_DIR)/uefi-log-udp.o: source/uefi-log-udp.c | $(UEFI_BUILD_DIR)
 	@echo "Compiling UEFI UDP logger..."
 	$(CC) -target $(UEFI_TARGET) $(CFLAGS) -c $< -o $@
 
-$(UEFI_BUILD_DIR)/CoreString.o: ../kernel/source/CoreString.c | $(UEFI_BUILD_DIR)
+$(UEFI_BUILD_DIR)/CoreString.o: ../kernel/source/text/CoreString.c | $(UEFI_BUILD_DIR)
 	@echo "Compiling CoreString..."
 	$(CC) -target $(UEFI_TARGET) $(CFLAGS) -c $< -o $@
 

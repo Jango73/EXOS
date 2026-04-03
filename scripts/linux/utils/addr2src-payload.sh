@@ -10,7 +10,7 @@ if [ $# -ne 1 ]; then
 fi
 
 ADDR=$1
-PAYLOAD_ELF="boot-hd/bin/payload.elf"
+PAYLOAD_ELF="boot-mbr/bin/payload.elf"
 
 if [ ! -f "$PAYLOAD_ELF" ]; then
     echo "Error: $PAYLOAD_ELF not found"

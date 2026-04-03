@@ -23,7 +23,7 @@
 
 #include "utils/BufferPool.h"
 
-#include "Log.h"
+#include "log/Log.h"
 
 /************************************************************************/
 

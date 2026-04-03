@@ -22,8 +22,8 @@
 \************************************************************************/
 
 #include "utils/Graphics-Utils.h"
-#include "KernelData.h"
-#include "System.h"
+#include "core/KernelData.h"
+#include "system/System.h"
 #include "math/Math.h"
 #include "utils/LineRasterizer.h"
 

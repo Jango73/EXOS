@@ -23,11 +23,11 @@
 \************************************************************************/
 
 #include "utils/Notification.h"
-#include "Heap.h"
-#include "Log.h"
-#include "Memory.h"
-#include "List.h"
-#include "ID.h"
+#include "memory/Heap.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
+#include "utils/List.h"
+#include "core/ID.h"
 
 /************************************************************************/
 

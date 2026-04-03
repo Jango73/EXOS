@@ -23,10 +23,10 @@
 
 #include "iGPU-Internal.h"
 
-#include "CoreString.h"
-#include "System.h"
-#include "Log.h"
-#include "Memory.h"
+#include "text/CoreString.h"
+#include "system/System.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
 #include "drivers/graphics/common/Graphics-TextRenderer.h"
 
 /************************************************************************/

@@ -24,10 +24,10 @@
 
 #include "Base.h"
 #include "utils/Cache.h"
-#include "Clock.h"
-#include "Heap.h"
-#include "Log.h"
-#include "Memory.h"
+#include "system/Clock.h"
+#include "memory/Heap.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
 
 /************************************************************************/
 

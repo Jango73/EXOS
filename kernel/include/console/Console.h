@@ -26,7 +26,7 @@
 #define CONSOLE_H_INCLUDED
 
 #include "Base.h"
-#include "Driver.h"
+#include "core/Driver.h"
 
 /***************************************************************************/
 

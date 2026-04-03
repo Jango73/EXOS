@@ -26,12 +26,12 @@
 #include "Arch.h"
 #include "GFX.h"
 #include "drivers/interrupts/InterruptController.h"
-#include "Log.h"
+#include "log/Log.h"
 #include "input/Mouse.h"
 #include "input/MouseCommon.h"
-#include "DeferredWork.h"
+#include "sync/DeferredWork.h"
 #include "process/Process.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "User.h"
 
 /***************************************************************************/

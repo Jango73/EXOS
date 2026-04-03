@@ -24,13 +24,13 @@
 
 #include "drivers/storage/ATA.h"
 
-#include "Clock.h"
-#include "Kernel.h"
-#include "Log.h"
-#include "Memory.h"
+#include "system/Clock.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
 #include "drivers/interrupts/InterruptController.h"
-#include "System.h"
-#include "DriverEnum.h"
+#include "system/System.h"
+#include "core/DriverEnum.h"
 #include "utils/BufferPool.h"
 #include "utils/Cache.h"
 

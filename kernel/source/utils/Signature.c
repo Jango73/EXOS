@@ -23,7 +23,7 @@
 
 #include "utils/Signature.h"
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "monocypher-ed25519.h"
 
 /***************************************************************************/

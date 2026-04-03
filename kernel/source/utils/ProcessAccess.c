@@ -23,8 +23,8 @@
 
 #include "utils/ProcessAccess.h"
 
-#include "Kernel.h"
-#include "UserAccount.h"
+#include "core/Kernel.h"
+#include "user/UserAccount.h"
 #include "process/Process.h"
 #include "process/Task.h"
 

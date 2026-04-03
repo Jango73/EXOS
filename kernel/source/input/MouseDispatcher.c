@@ -24,9 +24,9 @@
 #include "input/MouseDispatcher.h"
 
 #include "Arch.h"
-#include "Clock.h"
+#include "system/Clock.h"
 #include "console/Console.h"
-#include "KernelData.h"
+#include "core/KernelData.h"
 #include "input/Mouse.h"
 #include "Desktop.h"
 #include "Desktop-Cursor.h"

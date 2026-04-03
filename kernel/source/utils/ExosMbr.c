@@ -24,7 +24,7 @@
 
 #include "utils/ExosMbr.h"
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 
 /************************************************************************/
 

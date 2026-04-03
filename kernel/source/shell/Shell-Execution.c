@@ -23,8 +23,8 @@
 \************************************************************************/
 
 #include "shell/Shell-Commands-Private.h"
-#include "ID.h"
-#include "SYSCall.h"
+#include "core/ID.h"
+#include "system/SYSCall.h"
 
 /***************************************************************************/
 

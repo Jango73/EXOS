@@ -24,7 +24,7 @@
 
 #include "input/MouseCommon.h"
 #include "drivers/usb/XHCI-Internal.h"
-#include "Clock.h"
+#include "system/Clock.h"
 
 /***************************************************************************/
 

@@ -24,19 +24,19 @@
 
 #include "arch/x86-32/x86-32.h"
 
-#include "Log.h"
-#include "Memory.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
 #include "console/Console.h"
 #include "process/Process.h"
 #include "arch/x86-32/x86-32-Log.h"
 #include "process/Stack.h"
-#include "CoreString.h"
-#include "System.h"
+#include "text/CoreString.h"
+#include "system/System.h"
 #include "process/Task.h"
-#include "Text.h"
-#include "Kernel.h"
-#include "Interrupt.h"
-#include "SYSCall.h"
+#include "text/Text.h"
+#include "core/Kernel.h"
+#include "system/Interrupt.h"
+#include "system/SYSCall.h"
 
 /************************************************************************\
 

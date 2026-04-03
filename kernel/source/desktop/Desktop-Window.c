@@ -29,7 +29,7 @@
 #include "Desktop-WindowClass.h"
 #include "DisplaySession.h"
 #include "Desktop.h"
-#include "Kernel.h"
+#include "core/Kernel.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
 #include "utils/Graphics-Utils.h"

@@ -23,11 +23,11 @@
 
 #include "GFX.h"
 
-#include "CoreString.h"
-#include "DriverGetters.h"
-#include "Log.h"
-#include "Profile.h"
-#include "Clock.h"
+#include "text/CoreString.h"
+#include "core/DriverGetters.h"
+#include "log/Log.h"
+#include "log/Profile.h"
+#include "system/Clock.h"
 #include "utils/BootPath.h"
 #include "utils/RateLimiter.h"
 

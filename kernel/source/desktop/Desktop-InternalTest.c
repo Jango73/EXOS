@@ -23,9 +23,9 @@
 
 #include "Desktop-InternalTest.h"
 #include "Desktop-Private.h"
-#include "Clock.h"
-#include "Kernel.h"
-#include "Log.h"
+#include "system/Clock.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
 
 /***************************************************************************/
 // Macros

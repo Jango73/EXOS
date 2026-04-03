@@ -23,7 +23,7 @@
 
 #include "process/Task-Access.h"
 
-#include "Kernel.h"
+#include "core/Kernel.h"
 #include "utils/ProcessAccess.h"
 
 /************************************************************************/

@@ -27,9 +27,9 @@
 #include "drivers/bus/PCI.h"
 #include "drivers/usb/XHCI-Internal.h"
 
-#include "DriverGetters.h"
-#include "KernelData.h"
-#include "Log.h"
+#include "core/DriverGetters.h"
+#include "core/KernelData.h"
+#include "log/Log.h"
 
 /************************************************************************/
 

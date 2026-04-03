@@ -23,20 +23,20 @@
 \************************************************************************/
 
 #include "network/TCP.h"
-#include "Kernel.h"
-#include "Log.h"
-#include "System.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
+#include "system/System.h"
 #include "network/IPv4.h"
-#include "Clock.h"
-#include "Socket.h"
-#include "Memory.h"
-#include "Heap.h"
+#include "system/Clock.h"
+#include "network/Socket.h"
+#include "memory/Memory.h"
+#include "memory/Heap.h"
 #include "utils/Notification.h"
 #include "utils/Helpers.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "utils/NetworkChecksum.h"
 #include "utils/Hysteresis.h"
-#include "Device.h"
+#include "core/Device.h"
 
 /************************************************************************/
 // Configuration

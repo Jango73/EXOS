@@ -25,13 +25,13 @@
 #include "process/Process.h"
 
 #include "console/Console.h"
-#include "Driver.h"
-#include "Executable.h"
-#include "File.h"
-#include "Kernel.h"
-#include "List.h"
-#include "Log.h"
-#include "CoreString.h"
+#include "core/Driver.h"
+#include "exec/Executable.h"
+#include "fs/File.h"
+#include "core/Kernel.h"
+#include "utils/List.h"
+#include "log/Log.h"
+#include "text/CoreString.h"
 #if defined(__EXOS_ARCH_X86_32__)
     #include "arch/x86-32/x86-32-Log.h"
 #endif

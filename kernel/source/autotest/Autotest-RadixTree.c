@@ -22,10 +22,10 @@
 
 \************************************************************************/
 
-#include "Autotest.h"
-#include "CoreString.h"
-#include "Heap.h"
-#include "Log.h"
+#include "autotest/Autotest.h"
+#include "text/CoreString.h"
+#include "memory/Heap.h"
+#include "log/Log.h"
 #include "utils/RadixTree.h"
 
 /************************************************************************/

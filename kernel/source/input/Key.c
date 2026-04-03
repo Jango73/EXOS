@@ -25,9 +25,9 @@
 #include "Base.h"
 #include "drivers/input/Keyboard.h"
 
-#include "Clock.h"
-#include "CoreString.h"
-#include "Log.h"
+#include "system/Clock.h"
+#include "text/CoreString.h"
+#include "log/Log.h"
 #include "input/VKey.h"
 #include "utils/KernelPath.h"
 

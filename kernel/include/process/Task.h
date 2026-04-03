@@ -34,8 +34,8 @@
 #include "Base.h"
 #include "process/Task-Stack.h"
 #include "Arch.h"
-#include "List.h"
-#include "Mutex.h"
+#include "utils/List.h"
+#include "sync/Mutex.h"
 #include "User.h"
 #include "utils/MessageQueue.h"
 

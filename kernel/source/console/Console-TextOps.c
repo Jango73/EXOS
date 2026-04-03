@@ -24,10 +24,10 @@
 #include "Console-Internal.h"
 
 #include "DisplaySession.h"
-#include "DriverGetters.h"
-#include "Font.h"
+#include "core/DriverGetters.h"
+#include "text/font/Font.h"
 #include "GFX.h"
-#include "Kernel.h"
+#include "core/Kernel.h"
 
 /************************************************************************/
 

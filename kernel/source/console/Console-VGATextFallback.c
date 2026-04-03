@@ -25,9 +25,9 @@
 
 #include "Console-Internal.h"
 #include "DisplaySession.h"
-#include "DriverGetters.h"
+#include "core/DriverGetters.h"
 #include "GFX.h"
-#include "Kernel.h"
+#include "core/Kernel.h"
 /************************************************************************/
 
 /**

@@ -23,7 +23,7 @@
 
 #include "math/Math.h"
 
-#include "KernelData.h"
+#include "core/KernelData.h"
 #include "arch/intel/x86-Common.h"
 
 /************************************************************************/

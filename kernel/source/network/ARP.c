@@ -23,14 +23,14 @@
 \************************************************************************/
 
 #include "network/ARP.h"
-#include "ARPContext.h"
-#include "Device.h"
-#include "Heap.h"
-#include "ID.h"
-#include "Log.h"
-#include "Memory.h"
+#include "network/ARPContext.h"
+#include "core/Device.h"
+#include "memory/Heap.h"
+#include "core/ID.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
 #include "network/Network.h"
-#include "System.h"
+#include "system/System.h"
 #include "utils/Notification.h"
 #include "utils/AdaptiveDelay.h"
 

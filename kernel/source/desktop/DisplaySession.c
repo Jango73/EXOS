@@ -26,10 +26,10 @@
 #include "console/Console.h"
 #include "console/Console-VGATextFallback.h"
 #include "desktop/Desktop-ModeSelector.h"
-#include "DriverGetters.h"
+#include "core/DriverGetters.h"
 #include "GFX.h"
-#include "KernelData.h"
-#include "Mutex.h"
+#include "core/KernelData.h"
+#include "sync/Mutex.h"
 #include "Desktop.h"
 
 /************************************************************************/

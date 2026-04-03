@@ -24,9 +24,9 @@
 
 #include "drivers/filesystems/FAT.h"
 #include "drivers/filesystems/EXT2.h"
-#include "Clock.h"
-#include "Kernel.h"
-#include "Log.h"
+#include "system/Clock.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
 
 /***************************************************************************/
 

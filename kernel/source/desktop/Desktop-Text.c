@@ -23,7 +23,7 @@
 
 #include "Desktop.h"
 
-#include "KernelData.h"
+#include "core/KernelData.h"
 
 /***************************************************************************/
 

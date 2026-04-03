@@ -24,11 +24,11 @@
 
 #include "utils/RadixTree.h"
 
-#include "CoreString.h"
-#include "Heap.h"
-#include "Log.h"
-#include "Memory.h"
-#include "Mutex.h"
+#include "text/CoreString.h"
+#include "memory/Heap.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
+#include "sync/Mutex.h"
 #include "utils/BlockList.h"
 
 /************************************************************************/

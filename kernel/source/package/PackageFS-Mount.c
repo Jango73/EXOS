@@ -23,11 +23,11 @@
 
 #include "PackageFS-Internal.h"
 
-#include "CoreString.h"
-#include "Heap.h"
-#include "Kernel.h"
-#include "Log.h"
-#include "SystemFS.h"
+#include "text/CoreString.h"
+#include "memory/Heap.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
+#include "fs/SystemFS.h"
 
 /************************************************************************/
 

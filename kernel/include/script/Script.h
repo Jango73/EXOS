@@ -26,7 +26,7 @@
 #define SCRIPT_H_INCLUDED
 
 #include "Base.h"
-#include "List.h"
+#include "utils/List.h"
 #include "utils/Allocator.h"
 
 /************************************************************************/

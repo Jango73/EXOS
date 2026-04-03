@@ -24,7 +24,7 @@
 
 #include "../include/exos.h"
 #include "../include/exos-runtime.h"
-#include "../../kernel/include/CoreString.h"
+#include "../../kernel/include/text/CoreString.h"
 
 /***************************************************************************/
 

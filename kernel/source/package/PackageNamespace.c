@@ -23,10 +23,10 @@
 
 #include "package/PackageNamespace.h"
 
-#include "CoreString.h"
-#include "KernelData.h"
-#include "Log.h"
-#include "SystemFS.h"
+#include "text/CoreString.h"
+#include "core/KernelData.h"
+#include "log/Log.h"
+#include "fs/SystemFS.h"
 #include "utils/Helpers.h"
 #include "utils/KernelPath.h"
 

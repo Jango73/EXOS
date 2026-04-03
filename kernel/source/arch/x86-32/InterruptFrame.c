@@ -149,10 +149,10 @@
 
 #include "Base.h"
 #include "arch/x86-32/x86-32.h"
-#include "Log.h"
-#include "Memory.h"
-#include "CoreString.h"
-#include "System.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
+#include "text/CoreString.h"
+#include "system/System.h"
 
 /************************************************************************/
 

@@ -22,9 +22,9 @@
 
 \************************************************************************/
 
-#include "Exposed.h"
+#include "expose/Exposed.h"
 
-#include "Mutex.h"
+#include "sync/Mutex.h"
 #include "process/Process.h"
 
 /************************************************************************/

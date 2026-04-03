@@ -22,12 +22,12 @@
 
 \************************************************************************/
 
-#include "Autotest.h"
+#include "autotest/Autotest.h"
 #include "Base.h"
-#include "Heap.h"
+#include "memory/Heap.h"
 #include "arch/intel/x86-32-Asm.h"
-#include "Log.h"
-#include "CoreString.h"
+#include "log/Log.h"
+#include "text/CoreString.h"
 
 /************************************************************************/
 

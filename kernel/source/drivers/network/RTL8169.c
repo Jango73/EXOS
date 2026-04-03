@@ -23,8 +23,8 @@
 
 #include "drivers/network/RTL8169.h"
 
-#include "Kernel.h"
-#include "Log.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
 
 /************************************************************************/
 

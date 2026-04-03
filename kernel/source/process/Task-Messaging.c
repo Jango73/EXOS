@@ -21,11 +21,11 @@
 
 \************************************************************************/
 
-#include "Clock.h"
+#include "system/Clock.h"
 #include "Arch.h"
 #include "DisplaySession.h"
-#include "Kernel.h"
-#include "Log.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
 #include "Desktop.h"
 #include "../desktop/Desktop-Private.h"
 #include "process/Process-Control.h"

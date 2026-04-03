@@ -42,11 +42,11 @@
 
 #include "arch/InterruptFrame.h"
 
-#include "Log.h"
-#include "Memory.h"
-#include "CoreString.h"
-#include "System.h"
-#include "Text.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
+#include "text/CoreString.h"
+#include "system/System.h"
+#include "text/Text.h"
 
 /************************************************************************/
 

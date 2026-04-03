@@ -26,11 +26,11 @@
 #include "Base.h"
 #include "arch/intel/x86-Common.h"
 #include "drivers/interrupts/LocalAPIC.h"
-#include "Log.h"
-#include "Memory.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
 #include "User.h"
-#include "CoreString.h"
-#include "System.h"
+#include "text/CoreString.h"
+#include "system/System.h"
 
 /***************************************************************************/
 

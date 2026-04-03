@@ -296,7 +296,7 @@ Keep one file per concern:
 
 ## Follow-up documentation updates
 When implementation starts (not only planning), update:
-- `doc/guides/kernel.md` with the Intel graphics backend architecture.
+- `doc/guides/Kernel.md` with the Intel graphics backend architecture.
 - Doxygen pages for new driver modules and exported `GFX.h` structures.
 
 ## Mandatory implementation direction

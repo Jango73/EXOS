@@ -23,8 +23,8 @@
 
 #include "Desktop-ThemeParser.h"
 #include "Desktop-ThemeTokens.h"
-#include "CoreString.h"
-#include "Kernel.h"
+#include "text/CoreString.h"
+#include "core/Kernel.h"
 #include "utils/TOML.h"
 
 /***************************************************************************/

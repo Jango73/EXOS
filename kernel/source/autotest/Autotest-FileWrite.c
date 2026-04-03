@@ -21,12 +21,12 @@
 
 \************************************************************************/
 
-#include "Autotest.h"
+#include "autotest/Autotest.h"
 
-#include "CoreString.h"
-#include "File.h"
-#include "Heap.h"
-#include "Log.h"
+#include "text/CoreString.h"
+#include "fs/File.h"
+#include "memory/Heap.h"
+#include "log/Log.h"
 
 /************************************************************************/
 

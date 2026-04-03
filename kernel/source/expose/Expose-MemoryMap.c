@@ -21,10 +21,10 @@
 
 \************************************************************************/
 
-#include "Exposed.h"
+#include "expose/Exposed.h"
 
-#include "KernelData.h"
-#include "Memory.h"
+#include "core/KernelData.h"
+#include "memory/Memory.h"
 #include "process/Process.h"
 
 /************************************************************************/

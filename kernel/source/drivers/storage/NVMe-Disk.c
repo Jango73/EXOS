@@ -23,9 +23,9 @@
 
 #include "drivers/storage/NVMe-Internal.h"
 
-#include "CoreString.h"
-#include "FileSystem.h"
-#include "KernelData.h"
+#include "text/CoreString.h"
+#include "fs/FileSystem.h"
+#include "core/KernelData.h"
 
 /************************************************************************/
 

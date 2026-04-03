@@ -23,9 +23,9 @@
 \************************************************************************/
 
 #include "arch/Disassemble.h"
-#include "Memory.h"
-#include "CoreString.h"
-#include "KernelData.h"
+#include "memory/Memory.h"
+#include "text/CoreString.h"
+#include "core/KernelData.h"
 #include "arch/intel/x86-32-Asm.h"
 
 /***************************************************************************/

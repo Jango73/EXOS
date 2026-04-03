@@ -29,8 +29,8 @@
 #include "console/Console.h"
 #include "drivers/interrupts/InterruptController.h"
 #include "DisplaySession.h"
-#include "Kernel.h"
-#include "Log.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
 #include "input/VKey.h"
 #include "User.h"
 

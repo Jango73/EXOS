@@ -8,9 +8,9 @@ BUILD_IMAGE_NAME ?=
 
 SUBMAKE = $(MAKE) ARCH=$(ARCH) VMA_KERNEL=$(VMA_KERNEL) USE_SYSCALL=$(USE_SYSCALL) PROFILING=$(PROFILING) BUILD_CONFIGURATION=$(BUILD_CONFIGURATION) BUILD_CORE_NAME=$(BUILD_CORE_NAME) BUILD_IMAGE_NAME=$(BUILD_IMAGE_NAME)
 
-.PHONY: all kernel runtime system boot-qemu boot-hd boot-uefi tools clean
+.PHONY: all kernel runtime system boot-qemu boot-mbr boot-uefi tools clean
 
-all: log kernel runtime system boot-hd tools
+all: log kernel runtime system boot-mbr tools
 
 log:
 	@mkdir -p log
@@ -27,9 +27,9 @@ system: runtime
 	@echo "[ Building system programs ]"
 	@+$(SUBMAKE) -C system
 
-boot-hd: kernel system
+boot-mbr: kernel system
 	@echo "[ Building Qemu HD image ]"
-	@+$(SUBMAKE) -C boot-hd
+	@+$(SUBMAKE) -C boot-mbr
 
 boot-uefi: kernel
 	@echo "[ Building UEFI image ]"
@@ -44,7 +44,6 @@ clean:
 	@+$(SUBMAKE) -C kernel clean
 	@+$(SUBMAKE) -C runtime clean
 	@+$(SUBMAKE) -C system clean
-	@+$(SUBMAKE) -C boot-freedos clean
-	@+$(SUBMAKE) -C boot-hd clean
+	@+$(SUBMAKE) -C boot-mbr clean
 	@+$(SUBMAKE) -C boot-uefi clean
 	@+$(SUBMAKE) -C tools clean

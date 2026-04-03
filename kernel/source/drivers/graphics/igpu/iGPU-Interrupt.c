@@ -23,8 +23,8 @@
 
 #include "iGPU-Internal.h"
 
-#include "Clock.h"
-#include "Log.h"
+#include "system/Clock.h"
+#include "log/Log.h"
 #include "utils/RateLimiter.h"
 
 /************************************************************************/

@@ -24,7 +24,7 @@
 
 #include "utils/StringArray.h"
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 
 /************************************************************************/
 

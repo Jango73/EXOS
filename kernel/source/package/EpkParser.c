@@ -23,9 +23,9 @@
 
 #include "package/EpkParser.h"
 
-#include "CoreString.h"
-#include "Heap.h"
-#include "Log.h"
+#include "text/CoreString.h"
+#include "memory/Heap.h"
+#include "log/Log.h"
 #include "utils/Crypt.h"
 #include "utils/Signature.h"
 

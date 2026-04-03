@@ -23,9 +23,9 @@
 
 #include "package/PackageManifest.h"
 
-#include "CoreString.h"
-#include "Heap.h"
-#include "Log.h"
+#include "text/CoreString.h"
+#include "memory/Heap.h"
+#include "log/Log.h"
 #include "User.h"
 #include "package/EpkParser.h"
 #include "utils/TOML.h"

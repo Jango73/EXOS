@@ -26,11 +26,11 @@
 
 #include "console/Console.h"
 #include "drivers/input/Keyboard.h"
-#include "Log.h"
-#include "CoreString.h"
+#include "log/Log.h"
+#include "text/CoreString.h"
 #include "process/Schedule.h"
 #include "process/Task.h"
-#include "UserSession.h"
+#include "user/UserSession.h"
 #include "input/VKey.h"
 
 /***************************************************************************/

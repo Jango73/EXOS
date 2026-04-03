@@ -23,11 +23,11 @@
 
 #include "utils/DeadlockMonitor.h"
 
-#include "Clock.h"
+#include "system/Clock.h"
 #include "console/Console.h"
-#include "Log.h"
-#include "Memory.h"
-#include "Mutex.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
+#include "sync/Mutex.h"
 #include "process/Task.h"
 #include "utils/RateLimiter.h"
 

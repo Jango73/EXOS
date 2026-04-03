@@ -28,10 +28,10 @@
 /***************************************************************************/
 
 #include "Base.h"
-#include "UserAccount.h"
+#include "user/UserAccount.h"
 #include "TOML.h"
-#include "FileSystem.h"
-#include "SystemFS.h"
+#include "fs/FileSystem.h"
+#include "fs/SystemFS.h"
 
 /***************************************************************************/
 // Configuration paths

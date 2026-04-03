@@ -26,11 +26,10 @@
 #define ARP_H_INCLUDED
 
 #include "Base.h"
-#include "Driver.h"
+#include "core/Driver.h"
 #include "network/Network.h"
 #include "drivers/bus/PCI.h"
-#include "CoreString.h"
-#include "Endianness.h"
+#include "text/CoreString.h"
 
 /************************************************************************/
 
@@ -72,7 +71,7 @@ typedef struct tag_ARP_PACKET {
 } ARP_PACKET, *LPARP_PACKET;
 
 // Per-device ARP API
-#include "ARPContext.h"
+#include "network/ARPContext.h"
 
 /************************************************************************/
 

@@ -24,7 +24,7 @@
 
 #include "drivers/usb/XHCI-Internal.h"
 #include "drivers/usb/XHCI-Device-Internal.h"
-#include "Clock.h"
+#include "system/Clock.h"
 #include "utils/ThresholdLatch.h"
 
 /************************************************************************/

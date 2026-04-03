@@ -24,9 +24,9 @@
 #include "drivers/graphics/vga/VGA.h"
 
 #include "Arch.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "GFX.h"
-#include "System.h"
+#include "system/System.h"
 
 /***************************************************************************/
 

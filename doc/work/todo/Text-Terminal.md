@@ -8,7 +8,7 @@
   - the legacy keyboard buffer (`Keyboard.Buffer`) when no message queue is available.
 - Userland uses `runtime/include/exos.h` `Console*` functions that map to the console syscalls.
 - `PROCESS_INFO` exposes `StdIn/StdOut/StdErr` but the `PROCESS` struct does not store them and the console path ignores them.
-- `SystemFS` is the root pseudo filesystem (`kernel/source/SystemFS.c`), but there are no TTY nodes yet.
+- `SystemFS` is the root pseudo filesystem (`kernel/source/fs/SystemFS.c`), but there are no TTY nodes yet.
 - Configuration is provided via TOML (see `kernel/configuration/exos.ref.toml`) and is used for runtime paths.
 
 ## Goals

@@ -230,13 +230,13 @@ case "$ARCH" in
         ;;
 esac
 
-IMG_PATH="$IMAGE_BUILD_DIR/boot-hd/exos.img"
-USB_3_PATH="$IMAGE_BUILD_DIR/boot-hd/usb-3.img"
-FS_TEST_EXT2_IMG_PATH="$IMAGE_BUILD_DIR/boot-hd/fs-test-ext2.img"
-FS_TEST_FAT32_IMG_PATH="$IMAGE_BUILD_DIR/boot-hd/fs-test-fat32.img"
-FS_TEST_NTFS_IMG_PATH="$IMAGE_BUILD_DIR/boot-hd/fs-test-ntfs.img"
+IMG_PATH="$IMAGE_BUILD_DIR/boot-mbr/exos.img"
+USB_3_PATH="$IMAGE_BUILD_DIR/boot-mbr/usb-3.img"
+FS_TEST_EXT2_IMG_PATH="$IMAGE_BUILD_DIR/boot-mbr/fs-test-ext2.img"
+FS_TEST_FAT32_IMG_PATH="$IMAGE_BUILD_DIR/boot-mbr/fs-test-fat32.img"
+FS_TEST_NTFS_IMG_PATH="$IMAGE_BUILD_DIR/boot-mbr/fs-test-ntfs.img"
 NTFS_LIVE_IMG_PATH="build/test-images/ntfs-live.img"
-FLOPPY_35_PATH="${FLOPPY_35_PATH:-$IMAGE_BUILD_DIR/boot-hd/floppy-3.5.img}"
+FLOPPY_35_PATH="${FLOPPY_35_PATH:-$IMAGE_BUILD_DIR/boot-mbr/floppy-3.5.img}"
 CYCLE_BIN="$CORE_BUILD_DIR/tools/cycle"
 DEBUG_ELF="$CORE_BUILD_DIR/kernel/exos.elf"
 

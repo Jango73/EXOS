@@ -23,18 +23,18 @@
 \************************************************************************/
 
 #include "Base.h"
-#include "Clock.h"
-#include "ID.h"
-#include "Kernel.h"
-#include "KernelEvent.h"
-#include "List.h"
-#include "Log.h"
-#include "Memory.h"
+#include "system/Clock.h"
+#include "core/ID.h"
+#include "core/Kernel.h"
+#include "core/KernelEvent.h"
+#include "utils/List.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
 #include "process/Process-Control.h"
 #include "process/Process.h"
 #include "process/Schedule.h"
 #include "process/Stack.h"
-#include "System.h"
+#include "system/System.h"
 #include "process/Task.h"
 
 /***************************************************************************/

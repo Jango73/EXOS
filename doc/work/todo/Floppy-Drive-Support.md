@@ -138,7 +138,7 @@ Goal: validate the implementation in controlled stages.
 
 ## Step 10 - Documentation
 Goal: keep the kernel documentation aligned with the implementation.
-- [ ] Update `doc/guides/kernel.md` when the floppy controller, disk path, superfloppy mount behavior, and FAT12 support are added.
+- [ ] Update `doc/guides/Kernel.md` when the floppy controller, disk path, superfloppy mount behavior, and FAT12 support are added.
 - [ ] Document supported floppy media types and current limitations.
 - [ ] Document whether write support is enabled and under which conditions.
 Success: the documented storage stack matches real kernel behavior.

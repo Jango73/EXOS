@@ -23,13 +23,13 @@
 
 #include "arch/x86-64/x86-64.h"
 
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "console/Console.h"
-#include "Driver.h"
-#include "Kernel.h"
-#include "Log.h"
-#include "Memory.h"
-#include "Text.h"
+#include "core/Driver.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
+#include "text/Text.h"
 #include "User.h"
 
 /************************************************************************/

@@ -26,17 +26,17 @@
 #ifndef X86_64_MEMORY_INTERNAL_H_INCLUDED
 #define X86_64_MEMORY_INTERNAL_H_INCLUDED
 
-#include "Memory.h"
-#include "Memory-Descriptors.h"
+#include "memory/Memory.h"
+#include "memory/Memory-Descriptors.h"
 #include "console/Console.h"
-#include "CoreString.h"
-#include "Kernel.h"
+#include "text/CoreString.h"
+#include "core/Kernel.h"
 #include "process/Process.h"
 #include "process/Schedule.h"
-#include "Log.h"
+#include "log/Log.h"
 #include "process/Stack.h"
-#include "System.h"
-#include "Text.h"
+#include "system/System.h"
+#include "text/Text.h"
 #include "arch/x86-64/x86-64.h"
 #include "arch/x86-64/x86-64-Log.h"
 

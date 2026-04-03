@@ -24,9 +24,9 @@
 
 #include "utils/TOML.h"
 
-#include "Kernel.h"
-#include "Log.h"
-#include "CoreString.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
+#include "text/CoreString.h"
 
 /***************************************************************************/
 

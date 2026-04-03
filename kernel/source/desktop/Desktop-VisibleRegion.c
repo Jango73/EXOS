@@ -23,7 +23,7 @@
 
 #include "Desktop-Private.h"
 #include "Desktop.h"
-#include "Kernel.h"
+#include "core/Kernel.h"
 #include "utils/Graphics-Utils.h"
 
 /************************************************************************/

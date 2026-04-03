@@ -23,9 +23,9 @@
 
 #include "utils/DMABuffer.h"
 
-#include "CoreString.h"
-#include "Log.h"
-#include "Memory.h"
+#include "text/CoreString.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
 #include "User.h"
 
 /************************************************************************/

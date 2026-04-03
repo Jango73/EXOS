@@ -21,9 +21,9 @@
                 { "label": "Build 32 MBR Deb Split", "script": "scripts/linux/build/build --arch x86-32 --fs ext2 --debug --split --clean" },
 
                 { "label": "Build 32 System Data View", "script": "scripts/linux/build/build --arch x86-32 --fs ext2 --system-data-view --clean" },
-                { "label": "Build 32 VESA Test Payload", "script": "make -C boot-hd BUILD_CORE_NAME=x86-32-mbr-debug BUILD_IMAGE_NAME=x86-32-mbr-debug-ext2 PAYLOAD_SOURCE=test-payloads/vesa-test.c ARCH=x86-32 clean install-vbr-payload" },
-                { "label": "Build 32 Dumper Payload", "script": "make -C boot-hd BUILD_CORE_NAME=x86-32-mbr-debug BUILD_IMAGE_NAME=x86-32-mbr-debug-ext2 PAYLOAD_SOURCE=test-payloads/dumper*.c ARCH=x86-32 clean install-vbr-payload" },
-                { "label": "Build 32 BIOS Keyboard Payload", "script": "make -C boot-hd BUILD_CORE_NAME=x86-32-mbr-debug BUILD_IMAGE_NAME=x86-32-mbr-debug-ext2 PAYLOAD_SOURCE=test-payloads/bios-keyboard.c ARCH=x86-32 install-vbr-payload" },
+                { "label": "Build 32 VESA Test Payload", "script": "make -C boot-mbr BUILD_CORE_NAME=x86-32-mbr-debug BUILD_IMAGE_NAME=x86-32-mbr-debug-ext2 PAYLOAD_SOURCE=test-payloads/vesa-test.c ARCH=x86-32 clean install-vbr-payload" },
+                { "label": "Build 32 Dumper Payload", "script": "make -C boot-mbr BUILD_CORE_NAME=x86-32-mbr-debug BUILD_IMAGE_NAME=x86-32-mbr-debug-ext2 PAYLOAD_SOURCE=test-payloads/dumper*.c ARCH=x86-32 clean install-vbr-payload" },
+                { "label": "Build 32 BIOS Keyboard Payload", "script": "make -C boot-mbr BUILD_CORE_NAME=x86-32-mbr-debug BUILD_IMAGE_NAME=x86-32-mbr-debug-ext2 PAYLOAD_SOURCE=test-payloads/bios-keyboard.c ARCH=x86-32 install-vbr-payload" },
 
                 { "label": "x86-32 run----------" },
 

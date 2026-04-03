@@ -42,7 +42,7 @@ This is a multi-architecture operating system. Currently supporting x86-32 and x
 - **Style**: 4-space indentation, follow `.clang-format` rules.
 - **Numbers**: Hexadecimal for constant numbers, except for sizes, vectors, points and time.
 - **Number suffixes**: Do not add numeric suffixes like `u` to constants; they are not wanted here.
-- **Documentation**: Update `doc/guides/kernel.md` when adding/modifying kernel components.
+- **Documentation**: Update `doc/guides/Kernel.md` when adding/modifying kernel components.
 - **Documentation wording**: Use timeless technical wording. Do not use temporal terms like "now", "currently", "at this time" in documentation/comments.
 - **Kernel logical paths**: For kernel file/folder logical paths, use `utils/KernelPath` (`KernelPathResolve` / `KernelPathBuildFile`) and `KernelPath.*` config keys instead of hardcoded absolute paths.
 - **Languages**: C for kernel, avoid Python (use Node.js/JS if needed).
@@ -117,7 +117,7 @@ This script runs build + boot + shell command checks (`sysinfo`, `dir`, `/system
   - example: `x86-64-uefi-release-fat32`
 - Typical files:
   - kernel ELF: `build/core/<BUILD_CORE_NAME>/kernel/exos.elf`
-  - MBR image: `build/image/<BUILD_IMAGE_NAME>/boot-hd/exos.img`
+  - MBR image: `build/image/<BUILD_IMAGE_NAME>/boot-mbr/exos.img`
   - UEFI image: `build/image/<BUILD_IMAGE_NAME>/boot-uefi/exos-uefi.img`
 
 **Remote build on Windows (SSH to a Linux build host):**
@@ -138,13 +138,13 @@ Bochs output goes to `bochs.log`.
 
 ## Documentation
 
-Kernel design : `doc/guides/kernel.md`
+Kernel design : `doc/guides/Kernel.md`
 Doxygen documentation is in `doc/generated/kernel/*`
 
 **Core Components:**
 - **Kernel** (`kernel/source/`): Main OS kernel with multitasking, memory management, drivers
 - **Shell** (`kernel/source/Shell.c`): Command-line interface
-- **Boot** (`boot-hd/` and `boot-uefi/`): Bootloader and disk image creation
+- **Boot** (`boot-mbr/` and `boot-uefi/`): Bootloader and disk image creation
 - **Runtime** (`runtime/`): User-space runtime library, but included in the kernel to interface with 3rd party code
 - **System** (`system/`): User-space system library, samples
 

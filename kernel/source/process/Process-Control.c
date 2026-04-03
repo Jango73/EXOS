@@ -23,8 +23,8 @@
 
 #include "process/Process-Control.h"
 
-#include "Log.h"
-#include "Memory.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
 
 /************************************************************************/
 

@@ -23,14 +23,14 @@
 \************************************************************************/
 
 #include "Base.h"
-#include "Kernel.h"
+#include "core/Kernel.h"
 #include "drivers/platform/ACPI.h"
 #include "drivers/interrupts/InterruptController.h"
 #include "drivers/interrupts/IOAPIC.h"
 #include "drivers/interrupts/LocalAPIC.h"
 #include "User.h"
-#include "Log.h"
-#include "System.h"
+#include "log/Log.h"
+#include "system/System.h"
 
 /************************************************************************/
 

@@ -24,7 +24,7 @@
 
 
 #include "arch/x86-64/x86-64-Memory-Internal.h"
-#include "BuddyAllocator.h"
+#include "memory/BuddyAllocator.h"
 
 /************************************************************************/
 

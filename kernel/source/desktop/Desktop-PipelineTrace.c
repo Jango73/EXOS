@@ -23,8 +23,8 @@
 
 #include "Desktop-Private.h"
 #include "Desktop-PipelineTrace.h"
-#include "Kernel.h"
-#include "KernelData.h"
+#include "core/Kernel.h"
+#include "core/KernelData.h"
 #include "utils/Graphics-Utils.h"
 
 /************************************************************************/

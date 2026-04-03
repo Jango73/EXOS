@@ -26,8 +26,8 @@
 #include "Desktop-ThemeCommon.h"
 #include "Desktop-Private.h"
 #include "Desktop-ThemeRuntime.h"
-#include "CoreString.h"
-#include "Kernel.h"
+#include "text/CoreString.h"
+#include "core/Kernel.h"
 
 /***************************************************************************/
 // Type definitions

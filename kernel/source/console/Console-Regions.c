@@ -22,17 +22,17 @@
 \************************************************************************/
 
 #include "Console-Internal.h"
-#include "Heap.h"
-#include "Kernel.h"
-#include "Memory.h"
-#include "Mutex.h"
-#include "CoreString.h"
+#include "memory/Heap.h"
+#include "core/Kernel.h"
+#include "memory/Memory.h"
+#include "sync/Mutex.h"
+#include "text/CoreString.h"
 #include "drivers/input/Keyboard.h"
 #include "input/VKey.h"
 #include "process/Process-Control.h"
 #include "process/Process.h"
 #include "process/Task.h"
-#include "System.h"
+#include "system/System.h"
 
 /***************************************************************************/
 

@@ -22,18 +22,18 @@
 
 \************************************************************************/
 
-#include "Memory.h"
+#include "memory/Memory.h"
 
 #include "Base.h"
-#include "BuddyAllocator.h"
+#include "memory/BuddyAllocator.h"
 #include "console/Console.h"
-#include "Kernel.h"
-#include "Log.h"
-#include "Memory-Descriptors.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
+#include "memory/Memory-Descriptors.h"
 #include "arch/x86-32/x86-32-Log.h"
 #include "process/Process.h"
 #include "process/Schedule.h"
-#include "System.h"
+#include "system/System.h"
 
 /************************************************************************\
 

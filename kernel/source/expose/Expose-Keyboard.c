@@ -21,10 +21,10 @@
 
 \************************************************************************/
 
-#include "Exposed.h"
+#include "expose/Exposed.h"
 
-#include "DriverGetters.h"
-#include "KernelData.h"
+#include "core/DriverGetters.h"
+#include "core/KernelData.h"
 #include "drivers/input/KeyboardDrivers.h"
 
 /************************************************************************/

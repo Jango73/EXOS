@@ -65,7 +65,7 @@ EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/con
 - ACPI shutdown/reboot
 - Console management
 - VGA driver
-- VESA driver (broken)
+- VESA driver
 - Intel Graphics (iGPU) driver
 - PS/2 keyboard and mouse drivers
 - USB keyboard (HID) and mouse drivers
@@ -103,6 +103,10 @@ EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/con
 
 - More architectures
 - More drivers
+
+## Architecture
+
+See doc/guides/Kernel.md for architecture details
 
 ## Dependencies
 
@@ -143,11 +147,11 @@ Lines of code in this project, excluding third party software.
 -------------------------------------------------------------------------------
 Language                     files          blank        comment           code
 -------------------------------------------------------------------------------
-C                              347          33463          34975         113968
-C/C++ Header                   246           6318           6912          15795
+C                              346          33456          34958         113959
+C/C++ Header                   245           6304           6884          15783
 Assembly                        20           1981           1264           6746
 -------------------------------------------------------------------------------
-SUM:                           613          41762          43151         136509
+SUM:                           611          41741          43106         136488
 -------------------------------------------------------------------------------
 ```
 

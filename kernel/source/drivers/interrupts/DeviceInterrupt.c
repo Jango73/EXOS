@@ -25,10 +25,10 @@
 #include "drivers/interrupts/DeviceInterrupt.h"
 
 #include "drivers/interrupts/InterruptController.h"
-#include "Log.h"
-#include "Memory.h"
-#include "CoreString.h"
-#include "DeferredWork.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
+#include "text/CoreString.h"
+#include "sync/DeferredWork.h"
 #include "utils/Helpers.h"
 #include "User.h"
 

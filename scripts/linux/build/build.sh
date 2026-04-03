@@ -198,7 +198,7 @@ function FlushImageArtifacts() {
         FlushPathToDisk "$ImagePath"
     done < <(find "$ImageBuildDir" -type f -name "*.img" -print0 2>/dev/null || true)
 
-    FlushPathToDisk "$ImageBuildDir/boot-hd"
+    FlushPathToDisk "$ImageBuildDir/boot-mbr"
     FlushPathToDisk "$ImageBuildDir/boot-uefi"
     FlushPathToDisk "$ImageBuildDir"
 }

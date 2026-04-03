@@ -83,6 +83,17 @@ LDFLAGS_ELF     = -T $(LINKER_SCRIPT) -static -nostdlib -no-pie --no-dynamic-lin
 KERNEL_ELF      = $(BUILD_DIR)/kernel/exos.elf
 
 SRC_C  = $(wildcard source/*.c) \
+         $(wildcard source/core/*.c) \
+         $(wildcard source/system/*.c) \
+         $(wildcard source/process/*.c) \
+         $(wildcard source/exec/*.c) \
+         $(wildcard source/log/*.c) \
+         $(wildcard source/memory/*.c) \
+         $(wildcard source/fs/*.c) \
+         $(wildcard source/sync/*.c) \
+         $(wildcard source/user/*.c) \
+         $(wildcard source/text/*.c) \
+         $(wildcard source/text/font/*.c) \
          $(wildcard source/ui/layout/*.c) \
          $(wildcard source/ui/*.c) \
          $(wildcard source/desktop/*.c) \
@@ -93,8 +104,6 @@ SRC_C  = $(wildcard source/*.c) \
          $(wildcard source/arch/intel/*.c) \
          $(wildcard source/arch/$(ARCH)/*.c) \
          $(wildcard source/network/*.c) \
-         $(wildcard source/system/*.c) \
-         $(wildcard source/process/*.c) \
          $(wildcard source/drivers/filesystems/*.c) \
          $(wildcard source/drivers/platform/*.c) \
          $(wildcard source/drivers/bus/*.c) \
@@ -109,7 +118,6 @@ SRC_C  = $(wildcard source/*.c) \
          $(wildcard source/drivers/network/*.c) \
          $(wildcard source/drivers/storage/*.c) \
          $(wildcard source/drivers/*.c) \
-         $(wildcard source/font/*.c) \
          $(wildcard source/expose/*.c) \
          $(wildcard source/package/*.c) \
          $(wildcard source/math/*.c) \

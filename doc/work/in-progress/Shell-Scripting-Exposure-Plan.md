@@ -73,7 +73,7 @@ Goal:
 
 Work:
 
-- update `doc/guides/kernel.md`
+- update `doc/guides/Kernel.md`
 - keep wording architectural:
   - shell consumes scripting exposure for shell-visible kernel object discovery
   - exposure owns discovery of shell-visible arrays and roots

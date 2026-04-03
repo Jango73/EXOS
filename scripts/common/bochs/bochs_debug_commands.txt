@@ -7,7 +7,7 @@
 ldsym global "kernel/bin/exos.sym"
 
 # Load payload symbols (bootloader)
-ldsym global "boot-hd/bin/payload.sym"
+ldsym global "boot-mbr/bin/payload.sym"
 
 # Load userland executable symbols
 ldsym global "system/hello/bin/hello.sym"

@@ -27,12 +27,12 @@
 /************************************************************************/
 
 #include "drivers/storage/NVMe-Core.h"
-#include "Clock.h"
-#include "Disk.h"
-#include "Driver.h"
-#include "Kernel.h"
-#include "Log.h"
-#include "Memory.h"
+#include "system/Clock.h"
+#include "fs/Disk.h"
+#include "core/Driver.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
 #include "drivers/interrupts/DeviceInterrupt.h"
 #include "drivers/interrupts/LocalAPIC.h"
 #include "drivers/bus/PCI.h"

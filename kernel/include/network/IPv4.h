@@ -26,8 +26,7 @@
 #define IPV4_H_INCLUDED
 
 #include "Base.h"
-#include "Driver.h"
-#include "Endianness.h"
+#include "core/Driver.h"
 #include "network/Network.h"
 #include "utils/Notification.h"
 #include "drivers/bus/PCI.h"

@@ -22,7 +22,7 @@
 \************************************************************************/
 
 #include "iGPU-Internal.h"
-#include "Profile.h"
+#include "log/Profile.h"
 #include "utils/Graphics-Utils.h"
 #include "utils/LineRasterizer.h"
 

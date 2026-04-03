@@ -23,8 +23,8 @@
 
 #include "utils/ReservedHeap.h"
 
-#include "CoreString.h"
-#include "Log.h"
+#include "text/CoreString.h"
+#include "log/Log.h"
 #include "process/Process-Arena.h"
 
 /************************************************************************/

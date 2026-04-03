@@ -21,10 +21,10 @@
 
 \************************************************************************/
 
-#include "Exposed.h"
+#include "expose/Exposed.h"
 
-#include "DriverEnum.h"
-#include "Heap.h"
+#include "core/DriverEnum.h"
+#include "memory/Heap.h"
 
 /************************************************************************/
 

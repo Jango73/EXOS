@@ -25,7 +25,7 @@
 #include "utils/AdaptiveDelay.h"
 
 #ifdef __KERNEL__
-#include "Log.h"
+#include "log/Log.h"
 #endif
 
 /************************************************************************/

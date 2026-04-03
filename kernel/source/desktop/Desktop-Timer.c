@@ -23,10 +23,10 @@
 
 #include "Desktop-Timer.h"
 
-#include "Clock.h"
-#include "CoreString.h"
-#include "Kernel.h"
-#include "Log.h"
+#include "system/Clock.h"
+#include "text/CoreString.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
 #include "process/Task-Messaging.h"
 
 /***************************************************************************/

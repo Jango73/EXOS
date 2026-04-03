@@ -7,6 +7,7 @@
 - Execute Universal-Serial-Bus.md : all remaining steps
 - Execute Network.md : all remaining steps
 - Execute iGPU.md : Step 11
+- Implement full UTF and Unicode.md
 
 ## Medium priority
 
@@ -143,8 +144,6 @@
 
 ### Localization
 
-- UTF
-- Implement Unicode.md
 - I18n
 
 ### Other

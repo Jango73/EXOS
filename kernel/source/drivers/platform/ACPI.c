@@ -26,11 +26,11 @@
 
 #include "Base.h"
 #include "console/Console.h"
-#include "Kernel.h"
-#include "Log.h"
-#include "Memory.h"
-#include "CoreString.h"
-#include "System.h"
+#include "core/Kernel.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
+#include "text/CoreString.h"
+#include "system/System.h"
 
 /************************************************************************/
 

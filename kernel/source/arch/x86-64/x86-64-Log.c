@@ -24,11 +24,11 @@
 
 #include "arch/x86-64/x86-64-Log.h"
 
-#include "Log.h"
-#include "Memory.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
 #include "process/Process.h"
 #include "process/Task.h"
-#include "Text.h"
+#include "text/Text.h"
 #include "arch/x86-64/x86-64-Memory.h"
 
 /***************************************************************************/

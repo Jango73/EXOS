@@ -23,8 +23,8 @@
 \************************************************************************/
 
 #include "utils/Hysteresis.h"
-#include "Log.h"
-#include "CoreString.h"
+#include "log/Log.h"
+#include "text/CoreString.h"
 
 /************************************************************************/
 

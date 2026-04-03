@@ -23,17 +23,17 @@
 \************************************************************************/
 
 #include "network/IPv4.h"
-#include "ARPContext.h"
+#include "network/ARPContext.h"
 #include "console/Console.h"
-#include "Device.h"
-#include "Heap.h"
-#include "ID.h"
+#include "core/Device.h"
+#include "memory/Heap.h"
+#include "core/ID.h"
 #include "network/ARP.h"
-#include "Log.h"
-#include "Memory.h"
-#include "System.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
+#include "system/System.h"
 #include "utils/Notification.h"
-#include "Clock.h"
+#include "system/Clock.h"
 #include "utils/NetworkChecksum.h"
 
 /************************************************************************/

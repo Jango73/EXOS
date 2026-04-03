@@ -25,17 +25,17 @@
 #include "drivers/network/E1000.h"
 
 #include "Base.h"
-#include "Driver.h"
-#include "Kernel.h"
+#include "core/Driver.h"
+#include "core/Kernel.h"
 #include "drivers/interrupts/DeviceInterrupt.h"
-#include "DeferredWork.h"
+#include "sync/DeferredWork.h"
 #include "drivers/interrupts/InterruptController.h"
-#include "Log.h"
-#include "Memory.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
 #include "network/Network.h"
 #include "network/NetworkManager.h"
 #include "drivers/bus/PCI.h"
-#include "CoreString.h"
+#include "text/CoreString.h"
 #include "User.h"
 
 /************************************************************************/

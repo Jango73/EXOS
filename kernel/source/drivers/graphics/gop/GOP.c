@@ -22,12 +22,12 @@
 \************************************************************************/
 
 #include "GFX.h"
-#include "CoreString.h"
-#include "System.h"
+#include "text/CoreString.h"
+#include "system/System.h"
 #include "console/Console.h"
-#include "Log.h"
-#include "Memory.h"
-#include "Profile.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
+#include "log/Profile.h"
 #include "drivers/graphics/common/Graphics-TextRenderer.h"
 #include "utils/Graphics-Utils.h"
 #include "utils/LineRasterizer.h"

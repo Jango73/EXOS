@@ -25,9 +25,9 @@
 #include "utils/HandleMap.h"
 
 #include "console/Console.h"
-#include "CoreString.h"
-#include "Log.h"
-#include "Memory.h"
+#include "text/CoreString.h"
+#include "log/Log.h"
+#include "memory/Memory.h"
 
 /************************************************************************/
 
