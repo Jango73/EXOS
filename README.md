@@ -64,6 +64,7 @@ EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/con
 - xHCI driver (USB 3)
 - ACPI shutdown/reboot
 - Console management
+- GOP (UEFI framebuffer) driver
 - VGA driver
 - VESA driver
 - Intel Graphics (iGPU) driver
