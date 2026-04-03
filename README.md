@@ -142,7 +142,7 @@ Bm437_IBM_VGA_8x16.otb from the Ultimate Oldschool PC Font Pack by VileR, licens
 
 ## Metrics (cloc)
 
-Lines of code in this project, excluding third party software.
+### Lines of code in this project, excluding third party software.
 
 ```
 -------------------------------------------------------------------------------
@@ -155,6 +155,11 @@ Assembly                        20           1981           1264           6746
 SUM:                           611          41741          43106         136488
 -------------------------------------------------------------------------------
 ```
+
+### Kernel size
+
+- 32 bit : 1.4 mb
+- 64 bit : 1.8 mb
 
 ## Historical background
 
