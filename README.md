@@ -57,6 +57,7 @@ EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/con
 - Heap management (free lists)
 - Process spawning (kernel and userland), task spawning, scheduling
 - Security at kernel object level, with user account/session and permissions
+- Kernel pointer masking : handles in userland
 - File system drivers : FAT16, FAT32, EXT2, NTFS ~
 - I/O APIC & Local APIC driver
 - PCI device driver
@@ -72,13 +73,12 @@ EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/con
 - USB keyboard (HID) and mouse drivers
 - USB mass storage device driver ~
 - Virtual file system with mount points
-- Scripted shell with kernel object exposure
+- Shell with embedded scripting and kernel objects exposure
 - Configuration with TOML format
 - E1000 driver ~
 - Realtek RTL8139 & RTL8111/8168/8411 drivers ~
 - ARP/IPv4/DHCP/UDP/TCP network layers ~
 - Minimal HTTP client ~
-- Kernel pointer masking, handles in userland
 - Windowing system (WIP)
 - A few test apps
 
