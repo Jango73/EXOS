@@ -1,0 +1,38 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config: [debug]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            automake binutils clang cloc coreutils dosfstools findutils \
+            gawk grep gzip lld make mtools nasm parted qemu-system-x86 \
+            sed unzip wget xxd gdb-multiarch
+
+      - name: Build EXOS x86-64 UEFI ext2
+        run: ./scripts/linux/build/build --arch x86-64 --fs ext2 --uefi --${{ matrix.config }}
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exos-x86-64-uefi-${{ matrix.config }}
+          path: |
+            build/
+            log/
+          retention-days: 5
