@@ -1,5 +1,11 @@
 ![EXOS](doc/assets/EXOS.png)
 
+## Other languages
+
+- 🇫🇷 [Français](doc/assets/root-readme/README.fr.md)
+- 🇪🇸 [Español](doc/assets/root-readme/README.es.md)
+- 🇯🇵 [日本語](doc/assets/root-readme/README.ja.md)
+
 ## TL;DR
 
 Multi-threaded operating system for x86-32 and x86-64.<br>
@@ -79,7 +85,7 @@ EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/con
 - Realtek RTL8139 & RTL8111/8168/8411 drivers ~
 - ARP/IPv4/DHCP/UDP/TCP network layers ~
 - Minimal HTTP client ~
-- Windowing system (WIP)
+- Desktop/windowing system (WIP)
 - A few test apps
 
 (~ means working in emulator - QEMU, but not tested or not yet working on bare metal)
@@ -102,7 +108,7 @@ EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/con
 
 ## Beyond
 
-- More architectures
+- More architectures (ARM64, RISC-V)
 - More drivers
 
 ## Architecture
@@ -163,8 +169,8 @@ SUM:                           611          41741          43106         136488
 
 ## Historical background
 
-In 1999, I started EXOS as a simple experiment: I wanted to write a minimal OS bootloader for fun.  
-Very quickly, I realized I was building much more than a bootloader. I began to re-implement full system headers, taking inspiration from Windows and low-level DOS/BIOS references, aiming to create a complete 32-bit OS from scratch.
+In 1999, I started EXOS as a simple experiment: I wanted to write a minimal OS bootloader for fun.
+Very quickly, I realized I was building much more than a bootloader. I began to re-implement full system headers, taking inspiration from Windows and low-level DOS/BIOS references, and a bit of Linux (which I barely knew about at that time), aiming to create a complete 32-bit OS from scratch.
 It was a year-long solo project, developed the hard way:
 - On a Pentium, in DOS environment, without any debugger or VM
 - Relying on endless console print statements to trace bugs

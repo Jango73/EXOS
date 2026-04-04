@@ -11,6 +11,7 @@
 - Execute Network.md : all remaining steps
 - Execute iGPU.md : Step 11
 - Implement full UTF and Unicode.md
+- Implement Executable-Module-Libraries.md
 
 ## Medium priority
 
@@ -34,13 +35,19 @@
 
 - Implement Symmetric-Multiprocessing.md
 
+### Keyboard
+
+- Add more keyboard layouts : ja-JP, zh-CN, ko-KR, nl-NL, sv-SE, fi-FI, pl-PL, tr-TR, cs-CZ, ru-RU, hi-IN
+
 ## Low priority
 
 ### Tools
 
-- Seperate scripts by build platform in scripts folder
-  - scripts/linux/
-  - scripts/windows/
+### Files
+
+- Opening a file in a userland program without an absolute path should do the same as using getcwd().
+- Add a getpd() that returns the folder in which the current executable's image lives.
+- FileReadAll() : use HeapAlloc, NOT KernelHeapAlloc
 
 ### API return contract (mandatory, system-wide)
 
@@ -52,16 +59,10 @@
 
 ### Memory
 
-- FileReadAll() : use HeapAlloc, NOT KernelHeapAlloc
 - Later: align x86-32 page directory creation (`AllocPageDirectory` and `AllocUserPageDirectory`) with the modular x86-64 region-based approach (low region, kernel region, task runner, recursive slot) while preserving current behavior. Execute this refactor in small validated steps to limit boot and paging regression risk.
 - Implement a memory sanity checker that scans memory to check how fragmented memory is.
 - TOML parsing allocations too many small objects and fragments kernel heap.
 - Region descriptor tracking is tied to `GetCurrentProcess()` instead of the actual region owner, which yields `[UpdateDescriptorsForFree] Missing descriptor` warnings during task/process teardown : rework alloc/free tracking so descriptors are registered and removed against the owning process/kernel address space, not the current execution context.
-
-### Problems
-
-- Opening a file in a userland program without an absolute path should do the same as using getcwd().
-- Add a getpd() that returns the folder in which the current executable's image lives.
 
 ### System data view
 
@@ -73,18 +74,9 @@
   - Capabilities Pointer + scan capabilities (MSI/MSI-X, PCIe)
   - Interrupt Line/Pin
 
-### Naming
-
-- Remove all abbreviations
-
 ### Logs
 
 - Use __func__ to automatically include function name
-
-### Process
-
-- Add full TLS pipeline (per-thread data)
-- Load and map shared modules
 
 ### Drivers
 
@@ -120,11 +112,6 @@
 ### Network
 - Create a NetworkHeapAlloc/Free and dedicated memory region for the network heap (AllocRegion).
 - Optimize/evolve the network stack
-- Implement Realtek-RTL8111-8168-8411.md
-
-### Keyboard
-
-- Add more keyboard layouts
 
 ### Security 
 
