@@ -1,22 +1,23 @@
 ![EXOS](doc/assets/EXOS.png)
 
+## Status
+
+![Platform](https://img.shields.io/badge/platform-x86__32-blue)
+![Platform](https://img.shields.io/badge/platform-x86__64-blue)
+![Boot](https://img.shields.io/badge/boot-QEMU%20OK-green)
+![Boot](https://img.shields.io/badge/boot-Bare%20Metal%20untested-lightgrey)
+![Build](https://img.shields.io/github/actions/workflow/status/Jango73/EXOS/build.yml?branch=main\&label=build)
+![Tests](https://img.shields.io/github/actions/workflow/status/Jango73/EXOS/tests.yml?branch=main\&label=tests)
+
 ## Other languages
 
-- 🇫🇷 [Français](doc/assets/root-readme/README.fr.md)
-- 🇪🇸 [Español](doc/assets/root-readme/README.es.md)
-- 🇯🇵 [日本語](doc/assets/root-readme/README.ja.md)
+🇪🇸 [Español](doc/assets/root-readme/README.es.md) | 🇫🇷 [Français](doc/assets/root-readme/README.fr.md) | 🇯🇵 [日本語](doc/assets/root-readme/README.ja.md)
 
 ## TL;DR
 
-Multi-threaded operating system for x86-32 and x86-64.<br>
-Tested on QEMU, Bochs, ACER Predator.<br>
-**NOT READY** for production regarding disk IO (not all code paths tested on real hardware).
-
-## What it is
-
-This is an ongoing operating system project that was abandoned in late 1999.<br>
-Back then, it was 32 bit only and compiled with gcc and nasm, and linked with jloc.<br>
-In summer 2025, I ported the project to i686-elf-gcc/nasm/i686-elf-ld, then ported to x86-64.
+Multi-threaded operating system for IA32 (i386-i686) and x86-64 (core 3-9, etc...).<br>
+Runs on QEMU, Bochs, and real hardware.<br>
+**NOT READY** for production (disk I/O incomplete).
 
 ## Disclaimer
 
@@ -24,31 +25,37 @@ EXOS is provided "as is", without warranty of any kind. Neither EXOS authors/con
 
 ## Debian compile & run
 
-### Setup dependencies
+### Using the provided dashboard
+
+./dashboard.sh
+
+### Or manually via scripts
+
+#### Setup dependencies
 
 ./scripts/linux/setup/setup-deps.sh
 
 ./scripts/linux/setup/setup-qemu.sh		<- if you want a recent QEMU (9.0.2)
 
-### Build (Disk image with ext2)
+#### Build (Disk image with ext2)
 
 ./scripts/linux/build/build --arch <x86-32|x86-64> --fs ext2 --release (or --debug)
 
 ( add --clean for a clean build )
 
-### Build (Disk image with FAT32)
+#### Build (Disk image with FAT32)
 
 ./scripts/linux/build/build --arch <x86-32|x86-64> --fs fat32 --release (or --debug)
 
 ( add --clean for a clean build )
 
-### Build for UEFI boot
+#### Build for UEFI boot
 
 ./scripts/linux/build/build --arch <x86-32|x86-64> --fs ext2 --release (or --debug) --uefi
 
 ( add --clean for a clean build )
 
-### Run
+#### Run
 
 ./scripts/linux/run/run --arch <x86-32|x86-64>
 
@@ -169,11 +176,15 @@ SUM:                           611          41741          43106         136488
 
 ## Historical background
 
-In 1999, I started EXOS as a simple experiment: I wanted to write a minimal OS bootloader for fun.
-Very quickly, I realized I was building much more than a bootloader. I began to re-implement full system headers, taking inspiration from Windows and low-level DOS/BIOS references, and a bit of Linux (which I barely knew about at that time), aiming to create a complete 32-bit OS from scratch.
+In 1999, I started EXOS as a simple experiment: I wanted to write a minimal OS bootloader for fun.<br>
+Very quickly, I realized I was building much more than a bootloader. I began to re-implement full system headers, taking inspiration from Windows and low-level DOS/BIOS references, and a bit of Linux (which I barely knew about at that time), aiming to create a complete 32-bit OS from scratch.<br>
+
 It was a year-long solo project, developed the hard way:
 - On a Pentium, in DOS environment, without any debugger or VM
 - Relying on endless console print statements to trace bugs
 - Learning everything on the fly as the project grew
+
+Back then, it was 32 bit only and compiled with gcc and nasm, and linked with jloc.<br>
+In summer 2025, I ported the project to i686-elf-gcc/nasm/i686-elf-ld, then ported to x86-64.<br>
 
 EXOS’ coding style resembles that of Windows, like PascalCase naming, user function names, etc... Some will like it, others won't. But it is **not** Windows. It is more compact and will never collect or transmit user data. Ever. (Except possibly crash dumps for debugging.)

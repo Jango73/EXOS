@@ -2,23 +2,37 @@
 
 ## High priority
 
-- Execute Shell-Scripting-Exposure-Plan.md : all remaining steps
-- Rewrite ShellScriptCallFunction using a function table.
-- When running an embedded script, one must return the return value of the script, not always DF_RETURN_SUCCESS
-- Homogenize the output of all listing scripts in Shell-EmbeddedScripts.c. use "nnn, field1=value1, field2=value2, field3=value3, ..."
-- Execute Packaging-System-Plan.md : all remaining steps
-- Execute Universal-Serial-Bus.md : all remaining steps
-- Execute Network.md : all remaining steps
-- Execute iGPU.md : Step 11
-- Implement full UTF and Unicode.md
-- Implement Executable-Module-Libraries.md
+- [ ] Fix build for github actions :
+  - when building an UEFI build, MBR Makefile MUST NOT be used
+  - when building an MBR build, UEFI Makefile MUST NOT be used
+  - factorise creation of disk images : both MBR and UEFI must have same images except for the main image.
+  - add ability NOT TO build disk images for github workflows build
+- [ ] Keyboard : Handle '<' key in french keyboard mapping.
+- [ ] Scripting : fix parentheses parsing to use ScriptParseComparisonAST instead of ScriptParseExpressionAST in ScriptParseFactorAST
+- [ ] Scripting : add support for unary operators (-x, +x) in ScriptParseFactorAST
+- [ ] Execute Shell-Scripting-Exposure-Plan.md : all remaining steps
+- [ ] Rewrite ShellScriptCallFunction using a function table.
+- [ ] When running an embedded script, one must return the return value of the script, not always DF_RETURN_SUCCESS
+- [ ] Homogenize naming in exposed objects : do not use plural for lists (ex: usb.ports = usb.port, usb.devices = usb.device, etc...)
+- [ ] Homogenize the output of all listing scripts in Shell-EmbeddedScripts.c. use "nnn, field1=value1, field2=value2, field3=value3, ..."
+- [ ] Execute Packaging-System-Plan.md : all remaining steps
+- [ ] Execute Universal-Serial-Bus.md : all remaining steps
+- [ ] Execute Network.md : all remaining steps
+- [ ] Execute iGPU.md : Step 11
+- [ ] Implement full UTF and Unicode.md
+- [ ] Implement Executable-Module-Libraries.md
 
 ## Medium priority
 
-### File API split (major refactor)
+### Scheduling
 
-- Add a trash system per volume.
-- Introduce an explicit API split between file and folder opening:
+- [ ] Improve the scheduler (task priorities)
+- [ ] A CPU-bound task that never blocks can starve lower-priority deferred work and input handling (e.g., System Data View loop). Preference: force yield when a task is too CPU-hungry.
+
+### File API split
+
+- [ ] Add a trash system per volume.
+- [ ] Introduce an explicit API split between file and folder opening:
   - `DF_FS_OPENFILE` for regular file handles only
   - `DF_FS_OPENFOLDER` for folder handles and folder enumeration only
   - Keep one shared internal resolution/validation core per driver to avoid code duplication.
@@ -33,11 +47,11 @@
 
 ### Multicore
 
-- Implement Symmetric-Multiprocessing.md
+- [ ] Implement Symmetric-Multiprocessing.md
 
 ### Keyboard
 
-- Add more keyboard layouts : ja-JP, zh-CN, ko-KR, nl-NL, sv-SE, fi-FI, pl-PL, tr-TR, cs-CZ, ru-RU, hi-IN
+- [ ] Add more keyboard layouts : ja-JP, zh-CN, ko-KR, nl-NL, sv-SE, fi-FI, pl-PL, tr-TR, cs-CZ, ru-RU, hi-IN
 
 ## Low priority
 
@@ -45,24 +59,24 @@
 
 ### Files
 
-- Opening a file in a userland program without an absolute path should do the same as using getcwd().
-- Add a getpd() that returns the folder in which the current executable's image lives.
-- FileReadAll() : use HeapAlloc, NOT KernelHeapAlloc
+- [ ] Opening a file in a userland program without an absolute path should do the same as using getcwd().
+- [ ] Add a getpd() that returns the folder in which the current executable's image lives.
+- [ ] FileReadAll() : use HeapAlloc, NOT KernelHeapAlloc
 
 ### API return contract (mandatory, system-wide)
 
-- Target contract for kernel APIs, drivers, and syscalls: functions return only `DF_RETURN_*` status codes (`DF_RETURN_SUCCESS` on success, error code otherwise).
-- Functional values are returned through explicit output parameters (input/output structures or output pointers), not through the function return value.
-- New or refactored code must follow this contract immediately.
-- Existing modules are migrated progressively as work advances, until full convergence is reached across the system.
-- Compatibility shims are temporary and must be removed once migrated callers and providers are updated.
+- [ ] Target contract for kernel APIs, drivers, and syscalls: functions return only `DF_RETURN_*` status codes (`DF_RETURN_SUCCESS` on success, error code otherwise).
+  - Functional values are returned through explicit output parameters (input/output structures or output pointers), not through the function return value.
+  - New or refactored code must follow this contract immediately.
+  - Existing modules are migrated progressively as work advances, until full convergence is reached across the system.
+  - Compatibility shims are temporary and must be removed once migrated callers and providers are updated.
 
 ### Memory
 
-- Later: align x86-32 page directory creation (`AllocPageDirectory` and `AllocUserPageDirectory`) with the modular x86-64 region-based approach (low region, kernel region, task runner, recursive slot) while preserving current behavior. Execute this refactor in small validated steps to limit boot and paging regression risk.
-- Implement a memory sanity checker that scans memory to check how fragmented memory is.
-- TOML parsing allocations too many small objects and fragments kernel heap.
-- Region descriptor tracking is tied to `GetCurrentProcess()` instead of the actual region owner, which yields `[UpdateDescriptorsForFree] Missing descriptor` warnings during task/process teardown : rework alloc/free tracking so descriptors are registered and removed against the owning process/kernel address space, not the current execution context.
+- [ ] Align x86-32 page directory creation (`AllocPageDirectory` and `AllocUserPageDirectory`) with the modular x86-64 region-based approach (low region, kernel region, task runner, recursive slot) while preserving current behavior. Execute this refactor in small validated steps to limit boot and paging regression risk.
+- [ ] Implement a memory sanity checker that scans memory to check how fragmented memory is.
+- [ ] TOML parsing allocations too many small objects and fragments heap.
+- [ ] Region descriptor tracking is tied to `GetCurrentProcess()` instead of the actual region owner, which yields `[UpdateDescriptorsForFree] Missing descriptor` warnings during task/process teardown : rework alloc/free tracking so descriptors are registered and removed against the owning process/kernel address space, not the current execution context.
 
 ### System data view
 
@@ -123,11 +137,6 @@
 - KASLR : Randomizes the kernel's memory base to make kernel address offsets unpredictable for exploitation.
 - Audit/fuzz pipeline + ASAN/UBSAN : Continuous auditing and fuzzing with sanitizers to catch memory errors and undefined behavior during development.
 
-### Scheduling
-
-- Improve the scheduler (task priorities)
-- A CPU-bound task that never blocks can starve lower-priority deferred work and input handling (e.g., System Data View loop). Preference: force yield when a task is too CPU-hungry.
-
 ### File systems
 
 - Implement ext3 and ext4
@@ -141,3 +150,4 @@
 
 - Implement x86-Disassembly.md
 - Implement Native-C-Compiler.md
+- Implement Floppy-Drive.md
