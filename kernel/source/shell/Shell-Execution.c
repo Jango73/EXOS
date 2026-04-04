@@ -26,7 +26,7 @@
 #include "core/ID.h"
 #include "system/SYSCall.h"
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Check if a script text already contains a line break.
@@ -49,7 +49,7 @@ static BOOL ShellScriptContainsLineBreak(LPCSTR Text) {
     return FALSE;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Launch executables listed in the kernel configuration.
@@ -88,7 +88,7 @@ void ExecuteStartupCommands(void) {
 
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Execute a command line string.
@@ -111,7 +111,7 @@ void ExecuteCommandLine(LPSHELLCONTEXT Context, LPCSTR CommandLine) {
     }
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Parse and execute a single command line from user input.

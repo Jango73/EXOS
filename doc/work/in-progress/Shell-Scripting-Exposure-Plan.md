@@ -8,6 +8,9 @@ Finish the shell refactor so shell-facing inspection and control paths stop bypa
 
 ### Direct forbidden calls still present in shell
 
+- `kernel/source/shell/Shell-Commands-System.c`
+  - `KernelEnumGetProvider`
+  - `KernelEnumNext`
 - `kernel/source/shell/Shell-Commands-Users.c`
   - `GetUserAccountList`
 - `kernel/source/shell/Shell-Main.c`
@@ -41,42 +44,23 @@ Goal:
 
 - remove the last shell-side direct calls to `GetUserAccountList()`
 
-#### Step 2.1. Rewrite `CMD_adduser`
+How:
 
-Replace:
+- create user creation/modification/deletion kernel functions and syscalls
+- expose user creation/modification/deletion syscalls to scripting
+- create embedded scripts to perform user operations (add/delete), in Shell-EmbeddedScripts.c
+- remove CMD_adduser and CMD_deluser
 
-- `GetUserAccountList`
-
-With:
-
-- exposed `user_account.count`
-
-#### Step 2.2. Rewrite shell login bootstrap in `Shell-Main.c`
-
-Replace:
-
-- `GetUserAccountList`
-
-With:
-
-- exposed `user_account.count`
-
-Result:
-
-- no shell code calls `GetUserAccountList()` anymore
-
-### Step 3. Documentation
+### Step 3.
 
 Goal:
 
-- document the architectural boundary once the remaining direct user-account getters are gone
+- remove the last shell-side direct calls to `KernelEnumGetProvider()`
+- remove the last shell-side direct calls to `KernelEnumNext()`
 
-Work:
+How:
 
-- update `doc/guides/Kernel.md`
-- keep wording architectural:
-  - shell consumes scripting exposure for shell-visible kernel object discovery
-  - exposure owns discovery of shell-visible arrays and roots
+- create an embedded script for the nvme listing, like in CMD_usb
 
 ## Verification
 
@@ -84,6 +68,8 @@ Work:
 
 - no shell file calls:
   - `GetUserAccountList`
+  - `KernelEnumGetProvider`
+  - `KernelEnumNext`
 - shell host registration remains exposure-owned
 - `task`, `driver`, and `graphics` remain registered through expose, not shell-local logic
 

@@ -3,6 +3,9 @@
 ## High priority
 
 - Execute Shell-Scripting-Exposure-Plan.md : all remaining steps
+- Rewrite ShellScriptCallFunction using a function table.
+- When running an embedded script, one must return the return value of the script, not always DF_RETURN_SUCCESS
+- Homogenize the output of all listing scripts in Shell-EmbeddedScripts.c. use "nnn, field1=value1, field2=value2, field3=value3, ..."
 - Execute Packaging-System-Plan.md : all remaining steps
 - Execute Universal-Serial-Bus.md : all remaining steps
 - Execute Network.md : all remaining steps
@@ -13,18 +16,19 @@
 
 ### File API split (major refactor)
 
+- Add a trash system per volume.
 - Introduce an explicit API split between file and folder opening:
   - `DF_FS_OPENFILE` for regular file handles only
   - `DF_FS_OPENFOLDER` for folder handles and folder enumeration only
-- Keep one shared internal resolution/validation core per driver to avoid code duplication.
-- Use thin command-specific entry points on top of the shared core:
-  - `DF_FS_OPENFILE` path enforces "regular file only"
-  - `DF_FS_OPENFOLDER` path enforces "folder only"
-- Reject misuse explicitly:
-  - opening a folder through `DF_FS_OPENFILE` must fail
-  - opening a file through `DF_FS_OPENFOLDER` must fail
-- Update common kernel file routing and shell tooling to call the right command based on intent.
-- Add regression tests per driver to validate behavior parity after the split.
+  - Keep one shared internal resolution/validation core per driver to avoid code duplication.
+  - Use thin command-specific entry points on top of the shared core:
+    - `DF_FS_OPENFILE` path enforces "regular file only"
+    - `DF_FS_OPENFOLDER` path enforces "folder only"
+  - Reject misuse explicitly:
+    - opening a folder through `DF_FS_OPENFILE` must fail
+    - opening a file through `DF_FS_OPENFOLDER` must fail
+  - Update common kernel file routing and shell tooling to call the right command based on intent.
+  - Add regression tests per driver to validate behavior parity after the split.
 
 ### Multicore
 

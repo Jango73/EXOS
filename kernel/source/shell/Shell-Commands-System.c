@@ -2,7 +2,7 @@
 /************************************************************************\
 
     EXOS Kernel
-    Copyright (c) 1999-2025 Jango73
+    Copyright (c) 1999-2026 Jango73
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 #include "autotest/Autotest.h"
 #include "utils/SizeFormat.h"
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Run the embedded driver detail script for one alias.
@@ -52,7 +52,7 @@ static BOOL RunEmbeddedDriverDetailsScript(
     return RunEmbeddedScript(Context, ScriptText);
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Print one driver detail view selected by alias.
@@ -82,6 +82,8 @@ U32 CMD_driver(LPSHELLCONTEXT Context) {
     return DF_RETURN_SUCCESS;
 }
 
+/************************************************************************/
+
 /**
  * @brief List the tasks visible to the current shell caller.
  * @param Context Shell context.
@@ -103,7 +105,7 @@ U32 CMD_task(LPSHELLCONTEXT Context) {
     return DF_RETURN_SUCCESS;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 U32 CMD_memedit(LPSHELLCONTEXT Context) {
     ParseNextCommandLineComponent(Context);
@@ -112,7 +114,7 @@ U32 CMD_memedit(LPSHELLCONTEXT Context) {
     return DF_RETURN_SUCCESS;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 U32 CMD_memorymap(LPSHELLCONTEXT Context) {
     if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_MEMORY_MAP))) {
@@ -122,7 +124,7 @@ U32 CMD_memorymap(LPSHELLCONTEXT Context) {
     return DF_RETURN_SUCCESS;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 U32 CMD_disasm(LPSHELLCONTEXT Context) {
 
@@ -154,7 +156,7 @@ U32 CMD_disasm(LPSHELLCONTEXT Context) {
     return DF_RETURN_SUCCESS;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 U32 CMD_network(LPSHELLCONTEXT Context) {
     ParseNextCommandLineComponent(Context);
@@ -172,7 +174,7 @@ U32 CMD_network(LPSHELLCONTEXT Context) {
     return DF_RETURN_SUCCESS;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 U32 CMD_pic(LPSHELLCONTEXT Context) {
     UNUSED(Context);
@@ -291,7 +293,7 @@ U32 CMD_prof(LPSHELLCONTEXT Context) {
     return DF_RETURN_SUCCESS;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Run one on-demand autotest module.
@@ -319,7 +321,7 @@ U32 CMD_autotest(LPSHELLCONTEXT Context) {
     return DF_RETURN_SUCCESS;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief Run the System Data View mode from the shell.
@@ -332,7 +334,7 @@ U32 CMD_dataview(LPSHELLCONTEXT Context) {
     return DF_RETURN_SUCCESS;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief USB control command (xHCI port report).
@@ -356,7 +358,6 @@ U32 CMD_usb(LPSHELLCONTEXT Context) {
         if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_DRIVES))) {
             ConsolePrint(TEXT("Unable to run embedded USB drive list script\n"));
         }
-
         return DF_RETURN_SUCCESS;
     } else if (StringCompareNC(Context->Command, TEXT("probe")) == 0) {
         if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_PROBE))) {
@@ -379,10 +380,11 @@ U32 CMD_usb(LPSHELLCONTEXT Context) {
         }
         return DF_RETURN_SUCCESS;
     }
+
     return DF_RETURN_SUCCESS;
 }
 
-/***************************************************************************/
+/************************************************************************/
 
 /**
  * @brief NVMe control command (device list).
