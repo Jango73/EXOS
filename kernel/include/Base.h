@@ -41,8 +41,10 @@ extern "C" {
 
 #if defined(__i386__) || defined(_M_IX86)
     #define __EXOS_ARCH_X86_32__
+    #define __EXOS_32__
 #elif defined(__x86_64__) || defined(_M_X64)
     #define __EXOS_ARCH_X86_64__
+    #define __EXOS_64__
 #else
     #error "Unsupported target architecture for EXOS"
 #endif
@@ -51,43 +53,12 @@ extern "C" {
 // Check __SIZEOF_POINTER__ definition
 
 #ifndef __SIZEOF_POINTER__
-    #if defined(_MSC_VER)
-        #if defined(_WIN64)
-            #define __SIZEOF_POINTER__ 8
-        #else
-            #define __SIZEOF_POINTER__ 4
-        #endif
-    #elif defined(__GNUC__) || defined(__clang__)
-        // GCC and Clang already define this, but we keep a fallback
-        #if defined(__x86_64__) || defined(__aarch64__) || defined(__ppc64__)
-            #define __SIZEOF_POINTER__ 8
-        #else
-            #define __SIZEOF_POINTER__ 4
-        #endif
+    #if defined(__EXOS_ARCH_X86_32__)
+        #define __SIZEOF_POINTER__ 4
+    #elif defined(__EXOS_ARCH_X86_64__)
+        #define __SIZEOF_POINTER__ 8
     #else
-        #error "Cannot determine pointer size for this compiler."
-    #endif
-#endif
-
-/************************************************************************/
-// Define __EXOS__ bit size
-
-#if __SIZEOF_POINTER__ == 8
-    #define __EXOS_64__
-#else
-    #define __EXOS_32__
-#endif
-
-/************************************************************************/
-// Validate architecture and ABI combination
-
-#if defined(__EXOS_ARCH_X86_32__)
-    #if __SIZEOF_POINTER__ != 4
-        #error "x86-32 build requires 32-bit pointer size"
-    #endif
-#elif defined(__EXOS_ARCH_X86_64__)
-    #if __SIZEOF_POINTER__ != 8
-        #error "x86-64 build requires 64-bit pointer size"
+        #error "Cannot determine pointer size for this architecture."
     #endif
 #endif
 
@@ -109,41 +80,30 @@ extern "C" {
 /************************************************************************/
 // Basic types
 
-#if defined(_MSC_VER)
-    typedef unsigned __int8 U8;     // Unsigned byte
-    typedef signed __int8 I8;       // Signed byte
-    typedef unsigned __int16 U16;   // Unsigned short
-    typedef signed __int16 I16;     // Signed short
-    typedef unsigned __int32 U32;   // Unsigned long
-    typedef signed __int32 I32;     // Signed long
-    typedef unsigned int UINT;      // Unsigned register-sized integer
-    typedef signed int INT;         // Signed register-sized integer
-#elif defined(__GNUC__) || defined(__clang__)
-    typedef unsigned char U8;       // Unsigned byte
-    typedef signed char I8;         // Signed byte
-    typedef unsigned short U16;     // Unsigned short
-    typedef signed short I16;       // Signed short
-    // Unix-land decided to inverse int and long logic ! What a good idea.
-    typedef unsigned int U32;       // Unsigned long
-    typedef signed int I32;         // Signed long
-    typedef unsigned long UINT;     // Unsigned register-sized integer
-    typedef signed long INT;        // Signed register-sized integer
-#else
-    #error "Unsupported compiler for Base.h"
-#endif
+#if defined(__EXOS_32__)
 
-/************************************************************************/
-// 48 bit values
+    #if defined(_MSC_VER)
+        typedef unsigned __int8   U8;
+        typedef signed __int8     I8;
+        typedef unsigned __int16  U16;
+        typedef signed __int16    I16;
+        typedef unsigned __int32  U32;
+        typedef signed __int32    I32;
+        typedef unsigned int      UINT;
+        typedef signed int        INT;
+    #elif defined(__GNUC__) || defined(__clang__)
+        typedef unsigned char     U8;
+        typedef signed char       I8;
+        typedef unsigned short    U16;
+        typedef signed short      I16;
+        typedef unsigned int      U32;
+        typedef signed int        I32;
+        typedef unsigned int      UINT;
+        typedef signed int        INT;
+    #else
+        #error "Unsupported compiler for Base.h"
+    #endif
 
-typedef struct PACKED tag_U48 {
-    U16 LO;
-    U32 HI;
-} U48;
-
-/************************************************************************/
-// 64 bit values
-
-#ifdef __EXOS_32__
     typedef struct PACKED tag_U64 {
         U32 LO;
         U32 HI;
@@ -154,15 +114,51 @@ typedef struct PACKED tag_U48 {
         I32 HI;
     } I64;
 
-    #define U64_0 { .LO = 0, .HI = 0 }
-    #define U64_EQUAL(a, b) (a.LO == b.LO && a.HI == b.HI)
-#else
-    typedef unsigned long long  U64;
-    typedef signed long long    I64;
+    #define U64_0           { .LO = 0, .HI = 0 }
+    #define U64_EQUAL(a, b) ((a).LO == (b).LO && (a).HI == (b).HI)
 
-    #define U64_0 0
-    #define U64_EQUAL(a, b) (a == b)
+#elif defined(__EXOS_64__)
+
+    #if defined(_MSC_VER)
+        typedef unsigned __int8       U8;
+        typedef signed __int8         I8;
+        typedef unsigned __int16      U16;
+        typedef signed __int16        I16;
+        typedef unsigned __int32      U32;
+        typedef signed __int32        I32;
+        typedef unsigned long long    U64;
+        typedef signed long long      I64;
+        typedef unsigned long long    UINT;
+        typedef signed long long      INT;
+    #elif defined(__GNUC__) || defined(__clang__)
+        typedef unsigned char         U8;
+        typedef signed char           I8;
+        typedef unsigned short        U16;
+        typedef signed short          I16;
+        typedef unsigned int          U32;
+        typedef signed int            I32;
+        typedef unsigned long long    U64;
+        typedef signed long long      I64;
+        typedef unsigned long         UINT;
+        typedef signed long           INT;
+    #else
+        #error "Unsupported compiler for Base.h"
+    #endif
+
+    #define U64_0           0
+    #define U64_EQUAL(a, b) ((a) == (b))
+
+#else
+    #error "Unsupported EXOS target"
 #endif
+
+/************************************************************************/
+// 48 bit values
+
+typedef struct PACKED tag_U48 {
+    U16 LO;
+    U32 HI;
+} U48;
 
 /************************************************************************/
 // 80 bit values
@@ -186,6 +182,10 @@ typedef struct PACKED tag_U128 {
 #define MAX_U8 ((U8)0xFF)
 #define MAX_U16 ((U16)0xFFFF)
 #define MAX_U32 ((U32)0xFFFFFFFF)
+
+#ifdef __EXOS_16__
+    #define MAX_UINT MAX_U16
+#endif
 
 #ifdef __EXOS_32__
     #define MAX_UINT MAX_U32
