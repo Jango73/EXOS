@@ -2,23 +2,34 @@
 
 ## High priority
 
-- [ ] Fix build for github actions :
+- [ ] Fix build :
   - when building an UEFI build, MBR Makefile MUST NOT be used
   - when building an MBR build, UEFI Makefile MUST NOT be used
-  - factorise creation of disk images : both MBR and UEFI must have same images except for the main image.
-  - add ability NOT TO build disk images for github workflows build
+  - factorise creation of disk images : both MBR and UEFI must have same images except for the main image
+  - image files must be placed in boot instead of boot-mbr or boot-uefi
+  - add ability NOT TO build disk images (--no-images)
+
+- [ ] User.h MUST NOT contain Kernel function definitions : it is a file visible by userland. Userland CANNOT call kernel functions directly.
+  - Userland uses functions defined in exos.h and implemented in exos-runtime-c.c
+  - Kernel must place those function prototypes in a different header
+
 - [ ] Keyboard : Handle '<' key in french keyboard mapping.
+
 - [ ] Scripting : fix parentheses parsing to use ScriptParseComparisonAST instead of ScriptParseExpressionAST in ScriptParseFactorAST
 - [ ] Scripting : add support for unary operators (-x, +x) in ScriptParseFactorAST
+
 - [ ] Execute Shell-Scripting-Exposure-Plan.md : all remaining steps
 - [ ] Rewrite ShellScriptCallFunction using a function table.
+
 - [ ] When running an embedded script, one must return the return value of the script, not always DF_RETURN_SUCCESS
 - [ ] Homogenize naming in exposed objects : do not use plural for lists (ex: usb.ports = usb.port, usb.devices = usb.device, etc...)
 - [ ] Homogenize the output of all listing scripts in Shell-EmbeddedScripts.c. use "nnn, field1=value1, field2=value2, field3=value3, ..."
+
 - [ ] Execute Packaging-System-Plan.md : all remaining steps
 - [ ] Execute Universal-Serial-Bus.md : all remaining steps
 - [ ] Execute Network.md : all remaining steps
 - [ ] Execute iGPU.md : Step 11
+
 - [ ] Implement full UTF and Unicode.md
 - [ ] Implement Executable-Module-Libraries.md
 
@@ -54,6 +65,14 @@
 - [ ] Add more keyboard layouts : ja-JP, zh-CN, ko-KR, nl-NL, sv-SE, fi-FI, pl-PL, tr-TR, cs-CZ, ru-RU, hi-IN
 
 ## Low priority
+
+### Scripting
+
+- [ ] Make E0 scripting independant and embed it as an external library in third/
+
+### Core
+
+- [ ] Split Kernel.c : put kernel object magangement functions in dedicated file
 
 ### Tools
 
