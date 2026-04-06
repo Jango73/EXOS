@@ -25,7 +25,7 @@
 #ifndef USER_H_INCLUDED
 #define USER_H_INCLUDED
 
-#include "Base.h"
+#include "Types.h"
 
 /************************************************************************/
 
@@ -196,11 +196,6 @@ typedef struct PACKED tag_ABI_HEADER {
 #define KEYMOD_ALT              0x00000004
 
 /************************************************************************/
-// Public userland API declarations
-
-BOOL GetLocalTime(LPDATETIME Time);
-
-/************************************************************************/
 // Authentication Services
 
 #define SYSCALL_Login 0x00000035
@@ -321,6 +316,19 @@ typedef U32 (*WINDOWFUNC)(HANDLE, U32, U32, U32);
 
 // A function for volume enumeration
 typedef BOOL (*ENUMVOLUMESFUNC)(HANDLE, LPVOID);
+
+/************************************************************************/
+// A datetime
+
+typedef struct tag_DATETIME {
+    U32 Year : 26;              // 67 108 863
+    U32 Month : 4;              // 15
+    U32 Day : 6;                // 63
+    U32 Hour : 6;               // 63
+    U32 Minute : 6;             // 63
+    U32 Second : 6;             // 63
+    U32 Milli : 10;             // 1023
+} DATETIME, *LPDATETIME;
 
 typedef struct PACKED tag_SYSTEM_INFO {
     ABI_HEADER Header;
@@ -837,6 +845,7 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 /************************************************************************/
 // Public userland windowing API declarations
 
+BOOL GetLocalTime(LPDATETIME Time);
 HANDLE RegisterWindowClass(LPCSTR ClassName, HANDLE BaseClass, LPCSTR BaseClassName, WINDOWFUNC Function, U32 ClassDataSize);
 BOOL UnregisterWindowClass(HANDLE WindowClass, LPCSTR ClassName);
 HANDLE FindWindowClass(LPCSTR ClassName);
@@ -890,6 +899,11 @@ BOOL SetWindowTimer(HANDLE Window, U32 TimerID, U32 IntervalMilliseconds);
 BOOL KillWindowTimer(HANDLE Window, U32 TimerID);
 U32 BaseWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
 BOOL DeleteObject(HANDLE Object);
+
+/************************************************************************/
+
+#define ROOT "/"
+#define PATH_SEP ((STR)'/')
 
 /************************************************************************/
 // Flags
