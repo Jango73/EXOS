@@ -6,7 +6,7 @@
   - when building an UEFI build, MBR Makefile MUST NOT be used
   - when building an MBR build, UEFI Makefile MUST NOT be used
   - factorise creation of disk images : both MBR and UEFI must have same images except for the main image
-  - image files must be placed in boot instead of boot-mbr or boot-uefi
+  - image files must be placed in build/image/x86-.../ instead of build/image/x86-.../boot-mbr or build/image/x86-.../boot-uefi (the "x86-..." path component already contains the boot type)
   - add ability NOT TO build disk images (--no-images)
 
 - [ ] User.h MUST NOT contain Kernel function definitions : it is a file visible by userland. Userland CANNOT call kernel functions directly.

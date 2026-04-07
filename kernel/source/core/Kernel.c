@@ -423,10 +423,11 @@ static void Welcome(void) {
     ConsolePrint(
         TEXT(
             "Extensible Operating System for %s computers\n"
-            "Version %u.%u.%u - Copyright (c) 1999-2025 Jango73\n"
+            "Version %u.%u.%u - Copyright (c) %u-%u Jango73\n"
             ),
         Text_Architecture,
-        EXOS_VERSION_MAJOR, EXOS_VERSION_MINOR, EXOS_VERSION_PATCH
+        EXOS_VERSION_MAJOR, EXOS_VERSION_MINOR, EXOS_VERSION_PATCH,
+        EXOS_COPYRIGHT_FROM, EXOS_COPYRIGHT_TO
         );
 
     ConsolePrint(TEXT("\n%s\n\n"), GetRandomQuote());
@@ -736,14 +737,6 @@ static void UseConfiguration(void) {
 
         if (GetDoLogin() == FALSE) {
             ConsolePrint(TEXT("WARNING : Login sequence disabled\n"));
-        }
-
-        if (GetShowDesktop() == FALSE) {
-            ConsolePrint(TEXT("WARNING : Automatic desktop activation disabled\n"));
-        }
-
-        if (GetUseDeadlockMonitor() != FALSE) {
-            ConsolePrint(TEXT("WARNING : Mutex deadlock diagnostics enabled\n"));
         }
     }
 
