@@ -1,4 +1,5 @@
 ![EXOS](doc/assets/EXOS.png)
+![Screenshot-01](doc/assets/Screenshot-01.jpg)
 
 ## Status
 
