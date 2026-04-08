@@ -2430,9 +2430,9 @@ Path mapping (migration reference):
 |---|---|
 | `build/x86-32/kernel/exos.elf` | `build/core/x86-32-mbr-debug/kernel/exos.elf` |
 | `build/x86-64/kernel/exos.elf` | `build/core/x86-64-mbr-debug/kernel/exos.elf` |
-| `build/x86-32/boot-mbr/exos.img` | `build/image/x86-32-mbr-debug-ext2/boot-mbr/exos.img` |
-| `build/x86-64/boot-mbr/exos.img` | `build/image/x86-64-mbr-debug-ext2/boot-mbr/exos.img` |
-| `build/x86-64/boot-uefi/exos-uefi.img` | `build/image/x86-64-uefi-debug-ext2/boot-uefi/exos-uefi.img` |
+| `build/x86-32/boot-mbr/exos.img` | `build/image/x86-32-mbr-debug-ext2/exos.img` |
+| `build/x86-64/boot-mbr/exos.img` | `build/image/x86-64-mbr-debug-ext2/exos.img` |
+| `build/x86-64/boot-uefi/exos-uefi.img` | `build/image/x86-64-uefi-debug-ext2/exos-uefi.img` |
 | `build/x86-32/tools/cycle` | `build/core/x86-32-mbr-debug/tools/cycle` |
 | `build/x86-64/tools/cycle` | `build/core/x86-64-mbr-debug/tools/cycle` |
 

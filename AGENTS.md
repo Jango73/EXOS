@@ -120,8 +120,8 @@ This script runs build + boot + shell command checks (`sysinfo`, `dir`, `/system
   - example: `x86-64-uefi-release-fat32`
 - Typical files:
   - kernel ELF: `build/core/<BUILD_CORE_NAME>/kernel/exos.elf`
-  - MBR image: `build/image/<BUILD_IMAGE_NAME>/boot-mbr/exos.img`
-  - UEFI image: `build/image/<BUILD_IMAGE_NAME>/boot-uefi/exos-uefi.img`
+  - MBR image: `build/image/<BUILD_IMAGE_NAME>/exos.img`
+  - UEFI image: `build/image/<BUILD_IMAGE_NAME>/exos-uefi.img`
 
 **Remote build on Windows (SSH to a Linux build host):**
 ```bat

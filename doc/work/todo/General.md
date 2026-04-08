@@ -2,7 +2,7 @@
 
 ## High priority
 
-- [ ] Fix build :
+- [x] Fix build :
   - when building UEFI, MBR Makefile MUST NOT be called
   - when building MBR, UEFI Makefile MUST NOT be called
   - make boot-mbr and boot-uefi makefiles as close as possible regarding structure (functions, names, ...), they diverge too much
