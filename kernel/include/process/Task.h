@@ -102,8 +102,8 @@ typedef struct tag_TASK TASK, *LPTASK;
 /************************************************************************/
 
 BOOL InitKernelTask(void);
-LPTASK CreateTask(LPPROCESS, LPTASK_INFO);
-BOOL KillTask(LPTASK Task);
+LPTASK KernelCreateTask(LPPROCESS, LPTASK_INFO);
+BOOL KernelKillTask(LPTASK Task);
 BOOL SuspendTaskExecution(LPTASK Task);
 BOOL ResumeTaskExecution(LPTASK Task);
 BOOL SetTaskExitCode(LPTASK Task, UINT Code);

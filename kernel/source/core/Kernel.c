@@ -977,7 +977,7 @@ static void KillActiveUserlandProcesses(void) {
  * @brief Terminates all kernel tasks except the main kernel task.
  *
  * Collects tasks attached to the kernel process and flags them dead
- * through KillTask(). The main kernel task is left running.
+ * through KernelKillTask(). The main kernel task is left running.
  */
 static void KillActiveKernelTasks(void) {
     LPLIST TasksToKill = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
@@ -1006,7 +1006,7 @@ static void KillActiveKernelTasks(void) {
         LPTASK Task = (LPTASK)Node;
         SAFE_USE_VALID_ID(Task, KOID_TASK) {
             DEBUG(TEXT("[KillActiveKernelTasks] Killing task %s"), Task->Name);
-            KillTask(Task);
+            KernelKillTask(Task);
         }
     }
 
@@ -1117,7 +1117,7 @@ void InitializeKernel(void) {
         TaskInfo.Flags = 0;
         StringCopy(TaskInfo.Name, TEXT("KernelMonitor"));
 
-        CreateTask(&KernelProcess, &TaskInfo);
+        KernelCreateTask(&KernelProcess, &TaskInfo);
         DEBUG(TEXT("[InitializeKernel] KernelMonitor task created"));
 
         //-------------------------------------
@@ -1137,7 +1137,7 @@ void InitializeKernel(void) {
         StringCopy(TaskInfo.Name, TEXT("ClockTestTask"));
 
         TaskInfo.Parameter = (LPVOID)(((Console.Width - 8) << 16) | 0);
-        CreateTask(&KernelProcess, &TaskInfo);
+        KernelCreateTask(&KernelProcess, &TaskInfo);
         */
 
         //-------------------------------------
@@ -1153,7 +1153,7 @@ void InitializeKernel(void) {
         TaskInfo.Flags = 0;
         StringCopy(TaskInfo.Name, TEXT("Shell"));
 
-        CreateTask(&KernelProcess, &TaskInfo);
+        KernelCreateTask(&KernelProcess, &TaskInfo);
         DEBUG(TEXT("[InitializeKernel] Shell task created"));
     }
 

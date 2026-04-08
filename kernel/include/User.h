@@ -845,66 +845,6 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
     U8  Zero[8];            // Padding to 16 bytes
 } SOCKET_ADDRESS_INET, *LPSOCKET_ADDRESS_INET;
 
-/************************************************************************/
-// Public userland windowing API declarations
-
-BOOL GetLocalTime(LPDATETIME Time);
-HANDLE RegisterWindowClass(LPCSTR ClassName, HANDLE BaseClass, LPCSTR BaseClassName, WINDOWFUNC Function, U32 ClassDataSize);
-BOOL UnregisterWindowClass(HANDLE WindowClass, LPCSTR ClassName);
-HANDLE FindWindowClass(LPCSTR ClassName);
-BOOL WindowInheritsClass(HANDLE Window, HANDLE WindowClass, LPCSTR ClassName);
-HANDLE CreateWindow(LPWINDOW_INFO Info);
-BOOL DeleteWindow(HANDLE Window);
-HANDLE FindWindow(HANDLE StartWindow, U32 WindowID);
-HANDLE ContainsWindow(HANDLE StartWindow, HANDLE TargetWindow);
-HANDLE GetWindowDesktop(HANDLE Window);
-BOOL PostMessage(HANDLE Target, U32 Message, U32 Param1, U32 Param2);
-BOOL InvalidateClientRect(HANDLE Window, LPRECT Rect);
-BOOL InvalidateWindowRect(HANDLE Window, LPRECT Rect);
-UINT SetWindowProp(HANDLE Window, LPCSTR Name, UINT Value);
-UINT GetWindowProp(HANDLE Window, LPCSTR Name);
-BOOL GetWindowRect(HANDLE Window, LPRECT Rect);
-BOOL GetWindowClientRect(HANDLE Window, LPRECT Rect);
-BOOL ScreenPointToWindowPoint(HANDLE Window, LPPOINT ScreenPoint, LPPOINT WindowPoint);
-BOOL MoveWindow(HANDLE Window, LPRECT Rect);
-BOOL ShowWindow(HANDLE Window);
-BOOL HideWindow(HANDLE Window);
-BOOL SetWindowStyle(HANDLE Window, U32 Style);
-BOOL ClearWindowStyle(HANDLE Window, U32 Style);
-BOOL GetWindowStyle(HANDLE Window, U32* StyleOut);
-BOOL SetWindowCaption(HANDLE Window, LPCSTR Caption);
-BOOL GetWindowCaption(HANDLE Window, LPSTR Caption, UINT CaptionLength);
-HANDLE GetWindowParent(HANDLE Window);
-U32 GetWindowChildCount(HANDLE Window);
-HANDLE GetWindowChild(HANDLE Window, U32 ChildIndex);
-HANDLE GetNextWindowSibling(HANDLE Window);
-HANDLE GetPreviousWindowSibling(HANDLE Window);
-HANDLE BeginWindowDraw(HANDLE Window);
-BOOL EndWindowDraw(HANDLE Window);
-HANDLE GetSystemBrush(U32 Index);
-HANDLE GetSystemPen(U32 Index);
-HANDLE CreateBrush(LPBRUSH_INFO BrushInfo);
-HANDLE CreatePen(LPPEN_INFO PenInfo);
-HANDLE SelectBrush(HANDLE GC, HANDLE Brush);
-HANDLE SelectPen(HANDLE GC, HANDLE Pen);
-BOOL Line(LPLINE_INFO LineInfo);
-BOOL Arc(LPARC_INFO ArcInfo);
-BOOL Triangle(LPTRIANGLE_INFO TriangleInfo);
-BOOL DrawText(LPTEXT_DRAW_INFO DrawInfo);
-BOOL MeasureText(LPTEXT_MEASURE_INFO MeasureInfo);
-BOOL DrawWindowBackground(HANDLE Window, HANDLE GC, LPRECT Rect, U32 ThemeToken);
-BOOL GetMousePosition(LPPOINT Point);
-HANDLE CaptureMouse(HANDLE Window);
-BOOL ReleaseMouse(void);
-BOOL GetGraphicsDebugInfo(LPDRIVER_DEBUG_INFO Info);
-BOOL GetMouseDebugInfo(LPDRIVER_DEBUG_INFO Info);
-BOOL SetWindowTimer(HANDLE Window, U32 TimerID, U32 IntervalMilliseconds);
-BOOL KillWindowTimer(HANDLE Window, U32 TimerID);
-U32 BaseWindowFunc(HANDLE Window, U32 Message, U32 Param1, U32 Param2);
-BOOL DeleteObject(HANDLE Object);
-
-/************************************************************************/
-
 #define ROOT "/"
 #define PATH_SEP ((STR)'/')
 

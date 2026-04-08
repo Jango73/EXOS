@@ -54,7 +54,7 @@ PROCESS DATA_SECTION KernelProcess = {
     .MemoryRegionList = { .Head = NULL, .Tail = NULL, .Count = 0 },
     .HeapBase = 0,                  // Heap base
     .HeapSize = 0,                  // Heap size
-    .TaskCount = 0                  // Task count (will be incremented by CreateTask)
+    .TaskCount = 0                  // Task count (will be incremented by KernelCreateTask)
 };
 
 /***************************************************************************/
@@ -156,7 +156,7 @@ void InitializeKernelProcess(void) {
     TaskInfo.Flags = TASK_CREATE_MAIN_KERNEL;
     StringCopy(TaskInfo.Name, TEXT("KernelMain"));
 
-    LPTASK KernelTask = CreateTask(&KernelProcess, &TaskInfo);
+    LPTASK KernelTask = KernelCreateTask(&KernelProcess, &TaskInfo);
 
     if (KernelTask == NULL) {
         DEBUG(TEXT("Could not create kernel task, halting."));
@@ -413,7 +413,7 @@ void KillProcess(LPPROCESS This) {
                         SAFE_USE_VALID_ID(Task, KOID_TASK) {
                             if (Task->OwnerProcess == ChildProcess) {
                                 DEBUG(TEXT("[KillProcess] Killing task %s"), Task->Name);
-                                KillTask(Task);
+                                KernelKillTask(Task);
                             }
                         }
                         Task = NextTask;
@@ -448,7 +448,7 @@ void KillProcess(LPPROCESS This) {
             SAFE_USE_VALID_ID(Task, KOID_TASK) {
                 if (Task->OwnerProcess == This) {
                     DEBUG(TEXT("[KillProcess] Killing task %s"), Task->Name);
-                    KillTask(Task);
+                    KernelKillTask(Task);
                 }
             }
             Task = NextTask;
@@ -752,7 +752,7 @@ BOOL CreateProcess(LPPROCESS_INFO Info) {
     TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
     TaskInfo.Flags = TASK_CREATE_SUSPENDED;
 
-    Task = CreateTask(Process, &TaskInfo);
+    Task = KernelCreateTask(Process, &TaskInfo);
 
     //-------------------------------------
     // Switch back to kernel page directory

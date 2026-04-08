@@ -442,7 +442,7 @@ BOOL SegmentInfoToString(LPSEGMENT_INFO This, LPSTR Text) {
  *
  * Allocates and clears the user and system stacks, seeds the interrupt frame
  * with the correct segment selectors, and configures the boot-time stack when
- * creating the main kernel task. The generic CreateTask routine handles the
+ * creating the main kernel task. The generic KernelCreateTask routine handles the
  * architecture-neutral bookkeeping and delegates the hardware specific work to
  * this helper.
  */

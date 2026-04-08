@@ -347,7 +347,7 @@ The x86-32 implementation of `SetupTask` (`kernel/source/arch/x86-32/x86-32.c`) 
 
 The x86-64 implementation performs the same baseline duties and also provisions a dedicated Interrupt Stack Table (`IST1`) stack for faults that need a reliable kernel stack when the regular system stack is unusable. During IDT initialization, the kernel assigns `IST1` to fault vectors that are likely to run with a corrupted task stack (double fault, invalid TSS, segment-not-present, stack, general protection, and page faults). This keeps handlers on the emergency per-task stack and prevents double-fault escalation into triple fault when the active stack pointer is invalid.
 
-`CreateTask` calls the architecture-specific helper after generic task bookkeeping. This keeps scheduler and task-manager logic architecture-agnostic while allowing each architecture to specialize `SetupTask`.
+`KernelCreateTask` calls the architecture-specific helper after generic task bookkeeping. This keeps scheduler and task-manager logic architecture-agnostic while allowing each architecture to specialize `SetupTask`.
 
 Both the x86-32 and x86-64 context-switch helpers (`SetupStackForKernelMode` and `SetupStackForUserMode` in their respective architecture headers) must reserve space on the stack in bytes rather than entries before writing the return frame. Subtracting the correct byte count avoids writing past the top of the allocated stack when seeding the initial `iret` frame for a task. On x86-64 the helpers also arrange the bootstrap frame so that the stack pointer becomes 16-byte aligned after `iretq` pops its arguments, preserving the ABI-mandated alignment once execution resumes in the scheduled task.
 
@@ -419,7 +419,7 @@ Interrupt_Clock └── BuildInterruptFrame
             └── ...
         └── CheckStack
             └── GetCurrentTask : endpoint
-        └── KillTask
+        └── KernelKillTask
             └── KernelLogText
                 └── ...
             └── RemoveTaskFromQueue
@@ -510,7 +510,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
 #### Lifecycle Flow
 
 **1. Task Termination:**
-- When a task terminates, `KillTask()` releases every mutex held by the task before marking it as `TASK_STATUS_DEAD`
+- When a task terminates, `KernelKillTask()` releases every mutex held by the task before marking it as `TASK_STATUS_DEAD`
 - During `DeleteTask()`, the task is removed from the scheduler queue before task resources are released
 - `DeleteDeadTasksAndProcesses()` (called periodically) removes dead tasks and processes from lists
 
@@ -527,7 +527,7 @@ EXOS implements a lifecycle management system for both processes and tasks that 
   - Checks the `PROCESS_CREATE_TERMINATE_CHILD_PROCESSES_ON_DEATH` flag
   - If flag is set: Finds all child processes recursively and kills them
   - If flag is not set: Orphans children by setting their `Parent` field to NULL
-  - Calls `KillTask()` on all tasks of the target process
+  - Calls `KernelKillTask()` on all tasks of the target process
   - Marks the target process as `PROCESS_STATUS_DEAD`
 
 **4. Final Cleanup:**
@@ -627,7 +627,7 @@ Message posting:
 - `SendMessage` is synchronous and window-only.
 
 Message retrieval:
-- `GetMessage`/`PeekMessage` first check the global input queue when the caller’s process has focus (desktop focus + per-desktop `FocusedProcess`), then fall back to the task’s own queue. `GetMessage` blocks if neither queue holds messages; `PeekMessage` is non-blocking. Userland syscalls translate handles in `MESSAGE_INFO` before dispatching to the kernel implementations.
+- Public runtime calls `GetMessage`/`PeekMessage` first check the global input queue when the caller’s process has focus (desktop focus + per-desktop `FocusedProcess`), then fall back to the task’s own queue. `GetMessage` blocks if neither queue holds messages; `PeekMessage` is non-blocking. Userland syscalls translate handles in `MESSAGE_INFO` before dispatching to the kernel implementations `KernelGetMessage` and `KernelPeekMessage`.
 - Focus tracking lives in `Kernel.ActiveDesktop` and `Kernel.FocusedProcess`. A process may exist without any desktop. When a focused process is associated with a desktop, focusing that process also makes its desktop active. When no active desktop exists, input falls back to the focused process, then to `KernelProcess`.
 
 

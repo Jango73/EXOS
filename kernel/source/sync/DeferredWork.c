@@ -174,7 +174,7 @@ BOOL InitializeDeferredWork(void) {
     TaskInfo.Flags = 0;
     StringCopy(TaskInfo.Name, TEXT("DeferredWork"));
 
-    if (CreateTask(&KernelProcess, &TaskInfo) == NULL) {
+    if (KernelCreateTask(&KernelProcess, &TaskInfo) == NULL) {
         ERROR(TEXT("[InitializeDeferredWork] Failed to create dispatcher task"));
         DeleteKernelEvent(g_DeferredWork.DeferredEvent);
         g_DeferredWork.DeferredEvent = NULL;

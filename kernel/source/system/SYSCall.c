@@ -41,7 +41,6 @@
 #include "log/Profile.h"
 #include "process/Process.h"
 #include "process/Schedule.h"
-#include "User.h"
 #include "user/UserAccount.h"
 #include "user/UserSession.h"
 #include "core/Security.h"
@@ -414,7 +413,7 @@ UINT SysCall_CreateTask(UINT Parameter) {
     LPTASK_INFO TaskInfo = (LPTASK_INFO)Parameter;
 
     SAFE_USE_INPUT_POINTER(TaskInfo, TASK_INFO) {
-        LPTASK Task = CreateTask(GetCurrentProcess(), TaskInfo);
+        LPTASK Task = KernelCreateTask(GetCurrentProcess(), TaskInfo);
         return PointerToHandle((LINEAR)Task);
     }
 
@@ -427,7 +426,7 @@ UINT SysCall_CreateTask(UINT Parameter) {
  * @brief Terminate a task referenced by a handle.
  *
  * Resolves the provided task handle (or uses the current task when the handle
- * is zero) and forwards the request to KillTask. Releases the handle upon
+ * is zero) and forwards the request to KernelKillTask. Releases the handle upon
  * successful termination.
  *
  * @param Parameter Handle identifying the task to terminate, or 0 for the current task.
@@ -447,7 +446,7 @@ UINT SysCall_KillTask(UINT Parameter) {
             return 0;
         }
 
-        Result = (UINT)KillTask(Task);
+        Result = (UINT)KernelKillTask(Task);
         if (Parameter && Result) ReleaseHandle(Parameter);
     }
 
@@ -460,10 +459,10 @@ UINT SysCall_KillTask(UINT Parameter) {
  * @brief Terminate the current task with the provided exit code.
  *
  * Converts the running task pointer into a verified kernel object prior to
- * delegating to KillTask().
+ * delegating to KernelKillTask().
  *
  * @param Parameter Exit code stored in the task object.
- * @return UINT Result of KillTask().
+ * @return UINT Result of KernelKillTask().
  */
 UINT SysCall_Exit(UINT Parameter) {
     DEBUG(TEXT("[SysCall_Exit] Enter, Parameter=%x"), Parameter);
@@ -473,7 +472,7 @@ UINT SysCall_Exit(UINT Parameter) {
 
     SAFE_USE_VALID_ID(Task, KOID_TASK) {
         SetTaskExitCode(Task, Parameter);
-        ReturnValue = KillTask(Task);
+        ReturnValue = KernelKillTask(Task);
     }
 
     DEBUG(TEXT("[SysCall_Exit] Exit"));
@@ -680,7 +679,7 @@ UINT SysCall_PeekMessage(UINT Parameter) {
             return 0;
         }
 
-        UINT Result = (UINT)PeekMessage(Message);
+        UINT Result = (UINT)KernelPeekMessage(Message);
         Message->Target = PointerToHandle((LINEAR)Message->Target);
         if (Message->Target == 0) {
             Message->Target = Filter;
@@ -698,7 +697,7 @@ UINT SysCall_PeekMessage(UINT Parameter) {
  * @brief Retrieve the next message, translating handles as needed.
  *
  * Accepts an optional handle filter in MESSAGE_INFO.Target, resolves it to a
- * kernel pointer before invoking GetMessage(), then converts the returned
+ * kernel pointer before invoking KernelGetMessage(), then converts the returned
  * pointer back into a handle.
  *
  * @param Parameter Pointer to MESSAGE_INFO supplied by userland.
@@ -716,7 +715,7 @@ UINT SysCall_GetMessage(UINT Parameter) {
             return 0;
         }
 
-        UINT Result = (UINT)GetMessage(Message);
+        UINT Result = (UINT)KernelGetMessage(Message);
         Message->Target = PointerToHandle((LINEAR)Message->Target);
         if (Message->Target == 0) {
             Message->Target = Filter;
@@ -751,7 +750,7 @@ UINT SysCall_DispatchMessage(UINT Parameter) {
             return 0;
         }
 
-        UINT Result = (UINT)DispatchMessage(Message);
+        UINT Result = (UINT)KernelDispatchMessage(Message);
 
         Message->Target = Original;
         return Result;
@@ -1591,7 +1590,7 @@ UINT SysCall_ConsoleGetCurrentMode(UINT Parameter) {
 UINT SysCall_CreateDesktop(UINT Parameter) {
     UNUSED(Parameter);
 
-    LPDESKTOP Desktop = CreateDesktop();
+    LPDESKTOP Desktop = KernelCreateDesktop();
     SAFE_USE_VALID_ID(Desktop, KOID_DESKTOP) {
         HANDLE Handle = PointerToHandle((LINEAR)Desktop);
 
@@ -1611,13 +1610,13 @@ UINT SysCall_CreateDesktop(UINT Parameter) {
  * @brief Show the desktop associated with the provided handle.
  *
  * @param Parameter Desktop handle.
- * @return UINT Result of ShowDesktop or 0 on error.
+ * @return UINT Result of KernelShowDesktop or 0 on error.
  */
 UINT SysCall_ShowDesktop(UINT Parameter) {
     LPDESKTOP Desktop = (LPDESKTOP)HandleToPointer(Parameter);
 
     SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Desktop, KOID_DESKTOP, TRUE) {
-        return (UINT)ShowDesktop(Desktop);
+        return (UINT)KernelShowDesktop(Desktop);
     }
     return 0;
 }
@@ -2597,7 +2596,7 @@ UINT SysCall_SetPixel(UINT Parameter) {
             }
 
             PixelInfo->GC = (HANDLE)Context;
-            UINT Result = (UINT)SetPixel(PixelInfo);
+            UINT Result = (UINT)KernelSetPixel(PixelInfo);
             PixelInfo->GC = OriginalGC;
             return Result;
         }
@@ -2630,7 +2629,7 @@ UINT SysCall_GetPixel(UINT Parameter) {
             }
 
             PixelInfo->GC = (HANDLE)Context;
-            UINT Result = (UINT)GetPixel(PixelInfo);
+            UINT Result = (UINT)KernelGetPixel(PixelInfo);
             PixelInfo->GC = OriginalGC;
             return Result;
         }
@@ -2696,7 +2695,7 @@ UINT SysCall_Rectangle(UINT Parameter) {
             }
 
             RectInfo->GC = (HANDLE)Context;
-            UINT Result = (UINT)Rectangle(RectInfo);
+            UINT Result = (UINT)KernelRectangle(RectInfo);
             RectInfo->GC = OriginalGC;
             return Result;
         }

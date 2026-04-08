@@ -10,7 +10,7 @@
   - images must be placed in build/image/x86-.../ instead of build/image/x86-.../boot-mbr or build/image/x86-.../boot-uefi (the "x86-..." path component already contains the boot type)
   - add ability NOT TO build disk images (--no-images)
 
-- [ ] User.h MUST NOT contain Kernel function definitions : it is a file visible by userland. Userland CANNOT call kernel functions directly.
+- [x] User.h MUST NOT contain Kernel function definitions : it is a file visible by userland. Userland CANNOT call kernel functions directly.
   - Userland uses functions defined in exos.h and implemented in exos-runtime-c.c
   - Kernel must place those function prototypes in a different header
 
