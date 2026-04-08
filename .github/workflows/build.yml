@@ -25,7 +25,7 @@ jobs:
             sed unzip wget xxd gdb-multiarch
 
       - name: Build EXOS x86-64 UEFI ext2
-        run: ./scripts/linux/build/build --arch x86-64 --fs ext2 --uefi --${{ matrix.config }}
+        run: ./scripts/linux/build/build --arch x86-64 --fs ext2 --uefi --${{ matrix.config }} --no-images
 
       - name: Upload artifacts
         if: always()
