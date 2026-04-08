@@ -1,0 +1,14 @@
+name: Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  entrypoint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Explain purpose
+        run: |
+          echo "This workflow exists on the default branch to expose manual runs."
+          echo "Use the Branch selector in GitHub Actions to run the real workflow from another branch."
