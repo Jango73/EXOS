@@ -220,21 +220,15 @@ U32 CMD_disk(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 U32 CMD_filesystem(LPSHELLCONTEXT Context) {
-    BOOL LongMode;
-
     ParseNextCommandLineComponent(Context);
-    LongMode = HasOption(Context, TEXT("l"), TEXT("long"));
 
-    if (StringLength(Context->Command) != 0) {
-        ConsolePrint(TEXT("Usage: fs [--long]\n"));
+    if (StringLength(Context->Command) == 0 ||
+        StringCompareNC(Context->Command, TEXT("list")) != 0) {
+        ConsolePrint(TEXT("Usage: fs list\n"));
         return DF_RETURN_SUCCESS;
     }
 
-    if (LongMode) {
-        return RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_FILE_SYSTEM_LIST_LONG));
-    } else {
-        return RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_FILE_SYSTEM_LIST));
-    }
+    return RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_FILE_SYSTEM_LIST));
 }
 
 /***************************************************************************/

@@ -1503,6 +1503,107 @@ void TestScriptReturnValues(TEST_RESULTS* Results) {
 /************************************************************************/
 
 /**
+ * @brief Test logical operators, precedence, and short-circuit evaluation.
+ * @param Results Pointer to TEST_RESULTS structure to be filled with test results.
+ */
+void TestScriptLogicalOperators(TEST_RESULTS* Results) {
+    SCRIPT_ERROR Error = SCRIPT_OK;
+
+    Results->TestsRun = 0;
+    Results->TestsPassed = 0;
+
+    Results->TestsRun++;
+    LPSCRIPT_CONTEXT Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptLogicalOperators] Failed to create context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("value = 1 || 0 && 0;"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("value"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 1) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptLogicalOperators] Test 1 failed: value = %d (expected 1)"),
+                Var ? Var->Value.Integer : -1);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptLogicalOperators] Test 1 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptLogicalOperators] Failed to create second context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("value = !(0);"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("value"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 1) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptLogicalOperators] Test 2 failed: value = %d (expected 1)"),
+                Var ? Var->Value.Integer : -1);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptLogicalOperators] Test 2 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptLogicalOperators] Failed to create third context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("value = 0 && missing_value;"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("value"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 0) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptLogicalOperators] Test 3 failed: value = %d (expected 0)"),
+                Var ? Var->Value.Integer : -1);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptLogicalOperators] Test 3 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptLogicalOperators] Failed to create fourth context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("value = 1 || missing_value;"));
+    if (Error == SCRIPT_OK) {
+        LPSCRIPT_VARIABLE Var = ScriptGetVariable(Context, TEXT("value"));
+        if (Var && Var->Type == SCRIPT_VAR_INTEGER && Var->Value.Integer == 1) {
+            Results->TestsPassed++;
+        } else {
+            DEBUG(TEXT("[TestScriptLogicalOperators] Test 4 failed: value = %d (expected 1)"),
+                Var ? Var->Value.Integer : -1);
+        }
+    } else {
+        DEBUG(TEXT("[TestScriptLogicalOperators] Test 4 failed with error %d"), Error);
+    }
+
+    ScriptDestroyContext(Context);
+}
+
+/************************************************************************/
+
+/**
  * @brief Test native-width integer semantics in parser, evaluator and callbacks.
  * @param Results Pointer to TEST_RESULTS structure to be filled with test results.
  */
@@ -1740,6 +1841,11 @@ void TestScript(TEST_RESULTS* Results) {
 
     // Run return value tests
     TestScriptReturnValues(&SubResults);
+    Results->TestsRun += SubResults.TestsRun;
+    Results->TestsPassed += SubResults.TestsPassed;
+
+    // Run logical operator tests
+    TestScriptLogicalOperators(&SubResults);
     Results->TestsRun += SubResults.TestsRun;
     Results->TestsPassed += SubResults.TestsPassed;
 

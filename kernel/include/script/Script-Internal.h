@@ -39,6 +39,8 @@ void ScriptNextToken(LPSCRIPT_PARSER Parser);
 void ScriptParseStringToken(LPSCRIPT_PARSER Parser, LPCSTR Input, U32* Pos, STR QuoteChar);
 LPAST_NODE ScriptParseExpressionAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 LPAST_NODE ScriptParseComparisonAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
+LPAST_NODE ScriptParseLogicalOrAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
+LPAST_NODE ScriptParseLogicalAndAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 LPAST_NODE ScriptParseTermAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
 LPAST_NODE ScriptParseAssignmentAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error);
@@ -59,6 +61,7 @@ SCRIPT_ERROR ScriptPrepareHostValue(
     LPVOID DefaultContext);
 BOOL ScriptValueToFloat(const SCRIPT_VALUE* Value, F32* OutValue);
 BOOL ScriptValueToInteger(const SCRIPT_VALUE* Value, INT* OutValue);
+BOOL ScriptValueIsTrue(const SCRIPT_VALUE* Value, BOOL* OutValue);
 SCRIPT_ERROR ScriptValueToString(
     const SCRIPT_VALUE* Value,
     LPSCRIPT_CONTEXT Context,

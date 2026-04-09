@@ -45,6 +45,23 @@ BOOL ScriptIsKeyword(LPCSTR Str) {
 
 /************************************************************************/
 
+BOOL ScriptValueIsTrue(const SCRIPT_VALUE* Value, BOOL* OutValue) {
+    F32 NumericValue = 0.0f;
+
+    if (Value == NULL || OutValue == NULL) {
+        return FALSE;
+    }
+
+    if (!ScriptValueToFloat(Value, &NumericValue)) {
+        return FALSE;
+    }
+
+    *OutValue = (NumericValue != 0.0f);
+    return TRUE;
+}
+
+/************************************************************************/
+
 /**
  * @brief Release one temporary function-call argument vector.
  * @param Context Script context that owns the temporary allocations.
@@ -542,6 +559,130 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
 
         case TOKEN_OPERATOR:
         case TOKEN_COMPARISON: {
+            if (Expr->Data.Expression.TokenType == TOKEN_OPERATOR &&
+                StringCompare(Expr->Data.Expression.Value, TEXT("!")) == 0) {
+                SCRIPT_VALUE RightValue = ScriptEvaluateExpression(Parser, Expr->Data.Expression.Right, Error);
+                BOOL IsTrue = FALSE;
+
+                if (Error && *Error != SCRIPT_OK) {
+                    ScriptValueRelease(&RightValue);
+                    return Result;
+                }
+
+                if (!ScriptValueIsTrue(&RightValue, &IsTrue)) {
+                    if (Error) {
+                        *Error = SCRIPT_ERROR_TYPE_MISMATCH;
+                    }
+                    ScriptValueRelease(&RightValue);
+                    return Result;
+                }
+
+                Result.Type = SCRIPT_VAR_INTEGER;
+                Result.Value.Integer = IsTrue ? 0 : 1;
+                ScriptValueRelease(&RightValue);
+                return Result;
+            }
+
+            if (Expr->Data.Expression.TokenType == TOKEN_OPERATOR &&
+                StringCompare(Expr->Data.Expression.Value, TEXT("&&")) == 0) {
+                SCRIPT_VALUE LeftValue = ScriptEvaluateExpression(Parser, Expr->Data.Expression.Left, Error);
+                BOOL LeftIsTrue = FALSE;
+
+                if (Error && *Error != SCRIPT_OK) {
+                    ScriptValueRelease(&LeftValue);
+                    return Result;
+                }
+
+                if (!ScriptValueIsTrue(&LeftValue, &LeftIsTrue)) {
+                    if (Error) {
+                        *Error = SCRIPT_ERROR_TYPE_MISMATCH;
+                    }
+                    ScriptValueRelease(&LeftValue);
+                    return Result;
+                }
+
+                if (!LeftIsTrue) {
+                    Result.Type = SCRIPT_VAR_INTEGER;
+                    Result.Value.Integer = 0;
+                    ScriptValueRelease(&LeftValue);
+                    return Result;
+                }
+
+                SCRIPT_VALUE RightValue = ScriptEvaluateExpression(Parser, Expr->Data.Expression.Right, Error);
+                BOOL RightIsTrue = FALSE;
+
+                if (Error && *Error != SCRIPT_OK) {
+                    ScriptValueRelease(&LeftValue);
+                    ScriptValueRelease(&RightValue);
+                    return Result;
+                }
+
+                if (!ScriptValueIsTrue(&RightValue, &RightIsTrue)) {
+                    if (Error) {
+                        *Error = SCRIPT_ERROR_TYPE_MISMATCH;
+                    }
+                    ScriptValueRelease(&LeftValue);
+                    ScriptValueRelease(&RightValue);
+                    return Result;
+                }
+
+                Result.Type = SCRIPT_VAR_INTEGER;
+                Result.Value.Integer = RightIsTrue ? 1 : 0;
+                ScriptValueRelease(&LeftValue);
+                ScriptValueRelease(&RightValue);
+                return Result;
+            }
+
+            if (Expr->Data.Expression.TokenType == TOKEN_OPERATOR &&
+                StringCompare(Expr->Data.Expression.Value, TEXT("||")) == 0) {
+                SCRIPT_VALUE LeftValue = ScriptEvaluateExpression(Parser, Expr->Data.Expression.Left, Error);
+                BOOL LeftIsTrue = FALSE;
+
+                if (Error && *Error != SCRIPT_OK) {
+                    ScriptValueRelease(&LeftValue);
+                    return Result;
+                }
+
+                if (!ScriptValueIsTrue(&LeftValue, &LeftIsTrue)) {
+                    if (Error) {
+                        *Error = SCRIPT_ERROR_TYPE_MISMATCH;
+                    }
+                    ScriptValueRelease(&LeftValue);
+                    return Result;
+                }
+
+                if (LeftIsTrue) {
+                    Result.Type = SCRIPT_VAR_INTEGER;
+                    Result.Value.Integer = 1;
+                    ScriptValueRelease(&LeftValue);
+                    return Result;
+                }
+
+                SCRIPT_VALUE RightValue = ScriptEvaluateExpression(Parser, Expr->Data.Expression.Right, Error);
+                BOOL RightIsTrue = FALSE;
+
+                if (Error && *Error != SCRIPT_OK) {
+                    ScriptValueRelease(&LeftValue);
+                    ScriptValueRelease(&RightValue);
+                    return Result;
+                }
+
+                if (!ScriptValueIsTrue(&RightValue, &RightIsTrue)) {
+                    if (Error) {
+                        *Error = SCRIPT_ERROR_TYPE_MISMATCH;
+                    }
+                    ScriptValueRelease(&LeftValue);
+                    ScriptValueRelease(&RightValue);
+                    return Result;
+                }
+
+                Result.Type = SCRIPT_VAR_INTEGER;
+                Result.Value.Integer = RightIsTrue ? 1 : 0;
+                ScriptValueRelease(&LeftValue);
+                ScriptValueRelease(&RightValue);
+                return Result;
+            }
+
             SCRIPT_VALUE LeftValue = ScriptEvaluateExpression(Parser, Expr->Data.Expression.Left, Error);
             if (Error && *Error != SCRIPT_OK) {
                 ScriptValueRelease(&LeftValue);
