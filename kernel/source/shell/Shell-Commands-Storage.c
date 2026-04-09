@@ -206,10 +206,7 @@ U32 CMD_edit(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 U32 CMD_disk(LPSHELLCONTEXT Context) {
-    if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_DISK_LIST))) {
-        ConsolePrint(TEXT("Unable to run embedded disk list script\n"));
-    }
-    return DF_RETURN_SUCCESS;
+    return RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_DISK_LIST));
 }
 
 /***************************************************************************/
@@ -226,16 +223,10 @@ U32 CMD_filesystem(LPSHELLCONTEXT Context) {
     }
 
     if (LongMode) {
-        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_FILE_SYSTEM_LIST_LONG))) {
-            ConsolePrint(TEXT("Unable to run embedded file system long list script\n"));
-        }
+        return RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_FILE_SYSTEM_LIST_LONG));
     } else {
-        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_FILE_SYSTEM_LIST))) {
-            ConsolePrint(TEXT("Unable to run embedded file system list script\n"));
-        }
+        return RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_FILE_SYSTEM_LIST));
     }
-
-    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/

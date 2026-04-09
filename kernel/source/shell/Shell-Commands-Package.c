@@ -156,28 +156,33 @@ Out:
  * @brief Run one embedded E0 script from a static kernel string.
  * @param Context Shell context.
  * @param ScriptText E0 source text.
- * @return TRUE on success.
+ * @return `DF_RETURN_*` status code. When the script returns an integer,
+ * that integer becomes the command status.
  */
-BOOL RunEmbeddedScript(LPSHELLCONTEXT Context, LPCSTR ScriptText) {
+UINT RunEmbeddedScript(LPSHELLCONTEXT Context, LPCSTR ScriptText) {
     SCRIPT_VAR_TYPE ReturnType;
     SCRIPT_VAR_VALUE ReturnValue;
     SCRIPT_ERROR Error = SCRIPT_OK;
 
     if (Context == NULL || ScriptText == NULL || Context->ScriptContext == NULL) {
-        return FALSE;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     Error = ScriptExecute(Context->ScriptContext, ScriptText);
     if (Error != SCRIPT_OK) {
         ConsolePrint(TEXT("Error: %s\n"), ScriptGetErrorMessage(Context->ScriptContext));
-        return FALSE;
+        return DF_RETURN_GENERIC;
     }
 
     if (ScriptGetReturnValue(Context->ScriptContext, &ReturnType, &ReturnValue)) {
+        if (ReturnType == SCRIPT_VAR_INTEGER) {
+            return (UINT)ReturnValue.Integer;
+        }
+
         ShellPrintScriptReturnValue(ReturnType, ReturnValue);
     }
 
-    return TRUE;
+    return DF_RETURN_SUCCESS;
 }
 
 /***************************************************************************/

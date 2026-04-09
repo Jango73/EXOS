@@ -33,15 +33,15 @@
  * @brief Run the embedded driver detail script for one alias.
  * @param Context Shell context.
  * @param Alias Driver alias.
- * @return TRUE on success.
+ * @return `DF_RETURN_*` status code.
  */
-static BOOL RunEmbeddedDriverDetailsScript(
+static UINT RunEmbeddedDriverDetailsScript(
     LPSHELLCONTEXT Context,
     LPCSTR Alias) {
     STR ScriptText[4096];
 
     if (Context == NULL || Alias == NULL || StringLength(Alias) == 0) {
-        return FALSE;
+        return DF_RETURN_BAD_PARAMETER;
     }
 
     StringPrintFormat(
@@ -69,17 +69,10 @@ U32 CMD_driver(LPSHELLCONTEXT Context) {
     }
 
     if (StringCompareNC(Context->Command, TEXT("list")) == 0) {
-        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_DRIVER_LIST))) {
-            ConsolePrint(TEXT("Unable to run embedded driver list script\n"));
-        }
-        return DF_RETURN_SUCCESS;
+        return RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_DRIVER_LIST));
     }
 
-    if (!RunEmbeddedDriverDetailsScript(Context, Context->Command)) {
-        ConsolePrint(TEXT("Unable to run embedded driver detail script\n"));
-    }
-
-    return DF_RETURN_SUCCESS;
+    return RunEmbeddedDriverDetailsScript(Context, Context->Command);
 }
 
 /************************************************************************/
@@ -98,11 +91,7 @@ U32 CMD_task(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_TASK_LIST))) {
-        ConsolePrint(TEXT("Unable to run embedded task list script\n"));
-    }
-
-    return DF_RETURN_SUCCESS;
+    return RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_TASK_LIST));
 }
 
 /************************************************************************/
@@ -117,11 +106,7 @@ U32 CMD_memedit(LPSHELLCONTEXT Context) {
 /************************************************************************/
 
 U32 CMD_memorymap(LPSHELLCONTEXT Context) {
-    if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_MEMORY_MAP))) {
-        ConsolePrint(TEXT("Unable to run embedded memory-map script\n"));
-    }
-
-    return DF_RETURN_SUCCESS;
+    return RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_MEMORY_MAP));
 }
 
 /************************************************************************/
@@ -167,11 +152,7 @@ U32 CMD_network(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_NETWORK_DEVICES))) {
-        ConsolePrint(TEXT("Unable to run embedded network device list script\n"));
-    }
-
-    return DF_RETURN_SUCCESS;
+    return RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_NETWORK_DEVICES));
 }
 
 /************************************************************************/
@@ -355,30 +336,15 @@ U32 CMD_usb(LPSHELLCONTEXT Context) {
     }
 
     if (StringCompareNC(Context->Command, TEXT("drives")) == 0) {
-        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_DRIVES))) {
-            ConsolePrint(TEXT("Unable to run embedded USB drive list script\n"));
-        }
-        return DF_RETURN_SUCCESS;
+        return RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_DRIVES));
     } else if (StringCompareNC(Context->Command, TEXT("probe")) == 0) {
-        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_PROBE))) {
-            ConsolePrint(TEXT("Unable to run embedded USB probe script\n"));
-        }
-        return DF_RETURN_SUCCESS;
+        return RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_PROBE));
     } else if (StringCompareNC(Context->Command, TEXT("devices")) == 0) {
-        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_DEVICES))) {
-            ConsolePrint(TEXT("Unable to run embedded USB device list script\n"));
-        }
-        return DF_RETURN_SUCCESS;
+        return RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_DEVICES));
     } else if (StringCompareNC(Context->Command, TEXT("ports")) == 0) {
-        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_PORTS))) {
-            ConsolePrint(TEXT("Unable to run embedded USB port list script\n"));
-        }
-        return DF_RETURN_SUCCESS;
+        return RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_PORTS));
     } else if (StringCompareNC(Context->Command, TEXT("device-tree")) == 0) {
-        if (!RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_DEVICE_TREE))) {
-            ConsolePrint(TEXT("Unable to run embedded USB device tree script\n"));
-        }
-        return DF_RETURN_SUCCESS;
+        return RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_USB_DEVICE_TREE));
     }
 
     return DF_RETURN_SUCCESS;

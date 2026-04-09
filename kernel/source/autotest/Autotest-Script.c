@@ -1445,6 +1445,64 @@ void TestScriptContinue(TEST_RESULTS* Results) {
 /************************************************************************/
 
 /**
+ * @brief Test script return value storage and visibility.
+ * @param Results Pointer to TEST_RESULTS structure to be filled with test results.
+ */
+void TestScriptReturnValues(TEST_RESULTS* Results) {
+    SCRIPT_ERROR Error = SCRIPT_OK;
+    SCRIPT_VAR_TYPE ReturnType = SCRIPT_VAR_INTEGER;
+    SCRIPT_VAR_VALUE ReturnValue;
+
+    MemorySet(&ReturnValue, 0, sizeof(ReturnValue));
+
+    Results->TestsRun = 0;
+    Results->TestsPassed = 0;
+
+    Results->TestsRun++;
+    LPSCRIPT_CONTEXT Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptReturnValues] Failed to create context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("return 123;"));
+    if (Error == SCRIPT_OK &&
+        ScriptGetReturnValue(Context, &ReturnType, &ReturnValue) &&
+        ReturnType == SCRIPT_VAR_INTEGER &&
+        ReturnValue.Integer == 123) {
+        Results->TestsPassed++;
+    } else {
+        DEBUG(TEXT("[TestScriptReturnValues] Test 1 failed: error = %d has_return = %d type = %d value = %d"),
+            Error,
+            ScriptHasReturnValue(Context),
+            ReturnType,
+            ReturnValue.Integer);
+    }
+
+    ScriptDestroyContext(Context);
+
+    Results->TestsRun++;
+    Context = ScriptCreateContext(NULL);
+    if (Context == NULL) {
+        DEBUG(TEXT("[TestScriptReturnValues] Failed to create second context"));
+        return;
+    }
+
+    Error = ScriptExecute(Context, TEXT("value = 7;"));
+    if (Error == SCRIPT_OK && ScriptHasReturnValue(Context) == FALSE) {
+        Results->TestsPassed++;
+    } else {
+        DEBUG(TEXT("[TestScriptReturnValues] Test 2 failed: error = %d has_return = %d"),
+            Error,
+            ScriptHasReturnValue(Context));
+    }
+
+    ScriptDestroyContext(Context);
+}
+
+/************************************************************************/
+
+/**
  * @brief Test native-width integer semantics in parser, evaluator and callbacks.
  * @param Results Pointer to TEST_RESULTS structure to be filled with test results.
  */
@@ -1677,6 +1735,11 @@ void TestScript(TEST_RESULTS* Results) {
 
     // Run complex script tests
     TestScriptComplex(&SubResults);
+    Results->TestsRun += SubResults.TestsRun;
+    Results->TestsPassed += SubResults.TestsPassed;
+
+    // Run return value tests
+    TestScriptReturnValues(&SubResults);
     Results->TestsRun += SubResults.TestsRun;
     Results->TestsPassed += SubResults.TestsPassed;
 
