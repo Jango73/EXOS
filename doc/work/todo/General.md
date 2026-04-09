@@ -20,6 +20,7 @@
 - [x] When running an embedded script, one must return the return value of the script, not always DF_RETURN_SUCCESS
 
 - [ ] Homogenize naming in exposed objects : do not use plural for lists (ex: usb.ports = usb.port, usb.devices = usb.device, etc...)
+
 - [ ] Homogenize the output of all listing scripts in Shell-EmbeddedScripts.c. use "nnn, field1=value1, field2=value2, field3=value3, ..."
 
 - [ ] Execute Shell-Scripting-Exposure-Plan.md : all remaining steps
