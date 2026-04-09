@@ -5,10 +5,9 @@
 
 ![Platform](https://img.shields.io/badge/platform-x86__32-blue)
 ![Platform](https://img.shields.io/badge/platform-x86__64-blue)
+[![Build](https://github.com/Jango73/EXOS/actions/workflows/build.yml/badge.svg)](https://github.com/Jango73/EXOS/actions/workflows/build.yml)
 ![Boot](https://img.shields.io/badge/boot-QEMU%20OK-green)
-![Boot](https://img.shields.io/badge/boot-Bare%20Metal%20untested-lightgrey)
-![Build](https://img.shields.io/github/actions/workflow/status/Jango73/EXOS/build.yml?branch=main\&label=build)
-![Tests](https://img.shields.io/github/actions/workflow/status/Jango73/EXOS/tests.yml?branch=main\&label=tests)
+![Boot](https://img.shields.io/badge/boot-Bare%20metal%20partial-yellow)
 
 ## Other languages
 
