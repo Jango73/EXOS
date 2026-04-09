@@ -120,13 +120,11 @@ static LPCSTR G_EmbeddedScripts[SHELL_EMBEDDED_SCRIPT_COUNT] = {
         "}\n",
     [SHELL_EMBEDDED_SCRIPT_DISK_LIST] = (LPCSTR)
         "count = storage.count;\n"
+        "if (count == 0) {\n"
+        "    print(\"No disk detected\");\n"
+        "}\n"
         "for (i = 0; i < count; i = i + 1) {\n"
-        "    print(\"Manufacturer : \" + storage[i].driver_manufacturer);\n"
-        "    print(\"Product      : \" + storage[i].driver_product);\n"
-        "    print(\"Sector size  : \" + storage[i].bytes_per_sector);\n"
-        "    print(\"Sectors low  : \" + storage[i].num_sectors_low);\n"
-        "    print(\"Sectors high : \" + storage[i].num_sectors_high);\n"
-        "    print(\"\");\n"
+        "    print(\"disk=\" + i + \" type=\" + storage[i].type + \" removable=\" + storage[i].removable + \" access=\" + storage[i].access + \" bytes_per_sector=\" + storage[i].bytes_per_sector + \" sectors_high=\" + storage[i].num_sectors_high + \" sectors_low=\" + storage[i].num_sectors_low + \" manufacturer=\" + storage[i].driver_manufacturer + \" product=\" + storage[i].driver_product);\n"
         "}\n",
     [SHELL_EMBEDDED_SCRIPT_FILE_SYSTEM_LIST] = (LPCSTR)
         "print(\"Name         Type         Format           Sectors\");\n"
@@ -342,7 +340,7 @@ static LPCSTR G_EmbeddedScripts[SHELL_EMBEDDED_SCRIPT_COUNT] = {
         "}\n"
         "for (i = 0; i < count; i = i + 1) {\n"
         "    if (usb.port[i].connected != 0) {\n"
-        "        line = \"P\" + usb.port[i].port_number + \" Err=\" + usb.port[i].last_enum_error_text;\n"
+        "        line = \"port=\" + usb.port[i].port_number + \" error=\" + usb.port[i].last_enum_error_text;\n"
         "        if (usb.port[i].last_enum_error == 5) {\n"
         "            line = line + \" C=\" + usb.port[i].last_enum_completion;\n"
         "        }\n"

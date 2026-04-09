@@ -206,6 +206,14 @@ U32 CMD_edit(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 U32 CMD_disk(LPSHELLCONTEXT Context) {
+    ParseNextCommandLineComponent(Context);
+
+    if (StringLength(Context->Command) == 0 ||
+        StringCompareNC(Context->Command, TEXT("list")) != 0) {
+        ConsolePrint(TEXT("Usage: disk list\n"));
+        return DF_RETURN_SUCCESS;
+    }
+
     return RunEmbeddedScript(Context, ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_DISK_LIST));
 }
 
