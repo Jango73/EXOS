@@ -14,8 +14,8 @@
   - Userland uses functions defined in exos.h and implemented in exos-runtime-c.c
   - Kernel must place those function prototypes in a different header
 
-- [ ] Scripting : fix parentheses parsing to use ScriptParseComparisonAST instead of ScriptParseExpressionAST in ScriptParseFactorAST
-- [ ] Scripting : add support for unary operators (-x, +x) in ScriptParseFactorAST
+- [x] Scripting : fix parentheses parsing to use ScriptParseComparisonAST instead of ScriptParseExpressionAST in ScriptParseFactorAST
+- [x] Scripting : add support for unary operators (-x, +x) in ScriptParseFactorAST
 
 - [ ] Execute Shell-Scripting-Exposure-Plan.md : all remaining steps
 - [ ] Rewrite ShellScriptCallFunction using a function table.

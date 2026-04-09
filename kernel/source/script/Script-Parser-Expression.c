@@ -661,12 +661,83 @@ LPAST_NODE ScriptParseTermAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
 /************************************************************************/
 
 /**
+ * @brief Build a unary sign AST node using a zero literal as the left operand.
+ * @param Parser Parser state.
+ * @param Operator Unary operator character.
+ * @param Operand Unary operand expression.
+ * @param Error Pointer to error code.
+ * @return AST expression node or NULL on failure.
+ */
+static LPAST_NODE ScriptCreateUnaryOperatorNode(
+    LPSCRIPT_PARSER Parser,
+    STR Operator,
+    LPAST_NODE Operand,
+    SCRIPT_ERROR* Error) {
+    LPAST_NODE ZeroNode;
+    LPAST_NODE OperatorNode;
+
+    if (Parser == NULL || Operand == NULL || Error == NULL) {
+        if (Error != NULL) {
+            *Error = SCRIPT_ERROR_SYNTAX;
+        }
+        ScriptDestroyAST(Operand);
+        return NULL;
+    }
+
+    ZeroNode = ScriptCreateASTNode(Parser->Context, AST_EXPRESSION);
+    if (ZeroNode == NULL) {
+        *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
+        ScriptDestroyAST(Operand);
+        return NULL;
+    }
+
+    ZeroNode->Data.Expression.TokenType = TOKEN_NUMBER;
+    ZeroNode->Data.Expression.IsIntegerLiteral = TRUE;
+    ZeroNode->Data.Expression.IntegerValue = 0;
+    ZeroNode->Data.Expression.FloatValue = 0.0f;
+    StringCopy(ZeroNode->Data.Expression.Value, TEXT("0"));
+
+    OperatorNode = ScriptCreateASTNode(Parser->Context, AST_EXPRESSION);
+    if (OperatorNode == NULL) {
+        *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
+        ScriptDestroyAST(ZeroNode);
+        ScriptDestroyAST(Operand);
+        return NULL;
+    }
+
+    OperatorNode->Data.Expression.TokenType = TOKEN_OPERATOR;
+    OperatorNode->Data.Expression.Value[0] = Operator;
+    OperatorNode->Data.Expression.Value[1] = STR_NULL;
+    OperatorNode->Data.Expression.Left = ZeroNode;
+    OperatorNode->Data.Expression.Right = Operand;
+
+    return OperatorNode;
+}
+
+/************************************************************************/
+
+/**
  * @brief Parse factor (numbers, variables, parentheses) and build AST node.
  * @param Parser Parser state
  * @param Error Pointer to error code
  * @return AST expression node or NULL on failure
  */
 LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
+    // UNARY +/-.
+    if (Parser->CurrentToken.Type == TOKEN_OPERATOR &&
+        (Parser->CurrentToken.Value[0] == '+' || Parser->CurrentToken.Value[0] == '-')) {
+        STR UnaryOperator = Parser->CurrentToken.Value[0];
+
+        ScriptNextToken(Parser);
+
+        LPAST_NODE Operand = ScriptParseFactorAST(Parser, Error);
+        if (*Error != SCRIPT_OK || Operand == NULL) {
+            return NULL;
+        }
+
+        return ScriptCreateUnaryOperatorNode(Parser, UnaryOperator, Operand, Error);
+    }
+
     // NUMBER
     if (Parser->CurrentToken.Type == TOKEN_NUMBER) {
         LPAST_NODE Node = ScriptCreateASTNode(Parser->Context, AST_EXPRESSION);
@@ -798,7 +869,7 @@ LPAST_NODE ScriptParseFactorAST(LPSCRIPT_PARSER Parser, SCRIPT_ERROR* Error) {
     // PARENTHESES
     if (Parser->CurrentToken.Type == TOKEN_LPAREN) {
         ScriptNextToken(Parser);
-        LPAST_NODE Expr = ScriptParseExpressionAST(Parser, Error);
+        LPAST_NODE Expr = ScriptParseComparisonAST(Parser, Error);
         if (*Error != SCRIPT_OK || Expr == NULL) return NULL;
 
         if (Parser->CurrentToken.Type != TOKEN_RPAREN) {
