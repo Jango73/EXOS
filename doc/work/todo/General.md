@@ -14,8 +14,6 @@
   - Userland uses functions defined in exos.h and implemented in exos-runtime-c.c
   - Kernel must place those function prototypes in a different header
 
-- [ ] Keyboard : Handle '<' key in french keyboard mapping.
-
 - [ ] Scripting : fix parentheses parsing to use ScriptParseComparisonAST instead of ScriptParseExpressionAST in ScriptParseFactorAST
 - [ ] Scripting : add support for unary operators (-x, +x) in ScriptParseFactorAST
 
@@ -33,6 +31,9 @@
 
 - [ ] Implement full UTF and Unicode.md
 - [ ] Implement Executable-Module-Libraries.md
+
+- [ ] Fix input-info #PF on exit
+- [ ] Keyboard : Handle '<' key in french keyboard mapping.
 
 ## Medium priority
 
