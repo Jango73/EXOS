@@ -350,6 +350,19 @@ static LPCSTR G_EmbeddedScripts[SHELL_EMBEDDED_SCRIPT_COUNT] = {
         "        }\n"
         "        print(line);\n"
         "    }\n"
+        "}\n",
+    [SHELL_EMBEDDED_SCRIPT_NVME_LIST] = (LPCSTR)
+        "count = pci_device.count;\n"
+        "found = 0;\n"
+        "for (i = 0; i < count; i = i + 1) {\n"
+        "    if (pci_device[i].base_class != 1 || pci_device[i].sub_class != 8 || pci_device[i].prog_if != 2) {\n"
+        "        continue;\n"
+        "    }\n"
+        "    print(\"nvme\" + found + \": bus=\" + pci_device[i].bus + \" device=\" + pci_device[i].device + \" function=\" + pci_device[i].function + \" vendor_id=\" + pci_device[i].vendor_id + \" device_id=\" + pci_device[i].device_id + \" revision=\" + pci_device[i].revision);\n"
+        "    found = found + 1;\n"
+        "}\n"
+        "if (found == 0) {\n"
+        "    print(\"No NVMe device detected\");\n"
         "}\n"
 };
 
