@@ -702,10 +702,9 @@ All reusable helpers -such as the command line editor, adaptive delay, string co
         - `height`: mode height.
         - `bpp`: mode bit depth.
     - `enum_domain_count`: number of enum domains. Permissions: kernel and administrator only.
-    - `enum_domains`: enum domain array. Permissions: kernel and administrator only.
-      - `enum_domains.count`: enum domain count. Permissions: kernel and administrator only.
-      - `enum_domains[n]`: enum domain value at index `n`. Permissions: kernel and administrator only.
-- `drivers`: Compatibility alias for `driver`.
+    - `enum_domain`: enum domain array. Permissions: kernel and administrator only.
+      - `enum_domain.count`: enum domain count. Permissions: kernel and administrator only.
+      - `enum_domain[n]`: enum domain value at index `n`. Permissions: kernel and administrator only.
 - `graphics`: Active graphics session state. Permissions: anyone.
   - `graphics.frontend`: active display frontend text (`console` or `desktop`).
   - `graphics.current_driver_index`: index of the active concrete graphics backend inside `driver[n]`.
@@ -714,6 +713,35 @@ All reusable helpers -such as the command line editor, adaptive delay, string co
     - `graphics.mode.width`: active mode width.
     - `graphics.mode.height`: active mode height.
     - `graphics.mode.bpp`: active mode bit depth.
+- `memory_map`: Kernel address-space exposure root. Permissions: anyone.
+  - `memory_map.kernel_region`: kernel memory region list root.
+    - `memory_map.kernel_region.count`: number of kernel memory regions.
+    - `memory_map.kernel_region[n]`: kernel memory region view at index `n`.
+      - `tag`: region tag.
+      - `base_low`: lower 32 bits of the canonical base.
+      - `base_high`: upper 32 bits of the canonical base.
+      - `physical_low`: lower 32 bits of the physical base.
+      - `physical_high`: upper 32 bits of the physical base.
+      - `physical_known`: indicates whether a physical base is known.
+      - `size`: region size.
+      - `page_count`: region page count.
+      - `flags`: region flags.
+      - `attributes`: region attributes.
+      - `granularity`: region granularity.
+- `network`: Network exposure root. Permissions: anyone.
+  - `network.device`: network device list root.
+    - `network.device.count`: number of network devices.
+    - `network.device[n]`: network device view at index `n`.
+      - `name`: device name.
+      - `manufacturer`: device manufacturer text.
+      - `product`: device product text.
+      - `mac_0`..`mac_5`: MAC address bytes.
+      - `ip_0`..`ip_3`: IPv4 address bytes.
+      - `link_up`: link state.
+      - `speed_mbps`: link speed in Mbps.
+      - `duplex_full`: duplex mode flag.
+      - `mtu`: configured MTU.
+      - `initialized`: initialization state.
 - `storage`: Storage list root. provides indexed access to storage views. Permissions: anyone.
   - `storage.count`: number of storage objects. Permissions: anyone.
   - `storage[n]`: storage view at index `n`. Permissions: anyone.
@@ -749,9 +777,9 @@ All reusable helpers -such as the command line editor, adaptive delay, string co
   - `mouse.x`: cursor X coordinate. Permissions: anyone.
   - `mouse.y`: cursor Y coordinate. Permissions: anyone.
   - `mouse.driver`: active mouse driver. Permissions: kernel and administrator only.
-- `usb.ports`: xHCI port list root. provides indexed access to USB ports. Permissions: kernel and administrator only.
-  - `usb.ports.count`: number of USB ports. Permissions: kernel and administrator only.
-  - `usb.ports[n]`: port view at index `n`. Permissions: kernel and administrator only.
+- `usb.port`: xHCI port list root. provides indexed access to USB ports. Permissions: kernel and administrator only.
+  - `usb.port.count`: number of USB ports. Permissions: kernel and administrator only.
+  - `usb.port[n]`: port view at index `n`. Permissions: kernel and administrator only.
     - `bus`: PCI bus number. Permissions: kernel and administrator only.
     - `device`: PCI device number. Permissions: kernel and administrator only.
     - `function`: PCI function number. Permissions: kernel and administrator only.
@@ -760,9 +788,9 @@ All reusable helpers -such as the command line editor, adaptive delay, string co
     - `speed_id`: link speed identifier. Permissions: kernel and administrator only.
     - `connected`: connection status. Permissions: kernel and administrator only.
     - `enabled`: port enable state. Permissions: kernel and administrator only.
-- `usb.devices`: USB device list root. provides indexed access to USB devices. Permissions: anyone.
-  - `usb.devices.count`: number of USB devices. Permissions: anyone.
-  - `usb.devices[n]`: device view at index `n`. Permissions: anyone.
+- `usb.device`: USB device list root. provides indexed access to USB devices. Permissions: anyone.
+  - `usb.device.count`: number of USB devices. Permissions: anyone.
+  - `usb.device[n]`: device view at index `n`. Permissions: anyone.
     - `bus`: PCI bus number. Permissions: anyone.
     - `device`: PCI device number. Permissions: anyone.
     - `function`: PCI function number. Permissions: anyone.
@@ -771,6 +799,42 @@ All reusable helpers -such as the command line editor, adaptive delay, string co
     - `speed_id`: link speed identifier. Permissions: anyone.
     - `vendor_id`: USB vendor ID. Permissions: anyone.
     - `product_id`: USB product ID. Permissions: anyone.
+- `usb.drive`: USB mass-storage list root. provides indexed access to USB storage devices. Permissions: anyone.
+  - `usb.drive.count`: number of USB mass-storage devices. Permissions: anyone.
+  - `usb.drive[n]`: storage device view at index `n`. Permissions: anyone.
+    - `address`: USB device address. Permissions: anyone.
+    - `vendor_id`: USB vendor ID. Permissions: anyone.
+    - `product_id`: USB product ID. Permissions: anyone.
+    - `block_count`: block count. Permissions: anyone.
+    - `block_size`: block size in bytes. Permissions: anyone.
+    - `present`: online state. Permissions: anyone.
+- `usb.node`: USB descriptor-tree list root. provides indexed access to discovered USB tree nodes. Permissions: anyone.
+  - `usb.node.count`: number of USB tree nodes. Permissions: anyone.
+  - `usb.node[n]`: tree node view at index `n`. Permissions: anyone.
+    - `node_type`: node kind.
+    - `bus`: PCI bus number.
+    - `device`: PCI device number.
+    - `function`: PCI function number.
+    - `port_number`: xHCI port index.
+    - `address`: USB device address.
+    - `speed_id`: link speed identifier.
+    - `device_class`: USB device class.
+    - `device_sub_class`: USB device subclass.
+    - `device_protocol`: USB device protocol.
+    - `config_value`: configuration value.
+    - `config_attributes`: configuration attributes.
+    - `config_max_power`: configuration max power.
+    - `interface_number`: interface number.
+    - `alternate_setting`: interface alternate setting.
+    - `interface_class`: interface class.
+    - `interface_sub_class`: interface subclass.
+    - `interface_protocol`: interface protocol.
+    - `endpoint_address`: endpoint address.
+    - `endpoint_attributes`: endpoint attributes.
+    - `endpoint_max_packet_size`: endpoint max packet size.
+    - `endpoint_interval`: endpoint interval.
+    - `vendor_id`: USB vendor ID.
+    - `product_id`: USB product ID.
 
 
 ## Hardware and Driver Stack

@@ -96,15 +96,6 @@ BOOL ExposeRegisterDefaultScriptHostObjects(LPSCRIPT_CONTEXT Context) {
 
     if (!ExposeRegisterDefaultHostSymbol(
             Context,
-            TEXT("drivers"),
-            SCRIPT_HOST_SYMBOL_ARRAY,
-            GetDriverList(),
-            &DriverArrayDescriptor)) {
-        return FALSE;
-    }
-
-    if (!ExposeRegisterDefaultHostSymbol(
-            Context,
             TEXT("graphics"),
             SCRIPT_HOST_SYMBOL_OBJECT,
             GetGraphicsRootHandle(),
