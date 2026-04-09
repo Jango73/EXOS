@@ -241,14 +241,14 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_GetWindowProp 0x00000051
 #define SYSCALL_GetWindowRect 0x00000052
 #define SYSCALL_GetWindowClientRect 0x0000007C
-#define SYSCALL_GetWindowParent 0x00000077
-#define SYSCALL_GetWindowChildCount 0x00000078
-#define SYSCALL_GetWindowChild 0x00000079
-#define SYSCALL_GetNextWindowSibling 0x0000007A
-#define SYSCALL_GetPreviousWindowSibling 0x0000007B
+#define SYSCALL_GetWindowParent 0x0000008B
+#define SYSCALL_GetWindowChildCount 0x0000008C
+#define SYSCALL_GetWindowChild 0x0000008D
+#define SYSCALL_GetNextWindowSibling 0x0000008E
+#define SYSCALL_GetPreviousWindowSibling 0x0000008F
 #define SYSCALL_RegisterWindowClass 0x0000007D
 #define SYSCALL_UnregisterWindowClass 0x0000007E
-#define SYSCALL_FindWindowClass 0x0000007F
+#define SYSCALL_FindWindowClass 0x00000090
 #define SYSCALL_WindowInheritsClass 0x00000083
 #define SYSCALL_ClearWindowStyle 0x00000084
 #define SYSCALL_ScreenPointToWindowPoint 0x00000085
@@ -299,7 +299,7 @@ typedef struct PACKED tag_ABI_HEADER {
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x0000008B
+#define SYSCALL_Last 0x00000091
 
 /************************************************************************/
 // Structure limits

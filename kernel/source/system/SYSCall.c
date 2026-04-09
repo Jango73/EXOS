@@ -1403,70 +1403,7 @@ UINT SysCall_ConsolePrint(UINT Parameter) {
  */
 UINT SysCall_ConsoleBlitBuffer(UINT Parameter) {
     LPCONSOLE_BLIT_BUFFER Info = (LPCONSOLE_BLIT_BUFFER)Parameter;
-
-    if (Info != NULL && IsValidMemory((LINEAR)Info) && IsValidMemory((LINEAR)Info->Text)) {
-        UINT maxWidth = Console.Width;
-        UINT maxHeight = Console.Height;
-        UINT baseX = Console.Regions[0].X;
-        UINT baseY = Console.Regions[0].Y;
-        UINT row;
-        UINT width = Info->Width;
-        UINT height = Info->Height;
-        UINT x = Info->X;
-        UINT y = Info->Y;
-        UINT textPitch = (Info->TextPitch != 0) ? Info->TextPitch : (Info->Width + 1);
-        UINT attrPitch = (Info->AttrPitch != 0) ? Info->AttrPitch : Info->Width;
-        BOOL useAttr = (Info->Attr != NULL) && IsValidMemory((LINEAR)Info->Attr);
-        U32 savedFore = Console.ForeColor;
-        U32 savedBack = Console.BackColor;
-        U32 fore = Info->ForeColor;
-        U32 back = Info->BackColor;
-
-        if (fore > 15) fore = savedFore;
-        if (back > 15) back = savedBack;
-
-        if (width > maxWidth) width = maxWidth;
-        if (height > maxHeight) height = maxHeight;
-        if (x >= maxWidth || y >= maxHeight) return 0;
-        if (x + width > maxWidth) width = maxWidth - x;
-        if (y + height > maxHeight) height = maxHeight - y;
-
-        if (!useAttr) {
-            SetConsoleForeColor(fore);
-            SetConsoleBackColor(back);
-        }
-
-        for (row = 0; row < height; row++) {
-            const U8* attrRow = useAttr ? (Info->Attr + (row * attrPitch)) : NULL;
-            UINT col;
-
-            if (!useAttr) {
-                ConsolePrintLine(y + row, x, Info->Text + (row * textPitch), width);
-                continue;
-            }
-
-            /* Per-cell attributes */
-            for (col = 0; col < width; col++) {
-                U8 attr = attrRow[col];
-                U32 cellFore = attr & 0x0F;
-                U32 cellBack = (attr >> 4) & 0x0F;
-                U16 attribute = (U16)(cellFore | (cellBack << 0x04) | (Console.Blink << 0x07));
-                attribute = (U16)(attribute << 0x08);
-                if (x + col < maxWidth && y + row < maxHeight) {
-                    UINT offset = ((baseY + y + row) * Console.ScreenWidth) + (baseX + x + col);
-                    STR character = Info->Text[(row * textPitch) + col];
-                    Console.Memory[offset] = (U16)character | attribute;
-                }
-            }
-        }
-
-        if (!useAttr) {
-            SetConsoleForeColor(savedFore);
-            SetConsoleBackColor(savedBack);
-        }
-    }
-
-    return 0;
+    return ConsoleBlitBuffer(Info);
 }
 
 /************************************************************************/
