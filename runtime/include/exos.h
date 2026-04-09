@@ -67,7 +67,7 @@ BOOL KillTask(HANDLE);
 void Exit(void);
 void Sleep(U32);
 U32 Wait(LPWAIT_INFO);
-U32 GetSystemTime(void);
+UINT GetSystemTime(void);
 BOOL GetLocalTime(LPDATETIME Time);
 BOOL GetProcessMemoryInfo(LPPROCESS_MEMORY_INFO Info);
 BOOL GetProfileInfo(LPPROFILE_QUERY_INFO Info);

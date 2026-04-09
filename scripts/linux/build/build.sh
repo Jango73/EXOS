@@ -53,6 +53,13 @@ function ValidateCrossCompiler() {
     exit 1
 }
 
+function ValidateArchitectureToolchain() {
+    if [ "$ARCH" = "x86-32" ]; then
+        ConfigureCrossToolchainPath
+        ValidateCrossCompiler
+    fi
+}
+
 function Usage() {
     echo "Usage: $0 --arch <x86-32|x86-64> --fs <ext2|fat32> [--bare-metal] [--boot-stage-markers] [--clean] [--debug|--release] [--force-pic] [--kernel-log-tag-filter <filter>] [--log-udp-dest <ip:port>] [--log-udp-source <ip:port>] [--no-images] [--profiling] [--scheduling-debug] [--split] [--system-data-view] [--uefi] [--use-log-udp] [--use-syscall]"
 }
@@ -334,8 +341,7 @@ case "$FILE_SYSTEM" in
         ;;
 esac
 
-ConfigureCrossToolchainPath
-ValidateCrossCompiler
+ValidateArchitectureToolchain
 
 AcquireBuildLock
 trap ReleaseBuildLock EXIT

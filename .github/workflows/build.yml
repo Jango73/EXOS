@@ -19,10 +19,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            automake binutils clang cloc coreutils dosfstools findutils \
-            gawk grep gzip lld make mtools nasm parted qemu-system-x86 \
-            sed unzip wget xxd gdb-multiarch
+          sudo apt-get install -y nasm
 
       - name: Build EXOS x86-64 UEFI ext2
         run: ./scripts/linux/build/build --arch x86-64 --fs ext2 --uefi --${{ matrix.config }} --no-images
