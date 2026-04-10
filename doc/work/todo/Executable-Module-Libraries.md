@@ -67,7 +67,11 @@ This yields:
 - No kernel-space loadable driver format reuse in the first pass.
 - No support for copy relocation, symbol versioning, IFUNC, audit hooks, or GNU loader compatibility details unless they are explicitly required by the chosen toolchain output.
 
-## Step 1 - Define ABI, Binary Scope, and Acceptance Rules
+## [x] Step 1 - Define ABI, Binary Scope, and Acceptance Rules
+
+Implemented in:
+- `doc/guides/binary-formats/executable-module-elf.md`
+- `doc/guides/Kernel.md`
 
 - Define the supported ELF subset for executable modules:
   - `ET_DYN` only for modules;
@@ -92,7 +96,7 @@ This yields:
 Acceptance criteria:
 - One documentable module ABI exists and is narrow enough to validate deterministically in kernel code.
 
-## Step 2 - Generalize Executable Metadata Beyond Main Process Images
+## [ ] Step 2 - Generalize Executable Metadata Beyond Main Process Images
 
 - Split existing executable metadata into:
   - image layout description;
@@ -114,7 +118,7 @@ Acceptance criteria:
 Acceptance criteria:
 - The loader can inspect one ELF module and obtain all information required for mapping, relocation, exports, and TLS without process-specific logic.
 
-## Step 3 - Introduce Kernel Module Image Objects
+## [ ] Step 3 - Introduce Kernel Module Image Objects
 
 - Add a kernel object representing one validated module image in memory.
 - Store in that object:
@@ -133,7 +137,7 @@ Acceptance criteria:
 Acceptance criteria:
 - Loading the same module in two processes reuses one kernel module image object.
 
-## Step 4 - Extend Process Address Space Layout For Modules
+## [ ] Step 4 - Extend Process Address Space Layout For Modules
 
 - Add a dedicated user arena for dynamically loaded module mappings instead of mixing them into the main image lane.
 - Keep separate sub-ranges or allocation tags for:
@@ -153,7 +157,7 @@ Acceptance criteria:
 Acceptance criteria:
 - Modules can be placed deterministically without colliding with heap growth, stacks, or the main image.
 
-## Step 5 - Add Process Module Binding Objects
+## [ ] Step 5 - Add Process Module Binding Objects
 
 - Add one process-owned binding object per loaded module.
 - Store in the binding:
@@ -170,7 +174,7 @@ Acceptance criteria:
 Acceptance criteria:
 - One process can load the same module once and share that binding across all its tasks.
 
-## Step 6 - Implement Shared Segment Mapping Policy
+## [ ] Step 6 - Implement Shared Segment Mapping Policy
 
 - Split module segments by mapping semantics:
   - executable read-only segments: shared physical pages, mapped read/execute;
@@ -188,7 +192,7 @@ Acceptance criteria:
 Acceptance criteria:
 - Two processes loading the same module share executable physical pages while keeping writable state isolated.
 
-## Step 7 - Implement Symbol Resolution and Relocation Binding
+## [ ] Step 7 - Implement Symbol Resolution and Relocation Binding
 
 - Introduce one reusable process symbol resolver with this search order:
   - main executable exports;
@@ -204,7 +208,7 @@ Acceptance criteria:
 Acceptance criteria:
 - A module can import symbols from the main executable and from another loaded module inside the same process.
 
-## Step 8 - Define Process-Global Module Data Policy
+## [ ] Step 8 - Define Process-Global Module Data Policy
 
 - Treat module `.data` and `.bss` as process-global state:
   - one instance per process;
@@ -218,7 +222,7 @@ Acceptance criteria:
 Acceptance criteria:
 - Two tasks in the same process observe the same module global state; two different processes do not.
 
-## Step 9 - Define TLS Model and Per-Thread Lifetime
+## [ ] Step 9 - Define TLS Model and Per-Thread Lifetime
 
 - Treat `PT_TLS` as the source of one TLS template per module.
 - On thread creation:
@@ -235,7 +239,7 @@ Acceptance criteria:
 Acceptance criteria:
 - Each task gets its own instance of module thread-local data, including for modules loaded after the task already existed.
 
-## Step 10 - Define `FS` / `GS` Register Policy
+## [ ] Step 10 - Define `FS` / `GS` Register Policy
 
 - Choose one explicit policy and document it as ABI:
   - x86-64: dedicate `FS` base to user TLS pointer and reserve `GS` for kernel or future per-thread auxiliary usage;
@@ -288,7 +292,7 @@ Acceptance criteria:
 Acceptance criteria:
 - One documented TLS contract exists across kernel validation, task state, runtime ABI, and module build output.
 
-## Step 11 - Add Runtime and Syscall Surface
+## [ ] Step 11 - Add Runtime and Syscall Surface
 
 - Add a syscall family for module operations:
   - load module by path;
@@ -305,7 +309,7 @@ Acceptance criteria:
 Acceptance criteria:
 - One user process can request module load on demand with a supported public API.
 
-## Step 12 - Constructors, Error Paths, and Unload Policy
+## [ ] Step 12 - Constructors, Error Paths, and Unload Policy
 
 - Define constructor/destructor support explicitly:
   - process-global constructors;
@@ -321,7 +325,7 @@ Acceptance criteria:
 Acceptance criteria:
 - Failure during dependency load, relocation, or TLS expansion unwinds without leaking half-bound process module state.
 
-## Step 13 - Toolchain and Build Output
+## [ ] Step 13 - Toolchain and Build Output
 
 - Add one module link mode in the userland build system:
   - produce `ET_DYN`;
@@ -337,7 +341,7 @@ Acceptance criteria:
 Acceptance criteria:
 - The repository can build one sample executable plus one loadable module without post-link patching.
 
-## Step 14 - Validation Matrix
+## [ ] Step 14 - Validation Matrix
 
 - Add focused kernel-side tests for:
   - ELF module metadata parsing;

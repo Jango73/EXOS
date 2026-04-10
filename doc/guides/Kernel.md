@@ -1223,6 +1223,17 @@ Step-3 parser/validator behavior:
 - optionally validates detached signature blob through `utils/Signature`,
 - returns stable validation status codes and logs explicit parse failures with function-tagged error messages.
 
+#### ELF executable module ABI
+
+The first EXOS userland loadable module ABI is defined in:
+- `doc/guides/binary-formats/executable-module-elf.md`
+
+The ABI freezes:
+- the accepted `ET_DYN` ELF subset for modules;
+- required and rejected program header combinations;
+- the narrow relocation and TLS contract for the first milestone;
+- deterministic kernel rejection categories for unsupported module binaries.
+
 #### PackageFS readonly mount
 
 Step-4 introduces a dedicated PackageFS module:
