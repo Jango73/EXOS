@@ -1729,6 +1729,26 @@ Public entry points in `kernel/include/exec/Executable.h` are:
 ELF parsing stays inside `kernel/source/exec/ExecutableELF.c`.
 Process code keeps consuming the image wrapper API and does not parse ELF records directly.
 
+#### Executable module image cache
+
+The executable module cache lives above executable parsing and below process-specific bindings.
+
+`kernel/include/exec/ExecutableModule.h` exposes `AcquireExecutableModuleImage()` for one already opened module file. The cache key is the retained file identity snapshot:
+- filesystem object;
+- source file name;
+- source file size;
+- source modified timestamp;
+- executable format and target architecture.
+
+Each `EXECUTABLE_MODULE_IMAGE` stores:
+- one retained source identity independent from any process;
+- one copy of `EXECUTABLE_METADATA`;
+- one per-segment shared backing list for validated read-only `PT_LOAD` content.
+
+Shared backings are built only for non-writable file-backed segments. The cache copies those segments into kernel-owned physical pages and retains the physical page array inside the module image object so later process binding code can reuse the same executable backing without reparsing the file.
+
+The global module image list is exposed through `GetExecutableModuleImageList()` in `core/KernelData.*`, and module image destruction releases the retained filesystem reference and all shared physical pages.
+
 #### String operators
 
 E0 expressions support string-specific operator behavior in the interpreter:

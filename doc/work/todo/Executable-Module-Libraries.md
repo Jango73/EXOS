@@ -124,7 +124,13 @@ Implemented in:
 Acceptance criteria:
 - The loader can inspect one ELF module and obtain all information required for mapping, relocation, exports, and TLS without process-specific logic.
 
-## [ ] Step 3 - Introduce Kernel Module Image Objects
+## [x] Step 3 - Introduce Kernel Module Image Objects
+
+Implemented in:
+- `kernel/include/exec/ExecutableModule.h`
+- `kernel/source/exec/ExecutableModule.c`
+- `kernel/include/core/KernelData.h`
+- `kernel/source/core/KernelData.c`
 
 - Add a kernel object representing one validated module image in memory.
 - Store in that object:

@@ -32,6 +32,7 @@
 #include "DisplaySession.h"
 #include "drivers/platform/ACPI.h"
 #include "drivers/input/Keyboard.h"
+#include "exec/ExecutableModule.h"
 #include "fs/File.h"
 #include "text/Lang.h"
 #include "log/Log.h"
@@ -552,12 +553,20 @@ void DeleteUnreferencedObjects(void) {
 
             // Check if object has no references
             if (Current->References == 0) {
+                U32 TypeID = Current->TypeID;
+
                 // Remove from list first
                 ListRemove(List, Current);
 
-                // Mark as deleted and free memory
-                Current->TypeID = KOID_NONE;
-                KernelHeapFree(Current);
+                switch (TypeID) {
+                    case KOID_EXECUTABLE_MODULE_IMAGE:
+                        DeleteExecutableModuleImage((LPEXECUTABLE_MODULE_IMAGE)Current);
+                        break;
+                    default:
+                        Current->TypeID = KOID_NONE;
+                        KernelHeapFree(Current);
+                        break;
+                }
 
                 DeletedCount++;
             }
@@ -583,6 +592,7 @@ void DeleteUnreferencedObjects(void) {
     ProcessList(GetEventList(), TEXT("KernelEvent"));
     ProcessList(GetFileSystemList(), TEXT("FileSystem"));
     ProcessList(GetFileList(), TEXT("File"));
+    ProcessList(GetExecutableModuleImageList(), TEXT("ExecutableModuleImage"));
     ProcessList(GetTCPConnectionList(), TEXT("TCPConnection"));
     ProcessList(GetSocketList(), TEXT("Socket"));
 

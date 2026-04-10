@@ -247,6 +247,17 @@ static LIST FileList = {
 
 /************************************************************************/
 
+static LIST ExecutableModuleImageList = {
+    .First = NULL,
+    .Last = NULL,
+    .Current = NULL,
+    .NumItems = 0,
+    .MemAllocFunc = KernelHeapAlloc,
+    .MemFreeFunc = KernelHeapFree,
+    .Destructor = NULL};
+
+/************************************************************************/
+
 static LIST TCPConnectionList = {
     .First = NULL,
     .Last = NULL,
@@ -299,6 +310,7 @@ static KERNEL_DATA DATA_SECTION Kernel = {
     .FileSystem = &FileSystemList,
     .UnusedFileSystem = &UnusedFileSystemList,
     .File = &FileList,
+    .ExecutableModuleImage = &ExecutableModuleImageList,
     .TCPConnection = &TCPConnectionList,
     .Socket = &SocketList,
     .UserSessions = NULL,
@@ -672,6 +684,16 @@ LPLIST GetUnusedFileSystemList(void) {
  */
 LPLIST GetFileList(void) {
     return Kernel.File;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieves the shared executable module image list.
+ * @return Pointer to the module image list.
+ */
+LPLIST GetExecutableModuleImageList(void) {
+    return Kernel.ExecutableModuleImage;
 }
 
 /************************************************************************/

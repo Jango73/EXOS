@@ -148,6 +148,7 @@ typedef struct tag_KERNEL_DATA {
     LPLIST FileSystem;
     LPLIST UnusedFileSystem;
     LPLIST File;
+    LPLIST ExecutableModuleImage;
     LPLIST TCPConnection;
     LPLIST Socket;
     LPLIST StartupDrivers;          // Driver list in initialization order
@@ -212,6 +213,7 @@ LPLIST GetStartupDriverList(void);
 LPLIST GetWindowClassList(void);
 LPLIST GetEventList(void);
 LPLIST GetFileList(void);
+LPLIST GetExecutableModuleImageList(void);
 FILESYSTEM_GLOBAL_INFO* GetFileSystemGlobalInfo(void);
 LPLIST GetFileSystemList(void);
 LPLIST GetUnusedFileSystemList(void);
