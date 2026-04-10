@@ -27,13 +27,14 @@
 - [x] Execute Shell-Scripting-Exposure-Plan.md : all remaining steps
 - [x] Rewrite ShellScriptCallFunction using a function table.
 
+- [ ] Implement Executable-Module-Libraries.md
+
 - [ ] Execute Packaging-System-Plan.md : all remaining steps
 - [ ] Execute Universal-Serial-Bus.md : all remaining steps
 - [ ] Execute Network.md : all remaining steps
 - [ ] Execute iGPU.md : Step 11
 
 - [ ] Implement full UTF and Unicode.md
-- [ ] Implement Executable-Module-Libraries.md
 
 - [ ] Fix input-info #PF on exit
 - [ ] Keyboard : Handle '<' key in french keyboard mapping.
