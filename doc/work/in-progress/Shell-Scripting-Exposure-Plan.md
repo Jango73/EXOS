@@ -2,7 +2,7 @@
 
 ## Goal
 
-Finish the shell refactor so shell-facing inspection and control paths stop bypassing the scripting exposure layer for user accounts.
+Finish the shell refactor so shell-facing inspection and control paths stop bypassing the scripting exposure layer for account-related shell features.
 
 ## Remaining Violations
 
@@ -11,14 +11,16 @@ Finish the shell refactor so shell-facing inspection and control paths stop bypa
 - `kernel/source/shell/Shell-Commands-System.c`
   - `KernelEnumGetProvider`
   - `KernelEnumNext`
-- `kernel/source/shell/Shell-Commands-Users.c`
-  - `GetUserAccountList`
-- `kernel/source/shell/Shell-Main.c`
-  - `GetUserAccountList`
+
+### Already addressed in this branch
+
+- the shell account bootstrap path uses `account.count` through the exposure layer instead of `GetUserAccountList()`
+- `adduser`, `deluser`, and `passwd` route account management through embedded E0 scripts and syscalls instead of direct kernel account functions
+- the exposure root name is `account`
 
 ## Remaining Work
 
-### Step 1. Add the missing `user_account` root exposure
+### Step 1. Add the missing `account` root exposure
 
 Goal:
 
@@ -26,10 +28,10 @@ Goal:
 
 Required work:
 
-- register `user_account` through `ExposeRegisterDefaultScriptHostObjects(...)`
+- register `account` through `ExposeRegisterDefaultScriptHostObjects(...)`
 - add exposure descriptors for:
-  - `user_account.count`
-  - `user_account[n]`
+  - `account.count`
+  - `account[n]`
 - expose only the fields actually needed by shell first:
   - enough to answer "is there at least one account?"
 - keep access policy explicit and documented
@@ -38,7 +40,7 @@ Result:
 
 - shell bootstrap and user creation flow can query account presence through scripting exposure only
 
-### Step 2. Rewrite remaining user bootstrap flows
+### Step 2. Keep account management script-owned
 
 Goal:
 
@@ -46,10 +48,9 @@ Goal:
 
 How:
 
-- create user creation/modification/deletion kernel functions and syscalls
-- expose user creation/modification/deletion syscalls to scripting
-- create embedded scripts to perform user operations (add/delete), in Shell-EmbeddedScripts.c
-- remove CMD_adduser and CMD_deluser
+- keep account creation / deletion / password change reachable through script-call helpers only
+- keep shell commands limited to prompting, argument preparation, and embedded script execution
+- avoid new direct shell calls to account ownership functions
 
 ### Step 3.
 
@@ -77,6 +78,8 @@ How:
 
 - first-user bootstrap path
 - `adduser` when the account list is empty and when it is not
+- `deluser`
+- `passwd`
 
 ### Build verification
 

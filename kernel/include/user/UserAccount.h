@@ -85,6 +85,8 @@ typedef struct tag_USER_SESSION {
 // Functions in UserAccount.c
 BOOL InitializeUserSystem(void);
 void ShutdownUserSystem(void);
+UINT GetAccountCount(void);
+LPUSER_ACCOUNT GetAccountByIndex(UINT Index);
 LPUSER_ACCOUNT CreateUserAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege);
 BOOL DeleteUserAccount(LPCSTR UserName);
 LPUSER_ACCOUNT FindUserAccount(LPCSTR UserName);

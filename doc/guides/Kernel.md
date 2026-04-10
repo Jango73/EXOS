@@ -1733,6 +1733,9 @@ The shell exposes host functions through that bridge:
 - `kill(handle)`: resolves one user-visible handle and routes to `SysCall_KillProcess()` or `SysCall_KillTask()` depending on the object type behind the handle.
 - `smoke_test_multi_args(a, b, c, d)`: reserved smoke helper that validates four serialized arguments and returns one deterministic marker value for automated regression checks.
 - `set_graphics_driver(driver_alias, width, height, bpp)`: forces one graphics backend alias and applies the requested mode through the selector path.
+- `create_account(user_name, password, privilege)`: creates one account through `SYSCALL_CreateUser`.
+- `delete_account(user_name)`: deletes one account through `SYSCALL_DeleteUser`.
+- `change_password(old_password, new_password)`: changes the current user password through `SYSCALL_ChangePassword`.
 
 Known host functions return `SCRIPT_FUNCTION_STATUS_UNKNOWN` when the symbol does not exist, and `SCRIPT_FUNCTION_STATUS_ERROR` when the function exists but rejects the call after setting an explicit script error.
 
@@ -1757,14 +1760,23 @@ Native objects use shared reference semantics inside the runtime. Assigning one 
 The shell registers host symbols with `ScriptRegisterHostSymbol()` during context initialization. Registered roots include:
 
 - `process`
-- `drivers`
+- `task`
+- `driver`
+- `graphics`
 - `storage`
+- `file_system`
+- `memory_map`
 - `pci_bus`
 - `pci_device`
+- `usb`
+- `network`
+- `keyboard`
+- `mouse`
+- `account`
 
 Each symbol is associated with a `SCRIPT_HOST_DESCRIPTOR` implemented under `kernel/source/expose/*`. Descriptor callbacks (`GetProperty`, `GetElement`) provide typed access to fields and arrays.
 
-Access control is enforced in exposure helpers through shared macros and checks (`EXPOSE_REQUIRE_ACCESS(...)`, `ExposeCanReadProcess(...)`) so scripts can inspect kernel state through controlled interfaces instead of raw object access.
+Access control is enforced in exposure helpers through shared macros and checks (`EXPOSE_REQUIRE_ACCESS(...)`, `ExposeCanReadProcess(...)`) so scripts can inspect kernel state through controlled interfaces instead of raw object access. `account.count` is public to support first-user bootstrap, while `account[n]` details remain restricted to administrator or kernel callers.
 
 
 ### Network Stack

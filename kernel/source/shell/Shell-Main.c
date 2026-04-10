@@ -378,25 +378,40 @@ static BOOL ShellSessionIdleCallback(LPVOID UserData) {
  * @return TRUE when login succeeds.
  */
 static BOOL HandleUserLoginProcess(void) {
-    LPLIST UserAccountList = GetUserAccountList();
-    BOOL HasUsers = (UserAccountList != NULL && UserAccountList->First != NULL);
+    SHELLCONTEXT TempContext;
+    UINT AccountCount = 0;
+    BOOL HasUsers = FALSE;
+
+    InitShellContext(&TempContext);
+    if (!ShellGetAccountCount(&TempContext, &AccountCount)) {
+        ConsolePrint(TEXT("ERROR: Failed to query accounts. System will exit.\n"));
+        DeinitShellContext(&TempContext);
+        return FALSE;
+    }
+
+    HasUsers = (AccountCount != 0);
 
     if (!HasUsers) {
         ConsolePrint(TEXT("No existing user account. You need to create the first admin user.\n"));
 
-        SHELLCONTEXT TempContext;
-        InitShellContext(&TempContext);
         CMD_adduser(&TempContext);
-        DeinitShellContext(&TempContext);
 
-        UserAccountList = GetUserAccountList();
-        HasUsers = (UserAccountList != NULL && UserAccountList->First != NULL);
+        if (!ShellGetAccountCount(&TempContext, &AccountCount)) {
+            ConsolePrint(TEXT("ERROR: Failed to query accounts after creation. System will exit.\n"));
+            DeinitShellContext(&TempContext);
+            return FALSE;
+        }
+
+        HasUsers = (AccountCount != 0);
 
         if (HasUsers == FALSE) {
             ConsolePrint(TEXT("ERROR: Failed to create user account. System will exit.\n"));
+            DeinitShellContext(&TempContext);
             return FALSE;
         }
     }
+
+    DeinitShellContext(&TempContext);
 
     ConsolePrint(TEXT("Login\n"));
 

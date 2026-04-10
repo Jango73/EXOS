@@ -24,7 +24,7 @@
 
 - [x] Execute E0-Objects.md : all remaining steps
 
-- [ ] Execute Shell-Scripting-Exposure-Plan.md : all remaining steps
+- [x] Execute Shell-Scripting-Exposure-Plan.md : all remaining steps
 - [ ] Rewrite ShellScriptCallFunction using a function table.
 
 - [ ] Execute Packaging-System-Plan.md : all remaining steps

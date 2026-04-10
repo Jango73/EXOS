@@ -87,7 +87,7 @@ DRIVER DATA_SECTION UserAccountDriver = {
     .Designer = "Jango73",
     .Manufacturer = "N/A",
     .Product = "UserSystem",
-    .Alias = "user_account",
+    .Alias = "account",
     .Flags = DRIVER_FLAG_CRITICAL,
     .Command = UserAccountDriverCommands};
 
@@ -139,6 +139,51 @@ void ShutdownUserSystem(void) {
         SaveUserDatabase();
         ListReset(UserAccountList);
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Count registered user accounts through the owner-side account API.
+ * @return Number of user accounts.
+ */
+UINT GetAccountCount(void) {
+    UINT Count = 0;
+    LPLIST UserAccountList = GetUserAccountList();
+
+    if (UserAccountList == NULL) {
+        return 0;
+    }
+
+    LockMutex(MUTEX_ACCOUNTS, INFINITY);
+    Count = ListGetSize(UserAccountList);
+    UnlockMutex(MUTEX_ACCOUNTS);
+
+    return Count;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve one user account by zero-based index.
+ * @param Index Zero-based account index.
+ * @return User account pointer or NULL when out of range.
+ */
+LPUSER_ACCOUNT GetAccountByIndex(UINT Index) {
+    LPUSER_ACCOUNT Account = NULL;
+    LPLIST UserAccountList = GetUserAccountList();
+
+    if (UserAccountList == NULL) {
+        return NULL;
+    }
+
+    LockMutex(MUTEX_ACCOUNTS, INFINITY);
+    if (Index < ListGetSize(UserAccountList)) {
+        Account = (LPUSER_ACCOUNT)ListGetItem(UserAccountList, Index);
+    }
+    UnlockMutex(MUTEX_ACCOUNTS);
+
+    return Account;
 }
 
 /************************************************************************/
@@ -287,6 +332,10 @@ BOOL DeleteUserAccount(LPCSTR UserName) {
     ListErase(UserAccountList, User);
 
     UnlockMutex(MUTEX_ACCOUNTS);
+
+    if (!SaveUserDatabase()) {
+        ERROR(TEXT("[DeleteUserAccount] Failed to save user database after deleting user %s"), UserName);
+    }
 
     VERBOSE(TEXT("Deleted user account: %s"), UserName);
     return TRUE;

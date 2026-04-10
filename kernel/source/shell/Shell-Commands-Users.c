@@ -23,11 +23,104 @@
 \************************************************************************/
 
 #include "shell/Shell-Commands-Private.h"
+#include "shell/Shell-EmbeddedScripts.h"
+
+/************************************************************************/
+
+/**
+ * @brief Run the embedded account creation script with prepared variables.
+ * @param Context Shell context.
+ * @param UserName Target user name.
+ * @param Password Target password.
+ * @param Privilege Target privilege.
+ * @return `DF_RETURN_*` status code.
+ */
+static UINT RunEmbeddedAccountCreateScript(
+    LPSHELLCONTEXT Context,
+    LPCSTR UserName,
+    LPCSTR Password,
+    U32 Privilege) {
+    STR ScriptText[4096];
+
+    if (Context == NULL || UserName == NULL || Password == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    StringPrintFormat(
+        ScriptText,
+        TEXT("target_user_name = \"%s\";\n"
+             "target_password = \"%s\";\n"
+             "target_privilege = %u;\n"
+             "%s"),
+        UserName,
+        Password,
+        Privilege,
+        ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_ACCOUNT_CREATE));
+    return RunEmbeddedScript(Context, ScriptText);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Run the embedded account deletion script with prepared variables.
+ * @param Context Shell context.
+ * @param UserName Target user name.
+ * @return `DF_RETURN_*` status code.
+ */
+static UINT RunEmbeddedAccountDeleteScript(
+    LPSHELLCONTEXT Context,
+    LPCSTR UserName) {
+    STR ScriptText[2048];
+
+    if (Context == NULL || UserName == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    StringPrintFormat(
+        ScriptText,
+        TEXT("target_user_name = \"%s\";\n%s"),
+        UserName,
+        ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_ACCOUNT_DELETE));
+    return RunEmbeddedScript(Context, ScriptText);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Run the embedded account password change script with prepared variables.
+ * @param Context Shell context.
+ * @param OldPassword Current password.
+ * @param NewPassword New password.
+ * @return `DF_RETURN_*` status code.
+ */
+static UINT RunEmbeddedAccountChangePasswordScript(
+    LPSHELLCONTEXT Context,
+    LPCSTR OldPassword,
+    LPCSTR NewPassword) {
+    STR ScriptText[4096];
+
+    if (Context == NULL || OldPassword == NULL || NewPassword == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    StringPrintFormat(
+        ScriptText,
+        TEXT("target_old_password = \"%s\";\n"
+             "target_new_password = \"%s\";\n"
+             "%s"),
+        OldPassword,
+        NewPassword,
+        ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_ACCOUNT_CHANGE_PASSWORD));
+    return RunEmbeddedScript(Context, ScriptText);
+}
 
 U32 CMD_adduser(LPSHELLCONTEXT Context) {
     STR UserName[MAX_USER_NAME];
     STR Password[MAX_USER_NAME];
     STR PrivilegeStr[16];
+    UINT AccountCount = 0;
+    BOOL IsFirstUser = FALSE;
+    UINT Result;
     U32 Privilege = EXOS_PRIVILEGE_ADMIN;  // Default to admin for first user
 
 
@@ -47,10 +140,13 @@ U32 CMD_adduser(LPSHELLCONTEXT Context) {
     CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, TRUE);
     StringCopy(Password, Context->Input.CommandLine);
 
+    // Check if this is the first user through the scripting exposure layer.
+    if (!ShellGetAccountCount(Context, &AccountCount)) {
+        ConsolePrint(TEXT("ERROR: Failed to query accounts\n"));
+        return DF_RETURN_SUCCESS;
+    }
 
-    // Check if this is the first user (no users exist yet)
-    LPLIST UserAccountList = GetUserAccountList();
-    BOOL IsFirstUser = (UserAccountList == NULL || UserAccountList->First == NULL);
+    IsFirstUser = (AccountCount == 0);
     if (IsFirstUser) {
         Privilege = EXOS_PRIVILEGE_ADMIN;
     } else {
@@ -63,15 +159,10 @@ U32 CMD_adduser(LPSHELLCONTEXT Context) {
             Privilege = EXOS_PRIVILEGE_USER;
         }
     }
-
-
-    LPUSER_ACCOUNT Account = CreateUserAccount(UserName, Password, Privilege);
-
-    SAFE_USE(Account) {
-    } else {
+    Result = RunEmbeddedAccountCreateScript(Context, UserName, Password, Privilege);
+    if (Result != DF_RETURN_SUCCESS) {
         ConsolePrint(TEXT("ERROR: Failed to create user '%s'\n"), UserName);
     }
-
 
     return DF_RETURN_SUCCESS;
 }
@@ -93,20 +184,8 @@ U32 CMD_deluser(LPSHELLCONTEXT Context) {
         }
     }
 
-    LPUSER_SESSION Session = GetCurrentSession();
-
-    SAFE_USE(Session) {
-        LPUSER_ACCOUNT CurrentAccount = FindUserAccountByID(Session->UserID);
-
-        if (CurrentAccount == NULL || CurrentAccount->Privilege != EXOS_PRIVILEGE_ADMIN) {
-            ConsolePrint(TEXT("Only admin users can delete accounts\n"));
-            return DF_RETURN_SUCCESS;
-        }
-    }
-
-    if (DeleteUserAccount(UserName)) {
+    if (RunEmbeddedAccountDeleteScript(Context, UserName) == DF_RETURN_SUCCESS) {
         ConsolePrint(TEXT("User '%s' deleted successfully\n"), UserName);
-        SaveUserDatabase();
     } else {
         ConsolePrint(TEXT("Failed to delete user '%s'\n"), UserName);
     }
@@ -233,31 +312,13 @@ U32 CMD_whoami(LPSHELLCONTEXT Context) {
 /***************************************************************************/
 
 U32 CMD_passwd(LPSHELLCONTEXT Context) {
-    UNUSED(Context);
     STR OldPassword[MAX_PASSWORD];
     STR NewPassword[MAX_PASSWORD];
     STR ConfirmPassword[MAX_PASSWORD];
 
-    LPUSER_SESSION Session = GetCurrentSession();
-    if (Session == NULL) {
-        ConsolePrint(TEXT("No active session\n"));
-        return DF_RETURN_SUCCESS;
-    }
-
-    LPUSER_ACCOUNT Account = FindUserAccountByID(Session->UserID);
-    if (Account == NULL) {
-        ConsolePrint(TEXT("Session user not found\n"));
-        return DF_RETURN_SUCCESS;
-    }
-
     ConsolePrint(TEXT("Password: "));
     CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, TRUE);
     StringCopy(OldPassword, Context->Input.CommandLine);
-
-    if (!VerifyPassword(OldPassword, Account->PasswordHash)) {
-        ConsolePrint(TEXT("Invalid current password\n"));
-        return DF_RETURN_SUCCESS;
-    }
 
     ConsolePrint(TEXT("New password: "));
     CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, TRUE);
@@ -272,9 +333,8 @@ U32 CMD_passwd(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    if (ChangeUserPassword(Account->UserName, OldPassword, NewPassword)) {
+    if (RunEmbeddedAccountChangePasswordScript(Context, OldPassword, NewPassword) == DF_RETURN_SUCCESS) {
         ConsolePrint(TEXT("Password changed successfully\n"));
-        SaveUserDatabase();
     } else {
         ConsolePrint(TEXT("Failed to change password\n"));
     }

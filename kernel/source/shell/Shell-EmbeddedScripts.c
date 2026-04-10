@@ -363,7 +363,16 @@ static LPCSTR G_EmbeddedScripts[SHELL_EMBEDDED_SCRIPT_COUNT] = {
         "}\n"
         "if (found == 0) {\n"
         "    print(\"No NVMe device detected\");\n"
-        "}\n"
+        "}\n",
+    [SHELL_EMBEDDED_SCRIPT_ACCOUNT_CREATE] = (LPCSTR)
+        "result = create_account(target_user_name, target_password, target_privilege);\n"
+        "return result;\n",
+    [SHELL_EMBEDDED_SCRIPT_ACCOUNT_DELETE] = (LPCSTR)
+        "result = delete_account(target_user_name);\n"
+        "return result;\n",
+    [SHELL_EMBEDDED_SCRIPT_ACCOUNT_CHANGE_PASSWORD] = (LPCSTR)
+        "result = change_password(target_old_password, target_new_password);\n"
+        "return result;\n"
 };
 
 /************************************************************************/

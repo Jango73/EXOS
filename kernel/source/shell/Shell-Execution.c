@@ -444,6 +444,50 @@ static INT ShellScriptSmokeTestMultiArgs(
 /************************************************************************/
 
 /**
+ * @brief Retrieve the exposed account count from one shell script context.
+ * @param Context Shell context that owns the script host registry.
+ * @param OutCount Destination count.
+ * @return TRUE on success.
+ */
+BOOL ShellGetAccountCount(LPSHELLCONTEXT Context, UINT* OutCount) {
+    SCRIPT_VALUE AccountValue;
+    SCRIPT_VALUE CountValue;
+    SCRIPT_ERROR Error;
+    BOOL Success = FALSE;
+
+    if (Context == NULL || Context->ScriptContext == NULL || OutCount == NULL) {
+        return FALSE;
+    }
+
+    ScriptValueInit(&AccountValue);
+    ScriptValueInit(&CountValue);
+
+    Error = ScriptGetHostSymbolValue(Context->ScriptContext, TEXT("account"), &AccountValue);
+    if (Error != SCRIPT_OK) {
+        goto Cleanup;
+    }
+
+    Error = ScriptGetHostPropertyValue(&AccountValue, TEXT("count"), &CountValue);
+    if (Error != SCRIPT_OK) {
+        goto Cleanup;
+    }
+
+    if (CountValue.Type != SCRIPT_VAR_INTEGER || CountValue.Value.Integer < 0) {
+        goto Cleanup;
+    }
+
+    *OutCount = (UINT)CountValue.Value.Integer;
+    Success = TRUE;
+
+Cleanup:
+    ScriptValueRelease(&CountValue);
+    ScriptValueRelease(&AccountValue);
+    return Success;
+}
+
+/************************************************************************/
+
+/**
  * @brief Shell callback for script function calls.
  * @param FuncName Function name to call
  * @param ArgumentCount Number of stringified arguments
@@ -563,6 +607,92 @@ INT ShellScriptCallFunction(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Argumen
         }
 
         return (INT)Status;
+    } else if (STRINGS_EQUAL(FuncName, TEXT("create_account"))) {
+        USER_CREATE_INFO CreateInfo;
+        U32 Privilege;
+        UINT Status;
+
+        if (ArgumentCount != 3 || Arguments == NULL) {
+            return ShellScriptFailFunction(
+                Context,
+                SCRIPT_ERROR_SYNTAX,
+                TEXT("create_account(user_name, password, privilege) expects exactly three arguments"));
+        }
+
+        MemorySet(&CreateInfo, 0, sizeof(CreateInfo));
+        CreateInfo.Header.Size = sizeof(CreateInfo);
+        CreateInfo.Header.Version = EXOS_ABI_VERSION;
+        CreateInfo.Header.Flags = 0;
+        StringCopyLimit(CreateInfo.UserName, Arguments[0], MAX_USER_NAME);
+        StringCopyLimit(CreateInfo.Password, Arguments[1], MAX_USER_NAME);
+
+        if (!ShellScriptParsePositiveInteger(Context, TEXT("create_account"), TEXT("privilege"), Arguments[2], &Privilege)) {
+            return SCRIPT_FUNCTION_STATUS_ERROR;
+        }
+        CreateInfo.Privilege = Privilege;
+
+        Status = DoSystemCall(SYSCALL_CreateUser, SYSCALL_PARAM(&CreateInfo));
+        if (Status != TRUE) {
+            return ShellScriptFailFunction(
+                Context,
+                SCRIPT_ERROR_TYPE_MISMATCH,
+                TEXT("create_account() failed"));
+        }
+
+        return DF_RETURN_SUCCESS;
+    } else if (STRINGS_EQUAL(FuncName, TEXT("delete_account"))) {
+        USER_DELETE_INFO DeleteInfo;
+        UINT Status;
+
+        if (ArgumentCount != 1 || Arguments == NULL) {
+            return ShellScriptFailFunction(
+                Context,
+                SCRIPT_ERROR_SYNTAX,
+                TEXT("delete_account(user_name) expects exactly one argument"));
+        }
+
+        MemorySet(&DeleteInfo, 0, sizeof(DeleteInfo));
+        DeleteInfo.Header.Size = sizeof(DeleteInfo);
+        DeleteInfo.Header.Version = EXOS_ABI_VERSION;
+        DeleteInfo.Header.Flags = 0;
+        StringCopyLimit(DeleteInfo.UserName, Arguments[0], MAX_USER_NAME);
+
+        Status = DoSystemCall(SYSCALL_DeleteUser, SYSCALL_PARAM(&DeleteInfo));
+        if (Status != TRUE) {
+            return ShellScriptFailFunction(
+                Context,
+                SCRIPT_ERROR_TYPE_MISMATCH,
+                TEXT("delete_account() failed"));
+        }
+
+        return DF_RETURN_SUCCESS;
+    } else if (STRINGS_EQUAL(FuncName, TEXT("change_password"))) {
+        PASSWORD_CHANGE PasswordChange;
+        UINT Status;
+
+        if (ArgumentCount != 2 || Arguments == NULL) {
+            return ShellScriptFailFunction(
+                Context,
+                SCRIPT_ERROR_SYNTAX,
+                TEXT("change_password(old_password, new_password) expects exactly two arguments"));
+        }
+
+        MemorySet(&PasswordChange, 0, sizeof(PasswordChange));
+        PasswordChange.Header.Size = sizeof(PasswordChange);
+        PasswordChange.Header.Version = EXOS_ABI_VERSION;
+        PasswordChange.Header.Flags = 0;
+        StringCopyLimit(PasswordChange.OldPassword, Arguments[0], MAX_USER_NAME);
+        StringCopyLimit(PasswordChange.NewPassword, Arguments[1], MAX_USER_NAME);
+
+        Status = DoSystemCall(SYSCALL_ChangePassword, SYSCALL_PARAM(&PasswordChange));
+        if (Status != TRUE) {
+            return ShellScriptFailFunction(
+                Context,
+                SCRIPT_ERROR_TYPE_MISMATCH,
+                TEXT("change_password() failed"));
+        }
+
+        return DF_RETURN_SUCCESS;
     }
 
     return SCRIPT_FUNCTION_STATUS_UNKNOWN;

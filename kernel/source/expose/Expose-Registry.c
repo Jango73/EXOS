@@ -184,5 +184,14 @@ BOOL ExposeRegisterDefaultScriptHostObjects(LPSCRIPT_CONTEXT Context) {
         return FALSE;
     }
 
+    if (!ExposeRegisterDefaultHostSymbol(
+            Context,
+            TEXT("account"),
+            SCRIPT_HOST_SYMBOL_ARRAY,
+            GetUserAccountList(),
+            &AccountArrayDescriptor)) {
+        return FALSE;
+    }
+
     return TRUE;
 }

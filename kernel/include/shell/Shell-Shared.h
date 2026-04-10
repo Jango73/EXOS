@@ -120,6 +120,7 @@ void ShellScriptOutput(LPCSTR Message, LPVOID UserData);
 UINT ShellScriptExecuteCommand(LPCSTR Command, LPVOID UserData);
 LPCSTR ShellScriptResolveVariable(LPCSTR VarName, LPVOID UserData);
 INT ShellScriptCallFunction(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Arguments, LPVOID UserData);
+BOOL ShellGetAccountCount(LPSHELLCONTEXT Context, UINT* OutCount);
 
 U32 CMD_adduser(LPSHELLCONTEXT Context);
 U32 CMD_login(LPSHELLCONTEXT Context);

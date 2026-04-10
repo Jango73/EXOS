@@ -3013,10 +3013,17 @@ UINT SysCall_ChangePassword(UINT Parameter) {
  */
 UINT SysCall_CreateUser(UINT Parameter) {
     LPUSER_CREATE_INFO CreateInfo = (LPUSER_CREATE_INFO)Parameter;
+    UINT AccountCount;
 
     SAFE_USE_INPUT_POINTER(CreateInfo, USER_CREATE_INFO) {
         LPUSER_ACCOUNT CurrentAccount = GetCurrentUser();
-        if (CurrentAccount == NULL || CurrentAccount->Privilege != EXOS_PRIVILEGE_ADMIN) {
+        AccountCount = GetAccountCount();
+
+        if (AccountCount == 0) {
+            if (CreateInfo->Privilege != EXOS_PRIVILEGE_ADMIN) {
+                return FALSE;
+            }
+        } else if (CurrentAccount == NULL || CurrentAccount->Privilege != EXOS_PRIVILEGE_ADMIN) {
             return FALSE;
         }
 
