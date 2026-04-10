@@ -149,7 +149,13 @@ Implemented in:
 Acceptance criteria:
 - Loading the same module in two processes reuses one kernel module image object.
 
-## [ ] Step 4 - Extend Process Address Space Layout For Modules
+## [x] Step 4 - Extend Process Address Space Layout For Modules
+
+Implemented in:
+- `kernel/include/process/Process-Arena.h`
+- `kernel/source/process/Process-Arena.c`
+- `kernel/source/process/Process.c`
+- `doc/guides/Kernel.md`
 
 - Add a dedicated user arena for dynamically loaded module mappings instead of mixing them into the main image lane.
 - Keep separate sub-ranges or allocation tags for:

@@ -1236,6 +1236,22 @@ The ABI freezes:
 - the narrow relocation and TLS contract for the first milestone;
 - deterministic kernel rejection categories for unsupported module binaries.
 
+#### Process user address space arenas
+
+User processes use `Process-Arena` (`kernel/include/process/Process-Arena.h`, `kernel/source/process/Process-Arena.c`) to keep virtual address space responsibilities separated:
+- `Image` covers the main executable image lane;
+- `Heap` remains the process general allocation lane and its growth is capped to the heap arena limit;
+- `Stack` remains the task stack lane and allocates from the top of its reserved range;
+- `Module` is a dedicated lane for runtime-loaded executable modules;
+- `Mmio` remains reserved for explicit device mappings;
+- `System` remains reserved for process-owned service mappings such as message queues.
+
+The module lane exists independently from the main executable and heap:
+- module mappings do not consume heap growth space;
+- module allocations stay below the `Mmio` and `System` reservations;
+- the initial process heap is reconfigured through `ProcessArenaConfigureMainHeap(...)` so `HeapInit(...)` growth stops before the stack/module lanes;
+- `ProcessArenaAllocateModule(...)` provides one entry point for module-related mappings and accepts explicit purposes for shared segments, private writable data, TLS storage, and bookkeeping pages.
+
 #### PackageFS readonly mount
 
 Step-4 introduces a dedicated PackageFS module:

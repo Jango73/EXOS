@@ -737,6 +737,7 @@ BOOL CreateProcess(LPPROCESS_INFO Info) {
     }
 
     HeapInit(Process, Process->HeapBase, Process->HeapSize);
+    ProcessArenaConfigureMainHeap(Process);
 
     // HeapDump(KernelProcess.HeapBase, KernelProcess.HeapSize);
     // HeapDump(Process->HeapBase, Process->HeapSize);
