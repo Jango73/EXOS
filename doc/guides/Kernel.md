@@ -1711,6 +1711,24 @@ The `run` command delegates launch to `SpawnExecutable()`:
 
 Background mode is blocked for `.e0` scripts.
 
+#### Executable metadata inspection
+
+Executable format probing is split from process loading in the `exec/` layer.
+
+Public entry points in `kernel/include/exec/Executable.h` are:
+- `GetExecutableImageInfo()`
+- `GetExecutableModuleInfo()`
+- legacy compatibility wrapper `GetExecutableInfo()`
+
+`EXECUTABLE_METADATA` carries reusable loader-facing descriptors:
+- image layout (`EXECUTABLE_INFO`);
+- loadable segment descriptors with mapping intent;
+- dynamic linking table summary;
+- TLS template summary.
+
+ELF parsing stays inside `kernel/source/exec/ExecutableELF.c`.
+Process code keeps consuming the image wrapper API and does not parse ELF records directly.
+
 #### String operators
 
 E0 expressions support string-specific operator behavior in the interpreter:

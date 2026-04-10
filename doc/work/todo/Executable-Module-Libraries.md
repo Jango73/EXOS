@@ -96,7 +96,13 @@ Implemented in:
 Acceptance criteria:
 - One documentable module ABI exists and is narrow enough to validate deterministically in kernel code.
 
-## [ ] Step 2 - Generalize Executable Metadata Beyond Main Process Images
+## [x] Step 2 - Generalize Executable Metadata Beyond Main Process Images
+
+Implemented in:
+- `kernel/include/exec/Executable.h`
+- `kernel/include/exec/ExecutableELF.h`
+- `kernel/source/exec/Executable.c`
+- `kernel/source/exec/ExecutableELF.c`
 
 - Split existing executable metadata into:
   - image layout description;
