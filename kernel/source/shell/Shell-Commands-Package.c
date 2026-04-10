@@ -70,6 +70,14 @@ static void ShellPrintScriptReturnValue(SCRIPT_VAR_TYPE ReturnType, SCRIPT_VAR_V
     TEST(TEXT("[CMD_script] %s"), ReturnText);
 }
 
+/***************************************************************************/
+
+/**
+ * @brief Run one script file and print its returned value when present.
+ * @param Context Shell context.
+ * @param ScriptFileName Qualified script file name.
+ * @return TRUE when the script completed successfully, FALSE otherwise.
+ */
 BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName) {
     FILE_OPEN_INFO FileOpenInfo;
     FILE_OPERATION FileOperation;
@@ -172,7 +180,6 @@ UINT RunEmbeddedScript(LPSHELLCONTEXT Context, LPCSTR ScriptText) {
 
     Error = ScriptExecute(Context->ScriptContext, ScriptText);
     if (Error != SCRIPT_OK) {
-        ConsolePrint(TEXT("Error: %s\n"), ScriptGetErrorMessage(Context->ScriptContext));
         return DF_RETURN_GENERIC;
     }
 
@@ -180,8 +187,6 @@ UINT RunEmbeddedScript(LPSHELLCONTEXT Context, LPCSTR ScriptText) {
         if (ReturnType == SCRIPT_VAR_INTEGER) {
             return (UINT)ReturnValue.Integer;
         }
-
-        ShellPrintScriptReturnValue(ReturnType, ReturnValue);
     }
 
     return DF_RETURN_SUCCESS;

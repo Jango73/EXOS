@@ -114,6 +114,23 @@ static UINT RunEmbeddedAccountChangePasswordScript(
     return RunEmbeddedScript(Context, ScriptText);
 }
 
+/************************************************************************/
+
+/**
+ * @brief Clear one handled script error from the shell script context.
+ * @param Context Shell context.
+ */
+static void ShellClearHandledScriptError(LPSHELLCONTEXT Context) {
+    if (Context == NULL || Context->ScriptContext == NULL) {
+        return;
+    }
+
+    Context->ScriptContext->ErrorCode = SCRIPT_OK;
+    Context->ScriptContext->ErrorMessage[0] = STR_NULL;
+}
+
+/************************************************************************/
+
 U32 CMD_adduser(LPSHELLCONTEXT Context) {
     STR UserName[MAX_USER_NAME];
     STR Password[MAX_USER_NAME];
@@ -161,6 +178,7 @@ U32 CMD_adduser(LPSHELLCONTEXT Context) {
     }
     Result = RunEmbeddedAccountCreateScript(Context, UserName, Password, Privilege);
     if (Result != DF_RETURN_SUCCESS) {
+        ShellClearHandledScriptError(Context);
         ConsolePrint(TEXT("ERROR: Failed to create user '%s'\n"), UserName);
     }
 
@@ -173,20 +191,17 @@ U32 CMD_deluser(LPSHELLCONTEXT Context) {
     STR UserName[MAX_USER_NAME];
 
     ParseNextCommandLineComponent(Context);
-    if (StringLength(Context->Command) > 0) {
-        StringCopy(UserName, Context->Command);
-    } else {
-        ConsolePrint(TEXT("Username to delete: "));
-        ConsoleGetString(UserName, MAX_USER_NAME - 1);
-        if (StringLength(UserName) == 0) {
-            ConsolePrint(TEXT("Username cannot be empty\n"));
-            return DF_RETURN_SUCCESS;
-        }
+    if (StringLength(Context->Command) == 0) {
+        ConsolePrint(TEXT("ERROR: Missing username argument\n"));
+        ConsolePrint(TEXT("Usage: del_user <username>\n"));
+        return DF_RETURN_SUCCESS;
     }
+    StringCopy(UserName, Context->Command);
 
     if (RunEmbeddedAccountDeleteScript(Context, UserName) == DF_RETURN_SUCCESS) {
         ConsolePrint(TEXT("User '%s' deleted successfully\n"), UserName);
     } else {
+        ShellClearHandledScriptError(Context);
         ConsolePrint(TEXT("Failed to delete user '%s'\n"), UserName);
     }
 
@@ -336,6 +351,7 @@ U32 CMD_passwd(LPSHELLCONTEXT Context) {
     if (RunEmbeddedAccountChangePasswordScript(Context, OldPassword, NewPassword) == DF_RETURN_SUCCESS) {
         ConsolePrint(TEXT("Password changed successfully\n"));
     } else {
+        ShellClearHandledScriptError(Context);
         ConsolePrint(TEXT("Failed to change password\n"));
     }
 
