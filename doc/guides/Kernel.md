@@ -1740,7 +1740,17 @@ Known host functions return `SCRIPT_FUNCTION_STATUS_UNKNOWN` when the symbol doe
 
 `AST_RETURN` stores a return value in the script context (`ScriptStoreReturnValue()`). The shell path (`RunScriptFile()`) prints the raw return value on its own line after successful execution.
 
-Supported stored return categories are scalar values (string, integer, float). Host handles and arrays are rejected as return values by the interpreter storage path.
+Supported stored return categories are string, integer, float, and native E0 object values. Host handles and arrays are rejected by the interpreter storage path.
+
+#### Native E0 object model
+
+The interpreter includes one native dynamic object container (`SCRIPT_VAR_OBJECT`) alongside the host exposure path. `{}` creates an empty script-owned object. Property writes such as `user.name = "alice"` and nested writes such as `user.settings.theme = "light"` operate on that native container.
+
+Reads through `base.property` first use the native object branch when `base` is a script object. When `base` is a host handle, the same syntax resolves through `SCRIPT_HOST_DESCRIPTOR::GetProperty`.
+
+Missing native properties return `SCRIPT_ERROR_UNDEFINED_VAR`. Property writes only create the final property; every intermediate segment must already resolve to a native object, otherwise execution fails with `SCRIPT_ERROR_TYPE_MISMATCH`.
+
+Native objects use shared reference semantics inside the runtime. Assigning one object to another variable or property copies the object reference and increments its internal reference count instead of cloning the full property set.
 
 #### Host object exposure model
 

@@ -60,6 +60,8 @@ static void ShellPrintScriptReturnValue(SCRIPT_VAR_TYPE ReturnType, SCRIPT_VAR_V
         StringPrintFormat(ReturnText, TEXT("%d"), ReturnValue.Integer);
     } else if (ReturnType == SCRIPT_VAR_FLOAT) {
         StringPrintFormat(ReturnText, TEXT("%f"), ReturnValue.Float);
+    } else if (ReturnType == SCRIPT_VAR_OBJECT) {
+        StringCopy(ReturnText, TEXT("[object]"));
     } else {
         StringCopy(ReturnText, TEXT("unsupported"));
     }

@@ -250,6 +250,19 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
             }
             return Result;
 
+        case TOKEN_LBRACE:
+            Result.Type = SCRIPT_VAR_OBJECT;
+            Result.Value.Object = ScriptCreateObject(Parser->Context, 0);
+            if (Result.Value.Object == NULL) {
+                if (Error) {
+                    *Error = SCRIPT_ERROR_OUT_OF_MEMORY;
+                }
+                return Result;
+            }
+            Result.ContextOwner = Parser->Context;
+            Result.OwnsValue = TRUE;
+            return Result;
+
         case TOKEN_STRING: {
             U32 Length = StringLength(Expr->Data.Expression.Value) + 1;
             Result.Value.String = (LPSTR)ScriptAlloc(Parser->Context, Length);
@@ -547,6 +560,14 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
             if (Variable->Type == SCRIPT_VAR_STRING) {
                 Result.Type = SCRIPT_VAR_STRING;
                 Result.Value.String = Variable->Value.String;
+                Result.OwnsValue = FALSE;
+                return Result;
+            }
+
+            if (Variable->Type == SCRIPT_VAR_OBJECT) {
+                Result.Type = SCRIPT_VAR_OBJECT;
+                Result.Value.Object = Variable->Value.Object;
+                Result.ContextOwner = Parser->Context;
                 Result.OwnsValue = FALSE;
                 return Result;
             }
@@ -877,6 +898,20 @@ SCRIPT_VALUE ScriptEvaluateHostProperty(LPSCRIPT_PARSER Parser, LPAST_NODE Expr,
 
     if (BaseValue.Type != SCRIPT_VAR_HOST_HANDLE || BaseValue.HostDescriptor == NULL ||
         BaseValue.HostDescriptor->GetProperty == NULL) {
+        if (BaseValue.Type == SCRIPT_VAR_OBJECT && BaseValue.Value.Object != NULL) {
+            SCRIPT_ERROR ObjectError = ScriptGetObjectProperty(
+                BaseValue.Value.Object,
+                Expr->Data.Expression.PropertyName,
+                &Result);
+            ScriptValueRelease(&BaseValue);
+            if (ObjectError != SCRIPT_OK) {
+                if (Error) {
+                    *Error = ObjectError;
+                }
+            }
+            return Result;
+        }
+
         if (Error) {
             *Error = SCRIPT_ERROR_TYPE_MISMATCH;
         }

@@ -79,6 +79,15 @@ BOOL IsInteger(F32 Value);
 void ScriptCalculateLineColumn(LPCSTR Input, U32 Position, U32* Line, U32* Column);
 void ScriptClearReturnValue(LPSCRIPT_CONTEXT Context);
 BOOL ScriptStoreReturnValue(LPSCRIPT_CONTEXT Context, const SCRIPT_VALUE* Value);
+SCRIPT_ERROR ScriptStoreObjectValue(
+    LPSCRIPT_CONTEXT Context,
+    SCRIPT_VAR_TYPE Type,
+    const SCRIPT_VAR_VALUE* SourceValue,
+    SCRIPT_VAR_VALUE* DestinationValue);
+void ScriptReleaseStoredValue(
+    LPSCRIPT_CONTEXT Context,
+    SCRIPT_VAR_TYPE Type,
+    SCRIPT_VAR_VALUE* Value);
 
 U32 ScriptHashHostSymbol(LPCSTR Name);
 BOOL ScriptInitHostRegistry(LPSCRIPT_CONTEXT Context, LPSCRIPT_HOST_REGISTRY Registry);

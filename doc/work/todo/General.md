@@ -22,7 +22,8 @@
 - [x] Homogenize naming in exposed objects : do not use plural for lists (ex: usb.ports = usb.port, usb.devices = usb.device, etc...)
 - [x] Homogenize the output of all listing scripts in Shell-EmbeddedScripts.c. use "nnn, field1=value1, field2=value2, field3=value3, ..."
 
-- [ ] Execute E0-Objects.md : all remaining steps
+- [x] Execute E0-Objects.md : all remaining steps
+
 - [ ] Execute Shell-Scripting-Exposure-Plan.md : all remaining steps
 - [ ] Rewrite ShellScriptCallFunction using a function table.
 
