@@ -41,7 +41,7 @@
 #include "text/CoreString.h"
 #include "text/Text.h"
 #include "User.h"
-#include "user/UserAccount.h"
+#include "user/Account.h"
 #include "fs/SystemFS.h"
 #include "DisplaySession.h"
 #include "process/Process.h"

@@ -36,7 +36,7 @@
 #include "sync/Mutex.h"
 #include "process/Schedule.h"
 #include "process/Task.h"
-#include "user/UserAccount.h"
+#include "user/Account.h"
 
 /************************************************************************/
 
@@ -281,7 +281,7 @@ LPUSER_SESSION CreateUserSession(U64 UserID, HANDLE ShellTask) {
     }
 
     // Update user's last login time
-    LPUSER_ACCOUNT User = FindUserAccountByID(UserID);
+    LPUSER_ACCOUNT User = FindAccountByID(UserID);
 
     SAFE_USE(User) {
         User->LastLoginTime = NewSession->LoginTime;
@@ -441,7 +441,7 @@ BOOL VerifySessionUnlockPassword(LPUSER_SESSION Session, LPCSTR Password) {
             return FALSE;
         }
 
-        Account = FindUserAccountByID(Session->UserID);
+        Account = FindAccountByID(Session->UserID);
         SAFE_USE_VALID_ID(Account, KOID_USER_ACCOUNT) {
             if (VerifyPassword(Password, Account->PasswordHash)) {
                 AuthPolicyRecordSuccess(&(Session->UnlockPolicy));
@@ -488,7 +488,7 @@ BOOL SessionUserRequiresPassword(LPUSER_SESSION Session) {
     LPUSER_ACCOUNT Account;
 
     SAFE_USE_VALID_ID(Session, KOID_USER_SESSION) {
-        Account = FindUserAccountByID(Session->UserID);
+        Account = FindAccountByID(Session->UserID);
         return AccountHasDefinedPassword(Account);
     }
 

@@ -41,7 +41,7 @@
 #include "log/Profile.h"
 #include "process/Process.h"
 #include "process/Schedule.h"
-#include "user/UserAccount.h"
+#include "user/Account.h"
 #include "user/UserSession.h"
 #include "core/Security.h"
 #include "network/Socket.h"
@@ -2902,7 +2902,7 @@ UINT SysCall_Login(UINT Parameter) {
     UINT WaitRemaining;
 
     SAFE_USE_INPUT_POINTER(LoginInfo, LOGIN_INFO) {
-        LPUSER_ACCOUNT Account = FindUserAccount(LoginInfo->UserName);
+        LPUSER_ACCOUNT Account = FindAccount(LoginInfo->UserName);
         if (Account == NULL) return FALSE;
 
         WaitRemaining = 0;
@@ -3027,7 +3027,7 @@ UINT SysCall_CreateUser(UINT Parameter) {
             return FALSE;
         }
 
-        LPUSER_ACCOUNT NewAccount = CreateUserAccount(CreateInfo->UserName, CreateInfo->Password, CreateInfo->Privilege);
+        LPUSER_ACCOUNT NewAccount = CreateAccount(CreateInfo->UserName, CreateInfo->Password, CreateInfo->Privilege);
         return (NewAccount != NULL) ? TRUE : FALSE;
     }
 
@@ -3051,7 +3051,7 @@ UINT SysCall_DeleteUser(UINT Parameter) {
             return FALSE;
         }
 
-        return DeleteUserAccount(DeleteInfo->UserName);
+        return DeleteAccount(DeleteInfo->UserName);
     }
 
     return FALSE;

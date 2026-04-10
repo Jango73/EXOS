@@ -23,7 +23,7 @@
 
 #include "expose/Exposed.h"
 
-#include "user/UserAccount.h"
+#include "user/Account.h"
 
 /************************************************************************/
 

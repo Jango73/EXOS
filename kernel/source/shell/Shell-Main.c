@@ -172,7 +172,7 @@ static BOOL SwitchLockedSessionUser(LPSHELLCONTEXT Context, LPUSER_SESSION Sessi
         return FALSE;
     }
 
-    Account = FindUserAccount(UserName);
+    Account = FindAccount(UserName);
     if (Account == NULL || !VerifyPassword(Password, Account->PasswordHash)) {
         ConsolePrint(TEXT("Invalid credentials\n"));
         return FALSE;
@@ -213,7 +213,7 @@ static BOOL ShowConsoleLockScreenAndUnlock(LPVOID BackendContext, LPUSER_SESSION
         return FALSE;
     }
 
-    Account = FindUserAccountByID(Session->UserID);
+    Account = FindAccountByID(Session->UserID);
     if (Account == NULL) {
         return FALSE;
     }
@@ -426,7 +426,7 @@ static BOOL HandleUserLoginProcess(void) {
 
         Session = GetCurrentSession();
         SAFE_USE_VALID_ID(Session, KOID_USER_SESSION) {
-            Account = FindUserAccountByID(Session->UserID);
+            Account = FindAccountByID(Session->UserID);
             SAFE_USE_VALID_ID(Account, KOID_USER_ACCOUNT) {
                 ConsolePrint(TEXT("Logged in as: %s (%s)\n"), Account->UserName,
                     Account->Privilege == EXOS_PRIVILEGE_ADMIN ? TEXT("Administrator") : TEXT("User"));

@@ -44,7 +44,7 @@
 #include "process/Process.h"
 #include "log/Profile.h"
 #include "script/Script.h"
-#include "user/UserAccount.h"
+#include "user/Account.h"
 #include "user/UserSession.h"
 #include "utils/CommandLineEditor.h"
 #include "utils/Helpers.h"

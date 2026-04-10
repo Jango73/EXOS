@@ -221,7 +221,7 @@ U32 CMD_login(LPSHELLCONTEXT Context) {
     CommandLineEditorReadLine(&Context->Input.Editor, Context->Input.CommandLine, sizeof Context->Input.CommandLine, TRUE);
     StringCopy(Password, Context->Input.CommandLine);
 
-    LPUSER_ACCOUNT Account = FindUserAccount(UserName);
+    LPUSER_ACCOUNT Account = FindAccount(UserName);
     if (Account == NULL) {
         Sleep(AUTH_POLICY_FAILURE_DELAY_MS);
         ConsolePrint(TEXT("ERROR: Invalid credentials\n"));
@@ -293,7 +293,7 @@ U32 CMD_whoami(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    LPUSER_ACCOUNT Account = FindUserAccountByID(Session->UserID);
+    LPUSER_ACCOUNT Account = FindAccountByID(Session->UserID);
     if (Account == NULL) {
         ConsolePrint(TEXT("Session user not found\n"));
         return DF_RETURN_SUCCESS;
