@@ -275,6 +275,7 @@ extern void ConsolePrint(LPCSTR Format, ...);
 // Forward declaration to avoid circular dependencies
 
 typedef struct tag_PROCESS PROCESS, *LPPROCESS;
+typedef void (*OBJECTDESTRUCTOR)(LPVOID);
 
 /************************************************************************/
 // A kernel object header
@@ -284,6 +285,7 @@ typedef struct tag_PROCESS PROCESS, *LPPROCESS;
     UINT References;        \
     U64 ID;                 \
     LPPROCESS OwnerProcess; \
+    OBJECTDESTRUCTOR Destructor; \
 
 typedef struct tag_OBJECT {
     OBJECT_FIELDS

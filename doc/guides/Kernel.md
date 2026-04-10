@@ -279,6 +279,8 @@ Security in EXOS is implemented as a layered architecture. The effective access 
 
 Every kernel object stores a 64-bit identifier in `OBJECT_FIELDS`. The identifier is assigned by `CreateKernelObject` using a random UUID source and is kept for the object lifetime, including in the termination cache through `OBJECT_TERMINATION_STATE.ID`. This provides stable identity when memory is reused and keeps scheduler lookups independent from raw pointers. Any kernel object that contains `OBJECT_FIELDS` (and therefore `LISTNODE_FIELDS`) and is meant to live in a global kernel list must be created with `CreateKernelObject` and destroyed with `ReleaseKernelObject`.
 
+`OBJECT_FIELDS` also carries one optional per-object destructor pointer. `CreateKernelObject` initializes that slot to `NULL`, `SetKernelObjectDestructor(...)` binds one type-specific teardown routine when an object owns extra resources, and the global unreferenced-object sweep destroys objects through `DestroyKernelObject(...)`. This keeps garbage collection generic: the sweep does not branch on object types, and object-specific teardown remains attached to the object lifetime contract itself.
+
 #### Event objects
 
 Kernel events (`KOID_KERNELEVENT`) are lightweight objects for ISR-to-task signaling, implemented in `kernel/source/KernelEvent.c`. They embed `LISTNODE_FIELDS` plus a `Signaled` flag and `SignalCount` counter, and are tracked in `Kernel.Event` alongside other kernel-managed lists so reference tracking and garbage collection treat them uniformly.

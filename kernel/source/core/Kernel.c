@@ -32,7 +32,6 @@
 #include "DisplaySession.h"
 #include "drivers/platform/ACPI.h"
 #include "drivers/input/Keyboard.h"
-#include "exec/ExecutableModule.h"
 #include "fs/File.h"
 #include "text/Lang.h"
 #include "log/Log.h"
@@ -460,17 +459,6 @@ static void Welcome(void) {
 
 /************************************************************************/
 
-void KernelObjectDestructor(LPVOID Object) {
-    SAFE_USE_VALID(Object) {
-        LPLISTNODE Node = (LPLISTNODE)Object;
-        switch (Node->TypeID) {
-        case KOID_MUTEX: DeleteMutex((LPMUTEX)Node);
-        }
-    }
-}
-
-/************************************************************************/
-
 /**
  * @brief Create a kernel object with standard LISTNODE_FIELDS initialization.
  *
@@ -504,11 +492,51 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
     Object->References = 1;
     Object->OwnerProcess = GetCurrentProcess();
     Object->ID = ObjectID;
+    Object->Destructor = NULL;
     Object->Next = NULL;
     Object->Prev = NULL;
     Object->Parent = NULL;
 
     return Object;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Store one type-specific destructor on one kernel object.
+ *
+ * @param Object Target kernel object.
+ * @param Destructor Destructor function called when the object is purged.
+ */
+void SetKernelObjectDestructor(LPVOID Object, OBJECTDESTRUCTOR Destructor) {
+    LPLISTNODE Node = (LPLISTNODE)Object;
+
+    SAFE_USE(Node) {
+        Node->Destructor = Destructor;
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Destroy one kernel object through its registered destructor.
+ *
+ * @param Object Kernel object to destroy.
+ */
+void DestroyKernelObject(LPVOID Object) {
+    LPLISTNODE Node = (LPLISTNODE)Object;
+    OBJECTDESTRUCTOR Destructor = NULL;
+
+    SAFE_USE_VALID(Node) {
+        Destructor = Node->Destructor;
+
+        if (Destructor != NULL) {
+            Destructor(Node);
+        } else {
+            Node->TypeID = KOID_NONE;
+            KernelHeapFree(Node);
+        }
+    }
 }
 
 /************************************************************************/
@@ -553,20 +581,9 @@ void DeleteUnreferencedObjects(void) {
 
             // Check if object has no references
             if (Current->References == 0) {
-                U32 TypeID = Current->TypeID;
-
                 // Remove from list first
                 ListRemove(List, Current);
-
-                switch (TypeID) {
-                    case KOID_EXECUTABLE_MODULE_IMAGE:
-                        DeleteExecutableModuleImage((LPEXECUTABLE_MODULE_IMAGE)Current);
-                        break;
-                    default:
-                        Current->TypeID = KOID_NONE;
-                        KernelHeapFree(Current);
-                        break;
-                }
+                DestroyKernelObject(Current);
 
                 DeletedCount++;
             }

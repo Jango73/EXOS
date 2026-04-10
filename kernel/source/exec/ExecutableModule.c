@@ -407,6 +407,7 @@ static LPEXECUTABLE_MODULE_IMAGE CreateExecutableModuleImage(
         return NULL;
     }
 
+    SetKernelObjectDestructor(Image, (OBJECTDESTRUCTOR)DeleteExecutableModuleImage);
     InitMutex(&(Image->Mutex));
     SetMutexDebugInfo(&(Image->Mutex), MUTEX_CLASS_KERNEL, TEXT("ExecutableModuleImage"));
     Image->Identity = *Identity;
