@@ -23,110 +23,85 @@
 \************************************************************************/
 
 #include "shell/Shell-Commands-Private.h"
-#include "shell/Shell-EmbeddedScripts.h"
 
 /************************************************************************/
 
 /**
- * @brief Run the embedded account creation script with prepared variables.
- * @param Context Shell context.
+ * @brief Create one user account through the kernel syscall interface.
  * @param UserName Target user name.
  * @param Password Target password.
  * @param Privilege Target privilege.
  * @return `DF_RETURN_*` status code.
  */
-static UINT RunEmbeddedAccountCreateScript(
-    LPSHELLCONTEXT Context,
+UINT ShellCreateAccount(
     LPCSTR UserName,
     LPCSTR Password,
     U32 Privilege) {
-    STR ScriptText[4096];
+    USER_CREATE_INFO CreateInfo;
 
-    if (Context == NULL || UserName == NULL || Password == NULL) {
+    if (UserName == NULL || Password == NULL) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    StringPrintFormat(
-        ScriptText,
-        TEXT("target_user_name = \"%s\";\n"
-             "target_password = \"%s\";\n"
-             "target_privilege = %u;\n"
-             "%s"),
-        UserName,
-        Password,
-        Privilege,
-        ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_ACCOUNT_CREATE));
-    return RunEmbeddedScript(Context, ScriptText);
+    MemorySet(&CreateInfo, 0, sizeof(CreateInfo));
+    CreateInfo.Header.Size = sizeof(CreateInfo);
+    CreateInfo.Header.Version = EXOS_ABI_VERSION;
+    CreateInfo.Header.Flags = 0;
+    StringCopyLimit(CreateInfo.UserName, UserName, MAX_USER_NAME);
+    StringCopyLimit(CreateInfo.Password, Password, MAX_USER_NAME);
+    CreateInfo.Privilege = Privilege;
+
+    return DoSystemCall(SYSCALL_CreateUser, SYSCALL_PARAM(&CreateInfo));
 }
 
 /************************************************************************/
 
 /**
- * @brief Run the embedded account deletion script with prepared variables.
- * @param Context Shell context.
+ * @brief Delete one user account through the kernel syscall interface.
  * @param UserName Target user name.
  * @return `DF_RETURN_*` status code.
  */
-static UINT RunEmbeddedAccountDeleteScript(
-    LPSHELLCONTEXT Context,
-    LPCSTR UserName) {
-    STR ScriptText[2048];
+UINT ShellDeleteAccount(LPCSTR UserName) {
+    USER_DELETE_INFO DeleteInfo;
 
-    if (Context == NULL || UserName == NULL) {
+    if (UserName == NULL) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    StringPrintFormat(
-        ScriptText,
-        TEXT("target_user_name = \"%s\";\n%s"),
-        UserName,
-        ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_ACCOUNT_DELETE));
-    return RunEmbeddedScript(Context, ScriptText);
+    MemorySet(&DeleteInfo, 0, sizeof(DeleteInfo));
+    DeleteInfo.Header.Size = sizeof(DeleteInfo);
+    DeleteInfo.Header.Version = EXOS_ABI_VERSION;
+    DeleteInfo.Header.Flags = 0;
+    StringCopyLimit(DeleteInfo.UserName, UserName, MAX_USER_NAME);
+
+    return DoSystemCall(SYSCALL_DeleteUser, SYSCALL_PARAM(&DeleteInfo));
 }
 
 /************************************************************************/
 
 /**
- * @brief Run the embedded account password change script with prepared variables.
- * @param Context Shell context.
+ * @brief Change the current user password through the kernel syscall interface.
  * @param OldPassword Current password.
  * @param NewPassword New password.
  * @return `DF_RETURN_*` status code.
  */
-static UINT RunEmbeddedAccountChangePasswordScript(
-    LPSHELLCONTEXT Context,
+UINT ShellChangePassword(
     LPCSTR OldPassword,
     LPCSTR NewPassword) {
-    STR ScriptText[4096];
+    PASSWORD_CHANGE PasswordChange;
 
-    if (Context == NULL || OldPassword == NULL || NewPassword == NULL) {
+    if (OldPassword == NULL || NewPassword == NULL) {
         return DF_RETURN_BAD_PARAMETER;
     }
 
-    StringPrintFormat(
-        ScriptText,
-        TEXT("target_old_password = \"%s\";\n"
-             "target_new_password = \"%s\";\n"
-             "%s"),
-        OldPassword,
-        NewPassword,
-        ShellGetEmbeddedScript(SHELL_EMBEDDED_SCRIPT_ACCOUNT_CHANGE_PASSWORD));
-    return RunEmbeddedScript(Context, ScriptText);
-}
+    MemorySet(&PasswordChange, 0, sizeof(PasswordChange));
+    PasswordChange.Header.Size = sizeof(PasswordChange);
+    PasswordChange.Header.Version = EXOS_ABI_VERSION;
+    PasswordChange.Header.Flags = 0;
+    StringCopyLimit(PasswordChange.OldPassword, OldPassword, MAX_USER_NAME);
+    StringCopyLimit(PasswordChange.NewPassword, NewPassword, MAX_USER_NAME);
 
-/************************************************************************/
-
-/**
- * @brief Clear one handled script error from the shell script context.
- * @param Context Shell context.
- */
-static void ShellClearHandledScriptError(LPSHELLCONTEXT Context) {
-    if (Context == NULL || Context->ScriptContext == NULL) {
-        return;
-    }
-
-    Context->ScriptContext->ErrorCode = SCRIPT_OK;
-    Context->ScriptContext->ErrorMessage[0] = STR_NULL;
+    return DoSystemCall(SYSCALL_ChangePassword, SYSCALL_PARAM(&PasswordChange));
 }
 
 /************************************************************************/
@@ -176,9 +151,8 @@ U32 CMD_adduser(LPSHELLCONTEXT Context) {
             Privilege = EXOS_PRIVILEGE_USER;
         }
     }
-    Result = RunEmbeddedAccountCreateScript(Context, UserName, Password, Privilege);
-    if (Result != DF_RETURN_SUCCESS) {
-        ShellClearHandledScriptError(Context);
+    Result = ShellCreateAccount(UserName, Password, Privilege);
+    if (Result != TRUE) {
         ConsolePrint(TEXT("ERROR: Failed to create user '%s'\n"), UserName);
     }
 
@@ -198,10 +172,9 @@ U32 CMD_deluser(LPSHELLCONTEXT Context) {
     }
     StringCopy(UserName, Context->Command);
 
-    if (RunEmbeddedAccountDeleteScript(Context, UserName) == DF_RETURN_SUCCESS) {
+    if (ShellDeleteAccount(UserName) == TRUE) {
         ConsolePrint(TEXT("User '%s' deleted successfully\n"), UserName);
     } else {
-        ShellClearHandledScriptError(Context);
         ConsolePrint(TEXT("Failed to delete user '%s'\n"), UserName);
     }
 
@@ -348,10 +321,9 @@ U32 CMD_passwd(LPSHELLCONTEXT Context) {
         return DF_RETURN_SUCCESS;
     }
 
-    if (RunEmbeddedAccountChangePasswordScript(Context, OldPassword, NewPassword) == DF_RETURN_SUCCESS) {
+    if (ShellChangePassword(OldPassword, NewPassword) == TRUE) {
         ConsolePrint(TEXT("Password changed successfully\n"));
     } else {
-        ShellClearHandledScriptError(Context);
         ConsolePrint(TEXT("Failed to change password\n"));
     }
 

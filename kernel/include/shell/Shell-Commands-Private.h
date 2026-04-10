@@ -68,6 +68,9 @@ U32 CMD_dataview(LPSHELLCONTEXT Context);
 void ListDirectory(LPSHELLCONTEXT Context, LPCSTR Base, U32 Indent, BOOL Pause, BOOL Recurse, U32* NumListed);
 BOOL RunScriptFile(LPSHELLCONTEXT Context, LPCSTR ScriptFileName);
 UINT RunEmbeddedScript(LPSHELLCONTEXT Context, LPCSTR ScriptText);
+UINT ShellCreateAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege);
+UINT ShellDeleteAccount(LPCSTR UserName);
+UINT ShellChangePassword(LPCSTR OldPassword, LPCSTR NewPassword);
 
 /************************************************************************/
 

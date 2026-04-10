@@ -28,6 +28,18 @@
 
 /************************************************************************/
 
+typedef INT (*SHELL_SCRIPT_FUNCTION_HANDLER)(
+    LPSHELLCONTEXT Context,
+    UINT ArgumentCount,
+    LPCSTR* Arguments);
+
+typedef struct tag_SHELL_SCRIPT_FUNCTION_ENTRY {
+    LPCSTR Name;
+    SHELL_SCRIPT_FUNCTION_HANDLER Handler;
+} SHELL_SCRIPT_FUNCTION_ENTRY;
+
+/************************************************************************/
+
 /**
  * @brief Check if a script text already contains a line break.
  * @param Text Text to inspect.
@@ -444,6 +456,293 @@ static INT ShellScriptSmokeTestMultiArgs(
 /************************************************************************/
 
 /**
+ * @brief Execute one shell command line from a script host function.
+ * @param Context Shell context owning the script state.
+ * @param ArgumentCount Number of serialized arguments.
+ * @param Arguments Serialized arguments.
+ * @return Shell command status or one script function error sentinel.
+ */
+static INT ShellScriptExecFunction(
+    LPSHELLCONTEXT Context,
+    UINT ArgumentCount,
+    LPCSTR* Arguments) {
+    LPCSTR JoinedArguments;
+
+    if (Context == NULL || ArgumentCount == 0 || Arguments == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    JoinedArguments = ShellScriptJoinArguments(Context, ArgumentCount, Arguments);
+    if (JoinedArguments == NULL) {
+        return DF_RETURN_GENERIC;
+    }
+
+    // Execute the provided command line using the standard shell command flow
+    return (INT)ShellScriptExecuteCommand(JoinedArguments, Context);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Print serialized script arguments to the active console.
+ * @param Context Shell context owning the script state.
+ * @param ArgumentCount Number of serialized arguments.
+ * @param Arguments Serialized arguments.
+ * @return Zero on success or an error code on failure.
+ */
+static INT ShellScriptPrintFunction(
+    LPSHELLCONTEXT Context,
+    UINT ArgumentCount,
+    LPCSTR* Arguments) {
+    LPCSTR JoinedArguments;
+
+    if (ArgumentCount == 0 || Arguments == NULL) {
+        return DF_RETURN_BAD_PARAMETER;
+    }
+
+    JoinedArguments = ShellScriptJoinArguments(Context, ArgumentCount, Arguments);
+    if (JoinedArguments == NULL) {
+        return DF_RETURN_GENERIC;
+    }
+
+    ConsolePrint(TEXT("%s"), JoinedArguments);
+    if (!ShellScriptContainsLineBreak(JoinedArguments)) {
+        ConsolePrint(TEXT("\r\n"));
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Terminate one process or task from a script host function.
+ * @param Context Shell context owning the script state.
+ * @param ArgumentCount Number of serialized arguments.
+ * @param Arguments Serialized arguments.
+ * @return Handle termination status or one script function error sentinel.
+ */
+static INT ShellScriptKillFunction(
+    LPSHELLCONTEXT Context,
+    UINT ArgumentCount,
+    LPCSTR* Arguments) {
+    if (ArgumentCount != 1 || Arguments == NULL) {
+        return ShellScriptFailFunction(
+            Context,
+            SCRIPT_ERROR_SYNTAX,
+            TEXT("kill(handle) expects exactly one handle argument"));
+    }
+
+    return ShellScriptKillHandle(Context, Arguments[0]);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Validate and apply one graphics driver selection request.
+ * @param Context Shell context owning the script state.
+ * @param ArgumentCount Number of serialized arguments.
+ * @param Arguments Serialized arguments.
+ * @return System call status or one script function error sentinel.
+ */
+static INT ShellScriptSetGraphicsDriverFunction(
+    LPSHELLCONTEXT Context,
+    UINT ArgumentCount,
+    LPCSTR* Arguments) {
+    GRAPHICS_DRIVER_SELECTION_INFO SelectionInfo;
+    U32 Width = 0;
+    U32 Height = 0;
+    U32 BitsPerPixel = 0;
+    UINT Status = 0;
+
+    if (ArgumentCount != 4 || Arguments == NULL) {
+        return ShellScriptFailFunction(
+            Context,
+            SCRIPT_ERROR_SYNTAX,
+            TEXT("set_graphics_driver(driver_alias, width, height, bpp) expects exactly four arguments"));
+    }
+
+    if (Arguments[0] == NULL || StringLength(Arguments[0]) == 0) {
+        return ShellScriptFailFunction(
+            Context,
+            SCRIPT_ERROR_TYPE_MISMATCH,
+            TEXT("set_graphics_driver() expects a non-empty driver alias"));
+    }
+
+    if (StringLength(Arguments[0]) >= MAX_NAME) {
+        return ShellScriptFailFunction(
+            Context,
+            SCRIPT_ERROR_TYPE_MISMATCH,
+            TEXT("set_graphics_driver() driver_alias exceeds MAX_NAME"));
+    }
+
+    if (!ShellScriptParsePositiveInteger(Context, TEXT("set_graphics_driver"), TEXT("width"), Arguments[1], &Width) ||
+        !ShellScriptParsePositiveInteger(Context, TEXT("set_graphics_driver"), TEXT("height"), Arguments[2], &Height) ||
+        !ShellScriptParsePositiveInteger(Context, TEXT("set_graphics_driver"), TEXT("bpp"), Arguments[3], &BitsPerPixel)) {
+        return SCRIPT_FUNCTION_STATUS_ERROR;
+    }
+
+    MemorySet(&SelectionInfo, 0, sizeof(SelectionInfo));
+    SelectionInfo.Header.Size = sizeof(SelectionInfo);
+    SelectionInfo.Header.Version = EXOS_ABI_VERSION;
+    SelectionInfo.Header.Flags = 0;
+    StringCopyLimit(SelectionInfo.DriverAlias, Arguments[0], MAX_NAME);
+    SelectionInfo.Width = Width;
+    SelectionInfo.Height = Height;
+    SelectionInfo.BitsPerPixel = BitsPerPixel;
+
+    Status = DoSystemCall(SYSCALL_SetGraphicsDriver, SYSCALL_PARAM(&SelectionInfo));
+    if (Status != DF_RETURN_SUCCESS) {
+        STR ErrorMessage[MAX_ERROR_MESSAGE];
+
+        if (Status == DF_RETURN_BAD_PARAMETER) {
+            StringPrintFormat(
+                ErrorMessage,
+                TEXT("set_graphics_driver() could not select '%s'"),
+                SelectionInfo.DriverAlias);
+        } else if (Status == DF_RETURN_UNEXPECTED) {
+            StringCopy(ErrorMessage, TEXT("set_graphics_driver() failed to update the display session"));
+        } else {
+            StringPrintFormat(
+                ErrorMessage,
+                TEXT("set_graphics_driver() failed to apply %ux%ux%u on '%s' (%u)"),
+                Width,
+                Height,
+                BitsPerPixel,
+                SelectionInfo.DriverAlias,
+                Status);
+        }
+
+        return ShellScriptFailFunction(
+            Context,
+            SCRIPT_ERROR_TYPE_MISMATCH,
+            ErrorMessage);
+    }
+
+    return (INT)Status;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Create one user account from a script host function.
+ * @param Context Shell context owning the script state.
+ * @param ArgumentCount Number of serialized arguments.
+ * @param Arguments Serialized arguments.
+ * @return DF_RETURN_SUCCESS on success or one script function error sentinel.
+ */
+static INT ShellScriptCreateAccountFunction(
+    LPSHELLCONTEXT Context,
+    UINT ArgumentCount,
+    LPCSTR* Arguments) {
+    U32 Privilege;
+    UINT Status;
+
+    if (ArgumentCount != 3 || Arguments == NULL) {
+        return ShellScriptFailFunction(
+            Context,
+            SCRIPT_ERROR_SYNTAX,
+            TEXT("create_account(user_name, password, privilege) expects exactly three arguments"));
+    }
+
+    if (!ShellScriptParsePositiveInteger(Context, TEXT("create_account"), TEXT("privilege"), Arguments[2], &Privilege)) {
+        return SCRIPT_FUNCTION_STATUS_ERROR;
+    }
+
+    Status = ShellCreateAccount(Arguments[0], Arguments[1], Privilege);
+    if (Status != TRUE) {
+        return ShellScriptFailFunction(
+            Context,
+            SCRIPT_ERROR_TYPE_MISMATCH,
+            TEXT("create_account() failed"));
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Delete one user account from a script host function.
+ * @param Context Shell context owning the script state.
+ * @param ArgumentCount Number of serialized arguments.
+ * @param Arguments Serialized arguments.
+ * @return DF_RETURN_SUCCESS on success or one script function error sentinel.
+ */
+static INT ShellScriptDeleteAccountFunction(
+    LPSHELLCONTEXT Context,
+    UINT ArgumentCount,
+    LPCSTR* Arguments) {
+    UINT Status;
+
+    if (ArgumentCount != 1 || Arguments == NULL) {
+        return ShellScriptFailFunction(
+            Context,
+            SCRIPT_ERROR_SYNTAX,
+            TEXT("delete_account(user_name) expects exactly one argument"));
+    }
+
+    Status = ShellDeleteAccount(Arguments[0]);
+    if (Status != TRUE) {
+        return ShellScriptFailFunction(
+            Context,
+            SCRIPT_ERROR_TYPE_MISMATCH,
+            TEXT("delete_account() failed"));
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Change the active user password from a script host function.
+ * @param Context Shell context owning the script state.
+ * @param ArgumentCount Number of serialized arguments.
+ * @param Arguments Serialized arguments.
+ * @return DF_RETURN_SUCCESS on success or one script function error sentinel.
+ */
+static INT ShellScriptChangePasswordFunction(
+    LPSHELLCONTEXT Context,
+    UINT ArgumentCount,
+    LPCSTR* Arguments) {
+    UINT Status;
+
+    if (ArgumentCount != 2 || Arguments == NULL) {
+        return ShellScriptFailFunction(
+            Context,
+            SCRIPT_ERROR_SYNTAX,
+            TEXT("change_password(old_password, new_password) expects exactly two arguments"));
+    }
+
+    Status = ShellChangePassword(Arguments[0], Arguments[1]);
+    if (Status != TRUE) {
+        return ShellScriptFailFunction(
+            Context,
+            SCRIPT_ERROR_TYPE_MISMATCH,
+            TEXT("change_password() failed"));
+    }
+
+    return DF_RETURN_SUCCESS;
+}
+
+/************************************************************************/
+
+static const SHELL_SCRIPT_FUNCTION_ENTRY ShellScriptFunctionTable[] = {
+    {TEXT("exec"), ShellScriptExecFunction},
+    {TEXT("print"), ShellScriptPrintFunction},
+    {TEXT("kill"), ShellScriptKillFunction},
+    {TEXT("smoke_test_multi_args"), ShellScriptSmokeTestMultiArgs},
+    {TEXT("set_graphics_driver"), ShellScriptSetGraphicsDriverFunction},
+    {TEXT("create_account"), ShellScriptCreateAccountFunction},
+    {TEXT("delete_account"), ShellScriptDeleteAccountFunction},
+    {TEXT("change_password"), ShellScriptChangePasswordFunction},
+    {NULL, NULL}
+};
+
+/************************************************************************/
+
+/**
  * @brief Retrieve the exposed account count from one shell script context.
  * @param Context Shell context that owns the script host registry.
  * @param OutCount Destination count.
@@ -497,202 +796,16 @@ Cleanup:
  */
 INT ShellScriptCallFunction(LPCSTR FuncName, UINT ArgumentCount, LPCSTR* Arguments, LPVOID UserData) {
     LPSHELLCONTEXT Context = (LPSHELLCONTEXT)UserData;
-    LPCSTR JoinedArguments;
+    UINT Index;
 
-    if (STRINGS_EQUAL(FuncName, TEXT("exec"))) {
-        if (Context == NULL || ArgumentCount == 0 || Arguments == NULL) {
-            return DF_RETURN_BAD_PARAMETER;
+    if (FuncName == NULL) {
+        return SCRIPT_FUNCTION_STATUS_UNKNOWN;
+    }
+
+    for (Index = 0; ShellScriptFunctionTable[Index].Name != NULL; Index++) {
+        if (STRINGS_EQUAL(FuncName, ShellScriptFunctionTable[Index].Name)) {
+            return ShellScriptFunctionTable[Index].Handler(Context, ArgumentCount, Arguments);
         }
-
-        JoinedArguments = ShellScriptJoinArguments(Context, ArgumentCount, Arguments);
-        if (JoinedArguments == NULL) {
-            return DF_RETURN_GENERIC;
-        }
-
-        // Execute the provided command line using the standard shell command flow
-        INT Result = (INT)ShellScriptExecuteCommand(JoinedArguments, Context);
-        return Result;
-    } else if (STRINGS_EQUAL(FuncName, TEXT("print"))) {
-        if (ArgumentCount == 0 || Arguments == NULL) {
-            return DF_RETURN_BAD_PARAMETER;
-        }
-
-        JoinedArguments = ShellScriptJoinArguments(Context, ArgumentCount, Arguments);
-        if (JoinedArguments == NULL) {
-            return DF_RETURN_GENERIC;
-        }
-
-        ConsolePrint(TEXT("%s"), JoinedArguments);
-        if (!ShellScriptContainsLineBreak(JoinedArguments)) {
-            ConsolePrint(TEXT("\r\n"));
-        }
-        return 0;
-    } else if (STRINGS_EQUAL(FuncName, TEXT("kill"))) {
-        if (ArgumentCount != 1 || Arguments == NULL) {
-            return ShellScriptFailFunction(Context, SCRIPT_ERROR_SYNTAX, TEXT("kill(handle) expects exactly one handle argument"));
-        }
-
-        return ShellScriptKillHandle(Context, Arguments[0]);
-    } else if (STRINGS_EQUAL(FuncName, TEXT("smoke_test_multi_args"))) {
-        return ShellScriptSmokeTestMultiArgs(Context, ArgumentCount, Arguments);
-    } else if (STRINGS_EQUAL(FuncName, TEXT("set_graphics_driver"))) {
-        GRAPHICS_DRIVER_SELECTION_INFO SelectionInfo;
-        U32 Width = 0;
-        U32 Height = 0;
-        U32 BitsPerPixel = 0;
-        UINT Status = 0;
-
-        if (ArgumentCount != 4 || Arguments == NULL) {
-            return ShellScriptFailFunction(
-                Context,
-                SCRIPT_ERROR_SYNTAX,
-                TEXT("set_graphics_driver(driver_alias, width, height, bpp) expects exactly four arguments"));
-        }
-
-        if (Arguments[0] == NULL || StringLength(Arguments[0]) == 0) {
-            return ShellScriptFailFunction(
-                Context,
-                SCRIPT_ERROR_TYPE_MISMATCH,
-                TEXT("set_graphics_driver() expects a non-empty driver alias"));
-        }
-
-        if (StringLength(Arguments[0]) >= MAX_NAME) {
-            return ShellScriptFailFunction(
-                Context,
-                SCRIPT_ERROR_TYPE_MISMATCH,
-                TEXT("set_graphics_driver() driver_alias exceeds MAX_NAME"));
-        }
-
-        if (!ShellScriptParsePositiveInteger(Context, TEXT("set_graphics_driver"), TEXT("width"), Arguments[1], &Width) ||
-            !ShellScriptParsePositiveInteger(Context, TEXT("set_graphics_driver"), TEXT("height"), Arguments[2], &Height) ||
-            !ShellScriptParsePositiveInteger(Context, TEXT("set_graphics_driver"), TEXT("bpp"), Arguments[3], &BitsPerPixel)) {
-            return SCRIPT_FUNCTION_STATUS_ERROR;
-        }
-
-        MemorySet(&SelectionInfo, 0, sizeof(SelectionInfo));
-        SelectionInfo.Header.Size = sizeof(SelectionInfo);
-        SelectionInfo.Header.Version = EXOS_ABI_VERSION;
-        SelectionInfo.Header.Flags = 0;
-        StringCopyLimit(SelectionInfo.DriverAlias, Arguments[0], MAX_NAME);
-        SelectionInfo.Width = Width;
-        SelectionInfo.Height = Height;
-        SelectionInfo.BitsPerPixel = BitsPerPixel;
-
-        Status = DoSystemCall(SYSCALL_SetGraphicsDriver, SYSCALL_PARAM(&SelectionInfo));
-        if (Status != DF_RETURN_SUCCESS) {
-            STR ErrorMessage[MAX_ERROR_MESSAGE];
-
-            if (Status == DF_RETURN_BAD_PARAMETER) {
-                StringPrintFormat(
-                    ErrorMessage,
-                    TEXT("set_graphics_driver() could not select '%s'"),
-                    SelectionInfo.DriverAlias);
-            } else if (Status == DF_RETURN_UNEXPECTED) {
-                StringCopy(ErrorMessage, TEXT("set_graphics_driver() failed to update the display session"));
-            } else {
-                StringPrintFormat(
-                    ErrorMessage,
-                    TEXT("set_graphics_driver() failed to apply %ux%ux%u on '%s' (%u)"),
-                    Width,
-                    Height,
-                    BitsPerPixel,
-                    SelectionInfo.DriverAlias,
-                    Status);
-            }
-
-            return ShellScriptFailFunction(
-                Context,
-                SCRIPT_ERROR_TYPE_MISMATCH,
-                ErrorMessage);
-        }
-
-        return (INT)Status;
-    } else if (STRINGS_EQUAL(FuncName, TEXT("create_account"))) {
-        USER_CREATE_INFO CreateInfo;
-        U32 Privilege;
-        UINT Status;
-
-        if (ArgumentCount != 3 || Arguments == NULL) {
-            return ShellScriptFailFunction(
-                Context,
-                SCRIPT_ERROR_SYNTAX,
-                TEXT("create_account(user_name, password, privilege) expects exactly three arguments"));
-        }
-
-        MemorySet(&CreateInfo, 0, sizeof(CreateInfo));
-        CreateInfo.Header.Size = sizeof(CreateInfo);
-        CreateInfo.Header.Version = EXOS_ABI_VERSION;
-        CreateInfo.Header.Flags = 0;
-        StringCopyLimit(CreateInfo.UserName, Arguments[0], MAX_USER_NAME);
-        StringCopyLimit(CreateInfo.Password, Arguments[1], MAX_USER_NAME);
-
-        if (!ShellScriptParsePositiveInteger(Context, TEXT("create_account"), TEXT("privilege"), Arguments[2], &Privilege)) {
-            return SCRIPT_FUNCTION_STATUS_ERROR;
-        }
-        CreateInfo.Privilege = Privilege;
-
-        Status = DoSystemCall(SYSCALL_CreateUser, SYSCALL_PARAM(&CreateInfo));
-        if (Status != TRUE) {
-            return ShellScriptFailFunction(
-                Context,
-                SCRIPT_ERROR_TYPE_MISMATCH,
-                TEXT("create_account() failed"));
-        }
-
-        return DF_RETURN_SUCCESS;
-    } else if (STRINGS_EQUAL(FuncName, TEXT("delete_account"))) {
-        USER_DELETE_INFO DeleteInfo;
-        UINT Status;
-
-        if (ArgumentCount != 1 || Arguments == NULL) {
-            return ShellScriptFailFunction(
-                Context,
-                SCRIPT_ERROR_SYNTAX,
-                TEXT("delete_account(user_name) expects exactly one argument"));
-        }
-
-        MemorySet(&DeleteInfo, 0, sizeof(DeleteInfo));
-        DeleteInfo.Header.Size = sizeof(DeleteInfo);
-        DeleteInfo.Header.Version = EXOS_ABI_VERSION;
-        DeleteInfo.Header.Flags = 0;
-        StringCopyLimit(DeleteInfo.UserName, Arguments[0], MAX_USER_NAME);
-
-        Status = DoSystemCall(SYSCALL_DeleteUser, SYSCALL_PARAM(&DeleteInfo));
-        if (Status != TRUE) {
-            return ShellScriptFailFunction(
-                Context,
-                SCRIPT_ERROR_TYPE_MISMATCH,
-                TEXT("delete_account() failed"));
-        }
-
-        return DF_RETURN_SUCCESS;
-    } else if (STRINGS_EQUAL(FuncName, TEXT("change_password"))) {
-        PASSWORD_CHANGE PasswordChange;
-        UINT Status;
-
-        if (ArgumentCount != 2 || Arguments == NULL) {
-            return ShellScriptFailFunction(
-                Context,
-                SCRIPT_ERROR_SYNTAX,
-                TEXT("change_password(old_password, new_password) expects exactly two arguments"));
-        }
-
-        MemorySet(&PasswordChange, 0, sizeof(PasswordChange));
-        PasswordChange.Header.Size = sizeof(PasswordChange);
-        PasswordChange.Header.Version = EXOS_ABI_VERSION;
-        PasswordChange.Header.Flags = 0;
-        StringCopyLimit(PasswordChange.OldPassword, Arguments[0], MAX_USER_NAME);
-        StringCopyLimit(PasswordChange.NewPassword, Arguments[1], MAX_USER_NAME);
-
-        Status = DoSystemCall(SYSCALL_ChangePassword, SYSCALL_PARAM(&PasswordChange));
-        if (Status != TRUE) {
-            return ShellScriptFailFunction(
-                Context,
-                SCRIPT_ERROR_TYPE_MISMATCH,
-                TEXT("change_password() failed"));
-        }
-
-        return DF_RETURN_SUCCESS;
     }
 
     return SCRIPT_FUNCTION_STATUS_UNKNOWN;
