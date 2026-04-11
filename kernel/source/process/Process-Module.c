@@ -431,7 +431,9 @@ static void UninstallProcessModuleBindingSegmentsLocked(LPPROCESS Process, LPEXE
     }
 
     Binding->WritableDataBase = 0;
+    Binding->WritableDataSize = 0;
     Binding->StateFlags &= ~EXECUTABLE_MODULE_BINDING_STATE_SEGMENTS_INSTALLED;
+    Binding->StateFlags &= ~EXECUTABLE_MODULE_BINDING_STATE_GLOBAL_DATA_INITIALIZED;
 }
 
 /***************************************************************************/
@@ -780,6 +782,7 @@ BOOL SetProcessModuleBindingLayout(
 
             if (Binding->Process == Process) {
                 Binding->WritableDataBase = WritableDataBase;
+                Binding->WritableDataSize = 0;
                 Binding->GlobalOffsetTableBase = GlobalOffsetTableBase;
                 Binding->ProcedureLinkageTableBase = ProcedureLinkageTableBase;
                 Binding->BookkeepingBase = BookkeepingBase;
@@ -825,6 +828,48 @@ BOOL AddProcessModuleBindingDependency(
     }
 
     return Result;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Initialize process-global writable state for one installed binding.
+ *
+ * @param Binding Target binding.
+ * @return TRUE when the binding global data state is ready.
+ */
+static BOOL InitializeProcessModuleGlobalDataLocked(LPEXECUTABLE_MODULE_BINDING Binding) {
+    if (Binding == NULL || Binding->Image == NULL) {
+        return FALSE;
+    }
+
+    Binding->WritableDataBase = 0;
+    Binding->WritableDataSize = 0;
+
+    for (UINT SegmentIndex = 0; SegmentIndex < Binding->Image->Metadata.SegmentCount; SegmentIndex++) {
+        LPEXECUTABLE_SEGMENT_DESCRIPTOR Segment = &(Binding->Image->Metadata.Segments[SegmentIndex]);
+
+        if (Segment->SourceType != PT_LOAD || Segment->MemorySize == 0) {
+            continue;
+        }
+
+        if ((Segment->Access & EXECUTABLE_SEGMENT_ACCESS_WRITE) == 0) {
+            continue;
+        }
+
+        if (Binding->SegmentBases[SegmentIndex] == 0 || Binding->SegmentSizes[SegmentIndex] == 0) {
+            return FALSE;
+        }
+
+        if (Binding->WritableDataBase == 0) {
+            Binding->WritableDataBase = Binding->SegmentBases[SegmentIndex];
+        }
+
+        Binding->WritableDataSize += Binding->SegmentSizes[SegmentIndex];
+    }
+
+    Binding->StateFlags |= EXECUTABLE_MODULE_BINDING_STATE_GLOBAL_DATA_INITIALIZED;
+    return TRUE;
 }
 
 /***************************************************************************/
@@ -900,6 +945,12 @@ BOOL InstallProcessModuleBindingSegments(LPPROCESS Process, LPEXECUTABLE_MODULE_
                     Binding->SegmentSizes,
                     ResolveProcessModuleSymbol,
                     &ResolverContext)) {
+                UninstallProcessModuleBindingSegmentsLocked(Process, Binding);
+                UnlockMutex(&(Process->Mutex));
+                return FALSE;
+            }
+
+            if (!InitializeProcessModuleGlobalDataLocked(Binding)) {
                 UninstallProcessModuleBindingSegmentsLocked(Process, Binding);
                 UnlockMutex(&(Process->Mutex));
                 return FALSE;

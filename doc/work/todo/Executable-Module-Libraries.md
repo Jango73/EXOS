@@ -234,7 +234,7 @@ Acceptance criteria:
 Acceptance criteria:
 - A module can import symbols from the main executable and from another loaded module inside the same process.
 
-## [ ] Step 8 - Define Process-Global Module Data Policy
+## [x] Step 8 - Define Process-Global Module Data Policy
 
 - Treat module `.data` and `.bss` as process-global state:
   - one instance per process;

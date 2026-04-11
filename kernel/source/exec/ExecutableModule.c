@@ -528,6 +528,11 @@ LPEXECUTABLE_MODULE_IMAGE AcquireExecutableModuleImage(LPFILE File) {
         return NULL;
     }
 
+    if (Metadata.Dynamic.HasConstructors != FALSE) {
+        WARNING(TEXT("[AcquireExecutableModuleImage] Module constructors are not supported name=%s"), File->Name);
+        return NULL;
+    }
+
     if (!CaptureExecutableModuleFileIdentity(File, &Identity)) {
         ERROR(TEXT("[AcquireExecutableModuleImage] CaptureExecutableModuleFileIdentity failed"));
         return NULL;
