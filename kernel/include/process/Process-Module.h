@@ -95,6 +95,11 @@ BOOL AddProcessModuleBindingDependency(
     LPEXECUTABLE_MODULE_BINDING Binding,
     LPEXECUTABLE_MODULE_BINDING Dependency);
 LINEAR MapProcessModuleBindingAddress(LPVOID Context, UINT VirtualAddress);
+BOOL ResolveProcessModuleBindingExport(
+    LPPROCESS Process,
+    LPEXECUTABLE_MODULE_BINDING Binding,
+    LPCSTR Name,
+    LINEAR* Address);
 BOOL InitializeProcessModuleTls(LPPROCESS Process, LPEXECUTABLE_MODULE_BINDING Binding);
 BOOL InstallProcessModuleBindingSegments(LPPROCESS Process, LPEXECUTABLE_MODULE_BINDING Binding);
 void DeleteExecutableModuleBinding(LPEXECUTABLE_MODULE_BINDING Binding);

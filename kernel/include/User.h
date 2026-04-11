@@ -106,6 +106,13 @@ typedef struct PACKED tag_ABI_HEADER {
 #define SYSCALL_GetProfileInfo 0x00000089
 
 /************************************************************************/
+// Executable Module Services
+
+#define SYSCALL_LoadModule 0x00000091
+#define SYSCALL_GetModuleSymbol 0x00000092
+#define SYSCALL_ReleaseModule 0x00000093
+
+/************************************************************************/
 // Threading Services
 
 #define SYSCALL_CreateTask 0x0000000B
@@ -299,7 +306,7 @@ typedef struct PACKED tag_ABI_HEADER {
 
 /************************************************************************/
 
-#define SYSCALL_Last 0x00000091
+#define SYSCALL_Last 0x00000094
 
 /************************************************************************/
 // Structure limits
@@ -401,6 +408,22 @@ typedef struct PACKED tag_PROFILE_QUERY_INFO {
     UINT DroppedCount;
     LPPROFILE_ENTRY_INFO Entries;
 } PROFILE_QUERY_INFO, *LPPROFILE_QUERY_INFO;
+
+typedef struct PACKED tag_MODULE_LOAD_INFO {
+    ABI_HEADER Header;
+    LPCSTR Path;
+    HANDLE Module;
+    U32 Flags;
+    U32 ModuleIdentifierHigh;
+    U32 ModuleIdentifierLow;
+} MODULE_LOAD_INFO, *LPMODULE_LOAD_INFO;
+
+typedef struct PACKED tag_MODULE_SYMBOL_INFO {
+    ABI_HEADER Header;
+    HANDLE Module;
+    LPCSTR Name;
+    LINEAR Address;
+} MODULE_SYMBOL_INFO, *LPMODULE_SYMBOL_INFO;
 
 typedef struct PACKED tag_CONSOLE_BLIT_BUFFER {
     UINT X;

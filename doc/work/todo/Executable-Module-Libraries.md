@@ -318,7 +318,7 @@ Acceptance criteria:
 Acceptance criteria:
 - One documented TLS contract exists across kernel validation, task state, runtime ABI, and module build output.
 
-## [ ] Step 11 - Add Runtime and Syscall Surface
+## [x] Step 11 - Add Runtime and Syscall Surface
 
 - Add a syscall family for module operations:
   - load module by path;

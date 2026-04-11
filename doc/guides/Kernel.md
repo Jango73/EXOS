@@ -1252,6 +1252,8 @@ The module lane exists independently from the main executable and heap:
 - the initial process heap is reconfigured through `ProcessArenaConfigureMainHeap(...)` so `HeapInit(...)` growth stops before the stack/module lanes;
 - `ProcessArenaAllocateModule(...)` provides one entry point for module-related mappings and accepts explicit purposes for shared segments, private writable data, TLS storage, and bookkeeping pages.
 
+Executable modules are exposed to userland through `LoadModule(...)`, `GetModuleSymbol(...)`, and `ReleaseModule(...)` runtime wrappers backed by dedicated syscalls. The syscall layer owns path-based file opening and current-process handle export; `exec/ExecutableModule` owns the shared image cache; `process/Process-Module` owns process-local bindings, mapping, relocation, TLS registration, symbol lookup, and reference release. Symbol lookup returns installed user addresses from a binding owned by the caller process only.
+
 #### PackageFS readonly mount
 
 Step-4 introduces a dedicated PackageFS module:
