@@ -367,25 +367,37 @@ Acceptance criteria:
 Acceptance criteria:
 - The repository can build one sample executable plus one loadable module without post-link patching.
 
-## [ ] Step 14 - Validation Matrix
+## [x] Step 14 - Userland Integration Validation
+
+- Add userland integration tests for:
+  - load one module and call exported functions;
+  - one module importing a symbol from another loaded module through the process resolver;
+  - module global data shared across tasks in one process;
+  - module global data isolated across separate processes;
+  - TLS isolation across two threads in one process;
+  - late module load after an additional thread already exists.
+- Add the integration module binaries to the build and boot images.
+- Validate the integration workflow on both x86-32 and x86-64.
+
+Acceptance criteria:
+- The smoke matrix proves process-global module state, per-thread TLS, late TLS expansion, and supported module-to-module imports.
+
+## [ ] Step 15 - Kernel-Side Validation Matrix
 
 - Add focused kernel-side tests for:
   - ELF module metadata parsing;
   - relocation validation and rejection cases;
   - TLS template parsing;
-  - process module binding lifetime.
-- Add userland integration tests for:
-  - load one module and call one exported function;
+  - process module binding lifetime;
+  - failure unwind during dependency load, relocation, and TLS expansion.
+- Add remaining integration coverage where useful for:
   - main executable symbol imported by module;
-  - two modules importing each other through the process resolver in a supported order;
-  - shared code pages across two processes;
-  - global data shared across tasks in one process;
-  - TLS isolation across two threads in one process;
-  - late module load after additional threads already exist.
+  - shared executable code pages across two processes;
+  - unsupported module import orders rejected deterministically.
 - Validate both x86-32 and x86-64 before considering the feature complete.
 
 Acceptance criteria:
-- The smoke matrix proves the separation between shared code, per-process globals, and per-thread TLS.
+- Kernel-side tests prove rejection and cleanup paths that the smoke workflow cannot cover deterministically.
 
 ## Suggested Implementation Order
 
