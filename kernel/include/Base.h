@@ -283,7 +283,7 @@ typedef void (*OBJECTDESTRUCTOR)(LPVOID);
 #define OBJECT_FIELDS       \
     UINT TypeID;            \
     UINT References;        \
-    U64 ID;                 \
+    U64 InstanceID;         \
     LPPROCESS OwnerProcess; \
     OBJECTDESTRUCTOR Destructor; \
 

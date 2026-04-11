@@ -188,8 +188,8 @@ static void TaskPopulateUserTlsModuleEntry(
         return;
     }
 
-    Entry->ModuleIdentifierHigh = U64_High32(Block->Binding->Image->ID);
-    Entry->ModuleIdentifierLow = U64_Low32(Block->Binding->Image->ID);
+    Entry->ModuleIdentifierHigh = U64_High32(Block->Binding->Image->InstanceID);
+    Entry->ModuleIdentifierLow = U64_Low32(Block->Binding->Image->InstanceID);
     Entry->Base = Block->Base;
     Entry->Size = Block->Size;
     Entry->TemplateSize = Block->TemplateSize;
@@ -220,10 +220,10 @@ static void TaskBuildUserTlsAnchor(
     ControlBlock->Version = TASK_USER_TLS_CONTROL_BLOCK_VERSION;
     ControlBlock->Size = AnchorSize;
     ControlBlock->Self = AnchorBase;
-    ControlBlock->ProcessIdentifierHigh = U64_High32(Task->OwnerProcess->ID);
-    ControlBlock->ProcessIdentifierLow = U64_Low32(Task->OwnerProcess->ID);
-    ControlBlock->ThreadIdentifierHigh = U64_High32(Task->ID);
-    ControlBlock->ThreadIdentifierLow = U64_Low32(Task->ID);
+    ControlBlock->ProcessIdentifierHigh = U64_High32(Task->OwnerProcess->InstanceID);
+    ControlBlock->ProcessIdentifierLow = U64_Low32(Task->OwnerProcess->InstanceID);
+    ControlBlock->ThreadIdentifierHigh = U64_High32(Task->InstanceID);
+    ControlBlock->ThreadIdentifierLow = U64_Low32(Task->InstanceID);
     ControlBlock->ModuleTlsVector = (LINEAR)Entries;
     ControlBlock->ModuleTlsVectorCount = Task->ModuleTlsBlockCount;
     ControlBlock->ModuleTlsVectorStride = sizeof(TASK_USER_TLS_MODULE_ENTRY);

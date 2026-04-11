@@ -473,7 +473,7 @@ static void Welcome(void) {
 LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
     LPLISTNODE Object;
     U8 Identifier[UUID_BINARY_SIZE];
-    U64 ObjectID = U64_0;
+    U64 ObjectInstanceID = U64_0;
 
     Object = (LPLISTNODE)KernelHeapAlloc(Size);
 
@@ -486,12 +486,12 @@ LPVOID CreateKernelObject(UINT Size, U32 ObjectTypeID) {
 
     // Initialize LISTNODE_FIELDS
     UUID_Generate(Identifier);
-    ObjectID = UUID_ToU64(Identifier);
+    ObjectInstanceID = UUID_ToU64(Identifier);
 
     Object->TypeID = ObjectTypeID;
     Object->References = 1;
     Object->OwnerProcess = GetCurrentProcess();
-    Object->ID = ObjectID;
+    Object->InstanceID = ObjectInstanceID;
     Object->Destructor = NULL;
     Object->Next = NULL;
     Object->Prev = NULL;
@@ -687,16 +687,16 @@ void StoreObjectTerminationState(LPVOID Object, UINT ExitCode) {
             KernelHeapAlloc(sizeof(OBJECT_TERMINATION_STATE));
 
         SAFE_USE(TermState) {
-            U32 IdHigh = U64_High32(KernelObject->ID);
-            U32 IdLow = U64_Low32(KernelObject->ID);
+            U32 InstanceIDHigh = U64_High32(KernelObject->InstanceID);
+            U32 InstanceIDLow = U64_Low32(KernelObject->InstanceID);
 
             TermState->Object = KernelObject;
             TermState->ExitCode = ExitCode;
-            TermState->ID = KernelObject->ID;
+            TermState->InstanceID = KernelObject->InstanceID;
             CacheAdd(GetObjectTerminationCache(), TermState, OBJECT_TERMINATION_TTL_MS);
 
-            UNUSED(IdHigh);
-            UNUSED(IdLow);
+            UNUSED(InstanceIDHigh);
+            UNUSED(InstanceIDLow);
         }
 
         return;
