@@ -145,7 +145,7 @@ static LINEAR MapProcessMainExecutableAddress(LPVOID Context, UINT VirtualAddres
 /**
  * @brief Map one module virtual address into its installed process mapping.
  */
-static LINEAR MapProcessModuleBindingAddress(LPVOID Context, UINT VirtualAddress) {
+LINEAR MapProcessModuleBindingAddress(LPVOID Context, UINT VirtualAddress) {
     LPEXECUTABLE_MODULE_BINDING Binding = (LPEXECUTABLE_MODULE_BINDING)Context;
 
     if (Binding == NULL || Binding->Image == NULL) {
@@ -429,9 +429,10 @@ static void UninstallProcessModuleBindingSegmentsLocked(LPPROCESS Process, LPEXE
         Binding->SegmentBases[SegmentIndex] = 0;
         Binding->SegmentSizes[SegmentIndex] = 0;
     }
-
+    TaskReleaseProcessModuleTlsBlocks(Process, Binding);
     Binding->WritableDataBase = 0;
     Binding->WritableDataSize = 0;
+    Binding->StateFlags &= ~EXECUTABLE_MODULE_BINDING_STATE_TLS_REGISTERED;
     Binding->StateFlags &= ~EXECUTABLE_MODULE_BINDING_STATE_SEGMENTS_INSTALLED;
     Binding->StateFlags &= ~EXECUTABLE_MODULE_BINDING_STATE_GLOBAL_DATA_INITIALIZED;
 }
@@ -956,9 +957,15 @@ BOOL InstallProcessModuleBindingSegments(LPPROCESS Process, LPEXECUTABLE_MODULE_
                 return FALSE;
             }
 
-            Binding->StateFlags |= EXECUTABLE_MODULE_BINDING_STATE_SEGMENTS_ASSIGNED;
-            Binding->StateFlags |= EXECUTABLE_MODULE_BINDING_STATE_SEGMENTS_INSTALLED;
-            Binding->StateFlags |= EXECUTABLE_MODULE_BINDING_STATE_RELOCATED;
+            if (!InitializeProcessModuleTls(Process, Binding)) {
+                UninstallProcessModuleBindingSegmentsLocked(Process, Binding);
+                UnlockMutex(&(Process->Mutex));
+                return FALSE;
+            }
+
+            Binding->StateFlags |= EXECUTABLE_MODULE_BINDING_STATE_SEGMENTS_ASSIGNED |
+                                   EXECUTABLE_MODULE_BINDING_STATE_SEGMENTS_INSTALLED |
+                                   EXECUTABLE_MODULE_BINDING_STATE_RELOCATED;
             Result = TRUE;
             UnlockMutex(&(Process->Mutex));
         }

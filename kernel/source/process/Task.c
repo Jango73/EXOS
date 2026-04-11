@@ -276,6 +276,7 @@ void DeleteTask(LPTASK This) {
         //-------------------------------------
         // Delete the task's message queue
 
+        TaskReleaseModuleTlsBlocks(This);
         TaskReleaseMessageBuffer(This);
         DeleteMessageQueue(&(This->MessageQueue));
 
@@ -490,10 +491,10 @@ LPTASK KernelCreateTask(LPPROCESS Process, LPTASK_INFO Info) {
         goto Out;
     }
 
-    if (TaskInitializeMessageBuffer(Task) == FALSE) {
+    if (TaskInitializeMessageBuffer(Task) == FALSE || InitializeTaskProcessModuleTlsBindings(Process, Task) == FALSE) {
         DeleteTask(Task);
         Task = NULL;
-        ERROR(TEXT("[KernelCreateTask] Task message buffer setup failed"));
+        ERROR(TEXT("[KernelCreateTask] Task setup failed"));
         goto Out;
     }
 

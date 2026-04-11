@@ -2,7 +2,7 @@
 /************************************************************************\
 
     EXOS Kernel
-    Copyright (c) 1999-2025 Jango73
+    Copyright (c) 1999-2026 Jango73
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -71,6 +71,17 @@ typedef struct tag_TASK_SCHEDULER_STATE {
     BOOL Suspended;
 } TASK_SCHEDULER_STATE, *LPTASK_SCHEDULER_STATE;
 
+typedef struct tag_EXECUTABLE_MODULE_BINDING EXECUTABLE_MODULE_BINDING, *LPEXECUTABLE_MODULE_BINDING;
+
+typedef struct tag_TASK_MODULE_TLS_BLOCK {
+    LISTNODE_FIELDS
+    LPEXECUTABLE_MODULE_BINDING Binding;
+    LINEAR Base;
+    UINT Size;
+    UINT TemplateSize;
+    UINT Alignment;
+} TASK_MODULE_TLS_BLOCK, *LPTASK_MODULE_TLS_BLOCK;
+
 /************************************************************************/
 // The Task structure
 
@@ -95,6 +106,8 @@ struct tag_TASK {
     LPVOID WindowDispatchClass;           // Current class in nested window dispatch
     WINDOWFUNC WindowDispatchFunction;    // Current function in nested window dispatch
     U32 WindowDispatchDepth;              // Current nested window dispatch depth
+    LPLIST ModuleTlsBlocks;               // Task-owned executable module TLS blocks
+    UINT ModuleTlsBlockCount;             // Number of task-owned executable module TLS blocks
 };
 
 typedef struct tag_TASK TASK, *LPTASK;
@@ -118,6 +131,24 @@ void SetTaskStatusDirect(LPTASK Task, U32 Status);
 BOOL SetTaskSchedulerStatus(LPTASK Task, U32 Status);
 void SetTaskWakeUpTime(LPTASK Task, UINT WakeupTime);
 U32 ComputeTaskQuantumTime(U32 Priority);
+BOOL TaskEnsureModuleTlsBlock(
+    LPTASK Task,
+    LPEXECUTABLE_MODULE_BINDING Binding,
+    LINEAR TemplateBase,
+    UINT TemplateSize,
+    UINT TotalSize,
+    UINT Alignment);
+void TaskReleaseModuleTlsBlock(LPTASK Task, LPEXECUTABLE_MODULE_BINDING Binding);
+void TaskReleaseModuleTlsBlocks(LPTASK Task);
+void TaskReleaseProcessModuleTlsBlocks(LPPROCESS Process, LPEXECUTABLE_MODULE_BINDING Binding);
+BOOL TaskInstallProcessModuleTlsBlocks(
+    LPPROCESS Process,
+    LPEXECUTABLE_MODULE_BINDING Binding,
+    LINEAR TemplateBase,
+    UINT TemplateSize,
+    UINT TotalSize,
+    UINT Alignment);
+BOOL InitializeTaskProcessModuleTlsBindings(LPPROCESS Process, LPTASK Task);
 void DumpTask(LPTASK);
 
 /************************************************************************/

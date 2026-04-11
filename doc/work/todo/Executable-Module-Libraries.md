@@ -248,7 +248,7 @@ Acceptance criteria:
 Acceptance criteria:
 - Two tasks in the same process observe the same module global state; two different processes do not.
 
-## [ ] Step 9 - Define TLS Model and Per-Thread Lifetime
+## [x] Step 9 - Define TLS Model and Per-Thread Lifetime
 
 - Treat `PT_TLS` as the source of one TLS template per module.
 - On thread creation:
