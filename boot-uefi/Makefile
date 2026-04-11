@@ -64,6 +64,8 @@ INPUTINFO_ELF   := $(CORE_BUILD_DIR)/system/input-info/input-info
 MEMORY_SMOKE_ELF := $(CORE_BUILD_DIR)/system/memory-stress/memory-stress
 MASTER_ELF      := $(CORE_BUILD_DIR)/system/test/master/master
 SLAVE_ELF       := $(CORE_BUILD_DIR)/system/test/slave/slave
+MODULE_HOST_ELF := $(CORE_BUILD_DIR)/system/test/module-host/module-host
+MODULE_SAMPLE_ELF := $(CORE_BUILD_DIR)/system/test/module-sample/module-sample
 SYSTEM_SCRIPT_FILES := $(wildcard ../system/scripts/*)
 EXOS_VERSION_MAJOR = $(shell awk '/#define EXOS_VERSION_MAJOR/ {print $$3; exit}' ../kernel/include/User.h)
 EXOS_VERSION_MINOR = $(shell awk '/#define EXOS_VERSION_MINOR/ {print $$3; exit}' ../kernel/include/User.h)
@@ -225,7 +227,7 @@ $(SYSTEM_TEST_EPK): $(EPK_PACK_BIN) $(MASTER_ELF) $(SLAVE_ELF)
 		> $(SYSTEM_TEST_EPK_STAGING_DIR)/manifest.toml
 	@$(EPK_PACK_BIN) pack --input $(SYSTEM_TEST_EPK_STAGING_DIR) --output $(SYSTEM_TEST_EPK)
 
-$(UEFI_IMAGE): $(UEFI_BOOT_FILE_PATH) $(KERNEL_BIN) $(SYSTEM_SCRIPT_FILES) $(SYSTEM_TEST_EPK) $(USB3_IMG) $(FS_TEST_EXT2_IMG) $(FS_TEST_FAT32_IMG) $(FS_TEST_NTFS_IMG)
+$(UEFI_IMAGE): $(UEFI_BOOT_FILE_PATH) $(KERNEL_BIN) $(SYSTEM_SCRIPT_FILES) $(SYSTEM_TEST_EPK) $(MODULE_HOST_ELF) $(MODULE_SAMPLE_ELF) $(USB3_IMG) $(FS_TEST_EXT2_IMG) $(FS_TEST_FAT32_IMG) $(FS_TEST_NTFS_IMG)
 	@mkdir -p $(UEFI_BUILD_DIR)
 	@rm -rf $(UEFI_STAGING_DIR)
 	@mkdir -p $(UEFI_STAGING_DIR)/EFI/BOOT
@@ -259,6 +261,8 @@ $(UEFI_IMAGE): $(UEFI_BOOT_FILE_PATH) $(KERNEL_BIN) $(SYSTEM_SCRIPT_FILES) $(SYS
 	@cp $(MEMORY_SMOKE_ELF) $(EXT2_STAGING_DIR)/exos/apps/memory-growth
 	@cp $(MASTER_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/master
 	@cp $(SLAVE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/slave
+	@cp $(MODULE_HOST_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/module-host
+	@cp $(MODULE_SAMPLE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/module-sample
 	@cp $(SYSTEM_TEST_EPK) $(EXT2_STAGING_DIR)/exos/apps/test.epk
 	@for f in $(SYSTEM_SCRIPT_FILES); do \
 		if [ -f "$$f" ]; then \

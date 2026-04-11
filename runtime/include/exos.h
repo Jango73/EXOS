@@ -40,6 +40,16 @@ extern "C" {
 #define EXOS_PARAM(Value) ((uint_t)(Value))
 #endif
 
+#if defined(__GNUC__) || defined(__clang__)
+#define EXOS_MODULE_EXPORT __attribute__((visibility("default")))
+#define EXOS_MODULE_IMPORT extern
+#define EXOS_THREAD_LOCAL __thread
+#else
+#define EXOS_MODULE_EXPORT
+#define EXOS_MODULE_IMPORT extern
+#define EXOS_THREAD_LOCAL
+#endif
+
 static inline I32 imin(I32 A, I32 B) { return (A < B) ? A : B; }
 static inline I32 imax(I32 A, I32 B) { return (A > B) ? A : B; }
 

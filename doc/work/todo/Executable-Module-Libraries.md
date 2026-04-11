@@ -351,7 +351,7 @@ Acceptance criteria:
 Acceptance criteria:
 - Failure during dependency load, relocation, or TLS expansion unwinds without leaking half-bound process module state.
 
-## [ ] Step 13 - Toolchain and Build Output
+## [x] Step 13 - Toolchain and Build Output
 
 - Add one module link mode in the userland build system:
   - produce `ET_DYN`;

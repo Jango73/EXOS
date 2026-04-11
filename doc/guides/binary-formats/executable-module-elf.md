@@ -179,6 +179,12 @@ Rejected TLS conditions:
 - TLS layout requiring a dynamic thread vector ABI not yet exposed by runtime;
 - late-load TLS expansion failure for any task in the target process.
 
+## Toolchain Output
+
+The userland module build mode emits `ET_DYN` ELF images with one dynamic table, SYSV hash metadata, no interpreter segment, and non-executable stack marking.
+Module code uses position-independent output with hidden default visibility; public exports must opt in through the runtime export annotation.
+Thread-local storage uses the static TLS model exposed by the runtime header so TLS use emits one `PT_TLS` template without a user-space dynamic loader dependency.
+
 ## Stack Marking Policy
 
 `PT_GNU_STACK` is optional.

@@ -155,6 +155,8 @@ INPUTINFO_ELF   = $(CORE_BUILD_DIR)/system/input-info/input-info
 MEMORY_SMOKE_ELF = $(CORE_BUILD_DIR)/system/memory-stress/memory-stress
 MASTER_ELF      = $(CORE_BUILD_DIR)/system/test/master/master
 SLAVE_ELF       = $(CORE_BUILD_DIR)/system/test/slave/slave
+MODULE_HOST_ELF = $(CORE_BUILD_DIR)/system/test/module-host/module-host
+MODULE_SAMPLE_ELF = $(CORE_BUILD_DIR)/system/test/module-sample/module-sample
 SYSTEM_TEST_EPK_STAGING_DIR = $(MBR_BUILD_DIR)/system-test-epk-root
 SYSTEM_TEST_EPK = $(MBR_BUILD_DIR)/test.epk
 EXOS_VERSION_MAJOR = $(shell awk '/#define EXOS_VERSION_MAJOR/ {print $$3; exit}' ../kernel/include/User.h)
@@ -300,7 +302,7 @@ $(CYCLE_BIN):
 
 # Create image only if it does not exist
 FINAL_IMG_DEPS_COMMON = check_tools $(MBR_BIN) $(VBR_BIN) $(PAYLOAD_BIN)
-FINAL_IMG_DEPS_FULL = $(FINAL_IMG_DEPS_COMMON) $(KERNEL_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(INPUTINFO_ELF) $(MASTER_ELF) $(SLAVE_ELF) $(SYSTEM_SCRIPT_FILES)
+FINAL_IMG_DEPS_FULL = $(FINAL_IMG_DEPS_COMMON) $(KERNEL_BIN) $(PORTAL_ELF) $(NETGET_ELF) $(HELLO_ELF) $(TICTACTOE_ELF) $(TERMTACTICS_ELF) $(INPUTINFO_ELF) $(MASTER_ELF) $(SLAVE_ELF) $(MODULE_HOST_ELF) $(MODULE_SAMPLE_ELF) $(SYSTEM_SCRIPT_FILES)
 
 ifeq ($(TEST_PAYLOAD),1)
 FINAL_IMG_DEPS = $(FINAL_IMG_DEPS_COMMON)
@@ -375,6 +377,8 @@ update-fat32: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_FAT32) $(SYSTEM_TEST_
 		$(call MCOPY_IF_NEEDED,$(MEMORY_SMOKE_ELF),z:/EXOS/APPS/memory-growth)\
 		$(call MCOPY_IF_NEEDED,$(MASTER_ELF),z:/EXOS/APPS/TEST/MASTER)\
 		$(call MCOPY_IF_NEEDED,$(SLAVE_ELF),z:/EXOS/APPS/TEST/SLAVE)\
+		$(call MCOPY_IF_NEEDED,$(MODULE_HOST_ELF),z:/EXOS/APPS/TEST/module-host)\
+		$(call MCOPY_IF_NEEDED,$(MODULE_SAMPLE_ELF),z:/EXOS/APPS/TEST/module-sample)\
 		$(call MCOPY_IF_NEEDED,$(SYSTEM_TEST_EPK),z:/EXOS/APPS/TEST.EPK)\
 		for f in $(SYSTEM_SCRIPT_FILES); do \
 			if [ -f "$$f" ]; then \
@@ -413,6 +417,8 @@ update-ext2: check_payload_size $(FINAL_IMG) $(KERNEL_CFG_EXT2) $(SYSTEM_TEST_EP
 	@cp $(MEMORY_SMOKE_ELF) $(EXT2_STAGING_DIR)/exos/apps/memory-growth
 	@cp $(MASTER_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/master
 	@cp $(SLAVE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/slave
+	@cp $(MODULE_HOST_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/module-host
+	@cp $(MODULE_SAMPLE_ELF) $(EXT2_STAGING_DIR)/exos/apps/test/module-sample
 	@cp $(SYSTEM_TEST_EPK) $(EXT2_STAGING_DIR)/exos/apps/test.epk
 	@for f in $(SYSTEM_SCRIPT_FILES); do \
 		if [ -f "$$f" ]; then \
