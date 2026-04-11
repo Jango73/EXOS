@@ -1,7 +1,8 @@
+
 /************************************************************************\
 
     EXOS Kernel
-    Copyright (c) 1999-2025 Jango73
+    Copyright (c) 1999-2026 Jango73
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -28,7 +29,9 @@
 
 #include "../Base.h"
 #include "../exec/Executable.h"
+#include "../fs/FileSystem.h"
 #include "../sync/Mutex.h"
+#include "../User.h"
 
 /***************************************************************************/
 
@@ -70,6 +73,12 @@ typedef struct tag_EXECUTABLE_MODULE_IMAGE {
 LPEXECUTABLE_MODULE_IMAGE AcquireExecutableModuleImage(LPFILE File);
 void RetainExecutableModuleImage(LPEXECUTABLE_MODULE_IMAGE Image);
 void ReleaseExecutableModuleImage(LPEXECUTABLE_MODULE_IMAGE Image);
+BOOL RelocateExecutableModuleBinding(
+    LPEXECUTABLE_MODULE_IMAGE Image,
+    LINEAR SegmentBases[EXECUTABLE_MAX_SEGMENTS],
+    UINT SegmentSizes[EXECUTABLE_MAX_SEGMENTS],
+    EXECUTABLE_SYMBOL_RESOLVER Resolver,
+    LPVOID ResolverContext);
 void DeleteExecutableModuleImage(LPEXECUTABLE_MODULE_IMAGE Image);
 
 /***************************************************************************/

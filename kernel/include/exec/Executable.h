@@ -34,7 +34,10 @@
 \***************************************************************************/
 
 #include "../Base.h"
-#include "../fs/File.h"
+
+/***************************************************************************/
+
+typedef struct tag_FILE FILE, *LPFILE;
 
 /***************************************************************************/
 
@@ -66,6 +69,16 @@
 
 #define EXECUTABLE_MAX_SEGMENTS 16
 #define EXECUTABLE_MAX_RELOCATION_TABLES 8
+
+#define EXECUTABLE_SYMBOL_BIND_LOCAL 0
+#define EXECUTABLE_SYMBOL_BIND_GLOBAL 1
+#define EXECUTABLE_SYMBOL_BIND_WEAK 2
+
+#define EXECUTABLE_SYMBOL_TYPE_NONE 0
+#define EXECUTABLE_SYMBOL_TYPE_OBJECT 1
+#define EXECUTABLE_SYMBOL_TYPE_FUNCTION 2
+#define EXECUTABLE_SYMBOL_TYPE_SECTION 3
+#define EXECUTABLE_SYMBOL_TYPE_FILE 4
 
 /***************************************************************************/
 
@@ -146,6 +159,18 @@ typedef struct tag_EXECUTABLE_TLS_INFO {
 
 /***************************************************************************/
 
+typedef struct tag_EXECUTABLE_SYMBOL_RESOLUTION {
+    LPCSTR Name;
+    UINT SourceSymbolIndex;
+    BOOL Required;
+    LINEAR Address;
+} EXECUTABLE_SYMBOL_RESOLUTION, *LPEXECUTABLE_SYMBOL_RESOLUTION;
+
+typedef BOOL (*EXECUTABLE_SYMBOL_RESOLVER)(LPVOID Context, LPEXECUTABLE_SYMBOL_RESOLUTION Resolution);
+typedef LINEAR (*EXECUTABLE_VIRTUAL_ADDRESS_MAPPER)(LPVOID Context, UINT VirtualAddress);
+
+/***************************************************************************/
+
 typedef struct tag_EXECUTABLE_METADATA {
     U32 Format;
     U32 Target;
@@ -175,6 +200,12 @@ BOOL GetExecutableImageInfo(LPFILE, LPEXECUTABLE_METADATA);
 BOOL GetExecutableModuleInfo(LPFILE, LPEXECUTABLE_METADATA);
 BOOL GetExecutableInfo(LPFILE, LPEXECUTABLE_INFO);
 BOOL LoadExecutable(LPEXECUTABLE_LOAD);
+BOOL ResolveExecutableMappedSymbol(
+    LPEXECUTABLE_METADATA Metadata,
+    EXECUTABLE_VIRTUAL_ADDRESS_MAPPER Mapper,
+    LPVOID MapperContext,
+    LPCSTR Name,
+    LINEAR* Address);
 
 /***************************************************************************/
 

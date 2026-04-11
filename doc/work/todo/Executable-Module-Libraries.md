@@ -217,7 +217,8 @@ Acceptance criteria:
 Acceptance criteria:
 - Two processes loading the same module share executable physical pages while keeping writable state isolated.
 
-## [ ] Step 7 - Implement Symbol Resolution and Relocation Binding
+## [x] Step 7 - Implement Symbol Resolution and Relocation Binding
+
 
 - Introduce one reusable process symbol resolver with this search order:
   - main executable exports;

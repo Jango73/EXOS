@@ -490,7 +490,7 @@ void KillProcess(LPPROCESS This) {
 BOOL CreateProcess(LPPROCESS_INFO Info) {
     TRACED_FUNCTION;
 
-    EXECUTABLE_INFO ExecutableInfo;
+    EXECUTABLE_METADATA ExecutableMetadata;
     TASK_INFO TaskInfo;
     FILE_OPEN_INFO FileOpenInfo;
     LPPROCESS Process = NULL;
@@ -574,7 +574,7 @@ BOOL CreateProcess(LPPROCESS_INFO Info) {
     //-------------------------------------
     // Get executable information
 
-    if (GetExecutableInfo(File, &ExecutableInfo) == FALSE) {
+    if (GetExecutableImageInfo(File, &ExecutableMetadata) == FALSE) {
         TRACED_EPILOGUE("CreateProcess");
         return FALSE;
     }
@@ -584,7 +584,7 @@ BOOL CreateProcess(LPPROCESS_INFO Info) {
     //-------------------------------------
     // Check executable information
 
-    if (ExecutableInfo.CodeSize == 0) return FALSE;
+    if (ExecutableMetadata.Layout.CodeSize == 0) return FALSE;
 
     //-------------------------------------
     // Lock access to kernel data
@@ -627,10 +627,10 @@ BOOL CreateProcess(LPPROCESS_INFO Info) {
     // Copy process creation flags
     Process->Flags = Info->Flags;
 
-    CodeSize = ExecutableInfo.CodeSize;
-    DataSize = ExecutableInfo.DataSize;
-    HeapSize = ExecutableInfo.HeapRequested;
-    StackSize = ExecutableInfo.StackRequested;
+    CodeSize = ExecutableMetadata.Layout.CodeSize;
+    DataSize = ExecutableMetadata.Layout.DataSize;
+    HeapSize = ExecutableMetadata.Layout.HeapRequested;
+    StackSize = ExecutableMetadata.Layout.StackRequested;
 
     if (HeapSize < N_64KB) {
         HeapSize = N_64KB;
@@ -719,9 +719,10 @@ BOOL CreateProcess(LPPROCESS_INFO Info) {
 
     EXECUTABLE_LOAD LoadInfo;
     LoadInfo.File = File;
-    LoadInfo.Info = &ExecutableInfo;
+    LoadInfo.Info = &(ExecutableMetadata.Layout);
     LoadInfo.CodeBase = (LINEAR)CodeBase;
     LoadInfo.DataBase = (LINEAR)DataBase;
+    LoadInfo.BssBase = (LINEAR)DataBase;
 
     if (LoadExecutable(&LoadInfo) == FALSE) {
         DEBUG(TEXT("[CreateProcess] Load failed !"));
@@ -740,6 +741,9 @@ BOOL CreateProcess(LPPROCESS_INFO Info) {
 
     Process->HeapBase = HeapBase;
     Process->HeapSize = HeapSize;
+    Process->MainExecutableMetadata = ExecutableMetadata;
+    Process->MainExecutableCodeBase = CodeBase;
+    Process->MainExecutableDataBase = DataBase;
 
     if (ProcessArenaInitializeUser(Process, CodeBase, CodeSize + DataSize, HeapBase, HeapSize) == FALSE) {
         ERROR(TEXT("[CreateProcess] Failed to initialize process address space arenas"));
@@ -760,7 +764,8 @@ BOOL CreateProcess(LPPROCESS_INFO Info) {
 
     DEBUG(TEXT("[CreateProcess] Creating initial task"));
 
-    TaskInfo.Func = (TASKFUNC)(CodeBase + (ExecutableInfo.EntryPoint - ExecutableInfo.CodeBase));
+    TaskInfo.Func =
+        (TASKFUNC)(CodeBase + (ExecutableMetadata.Layout.EntryPoint - ExecutableMetadata.Layout.CodeBase));
     TaskInfo.Parameter = NULL;
     TaskInfo.StackSize = StackSize;
     TaskInfo.Priority = TASK_PRIORITY_MEDIUM;

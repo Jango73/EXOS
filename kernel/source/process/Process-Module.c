@@ -32,6 +32,13 @@
 
 /***************************************************************************/
 
+typedef struct tag_PROCESS_MODULE_SYMBOL_RESOLVER_CONTEXT {
+    LPPROCESS Process;
+    LPEXECUTABLE_MODULE_BINDING TargetBinding;
+} PROCESS_MODULE_SYMBOL_RESOLVER_CONTEXT, *LPPROCESS_MODULE_SYMBOL_RESOLVER_CONTEXT;
+
+/***************************************************************************/
+
 /**
  * @brief Find one module binding in one process without taking locks.
  *
@@ -99,6 +106,202 @@ static BOOL ProcessModuleSegmentIsWritableExecutable(LPEXECUTABLE_SEGMENT_DESCRI
 
     return (Segment->Access & EXECUTABLE_SEGMENT_ACCESS_WRITE) != 0 &&
            (Segment->Access & EXECUTABLE_SEGMENT_ACCESS_EXECUTE) != 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Map one main executable virtual address into the process image mapping.
+ */
+static LINEAR MapProcessMainExecutableAddress(LPVOID Context, UINT VirtualAddress) {
+    LPPROCESS Process = (LPPROCESS)Context;
+    LPEXECUTABLE_INFO Layout = NULL;
+
+    if (Process == NULL) {
+        return 0;
+    }
+
+    Layout = &(Process->MainExecutableMetadata.Layout);
+    if (Layout->CodeSize != 0 && VirtualAddress >= Layout->CodeBase &&
+        VirtualAddress < Layout->CodeBase + Layout->CodeSize) {
+        return Process->MainExecutableCodeBase + (VirtualAddress - Layout->CodeBase);
+    }
+
+    if (Layout->DataSize != 0 && VirtualAddress >= Layout->DataBase &&
+        VirtualAddress < Layout->DataBase + Layout->DataSize) {
+        return Process->MainExecutableDataBase + (VirtualAddress - Layout->DataBase);
+    }
+
+    if (Layout->BssSize != 0 && VirtualAddress >= Layout->BssBase &&
+        VirtualAddress < Layout->BssBase + Layout->BssSize) {
+        return Process->MainExecutableDataBase + (VirtualAddress - Layout->DataBase);
+    }
+
+    return 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Map one module virtual address into its installed process mapping.
+ */
+static LINEAR MapProcessModuleBindingAddress(LPVOID Context, UINT VirtualAddress) {
+    LPEXECUTABLE_MODULE_BINDING Binding = (LPEXECUTABLE_MODULE_BINDING)Context;
+
+    if (Binding == NULL || Binding->Image == NULL) {
+        return 0;
+    }
+
+    for (UINT SegmentIndex = 0; SegmentIndex < Binding->Image->Metadata.SegmentCount; SegmentIndex++) {
+        LPEXECUTABLE_SEGMENT_DESCRIPTOR Segment = &(Binding->Image->Metadata.Segments[SegmentIndex]);
+        UINT SegmentEnd;
+        UINT Offset;
+
+        if (Segment->SourceType != PT_LOAD || Binding->SegmentBases[SegmentIndex] == 0) {
+            continue;
+        }
+
+        SegmentEnd = Segment->VirtualAddress + Segment->MemorySize;
+        if (VirtualAddress < Segment->VirtualAddress || VirtualAddress >= SegmentEnd) {
+            continue;
+        }
+
+        Offset = VirtualAddress - Segment->VirtualAddress;
+        if (Offset >= Binding->SegmentSizes[SegmentIndex]) {
+            return 0;
+        }
+
+        return Binding->SegmentBases[SegmentIndex] + Offset;
+    }
+
+    return 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve one symbol against a mapped module binding.
+ */
+static BOOL ResolveProcessModuleBindingSymbol(
+    LPEXECUTABLE_MODULE_BINDING Binding,
+    LPCSTR Name,
+    LINEAR* Address) {
+    if (Binding == NULL || Binding->Image == NULL || Name == NULL || Address == NULL) {
+        return FALSE;
+    }
+
+    return ResolveExecutableMappedSymbol(
+        &(Binding->Image->Metadata),
+        MapProcessModuleBindingAddress,
+        Binding,
+        Name,
+        Address);
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Record one dependency while the owning process is already locked.
+ */
+static BOOL AddProcessModuleBindingDependencyLocked(
+    LPEXECUTABLE_MODULE_BINDING Binding,
+    LPEXECUTABLE_MODULE_BINDING Dependency) {
+    LPEXECUTABLE_MODULE_BINDING_DEPENDENCY Edge = NULL;
+
+    if (Binding == NULL || Dependency == NULL || Binding == Dependency || Binding->Dependencies == NULL) {
+        return FALSE;
+    }
+
+    for (LPLISTNODE Node = Binding->Dependencies->First; Node != NULL; Node = Node->Next) {
+        LPEXECUTABLE_MODULE_BINDING_DEPENDENCY Existing = (LPEXECUTABLE_MODULE_BINDING_DEPENDENCY)Node;
+
+        if (Existing->Binding == Dependency) {
+            Binding->StateFlags |= EXECUTABLE_MODULE_BINDING_STATE_DEPENDENCIES_RESOLVED;
+            return TRUE;
+        }
+    }
+
+    Edge = CreateExecutableModuleBindingDependency(Dependency);
+    if (Edge == NULL) {
+        return FALSE;
+    }
+
+    if (!ListAddItem(Binding->Dependencies, Edge)) {
+        KernelHeapFree(Edge);
+        return FALSE;
+    }
+
+    Dependency->ProcessReferences++;
+    Binding->StateFlags |= EXECUTABLE_MODULE_BINDING_STATE_DEPENDENCIES_RESOLVED;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Resolve one process symbol for executable module relocation.
+ */
+static BOOL ResolveProcessModuleSymbol(LPVOID Context, LPEXECUTABLE_SYMBOL_RESOLUTION Resolution) {
+    LPPROCESS_MODULE_SYMBOL_RESOLVER_CONTEXT ResolverContext = (LPPROCESS_MODULE_SYMBOL_RESOLVER_CONTEXT)Context;
+    LPPROCESS Process = NULL;
+
+    if (ResolverContext == NULL || Resolution == NULL || Resolution->Name == NULL) {
+        return FALSE;
+    }
+
+    Process = ResolverContext->Process;
+    if (Process == NULL || Process->ModuleBindings == NULL) {
+        return FALSE;
+    }
+
+    if (ResolveExecutableMappedSymbol(
+            &(Process->MainExecutableMetadata),
+            MapProcessMainExecutableAddress,
+            Process,
+            Resolution->Name,
+            &(Resolution->Address))) {
+        return TRUE;
+    }
+
+    for (LPLISTNODE Node = Process->ModuleBindings->First; Node != NULL; Node = Node->Next) {
+        LPEXECUTABLE_MODULE_BINDING Binding = (LPEXECUTABLE_MODULE_BINDING)Node;
+
+        if (Binding == NULL || Binding == ResolverContext->TargetBinding) {
+            continue;
+        }
+
+        if ((Binding->StateFlags & EXECUTABLE_MODULE_BINDING_STATE_SEGMENTS_INSTALLED) == 0) {
+            continue;
+        }
+
+        if (ResolveProcessModuleBindingSymbol(Binding, Resolution->Name, &(Resolution->Address))) {
+            if (!AddProcessModuleBindingDependencyLocked(ResolverContext->TargetBinding, Binding)) {
+                return FALSE;
+            }
+
+            return TRUE;
+        }
+    }
+
+    if (ResolverContext->TargetBinding != NULL && ResolverContext->TargetBinding->Dependencies != NULL) {
+        for (LPLISTNODE Node = ResolverContext->TargetBinding->Dependencies->First; Node != NULL; Node = Node->Next) {
+            LPEXECUTABLE_MODULE_BINDING_DEPENDENCY Edge = (LPEXECUTABLE_MODULE_BINDING_DEPENDENCY)Node;
+
+            if (Edge == NULL || Edge->Binding == NULL) {
+                continue;
+            }
+
+            if (ResolveProcessModuleBindingSymbol(Edge->Binding, Resolution->Name, &(Resolution->Address))) {
+                return TRUE;
+            }
+        }
+    }
+
+    if (Resolution->Required != FALSE) {
+        WARNING(TEXT("[ResolveProcessModuleSymbol] Unresolved symbol name=%s"), Resolution->Name);
+    }
+
+    return FALSE;
 }
 
 /***************************************************************************/
@@ -605,7 +808,6 @@ BOOL AddProcessModuleBindingDependency(
     LPPROCESS Process,
     LPEXECUTABLE_MODULE_BINDING Binding,
     LPEXECUTABLE_MODULE_BINDING Dependency) {
-    LPEXECUTABLE_MODULE_BINDING_DEPENDENCY Edge = NULL;
     BOOL Result = FALSE;
 
     SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
@@ -613,27 +815,8 @@ BOOL AddProcessModuleBindingDependency(
             SAFE_USE_VALID_ID(Dependency, KOID_EXECUTABLE_MODULE_BINDING) {
                 LockMutex(&(Process->Mutex), INFINITY);
 
-                if (Binding->Process == Process && Dependency->Process == Process && Binding != Dependency &&
-                    Binding->Dependencies != NULL) {
-                    for (LPLISTNODE Node = Binding->Dependencies->First; Node != NULL; Node = Node->Next) {
-                        LPEXECUTABLE_MODULE_BINDING_DEPENDENCY Existing =
-                            (LPEXECUTABLE_MODULE_BINDING_DEPENDENCY)Node;
-
-                        if (Existing->Binding == Dependency) {
-                            Binding->StateFlags |= EXECUTABLE_MODULE_BINDING_STATE_DEPENDENCIES_RESOLVED;
-                            UnlockMutex(&(Process->Mutex));
-                            return TRUE;
-                        }
-                    }
-
-                    Edge = CreateExecutableModuleBindingDependency(Dependency);
-                    if (Edge != NULL && ListAddItem(Binding->Dependencies, Edge)) {
-                        Dependency->ProcessReferences++;
-                        Binding->StateFlags |= EXECUTABLE_MODULE_BINDING_STATE_DEPENDENCIES_RESOLVED;
-                        Result = TRUE;
-                    } else if (Edge != NULL) {
-                        KernelHeapFree(Edge);
-                    }
+                if (Binding->Process == Process && Dependency->Process == Process) {
+                    Result = AddProcessModuleBindingDependencyLocked(Binding, Dependency);
                 }
 
                 UnlockMutex(&(Process->Mutex));
@@ -656,6 +839,7 @@ BOOL AddProcessModuleBindingDependency(
  * @return TRUE when all loadable segments are installed.
  */
 BOOL InstallProcessModuleBindingSegments(LPPROCESS Process, LPEXECUTABLE_MODULE_BINDING Binding) {
+    PROCESS_MODULE_SYMBOL_RESOLVER_CONTEXT ResolverContext;
     BOOL Result = FALSE;
 
     SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
@@ -707,8 +891,23 @@ BOOL InstallProcessModuleBindingSegments(LPPROCESS Process, LPEXECUTABLE_MODULE_
                 }
             }
 
+            MemorySet(&ResolverContext, 0, sizeof(ResolverContext));
+            ResolverContext.Process = Process;
+            ResolverContext.TargetBinding = Binding;
+            if (!RelocateExecutableModuleBinding(
+                    Binding->Image,
+                    Binding->SegmentBases,
+                    Binding->SegmentSizes,
+                    ResolveProcessModuleSymbol,
+                    &ResolverContext)) {
+                UninstallProcessModuleBindingSegmentsLocked(Process, Binding);
+                UnlockMutex(&(Process->Mutex));
+                return FALSE;
+            }
+
             Binding->StateFlags |= EXECUTABLE_MODULE_BINDING_STATE_SEGMENTS_ASSIGNED;
             Binding->StateFlags |= EXECUTABLE_MODULE_BINDING_STATE_SEGMENTS_INSTALLED;
+            Binding->StateFlags |= EXECUTABLE_MODULE_BINDING_STATE_RELOCATED;
             Result = TRUE;
             UnlockMutex(&(Process->Mutex));
         }

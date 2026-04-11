@@ -31,6 +31,7 @@
 #include "Base.h"
 #include "core/Driver.h"
 #include "core/ID.h"
+#include "exec/Executable.h"
 #include "utils/List.h"
 #include "memory/Memory.h"
 #include "sync/Mutex.h"
@@ -185,6 +186,9 @@ struct tag_PROCESS {
     LPDESKTOP Desktop;                                      // This process' desktop
     LPUSER_SESSION Session;                                 // User session
     LPFILESYSTEM PackageFileSystem;                         // Mounted package filesystem tied to this process
+    EXECUTABLE_METADATA MainExecutableMetadata;              // Main executable metadata for module symbol resolution
+    LINEAR MainExecutableCodeBase;                           // Installed main executable code base
+    LINEAR MainExecutableDataBase;                           // Installed main executable data base
     LPLIST ModuleBindings;                                  // Process-owned executable module bindings
     UINT ModuleBindingCount;                                // Number of executable module bindings
     MEMORY_REGION_LIST MemoryRegionList;
