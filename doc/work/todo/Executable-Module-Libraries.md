@@ -335,7 +335,7 @@ Acceptance criteria:
 Acceptance criteria:
 - One user process can request module load on demand with a supported public API.
 
-## [ ] Step 12 - Constructors, Error Paths, and Unload Policy
+## [x] Step 12 - Constructors, Error Paths, and Unload Policy
 
 - Define constructor/destructor support explicitly:
   - process-global constructors;

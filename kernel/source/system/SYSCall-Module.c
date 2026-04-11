@@ -153,18 +153,16 @@ UINT SysCall_GetModuleSymbol(UINT Parameter) {
 /***************************************************************************/
 
 /**
- * @brief Release one module reference owned by the caller process.
+ * @brief Reject runtime unload for one module owned by the caller process.
  *
  * @param Parameter Module handle.
- * @return DF_RETURN_SUCCESS on success.
+ * @return DF_RETURN_NOT_IMPLEMENTED for valid module handles.
  */
 UINT SysCall_ReleaseModule(UINT Parameter) {
     LPEXECUTABLE_MODULE_BINDING Binding = (LPEXECUTABLE_MODULE_BINDING)HandleToPointer((HANDLE)Parameter);
 
     SAFE_USE_VALID_ID_CURRENT_PROCESS_ACCESSIBLE(Binding, KOID_EXECUTABLE_MODULE_BINDING, FALSE) {
-        ReleaseProcessModuleBinding(Binding);
-        ReleaseHandle((HANDLE)Parameter);
-        return DF_RETURN_SUCCESS;
+        return DF_RETURN_NOT_IMPLEMENTED;
     }
 
     return DF_RETURN_BAD_PARAMETER;

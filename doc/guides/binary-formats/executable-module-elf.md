@@ -86,7 +86,7 @@ Rejected dynamic metadata conditions:
 - missing symbol or string table;
 - relocation table outside file-backed data bounds;
 - dynamic entries requiring a user-space ELF interpreter contract;
-- constructor/destructor requirements before the dedicated constructor milestone is implemented.
+- constructor/destructor requirements outside the accepted module ABI.
 
 ## Exported API Policy
 
