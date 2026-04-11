@@ -77,6 +77,13 @@ LINEAR ProcessArenaAllocateMmio(LPPROCESS Process, PHYSICAL Target, UINT Size, U
 LINEAR ProcessArenaAllocateTaskStack(LPPROCESS Process, UINT Size);
 LINEAR ProcessArenaAllocateUserStack(LPPROCESS Process, UINT Size);
 LINEAR ProcessArenaAllocateModule(LPPROCESS Process, UINT Purpose, UINT Size, U32 Flags, LPCSTR Tag);
+LINEAR ProcessArenaMapModulePages(
+    LPPROCESS Process,
+    UINT Purpose,
+    PHYSICAL* PhysicalPages,
+    UINT PageCount,
+    U32 Flags,
+    LPCSTR Tag);
 
 /************************************************************************/
 

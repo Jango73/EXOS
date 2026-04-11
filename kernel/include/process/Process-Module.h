@@ -40,6 +40,7 @@ typedef struct tag_EXECUTABLE_MODULE_BINDING EXECUTABLE_MODULE_BINDING, *LPEXECU
 #define EXECUTABLE_MODULE_BINDING_STATE_DEPENDENCIES_RESOLVED 0x00000004
 #define EXECUTABLE_MODULE_BINDING_STATE_RELOCATED 0x00000008
 #define EXECUTABLE_MODULE_BINDING_STATE_TLS_REGISTERED 0x00000010
+#define EXECUTABLE_MODULE_BINDING_STATE_SEGMENTS_INSTALLED 0x00000020
 
 /***************************************************************************/
 
@@ -58,6 +59,7 @@ struct tag_EXECUTABLE_MODULE_BINDING {
     UINT ProcessReferences;
     U32 StateFlags;
     LINEAR SegmentBases[EXECUTABLE_MAX_SEGMENTS];
+    UINT SegmentSizes[EXECUTABLE_MAX_SEGMENTS];
     LINEAR WritableDataBase;
     LINEAR GlobalOffsetTableBase;
     LINEAR ProcedureLinkageTableBase;
@@ -90,6 +92,7 @@ BOOL AddProcessModuleBindingDependency(
     LPPROCESS Process,
     LPEXECUTABLE_MODULE_BINDING Binding,
     LPEXECUTABLE_MODULE_BINDING Dependency);
+BOOL InstallProcessModuleBindingSegments(LPPROCESS Process, LPEXECUTABLE_MODULE_BINDING Binding);
 void DeleteExecutableModuleBinding(LPEXECUTABLE_MODULE_BINDING Binding);
 
 /***************************************************************************/

@@ -362,6 +362,8 @@ BOOL RegisterRegionDescriptor(LPPROCESS OwnerProcess, LPMEMORY_REGION_LIST List,
     }
     if ((Flags & ALLOC_PAGES_IO) != 0) {
         Attributes |= MEMORY_REGION_DESCRIPTOR_ATTRIBUTE_IO;
+    }
+    if ((Flags & (ALLOC_PAGES_IO | ALLOC_PAGES_FIXED)) != 0) {
         Attributes |= MEMORY_REGION_DESCRIPTOR_ATTRIBUTE_FIXED;
     }
     Descriptor->Attributes = Attributes;

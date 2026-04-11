@@ -470,6 +470,88 @@ LINEAR ProcessArenaAllocateModule(LPPROCESS Process, UINT Purpose, UINT Size, U3
 /************************************************************************/
 
 /**
+ * @brief Map fixed physical pages into the process module arena.
+ *
+ * @param Process Target process whose page directory is active.
+ * @param Purpose Module allocation purpose.
+ * @param PhysicalPages Physical page array owned by another kernel object.
+ * @param PageCount Number of pages to map.
+ * @param Flags Mapping flags, excluding ownership flags.
+ * @param Tag Optional memory descriptor tag.
+ * @return Linear base of the contiguous virtual mapping or 0.
+ */
+LINEAR ProcessArenaMapModulePages(
+    LPPROCESS Process,
+    UINT Purpose,
+    PHYSICAL* PhysicalPages,
+    UINT PageCount,
+    U32 Flags,
+    LPCSTR Tag) {
+    LINEAR AllocationBase;
+    LINEAR PageBase;
+    UINT AlignedSize;
+    LPCSTR EffectiveTag = Tag;
+
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+        if (Process->AddressSpace.Initialized == FALSE || PhysicalPages == NULL || PageCount == 0) {
+            return 0;
+        }
+
+        if (Purpose >= PROCESS_MODULE_ALLOCATION_COUNT) {
+            ERROR(TEXT("[ProcessArenaMapModulePages] Invalid module allocation purpose=%u"), Purpose);
+            return 0;
+        }
+
+        if (EffectiveTag == NULL) {
+            EffectiveTag = ProcessArenaGetModuleAllocationTag(Purpose);
+        }
+
+        AlignedSize = PageCount << PAGE_SIZE_MUL;
+        AllocationBase = ProcessArenaAlignUp(PROCESS_ARENA(Process, PROCESS_ARENA_MODULE)->NextLow);
+
+        if (PROCESS_ARENA(Process, PROCESS_ARENA_MODULE)->Limit != 0 &&
+            AllocationBase + AlignedSize > PROCESS_ARENA(Process, PROCESS_ARENA_MODULE)->Limit) {
+            ERROR(TEXT("[ProcessArenaMapModulePages] Arena exhausted for process %p"), Process);
+            return 0;
+        }
+
+        for (UINT PageIndex = 0; PageIndex < PageCount; PageIndex++) {
+            if (PhysicalPages[PageIndex] == 0) {
+                ERROR(TEXT("[ProcessArenaMapModulePages] Invalid physical page index=%u"), PageIndex);
+                if (PageIndex != 0) {
+                    FreeRegionForProcess(Process, AllocationBase, PageIndex << PAGE_SIZE_MUL);
+                }
+                return 0;
+            }
+
+            PageBase = AllocationBase + (PageIndex << PAGE_SIZE_MUL);
+            if (AllocRegionForProcess(Process,
+                                      PageBase,
+                                      PhysicalPages[PageIndex],
+                                      PAGE_SIZE,
+                                      Flags | ALLOC_PAGES_COMMIT | ALLOC_PAGES_FIXED,
+                                      EffectiveTag) == 0) {
+                ERROR(TEXT("[ProcessArenaMapModulePages] AllocRegion failed process=%p base=%p page=%u"),
+                      Process,
+                      PageBase,
+                      PageIndex);
+                if (PageIndex != 0) {
+                    FreeRegionForProcess(Process, AllocationBase, PageIndex << PAGE_SIZE_MUL);
+                }
+                return 0;
+            }
+        }
+
+        PROCESS_ARENA(Process, PROCESS_ARENA_MODULE)->NextLow = ProcessArenaAlignUp(AllocationBase + AlignedSize);
+        return AllocationBase;
+    }
+
+    return 0;
+}
+
+/************************************************************************/
+
+/**
  * @brief Allocate a task stack in the appropriate arena for the process.
  */
 LINEAR ProcessArenaAllocateTaskStack(LPPROCESS Process, UINT Size) {

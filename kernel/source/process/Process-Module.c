@@ -24,7 +24,10 @@
 #include "process/Process-Module.h"
 
 #include "core/Kernel.h"
+#include "exec/ExecutableELF.h"
 #include "log/Log.h"
+#include "memory/Memory.h"
+#include "process/Process-Arena.h"
 #include "text/CoreString.h"
 
 /***************************************************************************/
@@ -87,6 +90,150 @@ static LPEXECUTABLE_MODULE_BINDING_DEPENDENCY CreateExecutableModuleBindingDepen
 /***************************************************************************/
 
 /**
+ * @brief Return TRUE when one segment is writable and executable.
+ */
+static BOOL ProcessModuleSegmentIsWritableExecutable(LPEXECUTABLE_SEGMENT_DESCRIPTOR Segment) {
+    if (Segment == NULL) {
+        return FALSE;
+    }
+
+    return (Segment->Access & EXECUTABLE_SEGMENT_ACCESS_WRITE) != 0 &&
+           (Segment->Access & EXECUTABLE_SEGMENT_ACCESS_EXECUTE) != 0;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Copy one template backing into a private process mapping.
+ */
+static BOOL CopyProcessModulePrivateSegmentTemplate(
+    LPEXECUTABLE_MODULE_SHARED_SEGMENT Template,
+    LINEAR MappingBase) {
+    if (Template == NULL || MappingBase == 0) {
+        return FALSE;
+    }
+
+    for (UINT PageIndex = 0; PageIndex < Template->PageCount; PageIndex++) {
+        LINEAR Source = MapTemporaryPhysicalPage1(Template->PhysicalPages[PageIndex]);
+        LINEAR Destination = MappingBase + (PageIndex << PAGE_SIZE_MUL);
+
+        if (Source == 0) {
+            ERROR(TEXT("[CopyProcessModulePrivateSegmentTemplate] MapTemporaryPhysicalPage1 failed page=%u"),
+                  PageIndex);
+            return FALSE;
+        }
+
+        MemoryCopy((LPVOID)Destination, (LPCVOID)Source, PAGE_SIZE);
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Install one read-only shared segment into a process binding.
+ */
+static BOOL InstallProcessModuleSharedSegment(
+    LPPROCESS Process,
+    LPEXECUTABLE_MODULE_BINDING Binding,
+    LPEXECUTABLE_MODULE_SHARED_SEGMENT SharedSegment) {
+    LINEAR MappingBase;
+    LINEAR SegmentBase;
+
+    if (Process == NULL || Binding == NULL || SharedSegment == NULL || SharedSegment->Present == FALSE) {
+        return FALSE;
+    }
+
+    MappingBase = ProcessArenaMapModulePages(Process,
+                                             PROCESS_MODULE_ALLOCATION_SHARED,
+                                             SharedSegment->PhysicalPages,
+                                             SharedSegment->PageCount,
+                                             ALLOC_PAGES_READONLY,
+                                             TEXT("ModuleShared"));
+    if (MappingBase == 0) {
+        return FALSE;
+    }
+
+    SegmentBase = MappingBase + SharedSegment->VirtualAddressOffset;
+    Binding->SegmentBases[SharedSegment->SegmentIndex] = SegmentBase;
+    Binding->SegmentSizes[SharedSegment->SegmentIndex] = SharedSegment->MemorySize;
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Install one writable private segment into a process binding.
+ */
+static BOOL InstallProcessModulePrivateSegment(
+    LPPROCESS Process,
+    LPEXECUTABLE_MODULE_BINDING Binding,
+    LPEXECUTABLE_MODULE_SHARED_SEGMENT PrivateSegment) {
+    LINEAR MappingBase;
+    LINEAR SegmentBase;
+
+    if (Process == NULL || Binding == NULL || PrivateSegment == NULL || PrivateSegment->Present == FALSE) {
+        return FALSE;
+    }
+
+    MappingBase = ProcessArenaAllocateModule(Process,
+                                             PROCESS_MODULE_ALLOCATION_PRIVATE,
+                                             PrivateSegment->MemorySize,
+                                             ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE,
+                                             TEXT("ModulePrivate"));
+    if (MappingBase == 0) {
+        return FALSE;
+    }
+
+    if (!CopyProcessModulePrivateSegmentTemplate(PrivateSegment, MappingBase)) {
+        FreeRegionForProcess(Process, MappingBase, PrivateSegment->MemorySize);
+        return FALSE;
+    }
+
+    SegmentBase = MappingBase + PrivateSegment->VirtualAddressOffset;
+    Binding->SegmentBases[PrivateSegment->SegmentIndex] = SegmentBase;
+    Binding->SegmentSizes[PrivateSegment->SegmentIndex] = PrivateSegment->MemorySize;
+    if (Binding->WritableDataBase == 0) {
+        Binding->WritableDataBase = SegmentBase;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
+ * @brief Unmap all installed module segments from one process binding.
+ */
+static void UninstallProcessModuleBindingSegmentsLocked(LPPROCESS Process, LPEXECUTABLE_MODULE_BINDING Binding) {
+    if (Process == NULL || Binding == NULL || Binding->Image == NULL) {
+        return;
+    }
+
+    for (UINT SegmentIndex = 0; SegmentIndex < Binding->Image->Metadata.SegmentCount; SegmentIndex++) {
+        LPEXECUTABLE_SEGMENT_DESCRIPTOR Segment = &(Binding->Image->Metadata.Segments[SegmentIndex]);
+        LINEAR SegmentBase = Binding->SegmentBases[SegmentIndex];
+        UINT SegmentSize = Binding->SegmentSizes[SegmentIndex];
+        LINEAR MappingBase;
+
+        if (SegmentBase == 0 || SegmentSize == 0) {
+            continue;
+        }
+
+        MappingBase = SegmentBase - (Segment->VirtualAddress & PAGE_SIZE_MASK);
+        FreeRegionForProcess(Process, MappingBase, SegmentSize);
+        Binding->SegmentBases[SegmentIndex] = 0;
+        Binding->SegmentSizes[SegmentIndex] = 0;
+    }
+
+    Binding->WritableDataBase = 0;
+    Binding->StateFlags &= ~EXECUTABLE_MODULE_BINDING_STATE_SEGMENTS_INSTALLED;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Decrement one process binding reference while the owner is locked.
  *
  * @param Binding Binding whose process reference must be dropped.
@@ -108,6 +255,7 @@ static void ReleaseProcessModuleBindingLocked(LPEXECUTABLE_MODULE_BINDING Bindin
 
     Process = Binding->Process;
     if (Process != NULL && Process->ModuleBindings != NULL) {
+        UninstallProcessModuleBindingSegmentsLocked(Process, Binding);
         ListRemove(Process->ModuleBindings, Binding);
 
         if (Process->ModuleBindingCount > 0) {
@@ -232,6 +380,7 @@ void DeleteProcessModuleBindings(LPPROCESS Process) {
                     Process->ModuleBindingCount--;
                 }
 
+                UninstallProcessModuleBindingSegmentsLocked(Process, Binding);
                 Binding->Process = NULL;
                 Binding->OwnerProcess = NULL;
                 DestroyKernelObject(Binding);
@@ -498,12 +647,89 @@ BOOL AddProcessModuleBindingDependency(
 /***************************************************************************/
 
 /**
+ * @brief Install all module segments into one process binding.
+ *
+ * The target process page directory must be active while this function runs.
+ *
+ * @param Process Owning process.
+ * @param Binding Target binding.
+ * @return TRUE when all loadable segments are installed.
+ */
+BOOL InstallProcessModuleBindingSegments(LPPROCESS Process, LPEXECUTABLE_MODULE_BINDING Binding) {
+    BOOL Result = FALSE;
+
+    SAFE_USE_VALID_ID(Process, KOID_PROCESS) {
+        SAFE_USE_VALID_ID(Binding, KOID_EXECUTABLE_MODULE_BINDING) {
+            LockMutex(&(Process->Mutex), INFINITY);
+
+            if (Binding->Process != Process || Binding->Image == NULL) {
+                UnlockMutex(&(Process->Mutex));
+                return FALSE;
+            }
+
+            if ((Binding->StateFlags & EXECUTABLE_MODULE_BINDING_STATE_SEGMENTS_INSTALLED) != 0) {
+                UnlockMutex(&(Process->Mutex));
+                return TRUE;
+            }
+
+            for (UINT SegmentIndex = 0; SegmentIndex < Binding->Image->Metadata.SegmentCount; SegmentIndex++) {
+                LPEXECUTABLE_SEGMENT_DESCRIPTOR Segment = &(Binding->Image->Metadata.Segments[SegmentIndex]);
+                LPEXECUTABLE_MODULE_SHARED_SEGMENT SharedSegment = &(Binding->Image->SharedSegments[SegmentIndex]);
+                LPEXECUTABLE_MODULE_SHARED_SEGMENT PrivateSegment = &(Binding->Image->PrivateSegments[SegmentIndex]);
+
+                if (Segment->SourceType != PT_LOAD || Segment->MemorySize == 0) {
+                    continue;
+                }
+
+                if (ProcessModuleSegmentIsWritableExecutable(Segment)) {
+                    ERROR(TEXT("[InstallProcessModuleBindingSegments] Writable executable segment rejected index=%u"),
+                          SegmentIndex);
+                    UninstallProcessModuleBindingSegmentsLocked(Process, Binding);
+                    UnlockMutex(&(Process->Mutex));
+                    return FALSE;
+                }
+
+                if (PrivateSegment->Present != FALSE) {
+                    if (!InstallProcessModulePrivateSegment(Process, Binding, PrivateSegment)) {
+                        UninstallProcessModuleBindingSegmentsLocked(Process, Binding);
+                        UnlockMutex(&(Process->Mutex));
+                        return FALSE;
+                    }
+                    continue;
+                }
+
+                if (SharedSegment->Present != FALSE) {
+                    if (!InstallProcessModuleSharedSegment(Process, Binding, SharedSegment)) {
+                        UninstallProcessModuleBindingSegmentsLocked(Process, Binding);
+                        UnlockMutex(&(Process->Mutex));
+                        return FALSE;
+                    }
+                }
+            }
+
+            Binding->StateFlags |= EXECUTABLE_MODULE_BINDING_STATE_SEGMENTS_ASSIGNED;
+            Binding->StateFlags |= EXECUTABLE_MODULE_BINDING_STATE_SEGMENTS_INSTALLED;
+            Result = TRUE;
+            UnlockMutex(&(Process->Mutex));
+        }
+    }
+
+    return Result;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Destroy one process-owned executable module binding.
  *
  * @param Binding Binding to destroy.
  */
 void DeleteExecutableModuleBinding(LPEXECUTABLE_MODULE_BINDING Binding) {
     SAFE_USE_VALID_ID(Binding, KOID_EXECUTABLE_MODULE_BINDING) {
+        if (Binding->Process != NULL) {
+            UninstallProcessModuleBindingSegmentsLocked(Binding->Process, Binding);
+        }
+
         DeleteExecutableModuleBindingDependencies(Binding);
 
         if (Binding->Image != NULL) {

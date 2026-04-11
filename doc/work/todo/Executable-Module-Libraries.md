@@ -199,7 +199,7 @@ Implemented in:
 Acceptance criteria:
 - One process can load the same module once and share that binding across all its tasks.
 
-## [ ] Step 6 - Implement Shared Segment Mapping Policy
+## [x] Step 6 - Implement Shared Segment Mapping Policy
 
 - Split module segments by mapping semantics:
   - executable read-only segments: shared physical pages, mapped read/execute;

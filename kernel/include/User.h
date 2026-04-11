@@ -873,6 +873,7 @@ typedef struct PACKED tag_SOCKET_ADDRESS_INET {
 #define ALLOC_PAGES_WC 0x00000008          // Write-combining (rare; mostly for framebuffers)
 #define ALLOC_PAGES_IO 0x00000010          // Exact PMA mapping for IO (BAR) -> do not touch RAM bitmap
 #define ALLOC_PAGES_AT_OR_OVER 0x00000020  // If a linear address is specified, can allocate anywhere above it
+#define ALLOC_PAGES_FIXED 0x00000040       // Exact PMA mapping owned by another kernel object
 
 #define FILE_OPEN_READ 0x00000001
 #define FILE_OPEN_WRITE 0x00000002

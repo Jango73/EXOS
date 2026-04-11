@@ -60,7 +60,9 @@ typedef struct tag_EXECUTABLE_MODULE_IMAGE {
     EXECUTABLE_MODULE_FILE_IDENTITY Identity;
     EXECUTABLE_METADATA Metadata;
     UINT SharedSegmentCount;
+    UINT PrivateSegmentCount;
     EXECUTABLE_MODULE_SHARED_SEGMENT SharedSegments[EXECUTABLE_MAX_SEGMENTS];
+    EXECUTABLE_MODULE_SHARED_SEGMENT PrivateSegments[EXECUTABLE_MAX_SEGMENTS];
 } EXECUTABLE_MODULE_IMAGE, *LPEXECUTABLE_MODULE_IMAGE;
 
 /***************************************************************************/

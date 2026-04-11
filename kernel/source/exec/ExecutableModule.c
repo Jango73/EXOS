@@ -218,6 +218,34 @@ static BOOL IsExecutableModuleSharedSegmentCandidate(const EXECUTABLE_SEGMENT_DE
 /***************************************************************************/
 
 /**
+ * @brief Determine whether one segment needs a per-process private copy.
+ *
+ * @param Segment Segment descriptor to inspect.
+ * @return TRUE for writable loadable module data.
+ */
+static BOOL IsExecutableModulePrivateSegmentCandidate(const EXECUTABLE_SEGMENT_DESCRIPTOR* Segment) {
+    if (Segment == NULL) {
+        return FALSE;
+    }
+
+    if (Segment->SourceType != PT_LOAD) {
+        return FALSE;
+    }
+
+    if ((Segment->Access & EXECUTABLE_SEGMENT_ACCESS_WRITE) == 0) {
+        return FALSE;
+    }
+
+    if (Segment->MemorySize == 0) {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Free all physical pages attached to one cached shared segment.
  *
  * @param Segment Shared segment descriptor to release.
@@ -325,6 +353,10 @@ static BOOL BuildExecutableModuleSharedSegment(
 
         MemorySet((LPVOID)MappedPage, 0, PAGE_SIZE);
 
+        if (Segment->FileSize == 0) {
+            continue;
+        }
+
         if (PageReadOffset >= FileBackedSize) {
             continue;
         }
@@ -385,6 +417,40 @@ static BOOL BuildExecutableModuleSharedSegments(LPFILE File, LPEXECUTABLE_MODULE
 /***************************************************************************/
 
 /**
+ * @brief Build per-process private segment templates for one module image.
+ *
+ * @param File Source file.
+ * @param Image Image under construction.
+ * @return TRUE on success, FALSE on any backing failure.
+ */
+static BOOL BuildExecutableModulePrivateSegments(LPFILE File, LPEXECUTABLE_MODULE_IMAGE Image) {
+    UINT SegmentIndex;
+
+    if (File == NULL || Image == NULL) {
+        return FALSE;
+    }
+
+    for (SegmentIndex = 0; SegmentIndex < Image->Metadata.SegmentCount; SegmentIndex++) {
+        LPEXECUTABLE_SEGMENT_DESCRIPTOR Segment = &(Image->Metadata.Segments[SegmentIndex]);
+        LPEXECUTABLE_MODULE_SHARED_SEGMENT PrivateSegment = &(Image->PrivateSegments[SegmentIndex]);
+
+        if (!IsExecutableModulePrivateSegmentCandidate(Segment)) {
+            continue;
+        }
+
+        if (!BuildExecutableModuleSharedSegment(File, Segment, SegmentIndex, PrivateSegment)) {
+            return FALSE;
+        }
+
+        Image->PrivateSegmentCount++;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************/
+
+/**
  * @brief Allocate and populate one new executable module image object.
  *
  * @param File Source file.
@@ -394,7 +460,7 @@ static BOOL BuildExecutableModuleSharedSegments(LPFILE File, LPEXECUTABLE_MODULE
  */
 static LPEXECUTABLE_MODULE_IMAGE CreateExecutableModuleImage(
     LPFILE File,
-    const EXECUTABLE_MODULE_FILE_IDENTITY* Identity,
+    LPEXECUTABLE_MODULE_FILE_IDENTITY Identity,
     const EXECUTABLE_METADATA* Metadata) {
     LPEXECUTABLE_MODULE_IMAGE Image = NULL;
 
@@ -411,10 +477,17 @@ static LPEXECUTABLE_MODULE_IMAGE CreateExecutableModuleImage(
     InitMutex(&(Image->Mutex));
     SetMutexDebugInfo(&(Image->Mutex), MUTEX_CLASS_KERNEL, TEXT("ExecutableModuleImage"));
     Image->Identity = *Identity;
+    Identity->FileSystem = NULL;
     Image->Metadata = *Metadata;
     Image->SharedSegmentCount = 0;
+    Image->PrivateSegmentCount = 0;
 
     if (!BuildExecutableModuleSharedSegments(File, Image)) {
+        DeleteExecutableModuleImage(Image);
+        return NULL;
+    }
+
+    if (!BuildExecutableModulePrivateSegments(File, Image)) {
         DeleteExecutableModuleImage(Image);
         return NULL;
     }
@@ -446,6 +519,11 @@ LPEXECUTABLE_MODULE_IMAGE AcquireExecutableModuleImage(LPFILE File) {
 
     if (!GetExecutableModuleInfo(File, &Metadata)) {
         WARNING(TEXT("[AcquireExecutableModuleImage] GetExecutableModuleInfo failed name=%s"), File->Name);
+        return NULL;
+    }
+
+    if (Metadata.Dynamic.RequiresTextRelocation != FALSE) {
+        WARNING(TEXT("[AcquireExecutableModuleImage] Text relocations are not supported name=%s"), File->Name);
         return NULL;
     }
 
@@ -532,6 +610,7 @@ void DeleteExecutableModuleImage(LPEXECUTABLE_MODULE_IMAGE Image) {
     SAFE_USE_VALID_ID(Image, KOID_EXECUTABLE_MODULE_IMAGE) {
         for (SegmentIndex = 0; SegmentIndex < ARRAY_COUNT(Image->SharedSegments); SegmentIndex++) {
             DeleteExecutableModuleSharedSegment(&(Image->SharedSegments[SegmentIndex]));
+            DeleteExecutableModuleSharedSegment(&(Image->PrivateSegments[SegmentIndex]));
         }
 
         ReleaseExecutableModuleFileIdentity(&(Image->Identity));

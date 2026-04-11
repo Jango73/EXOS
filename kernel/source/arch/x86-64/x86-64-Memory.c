@@ -1458,7 +1458,7 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
         }
 
         U32 Privilege = PAGE_PRIVILEGE(CurrentLinear);
-        U32 FixedFlag = (Flags & ALLOC_PAGES_IO) ? 1u : 0u;
+        U32 FixedFlag = (Flags & (ALLOC_PAGES_IO | ALLOC_PAGES_FIXED)) ? 1u : 0u;
         U32 BaseFlags = BuildPageFlags(ReadWrite, Privilege, PteWriteThrough, PteCacheDisabled, 0, FixedFlag);
         U32 ReservedFlags = BaseFlags & ~PAGE_FLAG_PRESENT;
         PHYSICAL ReservedPhysical = (PHYSICAL)(MAX_U32 & ~(PAGE_SIZE - 1));
@@ -1475,7 +1475,7 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
                 if (BootstrapTrace) {
                 }
 
-                if (Flags & ALLOC_PAGES_IO) {
+                if (FixedFlag != 0u) {
                     WritePageTableEntryValue(
                         Table,
                         TabEntry,
@@ -1564,6 +1564,8 @@ BOOL PopulateRegionPagesLegacy(LINEAR Base,
  *              - ALLOC_PAGES_UC / ALLOC_PAGES_WC: control cache attributes
  *                (UC has priority over WC).
  *              - ALLOC_PAGES_IO: keep physical pages marked fixed for MMIO.
+ *              - ALLOC_PAGES_FIXED: keep exact physical pages owned by another
+ *                kernel object marked fixed.
  * @return Allocated linear base address or 0 on failure.
  */
 LINEAR AllocRegionForProcess(LPPROCESS TrackingProcess, LINEAR Base, PHYSICAL Target, UINT Size, U32 Flags, LPCSTR Tag) {
