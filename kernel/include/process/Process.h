@@ -185,6 +185,8 @@ struct tag_PROCESS {
     LPDESKTOP Desktop;                                      // This process' desktop
     LPUSER_SESSION Session;                                 // User session
     LPFILESYSTEM PackageFileSystem;                         // Mounted package filesystem tied to this process
+    LPLIST ModuleBindings;                                  // Process-owned executable module bindings
+    UINT ModuleBindingCount;                                // Number of executable module bindings
     MEMORY_REGION_LIST MemoryRegionList;
     PROCESS_ADDRESS_SPACE AddressSpace;
 };

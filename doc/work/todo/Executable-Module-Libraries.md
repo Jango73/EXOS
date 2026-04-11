@@ -175,7 +175,14 @@ Implemented in:
 Acceptance criteria:
 - Modules can be placed deterministically without colliding with heap growth, stacks, or the main image.
 
-## [ ] Step 5 - Add Process Module Binding Objects
+## [x] Step 5 - Add Process Module Binding Objects
+
+Implemented in:
+- `kernel/include/process/Process.h`
+- `kernel/include/process/Process-Module.h`
+- `kernel/source/process/Process.c`
+- `kernel/source/process/Process-Module.c`
+- `doc/guides/Kernel.md`
 
 - Add one process-owned binding object per loaded module.
 - Store in the binding:

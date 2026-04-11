@@ -29,6 +29,7 @@
 #include "exec/Executable.h"
 #include "fs/File.h"
 #include "core/Kernel.h"
+#include "process/Process-Module.h"
 #include "utils/List.h"
 #include "log/Log.h"
 #include "text/CoreString.h"
@@ -132,6 +133,11 @@ void InitializeKernelProcess(void) {
 
     KernelProcess.HeapBase = (LINEAR)HeapBase;
     HeapInit(&KernelProcess, KernelProcess.HeapBase, KernelProcess.HeapSize);
+    if (!InitializeProcessModuleBindings(&KernelProcess)) {
+        ERROR(TEXT("[InitializeKernelProcess] Could not initialize kernel process module bindings"));
+        DO_THE_SLEEPING_BEAUTY;
+    }
+
     if (ProcessArenaInitializeKernel(&KernelProcess) == FALSE) {
         ERROR(TEXT("[InitializeKernelProcess] Could not initialize kernel process arenas"));
         DO_THE_SLEEPING_BEAUTY;
@@ -260,6 +266,11 @@ LPPROCESS NewProcess(void) {
 
     InitMutex(&(This->Mutex));
     InitMutex(&(This->HeapMutex));
+    if (!InitializeProcessModuleBindings(This)) {
+        ReleaseKernelObject(This);
+        TRACED_EPILOGUE("NewProcess");
+        return NULL;
+    }
 
     //-------------------------------------
     // Initialize the process' security
@@ -294,6 +305,8 @@ void DeleteProcessCommit(LPPROCESS This) {
         if (GetFocusedProcess() == This) {
             SetFocusedProcess(&KernelProcess);
         }
+
+        DeleteProcessModuleBindings(This);
 
         // Free page directory if allocated
         // TODO : FREE ALL PD PAGES

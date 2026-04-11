@@ -1701,7 +1701,6 @@ VFS integration is implemented in `NTFS-VFS.c` and dispatched from `NTFS-Base.c`
 
 Timestamp conversion from NTFS 100ns units to kernel `DATETIME` is implemented by `NtfsTimestampToDateTime` (`NTFS-Time.c`). UTF-16LE filename decoding and comparison support is provided by `kernel/source/utils/Unicode.c` (`Utf16LeNextCodePoint`, `Utf16LeToUtf8`, `Utf16LeCompareCaseInsensitiveAscii`).
 
-
 ## Interaction and Networking
 
 ### Shell scripting
@@ -1728,44 +1727,6 @@ The `run` command delegates launch to `SpawnExecutable()`:
 - otherwise, it follows the process spawn path.
 
 Background mode is blocked for `.e0` scripts.
-
-#### Executable metadata inspection
-
-Executable format probing is split from process loading in the `exec/` layer.
-
-Public entry points in `kernel/include/exec/Executable.h` are:
-- `GetExecutableImageInfo()`
-- `GetExecutableModuleInfo()`
-- legacy compatibility wrapper `GetExecutableInfo()`
-
-`EXECUTABLE_METADATA` carries reusable loader-facing descriptors:
-- image layout (`EXECUTABLE_INFO`);
-- loadable segment descriptors with mapping intent;
-- dynamic linking table summary;
-- TLS template summary.
-
-ELF parsing stays inside `kernel/source/exec/ExecutableELF.c`.
-Process code keeps consuming the image wrapper API and does not parse ELF records directly.
-
-#### Executable module image cache
-
-The executable module cache lives above executable parsing and below process-specific bindings.
-
-`kernel/include/exec/ExecutableModule.h` exposes `AcquireExecutableModuleImage()` for one already opened module file. The cache key is the retained file identity snapshot:
-- filesystem object;
-- source file name;
-- source file size;
-- source modified timestamp;
-- executable format and target architecture.
-
-Each `EXECUTABLE_MODULE_IMAGE` stores:
-- one retained source identity independent from any process;
-- one copy of `EXECUTABLE_METADATA`;
-- one per-segment shared backing list for validated read-only `PT_LOAD` content.
-
-Shared backings are built only for non-writable file-backed segments. The cache copies those segments into kernel-owned physical pages and retains the physical page array inside the module image object so later process binding code can reuse the same executable backing without reparsing the file.
-
-The global module image list is exposed through `GetExecutableModuleImageList()` in `core/KernelData.*`, and module image destruction releases the retained filesystem reference and all shared physical pages.
 
 #### String operators
 
@@ -1812,16 +1773,6 @@ Known host functions return `SCRIPT_FUNCTION_STATUS_UNKNOWN` when the symbol doe
 
 Supported stored return categories are string, integer, float, and native E0 object values. Host handles and arrays are rejected by the interpreter storage path.
 
-#### Native E0 object model
-
-The interpreter includes one native dynamic object container (`SCRIPT_VAR_OBJECT`) alongside the host exposure path. `{}` creates an empty script-owned object. Property writes such as `user.name = "alice"` and nested writes such as `user.settings.theme = "light"` operate on that native container.
-
-Reads through `base.property` first use the native object branch when `base` is a script object. When `base` is a host handle, the same syntax resolves through `SCRIPT_HOST_DESCRIPTOR::GetProperty`.
-
-Missing native properties return `SCRIPT_ERROR_UNDEFINED_VAR`. Property writes only create the final property; every intermediate segment must already resolve to a native object, otherwise execution fails with `SCRIPT_ERROR_TYPE_MISMATCH`.
-
-Native objects use shared reference semantics inside the runtime. Assigning one object to another variable or property copies the object reference and increments its internal reference count instead of cloning the full property set.
-
 #### Host object exposure model
 
 The shell registers host symbols with `ScriptRegisterHostSymbol()` during context initialization. Registered roots include:
@@ -1844,7 +1795,6 @@ The shell registers host symbols with `ScriptRegisterHostSymbol()` during contex
 Each symbol is associated with a `SCRIPT_HOST_DESCRIPTOR` implemented under `kernel/source/expose/*`. Descriptor callbacks (`GetProperty`, `GetElement`) provide typed access to fields and arrays.
 
 Access control is enforced in exposure helpers through shared macros and checks (`EXPOSE_REQUIRE_ACCESS(...)`, `ExposeCanReadProcess(...)`) so scripts can inspect kernel state through controlled interfaces instead of raw object access. `account.count` is public to support first-user bootstrap, while `account[n]` details remain restricted to administrator or kernel callers.
-
 
 ### Network Stack
 
@@ -2126,66 +2076,6 @@ TCP provides reliable connection-oriented communication using a state machine-ba
 - Reno-style congestion baseline (slow start and congestion avoidance)
 - Checksum validation with IPv4 pseudo-header
 
-**Connection Structure:**
-```c
-typedef struct TCPConnectionTag {
-    // Connection identification
-    U32 LocalIP;            // Local IP address (network byte order)
-    U16 LocalPort;          // Local port (network byte order)
-    U32 RemoteIP;           // Remote IP address (network byte order)
-    U16 RemotePort;         // Remote port (network byte order)
-
-    // Sequence numbers
-    U32 SendNext;           // Next sequence number to send
-    U32 SendUnacked;        // Oldest unacknowledged sequence number
-    U32 RecvNext;           // Next expected sequence number
-
-    // Window management
-    U16 SendWindow;         // Send window size
-    U16 RecvWindow;         // Receive window size
-
-    // Buffers
-    U8 SendBuffer[TCP_SEND_BUFFER_SIZE];
-    UINT SendBufferUsed;
-    UINT SendBufferCapacity;
-    U8 RecvBuffer[TCP_RECV_BUFFER_SIZE];
-    UINT RecvBufferUsed;
-    UINT RecvBufferCapacity;
-
-    // State machine
-    STATE_MACHINE StateMachine;
-
-    // Timers
-    U32 RetransmitTimer;
-    U32 TimeWaitTimer;
-    U32 RetransmitBaseTimeout;
-    U32 RetransmitCurrentTimeout;
-
-    // Retransmission and recovery
-    U32 RetransmitSequenceStart;
-    U32 RetransmitSequenceEnd;
-    U32 DuplicateAckCount;
-    BOOL RetransmitPending;
-    BOOL InFastRecovery;
-
-    // Congestion control
-    U32 CongestionWindow;
-    U32 SlowStartThreshold;
-} TCPConnection;
-```
-
-**API Functions:**
-- `TCP_Initialize()`: Initialize global TCP subsystem
-- `TCP_CreateConnection(LocalIP, LocalPort, RemoteIP, RemotePort)`: Create connection
-- `TCP_Connect(ConnectionID)`: Initiate active connection (SYN)
-- `TCP_Listen(ConnectionID)`: Set connection to listen state
-- `TCP_Send(ConnectionID, Data, Length)`: Send data
-- `TCP_Receive(ConnectionID, Buffer, BufferSize)`: Receive data
-- `TCP_Close(ConnectionID)`: Close connection
-- `TCP_GetState(ConnectionID)`: Get current connection state
-- `TCP_Update()`: Process timers and retransmissions
-- `TCP_OnIPv4Packet()`: Handle incoming TCP packets (IPv4 protocol handler)
-
 The buffer capacities default to 32768 bytes each when the configuration entries are absent.
 The retransmission tracker keeps one outstanding MSS-sized segment for fast retransmit.
 
@@ -2244,7 +2134,6 @@ IPv4_RegisterProtocolHandler(Device, IPV4_PROTOCOL_TCP, TCP_OnIPv4Packet);
 5. **Maintainability**: Clear separation of concerns and context management
 
 The network stack successfully handles real network traffic across multiple devices and provides a robust foundation for implementing network applications and services.
-
 
 ## Windowing
 
