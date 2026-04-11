@@ -163,6 +163,145 @@ static LPTASK_MODULE_TLS_BLOCK TaskCreateModuleTlsBlock(
 /************************************************************************/
 
 /**
+ * @brief Return the size needed for a task user TLS control block.
+ *
+ * @param ModuleTlsBlockCount Number of module TLS entries.
+ * @return Required size in bytes.
+ */
+static UINT TaskGetUserTlsAnchorSize(UINT ModuleTlsBlockCount) {
+    return sizeof(TASK_USER_TLS_CONTROL_BLOCK) +
+           (ModuleTlsBlockCount * sizeof(TASK_USER_TLS_MODULE_ENTRY));
+}
+
+/************************************************************************/
+
+/**
+ * @brief Populate one module TLS entry for the user TLS vector.
+ *
+ * @param Entry User-visible vector entry.
+ * @param Block Task-owned module TLS block.
+ */
+static void TaskPopulateUserTlsModuleEntry(
+    LPTASK_USER_TLS_MODULE_ENTRY Entry,
+    LPTASK_MODULE_TLS_BLOCK Block) {
+    if (Entry == NULL || Block == NULL || Block->Binding == NULL || Block->Binding->Image == NULL) {
+        return;
+    }
+
+    Entry->ModuleIdentifierHigh = U64_High32(Block->Binding->Image->ID);
+    Entry->ModuleIdentifierLow = U64_Low32(Block->Binding->Image->ID);
+    Entry->Base = Block->Base;
+    Entry->Size = Block->Size;
+    Entry->TemplateSize = Block->TemplateSize;
+    Entry->Alignment = Block->Alignment;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Build one user-visible TLS control block for a task.
+ *
+ * @param Task Target task.
+ * @param AnchorBase User mapping where the control block is stored.
+ * @param AnchorSize Size of the user mapping.
+ */
+static void TaskBuildUserTlsAnchor(
+    LPTASK Task,
+    LINEAR AnchorBase,
+    UINT AnchorSize) {
+    LPTASK_USER_TLS_CONTROL_BLOCK ControlBlock = (LPTASK_USER_TLS_CONTROL_BLOCK)AnchorBase;
+    LPTASK_USER_TLS_MODULE_ENTRY Entries =
+        (LPTASK_USER_TLS_MODULE_ENTRY)(AnchorBase + sizeof(TASK_USER_TLS_CONTROL_BLOCK));
+    UINT EntryIndex = 0;
+
+    MemorySet((LPVOID)AnchorBase, 0, AnchorSize);
+
+    ControlBlock->Magic = TASK_USER_TLS_CONTROL_BLOCK_MAGIC;
+    ControlBlock->Version = TASK_USER_TLS_CONTROL_BLOCK_VERSION;
+    ControlBlock->Size = AnchorSize;
+    ControlBlock->Self = AnchorBase;
+    ControlBlock->ProcessIdentifierHigh = U64_High32(Task->OwnerProcess->ID);
+    ControlBlock->ProcessIdentifierLow = U64_Low32(Task->OwnerProcess->ID);
+    ControlBlock->ThreadIdentifierHigh = U64_High32(Task->ID);
+    ControlBlock->ThreadIdentifierLow = U64_Low32(Task->ID);
+    ControlBlock->ModuleTlsVector = (LINEAR)Entries;
+    ControlBlock->ModuleTlsVectorCount = Task->ModuleTlsBlockCount;
+    ControlBlock->ModuleTlsVectorStride = sizeof(TASK_USER_TLS_MODULE_ENTRY);
+
+    if (Task->ModuleTlsBlocks == NULL) {
+        return;
+    }
+
+    for (LPLISTNODE Node = Task->ModuleTlsBlocks->First; Node != NULL; Node = Node->Next) {
+        if (EntryIndex >= Task->ModuleTlsBlockCount) {
+            return;
+        }
+
+        TaskPopulateUserTlsModuleEntry(Entries + EntryIndex, (LPTASK_MODULE_TLS_BLOCK)Node);
+        EntryIndex++;
+    }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Refresh one task user TLS control block while the task is locked.
+ *
+ * @param Task Target task.
+ * @return TRUE when the anchor reflects the task TLS block list.
+ */
+static BOOL TaskRefreshModuleTlsLocked(LPTASK Task) {
+    LINEAR NewAnchor;
+    LINEAR OldAnchor;
+    UINT NewAnchorSize;
+    UINT OldAnchorSize;
+
+    if (Task == NULL || Task->OwnerProcess == NULL) {
+        return FALSE;
+    }
+
+    if (Task->OwnerProcess->Privilege != CPU_PRIVILEGE_USER) {
+        return TaskSetUserTlsAnchor(Task, 0);
+    }
+
+    NewAnchorSize = TaskGetUserTlsAnchorSize(Task->ModuleTlsBlockCount);
+    NewAnchor = ProcessArenaAllocateSystem(Task->OwnerProcess,
+                                           NewAnchorSize,
+                                           ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE,
+                                           TEXT("TaskUserTls"));
+    if (NewAnchor == 0) {
+        ERROR(TEXT("[TaskRefreshModuleTlsLocked] User TLS anchor allocation failed task=%p size=%u"),
+              Task,
+              NewAnchorSize);
+        return FALSE;
+    }
+
+    TaskBuildUserTlsAnchor(Task, NewAnchor, NewAnchorSize);
+
+    OldAnchor = Task->UserTlsAnchor;
+    OldAnchorSize = Task->UserTlsAnchorSize;
+
+    FreezeScheduler();
+    if (TaskSetUserTlsAnchor(Task, NewAnchor) == FALSE) {
+        UnfreezeScheduler();
+        FreeRegionForProcess(Task->OwnerProcess, NewAnchor, NewAnchorSize);
+        return FALSE;
+    }
+
+    Task->UserTlsAnchor = NewAnchor;
+    Task->UserTlsAnchorSize = NewAnchorSize;
+    UnfreezeScheduler();
+
+    if (OldAnchor != 0 && OldAnchorSize != 0) {
+        FreeRegionForProcess(Task->OwnerProcess, OldAnchor, OldAnchorSize);
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Ensure one task owns a TLS block for one module binding.
  *
  * @param Task Target task.
@@ -215,6 +354,15 @@ BOOL TaskEnsureModuleTlsBlock(
 
                 if (Result == FALSE) {
                     DeleteTaskModuleTlsBlock(Block);
+                } else if (TaskRefreshModuleTlsLocked(Task) == FALSE) {
+                    FreezeScheduler();
+                    ListRemove(BlockList, Block);
+                    if (Task->ModuleTlsBlockCount > 0) {
+                        Task->ModuleTlsBlockCount--;
+                    }
+                    UnfreezeScheduler();
+                    DeleteTaskModuleTlsBlock(Block);
+                    Result = FALSE;
                 }
             }
 
@@ -247,6 +395,9 @@ void TaskReleaseModuleTlsBlock(LPTASK Task, LPEXECUTABLE_MODULE_BINDING Binding)
                 }
                 UnfreezeScheduler();
                 DeleteTaskModuleTlsBlock(Block);
+                if (TaskRefreshModuleTlsLocked(Task) == FALSE) {
+                    WARNING(TEXT("[TaskReleaseModuleTlsBlock] User TLS anchor refresh failed task=%p"), Task);
+                }
             }
 
             UnlockMutex(&(Task->Mutex));
@@ -273,6 +424,7 @@ void TaskReleaseModuleTlsBlocks(LPTASK Task) {
             UnfreezeScheduler();
         }
 
+        TaskReleaseUserTlsAnchor(Task);
         UnlockMutex(&(Task->Mutex));
     }
 }
@@ -352,4 +504,75 @@ BOOL TaskInstallProcessModuleTlsBlocks(
     }
 
     return TRUE;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Return the current user TLS anchor for a task.
+ *
+ * @param Task Target task.
+ * @return User TLS anchor base or zero.
+ */
+LINEAR TaskGetUserTlsAnchor(LPTASK Task) {
+    LINEAR Anchor = 0;
+
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        LockMutex(&(Task->Mutex), INFINITY);
+        Anchor = Task->UserTlsAnchor;
+        UnlockMutex(&(Task->Mutex));
+    }
+
+    return Anchor;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Refresh the user TLS control block from the task TLS block list.
+ *
+ * @param Task Target task.
+ * @return TRUE when the anchor was refreshed.
+ */
+BOOL TaskRefreshModuleTls(LPTASK Task) {
+    BOOL Result = FALSE;
+
+    SAFE_USE_VALID_ID(Task, KOID_TASK) {
+        LockMutex(&(Task->Mutex), INFINITY);
+        Result = TaskRefreshModuleTlsLocked(Task);
+        UnlockMutex(&(Task->Mutex));
+    }
+
+    return Result;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Release the user TLS anchor owned by one task.
+ *
+ * @param Task Target task.
+ */
+void TaskReleaseUserTlsAnchor(LPTASK Task) {
+    LINEAR OldAnchor;
+    UINT OldAnchorSize;
+
+    if (Task == NULL) {
+        return;
+    }
+
+    OldAnchor = Task->UserTlsAnchor;
+    OldAnchorSize = Task->UserTlsAnchorSize;
+
+    FreezeScheduler();
+    if (TaskSetUserTlsAnchor(Task, 0) == FALSE) {
+        WARNING(TEXT("[TaskReleaseUserTlsAnchor] User TLS anchor reset failed task=%p"), Task);
+    }
+    Task->UserTlsAnchor = 0;
+    Task->UserTlsAnchorSize = 0;
+    UnfreezeScheduler();
+
+    if (OldAnchor != 0 && OldAnchorSize != 0 && Task->OwnerProcess != NULL) {
+        FreeRegionForProcess(Task->OwnerProcess, OldAnchor, OldAnchorSize);
+    }
 }

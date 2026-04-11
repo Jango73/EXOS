@@ -265,7 +265,7 @@ Acceptance criteria:
 Acceptance criteria:
 - Each task gets its own instance of module thread-local data, including for modules loaded after the task already existed.
 
-## [ ] Step 10 - Define `FS` / `GS` Register Policy
+## [x] Step 10 - Define `FS` / `GS` Register Policy
 
 - Choose one explicit policy and document it as ABI:
   - x86-64: dedicate `FS` base to user TLS pointer and reserve `GS` for kernel or future per-thread auxiliary usage;

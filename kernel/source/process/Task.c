@@ -491,7 +491,9 @@ LPTASK KernelCreateTask(LPPROCESS Process, LPTASK_INFO Info) {
         goto Out;
     }
 
-    if (TaskInitializeMessageBuffer(Task) == FALSE || InitializeTaskProcessModuleTlsBindings(Process, Task) == FALSE) {
+    if (TaskInitializeMessageBuffer(Task) == FALSE ||
+        InitializeTaskProcessModuleTlsBindings(Process, Task) == FALSE ||
+        TaskRefreshModuleTls(Task) == FALSE) {
         DeleteTask(Task);
         Task = NULL;
         ERROR(TEXT("[KernelCreateTask] Task setup failed"));

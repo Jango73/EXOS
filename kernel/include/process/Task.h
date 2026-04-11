@@ -49,6 +49,8 @@
 
 #define TASK_MESSAGE_QUEUE_MAX_MESSAGES 100
 #define TASK_MUTEX_CLASS_STACK_MAX_DEPTH 32
+#define TASK_USER_TLS_CONTROL_BLOCK_MAGIC 0x544C5343
+#define TASK_USER_TLS_CONTROL_BLOCK_VERSION 1
 
 /************************************************************************/
 // Message queue
@@ -82,6 +84,33 @@ typedef struct tag_TASK_MODULE_TLS_BLOCK {
     UINT Alignment;
 } TASK_MODULE_TLS_BLOCK, *LPTASK_MODULE_TLS_BLOCK;
 
+typedef struct tag_TASK_USER_TLS_MODULE_ENTRY {
+    U32 ModuleIdentifierHigh;
+    U32 ModuleIdentifierLow;
+    LINEAR Base;
+    UINT Size;
+    UINT TemplateSize;
+    UINT Alignment;
+} TASK_USER_TLS_MODULE_ENTRY, *LPTASK_USER_TLS_MODULE_ENTRY;
+
+typedef struct tag_TASK_USER_TLS_CONTROL_BLOCK {
+    U32 Magic;
+    U32 Version;
+    UINT Size;
+    LINEAR Self;
+    U32 ProcessIdentifierHigh;
+    U32 ProcessIdentifierLow;
+    U32 ThreadIdentifierHigh;
+    U32 ThreadIdentifierLow;
+    LINEAR ModuleTlsVector;
+    UINT ModuleTlsVectorCount;
+    UINT ModuleTlsVectorStride;
+    UINT Reserved0;
+    UINT Reserved1;
+    UINT Reserved2;
+    UINT Reserved3;
+} TASK_USER_TLS_CONTROL_BLOCK, *LPTASK_USER_TLS_CONTROL_BLOCK;
+
 /************************************************************************/
 // The Task structure
 
@@ -108,6 +137,8 @@ struct tag_TASK {
     U32 WindowDispatchDepth;              // Current nested window dispatch depth
     LPLIST ModuleTlsBlocks;               // Task-owned executable module TLS blocks
     UINT ModuleTlsBlockCount;             // Number of task-owned executable module TLS blocks
+    LINEAR UserTlsAnchor;                 // User-visible thread control block base
+    UINT UserTlsAnchorSize;               // User-visible thread control block mapping size
 };
 
 typedef struct tag_TASK TASK, *LPTASK;
@@ -149,6 +180,10 @@ BOOL TaskInstallProcessModuleTlsBlocks(
     UINT TotalSize,
     UINT Alignment);
 BOOL InitializeTaskProcessModuleTlsBindings(LPPROCESS Process, LPTASK Task);
+BOOL TaskSetUserTlsAnchor(LPTASK Task, LINEAR Anchor);
+LINEAR TaskGetUserTlsAnchor(LPTASK Task);
+BOOL TaskRefreshModuleTls(LPTASK Task);
+void TaskReleaseUserTlsAnchor(LPTASK Task);
 void DumpTask(LPTASK);
 
 /************************************************************************/
