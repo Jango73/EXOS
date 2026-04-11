@@ -40,6 +40,7 @@
 #define R_386_GLOB_DAT 6
 #define R_386_JMP_SLOT 7
 #define R_386_RELATIVE 8
+#define R_386_TLS_TPOFF 14
 
 #define R_X86_64_NONE 0
 #define R_X86_64_64 1
@@ -49,6 +50,7 @@
 #define R_X86_64_RELATIVE 8
 #define R_X86_64_32 10
 #define R_X86_64_32S 11
+#define R_X86_64_TPOFF64 18
 
 /***************************************************************************/
 
@@ -384,6 +386,25 @@ static BOOL ApplyExecutableModuleRelocation32(U32 Type, LINEAR Target, LINEAR Sy
 /***************************************************************************/
 
 /**
+ * @brief Apply one 32-bit TLS thread-pointer offset relocation.
+ */
+static BOOL ApplyExecutableModuleTlsRelocation32(U32 Type, LINEAR Target, UINT Addend, UINT TlsSize) {
+    if (Target == 0 || TlsSize == 0) {
+        return FALSE;
+    }
+
+    switch (Type) {
+        case R_386_TLS_TPOFF:
+            *((U32*)Target) = (U32)(Addend - TlsSize);
+            return TRUE;
+        default:
+            return FALSE;
+    }
+}
+
+/***************************************************************************/
+
+/**
  * @brief Relocate one 32-bit ELF relocation table.
  */
 static BOOL RelocateExecutableModuleTable32(
@@ -438,6 +459,11 @@ static BOOL RelocateExecutableModuleTable32(
 
         SymbolIndex = Info >> 8;
         Type = Info & 0xFF;
+        if (Type == R_386_TLS_TPOFF) {
+            if (!ApplyExecutableModuleTlsRelocation32(Type, Target, Addend, Image->Metadata.Tls.TotalSize)) return FALSE;
+            continue;
+        }
+
         Symbol = (LPEXECUTABLE_ELF32_SYMBOL)(SymbolTableAddress + SymbolIndex * SymbolTable->SymbolEntrySize);
         SymbolName = (LPCSTR)(StringTableAddress + Symbol->Name);
 
@@ -509,6 +535,25 @@ static BOOL ApplyExecutableModuleRelocation64(U32 Type, LINEAR Target, LINEAR Sy
 /***************************************************************************/
 
 /**
+ * @brief Apply one 64-bit TLS thread-pointer offset relocation.
+ */
+static BOOL ApplyExecutableModuleTlsRelocation64(U32 Type, LINEAR Target, UINT Addend, UINT TlsSize) {
+    if (Target == 0 || TlsSize == 0) {
+        return FALSE;
+    }
+
+    switch (Type) {
+        case R_X86_64_TPOFF64:
+            *((U64*)Target) = (U64)(Addend - TlsSize);
+            return TRUE;
+        default:
+            return FALSE;
+    }
+}
+
+/***************************************************************************/
+
+/**
  * @brief Relocate one 64-bit ELF relocation table.
  */
 static BOOL RelocateExecutableModuleTable64(
@@ -563,6 +608,11 @@ static BOOL RelocateExecutableModuleTable64(
 
         SymbolIndex = (UINT)(Info >> 32);
         Type = (U32)(Info & 0xFFFFFFFF);
+        if (Type == R_X86_64_TPOFF64) {
+            if (!ApplyExecutableModuleTlsRelocation64(Type, Target, Addend, Image->Metadata.Tls.TotalSize)) return FALSE;
+            continue;
+        }
+
         Symbol = (LPEXECUTABLE_ELF64_SYMBOL)(SymbolTableAddress + SymbolIndex * SymbolTable->SymbolEntrySize);
         SymbolName = (LPCSTR)(StringTableAddress + Symbol->Name);
 

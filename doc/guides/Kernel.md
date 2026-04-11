@@ -1254,6 +1254,8 @@ The module lane exists independently from the main executable and heap:
 
 Executable modules are exposed to userland through `LoadModule(...)`, `GetModuleSymbol(...)`, and `ReleaseModule(...)` runtime wrappers backed by dedicated syscalls. The syscall layer owns path-based file opening and current-process handle export; `exec/ExecutableModule` owns the shared image cache; `process/Process-Module` owns process-local bindings, mapping, relocation, TLS registration, symbol lookup, and process teardown cleanup. Symbol lookup returns installed user addresses from a binding owned by the caller process only. General runtime unload is rejected with `DF_RETURN_NOT_IMPLEMENTED` until dependency tracking, constructor/destructor ordering, and in-module execution quiescence have a complete contract.
 
+Module TLS blocks are installed per task. The hardware user TLS selector/base exposes the compiler ABI thread pointer for the first module TLS block, while the user-visible module TLS control block remains mapped for kernel bookkeeping and future runtime enumeration. Initial-exec `TPOFF` relocations are resolved relative to the module TLS block size.
+
 #### PackageFS readonly mount
 
 Step-4 introduces a dedicated PackageFS module:

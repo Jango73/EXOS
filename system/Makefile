@@ -23,9 +23,9 @@ SUBMAKE = $(MAKE) ARCH=$(ARCH) BUILD_CORE_NAME=$(BUILD_CORE_NAME) BUILD_IMAGE_NA
 
 ################################################################################
 
-.PHONY: all clean hello portal tictactoe terminal_tactics netget input-info memory_smoke master slave module_host module_sample
+.PHONY: all clean hello portal tictactoe terminal_tactics netget input-info memory_smoke master slave module_host module_sample module_import
 
-all: hello portal tictactoe terminal_tactics netget input-info memory_smoke master slave module_host module_sample
+all: hello portal tictactoe terminal_tactics netget input-info memory_smoke master slave module_host module_sample module_import
 
 ################################################################################
 # Hello program
@@ -138,6 +138,16 @@ module_sample_clean:
 	+$(SUBMAKE) -C test/module-sample clean
 
 ################################################################################
+# Module import
 
-clean: hello_clean portal_clean tictactoe_clean terminal_tactics_clean netget_clean input-info_clean memory_smoke_clean master_clean slave_clean module_host_clean module_sample_clean
+module_import:
+	@echo "[ Building module import ]"
+	+$(SUBMAKE) -C test/module-import all
+
+module_import_clean:
+	+$(SUBMAKE) -C test/module-import clean
+
+################################################################################
+
+clean: hello_clean portal_clean tictactoe_clean terminal_tactics_clean netget_clean input-info_clean memory_smoke_clean master_clean slave_clean module_host_clean module_sample_clean module_import_clean
 	@echo "[ Cleaning system programs ]"

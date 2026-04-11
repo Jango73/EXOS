@@ -475,9 +475,33 @@ static void ReleaseUserTlsDescriptor(struct tag_TASK* Task) {
     Task->Arch.UserTlsDescriptorIndex = 0;
     Task->Arch.UserTlsSelector = SELECTOR_NULL;
     Task->Arch.Context.Registers.FS = SELECTOR_NULL;
+    Task->Arch.Context.Registers.GS = SELECTOR_NULL;
     if (Task == GetCurrentTask()) {
         SetFS(Task->Arch.Context.Registers.FS);
+        SetGS(Task->Arch.Context.Registers.GS);
     }
+}
+
+/************************************************************************/
+
+/**
+ * @brief Synchronize syscall return segment registers with the current task.
+ *
+ * @param StackPointer System call stack pointer at the saved GS slot.
+ */
+void TaskSynchronizeCurrentSystemCallSegments(LINEAR StackPointer) {
+    LPTASK Task;
+    U32* Stack;
+
+    Task = GetCurrentTask();
+    Stack = (U32*)StackPointer;
+
+    if (Task == NULL || Stack == NULL) {
+        return;
+    }
+
+    Stack[0] = Task->Arch.Context.Registers.GS;
+    Stack[1] = Task->Arch.Context.Registers.FS;
 }
 
 /************************************************************************/
@@ -518,8 +542,8 @@ BOOL TaskSetUserTlsAnchor(struct tag_TASK* Task, LINEAR Anchor) {
         Selector = MAKE_GDT_SELECTOR(DescriptorIndex, GDT_PRIVILEGE_USER);
         Task->Arch.UserTlsDescriptorIndex = DescriptorIndex;
         Task->Arch.UserTlsSelector = Selector;
-        Task->Arch.Context.Registers.FS = Selector;
-        Task->Arch.Context.Registers.GS = SELECTOR_NULL;
+        Task->Arch.Context.Registers.FS = SELECTOR_NULL;
+        Task->Arch.Context.Registers.GS = Selector;
         if (Task == GetCurrentTask()) {
             SetFS(Task->Arch.Context.Registers.FS);
             SetGS(Task->Arch.Context.Registers.GS);

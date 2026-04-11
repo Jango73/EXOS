@@ -1,7 +1,7 @@
 
 /************************************************************************\
 
-    EXOS Test program - Module Sample
+    EXOS Test program - Module Import
     Copyright (c) 1999-2026 Jango73
 
     This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-    Module Sample - Loadable executable module build sample
+    Module Import - Loadable executable module import sample
 
 \************************************************************************/
 
@@ -26,27 +26,8 @@
 
 /***************************************************************************/
 
-static EXOS_THREAD_LOCAL UINT ModuleSampleCallCount = 0;
-static UINT ModuleSampleSharedCount = 0;
+EXOS_MODULE_IMPORT UINT ModuleSampleSharedValue(UINT Value);
 
 /***************************************************************************/
 
-EXOS_MODULE_EXPORT UINT ModuleSampleAdd(UINT Value) {
-    ModuleSampleCallCount++;
-    return Value + 0x07 + ModuleSampleCallCount;
-}
-
-/***************************************************************************/
-
-EXOS_MODULE_EXPORT UINT ModuleSampleIncrementShared(void) {
-    ModuleSampleSharedCount++;
-    return ModuleSampleSharedCount;
-}
-
-/***************************************************************************/
-
-EXOS_MODULE_EXPORT UINT ModuleSampleGetShared(void) { return ModuleSampleSharedCount; }
-
-/***************************************************************************/
-
-EXOS_MODULE_EXPORT UINT ModuleSampleSharedValue(UINT Value) { return 0x1200 + Value; }
+EXOS_MODULE_EXPORT UINT ModuleImportResolve(void) { return ModuleSampleSharedValue(0x34) + 0x09; }

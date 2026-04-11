@@ -119,6 +119,8 @@ static LPTASK_MODULE_TLS_BLOCK TaskCreateModuleTlsBlock(
     UINT Alignment) {
     LPTASK_MODULE_TLS_BLOCK Block = NULL;
     LINEAR TlsBase;
+    LINEAR ThreadPointer;
+    UINT AllocationSize;
 
     if (Binding == NULL || Binding->Process == NULL || TotalSize == 0 || TemplateSize > TotalSize) {
         return NULL;
@@ -128,33 +130,36 @@ static LPTASK_MODULE_TLS_BLOCK TaskCreateModuleTlsBlock(
         return NULL;
     }
 
+    AllocationSize = TotalSize + (UINT)sizeof(LINEAR);
     TlsBase = ProcessArenaAllocateModule(Binding->Process,
                                          PROCESS_MODULE_ALLOCATION_TLS,
-                                         TotalSize,
+                                         AllocationSize,
                                          ALLOC_PAGES_COMMIT | ALLOC_PAGES_READWRITE,
                                          TEXT("TaskModuleTls"));
     if (TlsBase == 0) {
         ERROR(TEXT("[TaskCreateModuleTlsBlock] Module TLS allocation failed task process=%p size=%u"),
               Binding->Process,
-              TotalSize);
+              AllocationSize);
         return NULL;
     }
 
-    MemorySet((LPVOID)TlsBase, 0, TotalSize);
+    MemorySet((LPVOID)TlsBase, 0, AllocationSize);
     if (TemplateSize != 0) {
         MemoryCopy((LPVOID)TlsBase, (LPCVOID)TemplateBase, TemplateSize);
     }
+    ThreadPointer = TlsBase + TotalSize;
+    *((LINEAR*)ThreadPointer) = ThreadPointer;
 
     Block = (LPTASK_MODULE_TLS_BLOCK)KernelHeapAlloc(sizeof(TASK_MODULE_TLS_BLOCK));
     if (Block == NULL) {
-        FreeRegionForProcess(Binding->Process, TlsBase, TotalSize);
+        FreeRegionForProcess(Binding->Process, TlsBase, AllocationSize);
         return NULL;
     }
 
     MemorySet(Block, 0, sizeof(TASK_MODULE_TLS_BLOCK));
     Block->Binding = Binding;
     Block->Base = TlsBase;
-    Block->Size = TotalSize;
+    Block->Size = AllocationSize;
     Block->TemplateSize = TemplateSize;
     Block->Alignment = Alignment;
     return Block;
@@ -171,6 +176,29 @@ static LPTASK_MODULE_TLS_BLOCK TaskCreateModuleTlsBlock(
 static UINT TaskGetUserTlsAnchorSize(UINT ModuleTlsBlockCount) {
     return sizeof(TASK_USER_TLS_CONTROL_BLOCK) +
            (ModuleTlsBlockCount * sizeof(TASK_USER_TLS_MODULE_ENTRY));
+}
+
+/************************************************************************/
+
+/**
+ * @brief Return the compiler ABI thread pointer for the first module TLS block.
+ *
+ * @param Task Target task.
+ * @return Thread pointer base, or zero when no module TLS block exists.
+ */
+static LINEAR TaskGetUserTlsThreadPointer(LPTASK Task) {
+    LPTASK_MODULE_TLS_BLOCK Block;
+
+    if (Task == NULL || Task->ModuleTlsBlocks == NULL || Task->ModuleTlsBlocks->First == NULL) {
+        return 0;
+    }
+
+    Block = (LPTASK_MODULE_TLS_BLOCK)Task->ModuleTlsBlocks->First;
+    if (Block == NULL || Block->Base == 0 || Block->Size <= (UINT)sizeof(LINEAR)) {
+        return 0;
+    }
+
+    return Block->Base + Block->Size - (UINT)sizeof(LINEAR);
 }
 
 /************************************************************************/
@@ -253,6 +281,7 @@ static void TaskBuildUserTlsAnchor(
 static BOOL TaskRefreshModuleTlsLocked(LPTASK Task) {
     LINEAR NewAnchor;
     LINEAR OldAnchor;
+    LINEAR ThreadPointer;
     UINT NewAnchorSize;
     UINT OldAnchorSize;
 
@@ -262,6 +291,20 @@ static BOOL TaskRefreshModuleTlsLocked(LPTASK Task) {
 
     if (Task->OwnerProcess->Privilege != CPU_PRIVILEGE_USER) {
         return TaskSetUserTlsAnchor(Task, 0);
+    }
+
+    if (Task->ModuleTlsBlockCount == 0) {
+        OldAnchor = Task->UserTlsAnchor;
+        OldAnchorSize = Task->UserTlsAnchorSize;
+        if (TaskSetUserTlsAnchor(Task, 0) == FALSE) {
+            return FALSE;
+        }
+        Task->UserTlsAnchor = 0;
+        Task->UserTlsAnchorSize = 0;
+        if (OldAnchor != 0 && OldAnchorSize != 0) {
+            FreeRegionForProcess(Task->OwnerProcess, OldAnchor, OldAnchorSize);
+        }
+        return TRUE;
     }
 
     NewAnchorSize = TaskGetUserTlsAnchorSize(Task->ModuleTlsBlockCount);
@@ -280,9 +323,14 @@ static BOOL TaskRefreshModuleTlsLocked(LPTASK Task) {
 
     OldAnchor = Task->UserTlsAnchor;
     OldAnchorSize = Task->UserTlsAnchorSize;
+    ThreadPointer = TaskGetUserTlsThreadPointer(Task);
+    if (ThreadPointer == 0) {
+        FreeRegionForProcess(Task->OwnerProcess, NewAnchor, NewAnchorSize);
+        return FALSE;
+    }
 
     FreezeScheduler();
-    if (TaskSetUserTlsAnchor(Task, NewAnchor) == FALSE) {
+    if (TaskSetUserTlsAnchor(Task, ThreadPointer) == FALSE) {
         UnfreezeScheduler();
         FreeRegionForProcess(Task->OwnerProcess, NewAnchor, NewAnchorSize);
         return FALSE;
