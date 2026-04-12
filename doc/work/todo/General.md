@@ -55,27 +55,12 @@
 
 - [ ] Record boot date-time and expose time values to script in shell : boot datetime, current datetime
 - [ ] Make GetSystemTime return an incremented SystemUpTime value before the clock interrupt really ticks
+- [ ] Add a comment for every member of every structure in Process.h
 
 ### Scheduling
 
 - [ ] Improve the scheduler (task priorities)
 - [ ] A CPU-bound task that never blocks can starve lower-priority deferred work and input handling (e.g., System Data View loop). Preference: force yield when a task is too CPU-hungry.
-
-### File API split
-
-- [ ] Add a trash system per volume.
-- [ ] Introduce an explicit API split between file and folder opening:
-  - `DF_FS_OPENFILE` for regular file handles only
-  - `DF_FS_OPENFOLDER` for folder handles and folder enumeration only
-  - Keep one shared internal resolution/validation core per driver to avoid code duplication.
-  - Use thin command-specific entry points on top of the shared core:
-    - `DF_FS_OPENFILE` path enforces "regular file only"
-    - `DF_FS_OPENFOLDER` path enforces "folder only"
-  - Reject misuse explicitly:
-    - opening a folder through `DF_FS_OPENFILE` must fail
-    - opening a file through `DF_FS_OPENFOLDER` must fail
-  - Update common kernel file routing and shell tooling to call the right command based on intent.
-  - Add regression tests per driver to validate behavior parity after the split.
 
 ### Multicore
 
@@ -99,11 +84,24 @@
 
 ### Files
 
+- [ ] Introduce an explicit API split between file and folder opening:
+  - `DF_FS_OPENFILE` for regular file handles only
+  - `DF_FS_OPENFOLDER` for folder handles and folder enumeration only
+  - Keep one shared internal resolution/validation core per driver to avoid code duplication.
+  - Use thin command-specific entry points on top of the shared core:
+    - `DF_FS_OPENFILE` path enforces "regular file only"
+    - `DF_FS_OPENFOLDER` path enforces "folder only"
+  - Reject misuse explicitly:
+    - opening a folder through `DF_FS_OPENFILE` must fail
+    - opening a file through `DF_FS_OPENFOLDER` must fail
+  - Update common kernel file routing and shell tooling to call the right command based on intent.
+  - Add regression tests per driver to validate behavior parity after the split.
+- [ ] Add a trash system per volume.
 - [ ] Opening a file in a userland program without an absolute path should do the same as using getcwd().
 - [ ] Add a getpd() that returns the folder in which the current executable's image lives.
 - [ ] FileReadAll() : use HeapAlloc, NOT KernelHeapAlloc
 
-### API return contract (mandatory, system-wide)
+### API return contract (system-wide)
 
 - [ ] Target contract for kernel APIs, drivers, and syscalls: functions return only `DF_RETURN_*` status codes (`DF_RETURN_SUCCESS` on success, error code otherwise).
   - Functional values are returned through explicit output parameters (input/output structures or output pointers), not through the function return value.
@@ -184,7 +182,7 @@
 
 ### Localization
 
-- I18n
+- Handle languages
 
 ### Other
 

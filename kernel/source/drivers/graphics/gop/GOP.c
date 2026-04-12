@@ -611,6 +611,9 @@ static UINT GOPGfxGetPixel(LPPIXEL_INFO Info) {
  */
 static UINT GOPGfxLine(LPLINE_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
+    PROFILE_SCOPE Scope;
+    PROFILE_SCOPE LockScope;
+    PROFILE_SCOPE DrawScope;
 
     if (Info == NULL) {
         return 0;
@@ -621,9 +624,17 @@ static UINT GOPGfxLine(LPLINE_INFO Info) {
         return 0;
     }
 
+    ProfileStart(&Scope, TEXT("GOP.Line"));
+    ProfileStart(&LockScope, TEXT("GOP.LineLock"));
     LockMutex(&(Context->Mutex), INFINITY);
+    ProfileStop(&LockScope);
+
+    ProfileStart(&DrawScope, TEXT("GOP.LineDraw"));
     GOPGfxDrawLine(Context, Info->X1, Info->Y1, Info->X2, Info->Y2);
+    ProfileStop(&DrawScope);
+
     UnlockMutex(&(Context->Mutex));
+    ProfileStop(&Scope);
 
     return 1;
 }
@@ -638,6 +649,8 @@ static UINT GOPGfxLine(LPLINE_INFO Info) {
 static UINT GOPGfxRectangle(LPRECT_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     PROFILE_SCOPE Scope;
+    PROFILE_SCOPE LockScope;
+    PROFILE_SCOPE DrawScope;
 
     if (Info == NULL) {
         return 0;
@@ -649,8 +662,14 @@ static UINT GOPGfxRectangle(LPRECT_INFO Info) {
     }
 
     ProfileStart(&Scope, TEXT("GOP.Rectangle"));
+    ProfileStart(&LockScope, TEXT("GOP.RectangleLock"));
     LockMutex(&(Context->Mutex), INFINITY);
+    ProfileStop(&LockScope);
+
+    ProfileStart(&DrawScope, TEXT("GOP.RectangleDraw"));
     GOPGfxDrawRectangle(Context, Info);
+    ProfileStop(&DrawScope);
+
     UnlockMutex(&(Context->Mutex));
     ProfileStop(&Scope);
 

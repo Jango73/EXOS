@@ -30,8 +30,10 @@
 #include "DisplaySession.h"
 #include "Desktop.h"
 #include "core/Kernel.h"
+#include "log/Profile.h"
 #include "process/Process.h"
 #include "process/Task-Messaging.h"
+#include "system/Clock.h"
 #include "utils/Graphics-Utils.h"
 
 /***************************************************************************/
@@ -132,6 +134,7 @@ static LPWINDOW NewWindow(void) {
 
     This->Properties = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
     This->Children = NewList(NULL, KernelHeapAlloc, KernelHeapFree);
+    This->DrawRequestMillis = 0;
     (void)RectRegionInit(&This->DirtyRegion, This->DirtyRects, WINDOW_DIRTY_REGION_CAPACITY);
 
     return This;
@@ -848,18 +851,32 @@ BOOL InvalidateWindowRect(HANDLE Handle, LPRECT Src) {
  * @return TRUE on success.
  */
 BOOL RequestWindowDraw(HANDLE Handle) {
+    PROFILE_SCOPE Scope;
     LPWINDOW This = (LPWINDOW)Handle;
+    LPDESKTOP Desktop = NULL;
     BOOL ShouldPost = FALSE;
     BOOL IsVisible = FALSE;
+    BOOL WasCoalesced = FALSE;
+    U32 CursorMoveSequence = 0;
+    U32 DrawRequestMillis = 0;
     U32 FrontEnd = DisplaySessionGetActiveFrontEnd();
+    UINT DurationMicros;
 
     if (This == NULL) return FALSE;
     if (This->TypeID != KOID_WINDOW) return FALSE;
 
+    ProfileStart(&Scope, TEXT("Desktop.RequestWindowDraw"));
+    Desktop = DesktopGetWindowDesktop(This);
+    (void)DesktopGetCursorMoveSequence(Desktop, &CursorMoveSequence);
+
     if (FrontEnd != DISPLAY_FRONTEND_DESKTOP) {
         LockMutex(&(This->Mutex), INFINITY);
         This->Status &= ~WINDOW_STATUS_NEED_DRAW;
+        This->DrawRequestMillis = 0;
+        This->DrawRequestCursorSequence = 0;
         UnlockMutex(&(This->Mutex));
+        ProfileCountCall(TEXT("Desktop.RequestWindowDraw.FrontendSkipped"));
+        ProfileStop(&Scope);
         return TRUE;
     }
 
@@ -868,21 +885,50 @@ BOOL RequestWindowDraw(HANDLE Handle) {
     IsVisible = ((This->Status & WINDOW_STATUS_VISIBLE) != 0);
     if (IsVisible == FALSE) {
         This->Status &= ~WINDOW_STATUS_NEED_DRAW;
+        This->DrawRequestMillis = 0;
+        This->DrawRequestCursorSequence = 0;
         UnlockMutex(&(This->Mutex));
+        ProfileCountCall(TEXT("Desktop.RequestWindowDraw.HiddenSkipped"));
+        ProfileStop(&Scope);
         return TRUE;
     }
 
     if ((This->Status & WINDOW_STATUS_NEED_DRAW) == 0) {
         This->Status |= WINDOW_STATUS_NEED_DRAW;
+        This->DrawRequestMillis = GetSystemTime();
+        This->DrawRequestCursorSequence = CursorMoveSequence;
         ShouldPost = TRUE;
+    } else {
+        WasCoalesced = TRUE;
+        DrawRequestMillis = This->DrawRequestMillis;
     }
 
     UnlockMutex(&(This->Mutex));
 
-    if (ShouldPost) {
-        PostMessage(Handle, EWM_DRAW, 0, 0);
+    if (WasCoalesced != FALSE) {
+        ProfileCountCall(TEXT("Desktop.RequestWindowDraw.Coalesced"));
+        DesktopProfileCountWindowEvent(This, DESKTOP_PROFILE_WINDOW_EVENT_DRAW_REQUEST_COALESCED);
+
+        if (DrawRequestMillis != 0) {
+            DurationMicros = (GetSystemTime() - DrawRequestMillis) * 1000;
+            ProfileRecordDuration(TEXT("Desktop.DrawRequestCoalescedAge"), DurationMicros);
+            DesktopProfileRecordWindowDuration(
+                This,
+                DESKTOP_PROFILE_WINDOW_DURATION_DRAW_REQUEST_COALESCED_AGE,
+                DurationMicros);
+        }
     }
 
+    if (ShouldPost) {
+        ProfileCountCall(TEXT("Desktop.RequestWindowDraw.Posted"));
+        DesktopProfileCountWindowEvent(This, DESKTOP_PROFILE_WINDOW_EVENT_DRAW_REQUEST_POSTED);
+
+        if (PostMessage(Handle, EWM_DRAW, 0, 0) == FALSE) {
+            ProfileCountCall(TEXT("Desktop.RequestWindowDraw.PostFailed"));
+        }
+    }
+
+    ProfileStop(&Scope);
     return TRUE;
 }
 

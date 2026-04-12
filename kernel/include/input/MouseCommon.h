@@ -39,6 +39,7 @@ typedef struct tag_MOUSE_PACKET_BUFFER {
     I32 DeltaX;
     I32 DeltaY;
     U32 Buttons;
+    U32 QueuedMillis;
     BOOL Pending;
 } MOUSE_PACKET_BUFFER, *LPMOUSE_PACKET_BUFFER;
 

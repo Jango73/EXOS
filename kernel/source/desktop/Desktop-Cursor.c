@@ -31,6 +31,7 @@
 #include "GFX.h"
 #include "core/Kernel.h"
 #include "log/Log.h"
+#include "log/Profile.h"
 #include "system/Clock.h"
 #include "input/MouseDispatcher.h"
 #include "utils/Helpers.h"
@@ -298,6 +299,7 @@ static void DesktopCursorSetPathState(LPDESKTOP Desktop, U32 Path, U32 Reason, U
  * @param NewY Pending Y.
  */
 static void DesktopCursorRequestSoftwareRedraw(LPDESKTOP Desktop, I32 OldX, I32 OldY, I32 NewX, I32 NewY) {
+    PROFILE_SCOPE Scope;
     RECT OldRect;
     RECT NewRect;
     RECT DamageRect = {0};
@@ -308,6 +310,8 @@ static void DesktopCursorRequestSoftwareRedraw(LPDESKTOP Desktop, I32 OldX, I32 
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return;
     if (Desktop->Window == NULL || Desktop->Window->TypeID != KOID_WINDOW) return;
+
+    ProfileStart(&Scope, TEXT("Desktop.CursorSoftwareRedraw"));
 
     LockMutex(&(Desktop->Mutex), INFINITY);
     ClipRect = Desktop->Cursor.ClipRect;
@@ -344,6 +348,8 @@ static void DesktopCursorRequestSoftwareRedraw(LPDESKTOP Desktop, I32 OldX, I32 
     Desktop->Cursor.PendingY = OldY;
     Desktop->Cursor.SoftwareDirty = (HasOldRect != FALSE);
     UnlockMutex(&(Desktop->Mutex));
+
+    ProfileStop(&Scope);
 }
 
 /************************************************************************/
@@ -563,6 +569,8 @@ void DesktopCursorOnDesktopActivated(LPDESKTOP Desktop) {
  * @param NewY New Y position.
  */
 void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, I32 NewX, I32 NewY) {
+    PROFILE_SCOPE Scope;
+    PROFILE_SCOPE HardwareScope;
     LPDRIVER GraphicsDriver;
     GFX_CURSOR_POSITION_INFO PositionInfo;
     UINT Status;
@@ -573,6 +581,8 @@ void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, 
     I32 ClampedOldY;
 
     if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return;
+
+    ProfileStart(&Scope, TEXT("Desktop.CursorPositionChanged"));
 
     DesktopCursorRefreshClipAndPosition(Desktop);
 
@@ -589,12 +599,14 @@ void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, 
     Desktop->Cursor.PendingX = NewX;
     Desktop->Cursor.PendingY = NewY;
     Desktop->Cursor.SoftwareDirty = FALSE;
+    Desktop->CursorMoveSequence++;
     IsVisible = Desktop->Cursor.Visible;
     CursorPath = Desktop->Cursor.RenderPath;
 
     UnlockMutex(&(Desktop->Mutex));
 
     if (Desktop->Mode != DESKTOP_MODE_GRAPHICS || IsVisible == FALSE) {
+        ProfileStop(&Scope);
         return;
     }
 
@@ -603,6 +615,7 @@ void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, 
         if (GraphicsDriver == NULL || GraphicsDriver->Command == NULL) {
             DesktopCursorSetPathState(Desktop, DESKTOP_CURSOR_PATH_SOFTWARE, DESKTOP_CURSOR_FALLBACK_SET_POSITION_FAILED, DF_RETURN_GENERIC);
             DesktopCursorRequestSoftwareRedraw(Desktop, ClampedOldX, ClampedOldY, NewX, NewY);
+            ProfileStop(&Scope);
             return;
         }
 
@@ -611,7 +624,9 @@ void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, 
         PositionInfo.X = NewX;
         PositionInfo.Y = NewY;
 
+        ProfileStart(&HardwareScope, TEXT("Desktop.CursorHardwareSetPosition"));
         Status = GraphicsDriver->Command(DF_GFX_CURSOR_SET_POSITION, (UINT)(LPVOID)&PositionInfo);
+        ProfileStop(&HardwareScope);
         if (Status != DF_RETURN_SUCCESS) {
             DesktopCursorSetPathState(Desktop, DESKTOP_CURSOR_PATH_SOFTWARE, DESKTOP_CURSOR_FALLBACK_SET_POSITION_FAILED, Status);
             DesktopCursorRequestSoftwareRedraw(Desktop, ClampedOldX, ClampedOldY, NewX, NewY);
@@ -625,10 +640,12 @@ void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, 
             UnlockMutex(&(Desktop->Mutex));
         }
 
+        ProfileStop(&Scope);
         return;
     }
 
     DesktopCursorRequestSoftwareRedraw(Desktop, ClampedOldX, ClampedOldY, NewX, NewY);
+    ProfileStop(&Scope);
 }
 
 /************************************************************************/
@@ -638,6 +655,7 @@ void DesktopCursorOnMousePositionChanged(LPDESKTOP Desktop, I32 OldX, I32 OldY, 
  * @param Window Target window.
  */
 void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
+    PROFILE_SCOPE Scope;
     LPDESKTOP Desktop;
     RECT WindowRect;
     RECT CursorRect;
@@ -678,29 +696,41 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
     if (IsVisible == FALSE) return;
     if (CursorPath != DESKTOP_CURSOR_PATH_SOFTWARE) return;
 
+    ProfileStart(&Scope, TEXT("Desktop.CursorSoftwareOverlay"));
+
     CursorWidth = DesktopCursorClampSize(CursorWidth, DESKTOP_CURSOR_DEFAULT_WIDTH);
     CursorHeight = DesktopCursorClampSize(CursorHeight, DESKTOP_CURSOR_DEFAULT_HEIGHT);
 
     DesktopCursorBuildRect(Desktop, CursorX, CursorY, &CursorRect);
     if (IntersectRect(&CursorRect, &ClipRect, &CursorRect) == FALSE) {
+        ProfileStop(&Scope);
         return;
     }
 
-    if (GetWindowScreenRectSnapshot(Window, &WindowRect) == FALSE) return;
+    if (GetWindowScreenRectSnapshot(Window, &WindowRect) == FALSE) {
+        ProfileStop(&Scope);
+        return;
+    }
 
     if (IntersectRect(&CursorRect, &WindowRect, &Intersection) == FALSE) {
+        ProfileStop(&Scope);
         return;
     }
 
     if (DesktopBuildWindowVisibleRegion(Window, &Intersection, TRUE, &DrawClipRegion, DrawClipStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) {
+        ProfileStop(&Scope);
         return;
     }
 
     if (RectRegionGetCount(&DrawClipRegion) == 0) {
+        ProfileStop(&Scope);
         return;
     }
 
-    if (DesktopGetWindowGraphicsContext(Window, TRUE, &GC) == FALSE) return;
+    if (DesktopGetWindowGraphicsContext(Window, TRUE, &GC) == FALSE) {
+        ProfileStop(&Scope);
+        return;
+    }
     LocalCursorX = CursorX - WindowRect.X1;
     LocalCursorY = CursorY - WindowRect.Y1;
 
@@ -711,6 +741,7 @@ void DesktopCursorRenderSoftwareOverlayOnWindow(LPWINDOW Window) {
     }
 
     (void)ReleaseWindowGC((HANDLE)GC);
+    ProfileStop(&Scope);
 }
 
 /************************************************************************/

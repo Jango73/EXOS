@@ -31,6 +31,19 @@
 
 /************************************************************************/
 
+#define DESKTOP_PROFILE_WINDOW_DURATION_CLIENT_DRAW 1
+#define DESKTOP_PROFILE_WINDOW_DURATION_DRAW_DISPATCH 2
+#define DESKTOP_PROFILE_WINDOW_DURATION_DRAW_REQUEST_TO_DISPATCH 3
+#define DESKTOP_PROFILE_WINDOW_DURATION_DRAW_REQUEST_COALESCED_AGE 4
+#define DESKTOP_PROFILE_WINDOW_DURATION_DRAW_REQUEST_AFTER_CURSOR_MOVE 5
+
+#define DESKTOP_PROFILE_WINDOW_EVENT_DRAW_REQUEST_POSTED 1
+#define DESKTOP_PROFILE_WINDOW_EVENT_DRAW_REQUEST_COALESCED 2
+#define DESKTOP_PROFILE_WINDOW_EVENT_DRAW_REQUEST_STALE_AFTER_CURSOR_MOVE 3
+#define DESKTOP_PROFILE_WINDOW_EVENT_DRAW_REQUEST_CURRENT_CURSOR_MOVE 4
+
+/************************************************************************/
+
 typedef struct tag_WINDOW_STATE_SNAPSHOT {
     RECT Rect;
     RECT ScreenRect;
@@ -39,6 +52,7 @@ typedef struct tag_WINDOW_STATE_SNAPSHOT {
     U32 Status;
     U32 ContentTransparencyHint;
     U32 Level;
+    U32 WindowID;
     I32 Order;
     LPWINDOW ParentWindow;
     LPTASK Task;
@@ -151,9 +165,12 @@ BOOL SetDesktopCaptureState(LPWINDOW Window, LPWINDOW CaptureWindow, I32 OffsetX
 BOOL GetDesktopLastMouseMoveTarget(LPWINDOW Window, LPWINDOW* TargetWindow);
 BOOL SetDesktopLastMouseMoveTarget(LPWINDOW Window, LPWINDOW TargetWindow);
 BOOL DesktopResolveWindowTarget(LPDESKTOP Desktop, HANDLE Target, LPWINDOW* Window);
+BOOL DesktopGetCursorMoveSequence(LPDESKTOP Desktop, U32* Sequence);
 BOOL DrawWindowBackgroundResolved(HANDLE Window, HANDLE GC, LPRECT Rect, U32 ThemeToken, BOOL* Transparent);
 BOOL DesktopMarkWindowDispatchBegin(LPWINDOW Window, U32 Message);
 BOOL DesktopMarkWindowDispatchEnd(LPWINDOW Window, U32 Message);
+void DesktopProfileRecordWindowDuration(LPWINDOW Window, U32 Counter, UINT DurationMicros);
+void DesktopProfileCountWindowEvent(LPWINDOW Window, U32 Event);
 
 /************************************************************************/
 

@@ -28,6 +28,7 @@
 #include "console/Console.h"
 #include "core/KernelData.h"
 #include "input/Mouse.h"
+#include "log/Profile.h"
 #include "Desktop.h"
 #include "Desktop-Cursor.h"
 #include "process/Process.h"
@@ -187,10 +188,7 @@ BOOL InitializeMouseDispatcher(void) {
  * @param Buttons Current button bitmask (MB_*).
  */
 void MouseDispatcherOnInput(I32 DeltaX, I32 DeltaY, U32 Buttons) {
-    if (g_MouseDispatch.Initialized == FALSE) {
-        return;
-    }
-
+    PROFILE_SCOPE Scope;
     UINT Flags;
     RECT ScreenRect;
     BOOL HasRect = FALSE;
@@ -208,6 +206,12 @@ void MouseDispatcherOnInput(I32 DeltaX, I32 DeltaY, U32 Buttons) {
     I32 NewPosY = 0;
     BOOL PositionChanged = FALSE;
     LPDESKTOP ActiveDesktop = NULL;
+
+    if (g_MouseDispatch.Initialized == FALSE) {
+        return;
+    }
+
+    ProfileStart(&Scope, TEXT("Mouse.DispatcherOnInput"));
 
     {
         LPDESKTOP Desktop = GetActiveDesktop();
@@ -275,6 +279,8 @@ void MouseDispatcherOnInput(I32 DeltaX, I32 DeltaY, U32 Buttons) {
     if (PositionChanged != FALSE) {
         DesktopCursorOnMousePositionChanged(ActiveDesktop, OldPosX, OldPosY, NewPosX, NewPosY);
     }
+
+    ProfileStop(&Scope);
 }
 
 /************************************************************************/

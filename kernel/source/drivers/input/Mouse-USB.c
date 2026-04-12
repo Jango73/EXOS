@@ -81,7 +81,7 @@ static USB_MOUSE_CUSTOM_DATA DATA_SECTION USBMouseCustomData = {
          .DeltaX = 0,
          .DeltaY = 0,
          .Buttons = 0,
-         .Packet = {.DeltaX = 0, .DeltaY = 0, .Buttons = 0, .Pending = FALSE},
+         .Packet = {.DeltaX = 0, .DeltaY = 0, .Buttons = 0, .QueuedMillis = 0, .Pending = FALSE},
          .DeferredWorkToken = {.QueueID = DEFERRED_WORK_QUEUE_INVALID, .SlotID = DEFERRED_WORK_INVALID_SLOT}},
     .State = {
         .Initialized = FALSE,
