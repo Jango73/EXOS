@@ -1859,7 +1859,7 @@ typedef struct DeviceTag {
 
 #### Device Interrupt Infrastructure
 
-**Location:** `kernel/source/drivers/DeviceInterrupt.c`, `kernel/include/drivers/DeviceInterrupt.h`, `kernel/source/sync/DeferredWork.c`
+**Location:** `kernel/source/drivers/DeviceInterrupt.c`, `kernel/include/drivers/DeviceInterrupt.h`, `kernel/source/sync/DeferredWork.c`, `kernel/source/sync/DeferredWorkQueue.c`
 
 The device interrupt layer centralizes vector assignment, interrupt routing, and deferred work dispatching for hardware devices.
 
@@ -1867,8 +1867,10 @@ The device interrupt layer centralizes vector assignment, interrupt routing, and
 - Configurable interrupt vector slots shared across PCI/PIC paths (`General.DeviceInterruptSlots`, 1–32, default 32).
 - Slot bookkeeping is allocated dynamically from kernel memory so the table matches the configured slot count.
 - `DeviceInterruptRegister()` binds ISR top halves, deferred callbacks, and optional poll routines to a slot.
-- `DeferredWorkDispatcher` waits on a kernel event, running deferred callbacks when signaled and invoking poll routines on timeout or when global polling mode is forced.
-- `DeferredWorkUnregister()` first blocks new dispatches on the slot, waits for in-flight callbacks to finish, then clears the slot so driver teardown cannot race one copied callback frame.
+- `DeferredWorkQueue` owns the reusable queue mechanics: slot storage, callback registration, event signaling, callback dispatch, polling callbacks, and unregister quiescence.
+- `DeferredWork` instantiates the standard queue and a fast queue. The fast queue uses a 5 ms wait and polling cadence and is selected by mouse dispatch.
+- `DEFERRED_WORK_TOKEN` identifies a queue and slot explicitly. It is used instead of packing queue metadata into a scalar handle.
+- `DeferredWorkUnregister()` first blocks new dispatches on the token slot, waits for in-flight callbacks to finish, then clears the slot so driver teardown cannot race one copied callback frame.
 - Automatic spurious-interrupt suppression masks a slot after repeated suppressed top halves and relies on its poll routine until the driver re-arms the IRQ.
 - Graceful fallback to polling when hardware interrupts are unavailable.
 - The IOAPIC driver is optional; when ACPI is unavailable the kernel continues in PIC mode and boots without IOAPIC.
@@ -1879,7 +1881,7 @@ The device interrupt layer centralizes vector assignment, interrupt routing, and
 - `InitializeDeviceInterrupts()`: Reset slot bookkeeping at boot.
 - `DeviceInterruptRegister()/DeviceInterruptUnregister()`: Manage slot lifetime.
 - `DeviceInterruptHandler(slot)`: ASM entry point fan-out for interrupt vectors 0x30–0x37.
-- `InitializeDeferredWork()`: Start the dispatcher kernel task and supporting event.
+- `InitializeDeferredWork()`: Start the standard and fast dispatcher kernel tasks and supporting events.
 - PIC mode remaps IRQs to vectors 0x20–0x2F before interrupts are enabled.
 - PIC routing consults the IMCR presence flag set at initialization; if the register is not writable, the Local APIC LINT0 ExtINT path is enabled to keep legacy IRQs flowing.
 
