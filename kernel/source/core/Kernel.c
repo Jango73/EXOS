@@ -292,26 +292,20 @@ static void InitializeFocusState(void) {
 /************************************************************************/
 
 /**
- * @brief Initializes the kernel minimum quantum time based on environment.
+ * @brief Initializes the kernel minimum quantum time.
  *
- * Uses BARE_METAL compile-time flag to determine quantum time.
- * Also accounts for debug output overhead which slows execution.
+ * Accounts for debug output overhead which slows execution.
  * Sets Kernel.MinimumQuantum and Kernel.MaximumQuantum to appropriate value.
  */
 void InitializeQuantumTime(void) {
-    // Set base quantum time based on environment
-#if BARE_METAL == 1
-    SetMinimumQuantum(2);  // Shorter quantum for bare-metal
-#else
-    SetMinimumQuantum(10);  // Longer quantum for emulation/virtualization
-#endif
+    SetMinimumQuantum(1);
 
     if (SCHEDULING_DEBUG_OUTPUT == 1) {
         // Double quantum when scheduling debug is enabled (logs slow down execution)
         SetMinimumQuantum(GetMinimumQuantum() * 2);
     }
 
-    SetMaximumQuantum(GetMinimumQuantum() * 4);
+    SetMaximumQuantum(GetMinimumQuantum() * 8);
 }
 
 /************************************************************************/

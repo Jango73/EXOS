@@ -61,7 +61,7 @@ function ValidateArchitectureToolchain() {
 }
 
 function Usage() {
-    echo "Usage: $0 --arch <x86-32|x86-64> --fs <ext2|fat32> [--bare-metal] [--boot-stage-markers] [--clean] [--debug|--release] [--force-pic] [--kernel-log-tag-filter <filter>] [--log-udp-dest <ip:port>] [--log-udp-source <ip:port>] [--no-images] [--profiling] [--scheduling-debug] [--split] [--system-data-view] [--uefi] [--use-log-udp] [--use-syscall]"
+    echo "Usage: $0 --arch <x86-32|x86-64> --fs <ext2|fat32> [--boot-stage-markers] [--clean] [--debug|--release] [--force-pic] [--kernel-log-tag-filter <filter>] [--log-udp-dest <ip:port>] [--log-udp-source <ip:port>] [--no-images] [--profiling] [--scheduling-debug] [--split] [--system-data-view] [--uefi] [--use-log-udp] [--use-syscall]"
 }
 
 function ParseIpPort() {
@@ -103,7 +103,6 @@ function ParseIpPort() {
 }
 
 ARCH="x86-32"
-BARE_METAL=0
 BOOT_STAGE_MARKERS=0
 BUILD_UEFI=0
 BUILD_CONFIGURATION="release"
@@ -227,9 +226,6 @@ while [ $# -gt 0 ]; do
                 exit 1
             fi
             ARCH="$1"
-            ;;
-        --bare-metal)
-            BARE_METAL=1
             ;;
         --boot-stage-markers)
             BOOT_STAGE_MARKERS=1
@@ -360,7 +356,6 @@ fi
 ComputeBuildNames
 BOOT_MODE="$(ResolveBootMode)"
 
-export BARE_METAL
 export BOOT_STAGE_MARKERS
 export BUILD_CONFIGURATION
 export BUILD_CORE_NAME
