@@ -921,12 +921,12 @@ PHYSICAL AllocUserPageDirectory(void) {
     Directory[0].Fixed = 1;
     Directory[0].Address = (PMA_LowTable >> PAGE_SIZE_MUL);
 
-    // Copy present PDEs from current directory, but skip user space (VMA_USER to VMA_LIBRARY-1)
+    // Copy present PDEs from current directory, but skip process-owned user space
     // to allow new process to allocate its own region at VMA_USER
     UNUSED(VMA_TASK_RUNNER);
-    UINT UserStartPDE = GetDirectoryEntry(VMA_USER);             // PDE index for VMA_USER
-    UINT UserEndPDE = GetDirectoryEntry(VMA_LIBRARY - 1) - 1;    // PDE index for VMA_LIBRARY-1, excluding TaskRunner space
-    for (Index = 1; Index < 1023; Index++) {                     // Skip 0 (already done) and 1023 (self-map)
+    UINT UserStartPDE = GetDirectoryEntry(VMA_USER);                 // PDE index for VMA_USER
+    UINT UserEndPDE = GetDirectoryEntry(VMA_USER_LIMIT - 1) - 1;     // Exclude the TaskRunner table
+    for (Index = 1; Index < 1023; Index++) {                         // Skip 0 (already done) and 1023 (self-map)
         if (CurrentPD[Index].Present) {
             // Skip user space PDEs to avoid copying current process's user space
             if (Index >= UserStartPDE && Index <= UserEndPDE) {

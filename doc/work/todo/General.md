@@ -27,7 +27,7 @@
 - [x] Execute Shell-Scripting-Exposure-Plan.md : all remaining steps
 - [x] Rewrite ShellScriptCallFunction using a function table.
 
-- [ ] Rename `VMA_LIBRARY`: it no longer designates the module/library boundary. Re-anchor the naming to its real architectural role and increase process arena reserves significantly, especially for the module arena.
+- [x] Rename `VMA_LIBRARY`: it no longer designates the module/library boundary. Re-anchor the naming to its real architectural role and increase process arena reserves significantly, especially for the module arena.
 
 - [ ] Implement Executable-Module-Libraries.md
 

@@ -374,7 +374,7 @@ void DumpCriticalInformation(void) {
     DEBUG(TEXT("  VMA_VIDEO = %p"), VMA_VIDEO);
     DEBUG(TEXT("  VMA_CONSOLE = %p"), VMA_CONSOLE);
     DEBUG(TEXT("  VMA_USER = %p"), VMA_USER);
-    DEBUG(TEXT("  VMA_LIBRARY = %p"), VMA_LIBRARY);
+    DEBUG(TEXT("  VMA_USER_LIMIT = %p"), VMA_USER_LIMIT);
     DEBUG(TEXT("  VMA_KERNEL = %p"), VMA_KERNEL);
 
     DEBUG(TEXT("Kernel startup info:"));

@@ -196,8 +196,11 @@ Virtual address space setup follows a dependency order.
 - `Image`: executable image span loaded at `VMA_USER`.
 - `Heap`: process heap growth lane.
 - `Stack`: downward-growing user task stacks.
+- `Module`: runtime-loaded executable module mappings and module bookkeeping.
 - `System`: process-owned fixed mappings (for example message queue backing storage).
 - `Mmio`: process MMIO/DMA-oriented mappings.
+
+`VMA_USER_LIMIT` names the upper anchor of the process-owned user arena. The `TaskRunner` user alias sits one page below that anchor, and process arenas are laid out below `VMA_TASK_RUNNER`. x86-32 reserves 64 MiB for `System`, 64 MiB for `Mmio`, 256 MiB for `Stack`, and 1 GiB for `Module`. x86-64 keeps fixed process arenas inside the prepared dynamic user mapping window: 64 MiB for `System`, 64 MiB for `Mmio`, 128 MiB for `Stack`, and 768 MiB for `Module`.
 
 3. Region operations inside arena policy:
 - `AllocRegion`, `FreeRegion`, and `ResizeRegion` perform mapping updates, populate page tables, and flush translation state.
