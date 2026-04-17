@@ -150,7 +150,7 @@ BOOL DesktopEnsureDispatcherTask(LPDESKTOP Desktop) {
     TaskInfo.Func = DesktopDispatcherTask;
     TaskInfo.Parameter = Desktop;
     TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
-    TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
+    TaskInfo.Priority = TASK_PRIORITY_HIGHEST;
     TaskInfo.Flags = 0;
     StringCopy(TaskInfo.Name, DESKTOP_DISPATCHER_TASK_NAME);
 

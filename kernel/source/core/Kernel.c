@@ -1170,7 +1170,7 @@ void InitializeKernel(void) {
         TaskInfo.Func = Shell;
         TaskInfo.Parameter = NULL;
         TaskInfo.StackSize = TASK_MINIMUM_TASK_STACK_SIZE;
-        TaskInfo.Priority = TASK_PRIORITY_MEDIUM;
+        TaskInfo.Priority = TASK_PRIORITY_HIGHER;
         TaskInfo.Flags = 0;
         StringCopy(TaskInfo.Name, TEXT("Shell"));
 
