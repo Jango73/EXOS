@@ -49,7 +49,7 @@
 
 ### Naming
 
-- [ ] Make all script exposed function camelCase instead of snake_case.
+- [x] Make all script exposed function camelCase instead of snake_case.
 
 ### Clock
 

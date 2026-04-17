@@ -948,7 +948,7 @@ Console text output uses backend-dispatched text commands implemented in `kernel
 - `TEXT_SET_CURSOR`
 - `TEXT_SET_CURSOR_VISIBLE`
 
-When `set_graphics_driver(driver_alias, width, height, bpp)` applies a graphics mode while the shell is in the console frontend, display session routing uses the selected backend for console rendering and recomputes console cell geometry from the active pixel mode. Shell output stays visible across backend and mode transitions.
+When `setGraphicsDriver(driverAlias, width, height, bpp)` applies a graphics mode while the shell is in the console frontend, display session routing uses the selected backend for console rendering and recomputes console cell geometry from the active pixel mode. Shell output stays visible across backend and mode transitions.
 
 The console text dispatch path caches the active `GRAPHICSCONTEXT` while the console frontend is bound to the same graphics driver. That cache is invalidated when console mode or framebuffer mapping changes so boot log rendering does not repeatedly call `DF_GFX_GETCONTEXT`.
 
@@ -1013,9 +1013,9 @@ Graphics backend selection is implemented in `kernel/source/drivers/graphics/com
 
 Boot-path capability gating is centralized in `utils/BootPath` (`kernel/include/utils/BootPath.h`, `kernel/source/utils/BootPath.c`). VESA probing is disabled on x86-64 boot paths and enabled on x86-32 boot paths. On x86-32, backend availability is decided by the VESA initialization and probe path.
 
-Explicit backend forcing through `set_graphics_driver(driver_alias, width, height, bpp)` uses a strict selector path: only the requested backend is loaded into selector state, and command forwarding targets that backend while forced mode is active.
+Explicit backend forcing through `setGraphicsDriver(driverAlias, width, height, bpp)` uses a strict selector path: only the requested backend is loaded into selector state, and command forwarding targets that backend while forced mode is active.
 
-Shell graphics switching crosses the user/kernel boundary through `SYSCALL_SetGraphicsDriver`. The syscall payload is `GRAPHICS_DRIVER_SELECTION_INFO`, which carries one inline `DriverAlias[MAX_NAME]` buffer and the requested width, height, and bits per pixel. The shell `set_graphics_driver(...)` host function only marshals arguments into that ABI payload and invokes the syscall.
+Shell graphics switching crosses the user/kernel boundary through `SYSCALL_SetGraphicsDriver`. The syscall payload is `GRAPHICS_DRIVER_SELECTION_INFO`, which carries one inline `DriverAlias[MAX_NAME]` buffer and the requested width, height, and bits per pixel. The shell `setGraphicsDriver(...)` host function only marshals arguments into that ABI payload and invokes the syscall.
 
 Generic driver diagnostics use `DF_DEBUG_INFO` with `DRIVER_DEBUG_INFO.Text`, a multi-line buffer sized with `MAX_STRING_BUFFER`. Graphics backends use that interface to expose backend alias and current resolution, and the graphics selector forwards the query to the active backend. Mouse drivers expose the selected manufacturer and product through the same pattern, and the mouse selector forwards that data as well.
 
@@ -1766,11 +1766,11 @@ The shell exposes host functions through that bridge:
 - `print(...)`: prints the stringified arguments joined with spaces.
 - `exec(...)`: rebuilds one command line from the stringified arguments and executes it through the normal shell command path.
 - `kill(handle)`: resolves one user-visible handle and routes to `SysCall_KillProcess()` or `SysCall_KillTask()` depending on the object type behind the handle.
-- `smoke_test_multi_args(a, b, c, d)`: reserved smoke helper that validates four serialized arguments and returns one deterministic marker value for automated regression checks.
-- `set_graphics_driver(driver_alias, width, height, bpp)`: forces one graphics backend alias and applies the requested mode through the selector path.
-- `create_account(user_name, password, privilege)`: creates one account through `SYSCALL_CreateUser`.
-- `delete_account(user_name)`: deletes one account through `SYSCALL_DeleteUser`.
-- `change_password(old_password, new_password)`: changes the current user password through `SYSCALL_ChangePassword`.
+- `smokeTestMultiArgs(a, b, c, d)`: reserved smoke helper that validates four serialized arguments and returns one deterministic marker value for automated regression checks.
+- `setGraphicsDriver(driverAlias, width, height, bpp)`: forces one graphics backend alias and applies the requested mode through the selector path.
+- `createAccount(userName, password, privilege)`: creates one account through `SYSCALL_CreateUser`.
+- `deleteAccount(userName)`: deletes one account through `SYSCALL_DeleteUser`.
+- `changePassword(oldPassword, newPassword)`: changes the current user password through `SYSCALL_ChangePassword`.
 
 Known host functions return `SCRIPT_FUNCTION_STATUS_UNKNOWN` when the symbol does not exist, and `SCRIPT_FUNCTION_STATUS_ERROR` when the function exists but rejects the call after setting an explicit script error.
 

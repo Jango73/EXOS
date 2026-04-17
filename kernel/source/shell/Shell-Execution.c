@@ -385,7 +385,14 @@ static BOOL ShellScriptParsePositiveInteger(
     }
 
     if (ValueText == NULL || StringLength(ValueText) == 0) {
-        ShellScriptFailFunction(Context, SCRIPT_ERROR_TYPE_MISMATCH, TEXT("set_graphics_driver() expects positive integer arguments"));
+        STR Message[MAX_ERROR_MESSAGE];
+
+        StringPrintFormat(
+            Message,
+            TEXT("%s() expects %s to be a positive integer"),
+            FunctionName,
+            ParameterName);
+        ShellScriptFailFunction(Context, SCRIPT_ERROR_TYPE_MISMATCH, Message);
         return FALSE;
     }
 
@@ -437,7 +444,7 @@ static INT ShellScriptSmokeTestMultiArgs(
         return ShellScriptFailFunction(
             Context,
             SCRIPT_ERROR_SYNTAX,
-            TEXT("smoke_test_multi_args(a, b, c, d) expects exactly four arguments"));
+            TEXT("smokeTestMultiArgs(a, b, c, d) expects exactly four arguments"));
     }
 
     if (StringCompare(Arguments[0], TEXT("alpha")) != 0 ||
@@ -447,7 +454,7 @@ static INT ShellScriptSmokeTestMultiArgs(
         return ShellScriptFailFunction(
             Context,
             SCRIPT_ERROR_TYPE_MISMATCH,
-            TEXT("smoke_test_multi_args() received unexpected serialized arguments"));
+            TEXT("smokeTestMultiArgs() received unexpected serialized arguments"));
     }
 
     return 42023171;
@@ -559,26 +566,26 @@ static INT ShellScriptSetGraphicsDriverFunction(
         return ShellScriptFailFunction(
             Context,
             SCRIPT_ERROR_SYNTAX,
-            TEXT("set_graphics_driver(driver_alias, width, height, bpp) expects exactly four arguments"));
+            TEXT("setGraphicsDriver(driverAlias, width, height, bpp) expects exactly four arguments"));
     }
 
     if (Arguments[0] == NULL || StringLength(Arguments[0]) == 0) {
         return ShellScriptFailFunction(
             Context,
             SCRIPT_ERROR_TYPE_MISMATCH,
-            TEXT("set_graphics_driver() expects a non-empty driver alias"));
+            TEXT("setGraphicsDriver() expects a non-empty driver alias"));
     }
 
     if (StringLength(Arguments[0]) >= MAX_NAME) {
         return ShellScriptFailFunction(
             Context,
             SCRIPT_ERROR_TYPE_MISMATCH,
-            TEXT("set_graphics_driver() driver_alias exceeds MAX_NAME"));
+            TEXT("setGraphicsDriver() driverAlias exceeds MAX_NAME"));
     }
 
-    if (!ShellScriptParsePositiveInteger(Context, TEXT("set_graphics_driver"), TEXT("width"), Arguments[1], &Width) ||
-        !ShellScriptParsePositiveInteger(Context, TEXT("set_graphics_driver"), TEXT("height"), Arguments[2], &Height) ||
-        !ShellScriptParsePositiveInteger(Context, TEXT("set_graphics_driver"), TEXT("bpp"), Arguments[3], &BitsPerPixel)) {
+    if (!ShellScriptParsePositiveInteger(Context, TEXT("setGraphicsDriver"), TEXT("width"), Arguments[1], &Width) ||
+        !ShellScriptParsePositiveInteger(Context, TEXT("setGraphicsDriver"), TEXT("height"), Arguments[2], &Height) ||
+        !ShellScriptParsePositiveInteger(Context, TEXT("setGraphicsDriver"), TEXT("bpp"), Arguments[3], &BitsPerPixel)) {
         return SCRIPT_FUNCTION_STATUS_ERROR;
     }
 
@@ -598,14 +605,14 @@ static INT ShellScriptSetGraphicsDriverFunction(
         if (Status == DF_RETURN_BAD_PARAMETER) {
             StringPrintFormat(
                 ErrorMessage,
-                TEXT("set_graphics_driver() could not select '%s'"),
+                TEXT("setGraphicsDriver() could not select '%s'"),
                 SelectionInfo.DriverAlias);
         } else if (Status == DF_RETURN_UNEXPECTED) {
-            StringCopy(ErrorMessage, TEXT("set_graphics_driver() failed to update the display session"));
+            StringCopy(ErrorMessage, TEXT("setGraphicsDriver() failed to update the display session"));
         } else {
             StringPrintFormat(
                 ErrorMessage,
-                TEXT("set_graphics_driver() failed to apply %ux%ux%u on '%s' (%u)"),
+                TEXT("setGraphicsDriver() failed to apply %ux%ux%u on '%s' (%u)"),
                 Width,
                 Height,
                 BitsPerPixel,
@@ -642,10 +649,10 @@ static INT ShellScriptCreateAccountFunction(
         return ShellScriptFailFunction(
             Context,
             SCRIPT_ERROR_SYNTAX,
-            TEXT("create_account(user_name, password, privilege) expects exactly three arguments"));
+            TEXT("createAccount(userName, password, privilege) expects exactly three arguments"));
     }
 
-    if (!ShellScriptParsePositiveInteger(Context, TEXT("create_account"), TEXT("privilege"), Arguments[2], &Privilege)) {
+    if (!ShellScriptParsePositiveInteger(Context, TEXT("createAccount"), TEXT("privilege"), Arguments[2], &Privilege)) {
         return SCRIPT_FUNCTION_STATUS_ERROR;
     }
 
@@ -654,7 +661,7 @@ static INT ShellScriptCreateAccountFunction(
         return ShellScriptFailFunction(
             Context,
             SCRIPT_ERROR_TYPE_MISMATCH,
-            TEXT("create_account() failed"));
+            TEXT("createAccount() failed"));
     }
 
     return DF_RETURN_SUCCESS;
@@ -679,7 +686,7 @@ static INT ShellScriptDeleteAccountFunction(
         return ShellScriptFailFunction(
             Context,
             SCRIPT_ERROR_SYNTAX,
-            TEXT("delete_account(user_name) expects exactly one argument"));
+            TEXT("deleteAccount(userName) expects exactly one argument"));
     }
 
     Status = ShellDeleteAccount(Arguments[0]);
@@ -687,7 +694,7 @@ static INT ShellScriptDeleteAccountFunction(
         return ShellScriptFailFunction(
             Context,
             SCRIPT_ERROR_TYPE_MISMATCH,
-            TEXT("delete_account() failed"));
+            TEXT("deleteAccount() failed"));
     }
 
     return DF_RETURN_SUCCESS;
@@ -712,7 +719,7 @@ static INT ShellScriptChangePasswordFunction(
         return ShellScriptFailFunction(
             Context,
             SCRIPT_ERROR_SYNTAX,
-            TEXT("change_password(old_password, new_password) expects exactly two arguments"));
+            TEXT("changePassword(oldPassword, newPassword) expects exactly two arguments"));
     }
 
     Status = ShellChangePassword(Arguments[0], Arguments[1]);
@@ -720,7 +727,7 @@ static INT ShellScriptChangePasswordFunction(
         return ShellScriptFailFunction(
             Context,
             SCRIPT_ERROR_TYPE_MISMATCH,
-            TEXT("change_password() failed"));
+            TEXT("changePassword() failed"));
     }
 
     return DF_RETURN_SUCCESS;
@@ -732,11 +739,11 @@ static const SHELL_SCRIPT_FUNCTION_ENTRY ShellScriptFunctionTable[] = {
     {TEXT("exec"), ShellScriptExecFunction},
     {TEXT("print"), ShellScriptPrintFunction},
     {TEXT("kill"), ShellScriptKillFunction},
-    {TEXT("smoke_test_multi_args"), ShellScriptSmokeTestMultiArgs},
-    {TEXT("set_graphics_driver"), ShellScriptSetGraphicsDriverFunction},
-    {TEXT("create_account"), ShellScriptCreateAccountFunction},
-    {TEXT("delete_account"), ShellScriptDeleteAccountFunction},
-    {TEXT("change_password"), ShellScriptChangePasswordFunction},
+    {TEXT("smokeTestMultiArgs"), ShellScriptSmokeTestMultiArgs},
+    {TEXT("setGraphicsDriver"), ShellScriptSetGraphicsDriverFunction},
+    {TEXT("createAccount"), ShellScriptCreateAccountFunction},
+    {TEXT("deleteAccount"), ShellScriptDeleteAccountFunction},
+    {TEXT("changePassword"), ShellScriptChangePasswordFunction},
     {NULL, NULL}
 };
 
