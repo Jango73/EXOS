@@ -108,8 +108,8 @@ LPDRIVER UserAccountGetDriver(void) {
  * @return TRUE on success, FALSE on failure.
  */
 BOOL InitializeUserSystem(void) {
-    LPLIST UserAccountList = GetUserAccountList();
-    if (UserAccountList == NULL) {
+    LPLIST AccountList = GetAccountList();
+    if (AccountList == NULL) {
         ERROR(TEXT("User account list not initialized in kernel"));
         return FALSE;
     }
@@ -134,10 +134,10 @@ BOOL InitializeUserSystem(void) {
  * @brief Shutdown the user account system.
  */
 void ShutdownUserSystem(void) {
-    LPLIST UserAccountList = GetUserAccountList();
-    SAFE_USE(UserAccountList) {
+    LPLIST AccountList = GetAccountList();
+    SAFE_USE(AccountList) {
         SaveUserDatabase();
-        ListReset(UserAccountList);
+        ListReset(AccountList);
     }
 }
 
@@ -149,14 +149,14 @@ void ShutdownUserSystem(void) {
  */
 UINT GetAccountCount(void) {
     UINT Count = 0;
-    LPLIST UserAccountList = GetUserAccountList();
+    LPLIST AccountList = GetAccountList();
 
-    if (UserAccountList == NULL) {
+    if (AccountList == NULL) {
         return 0;
     }
 
     LockMutex(MUTEX_ACCOUNTS, INFINITY);
-    Count = ListGetSize(UserAccountList);
+    Count = ListGetSize(AccountList);
     UnlockMutex(MUTEX_ACCOUNTS);
 
     return Count;
@@ -171,15 +171,15 @@ UINT GetAccountCount(void) {
  */
 LPUSER_ACCOUNT GetAccountByIndex(UINT Index) {
     LPUSER_ACCOUNT Account = NULL;
-    LPLIST UserAccountList = GetUserAccountList();
+    LPLIST AccountList = GetAccountList();
 
-    if (UserAccountList == NULL) {
+    if (AccountList == NULL) {
         return NULL;
     }
 
     LockMutex(MUTEX_ACCOUNTS, INFINITY);
-    if (Index < ListGetSize(UserAccountList)) {
-        Account = (LPUSER_ACCOUNT)ListGetItem(UserAccountList, Index);
+    if (Index < ListGetSize(AccountList)) {
+        Account = (LPUSER_ACCOUNT)ListGetItem(AccountList, Index);
     }
     UnlockMutex(MUTEX_ACCOUNTS);
 
@@ -284,8 +284,8 @@ LPUSER_ACCOUNT CreateAccount(LPCSTR UserName, LPCSTR Password, U32 Privilege) {
 
     // Add to list and database
     DEBUG(TEXT("[CreateAccount] Adding to user list"));
-    LPLIST UserAccountList = GetUserAccountList();
-    if (UserAccountList == NULL || ListAddTail(UserAccountList, NewUser) == 0) {
+    LPLIST AccountList = GetAccountList();
+    if (AccountList == NULL || ListAddTail(AccountList, NewUser) == 0) {
         DEBUG(TEXT("[CreateAccount] Failed to add to user list"));
         KernelHeapFree(NewUser);
         UnlockMutex(MUTEX_ACCOUNTS);
@@ -328,8 +328,8 @@ BOOL DeleteAccount(LPCSTR UserName) {
         return FALSE;
     }
 
-    LPLIST UserAccountList = GetUserAccountList();
-    ListErase(UserAccountList, User);
+    LPLIST AccountList = GetAccountList();
+    ListErase(AccountList, User);
 
     UnlockMutex(MUTEX_ACCOUNTS);
 
@@ -349,14 +349,14 @@ BOOL DeleteAccount(LPCSTR UserName) {
  * @return Pointer to user account or NULL if not found.
  */
 LPUSER_ACCOUNT FindAccount(LPCSTR UserName) {
-    LPLIST UserAccountList = GetUserAccountList();
-    if (UserName == NULL || UserAccountList == NULL) {
+    LPLIST AccountList = GetAccountList();
+    if (UserName == NULL || AccountList == NULL) {
         return NULL;
     }
 
-    U32 Count = ListGetSize(UserAccountList);
+    U32 Count = ListGetSize(AccountList);
     for (U32 i = 0; i < Count; i++) {
-        LPUSER_ACCOUNT User = (LPUSER_ACCOUNT)ListGetItem(UserAccountList, i);
+        LPUSER_ACCOUNT User = (LPUSER_ACCOUNT)ListGetItem(AccountList, i);
         if (User != NULL && STRINGS_EQUAL(User->UserName, UserName)) {
             return User;
         }
@@ -373,14 +373,14 @@ LPUSER_ACCOUNT FindAccount(LPCSTR UserName) {
  * @return Pointer to user account or NULL if not found.
  */
 LPUSER_ACCOUNT FindAccountByID(U64 UserID) {
-    LPLIST UserAccountList = GetUserAccountList();
-    if (UserAccountList == NULL) {
+    LPLIST AccountList = GetAccountList();
+    if (AccountList == NULL) {
         return NULL;
     }
 
-    U32 Count = ListGetSize(UserAccountList);
+    U32 Count = ListGetSize(AccountList);
     for (U32 i = 0; i < Count; i++) {
-        LPUSER_ACCOUNT User = (LPUSER_ACCOUNT)ListGetItem(UserAccountList, i);
+        LPUSER_ACCOUNT User = (LPUSER_ACCOUNT)ListGetItem(AccountList, i);
         if (User != NULL && U64_Cmp(User->UserID, UserID) == 0) {
             return User;
         }
@@ -455,15 +455,15 @@ BOOL LoadUserDatabase(void) {
         return FALSE;
     }
 
-    LPLIST UserAccountList = GetUserAccountList();
-    if (UserAccountList == NULL) {
+    LPLIST AccountList = GetAccountList();
+    if (AccountList == NULL) {
         DatabaseFree(Database);
         return FALSE;
     }
 
     LockMutex(MUTEX_ACCOUNTS, INFINITY);
 
-    ListReset(UserAccountList);
+    ListReset(AccountList);
 
     for (U32 i = 0; i < Database->Count; i++) {
         LPUSER_ACCOUNT User = (LPUSER_ACCOUNT)((U8*)Database->Records + i * Database->RecordSize);
@@ -477,7 +477,7 @@ BOOL LoadUserDatabase(void) {
             NewUser->TypeID = KOID_USER_ACCOUNT;
             InitializeUserAuthenticationPolicy(NewUser);
 
-            if (ListAddTail(UserAccountList, NewUser) == 0) {
+            if (ListAddTail(AccountList, NewUser) == 0) {
                 KernelHeapFree(NewUser);
             }
         }
@@ -505,18 +505,18 @@ BOOL SaveUserDatabase(void) {
         return FALSE;
     }
 
-    LPLIST UserAccountList = GetUserAccountList();
-    if (UserAccountList == NULL) {
+    LPLIST AccountList = GetAccountList();
+    if (AccountList == NULL) {
         DatabaseFree(Database);
         return FALSE;
     }
 
     LockMutex(MUTEX_ACCOUNTS, INFINITY);
 
-    SAFE_USE(UserAccountList) {
-        U32 Count = ListGetSize(UserAccountList);
+    SAFE_USE(AccountList) {
+        U32 Count = ListGetSize(AccountList);
         for (U32 i = 0; i < Count && Database->Count < Database->Capacity; i++) {
-            LPUSER_ACCOUNT User = (LPUSER_ACCOUNT)ListGetItem(UserAccountList, i);
+            LPUSER_ACCOUNT User = (LPUSER_ACCOUNT)ListGetItem(AccountList, i);
 
             SAFE_USE(User) {
                 USER_ACCOUNT PersistentUser = *User;

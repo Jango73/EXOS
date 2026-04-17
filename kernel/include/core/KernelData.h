@@ -193,7 +193,7 @@ void SetKeyboardCode(LPCSTR KeyboardCode);
 void SetLanguageCode(LPCSTR LanguageCode);
 void SetMaximumQuantum(UINT MaximumQuantum);
 void SetMinimumQuantum(UINT MinimumQuantum);
-void SetUserAccountList(LPLIST List);
+void SetAccountList(LPLIST List);
 void SetUserSessionList(LPLIST List);
 
 BOOL GetCPUInformation(LPCPU_INFORMATION);
@@ -241,7 +241,7 @@ LPLIST GetUsbDeviceList(void);
 LPLIST GetUsbInterfaceList(void);
 LPLIST GetUsbEndpointList(void);
 LPLIST GetUsbStorageList(void);
-LPLIST GetUserAccountList(void);
+LPLIST GetAccountList(void);
 LPLIST GetUserSessionList(void);
 void InitializeDriverList(void);
 

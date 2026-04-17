@@ -188,7 +188,7 @@ BOOL ExposeRegisterDefaultScriptHostObjects(LPSCRIPT_CONTEXT Context) {
             Context,
             TEXT("account"),
             SCRIPT_HOST_SYMBOL_ARRAY,
-            GetUserAccountList(),
+            GetAccountList(),
             &AccountArrayDescriptor)) {
         return FALSE;
     }

@@ -280,7 +280,7 @@ static LIST SocketList = {
 
 /************************************************************************/
 
-static LIST UserAccountList = {
+static LIST AccountList = {
     .First = NULL,
     .Last = NULL,
     .Current = NULL,
@@ -314,7 +314,7 @@ static KERNEL_DATA DATA_SECTION Kernel = {
     .TCPConnection = &TCPConnectionList,
     .Socket = &SocketList,
     .UserSessions = NULL,
-    .UserAccount = &UserAccountList,
+    .UserAccount = &AccountList,
     .ActiveDesktop = NULL,
     .FocusedProcess = &KernelProcess,
     .FileSystemInfo = {.ActivePartitionName = ""},
@@ -739,20 +739,20 @@ void SetUserSessionList(LPLIST List) {
 /************************************************************************/
 
 /**
- * @brief Retrieves the user account list.
- * @return Pointer to the user account list.
+ * @brief Retrieves the account list.
+ * @return Pointer to the account list.
  */
-LPLIST GetUserAccountList(void) {
+LPLIST GetAccountList(void) {
     return Kernel.UserAccount;
 }
 
 /************************************************************************/
 
 /**
- * @brief Sets the user account list pointer.
- * @param List Pointer to the user account list.
+ * @brief Sets the account list pointer.
+ * @param List Pointer to the account list.
  */
-void SetUserAccountList(LPLIST List) {
+void SetAccountList(LPLIST List) {
     Kernel.UserAccount = List;
 }
 

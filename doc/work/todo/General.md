@@ -33,7 +33,7 @@
 
 - [x] Implement Executable-Module-Libraries.md
 
-- [ ] Rename UserAccountList -> AccountList
+- [x] Rename UserAccountList -> AccountList
 
 - [ ] Execute Packaging-System-Plan.md : all remaining steps
 - [ ] Execute Universal-Serial-Bus.md : all remaining steps

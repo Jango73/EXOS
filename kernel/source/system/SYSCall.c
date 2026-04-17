@@ -3075,9 +3075,9 @@ UINT SysCall_ListUsers(UINT Parameter) {
         }
 
         ListInfo->UserCount = 0;
-        LPLIST UserAccountList = GetUserAccountList();
+        LPLIST AccountList = GetAccountList();
         LPUSER_ACCOUNT Account =
-            (LPUSER_ACCOUNT)(UserAccountList != NULL ? UserAccountList->First : NULL);
+            (LPUSER_ACCOUNT)(AccountList != NULL ? AccountList->First : NULL);
 
         while (Account != NULL && ListInfo->UserCount < ListInfo->MaxUsers) {
             StringCopy(ListInfo->UserNames[ListInfo->UserCount], Account->UserName);
