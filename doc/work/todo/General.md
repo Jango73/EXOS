@@ -29,6 +29,8 @@
 
 - [x] Rename `VMA_LIBRARY`: it no longer designates the module/library boundary. Re-anchor the naming to its real architectural role and increase process arena reserves significantly, especially for the module arena.
 
+- [x] Make x86-64 high user arenas real: install a high user paging window below `VMA_USER_LIMIT`, allocate missing parent paging structures on demand, and size module/stack arenas in GiB instead of fitting them into the single `TaskRunner` GiB.
+
 - [ ] Implement Executable-Module-Libraries.md
 
 - [ ] Rename UserAccountList -> AccountList

@@ -33,16 +33,16 @@
 
 /************************************************************************/
 
+#ifdef __EXOS_32__
 #define PROCESS_ARENA_SYSTEM_RESERVED N_64MB
 #define PROCESS_ARENA_MMIO_RESERVED N_64MB
-#ifdef __EXOS_32__
 #define PROCESS_ARENA_STACK_RESERVED (N_128MB + N_128MB)
 #define PROCESS_ARENA_MODULE_RESERVED N_1GB
 #else
-// x86-64 user paging prepares the last 1 GiB below VMA_USER_LIMIT for dynamic
-// user mappings. Keep fixed arenas inside that prepared window.
-#define PROCESS_ARENA_STACK_RESERVED N_128MB
-#define PROCESS_ARENA_MODULE_RESERVED (N_128MB + N_128MB + N_128MB + N_128MB + N_128MB + N_128MB)
+#define PROCESS_ARENA_SYSTEM_RESERVED N_1GB
+#define PROCESS_ARENA_MMIO_RESERVED N_1GB
+#define PROCESS_ARENA_STACK_RESERVED (N_1GB * 4)
+#define PROCESS_ARENA_MODULE_RESERVED (N_1GB * 64)
 #endif
 #define PROCESS_ARENA(Process, Id) (&((Process)->AddressSpace.Ranges[(Id)]))
 
