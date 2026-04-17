@@ -66,7 +66,6 @@ static PROFILE_STATS ProfileStats[PROFILE_MAX_STATS];
 static UINT ProfileStatsCount = 0;
 static UINT ProfileSamplesWritten = 0;
 static UINT ProfileSamplesDropped = 0;
-static UINT ProfileSamplesLogged = 0;
 
 /************************************************************************/
 
@@ -142,17 +141,6 @@ static void ProfileRecordSample(LPCSTR Name, UINT DurationTicks)
     }
 
     ProfileSamplesWritten++;
-
-    if (ProfileSamplesLogged < 8)
-    {
-        DEBUG(TEXT("[ProfileRecordSample] name=%s duration=%u ticks=%u written=%u dropped=%u"),
-              Entry->Name,
-              DurationTicks,
-              DurationTicks,
-              ProfileSamplesWritten,
-              ProfileSamplesDropped);
-        ProfileSamplesLogged++;
-    }
 }
 
 /************************************************************************/
@@ -340,7 +328,6 @@ UINT ProfileGetStats(LPPROFILE_QUERY_INFO Info)
         ProfileStatsCount = 0;
         ProfileSamplesWritten = 0;
         ProfileSamplesDropped = 0;
-        ProfileSamplesLogged = 0;
         MemorySet(ProfileStats, 0, sizeof(ProfileStats));
     }
 

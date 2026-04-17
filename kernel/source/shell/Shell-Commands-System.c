@@ -197,6 +197,24 @@ U32 CMD_shutdown(LPSHELLCONTEXT Context) {
 /************************************************************************/
 
 /**
+ * @brief Print one profiling dump line to the console and debug log.
+ * @param Format Line format string.
+ */
+static void PrintProfileDumpLine(LPCSTR Format, ...) {
+    STR Buffer[MAX_STRING_BUFFER];
+    VarArgList Args;
+
+    VarArgStart(Args, Format);
+    StringPrintFormatArgs(Buffer, Format, Args);
+    VarArgEnd(Args);
+
+    ConsolePrint(TEXT("%s\n"), Buffer);
+    DEBUG(TEXT("[CMD_prof] %s"), Buffer);
+}
+
+/************************************************************************/
+
+/**
  * @brief Print one profiling snapshot entry.
  * @param Entry Snapshot entry to print.
  */
@@ -211,8 +229,8 @@ static void PrintProfileEntry(LPPROFILE_ENTRY_INFO Entry) {
         Average = Entry->TotalTicks / Entry->TimedCallCount;
     }
 
-    ConsolePrint(
-        TEXT("%-32s calls=%u timed=%u last=%u us avg=%u us max=%u us total=%u us\n"),
+    PrintProfileDumpLine(
+        TEXT("%-32s calls=%u timed=%u last=%u us avg=%u us max=%u us total=%u us"),
         Entry->Name,
         Entry->CallCount,
         Entry->TimedCallCount,
@@ -257,7 +275,7 @@ U32 CMD_prof(LPSHELLCONTEXT Context) {
     }
 
     if (Query.EntryCount == 0) {
-        ConsolePrint(TEXT("No profiling samples available.\n"));
+        PrintProfileDumpLine(TEXT("No profiling samples available."));
         return DF_RETURN_SUCCESS;
     }
 
@@ -265,12 +283,12 @@ U32 CMD_prof(LPSHELLCONTEXT Context) {
         PrintProfileEntry(&Entries[Index]);
     }
 
-    ConsolePrint(TEXT("entries=%u total_entries=%u samples=%u dropped=%u%s\n"),
-                 Query.EntryCount,
-                 Query.TotalEntryCount,
-                 Query.SampleCount,
-                 Query.DroppedCount,
-                 (Query.Flags & PROFILE_QUERY_FLAG_RESET) != 0 ? TEXT(" reset=yes") : TEXT(""));
+    PrintProfileDumpLine(TEXT("entries=%u total_entries=%u samples=%u dropped=%u%s"),
+                         Query.EntryCount,
+                         Query.TotalEntryCount,
+                         Query.SampleCount,
+                         Query.DroppedCount,
+                         (Query.Flags & PROFILE_QUERY_FLAG_RESET) != 0 ? TEXT(" reset=yes") : TEXT(""));
     return DF_RETURN_SUCCESS;
 }
 
