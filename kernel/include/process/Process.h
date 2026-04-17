@@ -227,8 +227,6 @@ struct tag_WINDOW {
     RECT_REGION DirtyRegion;
     RECT DrawSurfaceRect;
     RECT DrawClipRect;
-    U32 DrawRequestMillis;
-    U32 DrawRequestCursorSequence;
 };
 
 typedef struct tag_WINDOW_CLASS {
@@ -291,7 +289,6 @@ struct tag_DESKTOP {
     LINEAR GraphicsShadowBufferLinear;
     UINT GraphicsShadowBufferSize;
     U32 PendingComponents;          // Pending desktop-owned component injection flags
-    U32 CursorMoveSequence;         // Monotonic cursor move sequence for redraw profiling
     MOUSE_CURSOR Cursor;            // Desktop cursor runtime state
     DESKTOP_DISPLAY_SELECTION DisplaySelection;
 };

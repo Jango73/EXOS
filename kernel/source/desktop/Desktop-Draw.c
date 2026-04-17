@@ -26,7 +26,6 @@
 #include "Desktop.h"
 #include "core/Kernel.h"
 #include "log/Log.h"
-#include "log/Profile.h"
 #include "utils/Graphics-Utils.h"
 
 /***************************************************************************/
@@ -56,23 +55,6 @@ static BOOL DesktopDrawIsShellBarWindow(LPWINDOW Window) {
 static BOOL DesktopDrawIsTestWindow(LPWINDOW Window) {
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
     return (Window->WindowID == DESKTOP_DRAW_TRACE_TEST_WINDOW_ID);
-}
-
-/***************************************************************************/
-
-/**
- * @brief Stop one draw dispatch profile scope and record its window category.
- * @param Window Target window.
- * @param Scope Draw dispatch scope.
- * @param Result Dispatch result to return.
- * @return Result parameter.
- */
-static BOOL StopWindowDrawDispatchProfile(LPWINDOW Window, LPPROFILE_SCOPE Scope, BOOL Result) {
-    UINT DurationMicros;
-
-    DurationMicros = ProfileStopDuration(Scope);
-    DesktopProfileRecordWindowDuration(Window, DESKTOP_PROFILE_WINDOW_DURATION_DRAW_DISPATCH, DurationMicros);
-    return Result;
 }
 
 /***************************************************************************/
@@ -199,10 +181,6 @@ BOOL DesktopGetWindowDrawClipRect(LPWINDOW Window, LPRECT Rect) {
  * @return TRUE when preprocessing succeeded.
  */
 static BOOL DrawWindowSystemChrome(LPWINDOW Window, LPRECT ClipRect) {
-    PROFILE_SCOPE Scope;
-    PROFILE_SCOPE BeginScope;
-    PROFILE_SCOPE NonClientScope;
-    PROFILE_SCOPE EndScope;
     HANDLE GC;
     RECT WindowRect;
     BOOL DrawNonClient;
@@ -216,25 +194,13 @@ static BOOL DrawWindowSystemChrome(LPWINDOW Window, LPRECT ClipRect) {
     if (DrawNonClient == FALSE) return TRUE;
     if (GetWindowFullLocalRect(Window, &WindowRect) == FALSE) return FALSE;
 
-    ProfileStart(&Scope, TEXT("Desktop.SystemChromeDraw"));
-
-    ProfileStart(&BeginScope, TEXT("Desktop.SystemChromeBeginDraw"));
     GC = BeginWindowDraw((HANDLE)Window);
-    ProfileStop(&BeginScope);
-    if (GC == NULL) {
-        ProfileStop(&Scope);
-        return FALSE;
-    }
+    if (GC == NULL) return FALSE;
 
     (void)SetGraphicsContextClipScreenRect(GC, ClipRect);
-    ProfileStart(&NonClientScope, TEXT("Desktop.SystemChromeNonClient"));
     (void)DrawWindowNonClient((HANDLE)Window, GC, &WindowRect);
-    ProfileStop(&NonClientScope);
-    ProfileStart(&EndScope, TEXT("Desktop.SystemChromeEndDraw"));
     (void)EndWindowDraw((HANDLE)Window);
-    ProfileStop(&EndScope);
 
-    ProfileStop(&Scope);
     return TRUE;
 }
 
@@ -253,8 +219,6 @@ static BOOL DispatchPreparedClientDraw(
     LPRECT ClipRect,
     U32 Param1,
     U32 Param2) {
-    PROFILE_SCOPE Scope;
-    UINT DurationMicros;
     RECT SurfaceRect;
     RECT SurfaceScreenRect;
     RECT ClientScreenRect;
@@ -291,10 +255,7 @@ static BOOL DispatchPreparedClientDraw(
     }
 
     ActivateWindowDrawContext(Window, &SurfaceRect, &ClientClipRect, &DrawOrigin, DrawFlags);
-    ProfileStart(&Scope, TEXT("Desktop.ClientDrawCallback"));
     Window->Function(TargetHandle, EWM_DRAW, Param1, Param2);
-    DurationMicros = ProfileStopDuration(&Scope);
-    DesktopProfileRecordWindowDuration(Window, DESKTOP_PROFILE_WINDOW_DURATION_CLIENT_DRAW, DurationMicros);
     ClearWindowDrawContext(Window);
 
     return TRUE;
@@ -311,10 +272,6 @@ static BOOL DispatchPreparedClientDraw(
  * @return TRUE when the dispatch completed.
  */
 BOOL DesktopDispatchWindowDraw(LPWINDOW Window, HANDLE TargetHandle, U32 Param1, U32 Param2) {
-    PROFILE_SCOPE Scope;
-    PROFILE_SCOPE PrepareScope;
-    PROFILE_SCOPE PresentScope;
-    PROFILE_SCOPE OverlayScope;
     RECT ClipStorage[WINDOW_DIRTY_REGION_CAPACITY];
     RECT_REGION ClipRegion;
     RECT ClipRect;
@@ -326,21 +283,14 @@ BOOL DesktopDispatchWindowDraw(LPWINDOW Window, HANDLE TargetHandle, U32 Param1,
     if (GetWindowStateSnapshot(Window, &Snapshot) == FALSE) return FALSE;
     if ((Snapshot.Status & WINDOW_STATUS_VISIBLE) == 0) return TRUE;
 
-    ProfileStart(&Scope, TEXT("Desktop.DrawDispatch"));
-
-    ProfileStart(&PrepareScope, TEXT("Desktop.DrawDispatchPrepare"));
     ClearWindowDrawContext(Window);
 
     if (BuildWindowDrawClipRegion(Window, &ClipRegion, ClipStorage, WINDOW_DIRTY_REGION_CAPACITY) == FALSE) {
-        ProfileStop(&PrepareScope);
-        return StopWindowDrawDispatchProfile(Window, &Scope, FALSE);
+        return FALSE;
     }
 
     ClipCount = RectRegionGetCount(&ClipRegion);
-    ProfileStop(&PrepareScope);
-    if (ClipCount == 0) {
-        return StopWindowDrawDispatchProfile(Window, &Scope, FALSE);
-    }
+    if (ClipCount == 0) return FALSE;
 
     for (ClipIndex = 0; ClipIndex < ClipCount; ClipIndex++) {
         if (RectRegionGetRect(&ClipRegion, ClipIndex, &ClipRect) == FALSE) continue;
@@ -350,28 +300,23 @@ BOOL DesktopDispatchWindowDraw(LPWINDOW Window, HANDLE TargetHandle, U32 Param1,
 
         if (DrawWindowSystemChrome(Window, &ClipRect) == FALSE) {
             ClearWindowDrawContext(Window);
-            return StopWindowDrawDispatchProfile(Window, &Scope, FALSE);
+            return FALSE;
         }
 
         if (DispatchPreparedClientDraw(Window, TargetHandle, &ClipRect, Param1, Param2) == FALSE) {
             ClearWindowDrawContext(Window);
-            return StopWindowDrawDispatchProfile(Window, &Scope, FALSE);
+            return FALSE;
         }
 
-        ProfileStart(&PresentScope, TEXT("Desktop.DrawDispatchPresent"));
         if (DesktopPresentScreenRect(Window, &ClipRect) == FALSE) {
-            ProfileStop(&PresentScope);
             ClearWindowDrawContext(Window);
-            return StopWindowDrawDispatchProfile(Window, &Scope, FALSE);
+            return FALSE;
         }
-        ProfileStop(&PresentScope);
     }
 
-    ProfileStart(&OverlayScope, TEXT("Desktop.DrawDispatchOverlay"));
     DesktopCursorRenderSoftwareOverlayOnWindow(Window);
-    ProfileStop(&OverlayScope);
     ClearWindowDrawContext(Window);
-    return StopWindowDrawDispatchProfile(Window, &Scope, TRUE);
+    return TRUE;
 }
 
 /***************************************************************************/

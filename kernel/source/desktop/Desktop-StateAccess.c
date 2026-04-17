@@ -25,8 +25,6 @@
 #include "Desktop.h"
 #include "text/CoreString.h"
 #include "core/Kernel.h"
-#include "log/Profile.h"
-#include "system/Clock.h"
 
 /***************************************************************************/
 
@@ -130,7 +128,6 @@ BOOL GetWindowStateSnapshot(LPWINDOW Window, LPWINDOW_STATE_SNAPSHOT Snapshot) {
     Snapshot->Status = Window->Status;
     Snapshot->ContentTransparencyHint = Window->ContentTransparencyHint;
     Snapshot->Level = Window->Level;
-    Snapshot->WindowID = Window->WindowID;
     Snapshot->Order = Window->Order;
     Snapshot->ParentWindow = Window->ParentWindow;
     Snapshot->Task = Window->Task;
@@ -793,72 +790,20 @@ BOOL DesktopResolveWindowTarget(LPDESKTOP Desktop, HANDLE Target, LPWINDOW* Wind
 /***************************************************************************/
 
 /**
- * @brief Snapshot the desktop cursor move sequence under owner mutex.
- * @param Desktop Desktop owning the cursor state.
- * @param Sequence Receives cursor move sequence.
- * @return TRUE when the snapshot completed.
- */
-BOOL DesktopGetCursorMoveSequence(LPDESKTOP Desktop, U32* Sequence) {
-    if (Sequence == NULL) return FALSE;
-    *Sequence = 0;
-
-    if (Desktop == NULL || Desktop->TypeID != KOID_DESKTOP) return FALSE;
-
-    LockMutex(&(Desktop->Mutex), INFINITY);
-    *Sequence = Desktop->CursorMoveSequence;
-    UnlockMutex(&(Desktop->Mutex));
-
-    return TRUE;
-}
-
-/***************************************************************************/
-
-/**
  * @brief Mark one window dispatch begin state under owner mutex.
  * @param Window Target window.
  * @param Message Dispatched message.
  * @return TRUE on success.
  */
 BOOL DesktopMarkWindowDispatchBegin(LPWINDOW Window, U32 Message) {
-    LPDESKTOP Desktop;
-    U32 DrawRequestMillis = 0;
-    U32 DrawRequestCursorSequence = 0;
-    U32 CursorMoveSequence = 0;
-    UINT DurationMicros;
-
     if (Window == NULL || Window->TypeID != KOID_WINDOW) return FALSE;
 
     LockMutex(&(Window->Mutex), INFINITY);
     if (Message == EWM_DRAW) {
-        DrawRequestMillis = Window->DrawRequestMillis;
-        DrawRequestCursorSequence = Window->DrawRequestCursorSequence;
-        Window->DrawRequestMillis = 0;
-        Window->DrawRequestCursorSequence = 0;
         Window->Status &= ~WINDOW_STATUS_NEED_DRAW;
         Window->Status |= WINDOW_STATUS_DRAWING;
     }
     UnlockMutex(&(Window->Mutex));
-
-    if (Message == EWM_DRAW && DrawRequestMillis != 0) {
-        DurationMicros = (GetSystemTime() - DrawRequestMillis) * 1000;
-        ProfileRecordDuration(TEXT("Desktop.DrawRequestToDispatch"), DurationMicros);
-        DesktopProfileRecordWindowDuration(Window, DESKTOP_PROFILE_WINDOW_DURATION_DRAW_REQUEST_TO_DISPATCH, DurationMicros);
-
-        Desktop = DesktopGetWindowDesktop(Window);
-        if (DesktopGetCursorMoveSequence(Desktop, &CursorMoveSequence) != FALSE) {
-            if (CursorMoveSequence > DrawRequestCursorSequence) {
-                ProfileCountCall(TEXT("Desktop.DrawRequestStaleAfterCursorMove"));
-                DesktopProfileCountWindowEvent(Window, DESKTOP_PROFILE_WINDOW_EVENT_DRAW_REQUEST_STALE_AFTER_CURSOR_MOVE);
-                DesktopProfileRecordWindowDuration(
-                    Window,
-                    DESKTOP_PROFILE_WINDOW_DURATION_DRAW_REQUEST_AFTER_CURSOR_MOVE,
-                    DurationMicros);
-            } else {
-                ProfileCountCall(TEXT("Desktop.DrawRequestCurrentCursorMove"));
-                DesktopProfileCountWindowEvent(Window, DESKTOP_PROFILE_WINDOW_EVENT_DRAW_REQUEST_CURRENT_CURSOR_MOVE);
-            }
-        }
-    }
 
     return TRUE;
 }

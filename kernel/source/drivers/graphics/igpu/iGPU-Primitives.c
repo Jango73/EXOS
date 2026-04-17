@@ -213,10 +213,6 @@ UINT IntelGfxGetPixel(LPPIXEL_INFO Info) {
 UINT IntelGfxLine(LPLINE_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     RECT Bounds = {0};
-    PROFILE_SCOPE Scope;
-    PROFILE_SCOPE LockScope;
-    PROFILE_SCOPE DrawScope;
-    PROFILE_SCOPE FlushScope;
 
     if (Info == NULL) {
         return 0;
@@ -227,22 +223,12 @@ UINT IntelGfxLine(LPLINE_INFO Info) {
         return 0;
     }
 
-    ProfileStart(&Scope, TEXT("iGPU.Line"));
-    ProfileStart(&LockScope, TEXT("iGPU.LineLock"));
     LockMutex(&(Context->Mutex), INFINITY);
-    ProfileStop(&LockScope);
-
-    ProfileStart(&DrawScope, TEXT("iGPU.LineDraw"));
     IntelGfxDrawLineInternal(Context, Info->X1, Info->Y1, Info->X2, Info->Y2);
-    ProfileStop(&DrawScope);
-
     if (IntelGfxNormalizeFlushBounds(Context, Info->X1, Info->Y1, Info->X2, Info->Y2, &Bounds)) {
-        ProfileStart(&FlushScope, TEXT("iGPU.LineFlush"));
         IntelGfxFlushBoundsToScanout(Context, &Bounds);
-        ProfileStop(&FlushScope);
     }
     UnlockMutex(&(Context->Mutex));
-    ProfileStop(&Scope);
 
     return 1;
 }
@@ -253,8 +239,6 @@ UINT IntelGfxRectangle(LPRECT_INFO Info) {
     LPGRAPHICSCONTEXT Context = NULL;
     RECT Bounds = {0};
     PROFILE_SCOPE Scope;
-    PROFILE_SCOPE LockScope;
-    PROFILE_SCOPE DrawScope;
     PROFILE_SCOPE FlushScope;
 
     if (Info == NULL) {
@@ -267,14 +251,8 @@ UINT IntelGfxRectangle(LPRECT_INFO Info) {
     }
 
     ProfileStart(&Scope, TEXT("iGPU.Rectangle"));
-    ProfileStart(&LockScope, TEXT("iGPU.RectangleLock"));
     LockMutex(&(Context->Mutex), INFINITY);
-    ProfileStop(&LockScope);
-
-    ProfileStart(&DrawScope, TEXT("iGPU.RectangleDraw"));
     IntelGfxDrawRectangleInternal(Context, Info);
-    ProfileStop(&DrawScope);
-
     if (IntelGfxNormalizeFlushBounds(Context, Info->X1, Info->Y1, Info->X2, Info->Y2, &Bounds)) {
         ProfileStart(&FlushScope, TEXT("iGPU.RectangleFlush"));
         IntelGfxFlushBoundsToScanout(Context, &Bounds);

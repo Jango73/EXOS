@@ -30,7 +30,6 @@
 #include "text/CoreString.h"
 #include "core/Kernel.h"
 #include "log/Log.h"
-#include "log/Profile.h"
 #include "Desktop.h"
 #include "input/Mouse.h"
 #include "input/MouseDispatcher.h"
@@ -1282,8 +1281,6 @@ BOOL KernelGetPixel(LPPIXEL_INFO PixelInfo) {
 BOOL Line(LPLINE_INFO LineInfo) {
     LPGRAPHICSCONTEXT Context;
     LINE_INFO Line;
-    PROFILE_SCOPE Scope;
-    PROFILE_SCOPE PathScope;
 
     //-------------------------------------
     // Check validity of parameters
@@ -1302,7 +1299,6 @@ BOOL Line(LPLINE_INFO LineInfo) {
     Line.X2 = Context->Origin.X + Line.X2;
     Line.Y2 = Context->Origin.Y + Line.Y2;
 
-    ProfileStart(&Scope, TEXT("GFX.Line"));
     if ((Context->Flags & GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY) != 0) {
         COLOR LineColor = 0;
         U32 Pattern = MAX_U32;
@@ -1314,17 +1310,11 @@ BOOL Line(LPLINE_INFO LineInfo) {
             Width = Context->Pen->Width != 0 ? Context->Pen->Width : 1;
         }
 
-        ProfileStart(&PathScope, TEXT("GFX.Line.Software"));
         LineRasterizerDraw(Context, Line.X1, Line.Y1, Line.X2, Line.Y2, LineColor, Pattern, Width, DesktopPlotSoftwarePixel);
-        ProfileStop(&PathScope);
-        ProfileStop(&Scope);
         return TRUE;
     }
 
-    ProfileStart(&PathScope, TEXT("GFX.Line.DriverCommand"));
     Context->Driver->Command(DF_GFX_LINE, (UINT)&Line);
-    ProfileStop(&PathScope);
-    ProfileStop(&Scope);
 
     return TRUE;
 }
@@ -1339,8 +1329,6 @@ BOOL Line(LPLINE_INFO LineInfo) {
 BOOL KernelRectangle(LPRECT_INFO RectInfo) {
     LPGRAPHICSCONTEXT Context;
     RECT_INFO RectangleInfo;
-    PROFILE_SCOPE Scope;
-    PROFILE_SCOPE PathScope;
 
     //-------------------------------------
     // Check validity of parameters
@@ -1359,21 +1347,11 @@ BOOL KernelRectangle(LPRECT_INFO RectInfo) {
     RectangleInfo.X2 = Context->Origin.X + RectangleInfo.X2;
     RectangleInfo.Y2 = Context->Origin.Y + RectangleInfo.Y2;
 
-    ProfileStart(&Scope, TEXT("GFX.Rectangle"));
     if ((Context->Flags & GRAPHICS_CONTEXT_FLAG_SOFTWARE_ONLY) != 0) {
-        BOOL Result;
-
-        ProfileStart(&PathScope, TEXT("GFX.Rectangle.Software"));
-        Result = GraphicsDrawRectangleFromDescriptor(Context, &RectangleInfo);
-        ProfileStop(&PathScope);
-        ProfileStop(&Scope);
-        return Result;
+        return GraphicsDrawRectangleFromDescriptor(Context, &RectangleInfo);
     }
 
-    ProfileStart(&PathScope, TEXT("GFX.Rectangle.DriverCommand"));
     Context->Driver->Command(DF_GFX_RECTANGLE, (UINT)&RectangleInfo);
-    ProfileStop(&PathScope);
-    ProfileStop(&Scope);
 
     return TRUE;
 }

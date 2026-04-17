@@ -26,7 +26,6 @@
 #include "DisplaySession.h"
 #include "core/Kernel.h"
 #include "log/Log.h"
-#include "log/Profile.h"
 #include "Desktop.h"
 #include "../desktop/Desktop-Private.h"
 #include "process/Process-Control.h"
@@ -420,15 +419,9 @@ static BOOL FindTaskMessageOffset(
  * @note This function acquires task and message mutexes
  */
 static BOOL AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
-    BOOL IsDrawMessage;
-    UINT QueueDepthAfter = 0;
-    UINT QueueDepthBefore = 0;
-
     if (Task == NULL || Task->TypeID != KOID_TASK || Message == NULL) {
         return FALSE;
     }
-
-    IsDrawMessage = (Message->Message == EWM_DRAW);
 
     if (InterceptProcessControlMessage(Task->OwnerProcess, Message->Message, Message->Param1, Message->Param2)) {
         return TRUE;
@@ -440,15 +433,11 @@ static BOOL AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
 
     LockMutex(&(Task->Mutex), INFINITY);
     LockMutex(&(Task->MessageQueue.Mutex), INFINITY);
-    QueueDepthBefore = MessageQueueBufferGetCount(&(Task->MessageQueue.MessageBuffer));
 
-    if (QueueDepthBefore >= TASK_MESSAGE_QUEUE_MAX_MESSAGES) {
+    if (MessageQueueBufferGetCount(&(Task->MessageQueue.MessageBuffer)) >= TASK_MESSAGE_QUEUE_MAX_MESSAGES) {
         WARNING(TEXT("[AddTaskMessage] Queue full for task %p, dropping message %u"), Task, Message->Message);
         UnlockMutex(&(Task->MessageQueue.Mutex));
         UnlockMutex(&(Task->Mutex));
-        if (IsDrawMessage != FALSE) {
-            ProfileCountCall(TEXT("Desktop.DrawPost.QueueFull"));
-        }
         return FALSE;
     }
 
@@ -456,13 +445,8 @@ static BOOL AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
         WARNING(TEXT("[AddTaskMessage] Could not enqueue message %u for task %p"), Message->Message, Task);
         UnlockMutex(&(Task->MessageQueue.Mutex));
         UnlockMutex(&(Task->Mutex));
-        if (IsDrawMessage != FALSE) {
-            ProfileCountCall(TEXT("Desktop.DrawPost.PushFailed"));
-        }
         return FALSE;
     }
-
-    QueueDepthAfter = MessageQueueBufferGetCount(&(Task->MessageQueue.MessageBuffer));
 
     if (Task->MessageQueue.Waiting && GetTaskStatus(Task) == TASK_STATUS_WAITMESSAGE) {
         Task->MessageQueue.Waiting = FALSE;
@@ -471,12 +455,6 @@ static BOOL AddTaskMessage(LPTASK Task, LPMESSAGE Message) {
 
     UnlockMutex(&(Task->MessageQueue.Mutex));
     UnlockMutex(&(Task->Mutex));
-
-    if (IsDrawMessage != FALSE) {
-        ProfileCountCall(TEXT("Desktop.DrawPost.NewMessage"));
-        ProfileRecordDuration(TEXT("Desktop.DrawPost.QueueDepthBeforeNew"), QueueDepthBefore);
-        ProfileRecordDuration(TEXT("Desktop.DrawPost.QueueDepthAfterNew"), QueueDepthAfter);
-    }
 
     return TRUE;
 }
@@ -760,14 +738,11 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
 
         if ((Msg == EWM_DRAW || Msg == EWM_NOTIFY) && Window != NULL) {
             UINT ExistingOffset = 0;
-            UINT QueueDepthBeforeCoalesce = 0;
-            UINT QueueDepthAfterCoalesce = 0;
             MESSAGE Existing;
             BOOL HasExisting = FALSE;
 
             LockMutex(&(Task->Mutex), INFINITY);
             LockMutex(&(Task->MessageQueue.Mutex), INFINITY);
-            QueueDepthBeforeCoalesce = MessageQueueBufferGetCount(&(Task->MessageQueue.MessageBuffer));
 
             if (Msg == EWM_DRAW) {
                 HasExisting = FindTaskMessageOffset(
@@ -793,17 +768,9 @@ BOOL PostMessage(HANDLE Target, U32 Msg, U32 Param1, U32 Param2) {
                 Existing.Param1 = Param1;
                 Existing.Param2 = Param2;
                 (void)MessageQueueBufferPush(&(Task->MessageQueue.MessageBuffer), &Existing);
-                QueueDepthAfterCoalesce = MessageQueueBufferGetCount(&(Task->MessageQueue.MessageBuffer));
 
                 UnlockMutex(&(Task->MessageQueue.Mutex));
                 UnlockMutex(&(Task->Mutex));
-
-                if (Msg == EWM_DRAW) {
-                    ProfileCountCall(TEXT("Desktop.DrawPost.CoalescedExistingMessage"));
-                    ProfileRecordDuration(TEXT("Desktop.DrawPost.CoalescedExistingOffset"), ExistingOffset);
-                    ProfileRecordDuration(TEXT("Desktop.DrawPost.QueueDepthBeforeCoalesce"), QueueDepthBeforeCoalesce);
-                    ProfileRecordDuration(TEXT("Desktop.DrawPost.QueueDepthAfterCoalesce"), QueueDepthAfterCoalesce);
-                }
 
                 if (GetTaskStatus(Task) == TASK_STATUS_WAITMESSAGE) {
                     SetTaskStatus(Task, TASK_STATUS_RUNNING);

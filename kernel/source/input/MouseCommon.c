@@ -26,9 +26,7 @@
 #include "Arch.h"
 #include "input/MouseDispatcher.h"
 #include "log/Log.h"
-#include "log/Profile.h"
 #include "sync/DeferredWork.h"
-#include "system/Clock.h"
 
 static void MouseCommonDeferredWork(LPVOID Context);
 
@@ -57,7 +55,6 @@ BOOL MouseCommonInitialize(LPMOUSE_COMMON_CONTEXT Context) {
         Context->Packet.DeltaX = 0;
         Context->Packet.DeltaY = 0;
         Context->Packet.Buttons = 0;
-        Context->Packet.QueuedMillis = 0;
         Context->Packet.Pending = FALSE;
 
         if (DeferredWorkTokenIsValid(Context->DeferredWorkToken) == FALSE) {
@@ -89,21 +86,13 @@ BOOL MouseCommonInitialize(LPMOUSE_COMMON_CONTEXT Context) {
  * @param Buttons Button bitmask.
  */
 void MouseCommonQueuePacket(LPMOUSE_COMMON_CONTEXT Context, I32 DeltaX, I32 DeltaY, U32 Buttons) {
-    UINT Flags;
-    U32 Now;
-
     if (Context == NULL) {
         return;
     }
 
-    Now = GetSystemTime();
-
+    UINT Flags;
     SaveFlags(&Flags);
     DisableInterrupts();
-
-    if (Context->Packet.Pending == FALSE) {
-        Context->Packet.QueuedMillis = Now;
-    }
 
     Context->Packet.DeltaX += DeltaX;
     Context->Packet.DeltaY += DeltaY;
@@ -182,20 +171,16 @@ U32 MouseCommonGetButtons(LPMOUSE_COMMON_CONTEXT Context) {
  */
 static void MouseCommonDeferredWork(LPVOID Context) {
     LPMOUSE_COMMON_CONTEXT MouseContext = (LPMOUSE_COMMON_CONTEXT)Context;
-    PROFILE_SCOPE Scope;
-    UINT Flags;
-    U32 QueuedMillis = 0;
+    if (MouseContext == NULL) {
+        return;
+    }
+
     I32 DeltaX = 0;
     I32 DeltaY = 0;
     U32 Buttons = 0;
     BOOL Pending = FALSE;
 
-    if (MouseContext == NULL) {
-        return;
-    }
-
-    ProfileStart(&Scope, TEXT("Mouse.DeferredWork"));
-
+    UINT Flags;
     SaveFlags(&Flags);
     DisableInterrupts();
 
@@ -203,10 +188,8 @@ static void MouseCommonDeferredWork(LPVOID Context) {
         DeltaX = MouseContext->Packet.DeltaX;
         DeltaY = MouseContext->Packet.DeltaY;
         Buttons = MouseContext->Packet.Buttons;
-        QueuedMillis = MouseContext->Packet.QueuedMillis;
         MouseContext->Packet.DeltaX = 0;
         MouseContext->Packet.DeltaY = 0;
-        MouseContext->Packet.QueuedMillis = 0;
         MouseContext->Packet.Pending = FALSE;
         Pending = TRUE;
     }
@@ -214,12 +197,7 @@ static void MouseCommonDeferredWork(LPVOID Context) {
     RestoreFlags(&Flags);
 
     if (Pending == FALSE) {
-        ProfileStop(&Scope);
         return;
-    }
-
-    if (QueuedMillis != 0) {
-        ProfileRecordDuration(TEXT("Mouse.QueueToDeferred"), (GetSystemTime() - QueuedMillis) * 1000);
     }
 
     LockMutex(&(MouseContext->Mutex), INFINITY);
@@ -229,7 +207,6 @@ static void MouseCommonDeferredWork(LPVOID Context) {
     UnlockMutex(&(MouseContext->Mutex));
 
     MouseDispatcherOnInput(DeltaX, DeltaY, Buttons);
-    ProfileStop(&Scope);
 }
 
 /************************************************************************/

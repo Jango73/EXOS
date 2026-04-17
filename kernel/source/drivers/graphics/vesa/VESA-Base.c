@@ -780,8 +780,6 @@ static U32 VESA_GetPixel(LPPIXEL_INFO Info) {
  */
 static U32 VESA_Line(LPLINE_INFO Info) {
     LPVESA_CONTEXT Context;
-    PROFILE_SCOPE Scope;
-    PROFILE_SCOPE DrawScope;
 
     if (Info == NULL) return 0;
 
@@ -793,11 +791,7 @@ static U32 VESA_Line(LPLINE_INFO Info) {
 
     // LockMutex(&(Context->Header.Mutex), INFINITY);
 
-    ProfileStart(&Scope, TEXT("VESA.Line"));
-    ProfileStart(&DrawScope, TEXT("VESA.LineDraw"));
     Context->ModeSpecs.Line(Context, Info->X1, Info->Y1, Info->X2, Info->Y2);
-    ProfileStop(&DrawScope);
-    ProfileStop(&Scope);
 
     // UnlockMutex(&(Context->Header.Mutex));
 
@@ -818,8 +812,6 @@ static U32 VESA_Rectangle(LPRECT_INFO Info) {
     LPVESA_CONTEXT Context;
     static U32 DATA_SECTION VESARectangleDebugCount = 0;
     PROFILE_SCOPE Scope;
-    PROFILE_SCOPE LockScope;
-    PROFILE_SCOPE DrawScope;
 
     if (Info == NULL) return 0;
 
@@ -843,13 +835,8 @@ static U32 VESA_Rectangle(LPRECT_INFO Info) {
     }
 
     ProfileStart(&Scope, TEXT("VESA.Rectangle"));
-    ProfileStart(&LockScope, TEXT("VESA.RectangleLock"));
     LockMutex(&(Context->Header.Mutex), INFINITY);
-    ProfileStop(&LockScope);
-
-    ProfileStart(&DrawScope, TEXT("VESA.RectangleDraw"));
     (void)GraphicsDrawRectangleFromDescriptor((LPGRAPHICSCONTEXT)&(Context->Header), Info);
-    ProfileStop(&DrawScope);
 
     UnlockMutex(&(Context->Header.Mutex));
     ProfileStop(&Scope);

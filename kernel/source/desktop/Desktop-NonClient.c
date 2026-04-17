@@ -30,7 +30,6 @@
 #include "GFX.h"
 #include "core/Kernel.h"
 #include "log/Log.h"
-#include "log/Profile.h"
 #include "utils/Graphics-Utils.h"
 
 /***************************************************************************/
@@ -533,7 +532,6 @@ static BOOL ResolveWindowBorderThickness(U32* ThicknessOut) {
  * @param Rect Target window rectangle in window coordinates.
  */
 static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
-    PROFILE_SCOPE LinesScope;
     U32 TitleHeight = 22;
     COLOR BorderColor = 0;
     LINE_INFO LineInfo;
@@ -571,7 +569,6 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
     if (BorderTopY < Rect->Y1) BorderTopY = Rect->Y1;
     if (BorderTopY > Rect->Y2 + 1) BorderTopY = Rect->Y2 + 1;
 
-    ProfileStart(&LinesScope, TEXT("Desktop.SystemChromeFrameLines"));
     MemorySet(&Pen, 0, sizeof(Pen));
     Pen.TypeID = KOID_PEN;
     Pen.References = 1;
@@ -605,7 +602,6 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
     if (LineInfo.X1 <= LineInfo.X2) (void)Line(&LineInfo);
 
     (void)SelectPen(GC, OldPen);
-    ProfileStop(&LinesScope);
 }
 
 /***************************************************************************/
@@ -618,10 +614,6 @@ static void DrawWindowBorderFromTheme(HANDLE GC, LPRECT Rect) {
  * @return TRUE when title bar was drawn.
  */
 static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
-    PROFILE_SCOPE ThemeScope;
-    PROFILE_SCOPE BackgroundScope;
-    PROFILE_SCOPE ControlsScope;
-    PROFILE_SCOPE TextScope;
     WINDOW_STATE_SNAPSHOT Snapshot;
     LPCSTR TitleState = TEXT("normal");
     HANDLE TitleBrush;
@@ -678,7 +670,9 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
     if (InnerX1 > InnerX2 || InnerY1 > Rect->Y2) return FALSE;
     InnerY2 = TitleRect.Y2;
 
-    ProfileStart(&ThemeScope, TEXT("Desktop.SystemChromeTitleBarTheme"));
+    SAFE_USE_VALID_ID((LPWINDOW)Window, KOID_WINDOW) {
+    }
+
     if (!DesktopThemeResolveLevel1Color(TEXT("window.titlebar"), TitleState, TEXT("background"), &Background)) {
         if (StringCompareNC(TitleState, TEXT("focused")) == 0) {
             if (!DesktopThemeResolveTokenColorByName(TEXT("color.window.title.focused.start"), &Background)) {
@@ -707,15 +701,6 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
         }
     }
 
-    if (!DesktopThemeResolveLevel1Color(TEXT("window.border"), TEXT("normal"), TEXT("border_color"), &SeparatorColor)) {
-        HANDLE Pen = GetSystemPen(SM_COLOR_DARK_SHADOW);
-        SAFE_USE_VALID_ID((LPPEN)Pen, KOID_PEN) {
-            SeparatorColor = ((LPPEN)Pen)->Color;
-        }
-    }
-    ProfileStop(&ThemeScope);
-
-    ProfileStart(&BackgroundScope, TEXT("Desktop.SystemChromeTitleBarBlit"));
     if (Background != 0 || Background2 != 0) {
         if (Background2 != 0 && Background2 != Background) {
             (void)DrawVerticalGradientRect(GC, InnerX1, InnerY1, InnerX2, InnerY2, Background, Background2, CornerStyle, CornerRadius);
@@ -724,13 +709,18 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
         }
     }
 
+    if (!DesktopThemeResolveLevel1Color(TEXT("window.border"), TEXT("normal"), TEXT("border_color"), &SeparatorColor)) {
+        HANDLE Pen = GetSystemPen(SM_COLOR_DARK_SHADOW);
+        SAFE_USE_VALID_ID((LPPEN)Pen, KOID_PEN) {
+            SeparatorColor = ((LPPEN)Pen)->Color;
+        }
+    }
+
     BottomLineY = InnerY2;
     if (BottomLineY >= Rect->Y1 && BottomLineY <= Rect->Y2) {
         (void)DrawSolidRect(GC, InnerX1, BottomLineY, InnerX2, BottomLineY, SeparatorColor, RECT_CORNER_STYLE_SQUARE, 0);
     }
-    ProfileStop(&BackgroundScope);
 
-    ProfileStart(&ControlsScope, TEXT("Desktop.SystemChromeControls"));
     if (ResolveVisibleWindowTitleBarButtons(Snapshot.Style, &TitleRect, ButtonRects, ButtonMessages, &ButtonCount) != FALSE) {
         for (ButtonIndex = 0; ButtonIndex < ButtonCount; ButtonIndex++) {
             const DESKTOP_TITLE_BAR_BUTTON_SPEC* Spec;
@@ -742,11 +732,9 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
             (void)DrawWindowTitleBarButton(Window, GC, &ButtonRects[ButtonIndex], Spec, ButtonState, TextColor);
         }
     }
-    ProfileStop(&ControlsScope);
 
     if (StringLength(Snapshot.Caption) == 0) return TRUE;
 
-    ProfileStart(&TextScope, TEXT("Desktop.SystemChromeTitleText"));
     if (!DesktopThemeResolveLevel1Color(TEXT("window.titlebar"), TitleState, TEXT("text_color"), &TextColor)) {
         TitlePen = GetSystemPen(SM_COLOR_TITLE_TEXT);
         SAFE_USE_VALID_ID((LPPEN)TitlePen, KOID_PEN) {
@@ -796,7 +784,6 @@ static BOOL DrawWindowTitleBarFromTheme(HANDLE Window, HANDLE GC, LPRECT Rect) {
     (void)SelectBrush(GC, OldBrush);
     (void)SelectPen(GC, OldPen);
 
-    ProfileStop(&TextScope);
     return TRUE;
 }
 
@@ -974,20 +961,20 @@ BOOL GetWindowClientRect(HANDLE Handle, LPRECT ClientRect) {
  * @return TRUE when drawing was performed.
  */
 BOOL DrawWindowNonClient(HANDLE Window, HANDLE GC, LPRECT Rect) {
-    PROFILE_SCOPE TitleBarScope;
-    PROFILE_SCOPE FrameScope;
+    LPWINDOW This = (LPWINDOW)Window;
 
     if (Window == NULL) return FALSE;
     if (GC == NULL) return FALSE;
     if (Rect == NULL) return FALSE;
 
-    ProfileStart(&TitleBarScope, TEXT("Desktop.SystemChromeTitleBar"));
-    (void)DrawWindowTitleBarFromTheme(Window, GC, Rect);
-    ProfileStop(&TitleBarScope);
+    SAFE_USE_VALID_ID(This, KOID_WINDOW) {
+        if (This->WindowID == DESKTOP_NON_CLIENT_TRACE_SHELLBAR_WINDOW_ID ||
+            This->WindowID == DESKTOP_NON_CLIENT_TRACE_TEST_WINDOW_ID) {
+        }
+    }
 
-    ProfileStart(&FrameScope, TEXT("Desktop.SystemChromeFrame"));
+    (void)DrawWindowTitleBarFromTheme(Window, GC, Rect);
     DrawWindowBorderFromTheme(GC, Rect);
-    ProfileStop(&FrameScope);
 
     return TRUE;
 }
