@@ -35,8 +35,10 @@
 
 - [x] Rename UserAccountList -> AccountList
 
-- [ ] Execute Packaging-System-Plan.md : all remaining steps
+- [ ] Make all autotests pass
+
 - [ ] Execute Universal-Serial-Bus.md : all remaining steps
+- [ ] Execute Packaging-System-Plan.md : all remaining steps
 - [ ] Execute Network.md : all remaining steps
 - [ ] Execute iGPU.md : Step 11
 
