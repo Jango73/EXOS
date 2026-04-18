@@ -39,8 +39,8 @@ static void ScriptFinalizeNumberToken(LPSCRIPT_TOKEN Token) {
     UINT Index = 0;
     BOOL HasDecimalPoint = FALSE;
     INT IntegerPart = 0;
-    F32 FloatValue = 0.0f;
-    F32 FractionScale = 0.1f;
+    INT FractionPart = 0;
+    INT FractionScale = 1;
 
     if (Token == NULL) {
         return;
@@ -62,8 +62,8 @@ static void ScriptFinalizeNumberToken(LPSCRIPT_TOKEN Token) {
         if (!HasDecimalPoint) {
             IntegerPart = (IntegerPart * 10) + (INT)(Character - '0');
         } else {
-            FloatValue += (F32)(Character - '0') * FractionScale;
-            FractionScale /= 10.0f;
+            FractionPart = (FractionPart * 10) + (INT)(Character - '0');
+            FractionScale *= 10;
         }
 
         Index++;
@@ -78,7 +78,7 @@ static void ScriptFinalizeNumberToken(LPSCRIPT_TOKEN Token) {
 
     Token->IsInteger = FALSE;
     Token->IntegerValue = IntegerPart;
-    Token->FloatValue += (F32)IntegerPart;
+    Token->FloatValue = (F32)IntegerPart + ((F32)FractionPart / (F32)FractionScale);
 }
 
 /************************************************************************/

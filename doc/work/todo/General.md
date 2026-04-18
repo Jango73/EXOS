@@ -35,7 +35,7 @@
 
 - [x] Rename UserAccountList -> AccountList
 
-- [ ] Make all autotests pass
+- [x] Make all autotests pass
 
 - [ ] Execute Universal-Serial-Bus.md : all remaining steps
 - [ ] Execute Packaging-System-Plan.md : all remaining steps

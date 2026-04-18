@@ -572,6 +572,14 @@ SCRIPT_VALUE ScriptEvaluateExpression(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, S
                 return Result;
             }
 
+            if (Variable->Type == SCRIPT_VAR_ARRAY) {
+                Result.Type = SCRIPT_VAR_ARRAY;
+                Result.Value.Array = Variable->Value.Array;
+                Result.ContextOwner = Parser->Context;
+                Result.OwnsValue = FALSE;
+                return Result;
+            }
+
             if (Error) {
                 *Error = SCRIPT_ERROR_TYPE_MISMATCH;
             }
@@ -1034,6 +1042,31 @@ SCRIPT_VALUE ScriptEvaluateArrayAccess(LPSCRIPT_PARSER Parser, LPAST_NODE Expr, 
         }
 
         return HostValue;
+    }
+
+    if (BaseValue.Type == SCRIPT_VAR_ARRAY && BaseValue.Value.Array != NULL) {
+        SCRIPT_VAR_TYPE ElementType;
+        SCRIPT_VAR_VALUE ElementValue;
+        SCRIPT_ERROR ArrayError = ScriptArrayGet(
+            BaseValue.Value.Array,
+            (U32)IndexNumeric,
+            &ElementType,
+            &ElementValue);
+
+        ScriptValueRelease(&BaseValue);
+
+        if (ArrayError != SCRIPT_OK) {
+            if (Error) {
+                *Error = ArrayError;
+            }
+            return Result;
+        }
+
+        Result.Type = ElementType;
+        Result.Value = ElementValue;
+        Result.ContextOwner = Parser->Context;
+        Result.OwnsValue = FALSE;
+        return Result;
     }
 
     ScriptValueRelease(&BaseValue);
