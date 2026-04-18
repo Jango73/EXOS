@@ -50,12 +50,12 @@
 ### Naming
 
 - [x] Make all script exposed function camelCase instead of snake_case.
+- [ ] Add a comment for every member of every structure in Process.h
 
 ### Clock
 
 - [ ] Record boot date-time and expose time values to script in shell : boot datetime, current datetime
 - [ ] Make GetSystemTime return an incremented SystemUpTime value before the clock interrupt really ticks
-- [ ] Add a comment for every member of every structure in Process.h
 
 ### Scheduling
 
