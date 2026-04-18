@@ -379,6 +379,8 @@ IRQ 0 └── trap lands in interrupt-a.asm : Interrupt_Clock
     └── calls Scheduler to check if it's time to switch to another task
         └── Scheduler switches page directory if needed and returns the next task's context
 
+`GetSystemTime()` normally returns the millisecond counter maintained by `ClockHandler`. After interrupts are enabled, but before IRQ 0 increments that counter, the clock returns synthetic 10 ms steps so boot log entries in that gap do not all carry the same timestamp. The first `ClockHandler` invocation folds that pre-interrupt value into `SystemUpTime` so timestamps do not move backward when the real IRQ-driven counter starts; scheduler time and local date-time remain driven by real clock interrupts.
+
 `Sleep` relies on scheduler wake-up timestamps only after the first `EnableInterrupts` call is executed. Before this point, `Sleep` uses a calibrated busy-wait loop (derived from CPU base frequency) so early-boot delays do not depend on `GetSystemTime` progression.
 
 Fields that are read or written by the scheduler from ISR context are isolated in dedicated structures instead of sharing the general task/process state:

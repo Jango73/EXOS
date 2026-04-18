@@ -55,7 +55,7 @@
 ### Clock
 
 - [x] Record boot date-time and expose time values to script in shell : boot datetime, current datetime
-- [ ] Make GetSystemTime return an incremented SystemUpTime value before the clock interrupt really ticks
+- [x] Make GetSystemTime return an incremented SystemUpTime value before the clock interrupt really ticks
 
 ### Scheduling
 
