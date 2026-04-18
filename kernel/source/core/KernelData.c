@@ -351,6 +351,7 @@ static KERNEL_DATA DATA_SECTION Kernel = {
     .DeferredWorkPollDelayMS = DEFERRED_WORK_POLL_DELAY_MS,
     .DoLogin = 0,
     .ShowDesktop = 0,
+    .BootTime = {0},
     .Debug = {
         .UseDeadlockMonitor = 0,
         .WindowPipelineTraceEnabled = 0
@@ -907,6 +908,19 @@ BOOL GetWindowPipelineTraceEnabled(void) {
 /************************************************************************/
 
 /**
+ * @brief Retrieves the recorded local boot date-time.
+ * @param Time Destination date-time structure.
+ * @return TRUE on success.
+ */
+BOOL GetKernelBootTime(LPDATETIME Time) {
+    if (Time == NULL) return FALSE;
+    *Time = Kernel.BootTime;
+    return TRUE;
+}
+
+/************************************************************************/
+
+/**
  * @brief Sets the deadlock monitor usage flag.
  * @param Enabled TRUE to enable mutex deadlock diagnostics hooks, FALSE to disable.
  */
@@ -942,6 +956,17 @@ void SetShowDesktop(BOOL ShowDesktop) {
  */
 void SetWindowPipelineTraceEnabled(BOOL Enabled) {
     Kernel.Debug.WindowPipelineTraceEnabled = Enabled;
+}
+
+/************************************************************************/
+
+/**
+ * @brief Stores the local boot date-time.
+ * @param Time Source date-time structure.
+ */
+void SetKernelBootTime(LPDATETIME Time) {
+    if (Time == NULL) return;
+    Kernel.BootTime = *Time;
 }
 
 /************************************************************************/

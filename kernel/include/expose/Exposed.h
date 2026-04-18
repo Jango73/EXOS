@@ -424,6 +424,25 @@ SCRIPT_HOST_HANDLE GetGraphicsRootHandle(void);
 
 /************************************************************************/
 
+SCRIPT_ERROR ClockGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+SCRIPT_ERROR ClockDateTimeGetProperty(
+    LPVOID Context,
+    SCRIPT_HOST_HANDLE Parent,
+    LPCSTR Property,
+    LPSCRIPT_VALUE OutValue);
+
+extern const SCRIPT_HOST_DESCRIPTOR ClockDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR ClockBootDateTimeDescriptor;
+extern const SCRIPT_HOST_DESCRIPTOR ClockCurrentDateTimeDescriptor;
+SCRIPT_HOST_HANDLE GetClockRootHandle(void);
+
+/************************************************************************/
+
 SCRIPT_ERROR StorageGetProperty(
     LPVOID Context,
     SCRIPT_HOST_HANDLE Parent,

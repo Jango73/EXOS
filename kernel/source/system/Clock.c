@@ -27,6 +27,7 @@
 #include "Arch.h"
 #include "drivers/interrupts/InterruptController.h"
 #include "core/Kernel.h"
+#include "core/KernelData.h"
 #include "log/Log.h"
 #include "process/Schedule.h"
 #include "text/CoreString.h"
@@ -139,6 +140,7 @@ void InitializeClock(void) {
 
     EnableInterrupt(0);
     InitializeLocalTime();
+    SetKernelBootTime(&CurrentTime);
 }
 
 /************************************************************************/
@@ -298,6 +300,17 @@ void MilliSecondsToHMS(UINT MilliSeconds, LPSTR Text) {
     if (S < 10) StringConcat(Text, Text_0);
     U32ToString((U32)S, Temp);
     StringConcat(Text, Temp);
+}
+
+/************************************************************************/
+
+/**
+ * @brief Retrieve the recorded boot local time.
+ * @param Time Destination structure for the boot time.
+ * @return TRUE on success.
+ */
+BOOL GetBootLocalTime(LPDATETIME Time) {
+    return GetKernelBootTime(Time);
 }
 
 /************************************************************************/

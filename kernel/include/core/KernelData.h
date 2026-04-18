@@ -172,6 +172,7 @@ typedef struct tag_KERNEL_DATA {
     UINT DeferredWorkPollDelayMS;   // Polling delay for deferred work dispatcher in milliseconds
     BOOL DoLogin;                   // Enable/disable login sequence (TRUE=enable, FALSE=disable)
     BOOL ShowDesktop;               // Enable/disable automatic desktop activation (TRUE=enable, FALSE=disable)
+    DATETIME BootTime;              // Local date-time recorded during clock initialization
     KERNEL_DEBUG_STATE Debug;
     STR LanguageCode[8];
     STR KeyboardCode[8];
@@ -189,6 +190,7 @@ void SetShowDesktop(BOOL ShowDesktop);
 void SetWindowPipelineTraceEnabled(BOOL Enabled);
 void SetActiveDesktop(LPDESKTOP Desktop);
 void SetFocusedProcess(LPPROCESS Process);
+void SetKernelBootTime(LPDATETIME Time);
 void SetKeyboardCode(LPCSTR KeyboardCode);
 void SetLanguageCode(LPCSTR LanguageCode);
 void SetMaximumQuantum(UINT MaximumQuantum);
@@ -206,6 +208,7 @@ LPLIST GetDiskList(void);
 BOOL GetDoLogin(void);
 BOOL GetShowDesktop(void);
 BOOL GetWindowPipelineTraceEnabled(void);
+BOOL GetKernelBootTime(LPDATETIME Time);
 LPDRIVER GetDefaultFileSystemDriver(void);
 LPDISPLAY_SESSION GetDisplaySession(void);
 LPLIST GetDriverList(void);

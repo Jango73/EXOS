@@ -105,6 +105,15 @@ BOOL ExposeRegisterDefaultScriptHostObjects(LPSCRIPT_CONTEXT Context) {
 
     if (!ExposeRegisterDefaultHostSymbol(
             Context,
+            TEXT("clock"),
+            SCRIPT_HOST_SYMBOL_OBJECT,
+            GetClockRootHandle(),
+            &ClockDescriptor)) {
+        return FALSE;
+    }
+
+    if (!ExposeRegisterDefaultHostSymbol(
+            Context,
             TEXT("storage"),
             SCRIPT_HOST_SYMBOL_ARRAY,
             GetDiskList(),

@@ -718,6 +718,11 @@ All reusable helpers -such as the command line editor, adaptive delay, string co
     - `graphics.mode.width`: active mode width.
     - `graphics.mode.height`: active mode height.
     - `graphics.mode.bpp`: active mode bit depth.
+- `clock`: Clock exposure root. Permissions: anyone.
+  - `clock.uptime_ms`: milliseconds since clock initialization.
+  - `clock.boot_datetime`: local date-time captured during clock initialization.
+  - `clock.current_datetime`: local date-time maintained by the clock tick.
+  - Date-time objects expose `year`, `month`, `day`, `hour`, `minute`, `second`, and `milli`.
 - `memory_map`: Kernel address-space exposure root. Permissions: anyone.
   - `memory_map.kernel_region`: kernel memory region list root.
     - `memory_map.kernel_region.count`: number of kernel memory regions.
@@ -1788,6 +1793,7 @@ The shell registers host symbols with `ScriptRegisterHostSymbol()` during contex
 - `task`
 - `driver`
 - `graphics`
+- `clock`
 - `storage`
 - `file_system`
 - `memory_map`
