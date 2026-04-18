@@ -50,7 +50,7 @@
 ### Naming
 
 - [x] Make all script exposed function camelCase instead of snake_case.
-- [ ] Add a comment for every member of every structure in Process.h
+- [x] Add a comment for every member of every structure in Process.h
 
 ### Clock
 
